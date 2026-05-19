@@ -1,0 +1,21 @@
+<div class="page">
+  <rt-page-header eyebrow="Compras" title="Lista da semana"
+    subtitle="4 itens · estimativa R$ 89,40" />
+  <div class="g">
+    <rt-panel title="Lista atual">
+      @for (c of compras; track c.id; let last = $last) {
+        <div class="row" [class.last]="last">
+          <div class="check" [class.done]="c.done">
+            @if (c.done) { <rt-icon name="check" [size]="11" color="#fff" [strokeWidth]="3"/> }
+          </div>
+          <div class="flex">
+            <div class="name" [class.strike]="c.done" [class.muted]="c.done">{{ c.name }}</div>
+          </div>
+          <div class="qty mono">{{ c.qty }}</div>
+          <div class="cat">{{ c.cat }}</div>
+        </div>
+      }
+    </rt-panel>
+    <rt-panel title="Recorrentes & sugestões"><rt-recurring-list /></rt-panel>
+  </div>
+</div>

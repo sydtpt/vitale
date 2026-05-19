@@ -1,0 +1,10 @@
+.top { display: flex; align-items: center; gap: 14px; }
+.legend { flex: 1; }
+.row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.dot { width: 8px; height: 8px; border-radius: 2px; }
+.flex { flex: 1; }
+.lbl { font-size: 13px; font-weight: 600; }
+.sub { font-size: 11px; color: var(--ink-3); }
+.cur { font-size: 13px; font-weight: 600; }
+.footer { margin-top: 14px; padding: 12px 14px; background: var(--surface-warm); border-radius: 12px; font-size: 13px; color: var(--ink-2); }
+.footer b { color: var(--ink); }

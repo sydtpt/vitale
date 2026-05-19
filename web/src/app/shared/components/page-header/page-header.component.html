@@ -1,0 +1,10 @@
+<div class="hdr">
+  <div>
+    <div class="eyebrow">{{ eyebrow }}</div>
+    <h1 class="serif">{{ title }}</h1>
+    @if (subtitle) { <div class="sub">{{ subtitle }}</div> }
+  </div>
+  <div class="actions">
+    <ng-content />
+  </div>
+</div>

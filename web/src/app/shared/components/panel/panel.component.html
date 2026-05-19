@@ -1,0 +1,9 @@
+<div class="panel" [style.padding.px]="pad">
+  @if (title) {
+    <div class="hdr">
+      <h3>{{ title }}</h3>
+      <ng-content select="[panel-right]" />
+    </div>
+  }
+  <ng-content />
+</div>

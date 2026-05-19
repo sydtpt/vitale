@@ -1,0 +1,32 @@
+<div>
+  <div class="top">
+    <svg width="160" height="160" viewBox="0 0 160 160">
+      <circle cx="80" cy="80" r="68" fill="none" stroke="#F25C2B22" stroke-width="10"/>
+      <circle cx="80" cy="80" r="68" fill="none" stroke="#F25C2B" stroke-width="10"
+              [attr.stroke-dasharray]="dash(72, 68)" stroke-linecap="round" transform="rotate(-90 80 80)"/>
+      <circle cx="80" cy="80" r="54" fill="none" stroke="#F5B94622" stroke-width="10"/>
+      <circle cx="80" cy="80" r="54" fill="none" stroke="#F5B946" stroke-width="10"
+              [attr.stroke-dasharray]="dash(64, 54)" stroke-linecap="round" transform="rotate(-90 80 80)"/>
+      <circle cx="80" cy="80" r="40" fill="none" stroke="#6FA86A22" stroke-width="10"/>
+      <circle cx="80" cy="80" r="40" fill="none" stroke="#6FA86A" stroke-width="10"
+              [attr.stroke-dasharray]="dash(50, 40)" stroke-linecap="round" transform="rotate(-90 80 80)"/>
+      <text x="80" y="78" text-anchor="middle" font-family="Instrument Serif, serif" font-size="38" fill="#1F1B16">72</text>
+      <text x="80" y="96" text-anchor="middle" font-size="10" letter-spacing="1" font-weight="600" fill="#9C928A">HOJE</text>
+    </svg>
+    <div class="legend">
+      @for (r of rows; track r.label) {
+        <div class="row">
+          <span class="dot" [style.background]="r.color"></span>
+          <div class="flex">
+            <div class="lbl">{{ r.label }}</div>
+            <div class="sub">{{ r.sub }}</div>
+          </div>
+          <div class="cur mono">{{ r.cur }}</div>
+        </div>
+      }
+    </div>
+  </div>
+  <div class="footer">
+    Falta o <b>treino de pernas (18h)</b> e mais <b>3 copos de água</b> para fechar o dia em 90+.
+  </div>
+</div>

@@ -1,0 +1,21 @@
+<div>
+  <div class="stack">
+    @for (c of cats; track c.cat) {
+      <div class="seg" [style.flex]="c.amount" [style.background]="c.color" [attr.title]="c.cat"></div>
+    }
+  </div>
+  <div class="rows">
+    @for (c of cats; track c.cat) {
+      <div class="row">
+        <div class="ico" [style.background]="c.color + '22'" [style.color]="c.color">
+          <rt-icon [name]="c.icon" [size]="14" [strokeWidth]="2"/>
+        </div>
+        <div class="flex">
+          <div class="name">{{ c.cat }}</div>
+          <div class="pct">{{ percent(c.amount) }}% do total</div>
+        </div>
+        <div class="amt mono">R$ {{ c.amount }}</div>
+      </div>
+    }
+  </div>
+</div>

@@ -1,0 +1,18 @@
+<div>
+  <div class="hdr" [style.grid-template-columns]="gridCols">
+    <div></div>
+    @for (d of week; track d) { <div class="dlabel">{{ d }}</div> }
+  </div>
+  @for (row of rows; track row[0]) {
+    <div class="row" [style.grid-template-columns]="gridCols">
+      <div class="rowlabel" [style.font-size.px]="compact ? 11 : 13">{{ row[0] }}</div>
+      @for (v of row[1]; track $index) {
+        <div class="cell"
+             [style.height.px]="compact ? 22 : 36"
+             [style.background]="cellColor(v)"
+             [class.today]="$index === todayIdx"
+             [class.future]="$index > todayIdx"></div>
+      }
+    </div>
+  }
+</div>

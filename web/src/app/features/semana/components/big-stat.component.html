@@ -1,0 +1,19 @@
+<div class="card">
+  <div class="top">
+    <div class="ico" [style.background]="color + '22'" [style.color]="color">
+      <rt-icon [name]="icon" [size]="17" [strokeWidth]="2"/>
+    </div>
+    @if (delta) {
+      <div class="delta" [style.color]="deltaPos ? '#6FA86A' : '#E26A8A'">
+        <rt-icon [name]="deltaPos ? 'arrow-u' : 'arrow-d'" [size]="11" [strokeWidth]="2.4"/>
+        {{ delta }}
+      </div>
+    }
+  </div>
+  <div class="label">{{ label }}</div>
+  <div class="row mono">
+    <span class="val">{{ value }}</span>
+    @if (suffix) { <span class="suf">{{ suffix }}</span> }
+  </div>
+  <div class="sub">{{ sub }}</div>
+</div>

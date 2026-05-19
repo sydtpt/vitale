@@ -1,0 +1,8 @@
+.cb {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1.6px solid var(--ink-4); background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background 0.15s, border-color 0.15s;
+}
+.cb.small { width: 22px; height: 22px; }
+.cb.checked { background: var(--primary); border-color: var(--primary); }

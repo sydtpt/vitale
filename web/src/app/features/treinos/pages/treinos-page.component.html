@@ -1,0 +1,33 @@
+<div class="page">
+  <rt-page-header eyebrow="Treinos" title="Cargas & cardio"
+    subtitle="6 semanas de progressão · próximo: pernas hoje" />
+  <div class="g1">
+    <rt-panel title="Cargas — últimas 6 semanas"><rt-lifts-chart /></rt-panel>
+    <rt-panel title="Volume de corrida (km / semana)"><rt-runs-chart /></rt-panel>
+  </div>
+  <div class="g2">
+    <rt-panel title="Próximos treinos">
+      <div class="week">
+        @for (t of treinos; track t.day; let i = $index) {
+          <div class="cell" [class.today]="i === today" [class.rest]="t.rest">
+            <div class="top">
+              <div>
+                <div class="d">{{ t.day }}</div>
+                <div class="n mono">{{ t.date }}</div>
+              </div>
+              @if (t.done) {
+                <rt-icon name="check" [size]="16" [color]="i === today ? '#fff' : '#6FA86A'" [strokeWidth]="2.4"/>
+              }
+            </div>
+            <div class="type">{{ t.type }}</div>
+            <div class="meta">
+              @if (t.rest) { — }
+              @else if (t.run) { {{ t.run.dist }}km · {{ t.run.pace }} }
+              @else { {{ t.dur }}min · {{ t.vol > 0 ? t.vol + 'kg' : '—' }} }
+            </div>
+          </div>
+        }
+      </div>
+    </rt-panel>
+  </div>
+</div>

@@ -1,0 +1,14 @@
+<div>
+  @for (m of items; track m.name; let last = $last) {
+    <div class="row" [class.last]="last" [class.compact]="compact">
+      <div class="hdr">
+        <div>
+          <div class="name">{{ m.name }}</div>
+          <div class="meta">{{ m.cat }} · meta: {{ m.target }} · atual: {{ m.current }}</div>
+        </div>
+        <div class="pct mono">{{ m.progress }}%</div>
+      </div>
+      <div class="track"><div class="fill" [style.width.%]="m.progress"></div></div>
+    </div>
+  }
+</div>

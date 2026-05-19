@@ -1,0 +1,12 @@
+<div>
+  @for (t of items; track t.name; let last = $last) {
+    <div class="row" [class.last]="last">
+      <div class="ico"><rt-icon name="broom" [size]="14" [strokeWidth]="2"/></div>
+      <div class="flex">
+        <div class="name">{{ t.name }}</div>
+        <div class="meta">{{ t.every }}</div>
+      </div>
+      <div class="when">{{ t.when }}</div>
+    </div>
+  }
+</div>

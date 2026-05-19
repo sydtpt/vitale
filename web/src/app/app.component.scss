@@ -1,0 +1,12 @@
+.shell {
+  display: flex;
+  height: 100vh;
+  background: var(--bg-web);
+  font-family: 'Geist', system-ui, sans-serif;
+  color: var(--ink);
+}
+
+.main {
+  flex: 1;
+  overflow: auto;
+}

@@ -1,0 +1,20 @@
+<div class="page">
+  <rt-page-header eyebrow="Finanças" title="R$ 1.864 gastos em maio"
+    subtitle="58% do orçamento · 8 dias até o próximo mês" />
+  <div class="g">
+    <rt-panel title="Gastos por categoria"><rt-spend-by-category /></rt-panel>
+    <rt-panel title="Lançamentos recentes">
+      <div>
+        @for (t of recent; track t.id; let last = $last) {
+          <div class="t-row" [class.last]="last">
+            <div class="flex">
+              <div class="name">{{ t.name }}</div>
+              <div class="meta">{{ t.cat }} · {{ t.date }}</div>
+            </div>
+            <div class="amt mono">{{ formatAmount(t.amount) }}</div>
+          </div>
+        }
+      </div>
+    </rt-panel>
+  </div>
+</div>

@@ -1,0 +1,12 @@
+.top { display: flex; align-items: center; gap: 16px; }
+.bars { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.lbl { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.name { font-weight: 500; }
+.vals { color: var(--ink-2); }
+.vals .g { color: var(--ink-3); }
+.track { height: 8px; background: var(--surface-mute); border-radius: 4px; overflow: hidden; }
+.fill { height: 100%; border-radius: 4px; }
+.days { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.day { text-align: center; }
+.dn { font-size: 10px; color: var(--ink-3); font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+.kcal { font-size: 14px; font-weight: 600; margin-top: 2px; }

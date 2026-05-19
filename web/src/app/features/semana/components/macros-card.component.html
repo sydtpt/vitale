@@ -1,0 +1,32 @@
+<div>
+  <div class="top">
+    <svg width="120" height="120" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="46" fill="none" stroke="#F6ECDC" stroke-width="14"/>
+      <circle cx="60" cy="60" r="46" fill="none" stroke="#F25C2B" stroke-width="14"
+              [attr.stroke-dasharray]="kcalDash" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+      <text x="60" y="58" text-anchor="middle" font-family="Instrument Serif, serif" font-size="28" fill="#1F1B16">2.041</text>
+      <text x="60" y="74" text-anchor="middle" font-size="10" letter-spacing="0.8" font-weight="600" fill="#9C928A">KCAL MÉDIO</text>
+    </svg>
+    <div class="bars">
+      @for (m of macros; track m.label) {
+        <div>
+          <div class="lbl">
+            <span class="name">{{ m.label }}</span>
+            <span class="vals mono">{{ m.cur }}<span class="g"> / {{ m.goal }}{{ m.unit }}</span></span>
+          </div>
+          <div class="track">
+            <div class="fill" [style.width.%]="(m.cur / m.goal) * 100" [style.background]="m.color"></div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+  <div class="days">
+    @for (d of dailySeries; track d.d) {
+      <div class="day">
+        <div class="dn">{{ d.d }}</div>
+        <div class="kcal mono">{{ d.kcal }}</div>
+      </div>
+    }
+  </div>
+</div>
