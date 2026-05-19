@@ -1,8 +1,8 @@
 /**
- * Rotina — Mock Data
+ * Vitale — Mock Data
  * Seeded data for the prototype. Replace with real API calls later.
  */
-import type { Meal, Habit, Chore, ShopItem, Treino, Lift, RunWeek, FinancaCategory, Transaction, RecurringItem, CasaTarefa, Meta, WeekDay } from '@rotina/shared';
+import type { Meal, Habit, Chore, ShopItem, Treino, Lift, RunWeek, FinancaCategory, Transaction, RecurringItem, CasaTarefa, Meta, WeekDay } from '@vitale/shared';
 
 export const WEEK: WeekDay[] = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 export const TODAY_IDX = 3;

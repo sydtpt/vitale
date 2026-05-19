@@ -1,5 +1,5 @@
 /**
- * Rotina — Domain Models
+ * Vitale — Domain Models
  * Shared across web & mobile.
  */
 

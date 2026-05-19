@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Rotina",
-    "slug": "rotina-mobile",
+    "name": "Vitale",
+    "slug": "vitale-mobile",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rotina",
+    "scheme": "vitale",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rotina.mobile"
+      "bundleIdentifier": "app.vitale.mobile"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFF7EE"
       },
-      "package": "app.rotina.mobile"
+      "package": "app.vitale.mobile"
     },
     "plugins": [
       "expo-router",

@@ -1,15 +1,15 @@
 import { Injectable, computed, signal } from '@angular/core';
-import type { Meal, Habit, Chore, ShopItem } from '@rotina/shared';
+import type { Meal, Habit, Chore, ShopItem } from '@vitale/shared';
 
 /**
- * RotinaStore — Signal-based reactive store.
+ * VitaleStore — Signal-based reactive store.
  *
  * Mobile (future PWA) writes here; web reads derived computed signals.
  * One source of truth for the day's check-ins.
  * Replace with a real backend later (Supabase, Firebase, etc).
  */
 @Injectable({ providedIn: 'root' })
-export class RotinaStore {
+export class VitaleStore {
   // ─── Day state ─────────────────────────────────
   readonly meals = signal<Meal[]>([]);
   readonly habits = signal<Habit[]>([]);

@@ -7,7 +7,7 @@ import { DayScoreCardComponent } from '../components/day-score-card.component';
 import { LiftsChartComponent } from '../components/lifts-chart.component';
 import { MacrosCardComponent } from '../components/macros-card.component';
 import { SpendByCategoryComponent, RecurringListComponent, CasaListComponent, MetasListComponent } from '../components/lists.component';
-import { T } from '@rotina/shared';
+import { T } from '@vitale/shared';
 
 @Component({
   selector: 'rt-semana-page',

@@ -32,7 +32,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={s.card}>
-        <Text style={s.logo}>Rotina</Text>
+        <Text style={s.logo}>Vitale</Text>
         <Text style={s.subtitle}>Entre na sua conta</Text>
 
         <View style={s.field}>

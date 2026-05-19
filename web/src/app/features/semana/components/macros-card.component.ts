@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { T } from '@rotina/shared';
+import { T } from '@vitale/shared';
 
 @Component({
   selector: 'rt-macros-card',

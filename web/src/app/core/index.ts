@@ -1,1 +1,1 @@
-export { RotinaStore } from './services/store.service';
+export { VitaleStore } from './services/store.service';

@@ -18,7 +18,7 @@
     "lib": ["ES2022", "dom"],
     "types": ["node"],
     "paths": {
-      "@rotina/shared": ["../packages/shared/src/index.ts"],
+      "@vitale/shared": ["../packages/shared/src/index.ts"],
       "@app/*": ["./src/app/*"],
       "@core/*": ["./src/app/core/*"],
       "@features/*": ["./src/app/features/*"],

@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "rotina-web": {
+    "vitale-web": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -19,7 +19,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "outputPath": "dist/rotina-web",
+            "outputPath": "dist/vitale-web",
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": ["zone.js"],
@@ -51,8 +51,8 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
-            "production": { "buildTarget": "rotina-web:build:production" },
-            "development": { "buildTarget": "rotina-web:build:development" }
+            "production": { "buildTarget": "vitale-web:build:production" },
+            "development": { "buildTarget": "vitale-web:build:development" }
           },
           "defaultConfiguration": "development"
         },

@@ -1,5 +1,5 @@
 /**
- * Rotina — Design Tokens
+ * Vitale — Design Tokens
  * Single source of truth for colors, spacing, typography across web & mobile.
  */
 

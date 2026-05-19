@@ -2,7 +2,7 @@
 
 ## Objetivo do produto
 
-**Rotina** é uma plataforma pessoal para organizar a vida cotidiana em um só lugar. O usuário não precisa alternar entre apps de treino, alimentação, finanças e tarefas domésticas — tudo está integrado com uma visão unificada da semana.
+**Vitale** é uma plataforma pessoal para organizar a vida cotidiana em um só lugar. O usuário não precisa alternar entre apps de treino, alimentação, finanças e tarefas domésticas — tudo está integrado com uma visão unificada da semana.
 
 **Princípio central:** Mobile para registrar (rápido, durante o dia), Web para analisar (dashboard, tendências, planejamento).
 

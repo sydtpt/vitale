@@ -7,7 +7,7 @@ module.exports = function (api) {
         'module-resolver',
         {
           alias: {
-            '@rotina/shared': '../packages/shared/src',
+            '@vitale/shared': '../packages/shared/src',
           },
         },
       ],

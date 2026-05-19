@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { HEATMAP, TODAY_IDX, WEEK } from '@core/models/mock-data';
-import { T } from '@rotina/shared';
+import { T } from '@vitale/shared';
 
 @Component({
   selector: 'rt-heatmap',

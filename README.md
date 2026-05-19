@@ -1,4 +1,4 @@
-# Rotina — Life Organizer
+# Vitale — Life Organizer
 
 Um lugar para tudo: comida, treino, casa, dinheiro.
 
@@ -8,12 +8,12 @@ Monorepo with 3 workspaces:
 
 ```
 life-organizer/
-├── packages/shared/     @rotina/shared — tokens, models, shared types
-├── web/                 @rotina/web    — Angular 20 dashboard (analítico)
-└── mobile/              @rotina/mobile — React Native / Expo (captura rápida)
+├── packages/shared/     @vitale/shared — tokens, models, shared types
+├── web/                 @vitale/web    — Angular 20 dashboard (analítico)
+└── mobile/              @vitale/mobile — React Native / Expo (captura rápida)
 ```
 
-### Shared (`@rotina/shared`)
+### Shared (`@vitale/shared`)
 Design tokens (colors, spacing, typography) and TypeScript domain models shared between web and mobile.
 
 ### Web — Angular 20

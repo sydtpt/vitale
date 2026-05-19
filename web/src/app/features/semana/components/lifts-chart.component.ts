@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { LIFTS } from '@core/models/mock-data';
-import { T } from '@rotina/shared';
+import { T } from '@vitale/shared';
 
 @Component({
   selector: 'rt-lifts-chart',

@@ -1,5 +1,5 @@
 /**
- * Rotina — React Native Theme
+ * Vitale — React Native Theme
  * Mirrors CSS variables from the Angular mockup for native usage.
  */
 

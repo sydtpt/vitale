@@ -4,7 +4,7 @@
 
 ## Objetivo
 
-API que persiste os dados da plataforma Rotina, autentica o usuário e sincroniza entre web e mobile em tempo real.
+API que persiste os dados da plataforma Vitale, autentica o usuário e sincroniza entre web e mobile em tempo real.
 
 ## Opções de stack (a decidir)
 

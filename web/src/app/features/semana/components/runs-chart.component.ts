@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RUNS } from '@core/models/mock-data';
-import { T } from '@rotina/shared';
+import { T } from '@vitale/shared';
 
 @Component({
   selector: 'rt-runs-chart',

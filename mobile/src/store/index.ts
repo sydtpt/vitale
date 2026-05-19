@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { Meal, Habit, Chore, ShopItem } from '@rotina/shared';
+import type { Meal, Habit, Chore, ShopItem } from '@vitale/shared';
 
-interface RotinaState {
+interface VitaleState {
   // Day state
   meals: Meal[];
   habits: Habit[];
@@ -36,7 +36,7 @@ interface RotinaState {
   }) => void;
 }
 
-export const useRotinaStore = create<RotinaState>((set, get) => ({
+export const useVitaleStore = create<VitaleState>((set, get) => ({
   meals: [],
   habits: [],
   casa: [],

@@ -7,7 +7,7 @@ import { CheckButton } from '../../components/ui/CheckButton';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
 import { HOJE } from '../../services/mock-data';
-import { useRotinaStore } from '../../store';
+import { useVitaleStore } from '../../store';
 
 export default function HojeScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);

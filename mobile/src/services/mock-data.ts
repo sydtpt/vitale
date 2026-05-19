@@ -1,8 +1,8 @@
 /**
- * Rotina Mobile — Mock Data
+ * Vitale Mobile — Mock Data
  * Mirrors web mock data for the prototype. Replace with API calls later.
  */
-import type { Meal, Habit, Chore, ShopItem, WeekDay } from '@rotina/shared';
+import type { Meal, Habit, Chore, ShopItem, WeekDay } from '@vitale/shared';
 
 export const WEEK: WeekDay[] = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 export const TODAY_IDX = 3;

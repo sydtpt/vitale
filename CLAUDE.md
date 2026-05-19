@@ -1,6 +1,6 @@
-# Rotina — Life Organizer
+# Vitale — Life Organizer
 
-> **Propósito:** Uma plataforma pessoal para gerenciar rotina completa — treinos, alimentação, casa, compras e finanças. Web para análise, mobile para captura rápida do dia a dia.
+> **Propósito:** Uma plataforma pessoal para gerenciar a rotina completa — treinos, alimentação, casa, compras e finanças. Web para análise, mobile para captura rápida do dia a dia.
 
 ## Arquitetura
 
@@ -8,9 +8,9 @@ Monorepo npm workspaces com 3 pacotes:
 
 ```
 life-organizer/
-├── packages/shared/      @rotina/shared  — tokens de design e modelos de domínio
-├── web/                  @rotina/web     — Angular 20 dashboard analítico
-└── mobile/               @rotina/mobile  — React Native / Expo (captura rápida)
+├── packages/shared/      @vitale/shared  — tokens de design e modelos de domínio
+├── web/                  @vitale/web     — Angular 20 dashboard analítico
+└── mobile/               @vitale/mobile  — React Native / Expo (captura rápida)
 ```
 
 ## Comandos essenciais

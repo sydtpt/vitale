@@ -1,5 +1,5 @@
 {
-  "name": "@rotina/mobile",
+  "name": "@vitale/mobile",
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
@@ -14,7 +14,7 @@
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",
     "@react-navigation/native": "^7.0.0",
-    "@rotina/shared": "*",
+    "@vitale/shared": "*",
     "@supabase/supabase-js": "^2.106.0",
     "expo": "~52.0.0",
     "expo-constants": "~17.0.0",
