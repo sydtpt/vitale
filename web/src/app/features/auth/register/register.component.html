@@ -1,0 +1,66 @@
+<div class="page">
+  <div class="card">
+    <h1 class="logo">Rotina</h1>
+    <p class="subtitle">Crie sua conta</p>
+
+    @if (success()) {
+      <div class="success">
+        <p>Verifique seu e-mail para confirmar o cadastro.</p>
+        <a routerLink="/login">Ir para o login →</a>
+      </div>
+    } @else {
+      <form class="form" (ngSubmit)="submit()">
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input
+            id="email"
+            type="email"
+            [(ngModel)]="email"
+            name="email"
+            placeholder="voce@email.com"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="password">Senha</label>
+          <input
+            id="password"
+            type="password"
+            [(ngModel)]="password"
+            name="password"
+            placeholder="Mínimo 6 caracteres"
+            autocomplete="new-password"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="confirm">Confirmar senha</label>
+          <input
+            id="confirm"
+            type="password"
+            [(ngModel)]="confirmPassword"
+            name="confirmPassword"
+            placeholder="••••••••"
+            autocomplete="new-password"
+            required
+          />
+        </div>
+
+        @if (error()) {
+          <p class="error">{{ error() }}</p>
+        }
+
+        <button type="submit" class="btn-primary" [disabled]="loading()">
+          {{ loading() ? 'Criando conta…' : 'Criar conta' }}
+        </button>
+      </form>
+
+      <p class="footer-link">
+        Já tem conta? <a routerLink="/login">Entrar</a>
+      </p>
+    }
+  </div>
+</div>

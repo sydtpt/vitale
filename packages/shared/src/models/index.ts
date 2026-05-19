@@ -115,3 +115,10 @@ export interface DayData {
 }
 
 export type WeekDay = 'SEG' | 'TER' | 'QUA' | 'QUI' | 'SEX' | 'SÁB' | 'DOM';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name?: string;
+  createdAt: string;
+}

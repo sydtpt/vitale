@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SidebarComponent } from '@shared/layouts/sidebar.component';
+import { AuthService } from './core/auth/auth.service';
 
 @Component({
   selector: 'rt-root',
@@ -10,4 +11,6 @@ import { SidebarComponent } from '@shared/layouts/sidebar.component';
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
-export class AppComponent {}
+export class AppComponent {
+  protected readonly auth = inject(AuthService);
+}
