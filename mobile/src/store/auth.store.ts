@@ -10,6 +10,7 @@ interface AuthState {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  isLoading: boolean;
   error: string | null;
   initialize: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
@@ -22,11 +23,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   session: null,
   user: null,
   loading: false,
+  isLoading: true,
   error: null,
 
   initialize: async () => {
     const { data } = await supabase.auth.getSession();
-    set({ session: data.session, user: data.session?.user ?? null });
+    set({ session: data.session, user: data.session?.user ?? null, isLoading: false });
 
     supabase.auth.onAuthStateChange((_event, session) => {
       set({ session, user: session?.user ?? null });
@@ -46,7 +48,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signInWithGoogle: async () => {
     set({ loading: true, error: null });
-    const redirectTo = makeRedirectUri({ scheme: 'vitale', path: '/(tabs)/' });
+    const redirectTo = makeRedirectUri({ scheme: 'vitale' });
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo, skipBrowserRedirect: true },
@@ -58,12 +60,20 @@ export const useAuthStore = create<AuthState>((set) => ({
     const result = await WebBrowser.openAuthSessionAsync(data.url!, redirectTo);
     set({ loading: false });
     if (result.type !== 'success') return 'Login cancelado.';
-    const params = new URL(result.url).searchParams;
+
+    // Implicit flow: tokens chegam no hash fragment (#access_token=...&refresh_token=...)
+    const hash = result.url.split('#')[1] ?? '';
+    const params = new URLSearchParams(hash);
     const accessToken = params.get('access_token');
     const refreshToken = params.get('refresh_token');
-    if (accessToken && refreshToken) {
-      await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-    }
+
+    if (!accessToken || !refreshToken) return 'Não foi possível obter a sessão do Google.';
+
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (sessionError) return sessionError.message;
     return null;
   },
 

@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Link } from 'expo-router';
 import { Svg, Path } from 'react-native-svg';
 import { useAuthStore } from '../../store/auth.store';
 import { colors, spacing, radii, fonts } from '../../theme';
@@ -20,7 +20,6 @@ function GoogleIcon() {
 }
 
 export default function LoginScreen() {
-  const router = useRouter();
   const { signIn, signInWithGoogle, loading } = useAuthStore();
 
   const [email, setEmail] = useState('');
@@ -31,21 +30,13 @@ export default function LoginScreen() {
     if (!email || !password) return;
     setError(null);
     const err = await signIn(email, password);
-    if (err) {
-      setError(err);
-    } else {
-      router.replace('/(tabs)/');
-    }
+    if (err) setError(err);
   };
 
   const handleGoogle = async () => {
     setError(null);
     const err = await signInWithGoogle();
-    if (err) {
-      setError(err);
-    } else {
-      router.replace('/(tabs)/');
-    }
+    if (err) setError(err);
   };
 
   return (

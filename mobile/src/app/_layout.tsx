@@ -1,22 +1,27 @@
 import { useEffect } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/auth.store';
 import { colors } from '../theme';
 
 export default function RootLayout() {
   const router = useRouter();
-  const { initialize, session } = useAuthStore();
+  const segments = useSegments();
+  const { initialize, session, isLoading } = useAuthStore();
 
   useEffect(() => {
-    initialize().then(() => {
-      if (useAuthStore.getState().session) {
-        router.replace('/(tabs)/');
-      } else {
-        router.replace('/(auth)/login');
-      }
-    });
+    initialize();
   }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const inAuthGroup = segments[0] === '(auth)';
+    if (!session && !inAuthGroup) {
+      router.replace('/(auth)/login');
+    } else if (session && inAuthGroup) {
+      router.replace('/');
+    }
+  }, [session, segments, isLoading]);
 
   return (
     <>
