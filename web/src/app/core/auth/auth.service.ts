@@ -22,9 +22,19 @@ export class AuthService {
     });
   }
 
-  async signIn(email: string, password: string): Promise<string | null> {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  async signInWithGoogle(): Promise<string | null> {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/semana` },
+    });
     if (error) return error.message;
+    return null;
+  }
+
+  async signIn(email: string, password: string): Promise<string | null> {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return error.message;
+    this.session.set(data.session);
     await this.router.navigate(['/semana']);
     return null;
   }
