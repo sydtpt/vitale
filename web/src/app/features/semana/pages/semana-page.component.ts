@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ProfileService } from '@core/auth/profile.service';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { PanelComponent } from '@shared/components/panel/panel.component';
 import { HeatmapComponent } from '@shared/components/heatmap/heatmap.component';
@@ -23,4 +24,13 @@ import { T } from '@vitale/shared';
 })
 export class SemanaPageComponent {
   protected readonly T = T;
+
+  private readonly profile = inject(ProfileService);
+
+  protected readonly greeting = computed(() => {
+    const h = new Date().getHours();
+    const period = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    const firstName = this.profile.displayName().split(' ')[0];
+    return `${period}, ${firstName}.`;
+  });
 }

@@ -1,0 +1,74 @@
+<div class="page">
+  <div class="card">
+    <h1 class="logo">Vitale</h1>
+    <p class="subtitle">Conte um pouco sobre você</p>
+
+    <div class="avatar-wrap">
+      <button type="button" class="avatar" (click)="triggerUpload()" [attr.aria-label]="'Alterar foto'">
+        @if (avatarPreview()) {
+          <img [src]="avatarPreview()!" alt="Foto de perfil" class="avatar-img" (error)="onAvatarError()" />
+        } @else {
+          <svg class="avatar-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
+        }
+        <div class="avatar-overlay">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </div>
+      </button>
+      <p class="avatar-hint">Foto de perfil</p>
+    </div>
+
+    <input
+      #fileInput
+      type="file"
+      accept="image/*"
+      (change)="onFileChange($event)"
+      hidden
+    />
+
+    <form class="form" (ngSubmit)="submit()" #f="ngForm">
+      <div class="field">
+        <label for="name">Nome completo</label>
+        <input
+          id="name"
+          type="text"
+          [ngModel]="name()"
+          (ngModelChange)="name.set($event)"
+          name="name"
+          placeholder="Seu nome"
+          autocomplete="name"
+          required
+        />
+      </div>
+
+      <div class="field">
+        <label for="birthdate">Data de nascimento</label>
+        <input
+          id="birthdate"
+          type="date"
+          [ngModel]="birthdate()"
+          (ngModelChange)="birthdate.set($event)"
+          name="birthdate"
+          required
+        />
+      </div>
+
+      @if (error()) {
+        <p class="error">{{ error() }}</p>
+      }
+
+      <button type="submit" class="btn-primary" [disabled]="loading()">
+        {{ loading() ? 'Salvando…' : 'Começar' }}
+      </button>
+    </form>
+
+    <button type="button" class="btn-logout" (click)="logout()">
+      Sair da conta
+    </button>
+  </div>
+</div>
