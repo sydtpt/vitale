@@ -1,0 +1,86 @@
+/**
+ * Derivações puras de hábitos contadores (web).
+ * ⚠️ Espelho de `mobile/src/lib/habit-logic.ts` — manter as duas em sincronia.
+ * Fora de `@vitale/shared` (que é só modelos/tokens, sem lógica).
+ */
+import type { CounterHabit, HabitLog } from '@vitale/shared';
+
+type Goal = Pick<CounterHabit, 'direction' | 'target'>;
+
+/** Data local 'YYYY-MM-DD' (não UTC) — base do reset diário. */
+export function localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Bateu a meta? at_least: value ≥ target; at_most: value ≤ target. Sem target ⇒ false. */
+export function isMet(habit: Goal, value: number): boolean {
+  if (habit.target == null) return false;
+  return habit.direction === 'at_least' ? value >= habit.target : value <= habit.target;
+}
+
+/** Estourou o teto? Só at_most com target definido. */
+export function isOver(habit: Goal, value: number): boolean {
+  return habit.direction === 'at_most' && habit.target != null && value > habit.target;
+}
+
+/** Progresso 0..1 para anel/barra. Sem target ⇒ 0. */
+export function progress(habit: Goal, value: number): number {
+  if (!habit.target || habit.target <= 0) return 0;
+  return Math.max(0, Math.min(1, value / habit.target));
+}
+
+/** Mapa data → valor a partir dos logs de UM hábito. */
+export function logsByDate(logs: HabitLog[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const l of logs) m.set(l.logDate, l.value);
+  return m;
+}
+
+/** Dia anterior a 'YYYY-MM-DD'. */
+function prevDay(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() - 1);
+  return localDateStr(d);
+}
+
+/**
+ * Streak: dias consecutivos (terminando hoje) cumprindo a meta.
+ * Hoje ainda pendente NÃO quebra o streak (conta a partir de ontem).
+ * at_most com dia sem log (0) cumpre o teto (ex.: "não fumei").
+ */
+export function streak(
+  habit: Goal,
+  byDate: Map<string, number>,
+  today: string = localDateStr(),
+): number {
+  if (habit.target == null) return 0;
+  const valueOn = (d: string) => byDate.get(d) ?? 0;
+  let date = today;
+  if (!isMet(habit, valueOn(date))) date = prevDay(date);
+  let count = 0;
+  while (isMet(habit, valueOn(date))) {
+    count++;
+    date = prevDay(date);
+  }
+  return count;
+}
+
+/** Média simples de uma lista de valores diários. */
+export function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/** Últimas N datas locais (mais antiga → hoje). */
+export function lastNDates(n: number, today: Date = new Date()): string[] {
+  const out: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    out.push(localDateStr(d));
+  }
+  return out;
+}

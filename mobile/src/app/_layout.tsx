@@ -40,6 +40,8 @@ export default function RootLayout() {
         <Stack.Screen name="fitness/[label]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="fitness/workout/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="saude/[metric]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="habitos/index" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="habitos/editor" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </>
   );

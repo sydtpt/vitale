@@ -21,6 +21,35 @@ export interface Habit {
   streak: number;
 }
 
+/** Direção da meta de um hábito contador. */
+export type HabitDirection = 'at_least' | 'at_most';
+
+/**
+ * Hábito contador (quantitativo) — distinto do `Habit` binário acima.
+ * O valor diário acumula em `HabitLog`. Só campos, sem lógica.
+ * Ver .claude/specs/habitos/.
+ */
+export interface CounterHabit {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  unit: string;            // 'L' | 'un' | 'cig' ...
+  step: number;            // incremento por toque
+  target?: number;         // meta (at_least) / teto (at_most); ausente = sem meta
+  direction: HabitDirection;
+  active: boolean;
+  sort: number;
+}
+
+/** Valor acumulado de um CounterHabit num dia (1 por habit/dia). */
+export interface HabitLog {
+  id: string;
+  habitId: string;
+  logDate: string;         // 'YYYY-MM-DD' (data local)
+  value: number;
+}
+
 export interface Chore {
   id: string;
   name: string;

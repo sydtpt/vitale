@@ -54,6 +54,12 @@ const routes: Routes = [
       import('@features/historico-treinos/pages/atividade-detalhe-page.component').then(m => m.AtividadeDetalhePageComponent),
   },
   {
+    path: 'habitos',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/habitos/pages/habitos-page.component').then(m => m.HabitosPageComponent),
+  },
+  {
     path: 'alimentacao',
     canActivate: [profileGuard],
     loadComponent: () =>

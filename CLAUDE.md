@@ -150,3 +150,4 @@ Cada módulo tem seu spec em `.claude/specs/`:
 - [Backend / API](.claude/specs/backend.md)
 - [Sync: Atividades (HealthKit → Supabase)](.claude/specs/sync-atividades/spec.md) · [plan](.claude/specs/sync-atividades/plan.md) · [data-model](.claude/specs/sync-atividades/data-model.md) · [tasks](.claude/specs/sync-atividades/tasks.md)
 - [Web: Histórico de Treinos](.claude/specs/historico-treinos/spec.md) · [plan](.claude/specs/historico-treinos/plan.md) · [data-model](.claude/specs/historico-treinos/data-model.md) · [tasks](.claude/specs/historico-treinos/tasks.md)
+- [Habitos (contadores diários)](.claude/specs/habitos/spec.md) · [plan](.claude/specs/habitos/plan.md) · [data-model](.claude/specs/habitos/data-model.md) · [tasks](.claude/specs/habitos/tasks.md)
