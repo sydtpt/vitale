@@ -7,7 +7,12 @@ import { CheckButton } from '../../components/ui/CheckButton';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
 import { HOJE } from '../../services/mock-data';
-import { useVitaleStore } from '../../store';
+
+function getGreeting(name: string): string {
+  const h = new Date().getHours();
+  const period = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  return `${period}, ${name}.`;
+}
 
 export default function HojeScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -36,7 +41,7 @@ export default function HojeScreen() {
         {/* Greeting */}
         <View style={styles.greet}>
           <Text style={styles.date}>{HOJE.date.toUpperCase()}</Text>
-          <Text style={styles.greeting}>{HOJE.greeting}.</Text>
+          <Text style={styles.greeting}>{getGreeting('Cris')}</Text>
           <Text style={styles.sub}>{HOJE.weekDay} · {4 - mealsDone} checks pendentes</Text>
         </View>
 
