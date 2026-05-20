@@ -62,7 +62,7 @@ npm run test
 - **Roteamento:** Expo Router (file-based, pasta `mobile/src/app/`)
 - **Store:** Zustand 5
 - **Animações:** Reanimated 3
-- 4 tabs: Hoje, Semana, Compras, Mais
+- 5 tabs: Hoje, Semana, Fitness, Saúde, Mais
 
 ## Design System
 
@@ -142,6 +142,7 @@ Cada módulo tem seu spec em `.claude/specs/`:
 - [Web: Casa](.claude/specs/web-casa.md)
 - [Web: Finanças](.claude/specs/web-financas.md)
 - [Web: Metas](.claude/specs/web-metas.md)
+- [Mobile: Saúde](.claude/specs/mobile-saude.md)
 - [Mobile: Hoje](.claude/specs/mobile-hoje.md)
 - [Mobile: Semana](.claude/specs/mobile-semana.md)
 - [Mobile: Compras](.claude/specs/mobile-compras.md)
