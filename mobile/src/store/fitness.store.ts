@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import AppleHealthKit from 'react-native-health';
-import type { Ionicons } from '@expo/vector-icons';
+import type { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export type PermissionStatus = 'unknown' | 'authorized' | 'denied' | 'unavailable';
 
@@ -50,28 +50,28 @@ export function elevationGain(points: RoutePoint[], threshold = 1): number {
   return gain;
 }
 
-export type ActivityMeta = { icon: keyof typeof Ionicons.glyphMap; label: string };
+export type ActivityMeta = { icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string };
 
 export function getActivityMeta(activityId: number): ActivityMeta {
   switch (activityId) {
-    case 11: return { icon: 'fitness-outline', label: 'Cross Training' };
-    case 13: return { icon: 'bicycle-outline', label: 'Ciclismo' };
-    case 16: return { icon: 'fitness-outline', label: 'Elíptico' };
-    case 20: return { icon: 'fitness-outline', label: 'Funcional' };
-    case 24: return { icon: 'trail-sign-outline', label: 'Trilha' };
-    case 35: return { icon: 'boat-outline', label: 'Remo' };
-    case 37: return { icon: 'walk-outline', label: 'Corrida' };
-    case 44: return { icon: 'trending-up-outline', label: 'Escadas' };
-    case 46: return { icon: 'water-outline', label: 'Natação' };
-    case 50: return { icon: 'barbell-outline', label: 'Musculação' };
-    case 52: return { icon: 'walk-outline', label: 'Caminhada' };
-    case 57: return { icon: 'body-outline', label: 'Yoga' };
-    case 59: return { icon: 'body-outline', label: 'Core' };
-    case 63: return { icon: 'flash-outline', label: 'HIIT' };
-    case 66: return { icon: 'body-outline', label: 'Pilates' };
-    case 73: return { icon: 'pulse-outline', label: 'Cardio' };
-    case 82: return { icon: 'tennisball-outline', label: 'Pickleball' };
-    default: return { icon: 'barbell-outline', label: 'Treino' };
+    case 11: return { icon: 'dumbbell', label: 'Cross Training' };
+    case 13: return { icon: 'bike', label: 'Ciclismo' };
+    case 16: return { icon: 'run-fast', label: 'Elíptico' };
+    case 20: return { icon: 'kettlebell', label: 'Funcional' };
+    case 24: return { icon: 'hiking', label: 'Trilha' };
+    case 35: return { icon: 'rowing', label: 'Remo' };
+    case 37: return { icon: 'run', label: 'Corrida' };
+    case 44: return { icon: 'stairs-up', label: 'Escadas' };
+    case 46: return { icon: 'swim', label: 'Natação' };
+    case 50: return { icon: 'weight-lifter', label: 'Musculação' };
+    case 52: return { icon: 'walk', label: 'Caminhada' };
+    case 57: return { icon: 'yoga', label: 'Yoga' };
+    case 59: return { icon: 'arm-flex', label: 'Core' };
+    case 63: return { icon: 'jump-rope', label: 'HIIT' };
+    case 66: return { icon: 'meditation', label: 'Pilates' };
+    case 73: return { icon: 'heart-pulse', label: 'Cardio' };
+    case 82: return { icon: 'tennis', label: 'Pickleball' };
+    default: return { icon: 'dumbbell', label: 'Treino' };
   }
 }
 

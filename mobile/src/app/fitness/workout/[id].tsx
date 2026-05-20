@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -141,7 +141,7 @@ export default function WorkoutDetailScreen() {
       >
         <View style={styles.hero}>
           <View style={[styles.heroIcon, { backgroundColor: MOD.treino.tint }]}>
-            <Ionicons name={meta.icon} size={28} color={MOD.treino.accent} />
+            <MaterialCommunityIcons name={meta.icon} size={28} color={MOD.treino.accent} />
           </View>
           <Text style={styles.heroDate}>{formatFullDate(workout.start)}</Text>
           <Text style={styles.heroTime}>

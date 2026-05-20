@@ -9,7 +9,7 @@ import {
   Platform,
   ListRenderItemInfo,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFitnessStore, WorkoutItem, getActivityMeta } from '../../store/fitness.store';
@@ -18,7 +18,7 @@ import { colors, spacing, radii, MOD, shadows } from '../../theme';
 type ActivityGroup = {
   key: string;
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
   total: number;
 };
 
@@ -54,7 +54,7 @@ function ActivityTypeCard({
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
       <View style={[styles.iconBox, { backgroundColor: MOD.treino.tint }]}>
-        <Ionicons name={group.icon} size={24} color={MOD.treino.accent} />
+        <MaterialCommunityIcons name={group.icon} size={24} color={MOD.treino.accent} />
       </View>
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle}>{group.label}</Text>
