@@ -1,120 +1,35 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import AppleHealthKit from 'react-native-health';
-import type { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  PERMISSIONS,
+  PAGE_SIZE,
+  fetchWorkoutsPage,
+  fetchWorkoutRoute,
+  type WorkoutItem,
+  type RoutePoint,
+  type PermissionStatus,
+} from '../lib/healthkit-workouts';
+import { syncType as runSyncType, syncDelta as runSyncDelta } from '../services/activity-sync';
+import { loadSyncedTypes, unsubscribeType as removeSyncedType } from '../lib/synced-types';
 
-export type PermissionStatus = 'unknown' | 'authorized' | 'denied' | 'unavailable';
+// Re-export para manter os imports existentes das telas (`from '../store/fitness.store'`).
+export {
+  GPS_ACTIVITY_IDS,
+  hasGpsRoute,
+  elevationGain,
+  getActivityMeta,
+  fetchWorkoutRoute,
+} from '../lib/healthkit-workouts';
+export type {
+  WorkoutItem,
+  RoutePoint,
+  PermissionStatus,
+  ActivityMeta,
+} from '../lib/healthkit-workouts';
 
-export interface WorkoutItem {
-  id: string;
-  activityId: number;
-  activityName: string;
-  calories: number;
-  start: string;
-  end: string;
-  duration: number; // seconds
-  distance?: number; // meters
-  sourceName?: string;
-  sourceId?: string;
-  device?: string;
-  tracked?: boolean;
-  metadata?: Record<string, unknown>;
-  workoutEventsCount?: number;
-}
-
-export interface RoutePoint {
-  latitude: number;
-  longitude: number;
-  altitude?: number;
-}
-
-/** Atividades ao ar livre que costumam ter rota GPS (corrida, caminhada, ciclismo, trilha). */
-export const GPS_ACTIVITY_IDS = new Set<number>([13, 24, 37, 52]);
-
-export function hasGpsRoute(activityId: number): boolean {
-  return GPS_ACTIVITY_IDS.has(activityId);
-}
-
-/** Ganho de elevação acumulado (m), somando só subidas acima de um limiar de ruído. */
-export function elevationGain(points: RoutePoint[], threshold = 1): number {
-  let gain = 0;
-  let prev: number | undefined;
-  for (const p of points) {
-    if (typeof p.altitude !== 'number') continue;
-    if (prev !== undefined) {
-      const delta = p.altitude - prev;
-      if (delta > threshold) gain += delta;
-    }
-    prev = p.altitude;
-  }
-  return gain;
-}
-
-export type ActivityMeta = { icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string };
-
-export function getActivityMeta(activityId: number): ActivityMeta {
-  switch (activityId) {
-    case 11: return { icon: 'dumbbell', label: 'Cross Training' };
-    case 13: return { icon: 'bike', label: 'Ciclismo' };
-    case 16: return { icon: 'run-fast', label: 'Elíptico' };
-    case 20: return { icon: 'kettlebell', label: 'Funcional' };
-    case 24: return { icon: 'hiking', label: 'Trilha' };
-    case 35: return { icon: 'rowing', label: 'Remo' };
-    case 37: return { icon: 'run', label: 'Corrida' };
-    case 44: return { icon: 'stairs-up', label: 'Escadas' };
-    case 46: return { icon: 'swim', label: 'Natação' };
-    case 50: return { icon: 'weight-lifter', label: 'Musculação' };
-    case 52: return { icon: 'walk', label: 'Caminhada' };
-    case 57: return { icon: 'yoga', label: 'Yoga' };
-    case 59: return { icon: 'arm-flex', label: 'Core' };
-    case 63: return { icon: 'jump-rope', label: 'HIIT' };
-    case 66: return { icon: 'meditation', label: 'Pilates' };
-    case 73: return { icon: 'heart-pulse', label: 'Cardio' };
-    case 82: return { icon: 'tennis', label: 'Pickleball' };
-    default: return { icon: 'dumbbell', label: 'Treino' };
-  }
-}
-
-const YEARS_BACK = 3;
-const PAGE_SIZE = 1000;
-
-function startDateYearsAgo(years: number): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - years);
-  return d.toISOString();
-}
-
-const PERMISSIONS = {
-  permissions: {
-    read: [
-      AppleHealthKit.Constants.Permissions.Workout,
-      AppleHealthKit.Constants.Permissions.WorkoutRoute,
-    ],
-    write: [] as string[],
-  },
-};
-
-/** Busca os pontos GPS de um treino. Retorna [] se não houver rota (ex.: indoor). */
-export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
-  if (Platform.OS !== 'ios') return Promise.resolve([]);
-  return new Promise((resolve) => {
-    AppleHealthKit.getWorkoutRouteSamples({ id }, (err, results) => {
-      if (err || !results?.data?.locations) {
-        resolve([]);
-        return;
-      }
-      resolve(
-        results.data.locations
-          .filter((l) => typeof l.latitude === 'number' && typeof l.longitude === 'number')
-          .map((l) => ({
-            latitude: l.latitude,
-            longitude: l.longitude,
-            altitude: typeof l.altitude === 'number' ? l.altitude : undefined,
-          }))
-      );
-    });
-  });
-}
+/** Estado de sincronização de um tipo de treino (label), refletido no card. */
+export type TypeSyncStatus = 'unsubscribed' | 'syncing' | 'synced' | 'pending' | 'error';
 
 interface FitnessState {
   permissionStatus: PermissionStatus;
@@ -125,10 +40,30 @@ interface FitnessState {
   oldestStart: string | null;
   /** Cache de rotas por treino. undefined = não carregada, [] = sem rota. */
   routes: Record<string, RoutePoint[]>;
+
+  // ── Sincronização opt-in por tipo ────────────────────────────
+  /** Labels de tipos inscritos (fonte: Supabase, cache em memória). */
+  syncedTypes: Set<string>;
+  /** Estado de sync por tipo (label → status), alimenta a UI do card. */
+  typeStatus: Record<string, TypeSyncStatus>;
+  /** ISO do último sync bem-sucedido por tipo. */
+  lastSyncedAt: Record<string, string>;
+  /** Erro por tipo (recuperável). */
+  syncError: Record<string, string | null>;
+
   requestPermission: () => Promise<void>;
   loadWorkouts: () => Promise<void>;
   loadMore: () => Promise<void>;
   loadRoute: (id: string) => Promise<void>;
+
+  /** Hidrata os tipos inscritos a partir do Supabase. */
+  hydrateSyncedTypes: () => Promise<void>;
+  /** Inscreve um tipo e envia todo o histórico daquele tipo (backfill). */
+  syncType: (label: string) => Promise<void>;
+  /** Para de rastrear um tipo (não apaga dados já enviados). */
+  unsubscribeType: (label: string) => Promise<void>;
+  /** Delta incremental dos tipos inscritos (chamado pelo observer/foreground). */
+  runDelta: () => Promise<void>;
 }
 
 export const useFitnessStore = create<FitnessState>((set, get) => ({
@@ -140,22 +75,26 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
   oldestStart: null,
   routes: {},
 
+  syncedTypes: new Set<string>(),
+  typeStatus: {},
+  lastSyncedAt: {},
+  syncError: {},
+
   requestPermission: async () => {
     await new Promise<void>((resolve) => {
       AppleHealthKit.initHealthKit(PERMISSIONS as any, (err: string) => {
-        if (err) {
-          set({ permissionStatus: 'denied' });
-        } else {
-          set({ permissionStatus: 'authorized' });
-        }
+        set({ permissionStatus: err ? 'denied' : 'authorized' });
         resolve();
       });
     });
     if (get().permissionStatus === 'authorized') {
       await get().loadWorkouts();
+      // Sync state vem do servidor; não bloqueia a leitura local.
+      get().hydrateSyncedTypes();
     }
   },
 
+  // Apenas leitura local para exibição — NUNCA dispara sync (FR-003).
   loadWorkouts: async () => {
     set({ loading: true, workouts: [], oldestStart: null, hasMore: true });
     const results = await fetchWorkoutsPage(new Date().toISOString());
@@ -185,39 +124,71 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
     const points = await fetchWorkoutRoute(id);
     set((state) => ({ routes: { ...state.routes, [id]: points } }));
   },
-}));
 
-function fetchWorkoutsPage(endDate: string): Promise<WorkoutItem[]> {
-  return new Promise((resolve) => {
-    AppleHealthKit.getAnchoredWorkouts(
-      { startDate: startDateYearsAgo(YEARS_BACK), endDate, limit: PAGE_SIZE, ascending: false } as any,
-      (err, results) => {
-        if (err || !results?.data) {
-          resolve([]);
-          return;
-        }
-        resolve(
-          results.data.map((w) => ({
-            id: w.id ?? String(Math.random()),
-            activityId: w.activityId ?? 0,
-            activityName: w.activityName ?? 'Treino',
-            calories: Math.round(w.calories ?? 0),
-            start: w.start,
-            end: w.end,
-            duration: w.duration ?? 0,
-            distance: w.distance,
-            sourceName: w.sourceName,
-            sourceId: w.sourceId,
-            device: w.device,
-            tracked: w.tracked,
-            metadata:
-              w.metadata && typeof w.metadata === 'object' ? w.metadata : undefined,
-            workoutEventsCount: Array.isArray(w.workoutEvents)
-              ? w.workoutEvents.length
-              : undefined,
-          }))
-        );
+  hydrateSyncedTypes: async () => {
+    const labels = await loadSyncedTypes();
+    set((state) => {
+      const typeStatus = { ...state.typeStatus };
+      for (const label of labels) {
+        if (!typeStatus[label]) typeStatus[label] = 'synced';
       }
-    );
-  });
-}
+      return { syncedTypes: labels, typeStatus };
+    });
+  },
+
+  syncType: async (label: string) => {
+    set((state) => ({
+      typeStatus: { ...state.typeStatus, [label]: 'syncing' },
+      syncError: { ...state.syncError, [label]: null },
+    }));
+
+    const result = await runSyncType(label);
+
+    set((state) => {
+      const syncedTypes = new Set(state.syncedTypes);
+      syncedTypes.add(label);
+      const hadError = !result.ok || !!result.error;
+      const status: TypeSyncStatus = hadError
+        ? 'error'
+        : result.queued > 0
+        ? 'pending'
+        : 'synced';
+      return {
+        syncedTypes,
+        typeStatus: { ...state.typeStatus, [label]: status },
+        lastSyncedAt:
+          result.ok && !result.error
+            ? { ...state.lastSyncedAt, [label]: new Date().toISOString() }
+            : state.lastSyncedAt,
+        syncError: { ...state.syncError, [label]: hadError ? result.error ?? 'Falha no sync' : null },
+      };
+    });
+  },
+
+  unsubscribeType: async (label: string) => {
+    await removeSyncedType(label);
+    set((state) => {
+      const syncedTypes = new Set(state.syncedTypes);
+      syncedTypes.delete(label);
+      const typeStatus = { ...state.typeStatus };
+      delete typeStatus[label];
+      return { syncedTypes, typeStatus };
+    });
+  },
+
+  runDelta: async () => {
+    const result = await runSyncDelta();
+    const labels = result.labels ?? [];
+    if (!result.ok || labels.length === 0) return;
+    const now = new Date().toISOString();
+    set((state) => {
+      const typeStatus = { ...state.typeStatus };
+      const lastSyncedAt = { ...state.lastSyncedAt };
+      for (const label of labels) {
+        typeStatus[label] = result.queued > 0 ? 'pending' : 'synced';
+        lastSyncedAt[label] = now;
+      }
+      return { typeStatus, lastSyncedAt };
+    });
+  },
+}));

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/auth.store';
+import { startActivitySync, stopActivitySync } from '../services/healthkit-observer';
 import { colors } from '../theme';
 
 export default function RootLayout() {
@@ -22,6 +23,13 @@ export default function RootLayout() {
       router.replace('/');
     }
   }, [session, segments, isLoading]);
+
+  // Sincronização incremental dos tipos inscritos enquanto há sessão.
+  useEffect(() => {
+    if (!session) return;
+    startActivitySync();
+    return () => stopActivitySync();
+  }, [session]);
 
   return (
     <>

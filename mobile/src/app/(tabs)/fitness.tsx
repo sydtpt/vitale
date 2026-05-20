@@ -7,12 +7,18 @@ import {
   Pressable,
   StyleSheet,
   Platform,
+  Alert,
   ListRenderItemInfo,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFitnessStore, WorkoutItem, getActivityMeta } from '../../store/fitness.store';
+import {
+  useFitnessStore,
+  WorkoutItem,
+  getActivityMeta,
+  TypeSyncStatus,
+} from '../../store/fitness.store';
 import { colors, spacing, radii, MOD, shadows } from '../../theme';
 
 type ActivityGroup = {
@@ -37,17 +43,39 @@ function groupByActivity(workouts: WorkoutItem[]): ActivityGroup[] {
   return Array.from(map.values()).sort((a, b) => b.total - a.total);
 }
 
+const SYNC_ICON: Record<Exclude<TypeSyncStatus, 'syncing'>, {
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  tint: string;
+}> = {
+  unsubscribed: { icon: 'sync-outline', color: MOD.treino.accent, tint: MOD.treino.tint },
+  synced: { icon: 'checkmark-circle', color: colors.green, tint: colors.greenSoft },
+  pending: { icon: 'cloud-upload-outline', color: colors.yellow, tint: colors.yellowSoft },
+  error: { icon: 'alert-circle', color: colors.primaryDeep, tint: colors.primarySoft },
+};
+
 function ActivityTypeCard({
   group,
   onPress,
   onSync,
-  syncing,
+  status,
 }: {
   group: ActivityGroup;
   onPress: () => void;
   onSync: () => void;
-  syncing: boolean;
+  status: TypeSyncStatus;
 }) {
+  const syncing = status === 'syncing';
+  const meta = syncing ? null : SYNC_ICON[status];
+  const subtitle =
+    status === 'synced'
+      ? 'Sincronizado'
+      : status === 'pending'
+      ? 'Pendente'
+      : status === 'error'
+      ? 'Erro — toque para tentar de novo'
+      : `${group.total} ${group.total === 1 ? 'atividade' : 'atividades'}`;
+
   return (
     <Pressable
       onPress={onPress}
@@ -58,24 +86,23 @@ function ActivityTypeCard({
       </View>
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle}>{group.label}</Text>
-        <Text style={styles.cardMeta}>
-          {group.total} {group.total === 1 ? 'atividade' : 'atividades'}
-        </Text>
+        <Text style={styles.cardMeta}>{subtitle}</Text>
       </View>
       <Pressable
         onPress={onSync}
         disabled={syncing}
         style={({ pressed }) => [
           styles.syncBtn,
+          { backgroundColor: meta?.tint ?? MOD.treino.tint },
           pressed && styles.syncBtnPressed,
           syncing && styles.syncBtnDisabled,
         ]}
         hitSlop={8}
       >
-        {syncing ? (
+        {syncing || !meta ? (
           <ActivityIndicator size="small" color={MOD.treino.accent} />
         ) : (
-          <Ionicons name="sync-outline" size={18} color={MOD.treino.accent} />
+          <Ionicons name={meta.icon} size={18} color={meta.color} />
         )}
       </Pressable>
       <Ionicons name="chevron-forward" size={18} color={colors.ink4} />
@@ -119,14 +146,20 @@ export default function FitnessScreen() {
     workouts,
     loading,
     requestPermission,
-    loadWorkouts,
+    syncType,
+    typeStatus,
   } = useFitnessStore();
 
   const groups = useMemo(() => groupByActivity(workouts), [workouts]);
 
-  const handleSync = useCallback(() => {
-    loadWorkouts();
-  }, [loadWorkouts]);
+  const handleSync = useCallback(
+    async (label: string) => {
+      await syncType(label);
+      const err = useFitnessStore.getState().syncError[label];
+      if (err) Alert.alert('Erro ao sincronizar', err);
+    },
+    [syncType]
+  );
 
   const handleOpen = useCallback(
     (label: string) => {
@@ -140,11 +173,11 @@ export default function FitnessScreen() {
       <ActivityTypeCard
         group={item}
         onPress={() => handleOpen(item.label)}
-        onSync={handleSync}
-        syncing={loading}
+        onSync={() => handleSync(item.label)}
+        status={typeStatus[item.label] ?? 'unsubscribed'}
       />
     ),
-    [handleOpen, handleSync, loading]
+    [handleOpen, handleSync, typeStatus]
   );
 
   const renderEmpty = useCallback(() => {

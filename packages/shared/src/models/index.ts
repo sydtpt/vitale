@@ -122,3 +122,38 @@ export interface AuthUser {
   name?: string;
   createdAt: string;
 }
+
+/**
+ * Treino sincronizado do HealthKit (push-only). Identidade = ID do HealthKit.
+ * Mapeia a tabela `activities` do Supabase.
+ */
+export interface Activity {
+  id: string;
+  userId: string;
+  activityId: number;
+  activityName?: string;
+  calories: number;
+  startAt: string;
+  endAt: string;
+  durationS: number;
+  distanceM?: number;
+  sourceName?: string;
+  sourceId?: string;
+  device?: string;
+  tracked?: boolean;
+  hasRoute: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ActivityRoutePoint {
+  lat: number;
+  lng: number;
+  alt?: number;
+}
+
+/** Rota GPS de um treino outdoor. Mapeia a tabela `activity_routes`. */
+export interface ActivityRoute {
+  activityId: string;
+  points: ActivityRoutePoint[];
+  pointCount: number;
+}
