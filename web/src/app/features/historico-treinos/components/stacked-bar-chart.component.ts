@@ -58,10 +58,18 @@ export class StackedBarChartComponent {
 
   protected fmt(v: number): string {
     switch (this.metric()) {
-      case 'distance': return `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}km`;
-      case 'duration': return `${(v / 3600).toFixed(v >= 36000 ? 0 : 1)}h`;
-      case 'calories': return `${Math.round(v)}`;
-      case 'count': return `${Math.round(v)}`;
+      case 'distance': return `${this.num(v / 1000, v >= 10000 ? 0 : 1)}km`;
+      case 'duration': return `${this.num(v / 3600, v >= 36000 ? 0 : 1)}h`;
+      case 'calories': return this.num(Math.round(v), 0);
+      case 'count': return this.num(Math.round(v), 0);
     }
+  }
+
+  /** Formata com máscara de milhar (pt-BR) e nº fixo de casas decimais. */
+  private num(v: number, digits: number): string {
+    return v.toLocaleString('pt-BR', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
   }
 }

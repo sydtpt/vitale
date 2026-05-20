@@ -33,12 +33,15 @@
     }
   </div>
 
-  <rt-stacked-bar-chart [buckets]="overview().buckets" [metric]="metric()" />
+  <rt-stacked-bar-chart [buckets]="chartBuckets()" [metric]="metric()" />
 
   @if (overview().legend.length) {
     <div class="legend">
       @for (l of overview().legend; track l.label) {
-        <div class="leg"><span class="dot" [style.background]="l.color"></span>{{ l.label }}</div>
+        <button type="button" class="leg" [class.off]="isHidden(l.label)"
+          [attr.aria-pressed]="!isHidden(l.label)" (click)="toggleType(l.label)">
+          <span class="dot" [style.background]="l.color"></span>{{ l.label }}
+        </button>
       }
     </div>
   }

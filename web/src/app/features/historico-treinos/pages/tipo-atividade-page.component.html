@@ -32,7 +32,7 @@
     </header>
 
     <rt-activity-filters [filters]="filters()" [sources]="result().sources"
-      [showDistance]="showDistance()" (change)="setFilters($event)" />
+      [showDistance]="showDistance()" (filtersChange)="setFilters($event)" />
 
     <div class="toolbar">
       <div class="count">{{ result().total }} {{ result().total === 1 ? 'resultado' : 'resultados' }}</div>

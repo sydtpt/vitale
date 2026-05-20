@@ -17,25 +17,28 @@
           <rt-icon [name]="m.icon" [size]="24" [color]="m.color" [strokeWidth]="1.8" />
         </span>
       }
-      <div>
-        <h1 class="title">{{ a.activityName || meta()?.label }}</h1>
+      <div class="head-text">
+        <div class="title-row">
+          <button
+            type="button"
+            class="stats-toggle"
+            [class.on]="inStats()"
+            [disabled]="togglingStats()"
+            (click)="toggleStats()"
+            [attr.aria-pressed]="inStats()"
+            [title]="inStats() ? 'Nas estatísticas — clique para remover' : 'Fora das estatísticas — clique para adicionar'"
+          >
+            <rt-icon name="trend" [size]="16" color="currentColor" [strokeWidth]="2" />
+          </button>
+          <h1 class="title">{{ a.activityName || meta()?.label }}</h1>
+        </div>
         <div class="when">{{ fmtDate(a.startAt) }} · {{ fmtTime(a.startAt) }}</div>
       </div>
       @if (a.locallyEdited) { <span class="edited">editado manualmente</span> }
     </header>
 
-    <div class="metrics">
-      @if ((a.distanceM ?? 0) > 0) {
-        <div class="metric"><div class="ml">Distância</div><div class="mv mono">{{ fmtKm(a.distanceM ?? 0) }} km</div></div>
-      }
-      <div class="metric"><div class="ml">Duração</div><div class="mv mono">{{ fmtDuration(a.durationS) }}</div></div>
-      @if (a.calories > 0) {
-        <div class="metric"><div class="ml">Calorias</div><div class="mv mono">{{ fmtKcal(a.calories) }} kcal</div></div>
-      }
-      @if (a.sourceName) {
-        <div class="metric"><div class="ml">Fonte</div><div class="mv">{{ a.sourceName }}</div></div>
-      }
-    </div>
+    @if (statsError()) { <p class="err">{{ statsError() }}</p> }
+    @if (!inStats()) { <p class="excluded-note">Esta atividade está fora das estatísticas e listas.</p> }
 
     @if (a.hasRoute) {
       <section class="route">
@@ -77,5 +80,37 @@
         </button>
       </div>
     </div>
+
+    <section class="info">
+      <h3 class="info-title">Informações</h3>
+      <dl class="info-grid">
+        @if (meta(); as m) {
+          <div class="info-row"><dt>Tipo</dt><dd>{{ m.label }}</dd></div>
+        }
+        <div class="info-row"><dt>Início</dt><dd>{{ fmtDate(a.startAt) }} · {{ fmtTime(a.startAt) }}</dd></div>
+        <div class="info-row"><dt>Fim</dt><dd>{{ fmtDate(a.endAt) }} · {{ fmtTime(a.endAt) }}</dd></div>
+        <div class="info-row"><dt>Duração</dt><dd class="mono">{{ fmtDuration(a.durationS) }}</dd></div>
+        @if ((a.distanceM ?? 0) > 0) {
+          <div class="info-row"><dt>Distância</dt><dd class="mono">{{ fmtKm(a.distanceM ?? 0) }} km</dd></div>
+        }
+        @if (a.calories > 0) {
+          <div class="info-row"><dt>Calorias</dt><dd class="mono">{{ fmtKcal(a.calories) }} kcal</dd></div>
+        }
+        @if (a.sourceName) {
+          <div class="info-row"><dt>Fonte</dt><dd>{{ a.sourceName }}</dd></div>
+        }
+        @if (a.device) {
+          <div class="info-row"><dt>Dispositivo</dt><dd>{{ a.device }}</dd></div>
+        }
+        <div class="info-row"><dt>Rastreado por GPS</dt><dd>{{ a.tracked ? 'Sim' : 'Não' }}</dd></div>
+        <div class="info-row"><dt>Possui rota</dt><dd>{{ a.hasRoute ? 'Sim' : 'Não' }}</dd></div>
+        <div class="info-row"><dt>Nas estatísticas</dt><dd>{{ inStats() ? 'Sim' : 'Não' }}</dd></div>
+        <div class="info-row"><dt>Editado manualmente</dt><dd>{{ a.locallyEdited ? 'Sim' : 'Não' }}</dd></div>
+        @if (a.editedAt) {
+          <div class="info-row"><dt>Editado em</dt><dd>{{ fmtDate(a.editedAt) }} · {{ fmtTime(a.editedAt) }}</dd></div>
+        }
+        <div class="info-row"><dt>ID</dt><dd class="mono id">{{ a.id }}</dd></div>
+      </dl>
+    </section>
   }
 </div>

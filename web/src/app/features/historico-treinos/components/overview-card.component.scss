@@ -85,11 +85,28 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
+  font-weight: 600;
   color: var(--ink-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, opacity 0.12s;
+}
+.leg:hover {
+  background: var(--surface-mute);
+  color: var(--ink);
+}
+.leg.off {
+  opacity: 0.45;
+  color: var(--ink-3);
+  text-decoration: line-through;
 }
 .dot {
   width: 9px;
   height: 9px;
   border-radius: 3px;
   display: inline-block;
+  flex-shrink: 0;
 }

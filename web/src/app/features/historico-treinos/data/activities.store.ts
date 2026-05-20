@@ -44,6 +44,14 @@ export class ActivitiesStore {
 
   /** Atividades visíveis (exclui ocultas) — base de toda derivação analítica. */
   readonly activities = computed(() => this._all().filter((a) => !a.hidden));
+
+  /**
+   * Busca por id incluindo ocultas — usado no detalhe, onde uma atividade fora
+   * das estatísticas ainda precisa ser exibida e poder voltar para elas.
+   */
+  findById(id: string): Activity | undefined {
+    return this._all().find((a) => a.id === id);
+  }
   readonly state = this._state.asReadonly();
   readonly error = this._error.asReadonly();
   readonly loading = computed(() => this._state() === 'loading' || this._state() === 'idle');
@@ -110,6 +118,18 @@ export class ActivitiesStore {
           : a,
       ),
     );
+  }
+
+  /**
+   * Inclui ou remove a atividade das estatísticas alternando a flag `hidden`.
+   * O sync push-only preserva `hidden` (não está no SET do upsert), então a
+   * escolha sobrevive a sincronizações futuras.
+   */
+  async setHidden(id: string, hidden: boolean): Promise<void> {
+    const { error } = await supabase.from('activities').update({ hidden }).eq('id', id);
+    if (error) throw new Error(error.message);
+
+    this._all.update((list) => list.map((a) => (a.id === id ? { ...a, hidden } : a)));
   }
 
   /**

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivitiesStore } from '../data/activities.store';
-import { buildOverview, type Metric, type Period } from '../data/overview';
+import { buildOverview, type Metric, type OverviewBucket, type Period } from '../data/overview';
 import { PeriodSelectorComponent } from './period-selector.component';
 import { StackedBarChartComponent } from './stacked-bar-chart.component';
 
@@ -17,10 +17,37 @@ export class OverviewCardComponent {
 
   protected readonly period = signal<Period>('ano');
   protected readonly metric = signal<Metric>('count');
+  /** Tipos ocultados via clique na legenda. */
+  protected readonly hidden = signal<ReadonlySet<string>>(new Set());
 
   protected readonly overview = computed(() =>
     buildOverview(this.store.activities(), this.period(), this.metric()),
   );
+
+  /** Buckets sem os tipos ocultos, com totais recalculados para o gráfico. */
+  protected readonly chartBuckets = computed<OverviewBucket[]>(() => {
+    const hidden = this.hidden();
+    const buckets = this.overview().buckets;
+    if (!hidden.size) return buckets;
+    return buckets.map((b) => {
+      const segments = b.segments.filter((s) => !hidden.has(s.label));
+      const total = segments.reduce((sum, s) => sum + s.value, 0);
+      return { ...b, segments, total };
+    });
+  });
+
+  protected isHidden(label: string): boolean {
+    return this.hidden().has(label);
+  }
+
+  protected toggleType(label: string): void {
+    this.hidden.update((set) => {
+      const next = new Set(set);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
 
   protected readonly metrics: { value: Metric; label: string }[] = [
     { value: 'distance', label: 'Distância' },

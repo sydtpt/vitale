@@ -12,7 +12,7 @@ export class ActivityFiltersComponent {
   readonly filters = input.required<ActivityFilters>();
   readonly sources = input.required<string[]>();
   readonly showDistance = input(true);
-  readonly change = output<ActivityFilters>();
+  readonly filtersChange = output<ActivityFilters>();
 
   protected readonly hasActive = computed(() => {
     const f = this.filters();
@@ -21,7 +21,7 @@ export class ActivityFiltersComponent {
   });
 
   private patch(p: Partial<ActivityFilters>): void {
-    this.change.emit({ ...this.filters(), ...p });
+    this.filtersChange.emit({ ...this.filters(), ...p });
   }
 
   private num(e: Event): number | undefined {
@@ -37,5 +37,5 @@ export class ActivityFiltersComponent {
   protected onMaxDur(e: Event): void { this.patch({ maxDurationMin: this.num(e) }); }
   protected onSource(e: Event): void { this.patch({ source: (e.target as HTMLSelectElement).value || undefined }); }
   protected onRoute(e: Event): void { this.patch({ hasRoute: (e.target as HTMLSelectElement).value as RouteFilter }); }
-  protected clear(): void { this.change.emit({ ...EMPTY_FILTERS }); }
+  protected clear(): void { this.filtersChange.emit({ ...EMPTY_FILTERS }); }
 }

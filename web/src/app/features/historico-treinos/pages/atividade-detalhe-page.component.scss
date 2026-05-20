@@ -30,8 +30,39 @@
   justify-content: center;
   flex-shrink: 0;
 }
+.head-text { min-width: 0; }
+.title-row { display: flex; align-items: center; gap: 10px; }
 .title { font-size: 22px; font-weight: 650; letter-spacing: -0.4px; }
 .when { font-size: 13px; color: var(--ink-3); margin-top: 3px; }
+
+/* Toggle "nas estatísticas" — em frente ao título. */
+.stats-toggle {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1.5px solid var(--line);
+  background: var(--surface-mute);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.stats-toggle:not(:disabled):hover { border-color: var(--ink-3); }
+.stats-toggle.on {
+  background: var(--primary-soft);
+  border-color: transparent;
+  color: var(--primary);
+}
+.stats-toggle:disabled { opacity: 0.6; cursor: default; }
+
+.excluded-note {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin: -8px 0 20px;
+}
 .edited {
   margin-left: auto;
   align-self: flex-start;
@@ -43,20 +74,34 @@
   border-radius: 7px;
 }
 
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-  margin-bottom: 24px;
-}
-.metric {
+/* Bloco completo de informações — abaixo dos campos editáveis. */
+.info {
+  margin-top: 24px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px 14px;
+  border-radius: 16px;
+  padding: 20px;
 }
-.ml { font-size: 11px; color: var(--ink-3); margin-bottom: 4px; }
-.mv { font-size: 15px; font-weight: 650; color: var(--ink); }
+.info-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.info-grid { display: flex; flex-direction: column; }
+.info-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.info-row:first-child { border-top: none; }
+.info-row dt { font-size: 12.5px; color: var(--ink-3); flex-shrink: 0; }
+.info-row dd {
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--ink);
+  text-align: right;
+  word-break: break-word;
+}
+.info-row dd.id { font-size: 12px; color: var(--ink-2); font-weight: 400; }
 
 .route { margin-bottom: 24px; }
 .route-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }

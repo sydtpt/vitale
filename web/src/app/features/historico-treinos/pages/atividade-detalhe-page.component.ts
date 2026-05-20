@@ -24,7 +24,7 @@ export class AtividadeDetalhePageComponent {
   private readonly _id = signal('');
   protected readonly slug = signal('');
 
-  protected readonly activity = computed(() => this.store.activities().find((a) => a.id === this._id()));
+  protected readonly activity = computed(() => this.store.findById(this._id()));
   protected readonly meta = computed(() => {
     const a = this.activity();
     return a ? metaForActivity(a.activityId) : undefined;
@@ -44,6 +44,11 @@ export class AtividadeDetalhePageComponent {
 
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
+
+  protected readonly togglingStats = signal(false);
+  protected readonly statsError = signal<string | null>(null);
+  /** true quando a atividade conta nas estatísticas (não está oculta). */
+  protected readonly inStats = computed(() => !this.activity()?.hidden);
 
   protected readonly fmtDate = fmtDate;
   protected readonly fmtTime = fmtTime;
@@ -77,6 +82,20 @@ export class AtividadeDetalhePageComponent {
       this.routePoints.set([]);
     } finally {
       this.routeLoading.set(false);
+    }
+  }
+
+  protected async toggleStats(): Promise<void> {
+    const a = this.activity();
+    if (!a || this.togglingStats()) return;
+    this.togglingStats.set(true);
+    this.statsError.set(null);
+    try {
+      await this.store.setHidden(a.id, !a.hidden);
+    } catch (e) {
+      this.statsError.set((e as Error).message);
+    } finally {
+      this.togglingStats.set(false);
     }
   }
 
