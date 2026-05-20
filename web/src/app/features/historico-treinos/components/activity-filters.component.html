@@ -1,0 +1,53 @@
+<div class="filters">
+  <div class="field">
+    <label>De</label>
+    <input type="date" [value]="filters().from ?? ''" (change)="onFrom($event)" />
+  </div>
+  <div class="field">
+    <label>Até</label>
+    <input type="date" [value]="filters().to ?? ''" (change)="onTo($event)" />
+  </div>
+
+  @if (showDistance()) {
+    <div class="field sm">
+      <label>Dist. mín (km)</label>
+      <input type="number" min="0" step="1" [value]="filters().minDistanceKm ?? ''" (input)="onMinDist($event)" />
+    </div>
+    <div class="field sm">
+      <label>Dist. máx (km)</label>
+      <input type="number" min="0" step="1" [value]="filters().maxDistanceKm ?? ''" (input)="onMaxDist($event)" />
+    </div>
+  }
+
+  <div class="field sm">
+    <label>Dur. mín (min)</label>
+    <input type="number" min="0" step="5" [value]="filters().minDurationMin ?? ''" (input)="onMinDur($event)" />
+  </div>
+  <div class="field sm">
+    <label>Dur. máx (min)</label>
+    <input type="number" min="0" step="5" [value]="filters().maxDurationMin ?? ''" (input)="onMaxDur($event)" />
+  </div>
+
+  @if (sources().length > 1) {
+    <div class="field">
+      <label>Fonte</label>
+      <select [value]="filters().source ?? ''" (change)="onSource($event)">
+        <option value="">Todas</option>
+        @for (s of sources(); track s) { <option [value]="s">{{ s }}</option> }
+      </select>
+    </div>
+  }
+
+  <div class="field">
+    <label>Rota</label>
+    <select [value]="filters().hasRoute ?? 'all'" (change)="onRoute($event)">
+      <option value="all">Todas</option>
+      <option value="yes">Com rota</option>
+      <option value="no">Sem rota</option>
+    </select>
+  </div>
+
+  @if (hasActive()) {
+    <button type="button" class="clear" (click)="clear()">Limpar filtros</button>
+  }
+</div>

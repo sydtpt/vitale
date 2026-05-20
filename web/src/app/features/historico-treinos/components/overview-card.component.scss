@@ -1,0 +1,95 @@
+.card {
+  background: var(--surface);
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ink-3);
+}
+.title {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+  margin-top: 2px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 18px 0;
+}
+.tile {
+  background: var(--surface-mute);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.t-label {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+.t-value {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.metric-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-mute);
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+.m {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  transition: background 0.12s, color 0.12s;
+}
+.m:hover { color: var(--ink); }
+.m.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+}
+.leg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  display: inline-block;
+}

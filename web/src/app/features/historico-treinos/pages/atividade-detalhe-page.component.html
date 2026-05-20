@@ -1,0 +1,81 @@
+<div class="page">
+  @if (store.loading()) {
+    <div class="state">Carregando…</div>
+  } @else if (!activity()) {
+    <div class="state">
+      Atividade não encontrada.
+      <a routerLink="/historico-treinos" class="link">Voltar ao histórico</a>
+    </div>
+  } @else if (activity(); as a) {
+    <a [routerLink]="['/historico-treinos', slug()]" class="back">
+      <rt-icon name="chev-l" [size]="16" color="var(--ink-3)" /> Voltar
+    </a>
+
+    <header class="head">
+      @if (meta(); as m) {
+        <span class="ico" [style.color]="m.color">
+          <rt-icon [name]="m.icon" [size]="24" [color]="m.color" [strokeWidth]="1.8" />
+        </span>
+      }
+      <div>
+        <h1 class="title">{{ a.activityName || meta()?.label }}</h1>
+        <div class="when">{{ fmtDate(a.startAt) }} · {{ fmtTime(a.startAt) }}</div>
+      </div>
+      @if (a.locallyEdited) { <span class="edited">editado manualmente</span> }
+    </header>
+
+    <div class="metrics">
+      @if ((a.distanceM ?? 0) > 0) {
+        <div class="metric"><div class="ml">Distância</div><div class="mv mono">{{ fmtKm(a.distanceM ?? 0) }} km</div></div>
+      }
+      <div class="metric"><div class="ml">Duração</div><div class="mv mono">{{ fmtDuration(a.durationS) }}</div></div>
+      @if (a.calories > 0) {
+        <div class="metric"><div class="ml">Calorias</div><div class="mv mono">{{ fmtKcal(a.calories) }} kcal</div></div>
+      }
+      @if (a.sourceName) {
+        <div class="metric"><div class="ml">Fonte</div><div class="mv">{{ a.sourceName }}</div></div>
+      }
+    </div>
+
+    @if (a.hasRoute) {
+      <section class="route">
+        <h3 class="route-title">Rota</h3>
+        @if (routeLoading()) {
+          <div class="route-state">Carregando rota…</div>
+        } @else if (routePoints().length > 0) {
+          <rt-activity-map [points]="routePoints()" />
+        } @else {
+          <div class="route-state">Rota indisponível para esta atividade.</div>
+        }
+      </section>
+    }
+
+    <div class="form">
+      <h3 class="form-title">Editar</h3>
+
+      <div class="field">
+        <label for="name">Nome</label>
+        <input id="name" type="text" [value]="name()" (input)="onName($event)"
+          [placeholder]="meta()?.label ?? 'Nome da atividade'" />
+      </div>
+
+      @if (!hasGps()) {
+        <div class="field">
+          <label for="dur">Tempo (minutos)</label>
+          <input id="dur" type="number" min="0" step="1" [value]="durationMin()" (input)="onDuration($event)" />
+        </div>
+      } @else {
+        <p class="note">O tempo é calculado pelo GPS e não pode ser editado nesta atividade.</p>
+      }
+
+      @if (saveError()) { <p class="err">{{ saveError() }}</p> }
+
+      <div class="actions">
+        <a [routerLink]="['/historico-treinos', slug()]" class="cancel">Cancelar</a>
+        <button type="button" class="save" [disabled]="saving()" (click)="save()">
+          {{ saving() ? 'Salvando…' : 'Salvar' }}
+        </button>
+      </div>
+    </div>
+  }
+</div>

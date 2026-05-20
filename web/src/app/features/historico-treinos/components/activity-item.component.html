@@ -1,0 +1,40 @@
+@if (mode() === 'list') {
+  <a class="row" [routerLink]="['/historico-treinos', meta().slug, activity().id]">
+    <span class="ico" [style.color]="meta().color">
+      <rt-icon [name]="meta().icon" [size]="18" [color]="meta().color" [strokeWidth]="1.9" />
+    </span>
+    <div class="info">
+      <div class="name">
+        {{ activity().activityName || meta().label }}
+        @if (activity().locallyEdited) { <span class="badge">editado</span> }
+      </div>
+      <div class="when">{{ fmtDate(activity().startAt) }} · {{ fmtTime(activity().startAt) }}</div>
+    </div>
+    <div class="metrics mono">
+      @if (hasDistance()) { <span class="m strong">{{ fmtKm(activity().distanceM ?? 0) }} km</span> }
+      <span class="m">{{ fmtDuration(activity().durationS) }}</span>
+      @if (activity().calories > 0) { <span class="m">{{ fmtKcal(activity().calories) }} kcal</span> }
+    </div>
+    <rt-icon class="chev" name="chev-r" [size]="16" color="var(--ink-4)" />
+  </a>
+} @else {
+  <a class="carditem" [routerLink]="['/historico-treinos', meta().slug, activity().id]">
+    <div class="top">
+      <span class="ico" [style.color]="meta().color">
+        <rt-icon [name]="meta().icon" [size]="18" [color]="meta().color" [strokeWidth]="1.9" />
+      </span>
+      @if (activity().locallyEdited) { <span class="badge">editado</span> }
+    </div>
+    <div class="name">{{ activity().activityName || meta().label }}</div>
+    <div class="when">{{ fmtDate(activity().startAt) }} · {{ fmtTime(activity().startAt) }}</div>
+    <div class="grid mono">
+      @if (hasDistance()) {
+        <div><span class="v">{{ fmtKm(activity().distanceM ?? 0) }}</span><span class="u"> km</span></div>
+      }
+      <div><span class="v">{{ fmtDuration(activity().durationS) }}</span></div>
+      @if (activity().calories > 0) {
+        <div><span class="v">{{ fmtKcal(activity().calories) }}</span><span class="u"> kcal</span></div>
+      }
+    </div>
+  </a>
+}

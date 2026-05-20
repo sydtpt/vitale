@@ -148,6 +148,7 @@ export default function FitnessScreen() {
     requestPermission,
     syncType,
     typeStatus,
+    syncedTypes,
   } = useFitnessStore();
 
   const groups = useMemo(() => groupByActivity(workouts), [workouts]);
@@ -160,6 +161,26 @@ export default function FitnessScreen() {
     },
     [syncType]
   );
+
+  const handleResyncAll = useCallback(() => {
+    if (syncedTypes.size === 0) return;
+    Alert.alert(
+      'Re-sincronizar histórico',
+      'Isso reenvia todos os treinos inscritos ao servidor, corrigindo distâncias que possam ter sido gravadas incorretamente.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Re-sincronizar',
+          style: 'destructive',
+          onPress: async () => {
+            for (const label of syncedTypes) {
+              await syncType(label);
+            }
+          },
+        },
+      ]
+    );
+  }, [syncedTypes, syncType]);
 
   const handleOpen = useCallback(
     (label: string) => {
@@ -217,6 +238,16 @@ export default function FitnessScreen() {
             {groups.length} {groups.length === 1 ? 'tipo' : 'tipos'}
           </Text>
         )}
+        <View style={{ flex: 1 }} />
+        {syncedTypes.size > 0 && (
+          <Pressable
+            onPress={handleResyncAll}
+            style={({ pressed }) => [styles.resyncBtn, pressed && styles.syncBtnPressed]}
+            hitSlop={8}
+          >
+            <Ionicons name="refresh-outline" size={18} color={colors.ink3} />
+          </Pressable>
+        )}
       </View>
 
       {loading && workouts.length === 0 ? (
@@ -247,7 +278,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
     flexDirection: 'row',
-    alignItems: 'baseline',
+    // 'center' (e não 'baseline'): a linha contém views não-textuais (spacer
+    // flex e botão de resync); 'baseline' faz o Yoga calcular baseline NaN para
+    // essas views e aborta o app (std::logic_error).
+    alignItems: 'center',
     gap: spacing.sm,
   },
   headerTitle: {
@@ -305,6 +339,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: radii.pill,
     backgroundColor: MOD.treino.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resyncBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    backgroundColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
   },

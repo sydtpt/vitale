@@ -1,0 +1,41 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field.sm input { width: 92px; }
+label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ink-3);
+}
+input, select {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  padding: 7px 9px;
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--primary); }
+.clear {
+  margin-left: auto;
+  align-self: flex-end;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 4px;
+}
+.clear:hover { text-decoration: underline; }

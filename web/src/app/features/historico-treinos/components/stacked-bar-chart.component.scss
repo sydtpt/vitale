@@ -1,0 +1,8 @@
+:host { display: block; }
+.chart { width: 100%; height: auto; display: block; }
+.no-data {
+  padding: 48px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}

@@ -10,6 +10,7 @@ import {
   YEARS_BACK,
   startDateYearsAgo,
   deriveWorkoutId,
+  milesToMeters,
   type WorkoutItem,
   type RoutePoint,
 } from './workout-types';
@@ -49,38 +50,52 @@ export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
   });
 }
 
+function mapRawWorkout(w: any): WorkoutItem {
+  return {
+    id: w.id ?? deriveWorkoutId(w),
+    activityId: w.activityId ?? 0,
+    activityName: w.activityName ?? 'Treino',
+    calories: Math.round(w.calories ?? 0),
+    start: w.start,
+    end: w.end,
+    duration: w.duration ?? 0,
+    distance: milesToMeters(w.distance), // nativo entrega milhas → metros
+    sourceName: w.sourceName,
+    sourceId: w.sourceId,
+    device: w.device,
+    tracked: w.tracked,
+    metadata: w.metadata && typeof w.metadata === 'object' ? w.metadata : undefined,
+    workoutEventsCount: Array.isArray(w.workoutEvents) ? w.workoutEvents.length : undefined,
+  };
+}
+
+/**
+ * Timeout de segurança para chamadas ao HealthKit: se o callback nativo não
+ * disparar dentro de `ms` ms (ex.: logo após initHealthKit), resolve com o
+ * fallback em vez de pendurar a Promise para sempre.
+ */
+function withTimeout<T>(promise: Promise<T>, fallback: T, ms = 12_000): Promise<T> {
+  return new Promise((resolve) => {
+    let done = false;
+    const settle = (v: T) => { if (!done) { done = true; resolve(v); } };
+    setTimeout(() => settle(fallback), ms);
+    promise.then(settle);
+  });
+}
+
 /** Uma página de treinos terminando em `endDate`, do mais recente ao mais antigo. */
 export function fetchWorkoutsPage(endDate: string): Promise<WorkoutItem[]> {
   if (Platform.OS !== 'ios') return Promise.resolve([]);
-  return new Promise((resolve) => {
+  const inner = new Promise<WorkoutItem[]>((resolve) => {
     AppleHealthKit.getAnchoredWorkouts(
       { startDate: startDateYearsAgo(YEARS_BACK), endDate, limit: PAGE_SIZE, ascending: false } as any,
       (err, results) => {
-        if (err || !results?.data) {
-          resolve([]);
-          return;
-        }
-        resolve(
-          results.data.map((w) => ({
-            id: w.id ?? deriveWorkoutId(w),
-            activityId: w.activityId ?? 0,
-            activityName: w.activityName ?? 'Treino',
-            calories: Math.round(w.calories ?? 0),
-            start: w.start,
-            end: w.end,
-            duration: w.duration ?? 0,
-            distance: w.distance,
-            sourceName: w.sourceName,
-            sourceId: w.sourceId,
-            device: w.device,
-            tracked: w.tracked,
-            metadata: w.metadata && typeof w.metadata === 'object' ? w.metadata : undefined,
-            workoutEventsCount: Array.isArray(w.workoutEvents) ? w.workoutEvents.length : undefined,
-          }))
-        );
+        if (err || !results?.data) { resolve([]); return; }
+        resolve(results.data.map(mapRawWorkout));
       }
     );
   });
+  return withTimeout(inner, []);
 }
 
 export interface WorkoutsDelta {
@@ -96,7 +111,8 @@ export interface WorkoutsDelta {
  */
 export function fetchWorkoutsDelta(anchor: string | null): Promise<WorkoutsDelta> {
   if (Platform.OS !== 'ios') return Promise.resolve({ workouts: [], anchor: anchor ?? '' });
-  return new Promise((resolve) => {
+  const fallback: WorkoutsDelta = { workouts: [], anchor: anchor ?? '' };
+  const inner = new Promise<WorkoutsDelta>((resolve) => {
     AppleHealthKit.getAnchoredWorkouts(
       {
         startDate: startDateYearsAgo(YEARS_BACK),
@@ -105,30 +121,12 @@ export function fetchWorkoutsDelta(anchor: string | null): Promise<WorkoutsDelta
         ...(anchor ? { anchor } : {}),
       } as any,
       (err, results) => {
-        if (err || !results?.data) {
-          resolve({ workouts: [], anchor: anchor ?? '' });
-          return;
-        }
-        const workouts = results.data.map((w) => ({
-          id: w.id ?? deriveWorkoutId(w),
-          activityId: w.activityId ?? 0,
-          activityName: w.activityName ?? 'Treino',
-          calories: Math.round(w.calories ?? 0),
-          start: w.start,
-          end: w.end,
-          duration: w.duration ?? 0,
-          distance: w.distance,
-          sourceName: w.sourceName,
-          sourceId: w.sourceId,
-          device: w.device,
-          tracked: w.tracked,
-          metadata: w.metadata && typeof w.metadata === 'object' ? w.metadata : undefined,
-          workoutEventsCount: Array.isArray(w.workoutEvents) ? w.workoutEvents.length : undefined,
-        }));
-        resolve({ workouts, anchor: results.anchor ?? anchor ?? '' });
+        if (err || !results?.data) { resolve(fallback); return; }
+        resolve({ workouts: results.data.map(mapRawWorkout), anchor: results.anchor ?? anchor ?? '' });
       }
     );
   });
+  return withTimeout(inner, fallback);
 }
 
 /**

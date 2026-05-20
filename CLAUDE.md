@@ -149,3 +149,4 @@ Cada módulo tem seu spec em `.claude/specs/`:
 - [Mobile: Mais](.claude/specs/mobile-mais.md)
 - [Backend / API](.claude/specs/backend.md)
 - [Sync: Atividades (HealthKit → Supabase)](.claude/specs/sync-atividades/spec.md) · [plan](.claude/specs/sync-atividades/plan.md) · [data-model](.claude/specs/sync-atividades/data-model.md) · [tasks](.claude/specs/sync-atividades/tasks.md)
+- [Web: Histórico de Treinos](.claude/specs/historico-treinos/spec.md) · [plan](.claude/specs/historico-treinos/plan.md) · [data-model](.claude/specs/historico-treinos/data-model.md) · [tasks](.claude/specs/historico-treinos/tasks.md)

@@ -1,0 +1,107 @@
+import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import type { ActivityRoutePoint } from '@vitale/shared';
+import { IconComponent } from '@core/services/icon.component';
+import { metaForActivity } from '@core/models/activity-types';
+import { ActivitiesStore } from '../data/activities.store';
+import { ActivityMapComponent } from '../components/activity-map.component';
+import { fmtDate, fmtDuration, fmtKcal, fmtKm, fmtTime } from '../data/format';
+
+@Component({
+  selector: 'rt-atividade-detalhe-page',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink, IconComponent, ActivityMapComponent],
+  templateUrl: './atividade-detalhe-page.component.html',
+  styleUrl: './atividade-detalhe-page.component.scss',
+})
+export class AtividadeDetalhePageComponent {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  protected readonly store = inject(ActivitiesStore);
+
+  private readonly _id = signal('');
+  protected readonly slug = signal('');
+
+  protected readonly activity = computed(() => this.store.activities().find((a) => a.id === this._id()));
+  protected readonly meta = computed(() => {
+    const a = this.activity();
+    return a ? metaForActivity(a.activityId) : undefined;
+  });
+  /** "sem GPS" = sem rota e sem distância → tempo é editável. */
+  protected readonly hasGps = computed(() => {
+    const a = this.activity();
+    return !!a && (a.hasRoute || (a.distanceM ?? 0) > 0);
+  });
+
+  protected readonly name = linkedSignal(() => this.activity()?.activityName ?? '');
+  protected readonly durationMin = linkedSignal(() => Math.round((this.activity()?.durationS ?? 0) / 60));
+
+  protected readonly routePoints = signal<ActivityRoutePoint[]>([]);
+  protected readonly routeLoading = signal(false);
+  private routeFor = '';
+
+  protected readonly saving = signal(false);
+  protected readonly saveError = signal<string | null>(null);
+
+  protected readonly fmtDate = fmtDate;
+  protected readonly fmtTime = fmtTime;
+  protected readonly fmtKm = fmtKm;
+  protected readonly fmtDuration = fmtDuration;
+  protected readonly fmtKcal = fmtKcal;
+
+  constructor() {
+    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((pm) => {
+      this.slug.set(pm.get('slug') ?? '');
+      this._id.set(pm.get('id') ?? '');
+      this.saveError.set(null);
+    });
+    void this.store.load();
+
+    // Carrega a rota GPS quando a atividade (com rota) entra em cena.
+    effect(() => {
+      const a = this.activity();
+      if (a?.hasRoute) void this.fetchRoute(a.id);
+      else this.routePoints.set([]);
+    });
+  }
+
+  private async fetchRoute(id: string): Promise<void> {
+    if (this.routeFor === id) return;
+    this.routeFor = id;
+    this.routeLoading.set(true);
+    try {
+      this.routePoints.set(await this.store.loadRoute(id));
+    } catch {
+      this.routePoints.set([]);
+    } finally {
+      this.routeLoading.set(false);
+    }
+  }
+
+  protected onName(e: Event): void { this.name.set((e.target as HTMLInputElement).value); }
+  protected onDuration(e: Event): void {
+    const n = (e.target as HTMLInputElement).valueAsNumber;
+    this.durationMin.set(Number.isNaN(n) ? 0 : n);
+  }
+
+  protected async save(): Promise<void> {
+    const a = this.activity();
+    if (!a) return;
+    this.saving.set(true);
+    this.saveError.set(null);
+    try {
+      const patch: { activityName?: string | null; durationS?: number } = {
+        activityName: this.name().trim() || null,
+      };
+      if (!this.hasGps()) patch.durationS = Math.max(0, Math.round(this.durationMin()) * 60);
+      await this.store.updateActivity(a.id, patch);
+      await this.router.navigate(['/historico-treinos', this.slug()]);
+    } catch (e) {
+      this.saveError.set((e as Error).message);
+    } finally {
+      this.saving.set(false);
+    }
+  }
+}

@@ -1,0 +1,31 @@
+<div class="page">
+  @if (store.loading()) {
+    <div class="state">Carregando atividades…</div>
+  } @else if (store.error()) {
+    <div class="state error">Não foi possível carregar o histórico: {{ store.error() }}</div>
+  } @else if (store.isEmpty()) {
+    <div class="empty">
+      <div class="empty-icon">
+        <rt-icon name="dumbbell" [size]="34" color="var(--primary)" [strokeWidth]="1.8" />
+      </div>
+      <h2 class="empty-title">Nenhum treino importado ainda</h2>
+      <p class="empty-text">
+        Para ver seu histórico aqui, abra o app no celular, vá até a aba
+        <strong>Fitness</strong> e toque em sincronizar nos tipos de treino que deseja acompanhar.
+        Eles aparecem nesta página assim que a sincronização terminar.
+      </p>
+    </div>
+  } @else {
+    <rt-page-header eyebrow="Histórico" [title]="total() + ' treinos importados'"
+      subtitle="Visão geral e análise por período" />
+    <rt-overview-card />
+    <section class="types">
+      <h3 class="sec-title">Por tipo de atividade</h3>
+      <div class="grid">
+        @for (t of store.typeSummaries(); track t.label) {
+          <rt-tipo-card [s]="t" />
+        }
+      </div>
+    </section>
+  }
+</div>

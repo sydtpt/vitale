@@ -143,6 +143,11 @@ export interface Activity {
   tracked?: boolean;
   hasRoute: boolean;
   metadata?: Record<string, unknown>;
+  /** true quando editado manualmente na web; o sync deixa de sobrescrever. */
+  locallyEdited?: boolean;
+  editedAt?: string;
+  /** true quando editado e depois apagado no HealthKit — fora de métricas/listas. */
+  hidden?: boolean;
 }
 
 export interface ActivityRoutePoint {

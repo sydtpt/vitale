@@ -1,0 +1,45 @@
+<div class="card">
+  <div class="top">
+    <div>
+      <div class="eyebrow">Visão geral</div>
+      <h3 class="title">{{ overview().totals.count }} atividades</h3>
+    </div>
+    <rt-period-selector [value]="period()" (select)="period.set($event)" />
+  </div>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="t-label">Atividades</div>
+      <div class="t-value mono">{{ overview().totals.count }}</div>
+    </div>
+    <div class="tile">
+      <div class="t-label">Distância</div>
+      <div class="t-value mono">{{ fmtDistance(overview().totals.distanceM) }}</div>
+    </div>
+    <div class="tile">
+      <div class="t-label">Tempo</div>
+      <div class="t-value mono">{{ fmtDuration(overview().totals.durationS) }}</div>
+    </div>
+    <div class="tile">
+      <div class="t-label">Calorias</div>
+      <div class="t-value mono">{{ fmtCalories(overview().totals.calories) }}</div>
+    </div>
+  </div>
+
+  <div class="metric-toggle">
+    @for (m of metrics; track m.value) {
+      <button type="button" class="m" [class.active]="m.value === metric()"
+        (click)="metric.set(m.value)">{{ m.label }}</button>
+    }
+  </div>
+
+  <rt-stacked-bar-chart [buckets]="overview().buckets" [metric]="metric()" />
+
+  @if (overview().legend.length) {
+    <div class="legend">
+      @for (l of overview().legend; track l.label) {
+        <div class="leg"><span class="dot" [style.background]="l.color"></span>{{ l.label }}</div>
+      }
+    </div>
+  }
+</div>

@@ -57,7 +57,9 @@ async function pushActivities(
   let error: string | undefined;
   for (let i = 0; i < rows.length; i += BATCH) {
     const chunk = rows.slice(i, i + BATCH);
-    const res = await supabase.from('activities').upsert(chunk, { onConflict: 'id' });
+    // RPC com upsert condicional: NÃO sobrescreve linhas editadas na web
+    // (`locally_edited = true`). Ver .claude/specs/historico-treinos/data-model.md §2.
+    const res = await supabase.rpc('sync_upsert_activities', { rows: chunk });
     if (res.error) {
       if (!error) error = res.error.message;
       console.warn('[sync] upsert activities falhou:', res.error.message);

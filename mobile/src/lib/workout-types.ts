@@ -29,6 +29,18 @@ export interface RoutePoint {
   altitude?: number;
 }
 
+/**
+ * Fator milha → metro. O react-native-health devolve a distância dos workouts
+ * em milhas (`HKUnit mileUnit` no nativo), então convertemos na leitura para
+ * manter `WorkoutItem.distance` em metros, como o resto do código assume.
+ */
+export const METERS_PER_MILE = 1609.344;
+
+/** Converte a distância de workout do HealthKit (milhas) para metros. */
+export function milesToMeters(miles?: number): number | undefined {
+  return typeof miles === 'number' ? miles * METERS_PER_MILE : undefined;
+}
+
 /** Atividades ao ar livre que costumam ter rota GPS (corrida, caminhada, ciclismo, trilha). */
 export const GPS_ACTIVITY_IDS = new Set<number>([13, 24, 37, 52]);
 

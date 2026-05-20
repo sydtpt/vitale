@@ -1,0 +1,22 @@
+<a class="card" [routerLink]="['/historico-treinos', s().slug]">
+  <div class="head">
+    <span class="ico" [style.background]="tint(s().color)">
+      <rt-icon [name]="s().icon" [size]="18" [color]="s().color" [strokeWidth]="1.9" />
+    </span>
+    <span class="label">{{ s().label }}</span>
+    <rt-icon class="chev" name="chev-r" [size]="16" color="var(--ink-4)" />
+  </div>
+
+  @if (s().hasDistance) {
+    <div class="big mono">{{ fmtKm(s().distanceM) }}<span class="unit"> km</span></div>
+    <div class="sub">
+      {{ s().count }} {{ s().count === 1 ? 'atividade' : 'atividades' }} · {{ fmtDuration(s().durationS) }}
+    </div>
+  } @else {
+    <div class="big mono">{{ fmtDuration(s().durationS) }}</div>
+    <div class="sub">
+      {{ s().count }} {{ s().count === 1 ? 'atividade' : 'atividades' }}
+      @if (s().calories > 0) { · {{ fmtKcal(s().calories) }} }
+    </div>
+  }
+</a>

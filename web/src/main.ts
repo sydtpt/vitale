@@ -36,6 +36,24 @@ const routes: Routes = [
       import('@features/treinos/pages/treinos-page.component').then(m => m.TreinosPageComponent),
   },
   {
+    path: 'historico-treinos',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/historico-treinos/pages/historico-treinos-page.component').then(m => m.HistoricoTreinosPageComponent),
+  },
+  {
+    path: 'historico-treinos/:slug',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/historico-treinos/pages/tipo-atividade-page.component').then(m => m.TipoAtividadePageComponent),
+  },
+  {
+    path: 'historico-treinos/:slug/:id',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/historico-treinos/pages/atividade-detalhe-page.component').then(m => m.AtividadeDetalhePageComponent),
+  },
+  {
     path: 'alimentacao',
     canActivate: [profileGuard],
     loadComponent: () =>

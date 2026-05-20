@@ -88,9 +88,11 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
       });
     });
     if (get().permissionStatus === 'authorized') {
-      await get().loadWorkouts();
-      // Sync state vem do servidor; não bloqueia a leitura local.
-      get().hydrateSyncedTypes();
+      // Fire-and-forget: o loading:true já exibe o spinner; não bloquear aqui
+      // evita que a Promise do initHealthKit fique presa se o callback do HealthKit
+      // demorar a disparar logo após a concessão de permissão.
+      void get().loadWorkouts();
+      void get().hydrateSyncedTypes();
     }
   },
 
