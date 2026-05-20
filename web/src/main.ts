@@ -60,6 +60,12 @@ const routes: Routes = [
       import('@features/habitos/pages/habitos-page.component').then(m => m.HabitosPageComponent),
   },
   {
+    path: 'tarefas',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/tarefas/pages/tarefas-page.component').then(m => m.TarefasPageComponent),
+  },
+  {
     path: 'alimentacao',
     canActivate: [profileGuard],
     loadComponent: () =>

@@ -2,8 +2,11 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { MOD, type CounterHabit, type HabitLog } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { HabitHeatmapComponent, type HeatCell } from './habit-heatmap.component';
+import { RANGE_DAYS } from '../data/habits.store';
 import {
   average,
+  cleanStreak,
+  daysInclusive,
   isOver,
   lastNDates,
   localDateStr,
@@ -39,7 +42,7 @@ const EMPTY = 'var(--surface-mute)';
           </div>
           <div class="sub">{{ subtitle() }}</div>
         </div>
-        <div class="streak" [class.on]="streakDays() > 0">🔥 {{ streakDays() }}d</div>
+        <div class="streak" [class.on]="streakDays() > 0" [title]="streakTitle()">{{ streakLabel() }}</div>
       </div>
 
       <div class="now">
@@ -118,13 +121,37 @@ export class HabitAnalyticsCardComponent {
 
   protected subtitle(): string {
     const h = this.habit();
-    if (h.target == null) return `Contador · +${this.fmt(h.step)} ${h.unit}`;
+    const tag = h.bad ? 'A evitar · ' : '';
+    if (h.target == null) return `${tag}Contador · +${this.fmt(h.step)} ${h.unit}`;
     const goal = h.direction === 'at_least' ? 'Meta' : 'Limite';
-    return `${goal} ${this.fmt(h.target)} ${h.unit}/dia`;
+    return `${tag}${goal} ${this.fmt(h.target)} ${h.unit}/dia`;
   }
 
   protected readonly today = computed(() => this.byDate().get(localDateStr()) ?? 0);
-  protected readonly streakDays = computed(() => streak(this.habit(), this.byDate()));
+
+  /** Bom: dias consecutivos cumprindo a meta. Ruim: dias sem fazer (limitado à idade do hábito). */
+  protected readonly streakDays = computed(() => {
+    const h = this.habit();
+    const today = localDateStr();
+    if (h.bad) {
+      const age = h.createdAt
+        ? daysInclusive(localDateStr(new Date(h.createdAt)), today)
+        : RANGE_DAYS;
+      return cleanStreak(this.byDate(), today, Math.min(RANGE_DAYS, age));
+    }
+    return streak(h, this.byDate(), today, RANGE_DAYS);
+  });
+
+  protected streakLabel(): string {
+    const n = this.streakDays();
+    return this.habit().bad ? `🚫 ${n}d sem` : `🔥 ${n}d`;
+  }
+  protected streakTitle(): string {
+    const n = this.streakDays();
+    return this.habit().bad
+      ? `${n} dia(s) sem fazer`
+      : `${n} dia(s) seguidos cumprindo a meta`;
+  }
   protected readonly pct = computed(() => progress(this.habit(), this.today()));
   protected readonly over = computed(() => isOver(this.habit(), this.today()));
   protected readonly avg30 = computed(() =>
@@ -146,6 +173,8 @@ export class HabitAnalyticsCardComponent {
 
   private cellColor(value: number): string {
     const h = this.habit();
+    // Hábito ruim: qualquer dia com registro é uma recaída (vermelho); dia limpo fica vazio.
+    if (h.bad) return value > 0 ? 'var(--primary-deep)' : EMPTY;
     const acc = this.accent();
     const mix = (pct: number) => `color-mix(in srgb, ${acc} ${Math.round(pct)}%, white)`;
     if (value <= 0) return EMPTY;

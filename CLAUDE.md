@@ -124,6 +124,7 @@ Paleta quente, orgânica:
 - Mobile: 4 telas de tab (Hoje, Semana, Compras, Mais)
 
 ### Em andamento / Próximo 🔧
+- Tarefas: módulo to-do (web + mobile) — recorrências, carry/expire, gatilhos, conclusão rica. Falta aplicar migration e ponte real com Compras/Finanças
 - Mobile: componentes UI completos (`DayRingCard`, `CheckButton`, `QuickAddSheet`)
 - Mobile: carregamento de fontes (Geist, Instrument Serif)
 - Backend / integração com API
@@ -151,3 +152,4 @@ Cada módulo tem seu spec em `.claude/specs/`:
 - [Sync: Atividades (HealthKit → Supabase)](.claude/specs/sync-atividades/spec.md) · [plan](.claude/specs/sync-atividades/plan.md) · [data-model](.claude/specs/sync-atividades/data-model.md) · [tasks](.claude/specs/sync-atividades/tasks.md)
 - [Web: Histórico de Treinos](.claude/specs/historico-treinos/spec.md) · [plan](.claude/specs/historico-treinos/plan.md) · [data-model](.claude/specs/historico-treinos/data-model.md) · [tasks](.claude/specs/historico-treinos/tasks.md)
 - [Habitos (contadores diários)](.claude/specs/habitos/spec.md) · [plan](.claude/specs/habitos/plan.md) · [data-model](.claude/specs/habitos/data-model.md) · [tasks](.claude/specs/habitos/tasks.md)
+- [Tarefas (to-do com agendamento)](.claude/specs/tarefas/spec.md) · [plan](.claude/specs/tarefas/plan.md) · [data-model](.claude/specs/tarefas/data-model.md) · [tasks](.claude/specs/tarefas/tasks.md)

@@ -20,12 +20,16 @@ function modColor(key: string): { tint: string; accent: string } {
 interface Props {
   habit: CounterHabit;
   value: number;
+  /** Bom: dias cumprindo a meta. Ruim: dias sem fazer. `null` esconde o chip. */
+  streak?: number | null;
+  /** true quando `streak` representa dias SEM fazer (hábito ruim). */
+  streakBad?: boolean;
   onIncrement: () => void;
   onDecrement: () => void;
   onReset: () => void;
 }
 
-export function HabitStepper({ habit, value, onIncrement, onDecrement, onReset }: Props) {
+export function HabitStepper({ habit, value, streak, streakBad, onIncrement, onDecrement, onReset }: Props) {
   const mod = modColor(habit.color);
   const met = isMet(habit, value);
   const over = isOver(habit, value);
@@ -82,6 +86,13 @@ export function HabitStepper({ habit, value, onIncrement, onDecrement, onReset }
           <Text style={styles.name} numberOfLines={1}>
             {habit.name}
           </Text>
+          {streak != null && (
+            <View style={styles.streakChip}>
+              <Text style={styles.streakText}>
+                {streakBad ? `🚫 ${streak}d sem` : `🔥 ${streak}d`}
+              </Text>
+            </View>
+          )}
           {over ? (
             <Ionicons name="alert-circle" size={16} color={accent} />
           ) : met ? (
@@ -146,6 +157,13 @@ const styles = StyleSheet.create({
   center: { flex: 1, gap: 5 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { flex: 1, fontSize: 13.5, fontWeight: '600', color: colors.ink },
+  streakChip: {
+    backgroundColor: colors.surfaceMute,
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  streakText: { fontSize: 11.5, fontWeight: '700', color: colors.ink2 },
   value: { fontSize: 20, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
   target: { fontSize: 14, color: colors.ink3, fontWeight: '500' },
   unit: { fontSize: 13, color: colors.ink2 },

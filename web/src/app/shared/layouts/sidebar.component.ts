@@ -20,6 +20,7 @@ export class SidebarComponent {
     { path: '/semana',      icon: '📅', label: 'Semana' },
     { path: '/treinos',     icon: '🏋️', label: 'Treinos' },
     { path: '/historico-treinos', icon: '📊', label: 'Histórico' },
+    { path: '/tarefas',     icon: '✅', label: 'Tarefas' },
     { path: '/habitos',     icon: '🔁', label: 'Hábitos' },
     { path: '/alimentacao', icon: '🍽️', label: 'Alimentação' },
     { path: '/compras',     icon: '🛒', label: 'Compras' },

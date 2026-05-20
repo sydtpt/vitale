@@ -64,6 +64,7 @@ export const MOD = {
   casa:     { tint: '#F4E6D9', accent: '#B4825B' },
   compras:  { tint: '#FFE3D2', accent: '#E26A8A' },
   financas: { tint: '#EAE3D6', accent: '#1F1B16' },
+  tarefa:   { tint: '#DDEEEA', accent: '#4F9D90' },
 } as const;
 
 export type ModuleKey = keyof typeof MOD;

@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { colors, spacing } from '../../theme';
 import { DayRingCard } from '../../components/cards/DayRingCard';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { HabitStepper } from '../../components/cards/HabitStepper';
+import { TodoItem } from '../../components/cards/TodoItem';
 import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
-import { useHabitsStore } from '../../store/habits.store';
+import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
+import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
-import { progress } from '../../lib/habit-logic';
+import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
+import { isOverdue } from '../../lib/todo-logic';
 import { HOJE } from '../../services/mock-data';
 import type { CounterHabit } from '@vitale/shared';
 import type { User } from '@supabase/supabase-js';
@@ -28,6 +32,7 @@ function getFirstName(user: User | null): string {
 
 export default function HojeScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
+  const router = useRouter();
   const user = useAuthStore(s => s.user);
   const firstName = getFirstName(user);
 
@@ -39,31 +44,70 @@ export default function HojeScreen() {
   // Hábitos contadores (água, etc.) — persistidos no Supabase
   const counters = useHabitsStore(s => s.habits);
   const counterLogs = useHabitsStore(s => s.todayLogs);
+  const counterWindow = useHabitsStore(s => s.windowByHabit);
   const loadCounters = useHabitsStore(s => s.load);
   const incHabit = useHabitsStore(s => s.increment);
   const decHabit = useHabitsStore(s => s.decrement);
   const resetHabit = useHabitsStore(s => s.resetToday);
-  useEffect(() => { loadCounters(); }, [loadCounters]);
+  // Recarrega quando o usuário fica disponível: no boot, a home monta antes de
+  // o auth resolver, então o primeiro load() aborta por falta de userId.
+  useEffect(() => { loadCounters(); }, [loadCounters, user?.id]);
+
+  // Tarefas (to-do) — pendentes/atrasadas de hoje
+  const todoTemplates = useTodosStore(s => s.templates);
+  const todoOccurrences = useTodosStore(s => s.occurrences);
+  const loadTodos = useTodosStore(s => s.load);
+  const resolveTodo = useTodosStore(s => s.resolve);
+  useEffect(() => { loadTodos(); }, [loadTodos, user?.id]);
 
   // Contribuição da água ao score vem do hábito contador "Água" (litros)
   const aguaHabit = counters.find(h => h.unit === 'L' && h.direction === 'at_least');
   const waterRatio = aguaHabit ? progress(aguaHabit, counterLogs[aguaHabit.id] ?? 0) : 0;
 
-  // Demais contadores: já iniciados (algo registrado hoje) sobem para o topo,
-  // logo abaixo dos rings; os ainda zerados descem para o fim da página.
-  const otherCounters = counters.filter(h => h.id !== aguaHabit?.id);
-  const startedCounters = otherCounters.filter(h => (counterLogs[h.id] ?? 0) > 0);
-  const pendingCounters = otherCounters.filter(h => (counterLogs[h.id] ?? 0) <= 0);
+  // Hábitos com algum valor registrado hoje ficam logo abaixo dos anéis; os
+  // ainda zerados descem para a lista "Hábitos" no fim da página.
+  const startedHabits = counters.filter(h => (counterLogs[h.id] ?? 0) > 0);
+  const pendingHabits = counters.filter(h => (counterLogs[h.id] ?? 0) <= 0);
 
-  const renderStepper = (h: CounterHabit) => (
-    <HabitStepper
-      key={h.id}
-      habit={h}
-      value={counterLogs[h.id] ?? 0}
-      onIncrement={() => incHabit(h.id)}
-      onDecrement={() => decHabit(h.id)}
-      onReset={() => resetHabit(h.id)}
-    />
+  // Sequência por hábito: bom → dias cumprindo a meta; ruim → dias sem fazer.
+  // Bom sem meta não tem sequência a exibir (null). Combina histórico + valor de hoje.
+  const today = localDateStr();
+  const streakFor = (h: CounterHabit): { value: number; bad: boolean } | null => {
+    const win = counterWindow[h.id] ?? {};
+    const byDate = new Map<string, number>(Object.entries(win));
+    byDate.set(today, counterLogs[h.id] ?? win[today] ?? 0);
+    if (h.bad) {
+      const age = h.createdAt
+        ? daysInclusive(localDateStr(new Date(h.createdAt)), today)
+        : HABIT_WINDOW_DAYS;
+      return { value: cleanStreak(byDate, today, Math.min(HABIT_WINDOW_DAYS, age)), bad: true };
+    }
+    if (h.target == null) return null;
+    return { value: streak(h, byDate, today, HABIT_WINDOW_DAYS), bad: false };
+  };
+
+  const renderStepper = (h: CounterHabit) => {
+    const info = streakFor(h);
+    return (
+      <HabitStepper
+        key={h.id}
+        habit={h}
+        value={counterLogs[h.id] ?? 0}
+        streak={info?.value ?? null}
+        streakBad={info?.bad ?? false}
+        onIncrement={() => incHabit(h.id)}
+        onDecrement={() => decHabit(h.id)}
+        onReset={() => resetHabit(h.id)}
+      />
+    );
+  };
+
+  // Tarefas a fazer hoje: atrasadas, do dia ou sem prazo
+  const tplById = new Map(todoTemplates.map(t => [t.id, t]));
+  const todayTasks = todoOccurrences.filter(o =>
+    o.status === 'pending' &&
+    tplById.has(o.templateId) &&
+    (isOverdue(o, today) || o.dueDate === null || o.dueDate <= today)
   );
 
   const mealsDone = meals.filter(m => m.done).length;
@@ -86,15 +130,30 @@ export default function HojeScreen() {
         {/* Day Ring Card */}
         <DayRingCard activity={activity} food={food} mind={mind} overall={overall} />
 
-        {/* Água + contadores já iniciados — logo abaixo dos rings */}
-        {aguaHabit && renderStepper(aguaHabit)}
-        {startedCounters.map(renderStepper)}
+        {/* Hábitos com valor hoje — logo abaixo dos anéis */}
+        {startedHabits.map(renderStepper)}
 
-        {/* Contadores ainda não iniciados — empurrados para o fim da página */}
-        {pendingCounters.length > 0 && (
+        {/* To-do — atrasadas e do dia */}
+        {todayTasks.length > 0 && (
           <>
-            <SectionLabel>Contadores</SectionLabel>
-            {pendingCounters.map(renderStepper)}
+            <SectionLabel>To-do</SectionLabel>
+            {todayTasks.map(o => (
+              <TodoItem
+                key={o.id}
+                template={tplById.get(o.templateId)!}
+                occurrence={o}
+                onDone={() => resolveTodo(o.id, 'done')}
+                onMore={() => router.push('/tarefas')}
+              />
+            ))}
+          </>
+        )}
+
+        {/* Hábitos sem valor hoje — empurrados para o fim da página */}
+        {pendingHabits.length > 0 && (
+          <>
+            <SectionLabel>Hábitos</SectionLabel>
+            {pendingHabits.map(renderStepper)}
           </>
         )}
 

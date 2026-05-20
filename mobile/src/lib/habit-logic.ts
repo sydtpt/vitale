@@ -51,22 +51,57 @@ function prevDay(date: string): string {
  * Streak: dias consecutivos (terminando hoje) cumprindo a meta.
  * Hoje ainda pendente NÃO quebra o streak (conta a partir de ontem).
  * at_most com dia sem log (0) cumpre o teto (ex.: "não fumei").
+ *
+ * `maxDays` limita a varredura à janela observada: como dias sem log contam
+ * como dentro do teto em `at_most`, sem esse limite o laço caminharia pelo
+ * passado indefinidamente e travaria a tela.
  */
 export function streak(
   habit: Goal,
   byDate: Map<string, number>,
-  today: string = localDateStr()
+  today: string = localDateStr(),
+  maxDays = 366
 ): number {
   if (habit.target == null) return 0;
   const valueOn = (d: string) => byDate.get(d) ?? 0;
   let date = today;
   if (!isMet(habit, valueOn(date))) date = prevDay(date); // hoje pendente: pula sem quebrar
   let count = 0;
-  while (isMet(habit, valueOn(date))) {
+  while (count < maxDays && isMet(habit, valueOn(date))) {
     count++;
     date = prevDay(date);
   }
   return count;
+}
+
+/**
+ * Sequência de abstinência (hábito ruim): dias consecutivos, terminando hoje,
+ * em que o hábito NÃO foi feito (value === 0) — "há quantos dias estou sem".
+ * Diferente do `streak`, hoje conta: se já fez hoje (value > 0), volta a 0.
+ *
+ * `maxDays` limita a varredura (dias sem log contam como 0); passe a idade do
+ * hábito (ver `daysInclusive`) para não exibir mais dias do que ele existe.
+ */
+export function cleanStreak(
+  byDate: Map<string, number>,
+  today: string = localDateStr(),
+  maxDays = 366
+): number {
+  const valueOn = (d: string) => byDate.get(d) ?? 0;
+  let date = today;
+  let count = 0;
+  while (count < maxDays && valueOn(date) === 0) {
+    count++;
+    date = prevDay(date);
+  }
+  return count;
+}
+
+/** Nº de dias no intervalo [from..today] inclusivo (criado hoje ⇒ 1). */
+export function daysInclusive(from: string, today: string = localDateStr()): number {
+  const a = new Date(`${from}T00:00:00`).getTime();
+  const b = new Date(`${today}T00:00:00`).getTime();
+  return Math.max(1, Math.floor((b - a) / 86400000) + 1);
 }
 
 /** Média simples de uma lista de valores diários. */

@@ -18,10 +18,11 @@ function modColor(key: string): { tint: string; accent: string } {
 }
 
 function summary(h: CounterHabit): string {
+  const tag = h.bad ? 'A evitar · ' : '';
   const inc = `+${fmt(h.step)} ${h.unit}`;
-  if (h.target == null) return `Contador · ${inc}`;
+  if (h.target == null) return `${tag}Contador · ${inc}`;
   const goal = h.direction === 'at_least' ? `Meta ${fmt(h.target)} ${h.unit}` : `Limite ${fmt(h.target)} ${h.unit}`;
-  return `${goal} · ${inc}`;
+  return `${tag}${goal} · ${inc}`;
 }
 
 export default function HabitosScreen() {

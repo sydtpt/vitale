@@ -14,7 +14,9 @@ type Link = {
 };
 
 const LINKS: Link[] = [
+  { icon: 'checkmark-done-outline', label: 'Tarefas', sub: 'To-do e recorrências', tint: MOD.tarefa.tint, color: MOD.tarefa.accent, route: '/tarefas' },
   { icon: 'repeat-outline', label: 'Hábitos', sub: 'Contadores diários', tint: MOD.habito.tint, color: MOD.habito.accent, route: '/habitos' },
+  { icon: 'sync-outline', label: 'Sync de atividades', sub: 'Treinos do Apple Health', tint: MOD.treino.tint, color: MOD.treino.accent, route: '/fitness' },
   { icon: 'barbell-outline', label: 'Treinos', sub: 'Histórico e cargas', tint: MOD.treino.tint, color: MOD.treino.accent },
   { icon: 'wallet-outline', label: 'Finanças', sub: 'Orçamento e gastos', tint: MOD.financas.tint, color: MOD.financas.accent },
   { icon: 'home-outline', label: 'Casa', sub: 'Rotinas e tarefas', tint: MOD.casa.tint, color: MOD.casa.accent },

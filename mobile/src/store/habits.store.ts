@@ -9,6 +9,9 @@ import {
 } from '../lib/habit-queue';
 import { useAuthStore } from './auth.store';
 
+/** Janela de histórico carregada para derivar sequências (streaks) no mobile. */
+export const HABIT_WINDOW_DAYS = 90;
+
 export interface NewHabit {
   name: string;
   icon: string;
@@ -17,6 +20,7 @@ export interface NewHabit {
   step: number;
   target?: number;
   direction: HabitDirection;
+  bad: boolean;
 }
 
 /** Campos editáveis de um hábito. `target: null` limpa a meta. */
@@ -28,6 +32,7 @@ export interface HabitPatch {
   step?: number;
   target?: number | null;
   direction?: HabitDirection;
+  bad?: boolean;
   active?: boolean;
   sort?: number;
 }
@@ -36,6 +41,7 @@ interface HabitsState {
   habits: CounterHabit[]; // ativos, ordenados por `sort` (para captura)
   allHabits: CounterHabit[]; // todos (ativos + arquivados) — para a tela de gestão
   todayLogs: Record<string, number>; // habitId → valor de hoje
+  windowByHabit: Record<string, Record<string, number>>; // habitId → (data → valor) da janela; base do streak
   loading: boolean;
   loaded: boolean;
 
@@ -59,8 +65,10 @@ type HabitRow = {
   step: number | string;
   target: number | string | null;
   direction: HabitDirection;
+  bad: boolean | null;
   active: boolean;
   sort: number;
+  created_at: string;
 };
 
 function toHabit(row: HabitRow): CounterHabit {
@@ -73,8 +81,10 @@ function toHabit(row: HabitRow): CounterHabit {
     step: Number(row.step),
     target: row.target == null ? undefined : Number(row.target),
     direction: row.direction,
+    bad: row.bad ?? false,
     active: row.active,
     sort: row.sort,
+    createdAt: row.created_at,
   };
 }
 
@@ -111,6 +121,7 @@ async function seedDefaults(userId: string): Promise<void> {
     step: 0.25,
     target: 4,
     direction: 'at_least',
+    bad: false,
     sort: 0,
   });
 }
@@ -119,6 +130,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
   habits: [],
   allHabits: [],
   todayLogs: {},
+  windowByHabit: {},
   loading: false,
   loaded: false,
 
@@ -146,16 +158,27 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
       .order('sort', { ascending: true });
     const habits = (rows ?? []).map(toHabit);
 
-    // 4) logs de hoje
+    // 4) logs da janela (base do streak); o valor de hoje sai da mesma leitura
     const today = localDateStr();
+    const since = localDateStr(
+      new Date(Date.now() - (HABIT_WINDOW_DAYS - 1) * 86400000),
+    );
     const { data: logs } = await supabase
       .from('habit_logs')
-      .select('habit_id, value')
-      .eq('log_date', today);
-    const todayLogs: Record<string, number> = {};
-    for (const l of logs ?? []) todayLogs[l.habit_id as string] = Number(l.value);
+      .select('habit_id, log_date, value')
+      .gte('log_date', since);
 
-    set({ habits, todayLogs, loading: false, loaded: true });
+    const windowByHabit: Record<string, Record<string, number>> = {};
+    const todayLogs: Record<string, number> = {};
+    for (const l of logs ?? []) {
+      const hid = l.habit_id as string;
+      const date = l.log_date as string;
+      const value = Number(l.value);
+      (windowByHabit[hid] ??= {})[date] = value;
+      if (date === today) todayLogs[hid] = value;
+    }
+
+    set({ habits, todayLogs, windowByHabit, loading: false, loaded: true });
   },
 
   // Carrega todos os hábitos (ativos + arquivados) para a tela de gestão;
@@ -215,6 +238,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
       step: input.step,
       target: input.target ?? null,
       direction: input.direction,
+      bad: input.bad,
       sort,
     });
     await get().loadAll();

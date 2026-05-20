@@ -7,6 +7,8 @@ import {
   progress,
   logsByDate,
   streak,
+  cleanStreak,
+  daysInclusive,
   average,
   lastNDates,
   heatmap,
@@ -74,6 +76,42 @@ describe('streak', () => {
 
   it('sem target → streak 0', () => {
     expect(streak(semMeta, new Map(), '2026-05-20')).toBe(0);
+  });
+
+  it('at_most sem nenhum log não trava: limita à janela (maxDays)', () => {
+    // Sem dia que estoure o teto, o laço caminharia ao infinito; maxDays corta.
+    expect(streak(cigarro, new Map(), '2026-05-20', 84)).toBe(84);
+  });
+});
+
+describe('cleanStreak (hábito ruim: dias sem fazer)', () => {
+  it('conta dias consecutivos sem registro, terminando hoje', () => {
+    const today = '2026-05-20';
+    // 20 (0), 19 (0) sem fazer; 18 fez (2) → quebra → streak 2
+    const byDate = logsByDate([log('c', '2026-05-18', 2)]);
+    expect(cleanStreak(byDate, today)).toBe(2);
+  });
+
+  it('hoje conta: se já fez hoje (value > 0), volta a 0', () => {
+    const today = '2026-05-20';
+    const byDate = logsByDate([log('c', '2026-05-20', 1)]);
+    expect(cleanStreak(byDate, today)).toBe(0);
+  });
+
+  it('sem nenhum registro: limita à janela (maxDays = idade do hábito)', () => {
+    expect(cleanStreak(new Map(), '2026-05-20', 5)).toBe(5);
+  });
+});
+
+describe('daysInclusive', () => {
+  it('mesmo dia ⇒ 1', () => {
+    expect(daysInclusive('2026-05-20', '2026-05-20')).toBe(1);
+  });
+  it('conta o intervalo de forma inclusiva', () => {
+    expect(daysInclusive('2026-05-18', '2026-05-20')).toBe(3);
+  });
+  it('nunca menor que 1 (data futura)', () => {
+    expect(daysInclusive('2026-05-25', '2026-05-20')).toBe(1);
   });
 });
 

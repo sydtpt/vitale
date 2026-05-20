@@ -18,8 +18,10 @@ interface DbHabitRow {
   step: number | string;
   target: number | string | null;
   direction: 'at_least' | 'at_most';
+  bad: boolean | null;
   active: boolean;
   sort: number;
+  created_at: string;
 }
 
 interface DbLogRow {
@@ -89,7 +91,7 @@ export class HabitsStore {
     const [habitsRes, logsRes] = await Promise.all([
       supabase
         .from('habits')
-        .select('id,name,icon,color,unit,step,target,direction,active,sort')
+        .select('id,name,icon,color,unit,step,target,direction,bad,active,sort,created_at')
         .eq('user_id', userId)
         .order('sort', { ascending: true }),
       supabase
@@ -122,8 +124,10 @@ function mapHabit(r: DbHabitRow): CounterHabit {
     step: Number(r.step),
     target: r.target == null ? undefined : Number(r.target),
     direction: r.direction,
+    bad: r.bad ?? false,
     active: r.active,
     sort: r.sort,
+    createdAt: r.created_at,
   };
 }
 

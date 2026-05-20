@@ -38,8 +38,10 @@ export interface CounterHabit {
   step: number;            // incremento por toque
   target?: number;         // meta (at_least) / teto (at_most); ausente = sem meta
   direction: HabitDirection;
+  bad: boolean;            // true = hábito a evitar; mostra dias SEM fazer em vez de sequência cumprindo
   active: boolean;
   sort: number;
+  createdAt: string;       // ISO; usado para limitar a contagem de dias "sem fazer" à idade do hábito
 }
 
 /** Valor acumulado de um CounterHabit num dia (1 por habit/dia). */
@@ -190,4 +192,65 @@ export interface ActivityRoute {
   activityId: string;
   points: ActivityRoutePoint[];
   pointCount: number;
+}
+
+/**
+ * Tarefas (to-do com agendamento) — módulo separado de Habitos.
+ * Uma `TodoTemplate` (regra/série) gera `TodoOccurrence` (itens na lista).
+ * Só campos, sem lógica. Ver .claude/specs/tarefas/.
+ */
+
+/** Categoria/ponte de integração da tarefa com outros módulos. */
+export type TodoModule = 'financas' | 'compras' | 'casa' | 'saude' | 'geral';
+
+/** Política de cancelamento: obrigatória (none), cancelável (manual) ou auto após o dia (lixo). */
+export type TodoCancelPolicy = 'none' | 'manual' | 'auto';
+
+/** Se não fizer no dia: permanece atrasada (carry) ou expira/some (expire). */
+export type TodoOverduePolicy = 'carry' | 'expire';
+
+/**
+ * Recorrência — união discriminada por `kind`.
+ * Âncora: monthly/weekly/yearly ancoram no calendário; after_completion na conclusão.
+ * weekdays usa 0=domingo … 6=sábado (getDay).
+ */
+export type TodoRecurrence =
+  | { kind: 'none' }                                       // avulsa
+  | { kind: 'monthly'; day: number }                       // dia X do mês
+  | { kind: 'weekly'; weekdays: number[] }                 // dias da semana
+  | { kind: 'yearly'; month: number; day: number }         // anual (month 1..12)
+  | { kind: 'after_completion'; intervalDays: number }     // N dias após concluir
+  | { kind: 'usage'; meterUnit: string; every: number }    // não-temporal: por uso/contador
+  | { kind: 'event'; label: string }                       // não-temporal: por evento manual
+  | { kind: 'stock'; shopItemRef?: string };               // não-temporal: por estoque (ponte Compras)
+
+/** Definição/regra de uma tarefa recorrente (ou avulsa). Mapeia `todo_templates`. */
+export interface TodoTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;                  // token do design system (MOD)
+  module: TodoModule;
+  recurrence: TodoRecurrence;
+  overdue: TodoOverduePolicy;
+  cancelPolicy: TodoCancelPolicy;
+  meter?: number;                 // estado atual do contador (recurrence.kind === 'usage')
+  meterAtLastDone?: number;       // leitura do contador na última conclusão
+  active: boolean;
+  sort: number;
+  createdAt: string;              // ISO
+}
+
+/** Estado de uma ocorrência concreta. */
+export type TodoStatus = 'pending' | 'done' | 'skipped' | 'canceled' | 'expired';
+
+/** Item concreto que aparece na lista. 1 por (template, dueDate). Mapeia `todo_occurrences`. */
+export interface TodoOccurrence {
+  id: string;
+  templateId: string;
+  dueDate: string | null;         // 'YYYY-MM-DD' local; null = sem data (até concluir)
+  status: TodoStatus;
+  doneAt?: string;                // ISO; quando marcada feita
+  meta?: Record<string, unknown>; // conclusão rica: { amount } finanças, { shopItemId } compras
+  createdAt: string;              // ISO
 }

@@ -53,6 +53,7 @@ export default function HabitEditorScreen() {
   const existing = useMemo(() => allHabits.find((h) => h.id === id), [allHabits, id]);
 
   const [name, setName] = useState('');
+  const [bad, setBad] = useState(false);
   const [direction, setDirection] = useState<HabitDirection>('at_least');
   const [target, setTarget] = useState('');
   const [unit, setUnit] = useState('un');
@@ -69,6 +70,7 @@ export default function HabitEditorScreen() {
   useEffect(() => {
     if (existing && !hydrated) {
       setName(existing.name);
+      setBad(existing.bad ?? false);
       setDirection(existing.direction);
       setTarget(existing.target == null ? '' : String(existing.target).replace('.', ','));
       setUnit(existing.unit);
@@ -92,6 +94,7 @@ export default function HabitEditorScreen() {
       unit: unit.trim(),
       step: stepN,
       direction,
+      bad,
     };
     if (id) {
       await updateHabit(id, { ...base, target: targetN });
@@ -124,6 +127,26 @@ export default function HabitEditorScreen() {
             placeholderTextColor={colors.ink4}
             style={styles.input}
           />
+
+          {/* Hábito ruim */}
+          <Pressable
+            onPress={() => setBad((b) => !b)}
+            style={({ pressed }) => [styles.checkRow, pressed && styles.pressed]}
+          >
+            <Ionicons
+              name={bad ? 'checkbox' : 'square-outline'}
+              size={24}
+              color={bad ? accent : colors.ink3}
+            />
+            <View style={styles.flex}>
+              <Text style={styles.checkLabel}>Hábito ruim</Text>
+              <Text style={styles.checkHint}>
+                {bad
+                  ? 'Mostra há quantos dias você está sem fazer.'
+                  : 'Mostra a sequência de dias mantendo o hábito.'}
+              </Text>
+            </View>
+          </Pressable>
 
           {/* Direção */}
           <Text style={styles.label}>Tipo de meta</Text>
@@ -269,6 +292,21 @@ const styles = StyleSheet.create({
 
   row: { flexDirection: 'row', gap: spacing.md },
   unitCol: { width: 110 },
+
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  checkLabel: { fontSize: 15, fontWeight: '600', color: colors.ink },
+  checkHint: { fontSize: 12, color: colors.ink3, marginTop: 2 },
 
   segment: { flexDirection: 'row', backgroundColor: colors.surfaceMute, borderRadius: radii.pill, padding: 3 },
   segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: radii.pill, alignItems: 'center' },

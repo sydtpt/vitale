@@ -222,7 +222,10 @@ export default function FitnessScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Fitness</Text>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={({ pressed }) => [styles.backBtn, pressed && styles.syncBtnPressed]}>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Sync de atividades</Text>
         </View>
         <PermissionScreen onRequest={requestPermission} />
       </View>
@@ -232,7 +235,10 @@ export default function FitnessScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Fitness</Text>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={({ pressed }) => [styles.backBtn, pressed && styles.syncBtnPressed]}>
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Sync de atividades</Text>
         {groups.length > 0 && (
           <Text style={styles.headerSub}>
             {groups.length} {groups.length === 1 ? 'tipo' : 'tipos'}
@@ -285,9 +291,18 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 22,
     fontFamily: 'InstrumentSerif',
     color: colors.ink,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    ...shadows.card,
   },
   headerSub: {
     fontSize: 13,

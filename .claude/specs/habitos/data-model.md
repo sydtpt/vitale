@@ -125,8 +125,10 @@ export interface CounterHabit {
   step: number;          // incremento por toque
   target?: number;       // meta (at_least) / teto (at_most); ausente = sem meta
   direction: HabitDirection;
+  bad: boolean;          // hábito a evitar: exibe dias SEM fazer no lugar da sequência
   active: boolean;
   sort: number;
+  createdAt: string;     // ISO; limita a contagem de "dias sem fazer" à idade do hábito
 }
 
 /** Valor acumulado de um CounterHabit num dia (1 por habit/dia). */
@@ -148,6 +150,7 @@ Computadas no cliente sobre os logs carregados — nenhuma coluna derivada no ba
 - **isMet(habit, value):** `at_least` → `target != null && value >= target`; `at_most` → `target == null ? false : value <= target` (sem meta ⇒ sem estado de "batida").
 - **isOver(habit, value):** `at_most && target != null && value > target` → alerta.
 - **streak(habit):** dias consecutivos (até hoje) com `isMet = true`, varrendo `habit_logs` por `log_date` decrescente. Em `at_most`, um dia **sem linha** conta como 0 ⇒ dentro do teto (cumpre), o que torna o streak correto para "não fumei".
+- **cleanStreak(habit):** para `bad = true` — dias consecutivos (terminando hoje) com `value = 0` ("há quantos dias sem fazer"). Hoje conta; se já fez hoje (`value > 0`), volta a 0. Limitado a `daysInclusive(createdAt, hoje)` para não exibir mais dias do que o hábito existe.
 - **average(habit, period):** média de `value` por dia no período (web).
 - **heatmap(habit, days):** série dos últimos N dias com `value` e flag `isMet` por dia.
 
