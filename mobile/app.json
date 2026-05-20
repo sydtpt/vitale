@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "vitale",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -15,7 +15,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.vitale.mobile"
+      "bundleIdentifier": "app.vitale.mobile",
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "O Vitale acessa seus treinos do Apple Health para exibir seu histórico de exercícios."
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.background-delivery": true
+      }
     },
     "android": {
       "adaptiveIcon": {

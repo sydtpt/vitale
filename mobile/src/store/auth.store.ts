@@ -49,6 +49,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   signInWithGoogle: async () => {
     set({ loading: true, error: null });
     const redirectTo = makeRedirectUri({ scheme: 'vitale' });
+    console.log('[auth] redirectTo:', redirectTo);
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo, skipBrowserRedirect: true },
@@ -57,6 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ loading: false, error: error.message });
       return error.message;
     }
+    console.log('[auth] oauth url:', data.url);
     const result = await WebBrowser.openAuthSessionAsync(data.url!, redirectTo);
     set({ loading: false });
     if (result.type !== 'success') return 'Login cancelado.';
