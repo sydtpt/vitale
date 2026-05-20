@@ -41,14 +41,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="saude"
+        name="historico"
         options={{
-          title: 'Saúde',
+          title: 'Histórico',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="heart-outline" size={size} color={color} />
+            <Ionicons name="barbell-outline" size={size} color={color} />
           ),
         }}
       />
+      <Tabs.Screen name="saude" options={{ href: null }} />
       <Tabs.Screen
         name="mais"
         options={{

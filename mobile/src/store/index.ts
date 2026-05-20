@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import type { Meal, Habit, Chore, ShopItem } from '@vitale/shared';
 
+export { useActivitiesStore } from './activities.store';
+export type { ActivityPatch } from './activities.store';
+
 interface VitaleState {
   // Day state
   meals: Meal[];

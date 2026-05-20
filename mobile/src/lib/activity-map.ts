@@ -22,6 +22,11 @@ export interface ActivityRow {
   tracked: boolean | null;
   has_route: boolean;
   metadata: Record<string, unknown> | null;
+  // Controle de edição manual — preenchidos só na leitura analítica
+  // (Histórico de Treinos). O push-sync não os envia; o RPC os ignora.
+  locally_edited?: boolean;
+  edited_at?: string | null;
+  hidden?: boolean;
 }
 
 /** Linha da tabela `activity_routes`. */

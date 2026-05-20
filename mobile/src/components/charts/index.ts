@@ -5,3 +5,4 @@ export { ActivityRings } from './ActivityRings';
 export type { Ring } from './ActivityRings';
 export { MacroDonut } from './MacroDonut';
 export type { DonutSegment } from './MacroDonut';
+export { StackedBarChart } from './StackedBarChart';

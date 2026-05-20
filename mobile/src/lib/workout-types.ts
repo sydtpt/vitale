@@ -89,6 +89,37 @@ export function getActivityMeta(activityId: number): ActivityMeta {
 }
 
 /**
+ * Cor por tipo de atividade — espelha web/src/app/core/models/activity-types.ts
+ * (valores do design system). Usada nos segmentos do gráfico empilhado.
+ * Mantida aqui (hex literais) para a função pura permanecer testável sem tema.
+ */
+const ACTIVITY_COLORS: Record<number, string> = {
+  11: '#D9491B', // Cross Training
+  13: '#6E8CC9', // Ciclismo
+  16: '#6FA86A', // Elíptico
+  20: '#B4825B', // Funcional
+  24: '#6FA86A', // Trilha
+  35: '#6E8CC9', // Remo
+  37: '#F25C2B', // Corrida
+  44: '#B4825B', // Escadas
+  46: '#6E8CC9', // Natação
+  50: '#1F1B16', // Musculação
+  52: '#F5B946', // Caminhada
+  57: '#6FA86A', // Yoga
+  59: '#E26A8A', // Core
+  63: '#D9491B', // HIIT
+  66: '#E26A8A', // Pilates
+  73: '#E26A8A', // Cardio
+  82: '#F5B946', // Pickleball
+};
+
+const DEFAULT_ACTIVITY_COLOR = '#5C534A';
+
+export function getActivityColor(activityId: number): string {
+  return ACTIVITY_COLORS[activityId] ?? DEFAULT_ACTIVITY_COLOR;
+}
+
+/**
  * Chave determinística para treinos sem UUID do HealthKit, garantindo dedup
  * estável no sync (FR-014). Mesmos campos → mesma chave entre execuções.
  */
