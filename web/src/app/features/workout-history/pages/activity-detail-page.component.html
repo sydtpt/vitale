@@ -1,0 +1,116 @@
+<div class="page">
+  @if (store.loading()) {
+    <div class="state">Carregando…</div>
+  } @else if (!activity()) {
+    <div class="state">
+      Atividade não encontrada.
+      <a routerLink="/workout-history" class="link">Voltar ao histórico</a>
+    </div>
+  } @else if (activity(); as a) {
+    <a [routerLink]="['/workout-history', slug()]" [queryParams]="listQueryParams()" class="back">
+      <rt-icon name="chev-l" [size]="16" color="var(--ink-3)" /> Voltar
+    </a>
+
+    <header class="head">
+      @if (meta(); as m) {
+        <span class="ico" [style.color]="m.color">
+          <rt-icon [name]="m.icon" [size]="24" [color]="m.color" [strokeWidth]="1.8" />
+        </span>
+      }
+      <div class="head-text">
+        <div class="title-row">
+          <button
+            type="button"
+            class="stats-toggle"
+            [class.on]="inStats()"
+            [disabled]="togglingStats()"
+            (click)="toggleStats()"
+            [attr.aria-pressed]="inStats()"
+            [title]="inStats() ? 'Nas estatísticas — clique para remover' : 'Fora das estatísticas — clique para adicionar'"
+          >
+            <rt-icon name="trend" [size]="16" color="currentColor" [strokeWidth]="2" />
+          </button>
+          <h1 class="title">{{ a.activityName || meta()?.label }}</h1>
+        </div>
+        <div class="when">{{ fmtDate(a.startAt) }} · {{ fmtTime(a.startAt) }}</div>
+      </div>
+      @if (a.locallyEdited) { <span class="edited">editado manualmente</span> }
+    </header>
+
+    @if (statsError()) { <p class="err">{{ statsError() }}</p> }
+    @if (!inStats()) { <p class="excluded-note">Esta atividade está fora das estatísticas e listas.</p> }
+
+    @if (a.hasRoute) {
+      <section class="route">
+        <h3 class="route-title">Rota</h3>
+        @if (routeLoading()) {
+          <div class="route-state">Carregando rota…</div>
+        } @else if (routePoints().length > 0) {
+          <rt-activity-map [points]="routePoints()" />
+        } @else {
+          <div class="route-state">Rota indisponível para esta atividade.</div>
+        }
+      </section>
+    }
+
+    <div class="form">
+      <h3 class="form-title">Editar</h3>
+
+      <div class="field">
+        <label for="name">Nome</label>
+        <input id="name" type="text" [value]="name()" (input)="onName($event)"
+          [placeholder]="meta()?.label ?? 'Nome da atividade'" />
+      </div>
+
+      @if (!hasGps()) {
+        <div class="field">
+          <label for="dur">Tempo (minutos)</label>
+          <input id="dur" type="number" min="0" step="1" [value]="durationMin()" (input)="onDuration($event)" />
+        </div>
+      } @else {
+        <p class="note">O tempo é calculado pelo GPS e não pode ser editado nesta atividade.</p>
+      }
+
+      @if (saveError()) { <p class="err">{{ saveError() }}</p> }
+
+      <div class="actions">
+        <a [routerLink]="['/workout-history', slug()]" [queryParams]="listQueryParams()" class="cancel">Cancelar</a>
+        <button type="button" class="save" [disabled]="saving()" (click)="save()">
+          {{ saving() ? 'Salvando…' : 'Salvar' }}
+        </button>
+      </div>
+    </div>
+
+    <section class="info">
+      <h3 class="info-title">Informações</h3>
+      <dl class="info-grid">
+        @if (meta(); as m) {
+          <div class="info-row"><dt>Tipo</dt><dd>{{ m.label }}</dd></div>
+        }
+        <div class="info-row"><dt>Início</dt><dd>{{ fmtDate(a.startAt) }} · {{ fmtTime(a.startAt) }}</dd></div>
+        <div class="info-row"><dt>Fim</dt><dd>{{ fmtDate(a.endAt) }} · {{ fmtTime(a.endAt) }}</dd></div>
+        <div class="info-row"><dt>Duração</dt><dd class="mono">{{ fmtDuration(a.durationS) }}</dd></div>
+        @if ((a.distanceM ?? 0) > 0) {
+          <div class="info-row"><dt>Distância</dt><dd class="mono">{{ fmtKm(a.distanceM ?? 0) }} km</dd></div>
+        }
+        @if (a.calories > 0) {
+          <div class="info-row"><dt>Calorias</dt><dd class="mono">{{ fmtKcal(a.calories) }} kcal</dd></div>
+        }
+        @if (a.sourceName) {
+          <div class="info-row"><dt>Fonte</dt><dd>{{ a.sourceName }}</dd></div>
+        }
+        @if (a.device) {
+          <div class="info-row"><dt>Dispositivo</dt><dd>{{ a.device }}</dd></div>
+        }
+        <div class="info-row"><dt>Rastreado por GPS</dt><dd>{{ a.tracked ? 'Sim' : 'Não' }}</dd></div>
+        <div class="info-row"><dt>Possui rota</dt><dd>{{ a.hasRoute ? 'Sim' : 'Não' }}</dd></div>
+        <div class="info-row"><dt>Nas estatísticas</dt><dd>{{ inStats() ? 'Sim' : 'Não' }}</dd></div>
+        <div class="info-row"><dt>Editado manualmente</dt><dd>{{ a.locallyEdited ? 'Sim' : 'Não' }}</dd></div>
+        @if (a.editedAt) {
+          <div class="info-row"><dt>Editado em</dt><dd>{{ fmtDate(a.editedAt) }} · {{ fmtTime(a.editedAt) }}</dd></div>
+        }
+        <div class="info-row"><dt>ID</dt><dd class="mono id">{{ a.id }}</dd></div>
+      </dl>
+    </section>
+  }
+</div>

@@ -1,0 +1,34 @@
+<div class="card" [class.archived]="!habit().active">
+  <div class="head">
+    <span class="ico" [style.background]="tint()">
+      <rt-icon [name]="icon()" [size]="18" [color]="accent()" [strokeWidth]="1.9" />
+    </span>
+    <div class="title">
+      <div class="name">
+        {{ habit().name }}
+        @if (!habit().active) { <span class="badge">arquivado</span> }
+      </div>
+      <div class="sub">{{ subtitle() }}</div>
+    </div>
+    <div class="streak" [class.on]="streakDays() > 0" [title]="streakTitle()">{{ streakLabel() }}</div>
+  </div>
+
+  <div class="now">
+    <span class="val">{{ fmt(today()) }}</span>
+    @if (habit().target != null) {
+      <span class="unit">/ {{ fmt(habit().target!) }} {{ habit().unit }}</span>
+    } @else {
+      <span class="unit">{{ habit().unit }} hoje</span>
+    }
+  </div>
+
+  @if (habit().target != null) {
+    <div class="bar">
+      <div class="fill" [class.over]="over()" [style.width.%]="pct() * 100" [style.background]="accent()"></div>
+    </div>
+  }
+
+  <div class="meta">média 30d: <strong>{{ fmt(avg30()) }} {{ habit().unit }}</strong></div>
+
+  <rt-habit-heatmap [cells]="cells()" />
+</div>

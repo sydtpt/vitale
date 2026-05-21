@@ -1,0 +1,130 @@
+<div class="history">
+  <div class="controls">
+    <div class="seg">
+      @for (mode of modes; track mode.id) {
+        <button [class.active]="currentMode() === mode.id" (click)="currentMode.set(mode.id)" class="opt">
+          {{ mode.label }}
+        </button>
+      }
+    </div>
+
+    <div class="period-selector">
+      @for (period of periods; track period.days) {
+        <button
+          [class.active]="periodDays() === period.days"
+          (click)="periodDays.set(period.days)"
+          class="period-opt">
+          {{ period.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (rows().length === 0) {
+    <div class="empty">Nenhum histórico{{ periodLabel() ? ' ' + periodLabel() : '' }}</div>
+  } @else {
+    @switch (currentMode()) {
+      @case ('data') {
+        <div class="view">
+          @for (dayGroup of byDate(); track dayGroup.date) {
+            <div class="group">
+              <h4 class="group-title">{{ dayGroup.label }}</h4>
+              <div class="list">
+                @for (r of dayGroup.rows; track r.o.id) {
+                  <rt-history-card [template]="r.t" [occurrence]="r.o" />
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+      @case ('serie') {
+        <div class="view">
+          @for (serieGroup of bySerie(); track serieGroup.template.id) {
+            <div class="group">
+              <button class="group-title" (click)="toggleSerie(serieGroup)">
+                <rt-icon name="chevron-down" [size]="16" [class.rotated]="!serieGroup.expanded" />
+                <span>{{ serieGroup.template.name }}</span>
+                <span class="counts">
+                  {{ serieGroup.doneCount }}× ·
+                  @if (serieGroup.skippedCount > 0) { {{ serieGroup.skippedCount }}⊘ }
+                  @if (serieGroup.canceledCount > 0) { {{ serieGroup.canceledCount }}✕ }
+                  @if (serieGroup.expiredCount > 0) { {{ serieGroup.expiredCount }}⌛ }
+                </span>
+              </button>
+              @if (serieGroup.expanded) {
+                <div class="list">
+                  @for (r of serieGroup.rows; track r.o.id) {
+                    <rt-history-card [template]="r.t" [occurrence]="r.o" />
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+      @case ('modulo') {
+        <div class="view">
+          @for (moduloGroup of byModulo(); track moduloGroup.module) {
+            <div class="group">
+              <h4 class="group-title">{{ moduloGroup.label }}</h4>
+              <div class="list">
+                @for (r of moduloGroup.rows; track r.o.id) {
+                  <rt-history-card [template]="r.t" [occurrence]="r.o" />
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+      @case ('status') {
+        <div class="view">
+          <div class="status-tabs">
+            @for (statusGroup of byStatus(); track statusGroup.status) {
+              <button [class.active]="currentStatus() === statusGroup.status" (click)="currentStatus.set(statusGroup.status)" class="status-tab">
+                {{ statusGroup.label }} ({{ statusGroup.count }})
+              </button>
+            }
+          </div>
+          <div class="group">
+            <div class="list">
+              @for (r of statusRows(); track r.o.id) {
+                <rt-history-card [template]="r.t" [occurrence]="r.o" />
+              }
+            </div>
+          </div>
+        </div>
+      }
+      @case ('semana') {
+        <div class="view">
+          <div class="weeks-grid">
+            @for (week of weeks(); track week.week) {
+              <div class="week-cell">
+                <div class="week-label">{{ week.label }}</div>
+                <div class="week-count">{{ week.doneCount }} / {{ week.totalCount }}</div>
+                <div class="week-bar">
+                  <div class="week-fill" [style.width.%]="(week.doneCount / (week.totalCount || 1)) * 100"></div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+      @case ('frequencia') {
+        <div class="view">
+          @for (freq of frequency(); track freq.template.id) {
+            <div class="freq-item">
+              <div class="freq-header">
+                <span class="freq-name">{{ freq.template.name }}</span>
+                <span class="freq-count">{{ freq.doneCount }} / {{ freq.totalCount }}</span>
+              </div>
+              <div class="freq-bar">
+                <div class="freq-fill" [style.width.%]="(freq.doneCount / (maxFreq() || 1)) * 100"></div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+</div>

@@ -1,0 +1,20 @@
+<div class="card" [class.overdue]="overdue()">
+  <button class="check" [style.border-color]="accent()" (click)="done.emit()" title="Concluir">
+    <rt-icon name="check" [size]="18" [color]="accent()" [strokeWidth]="2.4" />
+  </button>
+
+  <span class="ico" [style.background]="tint()">
+    <rt-icon [name]="icon()" [size]="16" [color]="accent()" [strokeWidth]="1.9" />
+  </span>
+
+  <div class="body">
+    <div class="name">{{ template().name }}</div>
+    <div class="sub" [class.late]="overdue()">{{ subtitle() }}</div>
+  </div>
+
+  <div class="actions">
+    <button class="ghost" (click)="skip.emit()" title="Pular esta">Pular</button>
+    <button class="ghost" (click)="cancel.emit()" title="Cancelar">Cancelar</button>
+    <button class="ghost" (click)="edit.emit()" title="Editar série">Editar</button>
+  </div>
+</div>

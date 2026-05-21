@@ -36,34 +36,34 @@ const routes: Routes = [
       import('@features/treinos/pages/treinos-page.component').then(m => m.TreinosPageComponent),
   },
   {
-    path: 'historico-treinos',
+    path: 'workout-history',
     canActivate: [profileGuard],
     loadComponent: () =>
-      import('@features/historico-treinos/pages/historico-treinos-page.component').then(m => m.HistoricoTreinosPageComponent),
+      import('@features/workout-history/pages/workout-history-page.component').then(m => m.WorkoutHistoryPageComponent),
   },
   {
-    path: 'historico-treinos/:slug',
+    path: 'workout-history/:slug',
     canActivate: [profileGuard],
     loadComponent: () =>
-      import('@features/historico-treinos/pages/tipo-atividade-page.component').then(m => m.TipoAtividadePageComponent),
+      import('@features/workout-history/pages/activity-type-page.component').then(m => m.ActivityTypePageComponent),
   },
   {
-    path: 'historico-treinos/:slug/:id',
+    path: 'workout-history/:slug/:id',
     canActivate: [profileGuard],
     loadComponent: () =>
-      import('@features/historico-treinos/pages/atividade-detalhe-page.component').then(m => m.AtividadeDetalhePageComponent),
+      import('@features/workout-history/pages/activity-detail-page.component').then(m => m.ActivityDetailPageComponent),
   },
   {
-    path: 'habitos',
+    path: 'habits',
     canActivate: [profileGuard],
     loadComponent: () =>
-      import('@features/habitos/pages/habitos-page.component').then(m => m.HabitosPageComponent),
+      import('@features/habits/pages/habits-page.component').then(m => m.HabitsPageComponent),
   },
   {
-    path: 'tarefas',
+    path: 'tasks',
     canActivate: [profileGuard],
     loadComponent: () =>
-      import('@features/tarefas/pages/tarefas-page.component').then(m => m.TarefasPageComponent),
+      import('@features/tasks/pages/tasks-page.component').then(m => m.TasksPageComponent),
   },
   {
     path: 'alimentacao',

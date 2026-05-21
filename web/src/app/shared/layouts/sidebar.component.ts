@@ -19,9 +19,9 @@ export class SidebarComponent {
   protected readonly items: NavItem[] = [
     { path: '/semana',      icon: '📅', label: 'Semana' },
     { path: '/treinos',     icon: '🏋️', label: 'Treinos' },
-    { path: '/historico-treinos', icon: '📊', label: 'Histórico' },
-    { path: '/tarefas',     icon: '✅', label: 'Tarefas' },
-    { path: '/habitos',     icon: '🔁', label: 'Hábitos' },
+    { path: '/workout-history', icon: '📊', label: 'Histórico' },
+    { path: '/tasks',       icon: '✅', label: 'Tarefas' },
+    { path: '/habits',      icon: '🔁', label: 'Hábitos' },
     { path: '/alimentacao', icon: '🍽️', label: 'Alimentação' },
     { path: '/compras',     icon: '🛒', label: 'Compras' },
     { path: '/casa',        icon: '🏠', label: 'Casa' },

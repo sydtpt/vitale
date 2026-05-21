@@ -1,0 +1,6 @@
+<div class="seg">
+  @for (o of options; track o.value) {
+    <button type="button" class="opt" [class.active]="o.value === value()"
+      (click)="select.emit(o.value)">{{ o.label }}</button>
+  }
+</div>

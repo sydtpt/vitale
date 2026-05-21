@@ -1,0 +1,14 @@
+<div class="card">
+  <span class="ico" [style.background]="tint()">
+    <rt-icon [name]="icon()" [size]="16" [color]="accent()" [strokeWidth]="1.9" />
+  </span>
+
+  <div class="body">
+    <div class="name">{{ template().name }}</div>
+    <div class="sub">{{ date() }} · {{ module() }}</div>
+  </div>
+
+  <div class="status" [class]="occurrence().status">
+    <span class="badge">{{ statusLabel() }}</span>
+  </div>
+</div>

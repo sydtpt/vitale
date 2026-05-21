@@ -1,0 +1,30 @@
+<div class="page">
+  @if (store.loading()) {
+    <div class="state">Carregando hábitos…</div>
+  } @else if (store.error()) {
+    <div class="state error">Não foi possível carregar: {{ store.error() }}</div>
+  } @else if (store.isEmpty()) {
+    <div class="empty">
+      <div class="empty-icon">
+        <rt-icon name="droplet" [size]="34" color="var(--primary)" [strokeWidth]="1.8" />
+      </div>
+      <h2 class="empty-title">Nenhum hábito ainda</h2>
+      <p class="empty-text">
+        Crie contadores (água, cigarro…) no app do celular em
+        <strong>Mais → Hábitos</strong>. Eles aparecem aqui com streaks, médias
+        e o histórico dos últimos meses.
+      </p>
+    </div>
+  } @else {
+    <rt-page-header
+      eyebrow="Hábitos"
+      [title]="count() + (count() === 1 ? ' contador' : ' contadores')"
+      subtitle="Adesão, streaks e médias dos seus hábitos diários"
+    />
+    <div class="grid">
+      @for (h of store.habits(); track h.id) {
+        <rt-habit-analytics-card [habit]="h" [logs]="store.logsFor(h.id)" />
+      }
+    </div>
+  }
+</div>

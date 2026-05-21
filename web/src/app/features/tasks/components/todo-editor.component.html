@@ -1,0 +1,86 @@
+<div class="overlay" (click)="close.emit()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <h2 class="title">{{ template() ? 'Editar tarefa' : 'Nova tarefa' }}</h2>
+
+    <label class="lbl">Nome</label>
+    <input class="inp" [(ngModel)]="name" placeholder="Ex.: Pagar aluguel" />
+
+    <label class="lbl">Módulo</label>
+    <div class="chips">
+      @for (m of modules; track m.key) {
+        <button class="chip" [class.on]="mod === m.key" (click)="mod = m.key">{{ m.label }}</button>
+      }
+    </div>
+
+    <label class="lbl">Recorrência</label>
+    <div class="chips">
+      @for (k of kinds; track k.key) {
+        <button class="chip" [class.on]="kind === k.key" (click)="kind = k.key">{{ k.label }}</button>
+      }
+    </div>
+
+    @switch (kind) {
+      @case ('monthly') {
+        <label class="lbl">Dia do mês</label>
+        <input class="inp" type="number" [(ngModel)]="monthlyDay" />
+      }
+      @case ('weekly') {
+        <label class="lbl">Dias da semana</label>
+        <div class="chips">
+          @for (w of weekdays; track $index) {
+            <button class="day" [class.on]="selectedDays.includes($index)" (click)="toggleDay($index)">{{ w }}</button>
+          }
+        </div>
+      }
+      @case ('yearly') {
+        <div class="row">
+          <div class="col"><label class="lbl">Mês</label><input class="inp" type="number" [(ngModel)]="yearMonth" /></div>
+          <div class="col"><label class="lbl">Dia</label><input class="inp" type="number" [(ngModel)]="yearDay" /></div>
+        </div>
+      }
+      @case ('after_completion') {
+        <label class="lbl">Dias após concluir</label>
+        <input class="inp" type="number" [(ngModel)]="intervalDays" />
+      }
+      @case ('usage') {
+        <div class="row">
+          <div class="col"><label class="lbl">A cada</label><input class="inp" type="number" [(ngModel)]="every" /></div>
+          <div class="col"><label class="lbl">Unidade</label><input class="inp" [(ngModel)]="meterUnit" /></div>
+        </div>
+      }
+      @case ('event') {
+        <label class="lbl">Evento (rótulo)</label>
+        <input class="inp" [(ngModel)]="eventLabel" placeholder="Ex.: depois que chover" />
+      }
+      @case ('stock') {
+        <label class="lbl">Item (opcional)</label>
+        <input class="inp" [(ngModel)]="stockRef" placeholder="Ex.: Café" />
+      }
+    }
+
+    <label class="lbl">Se não fizer no dia</label>
+    <div class="chips">
+      <button class="chip" [class.on]="overdue === 'carry'" (click)="overdue = 'carry'">Acumula</button>
+      <button class="chip" [class.on]="overdue === 'expire'" (click)="overdue = 'expire'">Expira</button>
+    </div>
+
+    <label class="lbl">Cancelável</label>
+    <div class="chips">
+      <button class="chip" [class.on]="cancelPolicy === 'manual'" (click)="setCancel('manual')">Sim</button>
+      <button class="chip" [class.on]="cancelPolicy === 'none'" (click)="setCancel('none')">Obrigatória</button>
+      <button class="chip" [class.on]="cancelPolicy === 'auto'" (click)="setCancel('auto')">Auto</button>
+    </div>
+
+    <label class="lbl">Cor</label>
+    <div class="chips">
+      @for (c of colors; track c.key) {
+        <button class="swatch" [class.on]="color === c.key" [style.background]="c.accent" (click)="color = c.key"></button>
+      }
+    </div>
+
+    <div class="foot">
+      <button class="btn ghost" (click)="close.emit()">Cancelar</button>
+      <button class="btn primary" [disabled]="!valid()" (click)="onSave()">{{ template() ? 'Salvar' : 'Criar' }}</button>
+    </div>
+  </div>
+</div>

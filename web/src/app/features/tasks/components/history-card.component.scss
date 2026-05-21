@@ -1,0 +1,21 @@
+.card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow-card);
+}
+.ico {
+  width: 30px; height: 30px; border-radius: 9px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+}
+.body { flex: 1; min-width: 0; }
+.name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.sub { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
+.status { flex: 0 0 auto; }
+.badge {
+  display: inline-block; font-size: 11px; font-weight: 600; padding: 4px 10px;
+  border-radius: 12px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.status.done .badge { background: #E8F5E9; color: #2E7D32; }
+.status.skipped .badge { background: #FFF3E0; color: #E65100; }
+.status.canceled .badge { background: #F5F5F5; color: #616161; }
+.status.expired .badge { background: #F5F5F5; color: #757575; }

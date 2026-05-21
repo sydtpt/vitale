@@ -13,19 +13,19 @@ export class VitaleStore {
   // ─── Day state ─────────────────────────────────
   readonly meals = signal<Meal[]>([]);
   readonly habits = signal<Habit[]>([]);
-  readonly casa = signal<Chore[]>([]);
-  readonly compras = signal<ShopItem[]>([]);
+  readonly home = signal<Chore[]>([]);
+  readonly shopping = signal<ShopItem[]>([]);
   readonly water = signal<number>(0);
-  readonly treinoDone = signal<boolean>(false);
+  readonly workoutDone = signal<boolean>(false);
 
   // ─── Derived counts ────────────────────────────
   readonly mealsDone = computed(() => this.meals().filter(m => m.done).length);
   readonly habitsDone = computed(() => this.habits().filter(h => h.done).length);
-  readonly casaDone = computed(() => this.casa().filter(c => c.done).length);
-  readonly comprasDone = computed(() => this.compras().filter(c => c.done).length);
+  readonly homeDone = computed(() => this.home().filter(c => c.done).length);
+  readonly shoppingDone = computed(() => this.shopping().filter(c => c.done).length);
 
   // ─── Day score (0–100) ─────────────────────────
-  readonly activityScore = computed(() => (this.treinoDone() ? 100 : 60));
+  readonly activityScore = computed(() => (this.workoutDone() ? 100 : 60));
 
   readonly foodScore = computed(() => {
     const m = this.meals();
@@ -61,14 +61,14 @@ export class VitaleStore {
     );
   }
 
-  toggleCasa(id: string) {
-    this.casa.update(arr =>
+  toggleHome(id: string) {
+    this.home.update(arr =>
       arr.map(x => (x.id === id ? { ...x, done: !x.done } : x))
     );
   }
 
-  toggleCompra(id: string) {
-    this.compras.update(arr =>
+  toggleShopping(id: string) {
+    this.shopping.update(arr =>
       arr.map(x => (x.id === id ? { ...x, done: !x.done } : x))
     );
   }
@@ -77,23 +77,23 @@ export class VitaleStore {
     this.water.set(Math.max(0, Math.min(8, n)));
   }
 
-  toggleTreino() {
-    this.treinoDone.update(v => !v);
+  toggleWorkout() {
+    this.workoutDone.update(v => !v);
   }
 
   // ─── Initialization ────────────────────────────
   loadDay(data: {
     meals: Meal[];
     habits: Habit[];
-    casa: Chore[];
-    compras: ShopItem[];
+    home: Chore[];
+    shopping: ShopItem[];
     water: number;
   }) {
     this.meals.set(structuredClone(data.meals));
     this.habits.set(structuredClone(data.habits));
-    this.casa.set(structuredClone(data.casa));
-    this.compras.set(structuredClone(data.compras));
+    this.home.set(structuredClone(data.home));
+    this.shopping.set(structuredClone(data.shopping));
     this.water.set(data.water);
-    this.treinoDone.set(false);
+    this.workoutDone.set(false);
   }
 }
