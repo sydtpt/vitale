@@ -26,8 +26,9 @@ interface Row { o: TodoOccurrence; t: TodoTemplate; }
         @if (!showHistory()) {
           <button class="new" (click)="openNew()"><rt-icon name="plus" [size]="16" color="#fff" [strokeWidth]="2.2" /> Nova tarefa</button>
         }
-        <button [class.active]="showHistory()" (click)="showHistory.set(!showHistory())" class="toggle">
-          <rt-icon [name]="showHistory() ? 'list' : 'history'" [size]="16" [color]="showHistory() ? '#fff' : 'var(--ink-2)'" [strokeWidth]="2" />
+        <button [class.active]="showHistory()" (click)="showHistory.set(!showHistory())" class="toggle" [title]="showHistory() ? 'Voltar para tarefas' : 'Ver histórico'">
+          <rt-icon name="book" [size]="16" [color]="showHistory() ? '#fff' : 'var(--ink-2)'" [strokeWidth]="2" />
+          <span class="label">{{ showHistory() ? 'Tarefas' : 'Histórico' }}</span>
         </button>
       </rt-page-header>
 
@@ -102,8 +103,9 @@ interface Row { o: TodoOccurrence; t: TodoTemplate; }
   styles: [`
     .page { padding: 24px 32px 48px; max-width: 900px; }
     .new { display: inline-flex; align-items: center; gap: 6px; border: none; background: var(--primary); color: #fff; font-size: 13.5px; font-weight: 600; padding: 9px 16px; border-radius: 999px; cursor: pointer; }
-    .toggle { border: none; background: transparent; padding: 6px 8px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s; }
-    .toggle.active { background: var(--primary); }
+    .toggle { border: 1px solid var(--line); background: var(--surface); padding: 8px 12px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+    .toggle.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .toggle .label { font-size: 12px; font-weight: 600; }
     .section { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-2); margin: 26px 0 10px; }
     .list { display: flex; flex-direction: column; gap: 8px; }
     .trigger { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow-card); }
