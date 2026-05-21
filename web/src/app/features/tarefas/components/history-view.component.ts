@@ -72,10 +72,21 @@ interface FrequencyItem {
             </button>
           }
         </div>
+
+        <div class="period-selector">
+          @for (period of periods; track period.days) {
+            <button
+              [class.active]="periodDays() === period.days"
+              (click)="periodDays.set(period.days)"
+              class="period-opt">
+              {{ period.label }}
+            </button>
+          }
+        </div>
       </div>
 
       @if (rows().length === 0) {
-        <div class="empty">Nenhum histórico nos últimos 30 dias</div>
+        <div class="empty">Nenhum histórico{{ periodLabel() ? ' ' + periodLabel() : '' }}</div>
       } @else {
         @switch (currentMode()) {
           @case ('data') {
@@ -185,7 +196,7 @@ interface FrequencyItem {
   `,
   styles: [`
     .history { padding: 16px; }
-    .controls { margin-bottom: 16px; }
+    .controls { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 
     .seg {
       display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-mute);
@@ -197,6 +208,17 @@ interface FrequencyItem {
       transition: all 0.15s;
     }
     .opt.active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+
+    .period-selector {
+      display: inline-flex; gap: 6px; flex-wrap: wrap;
+    }
+    .period-opt {
+      background: var(--surface-mute); border: 1px solid var(--line); font-size: 12px; font-weight: 600;
+      padding: 6px 12px; border-radius: 8px; cursor: pointer; color: var(--ink-2);
+      transition: all 0.15s;
+    }
+    .period-opt:hover { background: var(--surface); }
+    .period-opt.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 
     .empty { text-align: center; padding: 48px 16px; color: var(--ink-2); font-size: 14px; }
 
@@ -250,6 +272,7 @@ export class HistoryViewComponent {
 
   readonly currentMode = signal<ViewMode>('data');
   readonly currentStatus = signal<TodoStatus>('done');
+  readonly periodDays = signal<number | null>(30);
 
   protected readonly modes = [
     { id: 'data' as const, label: 'Por data' },
@@ -260,13 +283,42 @@ export class HistoryViewComponent {
     { id: 'frequencia' as const, label: 'Frequência' },
   ];
 
+  protected readonly periods = [
+    { days: 30, label: '30 dias' },
+    { days: 60, label: '60 dias' },
+    { days: 90, label: '90 dias' },
+    { days: 180, label: '180 dias' },
+    { days: 365, label: '1 ano' },
+    { days: null, label: 'Tudo' },
+  ];
+
   private serieExpandedMap = new Map<string, boolean>();
+
+  protected readonly periodLabel = computed(() => {
+    const days = this.periodDays();
+    if (days === null) return 'em todo o histórico';
+    if (days === 30) return 'nos últimos 30 dias';
+    if (days === 60) return 'nos últimos 60 dias';
+    if (days === 90) return 'nos últimos 90 dias';
+    if (days === 180) return 'nos últimos 180 dias';
+    if (days === 365) return 'no último ano';
+    return '';
+  });
 
   protected readonly rows = computed(() => {
     const templateMap = new Map(this.templates().map((t) => [t.id, t]));
+    const now = new Date();
+    const cutoffDate = this.periodDays() !== null
+      ? new Date(now.getTime() - this.periodDays()! * 86400000)
+      : new Date(0);
+
     return this.occurrences()
       .map((o) => ({ o, t: templateMap.get(o.templateId) }))
-      .filter((r): r is Row => !!r.t);
+      .filter((r): r is Row => !!r.t)
+      .filter((r) => {
+        const date = r.o.doneAt ?? r.o.createdAt;
+        return new Date(date) >= cutoffDate;
+      });
   });
 
   protected readonly byDate = computed(() => {
