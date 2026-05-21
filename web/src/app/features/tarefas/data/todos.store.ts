@@ -91,6 +91,13 @@ export class TodosStore {
       this.templates().length === 0,
   );
 
+  /** Ocorrências resolvidas (últimos 30 dias), ordenadas do mais recente. */
+  readonly historyOccurrences = computed(() =>
+    [...this._occurrences()]
+      .filter((o) => o.status !== 'pending')
+      .sort((a, b) => (b.doneAt ?? b.createdAt).localeCompare(a.doneAt ?? a.createdAt)),
+  );
+
   templateById(id: string): TodoTemplate | undefined {
     return this._templates().find((t) => t.id === id);
   }

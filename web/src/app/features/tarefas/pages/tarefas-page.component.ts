@@ -7,6 +7,7 @@ import { localDateStr, isOverdue } from '../data/todo-logic';
 import { describeRecurrence } from '../data/todo-format';
 import { TodoCardComponent } from '../components/todo-card.component';
 import { TodoEditorComponent } from '../components/todo-editor.component';
+import { HistoryViewComponent } from '../components/history-view.component';
 
 interface Row { o: TodoOccurrence; t: TodoTemplate; }
 
@@ -14,21 +15,28 @@ interface Row { o: TodoOccurrence; t: TodoTemplate; }
   selector: 'rt-tarefas-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, IconComponent, TodoCardComponent, TodoEditorComponent],
+  imports: [PageHeaderComponent, IconComponent, TodoCardComponent, TodoEditorComponent, HistoryViewComponent],
   template: `
     <div class="page">
       <rt-page-header
-        eyebrow="Tarefas"
-        [title]="pending().length + (pending().length === 1 ? ' pendente' : ' pendentes')"
-        subtitle="To-do e recorrências — atrasadas, do dia e em breve"
+        [eyebrow]="showHistory() ? 'Histórico' : 'Tarefas'"
+        [title]="showHistory() ? 'Últimos 30 dias' : (pending().length + (pending().length === 1 ? ' pendente' : ' pendentes'))"
+        [subtitle]="showHistory() ? '' : 'To-do e recorrências — atrasadas, do dia e em breve'"
       >
-        <button class="new" (click)="openNew()"><rt-icon name="plus" [size]="16" color="#fff" [strokeWidth]="2.2" /> Nova tarefa</button>
+        @if (!showHistory()) {
+          <button class="new" (click)="openNew()"><rt-icon name="plus" [size]="16" color="#fff" [strokeWidth]="2.2" /> Nova tarefa</button>
+        }
+        <button [class.active]="showHistory()" (click)="showHistory.set(!showHistory())" class="toggle">
+          <rt-icon [name]="showHistory() ? 'list' : 'history'" [size]="16" [color]="showHistory() ? '#fff' : 'var(--ink-2)'" [strokeWidth]="2" />
+        </button>
       </rt-page-header>
 
       @if (store.loading()) {
         <div class="state">Carregando tarefas…</div>
       } @else if (store.error()) {
         <div class="state error">Não foi possível carregar: {{ store.error() }}</div>
+      } @else if (showHistory()) {
+        <rt-history-view [occurrences]="store.historyOccurrences()" [templates]="store.templates()" />
       } @else if (store.isEmpty()) {
         <div class="empty">
           <h2 class="empty-title">Nenhuma tarefa ainda</h2>
@@ -94,6 +102,8 @@ interface Row { o: TodoOccurrence; t: TodoTemplate; }
   styles: [`
     .page { padding: 24px 32px 48px; max-width: 900px; }
     .new { display: inline-flex; align-items: center; gap: 6px; border: none; background: var(--primary); color: #fff; font-size: 13.5px; font-weight: 600; padding: 9px 16px; border-radius: 999px; cursor: pointer; }
+    .toggle { border: none; background: transparent; padding: 6px 8px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .toggle.active { background: var(--primary); }
     .section { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-2); margin: 26px 0 10px; }
     .list { display: flex; flex-direction: column; gap: 8px; }
     .trigger { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow-card); }
@@ -114,6 +124,7 @@ export class TarefasPageComponent {
   protected readonly store = inject(TodosStore);
   protected readonly editorOpen = signal(false);
   protected readonly editing = signal<TodoTemplate | null>(null);
+  protected readonly showHistory = signal(false);
   private readonly today = localDateStr();
 
   protected readonly pending = computed(() => {
