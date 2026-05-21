@@ -7,7 +7,7 @@
       <a routerLink="/historico-treinos" class="link">Voltar ao histórico</a>
     </div>
   } @else if (activity(); as a) {
-    <a [routerLink]="['/historico-treinos', slug()]" class="back">
+    <a [routerLink]="['/historico-treinos', slug()]" [queryParams]="listQueryParams()" class="back">
       <rt-icon name="chev-l" [size]="16" color="var(--ink-3)" /> Voltar
     </a>
 
@@ -74,7 +74,7 @@
       @if (saveError()) { <p class="err">{{ saveError() }}</p> }
 
       <div class="actions">
-        <a [routerLink]="['/historico-treinos', slug()]" class="cancel">Cancelar</a>
+        <a [routerLink]="['/historico-treinos', slug()]" [queryParams]="listQueryParams()" class="cancel">Cancelar</a>
         <button type="button" class="save" [disabled]="saving()" (click)="save()">
           {{ saving() ? 'Salvando…' : 'Salvar' }}
         </button>

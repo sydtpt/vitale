@@ -42,6 +42,8 @@ export class AtividadeDetalhePageComponent {
   protected readonly routeLoading = signal(false);
   private routeFor = '';
 
+  protected readonly listQueryParams = signal<Record<string, string>>({});
+
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
 
@@ -62,6 +64,16 @@ export class AtividadeDetalhePageComponent {
       this._id.set(pm.get('id') ?? '');
       this.saveError.set(null);
     });
+
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((qpm) => {
+      const params: Record<string, string> = {};
+      qpm.keys.forEach((key) => {
+        const val = qpm.get(key);
+        if (val != null) params[key] = val;
+      });
+      this.listQueryParams.set(params);
+    });
+
     void this.store.load();
 
     // Carrega a rota GPS quando a atividade (com rota) entra em cena.
@@ -116,7 +128,7 @@ export class AtividadeDetalhePageComponent {
       };
       if (!this.hasGps()) patch.durationS = Math.max(0, Math.round(this.durationMin()) * 60);
       await this.store.updateActivity(a.id, patch);
-      await this.router.navigate(['/historico-treinos', this.slug()]);
+      await this.router.navigate(['/historico-treinos', this.slug()], { queryParams: this.listQueryParams() });
     } catch (e) {
       this.saveError.set((e as Error).message);
     } finally {

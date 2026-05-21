@@ -37,15 +37,15 @@
     <div class="toolbar">
       <div class="count">{{ result().total }} {{ result().total === 1 ? 'resultado' : 'resultados' }}</div>
       <div class="right">
-        <select class="sort" [value]="sortValue()" (change)="onSort($event)">
-          <option value="date-desc">Mais recentes</option>
-          <option value="date-asc">Mais antigas</option>
+        <select class="sort" (change)="onSort($event)">
+          <option value="date-desc" [selected]="sortValue() === 'date-desc'">Mais recentes</option>
+          <option value="date-asc" [selected]="sortValue() === 'date-asc'">Mais antigas</option>
           @if (showDistance()) {
-            <option value="distance-desc">Maior distância</option>
-            <option value="distance-asc">Menor distância</option>
+            <option value="distance-desc" [selected]="sortValue() === 'distance-desc'">Maior distância</option>
+            <option value="distance-asc" [selected]="sortValue() === 'distance-asc'">Menor distância</option>
           }
-          <option value="duration-desc">Maior duração</option>
-          <option value="duration-asc">Menor duração</option>
+          <option value="duration-desc" [selected]="sortValue() === 'duration-desc'">Maior duração</option>
+          <option value="duration-asc" [selected]="sortValue() === 'duration-asc'">Menor duração</option>
         </select>
         <div class="view">
           <button type="button" [class.active]="view() === 'list'" (click)="view.set('list')" title="Lista">
@@ -63,13 +63,13 @@
     } @else if (view() === 'list') {
       <div class="list">
         @for (a of result().items; track a.id) {
-          <rt-activity-item [activity]="a" mode="list" />
+          <rt-activity-item [activity]="a" [filters]="filters()" [sort]="sort()" [dir]="dir()" mode="list" />
         }
       </div>
     } @else {
       <div class="cards">
         @for (a of result().items; track a.id) {
-          <rt-activity-item [activity]="a" mode="cards" />
+          <rt-activity-item [activity]="a" [filters]="filters()" [sort]="sort()" [dir]="dir()" mode="cards" />
         }
       </div>
     }

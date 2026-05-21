@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { IconComponent } from '@core/services/icon.component';
 import { labelForSlug } from '@core/models/activity-types';
@@ -7,6 +7,8 @@ import { ActivitiesStore } from '../data/activities.store';
 import {
   buildActivityList,
   EMPTY_FILTERS,
+  filtersToQueryParams,
+  queryParamsToFilters,
   type ActivityFilters,
   type SortDir,
   type SortKey,
@@ -25,6 +27,7 @@ import { ActivityItemComponent } from '../components/activity-item.component';
 })
 export class TipoAtividadePageComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   protected readonly store = inject(ActivitiesStore);
 
   private readonly _slug = signal('');
@@ -61,17 +64,27 @@ export class TipoAtividadePageComponent {
   constructor() {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((pm) => {
       this._slug.set(pm.get('slug') ?? '');
-      this.filters.set({ ...EMPTY_FILTERS });
-      this.sort.set('date');
-      this.dir.set('desc');
       this.page.set(1);
     });
+
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((qpm) => {
+      const params: Record<string, string | string[] | null> = {};
+      qpm.keys.forEach((key) => {
+        params[key] = qpm.get(key);
+      });
+
+      this.filters.set(queryParamsToFilters(params));
+      this.sort.set((qpm.get('sort') as SortKey) ?? 'date');
+      this.dir.set((qpm.get('dir') as SortDir) ?? 'desc');
+    });
+
     void this.store.load();
   }
 
   protected setFilters(f: ActivityFilters): void {
     this.filters.set(f);
     this.page.set(1);
+    this.updateQueryParams();
   }
 
   protected onSort(e: Event): void {
@@ -79,5 +92,19 @@ export class TipoAtividadePageComponent {
     this.sort.set(key as SortKey);
     this.dir.set(dir as SortDir);
     this.page.set(1);
+    this.updateQueryParams();
+  }
+
+  private updateQueryParams(): void {
+    const queryParams = filtersToQueryParams(this.filters());
+    queryParams['sort'] = this.sort();
+    queryParams['dir'] = this.dir();
+
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams,
+      queryParamsHandling: 'merge',
+      replaceUrl: false,
+    });
   }
 }

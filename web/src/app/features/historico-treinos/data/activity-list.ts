@@ -38,6 +38,34 @@ export interface ActivityListResult {
 
 export const EMPTY_FILTERS: ActivityFilters = { hasRoute: 'all' };
 
+export function filtersToQueryParams(filters: ActivityFilters): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filters.from) params['from'] = filters.from;
+  if (filters.to) params['to'] = filters.to;
+  if (filters.minDistanceKm != null) params['minDist'] = String(filters.minDistanceKm);
+  if (filters.maxDistanceKm != null) params['maxDist'] = String(filters.maxDistanceKm);
+  if (filters.minDurationMin != null) params['minDur'] = String(filters.minDurationMin);
+  if (filters.maxDurationMin != null) params['maxDur'] = String(filters.maxDurationMin);
+  if (filters.source) params['source'] = filters.source;
+  if (filters.hasRoute && filters.hasRoute !== 'all') params['route'] = filters.hasRoute;
+  return params;
+}
+
+export function queryParamsToFilters(params: Record<string, string | string[] | null>): ActivityFilters {
+  const filters: ActivityFilters = { hasRoute: 'all' };
+
+  if (params['from']) filters.from = String(params['from']);
+  if (params['to']) filters.to = String(params['to']);
+  if (params['minDist']) filters.minDistanceKm = Number(params['minDist']);
+  if (params['maxDist']) filters.maxDistanceKm = Number(params['maxDist']);
+  if (params['minDur']) filters.minDurationMin = Number(params['minDur']);
+  if (params['maxDur']) filters.maxDurationMin = Number(params['maxDur']);
+  if (params['source']) filters.source = String(params['source']);
+  if (params['route']) filters.hasRoute = String(params['route']) as RouteFilter;
+
+  return filters;
+}
+
 function localYmd(iso: string): string {
   const d = new Date(iso);
   const m = d.getMonth() + 1;

@@ -1,5 +1,5 @@
 @if (mode() === 'list') {
-  <a class="row" [routerLink]="['/historico-treinos', meta().slug, activity().id]">
+  <a class="row" [routerLink]="navigationUrl().url" [queryParams]="navigationUrl().params">
     <span class="ico" [style.color]="meta().color">
       <rt-icon [name]="meta().icon" [size]="18" [color]="meta().color" [strokeWidth]="1.9" />
     </span>
@@ -18,7 +18,7 @@
     <rt-icon class="chev" name="chev-r" [size]="16" color="var(--ink-4)" />
   </a>
 } @else {
-  <a class="carditem" [routerLink]="['/historico-treinos', meta().slug, activity().id]">
+  <a class="carditem" [routerLink]="navigationUrl().url" [queryParams]="navigationUrl().params">
     <div class="top">
       <span class="ico" [style.color]="meta().color">
         <rt-icon [name]="meta().icon" [size]="18" [color]="meta().color" [strokeWidth]="1.9" />
