@@ -49,14 +49,14 @@ function summary(h: CounterHabit): string {
                     (click)="onEdit.emit(h.id)"
                     title="Editar"
                   >
-                    <rt-icon name="edit-2" [size]="16" />
+                    <rt-icon name="edit-2" [size]="16" color="var(--ink2)" />
                   </button>
                   <button
                     class="action-btn"
                     (click)="onArchive.emit({ id: h.id, active: false })"
                     title="Arquivar"
                   >
-                    <rt-icon name="archive" [size]="16" />
+                    <rt-icon name="archive" [size]="16" color="var(--ink2)" />
                   </button>
                 </div>
               </div>
@@ -84,14 +84,14 @@ function summary(h: CounterHabit): string {
                     (click)="onEdit.emit(h.id)"
                     title="Editar"
                   >
-                    <rt-icon name="edit-2" [size]="16" />
+                    <rt-icon name="edit-2" [size]="16" color="var(--ink2)" />
                   </button>
                   <button
                     class="action-btn"
                     (click)="onArchive.emit({ id: h.id, active: true })"
                     title="Reativar"
                   >
-                    <rt-icon name="undo" [size]="16" />
+                    <rt-icon name="undo" [size]="16" color="var(--ink2)" />
                   </button>
                 </div>
               </div>
@@ -191,7 +191,7 @@ function summary(h: CounterHabit): string {
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: var(--ink3);
+      color: var(--ink2);
       transition: all 0.2s;
 
       &:hover {
