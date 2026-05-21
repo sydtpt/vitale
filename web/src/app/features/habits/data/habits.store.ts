@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import type { CounterHabit, HabitLog } from '@vitale/shared';
+import type { CounterHabit, HabitLog, HabitDirection } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { lastNDates, localDateStr } from './habit-logic';
@@ -111,6 +111,95 @@ export class HabitsStore {
     this._habits.set(((habitsRes.data ?? []) as DbHabitRow[]).map(mapHabit));
     this._logs.set(((logsRes.data ?? []) as DbLogRow[]).map(mapLog));
     this._state.set('loaded');
+  }
+
+  async createHabit(data: {
+    name: string;
+    icon: string;
+    color: string;
+    unit: string;
+    step: number;
+    target?: number;
+    direction: HabitDirection;
+    bad?: boolean;
+  }): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('Sessão não encontrada.');
+
+    const maxSort = Math.max(0, ...this._habits().map(h => h.sort));
+    const res = await supabase
+      .from('habits')
+      .insert({
+        user_id: userId,
+        name: data.name,
+        icon: data.icon,
+        color: data.color,
+        unit: data.unit,
+        step: data.step,
+        target: data.target ?? null,
+        direction: data.direction,
+        bad: data.bad ?? false,
+        active: true,
+        sort: maxSort + 1,
+      })
+      .select()
+      .single();
+
+    if (res.error) throw new Error(res.error.message);
+    const newHabit = mapHabit(res.data as DbHabitRow);
+    this._habits.update(h => [...h, newHabit]);
+  }
+
+  async updateHabit(id: string, data: {
+    name: string;
+    icon: string;
+    color: string;
+    unit: string;
+    step: number;
+    target?: number;
+    direction: HabitDirection;
+    bad?: boolean;
+  }): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('Sessão não encontrada.');
+
+    const res = await supabase
+      .from('habits')
+      .update({
+        name: data.name,
+        icon: data.icon,
+        color: data.color,
+        unit: data.unit,
+        step: data.step,
+        target: data.target ?? null,
+        direction: data.direction,
+        bad: data.bad ?? false,
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (res.error) throw new Error(res.error.message);
+    const updated = mapHabit(res.data as DbHabitRow);
+    this._habits.update(h => h.map(x => x.id === id ? updated : x));
+  }
+
+  async archiveHabit(id: string, active: boolean): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('Sessão não encontrada.');
+
+    const res = await supabase
+      .from('habits')
+      .update({ active })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (res.error) throw new Error(res.error.message);
+    const updated = mapHabit(res.data as DbHabitRow);
+    this._habits.update(h => h.map(x => x.id === id ? updated : x));
   }
 }
 

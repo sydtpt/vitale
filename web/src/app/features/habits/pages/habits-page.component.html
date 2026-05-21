@@ -10,21 +10,47 @@
       </div>
       <h2 class="empty-title">Nenhum hábito ainda</h2>
       <p class="empty-text">
-        Crie contadores (água, cigarro…) no app do celular em
-        <strong>Mais → Hábitos</strong>. Eles aparecem aqui com streaks, médias
+        Crie contadores (água, cigarro…) aqui ou no app do celular em
+        <strong>Mais → Hábitos</strong>. Eles aparecerão com streaks, médias
         e o histórico dos últimos meses.
       </p>
+      <button class="cta" (click)="openNewHabit()">
+        <rt-icon name="plus" [size]="18" />
+        Novo hábito
+      </button>
     </div>
   } @else {
     <rt-page-header
       eyebrow="Hábitos"
       [title]="count() + (count() === 1 ? ' contador' : ' contadores')"
       subtitle="Adesão, streaks e médias dos seus hábitos diários"
-    />
-    <div class="grid">
-      @for (h of store.habits(); track h.id) {
-        <rt-habit-analytics-card [habit]="h" [logs]="store.logsFor(h.id)" />
-      }
-    </div>
+    >
+      <button [class.active]="!showList()" (click)="toggleView()" class="toggle" [title]="showList() ? 'Ver gráficos' : 'Voltar para lista'">
+        <rt-icon [name]="showList() ? 'list' : 'trend'" [size]="16" [color]="showList() ? 'var(--ink-2)' : '#fff'" [strokeWidth]="2" />
+        <span class="label">{{ showList() ? 'Gráficos' : 'Lista' }}</span>
+      </button>
+      <button class="new" (click)="openNewHabit()"><rt-icon name="plus" [size]="16" color="#fff" [strokeWidth]="2.2" /> Novo hábito</button>
+    </rt-page-header>
+
+    @if (showList()) {
+      <div class="list-section">
+        <rt-habit-list
+          [habits]="store.habits()"
+          (onEdit)="openEditHabit($event)"
+          (onArchive)="archiveHabit($event)"
+        />
+      </div>
+    } @else {
+      <div class="grid">
+        @for (h of store.habits(); track h.id) {
+          <rt-habit-analytics-card [habit]="h" [logs]="store.logsFor(h.id)" />
+        }
+      </div>
+    }
   }
+
+  <rt-habit-editor
+    [habitId]="editingId()"
+    (onClose)="editingId.set(null)"
+  />
 </div>

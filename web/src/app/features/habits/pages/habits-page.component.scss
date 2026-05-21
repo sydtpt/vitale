@@ -16,3 +16,29 @@
 .empty-title { font-size: 19px; font-weight: 650; color: var(--ink); margin-bottom: 10px; }
 .empty-text { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
 .empty-text strong { color: var(--ink); font-weight: 600; }
+
+.new { display: inline-flex; align-items: center; gap: 6px; border: none; background: var(--primary); color: #fff; font-size: 13.5px; font-weight: 600; padding: 9px 16px; border-radius: 999px; cursor: pointer; }
+.toggle { border: 1px solid var(--line); background: var(--surface); padding: 8px 12px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.toggle.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.toggle .label { font-size: 12px; font-weight: 600; }
+.list-section { margin-top: 24px; }
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  margin-top: 20px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radii-lg);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+}
