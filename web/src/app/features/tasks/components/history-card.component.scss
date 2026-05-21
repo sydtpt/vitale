@@ -19,3 +19,12 @@
 .status.skipped .badge { background: #FFF3E0; color: #E65100; }
 .status.canceled .badge { background: #F5F5F5; color: #616161; }
 .status.expired .badge { background: #F5F5F5; color: #757575; }
+.btn-delete {
+  width: 32px; height: 32px; flex: 0 0 auto;
+  background: var(--surface-mute); border: 1px solid var(--line);
+  border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+  color: #E26A8A;
+  &:hover { background: var(--line); }
+}

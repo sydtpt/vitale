@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { MOD, type TodoTemplate, type TodoOccurrence } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 
@@ -27,6 +27,7 @@ const STATUS_LABELS: Record<string, string> = {
 export class HistoryCardComponent {
   readonly template = input.required<TodoTemplate>();
   readonly occurrence = input.required<TodoOccurrence>();
+  readonly deleteClicked = output<TodoOccurrence>();
 
   protected accent(): string {
     return (MOD as Record<string, { accent: string }>)[this.template().color]?.accent ?? MOD.tarefa.accent;
@@ -48,5 +49,9 @@ export class HistoryCardComponent {
   protected module(): string {
     const mod = this.template().module;
     return mod.charAt(0).toUpperCase() + mod.slice(1);
+  }
+
+  protected onDelete(): void {
+    this.deleteClicked.emit(this.occurrence());
   }
 }

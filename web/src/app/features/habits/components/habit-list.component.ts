@@ -49,14 +49,14 @@ function summary(h: CounterHabit): string {
                     (click)="onEdit.emit(h.id)"
                     title="Editar"
                   >
-                    <rt-icon name="edit-2" [size]="16" color="var(--ink2)" />
+                    <rt-icon name="edit-2" [size]="16" color="currentColor" />
                   </button>
                   <button
                     class="action-btn"
                     (click)="onArchive.emit({ id: h.id, active: false })"
                     title="Arquivar"
                   >
-                    <rt-icon name="archive" [size]="16" color="var(--ink2)" />
+                    <rt-icon name="archive" [size]="16" color="currentColor" />
                   </button>
                 </div>
               </div>
@@ -84,14 +84,14 @@ function summary(h: CounterHabit): string {
                     (click)="onEdit.emit(h.id)"
                     title="Editar"
                   >
-                    <rt-icon name="edit-2" [size]="16" color="var(--ink2)" />
+                    <rt-icon name="edit-2" [size]="16" color="currentColor" />
                   </button>
                   <button
                     class="action-btn"
                     (click)="onArchive.emit({ id: h.id, active: true })"
                     title="Reativar"
                   >
-                    <rt-icon name="undo" [size]="16" color="var(--ink2)" />
+                    <rt-icon name="undo" [size]="16" color="currentColor" />
                   </button>
                 </div>
               </div>
@@ -125,11 +125,6 @@ function summary(h: CounterHabit): string {
       border-radius: 14px;
       padding: 10px 14px;
       box-shadow: var(--shadow-card);
-      transition: background 0.2s;
-
-      &:hover {
-        background: var(--surface-mute);
-      }
 
       &.muted {
         opacity: 0.7;
@@ -165,14 +160,14 @@ function summary(h: CounterHabit): string {
       color: var(--ink);
 
       &.muted {
-        color: var(--ink3);
+        color: var(--ink-3);
       }
     }
 
     .summary {
       margin: 2px 0 0 0;
       font-size: 12px;
-      color: var(--ink3);
+      color: var(--ink-3);
     }
 
     .actions {
@@ -184,14 +179,14 @@ function summary(h: CounterHabit): string {
     .action-btn {
       width: 32px;
       height: 32px;
-      border: none;
-      background: transparent;
+      border: 1px solid var(--line);
+      background: var(--surface-mute);
       border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: var(--ink2);
+      color: var(--ink-2);
       transition: all 0.2s;
 
       &:hover {

@@ -36,6 +36,25 @@
   --shadow-sm: 0 1px 0 rgba(31, 27, 22, 0.04);
   --shadow-md: 0 6px 16px rgba(31, 27, 22, 0.03);
   --shadow-card: 0 1px 0 rgba(31, 27, 22, 0.04), 0 6px 16px rgba(31, 27, 22, 0.03);
+
+  /* Spacing (mirrors @vitale/shared spacing tokens) */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+  --spacing-4xl: 48px;
+
+  /* Border radii (mirrors @vitale/shared radii tokens) */
+  --radii-sm: 8px;
+  --radii-md: 12px;
+  --radii-lg: 16px;
+  --radii-xl: 18px;
+  --radii-2xl: 20px;
+  --radii-3xl: 24px;
+  --radii-pill: 999px;
 }
 
 * { box-sizing: border-box; }

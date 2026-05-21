@@ -11,4 +11,8 @@
   <div class="status" [class]="occurrence().status">
     <span class="badge">{{ statusLabel() }}</span>
   </div>
+
+  <button class="btn-delete" (click)="onDelete()" title="Deletar do histórico">
+    <rt-icon name="trash" [size]="18" [color]="'#E26A8A'" [strokeWidth]="1.5" />
+  </button>
 </div>

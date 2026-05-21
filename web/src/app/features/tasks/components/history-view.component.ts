@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { type TodoTemplate, type TodoOccurrence } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
+import { TodosStore } from '../data/todos.store';
 import { HistoryCardComponent } from './history-card.component';
+import { DeleteConfirmationModalComponent } from './delete-confirmation-modal.component';
 
 type ViewMode = 'data' | 'serie' | 'modulo' | 'status' | 'semana' | 'frequencia';
 type TodoModule = 'financas' | 'compras' | 'casa' | 'saude' | 'geral';
@@ -61,15 +63,17 @@ interface FrequencyItem {
   selector: 'rt-history-view',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, IconComponent, HistoryCardComponent],
+  imports: [CommonModule, IconComponent, HistoryCardComponent, DeleteConfirmationModalComponent],
   templateUrl: './history-view.component.html',
   styleUrl: './history-view.component.scss',
 })
 export class HistoryViewComponent {
+  private readonly store = inject(TodosStore);
   readonly occurrences = input.required<TodoOccurrence[]>();
   readonly templates = input.required<TodoTemplate[]>();
 
   readonly currentMode = signal<ViewMode>('data');
+  @ViewChild(DeleteConfirmationModalComponent) deleteModal!: DeleteConfirmationModalComponent;
   readonly currentStatus = signal<TodoStatus>('done');
   readonly periodDays = signal<number | null>(30);
 
@@ -273,5 +277,16 @@ export class HistoryViewComponent {
     const first = new Date(d.getFullYear(), 0, 1);
     const onejan = first;
     return Math.ceil(((d.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7);
+  }
+
+  async onDeleteClick(occurrence: TodoOccurrence): Promise<void> {
+    const confirmed = await this.deleteModal.open();
+    if (confirmed) {
+      try {
+        await this.store.deleteOccurrence(occurrence.id);
+      } catch (e) {
+        console.error('Erro ao deletar tarefa:', e);
+      }
+    }
   }
 }

@@ -31,7 +31,7 @@
               <h4 class="group-title">{{ dayGroup.label }}</h4>
               <div class="list">
                 @for (r of dayGroup.rows; track r.o.id) {
-                  <rt-history-card [template]="r.t" [occurrence]="r.o" />
+                  <rt-history-card [template]="r.t" [occurrence]="r.o" (deleteClicked)="onDeleteClick($event)" />
                 }
               </div>
             </div>
@@ -55,7 +55,7 @@
               @if (serieGroup.expanded) {
                 <div class="list">
                   @for (r of serieGroup.rows; track r.o.id) {
-                    <rt-history-card [template]="r.t" [occurrence]="r.o" />
+                    <rt-history-card [template]="r.t" [occurrence]="r.o" (deleteClicked)="onDeleteClick($event)" />
                   }
                 </div>
               }
@@ -70,7 +70,7 @@
               <h4 class="group-title">{{ moduloGroup.label }}</h4>
               <div class="list">
                 @for (r of moduloGroup.rows; track r.o.id) {
-                  <rt-history-card [template]="r.t" [occurrence]="r.o" />
+                  <rt-history-card [template]="r.t" [occurrence]="r.o" (deleteClicked)="onDeleteClick($event)" />
                 }
               </div>
             </div>
@@ -89,7 +89,7 @@
           <div class="group">
             <div class="list">
               @for (r of statusRows(); track r.o.id) {
-                <rt-history-card [template]="r.t" [occurrence]="r.o" />
+                <rt-history-card [template]="r.t" [occurrence]="r.o" (deleteClicked)="onDeleteClick($event)" />
               }
             </div>
           </div>
@@ -128,3 +128,5 @@
     }
   }
 </div>
+
+<rt-delete-confirmation-modal />

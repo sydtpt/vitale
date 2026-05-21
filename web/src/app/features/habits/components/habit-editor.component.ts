@@ -7,8 +7,19 @@ import { HabitsStore } from '../data/habits.store';
 import { IconComponent } from '@core/services/icon.component';
 
 const ICONS = [
-  'droplet', 'flame', 'utensils', 'book', 'dumbbell', 'heart', 'coffee', 'cigarette',
-  'wind', 'moon', 'sun', 'apple', 'footprints', 'brain',
+  // Bebidas / hidratação
+  'droplet', 'coffee', 'beer', 'wine', 'cheers',
+  // Comida
+  'utensils', 'apple', 'pizza', 'flame',
+  // Exercício
+  'dumbbell', 'run', 'walk', 'bike', 'swim', 'yoga', 'footprints',
+  // Saúde / corpo
+  'heart', 'pill', 'tooth', 'smile', 'brain', 'leaf',
+  // Rotina / lazer
+  'book', 'music', 'gamepad', 'tv', 'phone',
+  'cigarette', 'moon', 'sun', 'wind', 'shower',
+  // Outros
+  'sparkle', 'target', 'flag', 'bell',
 ] as const;
 
 const COLORS: { key: string; label: string }[] = [
@@ -274,7 +285,7 @@ function fmt(n: number): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--ink2);
+      color: var(--ink-2);
       transition: color 0.2s;
 
       &:hover {
@@ -300,7 +311,7 @@ function fmt(n: number): string {
       label {
         font-size: 13px;
         font-weight: 600;
-        color: var(--ink2);
+        color: var(--ink-2);
       }
     }
 
@@ -354,7 +365,7 @@ function fmt(n: number): string {
 
         .label-hint {
           font-size: 12px;
-          color: var(--ink3);
+          color: var(--ink-3);
         }
       }
     }
@@ -374,7 +385,7 @@ function fmt(n: number): string {
       background: transparent;
       border-radius: var(--radii-pill);
       font-size: 13.5px;
-      color: var(--ink3);
+      color: var(--ink-3);
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
@@ -390,7 +401,7 @@ function fmt(n: number): string {
     .hint {
       margin: 6px 0 0 0;
       font-size: 12px;
-      color: var(--ink3);
+      color: var(--ink-3);
     }
 
     .error {
@@ -426,7 +437,7 @@ function fmt(n: number): string {
       background: var(--surface-mute);
       border-radius: var(--radii-pill);
       font-size: 13px;
-      color: var(--ink2);
+      color: var(--ink-2);
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
@@ -452,7 +463,7 @@ function fmt(n: number): string {
       justify-content: center;
       cursor: pointer;
       transition: all 0.2s;
-      color: var(--ink2);
+      color: var(--ink-2);
 
       &.active {
         background: var(--primary);

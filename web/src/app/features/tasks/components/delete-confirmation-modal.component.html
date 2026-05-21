@@ -1,0 +1,14 @@
+@if (isOpen()) {
+  <div class="modal-overlay" (click)="cancel()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-content">
+        <h2>Deletar do histórico?</h2>
+        <p>Esta ação não pode ser desfeita. A tarefa será permanentemente removida do histórico.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" (click)="cancel()">Cancelar</button>
+        <button class="btn-delete" (click)="confirm()">Deletar</button>
+      </div>
+    </div>
+  </div>
+}

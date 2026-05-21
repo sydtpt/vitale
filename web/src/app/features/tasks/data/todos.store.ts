@@ -212,6 +212,13 @@ export class TodosStore {
     return this.resolve(occId, 'canceled');
   }
 
+  async deleteOccurrence(occId: string): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) return;
+    await supabase.from('todo_occurrences').delete().eq('id', occId).eq('user_id', userId);
+    await this.load(true);
+  }
+
   async updateMeter(templateId: string, meter: number): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) return;
@@ -237,7 +244,7 @@ export class TodosStore {
       .from('todo_occurrences')
       .select('*')
       .eq('user_id', userId)
-      .or(`status.eq.pending,due_date.gte.${since}`)
+      .or(`status.eq.pending,due_date.gte.${since},done_at.gte.${since}`)
       .order('due_date', { ascending: true });
     return ((data ?? []) as DbOccRow[]).map(mapOcc);
   }
