@@ -49,7 +49,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   signInWithGoogle: async () => {
     set({ loading: true, error: null });
     const redirectTo = makeRedirectUri({ scheme: 'vitale' });
-    console.log('[auth] redirectTo:', redirectTo);
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo, skipBrowserRedirect: true },
@@ -58,23 +57,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ loading: false, error: error.message });
       return error.message;
     }
-    console.log('[auth] oauth url:', data.url);
     const result = await WebBrowser.openAuthSessionAsync(data.url!, redirectTo);
     set({ loading: false });
     if (result.type !== 'success') return 'Login cancelado.';
 
-    // Implicit flow: tokens chegam no hash fragment (#access_token=...&refresh_token=...)
-    const hash = result.url.split('#')[1] ?? '';
-    const params = new URLSearchParams(hash);
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-
-    if (!accessToken || !refreshToken) return 'Não foi possível obter a sessão do Google.';
-
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    });
+    // PKCE flow: exchange the code returned in the redirect URL for a session
+    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(result.url);
     if (sessionError) return sessionError.message;
     return null;
   },

@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { inject } from '@angular/core';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../supabase/supabase.client';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -25,7 +26,7 @@ export class AuthService {
   async signInWithGoogle(): Promise<string | null> {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/semana` },
+      options: { redirectTo: `${environment.appUrl}/semana` },
     });
     if (error) return error.message;
     return null;
