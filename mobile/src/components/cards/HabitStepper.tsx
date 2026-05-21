@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import type { CounterHabit } from '@vitale/shared';
 import { colors, radii, MOD } from '../../theme';
 import { isMet, isOver, progress } from '../../lib/habit-logic';
+import { habitIconToIonicon } from '../../lib/habit-icons';
 
 /** Formata número na unidade do hábito (vírgula decimal, sem zeros à toa). */
 function fmt(n: number): string {
@@ -82,7 +83,7 @@ export function HabitStepper({ habit, value, streak, streakBad, onIncrement, onD
       {/* centro: nome, valor/meta, progresso */}
       <View style={styles.center}>
         <View style={styles.titleRow}>
-          <Ionicons name={(habit.icon || 'ellipse-outline') as never} size={15} color={accent} />
+          <Ionicons name={habitIconToIonicon(habit.icon)} size={15} color={accent} />
           <Text style={styles.name} numberOfLines={1}>
             {habit.name}
           </Text>

@@ -21,6 +21,7 @@ export interface NewHabit {
   target?: number;
   direction: HabitDirection;
   bad: boolean;
+  showOnHome: boolean;
 }
 
 /** Campos editáveis de um hábito. `target: null` limpa a meta. */
@@ -33,6 +34,7 @@ export interface HabitPatch {
   target?: number | null;
   direction?: HabitDirection;
   bad?: boolean;
+  show_on_home?: boolean;
   active?: boolean;
   sort?: number;
 }
@@ -66,6 +68,7 @@ type HabitRow = {
   target: number | string | null;
   direction: HabitDirection;
   bad: boolean | null;
+  show_on_home: boolean | null;
   active: boolean;
   sort: number;
   created_at: string;
@@ -82,6 +85,7 @@ function toHabit(row: HabitRow): CounterHabit {
     target: row.target == null ? undefined : Number(row.target),
     direction: row.direction,
     bad: row.bad ?? false,
+    showOnHome: row.show_on_home ?? true,
     active: row.active,
     sort: row.sort,
     createdAt: row.created_at,
@@ -122,6 +126,7 @@ async function seedDefaults(userId: string): Promise<void> {
     target: 4,
     direction: 'at_least',
     bad: false,
+    show_on_home: true,
     sort: 0,
   });
 }
@@ -239,6 +244,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
       target: input.target ?? null,
       direction: input.direction,
       bad: input.bad,
+      show_on_home: input.showOnHome,
       sort,
     });
     await get().loadAll();

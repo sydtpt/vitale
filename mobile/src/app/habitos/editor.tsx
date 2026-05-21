@@ -13,13 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { HabitDirection } from '@vitale/shared';
+import { HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
+import { habitIconToIonicon } from '../../lib/habit-icons';
 import { colors, spacing, radii, shadows, MOD } from '../../theme';
 
-const ICONS = [
-  'water', 'cafe', 'wine', 'beer', 'flame', 'fitness',
-  'walk', 'bed', 'book', 'leaf', 'heart', 'nutrition',
-] as const;
+const ICONS = HABIT_ICONS;
 
 const COLORS: { key: string; accent: string }[] = [
   { key: 'agua', accent: MOD.agua.accent },
@@ -54,11 +53,12 @@ export default function HabitEditorScreen() {
 
   const [name, setName] = useState('');
   const [bad, setBad] = useState(false);
+  const [showOnHome, setShowOnHome] = useState(true);
   const [direction, setDirection] = useState<HabitDirection>('at_least');
   const [target, setTarget] = useState('');
   const [unit, setUnit] = useState('un');
   const [step, setStep] = useState('1');
-  const [icon, setIcon] = useState<string>('flame');
+  const [icon, setIcon] = useState<string>(DEFAULT_HABIT_ICON);
   const [color, setColor] = useState<string>('habito');
   const [hydrated, setHydrated] = useState(false);
 
@@ -71,11 +71,12 @@ export default function HabitEditorScreen() {
     if (existing && !hydrated) {
       setName(existing.name);
       setBad(existing.bad ?? false);
+      setShowOnHome(existing.showOnHome ?? true);
       setDirection(existing.direction);
       setTarget(existing.target == null ? '' : String(existing.target).replace('.', ','));
       setUnit(existing.unit);
       setStep(String(existing.step).replace('.', ','));
-      setIcon(existing.icon || 'flame');
+      setIcon(existing.icon || DEFAULT_HABIT_ICON);
       setColor(existing.color || 'habito');
       setHydrated(true);
     }
@@ -97,9 +98,9 @@ export default function HabitEditorScreen() {
       bad,
     };
     if (id) {
-      await updateHabit(id, { ...base, target: targetN });
+      await updateHabit(id, { ...base, target: targetN, show_on_home: showOnHome });
     } else {
-      await createHabit({ ...base, target: targetN ?? undefined });
+      await createHabit({ ...base, target: targetN ?? undefined, showOnHome });
     }
     router.back();
   };
@@ -144,6 +145,26 @@ export default function HabitEditorScreen() {
                 {bad
                   ? 'Mostra há quantos dias você está sem fazer.'
                   : 'Mostra a sequência de dias mantendo o hábito.'}
+              </Text>
+            </View>
+          </Pressable>
+
+          {/* Mostrar na home */}
+          <Pressable
+            onPress={() => setShowOnHome((v) => !v)}
+            style={({ pressed }) => [styles.checkRow, pressed && styles.pressed]}
+          >
+            <Ionicons
+              name={showOnHome ? 'checkbox' : 'square-outline'}
+              size={24}
+              color={showOnHome ? accent : colors.ink3}
+            />
+            <View style={styles.flex}>
+              <Text style={styles.checkLabel}>Mostrar na home</Text>
+              <Text style={styles.checkHint}>
+                {showOnHome
+                  ? 'Aparece na tela Hoje para captura rápida.'
+                  : 'Fica só nesta tela de hábitos.'}
               </Text>
             </View>
           </Pressable>
@@ -219,7 +240,7 @@ export default function HabitEditorScreen() {
               const active = icon === ic;
               return (
                 <Pressable key={ic} onPress={() => setIcon(ic)} style={[styles.iconChip, active && { backgroundColor: accent, borderColor: accent }]}>
-                  <Ionicons name={ic as never} size={20} color={active ? '#fff' : colors.ink2} />
+                  <Ionicons name={habitIconToIonicon(ic)} size={20} color={active ? '#fff' : colors.ink2} />
                 </Pressable>
               );
             })}

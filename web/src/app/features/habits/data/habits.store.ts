@@ -19,6 +19,7 @@ interface DbHabitRow {
   target: number | string | null;
   direction: 'at_least' | 'at_most';
   bad: boolean | null;
+  show_on_home: boolean | null;
   active: boolean;
   sort: number;
   created_at: string;
@@ -91,7 +92,7 @@ export class HabitsStore {
     const [habitsRes, logsRes] = await Promise.all([
       supabase
         .from('habits')
-        .select('id,name,icon,color,unit,step,target,direction,bad,active,sort,created_at')
+        .select('id,name,icon,color,unit,step,target,direction,bad,show_on_home,active,sort,created_at')
         .eq('user_id', userId)
         .order('sort', { ascending: true }),
       supabase
@@ -122,6 +123,7 @@ export class HabitsStore {
     target?: number;
     direction: HabitDirection;
     bad?: boolean;
+    showOnHome?: boolean;
   }): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
@@ -139,6 +141,7 @@ export class HabitsStore {
         target: data.target ?? null,
         direction: data.direction,
         bad: data.bad ?? false,
+        show_on_home: data.showOnHome ?? true,
         active: true,
         sort: maxSort + 1,
       })
@@ -159,6 +162,7 @@ export class HabitsStore {
     target?: number;
     direction: HabitDirection;
     bad?: boolean;
+    showOnHome?: boolean;
   }): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
@@ -174,6 +178,7 @@ export class HabitsStore {
         target: data.target ?? null,
         direction: data.direction,
         bad: data.bad ?? false,
+        show_on_home: data.showOnHome ?? true,
       })
       .eq('id', id)
       .eq('user_id', userId)
@@ -214,6 +219,7 @@ function mapHabit(r: DbHabitRow): CounterHabit {
     target: r.target == null ? undefined : Number(r.target),
     direction: r.direction,
     bad: r.bad ?? false,
+    showOnHome: r.show_on_home ?? true,
     active: r.active,
     sort: r.sort,
     createdAt: r.created_at,

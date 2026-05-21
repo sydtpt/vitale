@@ -1,0 +1,107 @@
+<div class="page">
+  @if (store.loading()) {
+    <div class="state">Carregando registros…</div>
+  } @else if (store.error()) {
+    <div class="state error">Não foi possível carregar: {{ store.error() }}</div>
+  } @else if (store.isEmpty()) {
+    <div class="empty">
+      <div class="empty-icon">
+        <rt-icon name="check" [size]="34" color="var(--primary)" [strokeWidth]="1.8" />
+      </div>
+      <h2 class="empty-title">Nenhum registro ainda</h2>
+      <p class="empty-text">
+        Crie itens livres (Pizza, Comida japonesa, Dentista…) aqui ou no app em
+        <strong>Mais → Registros</strong>. Marque "feito hoje" quando acontecer e
+        acompanhe a frequência ao longo do tempo.
+      </p>
+      <button class="cta" (click)="openNew()">
+        <rt-icon name="plus" [size]="18" />
+        Novo registro
+      </button>
+    </div>
+  } @else {
+    <rt-page-header
+      eyebrow="Registros"
+      [title]="count() + (count() === 1 ? ' atividade' : ' atividades')"
+      subtitle="Marque o que fez no dia e acompanhe a frequência"
+    >
+      <button [class.active]="!showList()" (click)="toggleView()" class="toggle" [title]="showList() ? 'Ver gráficos' : 'Voltar para lista'">
+        <rt-icon [name]="showList() ? 'list' : 'trend'" [size]="16" [color]="showList() ? 'var(--ink-2)' : '#fff'" [strokeWidth]="2" />
+        <span class="label">{{ showList() ? 'Gráficos' : 'Lista' }}</span>
+      </button>
+      <button class="new" (click)="openNew()"><rt-icon name="plus" [size]="16" color="#fff" [strokeWidth]="2.2" /> Novo registro</button>
+    </rt-page-header>
+
+    @if (showList()) {
+      <div class="list-section">
+        @if (activeRegistros().length > 0) {
+          <h3 class="section-title">Ativos</h3>
+          <div class="list">
+            @for (r of activeRegistros(); track r.id) {
+              <div class="card">
+                <div class="icon-box" [ngStyle]="{ backgroundColor: modColor(r.color).tint }">
+                  <rt-icon [name]="r.icon || 'check'" [size]="18" [color]="modColor(r.color).accent" />
+                </div>
+                <div class="flex">
+                  <h4 class="name">{{ r.name }}</h4>
+                  <p class="summary">{{ moduleLabel(r.module) }}</p>
+                </div>
+                <div class="actions">
+                  <button
+                    class="mark-btn"
+                    [class.done]="isDoneToday(r.id)"
+                    [style.--accent]="modColor(r.color).accent"
+                    (click)="toggleToday(r.id)"
+                    [title]="isDoneToday(r.id) ? 'Feito hoje — desmarcar' : 'Marcar como feito hoje'"
+                  >
+                    <rt-icon name="check" [size]="15" color="currentColor" [strokeWidth]="2.4" />
+                    <span>{{ isDoneToday(r.id) ? 'Feito' : 'Marcar' }}</span>
+                  </button>
+                  <button class="action-btn" (click)="openEdit(r.id)" title="Editar">
+                    <rt-icon name="edit-2" [size]="16" color="currentColor" />
+                  </button>
+                  <button class="action-btn" (click)="archive(r.id, false)" title="Arquivar">
+                    <rt-icon name="archive" [size]="16" color="currentColor" />
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        @if (archivedRegistros().length > 0) {
+          <h3 class="section-title">Arquivados</h3>
+          <div class="list">
+            @for (r of archivedRegistros(); track r.id) {
+              <div class="card muted">
+                <div class="icon-box" [ngStyle]="{ backgroundColor: modColor(r.color).tint, opacity: 0.5 }">
+                  <rt-icon [name]="r.icon || 'check'" [size]="18" [color]="modColor(r.color).accent" />
+                </div>
+                <div class="flex">
+                  <h4 class="name muted">{{ r.name }}</h4>
+                  <p class="summary">{{ moduleLabel(r.module) }}</p>
+                </div>
+                <div class="actions">
+                  <button class="action-btn" (click)="openEdit(r.id)" title="Editar">
+                    <rt-icon name="edit-2" [size]="16" color="currentColor" />
+                  </button>
+                  <button class="action-btn" (click)="archive(r.id, true)" title="Reativar">
+                    <rt-icon name="undo" [size]="16" color="currentColor" />
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="grid">
+        @for (r of store.registros(); track r.id) {
+          <rt-registro-analytics-card [registro]="r" [logs]="store.logsFor(r.id)" />
+        }
+      </div>
+    }
+  }
+
+  <rt-registro-editor [registroId]="editingId()" (onClose)="editingId.set(null)" />
+</div>

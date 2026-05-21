@@ -22,6 +22,7 @@ export class SidebarComponent {
     { path: '/workout-history', icon: '📊', label: 'Histórico' },
     { path: '/tasks',       icon: '✅', label: 'Tarefas' },
     { path: '/habits',      icon: '🔁', label: 'Hábitos' },
+    { path: '/registros',   icon: '📌', label: 'Registros' },
     { path: '/alimentacao', icon: '🍽️', label: 'Alimentação' },
     { path: '/compras',     icon: '🛒', label: 'Compras' },
     { path: '/casa',        icon: '🏠', label: 'Casa' },

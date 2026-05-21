@@ -66,6 +66,12 @@ const routes: Routes = [
       import('@features/tasks/pages/tasks-page.component').then(m => m.TasksPageComponent),
   },
   {
+    path: 'registros',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/registros/pages/registros-page.component').then(m => m.RegistrosPageComponent),
+  },
+  {
     path: 'alimentacao',
     canActivate: [profileGuard],
     loadComponent: () =>

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CounterHabit } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
+import { habitIconToIonicon } from '../../lib/habit-icons';
 import { colors, spacing, radii, shadows, MOD } from '../../theme';
 
 function fmt(n: number): string {
@@ -49,7 +50,7 @@ export default function HabitosScreen() {
         style={({ pressed }) => [styles.row, last && styles.noBorder, pressed && styles.pressed]}
       >
         <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>
-          <Ionicons name={(h.icon || 'ellipse-outline') as never} size={20} color={mod.accent} />
+          <Ionicons name={habitIconToIonicon(h.icon)} size={20} color={mod.accent} />
         </View>
         <View style={styles.flex}>
           <Text style={[styles.name, !h.active && styles.muted]}>{h.name}</Text>

@@ -2,25 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, ou
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import type { CounterHabit, HabitDirection } from '@vitale/shared';
-import { MOD } from '@vitale/shared';
+import { MOD, HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
 import { HabitsStore } from '../data/habits.store';
 import { IconComponent } from '@core/services/icon.component';
-
-const ICONS = [
-  // Bebidas / hidratação
-  'droplet', 'coffee', 'beer', 'wine', 'cheers',
-  // Comida
-  'utensils', 'apple', 'pizza', 'flame',
-  // Exercício
-  'dumbbell', 'run', 'walk', 'bike', 'swim', 'yoga', 'footprints',
-  // Saúde / corpo
-  'heart', 'pill', 'tooth', 'smile', 'brain', 'leaf',
-  // Rotina / lazer
-  'book', 'music', 'gamepad', 'tv', 'phone',
-  'cigarette', 'moon', 'sun', 'wind', 'shower',
-  // Outros
-  'sparkle', 'target', 'flag', 'bell',
-] as const;
 
 const COLORS: { key: string; label: string }[] = [
   { key: 'agua', label: 'Água' },
@@ -37,6 +21,7 @@ const UNITS = ['L', 'ml', 'un', 'cig', 'min', 'km', 'g', 'mg', 'h'];
 interface EditorState {
   name: string;
   bad: boolean;
+  showOnHome: boolean;
   direction: HabitDirection;
   target: string;
   unit: string;
@@ -97,6 +82,24 @@ function fmt(n: number): string {
               {{ form().bad
                 ? 'Mostra há quantos dias você está sem fazer.'
                 : 'Mostra a sequência de dias mantendo o hábito.' }}
+            </span>
+          </label>
+        </div>
+
+        <!-- Show on home -->
+        <div class="check-row">
+          <input
+            type="checkbox"
+            [(ngModel)]="form().showOnHome"
+            class="checkbox"
+            [id]="'show-home-check'"
+          />
+          <label [for]="'show-home-check'" class="check-label">
+            <span class="label-title">Mostrar na home</span>
+            <span class="label-hint">
+              {{ form().showOnHome
+                ? 'Aparece na home (tela Hoje) para captura rápida.'
+                : 'Fica só na tela de hábitos.' }}
             </span>
           </label>
         </div>
@@ -554,7 +557,7 @@ function fmt(n: number): string {
 })
 export class HabitEditorComponent {
   protected readonly store = inject(HabitsStore);
-  protected readonly ICONS = ICONS;
+  protected readonly ICONS = HABIT_ICONS;
   protected readonly COLORS = COLORS;
   protected readonly UNITS = UNITS;
 
@@ -565,11 +568,12 @@ export class HabitEditorComponent {
   readonly form = signal<EditorState>({
     name: '',
     bad: false,
+    showOnHome: true,
     direction: 'at_least',
     target: '',
     unit: 'un',
     step: '1',
-    icon: 'droplet',
+    icon: DEFAULT_HABIT_ICON,
     color: 'agua',
   });
 
@@ -590,6 +594,7 @@ export class HabitEditorComponent {
         this.form.set({
           name: habit.name,
           bad: habit.bad ?? false,
+          showOnHome: habit.showOnHome ?? true,
           direction: habit.direction,
           target: habit.target == null ? '' : fmt(habit.target),
           unit: habit.unit,
@@ -628,6 +633,7 @@ export class HabitEditorComponent {
         step,
         direction: f.direction,
         bad: f.bad,
+        showOnHome: f.showOnHome,
         target: target ?? undefined,
       };
 

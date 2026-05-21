@@ -64,10 +64,14 @@ export default function HojeScreen() {
   const aguaHabit = counters.find(h => h.unit === 'L' && h.direction === 'at_least');
   const waterRatio = aguaHabit ? progress(aguaHabit, counterLogs[aguaHabit.id] ?? 0) : 0;
 
+  // Só os hábitos marcados como "Mostrar na home" viram steppers aqui; os demais
+  // ficam restritos à tela de hábitos. (O anel da água acima usa a lista completa.)
+  const homeHabits = counters.filter(h => h.showOnHome);
+
   // Hábitos com algum valor registrado hoje ficam logo abaixo dos anéis; os
   // ainda zerados descem para a lista "Hábitos" no fim da página.
-  const startedHabits = counters.filter(h => (counterLogs[h.id] ?? 0) > 0);
-  const pendingHabits = counters.filter(h => (counterLogs[h.id] ?? 0) <= 0);
+  const startedHabits = homeHabits.filter(h => (counterLogs[h.id] ?? 0) > 0);
+  const pendingHabits = homeHabits.filter(h => (counterLogs[h.id] ?? 0) <= 0);
 
   // Sequência por hábito: bom → dias cumprindo a meta; ruim → dias sem fazer.
   // Bom sem meta não tem sequência a exibir (null). Combina histórico + valor de hoje.

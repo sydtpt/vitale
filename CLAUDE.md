@@ -153,4 +153,5 @@ Cada módulo tem seu spec em `.claude/specs/`:
 - [Web: Histórico de Treinos](.claude/specs/historico-treinos/spec.md) · [plan](.claude/specs/historico-treinos/plan.md) · [data-model](.claude/specs/historico-treinos/data-model.md) · [tasks](.claude/specs/historico-treinos/tasks.md)
 - [Habitos (contadores diários)](.claude/specs/habitos/spec.md) · [plan](.claude/specs/habitos/plan.md) · [data-model](.claude/specs/habitos/data-model.md) · [tasks](.claude/specs/habitos/tasks.md)
 - [Tarefas (to-do com agendamento)](.claude/specs/tarefas/spec.md) · [plan](.claude/specs/tarefas/plan.md) · [data-model](.claude/specs/tarefas/data-model.md) · [tasks](.claude/specs/tarefas/tasks.md)
+- [Registros (marcação diária avulsa)](.claude/specs/registros/spec.md) · [plan](.claude/specs/registros/plan.md) · [data-model](.claude/specs/registros/data-model.md) · [tasks](.claude/specs/registros/tasks.md)
 - [Mobile: Histórico de Treinos](.claude/specs/mobile-historico-treinos/spec.md) · [plan](.claude/specs/mobile-historico-treinos/plan.md) · [data-model](.claude/specs/mobile-historico-treinos/data-model.md) · [tasks](.claude/specs/mobile-historico-treinos/tasks.md)

@@ -39,6 +39,7 @@ export interface CounterHabit {
   target?: number;         // meta (at_least) / teto (at_most); ausente = sem meta
   direction: HabitDirection;
   bad: boolean;            // true = hábito a evitar; mostra dias SEM fazer em vez de sequência cumprindo
+  showOnHome: boolean;     // true = aparece na home (tela "Hoje"); false = só na tela de hábitos
   active: boolean;
   sort: number;
   createdAt: string;       // ISO; usado para limitar a contagem de dias "sem fazer" à idade do hábito
@@ -253,4 +254,30 @@ export interface TodoOccurrence {
   doneAt?: string;                // ISO; quando marcada feita
   meta?: Record<string, unknown>; // conclusão rica: { amount } finanças, { shopItemId } compras
   createdAt: string;              // ISO
+}
+
+/**
+ * Registros — marcação diária de atividades avulsas. Módulo separado de Habitos
+ * (contador com meta) e Tarefas (to-do com agendamento). Sem recorrência nem meta:
+ * o usuário só marca "feito hoje" (1×/dia) para registrar e analisar depois.
+ * Reusa `TodoModule` para a categoria. Só campos, sem lógica. Ver .claude/specs/registros/.
+ */
+
+/** Definição de um registro avulso (ex.: Pizza, Dentista). Mapeia `registros`. */
+export interface Registro {
+  id: string;
+  name: string;
+  icon: string;        // nome do ícone canônico (HABIT_ICONS)
+  color: string;       // token do design system (MOD)
+  module: TodoModule;  // categoria/cor — mesmo conjunto das tarefas
+  active: boolean;     // false = arquivado (some da captura, mantém histórico)
+  sort: number;        // ordem na captura
+  createdAt: string;   // ISO
+}
+
+/** Marca binária de um Registro num dia (1 por registro/dia). Mapeia `registro_logs`. */
+export interface RegistroLog {
+  id: string;
+  registroId: string;
+  logDate: string;     // 'YYYY-MM-DD' (data local)
 }

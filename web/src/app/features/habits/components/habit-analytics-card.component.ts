@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { MOD, type CounterHabit, type HabitLog } from '@vitale/shared';
+import { MOD, DEFAULT_HABIT_ICON, type CounterHabit, type HabitLog } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { HabitHeatmapComponent, type HeatCell } from './habit-heatmap.component';
 import { RANGE_DAYS } from '../data/habits.store';
@@ -15,11 +15,12 @@ import {
   streak,
 } from '../data/habit-logic';
 
-/** Mapeia o ícone do mobile (Ionicons) para o set do `rt-icon` do web. */
-const ICON_MAP: Record<string, string> = {
-  water: 'droplet', cafe: 'droplet', wine: 'droplet', beer: 'droplet',
-  flame: 'flame', fitness: 'dumbbell', walk: 'walk', bed: 'moon',
-  book: 'book', leaf: 'leaf', nutrition: 'fork', heart: 'flame',
+/**
+ * Compat: hábitos antigos do mobile guardavam nomes Ionicons. Mapeia só os que
+ * não existem no set canônico (`HABIT_ICONS`); os demais passam direto.
+ */
+const LEGACY_ICON_MAP: Record<string, string> = {
+  water: 'droplet', cafe: 'coffee', fitness: 'dumbbell', bed: 'moon', nutrition: 'apple',
 };
 
 const EMPTY = 'var(--surface-mute)';
@@ -45,7 +46,8 @@ export class HabitAnalyticsCardComponent {
     return `color-mix(in srgb, ${this.accent()} 14%, white)`;
   }
   protected icon(): string {
-    return ICON_MAP[this.habit().icon] ?? 'droplet';
+    const raw = this.habit().icon;
+    return LEGACY_ICON_MAP[raw] ?? raw ?? DEFAULT_HABIT_ICON;
   }
 
   protected subtitle(): string {
