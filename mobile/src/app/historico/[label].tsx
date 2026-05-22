@@ -19,7 +19,9 @@ import {
   applyFilters,
   filterByType,
   distinctSources,
+  SORT_OPTIONS,
   type ActivityFilters,
+  type ActivitySort,
 } from '../../lib/activity-list-filter';
 import {
   formatDateLabel,
@@ -162,6 +164,8 @@ export default function TipoListScreen() {
 
   // ── estado dos filtros (inputs crus) ──────────────────────────
   const [showFilters, setShowFilters] = useState(false);
+  const [showSort, setShowSort] = useState(false);
+  const [sort, setSort] = useState<ActivitySort>('date-desc');
   const [fromStr, setFromStr] = useState('');
   const [toStr, setToStr] = useState('');
   const [minKm, setMinKm] = useState('');
@@ -188,12 +192,16 @@ export default function TipoListScreen() {
     };
   }, [fromStr, toStr, minKm, maxKm, minMin, maxMin, source, routeChoice]);
 
-  const filtered = useMemo(() => applyFilters(typed, filters), [typed, filters]);
+  const filtered = useMemo(() => applyFilters(typed, filters, sort), [typed, filters, sort]);
+  const sortLabel = useMemo(
+    () => SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '',
+    [sort],
+  );
 
   const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => {
     setVisible(PAGE_SIZE);
-  }, [filters, label]);
+  }, [filters, sort, label]);
 
   const data = useMemo(() => filtered.slice(0, visible), [filtered, visible]);
   const loadMore = useCallback(() => {
@@ -281,18 +289,64 @@ export default function TipoListScreen() {
               <HighlightsRow items={highlights} color={meta.color} onPick={goToWorkout} />
             )}
             <View style={styles.filterWrap}>
-            <Pressable
-              onPress={() => setShowFilters((v) => !v)}
-              style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
-            >
-              <Ionicons name="options-outline" size={16} color={colors.ink2} />
-              <Text style={styles.filterToggleText}>Filtros</Text>
-              <Ionicons
-                name={showFilters ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color={colors.ink3}
-              />
-            </Pressable>
+            <View style={styles.toolbarRow}>
+              <Pressable
+                onPress={() => {
+                  setShowFilters((v) => !v);
+                  setShowSort(false);
+                }}
+                style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
+              >
+                <Ionicons name="options-outline" size={16} color={colors.ink2} />
+                <Text style={styles.filterToggleText}>Filtros</Text>
+                <Ionicons
+                  name={showFilters ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={colors.ink3}
+                />
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  setShowSort((v) => !v);
+                  setShowFilters(false);
+                }}
+                style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
+              >
+                <Ionicons name="swap-vertical-outline" size={16} color={colors.ink2} />
+                <Text style={styles.filterToggleText}>{sortLabel}</Text>
+                <Ionicons
+                  name={showSort ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={colors.ink3}
+                />
+              </Pressable>
+            </View>
+
+            {showSort && (
+              <View style={styles.sortPanel}>
+                {SORT_OPTIONS.map((opt) => {
+                  const active = sort === opt.key;
+                  return (
+                    <Pressable
+                      key={opt.key}
+                      onPress={() => {
+                        setSort(opt.key);
+                        setShowSort(false);
+                      }}
+                      style={({ pressed }) => [styles.sortOption, pressed && styles.pressed]}
+                    >
+                      <Text style={[styles.sortOptionText, active && styles.sortOptionTextActive]}>
+                        {opt.label}
+                      </Text>
+                      {active && (
+                        <Ionicons name="checkmark" size={18} color={colors.primary} />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
 
             {showFilters && (
               <View style={styles.filterPanel}>
@@ -469,11 +523,16 @@ const styles = StyleSheet.create({
   hlCaption: { fontSize: 11, color: colors.ink3, fontFamily: 'GeistMono' },
 
   filterWrap: { marginBottom: 10, gap: 10 },
+  toolbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
   filterToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    alignSelf: 'flex-start',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,
@@ -481,6 +540,22 @@ const styles = StyleSheet.create({
     ...shadows.sm,
   },
   filterToggleText: { fontSize: 13, fontWeight: '600', color: colors.ink2 },
+  sortPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    ...shadows.card,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm + 1,
+  },
+  sortOptionText: { fontSize: 14, color: colors.ink2 },
+  sortOptionTextActive: { color: colors.primary, fontWeight: '600' },
   filterPanel: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,

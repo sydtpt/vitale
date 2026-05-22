@@ -16,6 +16,42 @@ export interface ActivityFilters {
   hasRoute?: boolean; // undefined = todos
 }
 
+/** Critérios de ordenação da lista. `date-desc` é o default (mais recentes primeiro). */
+export type ActivitySort =
+  | 'date-desc'
+  | 'date-asc'
+  | 'distance-desc'
+  | 'distance-asc'
+  | 'duration-desc'
+  | 'duration-asc';
+
+export const SORT_OPTIONS: { key: ActivitySort; label: string }[] = [
+  { key: 'date-desc', label: 'Mais recentes' },
+  { key: 'date-asc', label: 'Mais antigas' },
+  { key: 'distance-desc', label: 'Maior distância' },
+  { key: 'distance-asc', label: 'Menor distância' },
+  { key: 'duration-desc', label: 'Maior duração' },
+  { key: 'duration-asc', label: 'Menor duração' },
+];
+
+function sortComparator(sort: ActivitySort): (a: Activity, b: Activity) => number {
+  switch (sort) {
+    case 'date-asc':
+      return (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
+    case 'distance-desc':
+      return (a, b) => (b.distanceM ?? 0) - (a.distanceM ?? 0);
+    case 'distance-asc':
+      return (a, b) => (a.distanceM ?? 0) - (b.distanceM ?? 0);
+    case 'duration-desc':
+      return (a, b) => b.durationS - a.durationS;
+    case 'duration-asc':
+      return (a, b) => a.durationS - b.durationS;
+    case 'date-desc':
+    default:
+      return (a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime();
+  }
+}
+
 function localYmd(iso: string): string {
   const d = new Date(iso);
   const m = d.getMonth() + 1;
@@ -27,7 +63,11 @@ export function filterByType(activities: Activity[], label: string): Activity[] 
   return activities.filter((a) => getActivityMeta(a.activityId).label === label);
 }
 
-export function applyFilters(activities: Activity[], f: ActivityFilters): Activity[] {
+export function applyFilters(
+  activities: Activity[],
+  f: ActivityFilters,
+  sort: ActivitySort = 'date-desc',
+): Activity[] {
   return activities
     .filter((a) => {
       const ymd = localYmd(a.startAt);
@@ -47,7 +87,7 @@ export function applyFilters(activities: Activity[], f: ActivityFilters): Activi
 
       return true;
     })
-    .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+    .sort(sortComparator(sort));
 }
 
 /** Fontes distintas (source_name) presentes no conjunto, ordenadas. */

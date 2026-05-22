@@ -50,7 +50,7 @@
 
 - [x] **T050** `services/healthkit-observer.ts`: listener de `healthKit:Workout:new` (`NativeAppEventEmitter`) → `runDelta()`.
 - [x] **T051** Dispatch com throttle + degradação segura (no-op fora do iOS).
-- [ ] **T053 (nativo)** Habilitar os background observers no `AppDelegate.swift` para os eventos `healthKit:Workout:new` dispararem. O `app.plugin.js` da lib **não** faz isso; é preciso chamar `initializeBackgroundObservers(bridge)` (ObjC → exige bridging header no projeto Swift). Sem este passo, vale só o caminho de foreground (T042). _(nativo, untestável agora)_
+- [x] **T053 (nativo)** Habilitar os background observers no `AppDelegate.swift` para os eventos `healthKit:Workout:new` dispararem. O `app.plugin.js` da lib **não** faz isso; é preciso chamar `initializeBackgroundObservers(bridge)` (ObjC → exige bridging header no projeto Swift). Sem este passo, vale só o caminho de foreground (T042). _(nativo, untestável agora)_
 - [ ] **T052** Verificar SC-004 (treino aparece ≤ 5 min sem foreground) em device. _(usuário, ao testar)_
 
 ## Fase 6 — F5: Rotas GPS (US3)
