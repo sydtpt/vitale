@@ -11,6 +11,7 @@ import {
   startDateYearsAgo,
   deriveWorkoutId,
   milesToMeters,
+  computeMovingTimeS,
   type WorkoutItem,
   type RoutePoint,
 } from './workout-types';
@@ -51,6 +52,8 @@ export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
 }
 
 function mapRawWorkout(w: any): WorkoutItem {
+  const duration = w.duration ?? 0;
+  const events = Array.isArray(w.workoutEvents) ? w.workoutEvents : undefined;
   return {
     id: w.id ?? deriveWorkoutId(w),
     activityId: w.activityId ?? 0,
@@ -58,14 +61,15 @@ function mapRawWorkout(w: any): WorkoutItem {
     calories: Math.round(w.calories ?? 0),
     start: w.start,
     end: w.end,
-    duration: w.duration ?? 0,
+    duration,
+    movingTimeS: computeMovingTimeS({ start: w.start, end: w.end, durationS: duration, events }),
     distance: milesToMeters(w.distance), // nativo entrega milhas → metros
     sourceName: w.sourceName,
     sourceId: w.sourceId,
     device: w.device,
     tracked: w.tracked,
     metadata: w.metadata && typeof w.metadata === 'object' ? w.metadata : undefined,
-    workoutEventsCount: Array.isArray(w.workoutEvents) ? w.workoutEvents.length : undefined,
+    workoutEventsCount: events ? events.length : undefined,
   };
 }
 

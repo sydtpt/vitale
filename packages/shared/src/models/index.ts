@@ -168,6 +168,8 @@ export interface Activity {
   startAt: string;
   endAt: string;
   durationS: number;
+  /** Tempo em movimento (s): tempo total menos as pausas. Ausente em linhas antigas. */
+  movingTimeS?: number;
   distanceM?: number;
   sourceName?: string;
   sourceId?: string;

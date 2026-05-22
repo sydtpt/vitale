@@ -15,6 +15,7 @@ export interface ActivityRow {
   start_at: string;
   end_at: string;
   duration_s: number;
+  moving_time_s: number | null;
   distance_m: number | null;
   source_name: string | null;
   source_id: string | null;
@@ -55,6 +56,7 @@ export function toActivityRow(w: WorkoutItem, userId: string): ActivityRow {
     start_at: w.start,
     end_at: w.end,
     duration_s: Math.round(w.duration), // coluna int — duração vem com fração de segundo
+    moving_time_s: w.movingTimeS != null ? Math.round(w.movingTimeS) : null,
     distance_m: w.distance ?? null, // coluna numeric — fração OK
     source_name: w.sourceName ?? null,
     source_id: w.sourceId ?? null,
@@ -75,6 +77,7 @@ export function sanitizeActivityRow(row: ActivityRow): ActivityRow {
     activity_id: Math.round(row.activity_id),
     calories: Math.round(row.calories),
     duration_s: Math.round(row.duration_s),
+    moving_time_s: row.moving_time_s != null ? Math.round(row.moving_time_s) : null,
   };
 }
 

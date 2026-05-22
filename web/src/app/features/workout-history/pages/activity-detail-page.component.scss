@@ -74,6 +74,36 @@
   border-radius: 7px;
 }
 
+/* Faixa de destaque — tempo em movimento à frente, depois total/pace/distância. */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.stat {
+  flex: 1 1 92px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat.hl {
+  background: var(--primary-soft);
+  border-color: transparent;
+}
+.stat-v {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+  color: var(--ink);
+}
+.stat.hl .stat-v { color: var(--primary-deep); }
+.stat-c { font-size: 11.5px; color: var(--ink-3); }
+
 /* Bloco completo de informações — abaixo dos campos editáveis. */
 .info {
   margin-top: 24px;

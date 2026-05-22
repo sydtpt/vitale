@@ -20,7 +20,7 @@ import {
   formatTime,
   formatDuration,
   formatDistance,
-  formatPace,
+  formatRate,
   formatElevation,
 } from '../../../lib/workout-format';
 import { colors, spacing, radii, shadows } from '../../../theme';
@@ -105,7 +105,8 @@ export default function AtividadeDetalheScreen() {
   const meta = getActivityMeta(activity.activityId);
   const color = getActivityColor(activity.activityId);
   const distance = formatDistance(activity.distanceM);
-  const pace = hasGps ? formatPace(activity.distanceM, activity.durationS) : null;
+  const movingS = activity.movingTimeS ?? activity.durationS;
+  const rate = hasGps ? formatRate(activity.activityId, activity.distanceM, movingS) : null;
   const points = (routePoints ?? []).map((p) => ({
     latitude: p.lat,
     longitude: p.lng,
@@ -149,7 +150,8 @@ export default function AtividadeDetalheScreen() {
     { label: 'Código', value: String(activity.activityId) },
     { label: 'Início', value: `${formatFullDate(activity.startAt)} · ${formatTime(activity.startAt)}` },
     { label: 'Fim', value: `${formatFullDate(activity.endAt)} · ${formatTime(activity.endAt)}` },
-    { label: 'Duração', value: formatDuration(activity.durationS) },
+    { label: 'Tempo total', value: formatDuration(activity.durationS) },
+    ...(hasGps ? [{ label: 'Tempo em movimento', value: formatDuration(movingS) }] : []),
     { label: 'Calorias', value: activity.calories > 0 ? `${activity.calories} kcal` : '—' },
     { label: 'Distância', value: distance ?? '—' },
     { label: 'Fonte', value: activity.sourceName || '—' },
@@ -201,12 +203,19 @@ export default function AtividadeDetalheScreen() {
           </Text>
 
           <View style={styles.heroStats}>
-            <Stat icon="time-outline" value={formatDuration(activity.durationS)} caption="duração" color={color} />
+            {hasGps ? (
+              <>
+                <Stat icon="walk-outline" value={formatDuration(movingS)} caption="movimento" color={color} />
+                <Stat icon="time-outline" value={formatDuration(activity.durationS)} caption="tempo total" color={color} />
+              </>
+            ) : (
+              <Stat icon="time-outline" value={formatDuration(activity.durationS)} caption="duração" color={color} />
+            )}
             {activity.calories > 0 && (
               <Stat icon="flame-outline" value={`${activity.calories}`} caption="kcal" color={color} />
             )}
             {distance && <Stat icon="map-outline" value={distance} caption="distância" color={color} />}
-            {pace && <Stat icon="speedometer-outline" value={pace} caption="min/km" color={color} />}
+            {rate && <Stat icon="speedometer-outline" value={rate.value} caption={rate.caption} color={color} />}
             {elevation && (
               <Stat icon="trending-up-outline" value={elevation} caption="elevação" color={color} />
             )}

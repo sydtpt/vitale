@@ -40,6 +40,42 @@
     @if (statsError()) { <p class="err">{{ statsError() }}</p> }
     @if (!inStats()) { <p class="excluded-note">Esta atividade está fora das estatísticas e listas.</p> }
 
+    <div class="stats">
+      @if (hasGps()) {
+        <div class="stat hl">
+          <span class="stat-v">{{ fmtDuration(movingTimeS()) }}</span>
+          <span class="stat-c">movimento</span>
+        </div>
+        <div class="stat">
+          <span class="stat-v">{{ fmtDuration(a.durationS) }}</span>
+          <span class="stat-c">tempo total</span>
+        </div>
+      } @else {
+        <div class="stat hl">
+          <span class="stat-v">{{ fmtDuration(a.durationS) }}</span>
+          <span class="stat-c">duração</span>
+        </div>
+      }
+      @if (rate(); as r) {
+        <div class="stat">
+          <span class="stat-v">{{ r.value }}</span>
+          <span class="stat-c">{{ r.caption }}</span>
+        </div>
+      }
+      @if ((a.distanceM ?? 0) > 0) {
+        <div class="stat">
+          <span class="stat-v">{{ fmtKm(a.distanceM ?? 0) }} km</span>
+          <span class="stat-c">distância</span>
+        </div>
+      }
+      @if (a.calories > 0) {
+        <div class="stat">
+          <span class="stat-v">{{ fmtKcal(a.calories) }}</span>
+          <span class="stat-c">kcal</span>
+        </div>
+      }
+    </div>
+
     @if (a.hasRoute) {
       <section class="route">
         <h3 class="route-title">Rota</h3>
@@ -89,7 +125,13 @@
         }
         <div class="info-row"><dt>Início</dt><dd>{{ fmtDate(a.startAt) }} · {{ fmtTime(a.startAt) }}</dd></div>
         <div class="info-row"><dt>Fim</dt><dd>{{ fmtDate(a.endAt) }} · {{ fmtTime(a.endAt) }}</dd></div>
-        <div class="info-row"><dt>Duração</dt><dd class="mono">{{ fmtDuration(a.durationS) }}</dd></div>
+        <div class="info-row"><dt>Tempo total</dt><dd class="mono">{{ fmtDuration(a.durationS) }}</dd></div>
+        @if (hasGps()) {
+          <div class="info-row"><dt>Tempo em movimento</dt><dd class="mono">{{ fmtDuration(movingTimeS()) }}</dd></div>
+          @if (rate(); as r) {
+            <div class="info-row"><dt>{{ r.caption === 'km/h' ? 'Velocidade média' : 'Pace médio' }}</dt><dd class="mono">{{ r.value }} {{ r.caption === 'km/h' ? 'km/h' : '/km' }}</dd></div>
+          }
+        }
         @if ((a.distanceM ?? 0) > 0) {
           <div class="info-row"><dt>Distância</dt><dd class="mono">{{ fmtKm(a.distanceM ?? 0) }} km</dd></div>
         }

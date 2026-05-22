@@ -6,7 +6,7 @@ import { IconComponent } from '@core/services/icon.component';
 import { metaForActivity } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
-import { fmtDate, fmtDuration, fmtKcal, fmtKm, fmtTime } from '../data/format';
+import { fmtDate, fmtDuration, fmtKcal, fmtKm, fmtRate, fmtTime } from '../data/format';
 
 @Component({
   selector: 'rt-activity-detail-page',
@@ -33,6 +33,17 @@ export class ActivityDetailPageComponent {
   protected readonly hasGps = computed(() => {
     const a = this.activity();
     return !!a && (a.hasRoute || (a.distanceM ?? 0) > 0);
+  });
+
+  /** Tempo em movimento (s); cai para a duração total em linhas antigas. */
+  protected readonly movingTimeS = computed(() => {
+    const a = this.activity();
+    return a ? a.movingTimeS ?? a.durationS : 0;
+  });
+  /** Pace/velocidade/min-km calculado sobre o tempo em movimento (só com GPS). */
+  protected readonly rate = computed(() => {
+    const a = this.activity();
+    return a && this.hasGps() ? fmtRate(a.activityId, a.distanceM, this.movingTimeS()) : null;
   });
 
   protected readonly name = linkedSignal(() => this.activity()?.activityName ?? '');

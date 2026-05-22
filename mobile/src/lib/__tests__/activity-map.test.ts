@@ -10,6 +10,7 @@ const baseWorkout: WorkoutItem = {
   start: '2026-05-01T10:00:00.000Z',
   end: '2026-05-01T10:45:00.000Z',
   duration: 2700,
+  movingTimeS: 2580,
   distance: 6000,
   sourceName: 'Apple Watch',
   sourceId: 'com.apple.health',
@@ -31,6 +32,7 @@ describe('activity-map', () => {
       start_at: baseWorkout.start,
       end_at: baseWorkout.end,
       duration_s: 2700,
+      moving_time_s: 2580,
       distance_m: 6000,
       source_name: 'Apple Watch',
       tracked: true,
@@ -68,6 +70,7 @@ describe('activity-map', () => {
       start: 's',
       end: 'e',
       duration: 0,
+      movingTimeS: 0,
     };
     const row = toActivityRow(minimal, 'u');
     expect(row.distance_m).toBeNull();
@@ -75,6 +78,7 @@ describe('activity-map', () => {
     expect(row.tracked).toBeNull();
     expect(row.activity_name).toBeNull();
     expect(row.metadata).toBeNull();
+    expect(row.moving_time_s).toBe(0);
   });
 
   it('toRouteRow converte latitude/longitude/altitude', () => {

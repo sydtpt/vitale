@@ -15,7 +15,7 @@ import {
   formatTime,
   formatDuration,
   formatDistance,
-  formatPace,
+  formatRate,
   formatElevation,
 } from '../../../lib/workout-format';
 import { colors, spacing, radii, MOD, shadows } from '../../../theme';
@@ -60,13 +60,16 @@ export default function WorkoutDetailScreen() {
     if (!workout) return [];
     const meta = getActivityMeta(workout.activityId);
     const distance = formatDistance(workout.distance);
+    const isGps = hasGpsRoute(workout.activityId);
+    const movingS = workout.movingTimeS ?? workout.duration;
     const list: InfoRow[] = [
       { label: 'Tipo', value: meta.label },
       { label: 'Nome (Health)', value: workout.activityName || '—' },
       { label: 'Código da atividade', value: String(workout.activityId) },
       { label: 'Início', value: `${formatFullDate(workout.start)} · ${formatTime(workout.start)}` },
       { label: 'Fim', value: `${formatFullDate(workout.end)} · ${formatTime(workout.end)}` },
-      { label: 'Duração', value: formatDuration(workout.duration) },
+      { label: 'Tempo total', value: formatDuration(workout.duration) },
+      ...(isGps ? [{ label: 'Tempo em movimento', value: formatDuration(movingS) }] : []),
       { label: 'Calorias', value: workout.calories > 0 ? `${workout.calories} kcal` : '—' },
       { label: 'Distância', value: distance ?? '—' },
       { label: 'Fonte', value: workout.sourceName || '—' },
@@ -114,9 +117,9 @@ export default function WorkoutDetailScreen() {
 
   const meta = getActivityMeta(workout.activityId);
   const distance = formatDistance(workout.distance);
-  const pace = hasGpsRoute(workout.activityId)
-    ? formatPace(workout.distance, workout.duration)
-    : null;
+  const isGps = hasGpsRoute(workout.activityId);
+  const movingS = workout.movingTimeS ?? workout.duration;
+  const rate = isGps ? formatRate(workout.activityId, workout.distance, movingS) : null;
   const elevation = formatElevation(elevationGain(route));
 
   return (
@@ -149,12 +152,19 @@ export default function WorkoutDetailScreen() {
           </Text>
 
           <View style={styles.statsRow}>
-            <Stat icon="time-outline" value={formatDuration(workout.duration)} caption="duração" />
+            {isGps ? (
+              <>
+                <Stat icon="walk-outline" value={formatDuration(movingS)} caption="movimento" />
+                <Stat icon="time-outline" value={formatDuration(workout.duration)} caption="tempo total" />
+              </>
+            ) : (
+              <Stat icon="time-outline" value={formatDuration(workout.duration)} caption="duração" />
+            )}
             {workout.calories > 0 && (
               <Stat icon="flame-outline" value={`${workout.calories}`} caption="kcal" />
             )}
             {distance && <Stat icon="map-outline" value={distance} caption="distância" />}
-            {pace && <Stat icon="speedometer-outline" value={pace} caption="min/km" />}
+            {rate && <Stat icon="speedometer-outline" value={rate.value} caption={rate.caption} />}
             {elevation && (
               <Stat icon="trending-up-outline" value={elevation} caption="elevação" />
             )}

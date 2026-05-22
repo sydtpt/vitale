@@ -13,7 +13,8 @@ export interface WorkoutItem {
   calories: number;
   start: string;
   end: string;
-  duration: number; // seconds
+  duration: number; // seconds — tempo total (HKWorkout.duration)
+  movingTimeS: number; // seconds — tempo em movimento (total menos pausas)
   distance?: number; // meters
   sourceName?: string;
   sourceId?: string;
@@ -21,6 +22,77 @@ export interface WorkoutItem {
   tracked?: boolean;
   metadata?: Record<string, unknown>;
   workoutEventsCount?: number;
+}
+
+/** Evento de treino do HealthKit (subconjunto usado para descontar pausas). */
+export interface WorkoutEventLike {
+  eventType?: string; // 'pause' | 'resume' | 'motion paused' | 'motion resumed' | ...
+  startDate?: string;
+}
+
+const PAUSE_EVENT_TYPES = new Set(['pause', 'motion paused']);
+const RESUME_EVENT_TYPES = new Set(['resume', 'motion resumed']);
+
+/**
+ * Soma (s) dos intervalos pausados a partir dos workoutEvents. Pareia cada pausa
+ * com a próxima retomada e une intervalos sobrepostos, para que auto-pause e
+ * pausa manual não sejam contados em dobro.
+ */
+export function pausedSecondsFromEvents(events: WorkoutEventLike[] | undefined): number {
+  if (!events || events.length === 0) return 0;
+
+  const sorted = events
+    .map((e) => ({ type: (e.eventType ?? '').toLowerCase(), t: Date.parse(e.startDate ?? '') }))
+    .filter((e) => Number.isFinite(e.t))
+    .sort((a, b) => a.t - b.t);
+
+  const intervals: Array<[number, number]> = [];
+  let pauseStart: number | null = null;
+  for (const e of sorted) {
+    if (PAUSE_EVENT_TYPES.has(e.type)) {
+      if (pauseStart === null) pauseStart = e.t;
+    } else if (RESUME_EVENT_TYPES.has(e.type) && pauseStart !== null) {
+      intervals.push([pauseStart, e.t]);
+      pauseStart = null;
+    }
+  }
+
+  intervals.sort((a, b) => a[0] - b[0]);
+  let total = 0;
+  let curStart = -1;
+  let curEnd = -1;
+  for (const [s, end] of intervals) {
+    if (s > curEnd) {
+      if (curEnd >= 0) total += curEnd - curStart;
+      curStart = s;
+      curEnd = end;
+    } else {
+      curEnd = Math.max(curEnd, end);
+    }
+  }
+  if (curEnd >= 0) total += curEnd - curStart;
+
+  return Math.max(0, Math.round(total / 1000));
+}
+
+/**
+ * Tempo em movimento (s): tempo decorrido (fim − início) menos as pausas. É
+ * limitado por `durationS` (HKWorkout.duration), que já pode excluir pausas —
+ * assim o tempo em movimento nunca passa do tempo total exibido.
+ */
+export function computeMovingTimeS(args: {
+  start: string;
+  end: string;
+  durationS: number;
+  events?: WorkoutEventLike[];
+}): number {
+  const duration = Math.max(0, Math.round(args.durationS));
+  const elapsed = Math.round((Date.parse(args.end) - Date.parse(args.start)) / 1000);
+  if (!Number.isFinite(elapsed) || elapsed <= 0) return duration;
+
+  const moving = elapsed - pausedSecondsFromEvents(args.events);
+  // Conservador: o menor entre (decorrido − pausas) e o tempo total do HealthKit.
+  return Math.max(0, duration > 0 ? Math.min(moving, duration) : moving);
 }
 
 export interface RoutePoint {
