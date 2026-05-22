@@ -1,0 +1,73 @@
+<rt-page-header
+  eyebrow="Bem-estar"
+  title="Saúde"
+  [subtitle]="trackedCount() + ' métricas sincronizadas do Apple Health'"
+></rt-page-header>
+
+@if (store.loading()) {
+  <div class="state">Carregando dados de saúde…</div>
+} @else if (store.error()) {
+  <div class="state state--error">Erro ao carregar: {{ store.error() }}</div>
+} @else if (store.isEmpty()) {
+  <div class="state">
+    Nenhum dado ainda. Abra a aba <strong>Saúde</strong> no app e toque em sincronizar.
+  </div>
+} @else {
+  <div class="cats">
+    @if (trends().length > 0) {
+      <rt-panel title="Tendências">
+        <div class="trends">
+          @for (t of trends(); track t.label) {
+            <div class="trend" [class.trend--up]="t.direction === 'up'" [class.trend--down]="t.direction === 'down'">
+              <span class="trend__arrow">{{ t.arrow }}</span>
+              <div class="trend__body">
+                <div class="trend__label">
+                  {{ t.label }}
+                  @if (t.anomaly) { <span class="trend__flag" title="Valor fora do padrão recente">⚠︎</span> }
+                </div>
+                <div class="trend__sub">{{ t.latest }} · {{ t.rate }}</div>
+              </div>
+            </div>
+          }
+        </div>
+      </rt-panel>
+    }
+
+    @if (correlations().length > 0) {
+      <rt-panel title="Correlações">
+        <div class="corrs">
+          @for (c of correlations(); track c.label) {
+            <div class="corr">
+              <div class="corr__label">{{ c.label }}</div>
+              <div class="corr__text">{{ c.text }}</div>
+            </div>
+          }
+        </div>
+      </rt-panel>
+    }
+
+    @for (cat of view(); track cat.id) {
+      <rt-panel [title]="cat.label">
+        <div class="grid">
+          @for (m of cat.metrics; track m.id) {
+            <div class="metric" [class.metric--empty]="!m.hasData">
+              <div class="metric__head">
+                <span class="metric__label">{{ m.label }}</span>
+                <span class="metric__caption">{{ m.caption }}</span>
+              </div>
+              <div class="metric__data">
+                <div class="metric__value">{{ m.latest }}</div>
+                @if (m.sub) { <div class="metric__sub">{{ m.sub }}</div> }
+              </div>
+              @if (m.spark) {
+                <svg class="spark" viewBox="0 0 88 26" preserveAspectRatio="none" aria-hidden="true">
+                  <polyline [attr.points]="m.spark" fill="none" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+              }
+            </div>
+          }
+        </div>
+      </rt-panel>
+    }
+  </div>
+}

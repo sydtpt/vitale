@@ -101,6 +101,8 @@ async function flushItems(items: QueueItem[]): Promise<QueueItem[]> {
   const failed: QueueItem[] = [];
   const activities = items.filter((i): i is Extract<QueueItem, { kind: 'activity' }> => i.kind === 'activity');
   const routes = items.filter((i): i is Extract<QueueItem, { kind: 'route' }> => i.kind === 'route');
+  // A fila é compartilhada com a saúde; preserva itens de outro tipo (o health-sync os drena).
+  failed.push(...items.filter((i) => i.kind !== 'activity' && i.kind !== 'route'));
 
   const res = await pushActivities(activities.map((i) => sanitizeActivityRow(i.row)));
   failed.push(...res.failed);

@@ -281,3 +281,20 @@ export interface RegistroLog {
   registroId: string;
   logDate: string;     // 'YYYY-MM-DD' (data local)
 }
+
+/**
+ * Agregado diário de uma métrica de saúde (Apple Health). 1 linha por
+ * (user, dia, métrica). Mapeia a tabela `health_daily`. O mobile agrega as
+ * amostras do HealthKit antes de enviar — nunca sobem amostras brutas.
+ * `metric` referencia o catálogo em `health/metric-catalog`.
+ */
+export interface HealthDaily {
+  userId: string;
+  day: string;                          // 'YYYY-MM-DD' (data local)
+  metric: string;                       // id de HealthMetricMeta ('passos','fc',...)
+  value: number | null;                 // soma (cumulative) ou média (discrete)
+  minValue?: number;                    // só discretas
+  maxValue?: number;                    // só discretas
+  count?: number;                       // nº de amostras agregadas
+  extra?: Record<string, unknown>;      // pressão {sys,dia}, anéis, macros
+}

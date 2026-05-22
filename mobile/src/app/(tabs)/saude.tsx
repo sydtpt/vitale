@@ -118,7 +118,7 @@ function PermissionScreen({ onRequest }: { onRequest: () => void }) {
       <Pressable style={styles.permBtn} onPress={onRequest}>
         <Text style={styles.permBtnText}>Permitir Acesso</Text>
       </Pressable>
-      <Text style={styles.permNote}>Seus dados ficam apenas no dispositivo.</Text>
+      <Text style={styles.permNote}>Resumos diários ficam protegidos na sua conta.</Text>
     </View>
   );
 }
@@ -136,11 +136,19 @@ function UnavailableScreen() {
 export default function HealthScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { permissionStatus, summaryLoading, requestPermission, loadSummaries } = useHealthStore();
+  const { permissionStatus, summaryLoading, syncing, requestPermission, loadSummaries, syncToCloud } =
+    useHealthStore();
+  const busy = summaryLoading || syncing;
 
   useEffect(() => {
     if (permissionStatus === 'unknown') requestPermission();
   }, [permissionStatus, requestPermission]);
+
+  // Botão de sync: recarrega os cards E sobe os agregados diários ao Supabase.
+  const onSync = useCallback(() => {
+    void loadSummaries();
+    void syncToCloud();
+  }, [loadSummaries, syncToCloud]);
 
   const openMetric = useCallback(
     (id: string) => router.push({ pathname: '/saude/[metric]', params: { metric: id } }),
@@ -167,12 +175,12 @@ export default function HealthScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Saúde</Text>
         <Pressable
-          onPress={loadSummaries}
-          disabled={summaryLoading}
+          onPress={onSync}
+          disabled={busy}
           hitSlop={8}
-          style={({ pressed }) => [styles.syncBtn, pressed && styles.cardPressed, summaryLoading && styles.syncDisabled]}
+          style={({ pressed }) => [styles.syncBtn, pressed && styles.cardPressed, busy && styles.syncDisabled]}
         >
-          {summaryLoading ? (
+          {busy ? (
             <ActivityIndicator size="small" color={colors.rose} />
           ) : (
             <Ionicons name="sync-outline" size={18} color={colors.rose} />

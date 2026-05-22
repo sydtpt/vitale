@@ -168,3 +168,92 @@ export function formatDayLabel(ms: number): string {
   if (diff === 1) return 'Ontem';
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
+
+/* ───────────────────────── Sono ───────────────────────── */
+
+interface Interval { start: number; end: number }
+
+/** Funde intervalos sobrepostos/contíguos numa lista disjunta (ordenada). */
+function mergeIntervals(list: Interval[]): Interval[] {
+  const sorted = [...list].sort((a, b) => a.start - b.start);
+  const merged: Interval[] = [];
+  for (const iv of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && iv.start <= last.end) last.end = Math.max(last.end, iv.end);
+    else merged.push({ ...iv });
+  }
+  return merged;
+}
+
+/** Soma da sobreposição de `a` com cada intervalo de `list` (ms). */
+function overlapMs(a: Interval, list: Interval[]): number {
+  let ov = 0;
+  for (const w of list) {
+    const lo = Math.max(a.start, w.start);
+    const hi = Math.min(a.end, w.end);
+    if (hi > lo) ov += hi - lo;
+  }
+  return ov;
+}
+
+function localDayKey(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function toIntervals(samples: Sample[], match: (stage: string) => boolean): Interval[] {
+  return samples
+    .filter((s) => match((s.label ?? '').toUpperCase()))
+    .map((s) => ({ start: new Date(s.start).getTime(), end: new Date(s.end).getTime() }))
+    .filter((iv) => Number.isFinite(iv.start) && Number.isFinite(iv.end) && iv.end > iv.start);
+}
+
+/** Estágios de sono "dormindo" detalhados (Apple Watch, watchOS 9+/iOS 16+). */
+const DETAILED_STAGES = new Set(['CORE', 'DEEP', 'REM']);
+
+/**
+ * Consolida amostras de estágios de sono em UMA linha por noite.
+ *
+ * O Apple Health junta várias fontes (Watch com estágios + iPhone/relógio com um
+ * "ASLEEP" genérico + apps de terceiros) que se SOBREPÕEM no mesmo período.
+ * Somar as durações conta o mesmo tempo várias vezes (causava ~2× o real).
+ *
+ * Estratégia (alinhada ao app Saúde da Apple):
+ *  1. Prioriza a fonte detalhada: onde há estágios CORE/DEEP/REM, o ASLEEP
+ *     genérico que os sobrepõe é DESCARTADO (o relógio é autoritativo). O genérico
+ *     só entra onde não há estágios (relógio fora do pulso / aparelho antigo).
+ *  2. Une os intervalos restantes (remove sobreposição entre fontes).
+ *  3. Subtrai os trechos "acordado" (AWAKE).
+ *  4. Atribui cada noite ao dia em que se ACORDOU (fim do trecho).
+ * O `value` de cada amostra de saída é o total de horas dormidas da noite.
+ */
+export function aggregateSleepNights(samples: Sample[]): Sample[] {
+  const detailed = mergeIntervals(toIntervals(samples, (st) => DETAILED_STAGES.has(st)));
+  const awake = mergeIntervals(toIntervals(samples, (st) => st === 'AWAKE'));
+  // ASLEEP genérico: mantém só os trechos sem nenhum estágio detalhado por baixo.
+  const generic = mergeIntervals(toIntervals(samples, (st) => st === 'ASLEEP')).filter(
+    (iv) => overlapMs(iv, detailed) === 0,
+  );
+
+  const asleep = mergeIntervals([...detailed, ...generic]);
+
+  const byWakeDay = new Map<string, { hours: number; wake: number }>();
+  for (const iv of asleep) {
+    const net = iv.end - iv.start - overlapMs(iv, awake);
+    if (net <= 0) continue;
+    const key = localDayKey(iv.end); // dia em que acordou
+    const cur = byWakeDay.get(key) ?? { hours: 0, wake: iv.end };
+    cur.hours += net / HOUR;
+    cur.wake = Math.max(cur.wake, iv.end);
+    byWakeDay.set(key, cur);
+  }
+
+  return [...byWakeDay.values()]
+    .sort((a, b) => a.wake - b.wake)
+    .map((n) => ({
+      value: n.hours,
+      start: new Date(n.wake).toISOString(),
+      end: new Date(n.wake).toISOString(),
+      label: 'ASLEEP',
+    }));
+}

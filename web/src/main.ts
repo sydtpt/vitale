@@ -60,6 +60,12 @@ const routes: Routes = [
       import('@features/habits/pages/habits-page.component').then(m => m.HabitsPageComponent),
   },
   {
+    path: 'saude',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/saude/pages/saude-page.component').then(m => m.SaudePageComponent),
+  },
+  {
     path: 'tasks',
     canActivate: [profileGuard],
     loadComponent: () =>

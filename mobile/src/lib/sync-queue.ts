@@ -5,10 +5,12 @@
  */
 import { asyncStore, getJSON, setJSON, type KVStore } from './local-store';
 import type { ActivityRow, ActivityRouteRow } from './activity-map';
+import type { HealthDailyRow } from './health-aggregate';
 
 export type QueueItem =
   | { kind: 'activity'; row: ActivityRow }
-  | { kind: 'route'; row: ActivityRouteRow };
+  | { kind: 'route'; row: ActivityRouteRow }
+  | { kind: 'health'; row: HealthDailyRow };
 
 const KEY = 'vitale:sync-queue';
 
@@ -52,5 +54,12 @@ export async function drainQueue(
 }
 
 function keyOf(item: QueueItem): string {
-  return item.kind === 'activity' ? `a:${item.row.id}` : `r:${item.row.activity_id}`;
+  switch (item.kind) {
+    case 'activity':
+      return `a:${item.row.id}`;
+    case 'route':
+      return `r:${item.row.activity_id}`;
+    case 'health':
+      return `h:${item.row.user_id}:${item.row.day}:${item.row.metric}`;
+  }
 }

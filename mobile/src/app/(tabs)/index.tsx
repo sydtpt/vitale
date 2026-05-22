@@ -3,6 +3,7 @@ import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, spacing } from '../../theme';
 import { DayRingCard } from '../../components/cards/DayRingCard';
+import { ReadinessCard } from '../../components/cards/ReadinessCard';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { HabitStepper } from '../../components/cards/HabitStepper';
 import { TodoItem } from '../../components/cards/TodoItem';
@@ -10,6 +11,7 @@ import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
 import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
+import { useHealthStore } from '../../store/health.store';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
 import { isOverdue } from '../../lib/todo-logic';
 import { HOJE } from '../../services/mock-data';
@@ -52,6 +54,12 @@ export default function HojeScreen() {
   // Recarrega quando o usuário fica disponível: no boot, a home monta antes de
   // o auth resolver, então o primeiro load() aborta por falta de userId.
   useEffect(() => { loadCounters(); }, [loadCounters, user?.id]);
+
+  // Saúde (Apple Health): inicializa para alimentar o card de prontidão.
+  // Em quem já concedeu acesso, é silencioso; mantém a mesma porta da aba Saúde.
+  const healthStatus = useHealthStore(s => s.permissionStatus);
+  const requestHealth = useHealthStore(s => s.requestPermission);
+  useEffect(() => { if (healthStatus === 'unknown') requestHealth(); }, [healthStatus, requestHealth]);
 
   // Tarefas (to-do) — pendentes/atrasadas de hoje
   const todoTemplates = useTodosStore(s => s.templates);
@@ -133,6 +141,9 @@ export default function HojeScreen() {
 
         {/* Day Ring Card */}
         <DayRingCard activity={activity} food={food} mind={mind} overall={overall} />
+
+        {/* Prontidão (Apple Health) — aparece quando há dados na sessão */}
+        <ReadinessCard />
 
         {/* Hábitos com valor hoje — logo abaixo dos anéis */}
         {startedHabits.map(renderStepper)}

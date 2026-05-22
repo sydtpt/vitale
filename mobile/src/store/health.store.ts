@@ -9,6 +9,7 @@ import {
   HealthProfile,
   loadProfile,
 } from '../config/health-metrics';
+import { syncHealth } from '../services/health-sync';
 
 export type PermissionStatus = 'unknown' | 'authorized' | 'denied' | 'unavailable';
 
@@ -23,11 +24,16 @@ interface HealthState {
   /** Amostras do período ativo por métrica — alimentam a tela de detalhe. */
   detail: Record<string, Sample[]>;
   detailLoading: Record<string, boolean>;
+  /** Sincronização dos agregados diários para o Supabase. */
+  syncing: boolean;
+  lastSyncAt: string | null;
 
   requestPermission: () => Promise<void>;
   loadSummaries: () => Promise<void>;
   setPeriod: (p: Period) => void;
   loadMetric: (id: string) => Promise<void>;
+  /** Agrega e envia os agregados diários ao Supabase (backfill na 1ª vez). */
+  syncToCloud: () => Promise<void>;
 }
 
 export const useHealthStore = create<HealthState>((set, get) => ({
@@ -38,6 +44,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
   summaryLoading: false,
   detail: {},
   detailLoading: {},
+  syncing: false,
+  lastSyncAt: null,
 
   requestPermission: async () => {
     if (Platform.OS !== 'ios') {
@@ -54,6 +62,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     if (get().permissionStatus === 'authorized') {
       loadProfile().then((profile) => set({ profile }));
       await get().loadSummaries();
+      // Fire-and-forget: sobe os agregados diários sem bloquear a UI.
+      void get().syncToCloud();
     }
   },
 
@@ -78,5 +88,12 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       detail: { ...s.detail, [id]: data },
       detailLoading: { ...s.detailLoading, [id]: false },
     }));
+  },
+
+  syncToCloud: async () => {
+    if (get().syncing || Platform.OS !== 'ios') return;
+    set({ syncing: true });
+    const res = await syncHealth();
+    set({ syncing: false, lastSyncAt: res.ok ? new Date().toISOString() : get().lastSyncAt });
   },
 }));

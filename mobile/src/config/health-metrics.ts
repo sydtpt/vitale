@@ -5,18 +5,20 @@
  */
 import AppleHealthKit from 'react-native-health';
 import type { Ionicons } from '@expo/vector-icons';
+import { HEALTH_METRICS, healthMetricById, type HealthMetricMeta } from '@vitale/shared';
 import { colors, MOD } from '../theme';
 import {
   Sample,
-  MetricKind,
   Period,
   formatNumber,
   formatHoursMin,
+  aggregateSleepNights,
 } from '../lib/health-format';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
-export type CategoryId = 'atividade' | 'coracao' | 'corpo' | 'sono' | 'nutricao';
+/** Categorias e o tipo de gráfico são metadados de UI; os demais vêm do shared. */
+export type CategoryId = HealthMetricMeta['category'];
 export type ChartType = 'bar' | 'line' | 'rings' | 'donut';
 
 export interface Range {
@@ -44,21 +46,23 @@ export function categoryMeta(id: CategoryId): CategoryMeta {
   return CATEGORIES.find((c) => c.id === id)!;
 }
 
-export interface MetricDef {
-  id: string;
-  label: string;
-  category: CategoryId;
+/**
+ * Métrica do mobile = metadados compartilhados (`HealthMetricMeta`: id, label,
+ * category, unit, kind, decimals, caption) + camada nativa/visual do app.
+ */
+export interface MetricDef extends HealthMetricMeta {
   icon: IoniconName;
-  /** Unidade exibida como legenda (ex.: 'bpm', 'kcal'). */
-  unit: string;
-  kind: MetricKind;
   chart: ChartType;
-  decimals?: number;
-  /** Texto auxiliar do que a métrica representa. */
-  caption?: string;
   fetch: (range: Range, period: Period) => Promise<Sample[]>;
   /** Formata um valor (usado em stats, eixos e cards). */
   format: (value: number) => string;
+}
+
+/** Metadados compartilhados de uma métrica, por id (lança se desconhecida). */
+function meta(id: string): HealthMetricMeta {
+  const m = healthMetricById(id);
+  if (!m) throw new Error(`Métrica de saúde desconhecida: ${id}`);
+  return m;
 }
 
 /* ───────────────────────── Fetch helpers ───────────────────────── */
@@ -158,25 +162,22 @@ function bloodPressureFetch(range: Range): Promise<Sample[]> {
 }
 
 /**
- * Sono: cada amostra é um estágio. Convertemos para horas dormidas
- * (excluindo "na cama" e "acordado") por amostra.
+ * Sono: cada amostra do HealthKit é um estágio (possivelmente de várias fontes
+ * sobrepostas). Lemos os estágios crus e consolidamos por noite em
+ * `aggregateSleepNights` (união de intervalos − despertares, atribuído ao dia em
+ * que se acordou). Sem isso, fontes sobrepostas dobravam o tempo dormido.
  */
 function sleepFetch(range: Range): Promise<Sample[]> {
   return callArray(
     'getSleepSamples',
     { startDate: range.startDate, endDate: range.endDate, ascending: true },
-    (v: RawValue) => {
-      const stage = String(v.value).toUpperCase();
-      const asleep = stage !== 'INBED' && stage !== 'AWAKE';
-      const ms = new Date(v.endDate).getTime() - new Date(v.startDate).getTime();
-      return {
-        value: asleep ? ms / 3_600_000 : 0,
-        start: v.startDate,
-        end: v.endDate,
-        label: stage,
-      };
-    }
-  );
+    (v: RawValue) => ({
+      value: 0, // recalculado em aggregateSleepNights a partir dos intervalos
+      start: v.startDate,
+      end: v.endDate,
+      label: String(v.value).toUpperCase(),
+    })
+  ).then(aggregateSleepNights);
 }
 
 /** Anéis de atividade: 3 amostras (mover/exercício/em pé) do dia mais recente. */
@@ -233,133 +234,64 @@ const fmtDistance = (m: number) =>
 
 export const METRICS: MetricDef[] = [
   // ── Atividade ──────────────────────────────────────────────
-  {
-    id: 'passos', label: 'Passos', category: 'atividade', icon: 'footsteps-outline',
-    unit: 'passos', kind: 'cumulative', chart: 'bar', caption: 'Contagem diária',
-    fetch: cumulativeFetch('getDailyStepCountSamples'), format: fmt(0),
-  },
-  {
-    id: 'distancia', label: 'Distância', category: 'atividade', icon: 'map-outline',
-    unit: 'km', kind: 'cumulative', chart: 'bar', caption: 'Caminhada + corrida',
+  { ...meta('passos'), icon: 'footsteps-outline', chart: 'bar',
+    fetch: cumulativeFetch('getDailyStepCountSamples'), format: fmt(0) },
+  { ...meta('distancia'), icon: 'map-outline', chart: 'bar',
     fetch: cumulativeFetch('getDailyDistanceWalkingRunningSamples', { unit: 'meter' }),
-    format: fmtDistance,
-  },
-  {
-    id: 'andares', label: 'Andares', category: 'atividade', icon: 'trending-up-outline',
-    unit: 'andares', kind: 'cumulative', chart: 'bar', caption: 'Lances de escada subidos',
-    fetch: cumulativeFetch('getDailyFlightsClimbedSamples'), format: fmt(0),
-  },
-  {
-    id: 'energia', label: 'Energia ativa', category: 'atividade', icon: 'flame-outline',
-    unit: 'kcal', kind: 'cumulative', chart: 'bar', caption: 'Calorias de movimento',
-    fetch: cumulativeFetch('getActiveEnergyBurned', { unit: 'kilocalorie' }), format: fmt(0),
-  },
-  {
-    id: 'exercicio', label: 'Min. de exercício', category: 'atividade', icon: 'stopwatch-outline',
-    unit: 'min', kind: 'cumulative', chart: 'bar', caption: 'Anel de exercício',
-    fetch: cumulativeFetch('getAppleExerciseTime'), format: fmt(0),
-  },
-  {
-    id: 'aneis', label: 'Anéis de atividade', category: 'atividade', icon: 'ellipse-outline',
-    unit: '', kind: 'discrete', chart: 'rings', caption: 'Mover · Exercício · Em pé',
-    fetch: ringsFetch, format: fmt(0),
-  },
+    format: fmtDistance },
+  { ...meta('andares'), icon: 'trending-up-outline', chart: 'bar',
+    fetch: cumulativeFetch('getDailyFlightsClimbedSamples'), format: fmt(0) },
+  { ...meta('energia'), icon: 'flame-outline', chart: 'bar',
+    fetch: cumulativeFetch('getActiveEnergyBurned', { unit: 'kilocalorie' }), format: fmt(0) },
+  { ...meta('exercicio'), icon: 'stopwatch-outline', chart: 'bar',
+    fetch: cumulativeFetch('getAppleExerciseTime'), format: fmt(0) },
+  { ...meta('aneis'), icon: 'ellipse-outline', chart: 'rings',
+    fetch: ringsFetch, format: fmt(0) },
 
   // ── Coração ────────────────────────────────────────────────
-  {
-    id: 'fc', label: 'Freq. cardíaca', category: 'coracao', icon: 'heart-outline',
-    unit: 'bpm', kind: 'discrete', chart: 'line', caption: 'Batimentos por minuto',
-    fetch: discreteFetch('getHeartRateSamples', { unit: 'bpm' }), format: fmt(0, 'bpm'),
-  },
-  {
-    id: 'fcRepouso', label: 'FC em repouso', category: 'coracao', icon: 'bed-outline',
-    unit: 'bpm', kind: 'discrete', chart: 'line', caption: 'Em descanso',
-    fetch: discreteFetch('getRestingHeartRateSamples', { unit: 'bpm' }), format: fmt(0, 'bpm'),
-  },
-  {
-    id: 'vfc', label: 'Variabilidade (VFC)', category: 'coracao', icon: 'pulse-outline',
-    unit: 'ms', kind: 'discrete', chart: 'line', caption: 'HRV — SDNN',
-    fetch: discreteFetch('getHeartRateVariabilitySamples'), format: fmt(0, 'ms'),
-  },
-  {
-    id: 'vo2max', label: 'VO₂ máx', category: 'coracao', icon: 'fitness-outline',
-    unit: 'mL/kg·min', kind: 'discrete', chart: 'line', caption: 'Capacidade aeróbica',
-    fetch: discreteFetch('getVo2MaxSamples'), format: fmt(1),
-  },
-  {
-    id: 'spo2', label: 'Oxigênio (SpO₂)', category: 'coracao', icon: 'water-outline',
-    unit: '%', kind: 'discrete', chart: 'line', caption: 'Saturação de oxigênio',
-    fetch: discreteFetch('getOxygenSaturationSamples', { unit: 'percent' }, pctMap), format: fmt(0, '%'),
-  },
-  {
-    id: 'respiracao', label: 'Freq. respiratória', category: 'coracao', icon: 'cloud-outline',
-    unit: 'resp/min', kind: 'discrete', chart: 'line', caption: 'Respirações por minuto',
-    fetch: discreteFetch('getRespiratoryRateSamples'), format: fmt(0),
-  },
-  {
-    id: 'pressao', label: 'Pressão arterial', category: 'coracao', icon: 'speedometer-outline',
-    unit: 'mmHg', kind: 'discrete', chart: 'line', caption: 'Sistólica / diastólica',
-    fetch: bloodPressureFetch, format: fmt(0, 'mmHg'),
-  },
+  { ...meta('fc'), icon: 'heart-outline', chart: 'line',
+    fetch: discreteFetch('getHeartRateSamples', { unit: 'bpm' }), format: fmt(0, 'bpm') },
+  { ...meta('fcRepouso'), icon: 'bed-outline', chart: 'line',
+    fetch: discreteFetch('getRestingHeartRateSamples', { unit: 'bpm' }), format: fmt(0, 'bpm') },
+  { ...meta('vfc'), icon: 'pulse-outline', chart: 'line',
+    fetch: discreteFetch('getHeartRateVariabilitySamples'), format: fmt(0, 'ms') },
+  { ...meta('vo2max'), icon: 'fitness-outline', chart: 'line',
+    fetch: discreteFetch('getVo2MaxSamples'), format: fmt(1) },
+  { ...meta('spo2'), icon: 'water-outline', chart: 'line',
+    fetch: discreteFetch('getOxygenSaturationSamples', { unit: 'percent' }, pctMap), format: fmt(0, '%') },
+  { ...meta('respiracao'), icon: 'cloud-outline', chart: 'line',
+    fetch: discreteFetch('getRespiratoryRateSamples'), format: fmt(0) },
+  { ...meta('pressao'), icon: 'speedometer-outline', chart: 'line',
+    fetch: bloodPressureFetch, format: fmt(0, 'mmHg') },
 
   // ── Corpo ──────────────────────────────────────────────────
-  {
-    id: 'peso', label: 'Peso', category: 'corpo', icon: 'barbell-outline',
-    unit: 'kg', kind: 'discrete', chart: 'line', caption: 'Massa corporal',
-    fetch: discreteFetch('getWeightSamples', { unit: 'gram' }, kgMap), format: fmt(1, 'kg'),
-  },
-  {
-    id: 'imc', label: 'IMC', category: 'corpo', icon: 'body-outline',
-    unit: '', kind: 'discrete', chart: 'line', caption: 'Índice de massa corporal',
-    fetch: discreteFetch('getBmiSamples', { unit: 'count' }), format: fmt(1),
-  },
-  {
-    id: 'gordura', label: '% de gordura', category: 'corpo', icon: 'pie-chart-outline',
-    unit: '%', kind: 'discrete', chart: 'line', caption: 'Percentual de gordura',
-    fetch: discreteFetch('getBodyFatPercentageSamples', { unit: 'percent' }, pctMap), format: fmt(1, '%'),
-  },
-  {
-    id: 'massaMagra', label: 'Massa magra', category: 'corpo', icon: 'body-outline',
-    unit: 'kg', kind: 'discrete', chart: 'line', caption: 'Massa corporal magra',
-    fetch: discreteFetch('getLeanBodyMassSamples', { unit: 'gram' }, kgMap), format: fmt(1, 'kg'),
-  },
-  {
-    id: 'cintura', label: 'Cintura', category: 'corpo', icon: 'resize-outline',
-    unit: 'cm', kind: 'discrete', chart: 'line', caption: 'Circunferência da cintura',
+  { ...meta('peso'), icon: 'barbell-outline', chart: 'line',
+    fetch: discreteFetch('getWeightSamples', { unit: 'gram' }, kgMap), format: fmt(1, 'kg') },
+  { ...meta('imc'), icon: 'body-outline', chart: 'line',
+    fetch: discreteFetch('getBmiSamples', { unit: 'count' }), format: fmt(1) },
+  { ...meta('gordura'), icon: 'pie-chart-outline', chart: 'line',
+    fetch: discreteFetch('getBodyFatPercentageSamples', { unit: 'percent' }, pctMap), format: fmt(1, '%') },
+  { ...meta('massaMagra'), icon: 'body-outline', chart: 'line',
+    fetch: discreteFetch('getLeanBodyMassSamples', { unit: 'gram' }, kgMap), format: fmt(1, 'kg') },
+  { ...meta('cintura'), icon: 'resize-outline', chart: 'line',
     fetch: discreteFetch('getWaistCircumferenceSamples', { unit: 'meter' }, (v) => ({
       value: v.value * 100, start: v.startDate, end: v.endDate,
     })),
-    format: fmt(1, 'cm'),
-  },
+    format: fmt(1, 'cm') },
 
   // ── Sono ───────────────────────────────────────────────────
-  {
-    id: 'sono', label: 'Sono', category: 'sono', icon: 'moon-outline',
-    unit: 'h', kind: 'cumulative', chart: 'bar', caption: 'Horas dormidas por noite',
-    fetch: sleepFetch, format: (v) => formatHoursMin(v),
-  },
+  { ...meta('sono'), icon: 'moon-outline', chart: 'bar',
+    fetch: sleepFetch, format: (v) => formatHoursMin(v) },
 
   // ── Nutrição ───────────────────────────────────────────────
-  {
-    id: 'agua', label: 'Água', category: 'nutricao', icon: 'water-outline',
-    unit: 'L', kind: 'cumulative', chart: 'bar', caption: 'Ingestão de água',
-    fetch: discreteFetch('getWaterSamples'), format: fmt(2, 'L'),
-  },
-  {
-    id: 'calorias', label: 'Calorias', category: 'nutricao', icon: 'fast-food-outline',
-    unit: 'kcal', kind: 'cumulative', chart: 'bar', caption: 'Energia consumida',
-    fetch: discreteFetch('getEnergyConsumedSamples', { unit: 'kilocalorie' }), format: fmt(0, 'kcal'),
-  },
-  {
-    id: 'macros', label: 'Macronutrientes', category: 'nutricao', icon: 'pie-chart-outline',
-    unit: 'g', kind: 'cumulative', chart: 'donut', caption: 'Proteína · Carbo · Gordura',
-    fetch: macrosFetch, format: fmt(0, 'g'),
-  },
-  {
-    id: 'proteina', label: 'Proteína', category: 'nutricao', icon: 'nutrition-outline',
-    unit: 'g', kind: 'cumulative', chart: 'bar', caption: 'Proteína consumida',
-    fetch: discreteFetch('getProteinSamples', { unit: 'gram' }), format: fmt(0, 'g'),
-  },
+  { ...meta('agua'), icon: 'water-outline', chart: 'bar',
+    fetch: discreteFetch('getWaterSamples'), format: fmt(2, 'L') },
+  { ...meta('calorias'), icon: 'fast-food-outline', chart: 'bar',
+    fetch: discreteFetch('getEnergyConsumedSamples', { unit: 'kilocalorie' }), format: fmt(0, 'kcal') },
+  { ...meta('macros'), icon: 'pie-chart-outline', chart: 'donut',
+    fetch: macrosFetch, format: fmt(0, 'g') },
+  { ...meta('proteina'), icon: 'nutrition-outline', chart: 'bar',
+    fetch: discreteFetch('getProteinSamples', { unit: 'gram' }), format: fmt(0, 'g') },
 ];
 
 export function metricById(id: string): MetricDef | undefined {
