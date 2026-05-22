@@ -46,6 +46,8 @@ interface FitnessState {
   syncedTypes: Set<string>;
   /** Estado de sync por tipo (label → status), alimenta a UI do card. */
   typeStatus: Record<string, TypeSyncStatus>;
+  /** Progresso 0–1 do sync em andamento por tipo (barra do card). */
+  syncProgress: Record<string, number>;
   /** ISO do último sync bem-sucedido por tipo. */
   lastSyncedAt: Record<string, string>;
   /** Erro por tipo (recuperável). */
@@ -77,6 +79,7 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
 
   syncedTypes: new Set<string>(),
   typeStatus: {},
+  syncProgress: {},
   lastSyncedAt: {},
   syncError: {},
 
@@ -141,10 +144,23 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
   syncType: async (label: string) => {
     set((state) => ({
       typeStatus: { ...state.typeStatus, [label]: 'syncing' },
+      syncProgress: { ...state.syncProgress, [label]: 0 },
       syncError: { ...state.syncError, [label]: null },
     }));
 
-    const result = await runSyncType(label);
+    // O progresso pode ser emitido de forma SÍNCRONA e em rajada (treinos sem
+    // rota GPS não têm await no loop de coleta). Como o zustand re-renderiza
+    // sincronamente a cada `set`, emitir todas as frações estoura o limite de
+    // re-renders do React. Limita a ~10 atualizações/seg; o 1.0 final sempre passa.
+    let lastEmit = 0;
+    const result = await runSyncType(label, (fraction) => {
+      const now = Date.now();
+      if (fraction < 1 && now - lastEmit < 100) return;
+      lastEmit = now;
+      set((state) => ({
+        syncProgress: { ...state.syncProgress, [label]: fraction },
+      }));
+    });
 
     set((state) => {
       const syncedTypes = new Set(state.syncedTypes);
@@ -155,9 +171,12 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
         : result.queued > 0
         ? 'pending'
         : 'synced';
+      const syncProgress = { ...state.syncProgress };
+      delete syncProgress[label];
       return {
         syncedTypes,
         typeStatus: { ...state.typeStatus, [label]: status },
+        syncProgress,
         lastSyncedAt:
           result.ok && !result.error
             ? { ...state.lastSyncedAt, [label]: new Date().toISOString() }

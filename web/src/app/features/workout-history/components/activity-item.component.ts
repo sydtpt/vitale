@@ -23,6 +23,13 @@ export class ActivityItemComponent {
 
   protected readonly meta = computed(() => metaForActivity(this.activity().activityId));
   protected readonly hasDistance = computed(() => (this.activity().distanceM ?? 0) > 0);
+  /** Atividades com GPS (rota ou distância) exibem o tempo em movimento. */
+  protected readonly isGps = computed(() => this.activity().hasRoute || (this.activity().distanceM ?? 0) > 0);
+  /** Tempo do card: em movimento (GPS) ou duração total (demais). Cai para a duração em linhas antigas. */
+  protected readonly timeS = computed(() => {
+    const a = this.activity();
+    return this.isGps() ? a.movingTimeS ?? a.durationS : a.durationS;
+  });
   protected readonly navigationUrl = computed(() => {
     const baseUrl = ['/workout-history', this.meta().slug, this.activity().id];
     const params: Record<string, string> = this.filters() ? filtersToQueryParams(this.filters()!) : {};

@@ -14,10 +14,16 @@ import {
   fetchAllWorkouts,
   fetchWorkoutsDelta,
   fetchWorkoutRoute,
+  fetchWorkoutHeartRate,
+  fetchHrZoneParams,
   getActivityMeta,
   hasGpsRoute,
   type WorkoutItem,
+  type RoutePoint,
 } from '../lib/healthkit-workouts';
+import { computeBestEfforts } from '../lib/best-efforts';
+import { movingTimeFromTrack } from '../lib/moving-time';
+import { computeHrZones, type HrZoneParams } from '../lib/heart-rate-zones';
 import {
   toActivityRow,
   toRouteRow,
@@ -25,6 +31,9 @@ import {
   type ActivityRow,
   type ActivityRouteRow,
 } from '../lib/activity-map';
+
+/** Código HealthKit da corrida — único tipo que recebe best efforts. */
+const RUNNING_ACTIVITY_ID = 37;
 import { subscribeType, loadSyncedTypes } from '../lib/synced-types';
 import { readAnchor, writeAnchor } from '../lib/sync-anchor';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
@@ -57,8 +66,8 @@ async function pushActivities(
   let error: string | undefined;
   for (let i = 0; i < rows.length; i += BATCH) {
     const chunk = rows.slice(i, i + BATCH);
-    // RPC com upsert condicional: NÃO sobrescreve linhas editadas na web
-    // (`locally_edited = true`). Ver .claude/specs/historico-treinos/data-model.md §2.
+    // RPC upsert: atualiza a linha, mas PRESERVA os campos editados manualmente
+    // (`name_edited`/`duration_edited`). Ver .claude/specs/historico-treinos/data-model.md §2.
     const res = await supabase.rpc('sync_upsert_activities', { rows: chunk });
     if (res.error) {
       if (!error) error = res.error.message;
@@ -71,29 +80,101 @@ async function pushActivities(
   return { pushed, failed, error };
 }
 
-/** Busca e envia as rotas GPS dos treinos outdoor. Falhas viram itens de fila. */
-async function pushRoutes(
+/** Callback de progresso de uma fase (treino-a-treino). */
+type StepCb = (done: number, total: number) => void;
+
+/**
+ * Busca uma única vez a rota GPS de cada treino outdoor. O resultado alimenta
+ * tanto o cálculo de best efforts (corrida) quanto o upsert das rotas, evitando
+ * baixar o track duas vezes.
+ */
+async function collectRoutes(
   workouts: WorkoutItem[],
+  onStep?: StepCb,
+): Promise<Map<string, RoutePoint[]>> {
+  const map = new Map<string, RoutePoint[]>();
+  const total = workouts.length;
+  let done = 0;
+  for (const w of workouts) {
+    if (hasGpsRoute(w.activityId)) {
+      const points = await fetchWorkoutRoute(w.id);
+      if (points.length > 0) map.set(w.id, points);
+    }
+    onStep?.(++done, total);
+  }
+  return map;
+}
+
+/** Best efforts de uma corrida a partir do track já coletado. */
+function bestEffortsFor(
+  w: WorkoutItem,
+  routes: Map<string, RoutePoint[]>,
+): Record<string, number> | undefined {
+  if (w.activityId !== RUNNING_ACTIVITY_ID) return undefined;
+  const points = routes.get(w.id);
+  if (!points) return undefined;
+  const efforts = computeBestEfforts(points);
+  return Object.keys(efforts).length > 0 ? efforts : undefined;
+}
+
+/**
+ * Treino com o tempo em movimento derivado do track GPS quando disponível —
+ * `HKWorkout.duration` muitas vezes já é o tempo decorrido (sem pausas), então
+ * o track é a fonte confiável. Mantém o valor original quando não há track.
+ */
+function withMovingTime(w: WorkoutItem, routes: Map<string, RoutePoint[]>): WorkoutItem {
+  if (!hasGpsRoute(w.activityId)) return w;
+  const fromTrack = movingTimeFromTrack(routes.get(w.id));
+  return fromTrack != null ? { ...w, movingTimeS: fromTrack } : w;
+}
+
+/**
+ * Tempo em zonas de FC de cada treino (qualquer tipo), a partir das amostras de
+ * frequência cardíaca da janela do treino. Lê o HR de cada treino uma vez.
+ */
+async function collectHrZones(
+  workouts: WorkoutItem[],
+  params: HrZoneParams,
+  onStep?: StepCb,
+): Promise<Map<string, Record<string, number>>> {
+  const map = new Map<string, Record<string, number>>();
+  const total = workouts.length;
+  if (!(params.maxHr > 0)) {
+    onStep?.(total, total); // fase pulada, mas conta como concluída
+    return map;
+  }
+  let done = 0;
+  for (const w of workouts) {
+    const samples = await fetchWorkoutHeartRate(w.start, w.end);
+    if (samples.length >= 2) {
+      const zones = computeHrZones(samples, params);
+      if (Object.keys(zones).length > 0) map.set(w.id, zones);
+    }
+    onStep?.(++done, total);
+  }
+  return map;
+}
+
+/** Envia as rotas GPS já coletadas. Falhas viram itens de fila. */
+async function pushRoutes(
+  routes: Map<string, RoutePoint[]>,
   userId: string
 ): Promise<{ routes: number; failed: QueueItem[]; error?: string }> {
-  let routes = 0;
+  let count = 0;
   const failed: QueueItem[] = [];
   let error: string | undefined;
-  for (const w of workouts) {
-    if (!hasGpsRoute(w.activityId)) continue;
-    const points = await fetchWorkoutRoute(w.id);
-    if (points.length === 0) continue;
-    const row = toRouteRow(w.id, userId, points);
+  for (const [activityId, points] of routes) {
+    const row = toRouteRow(activityId, userId, points);
     const res = await supabase.from('activity_routes').upsert(row, { onConflict: 'activity_id' });
     if (res.error) {
       if (!error) error = res.error.message;
       console.warn('[sync] upsert activity_routes falhou:', res.error.message);
       failed.push({ kind: 'route', row });
     } else {
-      routes += 1;
+      count += 1;
     }
   }
-  return { routes, failed, error };
+  return { routes: count, failed, error };
 }
 
 /** Reprocessa itens da fila; devolve os que ainda falharam (a manter na fila). */
@@ -116,7 +197,20 @@ async function flushItems(items: QueueItem[]): Promise<QueueItem[]> {
   return failed;
 }
 
-export async function syncType(label: string): Promise<SyncResult> {
+/**
+ * Pesos das fases para a barra de progresso (somam 1). As duas coletas
+ * treino-a-treino dominam o tempo (uma leitura do HealthKit por treino); o
+ * upload em lote é a fatia final.
+ */
+const PROGRESS = { routes: 0.45, hr: 0.45, upload: 0.1 } as const;
+
+/** Fração concluída de uma fase, segura contra total = 0. */
+const phaseFrac = (done: number, total: number) => (total > 0 ? done / total : 1);
+
+export async function syncType(
+  label: string,
+  onProgress?: (fraction: number) => void,
+): Promise<SyncResult> {
   const base: SyncResult = { pushed: 0, deleted: 0, routes: 0, queued: 0, ok: false, labels: [label] };
 
   const userId = await currentUserId();
@@ -129,11 +223,26 @@ export async function syncType(label: string): Promise<SyncResult> {
     // 2. Backfill: todos os treinos do tipo no período.
     const all = await fetchAllWorkouts();
     const ofType = all.filter((w) => getActivityMeta(w.activityId).label === label);
-    const rows = ofType.map((w) => toActivityRow(w, userId));
+    onProgress?.(0);
 
-    // 3. Upsert (idempotente) + rotas GPS.
+    // 3. Coleta as rotas uma vez; deriva best efforts (corrida) do mesmo track.
+    const routes = await collectRoutes(ofType, (done, total) =>
+      onProgress?.(phaseFrac(done, total) * PROGRESS.routes),
+    );
+    // 3b. Tempo em zonas de FC (todos os tipos), com os parâmetros do usuário.
+    const hrParams = await fetchHrZoneParams();
+    const hrZones = await collectHrZones(ofType, hrParams, (done, total) =>
+      onProgress?.(PROGRESS.routes + phaseFrac(done, total) * PROGRESS.hr),
+    );
+    const rows = ofType.map((w) =>
+      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id)),
+    );
+
+    // 4. Upsert (idempotente) + rotas GPS.
+    onProgress?.(PROGRESS.routes + PROGRESS.hr);
     const a = await pushActivities(rows);
-    const r = await pushRoutes(ofType, userId);
+    const r = await pushRoutes(routes, userId);
+    onProgress?.(1);
 
     const failed = [...a.failed, ...r.failed];
     if (failed.length) await enqueue(failed);
@@ -173,10 +282,18 @@ export async function syncDelta(): Promise<SyncResult> {
 
     // 2. Filtra aos tipos inscritos.
     const ofType = workouts.filter((w) => subscribed.has(getActivityMeta(w.activityId).label));
-    const rows = ofType.map((w) => toActivityRow(w, userId));
+
+    // 3. Coleta as rotas uma vez; deriva best efforts (corrida) do mesmo track.
+    const routes = await collectRoutes(ofType);
+    // 3b. Tempo em zonas de FC (todos os tipos), com os parâmetros do usuário.
+    const hrParams = await fetchHrZoneParams();
+    const hrZones = await collectHrZones(ofType, hrParams);
+    const rows = ofType.map((w) =>
+      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id)),
+    );
 
     const a = await pushActivities(rows);
-    const r = await pushRoutes(ofType, userId);
+    const r = await pushRoutes(routes, userId);
 
     const failed = [...a.failed, ...r.failed];
     if (failed.length) await enqueue(failed);

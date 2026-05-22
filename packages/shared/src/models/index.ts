@@ -177,6 +177,19 @@ export interface Activity {
   tracked?: boolean;
   hasRoute: boolean;
   metadata?: Record<string, unknown>;
+  /**
+   * Recordes de corrida (best efforts): menor tempo (s) para cobrir cada
+   * distância padrão, derivado do track GPS. Chaves: distância em metros como
+   * string (`"1000"`, `"5000"`, …) e `"half"` / `"marathon"`. Ausente em
+   * corridas sem GPS e em linhas antigas (preenchido ao re-sincronizar).
+   */
+  bestEfforts?: Record<string, number>;
+  /**
+   * Tempo (segundos) em cada zona de FC, derivado das amostras de frequência
+   * cardíaca do treino. Chaves: `"z1"`…`"z5"` (ver `HR_ZONES` no shared). Ausente
+   * em treinos sem amostras de FC e em linhas antigas (preenchido ao re-sincronizar).
+   */
+  hrZones?: Record<string, number>;
   /** true quando editado manualmente na web; o sync deixa de sobrescrever. */
   locallyEdited?: boolean;
   editedAt?: string;
@@ -188,6 +201,8 @@ export interface ActivityRoutePoint {
   lat: number;
   lng: number;
   alt?: number;
+  /** Timestamp do ponto em epoch ms. Ausente em rotas antigas. Base dos best efforts. */
+  t?: number;
 }
 
 /** Rota GPS de um treino outdoor. Mapeia a tabela `activity_routes`. */

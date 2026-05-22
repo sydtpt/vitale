@@ -12,8 +12,10 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HR_ZONES, hrZoneRange } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { getActivityMeta, getActivityColor, elevationGain } from '../../../lib/workout-types';
+import { movingTimeFromRoutePoints } from '../../../lib/moving-time';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import {
   formatFullDate,
@@ -22,6 +24,8 @@ import {
   formatDistance,
   formatRate,
   formatElevation,
+  formatClock,
+  totalTimeS,
 } from '../../../lib/workout-format';
 import { colors, spacing, radii, shadows } from '../../../theme';
 
@@ -105,7 +109,13 @@ export default function AtividadeDetalheScreen() {
   const meta = getActivityMeta(activity.activityId);
   const color = getActivityColor(activity.activityId);
   const distance = formatDistance(activity.distanceM);
-  const movingS = activity.movingTimeS ?? activity.durationS;
+  // Tempo total = relógio de parede (fim − início) só para atividades com GPS;
+  // sem GPS, `durationS` é a duração editável e canônica.
+  const totalS = hasGps ? totalTimeS(activity.startAt, activity.endAt, activity.durationS) : activity.durationS;
+  // Tempo em movimento: derivado do track GPS (descarta paradas), com fallback
+  // para o valor sincronizado e, por fim, a duração. Limitado pelo tempo total.
+  const movingFromTrack = hasGps ? movingTimeFromRoutePoints(routePoints) : undefined;
+  const movingS = Math.min(movingFromTrack ?? activity.movingTimeS ?? activity.durationS, totalS);
   const rate = hasGps ? formatRate(activity.activityId, activity.distanceM, movingS) : null;
   const points = (routePoints ?? []).map((p) => ({
     latitude: p.lat,
@@ -113,6 +123,25 @@ export default function AtividadeDetalheScreen() {
     altitude: p.alt,
   }));
   const elevation = formatElevation(elevationGain(points));
+
+  // Tempo em cada zona de FC (com % do total). null quando a atividade não tem dados.
+  const hrZones = (() => {
+    const z = activity.hrZones;
+    if (!z) return null;
+    const total = HR_ZONES.reduce((sum, def) => sum + (z[def.key] ?? 0), 0);
+    if (total <= 0) return null;
+    return HR_ZONES.map((def) => {
+      const seconds = z[def.key] ?? 0;
+      return {
+        key: def.key,
+        label: def.label,
+        color: def.color,
+        range: hrZoneRange(def),
+        pct: Math.round((seconds / total) * 100),
+        time: formatClock(seconds),
+      };
+    });
+  })();
 
   const nameDirty = name.trim() !== (activity.activityName ?? '');
   const durDirty =
@@ -150,7 +179,7 @@ export default function AtividadeDetalheScreen() {
     { label: 'Código', value: String(activity.activityId) },
     { label: 'Início', value: `${formatFullDate(activity.startAt)} · ${formatTime(activity.startAt)}` },
     { label: 'Fim', value: `${formatFullDate(activity.endAt)} · ${formatTime(activity.endAt)}` },
-    { label: 'Tempo total', value: formatDuration(activity.durationS) },
+    { label: 'Tempo total', value: formatDuration(totalS) },
     ...(hasGps ? [{ label: 'Tempo em movimento', value: formatDuration(movingS) }] : []),
     { label: 'Calorias', value: activity.calories > 0 ? `${activity.calories} kcal` : '—' },
     { label: 'Distância', value: distance ?? '—' },
@@ -204,10 +233,7 @@ export default function AtividadeDetalheScreen() {
 
           <View style={styles.heroStats}>
             {hasGps ? (
-              <>
-                <Stat icon="walk-outline" value={formatDuration(movingS)} caption="movimento" color={color} />
-                <Stat icon="time-outline" value={formatDuration(activity.durationS)} caption="tempo total" color={color} />
-              </>
+              <Stat icon="time-outline" value={formatDuration(movingS)} caption="movimento" color={color} />
             ) : (
               <Stat icon="time-outline" value={formatDuration(activity.durationS)} caption="duração" color={color} />
             )}
@@ -234,6 +260,31 @@ export default function AtividadeDetalheScreen() {
             <Text style={styles.sectionTitle}>Percurso</Text>
             <View style={styles.mapCard}>
               <WorkoutMap points={points} />
+            </View>
+          </>
+        )}
+
+        {hrZones && (
+          <>
+            <Text style={styles.sectionTitle}>Zonas de frequência cardíaca</Text>
+            <View style={styles.zonesCard}>
+              {hrZones.map((z) => (
+                <View key={z.key} style={styles.zoneRow}>
+                  <View style={styles.zoneTop}>
+                    <View style={[styles.zoneDot, { backgroundColor: z.color }]} />
+                    <Text style={styles.zoneLabel}>{z.label}</Text>
+                    <Text style={styles.zoneRange}>{z.range}</Text>
+                    <View style={styles.flex} />
+                    <Text style={styles.zoneTime}>{z.time}</Text>
+                    <Text style={styles.zonePct}>{z.pct}%</Text>
+                  </View>
+                  <View style={styles.zoneBar}>
+                    <View
+                      style={[styles.zoneFill, { width: `${z.pct}%`, backgroundColor: z.color }]}
+                    />
+                  </View>
+                </View>
+              ))}
             </View>
           </>
         )}
@@ -406,6 +457,28 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
     ...shadows.card,
   },
+
+  zonesCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii['2xl'],
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadows.card,
+  },
+  zoneRow: { gap: 6 },
+  zoneTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  zoneDot: { width: 9, height: 9, borderRadius: 5 },
+  zoneLabel: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  zoneRange: { fontSize: 11, color: colors.ink3 },
+  zoneTime: { fontSize: 13.5, fontFamily: 'GeistMono', color: colors.ink },
+  zonePct: { fontSize: 11.5, color: colors.ink3, minWidth: 32, textAlign: 'right' },
+  zoneBar: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.surfaceMute,
+    overflow: 'hidden',
+  },
+  zoneFill: { height: '100%', borderRadius: 4, minWidth: 3 },
 
   editCard: {
     backgroundColor: colors.surface,

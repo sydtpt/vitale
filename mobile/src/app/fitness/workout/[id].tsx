@@ -17,7 +17,9 @@ import {
   formatDistance,
   formatRate,
   formatElevation,
+  totalTimeS,
 } from '../../../lib/workout-format';
+import { movingTimeFromTrack } from '../../../lib/moving-time';
 import { colors, spacing, radii, MOD, shadows } from '../../../theme';
 
 type InfoRow = { label: string; value: string };
@@ -61,14 +63,18 @@ export default function WorkoutDetailScreen() {
     const meta = getActivityMeta(workout.activityId);
     const distance = formatDistance(workout.distance);
     const isGps = hasGpsRoute(workout.activityId);
-    const movingS = workout.movingTimeS ?? workout.duration;
+    const totalS = isGps ? totalTimeS(workout.start, workout.end, workout.duration) : workout.duration;
+    const movingS = Math.min(
+      (isGps ? movingTimeFromTrack(route) : undefined) ?? workout.movingTimeS ?? workout.duration,
+      totalS,
+    );
     const list: InfoRow[] = [
       { label: 'Tipo', value: meta.label },
       { label: 'Nome (Health)', value: workout.activityName || '—' },
       { label: 'Código da atividade', value: String(workout.activityId) },
       { label: 'Início', value: `${formatFullDate(workout.start)} · ${formatTime(workout.start)}` },
       { label: 'Fim', value: `${formatFullDate(workout.end)} · ${formatTime(workout.end)}` },
-      { label: 'Tempo total', value: formatDuration(workout.duration) },
+      { label: 'Tempo total', value: formatDuration(totalS) },
       ...(isGps ? [{ label: 'Tempo em movimento', value: formatDuration(movingS) }] : []),
       { label: 'Calorias', value: workout.calories > 0 ? `${workout.calories} kcal` : '—' },
       { label: 'Distância', value: distance ?? '—' },
@@ -96,7 +102,7 @@ export default function WorkoutDetailScreen() {
     }
 
     return list;
-  }, [workout]);
+  }, [workout, route]);
 
   if (!workout) {
     return (
@@ -118,7 +124,11 @@ export default function WorkoutDetailScreen() {
   const meta = getActivityMeta(workout.activityId);
   const distance = formatDistance(workout.distance);
   const isGps = hasGpsRoute(workout.activityId);
-  const movingS = workout.movingTimeS ?? workout.duration;
+  const totalS = isGps ? totalTimeS(workout.start, workout.end, workout.duration) : workout.duration;
+  const movingS = Math.min(
+    (isGps ? movingTimeFromTrack(route) : undefined) ?? workout.movingTimeS ?? workout.duration,
+    totalS,
+  );
   const rate = isGps ? formatRate(workout.activityId, workout.distance, movingS) : null;
   const elevation = formatElevation(elevationGain(route));
 
@@ -155,7 +165,7 @@ export default function WorkoutDetailScreen() {
             {isGps ? (
               <>
                 <Stat icon="walk-outline" value={formatDuration(movingS)} caption="movimento" />
-                <Stat icon="time-outline" value={formatDuration(workout.duration)} caption="tempo total" />
+                <Stat icon="time-outline" value={formatDuration(totalS)} caption="tempo total" />
               </>
             ) : (
               <Stat icon="time-outline" value={formatDuration(workout.duration)} caption="duração" />

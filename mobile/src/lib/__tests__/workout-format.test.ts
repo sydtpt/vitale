@@ -1,5 +1,28 @@
 import { describe, it, expect } from '@jest/globals';
-import { formatPace, formatSpeed, formatRate } from '../workout-format';
+import { formatPace, formatSpeed, formatRate, totalTimeS } from '../workout-format';
+
+describe('totalTimeS', () => {
+  const start = '2026-05-01T10:00:00.000Z';
+  const end = '2026-05-01T10:30:00.000Z'; // 1800s decorridos
+
+  it('usa o tempo decorrido (fim − início), não a duração ativa do HealthKit', () => {
+    // HKWorkout.duration já exclui pausas (1500s ativos), mas o total é 1800s.
+    expect(totalTimeS(start, end, 1500)).toBe(1800);
+  });
+
+  it('sem pausas o total coincide com a duração', () => {
+    expect(totalTimeS(start, end, 1800)).toBe(1800);
+  });
+
+  it('nunca fica abaixo de durationS', () => {
+    // Datas com decorrido menor que a duração registrada → mantém a duração.
+    expect(totalTimeS(start, '2026-05-01T10:20:00.000Z', 1500)).toBe(1500);
+  });
+
+  it('cai para durationS quando as datas são inválidas', () => {
+    expect(totalTimeS('x', 'y', 1234)).toBe(1234);
+  });
+});
 
 describe('formatPace', () => {
   it('5 km em 25 min → 5:00 /km', () => {

@@ -13,7 +13,7 @@ export interface WorkoutItem {
   calories: number;
   start: string;
   end: string;
-  duration: number; // seconds — tempo total (HKWorkout.duration)
+  duration: number; // seconds — duração ativa (HKWorkout.duration, já exclui pausas). Para o "tempo total" use totalTimeS(start, end, duration).
   movingTimeS: number; // seconds — tempo em movimento (total menos pausas)
   distance?: number; // meters
   sourceName?: string;
@@ -99,6 +99,8 @@ export interface RoutePoint {
   latitude: number;
   longitude: number;
   altitude?: number;
+  /** Timestamp do ponto (ISO) vindo do HealthKit. Base do cálculo de best efforts. */
+  timestamp?: string;
 }
 
 /**

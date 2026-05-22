@@ -9,7 +9,7 @@ export interface ActivityPatch {
 
 const SELECT =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,' +
-  'source_name,source_id,device,tracked,has_route,locally_edited,edited_at,hidden';
+  'source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,locally_edited,edited_at,hidden';
 
 interface DbActivityRow {
   id: string;
@@ -27,6 +27,8 @@ interface DbActivityRow {
   device: string | null;
   tracked: boolean | null;
   has_route: boolean | null;
+  best_efforts: Record<string, number> | null;
+  hr_zones: Record<string, number> | null;
   locally_edited: boolean | null;
   edited_at: string | null;
   hidden: boolean | null;
@@ -49,6 +51,8 @@ function mapRow(r: DbActivityRow): Activity {
     device: r.device ?? undefined,
     tracked: r.tracked ?? undefined,
     hasRoute: r.has_route ?? false,
+    bestEfforts: r.best_efforts ?? undefined,
+    hrZones: r.hr_zones ?? undefined,
     locallyEdited: r.locally_edited ?? false,
     editedAt: r.edited_at ?? undefined,
     hidden: r.hidden ?? false,
@@ -113,9 +117,17 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
 
   updateActivity: async (id, patch) => {
     const editedAt = new Date().toISOString();
+    // `locally_edited` mantém o selo "editado"; as flags por campo dizem ao sync
+    // QUAIS campos preservar (ele continua atualizando os demais).
     const dbPatch: Record<string, unknown> = { locally_edited: true, edited_at: editedAt };
-    if (patch.activityName !== undefined) dbPatch.activity_name = patch.activityName;
-    if (patch.durationS !== undefined) dbPatch.duration_s = patch.durationS;
+    if (patch.activityName !== undefined) {
+      dbPatch.activity_name = patch.activityName;
+      dbPatch.name_edited = true;
+    }
+    if (patch.durationS !== undefined) {
+      dbPatch.duration_s = patch.durationS;
+      dbPatch.duration_edited = true;
+    }
 
     const { error } = await supabase.from('activities').update(dbPatch).eq('id', id);
     if (error) throw new Error(error.message);

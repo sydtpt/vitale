@@ -46,10 +46,6 @@
           <span class="stat-v">{{ fmtDuration(movingTimeS()) }}</span>
           <span class="stat-c">movimento</span>
         </div>
-        <div class="stat">
-          <span class="stat-v">{{ fmtDuration(a.durationS) }}</span>
-          <span class="stat-c">tempo total</span>
-        </div>
       } @else {
         <div class="stat hl">
           <span class="stat-v">{{ fmtDuration(a.durationS) }}</span>
@@ -89,6 +85,30 @@
       </section>
     }
 
+    @if (hrZones(); as hz) {
+      <section class="zones">
+        <h3 class="zones-title">Zonas de frequência cardíaca</h3>
+        <div class="zone-list">
+          @for (z of hz.rows; track z.key) {
+            <div class="zone-row">
+              <div class="zone-name">
+                <span class="zone-dot" [style.background]="z.color"></span>
+                <span class="zone-label">{{ z.label }}</span>
+                <span class="zone-range">{{ z.range }}</span>
+              </div>
+              <div class="zone-bar">
+                <span class="zone-fill" [style.width.%]="z.pct" [style.background]="z.color"></span>
+              </div>
+              <div class="zone-meta">
+                <span class="zone-time">{{ z.time }}</span>
+                <span class="zone-pct">{{ z.pct }}%</span>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
     <div class="form">
       <h3 class="form-title">Editar</h3>
 
@@ -125,7 +145,7 @@
         }
         <div class="info-row"><dt>Início</dt><dd>{{ fmtDate(a.startAt) }} · {{ fmtTime(a.startAt) }}</dd></div>
         <div class="info-row"><dt>Fim</dt><dd>{{ fmtDate(a.endAt) }} · {{ fmtTime(a.endAt) }}</dd></div>
-        <div class="info-row"><dt>Tempo total</dt><dd class="mono">{{ fmtDuration(a.durationS) }}</dd></div>
+        <div class="info-row"><dt>Tempo total</dt><dd class="mono">{{ fmtDuration(totalTimeS()) }}</dd></div>
         @if (hasGps()) {
           <div class="info-row"><dt>Tempo em movimento</dt><dd class="mono">{{ fmtDuration(movingTimeS()) }}</dd></div>
           @if (rate(); as r) {

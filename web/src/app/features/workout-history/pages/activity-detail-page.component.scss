@@ -104,15 +104,18 @@
 .stat.hl .stat-v { color: var(--primary-deep); }
 .stat-c { font-size: 11.5px; color: var(--ink-3); }
 
-/* Bloco completo de informações — abaixo dos campos editáveis. */
-.info {
-  margin-top: 24px;
+/* Cartões (informações, zonas, edição) compartilham a mesma moldura. */
+.info, .zones, .form {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 20px;
 }
-.info-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.info-title, .zones-title, .form-title, .route-title { font-size: 14px; font-weight: 600; }
+
+/* Bloco completo de informações — abaixo dos campos editáveis. */
+.info { margin-top: 24px; }
+.info-title { margin-bottom: 12px; }
 .info-grid { display: flex; flex-direction: column; }
 .info-row {
   display: flex;
@@ -134,7 +137,7 @@
 .info-row dd.id { font-size: 12px; color: var(--ink-2); font-weight: 400; }
 
 .route { margin-bottom: 24px; }
-.route-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.route-title { margin-bottom: 12px; }
 .route-state {
   font-size: 12.5px;
   color: var(--ink-3);
@@ -145,13 +148,28 @@
   text-align: center;
 }
 
-.form {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 20px;
+/* Tempo em zonas de FC. */
+.zones { margin-bottom: 24px; }
+.zones-title { margin-bottom: 16px; }
+.zone-list { display: flex; flex-direction: column; gap: 12px; }
+.zone-row { display: grid; grid-template-columns: 140px 1fr 64px; align-items: center; gap: 10px; }
+.zone-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.zone-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.zone-label {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.form-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.zone-range { font-size: 11px; color: var(--ink-3); flex-shrink: 0; }
+.zone-bar { height: 8px; border-radius: 5px; background: var(--surface-mute); overflow: hidden; }
+.zone-fill { display: block; height: 100%; border-radius: 5px; min-width: 2px; }
+.zone-meta { display: flex; align-items: baseline; justify-content: flex-end; gap: 5px; }
+.zone-time { font-size: 13px; font-weight: 600; color: var(--ink); }
+.zone-pct { font-size: 11px; color: var(--ink-3); }
+
+.form-title { margin-bottom: 16px; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .field label {
   font-size: 11px;

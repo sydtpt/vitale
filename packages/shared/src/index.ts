@@ -4,3 +4,4 @@ export * from './constants/habit-icons';
 export * from './health/metric-catalog';
 export * from './health/readiness';
 export * from './health/trends';
+export * from './health/hr-zones';

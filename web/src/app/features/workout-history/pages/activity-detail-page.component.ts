@@ -2,11 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSig
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { ActivityRoutePoint } from '@vitale/shared';
+import { HR_ZONES, hrZoneRange } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { metaForActivity } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
-import { fmtDate, fmtDuration, fmtKcal, fmtKm, fmtRate, fmtTime } from '../data/format';
+import { fmtClock, fmtDate, fmtDuration, fmtKcal, fmtKm, fmtRate, fmtTime, totalTimeS } from '../data/format';
+import { movingTimeFromRoutePoints } from '../data/moving-time';
 
 @Component({
   selector: 'rt-activity-detail-page',
@@ -35,15 +37,50 @@ export class ActivityDetailPageComponent {
     return !!a && (a.hasRoute || (a.distanceM ?? 0) > 0);
   });
 
-  /** Tempo em movimento (s); cai para a duração total em linhas antigas. */
+  /**
+   * Tempo total (s): relógio de parede (fim − início) para atividades com GPS;
+   * sem GPS, `durationS` é a duração editável e canônica.
+   */
+  protected readonly totalTimeS = computed(() => {
+    const a = this.activity();
+    if (!a) return 0;
+    return this.hasGps() ? totalTimeS(a.startAt, a.endAt, a.durationS) : a.durationS;
+  });
+  /**
+   * Tempo em movimento (s): derivado do track GPS (descarta paradas), com
+   * fallback para o valor sincronizado e, por fim, a duração. Limitado ao total.
+   */
   protected readonly movingTimeS = computed(() => {
     const a = this.activity();
-    return a ? a.movingTimeS ?? a.durationS : 0;
+    if (!a) return 0;
+    const fromTrack = this.hasGps() ? movingTimeFromRoutePoints(this.routePoints()) : undefined;
+    return Math.min(fromTrack ?? a.movingTimeS ?? a.durationS, this.totalTimeS());
   });
   /** Pace/velocidade/min-km calculado sobre o tempo em movimento (só com GPS). */
   protected readonly rate = computed(() => {
     const a = this.activity();
     return a && this.hasGps() ? fmtRate(a.activityId, a.distanceM, this.movingTimeS()) : null;
+  });
+
+  /** Tempo em cada zona de FC (com %), ordenado por zona; null se sem dados. */
+  protected readonly hrZones = computed(() => {
+    const z = this.activity()?.hrZones;
+    if (!z) return null;
+    const total = HR_ZONES.reduce((sum, def) => sum + (z[def.key] ?? 0), 0);
+    if (total <= 0) return null;
+    const rows = HR_ZONES.map((def) => {
+      const seconds = z[def.key] ?? 0;
+      return {
+        key: def.key,
+        label: def.label,
+        color: def.color,
+        range: hrZoneRange(def),
+        seconds,
+        pct: Math.round((seconds / total) * 100),
+        time: fmtClock(seconds),
+      };
+    });
+    return { rows, total };
   });
 
   protected readonly name = linkedSignal(() => this.activity()?.activityName ?? '');

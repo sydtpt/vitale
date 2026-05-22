@@ -31,6 +31,21 @@
       </div>
     </header>
 
+    @if (highlights().length > 0) {
+      <section class="highlights">
+        <h2 class="hl-title">Recordes</h2>
+        <div class="hl-row">
+          @for (h of highlights(); track h.key) {
+            <a class="hl-card" [routerLink]="['/workout-history', 'corrida', h.activityId]">
+              <span class="hl-label">{{ h.label }}</span>
+              <span class="hl-value">{{ h.value }}</span>
+              @if (h.caption) { <span class="hl-caption">{{ h.caption }}</span> }
+            </a>
+          }
+        </div>
+      </section>
+    }
+
     <rt-activity-filters [filters]="filters()" [sources]="result().sources"
       [showDistance]="showDistance()" (filtersChange)="setFilters($event)" />
 

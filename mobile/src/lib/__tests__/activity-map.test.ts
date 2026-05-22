@@ -91,6 +91,19 @@ describe('activity-map', () => {
     expect(row.points[1]).toEqual({ lat: 4, lng: 5 });
   });
 
+  it('toRouteRow inclui o timestamp como epoch ms quando presente', () => {
+    const ts = '2026-05-01T10:00:30.000Z';
+    const row = toRouteRow('w1', 'u', [{ latitude: 1, longitude: 2, timestamp: ts }]);
+    expect(row.points[0]).toEqual({ lat: 1, lng: 2, t: new Date(ts).getTime() });
+  });
+
+  it('grava best_efforts quando fornecido, senão null', () => {
+    expect(toActivityRow(baseWorkout, 'u').best_efforts).toBeNull();
+    expect(toActivityRow(baseWorkout, 'u', {}).best_efforts).toBeNull();
+    const withPrs = toActivityRow(baseWorkout, 'u', { '1000': 270, '5000': 1500 });
+    expect(withPrs.best_efforts).toEqual({ '1000': 270, '5000': 1500 });
+  });
+
   it('activityLabel resolve o label do tipo', () => {
     expect(activityLabel(37)).toBe('Corrida');
     expect(activityLabel(99999)).toBe('Treino');

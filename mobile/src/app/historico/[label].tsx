@@ -5,6 +5,7 @@ import {
   FlatList,
   Pressable,
   TextInput,
+  ScrollView,
   StyleSheet,
   ListRenderItemInfo,
 } from 'react-native';
@@ -26,6 +27,7 @@ import {
   formatDuration,
   formatDistance,
 } from '../../lib/workout-format';
+import { runningHighlights, type RunningHighlight } from '../../lib/running-highlights';
 import { colors, spacing, radii, shadows } from '../../theme';
 
 const PAGE_SIZE = 12;
@@ -57,6 +59,9 @@ function ActivityCard({
   onPress: () => void;
 }) {
   const distance = formatDistance(item.distanceM);
+  // Atividades com GPS exibem o tempo em movimento; as demais, a duração total.
+  const isGps = item.hasRoute || (item.distanceM ?? 0) > 0;
+  const timeS = isGps ? item.movingTimeS ?? item.durationS : item.durationS;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.cardHeader}>
@@ -80,7 +85,7 @@ function ActivityCard({
       <View style={styles.statsRow}>
         <View style={styles.stat}>
           <Ionicons name="time-outline" size={14} color={colors.ink3} />
-          <Text style={styles.statValue}>{formatDuration(item.durationS)}</Text>
+          <Text style={styles.statValue}>{formatDuration(timeS)}</Text>
         </View>
         {item.calories > 0 && (
           <View style={styles.stat}>
@@ -96,6 +101,45 @@ function ActivityCard({
         )}
       </View>
     </Pressable>
+  );
+}
+
+function HighlightsRow({
+  items,
+  color,
+  onPick,
+}: {
+  items: RunningHighlight[];
+  color: string;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <View style={styles.hlWrap}>
+      <Text style={styles.hlTitle}>Recordes</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.hlRow}
+      >
+        {items.map((h) => (
+          <Pressable
+            key={h.key}
+            onPress={() => onPick(h.activityId)}
+            style={({ pressed }) => [styles.hlCard, pressed && styles.pressed]}
+          >
+            <Text style={styles.hlLabel} numberOfLines={1}>
+              {h.label}
+            </Text>
+            <Text style={[styles.hlValue, { color }]}>{h.value}</Text>
+            {h.caption ? (
+              <Text style={styles.hlCaption} numberOfLines={1}>
+                {h.caption}
+              </Text>
+            ) : null}
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -163,6 +207,15 @@ export default function TipoListScreen() {
       : { icon: 'dumbbell' as const, color: colors.ink2 };
   }, [typed]);
 
+  // Recordes de corrida — de todo o histórico do tipo, independente dos filtros.
+  const highlights = useMemo(() => runningHighlights(typed), [typed]);
+
+  const goToWorkout = useCallback(
+    (id: string) =>
+      router.push({ pathname: '/historico/[label]/[id]', params: { label, id } }),
+    [router, label],
+  );
+
   const clearFilters = () => {
     setFromStr('');
     setToStr('');
@@ -223,7 +276,11 @@ export default function TipoListScreen() {
         onEndReached={loadMore}
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
-          <View style={styles.filterWrap}>
+          <View>
+            {highlights.length > 0 && (
+              <HighlightsRow items={highlights} color={meta.color} onPick={goToWorkout} />
+            )}
+            <View style={styles.filterWrap}>
             <Pressable
               onPress={() => setShowFilters((v) => !v)}
               style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
@@ -348,6 +405,7 @@ export default function TipoListScreen() {
                 </Pressable>
               </View>
             )}
+            </View>
           </View>
         }
         ListEmptyComponent={
@@ -387,6 +445,28 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 12, color: colors.ink3, fontFamily: 'GeistMono', marginTop: 2 },
 
   list: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: 10 },
+
+  hlWrap: { marginBottom: 14, gap: spacing.sm },
+  hlTitle: {
+    fontSize: 11,
+    color: colors.ink3,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontWeight: '600',
+  },
+  hlRow: { gap: spacing.sm, paddingRight: spacing.lg },
+  hlCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    minWidth: 120,
+    gap: 4,
+    ...shadows.card,
+  },
+  hlLabel: { fontSize: 11.5, color: colors.ink3, fontWeight: '600' },
+  hlValue: { fontSize: 20, fontFamily: 'GeistMono', color: colors.ink, marginTop: 2 },
+  hlCaption: { fontSize: 11, color: colors.ink3, fontFamily: 'GeistMono' },
 
   filterWrap: { marginBottom: 10, gap: 10 },
   filterToggle: {

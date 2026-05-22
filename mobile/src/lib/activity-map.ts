@@ -23,6 +23,10 @@ export interface ActivityRow {
   tracked: boolean | null;
   has_route: boolean;
   metadata: Record<string, unknown> | null;
+  /** Recordes de corrida (distância→segundos). Null fora de corrida ou sem GPS. */
+  best_efforts: Record<string, number> | null;
+  /** Tempo em zonas de FC (chave da zona→segundos). Null sem amostras de FC. */
+  hr_zones: Record<string, number> | null;
   // Controle de edição manual — preenchidos só na leitura analítica
   // (Histórico de Treinos). O push-sync não os envia; o RPC os ignora.
   locally_edited?: boolean;
@@ -43,7 +47,12 @@ export function activityLabel(activityId: number): string {
   return getActivityMeta(activityId).label;
 }
 
-export function toActivityRow(w: WorkoutItem, userId: string): ActivityRow {
+export function toActivityRow(
+  w: WorkoutItem,
+  userId: string,
+  bestEfforts?: Record<string, number>,
+  hrZones?: Record<string, number>,
+): ActivityRow {
   const metadata: Record<string, unknown> = { ...(w.metadata ?? {}) };
   if (w.workoutEventsCount !== undefined) metadata.workoutEventsCount = w.workoutEventsCount;
 
@@ -64,6 +73,8 @@ export function toActivityRow(w: WorkoutItem, userId: string): ActivityRow {
     tracked: w.tracked ?? null,
     has_route: hasGpsRoute(w.activityId),
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
+    best_efforts: bestEfforts && Object.keys(bestEfforts).length > 0 ? bestEfforts : null,
+    hr_zones: hrZones && Object.keys(hrZones).length > 0 ? hrZones : null,
   };
 }
 
@@ -89,6 +100,7 @@ export function toRouteRow(activityId: string, userId: string, points: RoutePoin
       lat: p.latitude,
       lng: p.longitude,
       ...(p.altitude !== undefined ? { alt: p.altitude } : {}),
+      ...(p.timestamp ? { t: new Date(p.timestamp).getTime() } : {}),
     })),
     point_count: points.length,
   };

@@ -35,6 +35,18 @@ export function formatTime(iso: string): string {
   });
 }
 
+/**
+ * Tempo total (s) de uma atividade: o tempo de relógio decorrido (fim − início),
+ * que inclui as pausas. `HKWorkout.duration` (→ `durationS`) já desconta as
+ * pausas — usá-lo como "tempo total" fazia o total coincidir com o tempo em
+ * movimento. Nunca fica abaixo de `durationS`; cai para ele com datas inválidas.
+ */
+export function totalTimeS(startISO: string, endISO: string, durationS: number): number {
+  const dur = Math.max(0, Math.round(durationS));
+  const elapsed = Math.round((Date.parse(endISO) - Date.parse(startISO)) / 1000);
+  return Number.isFinite(elapsed) && elapsed > 0 ? Math.max(elapsed, dur) : dur;
+}
+
 export function formatDuration(seconds: number): string {
   const total = Math.round(seconds);
   const h = Math.floor(total / 3600);
@@ -42,6 +54,16 @@ export function formatDuration(seconds: number): string {
   if (h > 0) return m > 0 ? `${h}h ${m}min` : `${h}h`;
   if (m > 0) return `${m}min`;
   return `${total}s`;
+}
+
+/** Tempo de recorde no formato relógio: `h:mm:ss` ou `m:ss`. */
+export function formatClock(seconds: number): string {
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 }
 
 export function formatDistance(meters?: number): string | null {

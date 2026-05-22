@@ -12,7 +12,7 @@
     </div>
     <div class="metrics mono">
       @if (hasDistance()) { <span class="m strong">{{ fmtKm(activity().distanceM ?? 0) }} km</span> }
-      <span class="m">{{ fmtDuration(activity().durationS) }}</span>
+      <span class="m">{{ fmtDuration(timeS()) }}</span>
       @if (activity().calories > 0) { <span class="m">{{ fmtKcal(activity().calories) }} kcal</span> }
     </div>
     <rt-icon class="chev" name="chev-r" [size]="16" color="var(--ink-4)" />
@@ -31,7 +31,7 @@
       @if (hasDistance()) {
         <div><span class="v">{{ fmtKm(activity().distanceM ?? 0) }}</span><span class="u"> km</span></div>
       }
-      <div><span class="v">{{ fmtDuration(activity().durationS) }}</span></div>
+      <div><span class="v">{{ fmtDuration(timeS()) }}</span></div>
       @if (activity().calories > 0) {
         <div><span class="v">{{ fmtKcal(activity().calories) }}</span><span class="u"> kcal</span></div>
       }

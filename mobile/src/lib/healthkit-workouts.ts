@@ -15,6 +15,7 @@ import {
   type WorkoutItem,
   type RoutePoint,
 } from './workout-types';
+import { maxHrFromAge, type HrSample, type HrZoneParams } from './heart-rate-zones';
 
 // Re-export dos tipos/helpers puros para um único ponto de import.
 export * from './workout-types';
@@ -24,6 +25,10 @@ export const PERMISSIONS = {
     read: [
       AppleHealthKit.Constants.Permissions.Workout,
       AppleHealthKit.Constants.Permissions.WorkoutRoute,
+      // Necessárias para derivar o tempo em zonas de FC de cada treino (Karvonen).
+      AppleHealthKit.Constants.Permissions.HeartRate,
+      AppleHealthKit.Constants.Permissions.RestingHeartRate,
+      AppleHealthKit.Constants.Permissions.DateOfBirth,
     ],
     write: [] as string[],
   },
@@ -45,10 +50,70 @@ export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
             latitude: l.latitude,
             longitude: l.longitude,
             altitude: typeof l.altitude === 'number' ? l.altitude : undefined,
+            timestamp: typeof l.timestamp === 'string' ? l.timestamp : undefined,
           }))
       );
     });
   });
+}
+
+/**
+ * Amostras de FC (bpm) dentro da janela do treino [start, end]. Base do cálculo
+ * de tempo em zonas. Retorna [] fora do iOS ou quando não há amostras.
+ */
+export function fetchWorkoutHeartRate(start: string, end: string): Promise<HrSample[]> {
+  if (Platform.OS !== 'ios') return Promise.resolve([]);
+  return new Promise((resolve) => {
+    AppleHealthKit.getHeartRateSamples(
+      { startDate: start, endDate: end, unit: 'bpm' as any, ascending: true } as any,
+      (err, results) => {
+        if (err || !Array.isArray(results)) {
+          resolve([]);
+          return;
+        }
+        resolve(
+          results
+            .map((s: any) => ({ bpm: s.value, t: Date.parse(s.startDate) }))
+            .filter((s) => Number.isFinite(s.bpm) && s.bpm > 0 && Number.isFinite(s.t)),
+        );
+      },
+    );
+  });
+}
+
+/** Idade (anos) do perfil do Health. undefined se indisponível. */
+function fetchAge(): Promise<number | undefined> {
+  if (Platform.OS !== 'ios') return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    AppleHealthKit.getDateOfBirth({} as any, (err, r: any) =>
+      resolve(err || typeof r?.age !== 'number' ? undefined : r.age),
+    );
+  });
+}
+
+/** FC de repouso mais recente (bpm) dos últimos 180 dias. undefined se nenhuma. */
+function fetchRestingHeartRate(): Promise<number | undefined> {
+  if (Platform.OS !== 'ios') return Promise.resolve(undefined);
+  const startDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+  return new Promise((resolve) => {
+    AppleHealthKit.getRestingHeartRateSamples(
+      { startDate, endDate: new Date().toISOString(), unit: 'bpm' as any, ascending: false, limit: 1 } as any,
+      (err, results) => {
+        const v = Array.isArray(results) && results.length > 0 ? (results[0] as any).value : undefined;
+        resolve(err || typeof v !== 'number' || v <= 0 ? undefined : v);
+      },
+    );
+  });
+}
+
+/**
+ * Parâmetros de zona do usuário (FCmáx e FCrep), lidos uma vez por sync. FCmáx
+ * vem da idade (220 − idade, com fallback); FCrep da amostra mais recente. Sem
+ * FCrep o cálculo de zonas cai para % da FCmáx.
+ */
+export async function fetchHrZoneParams(): Promise<HrZoneParams> {
+  const [age, restHr] = await Promise.all([fetchAge(), fetchRestingHeartRate()]);
+  return { maxHr: maxHrFromAge(age), restHr };
 }
 
 function mapRawWorkout(w: any): WorkoutItem {

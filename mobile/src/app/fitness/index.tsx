@@ -59,22 +59,26 @@ function ActivityTypeCard({
   onPress,
   onSync,
   status,
+  progress,
 }: {
   group: ActivityGroup;
   onPress: () => void;
   onSync: () => void;
   status: TypeSyncStatus;
+  progress: number;
 }) {
   const syncing = status === 'syncing';
   const meta = syncing ? null : SYNC_ICON[status];
-  const subtitle =
-    status === 'synced'
-      ? 'Sincronizado'
-      : status === 'pending'
-      ? 'Pendente'
-      : status === 'error'
-      ? 'Erro — toque para tentar de novo'
-      : `${group.total} ${group.total === 1 ? 'atividade' : 'atividades'}`;
+  const pct = Math.round(Math.min(Math.max(progress, 0), 1) * 100);
+  const subtitle = syncing
+    ? `Sincronizando… ${pct}%`
+    : status === 'synced'
+    ? 'Sincronizado'
+    : status === 'pending'
+    ? 'Pendente'
+    : status === 'error'
+    ? 'Erro — toque para tentar de novo'
+    : `${group.total} ${group.total === 1 ? 'atividade' : 'atividades'}`;
 
   return (
     <Pressable
@@ -87,6 +91,11 @@ function ActivityTypeCard({
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle}>{group.label}</Text>
         <Text style={styles.cardMeta}>{subtitle}</Text>
+        {syncing && (
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${pct}%` }]} />
+          </View>
+        )}
       </View>
       <Pressable
         onPress={onSync}
@@ -148,6 +157,7 @@ export default function FitnessScreen() {
     requestPermission,
     syncType,
     typeStatus,
+    syncProgress,
     syncedTypes,
   } = useFitnessStore();
 
@@ -166,7 +176,7 @@ export default function FitnessScreen() {
     if (syncedTypes.size === 0) return;
     Alert.alert(
       'Re-sincronizar histórico',
-      'Isso reenvia todos os treinos inscritos ao servidor, corrigindo distâncias que possam ter sido gravadas incorretamente.',
+      'Isso reenvia todos os treinos inscritos ao servidor, recalculando o tempo em movimento e corrigindo distâncias gravadas incorretamente.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -196,9 +206,10 @@ export default function FitnessScreen() {
         onPress={() => handleOpen(item.label)}
         onSync={() => handleSync(item.label)}
         status={typeStatus[item.label] ?? 'unsubscribed'}
+        progress={syncProgress[item.label] ?? 0}
       />
     ),
-    [handleOpen, handleSync, typeStatus]
+    [handleOpen, handleSync, typeStatus, syncProgress]
   );
 
   const renderEmpty = useCallback(() => {
@@ -348,6 +359,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.ink3,
     fontFamily: 'GeistMono',
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.line,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: MOD.treino.accent,
   },
   syncBtn: {
     width: 40,
