@@ -19,7 +19,7 @@ export class SidebarComponent {
   protected readonly items: NavItem[] = [
     { path: '/semana',      icon: '📅', label: 'Semana' },
     { path: '/treinos',     icon: '🏋️', label: 'Treinos' },
-    { path: '/workout-history', icon: '📊', label: 'Histórico' },
+    { path: '/workout-history', icon: '📊', label: 'Histórico de treinos' },
     { path: '/tasks',       icon: '✅', label: 'Tarefas' },
     { path: '/habits',      icon: '🔁', label: 'Hábitos' },
     { path: '/registros',   icon: '📌', label: 'Registros' },

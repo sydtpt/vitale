@@ -74,6 +74,61 @@ export class HabitsStore {
     return this._logsByHabit().get(habitId) ?? [];
   }
 
+  /** Valor de um hábito num dia específico (0 se não houver log carregado). */
+  valueOn(habitId: string, date: string): number {
+    return this.logsFor(habitId).find(l => l.logDate === date)?.value ?? 0;
+  }
+
+  /**
+   * Fixa o valor de um hábito num dia (edição de passado) via rpc `habit_log_set`.
+   * Atualiza `_logs`: remove se 0, substitui se existir, insere se novo.
+   */
+  async setLog(habitId: string, date: string, value: number): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('Sessão não encontrada.');
+
+    const { error } = await supabase.rpc('habit_log_set', {
+      p_habit: habitId,
+      p_date: date,
+      p_value: value,
+    });
+    if (error) throw new Error(error.message);
+
+    this._logs.update(logs => {
+      const rest = logs.filter(l => !(l.habitId === habitId && l.logDate === date));
+      if (value <= 0) return rest;
+      const existing = logs.find(l => l.habitId === habitId && l.logDate === date);
+      return [...rest, { id: existing?.id ?? `${habitId}:${date}`, habitId, logDate: date, value }];
+    });
+  }
+
+  /**
+   * Carrega os logs de um mês e os mescla em `_logs` (dedupe por habitId+data).
+   * Necessário para editar/visualizar meses fora da janela padrão (`RANGE_DAYS`).
+   */
+  async loadMonth(year: number, monthIdx: number): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('Sessão não encontrada.');
+
+    const from = localDateStr(new Date(year, monthIdx, 1));
+    const to = localDateStr(new Date(year, monthIdx + 1, 0));
+
+    const { data, error } = await supabase
+      .from('habit_logs')
+      .select('id,habit_id,log_date,value')
+      .eq('user_id', userId)
+      .gte('log_date', from)
+      .lte('log_date', to);
+    if (error) throw new Error(error.message);
+
+    const fetched = ((data ?? []) as DbLogRow[]).map(mapLog);
+    this._logs.update(logs => {
+      const keys = new Set(fetched.map(l => `${l.habitId}:${l.logDate}`));
+      const kept = logs.filter(l => !keys.has(`${l.habitId}:${l.logDate}`));
+      return [...kept, ...fetched];
+    });
+  }
+
   async load(force = false): Promise<void> {
     if (!force && (this._state() === 'loaded' || this._state() === 'loading')) return;
 

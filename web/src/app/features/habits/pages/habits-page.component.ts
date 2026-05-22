@@ -6,12 +6,15 @@ import { HabitsStore } from '../data/habits.store';
 import { HabitAnalyticsCardComponent } from '../components/habit-analytics-card.component';
 import { HabitEditorComponent } from '../components/habit-editor.component';
 import { HabitListComponent } from '../components/habit-list.component';
+import { HabitDayEditorComponent } from '../components/habit-day-editor.component';
+
+type ViewMode = 'list' | 'analytics' | 'calendar';
 
 @Component({
   selector: 'rt-habits-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, PageHeaderComponent, IconComponent, HabitAnalyticsCardComponent, HabitEditorComponent, HabitListComponent],
+  imports: [CommonModule, PageHeaderComponent, IconComponent, HabitAnalyticsCardComponent, HabitEditorComponent, HabitListComponent, HabitDayEditorComponent],
   templateUrl: './habits-page.component.html',
   styleUrl: './habits-page.component.scss',
 })
@@ -22,7 +25,8 @@ export class HabitsPageComponent {
   @ViewChild(HabitEditorComponent) editor!: HabitEditorComponent;
 
   readonly editingId = signal<string | null>(null);
-  readonly showList = signal(true);
+  readonly mode = signal<ViewMode>('list');
+  readonly showList = computed(() => this.mode() === 'list');
 
   constructor() {
     void this.store.load();
@@ -47,6 +51,10 @@ export class HabitsPageComponent {
   }
 
   toggleView() {
-    this.showList.set(!this.showList());
+    this.mode.set(this.mode() === 'analytics' ? 'list' : 'analytics');
+  }
+
+  toggleCalendar() {
+    this.mode.set(this.mode() === 'calendar' ? 'list' : 'calendar');
   }
 }

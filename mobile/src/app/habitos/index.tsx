@@ -74,6 +74,9 @@ export default function HabitosScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Habitos</Text>
+        <Pressable onPress={() => router.push('/habitos/dia')} hitSlop={12} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+          <Ionicons name="calendar-outline" size={20} color={colors.ink} />
+        </Pressable>
         <Pressable onPress={() => router.push('/habitos/editor')} hitSlop={12} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
           <Ionicons name="add" size={24} color={colors.ink} />
         </Pressable>

@@ -25,14 +25,20 @@
       [title]="count() + (count() === 1 ? ' contador' : ' contadores')"
       subtitle="Adesão, streaks e médias dos seus hábitos diários"
     >
-      <button [class.active]="!showList()" (click)="toggleView()" class="toggle" [title]="showList() ? 'Ver gráficos' : 'Voltar para lista'">
-        <rt-icon [name]="showList() ? 'list' : 'trend'" [size]="16" [color]="showList() ? 'var(--ink-2)' : '#fff'" [strokeWidth]="2" />
-        <span class="label">{{ showList() ? 'Gráficos' : 'Lista' }}</span>
+      <button [class.active]="mode() === 'calendar'" (click)="toggleCalendar()" class="toggle" [title]="mode() === 'calendar' ? 'Voltar para lista' : 'Editar dia passado'">
+        <rt-icon name="calendar" [size]="16" [color]="mode() === 'calendar' ? '#fff' : 'var(--ink-2)'" [strokeWidth]="2" />
+        <span class="label">Editar dia</span>
+      </button>
+      <button [class.active]="mode() === 'analytics'" (click)="toggleView()" class="toggle" [title]="mode() === 'analytics' ? 'Voltar para lista' : 'Ver gráficos'">
+        <rt-icon [name]="mode() === 'analytics' ? 'list' : 'trend'" [size]="16" [color]="mode() === 'analytics' ? '#fff' : 'var(--ink-2)'" [strokeWidth]="2" />
+        <span class="label">{{ mode() === 'analytics' ? 'Lista' : 'Gráficos' }}</span>
       </button>
       <button class="new" (click)="openNewHabit()"><rt-icon name="plus" [size]="16" color="#fff" [strokeWidth]="2.2" /> Novo hábito</button>
     </rt-page-header>
 
-    @if (showList()) {
+    @if (mode() === 'calendar') {
+      <rt-habit-day-editor />
+    } @else if (mode() === 'list') {
       <div class="list-section">
         <rt-habit-list
           [habits]="store.habits()"

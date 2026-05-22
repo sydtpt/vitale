@@ -43,6 +43,7 @@ export default function RootLayout() {
         <Stack.Screen name="saude/[metric]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="habitos/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="habitos/editor" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="habitos/dia" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="registros/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="registros/editor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="registros/marcar" options={{ animation: 'slide_from_right' }} />

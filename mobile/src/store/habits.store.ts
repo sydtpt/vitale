@@ -56,6 +56,13 @@ interface HabitsState {
   createHabit: (input: NewHabit) => Promise<void>;
   updateHabit: (id: string, patch: HabitPatch) => Promise<void>;
   archiveHabit: (id: string, active: boolean) => Promise<void>;
+
+  // Edição de passado
+  loadMonthValues: (
+    year: number,
+    monthIdx: number,
+  ) => Promise<Record<string, Record<string, number>>>;
+  setLogForDate: (habitId: string, date: string, value: number) => Promise<void>;
 }
 
 type HabitRow = {
@@ -258,5 +265,50 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
   archiveHabit: async (id, active) => {
     await supabase.from('habits').update({ active }).eq('id', id);
     await get().loadAll();
+  },
+
+  // Valores de um mês: habitId → (data → valor). Também mescla na janela em cache
+  // (windowByHabit) para o que estiver dentro dela. Caminho online direto.
+  loadMonthValues: async (year, monthIdx) => {
+    if (!currentUserId()) return {};
+    const from = localDateStr(new Date(year, monthIdx, 1));
+    const to = localDateStr(new Date(year, monthIdx + 1, 0));
+    const { data } = await supabase
+      .from('habit_logs')
+      .select('habit_id, log_date, value')
+      .gte('log_date', from)
+      .lte('log_date', to);
+
+    const byHabit: Record<string, Record<string, number>> = {};
+    for (const l of data ?? []) {
+      const hid = l.habit_id as string;
+      (byHabit[hid] ??= {})[l.log_date as string] = Number(l.value);
+    }
+
+    set((s) => {
+      const merged: Record<string, Record<string, number>> = { ...s.windowByHabit };
+      for (const [hid, byDate] of Object.entries(byHabit)) {
+        merged[hid] = { ...(merged[hid] ?? {}), ...byDate };
+      }
+      return { windowByHabit: merged };
+    });
+    return byHabit;
+  },
+
+  // Fixa o valor absoluto de um dia (edição de passado) via rpc compartilhada.
+  setLogForDate: async (habitId, date, value) => {
+    await supabase.rpc('habit_log_set', {
+      p_habit: habitId,
+      p_date: date,
+      p_value: value,
+    });
+    const today = localDateStr();
+    set((s) => ({
+      windowByHabit: {
+        ...s.windowByHabit,
+        [habitId]: { ...(s.windowByHabit[habitId] ?? {}), [date]: value },
+      },
+      todayLogs: date === today ? { ...s.todayLogs, [habitId]: value } : s.todayLogs,
+    }));
   },
 }));
