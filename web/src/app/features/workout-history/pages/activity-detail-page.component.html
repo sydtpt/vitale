@@ -40,6 +40,17 @@
     @if (statsError()) { <p class="err">{{ statsError() }}</p> }
     @if (!inStats()) { <p class="excluded-note">Esta atividade está fora das estatísticas e listas.</p> }
 
+    @if (recordBadges().length > 0) {
+      <div class="record-badges">
+        @for (b of recordBadges(); track b.key) {
+          <span class="record-badge" [style.background]="b.bg" [style.color]="b.fg">
+            <rt-icon name="trophy" [size]="13" color="currentColor" [strokeWidth]="2" />
+            {{ b.label }}
+          </span>
+        }
+      </div>
+    }
+
     <div class="stats">
       @if (hasGps()) {
         <div class="stat hl">

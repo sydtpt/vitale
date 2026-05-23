@@ -49,6 +49,34 @@ describe('computeBestEfforts', () => {
     expect(efforts['1000']).toBeLessThan(200);
   });
 
+  it('usa o tempo em movimento: parada no meio não infla o recorde', () => {
+    const dLngDeg = ((100 / EARTH_RADIUS_M) * 180) / Math.PI;
+    const pts: RoutePoint[] = [];
+    const push = (stepIdx: number, ms: number) =>
+      pts.push({ latitude: 0, longitude: stepIdx * dLngDeg, timestamp: new Date(ms).toISOString() });
+
+    let t = BASE_MS;
+    // 0..500 m em movimento (10 s entre pontos).
+    for (let i = 0; i <= 5; i++) {
+      push(i, t);
+      t += 10_000;
+    }
+    // 5 min parado em 500 m (mesma posição) — o laço já somou 10 s após o ponto 5.
+    t += 5 * 60_000 - 10_000;
+    push(5, t);
+    t += 10_000;
+    // 600..1000 m em movimento.
+    for (let i = 6; i <= 10; i++) {
+      push(i, t);
+      t += 10_000;
+    }
+
+    const efforts = computeBestEfforts(pts);
+    // Tempo total decorrido no 1 km ≈ 400 s; em movimento ≈ 100 s.
+    expect(efforts['1000']).toBeLessThan(150);
+    expect(efforts['1000']).toBeGreaterThan(90);
+  });
+
   it('sem timestamps → mapa vazio', () => {
     const noTime: RoutePoint[] = [
       { latitude: 0, longitude: 0 },

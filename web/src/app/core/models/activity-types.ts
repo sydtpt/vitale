@@ -73,3 +73,9 @@ export function labelForSlug(slug: string): string | undefined {
   const labels = [...Object.values(BASE).map((b) => b.label), DEFAULT.label];
   return labels.find((l) => slugify(l) === slug);
 }
+
+/** Resolve um slug de rota para o código HealthKit do tipo (ex.: "corrida" → 37). */
+export function activityIdForSlug(slug: string): number | undefined {
+  const entry = Object.entries(BASE).find(([, b]) => slugify(b.label) === slug);
+  return entry ? Number(entry[0]) : undefined;
+}

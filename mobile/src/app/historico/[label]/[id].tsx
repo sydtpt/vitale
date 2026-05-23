@@ -16,6 +16,7 @@ import { HR_ZONES, hrZoneRange } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { getActivityMeta, getActivityColor, elevationGain } from '../../../lib/workout-types';
 import { movingTimeFromRoutePoints } from '../../../lib/moving-time';
+import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import {
   formatFullDate,
@@ -123,6 +124,9 @@ export default function AtividadeDetalheScreen() {
     altitude: p.alt,
   }));
   const elevation = formatElevation(elevationGain(points));
+
+  // Recordes que esta atividade detém (maior distância, best efforts).
+  const recordBadges = activityRecordBadges(_all, activity);
 
   // Tempo em cada zona de FC (com % do total). null quando a atividade não tem dados.
   const hrZones = (() => {
@@ -246,6 +250,17 @@ export default function AtividadeDetalheScreen() {
               <Stat icon="trending-up-outline" value={elevation} caption="elevação" color={color} />
             )}
           </View>
+
+          {recordBadges.length > 0 && (
+            <View style={styles.recordBadges}>
+              {recordBadges.map((b) => (
+                <View key={b.key} style={[styles.recordBadge, { backgroundColor: b.bg }]}>
+                  <Ionicons name="trophy" size={12} color={b.fg} />
+                  <Text style={[styles.recordBadgeText, { color: b.fg }]}>{b.label}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {activity.locallyEdited && (
             <View style={styles.editBadge}>
@@ -440,6 +455,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMute,
   },
   editBadgeText: { fontSize: 11.5, color: colors.ink2, fontWeight: '600' },
+
+  recordBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  recordBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+  },
+  recordBadgeText: { fontSize: 12, fontWeight: '700' },
 
   sectionTitle: {
     fontSize: 13,

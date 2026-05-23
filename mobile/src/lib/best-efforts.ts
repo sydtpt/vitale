@@ -9,6 +9,7 @@
  * Módulo puro (sem dependência nativa) — testável isoladamente. Consumido pelo
  * sync, que tem o track com timestamps em mãos.
  */
+import { MOVING_SPEED_THRESHOLD_MPS } from './moving-time';
 import type { RoutePoint } from './workout-types';
 
 export interface BestEffortDistance {
@@ -84,6 +85,10 @@ function bestWindow(cum: number[], time: number[], target: number): number | und
 /**
  * Recordes de corrida a partir do track GPS. Mapa chave→segundos para cada
  * distância padrão que o track cobre. Vazio se não houver timestamps suficientes.
+ *
+ * O eixo de tempo é o tempo EM MOVIMENTO: intervalos abaixo de
+ * `MOVING_SPEED_THRESHOLD_MPS` (parada em semáforo, pausa, lacuna de gravação)
+ * não contam — assim o recorde reflete o ritmo real, não o tempo total decorrido.
  */
 export function computeBestEfforts(points: RoutePoint[]): Record<string, number> {
   const pts = points.filter(
@@ -94,18 +99,25 @@ export function computeBestEfforts(points: RoutePoint[]): Record<string, number>
   );
   if (pts.length < 2) return {};
 
-  const t0 = new Date(pts[0].timestamp as string).getTime();
   const cum: number[] = [0];
-  const time: number[] = [0];
+  const time: number[] = [0]; // tempo em movimento acumulado (s)
   let prev = pts[0];
+  let prevMs = new Date(pts[0].timestamp as string).getTime();
+  let moving = 0;
   for (let i = 1; i < pts.length; i++) {
-    const sec = (new Date(pts[i].timestamp as string).getTime() - t0) / 1000;
+    const ms = new Date(pts[i].timestamp as string).getTime();
+    const dt = (ms - prevMs) / 1000;
     // Ignora pontos com tempo não-crescente (clock skew / duplicatas), medindo
     // sempre a partir do último ponto aceito para não perder distância.
-    if (!Number.isFinite(sec) || sec <= time[time.length - 1]) continue;
-    cum.push(cum[cum.length - 1] + haversine(prev, pts[i]));
-    time.push(sec);
+    if (!Number.isFinite(dt) || dt <= 0) continue;
+    const dist = haversine(prev, pts[i]);
+    // Só soma o intervalo ao relógio quando o atleta estava se movendo; paradas
+    // não inflam o recorde.
+    if (dist / dt >= MOVING_SPEED_THRESHOLD_MPS) moving += dt;
+    cum.push(cum[cum.length - 1] + dist);
+    time.push(moving);
     prev = pts[i];
+    prevMs = ms;
   }
 
   const out: Record<string, number> = {};

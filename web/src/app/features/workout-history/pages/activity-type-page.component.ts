@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { IconComponent } from '@core/services/icon.component';
-import { labelForSlug } from '@core/models/activity-types';
+import { activityIdForSlug, labelForSlug } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import {
   buildActivityList,
@@ -14,7 +14,7 @@ import {
   type SortKey,
 } from '../data/activity-list';
 import { fmtDuration, fmtKcal, fmtKm } from '../data/format';
-import { runningHighlights } from '../data/running-highlights';
+import { activityHighlights } from '../data/running-highlights';
 import { ActivityFiltersComponent } from '../components/activity-filters.component';
 import { ActivityItemComponent } from '../components/activity-item.component';
 
@@ -40,13 +40,23 @@ export class ActivityTypePageComponent {
   protected readonly pageSize = signal(20);
   protected readonly view = signal<'list' | 'cards'>('list');
 
+  protected readonly slug = computed(() => this._slug());
   protected readonly label = computed(() => labelForSlug(this._slug()));
   protected readonly summary = computed(() =>
     this.store.typeSummaries().find((s) => s.slug === this._slug()),
   );
-  /** Recordes de corrida — só na página da Corrida, de todo o histórico. */
-  protected readonly highlights = computed(() =>
-    this._slug() === 'corrida' ? runningHighlights(this.store.activities()) : [],
+  /** Recordes do tipo (corrida/ciclismo) — de todo o histórico. `[]` p/ os demais. */
+  protected readonly highlights = computed(() => {
+    const id = activityIdForSlug(this._slug());
+    return id != null ? activityHighlights(this.store.activities(), id) : [];
+  });
+  /** Linha 1 — distâncias (maior, últimos 12 meses, total). */
+  protected readonly summaryHighlights = computed(() =>
+    this.highlights().filter((h) => h.group === 'summary'),
+  );
+  /** Linha 2 — recordes por distância (best efforts), em ordem decrescente. */
+  protected readonly recordHighlights = computed(() =>
+    this.highlights().filter((h) => h.group === 'record'),
   );
   protected readonly showDistance = computed(() => this.summary()?.hasDistance ?? true);
 

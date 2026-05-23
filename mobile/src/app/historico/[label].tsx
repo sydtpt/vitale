@@ -29,7 +29,7 @@ import {
   formatDuration,
   formatDistance,
 } from '../../lib/workout-format';
-import { runningHighlights, type RunningHighlight } from '../../lib/running-highlights';
+import { activityHighlights, type ActivityHighlight } from '../../lib/running-highlights';
 import { colors, spacing, radii, shadows } from '../../theme';
 
 const PAGE_SIZE = 12;
@@ -108,39 +108,71 @@ function ActivityCard({
 
 function HighlightsRow({
   items,
-  color,
   onPick,
 }: {
-  items: RunningHighlight[];
-  color: string;
+  items: ActivityHighlight[];
   onPick: (id: string) => void;
 }) {
+  // Linha 1 → distâncias (resumo); linha 2 → recordes por distância (decrescente).
+  const summary = items.filter((h) => h.group === 'summary');
+  const records = items.filter((h) => h.group === 'record');
+
+  const renderCard = (h: ActivityHighlight) => {
+    const inner = (
+      <>
+        <Text style={styles.hlLabel} numberOfLines={1}>
+          {h.label}
+        </Text>
+        <Text style={[styles.hlValue, { color: h.fg }]}>{h.value}</Text>
+        {h.caption ? (
+          <Text style={styles.hlCaption} numberOfLines={1}>
+            {h.caption}
+          </Text>
+        ) : null}
+      </>
+    );
+
+    // Agregados (últimos 12 meses, total) não têm link.
+    const id = h.activityId;
+    if (!id) {
+      return (
+        <View key={h.key} style={[styles.hlCard, { backgroundColor: h.bg }]}>
+          {inner}
+        </View>
+      );
+    }
+    return (
+      <Pressable
+        key={h.key}
+        onPress={() => onPick(id)}
+        style={({ pressed }) => [styles.hlCard, { backgroundColor: h.bg }, pressed && styles.pressed]}
+      >
+        {inner}
+      </Pressable>
+    );
+  };
+
   return (
     <View style={styles.hlWrap}>
       <Text style={styles.hlTitle}>Recordes</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.hlRow}
-      >
-        {items.map((h) => (
-          <Pressable
-            key={h.key}
-            onPress={() => onPick(h.activityId)}
-            style={({ pressed }) => [styles.hlCard, pressed && styles.pressed]}
-          >
-            <Text style={styles.hlLabel} numberOfLines={1}>
-              {h.label}
-            </Text>
-            <Text style={[styles.hlValue, { color }]}>{h.value}</Text>
-            {h.caption ? (
-              <Text style={styles.hlCaption} numberOfLines={1}>
-                {h.caption}
-              </Text>
-            ) : null}
-          </Pressable>
-        ))}
-      </ScrollView>
+      {summary.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.hlRow}
+        >
+          {summary.map(renderCard)}
+        </ScrollView>
+      )}
+      {records.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.hlRow}
+        >
+          {records.map(renderCard)}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -215,8 +247,11 @@ export default function TipoListScreen() {
       : { icon: 'dumbbell' as const, color: colors.ink2 };
   }, [typed]);
 
-  // Recordes de corrida — de todo o histórico do tipo, independente dos filtros.
-  const highlights = useMemo(() => runningHighlights(typed), [typed]);
+  // Recordes do tipo (corrida/ciclismo) — de todo o histórico, sem os filtros.
+  const highlights = useMemo(() => {
+    const id = typed[0]?.activityId;
+    return id != null ? activityHighlights(typed, id) : [];
+  }, [typed]);
 
   const goToWorkout = useCallback(
     (id: string) =>
@@ -286,7 +321,7 @@ export default function TipoListScreen() {
         ListHeaderComponent={
           <View>
             {highlights.length > 0 && (
-              <HighlightsRow items={highlights} color={meta.color} onPick={goToWorkout} />
+              <HighlightsRow items={highlights} onPick={goToWorkout} />
             )}
             <View style={styles.filterWrap}>
             <View style={styles.toolbarRow}>

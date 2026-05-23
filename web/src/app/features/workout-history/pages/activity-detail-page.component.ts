@@ -9,6 +9,7 @@ import { ActivitiesStore } from '../data/activities.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
 import { fmtClock, fmtDate, fmtDuration, fmtKcal, fmtKm, fmtRate, fmtTime, totalTimeS } from '../data/format';
 import { movingTimeFromRoutePoints } from '../data/moving-time';
+import { activityRecordBadges } from '../data/running-highlights';
 
 @Component({
   selector: 'rt-activity-detail-page',
@@ -60,6 +61,12 @@ export class ActivityDetailPageComponent {
   protected readonly rate = computed(() => {
     const a = this.activity();
     return a && this.hasGps() ? fmtRate(a.activityId, a.distanceM, this.movingTimeS()) : null;
+  });
+
+  /** Recordes que esta atividade detém (maior distância, best efforts). */
+  protected readonly recordBadges = computed(() => {
+    const a = this.activity();
+    return a ? activityRecordBadges(this.store.activities(), a) : [];
   });
 
   /** Tempo em cada zona de FC (com %), ordenado por zona; null se sem dados. */

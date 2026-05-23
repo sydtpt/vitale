@@ -34,15 +34,31 @@
     @if (highlights().length > 0) {
       <section class="highlights">
         <h2 class="hl-title">Recordes</h2>
-        <div class="hl-row">
-          @for (h of highlights(); track h.key) {
-            <a class="hl-card" [routerLink]="['/workout-history', 'corrida', h.activityId]">
-              <span class="hl-label">{{ h.label }}</span>
-              <span class="hl-value">{{ h.value }}</span>
-              @if (h.caption) { <span class="hl-caption">{{ h.caption }}</span> }
-            </a>
-          }
-        </div>
+        @if (summaryHighlights().length > 0) {
+          <div class="hl-row">
+            @for (h of summaryHighlights(); track h.key) {
+              <a class="hl-card" [class.static]="!h.activityId"
+                [style.background]="h.bg" [style.borderColor]="h.bg"
+                [routerLink]="h.activityId ? ['/workout-history', slug(), h.activityId] : null">
+                <span class="hl-label">{{ h.label }}</span>
+                <span class="hl-value" [style.color]="h.fg">{{ h.value }}</span>
+                @if (h.caption) { <span class="hl-caption">{{ h.caption }}</span> }
+              </a>
+            }
+          </div>
+        }
+        @if (recordHighlights().length > 0) {
+          <div class="hl-row">
+            @for (h of recordHighlights(); track h.key) {
+              <a class="hl-card" [style.background]="h.bg" [style.borderColor]="h.bg"
+                [routerLink]="['/workout-history', slug(), h.activityId]">
+                <span class="hl-label">{{ h.label }}</span>
+                <span class="hl-value" [style.color]="h.fg">{{ h.value }}</span>
+                @if (h.caption) { <span class="hl-caption">{{ h.caption }}</span> }
+              </a>
+            }
+          </div>
+        }
       </section>
     }
 
