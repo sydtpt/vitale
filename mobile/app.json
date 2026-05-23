@@ -8,6 +8,11 @@
     "scheme": "vitale",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/127be066-b0bb-4469-bd58-d7e5c6c9cd22",
+      "enabled": true
+    },
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
