@@ -33,6 +33,7 @@ export interface NewTodo {
   overdue: TodoOverduePolicy;
   cancelPolicy: TodoCancelPolicy;
   meter?: number;
+  meta?: Record<string, unknown>;
 }
 
 interface DbTemplateRow {
@@ -46,6 +47,7 @@ interface DbTemplateRow {
   cancel_policy: TodoCancelPolicy;
   meter: number | string | null;
   meter_at_last_done: number | string | null;
+  meta: Record<string, unknown> | null;
   active: boolean;
   sort: number;
   created_at: string;
@@ -165,6 +167,7 @@ export class TodosStore {
         overdue: input.overdue,
         cancel_policy: input.cancelPolicy,
         meter: input.meter ?? null,
+        meta: input.meta ?? null,
         sort,
       })
       .select('id')
@@ -300,6 +303,7 @@ function mapTemplate(r: DbTemplateRow): TodoTemplate {
     cancelPolicy: r.cancel_policy,
     meter: r.meter == null ? undefined : Number(r.meter),
     meterAtLastDone: r.meter_at_last_done == null ? undefined : Number(r.meter_at_last_done),
+    meta: r.meta ?? undefined,
     active: r.active,
     sort: r.sort,
     createdAt: r.created_at,

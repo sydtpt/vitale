@@ -114,6 +114,17 @@ export interface RecurringItem {
   due: string;
 }
 
+/** Categorias canônicas de itens de compras. */
+export const SHOP_CATS = ['Proteínas', 'Vegetais', 'Laticínios', 'Grãos', 'Higiene', 'Limpeza', 'Outros'] as const;
+export type ShopCat = typeof SHOP_CATS[number];
+
+/** Dados extras de um item de compras — guardados em TodoTemplate.meta. */
+export interface ShopMeta {
+  qty?: string;    // ex: "500g", "2 caixas"
+  cat: ShopCat;   // categoria para agrupamento
+  price?: number;  // preço estimado em BRL
+}
+
 export interface CasaTarefa {
   name: string;
   every: string;
@@ -258,6 +269,7 @@ export interface TodoTemplate {
   meter?: number;                 // estado atual do contador (recurrence.kind === 'usage')
   meterAtLastDone?: number;       // leitura do contador na última conclusão
   linkedActivityId?: number;      // activityId HealthKit que conclui esta tarefa (corrida=37, bike=13...)
+  meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
   active: boolean;
   sort: number;
   createdAt: string;              // ISO

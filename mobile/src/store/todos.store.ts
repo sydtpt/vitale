@@ -33,6 +33,7 @@ export interface NewTodo {
   cancelPolicy: TodoCancelPolicy;
   meter?: number; // estado inicial do contador (recurrence.kind === 'usage')
   linkedActivityId?: number | null; // activityId HealthKit que conclui a tarefa
+  meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
 }
 
 /** Campos editáveis de uma série. */
@@ -46,6 +47,7 @@ export interface TodoPatch {
   cancel_policy?: TodoCancelPolicy;
   meter?: number | null;
   linked_activity_id?: number | null;
+  meta?: Record<string, unknown> | null;
   active?: boolean;
   sort?: number;
 }
@@ -80,7 +82,7 @@ async function fetchOccurrences(since: string): Promise<TodoOccurrence[]> {
   const { data } = await supabase
     .from('todo_occurrences')
     .select('*')
-    .or(`status.eq.pending,due_date.gte.${since}`)
+    .or(`status.eq.pending,due_date.gte.${since},done_at.gte.${since}`)
     .order('due_date', { ascending: true });
   return (data ?? []).map(toOcc);
 }
@@ -164,6 +166,7 @@ export const useTodosStore = create<TodosState>((set, get) => ({
         cancel_policy: input.cancelPolicy,
         meter: input.meter ?? null,
         linked_activity_id: input.linkedActivityId ?? null,
+        meta: input.meta ?? null,
         sort,
       })
       .select('id')

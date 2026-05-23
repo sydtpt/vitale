@@ -119,6 +119,7 @@ export default function HojeScreen() {
   const todayTasks = todoOccurrences.filter(o =>
     o.status === 'pending' &&
     tplById.has(o.templateId) &&
+    tplById.get(o.templateId)!.module !== 'compras' &&
     (isOverdue(o, today) || o.dueDate === null || o.dueDate <= today)
   );
 

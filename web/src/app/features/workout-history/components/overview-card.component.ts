@@ -50,10 +50,10 @@ export class OverviewCardComponent {
   }
 
   protected readonly metrics: { value: Metric; label: string }[] = [
-    { value: 'distance', label: 'Distância' },
+    { value: 'count', label: 'Atividades' },
     { value: 'duration', label: 'Duração' },
     { value: 'calories', label: 'Calorias' },
-    { value: 'count', label: 'Atividades' },
+    { value: 'distance', label: 'Distância' },
   ];
 
   protected fmtDistance(m: number): string {

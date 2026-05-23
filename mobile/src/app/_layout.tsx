@@ -50,6 +50,8 @@ export default function RootLayout() {
         <Stack.Screen name="historico/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="compras/index" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="compras/editor" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </>
   );

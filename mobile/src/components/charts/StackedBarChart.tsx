@@ -83,7 +83,7 @@ export function StackedBarChart({ buckets, metric, width, height = 200 }: Props)
                   width={barW}
                   height={Math.max(0, h)}
                   fill={s.color}
-                  rx={si === b.segments.length - 1 ? Math.min(barW / 2, 4) : 0}
+                  rx={0}
                 />
               );
             })}

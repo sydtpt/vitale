@@ -25,10 +25,10 @@ const PERIODS: { key: Period; label: string }[] = [
 ];
 
 const METRICS: { key: Metric; label: string }[] = [
-  { key: 'distance', label: 'Distância' },
+  { key: 'count', label: 'Nº' },
   { key: 'duration', label: 'Duração' },
   { key: 'calories', label: 'Calorias' },
-  { key: 'count', label: 'Nº' },
+  { key: 'distance', label: 'Distância' },
 ];
 
 function StatTile({ value, label }: { value: string; label: string }) {
@@ -79,7 +79,7 @@ export default function HistoricoScreen() {
   const load = useActivitiesStore((s) => s.load);
 
   const [period, setPeriod] = useState<Period>('semana');
-  const [metric, setMetric] = useState<Metric>('distance');
+  const [metric, setMetric] = useState<Metric>('count');
 
   useEffect(() => {
     load();
@@ -172,9 +172,9 @@ export default function HistoricoScreen() {
 
           <View style={styles.statsRow}>
             <StatTile value={String(totals.count)} label="atividades" />
-            <StatTile value={formatDistance(totals.distanceM) ?? '—'} label="distância" />
             <StatTile value={formatDuration(totals.durationS)} label="duração" />
             <StatTile value={`${Math.round(totals.calories)}`} label="kcal" />
+            <StatTile value={formatDistance(totals.distanceM) ?? '—'} label="distância" />
           </View>
 
           <View style={styles.chartWrap}>

@@ -1,21 +1,77 @@
 <div class="page">
-  <rt-page-header eyebrow="Compras" title="Lista da semana"
-    subtitle="4 itens · estimativa R$ 89,40" />
-  <div class="g">
-    <rt-panel title="Lista atual">
-      @for (c of compras; track c.id; let last = $last) {
-        <div class="row" [class.last]="last">
-          <div class="check" [class.done]="c.done">
-            @if (c.done) { <rt-icon name="check" [size]="11" color="#fff" [strokeWidth]="3"/> }
+  <rt-page-header eyebrow="Compras" title="Lista de mercado"
+    [subtitle]="totalEstimate() > 0 ? 'Estimativa: R$ ' + totalEstimate().toFixed(2).replace('.', ',') : ''" />
+
+  <div class="toolbar">
+    <button class="add-btn" (click)="openNew()">+ Novo item</button>
+  </div>
+
+  @if (store.loading()) {
+    <p class="muted">Carregando…</p>
+  } @else if (empty()) {
+    <div class="empty">
+      <p class="empty-title">Lista vazia</p>
+      <p class="empty-sub">Adicione itens avulsos ou recorrentes para montar sua lista de mercado.</p>
+      <button class="add-btn" (click)="openNew()">+ Adicionar item</button>
+    </div>
+  } @else {
+    <div class="content">
+      @for (group of grouped(); track group.cat) {
+        <div class="cat-section">
+          <div class="cat-header">
+            <span class="cat-title">{{ group.cat }}</span>
+            <span class="cat-count">{{ group.rows.length }}</span>
           </div>
-          <div class="flex">
-            <div class="name" [class.strike]="c.done" [class.muted]="c.done">{{ c.name }}</div>
+          <div class="card">
+            @for (row of group.rows; track row.o.id; let last = $last) {
+              <div class="row" [class.last]="last" [class.overdue]="isOverdue(row.o)">
+                <button class="check" (click)="onDone(row.o)" title="Marcar como comprado"></button>
+                <div class="flex">
+                  <div class="name">{{ row.t.name }}</div>
+                  <div class="sub">
+                    {{ recLabel(row.t) }}
+                    @if (metaPrice(row.t)) { · {{ metaPrice(row.t) }} }
+                  </div>
+                </div>
+                @if (metaQty(row.t)) {
+                  <span class="qty-badge">{{ metaQty(row.t) }}</span>
+                }
+                <button class="edit-btn" (click)="openEdit(row.t)" title="Editar">✏</button>
+              </div>
+            }
           </div>
-          <div class="qty mono">{{ c.qty }}</div>
-          <div class="cat">{{ c.cat }}</div>
         </div>
       }
-    </rt-panel>
-    <rt-panel title="Recorrentes & sugestões"><rt-recurring-list /></rt-panel>
-  </div>
+
+      @if (doneToday().length > 0) {
+        <div class="cat-section">
+          <div class="cat-header">
+            <span class="cat-title done-title">Comprados hoje</span>
+          </div>
+          <div class="card">
+            @for (o of doneToday(); track o.id; let last = $last) {
+              @let t = templateById(o.templateId);
+              @if (t) {
+                <div class="row done-row" [class.last]="last">
+                  <div class="check check-done"></div>
+                  <div class="flex">
+                    <div class="name done-name">{{ t.name }}</div>
+                    <div class="sub">Comprado</div>
+                  </div>
+                  @if (metaQty(t)) { <span class="qty-badge muted">{{ metaQty(t) }}</span> }
+                </div>
+              }
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
 </div>
+
+@if (editorOpen()) {
+  <rt-compras-editor
+    [template]="editing()"
+    (close)="editorOpen.set(false)"
+    (saved)="editorOpen.set(false)" />
+}

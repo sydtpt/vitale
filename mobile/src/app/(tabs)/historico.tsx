@@ -25,10 +25,10 @@ const PERIODS: { key: Period; label: string }[] = [
 ];
 
 const METRICS: { key: Metric; label: string }[] = [
-  { key: 'distance', label: 'Distância' },
+  { key: 'count', label: 'Nº' },
   { key: 'duration', label: 'Duração' },
   { key: 'calories', label: 'Calorias' },
-  { key: 'count', label: 'Nº' },
+  { key: 'distance', label: 'Distância' },
 ];
 
 function StatTile({ value, label }: { value: string; label: string }) {
@@ -79,7 +79,16 @@ export default function HistoricoTabScreen() {
   const load = useActivitiesStore((s) => s.load);
 
   const [period, setPeriod] = useState<Period>('semana');
-  const [metric, setMetric] = useState<Metric>('distance');
+  const [metric, setMetric] = useState<Metric>('count');
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const toggleType = (label: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
 
   useEffect(() => {
     load();
@@ -92,6 +101,15 @@ export default function HistoricoTabScreen() {
     () => buildOverview(activities, period, metric),
     [activities, period, metric],
   );
+
+  const chartBuckets = useMemo(() => {
+    if (!hidden.size) return overview.buckets;
+    return overview.buckets.map((b) => {
+      const segments = b.segments.filter((s) => !hidden.has(s.label));
+      const total = segments.reduce((sum, s) => sum + s.value, 0);
+      return { ...b, segments, total };
+    });
+  }, [overview.buckets, hidden]);
   const typeSummaries = useMemo(() => buildTypeSummaries(activities), [activities]);
 
   if (loading && !loaded) {
@@ -162,25 +180,28 @@ export default function HistoricoTabScreen() {
 
           <View style={styles.statsRow}>
             <StatTile value={String(totals.count)} label="atividades" />
-            <StatTile value={formatDistance(totals.distanceM) ?? '—'} label="distância" />
             <StatTile value={formatDuration(totals.durationS)} label="duração" />
             <StatTile value={`${Math.round(totals.calories)}`} label="kcal" />
+            <StatTile value={formatDistance(totals.distanceM) ?? '—'} label="distância" />
           </View>
 
           <View style={styles.chartWrap}>
-            <StackedBarChart buckets={overview.buckets} metric={metric} width={chartWidth} />
+            <StackedBarChart buckets={chartBuckets} metric={metric} width={chartWidth} />
           </View>
 
           <Segmented options={METRICS} value={metric} onChange={setMetric} />
 
           {overview.legend.length > 0 && (
             <View style={styles.legend}>
-              {overview.legend.map((l) => (
-                <View key={l.label} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: l.color }]} />
-                  <Text style={styles.legendText}>{l.label}</Text>
-                </View>
-              ))}
+              {overview.legend.map((l) => {
+                const off = hidden.has(l.label);
+                return (
+                  <Pressable key={l.label} onPress={() => toggleType(l.label)} style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: off ? colors.line : l.color }]} />
+                    <Text style={[styles.legendText, off && styles.legendTextOff]}>{l.label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </View>
@@ -294,6 +315,7 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 9, height: 9, borderRadius: 3 },
   legendText: { fontSize: 11.5, color: colors.ink2 },
+  legendTextOff: { color: colors.ink4 },
 
   sectionTitle: {
     fontSize: 13,
