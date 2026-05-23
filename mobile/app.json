@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.vitale.mobile",
+      "bundleIdentifier": "com.sydtpt.vitale",
       "infoPlist": {
         "NSHealthShareUsageDescription": "O Vitale acessa seus dados do Apple Health — atividade, coração, corpo, sono, nutrição e treinos — para exibir seu histórico e gráficos."
       },
@@ -29,7 +29,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFF7EE"
       },
-      "package": "app.vitale.mobile"
+      "package": "com.sydtpt.vitale"
     },
     "plugins": [
       "expo-router",

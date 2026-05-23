@@ -28,7 +28,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>vitale</string>
-				<string>app.vitale.mobile</string>
+				<string>com.sydtpt.vitale</string>
 			</array>
 		</dict>
 	</array>
