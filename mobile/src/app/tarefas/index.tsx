@@ -40,12 +40,21 @@ export default function TarefasScreen() {
   const todayList = pending.filter((o) => !isOverdue(o, today) && (o.dueDate === null || o.dueDate <= today));
   const upcoming = pending.filter((o) => o.dueDate !== null && o.dueDate > today);
 
+  // Concluídas hoje (inclui as auto-concluídas pelo sync de treino) — por doneAt local.
+  const doneToday = occurrences.filter(
+    (o) =>
+      o.status === 'done' &&
+      o.doneAt != null &&
+      localDateStr(new Date(o.doneAt)) === today &&
+      tplById.has(o.templateId),
+  );
+
   const pendingIds = new Set(pending.map((o) => o.templateId));
   const triggers = templates.filter(
     (t) => ['event', 'stock', 'usage'].includes(t.recurrence.kind) && !pendingIds.has(t.id),
   );
 
-  const empty = pending.length === 0 && triggers.length === 0;
+  const empty = pending.length === 0 && triggers.length === 0 && doneToday.length === 0;
 
   const onMore = (t: TodoTemplate, o: TodoOccurrence) => {
     Alert.alert(t.name, undefined, [
@@ -108,6 +117,10 @@ export default function TarefasScreen() {
       />
     );
   };
+
+  const renderDone = (o: TodoOccurrence) => (
+    <TodoItem key={o.id} template={tplById.get(o.templateId)!} occurrence={o} done />
+  );
 
   const TriggerRow = ({ t }: { t: TodoTemplate }) => {
     const mod = modColor(t.color);
@@ -180,6 +193,12 @@ export default function TarefasScreen() {
               <View style={styles.card}>
                 {triggers.map((t) => <TriggerRow key={t.id} t={t} />)}
               </View>
+            </>
+          )}
+          {doneToday.length > 0 && (
+            <>
+              <Text style={styles.section}>Concluídas hoje</Text>
+              {doneToday.map(renderDone)}
             </>
           )}
           <View style={{ height: 24 }} />

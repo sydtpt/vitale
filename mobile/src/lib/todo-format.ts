@@ -16,6 +16,8 @@ export function describeRecurrence(rec: TodoRecurrence): string {
     case 'usage': return `A cada ${rec.every} ${rec.meterUnit}`;
     case 'event': return `Quando: ${rec.label}`;
     case 'stock': return 'Quando acabar';
+    case 'on_workout': return 'Ao registrar treino';
+    case 'on_task': return 'Ao concluir outra tarefa';
   }
 }
 

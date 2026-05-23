@@ -163,6 +163,14 @@ export function getActivityMeta(activityId: number): ActivityMeta {
 }
 
 /**
+ * Tipos de atividade conhecidos (ordem de uso comum) — para seletores de UI,
+ * como o vínculo Tarefa × Treino. Cada id resolve label/ícone via getActivityMeta.
+ */
+export const KNOWN_ACTIVITY_IDS = [
+  37, 13, 52, 24, 46, 50, 57, 66, 63, 73, 11, 20, 35, 16, 44, 59, 82,
+] as const;
+
+/**
  * Cor por tipo de atividade — espelha web/src/app/core/models/activity-types.ts
  * (valores do design system). Usada nos segmentos do gráfico empilhado.
  * Mantida aqui (hex literais) para a função pura permanecer testável sem tema.

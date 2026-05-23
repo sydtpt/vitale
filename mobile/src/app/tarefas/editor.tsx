@@ -19,6 +19,7 @@ import type {
   TodoCancelPolicy,
 } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
+import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
 import { colors, spacing, radii, shadows, MOD } from '../../theme';
 
 type Kind = TodoRecurrence['kind'];
@@ -40,6 +41,8 @@ const KINDS: { key: Kind; label: string }[] = [
   { key: 'usage', label: 'Por uso' },
   { key: 'event', label: 'Por evento' },
   { key: 'stock', label: 'Por estoque' },
+  { key: 'on_workout', label: 'Após treino' },
+  { key: 'on_task', label: 'Após tarefa' },
 ];
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -72,6 +75,9 @@ export default function TodoEditorScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   const allTemplates = useTodosStore((s) => s.allTemplates);
+  const templates = useTodosStore((s) => s.templates);
+  const occurrences = useTodosStore((s) => s.occurrences);
+  const load = useTodosStore((s) => s.load);
   const loadAll = useTodosStore((s) => s.loadAll);
   const createTemplate = useTodosStore((s) => s.createTemplate);
   const updateTemplate = useTodosStore((s) => s.updateTemplate);
@@ -94,11 +100,35 @@ export default function TodoEditorScreen() {
   const [cancelPolicy, setCancelPolicy] = useState<TodoCancelPolicy>('manual');
   const [icon, setIcon] = useState<string>('checkbox-outline');
   const [color, setColor] = useState<string>('tarefa');
+  const [linkedActivityId, setLinkedActivityId] = useState<number | null>(null);
+  const [triggerActivityId, setTriggerActivityId] = useState<number | null>(null);
+  const [sourceTemplateId, setSourceTemplateId] = useState<string>('');
+  const [dueInDays, setDueInDays] = useState<string>('');
   const [hydrated, setHydrated] = useState(false);
 
+  const activityOptions = useMemo(
+    () => KNOWN_ACTIVITY_IDS.map((aid) => ({ id: aid, label: getActivityMeta(aid).label })),
+    [],
+  );
+  // Séries que podem disparar um encadeamento: recorrentes ativas + avulsas ainda
+  // pendentes. Exclui a própria, outros encadeamentos, arquivadas e avulsas concluídas
+  // (essas não disparam de novo).
+  const sourceOptions = useMemo(
+    () =>
+      templates.filter(
+        (t) =>
+          t.id !== id &&
+          t.recurrence.kind !== 'on_task' &&
+          (t.recurrence.kind !== 'none' ||
+            occurrences.some((o) => o.templateId === t.id && o.status === 'pending')),
+      ),
+    [templates, occurrences, id],
+  );
+
   useEffect(() => {
-    if (id && !existing) loadAll();
-  }, [id, existing, loadAll]);
+    load(); // ocorrências (p/ detectar avulsa pendente vs concluída)
+    loadAll(); // séries ativas + arquivadas (p/ edição)
+  }, [load, loadAll]);
 
   useEffect(() => {
     if (existing && !hydrated) {
@@ -113,10 +143,19 @@ export default function TodoEditorScreen() {
       if (r.kind === 'usage') { setMeterUnit(r.meterUnit); setEvery(String(r.every)); }
       if (r.kind === 'event') setEventLabel(r.label);
       if (r.kind === 'stock') setStockRef(r.shopItemRef ?? '');
+      if (r.kind === 'on_workout') {
+        setTriggerActivityId(r.activityId ?? null);
+        setDueInDays(r.dueInDays != null ? String(r.dueInDays) : '');
+      }
+      if (r.kind === 'on_task') {
+        setSourceTemplateId(r.sourceTemplateId);
+        setDueInDays(r.dueInDays != null ? String(r.dueInDays) : '');
+      }
       setOverdue(existing.overdue);
       setCancelPolicy(existing.cancelPolicy);
       setIcon(existing.icon || 'checkbox-outline');
       setColor(existing.color || 'tarefa');
+      setLinkedActivityId(existing.linkedActivityId ?? null);
       setHydrated(true);
     }
   }, [existing, hydrated]);
@@ -156,6 +195,10 @@ export default function TodoEditorScreen() {
         return eventLabel.trim() ? { kind: 'event', label: eventLabel.trim() } : null;
       case 'stock':
         return { kind: 'stock', shopItemRef: stockRef.trim() || undefined };
+      case 'on_workout':
+        return { kind: 'on_workout', activityId: triggerActivityId ?? undefined, dueInDays: parseNum(dueInDays) ?? undefined };
+      case 'on_task':
+        return sourceTemplateId ? { kind: 'on_task', sourceTemplateId, dueInDays: parseNum(dueInDays) ?? undefined } : null;
     }
   }
 
@@ -173,6 +216,7 @@ export default function TodoEditorScreen() {
         recurrence,
         overdue,
         cancel_policy: cancelPolicy,
+        linked_activity_id: linkedActivityId,
       });
     } else {
       await createTemplate({
@@ -184,6 +228,7 @@ export default function TodoEditorScreen() {
         overdue,
         cancelPolicy,
         meter: kind === 'usage' ? 0 : undefined,
+        linkedActivityId,
       });
     }
     router.back();
@@ -307,6 +352,70 @@ export default function TodoEditorScreen() {
               <TextInput value={stockRef} onChangeText={setStockRef} placeholder="Ex.: Café" placeholderTextColor={colors.ink4} style={styles.input} />
             </>
           )}
+          {kind === 'on_workout' && (
+            <>
+              <Text style={styles.label}>Treino que dispara</Text>
+              <View style={styles.chips}>
+                <Pressable onPress={() => setTriggerActivityId(null)} style={[styles.chip, triggerActivityId == null && { backgroundColor: accent }]}>
+                  <Text style={[styles.chipText, triggerActivityId == null && styles.chipTextActive]}>Qualquer</Text>
+                </Pressable>
+                {activityOptions.map((o) => {
+                  const active = triggerActivityId === o.id;
+                  return (
+                    <Pressable key={o.id} onPress={() => setTriggerActivityId(active ? null : o.id)} style={[styles.chip, active && { backgroundColor: accent }]}>
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{o.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.label}>Vence em (dias após o treino · vazio = sem prazo)</Text>
+              <TextInput value={dueInDays} onChangeText={setDueInDays} keyboardType="number-pad" placeholder="0 = no dia" placeholderTextColor={colors.ink4} style={styles.input} />
+            </>
+          )}
+          {kind === 'on_task' && (
+            <>
+              <Text style={styles.label}>Concluir qual tarefa dispara</Text>
+              {sourceOptions.length === 0 ? (
+                <Text style={styles.hint}>Crie outra série antes para poder encadear.</Text>
+              ) : (
+                <View style={styles.chips}>
+                  {sourceOptions.map((t) => {
+                    const active = sourceTemplateId === t.id;
+                    return (
+                      <Pressable key={t.id} onPress={() => setSourceTemplateId(active ? '' : t.id)} style={[styles.chip, active && { backgroundColor: accent }]}>
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{t.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+              <Text style={styles.label}>Vence em (dias após concluir · vazio = sem prazo)</Text>
+              <TextInput value={dueInDays} onChangeText={setDueInDays} keyboardType="number-pad" placeholder="0 = no dia" placeholderTextColor={colors.ink4} style={styles.input} />
+            </>
+          )}
+
+          {/* Concluir ao registrar treino (vínculo com a atividade do HealthKit) */}
+          <Text style={styles.label}>Concluir ao registrar treino</Text>
+          <View style={styles.chips}>
+            <Pressable
+              onPress={() => setLinkedActivityId(null)}
+              style={[styles.chip, linkedActivityId == null && { backgroundColor: accent }]}
+            >
+              <Text style={[styles.chipText, linkedActivityId == null && styles.chipTextActive]}>Nenhum</Text>
+            </Pressable>
+            {activityOptions.map((o) => {
+              const active = linkedActivityId === o.id;
+              return (
+                <Pressable
+                  key={o.id}
+                  onPress={() => setLinkedActivityId(active ? null : o.id)}
+                  style={[styles.chip, active && { backgroundColor: accent }]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{o.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           {/* Se não fizer no dia */}
           <Text style={styles.label}>Se não fizer no dia</Text>
@@ -390,6 +499,7 @@ const styles = StyleSheet.create({
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 24, gap: 4 },
   label: { fontSize: 13, fontWeight: '600', color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
+  hint: { fontSize: 13, color: colors.ink3, marginTop: 4 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,

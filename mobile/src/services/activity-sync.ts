@@ -37,6 +37,7 @@ const RUNNING_ACTIVITY_ID = 37;
 import { subscribeType, loadSyncedTypes } from '../lib/synced-types';
 import { readAnchor, writeAnchor } from '../lib/sync-anchor';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
+import { linkWorkoutsToTodos } from './activity-todo-link';
 
 export interface SyncResult {
   pushed: number;
@@ -294,6 +295,15 @@ export async function syncDelta(): Promise<SyncResult> {
 
     const a = await pushActivities(rows);
     const r = await pushRoutes(routes, userId);
+
+    // Liga os treinos NOVOS às tarefas (conclui/gera a ocorrência do dia). Só no
+    // delta — nunca no backfill por tipo (syncType), p/ não gerar tarefas de 3 anos.
+    // Falha aqui não derruba o sync de atividades.
+    try {
+      await linkWorkoutsToTodos(ofType, userId);
+    } catch (e) {
+      console.warn('[sync] link de tarefas falhou:', e instanceof Error ? e.message : e);
+    }
 
     const failed = [...a.failed, ...r.failed];
     if (failed.length) await enqueue(failed);

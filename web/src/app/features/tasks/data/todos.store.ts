@@ -14,6 +14,7 @@ import {
   localDateStr,
   firstDueDate,
   nextDueDate,
+  triggeredDueDate,
   dueUsage,
   reconcileTemplate,
 } from './todo-logic';
@@ -196,13 +197,38 @@ export class TodosStore {
 
     const t = this.templateById(occ.templateId);
     if (t && userId) {
-      if (t.recurrence.kind === 'usage' && status === 'done') {
-        await supabase.from('todo_templates').update({ meter_at_last_done: t.meter ?? 0 }).eq('id', t.id);
+      if (status === 'done') {
+        if (t.recurrence.kind === 'usage') {
+          await supabase.from('todo_templates').update({ meter_at_last_done: t.meter ?? 0 }).eq('id', t.id);
+        }
+        // Encadeamento: séries on_task que dependem desta criam sua ocorrência.
+        await this.fireTaskChains(userId, t.id, localDateStr());
       }
       const next = nextDueDate(t.recurrence, occ.dueDate, localDateStr());
       if (next != null) await this.insertOccurrence(userId, t.id, next);
     }
     await this.load(true);
+  }
+
+  /** Séries on_task que apontam para `sourceTemplateId` criam sua ocorrência (1 por vez). */
+  private async fireTaskChains(userId: string, sourceTemplateId: string, triggerDay: string): Promise<void> {
+    const { data } = await supabase
+      .from('todo_templates')
+      .select('id, recurrence')
+      .eq('user_id', userId)
+      .eq('active', true)
+      .eq('recurrence->>kind', 'on_task')
+      .eq('recurrence->>sourceTemplateId', sourceTemplateId);
+    for (const t of (data ?? []) as { id: string; recurrence: TodoRecurrence }[]) {
+      const { data: pend } = await supabase
+        .from('todo_occurrences')
+        .select('id')
+        .eq('template_id', t.id)
+        .eq('status', 'pending')
+        .limit(1);
+      if (pend && pend.length) continue;
+      await this.insertOccurrence(userId, t.id, triggeredDueDate(t.recurrence, triggerDay));
+    }
   }
 
   skip(occId: string): Promise<void> {

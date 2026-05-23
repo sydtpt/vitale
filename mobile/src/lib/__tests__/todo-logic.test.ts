@@ -6,6 +6,7 @@ import {
   daysBetween,
   firstDueDate,
   nextDueDate,
+  triggeredDueDate,
   isOverdue,
   daysLate,
   dueUsage,
@@ -25,6 +26,22 @@ describe('helpers de data', () => {
   it('daysBetween', () => {
     expect(daysBetween('2026-05-18', '2026-05-20')).toBe(2);
     expect(daysBetween('2026-05-20', '2026-05-18')).toBe(-2);
+  });
+});
+
+describe('triggeredDueDate (on_workout / on_task)', () => {
+  it('sem dueInDays → sem prazo (null)', () => {
+    expect(triggeredDueDate({ kind: 'on_workout' }, TODAY)).toBeNull();
+    expect(triggeredDueDate({ kind: 'on_task', sourceTemplateId: 'x' }, TODAY)).toBeNull();
+  });
+  it('dueInDays = 0 → no dia do gatilho', () => {
+    expect(triggeredDueDate({ kind: 'on_workout', dueInDays: 0 }, TODAY)).toBe(TODAY);
+  });
+  it('dueInDays = N → N dias após o gatilho', () => {
+    expect(triggeredDueDate({ kind: 'on_task', sourceTemplateId: 'x', dueInDays: 3 }, TODAY)).toBe('2026-05-23');
+  });
+  it('outros kinds → null', () => {
+    expect(triggeredDueDate({ kind: 'none' }, TODAY)).toBeNull();
   });
 });
 

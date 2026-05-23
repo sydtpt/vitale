@@ -240,7 +240,10 @@ export type TodoRecurrence =
   | { kind: 'after_completion'; intervalDays: number }     // N dias após concluir
   | { kind: 'usage'; meterUnit: string; every: number }    // não-temporal: por uso/contador
   | { kind: 'event'; label: string }                       // não-temporal: por evento manual
-  | { kind: 'stock'; shopItemRef?: string };               // não-temporal: por estoque (ponte Compras)
+  | { kind: 'stock'; shopItemRef?: string }                // não-temporal: por estoque (ponte Compras)
+  // gatilhos de CRIAÇÃO automática (a ocorrência nasce quando o evento dispara):
+  | { kind: 'on_workout'; activityId?: number; dueInDays?: number }   // ao registrar um treino (de um tipo, ou qualquer)
+  | { kind: 'on_task'; sourceTemplateId: string; dueInDays?: number }; // ao concluir outra série
 
 /** Definição/regra de uma tarefa recorrente (ou avulsa). Mapeia `todo_templates`. */
 export interface TodoTemplate {
@@ -254,6 +257,7 @@ export interface TodoTemplate {
   cancelPolicy: TodoCancelPolicy;
   meter?: number;                 // estado atual do contador (recurrence.kind === 'usage')
   meterAtLastDone?: number;       // leitura do contador na última conclusão
+  linkedActivityId?: number;      // activityId HealthKit que conclui esta tarefa (corrida=37, bike=13...)
   active: boolean;
   sort: number;
   createdAt: string;              // ISO

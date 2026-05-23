@@ -110,6 +110,19 @@ export function nextDueDate(
   }
 }
 
+/**
+ * Prazo de uma ocorrência criada por gatilho (on_workout/on_task), a partir do
+ * dia do gatilho. `dueInDays`: undefined → sem prazo (null); 0 → no dia; N → +N dias.
+ */
+export function triggeredDueDate(
+  rec: TodoRecurrence,
+  triggerDay: string = localDateStr(),
+): string | null {
+  const days = rec.kind === 'on_workout' || rec.kind === 'on_task' ? rec.dueInDays : undefined;
+  if (days == null) return null;
+  return addDays(triggerDay, days);
+}
+
 /** Pendente com data já passada. */
 export function isOverdue(
   occ: Pick<TodoOccurrence, 'dueDate' | 'status'>,

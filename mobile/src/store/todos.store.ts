@@ -12,15 +12,12 @@ import { supabase } from '../lib/supabase';
 import {
   localDateStr,
   firstDueDate,
-  nextDueDate,
   dueUsage,
   reconcileTemplate,
 } from '../lib/todo-logic';
-import {
-  enqueueResolve,
-  drainTodoQueue,
-  type TodoResolveOp,
-} from '../lib/todo-queue';
+import { drainTodoQueue } from '../lib/todo-queue';
+import { toTemplate, toOcc } from '../lib/todo-map';
+import { resolveAndAdvance, flushResolves, insertOccurrence } from '../services/todo-resolve';
 import { useAuthStore } from './auth.store';
 
 /** Janela de histórico carregada (dias) para listar concluídas/atrasadas recentes. */
@@ -35,6 +32,7 @@ export interface NewTodo {
   overdue: TodoOverduePolicy;
   cancelPolicy: TodoCancelPolicy;
   meter?: number; // estado inicial do contador (recurrence.kind === 'usage')
+  linkedActivityId?: number | null; // activityId HealthKit que conclui a tarefa
 }
 
 /** Campos editáveis de uma série. */
@@ -47,6 +45,7 @@ export interface TodoPatch {
   overdue?: TodoOverduePolicy;
   cancel_policy?: TodoCancelPolicy;
   meter?: number | null;
+  linked_activity_id?: number | null;
   active?: boolean;
   sort?: number;
 }
@@ -72,97 +71,8 @@ interface TodosState {
   trigger: (templateId: string) => Promise<void>; // event/stock manual
 }
 
-type TemplateRow = {
-  id: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  module: TodoModule;
-  recurrence: TodoRecurrence;
-  overdue: TodoOverduePolicy;
-  cancel_policy: TodoCancelPolicy;
-  meter: number | string | null;
-  meter_at_last_done: number | string | null;
-  active: boolean;
-  sort: number;
-  created_at: string;
-};
-
-type OccRow = {
-  id: string;
-  template_id: string;
-  due_date: string | null;
-  status: TodoStatus;
-  done_at: string | null;
-  meta: Record<string, unknown> | null;
-  created_at: string;
-};
-
-function toTemplate(r: TemplateRow): TodoTemplate {
-  return {
-    id: r.id,
-    name: r.name,
-    icon: r.icon ?? '',
-    color: r.color ?? 'tarefa',
-    module: r.module,
-    recurrence: r.recurrence,
-    overdue: r.overdue,
-    cancelPolicy: r.cancel_policy,
-    meter: r.meter == null ? undefined : Number(r.meter),
-    meterAtLastDone: r.meter_at_last_done == null ? undefined : Number(r.meter_at_last_done),
-    active: r.active,
-    sort: r.sort,
-    createdAt: r.created_at,
-  };
-}
-
-function toOcc(r: OccRow): TodoOccurrence {
-  return {
-    id: r.id,
-    templateId: r.template_id,
-    dueDate: r.due_date,
-    status: r.status,
-    doneAt: r.done_at ?? undefined,
-    meta: r.meta ?? undefined,
-    createdAt: r.created_at,
-  };
-}
-
-function genOpId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 function currentUserId(): string | undefined {
   return useAuthStore.getState().user?.id;
-}
-
-/** Resolve cada item via rpc; devolve os que falharam (a manter na fila). */
-async function flushResolves(items: TodoResolveOp[]): Promise<TodoResolveOp[]> {
-  const failed: TodoResolveOp[] = [];
-  for (const it of items) {
-    const { error } = await supabase.rpc('todo_resolve', {
-      p_occ: it.occId,
-      p_status: it.status,
-      p_meta: it.meta ?? null,
-    });
-    if (error) failed.push(it);
-  }
-  return failed;
-}
-
-/** Insere ocorrência; ignora violação de unicidade (idempotente por template+data). */
-async function insertOccurrence(
-  userId: string,
-  templateId: string,
-  dueDate: string | null,
-): Promise<void> {
-  const { error } = await supabase.from('todo_occurrences').insert({
-    template_id: templateId,
-    user_id: userId,
-    due_date: dueDate,
-    status: 'pending',
-  });
-  if (error && error.code !== '23505') throw error;
 }
 
 /** Busca pendentes (qualquer data) + resolvidas dentro da janela. */
@@ -253,6 +163,7 @@ export const useTodosStore = create<TodosState>((set, get) => ({
         overdue: input.overdue,
         cancel_policy: input.cancelPolicy,
         meter: input.meter ?? null,
+        linked_activity_id: input.linkedActivityId ?? null,
         sort,
       })
       .select('id')
@@ -293,20 +204,18 @@ export const useTodosStore = create<TodosState>((set, get) => ({
           : o,
       ),
     }));
-    await enqueueResolve({ opId: genOpId(), occId, status, meta: meta ?? null });
-    await drainTodoQueue(flushResolves);
 
-    // gerar próxima ocorrência conforme a recorrência
+    // conclusão + geração da próxima passam pelo seam único (compartilhado com o sync)
     const t = get().templates.find((x) => x.id === occ.templateId);
     if (t && userId) {
-      if (t.recurrence.kind === 'usage' && status === 'done') {
-        await supabase
-          .from('todo_templates')
-          .update({ meter_at_last_done: t.meter ?? 0 })
-          .eq('id', t.id);
-      }
-      const next = nextDueDate(t.recurrence, occ.dueDate, localDateStr());
-      if (next != null) await insertOccurrence(userId, t.id, next);
+      await resolveAndAdvance({
+        userId,
+        template: t,
+        occId,
+        occDueDate: occ.dueDate,
+        status,
+        meta: meta ?? null,
+      });
     }
     await get().load();
   },
