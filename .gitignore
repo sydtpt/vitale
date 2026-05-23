@@ -19,7 +19,7 @@ out/
 *.mobileprovision
 *.orig.*
 web-build/
-ios/
+# ios/ é versionado (workflow bare p/ EAS) — gerados ignorados em mobile/.gitignore
 android/
 
 # Environment

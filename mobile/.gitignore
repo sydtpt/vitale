@@ -7,3 +7,13 @@ expo-env.d.ts
 
 .env
 .env.local
+
+# Native iOS (workflow bare) — versiona o código-fonte, ignora o gerado
+ios/Pods/
+ios/build/
+ios/.xcode.env.local
+ios/DerivedData/
+ios/Vitale.xcodeproj/xcuserdata/
+ios/Vitale.xcodeproj/project.xcworkspace/xcuserdata/
+ios/Vitale.xcworkspace/xcuserdata/
+*.xcuserstate
