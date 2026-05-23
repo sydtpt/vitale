@@ -15,7 +15,11 @@
     "mobile:android": "cd mobile && npx expo run:android",
     "mobile:ios": "cd mobile && npx expo run:ios",
     "lint": "npm run lint --workspaces",
-    "test": "npm run test --workspaces"
+    "test": "npm run test --workspaces",
+    "postinstall": "patch-package"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
   },
   "engines": {
     "node": ">=20.0.0"
