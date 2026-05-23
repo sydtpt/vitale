@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Session, User } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
+import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -61,8 +62,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: false });
     if (result.type !== 'success') return 'Login cancelado.';
 
-    // PKCE flow: exchange the code returned in the redirect URL for a session
-    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(result.url);
+    // PKCE flow: extrai só o ?code= da URL de retorno (vitale://?code=...).
+    // exchangeCodeForSession espera o código, não a URL inteira — passar a URL
+    // dá "invalid flow state, no valid flow state found".
+    const { queryParams } = Linking.parse(result.url);
+    const code = queryParams?.code;
+    if (typeof code !== 'string') return 'Não foi possível obter o código de login.';
+
+    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
     if (sessionError) return sessionError.message;
     return null;
   },
