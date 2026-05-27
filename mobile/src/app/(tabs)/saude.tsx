@@ -163,7 +163,11 @@ export default function HealthScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={({ pressed }) => [styles.backBtn, pressed && styles.cardPressed]}>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
+          </Pressable>
           <Text style={styles.headerTitle}>Saúde</Text>
+          <View style={styles.backBtn} />
         </View>
         <PermissionScreen onRequest={requestPermission} />
       </View>
@@ -173,6 +177,9 @@ export default function HealthScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={({ pressed }) => [styles.backBtn, pressed && styles.cardPressed]}>
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        </Pressable>
         <Text style={styles.headerTitle}>Saúde</Text>
         <Pressable
           onPress={onSync}
@@ -220,9 +227,18 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  headerTitle: { fontSize: 28, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 24, fontFamily: 'InstrumentSerif', color: colors.ink },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    ...shadows.card,
+  },
   syncBtn: {
     width: 38,
     height: 38,
