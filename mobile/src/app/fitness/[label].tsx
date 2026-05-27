@@ -6,6 +6,8 @@ import {
   Pressable,
   StyleSheet,
   ListRenderItemInfo,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -73,7 +75,27 @@ export default function ActivityDetailScreen() {
   const router = useRouter();
   const { label = '' } = useLocalSearchParams<{ label: string }>();
 
-  const { workouts } = useFitnessStore();
+  const { workouts, syncType, typeStatus } = useFitnessStore();
+  const syncing = typeStatus[label] === 'syncing';
+
+  const handleFullResync = useCallback(() => {
+    Alert.alert(
+      'Reenviar histórico completo',
+      'Isso reenvia todo o histórico deste tipo ao servidor, recalculando tempo em movimento e distâncias. Pode demorar alguns minutos.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Reenviar',
+          style: 'destructive',
+          onPress: async () => {
+            await syncType(label);
+            const err = useFitnessStore.getState().syncError[label];
+            if (err) Alert.alert('Erro ao sincronizar', err);
+          },
+        },
+      ]
+    );
+  }, [label, syncType]);
 
   const filtered = useMemo(
     () =>
@@ -126,7 +148,17 @@ export default function ActivityDetailScreen() {
             {filtered.length} {filtered.length === 1 ? 'atividade' : 'atividades'}
           </Text>
         </View>
-        <View style={styles.backBtn} />
+        <Pressable
+          onPress={handleFullResync}
+          disabled={syncing}
+          hitSlop={12}
+          style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed, syncing && { opacity: 0.5 }]}
+        >
+          {syncing
+            ? <ActivityIndicator size="small" color={colors.ink3} />
+            : <Ionicons name="refresh-outline" size={20} color={colors.ink3} />
+          }
+        </Pressable>
       </View>
 
       <FlatList

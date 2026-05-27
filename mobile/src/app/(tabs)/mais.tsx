@@ -16,10 +16,10 @@ type Link = {
 const LINKS: Link[] = [
   { icon: 'checkmark-done-outline', label: 'Tarefas', sub: 'To-do e recorrências', tint: MOD.tarefa.tint, color: MOD.tarefa.accent, route: '/tarefas' },
   { icon: 'repeat-outline', label: 'Hábitos', sub: 'Contadores diários', tint: MOD.habito.tint, color: MOD.habito.accent, route: '/habitos' },
+  { icon: 'calendar-outline', label: 'Semana', sub: 'Visão geral da semana', tint: MOD.agua.tint, color: MOD.agua.accent, route: '/(tabs)/semana' },
   { icon: 'bookmark-outline', label: 'Registros', sub: 'Marcar atividades do dia', tint: MOD.food.tint, color: MOD.food.accent, route: '/registros' },
   { icon: 'sync-outline', label: 'Sync de atividades', sub: 'Treinos do Apple Health', tint: MOD.treino.tint, color: MOD.treino.accent, route: '/fitness' },
   { icon: 'heart-outline', label: 'Saúde', sub: 'Métricas do Apple Health', tint: '#FDDEDE', color: '#E05C5C', route: '/(tabs)/saude' },
-  { icon: 'cart-outline', label: 'Compras', sub: 'Lista de mercado', tint: MOD.compras.tint, color: MOD.compras.accent, route: '/compras' },
   { icon: 'wallet-outline', label: 'Finanças', sub: 'Orçamento e gastos', tint: MOD.financas.tint, color: MOD.financas.accent },
   { icon: 'home-outline', label: 'Casa', sub: 'Rotinas e tarefas', tint: MOD.casa.tint, color: MOD.casa.accent },
   { icon: 'golf-outline', label: 'Metas', sub: '5 ativas', tint: MOD.habito.tint, color: MOD.habito.accent },

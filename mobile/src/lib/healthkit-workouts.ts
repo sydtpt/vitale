@@ -37,7 +37,7 @@ export const PERMISSIONS = {
 /** Busca os pontos GPS de um treino. Retorna [] se não houver rota (ex.: indoor). */
 export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
   if (Platform.OS !== 'ios') return Promise.resolve([]);
-  return new Promise((resolve) => {
+  const inner = new Promise<RoutePoint[]>((resolve) => {
     AppleHealthKit.getWorkoutRouteSamples({ id }, (err, results) => {
       if (err || !results?.data?.locations) {
         resolve([]);
@@ -55,6 +55,7 @@ export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
       );
     });
   });
+  return withTimeout(inner, []);
 }
 
 /**

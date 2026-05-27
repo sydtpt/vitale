@@ -24,11 +24,11 @@ import { colors, spacing, radii, shadows, MOD } from '../../theme';
 
 type Kind = TodoRecurrence['kind'];
 
+// 'compras' é gerenciado pela sua própria tela — não aparece aqui.
 const MODULES: { key: TodoModule; label: string }[] = [
   { key: 'geral', label: 'Geral' },
   { key: 'casa', label: 'Casa' },
   { key: 'financas', label: 'Finanças' },
-  { key: 'compras', label: 'Compras' },
   { key: 'saude', label: 'Saúde' },
 ];
 

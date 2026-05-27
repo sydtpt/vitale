@@ -32,11 +32,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="semana"
+        name="compras"
         options={{
-          title: 'Semana',
+          title: 'Compras',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+            <Ionicons name="cart-outline" size={size} color={color} />
           ),
         }}
       />
@@ -50,6 +50,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen name="saude" options={{ href: null }} />
+      <Tabs.Screen name="semana" options={{ href: null }} />
       <Tabs.Screen
         name="mais"
         options={{

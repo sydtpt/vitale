@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, spacing } from '../../theme';
 import { DayRingCard } from '../../components/cards/DayRingCard';
@@ -13,6 +13,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useHealthStore } from '../../store/health.store';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
+import { readinessFromSummaries } from '../../lib/health-readiness';
 import { isOverdue } from '../../lib/todo-logic';
 import { HOJE } from '../../services/mock-data';
 import type { CounterHabit } from '@vitale/shared';
@@ -34,7 +35,10 @@ function getFirstName(user: User | null): string {
 
 export default function HojeScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [cardPage, setCardPage] = useState(0);
   const router = useRouter();
+  const { width: screenWidth } = useWindowDimensions();
+  const cardW = screenWidth - spacing.lg * 2;
   const user = useAuthStore(s => s.user);
   const firstName = getFirstName(user);
 
@@ -59,6 +63,8 @@ export default function HojeScreen() {
   // Em quem já concedeu acesso, é silencioso; mantém a mesma porta da aba Saúde.
   const healthStatus = useHealthStore(s => s.permissionStatus);
   const requestHealth = useHealthStore(s => s.requestPermission);
+  const healthSummaries = useHealthStore(s => s.summaries);
+  const hasReadiness = readinessFromSummaries(healthSummaries).components.length > 0;
   useEffect(() => { if (healthStatus === 'unknown') requestHealth(); }, [healthStatus, requestHealth]);
 
   // Tarefas (to-do) — pendentes/atrasadas de hoje
@@ -140,11 +146,34 @@ export default function HojeScreen() {
           <Text style={styles.sub}>{HOJE.weekDay} · {4 - mealsDone} checks pendentes</Text>
         </View>
 
-        {/* Day Ring Card */}
-        <DayRingCard activity={activity} food={food} mind={mind} overall={overall} />
+        {/* Carousel: Ring + Prontidão lado a lado com scroll horizontal */}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={({ nativeEvent }) =>
+            setCardPage(Math.round(nativeEvent.contentOffset.x / cardW))
+          }
+          scrollEventThrottle={16}
+          style={styles.hScroll}
+        >
+          <View style={{ width: cardW }}>
+            <DayRingCard activity={activity} food={food} mind={mind} overall={overall} />
+          </View>
+          {hasReadiness && (
+            <View style={{ width: cardW }}>
+              <ReadinessCard />
+            </View>
+          )}
+        </ScrollView>
 
-        {/* Prontidão (Apple Health) — aparece quando há dados na sessão */}
-        <ReadinessCard />
+        {/* Dots de paginação — só aparece quando há card de prontidão */}
+        {hasReadiness && (
+          <View style={styles.dots}>
+            <View style={[styles.dot, cardPage === 0 && styles.dotActive]} />
+            <View style={[styles.dot, cardPage === 1 && styles.dotActive]} />
+          </View>
+        )}
 
         {/* Hábitos com valor hoje — logo abaixo dos anéis */}
         {startedHabits.map(renderStepper)}
@@ -188,4 +217,8 @@ const styles = StyleSheet.create({
   date: { fontSize: 13, color: colors.ink3, letterSpacing: 0.4, fontWeight: '600' },
   greeting: { fontFamily: 'InstrumentSerif', fontSize: 34, lineHeight: 36, marginTop: 4, color: colors.ink },
   sub: { fontSize: 14, color: colors.ink2, marginTop: 4 },
+  hScroll: { marginTop: 8 },
+  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 10, marginBottom: spacing.md },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.line },
+  dotActive: { width: 14, backgroundColor: colors.primary },
 });

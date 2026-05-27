@@ -52,6 +52,8 @@ export function toActivityRow(
   userId: string,
   bestEfforts?: Record<string, number>,
   hrZones?: Record<string, number>,
+  /** Se fornecido, substitui hasGpsRoute(activityId) — use routes.has(w.id) no sync. */
+  hasRoute?: boolean,
 ): ActivityRow {
   const metadata: Record<string, unknown> = { ...(w.metadata ?? {}) };
   if (w.workoutEventsCount !== undefined) metadata.workoutEventsCount = w.workoutEventsCount;
@@ -71,7 +73,7 @@ export function toActivityRow(
     source_id: w.sourceId ?? null,
     device: w.device ?? null,
     tracked: w.tracked ?? null,
-    has_route: hasGpsRoute(w.activityId),
+    has_route: hasRoute ?? hasGpsRoute(w.activityId),
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
     best_efforts: bestEfforts && Object.keys(bestEfforts).length > 0 ? bestEfforts : null,
     hr_zones: hrZones && Object.keys(hrZones).length > 0 ? hrZones : null,

@@ -9,6 +9,8 @@ interface Props {
   metric: Metric;
   width: number;
   height?: number;
+  /** Quando true, ignora MIN_SLOT e comprime as barras para caber na largura disponível sem rolagem. */
+  noScroll?: boolean;
 }
 
 const PAD_TOP = 16;
@@ -30,14 +32,14 @@ function fmtAxis(v: number, metric: Metric): string {
 }
 
 /** Barras empilhadas por tipo de atividade. Portado do gráfico do web. */
-export function StackedBarChart({ buckets, metric, width, height = 200 }: Props) {
+export function StackedBarChart({ buckets, metric, width, height = 200, noScroll = false }: Props) {
   const n = buckets.length;
   if (n === 0 || width <= 0) return null;
 
   // rola horizontalmente quando há muitos buckets (ex.: 12 meses, anos)
   const naturalSlot = (width - PAD_LEFT) / n;
-  const slot = Math.max(naturalSlot, MIN_SLOT);
-  const chartW = PAD_LEFT + slot * n;
+  const slot = noScroll ? naturalSlot : Math.max(naturalSlot, MIN_SLOT);
+  const chartW = noScroll ? width : PAD_LEFT + slot * n;
 
   const innerH = height - PAD_TOP - PAD_BOTTOM;
   const maxV = Math.max(...buckets.map((b) => b.total), 1);

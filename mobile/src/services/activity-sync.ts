@@ -18,6 +18,7 @@ import {
   fetchHrZoneParams,
   getActivityMeta,
   hasGpsRoute,
+  GPS_ACTIVITY_IDS,
   type WorkoutItem,
   type RoutePoint,
 } from '../lib/healthkit-workouts';
@@ -198,6 +199,41 @@ async function flushItems(items: QueueItem[]): Promise<QueueItem[]> {
   return failed;
 }
 
+/** Janela de retry de rotas: atividades GPS dos últimos N dias sem rota sincronizada. */
+const ROUTE_RETRY_DAYS = 7;
+
+/**
+ * Tenta buscar rotas GPS para atividades recentes que foram sincronizadas sem
+ * rota (has_route=false). Isso acontece quando o HealthKit ainda não processou
+ * a rota ao final do treino e o sync rodou antes dela ficar disponível.
+ */
+async function retryMissingRoutes(userId: string): Promise<number> {
+  const cutoff = new Date(Date.now() - ROUTE_RETRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { data: candidates } = await supabase
+    .from('activities')
+    .select('id, activity_id')
+    .eq('user_id', userId)
+    .in('activity_id', [...GPS_ACTIVITY_IDS])
+    .gte('start_at', cutoff)
+    .eq('has_route', false);
+
+  if (!candidates?.length) return 0;
+
+  let count = 0;
+  for (const activity of candidates) {
+    const points = await fetchWorkoutRoute(activity.id);
+    if (points.length === 0) continue;
+    const row = toRouteRow(activity.id, userId, points);
+    const { error } = await supabase
+      .from('activity_routes')
+      .upsert(row, { onConflict: 'activity_id' });
+    if (error) continue;
+    await supabase.from('activities').update({ has_route: true }).eq('id', activity.id);
+    count++;
+  }
+  return count;
+}
+
 /**
  * Pesos das fases para a barra de progresso (somam 1). As duas coletas
  * treino-a-treino dominam o tempo (uma leitura do HealthKit por treino); o
@@ -236,7 +272,7 @@ export async function syncType(
       onProgress?.(PROGRESS.routes + phaseFrac(done, total) * PROGRESS.hr),
     );
     const rows = ofType.map((w) =>
-      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id)),
+      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id), routes.has(w.id)),
     );
 
     // 4. Upsert (idempotente) + rotas GPS.
@@ -290,7 +326,7 @@ export async function syncDelta(): Promise<SyncResult> {
     const hrParams = await fetchHrZoneParams();
     const hrZones = await collectHrZones(ofType, hrParams);
     const rows = ofType.map((w) =>
-      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id)),
+      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id), routes.has(w.id)),
     );
 
     const a = await pushActivities(rows);
@@ -298,11 +334,15 @@ export async function syncDelta(): Promise<SyncResult> {
 
     // Liga os treinos NOVOS às tarefas (conclui/gera a ocorrência do dia). Só no
     // delta — nunca no backfill por tipo (syncType), p/ não gerar tarefas de 3 anos.
+    // Também pula quando anchor=null (cold start): fetchWorkoutsDelta sem âncora
+    // devolve 3 anos de histórico; processar tudo criaria tasks para cada treino passado.
     // Falha aqui não derruba o sync de atividades.
-    try {
-      await linkWorkoutsToTodos(ofType, userId);
-    } catch (e) {
-      console.warn('[sync] link de tarefas falhou:', e instanceof Error ? e.message : e);
+    if (anchor !== null) {
+      try {
+        await linkWorkoutsToTodos(ofType, userId);
+      } catch (e) {
+        console.warn('[sync] link de tarefas falhou:', e instanceof Error ? e.message : e);
+      }
     }
 
     const failed = [...a.failed, ...r.failed];
@@ -311,11 +351,20 @@ export async function syncDelta(): Promise<SyncResult> {
     // 3. Só avança a âncora se tudo subiu (senão re-tenta no próximo ciclo).
     if (failed.length === 0 && newAnchor) await writeAnchor(userId, newAnchor);
 
+    // 4. Tenta recuperar rotas GPS que falharam em syncs anteriores (race condition
+    //    com o HealthKit processando a rota após o treino ser finalizado).
+    let retriedRoutes = 0;
+    try {
+      retriedRoutes = await retryMissingRoutes(userId);
+    } catch (e) {
+      console.warn('[sync] retry de rotas falhou:', e instanceof Error ? e.message : e);
+    }
+
     const labels = [...new Set(ofType.map((w) => getActivityMeta(w.activityId).label))];
     return {
       pushed: a.pushed,
       deleted: 0,
-      routes: r.routes,
+      routes: r.routes + retriedRoutes,
       queued: failed.length,
       ok: true,
       error: a.error ?? r.error,

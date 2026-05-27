@@ -186,7 +186,7 @@ export default function HistoricoTabScreen() {
           </View>
 
           <View style={styles.chartWrap}>
-            <StackedBarChart buckets={chartBuckets} metric={metric} width={chartWidth} />
+            <StackedBarChart buckets={chartBuckets} metric={metric} width={chartWidth} noScroll={period === 'ano'} />
           </View>
 
           <Segmented options={METRICS} value={metric} onChange={setMetric} />

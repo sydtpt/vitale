@@ -156,6 +156,8 @@ export default function FitnessScreen() {
     loading,
     requestPermission,
     syncType,
+    syncDeltaForLabel,
+    runDelta,
     typeStatus,
     syncProgress,
     syncedTypes,
@@ -164,33 +166,24 @@ export default function FitnessScreen() {
   const groups = useMemo(() => groupByActivity(workouts), [workouts]);
 
   const handleSync = useCallback(
-    async (label: string) => {
-      await syncType(label);
+    async (label: string, status: TypeSyncStatus) => {
+      if (status === 'unsubscribed') {
+        // Primeira vez: inscreve + backfill completo
+        await syncType(label);
+      } else {
+        // Já inscrito: envia só atividades novas
+        await syncDeltaForLabel(label);
+      }
       const err = useFitnessStore.getState().syncError[label];
       if (err) Alert.alert('Erro ao sincronizar', err);
     },
-    [syncType]
+    [syncType, syncDeltaForLabel]
   );
 
-  const handleResyncAll = useCallback(() => {
+  const handleResyncAll = useCallback(async () => {
     if (syncedTypes.size === 0) return;
-    Alert.alert(
-      'Re-sincronizar histórico',
-      'Isso reenvia todos os treinos inscritos ao servidor, recalculando o tempo em movimento e corrigindo distâncias gravadas incorretamente.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Re-sincronizar',
-          style: 'destructive',
-          onPress: async () => {
-            for (const label of syncedTypes) {
-              await syncType(label);
-            }
-          },
-        },
-      ]
-    );
-  }, [syncedTypes, syncType]);
+    await runDelta();
+  }, [syncedTypes, runDelta]);
 
   const handleOpen = useCallback(
     (label: string) => {
@@ -204,7 +197,7 @@ export default function FitnessScreen() {
       <ActivityTypeCard
         group={item}
         onPress={() => handleOpen(item.label)}
-        onSync={() => handleSync(item.label)}
+        onSync={() => handleSync(item.label, typeStatus[item.label] ?? 'unsubscribed')}
         status={typeStatus[item.label] ?? 'unsubscribed'}
         progress={syncProgress[item.label] ?? 0}
       />

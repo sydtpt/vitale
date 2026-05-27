@@ -7,7 +7,7 @@ import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { TodoItem } from '../../components/cards/TodoItem';
-import { localDateStr, isOverdue } from '../../lib/todo-logic';
+import { localDateStr, isOverdue, addDays } from '../../lib/todo-logic';
 import { describeRecurrence } from '../../lib/todo-format';
 import { colors, spacing, radii, shadows, MOD } from '../../theme';
 
@@ -34,11 +34,17 @@ export default function TarefasScreen() {
 
   const tplById = new Map(templates.map((t) => [t.id, t]));
   const today = localDateStr();
-  const pending = occurrences.filter((o) => o.status === 'pending' && tplById.has(o.templateId));
+
+  // Exclui módulo 'compras' — lista de compras fica na sua própria tab.
+  const isTask = (o: TodoOccurrence) =>
+    tplById.has(o.templateId) && tplById.get(o.templateId)!.module !== 'compras';
+
+  const pending = occurrences.filter((o) => o.status === 'pending' && isTask(o));
 
   const overdue = pending.filter((o) => isOverdue(o, today));
   const todayList = pending.filter((o) => !isOverdue(o, today) && (o.dueDate === null || o.dueDate <= today));
-  const upcoming = pending.filter((o) => o.dueDate !== null && o.dueDate > today);
+  const in48h = addDays(today, 2);
+  const upcoming = pending.filter((o) => o.dueDate !== null && o.dueDate > today && o.dueDate <= in48h);
 
   // Concluídas hoje (inclui as auto-concluídas pelo sync de treino) — por doneAt local.
   const doneToday = occurrences.filter(
@@ -46,12 +52,15 @@ export default function TarefasScreen() {
       o.status === 'done' &&
       o.doneAt != null &&
       localDateStr(new Date(o.doneAt)) === today &&
-      tplById.has(o.templateId),
+      isTask(o),
   );
 
   const pendingIds = new Set(pending.map((o) => o.templateId));
   const triggers = templates.filter(
-    (t) => ['event', 'stock', 'usage'].includes(t.recurrence.kind) && !pendingIds.has(t.id),
+    (t) =>
+      ['event', 'stock', 'usage'].includes(t.recurrence.kind) &&
+      t.module !== 'compras' &&
+      !pendingIds.has(t.id),
   );
 
   const empty = pending.length === 0 && triggers.length === 0 && doneToday.length === 0;

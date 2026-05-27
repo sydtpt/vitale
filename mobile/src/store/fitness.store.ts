@@ -62,6 +62,8 @@ interface FitnessState {
   hydrateSyncedTypes: () => Promise<void>;
   /** Inscreve um tipo e envia todo o histórico daquele tipo (backfill). */
   syncType: (label: string) => Promise<void>;
+  /** Delta incremental para um tipo já inscrito (envia apenas atividades novas). */
+  syncDeltaForLabel: (label: string) => Promise<void>;
   /** Para de rastrear um tipo (não apaga dados já enviados). */
   unsubscribeType: (label: string) => Promise<void>;
   /** Delta incremental dos tipos inscritos (chamado pelo observer/foreground). */
@@ -181,6 +183,36 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
           result.ok && !result.error
             ? { ...state.lastSyncedAt, [label]: new Date().toISOString() }
             : state.lastSyncedAt,
+        syncError: { ...state.syncError, [label]: hadError ? result.error ?? 'Falha no sync' : null },
+      };
+    });
+  },
+
+  syncDeltaForLabel: async (label: string) => {
+    set((state) => ({
+      typeStatus: { ...state.typeStatus, [label]: 'syncing' },
+      syncError: { ...state.syncError, [label]: null },
+    }));
+    const result = await runSyncDelta();
+    const now = new Date().toISOString();
+    set((state) => {
+      const hadError = !result.ok || !!result.error;
+      const status: TypeSyncStatus = hadError
+        ? 'error'
+        : result.queued > 0
+        ? 'pending'
+        : 'synced';
+      const typeStatus = { ...state.typeStatus };
+      const lastSyncedAt = { ...state.lastSyncedAt };
+      // Atualiza todos os labels tocados pelo delta + garante que o label pedido sai de 'syncing'
+      const touched = new Set([label, ...(result.labels ?? [])]);
+      for (const l of touched) {
+        typeStatus[l] = hadError ? 'error' : result.queued > 0 ? 'pending' : 'synced';
+        if (!hadError) lastSyncedAt[l] = now;
+      }
+      return {
+        typeStatus,
+        lastSyncedAt,
         syncError: { ...state.syncError, [label]: hadError ? result.error ?? 'Falha no sync' : null },
       };
     });
