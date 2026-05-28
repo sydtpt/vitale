@@ -6,6 +6,7 @@ import type {
   TodoRecurrence,
   TodoOverduePolicy,
   TodoCancelPolicy,
+  TodoSpawnRule,
   TodoStatus,
 } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
@@ -14,7 +15,6 @@ import {
   localDateStr,
   firstDueDate,
   nextDueDate,
-  triggeredDueDate,
   dueUsage,
   reconcileTemplate,
 } from './todo-logic';
@@ -33,6 +33,8 @@ export interface NewTodo {
   overdue: TodoOverduePolicy;
   cancelPolicy: TodoCancelPolicy;
   meter?: number;
+  onComplete?: TodoSpawnRule[];
+  triggerOnly?: boolean;
   meta?: Record<string, unknown>;
 }
 
@@ -47,6 +49,8 @@ interface DbTemplateRow {
   cancel_policy: TodoCancelPolicy;
   meter: number | string | null;
   meter_at_last_done: number | string | null;
+  on_complete: TodoSpawnRule[] | null;
+  trigger_only: boolean | null;
   meta: Record<string, unknown> | null;
   active: boolean;
   sort: number;
@@ -167,17 +171,22 @@ export class TodosStore {
         overdue: input.overdue,
         cancel_policy: input.cancelPolicy,
         meter: input.meter ?? null,
+        on_complete: input.onComplete ?? null,
+        trigger_only: input.triggerOnly ?? false,
         meta: input.meta ?? null,
         sort,
       })
       .select('id')
       .single();
     if (error || !data) return;
-    if (input.recurrence.kind === 'none') {
-      await this.insertOccurrence(userId, data.id, null);
-    } else {
-      const due = firstDueDate(input.recurrence, localDateStr());
-      if (due != null) await this.insertOccurrence(userId, data.id, due);
+    // triggerOnly nunca cria ocorrência inicial — só nasce por gatilho.
+    if (!input.triggerOnly) {
+      if (input.recurrence.kind === 'none') {
+        await this.insertOccurrence(userId, data.id, null);
+      } else {
+        const due = firstDueDate(input.recurrence, localDateStr());
+        if (due != null) await this.insertOccurrence(userId, data.id, due);
+      }
     }
     await this.load(true);
   }
@@ -204,8 +213,7 @@ export class TodosStore {
         if (t.recurrence.kind === 'usage') {
           await supabase.from('todo_templates').update({ meter_at_last_done: t.meter ?? 0 }).eq('id', t.id);
         }
-        // Encadeamento: séries on_task que dependem desta criam sua ocorrência.
-        await this.fireTaskChains(userId, t.id, localDateStr());
+        await this.fireOnComplete(userId, t, localDateStr());
       }
       const next = nextDueDate(t.recurrence, occ.dueDate, localDateStr());
       if (next != null) await this.insertOccurrence(userId, t.id, next);
@@ -213,24 +221,23 @@ export class TodosStore {
     await this.load(true);
   }
 
-  /** Séries on_task que apontam para `sourceTemplateId` criam sua ocorrência (1 por vez). */
-  private async fireTaskChains(userId: string, sourceTemplateId: string, triggerDay: string): Promise<void> {
-    const { data } = await supabase
-      .from('todo_templates')
-      .select('id, recurrence')
-      .eq('user_id', userId)
-      .eq('active', true)
-      .eq('recurrence->>kind', 'on_task')
-      .eq('recurrence->>sourceTemplateId', sourceTemplateId);
-    for (const t of (data ?? []) as { id: string; recurrence: TodoRecurrence }[]) {
-      const { data: pend } = await supabase
-        .from('todo_occurrences')
-        .select('id')
-        .eq('template_id', t.id)
-        .eq('status', 'pending')
-        .limit(1);
-      if (pend && pend.length) continue;
-      await this.insertOccurrence(userId, t.id, triggeredDueDate(t.recurrence, triggerDay));
+  /**
+   * Encadeamento por conclusão: instancia ocorrências das séries-filhas declaradas
+   * em `parent.onComplete`. ifPending='ignore' pula se já houver pendente.
+   */
+  private async fireOnComplete(userId: string, parent: TodoTemplate, triggerDay: string): Promise<void> {
+    const rules = parent.onComplete ?? [];
+    for (const r of rules) {
+      if (r.ifPending === 'ignore') {
+        const { data } = await supabase
+          .from('todo_occurrences')
+          .select('id')
+          .eq('template_id', r.templateId)
+          .eq('status', 'pending')
+          .limit(1);
+        if (data && data.length) continue;
+      }
+      await this.insertOccurrence(userId, r.templateId, triggerDay);
     }
   }
 
@@ -303,6 +310,8 @@ function mapTemplate(r: DbTemplateRow): TodoTemplate {
     cancelPolicy: r.cancel_policy,
     meter: r.meter == null ? undefined : Number(r.meter),
     meterAtLastDone: r.meter_at_last_done == null ? undefined : Number(r.meter_at_last_done),
+    onComplete: r.on_complete ?? undefined,
+    triggerOnly: r.trigger_only ?? undefined,
     meta: r.meta ?? undefined,
     active: r.active,
     sort: r.sort,

@@ -6,6 +6,7 @@ import type {
   TodoRecurrence,
   TodoOverduePolicy,
   TodoCancelPolicy,
+  TodoSpawnRule,
   TodoStatus,
 } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
@@ -33,6 +34,8 @@ export interface NewTodo {
   cancelPolicy: TodoCancelPolicy;
   meter?: number; // estado inicial do contador (recurrence.kind === 'usage')
   linkedActivityId?: number | null; // activityId HealthKit que conclui a tarefa
+  onComplete?: TodoSpawnRule[]; // encadeamento: ao concluir, instancia filhas
+  triggerOnly?: boolean; // só nasce por gatilho (sem ocorrência inicial nem calendário)
   meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
 }
 
@@ -47,6 +50,8 @@ export interface TodoPatch {
   cancel_policy?: TodoCancelPolicy;
   meter?: number | null;
   linked_activity_id?: number | null;
+  on_complete?: TodoSpawnRule[] | null;
+  trigger_only?: boolean;
   meta?: Record<string, unknown> | null;
   active?: boolean;
   sort?: number;
@@ -166,6 +171,8 @@ export const useTodosStore = create<TodosState>((set, get) => ({
         cancel_policy: input.cancelPolicy,
         meter: input.meter ?? null,
         linked_activity_id: input.linkedActivityId ?? null,
+        on_complete: input.onComplete ?? null,
+        trigger_only: input.triggerOnly ?? false,
         meta: input.meta ?? null,
         sort,
       })
@@ -174,12 +181,15 @@ export const useTodosStore = create<TodosState>((set, get) => ({
     if (error || !data) return;
 
     // ocorrência inicial: 'none' aparece sem data (até concluir); calendário/after_completion
-    // ganham a primeira data; usage/event/stock esperam um gatilho.
-    if (input.recurrence.kind === 'none') {
-      await insertOccurrence(userId, data.id, null);
-    } else {
-      const due = firstDueDate(input.recurrence, localDateStr());
-      if (due != null) await insertOccurrence(userId, data.id, due);
+    // ganham a primeira data; usage/event/stock/on_workout esperam um gatilho.
+    // triggerOnly nunca cria ocorrência inicial — só nasce por gatilho.
+    if (!input.triggerOnly) {
+      if (input.recurrence.kind === 'none') {
+        await insertOccurrence(userId, data.id, null);
+      } else {
+        const due = firstDueDate(input.recurrence, localDateStr());
+        if (due != null) await insertOccurrence(userId, data.id, due);
+      }
     }
     await get().load();
   },

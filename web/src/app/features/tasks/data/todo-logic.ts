@@ -110,14 +110,14 @@ export function nextDueDate(
 }
 
 /**
- * Prazo de uma ocorrência criada por gatilho (on_workout/on_task), a partir do
- * dia do gatilho. `dueInDays`: undefined → sem prazo (null); 0 → no dia; N → +N dias.
+ * Prazo de uma ocorrência criada por gatilho on_workout, a partir do dia do
+ * gatilho. `dueInDays`: undefined → sem prazo (null); 0 → no dia; N → +N dias.
  */
 export function triggeredDueDate(
   rec: TodoRecurrence,
   triggerDay: string = localDateStr(),
 ): string | null {
-  const days = rec.kind === 'on_workout' || rec.kind === 'on_task' ? rec.dueInDays : undefined;
+  const days = rec.kind === 'on_workout' ? rec.dueInDays : undefined;
   if (days == null) return null;
   return addDays(triggerDay, days);
 }
@@ -159,7 +159,7 @@ export type TodoAction =
  *  - overdue='carry': a vencida permanece pendente (some como "atrasada"), sem duplicar.
  */
 export function reconcileTemplate(
-  t: Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue'>,
+  t: Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue' | 'triggerOnly'>,
   occ: Pick<TodoOccurrence, 'id' | 'dueDate' | 'status'>[],
   today: string = localDateStr(),
 ): TodoAction[] {
@@ -175,7 +175,8 @@ export function reconcileTemplate(
     }
   }
 
-  if (isCalendarRecurrence(t.recurrence)) {
+  // triggerOnly: a série não gera ocorrência por calendário (só nasce por gatilho).
+  if (!t.triggerOnly && isCalendarRecurrence(t.recurrence)) {
     const alive = pending.filter((o) => !(t.overdue === 'expire' && isPast(o)));
     const hasCurrentOrFuture = alive.some((o) => o.dueDate != null);
     if (!hasCurrentOrFuture) {

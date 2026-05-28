@@ -19,7 +19,8 @@ recorrentes por data, por intervalo após concluir, avulsas, e gatilhos não-tem
 
 | Eixo | Opções |
 |------|--------|
-| Gatilho (recorrência) | `none` · `monthly` · `weekly` · `yearly` · `after_completion` · `usage` · `event` · `stock` |
+| Gatilho (recorrência) | `none` · `monthly` · `weekly` · `yearly` · `after_completion` · `usage` · `event` · `stock` · `on_workout` |
+| Encadeamento (`onComplete`) | lista de séries-filhas instanciadas ao concluir esta tarefa |
 | Se não fizer no dia (`overdue`) | `carry` (mantém atrasada) · `expire` (some) |
 | Cancelamento (`cancelPolicy`) | `none` (obrigatória) · `manual` · `auto` (após o dia) |
 | Âncora da próxima | calendário (`monthly`/`weekly`/`yearly`) · conclusão (`after_completion`) |
@@ -40,11 +41,35 @@ Os 5 exemplos do usuário:
 6. Surfacing no "Hoje" (mobile): tarefas atrasadas e do dia.
 7. Offline (mobile): conclusões enfileiradas e drenadas via RPC `todo_resolve`.
 
+## Encadeamento (onComplete)
+
+Cada série pode declarar uma lista `onComplete` de regras `{ templateId, ifPending }`.
+Ao concluir uma ocorrência da série-pai, o seam `resolveAndAdvance` instancia uma
+ocorrência de cada série-filha (com `dueDate` = dia da conclusão). A filha mantém
+sua própria recorrência — é uma tarefa normal, só nasce por gatilho da pai.
+
+- `ifPending: 'ignore'` (padrão) — não cria se a filha já tem ocorrência pendente.
+- `ifPending: 'duplicate'` — sempre cria; conflito de `(template_id, due_date)`
+  cai no índice único do banco e vira no-op silencioso.
+
+Exemplos:
+- "Tomar shake" disparado por "Correr" (que por sua vez é concluída pela sync HealthKit).
+- "Colocar saco de lixo" disparado por "Descer o lixo".
+
+Edição: a relação é gravada **só no pai**. No editor da filha, a seção "É criada por"
+lista os pais (read-only) — derivado por query reverso de `onComplete`.
+
+**`triggerOnly`:** flag no template — quando `true`, a série NÃO cria ocorrência
+inicial nem ocorrências por calendário; só nasce por gatilho (onComplete,
+on_workout/sync HealthKit, gatilhos manuais event/stock/usage). Use para tarefas
+filhas que existem só como consequência de outras (ex.: "tomar shake" disparada
+por "correr"). Configurável no editor ("Só nasce por gatilho").
+
 ## Escopo v1
 
-**Inclui:** núcleo (5 exemplos) + gatilhos não-temporais + integração por módulo.
-**Fica para depois:** antecedência/janela de prazo, encadeamento (concluir uma gera outra),
-"X vezes por período".
+**Inclui:** núcleo (5 exemplos) + gatilhos não-temporais + integração por módulo +
+encadeamento por conclusão.
+**Fica para depois:** antecedência/janela de prazo, "X vezes por período".
 
 ## Integração com módulos
 

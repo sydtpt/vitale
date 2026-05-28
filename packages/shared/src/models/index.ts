@@ -252,9 +252,19 @@ export type TodoRecurrence =
   | { kind: 'usage'; meterUnit: string; every: number }    // não-temporal: por uso/contador
   | { kind: 'event'; label: string }                       // não-temporal: por evento manual
   | { kind: 'stock'; shopItemRef?: string }                // não-temporal: por estoque (ponte Compras)
-  // gatilhos de CRIAÇÃO automática (a ocorrência nasce quando o evento dispara):
-  | { kind: 'on_workout'; activityId?: number; dueInDays?: number }   // ao registrar um treino (de um tipo, ou qualquer)
-  | { kind: 'on_task'; sourceTemplateId: string; dueInDays?: number }; // ao concluir outra série
+  // gatilho de CRIAÇÃO automática por atividade HealthKit (a ocorrência nasce quando o treino é registrado):
+  | { kind: 'on_workout'; activityId?: number; dueInDays?: number };
+
+/**
+ * Encadeamento: ao concluir esta série, instanciar ocorrências de outras séries.
+ * A série-filha mantém sua própria `recurrence` — o encadeamento é apenas um
+ * gatilho adicional de criação. `ifPending`: 'ignore' = não duplica se já houver
+ * pendente; 'duplicate' = sempre cria uma nova.
+ */
+export interface TodoSpawnRule {
+  templateId: string;
+  ifPending: 'ignore' | 'duplicate';
+}
 
 /** Definição/regra de uma tarefa recorrente (ou avulsa). Mapeia `todo_templates`. */
 export interface TodoTemplate {
@@ -269,6 +279,8 @@ export interface TodoTemplate {
   meter?: number;                 // estado atual do contador (recurrence.kind === 'usage')
   meterAtLastDone?: number;       // leitura do contador na última conclusão
   linkedActivityId?: number;      // activityId HealthKit que conclui esta tarefa (corrida=37, bike=13...)
+  onComplete?: TodoSpawnRule[];   // encadeamento: ao concluir, instancia ocorrências destas séries
+  triggerOnly?: boolean;          // true = só nasce por gatilho (onComplete/on_workout/manual); ignora ocorrência inicial e calendário
   meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
   active: boolean;
   sort: number;

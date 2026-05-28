@@ -67,20 +67,45 @@
         <label class="lbl">Vence em (dias após o treino · vazio = sem prazo)</label>
         <input class="inp" type="number" [(ngModel)]="dueInDays" placeholder="0 = no dia" />
       }
-      @case ('on_task') {
-        <label class="lbl">Concluir qual tarefa dispara</label>
-        @if (sourceOptions().length === 0) {
-          <label class="lbl">Crie outra série antes para poder encadear.</label>
-        } @else {
-          <div class="chips">
-            @for (t of sourceOptions(); track t.id) {
-              <button class="chip" [class.on]="sourceTemplateId === t.id" (click)="sourceTemplateId = sourceTemplateId === t.id ? '' : t.id">{{ t.name }}</button>
-            }
-          </div>
+    }
+
+    <label class="lbl">Ao concluir, criar</label>
+    @if (spawnOptions().length === 0) {
+      <label class="lbl">Crie outra série antes para poder encadear.</label>
+    } @else {
+      <div class="chips">
+        @for (t of spawnOptions(); track t.id) {
+          <button
+            class="chip"
+            [class.on]="isSpawnActive(t.id)"
+            (click)="toggleSpawn(t.id)"
+            (contextmenu)="$event.preventDefault(); isSpawnActive(t.id) && toggleSpawnDuplicate(t.id)"
+          >
+            {{ t.name }}@if (spawnRule(t.id)?.ifPending === 'duplicate') { <span> ×n</span> }
+          </button>
         }
-        <label class="lbl">Vence em (dias após concluir · vazio = sem prazo)</label>
-        <input class="inp" type="number" [(ngModel)]="dueInDays" placeholder="0 = no dia" />
+      </div>
+      @if (spawn.length > 0) {
+        <label class="lbl">Clique com o botão direito: alternar entre ignorar se já pendente (padrão) e duplicar (×n).</label>
       }
+    }
+
+    @if (parentsOf().length > 0) {
+      <label class="lbl">É criada por</label>
+      <div class="chips">
+        @for (t of parentsOf(); track t.id) {
+          <span class="chip readonly">{{ t.name }}</span>
+        }
+      </div>
+    }
+
+    <label class="lbl">Só nasce por gatilho</label>
+    <div class="chips">
+      <button class="chip" [class.on]="!triggerOnly" (click)="triggerOnly = false">Não</button>
+      <button class="chip" [class.on]="triggerOnly" (click)="triggerOnly = true">Sim</button>
+    </div>
+    @if (triggerOnly) {
+      <label class="lbl">Esta tarefa só aparece quando algum gatilho a disparar.</label>
     }
 
     <label class="lbl">Se não fizer no dia</label>

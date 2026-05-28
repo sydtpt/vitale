@@ -21,11 +21,21 @@
 - [x] Conclusão rica de Finanças (`meta.amount`) — mobile + web
 - [x] Specs (spec/plan/data-model/tasks) + CLAUDE.md
 
+## Feito ✅ (v1.1 — encadeamento)
+
+- [x] Trocar `recurrence.kind=on_task` por `TodoSpawnRule[]` em `template.onComplete`
+- [x] Migration `20260527130000_todo_on_complete.sql` (coluna + migração de dados)
+- [x] Seam `fireOnComplete` no `todo-resolve` (mobile) e `todos.store` (web)
+- [x] Editor mobile/web: seção "Ao concluir, criar" + "É criada por" (read-only)
+- [x] Flag `triggerOnly` (migration `20260527140000_todo_trigger_only.sql`) +
+      `createTemplate` pula ocorrência inicial + `reconcileTemplate` ignora
+      calendário quando true + toggle no editor
+- [x] Specs (spec/data-model/tasks)
+
 ## Pendente / próximos 🔧
 
-- [ ] Aplicar a migration no Supabase (local `supabase db push` ou cloud)
+- [ ] Aplicar as migrations no Supabase (`20260520160000_tarefas.sql`, `20260527130000_todo_on_complete.sql` e `20260527140000_todo_trigger_only.sql`)
 - [ ] Backend de Compras/Finanças → ponte real `stock`→Compras, `amount`→Transação
-- [ ] Antecedência/janela de prazo
-- [ ] Encadeamento (concluir uma gera outra) e "X vezes por período"
+- [ ] Antecedência/janela de prazo e "X vezes por período"
 - [ ] Heatmap/analytics de adesão na web (opcional)
 - [ ] Notificações push para tarefas do dia/atrasadas

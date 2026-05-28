@@ -10,8 +10,8 @@
  * Não depende de Zustand (chamável em background, com a store fria).
  */
 import { supabase } from '../lib/supabase';
-import type { TodoTemplate, TodoRecurrence, TodoStatus } from '@vitale/shared';
-import { nextDueDate, triggeredDueDate, localDateStr } from '../lib/todo-logic';
+import type { TodoTemplate, TodoStatus } from '@vitale/shared';
+import { nextDueDate, localDateStr } from '../lib/todo-logic';
 import { enqueueResolve, drainTodoQueue, type TodoResolveOp } from '../lib/todo-queue';
 
 export function genOpId(): string {
@@ -59,23 +59,21 @@ export async function hasPendingOccurrence(templateId: string): Promise<boolean>
 }
 
 /**
- * Encadeamento: para cada série `on_task` que aponta para `sourceTemplateId`,
- * cria sua ocorrência ao concluir a fonte. 1 por vez (pula se já houver pendente).
+ * Encadeamento por conclusão: ao concluir `parent`, instancia ocorrências das
+ * séries-filhas declaradas em `parent.onComplete`. Cada filha mantém sua própria
+ * recorrência — esta é só a porta de criação. A ocorrência criada nasce com
+ * `dueDate = triggerDay` (filha que é avulsa/sem prazo recebe o dia do gatilho).
+ * `ifPending: 'ignore'` pula se já existe pendente; 'duplicate' sempre cria.
  */
-export async function fireTaskChains(
+export async function fireOnComplete(
   userId: string,
-  sourceTemplateId: string,
+  parent: Pick<TodoTemplate, 'onComplete'>,
   triggerDay: string,
 ): Promise<void> {
-  const { data } = await supabase
-    .from('todo_templates')
-    .select('id, recurrence')
-    .eq('active', true)
-    .eq('recurrence->>kind', 'on_task')
-    .eq('recurrence->>sourceTemplateId', sourceTemplateId);
-  for (const t of (data ?? []) as { id: string; recurrence: TodoRecurrence }[]) {
-    if (await hasPendingOccurrence(t.id)) continue;
-    await insertOccurrence(userId, t.id, triggeredDueDate(t.recurrence, triggerDay));
+  const rules = parent.onComplete ?? [];
+  for (const r of rules) {
+    if (r.ifPending === 'ignore' && (await hasPendingOccurrence(r.templateId))) continue;
+    await insertOccurrence(userId, r.templateId, triggerDay);
   }
 }
 
@@ -94,8 +92,8 @@ export interface ResolveArgs {
  * Resolve UMA ocorrência e avança a série. Ponto único de conclusão:
  *  1. enfileira a resolução (offline-safe) e drena via rpc todo_resolve;
  *  2. em 'done' de 'usage', registra meter_at_last_done;
- *  3. gera a próxima ocorrência (nextDueDate); null para none/usage/event/stock.
- *  [FUTURO] regras de encadeamento ("concluir X gera Y") entram no passo 2.
+ *  3. em 'done', dispara encadeamento (template.onComplete) — instancia filhas;
+ *  4. gera a próxima ocorrência (nextDueDate); null para none/usage/event/stock.
  */
 export async function resolveAndAdvance(args: ResolveArgs): Promise<void> {
   const { userId, template, occId, occDueDate } = args;
@@ -112,8 +110,7 @@ export async function resolveAndAdvance(args: ResolveArgs): Promise<void> {
         .update({ meter_at_last_done: template.meter ?? 0 })
         .eq('id', template.id);
     }
-    // Encadeamento: séries on_task que dependem desta criam sua ocorrência.
-    await fireTaskChains(userId, template.id, completedAt);
+    await fireOnComplete(userId, template, completedAt);
   }
 
   const next = nextDueDate(template.recurrence, occDueDate, completedAt);

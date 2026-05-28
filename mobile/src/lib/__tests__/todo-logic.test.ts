@@ -29,16 +29,15 @@ describe('helpers de data', () => {
   });
 });
 
-describe('triggeredDueDate (on_workout / on_task)', () => {
+describe('triggeredDueDate (on_workout)', () => {
   it('sem dueInDays → sem prazo (null)', () => {
     expect(triggeredDueDate({ kind: 'on_workout' }, TODAY)).toBeNull();
-    expect(triggeredDueDate({ kind: 'on_task', sourceTemplateId: 'x' }, TODAY)).toBeNull();
   });
   it('dueInDays = 0 → no dia do gatilho', () => {
     expect(triggeredDueDate({ kind: 'on_workout', dueInDays: 0 }, TODAY)).toBe(TODAY);
   });
   it('dueInDays = N → N dias após o gatilho', () => {
-    expect(triggeredDueDate({ kind: 'on_task', sourceTemplateId: 'x', dueInDays: 3 }, TODAY)).toBe('2026-05-23');
+    expect(triggeredDueDate({ kind: 'on_workout', dueInDays: 3 }, TODAY)).toBe('2026-05-23');
   });
   it('outros kinds → null', () => {
     expect(triggeredDueDate({ kind: 'none' }, TODAY)).toBeNull();

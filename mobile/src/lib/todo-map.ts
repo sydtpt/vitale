@@ -8,6 +8,7 @@ import type {
   TodoOccurrence,
   TodoModule,
   TodoRecurrence,
+  TodoSpawnRule,
   TodoStatus,
 } from '@vitale/shared';
 
@@ -23,6 +24,9 @@ export type TemplateRow = {
   meter: number | string | null;
   meter_at_last_done: number | string | null;
   linked_activity_id: number | null;
+  on_complete: TodoSpawnRule[] | null;
+  trigger_only: boolean | null;
+  meta: Record<string, unknown> | null;
   active: boolean;
   sort: number;
   created_at: string;
@@ -51,6 +55,9 @@ export function toTemplate(r: TemplateRow): TodoTemplate {
     meter: r.meter == null ? undefined : Number(r.meter),
     meterAtLastDone: r.meter_at_last_done == null ? undefined : Number(r.meter_at_last_done),
     linkedActivityId: r.linked_activity_id ?? undefined,
+    onComplete: r.on_complete ?? undefined,
+    triggerOnly: r.trigger_only ?? undefined,
+    meta: r.meta ?? undefined,
     active: r.active,
     sort: r.sort,
     createdAt: r.created_at,

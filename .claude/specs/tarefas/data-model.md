@@ -16,12 +16,20 @@ type TodoRecurrence =
   | { kind: 'after_completion'; intervalDays: number }
   | { kind: 'usage'; meterUnit: string; every: number }
   | { kind: 'event'; label: string }
-  | { kind: 'stock'; shopItemRef?: string };
+  | { kind: 'stock'; shopItemRef?: string }
+  | { kind: 'on_workout'; activityId?: number; dueInDays?: number };
+
+interface TodoSpawnRule {
+  templateId: string;                                   // série-filha a instanciar
+  ifPending: 'ignore' | 'duplicate';                    // já tem pendente?
+}
 
 interface TodoTemplate {
   id; name; icon; color; module; recurrence;
   overdue; cancelPolicy; meter?; meterAtLastDone?;
-  active; sort; createdAt;
+  linkedActivityId?; onComplete?: TodoSpawnRule[];
+  triggerOnly?: boolean;                                // só nasce por gatilho
+  meta?; active; sort; createdAt;
 }
 interface TodoOccurrence {
   id; templateId; dueDate: string | null; status;
@@ -30,9 +38,11 @@ interface TodoOccurrence {
 ```
 
 ## Tabelas (Supabase) — `supabase/migrations/20260520160000_tarefas.sql`
+## Encadeamento — `supabase/migrations/20260527130000_todo_on_complete.sql`
 
 - **`todo_templates`**: `recurrence jsonb`, `overdue`/`cancel_policy`/`module` text com `check`,
-  `meter`/`meter_at_last_done numeric`, RLS por `user_id`, trigger `touch_updated_at`.
+  `meter`/`meter_at_last_done numeric`, `on_complete jsonb` (lista de `TodoSpawnRule`),
+  RLS por `user_id`, trigger `touch_updated_at`.
 - **`todo_occurrences`**: `template_id` FK cascade, `due_date date` nullable, `status` text com `check`,
   `done_at`, `meta jsonb`. **Unique parcial** `(template_id, due_date) where due_date is not null`
   → geração idempotente. Índices `(user_id, status, due_date)` e `(template_id, due_date desc)`.
@@ -54,8 +64,11 @@ Coberto por `mobile/src/lib/__tests__/todo-logic.test.ts` (23 casos).
 ## Geração de ocorrências (regras)
 
 - **Criação da série:** `none` → 1 ocorrência sem data; calendário/`after_completion` → primeira data;
-  `usage`/`event`/`stock` → nenhuma (esperam gatilho).
-- **Ao resolver (done/skip/cancel):** gera a próxima via `nextDueDate` (null para none/usage/event/stock);
-  `usage` done atualiza `meter_at_last_done`.
+  `usage`/`event`/`stock`/`on_workout` → nenhuma (esperam gatilho).
+  **Exceção:** `triggerOnly=true` pula a criação inicial em qualquer recurrence.
+- **Ao resolver (done/skip/cancel):** gera a próxima via `nextDueDate` (null para
+  none/usage/event/stock/on_workout); `usage` done atualiza `meter_at_last_done`.
+- **Encadeamento (done):** `fireOnComplete` percorre `template.onComplete`; cria ocorrência
+  da filha com `dueDate = completedAt`. `ifPending: 'ignore'` pula se já há pendente.
 - **No load:** `reconcile` expira vencidas/gera próximas de calendário.
 - **Idempotência:** inserts ignoram violação de unicidade (`23505`).

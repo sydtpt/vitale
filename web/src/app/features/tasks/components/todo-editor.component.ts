@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MOD, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoTemplate } from '@vitale/shared';
+import { MOD, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
 import { TodosStore, type NewTodo } from '../data/todos.store';
 
@@ -27,7 +27,6 @@ const KINDS: { key: Kind; label: string }[] = [
   { key: 'event', label: 'Por evento' },
   { key: 'stock', label: 'Por estoque' },
   { key: 'on_workout', label: 'Após treino' },
-  { key: 'on_task', label: 'Após tarefa' },
 ];
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -71,27 +70,49 @@ export class TodoEditorComponent implements OnInit {
   protected eventLabel = '';
   protected stockRef = '';
   protected triggerActivityId: number | null = null;
-  protected sourceTemplateId = '';
   protected dueInDays: number | null = null;
   protected overdue: TodoOverduePolicy = 'carry';
   protected cancelPolicy: TodoCancelPolicy = 'manual';
   protected color = 'tarefa';
+  protected spawn: TodoSpawnRule[] = [];
+  protected triggerOnly = false;
 
   protected readonly activityOptions = ACTIVITY_IDS.map((id) => ({ id, label: metaForActivity(id).label }));
 
-  /**
-   * Séries que podem disparar um encadeamento: recorrentes ativas + avulsas ainda
-   * pendentes. Exclui a própria, outros on_task, arquivadas e avulsas concluídas.
-   */
-  protected sourceOptions(): TodoTemplate[] {
+  /** Filhas elegíveis: outras séries ativas (exceto a própria). */
+  protected spawnOptions(): TodoTemplate[] {
     const selfId = this.template()?.id;
-    const occ = this.store.occurrences();
-    return this.store.templates().filter(
-      (t) =>
-        t.id !== selfId &&
-        t.recurrence.kind !== 'on_task' &&
-        (t.recurrence.kind !== 'none' ||
-          occ.some((o) => o.templateId === t.id && o.status === 'pending')),
+    return this.store.templates().filter((t) => t.id !== selfId);
+  }
+
+  /** Pais que apontam para esta tarefa via onComplete (read-only). */
+  protected parentsOf(): TodoTemplate[] {
+    const selfId = this.template()?.id;
+    if (!selfId) return [];
+    return this.store.allTemplates().filter((t) =>
+      (t.onComplete ?? []).some((r) => r.templateId === selfId),
+    );
+  }
+
+  protected isSpawnActive(id: string): boolean {
+    return this.spawn.some((s) => s.templateId === id);
+  }
+
+  protected spawnRule(id: string): TodoSpawnRule | undefined {
+    return this.spawn.find((s) => s.templateId === id);
+  }
+
+  protected toggleSpawn(id: string): void {
+    this.spawn = this.isSpawnActive(id)
+      ? this.spawn.filter((s) => s.templateId !== id)
+      : [...this.spawn, { templateId: id, ifPending: 'ignore' }];
+  }
+
+  protected toggleSpawnDuplicate(id: string): void {
+    this.spawn = this.spawn.map((s) =>
+      s.templateId === id
+        ? { ...s, ifPending: s.ifPending === 'ignore' ? 'duplicate' : 'ignore' }
+        : s,
     );
   }
 
@@ -110,10 +131,11 @@ export class TodoEditorComponent implements OnInit {
     if (r.kind === 'event') this.eventLabel = r.label;
     if (r.kind === 'stock') this.stockRef = r.shopItemRef ?? '';
     if (r.kind === 'on_workout') { this.triggerActivityId = r.activityId ?? null; this.dueInDays = r.dueInDays ?? null; }
-    if (r.kind === 'on_task') { this.sourceTemplateId = r.sourceTemplateId; this.dueInDays = r.dueInDays ?? null; }
     this.overdue = t.overdue;
     this.cancelPolicy = t.cancelPolicy;
     this.color = t.color || 'tarefa';
+    this.spawn = t.onComplete ? [...t.onComplete] : [];
+    this.triggerOnly = t.triggerOnly ?? false;
   }
 
   protected toggleDay(d: number): void {
@@ -138,7 +160,6 @@ export class TodoEditorComponent implements OnInit {
       case 'event': return this.eventLabel.trim() ? { kind: 'event', label: this.eventLabel.trim() } : null;
       case 'stock': return { kind: 'stock', shopItemRef: this.stockRef.trim() || undefined };
       case 'on_workout': return { kind: 'on_workout', activityId: this.triggerActivityId ?? undefined, dueInDays: this.dueInDays ?? undefined };
-      case 'on_task': return this.sourceTemplateId ? { kind: 'on_task', sourceTemplateId: this.sourceTemplateId, dueInDays: this.dueInDays ?? undefined } : null;
     }
   }
 
@@ -150,6 +171,7 @@ export class TodoEditorComponent implements OnInit {
     const recurrence = this.buildRecurrence();
     if (!this.name.trim() || !recurrence) return;
     const t = this.template();
+    const onComplete = this.spawn.length ? this.spawn : null;
     if (t) {
       await this.store.updateTemplate(t.id, {
         name: this.name.trim(),
@@ -158,6 +180,8 @@ export class TodoEditorComponent implements OnInit {
         recurrence,
         overdue: this.overdue,
         cancel_policy: this.cancelPolicy,
+        on_complete: onComplete,
+        trigger_only: this.triggerOnly,
       });
     } else {
       const value: NewTodo = {
@@ -169,6 +193,8 @@ export class TodoEditorComponent implements OnInit {
         overdue: this.overdue,
         cancelPolicy: this.cancelPolicy,
         meter: this.kind === 'usage' ? 0 : undefined,
+        onComplete: onComplete ?? undefined,
+        triggerOnly: this.triggerOnly,
       };
       await this.store.createTemplate(value);
     }

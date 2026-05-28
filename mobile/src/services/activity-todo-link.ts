@@ -62,26 +62,31 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
   // Fase B — conclusão/geração das séries vinculadas por linked_activity_id.
   const activityIds = [...new Set(workouts.map((w) => w.activityId))];
 
-  // 1. Séries ativas vinculadas a esses tipos de atividade.
+  // 1. Séries vinculadas (ativas OU inativas): inativas sinalizam opt-out do
+  //    usuário, precisam ser detectadas pra não auto-criar outra. O unique
+  //    partial index (user_id, linked_activity_id) garante 1 linha por tipo.
   const { data: rows } = await supabase
     .from('todo_templates')
     .select('*')
-    .eq('active', true)
     .in('linked_activity_id', activityIds);
 
+  const hasTemplate = new Set<number>();
   const byActivity = new Map<number, TemplateRow>();
   for (const r of (rows ?? []) as TemplateRow[]) {
-    if (r.linked_activity_id != null && !byActivity.has(r.linked_activity_id)) {
+    if (r.linked_activity_id == null) continue;
+    hasTemplate.add(r.linked_activity_id);
+    if (r.active && !byActivity.has(r.linked_activity_id)) {
       byActivity.set(r.linked_activity_id, r);
     }
   }
 
-  // 2. Auto-cria série 'event' para tipos sem vínculo (a série carrega o
-  //    linked_activity_id, então o próximo treino do tipo já a encontra no passo 1).
+  // 2. Auto-cria série 'event' apenas para tipos SEM nenhum template — respeita
+  //    opt-out (template existente, mesmo inativo, nunca é recriado). Em conflito
+  //    de unicidade (23505: outro processo criou em paralelo), lê a linha existente.
   for (const activityId of activityIds) {
-    if (byActivity.has(activityId)) continue;
+    if (hasTemplate.has(activityId)) continue;
     const meta = getActivityMeta(activityId);
-    const { data: created } = await supabase
+    const insert = await supabase
       .from('todo_templates')
       .insert({
         user_id: userId,
@@ -96,7 +101,22 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
       })
       .select('*')
       .single();
-    if (created) byActivity.set(activityId, created as TemplateRow);
+    let tRow: TemplateRow | undefined;
+    if (insert.data) {
+      tRow = insert.data as TemplateRow;
+    } else if (insert.error?.code === '23505') {
+      const { data: existing } = await supabase
+        .from('todo_templates')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('linked_activity_id', activityId)
+        .maybeSingle();
+      tRow = (existing as TemplateRow | null) ?? undefined;
+    }
+    if (tRow) {
+      hasTemplate.add(activityId);
+      if (tRow.active) byActivity.set(activityId, tRow);
+    }
   }
 
   const templateRows = [...byActivity.values()];

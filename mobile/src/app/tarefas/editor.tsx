@@ -17,6 +17,7 @@ import type {
   TodoRecurrence,
   TodoOverduePolicy,
   TodoCancelPolicy,
+  TodoSpawnRule,
 } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
@@ -42,7 +43,6 @@ const KINDS: { key: Kind; label: string }[] = [
   { key: 'event', label: 'Por evento' },
   { key: 'stock', label: 'Por estoque' },
   { key: 'on_workout', label: 'Após treino' },
-  { key: 'on_task', label: 'Após tarefa' },
 ];
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -102,28 +102,54 @@ export default function TodoEditorScreen() {
   const [color, setColor] = useState<string>('tarefa');
   const [linkedActivityId, setLinkedActivityId] = useState<number | null>(null);
   const [triggerActivityId, setTriggerActivityId] = useState<number | null>(null);
-  const [sourceTemplateId, setSourceTemplateId] = useState<string>('');
   const [dueInDays, setDueInDays] = useState<string>('');
+  const [spawn, setSpawn] = useState<TodoSpawnRule[]>([]);
+  const [triggerOnly, setTriggerOnly] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   const activityOptions = useMemo(
     () => KNOWN_ACTIVITY_IDS.map((aid) => ({ id: aid, label: getActivityMeta(aid).label })),
     [],
   );
-  // Séries que podem disparar um encadeamento: recorrentes ativas + avulsas ainda
-  // pendentes. Exclui a própria, outros encadeamentos, arquivadas e avulsas concluídas
-  // (essas não disparam de novo).
-  const sourceOptions = useMemo(
-    () =>
-      templates.filter(
-        (t) =>
-          t.id !== id &&
-          t.recurrence.kind !== 'on_task' &&
-          (t.recurrence.kind !== 'none' ||
-            occurrences.some((o) => o.templateId === t.id && o.status === 'pending')),
-      ),
-    [templates, occurrences, id],
+
+  // Filhas elegíveis: qualquer outra série ativa (excluindo a própria).
+  const spawnOptions = useMemo(
+    () => templates.filter((t) => t.id !== id),
+    [templates, id],
   );
+
+  // Pais que apontam para esta tarefa (read-only no editor).
+  const parentsOf = useMemo(
+    () =>
+      allTemplates.filter((t) =>
+        id != null && (t.onComplete ?? []).some((r) => r.templateId === id),
+      ),
+    [allTemplates, id],
+  );
+
+  const spawnByTemplate = useMemo(() => {
+    const m = new Map<string, TodoSpawnRule>();
+    for (const s of spawn) m.set(s.templateId, s);
+    return m;
+  }, [spawn]);
+
+  const toggleSpawn = (templateId: string) => {
+    setSpawn((cur) =>
+      cur.some((s) => s.templateId === templateId)
+        ? cur.filter((s) => s.templateId !== templateId)
+        : [...cur, { templateId, ifPending: 'ignore' }],
+    );
+  };
+
+  const toggleDuplicate = (templateId: string) => {
+    setSpawn((cur) =>
+      cur.map((s) =>
+        s.templateId === templateId
+          ? { ...s, ifPending: s.ifPending === 'ignore' ? 'duplicate' : 'ignore' }
+          : s,
+      ),
+    );
+  };
 
   useEffect(() => {
     load(); // ocorrências (p/ detectar avulsa pendente vs concluída)
@@ -147,15 +173,13 @@ export default function TodoEditorScreen() {
         setTriggerActivityId(r.activityId ?? null);
         setDueInDays(r.dueInDays != null ? String(r.dueInDays) : '');
       }
-      if (r.kind === 'on_task') {
-        setSourceTemplateId(r.sourceTemplateId);
-        setDueInDays(r.dueInDays != null ? String(r.dueInDays) : '');
-      }
       setOverdue(existing.overdue);
       setCancelPolicy(existing.cancelPolicy);
       setIcon(existing.icon || 'checkbox-outline');
       setColor(existing.color || 'tarefa');
       setLinkedActivityId(existing.linkedActivityId ?? null);
+      setSpawn(existing.onComplete ?? []);
+      setTriggerOnly(existing.triggerOnly ?? false);
       setHydrated(true);
     }
   }, [existing, hydrated]);
@@ -197,8 +221,6 @@ export default function TodoEditorScreen() {
         return { kind: 'stock', shopItemRef: stockRef.trim() || undefined };
       case 'on_workout':
         return { kind: 'on_workout', activityId: triggerActivityId ?? undefined, dueInDays: parseNum(dueInDays) ?? undefined };
-      case 'on_task':
-        return sourceTemplateId ? { kind: 'on_task', sourceTemplateId, dueInDays: parseNum(dueInDays) ?? undefined } : null;
     }
   }
 
@@ -217,6 +239,8 @@ export default function TodoEditorScreen() {
         overdue,
         cancel_policy: cancelPolicy,
         linked_activity_id: linkedActivityId,
+        on_complete: spawn.length ? spawn : null,
+        trigger_only: triggerOnly,
       });
     } else {
       await createTemplate({
@@ -229,6 +253,8 @@ export default function TodoEditorScreen() {
         cancelPolicy,
         meter: kind === 'usage' ? 0 : undefined,
         linkedActivityId,
+        onComplete: spawn.length ? spawn : undefined,
+        triggerOnly,
       });
     }
     router.back();
@@ -372,26 +398,67 @@ export default function TodoEditorScreen() {
               <TextInput value={dueInDays} onChangeText={setDueInDays} keyboardType="number-pad" placeholder="0 = no dia" placeholderTextColor={colors.ink4} style={styles.input} />
             </>
           )}
-          {kind === 'on_task' && (
+          {/* Encadeamento — ao concluir esta tarefa, criar ocorrências de outras. */}
+          <Text style={styles.label}>Ao concluir, criar</Text>
+          {spawnOptions.length === 0 ? (
+            <Text style={styles.hint}>Crie outra série antes para poder encadear.</Text>
+          ) : (
+            <View style={styles.chips}>
+              {spawnOptions.map((t) => {
+                const rule = spawnByTemplate.get(t.id);
+                const active = rule != null;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => toggleSpawn(t.id)}
+                    onLongPress={() => active && toggleDuplicate(t.id)}
+                    style={[styles.chip, active && { backgroundColor: accent }]}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {t.name}
+                      {active && rule?.ifPending === 'duplicate' ? ' ×n' : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+          {spawn.length > 0 && (
+            <Text style={styles.hint}>Toque longo: alternar entre ignorar se já pendente (padrão) e duplicar (×n).</Text>
+          )}
+
+          {/* Pais que disparam esta tarefa (read-only). */}
+          {parentsOf.length > 0 && (
             <>
-              <Text style={styles.label}>Concluir qual tarefa dispara</Text>
-              {sourceOptions.length === 0 ? (
-                <Text style={styles.hint}>Crie outra série antes para poder encadear.</Text>
-              ) : (
-                <View style={styles.chips}>
-                  {sourceOptions.map((t) => {
-                    const active = sourceTemplateId === t.id;
-                    return (
-                      <Pressable key={t.id} onPress={() => setSourceTemplateId(active ? '' : t.id)} style={[styles.chip, active && { backgroundColor: accent }]}>
-                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{t.name}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-              <Text style={styles.label}>Vence em (dias após concluir · vazio = sem prazo)</Text>
-              <TextInput value={dueInDays} onChangeText={setDueInDays} keyboardType="number-pad" placeholder="0 = no dia" placeholderTextColor={colors.ink4} style={styles.input} />
+              <Text style={styles.label}>É criada por</Text>
+              <View style={styles.chips}>
+                {parentsOf.map((t) => (
+                  <View key={t.id} style={[styles.chip, styles.chipReadonly]}>
+                    <Text style={styles.chipText}>{t.name}</Text>
+                  </View>
+                ))}
+              </View>
             </>
+          )}
+
+          {/* Só por gatilho — não cria ocorrência inicial nem por calendário. */}
+          <Text style={styles.label}>Só nasce por gatilho</Text>
+          <View style={styles.chips}>
+            <Pressable
+              onPress={() => setTriggerOnly(false)}
+              style={[styles.chip, !triggerOnly && { backgroundColor: accent }]}
+            >
+              <Text style={[styles.chipText, !triggerOnly && styles.chipTextActive]}>Não</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setTriggerOnly(true)}
+              style={[styles.chip, triggerOnly && { backgroundColor: accent }]}
+            >
+              <Text style={[styles.chipText, triggerOnly && styles.chipTextActive]}>Sim</Text>
+            </Pressable>
+          </View>
+          {triggerOnly && (
+            <Text style={styles.hint}>Esta tarefa só aparece quando algum gatilho a disparar (encadeamento, treino, etc.).</Text>
           )}
 
           {/* Concluir ao registrar treino (vínculo com a atividade do HealthKit) */}
@@ -521,6 +588,7 @@ const styles = StyleSheet.create({
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
+  chipReadonly: { borderWidth: 1, borderColor: colors.line, backgroundColor: 'transparent' },
   chipText: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
   chipTextActive: { color: '#fff' },
   dayChip: {
