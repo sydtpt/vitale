@@ -1,0 +1,226 @@
+/**
+ * Vitale — React Native Theme
+ * Light/dark palettes + runtime theme provider.
+ *
+ * Screens consume colors through the live `colors` proxy (always reflects the
+ * active scheme) and wrap their StyleSheet in `useThemedStyles` so styles are
+ * rebuilt when the scheme or glass setting changes.
+ */
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
+import { useColorScheme } from 'react-native';
+import { useSettingsStore } from '../store/settings.store';
+import { useAuthStore } from '../store/auth.store';
+
+export type ColorScheme = 'light' | 'dark';
+
+export const lightColors = {
+  // Surfaces
+  bg: '#FFF7EE',
+  surface: '#FFFFFF',
+  surfaceWarm: '#FFEFD9',
+  surfaceMute: '#F6ECDC',
+
+  // Ink (text)
+  ink: '#1F1B16',
+  ink2: '#5C534A',
+  ink3: '#9C928A',
+  ink4: '#C6BCAE',
+
+  // Lines
+  line: '#EFE6D8',
+  lineDeep: '#E3D7C2',
+
+  // Brand / Primary
+  primary: '#F25C2B',
+  primaryDeep: '#D9491B',
+  primarySoft: '#FFE3D2',
+
+  // Accents
+  yellow: '#F5B946',
+  yellowSoft: '#FFEFC9',
+  green: '#6FA86A',
+  greenSoft: '#E2EFD9',
+  rose: '#E26A8A',
+  roseSoft: '#FBE2E8',
+  blue: '#6E8CC9',
+  blueSoft: '#DDE4F2',
+  casa: '#B4825B',
+} as const;
+
+export type ThemeColors = typeof lightColors;
+
+export const darkColors: ThemeColors = {
+  // Surfaces — warm near-black to keep the brand's warmth
+  bg: '#14110D',
+  surface: '#1E1A15',
+  surfaceWarm: '#262019',
+  surfaceMute: '#241E18',
+
+  // Ink (text)
+  ink: '#F6EFE6',
+  ink2: '#BDB3A6',
+  ink3: '#8A8074',
+  ink4: '#5C554B',
+
+  // Lines
+  line: '#2E2820',
+  lineDeep: '#3A3329',
+
+  // Brand / Primary
+  primary: '#F25C2B',
+  primaryDeep: '#FF6A3C',
+  primarySoft: '#3A241A',
+
+  // Accents
+  yellow: '#F5B946',
+  yellowSoft: '#352B17',
+  green: '#7FB97A',
+  greenSoft: '#1E2A1B',
+  rose: '#E87B98',
+  roseSoft: '#34212A',
+  blue: '#84A0DA',
+  blueSoft: '#1E2840',
+  casa: '#C49A72',
+};
+
+const palettes: Record<ColorScheme, ThemeColors> = { light: lightColors, dark: darkColors };
+
+/** Active scheme, kept in sync by `ThemeProvider`; backs the `colors` proxy. */
+let activeScheme: ColorScheme = 'light';
+
+/**
+ * Live palette. Reading any property returns the value for the active scheme,
+ * so JSX (`colors.ink`) reflects theme changes on the next render. Styles must
+ * be rebuilt via `useThemedStyles` for changes to take effect.
+ */
+export const colors: ThemeColors = new Proxy({} as ThemeColors, {
+  get: (_t, prop: string) => (palettes[activeScheme] as Record<string, string>)[prop],
+  ownKeys: () => Reflect.ownKeys(palettes[activeScheme]),
+  getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+});
+
+export const MOD = {
+  treino:   { tint: '#FFE3D2', accent: '#F25C2B' },
+  food:     { tint: '#FFEFC9', accent: '#F5B946' },
+  agua:     { tint: '#DDE4F2', accent: '#6E8CC9' },
+  habito:   { tint: '#E2EFD9', accent: '#6FA86A' },
+  casa:     { tint: '#F4E6D9', accent: '#B4825B' },
+  compras:  { tint: '#FFE3D2', accent: '#E26A8A' },
+  financas: { tint: '#EAE3D6', accent: '#1F1B16' },
+  tarefa:   { tint: '#DDEEEA', accent: '#4F9D90' },
+} as const;
+
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  '2xl': 24,
+  '3xl': 32,
+  '4xl': 48,
+} as const;
+
+export const radii = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 18,
+  '2xl': 20,
+  '3xl': 24,
+  pill: 999,
+} as const;
+
+export const fonts = {
+  sans: 'Geist',
+  sansFallback: 'System',
+  mono: 'GeistMono',
+  serif: 'InstrumentSerif',
+} as const;
+
+export const shadows = {
+  sm: {
+    shadowColor: '#1F1B16',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 0,
+    elevation: 1,
+  },
+  md: {
+    shadowColor: '#1F1B16',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.03,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  card: {
+    shadowColor: '#1F1B16',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+} as const;
+
+/* ───────────────────────── Theme context ───────────────────────── */
+
+interface ThemeValue {
+  scheme: ColorScheme;
+  glass: boolean;
+  colors: ThemeColors;
+}
+
+const ThemeContext = createContext<ThemeValue>({ scheme: 'light', glass: false, colors });
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const system = useColorScheme();
+  const preferences = useSettingsStore((s) => s.preferences);
+  const session = useAuthStore((s) => s.session);
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
+
+  useEffect(() => {
+    if (session && !preferences) loadSettings();
+  }, [session, preferences]);
+
+  const pref = preferences?.theme ?? 'system';
+  const scheme: ColorScheme = pref === 'system' ? (system === 'dark' ? 'dark' : 'light') : pref;
+  const glass = preferences?.glassEnabled ?? false;
+
+  // Keep the proxy current before children read `colors` this render pass.
+  activeScheme = scheme;
+
+  const value = useMemo<ThemeValue>(() => ({ scheme, glass, colors }), [scheme, glass]);
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+export const useTheme = () => useContext(ThemeContext);
+
+/**
+ * Builds themed styles and rebuilds them when the scheme or glass setting
+ * changes. The factory reads the live `colors` proxy.
+ */
+export function useThemedStyles<T>(factory: () => T): T {
+  const { scheme, glass } = useTheme();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(factory, [scheme, glass]);
+}
+
+/**
+ * Module-level themed stylesheet. Accessing a key returns the value built for
+ * the active scheme (cached per scheme). Use in files with several components
+ * that share one stylesheet: the top component just needs to call `useTheme()`
+ * once so the subtree re-renders when the scheme changes.
+ */
+export function themed<T extends object>(factory: () => T): T {
+  const cache = new Map<ColorScheme, T>();
+  return new Proxy({} as T, {
+    get: (_t, prop: string | symbol) => {
+      let sheet = cache.get(activeScheme);
+      if (!sheet) {
+        sheet = factory();
+        cache.set(activeScheme, sheet);
+      }
+      return (sheet as Record<string | symbol, unknown>)[prop];
+    },
+  });
+}

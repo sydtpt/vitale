@@ -16,7 +16,7 @@ import type { HabitDirection } from '@vitale/shared';
 import { HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const ICONS = HABIT_ICONS;
 
@@ -40,6 +40,7 @@ function parseNum(s: string): number | null {
 }
 
 export default function HabitEditorScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -272,7 +273,7 @@ export default function HabitEditorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   header: {
@@ -357,4 +358,4 @@ const styles = StyleSheet.create({
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-});
+}));

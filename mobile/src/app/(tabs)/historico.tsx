@@ -16,7 +16,7 @@ import { buildOverview, type Period, type Metric } from '../../lib/activity-over
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'semana', label: 'Semana' },
@@ -68,6 +68,7 @@ function Segmented<T extends string>({
 }
 
 export default function HistoricoTabScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -237,7 +238,7 @@ export default function HistoricoTabScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
   },
   retryText: { color: colors.ink, fontSize: 14, fontWeight: '600' },
 
-  scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
+  scroll: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
 
   card: {
     backgroundColor: colors.surface,
@@ -345,4 +346,4 @@ const styles = StyleSheet.create({
   },
   typeLabel: { fontSize: 15, fontWeight: '600', color: colors.ink },
   typeMeta: { fontSize: 12, color: colors.ink3, fontFamily: 'GeistMono' },
-});
+}));

@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useHealthStore } from '../../store/health.store';
 import { readinessFromSummaries } from '../../lib/health-readiness';
-import { colors, spacing, radii, shadows } from '../../theme';
+import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { GlassCard } from '../ui/GlassCard';
 
 const COMP_COLOR: Record<string, string> = {
   sono: colors.blue,
@@ -13,12 +14,13 @@ const COMP_COLOR: Record<string, string> = {
 
 /** Card de prontidão na tela Hoje. Some quando não há dados de saúde na sessão. */
 export function ReadinessCard() {
+  const styles = useThemedStyles(createStyles);
   const summaries = useHealthStore((s) => s.summaries);
   const score = readinessFromSummaries(summaries);
   if (score.components.length === 0) return null;
 
   return (
-    <View style={styles.card}>
+    <GlassCard style={styles.card}>
       <View style={styles.header}>
         <View>
           <Text style={styles.eyebrow}>PRONTIDÃO</Text>
@@ -42,13 +44,12 @@ export function ReadinessCard() {
           </View>
         ))}
       </View>
-    </View>
+    </GlassCard>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
     borderRadius: radii['2xl'],
     padding: spacing.lg,
     marginBottom: spacing.md,

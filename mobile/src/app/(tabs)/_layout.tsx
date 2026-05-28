@@ -1,65 +1,219 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../theme';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useTheme, colors } from '../../theme';
+
+type TabDef = {
+  name: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconActive: keyof typeof Ionicons.glyphMap;
+};
+
+const TABS: TabDef[] = [
+  { name: 'index',     label: 'Hoje',      icon: 'home-outline',                       iconActive: 'home' },
+  { name: 'compras',   label: 'Compras',   icon: 'cart-outline',                       iconActive: 'cart' },
+  { name: 'historico', label: 'Histórico', icon: 'barbell-outline',                    iconActive: 'barbell' },
+  { name: 'mais',      label: 'Mais',      icon: 'ellipsis-horizontal-circle-outline', iconActive: 'ellipsis-horizontal-circle' },
+];
+
+function TabItems({
+  state,
+  navigation,
+  inactiveColor,
+}: {
+  state: BottomTabBarProps['state'];
+  navigation: BottomTabBarProps['navigation'];
+  inactiveColor: string;
+}) {
+  return (
+    <>
+      {TABS.map((tab) => {
+        const routeIndex = state.routes.findIndex((r) => r.name === tab.name);
+        if (routeIndex === -1) return null;
+        const route = state.routes[routeIndex];
+        const isFocused = state.index === routeIndex;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(tab.name);
+          }
+        };
+
+        const onLongPress = () => {
+          navigation.emit({ type: 'tabLongPress', target: route.key });
+        };
+
+        return (
+          <Pressable
+            key={tab.name}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            style={({ pressed }) => [styles.tab, pressed && { opacity: 0.65 }]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isFocused }}
+            accessibilityLabel={tab.label}
+          >
+            <View style={[styles.tabInner, isFocused && styles.tabInnerActive]}>
+              <Ionicons
+                name={isFocused ? tab.iconActive : tab.icon}
+                size={22}
+                color={isFocused ? colors.primary : inactiveColor}
+              />
+              <Text
+                style={[
+                  styles.label,
+                  { color: isFocused ? colors.primary : inactiveColor },
+                  isFocused && styles.labelActive,
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </>
+  );
+}
+
+function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
+  const { scheme, glass } = useTheme();
+  const insets = useSafeAreaInsets();
+  const isDark = scheme === 'dark';
+
+  const inactiveColor = isDark ? 'rgba(255,255,255,0.38)' : 'rgba(31,27,22,0.32)';
+
+  // ── Glass pill ────────────────────────────────────────────────────────────
+  if (glass) {
+    const bottom = Math.max(insets.bottom, 16) + 8;
+    const tintBg = isDark ? 'rgba(30,26,21,0.22)' : 'rgba(255,247,238,0.25)';
+    const borderColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.80)';
+    const shadowOpacity = isDark ? 0.40 : 0.15;
+
+    return (
+      <View style={[styles.pillWrapper, { bottom, shadowOpacity }]}>
+        <BlurView
+          tint={isDark ? 'dark' : 'extraLight'}
+          intensity={70}
+          style={styles.pill}
+        >
+          {/* very light tint so content behind is clearly visible */}
+          <View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, { backgroundColor: tintBg, borderRadius: RADIUS }]}
+          />
+          {/* specular border — only in glass mode */}
+          <View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              { borderRadius: RADIUS, borderWidth: StyleSheet.hairlineWidth * 1.5, borderColor },
+            ]}
+          />
+          <View style={styles.row}>
+            <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} />
+          </View>
+        </BlurView>
+      </View>
+    );
+  }
+
+  // ── Solid (original) ──────────────────────────────────────────────────────
+  const solidBg = isDark ? 'rgba(20,17,13,0.97)' : 'rgba(255,247,238,0.97)';
+
+  return (
+    <View
+      style={[
+        styles.solidWrapper,
+        {
+          paddingBottom: insets.bottom,
+          backgroundColor: solidBg,
+          borderTopColor: colors.line,
+        },
+      ]}
+    >
+      <View style={styles.row}>
+        <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} />
+      </View>
+    </View>
+  );
+}
 
 export default function TabLayout() {
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.ink3,
-        tabBarStyle: {
-          backgroundColor: 'rgba(255, 247, 238, 0.92)',
-          borderTopColor: colors.line,
-          paddingBottom: 28,
-          height: 88,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10.5,
-          fontWeight: '500',
-          letterSpacing: 0.2,
-        },
-      }}
+      tabBar={(props) => <AdaptiveTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Hoje',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="compras"
-        options={{
-          title: 'Compras',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="historico"
-        options={{
-          title: 'Histórico',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="barbell-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen name="saude" options={{ href: null }} />
-      <Tabs.Screen name="semana" options={{ href: null }} />
-      <Tabs.Screen
-        name="mais"
-        options={{
-          title: 'Mais',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="ellipsis-horizontal" size={size} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index"     options={{ title: 'Hoje' }} />
+      <Tabs.Screen name="compras"   options={{ title: 'Compras' }} />
+      <Tabs.Screen name="historico" options={{ title: 'Histórico' }} />
+      <Tabs.Screen name="saude"     options={{ href: null }} />
+      <Tabs.Screen name="semana"    options={{ href: null }} />
+      <Tabs.Screen name="mais"      options={{ title: 'Mais' }} />
     </Tabs>
   );
 }
+
+const RADIUS = 36;
+
+const styles = StyleSheet.create({
+  // Glass pill
+  pillWrapper: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  pill: {
+    borderRadius: RADIUS,
+    overflow: 'hidden',
+  },
+
+  // Solid original
+  solidWrapper: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+
+  // Shared
+  row: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  tabInner: {
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 24,
+  },
+  tabInnerActive: {
+    backgroundColor: 'rgba(242, 92, 43, 0.10)',
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  labelActive: {
+    fontWeight: '700',
+  },
+});

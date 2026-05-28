@@ -20,7 +20,7 @@ import type {
 } from '@vitale/shared';
 import { SHOP_CATS } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 type Kind = Extract<TodoRecurrence['kind'], 'none' | 'monthly' | 'weekly' | 'yearly' | 'after_completion'>;
 
@@ -45,6 +45,7 @@ function parseNum(s: string): number | null {
 }
 
 export default function ComprasEditorScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -321,7 +322,7 @@ export default function ComprasEditorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   header: {
@@ -399,4 +400,4 @@ const styles = StyleSheet.create({
   },
   saveDisabled: { opacity: 0.4 },
   saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-});
+}));

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors, spacing } from '../../theme';
+import { colors, spacing, useThemedStyles } from '../../theme';
 import { DayRingCard } from '../../components/cards/DayRingCard';
 import { ReadinessCard } from '../../components/cards/ReadinessCard';
 import { SectionLabel } from '../../components/ui/SectionLabel';
@@ -34,6 +34,7 @@ function getFirstName(user: User | null): string {
 }
 
 export default function HojeScreen() {
+  const styles = useThemedStyles(createStyles);
   const [sheetVisible, setSheetVisible] = useState(false);
   const [cardPage, setCardPage] = useState(0);
   const router = useRouter();
@@ -210,9 +211,9 @@ export default function HojeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, paddingTop: 54 },
+  content: { padding: spacing.lg, paddingTop: 54, paddingBottom: 100 },
   greet: { paddingVertical: spacing.lg },
   date: { fontSize: 13, color: colors.ink3, letterSpacing: 0.4, fontWeight: '600' },
   greeting: { fontFamily: 'InstrumentSerif', fontSize: 34, lineHeight: 36, marginTop: 4, color: colors.ink },

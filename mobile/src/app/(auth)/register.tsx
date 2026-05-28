@@ -5,9 +5,10 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { useAuthStore } from '../../store/auth.store';
-import { colors, spacing, radii, fonts } from '../../theme';
+import { colors, spacing, radii, fonts, useThemedStyles } from '../../theme';
 
 export default function RegisterScreen() {
+  const s = useThemedStyles(createStyles);
   const { signUp, loading } = useAuthStore();
 
   const [email, setEmail] = useState('');
@@ -115,7 +116,7 @@ export default function RegisterScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   page: {
     flex: 1,
     backgroundColor: colors.bg,

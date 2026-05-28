@@ -21,7 +21,7 @@ import {
   Sample,
 } from '../../lib/health-format';
 import { BarChart, LineChart, ActivityRings, MacroDonut } from '../../components/charts';
-import { colors, spacing, radii, shadows } from '../../theme';
+import { colors, spacing, radii, shadows, themed, useTheme } from '../../theme';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'day', label: 'Dia' },
@@ -65,6 +65,7 @@ function Stat({ value, caption, color }: { value: string; caption: string; color
 }
 
 export default function MetricDetailScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { metric: metricId = '' } = useLocalSearchParams<{ metric: string }>();
@@ -256,7 +257,7 @@ function SampleRow({ sample, metric, last }: { sample: Sample; metric: ReturnTyp
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,
@@ -342,4 +343,4 @@ const styles = StyleSheet.create({
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   emptyText: { fontSize: 14, color: colors.ink3 },
-});
+}));

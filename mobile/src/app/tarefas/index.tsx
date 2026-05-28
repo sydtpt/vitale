@@ -9,13 +9,14 @@ import { useAuthStore } from '../../store/auth.store';
 import { TodoItem } from '../../components/cards/TodoItem';
 import { localDateStr, isOverdue, addDays } from '../../lib/todo-logic';
 import { describeRecurrence } from '../../lib/todo-format';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
 
 function modColor(key: string): { tint: string; accent: string } {
   return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.tarefa;
 }
 
 export default function TarefasScreen() {
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -217,7 +218,7 @@ export default function TarefasScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,

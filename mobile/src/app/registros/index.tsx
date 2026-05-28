@@ -7,7 +7,7 @@ import type { Registro, TodoModule } from '@vitale/shared';
 import { useRegistrosStore } from '../../store/registros.store';
 import { useAuthStore } from '../../store/auth.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
 
 const MODULE_LABEL: Record<TodoModule, string> = {
   geral: 'Geral',
@@ -22,6 +22,7 @@ function modColor(key: string): { tint: string; accent: string } {
 }
 
 export default function RegistrosScreen() {
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -147,7 +148,7 @@ export default function RegistrosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,

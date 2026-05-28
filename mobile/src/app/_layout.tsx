@@ -3,7 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/auth.store';
 import { startActivitySync, stopActivitySync } from '../services/healthkit-observer';
-import { colors } from '../theme';
+import { ThemeProvider, colors } from '../theme';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function RootLayout() {
   }, [session]);
 
   return (
-    <>
+    <ThemeProvider>
       <StatusBar style="dark" backgroundColor={colors.bg} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
@@ -52,7 +52,12 @@ export default function RootLayout() {
         <Stack.Screen name="historico/[label]/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="compras/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="compras/editor" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="configuracoes/index" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="configuracoes/perfil" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="configuracoes/app" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="configuracoes/objetivos" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="configuracoes/dados" options={{ animation: 'slide_from_right' }} />
       </Stack>
-    </>
+    </ThemeProvider>
   );
 }

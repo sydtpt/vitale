@@ -10,7 +10,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { localDateStr, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence } from '../../lib/todo-format';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
 
 const ACCENT = MOD.compras.accent;
 const TINT = MOD.compras.tint;
@@ -33,6 +33,7 @@ interface ItemRowProps {
 }
 
 function ItemRow({ template, occurrence, onDone, onMore, done = false }: ItemRowProps) {
+  const styles = useThemedStyles(createStyles);
   const meta = shopMeta(template);
   const overdue = !done && isOverdue(occurrence);
 
@@ -79,6 +80,7 @@ function ItemRow({ template, occurrence, onDone, onMore, done = false }: ItemRow
 }
 
 export default function ComprasTabScreen() {
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -220,7 +222,7 @@ export default function ComprasTabScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
   estimateText: { fontSize: 13, color: colors.ink2 },
   estimateValue: { fontWeight: '700', color: ACCENT },
 
-  scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
+  scroll: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
 
   catHeader: {
     flexDirection: 'row',

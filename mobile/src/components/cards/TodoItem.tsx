@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
-import { colors, radii, MOD } from '../../theme';
+import { colors, radii, MOD, useThemedStyles } from '../../theme';
 import { daysLate, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence, dueLabel } from '../../lib/todo-format';
 
@@ -22,6 +22,7 @@ interface Props {
 
 /** Item da lista de tarefas: checkbox para concluir + atalho de ações (•••). */
 export function TodoItem({ template, occurrence, onDone, onMore, done = false }: Props) {
+  const styles = useThemedStyles(createStyles);
   const mod = modColor(template.color);
   const overdue = !done && isOverdue(occurrence);
   const late = daysLate(occurrence);
@@ -75,7 +76,7 @@ export function TodoItem({ template, occurrence, onDone, onMore, done = false }:
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii['2xl'],

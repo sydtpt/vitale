@@ -20,7 +20,7 @@ import {
 } from '../../config/health-metrics';
 import { bucketize, Sample } from '../../lib/health-format';
 import { Sparkline, ActivityRings, MacroDonut } from '../../components/charts';
-import { colors, spacing, radii, MOD, shadows } from '../../theme';
+import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../theme';
 
 const RING_COLORS = [colors.primary, colors.green, colors.blue]; // mover · exercício · em pé
 const MACRO_COLORS = [colors.rose, colors.yellow, colors.blue]; // proteína · carbo · gordura
@@ -134,6 +134,7 @@ function UnavailableScreen() {
 }
 
 export default function HealthScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { permissionStatus, summaryLoading, syncing, requestPermission, loadSummaries, syncToCloud } =
@@ -219,7 +220,7 @@ export default function HealthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,
@@ -324,4 +325,4 @@ const styles = StyleSheet.create({
   },
   permBtnText: { fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
   permNote: { fontSize: 12, color: colors.ink4, textAlign: 'center' },
-});
+}));

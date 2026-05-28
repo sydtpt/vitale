@@ -1,11 +1,12 @@
 import React from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radii } from '../../theme';
+import { colors, spacing, radii, useThemedStyles } from '../../theme';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { WEEK, TODAY_IDX, TREINOS_SEMANA, HEATMAP } from '../../services/mock-data';
 
 export default function SemanaScreen() {
+  const styles = useThemedStyles(createStyles);
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.greet}>
@@ -81,6 +82,7 @@ export default function SemanaScreen() {
 function StatTile({ icon, iconBg, iconColor, label, value, sub }: {
   icon: string; iconBg: string; iconColor: string; label: string; value: string; sub: string;
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.tile}>
       <View style={[styles.tileIco, { backgroundColor: iconBg }]}>
@@ -93,7 +95,7 @@ function StatTile({ icon, iconBg, iconColor, label, value, sub }: {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingTop: 54 },
   greet: { paddingVertical: spacing.lg },

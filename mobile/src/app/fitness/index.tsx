@@ -19,7 +19,7 @@ import {
   getActivityMeta,
   TypeSyncStatus,
 } from '../../store/fitness.store';
-import { colors, spacing, radii, MOD, shadows } from '../../theme';
+import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../theme';
 
 type ActivityGroup = {
   key: string;
@@ -148,6 +148,7 @@ function UnavailableScreen() {
 }
 
 export default function FitnessScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -278,7 +279,7 @@ export default function FitnessScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -458,4 +459,4 @@ const styles = StyleSheet.create({
     color: colors.ink4,
     textAlign: 'center',
   },
-});
+}));

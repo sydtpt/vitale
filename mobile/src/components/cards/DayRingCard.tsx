@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { colors } from '../../theme';
+import { colors, useThemedStyles } from '../../theme';
 
 interface DayRingCardProps {
   activity: number;
@@ -16,6 +16,7 @@ function dash(val: number, r: number): { strokeDasharray: string } {
 }
 
 export function DayRingCard({ activity, food, mind, overall }: DayRingCardProps) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.card}>
       <Svg width={120} height={120} viewBox="0 0 120 120">
@@ -52,6 +53,7 @@ export function DayRingCard({ activity, food, mind, overall }: DayRingCardProps)
 }
 
 function LegendRow({ color, label, value }: { color: string; label: string; value: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.row}>
       <View style={[styles.dot, { backgroundColor: color }]} />
@@ -61,9 +63,9 @@ function LegendRow({ color, label, value }: { color: string; label: string; valu
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   card: {
-    backgroundColor: colors.ink,
+    backgroundColor: '#1F1B16',
     borderRadius: 24,
     padding: 18,
     marginTop: 8,
@@ -74,7 +76,7 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   eyebrow: {
     fontSize: 12,
-    color: colors.primarySoft,
+    color: '#FFE3D2',
     letterSpacing: 0.4,
     fontWeight: '600',
   },

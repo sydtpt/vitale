@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRegistrosStore } from '../../store/registros.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { localDateStr } from '../../lib/habit-logic';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const MONTHS = [
@@ -22,6 +22,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const dateKey = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
 export default function RegistroMarcarScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -189,7 +190,7 @@ export default function RegistroMarcarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,
@@ -240,4 +241,4 @@ const styles = StyleSheet.create({
   dayText: { fontSize: 14.5, color: colors.ink, fontWeight: '600' },
   dayTextMarked: { color: '#fff', fontWeight: '700' },
   dayTextFuture: { color: colors.ink4 },
-});
+}));

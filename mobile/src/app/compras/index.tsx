@@ -10,7 +10,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { localDateStr, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence } from '../../lib/todo-format';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const ACCENT = MOD.compras.accent;
 const TINT = MOD.compras.tint;
@@ -79,6 +79,7 @@ function ItemRow({ template, occurrence, onDone, onMore, done = false }: ItemRow
 }
 
 export default function ComprasScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -225,7 +226,7 @@ export default function ComprasScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,
@@ -362,4 +363,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   ctaText: { color: '#fff', fontSize: 14.5, fontWeight: '700' },
-});
+}));

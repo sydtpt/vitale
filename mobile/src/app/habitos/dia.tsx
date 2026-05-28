@@ -7,11 +7,12 @@ import type { CounterHabit } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
 import { MonthCalendar } from '../../components/MonthCalendar';
 import { HabitStepper } from '../../components/cards/HabitStepper';
-import { colors, spacing, radii, shadows } from '../../theme';
+import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 const DATE_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
 export default function EditarDiaScreen() {
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -146,7 +147,7 @@ export default function EditarDiaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,

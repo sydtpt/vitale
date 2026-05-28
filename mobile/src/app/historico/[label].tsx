@@ -30,7 +30,7 @@ import {
   formatDistance,
 } from '../../lib/workout-format';
 import { activityHighlights, type ActivityHighlight } from '../../lib/running-highlights';
-import { colors, spacing, radii, shadows } from '../../theme';
+import { colors, spacing, radii, shadows, themed, useTheme } from '../../theme';
 
 const PAGE_SIZE = 12;
 
@@ -178,6 +178,7 @@ function HighlightsRow({
 }
 
 export default function TipoListScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { label = '' } = useLocalSearchParams<{ label: string }>();
@@ -508,7 +509,7 @@ export default function TipoListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   pressed: { opacity: 0.7 },
@@ -657,4 +658,4 @@ const styles = StyleSheet.create({
 
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
   emptyText: { fontSize: 15, color: colors.ink3, textAlign: 'center' },
-});
+}));

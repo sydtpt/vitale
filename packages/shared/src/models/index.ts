@@ -328,6 +328,38 @@ export interface RegistroLog {
 }
 
 /**
+ * Perfil visível do usuário. Mapeia a tabela `user_profiles`.
+ * Ver .claude/specs/settings/.
+ */
+export interface UserProfile {
+  id: string;
+  displayName?: string;
+  avatarUrl?: string;
+  updatedAt: string;
+}
+
+export type AppTheme = 'system' | 'light' | 'dark';
+
+/**
+ * Preferências de app do usuário (tema, notificações, metas). 1 linha por usuário.
+ * Mapeia a tabela `user_preferences`. Ver .claude/specs/settings/.
+ */
+export interface UserPreferences {
+  userId: string;
+  theme: AppTheme;
+  glassEnabled: boolean;
+  language: string;
+  notificationsEnabled: boolean;
+  dailyReminderTime?: string;         // 'HH:MM'
+  nutritionCaloriesGoal?: number;
+  nutritionProteinG?: number;
+  nutritionCarbsG?: number;
+  nutritionFatG?: number;
+  trainingDaysPerWeek?: number;
+  updatedAt: string;
+}
+
+/**
  * Agregado diário de uma métrica de saúde (Apple Health). 1 linha por
  * (user, dia, métrica). Mapeia a tabela `health_daily`. O mobile agrega as
  * amostras do HealthKit antes de enviar — nunca sobem amostras brutas.

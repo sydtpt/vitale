@@ -16,7 +16,7 @@ import type { TodoModule } from '@vitale/shared';
 import { HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
 import { useRegistrosStore } from '../../store/registros.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const ICONS = HABIT_ICONS;
 
@@ -40,6 +40,7 @@ const COLORS: { key: string; accent: string }[] = [
 ];
 
 export default function RegistroEditorScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -167,7 +168,7 @@ export default function RegistroEditorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   header: {
@@ -225,4 +226,4 @@ const styles = StyleSheet.create({
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-});
+}));

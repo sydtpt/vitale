@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../theme';
+import { colors, useThemedStyles } from '../../theme';
 
 interface SectionLabelProps {
   children: string;
@@ -8,6 +8,7 @@ interface SectionLabelProps {
 }
 
 export function SectionLabel({ children, right }: SectionLabelProps) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.sec}>
       <Text style={styles.lbl}>{children}</Text>
@@ -16,7 +17,7 @@ export function SectionLabel({ children, right }: SectionLabelProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   sec: {
     flexDirection: 'row',
     alignItems: 'baseline',

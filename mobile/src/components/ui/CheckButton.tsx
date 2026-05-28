@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../theme';
+import { colors, useThemedStyles } from '../../theme';
 
 interface CheckButtonProps {
   checked: boolean;
@@ -9,6 +9,7 @@ interface CheckButtonProps {
 }
 
 export function CheckButton({ checked, small = false }: CheckButtonProps) {
+  const styles = useThemedStyles(createStyles);
   const size = small ? 22 : 30;
   return (
     <View
@@ -25,7 +26,7 @@ export function CheckButton({ checked, small = false }: CheckButtonProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   base: {
     borderWidth: 1.6,
     borderColor: colors.ink4,

@@ -23,7 +23,7 @@ import {
   formatDuration,
   formatDistance,
 } from '../../lib/workout-format';
-import { colors, spacing, radii, MOD, shadows } from '../../theme';
+import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../theme';
 
 const PAGE_SIZE = 10;
 
@@ -71,6 +71,7 @@ function WorkoutCard({ item, onPress }: { item: WorkoutItem; onPress: () => void
 }
 
 export default function ActivityDetailScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { label = '' } = useLocalSearchParams<{ label: string }>();
@@ -181,7 +182,7 @@ export default function ActivityDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -291,4 +292,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.ink3,
   },
-});
+}));

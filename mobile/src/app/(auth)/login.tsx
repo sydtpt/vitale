@@ -6,7 +6,7 @@ import {
 import { Link } from 'expo-router';
 import { Svg, Path } from 'react-native-svg';
 import { useAuthStore } from '../../store/auth.store';
-import { colors, spacing, radii, fonts } from '../../theme';
+import { colors, spacing, radii, fonts, useThemedStyles } from '../../theme';
 
 function GoogleIcon() {
   return (
@@ -20,6 +20,7 @@ function GoogleIcon() {
 }
 
 export default function LoginScreen() {
+  const s = useThemedStyles(createStyles);
   const { signIn, signInWithGoogle, loading } = useAuthStore();
 
   const [email, setEmail] = useState('');
@@ -107,7 +108,7 @@ export default function LoginScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   page: {
     flex: 1,
     backgroundColor: colors.bg,

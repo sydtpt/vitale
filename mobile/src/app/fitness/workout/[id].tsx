@@ -20,7 +20,7 @@ import {
   totalTimeS,
 } from '../../../lib/workout-format';
 import { movingTimeFromTrack } from '../../../lib/moving-time';
-import { colors, spacing, radii, MOD, shadows } from '../../../theme';
+import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../../theme';
 
 type InfoRow = { label: string; value: string };
 
@@ -43,6 +43,7 @@ function Stat({
 }
 
 export default function WorkoutDetailScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -209,7 +210,7 @@ export default function WorkoutDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -354,4 +355,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.ink3,
   },
-});
+}));

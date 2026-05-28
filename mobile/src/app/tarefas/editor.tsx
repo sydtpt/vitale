@@ -21,7 +21,7 @@ import type {
 } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
-import { colors, spacing, radii, shadows, MOD } from '../../theme';
+import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 type Kind = TodoRecurrence['kind'];
 
@@ -70,6 +70,7 @@ function parseNum(s: string): number | null {
 }
 
 export default function TodoEditorScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -541,7 +542,7 @@ export default function TodoEditorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   header: {
@@ -608,4 +609,4 @@ const styles = StyleSheet.create({
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-});
+}));

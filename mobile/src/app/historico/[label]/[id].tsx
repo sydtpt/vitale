@@ -28,7 +28,7 @@ import {
   formatClock,
   totalTimeS,
 } from '../../../lib/workout-format';
-import { colors, spacing, radii, shadows } from '../../../theme';
+import { colors, spacing, radii, shadows, themed, useTheme } from '../../../theme';
 
 type InfoRow = { label: string; value: string };
 
@@ -53,6 +53,7 @@ function Stat({
 }
 
 export default function AtividadeDetalheScreen() {
+  useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id = '' } = useLocalSearchParams<{ label: string; id: string }>();
@@ -368,7 +369,7 @@ export default function AtividadeDetalheScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   pressed: { opacity: 0.7 },
@@ -567,4 +568,4 @@ const styles = StyleSheet.create({
   infoValue: { fontSize: 13.5, color: colors.ink, fontFamily: 'GeistMono', flex: 1, textAlign: 'right' },
 
   emptyText: { fontSize: 15, color: colors.ink3 },
-});
+}));
