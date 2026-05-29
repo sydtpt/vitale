@@ -3,6 +3,8 @@
  * Shared across web & mobile.
  */
 
+import type { MapStyle } from '../constants/map';
+
 export interface Meal {
   id: string;
   name: string;
@@ -350,6 +352,7 @@ export interface UserPreferences {
   glassEnabled: boolean;
   language: string;
   notificationsEnabled: boolean;
+  mapStyle: MapStyle;                 // estilo dos mapas de atividade
   dailyReminderTime?: string;         // 'HH:MM'
   nutritionCaloriesGoal?: number;
   nutritionProteinG?: number;

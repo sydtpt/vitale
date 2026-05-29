@@ -20,7 +20,9 @@ import type {
   TodoCancelPolicy,
   TodoSpawnRule,
 } from '@vitale/shared';
+import { HABIT_ICONS } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
+import { habitIconToIonicon } from '../../lib/habit-icons';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
@@ -43,15 +45,15 @@ const KINDS: { key: Kind; label: string }[] = [
   { key: 'usage', label: 'Por uso' },
   { key: 'event', label: 'Por evento' },
   { key: 'stock', label: 'Por estoque' },
-  { key: 'on_workout', label: 'Após treino' },
 ];
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
-const ICONS = [
-  'checkbox-outline', 'home', 'cash-outline', 'cart-outline', 'trash-outline', 'water',
-  'call-outline', 'medkit-outline', 'car-outline', 'paw-outline', 'document-text-outline', 'calendar-outline',
-] as const;
+// Mesmo conjunto canônico dos hábitos — fonte única em @vitale/shared.
+const ICONS = HABIT_ICONS;
+
+/** Ícone padrão de uma nova tarefa (nome canônico de HABIT_ICONS). */
+const DEFAULT_TODO_ICON = 'flag';
 
 const COLORS: { key: string; accent: string }[] = [
   { key: 'tarefa', accent: MOD.tarefa.accent },
@@ -100,9 +102,10 @@ export default function TodoEditorScreen() {
   const [stockRef, setStockRef] = useState('');
   const [overdue, setOverdue] = useState<TodoOverduePolicy>('carry');
   const [cancelPolicy, setCancelPolicy] = useState<TodoCancelPolicy>('manual');
-  const [icon, setIcon] = useState<string>('checkbox-outline');
+  const [icon, setIcon] = useState<string>(DEFAULT_TODO_ICON);
   const [color, setColor] = useState<string>('tarefa');
   const [linkedActivityId, setLinkedActivityId] = useState<number | null>(null);
+  const [workoutOn, setWorkoutOn] = useState(false);
   const [triggerActivityId, setTriggerActivityId] = useState<number | null>(null);
   const [dueInDays, setDueInDays] = useState<string>('');
   const [spawn, setSpawn] = useState<TodoSpawnRule[]>([]);
@@ -163,8 +166,9 @@ export default function TodoEditorScreen() {
     if (existing && !hydrated) {
       setName(existing.name);
       setMod(existing.module);
-      setKind(existing.recurrence.kind);
       const r = existing.recurrence;
+      // on_workout saiu das chips de Recorrência — vira o bloco "Criar/completar um treino".
+      setKind(r.kind === 'on_workout' ? 'none' : r.kind);
       if (r.kind === 'monthly') setMonthlyDay(String(r.day));
       if (r.kind === 'weekly') setWeekdays(r.weekdays);
       if (r.kind === 'yearly') { setYearMonth(String(r.month)); setYearDay(String(r.day)); }
@@ -175,14 +179,17 @@ export default function TodoEditorScreen() {
       if (r.kind === 'on_workout') {
         setTriggerActivityId(r.activityId ?? null);
         setDueInDays(r.dueInDays != null ? String(r.dueInDays) : '');
+        setWorkoutOn(true);
+        setTriggerOnly(true);
       }
       setOverdue(existing.overdue);
       setCancelPolicy(existing.cancelPolicy);
-      setIcon(existing.icon || 'checkbox-outline');
+      setIcon(existing.icon || DEFAULT_TODO_ICON);
       setColor(existing.color || 'tarefa');
       setLinkedActivityId(existing.linkedActivityId ?? null);
       setSpawn(existing.onComplete ?? []);
-      setTriggerOnly(existing.triggerOnly ?? false);
+      // on_workout implica nascer só por gatilho (normalização inócua para templates legados).
+      setTriggerOnly((existing.triggerOnly ?? false) || r.kind === 'on_workout');
       setHydrated(true);
     }
   }, [existing, hydrated]);
@@ -197,6 +204,10 @@ export default function TodoEditorScreen() {
   };
 
   function buildRecurrence(): TodoRecurrence | null {
+    // "Criar/completar um treino": o gatilho de treino vence o picker de Recorrência.
+    if (triggerOnly && workoutOn) {
+      return { kind: 'on_workout', activityId: triggerActivityId ?? undefined, dueInDays: parseNum(dueInDays) ?? undefined };
+    }
     switch (kind) {
       case 'none': return { kind: 'none' };
       case 'monthly': {
@@ -223,7 +234,8 @@ export default function TodoEditorScreen() {
       case 'stock':
         return { kind: 'stock', shopItemRef: stockRef.trim() || undefined };
       case 'on_workout':
-        return { kind: 'on_workout', activityId: triggerActivityId ?? undefined, dueInDays: parseNum(dueInDays) ?? undefined };
+        // Inalcançável: on_workout só nasce pelo bloco de treino (guarda acima), nunca pelo picker.
+        return null;
     }
   }
 
@@ -316,6 +328,87 @@ export default function TodoEditorScreen() {
             ))}
           </View>
 
+          {/* Só por gatilho — não cria ocorrência inicial nem por calendário. */}
+          <Text style={styles.label}>Só nasce por gatilho</Text>
+          <View style={styles.chips}>
+            <Pressable
+              onPress={() => setTriggerOnly(false)}
+              style={[styles.chip, !triggerOnly && { backgroundColor: accent }]}
+            >
+              <Text style={[styles.chipText, !triggerOnly && styles.chipTextActive]}>Não</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setTriggerOnly(true)}
+              style={[styles.chip, triggerOnly && { backgroundColor: accent }]}
+            >
+              <Text style={[styles.chipText, triggerOnly && styles.chipTextActive]}>Sim</Text>
+            </Pressable>
+          </View>
+          {triggerOnly && (
+            <Text style={styles.hint}>Esta tarefa só aparece quando algum gatilho a disparar (treino, encadeamento, etc.).</Text>
+          )}
+
+          {triggerOnly && (
+            <>
+              {/* Criar/completar um treino: cada treino executado cria uma ocorrência pendente. */}
+              <Text style={styles.label}>Criar/completar um treino</Text>
+              <View style={styles.chips}>
+                <Pressable onPress={() => setWorkoutOn(false)} style={[styles.chip, !workoutOn && { backgroundColor: accent }]}>
+                  <Text style={[styles.chipText, !workoutOn && styles.chipTextActive]}>Não criar</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setWorkoutOn(true); setTriggerActivityId(null); }}
+                  style={[styles.chip, workoutOn && triggerActivityId == null && { backgroundColor: accent }]}
+                >
+                  <Text style={[styles.chipText, workoutOn && triggerActivityId == null && styles.chipTextActive]}>Qualquer treino</Text>
+                </Pressable>
+                {activityOptions.map((o) => {
+                  const active = workoutOn && triggerActivityId === o.id;
+                  return (
+                    <Pressable key={o.id} onPress={() => { setWorkoutOn(true); setTriggerActivityId(o.id); }} style={[styles.chip, active && { backgroundColor: accent }]}>
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{o.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {workoutOn && (
+                <>
+                  <Text style={styles.label}>Vence em (dias após o treino · vazio = sem prazo)</Text>
+                  <TextInput value={dueInDays} onChangeText={setDueInDays} keyboardType="number-pad" placeholder="0 = no dia" placeholderTextColor={colors.ink4} style={styles.input} />
+                </>
+              )}
+
+              {/* Encadeamento — ao concluir esta tarefa, criar ocorrências de outras. */}
+              <Text style={styles.label}>Ao concluir, criar</Text>
+              {spawnOptions.length === 0 ? (
+                <Text style={styles.hint}>Crie outra série antes para poder encadear.</Text>
+              ) : (
+                <View style={styles.chips}>
+                  {spawnOptions.map((t) => {
+                    const rule = spawnByTemplate.get(t.id);
+                    const active = rule != null;
+                    return (
+                      <Pressable
+                        key={t.id}
+                        onPress={() => toggleSpawn(t.id)}
+                        onLongPress={() => active && toggleDuplicate(t.id)}
+                        style={[styles.chip, active && { backgroundColor: accent }]}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {t.name}
+                          {active && rule?.ifPending === 'duplicate' ? ' ×n' : ''}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+              {spawn.length > 0 && (
+                <Text style={styles.hint}>Toque longo: alternar entre ignorar se já pendente (padrão) e duplicar (×n).</Text>
+              )}
+            </>
+          )}
+
           {/* Recorrência */}
           <Text style={styles.label}>Recorrência</Text>
           <View style={styles.chips}>
@@ -387,54 +480,6 @@ export default function TodoEditorScreen() {
               <TextInput value={stockRef} onChangeText={setStockRef} placeholder="Ex.: Café" placeholderTextColor={colors.ink4} style={styles.input} />
             </>
           )}
-          {kind === 'on_workout' && (
-            <>
-              <Text style={styles.label}>Treino que dispara</Text>
-              <View style={styles.chips}>
-                <Pressable onPress={() => setTriggerActivityId(null)} style={[styles.chip, triggerActivityId == null && { backgroundColor: accent }]}>
-                  <Text style={[styles.chipText, triggerActivityId == null && styles.chipTextActive]}>Qualquer</Text>
-                </Pressable>
-                {activityOptions.map((o) => {
-                  const active = triggerActivityId === o.id;
-                  return (
-                    <Pressable key={o.id} onPress={() => setTriggerActivityId(active ? null : o.id)} style={[styles.chip, active && { backgroundColor: accent }]}>
-                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{o.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={styles.label}>Vence em (dias após o treino · vazio = sem prazo)</Text>
-              <TextInput value={dueInDays} onChangeText={setDueInDays} keyboardType="number-pad" placeholder="0 = no dia" placeholderTextColor={colors.ink4} style={styles.input} />
-            </>
-          )}
-          {/* Encadeamento — ao concluir esta tarefa, criar ocorrências de outras. */}
-          <Text style={styles.label}>Ao concluir, criar</Text>
-          {spawnOptions.length === 0 ? (
-            <Text style={styles.hint}>Crie outra série antes para poder encadear.</Text>
-          ) : (
-            <View style={styles.chips}>
-              {spawnOptions.map((t) => {
-                const rule = spawnByTemplate.get(t.id);
-                const active = rule != null;
-                return (
-                  <Pressable
-                    key={t.id}
-                    onPress={() => toggleSpawn(t.id)}
-                    onLongPress={() => active && toggleDuplicate(t.id)}
-                    style={[styles.chip, active && { backgroundColor: accent }]}
-                  >
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {t.name}
-                      {active && rule?.ifPending === 'duplicate' ? ' ×n' : ''}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-          {spawn.length > 0 && (
-            <Text style={styles.hint}>Toque longo: alternar entre ignorar se já pendente (padrão) e duplicar (×n).</Text>
-          )}
 
           {/* Pais que disparam esta tarefa (read-only). */}
           {parentsOf.length > 0 && (
@@ -449,49 +494,6 @@ export default function TodoEditorScreen() {
               </View>
             </>
           )}
-
-          {/* Só por gatilho — não cria ocorrência inicial nem por calendário. */}
-          <Text style={styles.label}>Só nasce por gatilho</Text>
-          <View style={styles.chips}>
-            <Pressable
-              onPress={() => setTriggerOnly(false)}
-              style={[styles.chip, !triggerOnly && { backgroundColor: accent }]}
-            >
-              <Text style={[styles.chipText, !triggerOnly && styles.chipTextActive]}>Não</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setTriggerOnly(true)}
-              style={[styles.chip, triggerOnly && { backgroundColor: accent }]}
-            >
-              <Text style={[styles.chipText, triggerOnly && styles.chipTextActive]}>Sim</Text>
-            </Pressable>
-          </View>
-          {triggerOnly && (
-            <Text style={styles.hint}>Esta tarefa só aparece quando algum gatilho a disparar (encadeamento, treino, etc.).</Text>
-          )}
-
-          {/* Concluir ao registrar treino (vínculo com a atividade do HealthKit) */}
-          <Text style={styles.label}>Concluir ao registrar treino</Text>
-          <View style={styles.chips}>
-            <Pressable
-              onPress={() => setLinkedActivityId(null)}
-              style={[styles.chip, linkedActivityId == null && { backgroundColor: accent }]}
-            >
-              <Text style={[styles.chipText, linkedActivityId == null && styles.chipTextActive]}>Nenhum</Text>
-            </Pressable>
-            {activityOptions.map((o) => {
-              const active = linkedActivityId === o.id;
-              return (
-                <Pressable
-                  key={o.id}
-                  onPress={() => setLinkedActivityId(active ? null : o.id)}
-                  style={[styles.chip, active && { backgroundColor: accent }]}
-                >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{o.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
 
           {/* Se não fizer no dia */}
           <Text style={styles.label}>Se não fizer no dia</Text>
@@ -523,7 +525,7 @@ export default function TodoEditorScreen() {
               const active = icon === ic;
               return (
                 <Pressable key={ic} onPress={() => setIcon(ic)} style={[styles.iconChip, active && { backgroundColor: accent, borderColor: accent }]}>
-                  <Ionicons name={ic as never} size={20} color={active ? '#fff' : colors.ink2} />
+                  <Ionicons name={habitIconToIonicon(ic)} size={20} color={active ? '#fff' : colors.ink2} />
                 </Pressable>
               );
             })}

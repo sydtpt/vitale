@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { MOD, type TodoTemplate, type TodoOccurrence } from '@vitale/shared';
+import { MOD, HABIT_ICONS, type TodoTemplate, type TodoOccurrence } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { daysLate, isOverdue } from '../data/todo-logic';
 import { describeRecurrence, dueLabel } from '../data/todo-format';
 
-/** Mapeia o ícone do mobile (Ionicons) para o set do `rt-icon` do web. */
+const HABIT_ICON_SET: ReadonlySet<string> = new Set(HABIT_ICONS);
+
+/** Mapeia ícones legados de tarefa (nomes Ionicons) para o set do `rt-icon` do web. */
 const ICON_MAP: Record<string, string> = {
   'checkbox-outline': 'check', home: 'home', 'cash-outline': 'wallet',
   'cart-outline': 'cart', 'trash-outline': 'broom', water: 'droplet',
@@ -38,7 +40,9 @@ export class TodoCardComponent {
     return `color-mix(in srgb, ${this.accent()} 14%, white)`;
   }
   protected icon(): string {
-    return ICON_MAP[this.template().icon] ?? 'check';
+    const name = this.template().icon;
+    // Ícones canônicos (HABIT_ICONS) já são nomes do `rt-icon`; legados são Ionicons.
+    return HABIT_ICON_SET.has(name) ? name : (ICON_MAP[name] ?? 'check');
   }
   protected subtitle(): string {
     const o = this.occurrence();

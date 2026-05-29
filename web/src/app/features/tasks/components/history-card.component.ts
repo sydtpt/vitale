@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { MOD, type TodoTemplate, type TodoOccurrence } from '@vitale/shared';
+import { MOD, HABIT_ICONS, type TodoTemplate, type TodoOccurrence } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 
+const HABIT_ICON_SET: ReadonlySet<string> = new Set(HABIT_ICONS);
+
+/** Ícones legados de tarefa (nomes Ionicons) → set do `rt-icon`. */
 const ICON_MAP: Record<string, string> = {
   'checkbox-outline': 'check', home: 'home', 'cash-outline': 'wallet',
   'cart-outline': 'cart', 'trash-outline': 'broom', water: 'droplet',
@@ -36,7 +39,8 @@ export class HistoryCardComponent {
     return `color-mix(in srgb, ${this.accent()} 14%, white)`;
   }
   protected icon(): string {
-    return ICON_MAP[this.template().icon] ?? 'check';
+    const name = this.template().icon;
+    return HABIT_ICON_SET.has(name) ? name : (ICON_MAP[name] ?? 'check');
   }
   protected date(): string {
     const o = this.occurrence();

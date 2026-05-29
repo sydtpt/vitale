@@ -1,14 +1,24 @@
-import React from 'react';
+import React, { type ComponentProps } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
+import { HABIT_ICONS } from '@vitale/shared';
 import { colors, radii, MOD, useThemedStyles } from '../../theme';
+import { habitIconToIonicon } from '../../lib/habit-icons';
 import { daysLate, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence, dueLabel } from '../../lib/todo-format';
 
+const HABIT_ICON_SET = new Set<string>(HABIT_ICONS);
+
 function modColor(key: string): { tint: string; accent: string } {
   return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.tarefa;
+}
+
+/** Ícones canônicos passam pelo mapa de Ionicons; legados já são nomes Ionicons. */
+function todoIcon(name: string | undefined): ComponentProps<typeof Ionicons>['name'] {
+  if (name && HABIT_ICON_SET.has(name)) return habitIconToIonicon(name);
+  return (name || 'checkbox-outline') as ComponentProps<typeof Ionicons>['name'];
 }
 
 interface Props {
@@ -54,7 +64,7 @@ export function TodoItem({ template, occurrence, onDone, onMore, done = false }:
       <View style={styles.center}>
         <View style={styles.titleRow}>
           <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>
-            <Ionicons name={(template.icon || 'checkbox-outline') as never} size={14} color={mod.accent} />
+            <Ionicons name={todoIcon(template.icon)} size={14} color={mod.accent} />
           </View>
           <Text style={[styles.name, done && styles.nameDone]} numberOfLines={1}>{template.name}</Text>
           {autoDone && (

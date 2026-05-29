@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivitiesStore } from '../data/activities.store';
-import { buildOverview, type Metric, type OverviewBucket, type Period } from '../data/overview';
+import { buildOverview, type Metric, type Period } from '../data/overview';
 import { PeriodSelectorComponent } from './period-selector.component';
 import { StackedBarChartComponent } from './stacked-bar-chart.component';
 
@@ -20,21 +20,10 @@ export class OverviewCardComponent {
   /** Tipos ocultados via clique na legenda. */
   protected readonly hidden = signal<ReadonlySet<string>>(new Set());
 
+  /** Totais, barras e legenda já excluem os tipos ocultos (legenda mantém todos). */
   protected readonly overview = computed(() =>
-    buildOverview(this.store.activities(), this.period(), this.metric()),
+    buildOverview(this.store.activities(), this.period(), this.metric(), new Date(), this.hidden()),
   );
-
-  /** Buckets sem os tipos ocultos, com totais recalculados para o gráfico. */
-  protected readonly chartBuckets = computed<OverviewBucket[]>(() => {
-    const hidden = this.hidden();
-    const buckets = this.overview().buckets;
-    if (!hidden.size) return buckets;
-    return buckets.map((b) => {
-      const segments = b.segments.filter((s) => !hidden.has(s.label));
-      const total = segments.reduce((sum, s) => sum + s.value, 0);
-      return { ...b, segments, total };
-    });
-  });
 
   protected isHidden(label: string): boolean {
     return this.hidden().has(label);

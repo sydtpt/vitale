@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { UserProfile, UserPreferences, AppTheme } from '@vitale/shared';
+import { resolveMapStyle, DEFAULT_MAP_STYLE } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { getJSON, setJSON } from '../lib/local-store';
 import { useAuthStore } from './auth.store';
@@ -45,6 +46,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           glassEnabled: prefsRes.data.glass_enabled ?? false,
           language: prefsRes.data.language ?? 'pt-BR',
           notificationsEnabled: prefsRes.data.notifications_enabled ?? true,
+          mapStyle: resolveMapStyle(prefsRes.data.map_style),
           dailyReminderTime: prefsRes.data.daily_reminder_time ?? undefined,
           nutritionCaloriesGoal: prefsRes.data.nutrition_calories_goal ?? undefined,
           nutritionProteinG: prefsRes.data.nutrition_protein_g ?? undefined,
@@ -59,6 +61,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           glassEnabled: false,
           language: 'pt-BR',
           notificationsEnabled: true,
+          mapStyle: DEFAULT_MAP_STYLE,
           updatedAt: new Date().toISOString(),
         };
     set({
@@ -103,6 +106,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       glassEnabled: false,
       language: 'pt-BR',
       notificationsEnabled: true,
+      mapStyle: DEFAULT_MAP_STYLE,
       updatedAt: new Date().toISOString(),
     };
     const next: UserPreferences = { ...current, ...patch, updatedAt: new Date().toISOString() };
@@ -115,6 +119,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       glass_enabled: next.glassEnabled,
       language: next.language,
       notifications_enabled: next.notificationsEnabled,
+      map_style: next.mapStyle,
       daily_reminder_time: next.dailyReminderTime ?? null,
       nutrition_calories_goal: next.nutritionCaloriesGoal ?? null,
       nutrition_protein_g: next.nutritionProteinG ?? null,

@@ -12,6 +12,51 @@
       }
     </div>
 
+    <label class="lbl">Só nasce por gatilho</label>
+    <div class="chips">
+      <button class="chip" [class.on]="!triggerOnly" (click)="triggerOnly = false">Não</button>
+      <button class="chip" [class.on]="triggerOnly" (click)="triggerOnly = true">Sim</button>
+    </div>
+    @if (triggerOnly) {
+      <label class="lbl">Esta tarefa só aparece quando algum gatilho a disparar (treino, encadeamento, etc.).</label>
+    }
+
+    @if (triggerOnly) {
+      <label class="lbl">Criar/completar um treino</label>
+      <div class="chips">
+        <button class="chip" [class.on]="!workoutOn" (click)="workoutOn = false">Não criar</button>
+        <button class="chip" [class.on]="workoutOn && triggerActivityId === null" (click)="workoutOn = true; triggerActivityId = null">Qualquer treino</button>
+        @for (a of activityOptions; track a.id) {
+          <button class="chip" [class.on]="workoutOn && triggerActivityId === a.id" (click)="workoutOn = true; triggerActivityId = a.id">{{ a.label }}</button>
+        }
+      </div>
+      @if (workoutOn) {
+        <label class="lbl">Vence em (dias após o treino · vazio = sem prazo)</label>
+        <input class="inp" type="number" [(ngModel)]="dueInDays" placeholder="0 = no dia" />
+      }
+
+      <label class="lbl">Ao concluir, criar</label>
+      @if (spawnOptions().length === 0) {
+        <label class="lbl">Crie outra série antes para poder encadear.</label>
+      } @else {
+        <div class="chips">
+          @for (t of spawnOptions(); track t.id) {
+            <button
+              class="chip"
+              [class.on]="isSpawnActive(t.id)"
+              (click)="toggleSpawn(t.id)"
+              (contextmenu)="$event.preventDefault(); isSpawnActive(t.id) && toggleSpawnDuplicate(t.id)"
+            >
+              {{ t.name }}@if (spawnRule(t.id)?.ifPending === 'duplicate') { <span> ×n</span> }
+            </button>
+          }
+        </div>
+        @if (spawn.length > 0) {
+          <label class="lbl">Clique com o botão direito: alternar entre ignorar se já pendente (padrão) e duplicar (×n).</label>
+        }
+      }
+    }
+
     <label class="lbl">Recorrência</label>
     <div class="chips">
       @for (k of kinds; track k.key) {
@@ -56,38 +101,6 @@
         <label class="lbl">Item (opcional)</label>
         <input class="inp" [(ngModel)]="stockRef" placeholder="Ex.: Café" />
       }
-      @case ('on_workout') {
-        <label class="lbl">Treino que dispara</label>
-        <div class="chips">
-          <button class="chip" [class.on]="triggerActivityId === null" (click)="triggerActivityId = null">Qualquer</button>
-          @for (a of activityOptions; track a.id) {
-            <button class="chip" [class.on]="triggerActivityId === a.id" (click)="triggerActivityId = triggerActivityId === a.id ? null : a.id">{{ a.label }}</button>
-          }
-        </div>
-        <label class="lbl">Vence em (dias após o treino · vazio = sem prazo)</label>
-        <input class="inp" type="number" [(ngModel)]="dueInDays" placeholder="0 = no dia" />
-      }
-    }
-
-    <label class="lbl">Ao concluir, criar</label>
-    @if (spawnOptions().length === 0) {
-      <label class="lbl">Crie outra série antes para poder encadear.</label>
-    } @else {
-      <div class="chips">
-        @for (t of spawnOptions(); track t.id) {
-          <button
-            class="chip"
-            [class.on]="isSpawnActive(t.id)"
-            (click)="toggleSpawn(t.id)"
-            (contextmenu)="$event.preventDefault(); isSpawnActive(t.id) && toggleSpawnDuplicate(t.id)"
-          >
-            {{ t.name }}@if (spawnRule(t.id)?.ifPending === 'duplicate') { <span> ×n</span> }
-          </button>
-        }
-      </div>
-      @if (spawn.length > 0) {
-        <label class="lbl">Clique com o botão direito: alternar entre ignorar se já pendente (padrão) e duplicar (×n).</label>
-      }
     }
 
     @if (parentsOf().length > 0) {
@@ -97,15 +110,6 @@
           <span class="chip readonly">{{ t.name }}</span>
         }
       </div>
-    }
-
-    <label class="lbl">Só nasce por gatilho</label>
-    <div class="chips">
-      <button class="chip" [class.on]="!triggerOnly" (click)="triggerOnly = false">Não</button>
-      <button class="chip" [class.on]="triggerOnly" (click)="triggerOnly = true">Sim</button>
-    </div>
-    @if (triggerOnly) {
-      <label class="lbl">Esta tarefa só aparece quando algum gatilho a disparar.</label>
     }
 
     <label class="lbl">Se não fizer no dia</label>
@@ -119,6 +123,15 @@
       <button class="chip" [class.on]="cancelPolicy === 'manual'" (click)="setCancel('manual')">Sim</button>
       <button class="chip" [class.on]="cancelPolicy === 'none'" (click)="setCancel('none')">Obrigatória</button>
       <button class="chip" [class.on]="cancelPolicy === 'auto'" (click)="setCancel('auto')">Auto</button>
+    </div>
+
+    <label class="lbl">Ícone</label>
+    <div class="chips">
+      @for (ic of icons; track ic) {
+        <button class="icon-chip" [class.on]="icon === ic" (click)="icon = ic">
+          <rt-icon [name]="ic" [size]="18" />
+        </button>
+      }
     </div>
 
     <label class="lbl">Cor</label>

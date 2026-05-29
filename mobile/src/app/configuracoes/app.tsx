@@ -3,8 +3,11 @@ import { View, Text, Pressable, Switch, StyleSheet, ScrollView } from 'react-nat
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MAP_STYLES, type MapStyle } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
 import { colors, spacing, radii, useThemedStyles } from '../../theme';
+
+const MAP_STYLE_ORDER: MapStyle[] = ['voyager', 'positron', 'osm'];
 
 export default function AppSettingsScreen() {
   const styles = useThemedStyles(createStyles);
@@ -19,6 +22,7 @@ export default function AppSettingsScreen() {
   const theme = preferences?.theme ?? 'system';
   const glass = preferences?.glassEnabled ?? false;
   const notifs = preferences?.notificationsEnabled ?? true;
+  const mapStyle = preferences?.mapStyle ?? 'voyager';
   const darkMode = theme === 'dark';
 
   return (
@@ -91,6 +95,32 @@ export default function AppSettingsScreen() {
               ios_backgroundColor={colors.line}
             />
           </View>
+        </View>
+
+        {/* Map style section */}
+        <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Mapa</Text>
+        <View style={styles.card}>
+          {MAP_STYLE_ORDER.map((style, i) => (
+            <Pressable
+              key={style}
+              onPress={() => updatePreferences({ mapStyle: style })}
+              style={({ pressed }) => [
+                styles.row,
+                i < MAP_STYLE_ORDER.length - 1 && styles.rowBorder,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={[styles.iconWrap, { backgroundColor: '#6FA86A' }]}>
+                <Ionicons name="map-outline" size={15} color="#fff" />
+              </View>
+              <Text style={styles.rowLabel}>{MAP_STYLES[style].label}</Text>
+              <View style={styles.rowRight}>
+                {mapStyle === style && (
+                  <Ionicons name="checkmark" size={18} color={colors.primary} />
+                )}
+              </View>
+            </Pressable>
+          ))}
         </View>
 
         {/* Notifications section */}

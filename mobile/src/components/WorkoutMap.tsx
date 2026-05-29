@@ -1,15 +1,18 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import { MAP_STYLES, type MapStyleConfig } from '@vitale/shared';
 import type { RoutePoint } from '../store/fitness.store';
-import { colors, radii, MOD } from '../theme';
-
-const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-const ATTRIBUTION = '&copy; OpenStreetMap contributors';
+import { useSettingsStore } from '../store/settings.store';
+import { colors, radii, spacing, MOD } from '../theme';
 
 /**
  * Renderiza a rota GPS de um treino sobre o OpenStreetMap usando Leaflet
  * dentro de um WebView (mapa OSM puro, sem chave de API).
+ *
+ * A prévia inline é estática (sem arrastar/zoom); um toque abre o mapa em
+ * tela cheia, onde o usuário pode arrastar e dar zoom livremente.
  */
 export function WorkoutMap({
   points,
@@ -18,26 +21,69 @@ export function WorkoutMap({
   points: RoutePoint[];
   height?: number;
 }) {
-  const html = useMemo(() => buildHtml(points), [points]);
+  const [fullscreen, setFullscreen] = useState(false);
+  const insets = useSafeAreaInsets();
+  const mapStyle = useSettingsStore((s) => s.preferences?.mapStyle) ?? 'voyager';
+  const tile = MAP_STYLES[mapStyle];
+  const previewHtml = useMemo(() => buildHtml(points, false, tile), [points, tile]);
+  const fullHtml = useMemo(() => buildHtml(points, true, tile), [points, tile]);
 
   if (points.length === 0) return null;
 
   return (
-    <View style={[styles.container, { height }]}>
-      <WebView
-        originWhitelist={['*']}
-        source={{ html }}
-        style={styles.web}
-        scrollEnabled={false}
-        showsVerticalScrollIndicator={false}
-        showsHorizontalScrollIndicator={false}
-        androidLayerType="hardware"
-      />
-    </View>
+    <>
+      <Pressable
+        style={[styles.container, { height }]}
+        onPress={() => setFullscreen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Abrir mapa em tela cheia"
+      >
+        <WebView
+          originWhitelist={['*']}
+          source={{ html: previewHtml }}
+          style={styles.web}
+          scrollEnabled={false}
+          pointerEvents="none"
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          androidLayerType="hardware"
+        />
+        <View style={styles.expandHint} pointerEvents="none">
+          <Text style={styles.expandHintText}>Toque para ampliar</Text>
+        </View>
+      </Pressable>
+
+      <Modal
+        visible={fullscreen}
+        animationType="slide"
+        onRequestClose={() => setFullscreen(false)}
+        statusBarTranslucent
+      >
+        <View style={styles.fullContainer}>
+          <WebView
+            originWhitelist={['*']}
+            source={{ html: fullHtml }}
+            style={styles.fullWeb}
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
+            androidLayerType="hardware"
+          />
+          <Pressable
+            style={[styles.closeButton, { top: insets.top + spacing.md }]}
+            onPress={() => setFullscreen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Fechar mapa"
+            hitSlop={12}
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </Pressable>
+        </View>
+      </Modal>
+    </>
   );
 }
 
-function buildHtml(points: RoutePoint[]): string {
+function buildHtml(points: RoutePoint[], interactive: boolean, tile: MapStyleConfig): string {
   const coords = points.map((p) => [p.latitude, p.longitude]);
   const data = JSON.stringify(coords);
 
@@ -57,10 +103,23 @@ function buildHtml(points: RoutePoint[]): string {
   <div id="map"></div>
   <script>
     var coords = ${data};
-    var map = L.map('map', { zoomControl: false, attributionControl: true });
-    L.tileLayer('${TILE_URL}', { maxZoom: 19, attribution: '${ATTRIBUTION}' }).addTo(map);
+    var interactive = ${interactive ? 'true' : 'false'};
+    var map = L.map('map', {
+      zoomControl: interactive,
+      attributionControl: true,
+      dragging: interactive,
+      touchZoom: interactive,
+      scrollWheelZoom: interactive,
+      doubleClickZoom: interactive,
+      boxZoom: interactive,
+      keyboard: interactive,
+      tap: interactive,
+    });
+    L.tileLayer('${tile.url}', { maxZoom: ${tile.maxZoom}, subdomains: '${tile.subdomains}', attribution: '${tile.attribution}' }).addTo(map);
 
-    var line = L.polyline(coords, { color: '${MOD.treino.accent}', weight: 5, opacity: 0.9, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+    // Casing branco por baixo (halo estilo Strava) + rota colorida por cima.
+    L.polyline(coords, { color: '#FFFFFF', weight: 9, opacity: 0.95, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+    var line = L.polyline(coords, { color: '${MOD.treino.accent}', weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round' }).addTo(map);
     map.fitBounds(line.getBounds(), { padding: [24, 24] });
 
     function dot(latlng, fill) {
@@ -84,5 +143,43 @@ const styles = StyleSheet.create({
   web: {
     flex: 1,
     backgroundColor: colors.surfaceMute,
+  },
+  expandHint: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  expandHintText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  fullContainer: {
+    flex: 1,
+    backgroundColor: colors.surfaceMute,
+  },
+  fullWeb: {
+    flex: 1,
+    backgroundColor: colors.surfaceMute,
+  },
+  closeButton: {
+    position: 'absolute',
+    right: spacing.lg,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  closeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 20,
   },
 });

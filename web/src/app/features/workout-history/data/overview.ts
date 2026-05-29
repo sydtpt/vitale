@@ -71,6 +71,7 @@ export function buildOverview(
   period: Period,
   metric: Metric,
   now: Date = new Date(),
+  hidden: ReadonlySet<string> = new Set(),
 ): Overview {
   const plan = bucketPlan(activities, period, now);
   const bucketKeys = new Set(plan.buckets.map((b) => b.key));
@@ -85,22 +86,26 @@ export function buildOverview(
   const typeAgg = new Map<string, { color: string; total: number }>();
 
   for (const a of within) {
+    const meta = metaForActivity(a.activityId);
+    const value = metricValue(a, metric);
+
+    // legenda sempre lista todos os tipos do período (ordem estável p/ reexibir)
+    const t = typeAgg.get(meta.label) ?? { color: meta.color, total: 0 };
+    t.total += value;
+    typeAgg.set(meta.label, t);
+
+    // totais e barras refletem apenas os tipos habilitados
+    if (hidden.has(meta.label)) continue;
+
     totals.count += 1;
     totals.distanceM += a.distanceM ?? 0;
     totals.durationS += a.durationS;
     totals.calories += a.calories;
 
-    const meta = metaForActivity(a.activityId);
-    const value = metricValue(a, metric);
     const bk = plan.keyOf(new Date(a.startAt));
-
     const bucket = perBucket.get(bk) ?? new Map<string, number>();
     bucket.set(meta.label, (bucket.get(meta.label) ?? 0) + value);
     perBucket.set(bk, bucket);
-
-    const t = typeAgg.get(meta.label) ?? { color: meta.color, total: 0 };
-    t.total += value;
-    typeAgg.set(meta.label, t);
   }
 
   const legend: LegendItem[] = [...typeAgg.entries()]

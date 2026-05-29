@@ -11,6 +11,7 @@ import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
 import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
+import { useSettingsStore } from '../../store/settings.store';
 import { useHealthStore } from '../../store/health.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
@@ -26,12 +27,16 @@ function getGreeting(name: string): string {
   return name ? `${period}, ${name}.` : `${period}.`;
 }
 
+function firstNameOf(raw: string): string {
+  const first = String(raw).trim().split(/[\s.]+/)[0] ?? '';
+  return first ? first.charAt(0).toUpperCase() + first.slice(1) : '';
+}
+
 function getFirstName(user: User | null): string {
   if (!user) return '';
   const meta = user.user_metadata ?? {};
   const raw = meta.full_name || meta.name || user.email?.split('@')[0] || '';
-  const first = String(raw).trim().split(/[\s.]+/)[0] ?? '';
-  return first ? first.charAt(0).toUpperCase() + first.slice(1) : '';
+  return firstNameOf(raw);
 }
 
 export default function HojeScreen() {
@@ -42,7 +47,10 @@ export default function HojeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const cardW = screenWidth - spacing.lg * 2;
   const user = useAuthStore(s => s.user);
-  const firstName = getFirstName(user);
+  // Nome de exibição definido em Configurações › Perfil tem prioridade; senão
+  // cai para o nome derivado do login (metadata/e-mail).
+  const displayName = useSettingsStore(s => s.profile?.displayName);
+  const firstName = displayName ? firstNameOf(displayName) : getFirstName(user);
 
   // Use local state for prototype (store can be wired later)
   const [meals] = useState(HOJE.meals);

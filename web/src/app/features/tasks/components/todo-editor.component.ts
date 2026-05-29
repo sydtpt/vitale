@@ -1,8 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MOD, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
+import { MOD, HABIT_ICONS, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
+import { IconComponent } from '@core/services/icon.component';
 import { TodosStore, type NewTodo } from '../data/todos.store';
+
+/** Ícone padrão de uma nova tarefa (nome canônico de HABIT_ICONS). */
+const DEFAULT_TODO_ICON = 'flag';
 
 type Kind = TodoRecurrence['kind'];
 
@@ -26,7 +30,6 @@ const KINDS: { key: Kind; label: string }[] = [
   { key: 'usage', label: 'Por uso' },
   { key: 'event', label: 'Por evento' },
   { key: 'stock', label: 'Por estoque' },
-  { key: 'on_workout', label: 'Após treino' },
 ];
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -35,7 +38,7 @@ const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
   selector: 'rt-todo-editor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, IconComponent],
   templateUrl: './todo-editor.component.html',
   styleUrl: './todo-editor.component.scss',
 })
@@ -48,6 +51,7 @@ export class TodoEditorComponent implements OnInit {
   protected readonly modules = MODULES;
   protected readonly kinds = KINDS;
   protected readonly weekdays = WEEKDAYS;
+  protected readonly icons = HABIT_ICONS;
   protected readonly colors = [
     { key: 'tarefa', accent: MOD.tarefa.accent },
     { key: 'casa', accent: MOD.casa.accent },
@@ -70,11 +74,13 @@ export class TodoEditorComponent implements OnInit {
   protected every = 5000;
   protected eventLabel = '';
   protected stockRef = '';
+  protected workoutOn = false;
   protected triggerActivityId: number | null = null;
   protected dueInDays: number | null = null;
   protected overdue: TodoOverduePolicy = 'carry';
   protected cancelPolicy: TodoCancelPolicy = 'manual';
   protected color = 'tarefa';
+  protected icon = DEFAULT_TODO_ICON;
   protected spawn: TodoSpawnRule[] = [];
   protected triggerOnly = false;
 
@@ -122,8 +128,9 @@ export class TodoEditorComponent implements OnInit {
     if (!t) return;
     this.name = t.name;
     this.mod = t.module;
-    this.kind = t.recurrence.kind;
     const r = t.recurrence;
+    // on_workout saiu das chips de Recorrência — vira o bloco "Criar/completar um treino".
+    this.kind = r.kind === 'on_workout' ? 'none' : r.kind;
     if (r.kind === 'monthly') this.monthlyDay = r.day;
     if (r.kind === 'weekly') this.selectedDays = [...r.weekdays];
     if (r.kind === 'yearly') { this.yearMonth = r.month; this.yearDay = r.day; }
@@ -131,12 +138,18 @@ export class TodoEditorComponent implements OnInit {
     if (r.kind === 'usage') { this.meterUnit = r.meterUnit; this.every = r.every; }
     if (r.kind === 'event') this.eventLabel = r.label;
     if (r.kind === 'stock') this.stockRef = r.shopItemRef ?? '';
-    if (r.kind === 'on_workout') { this.triggerActivityId = r.activityId ?? null; this.dueInDays = r.dueInDays ?? null; }
+    if (r.kind === 'on_workout') {
+      this.triggerActivityId = r.activityId ?? null;
+      this.dueInDays = r.dueInDays ?? null;
+      this.workoutOn = true;
+    }
     this.overdue = t.overdue;
     this.cancelPolicy = t.cancelPolicy;
     this.color = t.color || 'tarefa';
+    this.icon = t.icon || DEFAULT_TODO_ICON;
     this.spawn = t.onComplete ? [...t.onComplete] : [];
-    this.triggerOnly = t.triggerOnly ?? false;
+    // on_workout implica nascer só por gatilho (normalização inócua para templates legados).
+    this.triggerOnly = (t.triggerOnly ?? false) || r.kind === 'on_workout';
   }
 
   protected toggleDay(d: number): void {
@@ -151,6 +164,10 @@ export class TodoEditorComponent implements OnInit {
   }
 
   private buildRecurrence(): TodoRecurrence | null {
+    // "Criar/completar um treino": o gatilho de treino vence o picker de Recorrência.
+    if (this.triggerOnly && this.workoutOn) {
+      return { kind: 'on_workout', activityId: this.triggerActivityId ?? undefined, dueInDays: this.dueInDays ?? undefined };
+    }
     switch (this.kind) {
       case 'none': return { kind: 'none' };
       case 'monthly': return this.monthlyDay >= 1 && this.monthlyDay <= 31 ? { kind: 'monthly', day: Number(this.monthlyDay) } : null;
@@ -160,7 +177,8 @@ export class TodoEditorComponent implements OnInit {
       case 'usage': return this.meterUnit.trim() && this.every > 0 ? { kind: 'usage', meterUnit: this.meterUnit.trim(), every: Number(this.every) } : null;
       case 'event': return this.eventLabel.trim() ? { kind: 'event', label: this.eventLabel.trim() } : null;
       case 'stock': return { kind: 'stock', shopItemRef: this.stockRef.trim() || undefined };
-      case 'on_workout': return { kind: 'on_workout', activityId: this.triggerActivityId ?? undefined, dueInDays: this.dueInDays ?? undefined };
+      // Inalcançável: on_workout só nasce pelo bloco de treino (guarda acima), nunca pelo picker.
+      case 'on_workout': return null;
     }
   }
 
@@ -178,6 +196,7 @@ export class TodoEditorComponent implements OnInit {
       if (t) {
         await this.store.updateTemplate(t.id, {
           name: this.name.trim(),
+          icon: this.icon,
           color: this.color,
           module: this.mod,
           recurrence,
@@ -189,7 +208,7 @@ export class TodoEditorComponent implements OnInit {
       } else {
         const value: NewTodo = {
           name: this.name.trim(),
-          icon: 'checkbox-outline',
+          icon: this.icon,
           color: this.color,
           module: this.mod,
           recurrence,

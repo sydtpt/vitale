@@ -9,7 +9,9 @@ import {
   input,
   viewChild,
 } from '@angular/core';
-import type { ActivityRoutePoint } from '@vitale/shared';
+import type { ActivityRoutePoint, MapStyle } from '@vitale/shared';
+import { MAP_STYLES } from '@vitale/shared';
+import { PreferencesService } from '@core/services/preferences.service';
 import * as L from 'leaflet';
 
 /**
@@ -28,8 +30,11 @@ export class ActivityMapComponent {
 
   private readonly mapEl = viewChild.required<ElementRef<HTMLElement>>('map');
   private readonly destroyRef = inject(DestroyRef);
+  private readonly prefs = inject(PreferencesService);
 
   private map?: L.Map;
+  private tileLayer?: L.TileLayer;
+  private casing?: L.Polyline;
   private line?: L.Polyline;
   private markers: L.Layer[] = [];
   private ro?: ResizeObserver;
@@ -45,6 +50,11 @@ export class ActivityMapComponent {
         this.draw(pts);
       }
     });
+    // Troca os tiles quando o usuário muda o estilo de mapa (carregado do DB).
+    effect(() => {
+      const style = this.prefs.mapStyle();
+      if (this.map) this.applyTileStyle(style);
+    });
     this.destroyRef.onDestroy(() => {
       this.ro?.disconnect();
       this.map?.remove();
@@ -54,11 +64,8 @@ export class ActivityMapComponent {
   private init(): void {
     const el = this.mapEl().nativeElement;
     const map = L.map(el, { scrollWheelZoom: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
     this.map = map;
+    this.applyTileStyle(this.prefs.mapStyle());
     this.draw(this.points());
 
     // O container só ganha o tamanho real depois do layout do navegador.
@@ -73,10 +80,24 @@ export class ActivityMapComponent {
     this.ro.observe(el);
   }
 
+  /** (Re)aplica a camada de tiles do estilo escolhido, removendo a anterior. */
+  private applyTileStyle(style: MapStyle): void {
+    const map = this.map;
+    if (!map) return;
+    this.tileLayer?.remove();
+    const cfg = MAP_STYLES[style];
+    this.tileLayer = L.tileLayer(cfg.url, {
+      maxZoom: cfg.maxZoom,
+      subdomains: cfg.subdomains,
+      attribution: cfg.attribution,
+    }).addTo(map);
+  }
+
   private draw(points: ActivityRoutePoint[]): void {
     const map = this.map;
     if (!map) return;
 
+    this.casing?.remove();
     this.line?.remove();
     this.markers.forEach((m) => m.remove());
     this.markers = [];
@@ -89,7 +110,14 @@ export class ActivityMapComponent {
     const latlngs = points.map((p) => [p.lat, p.lng] as L.LatLngTuple);
     const color = this.routeColor();
 
-    this.line = L.polyline(latlngs, { color, weight: 4, opacity: 0.9 }).addTo(map);
+    // Casing branco por baixo (halo estilo Strava) + rota colorida por cima,
+    // ambos com cantos arredondados para a linha destacar do mapa de fundo.
+    this.casing = L.polyline(latlngs, {
+      color: '#FFFFFF', weight: 8, opacity: 0.95, lineCap: 'round', lineJoin: 'round',
+    }).addTo(map);
+    this.line = L.polyline(latlngs, {
+      color, weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round',
+    }).addTo(map);
 
     const start = latlngs[0];
     const end = latlngs[latlngs.length - 1];

@@ -33,7 +33,7 @@
     }
   </div>
 
-  <rt-stacked-bar-chart [buckets]="chartBuckets()" [metric]="metric()" />
+  <rt-stacked-bar-chart [buckets]="overview().buckets" [metric]="metric()" />
 
   @if (overview().legend.length) {
     <div class="legend">
