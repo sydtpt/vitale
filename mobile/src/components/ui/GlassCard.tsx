@@ -13,7 +13,7 @@ interface Props extends ViewProps {
  * enables Glass in Appearance; otherwise a plain solid surface. Pass card
  * styles (padding, radius, etc.) via `style` as usual.
  */
-export function GlassCard({ style, children, intensity = 40, ...rest }: Props) {
+export function GlassCard({ style, children, intensity = 60, ...rest }: Props) {
   const { glass, scheme, colors } = useTheme();
 
   if (!glass) {
@@ -24,13 +24,18 @@ export function GlassCard({ style, children, intensity = 40, ...rest }: Props) {
     );
   }
 
-  const overlay = scheme === 'dark' ? 'rgba(38,32,25,0.45)' : 'rgba(255,255,255,0.40)';
+  const dark = scheme === 'dark';
+  // Tint leve sobre o blur — quanto menor o alpha, mais translúcido (look iOS nativo).
+  const overlay = dark ? 'rgba(30,26,21,0.30)' : 'rgba(255,255,255,0.18)';
+  // Borda highlight fina para o acabamento de vidro nativo.
+  const hairline = dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.25)';
 
   return (
     <BlurView
-      tint={scheme === 'dark' ? 'dark' : 'light'}
+      tint={dark ? 'dark' : 'light'}
       intensity={intensity}
-      style={[style, styles.glass]}
+      experimentalBlurMethod="dimezisBlurView"
+      style={[style, styles.glass, { borderColor: hairline }]}
       {...rest}
     >
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: overlay }]} />
@@ -40,5 +45,9 @@ export function GlassCard({ style, children, intensity = 40, ...rest }: Props) {
 }
 
 const styles = StyleSheet.create({
-  glass: { backgroundColor: 'transparent', overflow: 'hidden' },
+  glass: {
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
 });

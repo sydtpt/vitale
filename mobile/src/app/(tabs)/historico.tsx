@@ -12,6 +12,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActivitiesStore } from '../../store/activities.store';
+import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { buildOverview, type Period, type Metric } from '../../lib/activity-overview';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
@@ -94,6 +95,8 @@ export default function HistoricoTabScreen() {
   useEffect(() => {
     load();
   }, [load]);
+  // force=true: o store ignora load() repetido depois de carregado.
+  useRefreshOnForeground(() => { load(true); });
 
   const activities = useMemo(() => _all.filter((a) => !a.hidden), [_all]);
   const isEmpty = loaded && activities.length === 0;

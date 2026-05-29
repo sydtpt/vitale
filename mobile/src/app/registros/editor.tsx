@@ -7,6 +7,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,6 +58,7 @@ export default function RegistroEditorScreen() {
   const [icon, setIcon] = useState<string>(DEFAULT_HABIT_ICON);
   const [color, setColor] = useState<string>('habito');
   const [hydrated, setHydrated] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (id && !existing) load();
@@ -75,14 +77,20 @@ export default function RegistroEditorScreen() {
   const valid = name.trim() !== '';
 
   const onSave = async () => {
-    if (!valid) return;
+    if (!valid || saving) return;
     const base = { name: name.trim(), icon, color, module: mod };
-    if (id) {
-      await updateRegistro(id, base);
-    } else {
-      await createRegistro(base);
+    setSaving(true);
+    try {
+      if (id) {
+        await updateRegistro(id, base);
+      } else {
+        await createRegistro(base);
+      }
+      router.back();
+    } catch (e) {
+      console.error('Erro ao salvar registro:', e);
+      setSaving(false);
     }
-    router.back();
   };
 
   const accent = COLORS.find((c) => c.key === color)?.accent ?? MOD.habito.accent;
@@ -158,10 +166,17 @@ export default function RegistroEditorScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
         <Pressable
           onPress={onSave}
-          disabled={!valid}
-          style={({ pressed }) => [styles.saveBtn, { backgroundColor: accent }, !valid && styles.saveDisabled, pressed && styles.pressed]}
+          disabled={!valid || saving}
+          style={({ pressed }) => [styles.saveBtn, { backgroundColor: accent }, (!valid || saving) && styles.saveDisabled, pressed && styles.pressed]}
         >
-          <Text style={styles.saveText}>{id ? 'Salvar' : 'Criar registro'}</Text>
+          {saving ? (
+            <View style={styles.saveRow}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.saveText}>Salvando…</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveText}>{id ? 'Salvar' : 'Criar registro'}</Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -225,5 +240,6 @@ const styles = themed(() => StyleSheet.create({
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
+  saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 }));

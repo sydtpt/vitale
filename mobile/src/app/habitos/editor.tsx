@@ -7,6 +7,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -62,6 +63,7 @@ export default function HabitEditorScreen() {
   const [icon, setIcon] = useState<string>(DEFAULT_HABIT_ICON);
   const [color, setColor] = useState<string>('habito');
   const [hydrated, setHydrated] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Garante allHabits carregado (deep-link direto ao editor) e prefill no modo edição.
   useEffect(() => {
@@ -88,7 +90,7 @@ export default function HabitEditorScreen() {
   const valid = name.trim() !== '' && unit.trim() !== '' && stepN !== null && stepN > 0;
 
   const onSave = async () => {
-    if (!valid || stepN === null) return;
+    if (!valid || stepN === null || saving) return;
     const base = {
       name: name.trim(),
       icon,
@@ -98,12 +100,18 @@ export default function HabitEditorScreen() {
       direction,
       bad,
     };
-    if (id) {
-      await updateHabit(id, { ...base, target: targetN, show_on_home: showOnHome });
-    } else {
-      await createHabit({ ...base, target: targetN ?? undefined, showOnHome });
+    setSaving(true);
+    try {
+      if (id) {
+        await updateHabit(id, { ...base, target: targetN, show_on_home: showOnHome });
+      } else {
+        await createHabit({ ...base, target: targetN ?? undefined, showOnHome });
+      }
+      router.back();
+    } catch (e) {
+      console.error('Erro ao salvar hábito:', e);
+      setSaving(false);
     }
-    router.back();
   };
 
   const accent = COLORS.find((c) => c.key === color)?.accent ?? MOD.habito.accent;
@@ -263,10 +271,17 @@ export default function HabitEditorScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
         <Pressable
           onPress={onSave}
-          disabled={!valid}
-          style={({ pressed }) => [styles.saveBtn, { backgroundColor: accent }, !valid && styles.saveDisabled, pressed && styles.pressed]}
+          disabled={!valid || saving}
+          style={({ pressed }) => [styles.saveBtn, { backgroundColor: accent }, (!valid || saving) && styles.saveDisabled, pressed && styles.pressed]}
         >
-          <Text style={styles.saveText}>{id ? 'Salvar' : 'Criar hábito'}</Text>
+          {saving ? (
+            <View style={styles.saveRow}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.saveText}>Salvando…</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveText}>{id ? 'Salvar' : 'Criar hábito'}</Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -357,5 +372,6 @@ const styles = themed(() => StyleSheet.create({
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
+  saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 }));

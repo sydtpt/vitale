@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHealthStore } from '../../store/health.store';
+import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import {
   CATEGORIES,
   categoryMeta,
@@ -144,6 +145,10 @@ export default function HealthScreen() {
   useEffect(() => {
     if (permissionStatus === 'unknown') requestPermission();
   }, [permissionStatus, requestPermission]);
+
+  // Retomar o app: recarrega os cards exibidos (o sync ao Supabase já é feito
+  // pelo healthkit-observer no AppState 'active').
+  useRefreshOnForeground(() => { void loadSummaries(); });
 
   // Botão de sync: recarrega os cards E sobe os agregados diários ao Supabase.
   const onSync = useCallback(() => {

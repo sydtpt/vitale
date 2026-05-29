@@ -38,7 +38,7 @@ interface EditorState {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <div class="backdrop" (click)="close()" *ngIf="isOpen()"></div>
+    <div class="backdrop" (click)="!saving() && close()" *ngIf="isOpen()"></div>
     <div class="modal" [class.open]="isOpen()">
       <div class="header">
         <h2>{{ existing() ? 'Editar registro' : 'Novo registro' }}</h2>
@@ -111,9 +111,10 @@ interface EditorState {
       </div>
 
       <div class="footer">
-        <button type="button" class="btn btn-secondary" (click)="close()">Cancelar</button>
-        <button type="button" class="btn btn-primary" (click)="save()" [disabled]="!isValid()">
-          {{ existing() ? 'Salvar' : 'Criar registro' }}
+        <button type="button" class="btn btn-secondary" (click)="close()" [disabled]="saving()">Cancelar</button>
+        <button type="button" class="btn btn-primary" (click)="save()" [disabled]="!isValid() || saving()">
+          <span class="spinner" *ngIf="saving()"></span>
+          {{ saving() ? 'Salvando…' : (existing() ? 'Salvar' : 'Criar registro') }}
         </button>
       </div>
     </div>
@@ -169,6 +170,12 @@ interface EditorState {
     }
     .btn-primary { background: var(--primary); color: white; }
     .btn-secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px;
+      border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff; border-radius: 50%;
+      animation: rt-spin 0.6s linear infinite;
+    }
+    @keyframes rt-spin { to { transform: rotate(360deg); } }
     @media (max-width: 600px) { .modal { width: 95%; max-height: 95vh; } }
   `],
 })
@@ -182,6 +189,7 @@ export class RegistroEditorComponent {
   readonly onClose = output<void>();
 
   readonly isOpen = signal(false);
+  readonly saving = signal(false);
   readonly form = signal<EditorState>({
     name: '',
     module: 'geral',
@@ -214,9 +222,10 @@ export class RegistroEditorComponent {
   }
 
   async save() {
-    if (!this.isValid()) return;
+    if (!this.isValid() || this.saving()) return;
     const f = this.form();
     const data = { name: f.name.trim(), icon: f.icon, color: f.color, module: f.module };
+    this.saving.set(true);
     try {
       if (this.existing()) {
         await this.store.updateRegistro(this.registroId()!, data);
@@ -226,6 +235,8 @@ export class RegistroEditorComponent {
       this.close();
     } catch (e) {
       console.error('Erro ao salvar registro:', e);
+    } finally {
+      this.saving.set(false);
     }
   }
 

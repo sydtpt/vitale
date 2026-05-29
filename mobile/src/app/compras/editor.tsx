@@ -7,6 +7,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -72,6 +73,7 @@ export default function ComprasEditorScreen() {
   const [cat, setCat] = useState<ShopCat>('Outros');
   const [price, setPrice] = useState('');
   const [hydrated, setHydrated] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     load();
@@ -134,36 +136,42 @@ export default function ComprasEditorScreen() {
   const valid = name.trim() !== '' && recurrence != null;
 
   const onSave = async () => {
-    if (!valid || !recurrence) return;
+    if (!valid || !recurrence || saving) return;
     const meta: Record<string, unknown> = { cat };
     if (qty.trim()) meta.qty = qty.trim();
     const pn = parseNum(price);
     if (pn != null && pn > 0) meta.price = pn;
 
-    if (id) {
-      await updateTemplate(id, {
-        name: name.trim(),
-        icon: 'cart-outline',
-        color: 'compras',
-        module: 'compras',
-        recurrence,
-        overdue,
-        cancel_policy: cancelPolicy,
-        meta,
-      });
-    } else {
-      await createTemplate({
-        name: name.trim(),
-        icon: 'cart-outline',
-        color: 'compras',
-        module: 'compras',
-        recurrence,
-        overdue,
-        cancelPolicy,
-        meta,
-      });
+    setSaving(true);
+    try {
+      if (id) {
+        await updateTemplate(id, {
+          name: name.trim(),
+          icon: 'cart-outline',
+          color: 'compras',
+          module: 'compras',
+          recurrence,
+          overdue,
+          cancel_policy: cancelPolicy,
+          meta,
+        });
+      } else {
+        await createTemplate({
+          name: name.trim(),
+          icon: 'cart-outline',
+          color: 'compras',
+          module: 'compras',
+          recurrence,
+          overdue,
+          cancelPolicy,
+          meta,
+        });
+      }
+      router.back();
+    } catch (e) {
+      console.error('Erro ao salvar item de compras:', e);
+      setSaving(false);
     }
-    router.back();
   };
 
   const Segment = <T extends string>(opts: { id: T; label: string }[], value: T, onPick: (v: T) => void) => (
@@ -312,10 +320,17 @@ export default function ComprasEditorScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
         <Pressable
           onPress={onSave}
-          disabled={!valid}
-          style={({ pressed }) => [styles.saveBtn, !valid && styles.saveDisabled, pressed && styles.pressed]}
+          disabled={!valid || saving}
+          style={({ pressed }) => [styles.saveBtn, (!valid || saving) && styles.saveDisabled, pressed && styles.pressed]}
         >
-          <Text style={styles.saveText}>{id ? 'Salvar' : 'Adicionar à lista'}</Text>
+          {saving ? (
+            <View style={styles.saveRow}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.saveText}>Salvando…</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveText}>{id ? 'Salvar' : 'Adicionar à lista'}</Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -399,5 +414,6 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: ACCENT,
   },
   saveDisabled: { opacity: 0.4 },
+  saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 }));

@@ -47,7 +47,7 @@ function fmt(n: number): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <div class="backdrop" (click)="close()" *ngIf="isOpen()"></div>
+    <div class="backdrop" (click)="!saving() && close()" *ngIf="isOpen()"></div>
     <div class="modal" [class.open]="isOpen()">
       <div class="header">
         <h2>{{ isOpen() && existing() ? 'Editar hábito' : 'Novo hábito' }}</h2>
@@ -218,16 +218,17 @@ function fmt(n: number): string {
       </div>
 
       <div class="footer">
-        <button type="button" class="btn btn-secondary" (click)="close()">
+        <button type="button" class="btn btn-secondary" (click)="close()" [disabled]="saving()">
           Cancelar
         </button>
         <button
           type="button"
           class="btn btn-primary"
           (click)="save()"
-          [disabled]="!isValid()"
+          [disabled]="!isValid() || saving()"
         >
-          {{ existing() ? 'Salvar' : 'Criar hábito' }}
+          <span class="spinner" *ngIf="saving()"></span>
+          {{ saving() ? 'Salvando…' : (existing() ? 'Salvar' : 'Criar hábito') }}
         </button>
       </div>
     </div>
@@ -539,6 +540,22 @@ function fmt(n: number): string {
       border: 1px solid var(--line);
     }
 
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      margin-right: 6px;
+      vertical-align: -2px;
+      border: 2px solid rgba(255, 255, 255, 0.45);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: rt-spin 0.6s linear infinite;
+    }
+
+    @keyframes rt-spin {
+      to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 600px) {
       .modal {
         width: 95%;
@@ -565,6 +582,7 @@ export class HabitEditorComponent {
   readonly onClose = output<void>();
 
   readonly isOpen = signal(false);
+  readonly saving = signal(false);
   readonly form = signal<EditorState>({
     name: '',
     bad: false,
@@ -616,7 +634,7 @@ export class HabitEditorComponent {
   }
 
   async save() {
-    if (!this.isValid()) return;
+    if (!this.isValid() || this.saving()) return;
 
     const f = this.form();
     const step = this.stepNum();
@@ -624,6 +642,7 @@ export class HabitEditorComponent {
 
     if (step === null) return;
 
+    this.saving.set(true);
     try {
       const data = {
         name: f.name.trim(),
@@ -646,6 +665,8 @@ export class HabitEditorComponent {
       this.close();
     } catch (e) {
       console.error('Erro ao salvar hábito:', e);
+    } finally {
+      this.saving.set(false);
     }
   }
 

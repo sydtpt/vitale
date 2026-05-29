@@ -129,8 +129,11 @@
     </div>
 
     <div class="foot">
-      <button class="btn ghost" (click)="close.emit()">Cancelar</button>
-      <button class="btn primary" [disabled]="!valid()" (click)="onSave()">{{ template() ? 'Salvar' : 'Criar' }}</button>
+      <button class="btn ghost" (click)="close.emit()" [disabled]="saving()">Cancelar</button>
+      <button class="btn primary" [disabled]="!valid() || saving()" (click)="onSave()">
+        @if (saving()) { <span class="spinner"></span> }
+        {{ saving() ? 'Salvando…' : (template() ? 'Salvar' : 'Criar') }}
+      </button>
     </div>
   </div>
 </div>

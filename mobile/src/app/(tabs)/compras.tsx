@@ -8,6 +8,7 @@ import { SHOP_CATS } from '@vitale/shared';
 import * as Haptics from 'expo-haptics';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
+import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { localDateStr, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence } from '../../lib/todo-format';
 import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
@@ -94,6 +95,7 @@ export default function ComprasTabScreen() {
   const user = useAuthStore((s) => s.user);
 
   useEffect(() => { load(); }, [load, user?.id]);
+  useRefreshOnForeground(() => { load(); });
 
   const comprasTemplates = templates.filter((t) => t.module === 'compras');
   const tplById = new Map(comprasTemplates.map((t) => [t.id, t]));

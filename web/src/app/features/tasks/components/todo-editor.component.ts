@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MOD, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
@@ -57,6 +57,7 @@ export class TodoEditorComponent implements OnInit {
     { key: 'treino', accent: MOD.treino.accent },
   ];
 
+  protected readonly saving = signal(false);
   protected name = '';
   protected mod: TodoModule = 'geral';
   protected kind: Kind = 'none';
@@ -169,35 +170,42 @@ export class TodoEditorComponent implements OnInit {
 
   protected async onSave(): Promise<void> {
     const recurrence = this.buildRecurrence();
-    if (!this.name.trim() || !recurrence) return;
+    if (!this.name.trim() || !recurrence || this.saving()) return;
     const t = this.template();
     const onComplete = this.spawn.length ? this.spawn : null;
-    if (t) {
-      await this.store.updateTemplate(t.id, {
-        name: this.name.trim(),
-        color: this.color,
-        module: this.mod,
-        recurrence,
-        overdue: this.overdue,
-        cancel_policy: this.cancelPolicy,
-        on_complete: onComplete,
-        trigger_only: this.triggerOnly,
-      });
-    } else {
-      const value: NewTodo = {
-        name: this.name.trim(),
-        icon: 'checkbox-outline',
-        color: this.color,
-        module: this.mod,
-        recurrence,
-        overdue: this.overdue,
-        cancelPolicy: this.cancelPolicy,
-        meter: this.kind === 'usage' ? 0 : undefined,
-        onComplete: onComplete ?? undefined,
-        triggerOnly: this.triggerOnly,
-      };
-      await this.store.createTemplate(value);
+    this.saving.set(true);
+    try {
+      if (t) {
+        await this.store.updateTemplate(t.id, {
+          name: this.name.trim(),
+          color: this.color,
+          module: this.mod,
+          recurrence,
+          overdue: this.overdue,
+          cancel_policy: this.cancelPolicy,
+          on_complete: onComplete,
+          trigger_only: this.triggerOnly,
+        });
+      } else {
+        const value: NewTodo = {
+          name: this.name.trim(),
+          icon: 'checkbox-outline',
+          color: this.color,
+          module: this.mod,
+          recurrence,
+          overdue: this.overdue,
+          cancelPolicy: this.cancelPolicy,
+          meter: this.kind === 'usage' ? 0 : undefined,
+          onComplete: onComplete ?? undefined,
+          triggerOnly: this.triggerOnly,
+        };
+        await this.store.createTemplate(value);
+      }
+      this.saved.emit();
+    } catch (e) {
+      console.error('Erro ao salvar tarefa:', e);
+    } finally {
+      this.saving.set(false);
     }
-    this.saved.emit();
   }
 }

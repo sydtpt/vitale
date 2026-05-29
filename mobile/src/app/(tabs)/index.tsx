@@ -12,6 +12,7 @@ import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useHealthStore } from '../../store/health.store';
+import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
 import { readinessFromSummaries } from '../../lib/health-readiness';
 import { isOverdue } from '../../lib/todo-logic';
@@ -74,6 +75,10 @@ export default function HojeScreen() {
   const loadTodos = useTodosStore(s => s.load);
   const resolveTodo = useTodosStore(s => s.resolve);
   useEffect(() => { loadTodos(); }, [loadTodos, user?.id]);
+
+  // Ao retomar o app (background → active), a tela segue montada, então
+  // recarrega o que pode ter mudado desde a última vez.
+  useRefreshOnForeground(() => { loadCounters(); loadTodos(); });
 
   // Contribuição da água ao score vem do hábito contador "Água" (litros)
   const aguaHabit = counters.find(h => h.unit === 'L' && h.direction === 'at_least');

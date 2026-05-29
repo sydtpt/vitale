@@ -7,6 +7,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -107,6 +108,7 @@ export default function TodoEditorScreen() {
   const [spawn, setSpawn] = useState<TodoSpawnRule[]>([]);
   const [triggerOnly, setTriggerOnly] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const activityOptions = useMemo(
     () => KNOWN_ACTIVITY_IDS.map((aid) => ({ id: aid, label: getActivityMeta(aid).label })),
@@ -229,36 +231,42 @@ export default function TodoEditorScreen() {
   const valid = name.trim() !== '' && recurrence != null;
 
   const onSave = async () => {
-    if (!valid || !recurrence) return;
-    if (id) {
-      await updateTemplate(id, {
-        name: name.trim(),
-        icon,
-        color,
-        module: mod,
-        recurrence,
-        overdue,
-        cancel_policy: cancelPolicy,
-        linked_activity_id: linkedActivityId,
-        on_complete: spawn.length ? spawn : null,
-        trigger_only: triggerOnly,
-      });
-    } else {
-      await createTemplate({
-        name: name.trim(),
-        icon,
-        color,
-        module: mod,
-        recurrence,
-        overdue,
-        cancelPolicy,
-        meter: kind === 'usage' ? 0 : undefined,
-        linkedActivityId,
-        onComplete: spawn.length ? spawn : undefined,
-        triggerOnly,
-      });
+    if (!valid || !recurrence || saving) return;
+    setSaving(true);
+    try {
+      if (id) {
+        await updateTemplate(id, {
+          name: name.trim(),
+          icon,
+          color,
+          module: mod,
+          recurrence,
+          overdue,
+          cancel_policy: cancelPolicy,
+          linked_activity_id: linkedActivityId,
+          on_complete: spawn.length ? spawn : null,
+          trigger_only: triggerOnly,
+        });
+      } else {
+        await createTemplate({
+          name: name.trim(),
+          icon,
+          color,
+          module: mod,
+          recurrence,
+          overdue,
+          cancelPolicy,
+          meter: kind === 'usage' ? 0 : undefined,
+          linkedActivityId,
+          onComplete: spawn.length ? spawn : undefined,
+          triggerOnly,
+        });
+      }
+      router.back();
+    } catch (e) {
+      console.error('Erro ao salvar tarefa:', e);
+      setSaving(false);
     }
-    router.back();
   };
 
   const accent = COLORS.find((c) => c.key === color)?.accent ?? MOD.tarefa.accent;
@@ -534,8 +542,15 @@ export default function TodoEditorScreen() {
       </KeyboardAvoidingView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-        <Pressable onPress={onSave} disabled={!valid} style={({ pressed }) => [styles.saveBtn, { backgroundColor: accent }, !valid && styles.saveDisabled, pressed && styles.pressed]}>
-          <Text style={styles.saveText}>{id ? 'Salvar' : 'Criar tarefa'}</Text>
+        <Pressable onPress={onSave} disabled={!valid || saving} style={({ pressed }) => [styles.saveBtn, { backgroundColor: accent }, (!valid || saving) && styles.saveDisabled, pressed && styles.pressed]}>
+          {saving ? (
+            <View style={styles.saveRow}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.saveText}>Salvando…</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveText}>{id ? 'Salvar' : 'Criar tarefa'}</Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -608,5 +623,6 @@ const styles = themed(() => StyleSheet.create({
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
+  saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 }));

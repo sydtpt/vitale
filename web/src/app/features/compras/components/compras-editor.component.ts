@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SHOP_CATS, type ShopCat, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoTemplate } from '@vitale/shared';
 import { TodosStore, type NewTodo } from '../../tasks/data/todos.store';
@@ -33,6 +33,7 @@ export class ComprasEditorComponent implements OnInit {
   protected readonly weekdays = WEEKDAYS;
   protected readonly shopCats: readonly ShopCat[] = SHOP_CATS;
 
+  protected readonly saving = signal(false);
   protected name = '';
   protected kind: Kind = 'none';
   protected monthlyDay = 1;
@@ -95,36 +96,43 @@ export class ComprasEditorComponent implements OnInit {
 
   protected async onSave(): Promise<void> {
     const recurrence = this.buildRecurrence();
-    if (!this.name.trim() || !recurrence) return;
+    if (!this.name.trim() || !recurrence || this.saving()) return;
     const meta: Record<string, unknown> = { cat: this.cat };
     if (this.qty.trim()) meta['qty'] = this.qty.trim();
     if (this.price != null && this.price > 0) meta['price'] = this.price;
 
     const t = this.template();
-    if (t) {
-      await this.store.updateTemplate(t.id, {
-        name: this.name.trim(),
-        icon: 'cart-outline',
-        color: 'compras',
-        module: 'compras',
-        recurrence,
-        overdue: this.overdue,
-        cancel_policy: this.cancelPolicy,
-        meta,
-      });
-    } else {
-      const value: NewTodo = {
-        name: this.name.trim(),
-        icon: 'cart-outline',
-        color: 'compras',
-        module: 'compras',
-        recurrence,
-        overdue: this.overdue,
-        cancelPolicy: this.cancelPolicy,
-        meta,
-      };
-      await this.store.createTemplate(value);
+    this.saving.set(true);
+    try {
+      if (t) {
+        await this.store.updateTemplate(t.id, {
+          name: this.name.trim(),
+          icon: 'cart-outline',
+          color: 'compras',
+          module: 'compras',
+          recurrence,
+          overdue: this.overdue,
+          cancel_policy: this.cancelPolicy,
+          meta,
+        });
+      } else {
+        const value: NewTodo = {
+          name: this.name.trim(),
+          icon: 'cart-outline',
+          color: 'compras',
+          module: 'compras',
+          recurrence,
+          overdue: this.overdue,
+          cancelPolicy: this.cancelPolicy,
+          meta,
+        };
+        await this.store.createTemplate(value);
+      }
+      this.saved.emit();
+    } catch (e) {
+      console.error('Erro ao salvar item de compras:', e);
+    } finally {
+      this.saving.set(false);
     }
-    this.saved.emit();
   }
 }
