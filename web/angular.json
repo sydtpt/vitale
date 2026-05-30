@@ -25,7 +25,11 @@
             "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "allowedCommonJsDependencies": ["leaflet"],
+            "allowedCommonJsDependencies": [
+              "leaflet",
+              "maplibre-gl",
+              "@maplibre/maplibre-gl-leaflet"
+            ],
             "assets": [
               { "glob": "**/*", "input": "public" },
               { "glob": "**/*", "input": "src/assets", "output": "assets" }

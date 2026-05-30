@@ -15,6 +15,7 @@ import { useActivitiesStore } from '../../store/activities.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { buildOverview, type Period, type Metric } from '../../lib/activity-overview';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
+import { getActivityMeta } from '../../lib/workout-types';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
@@ -114,6 +115,13 @@ export default function HistoricoTabScreen() {
       return { ...b, segments, total };
     });
   }, [overview.buckets, hidden]);
+
+  // Totais do topo respeitam os tipos ocultos na legenda (igual ao gráfico).
+  const totals = useMemo(() => {
+    if (!hidden.size) return overview.totals;
+    const visible = activities.filter((a) => !hidden.has(getActivityMeta(a.activityId).label));
+    return buildOverview(visible, period, metric).totals;
+  }, [activities, hidden, period, metric, overview.totals]);
   const typeSummaries = useMemo(() => buildTypeSummaries(activities), [activities]);
 
   if (loading && !loaded) {
@@ -169,7 +177,6 @@ export default function HistoricoTabScreen() {
     );
   }
 
-  const { totals } = overview;
   const chartWidth = width - spacing.lg * 2 - spacing.lg * 2;
 
   return (

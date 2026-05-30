@@ -26,7 +26,7 @@ export function GlassCard({ style, children, intensity = 60, ...rest }: Props) {
 
   const dark = scheme === 'dark';
   // Tint leve sobre o blur — quanto menor o alpha, mais translúcido (look iOS nativo).
-  const overlay = dark ? 'rgba(30,26,21,0.30)' : 'rgba(255,255,255,0.18)';
+  const overlay = dark ? 'rgba(30,26,21,0.30)' : 'rgba(255,255,255,0.70)';
   // Borda highlight fina para o acabamento de vidro nativo.
   const hairline = dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.25)';
 

@@ -1,13 +1,28 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, Pressable, Switch, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MAP_STYLES, type MapStyle } from '@vitale/shared';
+import { WebView } from 'react-native-webview';
+import { MAP_STYLES, SAMPLE_ROUTE, type MapStyle } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
+import { buildMapHtml } from '../../lib/map-html';
 import { colors, spacing, radii, useThemedStyles } from '../../theme';
 
-const MAP_STYLE_ORDER: MapStyle[] = ['voyager', 'positron', 'osm'];
+const MAP_STYLE_ORDER: MapStyle[] = [
+  'voyager',
+  'positron',
+  'voyager_nolabels',
+  'positron_nolabels',
+  'dark',
+  'satellite',
+  'topo',
+  'osm',
+  'ofm_positron',
+  'ofm_bright',
+  'ofm_fiord',
+  'ofm_3d',
+];
 
 export default function AppSettingsScreen() {
   const styles = useThemedStyles(createStyles);
@@ -24,6 +39,19 @@ export default function AppSettingsScreen() {
   const notifs = preferences?.notificationsEnabled ?? true;
   const mapStyle = preferences?.mapStyle ?? 'voyager';
   const darkMode = theme === 'dark';
+
+  // HTML de cada preview (rota fixa de exemplo) — só depende de constantes.
+  const mapPreviews = useMemo(
+    () =>
+      MAP_STYLE_ORDER.reduce(
+        (acc, style) => {
+          acc[style] = buildMapHtml(SAMPLE_ROUTE, false, MAP_STYLES[style]);
+          return acc;
+        },
+        {} as Record<MapStyle, string>,
+      ),
+    [],
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -99,28 +127,44 @@ export default function AppSettingsScreen() {
 
         {/* Map style section */}
         <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Mapa</Text>
-        <View style={styles.card}>
-          {MAP_STYLE_ORDER.map((style, i) => (
-            <Pressable
-              key={style}
-              onPress={() => updatePreferences({ mapStyle: style })}
-              style={({ pressed }) => [
-                styles.row,
-                i < MAP_STYLE_ORDER.length - 1 && styles.rowBorder,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={[styles.iconWrap, { backgroundColor: '#6FA86A' }]}>
-                <Ionicons name="map-outline" size={15} color="#fff" />
-              </View>
-              <Text style={styles.rowLabel}>{MAP_STYLES[style].label}</Text>
-              <View style={styles.rowRight}>
-                {mapStyle === style && (
-                  <Ionicons name="checkmark" size={18} color={colors.primary} />
-                )}
-              </View>
-            </Pressable>
-          ))}
+        <View style={styles.mapGrid}>
+          {MAP_STYLE_ORDER.map((style) => {
+            const selected = mapStyle === style;
+            return (
+              <Pressable
+                key={style}
+                onPress={() => updatePreferences({ mapStyle: style })}
+                style={({ pressed }) => [styles.mapCard, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Estilo de mapa ${MAP_STYLES[style].label}`}
+              >
+                <View style={[styles.mapPreview, selected && styles.mapPreviewSelected]}>
+                  <WebView
+                    originWhitelist={['*']}
+                    source={{ html: mapPreviews[style] }}
+                    style={styles.mapWeb}
+                    scrollEnabled={false}
+                    pointerEvents="none"
+                    showsVerticalScrollIndicator={false}
+                    showsHorizontalScrollIndicator={false}
+                    androidLayerType="hardware"
+                  />
+                  {selected && (
+                    <View style={styles.mapCheck}>
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  )}
+                </View>
+                <Text
+                  style={[styles.mapLabel, selected && styles.mapLabelSelected]}
+                  numberOfLines={1}
+                >
+                  {MAP_STYLES[style].label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Notifications section */}
@@ -191,5 +235,50 @@ const createStyles = () => StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mapGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  mapCard: {
+    width: '48%',
+    marginBottom: spacing.md,
+  },
+  mapPreview: {
+    height: 100,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceMute,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  mapPreviewSelected: {
+    borderColor: colors.primary,
+  },
+  mapWeb: {
+    flex: 1,
+    backgroundColor: colors.surfaceMute,
+  },
+  mapCheck: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapLabel: {
+    marginTop: 6,
+    fontSize: 12,
+    color: colors.ink2,
+    textAlign: 'center',
+  },
+  mapLabelSelected: {
+    color: colors.ink,
+    fontWeight: '600',
   },
 });

@@ -13,9 +13,17 @@ import type { ActivityRoutePoint, MapStyle } from '@vitale/shared';
 import { MAP_STYLES } from '@vitale/shared';
 import { PreferencesService } from '@core/services/preferences.service';
 import * as L from 'leaflet';
+import maplibregl from 'maplibre-gl';
+
+// O plugin maplibre-gl-leaflet referencia o global `maplibregl` em tempo de
+// execução; expomos antes de qualquer chamada a `L.maplibreGL(...)`.
+(globalThis as unknown as { maplibregl: typeof maplibregl }).maplibregl = maplibregl;
+import '@maplibre/maplibre-gl-leaflet';
 
 /**
- * Mapa OpenStreetMap (via Leaflet) com a rota GPS de uma atividade outdoor.
+ * Mapa com a rota GPS de uma atividade outdoor. Estilos raster usam tiles do
+ * Leaflet; estilos vetoriais (OpenFreeMap) entram como camada MapLibre GL via
+ * `maplibre-gl-leaflet` (renderização 2D — o tilt 3D só existe no mobile).
  * Desenha a polyline, marca início/fim e ajusta o zoom à rota.
  */
 @Component({
@@ -33,7 +41,7 @@ export class ActivityMapComponent {
   private readonly prefs = inject(PreferencesService);
 
   private map?: L.Map;
-  private tileLayer?: L.TileLayer;
+  private baseLayer?: L.Layer;
   private casing?: L.Polyline;
   private line?: L.Polyline;
   private markers: L.Layer[] = [];
@@ -50,10 +58,10 @@ export class ActivityMapComponent {
         this.draw(pts);
       }
     });
-    // Troca os tiles quando o usuário muda o estilo de mapa (carregado do DB).
+    // Troca o estilo quando o usuário muda o mapa (carregado do DB).
     effect(() => {
       const style = this.prefs.mapStyle();
-      if (this.map) this.applyTileStyle(style);
+      if (this.map) this.applyStyle(style);
     });
     this.destroyRef.onDestroy(() => {
       this.ro?.disconnect();
@@ -65,7 +73,7 @@ export class ActivityMapComponent {
     const el = this.mapEl().nativeElement;
     const map = L.map(el, { scrollWheelZoom: false });
     this.map = map;
-    this.applyTileStyle(this.prefs.mapStyle());
+    this.applyStyle(this.prefs.mapStyle());
     this.draw(this.points());
 
     // O container só ganha o tamanho real depois do layout do navegador.
@@ -80,17 +88,26 @@ export class ActivityMapComponent {
     this.ro.observe(el);
   }
 
-  /** (Re)aplica a camada de tiles do estilo escolhido, removendo a anterior. */
-  private applyTileStyle(style: MapStyle): void {
+  /** (Re)aplica a camada base do estilo escolhido, removendo a anterior. */
+  private applyStyle(style: MapStyle): void {
     const map = this.map;
     if (!map) return;
-    this.tileLayer?.remove();
+    this.baseLayer?.remove();
     const cfg = MAP_STYLES[style];
-    this.tileLayer = L.tileLayer(cfg.url, {
-      maxZoom: cfg.maxZoom,
-      subdomains: cfg.subdomains,
-      attribution: cfg.attribution,
-    }).addTo(map);
+    if (cfg.kind === 'vector') {
+      // Estilo vetorial OpenFreeMap via MapLibre GL (camada do Leaflet, 2D).
+      this.baseLayer = (L as unknown as {
+        maplibreGL: (opts: { style: string; attribution?: string }) => L.Layer;
+      })
+        .maplibreGL({ style: cfg.styleUrl, attribution: cfg.attribution })
+        .addTo(map);
+    } else {
+      this.baseLayer = L.tileLayer(cfg.url, {
+        maxZoom: cfg.maxZoom,
+        subdomains: cfg.subdomains,
+        attribution: cfg.attribution,
+      }).addTo(map);
+    }
   }
 
   private draw(points: ActivityRoutePoint[]): void {
