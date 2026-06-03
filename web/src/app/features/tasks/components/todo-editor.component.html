@@ -103,6 +103,19 @@
       }
     }
 
+    @if (hasDateRecurrence) {
+      <div class="row">
+        <div class="col"><label class="lbl">Hora inicial (opcional)</label><input class="inp" type="time" [(ngModel)]="startTime" /></div>
+        <div class="col"><label class="lbl">Hora final (opcional)</label><input class="inp" type="time" [(ngModel)]="endTime" /></div>
+      </div>
+      @if (startTime || endTime) {
+        <label class="lbl">
+          @if (startTime) { Aparece a partir da hora inicial. }
+          @if (endTime) { Cancela automaticamente após a hora final. }
+        </label>
+      }
+    }
+
     @if (parentsOf().length > 0) {
       <label class="lbl">É criada por</label>
       <div class="chips">

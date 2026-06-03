@@ -21,6 +21,7 @@ import type {
   TodoSpawnRule,
 } from '@vitale/shared';
 import { HABIT_ICONS } from '@vitale/shared';
+import { isValidTime } from '../../lib/todo-logic';
 import { useTodosStore } from '../../store/todos.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
@@ -102,6 +103,8 @@ export default function TodoEditorScreen() {
   const [stockRef, setStockRef] = useState('');
   const [overdue, setOverdue] = useState<TodoOverduePolicy>('carry');
   const [cancelPolicy, setCancelPolicy] = useState<TodoCancelPolicy>('manual');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [icon, setIcon] = useState<string>(DEFAULT_TODO_ICON);
   const [color, setColor] = useState<string>('tarefa');
   const [linkedActivityId, setLinkedActivityId] = useState<number | null>(null);
@@ -184,6 +187,8 @@ export default function TodoEditorScreen() {
       }
       setOverdue(existing.overdue);
       setCancelPolicy(existing.cancelPolicy);
+      setStartTime(existing.startTime ?? '');
+      setEndTime(existing.endTime ?? '');
       setIcon(existing.icon || DEFAULT_TODO_ICON);
       setColor(existing.color || 'tarefa');
       setLinkedActivityId(existing.linkedActivityId ?? null);
@@ -240,7 +245,24 @@ export default function TodoEditorScreen() {
   }
 
   const recurrence = buildRecurrence();
-  const valid = name.trim() !== '' && recurrence != null;
+
+  // Janela de horário só vale para recorrências com data (não triggerOnly).
+  const hasDateRecurrence =
+    !triggerOnly && ['monthly', 'weekly', 'yearly', 'after_completion'].includes(kind);
+  const timeFieldValid = (s: string) => s.trim() === '' || isValidTime(s.trim());
+  const bothTimes = startTime.trim() !== '' && endTime.trim() !== '';
+  const windowValid =
+    !bothTimes ||
+    !isValidTime(startTime.trim()) ||
+    !isValidTime(endTime.trim()) ||
+    endTime.trim() > startTime.trim();
+  const timesValid = timeFieldValid(startTime) && timeFieldValid(endTime) && windowValid;
+
+  const valid = name.trim() !== '' && recurrence != null && timesValid;
+
+  // Persistidos só quando aplicável; limpa ao trocar p/ recorrência sem data.
+  const startTimeOut = hasDateRecurrence && startTime.trim() ? startTime.trim() : null;
+  const endTimeOut = hasDateRecurrence && endTime.trim() ? endTime.trim() : null;
 
   const onSave = async () => {
     if (!valid || !recurrence || saving) return;
@@ -258,6 +280,8 @@ export default function TodoEditorScreen() {
           linked_activity_id: linkedActivityId,
           on_complete: spawn.length ? spawn : null,
           trigger_only: triggerOnly,
+          start_time: startTimeOut,
+          end_time: endTimeOut,
         });
       } else {
         await createTemplate({
@@ -272,6 +296,8 @@ export default function TodoEditorScreen() {
           linkedActivityId,
           onComplete: spawn.length ? spawn : undefined,
           triggerOnly,
+          startTime: startTimeOut,
+          endTime: endTimeOut,
         });
       }
       router.back();
@@ -479,6 +505,42 @@ export default function TodoEditorScreen() {
               <Text style={styles.label}>Item (opcional)</Text>
               <TextInput value={stockRef} onChangeText={setStockRef} placeholder="Ex.: Café" placeholderTextColor={colors.ink4} style={styles.input} />
             </>
+          )}
+
+          {/* Janela de horário — só para recorrências com data. */}
+          {hasDateRecurrence && (
+            <View style={styles.row}>
+              <View style={styles.flex}>
+                <Text style={styles.label}>Hora inicial (opcional)</Text>
+                <TextInput
+                  value={startTime}
+                  onChangeText={setStartTime}
+                  placeholder="HH:MM"
+                  placeholderTextColor={colors.ink4}
+                  keyboardType="numbers-and-punctuation"
+                  maxLength={5}
+                  style={styles.input}
+                />
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.label}>Hora final (opcional)</Text>
+                <TextInput
+                  value={endTime}
+                  onChangeText={setEndTime}
+                  placeholder="HH:MM"
+                  placeholderTextColor={colors.ink4}
+                  keyboardType="numbers-and-punctuation"
+                  maxLength={5}
+                  style={styles.input}
+                />
+              </View>
+            </View>
+          )}
+          {hasDateRecurrence && (startTime.trim() !== '' || endTime.trim() !== '') && (
+            <Text style={styles.hint}>
+              {startTime.trim() ? 'Aparece a partir da hora inicial. ' : ''}
+              {endTime.trim() ? 'Cancela automaticamente após a hora final.' : ''}
+            </Text>
           )}
 
           {/* Pais que disparam esta tarefa (read-only). */}

@@ -7,13 +7,8 @@ import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { TodoItem } from '../../components/cards/TodoItem';
-import { localDateStr, isOverdue, addDays } from '../../lib/todo-logic';
-import { describeRecurrence } from '../../lib/todo-format';
-import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
-
-function modColor(key: string): { tint: string; accent: string } {
-  return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.tarefa;
-}
+import { localDateStr, localTimeStr, isOverdue, isVisibleNow, addDays } from '../../lib/todo-logic';
+import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 export default function TarefasScreen() {
   const styles = useThemedStyles(createStyles);
@@ -27,8 +22,6 @@ export default function TarefasScreen() {
   const resolve = useTodosStore((s) => s.resolve);
   const skip = useTodosStore((s) => s.skip);
   const cancel = useTodosStore((s) => s.cancel);
-  const trigger = useTodosStore((s) => s.trigger);
-  const updateMeter = useTodosStore((s) => s.updateMeter);
   const user = useAuthStore((s) => s.user);
 
   useEffect(() => { load(); }, [load, user?.id]);
@@ -40,12 +33,21 @@ export default function TarefasScreen() {
   const isTask = (o: TodoOccurrence) =>
     tplById.has(o.templateId) && tplById.get(o.templateId)!.module !== 'compras';
 
+  const now = localTimeStr();
   const pending = occurrences.filter((o) => o.status === 'pending' && isTask(o));
+  // startTime: a tarefa do dia só aparece a partir do horário; antes disso cai em "Em breve".
+  const visible = (o: TodoOccurrence) => isVisibleNow(tplById.get(o.templateId)!, o, today, now);
 
   const overdue = pending.filter((o) => isOverdue(o, today));
-  const todayList = pending.filter((o) => !isOverdue(o, today) && (o.dueDate === null || o.dueDate <= today));
+  const todayList = pending.filter(
+    (o) => !isOverdue(o, today) && (o.dueDate === null || o.dueDate <= today) && visible(o),
+  );
   const in48h = addDays(today, 2);
-  const upcoming = pending.filter((o) => o.dueDate !== null && o.dueDate > today && o.dueDate <= in48h);
+  const upcoming = pending.filter(
+    (o) =>
+      (o.dueDate !== null && o.dueDate > today && o.dueDate <= in48h) ||
+      (o.dueDate === today && !visible(o)),
+  );
 
   // Concluídas hoje (inclui as auto-concluídas pelo sync de treino) — por doneAt local.
   const doneToday = occurrences.filter(
@@ -75,26 +77,6 @@ export default function TarefasScreen() {
     ]);
   };
 
-  const onUsage = (t: TodoTemplate) => {
-    if (t.recurrence.kind !== 'usage') return;
-    const unit = t.recurrence.meterUnit;
-    // Alert.prompt é iOS-only; em Android cai no editor da série.
-    if (Alert.prompt) {
-      Alert.prompt(
-        t.name,
-        `Leitura atual (${unit})`,
-        (text) => {
-          const n = Number(String(text).replace(',', '.'));
-          if (Number.isFinite(n)) updateMeter(t.id, n);
-        },
-        'plain-text',
-        t.meter != null ? String(t.meter) : '',
-        'numeric',
-      );
-    } else {
-      router.push({ pathname: '/tarefas/editor', params: { id: t.id } });
-    }
-  };
 
   // Conclusão rica: tarefas de Finanças capturam o valor pago em meta (sem backend de Finanças ainda).
   const onDone = (t: TodoTemplate, o: TodoOccurrence) => {
@@ -132,31 +114,6 @@ export default function TarefasScreen() {
     <TodoItem key={o.id} template={tplById.get(o.templateId)!} occurrence={o} done />
   );
 
-  const TriggerRow = ({ t }: { t: TodoTemplate }) => {
-    const mod = modColor(t.color);
-    const isUsage = t.recurrence.kind === 'usage';
-    const cta = isUsage ? 'Atualizar' : 'Registrar';
-    return (
-      <View style={styles.trigger}>
-        <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>
-          <Ionicons name={(t.icon || 'flash-outline') as never} size={18} color={mod.accent} />
-        </View>
-        <View style={styles.flex}>
-          <Text style={styles.name}>{t.name}</Text>
-          <Text style={styles.summary}>
-            {describeRecurrence(t.recurrence)}
-            {isUsage && t.meter != null ? ` · ${t.meter} ${(t.recurrence as { meterUnit: string }).meterUnit}` : ''}
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => (isUsage ? onUsage(t) : trigger(t.id))}
-          style={({ pressed }) => [styles.triggerBtn, { backgroundColor: mod.accent }, pressed && styles.pressed]}
-        >
-          <Text style={styles.triggerBtnText}>{cta}</Text>
-        </Pressable>
-      </View>
-    );
-  };
 
   const Section = ({ title, items }: { title: string; items: TodoOccurrence[] }) =>
     items.length > 0 ? (
@@ -197,14 +154,7 @@ export default function TarefasScreen() {
           <Section title="Atrasadas" items={overdue} />
           <Section title="A fazer" items={todayList} />
           <Section title="Em breve" items={upcoming} />
-          {triggers.length > 0 && (
-            <>
-              <Text style={styles.section}>Gatilhos manuais</Text>
-              <View style={styles.card}>
-                {triggers.map((t) => <TriggerRow key={t.id} t={t} />)}
-              </View>
-            </>
-          )}
+
           {doneToday.length > 0 && (
             <>
               <Text style={styles.section}>Concluídas hoje</Text>

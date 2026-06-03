@@ -3,7 +3,7 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { IconComponent } from '@core/services/icon.component';
 import type { TodoOccurrence, TodoTemplate } from '@vitale/shared';
 import { TodosStore } from '../data/todos.store';
-import { localDateStr, isOverdue } from '../data/todo-logic';
+import { localDateStr, localTimeStr, isOverdue, isVisibleNow } from '../data/todo-logic';
 import { describeRecurrence } from '../data/todo-format';
 import { TodoCardComponent } from '../components/todo-card.component';
 import { TodoEditorComponent } from '../components/todo-editor.component';
@@ -33,11 +33,25 @@ export class TasksPageComponent {
 
   protected readonly overdueRows = computed(() => this.rows(this.pending().filter((o) => isOverdue(o, this.today))));
   protected readonly todayRows = computed(() =>
-    this.rows(this.pending().filter((o) => !isOverdue(o, this.today) && (o.dueDate === null || o.dueDate <= this.today))),
+    this.rows(
+      this.pending().filter(
+        (o) => !isOverdue(o, this.today) && (o.dueDate === null || o.dueDate <= this.today) && this.visible(o),
+      ),
+    ),
   );
   protected readonly upcomingRows = computed(() =>
-    this.rows(this.pending().filter((o) => o.dueDate !== null && o.dueDate > this.today)),
+    // startTime: a tarefa do dia ainda fora do horário aparece em "Em breve" até a hora.
+    this.rows(
+      this.pending().filter(
+        (o) => (o.dueDate !== null && o.dueDate > this.today) || (o.dueDate === this.today && !this.visible(o)),
+      ),
+    ),
   );
+
+  private visible(o: TodoOccurrence): boolean {
+    const t = this.store.templateById(o.templateId);
+    return !t || isVisibleNow(t, o, this.today, localTimeStr());
+  }
 
   protected readonly triggers = computed(() => {
     const ids = new Set(this.pending().map((o) => o.templateId));

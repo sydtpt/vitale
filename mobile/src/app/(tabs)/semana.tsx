@@ -1,14 +1,26 @@
 import React from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radii, useThemedStyles } from '../../theme';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { WEEK, TODAY_IDX, TREINOS_SEMANA, HEATMAP } from '../../services/mock-data';
 
 export default function SemanaScreen() {
   const styles = useThemedStyles(createStyles);
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Semana</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <View style={styles.greet}>
         <Text style={styles.eyebrow}>SEMANA 21</Text>
         <Text style={styles.title}>18 — 24 maio</Text>
@@ -74,8 +86,9 @@ export default function SemanaScreen() {
         ))}
       </View>
 
-      <View style={{ height: 24 }} />
-    </ScrollView>
+        <View style={{ height: 24 }} />
+      </ScrollView>
+    </View>
   );
 }
 
@@ -97,7 +110,28 @@ function StatTile({ icon, iconBg, iconColor, label, value, sub }: {
 
 const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, paddingTop: 54 },
+  header: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    ...shadows.card,
+  },
+  pressed: { opacity: 0.7 },
+  headerSpacer: { width: 36, height: 36 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  scroll: { flex: 1 },
+  content: { padding: spacing.lg, paddingTop: spacing.sm },
   greet: { paddingVertical: spacing.lg },
   eyebrow: { fontSize: 13, color: colors.ink3, letterSpacing: 0.4, fontWeight: '600' },
   title: { fontFamily: 'InstrumentSerif', fontSize: 32, marginTop: 4, color: colors.ink },

@@ -16,7 +16,7 @@ import { useHealthStore } from '../../store/health.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
 import { readinessFromSummaries } from '../../lib/health-readiness';
-import { isOverdue } from '../../lib/todo-logic';
+import { isOverdue, isVisibleNow, localTimeStr } from '../../lib/todo-logic';
 import { HOJE } from '../../services/mock-data';
 import type { CounterHabit } from '@vitale/shared';
 import type { User } from '@supabase/supabase-js';
@@ -134,13 +134,16 @@ export default function HojeScreen() {
     );
   };
 
-  // Tarefas a fazer hoje: atrasadas, do dia ou sem prazo
+  // Tarefas a fazer hoje: atrasadas, do dia ou sem prazo. startTime esconde a do
+  // dia antes do horário (só aparece a partir dele).
+  const nowTime = localTimeStr();
   const tplById = new Map(todoTemplates.map(t => [t.id, t]));
   const todayTasks = todoOccurrences.filter(o =>
     o.status === 'pending' &&
     tplById.has(o.templateId) &&
     tplById.get(o.templateId)!.module !== 'compras' &&
-    (isOverdue(o, today) || o.dueDate === null || o.dueDate <= today)
+    (isOverdue(o, today) || o.dueDate === null || o.dueDate <= today) &&
+    isVisibleNow(tplById.get(o.templateId)!, o, today, nowTime)
   );
 
   const mealsDone = meals.filter(m => m.done).length;

@@ -13,6 +13,18 @@ export function localDateStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Hora local 'HH:MM' (24h, zero-padded) — comparável por string. */
+export function localTimeStr(d: Date = new Date()): string {
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+/** Valida 'HH:MM' (00:00–23:59). */
+export function isValidTime(s: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+}
+
 function parse(date: string): Date {
   return new Date(`${date}T00:00:00`);
 }
@@ -139,6 +151,36 @@ export function daysLate(
   return daysBetween(occ.dueDate as string, today);
 }
 
+/**
+ * Visibilidade por `startTime`: a ocorrência do dia só vira acionável a partir do
+ * horário. Sem `startTime`, sem data, ou dia ≠ hoje → sempre visível (o dia em si
+ * já passou ou é futuro e cai em "Em breve"). Só esconde a do dia antes da hora.
+ */
+export function isVisibleNow(
+  t: Pick<TodoTemplate, 'startTime'>,
+  occ: Pick<TodoOccurrence, 'dueDate'>,
+  today: string = localDateStr(),
+  now: string = localTimeStr(),
+): boolean {
+  if (!t.startTime || occ.dueDate == null || occ.dueDate !== today) return true;
+  return now >= t.startTime;
+}
+
+/**
+ * Passou da `endTime`: pendente com data cujo dia (e horário, se hoje) já passou.
+ * Dispara o cancelamento automático na reconciliação. Sem `endTime` → false.
+ */
+export function isPastEnd(
+  t: Pick<TodoTemplate, 'endTime'>,
+  occ: Pick<TodoOccurrence, 'dueDate' | 'status'>,
+  today: string = localDateStr(),
+  now: string = localTimeStr(),
+): boolean {
+  if (!t.endTime || occ.status !== 'pending' || occ.dueDate == null) return false;
+  if (occ.dueDate < today) return true;
+  return occ.dueDate === today && now >= t.endTime;
+}
+
 /** Gatilho por uso/contador atingido (meter - última conclusão ≥ every). */
 export function dueUsage(
   t: Pick<TodoTemplate, 'recurrence' | 'meter' | 'meterAtLastDone'>,
@@ -150,18 +192,23 @@ export function dueUsage(
 /** Ação derivada de reconciliação (a executada pela store). */
 export type TodoAction =
   | { type: 'create'; templateId: string; dueDate: string | null }
-  | { type: 'expire'; occId: string };
+  | { type: 'expire'; occId: string }
+  | { type: 'cancel'; occId: string; templateId: string; dueDate: string | null };
 
 /**
- * Reconcilia UMA série com suas ocorrências, dado o dia de hoje. Idempotente:
- *  - overdue='expire': ocorrências pendentes vencidas viram `expired`;
+ * Reconcilia UMA série com suas ocorrências, dado o dia/hora de hoje. Idempotente:
+ *  - endTime definido: pendentes que passaram do horário viram `cancel` (sobrepõe carry/expire);
+ *  - overdue='expire': demais pendentes vencidas viram `expired`;
  *  - recorrência de calendário sem ocorrência corrente/futura: cria a próxima a partir de hoje;
  *  - overdue='carry': a vencida permanece pendente (some como "atrasada"), sem duplicar.
+ * O `cancel` é avançado pela store (gera a próxima via nextDueDate), então não emitimos
+ * `create` de calendário no mesmo passe em que houve cancelamento.
  */
 export function reconcileTemplate(
-  t: Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue' | 'triggerOnly'>,
+  t: Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue' | 'triggerOnly' | 'endTime'>,
   occ: Pick<TodoOccurrence, 'id' | 'dueDate' | 'status'>[],
   today: string = localDateStr(),
+  now: string = localTimeStr(),
 ): TodoAction[] {
   const actions: TodoAction[] = [];
   if (!t.active) return actions;
@@ -169,14 +216,24 @@ export function reconcileTemplate(
   const pending = occ.filter((o) => o.status === 'pending');
   const isPast = (o: { dueDate: string | null }) => o.dueDate != null && o.dueDate < today;
 
+  // endTime: cancelamento automático após o horário — precede expire/carry.
+  const canceled = new Set<string>();
+  for (const o of pending) {
+    if (isPastEnd(t, o, today, now)) {
+      actions.push({ type: 'cancel', occId: o.id, templateId: t.id, dueDate: o.dueDate });
+      canceled.add(o.id);
+    }
+  }
+
   if (t.overdue === 'expire') {
     for (const o of pending) {
-      if (isPast(o)) actions.push({ type: 'expire', occId: o.id });
+      if (!canceled.has(o.id) && isPast(o)) actions.push({ type: 'expire', occId: o.id });
     }
   }
 
   // triggerOnly: a série não gera ocorrência por calendário (só nasce por gatilho).
-  if (!t.triggerOnly && isCalendarRecurrence(t.recurrence)) {
+  // Pula o create quando houve cancelamento: o avanço do cancel já gera a próxima.
+  if (!t.triggerOnly && canceled.size === 0 && isCalendarRecurrence(t.recurrence)) {
     const alive = pending.filter((o) => !(t.overdue === 'expire' && isPast(o)));
     const hasCurrentOrFuture = alive.some((o) => o.dueDate != null);
     if (!hasCurrentOrFuture) {

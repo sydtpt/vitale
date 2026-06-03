@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -27,6 +27,11 @@ export default function ConfiguracoesScreen() {
   const { signOut } = useAuthStore();
   const profile = useSettingsStore((s) => s.profile);
   const preferences = useSettingsStore((s) => s.preferences);
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
+
+  useEffect(() => {
+    if (!profile) loadSettings();
+  }, []);
 
   const themeLabel = preferences?.theme === 'dark' ? 'Escuro' : preferences?.theme === 'light' ? 'Claro' : 'Sistema';
   const glassLabel = preferences?.glassEnabled ? ' · Glass' : '';

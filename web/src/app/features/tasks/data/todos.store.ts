@@ -13,6 +13,7 @@ import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import {
   localDateStr,
+  localTimeStr,
   firstDueDate,
   nextDueDate,
   dueUsage,
@@ -35,6 +36,8 @@ export interface NewTodo {
   meter?: number;
   onComplete?: TodoSpawnRule[];
   triggerOnly?: boolean;
+  startTime?: string | null; // 'HH:MM' — a ocorrência do dia só aparece a partir desse horário
+  endTime?: string | null; // 'HH:MM' — após esse horário no dia, cancela automaticamente
   meta?: Record<string, unknown>;
 }
 
@@ -51,6 +54,8 @@ interface DbTemplateRow {
   meter_at_last_done: number | string | null;
   on_complete: TodoSpawnRule[] | null;
   trigger_only: boolean | null;
+  start_time: string | null;
+  end_time: string | null;
   meta: Record<string, unknown> | null;
   active: boolean;
   sort: number;
@@ -121,6 +126,7 @@ export class TodosStore {
     this._error.set(null);
 
     const today = localDateStr();
+    const now = localTimeStr();
     const since = localDateStr(new Date(Date.now() - (TODO_WINDOW_DAYS - 1) * 86400000));
 
     const tRes = await supabase.from('todo_templates').select('*').eq('user_id', userId).order('sort');
@@ -136,16 +142,27 @@ export class TodosStore {
       arr.push(o);
       byTemplate.set(o.templateId, arr);
     }
+    const tplById = new Map(templates.map((t) => [t.id, t]));
     const expires: string[] = [];
     const creates: { templateId: string; dueDate: string | null }[] = [];
+    const cancels: { occId: string; templateId: string; dueDate: string | null }[] = [];
     for (const t of templates.filter((x) => x.active)) {
-      for (const a of reconcileTemplate(t, byTemplate.get(t.id) ?? [], today)) {
+      for (const a of reconcileTemplate(t, byTemplate.get(t.id) ?? [], today, now)) {
         if (a.type === 'expire') expires.push(a.occId);
+        else if (a.type === 'cancel') cancels.push({ occId: a.occId, templateId: a.templateId, dueDate: a.dueDate });
         else creates.push({ templateId: a.templateId, dueDate: a.dueDate });
       }
     }
-    if (expires.length || creates.length) {
+    if (expires.length || creates.length || cancels.length) {
       for (const id of expires) await supabase.rpc('todo_resolve', { p_occ: id, p_status: 'expired', p_meta: null });
+      // cancelamento automático por endTime: marca cancelada e avança a próxima (nextDueDate),
+      // espelhando o caminho não-'done' de resolveAndAdvance sem recarregar a store.
+      for (const c of cancels) {
+        await supabase.rpc('todo_resolve', { p_occ: c.occId, p_status: 'canceled', p_meta: { source: 'auto-end-time' } });
+        const t = tplById.get(c.templateId);
+        const next = t ? nextDueDate(t.recurrence, c.dueDate, today) : null;
+        if (next != null) await this.insertOccurrence(userId, c.templateId, next);
+      }
       for (const c of creates) await this.insertOccurrence(userId, c.templateId, c.dueDate);
       occurrences = await this.fetchOccurrences(userId, since);
     }
@@ -153,6 +170,36 @@ export class TodosStore {
     this._templates.set(templates);
     this._occurrences.set(occurrences);
     this._state.set('loaded');
+    this.scheduleBoundary(templates, occurrences);
+  }
+
+  /**
+   * Timer enquanto a página está aberta: reconciliação só roda no load, então
+   * reagenda um re-load no próximo limite de horário (startTime/endTime) de hoje.
+   */
+  private boundaryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private scheduleBoundary(templates: TodoTemplate[], occurrences: TodoOccurrence[]): void {
+    if (this.boundaryTimer) { clearTimeout(this.boundaryTimer); this.boundaryTimer = null; }
+    const today = localDateStr();
+    const now = localTimeStr();
+    const tplById = new Map(templates.map((t) => [t.id, t]));
+    const times: string[] = [];
+    for (const o of occurrences) {
+      if (o.status !== 'pending' || o.dueDate !== today) continue;
+      const t = tplById.get(o.templateId);
+      if (!t) continue;
+      if (t.startTime && t.startTime > now) times.push(t.startTime);
+      if (t.endTime && t.endTime > now) times.push(t.endTime);
+    }
+    if (times.length === 0) return;
+    const nextAt = times.sort()[0];
+    const [h, m] = nextAt.split(':').map(Number);
+    const target = new Date();
+    target.setHours(h, m, 0, 0);
+    const ms = target.getTime() - Date.now();
+    if (ms <= 0) return;
+    this.boundaryTimer = setTimeout(() => void this.load(true), ms);
   }
 
   async createTemplate(input: NewTodo): Promise<void> {
@@ -173,6 +220,8 @@ export class TodosStore {
         meter: input.meter ?? null,
         on_complete: input.onComplete ?? null,
         trigger_only: input.triggerOnly ?? false,
+        start_time: input.startTime ?? null,
+        end_time: input.endTime ?? null,
         meta: input.meta ?? null,
         sort,
       })
@@ -312,6 +361,8 @@ function mapTemplate(r: DbTemplateRow): TodoTemplate {
     meterAtLastDone: r.meter_at_last_done == null ? undefined : Number(r.meter_at_last_done),
     onComplete: r.on_complete ?? undefined,
     triggerOnly: r.trigger_only ?? undefined,
+    startTime: r.start_time ?? undefined,
+    endTime: r.end_time ?? undefined,
     meta: r.meta ?? undefined,
     active: r.active,
     sort: r.sort,

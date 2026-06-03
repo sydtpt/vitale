@@ -12,6 +12,7 @@ import type {
 import { supabase } from '../lib/supabase';
 import {
   localDateStr,
+  localTimeStr,
   firstDueDate,
   dueUsage,
   reconcileTemplate,
@@ -36,6 +37,8 @@ export interface NewTodo {
   linkedActivityId?: number | null; // activityId HealthKit que conclui a tarefa
   onComplete?: TodoSpawnRule[]; // encadeamento: ao concluir, instancia filhas
   triggerOnly?: boolean; // só nasce por gatilho (sem ocorrência inicial nem calendário)
+  startTime?: string | null; // 'HH:MM' — a ocorrência do dia só aparece a partir desse horário
+  endTime?: string | null; // 'HH:MM' — após esse horário no dia, cancela automaticamente
   meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
 }
 
@@ -52,6 +55,8 @@ export interface TodoPatch {
   linked_activity_id?: number | null;
   on_complete?: TodoSpawnRule[] | null;
   trigger_only?: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
   meta?: Record<string, unknown> | null;
   active?: boolean;
   sort?: number;
@@ -80,6 +85,34 @@ interface TodosState {
 
 function currentUserId(): string | undefined {
   return useAuthStore.getState().user?.id;
+}
+
+// Timer enquanto o app está aberto: reconciliação só roda no load, então agendamos
+// um re-load no próximo limite de horário (startTime/endTime) de hoje, para a tarefa
+// aparecer/cancelar sem depender de o usuário reabrir o app.
+let boundaryTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleBoundary(templates: TodoTemplate[], occurrences: TodoOccurrence[], reload: () => void): void {
+  if (boundaryTimer) { clearTimeout(boundaryTimer); boundaryTimer = null; }
+  const today = localDateStr();
+  const now = localTimeStr();
+  const tplById = new Map(templates.map((t) => [t.id, t]));
+  const times: string[] = [];
+  for (const o of occurrences) {
+    if (o.status !== 'pending' || o.dueDate !== today) continue;
+    const t = tplById.get(o.templateId);
+    if (!t) continue;
+    if (t.startTime && t.startTime > now) times.push(t.startTime);
+    if (t.endTime && t.endTime > now) times.push(t.endTime);
+  }
+  if (times.length === 0) return;
+  const nextAt = times.sort()[0];
+  const [h, m] = nextAt.split(':').map(Number);
+  const target = new Date();
+  target.setHours(h, m, 0, 0);
+  const ms = target.getTime() - Date.now();
+  if (ms <= 0) return;
+  boundaryTimer = setTimeout(reload, ms);
 }
 
 /** Busca pendentes (qualquer data) + resolvidas dentro da janela. */
@@ -114,33 +147,52 @@ export const useTodosStore = create<TodosState>((set, get) => ({
     const templates = (trows ?? []).map(toTemplate);
 
     const today = localDateStr();
+    const now = localTimeStr();
     const since = localDateStr(new Date(Date.now() - (TODO_WINDOW_DAYS - 1) * 86400000));
     let occurrences = await fetchOccurrences(since);
 
-    // reconciliação por série: expira vencidas (overdue=expire) e gera próximas de calendário
+    // reconciliação por série: cancela por endTime, expira vencidas (overdue=expire)
+    // e gera próximas de calendário
     const byTemplate = new Map<string, TodoOccurrence[]>();
     for (const o of occurrences) {
       const arr = byTemplate.get(o.templateId) ?? [];
       arr.push(o);
       byTemplate.set(o.templateId, arr);
     }
+    const tplById = new Map(templates.map((t) => [t.id, t]));
     const expires: string[] = [];
     const creates: { templateId: string; dueDate: string | null }[] = [];
+    const cancels: { occId: string; templateId: string; dueDate: string | null }[] = [];
     for (const t of templates) {
-      for (const a of reconcileTemplate(t, byTemplate.get(t.id) ?? [], today)) {
+      for (const a of reconcileTemplate(t, byTemplate.get(t.id) ?? [], today, now)) {
         if (a.type === 'expire') expires.push(a.occId);
+        else if (a.type === 'cancel') cancels.push({ occId: a.occId, templateId: a.templateId, dueDate: a.dueDate });
         else creates.push({ templateId: a.templateId, dueDate: a.dueDate });
       }
     }
-    if (expires.length || creates.length) {
+    if (expires.length || creates.length || cancels.length) {
       for (const id of expires) {
         await supabase.rpc('todo_resolve', { p_occ: id, p_status: 'expired', p_meta: null });
+      }
+      // cancelamento automático por endTime passa pelo seam único (avança a próxima).
+      for (const c of cancels) {
+        const t = tplById.get(c.templateId);
+        if (!t) continue;
+        await resolveAndAdvance({
+          userId,
+          template: t,
+          occId: c.occId,
+          occDueDate: c.dueDate,
+          status: 'canceled',
+          meta: { source: 'auto-end-time' },
+        });
       }
       for (const c of creates) await insertOccurrence(userId, c.templateId, c.dueDate);
       occurrences = await fetchOccurrences(since);
     }
 
     set({ templates, occurrences, loading: false, loaded: true });
+    scheduleBoundary(templates, occurrences, () => { void get().load(); });
   },
 
   loadAll: async () => {
@@ -173,6 +225,8 @@ export const useTodosStore = create<TodosState>((set, get) => ({
         linked_activity_id: input.linkedActivityId ?? null,
         on_complete: input.onComplete ?? null,
         trigger_only: input.triggerOnly ?? false,
+        start_time: input.startTime ?? null,
+        end_time: input.endTime ?? null,
         meta: input.meta ?? null,
         sort,
       })

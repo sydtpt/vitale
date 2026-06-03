@@ -26,6 +26,8 @@ export type TemplateRow = {
   linked_activity_id: number | null;
   on_complete: TodoSpawnRule[] | null;
   trigger_only: boolean | null;
+  start_time: string | null;
+  end_time: string | null;
   meta: Record<string, unknown> | null;
   active: boolean;
   sort: number;
@@ -57,6 +59,8 @@ export function toTemplate(r: TemplateRow): TodoTemplate {
     linkedActivityId: r.linked_activity_id ?? undefined,
     onComplete: r.on_complete ?? undefined,
     triggerOnly: r.trigger_only ?? undefined,
+    startTime: r.start_time ?? undefined,
+    endTime: r.end_time ?? undefined,
     meta: r.meta ?? undefined,
     active: r.active,
     sort: r.sort,

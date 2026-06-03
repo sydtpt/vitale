@@ -48,6 +48,8 @@ interface HabitsState {
   loaded: boolean;
 
   load: () => Promise<void>;
+  /** Implementação interna do load; chame `load()`, que serializa concorrência. */
+  _load: () => Promise<void>;
   loadAll: () => Promise<void>;
   increment: (id: string) => Promise<void>;
   decrement: (id: string) => Promise<void>;
@@ -103,6 +105,10 @@ function genOpId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/** Trava de concorrência: garante um único `load()` em voo por vez. Sem ela,
+ * duas chamadas paralelas leem count=0 e ambas semeiam → "Água" duplicada. */
+let loadInFlight: Promise<void> | null = null;
+
 function currentUserId(): string | undefined {
   return useAuthStore.getState().user?.id;
 }
@@ -147,6 +153,17 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
   loaded: false,
 
   load: async () => {
+    // Reusa o load em voo: evita semeadura dupla por chamadas concorrentes.
+    if (loadInFlight) return loadInFlight;
+    loadInFlight = get()._load();
+    try {
+      await loadInFlight;
+    } finally {
+      loadInFlight = null;
+    }
+  },
+
+  _load: async () => {
     const userId = currentUserId();
     if (!userId) return;
     set({ loading: true });
@@ -154,11 +171,12 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     // 1) drenar deltas offline pendentes antes de ler o estado do servidor
     await drainHabitQueue(flushDeltas);
 
-    // 2) semear defaults se o usuário nunca criou nenhum hábito
-    const { count } = await supabase
+    // 2) semear defaults só se a leitura tiver sucesso E não houver nenhum
+    //    hábito. Em erro, `count` vem null; semear nesse caso duplicaria a Água.
+    const { count, error: countError } = await supabase
       .from('habits')
       .select('id', { count: 'exact', head: true });
-    if ((count ?? 0) === 0) {
+    if (!countError && count === 0) {
       await seedDefaults(userId);
     }
 

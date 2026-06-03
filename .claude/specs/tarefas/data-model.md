@@ -29,6 +29,8 @@ interface TodoTemplate {
   overdue; cancelPolicy; meter?; meterAtLastDone?;
   linkedActivityId?; onComplete?: TodoSpawnRule[];
   triggerOnly?: boolean;                                // só nasce por gatilho
+  startTime?: string;                                   // 'HH:MM' — ocorrência do dia só aparece a partir daqui
+  endTime?: string;                                     // 'HH:MM' — após o horário no dia, cancela automaticamente
   meta?; active; sort; createdAt;
 }
 interface TodoOccurrence {
@@ -39,6 +41,7 @@ interface TodoOccurrence {
 
 ## Tabelas (Supabase) — `supabase/migrations/20260520160000_tarefas.sql`
 ## Encadeamento — `supabase/migrations/20260527130000_todo_on_complete.sql`
+## Janela de horário — `supabase/migrations/20260603120000_todo_time_window.sql` (`start_time`/`end_time text`)
 
 - **`todo_templates`**: `recurrence jsonb`, `overdue`/`cancel_policy`/`module` text com `check`,
   `meter`/`meter_at_last_done numeric`, `on_complete jsonb` (lista de `TodoSpawnRule`),
@@ -56,8 +59,13 @@ interface TodoOccurrence {
   `after_completion` em `completedAt`.
 - `isOverdue(occ, today)` / `daysLate(occ, today)` — pendente vencida e dias de atraso.
 - `dueUsage(template)` — `meter - meterAtLastDone >= every`.
-- `reconcileTemplate(t, occ, today)` → ações `{create|expire}`: expira vencidas (`expire`),
-  gera a próxima de calendário quando não há corrente/futura, mantém vencidas (`carry`). **Idempotente.**
+- `reconcileTemplate(t, occ, today, now)` → ações `{create|expire|cancel}`: cancela pendentes
+  que passaram do `endTime` (precede expire/carry; suprime o `create` de calendário no mesmo passe,
+  pois o avanço do cancel gera a próxima), expira vencidas (`expire`), gera a próxima de calendário
+  quando não há corrente/futura, mantém vencidas (`carry`). **Idempotente.**
+- `localTimeStr()` / `isValidTime(s)` — hora local `'HH:MM'` e validação.
+- `isVisibleNow(t, occ, today, now)` — exibição: esconde a ocorrência do dia antes do `startTime`.
+- `isPastEnd(t, occ, today, now)` — pendente com data cujo dia/horário (`endTime`) já passou.
 
 Coberto por `mobile/src/lib/__tests__/todo-logic.test.ts` (23 casos).
 

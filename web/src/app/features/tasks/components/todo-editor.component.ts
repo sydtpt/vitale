@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MOD, HABIT_ICONS, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
 import { IconComponent } from '@core/services/icon.component';
+import { isValidTime } from '../data/todo-logic';
 import { TodosStore, type NewTodo } from '../data/todos.store';
 
 /** Ícone padrão de uma nova tarefa (nome canônico de HABIT_ICONS). */
@@ -79,6 +80,8 @@ export class TodoEditorComponent implements OnInit {
   protected dueInDays: number | null = null;
   protected overdue: TodoOverduePolicy = 'carry';
   protected cancelPolicy: TodoCancelPolicy = 'manual';
+  protected startTime = '';
+  protected endTime = '';
   protected color = 'tarefa';
   protected icon = DEFAULT_TODO_ICON;
   protected spawn: TodoSpawnRule[] = [];
@@ -145,6 +148,8 @@ export class TodoEditorComponent implements OnInit {
     }
     this.overdue = t.overdue;
     this.cancelPolicy = t.cancelPolicy;
+    this.startTime = t.startTime ?? '';
+    this.endTime = t.endTime ?? '';
     this.color = t.color || 'tarefa';
     this.icon = t.icon || DEFAULT_TODO_ICON;
     this.spawn = t.onComplete ? [...t.onComplete] : [];
@@ -182,8 +187,22 @@ export class TodoEditorComponent implements OnInit {
     }
   }
 
+  /** Janela de horário só vale para recorrências com data (não triggerOnly). */
+  protected get hasDateRecurrence(): boolean {
+    return !this.triggerOnly && ['monthly', 'weekly', 'yearly', 'after_completion'].includes(this.kind);
+  }
+
+  private timesValid(): boolean {
+    const s = this.startTime.trim();
+    const e = this.endTime.trim();
+    if (s !== '' && !isValidTime(s)) return false;
+    if (e !== '' && !isValidTime(e)) return false;
+    if (s !== '' && e !== '' && e <= s) return false;
+    return true;
+  }
+
   protected valid(): boolean {
-    return this.name.trim() !== '' && this.buildRecurrence() != null;
+    return this.name.trim() !== '' && this.buildRecurrence() != null && this.timesValid();
   }
 
   protected async onSave(): Promise<void> {
@@ -191,6 +210,9 @@ export class TodoEditorComponent implements OnInit {
     if (!this.name.trim() || !recurrence || this.saving()) return;
     const t = this.template();
     const onComplete = this.spawn.length ? this.spawn : null;
+    // Janela de horário só persiste em recorrências com data; limpa caso contrário.
+    const startTime = this.hasDateRecurrence && this.startTime.trim() ? this.startTime.trim() : null;
+    const endTime = this.hasDateRecurrence && this.endTime.trim() ? this.endTime.trim() : null;
     this.saving.set(true);
     try {
       if (t) {
@@ -204,6 +226,8 @@ export class TodoEditorComponent implements OnInit {
           cancel_policy: this.cancelPolicy,
           on_complete: onComplete,
           trigger_only: this.triggerOnly,
+          start_time: startTime,
+          end_time: endTime,
         });
       } else {
         const value: NewTodo = {
@@ -217,6 +241,8 @@ export class TodoEditorComponent implements OnInit {
           meter: this.kind === 'usage' ? 0 : undefined,
           onComplete: onComplete ?? undefined,
           triggerOnly: this.triggerOnly,
+          startTime,
+          endTime,
         };
         await this.store.createTemplate(value);
       }

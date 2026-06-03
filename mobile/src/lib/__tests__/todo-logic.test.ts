@@ -2,12 +2,16 @@ import { describe, it, expect } from '@jest/globals';
 import type { TodoOccurrence, TodoTemplate } from '@vitale/shared';
 import {
   localDateStr,
+  localTimeStr,
+  isValidTime,
   addDays,
   daysBetween,
   firstDueDate,
   nextDueDate,
   triggeredDueDate,
   isOverdue,
+  isVisibleNow,
+  isPastEnd,
   daysLate,
   dueUsage,
   reconcileTemplate,
@@ -113,6 +117,59 @@ describe('isOverdue / daysLate', () => {
   });
 });
 
+describe('janela de horário', () => {
+  it('localTimeStr formata HH:MM zero-padded', () => {
+    expect(localTimeStr(new Date('2026-05-20T09:05:00'))).toBe('09:05');
+    expect(localTimeStr(new Date('2026-05-20T23:59:00'))).toBe('23:59');
+  });
+  it('isValidTime aceita 00:00–23:59 e rejeita o resto', () => {
+    expect(isValidTime('18:00')).toBe(true);
+    expect(isValidTime('00:00')).toBe(true);
+    expect(isValidTime('23:59')).toBe(true);
+    expect(isValidTime('24:00')).toBe(false);
+    expect(isValidTime('18:60')).toBe(false);
+    expect(isValidTime('8:00')).toBe(false);
+    expect(isValidTime('')).toBe(false);
+  });
+
+  describe('isVisibleNow (startTime)', () => {
+    const t = { startTime: '18:00' };
+    it('esconde a do dia antes do horário', () => {
+      expect(isVisibleNow(t, { dueDate: TODAY }, TODAY, '17:00')).toBe(false);
+    });
+    it('mostra a do dia a partir do horário', () => {
+      expect(isVisibleNow(t, { dueDate: TODAY }, TODAY, '18:00')).toBe(true);
+      expect(isVisibleNow(t, { dueDate: TODAY }, TODAY, '19:30')).toBe(true);
+    });
+    it('dia passado ou futuro: sempre visível', () => {
+      expect(isVisibleNow(t, { dueDate: '2026-05-18' }, TODAY, '10:00')).toBe(true);
+      expect(isVisibleNow(t, { dueDate: '2026-05-22' }, TODAY, '10:00')).toBe(true);
+    });
+    it('sem startTime ou sem data: sempre visível', () => {
+      expect(isVisibleNow({}, { dueDate: TODAY }, TODAY, '01:00')).toBe(true);
+      expect(isVisibleNow(t, { dueDate: null }, TODAY, '01:00')).toBe(true);
+    });
+  });
+
+  describe('isPastEnd (endTime)', () => {
+    const t = { endTime: '20:00' };
+    it('passou da hora final hoje', () => {
+      expect(isPastEnd(t, occ({ dueDate: TODAY }), TODAY, '21:00')).toBe(true);
+    });
+    it('antes da hora final hoje: false', () => {
+      expect(isPastEnd(t, occ({ dueDate: TODAY }), TODAY, '19:00')).toBe(false);
+    });
+    it('dia anterior: passou (independe da hora)', () => {
+      expect(isPastEnd(t, occ({ dueDate: '2026-05-18' }), TODAY, '00:01')).toBe(true);
+    });
+    it('sem endTime, não-pendente ou sem data: false', () => {
+      expect(isPastEnd({}, occ({ dueDate: TODAY }), TODAY, '23:59')).toBe(false);
+      expect(isPastEnd(t, occ({ dueDate: TODAY, status: 'done' }), TODAY, '23:59')).toBe(false);
+      expect(isPastEnd(t, occ({ dueDate: null }), TODAY, '23:59')).toBe(false);
+    });
+  });
+});
+
 describe('dueUsage', () => {
   const base: Pick<TodoTemplate, 'recurrence' | 'meter' | 'meterAtLastDone'> = {
     recurrence: { kind: 'usage', meterUnit: 'km', every: 5000 },
@@ -129,7 +186,9 @@ describe('dueUsage', () => {
 });
 
 describe('reconcileTemplate', () => {
-  const tmpl = (p: Partial<TodoTemplate>): Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue'> => ({
+  const tmpl = (
+    p: Partial<TodoTemplate>,
+  ): Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue' | 'endTime'> => ({
     id: 't1',
     active: true,
     recurrence: { kind: 'monthly', day: 1 },
@@ -181,5 +240,47 @@ describe('reconcileTemplate', () => {
       TODAY,
     );
     expect(actions).toEqual([]);
+  });
+
+  it('endTime: cancela a do dia após o horário e suprime o create de calendário', () => {
+    const actions = reconcileTemplate(
+      tmpl({ recurrence: { kind: 'weekly', weekdays: [3] }, overdue: 'carry', endTime: '20:00' }),
+      [occ({ id: 'hoje', dueDate: TODAY })],
+      TODAY,
+      '21:00',
+    );
+    expect(actions).toEqual([{ type: 'cancel', occId: 'hoje', templateId: 't1', dueDate: TODAY }]);
+  });
+
+  it('endTime: antes do horário não cancela', () => {
+    const actions = reconcileTemplate(
+      tmpl({ recurrence: { kind: 'weekly', weekdays: [3] }, overdue: 'carry', endTime: '20:00' }),
+      [occ({ id: 'hoje', dueDate: TODAY })],
+      TODAY,
+      '10:00',
+    );
+    expect(actions).toEqual([]);
+  });
+
+  it('endTime sobrepõe carry: vencida com endTime é cancelada (não permanece)', () => {
+    const actions = reconcileTemplate(
+      tmpl({ recurrence: { kind: 'monthly', day: 1 }, overdue: 'carry', endTime: '20:00' }),
+      [occ({ id: 'old', dueDate: '2026-05-01' })],
+      TODAY,
+      '08:00',
+    );
+    expect(actions).toEqual([{ type: 'cancel', occId: 'old', templateId: 't1', dueDate: '2026-05-01' }]);
+  });
+
+  it('endTime precede expire: cancela em vez de expirar', () => {
+    const actions = reconcileTemplate(
+      tmpl({ recurrence: { kind: 'weekly', weekdays: [3] }, overdue: 'expire', endTime: '20:00' }),
+      [occ({ id: 'old', dueDate: '2026-05-13' })],
+      TODAY,
+      '08:00',
+    );
+    expect(actions).toContainEqual({ type: 'cancel', occId: 'old', templateId: 't1', dueDate: '2026-05-13' });
+    expect(actions.some((a) => a.type === 'expire')).toBe(false);
+    expect(actions.some((a) => a.type === 'create')).toBe(false);
   });
 });

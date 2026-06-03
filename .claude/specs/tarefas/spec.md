@@ -23,6 +23,7 @@ recorrentes por data, por intervalo após concluir, avulsas, e gatilhos não-tem
 | Encadeamento (`onComplete`) | lista de séries-filhas instanciadas ao concluir esta tarefa |
 | Se não fizer no dia (`overdue`) | `carry` (mantém atrasada) · `expire` (some) |
 | Cancelamento (`cancelPolicy`) | `none` (obrigatória) · `manual` · `auto` (após o dia) |
+| Janela de horário (`startTime`/`endTime`) | opcionais `'HH:MM'`, só p/ recorrências com data |
 | Âncora da próxima | calendário (`monthly`/`weekly`/`yearly`) · conclusão (`after_completion`) |
 
 Os 5 exemplos do usuário:
@@ -64,6 +65,25 @@ inicial nem ocorrências por calendário; só nasce por gatilho (onComplete,
 on_workout/sync HealthKit, gatilhos manuais event/stock/usage). Use para tarefas
 filhas que existem só como consequência de outras (ex.: "tomar shake" disparada
 por "correr"). Configurável no editor ("Só nasce por gatilho").
+
+## Janela de horário (startTime / endTime)
+
+Campos opcionais `'HH:MM'` no template, válidos só para recorrências **com data**
+(`monthly`/`weekly`/`yearly`/`after_completion`). A janela é da série; as ocorrências
+herdam via `templateId`.
+
+- **`startTime`** — a ocorrência **do dia** só vira acionável a partir do horário.
+  É filtro de **exibição** (não bloqueia a criação): antes da hora ela aparece em
+  "Em breve"; depois, em "A fazer"/"Hoje". (`isVisibleNow`)
+- **`endTime`** — passado o horário no dia (ou em dias anteriores), a ocorrência é
+  **cancelada automaticamente** na reconciliação — **sempre**, sobrepondo
+  `carry`/`cancelPolicy`. O cancel passa pelo seam de avanço (gera a próxima como
+  qualquer resolução). (`isPastEnd` → ação `cancel` em `reconcileTemplate`)
+
+**Disparo:** sem timer em background/push, a aparição e o cancelamento acontecem na
+próxima reconciliação (`load`: abrir app, foreground, navegação) e por um `setTimeout`
+interno agendado para o próximo limite enquanto o app está aberto. `startTime` é a base
+para um lembrete push local futuro.
 
 ## Escopo v1
 

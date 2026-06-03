@@ -55,25 +55,7 @@
         }
       </div>
     }
-    @if (triggers().length) {
-      <h3 class="section">Gatilhos manuais</h3>
-      <div class="list">
-        @for (t of triggers(); track t.id) {
-          <div class="trigger">
-            <div class="body">
-              <div class="name">{{ t.name }}</div>
-              <div class="sub">{{ describe(t) }}{{ meterText(t) }}</div>
-            </div>
-            @if (t.recurrence.kind === 'usage') {
-              <button class="ghost" (click)="onUsage(t)">Atualizar</button>
-            } @else {
-              <button class="ghost" (click)="store.trigger(t.id)">Registrar</button>
-            }
-            <button class="ghost" (click)="openEdit(t)">Editar</button>
-          </div>
-        }
-      </div>
-    }
+
   }
 </div>
 

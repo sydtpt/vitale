@@ -16,7 +16,7 @@ export default function PerfilScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!profile && !preferences) loadSettings();
+    if (!profile) loadSettings();
   }, []);
 
   useEffect(() => {

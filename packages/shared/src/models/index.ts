@@ -283,6 +283,8 @@ export interface TodoTemplate {
   linkedActivityId?: number;      // activityId HealthKit que conclui esta tarefa (corrida=37, bike=13...)
   onComplete?: TodoSpawnRule[];   // encadeamento: ao concluir, instancia ocorrências destas séries
   triggerOnly?: boolean;          // true = só nasce por gatilho (onComplete/on_workout/manual); ignora ocorrência inicial e calendário
+  startTime?: string;             // 'HH:MM' local; só vale p/ recorrências com data. A ocorrência do dia só aparece a partir desse horário (base p/ lembrete push futuro)
+  endTime?: string;               // 'HH:MM' local; após esse horário no dia a ocorrência é cancelada automaticamente (sobrepõe carry/cancelPolicy)
   meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
   active: boolean;
   sort: number;
