@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { UserProfile, UserPreferences, AppTheme } from '@vitale/shared';
-import { resolveMapStyle, DEFAULT_MAP_STYLE } from '@vitale/shared';
+import { resolveMapStyle, DEFAULT_MAP_STYLE, resolveWallpaper, DEFAULT_WALLPAPER } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { getJSON, setJSON } from '../lib/local-store';
 import { useAuthStore } from './auth.store';
@@ -37,16 +37,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('user_preferences').select('*').eq('id', userId).maybeSingle(),
     ]);
-    // Sem linha remota (inclui offline/erro): preserva o que já está em memória/cache
-    // para não sobrescrever a preferência salva com os defaults.
-    const prefs: UserPreferences = prefsRes.data
+    const remotePrefs: UserPreferences | null = prefsRes.data
       ? {
           userId: prefsRes.data.id,
           theme: (prefsRes.data.theme ?? 'system') as AppTheme,
           glassEnabled: prefsRes.data.glass_enabled ?? false,
+          blurIntensity: prefsRes.data.blur_intensity ?? 100,
           language: prefsRes.data.language ?? 'pt-BR',
           notificationsEnabled: prefsRes.data.notifications_enabled ?? true,
           mapStyle: resolveMapStyle(prefsRes.data.map_style),
+          wallpaper: resolveWallpaper(prefsRes.data.wallpaper),
           dailyReminderTime: prefsRes.data.daily_reminder_time ?? undefined,
           nutritionCaloriesGoal: prefsRes.data.nutrition_calories_goal ?? undefined,
           nutritionProteinG: prefsRes.data.nutrition_protein_g ?? undefined,
@@ -55,15 +55,32 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           trainingDaysPerWeek: prefsRes.data.training_days_per_week ?? undefined,
           updatedAt: prefsRes.data.updated_at,
         }
-      : get().preferences ?? {
-          userId,
-          theme: 'system',
-          glassEnabled: false,
-          language: 'pt-BR',
-          notificationsEnabled: true,
-          mapStyle: DEFAULT_MAP_STYLE,
-          updatedAt: new Date().toISOString(),
-        };
+      : null;
+    // Preferência local já hidratada (cache/memória). Pode conter uma escolha
+    // recente do usuário que ainda não sincronizou para o remoto.
+    const localPrefs = get().preferences;
+    const localIsNewer =
+      !!remotePrefs &&
+      !!localPrefs &&
+      localPrefs.userId === userId &&
+      Date.parse(localPrefs.updatedAt) > Date.parse(remotePrefs.updatedAt);
+    // Last-write-wins por timestamp: só deixamos o remoto sobrescrever quando ele
+    // for mais novo. Assim uma escolha local recente (ex.: papel de parede) não é
+    // revertida para o snapshot remoto/default se o upsert ainda não chegou. Sem
+    // linha remota (offline/erro), preserva o que já está em memória/cache.
+    const prefs: UserPreferences =
+      (localIsNewer ? localPrefs : remotePrefs) ??
+      localPrefs ?? {
+        userId,
+        theme: 'system',
+        glassEnabled: false,
+        blurIntensity: 100,
+        language: 'pt-BR',
+        notificationsEnabled: true,
+        mapStyle: DEFAULT_MAP_STYLE,
+        wallpaper: DEFAULT_WALLPAPER,
+        updatedAt: new Date().toISOString(),
+      };
     set({
       loading: false,
       profile: profileRes.data
@@ -104,22 +121,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       userId,
       theme: 'system' as AppTheme,
       glassEnabled: false,
+      blurIntensity: 100,
       language: 'pt-BR',
       notificationsEnabled: true,
       mapStyle: DEFAULT_MAP_STYLE,
+      wallpaper: DEFAULT_WALLPAPER,
       updatedAt: new Date().toISOString(),
     };
     const next: UserPreferences = { ...current, ...patch, updatedAt: new Date().toISOString() };
     set({ preferences: next });
     // Persiste localmente na hora ("ao ativar, salvar") — independente da rede.
-    setJSON(PREFS_KEY, next);
-    await supabase.from('user_preferences').upsert({
+    await setJSON(PREFS_KEY, next);
+    const { error } = await supabase.from('user_preferences').upsert({
       id: userId,
       theme: next.theme,
       glass_enabled: next.glassEnabled,
+      blur_intensity: next.blurIntensity ?? 100,
       language: next.language,
       notifications_enabled: next.notificationsEnabled,
       map_style: next.mapStyle,
+      wallpaper: next.wallpaper,
       daily_reminder_time: next.dailyReminderTime ?? null,
       nutrition_calories_goal: next.nutritionCaloriesGoal ?? null,
       nutrition_protein_g: next.nutritionProteinG ?? null,
@@ -127,5 +148,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       nutrition_fat_g: next.nutritionFatG ?? null,
       training_days_per_week: next.trainingDaysPerWeek ?? null,
     });
+    // Falha de sync não derruba a escolha local (já no cache); só não fica silenciosa.
+    if (error) console.warn('[settings] falha ao salvar preferências no servidor:', error.message);
   },
 }));

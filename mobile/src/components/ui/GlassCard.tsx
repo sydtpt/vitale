@@ -13,8 +13,9 @@ interface Props extends ViewProps {
  * enables Glass in Appearance; otherwise a plain solid surface. Pass card
  * styles (padding, radius, etc.) via `style` as usual.
  */
-export function GlassCard({ style, children, intensity = 60, ...rest }: Props) {
-  const { glass, scheme, colors } = useTheme();
+export function GlassCard({ style, children, intensity, ...rest }: Props) {
+  const { glass, scheme, blurIntensity, colors } = useTheme();
+  const resolvedIntensity = intensity ?? blurIntensity;
 
   if (!glass) {
     return (
@@ -25,15 +26,17 @@ export function GlassCard({ style, children, intensity = 60, ...rest }: Props) {
   }
 
   const dark = scheme === 'dark';
-  // Tint leve sobre o blur — quanto menor o alpha, mais translúcido (look iOS nativo).
-  const overlay = dark ? 'rgba(30,26,21,0.90)' : 'rgba(255,255,255,0.90)';
-  // Borda highlight fina para o acabamento de vidro nativo.
-  const hairline = dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.25)';
+  // Overlay: quanto maior blurIntensity, mais transparente (menor alpha).
+  const overlayAlpha = 0.06 + (1 - resolvedIntensity / 100) * 0.80;
+  const overlay = dark
+    ? `rgba(20,16,12,${overlayAlpha.toFixed(2)})`
+    : `rgba(255,252,248,${overlayAlpha.toFixed(2)})`;
+  const hairline = dark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.60)';
 
   return (
     <BlurView
-      tint={dark ? 'dark' : 'light'}
-      intensity={intensity}
+      tint={dark ? 'dark' : 'extraLight'}
+      intensity={resolvedIntensity}
       experimentalBlurMethod="dimezisBlurView"
       style={[style, styles.glass, { borderColor: hairline }]}
       {...rest}

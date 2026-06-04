@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo } from 'react';
-import { View, Text, Pressable, Switch, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, Switch, StyleSheet, ScrollView, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import { MAP_STYLES, SAMPLE_ROUTE, type MapStyle } from '@vitale/shared';
+import { MAP_STYLES, SAMPLE_ROUTE, WALLPAPERS, type MapStyle } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
 import { buildMapHtml } from '../../lib/map-html';
+import { RotinaBackground } from '../../components/ui/RotinaBackground';
 import { colors, spacing, radii, useThemedStyles } from '../../theme';
 
 const MAP_STYLE_ORDER: MapStyle[] = [
@@ -24,6 +25,81 @@ const MAP_STYLE_ORDER: MapStyle[] = [
   'ofm_3d',
 ];
 
+const THUMB = 24;
+
+function BlurSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        if (trackWidth > 0) {
+          const x = e.nativeEvent.locationX - THUMB / 2;
+          onChange(Math.round(Math.max(0, Math.min(100, (x / (trackWidth - THUMB)) * 100))));
+        }
+      },
+      onPanResponderMove: (e) => {
+        if (trackWidth > 0) {
+          const x = e.nativeEvent.locationX - THUMB / 2;
+          onChange(Math.round(Math.max(0, Math.min(100, (x / (trackWidth - THUMB)) * 100))));
+        }
+      },
+    }),
+  ).current;
+
+  const thumbLeft = trackWidth > 0 ? (value / 100) * (trackWidth - THUMB) : 0;
+  const fillPct = value;
+
+  return (
+    <View
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      {...panResponder.panHandlers}
+      style={sliderStyles.hit}
+    >
+      <View style={sliderStyles.track}>
+        <View style={[sliderStyles.fill, { width: `${fillPct}%` }]} />
+      </View>
+      <View style={[sliderStyles.thumb, { left: thumbLeft }]} />
+    </View>
+  );
+}
+
+const sliderStyles = StyleSheet.create({
+  hit: { paddingVertical: 14, justifyContent: 'center' },
+  track: {
+    height: 4,
+    backgroundColor: colors.line,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginHorizontal: THUMB / 2,
+  },
+  fill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+  },
+  thumb: {
+    position: 'absolute',
+    width: THUMB,
+    height: THUMB,
+    borderRadius: THUMB / 2,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    top: 14 - THUMB / 2 + 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+});
+
 export default function AppSettingsScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
@@ -36,8 +112,10 @@ export default function AppSettingsScreen() {
 
   const theme = preferences?.theme ?? 'system';
   const glass = preferences?.glassEnabled ?? false;
+  const blurIntensity = preferences?.blurIntensity ?? 100;
   const notifs = preferences?.notificationsEnabled ?? true;
   const mapStyle = preferences?.mapStyle ?? 'voyager';
+  const wallpaper = preferences?.wallpaper ?? 'flat';
   const darkMode = theme === 'dark';
 
   // HTML de cada preview (rota fixa de exemplo) — só depende de constantes.
@@ -107,7 +185,7 @@ export default function AppSettingsScreen() {
         <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Visual</Text>
         <View style={styles.card}>
           {/* Glass effect */}
-          <View style={styles.row}>
+          <View style={[styles.row, styles.rowBorder]}>
             <View style={[styles.iconWrap, { backgroundColor: '#5BAFDA' }]}>
               <Ionicons name="partly-sunny-outline" size={15} color="#fff" />
             </View>
@@ -123,6 +201,54 @@ export default function AppSettingsScreen() {
               ios_backgroundColor={colors.line}
             />
           </View>
+
+          {/* Blur intensity slider */}
+          <View style={styles.sliderRow}>
+            <View style={styles.sliderHeader}>
+              <View style={[styles.iconWrap, { backgroundColor: '#8BC4E0' }]}>
+                <Ionicons name="water-outline" size={15} color="#fff" />
+              </View>
+              <Text style={styles.rowLabel}>Intensidade</Text>
+              <Text style={styles.intensityValue}>{blurIntensity}%</Text>
+            </View>
+            <BlurSlider
+              value={blurIntensity}
+              onChange={(v) => updatePreferences({ blurIntensity: v })}
+            />
+          </View>
+        </View>
+
+        {/* Wallpaper section — previews em retrato (formas ancoradas topo/rodapé). */}
+        <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Papel de parede</Text>
+        <View style={styles.wpGrid}>
+          {WALLPAPERS.map((w) => {
+            const selected = wallpaper === w.id;
+            return (
+              <Pressable
+                key={w.id}
+                onPress={() => updatePreferences({ wallpaper: w.id })}
+                style={({ pressed }) => [styles.wpCard, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Papel de parede ${w.label}`}
+              >
+                <View style={[styles.wpPreview, selected && styles.mapPreviewSelected]}>
+                  <RotinaBackground variant={w.id} />
+                  {selected && (
+                    <View style={styles.mapCheck}>
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  )}
+                </View>
+                <Text
+                  style={[styles.mapLabel, selected && styles.mapLabelSelected]}
+                  numberOfLines={1}
+                >
+                  {w.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Map style section */}
@@ -229,6 +355,25 @@ const createStyles = () => StyleSheet.create({
   rowMeta: { flex: 1, gap: 2 },
   rowSub: { fontSize: 12, color: colors.ink3 },
   rowRight: { width: 22, alignItems: 'center' },
+  sliderRow: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  sliderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 2,
+  },
+  intensityValue: {
+    marginLeft: 'auto',
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    minWidth: 38,
+    textAlign: 'right',
+  },
   iconWrap: {
     width: 30,
     height: 30,
@@ -240,6 +385,24 @@ const createStyles = () => StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  wpGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    gap: spacing.sm,
+  },
+  wpCard: {
+    width: '31%',
+  },
+  wpPreview: {
+    aspectRatio: 232 / 478,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceMute,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    marginBottom: 6,
   },
   mapCard: {
     width: '48%',

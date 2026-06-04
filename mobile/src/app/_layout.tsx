@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/auth.store';
 import { startActivitySync, stopActivitySync } from '../services/healthkit-observer';
-import { ThemeProvider, colors } from '../theme';
+import { ThemeProvider, useTheme, baseBg } from '../theme';
+import { RotinaBackground } from '../components/ui/RotinaBackground';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -33,8 +35,23 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <StatusBar style="dark" backgroundColor={colors.bg} />
-      <Stack screenOptions={{ headerShown: false }}>
+      <AppShell />
+    </ThemeProvider>
+  );
+}
+
+/** Casca visual dentro do ThemeProvider: papel de parede atrás da navegação. */
+function AppShell() {
+  const { scheme, wallpaper } = useTheme();
+  const base = baseBg(scheme);
+
+  return (
+    <View style={[styles.root, { backgroundColor: base }]}>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={base} />
+      {wallpaper !== 'flat' && <RotinaBackground variant={wallpaper} />}
+      <Stack
+        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}
+      >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="fitness/index" options={{ animation: 'slide_from_right' }} />
@@ -58,6 +75,10 @@ export default function RootLayout() {
         <Stack.Screen name="configuracoes/objetivos" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/dados" options={{ animation: 'slide_from_right' }} />
       </Stack>
-    </ThemeProvider>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});

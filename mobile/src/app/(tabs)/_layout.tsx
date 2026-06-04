@@ -87,64 +87,40 @@ function TabItems({
 }
 
 function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
-  const { scheme, glass } = useTheme();
+  const { scheme, blurIntensity } = useTheme();
   const insets = useSafeAreaInsets();
   const isDark = scheme === 'dark';
 
-  const inactiveColor = isDark ? 'rgba(255,255,255,0.38)' : 'rgba(31,27,22,0.32)';
-
-  // ── Glass pill ────────────────────────────────────────────────────────────
-  if (glass) {
-    const bottom = Math.max(insets.bottom, 16) + 8;
-    const tintBg = isDark ? 'rgba(30,26,21,0.22)' : 'rgba(255,247,238,0.25)';
-    const borderColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.80)';
-    const shadowOpacity = isDark ? 0.40 : 0.15;
-
-    return (
-      <View style={[styles.pillWrapper, { bottom, shadowOpacity }]}>
-        <BlurView
-          tint={isDark ? 'dark' : 'extraLight'}
-          intensity={70}
-          style={styles.pill}
-        >
-          {/* very light tint so content behind is clearly visible */}
-          <View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFill, { backgroundColor: tintBg, borderRadius: RADIUS }]}
-          />
-          {/* specular border — only in glass mode */}
-          <View
-            pointerEvents="none"
-            style={[
-              StyleSheet.absoluteFill,
-              { borderRadius: RADIUS, borderWidth: StyleSheet.hairlineWidth * 1.5, borderColor },
-            ]}
-          />
-          <View style={styles.row}>
-            <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} />
-          </View>
-        </BlurView>
-      </View>
-    );
-  }
-
-  // ── Solid (original) ──────────────────────────────────────────────────────
-  const solidBg = isDark ? 'rgba(20,17,13,0.97)' : 'rgba(255,247,238,0.97)';
+  const bottom = Math.max(insets.bottom, 16) + 8;
+  const inactiveColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(31,27,22,0.35)';
+  // Tint fixo e mínimo: o blur (frosted) faz a separação visual, sem camada leitosa.
+  const tintBg = isDark ? 'rgba(20,16,12,0.12)' : 'rgba(255,252,248,0.05)';
+  const borderColor = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.85)';
+  const shadowOpacity = isDark ? 0.22 : 0.10;
 
   return (
-    <View
-      style={[
-        styles.solidWrapper,
-        {
-          paddingBottom: insets.bottom,
-          backgroundColor: solidBg,
-          borderTopColor: colors.line,
-        },
-      ]}
-    >
-      <View style={styles.row}>
-        <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} />
-      </View>
+    <View style={[styles.pillWrapper, { bottom, shadowOpacity }]}>
+      <BlurView
+        tint={isDark ? 'dark' : 'extraLight'}
+        intensity={blurIntensity}
+        experimentalBlurMethod="dimezisBlurView"
+        style={styles.pill}
+      >
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: tintBg, borderRadius: RADIUS }]}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            { borderRadius: RADIUS, borderWidth: StyleSheet.hairlineWidth * 1.5, borderColor },
+          ]}
+        />
+        <View style={styles.row}>
+          <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} />
+        </View>
+      </BlurView>
     </View>
   );
 }
@@ -153,7 +129,7 @@ export default function TabLayout() {
   return (
     <Tabs
       tabBar={(props) => <AdaptiveTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: 'transparent' } }}
     >
       <Tabs.Screen name="index"     options={{ title: 'Hoje' }} />
       <Tabs.Screen name="compras"   options={{ title: 'Compras' }} />
@@ -175,17 +151,12 @@ const styles = StyleSheet.create({
     right: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 24,
+    shadowRadius: 18,
     elevation: 20,
   },
   pill: {
     borderRadius: RADIUS,
     overflow: 'hidden',
-  },
-
-  // Solid original
-  solidWrapper: {
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
 
   // Shared

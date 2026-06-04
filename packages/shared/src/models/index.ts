@@ -4,6 +4,7 @@
  */
 
 import type { MapStyle } from '../constants/map';
+import type { Wallpaper } from '../constants/wallpaper';
 
 export interface Meal {
   id: string;
@@ -352,9 +353,11 @@ export interface UserPreferences {
   userId: string;
   theme: AppTheme;
   glassEnabled: boolean;
+  blurIntensity: number;           // 0–100; 100 = blur máximo / mais transparente
   language: string;
   notificationsEnabled: boolean;
   mapStyle: MapStyle;                 // estilo dos mapas de atividade
+  wallpaper: Wallpaper;               // papel de parede (fundo) do app
   dailyReminderTime?: string;         // 'HH:MM'
   nutritionCaloriesGoal?: number;
   nutritionProteinG?: number;

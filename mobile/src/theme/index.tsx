@@ -8,6 +8,7 @@
  */
 import React, { createContext, useContext, useEffect, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
+import { resolveWallpaper, type Wallpaper } from '@vitale/shared';
 import { useSettingsStore } from '../store/settings.store';
 import { useAuthStore } from '../store/auth.store';
 
@@ -16,6 +17,8 @@ export type ColorScheme = 'light' | 'dark';
 export const lightColors = {
   // Surfaces
   bg: '#FFF7EE',
+  bg2: '#ECE3D2',
+  bg4: '#E3D5BC',
   surface: '#FFFFFF',
   surfaceWarm: '#FFEFD9',
   surfaceMute: '#F6ECDC',
@@ -29,6 +32,10 @@ export const lightColors = {
   // Lines
   line: '#EFE6D8',
   lineDeep: '#E3D7C2',
+  lineWarm: '#F0C9A8',
+
+  // Papel de parede (grade pontilhada)
+  dot: '#E0D2BC',
 
   // Brand / Primary
   primary: '#F25C2B',
@@ -45,13 +52,15 @@ export const lightColors = {
   blue: '#6E8CC9',
   blueSoft: '#DDE4F2',
   casa: '#B4825B',
-} as const;
+};
 
 export type ThemeColors = typeof lightColors;
 
 export const darkColors: ThemeColors = {
   // Surfaces — warm near-black to keep the brand's warmth
   bg: '#14110D',
+  bg2: '#1C1812',
+  bg4: '#2A231B',
   surface: '#1E1A15',
   surfaceWarm: '#262019',
   surfaceMute: '#241E18',
@@ -65,6 +74,10 @@ export const darkColors: ThemeColors = {
   // Lines
   line: '#2E2820',
   lineDeep: '#3A3329',
+  lineWarm: '#3A2C20',
+
+  // Papel de parede (grade pontilhada)
+  dot: '#2E2820',
 
   // Brand / Primary
   primary: '#F25C2B',
@@ -89,15 +102,30 @@ const palettes: Record<ColorScheme, ThemeColors> = { light: lightColors, dark: d
 let activeScheme: ColorScheme = 'light';
 
 /**
+ * Quando um papel de parede (≠ flat) está ativo, o fundo das telas (`bg`) fica
+ * transparente para a camada de wallpaper desenhada na raiz aparecer atrás de
+ * todo o conteúdo. Mantido em sincronia pelo `ThemeProvider`.
+ */
+let wallpaperActive = false;
+
+/**
  * Live palette. Reading any property returns the value for the active scheme,
  * so JSX (`colors.ink`) reflects theme changes on the next render. Styles must
  * be rebuilt via `useThemedStyles` for changes to take effect.
  */
 export const colors: ThemeColors = new Proxy({} as ThemeColors, {
-  get: (_t, prop: string) => (palettes[activeScheme] as Record<string, string>)[prop],
+  get: (_t, prop: string) => {
+    if (prop === 'bg' && wallpaperActive) return 'transparent';
+    return (palettes[activeScheme] as Record<string, string>)[prop];
+  },
   ownKeys: () => Reflect.ownKeys(palettes[activeScheme]),
   getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
 });
+
+/** Cor de fundo base opaca do esquema ativo (ignora o wallpaper). Útil p/ status bar. */
+export function baseBg(scheme: ColorScheme): string {
+  return palettes[scheme].bg;
+}
 
 export const MOD = {
   treino:   { tint: '#FFE3D2', accent: '#F25C2B' },
@@ -154,11 +182,13 @@ export const shadows = {
     elevation: 3,
   },
   card: {
+    // Mockup: 0 10px 24px -18px rgba(31,27,22,.4). RN não tem spread negativo,
+    // então aproximamos a sombra contida reduzindo a opacidade.
     shadowColor: '#1F1B16',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
   },
 } as const;
 
@@ -167,10 +197,12 @@ export const shadows = {
 interface ThemeValue {
   scheme: ColorScheme;
   glass: boolean;
+  blurIntensity: number;
+  wallpaper: Wallpaper;
   colors: ThemeColors;
 }
 
-const ThemeContext = createContext<ThemeValue>({ scheme: 'light', glass: false, colors });
+const ThemeContext = createContext<ThemeValue>({ scheme: 'light', glass: false, blurIntensity: 100, wallpaper: 'flat', colors });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const system = useColorScheme();
@@ -185,11 +217,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const pref = preferences?.theme ?? 'system';
   const scheme: ColorScheme = pref === 'system' ? (system === 'dark' ? 'dark' : 'light') : pref;
   const glass = preferences?.glassEnabled ?? false;
+  const blurIntensity = preferences?.blurIntensity ?? 100;
+  const wallpaper = resolveWallpaper(preferences?.wallpaper);
 
   // Keep the proxy current before children read `colors` this render pass.
   activeScheme = scheme;
+  wallpaperActive = wallpaper !== 'flat';
 
-  const value = useMemo<ThemeValue>(() => ({ scheme, glass, colors }), [scheme, glass]);
+  const value = useMemo<ThemeValue>(
+    () => ({ scheme, glass, blurIntensity, wallpaper, colors }),
+    [scheme, glass, blurIntensity, wallpaper],
+  );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
@@ -200,9 +238,10 @@ export const useTheme = () => useContext(ThemeContext);
  * changes. The factory reads the live `colors` proxy.
  */
 export function useThemedStyles<T>(factory: () => T): T {
-  const { scheme, glass } = useTheme();
+  const { scheme, glass, wallpaper } = useTheme();
+  // wallpaper afeta `colors.bg` (transparente quando ≠ flat) → rebuild necessário.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(factory, [scheme, glass]);
+  return useMemo(factory, [scheme, glass, wallpaper !== 'flat']);
 }
 
 /**
@@ -212,13 +251,15 @@ export function useThemedStyles<T>(factory: () => T): T {
  * once so the subtree re-renders when the scheme changes.
  */
 export function themed<T extends object>(factory: () => T): T {
-  const cache = new Map<ColorScheme, T>();
+  const cache = new Map<string, T>();
   return new Proxy({} as T, {
     get: (_t, prop: string | symbol) => {
-      let sheet = cache.get(activeScheme);
+      // Inclui o estado do wallpaper na chave: ele altera `colors.bg`.
+      const key = `${activeScheme}:${wallpaperActive ? 'wp' : 'flat'}`;
+      let sheet = cache.get(key);
       if (!sheet) {
         sheet = factory();
-        cache.set(activeScheme, sheet);
+        cache.set(key, sheet);
       }
       return (sheet as Record<string | symbol, unknown>)[prop];
     },
