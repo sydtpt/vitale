@@ -35,7 +35,7 @@ export function GlassCard({ style, children, intensity, ...rest }: Props) {
 
   return (
     <BlurView
-      tint={dark ? 'dark' : 'extraLight'}
+      tint={dark ? 'dark' : 'default'}
       intensity={resolvedIntensity}
       experimentalBlurMethod="dimezisBlurView"
       style={[style, styles.glass, { borderColor: hairline }]}

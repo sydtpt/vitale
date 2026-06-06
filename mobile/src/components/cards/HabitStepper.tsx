@@ -3,8 +3,7 @@ import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { CounterHabit } from '@vitale/shared';
-import { colors, radii, MOD, useThemedStyles } from '../../theme';
-import { GlassCard } from '../ui/GlassCard';
+import { colors, radii, MOD, shadows, useThemedStyles } from '../../theme';
 import { isMet, isOver, progress } from '../../lib/habit-logic';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 
@@ -70,7 +69,7 @@ export function HabitStepper({ habit, value, streak, streakBad, onIncrement, onD
     : { borderColor: colors.line, borderWidth: 1 };
 
   return (
-    <GlassCard style={[styles.card, borderStyle]}>
+    <View style={[styles.card, borderStyle]}>
       {/* − (long-press zera o dia) */}
       <Pressable
         onPress={onMinus}
@@ -135,18 +134,20 @@ export function HabitStepper({ habit, value, streak, streakBad, onIncrement, onD
       >
         <Ionicons name="add" size={24} color="#fff" />
       </Pressable>
-    </GlassCard>
+    </View>
   );
 }
 
 const createStyles = () => StyleSheet.create({
   card: {
+    backgroundColor: colors.surface,
     borderRadius: radii['2xl'],
     padding: 12,
     marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    ...shadows.card,
   },
   btn: {
     width: 48,

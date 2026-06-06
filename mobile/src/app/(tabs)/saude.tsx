@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHealthStore } from '../../store/health.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
+import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import {
   CATEGORIES,
   categoryMeta,
@@ -137,6 +138,7 @@ function UnavailableScreen() {
 export default function HealthScreen() {
   useTheme();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useTabBarHeight();
   const router = useRouter();
   const { permissionStatus, summaryLoading, syncing, requestPermission, loadSummaries, syncToCloud } =
     useHealthStore();
@@ -206,7 +208,7 @@ export default function HealthScreen() {
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false}>
           {CATEGORIES.map((cat) => (
             <View key={cat.id} style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -255,7 +257,7 @@ const styles = themed(() => StyleSheet.create({
   },
   syncDisabled: { opacity: 0.5 },
 
-  scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
+  scroll: { paddingHorizontal: spacing.lg },
 
   section: { marginBottom: spacing.xl },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm, marginLeft: 2 },

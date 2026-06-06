@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, radii, useThemedStyles } from '../../theme';
+import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 export default function DadosScreen() {
   const styles = useThemedStyles(createStyles);
@@ -49,7 +49,7 @@ const createStyles = () => StyleSheet.create({
   pressed: { opacity: 0.6 },
   content: { padding: spacing.lg },
   sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm, paddingHorizontal: 4 },
-  card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden' },
+  card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', ...shadows.card },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: 14, gap: 12 },
   rowContent: { flex: 1, gap: 2 },
   rowLabel: { fontSize: 15, color: colors.ink },

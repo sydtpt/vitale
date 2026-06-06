@@ -4,11 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { WEEK, TODAY_IDX, TREINOS_SEMANA, HEATMAP } from '../../services/mock-data';
 
 export default function SemanaScreen() {
   const styles = useThemedStyles(createStyles);
+  const tabBarHeight = useTabBarHeight();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   return (
@@ -20,7 +22,7 @@ export default function SemanaScreen() {
         <Text style={styles.headerTitle}>Semana</Text>
         <View style={styles.headerSpacer} />
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
       <View style={styles.greet}>
         <Text style={styles.eyebrow}>SEMANA 21</Text>
         <Text style={styles.title}>18 — 24 maio</Text>

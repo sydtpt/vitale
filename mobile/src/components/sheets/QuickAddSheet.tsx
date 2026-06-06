@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing } from '../../theme';
+import { colors, radii, spacing, shadows } from '../../theme';
 
 type SheetKind = 'pick' | 'food' | 'gasto';
 
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   opt: {
     width: '48%', backgroundColor: colors.surface, borderRadius: 16,
-    padding: 14, gap: 6,
+    padding: 14, gap: 6, ...shadows.card,
   },
   ico: {
     width: 32, height: 32, borderRadius: 10,
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   saveTxt: { color: '#fff', fontWeight: '600', fontSize: 13 },
   field: {
-    marginTop: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 14,
+    marginTop: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 14, ...shadows.card,
   },
   fieldLabel: {
     fontSize: 12, color: colors.ink3, letterSpacing: 0.3, fontWeight: '600',
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   amountCur: { fontSize: 22, color: colors.ink3 },
   amountCents: { color: colors.ink3 },
   fields: {
-    marginTop: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 10,
+    marginTop: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 10, ...shadows.card,
   },
   frow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

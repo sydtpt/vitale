@@ -124,6 +124,7 @@ interface EditorState {
     .modal {
       position: fixed; inset: 0; margin: auto; width: 90%; max-width: 500px; max-height: 90vh;
       background: var(--surface); border-radius: var(--radii-2xl); display: flex; flex-direction: column;
+      box-shadow: var(--shadow-card);
       z-index: 1000; transform: scale(0.95) translateY(20px); opacity: 0; transition: all 0.2s; pointer-events: none;
       &.open { transform: scale(1) translateY(0); opacity: 1; pointer-events: auto; }
     }

@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
-import { colors, spacing, radii, useThemedStyles } from '../../theme';
+import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 const RED = '#E05C5C';
 
@@ -114,7 +114,7 @@ const createStyles = () => StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing['4xl'] },
   section: { marginBottom: spacing.xl },
   sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm, paddingHorizontal: 4 },
-  card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden' },
+  card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', ...shadows.card },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: 14, gap: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
   rowIcon: { width: 28, alignItems: 'center' },

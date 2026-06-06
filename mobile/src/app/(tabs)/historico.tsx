@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
+import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { buildOverview, type Period, type Metric } from '../../lib/activity-overview';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { getActivityMeta } from '../../lib/workout-types';
@@ -72,6 +73,7 @@ function Segmented<T extends string>({
 export default function HistoricoTabScreen() {
   useTheme();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useTabBarHeight();
   const router = useRouter();
   const { width } = useWindowDimensions();
 
@@ -185,7 +187,7 @@ export default function HistoricoTabScreen() {
         <Text style={styles.headerTitle}>Histórico</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <Segmented options={PERIODS} value={period} onChange={setPeriod} />
 
@@ -289,7 +291,7 @@ const styles = themed(() => StyleSheet.create({
   },
   retryText: { color: colors.ink, fontSize: 14, fontWeight: '600' },
 
-  scroll: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  scroll: { paddingHorizontal: spacing.lg },
 
   card: {
     backgroundColor: colors.surface,

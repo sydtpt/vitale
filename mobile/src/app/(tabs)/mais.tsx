@@ -2,7 +2,8 @@ import React from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, spacing, MOD, useThemedStyles } from '../../theme';
+import { colors, spacing, MOD, shadows, useThemedStyles } from '../../theme';
+import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 
 type Link = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -30,8 +31,9 @@ const LINKS: Link[] = [
 export default function MaisScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
+  const tabBarHeight = useTabBarHeight();
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
       <View style={styles.greet}>
         <Text style={styles.title}>Mais</Text>
       </View>
@@ -72,17 +74,17 @@ export default function MaisScreen() {
 
 const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, paddingTop: 54, paddingBottom: 100 },
+  content: { padding: spacing.lg, paddingTop: 54 },
   greet: { paddingVertical: spacing.lg },
   title: { fontFamily: 'InstrumentSerif', fontSize: 34, color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  tile: { width: '48%', backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 8 },
+  tile: { width: '48%', backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 8, ...shadows.card },
   pressed: { opacity: 0.7 },
   ico: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   tileTitle: { fontSize: 14, fontWeight: '600', color: colors.ink },
   tileSub: { fontSize: 12, color: colors.ink3 },
   sectionHeader: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: spacing.xl, marginBottom: spacing.sm },
-  settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 16, padding: 14 },
+  settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 16, padding: 14, ...shadows.card },
   settingsIco: { backgroundColor: colors.line },
   settingsText: { flex: 1, gap: 2 },
 });

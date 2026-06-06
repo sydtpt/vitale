@@ -92,24 +92,20 @@ function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
   const isDark = scheme === 'dark';
 
   const bottom = Math.max(insets.bottom, 16) + 8;
-  const inactiveColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(31,27,22,0.35)';
-  // Tint fixo e mínimo: o blur (frosted) faz a separação visual, sem camada leitosa.
-  const tintBg = isDark ? 'rgba(20,16,12,0.12)' : 'rgba(255,252,248,0.05)';
-  const borderColor = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.85)';
+  const inactiveColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(31,27,22,0.45)';
+  // tint "default" (UIBlurEffectStyleRegular) = material nativo translúcido,
+  // sem a camada branca leitosa do "extraLight" que deixava a pill opaca.
+  const borderColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.55)';
   const shadowOpacity = isDark ? 0.22 : 0.10;
 
   return (
     <View style={[styles.pillWrapper, { bottom, shadowOpacity }]}>
       <BlurView
-        tint={isDark ? 'dark' : 'extraLight'}
+        tint={isDark ? 'dark' : 'default'}
         intensity={blurIntensity}
         experimentalBlurMethod="dimezisBlurView"
         style={styles.pill}
       >
-        <View
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFill, { backgroundColor: tintBg, borderRadius: RADIUS }]}
-        />
         <View
           pointerEvents="none"
           style={[

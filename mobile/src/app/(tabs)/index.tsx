@@ -14,6 +14,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
 import { useHealthStore } from '../../store/health.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
+import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
 import { readinessFromSummaries } from '../../lib/health-readiness';
 import { isOverdue, isVisibleNow, localTimeStr } from '../../lib/todo-logic';
@@ -41,6 +42,7 @@ function getFirstName(user: User | null): string {
 
 export default function HojeScreen() {
   const styles = useThemedStyles(createStyles);
+  const tabBarHeight = useTabBarHeight();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [cardPage, setCardPage] = useState(0);
   const router = useRouter();
@@ -155,7 +157,7 @@ export default function HojeScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
         {/* Greeting */}
         <View style={styles.greet}>
           <Text style={styles.date}>{HOJE.date.toUpperCase()}</Text>
@@ -229,7 +231,7 @@ export default function HojeScreen() {
 
 const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, paddingTop: 54, paddingBottom: 100 },
+  content: { padding: spacing.lg, paddingTop: 54 },
   greet: { paddingVertical: spacing.lg },
   date: { fontSize: 13, color: colors.ink3, letterSpacing: 0.4, fontWeight: '600' },
   greeting: { fontFamily: 'InstrumentSerif', fontSize: 34, lineHeight: 36, marginTop: 4, color: colors.ink },

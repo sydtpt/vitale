@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../../store/settings.store';
-import { colors, spacing, radii, useThemedStyles } from '../../theme';
+import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 function NumInput({ value, onChange, placeholder }: { value?: number; onChange: (v?: number) => void; placeholder: string }) {
   const styles = useThemedStyles(createStyles);
@@ -122,7 +122,7 @@ const createStyles = () => StyleSheet.create({
   pressed: { opacity: 0.6 },
   content: { padding: spacing.lg, paddingBottom: spacing['4xl'] },
   sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm, paddingHorizontal: 4 },
-  card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden' },
+  card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', ...shadows.card },
   fieldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
   fieldLabel: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },

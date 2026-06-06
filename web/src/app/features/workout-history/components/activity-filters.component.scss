@@ -7,6 +7,7 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
+  box-shadow: var(--shadow-card);
 }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field.sm input { width: 92px; }

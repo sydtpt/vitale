@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { View, StyleSheet, AppState, AppStateStatus } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/auth.store';
@@ -31,6 +31,25 @@ export default function RootLayout() {
     if (!session) return;
     startActivitySync();
     return () => stopActivitySync();
+  }, [session]);
+
+  // Volta para home se o app ficou em background por mais de 5 minutos.
+  const backgroundedAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (!session) return;
+    const TIMEOUT = 5 * 60 * 1000;
+    const handleAppState = (next: AppStateStatus) => {
+      if (next === 'background' || next === 'inactive') {
+        backgroundedAt.current = Date.now();
+      } else if (next === 'active' && backgroundedAt.current !== null) {
+        if (Date.now() - backgroundedAt.current >= TIMEOUT) {
+          router.replace('/');
+        }
+        backgroundedAt.current = null;
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
   }, [session]);
 
   return (

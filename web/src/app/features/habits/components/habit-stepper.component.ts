@@ -57,6 +57,7 @@ import { isMet, isOver, progress } from '../data/habit-logic';
       display: flex; align-items: center; gap: 12px;
       background: var(--surface); border: 1px solid var(--line);
       border-radius: 16px; padding: 12px;
+      box-shadow: var(--shadow-card);
     }
     .stepper.met { border-color: color-mix(in srgb, var(--ink) 8%, var(--line)); }
     .stepper.over { border-color: var(--primary-deep); }

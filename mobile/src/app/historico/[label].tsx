@@ -552,7 +552,6 @@ const styles = themed(() => StyleSheet.create({
     paddingHorizontal: spacing.md,
     minWidth: 120,
     gap: 4,
-    ...shadows.card,
   },
   hlLabel: { fontSize: 11.5, color: colors.ink3, fontWeight: '600' },
   hlValue: { fontSize: 20, fontFamily: 'GeistMono', color: colors.ink, marginTop: 2 },

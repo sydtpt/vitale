@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
+import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { localDateStr, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence } from '../../lib/todo-format';
 import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
@@ -83,6 +84,7 @@ function ItemRow({ template, occurrence, onDone, onMore, done = false }: ItemRow
 export default function ComprasTabScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useTabBarHeight();
   const router = useRouter();
 
   const templates = useTodosStore((s) => s.templates);
@@ -173,7 +175,7 @@ export default function ComprasTabScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false}>
           {sortedCats.map((cat) => {
             const items = grouped.get(cat)!;
             return (
@@ -260,7 +262,7 @@ const createStyles = () => StyleSheet.create({
   estimateText: { fontSize: 13, color: colors.ink2 },
   estimateValue: { fontWeight: '700', color: ACCENT },
 
-  scroll: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  scroll: { paddingHorizontal: spacing.lg },
 
   catHeader: {
     flexDirection: 'row',

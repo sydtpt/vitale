@@ -108,6 +108,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  box-shadow: var(--shadow-card);
 }
 .stat.hl {
   background: var(--primary-soft);
@@ -128,6 +129,7 @@
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 20px;
+  box-shadow: var(--shadow-card);
 }
 .info-title, .zones-title, .form-title, .route-title { font-size: 14px; font-weight: 600; }
 
@@ -164,6 +166,7 @@
   border-radius: 12px;
   padding: 16px;
   text-align: center;
+  box-shadow: var(--shadow-card);
 }
 
 /* Tempo em zonas de FC. */

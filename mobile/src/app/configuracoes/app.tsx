@@ -8,7 +8,7 @@ import { MAP_STYLES, SAMPLE_ROUTE, WALLPAPERS, type MapStyle } from '@vitale/sha
 import { useSettingsStore } from '../../store/settings.store';
 import { buildMapHtml } from '../../lib/map-html';
 import { RotinaBackground } from '../../components/ui/RotinaBackground';
-import { colors, spacing, radii, useThemedStyles } from '../../theme';
+import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 const MAP_STYLE_ORDER: MapStyle[] = [
   'voyager',
@@ -29,37 +29,44 @@ const THUMB = 24;
 
 function BlurSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [trackWidth, setTrackWidth] = useState(0);
+  // Refs evitam closures obsoletas dentro do PanResponder (criado 1x).
+  const widthRef = useRef(0);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e) => {
-        if (trackWidth > 0) {
-          const x = e.nativeEvent.locationX - THUMB / 2;
-          onChange(Math.round(Math.max(0, Math.min(100, (x / (trackWidth - THUMB)) * 100))));
-        }
-      },
-      onPanResponderMove: (e) => {
-        if (trackWidth > 0) {
-          const x = e.nativeEvent.locationX - THUMB / 2;
-          onChange(Math.round(Math.max(0, Math.min(100, (x / (trackWidth - THUMB)) * 100))));
-        }
-      },
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
+      onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
     }),
   ).current;
 
+  function emit(locationX: number) {
+    const w = widthRef.current;
+    if (w <= 0) return;
+    const pct = Math.round(Math.max(0, Math.min(100, (locationX / w) * 100)));
+    onChangeRef.current(pct);
+  }
+
   const thumbLeft = trackWidth > 0 ? (value / 100) * (trackWidth - THUMB) : 0;
-  const fillPct = value;
 
   return (
     <View
-      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        widthRef.current = w;
+        setTrackWidth(w);
+      }}
       {...panResponder.panHandlers}
       style={sliderStyles.hit}
     >
       <View style={sliderStyles.track}>
-        <View style={[sliderStyles.fill, { width: `${fillPct}%` }]} />
+        <View style={[sliderStyles.fill, { width: `${value}%` }]} />
       </View>
       <View style={[sliderStyles.thumb, { left: thumbLeft }]} />
     </View>
@@ -112,7 +119,7 @@ export default function AppSettingsScreen() {
 
   const theme = preferences?.theme ?? 'system';
   const glass = preferences?.glassEnabled ?? false;
-  const blurIntensity = preferences?.blurIntensity ?? 100;
+  const blurIntensity = preferences?.blurIntensity ?? 50;
   const notifs = preferences?.notificationsEnabled ?? true;
   const mapStyle = preferences?.mapStyle ?? 'voyager';
   const wallpaper = preferences?.wallpaper ?? 'flat';
@@ -341,6 +348,7 @@ const createStyles = () => StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     overflow: 'hidden',
+    ...shadows.card,
   },
   row: {
     flexDirection: 'row',

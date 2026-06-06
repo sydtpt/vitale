@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
 import { HABIT_ICONS } from '@vitale/shared';
-import { colors, radii, MOD, useThemedStyles } from '../../theme';
+import { colors, radii, MOD, shadows, useThemedStyles } from '../../theme';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { daysLate, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence, dueLabel } from '../../lib/todo-format';
@@ -97,6 +97,7 @@ const createStyles = () => StyleSheet.create({
     gap: 12,
     borderWidth: 1,
     borderColor: colors.line,
+    ...shadows.card,
   },
   cardOverdue: { borderColor: colors.primaryDeep, borderWidth: 1.5 },
   cardDone: { backgroundColor: colors.surfaceMute },

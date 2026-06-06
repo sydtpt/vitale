@@ -5,6 +5,7 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radii-lg);
+  box-shadow: var(--shadow-card);
 
   &--error {
     color: var(--primary-deep);

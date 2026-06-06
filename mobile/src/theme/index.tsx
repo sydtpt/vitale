@@ -202,7 +202,7 @@ interface ThemeValue {
   colors: ThemeColors;
 }
 
-const ThemeContext = createContext<ThemeValue>({ scheme: 'light', glass: false, blurIntensity: 100, wallpaper: 'flat', colors });
+const ThemeContext = createContext<ThemeValue>({ scheme: 'light', glass: false, blurIntensity: 50, wallpaper: 'flat', colors });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const system = useColorScheme();
@@ -217,7 +217,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const pref = preferences?.theme ?? 'system';
   const scheme: ColorScheme = pref === 'system' ? (system === 'dark' ? 'dark' : 'light') : pref;
   const glass = preferences?.glassEnabled ?? false;
-  const blurIntensity = preferences?.blurIntensity ?? 100;
+  const blurIntensity = preferences?.blurIntensity ?? 50;
   const wallpaper = resolveWallpaper(preferences?.wallpaper);
 
   // Keep the proxy current before children read `colors` this render pass.

@@ -251,6 +251,7 @@ function fmt(n: number): string {
       max-height: 90vh;
       background: var(--surface);
       border-radius: var(--radii-2xl);
+      box-shadow: var(--shadow-card);
       display: flex;
       flex-direction: column;
       z-index: 1000;
