@@ -6,7 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { MAP_STYLES, SAMPLE_ROUTE, WALLPAPERS, type MapStyle } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
+import { enableNotifications, refreshDailyDigest } from '../../services/notifications';
 import { buildMapHtml } from '../../lib/map-html';
+
+const REMINDER_TIMES = ['07:00', '08:00', '09:00', '20:00', '21:00'];
 import { RotinaBackground } from '../../components/ui/RotinaBackground';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
@@ -121,6 +124,7 @@ export default function AppSettingsScreen() {
   const glass = preferences?.glassEnabled ?? false;
   const blurIntensity = preferences?.blurIntensity ?? 50;
   const notifs = preferences?.notificationsEnabled ?? true;
+  const reminderTime = preferences?.dailyReminderTime ?? '08:00';
   const mapStyle = preferences?.mapStyle ?? 'voyager';
   const wallpaper = preferences?.wallpaper ?? 'flat';
   const darkMode = theme === 'dark';
@@ -307,16 +311,43 @@ export default function AppSettingsScreen() {
             <View style={[styles.iconWrap, { backgroundColor: '#F25C2B' }]}>
               <Ionicons name="notifications-outline" size={15} color="#fff" />
             </View>
-            <Text style={styles.rowLabel}>Ativar notificações</Text>
+            <Text style={styles.rowLabel}>Digest diário</Text>
             <Switch
               value={notifs}
-              onValueChange={(v) => updatePreferences({ notificationsEnabled: v })}
+              onValueChange={async (v) => {
+                await updatePreferences({ notificationsEnabled: v });
+                if (v) await enableNotifications();
+                else await refreshDailyDigest();
+              }}
               trackColor={{ true: colors.primary, false: colors.line }}
               thumbColor={colors.surface}
               ios_backgroundColor={colors.line}
             />
           </View>
+          {notifs && (
+            <View style={styles.timeRow}>
+              <Text style={styles.timeLabel}>Horário</Text>
+              <View style={styles.timeChips}>
+                {REMINDER_TIMES.map((t) => {
+                  const on = reminderTime === t;
+                  return (
+                    <Pressable
+                      key={t}
+                      onPress={async () => {
+                        await updatePreferences({ dailyReminderTime: t });
+                        await refreshDailyDigest();
+                      }}
+                      style={[styles.timeChip, on && styles.timeChipOn]}
+                    >
+                      <Text style={[styles.timeChipTxt, on && styles.timeChipTxtOn]}>{t}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </View>
+        <Text style={styles.hint}>Prontidão, treino do dia, overtraining, tarefas e hábitos — num lembrete só.</Text>
       </ScrollView>
     </View>
   );
@@ -360,6 +391,14 @@ const createStyles = () => StyleSheet.create({
   },
   rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   rowLabel: { flex: 1, fontSize: 15, color: colors.ink },
+  timeRow: { paddingHorizontal: spacing.lg, paddingBottom: 13, gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, paddingTop: 12 },
+  timeLabel: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
+  timeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  timeChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
+  timeChipOn: { backgroundColor: colors.primary },
+  timeChipTxt: { fontSize: 13, fontWeight: '600', color: colors.ink2, fontFamily: 'GeistMono' },
+  timeChipTxtOn: { color: '#fff' },
+  hint: { fontSize: 12, color: colors.ink3, marginTop: spacing.sm, marginHorizontal: 4, lineHeight: 17 },
   rowMeta: { flex: 1, gap: 2 },
   rowSub: { fontSize: 12, color: colors.ink3 },
   rowRight: { width: 22, alignItems: 'center' },

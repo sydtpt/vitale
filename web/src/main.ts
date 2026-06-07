@@ -66,6 +66,12 @@ const routes: Routes = [
       import('@features/saude/pages/saude-page.component').then(m => m.SaudePageComponent),
   },
   {
+    path: 'recuperacao',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/recuperacao/pages/recuperacao-page.component').then(m => m.RecuperacaoPageComponent),
+  },
+  {
     path: 'tasks',
     canActivate: [profileGuard],
     loadComponent: () =>

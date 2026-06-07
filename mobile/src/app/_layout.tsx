@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/auth.store';
 import { startActivitySync, stopActivitySync } from '../services/healthkit-observer';
+import { startNotifications, stopNotifications } from '../services/notifications';
 import { ThemeProvider, useTheme, baseBg } from '../theme';
 import { RotinaBackground } from '../components/ui/RotinaBackground';
 
@@ -31,6 +32,13 @@ export default function RootLayout() {
     if (!session) return;
     startActivitySync();
     return () => stopActivitySync();
+  }, [session]);
+
+  // Digest diário local: agenda/reagenda enquanto há sessão.
+  useEffect(() => {
+    if (!session) return;
+    startNotifications();
+    return () => stopNotifications();
   }, [session]);
 
   // Volta para home se o app ficou em background por mais de 5 minutos.
@@ -83,6 +91,9 @@ function AppShell() {
         <Stack.Screen name="registros/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="registros/editor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="registros/marcar" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="treinos/index" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="treinos/editor" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="recuperacao/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]/[id]" options={{ animation: 'slide_from_right' }} />

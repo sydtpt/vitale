@@ -1,0 +1,20 @@
+<div class="page">
+  <rt-page-header
+    eyebrow="Saúde & Esporte"
+    title="Recuperação"
+    subtitle="Como o treino afeta a recuperação — carga, prontidão e bem-estar agregados" />
+
+  @if (loading()) {
+    <div class="state">Carregando dados de saúde e treinos…</div>
+  } @else {
+    <div class="full">
+      <rt-period-recap-card [recap]="monthRecap()" />
+    </div>
+    <div class="grid">
+      <rt-load-recovery-card [weeks]="loadRecovery()" />
+      <rt-wellness-index-card [summary]="wellness()" />
+      <rt-readiness-trend-card [points30]="series30()" [points90]="series90()" />
+      <rt-sport-health-insights-card [insights]="insights()" />
+    </div>
+  }
+</div>

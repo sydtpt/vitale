@@ -1,12 +1,32 @@
 .page { padding: 24px 32px 48px; max-width: 1200px; }
-.g1 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; margin-top: 24px; }
+.g1 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 24px; }
+@media (max-width: 900px) { .g1 { grid-template-columns: 1fr; } }
 .g2 { margin-top: 12px; }
 .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-.cell { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 110px; }
+.cell { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 110px; display: flex; flex-direction: column; gap: 6px; }
 .cell.today { background: var(--ink); color: #fff; border-color: var(--ink); }
-.cell.rest { background: var(--surface-mute); opacity: 0.7; }
 .top { display: flex; justify-content: space-between; align-items: flex-start; }
 .d { font-size: 10px; font-weight: 600; letter-spacing: 0.4px; opacity: 0.7; }
 .n { font-size: 22px; font-weight: 600; }
-.type { font-size: 12px; font-weight: 600; margin-top: 8px; line-height: 1.25; }
+
+.add {
+  background: transparent; border: 1px solid var(--line); border-radius: 8px;
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; opacity: 0.6; transition: opacity 0.15s;
+  &:hover { opacity: 1; }
+  .cell.today & { border-color: rgba(255, 255, 255, 0.3); }
+}
+
+.wk {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 8px; transition: border-color 0.15s;
+  &:hover { border-color: var(--primary); }
+  &.rest { background: var(--surface-mute); opacity: 0.85; }
+  &.done { border-color: var(--green, #6FA86A); }
+  .cell.today & { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); color: #fff; }
+}
+
+.type { font-size: 12px; font-weight: 600; line-height: 1.25; display: flex; align-items: center; gap: 4px; justify-content: space-between; }
 .meta { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+.empty { font-size: 12px; opacity: 0.4; padding: 4px 0; }

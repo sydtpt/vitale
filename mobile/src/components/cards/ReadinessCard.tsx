@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { classifyWorkout, readinessAdvice, type AdviceTone } from '@vitale/shared';
+import { readinessAdvice, type AdviceTone } from '@vitale/shared';
 import { useHealthStore } from '../../store/health.store';
+import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { readinessFromSummaries } from '../../lib/health-readiness';
-import { TREINOS_SEMANA, TODAY_IDX } from '../../services/mock-data';
+import { localDateStr } from '../../lib/planned-match';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 import { GlassCard } from '../ui/GlassCard';
 
@@ -26,12 +27,19 @@ const TONE_COLOR: Record<AdviceTone, string> = {
 export function ReadinessCard() {
   const styles = useThemedStyles(createStyles);
   const summaries = useHealthStore((s) => s.summaries);
+  const planned = usePlannedWorkoutsStore((s) => s.planned);
+  const loadPlanner = usePlannedWorkoutsStore((s) => s.load);
+
+  useEffect(() => {
+    loadPlanner();
+  }, [loadPlanner]);
+
   const score = readinessFromSummaries(summaries);
   if (score.components.length === 0) return null;
 
-  // Recomendação: prontidão × intensidade do treino do dia (mock por enquanto).
-  const today = TREINOS_SEMANA[TODAY_IDX];
-  const advice = readinessAdvice(score.total, true, classifyWorkout(today), today?.type ?? '');
+  // Recomendação: prontidão × intensidade do treino planejado de hoje (real).
+  const today = planned.find((p) => p.date === localDateStr());
+  const advice = readinessAdvice(score.total, true, today?.kind ?? 'none', today?.type ?? '');
   const accent = TONE_COLOR[advice.tone];
 
   return (

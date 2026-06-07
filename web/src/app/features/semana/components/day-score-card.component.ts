@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { computeReadiness, rollingBaseline, classifyWorkout, readinessAdvice, type ReadinessInput } from '@vitale/shared';
+import { computeReadiness, rollingBaseline, readinessAdvice, type ReadinessInput } from '@vitale/shared';
 import { HealthStore } from '@features/saude/data/health.store';
-import { TREINOS_SEMANA, TODAY_IDX } from '@core/models/mock-data';
+import { PlannedWorkoutsStore } from '@features/treinos/data/planned-workouts.store';
 
 /** Cor por componente do score (concêntrico no donut). */
 const COMP_COLOR: Record<string, string> = {
@@ -23,9 +23,11 @@ interface RowVM { color: string; label: string; sub: string; cur: string; }
 })
 export class DayScoreCardComponent {
   private readonly store = inject(HealthStore);
+  private readonly planner = inject(PlannedWorkoutsStore);
 
   constructor() {
     void this.store.load(); // idempotente; carrega se a Semana abrir antes da Saúde
+    void this.planner.load(); // treino planejado de hoje p/ a recomendação
   }
 
   private latest(metric: string): number | null {
@@ -67,13 +69,11 @@ export class DayScoreCardComponent {
   protected readonly total = computed(() => this.score().total);
   protected readonly hasData = computed(() => this.score().components.length > 0);
 
-  /** Treino planejado de hoje (mock por enquanto — troca por dado real quando houver). */
-  private readonly today = TREINOS_SEMANA[TODAY_IDX];
-
-  /** Recomendação acionável: prontidão × intensidade do treino do dia. */
-  protected readonly advice = computed(() =>
-    readinessAdvice(this.total(), this.hasData(), classifyWorkout(this.today), this.today?.type ?? ''),
-  );
+  /** Recomendação acionável: prontidão × intensidade do treino planejado de hoje. */
+  protected readonly advice = computed(() => {
+    const today = this.planner.today();
+    return readinessAdvice(this.total(), this.hasData(), today?.kind ?? 'none', today?.type ?? '');
+  });
 
   protected readonly rings = computed<RingVM[]>(() =>
     this.score().components.map((c, i) => ({

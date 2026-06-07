@@ -1,33 +1,57 @@
 <div class="page">
-  <rt-page-header eyebrow="Treinos" title="Cargas & cardio"
-    subtitle="6 semanas de progressão · próximo: pernas hoje" />
+  <rt-page-header eyebrow="Treinos" title="Cardio & mobilidade"
+    subtitle="Volume real das últimas 6 semanas · planeje a semana e acompanhe a execução" />
   <div class="g1">
-    <rt-panel title="Cargas — últimas 6 semanas"><rt-lifts-chart /></rt-panel>
-    <rt-panel title="Volume de corrida (km / semana)"><rt-runs-chart /></rt-panel>
+    <rt-panel title="Corrida (km / semana)">
+      <rt-activity-volume-chart [activityId]="RUNNING" metric="distance" unit="km"
+        [color]="colors.running" emptyLabel="Sem corridas sincronizadas" />
+    </rt-panel>
+    <rt-panel title="Bicicleta (km / semana)">
+      <rt-activity-volume-chart [activityId]="CYCLING" metric="distance" unit="km"
+        [color]="colors.cycling" emptyLabel="Sem pedaladas sincronizadas" />
+    </rt-panel>
+    <rt-panel title="Yoga (min / semana)">
+      <rt-activity-volume-chart [activityId]="YOGA" metric="duration" unit="min"
+        [color]="colors.yoga" emptyLabel="Sem sessões sincronizadas" />
+    </rt-panel>
   </div>
   <div class="g2">
-    <rt-panel title="Próximos treinos">
+    <rt-panel title="Semana planejada">
       <div class="week">
-        @for (t of treinos; track t.day; let i = $index) {
-          <div class="cell" [class.today]="i === today" [class.rest]="t.rest">
+        @for (day of store.week(); track day.date) {
+          <div class="cell" [class.today]="day.isToday">
             <div class="top">
               <div>
-                <div class="d">{{ t.day }}</div>
-                <div class="n mono">{{ t.date }}</div>
+                <div class="d">{{ day.label }}</div>
+                <div class="n mono">{{ day.date.slice(8) }}</div>
               </div>
-              @if (t.done) {
-                <rt-icon name="check" [size]="16" [color]="i === today ? '#fff' : '#6FA86A'" [strokeWidth]="2.4"/>
-              }
+              <button class="add" type="button" (click)="openCreate(day.date)" title="Adicionar treino">
+                <rt-icon name="plus" [size]="14" [color]="day.isToday ? '#fff' : '#5C534A'" [strokeWidth]="2.4" />
+              </button>
             </div>
-            <div class="type">{{ t.type }}</div>
-            <div class="meta">
-              @if (t.rest) { — }
-              @else if (t.run) { {{ t.run.dist }}km · {{ t.run.pace }} }
-              @else { {{ t.dur }}min · {{ t.vol > 0 ? t.vol + 'kg' : '—' }} }
-            </div>
+
+            @for (w of day.workouts; track w.id) {
+              <button class="wk" [class.rest]="w.kind === 'rest'" [class.done]="w.done" type="button" (click)="openEdit(w)">
+                <div class="type">
+                  {{ w.type }}
+                  @if (w.done) {
+                    <rt-icon name="check" [size]="14" [color]="day.isToday ? '#fff' : '#6FA86A'" [strokeWidth]="2.6" />
+                  }
+                </div>
+                <div class="meta">
+                  @if (w.kind === 'rest') { {{ kindLabel(w.kind) }} }
+                  @else if (w.kind === 'endurance' && w.distKm) { {{ w.distKm }}km · {{ kindLabel(w.kind) }} }
+                  @else { {{ w.durMin }}min · {{ kindLabel(w.kind) }} }
+                </div>
+              </button>
+            } @empty {
+              <div class="empty">—</div>
+            }
           </div>
         }
       </div>
     </rt-panel>
   </div>
+
+  <rt-planned-workout-editor [date]="editDate()" [workoutId]="editId()" />
 </div>

@@ -2,7 +2,7 @@
  * Vitale — Mock Data
  * Seeded data for the prototype. Replace with real API calls later.
  */
-import type { Meal, Habit, Chore, ShopItem, Treino, Lift, RunWeek, FinancaCategory, Transaction, RecurringItem, CasaTarefa, Meta, WeekDay } from '@vitale/shared';
+import type { Meal, Habit, Chore, Treino, Lift, RunWeek, FinancaCategory, Transaction, CasaTarefa, Meta, WeekDay } from '@vitale/shared';
 
 export const WEEK: WeekDay[] = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 export const TODAY_IDX = 3;
@@ -46,12 +46,6 @@ export const HOJE = {
     { id: 'louca',    name: 'Lavar louça do almoço', done: false },
     { id: 'lixo',     name: 'Tirar lixo (orgânico)', done: false },
     { id: 'banheiro', name: 'Limpar banheiro',       done: true },
-  ],
-  compras: <ShopItem[]>[
-    { id: 'banana', name: 'Bananas',         qty: '1kg',  done: false, cat: 'Hortifruti' },
-    { id: 'frango', name: 'Peito de frango', qty: '500g', done: false, cat: 'Açougue' },
-    { id: 'leite',  name: 'Leite vegetal',   qty: '2L',   done: true,  cat: 'Bebidas' },
-    { id: 'sabao',  name: 'Sabão em pó',     qty: '1un',  done: false, cat: 'Limpeza' },
   ],
 };
 
@@ -100,13 +94,6 @@ export const FINANCAS = {
     { id: 6, date: '18 mai',       name: 'Hortifruti Natural',   cat: 'Mercado',     amount: -156.30 },
   ],
 };
-
-export const COMPRAS_RECORR: RecurringItem[] = [
-  { name: 'Café em grãos',   every: 'a cada 3 semanas', last: '08 mai', due: 'em 4 dias' },
-  { name: 'Aveia em flocos',  every: 'a cada 2 semanas', last: '12 mai', due: 'em 2 dias' },
-  { name: 'Whey protein',    every: 'mensal',           last: '03 mai', due: 'em 12 dias' },
-  { name: 'Sabão em pó',     every: 'mensal',           last: '28 abr', due: 'atrasado' },
-];
 
 export const CASA_TAREFAS: CasaTarefa[] = [
   { name: 'Aspirar sala',        every: 'semanal',    when: 'sáb' },

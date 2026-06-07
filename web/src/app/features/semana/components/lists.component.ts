@@ -1,6 +1,25 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, computed, inject } from '@angular/core';
 import { IconComponent } from '@core/services/icon.component';
-import { FINANCAS, COMPRAS_RECORR, CASA_TAREFAS, METAS } from '@core/models/mock-data';
+import { FINANCAS, CASA_TAREFAS, METAS } from '@core/models/mock-data';
+import { TodosStore } from '../../tasks/data/todos.store';
+import { describeRecurrence, dueLabel } from '../../tasks/data/todo-format';
+import { localDateStr, isOverdue } from '../../tasks/data/todo-logic';
+
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** Data ISO → 'dd mmm' em pt-BR (ex.: '08 mai'). */
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS_PT[d.getMonth()]}`;
+}
+
+interface RecurringVM {
+  name: string;
+  every: string;
+  last: string;
+  due: string;
+  late: boolean;
+}
 
 @Component({
   selector: 'rt-spend-by-category',
@@ -25,7 +44,44 @@ export class SpendByCategoryComponent {
   styleUrl: './recurring-list.component.scss',
 })
 export class RecurringListComponent {
-  protected readonly items = COMPRAS_RECORR;
+  private readonly store = inject(TodosStore);
+  private readonly today = localDateStr();
+
+  constructor() {
+    void this.store.load();
+  }
+
+  /** Compras recorrentes reais: templates `compras` com recorrência, próximo prazo + última compra. */
+  protected readonly items = computed<RecurringVM[]>(() => {
+    const templates = this.store
+      .templates()
+      .filter((t) => t.active && t.module === 'compras' && t.recurrence.kind !== 'none');
+    const occ = this.store.occurrences();
+
+    const rows = templates.map((t) => {
+      const mine = occ.filter((o) => o.templateId === t.id);
+      const pending = mine
+        .filter((o) => o.status === 'pending' && o.dueDate != null)
+        .sort((a, b) => (a.dueDate! < b.dueDate! ? -1 : 1))[0];
+      const lastDone = mine
+        .filter((o) => o.status === 'done' && o.doneAt)
+        .sort((a, b) => (a.doneAt! < b.doneAt! ? 1 : -1))[0];
+      const late = pending ? isOverdue(pending, this.today) : false;
+      return {
+        name: t.name,
+        every: describeRecurrence(t.recurrence),
+        last: lastDone?.doneAt ? shortDate(lastDone.doneAt) : '—',
+        due: late ? 'atrasado' : pending?.dueDate ? dueLabel(pending.dueDate, this.today) : '—',
+        late,
+        sortKey: pending?.dueDate ?? '9999',
+      };
+    });
+
+    return rows
+      .sort((a, b) => (a.late === b.late ? a.sortKey.localeCompare(b.sortKey) : a.late ? -1 : 1))
+      .slice(0, 6)
+      .map(({ sortKey, ...vm }) => vm);
+  });
 }
 
 @Component({

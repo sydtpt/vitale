@@ -1,14 +1,16 @@
 <div>
-  @for (r of items; track r.name; let last = $last) {
+  @for (r of items(); track r.name; let last = $last) {
     <div class="row" [class.last]="last">
-      <div class="ico" [class.late]="r.due === 'atrasado'">
+      <div class="ico" [class.late]="r.late">
         <rt-icon name="pkg" [size]="14" [strokeWidth]="2"/>
       </div>
       <div class="flex">
         <div class="name">{{ r.name }}</div>
         <div class="meta">{{ r.every }} · última {{ r.last }}</div>
       </div>
-      <div class="due" [class.late]="r.due === 'atrasado'">{{ r.due }}</div>
+      <div class="due" [class.late]="r.late">{{ r.due }}</div>
     </div>
+  } @empty {
+    <div class="empty">Nenhuma compra recorrente</div>
   }
 </div>

@@ -82,6 +82,33 @@ export interface Treino {
   run: { dist: number; pace: string } | null;
 }
 
+/**
+ * Treino planejado para um dia, persistido no Supabase (`planned_workouts`).
+ * Distinto do `Treino` (mock da grade antiga) e da `Activity` (treino real
+ * sincronizado do HealthKit): aqui é a *intenção* do usuário para o dia.
+ *
+ * `kind` é escolhido explicitamente ao planejar (não inferido), e alimenta
+ * direto a recomendação de prontidão (`readinessAdvice`). A conclusão é por
+ * auto-match: se houver uma `Activity` compatível no mesmo dia local, o treino
+ * vira `done` e guarda o `doneActivityId`.
+ */
+export interface PlannedWorkout {
+  id: string;
+  /** Data local do dia agendado (YYYY-MM-DD). */
+  date: string;
+  type: string;
+  /** Intensidade planejada — direciona o readiness. `rest` = descanso. */
+  kind: 'strength' | 'endurance' | 'easy' | 'rest';
+  durMin: number;
+  /** Só para `endurance` (corrida/bike); ausente nos demais. */
+  distKm?: number;
+  done: boolean;
+  /** Id da `Activity` que casou com este treino (auto-match). */
+  doneActivityId?: string;
+  sort: number;
+  createdAt: string;
+}
+
 export interface Lift {
   name: string;
   sets: string;
@@ -108,13 +135,6 @@ export interface Transaction {
   name: string;
   cat: string;
   amount: number;
-}
-
-export interface RecurringItem {
-  name: string;
-  every: string;
-  last: string;
-  due: string;
 }
 
 /** Categorias canônicas de itens de compras. */

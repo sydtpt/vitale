@@ -24,6 +24,7 @@ export class SidebarComponent {
     { path: '/habits',      icon: '🔁', label: 'Hábitos' },
     { path: '/registros',   icon: '📌', label: 'Registros' },
     { path: '/saude',       icon: '❤️', label: 'Saúde' },
+    { path: '/recuperacao', icon: '🔋', label: 'Recuperação' },
     { path: '/alimentacao', icon: '🍽️', label: 'Alimentação' },
     { path: '/compras',     icon: '🛒', label: 'Compras' },
     { path: '/casa',        icon: '🏠', label: 'Casa' },

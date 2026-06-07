@@ -8,3 +8,5 @@ export * from './health/readiness';
 export * from './health/readiness-advice';
 export * from './health/trends';
 export * from './health/hr-zones';
+export * from './health/trigger-impact';
+export * from './health/aggregate';
