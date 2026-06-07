@@ -52,6 +52,12 @@ export const lightColors = {
   blue: '#6E8CC9',
   blueSoft: '#DDE4F2',
   casa: '#B4825B',
+  casaSoft: '#F4E6D9',
+  teal: '#4F9D90',
+  tealSoft: '#DDEEEA',
+  red: '#E05C5C',
+  redSoft: '#FDDEDE',
+  inkSoft: '#EAE3D6',
 };
 
 export type ThemeColors = typeof lightColors;
@@ -94,6 +100,14 @@ export const darkColors: ThemeColors = {
   blue: '#84A0DA',
   blueSoft: '#1E2840',
   casa: '#C49A72',
+  // Tints escuros de baixa saturação (combinam com o fundo near-black) +
+  // acentos mais brilhantes para legibilidade no dark.
+  casaSoft: '#2E2418',
+  teal: '#5FB3A4',
+  tealSoft: '#15302B',
+  red: '#F07A7A',
+  redSoft: '#3A1F22',
+  inkSoft: '#2A241D',
 };
 
 const palettes: Record<ColorScheme, ThemeColors> = { light: lightColors, dark: darkColors };
@@ -137,6 +151,28 @@ export const MOD = {
   financas: { tint: '#EAE3D6', accent: '#1F1B16' },
   tarefa:   { tint: '#DDEEEA', accent: '#4F9D90' },
 } as const;
+
+/**
+ * Cor de um módulo resolvida a partir do tema vivo (`colors`), portanto adapta
+ * ao esquema claro/escuro. Diferente do `MOD` (tints claros fixos), as chaves
+ * apontam para tokens `*Soft`/acento da paleta, que no dark viram tints escuros
+ * de baixa saturação com acentos brilhantes. Chame no render (dentro de um
+ * componente que assina o tema via `useTheme`/`useThemedStyles`).
+ */
+export function moduleColors(key: string): { tint: string; accent: string } {
+  switch (key) {
+    case 'treino':   return { tint: colors.primarySoft, accent: colors.primary };
+    case 'food':     return { tint: colors.yellowSoft,  accent: colors.yellow };
+    case 'agua':     return { tint: colors.blueSoft,    accent: colors.blue };
+    case 'habito':   return { tint: colors.greenSoft,   accent: colors.green };
+    case 'casa':     return { tint: colors.casaSoft,    accent: colors.casa };
+    case 'compras':  return { tint: colors.roseSoft,    accent: colors.rose };
+    case 'financas': return { tint: colors.inkSoft,     accent: colors.ink };
+    case 'saude':    return { tint: colors.redSoft,     accent: colors.red };
+    case 'tarefa':   return { tint: colors.tealSoft,    accent: colors.teal };
+    default:         return { tint: colors.blueSoft,    accent: colors.blue };
+  }
+}
 
 export const spacing = {
   xs: 4,

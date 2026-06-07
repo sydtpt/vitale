@@ -1,0 +1,42 @@
+@if (triggers().length > 0) {
+  <div class="card">
+    <div class="head">
+      <div class="eyebrow">Gatilhos × Saúde</div>
+      <h3 class="title">O que afeta seu bem-estar</h3>
+    </div>
+
+    <div class="chips">
+      @for (t of triggers(); track t.id) {
+        <button type="button" class="chip" [class.on]="isSelected(t.id)"
+          [style.--c]="t.color" (click)="select(t.id)">{{ t.name }}</button>
+      }
+    </div>
+
+    @if (selected(); as sel) {
+      <div class="rows">
+        @for (r of rows(); track r.label) {
+          <div class="row" [attr.data-tone]="r.tone">
+            <div class="r-label">{{ r.label }}</div>
+            @if (r.enough) {
+              <div class="r-cmp">
+                <span class="mono">{{ r.withoutStr }}</span>
+                <span class="arrow">→</span>
+                <span class="mono with">{{ r.withStr }}</span>
+              </div>
+              <div class="r-delta mono">{{ r.deltaStr }}</div>
+            } @else {
+              <div class="r-insufficient">dados insuficientes · {{ r.n }}</div>
+            }
+          </div>
+        } @empty {
+          <div class="empty">Sem métricas de bem-estar sincronizadas para cruzar.</div>
+        }
+      </div>
+
+      <p class="foot">
+        Média nos dias <b>com</b> “{{ sel.name }}” vs <b>sem</b>, desde {{ sel.since }}.
+        Associação observacional — não prova causa.
+      </p>
+    }
+  </div>
+}

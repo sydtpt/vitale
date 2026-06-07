@@ -14,6 +14,7 @@ import {
 } from '@vitale/shared';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { PanelComponent } from '@shared/components/panel/panel.component';
+import { TriggerImpactCardComponent } from '../components/trigger-impact-card.component';
 import { HealthStore } from '../data/health.store';
 import { formatHealthValue, localDateStr, sparkPoints } from '../data/health-format';
 
@@ -67,7 +68,7 @@ const ARROW: Record<TrendDirection, string> = { up: '↑', down: '↓', flat: '�
   selector: 'rt-saude-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, PageHeaderComponent, PanelComponent],
+  imports: [CommonModule, PageHeaderComponent, PanelComponent, TriggerImpactCardComponent],
   templateUrl: './saude-page.component.html',
   styleUrl: './saude-page.component.scss',
 })

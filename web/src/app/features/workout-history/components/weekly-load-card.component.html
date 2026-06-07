@@ -1,0 +1,42 @@
+<div class="card">
+  <div class="top">
+    <div>
+      <div class="eyebrow">Carga semanal</div>
+      <h3 class="title">Zonas de frequência cardíaca</h3>
+    </div>
+  </div>
+
+  @if (empty()) {
+    <p class="empty">Sem dados de frequência cardíaca nas últimas {{ load().buckets.length }} semanas.</p>
+  } @else {
+    @if (load().highLoadAlert) {
+      <div class="alert">
+        Carga forte acima do habitual esta semana — considere priorizar recuperação.
+      </div>
+    }
+
+    <rt-stacked-bar-chart [buckets]="load().buckets" [metric]="'duration'" />
+
+    <div class="legend">
+      @for (z of zones; track z.label) {
+        <span class="leg">
+          <span class="dot" [style.background]="z.color"></span>{{ z.label }}
+        </span>
+      }
+    </div>
+
+    <div class="polar">
+      <div class="polar-head">
+        <span class="polar-label">Esta semana</span>
+        <span class="polar-pct mono">{{ easyPct() }}% leve</span>
+      </div>
+      <div class="polar-bar">
+        <span class="seg easy" [style.width.%]="easyPct()"></span>
+      </div>
+      <div class="polar-foot">
+        <span>Leve (Z1–Z2) {{ fmtDuration(load().polarization.easyS) }}</span>
+        <span>Forte (Z4–Z5) {{ fmtDuration(load().polarization.hardS) }}</span>
+      </div>
+    </div>
+  }
+</div>

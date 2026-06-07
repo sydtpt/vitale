@@ -8,3 +8,24 @@
 .cur { font-size: 13px; font-weight: 600; }
 .footer { margin-top: 14px; padding: 12px 14px; background: var(--surface-warm); border-radius: 12px; font-size: 13px; color: var(--ink-2); }
 .footer b { color: var(--ink); }
+
+.advice {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--accent, var(--line));
+  background: color-mix(in srgb, var(--accent, var(--line)) 12%, var(--surface));
+}
+.advice-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--accent, var(--ink));
+  margin-bottom: 2px;
+}
+.advice-text { font-size: 12.5px; line-height: 1.4; color: var(--ink-2); }
+
+/* Tom da recomendação → cor de destaque (alinhada ao design system). */
+.advice[data-tone='go'] { --accent: #6FA86A; }      /* verde — liberado */
+.advice[data-tone='caution'] { --accent: #F25C2B; } /* laranja — aliviar */
+.advice[data-tone='rest'] { --accent: #6E8CC9; }    /* azul — recuperar */
+.advice[data-tone='neutral'] { --accent: #B4825B; } /* terra — neutro */

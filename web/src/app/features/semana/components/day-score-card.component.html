@@ -26,6 +26,13 @@
       }
     </div>
   </div>
+  @if (hasData()) {
+    <div class="advice" [attr.data-tone]="advice().tone">
+      <div class="advice-title">{{ advice().title }}</div>
+      <div class="advice-text">{{ advice().text }}</div>
+    </div>
+  }
+
   <div class="footer">
     Prontidão do dia a partir de <b>sono</b>, <b>FC em repouso</b>, <b>VFC</b> e <b>anéis</b> do Apple Health.
   </div>

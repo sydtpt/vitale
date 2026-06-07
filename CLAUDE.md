@@ -155,3 +155,7 @@ Cada módulo tem seu spec em `.claude/specs/`:
 - [Tarefas (to-do com agendamento)](.claude/specs/tarefas/spec.md) · [plan](.claude/specs/tarefas/plan.md) · [data-model](.claude/specs/tarefas/data-model.md) · [tasks](.claude/specs/tarefas/tasks.md)
 - [Registros (marcação diária avulsa)](.claude/specs/registros/spec.md) · [plan](.claude/specs/registros/plan.md) · [data-model](.claude/specs/registros/data-model.md) · [tasks](.claude/specs/registros/tasks.md)
 - [Mobile: Histórico de Treinos](.claude/specs/mobile-historico-treinos/spec.md) · [plan](.claude/specs/mobile-historico-treinos/plan.md) · [data-model](.claude/specs/mobile-historico-treinos/data-model.md) · [tasks](.claude/specs/mobile-historico-treinos/tasks.md)
+- [Web: Carga Semanal (zonas de FC agregadas)](.claude/specs/carga-semanal/spec.md) · [data-model](.claude/specs/carga-semanal/data-model.md) · [tasks](.claude/specs/carga-semanal/tasks.md)
+- [Web: Readiness → Treino (prontidão acionável)](.claude/specs/readiness-treino/spec.md) · [tasks](.claude/specs/readiness-treino/tasks.md)
+- [Web: Correlações de Gatilho (hábito-ruim/registro × saúde)](.claude/specs/correlacoes-gatilho/spec.md) · [tasks](.claude/specs/correlacoes-gatilho/tasks.md)
+- [Web: Recap Semanal (resumo automático da semana)](.claude/specs/recap-semanal/spec.md) · [tasks](.claude/specs/recap-semanal/tasks.md)

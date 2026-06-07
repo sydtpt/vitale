@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { computeReadiness, rollingBaseline, type ReadinessInput } from '@vitale/shared';
+import { computeReadiness, rollingBaseline, classifyWorkout, readinessAdvice, type ReadinessInput } from '@vitale/shared';
 import { HealthStore } from '@features/saude/data/health.store';
+import { TREINOS_SEMANA, TODAY_IDX } from '@core/models/mock-data';
 
 /** Cor por componente do score (concêntrico no donut). */
 const COMP_COLOR: Record<string, string> = {
@@ -65,6 +66,14 @@ export class DayScoreCardComponent {
   protected readonly score = computed(() => computeReadiness(this.inputs()));
   protected readonly total = computed(() => this.score().total);
   protected readonly hasData = computed(() => this.score().components.length > 0);
+
+  /** Treino planejado de hoje (mock por enquanto — troca por dado real quando houver). */
+  private readonly today = TREINOS_SEMANA[TODAY_IDX];
+
+  /** Recomendação acionável: prontidão × intensidade do treino do dia. */
+  protected readonly advice = computed(() =>
+    readinessAdvice(this.total(), this.hasData(), classifyWorkout(this.today), this.today?.type ?? ''),
+  );
 
   protected readonly rings = computed<RingVM[]>(() =>
     this.score().components.map((c, i) => ({

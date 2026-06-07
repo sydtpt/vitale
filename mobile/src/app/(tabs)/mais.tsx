@@ -2,30 +2,30 @@ import React from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, spacing, MOD, shadows, useThemedStyles } from '../../theme';
+import { colors, spacing, moduleColors, shadows, useThemedStyles } from '../../theme';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 
 type Link = {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   sub: string;
-  tint: string;
-  color: string;
+  /** Chave de módulo — cor resolvida no render (adapta ao tema claro/escuro). */
+  mod: string;
   route?: string;
 };
 
 const LINKS: Link[] = [
-  { icon: 'checkmark-done-outline', label: 'Tarefas', sub: 'To-do e recorrências', tint: MOD.tarefa.tint, color: MOD.tarefa.accent, route: '/tarefas' },
-  { icon: 'repeat-outline', label: 'Hábitos', sub: 'Contadores diários', tint: MOD.habito.tint, color: MOD.habito.accent, route: '/habitos' },
-  { icon: 'calendar-outline', label: 'Semana', sub: 'Visão geral da semana', tint: MOD.agua.tint, color: MOD.agua.accent, route: '/(tabs)/semana' },
-  { icon: 'bookmark-outline', label: 'Registros', sub: 'Marcar atividades do dia', tint: MOD.food.tint, color: MOD.food.accent, route: '/registros' },
-  { icon: 'sync-outline', label: 'Sync de atividades', sub: 'Treinos do Apple Health', tint: MOD.treino.tint, color: MOD.treino.accent, route: '/fitness' },
-  { icon: 'heart-outline', label: 'Saúde', sub: 'Métricas do Apple Health', tint: '#FDDEDE', color: '#E05C5C', route: '/(tabs)/saude' },
-  { icon: 'wallet-outline', label: 'Finanças', sub: 'Orçamento e gastos', tint: MOD.financas.tint, color: MOD.financas.accent },
-  { icon: 'home-outline', label: 'Casa', sub: 'Rotinas e tarefas', tint: MOD.casa.tint, color: MOD.casa.accent },
-  { icon: 'golf-outline', label: 'Metas', sub: '5 ativas', tint: MOD.habito.tint, color: MOD.habito.accent },
-  { icon: 'trending-up-outline', label: 'Progresso', sub: 'Gráficos longos', tint: MOD.agua.tint, color: MOD.agua.accent },
-  { icon: 'notifications-outline', label: 'Lembretes', sub: '6 ativos', tint: MOD.food.tint, color: MOD.food.accent },
+  { icon: 'checkmark-done-outline', label: 'Tarefas', sub: 'To-do e recorrências', mod: 'tarefa', route: '/tarefas' },
+  { icon: 'repeat-outline', label: 'Hábitos', sub: 'Contadores diários', mod: 'habito', route: '/habitos' },
+  { icon: 'calendar-outline', label: 'Semana', sub: 'Visão geral da semana', mod: 'agua', route: '/(tabs)/semana' },
+  { icon: 'bookmark-outline', label: 'Registros', sub: 'Marcar atividades do dia', mod: 'food', route: '/registros' },
+  { icon: 'sync-outline', label: 'Sync de atividades', sub: 'Treinos do Apple Health', mod: 'treino', route: '/fitness' },
+  { icon: 'heart-outline', label: 'Saúde', sub: 'Métricas do Apple Health', mod: 'saude', route: '/(tabs)/saude' },
+  { icon: 'wallet-outline', label: 'Finanças', sub: 'Orçamento e gastos', mod: 'financas' },
+  { icon: 'home-outline', label: 'Casa', sub: 'Rotinas e tarefas', mod: 'casa' },
+  { icon: 'golf-outline', label: 'Metas', sub: '5 ativas', mod: 'habito' },
+  { icon: 'trending-up-outline', label: 'Progresso', sub: 'Gráficos longos', mod: 'agua' },
+  { icon: 'notifications-outline', label: 'Lembretes', sub: '6 ativos', mod: 'food' },
 ];
 
 export default function MaisScreen() {
@@ -38,20 +38,23 @@ export default function MaisScreen() {
         <Text style={styles.title}>Mais</Text>
       </View>
       <View style={styles.grid}>
-        {LINKS.map(l => (
+        {LINKS.map(l => {
+          const mc = moduleColors(l.mod);
+          return (
           <Pressable
             key={l.label}
             disabled={!l.route}
             onPress={() => l.route && router.push(l.route as never)}
             style={({ pressed }) => [styles.tile, pressed && l.route && styles.pressed]}
           >
-            <View style={[styles.ico, { backgroundColor: l.tint }]}>
-              <Ionicons name={l.icon} size={20} color={l.color} />
+            <View style={[styles.ico, { backgroundColor: mc.tint }]}>
+              <Ionicons name={l.icon} size={20} color={mc.accent} />
             </View>
             <Text style={styles.tileTitle}>{l.label}</Text>
             <Text style={styles.tileSub}>{l.sub}</Text>
           </Pressable>
-        ))}
+          );
+        })}
       </View>
 
       <Text style={styles.sectionHeader}>Configurações</Text>

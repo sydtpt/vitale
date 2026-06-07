@@ -4,12 +4,13 @@ import { IconComponent } from '@core/services/icon.component';
 import { ActivitiesStore } from '../data/activities.store';
 import { OverviewCardComponent } from '../components/overview-card.component';
 import { ActivityTypeCardComponent } from '../components/activity-type-card.component';
+import { WeeklyLoadCardComponent } from '../components/weekly-load-card.component';
 
 @Component({
   selector: 'rt-workout-history-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, IconComponent, OverviewCardComponent, ActivityTypeCardComponent],
+  imports: [PageHeaderComponent, IconComponent, OverviewCardComponent, ActivityTypeCardComponent, WeeklyLoadCardComponent],
   templateUrl: './workout-history-page.component.html',
   styleUrl: './workout-history-page.component.scss',
 })

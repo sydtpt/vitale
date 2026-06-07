@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { classifyWorkout, readinessAdvice, type AdviceTone } from '@vitale/shared';
 import { useHealthStore } from '../../store/health.store';
 import { readinessFromSummaries } from '../../lib/health-readiness';
+import { TREINOS_SEMANA, TODAY_IDX } from '../../services/mock-data';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 import { GlassCard } from '../ui/GlassCard';
 
@@ -12,12 +14,25 @@ const COMP_COLOR: Record<string, string> = {
   aneis: colors.primary,
 };
 
+/** Cor de destaque por tom da recomendação. */
+const TONE_COLOR: Record<AdviceTone, string> = {
+  go: colors.green,
+  caution: colors.primary,
+  rest: colors.blue,
+  neutral: colors.ink3,
+};
+
 /** Card de prontidão na tela Hoje. Some quando não há dados de saúde na sessão. */
 export function ReadinessCard() {
   const styles = useThemedStyles(createStyles);
   const summaries = useHealthStore((s) => s.summaries);
   const score = readinessFromSummaries(summaries);
   if (score.components.length === 0) return null;
+
+  // Recomendação: prontidão × intensidade do treino do dia (mock por enquanto).
+  const today = TREINOS_SEMANA[TODAY_IDX];
+  const advice = readinessAdvice(score.total, true, classifyWorkout(today), today?.type ?? '');
+  const accent = TONE_COLOR[advice.tone];
 
   return (
     <GlassCard style={styles.card}>
@@ -44,6 +59,10 @@ export function ReadinessCard() {
           </View>
         ))}
       </View>
+      <View style={[styles.advice, { borderLeftColor: accent }]}>
+        <Text style={[styles.adviceTitle, { color: accent }]}>{advice.title}</Text>
+        <Text style={styles.adviceText}>{advice.text}</Text>
+      </View>
     </GlassCard>
   );
 }
@@ -66,4 +85,14 @@ const createStyles = () => StyleSheet.create({
   track: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMute, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4 },
   barVal: { width: 26, textAlign: 'right', fontSize: 12.5, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
+  advice: {
+    backgroundColor: colors.surfaceMute,
+    borderLeftWidth: 3,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    gap: 2,
+  },
+  adviceTitle: { fontSize: 13, fontWeight: '700' },
+  adviceText: { fontSize: 12.5, lineHeight: 17, color: colors.ink2 },
 });

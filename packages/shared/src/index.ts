@@ -5,5 +5,6 @@ export * from './constants/map';
 export * from './constants/wallpaper';
 export * from './health/metric-catalog';
 export * from './health/readiness';
+export * from './health/readiness-advice';
 export * from './health/trends';
 export * from './health/hr-zones';

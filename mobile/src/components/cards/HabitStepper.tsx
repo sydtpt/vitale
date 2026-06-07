@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { CounterHabit } from '@vitale/shared';
-import { colors, radii, MOD, shadows, useThemedStyles } from '../../theme';
+import { colors, radii, moduleColors, shadows, useThemedStyles } from '../../theme';
 import { isMet, isOver, progress } from '../../lib/habit-logic';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 
@@ -12,10 +12,6 @@ function fmt(n: number): string {
   const r = Math.round(n * 100) / 100;
   const s = Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/\.?0+$/, '');
   return s.replace('.', ',');
-}
-
-function modColor(key: string): { tint: string; accent: string } {
-  return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.agua;
 }
 
 interface Props {
@@ -32,7 +28,7 @@ interface Props {
 
 export function HabitStepper({ habit, value, streak, streakBad, onIncrement, onDecrement, onReset }: Props) {
   const styles = useThemedStyles(createStyles);
-  const mod = modColor(habit.color);
+  const mod = moduleColors(habit.color);
   const met = isMet(habit, value);
   const over = isOver(habit, value);
   const pct = progress(habit, value);
@@ -62,9 +58,12 @@ export function HabitStepper({ habit, value, streak, streakBad, onIncrement, onD
     onReset();
   };
 
+  // Borda destacada só para meta atingida em hábito "at_least" (conquista real).
+  // Em "at_most" (limite/hábito ruim) o estado padrão é value=0 → trivialmente
+  // "met", o que destacaria a borda à toa; mantém a borda sutil como os demais.
   const borderStyle = over
     ? { borderColor: accent, borderWidth: 1.5 }
-    : met
+    : met && habit.direction === 'at_least'
     ? { borderColor: mod.accent, borderWidth: 1.5 }
     : { borderColor: colors.line, borderWidth: 1 };
 

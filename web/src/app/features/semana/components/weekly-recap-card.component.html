@@ -1,0 +1,49 @@
+<div class="card">
+  <div class="head">
+    <div class="eyebrow">Resumo da semana</div>
+    <h3 class="title">{{ label }}</h3>
+    <span class="sub">vs. semana anterior</span>
+  </div>
+
+  @if (hasWorkouts()) {
+    <div class="tiles">
+      @for (w of workouts(); track w.label) {
+        <div class="tile">
+          <div class="t-label">{{ w.label }}</div>
+          <div class="t-value mono">{{ w.value }}</div>
+          <div class="t-delta" [attr.data-tone]="w.tone">{{ w.deltaStr }}</div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (healthRows().length > 0) {
+    <div class="section">
+      <div class="sec-label">Saúde (média)</div>
+      @for (r of healthRows(); track r.label) {
+        <div class="row">
+          <span class="r-label">{{ r.label }}</span>
+          <span class="r-value mono">{{ r.value }}</span>
+          <span class="r-delta mono" [attr.data-tone]="r.tone">{{ r.deltaStr }}</span>
+        </div>
+      }
+    </div>
+  }
+
+  @if (triggers().length > 0) {
+    <div class="section">
+      <div class="sec-label">Registros & hábitos</div>
+      @for (t of triggers(); track t.name) {
+        <div class="row">
+          <span class="r-label">{{ t.name }}</span>
+          <span class="r-value mono">{{ t.current }}×</span>
+          <span class="r-delta mono" [attr.data-tone]="t.tone">{{ t.deltaStr }}</span>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!hasWorkouts() && healthRows().length === 0 && triggers().length === 0) {
+    <p class="empty">Sem dados suficientes nesta semana ainda.</p>
+  }
+</div>
