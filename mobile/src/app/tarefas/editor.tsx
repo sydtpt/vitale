@@ -21,7 +21,7 @@ import type {
   TodoSpawnRule,
 } from '@vitale/shared';
 import { HABIT_ICONS } from '@vitale/shared';
-import { isValidTime } from '../../lib/todo-logic';
+import { isValidTime, isValidDate, localDateStr } from '../../lib/todo-logic';
 import { useTodosStore } from '../../store/todos.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
@@ -103,6 +103,8 @@ export default function TodoEditorScreen() {
   const [stockRef, setStockRef] = useState('');
   const [overdue, setOverdue] = useState<TodoOverduePolicy>('carry');
   const [cancelPolicy, setCancelPolicy] = useState<TodoCancelPolicy>('manual');
+  const [startMode, setStartMode] = useState<'now' | 'date'>('now');
+  const [startDate, setStartDate] = useState(''); // 'YYYY-MM-DD'
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [icon, setIcon] = useState<string>(DEFAULT_TODO_ICON);
@@ -187,6 +189,7 @@ export default function TodoEditorScreen() {
       }
       setOverdue(existing.overdue);
       setCancelPolicy(existing.cancelPolicy);
+      if (existing.startDate) { setStartMode('date'); setStartDate(existing.startDate); }
       setStartTime(existing.startTime ?? '');
       setEndTime(existing.endTime ?? '');
       setIcon(existing.icon || DEFAULT_TODO_ICON);
@@ -258,11 +261,17 @@ export default function TodoEditorScreen() {
     endTime.trim() > startTime.trim();
   const timesValid = timeFieldValid(startTime) && timeFieldValid(endTime) && windowValid;
 
-  const valid = name.trim() !== '' && recurrence != null && timesValid;
+  // "A partir de" vale para qualquer série que não nasce só por gatilho.
+  const showStartDate = !triggerOnly;
+  const startDateValid = startMode === 'now' || isValidDate(startDate.trim());
+
+  const valid = name.trim() !== '' && recurrence != null && timesValid && startDateValid;
 
   // Persistidos só quando aplicável; limpa ao trocar p/ recorrência sem data.
   const startTimeOut = hasDateRecurrence && startTime.trim() ? startTime.trim() : null;
   const endTimeOut = hasDateRecurrence && endTime.trim() ? endTime.trim() : null;
+  const startDateOut =
+    showStartDate && startMode === 'date' && isValidDate(startDate.trim()) ? startDate.trim() : null;
 
   const onSave = async () => {
     if (!valid || !recurrence || saving) return;
@@ -280,6 +289,7 @@ export default function TodoEditorScreen() {
           linked_activity_id: linkedActivityId,
           on_complete: spawn.length ? spawn : null,
           trigger_only: triggerOnly,
+          start_date: startDateOut,
           start_time: startTimeOut,
           end_time: endTimeOut,
         });
@@ -296,6 +306,7 @@ export default function TodoEditorScreen() {
           linkedActivityId,
           onComplete: spawn.length ? spawn : undefined,
           triggerOnly,
+          startDate: startDateOut,
           startTime: startTimeOut,
           endTime: endTimeOut,
         });
@@ -504,6 +515,39 @@ export default function TodoEditorScreen() {
             <>
               <Text style={styles.label}>Item (opcional)</Text>
               <TextInput value={stockRef} onChangeText={setStockRef} placeholder="Ex.: Café" placeholderTextColor={colors.ink4} style={styles.input} />
+            </>
+          )}
+
+          {/* A partir de — adia a aparição da série inteira até a data escolhida. */}
+          {showStartDate && (
+            <>
+              <Text style={styles.label}>A partir de</Text>
+              <View style={styles.chips}>
+                <Pressable onPress={() => setStartMode('now')} style={[styles.chip, startMode === 'now' && { backgroundColor: accent }]}>
+                  <Text style={[styles.chipText, startMode === 'now' && styles.chipTextActive]}>Agora</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setStartMode('date'); if (!startDate.trim()) setStartDate(localDateStr()); }}
+                  style={[styles.chip, startMode === 'date' && { backgroundColor: accent }]}
+                >
+                  <Text style={[styles.chipText, startMode === 'date' && styles.chipTextActive]}>Em uma data</Text>
+                </Pressable>
+              </View>
+              {startMode === 'date' && (
+                <>
+                  <TextInput
+                    value={startDate}
+                    onChangeText={setStartDate}
+                    placeholder="AAAA-MM-DD"
+                    placeholderTextColor={colors.ink4}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={10}
+                    autoCapitalize="none"
+                    style={styles.input}
+                  />
+                  <Text style={styles.hint}>A tarefa só aparece a partir desse dia.</Text>
+                </>
+              )}
             </>
           )}
 

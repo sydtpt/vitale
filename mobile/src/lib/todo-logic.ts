@@ -26,6 +26,13 @@ export function isValidTime(s: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 }
 
+/** Valida 'YYYY-MM-DD' (calendário real, não só formato). */
+export function isValidDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = parse(s);
+  return !Number.isNaN(d.getTime()) && localDateStr(d) === s;
+}
+
 function parse(date: string): Date {
   return new Date(`${date}T00:00:00`);
 }
@@ -89,15 +96,22 @@ function yearlyDue(month: number, day: number, from: string, inclusive: boolean)
 }
 
 /**
- * Primeira data de uma série, a partir de `today` (inclusivo).
- * after_completion começa hoje. none/usage/event/stock não têm data (null).
+ * Primeira data de uma série, a partir de `today` (inclusivo). Se a série tem
+ * `startDate` ("a partir de") no futuro, a âncora é `startDate` — evita gerar uma
+ * ocorrência retroativa (que viraria atrasada) ao chegar o dia. after_completion
+ * começa na âncora. none/usage/event/stock não têm data (null).
  */
-export function firstDueDate(rec: TodoRecurrence, today: string = localDateStr()): string | null {
+export function firstDueDate(
+  rec: TodoRecurrence,
+  today: string = localDateStr(),
+  startDate?: string | null,
+): string | null {
+  const from = startDate && startDate > today ? startDate : today;
   switch (rec.kind) {
-    case 'monthly': return monthlyDue(rec.day, today, true);
-    case 'weekly':  return weeklyDue(rec.weekdays, today, true);
-    case 'yearly':  return yearlyDue(rec.month, rec.day, today, true);
-    case 'after_completion': return today;
+    case 'monthly': return monthlyDue(rec.day, from, true);
+    case 'weekly':  return weeklyDue(rec.weekdays, from, true);
+    case 'yearly':  return yearlyDue(rec.month, rec.day, from, true);
+    case 'after_completion': return from;
     default: return null;
   }
 }
@@ -150,6 +164,18 @@ export function daysLate(
 ): number {
   if (!isOverdue(occ, today)) return 0;
   return daysBetween(occ.dueDate as string, today);
+}
+
+/**
+ * "A partir de" (`startDate`): antes desse dia a série inteira fica oculta — não
+ * aparece em nenhum balde (atrasada/hoje/em breve). Sem `startDate` → sempre ativa.
+ * Aplicado no filtro-base das listas; complementa a âncora de `firstDueDate`.
+ */
+export function isStarted(
+  t: Pick<TodoTemplate, 'startDate'>,
+  today: string = localDateStr(),
+): boolean {
+  return !t.startDate || today >= t.startDate;
 }
 
 /**
@@ -206,7 +232,7 @@ export type TodoAction =
  * `create` de calendário no mesmo passe em que houve cancelamento.
  */
 export function reconcileTemplate(
-  t: Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue' | 'triggerOnly' | 'endTime'>,
+  t: Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue' | 'triggerOnly' | 'endTime' | 'startDate'>,
   occ: Pick<TodoOccurrence, 'id' | 'dueDate' | 'status'>[],
   today: string = localDateStr(),
   now: string = localTimeStr(),
@@ -239,7 +265,7 @@ export function reconcileTemplate(
     const alive = pending.filter((o) => !(t.overdue === 'expire' && isPast(o)));
     const hasCurrentOrFuture = alive.some((o) => o.dueDate != null);
     if (!hasCurrentOrFuture) {
-      const next = firstDueDate(t.recurrence, today);
+      const next = firstDueDate(t.recurrence, today, t.startDate);
       if (next) actions.push({ type: 'create', templateId: t.id, dueDate: next });
     }
   }

@@ -37,6 +37,7 @@ export interface NewTodo {
   linkedActivityId?: number | null; // activityId HealthKit que conclui a tarefa
   onComplete?: TodoSpawnRule[]; // encadeamento: ao concluir, instancia filhas
   triggerOnly?: boolean; // só nasce por gatilho (sem ocorrência inicial nem calendário)
+  startDate?: string | null; // 'YYYY-MM-DD' — "a partir de": antes desse dia a série fica oculta (null = Agora)
   startTime?: string | null; // 'HH:MM' — a ocorrência do dia só aparece a partir desse horário
   endTime?: string | null; // 'HH:MM' — após esse horário no dia, cancela automaticamente
   meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
@@ -55,6 +56,7 @@ export interface TodoPatch {
   linked_activity_id?: number | null;
   on_complete?: TodoSpawnRule[] | null;
   trigger_only?: boolean;
+  start_date?: string | null;
   start_time?: string | null;
   end_time?: string | null;
   meta?: Record<string, unknown> | null;
@@ -225,6 +227,7 @@ export const useTodosStore = create<TodosState>((set, get) => ({
         linked_activity_id: input.linkedActivityId ?? null,
         on_complete: input.onComplete ?? null,
         trigger_only: input.triggerOnly ?? false,
+        start_date: input.startDate ?? null,
         start_time: input.startTime ?? null,
         end_time: input.endTime ?? null,
         meta: input.meta ?? null,
@@ -241,7 +244,7 @@ export const useTodosStore = create<TodosState>((set, get) => ({
       if (input.recurrence.kind === 'none') {
         await insertOccurrence(userId, data.id, null);
       } else {
-        const due = firstDueDate(input.recurrence, localDateStr());
+        const due = firstDueDate(input.recurrence, localDateStr(), input.startDate);
         if (due != null) await insertOccurrence(userId, data.id, due);
       }
     }

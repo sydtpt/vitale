@@ -304,6 +304,7 @@ export interface TodoTemplate {
   linkedActivityId?: number;      // activityId HealthKit que conclui esta tarefa (corrida=37, bike=13...)
   onComplete?: TodoSpawnRule[];   // encadeamento: ao concluir, instancia ocorrências destas séries
   triggerOnly?: boolean;          // true = só nasce por gatilho (onComplete/on_workout/manual); ignora ocorrência inicial e calendário
+  startDate?: string;             // 'YYYY-MM-DD' local; "a partir de": antes desse dia a série fica oculta. null/ausente = vale desde já ("Agora")
   startTime?: string;             // 'HH:MM' local; só vale p/ recorrências com data. A ocorrência do dia só aparece a partir desse horário (base p/ lembrete push futuro)
   endTime?: string;               // 'HH:MM' local; após esse horário no dia a ocorrência é cancelada automaticamente (sobrepõe carry/cancelPolicy)
   meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
@@ -350,6 +351,18 @@ export interface RegistroLog {
   id: string;
   registroId: string;
   logDate: string;     // 'YYYY-MM-DD' (data local)
+}
+
+/**
+ * Ratings subjetivos de um dia (1–5). Mapeia a tabela `daily_ratings` (1 linha
+ * por user/dia). `sleepQuality` é preenchido ao acordar; `dayQuality` + `dayNote`
+ * ao fim do dia. Valor subjetivo, deliberadamente desacoplado de outros dados.
+ */
+export interface DailyRating {
+  day: string;                  // 'YYYY-MM-DD' (data local)
+  sleepQuality: number | null;  // 1..5 — percepção da noite de sono
+  dayQuality: number | null;    // 1..5 — percepção do dia como um todo
+  dayNote: string | null;       // anotação livre opcional do dia
 }
 
 /**

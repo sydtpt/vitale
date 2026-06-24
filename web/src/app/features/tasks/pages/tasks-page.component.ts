@@ -3,7 +3,7 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { IconComponent } from '@core/services/icon.component';
 import type { TodoOccurrence, TodoTemplate } from '@vitale/shared';
 import { TodosStore } from '../data/todos.store';
-import { localDateStr, localTimeStr, isOverdue, isVisibleNow } from '../data/todo-logic';
+import { localDateStr, localTimeStr, isOverdue, isVisibleNow, isStarted } from '../data/todo-logic';
 import { describeRecurrence } from '../data/todo-format';
 import { TodoCardComponent } from '../components/todo-card.component';
 import { TodoEditorComponent } from '../components/todo-editor.component';
@@ -27,8 +27,12 @@ export class TasksPageComponent {
   private readonly today = localDateStr();
 
   protected readonly pending = computed(() => {
-    const ids = new Set(this.store.templates().map((t) => t.id));
-    return this.store.occurrences().filter((o) => o.status === 'pending' && ids.has(o.templateId));
+    // isStarted: "a partir de" oculta a série inteira até o dia escolhido.
+    const byId = new Map(this.store.templates().map((t) => [t.id, t]));
+    return this.store.occurrences().filter((o) => {
+      const t = byId.get(o.templateId);
+      return o.status === 'pending' && t != null && isStarted(t, this.today);
+    });
   });
 
   protected readonly overdueRows = computed(() => this.rows(this.pending().filter((o) => isOverdue(o, this.today))));

@@ -29,6 +29,7 @@ interface TodoTemplate {
   overdue; cancelPolicy; meter?; meterAtLastDone?;
   linkedActivityId?; onComplete?: TodoSpawnRule[];
   triggerOnly?: boolean;                                // só nasce por gatilho
+  startDate?: string;                                   // 'YYYY-MM-DD' — "a partir de": série oculta antes desse dia (null = Agora)
   startTime?: string;                                   // 'HH:MM' — ocorrência do dia só aparece a partir daqui
   endTime?: string;                                     // 'HH:MM' — após o horário no dia, cancela automaticamente
   meta?; active; sort; createdAt;
@@ -42,6 +43,7 @@ interface TodoOccurrence {
 ## Tabelas (Supabase) — `supabase/migrations/20260520160000_tarefas.sql`
 ## Encadeamento — `supabase/migrations/20260527130000_todo_on_complete.sql`
 ## Janela de horário — `supabase/migrations/20260603120000_todo_time_window.sql` (`start_time`/`end_time text`)
+## "A partir de" — `supabase/migrations/20260625120000_todo_start_date.sql` (`start_date date`)
 
 - **`todo_templates`**: `recurrence jsonb`, `overdue`/`cancel_policy`/`module` text com `check`,
   `meter`/`meter_at_last_done numeric`, `on_complete jsonb` (lista de `TodoSpawnRule`),
@@ -54,7 +56,8 @@ interface TodoOccurrence {
 
 ## Lógica pura — `mobile/src/lib/todo-logic.ts` (espelhado na web)
 
-- `firstDueDate(rec, today)` — primeira data (inclusiva); `after_completion` começa hoje; none/usage/event/stock → null.
+- `firstDueDate(rec, today, startDate?)` — primeira data (inclusiva); `after_completion` começa na âncora; none/usage/event/stock → null. `startDate` futuro vira a âncora (a primeira data não retroage antes do "a partir de").
+- `isStarted(t, today)` — "a partir de": `false` antes de `startDate` (série oculta em todos os baldes), `true` a partir dele (inclusive) ou sem `startDate`. Aplicado no filtro-base das listas (web + mobile Hoje/Tarefas).
 - `nextDueDate(rec, occDueDate, completedAt)` — próxima após resolver. Âncora: calendário em `occDueDate`,
   `after_completion` em `completedAt`.
 - `isOverdue(occ, today)` / `daysLate(occ, today)` — pendente vencida e dias de atraso.

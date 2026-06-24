@@ -4,12 +4,14 @@ import {
   localDateStr,
   localTimeStr,
   isValidTime,
+  isValidDate,
   addDays,
   daysBetween,
   firstDueDate,
   nextDueDate,
   triggeredDueDate,
   isOverdue,
+  isStarted,
   isVisibleNow,
   isPastEnd,
   daysLate,
@@ -68,6 +70,38 @@ describe('firstDueDate', () => {
     expect(firstDueDate({ kind: 'usage', meterUnit: 'km', every: 5000 }, TODAY)).toBeNull();
     expect(firstDueDate({ kind: 'event', label: 'choveu' }, TODAY)).toBeNull();
     expect(firstDueDate({ kind: 'stock' }, TODAY)).toBeNull();
+  });
+  it('startDate futuro ancora a primeira data nele (não retroage)', () => {
+    // dia 1 já passou em 05-20; sem startDate cairia em 06-01. Com "a partir de"
+    // 07-10, a próxima dia-1 é 08-01.
+    expect(firstDueDate({ kind: 'monthly', day: 1 }, TODAY, '2026-07-10')).toBe('2026-08-01');
+    expect(firstDueDate({ kind: 'after_completion', intervalDays: 15 }, TODAY, '2026-07-10')).toBe('2026-07-10');
+  });
+  it('startDate no passado/hoje não muda a âncora (= hoje)', () => {
+    expect(firstDueDate({ kind: 'monthly', day: 25 }, TODAY, '2026-05-01')).toBe('2026-05-25');
+    expect(firstDueDate({ kind: 'monthly', day: 25 }, TODAY, TODAY)).toBe('2026-05-25');
+  });
+});
+
+describe('isStarted ("a partir de")', () => {
+  it('sem startDate sempre ativa', () => {
+    expect(isStarted({}, TODAY)).toBe(true);
+    expect(isStarted({ startDate: undefined }, TODAY)).toBe(true);
+  });
+  it('oculta antes do dia, ativa a partir dele (inclusive)', () => {
+    expect(isStarted({ startDate: '2026-05-22' }, TODAY)).toBe(false);
+    expect(isStarted({ startDate: TODAY }, TODAY)).toBe(true);
+    expect(isStarted({ startDate: '2026-05-18' }, TODAY)).toBe(true);
+  });
+});
+
+describe('isValidDate', () => {
+  it('aceita datas reais e rejeita formato/calendário inválidos', () => {
+    expect(isValidDate('2026-05-20')).toBe(true);
+    expect(isValidDate('2026-02-30')).toBe(false);
+    expect(isValidDate('2026-13-01')).toBe(false);
+    expect(isValidDate('20260520')).toBe(false);
+    expect(isValidDate('')).toBe(false);
   });
 });
 

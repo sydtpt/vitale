@@ -10,3 +10,7 @@ export * from './health/trends';
 export * from './health/hr-zones';
 export * from './health/trigger-impact';
 export * from './health/aggregate';
+export * from './week/recap';
+export * from './week/highlights';
+export * from './period/bounds';
+export * from './period/retro';

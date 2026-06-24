@@ -24,6 +24,7 @@ recorrentes por data, por intervalo após concluir, avulsas, e gatilhos não-tem
 | Se não fizer no dia (`overdue`) | `carry` (mantém atrasada) · `expire` (some) |
 | Cancelamento (`cancelPolicy`) | `none` (obrigatória) · `manual` · `auto` (após o dia) |
 | Janela de horário (`startTime`/`endTime`) | opcionais `'HH:MM'`, só p/ recorrências com data |
+| A partir de (`startDate`) | opcional `'YYYY-MM-DD'`: série oculta até o dia (Agora = sem data) |
 | Âncora da próxima | calendário (`monthly`/`weekly`/`yearly`) · conclusão (`after_completion`) |
 
 Os 5 exemplos do usuário:
@@ -84,6 +85,18 @@ herdam via `templateId`.
 próxima reconciliação (`load`: abrir app, foreground, navegação) e por um `setTimeout`
 interno agendado para o próximo limite enquanto o app está aberto. `startTime` é a base
 para um lembrete push local futuro.
+
+## A partir de (startDate)
+
+Campo opcional `'YYYY-MM-DD'` no template. No editor: "Agora" (padrão, sem data —
+modelo atual) ou "Em uma data". Vale para qualquer série que não seja só-gatilho.
+
+- Antes de `startDate` a série fica **oculta em todos os baldes** (atrasada/hoje/em
+  breve) — filtro `isStarted` no filtro-base das listas. A ocorrência existe no
+  banco (já criada), só não aparece.
+- A **primeira data** de recorrências com data é ancorada em `max(hoje, startDate)`
+  (`firstDueDate`), então ao chegar o dia ela não nasce retroativa/atrasada.
+- `none` cria a ocorrência sem data normalmente; o `isStarted` a esconde até o dia.
 
 ## Escopo v1
 

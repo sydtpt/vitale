@@ -94,6 +94,7 @@ function AppShell() {
         <Stack.Screen name="treinos/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="treinos/editor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="recuperacao/index" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="retrospectiva/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]/[id]" options={{ animation: 'slide_from_right' }} />

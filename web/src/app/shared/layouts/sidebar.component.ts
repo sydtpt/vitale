@@ -18,6 +18,7 @@ interface NavItem {
 export class SidebarComponent {
   protected readonly items: NavItem[] = [
     { path: '/semana',      icon: '📅', label: 'Semana' },
+    { path: '/retrospectiva', icon: '🗓️', label: 'Retrospectiva' },
     { path: '/treinos',     icon: '🏋️', label: 'Treinos' },
     { path: '/workout-history', icon: '📊', label: 'Histórico de treinos' },
     { path: '/tasks',       icon: '✅', label: 'Tarefas' },

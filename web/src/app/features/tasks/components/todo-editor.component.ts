@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MOD, HABIT_ICONS, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
 import { IconComponent } from '@core/services/icon.component';
-import { isValidTime } from '../data/todo-logic';
+import { isValidTime, isValidDate, localDateStr } from '../data/todo-logic';
 import { TodosStore, type NewTodo } from '../data/todos.store';
 
 /** Ícone padrão de uma nova tarefa (nome canônico de HABIT_ICONS). */
@@ -80,6 +80,8 @@ export class TodoEditorComponent implements OnInit {
   protected dueInDays: number | null = null;
   protected overdue: TodoOverduePolicy = 'carry';
   protected cancelPolicy: TodoCancelPolicy = 'manual';
+  protected startMode: 'now' | 'date' = 'now';
+  protected startDate = ''; // 'YYYY-MM-DD'
   protected startTime = '';
   protected endTime = '';
   protected color = 'tarefa';
@@ -148,6 +150,7 @@ export class TodoEditorComponent implements OnInit {
     }
     this.overdue = t.overdue;
     this.cancelPolicy = t.cancelPolicy;
+    if (t.startDate) { this.startMode = 'date'; this.startDate = t.startDate; }
     this.startTime = t.startTime ?? '';
     this.endTime = t.endTime ?? '';
     this.color = t.color || 'tarefa';
@@ -192,6 +195,16 @@ export class TodoEditorComponent implements OnInit {
     return !this.triggerOnly && ['monthly', 'weekly', 'yearly', 'after_completion'].includes(this.kind);
   }
 
+  /** "A partir de" vale para qualquer série que não nasce só por gatilho. */
+  protected get showStartDate(): boolean {
+    return !this.triggerOnly;
+  }
+
+  protected setStartMode(mode: 'now' | 'date'): void {
+    this.startMode = mode;
+    if (mode === 'date' && !this.startDate) this.startDate = localDateStr();
+  }
+
   private timesValid(): boolean {
     const s = this.startTime.trim();
     const e = this.endTime.trim();
@@ -201,8 +214,12 @@ export class TodoEditorComponent implements OnInit {
     return true;
   }
 
+  private startDateValid(): boolean {
+    return this.startMode === 'now' || isValidDate(this.startDate.trim());
+  }
+
   protected valid(): boolean {
-    return this.name.trim() !== '' && this.buildRecurrence() != null && this.timesValid();
+    return this.name.trim() !== '' && this.buildRecurrence() != null && this.timesValid() && this.startDateValid();
   }
 
   protected async onSave(): Promise<void> {
@@ -213,6 +230,11 @@ export class TodoEditorComponent implements OnInit {
     // Janela de horário só persiste em recorrências com data; limpa caso contrário.
     const startTime = this.hasDateRecurrence && this.startTime.trim() ? this.startTime.trim() : null;
     const endTime = this.hasDateRecurrence && this.endTime.trim() ? this.endTime.trim() : null;
+    // "A partir de": só persiste quando há data escolhida e a série não é só-gatilho.
+    const startDate =
+      this.showStartDate && this.startMode === 'date' && isValidDate(this.startDate.trim())
+        ? this.startDate.trim()
+        : null;
     this.saving.set(true);
     try {
       if (t) {
@@ -226,6 +248,7 @@ export class TodoEditorComponent implements OnInit {
           cancel_policy: this.cancelPolicy,
           on_complete: onComplete,
           trigger_only: this.triggerOnly,
+          start_date: startDate,
           start_time: startTime,
           end_time: endTime,
         });
@@ -241,6 +264,7 @@ export class TodoEditorComponent implements OnInit {
           meter: this.kind === 'usage' ? 0 : undefined,
           onComplete: onComplete ?? undefined,
           triggerOnly: this.triggerOnly,
+          startDate,
           startTime,
           endTime,
         };

@@ -21,14 +21,21 @@ export interface RegistroPatch {
   sort?: number;
 }
 
+/** Janela (em dias) de logs mantida em memória — cobre semana atual + anterior do recap. */
+const WINDOW_DAYS = 21;
+
 interface RegistrosState {
   registros: Registro[];                 // todos (ativos + arquivados), ordenados por `sort`
   todayMarks: Record<string, boolean>;   // registroId → marcado hoje
+  recentLogs: Record<string, string[]>;  // registroId → datas (YYYY-MM-DD) dos últimos WINDOW_DAYS
   loading: boolean;
   loaded: boolean;
 
   load: () => Promise<void>;
   toggleToday: (id: string) => Promise<void>;
+
+  /** Datas (YYYY-MM-DD) marcadas de um registro na janela em memória — síncrono, p/ o recap. */
+  logDatesFor: (id: string) => string[];
 
   /** Datas (YYYY-MM-DD) já marcadas de um registro — para a tela de marcação retroativa. */
   fetchRegistroLogs: (id: string) => Promise<string[]>;
@@ -68,9 +75,27 @@ function currentUserId(): string | undefined {
   return useAuthStore.getState().user?.id;
 }
 
+type MarkState = Pick<RegistrosState, 'todayMarks' | 'recentLogs'>;
+
+/** Aplica/retira a marca de um registro num dia, mantendo todayMarks + recentLogs coerentes. */
+function applyMark(s: MarkState, id: string, date: string, done: boolean): MarkState {
+  const todayMarks = { ...s.todayMarks };
+  if (date === localDateStr()) {
+    if (done) todayMarks[id] = true;
+    else delete todayMarks[id];
+  }
+  const cur = s.recentLogs[id] ?? [];
+  const recentLogs = {
+    ...s.recentLogs,
+    [id]: done ? (cur.includes(date) ? cur : [...cur, date]) : cur.filter((d) => d !== date),
+  };
+  return { todayMarks, recentLogs };
+}
+
 export const useRegistrosStore = create<RegistrosState>((set, get) => ({
   registros: [],
   todayMarks: {},
+  recentLogs: {},
   loading: false,
   loaded: false,
 
@@ -79,17 +104,26 @@ export const useRegistrosStore = create<RegistrosState>((set, get) => ({
     set({ loading: true });
 
     const today = localDateStr();
+    const since = localDateStr(new Date(Date.now() - (WINDOW_DAYS - 1) * 86_400_000));
     const [regsRes, logsRes] = await Promise.all([
       supabase.from('registros').select('*').order('sort', { ascending: true }),
-      supabase.from('registro_logs').select('registro_id').eq('log_date', today),
+      supabase.from('registro_logs').select('registro_id, log_date').gte('log_date', since),
     ]);
 
     const registros = (regsRes.data ?? []).map(toRegistro);
     const todayMarks: Record<string, boolean> = {};
-    for (const l of logsRes.data ?? []) todayMarks[l.registro_id as string] = true;
+    const recentLogs: Record<string, string[]> = {};
+    for (const l of logsRes.data ?? []) {
+      const rid = l.registro_id as string;
+      const date = l.log_date as string;
+      (recentLogs[rid] ??= []).push(date);
+      if (date === today) todayMarks[rid] = true;
+    }
 
-    set({ registros, todayMarks, loading: false, loaded: true });
+    set({ registros, todayMarks, recentLogs, loading: false, loaded: true });
   },
+
+  logDatesFor: (id) => get().recentLogs[id] ?? [],
 
   toggleToday: async (id) => {
     const userId = currentUserId();
@@ -98,12 +132,7 @@ export const useRegistrosStore = create<RegistrosState>((set, get) => ({
     const wasDone = get().todayMarks[id] ?? false;
 
     // otimista
-    set((s) => {
-      const next = { ...s.todayMarks };
-      if (wasDone) delete next[id];
-      else next[id] = true;
-      return { todayMarks: next };
-    });
+    set((s) => applyMark(s, id, today, !wasDone));
 
     const { error } = wasDone
       ? await supabase.from('registro_logs').delete().eq('registro_id', id).eq('log_date', today)
@@ -113,12 +142,7 @@ export const useRegistrosStore = create<RegistrosState>((set, get) => ({
 
     if (error) {
       // reverte em caso de falha
-      set((s) => {
-        const next = { ...s.todayMarks };
-        if (wasDone) next[id] = true;
-        else delete next[id];
-        return { todayMarks: next };
-      });
+      set((s) => applyMark(s, id, today, wasDone));
     }
   },
 
@@ -143,15 +167,8 @@ export const useRegistrosStore = create<RegistrosState>((set, get) => ({
 
     if (error) return false;
 
-    // mantém o estado de "hoje" coerente caso o dia marcado seja o de hoje
-    if (date === localDateStr()) {
-      set((s) => {
-        const next = { ...s.todayMarks };
-        if (done) next[id] = true;
-        else delete next[id];
-        return { todayMarks: next };
-      });
-    }
+    // mantém todayMarks + a janela em memória coerentes após a escrita
+    set((s) => applyMark(s, id, date, done));
     return true;
   },
 

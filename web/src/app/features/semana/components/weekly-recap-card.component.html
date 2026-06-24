@@ -30,6 +30,19 @@
     </div>
   }
 
+  @if (wellbeing().length > 0) {
+    <div class="section">
+      <div class="sec-label">Bem-estar (média)</div>
+      @for (r of wellbeing(); track r.label) {
+        <div class="row">
+          <span class="r-label">{{ r.label }}</span>
+          <span class="r-value mono">{{ r.value }}</span>
+          <span class="r-delta mono" [attr.data-tone]="r.tone">{{ r.deltaStr }}</span>
+        </div>
+      }
+    </div>
+  }
+
   @if (triggers().length > 0) {
     <div class="section">
       <div class="sec-label">Registros & hábitos</div>
@@ -43,7 +56,7 @@
     </div>
   }
 
-  @if (!hasWorkouts() && healthRows().length === 0 && triggers().length === 0) {
+  @if (!hasWorkouts() && healthRows().length === 0 && wellbeing().length === 0 && triggers().length === 0) {
     <p class="empty">Sem dados suficientes nesta semana ainda.</p>
   }
 </div>

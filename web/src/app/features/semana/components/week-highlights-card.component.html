@@ -1,0 +1,16 @@
+<div class="card">
+  <div class="eyebrow">Destaques da semana</div>
+
+  @if (highlights().length > 0) {
+    <ul class="list">
+      @for (h of highlights(); track h.id) {
+        <li class="item" [attr.data-tone]="h.tone">
+          <span class="ico"><rt-icon [name]="iconFor(h.icon)" [size]="16" /></span>
+          <span class="text">{{ h.text }}</span>
+        </li>
+      }
+    </ul>
+  } @else {
+    <p class="empty">Sem dados suficientes nesta semana ainda.</p>
+  }
+</div>

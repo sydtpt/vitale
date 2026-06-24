@@ -30,6 +30,12 @@ const routes: Routes = [
       import('@features/semana/pages/semana-page.component').then(m => m.SemanaPageComponent),
   },
   {
+    path: 'retrospectiva',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/retrospectiva/pages/retrospectiva-page.component').then(m => m.RetrospectivaPageComponent),
+  },
+  {
     path: 'treinos',
     canActivate: [profileGuard],
     loadComponent: () =>

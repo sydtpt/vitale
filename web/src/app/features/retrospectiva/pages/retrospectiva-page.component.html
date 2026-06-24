@@ -1,0 +1,156 @@
+<div class="page">
+  <rt-page-header eyebrow="Retrospectiva" [title]="summary().label" />
+
+  <!-- Controles: tipo de período + navegação -->
+  <div class="controls">
+    <div class="segmented">
+      @for (k of kinds; track k) {
+        <button type="button" [class.active]="kind() === k" (click)="setKind(k)">{{ kindLabel[k] }}</button>
+      }
+    </div>
+    <div class="nav">
+      <button type="button" (click)="prev()" aria-label="Período anterior">‹</button>
+      <span class="nav-label">{{ summary().label }}</span>
+      <button type="button" (click)="next()" [disabled]="!canNext()" aria-label="Próximo período">›</button>
+    </div>
+  </div>
+
+  @if (state() === 'loading') {
+    <p class="empty">Carregando…</p>
+  }
+
+  <!-- KPIs -->
+  <div class="kpis">
+    @for (k of kpis(); track k.label) {
+      <div class="kpi">
+        <span class="kpi-ico" [style.background]="k.color"><rt-icon [name]="k.icon" [size]="18" color="#fff" /></span>
+        <div class="kpi-body">
+          <span class="kpi-label">{{ k.label }}</span>
+          <span class="kpi-value">{{ k.value }}</span>
+          <span class="kpi-delta" [attr.data-tone]="k.delta.tone">{{ k.delta.text }}</span>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Destaques integrados -->
+  <div class="card">
+    <div class="eyebrow">Destaques do período</div>
+    @if (highlights().length > 0) {
+      <ul class="list">
+        @for (h of highlights(); track h.id) {
+          <li class="item" [attr.data-tone]="h.tone">
+            <span class="ico"><rt-icon [name]="iconFor(h.icon)" [size]="16" /></span>
+            <span class="text">{{ h.text }}</span>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty">Sem dados suficientes neste período ainda.</p>
+    }
+  </div>
+
+  <div class="grid">
+    <!-- Tarefas -->
+    <div class="card">
+      <div class="eyebrow">Tarefas feitas</div>
+      <div class="big">{{ summary().tasks.total.current }}
+        <span class="big-delta" [attr.data-tone]="delta(summary().tasks.total, false).tone">{{ delta(summary().tasks.total, false).text }}</span>
+      </div>
+      @if (summary().tasks.byModule.length > 0) {
+        <div class="chips">
+          @for (m of summary().tasks.byModule; track m.key) {
+            <span class="chip">{{ m.label }} · {{ m.count }}</span>
+          }
+        </div>
+      } @else { <p class="empty">Nenhuma tarefa concluída.</p> }
+    </div>
+
+    <!-- Compras & gastos -->
+    <div class="card">
+      <div class="eyebrow">Compras &amp; gastos</div>
+      <div class="big">{{ brl(summary().purchases.spend.current) }}
+        <span class="big-delta" [attr.data-tone]="delta(summary().purchases.spend, true).tone">{{ delta(summary().purchases.spend, true).text }}</span>
+      </div>
+      <p class="muted">{{ summary().purchases.count.current }} itens comprados</p>
+      @for (c of summary().purchases.byCat; track c.key) {
+        <div class="row"><span>{{ c.label }}</span><span class="row-v">{{ brl(c.sum || 0) }} · {{ c.count }}</span></div>
+      }
+      <p class="note">Gasto estimado a partir de Compras (sem módulo de transações).</p>
+    </div>
+
+    <!-- Treinos -->
+    <div class="card">
+      <div class="eyebrow">Treinos &amp; atividade</div>
+      <div class="mini-stats">
+        <div><b>{{ summary().fitness.count.current }}</b><span>sessões</span></div>
+        <div><b>{{ km(summary().fitness.distanceM.current) }}</b><span>distância</span></div>
+        <div><b>{{ dur(summary().fitness.durationS.current) }}</b><span>tempo</span></div>
+        <div><b>{{ num(summary().fitness.hardMin.current) }}min</b><span>carga dura</span></div>
+      </div>
+      @for (t of summary().fitness.byType; track t.key) {
+        <div class="row"><span>{{ t.label }}</span><span class="row-v">{{ t.count }}× · {{ km(t.sum || 0) }}</span></div>
+      }
+    </div>
+
+    <!-- Saúde & bem-estar -->
+    <div class="card">
+      <div class="eyebrow">Saúde &amp; bem-estar</div>
+      @for (h of summary().health; track h.metric) {
+        <div class="row">
+          <span>{{ h.label }} <small class="trend" [attr.data-tone]="h.trend">{{ trendIcon(h.trend) }}</small></span>
+          <span class="row-v">{{ healthValue(h) }}
+            <small class="badge" [attr.data-tone]="healthDelta(h).tone">{{ healthDelta(h).text }}</small>
+          </span>
+        </div>
+      }
+      @if (summary().ratings.sleep?.current != null) {
+        <div class="row"><span>Sono percebido</span><span class="row-v">{{ num(summary().ratings.sleep!.current || 0, 1) }}/5</span></div>
+      }
+      @if (summary().ratings.day?.current != null) {
+        <div class="row"><span>Dia percebido</span><span class="row-v">{{ num(summary().ratings.day!.current || 0, 1) }}/5</span></div>
+      }
+    </div>
+
+    <!-- Hábitos -->
+    <div class="card">
+      <div class="eyebrow">Hábitos &amp; registros</div>
+      @if (summary().habits.good.length > 0) {
+        <p class="sub">Bons</p>
+        @for (h of summary().habits.good; track h.id) {
+          <div class="row"><span>{{ h.name }}</span><span class="row-v">{{ h.recap.current }}d
+            <small class="badge" [attr.data-tone]="delta(h.recap, false).tone">{{ delta(h.recap, false).text }}</small></span></div>
+        }
+      }
+      @if (summary().habits.bad.length > 0) {
+        <p class="sub">A evitar</p>
+        @for (h of summary().habits.bad; track h.id) {
+          <div class="row"><span>{{ h.name }}</span><span class="row-v">{{ h.recap.current }}d
+            <small class="badge" [attr.data-tone]="delta(h.recap, true).tone">{{ delta(h.recap, true).text }}</small></span></div>
+        }
+      }
+      @if (summary().habits.good.length === 0 && summary().habits.bad.length === 0) {
+        <p class="empty">Nenhum hábito registrado.</p>
+      }
+    </div>
+  </div>
+
+  <!-- Breakdown anual -->
+  @if (isYear()) {
+    <div class="card">
+      <div class="eyebrow">Por mês — {{ summary().label }}</div>
+      <div class="year-grid">
+        @for (b of buckets(); track b.month) {
+          <div class="ybar">
+            <div class="ybar-track">
+              <div class="ybar-fill" [style.height.%]="barPct(b.workouts, bucketMax().workouts)" [style.background]="T.primary"></div>
+            </div>
+            <span class="ybar-label">{{ b.label }}</span>
+            <span class="ybar-val">{{ b.workouts }}</span>
+          </div>
+        }
+      </div>
+      <p class="muted">Treinos por mês · distância total {{ km(summary().fitness.distanceM.current) }} no ano</p>
+    </div>
+  }
+</div>

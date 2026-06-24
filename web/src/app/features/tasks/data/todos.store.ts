@@ -36,6 +36,7 @@ export interface NewTodo {
   meter?: number;
   onComplete?: TodoSpawnRule[];
   triggerOnly?: boolean;
+  startDate?: string | null; // 'YYYY-MM-DD' — "a partir de": antes desse dia a série fica oculta (null = Agora)
   startTime?: string | null; // 'HH:MM' — a ocorrência do dia só aparece a partir desse horário
   endTime?: string | null; // 'HH:MM' — após esse horário no dia, cancela automaticamente
   meta?: Record<string, unknown>;
@@ -54,6 +55,7 @@ interface DbTemplateRow {
   meter_at_last_done: number | string | null;
   on_complete: TodoSpawnRule[] | null;
   trigger_only: boolean | null;
+  start_date: string | null;
   start_time: string | null;
   end_time: string | null;
   meta: Record<string, unknown> | null;
@@ -220,6 +222,7 @@ export class TodosStore {
         meter: input.meter ?? null,
         on_complete: input.onComplete ?? null,
         trigger_only: input.triggerOnly ?? false,
+        start_date: input.startDate ?? null,
         start_time: input.startTime ?? null,
         end_time: input.endTime ?? null,
         meta: input.meta ?? null,
@@ -233,7 +236,7 @@ export class TodosStore {
       if (input.recurrence.kind === 'none') {
         await this.insertOccurrence(userId, data.id, null);
       } else {
-        const due = firstDueDate(input.recurrence, localDateStr());
+        const due = firstDueDate(input.recurrence, localDateStr(), input.startDate);
         if (due != null) await this.insertOccurrence(userId, data.id, due);
       }
     }
@@ -361,6 +364,7 @@ function mapTemplate(r: DbTemplateRow): TodoTemplate {
     meterAtLastDone: r.meter_at_last_done == null ? undefined : Number(r.meter_at_last_done),
     onComplete: r.on_complete ?? undefined,
     triggerOnly: r.trigger_only ?? undefined,
+    startDate: r.start_date ?? undefined,
     startTime: r.start_time ?? undefined,
     endTime: r.end_time ?? undefined,
     meta: r.meta ?? undefined,

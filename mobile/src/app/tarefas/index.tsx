@@ -7,7 +7,7 @@ import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { TodoItem } from '../../components/cards/TodoItem';
-import { localDateStr, localTimeStr, isOverdue, isVisibleNow, addDays } from '../../lib/todo-logic';
+import { localDateStr, localTimeStr, isOverdue, isVisibleNow, isStarted, addDays } from '../../lib/todo-logic';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 export default function TarefasScreen() {
@@ -34,7 +34,10 @@ export default function TarefasScreen() {
     tplById.has(o.templateId) && tplById.get(o.templateId)!.module !== 'compras';
 
   const now = localTimeStr();
-  const pending = occurrences.filter((o) => o.status === 'pending' && isTask(o));
+  // isStarted: "a partir de" oculta a série inteira até o dia escolhido.
+  const pending = occurrences.filter(
+    (o) => o.status === 'pending' && isTask(o) && isStarted(tplById.get(o.templateId)!, today),
+  );
   // startTime: a tarefa do dia só aparece a partir do horário; antes disso cai em "Em breve".
   const visible = (o: TodoOccurrence) => isVisibleNow(tplById.get(o.templateId)!, o, today, now);
 

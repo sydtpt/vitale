@@ -159,3 +159,5 @@ Cada módulo tem seu spec em `.claude/specs/`:
 - [Web: Readiness → Treino (prontidão acionável)](.claude/specs/readiness-treino/spec.md) · [tasks](.claude/specs/readiness-treino/tasks.md)
 - [Web: Correlações de Gatilho (hábito-ruim/registro × saúde)](.claude/specs/correlacoes-gatilho/spec.md) · [tasks](.claude/specs/correlacoes-gatilho/tasks.md)
 - [Web: Recap Semanal (resumo automático da semana)](.claude/specs/recap-semanal/spec.md) · [tasks](.claude/specs/recap-semanal/tasks.md)
+- [Ratings diários subjetivos (sono ao acordar + dia após 22h)](.claude/specs/ratings-diarios/spec.md)
+- [Retrospectiva (resumo agregado por semana/mês/ano com insights cruzados)](.claude/specs/retrospectiva/spec.md)

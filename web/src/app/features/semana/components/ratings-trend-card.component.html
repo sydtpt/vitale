@@ -1,0 +1,34 @@
+@if (hasData()) {
+  <div>
+    <svg [attr.viewBox]="'0 0 ' + w + ' ' + h" class="chart">
+      @for (g of gridLines; track g.v) {
+        <g>
+          <line [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="g.y" [attr.y2]="g.y" stroke="#EFE6D8" stroke-dasharray="3 3"/>
+          <text [attr.x]="padL - 8" [attr.y]="g.y + 3" text-anchor="end" font-size="10" font-family="Geist Mono, monospace" fill="#9C928A">{{ g.v }}</text>
+        </g>
+      }
+      @for (lbl of xLabels; track lbl.text) {
+        <text [attr.x]="x(lbl.i)" [attr.y]="h - 8" text-anchor="middle" font-size="10" fill="#9C928A">{{ lbl.text }}</text>
+      }
+      @for (s of series(); track s.kind) {
+        <g>
+          <path [attr.d]="s.path" [attr.stroke]="s.color" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          @for (p of s.points; track $index) {
+            <circle [attr.cx]="p.cx" [attr.cy]="p.cy" r="2.5" [attr.fill]="s.color"/>
+          }
+        </g>
+      }
+    </svg>
+    <div class="legend">
+      @for (s of series(); track s.kind) {
+        <div class="row">
+          <span class="dot" [style.background]="s.color"></span>
+          <span class="name">{{ s.label }}</span>
+          <span class="avg mono">{{ s.avg ?? '—' }}/5</span>
+        </div>
+      }
+    </div>
+  </div>
+} @else {
+  <p class="empty">Sem ratings registrados ainda.</p>
+}

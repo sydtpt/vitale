@@ -103,6 +103,18 @@
       }
     }
 
+    @if (showStartDate) {
+      <label class="lbl">A partir de</label>
+      <div class="chips">
+        <button class="chip" [class.on]="startMode === 'now'" (click)="setStartMode('now')">Agora</button>
+        <button class="chip" [class.on]="startMode === 'date'" (click)="setStartMode('date')">Em uma data</button>
+      </div>
+      @if (startMode === 'date') {
+        <input class="inp" type="date" [(ngModel)]="startDate" />
+        <label class="lbl">A tarefa só aparece a partir desse dia.</label>
+      }
+    }
+
     @if (hasDateRecurrence) {
       <div class="row">
         <div class="col"><label class="lbl">Hora inicial (opcional)</label><input class="inp" type="time" [(ngModel)]="startTime" /></div>

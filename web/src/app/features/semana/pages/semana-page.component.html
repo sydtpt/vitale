@@ -1,22 +1,23 @@
 <div class="page">
   <rt-page-header
-    eyebrow="Semana 21 · 18 — 24 maio"
+    [eyebrow]="weekRange()"
     [title]="greeting()"
-    subtitle="Você está com 78 de 100 esta semana — uma das suas melhores."
   />
+
+  <rt-week-highlights-card />
 
   <rt-weekly-recap-card />
 
   <div class="stats">
     <rt-big-stat icon="dumbbell" [color]="T.primary"
-      label="Treinos" value="3" suffix="/ 5" delta="60%" [deltaPos]="true"
-      sub="Pernas hoje · corrida longa sábado" />
+      label="Treinos" [value]="treinos().value" [suffix]="treinos().suffix" [delta]="treinos().pct" [deltaPos]="true"
+      sub="concluídos na semana" />
     <rt-big-stat icon="flame" [color]="T.yellow"
       label="kcal/dia (média)" value="2.041" delta="−3% vs alvo" [deltaPos]="true"
       sub="Proteína média: 132g / 140g" />
     <rt-big-stat icon="target" [color]="T.green"
-      label="Hábitos" value="22" suffix="/ 28" delta="79%" [deltaPos]="true"
-      sub="Yoga 3× · Leitura 4× · Meditar 2×" />
+      label="Hábitos" [value]="habitos().value" [suffix]="habitos().suffix" [delta]="habitos().pct" [deltaPos]="true"
+      sub="check-ins na semana" />
     <rt-big-stat icon="wallet" [color]="T.ink"
       label="Gasto semana" value="R$ 412" delta="−12% vs anterior" [deltaPos]="true"
       sub="Mercado: R$ 168 · mais gasto" />
@@ -54,6 +55,11 @@
       <rt-macros-card />
     </rt-panel>
   </div>
+
+  <rt-panel title="Bem-estar percebido — 30 dias">
+    <span panel-right class="muted small">sono & dia · escala 1–5</span>
+    <rt-ratings-trend-card />
+  </rt-panel>
 
   <div class="grid-1-4-1">
     <rt-panel title="Gastos por categoria">

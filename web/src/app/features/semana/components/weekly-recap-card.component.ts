@@ -4,6 +4,7 @@ import { ActivitiesStore } from '@features/workout-history/data/activities.store
 import { HealthStore } from '@features/saude/data/health.store';
 import { HabitsStore } from '@features/habits/data/habits.store';
 import { RegistrosStore } from '@features/registros/data/registros.store';
+import { DailyRatingsStore } from '../data/daily-ratings.store';
 import { formatHealthValue } from '@features/saude/data/health-format';
 import { activityRecap, countRecap, metricRecap, weekLabel, type RecapValue } from '../data/weekly-recap';
 
@@ -34,6 +35,7 @@ export class WeeklyRecapCardComponent {
   private readonly health = inject(HealthStore);
   private readonly habits = inject(HabitsStore);
   private readonly registros = inject(RegistrosStore);
+  private readonly ratings = inject(DailyRatingsStore);
 
   private readonly now = new Date();
 
@@ -42,6 +44,7 @@ export class WeeklyRecapCardComponent {
     void this.health.load();
     void this.habits.load();
     void this.registros.load();
+    void this.ratings.load();
   }
 
   protected readonly label = weekLabel(this.now);
@@ -75,6 +78,26 @@ export class WeeklyRecapCardComponent {
         value: formatHealthValue(meta, r.current),
         deltaStr: r.delta == null ? '—' : `${this.sign(r.delta)}${formatHealthValue(meta, Math.abs(r.delta))}`,
         tone: this.toneFor(r.delta, r.deltaPct, higherIsWorse),
+      });
+    }
+    return out;
+  });
+
+  /** Bem-estar percebido (1–5): médias subjetivas de sono e dia. Subir é bom. */
+  protected readonly wellbeing = computed<StatVM[]>(() => {
+    const out: StatVM[] = [];
+    const rows: { label: string; kind: 'sleep' | 'day' }[] = [
+      { label: 'Sono (percebido)', kind: 'sleep' },
+      { label: 'Dia (percebido)', kind: 'day' },
+    ];
+    for (const { label, kind } of rows) {
+      const r = metricRecap(this.ratings.valuesByDay(kind), this.now);
+      if (r.current == null) continue;
+      out.push({
+        label,
+        value: `${this.fmtRating(r.current)}/5`,
+        deltaStr: r.delta == null ? '—' : `${this.sign(r.delta)}${this.fmtRating(Math.abs(r.delta))}`,
+        tone: this.toneFor(r.delta, r.deltaPct, false),
       });
     }
     return out;
@@ -119,6 +142,10 @@ export class WeeklyRecapCardComponent {
 
   private sign(n: number): string {
     return n >= 0 ? '+' : '−';
+  }
+
+  private fmtRating(n: number): string {
+    return n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   }
 
   private toneFor(delta: number | null, deltaPct: number | null, higherIsWorse: boolean): Tone {

@@ -6,6 +6,8 @@ import { DayRingCard } from '../../components/cards/DayRingCard';
 import { ReadinessCard } from '../../components/cards/ReadinessCard';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { HabitStepper } from '../../components/cards/HabitStepper';
+import { SleepRatingCard } from '../../components/cards/SleepRatingCard';
+import { DayRatingCard } from '../../components/cards/DayRatingCard';
 import { TodoItem } from '../../components/cards/TodoItem';
 import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
 import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
@@ -13,11 +15,12 @@ import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
 import { useHealthStore } from '../../store/health.store';
+import { useDailyRatingsStore } from '../../store/daily-ratings.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
 import { readinessFromSummaries } from '../../lib/health-readiness';
-import { isOverdue, isVisibleNow, localTimeStr } from '../../lib/todo-logic';
+import { isOverdue, isVisibleNow, isStarted, localTimeStr } from '../../lib/todo-logic';
 import { HOJE } from '../../services/mock-data';
 import type { CounterHabit } from '@vitale/shared';
 import type { User } from '@supabase/supabase-js';
@@ -86,9 +89,19 @@ export default function HojeScreen() {
   const resolveTodo = useTodosStore(s => s.resolve);
   useEffect(() => { loadTodos(); }, [loadTodos, user?.id]);
 
+  // Ratings subjetivos do dia (sono ao acordar, dia após 22h)
+  const todayRating = useDailyRatingsStore(s => s.today);
+  const loadRatings = useDailyRatingsStore(s => s.load);
+  const setSleep = useDailyRatingsStore(s => s.setSleep);
+  const setDay = useDailyRatingsStore(s => s.setDay);
+  useEffect(() => { loadRatings(); }, [loadRatings, user?.id]);
+
+  // O card de "como foi seu dia?" só aparece à noite (a partir das 22h).
+  const showDayRating = new Date().getHours() >= 22;
+
   // Ao retomar o app (background → active), a tela segue montada, então
   // recarrega o que pode ter mudado desde a última vez.
-  useRefreshOnForeground(() => { loadCounters(); loadTodos(); });
+  useRefreshOnForeground(() => { loadCounters(); loadTodos(); loadRatings(); });
 
   // Contribuição da água ao score vem do hábito contador "Água" (litros)
   const aguaHabit = counters.find(h => h.unit === 'L' && h.direction === 'at_least');
@@ -144,6 +157,7 @@ export default function HojeScreen() {
     o.status === 'pending' &&
     tplById.has(o.templateId) &&
     tplById.get(o.templateId)!.module !== 'compras' &&
+    isStarted(tplById.get(o.templateId)!, today) &&
     (isOverdue(o, today) || o.dueDate === null || o.dueDate <= today) &&
     isVisibleNow(tplById.get(o.templateId)!, o, today, nowTime)
   );
@@ -164,6 +178,9 @@ export default function HojeScreen() {
           <Text style={styles.greeting}>{getGreeting(firstName)}</Text>
           <Text style={styles.sub}>{HOJE.weekDay} · {4 - mealsDone} checks pendentes</Text>
         </View>
+
+        {/* Sono percebido — preenchido ao acordar; colapsa em chip depois */}
+        <SleepRatingCard value={todayRating?.sleepQuality ?? null} onSelect={setSleep} />
 
         {/* Carousel: Ring + Prontidão lado a lado com scroll horizontal */}
         <ScrollView
@@ -218,6 +235,18 @@ export default function HojeScreen() {
           <>
             <SectionLabel>Hábitos</SectionLabel>
             {pendingHabits.map(renderStepper)}
+          </>
+        )}
+
+        {/* Como foi o dia? — só a partir das 22h */}
+        {showDayRating && (
+          <>
+            <SectionLabel>Fim do dia</SectionLabel>
+            <DayRatingCard
+              value={todayRating?.dayQuality ?? null}
+              note={todayRating?.dayNote ?? null}
+              onSubmit={setDay}
+            />
           </>
         )}
 
