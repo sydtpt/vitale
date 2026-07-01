@@ -2,7 +2,7 @@
  * Vitale — Mock Data
  * Seeded data for the prototype. Replace with real API calls later.
  */
-import type { Meal, Habit, Chore, Treino, Lift, RunWeek, FinancaCategory, Transaction, CasaTarefa, Meta, WeekDay } from '@vitale/shared';
+import type { Meal, Habit, Chore, Treino, Lift, RunWeek, FinancaCategory, Transaction, CasaTarefa, WeekDay } from '@vitale/shared';
 
 export const WEEK: WeekDay[] = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 export const TODAY_IDX = 3;
@@ -101,12 +101,4 @@ export const CASA_TAREFAS: CasaTarefa[] = [
   { name: 'Limpar geladeira',    every: 'mensal',     when: '1º dom' },
   { name: 'Trocar filtro do ar', every: 'trimestral', when: 'jun' },
   { name: 'Limpar banheiro',     every: '2x semana',  when: 'qui/dom' },
-];
-
-export const METAS: Meta[] = [
-  { name: 'Correr 10km em 50min', cat: 'Treino',   progress: 64, target: '50:00', current: '52:20' },
-  { name: 'Agachamento 100kg',    cat: 'Treino',   progress: 90, target: '100kg', current: '90kg' },
-  { name: 'Ler 12 livros em 2026', cat: 'Hábito',  progress: 42, target: '12',    current: '5' },
-  { name: 'Economizar R$ 8.000',  cat: 'Finanças', progress: 56, target: '8.000', current: '4.480' },
-  { name: 'Yoga 4× semana',       cat: 'Hábito',   progress: 75, target: '4×',    current: '3×' },
 ];

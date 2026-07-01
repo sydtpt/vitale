@@ -1,5 +1,50 @@
 <div class="page">
-  <rt-page-header eyebrow="Metas" title="Onde você quer chegar"
-    subtitle="5 metas ativas · progresso médio 65%" />
-  <div class="mt"><rt-panel title="Metas de longo prazo"><rt-metas-list /></rt-panel></div>
+  <div class="head">
+    <rt-page-header eyebrow="Metas" title="Onde você quer chegar" [subtitle]="subtitle()" />
+    <button class="add" (click)="openNew()">+ Nova meta</button>
+  </div>
+
+  @if (store.categories().length > 0) {
+    <div class="filters">
+      <button class="chip" [class.on]="selectedCat() === 'todas'" (click)="setCat('todas')">Todas</button>
+      @for (c of store.categories(); track c) {
+        <button class="chip" [class.on]="selectedCat() === c" (click)="setCat(c)">{{ c }}</button>
+      }
+    </div>
+  }
+
+  @if (store.isEmpty()) {
+    <div class="empty">Nenhuma meta ainda. Crie a primeira para acompanhar seu ano.</div>
+  } @else {
+    <div class="grid">
+      @for (m of filtered(); track m.goal.id) {
+        <div class="card" [class.done]="m.achieved">
+          <div class="top">
+            <div class="titles">
+              <div class="name">{{ m.goal.title }}</div>
+              <div class="sub">{{ m.family }} · {{ m.goal.year }}</div>
+            </div>
+            <div class="actions">
+              <button class="lnk" (click)="openEdit(m.goal)">Editar</button>
+              <button class="lnk danger" (click)="remove(m.goal)">Remover</button>
+            </div>
+          </div>
+
+          <div class="value">
+            <span class="mono">{{ m.value }}</span>
+            @if (m.achieved) { <span class="badge">✓ concluída</span> }
+          </div>
+
+          <div class="track"><div class="fill" [style.width.%]="m.pct"></div></div>
+          <div class="pct mono">{{ m.pct }}%</div>
+        </div>
+      } @empty {
+        <div class="empty">Nenhuma meta nesta categoria.</div>
+      }
+    </div>
+  }
 </div>
+
+@if (editorOpen()) {
+  <rt-goal-editor [goal]="editing()" (close)="editorOpen.set(false)" (saved)="onSaved()" />
+}

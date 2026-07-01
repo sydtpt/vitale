@@ -1,4 +1,4 @@
-# Spec: Ratings diários subjetivos — Sono (ao acordar) + Dia (após 22h)
+# Spec: Ratings diários subjetivos — Sono (ao acordar) + Dia (janela noturna)
 
 > **Feature:** `daily_ratings` · **Status:** ✅ implementação inicial (mobile captura + web/mobile agregação) · **Data:** 2026-06-07
 
@@ -10,8 +10,9 @@ dia como um todo. Esse sinal é deliberadamente **desacoplado** dos outros dados
 da pessoa, não uma derivação de métricas.
 
 **Objetivo:** na tela **Hoje** do mobile, registrar com um toque:
-1. **Qualidade do sono (1–5)** — ao acordar.
-2. **Qualidade do dia (1–5)** + **anotação opcional** — ao fim do dia (card só aparece após 22h).
+1. **Qualidade do sono (1–5)** — ao acordar (card só aparece a partir das 06h).
+2. **Qualidade do dia (1–5)** + **anotação opcional** — ao fim do dia, na janela noturna
+   (22h–04h59). Na madrugada (00h–04h59) o card avalia/grava o **dia anterior**.
 
 E revisitar isso em **agregações** semanais/mensais: recap web, gráfico de tendência web (30
 dias) e destaques da Semana mobile.
@@ -22,8 +23,8 @@ dias) e destaques da Semana mobile.
 |---------|---------|------------|
 | Escala | **1–5, pílulas numeradas** com cor graduada (vermelho→verde) | Combina com o design system; neutro/analítico |
 | Captura | **Só mobile** (tela Hoje) | Alinha com "mobile = captura rápida"; web é só análise |
-| Sono | Card no topo da Hoje, **visível até preencher**, depois colapsa em chip | "Ao acordar"; reabre ao toque p/ corrigir |
-| Dia | Card no fim da Hoje, **só com `getHours() >= 22`** | "Fim do dia"; gate por horário local |
+| Sono | Card no topo da Hoje, **só com `getHours() >= 6`**, visível até preencher e depois colapsa em chip | "Ao acordar"; reabre ao toque p/ corrigir |
+| Dia | Card no fim da Hoje, **janela noturna 22h–04h59** (`getHours() >= 22 \|\| getHours() < 5`) | "Fim do dia"; na madrugada grava o dia anterior (label "Como foi ontem?") |
 | Anotação | **Texto livre opcional** no rating do dia | Ex.: "dia corrido mas produtivo" |
 | Acoplamento | **Nenhum** — valor 100% subjetivo | Não deriva de sono HealthKit nem de prontidão |
 | Persistência | **Supabase** — `daily_ratings`, 1 linha por `(user, dia)` | Sono e dia moram juntos; upsert por campo; RLS por usuário |
@@ -38,8 +39,9 @@ dias) e destaques da Semana mobile.
 
 ## 4. Requisitos funcionais
 
-- **FR-001** O usuário DEVE poder dar nota 1–5 ao **sono** na Hoje; persiste e colapsa em chip.
-- **FR-002** O usuário DEVE poder dar nota 1–5 ao **dia** + anotação opcional, **só após 22h**.
+- **FR-001** O usuário DEVE poder dar nota 1–5 ao **sono** na Hoje (**a partir das 06h**); persiste e colapsa em chip.
+- **FR-002** O usuário DEVE poder dar nota 1–5 ao **dia** + anotação opcional, na **janela 22h–04h59**;
+  resposta na madrugada (00h–04h59) é atribuída ao **dia anterior**.
 - **FR-003** Cada campo é **upsert independente** na mesma linha do dia (`onConflict: user_id,day`),
   com update otimista e revert em erro.
 - **FR-004** Reset pela **data local**: novo dia começa em branco; dias anteriores ficam no histórico.

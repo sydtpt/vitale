@@ -14,3 +14,4 @@ export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bounds';
 export * from './period/retro';
+export * from './goals/evaluate';

@@ -49,6 +49,19 @@ function mergeToday(prev: DailyRating | null, day: string, patch: Partial<DailyR
   return { ...base, ...patch, day };
 }
 
+/**
+ * Dia (YYYY-MM-DD) que o rating "do dia" avalia, conforme a janela noturna:
+ * - 22h–23h59 → o próprio dia corrente;
+ * - 00h–04h59 → o dia anterior (madrugada ainda é "o dia que terminou");
+ * - fora disso → null (card não deve aparecer).
+ */
+export function dayRatingDate(now: Date = new Date()): string | null {
+  const h = now.getHours();
+  if (h >= 22) return localDateStr(now);
+  if (h < 5) return localDateStr(new Date(now.getTime() - 86_400_000));
+  return null;
+}
+
 export const useDailyRatingsStore = create<DailyRatingsState>((set, get) => ({
   today: null,
   window: {},
@@ -95,14 +108,17 @@ export const useDailyRatingsStore = create<DailyRatingsState>((set, get) => ({
   setDay: async (value, note) => {
     const userId = currentUserId();
     if (!userId) return;
-    const day = localDateStr();
+    // Na madrugada (00h–04h59) o rating do dia pertence ao dia anterior, não ao
+    // dia de calendário corrente; dayRatingDate resolve isso (fallback = hoje).
+    const day = dayRatingDate() ?? localDateStr();
     const prevToday = get().today;
     const prevWindow = get().window;
     const cleanNote = note?.trim() ? note.trim() : null;
 
-    // otimista
-    const next = mergeToday(prevToday, day, { dayQuality: value, dayNote: cleanNote });
-    set({ today: next, window: { ...prevWindow, [day]: next } });
+    // otimista — base vem da janela do dia avaliado (pode ser ontem na madrugada)
+    const next = mergeToday(prevWindow[day] ?? null, day, { dayQuality: value, dayNote: cleanNote });
+    const isToday = day === localDateStr();
+    set({ today: isToday ? next : prevToday, window: { ...prevWindow, [day]: next } });
 
     const { error } = await supabase
       .from('daily_ratings')

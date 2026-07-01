@@ -167,6 +167,7 @@ export class RetroStore {
       now, kind, offset,
       activities: this.activitiesStore.activities(),
       health: HEALTH_SPECS.map((s) => ({ ...s, valuesByDay: byMetric.get(s.metric) ?? new Map() })),
+      floorsByDay: byMetric.get('andares'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
       habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, logsByDay: logsByHabit.get(h.id) ?? new Map() })),

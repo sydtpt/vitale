@@ -2,45 +2,63 @@
 
 ## Objetivo
 
-Acompanhar objetivos de longo prazo com progresso visual — perda de peso, PR de levantamento, meta financeira, etc.
+Metas **anuais que se contabilizam sozinhas** a partir de dados que já existem no app
+(atividades HealthKit, tarefas concluídas, hábitos) ou informadas à mão. Ex.: "correr
+ao menos 1x/mês", "1 meia-maratona no ano", "comer banana 1x/semana", "ler 12 livros".
 
-## Status: 🔧 Página criada, dados mockados
+## Status: ✅ v1 implementado (leitura/contabilização) · 🔧 nudge = fase 2
 
-## Seções
+O progresso é **derivado** por `evaluateGoal` (shared) — nunca persistido. A tabela `goals`
+guarda só a definição. Aplicação da migration `20260701120000_goals.sql` é manual.
 
-### Cards de metas
-- Grid de cards por meta
-- Cada card: nome, categoria, barra de progresso, valor atual vs target
-- Cores por categoria (treino, financeiro, saúde, pessoal)
-- Modelo: `Meta` — `{ name, cat, progress, target, current }`
+## Modelo de domínio
 
-### Progresso por categoria
-- Tabs ou accordion: Treino, Financeiro, Saúde, Pessoal
-- Filtrar cards por categoria
+`Goal` (shared, `packages/shared/src/models/index.ts`) — mapeia a tabela `goals`:
 
-### Gráfico de progresso (nice-to-have)
-- Linha do tempo de uma meta específica
-- X: datas de registro, Y: valor da meta
-- Ex: peso corporal ao longo do tempo
+- `family`: como mede progresso
+  - `cadence`    → "≥N por período" ao longo do ano (períodos cumpridos / total)
+  - `milestone`  → marco único no ano (limiar / best-effort / contagem)
+  - `cumulative` → soma no ano até um alvo
+- `source` (`GoalSource`): de onde vem o sinal
+  - `activity` — contagem / distância / best-effort (`bestEfforts["half"]` p/ meia-maratona)
+  - `task` — conta occurrences `done` de um `TodoTemplate`
+  - `habit` — conta dias que bateram a meta de um hábito contador
+  - `manual` — valor digitado (`manualCurrent`)
+- `period` + `perPeriodTarget` (só cadence): sub-período (semana|mês) e mínimo por período
+- `target`: interpretado pela família (períodos a cumprir / total anual / limiar)
+- `unit`, `year`, `cat` (token de módulo p/ cor), `active`, `sort`
 
-### Adicionar/editar meta
-- Modal: nome, categoria, valor inicial, valor alvo, data alvo
-- Ao atingir 100%: confetti + card marcado como concluído
+Avaliação: `evaluateGoal(goal, ctx) → GoalProgress { current, target, pct, achieved,
+periodsTotal?, periodsMet?, currentPeriodMet? }` — pura, testada em
+`packages/shared/src/goals/evaluate.test.ts` (rodar: `cd packages/shared && npx tsx src/goals/evaluate.test.ts`).
 
-## Modelos usados
-- `Meta`
+## Camada web
 
-## Estado (signals Angular)
-```ts
-metas = signal<Meta[]>([...])
-selectedCat = signal<string>('todas')
-filtered = computed(() =>
-  selectedCat() === 'todas' ? metas() : metas().filter(m => m.cat === selectedCat())
-)
-```
+- **Store**: `web/src/app/features/metas/data/goals.store.ts` (Injectable + signals).
+  Busca metas + fontes do ano (ocorrências `done`, `habit_logs`); atividades e definições
+  de hábito reusam `ActivitiesStore`/`HabitsStore`. `progressById` deriva via `evaluateGoal`.
+- **Formatação**: `web/src/app/features/metas/data/goal-format.ts` (texto atual/alvo por família;
+  distância em km; marco binário como Concluída/Pendente). Reusado pela página e pelo preview da Semana.
+- **Página**: `metas-page.component` — grid de cards (título, família·ano, valor, barra, badge
+  de concluída), filtro por categoria (`selectedCat`/`filtered`), botão "Nova meta".
+- **Editor**: `goal-editor.component` — modal com família + fonte (dropdown de atividade /
+  tarefa / hábito / manual), período/mínimo (cadence) e alvo (milestone/cumulative).
+- **Preview Semana**: `MetasListComponent` (`features/semana/components/lists.component.ts`)
+  consome o `GoalsStore` — lista compacta de progresso real.
+
+## Fase 2 — "nudge" (meta cria a própria tarefa)
+
+Quando o prazo de um sub-período aperta (ex.: faltam N dias no mês e a cadência não foi
+batida), a meta cria uma tarefa acumulável no to-do (aparece no mobile). Config por meta:
+`nudge { leadDays, templateId }`. Cria via `resolveAndAdvance` (herda offline + ponte
+corrida→tarefa) e cancela nudges obsoletos na virada do período.
+
+**Lacuna de modelo**: Tarefas tem `carry` (acumula pra sempre) OU `expire` (some ao passar do
+dia); falta "acumula até uma data-limite futura". Saída preferida: a reconciliação da própria
+meta expira o nudge na virada do período (sem tocar no schema de Tarefas).
 
 ## Próximos passos
-- [ ] Histórico de progresso por meta (array de { date, value })
-- [ ] Data alvo e contagem regressiva
-- [ ] Notificação quando próximo de atingir meta
-- [ ] Metas recorrentes (ex: "correr 100km todo mês")
+- [ ] Fase 2: nudge + tela/entrada de Metas no mobile
+- [ ] Histórico de progresso por meta (linha do tempo)
+- [ ] Confetti ao atingir 100%
+- [ ] Conversão de unidade mais rica no editor (ex.: alvo em km/min)

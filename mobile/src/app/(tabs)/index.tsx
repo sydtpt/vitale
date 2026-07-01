@@ -15,7 +15,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
 import { useHealthStore } from '../../store/health.store';
-import { useDailyRatingsStore } from '../../store/daily-ratings.store';
+import { useDailyRatingsStore, dayRatingDate } from '../../store/daily-ratings.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
@@ -89,15 +89,22 @@ export default function HojeScreen() {
   const resolveTodo = useTodosStore(s => s.resolve);
   useEffect(() => { loadTodos(); }, [loadTodos, user?.id]);
 
-  // Ratings subjetivos do dia (sono ao acordar, dia após 22h)
+  // Ratings subjetivos do dia (sono ao acordar, dia na janela noturna)
   const todayRating = useDailyRatingsStore(s => s.today);
+  const ratingsWindow = useDailyRatingsStore(s => s.window);
   const loadRatings = useDailyRatingsStore(s => s.load);
   const setSleep = useDailyRatingsStore(s => s.setSleep);
   const setDay = useDailyRatingsStore(s => s.setDay);
   useEffect(() => { loadRatings(); }, [loadRatings, user?.id]);
 
-  // O card de "como foi seu dia?" só aparece à noite (a partir das 22h).
-  const showDayRating = new Date().getHours() >= 22;
+  // Sono só aparece depois de realmente acordar (a partir das 06h).
+  const showSleepRating = new Date().getHours() >= 6;
+
+  // "Como foi seu dia?" abre na janela noturna (22h–04h59). Na madrugada o card
+  // avalia/mostra o dia anterior, então o valor vem da janela pelo dia resolvido.
+  const dayRatingDay = dayRatingDate();
+  const showDayRating = dayRatingDay !== null;
+  const dayRating = dayRatingDay ? ratingsWindow[dayRatingDay] : null;
 
   // Ao retomar o app (background → active), a tela segue montada, então
   // recarrega o que pode ter mudado desde a última vez.
@@ -179,8 +186,10 @@ export default function HojeScreen() {
           <Text style={styles.sub}>{HOJE.weekDay} · {4 - mealsDone} checks pendentes</Text>
         </View>
 
-        {/* Sono percebido — preenchido ao acordar; colapsa em chip depois */}
-        <SleepRatingCard value={todayRating?.sleepQuality ?? null} onSelect={setSleep} />
+        {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido */}
+        {showSleepRating && (
+          <SleepRatingCard value={todayRating?.sleepQuality ?? null} onSelect={setSleep} />
+        )}
 
         {/* Carousel: Ring + Prontidão lado a lado com scroll horizontal */}
         <ScrollView
@@ -238,13 +247,13 @@ export default function HojeScreen() {
           </>
         )}
 
-        {/* Como foi o dia? — só a partir das 22h */}
+        {/* Como foi o dia? — janela noturna (22h–04h59); na madrugada avalia ontem */}
         {showDayRating && (
           <>
-            <SectionLabel>Fim do dia</SectionLabel>
+            <SectionLabel>{dayRatingDay === today ? 'Fim do dia' : 'Como foi ontem?'}</SectionLabel>
             <DayRatingCard
-              value={todayRating?.dayQuality ?? null}
-              note={todayRating?.dayNote ?? null}
+              value={dayRating?.dayQuality ?? null}
+              note={dayRating?.dayNote ?? null}
               onSubmit={setDay}
             />
           </>

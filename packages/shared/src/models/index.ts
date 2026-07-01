@@ -154,12 +154,66 @@ export interface CasaTarefa {
   when: string;
 }
 
-export interface Meta {
-  name: string;
-  cat: string;
-  progress: number;
-  target: string;
-  current: string;
+/**
+ * Metas anuais contabilizadas automaticamente a partir de dados que já existem
+ * no app (atividades, tarefas concluídas, hábitos) ou informados à mão.
+ * Só campos, sem lógica — a avaliação de progresso vive em `goals/evaluate`.
+ * Ver .claude/specs/web-metas.md.
+ */
+
+/**
+ * Como a meta mede progresso:
+ *  - `cadence`    → "≥N por período" ao longo do ano (ex.: correr 1x/mês).
+ *  - `milestone`  → marco único no ano (ex.: 1 meia-maratona, agachar 100kg).
+ *  - `cumulative` → soma no ano até um alvo (ex.: ler 12 livros, economizar R$8.000).
+ */
+export type GoalFamily = 'cadence' | 'milestone' | 'cumulative';
+
+/** Sub-período de uma meta de cadência. O container é sempre o ano. */
+export type GoalPeriodKind = 'week' | 'month';
+
+/** Fonte do sinal — o que conta o progresso. */
+export type GoalSourceKind = 'activity' | 'task' | 'habit' | 'manual';
+
+/** Métrica lida de atividades (source.kind === 'activity'). */
+export type GoalActivityMetric = 'count' | 'distance' | 'bestEffort';
+
+export interface GoalSource {
+  kind: GoalSourceKind;
+  // activity:
+  activityId?: number;              // tipo HealthKit (corrida=37...); ausente = qualquer atividade
+  activityMetric?: GoalActivityMetric; // default 'count'
+  bestEffortKey?: string;           // 'half' | 'marathon' | '5000'... — só com activityMetric='bestEffort'
+  // task:
+  templateId?: string;              // conta occurrences 'done' desta série de tarefa
+  // habit:
+  habitId?: string;                 // conta dias que bateram a meta deste hábito contador
+}
+
+/** Meta anual. Mapeia a tabela `goals`. */
+export interface Goal {
+  id: string;
+  year: number;                     // ano-container (ex.: 2026)
+  title: string;
+  cat: string;                      // token de módulo (MOD) p/ cor/agrupamento
+  family: GoalFamily;
+  source: GoalSource;
+  /** cadence: sub-período da meta (semana|mês). Ignorado nas outras famílias. */
+  period?: GoalPeriodKind;
+  /** cadence: mínimo de ocorrências por sub-período (ex.: 1). */
+  perPeriodTarget?: number;
+  /**
+   * Alvo numérico, interpretado pela família:
+   *  - cadence:    nº de sub-períodos que precisam cumprir (ausente = todos do ano)
+   *  - cumulative: total no ano (ex.: 12 livros; distância em metros)
+   *  - milestone:  limiar a atingir (distância em metros; 1 = binário via bestEffort/contagem)
+   */
+  target: number;
+  unit?: string;                    // rótulo de exibição ('km','livros','R$'...)
+  manualCurrent?: number;           // source.kind === 'manual': valor atual informado à mão
+  active: boolean;
+  sort: number;
+  createdAt: string;                // ISO
 }
 
 export interface DayData {

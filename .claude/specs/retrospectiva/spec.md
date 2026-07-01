@@ -50,6 +50,11 @@ As plataformas só fazem fetch por intervalo + renderização.
 `habits`+`habit_logs`, `registros`+`registro_logs`, `todo_templates`+`todo_occurrences`
 (status `done`, `done_at` no range; módulo via template; **compras** lê `meta.price/cat`).
 
+## Métricas somadas
+- **Andares subidos** (`health_daily.metric = 'andares'`) → total por período em
+  `fitness.floors` (soma, não média) + por mês no breakdown anual (`MonthBucket.floors`).
+  Passado via `RetroInput.floorsByDay`; renderizado no card "Treinos & atividade".
+
 ## Insights cruzados
 - Treino × carga (Z4+Z5 via `dailyHardLoad`).
 - Gatilho (registro / hábito ruim) × saúde via `triggerImpact` (ex.: "nos dias com X, VFC −8%").

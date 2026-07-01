@@ -160,6 +160,7 @@ export default function RetrospectivaScreen() {
             <Mini value={km(summary.fitness.distanceM.current)} label="distância" />
             <Mini value={dur(summary.fitness.durationS.current)} label="tempo" />
             <Mini value={`${num(summary.fitness.hardMin.current)}min`} label="carga dura" />
+            <Mini value={`${num(summary.fitness.floors.current)}`} label="andares" />
           </View>
           {summary.fitness.byType.map((t) => (
             <Row key={t.key} l={t.label} r={`${t.count}× · ${km(t.sum || 0)}`} />

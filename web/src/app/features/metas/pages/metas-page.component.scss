@@ -1,2 +1,29 @@
 .page { padding: 24px 32px 48px; max-width: 1200px; }
-.mt { margin-top: 24px; }
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.add { border: none; background: var(--primary); color: #fff; font-size: 14px; font-weight: 600; padding: 10px 16px; border-radius: 10px; cursor: pointer; white-space: nowrap; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0 4px; }
+.chip { border: 1px solid var(--line); background: var(--surface-mute); color: var(--ink-2); font-size: 13px; padding: 6px 12px; border-radius: 999px; cursor: pointer; text-transform: capitalize; }
+.chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 20px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: var(--shadow-card); }
+.card.done { border-color: var(--green); }
+
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.name { font-size: 15px; font-weight: 650; color: var(--ink); }
+.sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; text-transform: capitalize; }
+.actions { display: flex; gap: 8px; flex-shrink: 0; }
+.lnk { border: none; background: none; color: var(--ink-3); font-size: 12px; cursor: pointer; padding: 0; }
+.lnk:hover { color: var(--ink); }
+.lnk.danger:hover { color: var(--primary); }
+
+.value { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 14px; color: var(--ink-2); font-weight: 600; }
+.badge { font-size: 11px; font-weight: 600; color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); padding: 2px 8px; border-radius: 999px; }
+
+.track { height: 6px; background: var(--surface-mute); border-radius: 3px; overflow: hidden; }
+.fill { height: 100%; background: var(--primary); border-radius: 3px; }
+.card.done .fill { background: var(--green); }
+.pct { font-size: 12px; color: var(--ink-3); margin-top: 6px; text-align: right; }
+
+.empty { color: var(--ink-3); font-size: 14px; padding: 40px 0; text-align: center; }

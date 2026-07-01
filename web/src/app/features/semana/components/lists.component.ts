@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, Input, computed, inject } from '@angular/core';
 import { IconComponent } from '@core/services/icon.component';
-import { FINANCAS, CASA_TAREFAS, METAS } from '@core/models/mock-data';
+import { FINANCAS, CASA_TAREFAS } from '@core/models/mock-data';
 import { TodosStore } from '../../tasks/data/todos.store';
+import { GoalsStore } from '../../metas/data/goals.store';
+import { familyLabel, goalValueText, goalPct } from '../../metas/data/goal-format';
 import { describeRecurrence, dueLabel } from '../../tasks/data/todo-format';
 import { localDateStr, isOverdue } from '../../tasks/data/todo-logic';
 
@@ -96,6 +98,13 @@ export class CasaListComponent {
   protected readonly items = CASA_TAREFAS;
 }
 
+interface MetaVM {
+  name: string;
+  cat: string;
+  value: string;
+  progress: number;
+}
+
 @Component({
   selector: 'rt-metas-list',
   standalone: true,
@@ -105,5 +114,26 @@ export class CasaListComponent {
 })
 export class MetasListComponent {
   @Input() compact = false;
-  protected readonly items = METAS;
+  private readonly store = inject(GoalsStore);
+
+  constructor() {
+    void this.store.load();
+  }
+
+  /** Metas ativas com progresso real, ordenadas pelas mais próximas do alvo. */
+  protected readonly items = computed<MetaVM[]>(() => {
+    const progress = this.store.progressById();
+    return this.store
+      .goals()
+      .map((g) => {
+        const p = progress.get(g.id);
+        return {
+          name: g.title,
+          cat: familyLabel(g.family),
+          value: p ? goalValueText(g, p) : '—',
+          progress: p ? goalPct(p) : 0,
+        };
+      })
+      .sort((a, b) => b.progress - a.progress);
+  });
 }

@@ -1,0 +1,144 @@
+<div class="overlay" (click)="close.emit()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <h2 class="title">{{ goal() ? 'Editar meta' : 'Nova meta' }}</h2>
+
+    <label class="lbl">Nome</label>
+    <input class="inp" [(ngModel)]="title" placeholder="Ex.: Correr 1x por mês" />
+
+    <div class="row">
+      <div class="col">
+        <label class="lbl">Ano</label>
+        <input class="inp" type="number" [(ngModel)]="year" />
+      </div>
+      <div class="col">
+        <label class="lbl">Cor</label>
+        <div class="chips">
+          @for (c of colors; track c.key) {
+            <button class="swatch" [class.on]="cat === c.key" [style.background]="c.accent" (click)="cat = c.key"></button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <label class="lbl">Tipo de meta</label>
+    <div class="chips">
+      @for (f of families; track f.key) {
+        <button class="chip" [class.on]="family === f.key" (click)="family = f.key">{{ f.label }}</button>
+      }
+    </div>
+    @for (f of families; track f.key) {
+      @if (family === f.key) { <div class="hint">{{ f.hint }}</div> }
+    }
+
+    <label class="lbl">Fonte do progresso</label>
+    <div class="chips">
+      @for (s of sources; track s.key) {
+        <button class="chip" [class.on]="sourceKind === s.key" (click)="sourceKind = s.key">{{ s.label }}</button>
+      }
+    </div>
+
+    <!-- Fonte: atividade -->
+    @if (sourceKind === 'activity') {
+      <label class="lbl">Métrica</label>
+      <div class="chips">
+        @for (m of metrics; track m.key) {
+          <button class="chip" [class.on]="metric === m.key" (click)="metric = m.key">{{ m.label }}</button>
+        }
+      </div>
+
+      @if (isBestEffort()) {
+        <label class="lbl">Distância padrão</label>
+        <div class="chips">
+          @for (b of bestEfforts; track b.key) {
+            <button class="chip" [class.on]="bestEffortKey === b.key" (click)="bestEffortKey = b.key">{{ b.label }}</button>
+          }
+        </div>
+      }
+
+      <label class="lbl">Tipo de atividade</label>
+      <div class="chips">
+        <button class="chip" [class.on]="activityAny" (click)="activityAny = true">Qualquer</button>
+        @for (a of activityTypes; track a.activityId) {
+          <button class="chip" [class.on]="!activityAny && activityId === a.activityId" (click)="activityAny = false; activityId = a.activityId">{{ a.label }}</button>
+        }
+      </div>
+    }
+
+    <!-- Fonte: tarefa -->
+    @if (sourceKind === 'task') {
+      <label class="lbl">Série de tarefa (conta conclusões)</label>
+      <select class="inp" [(ngModel)]="templateId">
+        <option value="" disabled>Selecione…</option>
+        @for (t of recurringTemplates(); track t.id) {
+          <option [value]="t.id">{{ t.name }}</option>
+        }
+      </select>
+      @if (recurringTemplates().length === 0) {
+        <div class="hint">Nenhuma tarefa recorrente ativa. Crie uma série recorrente em Tarefas primeiro.</div>
+      }
+    }
+
+    <!-- Fonte: hábito -->
+    @if (sourceKind === 'habit') {
+      <label class="lbl">Hábito (conta dias que bateram a meta)</label>
+      <select class="inp" [(ngModel)]="habitId">
+        <option value="" disabled>Selecione…</option>
+        @for (h of habitsStore.habits(); track h.id) {
+          <option [value]="h.id">{{ h.name }}</option>
+        }
+      </select>
+    }
+
+    <!-- Fonte: manual -->
+    @if (sourceKind === 'manual') {
+      <label class="lbl">Valor atual</label>
+      <input class="inp" type="number" [(ngModel)]="manualCurrent" />
+    }
+
+    <!-- Cadência -->
+    @if (family === 'cadence') {
+      <label class="lbl">Período</label>
+      <div class="chips">
+        <button class="chip" [class.on]="period === 'week'" (click)="setPeriod('week')">Semana</button>
+        <button class="chip" [class.on]="period === 'month'" (click)="setPeriod('month')">Mês</button>
+      </div>
+      <div class="row">
+        <div class="col">
+          <label class="lbl">Mínimo por período</label>
+          <input class="inp" type="number" [(ngModel)]="perPeriodTarget" min="1" />
+        </div>
+        <div class="col">
+          <label class="lbl">Períodos a cumprir</label>
+          <input class="inp" type="number" [(ngModel)]="cadenceTarget" min="1" />
+        </div>
+      </div>
+    }
+
+    <!-- Milestone / Cumulative alvo -->
+    @if (family !== 'cadence' && !isBestEffort()) {
+      <div class="row">
+        <div class="col">
+          <label class="lbl">Alvo {{ isDistance() ? '(km)' : '' }}</label>
+          <input class="inp" type="number" [(ngModel)]="target" />
+        </div>
+        @if (!isDistance()) {
+          <div class="col">
+            <label class="lbl">Unidade (opcional)</label>
+            <input class="inp" [(ngModel)]="unit" placeholder="ex.: livros, R$" />
+          </div>
+        }
+      </div>
+      @if (isDistance()) {
+        <div class="hint">{{ distanceHint() }}</div>
+      }
+    }
+
+    <div class="foot">
+      <button class="btn ghost" (click)="close.emit()">Cancelar</button>
+      <button class="btn primary" [disabled]="!valid() || saving()" (click)="onSave()">
+        @if (saving()) { <span class="spinner"></span> }
+        Salvar
+      </button>
+    </div>
+  </div>
+</div>

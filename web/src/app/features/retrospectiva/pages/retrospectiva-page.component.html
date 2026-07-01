@@ -87,6 +87,7 @@
         <div><b>{{ km(summary().fitness.distanceM.current) }}</b><span>distância</span></div>
         <div><b>{{ dur(summary().fitness.durationS.current) }}</b><span>tempo</span></div>
         <div><b>{{ num(summary().fitness.hardMin.current) }}min</b><span>carga dura</span></div>
+        <div><b>{{ num(summary().fitness.floors.current) }}</b><span>andares</span></div>
       </div>
       @for (t of summary().fitness.byType; track t.key) {
         <div class="row"><span>{{ t.label }}</span><span class="row-v">{{ t.count }}× · {{ km(t.sum || 0) }}</span></div>
@@ -150,7 +151,7 @@
           </div>
         }
       </div>
-      <p class="muted">Treinos por mês · distância total {{ km(summary().fitness.distanceM.current) }} no ano</p>
+      <p class="muted">Treinos por mês · distância total {{ km(summary().fitness.distanceM.current) }} · {{ num(summary().fitness.floors.current) }} andares no ano</p>
     </div>
   }
 </div>

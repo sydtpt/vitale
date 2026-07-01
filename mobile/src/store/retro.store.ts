@@ -92,6 +92,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
       now, kind, offset,
       activities: useActivitiesStore.getState().activities(),
       health: HEALTH_SPECS.map((spec) => ({ ...spec, valuesByDay: byMetric.get(spec.metric) ?? new Map() })),
+      floorsByDay: byMetric.get('andares'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
       habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, logsByDay: logsByHabit.get(h.id) ?? new Map() })),

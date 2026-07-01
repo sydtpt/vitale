@@ -73,6 +73,8 @@ export interface RetroInput {
   offset: number;
   activities: Activity[];
   health: RetroHealthMetric[];
+  /** Andares subidos por dia ('YYYY-MM-DD' → lances) — somado por período. */
+  floorsByDay?: ReadonlyMap<string, number>;
   /** Notas subjetivas 1–5 (dia 'YYYY-MM-DD' → valor). */
   ratingsSleep?: ReadonlyMap<string, number>;
   ratingsDay?: ReadonlyMap<string, number>;
@@ -101,6 +103,8 @@ export interface RetroFitness {
   durationS: RecapValue;
   calories: RecapValue;
   hardMin: RecapValue;
+  /** Total de andares (lances de escada) subidos no período. */
+  floors: RecapValue;
   byType: CountByKey[];
 }
 
@@ -157,6 +161,16 @@ function hardMinInRange(activities: Activity[], start: Date, end: Date): number 
   return total;
 }
 
+/** Soma dos valores diários de uma métrica dentro de [start, end). */
+function sumInRange(valuesByDay: ReadonlyMap<string, number>, start: Date, end: Date): number {
+  let total = 0;
+  for (const [day, v] of valuesByDay) {
+    const ts = new Date(`${day}T00:00:00`).getTime();
+    if (ts >= start.getTime() && ts < end.getTime()) total += v;
+  }
+  return total;
+}
+
 function tallyByKey(
   rows: { key: string; label: string; sum?: number }[],
 ): CountByKey[] {
@@ -190,6 +204,10 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     hardMin: recapValue(
       hardMinInRange(input.activities, cur.start, cur.end),
       hardMinInRange(input.activities, prev.start, prev.end),
+    ),
+    floors: recapValue(
+      input.floorsByDay ? sumInRange(input.floorsByDay, cur.start, cur.end) : 0,
+      input.floorsByDay ? sumInRange(input.floorsByDay, prev.start, prev.end) : 0,
     ),
     byType: tallyByKey(
       inCur.map((a) => {
@@ -426,6 +444,8 @@ export interface MonthBucket {
   tasks: number;
   spend: number;
   habitDays: number;
+  /** Total de andares subidos no mês. */
+  floors: number;
 }
 
 const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -434,7 +454,7 @@ const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set
 export function buildYearByMonth(input: RetroInput): MonthBucket[] {
   const year = input.now.getFullYear() + input.offset;
   const buckets: MonthBucket[] = MONTH_ABBR.map((label, month) => ({
-    month, label, workouts: 0, distanceKm: 0, tasks: 0, spend: 0, habitDays: 0,
+    month, label, workouts: 0, distanceKm: 0, tasks: 0, spend: 0, habitDays: 0, floors: 0,
   }));
 
   for (const a of input.activities) {
@@ -458,6 +478,12 @@ export function buildYearByMonth(input: RetroInput): MonthBucket[] {
       if (v <= 0) continue;
       const [y, m] = day.split('-').map(Number);
       if (y === year) buckets[m - 1].habitDays += 1;
+    }
+  }
+  if (input.floorsByDay) {
+    for (const [day, v] of input.floorsByDay) {
+      const [y, m] = day.split('-').map(Number);
+      if (y === year) buckets[m - 1].floors += v;
     }
   }
   return buckets;

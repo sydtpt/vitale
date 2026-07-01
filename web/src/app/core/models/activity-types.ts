@@ -68,6 +68,11 @@ export function metaForActivity(activityId: number): TypeMeta {
   };
 }
 
+/** Todos os tipos de atividade conhecidos, ordenados por label — p/ selects/dropdowns. */
+export const ALL_ACTIVITY_TYPES: TypeMeta[] = Object.keys(BASE)
+  .map((id) => metaForActivity(Number(id)))
+  .sort((a, b) => a.label.localeCompare(b.label));
+
 /** Resolve um slug de rota de volta para o label do tipo (ex.: "corrida" → "Corrida"). */
 export function labelForSlug(slug: string): string | undefined {
   const labels = [...Object.values(BASE).map((b) => b.label), DEFAULT.label];
