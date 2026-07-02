@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
+import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { buildOverview, type Period, type Metric } from '../../lib/activity-overview';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { getActivityMeta } from '../../lib/workout-types';
@@ -74,6 +75,7 @@ export default function HistoricoTabScreen() {
   useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
+  const tabBarScroll = useTabBarScroll();
   const router = useRouter();
   const { width } = useWindowDimensions();
 
@@ -187,7 +189,7 @@ export default function HistoricoTabScreen() {
         <Text style={styles.headerTitle}>Histórico</Text>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false} {...tabBarScroll}>
         <View style={styles.card}>
           <Segmented options={PERIODS} value={period} onChange={setPeriod} />
 

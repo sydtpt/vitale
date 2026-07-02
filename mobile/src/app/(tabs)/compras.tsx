@@ -10,6 +10,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
+import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { localDateStr, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence } from '../../lib/todo-format';
 import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
@@ -85,6 +86,7 @@ export default function ComprasTabScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
+  const tabBarScroll = useTabBarScroll();
   const router = useRouter();
 
   const templates = useTodosStore((s) => s.templates);
@@ -175,7 +177,7 @@ export default function ComprasTabScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false} {...tabBarScroll}>
           {sortedCats.map((cat) => {
             const items = grouped.get(cat)!;
             return (

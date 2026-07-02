@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MOD, HABIT_ICONS, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
 import { IconComponent } from '@core/services/icon.component';
+import { DatePickerComponent } from './date-picker.component';
 import { isValidTime, isValidDate, localDateStr } from '../data/todo-logic';
 import { TodosStore, type NewTodo } from '../data/todos.store';
 
@@ -39,7 +40,7 @@ const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
   selector: 'rt-todo-editor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, IconComponent],
+  imports: [FormsModule, IconComponent, DatePickerComponent],
   templateUrl: './todo-editor.component.html',
   styleUrl: './todo-editor.component.scss',
 })

@@ -1,11 +1,12 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTheme, colors } from '../../theme';
+import { TabBarScrollProvider, useTabBarCollapsed } from '../../lib/tab-bar-scroll';
 
 type TabDef = {
   name: string;
@@ -89,6 +90,7 @@ function TabItems({
 function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
   const { scheme, blurIntensity } = useTheme();
   const insets = useSafeAreaInsets();
+  const collapsed = useTabBarCollapsed();
   const isDark = scheme === 'dark';
 
   const bottom = Math.max(insets.bottom, 16) + 8;
@@ -98,8 +100,20 @@ function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
   const borderColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.55)';
   const shadowOpacity = isDark ? 0.22 : 0.10;
 
+  // Colapsa 25% ao rolar para baixo, ancorado na base (translateY compensa a
+  // escala p/ a pill não "subir" ao encolher).
+  const scale = collapsed.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, COLLAPSED_SCALE],
+  });
+  const translateY = collapsed.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, (PILL_HEIGHT * (1 - COLLAPSED_SCALE)) / 2],
+  });
+  const animatedStyle = { transform: [{ translateY }, { scale }] };
+
   return (
-    <View style={[styles.pillWrapper, { bottom, shadowOpacity }]}>
+    <Animated.View style={[styles.pillWrapper, { bottom, shadowOpacity }, animatedStyle]}>
       <BlurView
         tint={isDark ? 'dark' : 'default'}
         intensity={blurIntensity}
@@ -117,27 +131,31 @@ function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
           <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} />
         </View>
       </BlurView>
-    </View>
+    </Animated.View>
   );
 }
 
 export default function TabLayout() {
   return (
-    <Tabs
-      tabBar={(props) => <AdaptiveTabBar {...props} />}
-      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: 'transparent' } }}
-    >
-      <Tabs.Screen name="index"     options={{ title: 'Hoje' }} />
-      <Tabs.Screen name="compras"   options={{ title: 'Compras' }} />
-      <Tabs.Screen name="historico" options={{ title: 'Histórico' }} />
-      <Tabs.Screen name="saude"     options={{ href: null }} />
-      <Tabs.Screen name="semana"    options={{ href: null }} />
-      <Tabs.Screen name="mais"      options={{ title: 'Mais' }} />
-    </Tabs>
+    <TabBarScrollProvider>
+      <Tabs
+        tabBar={(props) => <AdaptiveTabBar {...props} />}
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: 'transparent' } }}
+      >
+        <Tabs.Screen name="index"     options={{ title: 'Hoje' }} />
+        <Tabs.Screen name="compras"   options={{ title: 'Compras' }} />
+        <Tabs.Screen name="historico" options={{ title: 'Histórico' }} />
+        <Tabs.Screen name="saude"     options={{ href: null }} />
+        <Tabs.Screen name="semana"    options={{ href: null }} />
+        <Tabs.Screen name="mais"      options={{ title: 'Mais' }} />
+      </Tabs>
+    </TabBarScrollProvider>
   );
 }
 
 const RADIUS = 36;
+const PILL_HEIGHT = 70;
+const COLLAPSED_SCALE = 0.75;
 
 const styles = StyleSheet.create({
   // Glass pill

@@ -1,0 +1,54 @@
+<div class="series">
+  @if (active().length === 0 && archived().length === 0) {
+    <div class="empty">Nenhuma tarefa recorrente ainda. Crie uma série (aluguel, lixo, faxina…) com <strong>Nova tarefa</strong>.</div>
+  } @else {
+    @if (active().length) {
+      <h3 class="section">Ativas ({{ active().length }})</h3>
+      <div class="list">
+        @for (t of active(); track t.id) {
+          <div class="row">
+            <button class="main" (click)="edit.emit(t)" title="Editar série">
+              <span class="ico" [style.background]="tint(t)">
+                <rt-icon [name]="icon(t)" [size]="16" [color]="accent(t)" [strokeWidth]="1.9" />
+              </span>
+              <div class="body">
+                <div class="name">{{ t.name }}</div>
+                <div class="sub">{{ describe(t) }}</div>
+              </div>
+            </button>
+            <div class="actions">
+              <button class="ghost" (click)="edit.emit(t)" title="Editar série">
+                <rt-icon name="edit-2" [size]="15" color="var(--ink-3)" [strokeWidth]="2" />
+              </button>
+              <button class="ghost" (click)="archive(t, false)" title="Arquivar série">
+                <rt-icon name="archive" [size]="15" color="var(--ink-3)" [strokeWidth]="2" />
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    @if (archived().length) {
+      <h3 class="section">Arquivadas ({{ archived().length }})</h3>
+      <div class="list">
+        @for (t of archived(); track t.id) {
+          <div class="row archived">
+            <button class="main" (click)="edit.emit(t)" title="Editar série">
+              <span class="ico" [style.background]="tint(t)">
+                <rt-icon [name]="icon(t)" [size]="16" [color]="accent(t)" [strokeWidth]="1.9" />
+              </span>
+              <div class="body">
+                <div class="name">{{ t.name }}</div>
+                <div class="sub">{{ describe(t) }}</div>
+              </div>
+            </button>
+            <div class="actions">
+              <button class="ghost" (click)="archive(t, true)" title="Reativar série">Reativar</button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+</div>

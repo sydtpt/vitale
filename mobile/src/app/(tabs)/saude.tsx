@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHealthStore } from '../../store/health.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
+import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import {
   CATEGORIES,
   categoryMeta,
@@ -139,6 +140,7 @@ export default function HealthScreen() {
   useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
+  const tabBarScroll = useTabBarScroll();
   const router = useRouter();
   const { permissionStatus, summaryLoading, syncing, requestPermission, loadSummaries, syncToCloud } =
     useHealthStore();
@@ -208,7 +210,7 @@ export default function HealthScreen() {
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false} {...tabBarScroll}>
           {CATEGORIES.map((cat) => (
             <View key={cat.id} style={styles.section}>
               <View style={styles.sectionHeader}>

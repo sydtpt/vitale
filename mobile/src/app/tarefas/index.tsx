@@ -133,6 +133,9 @@ export default function TarefasScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Tarefas</Text>
+        <Pressable onPress={() => router.push('/tarefas/recorrentes')} hitSlop={12} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+          <Ionicons name="repeat" size={20} color={colors.ink} />
+        </Pressable>
         <Pressable onPress={() => router.push('/tarefas/automaticas')} hitSlop={12} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
           <Ionicons name="flash-outline" size={20} color={colors.ink} />
         </Pressable>

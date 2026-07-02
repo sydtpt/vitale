@@ -104,8 +104,8 @@
       </div>
       <div class="row">
         <div class="col">
-          <label class="lbl">Mínimo por período</label>
-          <input class="inp" type="number" [(ngModel)]="perPeriodTarget" min="1" />
+          <label class="lbl">Mínimo por período{{ isDistance() ? ' (km)' : '' }}</label>
+          <input class="inp" type="number" [(ngModel)]="perPeriodTarget" [min]="isDistance() ? 0 : 1" [step]="isDistance() ? 0.1 : 1" />
         </div>
         <div class="col">
           <label class="lbl">Períodos a cumprir</label>

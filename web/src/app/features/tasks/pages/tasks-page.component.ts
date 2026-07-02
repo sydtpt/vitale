@@ -8,14 +8,17 @@ import { describeRecurrence } from '../data/todo-format';
 import { TodoCardComponent } from '../components/todo-card.component';
 import { TodoEditorComponent } from '../components/todo-editor.component';
 import { HistoryViewComponent } from '../components/history-view.component';
+import { SeriesViewComponent } from '../components/series-view.component';
 
 interface Row { o: TodoOccurrence; t: TodoTemplate; }
+
+type View = 'tasks' | 'history' | 'series';
 
 @Component({
   selector: 'rt-tasks-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, IconComponent, TodoCardComponent, TodoEditorComponent, HistoryViewComponent],
+  imports: [PageHeaderComponent, IconComponent, TodoCardComponent, TodoEditorComponent, HistoryViewComponent, SeriesViewComponent],
   templateUrl: './tasks-page.component.html',
   styleUrl: './tasks-page.component.scss',
 })
@@ -23,8 +26,12 @@ export class TasksPageComponent {
   protected readonly store = inject(TodosStore);
   protected readonly editorOpen = signal(false);
   protected readonly editing = signal<TodoTemplate | null>(null);
-  protected readonly showHistory = signal(false);
+  protected readonly view = signal<View>('tasks');
   private readonly today = localDateStr();
+
+  protected toggleView(v: Exclude<View, 'tasks'>): void {
+    this.view.update((cur) => (cur === v ? 'tasks' : v));
+  }
 
   protected readonly pending = computed(() => {
     // isStarted: "a partir de" oculta a série inteira até o dia escolhido.

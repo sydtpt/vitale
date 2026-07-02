@@ -18,6 +18,7 @@ import { useHealthStore } from '../../store/health.store';
 import { useDailyRatingsStore, dayRatingDate } from '../../store/daily-ratings.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
+import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
 import { readinessFromSummaries } from '../../lib/health-readiness';
 import { isOverdue, isVisibleNow, isStarted, localTimeStr } from '../../lib/todo-logic';
@@ -46,6 +47,7 @@ function getFirstName(user: User | null): string {
 export default function HojeScreen() {
   const styles = useThemedStyles(createStyles);
   const tabBarHeight = useTabBarHeight();
+  const tabBarScroll = useTabBarScroll();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [cardPage, setCardPage] = useState(0);
   const router = useRouter();
@@ -178,7 +180,7 @@ export default function HojeScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll}>
         {/* Greeting */}
         <View style={styles.greet}>
           <Text style={styles.date}>{HOJE.date.toUpperCase()}</Text>

@@ -1,15 +1,19 @@
 <div class="page">
   <rt-page-header
-    [eyebrow]="showHistory() ? 'Histórico' : 'Tarefas'"
-    [title]="showHistory() ? 'Últimos 30 dias' : (pending().length + (pending().length === 1 ? ' pendente' : ' pendentes'))"
-    [subtitle]="showHistory() ? '' : 'To-do e recorrências — atrasadas, do dia e em breve'"
+    [eyebrow]="view() === 'history' ? 'Histórico' : view() === 'series' ? 'Recorrentes' : 'Tarefas'"
+    [title]="view() === 'history' ? 'Últimos 30 dias' : view() === 'series' ? 'Séries recorrentes' : (pending().length + (pending().length === 1 ? ' pendente' : ' pendentes'))"
+    [subtitle]="view() === 'history' ? '' : view() === 'series' ? 'Gerencie e edite suas tarefas que se repetem' : 'To-do e recorrências — atrasadas, do dia e em breve'"
   >
-    @if (!showHistory()) {
+    @if (view() === 'tasks') {
       <button class="new" (click)="openNew()"><rt-icon name="plus" [size]="16" color="#fff" [strokeWidth]="2.2" /> Nova tarefa</button>
     }
-    <button [class.active]="showHistory()" (click)="showHistory.set(!showHistory())" class="toggle" [title]="showHistory() ? 'Voltar para tarefas' : 'Ver histórico'">
-      <rt-icon name="book" [size]="16" [color]="showHistory() ? '#fff' : 'var(--ink-2)'" [strokeWidth]="2" />
-      <span class="label">{{ showHistory() ? 'Tarefas' : 'Histórico' }}</span>
+    <button [class.active]="view() === 'series'" (click)="toggleView('series')" class="toggle" [title]="view() === 'series' ? 'Voltar para tarefas' : 'Ver tarefas recorrentes'">
+      <rt-icon name="calendar" [size]="16" [color]="view() === 'series' ? '#fff' : 'var(--ink-2)'" [strokeWidth]="2" />
+      <span class="label">Recorrentes</span>
+    </button>
+    <button [class.active]="view() === 'history'" (click)="toggleView('history')" class="toggle" [title]="view() === 'history' ? 'Voltar para tarefas' : 'Ver histórico'">
+      <rt-icon name="book" [size]="16" [color]="view() === 'history' ? '#fff' : 'var(--ink-2)'" [strokeWidth]="2" />
+      <span class="label">Histórico</span>
     </button>
   </rt-page-header>
 
@@ -17,8 +21,10 @@
     <div class="state">Carregando tarefas…</div>
   } @else if (store.error()) {
     <div class="state error">Não foi possível carregar: {{ store.error() }}</div>
-  } @else if (showHistory()) {
+  } @else if (view() === 'history') {
     <rt-history-view [occurrences]="store.historyOccurrences()" [templates]="store.templates()" />
+  } @else if (view() === 'series') {
+    <rt-series-view [templates]="store.allTemplates()" (edit)="openEdit($event)" />
   } @else if (store.isEmpty()) {
     <div class="empty">
       <h2 class="empty-title">Nenhuma tarefa ainda</h2>

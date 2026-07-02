@@ -113,7 +113,10 @@ export class GoalEditorComponent implements OnInit {
     if (g.source.kind === 'habit') this.habitId = g.source.habitId ?? '';
     this.manualCurrent = g.manualCurrent ?? 0;
     this.period = g.period ?? 'month';
-    this.perPeriodTarget = g.perPeriodTarget ?? 1;
+    const ppt = g.perPeriodTarget ?? 1;
+    const isDistCadence =
+      g.family === 'cadence' && g.source.kind === 'activity' && g.source.activityMetric === 'distance';
+    this.perPeriodTarget = isDistCadence ? ppt / 1000 : ppt;
     this.unit = g.unit ?? '';
     if (g.family === 'cadence') {
       this.cadenceTarget = g.target;
@@ -190,7 +193,12 @@ export class GoalEditorComponent implements OnInit {
       family: this.family,
       source: this.buildSource(),
       period: this.family === 'cadence' ? this.period : null,
-      perPeriodTarget: this.family === 'cadence' ? Math.max(1, Math.round(Number(this.perPeriodTarget))) : null,
+      perPeriodTarget:
+        this.family === 'cadence'
+          ? this.isDistance()
+            ? Math.max(1, Math.round(Number(this.perPeriodTarget) * 1000)) // km → metros
+            : Math.max(1, Math.round(Number(this.perPeriodTarget)))
+          : null,
       target: this.buildTarget(),
       unit: this.unit.trim() || null,
       manualCurrent: this.sourceKind === 'manual' ? Number(this.manualCurrent) : null,

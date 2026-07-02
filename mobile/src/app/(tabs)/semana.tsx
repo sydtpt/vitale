@@ -18,6 +18,7 @@ import {
 } from '@vitale/shared';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
+import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useHabitsStore } from '../../store/habits.store';
@@ -58,6 +59,7 @@ function heatLevel(value: number, target?: number): number {
 export default function SemanaScreen() {
   const styles = useThemedStyles(createStyles);
   const tabBarHeight = useTabBarHeight();
+  const tabBarScroll = useTabBarScroll();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -177,7 +179,7 @@ export default function SemanaScreen() {
         <Text style={styles.headerTitle}>Semana</Text>
         <View style={styles.headerSpacer} />
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll}>
         <View style={styles.greet}>
           <Text style={styles.eyebrow}>{weekRangeLabel(weekDates)}</Text>
           <Text style={styles.title}>Sua semana</Text>

@@ -110,7 +110,7 @@
         <button class="chip" [class.on]="startMode === 'date'" (click)="setStartMode('date')">Em uma data</button>
       </div>
       @if (startMode === 'date') {
-        <input class="inp" type="date" [(ngModel)]="startDate" />
+        <rt-date-picker [selected]="startDate || null" (daySelected)="startDate = $event" />
         <label class="lbl">A tarefa só aparece a partir desse dia.</label>
       }
     }

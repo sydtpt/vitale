@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, spacing, moduleColors, shadows, useThemedStyles } from '../../theme';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
+import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 
 type Link = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -26,7 +27,7 @@ const LINKS: Link[] = [
   { icon: 'battery-charging-outline', label: 'Recuperação', sub: 'Saúde × esporte agregado', mod: 'agua', route: '/recuperacao' },
   { icon: 'wallet-outline', label: 'Finanças', sub: 'Orçamento e gastos', mod: 'financas' },
   { icon: 'home-outline', label: 'Casa', sub: 'Rotinas e tarefas', mod: 'casa' },
-  { icon: 'golf-outline', label: 'Metas', sub: '5 ativas', mod: 'habito' },
+  { icon: 'golf-outline', label: 'Metas', sub: 'Progresso do ano', mod: 'habito', route: '/metas' },
   { icon: 'trending-up-outline', label: 'Progresso', sub: 'Gráficos longos', mod: 'agua' },
   { icon: 'notifications-outline', label: 'Lembretes', sub: '6 ativos', mod: 'food' },
 ];
@@ -35,8 +36,9 @@ export default function MaisScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const tabBarHeight = useTabBarHeight();
+  const tabBarScroll = useTabBarScroll();
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll}>
       <View style={styles.greet}>
         <Text style={styles.title}>Mais</Text>
       </View>
