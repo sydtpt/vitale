@@ -9,9 +9,9 @@ import { HabitStepper } from '../../components/cards/HabitStepper';
 import { SleepRatingCard } from '../../components/cards/SleepRatingCard';
 import { DayRatingCard } from '../../components/cards/DayRatingCard';
 import { TodoItem } from '../../components/cards/TodoItem';
-import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
 import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
 import { useTodosStore } from '../../store/todos.store';
+import { useMealsStore } from '../../store/meals.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
 import { useHealthStore } from '../../store/health.store';
@@ -48,7 +48,6 @@ export default function HojeScreen() {
   const styles = useThemedStyles(createStyles);
   const tabBarHeight = useTabBarHeight();
   const tabBarScroll = useTabBarScroll();
-  const [sheetVisible, setSheetVisible] = useState(false);
   const [cardPage, setCardPage] = useState(0);
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
@@ -59,8 +58,12 @@ export default function HojeScreen() {
   const displayName = useSettingsStore(s => s.profile?.displayName);
   const firstName = displayName ? firstNameOf(displayName) : getFirstName(user);
 
-  // Use local state for prototype (store can be wired later)
-  const [meals] = useState(HOJE.meals);
+  // Refeições logadas hoje — persistidas no Supabase; alimentam o anel de comida.
+  const todayMeals = useMealsStore(s => s.todayMeals);
+  const loadMeals = useMealsStore(s => s.load);
+  useEffect(() => { loadMeals(); }, [loadMeals, user?.id]);
+
+  // Hábitos binários e treino ainda são placeholder (fora do escopo desta fatia).
   const [habits] = useState(HOJE.habits);
   const [treinoDone] = useState(false);
 
@@ -110,7 +113,7 @@ export default function HojeScreen() {
 
   // Ao retomar o app (background → active), a tela segue montada, então
   // recarrega o que pode ter mudado desde a última vez.
-  useRefreshOnForeground(() => { loadCounters(); loadTodos(); loadRatings(); });
+  useRefreshOnForeground(() => { loadCounters(); loadTodos(); loadRatings(); loadMeals(); });
 
   // Contribuição da água ao score vem do hábito contador "Água" (litros)
   const aguaHabit = counters.find(h => h.unit === 'L' && h.direction === 'at_least');
@@ -171,10 +174,11 @@ export default function HojeScreen() {
     isVisibleNow(tplById.get(o.templateId)!, o, today, nowTime)
   );
 
-  const mealsDone = meals.filter(m => m.done).length;
+  const MEAL_TARGET = 4;
+  const mealsLogged = todayMeals.length;
   const habitsDone = habits.filter(h => h.done).length;
   const activity = treinoDone ? 100 : 60;
-  const food = meals.length > 0 ? Math.round((mealsDone / meals.length) * 70 + waterRatio * 30) : 0;
+  const food = Math.round((Math.min(mealsLogged, MEAL_TARGET) / MEAL_TARGET) * 70 + waterRatio * 30);
   const mind = habits.length > 0 ? Math.round((habitsDone / habits.length) * 100) : 0;
   const overall = Math.round((activity + food + mind) / 3);
 
@@ -185,7 +189,7 @@ export default function HojeScreen() {
         <View style={styles.greet}>
           <Text style={styles.date}>{HOJE.date.toUpperCase()}</Text>
           <Text style={styles.greeting}>{getGreeting(firstName)}</Text>
-          <Text style={styles.sub}>{HOJE.weekDay} · {4 - mealsDone} checks pendentes</Text>
+          <Text style={styles.sub}>{HOJE.weekDay} · {Math.max(0, MEAL_TARGET - mealsLogged)} refeições a registrar</Text>
         </View>
 
         {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido */}
@@ -263,8 +267,6 @@ export default function HojeScreen() {
 
         <View style={{ height: 24 }} />
       </ScrollView>
-
-      <QuickAddSheet visible={sheetVisible} onClose={() => setSheetVisible(false)} />
     </>
   );
 }

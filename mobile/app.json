@@ -22,7 +22,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.sydtpt.vitale",
       "infoPlist": {
-        "NSHealthShareUsageDescription": "O Vitale acessa seus dados do Apple Health — atividade, coração, corpo, sono, nutrição e treinos — para exibir seu histórico e gráficos."
+        "NSHealthShareUsageDescription": "O Orbe acessa seus dados do Apple Health — atividade, coração, corpo, sono, nutrição e treinos — para exibir seu histórico e gráficos."
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,

@@ -1,6 +1,8 @@
-# Vitale — Life Organizer
+# Orbe — Life Organizer
 
 > **Propósito:** Uma plataforma pessoal para gerenciar a rotina completa — treinos, alimentação, casa, compras e finanças. Web para análise, mobile para captura rápida do dia a dia.
+>
+> Nome antigo: **Vitale** — os pacotes npm mantêm o escopo `@vitale/*` e os bundle IDs `com.sydtpt.vitale` (renomear quebraria builds/entitlements); só a marca visível virou Orbe.
 
 ## Arquitetura
 

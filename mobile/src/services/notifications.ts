@@ -118,7 +118,7 @@ async function buildDigest(): Promise<{ title: string; body: string } | null> {
     ? `Prontidão ${score.total} · ${plan ? plan.type : 'sem treino hoje'}`
     : plan
       ? `Hoje: ${plan.type}`
-      : 'Seu dia no Vitale';
+      : 'Seu dia no Orbe';
 
   const parts: string[] = [];
   if (hasReadiness || plan) parts.push(advice.text);

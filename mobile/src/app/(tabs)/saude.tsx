@@ -116,7 +116,7 @@ function PermissionScreen({ onRequest }: { onRequest: () => void }) {
       </View>
       <Text style={styles.permTitle}>Explore sua Saúde</Text>
       <Text style={styles.permDesc}>
-        O Vitale lê seus dados do Apple Health — atividade, coração, corpo, sono e nutrição — para montar seus gráficos.
+        O Orbe lê seus dados do Apple Health — atividade, coração, corpo, sono e nutrição — para montar seus gráficos.
       </Text>
       <Pressable style={styles.permBtn} onPress={onRequest}>
         <Text style={styles.permBtnText}>Permitir Acesso</Text>

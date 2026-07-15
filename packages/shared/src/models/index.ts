@@ -16,6 +16,37 @@ export interface Meal {
   items: string;
 }
 
+/** Tipo de refeição (persistido em `meals.meal_type`; sem acento p/ o check do Postgres). */
+export type MealType = 'cafe' | 'almoco' | 'lanche' | 'jantar' | 'outro';
+
+/** Tipos oferecidos nos seletores de captura (na ordem do dia). */
+export const MEAL_TYPES: readonly MealType[] = ['cafe', 'almoco', 'lanche', 'jantar'] as const;
+
+/** Rótulos exibíveis por tipo de refeição. */
+export const MEAL_TYPE_LABELS: Record<MealType, string> = {
+  cafe: 'Café',
+  almoco: 'Almoço',
+  lanche: 'Lanche',
+  jantar: 'Jantar',
+  outro: 'Outro',
+};
+
+/**
+ * Refeição logada num dia (tabela `meals`). Distinta do `Meal` (mock da Hoje):
+ * é um registro pontual real, com macros opcionais. Só campos, sem lógica.
+ */
+export interface MealLog {
+  id: string;
+  mealDate: string;        // 'YYYY-MM-DD' (data local)
+  mealType: MealType;
+  name: string;            // "o que você comeu"
+  kcal?: number;
+  protein?: number;        // macros opcionais (g)
+  carbs?: number;
+  fat?: number;
+  loggedAt: string;        // ISO
+}
+
 export interface Habit {
   id: string;
   name: string;
@@ -135,6 +166,22 @@ export interface Transaction {
   name: string;
   cat: string;
   amount: number;
+}
+
+/** Categorias canônicas de despesa (tabela `transactions`). */
+export const FINANCA_CATS = ['Alimentação', 'Transporte', 'Casa', 'Saúde', 'Lazer', 'Outros'] as const;
+export type FinancaCat = typeof FINANCA_CATS[number];
+
+/**
+ * Despesa lançada (tabela `transactions`). Nome distinto do legado `Transaction`
+ * (id:number, usado pelo mock de Finanças) para não colidir. Só campos, sem lógica.
+ */
+export interface FinanceTransaction {
+  id: string;
+  date: string;            // 'YYYY-MM-DD' (data local; tx_date)
+  description: string;
+  category: string;        // FINANCA_CATS ou livre
+  amount: number;          // em reais
 }
 
 /** Categorias canônicas de itens de compras. */

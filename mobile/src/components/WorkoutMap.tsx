@@ -42,6 +42,13 @@ export function WorkoutMap({
 
   const canShare = !!share && points.length > 1;
 
+  // Dois Modals irmãos não ficam apresentados ao mesmo tempo (iOS): fecha o
+  // mapa expandido e abre o composer depois da animação de dismiss.
+  const openComposer = () => {
+    setFullscreen(false);
+    setTimeout(() => setComposerOpen(true), 400);
+  };
+
   return (
     <>
       <Pressable
@@ -111,7 +118,7 @@ export function WorkoutMap({
             {canShare && (
               <Pressable
                 style={({ pressed }) => [styles.pillShare, pressed && styles.pressed]}
-                onPress={() => setComposerOpen(true)}
+                onPress={openComposer}
                 accessibilityRole="button"
                 accessibilityLabel="Compartilhar atividade"
                 hitSlop={8}
@@ -129,7 +136,7 @@ export function WorkoutMap({
           visible={composerOpen}
           onClose={() => setComposerOpen(false)}
           points={points}
-          mapTile={tile}
+          initialMapStyle={mapStyle}
           context={share}
         />
       )}

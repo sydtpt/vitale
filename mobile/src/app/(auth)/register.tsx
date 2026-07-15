@@ -39,7 +39,7 @@ export default function RegisterScreen() {
     >
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.card}>
-          <Text style={s.logo}>Vitale</Text>
+          <Text style={s.logo}>Orbe</Text>
           <Text style={s.subtitle}>Crie sua conta</Text>
 
           {success ? (

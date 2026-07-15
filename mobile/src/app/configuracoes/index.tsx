@@ -100,7 +100,7 @@ export default function ConfiguracoesScreen() {
           </View>
         ))}
 
-        <Text style={styles.version}>Vitale</Text>
+        <Text style={styles.version}>Orbe</Text>
       </ScrollView>
     </View>
   );

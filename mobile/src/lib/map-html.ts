@@ -4,12 +4,25 @@ import { colors, MOD } from '../theme';
 /** Ponto mínimo de rota aceito pelo gerador de HTML (estrutural). */
 export type MapPoint = { latitude: number; longitude: number };
 
+/** Estado de vista do mapa (enquadramento): centro [lat, lng], zoom e rotação. */
+export interface MapViewState {
+  center: [number, number];
+  zoom: number;
+  /** Só tem efeito nos estilos vector (MapLibre); Leaflet não rotaciona. */
+  bearing?: number;
+  pitch?: number;
+}
+
 /** Opções de inicialização do mapa (compartilhadas entre preview, tela cheia e cartão de share). */
 export interface MapScriptOptions {
   /** Libera arrastar/zoom (`false` = mapa estático). */
   interactive: boolean;
   /** Padding do `fitBounds` (px). Default: `[24,24]` no Leaflet e `pitch?44:28` no MapLibre. */
   padding?: number;
+  /** Vista inicial explícita (enquadramento salvo) — substitui o fitBounds inicial. */
+  view?: MapViewState;
+  /** Reporta mudanças de vista ao RN via postMessage: JSON `{type:'mapView', center, zoom, bearing, pitch}`. */
+  reportView?: boolean;
 }
 
 /**
@@ -77,7 +90,7 @@ export function mapScript(
 function leafletScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'raster' }>,
-  { interactive, padding = 24 }: MapScriptOptions,
+  { interactive, padding = 24, view, reportView }: MapScriptOptions,
 ): string {
   const coords = points.map((p) => [p.latitude, p.longitude]);
   const data = JSON.stringify(coords);
@@ -95,6 +108,7 @@ function leafletScript(
       boxZoom: interactive,
       keyboard: interactive,
       tap: interactive,
+      zoomSnap: 0,
     });
     L.tileLayer('${tile.url}', { maxZoom: ${tile.maxZoom}, subdomains: '${tile.subdomains}', attribution: '${tile.attribution}' }).addTo(map);
 
@@ -102,8 +116,17 @@ function leafletScript(
     L.polyline(coords, { color: '#FFFFFF', weight: 9, opacity: 0.95, lineJoin: 'round', lineCap: 'round' }).addTo(map);
     var line = L.polyline(coords, { color: '${MOD.treino.accent}', weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round' }).addTo(map);
     function fit() { if (coords.length) map.fitBounds(line.getBounds(), { padding: [${padding}, ${padding}] }); }
-    fit();
+    ${view ? `map.setView(${JSON.stringify(view.center)}, ${view.zoom});` : 'fit();'}
     window.recenter = fit;
+    ${
+      reportView
+        ? `map.on('moveend zoomend', function () {
+      var c = map.getCenter();
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(
+        { type: 'mapView', center: [c.lat, c.lng], zoom: map.getZoom(), bearing: 0, pitch: 0 }));
+    });`
+        : ''
+    }
 
     function dot(latlng, fill) {
       return L.circleMarker(latlng, { radius: 6, color: '#FFFFFF', weight: 2, fillColor: fill, fillOpacity: 1 }).addTo(map);
@@ -118,13 +141,13 @@ function leafletScript(
 function maplibreScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'vector' }>,
-  { interactive, padding }: MapScriptOptions,
+  { interactive, padding, view, reportView }: MapScriptOptions,
 ): string {
   // MapLibre usa ordem [lng, lat].
   const coords = points.map((p) => [p.longitude, p.latitude]);
   const data = JSON.stringify(coords);
-  const pitch = tile.pitch ?? 0;
-  const bearing = pitch ? -18 : 0;
+  const pitch = view?.pitch ?? tile.pitch ?? 0;
+  const bearing = view?.bearing ?? (tile.pitch ? -18 : 0);
   const fitPadding = padding ?? (pitch ? 44 : 28);
 
   const buildings = tile.buildings3d
@@ -146,18 +169,34 @@ function maplibreScript(
   return `<script>
     var coords = ${data};
     var interactive = ${interactive ? 'true' : 'false'};
+    var hasView = ${view ? 'true' : 'false'};
     var pitch = ${pitch};
+    // Defaults do estilo (recentrar volta a eles, não à vista salva).
+    var defPitch = ${tile.pitch ?? 0};
+    var defBearing = ${tile.pitch ? -18 : 0};
     var map = new maplibregl.Map({
       container: 'map',
       style: '${tile.styleUrl}',
       interactive: interactive,
       attributionControl: { compact: true },
+      ${view ? `center: [${view.center[1]}, ${view.center[0]}], zoom: ${view.zoom},` : ''}
       pitch: pitch,
       bearing: ${bearing},
       dragRotate: interactive,
     });
     if (interactive) {
-      map.addControl(new maplibregl.NavigationControl({ showCompass: !!pitch }), 'top-right');
+      map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+    }
+    ${
+      reportView
+        ? `['moveend', 'zoomend', 'rotateend', 'pitchend'].forEach(function (ev) {
+      map.on(ev, function () {
+        var c = map.getCenter();
+        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(
+          { type: 'mapView', center: [c.lat, c.lng], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }));
+      });
+    });`
+        : ''
     }
 
     map.on('load', function () {
@@ -177,11 +216,14 @@ ${buildings}
 
       var b = new maplibregl.LngLatBounds(coords[0], coords[0]);
       for (var i = 1; i < coords.length; i++) b.extend(coords[i]);
-      map.fitBounds(b, { padding: ${fitPadding}, duration: 0 });
-      if (pitch) { map.setPitch(pitch); map.setBearing(${bearing}); }
+      if (!hasView) {
+        map.fitBounds(b, { padding: ${fitPadding}, duration: 0 });
+        if (defPitch) { map.setPitch(defPitch); map.setBearing(defBearing); }
+      }
       window.recenter = function () {
         map.fitBounds(b, { padding: ${fitPadding}, duration: 400 });
-        if (pitch) { map.setPitch(pitch); map.setBearing(${bearing}); }
+        map.setPitch(defPitch);
+        map.setBearing(defBearing);
       };
     });
   </script>`;

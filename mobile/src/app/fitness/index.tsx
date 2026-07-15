@@ -127,7 +127,7 @@ function PermissionScreen({ onRequest }: { onRequest: () => void }) {
       </View>
       <Text style={styles.permTitle}>Acesse seus Treinos</Text>
       <Text style={styles.permDesc}>
-        O Vitale lê seus exercícios do Apple Health para exibir o histórico completo de atividades.
+        O Orbe lê seus exercícios do Apple Health para exibir o histórico completo de atividades.
       </Text>
       <Pressable style={styles.permBtn} onPress={onRequest}>
         <Text style={styles.permBtnText}>Permitir Acesso</Text>

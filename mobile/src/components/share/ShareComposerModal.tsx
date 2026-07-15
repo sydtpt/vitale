@@ -15,8 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
-import type { MapStyleConfig } from '@vitale/shared';
-import type { MapPoint } from '../../lib/map-html';
+import { MAP_STYLES, type MapStyle } from '@vitale/shared';
+import type { MapPoint, MapViewState } from '../../lib/map-html';
 import {
   formatDistance,
   formatDuration,
@@ -28,9 +28,11 @@ import {
   buildShareCardHtml,
   formatRatio,
   FORMAT_DIMENSIONS,
+  type ShareArtStyle,
   type ShareBackground,
   type ShareContext,
   type ShareFormat,
+  type ShareMapEffect,
   type ShareMetricKey,
   type ShareMetricTile,
   type ShareTheme,
@@ -42,7 +44,8 @@ interface ShareComposerModalProps {
   visible: boolean;
   onClose: () => void;
   points: readonly MapPoint[];
-  mapTile: MapStyleConfig;
+  /** Estilo de mapa inicial (das preferências do usuário); a troca no composer é local. */
+  initialMapStyle: MapStyle;
   context: ShareContext;
 }
 
@@ -120,16 +123,77 @@ const THEME_OPTS: { key: ShareTheme; label: string }[] = [
   { key: 'light', label: 'Claro' },
   { key: 'dark', label: 'Escuro' },
 ];
+const ART_OPTS: { key: ShareArtStyle; label: string }[] = [
+  { key: 'glow', label: 'Brilho' },
+  { key: 'mesh', label: 'Malha' },
+  { key: 'topo', label: 'Relevo' },
+  { key: 'horizon', label: 'Horizonte' },
+  { key: 'grid', label: 'Grade' },
+];
+const EFFECT_OPTS: { key: ShareMapEffect; label: string }[] = [
+  { key: 'none', label: 'Nenhum' },
+  { key: 'duotone', label: 'Duotone' },
+  { key: 'gradient', label: 'Degradê' },
+  { key: 'grain', label: 'Granulado' },
+  { key: 'vignette', label: 'Vinheta' },
+];
+/** Paleta de cores do texto: neutros + accents dos módulos (tokens do shared). */
+const TEXT_COLORS: string[] = [
+  '#FFFFFF',
+  '#F6EFE6',
+  MOD.financas.accent,
+  MOD.treino.accent,
+  MOD.food.accent,
+  MOD.habito.accent,
+  MOD.tarefa.accent,
+  MOD.agua.accent,
+  MOD.compras.accent,
+  MOD.casa.accent,
+];
+/** Ordem de exibição dos estilos de mapa (mesma da tela de configurações). */
+const MAP_STYLE_ORDER: MapStyle[] = [
+  'voyager',
+  'positron',
+  'voyager_nolabels',
+  'positron_nolabels',
+  'dark',
+  'satellite',
+  'topo',
+  'osm',
+  'ofm_positron',
+  'ofm_bright',
+  'ofm_fiord',
+  'ofm_3d',
+];
+const MAP_OPTS = MAP_STYLE_ORDER.map((key) => ({ key, label: MAP_STYLES[key].label }));
 
 function tap() {
   Haptics.selectionAsync().catch(() => {});
+}
+
+/** Enquadramento salvo do mapa + engine que o produziu (o zoom não é
+ *  equivalente entre elas: mundo = 256·2^z no Leaflet e 512·2^z no MapLibre). */
+interface StoredMapView {
+  view: MapViewState;
+  kind: 'raster' | 'vector';
+}
+
+/** Adapta a vista salva à engine do estilo atual (z ± 1 entre Leaflet↔MapLibre;
+ *  rotação/pitch não existem no raster). */
+function adaptView(stored: StoredMapView | null, kind: 'raster' | 'vector'): MapViewState | undefined {
+  if (!stored) return undefined;
+  if (stored.kind === kind) return stored.view;
+  const zoom = stored.view.zoom + (stored.kind === 'raster' ? -1 : 1);
+  return kind === 'raster'
+    ? { center: stored.view.center, zoom, bearing: 0, pitch: 0 }
+    : { ...stored.view, zoom };
 }
 
 export function ShareComposerModal({
   visible,
   onClose,
   points,
-  mapTile,
+  initialMapStyle,
   context,
 }: ShareComposerModalProps) {
   const insets = useSafeAreaInsets();
@@ -142,7 +206,16 @@ export function ShareComposerModal({
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
   const [theme, setTheme] = useState<ShareTheme>(scheme);
+  const [artStyle, setArtStyle] = useState<ShareArtStyle>('glow');
+  const [mapStyle, setMapStyle] = useState<MapStyle>(initialMapStyle);
+  const [mapEffect, setMapEffect] = useState<ShareMapEffect>('none');
+  // null = automática (branca sobre mapa, tinta do tema sobre arte).
+  const [textColor, setTextColor] = useState<string | null>(null);
   const [watermark, setWatermark] = useState(true);
+  // Enquadramento do mapa ajustado pelo usuário no preview (ref: pan/zoom não
+  // devem recarregar o WebView — só é lido quando o html é reconstruído).
+  const mapViewRef = useRef<StoredMapView | null>(null);
+  const previewRef = useRef<WebView>(null);
   const [title, setTitle] = useState(defaultTitle);
   const [enabled, setEnabled] = useState<Set<ShareMetricKey>>(
     () => new Set(metrics.map((m) => m.key)),
@@ -154,6 +227,11 @@ export function ShareComposerModal({
     setTitle(defaultTitle);
     setEnabled(new Set(metrics.map((m) => m.key)));
     setTheme(scheme);
+    setArtStyle('glow');
+    setMapStyle(initialMapStyle);
+    setMapEffect('none');
+    setTextColor(null);
+    mapViewRef.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, context.activityId]);
 
@@ -169,6 +247,7 @@ export function ShareComposerModal({
     [metrics, enabled],
   );
 
+  const mapTile = MAP_STYLES[mapStyle];
   const html = useMemo(
     () =>
       buildShareCardHtml({
@@ -176,13 +255,21 @@ export function ShareComposerModal({
         format,
         background,
         theme,
+        artStyle,
+        mapEffect,
+        textColor: textColor ?? undefined,
         title: debouncedTitle || defaultTitle,
         subtitle,
         metrics: selectedTiles,
         watermark,
         mapTile,
+        // Preview: mapa ajustável; reconstruções (trocar métrica, tema…) reabrem
+        // no último enquadramento reportado, em vez de refazer o fitBounds.
+        mapInteractive: background === 'map',
+        mapView: adaptView(mapViewRef.current, mapTile.kind),
       }),
-    [points, format, background, theme, debouncedTitle, defaultTitle, subtitle, selectedTiles, watermark, mapTile],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [points, format, background, theme, artStyle, mapEffect, textColor, debouncedTitle, defaultTitle, subtitle, selectedTiles, watermark, mapTile],
   );
 
   // Letterbox: dimensiona o WebView à proporção real de saída dentro da área.
@@ -214,12 +301,45 @@ export function ShareComposerModal({
   const dim = FORMAT_DIMENSIONS[format];
   const exportRef = useRef<WebView>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportHtml, setExportHtml] = useState('');
+
+  // Congela o cartão atual em versão estática para o snapshot. O zoom do
+  // enquadramento é corrigido para a resolução de export (mesma área visível:
+  // z' = z + log2(largura_export / largura_preview)).
+  const startExport = () => {
+    tap();
+    let view = adaptView(mapViewRef.current, mapTile.kind);
+    if (view && box.width > 0) {
+      view = { ...view, zoom: view.zoom + Math.log2(dim.width / box.width) };
+    }
+    setExportHtml(
+      buildShareCardHtml({
+        points,
+        format,
+        background,
+        theme,
+        artStyle,
+        mapEffect,
+        textColor: textColor ?? undefined,
+        title: title || defaultTitle,
+        subtitle,
+        metrics: selectedTiles,
+        watermark,
+        mapTile,
+        mapView: background === 'map' ? view : undefined,
+      }),
+    );
+    setExporting(true);
+  };
 
   const onExportLoaded = async () => {
     if (!exporting) return;
     try {
-      // Dá tempo do mapa (tiles remotos) desenhar antes do snapshot.
-      await new Promise((r) => setTimeout(r, background === 'map' ? 1500 : 350));
+      // Dá tempo do mapa (tiles remotos) desenhar antes do snapshot; estilos
+      // vector (MapLibre, especialmente o 3D) desenham mais devagar que raster.
+      await new Promise((r) =>
+        setTimeout(r, background === 'map' ? (mapTile.kind === 'vector' ? 2200 : 1500) : 350),
+      );
       const result = await captureAndShareCard(exportRef, dim, title || defaultTitle);
       if (result === 'unavailable') {
         Alert.alert('Indisponível', 'Compartilhamento não está disponível neste dispositivo.');
@@ -241,10 +361,7 @@ export function ShareComposerModal({
           </Pressable>
           <Text style={styles.topTitle}>Compartilhar</Text>
           <Pressable
-            onPress={() => {
-              tap();
-              setExporting(true);
-            }}
+            onPress={startExport}
             disabled={exporting || metrics.length === 0}
             hitSlop={12}
             style={({ pressed }) => [
@@ -271,16 +388,54 @@ export function ShareComposerModal({
               ]}
             >
               <WebView
-                key={`${format}-${background}-${theme}`}
+                ref={previewRef}
+                key={`${format}-${background}-${theme}-${artStyle}-${mapStyle}-${mapEffect}-${textColor ?? 'auto'}`}
                 originWhitelist={['*']}
                 source={{ html }}
                 style={styles.web}
                 scrollEnabled={false}
-                pointerEvents="none"
+                // Fundo mapa: gestos passam para o mapa (pan/zoom/rotação).
+                pointerEvents={background === 'map' ? 'auto' : 'none'}
                 showsVerticalScrollIndicator={false}
                 showsHorizontalScrollIndicator={false}
                 androidLayerType="hardware"
+                // Trocar opção remonta o WebView (key) — mostra loading até o
+                // cartão carregar, em vez do flash em branco.
+                startInLoadingState
+                renderLoading={PreviewLoading}
+                onMessage={(e) => {
+                  try {
+                    const msg = JSON.parse(e.nativeEvent.data);
+                    if (msg.type === 'mapView') {
+                      mapViewRef.current = {
+                        view: {
+                          center: msg.center,
+                          zoom: msg.zoom,
+                          bearing: msg.bearing,
+                          pitch: msg.pitch,
+                        },
+                        kind: mapTile.kind,
+                      };
+                    }
+                  } catch {
+                    // mensagem não-JSON: ignora
+                  }
+                }}
               />
+              {background === 'map' && (
+                <Pressable
+                  style={({ pressed }) => [styles.recenterBtn, pressed && styles.pressed]}
+                  onPress={() => {
+                    tap();
+                    previewRef.current?.injectJavaScript('window.recenter && window.recenter(); true;');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Recentrar rota"
+                  hitSlop={8}
+                >
+                  <Ionicons name="locate-outline" size={16} color="#fff" />
+                </Pressable>
+              )}
             </View>
           )}
         </View>
@@ -321,6 +476,44 @@ export function ShareComposerModal({
             }}
           />
 
+          {background === 'art' && (
+            <>
+              <Text style={styles.fieldLabel}>Estilo da arte</Text>
+              <ChipRow
+                options={ART_OPTS}
+                value={artStyle}
+                onChange={(v) => {
+                  tap();
+                  setArtStyle(v);
+                }}
+              />
+            </>
+          )}
+
+          {background === 'map' && (
+            <>
+              <Text style={styles.fieldLabel}>Estilo do mapa</Text>
+              <ChipRow
+                options={MAP_OPTS}
+                value={mapStyle}
+                onChange={(v) => {
+                  tap();
+                  setMapStyle(v);
+                }}
+              />
+
+              <Text style={styles.fieldLabel}>Efeito</Text>
+              <ChipRow
+                options={EFFECT_OPTS}
+                value={mapEffect}
+                onChange={(v) => {
+                  tap();
+                  setMapEffect(v);
+                }}
+              />
+            </>
+          )}
+
           <Text style={styles.fieldLabel}>Tema do cartão</Text>
           <Segmented
             options={THEME_OPTS}
@@ -328,6 +521,15 @@ export function ShareComposerModal({
             onChange={(v) => {
               tap();
               setTheme(v);
+            }}
+          />
+
+          <Text style={styles.fieldLabel}>Cor do texto</Text>
+          <SwatchRow
+            value={textColor}
+            onChange={(v) => {
+              tap();
+              setTextColor(v);
             }}
           />
 
@@ -359,7 +561,7 @@ export function ShareComposerModal({
               setWatermark((w) => !w);
             }}
           >
-            <Text style={styles.switchLabel}>Marca d'água Vitale</Text>
+            <Text style={styles.switchLabel}>Marca d'água Orbe</Text>
             <View style={[styles.switchTrack, watermark && styles.switchTrackOn]}>
               <View style={[styles.switchThumb, watermark && styles.switchThumbOn]} />
             </View>
@@ -376,7 +578,7 @@ export function ShareComposerModal({
             <WebView
               ref={exportRef}
               originWhitelist={['*']}
-              source={{ html }}
+              source={{ html: exportHtml }}
               style={{ width: dim.width, height: dim.height }}
               scrollEnabled={false}
               showsVerticalScrollIndicator={false}
@@ -388,6 +590,89 @@ export function ShareComposerModal({
         )}
       </View>
     </Modal>
+  );
+}
+
+/** Linha de swatches de cor do texto. O primeiro é "Auto" (segue o tema do
+ *  cartão), desenhado como círculo metade tinta / metade creme. */
+function SwatchRow({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.chipRow}
+      contentContainerStyle={styles.chipRowContent}
+    >
+      <Pressable
+        onPress={() => onChange(null)}
+        style={[styles.swatch, value === null && styles.swatchActive]}
+      >
+        <View style={styles.swatchAuto}>
+          <View style={styles.swatchAutoHalfDark} />
+          <View style={styles.swatchAutoHalfLight} />
+        </View>
+      </Pressable>
+      {TEXT_COLORS.map((c) => (
+        <Pressable
+          key={c}
+          onPress={() => onChange(c)}
+          style={[styles.swatch, value === c && styles.swatchActive]}
+        >
+          <View style={[styles.swatchFill, { backgroundColor: c }]} />
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+/** Overlay de carregamento do preview (enquanto o WebView remontado carrega). */
+function PreviewLoading() {
+  return (
+    <View style={styles.previewLoading}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  );
+}
+
+/** Linha horizontal rolável de chips de seleção única (para listas longas
+ *  que não cabem no Segmented, que divide o espaço igualmente). */
+function ChipRow<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { key: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.chipRow}
+      contentContainerStyle={styles.chipRowContent}
+    >
+      {options.map((o) => {
+        const on = o.key === value;
+        return (
+          <Pressable
+            key={o.key}
+            onPress={() => onChange(o.key)}
+            style={[styles.chip, on ? styles.chipOn : styles.chipOff]}
+          >
+            <Text style={[styles.chipText, on ? styles.chipTextOn : styles.chipTextOff]}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -456,6 +741,23 @@ const styles = themed(() =>
       ...shadows.card,
     },
     web: { flex: 1, backgroundColor: 'transparent' },
+    recenterBtn: {
+      position: 'absolute',
+      right: spacing.md,
+      bottom: spacing.md,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    previewLoading: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceMute,
+    },
     offscreen: { position: 'absolute', left: -100000, top: 0 },
 
     controls: {
@@ -498,6 +800,37 @@ const styles = themed(() =>
     segItemActive: { backgroundColor: colors.primary },
     segText: { fontSize: 13.5, fontWeight: '600', color: colors.ink2 },
     segTextActive: { color: '#fff' },
+
+    // Margem negativa + padding no conteúdo: chips rolam de borda a borda.
+    chipRow: { flexGrow: 0, marginHorizontal: -spacing.lg },
+    chipRowContent: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
+
+    // Swatch = anel externo (marca a seleção) + círculo de cor interno.
+    swatch: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      padding: 3,
+      borderWidth: 2,
+      borderColor: 'transparent',
+    },
+    swatchActive: { borderColor: colors.primary },
+    swatchFill: {
+      flex: 1,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.line,
+    },
+    swatchAuto: {
+      flex: 1,
+      borderRadius: 999,
+      overflow: 'hidden',
+      flexDirection: 'row',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.line,
+    },
+    swatchAutoHalfDark: { flex: 1, backgroundColor: '#1F1B16' },
+    swatchAutoHalfLight: { flex: 1, backgroundColor: '#F6EFE6' },
 
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     chip: {

@@ -109,7 +109,7 @@ export default function ConexoesScreen() {
             <Text style={styles.cardDesc}>Conectado — treinos e métricas lidos do HealthKit.</Text>
           ) : permissionStatus === 'denied' ? (
             <Text style={styles.cardDesc}>
-              Acesso negado. Habilite em Ajustes → Privacidade → Saúde → Vitale.
+              Acesso negado. Habilite em Ajustes → Privacidade → Saúde → Orbe.
             </Text>
           ) : permissionStatus === 'unavailable' ? (
             <Text style={styles.cardDesc}>Disponível apenas no iPhone.</Text>

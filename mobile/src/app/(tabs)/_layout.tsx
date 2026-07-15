@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTheme, colors } from '../../theme';
 import { TabBarScrollProvider, useTabBarCollapsed } from '../../lib/tab-bar-scroll';
+import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
 
 type TabDef = {
   name: string;
@@ -26,68 +27,83 @@ function TabItems({
   state,
   navigation,
   inactiveColor,
+  onQuickAdd,
 }: {
   state: BottomTabBarProps['state'];
   navigation: BottomTabBarProps['navigation'];
   inactiveColor: string;
+  onQuickAdd: () => void;
 }) {
+  const renderTab = (tab: TabDef) => {
+    const routeIndex = state.routes.findIndex((r) => r.name === tab.name);
+    if (routeIndex === -1) return null;
+    const route = state.routes[routeIndex];
+    const isFocused = state.index === routeIndex;
+
+    const onPress = () => {
+      const event = navigation.emit({
+        type: 'tabPress',
+        target: route.key,
+        canPreventDefault: true,
+      });
+      if (!isFocused && !event.defaultPrevented) {
+        navigation.navigate(tab.name);
+      }
+    };
+
+    const onLongPress = () => {
+      navigation.emit({ type: 'tabLongPress', target: route.key });
+    };
+
+    return (
+      <Pressable
+        key={tab.name}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        style={({ pressed }) => [styles.tab, pressed && { opacity: 0.65 }]}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isFocused }}
+        accessibilityLabel={tab.label}
+      >
+        <View style={[styles.tabInner, isFocused && styles.tabInnerActive]}>
+          <Ionicons
+            name={isFocused ? tab.iconActive : tab.icon}
+            size={22}
+            color={isFocused ? colors.primary : inactiveColor}
+          />
+          <Text
+            style={[
+              styles.label,
+              { color: isFocused ? colors.primary : inactiveColor },
+              isFocused && styles.labelActive,
+            ]}
+          >
+            {tab.label}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  };
+
+  // 2 tabs · botão "+" central · 2 tabs
+  const mid = Math.ceil(TABS.length / 2);
   return (
     <>
-      {TABS.map((tab) => {
-        const routeIndex = state.routes.findIndex((r) => r.name === tab.name);
-        if (routeIndex === -1) return null;
-        const route = state.routes[routeIndex];
-        const isFocused = state.index === routeIndex;
-
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(tab.name);
-          }
-        };
-
-        const onLongPress = () => {
-          navigation.emit({ type: 'tabLongPress', target: route.key });
-        };
-
-        return (
-          <Pressable
-            key={tab.name}
-            onPress={onPress}
-            onLongPress={onLongPress}
-            style={({ pressed }) => [styles.tab, pressed && { opacity: 0.65 }]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isFocused }}
-            accessibilityLabel={tab.label}
-          >
-            <View style={[styles.tabInner, isFocused && styles.tabInnerActive]}>
-              <Ionicons
-                name={isFocused ? tab.iconActive : tab.icon}
-                size={22}
-                color={isFocused ? colors.primary : inactiveColor}
-              />
-              <Text
-                style={[
-                  styles.label,
-                  { color: isFocused ? colors.primary : inactiveColor },
-                  isFocused && styles.labelActive,
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </View>
-          </Pressable>
-        );
-      })}
+      {TABS.slice(0, mid).map(renderTab)}
+      <Pressable
+        onPress={onQuickAdd}
+        style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Registrar"
+      >
+        <Ionicons name="add" size={28} color="#fff" />
+      </Pressable>
+      {TABS.slice(mid).map(renderTab)}
     </>
   );
 }
 
-function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
+function AdaptiveTabBar({ state, navigation, onQuickAdd }: BottomTabBarProps & { onQuickAdd: () => void }) {
   const { scheme, blurIntensity } = useTheme();
   const insets = useSafeAreaInsets();
   const collapsed = useTabBarCollapsed();
@@ -128,7 +144,7 @@ function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
           ]}
         />
         <View style={styles.row}>
-          <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} />
+          <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} onQuickAdd={onQuickAdd} />
         </View>
       </BlurView>
     </Animated.View>
@@ -136,10 +152,11 @@ function AdaptiveTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabLayout() {
+  const [quickAdd, setQuickAdd] = useState(false);
   return (
     <TabBarScrollProvider>
       <Tabs
-        tabBar={(props) => <AdaptiveTabBar {...props} />}
+        tabBar={(props) => <AdaptiveTabBar {...props} onQuickAdd={() => setQuickAdd(true)} />}
         screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: 'transparent' } }}
       >
         <Tabs.Screen name="index"     options={{ title: 'Hoje' }} />
@@ -149,6 +166,7 @@ export default function TabLayout() {
         <Tabs.Screen name="semana"    options={{ href: null }} />
         <Tabs.Screen name="mais"      options={{ title: 'Mais' }} />
       </Tabs>
+      <QuickAddSheet visible={quickAdd} onClose={() => setQuickAdd(false)} />
     </TabBarScrollProvider>
   );
 }
@@ -182,6 +200,21 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     alignItems: 'center',
+  },
+  fab: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginHorizontal: 6,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
   },
   tabInner: {
     alignItems: 'center',
