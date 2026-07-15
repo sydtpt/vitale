@@ -3,12 +3,14 @@ import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { isSameWorkout } from '@vitale/shared';
 import {
   useFitnessStore,
   getActivityMeta,
   hasGpsRoute,
   elevationGain,
 } from '../../../store/fitness.store';
+import { useActivitiesStore } from '../../../store/activities.store';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import {
   formatFullDate,
@@ -49,7 +51,7 @@ export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const workouts = useFitnessStore((s) => s.workouts);
   const loadRoute = useFitnessStore((s) => s.loadRoute);
-  const route = useFitnessStore((s) => s.routes[id]) ?? [];
+  const hkRoute = useFitnessStore((s) => s.routes[id]) ?? [];
 
   const workout = useMemo(() => workouts.find((w) => w.id === id), [workouts, id]);
 
@@ -58,6 +60,46 @@ export default function WorkoutDetailScreen() {
       loadRoute(workout.id);
     }
   }, [workout, loadRoute]);
+
+  // Fallback de rota via Supabase: treinos escritos por terceiros no HealthKit
+  // (ex.: stub do Garmin Connect) não têm WorkoutRoute, mas a versão rica do
+  // MESMO treino chega pelo ingest server-side. O matcher do dedupe (shared)
+  // encontra a atividade equivalente e usamos a rota persistida dela.
+  const supActivities = useActivitiesStore((s) => s._all);
+  const supLoad = useActivitiesStore((s) => s.load);
+  const supRoutes = useActivitiesStore((s) => s.routes);
+  const supLoadRoute = useActivitiesStore((s) => s.loadRoute);
+
+  const supMatch = useMemo(() => {
+    if (!workout || !hasGpsRoute(workout.activityId)) return undefined;
+    const win = { activityId: workout.activityId, startAt: workout.start, endAt: workout.end };
+    return supActivities.find(
+      (a) =>
+        !a.hidden &&
+        a.hasRoute &&
+        isSameWorkout(win, { activityId: a.activityId, startAt: a.startAt, endAt: a.endAt }),
+    );
+  }, [workout, supActivities]);
+
+  useEffect(() => {
+    if (workout && hasGpsRoute(workout.activityId)) void supLoad();
+  }, [workout, supLoad]);
+
+  useEffect(() => {
+    if (hkRoute.length === 0 && supMatch) void supLoadRoute(supMatch.id);
+  }, [hkRoute.length, supMatch, supLoadRoute]);
+
+  const route = useMemo(() => {
+    if (hkRoute.length > 1) return hkRoute;
+    const pts = supMatch ? supRoutes[supMatch.id] : undefined;
+    if (!pts || pts.length < 2) return hkRoute;
+    return pts.map((p) => ({
+      latitude: p.lat,
+      longitude: p.lng,
+      altitude: p.alt,
+      timestamp: typeof p.t === 'number' ? new Date(p.t).toISOString() : undefined,
+    }));
+  }, [hkRoute, supMatch, supRoutes]);
 
   const rows = useMemo<InfoRow[]>(() => {
     if (!workout) return [];

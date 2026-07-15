@@ -4,14 +4,21 @@
  *
  * Quando uma ponte Garmin está conectada, os treinos que o Garmin Connect
  * escreve no HealthKit (stubs sem rota, FC só mín/máx) são DESCARTADOS no sync
- * — a versão rica do mesmo treino chega pela ingestão server-side. O filtro é
- * otimização: o dedupe do ingest é quem garante a unicidade (stubs que passarem
- * são mesclados/varridos lá).
+ * — mas SÓ os que estão dentro da janela que o ingest server-side cobre
+ * (INITIAL_IMPORT_DAYS antes do vínculo em diante). Stubs mais antigos que a
+ * cobertura continuam sincronizando pelo HealthKit: são a única fonte deles.
+ * O filtro é otimização: o dedupe do ingest é quem garante a unicidade.
  */
 import { isGarminSource, type LinkedAccount } from '@vitale/shared';
 import { supabase } from './supabase';
 import { asyncStore, getJSON, setJSON, type KVStore } from './local-store';
 import type { WorkoutItem } from './workout-types';
+
+/**
+ * Janela de backfill do ingest server-side, em dias — DEVE casar com
+ * INITIAL_IMPORT_DAYS em supabase/functions/_shared/ingest.ts.
+ */
+export const INGEST_COVERAGE_DAYS = 90;
 
 /** Treino do HealthKit escrito pelo Garmin Connect (stub da ponte). */
 export function isGarminHkStub(w: Pick<WorkoutItem, 'sourceId' | 'sourceName'>): boolean {
@@ -54,10 +61,11 @@ export async function fetchLinkedAccounts(): Promise<LinkedAccount[]> {
   return ((data ?? []) as DbLinkedAccount[]).map(mapLinkedAccount);
 }
 
-const BRIDGE_CACHE_KEY = 'vitale:garmin-bridge-active';
-const BRIDGE_TTL_MS = 5 * 60_000;
+const COVERAGE_CACHE_KEY = 'vitale:garmin-bridge-coverage-ms';
+const COVERAGE_TTL_MS = 5 * 60_000;
+const DAY_MS = 24 * 3600_000;
 
-let memo: { value: boolean; at: number } | null = null;
+let memo: { value: number | null; at: number } | null = null;
 
 /** Força a releitura na próxima chamada (após vincular/desvincular). */
 export function invalidateBridgeCache(): void {
@@ -65,25 +73,51 @@ export function invalidateBridgeCache(): void {
 }
 
 /**
- * Há ponte Garmin conectada (Strava OU intervals.icu)? Memo de 5 min +
- * último valor em disco como fallback offline — o sync roda em background e
- * não pode depender de rede para decidir o filtro.
+ * Início (epoch ms) da cobertura do ingest server-side, ou null sem ponte
+ * conectada. Cobertura = INITIAL_IMPORT_DAYS antes do vínculo mais antigo em
+ * diante. Memo de 5 min + último valor em disco como fallback offline — o sync
+ * roda em background e não pode depender de rede para decidir o filtro.
  */
-export async function hasActiveGarminBridge(store: KVStore = asyncStore): Promise<boolean> {
-  if (memo && Date.now() - memo.at < BRIDGE_TTL_MS) return memo.value;
+export async function garminBridgeCoverageStartMs(store: KVStore = asyncStore): Promise<number | null> {
+  if (memo && Date.now() - memo.at < COVERAGE_TTL_MS) return memo.value;
   try {
     const { data, error } = await supabase
       .from('linked_accounts')
-      .select('provider')
-      .eq('status', 'connected')
-      .limit(1);
+      .select('connected_at')
+      .eq('status', 'connected');
     if (error) throw new Error(error.message);
-    const value = (data ?? []).length > 0;
+    const rows = (data ?? []) as { connected_at: string | null }[];
+    let value: number | null = null;
+    if (rows.length > 0) {
+      // connected_at nulo (linha antiga) ⇒ assume agora: cobertura menor = mantém mais stubs.
+      const earliest = Math.min(
+        ...rows.map((r) => (r.connected_at ? Date.parse(r.connected_at) : Date.now())),
+      );
+      value = earliest - INGEST_COVERAGE_DAYS * DAY_MS;
+    }
     memo = { value, at: Date.now() };
-    await setJSON(BRIDGE_CACHE_KEY, value, store);
+    await setJSON(COVERAGE_CACHE_KEY, value, store);
     return value;
   } catch {
-    const cached = await getJSON<boolean>(BRIDGE_CACHE_KEY, store);
-    return cached ?? false;
+    const cached = await getJSON<number | null>(COVERAGE_CACHE_KEY, store);
+    return cached ?? null;
   }
+}
+
+/**
+ * Predicado puro do filtro (testável): true = manter o treino no sync HK.
+ * Descarta apenas stubs Garmin cujo início cai dentro da cobertura do ingest.
+ */
+export function makeStubKeepPredicate(
+  coverageStartMs: number | null,
+): (w: Pick<WorkoutItem, 'sourceId' | 'sourceName' | 'start'>) => boolean {
+  if (coverageStartMs === null) return () => true;
+  return (w) => !(isGarminHkStub(w) && Date.parse(w.start) >= coverageStartMs);
+}
+
+/** Predicado do filtro preventivo já resolvido contra o estado das pontes. */
+export async function garminStubKeepFilter(
+  store: KVStore = asyncStore,
+): Promise<(w: Pick<WorkoutItem, 'sourceId' | 'sourceName' | 'start'>) => boolean> {
+  return makeStubKeepPredicate(await garminBridgeCoverageStartMs(store));
 }

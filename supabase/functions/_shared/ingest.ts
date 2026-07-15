@@ -35,12 +35,14 @@ import type { NormalizedActivity } from './normalize.ts';
 import { AuthError } from './providers/errors.ts';
 import {
   fetchIntervalsActivities,
+  intervalsStartMs,
   normalizeIntervalsActivity,
 } from './providers/intervals.ts';
 import {
   fetchStravaActivities,
   normalizeStravaActivity,
   refreshStravaToken,
+  stravaStartMs,
 } from './providers/strava.ts';
 
 /** Máximo de treinos processados por run — o backfill continua no próximo tick. */
@@ -159,7 +161,8 @@ interface DerivedMetrics {
 function deriveMetrics(norm: NormalizedActivity, hrParams: FitnessHrZoneParams): DerivedMetrics {
   // moving_time da fonte (Garmin calcula bem) > derivado do track > nada.
   const movingTimeS = norm.movingTimeS ?? movingTimeFromPoints(norm.points);
-  const elevationM = elevationGainFromPoints(norm.points);
+  // Elevação: valor da fonte (bate com o que Strava/intervals mostram) > derivado do track.
+  const elevationM = norm.elevationM ?? elevationGainFromPoints(norm.points);
   const bestEfforts =
     norm.activityId === 37 && norm.points.length > 1
       ? computeBestEffortsFromPoints(norm.points)
@@ -367,19 +370,45 @@ async function ingestOne(
  * Watch que também subiu para a Strava antes do vínculo; stub do Garmin que
  * sincronizou antes da ponte). Mescla e apaga a linha redundante.
  *
+ * Sementes = linhas CRIADAS nos últimos SWEEP_DAYS (não a data do treino!):
+ * um push do HealthKit atrasado — celular offline, re-sync de histórico — cria
+ * hoje uma linha de treino antigo, e ela precisa reconciliar com a linha do
+ * provedor mesmo que o treino tenha semanas. Candidatos vêm da janela de
+ * start_at que cobre as sementes; só pares com pelo menos uma semente mesclam.
+ *
  * Canônica do par: a linha do HealthKit quando há uma — um re-sync completo do
  * mobile faz `insert on conflict(id)` com o UUID do HK e ressuscitaria a
  * duplicata se a linha apagada fosse a dele. Sem lado HK, a mais antiga.
  */
 export async function reconcileRecent(admin: Admin, userId: string): Promise<number> {
-  const since = new Date(Date.now() - SWEEP_DAYS * DAY_MS).toISOString();
-  const { data } = await admin
+  const createdSince = new Date(Date.now() - SWEEP_DAYS * DAY_MS).toISOString();
+  const { data: seedData } = await admin
     .from('activities')
     .select(ACTIVITY_SELECT)
     .eq('user_id', userId)
-    .gte('start_at', since)
-    .order('start_at', { ascending: true });
-  const rows = ((data ?? []) as ActivityRow[]).filter((r) => !r.hidden);
+    .gte('created_at', createdSince)
+    .order('start_at', { ascending: true })
+    .limit(500);
+  const seeds = ((seedData ?? []) as ActivityRow[]).filter((r) => !r.hidden);
+  if (seeds.length === 0) return 0;
+  const seedIds = new Set(seeds.map((s) => s.id));
+
+  // Candidatos: tudo na janela de start_at que envolve as sementes (±6h).
+  const windowMs = MATCH_CANDIDATE_WINDOW_HOURS * HOUR_MS;
+  const starts = seeds.map((s) => Date.parse(s.start_at));
+  const { data: candData } = await admin
+    .from('activities')
+    .select(ACTIVITY_SELECT)
+    .eq('user_id', userId)
+    .gte('start_at', new Date(Math.min(...starts) - windowMs).toISOString())
+    .lte('start_at', new Date(Math.max(...starts) + windowMs).toISOString())
+    .order('start_at', { ascending: true })
+    .limit(1000);
+  const byId = new Map<string, ActivityRow>();
+  for (const r of [...seeds, ...((candData ?? []) as ActivityRow[])]) {
+    if (!r.hidden) byId.set(r.id, r);
+  }
+  const rows = [...byId.values()].sort((x, y) => x.start_at.localeCompare(y.start_at));
   if (rows.length < 2) return 0;
 
   const counts = await fetchRoutePointCounts(
@@ -398,10 +427,12 @@ export async function reconcileRecent(admin: Admin, userId: string): Promise<num
   for (let i = 0; i < rows.length; i++) {
     if (gone.has(rows[i].id)) continue;
     for (let j = i + 1; j < rows.length; j++) {
-      if (gone.has(rows[j].id)) continue;
       const a = rows[i];
       const b = rows[j];
-      if (Date.parse(b.start_at) - Date.parse(a.start_at) > MATCH_CANDIDATE_WINDOW_HOURS * HOUR_MS) break;
+      if (gone.has(b.id)) continue;
+      if (Date.parse(b.start_at) - Date.parse(a.start_at) > windowMs) break;
+      // Só pares que envolvem uma linha recém-criada — o resto já foi varrido antes.
+      if (!seedIds.has(a.id) && !seedIds.has(b.id)) continue;
       if (!isSameWorkout(windows(a), windows(b))) continue;
 
       const aIsHk = (a.provider ?? 'healthkit') === 'healthkit';
@@ -418,6 +449,8 @@ export async function reconcileRecent(admin: Admin, userId: string): Promise<num
       await mergeRows(admin, userId, canonical, other, counts);
       gone.add(other.id);
       swept++;
+      // `a` (linha externa do loop) foi apagada no merge: parar de pareá-la.
+      if (other.id === a.id) break;
     }
   }
   return swept;
@@ -572,9 +605,14 @@ export async function runIngest(
       ? Date.parse(account.cursor) - CURSOR_REWIND_H * HOUR_MS
       : nowMs - INITIAL_IMPORT_DAYS * DAY_MS;
 
-    // Lista bruta ascendente + normalização preguiçosa (streams só até o cap).
-    let normalizeAt: (i: number) => Promise<NormalizedActivity | null>;
-    let total: number;
+    // Lista bruta ascendente + normalização preguiçosa (streams só até o cap
+    // e só para atividades ainda não ingeridas).
+    interface PendingRef {
+      externalId: string;
+      startMs: number;
+      normalize: () => Promise<NormalizedActivity | null>;
+    }
+    let refs: PendingRef[];
     if (provider === 'intervals') {
       if (!secret.api_key || !account.athlete_id) throw new AuthError('intervals.icu: vínculo incompleto');
       const raws = await fetchIntervalsActivities(
@@ -583,20 +621,46 @@ export async function runIngest(
         new Date(fromMs).toISOString(),
         new Date(nowMs + DAY_MS).toISOString(),
       );
-      total = raws.length;
-      normalizeAt = (i) => normalizeIntervalsActivity(secret.api_key!, raws[i]);
+      refs = raws.map((r) => ({
+        externalId: String(r.id),
+        startMs: intervalsStartMs(r),
+        normalize: () => normalizeIntervalsActivity(secret.api_key!, r),
+      }));
     } else {
       const access = await freshStravaToken(admin, userId, secret);
       const raws = await fetchStravaActivities(access, fromMs / 1000);
-      total = raws.length;
-      normalizeAt = (i) => normalizeStravaActivity(access, raws[i]);
+      refs = raws.map((r) => ({
+        externalId: String(r.id),
+        startMs: stravaStartMs(r),
+        normalize: () => normalizeStravaActivity(access, r),
+      }));
     }
+    const total = refs.length;
+    const capped = refs.slice(0, MAX_ACTIVITIES_PER_RUN);
+
+    // Idempotência barata ANTES dos streams: a releitura sobreposta do cursor
+    // (24h) relista atividades já ingeridas a cada tick — sem este check, cada
+    // uma rebaixaria GPS+FC completos só para o passo 0 responder "refreshed"
+    // (desperdício direto contra o rate limit da Strava). Cobre linhas criadas
+    // por esta fonte; casos mesclados em linha de outra fonte (raros, janela de
+    // 24h) ainda passam pelo passo 0 do ingestOne.
+    const { data: knownData } = await admin
+      .from('activities')
+      .select('external_id')
+      .eq('user_id', userId)
+      .eq('provider', provider)
+      .in('external_id', capped.map((r) => r.externalId));
+    const known = new Set((knownData ?? []).map((r) => r.external_id as string));
 
     const hrParams = await loadHrParams(admin, userId, account.athlete_meta);
-    const cap = Math.min(total, MAX_ACTIVITIES_PER_RUN);
     let lastStartMs = account.cursor ? Date.parse(account.cursor) : 0;
-    for (let i = 0; i < cap; i++) {
-      const norm = await normalizeAt(i);
+    for (const ref of capped) {
+      if (known.has(ref.externalId)) {
+        summary.skipped++;
+        if (Number.isFinite(ref.startMs)) lastStartMs = Math.max(lastStartMs, ref.startMs);
+        continue;
+      }
+      const norm = await ref.normalize();
       if (!norm) {
         summary.skipped++;
         continue;

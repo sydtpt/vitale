@@ -75,6 +75,12 @@
           <span class="stat-c">distância</span>
         </div>
       }
+      @if (elevation(); as e) {
+        <div class="stat">
+          <span class="stat-v">{{ e }}</span>
+          <span class="stat-c">elevação</span>
+        </div>
+      }
       @if (a.calories > 0) {
         <div class="stat">
           <span class="stat-v">{{ fmtKcal(a.calories) }}</span>
@@ -165,6 +171,9 @@
         }
         @if ((a.distanceM ?? 0) > 0) {
           <div class="info-row"><dt>Distância</dt><dd class="mono">{{ fmtKm(a.distanceM ?? 0) }} km</dd></div>
+        }
+        @if (elevation(); as e) {
+          <div class="info-row"><dt>Elevação</dt><dd class="mono">{{ e }}</dd></div>
         }
         @if (a.calories > 0) {
           <div class="info-row"><dt>Calorias</dt><dd class="mono">{{ fmtKcal(a.calories) }} kcal</dd></div>

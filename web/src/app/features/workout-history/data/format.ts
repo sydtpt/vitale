@@ -40,6 +40,12 @@ export function fmtKcal(c: number): string {
   return Math.round(c).toLocaleString('pt-BR');
 }
 
+/** Ganho de elevação em metros inteiros; null quando ausente ou zero. */
+export function fmtElevation(meters?: number): string | null {
+  if (!meters || meters <= 0) return null;
+  return `${Math.round(meters).toLocaleString('pt-BR')} m`;
+}
+
 /** Tempo de recorde no formato relógio: `h:mm:ss` ou `m:ss`. */
 export function fmtClock(seconds: number): string {
   const total = Math.round(seconds);

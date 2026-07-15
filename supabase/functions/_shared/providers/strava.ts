@@ -109,7 +109,13 @@ interface RawStravaActivity {
   elapsed_time?: number;
   moving_time?: number;
   distance?: number;
+  total_elevation_gain?: number;
   device_name?: string;
+}
+
+/** Início da atividade em epoch ms (exportado p/ o check de idempotência do ingest). */
+export function stravaStartMs(a: RawStravaActivity): number {
+  return Date.parse(a.start_date ?? '');
 }
 
 async function stravaGet(accessToken: string, path: string): Promise<Response> {
@@ -174,6 +180,11 @@ export async function normalizeStravaActivity(
     durationS,
     movingTimeS: typeof raw.moving_time === 'number' ? Math.round(raw.moving_time) : undefined,
     distanceM: typeof raw.distance === 'number' && raw.distance > 0 ? raw.distance : undefined,
+    // 0 também vem em atividades sem altímetro — nesse caso cai no cálculo dos pontos.
+    elevationM:
+      typeof raw.total_elevation_gain === 'number' && raw.total_elevation_gain > 0
+        ? raw.total_elevation_gain
+        : undefined,
     // A lista da Strava não traz calorias (só o detalhe); ficam do lado mais rico do merge.
     device: raw.device_name ?? undefined,
     points,

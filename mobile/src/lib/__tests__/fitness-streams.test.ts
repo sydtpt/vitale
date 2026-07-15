@@ -68,6 +68,58 @@ describe('fitness/streams — paridade com o mobile', () => {
     expect(elevationGainFromPoints(flat)).toBeUndefined();
   });
 
+  it('ganho de elevação acumula subidas graduais e ignora descidas/ruído', () => {
+    const pt = (i: number, alt: number): FitnessPoint => ({
+      lat: -23.55 + i * 1e-5,
+      lng: -46.63,
+      alt,
+      t: BASE_MS + i * 1000,
+    });
+    // Subida contínua de 30 m em passos de 0,3 m (< limiar por ponto): a
+    // histerese acumula quase o total — a suavização come as bordas e a
+    // cauda < limiar, mas nada perto dos 100% que o algoritmo pré-histerese
+    // (delta consecutivo > 1 m) descartava.
+    const climb = Array.from({ length: 101 }, (_, i) => pt(i, 700 + i * 0.3));
+    const climbGain = elevationGainFromPoints(climb)!;
+    expect(climbGain).toBeGreaterThan(24);
+    expect(climbGain).toBeLessThanOrEqual(30);
+
+    // Ida e volta (sobe 30 m, desce 30 m): conta só a subida, não o líquido.
+    const outAndBack = [
+      ...climb,
+      ...Array.from({ length: 100 }, (_, i) => pt(101 + i, 730 - (i + 1) * 0.3)),
+    ];
+    expect(elevationGainFromPoints(outAndBack)!).toBeCloseTo(climbGain, 1);
+
+    // Ruído oscilando ±0,4 m em torno de 700 m: abaixo do limiar, ganho 0.
+    const noise = Array.from({ length: 200 }, (_, i) => pt(i, 700 + (i % 2 === 0 ? 0.4 : -0.4)));
+    expect(elevationGainFromPoints(noise)).toBe(0);
+  });
+
+  it('suavização mata o jitter de barômetro sem perder a subida real', () => {
+    const pt = (i: number, alt: number): FitnessPoint => ({
+      lat: -23.55 + i * 1e-5,
+      lng: -46.63,
+      alt,
+      t: BASE_MS + i * 1000,
+    });
+    // Jitter ±1,5 m a 1 Hz durante 1 h em terreno plano: sem suavização, a
+    // histerese de limiar baixo somava cada oscilação (~5.400 m falsos —
+    // o bug da pedalada de 124 km gravada com 1.840 m em vez de ~865 m).
+    const jitter = Array.from({ length: 3600 }, (_, i) =>
+      pt(i, 700 + (i % 2 === 0 ? 1.5 : -1.5)),
+    );
+    expect(elevationGainFromPoints(jitter)!).toBeLessThan(1);
+
+    // O mesmo jitter em cima de uma subida real de 60 m: o ganho é a subida.
+    const noisyClimb = Array.from({ length: 401 }, (_, i) =>
+      pt(i, 700 + i * 0.15 + (i % 2 === 0 ? 1.5 : -1.5)),
+    );
+    const g = elevationGainFromPoints(noisyClimb)!;
+    expect(g).toBeGreaterThan(54);
+    expect(g).toBeLessThanOrEqual(60);
+  });
+
   it('computeHrZonesFromSamples ≡ computeHrZones (fronteiras pinadas em HR_ZONES)', () => {
     // Série varrendo todas as zonas: 100→180 bpm com FCmáx 190 / FCrep 50.
     const samples: HrSample[] = Array.from({ length: 600 }, (_, i) => ({

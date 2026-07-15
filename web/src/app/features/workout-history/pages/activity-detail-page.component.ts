@@ -7,7 +7,7 @@ import { IconComponent } from '@core/services/icon.component';
 import { metaForActivity } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
-import { fmtClock, fmtDate, fmtDuration, fmtKcal, fmtKm, fmtRate, fmtTime, totalTimeS } from '../data/format';
+import { fmtClock, fmtDate, fmtDuration, fmtElevation, fmtKcal, fmtKm, fmtRate, fmtTime, totalTimeS } from '../data/format';
 import { movingTimeFromRoutePoints } from '../data/moving-time';
 import { activityRecordBadges } from '../data/running-highlights';
 
@@ -62,6 +62,8 @@ export class ActivityDetailPageComponent {
     const a = this.activity();
     return a && this.hasGps() ? fmtRate(a.activityId, a.distanceM, this.movingTimeS()) : null;
   });
+  /** Ganho de elevação formatado; null quando a atividade não tem o dado. */
+  protected readonly elevation = computed(() => fmtElevation(this.activity()?.elevationM));
 
   /** Recordes que esta atividade detém (maior distância, best efforts). */
   protected readonly recordBadges = computed(() => {

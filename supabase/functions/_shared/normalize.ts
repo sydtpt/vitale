@@ -19,6 +19,8 @@ export interface NormalizedActivity {
   /** Tempo em movimento (s) reportado pela fonte, quando existe. */
   movingTimeS?: number;
   distanceM?: number;
+  /** Ganho de elevação (m) reportado pela fonte — preferido ao cálculo dos pontos. */
+  elevationM?: number;
   calories?: number;
   device?: string;
   points: FitnessPoint[];

@@ -78,24 +78,63 @@ export function movingTimeFromPoints(
 }
 
 /**
- * Ganho de elevação acumulado (m), somando só subidas acima de um limiar de
- * ruído. Retorna undefined quando nenhum ponto tem altitude (rota sem barômetro)
- * — espelha o `_elevation_gain` em SQL e o `elevationFor` do sync mobile.
+ * Janela da média móvel centrada (em amostras ≈ segundos a 1 Hz) aplicada à
+ * altitude antes da histerese. Sem ela, o jitter de barômetro/GPS (±1–2 m por
+ * segundo) acumula como subida e infla o ganho em ~2× (validado contra o
+ * EU-DEM em rota real).
+ */
+export const ELEVATION_SMOOTH_WINDOW = 15;
+/** Limiar (m) da histerese do ganho de elevação, sobre a série suavizada. */
+export const ELEVATION_GAIN_THRESHOLD_M = 3;
+
+/** Média móvel centrada de janela `window`, encolhendo nas bordas. */
+function smoothAltitudes(xs: number[], window: number): number[] {
+  if (window <= 1) return xs;
+  const half = Math.floor(window / 2);
+  const prefix = new Array<number>(xs.length + 1);
+  prefix[0] = 0;
+  for (let i = 0; i < xs.length; i++) prefix[i + 1] = prefix[i] + xs[i];
+  const out = new Array<number>(xs.length);
+  for (let i = 0; i < xs.length; i++) {
+    const a = Math.max(0, i - half);
+    const b = Math.min(xs.length - 1, i + half);
+    out[i] = (prefix[b + 1] - prefix[a]) / (b - a + 1);
+  }
+  return out;
+}
+
+/**
+ * Ganho de elevação acumulado (m): suaviza a altitude (média móvel centrada
+ * de `ELEVATION_SMOOTH_WINDOW` amostras) e soma só as subidas, com histerese
+ * — a âncora só avança quando a variação acumulada desde ela passa do limiar,
+ * então subidas graduais contam por inteiro e o ruído do barômetro/GPS não.
+ * Retorna undefined quando nenhum ponto tem altitude (rota sem barômetro)
+ * — espelha o `elevationGain` do mobile e o `_elevation_gain` das migrations.
  */
 export function elevationGainFromPoints(
   points: FitnessPoint[] | undefined,
-  threshold = 1,
+  threshold = ELEVATION_GAIN_THRESHOLD_M,
 ): number | undefined {
-  if (!points || !points.some((p) => typeof p.alt === 'number')) return undefined;
-  let gain = 0;
-  let prev: number | undefined;
+  if (!points) return undefined;
+  const alts: number[] = [];
   for (const p of points) {
-    if (typeof p.alt !== 'number') continue;
-    if (prev !== undefined) {
-      const delta = p.alt - prev;
-      if (delta > threshold) gain += delta;
+    if (typeof p.alt === 'number') alts.push(p.alt);
+  }
+  if (alts.length === 0) return undefined;
+  let gain = 0;
+  let ref: number | undefined;
+  for (const alt of smoothAltitudes(alts, ELEVATION_SMOOTH_WINDOW)) {
+    if (ref === undefined) {
+      ref = alt;
+      continue;
     }
-    prev = p.alt;
+    const delta = alt - ref;
+    if (delta > threshold) {
+      gain += delta;
+      ref = alt;
+    } else if (delta < -threshold) {
+      ref = alt;
+    }
   }
   return gain;
 }

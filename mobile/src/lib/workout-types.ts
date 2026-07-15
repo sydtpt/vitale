@@ -122,17 +122,56 @@ export function hasGpsRoute(activityId: number): boolean {
   return GPS_ACTIVITY_IDS.has(activityId);
 }
 
-/** Ganho de elevação acumulado (m), somando só subidas acima de um limiar de ruído. */
-export function elevationGain(points: RoutePoint[], threshold = 1): number {
-  let gain = 0;
-  let prev: number | undefined;
+/**
+ * Janela da média móvel centrada (amostras ≈ segundos a 1 Hz) e limiar da
+ * histerese do ganho de elevação. DEVEM casar com o shared
+ * (`ELEVATION_SMOOTH_WINDOW` / `ELEVATION_GAIN_THRESHOLD_M`).
+ */
+const ELEVATION_SMOOTH_WINDOW = 15;
+const ELEVATION_GAIN_THRESHOLD_M = 3;
+
+/** Média móvel centrada de janela `window`, encolhendo nas bordas. */
+function smoothAltitudes(xs: number[], window: number): number[] {
+  if (window <= 1) return xs;
+  const half = Math.floor(window / 2);
+  const prefix = new Array<number>(xs.length + 1);
+  prefix[0] = 0;
+  for (let i = 0; i < xs.length; i++) prefix[i + 1] = prefix[i] + xs[i];
+  const out = new Array<number>(xs.length);
+  for (let i = 0; i < xs.length; i++) {
+    const a = Math.max(0, i - half);
+    const b = Math.min(xs.length - 1, i + half);
+    out[i] = (prefix[b + 1] - prefix[a]) / (b - a + 1);
+  }
+  return out;
+}
+
+/**
+ * Ganho de elevação acumulado (m): suaviza a altitude (média móvel centrada)
+ * e soma só as subidas, com histerese — a âncora só avança quando a variação
+ * acumulada desde ela passa do limiar, então subidas graduais contam por
+ * inteiro e o ruído do barômetro/GPS não. Espelha o
+ * `elevationGainFromPoints` do shared.
+ */
+export function elevationGain(points: RoutePoint[], threshold = ELEVATION_GAIN_THRESHOLD_M): number {
+  const alts: number[] = [];
   for (const p of points) {
-    if (typeof p.altitude !== 'number') continue;
-    if (prev !== undefined) {
-      const delta = p.altitude - prev;
-      if (delta > threshold) gain += delta;
+    if (typeof p.altitude === 'number') alts.push(p.altitude);
+  }
+  let gain = 0;
+  let ref: number | undefined;
+  for (const alt of smoothAltitudes(alts, ELEVATION_SMOOTH_WINDOW)) {
+    if (ref === undefined) {
+      ref = alt;
+      continue;
     }
-    prev = p.altitude;
+    const delta = alt - ref;
+    if (delta > threshold) {
+      gain += delta;
+      ref = alt;
+    } else if (delta < -threshold) {
+      ref = alt;
+    }
   }
   return gain;
 }

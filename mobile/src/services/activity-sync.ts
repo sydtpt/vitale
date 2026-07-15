@@ -37,7 +37,7 @@ import {
 /** Código HealthKit da corrida — único tipo que recebe best efforts. */
 const RUNNING_ACTIVITY_ID = 37;
 import { subscribeType, loadSyncedTypes } from '../lib/synced-types';
-import { hasActiveGarminBridge, isGarminHkStub } from '../lib/connections';
+import { garminStubKeepFilter } from '../lib/connections';
 import { readAnchor, writeAnchor } from '../lib/sync-anchor';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
 import { linkWorkoutsToTodos } from './activity-todo-link';
@@ -270,13 +270,12 @@ export async function syncType(
     await subscribeType(label);
 
     // 2. Backfill: todos os treinos do tipo no período. Com ponte Garmin ativa,
-    // descarta os stubs do Garmin Connect (a versão rica chega pelo ingest).
+    // descarta os stubs do Garmin Connect DENTRO da cobertura do ingest (a
+    // versão rica chega por lá); stubs mais antigos continuam sincronizando.
     const all = await fetchAllWorkouts();
-    const dropGarminStubs = await hasActiveGarminBridge();
+    const keepWorkout = await garminStubKeepFilter();
     const ofType = all.filter(
-      (w) =>
-        getActivityMeta(w.activityId).label === label &&
-        !(dropGarminStubs && isGarminHkStub(w)),
+      (w) => getActivityMeta(w.activityId).label === label && keepWorkout(w),
     );
     onProgress?.(0);
 
@@ -335,21 +334,20 @@ export async function syncDelta(): Promise<SyncResult> {
     const anchor = await readAnchor(userId);
     const { workouts, anchor: newAnchor } = await fetchWorkoutsDelta(anchor);
 
-    // 2. Filtra aos tipos inscritos; com ponte Garmin ativa, descarta os stubs
-    // do Garmin Connect (a versão rica chega pelo ingest server-side).
-    const dropGarminStubs = await hasActiveGarminBridge();
-    const ofType = workouts.filter(
-      (w) =>
-        subscribed.has(getActivityMeta(w.activityId).label) &&
-        !(dropGarminStubs && isGarminHkStub(w)),
-    );
+    // 2. Filtra aos tipos inscritos. `ofType` (completo) alimenta o vínculo de
+    // tarefas — um treino do Garmin conta como treino feito mesmo quando o stub
+    // não sobe. `pushable` exclui stubs cobertos pelo ingest server-side (a
+    // versão rica chega por lá; empurrar o stub só criaria duplicata).
+    const ofType = workouts.filter((w) => subscribed.has(getActivityMeta(w.activityId).label));
+    const keepWorkout = await garminStubKeepFilter();
+    const pushable = ofType.filter(keepWorkout);
 
     // 3. Coleta as rotas uma vez; deriva best efforts (corrida) do mesmo track.
-    const routes = await collectRoutes(ofType);
+    const routes = await collectRoutes(pushable);
     // 3b. Tempo em zonas de FC (todos os tipos), com os parâmetros do usuário.
     const hrParams = await fetchHrZoneParams();
-    const hrZones = await collectHrZones(ofType, hrParams);
-    const rows = ofType.map((w) =>
+    const hrZones = await collectHrZones(pushable, hrParams);
+    const rows = pushable.map((w) =>
       toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id), routes.has(w.id), elevationFor(w, routes)),
     );
 

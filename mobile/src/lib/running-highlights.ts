@@ -7,13 +7,15 @@
  *   tipo habilitado).
  * - Os recordes por distância (1/5/10/20 km, meia, 30/40 km, maratona) vêm de
  *   `bestEfforts`, calculado no sync a partir do track GPS — só corrida.
+ * - Os recordes de elevação (maior ganho, acumulado 12 meses) vêm de
+ *   `elevationM` — só ciclismo.
  *
  * Cada highlight aponta para uma atividade (`activityId`) para navegação ao
  * detalhe. Só highlights com dado real entram na lista.
  */
 import type { Activity } from '@vitale/shared';
 import { BEST_EFFORT_DISTANCES } from './best-efforts';
-import { formatClock, formatDateLabel, formatPace } from './workout-format';
+import { formatClock, formatDateLabel, formatElevation, formatPace } from './workout-format';
 
 /** Códigos HealthKit. */
 const RUNNING_ACTIVITY_ID = 37;
@@ -63,6 +65,8 @@ const HL_COLORS: Record<string, { bg: string; fg: string }> = {
   '30000': { bg: '#E7D9EC', fg: '#8657A8' }, // lilás
   '40000': { bg: '#D7EBE0', fg: '#3F8C68' }, // verde-água
   marathon: { bg: '#ECE0D2', fg: '#8A6038' }, // terra
+  maxElev: { bg: '#E8E0C9', fg: '#7D6B2F' }, // oliva
+  elev12mo: { bg: '#D8E6E9', fg: '#48808F' }, // azul-petróleo
 };
 const HL_FALLBACK = { bg: '#F3ECE0', fg: '#5C534A' };
 
@@ -125,7 +129,7 @@ export function activityHighlights(activities: Activity[], activityId: number): 
   }
 
   // ── Linha 2: recordes por distância (best efforts), ordem decrescente ──
-  // Só corrida tem best efforts; ciclismo fica só com o resumo acima.
+  // Só corrida tem best efforts; ciclismo tem recordes de elevação abaixo.
   if (activityId === RUNNING_ACTIVITY_ID) {
     for (const { key, label, meters } of [...BEST_EFFORT_DISTANCES].reverse()) {
       let best: { activity: Activity; secs: number } | undefined;
@@ -150,6 +154,41 @@ export function activityHighlights(activities: Activity[], activityId: number): 
     }
   }
 
+  // ── Linha 2 (ciclismo): recordes de elevação ──────────────────
+  if (activityId === CYCLING_ACTIVITY_ID) {
+    // Maior ganho de elevação em uma única pedalada.
+    let maxElev: Activity | undefined;
+    for (const a of items) {
+      if ((a.elevationM ?? 0) > (maxElev?.elevationM ?? 0)) maxElev = a;
+    }
+    const maxElevValue = maxElev ? formatElevation(maxElev.elevationM ?? 0) : null;
+    if (maxElev && maxElevValue) {
+      out.push({
+        key: 'maxElev',
+        label: 'Maior elevação',
+        value: maxElevValue,
+        caption: formatDateLabel(maxElev.startAt),
+        group: 'record',
+        ...HL_COLORS['maxElev'],
+        activityId: maxElev.id,
+      });
+    }
+
+    // Elevação acumulada nos últimos 12 meses (agregado, sem link).
+    const climbed = recent.filter((a) => (a.elevationM ?? 0) > 0);
+    const elev12moValue = formatElevation(climbed.reduce((sum, a) => sum + (a.elevationM ?? 0), 0));
+    if (elev12moValue) {
+      out.push({
+        key: 'elev12mo',
+        label: 'Elevação 12 meses',
+        value: elev12moValue,
+        caption: noun(activityId, climbed.length),
+        group: 'record',
+        ...HL_COLORS['elev12mo'],
+      });
+    }
+  }
+
   return out;
 }
 
@@ -159,7 +198,7 @@ export function runningHighlights(activities: Activity[]): ActivityHighlight[] {
 }
 
 /** Highlights agregados — não pertencem a uma única atividade, então não viram badge. */
-const AGGREGATE_KEYS = new Set<string>(['last12mo', 'total']);
+const AGGREGATE_KEYS = new Set<string>(['last12mo', 'total', 'elev12mo']);
 
 export interface RecordBadge {
   key: string;
@@ -169,8 +208,9 @@ export interface RecordBadge {
 }
 
 /**
- * Recordes que ESTA atividade detém atualmente (maior distância e best efforts).
- * Exclui os agregados (últimos 12 meses, total). Vazio se não bate nenhum recorde.
+ * Recordes que ESTA atividade detém atualmente (maior distância, best efforts,
+ * maior elevação). Exclui os agregados (últimos 12 meses, total, elevação 12
+ * meses). Vazio se não bate nenhum recorde.
  */
 export function activityRecordBadges(activities: Activity[], activity: Activity): RecordBadge[] {
   return activityHighlights(activities, activity.activityId)
