@@ -8,11 +8,13 @@
         <button type="button" [class.active]="kind() === k" (click)="setKind(k)">{{ kindLabel[k] }}</button>
       }
     </div>
-    <div class="nav">
-      <button type="button" (click)="prev()" aria-label="Período anterior">‹</button>
-      <span class="nav-label">{{ summary().label }}</span>
-      <button type="button" (click)="next()" [disabled]="!canNext()" aria-label="Próximo período">›</button>
-    </div>
+    @if (!isAll()) {
+      <div class="nav">
+        <button type="button" (click)="prev()" aria-label="Período anterior">‹</button>
+        <span class="nav-label">{{ summary().label }}</span>
+        <button type="button" (click)="next()" [disabled]="!canNext()" aria-label="Próximo período">›</button>
+      </div>
+    }
   </div>
 
   @if (state() === 'loading') {
@@ -93,6 +95,61 @@
         <div class="row"><span>{{ t.label }}</span><span class="row-v">{{ t.count }}× · {{ km(t.sum || 0) }}</span></div>
       }
     </div>
+
+    <!-- Ciclismo -->
+    @if (summary().sports.cycling; as sp) {
+      <div class="card">
+        <div class="eyebrow">Ciclismo</div>
+        <div class="mini-stats">
+          <div><b>{{ sp.sessions.current }}</b><span>sessões
+            <small class="badge" [attr.data-tone]="delta(sp.sessions, false).tone">{{ delta(sp.sessions, false).text }}</small></span></div>
+          <div><b>{{ km(sp.distanceM.current) }}</b><span>distância
+            <small class="badge" [attr.data-tone]="delta(sp.distanceM, false).tone">{{ delta(sp.distanceM, false).text }}</small></span></div>
+          <div><b>{{ dur(sp.movingS.current) }}</b><span>em movimento
+            <small class="badge" [attr.data-tone]="delta(sp.movingS, false).tone">{{ delta(sp.movingS, false).text }}</small></span></div>
+          <div><b>{{ num(sp.elevationM.current) }} m</b><span>elevação
+            <small class="badge" [attr.data-tone]="delta(sp.elevationM, false).tone">{{ delta(sp.elevationM, false).text }}</small></span></div>
+          <div><b>{{ speedKmh(sp.speedMps.current) }}</b><span>vel. média
+            <small class="badge" [attr.data-tone]="speedDelta(sp, false).tone">{{ speedDelta(sp, false).text }}</small></span></div>
+          <div><b>{{ num(sp.calories.current) }}</b><span>kcal
+            <small class="badge" [attr.data-tone]="delta(sp.calories, false).tone">{{ delta(sp.calories, false).text }}</small></span></div>
+        </div>
+        @if (sp.longest; as lg) {
+          <div class="row"><span>Maior pedalada</span><span class="row-v">{{ km(lg.distanceM) }} · {{ shortDate(lg.date) }}</span></div>
+        }
+      </div>
+    }
+
+    <!-- Corrida -->
+    @if (summary().sports.running; as sp) {
+      <div class="card">
+        <div class="eyebrow">Corrida</div>
+        <div class="mini-stats">
+          <div><b>{{ sp.sessions.current }}</b><span>sessões
+            <small class="badge" [attr.data-tone]="delta(sp.sessions, false).tone">{{ delta(sp.sessions, false).text }}</small></span></div>
+          <div><b>{{ km(sp.distanceM.current) }}</b><span>distância
+            <small class="badge" [attr.data-tone]="delta(sp.distanceM, false).tone">{{ delta(sp.distanceM, false).text }}</small></span></div>
+          <div><b>{{ dur(sp.movingS.current) }}</b><span>em movimento
+            <small class="badge" [attr.data-tone]="delta(sp.movingS, false).tone">{{ delta(sp.movingS, false).text }}</small></span></div>
+          <div><b>{{ num(sp.elevationM.current) }} m</b><span>subida
+            <small class="badge" [attr.data-tone]="delta(sp.elevationM, false).tone">{{ delta(sp.elevationM, false).text }}</small></span></div>
+          <div><b>{{ pace(sp.speedMps.current) }}</b><span>pace médio
+            <small class="badge" [attr.data-tone]="speedDelta(sp, true).tone">{{ speedDelta(sp, true).text }}</small></span></div>
+          <div><b>{{ num(sp.calories.current) }}</b><span>kcal
+            <small class="badge" [attr.data-tone]="delta(sp.calories, false).tone">{{ delta(sp.calories, false).text }}</small></span></div>
+        </div>
+        @if (sp.longest; as lg) {
+          <div class="row"><span>Maior corrida</span><span class="row-v">{{ km(lg.distanceM) }} · {{ shortDate(lg.date) }}</span></div>
+        }
+        @if (sp.bestEfforts.length > 0) {
+          <p class="sub">Recordes do período</p>
+          @for (b of sp.bestEfforts; track b.key) {
+            <div class="row"><span>{{ b.label }}</span><span class="row-v">{{ clock(b.seconds) }}
+              <small class="badge" [attr.data-tone]="bestDelta(b).tone">{{ bestDelta(b).text }}</small></span></div>
+          }
+        }
+      </div>
+    }
 
     <!-- Saúde & bem-estar -->
     <div class="card">

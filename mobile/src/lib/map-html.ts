@@ -4,6 +4,14 @@ import { colors, MOD } from '../theme';
 /** Ponto mínimo de rota aceito pelo gerador de HTML (estrutural). */
 export type MapPoint = { latitude: number; longitude: number };
 
+/** Opções de inicialização do mapa (compartilhadas entre preview, tela cheia e cartão de share). */
+export interface MapScriptOptions {
+  /** Libera arrastar/zoom (`false` = mapa estático). */
+  interactive: boolean;
+  /** Padding do `fitBounds` (px). Default: `[24,24]` no Leaflet e `pitch?44:28` no MapLibre. */
+  padding?: number;
+}
+
 /**
  * Gera o HTML de um mapa com a rota desenhada, para renderizar num WebView.
  *
@@ -19,34 +27,62 @@ export function buildMapHtml(
   interactive: boolean,
   tile: MapStyleConfig,
 ): string {
-  return tile.kind === 'vector'
-    ? buildMapLibreHtml(points, interactive, tile)
-    : buildLeafletHtml(points, interactive, tile);
-}
-
-function buildLeafletHtml(
-  points: readonly MapPoint[],
-  interactive: boolean,
-  tile: Extract<MapStyleConfig, { kind: 'raster' }>,
-): string {
-  const coords = points.map((p) => [p.latitude, p.longitude]);
-  const data = JSON.stringify(coords);
-
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  ${mapHead(tile)}
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; background: ${colors.surfaceMute}; }
-    .leaflet-control-attribution { font-size: 9px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <script>
+  ${mapScript(points, tile, { interactive })}
+</body>
+</html>`;
+}
+
+/**
+ * Fragmento de `<head>`: tags CDN (`<link>`/`<script>`) do provedor + CSS de
+ * controle específico (tamanho da atribuição). Reutilizado por `buildMapHtml` e
+ * pelo cartão de compartilhamento (que embute o mapa como camada de fundo).
+ */
+export function mapHead(tile: MapStyleConfig): string {
+  return tile.kind === 'vector'
+    ? `<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <style>.maplibregl-ctrl-attrib { font-size: 9px; }</style>`
+    : `<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>.leaflet-control-attribution { font-size: 9px; }</style>`;
+}
+
+/**
+ * Fragmento `<script>` que inicializa o mapa sobre um `<div id="map">` já
+ * presente no documento, desenhando a rota (casing branco + linha accent) e os
+ * pontos de início/fim, com `fitBounds` sobre a rota.
+ */
+export function mapScript(
+  points: readonly MapPoint[],
+  tile: MapStyleConfig,
+  opts: MapScriptOptions,
+): string {
+  return tile.kind === 'vector'
+    ? maplibreScript(points, tile, opts)
+    : leafletScript(points, tile, opts);
+}
+
+function leafletScript(
+  points: readonly MapPoint[],
+  tile: Extract<MapStyleConfig, { kind: 'raster' }>,
+  { interactive, padding = 24 }: MapScriptOptions,
+): string {
+  const coords = points.map((p) => [p.latitude, p.longitude]);
+  const data = JSON.stringify(coords);
+
+  return `<script>
     var coords = ${data};
     var interactive = ${interactive ? 'true' : 'false'};
     var map = L.map('map', {
@@ -65,7 +101,9 @@ function buildLeafletHtml(
     // Casing branco por baixo (halo estilo Strava) + rota colorida por cima.
     L.polyline(coords, { color: '#FFFFFF', weight: 9, opacity: 0.95, lineJoin: 'round', lineCap: 'round' }).addTo(map);
     var line = L.polyline(coords, { color: '${MOD.treino.accent}', weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round' }).addTo(map);
-    map.fitBounds(line.getBounds(), { padding: [24, 24] });
+    function fit() { if (coords.length) map.fitBounds(line.getBounds(), { padding: [${padding}, ${padding}] }); }
+    fit();
+    window.recenter = fit;
 
     function dot(latlng, fill) {
       return L.circleMarker(latlng, { radius: 6, color: '#FFFFFF', weight: 2, fillColor: fill, fillOpacity: 1 }).addTo(map);
@@ -74,22 +112,20 @@ function buildLeafletHtml(
       dot(coords[0], '${colors.green}');
       dot(coords[coords.length - 1], '${MOD.treino.accent}');
     }
-  </script>
-</body>
-</html>`;
+  </script>`;
 }
 
-function buildMapLibreHtml(
+function maplibreScript(
   points: readonly MapPoint[],
-  interactive: boolean,
   tile: Extract<MapStyleConfig, { kind: 'vector' }>,
+  { interactive, padding }: MapScriptOptions,
 ): string {
   // MapLibre usa ordem [lng, lat].
   const coords = points.map((p) => [p.longitude, p.latitude]);
   const data = JSON.stringify(coords);
   const pitch = tile.pitch ?? 0;
   const bearing = pitch ? -18 : 0;
-  const padding = pitch ? 44 : 28;
+  const fitPadding = padding ?? (pitch ? 44 : 28);
 
   const buildings = tile.buildings3d
     ? `
@@ -107,21 +143,7 @@ function buildMapLibreHtml(
     } catch (e) {}`
     : '';
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <style>
-    html, body, #map { height: 100%; margin: 0; padding: 0; background: ${colors.surfaceMute}; }
-    .maplibregl-ctrl-attrib { font-size: 9px; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <script>
+  return `<script>
     var coords = ${data};
     var interactive = ${interactive ? 'true' : 'false'};
     var pitch = ${pitch};
@@ -155,10 +177,12 @@ ${buildings}
 
       var b = new maplibregl.LngLatBounds(coords[0], coords[0]);
       for (var i = 1; i < coords.length; i++) b.extend(coords[i]);
-      map.fitBounds(b, { padding: ${padding}, duration: 0 });
+      map.fitBounds(b, { padding: ${fitPadding}, duration: 0 });
       if (pitch) { map.setPitch(pitch); map.setBearing(${bearing}); }
+      window.recenter = function () {
+        map.fitBounds(b, { padding: ${fitPadding}, duration: 400 });
+        if (pitch) { map.setPitch(pitch); map.setBearing(${bearing}); }
+      };
     });
-  </script>
-</body>
-</html>`;
+  </script>`;
 }

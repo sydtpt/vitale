@@ -55,6 +55,7 @@ export default function ConfiguracoesScreen() {
     {
       title: 'Dados',
       rows: [
+        { icon: 'link-outline', label: 'Conexões', sub: 'Strava · intervals.icu · Apple Health', route: '/configuracoes/conexoes' },
         { icon: 'download-outline', label: 'Exportar dados', route: '/configuracoes/dados' },
       ],
     },

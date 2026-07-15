@@ -1,0 +1,20 @@
+# Configuração do projeto Supabase (CLI) — usada no deploy das edge functions.
+# Deploy manual: `supabase functions deploy <fn> --project-ref <ref>`.
+#
+# verify_jwt = false onde o chamador não carrega JWT de usuário:
+#  - connections-ingest: chamado pelo pg_cron (autentica via header x-cron-secret;
+#    chamadas de usuário passam JWT no Authorization e são validadas na função).
+#  - strava-oauth: o GET /callback é um redirect do navegador vindo da Strava
+#    (autentica via `state` assinado com HMAC).
+# intervals-link mantém o default (verify_jwt = true): só usuários logados.
+
+project_id = "vitale"
+
+[functions.connections-ingest]
+verify_jwt = false
+
+[functions.strava-oauth]
+verify_jwt = false
+
+[functions.intervals-link]
+verify_jwt = true

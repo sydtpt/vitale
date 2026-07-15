@@ -186,7 +186,20 @@ export default function WorkoutDetailScreen() {
           <>
             <Text style={styles.sectionTitle}>Percurso</Text>
             <View style={styles.mapCard}>
-              <WorkoutMap points={route} />
+              <WorkoutMap
+                points={route}
+                share={{
+                  activityId: workout.activityId,
+                  activityName: workout.activityName,
+                  metaLabel: meta.label,
+                  startISO: workout.start,
+                  distanceM: workout.distance,
+                  movingS,
+                  totalS,
+                  calories: workout.calories,
+                  elevationM: elevationGain(route),
+                }}
+              />
             </View>
           </>
         )}

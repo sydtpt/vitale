@@ -7,7 +7,7 @@ import { buildTypeSummaries } from './type-summary';
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 const SELECT =
-  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,source_name,tracked,has_route,best_efforts,hr_zones,locally_edited,edited_at,hidden';
+  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,source_name,tracked,has_route,best_efforts,hr_zones,locally_edited,edited_at,hidden';
 
 interface DbActivityRow {
   id: string;
@@ -20,6 +20,7 @@ interface DbActivityRow {
   duration_s: number | null;
   moving_time_s: number | null;
   distance_m: number | null;
+  elevation_m: number | null;
   source_name: string | null;
   tracked: boolean | null;
   has_route: boolean | null;
@@ -179,6 +180,7 @@ function mapRow(r: DbActivityRow): Activity {
     durationS: r.duration_s ?? 0,
     movingTimeS: r.moving_time_s ?? undefined,
     distanceM: r.distance_m ?? undefined,
+    elevationM: r.elevation_m ?? undefined,
     sourceName: r.source_name ?? undefined,
     tracked: r.tracked ?? undefined,
     hasRoute: r.has_route ?? false,

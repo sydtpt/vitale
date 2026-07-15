@@ -9,9 +9,12 @@ import {
   type HighlightIcon,
   type RetroHealthRow,
   type MonthBucket,
+  type SportStats,
+  type SportBestEffort,
 } from '@vitale/shared';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { IconComponent } from '@core/services/icon.component';
+import { fmtClock } from '@features/workout-history/data/format';
 import { RetroStore } from '../data/retro.store';
 
 /** Ícone neutro do shared → nome do set `rt-icon`. */
@@ -23,7 +26,9 @@ const ICON_MAP: Record<HighlightIcon, string> = {
 interface DeltaVM { text: string; tone: 'good' | 'bad' | 'neutral' }
 interface KpiVM { icon: string; color: string; label: string; value: string; delta: DeltaVM }
 
-const KIND_LABEL: Record<PeriodKind, string> = { week: 'Semana', month: 'Mês', year: 'Ano' };
+const KIND_LABEL: Record<PeriodKind, string> = {
+  week: 'Semana', month: 'Mês', season: 'Estação', year: 'Ano', all: 'Total',
+};
 
 @Component({
   selector: 'rt-retrospectiva-page',
@@ -35,7 +40,7 @@ const KIND_LABEL: Record<PeriodKind, string> = { week: 'Semana', month: 'Mês', 
 })
 export class RetrospectivaPageComponent {
   protected readonly T = T;
-  protected readonly kinds: PeriodKind[] = ['week', 'month', 'year'];
+  protected readonly kinds: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
   protected readonly kindLabel = KIND_LABEL;
 
   private readonly store = inject(RetroStore);
@@ -69,6 +74,8 @@ export class RetrospectivaPageComponent {
   protected readonly summary = computed(() => this.store.summary(this.now, this.kind(), this.offset()));
   protected readonly highlights = computed(() => this.store.highlights(this.now, this.kind(), this.offset()).slice(0, 6));
   protected readonly isYear = computed(() => this.kind() === 'year');
+  /** 'Total' não tem período anterior nem navegação ‹ ›. */
+  protected readonly isAll = computed(() => this.kind() === 'all');
   protected readonly buckets = computed<MonthBucket[]>(() => this.isYear() ? this.store.yearByMonth(this.now, this.offset()) : []);
 
   /** Máximos por métrica para normalizar as barras do ano. */
@@ -108,6 +115,9 @@ export class RetrospectivaPageComponent {
 
   /** Badge de variação vs período anterior. */
   protected delta(r: RecapValue, higherIsWorse: boolean): DeltaVM {
+    // 'Total' não tem período anterior: prev degenerado faz delta === current,
+    // então qualquer badge seria espúrio.
+    if (this.isAll()) return { text: '', tone: 'neutral' };
     if (r.delta === 0) return { text: '—', tone: 'neutral' };
     const worse = higherIsWorse ? r.delta > 0 : r.delta < 0;
     const sign = r.delta > 0 ? '+' : '−';
@@ -115,6 +125,55 @@ export class RetrospectivaPageComponent {
       ? `${sign}${this.num(Math.abs(r.deltaPct))}%`
       : `${sign}${this.num(Math.abs(r.delta))}`;
     return { text, tone: worse ? 'bad' : 'good' };
+  }
+
+  // ── esportes (Ciclismo / Corrida) ──
+
+  /** Tempo no formato relógio (`h:mm:ss` / `m:ss`) — recordes. */
+  protected clock(seconds: number): string { return fmtClock(seconds); }
+
+  /** Velocidade média (ciclismo) a partir de m/s. */
+  protected speedKmh(mps: number | null): string {
+    return mps == null ? '—' : `${this.num(mps * 3.6, 1)} km/h`;
+  }
+
+  /** Pace médio (corrida) mm:ss/km a partir de m/s. */
+  protected pace(mps: number | null): string {
+    if (mps == null || mps <= 0) return '—';
+    return `${fmtClock(1000 / mps)} /km`;
+  }
+
+  /**
+   * Delta de velocidade/pace vs período anterior. Maior m/s é melhor nos dois
+   * esportes; no pace o delta é exibido em s/km (negativo = mais rápido).
+   */
+  protected speedDelta(sp: SportStats, asPace: boolean): DeltaVM {
+    const { current, prior } = sp.speedMps;
+    if (this.isAll() || current == null || prior == null) return { text: '', tone: 'neutral' };
+    const tone: DeltaVM['tone'] = current === prior ? 'neutral' : current > prior ? 'good' : 'bad';
+    if (asPace) {
+      const diff = 1000 / current - 1000 / prior; // s/km; negativo = mais rápido
+      if (Math.abs(diff) < 1) return { text: '—', tone: 'neutral' };
+      return { text: `${diff > 0 ? '+' : '−'}${fmtClock(Math.abs(diff))}/km`, tone };
+    }
+    const diff = (current - prior) * 3.6;
+    if (Math.abs(diff) < 0.05) return { text: '—', tone: 'neutral' };
+    return { text: `${diff > 0 ? '+' : '−'}${this.num(Math.abs(diff), 1)} km/h`, tone };
+  }
+
+  /** Delta de um recorde vs melhor do período anterior (menos tempo = melhor). */
+  protected bestDelta(b: SportBestEffort): DeltaVM {
+    if (this.isAll() || b.priorSeconds == null) return { text: '', tone: 'neutral' };
+    const diff = b.seconds - b.priorSeconds;
+    if (diff === 0) return { text: '—', tone: 'neutral' };
+    return { text: `${diff > 0 ? '+' : '−'}${fmtClock(Math.abs(diff))}`, tone: diff < 0 ? 'good' : 'bad' };
+  }
+
+  /** Data curta `dd/mm/aa` — 'Total' atravessa anos. */
+  protected shortDate(iso: string): string {
+    const d = new Date(iso);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
   }
 
   /** Valor + delta de uma métrica de saúde (média do período). */

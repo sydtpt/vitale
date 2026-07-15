@@ -27,6 +27,8 @@ export interface ActivityRow {
   best_efforts: Record<string, number> | null;
   /** Tempo em zonas de FC (chave da zona→segundos). Null sem amostras de FC. */
   hr_zones: Record<string, number> | null;
+  /** Ganho de elevação (m) do track GPS. Null sem rota/altitude. */
+  elevation_m: number | null;
   // Controle de edição manual — preenchidos só na leitura analítica
   // (Histórico de Treinos). O push-sync não os envia; o RPC os ignora.
   locally_edited?: boolean;
@@ -54,6 +56,8 @@ export function toActivityRow(
   hrZones?: Record<string, number>,
   /** Se fornecido, substitui hasGpsRoute(activityId) — use routes.has(w.id) no sync. */
   hasRoute?: boolean,
+  /** Ganho de elevação (m) do track — use elevationFor(w, routes) no sync. */
+  elevationM?: number,
 ): ActivityRow {
   const metadata: Record<string, unknown> = { ...(w.metadata ?? {}) };
   if (w.workoutEventsCount !== undefined) metadata.workoutEventsCount = w.workoutEventsCount;
@@ -77,6 +81,7 @@ export function toActivityRow(
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
     best_efforts: bestEfforts && Object.keys(bestEfforts).length > 0 ? bestEfforts : null,
     hr_zones: hrZones && Object.keys(hrZones).length > 0 ? hrZones : null,
+    elevation_m: elevationM ?? null,
   };
 }
 
@@ -91,6 +96,7 @@ export function sanitizeActivityRow(row: ActivityRow): ActivityRow {
     calories: Math.round(row.calories),
     duration_s: Math.round(row.duration_s),
     moving_time_s: row.moving_time_s != null ? Math.round(row.moving_time_s) : null,
+    elevation_m: row.elevation_m ?? null, // linhas antigas da fila não têm a chave
   };
 }
 

@@ -31,6 +31,7 @@ export class SidebarComponent {
     { path: '/casa',        icon: '🏠', label: 'Casa' },
     { path: '/financas',    icon: '💰', label: 'Finanças' },
     { path: '/metas',       icon: '🎯', label: 'Metas' },
+    { path: '/conexoes',    icon: '🔗', label: 'Conexões' },
   ];
 
   protected readonly weekStats = [

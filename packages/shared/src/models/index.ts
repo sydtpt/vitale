@@ -259,6 +259,12 @@ export interface Activity {
   /** Tempo em movimento (s): tempo total menos as pausas. Ausente em linhas antigas. */
   movingTimeS?: number;
   distanceM?: number;
+  /**
+   * Ganho de elevação acumulado (m), derivado do track GPS no sync (soma das
+   * subidas > 1 m entre pontos consecutivos). Ausente em treinos sem rota/altitude
+   * e em linhas antigas (preenchido pelo backfill da migration ou ao re-sincronizar).
+   */
+  elevationM?: number;
   sourceName?: string;
   sourceId?: string;
   device?: string;
@@ -283,6 +289,12 @@ export interface Activity {
   editedAt?: string;
   /** true quando editado e depois apagado no HealthKit — fora de métricas/listas. */
   hidden?: boolean;
+  /** Fonte que criou a linha: 'healthkit' | 'strava' | 'intervals'. Ausente = healthkit. */
+  provider?: string;
+  /** Id do treino na fonte de origem (UUID do HK, id numérico Strava/intervals). */
+  externalId?: string;
+  /** Fontes já mescladas nesta linha canônica (provider → id externo). */
+  externalIds?: Record<string, string>;
 }
 
 export interface ActivityRoutePoint {
@@ -298,6 +310,29 @@ export interface ActivityRoute {
   activityId: string;
   points: ActivityRoutePoint[];
   pointCount: number;
+}
+
+/** Provedores externos vinculáveis na tela de Conexões. */
+export type ConnectionProvider = 'strava' | 'intervals';
+
+export type ConnectionStatus = 'pending' | 'connected' | 'error' | 'revoked';
+
+/**
+ * Conta vinculada de um provedor externo (Strava, intervals.icu). Mapeia a
+ * tabela `linked_accounts` — só o estado legível pelo client; credenciais vivem
+ * em `linked_account_secrets` (invisível fora das edge functions).
+ */
+export interface LinkedAccount {
+  userId: string;
+  provider: ConnectionProvider;
+  status: ConnectionStatus;
+  athleteId?: string;
+  athleteName?: string;
+  /** Progresso do backfill inicial: true quando o histórico já foi importado. */
+  backfillDone: boolean;
+  lastSyncAt?: string;
+  lastError?: string;
+  connectedAt?: string;
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   fetchHrZoneParams,
   getActivityMeta,
   hasGpsRoute,
+  elevationGain,
   GPS_ACTIVITY_IDS,
   type WorkoutItem,
   type RoutePoint,
@@ -36,6 +37,7 @@ import {
 /** Código HealthKit da corrida — único tipo que recebe best efforts. */
 const RUNNING_ACTIVITY_ID = 37;
 import { subscribeType, loadSyncedTypes } from '../lib/synced-types';
+import { hasActiveGarminBridge, isGarminHkStub } from '../lib/connections';
 import { readAnchor, writeAnchor } from '../lib/sync-anchor';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
 import { linkWorkoutsToTodos } from './activity-todo-link';
@@ -117,6 +119,16 @@ function bestEffortsFor(
   if (!points) return undefined;
   const efforts = computeBestEfforts(points);
   return Object.keys(efforts).length > 0 ? efforts : undefined;
+}
+
+/** Ganho de elevação do track já coletado; undefined sem rota ou sem altitude. */
+function elevationFor(
+  w: WorkoutItem,
+  routes: Map<string, RoutePoint[]>,
+): number | undefined {
+  const points = routes.get(w.id);
+  if (!points || !points.some((p) => typeof p.altitude === 'number')) return undefined;
+  return elevationGain(points);
 }
 
 /**
@@ -257,9 +269,15 @@ export async function syncType(
     // 1. Inscreve o tipo (idempotente) — passa a rastrear os futuros.
     await subscribeType(label);
 
-    // 2. Backfill: todos os treinos do tipo no período.
+    // 2. Backfill: todos os treinos do tipo no período. Com ponte Garmin ativa,
+    // descarta os stubs do Garmin Connect (a versão rica chega pelo ingest).
     const all = await fetchAllWorkouts();
-    const ofType = all.filter((w) => getActivityMeta(w.activityId).label === label);
+    const dropGarminStubs = await hasActiveGarminBridge();
+    const ofType = all.filter(
+      (w) =>
+        getActivityMeta(w.activityId).label === label &&
+        !(dropGarminStubs && isGarminHkStub(w)),
+    );
     onProgress?.(0);
 
     // 3. Coleta as rotas uma vez; deriva best efforts (corrida) do mesmo track.
@@ -272,7 +290,7 @@ export async function syncType(
       onProgress?.(PROGRESS.routes + phaseFrac(done, total) * PROGRESS.hr),
     );
     const rows = ofType.map((w) =>
-      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id), routes.has(w.id)),
+      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id), routes.has(w.id), elevationFor(w, routes)),
     );
 
     // 4. Upsert (idempotente) + rotas GPS.
@@ -317,8 +335,14 @@ export async function syncDelta(): Promise<SyncResult> {
     const anchor = await readAnchor(userId);
     const { workouts, anchor: newAnchor } = await fetchWorkoutsDelta(anchor);
 
-    // 2. Filtra aos tipos inscritos.
-    const ofType = workouts.filter((w) => subscribed.has(getActivityMeta(w.activityId).label));
+    // 2. Filtra aos tipos inscritos; com ponte Garmin ativa, descarta os stubs
+    // do Garmin Connect (a versão rica chega pelo ingest server-side).
+    const dropGarminStubs = await hasActiveGarminBridge();
+    const ofType = workouts.filter(
+      (w) =>
+        subscribed.has(getActivityMeta(w.activityId).label) &&
+        !(dropGarminStubs && isGarminHkStub(w)),
+    );
 
     // 3. Coleta as rotas uma vez; deriva best efforts (corrida) do mesmo track.
     const routes = await collectRoutes(ofType);
@@ -326,7 +350,7 @@ export async function syncDelta(): Promise<SyncResult> {
     const hrParams = await fetchHrZoneParams();
     const hrZones = await collectHrZones(ofType, hrParams);
     const rows = ofType.map((w) =>
-      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id), routes.has(w.id)),
+      toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id), routes.has(w.id), elevationFor(w, routes)),
     );
 
     const a = await pushActivities(rows);

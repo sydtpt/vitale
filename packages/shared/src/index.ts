@@ -15,3 +15,5 @@ export * from './week/highlights';
 export * from './period/bounds';
 export * from './period/retro';
 export * from './goals/evaluate';
+export * from './fitness/streams';
+export * from './fitness/dedupe';

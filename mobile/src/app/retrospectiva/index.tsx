@@ -9,13 +9,18 @@ import {
   type RecapValue,
   type HighlightIcon,
   type RetroHealthRow,
+  type SportStats,
+  type SportBestEffort,
 } from '@vitale/shared';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { formatClock } from '../../lib/workout-format';
 import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
 
-const KINDS: PeriodKind[] = ['week', 'month', 'year'];
-const KIND_LABEL: Record<PeriodKind, string> = { week: 'Semana', month: 'Mês', year: 'Ano' };
+const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
+const KIND_LABEL: Record<PeriodKind, string> = {
+  week: 'Semana', month: 'Mês', season: 'Estação', year: 'Ano', all: 'Total',
+};
 
 const ICON_MAP: Record<HighlightIcon, keyof typeof Ionicons.glyphMap> = {
   workout: 'barbell-outline', distance: 'walk-outline', sleep: 'moon-outline', heart: 'heart-outline',
@@ -33,12 +38,49 @@ function dur(s: number): string {
   const m = Math.round((s % 3600) / 60);
   return h > 0 ? `${h}h${m.toString().padStart(2, '0')}` : `${m}min`;
 }
-function deltaVM(r: RecapValue, higherIsWorse: boolean): { text: string; tone: string } {
+function deltaVM(r: RecapValue, higherIsWorse: boolean, noPrior = false): { text: string; tone: string } {
+  // 'Total' não tem período anterior: prev degenerado faz delta === current.
+  if (noPrior) return { text: '', tone: 'neutral' };
   if (r.delta === 0) return { text: '—', tone: 'neutral' };
   const worse = higherIsWorse ? r.delta > 0 : r.delta < 0;
   const sign = r.delta > 0 ? '+' : '−';
   const text = r.deltaPct != null ? `${sign}${num(Math.abs(r.deltaPct))}%` : `${sign}${num(Math.abs(r.delta))}`;
   return { text, tone: worse ? 'bad' : 'good' };
+}
+
+function speedKmh(mps: number | null): string {
+  return mps == null ? '—' : `${num(mps * 3.6, 1)} km/h`;
+}
+function paceStr(mps: number | null): string {
+  if (mps == null || mps <= 0) return '—';
+  return `${formatClock(1000 / mps)} /km`;
+}
+/** Delta de velocidade/pace — maior m/s é melhor nos dois esportes. */
+function speedDeltaVM(sp: SportStats, asPace: boolean, noPrior: boolean): { text: string; tone: string } {
+  const { current, prior } = sp.speedMps;
+  if (noPrior || current == null || prior == null) return { text: '', tone: 'neutral' };
+  const tone = current === prior ? 'neutral' : current > prior ? 'good' : 'bad';
+  if (asPace) {
+    const diff = 1000 / current - 1000 / prior; // s/km; negativo = mais rápido
+    if (Math.abs(diff) < 1) return { text: '—', tone: 'neutral' };
+    return { text: `${diff > 0 ? '+' : '−'}${formatClock(Math.abs(diff))}/km`, tone };
+  }
+  const diff = (current - prior) * 3.6;
+  if (Math.abs(diff) < 0.05) return { text: '—', tone: 'neutral' };
+  return { text: `${diff > 0 ? '+' : '−'}${num(Math.abs(diff), 1)} km/h`, tone };
+}
+/** Delta de um recorde vs melhor do período anterior (menos tempo = melhor). */
+function bestDeltaVM(b: SportBestEffort, noPrior: boolean): { text: string; tone: string } {
+  if (noPrior || b.priorSeconds == null) return { text: '', tone: 'neutral' };
+  const diff = b.seconds - b.priorSeconds;
+  if (diff === 0) return { text: '—', tone: 'neutral' };
+  return { text: `${diff > 0 ? '+' : '−'}${formatClock(Math.abs(diff))}`, tone: diff < 0 ? 'good' : 'bad' };
+}
+/** Data curta dd/mm/aa — 'Total' atravessa anos. */
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
 }
 
 export default function RetrospectivaScreen() {
@@ -69,12 +111,14 @@ export default function RetrospectivaScreen() {
 
   const canNext = offset < latestAvailableOffset(now, kind);
   const changeKind = (k: PeriodKind) => { setKind(k); setOffset(latestAvailableOffset(now, k)); };
+  /** 'Total' não tem período anterior nem navegação ‹ ›. */
+  const noPrior = kind === 'all';
 
   const kpis = [
-    { icon: 'barbell-outline' as const, label: 'Treinos', value: `${summary.fitness.count.current}`, d: deltaVM(summary.fitness.count, false) },
-    { icon: 'checkmark-done-outline' as const, label: 'Tarefas', value: `${summary.tasks.total.current}`, d: deltaVM(summary.tasks.total, false) },
-    { icon: 'walk-outline' as const, label: 'Distância', value: km(summary.fitness.distanceM.current), d: deltaVM(summary.fitness.distanceM, false) },
-    { icon: 'wallet-outline' as const, label: 'Compras', value: brl(summary.purchases.spend.current), d: deltaVM(summary.purchases.spend, true) },
+    { icon: 'barbell-outline' as const, label: 'Treinos', value: `${summary.fitness.count.current}`, d: deltaVM(summary.fitness.count, false, noPrior) },
+    { icon: 'checkmark-done-outline' as const, label: 'Tarefas', value: `${summary.tasks.total.current}`, d: deltaVM(summary.tasks.total, false, noPrior) },
+    { icon: 'walk-outline' as const, label: 'Distância', value: km(summary.fitness.distanceM.current), d: deltaVM(summary.fitness.distanceM, false, noPrior) },
+    { icon: 'wallet-outline' as const, label: 'Compras', value: brl(summary.purchases.spend.current), d: deltaVM(summary.purchases.spend, true, noPrior) },
   ];
 
   const healthValue = (h: RetroHealthRow) => h.recap.current == null ? '—' : `${num(h.recap.current, h.decimals)}${h.unit}`;
@@ -104,15 +148,17 @@ export default function RetrospectivaScreen() {
             </Pressable>
           ))}
         </View>
-        <View style={styles.nav}>
-          <Pressable onPress={() => setOffset((o) => o - 1)} hitSlop={10} style={styles.navBtn}>
-            <Ionicons name="chevron-back" size={18} color={colors.ink} />
-          </Pressable>
-          <Text style={styles.navLabel}>{summary.label}</Text>
-          <Pressable onPress={() => canNext && setOffset((o) => o + 1)} disabled={!canNext} hitSlop={10} style={styles.navBtn}>
-            <Ionicons name="chevron-forward" size={18} color={canNext ? colors.ink : colors.ink3} />
-          </Pressable>
-        </View>
+        {kind !== 'all' && (
+          <View style={styles.nav}>
+            <Pressable onPress={() => setOffset((o) => o - 1)} hitSlop={10} style={styles.navBtn}>
+              <Ionicons name="chevron-back" size={18} color={colors.ink} />
+            </Pressable>
+            <Text style={styles.navLabel}>{summary.label}</Text>
+            <Pressable onPress={() => canNext && setOffset((o) => o + 1)} disabled={!canNext} hitSlop={10} style={styles.navBtn}>
+              <Ionicons name="chevron-forward" size={18} color={canNext ? colors.ink : colors.ink3} />
+            </Pressable>
+          </View>
+        )}
 
         {/* KPIs */}
         <View style={styles.kpis}>
@@ -143,7 +189,7 @@ export default function RetrospectivaScreen() {
         <View style={styles.card}>
           <Text style={styles.eyebrow}>Tarefas feitas</Text>
           <Text style={styles.big}>{summary.tasks.total.current}
-            <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.tasks.total, false).tone] }]}>  {deltaVM(summary.tasks.total, false).text}</Text>
+            <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.tasks.total, false, noPrior).tone] }]}>  {deltaVM(summary.tasks.total, false, noPrior).text}</Text>
           </Text>
           <View style={styles.chips}>
             {summary.tasks.byModule.map((m) => (
@@ -167,6 +213,28 @@ export default function RetrospectivaScreen() {
           ))}
         </View>
 
+        {/* Ciclismo */}
+        {summary.sports.cycling && (
+          <SportCard
+            title="Ciclismo"
+            sp={summary.sports.cycling}
+            asPace={false}
+            noPrior={noPrior}
+            longestLabel="Maior pedalada"
+          />
+        )}
+
+        {/* Corrida */}
+        {summary.sports.running && (
+          <SportCard
+            title="Corrida"
+            sp={summary.sports.running}
+            asPace
+            noPrior={noPrior}
+            longestLabel="Maior corrida"
+          />
+        )}
+
         {/* Saúde */}
         <View style={styles.card}>
           <Text style={styles.eyebrow}>Saúde & bem-estar</Text>
@@ -184,7 +252,7 @@ export default function RetrospectivaScreen() {
         <View style={styles.card}>
           <Text style={styles.eyebrow}>Compras & gastos</Text>
           <Text style={styles.big}>{brl(summary.purchases.spend.current)}
-            <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.purchases.spend, true).tone] }]}>  {deltaVM(summary.purchases.spend, true).text}</Text>
+            <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.purchases.spend, true, noPrior).tone] }]}>  {deltaVM(summary.purchases.spend, true, noPrior).text}</Text>
           </Text>
           <Text style={styles.muted}>{summary.purchases.count.current} itens comprados</Text>
           {summary.purchases.byCat.map((c) => (
@@ -200,13 +268,13 @@ export default function RetrospectivaScreen() {
           {summary.habits.good.map((h) => (
             <View key={h.id} style={styles.row}>
               <Text style={styles.rowL}>{h.name}</Text>
-              <Text style={styles.rowR}>{h.recap.current}d  <Text style={{ color: TONE_COLOR[deltaVM(h.recap, false).tone], fontSize: 12 }}>{deltaVM(h.recap, false).text}</Text></Text>
+              <Text style={styles.rowR}>{h.recap.current}d  <Text style={{ color: TONE_COLOR[deltaVM(h.recap, false, noPrior).tone], fontSize: 12 }}>{deltaVM(h.recap, false, noPrior).text}</Text></Text>
             </View>
           ))}
           {summary.habits.bad.map((h) => (
             <View key={h.id} style={styles.row}>
               <Text style={styles.rowL}>{h.name}</Text>
-              <Text style={styles.rowR}>{h.recap.current}d  <Text style={{ color: TONE_COLOR[deltaVM(h.recap, true).tone], fontSize: 12 }}>{deltaVM(h.recap, true).text}</Text></Text>
+              <Text style={styles.rowR}>{h.recap.current}d  <Text style={{ color: TONE_COLOR[deltaVM(h.recap, true, noPrior).tone], fontSize: 12 }}>{deltaVM(h.recap, true, noPrior).text}</Text></Text>
             </View>
           ))}
         </View>
@@ -233,12 +301,65 @@ export default function RetrospectivaScreen() {
   );
 }
 
-function Mini({ value, label }: { value: string; label: string }) {
+function Mini({ value, label, delta }: { value: string; label: string; delta?: { text: string; tone: string } }) {
   const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.mini}>
       <Text style={styles.miniValue}>{value}</Text>
-      <Text style={styles.miniLabel}>{label}</Text>
+      <Text style={styles.miniLabel}>
+        {label}
+        {delta && delta.text !== '' && (
+          <Text style={{ color: TONE_COLOR[delta.tone], fontWeight: '600' }}>  {delta.text}</Text>
+        )}
+      </Text>
+    </View>
+  );
+}
+
+/** Card de esporte (Ciclismo/Corrida): minis + maior atividade + recordes. */
+function SportCard({ title, sp, asPace, noPrior, longestLabel }: {
+  title: string;
+  sp: SportStats;
+  asPace: boolean;
+  noPrior: boolean;
+  longestLabel: string;
+}) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.card}>
+      <Text style={styles.eyebrow}>{title}</Text>
+      <View style={styles.miniGrid}>
+        <Mini value={`${sp.sessions.current}`} label="sessões" delta={deltaVM(sp.sessions, false, noPrior)} />
+        <Mini value={km(sp.distanceM.current)} label="distância" delta={deltaVM(sp.distanceM, false, noPrior)} />
+        <Mini value={dur(sp.movingS.current)} label="em movimento" delta={deltaVM(sp.movingS, false, noPrior)} />
+        <Mini value={`${num(sp.elevationM.current)} m`} label={asPace ? 'subida' : 'elevação'} delta={deltaVM(sp.elevationM, false, noPrior)} />
+        <Mini
+          value={asPace ? paceStr(sp.speedMps.current) : speedKmh(sp.speedMps.current)}
+          label={asPace ? 'pace médio' : 'vel. média'}
+          delta={speedDeltaVM(sp, asPace, noPrior)}
+        />
+        <Mini value={num(sp.calories.current)} label="kcal" delta={deltaVM(sp.calories, false, noPrior)} />
+      </View>
+      {sp.longest && (
+        <Row l={longestLabel} r={`${km(sp.longest.distanceM)} · ${shortDate(sp.longest.date)}`} />
+      )}
+      {sp.bestEfforts.length > 0 && (
+        <>
+          <Text style={styles.sub}>Recordes do período</Text>
+          {sp.bestEfforts.map((b) => {
+            const d = bestDeltaVM(b, noPrior);
+            return (
+              <View key={b.key} style={styles.row}>
+                <Text style={styles.rowL}>{b.label}</Text>
+                <Text style={styles.rowR}>
+                  {formatClock(b.seconds)}
+                  {d.text !== '' && <Text style={{ color: TONE_COLOR[d.tone], fontSize: 12 }}>  {d.text}</Text>}
+                </Text>
+              </View>
+            );
+          })}
+        </>
+      )}
     </View>
   );
 }
@@ -263,7 +384,7 @@ const createStyles = () => StyleSheet.create({
   seg: { flexDirection: 'row', backgroundColor: colors.surfaceMute, borderRadius: 12, padding: 3, gap: 2 },
   segBtn: { flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center' },
   segOn: { backgroundColor: colors.surface, ...shadows.card },
-  segTxt: { fontSize: 13, fontWeight: '600', color: colors.ink2 },
+  segTxt: { fontSize: 12, fontWeight: '600', color: colors.ink2 }, // 12: "Estação" cabe com 5 abas
   segTxtOn: { color: colors.ink },
 
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
@@ -282,6 +403,7 @@ const createStyles = () => StyleSheet.create({
   bigDelta: { fontSize: 13, fontWeight: '600' },
   muted: { fontSize: 13, color: colors.ink3 },
   note: { fontSize: 11, color: colors.ink3, fontStyle: 'italic', marginTop: 6 },
+  sub: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, color: colors.ink3, marginTop: 8 },
   empty: { fontSize: 13, color: colors.ink3 },
 
   hl: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },

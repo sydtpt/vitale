@@ -108,6 +108,67 @@ export interface RetroFitness {
   byType: CountByKey[];
 }
 
+// ── Esportes (Ciclismo / Corrida) ──────────────────────────
+
+/** Códigos HealthKit — espelham `running-highlights` (web) e `workout-types` (mobile). */
+export const CYCLING_ACTIVITY_ID = 13;
+export const RUNNING_ACTIVITY_ID = 37;
+
+/** Chaves/labels dos recordes — DEVEM casar com `mobile/src/lib/best-efforts.ts`. */
+const BEST_EFFORT_LABELS: { key: string; label: string }[] = [
+  { key: '1000', label: '1 km' },
+  { key: '5000', label: '5 km' },
+  { key: '10000', label: '10 km' },
+  { key: '20000', label: '20 km' },
+  { key: 'half', label: 'Meia maratona' },
+  { key: '30000', label: '30 km' },
+  { key: '40000', label: '40 km' },
+  { key: 'marathon', label: 'Maratona' },
+];
+
+/** Maior atividade do período (por distância). */
+export interface SportLongest {
+  /** id da atividade — permite linkar para o detalhe. */
+  activityRef: string;
+  distanceM: number;
+  /** startAt ISO da atividade. */
+  date: string;
+}
+
+/** Melhor tempo do período numa distância padrão (corrida). */
+export interface SportBestEffort {
+  key: string;                  // '1000' | '5000' | … | 'half' | 'marathon'
+  label: string;                // '1 km' … 'Maratona'
+  seconds: number;              // melhor do período (mín entre atividades)
+  /** Melhor do período anterior; null sem base (ou kind 'all'). */
+  priorSeconds: number | null;
+  date: string;                 // startAt da atividade recordista
+  activityRef: string;          // id da atividade recordista
+}
+
+/** Estatísticas de um esporte no período, com comparação vs anterior. */
+export interface SportStats {
+  activityId: number;           // 13 (Ciclismo) | 37 (Corrida)
+  sessions: RecapValue;
+  distanceM: RecapValue;
+  /** Tempo em movimento (s); cai para durationS em linhas sem movingTimeS. */
+  movingS: RecapValue;
+  /** Ganho de elevação (m) somado no período. */
+  elevationM: RecapValue;
+  calories: RecapValue;
+  /** Velocidade média (m/s) = distância ÷ tempo em movimento; null sem dado. */
+  speedMps: { current: number | null; prior: number | null };
+  longest: SportLongest | null;
+  /** Só corrida; `[]` no ciclismo. */
+  bestEfforts: SportBestEffort[];
+}
+
+/** Cards de esporte da Retrospectiva; null quando não há atividades no período. */
+export interface RetroSports {
+  cycling: SportStats | null;
+  running: SportStats | null;
+}
+
 export interface RetroHabitRow {
   id: string;
   name: string;
@@ -136,6 +197,7 @@ export interface RetroSummary {
   tasks: { total: RecapValue; byModule: CountByKey[] };
   habits: { good: RetroHabitRow[]; bad: RetroHabitRow[] };
   fitness: RetroFitness;
+  sports: RetroSports;
   health: RetroHealthRow[];
   ratings: { sleep: MetricRecap | null; day: MetricRecap | null };
   purchases: { count: RecapValue; spend: RecapValue; byCat: CountByKey[] };
@@ -184,10 +246,88 @@ function tallyByKey(
   return [...map.values()].sort((a, b) => b.count - a.count);
 }
 
+/**
+ * Estatísticas de um esporte (por `activityId`) no período vs anterior.
+ * Retorna null sem atividades no período corrente (o card some na UI).
+ */
+function sportStats(
+  activities: Activity[],
+  activityId: number,
+  cur: { start: Date; end: Date },
+  prev: { start: Date; end: Date },
+  withBests: boolean,
+): SportStats | null {
+  const inRange = (a: Activity, r: { start: Date; end: Date }) => {
+    const ts = new Date(a.startAt).getTime();
+    return !a.hidden && a.activityId === activityId
+      && ts >= r.start.getTime() && ts < r.end.getTime();
+  };
+  const curActs = activities.filter((a) => inRange(a, cur));
+  if (curActs.length === 0) return null;
+  const prevActs = activities.filter((a) => inRange(a, prev)); // vazio p/ 'all'
+
+  const sum = (list: Activity[], sel: (a: Activity) => number | undefined) =>
+    list.reduce((s, a) => s + (sel(a) ?? 0), 0);
+  const moving = (a: Activity) => a.movingTimeS ?? a.durationS;
+
+  const dCur = sum(curActs, (a) => a.distanceM);
+  const dPrev = sum(prevActs, (a) => a.distanceM);
+  const mCur = sum(curActs, moving);
+  const mPrev = sum(prevActs, moving);
+  const speed = (d: number, t: number) => (t > 0 && d > 0 ? d / t : null);
+
+  let longest: SportLongest | null = null;
+  for (const a of curActs) {
+    if ((a.distanceM ?? 0) > (longest?.distanceM ?? 0)) {
+      longest = { activityRef: a.id, distanceM: a.distanceM ?? 0, date: a.startAt };
+    }
+  }
+
+  const bestEfforts: SportBestEffort[] = [];
+  if (withBests) {
+    for (const { key, label } of BEST_EFFORT_LABELS) {
+      let best: { a: Activity; secs: number } | undefined;
+      for (const a of curActs) {
+        const secs = a.bestEfforts?.[key];
+        if (typeof secs === 'number' && (!best || secs < best.secs)) best = { a, secs };
+      }
+      if (!best) continue;
+      let prior: number | null = null;
+      for (const a of prevActs) {
+        const secs = a.bestEfforts?.[key];
+        if (typeof secs === 'number' && (prior == null || secs < prior)) prior = secs;
+      }
+      bestEfforts.push({
+        key, label,
+        seconds: best.secs,
+        priorSeconds: prior,
+        date: best.a.startAt,
+        activityRef: best.a.id,
+      });
+    }
+  }
+
+  return {
+    activityId,
+    sessions: recapValue(curActs.length, prevActs.length),
+    distanceM: recapValue(dCur, dPrev),
+    movingS: recapValue(mCur, mPrev),
+    elevationM: recapValue(sum(curActs, (a) => a.elevationM), sum(prevActs, (a) => a.elevationM)),
+    calories: recapValue(sum(curActs, (a) => a.calories), sum(prevActs, (a) => a.calories)),
+    speedMps: { current: speed(dCur, mCur), prior: speed(dPrev, mPrev) },
+    longest,
+    bestEfforts,
+  };
+}
+
 /** Constrói o resumo completo do período + período anterior para deltas. */
 export function buildRetrospective(input: RetroInput): RetroSummary {
   const cur = periodBounds(input.now, input.kind, input.offset);
-  const prev = periodBounds(input.now, input.kind, input.offset - 1);
+  // 'all' não tem período anterior: range degenerado (start === end) zera os
+  // totais anteriores e anula os MetricRecap — a UI suprime os badges de delta.
+  const prev = input.kind === 'all'
+    ? { start: cur.start, end: cur.start, label: '' }
+    : periodBounds(input.now, input.kind, input.offset - 1);
 
   // ── Fitness ──
   const tCur = totalsInRange(input.activities, cur.start, cur.end);
@@ -215,6 +355,12 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
         return { key: label, label, sum: a.distanceM ?? 0 };
       }),
     ),
+  };
+
+  // ── Esportes (Ciclismo / Corrida) ──
+  const sports: RetroSports = {
+    cycling: sportStats(input.activities, CYCLING_ACTIVITY_ID, cur, prev, false),
+    running: sportStats(input.activities, RUNNING_ACTIVITY_ID, cur, prev, true),
   };
 
   // ── Tarefas ──
@@ -308,6 +454,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     tasks,
     habits,
     fitness,
+    sports,
     health,
     ratings,
     purchases,
@@ -317,7 +464,11 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
 
 // ── Destaques (linguagem natural, sensível ao período) ────
 
-const PERIOD_NOUN: Record<PeriodKind, string> = { week: 'semana', month: 'mês', year: 'ano' };
+// 'season' vira 'trimestre' na prosa (templates masculinos: "neste ${noun}");
+// o toggle da UI segue exibindo "Estação".
+const PERIOD_NOUN: Record<PeriodKind, string> = {
+  week: 'semana', month: 'mês', year: 'ano', season: 'trimestre', all: 'período',
+};
 const FLAT_PCT = 2;
 
 function tone(delta: number | null, deltaPct: number | null, higherIsWorse: boolean): HighlightTone {
@@ -347,6 +498,9 @@ export function buildRetroHighlights(
   const out: WeekHighlight[] = [];
   const noun = PERIOD_NOUN[input.kind];
   const vs = `vs. ${noun} anterior`;
+  // 'all' não tem período anterior: prev degenerado faz delta === current, então
+  // as comparações seriam espúrias — texto sem delta e tom neutro.
+  const noPrior = input.kind === 'all';
 
   // Treinos
   const c = summary.fitness.count;
@@ -354,16 +508,24 @@ export function buildRetroHighlights(
     const dt = c.delta === 0 ? `igual ao ${noun} anterior`
       : `${c.delta > 0 ? '+' : '−'}${Math.abs(c.delta)} ${vs}`;
     out.push({
-      id: 'workouts', tone: tone(c.delta, c.deltaPct, false), icon: 'workout',
-      text: `${c.current} treino${c.current > 1 ? 's' : ''} neste ${noun} · ${dt}`,
+      id: 'workouts',
+      tone: noPrior ? 'neutral' : tone(c.delta, c.deltaPct, false),
+      icon: 'workout',
+      text: noPrior
+        ? `${c.current} treino${c.current > 1 ? 's' : ''} no total`
+        : `${c.current} treino${c.current > 1 ? 's' : ''} neste ${noun} · ${dt}`,
       priority: c.deltaPct != null ? Math.abs(c.deltaPct) : c.current * 10,
     });
     const d = summary.fitness.distanceM;
     if (d.current > 0) {
       const km = (v: number) => `${fmt(v / 1000, 1)} km`;
       out.push({
-        id: 'distance', tone: tone(d.delta, d.deltaPct, false), icon: 'distance',
-        text: `${km(d.current)} percorridos · ${d.delta >= 0 ? '+' : '−'}${km(Math.abs(d.delta))}`,
+        id: 'distance',
+        tone: noPrior ? 'neutral' : tone(d.delta, d.deltaPct, false),
+        icon: 'distance',
+        text: noPrior
+          ? `${km(d.current)} percorridos`
+          : `${km(d.current)} percorridos · ${d.delta >= 0 ? '+' : '−'}${km(Math.abs(d.delta))}`,
         priority: d.deltaPct != null ? Math.abs(d.deltaPct) : 20,
       });
     }
@@ -391,8 +553,12 @@ export function buildRetroHighlights(
     const pct = spend.deltaPct != null
       ? `${spend.deltaPct >= 0 ? '+' : '−'}${fmt(Math.abs(spend.deltaPct))}% ${vs}` : 'sem base de comparação';
     out.push({
-      id: 'spend', tone: t, icon: 'money',
-      text: `R$ ${fmt(spend.current)} em compras · ${pct}`,
+      id: 'spend',
+      tone: noPrior ? 'neutral' : t,
+      icon: 'money',
+      text: noPrior
+        ? `R$ ${fmt(spend.current)} em compras no total`
+        : `R$ ${fmt(spend.current)} em compras · ${pct}`,
       priority: spend.deltaPct != null ? Math.abs(spend.deltaPct) : 8,
     });
   }
@@ -401,8 +567,12 @@ export function buildRetroHighlights(
   const tk = summary.tasks.total;
   if (tk.current > 0) {
     out.push({
-      id: 'tasks', tone: tone(tk.delta, tk.deltaPct, false), icon: 'habit',
-      text: `${tk.current} tarefa${tk.current > 1 ? 's' : ''} concluída${tk.current > 1 ? 's' : ''} neste ${noun}`,
+      id: 'tasks',
+      tone: noPrior ? 'neutral' : tone(tk.delta, tk.deltaPct, false),
+      icon: 'habit',
+      text: noPrior
+        ? `${tk.current} tarefa${tk.current > 1 ? 's' : ''} concluída${tk.current > 1 ? 's' : ''} no total`
+        : `${tk.current} tarefa${tk.current > 1 ? 's' : ''} concluída${tk.current > 1 ? 's' : ''} neste ${noun}`,
       priority: tk.deltaPct != null ? Math.abs(tk.deltaPct) : 6,
     });
   }

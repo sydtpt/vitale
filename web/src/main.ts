@@ -119,6 +119,12 @@ const routes: Routes = [
     loadComponent: () =>
       import('@features/metas/pages/metas-page.component').then(m => m.MetasPageComponent),
   },
+  {
+    path: 'conexoes',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/conexoes/pages/conexoes-page.component').then(m => m.ConexoesPageComponent),
+  },
   { path: '**', redirectTo: 'login' },
 ];
 

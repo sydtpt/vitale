@@ -1,0 +1,56 @@
+.page { padding: 24px 32px 48px; max-width: 900px; }
+
+.banner {
+  margin-top: 16px; padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 500;
+  &.ok { background: var(--primary-soft); color: var(--ink); }
+  &.error { background: var(--surface); border: 1px solid var(--primary-deep); color: var(--primary-deep); }
+}
+
+.state { padding: 48px 0; text-align: center; font-size: 14px; color: var(--ink-2); }
+
+.cards {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px; box-shadow: var(--shadow-card);
+  &.muted { opacity: 0.75; }
+}
+
+.card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.card-emoji { font-size: 20px; }
+.card-title { flex: 1; font-size: 15.5px; font-weight: 650; color: var(--ink); margin: 0; }
+.badge {
+  font-size: 11.5px; font-weight: 700; color: #fff; background: var(--green, #6fa86a);
+  padding: 3px 10px; border-radius: 999px;
+}
+
+.card-desc { font-size: 13.5px; line-height: 1.55; color: var(--ink-2); margin: 0 0 10px; }
+.card-status { font-size: 12.5px; color: var(--ink-2); margin: 0 0 12px; }
+.card-status.error { color: var(--primary-deep); font-weight: 600; }
+
+.form { display: flex; flex-direction: column; gap: 8px; }
+.input {
+  border: 1px solid var(--line); background: var(--bg); border-radius: 10px;
+  padding: 9px 12px; font-size: 13.5px; color: var(--ink);
+  &:focus { outline: none; border-color: var(--primary); }
+}
+
+.actions { display: flex; gap: 8px; }
+
+.btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
+  font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  transition: all 0.15s;
+  &:hover:not(:disabled) { border-color: var(--ink-3); }
+  &:disabled { opacity: 0.5; cursor: default; }
+  &.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  &.danger { color: var(--primary-deep); }
+}
+
+.note { margin-top: 20px; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); max-width: 640px; }

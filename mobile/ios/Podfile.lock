@@ -10,6 +10,8 @@ PODS:
   - EXJSONUtils (0.15.0)
   - EXManifests (1.0.11):
     - ExpoModulesCore
+  - EXNotifications (0.32.17):
+    - ExpoModulesCore
   - Expo (54.0.34):
     - boost
     - DoubleConversion
@@ -42,6 +44,8 @@ PODS:
     - SocketRocket
     - Yoga
   - ExpoAsset (12.0.13):
+    - ExpoModulesCore
+  - ExpoBlur (15.0.8):
     - ExpoModulesCore
   - ExpoCrypto (15.0.9):
     - ExpoModulesCore
@@ -90,6 +94,8 @@ PODS:
     - SocketRocket
     - Yoga
   - ExpoSecureStore (15.0.8):
+    - ExpoModulesCore
+  - ExpoSharing (14.0.8):
     - ExpoModulesCore
   - ExpoSplashScreen (31.0.13):
     - ExpoModulesCore
@@ -1882,6 +1888,34 @@ PODS:
     - SocketRocket
   - react-native-safe-area-context (5.6.2):
     - React-Core
+  - react-native-view-shot (4.0.3):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - react-native-webview (13.15.0):
     - boost
     - DoubleConversion
@@ -2489,8 +2523,10 @@ DEPENDENCIES:
   - EXConstants (from `../../node_modules/expo-constants/ios`)
   - EXJSONUtils (from `../../node_modules/expo-json-utils/ios`)
   - EXManifests (from `../../node_modules/expo-manifests/ios`)
+  - EXNotifications (from `../../node_modules/expo-notifications/ios`)
   - Expo (from `../../node_modules/expo`)
   - ExpoAsset (from `../../node_modules/expo-asset/ios`)
+  - ExpoBlur (from `../../node_modules/expo-blur/ios`)
   - ExpoCrypto (from `../../node_modules/expo-crypto/ios`)
   - ExpoFileSystem (from `../../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../../node_modules/expo-font/ios`)
@@ -2501,6 +2537,7 @@ DEPENDENCIES:
   - ExpoLinking (from `../../node_modules/expo-linking/ios`)
   - ExpoModulesCore (from `../../node_modules/expo-modules-core`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
+  - ExpoSharing (from `../../node_modules/expo-sharing/ios`)
   - ExpoSplashScreen (from `../../node_modules/expo-splash-screen/ios`)
   - ExpoWebBrowser (from `../../node_modules/expo-web-browser/ios`)
   - EXStructuredHeaders (from `../../node_modules/expo-structured-headers/ios`)
@@ -2546,6 +2583,7 @@ DEPENDENCIES:
   - React-Mapbuffer (from `../../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - react-native-safe-area-context (from `../../node_modules/react-native-safe-area-context`)
+  - react-native-view-shot (from `../../node_modules/react-native-view-shot`)
   - react-native-webview (from `../../node_modules/react-native-webview`)
   - React-NativeModulesApple (from `../../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-oscompat (from `../../node_modules/react-native/ReactCommon/oscompat`)
@@ -2605,10 +2643,14 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/expo-json-utils/ios"
   EXManifests:
     :path: "../../node_modules/expo-manifests/ios"
+  EXNotifications:
+    :path: "../../node_modules/expo-notifications/ios"
   Expo:
     :path: "../../node_modules/expo"
   ExpoAsset:
     :path: "../../node_modules/expo-asset/ios"
+  ExpoBlur:
+    :path: "../../node_modules/expo-blur/ios"
   ExpoCrypto:
     :path: "../../node_modules/expo-crypto/ios"
   ExpoFileSystem:
@@ -2629,6 +2671,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/expo-modules-core"
   ExpoSecureStore:
     :path: "../node_modules/expo-secure-store/ios"
+  ExpoSharing:
+    :path: "../../node_modules/expo-sharing/ios"
   ExpoSplashScreen:
     :path: "../../node_modules/expo-splash-screen/ios"
   ExpoWebBrowser:
@@ -2718,6 +2762,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   react-native-safe-area-context:
     :path: "../../node_modules/react-native-safe-area-context"
+  react-native-view-shot:
+    :path: "../../node_modules/react-native-view-shot"
   react-native-webview:
     :path: "../../node_modules/react-native-webview"
   React-NativeModulesApple:
@@ -2801,8 +2847,10 @@ SPEC CHECKSUMS:
   EXConstants: fce59a631a06c4151602843667f7cfe35f81e271
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 378c7742de02a8605093b1c82b5774d8f9875cec
+  EXNotifications: c67e92b9fdfe785ff9dbdc5f4c0ff935de357da7
   Expo: 7eafe3760d82caeb6b4353d01a6bb2aed5cc5eb0
   ExpoAsset: 9e5a7c9c0a9fb83ad5b2bb365141f2bd7f289b66
+  ExpoBlur: b90747a3f22a8b6ceffd9cb0dc41a4184efdc656
   ExpoCrypto: e2a2c4c748aac8485e5675f027b7901f511d43ff
   ExpoFileSystem: ad991457efaa14253723f1dda997eac6024c700d
   ExpoFont: f543ce20a228dd702813668b1a07b46f51878d47
@@ -2813,6 +2861,7 @@ SPEC CHECKSUMS:
   ExpoLinking: 2ef632ad5013e3f1568fae9408d56ab9af5efc55
   ExpoModulesCore: c2d64fb1683b13a077a497666a86c3911242d546
   ExpoSecureStore: d32f751874a2ceb5aaeebeb3578e165c1ba2b24a
+  ExpoSharing: 0d983394ed4a80334bab5a0d5384f75710feb7e8
   ExpoSplashScreen: 6795dffbd8e931431c5abdf9d371ab150045c5cc
   ExpoWebBrowser: 970dd4c64c29c955c3af664c8058ba768a4c9187
   EXStructuredHeaders: c951e77f2d936f88637421e9588c976da5827368
@@ -2858,6 +2907,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: 94f4264de2cb156960cd82b338a403f4653f2fd9
   React-microtasksnativemodule: 6c4ee39a36958c39c97b074d28f360246a335e84
   react-native-safe-area-context: 6c8805194166a9d6b3e53ba69ca76756c9bfb052
+  react-native-view-shot: b5fc41b75f8ce016389105414e7d9225bc6a7cd3
   react-native-webview: 94ae920685a61c5e36438a30ce47fe521011c5bd
   React-NativeModulesApple: ebf2ce72b35870036900d6498b33724386540a71
   React-oscompat: eb0626e8ba1a2c61673c991bf9dc21834898475d

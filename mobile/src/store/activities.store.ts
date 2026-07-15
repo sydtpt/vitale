@@ -8,7 +8,7 @@ export interface ActivityPatch {
 }
 
 const SELECT =
-  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,' +
+  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,' +
   'source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,locally_edited,edited_at,hidden';
 
 interface DbActivityRow {
@@ -22,6 +22,7 @@ interface DbActivityRow {
   duration_s: number | null;
   moving_time_s: number | null;
   distance_m: number | null;
+  elevation_m: number | null;
   source_name: string | null;
   source_id: string | null;
   device: string | null;
@@ -46,6 +47,7 @@ function mapRow(r: DbActivityRow): Activity {
     durationS: r.duration_s ?? 0,
     movingTimeS: r.moving_time_s ?? undefined,
     distanceM: r.distance_m ?? undefined,
+    elevationM: r.elevation_m ?? undefined,
     sourceName: r.source_name ?? undefined,
     sourceId: r.source_id ?? undefined,
     device: r.device ?? undefined,
