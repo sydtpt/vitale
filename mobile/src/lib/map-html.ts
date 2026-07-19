@@ -113,8 +113,8 @@ function leafletScript(
     L.tileLayer('${tile.url}', { maxZoom: ${tile.maxZoom}, subdomains: '${tile.subdomains}', attribution: '${tile.attribution}' }).addTo(map);
 
     // Casing branco por baixo (halo estilo Strava) + rota colorida por cima.
-    L.polyline(coords, { color: '#FFFFFF', weight: 9, opacity: 0.95, lineJoin: 'round', lineCap: 'round' }).addTo(map);
-    var line = L.polyline(coords, { color: '${MOD.treino.accent}', weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+    L.polyline(coords, { color: '#FFFFFF', weight: 6.75, opacity: 0.95, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+    var line = L.polyline(coords, { color: '${MOD.treino.accent}', weight: 3.75, opacity: 1, lineJoin: 'round', lineCap: 'round' }).addTo(map);
     function fit() { if (coords.length) map.fitBounds(line.getBounds(), { padding: [${padding}, ${padding}] }); }
     ${view ? `map.setView(${JSON.stringify(view.center)}, ${view.zoom});` : 'fit();'}
     window.recenter = fit;
@@ -203,8 +203,8 @@ function maplibreScript(
       if (coords.length === 0) return;
 ${buildings}
       map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } } });
-      map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FFFFFF', 'line-width': 9, 'line-opacity': 0.95 } });
-      map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '${MOD.treino.accent}', 'line-width': 5 } });
+      map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FFFFFF', 'line-width': 6.75, 'line-opacity': 0.95 } });
+      map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '${MOD.treino.accent}', 'line-width': 3.75 } });
       map.addSource('endpoints', { type: 'geojson', data: { type: 'FeatureCollection', features: [
         { type: 'Feature', properties: { role: 'start' }, geometry: { type: 'Point', coordinates: coords[0] } },
         { type: 'Feature', properties: { role: 'end' }, geometry: { type: 'Point', coordinates: coords[coords.length - 1] } }

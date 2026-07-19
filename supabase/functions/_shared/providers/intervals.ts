@@ -5,7 +5,8 @@
  *   GET /api/v1/athlete/{id}                         — validação do vínculo
  *   GET /api/v1/athlete/{id}/activities?oldest&newest — lista (ISO local)
  *   GET /api/v1/activity/{id}/streams?types=...       — streams do FIT
- * Parsing defensivo: campos variam entre versões da API.
+ * Parsing defensivo: campos variam entre versões da API. O stream `latlng`
+ * separa as coordenadas em `data` (lat) e `data2` (lng) — não são pares.
  */
 import { mapIntervalsType } from '../../../../packages/shared/src/fitness/dedupe.ts';
 import {
@@ -80,7 +81,11 @@ export async function fetchIntervalsActivities(
   oldestIso: string,
   newestIso: string,
 ): Promise<RawIntervalsActivity[]> {
-  const qs = `oldest=${encodeURIComponent(oldestIso)}&newest=${encodeURIComponent(newestIso)}`;
+  // A API interpreta as datas no fuso do atleta e responde 422 a sufixo de fuso
+  // (`Z`/`±hh`) — corta para `YYYY-MM-DDTHH:mm:ss`. O desvio de até um fuso é
+  // absorvido pelas margens da janela (rewind de 24h no cursor, +1d no newest).
+  const local = (iso: string) => iso.slice(0, 19);
+  const qs = `oldest=${encodeURIComponent(local(oldestIso))}&newest=${encodeURIComponent(local(newestIso))}`;
   const res = await icuGet(apiKey, `/athlete/${encodeURIComponent(athleteId)}/activities?${qs}`);
   if (res.status === 401 || res.status === 403) throw new AuthError('intervals.icu: API key rejeitada');
   if (!res.ok) throw new Error(`intervals.icu /activities respondeu ${res.status}`);
@@ -107,18 +112,34 @@ async function fetchIntervalsStreams(
   const res = await icuGet(apiKey, `/activity/${encodeURIComponent(activityId)}/streams?types=${types}`);
   if (!res.ok) return { points: [], hrSamples: [] };
   const body = await res.json();
-  // Formatos observados: array de {type,data} OU objeto {type: {data}}.
-  const byType = (t: string): unknown[] | undefined => {
-    if (Array.isArray(body)) return body.find((s) => s?.type === t)?.data;
-    const entry = body?.[t];
-    return Array.isArray(entry) ? entry : entry?.data;
+  // Formatos observados: array de {type,data,data2} OU objeto {type: {data}}.
+  const streamOf = (t: string): Record<string, unknown> | undefined => {
+    const e = Array.isArray(body) ? body.find((s) => s?.type === t) : body?.[t];
+    return e && !Array.isArray(e) ? (e as Record<string, unknown>) : undefined;
   };
+  const dataOf = (t: string): unknown[] | undefined => {
+    if (Array.isArray(body)) return body.find((s) => s?.type === t)?.data;
+    const e = body?.[t];
+    return Array.isArray(e) ? e : (e?.data as unknown[] | undefined);
+  };
+  // O intervals.icu NÃO devolve o latlng como pares: latitude vai em `data` e
+  // longitude em `data2`. Junta índice a índice em [lat,lng] (par incompleto → null).
+  const ll = streamOf('latlng');
+  const lat = ll?.data as Array<number | null> | undefined;
+  const lng = ll?.data2 as Array<number | null> | undefined;
+  const latlng =
+    lat && lng
+      ? lat.map((la, i): [number, number] | null => {
+          const lo = lng[i];
+          return typeof la === 'number' && typeof lo === 'number' ? [la, lo] : null;
+        })
+      : undefined;
   return streamsToPointsAndHr(
     startMsEpoch,
-    byType('time') as number[] | undefined,
-    byType('latlng') as Array<[number, number] | null> | undefined,
-    byType('altitude') as Array<number | null> | undefined,
-    byType('heartrate') as Array<number | null> | undefined,
+    dataOf('time') as number[] | undefined,
+    latlng,
+    dataOf('altitude') as Array<number | null> | undefined,
+    dataOf('heartrate') as Array<number | null> | undefined,
   );
 }
 

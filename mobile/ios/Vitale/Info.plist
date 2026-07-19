@@ -47,6 +47,8 @@
 	</dict>
 	<key>NSHealthShareUsageDescription</key>
 	<string>O Vitale acessa seus treinos do Apple Health para exibir seu histórico de exercícios.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>O Orbe salva na sua galeria os cartões de treino que você exportar.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

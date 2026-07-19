@@ -37,7 +37,7 @@ import {
 /** Código HealthKit da corrida — único tipo que recebe best efforts. */
 const RUNNING_ACTIVITY_ID = 37;
 import { subscribeType, loadSyncedTypes } from '../lib/synced-types';
-import { garminStubKeepFilter } from '../lib/connections';
+import { bridgeStubKeepFilter } from '../lib/connections';
 import { readAnchor, writeAnchor } from '../lib/sync-anchor';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
 import { linkWorkoutsToTodos } from './activity-todo-link';
@@ -82,6 +82,29 @@ async function pushActivities(
     }
   }
   return { pushed, failed, error };
+}
+
+/** Mínimo entre varreduras server-side pós-push. */
+const RECONCILE_THROTTLE_MS = 60_000;
+let lastReconcileAt = 0;
+
+/**
+ * Fire-and-forget: pede ao servidor para mesclar duplicatas recém-criadas pelo
+ * push (mesmo treino gravado no HealthKit por mais de um app). Sem await — o
+ * resultado aparece na próxima leitura; falha (offline) é silenciosa, o cron
+ * do connections-ingest cobre.
+ */
+function requestServerReconcile(pushed: number): void {
+  if (pushed <= 0) return;
+  const now = Date.now();
+  if (now - lastReconcileAt < RECONCILE_THROTTLE_MS) return;
+  lastReconcileAt = now;
+  void supabase.functions
+    .invoke('connections-ingest', { body: { mode: 'reconcile' } })
+    .then(({ error }) => {
+      if (error) console.warn('[sync] reconcile server-side falhou:', error.message ?? error);
+    })
+    .catch(() => undefined);
 }
 
 /** Callback de progresso de uma fase (treino-a-treino). */
@@ -269,11 +292,12 @@ export async function syncType(
     // 1. Inscreve o tipo (idempotente) — passa a rastrear os futuros.
     await subscribeType(label);
 
-    // 2. Backfill: todos os treinos do tipo no período. Com ponte Garmin ativa,
-    // descarta os stubs do Garmin Connect DENTRO da cobertura do ingest (a
-    // versão rica chega por lá); stubs mais antigos continuam sincronizando.
+    // 2. Backfill: todos os treinos do tipo no período. Com ponte conectada,
+    // descarta os stubs de ponte (Garmin Connect / app da Strava) DENTRO da
+    // cobertura do ingest (a versão rica chega por lá); stubs mais antigos
+    // continuam sincronizando.
     const all = await fetchAllWorkouts();
-    const keepWorkout = await garminStubKeepFilter();
+    const keepWorkout = await bridgeStubKeepFilter();
     const ofType = all.filter(
       (w) => getActivityMeta(w.activityId).label === label && keepWorkout(w),
     );
@@ -297,6 +321,7 @@ export async function syncType(
     const a = await pushActivities(rows);
     const r = await pushRoutes(routes, userId);
     onProgress?.(1);
+    requestServerReconcile(a.pushed);
 
     const failed = [...a.failed, ...r.failed];
     if (failed.length) await enqueue(failed);
@@ -325,7 +350,7 @@ export async function syncDelta(): Promise<SyncResult> {
 
   try {
     // 0. Drena pendências antes de buscar o novo delta.
-    await drainQueue(flushItems);
+    const drained = await drainQueue(flushItems);
 
     const subscribed = await loadSyncedTypes();
     if (subscribed.size === 0) return { ...base, ok: true };
@@ -339,7 +364,7 @@ export async function syncDelta(): Promise<SyncResult> {
     // não sobe. `pushable` exclui stubs cobertos pelo ingest server-side (a
     // versão rica chega por lá; empurrar o stub só criaria duplicata).
     const ofType = workouts.filter((w) => subscribed.has(getActivityMeta(w.activityId).label));
-    const keepWorkout = await garminStubKeepFilter();
+    const keepWorkout = await bridgeStubKeepFilter();
     const pushable = ofType.filter(keepWorkout);
 
     // 3. Coleta as rotas uma vez; deriva best efforts (corrida) do mesmo track.
@@ -353,6 +378,7 @@ export async function syncDelta(): Promise<SyncResult> {
 
     const a = await pushActivities(rows);
     const r = await pushRoutes(routes, userId);
+    requestServerReconcile(a.pushed + drained);
 
     // Liga os treinos NOVOS às tarefas (conclui/gera a ocorrência do dia). Só no
     // delta — nunca no backfill por tipo (syncType), p/ não gerar tarefas de 3 anos.

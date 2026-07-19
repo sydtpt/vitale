@@ -14,6 +14,7 @@ import {
   isSameWorkout,
   findMatch,
   isGarminSource,
+  isStravaSource,
   richnessScore,
   planMerge,
   type MatchWindow,
@@ -120,6 +121,43 @@ describe('riqueza e merge', () => {
     expect(isGarminSource('com.garmin.ConnectMobile', null)).toBe(true);
     expect(isGarminSource(null, 'Garmin Connect')).toBe(true);
     expect(isGarminSource('com.apple.health', 'Apple Watch de Sydnei')).toBe(false);
+  });
+
+  it('detecta a fonte Strava no HealthKit por sourceId ou sourceName', () => {
+    expect(isStravaSource('com.strava.stravaride', null)).toBe(true);
+    expect(isStravaSource(null, 'Strava')).toBe(true);
+    expect(isStravaSource('com.apple.health', 'Apple Watch de Sydnei')).toBe(false);
+  });
+
+  it('cópia Strava-HK é stub pobre; linha do ingest Strava mantém o rank de provider', () => {
+    const stravaHkCopy = garminStubTarget({
+      sourceId: 'com.strava.stravaride',
+      sourceName: 'Strava',
+    });
+    const appleNative = garminStubTarget({
+      sourceId: 'com.apple.health',
+      sourceName: 'Apple Watch',
+    });
+    expect(richnessScore(stravaHkCopy)).toBeLessThan(richnessScore(appleNative));
+    // Linha criada pelo ingest (provider='strava', source_name='Strava'): o
+    // branch de provider ganha antes do sourceName — não é demovida a stub.
+    const ingestRow = garminStubTarget({
+      provider: 'strava',
+      sourceId: 'strava',
+      sourceName: 'Strava',
+    });
+    expect(richnessScore(ingestRow)).toBeGreaterThan(richnessScore(appleNative));
+  });
+
+  it('entrante rico sobre cópia Strava-HK: corrige tempos (duração = elapsed)', () => {
+    const stravaHkCopy = garminStubTarget({
+      sourceId: 'com.strava.stravaride',
+      sourceName: 'Strava',
+    });
+    const plan = planMerge(intervalsIncoming(), stravaHkCopy);
+    expect(plan.incomingRicher).toBe(true);
+    expect(plan.overwriteTimes).toBe(true);
+    expect(plan.attachRoute).toBe(true);
   });
 
   it('intervals com rota+FC > stub Garmin sem rota', () => {

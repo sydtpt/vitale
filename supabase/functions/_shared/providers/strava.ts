@@ -150,6 +150,9 @@ async function fetchStravaStreams(
     accessToken,
     `/activities/${activityId}/streams?keys=time,latlng,altitude,heartrate&key_by_type=true`,
   );
+  // 429 precisa abortar o run: inserir sem rota gravaria a atividade pobre em
+  // definitivo (a idempotência nunca re-busca streams). Cursor fica; retry no próximo tick.
+  if (res.status === 429) throw new Error('Strava: rate limit nos streams');
   if (!res.ok) return { points: [], hrSamples: [] };
   const body = await res.json();
   return streamsToPointsAndHr(

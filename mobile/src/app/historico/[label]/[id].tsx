@@ -123,6 +123,8 @@ export default function AtividadeDetalheScreen() {
     latitude: p.lat,
     longitude: p.lng,
     altitude: p.alt,
+    // `t` (epoch ms) alimenta a arte "Velocidade" do share; ausente em rotas antigas.
+    timestamp: Number.isFinite(p.t) ? new Date(p.t as number).toISOString() : undefined,
   }));
   const elevation = formatElevation(elevationGain(points));
 

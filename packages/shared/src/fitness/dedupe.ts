@@ -163,6 +163,22 @@ export function isGarminSource(sourceId?: string | null, sourceName?: string | n
   return false;
 }
 
+/**
+ * A fonte HealthKit foi escrita pelo app da Strava (cópia sem rota, duração =
+ * tempo decorrido)? Linhas vindas do ingest da API têm `provider='strava'` e
+ * não passam por aqui — `richnessScore`/`planMerge` checam `provider` antes.
+ */
+export function isStravaSource(sourceId?: string | null, sourceName?: string | null): boolean {
+  if (sourceId && sourceId.toLowerCase().startsWith('com.strava')) return true;
+  if (sourceName && /strava/i.test(sourceName)) return true;
+  return false;
+}
+
+/** Stub de ponte via HealthKit (Garmin Connect ou app da Strava): fonte pobre. */
+export function isBridgeSource(sourceId?: string | null, sourceName?: string | null): boolean {
+  return isGarminSource(sourceId, sourceName) || isStravaSource(sourceId, sourceName);
+}
+
 export interface RichnessInput {
   /** 'strava' | 'intervals' | 'healthkit' | null (linhas antigas = healthkit). */
   provider?: string | null;
@@ -177,7 +193,8 @@ export interface RichnessInput {
 
 /**
  * Score de riqueza: rota GPS vale mais que FC, que vale mais que distância; o
- * rank de provider desempata (intervals > strava > HK-Apple > stub HK-Garmin).
+ * rank de provider desempata (intervals > strava > HK-Apple > stub de ponte
+ * Garmin/Strava via HealthKit).
  */
 export function richnessScore(x: RichnessInput): number {
   let score = 0;
@@ -186,7 +203,7 @@ export function richnessScore(x: RichnessInput): number {
   if ((x.distanceM ?? 0) > 0) score += 1;
   if (x.provider === 'intervals') score += 0.3;
   else if (x.provider === 'strava') score += 0.2;
-  else if (isGarminSource(x.sourceId, x.sourceName)) score += 0;
+  else if (isBridgeSource(x.sourceId, x.sourceName)) score += 0;
   else score += 0.1; // HealthKit nativo (Apple Watch / apps)
   return score;
 }
@@ -211,7 +228,7 @@ export interface MergeIncoming extends MatchWindow, RichnessInput {
 export interface MergeDecision {
   /** Entrante mais rico → sobrescreve métricas (distância, zonas, elevação…). */
   incomingRicher: boolean;
-  /** Alvo era stub Garmin via HealthKit → pode corrigir start/end (mesmo FIT). */
+  /** Alvo era stub de ponte via HealthKit → pode corrigir start/end (mesmo FIT). */
   overwriteTimes: boolean;
   /** Atualizar `activity_name` (entrante mais rico, com nome, sem edição). */
   setName: boolean;
@@ -223,12 +240,12 @@ export interface MergeDecision {
 
 export function planMerge(incoming: MergeIncoming, target: MergeTarget): MergeDecision {
   const incomingRicher = richnessScore(incoming) > richnessScore(target);
-  const targetIsGarminStub =
+  const targetIsBridgeStub =
     (target.provider == null || target.provider === 'healthkit') &&
-    isGarminSource(target.sourceId, target.sourceName);
+    isBridgeSource(target.sourceId, target.sourceName);
   return {
     incomingRicher,
-    overwriteTimes: incomingRicher && targetIsGarminStub,
+    overwriteTimes: incomingRicher && targetIsBridgeStub,
     setName: incomingRicher && !target.nameEdited && !!incoming.activityName?.trim(),
     setDuration: incomingRicher && !target.durationEdited,
     attachRoute: (incoming.routePointCount ?? 0) > (target.routePointCount ?? 0),

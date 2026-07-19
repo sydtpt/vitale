@@ -2,13 +2,19 @@ import type { MapStyleConfig } from '@vitale/shared';
 import { MOD } from '../theme';
 import { mapHead, mapScript, type MapPoint, type MapViewState } from './map-html';
 import { SHARE_FONT_FACE_CSS } from './share-fonts';
+import { ACTIVITY_ICON_PATHS } from './share-activity-icons';
+import { getActivityMeta, type RoutePoint } from './workout-types';
+import { speedFractions, elevationProfile } from './share-art-data';
 
 /** Formatos de saída do cartão (proporção). */
 export type ShareFormat = 'story' | 'square' | 'portrait'; // 9:16 · 1:1 · 4:5
-export type ShareBackground = 'art' | 'map';
+/** 'data' = só título/métricas/marca sobre fundo transparente (sticker). */
+export type ShareBackground = 'art' | 'map' | 'data';
 export type ShareTheme = 'light' | 'dark';
-/** Variantes visuais do fundo "arte". */
-export type ShareArtStyle = 'glow' | 'mesh' | 'topo' | 'horizon' | 'grid';
+/** Variantes visuais do fundo "arte". 'speed' e 'elevation' são data-driven:
+ *  rota colorida por ritmo e perfil de altitude (caem no traçado padrão
+ *  quando o track não tem timestamp/altitude). */
+export type ShareArtStyle = 'glow' | 'mesh' | 'topo' | 'horizon' | 'grid' | 'speed' | 'elevation';
 /** Efeito aplicado sobre os tiles do mapa (entre o mapa e o scrim). */
 export type ShareMapEffect = 'none' | 'duotone' | 'gradient' | 'grain' | 'vignette';
 
@@ -50,12 +56,16 @@ export interface ShareContext {
 }
 
 export interface ShareCardOptions {
-  points: readonly MapPoint[];
+  /** Track da atividade — altitude/timestamp (quando presentes) alimentam as
+   *  artes data-driven; o mapa e as demais artes usam só lat/lng. */
+  points: readonly RoutePoint[];
   format: ShareFormat;
   background: ShareBackground;
   theme: ShareTheme;
   title: string;
-  subtitle?: string;
+  /** Tipo de atividade — desenha o glifo correspondente antes do título
+   *  (mesmo mapeamento de getActivityMeta). Ausente ⇒ sem ícone. */
+  activityId?: number;
   /** Já filtradas para as selecionadas + disponíveis, na ordem de exibição. */
   metrics: ShareMetricTile[];
   watermark: boolean;
@@ -74,6 +84,9 @@ export interface ShareCardOptions {
   mapInteractive?: boolean;
   /** Enquadramento salvo do mapa — substitui o fitBounds inicial (export fiel ao preview). */
   mapView?: MapViewState;
+  /** Xadrez de transparência sob o cartão (só no preview do modo 'data' —
+   *  nunca no export, senão o xadrez sai na imagem). */
+  previewChecker?: boolean;
 }
 
 /** Dimensões lógicas (px) por formato — a proporção que o WebView deve receber. */
@@ -91,10 +104,10 @@ export function formatRatio(format: ShareFormat): number {
 
 /* ─────────────────────────── projeção da rota ─────────────────────────── */
 
-function downsample(points: readonly MapPoint[], max: number): MapPoint[] {
+function downsample<T>(points: readonly T[], max: number): T[] {
   if (points.length <= max) return points.slice();
   const step = Math.ceil(points.length / max);
-  const out: MapPoint[] = [];
+  const out: T[] = [];
   for (let i = 0; i < points.length; i += step) out.push(points[i]);
   const last = points[points.length - 1];
   if (out[out.length - 1] !== last) out.push(last);
@@ -115,14 +128,13 @@ const ROUTE_MAJOR = 1000;
  * pode preencher qualquer região com `preserveAspectRatio="xMidYMid meet"` sem
  * distorcer nem depender do formato do cartão.
  */
-export function projectRouteToSvg(points: readonly MapPoint[]): {
-  viewBox: string;
-  line: string;
-  start: [number, number] | null;
-  end: [number, number] | null;
-} {
+/** Projeção comum: viewBox + coordenadas por vértice + pontos mantidos pelo
+ *  downsample (1:1 com `xy` — a arte 'speed' colore segmento a segmento). */
+function projectRoute<T extends MapPoint>(
+  points: readonly T[],
+): { viewBox: string; xy: [number, number][]; kept: T[] } | null {
   const pts = downsample(points, 400);
-  if (pts.length < 2) return { viewBox: '0 0 100 100', line: '', start: null, end: null };
+  if (pts.length < 2) return null;
 
   const lat0 =
     (pts.reduce((s, p) => s + p.latitude, 0) / pts.length) * (Math.PI / 180);
@@ -148,11 +160,22 @@ export function projectRouteToSvg(points: readonly MapPoint[]): {
     round(pad + (maxY - p.y) * scale),
   ]);
 
+  return { viewBox: `0 0 ${round(vbW)} ${round(vbH)}`, xy, kept: pts };
+}
+
+export function projectRouteToSvg(points: readonly MapPoint[]): {
+  viewBox: string;
+  line: string;
+  start: [number, number] | null;
+  end: [number, number] | null;
+} {
+  const proj = projectRoute(points);
+  if (!proj) return { viewBox: '0 0 100 100', line: '', start: null, end: null };
   return {
-    viewBox: `0 0 ${round(vbW)} ${round(vbH)}`,
-    line: xy.map(([x, y]) => `${x},${y}`).join(' '),
-    start: xy[0],
-    end: xy[xy.length - 1],
+    viewBox: proj.viewBox,
+    line: proj.xy.map(([x, y]) => `${x},${y}`).join(' '),
+    start: proj.xy[0],
+    end: proj.xy[proj.xy.length - 1],
   };
 }
 
@@ -326,10 +349,131 @@ function artBgLayer(style: ShareArtStyle, theme: ShareTheme, accent: string): st
       return `<div class="bg" style="background: ${horizonBg(theme, accent)};"></div>`;
     case 'grid':
       return `<div class="bg" style="${gridBgProps(theme, accent)}"></div>`;
+    // Data-driven: fundo quieto — o traçado/perfil é o herói.
+    case 'speed':
+    case 'elevation':
+      return `<div class="bg" style="background: ${brandGradient(theme)};"></div>`;
     case 'glow':
     default:
       return `<div class="bg" style="background: ${glowBg(theme, accent)};"></div>`;
   }
+}
+
+/* ─────────────────── região central da arte (rota / dados) ─────────────── */
+
+const ROUTE_CASING = 26;
+const ROUTE_STROKE = 15;
+const ROUTE_DOT = 22;
+
+/** Marcadores de início (verde) e fim (accent) do traçado. */
+function routeDots(xy: [number, number][], accent: string): string {
+  const start = xy[0];
+  const end = xy[xy.length - 1];
+  return `
+        <circle cx="${start[0]}" cy="${start[1]}" r="${ROUTE_DOT}" fill="${GREEN}" stroke="#FFFFFF" stroke-width="8" />
+        <circle cx="${end[0]}" cy="${end[1]}" r="${ROUTE_DOT}" fill="${accent}" stroke="#FFFFFF" stroke-width="8" />`;
+}
+
+/** Traçado padrão de cor única: casing branca + linha accent + dots. */
+function standardRouteBody(xy: [number, number][], accent: string): string {
+  const line = xy.map(([x, y]) => `${x},${y}`).join(' ');
+  return `
+        <polyline points="${line}" fill="none" stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="${ROUTE_CASING}" stroke-linejoin="round" stroke-linecap="round" />
+        <polyline points="${line}" fill="none" stroke="${accent}" stroke-width="${ROUTE_STROKE}" stroke-linejoin="round" stroke-linecap="round" />
+        ${routeDots(xy, accent)}`;
+}
+
+/** Cores da rampa de ritmo (tokens do app: água → amarelo → accent). */
+const HEAT_SLOW = '#6E8CC9';
+const HEAT_MID = '#F5B946';
+
+/** Cor da rampa de calor para a fração de velocidade f ∈ [0,1]. */
+function heatColor(f: number, accent: string): string {
+  return f < 0.5 ? mixHex(HEAT_SLOW, HEAT_MID, f * 2) : mixHex(HEAT_MID, accent, (f - 0.5) * 2);
+}
+
+/** 'speed': casing branca + um segmento colorido por fração de velocidade
+ *  (caps redondos emendam os segmentos sem costura). */
+function speedRouteBody(xy: [number, number][], fractions: number[], accent: string): string {
+  const line = xy.map(([x, y]) => `${x},${y}`).join(' ');
+  const segs = fractions
+    .map((f, i) => {
+      const [x1, y1] = xy[i];
+      const [x2, y2] = xy[i + 1];
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${heatColor(f, accent)}" stroke-width="${ROUTE_STROKE}" stroke-linecap="round" />`;
+    })
+    .join('');
+  return `
+        <polyline points="${line}" fill="none" stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="${ROUTE_CASING}" stroke-linejoin="round" stroke-linecap="round" />
+        ${segs}
+        ${routeDots(xy, accent)}`;
+}
+
+/** 'elevation': perfil de altitude ancorado no pé da região central — área
+ *  com degradê accent, linha de topo e pico rotulado (altitude máx). */
+function elevationSvg(
+  prof: NonNullable<ReturnType<typeof elevationProfile>>,
+  accent: string,
+  fg: string,
+): string {
+  const W = 1000;
+  const H = 420;
+  const TOP = 90; // respiro p/ o rótulo do pico
+  const n = prof.xs.length;
+  const spanX = prof.xs[n - 1] - prof.xs[0] || 1;
+  const spanY = prof.maxAlt - prof.minAlt || 1;
+  const px = (i: number) => round(((prof.xs[i] - prof.xs[0]) / spanX) * W);
+  const py = (i: number) => round(TOP + (1 - (prof.ys[i] - prof.minAlt) / spanY) * (H - TOP));
+  const pts = Array.from({ length: n }, (_, i) => `${px(i)},${py(i)}`).join(' ');
+  const labelX = Math.min(W - 80, Math.max(80, px(prof.peakIdx)));
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="${accent}" stop-opacity="0.38" />
+            <stop offset="1" stop-color="${accent}" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points="${pts} ${W},${H} 0,${H}" fill="url(#elevFill)" />
+        <polyline points="${pts}" fill="none" stroke="${accent}" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" />
+        <circle cx="${px(prof.peakIdx)}" cy="${py(prof.peakIdx)}" r="14" fill="${accent}" stroke="#FFFFFF" stroke-width="6" />
+        <text x="${labelX}" y="${py(prof.peakIdx) - 34}" text-anchor="middle" font-family=${JSON.stringify(MONO)} font-size="36" font-weight="700" fill="${fg}">${Math.round(prof.maxAlt)} m</text>
+      </svg>`;
+}
+
+/**
+ * Região central por variante de arte. 'speed' e 'elevation' dependem de
+ * timestamp/altitude no track — sem eles, caem no traçado padrão (mesma
+ * renderização das demais artes).
+ */
+function artRouteLayer(
+  style: ShareArtStyle,
+  points: readonly RoutePoint[],
+  accent: string,
+  fg: string,
+): string {
+  const proj = projectRoute(points);
+  if (!proj) return '<div class="routeArea"></div>';
+
+  if (style === 'elevation') {
+    const prof = elevationProfile(downsample(points, 600));
+    if (prof) return `<div class="routeArea">${elevationSvg(prof, accent, fg)}</div>`;
+  }
+
+  let body = standardRouteBody(proj.xy, accent);
+  let legend = '';
+  let svgStyle = '';
+  if (style === 'speed') {
+    const fractions = speedFractions(proj.kept);
+    if (fractions) {
+      body = speedRouteBody(proj.xy, fractions, accent);
+      legend = `<div class="speedLegend"><span>lento</span><span class="legendBar"></span><span>rápido</span></div>`;
+      // Rota acima da legenda: padding encolhe a área de desenho (border-box).
+      // NÃO usar height:auto/bottom — svg é replaced element e adotaria a
+      // altura intrínseca do viewBox, vazando sobre o texto em formatos baixos.
+      svgStyle = ' style="padding-bottom: 9vw"';
+    }
+  }
+  return `<div class="routeArea"><svg viewBox="${proj.viewBox}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"${svgStyle}>${body}</svg>${legend}</div>`;
 }
 
 /* ───────────────────────── efeitos sobre o mapa ────────────────────────── */
@@ -387,7 +531,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     background,
     theme,
     title,
-    subtitle,
+    activityId,
     metrics,
     watermark,
     accent = MOD.treino.accent,
@@ -397,26 +541,31 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     mapTile,
     mapInteractive = false,
     mapView,
+    previewChecker = false,
   } = opts;
 
+  const isData = background === 'data';
   const isMap = background === 'map' && !!mapTile;
   const dark = theme === 'dark';
 
-  // Cores de texto: automática (sobre mapa, branco + scrim; sobre arte, tinta
-  // do tema — o gradiente controla o contraste) ou a escolhida pelo usuário.
-  // O texto secundário é sempre a mesma cor com alpha reduzido.
-  const autoFg = isMap ? '#FFFFFF' : dark ? '#F6EFE6' : '#1F1B16';
+  // Cores de texto: automática (sobre mapa/transparente, branco + sombra;
+  // sobre arte, tinta do tema — o gradiente controla o contraste) ou a
+  // escolhida pelo usuário. Texto secundário = mesma cor com alpha reduzido.
+  const overlayText = isMap || isData;
+  const autoFg = overlayText ? '#FFFFFF' : dark ? '#F6EFE6' : '#1F1B16';
   const fg = textColor ?? autoFg;
-  const fgMuted = hexToRgba(fg, isMap ? 0.85 : dark ? 0.68 : 0.58);
-  const shadow = isMap ? 'text-shadow: 0 1px 12px rgba(0,0,0,0.45);' : '';
+  const fgMuted = hexToRgba(fg, overlayText ? 0.85 : dark ? 0.68 : 0.58);
+  const shadow = overlayText ? 'text-shadow: 0 1px 12px rgba(0,0,0,0.45);' : '';
 
   // Camadas de fundo + região central da rota.
-  let bgLayer: string;
-  let routeLayer = '<div class="routeArea"></div>';
+  let bgLayer = '';
+  let routeLayer = '';
   let headExtra = '';
   let scriptExtra = '';
   let fx = { mapFilter: '', overlays: '' };
-  if (isMap && mapTile) {
+  if (isData) {
+    // Sticker: nenhum fundo nem rota — só o texto/métricas sobre transparência.
+  } else if (isMap && mapTile) {
     // Mapa preenche o fundo; a região central fica vazia (rota vem do mapa).
     // Overlays de efeito vivem dentro de .bg — acima do mapa, abaixo do scrim.
     fx = mapEffectLayers(mapEffect, accent);
@@ -429,21 +578,10 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
       reportView: mapInteractive,
     });
   } else {
-    // Arte: variante escolhida no fundo; a rota (SVG normalizado ao próprio bbox)
-    // mora na região flexível central, entre título e métricas — nunca cruza o texto.
+    // Arte: fundo da variante; a região central flexível mostra a rota (ou o
+    // perfil de elevação, nas variantes data-driven) — nunca cruza o texto.
     bgLayer = artBgLayer(artStyle, theme, accent);
-    const { viewBox, line, start, end } = projectRouteToSvg(points);
-    const casing = 26;
-    const stroke = 15;
-    const dot = 22;
-    const route = line
-      ? `
-        <polyline points="${line}" fill="none" stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="${casing}" stroke-linejoin="round" stroke-linecap="round" />
-        <polyline points="${line}" fill="none" stroke="${accent}" stroke-width="${stroke}" stroke-linejoin="round" stroke-linecap="round" />
-        ${start ? `<circle cx="${start[0]}" cy="${start[1]}" r="${dot}" fill="${GREEN}" stroke="#FFFFFF" stroke-width="8" />` : ''}
-        ${end ? `<circle cx="${end[0]}" cy="${end[1]}" r="${dot}" fill="${accent}" stroke="#FFFFFF" stroke-width="8" />` : ''}`
-      : '';
-    routeLayer = `<div class="routeArea"><svg viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">${route}</svg></div>`;
+    routeLayer = artRouteLayer(artStyle, points, accent, fg);
   }
 
   const scrim = isMap
@@ -461,8 +599,27 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     .join('');
 
   const mark = watermark
-    ? `<div class="mark"><span class="markTri"></span><span class="markName">Orbe</span></div>`
+    ? `<div class="mark"><span class="markDot"></span><span class="markName">Orbe</span></div>`
     : '';
+
+  // Glifo da atividade antes do título (mesmo ícone MDI que o app usa via
+  // getActivityMeta; fallback = halteres, como lá).
+  const iconPath =
+    activityId != null
+      ? (ACTIVITY_ICON_PATHS[getActivityMeta(activityId).icon] ?? ACTIVITY_ICON_PATHS.dumbbell)
+      : null;
+  const titleIcon = iconPath
+    ? `<svg class="titleIcon" viewBox="0 0 24 24"><path d="${iconPath}" fill="currentColor"/></svg>`
+    : '';
+
+  // Fundo do documento: preto sob arte/mapa (evita flash branco no load);
+  // transparente no modo 'data' (o PNG exportado sai com alpha). O xadrez de
+  // preview usa tons escuros — o texto auto branco continua legível.
+  const bodyBg = !isData
+    ? '#000'
+    : previewChecker
+      ? 'conic-gradient(#4A4A4A 25%, #3A3A3A 0 50%, #4A4A4A 0 75%, #3A3A3A 0) 0 0 / 12vw 12vw'
+      : 'transparent';
 
   return `<!DOCTYPE html>
 <html>
@@ -473,7 +630,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
   <style>
     ${SHARE_FONT_FACE_CSS}
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; height: 100%; background: #000; }
+    html, body { margin: 0; padding: 0; height: 100%; background: ${bodyBg}; }
     .bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
     .bg > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
     #map { position: absolute; inset: 0; ${fx.mapFilter} }
@@ -485,15 +642,24 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     /* pointer-events:none — o texto não captura toques; com mapa interativo,
        os gestos (pan/zoom/rotação) atravessam até o #map. */
     .card { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
-      justify-content: space-between; padding: 7vw 6vw; font-family: ${SANS}; color: ${fg};
+      justify-content: flex-end; padding: 7vw 6vw; font-family: ${SANS}; color: ${fg};
       pointer-events: none; ${shadow} }
     .routeArea { flex: 1; position: relative; min-height: 0; margin: 4vw 0; }
     .routeArea svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    /* Legenda da arte 'speed' (rampa lento → rápido). */
+    .speedLegend { position: absolute; left: 0; right: 0; bottom: 0; display: flex;
+      align-items: center; justify-content: center; gap: 2.4vw; font-size: 3vw;
+      letter-spacing: 0.1em; text-transform: uppercase; color: ${fgMuted}; }
+    .legendBar { width: 24vw; height: 1.2vw; border-radius: 1vw;
+      background: linear-gradient(to right, ${HEAT_SLOW}, ${HEAT_MID}, ${accent}); }
+    .titleRow { display: flex; align-items: center; gap: 2.6vw; }
+    /* Ícone do tamanho da fonte do título; text-shadow não pega em SVG, então
+       o modo overlay (mapa/dados) usa drop-shadow equivalente. */
+    .titleIcon { width: 8.6vw; height: 8.6vw; flex: none;
+      ${overlayText ? 'filter: drop-shadow(0 1px 6px rgba(0,0,0,0.4));' : ''} }
     .title { font-family: ${DISPLAY}; font-size: 8.6vw; line-height: 1.06;
       font-weight: 500; letter-spacing: -0.015em; }
-    .rule { width: 15vw; height: 1.1vw; border-radius: 1vw; background: ${accent}; margin-top: 3vw; }
-    .subtitle { font-size: 3.4vw; letter-spacing: 0.12em; text-transform: uppercase;
-      color: ${fgMuted}; margin-top: 3vw; }
+    .rule { width: 15vw; height: 1.1vw; border-radius: 1vw; background: ${accent}; }
     .footer { display: flex; flex-direction: column; gap: 4vw; }
     .metrics { display: flex; flex-wrap: wrap; gap: 3vw 8vw; }
     .tile { display: flex; flex-direction: column; }
@@ -502,8 +668,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     .caption { font-size: 3vw; letter-spacing: 0.1em; text-transform: uppercase;
       color: ${fgMuted}; margin-top: 1.6vw; }
     .mark { display: flex; align-items: center; gap: 2vw; opacity: 0.92; }
-    .markTri { width: 0; height: 0; border-left: 2.2vw solid transparent; border-right: 2.2vw solid transparent;
-      border-bottom: 3.8vw solid ${accent}; }
+    .markDot { width: 3.6vw; height: 3.6vw; border-radius: 50%; background: ${accent}; }
     .markName { font-family: ${DISPLAY}; font-size: 4.4vw; font-weight: 500; }
   </style>
 </head>
@@ -511,13 +676,10 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
   ${bgLayer}
   ${scrim}
   <div class="card">
-    <div class="header">
-      <div class="title">${escapeHtml(title)}</div>
-      <div class="rule"></div>
-      ${subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : ''}
-    </div>
     ${routeLayer}
     <div class="footer">
+      <div class="titleRow">${titleIcon}<div class="title">${escapeHtml(title)}</div></div>
+      <div class="rule"></div>
       <div class="metrics">${tiles}</div>
       ${mark}
     </div>

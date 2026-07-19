@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,13 +17,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
 import { MAP_STYLES, type MapStyle } from '@vitale/shared';
-import type { MapPoint, MapViewState } from '../../lib/map-html';
+import type { MapViewState } from '../../lib/map-html';
+import type { RoutePoint } from '../../lib/workout-types';
 import {
   formatDistance,
   formatDuration,
   formatRate,
   formatElevation,
-  formatDateLabel,
 } from '../../lib/workout-format';
 import {
   buildShareCardHtml,
@@ -37,13 +38,14 @@ import {
   type ShareMetricTile,
   type ShareTheme,
 } from '../../lib/share-card-html';
-import { captureAndShareCard } from '../../lib/share-export';
+import { captureCardPng, saveCardPngToGallery, shareCardPng } from '../../lib/share-export';
 import { colors, spacing, radii, shadows, themed, useTheme, MOD } from '../../theme';
 
 interface ShareComposerModalProps {
   visible: boolean;
   onClose: () => void;
-  points: readonly MapPoint[];
+  /** Track completo (altitude/timestamp alimentam as artes data-driven). */
+  points: readonly RoutePoint[];
   /** Estilo de mapa inicial (das preferências do usuário); a troca no composer é local. */
   initialMapStyle: MapStyle;
   context: ShareContext;
@@ -118,12 +120,15 @@ const FORMAT_OPTS: { key: ShareFormat; label: string }[] = [
 const BG_OPTS: { key: ShareBackground; label: string }[] = [
   { key: 'art', label: 'Arte' },
   { key: 'map', label: 'Mapa' },
+  { key: 'data', label: 'Dados' },
 ];
 const THEME_OPTS: { key: ShareTheme; label: string }[] = [
   { key: 'light', label: 'Claro' },
   { key: 'dark', label: 'Escuro' },
 ];
 const ART_OPTS: { key: ShareArtStyle; label: string }[] = [
+  { key: 'speed', label: 'Velocidade' },
+  { key: 'elevation', label: 'Perfil' },
   { key: 'glow', label: 'Brilho' },
   { key: 'mesh', label: 'Malha' },
   { key: 'topo', label: 'Relevo' },
@@ -201,7 +206,6 @@ export function ShareComposerModal({
 
   const metrics = useMemo(() => availableMetrics(context), [context]);
   const defaultTitle = (context.activityName?.trim() || context.metaLabel).trim();
-  const subtitle = `${context.metaLabel} · ${formatDateLabel(context.startISO)}`;
 
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
@@ -259,7 +263,7 @@ export function ShareComposerModal({
         mapEffect,
         textColor: textColor ?? undefined,
         title: debouncedTitle || defaultTitle,
-        subtitle,
+        activityId: context.activityId,
         metrics: selectedTiles,
         watermark,
         mapTile,
@@ -267,9 +271,10 @@ export function ShareComposerModal({
         // no último enquadramento reportado, em vez de refazer o fitBounds.
         mapInteractive: background === 'map',
         mapView: adaptView(mapViewRef.current, mapTile.kind),
+        previewChecker: background === 'data',
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, format, background, theme, artStyle, mapEffect, textColor, debouncedTitle, defaultTitle, subtitle, selectedTiles, watermark, mapTile],
+    [points, format, background, theme, artStyle, mapEffect, textColor, debouncedTitle, defaultTitle, context.activityId, selectedTiles, watermark, mapTile],
   );
 
   // Letterbox: dimensiona o WebView à proporção real de saída dentro da área.
@@ -296,21 +301,34 @@ export function ShareComposerModal({
     });
   };
 
-  // ── Exportar: renderiza o cartão num WebView offscreen em resolução plena
-  //    (1080px), captura em PNG e abre o share sheet nativo. ────────────────
+  // ── Exportar: renderiza o cartão num WebView de palco (na tela, coberto por
+  //    um overlay opaco), captura em PNG a 1080px e abre o share sheet. ──────
   const dim = FORMAT_DIMENSIONS[format];
-  const exportRef = useRef<WebView>(null);
+  // Ref na View que embrulha o WebView de export: a ref do próprio WebView
+  // (13.x) é um handle imperativo (goBack, injectJavaScript…), não uma view
+  // nativa — o captureRef do view-shot falha com "not a ReactComponent".
+  const exportStageRef = useRef<View>(null);
   const [exporting, setExporting] = useState(false);
   const [exportHtml, setExportHtml] = useState('');
 
+  // Palco de export: o maior tamanho com a proporção do formato que cabe na
+  // tela. Precisa ficar DENTRO da tela: o WKWebView só rasteriza a região
+  // visível e o drawViewHierarchyInRect do snapshot falha com views offscreen.
+  // O cartão usa vw — escala perfeita; a captura redimensiona para 1080px.
+  const win = useWindowDimensions();
+  const exportBox = useMemo(() => {
+    const s = Math.min(win.width / dim.width, win.height / dim.height);
+    return { width: Math.round(dim.width * s), height: Math.round(dim.height * s) };
+  }, [win.width, win.height, dim]);
+
   // Congela o cartão atual em versão estática para o snapshot. O zoom do
-  // enquadramento é corrigido para a resolução de export (mesma área visível:
-  // z' = z + log2(largura_export / largura_preview)).
+  // enquadramento é corrigido para o viewport do palco (mesma área visível:
+  // z' = z + log2(largura_palco / largura_preview)).
   const startExport = () => {
     tap();
     let view = adaptView(mapViewRef.current, mapTile.kind);
     if (view && box.width > 0) {
-      view = { ...view, zoom: view.zoom + Math.log2(dim.width / box.width) };
+      view = { ...view, zoom: view.zoom + Math.log2(exportBox.width / box.width) };
     }
     setExportHtml(
       buildShareCardHtml({
@@ -322,7 +340,7 @@ export function ShareComposerModal({
         mapEffect,
         textColor: textColor ?? undefined,
         title: title || defaultTitle,
-        subtitle,
+        activityId: context.activityId,
         metrics: selectedTiles,
         watermark,
         mapTile,
@@ -340,14 +358,54 @@ export function ShareComposerModal({
       await new Promise((r) =>
         setTimeout(r, background === 'map' ? (mapTile.kind === 'vector' ? 2200 : 1500) : 350),
       );
-      const result = await captureAndShareCard(exportRef, dim, title || defaultTitle);
-      if (result === 'unavailable') {
-        Alert.alert('Indisponível', 'Compartilhamento não está disponível neste dispositivo.');
-      }
-    } catch {
-      Alert.alert('Erro', 'Não foi possível gerar a imagem do cartão.');
+      const uri = await captureCardPng(exportStageRef, dim);
+      setExporting(false); // desmonta o palco antes do diálogo de destino
+      offerDelivery(uri);
+    } catch (e) {
+      // Inclui o detalhe técnico — sem ele é impossível diagnosticar no device.
+      const detail = e instanceof Error && e.message ? `\n\n${e.message}` : '';
+      Alert.alert('Erro', `Não foi possível gerar a imagem do cartão.${detail}`);
     } finally {
       setExporting(false);
+    }
+  };
+
+  // O share sheet não oferece "Salvar imagem" para file-URLs — daí a escolha
+  // explícita de destino (galeria direto via media-library, ou share sheet).
+  const offerDelivery = (uri: string) => {
+    Alert.alert('Cartão pronto', 'O que fazer com a imagem?', [
+      { text: 'Salvar na galeria', onPress: () => void deliverToGallery(uri) },
+      { text: 'Compartilhar…', onPress: () => void deliverToShare(uri) },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  };
+
+  const deliverToGallery = async (uri: string) => {
+    try {
+      const result = await saveCardPngToGallery(uri);
+      if (result === 'denied') {
+        Alert.alert(
+          'Sem permissão',
+          'Autorize o acesso às fotos nos Ajustes para salvar o cartão na galeria.',
+        );
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Alert.alert('Salvo', 'Cartão salvo na galeria.');
+    } catch (e) {
+      const detail = e instanceof Error && e.message ? `\n\n${e.message}` : '';
+      Alert.alert('Erro', `Não foi possível salvar na galeria.${detail}`);
+    }
+  };
+
+  const deliverToShare = async (uri: string) => {
+    try {
+      if ((await shareCardPng(uri, title || defaultTitle)) === 'unavailable') {
+        Alert.alert('Indisponível', 'Compartilhamento não está disponível neste dispositivo.');
+      }
+    } catch (e) {
+      const detail = e instanceof Error && e.message ? `\n\n${e.message}` : '';
+      Alert.alert('Erro', `Não foi possível compartilhar.${detail}`);
     }
   };
 
@@ -514,15 +572,19 @@ export function ShareComposerModal({
             </>
           )}
 
-          <Text style={styles.fieldLabel}>Tema do cartão</Text>
-          <Segmented
-            options={THEME_OPTS}
-            value={theme}
-            onChange={(v) => {
-              tap();
-              setTheme(v);
-            }}
-          />
+          {background !== 'data' && (
+            <>
+              <Text style={styles.fieldLabel}>Tema do cartão</Text>
+              <Segmented
+                options={THEME_OPTS}
+                value={theme}
+                onChange={(v) => {
+                  tap();
+                  setTheme(v);
+                }}
+              />
+            </>
+          )}
 
           <Text style={styles.fieldLabel}>Cor do texto</Text>
           <SwatchRow
@@ -568,25 +630,35 @@ export function ShareComposerModal({
           </Pressable>
         </ScrollView>
 
-        {/* WebView offscreen em resolução plena — fonte do snapshot PNG. */}
+        {/* Palco do snapshot: o cartão em tamanho de tela, escondido do usuário
+            pelo overlay opaco por cima (nunca deslocado para fora da tela —
+            ver comentário do exportBox). */}
         {exporting && (
-          <View
-            style={[styles.offscreen, { width: dim.width, height: dim.height }]}
-            pointerEvents="none"
-            collapsable={false}
-          >
-            <WebView
-              ref={exportRef}
-              originWhitelist={['*']}
-              source={{ html: exportHtml }}
-              style={{ width: dim.width, height: dim.height }}
-              scrollEnabled={false}
-              showsVerticalScrollIndicator={false}
-              showsHorizontalScrollIndicator={false}
-              androidLayerType="hardware"
-              onLoadEnd={onExportLoaded}
-            />
-          </View>
+          <>
+            <View
+              ref={exportStageRef}
+              style={[styles.exportStage, { width: exportBox.width, height: exportBox.height }]}
+              pointerEvents="none"
+              collapsable={false}
+            >
+              <WebView
+                originWhitelist={['*']}
+                source={{ html: exportHtml }}
+                // Transparente p/ o PNG do modo "Dados" sair com alpha (arte e
+                // mapa pintam fundo opaco próprio — não muda nada p/ eles).
+                style={{ width: exportBox.width, height: exportBox.height, backgroundColor: 'transparent' }}
+                scrollEnabled={false}
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
+                androidLayerType="hardware"
+                onLoadEnd={onExportLoaded}
+              />
+            </View>
+            <View style={styles.exportOverlay}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.exportOverlayText}>Gerando imagem…</Text>
+            </View>
+          </>
         )}
       </View>
     </Modal>
@@ -741,6 +813,15 @@ const styles = themed(() =>
       ...shadows.card,
     },
     web: { flex: 1, backgroundColor: 'transparent' },
+    exportStage: { position: 'absolute', top: 0, left: 0 },
+    exportOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.bg,
+    },
+    exportOverlayText: { fontSize: 14, color: colors.ink2 },
     recenterBtn: {
       position: 'absolute',
       right: spacing.md,
@@ -758,7 +839,6 @@ const styles = themed(() =>
       justifyContent: 'center',
       backgroundColor: colors.surfaceMute,
     },
-    offscreen: { position: 'absolute', left: -100000, top: 0 },
 
     controls: {
       maxHeight: '46%',

@@ -655,9 +655,14 @@ export async function runIngest(
     const hrParams = await loadHrParams(admin, userId, account.athlete_meta);
     let lastStartMs = account.cursor ? Date.parse(account.cursor) : 0;
     for (const ref of capped) {
+      // Avança o cursor por TODA atividade consumida — inclusive as que
+      // normalizam para null (ex.: stubs source=STRAVA sem duração/streams no
+      // intervals.icu). Sem isso, uma leva de stubs vazios no começo da janela
+      // trava o backfill: o cursor nunca passa deles e cada tick reprocessa os
+      // mesmos 30. `ref.startMs` = mesmo instante de `norm.startAt`.
+      if (Number.isFinite(ref.startMs)) lastStartMs = Math.max(lastStartMs, ref.startMs);
       if (known.has(ref.externalId)) {
         summary.skipped++;
-        if (Number.isFinite(ref.startMs)) lastStartMs = Math.max(lastStartMs, ref.startMs);
         continue;
       }
       const norm = await ref.normalize();
@@ -669,7 +674,6 @@ export async function runIngest(
       if (outcome === 'inserted') summary.inserted++;
       else if (outcome === 'merged') summary.merged++;
       else summary.skipped++;
-      lastStartMs = Math.max(lastStartMs, Date.parse(norm.startAt));
     }
 
     summary.swept = await reconcileRecent(admin, userId);
