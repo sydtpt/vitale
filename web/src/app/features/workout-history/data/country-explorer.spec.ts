@@ -3,6 +3,7 @@ import {
   activitiesInCountry,
   citiesInCountry,
   countryForCity,
+  countryStats,
   countryViewport,
   ridesByCountry,
 } from '@vitale/shared';
@@ -84,13 +85,19 @@ describe('citiesInCountry', () => {
     expect(cities[0].visitCount).toBe(2);
   });
 
-  it('exclui cidade a ~60 km fora da borda (além do buffer de 50 km)', () => {
-    // Ponto ~60 km a leste da borda leste da Bélgica (lng 6.16), na lat ~50.5.
-    const beyond: CityMark = { name: 'Aachen', countryCode: 'BE', lat: 50.5, lng: 7.05 };
-    const cities = citiesInCountry([act('a1', [brusselsCity, beyond])], 'BE');
+  it('lista só cidades do país: exclui cidade de outro país cruzada pela rota', () => {
+    // Rota BE→FR: a cidade francesa NÃO deve aparecer na lista da Bélgica.
+    const lille: CityMark = { name: 'Lille', countryCode: 'FR', lat: 50.63, lng: 3.06 };
+    const cities = citiesInCountry([act('a1', [brusselsCity, lille])], 'BE');
     const names = cities.map((c) => c.name);
     expect(names).toContain('Bruxelas');
-    expect(names).not.toContain('Aachen');
+    expect(names).not.toContain('Lille');
+  });
+
+  it('sem countryCode (marca antiga): cai no bbox do país', () => {
+    const legacy: CityMark = { name: 'Gent', lat: 51.05, lng: 3.72 }; // dentro da BE, sem código
+    const cities = citiesInCountry([act('a1', [legacy])], 'BE');
+    expect(cities.map((c) => c.name)).toContain('Gent');
   });
 });
 
@@ -133,5 +140,50 @@ describe('activitiesInCountry', () => {
       'BR',
     );
     expect(rides.map((r) => r.id)).toEqual(['a3', 'a1']);
+  });
+});
+
+describe('countryStats', () => {
+  it('soma distância/elevação/calorias, pega máximos e data mais recente', () => {
+    const s = countryStats([
+      act('a1', [brusselsCity], {
+        distanceM: 40000, elevationM: 300, movingTimeS: 5400, calories: 800,
+        startAt: '2026-01-01T10:00:00Z',
+      }),
+      act('a2', [brusselsCity], {
+        distanceM: 60000, elevationM: 500, movingTimeS: 7200, calories: 1200,
+        startAt: '2026-02-01T10:00:00Z',
+      }),
+    ]);
+    expect(s.rideCount).toBe(2);
+    expect(s.distanceM).toBe(100000);
+    expect(s.elevationM).toBe(800);
+    expect(s.movingTimeS).toBe(12600);
+    expect(s.calories).toBe(2000);
+    expect(s.longestRideM).toBe(60000);
+    expect(s.maxClimbM).toBe(500);
+    expect(s.lastRideAt).toBe('2026-02-01T10:00:00Z');
+  });
+
+  it('avgSpeedKmh deriva dos totais (100 km em 5h = 20 km/h)', () => {
+    const s = countryStats([
+      act('a1', [brusselsCity], { distanceM: 100000, movingTimeS: 18000 }),
+    ]);
+    expect(s.avgSpeedKmh).toBeCloseTo(20, 5);
+  });
+
+  it('campos ausentes contam 0; movingTime cai para durationS; sem tempo → velocidade 0', () => {
+    const s = countryStats([
+      act('a1', [brusselsCity], { distanceM: 30000, durationS: 3600 }), // sem elevationM/movingTimeS
+    ]);
+    expect(s.elevationM).toBe(0);
+    expect(s.maxClimbM).toBe(0);
+    expect(s.movingTimeS).toBe(3600); // fallback durationS
+    expect(s.avgSpeedKmh).toBeCloseTo(30, 5); // 30 km / 1h
+
+    const empty = countryStats([]);
+    expect(empty.rideCount).toBe(0);
+    expect(empty.avgSpeedKmh).toBe(0);
+    expect(empty.distanceM).toBe(0);
   });
 });

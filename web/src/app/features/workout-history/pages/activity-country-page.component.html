@@ -62,6 +62,8 @@
         <rt-country-map [routes]="routes()" [viewport]="viewport()" />
       }
 
+      <rt-country-stats [stats]="stats()" [cityCount]="cities().length" />
+
       <div class="cols">
         <rt-country-city-list [cities]="cities()" />
 

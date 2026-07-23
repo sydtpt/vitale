@@ -5,6 +5,7 @@ import type { ActivityRoutePoint } from '@vitale/shared';
 import {
   activitiesInCountry,
   citiesInCountry,
+  countryStats,
   countryViewport,
   ridesByCountry,
 } from '@vitale/shared';
@@ -16,6 +17,7 @@ import { ActivityItemComponent } from '../components/activity-item.component';
 import { CountryMapComponent } from '../components/country-map.component';
 import { CountryPickerComponent } from '../components/country-picker.component';
 import { CountryCityListComponent } from '../components/country-city-list.component';
+import { CountryStatsComponent } from '../components/country-stats.component';
 
 /**
  * Visão detalhada por país (feature mapa-por-pais). Resolve 0/1/N países a
@@ -35,6 +37,7 @@ import { CountryCityListComponent } from '../components/country-city-list.compon
     CountryMapComponent,
     CountryPickerComponent,
     CountryCityListComponent,
+    CountryStatsComponent,
   ],
   templateUrl: './activity-country-page.component.html',
   styleUrl: './activity-country-page.component.scss',
@@ -73,6 +76,9 @@ export class ActivityCountryPageComponent {
   protected readonly cities = computed(() =>
     this.selected() ? citiesInCountry(this.typeActivities(), this.selected()) : [],
   );
+  /** Agregados do país (faixa de estatísticas). Deriva das atividades já em
+   *  memória — não depende do carregamento das rotas GPS. */
+  protected readonly stats = computed(() => countryStats(this.rides()));
 
   /** Rotas GPS carregadas em lote para o país atual. */
   protected readonly routes = signal<ActivityRoutePoint[][]>([]);

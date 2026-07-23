@@ -39,6 +39,27 @@ export interface CountryCityMark extends CityMark {
   visitCount: number;
 }
 
+/** Agregados de todas as pedaladas de um país — a faixa de estatísticas. */
+export interface CountryStats {
+  rideCount: number;
+  /** Soma das distâncias (m). */
+  distanceM: number;
+  /** Soma do ganho de elevação (m); pedaladas sem elevação contam 0. */
+  elevationM: number;
+  /** Soma do tempo em movimento (s), com fallback para `durationS` por pedalada. */
+  movingTimeS: number;
+  /** Soma das calorias (kcal). */
+  calories: number;
+  /** Maior distância numa única pedalada (m). */
+  longestRideM: number;
+  /** Maior ganho de elevação numa única pedalada (m). */
+  maxClimbM: number;
+  /** Velocidade média (km/h), derivada dos totais (não a média das médias). */
+  avgSpeedKmh: number;
+  /** ISO da pedalada mais recente. */
+  lastRideAt: string;
+}
+
 /* ───────────────────────────── geometria ───────────────────────────── */
 
 /** Graus de latitude para uma distância em km (constante: ~111 km/grau). */
@@ -82,15 +103,16 @@ export function countryForCity(city: CityMark): string | null {
   return null;
 }
 
-/** A marca pertence à visão do país `code` (código igual OU dentro do bbox±buffer)? */
+/**
+ * A cidade pertence estritamente ao país `code`? Com `countryCode` presente, só
+ * pertence se o código bater — assim a lista de um país NÃO mostra cidades de
+ * outro (ex.: uma cidade francesa próxima da fronteira, que uma rota cruzou, não
+ * aparece na lista da Bélgica). Sem código (marcas antigas, pré-enriquecimento),
+ * cai no teste geométrico por bbox ± buffer.
+ */
 function cityBelongsToCountry(city: CityMark, code: string): boolean {
-  if (city.countryCode?.toUpperCase() === code) {
-    const info = COUNTRY_BBOXES[code];
-    // Com dataset: exige também cair no bbox±buffer (descarta ponto de fronteira
-    // que o Nominatim rotulou no país mas está longe da caixa). Sem dataset:
-    // confia só no código.
-    return info ? inBbox(city.lng, city.lat, info.bbox, MAX_BORDER_BUFFER_KM) : true;
-  }
+  const cc = city.countryCode?.toUpperCase();
+  if (cc) return cc === code;
   const info = COUNTRY_BBOXES[code];
   return info ? inBbox(city.lng, city.lat, info.bbox, MAX_BORDER_BUFFER_KM) : false;
 }
@@ -175,6 +197,39 @@ export function citiesInCountry(activities: readonly Activity[], code: string): 
     }
   }
   return [...byKey.values()].sort((x, y) => x.name.localeCompare(y.name));
+}
+
+/**
+ * Agregados das atividades do país (a faixa de estatísticas). Campos opcionais
+ * ausentes contam 0; `movingTimeS` cai para `durationS` por atividade quando o
+ * tempo em movimento não veio no sync. `avgSpeedKmh` deriva dos TOTAIS (não a
+ * média das médias), então pausas longas de uma pedalada não distorcem o geral.
+ */
+export function countryStats(activities: readonly Activity[]): CountryStats {
+  const s: CountryStats = {
+    rideCount: activities.length,
+    distanceM: 0,
+    elevationM: 0,
+    movingTimeS: 0,
+    calories: 0,
+    longestRideM: 0,
+    maxClimbM: 0,
+    avgSpeedKmh: 0,
+    lastRideAt: '',
+  };
+  for (const a of activities) {
+    const dist = a.distanceM ?? 0;
+    const climb = a.elevationM ?? 0;
+    s.distanceM += dist;
+    s.elevationM += climb;
+    s.movingTimeS += a.movingTimeS ?? a.durationS ?? 0;
+    s.calories += a.calories ?? 0;
+    if (dist > s.longestRideM) s.longestRideM = dist;
+    if (climb > s.maxClimbM) s.maxClimbM = climb;
+    if (a.startAt > s.lastRideAt) s.lastRideAt = a.startAt;
+  }
+  s.avgSpeedKmh = s.movingTimeS > 0 ? s.distanceM / 1000 / (s.movingTimeS / 3600) : 0;
+  return s;
 }
 
 /* ─────────────────────────── enquadramento ─────────────────────────── */
