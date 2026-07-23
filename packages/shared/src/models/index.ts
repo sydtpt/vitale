@@ -342,6 +342,33 @@ export interface Activity {
   externalId?: string;
   /** Fontes já mescladas nesta linha canônica (provider → id externo). */
   externalIds?: Record<string, string>;
+  /**
+   * Cidades atravessadas pela rota, na ordem do percurso. Derivadas por
+   * reverse-geocoding do track GPS no ingest (só treinos de bicicleta hoje).
+   * Ausente em treinos sem rota, tipos não cobertos e linhas ainda não
+   * enriquecidas (o passe do ingest preenche ao longo dos ticks).
+   */
+  cities?: CityMark[];
+}
+
+/**
+ * Uma cidade atravessada por uma rota. `lat`/`lng` são o centro da cidade
+ * (âncora para rótulos no mapa/cartão). `state`/`country` são opcionais
+ * (dependem do que o geocoder devolve) e servem para agregações em reports.
+ */
+export interface CityMark {
+  name: string;
+  state?: string;
+  country?: string;
+  /**
+   * Código do país em ISO 3166-1 alpha-2 maiúsculo (ex.: `"BR"`, `"BE"`), do
+   * `address.country_code` do Nominatim. Chave estável para agrupar por país —
+   * independe do idioma da resposta (ao contrário de `country`, texto livre).
+   * Ausente em marcas gravadas antes do enriquecimento passar a capturá-lo.
+   */
+  countryCode?: string;
+  lat: number;
+  lng: number;
 }
 
 export interface ActivityRoutePoint {

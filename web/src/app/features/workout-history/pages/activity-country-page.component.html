@@ -1,0 +1,82 @@
+<div class="page">
+  @if (store.loading()) {
+    <div class="state">Carregando atividades…</div>
+  } @else if (store.error()) {
+    <div class="state error">Não foi possível carregar: {{ store.error() }}</div>
+  } @else if (!label()) {
+    <div class="state">
+      Tipo de atividade não encontrado.
+      <a routerLink="/workout-history" class="link">Voltar ao histórico</a>
+    </div>
+  } @else {
+    <a class="back" [routerLink]="['/workout-history', slug()]">
+      <rt-icon name="chev-l" [size]="16" color="var(--ink-3)" /> {{ label() }}
+    </a>
+
+    @if (!selected()) {
+      <!-- Sem país na URL: grade de seleção (N) ou vazio (0). 1 país redireciona. -->
+      @if (countries().length === 0) {
+        <div class="state">
+          Nenhuma cidade foi resolvida ainda para suas atividades.
+          <div class="hint">O enriquecimento geográfico roda aos poucos no servidor — volte mais tarde.</div>
+        </div>
+      } @else if (countries().length === 1) {
+        <!-- 1 país: o effect redireciona para ?country=<code> em seguida. -->
+        <div class="state">Abrindo…</div>
+      } @else {
+        <header class="head">
+          <div class="head-main">
+            <h1 class="title">Onde você já pedalou</h1>
+            <div class="agg">{{ countries().length }} países</div>
+          </div>
+        </header>
+        <rt-country-picker [countries]="countries()" (select)="selectCountry($event)" />
+      }
+    } @else {
+      <!-- País selecionado: cabeçalho + mapa + cidades + treinos. -->
+      <header class="head">
+        <span class="flag">{{ summary()?.flag }}</span>
+        <div class="head-main">
+          <h1 class="title">{{ summary()?.name ?? selected() }}</h1>
+          @if (summary(); as s) {
+            <div class="agg">
+              {{ s.rideCount }} {{ s.rideCount === 1 ? 'pedalada' : 'pedaladas' }}
+              · {{ fmtKm(s.distanceM) }} km · {{ cities().length }} cidades
+            </div>
+          }
+        </div>
+        @if (countries().length > 1) {
+          <select class="country-select" (change)="selectCountry($any($event.target).value)">
+            @for (c of countries(); track c.code) {
+              <option [value]="c.code" [selected]="c.code === selected()">
+                {{ c.flag }} {{ c.name }}
+              </option>
+            }
+          </select>
+        }
+      </header>
+
+      @if (routesLoading() && routes().length === 0) {
+        <div class="map-skeleton">Carregando rotas…</div>
+      } @else {
+        <rt-country-map [routes]="routes()" [viewport]="viewport()" />
+      }
+
+      <div class="cols">
+        <rt-country-city-list [cities]="cities()" />
+
+        <div class="rides">
+          <div class="rides-head">
+            <span class="rides-title">Pedaladas</span>
+            <span class="rides-total">{{ rides().length }}</span>
+          </div>
+          <div class="list">
+            @for (a of rides(); track a.id) {
+              <rt-activity-item [activity]="a" mode="list" />
+            }
+          </div>
+        </div>
+      </div>
+    }
+  }
+</div>

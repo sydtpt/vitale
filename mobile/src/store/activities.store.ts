@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import type { Activity, ActivityRoutePoint } from '@vitale/shared';
+import type { Activity, ActivityRoutePoint, CityMark } from '@vitale/shared';
 
 export interface ActivityPatch {
   activityName?: string | null;
@@ -9,7 +9,7 @@ export interface ActivityPatch {
 
 const SELECT =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,' +
-  'source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,locally_edited,edited_at,hidden';
+  'source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,cities,locally_edited,edited_at,hidden';
 
 interface DbActivityRow {
   id: string;
@@ -30,6 +30,7 @@ interface DbActivityRow {
   has_route: boolean | null;
   best_efforts: Record<string, number> | null;
   hr_zones: Record<string, number> | null;
+  cities: CityMark[] | null;
   locally_edited: boolean | null;
   edited_at: string | null;
   hidden: boolean | null;
@@ -55,6 +56,7 @@ function mapRow(r: DbActivityRow): Activity {
     hasRoute: r.has_route ?? false,
     bestEfforts: r.best_efforts ?? undefined,
     hrZones: r.hr_zones ?? undefined,
+    cities: r.cities ?? undefined,
     locallyEdited: r.locally_edited ?? false,
     editedAt: r.edited_at ?? undefined,
     hidden: r.hidden ?? false,

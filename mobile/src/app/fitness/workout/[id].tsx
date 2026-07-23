@@ -240,6 +240,7 @@ export default function WorkoutDetailScreen() {
                   totalS,
                   calories: workout.calories,
                   elevationM: elevationGain(route),
+                  cities: supMatch?.cities,
                 }}
               />
             </View>

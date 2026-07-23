@@ -19,7 +19,7 @@
           <rt-icon [name]="s.icon" [size]="24" [color]="s.color" [strokeWidth]="1.8" />
         </span>
       }
-      <div>
+      <div class="head-main">
         <h1 class="title">{{ label() }}</h1>
         @if (summary(); as s) {
           <div class="agg">
@@ -29,6 +29,12 @@
           </div>
         }
       </div>
+      @if (countries().length > 0) {
+        <a class="detail-btn" [routerLink]="['/workout-history', slug(), 'mapa']">
+          <rt-icon name="flag" [size]="16" color="currentColor" />
+          Visão detalhada
+        </a>
+      }
     </header>
 
     @if (highlights().length > 0) {

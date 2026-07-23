@@ -12,7 +12,7 @@
  */
 import { adminClient } from '../_shared/admin.ts';
 import { getUserFromRequest, json, preflight } from '../_shared/auth.ts';
-import { reconcileRecent, runIngest, runIngestAll } from '../_shared/ingest.ts';
+import { enrichCities, reconcileRecent, runIngest, runIngestAll } from '../_shared/ingest.ts';
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -41,6 +41,13 @@ Deno.serve(async (req) => {
   if (body.mode === 'reconcile') {
     try {
       const swept = await reconcileRecent(admin, user.id);
+      // Enriquece cidades de bikes só-HealthKit (usuários sem provider vinculado
+      // nunca passam pelo cron/runIngest — este é o único gancho que os alcança).
+      try {
+        await enrichCities(admin, user.id);
+      } catch (_err) {
+        // best-effort — retry no próximo push/reconcile.
+      }
       return json({ mode: 'reconcile', swept });
     } catch (err) {
       return json({ error: err instanceof Error ? err.message : String(err) }, 500);

@@ -54,6 +54,14 @@ const routes: Routes = [
       import('@features/workout-history/pages/activity-type-page.component').then(m => m.ActivityTypePageComponent),
   },
   {
+    // Precede a rota :id abaixo — `:id` casaria com "mapa" (param aceita
+    // qualquer segmento) e abriria o detalhe de uma atividade inexistente.
+    path: 'workout-history/:slug/mapa',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/workout-history/pages/activity-country-page.component').then(m => m.ActivityCountryPageComponent),
+  },
+  {
     path: 'workout-history/:slug/:id',
     canActivate: [profileGuard],
     loadComponent: () =>

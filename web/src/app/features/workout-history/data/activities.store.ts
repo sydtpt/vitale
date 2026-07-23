@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import type { Activity, ActivityRoutePoint } from '@vitale/shared';
+import type { Activity, ActivityRoutePoint, CityMark } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { buildTypeSummaries } from './type-summary';
@@ -7,7 +7,7 @@ import { buildTypeSummaries } from './type-summary';
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 const SELECT =
-  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,source_name,tracked,has_route,best_efforts,hr_zones,locally_edited,edited_at,hidden';
+  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,source_name,tracked,has_route,best_efforts,hr_zones,cities,locally_edited,edited_at,hidden';
 
 interface DbActivityRow {
   id: string;
@@ -26,6 +26,7 @@ interface DbActivityRow {
   has_route: boolean | null;
   best_efforts: Record<string, number> | null;
   hr_zones: Record<string, number> | null;
+  cities: CityMark[] | null;
   locally_edited: boolean | null;
   edited_at: string | null;
   hidden: boolean | null;
@@ -43,8 +44,15 @@ export class ActivitiesStore {
   private readonly _all = signal<Activity[]>([]);
   private readonly _state = signal<LoadState>('idle');
   private readonly _error = signal<string | null>(null);
-  /** Cache de rotas GPS por activityId — carregadas sob demanda no detalhe. */
+  /** Cache de rotas GPS (resolução cheia) por activityId — usado no detalhe. */
   private readonly _routes = new Map<string, ActivityRoutePoint[]>();
+  /**
+   * Cache de overviews reduzidos (route_overview: ~1/40 pontos, só lat/lng) por
+   * activityId — usado no mapa agregado por país. Separado de `_routes` de
+   * propósito: mesma chave, resoluções diferentes; misturá-los devolveria baixa
+   * resolução ao detalhe (que precisa dos pontos cheios).
+   */
+  private readonly _overviews = new Map<string, ActivityRoutePoint[]>();
 
   /** Atividades visíveis (exclui ocultas) — base de toda derivação analítica. */
   readonly activities = computed(() => this._all().filter((a) => !a.hidden));
@@ -166,6 +174,39 @@ export class ActivitiesStore {
     this._routes.set(activityId, points);
     return points;
   }
+
+  /**
+   * Carrega os overviews reduzidos de várias atividades de uma vez (mapa por
+   * país, onde dezenas de rotas são desenhadas juntas). Lê `route_overview`
+   * (~1/40 pontos, só lat/lng) em vez de `points` cheio — puxar o track completo
+   * de dezenas de rotas num `in(...)` estoura o statement_timeout de 8s. Busca só
+   * as ainda não cacheadas, guarda no cache próprio `_overviews`, e devolve um
+   * Map id→pontos com uma entrada por id pedido (`[]` para as sem rota).
+   */
+  async loadRouteOverviews(ids: readonly string[]): Promise<Map<string, ActivityRoutePoint[]>> {
+    const missing = ids.filter((id) => !this._overviews.has(id));
+    if (missing.length > 0) {
+      const { data, error } = await supabase
+        .from('activity_routes')
+        .select('activity_id, route_overview')
+        .in('activity_id', missing);
+      if (error) throw new Error(error.message);
+
+      for (const row of (data ?? []) as {
+        activity_id: string;
+        route_overview: [number, number][] | null;
+      }[]) {
+        // route_overview é [[lat,lng],...]; mapeia para {lat,lng} p/ o mapa.
+        const points = (row.route_overview ?? [])
+          .filter((pair) => Array.isArray(pair) && pair.length >= 2)
+          .map(([lat, lng]) => ({ lat, lng }));
+        this._overviews.set(row.activity_id, points);
+      }
+      // Ids sem linha em activity_routes: cacheia [] para não rebuscar.
+      for (const id of missing) if (!this._overviews.has(id)) this._overviews.set(id, []);
+    }
+    return new Map(ids.map((id) => [id, this._overviews.get(id) ?? []]));
+  }
 }
 
 function mapRow(r: DbActivityRow): Activity {
@@ -186,6 +227,7 @@ function mapRow(r: DbActivityRow): Activity {
     hasRoute: r.has_route ?? false,
     bestEfforts: r.best_efforts ?? undefined,
     hrZones: r.hr_zones ?? undefined,
+    cities: r.cities ?? undefined,
     locallyEdited: r.locally_edited ?? false,
     editedAt: r.edited_at ?? undefined,
     hidden: r.hidden ?? false,

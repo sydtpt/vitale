@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ridesByCountry } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { activityIdForSlug, labelForSlug } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
@@ -59,6 +60,16 @@ export class ActivityTypePageComponent {
     this.highlights().filter((h) => h.group === 'record'),
   );
   protected readonly showDistance = computed(() => this.summary()?.hasDistance ?? true);
+
+  /**
+   * Países já cruzados por atividades deste tipo (com `cities` enriquecidas).
+   * Vazio ⇒ o botão "Visão detalhada" não aparece (nada geográfico a mostrar).
+   */
+  protected readonly countries = computed(() => {
+    const id = activityIdForSlug(this._slug());
+    if (id == null) return [];
+    return ridesByCountry(this.store.activities().filter((a) => a.activityId === id));
+  });
 
   protected readonly result = computed(() =>
     buildActivityList(this.store.activities(), this.label() ?? '', {

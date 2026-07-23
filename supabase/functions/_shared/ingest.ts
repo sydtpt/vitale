@@ -31,6 +31,7 @@ import {
   computeHrZonesFromSamples,
   type FitnessHrZoneParams,
 } from '../../../packages/shared/src/fitness/streams.ts';
+import { citiesFromPoints } from './geocode.ts';
 import type { NormalizedActivity } from './normalize.ts';
 import { AuthError } from './providers/errors.ts';
 import {
@@ -530,6 +531,58 @@ async function mergeRows(
   if (delErr) throw new Error(`delete da duplicata falhou: ${delErr.message}`);
 }
 
+/* ───────────────────── Enriquecimento de cidades ───────────────────── */
+
+/** Código de ciclismo do HealthKit — único tipo enriquecido com cidades hoje. */
+const BIKE_ACTIVITY_ID = 13;
+/** Teto de atividades geocodificadas por run (geocoding é lento; drena histórico
+ *  ao longo dos ticks e respeita o rate limit do Nominatim). */
+export const MAX_GEOCODE_ACTIVITIES_PER_RUN = 3;
+
+/**
+ * Preenche `activities.cities` para treinos de bicicleta com rota ainda não
+ * enriquecidos (source-agnostic: varre linhas persistidas, então cobre
+ * HealthKit, Strava e intervals uniformemente e faz backfill do histórico).
+ * Best-effort: nunca lança — erro por atividade deixa `cities` NULL para tentar
+ * no próximo run; `[]` só quando o geocoder resolveu e nada foi encontrado.
+ */
+export async function enrichCities(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('activities')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('activity_id', BIKE_ACTIVITY_ID)
+    .eq('has_route', true)
+    .is('cities', null)
+    .order('start_at', { ascending: false })
+    .limit(MAX_GEOCODE_ACTIVITIES_PER_RUN);
+  const ids = (data ?? []).map((r) => r.id as string);
+
+  let enriched = 0;
+  for (const id of ids) {
+    try {
+      const { data: routeRow } = await admin
+        .from('activity_routes')
+        .select('points')
+        .eq('user_id', userId)
+        .eq('activity_id', id)
+        .maybeSingle();
+      const points = (routeRow?.points ?? []) as { lat: number; lng: number }[];
+      // Sem rota utilizável: marca [] para não reprocessar toda vez.
+      const cities = points.length < 2 ? [] : await citiesFromPoints(points);
+      const { error } = await admin
+        .from('activities')
+        .update({ cities })
+        .eq('id', id)
+        .eq('user_id', userId);
+      if (!error) enriched++;
+    } catch (_err) {
+      // Erro (rede/rate-limit): deixa `cities` NULL — tenta no próximo run.
+    }
+  }
+  return enriched;
+}
+
 /* ───────────────────── Run por (usuário, provedor) ───────────────────── */
 
 interface LinkedAccountRow {
@@ -677,6 +730,12 @@ export async function runIngest(
     }
 
     summary.swept = await reconcileRecent(admin, userId);
+    // Enriquecimento de cidades (best-effort, nunca derruba o run).
+    try {
+      await enrichCities(admin, userId);
+    } catch (_err) {
+      // ignora — o passe é retry-safe e roda de novo no próximo tick.
+    }
 
     await admin
       .from('linked_accounts')

@@ -163,3 +163,4 @@ Cada módulo tem seu spec em `.claude/specs/`:
 - [Web: Recap Semanal (resumo automático da semana)](.claude/specs/recap-semanal/spec.md) · [tasks](.claude/specs/recap-semanal/tasks.md)
 - [Ratings diários subjetivos (sono ao acordar + dia após 22h)](.claude/specs/ratings-diarios/spec.md)
 - [Retrospectiva (resumo agregado por semana/mês/ano com insights cruzados)](.claude/specs/retrospectiva/spec.md)
+- [Web: Visão detalhada por país (Ciclismo — mapa de rotas + cidades por país)](.claude/specs/mapa-por-pais/spec.md) · [plan](.claude/specs/mapa-por-pais/plan.md) · [data-model](.claude/specs/mapa-por-pais/data-model.md) · [tasks](.claude/specs/mapa-por-pais/tasks.md)

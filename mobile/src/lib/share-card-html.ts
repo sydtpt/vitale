@@ -1,4 +1,4 @@
-import type { MapStyleConfig } from '@vitale/shared';
+import type { CityMark, MapStyleConfig } from '@vitale/shared';
 import { MOD } from '../theme';
 import { mapHead, mapScript, type MapPoint, type MapViewState } from './map-html';
 import { SHARE_FONT_FACE_CSS } from './share-fonts';
@@ -8,13 +8,13 @@ import { speedFractions, elevationProfile } from './share-art-data';
 
 /** Formatos de saída do cartão (proporção). */
 export type ShareFormat = 'story' | 'square' | 'portrait'; // 9:16 · 1:1 · 4:5
-/** 'data' = só título/métricas/marca sobre fundo transparente (sticker). */
+/** Ambos os fundos sem mapa exportam PNG com alpha (sticker): 'art' desenha a
+ *  rota/perfil sobre transparência, 'data' só título/métricas/marca. */
 export type ShareBackground = 'art' | 'map' | 'data';
-export type ShareTheme = 'light' | 'dark';
-/** Variantes visuais do fundo "arte". 'speed' e 'elevation' são data-driven:
- *  rota colorida por ritmo e perfil de altitude (caem no traçado padrão
- *  quando o track não tem timestamp/altitude). */
-export type ShareArtStyle = 'glow' | 'mesh' | 'topo' | 'horizon' | 'grid' | 'speed' | 'elevation';
+/** Desenho da região central no fundo "arte" — todos data-driven. 'speed' e
+ *  'elevation' dependem de timestamp/altitude no track (caem no traçado padrão
+ *  quando faltam); 'route' é só o traçado. */
+export type ShareArtStyle = 'speed' | 'route' | 'elevation';
 /** Efeito aplicado sobre os tiles do mapa (entre o mapa e o scrim). */
 export type ShareMapEffect = 'none' | 'duotone' | 'gradient' | 'grain' | 'vignette';
 
@@ -53,6 +53,9 @@ export interface ShareContext {
   elevationM?: number;
   /** Média de FC (bpm), quando disponível. Ausente ⇒ chip de FC não aparece. */
   hrAvgBpm?: number;
+  /** Cidades atravessadas pela rota (bike enriquecida). Ausente/vazio ⇒ o toggle
+   *  "Mostrar cidades" não aparece. */
+  cities?: CityMark[];
 }
 
 export interface ShareCardOptions {
@@ -61,19 +64,24 @@ export interface ShareCardOptions {
   points: readonly RoutePoint[];
   format: ShareFormat;
   background: ShareBackground;
-  theme: ShareTheme;
   title: string;
+  /** Desenha o título (ícone + texto) e o traço logo abaixo. */
+  showTitle: boolean;
   /** Tipo de atividade — desenha o glifo correspondente antes do título
    *  (mesmo mapeamento de getActivityMeta). Ausente ⇒ sem ícone. */
   activityId?: number;
   /** Já filtradas para as selecionadas + disponíveis, na ordem de exibição. */
   metrics: ShareMetricTile[];
+  /** Cidades a rotular na rota — já filtradas para as selecionadas pelo usuário.
+   *  Ausente/vazio ⇒ nenhuma cidade desenhada. Só têm efeito nos fundos com rota
+   *  (arte e mapa). */
+  cities?: CityMark[];
   watermark: boolean;
   /** Cor de destaque (rota + detalhes). Default: laranja do treino. */
   accent?: string;
   /** Cor do texto (hex). Ausente ⇒ automática: branca sobre mapa, tinta do tema sobre arte. */
   textColor?: string;
-  /** Variante do fundo "arte". Default: 'glow' (o visual original). */
+  /** Desenho da região central no fundo "arte". Default: 'speed'. */
   artStyle?: ShareArtStyle;
   /** Efeito sobre os tiles quando `background === 'map'`. Default: 'none'. */
   mapEffect?: ShareMapEffect;
@@ -84,7 +92,7 @@ export interface ShareCardOptions {
   mapInteractive?: boolean;
   /** Enquadramento salvo do mapa — substitui o fitBounds inicial (export fiel ao preview). */
   mapView?: MapViewState;
-  /** Xadrez de transparência sob o cartão (só no preview do modo 'data' —
+  /** Xadrez de transparência sob o cartão (só no preview dos fundos com alpha —
    *  nunca no export, senão o xadrez sai na imagem). */
   previewChecker?: boolean;
 }
@@ -216,149 +224,6 @@ function mixHex(a: string, b: string, t: number): string {
   return `#${ch(0)}${ch(1)}${ch(2)}`;
 }
 
-/* ───────────────────────── variantes do fundo "arte" ───────────────────── */
-
-/** Degradê base da marca por tema (usado por 'glow' e 'topo'). */
-function brandGradient(theme: ShareTheme): string {
-  return theme === 'dark'
-    ? 'linear-gradient(160deg, #1C1812 0%, #241E18 60%, #2A231B 100%)'
-    : 'linear-gradient(160deg, #FFF7EE 0%, #FFE9DA 55%, #FFDFC9 100%)';
-}
-
-/** 'glow': glow accent + degradê da marca (o visual original do cartão). */
-function glowBg(theme: ShareTheme, accent: string): string {
-  const glow = `radial-gradient(circle at 78% 16%, ${hexToRgba(accent, theme === 'dark' ? 0.22 : 0.28)}, transparent 55%)`;
-  return `${glow}, ${brandGradient(theme)}`;
-}
-
-/** Hues dos blobs do 'mesh' por tema (ecoam os tons *Soft da paleta do app). */
-const MESH_HUES: Record<ShareTheme, string[]> = {
-  light: ['#FFE3D2', '#FFEFC9', '#E2EFD9', '#DDE4F2', '#FBE2E8'],
-  dark: ['#3A241A', '#352B17', '#1E2A1B', '#1E2840', '#34212A'],
-};
-/** Posições fixas dos blobs (composição determinística). */
-const MESH_SPOTS = ['18% 10%', '86% 22%', '10% 68%', '88% 88%', '50% 50%'];
-
-/** 'mesh': blobs orgânicos difusos da paleta sobre base sólida. Cada blob
- *  termina em alpha-0 do próprio hue — evita franja acinzentada em engines
- *  que interpolam `transparent` sem pré-multiplicar. */
-function meshBg(theme: ShareTheme, accent: string): string {
-  const dark = theme === 'dark';
-  const glow = `radial-gradient(circle at 50% 42%, ${hexToRgba(accent, dark ? 0.16 : 0.2)}, ${hexToRgba(accent, 0)} 45%)`;
-  const blobs = MESH_HUES[theme].map(
-    (hue, i) =>
-      `radial-gradient(circle at ${MESH_SPOTS[i]}, ${hexToRgba(hue, 0.9)}, ${hexToRgba(hue, 0)} 55%)`,
-  );
-  const base = dark ? '#241E18' : '#FFF7EE';
-  return `${glow}, ${blobs.join(', ')} ${base}`;
-}
-
-/** Anel de contorno do 'topo': polígono de 64 pontos ao redor de (cx,cy) com
- *  raio perturbado por senos — orgânico porém determinístico (sem random). */
-function topoRing(cx: number, cy: number, r: number, seed: number, stroke: string): string {
-  const pts: string[] = [];
-  for (let i = 0; i < 64; i++) {
-    const t = (i / 64) * Math.PI * 2;
-    const rr = r * (1 + 0.14 * Math.sin(3 * t + seed) + 0.08 * Math.sin(7 * t + 2 * seed));
-    pts.push(`${round(cx + rr * Math.cos(t))},${round(cy + rr * Math.sin(t))}`);
-  }
-  return `<polygon points="${pts.join(' ')}" fill="none" stroke="${stroke}" stroke-width="2" vector-effect="non-scaling-stroke" />`;
-}
-
-/** 'topo': dois picos de curvas de nível (tema elevação/trilha). O SVG cobre o
- *  cartão via `slice`; `non-scaling-stroke` mantém as linhas finas tanto no
- *  preview (~330px) quanto no export (1080px). */
-function topoSvg(theme: ShareTheme, accent: string): string {
-  const ink = theme === 'dark' ? 'rgba(246,239,230,0.12)' : 'rgba(31,27,22,0.14)';
-  const master = hexToRgba(accent, 0.3);
-  const rings: string[] = [];
-  const peak = (cx: number, cy: number, r0: number, rMax: number, seed: number) => {
-    for (let r = r0, i = 0; r <= rMax; r += 60, i++) {
-      // Cada 3º anel é a "curva-mestra", acentuada.
-      rings.push(topoRing(cx, cy, r, seed, i % 3 === 2 ? master : ink));
-    }
-  };
-  peak(300, 260, 70, 490, 1.7);
-  peak(820, 780, 60, 420, 4.2);
-  return `<svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">${rings.join('')}</svg>`;
-}
-
-/** 'horizon': bandas horizontais quentes (pôster de pôr do sol) + disco de sol.
- *  Hard stops na forma duplicada (`c 0%, c 18%, …`) — compatibilidade máxima. */
-function horizonBg(theme: ShareTheme, accent: string): string {
-  const dark = theme === 'dark';
-  // Rampa de 6 faixas; as centrais puxam para o accent via mixHex.
-  const ramp: [string, number][] = dark
-    ? [
-        ['#2A2119', 0],
-        [mixHex('#3A2A1C', accent, 0.25), 18],
-        [mixHex('#4A3220', accent, 0.4), 36],
-        [mixHex('#5A3A22', accent, 0.52), 54],
-        [mixHex('#3E2A1B', accent, 0.4), 72],
-        ['#171310', 88],
-      ]
-    : [
-        ['#FFF6E9', 0],
-        [mixHex('#FFE9C9', accent, 0.18), 18],
-        [mixHex('#FFD9AE', accent, 0.38), 36],
-        [mixHex('#FFC08C', accent, 0.6), 54],
-        [mixHex('#E8A06B', accent, 0.55), 72],
-        // "Chão" claro o bastante para a tinta escura das legendas (contraste).
-        ['#A9764E', 88],
-      ];
-  const stops: string[] = [];
-  ramp.forEach(([color, from], i) => {
-    const to = i + 1 < ramp.length ? ramp[i + 1][1] : 100;
-    stops.push(`${color} ${from}%`, `${color} ${to}%`);
-  });
-  const bands = `linear-gradient(to bottom, ${stops.join(', ')})`;
-  const sunColor = mixHex('#FFFFFF', accent, dark ? 0.55 : 0.35);
-  // Rampa de 0.7% na borda do disco faz o antialias.
-  const sun = `radial-gradient(circle at 74% 22%, ${sunColor} 0%, ${sunColor} 8.5%, ${hexToRgba(sunColor, 0)} 9.2%)`;
-  return `${sun}, ${bands}`;
-}
-
-/** 'grid': papel milimetrado — linhas finas + linhas-mestras no accent a cada
- *  5 células. Unidades vw mantêm preview e export visualmente idênticos.
- *  Retorna propriedades CSS completas (image/size/color não cabem no shorthand). */
-function gridBgProps(theme: ShareTheme, accent: string): string {
-  const dark = theme === 'dark';
-  const minor = dark ? 'rgba(246,239,230,0.1)' : 'rgba(31,27,22,0.12)';
-  const major = hexToRgba(accent, 0.2);
-  const base = dark ? '#201B15' : '#FBF5EC';
-  const line = (dir: string, color: string, w: string) =>
-    `linear-gradient(${dir}, ${color} 0, ${color} ${w}, transparent ${w})`;
-  const image = [
-    line('to right', minor, '0.12vw'),
-    line('to bottom', minor, '0.12vw'),
-    line('to right', major, '0.2vw'),
-    line('to bottom', major, '0.2vw'),
-  ].join(', ');
-  return `background-color: ${base}; background-image: ${image}; background-size: 5vw 5vw, 5vw 5vw, 25vw 25vw, 25vw 25vw;`;
-}
-
-/** Camada de fundo do cartão "arte" — cada variante devolve o `<div class="bg">`
- *  completo (CSS puro ou CSS + SVG interno cobrindo o cartão). */
-function artBgLayer(style: ShareArtStyle, theme: ShareTheme, accent: string): string {
-  switch (style) {
-    case 'mesh':
-      return `<div class="bg" style="background: ${meshBg(theme, accent)};"></div>`;
-    case 'topo':
-      return `<div class="bg" style="background: ${brandGradient(theme)};">${topoSvg(theme, accent)}</div>`;
-    case 'horizon':
-      return `<div class="bg" style="background: ${horizonBg(theme, accent)};"></div>`;
-    case 'grid':
-      return `<div class="bg" style="${gridBgProps(theme, accent)}"></div>`;
-    // Data-driven: fundo quieto — o traçado/perfil é o herói.
-    case 'speed':
-    case 'elevation':
-      return `<div class="bg" style="background: ${brandGradient(theme)};"></div>`;
-    case 'glow':
-    default:
-      return `<div class="bg" style="background: ${glowBg(theme, accent)};"></div>`;
-  }
-}
-
 /* ─────────────────── região central da arte (rota / dados) ─────────────── */
 
 const ROUTE_CASING = 26;
@@ -374,11 +239,21 @@ function routeDots(xy: [number, number][], accent: string): string {
         <circle cx="${end[0]}" cy="${end[1]}" r="${ROUTE_DOT}" fill="${accent}" stroke="#FFFFFF" stroke-width="8" />`;
 }
 
-/** Traçado padrão de cor única: casing branca + linha accent + dots. */
+/** Traçado padrão de cor única: casing branca + linha accent + dots. Usado como
+ *  fallback do 'speed' quando o track não tem timestamp. */
 function standardRouteBody(xy: [number, number][], accent: string): string {
   const line = xy.map(([x, y]) => `${x},${y}`).join(' ');
   return `
         <polyline points="${line}" fill="none" stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="${ROUTE_CASING}" stroke-linejoin="round" stroke-linecap="round" />
+        <polyline points="${line}" fill="none" stroke="${accent}" stroke-width="${ROUTE_STROKE}" stroke-linejoin="round" stroke-linecap="round" />
+        ${routeDots(xy, accent)}`;
+}
+
+/** 'route': só a linha no accent + marcadores de início/fim — sem a casing
+ *  branca, que sobre fundo transparente vira um halo indesejado. */
+function plainRouteBody(xy: [number, number][], accent: string): string {
+  const line = xy.map(([x, y]) => `${x},${y}`).join(' ');
+  return `
         <polyline points="${line}" fill="none" stroke="${accent}" stroke-width="${ROUTE_STROKE}" stroke-linejoin="round" stroke-linecap="round" />
         ${routeDots(xy, accent)}`;
 }
@@ -440,16 +315,60 @@ function elevationSvg(
       </svg>`;
 }
 
+/** Separação mínima (unidades de viewBox) entre rótulos de cidade — anti-colisão. */
+const CITY_LABEL_MIN_SEP = 100;
+
 /**
- * Região central por variante de arte. 'speed' e 'elevation' dependem de
- * timestamp/altitude no track — sem eles, caem no traçado padrão (mesma
- * renderização das demais artes).
+ * Rótulos das cidades sobre o traçado: para cada cidade, o vértice de rota mais
+ * próximo (a marca fica exatamente sobre a linha) recebe um ponto + o nome.
+ * Anti-colisão gulosa: pula rótulos ancorados perto de um já colocado.
+ */
+function cityLabelsSvg(
+  proj: NonNullable<ReturnType<typeof projectRoute>>,
+  cities: readonly CityMark[] | undefined,
+  accent: string,
+  fg: string,
+): string {
+  if (!cities || cities.length === 0) return '';
+  const kept = proj.kept as readonly RoutePoint[];
+  const placed: [number, number][] = [];
+  const parts: string[] = [];
+  for (const c of cities) {
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = 0; i < kept.length; i++) {
+      const dLat = kept[i].latitude - c.lat;
+      const dLng = kept[i].longitude - c.lng;
+      const d = dLat * dLat + dLng * dLng;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    if (best < 0) continue;
+    const [x, y] = proj.xy[best];
+    if (placed.some(([px, py]) => Math.hypot(px - x, py - y) < CITY_LABEL_MIN_SEP)) continue;
+    placed.push([x, y]);
+    parts.push(
+      `<g>
+        <circle cx="${x}" cy="${y}" r="9" fill="#FFFFFF" stroke="${accent}" stroke-width="5" />
+        <text x="${x}" y="${round(y - 22)}" text-anchor="middle" font-family=${JSON.stringify(SANS)} font-size="34" font-weight="600" fill="${fg}" stroke="#000000" stroke-opacity="0.45" stroke-width="7" paint-order="stroke">${escapeHtml(c.name)}</text>
+      </g>`,
+    );
+  }
+  return parts.join('');
+}
+
+/**
+ * Região central por estilo de arte. 'speed' e 'elevation' dependem de
+ * timestamp/altitude no track — sem eles, caem no traçado padrão.
  */
 function artRouteLayer(
   style: ShareArtStyle,
   points: readonly RoutePoint[],
   accent: string,
   fg: string,
+  cities?: readonly CityMark[],
 ): string {
   const proj = projectRoute(points);
   if (!proj) return '<div class="routeArea"></div>';
@@ -459,7 +378,7 @@ function artRouteLayer(
     if (prof) return `<div class="routeArea">${elevationSvg(prof, accent, fg)}</div>`;
   }
 
-  let body = standardRouteBody(proj.xy, accent);
+  let body = style === 'route' ? plainRouteBody(proj.xy, accent) : standardRouteBody(proj.xy, accent);
   let legend = '';
   let svgStyle = '';
   if (style === 'speed') {
@@ -473,7 +392,8 @@ function artRouteLayer(
       svgStyle = ' style="padding-bottom: 9vw"';
     }
   }
-  return `<div class="routeArea"><svg viewBox="${proj.viewBox}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"${svgStyle}>${body}</svg>${legend}</div>`;
+  const cityLabels = cityLabelsSvg(proj, cities, accent, fg);
+  return `<div class="routeArea"><svg viewBox="${proj.viewBox}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"${svgStyle}>${body}${cityLabels}</svg>${legend}</div>`;
 }
 
 /* ───────────────────────── efeitos sobre o mapa ────────────────────────── */
@@ -529,14 +449,15 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     points,
     format,
     background,
-    theme,
     title,
+    showTitle,
     activityId,
     metrics,
+    cities,
     watermark,
     accent = MOD.treino.accent,
     textColor,
-    artStyle = 'glow',
+    artStyle = 'speed',
     mapEffect = 'none',
     mapTile,
     mapInteractive = false,
@@ -546,16 +467,14 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
 
   const isData = background === 'data';
   const isMap = background === 'map' && !!mapTile;
-  const dark = theme === 'dark';
 
-  // Cores de texto: automática (sobre mapa/transparente, branco + sombra;
-  // sobre arte, tinta do tema — o gradiente controla o contraste) ou a
-  // escolhida pelo usuário. Texto secundário = mesma cor com alpha reduzido.
-  const overlayText = isMap || isData;
-  const autoFg = overlayText ? '#FFFFFF' : dark ? '#F6EFE6' : '#1F1B16';
-  const fg = textColor ?? autoFg;
-  const fgMuted = hexToRgba(fg, overlayText ? 0.85 : dark ? 0.68 : 0.58);
-  const shadow = overlayText ? 'text-shadow: 0 1px 12px rgba(0,0,0,0.45);' : '';
+  // Cor de texto automática: branco + sombra em todos os fundos — sobre mapa
+  // porque os tiles são imprevisíveis, sobre arte/dados porque o cartão sai
+  // transparente e vai cair num fundo que não controlamos (story, chat…).
+  // Texto secundário = mesma cor com alpha reduzido.
+  const fg = textColor ?? '#FFFFFF';
+  const fgMuted = hexToRgba(fg, 0.85);
+  const shadow = 'text-shadow: 0 1px 12px rgba(0,0,0,0.45);';
 
   // Camadas de fundo + região central da rota.
   let bgLayer = '';
@@ -576,12 +495,12 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
       padding: 90,
       view: mapView,
       reportView: mapInteractive,
+      cities,
     });
   } else {
-    // Arte: fundo da variante; a região central flexível mostra a rota (ou o
-    // perfil de elevação, nas variantes data-driven) — nunca cruza o texto.
-    bgLayer = artBgLayer(artStyle, theme, accent);
-    routeLayer = artRouteLayer(artStyle, points, accent, fg);
+    // Arte: sem camada de fundo — a região central flexível mostra a rota (ou o
+    // perfil de elevação) sobre transparência, e nunca cruza o texto.
+    routeLayer = artRouteLayer(artStyle, points, accent, fg, cities);
   }
 
   const scrim = isMap
@@ -602,20 +521,25 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     ? `<div class="mark"><span class="markDot"></span><span class="markName">Orbe</span></div>`
     : '';
 
-  // Glifo da atividade antes do título (mesmo ícone MDI que o app usa via
-  // getActivityMeta; fallback = halteres, como lá).
+  // Título (ícone + texto) e o traço logo abaixo — os dois somem juntos quando
+  // desligado. O glifo é o mesmo ícone MDI que o app usa via getActivityMeta;
+  // fallback = halteres, como lá.
   const iconPath =
-    activityId != null
+    showTitle && activityId != null
       ? (ACTIVITY_ICON_PATHS[getActivityMeta(activityId).icon] ?? ACTIVITY_ICON_PATHS.dumbbell)
       : null;
   const titleIcon = iconPath
     ? `<svg class="titleIcon" viewBox="0 0 24 24"><path d="${iconPath}" fill="currentColor"/></svg>`
     : '';
+  const titleBlock = showTitle
+    ? `<div class="titleRow">${titleIcon}<div class="title">${escapeHtml(title)}</div></div>
+      <div class="rule"></div>`
+    : '';
 
-  // Fundo do documento: preto sob arte/mapa (evita flash branco no load);
-  // transparente no modo 'data' (o PNG exportado sai com alpha). O xadrez de
-  // preview usa tons escuros — o texto auto branco continua legível.
-  const bodyBg = !isData
+  // Fundo do documento: preto só sob o mapa (evita flash branco enquanto os
+  // tiles carregam); transparente nos demais, para o PNG sair com alpha. O
+  // xadrez de preview usa tons escuros — o texto branco continua legível.
+  const bodyBg = isMap
     ? '#000'
     : previewChecker
       ? 'conic-gradient(#4A4A4A 25%, #3A3A3A 0 50%, #4A4A4A 0 75%, #3A3A3A 0) 0 0 / 12vw 12vw'
@@ -653,10 +577,10 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     .legendBar { width: 24vw; height: 1.2vw; border-radius: 1vw;
       background: linear-gradient(to right, ${HEAT_SLOW}, ${HEAT_MID}, ${accent}); }
     .titleRow { display: flex; align-items: center; gap: 2.6vw; }
-    /* Ícone do tamanho da fonte do título; text-shadow não pega em SVG, então
-       o modo overlay (mapa/dados) usa drop-shadow equivalente. */
+    /* Ícone do tamanho da fonte do título; text-shadow não pega em SVG, daí o
+       drop-shadow equivalente. */
     .titleIcon { width: 8.6vw; height: 8.6vw; flex: none;
-      ${overlayText ? 'filter: drop-shadow(0 1px 6px rgba(0,0,0,0.4));' : ''} }
+      filter: drop-shadow(0 1px 6px rgba(0,0,0,0.4)); }
     .title { font-family: ${DISPLAY}; font-size: 8.6vw; line-height: 1.06;
       font-weight: 500; letter-spacing: -0.015em; }
     .rule { width: 15vw; height: 1.1vw; border-radius: 1vw; background: ${accent}; }
@@ -678,8 +602,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
   <div class="card">
     ${routeLayer}
     <div class="footer">
-      <div class="titleRow">${titleIcon}<div class="title">${escapeHtml(title)}</div></div>
-      <div class="rule"></div>
+      ${titleBlock}
       <div class="metrics">${tiles}</div>
       ${mark}
     </div>

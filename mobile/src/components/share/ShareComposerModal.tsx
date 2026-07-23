@@ -6,6 +6,8 @@ import {
   Pressable,
   ScrollView,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   ActivityIndicator,
   Alert,
@@ -36,7 +38,6 @@ import {
   type ShareMapEffect,
   type ShareMetricKey,
   type ShareMetricTile,
-  type ShareTheme,
 } from '../../lib/share-card-html';
 import { captureCardPng, saveCardPngToGallery, shareCardPng } from '../../lib/share-export';
 import { colors, spacing, radii, shadows, themed, useTheme, MOD } from '../../theme';
@@ -118,22 +119,14 @@ const FORMAT_OPTS: { key: ShareFormat; label: string }[] = [
   { key: 'portrait', label: 'Retrato' },
 ];
 const BG_OPTS: { key: ShareBackground; label: string }[] = [
-  { key: 'art', label: 'Arte' },
+  { key: 'art', label: 'Transparente' },
   { key: 'map', label: 'Mapa' },
   { key: 'data', label: 'Dados' },
 ];
-const THEME_OPTS: { key: ShareTheme; label: string }[] = [
-  { key: 'light', label: 'Claro' },
-  { key: 'dark', label: 'Escuro' },
-];
 const ART_OPTS: { key: ShareArtStyle; label: string }[] = [
   { key: 'speed', label: 'Velocidade' },
-  { key: 'elevation', label: 'Perfil' },
-  { key: 'glow', label: 'Brilho' },
-  { key: 'mesh', label: 'Malha' },
-  { key: 'topo', label: 'Relevo' },
-  { key: 'horizon', label: 'Horizonte' },
-  { key: 'grid', label: 'Grade' },
+  { key: 'route', label: 'Rota' },
+  { key: 'elevation', label: 'Elevação' },
 ];
 const EFFECT_OPTS: { key: ShareMapEffect; label: string }[] = [
   { key: 'none', label: 'Nenhum' },
@@ -202,19 +195,19 @@ export function ShareComposerModal({
   context,
 }: ShareComposerModalProps) {
   const insets = useSafeAreaInsets();
-  const { scheme } = useTheme();
+  useTheme();
 
   const metrics = useMemo(() => availableMetrics(context), [context]);
   const defaultTitle = (context.activityName?.trim() || context.metaLabel).trim();
 
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
-  const [theme, setTheme] = useState<ShareTheme>(scheme);
-  const [artStyle, setArtStyle] = useState<ShareArtStyle>('glow');
+  const [artStyle, setArtStyle] = useState<ShareArtStyle>('speed');
   const [mapStyle, setMapStyle] = useState<MapStyle>(initialMapStyle);
   const [mapEffect, setMapEffect] = useState<ShareMapEffect>('none');
-  // null = automática (branca sobre mapa, tinta do tema sobre arte).
+  // null = automática (branca — o cartão cai sobre fundos que não controlamos).
   const [textColor, setTextColor] = useState<string | null>(null);
+  const [showTitle, setShowTitle] = useState(true);
   const [watermark, setWatermark] = useState(true);
   // Enquadramento do mapa ajustado pelo usuário no preview (ref: pan/zoom não
   // devem recarregar o WebView — só é lido quando o html é reconstruído).
@@ -224,14 +217,21 @@ export function ShareComposerModal({
   const [enabled, setEnabled] = useState<Set<ShareMetricKey>>(
     () => new Set(metrics.map((m) => m.key)),
   );
+  // Cidades da rota (bike enriquecida): toggle "Mostrar cidades" + quais exibir.
+  const [showCities, setShowCities] = useState(false);
+  const [enabledCities, setEnabledCities] = useState<Set<string>>(
+    () => new Set((context.cities ?? []).map((c) => c.name)),
+  );
 
   // Reinicializa quando abre para uma atividade diferente.
   useEffect(() => {
     if (!visible) return;
     setTitle(defaultTitle);
+    setShowTitle(true);
     setEnabled(new Set(metrics.map((m) => m.key)));
-    setTheme(scheme);
-    setArtStyle('glow');
+    setShowCities(false);
+    setEnabledCities(new Set((context.cities ?? []).map((c) => c.name)));
+    setArtStyle('speed');
     setMapStyle(initialMapStyle);
     setMapEffect('none');
     setTextColor(null);
@@ -251,6 +251,26 @@ export function ShareComposerModal({
     [metrics, enabled],
   );
 
+  // Nomes de cidade únicos, na ordem do percurso (os chips do controle).
+  const cityNames = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const c of context.cities ?? []) {
+      if (!seen.has(c.name)) {
+        seen.add(c.name);
+        out.push(c.name);
+      }
+    }
+    return out;
+  }, [context.cities]);
+
+  // Marcas a desenhar: todas as cidades cujo nome está habilitado (mantém as
+  // re-entradas na mesma cidade). Só passam ao cartão quando o toggle está on.
+  const selectedCities = useMemo(
+    () => (context.cities ?? []).filter((c) => enabledCities.has(c.name)),
+    [context.cities, enabledCities],
+  );
+
   const mapTile = MAP_STYLES[mapStyle];
   const html = useMemo(
     () =>
@@ -258,23 +278,26 @@ export function ShareComposerModal({
         points,
         format,
         background,
-        theme,
         artStyle,
         mapEffect,
         textColor: textColor ?? undefined,
         title: debouncedTitle || defaultTitle,
+        showTitle,
         activityId: context.activityId,
         metrics: selectedTiles,
+        cities: showCities ? selectedCities : undefined,
         watermark,
         mapTile,
-        // Preview: mapa ajustável; reconstruções (trocar métrica, tema…) reabrem
+        // Preview: mapa ajustável; reconstruções (trocar métrica, estilo…) reabrem
         // no último enquadramento reportado, em vez de refazer o fitBounds.
         mapInteractive: background === 'map',
         mapView: adaptView(mapViewRef.current, mapTile.kind),
-        previewChecker: background === 'data',
+        // Fundos com alpha (arte e dados) precisam do xadrez para o usuário ver
+        // que o PNG sai sem fundo.
+        previewChecker: background !== 'map',
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, format, background, theme, artStyle, mapEffect, textColor, debouncedTitle, defaultTitle, context.activityId, selectedTiles, watermark, mapTile],
+    [points, format, background, artStyle, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
   );
 
   // Letterbox: dimensiona o WebView à proporção real de saída dentro da área.
@@ -297,6 +320,16 @@ export function ShareComposerModal({
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleCity = (name: string) => {
+    tap();
+    setEnabledCities((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
       return next;
     });
   };
@@ -335,13 +368,14 @@ export function ShareComposerModal({
         points,
         format,
         background,
-        theme,
         artStyle,
         mapEffect,
         textColor: textColor ?? undefined,
         title: title || defaultTitle,
+        showTitle,
         activityId: context.activityId,
         metrics: selectedTiles,
+        cities: showCities ? selectedCities : undefined,
         watermark,
         mapTile,
         mapView: background === 'map' ? view : undefined,
@@ -411,7 +445,13 @@ export function ShareComposerModal({
 
   return (
     <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* KAV na raiz do Modal (cobre a tela toda ⇒ dispensa keyboardVerticalOffset):
+          o teclado encolhe o container, `previewArea` (flex:1) cede o espaço e o
+          maxHeight da faixa de controles recalcula — o campo Nome sobe junto. */}
+      <KeyboardAvoidingView
+        style={[styles.container, { paddingTop: insets.top }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         {/* Barra superior */}
         <View style={styles.topbar}>
           <Pressable onPress={onClose} hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
@@ -447,7 +487,7 @@ export function ShareComposerModal({
             >
               <WebView
                 ref={previewRef}
-                key={`${format}-${background}-${theme}-${artStyle}-${mapStyle}-${mapEffect}-${textColor ?? 'auto'}`}
+                key={`${format}-${background}-${artStyle}-${mapStyle}-${mapEffect}-${textColor ?? 'auto'}`}
                 originWhitelist={['*']}
                 source={{ html }}
                 style={styles.web}
@@ -503,16 +543,35 @@ export function ShareComposerModal({
           style={styles.controls}
           contentContainerStyle={[styles.controlsContent, { paddingBottom: insets.bottom + spacing.lg }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
-          <Text style={styles.fieldLabel}>Nome</Text>
-          <TextInput
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-            placeholder={defaultTitle}
-            placeholderTextColor={colors.ink4}
-            maxLength={60}
-          />
+          <Pressable
+            style={[styles.switchRow, styles.switchRowFirst]}
+            onPress={() => {
+              tap();
+              setShowTitle((t) => !t);
+            }}
+          >
+            <Text style={styles.switchLabel}>Título</Text>
+            <View style={[styles.switchTrack, showTitle && styles.switchTrackOn]}>
+              <View style={[styles.switchThumb, showTitle && styles.switchThumbOn]} />
+            </View>
+          </Pressable>
+
+          {showTitle && (
+            <>
+              <Text style={styles.fieldLabel}>Nome</Text>
+              <TextInput
+                style={styles.input}
+                value={title}
+                onChangeText={setTitle}
+                placeholder={defaultTitle}
+                placeholderTextColor={colors.ink4}
+                maxLength={60}
+              />
+            </>
+          )}
 
           <Text style={styles.fieldLabel}>Formato</Text>
           <Segmented
@@ -572,20 +631,6 @@ export function ShareComposerModal({
             </>
           )}
 
-          {background !== 'data' && (
-            <>
-              <Text style={styles.fieldLabel}>Tema do cartão</Text>
-              <Segmented
-                options={THEME_OPTS}
-                value={theme}
-                onChange={(v) => {
-                  tap();
-                  setTheme(v);
-                }}
-              />
-            </>
-          )}
-
           <Text style={styles.fieldLabel}>Cor do texto</Text>
           <SwatchRow
             value={textColor}
@@ -615,6 +660,41 @@ export function ShareComposerModal({
               <Text style={styles.note}>Sem métricas disponíveis para esta atividade.</Text>
             )}
           </View>
+
+          {cityNames.length > 0 && (
+            <>
+              <Pressable
+                style={styles.switchRow}
+                onPress={() => {
+                  tap();
+                  setShowCities((s) => !s);
+                }}
+              >
+                <Text style={styles.switchLabel}>Mostrar cidades</Text>
+                <View style={[styles.switchTrack, showCities && styles.switchTrackOn]}>
+                  <View style={[styles.switchThumb, showCities && styles.switchThumbOn]} />
+                </View>
+              </Pressable>
+              {showCities && (
+                <View style={styles.chips}>
+                  {cityNames.map((name) => {
+                    const on = enabledCities.has(name);
+                    return (
+                      <Pressable
+                        key={name}
+                        onPress={() => toggleCity(name)}
+                        style={[styles.chip, on ? styles.chipOn : styles.chipOff]}
+                      >
+                        <Text style={[styles.chipText, on ? styles.chipTextOn : styles.chipTextOff]}>
+                          {name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </>
+          )}
 
           <Pressable
             style={styles.switchRow}
@@ -660,7 +740,7 @@ export function ShareComposerModal({
             </View>
           </>
         )}
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -933,6 +1013,8 @@ const styles = themed(() =>
       marginTop: spacing.lg,
       paddingVertical: spacing.xs,
     },
+    // Primeiro item da faixa: o paddingTop do container já dá o respiro.
+    switchRowFirst: { marginTop: 0 },
     switchLabel: { fontSize: 15, color: colors.ink },
     switchTrack: {
       width: 46,

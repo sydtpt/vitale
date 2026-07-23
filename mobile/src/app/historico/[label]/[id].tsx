@@ -289,6 +289,7 @@ export default function AtividadeDetalheScreen() {
                   totalS,
                   calories: activity.calories,
                   elevationM: elevationGain(points),
+                  cities: activity.cities,
                 }}
               />
             </View>

@@ -234,36 +234,80 @@ async function flushItems(items: QueueItem[]): Promise<QueueItem[]> {
   return failed;
 }
 
-/** Janela de retry de rotas: atividades GPS dos últimos N dias sem rota sincronizada. */
-const ROUTE_RETRY_DAYS = 7;
+/** Janela de retry para o caso "HealthKit ainda processando" (has_route=false). */
+const ROUTE_RETRY_DAYS = 30;
+/** Máx. de rotas re-buscadas do HealthKit por sync — drena o backlog histórico
+ *  ao longo de alguns syncs sem alongar demais um único sync. */
+const ROUTE_BACKFILL_PER_SYNC = 25;
+
+/** Dado um conjunto de ids, retorna os que JÁ têm linha em `activity_routes`. */
+async function existingRouteIds(ids: string[]): Promise<Set<string>> {
+  const found = new Set<string>();
+  const CHUNK = 200; // limite conservador de itens por `in(...)`
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { data } = await supabase
+      .from('activity_routes')
+      .select('activity_id')
+      .in('activity_id', ids.slice(i, i + CHUNK));
+    for (const r of data ?? []) found.add(r.activity_id as string);
+  }
+  return found;
+}
 
 /**
- * Tenta buscar rotas GPS para atividades recentes que foram sincronizadas sem
- * rota (has_route=false). Isso acontece quando o HealthKit ainda não processou
- * a rota ao final do treino e o sync rodou antes dela ficar disponível.
+ * Re-busca no HealthKit a rota de atividades GPS que estão SEM linha em
+ * `activity_routes` e a envia. O sinal é a AUSÊNCIA da linha de rota — NÃO a flag
+ * `has_route`, que podia ficar `true` sem os pontos (um push de rota que falhou
+ * num sync anterior comita a atividade com has_route=true e a rota fica pendente;
+ * o filtro antigo por `has_route=false` nunca a alcançava). Cobre dois casos:
+ *  - **push falhou** (has_route=true, sem pontos): a rota existe no HealthKit →
+ *    re-tenta SEM janela de tempo, drenando o histórico inteiro;
+ *  - **HealthKit tardou** (has_route=false): a rota pode ter aparecido depois →
+ *    re-tenta só na janela recente e então desiste.
+ * Ajusta `has_route` ao resultado (true se achou pontos; false se o HealthKit não
+ * tem rota — estado honesto que impede re-tentar em loop os realmente sem-rota).
+ * Processa até `ROUTE_BACKFILL_PER_SYNC` por sync.
  */
 async function retryMissingRoutes(userId: string): Promise<number> {
   const cutoff = new Date(Date.now() - ROUTE_RETRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // Só linhas de origem HealthKit (provider healthkit ou ausente): a rota vem do
+  // HealthKit por aqui. Linhas de provider (strava/intervals) recebem rota pelo
+  // ingest server-side e seu `id` nem é um id do HealthKit — não tocar.
+  // has_route=true-sem-pontos (falha de push) SEM janela; has_route=false só recente.
   const { data: candidates } = await supabase
     .from('activities')
-    .select('id, activity_id')
+    .select('id, has_route')
     .eq('user_id', userId)
     .in('activity_id', [...GPS_ACTIVITY_IDS])
-    .gte('start_at', cutoff)
-    .eq('has_route', false);
+    .or('provider.is.null,provider.eq.healthkit')
+    .or(`has_route.eq.true,start_at.gte.${cutoff}`);
 
   if (!candidates?.length) return 0;
 
+  // Mantém só as que realmente não têm rota persistida.
+  const withRoute = await existingRouteIds(candidates.map((c) => c.id));
+  const missing = candidates
+    .filter((c) => !withRoute.has(c.id))
+    .slice(0, ROUTE_BACKFILL_PER_SYNC);
+
   let count = 0;
-  for (const activity of candidates) {
+  for (const activity of missing) {
     const points = await fetchWorkoutRoute(activity.id);
-    if (points.length === 0) continue;
+    if (points.length === 0) {
+      // HealthKit não tem a rota: torna has_route honesto p/ não re-tentar à toa.
+      if (activity.has_route) {
+        await supabase.from('activities').update({ has_route: false }).eq('id', activity.id);
+      }
+      continue;
+    }
     const row = toRouteRow(activity.id, userId, points);
     const { error } = await supabase
       .from('activity_routes')
       .upsert(row, { onConflict: 'activity_id' });
     if (error) continue;
-    await supabase.from('activities').update({ has_route: true }).eq('id', activity.id);
+    if (!activity.has_route) {
+      await supabase.from('activities').update({ has_route: true }).eq('id', activity.id);
+    }
     count++;
   }
   return count;
@@ -399,8 +443,9 @@ export async function syncDelta(): Promise<SyncResult> {
     // 3. Só avança a âncora se tudo subiu (senão re-tenta no próximo ciclo).
     if (failed.length === 0 && newAnchor) await writeAnchor(userId, newAnchor);
 
-    // 4. Tenta recuperar rotas GPS que falharam em syncs anteriores (race condition
-    //    com o HealthKit processando a rota após o treino ser finalizado).
+    // 4. Recupera rotas GPS ausentes: falhas de push de syncs anteriores (histórico
+    //    inteiro) e o HealthKit que só processou a rota depois do sync (recente).
+    //    Drena até N por sync (ver retryMissingRoutes).
     let retriedRoutes = 0;
     try {
       retriedRoutes = await retryMissingRoutes(userId);

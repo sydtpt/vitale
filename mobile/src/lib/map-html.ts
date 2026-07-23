@@ -1,4 +1,4 @@
-import type { MapStyleConfig } from '@vitale/shared';
+import type { CityMark, MapStyleConfig } from '@vitale/shared';
 import { colors, MOD } from '../theme';
 
 /** Ponto mínimo de rota aceito pelo gerador de HTML (estrutural). */
@@ -23,6 +23,8 @@ export interface MapScriptOptions {
   view?: MapViewState;
   /** Reporta mudanças de vista ao RN via postMessage: JSON `{type:'mapView', center, zoom, bearing, pitch}`. */
   reportView?: boolean;
+  /** Cidades a rotular sobre a rota (cartão de share). Ausente/vazio ⇒ nenhuma. */
+  cities?: readonly CityMark[];
 }
 
 /**
@@ -90,10 +92,13 @@ export function mapScript(
 function leafletScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'raster' }>,
-  { interactive, padding = 24, view, reportView }: MapScriptOptions,
+  { interactive, padding = 24, view, reportView, cities }: MapScriptOptions,
 ): string {
   const coords = points.map((p) => [p.latitude, p.longitude]);
   const data = JSON.stringify(coords);
+  const cityData = JSON.stringify(
+    (cities ?? []).map((c) => ({ name: c.name, lat: c.lat, lng: c.lng })),
+  );
 
   return `<script>
     var coords = ${data};
@@ -135,17 +140,31 @@ function leafletScript(
       dot(coords[0], '${colors.green}');
       dot(coords[coords.length - 1], '${MOD.treino.accent}');
     }
+
+    // Cidades atravessadas: ponto sobre a rota + rótulo (divIcon com o nome via
+    // textContent — sem interpolar HTML, evita quebra/injeção por nomes com aspas).
+    var cityData = ${cityData};
+    cityData.forEach(function (c) {
+      L.circleMarker([c.lat, c.lng], { radius: 4, color: '#FFFFFF', weight: 2, fillColor: '${MOD.treino.accent}', fillOpacity: 1, interactive: false }).addTo(map);
+      var el = document.createElement('div');
+      el.textContent = c.name;
+      el.style.cssText = 'white-space:nowrap;transform:translate(-50%,-150%);font:600 12px -apple-system,system-ui,sans-serif;color:#FFFFFF;text-shadow:0 1px 4px rgba(0,0,0,0.95);';
+      L.marker([c.lat, c.lng], { icon: L.divIcon({ html: el, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
+    });
   </script>`;
 }
 
 function maplibreScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'vector' }>,
-  { interactive, padding, view, reportView }: MapScriptOptions,
+  { interactive, padding, view, reportView, cities }: MapScriptOptions,
 ): string {
   // MapLibre usa ordem [lng, lat].
   const coords = points.map((p) => [p.longitude, p.latitude]);
   const data = JSON.stringify(coords);
+  const cityData = JSON.stringify(
+    (cities ?? []).map((c) => ({ name: c.name, lat: c.lat, lng: c.lng })),
+  );
   const pitch = view?.pitch ?? tile.pitch ?? 0;
   const bearing = view?.bearing ?? (tile.pitch ? -18 : 0);
   const fitPadding = padding ?? (pitch ? 44 : 28);
@@ -213,6 +232,27 @@ ${buildings}
         'circle-radius': 6,
         'circle-color': ['match', ['get', 'role'], 'start', '${colors.green}', '${MOD.treino.accent}'],
         'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 } });
+
+      // Cidades atravessadas: pontos + rótulos nativos (symbol). O text-font
+      // depende dos glyphs do estilo — try/catch cai para o default se faltar.
+      var cityData = ${cityData};
+      if (cityData.length) {
+        map.addSource('cities', { type: 'geojson', data: { type: 'FeatureCollection', features: cityData.map(function (c) {
+          return { type: 'Feature', properties: { name: c.name }, geometry: { type: 'Point', coordinates: [c.lng, c.lat] } };
+        }) } });
+        try {
+          map.addLayer({ id: 'city-dots', type: 'circle', source: 'cities', paint: {
+            'circle-radius': 4, 'circle-color': '${MOD.treino.accent}', 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 } });
+        } catch (e) {}
+        var labelLayout = { 'text-field': ['get', 'name'], 'text-size': 13, 'text-offset': [0, -1.2], 'text-anchor': 'bottom' };
+        var labelPaint = { 'text-color': '#FFFFFF', 'text-halo-color': 'rgba(0,0,0,0.9)', 'text-halo-width': 1.4 };
+        try {
+          map.addLayer({ id: 'city-labels', type: 'symbol', source: 'cities',
+            layout: Object.assign({ 'text-font': ['Noto Sans Regular'] }, labelLayout), paint: labelPaint });
+        } catch (e) {
+          try { map.addLayer({ id: 'city-labels', type: 'symbol', source: 'cities', layout: labelLayout, paint: labelPaint }); } catch (e2) {}
+        }
+      }
 
       var b = new maplibregl.LngLatBounds(coords[0], coords[0]);
       for (var i = 1; i < coords.length; i++) b.extend(coords[i]);
