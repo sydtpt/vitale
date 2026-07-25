@@ -104,7 +104,7 @@ describe('citiesInCountry', () => {
 describe('countryViewport', () => {
   const brBbox = { south: -33.75, west: -73.99, north: 5.27, east: -28.84 };
 
-  it('nunca menor que o bbox do país (sem rotas)', () => {
+  it('sem rotas → bbox do país inteiro (fallback)', () => {
     const vp = countryViewport('BR', []);
     expect(vp).toEqual([
       [brBbox.south, brBbox.west],
@@ -112,16 +112,48 @@ describe('countryViewport', () => {
     ]);
   });
 
-  it('estica até um ponto ~30 km além da borda (dentro do buffer)', () => {
-    const route: ActivityRoutePoint[] = [{ lat: 5.54, lng: -50 }]; // ~30 km ao norte
+  it('enquadra às rotas: uma volta em SP fica muito menor que o país todo', () => {
+    // Laço bem dentro do BR (~11 km em lat, ~10 km em lng).
+    const route: ActivityRoutePoint[] = [
+      { lat: -23.5, lng: -46.7 },
+      { lat: -23.6, lng: -46.6 },
+      { lat: -23.55, lng: -46.65 },
+    ];
     const vp = countryViewport('BR', [route])!;
-    expect(vp[1][0]).toBeCloseTo(5.54, 2); // north esticado
+    // Centrado no laço, não no país.
+    expect((vp[0][0] + vp[1][0]) / 2).toBeCloseTo(-23.55, 3); // centro lat
+    expect((vp[0][1] + vp[1][1]) / 2).toBeCloseTo(-46.65, 3); // centro lng
+    // Span uma pequena fração do país (BR ≈ 39° de latitude).
+    const latSpan = vp[1][0] - vp[0][0];
+    expect(latSpan).toBeGreaterThan(0.1);
+    expect(latSpan).toBeLessThan(0.2); // ~0.1° + margem, longe dos ~39° do país
+    expect(latSpan).toBeLessThan((brBbox.north - brBbox.south) / 100);
   });
 
-  it('NÃO estica além do buffer para um ponto a ~200 km', () => {
+  it('inclui um ponto ~30 km além da borda (dentro do buffer)', () => {
+    // Rota com extensão real: um trecho no BR + um ponto ~30 km ao norte da borda.
+    const route: ActivityRoutePoint[] = [
+      { lat: 4.5, lng: -50 },
+      { lat: 5.54, lng: -50 }, // ~30 km além do norte (5.27), dentro do buffer
+    ];
+    const vp = countryViewport('BR', [route])!;
+    expect(vp[1][0]).toBeGreaterThanOrEqual(5.54); // norte alcança o ponto além
+  });
+
+  it('ponto a ~200 km fora do buffer é ignorado → país inteiro', () => {
     const route: ActivityRoutePoint[] = [{ lat: 7.07, lng: -50 }]; // ~200 km ao norte
     const vp = countryViewport('BR', [route])!;
-    expect(vp[1][0]).toBeCloseTo(brBbox.north, 2); // permanece no bbox
+    expect(vp[1][0]).toBeCloseTo(brBbox.north, 2); // sem ponto válido → fallback
+  });
+
+  it('span mínimo: rota degenerada não faz over-zoom', () => {
+    const route: ActivityRoutePoint[] = [
+      { lat: -23.55, lng: -46.65 },
+      { lat: -23.5501, lng: -46.6501 }, // ~10 m de distância
+    ];
+    const vp = countryViewport('BR', [route])!;
+    // ≥ MIN_VIEWPORT_SPAN_KM (2 km ≈ 0.018°) em latitude.
+    expect(vp[1][0] - vp[0][0]).toBeGreaterThan(0.015);
   });
 
   it('null para país fora do dataset', () => {

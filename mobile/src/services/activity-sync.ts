@@ -37,6 +37,7 @@ import {
 /** Código HealthKit da corrida — único tipo que recebe best efforts. */
 const RUNNING_ACTIVITY_ID = 37;
 import { subscribeType, loadSyncedTypes } from '../lib/synced-types';
+import { useSettingsStore } from '../store/settings.store';
 import { bridgeStubKeepFilter } from '../lib/connections';
 import { readAnchor, writeAnchor } from '../lib/sync-anchor';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
@@ -352,7 +353,7 @@ export async function syncType(
       onProgress?.(phaseFrac(done, total) * PROGRESS.routes),
     );
     // 3b. Tempo em zonas de FC (todos os tipos), com os parâmetros do usuário.
-    const hrParams = await fetchHrZoneParams();
+    const hrParams = await fetchHrZoneParams(useSettingsStore.getState().preferences?.maxHr);
     const hrZones = await collectHrZones(ofType, hrParams, (done, total) =>
       onProgress?.(PROGRESS.routes + phaseFrac(done, total) * PROGRESS.hr),
     );
@@ -414,7 +415,7 @@ export async function syncDelta(): Promise<SyncResult> {
     // 3. Coleta as rotas uma vez; deriva best efforts (corrida) do mesmo track.
     const routes = await collectRoutes(pushable);
     // 3b. Tempo em zonas de FC (todos os tipos), com os parâmetros do usuário.
-    const hrParams = await fetchHrZoneParams();
+    const hrParams = await fetchHrZoneParams(useSettingsStore.getState().preferences?.maxHr);
     const hrZones = await collectHrZones(pushable, hrParams);
     const rows = pushable.map((w) =>
       toActivityRow(withMovingTime(w, routes), userId, bestEffortsFor(w, routes), hrZones.get(w.id), routes.has(w.id), elevationFor(w, routes)),

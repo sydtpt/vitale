@@ -18,6 +18,14 @@ import { COUNTRY_BBOXES, countryName, flagEmoji, type Bbox } from '../constants/
  *  "pertence" à visão daquele país — cobre rotas que cruzam a fronteira. */
 export const MAX_BORDER_BUFFER_KM = 50;
 
+/** Span mínimo (km) do enquadramento — evita over-zoom numa rota minúscula ou
+ *  degenerada (poucos pontos quase coincidentes). */
+export const MIN_VIEWPORT_SPAN_KM = 2;
+
+/** Margem de respiro proporcional somada a cada lado do bbox das rotas, além do
+ *  padding em px do `fitBounds` — a rota não cola nas bordas. */
+const VIEWPORT_MARGIN = 0.08;
+
 /** Bounds no formato do Leaflet: `[[sul, oeste], [norte, leste]]`. */
 export type ViewportBounds = [[number, number], [number, number]];
 
@@ -235,12 +243,14 @@ export function countryStats(activities: readonly Activity[]): CountryStats {
 /* ─────────────────────────── enquadramento ─────────────────────────── */
 
 /**
- * Enquadramento inicial do mapa do país. Piso = bbox do país (a vista nunca fica
- * menor que o território). Para cada ponto de cada rota que ultrapassa a borda
- * mas ainda está dentro do buffer, estica o lado correspondente até esse ponto —
- * nunca além do buffer (pontos mais distantes, ex. GPS esquecido ligado numa
- * viagem, ficam fora do enquadramento por design). Retorna `null` quando `code`
- * não está no dataset (o chamador cai num fitBounds só das rotas).
+ * Enquadramento inicial do mapa do país. Zoom proporcional às rotas: enquadra o
+ * bbox dos pontos das rotas, com o tamanho do país como TETO (não piso) — o
+ * filtro `inBbox(..., buffer)` só deixa entrar pontos dentro do país ± buffer,
+ * então a vista nunca ultrapassa o território (pontos mais distantes, ex. GPS
+ * esquecido ligado numa viagem, ficam de fora por design). Aplica um span mínimo
+ * (anti over-zoom) e uma margem de respiro. Sem nenhum ponto válido (carregando,
+ * ou país sem rotas resolvidas), cai no bbox do país inteiro. Retorna `null`
+ * quando `code` não está no dataset (o chamador cai num fitBounds só das rotas).
  */
 export function countryViewport(
   code: string,
@@ -248,19 +258,41 @@ export function countryViewport(
 ): ViewportBounds | null {
   const info = COUNTRY_BBOXES[code.toUpperCase()];
   if (!info) return null;
-  let [minLng, minLat, maxLng, maxLat] = info.bbox;
+  const [cMinLng, cMinLat, cMaxLng, cMaxLat] = info.bbox;
 
+  let minLat = Infinity;
+  let minLng = Infinity;
+  let maxLat = -Infinity;
+  let maxLng = -Infinity;
+  let found = false;
   for (const route of routes) {
     for (const p of route) {
       if (!inBbox(p.lng, p.lat, info.bbox, MAX_BORDER_BUFFER_KM)) continue;
+      found = true;
       if (p.lat < minLat) minLat = p.lat;
       if (p.lat > maxLat) maxLat = p.lat;
       if (p.lng < minLng) minLng = p.lng;
       if (p.lng > maxLng) maxLng = p.lng;
     }
   }
+
+  // Sem pontos válidos → país inteiro (fallback / carregando).
+  if (!found) {
+    return [
+      [cMinLat, cMinLng],
+      [cMaxLat, cMaxLng],
+    ];
+  }
+
+  // Span mínimo (anti over-zoom) + margem de respiro, centrado no bbox das rotas.
+  const midLat = (minLat + maxLat) / 2;
+  const midLng = (minLng + maxLng) / 2;
+  const latSpan =
+    Math.max(maxLat - minLat, kmToLatDeg(MIN_VIEWPORT_SPAN_KM)) * (1 + VIEWPORT_MARGIN);
+  const lngSpan =
+    Math.max(maxLng - minLng, kmToLngDeg(MIN_VIEWPORT_SPAN_KM, midLat)) * (1 + VIEWPORT_MARGIN);
   return [
-    [minLat, minLng],
-    [maxLat, maxLng],
+    [midLat - latSpan / 2, midLng - lngSpan / 2],
+    [midLat + latSpan / 2, midLng + lngSpan / 2],
   ];
 }

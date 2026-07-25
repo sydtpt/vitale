@@ -560,6 +560,8 @@ export interface UserPreferences {
   nutritionCarbsG?: number;
   nutritionFatG?: number;
   trainingDaysPerWeek?: number;
+  /** FC máxima do usuário (bpm). Base das zonas de FC (% da FCmáx). Ausente ⇒ estima por idade. */
+  maxHr?: number;
   updatedAt: string;
 }
 

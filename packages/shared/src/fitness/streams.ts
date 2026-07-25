@@ -220,9 +220,9 @@ export function computeBestEffortsFromPoints(points: FitnessPoint[]): Record<str
 }
 
 /**
- * Fronteiras das zonas de FC como fração da reserva de FC (Karvonen), da mais
- * leve à mais intensa. Duplicadas de `HR_ZONES` (health/hr-zones.ts) para manter
- * esta folha sem imports — teste de paridade pina os valores.
+ * Fronteiras das zonas de FC como fração da FC máxima, da mais leve à mais
+ * intensa. Duplicadas de `HR_ZONES` (health/hr-zones.ts) para manter esta folha
+ * sem imports — teste de paridade pina os valores.
  */
 const HR_ZONE_BOUNDS: ReadonlyArray<{ key: string; max: number }> = [
   { key: 'z1', max: 0.6 },
@@ -236,11 +236,13 @@ const HR_ZONE_BOUNDS: ReadonlyArray<{ key: string; max: number }> = [
 const MAX_GAP_S = 60;
 
 /**
- * Tempo (s) em cada zona de FC por reserva de FC (Karvonen):
- *   %FCR = (FC − FCrep) / (FCmáx − FCrep)
+ * Tempo (s) em cada zona de FC por **% da FC máxima** (padrão Garmin):
+ *   %FCmáx = FC / FCmáx
  * Intervalo entre amostras consecutivas vai para a zona da amostra que o abre;
- * gaps > 60 s são descartados. Sem FCrep, vira % da FCmáx. Mapa chave→segundos
- * só com zonas que tiveram tempo; vazio sem amostras/params válidos.
+ * gaps > 60 s são descartados. `restHr` é opcional (legado Karvonen: quando > 0
+ * usa reserva de FC) — os chamadores hoje o omitem para casar com o relógio.
+ * Mapa chave→segundos só com zonas que tiveram tempo; vazio sem amostras/params
+ * válidos.
  */
 export function computeHrZonesFromSamples(
   samples: FitnessHrSample[],

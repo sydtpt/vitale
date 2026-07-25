@@ -13,6 +13,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Activity } from '@vitale/shared';
+import { ridesByCountry } from '@vitale/shared';
 import { useActivitiesStore } from '../../store/activities.store';
 import { getActivityMeta, getActivityColor } from '../../lib/workout-types';
 import {
@@ -254,6 +255,9 @@ export default function TipoListScreen() {
     return id != null ? activityHighlights(typed, id) : [];
   }, [typed]);
 
+  // Só mostra "Visão detalhada" quando há país resolvido (cidades enriquecidas).
+  const hasCountries = useMemo(() => ridesByCountry(typed).length > 0, [typed]);
+
   const goToWorkout = useCallback(
     (id: string) =>
       router.push({ pathname: '/historico/[label]/[id]', params: { label, id } }),
@@ -321,6 +325,18 @@ export default function TipoListScreen() {
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
           <View>
+            {hasCountries && (
+              <Pressable
+                onPress={() => router.push({ pathname: '/historico/[label]/mapa', params: { label } })}
+                style={({ pressed }) => [styles.detailBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Visão detalhada por país"
+              >
+                <Ionicons name="map-outline" size={18} color={colors.primary} />
+                <Text style={styles.detailBtnText}>Visão detalhada</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.ink3} />
+              </Pressable>
+            )}
             {highlights.length > 0 && (
               <HighlightsRow items={highlights} onPick={goToWorkout} />
             )}
@@ -513,6 +529,19 @@ const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   pressed: { opacity: 0.7 },
+  detailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+  },
+  detailBtnText: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.primary },
   header: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,

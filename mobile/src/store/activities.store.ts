@@ -69,8 +69,14 @@ interface ActivitiesState {
   loading: boolean;
   loaded: boolean;
   error: string | null;
-  /** Cache de rotas GPS por id de atividade. */
+  /** Cache de rotas GPS (resolução cheia) por id de atividade — usado no detalhe. */
   routes: Record<string, ActivityRoutePoint[]>;
+  /**
+   * Cache de overviews reduzidos (`route_overview`: ~1/40 pontos, só lat/lng) por
+   * id — usado no mapa agregado por país. Separado de `routes`: mesma chave,
+   * resoluções diferentes; misturá-los daria baixa resolução ao detalhe.
+   */
+  overviews: Record<string, ActivityRoutePoint[]>;
 
   /** Atividades visíveis (exclui hidden) — base das derivações analíticas. */
   activities: () => Activity[];
@@ -82,6 +88,12 @@ interface ActivitiesState {
   updateActivity: (id: string, patch: ActivityPatch) => Promise<void>;
   setHidden: (id: string, hidden: boolean) => Promise<void>;
   loadRoute: (activityId: string) => Promise<void>;
+  /**
+   * Carrega em lote os overviews reduzidos (mapa por país). Busca só os ainda
+   * não cacheados via `in(...)`, popula `overviews`, e devolve um Map id→pontos
+   * com uma entrada por id pedido (`[]` para as sem rota).
+   */
+  loadRouteOverviews: (ids: readonly string[]) => Promise<Map<string, ActivityRoutePoint[]>>;
 }
 
 export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
@@ -90,6 +102,7 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   loaded: false,
   error: null,
   routes: {},
+  overviews: {},
 
   activities: () => get()._all.filter((a) => !a.hidden),
   isEmpty: () => get().loaded && get()._all.filter((a) => !a.hidden).length === 0,
@@ -181,5 +194,34 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
       (p) => typeof p?.lat === 'number' && typeof p?.lng === 'number',
     );
     set((state) => ({ routes: { ...state.routes, [activityId]: points } }));
+  },
+
+  loadRouteOverviews: async (ids) => {
+    const cache = get().overviews;
+    const missing = ids.filter((id) => cache[id] === undefined);
+    if (missing.length > 0) {
+      const { data, error } = await supabase
+        .from('activity_routes')
+        .select('activity_id, route_overview')
+        .in('activity_id', missing);
+
+      const next: Record<string, ActivityRoutePoint[]> = {};
+      if (!error) {
+        for (const row of (data ?? []) as {
+          activity_id: string;
+          route_overview: [number, number][] | null;
+        }[]) {
+          // route_overview é [[lat,lng],...]; mapeia para {lat,lng} p/ o mapa.
+          next[row.activity_id] = (row.route_overview ?? [])
+            .filter((pair) => Array.isArray(pair) && pair.length >= 2)
+            .map(([lat, lng]) => ({ lat, lng }));
+        }
+      }
+      // Ids sem linha (ou erro): cacheia [] para não rebuscar.
+      for (const id of missing) if (next[id] === undefined) next[id] = [];
+      set((state) => ({ overviews: { ...state.overviews, ...next } }));
+    }
+    const all = get().overviews;
+    return new Map(ids.map((id) => [id, all[id] ?? []]));
   },
 }));

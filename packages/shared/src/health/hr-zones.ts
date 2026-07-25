@@ -3,11 +3,13 @@
  *
  * O tempo em cada zona é derivado das amostras de FC do treino no mobile (sync) e
  * gravado em `activities.hr_zones` (jsonb, chave da zona → segundos). Esta tabela
- * descreve só a faixa, o rótulo e a cor — a regra de cálculo (Karvonen) vive no
- * mobile (`heart-rate-zones.ts`). Sem lógica de negócio aqui, só dados.
+ * descreve só a faixa, o rótulo e a cor — a regra de cálculo vive no mobile
+ * (`heart-rate-zones.ts`) e no shared (`fitness/streams.ts`). Sem lógica de
+ * negócio aqui, só dados.
  *
- * As fronteiras `min`/`max` são frações da **reserva de FC** (Karvonen):
- *   %FCR = (FC − FCrep) / (FCmáx − FCrep)
+ * As fronteiras `min`/`max` são frações da **FC máxima** (mesmo modelo padrão do
+ * Garmin, para as zonas do Orbe baterem com o relógio):
+ *   %FCmáx = FC / FCmáx
  * A última zona tem `max = Infinity` (capta tudo acima de 90%); a primeira capta
  * também o que está abaixo de 50% (aquecimento/repouso) — ver o cálculo no mobile.
  */
@@ -16,9 +18,9 @@ export interface HrZoneDef {
   key: string;
   /** Rótulo de exibição. */
   label: string;
-  /** Limite inferior como fração da reserva de FC (só para o rótulo de faixa). */
+  /** Limite inferior como fração da FC máxima (só para o rótulo de faixa). */
   min: number;
-  /** Limite superior (exclusivo) como fração da reserva de FC; bucketização. */
+  /** Limite superior (exclusivo) como fração da FC máxima; bucketização. */
   max: number;
   /** Cor da zona (frio → quente), alinhada ao design system. */
   color: string;

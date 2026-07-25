@@ -1,4 +1,4 @@
-import type { CityMark, MapStyleConfig } from '@vitale/shared';
+import type { CityMark, MapStyleConfig, ViewportBounds } from '@vitale/shared';
 import { colors, MOD } from '../theme';
 
 /** Ponto mínimo de rota aceito pelo gerador de HTML (estrutural). */
@@ -150,6 +150,116 @@ function leafletScript(
       el.textContent = c.name;
       el.style.cssText = 'white-space:nowrap;transform:translate(-50%,-150%);font:600 12px -apple-system,system-ui,sans-serif;color:#FFFFFF;text-shadow:0 1px 4px rgba(0,0,0,0.95);';
       L.marker([c.lat, c.lng], { icon: L.divIcon({ html: el, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
+    });
+  </script>`;
+}
+
+/* ─────────────────── mapa agregado por país (multi-rota) ─────────────────── */
+
+/** Reduz uma rota a no máx. `max` pontos (a forma sobrevive no zoom de país). */
+function downsample<T>(points: readonly T[], max: number): T[] {
+  if (points.length <= max) return points.slice();
+  const step = Math.ceil(points.length / max);
+  const out: T[] = [];
+  for (let i = 0; i < points.length; i += step) out.push(points[i]);
+  const last = points[points.length - 1];
+  if (out[out.length - 1] !== last) out.push(last);
+  return out;
+}
+
+/**
+ * HTML de um mapa com TODAS as rotas de um país sobrepostas (uma polyline fina
+ * por rota, sem casing dupla) enquadrado no `bounds` do `countryViewport`.
+ * Reusa `mapHead`; o script varia por Leaflet (raster) / MapLibre (vector).
+ */
+export function buildCountryMapHtml(
+  routes: readonly MapPoint[][],
+  bounds: ViewportBounds,
+  tile: MapStyleConfig,
+  interactive: boolean,
+): string {
+  const reduced = routes.map((r) => downsample(r, 150)).filter((r) => r.length >= 2);
+  const script =
+    tile.kind === 'vector'
+      ? countryMaplibreScript(reduced, bounds, tile, interactive)
+      : countryLeafletScript(reduced, bounds, tile, interactive);
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  ${mapHead(tile)}
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; background: ${colors.surfaceMute}; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  ${script}
+</body>
+</html>`;
+}
+
+function countryLeafletScript(
+  routes: readonly MapPoint[][],
+  bounds: ViewportBounds,
+  tile: Extract<MapStyleConfig, { kind: 'raster' }>,
+  interactive: boolean,
+): string {
+  // Leaflet aceita array de arrays de latlng como multi-polyline (uma camada).
+  const data = JSON.stringify(routes.map((r) => r.map((p) => [p.latitude, p.longitude])));
+  const bnds = JSON.stringify(bounds); // [[sul,oeste],[norte,leste]] — direto no fitBounds
+  return `<script>
+    var routes = ${data};
+    var bounds = ${bnds};
+    var interactive = ${interactive ? 'true' : 'false'};
+    var map = L.map('map', {
+      zoomControl: interactive, attributionControl: true,
+      dragging: interactive, touchZoom: interactive, scrollWheelZoom: interactive,
+      doubleClickZoom: interactive, boxZoom: interactive, keyboard: interactive,
+      tap: interactive, zoomSnap: 0,
+    });
+    L.tileLayer('${tile.url}', { maxZoom: ${tile.maxZoom}, subdomains: '${tile.subdomains}', attribution: '${tile.attribution}' }).addTo(map);
+    if (routes.length) L.polyline(routes, { color: '${MOD.treino.accent}', weight: 3, opacity: 0.7, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+    function fit() { map.fitBounds(bounds, { padding: [16, 16] }); }
+    fit();
+    window.recenter = fit;
+  </script>`;
+}
+
+function countryMaplibreScript(
+  routes: readonly MapPoint[][],
+  bounds: ViewportBounds,
+  tile: Extract<MapStyleConfig, { kind: 'vector' }>,
+  interactive: boolean,
+): string {
+  // MapLibre usa [lng,lat]; uma FeatureCollection com uma LineString por rota.
+  const features = JSON.stringify(
+    routes.map((r) => ({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: r.map((p) => [p.longitude, p.latitude]) },
+    })),
+  );
+  // LngLatBounds: [[oeste,sul],[leste,norte]].
+  const mlBounds = JSON.stringify([
+    [bounds[0][1], bounds[0][0]],
+    [bounds[1][1], bounds[1][0]],
+  ]);
+  return `<script>
+    var features = ${features};
+    var bounds = ${mlBounds};
+    var interactive = ${interactive ? 'true' : 'false'};
+    var map = new maplibregl.Map({
+      container: 'map', style: '${tile.styleUrl}', interactive: interactive,
+      attributionControl: { compact: true }, bounds: bounds, fitBoundsOptions: { padding: 20 },
+    });
+    if (interactive) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    map.on('load', function () {
+      map.addSource('routes', { type: 'geojson', data: { type: 'FeatureCollection', features: features } });
+      map.addLayer({ id: 'routes', type: 'line', source: 'routes',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '${MOD.treino.accent}', 'line-width': 3, 'line-opacity': 0.7 } });
+      window.recenter = function () { map.fitBounds(bounds, { padding: 20, duration: 400 }); };
     });
   </script>`;
 }

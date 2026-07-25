@@ -92,29 +92,15 @@ function fetchAge(): Promise<number | undefined> {
   });
 }
 
-/** FC de repouso mais recente (bpm) dos últimos 180 dias. undefined se nenhuma. */
-function fetchRestingHeartRate(): Promise<number | undefined> {
-  if (Platform.OS !== 'ios') return Promise.resolve(undefined);
-  const startDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
-  return new Promise((resolve) => {
-    AppleHealthKit.getRestingHeartRateSamples(
-      { startDate, endDate: new Date().toISOString(), unit: 'bpm' as any, ascending: false, limit: 1 } as any,
-      (err, results) => {
-        const v = Array.isArray(results) && results.length > 0 ? (results[0] as any).value : undefined;
-        resolve(err || typeof v !== 'number' || v <= 0 ? undefined : v);
-      },
-    );
-  });
-}
-
 /**
- * Parâmetros de zona do usuário (FCmáx e FCrep), lidos uma vez por sync. FCmáx
- * vem da idade (220 − idade, com fallback); FCrep da amostra mais recente. Sem
- * FCrep o cálculo de zonas cai para % da FCmáx.
+ * Parâmetros de zona do usuário para o sync. Zonas por **% da FC máxima** (padrão
+ * Garmin), então FCrep não entra. `maxHrOverride` = FCmáx configurada pelo usuário
+ * (`user_preferences.max_hr`); ausente, estima pela idade do Health (220 − idade).
  */
-export async function fetchHrZoneParams(): Promise<HrZoneParams> {
-  const [age, restHr] = await Promise.all([fetchAge(), fetchRestingHeartRate()]);
-  return { maxHr: maxHrFromAge(age), restHr };
+export async function fetchHrZoneParams(maxHrOverride?: number): Promise<HrZoneParams> {
+  if (typeof maxHrOverride === 'number' && maxHrOverride > 0) return { maxHr: maxHrOverride };
+  const age = await fetchAge();
+  return { maxHr: maxHrFromAge(age) };
 }
 
 function mapRawWorkout(w: any): WorkoutItem {

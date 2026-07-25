@@ -7,6 +7,7 @@ import {
   effect,
   inject,
   input,
+  signal,
   viewChild,
 } from '@angular/core';
 import type { ActivityRoutePoint, MapStyle, ViewportBounds } from '@vitale/shared';
@@ -43,11 +44,22 @@ function downsample(points: readonly ActivityRoutePoint[], max: number): Activit
   selector: 'rt-country-map',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: '<div #map class="map"></div>',
+  template: `<div class="map-wrap">
+      <div #map class="map"></div>
+      @if (!interactive()) {
+        <div class="map-hint">Clique para dar zoom com o scroll</div>
+      }
+    </div>`,
   styles: [
     `:host { display: block; }
+     .map-wrap { position: relative; }
      .map { height: 460px; width: 100%; border-radius: 16px; overflow: hidden;
-       border: 1px solid var(--line); background: var(--surface-mute); z-index: 0; }`,
+       border: 1px solid var(--line); background: var(--surface-mute); z-index: 0; }
+     .map-hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+       z-index: 400; pointer-events: none; padding: 6px 12px; border-radius: 999px;
+       font-size: 12px; font-weight: 500; color: var(--ink2); white-space: nowrap;
+       background: color-mix(in srgb, var(--surface) 88%, transparent);
+       border: 1px solid var(--line); box-shadow: 0 2px 8px rgb(0 0 0 / 12%); }`,
   ],
 })
 export class CountryMapComponent {
@@ -55,6 +67,9 @@ export class CountryMapComponent {
   readonly routes = input.required<ActivityRoutePoint[][]>();
   /** Enquadramento inicial `[[sul,oeste],[norte,leste]]`; null ⇒ ajusta às rotas. */
   readonly viewport = input<ViewportBounds | null>(null);
+
+  /** Zoom por scroll começa travado; vira `true` ao clicar no mapa (esconde a dica). */
+  protected readonly interactive = signal(false);
 
   private readonly mapEl = viewChild.required<ElementRef<HTMLElement>>('map');
   private readonly destroyRef = inject(DestroyRef);
@@ -90,6 +105,16 @@ export class CountryMapComponent {
     const el = this.mapEl().nativeElement;
     const map = L.map(el, { scrollWheelZoom: false });
     this.map = map;
+    // Scroll-zoom começa travado para não sequestrar o scroll da página; ativa
+    // ao clicar no mapa e volta a travar quando o mouse sai da área.
+    map.on('click', () => {
+      map.scrollWheelZoom.enable();
+      this.interactive.set(true);
+    });
+    el.addEventListener('mouseleave', () => {
+      map.scrollWheelZoom.disable();
+      this.interactive.set(false);
+    });
     this.applyStyle(this.prefs.mapStyle());
     this.draw(this.routes());
 

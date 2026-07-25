@@ -7,6 +7,7 @@ import {
   effect,
   inject,
   input,
+  signal,
   viewChild,
 } from '@angular/core';
 import type { ActivityRoutePoint, MapStyle } from '@vitale/shared';
@@ -35,6 +36,9 @@ import '@maplibre/maplibre-gl-leaflet';
 })
 export class ActivityMapComponent {
   readonly points = input.required<ActivityRoutePoint[]>();
+
+  /** Zoom por scroll começa travado; vira `true` ao clicar no mapa (esconde a dica). */
+  protected readonly interactive = signal(false);
 
   private readonly mapEl = viewChild.required<ElementRef<HTMLElement>>('map');
   private readonly destroyRef = inject(DestroyRef);
@@ -73,6 +77,16 @@ export class ActivityMapComponent {
     const el = this.mapEl().nativeElement;
     const map = L.map(el, { scrollWheelZoom: false });
     this.map = map;
+    // Scroll-zoom começa travado para não sequestrar o scroll da página; ativa
+    // ao clicar no mapa e volta a travar quando o mouse sai da área.
+    map.on('click', () => {
+      map.scrollWheelZoom.enable();
+      this.interactive.set(true);
+    });
+    el.addEventListener('mouseleave', () => {
+      map.scrollWheelZoom.disable();
+      this.interactive.set(false);
+    });
     this.applyStyle(this.prefs.mapStyle());
     this.draw(this.points());
 

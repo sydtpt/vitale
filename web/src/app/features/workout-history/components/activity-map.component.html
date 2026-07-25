@@ -1,1 +1,6 @@
-<div #map class="map"></div>
+<div class="map-wrap">
+  <div #map class="map"></div>
+  @if (!interactive()) {
+    <div class="map-hint">Clique para dar zoom com o scroll</div>
+  }
+</div>

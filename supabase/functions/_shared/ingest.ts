@@ -177,28 +177,22 @@ function deriveMetrics(norm: NormalizedActivity, hrParams: FitnessHrZoneParams):
   };
 }
 
-/** FCmáx do vínculo (athlete_meta) e FCrep da última medição em health_daily. */
-async function loadHrParams(
-  admin: Admin,
-  userId: string,
-  athleteMeta: Record<string, unknown> | null,
-): Promise<FitnessHrZoneParams> {
-  const metaMax = athleteMeta?.['max_hr'];
-  const maxHr = typeof metaMax === 'number' && metaMax > 100 && metaMax < 230 ? metaMax : 190;
-  const metaRest = athleteMeta?.['resting_hr'];
-  let restHr = typeof metaRest === 'number' && metaRest > 20 && metaRest < 120 ? metaRest : undefined;
-  if (restHr === undefined) {
-    const { data } = await admin
-      .from('health_daily')
-      .select('value')
-      .eq('user_id', userId)
-      .eq('metric', 'fcRepouso')
-      .order('day', { ascending: false })
-      .limit(1);
-    const v = data?.[0]?.value;
-    if (typeof v === 'number' && v > 20 && v < 120) restHr = v;
-  }
-  return { maxHr, restHr };
+/**
+ * FCmáx do usuário para as zonas de FC. Fonte única = `user_preferences.max_hr`
+ * (o mesmo valor configurado no relógio); ausente ⇒ fallback 190. Zonas por % da
+ * FC máxima (sem FCrep) para casar com o Garmin — por isso `restHr` fica de fora.
+ * NÃO usa `linked_accounts.athlete_meta.max_hr`: o valor default do intervals.icu
+ * (ex.: 210) inflava o teto e jogava treinos leves inteiros na Z1.
+ */
+async function loadHrParams(admin: Admin, userId: string): Promise<FitnessHrZoneParams> {
+  const { data } = await admin
+    .from('user_preferences')
+    .select('max_hr')
+    .eq('id', userId)
+    .maybeSingle();
+  const m = data?.max_hr;
+  const maxHr = typeof m === 'number' && m > 100 && m < 230 ? m : 190;
+  return { maxHr };
 }
 
 /* ───────────────────── Insert / merge de um treino ───────────────────── */
@@ -705,7 +699,7 @@ export async function runIngest(
       .in('external_id', capped.map((r) => r.externalId));
     const known = new Set((knownData ?? []).map((r) => r.external_id as string));
 
-    const hrParams = await loadHrParams(admin, userId, account.athlete_meta);
+    const hrParams = await loadHrParams(admin, userId);
     let lastStartMs = account.cursor ? Date.parse(account.cursor) : 0;
     for (const ref of capped) {
       // Avança o cursor por TODA atividade consumida — inclusive as que

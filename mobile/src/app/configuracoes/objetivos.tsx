@@ -38,6 +38,7 @@ export default function ObjetivosScreen() {
   const [carbs, setCarbs] = useState<number | undefined>(preferences?.nutritionCarbsG);
   const [fat, setFat] = useState<number | undefined>(preferences?.nutritionFatG);
   const [days, setDays] = useState<number | undefined>(preferences?.trainingDaysPerWeek);
+  const [maxHr, setMaxHr] = useState<number | undefined>(preferences?.maxHr);
 
   useEffect(() => {
     if (!preferences) loadSettings();
@@ -49,6 +50,7 @@ export default function ObjetivosScreen() {
     setCarbs(preferences?.nutritionCarbsG);
     setFat(preferences?.nutritionFatG);
     setDays(preferences?.trainingDaysPerWeek);
+    setMaxHr(preferences?.maxHr);
   }, [preferences]);
 
   const save = async () => {
@@ -59,6 +61,7 @@ export default function ObjetivosScreen() {
       nutritionCarbsG: carbs,
       nutritionFatG: fat,
       trainingDaysPerWeek: days,
+      maxHr,
     });
     setSaving(false);
     router.back();
@@ -98,14 +101,25 @@ export default function ObjetivosScreen() {
 
           <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Treino</Text>
           <View style={styles.card}>
-            <View style={styles.fieldRow}>
+            <View style={[styles.fieldRow, styles.rowBorder]}>
               <View style={styles.fieldLabel}>
                 <Text style={styles.rowLabel}>Dias por semana</Text>
                 <Text style={styles.unit}>dias</Text>
               </View>
               <NumInput value={days} onChange={setDays} placeholder="—" />
             </View>
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldLabel}>
+                <Text style={styles.rowLabel}>FC máxima</Text>
+                <Text style={styles.unit}>bpm</Text>
+              </View>
+              <NumInput value={maxHr} onChange={setMaxHr} placeholder="—" />
+            </View>
           </View>
+          <Text style={styles.hint}>
+            Usada nas zonas de frequência cardíaca (% da FC máxima). Use o mesmo valor do
+            seu relógio para as zonas baterem.
+          </Text>
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -122,6 +136,7 @@ const createStyles = () => StyleSheet.create({
   pressed: { opacity: 0.6 },
   content: { padding: spacing.lg, paddingBottom: spacing['4xl'] },
   sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm, paddingHorizontal: 4 },
+  hint: { fontSize: 12, color: colors.ink3, marginTop: spacing.sm, paddingHorizontal: 4, lineHeight: 17 },
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', ...shadows.card },
   fieldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },

@@ -53,6 +53,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           nutritionCarbsG: prefsRes.data.nutrition_carbs_g ?? undefined,
           nutritionFatG: prefsRes.data.nutrition_fat_g ?? undefined,
           trainingDaysPerWeek: prefsRes.data.training_days_per_week ?? undefined,
+          maxHr: prefsRes.data.max_hr ?? undefined,
           updatedAt: prefsRes.data.updated_at,
         }
       : null;
@@ -147,6 +148,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       nutrition_carbs_g: next.nutritionCarbsG ?? null,
       nutrition_fat_g: next.nutritionFatG ?? null,
       training_days_per_week: next.trainingDaysPerWeek ?? null,
+      max_hr: next.maxHr ?? null,
     });
     // Falha de sync não derruba a escolha local (já no cache); só não fica silenciosa.
     if (error) console.warn('[settings] falha ao salvar preferências no servidor:', error.message);
