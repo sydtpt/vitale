@@ -32,6 +32,22 @@ export interface GoalContext {
   now: Date;
 }
 
+/** Estado de um sub-período de uma meta de cadência (um mês ou uma semana). */
+export interface GoalPeriodStatus {
+  /** Índice no ano (0-based). Mês: 0=jan … 11=dez. Semana: 0=1ª semana ISO. */
+  index: number;
+  /** Início do sub-período (epoch ms, 00:00 local) — a UI deriva o rótulo. */
+  start: number;
+  /** Eventos contados no sub-período (contagem/distância conforme a fonte). */
+  count: number;
+  /** Cumpriu a meta do período (count ≥ perPeriodTarget)? */
+  met: boolean;
+  /** Já começou (start ≤ now)? Sub-períodos futuros ficam `false`. */
+  started: boolean;
+  /** É o sub-período que contém `now`? */
+  current: boolean;
+}
+
 /** Resultado da avaliação de uma meta. */
 export interface GoalProgress {
   current: number;
@@ -43,6 +59,7 @@ export interface GoalProgress {
   periodsTotal?: number;    // sub-períodos do ano (12 meses; ~52 semanas)
   periodsMet?: number;      // sub-períodos já iniciados que cumpriram
   currentPeriodMet?: boolean; // o sub-período que contém `now` já cumpriu?
+  periods?: GoalPeriodStatus[]; // detalhamento por sub-período (meses/semanas)
 }
 
 interface GoalEvent {
@@ -142,12 +159,15 @@ function evalCadence(goal: Goal, ctx: GoalContext): GoalProgress {
 
   let periodsMet = 0;
   let currentPeriodMet: boolean | undefined;
-  for (const p of periods) {
+  const breakdown: GoalPeriodStatus[] = periods.map((p, index) => {
     const count = events.reduce((n, e) => (e.time >= p.start && e.time < p.end ? n + e.value : n), 0);
     const met = count >= perTarget;
-    if (p.start <= nowMs && met) periodsMet += 1; // só sub-períodos já iniciados
-    if (nowMs >= p.start && nowMs < p.end) currentPeriodMet = met;
-  }
+    const started = p.start <= nowMs;
+    const current = nowMs >= p.start && nowMs < p.end;
+    if (started && met) periodsMet += 1; // só sub-períodos já iniciados
+    if (current) currentPeriodMet = met;
+    return { index, start: p.start, count, met, started, current };
+  });
 
   const target = goal.target > 0 ? goal.target : periods.length;
   return {
@@ -158,6 +178,7 @@ function evalCadence(goal: Goal, ctx: GoalContext): GoalProgress {
     periodsTotal: periods.length,
     periodsMet,
     currentPeriodMet,
+    periods: breakdown,
   };
 }
 

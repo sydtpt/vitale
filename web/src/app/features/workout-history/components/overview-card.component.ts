@@ -3,6 +3,7 @@ import { ActivitiesStore } from '../data/activities.store';
 import { buildOverview, type Metric, type Period } from '../data/overview';
 import { PeriodSelectorComponent } from './period-selector.component';
 import { StackedBarChartComponent } from './stacked-bar-chart.component';
+import { ChartPaletteService } from '@core/services/chart-palette.service';
 
 @Component({
   selector: 'rt-overview-card',
@@ -14,6 +15,7 @@ import { StackedBarChartComponent } from './stacked-bar-chart.component';
 })
 export class OverviewCardComponent {
   private readonly store = inject(ActivitiesStore);
+  protected readonly palette = inject(ChartPaletteService);
 
   protected readonly period = signal<Period>('ano');
   protected readonly metric = signal<Metric>('count');

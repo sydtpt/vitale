@@ -80,6 +80,43 @@ check('cadence: 3 meses com corrida no fim de março → 3/12', () => {
   assert.equal(p.achieved, false);
 });
 
+check('cadence: breakdown por mês marca cumprido/não-cumprido/atual/futuro', () => {
+  const ctx = emptyCtx(new Date(YEAR, 2, 31, 12)); // 31 mar (mês atual = março)
+  ctx.activities = [
+    activity({ startAt: `${YEAR}-01-10T08:00:00` }), // jan cumprido
+    activity({ startAt: `${YEAR}-03-05T08:00:00` }), // mar cumprido (mês atual)
+  ];
+  const goal: Goal = {
+    ...baseGoal,
+    family: 'cadence',
+    period: 'month',
+    perPeriodTarget: 1,
+    target: 12,
+    source: { kind: 'activity', activityMetric: 'count' },
+  };
+  const p = evaluateGoal(goal, ctx);
+  assert.equal(p.periods?.length, 12);
+  const [jan, fev, mar, abr] = p.periods!;
+  assert.deepEqual(
+    [jan.met, jan.started, jan.current],
+    [true, true, false],
+  ); // jan cumprido, passado
+  assert.deepEqual(
+    [fev.met, fev.started, fev.current],
+    [false, true, false],
+  ); // fev não cumprido, passado
+  assert.deepEqual(
+    [mar.met, mar.started, mar.current],
+    [true, true, true],
+  ); // mar cumprido, mês atual
+  assert.deepEqual(
+    [abr.met, abr.started, abr.current],
+    [false, false, false],
+  ); // abr futuro
+  assert.equal(jan.count, 1);
+  assert.equal(fev.count, 0);
+});
+
 check('cadence: mês corrente sem corrida → currentPeriodMet false, não conta futuro', () => {
   const ctx = emptyCtx(new Date(YEAR, 5, 15, 12)); // 15 jun
   ctx.activities = [activity({ startAt: `${YEAR}-01-10T08:00:00` })];

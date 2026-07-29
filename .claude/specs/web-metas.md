@@ -29,7 +29,7 @@ guarda só a definição. Aplicação da migration `20260701120000_goals.sql` é
 - `unit`, `year`, `cat` (token de módulo p/ cor), `active`, `sort`
 
 Avaliação: `evaluateGoal(goal, ctx) → GoalProgress { current, target, pct, achieved,
-periodsTotal?, periodsMet?, currentPeriodMet? }` — pura, testada em
+periodsTotal?, periodsMet?, currentPeriodMet?, periods? }` — pura, testada em
 `packages/shared/src/goals/evaluate.test.ts` (rodar: `cd packages/shared && npx tsx src/goals/evaluate.test.ts`).
 
 ## Camada web
@@ -40,7 +40,10 @@ periodsTotal?, periodsMet?, currentPeriodMet? }` — pura, testada em
 - **Formatação**: `web/src/app/features/metas/data/goal-format.ts` (texto atual/alvo por família;
   distância em km; marco binário como Concluída/Pendente). Reusado pela página e pelo preview da Semana.
 - **Página**: `metas-page.component` — grid de cards (título, família·ano, valor, barra, badge
-  de concluída), filtro por categoria (`selectedCat`/`filtered`), botão "Nova meta".
+  de concluída), filtro por categoria (`selectedCat`/`filtered`), botão "Nova meta". Metas de
+  **cadência** ainda exibem o detalhamento por sub-período (`GoalProgress.periods`): 12 células
+  de mês rotuladas — ou faixa de semanas — coloridas por estado (cumprido / não cumprido / mês
+  atual / futuro), via `goalPeriodCells` em `goal-format.ts`.
 - **Editor**: `goal-editor.component` — modal com família + fonte (dropdown de atividade /
   tarefa / hábito / manual), período/mínimo (cadence) e alvo (milestone/cumulative).
 - **Preview Semana**: `MetasListComponent` (`features/semana/components/lists.component.ts`)

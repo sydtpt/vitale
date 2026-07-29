@@ -3,12 +3,14 @@
  * (lógica pura sobre @vitale/shared) — mantido duplicado por plataforma, como
  * habit-logic. Progresso é sempre DERIVADO por evaluateGoal.
  */
-import type { Goal, GoalProgress } from '@vitale/shared';
+import type { Goal, GoalPeriodStatus, GoalProgress } from '@vitale/shared';
 
 const PERIOD_LABEL: Record<'week' | 'month', [string, string]> = {
   week: ['semana', 'semanas'],
   month: ['mês', 'meses'],
 };
+
+const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 const FAMILY_LABEL: Record<Goal['family'], string> = {
   cadence: 'Cadência',
@@ -56,4 +58,38 @@ export function goalValueText(goal: Goal, p: GoalProgress): string {
 
 export function goalPct(p: GoalProgress): number {
   return Math.round(p.pct);
+}
+
+/** Estado visual de um sub-período de cadência. */
+export type GoalPeriodState = 'met' | 'missed' | 'current' | 'future';
+
+/** Célula pronta para render: rótulo curto (mês) e estado (cor). */
+export interface GoalPeriodCell {
+  label: string;
+  state: GoalPeriodState;
+}
+
+function periodState(s: GoalPeriodStatus): GoalPeriodState {
+  if (s.met) return 'met';
+  if (s.current) return 'current';
+  if (s.started) return 'missed';
+  return 'future';
+}
+
+/** É uma cadência mensal (12 células rotuladas por mês)? */
+export function isMonthlyCadence(goal: Goal): boolean {
+  return goal.family === 'cadence' && (goal.period ?? 'month') === 'month';
+}
+
+/**
+ * Detalhamento por sub-período de uma meta de cadência — meses/semanas cumpridos
+ * ou não. Vazio para metas que não são de cadência. Espelha a web.
+ */
+export function goalPeriodCells(goal: Goal, p: GoalProgress): GoalPeriodCell[] {
+  if (goal.family !== 'cadence' || !p.periods) return [];
+  const monthly = isMonthlyCadence(goal);
+  return p.periods.map((s) => ({
+    label: monthly ? MONTHS_SHORT[new Date(s.start).getMonth()] : '',
+    state: periodState(s),
+  }));
 }

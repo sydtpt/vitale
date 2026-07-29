@@ -1,10 +1,16 @@
 /** Formatação de exibição das metas — compartilhada pela página e pelo preview da Semana. */
-import type { Goal, GoalProgress } from '@vitale/shared';
+import type { Goal, GoalPeriodStatus, GoalProgress } from '@vitale/shared';
 
 const PERIOD_LABEL: Record<'week' | 'month', [string, string]> = {
   week: ['semana', 'semanas'],
   month: ['mês', 'meses'],
 };
+
+const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MONTHS_FULL = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
 
 const FAMILY_LABEL: Record<Goal['family'], string> = {
   cadence: 'Cadência',
@@ -52,4 +58,55 @@ export function goalValueText(goal: Goal, p: GoalProgress): string {
 
 export function goalPct(p: GoalProgress): number {
   return Math.round(p.pct);
+}
+
+/** Estado visual de um sub-período de cadência. */
+export type GoalPeriodState = 'met' | 'missed' | 'current' | 'future';
+
+const STATE_TEXT: Record<GoalPeriodState, string> = {
+  met: 'cumprido',
+  missed: 'não cumprido',
+  current: 'em andamento',
+  future: 'a fazer',
+};
+
+/** Célula pronta para render: rótulo curto, estado (cor) e detalhe (tooltip). */
+export interface GoalPeriodCell {
+  label: string;
+  state: GoalPeriodState;
+  title: string;
+}
+
+function periodState(s: GoalPeriodStatus): GoalPeriodState {
+  if (s.met) return 'met';
+  if (s.current) return 'current';
+  if (s.started) return 'missed';
+  return 'future';
+}
+
+/** É uma cadência mensal (12 células rotuladas por mês)? */
+export function isMonthlyCadence(goal: Goal): boolean {
+  return goal.family === 'cadence' && (goal.period ?? 'month') === 'month';
+}
+
+/**
+ * Detalhamento por sub-período de uma meta de cadência — meses/semanas cumpridos
+ * ou não. Vazio para metas que não são de cadência.
+ */
+export function goalPeriodCells(goal: Goal, p: GoalProgress): GoalPeriodCell[] {
+  if (goal.family !== 'cadence' || !p.periods) return [];
+  const monthly = isMonthlyCadence(goal);
+  const per = goal.perPeriodTarget ?? 1;
+  return p.periods.map((s) => {
+    const d = new Date(s.start);
+    const state = periodState(s);
+    const name = monthly
+      ? MONTHS_FULL[d.getMonth()]
+      : `Semana de ${d.toLocaleDateString('pt-BR')}`;
+    return {
+      label: monthly ? MONTHS_SHORT[d.getMonth()] : '',
+      state,
+      title: `${name} · ${s.count}/${per} · ${STATE_TEXT[state]}`,
+    };
+  });
 }

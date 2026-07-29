@@ -3,7 +3,14 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import type { Goal, GoalProgress } from '@vitale/shared';
 import { GoalsStore } from '../data/goals.store';
 import { GoalEditorComponent } from '../components/goal-editor.component';
-import { familyLabel, goalValueText, goalPct } from '../data/goal-format';
+import {
+  familyLabel,
+  goalValueText,
+  goalPct,
+  goalPeriodCells,
+  isMonthlyCadence,
+  type GoalPeriodCell,
+} from '../data/goal-format';
 
 interface GoalVM {
   goal: Goal;
@@ -11,6 +18,10 @@ interface GoalVM {
   value: string;
   pct: number;
   achieved: boolean;
+  /** Sub-períodos cumpridos/não cumpridos (só cadência). */
+  periods: GoalPeriodCell[];
+  /** Grade rotulada de 12 meses (cadência mensal) vs. faixa de semanas. */
+  monthly: boolean;
 }
 
 @Component({
@@ -38,6 +49,8 @@ export class MetasPageComponent {
       value: p ? goalValueText(goal, p) : '—',
       pct: p ? goalPct(p) : 0,
       achieved: p?.achieved ?? false,
+      periods: p ? goalPeriodCells(goal, p) : [],
+      monthly: isMonthlyCadence(goal),
     };
   }
 

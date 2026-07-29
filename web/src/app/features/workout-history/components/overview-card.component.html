@@ -40,7 +40,7 @@
       @for (l of overview().legend; track l.label) {
         <button type="button" class="leg" [class.off]="isHidden(l.label)"
           [attr.aria-pressed]="!isHidden(l.label)" (click)="toggleType(l.label)">
-          <span class="dot" [style.background]="l.color"></span>{{ l.label }}
+          <span class="dot" [style.background]="palette.remap(l.color)"></span>{{ l.label }}
         </button>
       }
     </div>

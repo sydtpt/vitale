@@ -16,6 +16,8 @@ import { buildOverview, type Period, type Metric } from '../../lib/activity-over
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
+import { remapChartColor } from '../../lib/chart-palettes';
+import { useChartPaletteStore } from '../../store/chart-palette.store';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const PERIODS: { key: Period; label: string }[] = [
@@ -81,6 +83,7 @@ export default function HistoricoScreen() {
 
   const [period, setPeriod] = useState<Period>('semana');
   const [metric, setMetric] = useState<Metric>('count');
+  const paletteId = useChartPaletteStore((s) => s.paletteId);
 
   useEffect(() => {
     load();
@@ -178,22 +181,29 @@ export default function HistoricoScreen() {
             <StatTile value={formatDistance(totals.distanceM) ?? '—'} label="distância" />
           </View>
 
-          <View style={styles.chartWrap}>
-            <StackedBarChart buckets={overview.buckets} metric={metric} width={chartWidth} />
-          </View>
-
-          <Segmented options={METRICS} value={metric} onChange={setMetric} />
-
-          {overview.legend.length > 0 && (
-            <View style={styles.legend}>
-              {overview.legend.map((l) => (
-                <View key={l.label} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: l.color }]} />
-                  <Text style={styles.legendText}>{l.label}</Text>
-                </View>
-              ))}
+          <View style={styles.chartGroup}>
+            <View style={styles.chartWrap}>
+              <StackedBarChart
+                buckets={overview.buckets}
+                metric={metric}
+                width={chartWidth}
+                animationKey={`${period}-${metric}`}
+              />
             </View>
-          )}
+
+            <Segmented options={METRICS} value={metric} onChange={setMetric} />
+
+            {overview.legend.length > 0 && (
+              <View style={styles.legend}>
+                {overview.legend.map((l) => (
+                  <View key={l.label} style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: remapChartColor(l.color, paletteId) }]} />
+                    <Text style={styles.legendText}>{l.label}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
 
         <Text style={styles.sectionTitle}>Por tipo · histórico completo</Text>
@@ -317,6 +327,7 @@ const styles = themed(() => StyleSheet.create({
   statValue: { fontSize: 15, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
   statLabel: { fontSize: 10.5, color: colors.ink3 },
 
+  chartGroup: { gap: spacing.sm },
   chartWrap: { marginHorizontal: -spacing.xs },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },

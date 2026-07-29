@@ -37,6 +37,14 @@
 
           <div class="track"><div class="fill" [style.width.%]="m.pct"></div></div>
           <div class="pct mono">{{ m.pct }}%</div>
+
+          @if (m.periods.length > 0) {
+            <div class="periods" [class.weeks]="!m.monthly">
+              @for (c of m.periods; track $index) {
+                <span class="cell" [class]="c.state" [title]="c.title">{{ c.label }}</span>
+              }
+            </div>
+          }
         </div>
       } @empty {
         <div class="empty">Nenhuma meta nesta categoria.</div>

@@ -47,10 +47,39 @@ describe('buildOverview', () => {
     expect(ov.totals.distanceM).toBe(5000);
   });
 
-  it('ano: 12 buckets mensais', () => {
+  it('ano: 13 buckets (11 meses + mês atual em destaque + comparação ao final)', () => {
     const ov = buildOverview([act({ startAt: '2026-05-10T08:00:00' })], 'ano', 'count', now);
-    expect(ov.buckets).toHaveLength(12);
-    expect(ov.buckets[ov.buckets.length - 1].total).toBe(1); // mês atual
+    expect(ov.buckets).toHaveLength(13);
+
+    // Penúltimo bucket = mês atual (em destaque).
+    const current = ov.buckets[ov.buckets.length - 2];
+    expect(current.total).toBe(1);
+    expect(current.emphasis).toBe(true);
+
+    // Último bucket = comparação (mesmo mês há 1 ano), depois do mês atual.
+    const comparison = ov.buckets[ov.buckets.length - 1];
+    expect(comparison.comparison).toBe(true);
+    expect(comparison.label).toBe("mai '25");
+  });
+
+  it('ano: barra de comparação alimenta o gráfico mas fica fora dos totais', () => {
+    const activities = [
+      act({ startAt: '2026-05-10T08:00:00', durationS: 1800, calories: 300, distanceM: 5000 }),
+      // mesmo mês do ano anterior (maio/2025) — só comparação, não conta nos totais
+      act({ startAt: '2025-05-10T08:00:00', durationS: 3600, calories: 600, distanceM: 9000 }),
+    ];
+    const ov = buildOverview(activities, 'ano', 'count', now);
+
+    // totais ignoram a atividade de comparação
+    expect(ov.totals.count).toBe(1);
+    expect(ov.totals.durationS).toBe(1800);
+    expect(ov.totals.calories).toBe(300);
+    expect(ov.totals.distanceM).toBe(5000);
+
+    // ...mas a barra de comparação existe no gráfico (último bucket)
+    const comparison = ov.buckets[ov.buckets.length - 1];
+    expect(comparison.comparison).toBe(true);
+    expect(comparison.total).toBe(1);
   });
 
   it('separa segmentos por tipo dentro do mesmo bucket', () => {

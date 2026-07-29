@@ -10,7 +10,16 @@ export type Period = 'semana' | 'ano' | 'sempre';
 export type Metric = 'distance' | 'duration' | 'calories' | 'count';
 
 export interface TypeSegment { label: string; color: string; value: number; }
-export interface OverviewBucket { key: string; label: string; total: number; segments: TypeSegment[]; }
+export interface OverviewBucket {
+  key: string;
+  label: string;
+  total: number;
+  segments: TypeSegment[];
+  /** Barra de comparação (ex.: mesmo mês há um ano) — não entra nos totais. */
+  comparison?: boolean;
+  /** Barra em destaque (ex.: mês atual no período "Ano") — ganha mais espaço. */
+  emphasis?: boolean;
+}
 export interface OverviewTotals { count: number; distanceM: number; durationS: number; calories: number; }
 export interface LegendItem { label: string; color: string; }
 export interface Overview { buckets: OverviewBucket[]; totals: OverviewTotals; legend: LegendItem[]; }
@@ -30,14 +39,15 @@ export function metricValue(a: Activity, metric: Metric): number {
 function pad2(n: number): string { return n < 10 ? `0${n}` : `${n}`; }
 function ymd(d: Date): string { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
+interface PlanBucket { key: string; label: string; comparison?: boolean; emphasis?: boolean; }
 interface BucketPlan {
-  buckets: { key: string; label: string }[];
+  buckets: PlanBucket[];
   keyOf: (d: Date) => string;
 }
 
 function bucketPlan(activities: Activity[], period: Period, now: Date): BucketPlan {
   if (period === 'semana') {
-    const buckets: { key: string; label: string }[] = [];
+    const buckets: PlanBucket[] = [];
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     for (let i = 6; i >= 0; i--) {
       const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() - i);
@@ -47,17 +57,28 @@ function bucketPlan(activities: Activity[], period: Period, now: Date): BucketPl
   }
 
   if (period === 'ano') {
-    const buckets: { key: string; label: string }[] = [];
+    const monthKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+    const buckets: PlanBucket[] = [];
+    // 11 meses anteriores + mês atual (em destaque, i === 0).
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      buckets.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTHS[d.getMonth()] });
+      buckets.push({ key: monthKey(d), label: MONTHS[d.getMonth()], emphasis: i === 0 });
     }
-    return { buckets, keyOf: (d) => `${d.getFullYear()}-${d.getMonth()}` };
+    // Comparação: mesmo mês do ano anterior, DEPOIS do mês atual (à direita) —
+    // fora da sequência cronológica p/ não se confundir com os meses passados.
+    // Marcada como `comparison`: NÃO soma nos totais.
+    const cmp = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    buckets.push({
+      key: monthKey(cmp),
+      label: `${MONTHS[cmp.getMonth()]} '${String(cmp.getFullYear()).slice(-2)}`,
+      comparison: true,
+    });
+    return { buckets, keyOf: monthKey };
   }
 
   // sempre — um bucket por ano com dados
   const years = activities.map((a) => new Date(a.startAt).getFullYear());
-  const buckets: { key: string; label: string }[] = [];
+  const buckets: PlanBucket[] = [];
   if (years.length) {
     const min = Math.min(...years);
     const max = Math.max(...years);
@@ -75,6 +96,8 @@ export function buildOverview(
 ): Overview {
   const plan = bucketPlan(activities, period, now);
   const bucketKeys = new Set(plan.buckets.map((b) => b.key));
+  // chaves de comparação: aparecem no gráfico, mas ficam fora dos totais.
+  const comparisonKeys = new Set(plan.buckets.filter((b) => b.comparison).map((b) => b.key));
 
   // só atividades cuja chave cai nos buckets do período (janela móvel)
   const within = activities.filter((a) => bucketKeys.has(plan.keyOf(new Date(a.startAt))));
@@ -97,12 +120,16 @@ export function buildOverview(
     // totais e barras refletem apenas os tipos habilitados
     if (hidden.has(meta.label)) continue;
 
-    totals.count += 1;
-    totals.distanceM += a.distanceM ?? 0;
-    totals.durationS += a.durationS;
-    totals.calories += a.calories;
-
     const bk = plan.keyOf(new Date(a.startAt));
+
+    // Barras de comparação alimentam o gráfico/legenda, mas não os totais.
+    if (!comparisonKeys.has(bk)) {
+      totals.count += 1;
+      totals.distanceM += a.distanceM ?? 0;
+      totals.durationS += a.durationS;
+      totals.calories += a.calories;
+    }
+
     const bucket = perBucket.get(bk) ?? new Map<string, number>();
     bucket.set(meta.label, (bucket.get(meta.label) ?? 0) + value);
     perBucket.set(bk, bucket);
@@ -112,13 +139,13 @@ export function buildOverview(
     .sort((a, b) => b[1].total - a[1].total)
     .map(([label, { color }]) => ({ label, color }));
 
-  const buckets: OverviewBucket[] = plan.buckets.map(({ key, label }) => {
+  const buckets: OverviewBucket[] = plan.buckets.map(({ key, label, comparison, emphasis }) => {
     const agg = perBucket.get(key);
     const segments: TypeSegment[] = legend
       .map((li) => ({ label: li.label, color: li.color, value: agg?.get(li.label) ?? 0 }))
       .filter((s) => s.value > 0);
     const total = segments.reduce((sum, s) => sum + s.value, 0);
-    return { key, label, total, segments };
+    return { key, label, total, segments, comparison, emphasis };
   });
 
   return { buckets, totals, legend };

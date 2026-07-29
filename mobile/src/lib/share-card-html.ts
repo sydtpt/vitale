@@ -3,6 +3,7 @@ import { MOD } from '../theme';
 import { mapHead, mapScript, type MapPoint, type MapViewState } from './map-html';
 import { SHARE_FONT_FACE_CSS } from './share-fonts';
 import { ACTIVITY_ICON_PATHS } from './share-activity-icons';
+import { METRIC_ICON_PATHS } from './share-metric-icons';
 import { getActivityMeta, type RoutePoint } from './workout-types';
 import { speedFractions, elevationProfile } from './share-art-data';
 
@@ -508,13 +509,19 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     : '';
 
   const tiles = metrics
-    .map(
-      (m) => `
+    .map((m) => {
+      // Ícone da métrica (mesmo esquema do glifo de atividade): inline SVG em
+      // currentColor, então herda a cor apagada da legenda em qualquer tema.
+      const iconPath = METRIC_ICON_PATHS[m.key];
+      const icon = iconPath
+        ? `<svg class="tileIcon" viewBox="0 0 24 24"><path d="${iconPath}" fill="currentColor"/></svg>`
+        : '';
+      return `
       <div class="tile">
         <div class="value">${escapeHtml(m.value)}</div>
-        <div class="caption">${escapeHtml(m.caption)}</div>
-      </div>`,
-    )
+        <div class="caption">${icon}<span>${escapeHtml(m.caption)}</span></div>
+      </div>`;
+    })
     .join('');
 
   const mark = watermark
@@ -589,8 +596,12 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     .tile { display: flex; flex-direction: column; }
     .value { font-family: ${MONO}; font-weight: 700; font-size: 7vw; line-height: 1;
       letter-spacing: -0.02em; }
-    .caption { font-size: 3vw; letter-spacing: 0.1em; text-transform: uppercase;
-      color: ${fgMuted}; margin-top: 1.6vw; }
+    .caption { display: flex; align-items: center; gap: 1.4vw; font-size: 3vw;
+      letter-spacing: 0.1em; text-transform: uppercase; color: ${fgMuted}; margin-top: 1.6vw; }
+    /* Ícone da métrica: um pouco maior que a caixa da legenda; drop-shadow
+       equivalente ao text-shadow (que não pega em SVG) p/ legibilidade. */
+    .tileIcon { width: 3.8vw; height: 3.8vw; flex: none;
+      filter: drop-shadow(0 1px 6px rgba(0,0,0,0.4)); }
     .mark { display: flex; align-items: center; gap: 2vw; opacity: 0.92; }
     .markDot { width: 3.6vw; height: 3.6vw; border-radius: 50%; background: ${accent}; }
     .markName { font-family: ${DISPLAY}; font-size: 4.4vw; font-weight: 500; }

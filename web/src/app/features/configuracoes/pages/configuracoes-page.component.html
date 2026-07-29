@@ -1,0 +1,45 @@
+<div class="page">
+  <rt-page-header eyebrow="App" title="Configurações" />
+
+  <section class="section">
+    <h2 class="section-title">Cores dos gráficos</h2>
+    <p class="section-hint">
+      Muda as cores por tipo de atividade nos gráficos (barras empilhadas, legenda e tooltip).
+      A cor segue a atividade — a mesma atividade tem a mesma cor em qualquer período. Salvo só neste navegador.
+    </p>
+
+    <div class="grid">
+      @for (p of palettes; track p.id) {
+        <button
+          type="button"
+          class="pcard"
+          [class.selected]="p.id === palette.paletteId()"
+          [attr.aria-pressed]="p.id === palette.paletteId()"
+          (click)="palette.setPalette(p.id)"
+        >
+          <div class="preview">
+            @for (bar of previewBars; track $index) {
+              <div class="bar">
+                @for (seg of bar; track $index) {
+                  <span
+                    class="seg"
+                    [class.top]="$first"
+                    [style.background]="color(p.roles, seg.role)"
+                    [style.height.px]="seg.h"
+                  ></span>
+                }
+              </div>
+            }
+          </div>
+          <div class="meta">
+            <span class="name">{{ p.name }}</span>
+            <span class="hint">{{ p.hint }}</span>
+          </div>
+          <span class="check" [class.on]="p.id === palette.paletteId()">
+            @if (p.id === palette.paletteId()) { <span class="tick">✓</span> }
+          </span>
+        </button>
+      }
+    </div>
+  </section>
+</div>

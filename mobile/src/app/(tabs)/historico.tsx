@@ -20,6 +20,8 @@ import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { getActivityMeta } from '../../lib/workout-types';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
+import { remapChartColor } from '../../lib/chart-palettes';
+import { useChartPaletteStore } from '../../store/chart-palette.store';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const PERIODS: { key: Period; label: string }[] = [
@@ -88,6 +90,7 @@ export default function HistoricoTabScreen() {
   const [period, setPeriod] = useState<Period>('semana');
   const [metric, setMetric] = useState<Metric>('count');
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const paletteId = useChartPaletteStore((s) => s.paletteId);
 
   const toggleType = (label: string) =>
     setHidden((prev) => {
@@ -200,25 +203,33 @@ export default function HistoricoTabScreen() {
             <StatTile value={formatDistance(totals.distanceM) ?? '—'} label="distância" />
           </View>
 
-          <View style={styles.chartWrap}>
-            <StackedBarChart buckets={chartBuckets} metric={metric} width={chartWidth} noScroll={period === 'ano'} />
-          </View>
-
-          <Segmented options={METRICS} value={metric} onChange={setMetric} />
-
-          {overview.legend.length > 0 && (
-            <View style={styles.legend}>
-              {overview.legend.map((l) => {
-                const off = hidden.has(l.label);
-                return (
-                  <Pressable key={l.label} onPress={() => toggleType(l.label)} style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: off ? colors.line : l.color }]} />
-                    <Text style={[styles.legendText, off && styles.legendTextOff]}>{l.label}</Text>
-                  </Pressable>
-                );
-              })}
+          <View style={styles.chartGroup}>
+            <View style={styles.chartWrap}>
+              <StackedBarChart
+                buckets={chartBuckets}
+                metric={metric}
+                width={chartWidth}
+                noScroll={period === 'ano'}
+                animationKey={`${period}-${metric}`}
+              />
             </View>
-          )}
+
+            <Segmented options={METRICS} value={metric} onChange={setMetric} />
+
+            {overview.legend.length > 0 && (
+              <View style={styles.legend}>
+                {overview.legend.map((l) => {
+                  const off = hidden.has(l.label);
+                  return (
+                    <Pressable key={l.label} onPress={() => toggleType(l.label)} style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: off ? colors.line : remapChartColor(l.color, paletteId) }]} />
+                      <Text style={[styles.legendText, off && styles.legendTextOff]}>{l.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         </View>
 
         <Text style={styles.sectionTitle}>Por tipo · histórico completo</Text>
@@ -324,6 +335,7 @@ const styles = themed(() => StyleSheet.create({
   statValue: { fontSize: 15, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
   statLabel: { fontSize: 10.5, color: colors.ink3 },
 
+  chartGroup: { gap: spacing.sm },
   chartWrap: { marginHorizontal: -spacing.xs },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },

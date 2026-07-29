@@ -32,6 +32,7 @@ export class SidebarComponent {
     { path: '/financas',    icon: '💰', label: 'Finanças' },
     { path: '/metas',       icon: '🎯', label: 'Metas' },
     { path: '/conexoes',    icon: '🔗', label: 'Conexões' },
+    { path: '/configuracoes', icon: '⚙️', label: 'Configurações' },
   ];
 
   protected readonly weekStats = [

@@ -53,6 +53,35 @@ describe('buildOverview — sempre', () => {
   });
 });
 
+describe('buildOverview — ano (comparação ano a ano)', () => {
+  const now = new Date(2026, 4, 20, 12); // maio/2026
+
+  it('gera 13 buckets: 11 meses + mês atual em destaque + comparação ao final', () => {
+    const o = buildOverview([act({ startAt: '2026-05-10T08:00:00' })], 'ano', 'count', now);
+    expect(o.buckets.length).toBe(13);
+
+    const current = o.buckets[o.buckets.length - 2]; // penúltimo = mês atual
+    expect(current.emphasis).toBe(true);
+    expect(current.total).toBe(1);
+
+    const comparison = o.buckets[o.buckets.length - 1]; // último = comparação
+    expect(comparison.comparison).toBe(true);
+    expect(comparison.label).toBe("mai '25");
+  });
+
+  it('a barra de comparação alimenta o gráfico mas fica fora dos totais', () => {
+    const activities = [
+      act({ startAt: '2026-05-10T08:00:00' }),
+      act({ startAt: '2025-05-10T08:00:00' }), // mesmo mês, ano anterior → só comparação
+    ];
+    const o = buildOverview(activities, 'ano', 'count', now);
+
+    expect(o.totals.count).toBe(1); // ignora a atividade de comparação
+    const comparison = o.buckets[o.buckets.length - 1];
+    expect(comparison.total).toBe(1); // ...mas a barra existe
+  });
+});
+
 describe('buildOverview — semana (janela móvel)', () => {
   const now = new Date(2026, 4, 20, 12); // 2026-05-20
 

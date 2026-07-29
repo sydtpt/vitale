@@ -12,7 +12,15 @@ import {
 import { useActivitiesStore } from '../../store/activities.store';
 import { useHabitsStore } from '../../store/habits.store';
 import { useAuthStore } from '../../store/auth.store';
-import { familyLabel, goalValueText, goalPct } from '../../lib/goal-format';
+import {
+  familyLabel,
+  goalValueText,
+  goalPct,
+  goalPeriodCells,
+  isMonthlyCadence,
+  type GoalPeriodCell,
+  type GoalPeriodState,
+} from '../../lib/goal-format';
 import { colors, spacing, radii, shadows, moduleColors, useThemedStyles } from '../../theme';
 
 interface GoalVM {
@@ -21,6 +29,8 @@ interface GoalVM {
   value: string;
   pct: number;
   achieved: boolean;
+  periods: GoalPeriodCell[];
+  monthly: boolean;
 }
 
 function vm(goal: Goal, p: GoalProgress | undefined): GoalVM {
@@ -30,7 +40,23 @@ function vm(goal: Goal, p: GoalProgress | undefined): GoalVM {
     value: p ? goalValueText(goal, p) : '—',
     pct: p ? goalPct(p) : 0,
     achieved: p?.achieved ?? false,
+    periods: p ? goalPeriodCells(goal, p) : [],
+    monthly: isMonthlyCadence(goal),
   };
+}
+
+/** Cores de cada estado de sub-período (fundo, texto e borda). */
+function periodColors(state: GoalPeriodState): { bg: string; fg: string; border: string } {
+  switch (state) {
+    case 'met':
+      return { bg: colors.greenSoft, fg: colors.green, border: 'transparent' };
+    case 'missed':
+      return { bg: colors.roseSoft, fg: colors.rose, border: 'transparent' };
+    case 'current':
+      return { bg: colors.primarySoft, fg: colors.primaryDeep, border: colors.primary };
+    case 'future':
+      return { bg: colors.surfaceMute, fg: colors.ink4, border: 'transparent' };
+  }
 }
 
 export default function MetasScreen() {
@@ -142,6 +168,25 @@ export default function MetasScreen() {
             ]}
           />
         </View>
+
+        {m.periods.length > 0 && (
+          <View style={styles.periods}>
+            {m.periods.map((c, i) => {
+              const pc = periodColors(c.state);
+              return (
+                <View
+                  key={i}
+                  style={[
+                    m.monthly ? styles.cellMonth : styles.cellWeek,
+                    { backgroundColor: pc.bg, borderColor: pc.border },
+                  ]}
+                >
+                  {m.monthly && <Text style={[styles.cellText, { color: pc.fg }]}>{c.label}</Text>}
+                </View>
+              );
+            })}
+          </View>
+        )}
       </Pressable>
     );
   };
@@ -312,6 +357,19 @@ const createStyles = () =>
       overflow: 'hidden',
     },
     fill: { height: 8, borderRadius: radii.pill },
+
+    periods: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: spacing.md },
+    cellMonth: {
+      flexGrow: 1,
+      flexBasis: '15%',
+      height: 24,
+      borderRadius: 6,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cellWeek: { width: 10, height: 10, borderRadius: 3, borderWidth: 1 },
+    cellText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
 
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
     emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: spacing.sm },

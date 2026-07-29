@@ -5,6 +5,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
+import { useChartPaletteStore } from '../../store/chart-palette.store';
+import { getChartPalette } from '../../lib/chart-palettes';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 const RED = '#E05C5C';
@@ -28,6 +30,7 @@ export default function ConfiguracoesScreen() {
   const profile = useSettingsStore((s) => s.profile);
   const preferences = useSettingsStore((s) => s.preferences);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const chartPaletteId = useChartPaletteStore((s) => s.paletteId);
 
   useEffect(() => {
     if (!profile) loadSettings();
@@ -49,6 +52,7 @@ export default function ConfiguracoesScreen() {
       title: 'App',
       rows: [
         { icon: 'color-palette-outline', label: 'Aparência', sub: appearanceSub, route: '/configuracoes/app' },
+        { icon: 'color-filter-outline', label: 'Cores dos gráficos', sub: getChartPalette(chartPaletteId).name, route: '/configuracoes/paleta' },
         { icon: 'trophy-outline', label: 'Objetivos', sub: 'Macros e treino', route: '/configuracoes/objetivos' },
       ],
     },
