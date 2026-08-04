@@ -29,7 +29,7 @@ const LINKS: Link[] = [
   { icon: 'home-outline', label: 'Casa', sub: 'Rotinas e tarefas', mod: 'casa' },
   { icon: 'golf-outline', label: 'Metas', sub: 'Progresso do ano', mod: 'habito', route: '/metas' },
   { icon: 'trending-up-outline', label: 'Progresso', sub: 'Gráficos longos', mod: 'agua' },
-  { icon: 'notifications-outline', label: 'Lembretes', sub: '6 ativos', mod: 'food' },
+  { icon: 'notifications-outline', label: 'Lembretes', sub: 'Notificações do app', mod: 'food', route: '/configuracoes/notificacoes' },
 ];
 
 export default function MaisScreen() {

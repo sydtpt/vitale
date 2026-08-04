@@ -188,7 +188,13 @@ export default function AtividadeDetalheScreen() {
     { label: 'Fim', value: `${formatFullDate(activity.endAt)} · ${formatTime(activity.endAt)}` },
     { label: 'Tempo total', value: formatDuration(totalS) },
     ...(hasGps ? [{ label: 'Tempo em movimento', value: formatDuration(movingS) }] : []),
-    { label: 'Calorias', value: activity.calories > 0 ? `${activity.calories} kcal` : '—' },
+    {
+      label: 'Calorias',
+      value:
+        activity.calories > 0
+          ? `${activity.caloriesEstimated ? '≈' : ''}${activity.calories} kcal`
+          : '—',
+    },
     { label: 'Distância', value: distance ?? '—' },
     { label: 'Fonte', value: activity.sourceName || '—' },
     { label: 'Dispositivo', value: activity.device || '—' },
@@ -245,7 +251,12 @@ export default function AtividadeDetalheScreen() {
               <Stat icon="time-outline" value={formatDuration(activity.durationS)} caption="duração" color={color} />
             )}
             {activity.calories > 0 && (
-              <Stat icon="flame-outline" value={`${activity.calories}`} caption="kcal" color={color} />
+              <Stat
+                icon="flame-outline"
+                value={`${activity.caloriesEstimated ? '≈' : ''}${activity.calories}`}
+                caption={activity.caloriesEstimated ? 'kcal (est.)' : 'kcal'}
+                color={color}
+              />
             )}
             {distance && <Stat icon="map-outline" value={distance} caption="distância" color={color} />}
             {rate && <Stat icon="speedometer-outline" value={rate.value} caption={rate.caption} color={color} />}
@@ -317,6 +328,12 @@ export default function AtividadeDetalheScreen() {
                   </View>
                 </View>
               ))}
+              {activity.hrZonesEstimated && (
+                <Text style={styles.note}>
+                  Treino sem monitor cardíaco: distribuição estimada pela média dos seus treinos
+                  deste tipo.
+                </Text>
+              )}
             </View>
           </>
         )}

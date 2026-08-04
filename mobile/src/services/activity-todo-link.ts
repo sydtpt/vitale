@@ -23,20 +23,21 @@ type OnWorkoutRec = Extract<TodoRecurrence, { kind: 'on_workout' }>;
  * Criação por on_workout: séries cuja ocorrência NASCE ao registrar um treino
  * (de um tipo específico ou de qualquer). 1 por vez — pula se já há pendente.
  */
-async function createOnWorkoutTodos(workouts: WorkoutItem[], userId: string): Promise<void> {
+async function createOnWorkoutTodos(workouts: WorkoutItem[], userId: string): Promise<number> {
   const { data } = await supabase
     .from('todo_templates')
     .select('id, recurrence')
     .eq('active', true)
     .eq('recurrence->>kind', 'on_workout');
   const templates = (data ?? []) as { id: string; recurrence: OnWorkoutRec }[];
-  if (templates.length === 0) return;
+  if (templates.length === 0) return 0;
 
   const hasPending = new Set<string>();
   for (const t of templates) {
     if (await hasPendingOccurrence(t.id)) hasPending.add(t.id);
   }
 
+  let created = 0;
   const ordered = [...workouts].sort((a, b) => a.start.localeCompare(b.start));
   for (const w of ordered) {
     const day = localDateStr(new Date(w.start));
@@ -44,20 +45,28 @@ async function createOnWorkoutTodos(workouts: WorkoutItem[], userId: string): Pr
       const wantActivity = t.recurrence.activityId;
       if (wantActivity != null && wantActivity !== w.activityId) continue;
       if (hasPending.has(t.id)) continue;
-      await insertOccurrence(userId, t.id, triggeredDueDate(t.recurrence, day));
+      if (await insertOccurrence(userId, t.id, triggeredDueDate(t.recurrence, day))) created++;
       hasPending.add(t.id);
     }
   }
+  return created;
 }
 
 /** Origem gravada em occurrence.meta — distingue conclusão por treino de manual. */
 const SOURCE = 'activity-sync';
 
-export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: string): Promise<void> {
-  if (workouts.length === 0) return;
+/**
+ * Vincula treinos a tarefas. Retorna quantas ocorrências PENDENTES novas surgiram
+ * (fase A on_workout + próximas geradas por recorrência/encadeamento) — usado para
+ * notificar "novas tarefas automáticas". Não conta as auto-criadas-e-já-concluídas.
+ */
+export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: string): Promise<number> {
+  if (workouts.length === 0) return 0;
+
+  let created = 0;
 
   // Fase A — criação por on_workout (independente da conclusão por linked_activity_id).
-  await createOnWorkoutTodos(workouts, userId);
+  created += await createOnWorkoutTodos(workouts, userId);
 
   // Fase B — conclusão/geração das séries vinculadas por linked_activity_id.
   const activityIds = [...new Set(workouts.map((w) => w.activityId))];
@@ -120,7 +129,7 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
   }
 
   const templateRows = [...byActivity.values()];
-  if (templateRows.length === 0) return;
+  if (templateRows.length === 0) return created;
 
   // 3. Ocorrências existentes dessas séries (para decidir resolve/criar/skip).
   const templateIds = templateRows.map((t) => t.id);
@@ -152,7 +161,7 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
 
     if (action.kind === 'resolve') {
       const occ = occs.find((o) => o.id === action.occId);
-      await resolveAndAdvance({
+      created += await resolveAndAdvance({
         userId,
         template,
         occId: action.occId,
@@ -164,6 +173,7 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
       if (occ) occ.status = 'done';
     } else {
       // create-resolve: cria a ocorrência do dia (idempotente) e conclui.
+      // A ocorrência aqui já nasce concluída, então não conta como "tarefa nova".
       await insertOccurrence(userId, tRow.id, day);
       const { data: occ } = await supabase
         .from('todo_occurrences')
@@ -172,7 +182,7 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
         .eq('due_date', day)
         .single();
       if (!occ) continue;
-      await resolveAndAdvance({
+      created += await resolveAndAdvance({
         userId,
         template,
         occId: occ.id,
@@ -184,4 +194,6 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
       occs.push({ id: occ.id, dueDate: day, status: 'done' });
     }
   }
+
+  return created;
 }

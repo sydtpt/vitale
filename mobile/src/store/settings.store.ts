@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import type { UserProfile, UserPreferences, AppTheme } from '@vitale/shared';
-import { resolveMapStyle, DEFAULT_MAP_STYLE, resolveWallpaper, DEFAULT_WALLPAPER } from '@vitale/shared';
+import {
+  resolveMapStyle,
+  DEFAULT_MAP_STYLE,
+  resolveWallpaper,
+  DEFAULT_WALLPAPER,
+  resolveNotificationPrefs,
+  DEFAULT_NOTIFICATION_PREFS,
+  resolveReferenceLineScheme,
+} from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { getJSON, setJSON } from '../lib/local-store';
 import { useAuthStore } from './auth.store';
@@ -54,6 +62,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           nutritionFatG: prefsRes.data.nutrition_fat_g ?? undefined,
           trainingDaysPerWeek: prefsRes.data.training_days_per_week ?? undefined,
           maxHr: prefsRes.data.max_hr ?? undefined,
+          weeklyActivityTargetMin: prefsRes.data.weekly_activity_target_min ?? undefined,
+          referenceLineScheme: resolveReferenceLineScheme(prefsRes.data.reference_line_scheme),
+          notificationPrefs: resolveNotificationPrefs(prefsRes.data.notification_prefs),
           updatedAt: prefsRes.data.updated_at,
         }
       : null;
@@ -80,6 +91,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         notificationsEnabled: true,
         mapStyle: DEFAULT_MAP_STYLE,
         wallpaper: DEFAULT_WALLPAPER,
+        notificationPrefs: DEFAULT_NOTIFICATION_PREFS,
         updatedAt: new Date().toISOString(),
       };
     set({
@@ -127,6 +139,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       notificationsEnabled: true,
       mapStyle: DEFAULT_MAP_STYLE,
       wallpaper: DEFAULT_WALLPAPER,
+      notificationPrefs: DEFAULT_NOTIFICATION_PREFS,
       updatedAt: new Date().toISOString(),
     };
     const next: UserPreferences = { ...current, ...patch, updatedAt: new Date().toISOString() };
@@ -149,6 +162,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       nutrition_fat_g: next.nutritionFatG ?? null,
       training_days_per_week: next.trainingDaysPerWeek ?? null,
       max_hr: next.maxHr ?? null,
+      weekly_activity_target_min: next.weeklyActivityTargetMin ?? null,
+      reference_line_scheme: next.referenceLineScheme ?? null,
+      notification_prefs: next.notificationPrefs ?? {},
     });
     // Falha de sync não derruba a escolha local (já no cache); só não fica silenciosa.
     if (error) console.warn('[settings] falha ao salvar preferências no servidor:', error.message);

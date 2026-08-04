@@ -3,6 +3,7 @@ import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, KeyboardAvoid
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DEFAULT_WEEKLY_TARGET_MIN, WHO_RANGE_MIN, WHO_RANGE_MAX } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
@@ -39,6 +40,7 @@ export default function ObjetivosScreen() {
   const [fat, setFat] = useState<number | undefined>(preferences?.nutritionFatG);
   const [days, setDays] = useState<number | undefined>(preferences?.trainingDaysPerWeek);
   const [maxHr, setMaxHr] = useState<number | undefined>(preferences?.maxHr);
+  const [weeklyTarget, setWeeklyTarget] = useState<number | undefined>(preferences?.weeklyActivityTargetMin);
 
   useEffect(() => {
     if (!preferences) loadSettings();
@@ -51,6 +53,7 @@ export default function ObjetivosScreen() {
     setFat(preferences?.nutritionFatG);
     setDays(preferences?.trainingDaysPerWeek);
     setMaxHr(preferences?.maxHr);
+    setWeeklyTarget(preferences?.weeklyActivityTargetMin);
   }, [preferences]);
 
   const save = async () => {
@@ -62,6 +65,7 @@ export default function ObjetivosScreen() {
       nutritionFatG: fat,
       trainingDaysPerWeek: days,
       maxHr,
+      weeklyActivityTargetMin: weeklyTarget,
     });
     setSaving(false);
     router.back();
@@ -108,17 +112,34 @@ export default function ObjetivosScreen() {
               </View>
               <NumInput value={days} onChange={setDays} placeholder="—" />
             </View>
-            <View style={styles.fieldRow}>
+            <View style={[styles.fieldRow, styles.rowBorder]}>
               <View style={styles.fieldLabel}>
                 <Text style={styles.rowLabel}>FC máxima</Text>
                 <Text style={styles.unit}>bpm</Text>
               </View>
               <NumInput value={maxHr} onChange={setMaxHr} placeholder="—" />
             </View>
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldLabel}>
+                <Text style={styles.rowLabel}>Meta semanal</Text>
+                <Text style={styles.unit}>min equivalentes</Text>
+              </View>
+              <NumInput
+                value={weeklyTarget}
+                onChange={setWeeklyTarget}
+                placeholder={String(DEFAULT_WEEKLY_TARGET_MIN)}
+              />
+            </View>
           </View>
           <Text style={styles.hint}>
-            Usada nas zonas de frequência cardíaca (% da FC máxima). Use o mesmo valor do
-            seu relógio para as zonas baterem.
+            FC máxima: usada nas zonas de frequência cardíaca (% da FC máxima). Use o mesmo
+            valor do seu relógio para as zonas baterem.
+          </Text>
+          <Text style={styles.hint}>
+            Meta semanal: a linha de referência do gráfico de duração no Histórico, em minutos
+            moderados equivalentes — 1 min intenso vale 2. A OMS recomenda de {WHO_RANGE_MIN} a{' '}
+            {WHO_RANGE_MAX} min/semana; o ganho de saúde é grande até {WHO_RANGE_MIN} e satura
+            depois de {WHO_RANGE_MAX}. Em branco usa {DEFAULT_WEEKLY_TARGET_MIN}.
           </Text>
         </ScrollView>
       </View>

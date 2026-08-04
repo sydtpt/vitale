@@ -73,6 +73,7 @@ export interface IngestSummary {
 const ACTIVITY_SELECT =
   'id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
   'distance_m,elevation_m,source_id,source_name,device,has_route,best_efforts,hr_zones,' +
+  'calories_estimated,hr_zones_estimated,' +
   'metadata,provider,external_id,external_ids,name_edited,duration_edited,hidden,created_at';
 
 interface ActivityRow {
@@ -92,6 +93,9 @@ interface ActivityRow {
   has_route: boolean | null;
   best_efforts: Record<string, number> | null;
   hr_zones: Record<string, number> | null;
+  /** Valor preenchido pelo trigger `activities_estimate` — não é dado medido. */
+  calories_estimated: boolean | null;
+  hr_zones_estimated: boolean | null;
   metadata: Record<string, unknown> | null;
   provider: string | null;
   external_id: string | null;
@@ -100,6 +104,12 @@ interface ActivityRow {
   duration_edited: boolean | null;
   hidden: boolean | null;
   created_at: string;
+}
+
+/** Zonas de FC REAIS (amostras do sensor). Estimativa do trigger não conta como dado. */
+function hasRealHrZones(row: ActivityRow): boolean {
+  if (row.hr_zones_estimated) return false;
+  return row.hr_zones != null && Object.keys(row.hr_zones).length > 0;
 }
 
 function rowToTarget(row: ActivityRow, routePointCount: number): MergeTarget {
@@ -112,7 +122,7 @@ function rowToTarget(row: ActivityRow, routePointCount: number): MergeTarget {
     sourceId: row.source_id,
     sourceName: row.source_name,
     routePointCount,
-    hasHrData: row.hr_zones != null && Object.keys(row.hr_zones).length > 0,
+    hasHrData: hasRealHrZones(row),
     distanceM: row.distance_m,
     nameEdited: row.name_edited ?? false,
     durationEdited: row.duration_edited ?? false,
@@ -469,7 +479,7 @@ async function mergeRows(
     sourceId: other.source_id,
     sourceName: other.source_name,
     routePointCount: routeCounts.get(other.id) ?? 0,
-    hasHrData: other.hr_zones != null && Object.keys(other.hr_zones).length > 0,
+    hasHrData: hasRealHrZones(other),
     distanceM: other.distance_m,
   };
   const target = rowToTarget(canonical, routeCounts.get(canonical.id) ?? 0);
@@ -487,8 +497,12 @@ async function mergeRows(
     if (other.moving_time_s != null) patch.moving_time_s = other.moving_time_s;
     if (other.elevation_m != null) patch.elevation_m = other.elevation_m;
     if (other.best_efforts) patch.best_efforts = other.best_efforts;
-    if (other.hr_zones) patch.hr_zones = other.hr_zones;
-    if (other.calories && other.calories > 0) patch.calories = other.calories;
+    // Só dado medido migra: copiar a estimativa da linha descartada faria o
+    // trigger lê-la como medida na canônica (e ela sobrescreveria kcal/zonas reais).
+    if (hasRealHrZones(other)) patch.hr_zones = other.hr_zones;
+    if (other.calories && other.calories > 0 && !other.calories_estimated) {
+      patch.calories = other.calories;
+    }
     if (other.device) patch.device = other.device;
   }
   if (plan.setName) patch.activity_name = other.activity_name;

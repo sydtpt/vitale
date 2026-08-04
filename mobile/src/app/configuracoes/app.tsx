@@ -6,10 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { MAP_STYLES, SAMPLE_ROUTE, WALLPAPERS, type MapStyle } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
-import { enableNotifications, refreshDailyDigest } from '../../services/notifications';
 import { buildMapHtml } from '../../lib/map-html';
-
-const REMINDER_TIMES = ['07:00', '08:00', '09:00', '20:00', '21:00'];
 import { RotinaBackground } from '../../components/ui/RotinaBackground';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
@@ -123,8 +120,6 @@ export default function AppSettingsScreen() {
   const theme = preferences?.theme ?? 'system';
   const glass = preferences?.glassEnabled ?? false;
   const blurIntensity = preferences?.blurIntensity ?? 50;
-  const notifs = preferences?.notificationsEnabled ?? true;
-  const reminderTime = preferences?.dailyReminderTime ?? '08:00';
   const mapStyle = preferences?.mapStyle ?? 'voyager';
   const wallpaper = preferences?.wallpaper ?? 'flat';
   const darkMode = theme === 'dark';
@@ -304,50 +299,6 @@ export default function AppSettingsScreen() {
           })}
         </View>
 
-        {/* Notifications section */}
-        <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Notificações</Text>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#F25C2B' }]}>
-              <Ionicons name="notifications-outline" size={15} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Digest diário</Text>
-            <Switch
-              value={notifs}
-              onValueChange={async (v) => {
-                await updatePreferences({ notificationsEnabled: v });
-                if (v) await enableNotifications();
-                else await refreshDailyDigest();
-              }}
-              trackColor={{ true: colors.primary, false: colors.line }}
-              thumbColor={colors.surface}
-              ios_backgroundColor={colors.line}
-            />
-          </View>
-          {notifs && (
-            <View style={styles.timeRow}>
-              <Text style={styles.timeLabel}>Horário</Text>
-              <View style={styles.timeChips}>
-                {REMINDER_TIMES.map((t) => {
-                  const on = reminderTime === t;
-                  return (
-                    <Pressable
-                      key={t}
-                      onPress={async () => {
-                        await updatePreferences({ dailyReminderTime: t });
-                        await refreshDailyDigest();
-                      }}
-                      style={[styles.timeChip, on && styles.timeChipOn]}
-                    >
-                      <Text style={[styles.timeChipTxt, on && styles.timeChipTxtOn]}>{t}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-        </View>
-        <Text style={styles.hint}>Prontidão, treino do dia, overtraining, tarefas e hábitos — num lembrete só.</Text>
       </ScrollView>
     </View>
   );

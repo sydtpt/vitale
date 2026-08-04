@@ -32,19 +32,26 @@ export async function flushResolves(items: TodoResolveOp[]): Promise<TodoResolve
   return failed;
 }
 
-/** Insere ocorrência; ignora violação de unicidade (idempotente por template+data). */
+/**
+ * Insere ocorrência; ignora violação de unicidade (idempotente por template+data).
+ * Retorna `true` se criou uma linha nova, `false` se já existia (23505).
+ */
 export async function insertOccurrence(
   userId: string,
   templateId: string,
   dueDate: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const { error } = await supabase.from('todo_occurrences').insert({
     template_id: templateId,
     user_id: userId,
     due_date: dueDate,
     status: 'pending',
   });
-  if (error && error.code !== '23505') throw error;
+  if (error) {
+    if (error.code === '23505') return false;
+    throw error;
+  }
+  return true;
 }
 
 /** Há ocorrência pendente da série? Dedup dos gatilhos de criação (1 por vez). */
@@ -64,17 +71,20 @@ export async function hasPendingOccurrence(templateId: string): Promise<boolean>
  * recorrência — esta é só a porta de criação. A ocorrência criada nasce com
  * `dueDate = triggerDay` (filha que é avulsa/sem prazo recebe o dia do gatilho).
  * `ifPending: 'ignore'` pula se já existe pendente; 'duplicate' sempre cria.
+ * Retorna quantas ocorrências-filhas novas foram criadas.
  */
 export async function fireOnComplete(
   userId: string,
   parent: Pick<TodoTemplate, 'onComplete'>,
   triggerDay: string,
-): Promise<void> {
+): Promise<number> {
   const rules = parent.onComplete ?? [];
+  let created = 0;
   for (const r of rules) {
     if (r.ifPending === 'ignore' && (await hasPendingOccurrence(r.templateId))) continue;
-    await insertOccurrence(userId, r.templateId, triggerDay);
+    if (await insertOccurrence(userId, r.templateId, triggerDay)) created++;
   }
+  return created;
 }
 
 export interface ResolveArgs {
@@ -94,8 +104,11 @@ export interface ResolveArgs {
  *  2. em 'done' de 'usage', registra meter_at_last_done;
  *  3. em 'done', dispara encadeamento (template.onComplete) — instancia filhas;
  *  4. gera a próxima ocorrência (nextDueDate); null para none/usage/event/stock.
+ *
+ * Retorna quantas ocorrências novas (filhas + próxima) foram criadas — usado para
+ * notificar "novas tarefas automáticas".
  */
-export async function resolveAndAdvance(args: ResolveArgs): Promise<void> {
+export async function resolveAndAdvance(args: ResolveArgs): Promise<number> {
   const { userId, template, occId, occDueDate } = args;
   const status = args.status ?? 'done';
   const completedAt = args.completedAt ?? localDateStr();
@@ -103,6 +116,7 @@ export async function resolveAndAdvance(args: ResolveArgs): Promise<void> {
   await enqueueResolve({ opId: genOpId(), occId, status, meta: args.meta ?? null });
   await drainTodoQueue(flushResolves);
 
+  let created = 0;
   if (status === 'done') {
     if (template.recurrence.kind === 'usage') {
       await supabase
@@ -110,9 +124,10 @@ export async function resolveAndAdvance(args: ResolveArgs): Promise<void> {
         .update({ meter_at_last_done: template.meter ?? 0 })
         .eq('id', template.id);
     }
-    await fireOnComplete(userId, template, completedAt);
+    created += await fireOnComplete(userId, template, completedAt);
   }
 
   const next = nextDueDate(template.recurrence, occDueDate, completedAt);
-  if (next != null) await insertOccurrence(userId, template.id, next);
+  if (next != null && (await insertOccurrence(userId, template.id, next))) created++;
+  return created;
 }

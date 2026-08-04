@@ -12,6 +12,7 @@ import {
 } from '../lib/healthkit-workouts';
 import { syncType as runSyncType, syncDelta as runSyncDelta } from '../services/activity-sync';
 import { loadSyncedTypes, unsubscribeType as removeSyncedType } from '../lib/synced-types';
+import { notifyActivitySync, notifyAutoTasks } from '../services/notifications';
 
 // Re-export para manter os imports existentes das telas (`from '../store/fitness.store'`).
 export {
@@ -243,5 +244,8 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
       }
       return { typeStatus, lastSyncedAt };
     });
+    // Notificações de evento (separadas por tipo; cada uma respeita seu toggle).
+    if (result.pushed > 0) void notifyActivitySync(result.pushed);
+    if ((result.tasksCreated ?? 0) > 0) void notifyAutoTasks(result.tasksCreated ?? 0);
   },
 }));

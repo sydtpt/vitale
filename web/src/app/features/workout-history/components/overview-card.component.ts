@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivitiesStore } from '../data/activities.store';
-import { buildOverview, type Metric, type Period } from '../data/overview';
+import { buildOverview, earliestActivityYear, type Metric, type Period } from '../data/overview';
+import { latestAvailableOffset } from '@vitale/shared';
 import { PeriodSelectorComponent } from './period-selector.component';
 import { StackedBarChartComponent } from './stacked-bar-chart.component';
 import { ChartPaletteService } from '@core/services/chart-palette.service';
+import { PreferencesService } from '@core/services/preferences.service';
 
 @Component({
   selector: 'rt-overview-card',
@@ -16,16 +18,98 @@ import { ChartPaletteService } from '@core/services/chart-palette.service';
 export class OverviewCardComponent {
   private readonly store = inject(ActivitiesStore);
   protected readonly palette = inject(ChartPaletteService);
+  private readonly prefs = inject(PreferencesService);
 
-  protected readonly period = signal<Period>('ano');
+  protected readonly period = signal<Period>('meses12');
   protected readonly metric = signal<Metric>('count');
   /** Tipos ocultados via clique na legenda. */
   protected readonly hidden = signal<ReadonlySet<string>>(new Set());
+  /** Navegação do período "Ano": 0 = ano corrente, negativo = anos anteriores. */
+  protected readonly yearOffset = signal(0);
+
+  // Capturado uma vez: `new Date()` dentro do computed reavaliaria a cada leitura.
+  private readonly now = new Date();
 
   /** Totais, barras e legenda já excluem os tipos ocultos (legenda mantém todos). */
   protected readonly overview = computed(() =>
-    buildOverview(this.store.activities(), this.period(), this.metric(), new Date(), this.hidden()),
+    buildOverview(
+      this.store.activities(), this.period(), this.metric(),
+      this.now, this.hidden(), this.weeklyTargetMin(), this.yearOffset(),
+    ),
   );
+
+  // ---- Navegação por ano ----
+
+  protected readonly isYear = computed(() => this.period() === 'ano');
+  protected readonly yearLabel = computed(() => `${this.now.getFullYear() + this.yearOffset()}`);
+  /** Teto para frente vem do shared (ano corrente disponível ao vivo → 0). */
+  protected readonly canNextYear = computed(
+    () => this.yearOffset() < latestAvailableOffset(this.now, 'year'),
+  );
+  /** Piso: primeiro ano com dados — sem isso navega-se para anos vazios sem fim. */
+  protected readonly canPrevYear = computed(() => {
+    const first = earliestActivityYear(this.store.activities());
+    if (first === undefined) return false;
+    return this.now.getFullYear() + this.yearOffset() > first;
+  });
+
+  protected prevYear(): void {
+    if (this.canPrevYear()) this.yearOffset.update((o) => o - 1);
+  }
+
+  protected nextYear(): void {
+    if (this.canNextYear()) this.yearOffset.update((o) => o + 1);
+  }
+
+  protected setPeriod(p: Period): void {
+    this.period.set(p);
+    this.yearOffset.set(0); // volta ao ano corrente ao trocar de período
+  }
+
+  /** Linhas de referência só fazem sentido na métrica de duração. */
+  protected readonly isDuration = computed(() => this.metric() === 'duration');
+  protected readonly goalValue = computed(() =>
+    this.isDuration() ? this.overview().targetS : undefined,
+  );
+  /** Meta prorrateada do bucket em curso — vira um degrau na linha. */
+  protected readonly currentGoalValue = computed(() =>
+    this.isDuration() ? this.overview().currentTargetS : undefined,
+  );
+  /** "/mês", "/dia"… no rótulo da linha: sem isso "14h" é lido como total do período. */
+  protected readonly goalUnit = computed(() => `/${this.bucketWord()}`);
+
+  /**
+   * No período "Semana" as barras são diárias: as duas linhas viram retas na média
+   * diária, para comparar com a meta sem estourar o eixo. Nos demais períodos cada
+   * barra já é um ciclo fechado, então o esforço progride barra a barra.
+   */
+  protected readonly isDaily = computed(() => this.overview().granularity === 'day');
+  /** Reta da média: aparece em todos os períodos, para comparar o patamar com a meta. */
+  protected readonly effortFlat = computed(() =>
+    this.isDuration() ? this.overview().effortAvgS : undefined,
+  );
+  /** Polilinha barra a barra: só onde cada barra é um ciclo fechado (mês/ano/sempre). */
+  protected readonly showEffortSeries = computed(() => this.isDuration() && !this.isDaily());
+
+  /** Nome do bucket, para "mês a mês" / "ano a ano" na legenda da progressão. */
+  protected readonly bucketWord = computed(() => {
+    switch (this.overview().granularity) {
+      case 'day': return 'dia';
+      case 'week': return 'semana';
+      case 'month': return 'mês';
+      case 'year': return 'ano';
+    }
+  });
+
+  /** Rótulo da meta por granularidade, para o texto explicativo abaixo do gráfico. */
+  protected readonly targetPer = computed(() => {
+    switch (this.overview().granularity) {
+      case 'day': return 'por dia';
+      case 'week': return 'por semana';
+      case 'month': return 'por mês';
+      case 'year': return 'por ano';
+    }
+  });
 
   protected isHidden(label: string): boolean {
     return this.hidden().has(label);
@@ -46,6 +130,17 @@ export class OverviewCardComponent {
     { value: 'calories', label: 'Calorias' },
     { value: 'distance', label: 'Distância' },
   ];
+
+  protected fmtGoal(s: number): string {
+    const min = Math.round(s / 60);
+    if (min < 60) return `${min} min`;
+    return `${(s / 3600).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h`;
+  }
+
+  /** Meta semanal cheia (configurável em Ajustes → Objetivos), que a reta diária dilui. */
+  protected readonly weeklyTargetMin = this.prefs.weeklyActivityTargetMin;
+  /** Cores das linhas de referência (esquema configurável em Ajustes). */
+  protected readonly refLines = this.prefs.referenceLines;
 
   protected fmtDistance(m: number): string {
     return `${(m / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km`;

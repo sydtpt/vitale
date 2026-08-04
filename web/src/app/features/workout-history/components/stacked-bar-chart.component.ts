@@ -7,7 +7,16 @@ interface Seg {
   color: string; fill: string; label: string; value: number; opacity: number;
   top: boolean; d: string;
 }
-interface Bar { key: string; label: string; cx: number; segs: Seg[]; topY: number; total: number; faded: boolean; }
+interface Bar {
+  key: string; label: string; cx: number; segs: Seg[]; topY: number; total: number; faded: boolean;
+  /** Y do ponto de esforço ponderado; `null` = bucket sem ponto (comparação / série desligada). */
+  effY: number | null;
+  /** Valor do esforço em segundos, para o tooltip. */
+  effS: number;
+  /** Limites do slot do bucket — usados para o degrau da meta no bucket em curso. */
+  x0: number;
+  slotW: number;
+}
 interface GridLine { y: number; label: string; }
 
 // Tom quente para suavizar/clarear as cores das séries (casa com a paleta bege/creme).
@@ -58,6 +67,32 @@ function topRoundedRectPath(x: number, y: number, w: number, h: number, r: numbe
 export class StackedBarChartComponent {
   readonly buckets = input.required<OverviewBucket[]>();
   readonly metric = input.required<Metric>();
+  /** Meta de referência (mesma unidade das barras); `undefined` = sem linha. */
+  readonly goal = input<number | undefined>(undefined);
+  /** Rótulo da linha de meta (ex.: "OMS"). */
+  readonly goalLabel = input('Meta');
+  /** Sufixo de unidade do rótulo ("/mês"): sem ele "14h" é lido como total do período. */
+  readonly goalUnit = input('');
+  /**
+   * Meta do bucket em curso, proporcional ao tempo decorrido. Quando presente, a
+   * linha da meta desce em degrau sobre esse bucket — comparar um mês pela metade
+   * com a meta cheia faria a última barra parecer sempre um fracasso.
+   */
+  readonly currentGoal = input<number | undefined>(undefined);
+  /** Desenha a polilinha de esforço ponderado a partir de `bucket.effectiveS`. */
+  readonly showEffort = input(false);
+  /**
+   * Reta horizontal com o esforço médio por bucket. Combina com `showEffort`: a
+   * polilinha mostra a variação, a reta mostra o patamar médio para comparar direto
+   * com a meta. No período "Semana" aparece sozinha (lá não há progressão).
+   */
+  readonly effortFlat = input<number | undefined>(undefined);
+  /** Rótulo da reta de média. */
+  readonly effortFlatLabel = input('Média');
+  /** Cor da reta de média (esquema configurável em Preferências). */
+  readonly effortFlatColor = input('var(--ink-2)');
+  /** Cor da polilinha de progressão. */
+  readonly effortColor = input('var(--ink-2)');
   private readonly palette = inject(ChartPaletteService);
 
   protected readonly w = 600;
@@ -67,7 +102,17 @@ export class StackedBarChartComponent {
   protected readonly padT = 18;
   protected readonly padB = 28;
 
-  private readonly max = computed(() => Math.max(1, ...this.buckets().map((b) => b.total)));
+  // O eixo precisa absorver a meta e a série de esforço: uma meta acima da barra
+  // mais alta seria cortada silenciosamente fora do plot.
+  private readonly max = computed(() => {
+    const eff = this.showEffort();
+    return Math.max(
+      1,
+      this.goal() ?? 0,
+      this.effortFlat() ?? 0,
+      ...this.buckets().map((b) => Math.max(b.total, eff ? b.effectiveS ?? 0 : 0)),
+    );
+  });
 
   // `bars()` = estado-alvo (geometria final). `display()` = o que é renderizado,
   // interpolado quadro-a-quadro do estado atual até o alvo (troca de período,
@@ -160,7 +205,13 @@ export class StackedBarChartComponent {
         top, d: top ? topRoundedRectPath(barX, y, barW, r.h, rr) : '',
       };
     });
-    return { key: to.key, label: to.label, cx: barX + barW / 2, segs, topY: baseY - acc, total: to.total, faded: to.faded };
+    // O ponto de esforço anima junto com as barras; um bucket novo cresce da base.
+    const effY = to.effY === null ? null : (from?.effY ?? baseY) + (to.effY - (from?.effY ?? baseY)) * e;
+
+    return {
+      key: to.key, label: to.label, cx: barX + barW / 2, segs, topY: baseY - acc,
+      total: to.total, faded: to.faded, effY, effS: to.effS, x0: to.x0, slotW: to.slotW,
+    };
   }
 
   /** Cores distintas atualmente renderizadas (inclui séries que estão encolhendo). */
@@ -225,7 +276,15 @@ export class StackedBarChartComponent {
         };
       });
       const topY = this.h - this.padB - acc;
-      return { key: b.key, label: b.label, cx: x + barW / 2, segs, topY, total: b.total, faded: !!b.comparison };
+      // Barras de comparação ficam fora da série de esforço (não são cronológicas).
+      const effS = b.effectiveS ?? 0;
+      const effY = this.showEffort() && !b.comparison && b.effectiveS !== undefined
+        ? this.h - this.padB - (effS / max) * plotH
+        : null;
+      return {
+        key: b.key, label: b.label, cx: x + barW / 2, segs, topY,
+        total: b.total, faded: !!b.comparison, effY, effS, x0, slotW: slot,
+      };
     });
   });
 
@@ -237,6 +296,83 @@ export class StackedBarChartComponent {
       label: this.fmt(max * f),
     }));
   });
+
+  /**
+   * Linha da meta. Reta quando o período está todo fechado; com um degrau sobre o
+   * bucket em curso quando `currentGoal` chega (mês/semana/ano corrente prorrateado).
+   * Emitida como `path` com saltos (`M`) em vez de conectores verticais — o degrau
+   * fica legível sem poluir com traços tracejados na vertical.
+   */
+  protected readonly goalLine = computed<{ d: string; y: number; label: string } | null>(() => {
+    const goal = this.goal();
+    if (!goal || goal <= 0) return null;
+    const plotH = this.h - this.padT - this.padB;
+    const max = this.max();
+    const yOf = (v: number) => this.h - this.padB - (v / max) * plotH;
+    const yFull = yOf(goal);
+    const left = this.padL;
+    const right = this.w - this.padR;
+    const label = `${this.goalLabel()} · ${this.fmtCompact(goal)}${this.goalUnit()}`;
+
+    const cur = this.currentGoal();
+    // O bucket em curso é o último NÃO-comparação (em "12 meses" a barra de
+    // comparação vem depois dele, fora da ordem cronológica).
+    const bars = this.bars();
+    let idx = -1;
+    for (let i = bars.length - 1; i >= 0; i--) if (!bars[i].faded) { idx = i; break; }
+
+    if (cur === undefined || cur >= goal || idx < 0) {
+      return { d: `M ${left} ${yFull} L ${right} ${yFull}`, y: yFull, label };
+    }
+
+    const b = bars[idx];
+    const stepStart = Math.max(left, b.x0);
+    const stepEnd = Math.min(right, b.x0 + b.slotW);
+    const yCur = yOf(cur);
+    const parts = [`M ${left} ${yFull} L ${stepStart} ${yFull}`, `M ${stepStart} ${yCur} L ${stepEnd} ${yCur}`];
+    // Barras depois do bucket em curso (comparação) voltam à meta cheia.
+    if (stepEnd < right) parts.push(`M ${stepEnd} ${yFull} L ${right} ${yFull}`);
+    return { d: parts.join(' '), y: yFull, label };
+  });
+
+
+  /** Reta horizontal do esforço médio (período "Semana"). */
+  protected readonly effortLine = computed<{ y: number; label: string } | null>(() => {
+    const v = this.effortFlat();
+    if (v === undefined || v <= 0) return null;
+    const plotH = this.h - this.padT - this.padB;
+    return {
+      y: this.h - this.padB - (v / this.max()) * plotH,
+      label: `${this.effortFlatLabel()} · ${this.fmtCompact(v)}`,
+    };
+  });
+
+  /** Polilinha do esforço ponderado. Quebra (novo `M`) nos buckets sem ponto. */
+  protected readonly effortPath = computed<string>(() => {
+    const parts: string[] = [];
+    let open = false;
+    for (const b of this.displayBars()) {
+      if (b.effY === null) { open = false; continue; }
+      parts.push(`${open ? 'L' : 'M'} ${b.cx} ${b.effY}`);
+      open = true;
+    }
+    return parts.join(' ');
+  });
+
+  protected readonly effortPoints = computed(() =>
+    this.displayBars()
+      .filter((b) => b.effY !== null)
+      .map((b) => ({ key: b.key, cx: b.cx, cy: b.effY as number, value: b.effS })),
+  );
+
+  /**
+   * Rótulo de valores pequenos: o `fmt()` de duração sempre imprime horas, e a meta
+   * diária (~21 min) viraria "0,4h". Abaixo de 1h usa minutos.
+   */
+  protected fmtCompact(v: number): string {
+    if (this.metric() !== 'duration' || v >= 3600) return this.fmt(v);
+    return `${this.num(v / 60, 0)} min`;
+  }
 
   protected fmt(v: number): string {
     switch (this.metric()) {

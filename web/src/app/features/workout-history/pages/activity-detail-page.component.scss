@@ -172,6 +172,7 @@
 /* Tempo em zonas de FC. */
 .zones { margin-bottom: 24px; }
 .zones-title { margin-bottom: 16px; }
+.zones-note { margin: 12px 0 0; }
 .zone-list { display: flex; flex-direction: column; gap: 12px; }
 .zone-row { display: grid; grid-template-columns: 140px 1fr 64px; align-items: center; gap: 10px; }
 .zone-name { display: flex; align-items: center; gap: 7px; min-width: 0; }

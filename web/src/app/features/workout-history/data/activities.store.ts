@@ -7,7 +7,7 @@ import { buildTypeSummaries } from './type-summary';
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 const SELECT =
-  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,source_name,tracked,has_route,best_efforts,hr_zones,cities,locally_edited,edited_at,hidden';
+  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,source_name,tracked,has_route,best_efforts,hr_zones,calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden';
 
 interface DbActivityRow {
   id: string;
@@ -26,6 +26,8 @@ interface DbActivityRow {
   has_route: boolean | null;
   best_efforts: Record<string, number> | null;
   hr_zones: Record<string, number> | null;
+  calories_estimated: boolean | null;
+  hr_zones_estimated: boolean | null;
   cities: CityMark[] | null;
   locally_edited: boolean | null;
   edited_at: string | null;
@@ -227,6 +229,8 @@ function mapRow(r: DbActivityRow): Activity {
     hasRoute: r.has_route ?? false,
     bestEfforts: r.best_efforts ?? undefined,
     hrZones: r.hr_zones ?? undefined,
+    caloriesEstimated: r.calories_estimated ?? false,
+    hrZonesEstimated: r.hr_zones_estimated ?? false,
     cities: r.cities ?? undefined,
     locallyEdited: r.locally_edited ?? false,
     editedAt: r.edited_at ?? undefined,

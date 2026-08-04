@@ -4,7 +4,18 @@
       <div class="eyebrow">Visão geral</div>
       <h3 class="title">{{ overview().totals.count }} atividades</h3>
     </div>
-    <rt-period-selector [value]="period()" (select)="period.set($event)" />
+    <div class="period">
+      <rt-period-selector [value]="period()" (select)="setPeriod($event)" />
+      @if (isYear()) {
+        <div class="nav">
+          <button type="button" (click)="prevYear()" [disabled]="!canPrevYear()"
+            aria-label="Ano anterior">‹</button>
+          <span class="nav-label">{{ yearLabel() }}</span>
+          <button type="button" (click)="nextYear()" [disabled]="!canNextYear()"
+            aria-label="Próximo ano">›</button>
+        </div>
+      }
+    </div>
   </div>
 
   <div class="tiles">
@@ -33,7 +44,37 @@
     }
   </div>
 
-  <rt-stacked-bar-chart [buckets]="overview().buckets" [metric]="metric()" />
+  <rt-stacked-bar-chart [buckets]="overview().buckets" [metric]="metric()"
+    [goal]="goalValue()" goalLabel="OMS" [goalUnit]="goalUnit()"
+    [currentGoal]="currentGoalValue()"
+    [showEffort]="showEffortSeries()" [effortFlat]="effortFlat()" effortFlatLabel="Você"
+    [effortFlatColor]="refLines().average" [effortColor]="refLines().series" />
+
+  @if (isDuration()) {
+    <div class="ref-legend">
+      <span class="ref">
+        <span class="mark dashed"></span>OMS · {{ fmtGoal(overview().targetS) }} {{ targetPer() }}
+        @if (isDaily()) { <em>({{ weeklyTargetMin() }} min/semana)</em> }
+        @if (overview().currentTargetS; as cur) {
+          <em>· {{ bucketWord() }} em curso: {{ fmtGoal(cur) }}</em>
+        }
+      </span>
+      <span class="ref">
+        <span class="mark dotted" [style.border-top-color]="refLines().average"></span>Você · {{ fmtGoal(overview().effortAvgS) }} {{ targetPer() }}
+        <em>({{ fmtGoal(overview().effortTotalS) }} no total)</em>
+      </span>
+      @if (showEffortSeries()) {
+        <span class="ref">
+          <span class="mark solid" [style.border-top-color]="refLines().series"></span>Você, {{ bucketWord() }} a {{ bucketWord() }}
+        </span>
+      }
+      <small>
+        Minutos moderados equivalentes: cada treino é pesado pela intensidade — pelo tempo em
+        zonas de FC quando há batimentos, senão pelo tipo. Corrida e treinos intensos contam
+        mais que a duração bruta; yoga e recuperação contam menos.
+      </small>
+    </div>
+  }
 
   @if (overview().legend.length) {
     <div class="legend">

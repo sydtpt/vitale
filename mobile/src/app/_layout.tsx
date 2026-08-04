@@ -131,6 +131,7 @@ function AppShell() {
         <Stack.Screen name="configuracoes/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/perfil" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/app" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="configuracoes/notificacoes" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/objetivos" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/dados" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/conexoes" options={{ animation: 'slide_from_right' }} />

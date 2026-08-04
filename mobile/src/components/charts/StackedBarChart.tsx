@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, AccessibilityInfo } from 'react-native';
-import Svg, { Rect, Text as SvgText, Line, Path, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Rect, Text as SvgText, Line, Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import type { OverviewBucket, Metric } from '../../lib/activity-overview';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { remapChartColor } from '../../lib/chart-palettes';
@@ -17,6 +17,32 @@ interface Props {
   /** Muda quando período/métrica trocam — usado só para fechar o tooltip aberto.
    * A animação em si dispara sozinha a cada mudança dos dados (período/métrica/legenda). */
   animationKey?: string;
+  /** Meta de referência (mesma unidade das barras); ausente = sem linha. */
+  goal?: number;
+  /** Rótulo da linha de meta (ex.: "OMS"). */
+  goalLabel?: string;
+  /** Sufixo de unidade do rótulo ("/mês"): sem ele "14h" é lido como total do período. */
+  goalUnit?: string;
+  /**
+   * Meta do bucket em curso, proporcional ao tempo decorrido. Quando presente, a linha
+   * da meta desce em degrau sobre esse bucket — comparar um mês pela metade com a meta
+   * cheia faria a última barra parecer sempre um fracasso.
+   */
+  currentGoal?: number;
+  /** Desenha a polilinha de esforço ponderado a partir de `bucket.effectiveS`. */
+  showEffort?: boolean;
+  /**
+   * Reta horizontal com o esforço médio por bucket. Combina com `showEffort`: a
+   * polilinha mostra a variação, a reta mostra o patamar médio para comparar direto
+   * com a meta. No período "Semana" aparece sozinha (lá não há progressão).
+   */
+  effortFlat?: number;
+  /** Rótulo da reta de média. */
+  effortFlatLabel?: string;
+  /** Cor da reta de média (esquema configurável em Preferências). */
+  effortFlatColor?: string;
+  /** Cor da polilinha de progressão. */
+  effortColor?: string;
 }
 
 const PAD_TOP = 16;
@@ -30,11 +56,24 @@ const ANIM_MS = 360;
 const WARM = '#FBF1E2';
 
 interface Seg { x: number; y: number; w: number; h: number; color: string; label: string; value: number; opacity: number; top: boolean; }
-interface Bar { key: string; label: string; center: number; barW: number; x: number; comparison: boolean; total: number; topY: number; segs: Seg[]; }
+interface Bar {
+  key: string; label: string; center: number; barW: number; x: number; comparison: boolean;
+  total: number; topY: number; segs: Seg[];
+  /** Y do ponto de esforço ponderado; `null` = bucket sem ponto (comparação / série desligada). */
+  effY: number | null;
+  /** Valor do esforço em segundos, para o tooltip. */
+  effS: number;
+}
 interface SlotLayout { x0: number; slot: number; center: number; }
 interface Model {
   chartW: number; baseY: number; layout: SlotLayout[];
   grid: { y: number; label: string }[]; bars: Bar[];
+  /** Path da linha de meta (reta ou com degrau no bucket em curso); '' = sem meta. */
+  goalPath: string;
+  /** Y da meta cheia, p/ posicionar o rótulo. */
+  goalY: number | null;
+  /** Y da reta de esforço médio; `null` = sem reta (série ou métrica não-duração). */
+  effortFlatY: number | null;
 }
 
 /** Formata o valor do eixo Y de acordo com a métrica selecionada. */
@@ -48,6 +87,15 @@ function fmtAxis(v: number, metric: Metric): string {
     case 'count':
       return String(Math.round(v));
   }
+}
+
+/**
+ * Rótulo de valores pequenos: `fmtAxis` de duração sempre imprime horas, e a meta
+ * diária (~21 min) viraria "0.4h". Abaixo de 1h usa minutos.
+ */
+function fmtCompact(v: number, metric: Metric): string {
+  if (metric !== 'duration' || v >= 3600) return fmtAxis(v, metric);
+  return `${Math.round(v / 60)} min`;
 }
 
 /** Valor exato de uma série (usado no tooltip). */
@@ -119,7 +167,11 @@ function maxBarWidth(b: OverviewBucket): number {
 
 /** Geometria-alvo (grow=1) de todo o gráfico. As cores dos segmentos já saem
  * remapeadas para a paleta ativa. */
-function buildModel(buckets: OverviewBucket[], metric: Metric, width: number, height: number, noScroll: boolean, paletteId: string): Model {
+function buildModel(
+  buckets: OverviewBucket[], metric: Metric, width: number, height: number,
+  noScroll: boolean, paletteId: string, goal: number | undefined, showEffort: boolean,
+  effortFlat: number | undefined, currentGoal: number | undefined,
+): Model {
   const weights = buckets.map(slotWeight);
   const totalWeight = weights.reduce((s, w) => s + w, 0) || 1;
   const naturalUnit = (width - PAD_LEFT) / totalWeight;
@@ -127,7 +179,14 @@ function buildModel(buckets: OverviewBucket[], metric: Metric, width: number, he
   const chartW = noScroll ? width : PAD_LEFT + unit * totalWeight;
   const innerH = height - PAD_TOP - PAD_BOTTOM;
   const baseY = PAD_TOP + innerH;
-  const maxV = Math.max(...buckets.map((b) => b.total), 1);
+  // O eixo precisa absorver a meta e a série de esforço: uma meta acima da barra
+  // mais alta seria cortada silenciosamente fora do plot.
+  const maxV = Math.max(
+    ...buckets.map((b) => Math.max(b.total, showEffort ? b.effectiveS ?? 0 : 0)),
+    goal ?? 0,
+    effortFlat ?? 0,
+    1,
+  );
 
   let cursor = PAD_LEFT;
   const layout: SlotLayout[] = buckets.map((b, i) => {
@@ -152,10 +211,42 @@ function buildModel(buckets: OverviewBucket[], metric: Metric, width: number, he
       const y = baseY - acc;
       return { x, y, w: barW, h, color: remapChartColor(s.color, paletteId), label: s.label, value: s.value, opacity, top: si === topIdx };
     });
-    return { key: b.key, label: b.label, center, barW, x, comparison: !!b.comparison, total: b.total, topY: baseY - acc, segs };
+    // Barras de comparação ficam fora da série de esforço (não são cronológicas).
+    const effS = b.effectiveS ?? 0;
+    const effY = showEffort && !b.comparison && b.effectiveS !== undefined
+      ? baseY - (effS / maxV) * innerH
+      : null;
+    return {
+      key: b.key, label: b.label, center, barW, x, comparison: !!b.comparison,
+      total: b.total, topY: baseY - acc, segs, effY, effS,
+    };
   });
 
-  return { chartW, baseY, layout, grid, bars };
+  const goalY = goal && goal > 0 ? baseY - (goal / maxV) * innerH : null;
+  const effortFlatY = effortFlat && effortFlat > 0 ? baseY - (effortFlat / maxV) * innerH : null;
+
+  // Meta: reta quando o período está fechado; com degrau sobre o bucket em curso.
+  // Saltos (M) em vez de conectores verticais — degrau legível sem poluir.
+  let goalPath = '';
+  if (goalY !== null && goal) {
+    const right = chartW;
+    // O bucket em curso é o último NÃO-comparação ("12 meses" põe a comparação depois dele).
+    let idx = -1;
+    for (let i = buckets.length - 1; i >= 0; i--) if (!buckets[i].comparison) { idx = i; break; }
+    if (currentGoal === undefined || currentGoal >= goal || idx < 0) {
+      goalPath = `M ${PAD_LEFT} ${goalY} L ${right} ${goalY}`;
+    } else {
+      const { x0, slot } = layout[idx];
+      const stepStart = Math.max(PAD_LEFT, x0);
+      const stepEnd = Math.min(right, x0 + slot);
+      const yCur = baseY - (currentGoal / maxV) * innerH;
+      const parts = [`M ${PAD_LEFT} ${goalY} L ${stepStart} ${goalY}`, `M ${stepStart} ${yCur} L ${stepEnd} ${yCur}`];
+      if (stepEnd < right) parts.push(`M ${stepEnd} ${goalY} L ${right} ${goalY}`);
+      goalPath = parts.join(' ');
+    }
+  }
+
+  return { chartW, baseY, layout, grid, bars, goalPath, goalY, effortFlatY };
 }
 
 /** Interpola um bar do estado anterior (mesma key) até o alvo. Séries removidas
@@ -188,7 +279,13 @@ function interpBar(from: Bar | undefined, to: Bar, e: number, baseY: number): Ba
     const y = baseY - acc;
     return { x: to.x, y, w: to.barW, h: r.h, color: r.color, label: r.label, value: r.value, opacity, top: i === topIdx };
   });
-  return { key: to.key, label: to.label, center: to.center, barW: to.barW, x: to.x, comparison: to.comparison, total: to.total, topY: baseY - acc, segs };
+  // O ponto de esforço anima junto com as barras; um bucket novo cresce da base.
+  const fromEffY = from?.effY ?? baseY;
+  const effY = to.effY === null ? null : fromEffY + (to.effY - fromEffY) * e;
+  return {
+    key: to.key, label: to.label, center: to.center, barW: to.barW, x: to.x,
+    comparison: to.comparison, total: to.total, topY: baseY - acc, segs, effY, effS: to.effS,
+  };
 }
 
 // Dimensões do tooltip.
@@ -198,7 +295,11 @@ const TT_DOT = 7;
 const TT_FS = 10;
 
 /** Barras empilhadas por tipo de atividade. Portado do gráfico do web. */
-export function StackedBarChart({ buckets, metric, width, height = 200, noScroll = false, animationKey }: Props) {
+export function StackedBarChart({
+  buckets, metric, width, height = 200, noScroll = false, animationKey,
+  goal, goalLabel = 'Meta', goalUnit = '', currentGoal, showEffort = false, effortFlat, effortFlatLabel = 'Média',
+  effortFlatColor = colors.ink2, effortColor = colors.ink2,
+}: Props) {
   const [display, setDisplay] = useState<Bar[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -208,8 +309,8 @@ export function StackedBarChart({ buckets, metric, width, height = 200, noScroll
 
   const paletteId = useChartPaletteStore((s) => s.paletteId);
   const model = useMemo(
-    () => buildModel(buckets, metric, width, height, noScroll, paletteId),
-    [buckets, metric, width, height, noScroll, paletteId],
+    () => buildModel(buckets, metric, width, height, noScroll, paletteId, goal, showEffort, effortFlat, currentGoal),
+    [buckets, metric, width, height, noScroll, paletteId, goal, showEffort, effortFlat, currentGoal],
   );
 
   useEffect(() => {
@@ -245,7 +346,15 @@ export function StackedBarChart({ buckets, metric, width, height = 200, noScroll
 
   if (buckets.length === 0 || width <= 0) return null;
 
-  const { chartW, baseY, layout, grid } = model;
+  const { chartW, baseY, layout, grid, goalPath, goalY, effortFlatY } = model;
+
+  // Polilinha do esforço ponderado. Quebra (novo "M") nos buckets sem ponto.
+  const effortPath = display.reduce<{ d: string; open: boolean }>(
+    (acc, b) => (b.effY === null
+      ? { d: acc.d, open: false }
+      : { d: `${acc.d}${acc.open ? 'L' : 'M'} ${b.center} ${b.effY} `, open: true }),
+    { d: '', open: false },
+  ).d.trim();
 
   // Cores distintas atualmente renderizadas (inclui séries que estão encolhendo).
   const gradColors = Array.from(
@@ -260,11 +369,15 @@ export function StackedBarChart({ buckets, metric, width, height = 200, noScroll
     const { center } = layout[selected];
     const barTopY = display[selected]?.topY ?? model.bars[selected]?.topY ?? baseY;
     const showTotal = b.segments.length > 1;
-    const lineCount = 1 + b.segments.length + (showTotal ? 1 : 0);
+    const effortLabel = showEffort && b.effectiveS !== undefined
+      ? `Esforço  ${fmtValue(b.effectiveS, metric)}`
+      : null;
+    const lineCount = 1 + b.segments.length + (showTotal ? 1 : 0) + (effortLabel ? 1 : 0);
     const boxH = TT_PAD * 2 + lineCount * TT_ROW;
 
     const rowStrings = b.segments.map((s) => `${s.label}  ${fmtValue(s.value, metric)}`);
     if (showTotal) rowStrings.push(`Total  ${fmtValue(b.total, metric)}`);
+    if (effortLabel) rowStrings.push(effortLabel);
     const maxLen = Math.max(b.label.length, ...rowStrings.map((r) => r.length));
     const boxW = Math.min(Math.max(104, maxLen * 5.9 + TT_DOT + 22), chartW - 8);
 
@@ -275,6 +388,8 @@ export function StackedBarChart({ buckets, metric, width, height = 200, noScroll
 
     const textX = bx + TT_PAD + TT_DOT + 6;
     const valX = bx + boxW - TT_PAD;
+    // Linha do esforço ponderado, logo abaixo do total.
+    const effortY = by + TT_PAD + TT_FS + TT_ROW * (b.segments.length + 1 + (showTotal ? 1 : 0));
 
     tooltip = (
       <React.Fragment>
@@ -327,6 +442,24 @@ export function StackedBarChart({ buckets, metric, width, height = 200, noScroll
               fontFamily="GeistMono"
             >
               {fmtValue(b.total, metric)}
+            </SvgText>
+          </React.Fragment>
+        )}
+        {effortLabel && (
+          <React.Fragment>
+            <Line
+              x1={bx + TT_PAD}
+              y1={effortY - TT_FS / 2}
+              x2={bx + TT_PAD + TT_DOT}
+              y2={effortY - TT_FS / 2}
+              stroke={colors.ink}
+              strokeWidth={2}
+            />
+            <SvgText x={textX} y={effortY} fontSize={TT_FS} fill={colors.ink2}>
+              Esforço
+            </SvgText>
+            <SvgText x={valX} y={effortY} fontSize={TT_FS} fill={colors.ink} textAnchor="end" fontFamily="GeistMono">
+              {fmtValue(b.effectiveS ?? 0, metric)}
             </SvgText>
           </React.Fragment>
         )}
@@ -383,6 +516,54 @@ export function StackedBarChart({ buckets, metric, width, height = 200, noScroll
           {b.label}
         </SvgText>
       ))}
+
+      {/* Linhas de referência: pintam por cima das barras, abaixo dos toques. */}
+      {goalY != null && (
+        <React.Fragment>
+          <Path
+            d={goalPath}
+            fill="none"
+            stroke={colors.ink3}
+            strokeWidth={1}
+            strokeDasharray="3 3"
+            strokeOpacity={0.7}
+          />
+          <SvgText x={chartW - 4} y={goalY - 5} fontSize={8.5} fill={colors.ink3} fillOpacity={0.85} textAnchor="end" fontFamily="GeistMono">
+            {`${goalLabel} · ${fmtCompact(goal ?? 0, metric)}${goalUnit}`}
+          </SvgText>
+        </React.Fragment>
+      )}
+
+      {effortFlatY != null && (
+        <React.Fragment>
+          {/* Pontilhada: mesma cor da série (as duas sou "eu"), mas traço diferente da
+              meta tracejada e da polilinha sólida. Rótulo à esquerda; a meta ancora à
+              direita, então nunca colidem. */}
+          <Line
+            x1={PAD_LEFT}
+            y1={effortFlatY}
+            x2={chartW}
+            y2={effortFlatY}
+            stroke={effortFlatColor}
+            strokeWidth={1.25}
+            strokeOpacity={0.8}
+            strokeDasharray="1 3"
+            strokeLinecap="round"
+          />
+          <SvgText x={PAD_LEFT + 4} y={effortFlatY - 5} fontSize={8.5} fill={effortFlatColor} fontFamily="GeistMono">
+            {`${effortFlatLabel} · ${fmtCompact(effortFlat ?? 0, metric)}`}
+          </SvgText>
+        </React.Fragment>
+      )}
+
+      {effortPath !== '' && (
+        <React.Fragment>
+          <Path d={effortPath} fill="none" stroke={effortColor} strokeWidth={1.25} strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" />
+          {display.map((b) => (b.effY === null ? null : (
+            <Circle key={`eff-${b.key}`} cx={b.center} cy={b.effY} r={1.8} fill={effortColor} fillOpacity={0.85} />
+          )))}
+        </React.Fragment>
+      )}
 
       {/* Áreas transparentes de toque, por slot (renderizadas por cima das barras). */}
       {layout.map((l, i) => (

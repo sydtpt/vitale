@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { REFERENCE_LINE_SCHEMES, resolveReferenceLineScheme } from '@vitale/shared';
 import { CHART_PALETTES, type ChartPalette, type PaletteRoles } from '../../lib/chart-palettes';
 import { useChartPaletteStore } from '../../store/chart-palette.store';
+import { useSettingsStore } from '../../store/settings.store';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 // Barras de exemplo (topo → base) para a prévia — imitam o gráfico empilhado.
@@ -40,6 +42,25 @@ function PalettePreview({ roles }: { roles: PaletteRoles }) {
   );
 }
 
+/** Prévia das linhas: pontilhada (média) sobre sólida (progressão), sobre barras neutras. */
+function LinesPreview({ average, series }: { average: string; series: string }) {
+  return (
+    <View style={previewStyles.preview}>
+      <View style={previewStyles.linesLayer} pointerEvents="none">
+        <View style={[previewStyles.solidLine, { backgroundColor: series }]} />
+        <View style={previewStyles.dottedRow}>
+          {Array.from({ length: 9 }, (_, i) => (
+            <View key={i} style={[previewStyles.dot, { backgroundColor: average }]} />
+          ))}
+        </View>
+      </View>
+      {[18, 30, 12, 26, 20].map((h, i) => (
+        <View key={i} style={{ width: 15, height: h, borderRadius: 4, backgroundColor: colors.line }} />
+      ))}
+    </View>
+  );
+}
+
 const previewStyles = StyleSheet.create({
   preview: {
     flexDirection: 'row',
@@ -52,6 +73,10 @@ const previewStyles = StyleSheet.create({
     backgroundColor: colors.surfaceMute,
   },
   bar: { flexDirection: 'column', justifyContent: 'flex-end' },
+  linesLayer: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', paddingHorizontal: 8, gap: 7 },
+  solidLine: { height: 2, borderRadius: 1, opacity: 0.85 },
+  dottedRow: { flexDirection: 'row', gap: 3 },
+  dot: { width: 2, height: 2, borderRadius: 1, opacity: 0.85 },
 });
 
 export default function ChartPaletteScreen() {
@@ -60,6 +85,14 @@ export default function ChartPaletteScreen() {
   const router = useRouter();
   const paletteId = useChartPaletteStore((st) => st.paletteId);
   const setPalette = useChartPaletteStore((st) => st.setPalette);
+  const preferences = useSettingsStore((st) => st.preferences);
+  const loadSettings = useSettingsStore((st) => st.loadSettings);
+  const updatePreferences = useSettingsStore((st) => st.updatePreferences);
+  const scheme = resolveReferenceLineScheme(preferences?.referenceLineScheme);
+
+  useEffect(() => {
+    if (!preferences) loadSettings();
+  }, []);
 
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
@@ -99,6 +132,37 @@ export default function ChartPaletteScreen() {
             </Pressable>
           );
         })}
+
+        <Text style={[s.sectionTitle]}>Linhas de referência</Text>
+        <Text style={s.hint}>
+          Cores das linhas do gráfico de duração no Histórico: a sua média e a progressão
+          barra a barra. A linha da OMS fica sempre em cinza. Ficam fora da paleta acima de
+          propósito — assim não se confundem com nenhum tipo de atividade e não mudam quando
+          você troca as cores dos gráficos. Sincroniza entre os aparelhos.
+        </Text>
+
+        {REFERENCE_LINE_SCHEMES.map((r) => {
+          const selected = r.id === scheme;
+          return (
+            <Pressable
+              key={r.id}
+              onPress={() => updatePreferences({ referenceLineScheme: r.id })}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`Linhas ${r.label}`}
+              style={({ pressed }) => [s.card, selected && s.cardSelected, pressed && s.pressed]}
+            >
+              <LinesPreview average={r.average} series={r.series} />
+              <View style={s.meta}>
+                <Text style={s.name}>{r.label}</Text>
+                <Text style={s.sub}>{r.hint}</Text>
+              </View>
+              <View style={[s.check, selected && s.checkOn]}>
+                {selected && <Ionicons name="checkmark" size={15} color="#fff" />}
+              </View>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -112,6 +176,7 @@ const createStyles = () => StyleSheet.create({
   pressed: { opacity: 0.6 },
   content: { padding: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing.sm },
   hint: { fontSize: 13, color: colors.ink3, lineHeight: 18, marginBottom: spacing.sm, paddingHorizontal: 4 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.ink2, marginTop: spacing.xl, paddingHorizontal: 4 },
 
   card: {
     flexDirection: 'row',

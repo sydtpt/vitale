@@ -13,7 +13,9 @@ export class PeriodSelectorComponent {
   readonly select = output<Period>();
 
   protected readonly options: { value: Period; label: string }[] = [
-    { value: 'semana', label: 'Semana' },
+    { value: 'semana', label: '7d' },
+    { value: 'mes', label: '4s' },
+    { value: 'meses12', label: '12 meses' },
     { value: 'ano', label: 'Ano' },
     { value: 'sempre', label: 'Sempre' },
   ];

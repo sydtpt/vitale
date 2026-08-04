@@ -21,8 +21,8 @@ import { useChartPaletteStore } from '../../store/chart-palette.store';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const PERIODS: { key: Period; label: string }[] = [
-  { key: 'semana', label: 'Semana' },
-  { key: 'ano', label: 'Ano' },
+  { key: 'semana', label: '7d' },
+  { key: 'meses12', label: '12 meses' },
   { key: 'sempre', label: 'Sempre' },
 ];
 

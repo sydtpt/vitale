@@ -12,12 +12,13 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActivitiesStore } from '../../store/activities.store';
+import { useSettingsStore } from '../../store/settings.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { buildOverview, type Period, type Metric } from '../../lib/activity-overview';
+import { latestAvailableOffset, referenceLineColors, resolveWeeklyTargetMin } from '@vitale/shared';
+import { buildOverview, earliestActivityYear, type Period, type Metric } from '../../lib/activity-overview';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
-import { getActivityMeta } from '../../lib/workout-types';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
 import { remapChartColor } from '../../lib/chart-palettes';
@@ -25,10 +26,34 @@ import { useChartPaletteStore } from '../../store/chart-palette.store';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
 const PERIODS: { key: Period; label: string }[] = [
-  { key: 'semana', label: 'Semana' },
+  { key: 'semana', label: '7d' },
+  { key: 'mes', label: '4s' },
+  // "12m" e não "12 meses": com 5 opções o segmented não cabe num celular estreito.
+  { key: 'meses12', label: '12m' },
   { key: 'ano', label: 'Ano' },
   { key: 'sempre', label: 'Sempre' },
 ];
+
+/** Rótulo do prorrateio da meta da OMS, por granularidade das barras. */
+const WHO_PER: Record<string, string> = {
+  day: 'por dia',
+  week: 'por semana',
+  month: 'por mês',
+  year: 'por ano',
+};
+
+/** Nome do bucket, para "mês a mês" / "ano a ano" na legenda da progressão. */
+const BUCKET_WORD: Record<string, string> = {
+  day: 'dia',
+  week: 'semana',
+  month: 'mês',
+  year: 'ano',
+};
+
+function fmtGoal(s: number): string {
+  const min = Math.round(s / 60);
+  return min < 60 ? `${min} min` : `${(s / 3600).toFixed(1)}h`;
+}
 
 const METRICS: { key: Metric; label: string }[] = [
   { key: 'count', label: 'Nº' },
@@ -36,6 +61,27 @@ const METRICS: { key: Metric; label: string }[] = [
   { key: 'calories', label: 'Calorias' },
   { key: 'distance', label: 'Distância' },
 ];
+
+/**
+ * Amostra da linha na legenda. Com três referências no gráfico (meta tracejada,
+ * média pontilhada, esforço sólido), diferenciar só por cor não basta — o traço
+ * precisa aparecer. RN não desenha `borderStyle: 'dotted'` de forma confiável numa
+ * View de 2px, então o tracejo é montado com segmentos.
+ */
+function LineMark({ variant, color }: { variant: 'solid' | 'dashed' | 'dotted'; color?: string }) {
+  if (variant === 'solid') {
+    return <View style={[styles.markBar, styles.markSolid, color ? { backgroundColor: color } : null]} />;
+  }
+  const dashed = variant === 'dashed';
+  const segStyle = dashed ? styles.markSegDashed : styles.markSegDotted;
+  return (
+    <View style={styles.markRow}>
+      {Array.from({ length: dashed ? 3 : 5 }, (_, i) => (
+        <View key={i} style={[segStyle, color ? { backgroundColor: color } : null]} />
+      ))}
+    </View>
+  );
+}
 
 function StatTile({ value, label }: { value: string; label: string }) {
   return (
@@ -90,7 +136,14 @@ export default function HistoricoTabScreen() {
   const [period, setPeriod] = useState<Period>('semana');
   const [metric, setMetric] = useState<Metric>('count');
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Navegação do período "Ano": 0 = ano corrente, negativo = anos anteriores.
+  const [yearOffset, setYearOffset] = useState(0);
   const paletteId = useChartPaletteStore((s) => s.paletteId);
+  // Meta semanal configurável em Ajustes → Objetivos; cai no padrão se não definida.
+  const preferences = useSettingsStore((s) => s.preferences);
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const weeklyTargetMin = resolveWeeklyTargetMin(preferences?.weeklyActivityTargetMin);
+  const refLines = referenceLineColors(preferences?.referenceLineScheme);
 
   const toggleType = (label: string) =>
     setHidden((prev) => {
@@ -102,6 +155,9 @@ export default function HistoricoTabScreen() {
 
   useEffect(() => {
     load();
+    // O store de settings não hidrata sozinho: sem isso a meta configurada nunca
+    // chegaria aqui e o gráfico ficaria preso no padrão.
+    if (!preferences) loadSettings();
   }, [load]);
   // force=true: o store ignora load() repetido depois de carregado.
   useRefreshOnForeground(() => { load(true); });
@@ -109,26 +165,30 @@ export default function HistoricoTabScreen() {
   const activities = useMemo(() => _all.filter((a) => !a.hidden), [_all]);
   const isEmpty = loaded && activities.length === 0;
 
+  // Capturado uma vez: âncora do gráfico e da navegação por ano.
+  const now = useMemo(() => new Date(), []);
+  const isYear = period === 'ano';
+  const shownYear = now.getFullYear() + yearOffset;
+  const firstYear = useMemo(() => earliestActivityYear(activities), [activities]);
+  const canNextYear = yearOffset < latestAvailableOffset(now, 'year');
+  const canPrevYear = firstYear !== undefined && shownYear > firstYear;
+
+  const changePeriod = (p: Period) => {
+    setPeriod(p);
+    setYearOffset(0); // volta ao ano corrente ao trocar de período
+  };
+
+  // `hidden` entra na agregação (igual ao web): barras, totais e a série de esforço
+  // ponderado precisam do mesmo filtro, e o esforço não dá para refiltrar depois.
   const overview = useMemo(
-    () => buildOverview(activities, period, metric),
-    [activities, period, metric],
+    () => buildOverview(activities, period, metric, now, hidden, weeklyTargetMin, yearOffset),
+    [activities, period, metric, now, hidden, weeklyTargetMin, yearOffset],
   );
-
-  const chartBuckets = useMemo(() => {
-    if (!hidden.size) return overview.buckets;
-    return overview.buckets.map((b) => {
-      const segments = b.segments.filter((s) => !hidden.has(s.label));
-      const total = segments.reduce((sum, s) => sum + s.value, 0);
-      return { ...b, segments, total };
-    });
-  }, [overview.buckets, hidden]);
-
-  // Totais do topo respeitam os tipos ocultos na legenda (igual ao gráfico).
-  const totals = useMemo(() => {
-    if (!hidden.size) return overview.totals;
-    const visible = activities.filter((a) => !hidden.has(getActivityMeta(a.activityId).label));
-    return buildOverview(visible, period, metric).totals;
-  }, [activities, hidden, period, metric, overview.totals]);
+  const isDuration = metric === 'duration';
+  // No período "Semana" as barras são diárias: as duas linhas viram retas na média
+  // diária, para comparar com a meta sem estourar o eixo. Nos demais períodos cada
+  // barra já é um ciclo fechado, então o esforço progride barra a barra.
+  const isDaily = overview.granularity === 'day';
   const typeSummaries = useMemo(() => buildTypeSummaries(activities), [activities]);
 
   if (loading && !loaded) {
@@ -194,25 +254,97 @@ export default function HistoricoTabScreen() {
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false} {...tabBarScroll}>
         <View style={styles.card}>
-          <Segmented options={PERIODS} value={period} onChange={setPeriod} />
+          <Segmented options={PERIODS} value={period} onChange={changePeriod} />
+
+          {isYear && (
+            <View style={styles.yearNav}>
+              <Pressable
+                onPress={() => canPrevYear && setYearOffset((o) => o - 1)}
+                disabled={!canPrevYear}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Ano anterior"
+                style={styles.navBtn}
+              >
+                <Ionicons name="chevron-back" size={18} color={canPrevYear ? colors.ink : colors.ink4} />
+              </Pressable>
+              <Text style={styles.navLabel}>{shownYear}</Text>
+              <Pressable
+                onPress={() => canNextYear && setYearOffset((o) => o + 1)}
+                disabled={!canNextYear}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Próximo ano"
+                style={styles.navBtn}
+              >
+                <Ionicons name="chevron-forward" size={18} color={canNextYear ? colors.ink : colors.ink4} />
+              </Pressable>
+            </View>
+          )}
 
           <View style={styles.statsRow}>
-            <StatTile value={String(totals.count)} label="atividades" />
-            <StatTile value={formatDuration(totals.durationS)} label="duração" />
-            <StatTile value={`${Math.round(totals.calories)}`} label="kcal" />
-            <StatTile value={formatDistance(totals.distanceM) ?? '—'} label="distância" />
+            <StatTile value={String(overview.totals.count)} label="atividades" />
+            <StatTile value={formatDuration(overview.totals.durationS)} label="duração" />
+            <StatTile value={`${Math.round(overview.totals.calories)}`} label="kcal" />
+            <StatTile value={formatDistance(overview.totals.distanceM) ?? '—'} label="distância" />
           </View>
 
           <View style={styles.chartGroup}>
             <View style={styles.chartWrap}>
               <StackedBarChart
-                buckets={chartBuckets}
+                buckets={overview.buckets}
                 metric={metric}
                 width={chartWidth}
-                noScroll={period === 'ano'}
-                animationKey={`${period}-${metric}`}
+                noScroll={period === 'meses12' || isYear}
+                animationKey={`${period}-${metric}-${yearOffset}`}
+                goal={isDuration ? overview.targetS : undefined}
+                goalLabel="OMS"
+                goalUnit={`/${BUCKET_WORD[overview.granularity]}`}
+                currentGoal={isDuration ? overview.currentTargetS : undefined}
+                showEffort={isDuration && !isDaily}
+                effortFlat={isDuration ? overview.effortAvgS : undefined}
+                effortFlatLabel="Você"
+                effortFlatColor={refLines.average}
+                effortColor={refLines.series}
               />
             </View>
+
+            {isDuration && (
+              <View style={styles.refLegend}>
+                <View style={styles.refRow}>
+                  <LineMark variant="dashed" />
+                  <Text style={styles.refText}>
+                    OMS · {fmtGoal(overview.targetS)} {WHO_PER[overview.granularity]}
+                    {isDaily && <Text style={styles.refHint}>  ({weeklyTargetMin} min/semana)</Text>}
+                    {overview.currentTargetS !== undefined && (
+                      <Text style={styles.refHint}>
+                        {`  · ${BUCKET_WORD[overview.granularity]} em curso: ${fmtGoal(overview.currentTargetS)}`}
+                      </Text>
+                    )}
+                  </Text>
+                </View>
+                <View style={styles.refRow}>
+                  <LineMark variant="dotted" color={refLines.average} />
+                  <Text style={styles.refText}>
+                    Você · {fmtGoal(overview.effortAvgS)} {WHO_PER[overview.granularity]}
+                    <Text style={styles.refHint}>  ({fmtGoal(overview.effortTotalS)} no total)</Text>
+                  </Text>
+                </View>
+                {!isDaily && (
+                  <View style={styles.refRow}>
+                    <LineMark variant="solid" color={refLines.series} />
+                    <Text style={styles.refText}>
+                      Você, {BUCKET_WORD[overview.granularity]} a {BUCKET_WORD[overview.granularity]}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.refHint}>
+                  Minutos moderados equivalentes: cada treino é pesado pela intensidade — pelo
+                  tempo em zonas de FC quando há batimentos, senão pelo tipo. Corrida e treinos
+                  intensos contam mais que a duração bruta; yoga e recuperação contam menos.
+                </Text>
+              </View>
+            )}
 
             <Segmented options={METRICS} value={metric} onChange={setMetric} />
 
@@ -337,6 +469,27 @@ const styles = themed(() => StyleSheet.create({
 
   chartGroup: { gap: spacing.sm },
   chartWrap: { marginHorizontal: -spacing.xs },
+
+  refLegend: {
+    gap: 6,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.bg,
+  },
+  refRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  // Navegação por ano — mesmo padrão visual da Retrospectiva. O estado desabilitado
+  // é sinalizado pela cor do ícone, não por opacidade.
+  yearNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.lg, marginTop: spacing.sm },
+  navBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadows.card },
+  navLabel: { fontSize: 15, fontWeight: '600', color: colors.ink, minWidth: 56, textAlign: 'center' },
+
+  markRow: { flexDirection: 'row', alignItems: 'center', gap: 2, width: 18 },
+  markBar: { width: 18, height: 2, borderRadius: 1 },
+  markSolid: { backgroundColor: colors.ink2, opacity: 0.85 },
+  markSegDashed: { width: 4, height: 2, borderRadius: 1, backgroundColor: colors.ink3, opacity: 0.7 },
+  markSegDotted: { width: 2, height: 2, borderRadius: 1, backgroundColor: colors.ink2, opacity: 0.8 },
+  refText: { fontSize: 11.5, fontWeight: '600', color: colors.ink2 },
+  refHint: { fontSize: 10.5, lineHeight: 15, color: colors.ink3 },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },

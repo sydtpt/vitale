@@ -52,6 +52,8 @@ export interface SyncResult {
   error?: string;
   /** Labels efetivamente tocados (para a store refletir status). */
   labels?: string[];
+  /** Ocorrências de tarefa PENDENTES novas geradas pelo vínculo (para notificar). */
+  tasksCreated?: number;
 }
 
 /** Tamanho do lote de upsert (primeiro sync cobre 3 anos de histórico). */
@@ -430,9 +432,10 @@ export async function syncDelta(): Promise<SyncResult> {
     // Também pula quando anchor=null (cold start): fetchWorkoutsDelta sem âncora
     // devolve 3 anos de histórico; processar tudo criaria tasks para cada treino passado.
     // Falha aqui não derruba o sync de atividades.
+    let tasksCreated = 0;
     if (anchor !== null) {
       try {
-        await linkWorkoutsToTodos(ofType, userId);
+        tasksCreated = await linkWorkoutsToTodos(ofType, userId);
       } catch (e) {
         console.warn('[sync] link de tarefas falhou:', e instanceof Error ? e.message : e);
       }
@@ -463,6 +466,7 @@ export async function syncDelta(): Promise<SyncResult> {
       ok: true,
       error: a.error ?? r.error,
       labels,
+      tasksCreated,
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Erro no sync.';

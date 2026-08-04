@@ -39,6 +39,7 @@ export default function ConfiguracoesScreen() {
   const themeLabel = preferences?.theme === 'dark' ? 'Escuro' : preferences?.theme === 'light' ? 'Claro' : 'Sistema';
   const glassLabel = preferences?.glassEnabled ? ' · Glass' : '';
   const appearanceSub = themeLabel + glassLabel;
+  const notifSub = (preferences?.notificationsEnabled ?? true) ? 'Ativas' : 'Desativadas';
 
   const sections: Section[] = [
     {
@@ -52,6 +53,7 @@ export default function ConfiguracoesScreen() {
       title: 'App',
       rows: [
         { icon: 'color-palette-outline', label: 'Aparência', sub: appearanceSub, route: '/configuracoes/app' },
+        { icon: 'notifications-outline', label: 'Notificações', sub: notifSub, route: '/configuracoes/notificacoes' },
         { icon: 'color-filter-outline', label: 'Cores dos gráficos', sub: getChartPalette(chartPaletteId).name, route: '/configuracoes/paleta' },
         { icon: 'trophy-outline', label: 'Objetivos', sub: 'Macros e treino', route: '/configuracoes/objetivos' },
       ],

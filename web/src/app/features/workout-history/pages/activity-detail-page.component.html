@@ -83,8 +83,8 @@
       }
       @if (a.calories > 0) {
         <div class="stat">
-          <span class="stat-v">{{ fmtKcal(a.calories) }}</span>
-          <span class="stat-c">kcal</span>
+          <span class="stat-v">{{ a.caloriesEstimated ? '≈' : '' }}{{ fmtKcal(a.calories) }}</span>
+          <span class="stat-c">kcal{{ a.caloriesEstimated ? ' (estimado)' : '' }}</span>
         </div>
       }
     </div>
@@ -123,6 +123,11 @@
             </div>
           }
         </div>
+        @if (a.hrZonesEstimated) {
+          <p class="note zones-note">
+            Treino sem monitor cardíaco: distribuição estimada pela média dos seus treinos deste tipo.
+          </p>
+        }
       </section>
     }
 
@@ -176,7 +181,10 @@
           <div class="info-row"><dt>Elevação</dt><dd class="mono">{{ e }}</dd></div>
         }
         @if (a.calories > 0) {
-          <div class="info-row"><dt>Calorias</dt><dd class="mono">{{ fmtKcal(a.calories) }} kcal</dd></div>
+          <div class="info-row">
+            <dt>Calorias</dt>
+            <dd class="mono">{{ a.caloriesEstimated ? '≈' : '' }}{{ fmtKcal(a.calories) }} kcal</dd>
+          </div>
         }
         @if (a.sourceName) {
           <div class="info-row"><dt>Fonte</dt><dd>{{ a.sourceName }}</dd></div>

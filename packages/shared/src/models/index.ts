@@ -5,6 +5,8 @@
 
 import type { MapStyle } from '../constants/map';
 import type { Wallpaper } from '../constants/wallpaper';
+import type { NotificationPrefs } from '../constants/notifications';
+import type { ReferenceLineScheme } from '../constants/reference-lines';
 
 export interface Meal {
   id: string;
@@ -331,6 +333,19 @@ export interface Activity {
    * em treinos sem amostras de FC e em linhas antigas (preenchido ao re-sincronizar).
    */
   hrZones?: Record<string, number>;
+  /**
+   * true quando `calories` é estimativa, não medida: o treino chegou sem
+   * calorias (logado direto na Strava, sem relógio) e o banco preencheu com a
+   * mediana de kcal/min do usuário naquele tipo × a duração desta linha.
+   */
+  caloriesEstimated?: boolean;
+  /**
+   * true quando `hrZones` é estimativa: o treino chegou sem nada medido e o
+   * banco distribuiu a duração pela forma média das zonas do usuário naquele
+   * tipo. Só acontece em linha sem calorias medidas — linha do relógio sem
+   * zonas é ambígua (aguarda o re-sync trazer as zonas reais) e fica intocada.
+   */
+  hrZonesEstimated?: boolean;
   /** true quando editado manualmente na web; o sync deixa de sobrescrever. */
   locallyEdited?: boolean;
   editedAt?: string;
@@ -562,6 +577,20 @@ export interface UserPreferences {
   trainingDaysPerWeek?: number;
   /** FC máxima do usuário (bpm). Base das zonas de FC (% da FCmáx). Ausente ⇒ estima por idade. */
   maxHr?: number;
+  /**
+   * Meta semanal de atividade em minutos moderados equivalentes — a linha de
+   * referência do gráfico de duração no Histórico. Ausente ⇒ `DEFAULT_WEEKLY_TARGET_MIN`
+   * (190). A OMS recomenda a faixa 150–300; ver `health/who-activity`.
+   */
+  weeklyActivityTargetMin?: number;
+  /**
+   * Cores das linhas de referência do gráfico de duração (esforço médio e
+   * progressão). Ausente ⇒ `DEFAULT_REFERENCE_LINE_SCHEME`. Ver
+   * `constants/reference-lines`.
+   */
+  referenceLineScheme?: ReferenceLineScheme;
+  /** Preferências de notificações locais (quais tipos + agenda das retrospectivas). */
+  notificationPrefs?: NotificationPrefs;
   updatedAt: string;
 }
 
