@@ -23,7 +23,7 @@ export class PreferencesService {
   /** Estilo de mapa atual; cai no padrão enquanto carrega ou se ausente. */
   readonly mapStyle = signal<MapStyle>(DEFAULT_MAP_STYLE);
 
-  /** Meta semanal de atividade (min moderados equivalentes); padrão se não configurada. */
+  /** Meta semanal de atividade (min de esforço); padrão se não configurada. */
   readonly weeklyActivityTargetMin = signal<number>(DEFAULT_WEEKLY_TARGET_MIN);
 
   /** Cores das linhas de referência do gráfico de duração. */

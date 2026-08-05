@@ -8,7 +8,9 @@ import {
   type PeriodKind,
   type RecapValue,
   type HighlightIcon,
+  type RetroHabitRow,
   type RetroHealthRow,
+  type RetroRegistroRow,
   type SportStats,
   type SportBestEffort,
 } from '@vitale/shared';
@@ -46,6 +48,23 @@ function deltaVM(r: RecapValue, higherIsWorse: boolean, noPrior = false): { text
   const sign = r.delta > 0 ? '+' : '−';
   const text = r.deltaPct != null ? `${sign}${num(Math.abs(r.deltaPct))}%` : `${sign}${num(Math.abs(r.delta))}`;
   return { text, tone: worse ? 'bad' : 'good' };
+}
+
+/** Quantidade de hábito: inteiro sem casas, fracionário com 1. */
+function qty(n: number, unit: string): string {
+  const v = Number.isInteger(n) ? num(n) : num(n, 1);
+  return unit ? `${v} ${unit}` : v;
+}
+/** Linha de apoio do hábito: média diária + dias com registro. */
+function habitSub(h: RetroHabitRow): string {
+  const dias = `${h.recap.current} ${h.recap.current === 1 ? 'dia' : 'dias'}`;
+  return h.perDayDays === 0 ? dias : `${qty(h.perDay, h.unit)}/dia · ${dias}`;
+}
+/** Linha de apoio do registro: frequência das marcações no período. */
+function registroSub(r: RetroRegistroRow): string {
+  if (r.recap.current === 0) return 'sem marcações neste período';
+  if (r.everyDays <= 1) return 'todo dia';
+  return `1× a cada ${qty(r.everyDays, '')} dias`;
 }
 
 function speedKmh(mps: number | null): string {
@@ -117,7 +136,9 @@ export default function RetrospectivaScreen() {
   const kpis = [
     { icon: 'barbell-outline' as const, label: 'Treinos', value: `${summary.fitness.count.current}`, d: deltaVM(summary.fitness.count, false, noPrior) },
     { icon: 'checkmark-done-outline' as const, label: 'Tarefas', value: `${summary.tasks.total.current}`, d: deltaVM(summary.tasks.total, false, noPrior) },
-    { icon: 'walk-outline' as const, label: 'Distância', value: km(summary.fitness.distanceM.current), d: deltaVM(summary.fitness.distanceM, false, noPrior) },
+    // Passos, não distância: a distância já aparece no card de treinos e só conta
+    // o que virou atividade — os passos medem o movimento do dia inteiro.
+    { icon: 'footsteps-outline' as const, label: 'Passos', value: num(summary.fitness.steps.current), d: deltaVM(summary.fitness.steps, false, noPrior) },
     { icon: 'wallet-outline' as const, label: 'Compras', value: brl(summary.purchases.spend.current), d: deltaVM(summary.purchases.spend, true, noPrior) },
   ];
 
@@ -264,17 +285,33 @@ export default function RetrospectivaScreen() {
         {/* Hábitos */}
         <View style={styles.card}>
           <Text style={styles.eyebrow}>Hábitos & registros</Text>
-          {summary.habits.good.length === 0 && summary.habits.bad.length === 0 && <Text style={styles.empty}>Nenhum hábito registrado.</Text>}
+          {summary.habits.good.length === 0 && summary.habits.bad.length === 0 && summary.registros.length === 0 && <Text style={styles.empty}>Nenhum hábito registrado.</Text>}
           {summary.habits.good.map((h) => (
             <View key={h.id} style={styles.row}>
-              <Text style={styles.rowL}>{h.name}</Text>
-              <Text style={styles.rowR}>{h.recap.current}d  <Text style={{ color: TONE_COLOR[deltaVM(h.recap, false, noPrior).tone], fontSize: 12 }}>{deltaVM(h.recap, false, noPrior).text}</Text></Text>
+              <View style={styles.habitL}>
+                <Text style={styles.rowL}>{h.name}</Text>
+                <Text style={styles.habitSub}>{habitSub(h)}</Text>
+              </View>
+              <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, false, noPrior).tone], fontSize: 12 }}>{deltaVM(h.total, false, noPrior).text}</Text></Text>
             </View>
           ))}
           {summary.habits.bad.map((h) => (
             <View key={h.id} style={styles.row}>
-              <Text style={styles.rowL}>{h.name}</Text>
-              <Text style={styles.rowR}>{h.recap.current}d  <Text style={{ color: TONE_COLOR[deltaVM(h.recap, true, noPrior).tone], fontSize: 12 }}>{deltaVM(h.recap, true, noPrior).text}</Text></Text>
+              <View style={styles.habitL}>
+                <Text style={styles.rowL}>{h.name}</Text>
+                <Text style={styles.habitSub}>{habitSub(h)}</Text>
+              </View>
+              <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, true, noPrior).tone], fontSize: 12 }}>{deltaVM(h.total, true, noPrior).text}</Text></Text>
+            </View>
+          ))}
+          {summary.registros.length > 0 && <Text style={styles.sub}>Registros</Text>}
+          {summary.registros.map((r) => (
+            <View key={r.id} style={styles.row}>
+              <View style={styles.habitL}>
+                <Text style={styles.rowL}>{r.name}</Text>
+                <Text style={styles.habitSub}>{registroSub(r)}</Text>
+              </View>
+              <Text style={styles.rowR}>{r.recap.current}×  <Text style={{ color: colors.ink3, fontSize: 12 }}>{deltaVM(r.recap, false, noPrior).text}</Text></Text>
             </View>
           ))}
         </View>
@@ -416,6 +453,8 @@ const createStyles = () => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   rowL: { fontSize: 14, color: colors.ink },
   rowR: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  habitL: { flex: 1, gap: 1 },
+  habitSub: { fontSize: 11, color: colors.ink3 },
 
   miniGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 6 },
   mini: { width: '46%' },

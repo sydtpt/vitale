@@ -176,18 +176,34 @@
       @if (summary().habits.good.length > 0) {
         <p class="sub">Bons</p>
         @for (h of summary().habits.good; track h.id) {
-          <div class="row"><span>{{ h.name }}</span><span class="row-v">{{ h.recap.current }}d
-            <small class="badge" [attr.data-tone]="delta(h.recap, false).tone">{{ delta(h.recap, false).text }}</small></span></div>
+          <div class="row">
+            <span class="habit-l">{{ h.name }}<small class="habit-sub">{{ habitSub(h) }}</small></span>
+            <span class="row-v">{{ habitTotal(h) }}
+              <small class="badge" [attr.data-tone]="delta(h.total, false).tone">{{ delta(h.total, false).text }}</small></span>
+          </div>
         }
       }
       @if (summary().habits.bad.length > 0) {
         <p class="sub">A evitar</p>
         @for (h of summary().habits.bad; track h.id) {
-          <div class="row"><span>{{ h.name }}</span><span class="row-v">{{ h.recap.current }}d
-            <small class="badge" [attr.data-tone]="delta(h.recap, true).tone">{{ delta(h.recap, true).text }}</small></span></div>
+          <div class="row">
+            <span class="habit-l">{{ h.name }}<small class="habit-sub">{{ habitSub(h) }}</small></span>
+            <span class="row-v">{{ habitTotal(h) }}
+              <small class="badge" [attr.data-tone]="delta(h.total, true).tone">{{ delta(h.total, true).text }}</small></span>
+          </div>
         }
       }
-      @if (summary().habits.good.length === 0 && summary().habits.bad.length === 0) {
+      @if (summary().registros.length > 0) {
+        <p class="sub">Registros</p>
+        @for (r of summary().registros; track r.id) {
+          <div class="row">
+            <span class="habit-l">{{ r.name }}<small class="habit-sub">{{ registroSub(r) }}</small></span>
+            <span class="row-v">{{ r.recap.current }}×
+              <small class="badge" data-tone="neutral">{{ delta(r.recap, false).text }}</small></span>
+          </div>
+        }
+      }
+      @if (summary().habits.good.length === 0 && summary().habits.bad.length === 0 && summary().registros.length === 0) {
         <p class="empty">Nenhum hábito registrado.</p>
       }
     </div>

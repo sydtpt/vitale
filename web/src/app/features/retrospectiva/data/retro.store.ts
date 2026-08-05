@@ -27,7 +27,7 @@ const HEALTH_SPECS: Omit<RetroHealthMetric, 'valuesByDay'>[] = [
 
 interface DbHealthRow { day: string; metric: string; value: number | string | null }
 interface DbRatingRow { day: string; sleep_quality: number | string | null; day_quality: number | string | null }
-interface DbHabitRow { id: string; name: string; bad: boolean }
+interface DbHabitRow { id: string; name: string; bad: boolean; unit: string | null }
 interface DbHabitLogRow { habit_id: string; log_date: string; value: number | string | null }
 interface DbRegistroRow { id: string; name: string }
 interface DbRegistroLogRow { registro_id: string; log_date: string }
@@ -81,7 +81,7 @@ export class RetroStore {
     const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs] = await Promise.all([
       supabase.from('health_daily').select('day,metric,value').eq('user_id', userId).gte('day', since),
       supabase.from('daily_ratings').select('day,sleep_quality,day_quality').eq('user_id', userId).gte('day', since),
-      supabase.from('habits').select('id,name,bad').eq('user_id', userId),
+      supabase.from('habits').select('id,name,bad,unit').eq('user_id', userId),
       supabase.from('habit_logs').select('habit_id,log_date,value').eq('user_id', userId).gte('log_date', since),
       supabase.from('registros').select('id,name').eq('user_id', userId),
       supabase.from('registro_logs').select('registro_id,log_date').eq('user_id', userId).gte('log_date', since),
@@ -168,9 +168,10 @@ export class RetroStore {
       activities: this.activitiesStore.activities(),
       health: HEALTH_SPECS.map((s) => ({ ...s, valuesByDay: byMetric.get(s.metric) ?? new Map() })),
       floorsByDay: byMetric.get('andares'),
+      stepsByDay: byMetric.get('passos'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
-      habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
+      habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit ?? '', logsByDay: logsByHabit.get(h.id) ?? new Map() })),
       registros: this._registros().map((r) => ({ id: r.id, name: r.name, days: daysByRegistro.get(r.id) ?? [] })),
       tasks: this._tasks(),
       purchases: this._purchases(),

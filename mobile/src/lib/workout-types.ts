@@ -3,6 +3,7 @@
  * Importável em testes e em código compartilhado sem mocks nativos.
  */
 import type { MaterialCommunityIcons } from '@expo/vector-icons';
+import { activityTypeLabel } from '@vitale/shared';
 
 export type PermissionStatus = 'unknown' | 'authorized' | 'denied' | 'unavailable';
 
@@ -178,27 +179,32 @@ export function elevationGain(points: RoutePoint[], threshold = ELEVATION_GAIN_T
 
 export type ActivityMeta = { icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string };
 
+/** Ícone por tipo; o label vem do shared (`ACTIVITY_TYPE_LABELS`). */
+const ACTIVITY_ICONS: Record<number, ActivityMeta['icon']> = {
+  11: 'dumbbell',
+  13: 'bike',
+  16: 'run-fast',
+  20: 'kettlebell',
+  24: 'hiking',
+  35: 'rowing',
+  37: 'run',
+  44: 'stairs-up',
+  46: 'swim',
+  50: 'weight-lifter',
+  52: 'walk',
+  57: 'yoga',
+  59: 'arm-flex',
+  63: 'jump-rope',
+  66: 'meditation',
+  73: 'heart-pulse',
+  82: 'tennis',
+};
+
 export function getActivityMeta(activityId: number): ActivityMeta {
-  switch (activityId) {
-    case 11: return { icon: 'dumbbell', label: 'Cross Training' };
-    case 13: return { icon: 'bike', label: 'Ciclismo' };
-    case 16: return { icon: 'run-fast', label: 'Elíptico' };
-    case 20: return { icon: 'kettlebell', label: 'Funcional' };
-    case 24: return { icon: 'hiking', label: 'Trilha' };
-    case 35: return { icon: 'rowing', label: 'Remo' };
-    case 37: return { icon: 'run', label: 'Corrida' };
-    case 44: return { icon: 'stairs-up', label: 'Escadas' };
-    case 46: return { icon: 'swim', label: 'Natação' };
-    case 50: return { icon: 'weight-lifter', label: 'Musculação' };
-    case 52: return { icon: 'walk', label: 'Caminhada' };
-    case 57: return { icon: 'yoga', label: 'Yoga' };
-    case 59: return { icon: 'arm-flex', label: 'Core' };
-    case 63: return { icon: 'jump-rope', label: 'HIIT' };
-    case 66: return { icon: 'meditation', label: 'Pilates' };
-    case 73: return { icon: 'heart-pulse', label: 'Cardio' };
-    case 82: return { icon: 'tennis', label: 'Pickleball' };
-    default: return { icon: 'dumbbell', label: 'Treino' };
-  }
+  return {
+    icon: ACTIVITY_ICONS[activityId] ?? 'dumbbell',
+    label: activityTypeLabel(activityId),
+  };
 }
 
 /**

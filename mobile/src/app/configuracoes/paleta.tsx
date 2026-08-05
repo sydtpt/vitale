@@ -7,7 +7,7 @@ import { REFERENCE_LINE_SCHEMES, resolveReferenceLineScheme } from '@vitale/shar
 import { CHART_PALETTES, type ChartPalette, type PaletteRoles } from '../../lib/chart-palettes';
 import { useChartPaletteStore } from '../../store/chart-palette.store';
 import { useSettingsStore } from '../../store/settings.store';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, spacing, radii, shadows, useThemedStyles, useTheme } from '../../theme';
 
 // Barras de exemplo (topo → base) para a prévia — imitam o gráfico empilhado.
 type Role = keyof PaletteRoles;
@@ -89,6 +89,9 @@ export default function ChartPaletteScreen() {
   const loadSettings = useSettingsStore((st) => st.loadSettings);
   const updatePreferences = useSettingsStore((st) => st.updatePreferences);
   const scheme = resolveReferenceLineScheme(preferences?.referenceLineScheme);
+  // A prévia tem que mostrar o passo do tema ativo, senão ela mente sobre o que o
+  // gráfico vai desenhar (cada esquema tem uma cor por tema — ver reference-lines.ts).
+  const { scheme: themeMode } = useTheme();
 
   useEffect(() => {
     if (!preferences) loadSettings();
@@ -152,7 +155,7 @@ export default function ChartPaletteScreen() {
               accessibilityLabel={`Linhas ${r.label}`}
               style={({ pressed }) => [s.card, selected && s.cardSelected, pressed && s.pressed]}
             >
-              <LinesPreview average={r.average} series={r.series} />
+              <LinesPreview average={r[themeMode].average} series={r[themeMode].series} />
               <View style={s.meta}>
                 <Text style={s.name}>{r.label}</Text>
                 <Text style={s.sub}>{r.hint}</Text>

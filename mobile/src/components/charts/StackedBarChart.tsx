@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, AccessibilityInfo } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { smoothLinePath, niceAxisMax, compactNumber, type LinePoint } from '@vitale/shared';
 import type { OverviewBucket, Metric } from '../../lib/activity-overview';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { remapChartColor } from '../../lib/chart-palettes';
@@ -51,6 +52,12 @@ const PAD_LEFT = 36;
 const MIN_SLOT = 44; // largura mínima por barra antes de habilitar rolagem horizontal
 const TOP_RADIUS = 7; // raio dos cantos superiores do segmento do topo da pilha
 const ANIM_MS = 360;
+/** Divisões do eixo Y: 4 passos = 5 linhas de grade (com a do zero). */
+const GRID_TICKS = 4;
+/** Unidade em que cada métrica é lida — o eixo escolhe passos redondos nela. */
+const AXIS_UNIT: Record<Metric, number> = { distance: 1000, duration: 3600, calories: 1, count: 1 };
+/** Métricas sem casa decimal: o passo do eixo tem que ser inteiro. */
+const INTEGER_METRICS: ReadonlySet<Metric> = new Set<Metric>(['calories', 'count']);
 
 // Tom quente usado para suavizar/clarear as cores das séries (casa com a paleta bege/creme).
 const WARM = '#FBF1E2';
@@ -67,7 +74,8 @@ interface Bar {
 interface SlotLayout { x0: number; slot: number; center: number; }
 interface Model {
   chartW: number; baseY: number; layout: SlotLayout[];
-  grid: { y: number; label: string }[]; bars: Bar[];
+  /** `base` = linha do zero: fecha o painel do plot, então tem traço mais firme. */
+  grid: { y: number; label: string; base: boolean }[]; bars: Bar[];
   /** Path da linha de meta (reta ou com degrau no bucket em curso); '' = sem meta. */
   goalPath: string;
   /** Y da meta cheia, p/ posicionar o rótulo. */
@@ -85,7 +93,8 @@ function fmtAxis(v: number, metric: Metric): string {
       return `${(v / 3600).toFixed(v >= 36000 ? 0 : 1)}h`;
     case 'calories':
     case 'count':
-      return String(Math.round(v));
+      // "17426" rouba largura do eixo e não informa mais que "17k".
+      return compactNumber(v);
   }
 }
 
@@ -181,12 +190,18 @@ function buildModel(
   const baseY = PAD_TOP + innerH;
   // O eixo precisa absorver a meta e a série de esforço: uma meta acima da barra
   // mais alta seria cortada silenciosamente fora do plot.
-  const maxV = Math.max(
+  const axisUnit = AXIS_UNIT[metric];
+  const rawMax = Math.max(
     ...buckets.map((b) => Math.max(b.total, showEffort ? b.effectiveS ?? 0 : 0)),
     goal ?? 0,
     effortFlat ?? 0,
-    1,
+    axisUnit, // piso: sem dados, um eixo de 0–1h/1km é mais legível que um de 0–1s/1m
   );
+  // Topo redondo e acima do máximo: dá folga sobre a barra mais alta e faz as 5
+  // linhas da grade caírem em valores legíveis.
+  const maxV = niceAxisMax(rawMax, {
+    unit: axisUnit, ticks: GRID_TICKS, integer: INTEGER_METRICS.has(metric),
+  });
 
   let cursor = PAD_LEFT;
   const layout: SlotLayout[] = buckets.map((b, i) => {
@@ -196,7 +211,9 @@ function buildModel(
     return { x0, slot, center: x0 + slot / 2 };
   });
 
-  const grid = [0, 0.5, 1].map((f) => ({ y: baseY - f * innerH, label: fmtAxis(maxV * f, metric) }));
+  const grid = Array.from({ length: GRID_TICKS + 1 }, (_, i) => i / GRID_TICKS).map((f) => ({
+    y: baseY - f * innerH, label: fmtAxis(maxV * f, metric), base: f === 0,
+  }));
 
   const bars: Bar[] = buckets.map((b, i) => {
     const { slot, center } = layout[i];
@@ -348,13 +365,11 @@ export function StackedBarChart({
 
   const { chartW, baseY, layout, grid, goalPath, goalY, effortFlatY } = model;
 
-  // Polilinha do esforço ponderado. Quebra (novo "M") nos buckets sem ponto.
-  const effortPath = display.reduce<{ d: string; open: boolean }>(
-    (acc, b) => (b.effY === null
-      ? { d: acc.d, open: false }
-      : { d: `${acc.d}${acc.open ? 'L' : 'M'} ${b.center} ${b.effY} `, open: true }),
-    { d: '', open: false },
-  ).d.trim();
+  // Curva do esforço ponderado: cúbica monotônica (suaviza sem inventar picos).
+  // Quebra (null) nos buckets sem ponto.
+  const effortPath = smoothLinePath(
+    display.map<LinePoint | null>((b) => (b.effY === null ? null : { x: b.center, y: b.effY })),
+  );
 
   // Cores distintas atualmente renderizadas (inclui séries que estão encolhendo).
   const gradColors = Array.from(
@@ -476,11 +491,25 @@ export function StackedBarChart({
             <Stop offset="1" stopColor={gradBase(c)} />
           </LinearGradient>
         ))}
+        {/* Painel da área de plot: um só tom com rampa de opacidade (o degradê some
+            na base, onde a linha de eixo assume). Segue o tema pelo proxy `colors`. */}
+        <LinearGradient id="sbc-plot-bg" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={colors.surfaceMute} stopOpacity={0.7} />
+          <Stop offset="1" stopColor={colors.surfaceMute} stopOpacity={0.15} />
+        </LinearGradient>
       </Defs>
+
+      {/* Largura em `chartW` (não na da tela): no scroll horizontal o painel acompanha as barras. */}
+      <Rect x={PAD_LEFT} y={PAD_TOP} width={chartW - PAD_LEFT} height={baseY - PAD_TOP} fill="url(#sbc-plot-bg)" />
 
       {grid.map((g, i) => (
         <React.Fragment key={`g${i}`}>
-          <Line x1={PAD_LEFT} y1={g.y} x2={chartW} y2={g.y} stroke={colors.line} strokeWidth={0.5} strokeOpacity={0.4} />
+          <Line
+            x1={PAD_LEFT} y1={g.y} x2={chartW} y2={g.y}
+            stroke={g.base ? colors.lineDeep : colors.line}
+            strokeWidth={g.base ? 1 : 0.5}
+            strokeOpacity={g.base ? 0.8 : 0.4}
+          />
           <SvgText x={PAD_LEFT - 6} y={g.y + 3} fontSize={9} fill={colors.ink3} textAnchor="end">
             {g.label}
           </SvgText>
@@ -517,16 +546,25 @@ export function StackedBarChart({
         </SvgText>
       ))}
 
-      {/* Linhas de referência: pintam por cima das barras, abaixo dos toques. */}
+      {/* Linhas de referência: pintam por cima das barras, abaixo dos toques.
+
+          Cada uma vai duas vezes: um traço largo em `colors.surface` (o halo) e a cor
+          por cima. Desde que o esforço passou a ser ancorado no vigoroso, a linha corre
+          DENTRO das barras em vez de acima delas, então ela é lida contra 48 cores de
+          preenchimento (8 papéis × 6 paletas). Sem o halo nenhuma cor passa de 8% de
+          cobertura; com ele, os valores de `reference-lines.ts` cobrem 100%. Pela mesma
+          razão não há strokeOpacity nas cores: opacidade mistura a linha com a barra
+          por baixo, que é o que destrói o contraste. O halo lê `colors` (proxy do tema),
+          então acompanha claro/escuro sozinho. */}
       {goalY != null && (
         <React.Fragment>
+          <Path d={goalPath} fill="none" stroke={colors.surface} strokeWidth={3.5} strokeOpacity={0.9} strokeLinecap="round" />
           <Path
             d={goalPath}
             fill="none"
             stroke={colors.ink3}
-            strokeWidth={1}
+            strokeWidth={1.25}
             strokeDasharray="3 3"
-            strokeOpacity={0.7}
           />
           <SvgText x={chartW - 4} y={goalY - 5} fontSize={8.5} fill={colors.ink3} fillOpacity={0.85} textAnchor="end" fontFamily="GeistMono">
             {`${goalLabel} · ${fmtCompact(goal ?? 0, metric)}${goalUnit}`}
@@ -536,17 +574,19 @@ export function StackedBarChart({
 
       {effortFlatY != null && (
         <React.Fragment>
-          {/* Pontilhada: mesma cor da série (as duas sou "eu"), mas traço diferente da
-              meta tracejada e da polilinha sólida. Rótulo à esquerda; a meta ancora à
-              direita, então nunca colidem. */}
+          {/* Pontilhada: traço diferente da meta tracejada e da polilinha sólida.
+              Rótulo à esquerda; a meta ancora à direita, então nunca colidem. */}
+          <Line
+            x1={PAD_LEFT} y1={effortFlatY} x2={chartW} y2={effortFlatY}
+            stroke={colors.surface} strokeWidth={3.5} strokeOpacity={0.9} strokeLinecap="round"
+          />
           <Line
             x1={PAD_LEFT}
             y1={effortFlatY}
             x2={chartW}
             y2={effortFlatY}
             stroke={effortFlatColor}
-            strokeWidth={1.25}
-            strokeOpacity={0.8}
+            strokeWidth={1.5}
             strokeDasharray="1 3"
             strokeLinecap="round"
           />
@@ -558,9 +598,13 @@ export function StackedBarChart({
 
       {effortPath !== '' && (
         <React.Fragment>
-          <Path d={effortPath} fill="none" stroke={effortColor} strokeWidth={1.25} strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d={effortPath} fill="none" stroke={colors.surface} strokeWidth={4.5} strokeOpacity={0.9} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d={effortPath} fill="none" stroke={effortColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           {display.map((b) => (b.effY === null ? null : (
-            <Circle key={`eff-${b.key}`} cx={b.center} cy={b.effY} r={1.8} fill={effortColor} fillOpacity={0.85} />
+            <React.Fragment key={`eff-${b.key}`}>
+              <Circle cx={b.center} cy={b.effY} r={3.2} fill={colors.surface} fillOpacity={0.9} />
+              <Circle cx={b.center} cy={b.effY} r={2.2} fill={effortColor} />
+            </React.Fragment>
           )))}
         </React.Fragment>
       )}

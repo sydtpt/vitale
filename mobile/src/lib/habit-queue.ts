@@ -16,15 +16,34 @@ export interface HabitDelta {
 
 const KEY = 'vitale:habit-queue';
 
+/**
+ * Trava de concorrência da fila. Toda leitura-modificação-escrita (enqueue) e
+ * todo drain rodam em série. Sem ela, dois toques rápidos no "+" se cruzam:
+ * o drain do 1º ainda está no ar (não limpou a fila) quando o 2º lê `[d1, d2]`
+ * e reenvia `d1` — como o backend SOMA o delta, o valor dobra no servidor.
+ */
+let queueLock: Promise<unknown> = Promise.resolve();
+
+function withQueueLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = queueLock.then(fn, fn);
+  queueLock = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
+
 export async function readHabitQueue(store: KVStore = asyncStore): Promise<HabitDelta[]> {
   return (await getJSON<HabitDelta[]>(KEY, store)) ?? [];
 }
 
 /** Acrescenta um delta à fila, deduplicando por `opId`. */
 export async function enqueueDelta(item: HabitDelta, store: KVStore = asyncStore): Promise<void> {
-  const current = await readHabitQueue(store);
-  if (current.some((d) => d.opId === item.opId)) return;
-  await setJSON(KEY, [...current, item], store);
+  return withQueueLock(async () => {
+    const current = await readHabitQueue(store);
+    if (current.some((d) => d.opId === item.opId)) return;
+    await setJSON(KEY, [...current, item], store);
+  });
 }
 
 export async function clearHabitQueue(store: KVStore = asyncStore): Promise<void> {
@@ -34,14 +53,19 @@ export async function clearHabitQueue(store: KVStore = asyncStore): Promise<void
 /**
  * Envia tudo via `flush` (FIFO), que devolve os deltas que FALHARAM (a manter).
  * Persiste os que sobraram e retorna quantos drenaram.
+ *
+ * Roda sob a trava: um drain concorrente espera o anterior terminar e só então
+ * lê a fila — nunca reenvia um delta que já está em voo.
  */
 export async function drainHabitQueue(
   flush: (items: HabitDelta[]) => Promise<HabitDelta[]>,
   store: KVStore = asyncStore
 ): Promise<number> {
-  const items = await readHabitQueue(store);
-  if (items.length === 0) return 0;
-  const failed = await flush(items);
-  await setJSON(KEY, failed, store);
-  return items.length - failed.length;
+  return withQueueLock(async () => {
+    const items = await readHabitQueue(store);
+    if (items.length === 0) return 0;
+    const failed = await flush(items);
+    await setJSON(KEY, failed, store);
+    return items.length - failed.length;
+  });
 }

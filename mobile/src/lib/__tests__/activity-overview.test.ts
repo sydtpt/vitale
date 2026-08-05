@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import type { Activity } from '@vitale/shared';
 import { DEFAULT_WEEKLY_TARGET_MIN } from '@vitale/shared';
-import { buildOverview, earliestActivityYear } from '../activity-overview';
+import { buildOverview, earliestActivityYear, overviewYears } from '../activity-overview';
 
 function act(partial: Partial<Activity> & { startAt: string }): Activity {
   return {
@@ -118,6 +118,34 @@ describe('buildOverview', () => {
   });
 });
 
+describe('buildOverview — sempre (botões de ano)', () => {
+  const now = new Date(2026, 4, 20);
+  const activities = [
+    act({ startAt: '2024-03-01T08:00:00' }),
+    act({ startAt: '2026-01-10T08:00:00' }),
+    act({ startAt: '2026-02-10T08:00:00' }),
+  ];
+
+  it('sem filtro: um bucket por ano entre o mínimo e o máximo', () => {
+    const ov = buildOverview(activities, 'sempre', 'count', now);
+    expect(ov.buckets.map((b) => b.key)).toEqual(['2024', '2025', '2026']);
+    expect(ov.totals.count).toBe(3);
+  });
+
+  it('anos desmarcados saem das barras e dos totais', () => {
+    const ov = buildOverview(
+      activities, 'sempre', 'count', now, new Set(), DEFAULT_WEEKLY_TARGET_MIN, 0, new Set(['2026']),
+    );
+    expect(ov.buckets.map((b) => b.key)).toEqual(['2024', '2025']);
+    expect(ov.totals.count).toBe(1);
+  });
+
+  it('overviewYears lista todos os anos do histórico, inclusive os vazios', () => {
+    expect(overviewYears(activities)).toEqual([2024, 2025, 2026]);
+    expect(overviewYears([])).toEqual([]);
+  });
+});
+
 describe('buildOverview — mês (barras semanais)', () => {
   const now = new Date(2026, 4, 20); // quarta, 20 mai 2026
 
@@ -148,16 +176,18 @@ describe('buildOverview — mês (barras semanais)', () => {
 describe('buildOverview — esforço ponderado e meta da OMS', () => {
   const now = new Date(2026, 4, 20);
 
-  it('soma os segundos moderados equivalentes por bucket', () => {
+  it('soma os segundos de esforço por bucket', () => {
     const activities = [
-      // 60 min de corrida sem FC → peso do tipo (1.95)
+      // 60 min de corrida sem FC → peso do tipo (0.975)
       act({ activityId: 37, startAt: '2026-05-20T08:00:00', durationS: 3600 }),
-      // 30 min de yoga sem FC → peso 0.75 (override Ashtanga)
+      // 30 min de yoga sem FC → peso 0.375 (override Ashtanga)
       act({ activityId: 57, startAt: '2026-05-20T10:00:00', durationS: 1800 }),
     ];
     const ov = buildOverview(activities, 'semana', 'duration', now);
     const today = ov.buckets[ov.buckets.length - 1];
-    expect(today.effectiveS).toBeCloseTo(3600 * 1.95 + 1800 * 0.75, 5);
+    expect(today.effectiveS).toBeCloseTo(3600 * 0.975 + 1800 * 0.375, 5);
+    // e a linha continua abaixo da barra, que é o ponto da escala
+    expect(today.effectiveS!).toBeLessThanOrEqual(today.total);
     // a barra continua sendo a duração bruta — é a linha que é ponderada
     expect(today.total).toBe(5400);
   });
@@ -173,16 +203,17 @@ describe('buildOverview — esforço ponderado e meta da OMS', () => {
     expect(porContagem.buckets[i].effectiveS).toBe(porDuracao.buckets[i].effectiveS);
 
     const semCorrida = buildOverview(activities, 'semana', 'duration', now, new Set(['Corrida']));
-    expect(semCorrida.buckets[i].effectiveS).toBeCloseTo(1800 * 0.75, 5);
+    expect(semCorrida.buckets[i].effectiveS).toBeCloseTo(1800 * 0.375, 5);
   });
 
   it('usa as zonas de FC quando o treino tem batimentos', () => {
-    // 30 min de yoga inteiros em z4 valem 2x, apesar do MET baixo do tipo.
+    // 30 min de yoga inteiros em z4 contam cheios, apesar do MET baixo do tipo —
+    // "cheio" é o teto da escala, ou seja, a própria duração.
     const activities = [
       act({ activityId: 57, startAt: '2026-05-20T08:00:00', durationS: 1800, hrZones: { z4: 1800 } }),
     ];
     const ov = buildOverview(activities, 'semana', 'duration', now);
-    expect(ov.buckets[ov.buckets.length - 1].effectiveS).toBe(3600);
+    expect(ov.buckets[ov.buckets.length - 1].effectiveS).toBe(1800);
   });
 
   it('deixa a barra de comparação fora da série de esforço', () => {
@@ -198,19 +229,20 @@ describe('buildOverview — esforço ponderado e meta da OMS', () => {
   });
 
   it('effortAvgS = média sobre todos os buckets, com dias de descanso valendo 0', () => {
-    // 60 min de corrida (1.95) num único dia da janela de 7 dias.
+    // 60 min de corrida (0.975) num único dia da janela de 7 dias.
     const activities = [act({ activityId: 37, startAt: '2026-05-20T08:00:00', durationS: 3600 })];
     const ov = buildOverview(activities, 'semana', 'duration', now);
-    expect(ov.effortTotalS).toBeCloseTo(3600 * 1.95, 5);
+    expect(ov.effortTotalS).toBeCloseTo(3600 * 0.975, 5);
     // média diária: o total dividido pelos 7 buckets, não pelos dias com treino
-    expect(ov.effortAvgS).toBeCloseTo((3600 * 1.95) / 7, 5);
+    expect(ov.effortAvgS).toBeCloseTo((3600 * 0.975) / 7, 5);
   });
 
   it('a reta do esforço é comparável com a meta na mesma escala', () => {
-    // Exatamente a meta semanal em minutos moderados equivalentes, via z3 (1x).
+    // A escala é ancorada no vigoroso, então um treino inteiro em z4 vale exatamente a
+    // sua duração. Rodar a meta semanal toda em z4 encosta na linha da meta, sem sobrar.
     const alvoS = DEFAULT_WEEKLY_TARGET_MIN * 60;
     const activities = [
-      act({ activityId: 37, startAt: '2026-05-20T08:00:00', durationS: alvoS, hrZones: { z3: alvoS } }),
+      act({ activityId: 37, startAt: '2026-05-20T08:00:00', durationS: alvoS, hrZones: { z4: alvoS } }),
     ];
     const ov = buildOverview(activities, 'semana', 'duration', now);
     // bateu a meta na semana → a reta encosta exatamente na linha da meta
@@ -224,8 +256,8 @@ describe('buildOverview — esforço ponderado e meta da OMS', () => {
     ];
     const ov = buildOverview(activities, 'meses12', 'duration', now);
     // 12 buckets pontuados (o 13º é comparação), só um com treino
-    expect(ov.effortTotalS).toBeCloseTo(3600 * 1.95, 5);
-    expect(ov.effortAvgS).toBeCloseTo((3600 * 1.95) / 12, 5);
+    expect(ov.effortTotalS).toBeCloseTo(3600 * 0.975, 5);
+    expect(ov.effortAvgS).toBeCloseTo((3600 * 0.975) / 12, 5);
   });
 
   it('prorrateia a meta da OMS conforme o tamanho do bucket', () => {
@@ -284,7 +316,7 @@ describe('buildOverview — ano civil (navegável)', () => {
     const activities = [act({ activityId: 37, startAt: '2026-03-10T08:00:00', durationS: 3600 })];
     const ov = buildOverview(activities, 'ano', 'duration', now);
     expect(ov.buckets).toHaveLength(5);
-    expect(ov.effortAvgS).toBeCloseTo((3600 * 1.95) / 5, 5);
+    expect(ov.effortAvgS).toBeCloseTo((3600 * 0.975) / 5, 5);
   });
 });
 

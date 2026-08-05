@@ -122,7 +122,7 @@ export default function ObjetivosScreen() {
             <View style={styles.fieldRow}>
               <View style={styles.fieldLabel}>
                 <Text style={styles.rowLabel}>Meta semanal</Text>
-                <Text style={styles.unit}>min equivalentes</Text>
+                <Text style={styles.unit}>min de esforço</Text>
               </View>
               <NumInput
                 value={weeklyTarget}
@@ -137,9 +137,10 @@ export default function ObjetivosScreen() {
           </Text>
           <Text style={styles.hint}>
             Meta semanal: a linha de referência do gráfico de duração no Histórico, em minutos
-            moderados equivalentes — 1 min intenso vale 2. A OMS recomenda de {WHO_RANGE_MIN} a{' '}
-            {WHO_RANGE_MAX} min/semana; o ganho de saúde é grande até {WHO_RANGE_MIN} e satura
-            depois de {WHO_RANGE_MAX}. Em branco usa {DEFAULT_WEEKLY_TARGET_MIN}.
+            de esforço — 1 min vigoroso conta inteiro, 1 moderado conta metade. A OMS recomenda
+            de {WHO_RANGE_MIN} a {WHO_RANGE_MAX} min vigorosos/semana (os mesmos 150–300
+            moderados da outra formulação); o ganho de saúde é grande até {WHO_RANGE_MIN} e
+            satura depois de {WHO_RANGE_MAX}. Em branco usa {DEFAULT_WEEKLY_TARGET_MIN}.
           </Text>
         </ScrollView>
       </View>

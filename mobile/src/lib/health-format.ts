@@ -14,6 +14,8 @@ export interface Sample {
   label?: string;
   /** Valor secundário (ex.: diastólica na pressão arterial). */
   extra?: number;
+  /** Bundle id da fonte que escreveu (só nas cumulativas multi-fonte). */
+  source?: string;
 }
 
 /** Como agregar valores dentro de um bucket. */
@@ -256,4 +258,52 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
       end: new Date(n.wake).toISOString(),
       label: 'ASLEEP',
     }));
+}
+
+/* ───────────────────────── Fontes concorrentes ───────────────────────── */
+
+/**
+ * Elege UMA fonte por dia nas cumulativas (passos, distância, andares, energia).
+ *
+ * Mesmo problema do sono, outra métrica: o HealthKit deixa várias fontes
+ * escreverem o mesmo tipo (iPhone + Apple Watch + Garmin Connect) e as
+ * `HKStatisticsCollectionQuery` da lib devolvem `sumQuantity`, que é a soma de
+ * TODAS elas. O app Saúde da Apple faz o contrário — deduplica por prioridade de
+ * fonte —, então o app mostrava bem mais passos que o Saúde.
+ *
+ * Estratégia: por dia local, soma o total de cada fonte e mantém só as amostras
+ * da fonte com o maior total (na prática o relógio, que registra mais que o
+ * celular no bolso). Mantém as amostras CRUAS, então os buckets por hora da tela
+ * de detalhe continuam funcionando.
+ *
+ * Limite conhecido: se duas fontes cobrirem trechos disjuntos do dia (relógio só
+ * de manhã, celular à tarde), o total sai subestimado — ainda assim erra bem
+ * menos que somar tudo.
+ */
+export function dedupeBySource(samples: Sample[]): Sample[] {
+  const byDay = new Map<string, Map<string, Sample[]>>();
+  for (const s of samples) {
+    const day = localDayKey(new Date(s.start).getTime());
+    let sources = byDay.get(day);
+    if (!sources) byDay.set(day, (sources = new Map()));
+    const key = s.source ?? '';
+    const group = sources.get(key);
+    if (group) group.push(s);
+    else sources.set(key, [s]);
+  }
+
+  const kept: Sample[] = [];
+  for (const sources of byDay.values()) {
+    let winner: Sample[] | undefined;
+    let best = -Infinity;
+    for (const group of sources.values()) {
+      const total = group.reduce((a, s) => a + s.value, 0);
+      if (total > best) {
+        best = total;
+        winner = group;
+      }
+    }
+    if (winner) kept.push(...winner);
+  }
+  return kept.sort((a, b) => a.start.localeCompare(b.start));
 }

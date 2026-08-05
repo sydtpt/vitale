@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, Pressable, Switch, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, Switch, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,7 @@ import {
   type RetroSchedule,
 } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
-import { enableNotifications, refreshDailyDigest } from '../../services/notifications';
+import { enableNotifications } from '../../services/notifications';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 
 const REMINDER_TIMES = ['07:00', '08:00', '09:00', '20:00', '21:00'];
@@ -39,17 +39,27 @@ export default function NotificacoesScreen() {
   const reminderTime = preferences?.dailyReminderTime ?? '08:00';
   const notif = preferences?.notificationPrefs ?? DEFAULT_NOTIFICATION_PREFS;
 
-  const setNotif = async (patch: Partial<NotificationPrefs>, reschedule = true) => {
-    await updatePreferences({ notificationPrefs: { ...notif, ...patch } });
-    if (reschedule) await refreshDailyDigest();
-  };
+  // Salvar já reagenda: o serviço observa as prefs e refaz os agendamentos.
+  const setNotif = (patch: Partial<NotificationPrefs>) =>
+    updatePreferences({ notificationPrefs: { ...notif, ...patch } });
   const setSchedule = (key: RetroKey, patch: Partial<RetroSchedule>) =>
     setNotif({ [key]: { ...notif[key], ...patch } } as Partial<NotificationPrefs>);
 
   const toggleMaster = async (v: boolean) => {
     await updatePreferences({ notificationsEnabled: v });
-    if (v) await enableNotifications();
-    else await refreshDailyDigest();
+    if (!v) return;
+    // Já negado no sistema: o iOS não reexibe o prompt, então o único caminho
+    // são os Ajustes — sem isso o switch fica ligado e nada chega.
+    const granted = await enableNotifications();
+    if (granted) return;
+    Alert.alert(
+      'Notificações bloqueadas',
+      'O Orbe não tem permissão para enviar notificações. Ative-as nos Ajustes do sistema.',
+      [
+        { text: 'Agora não', style: 'cancel' },
+        { text: 'Abrir Ajustes', onPress: () => void Linking.openSettings() },
+      ],
+    );
   };
 
   return (
@@ -118,10 +128,7 @@ export default function NotificacoesScreen() {
                       return (
                         <Pressable
                           key={t}
-                          onPress={async () => {
-                            await updatePreferences({ dailyReminderTime: t });
-                            await refreshDailyDigest();
-                          }}
+                          onPress={() => void updatePreferences({ dailyReminderTime: t })}
                           style={[styles.timeChip, on && styles.timeChipOn]}
                         >
                           <Text style={[styles.timeChipTxt, on && styles.timeChipTxtOn]}>{t}</Text>
@@ -143,7 +150,7 @@ export default function NotificacoesScreen() {
                 </View>
                 <Switch
                   value={notif.activitySync}
-                  onValueChange={(v) => setNotif({ activitySync: v }, false)}
+                  onValueChange={(v) => setNotif({ activitySync: v })}
                   trackColor={{ true: colors.primary, false: colors.line }}
                   thumbColor={colors.surface}
                   ios_backgroundColor={colors.line}
@@ -161,7 +168,7 @@ export default function NotificacoesScreen() {
                 </View>
                 <Switch
                   value={notif.autoTasks}
-                  onValueChange={(v) => setNotif({ autoTasks: v }, false)}
+                  onValueChange={(v) => setNotif({ autoTasks: v })}
                   trackColor={{ true: colors.primary, false: colors.line }}
                   thumbColor={colors.surface}
                   ios_backgroundColor={colors.line}

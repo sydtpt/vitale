@@ -17,7 +17,7 @@ export interface OverviewBucket {
   total: number;
   segments: TypeSegment[];
   /**
-   * Segundos "moderados equivalentes" do bucket (duração ponderada por intensidade
+   * Segundos "de esforço" do bucket (duração ponderada por intensidade, nunca acima dela
    * — ver `effectiveSeconds` do shared). Alimenta a linha de esforço do gráfico de
    * Duração. Ausente nas barras de comparação: a polilinha quebra ali.
    */
@@ -44,7 +44,7 @@ export interface Overview {
    */
   currentTargetS?: number;
   /**
-   * Meu esforço médio por bucket (segundos moderados equivalentes), na mesma escala
+   * Meu esforço médio por bucket (segundos de esforço), na mesma escala
    * de `targetS`. Usado no período "Semana", onde a linha do esforço é uma reta
    * (média diária) em vez de uma série dia a dia. Buckets de comparação ficam fora.
    */
@@ -80,7 +80,13 @@ interface BucketPlan {
 /** Semanas exibidas no período "mês" (semana atual + 4 anteriores). */
 const MONTH_WEEKS = 5;
 
-function bucketPlan(activities: Activity[], period: Period, now: Date, yearOffset: number): BucketPlan {
+function bucketPlan(
+  activities: Activity[],
+  period: Period,
+  now: Date,
+  yearOffset: number,
+  hiddenYears: ReadonlySet<string>,
+): BucketPlan {
   if (period === 'semana') {
     const buckets: PlanBucket[] = [];
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -152,14 +158,13 @@ function bucketPlan(activities: Activity[], period: Period, now: Date, yearOffse
     return { buckets, keyOf: monthKey, granularity: 'month', elapsed: elapsedFraction(curStart, curEnd, now) };
   }
 
-  // sempre — um bucket por ano com dados
-  const years = activities.map((a) => new Date(a.startAt).getFullYear());
-  const buckets: PlanBucket[] = [];
-  if (years.length) {
-    const min = Math.min(...years);
-    const max = Math.max(...years);
-    for (let y = min; y <= max; y++) buckets.push({ key: `${y}`, label: `${y}` });
-  }
+  // sempre — um bucket por ano com dados, menos os anos desmarcados nos botões.
+  // Tirar o ano do plano já o remove das barras E dos totais: `buildOverview` só
+  // considera atividades cuja chave cai em algum bucket.
+  const buckets: PlanBucket[] = overviewYears(activities)
+    .map((y) => `${y}`)
+    .filter((key) => !hiddenYears.has(key))
+    .map((key) => ({ key, label: key }));
   const lastYear = buckets.length ? Number(buckets[buckets.length - 1].key) : now.getFullYear();
   const yElapsed = lastYear === now.getFullYear()
     ? elapsedFraction(new Date(lastYear, 0, 1), new Date(lastYear + 1, 0, 1), now)
@@ -176,8 +181,14 @@ export function buildOverview(
   weeklyTargetMin: number = DEFAULT_WEEKLY_TARGET_MIN,
   /** 0 = ano corrente, negativo = anos anteriores (convenção de period/bounds). */
   yearOffset: number = 0,
+  /**
+   * Anos desmarcados nos botões do período "Sempre" (chave = `${ano}`). Ficam fora
+   * das barras, dos totais e da legenda. Guardamos os DESMARCADOS, e não os
+   * selecionados, para que um ano novo apareça sozinho quando surgir.
+   */
+  hiddenYears: ReadonlySet<string> = new Set(),
 ): Overview {
-  const plan = bucketPlan(activities, period, now, yearOffset);
+  const plan = bucketPlan(activities, period, now, yearOffset, hiddenYears);
   const bucketKeys = new Set(plan.buckets.map((b) => b.key));
   // chaves de comparação: aparecem no gráfico, mas ficam fora dos totais.
   const comparisonKeys = new Set(plan.buckets.filter((b) => b.comparison).map((b) => b.key));
@@ -188,7 +199,7 @@ export function buildOverview(
   const totals: OverviewTotals = { count: 0, distanceM: 0, durationS: 0, calories: 0 };
   // chave do bucket → (label do tipo → valor acumulado)
   const perBucket = new Map<string, Map<string, number>>();
-  // chave do bucket → segundos moderados equivalentes (linha de esforço)
+  // chave do bucket → segundos de esforço (linha de esforço)
   const effectivePerBucket = new Map<string, number>();
   // label do tipo → cor + total (para legenda/ordenação)
   const typeAgg = new Map<string, { color: string; total: number }>();
@@ -271,4 +282,23 @@ export function earliestActivityYear(activities: Activity[]): number | undefined
     if (min === undefined || y < min) min = y;
   }
   return min;
+}
+
+/**
+ * Anos cobertos pelo período "Sempre" (do mais antigo ao mais recente, inclusive
+ * os vazios no meio) — a mesma lista que vira barra no gráfico. Alimenta os botões
+ * de ano acima do gráfico.
+ */
+export function overviewYears(activities: Activity[]): number[] {
+  let min: number | undefined;
+  let max: number | undefined;
+  for (const a of activities) {
+    const y = new Date(a.startAt).getFullYear();
+    if (min === undefined || y < min) min = y;
+    if (max === undefined || y > max) max = y;
+  }
+  if (min === undefined || max === undefined) return [];
+  const years: number[] = [];
+  for (let y = min; y <= max; y++) years.push(y);
+  return years;
 }

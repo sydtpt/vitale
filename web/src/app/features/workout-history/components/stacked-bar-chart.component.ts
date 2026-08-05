@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
+import { smoothLinePath, niceAxisMax, compactNumber, type LinePoint } from '@vitale/shared';
 import type { Metric, OverviewBucket } from '../data/overview';
 import { ChartPaletteService } from '@core/services/chart-palette.service';
 
@@ -17,12 +18,20 @@ interface Bar {
   x0: number;
   slotW: number;
 }
-interface GridLine { y: number; label: string; }
+/** `base` = linha do zero: fecha o painel do plot, então tem traço mais firme. */
+interface GridLine { y: number; label: string; base: boolean; }
 
 // Tom quente para suavizar/clarear as cores das séries (casa com a paleta bege/creme).
 const WARM = '#FBF1E2';
 const TOP_RADIUS = 6;
 const ANIM_MS = 360;
+
+/** Divisões do eixo Y: 4 passos = 5 linhas de grade (com a do zero). */
+const GRID_TICKS = 4;
+/** Unidade em que cada métrica é lida — o eixo escolhe passos redondos nela. */
+const AXIS_UNIT: Record<Metric, number> = { distance: 1000, duration: 3600, calories: 1, count: 1 };
+/** Métricas sem casa decimal: o passo do eixo tem que ser inteiro. */
+const INTEGER_METRICS: ReadonlySet<Metric> = new Set<Metric>(['calories', 'count']);
 
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function isHex(c: string): boolean { return HEX_RE.test(c); }
@@ -106,12 +115,17 @@ export class StackedBarChartComponent {
   // mais alta seria cortada silenciosamente fora do plot.
   private readonly max = computed(() => {
     const eff = this.showEffort();
-    return Math.max(
-      1,
+    const m = this.metric();
+    const unit = AXIS_UNIT[m];
+    const raw = Math.max(
+      unit, // piso: sem dados, um eixo de 0–1h/1km é mais legível que um de 0–1s/1m
       this.goal() ?? 0,
       this.effortFlat() ?? 0,
       ...this.buckets().map((b) => Math.max(b.total, eff ? b.effectiveS ?? 0 : 0)),
     );
+    // Topo redondo e acima do máximo: dá folga sobre a barra mais alta e faz as 5
+    // linhas da grade caírem em valores legíveis.
+    return niceAxisMax(raw, { unit, ticks: GRID_TICKS, integer: INTEGER_METRICS.has(m) });
   });
 
   // `bars()` = estado-alvo (geometria final). `display()` = o que é renderizado,
@@ -291,9 +305,10 @@ export class StackedBarChartComponent {
   protected readonly grid = computed<GridLine[]>(() => {
     const max = this.max();
     const plotH = this.h - this.padT - this.padB;
-    return [0, 0.5, 1].map((f) => ({
+    return Array.from({ length: GRID_TICKS + 1 }, (_, i) => i / GRID_TICKS).map((f) => ({
       y: this.h - this.padB - f * plotH,
-      label: this.fmt(max * f),
+      label: this.fmtShort(max * f),
+      base: f === 0,
     }));
   });
 
@@ -347,17 +362,15 @@ export class StackedBarChartComponent {
     };
   });
 
-  /** Polilinha do esforço ponderado. Quebra (novo `M`) nos buckets sem ponto. */
-  protected readonly effortPath = computed<string>(() => {
-    const parts: string[] = [];
-    let open = false;
-    for (const b of this.displayBars()) {
-      if (b.effY === null) { open = false; continue; }
-      parts.push(`${open ? 'L' : 'M'} ${b.cx} ${b.effY}`);
-      open = true;
-    }
-    return parts.join(' ');
-  });
+  /**
+   * Curva do esforço ponderado. Cúbica monotônica: suaviza os cantos sem inventar
+   * picos entre os buckets. Quebra (`null`) nos buckets sem ponto.
+   */
+  protected readonly effortPath = computed<string>(() =>
+    smoothLinePath(
+      this.displayBars().map<LinePoint | null>((b) => (b.effY === null ? null : { x: b.cx, y: b.effY })),
+    ),
+  );
 
   protected readonly effortPoints = computed(() =>
     this.displayBars()
@@ -372,6 +385,14 @@ export class StackedBarChartComponent {
   protected fmtCompact(v: number): string {
     if (this.metric() !== 'duration' || v >= 3600) return this.fmt(v);
     return `${this.num(v / 60, 0)} min`;
+  }
+
+  /**
+   * Rótulo do eixo e do topo da barra: "17.426" kcal vira "17k". O tooltip continua
+   * com `fmt()` — lá o valor exato é justamente o que se foi buscar.
+   */
+  protected fmtShort(v: number): string {
+    return INTEGER_METRICS.has(this.metric()) ? compactNumber(v) : this.fmt(v);
   }
 
   protected fmt(v: number): string {

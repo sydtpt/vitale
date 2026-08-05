@@ -26,8 +26,12 @@ export interface HealthSyncResult {
 const BATCH = 200;
 /** Janela re-sincronizada a cada ciclo incremental. */
 const SYNC_DAYS = 14;
-/** Janela do backfill (primeiro sync do dispositivo OU recorreção por versão). */
-const BACKFILL_DAYS = 365;
+/**
+ * Janela do backfill (primeiro sync do dispositivo OU recorreção por versão).
+ * Maior que um ano de propósito: a recorreção precisa alcançar o começo do
+ * histórico já gravado, senão sobra um trecho antigo com a agregação velha.
+ */
+const BACKFILL_DAYS = 500;
 /** Métricas de altíssima frequência (FC): caras de puxar cruas — limitadas no backfill. */
 const HEAVY_METRICS = new Set(['fc']);
 const HEAVY_MAX_DAYS = 60;
@@ -35,8 +39,10 @@ const HEAVY_MAX_DAYS = 60;
  * Versão da lógica de agregação. Incrementar força um re-backfill único em todos
  * os dispositivos (recorrige o histórico já gravado). v1 = correção do sono
  * (união de fontes + priorização de estágios + atribuição ao dia de despertar).
+ * v2 = dedupe por fonte nas cumulativas (passos/distância/andares/energia vinham
+ * somando iPhone + relógio, dobrando a contagem).
  */
-const AGG_VERSION = 1;
+const AGG_VERSION = 2;
 
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();

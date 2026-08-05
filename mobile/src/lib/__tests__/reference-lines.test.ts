@@ -30,10 +30,30 @@ describe('resolveReferenceLineScheme', () => {
 });
 
 describe('referenceLineColors', () => {
-  it('devolve as duas cores do esquema', () => {
-    const c = referenceLineColors('petroleo-vinho');
-    expect(c.average).toBe('#8E3A5D');
-    expect(c.series).toBe('#1F6F78');
+  it('devolve as duas cores do esquema no tema pedido', () => {
+    expect(referenceLineColors('petroleo-vinho', 'light')).toEqual({
+      series: '#0D4F58', average: '#7A1F52',
+    });
+    expect(referenceLineColors('petroleo-vinho', 'dark')).toEqual({
+      series: '#7FDCE6', average: '#F0A8C8',
+    });
+  });
+
+  it('sem tema, assume claro (a web não tem tema escuro)', () => {
+    for (const s of REFERENCE_LINE_SCHEMES) {
+      expect(referenceLineColors(s.id)).toEqual(referenceLineColors(s.id, 'light'));
+    }
+  });
+
+  it('cada tema tem o seu passo — nunca o mesmo hex nos dois', () => {
+    // O ponto da separação: um violeta escuro dá 10.6:1 sobre a superfície clara e
+    // 1.6:1 sobre a escura. Reaproveitar o passo sumiria com a linha num dos temas.
+    for (const s of REFERENCE_LINE_SCHEMES) {
+      expect(referenceLineColors(s.id, 'dark').series)
+        .not.toBe(referenceLineColors(s.id, 'light').series);
+      expect(referenceLineColors(s.id, 'dark').average)
+        .not.toBe(referenceLineColors(s.id, 'light').average);
+    }
   });
 
   it('cai no padrão para valor inválido', () => {
@@ -50,14 +70,33 @@ describe('REFERENCE_LINE_SCHEMES', () => {
     // Esta é a razão de existir do módulo: linha na cor de um tipo de atividade
     // seria lida como se fosse aquele tipo.
     for (const s of REFERENCE_LINE_SCHEMES) {
-      expect(BAR_COLORS).not.toContain(s.average.toUpperCase());
-      expect(BAR_COLORS).not.toContain(s.series.toUpperCase());
+      for (const mode of ['light', 'dark'] as const) {
+        expect(BAR_COLORS).not.toContain(s[mode].average.toUpperCase());
+        expect(BAR_COLORS).not.toContain(s[mode].series.toUpperCase());
+      }
     }
   });
 
-  it('as duas cores de cada esquema são distintas', () => {
+  it('as duas cores de cada esquema são distintas, em cada tema', () => {
     for (const s of REFERENCE_LINE_SCHEMES) {
-      expect(s.average).not.toBe(s.series);
+      for (const mode of ['light', 'dark'] as const) {
+        expect(s[mode].average).not.toBe(s[mode].series);
+      }
+    }
+  });
+
+  it('a linha do progresso clareia no tema escuro e escurece no claro', () => {
+    // A regra que faz a separação por tema valer: o passo escuro tem de ser mais claro
+    // que o passo claro, senão ele não se destaca da superfície #1E1A15.
+    const lum = (hex: string) => {
+      const ch = (i: number) => {
+        const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * ch(0) + 0.7152 * ch(1) + 0.0722 * ch(2);
+    };
+    for (const s of REFERENCE_LINE_SCHEMES) {
+      expect(lum(s.dark.series)).toBeGreaterThan(lum(s.light.series));
     }
   });
 

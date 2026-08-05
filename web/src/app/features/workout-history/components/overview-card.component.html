@@ -44,6 +44,15 @@
     }
   </div>
 
+  @if (isAll() && years().length) {
+    <div class="years" role="group" aria-label="Anos no gráfico">
+      @for (y of years(); track y) {
+        <button type="button" class="y" [class.off]="!isYearOn(y)"
+          [attr.aria-pressed]="isYearOn(y)" (click)="toggleYear(y)">{{ y }}</button>
+      }
+    </div>
+  }
+
   <rt-stacked-bar-chart [buckets]="overview().buckets" [metric]="metric()"
     [goal]="goalValue()" goalLabel="OMS" [goalUnit]="goalUnit()"
     [currentGoal]="currentGoalValue()"
@@ -69,9 +78,11 @@
         </span>
       }
       <small>
-        Minutos moderados equivalentes: cada treino é pesado pela intensidade — pelo tempo em
-        zonas de FC quando há batimentos, senão pelo tipo. Corrida e treinos intensos contam
-        mais que a duração bruta; yoga e recuperação contam menos.
+        Minutos de esforço: a barra é o tempo no relógio, a linha é quanto dele contou. Cada
+        treino é pesado pela intensidade — pelo tempo em zonas de FC quando há batimentos,
+        senão pelo tipo. Um minuto vigoroso conta inteiro; um moderado, metade; yoga e leves
+        contam menos. A FC só acrescenta: nenhum treino cai abaixo do que o seu tipo já vale,
+        então um pedal longo e fácil não é zerado por ter ficado em z1.
       </small>
     </div>
   }

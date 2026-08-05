@@ -7,7 +7,9 @@ import {
   type PeriodKind,
   type RecapValue,
   type HighlightIcon,
+  type RetroHabitRow,
   type RetroHealthRow,
+  type RetroRegistroRow,
   type MonthBucket,
   type SportStats,
   type SportBestEffort,
@@ -95,7 +97,9 @@ export class RetrospectivaPageComponent {
     return [
       { icon: 'dumbbell', color: T.primary, label: 'Treinos', value: `${s.fitness.count.current}`, delta: this.delta(s.fitness.count, false) },
       { icon: 'check', color: T.green, label: 'Tarefas', value: `${s.tasks.total.current}`, delta: this.delta(s.tasks.total, false) },
-      { icon: 'run', color: T.blue, label: 'Distância', value: this.km(s.fitness.distanceM.current), delta: this.delta(s.fitness.distanceM, false) },
+      // Passos, não distância: a distância já aparece no card de treinos e só conta
+      // o que virou atividade — os passos medem o movimento do dia inteiro.
+      { icon: 'footprints', color: T.blue, label: 'Passos', value: this.num(s.fitness.steps.current), delta: this.delta(s.fitness.steps, false) },
       { icon: 'wallet', color: T.ink, label: 'Compras', value: this.brl(s.purchases.spend.current), delta: this.delta(s.purchases.spend, true) },
     ];
   });
@@ -186,6 +190,33 @@ export class RetrospectivaPageComponent {
     const worse = row.higherIsWorse ? r.delta > 0 : r.delta < 0;
     const sign = r.delta >= 0 ? '+' : '−';
     return { text: `${sign}${this.num(Math.abs(r.delta), row.decimals)}${row.unit}`, tone: r.delta === 0 ? 'neutral' : worse ? 'bad' : 'good' };
+  }
+
+  // ── hábitos ──
+
+  /** Quantidade de hábito: inteiro sem casas, fracionário com 1. */
+  private qty(n: number): string {
+    return Number.isInteger(n) ? this.num(n) : this.num(n, 1);
+  }
+
+  /** Total acumulado no período — "12,5 L". */
+  protected habitTotal(h: RetroHabitRow): string {
+    return h.unit ? `${this.qty(h.total.current)} ${h.unit}` : this.qty(h.total.current);
+  }
+
+  /** Linha de apoio: média diária + dias com registro. */
+  protected habitSub(h: RetroHabitRow): string {
+    const dias = `${h.recap.current} ${h.recap.current === 1 ? 'dia' : 'dias'}`;
+    if (h.perDayDays === 0) return dias;
+    const media = h.unit ? `${this.qty(h.perDay)} ${h.unit}` : this.qty(h.perDay);
+    return `${media}/dia · ${dias}`;
+  }
+
+  /** Linha de apoio do registro: frequência das marcações no período. */
+  protected registroSub(r: RetroRegistroRow): string {
+    if (r.recap.current === 0) return 'sem marcações neste período';
+    if (r.everyDays <= 1) return 'todo dia';
+    return `1× a cada ${this.qty(r.everyDays)} dias`;
   }
 
   protected trendIcon(t: 'up' | 'down' | 'flat'): string {

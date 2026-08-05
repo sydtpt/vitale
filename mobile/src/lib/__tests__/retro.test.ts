@@ -153,16 +153,117 @@ describe('buildRetrospective', () => {
     expect(s.purchases.count.current).toBe(2);
   });
 
+  it('soma passos do período vs anterior (vem de health_daily, não das atividades)', () => {
+    const s = buildRetrospective(baseInput({
+      stepsByDay: new Map([
+        ['2026-06-15', 8000],
+        ['2026-06-16', 12000],
+        ['2026-06-09', 5000], // semana anterior
+      ]),
+    }));
+    expect(s.fitness.steps.current).toBe(20000);
+    expect(s.fitness.steps.prior).toBe(5000);
+  });
+
+  it('agrupa byType por tipo de atividade, ignorando o nome livre do treino', () => {
+    const s = buildRetrospective(baseInput({
+      activities: [
+        act('2026-06-15T08:00:00', 50000, 1800, 100, { activityId: 13, activityName: 'Morning Ride' }),
+        act('2026-06-16T08:00:00', 30000, 1800, 100, { activityId: 13, activityName: 'Tour de la Meuse-Rhin' }),
+        act('2026-06-17T08:00:00', 10000, 1800, 100, { activityId: 37, activityName: 'Brussels Running' }),
+      ],
+    }));
+    expect(s.fitness.byType).toEqual([
+      { key: '13', label: 'Ciclismo', count: 2, sum: 80000 },
+      { key: '37', label: 'Corrida', count: 1, sum: 10000 },
+    ]);
+  });
+
+  it('byType rotula tipo desconhecido como "Treino"', () => {
+    const s = buildRetrospective(baseInput({
+      activities: [act('2026-06-16T08:00:00', 0, 1800, 100, { activityId: 999 })],
+    }));
+    expect(s.fitness.byType).toEqual([{ key: '999', label: 'Treino', count: 1, sum: 0 }]);
+  });
+
+  it('zera passos quando não há série de saúde', () => {
+    const s = buildRetrospective(baseInput({ activities: [act('2026-06-16T08:00:00', 5000)] }));
+    expect(s.fitness.steps.current).toBe(0);
+  });
+
   it('separa hábitos bons e ruins e conta dias com registro', () => {
     const s = buildRetrospective(baseInput({
       habits: [
-        { id: 'h1', name: 'Água', bad: false, logsByDay: new Map([['2026-06-15', 2], ['2026-06-16', 3]]) },
+        { id: 'h1', name: 'Água', bad: false, unit: 'L', logsByDay: new Map([['2026-06-15', 2], ['2026-06-16', 3]]) },
         { id: 'h2', name: 'Cigarro', bad: true, logsByDay: new Map([['2026-06-16', 1]]) },
       ],
     }));
     expect(s.habits.good).toHaveLength(1);
     expect(s.habits.good[0].recap.current).toBe(2);
     expect(s.habits.bad[0].recap.current).toBe(1);
+  });
+
+  it('soma a quantidade do hábito e a média diária do período', () => {
+    const s = buildRetrospective(baseInput({
+      habits: [
+        {
+          id: 'h1', name: 'Água', bad: false, unit: 'L',
+          logsByDay: new Map([
+            ['2026-06-15', 2], ['2026-06-16', 3], ['2026-06-17', 1],
+            ['2026-06-10', 4], // semana anterior
+          ]),
+        },
+      ],
+    }));
+    const agua = s.habits.good[0];
+    expect(agua.unit).toBe('L');
+    expect(agua.total.current).toBe(6);
+    expect(agua.total.prior).toBe(4);
+    // Semana em curso: 15/06 (1º registro) até hoje, 17/06 → 3 dias.
+    expect(agua.perDayDays).toBe(3);
+    expect(agua.perDay).toBeCloseTo(2);
+  });
+
+  it('média diária ancora no 1º registro (não dilui em períodos longos)', () => {
+    const s = buildRetrospective(baseInput({
+      kind: 'year',
+      habits: [
+        {
+          id: 'h1', name: 'Água', bad: false, unit: 'L',
+          // Hábito criado em junho: os meses anteriores não entram no divisor.
+          logsByDay: new Map([['2026-06-16', 3], ['2026-06-17', 3]]),
+        },
+      ],
+    }));
+    const agua = s.habits.good[0];
+    expect(agua.total.current).toBe(6);
+    expect(agua.perDayDays).toBe(2); // 16/06 → 17/06
+    expect(agua.perDay).toBeCloseTo(3);
+  });
+
+  it('agrega registros por marcações e esconde os sem atividade', () => {
+    const s = buildRetrospective(baseInput({
+      registros: [
+        { id: 'r1', name: 'Cerveja', days: ['2026-06-15', '2026-06-17', '2026-06-09'] },
+        { id: 'r2', name: 'Fast food', days: ['2026-06-16'] },
+        { id: 'r3', name: 'Arquivado', days: ['2026-01-02'] }, // fora do período e do anterior
+      ],
+    }));
+    expect(s.registros.map((r) => r.name)).toEqual(['Cerveja', 'Fast food']);
+    expect(s.registros[0].recap.current).toBe(2); // 15 e 17/06
+    expect(s.registros[0].recap.prior).toBe(1);   // 09/06
+    // 15/06 (1ª marca) → hoje 17/06 = 3 dias ÷ 2 marcas.
+    expect(s.registros[0].everyDays).toBeCloseTo(1.5);
+  });
+
+  it('hábito sem registro no período não gera média', () => {
+    const s = buildRetrospective(baseInput({
+      habits: [{ id: 'h1', name: 'Água', bad: false, unit: 'L', logsByDay: new Map([['2026-06-10', 4]]) }],
+    }));
+    const agua = s.habits.good[0];
+    expect(agua.total.current).toBe(0);
+    expect(agua.perDayDays).toBe(0);
+    expect(agua.perDay).toBe(0);
   });
 
   it("kind 'all' agrega tudo sem base de comparação", () => {

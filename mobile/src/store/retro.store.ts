@@ -25,7 +25,7 @@ const HEALTH_SPECS: Omit<RetroHealthMetric, 'valuesByDay'>[] = [
 
 type DbHealthRow = { day: string; metric: string; value: number | null };
 type DbRatingRow = { day: string; sleep_quality: number | null; day_quality: number | null };
-type DbHabitRow = { id: string; name: string; bad: boolean };
+type DbHabitRow = { id: string; name: string; bad: boolean; unit: string | null };
 type DbHabitLogRow = { habit_id: string; log_date: string; value: number | null };
 type DbRegistroRow = { id: string; name: string };
 type DbRegistroLogRow = { registro_id: string; log_date: string };
@@ -93,9 +93,10 @@ export const useRetroStore = create<RetroState>((set, get) => {
       activities: useActivitiesStore.getState().activities(),
       health: HEALTH_SPECS.map((spec) => ({ ...spec, valuesByDay: byMetric.get(spec.metric) ?? new Map() })),
       floorsByDay: byMetric.get('andares'),
+      stepsByDay: byMetric.get('passos'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
-      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
+      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit ?? '', logsByDay: logsByHabit.get(h.id) ?? new Map() })),
       registros: s.registros.map((r) => ({ id: r.id, name: r.name, days: daysByRegistro.get(r.id) ?? [] })),
       tasks: s.tasks,
       purchases: s.purchases,
@@ -120,7 +121,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
       const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs] = await Promise.all([
         supabase.from('health_daily').select('day,metric,value').gte('day', since),
         supabase.from('daily_ratings').select('day,sleep_quality,day_quality').gte('day', since),
-        supabase.from('habits').select('id,name,bad'),
+        supabase.from('habits').select('id,name,bad,unit'),
         supabase.from('habit_logs').select('habit_id,log_date,value').gte('log_date', since),
         supabase.from('registros').select('id,name'),
         supabase.from('registro_logs').select('registro_id,log_date').gte('log_date', since),

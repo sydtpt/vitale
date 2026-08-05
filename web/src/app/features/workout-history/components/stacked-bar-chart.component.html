@@ -7,10 +7,19 @@
           <stop offset="1" [attr.stop-color]="baseStop(c)" />
         </linearGradient>
       }
+      <!-- Painel da área de plot: um só tom com rampa de opacidade (o degradê some
+           na base, onde a linha de eixo assume). -->
+      <linearGradient id="sbc-plot-bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--surface-mute)" stop-opacity="0.7" />
+        <stop offset="1" stop-color="var(--surface-mute)" stop-opacity="0.15" />
+      </linearGradient>
     </defs>
+    <rect [attr.x]="padL" [attr.y]="padT" [attr.width]="w - padL - padR"
+      [attr.height]="h - padT - padB" fill="url(#sbc-plot-bg)" />
     @for (g of grid(); track g.y) {
       <line [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="g.y" [attr.y2]="g.y"
-        stroke="var(--line)" stroke-width="1" stroke-opacity="0.45" />
+        [attr.stroke]="g.base ? 'var(--line-deep)' : 'var(--line)'" stroke-width="1"
+        [attr.stroke-opacity]="g.base ? 0.8 : 0.45" />
       <text [attr.x]="padL - 6" [attr.y]="g.y + 3" text-anchor="end" font-size="10"
         font-family="Geist Mono, monospace" fill="var(--ink-3)">{{ g.label }}</text>
     }
@@ -31,34 +40,48 @@
         @if (b.total > 0) {
           <text [attr.x]="b.cx" [attr.y]="b.topY - 5" text-anchor="middle" font-size="10"
             font-family="Geist Mono, monospace" font-weight="600"
-            [attr.fill]="'var(--ink)'" [attr.fill-opacity]="b.faded ? 0.55 : 1">{{ fmt(b.total) }}</text>
+            [attr.fill]="'var(--ink)'" [attr.fill-opacity]="b.faded ? 0.55 : 1">{{ fmtShort(b.total) }}</text>
         }
         <text [attr.x]="b.cx" [attr.y]="h - 10" text-anchor="middle" font-size="10"
           [attr.fill]="b.faded ? 'var(--ink-4)' : 'var(--ink-3)'">{{ b.label }}</text>
       </g>
     }
-    <!-- Linhas de referência por último: pintam por cima das barras. -->
+    <!-- Linhas de referência por último: pintam por cima das barras.
+
+         Cada uma vai duas vezes: um traço largo na cor da superfície (o halo) e a cor
+         por cima. Desde que o esforço passou a ser ancorado no vigoroso, a linha corre
+         DENTRO das barras em vez de acima delas, então ela é lida contra 48 cores de
+         preenchimento diferentes (8 papéis × 6 paletas). Sem o halo nenhuma cor passa
+         de 8% de cobertura; com ele, os valores de `reference-lines.ts` cobrem 100%.
+         Pela mesma razão não há stroke-opacity aqui: opacidade mistura a linha com a
+         barra por baixo, que é justamente o que destrói o contraste. -->
     @if (goalLine(); as g) {
-      <path [attr.d]="g.d" fill="none" stroke="var(--ink-3)" stroke-width="1"
-        stroke-dasharray="3 3" stroke-opacity="0.7" />
+      <path [attr.d]="g.d" fill="none" stroke="var(--surface)" stroke-width="3.5"
+        stroke-opacity="0.9" stroke-linecap="round" />
+      <path [attr.d]="g.d" fill="none" stroke="var(--ink-3)" stroke-width="1.25"
+        stroke-dasharray="3 3" />
       <text [attr.x]="w - padR" [attr.y]="g.y - 5" text-anchor="end" font-size="8.5"
         font-family="Geist Mono, monospace" fill="var(--ink-3)" fill-opacity="0.85">{{ g.label }}</text>
     }
     @if (effortLine(); as e) {
-      <!-- Pontilhada: mesma cor da série (as duas sou "eu"), mas traço diferente da
-           meta tracejada e da polilinha sólida. Rótulo à esquerda; a meta ancora à
-           direita, então nunca colidem. -->
+      <!-- Pontilhada: traço diferente da meta tracejada e da polilinha sólida. Rótulo
+           à esquerda; a meta ancora à direita, então nunca colidem. -->
       <line [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="e.y" [attr.y2]="e.y"
-        [attr.stroke]="effortFlatColor()" stroke-width="1.25" stroke-opacity="0.8"
+        stroke="var(--surface)" stroke-width="3.5" stroke-opacity="0.9" stroke-linecap="round" />
+      <line [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="e.y" [attr.y2]="e.y"
+        [attr.stroke]="effortFlatColor()" stroke-width="1.5"
         stroke-dasharray="1 3" stroke-linecap="round" />
       <text [attr.x]="padL + 4" [attr.y]="e.y - 5" font-size="8.5"
         font-family="Geist Mono, monospace" [attr.fill]="effortFlatColor()">{{ e.label }}</text>
     }
     @if (effortPath()) {
-      <path [attr.d]="effortPath()" fill="none" [attr.stroke]="effortColor()" stroke-width="1.25"
-        stroke-opacity="0.85" stroke-linecap="round" stroke-linejoin="round" />
+      <path [attr.d]="effortPath()" fill="none" stroke="var(--surface)" stroke-width="4.5"
+        stroke-opacity="0.9" stroke-linecap="round" stroke-linejoin="round" />
+      <path [attr.d]="effortPath()" fill="none" [attr.stroke]="effortColor()" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" />
       @for (p of effortPoints(); track p.key) {
-        <circle [attr.cx]="p.cx" [attr.cy]="p.cy" r="1.8" [attr.fill]="effortColor()" fill-opacity="0.85">
+        <circle [attr.cx]="p.cx" [attr.cy]="p.cy" r="3.2" fill="var(--surface)" fill-opacity="0.9" />
+        <circle [attr.cx]="p.cx" [attr.cy]="p.cy" r="2.2" [attr.fill]="effortColor()">
           <title>Esforço ponderado · {{ fmtCompact(p.value) }}</title>
         </circle>
       }

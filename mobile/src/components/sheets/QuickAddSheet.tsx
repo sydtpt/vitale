@@ -32,8 +32,8 @@ type Option = {
 const OPTIONS: Option[] = [
   { kind: 'food',  icon: 'restaurant-outline',       label: 'Refeição', sub: 'Logar comida e macros', color: colors.yellow },
   { kind: 'gasto', icon: 'wallet-outline',           label: 'Gasto',    sub: 'Lançar despesa',        color: colors.ink },
-  { route: '/habitos',        icon: 'checkmark-circle-outline', label: 'Hábito', sub: 'Ver e marcar',    color: colors.green },
-  { route: '/treinos/editor', icon: 'barbell-outline',          label: 'Treino', sub: 'Planejar treino', color: colors.primary },
+  { route: '/tarefas',        icon: 'checkmark-done-outline', label: 'Tarefa', sub: 'Ver e concluir',   color: colors.teal },
+  { route: '/treinos/editor', icon: 'barbell-outline',        label: 'Treino', sub: 'Planejar treino', color: colors.primary },
 ];
 
 const FOOD_SUGGESTIONS = ['Whey + banana', 'Castanhas (30g)', 'Pão integral + ovo'];

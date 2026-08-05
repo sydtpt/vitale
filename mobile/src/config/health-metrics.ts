@@ -13,6 +13,7 @@ import {
   formatNumber,
   formatHoursMin,
   aggregateSleepNights,
+  dedupeBySource,
 } from '../lib/health-format';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
@@ -131,6 +132,70 @@ function cumulativeFetch(method: string, opts: Record<string, unknown> = {}, map
     );
 }
 
+/**
+ * Amostra crua devolvida por `getSamples` — chaves diferentes das dos agregados
+ * (`quantity`/`distance` em vez de `value`, `start`/`end` em vez de `*Date`).
+ */
+type RawSourced = {
+  quantity?: number;
+  distance?: number;
+  start: string;
+  end: string;
+  sourceId?: string;
+  sourceName?: string;
+};
+
+/** Blocos do fatiamento da janela (ver `multiSourceFetch`). */
+const CHUNK_DAYS = 30;
+const DAY_MS = 86_400_000;
+const METERS_PER_MILE = 1609.344;
+
+/** Fatia um intervalo em janelas de no máximo `days` dias, sem sobreposição. */
+function chunkRange(range: Range, days: number): Range[] {
+  const startMs = new Date(range.startDate).getTime();
+  const endMs = new Date(range.endDate).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return [range];
+  const step = days * DAY_MS;
+  const out: Range[] = [];
+  for (let from = startMs; from < endMs; from += step + 1) {
+    const to = Math.min(from + step, endMs);
+    out.push({ startDate: new Date(from).toISOString(), endDate: new Date(to).toISOString() });
+  }
+  return out;
+}
+
+/**
+ * Cumulativas com mais de uma fonte escrevendo (iPhone + relógio + apps).
+ *
+ * As chamadas `getDaily*Samples`/`getActiveEnergyBurned` usam
+ * `HKStatisticsOptionCumulativeSum` e leem `sumQuantity`, que soma TODAS as
+ * fontes: desde que o Garmin Connect passou a escrever passos/distância junto
+ * com o iPhone, a contagem vinha dobrada. Aqui puxamos as amostras CRUAS — que
+ * trazem `sourceId` — e deduplicamos em `dedupeBySource`.
+ *
+ * O HealthKit devolve tudo num array só, então a janela é fatiada em blocos de
+ * ~30 dias para o backfill de um ano não atravessar a ponte de uma vez.
+ *
+ * `scale` converte a unidade que a lib impõe ao tipo (ver chamadas em METRICS).
+ */
+function multiSourceFetch(type: string, scale = 1, opts: Record<string, unknown> = {}) {
+  const map = (v: RawSourced): Sample => ({
+    value: (v.quantity ?? v.distance ?? 0) * scale,
+    start: v.start,
+    end: v.end,
+    source: v.sourceId ?? v.sourceName,
+  });
+  return async (range: Range): Promise<Sample[]> => {
+    const samples: Sample[] = [];
+    for (const window of chunkRange(range, CHUNK_DAYS)) {
+      samples.push(
+        ...(await callArray('getSamples', { type, ascending: true, ...window, ...opts }, map))
+      );
+    }
+    return dedupeBySource(samples);
+  };
+}
+
 /** Métricas pontuais (FC, peso…): amostras brutas, sem agregação. */
 function discreteFetch(method: string, opts: Record<string, unknown> = {}, map = defaultMap) {
   return (range: Range): Promise<Sample[]> =>
@@ -234,15 +299,18 @@ const fmtDistance = (m: number) =>
 
 export const METRICS: MetricDef[] = [
   // ── Atividade ──────────────────────────────────────────────
+  // As quatro abaixo têm iPhone e relógio escrevendo em paralelo → multiSourceFetch.
   { ...meta('passos'), icon: 'footsteps-outline', chart: 'bar',
-    fetch: cumulativeFetch('getDailyStepCountSamples'), format: fmt(0) },
+    fetch: multiSourceFetch('StepCount'), format: fmt(0) },
   { ...meta('distancia'), icon: 'map-outline', chart: 'bar',
-    fetch: cumulativeFetch('getDailyDistanceWalkingRunningSamples', { unit: 'meter' }),
-    format: fmtDistance },
+    // 'Running' = DistanceWalkingRunning; a lib força milhas nesse tipo.
+    fetch: multiSourceFetch('Running', METERS_PER_MILE), format: fmtDistance },
   { ...meta('andares'), icon: 'trending-up-outline', chart: 'bar',
-    fetch: cumulativeFetch('getDailyFlightsClimbedSamples'), format: fmt(0) },
+    fetch: multiSourceFetch('StairClimbing'), format: fmt(0) },
   { ...meta('energia'), icon: 'flame-outline', chart: 'bar',
-    fetch: cumulativeFetch('getActiveEnergyBurned', { unit: 'kilocalorie' }), format: fmt(0) },
+    // 'calorie' é a única unidade de energia que a lib mapeia → cal para kcal.
+    fetch: multiSourceFetch('ActiveEnergyBurned', 1 / 1000, { unit: 'calorie' }), format: fmt(0) },
+  // Métrica exclusiva da Apple: fonte única, sem risco de dupla contagem.
   { ...meta('exercicio'), icon: 'stopwatch-outline', chart: 'bar',
     fetch: cumulativeFetch('getAppleExerciseTime'), format: fmt(0) },
   { ...meta('aneis'), icon: 'ellipse-outline', chart: 'rings',

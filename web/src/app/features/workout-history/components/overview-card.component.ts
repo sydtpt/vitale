@@ -1,11 +1,31 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivitiesStore } from '../data/activities.store';
-import { buildOverview, earliestActivityYear, type Metric, type Period } from '../data/overview';
+import { buildOverview, earliestActivityYear, overviewYears, type Metric, type Period } from '../data/overview';
 import { latestAvailableOffset } from '@vitale/shared';
 import { PeriodSelectorComponent } from './period-selector.component';
 import { StackedBarChartComponent } from './stacked-bar-chart.component';
 import { ChartPaletteService } from '@core/services/chart-palette.service';
 import { PreferencesService } from '@core/services/preferences.service';
+
+/**
+ * Anos desmarcados nos botões do período "Sempre". Preferência local do navegador
+ * (como a paleta): `user_preferences` é só leitura na web, então sincronizar exigiria
+ * escrita + migration. Guardamos os DESMARCADOS para que um ano novo entre sozinho.
+ */
+const YEARS_KEY = 'vitale.historyYearsOff';
+
+function readHiddenYears(): ReadonlySet<string> {
+  try {
+    const raw = localStorage.getItem(YEARS_KEY);
+    if (raw) {
+      const v = JSON.parse(raw) as { off?: unknown };
+      if (Array.isArray(v.off)) return new Set(v.off.filter((y): y is string => typeof y === 'string'));
+    }
+  } catch {
+    /* localStorage indisponível — segue sem persistir */
+  }
+  return new Set();
+}
 
 @Component({
   selector: 'rt-overview-card',
@@ -26,6 +46,8 @@ export class OverviewCardComponent {
   protected readonly hidden = signal<ReadonlySet<string>>(new Set());
   /** Navegação do período "Ano": 0 = ano corrente, negativo = anos anteriores. */
   protected readonly yearOffset = signal(0);
+  /** Anos desligados no período "Sempre" — persistidos no navegador. */
+  protected readonly hiddenYears = signal<ReadonlySet<string>>(readHiddenYears());
 
   // Capturado uma vez: `new Date()` dentro do computed reavaliaria a cada leitura.
   private readonly now = new Date();
@@ -34,7 +56,7 @@ export class OverviewCardComponent {
   protected readonly overview = computed(() =>
     buildOverview(
       this.store.activities(), this.period(), this.metric(),
-      this.now, this.hidden(), this.weeklyTargetMin(), this.yearOffset(),
+      this.now, this.hidden(), this.weeklyTargetMin(), this.yearOffset(), this.hiddenYears(),
     ),
   );
 
@@ -64,6 +86,34 @@ export class OverviewCardComponent {
   protected setPeriod(p: Period): void {
     this.period.set(p);
     this.yearOffset.set(0); // volta ao ano corrente ao trocar de período
+  }
+
+  // ---- Botões de ano do período "Sempre" ----
+
+  protected readonly isAll = computed(() => this.period() === 'sempre');
+  /** Todos os anos com histórico — os desligados continuam listados, só apagados. */
+  protected readonly years = computed(() => overviewYears(this.store.activities()));
+
+  protected isYearOn(year: number): boolean {
+    return !this.hiddenYears().has(`${year}`);
+  }
+
+  protected toggleYear(year: number): void {
+    const key = `${year}`;
+    const next = new Set(this.hiddenYears());
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      // Desligar o último ano ligado deixaria o gráfico e os totais vazios: no-op.
+      if (this.years().every((y) => y === year || next.has(`${y}`))) return;
+      next.add(key);
+    }
+    this.hiddenYears.set(next);
+    try {
+      localStorage.setItem(YEARS_KEY, JSON.stringify({ off: [...next] }));
+    } catch {
+      /* localStorage indisponível — mantém só em memória */
+    }
   }
 
   /** Linhas de referência só fazem sentido na métrica de duração. */

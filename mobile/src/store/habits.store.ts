@@ -109,20 +109,47 @@ function genOpId(): string {
  * duas chamadas paralelas leem count=0 e ambas semeiam → "Água" duplicada. */
 let loadInFlight: Promise<void> | null = null;
 
+/** Relógio lógico de mutações locais (increment/decrement/reset) por hábito.
+ * Um `load()` que começou a ler ANTES do toque não pode sobrescrever o valor
+ * otimista — o servidor ainda não tinha o delta, e ver o valor "voltar" faz o
+ * usuário tocar de novo, aí sim dobrando o total. */
+let mutationSeq = 0;
+const lastMutation = new Map<string, number>();
+
+function markMutation(habitId: string): void {
+  lastMutation.set(habitId, ++mutationSeq);
+}
+
+/** true se o hábito foi tocado depois de `seq` (leitura do servidor está velha). */
+function mutatedSince(habitId: string, seq: number): boolean {
+  return (lastMutation.get(habitId) ?? 0) > seq;
+}
+
 function currentUserId(): string | undefined {
   return useAuthStore.getState().user?.id;
 }
 
-/** Envia cada delta pendente via rpc; devolve os que falharam (a manter na fila). */
+/** Envia os deltas pendentes via rpc; devolve os que falharam (a manter na fila).
+ * Deltas do mesmo (hábito, dia) vão somados numa única chamada — uma sequência
+ * rápida de toques custa um round-trip, não um por toque. */
 async function flushDeltas(items: HabitDelta[]): Promise<HabitDelta[]> {
-  const failed: HabitDelta[] = [];
+  const groups = new Map<string, HabitDelta[]>();
   for (const it of items) {
+    const key = `${it.habitId}|${it.date}`;
+    const group = groups.get(key);
+    if (group) group.push(it);
+    else groups.set(key, [it]);
+  }
+
+  const failed: HabitDelta[] = [];
+  for (const group of groups.values()) {
+    const total = group.reduce((sum, it) => sum + it.delta, 0);
     const { error } = await supabase.rpc('habit_log_add', {
-      p_habit: it.habitId,
-      p_date: it.date,
-      p_delta: it.delta,
+      p_habit: group[0].habitId,
+      p_date: group[0].date,
+      p_delta: total,
     });
-    if (error) failed.push(it);
+    if (error) failed.push(...group);
   }
   return failed;
 }
@@ -168,6 +195,10 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     if (!userId) return;
     set({ loading: true });
 
+    // Marca d'água tirada ANTES do drain: qualquer toque a partir daqui pode não
+    // aparecer na leitura do servidor lá embaixo (ver o merge no fim).
+    const readSeq = mutationSeq;
+
     // 1) drenar deltas offline pendentes antes de ler o estado do servidor
     await drainHabitQueue(flushDeltas);
 
@@ -208,7 +239,15 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
       if (date === today) todayLogs[hid] = value;
     }
 
-    set({ habits, todayLogs, windowByHabit, loading: false, loaded: true });
+    // Hábitos tocados durante a leitura mantêm o valor otimista local; o delta
+    // já está na fila e será confirmado pelo próximo drain.
+    set((s) => {
+      const merged = { ...todayLogs };
+      for (const id of lastMutation.keys()) {
+        if (mutatedSince(id, readSeq)) merged[id] = s.todayLogs[id] ?? merged[id] ?? 0;
+      }
+      return { habits, todayLogs: merged, windowByHabit, loading: false, loaded: true };
+    });
   },
 
   // Carrega todos os hábitos (ativos + arquivados) para a tela de gestão;
@@ -228,6 +267,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     if (!habit) return;
     const today = localDateStr();
     const next = (get().todayLogs[id] ?? 0) + habit.step;
+    markMutation(id);
     set((s) => ({ todayLogs: { ...s.todayLogs, [id]: next } }));
     await enqueueDelta({ opId: genOpId(), habitId: id, date: today, delta: habit.step });
     await drainHabitQueue(flushDeltas);
@@ -240,6 +280,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     if (current <= 0) return; // já no piso: ignora
     const today = localDateStr();
     const next = Math.max(0, current - habit.step);
+    markMutation(id);
     set((s) => ({ todayLogs: { ...s.todayLogs, [id]: next } }));
     await enqueueDelta({ opId: genOpId(), habitId: id, date: today, delta: -habit.step });
     await drainHabitQueue(flushDeltas);
@@ -249,6 +290,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     const current = get().todayLogs[id] ?? 0;
     if (current <= 0) return;
     const today = localDateStr();
+    markMutation(id);
     set((s) => ({ todayLogs: { ...s.todayLogs, [id]: 0 } }));
     await enqueueDelta({ opId: genOpId(), habitId: id, date: today, delta: -current });
     await drainHabitQueue(flushDeltas);

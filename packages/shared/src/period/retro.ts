@@ -18,6 +18,7 @@ import {
   metricRecapRange,
 } from '../week/recap';
 import type { HighlightIcon, HighlightTone, WeekHighlight } from '../week/highlights';
+import { activityTypeLabel } from '../fitness/activity-types';
 import { dailyHardLoad } from '../health/aggregate';
 import { detectTrend } from '../health/trends';
 import { triggerImpact } from '../health/trigger-impact';
@@ -44,6 +45,8 @@ export interface RetroHabit {
   id: string;
   name: string;
   bad: boolean;
+  /** Unidade do contador ('L', 'un', 'cig'…); '' quando desconhecida. */
+  unit?: string;
   /** dia 'YYYY-MM-DD' → valor acumulado. */
   logsByDay: ReadonlyMap<string, number>;
 }
@@ -75,6 +78,8 @@ export interface RetroInput {
   health: RetroHealthMetric[];
   /** Andares subidos por dia ('YYYY-MM-DD' → lances) — somado por período. */
   floorsByDay?: ReadonlyMap<string, number>;
+  /** Passos por dia ('YYYY-MM-DD' → passos) — somado por período. */
+  stepsByDay?: ReadonlyMap<string, number>;
   /** Notas subjetivas 1–5 (dia 'YYYY-MM-DD' → valor). */
   ratingsSleep?: ReadonlyMap<string, number>;
   ratingsDay?: ReadonlyMap<string, number>;
@@ -105,6 +110,11 @@ export interface RetroFitness {
   hardMin: RecapValue;
   /** Total de andares (lances de escada) subidos no período. */
   floors: RecapValue;
+  /**
+   * Total de passos no período. Vem de `health_daily`, não das atividades —
+   * mede o movimento do dia inteiro, não só o que foi registrado como treino.
+   */
+  steps: RecapValue;
   byType: CountByKey[];
 }
 
@@ -173,8 +183,26 @@ export interface RetroHabitRow {
   id: string;
   name: string;
   bad: boolean;
+  /** Unidade do contador para exibição ('L', 'cig'…); '' quando desconhecida. */
+  unit: string;
   /** dias com registro no período (× alvo é responsabilidade da UI). */
   recap: RecapValue;
+  /** Soma dos valores registrados no período (ex.: litros de água). */
+  total: RecapValue;
+  /** Média diária do período — `total.current / perDayDays`. */
+  perDay: number;
+  /** Dias que entraram na média (ver `avgDays`); 0 quando não houve registro. */
+  perDayDays: number;
+}
+
+/** Registro avulso agregado no período. Marca binária ⇒ quantidade = dias marcados. */
+export interface RetroRegistroRow {
+  id: string;
+  name: string;
+  /** dias marcados no período vs anterior. */
+  recap: RecapValue;
+  /** Intervalo médio entre marcações, em dias; 0 quando não houve marcação. */
+  everyDays: number;
 }
 
 export interface RetroHealthRow {
@@ -196,6 +224,7 @@ export interface RetroSummary {
   endISO: string;
   tasks: { total: RecapValue; byModule: CountByKey[] };
   habits: { good: RetroHabitRow[]; bad: RetroHabitRow[] };
+  registros: RetroRegistroRow[];
   fitness: RetroFitness;
   sports: RetroSports;
   health: RetroHealthRow[];
@@ -231,6 +260,33 @@ function sumInRange(valuesByDay: ReadonlyMap<string, number>, start: Date, end: 
     if (ts >= start.getTime() && ts < end.getTime()) total += v;
   }
   return total;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Dias que servem de divisor para a média diária de um hábito: do primeiro dia
+ * com registro dentro do período até o fim do período (ou hoje, se o período
+ * ainda está em curso).
+ *
+ * Ancorar no primeiro registro — em vez de usar o período inteiro — evita duas
+ * distorções: 'Total' começa num epoch fixo (ano 2000) e hábitos criados no
+ * meio de um ano/trimestre seriam divididos por dias em que nem existiam.
+ */
+function avgDays(logDays: string[], range: { start: Date; end: Date }, now: Date): number {
+  const startTs = range.start.getTime();
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+  const endTs = Math.min(range.end.getTime(), todayEnd);
+  if (endTs <= startTs) return 0;
+
+  let first = Infinity;
+  for (const day of logDays) {
+    const ts = new Date(`${day}T00:00:00`).getTime();
+    if (ts >= startTs && ts < endTs && ts < first) first = ts;
+  }
+  if (!Number.isFinite(first)) return 0;
+  // round absorve o ±1h do horário de verão.
+  return Math.max(1, Math.round((endTs - first) / DAY_MS));
 }
 
 function tallyByKey(
@@ -349,11 +405,19 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
       input.floorsByDay ? sumInRange(input.floorsByDay, cur.start, cur.end) : 0,
       input.floorsByDay ? sumInRange(input.floorsByDay, prev.start, prev.end) : 0,
     ),
+    steps: recapValue(
+      input.stepsByDay ? sumInRange(input.stepsByDay, cur.start, cur.end) : 0,
+      input.stepsByDay ? sumInRange(input.stepsByDay, prev.start, prev.end) : 0,
+    ),
+    // Agrupa por TIPO (activityId), não pelo nome livre da atividade — nomes
+    // vindos do Strava/HealthKit ("Morning Ride", "Tour de la Meuse-Rhin") são
+    // únicos por treino e fragmentariam a lista.
     byType: tallyByKey(
-      inCur.map((a) => {
-        const label = a.activityName?.trim() || 'Atividade';
-        return { key: label, label, sum: a.distanceM ?? 0 };
-      }),
+      inCur.map((a) => ({
+        key: String(a.activityId),
+        label: activityTypeLabel(a.activityId),
+        sum: a.distanceM ?? 0,
+      })),
     ),
   };
 
@@ -380,14 +444,20 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
   // ── Hábitos ──
   const habitRow = (h: RetroHabit): RetroHabitRow => {
     const days = [...h.logsByDay.entries()].filter(([, v]) => v > 0).map(([d]) => d);
+    const total = sumInRange(h.logsByDay, cur.start, cur.end);
+    const denom = avgDays(days, cur, input.now);
     return {
       id: h.id,
       name: h.name,
       bad: h.bad,
+      unit: h.unit ?? '',
       recap: recapValue(
         countInRange(days, cur.start, cur.end),
         countInRange(days, prev.start, prev.end),
       ),
+      total: recapValue(total, sumInRange(h.logsByDay, prev.start, prev.end)),
+      perDay: denom > 0 ? total / denom : 0,
+      perDayDays: denom,
     };
   };
   const habitRows = input.habits.map(habitRow);
@@ -395,6 +465,24 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     good: habitRows.filter((r) => !r.bad),
     bad: habitRows.filter((r) => r.bad),
   };
+
+  // ── Registros (marca binária: quantidade = dias marcados) ──
+  // Só os que tiveram marcação no período ou no anterior — registros antigos ou
+  // arquivados não devem encher a lista com zeros.
+  const registros: RetroRegistroRow[] = input.registros
+    .map((r) => {
+      const days = [...new Set(r.days)];
+      const count = countInRange(days, cur.start, cur.end);
+      const denom = avgDays(days, cur, input.now);
+      return {
+        id: r.id,
+        name: r.name,
+        recap: recapValue(count, countInRange(days, prev.start, prev.end)),
+        everyDays: count > 0 && denom > 0 ? denom / count : 0,
+      };
+    })
+    .filter((r) => r.recap.current > 0 || r.recap.prior > 0)
+    .sort((a, b) => b.recap.current - a.recap.current);
 
   // ── Saúde ──
   const health: RetroHealthRow[] = input.health.map((m) => {
@@ -453,6 +541,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     endISO: localDay(new Date(cur.end.getTime() - 1)),
     tasks,
     habits,
+    registros,
     fitness,
     sports,
     health,

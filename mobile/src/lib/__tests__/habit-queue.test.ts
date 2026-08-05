@@ -42,6 +42,42 @@ describe('habit-queue', () => {
     expect(left[0].opId).toBe('op2');
   });
 
+  it('não reenvia um delta que já está em voo (toques rápidos)', async () => {
+    const s = memStore();
+    const sent: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const flush = async (items: HabitDelta[]) => {
+      sent.push(...items.map((i) => i.opId));
+      await gate; // segura o "envio" como uma rpc lenta
+      return [];
+    };
+
+    await enqueueDelta(delta('op1', 0.25), s);
+    const first = drainHabitQueue(flush, s); // fica no ar com op1
+    const second = (async () => {
+      await enqueueDelta(delta('op2', 0.25), s);
+      await drainHabitQueue(flush, s);
+    })();
+
+    await new Promise((r) => setTimeout(r, 0)); // dá tempo do 2º toque chegar à fila
+    release();
+    await Promise.all([first, second]);
+
+    expect(sent).toEqual(['op1', 'op2']); // op1 uma única vez
+    expect(await readHabitQueue(s)).toHaveLength(0);
+  });
+
+  it('enqueues concorrentes não se sobrescrevem', async () => {
+    const s = memStore();
+    await Promise.all([
+      enqueueDelta(delta('op1', 0.25), s),
+      enqueueDelta(delta('op2', 0.25), s),
+      enqueueDelta(delta('op3', 0.25), s),
+    ]);
+    expect(await readHabitQueue(s)).toHaveLength(3);
+  });
+
   it('clear esvazia a fila', async () => {
     const s = memStore();
     await enqueueDelta(delta('op1', 1), s);

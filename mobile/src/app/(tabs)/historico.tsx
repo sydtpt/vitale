@@ -17,7 +17,8 @@ import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { latestAvailableOffset, referenceLineColors, resolveWeeklyTargetMin } from '@vitale/shared';
-import { buildOverview, earliestActivityYear, type Period, type Metric } from '../../lib/activity-overview';
+import { buildOverview, earliestActivityYear, overviewYears, type Period, type Metric } from '../../lib/activity-overview';
+import { getJSON, setJSON } from '../../lib/local-store';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
@@ -33,6 +34,13 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'ano', label: 'Ano' },
   { key: 'sempre', label: 'Sempre' },
 ];
+
+/**
+ * Anos desmarcados nos botões do período "Sempre". Preferência local do aparelho
+ * (como a paleta dos gráficos). Guardamos os DESMARCADOS, e não os selecionados,
+ * para que um ano novo apareça sozinho quando surgir.
+ */
+const YEARS_KEY = 'vitale.historyYearsOff';
 
 /** Rótulo do prorrateio da meta da OMS, por granularidade das barras. */
 const WHO_PER: Record<string, string> = {
@@ -120,7 +128,7 @@ function Segmented<T extends string>({
 }
 
 export default function HistoricoTabScreen() {
-  useTheme();
+  const { scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
   const tabBarScroll = useTabBarScroll();
@@ -138,12 +146,16 @@ export default function HistoricoTabScreen() {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   // Navegação do período "Ano": 0 = ano corrente, negativo = anos anteriores.
   const [yearOffset, setYearOffset] = useState(0);
+  // Anos desligados no período "Sempre"; hidrata do armazenamento local no mount.
+  const [hiddenYears, setHiddenYears] = useState<Set<string>>(new Set());
   const paletteId = useChartPaletteStore((s) => s.paletteId);
   // Meta semanal configurável em Ajustes → Objetivos; cai no padrão se não definida.
   const preferences = useSettingsStore((s) => s.preferences);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
   const weeklyTargetMin = resolveWeeklyTargetMin(preferences?.weeklyActivityTargetMin);
-  const refLines = referenceLineColors(preferences?.referenceLineScheme);
+  // O passo da cor depende do tema: um violeta escuro dá 10.6:1 sobre a superfície
+  // clara e 1.6:1 sobre a escura. Ver `reference-lines.ts`.
+  const refLines = referenceLineColors(preferences?.referenceLineScheme, scheme);
 
   const toggleType = (label: string) =>
     setHidden((prev) => {
@@ -158,6 +170,9 @@ export default function HistoricoTabScreen() {
     // O store de settings não hidrata sozinho: sem isso a meta configurada nunca
     // chegaria aqui e o gráfico ficaria preso no padrão.
     if (!preferences) loadSettings();
+    void getJSON<{ off: string[] }>(YEARS_KEY).then((v) => {
+      if (Array.isArray(v?.off)) setHiddenYears(new Set(v.off));
+    });
   }, [load]);
   // force=true: o store ignora load() repetido depois de carregado.
   useRefreshOnForeground(() => { load(true); });
@@ -178,11 +193,27 @@ export default function HistoricoTabScreen() {
     setYearOffset(0); // volta ao ano corrente ao trocar de período
   };
 
+  // Botões de ano do período "Sempre": todos os anos com histórico continuam
+  // listados; os desligados só saem do gráfico.
+  const isAll = period === 'sempre';
+  const years = useMemo(() => overviewYears(activities), [activities]);
+
+  const toggleYear = (year: number) => {
+    const key = `${year}`;
+    const next = new Set(hiddenYears);
+    if (next.has(key)) next.delete(key);
+    // Desligar o último ano ligado deixaria o gráfico e os totais vazios: no-op.
+    else if (years.some((y) => y !== year && !next.has(`${y}`))) next.add(key);
+    else return;
+    setHiddenYears(next);
+    void setJSON(YEARS_KEY, { off: [...next] });
+  };
+
   // `hidden` entra na agregação (igual ao web): barras, totais e a série de esforço
   // ponderado precisam do mesmo filtro, e o esforço não dá para refiltrar depois.
   const overview = useMemo(
-    () => buildOverview(activities, period, metric, now, hidden, weeklyTargetMin, yearOffset),
-    [activities, period, metric, now, hidden, weeklyTargetMin, yearOffset],
+    () => buildOverview(activities, period, metric, now, hidden, weeklyTargetMin, yearOffset, hiddenYears),
+    [activities, period, metric, now, hidden, weeklyTargetMin, yearOffset, hiddenYears],
   );
   const isDuration = metric === 'duration';
   // No período "Semana" as barras são diárias: as duas linhas viram retas na média
@@ -290,13 +321,37 @@ export default function HistoricoTabScreen() {
           </View>
 
           <View style={styles.chartGroup}>
+            {isAll && years.length > 0 && (
+              <View style={styles.yearChips}>
+                {years.map((y) => {
+                  const on = !hiddenYears.has(`${y}`);
+                  return (
+                    <Pressable
+                      key={y}
+                      onPress={() => toggleYear(y)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`Ano ${y}`}
+                      style={({ pressed }) => [
+                        styles.yearChip,
+                        on && styles.yearChipOn,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={[styles.yearChipText, on && styles.yearChipTextOn]}>{y}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
             <View style={styles.chartWrap}>
               <StackedBarChart
                 buckets={overview.buckets}
                 metric={metric}
                 width={chartWidth}
                 noScroll={period === 'meses12' || isYear}
-                animationKey={`${period}-${metric}-${yearOffset}`}
+                animationKey={`${period}-${metric}-${yearOffset}-${[...hiddenYears].sort().join('.')}`}
                 goal={isDuration ? overview.targetS : undefined}
                 goalLabel="OMS"
                 goalUnit={`/${BUCKET_WORD[overview.granularity]}`}
@@ -339,9 +394,12 @@ export default function HistoricoTabScreen() {
                   </View>
                 )}
                 <Text style={styles.refHint}>
-                  Minutos moderados equivalentes: cada treino é pesado pela intensidade — pelo
-                  tempo em zonas de FC quando há batimentos, senão pelo tipo. Corrida e treinos
-                  intensos contam mais que a duração bruta; yoga e recuperação contam menos.
+                  Minutos de esforço: a barra é o tempo no relógio, a linha é quanto dele
+                  contou. Cada treino é pesado pela intensidade — pelo tempo em zonas de FC
+                  quando há batimentos, senão pelo tipo. Um minuto vigoroso conta inteiro; um
+                  moderado, metade; yoga e leves contam menos. A FC só acrescenta: nenhum
+                  treino cai abaixo do que o seu tipo já vale, então um pedal longo e fácil
+                  não é zerado por ter ficado em z1.
                 </Text>
               </View>
             )}
@@ -469,6 +527,20 @@ const styles = themed(() => StyleSheet.create({
 
   chartGroup: { gap: spacing.sm },
   chartWrap: { marginHorizontal: -spacing.xs },
+
+  // Botões de ano do período "Sempre" — ligam/desligam cada barra do gráfico.
+  yearChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  yearChip: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: 'transparent',
+  },
+  yearChipOn: { backgroundColor: colors.surfaceMute, borderColor: colors.lineDeep },
+  yearChipText: { fontSize: 12, fontFamily: 'GeistMono', color: colors.ink4 },
+  yearChipTextOn: { color: colors.ink },
 
   refLegend: {
     gap: 6,

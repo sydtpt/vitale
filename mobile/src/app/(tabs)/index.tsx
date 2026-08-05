@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useEffect } from 'react';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, spacing, useThemedStyles } from '../../theme';
-import { DayRingCard } from '../../components/cards/DayRingCard';
-import { ReadinessCard } from '../../components/cards/ReadinessCard';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { HabitStepper } from '../../components/cards/HabitStepper';
 import { SleepRatingCard } from '../../components/cards/SleepRatingCard';
@@ -19,8 +17,7 @@ import { useDailyRatingsStore, dayRatingDate } from '../../store/daily-ratings.s
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { progress, streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
-import { readinessFromSummaries } from '../../lib/health-readiness';
+import { streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
 import { isOverdue, isVisibleNow, isStarted, localTimeStr } from '../../lib/todo-logic';
 import { HOJE } from '../../services/mock-data';
 import type { CounterHabit } from '@vitale/shared';
@@ -48,10 +45,7 @@ export default function HojeScreen() {
   const styles = useThemedStyles(createStyles);
   const tabBarHeight = useTabBarHeight();
   const tabBarScroll = useTabBarScroll();
-  const [cardPage, setCardPage] = useState(0);
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
-  const cardW = screenWidth - spacing.lg * 2;
   const user = useAuthStore(s => s.user);
   // Nome de exibição definido em Configurações › Perfil tem prioridade; senão
   // cai para o nome derivado do login (metadata/e-mail).
@@ -62,10 +56,6 @@ export default function HojeScreen() {
   const todayMeals = useMealsStore(s => s.todayMeals);
   const loadMeals = useMealsStore(s => s.load);
   useEffect(() => { loadMeals(); }, [loadMeals, user?.id]);
-
-  // Hábitos binários e treino ainda são placeholder (fora do escopo desta fatia).
-  const [habits] = useState(HOJE.habits);
-  const [treinoDone] = useState(false);
 
   // Hábitos contadores (água, etc.) — persistidos no Supabase
   const counters = useHabitsStore(s => s.habits);
@@ -79,12 +69,10 @@ export default function HojeScreen() {
   // o auth resolver, então o primeiro load() aborta por falta de userId.
   useEffect(() => { loadCounters(); }, [loadCounters, user?.id]);
 
-  // Saúde (Apple Health): inicializa para alimentar o card de prontidão.
-  // Em quem já concedeu acesso, é silencioso; mantém a mesma porta da aba Saúde.
+  // Saúde (Apple Health): inicializa cedo para os demais consumidores (aba Saúde,
+  // notificações). Em quem já concedeu acesso, é silencioso.
   const healthStatus = useHealthStore(s => s.permissionStatus);
   const requestHealth = useHealthStore(s => s.requestPermission);
-  const healthSummaries = useHealthStore(s => s.summaries);
-  const hasReadiness = readinessFromSummaries(healthSummaries).components.length > 0;
   useEffect(() => { if (healthStatus === 'unknown') requestHealth(); }, [healthStatus, requestHealth]);
 
   // Tarefas (to-do) — pendentes/atrasadas de hoje
@@ -114,10 +102,6 @@ export default function HojeScreen() {
   // Ao retomar o app (background → active), a tela segue montada, então
   // recarrega o que pode ter mudado desde a última vez.
   useRefreshOnForeground(() => { loadCounters(); loadTodos(); loadRatings(); loadMeals(); });
-
-  // Contribuição da água ao score vem do hábito contador "Água" (litros)
-  const aguaHabit = counters.find(h => h.unit === 'L' && h.direction === 'at_least');
-  const waterRatio = aguaHabit ? progress(aguaHabit, counterLogs[aguaHabit.id] ?? 0) : 0;
 
   // Só os hábitos marcados como "Mostrar na home" viram steppers aqui; os demais
   // ficam restritos à tela de hábitos. (O anel da água acima usa a lista completa.)
@@ -176,11 +160,6 @@ export default function HojeScreen() {
 
   const MEAL_TARGET = 4;
   const mealsLogged = todayMeals.length;
-  const habitsDone = habits.filter(h => h.done).length;
-  const activity = treinoDone ? 100 : 60;
-  const food = Math.round((Math.min(mealsLogged, MEAL_TARGET) / MEAL_TARGET) * 70 + waterRatio * 30);
-  const mind = habits.length > 0 ? Math.round((habitsDone / habits.length) * 100) : 0;
-  const overall = Math.round((activity + food + mind) / 3);
 
   return (
     <>
@@ -197,36 +176,7 @@ export default function HojeScreen() {
           <SleepRatingCard value={todayRating?.sleepQuality ?? null} onSelect={setSleep} />
         )}
 
-        {/* Carousel: Ring + Prontidão lado a lado com scroll horizontal */}
-        <ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onScroll={({ nativeEvent }) =>
-            setCardPage(Math.round(nativeEvent.contentOffset.x / cardW))
-          }
-          scrollEventThrottle={16}
-          style={styles.hScroll}
-        >
-          <View style={{ width: cardW }}>
-            <DayRingCard activity={activity} food={food} mind={mind} overall={overall} />
-          </View>
-          {hasReadiness && (
-            <View style={{ width: cardW }}>
-              <ReadinessCard />
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Dots de paginação — só aparece quando há card de prontidão */}
-        {hasReadiness && (
-          <View style={styles.dots}>
-            <View style={[styles.dot, cardPage === 0 && styles.dotActive]} />
-            <View style={[styles.dot, cardPage === 1 && styles.dotActive]} />
-          </View>
-        )}
-
-        {/* Hábitos com valor hoje — logo abaixo dos anéis */}
+        {/* Hábitos com valor hoje */}
         {startedHabits.map(renderStepper)}
 
         {/* To-do — atrasadas e do dia */}
@@ -278,8 +228,4 @@ const createStyles = () => StyleSheet.create({
   date: { fontSize: 13, color: colors.ink3, letterSpacing: 0.4, fontWeight: '600' },
   greeting: { fontFamily: 'InstrumentSerif', fontSize: 34, lineHeight: 36, marginTop: 4, color: colors.ink },
   sub: { fontSize: 14, color: colors.ink2, marginTop: 4 },
-  hScroll: { marginTop: 8 },
-  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 10, marginBottom: spacing.md },
-  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.line },
-  dotActive: { width: 14, backgroundColor: colors.primary },
 });

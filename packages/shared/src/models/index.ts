@@ -578,9 +578,10 @@ export interface UserPreferences {
   /** FC máxima do usuário (bpm). Base das zonas de FC (% da FCmáx). Ausente ⇒ estima por idade. */
   maxHr?: number;
   /**
-   * Meta semanal de atividade em minutos moderados equivalentes — a linha de
-   * referência do gráfico de duração no Histórico. Ausente ⇒ `DEFAULT_WEEKLY_TARGET_MIN`
-   * (190). A OMS recomenda a faixa 150–300; ver `health/who-activity`.
+   * Meta semanal de atividade em minutos de esforço (escala ancorada no vigoroso) — a
+   * linha de referência do gráfico de duração no Histórico. Ausente ⇒
+   * `DEFAULT_WEEKLY_TARGET_MIN` (95). A OMS recomenda a faixa 75–150 vigorosos, que são
+   * os mesmos 150–300 moderados da outra formulação; ver `health/who-activity`.
    */
   weeklyActivityTargetMin?: number;
   /**

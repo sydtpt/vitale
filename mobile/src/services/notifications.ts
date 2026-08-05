@@ -7,7 +7,7 @@
  * gatilho DAILY — então a notificação dispara todo dia mesmo sem abrir o app,
  * com o conteúdo da última vez que ele esteve aberto. Sem push remoto.
  */
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import {
@@ -36,9 +36,14 @@ import { useHabitsStore } from '../store/habits.store';
 const DEFAULT_TIME = '08:00';
 /** No máximo um refresh por minuto no foreground. */
 const THROTTLE_MS = 60_000;
+/** Canal Android — 'default' é o mesmo que o expo usa como fallback (inclui trigger null). */
+const ANDROID_CHANNEL_ID = 'default';
+/** Teto de espera pelas prefs no boot; passado isso, agenda com o que houver. */
+const PREFS_WAIT_MS = 4_000;
 
 let appStateSub: { remove: () => void } | null = null;
 let responseSub: { remove: () => void } | null = null;
+let settingsUnsub: (() => void) | null = null;
 let lastRefresh = 0;
 let configured = false;
 
@@ -78,6 +83,24 @@ function configureHandler(): void {
   });
 }
 
+/**
+ * Canal Android. Sem ele o Android 8+ usa um canal implícito sem som/importância
+ * definidos. O id 'default' casa com o fallback do expo, então vale também para
+ * as imediatas (`trigger: null`, que não aceitam `channelId`).
+ */
+async function ensureAndroidChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+      name: 'Lembretes do Orbe',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      lightColor: '#F25C2B',
+    });
+  } catch (e) {
+    console.warn('Falha ao criar canal de notificação:', e);
+  }
+}
+
 function parseTime(s: string | undefined): { hour: number; minute: number } {
   const [h, m] = (s ?? DEFAULT_TIME).split(':').map(Number);
   return { hour: Number.isFinite(h) ? h : 8, minute: Number.isFinite(m) ? m : 0 };
@@ -89,6 +112,29 @@ export async function requestNotificationPermission(): Promise<boolean> {
   if (current.granted) return true;
   const req = await Notifications.requestPermissionsAsync();
   return req.granted;
+}
+
+/**
+ * Garante o prompt na primeira execução. Todo agendamento aqui checa `granted`
+ * antes de agendar, então sem esta chamada nada era agendado e nenhum prompt
+ * aparecia — o master das Configurações já nasce ligado, então ninguém o
+ * "ativa" e `enableNotifications` nunca rodava.
+ *
+ * Só perguntamos com status `undetermined`: quem já negou não é reperguntado
+ * (no iOS o prompt nem reaparece; a saída é o botão de abrir os Ajustes).
+ */
+async function ensurePermission(): Promise<boolean> {
+  try {
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted) return true;
+    if (current.status !== 'undetermined' || !current.canAskAgain) return false;
+    if (!masterOn()) return false;
+    const req = await Notifications.requestPermissionsAsync();
+    return req.granted;
+  } catch (e) {
+    console.warn('Falha ao pedir permissão de notificação:', e);
+    return false;
+  }
 }
 
 /** Prefs de notificação atuais (com fallback nos defaults se ainda não carregou). */
@@ -257,6 +303,7 @@ async function scheduleRetros(prefs: NotificationPrefs): Promise<void> {
       // expo usa weekday 1=Dom; nosso RetroSchedule usa 0=Dom (JS getDay) → +1.
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        channelId: ANDROID_CHANNEL_ID,
         weekday: (w.weekday ?? 1) + 1,
         hour: w.hour,
         minute: w.minute,
@@ -275,6 +322,7 @@ async function scheduleRetros(prefs: NotificationPrefs): Promise<void> {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.MONTHLY,
+        channelId: ANDROID_CHANNEL_ID,
         day: m.day ?? 1,
         hour: m.hour,
         minute: m.minute,
@@ -293,7 +341,9 @@ async function scheduleRetros(prefs: NotificationPrefs): Promise<void> {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.YEARLY,
-        month: 1,
+        channelId: ANDROID_CHANNEL_ID,
+        // `month` segue o range do Date do JS (0 = janeiro).
+        month: 0,
         day: 1,
         hour: y.hour,
         minute: y.minute,
@@ -303,7 +353,7 @@ async function scheduleRetros(prefs: NotificationPrefs): Promise<void> {
 }
 
 /** Cancela e reagenda o digest diário + as retrospectivas com conteúdo fresco. */
-export async function refreshDailyDigest(): Promise<void> {
+async function runRefresh(): Promise<void> {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
 
@@ -322,7 +372,12 @@ export async function refreshDailyDigest(): Promise<void> {
       if (digest) {
         await Notifications.scheduleNotificationAsync({
           content: { title: digest.title, body: digest.body },
-          trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            channelId: ANDROID_CHANNEL_ID,
+            hour,
+            minute,
+          },
         });
       }
     }
@@ -334,6 +389,34 @@ export async function refreshDailyDigest(): Promise<void> {
   }
 }
 
+let refreshing: Promise<void> | null = null;
+let rerunQueued = false;
+
+/**
+ * Reagenda tudo, serializando chamadas concorrentes. Cada passada começa com
+ * `cancelAllScheduledNotificationsAsync`, então duas em paralelo se atropelariam
+ * (uma cancelando o que a outra acabou de agendar) — a tela de Configurações e o
+ * listener de prefs disparam quase juntos. Uma chamada durante um refresh em voo
+ * enfileira uma passada final com o estado mais novo.
+ */
+export function refreshDailyDigest(): Promise<void> {
+  if (refreshing) {
+    rerunQueued = true;
+    return refreshing;
+  }
+  refreshing = (async () => {
+    try {
+      do {
+        rerunQueued = false;
+        await runRefresh();
+      } while (rerunQueued);
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
 function refreshThrottled(force = false): void {
   const now = Date.now();
   if (!force && now - lastRefresh < THROTTLE_MS) return;
@@ -341,14 +424,56 @@ function refreshThrottled(force = false): void {
   void refreshDailyDigest();
 }
 
+/** Aguarda `loadSettings` hidratar as prefs (cache local ou rede) antes do 1º agendamento. */
+function waitForPreferences(): Promise<void> {
+  if (useSettingsStore.getState().preferences) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = (): void => {
+      clearTimeout(timer);
+      unsub();
+      resolve();
+    };
+    const timer = setTimeout(done, PREFS_WAIT_MS);
+    const unsub = useSettingsStore.subscribe((s) => {
+      if (s.preferences) done();
+    });
+  });
+}
+
+/** Só os campos que mudam o agendamento — evita reagendar por tema/wallpaper. */
+function prefsSignature(): string {
+  const p = useSettingsStore.getState().preferences;
+  if (!p) return '';
+  return JSON.stringify([p.notificationsEnabled, p.dailyReminderTime, p.notificationPrefs]);
+}
+
 /** Liga o ciclo: configura handler, agenda já e reagenda a cada foreground. */
 export function startNotifications(): void {
   configureHandler();
-  refreshThrottled(true);
+
+  void (async () => {
+    await ensureAndroidChannel();
+    // O agendamento lê as prefs; sem esperar, o 1º passe usaria os defaults
+    // (08:00) e ignoraria um master desligado.
+    await waitForPreferences();
+    await ensurePermission();
+    refreshThrottled(true);
+  })();
+
   const handle = (s: AppStateStatus) => {
     if (s === 'active') refreshThrottled();
   };
   appStateSub = AppState.addEventListener('change', handle);
+
+  // Reagenda quando as prefs mudam (inclusive a carga tardia do `loadSettings`,
+  // caso ela chegue depois do teto de espera acima).
+  let lastSignature = prefsSignature();
+  settingsUnsub = useSettingsStore.subscribe(() => {
+    const sig = prefsSignature();
+    if (sig === lastSignature) return;
+    lastSignature = sig;
+    refreshThrottled(true);
+  });
 
   // Deep-link ao tocar a notificação (app aberto/background) + cold start.
   responseSub = Notifications.addNotificationResponseReceivedListener(handleNotificationRoute);
@@ -360,6 +485,8 @@ export function stopNotifications(): void {
   appStateSub = null;
   responseSub?.remove();
   responseSub = null;
+  settingsUnsub?.();
+  settingsUnsub = null;
 }
 
 /** Chamado ao ativar nas Configurações: pede permissão e agenda. */

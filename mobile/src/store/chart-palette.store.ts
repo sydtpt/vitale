@@ -11,8 +11,9 @@ interface ChartPaletteState {
 }
 
 export const useChartPaletteStore = create<ChartPaletteState>((set) => {
-  // Hidrata do armazenamento local em background. O default ('atual') já é a paleta
-  // atual do app, então não há flash perceptível enquanto carrega.
+  // Hidrata do armazenamento local em background. Sem flash perceptível: o default
+  // já é a paleta padrão. Um id salvo que não existe mais (paletas removidas) cai
+  // no default pelo isChartPaletteId.
   void getJSON<{ id: string }>(KEY).then((v) => {
     if (v?.id && isChartPaletteId(v.id)) set({ paletteId: v.id });
   });

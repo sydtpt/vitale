@@ -1,6 +1,6 @@
 import type { Activity } from '@vitale/shared';
 import { DEFAULT_WEEKLY_TARGET_MIN } from '@vitale/shared';
-import { buildOverview, earliestActivityYear, metricValue } from './overview';
+import { buildOverview, earliestActivityYear, metricValue, overviewYears } from './overview';
 
 function act(partial: Partial<Activity> & { startAt: string }): Activity {
   return {
@@ -51,6 +51,17 @@ describe('buildOverview — sempre', () => {
     expect(o.buckets.find((b) => b.key === '2025')?.total).toBe(0);
     expect(o.buckets.find((b) => b.key === '2026')?.total).toBe(2);
     expect(o.totals.count).toBe(3);
+  });
+
+  it('anos desmarcados saem das barras e dos totais', () => {
+    const o = buildOverview(activities, 'sempre', 'count', now, new Set(), DEFAULT_WEEKLY_TARGET_MIN, 0, new Set(['2026']));
+    expect(o.buckets.map((b) => b.key)).toEqual(['2024', '2025']);
+    expect(o.totals.count).toBe(1);
+  });
+
+  it('overviewYears lista todos os anos do histórico, inclusive os vazios', () => {
+    expect(overviewYears(activities)).toEqual([2024, 2025, 2026]);
+    expect(overviewYears([])).toEqual([]);
   });
 });
 
@@ -135,18 +146,20 @@ describe('buildOverview — mês (barras semanais)', () => {
 describe('buildOverview — esforço ponderado (linha do gráfico de duração)', () => {
   const now = new Date(2026, 4, 20, 12);
 
-  it('soma os segundos moderados equivalentes por bucket', () => {
+  it('soma os segundos de esforço por bucket', () => {
     const activities = [
-      // 60 min de corrida sem FC → peso do tipo (1.95).
+      // 60 min de corrida sem FC → peso do tipo (0.975).
       act({ startAt: '2026-05-20T08:00:00', activityId: 37, durationS: 3600 }),
-      // 30 min de yoga sem FC → peso 0.75 (override Ashtanga).
+      // 30 min de yoga sem FC → peso 0.375 (override Ashtanga).
       act({ startAt: '2026-05-20T10:00:00', activityId: 57, durationS: 1800 }),
     ];
     const o = buildOverview(activities, 'semana', 'duration', now);
     const hoje = o.buckets[o.buckets.length - 1];
-    expect(hoje.effectiveS).toBeCloseTo(3600 * 1.95 + 1800 * 0.75, 5);
+    expect(hoje.effectiveS).toBeCloseTo(3600 * 0.975 + 1800 * 0.375, 5);
     // A barra continua sendo a duração bruta — é a linha que é ponderada.
     expect(hoje.total).toBe(5400);
+    // ...e a linha nunca sobe acima dela, que é o ponto da escala.
+    expect(hoje.effectiveS!).toBeLessThanOrEqual(hoje.total);
   });
 
   it('independe da métrica exibida', () => {
@@ -164,7 +177,7 @@ describe('buildOverview — esforço ponderado (linha do gráfico de duração)'
     ];
     const o = buildOverview(activities, 'semana', 'duration', now, new Set(['Corrida']));
     const hoje = o.buckets[o.buckets.length - 1];
-    expect(hoje.effectiveS).toBeCloseTo(1800 * 0.75, 5);
+    expect(hoje.effectiveS).toBeCloseTo(1800 * 0.375, 5);
     // ...mas a legenda continua listando o tipo escondido, para poder reexibir.
     expect(o.legend.some((l) => l.label === 'Corrida')).toBe(true);
   });
@@ -188,14 +201,16 @@ describe('buildOverview — reta do esforço (período Semana)', () => {
   it('effortAvgS = média sobre todos os buckets, com dias de descanso valendo 0', () => {
     const activities = [act({ startAt: '2026-05-20T08:00:00', activityId: 37, durationS: 3600 })];
     const o = buildOverview(activities, 'semana', 'duration', now);
-    expect(o.effortTotalS).toBeCloseTo(3600 * 1.95, 5);
-    expect(o.effortAvgS).toBeCloseTo((3600 * 1.95) / 7, 5);
+    expect(o.effortTotalS).toBeCloseTo(3600 * 0.975, 5);
+    expect(o.effortAvgS).toBeCloseTo((3600 * 0.975) / 7, 5);
   });
 
   it('a reta encosta na meta quando a semana bate o alvo', () => {
     const alvoS = DEFAULT_WEEKLY_TARGET_MIN * 60;
     const activities = [
-      act({ startAt: '2026-05-20T08:00:00', activityId: 37, durationS: alvoS, hrZones: { z3: alvoS } }),
+      // A escala é ancorada no vigoroso: um treino inteiro em z4 vale exatamente a sua
+      // duração. Rodar a meta toda em z4 encosta na linha da meta, sem sobrar nem faltar.
+      act({ startAt: '2026-05-20T08:00:00', activityId: 37, durationS: alvoS, hrZones: { z4: alvoS } }),
     ];
     const o = buildOverview(activities, 'semana', 'duration', now);
     expect(o.effortAvgS).toBeCloseTo(o.targetS, 5);
@@ -207,7 +222,7 @@ describe('buildOverview — reta do esforço (período Semana)', () => {
       act({ startAt: '2025-05-10T08:00:00', durationS: 3600 }), // comparação
     ];
     const o = buildOverview(activities, 'meses12', 'duration', now);
-    expect(o.effortAvgS).toBeCloseTo((3600 * 1.95) / 12, 5);
+    expect(o.effortAvgS).toBeCloseTo((3600 * 0.975) / 12, 5);
   });
 });
 
@@ -286,11 +301,11 @@ describe('buildOverview — ano civil (navegável)', () => {
   });
 
   it('effortAvgS divide pelos meses decorridos, não por 12', () => {
-    // 60 min de corrida (peso 1.95) em março do ano corrente.
+    // 60 min de corrida (peso 0.975) em março do ano corrente.
     const activities = [act({ activityId: 37, startAt: '2026-03-10T08:00:00', durationS: 3600 })];
     const ov = buildOverview(activities, 'ano', 'duration', now);
     expect(ov.buckets).toHaveLength(5);
-    expect(ov.effortAvgS).toBeCloseTo((3600 * 1.95) / 5, 5);
+    expect(ov.effortAvgS).toBeCloseTo((3600 * 0.975) / 5, 5);
   });
 });
 
