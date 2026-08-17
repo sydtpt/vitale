@@ -37,3 +37,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-testes-do-web-com-vitest.md`
   summary: Os testes unitários são construídos através da config completa do app, arrastando CSS do Leaflet, `src/styles.scss` e `public/` para o bundle de teste.
   evidence: `buildTarget: vitale-web:build:development` emite um `styles.css` de 15,2 kB para specs que não tocam o DOM. Além do tempo desperdiçado, acopla a suíte unitária ao pipeline de assets — um stylesheet global quebrado passa a derrubar os testes.
+
+- source_spec: none
+  summary: **Fase 3 do piloto BMAD — ciclo completo sobre o Garmin Venu 4**: aba Fitness do mobile lendo do Supabase em vez do HealthKit, mais a cobertura dos dados que o Garmin não escreve no Apple Health (VFC, VO₂max, SpO₂, rota GPS, stream de FC).
+  evidence: Adiado em 2026-08-17 por decisão do usuário, ao fim da Fase 2. É a única fase que exercita as 4 fases do BMAD de ponta a ponta — `bmad-deep-recon` → `bmad-product-brief`/`bmad-prd` → `bmad-architecture` + TEA → `bmad-create-epics-and-stories` → `bmad-sprint-planning` → `bmad-build` story a story → `bmad-retrospective`. Ponto de partida técnico já mapeado: `mobile/src/store/fitness.store.ts` e `mobile/src/app/fitness/*` são os únicos lugares que ainda leem HealthKit; `mobile/src/store/activities.store.ts` já é o padrão de leitura do Supabase. Começar em sessão nova — só a fase de Análise enche um contexto. Plano completo em `~/.claude/plans/quero-comecar-a-estudar-fizzy-whisper.md`.
+
+- source_spec: none
+  summary: **Fase 4 do piloto BMAD** — criar, com o BMB, uma skill própria que codifique o gate de migration manual do Supabase (gera SQL → mostra → espera aplicação humana → registra em `schema_migrations`).
+  evidence: Adiado em 2026-08-17. É a fase curta em que "estudar o framework" vira construir um: `SKILL.md`, arquivos `step-NN-*.md`, o resolver TOML de 4 camadas e os hooks do `bmad-customize`. A regra a codificar já está escrita e verificada em `AGENTS.md` (raiz).
+
+- source_spec: none
+  summary: **Fase 5 do piloto BMAD** — decidir a adoção oficial: reescrever a seção de processo do `CLAUDE.md`, definir o destino das 55 specs em `.claude/specs/`, rodar a retrospectiva do piloto e mergear `bmad-pilot` em `main`.
+  evidence: Adiado em 2026-08-17. Depende da Fase 3 para ter evidência suficiente — decidir adoção total com base só nas Fases 1 e 2 seria decidir com meio experimento. O plano do Winston em `_bmad-output/planning-artifacts/plano-mover-specs-para-docs.md` já ataca a parte das specs, com um motivo independente: `project_knowledge` do BMAD aponta para `docs/`, que não existe.
