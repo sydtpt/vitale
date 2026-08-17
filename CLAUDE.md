@@ -11,7 +11,7 @@ Monorepo npm workspaces com 3 pacotes:
 ```
 life-organizer/
 ├── packages/shared/      @vitale/shared  — tokens de design e modelos de domínio
-├── web/                  @vitale/web     — Angular 20 dashboard analítico
+├── web/                  @vitale/web     — Angular 21 dashboard analítico
 └── mobile/               @vitale/mobile  — React Native / Expo (captura rápida)
 ```
 
@@ -21,7 +21,7 @@ life-organizer/
 # Instalar dependências
 npm install
 
-# Web (Angular 20) — http://localhost:4200
+# Web (Angular 21) — http://localhost:4200
 npm run web:dev
 
 # Mobile (Expo)
@@ -29,10 +29,15 @@ npm run mobile:start       # QR code / Expo DevTools
 npm run mobile:ios         # Simulador iOS
 npm run mobile:android     # Emulador Android
 
-# Linting e testes
-npm run lint
-npm run test
+# Linting e testes — ver AGENTS.md: `npm run lint`/`npm run test` na raiz falham
+cd web && npx ng build                      # valida o web
+cd mobile && npx tsc --noEmit && npx jest   # valida o mobile
+npm run lint -w @vitale/shared              # valida o shared
 ```
+
+> **Regras para agentes de IA:** [AGENTS.md](AGENTS.md) (+ um por workspace em
+> `web/`, `mobile/`, `packages/shared/`). Mantido por `bmad-project-context` e
+> verificado contra o código — em caso de divergência, o AGENTS.md vale.
 
 ## Stack
 
@@ -43,7 +48,7 @@ npm run test
 - Tokens: `surfaces`, `ink`, `brand`, `accents`, `spacing`, `radii`, `fonts`, `MOD` (map de cores por módulo)
 
 ### Web (`web/`)
-- **Angular 20** com standalone components
+- **Angular 21** com standalone components
 - **Store:** signals + `signal()` / `computed()` (sem NgRx)
 - **Estilos:** SCSS, OnPush em todo lugar
 - **Roteamento:** lazy-loaded feature routes
@@ -60,11 +65,11 @@ npm run test
 | `/metas`       | Metas        |
 
 ### Mobile (`mobile/`)
-- **Expo 52** / React Native 0.76
+- **Expo 54** / React Native 0.81
 - **Roteamento:** Expo Router (file-based, pasta `mobile/src/app/`)
 - **Store:** Zustand 5
-- **Animações:** Reanimated 3
-- 5 tabs: Hoje, Semana, Fitness, Saúde, Mais
+- **Animações:** `Animated` do React Native — Reanimated **não** está instalado
+- 6 tabs: Hoje, Semana, Histórico, Saúde, Compras, Mais
 
 ## Design System
 
@@ -105,7 +110,7 @@ Paleta quente, orgânica:
 - Componentes funcionais com hooks
 - Estilos via `StyleSheet.create()` usando tokens do shared
 - Estado global via Zustand store em `mobile/src/store/`
-- Animações com `useAnimatedStyle` do Reanimated 3
+- Animações com `Animated` do React Native (não importar Reanimated — ver `mobile/AGENTS.md`)
 - Nomeação: `PascalCase` para componentes, `camelCase` para hooks
 
 ### Shared
