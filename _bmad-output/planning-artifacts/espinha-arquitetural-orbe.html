@@ -1,0 +1,718 @@
+<title>Espinha Arquitetural do Orbe</title>
+<style>
+  :root {
+    --ground: #FAF3E6;
+    --surface: #FFFFFF;
+    --surface-sunk: #F5EDDF;
+    --ink: #1F1B16;
+    --ink-2: #5C534A;
+    --ink-3: #8A7E70;
+    --line: #E4D8C4;
+    --line-soft: #EFE6D8;
+    --accent: #F25C2B;
+    --accent-soft: #FBE3D8;
+
+    --l-core: #F25C2B;
+    --l-adapter: #5B7CBD;
+    --l-db: #A0714A;
+    --l-know: #5E9758;
+
+    --serif: ui-serif, "New York", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    --step--1: clamp(.78rem, .76rem + .1vw, .84rem);
+    --step-0: clamp(.97rem, .94rem + .14vw, 1.05rem);
+    --step-1: clamp(1.15rem, 1.08rem + .3vw, 1.34rem);
+    --step-2: clamp(1.42rem, 1.3rem + .5vw, 1.78rem);
+    --step-3: clamp(1.9rem, 1.6rem + 1.3vw, 2.9rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #14110D;
+      --surface: #1D1913;
+      --surface-sunk: #241F18;
+      --ink: #F2EADD;
+      --ink-2: #B0A392;
+      --ink-3: #857868;
+      --line: #352D24;
+      --line-soft: #2A241D;
+      --accent: #FF7A4D;
+      --accent-soft: #3A2318;
+
+      --l-core: #FF7A4D;
+      --l-adapter: #7E9FDD;
+      --l-db: #C4936A;
+      --l-know: #7CB874;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #14110D;
+    --surface: #1D1913;
+    --surface-sunk: #241F18;
+    --ink: #F2EADD;
+    --ink-2: #B0A392;
+    --ink-3: #857868;
+    --line: #352D24;
+    --line-soft: #2A241D;
+    --accent: #FF7A4D;
+    --accent-soft: #3A2318;
+
+    --l-core: #FF7A4D;
+    --l-adapter: #7E9FDD;
+    --l-db: #C4936A;
+    --l-know: #7CB874;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 clamp(1.1rem, 4vw, 3rem) 6rem;
+  }
+
+  @media (min-width: 1000px) {
+    .shell { grid-template-columns: 15rem minmax(0, 1fr); gap: clamp(2rem, 5vw, 4.5rem); }
+    .rail { display: block; }
+  }
+
+  /* ---- identity strip ---- */
+
+  .masthead {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--line);
+    padding: clamp(3rem, 7vw, 5.5rem) 0 1.7rem;
+    margin-bottom: 2.6rem;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 1.1rem;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: var(--step-3);
+    line-height: 1.06;
+    letter-spacing: -.015em;
+    text-wrap: balance;
+    margin: 0 0 1.3rem;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    color: var(--ink-2);
+    max-width: 46ch;
+    margin: 0 0 2.2rem;
+    text-wrap: pretty;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 2.6rem;
+    row-gap: 1.1rem;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+  }
+  .meta div { display: flex; flex-direction: column; gap: .2rem; }
+  .meta dt { color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; }
+  .meta dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ---- rail ---- */
+
+  .rail { display: none; }
+  .rail-inner {
+    position: sticky;
+    top: 2rem;
+    padding-top: .3rem;
+    font-size: var(--step--1);
+  }
+  .rail h2 {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 400;
+    margin: 0 0 .9rem;
+  }
+  .rail ol { list-style: none; margin: 0 0 1.9rem; padding: 0; display: flex; flex-direction: column; gap: .48rem; }
+  .rail a { color: var(--ink-2); text-decoration: none; display: flex; gap: .55rem; align-items: baseline; }
+  .rail a:hover, .rail a:focus-visible { color: var(--accent); }
+  .rail .n { font-family: var(--mono); color: var(--ink-3); font-size: .74rem; }
+
+  /* ---- sections ---- */
+
+  main { grid-column: 1 / -1; min-width: 0; }
+  @media (min-width: 1000px) { main { grid-column: 2; } .rail { grid-column: 1; grid-row: 2; } }
+
+  section { margin-bottom: clamp(3.4rem, 7vw, 5rem); scroll-margin-top: 2rem; }
+
+  h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: var(--step-2);
+    line-height: 1.16;
+    letter-spacing: -.01em;
+    margin: 0 0 .5rem;
+    text-wrap: balance;
+  }
+
+  .sec-note { color: var(--ink-2); max-width: 66ch; margin: 0 0 2rem; text-wrap: pretty; }
+
+  p { max-width: 68ch; text-wrap: pretty; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .88em;
+    background: var(--surface-sunk);
+    padding: .12em .38em;
+    border-radius: 3px;
+  }
+
+  /* ---- evidence figures ---- */
+
+  .figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-bottom: 2.2rem;
+  }
+  .fig { background: var(--surface); padding: 1.15rem 1.2rem 1.25rem; }
+  .fig b {
+    display: block;
+    font-family: var(--mono);
+    font-size: 1.72rem;
+    font-weight: 500;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.02em;
+    margin-bottom: .45rem;
+  }
+  .fig span { color: var(--ink-2); font-size: var(--step--1); line-height: 1.42; display: block; }
+  .fig.hot b { color: var(--accent); }
+
+  /* ---- layer legend + chips ---- */
+
+  .legend { display: flex; flex-wrap: wrap; gap: .5rem .9rem; margin: 0 0 2rem; padding: 0; list-style: none; }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .42rem;
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .chip::before {
+    content: "";
+    width: .58rem; height: .58rem;
+    background: var(--c, var(--ink-3));
+    flex: none;
+  }
+  .chip.core { --c: var(--l-core); }
+  .chip.adapter { --c: var(--l-adapter); }
+  .chip.db { --c: var(--l-db); }
+  .chip.know { --c: var(--l-know); }
+
+  /* ---- diagram ---- */
+
+  .diagram-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); padding: 1.6rem 1.4rem; margin-bottom: 1rem; }
+  .diagram-wrap svg { display: block; min-width: 540px; width: 100%; height: auto; }
+  .dg-box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+  .dg-label { font-family: var(--mono); font-size: 12px; fill: var(--ink); }
+  .dg-sub { font-family: var(--mono); font-size: 10px; fill: var(--ink-3); }
+  .dg-edge { stroke: var(--ink-3); stroke-width: 1.4; fill: none; }
+  .dg-edge-soft { stroke: var(--ink-3); stroke-width: 1.4; fill: none; stroke-dasharray: 4 3; }
+  .dg-arrow { fill: var(--ink-3); }
+  .dg-tag { font-family: var(--mono); font-size: 9.5px; fill: var(--ink-3); }
+  .bar-core { fill: var(--l-core); }
+  .bar-adapter { fill: var(--l-adapter); }
+  .bar-db { fill: var(--l-db); }
+
+  .caption { color: var(--ink-3); font-size: var(--step--1); max-width: 62ch; margin: 0 0 2rem; }
+
+  /* ---- invariants ---- */
+
+  .ad { border-top: 1px solid var(--line); padding: 1.5rem 0 1.6rem; }
+  .ad:last-of-type { border-bottom: 1px solid var(--line); }
+
+  .ad-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .55rem .85rem; margin-bottom: .95rem; }
+  .ad-id {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: .02em;
+  }
+  .ad-title { font-size: var(--step-1); font-weight: 600; letter-spacing: -.01em; margin: 0; flex: 1 1 18ch; }
+  .adopted {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .1em;
+    color: var(--ink-3);
+    border: 1px solid var(--line);
+    padding: .12rem .42rem;
+  }
+
+  .ad-grid { display: grid; gap: .55rem 1.1rem; grid-template-columns: 6.2rem minmax(0, 1fr); }
+  .ad-grid dt {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-top: .28em;
+  }
+  .ad-grid dd { margin: 0; max-width: 62ch; }
+  .ad-grid dd.rule { font-weight: 500; }
+
+  /* ---- tables ---- */
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); margin-bottom: 1.5rem; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); background: var(--surface); }
+  th, td { text-align: left; padding: .68rem .9rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 400;
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ---- phases ---- */
+
+  .phase { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr); gap: 0 1.1rem; padding: 1.15rem 0; border-top: 1px solid var(--line-soft); }
+  .phase:first-of-type { border-top: 1px solid var(--line); }
+  .phase:last-of-type { border-bottom: 1px solid var(--line); }
+  .phase-n {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    padding-top: .18em;
+  }
+  .phase h3 { font-size: var(--step-0); font-weight: 600; margin: 0 0 .3rem; }
+  .phase p { color: var(--ink-2); margin: 0 0 .5rem; font-size: var(--step--1); max-width: 62ch; }
+  .phase .binds { display: flex; flex-wrap: wrap; gap: .45rem .8rem; }
+
+  /* ---- callout ---- */
+
+  .callout {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: 1.1rem 1.25rem;
+    margin: 0 0 1.8rem;
+  }
+  .callout p { margin: 0; max-width: 64ch; }
+  .callout strong { font-weight: 600; }
+
+  footer {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+    padding-top: 1.4rem;
+    color: var(--ink-3);
+    font-size: var(--step--1);
+    font-family: var(--mono);
+  }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Orbe · Espinha arquitetural · Altitude de iniciativa</p>
+    <h1>Consolidar antes de crescer</h1>
+    <p class="standfirst">Treze invariantes que impedem web, mobile e núcleo de divergirem — derivadas do que o código já demonstra, não do que seria elegante inventar.</p>
+    <dl class="meta">
+      <div><dt>Paradigma</dt><dd>Núcleo + adaptadores</dd></div>
+      <div><dt>Invariantes</dt><dd>13</dd></div>
+      <div><dt>Fases</dt><dd>8</dd></div>
+      <div><dt>Status</dt><dd>Rascunho</dd></div>
+      <div><dt>Verificado</dt><dd>2026-08-17</dd></div>
+    </dl>
+  </header>
+
+  <nav class="rail" aria-label="Índice">
+    <div class="rail-inner">
+      <h2>Seções</h2>
+      <ol>
+        <li><a href="#diagnostico"><span class="n">01</span> Diagnóstico</a></li>
+        <li><a href="#paradigma"><span class="n">02</span> Paradigma</a></li>
+        <li><a href="#invariantes"><span class="n">03</span> Invariantes</a></li>
+        <li><a href="#convencoes"><span class="n">04</span> Convenções</a></li>
+        <li><a href="#migracao"><span class="n">05</span> Migração</a></li>
+        <li><a href="#diferido"><span class="n">06</span> Diferido</a></li>
+      </ol>
+      <h2>Camadas</h2>
+      <ul class="legend" style="flex-direction: column; gap: .5rem;">
+        <li><span class="chip core">Núcleo</span></li>
+        <li><span class="chip adapter">Adaptador</span></li>
+        <li><span class="chip db">Banco</span></li>
+        <li><span class="chip know">Conhecimento</span></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+
+    <section id="diagnostico">
+      <h2>O que a varredura encontrou</h2>
+      <p class="sec-note">Nada aqui é hipótese. Cada número saiu de uma medição no repositório em 17 de agosto de 2026.</p>
+
+      <div class="figures">
+        <div class="fig hot"><b>21</b><span>basenames existindo nos dois apps</span></div>
+        <div class="fig hot"><b>85%</b><span>dos commits nesses módulos mudaram web <em>e</em> mobile juntos</span></div>
+        <div class="fig"><b>139</b><span>chamadas <code>.from()</code> escritas à mão</span></div>
+        <div class="fig"><b>14</b><span>tabelas consultadas pelos dois apps</span></div>
+        <div class="fig hot"><b>0</b><span>registros de decisão no repositório</span></div>
+        <div class="fig"><b>3</b><span>arquivos de teste que nunca rodaram</span></div>
+      </div>
+
+      <p>A duplicação não é acidente de nomenclatura. Em <code>todo-logic</code>, são 272 linhas contra 274, com seis divergentes — uma cópia que deriva por acúmulo. E o próprio código confessa: <code>mobile/src/lib/planned-match.ts</code> abre com um aviso pedindo que as duas versões sejam mantidas em sincronia à mão.</p>
+
+      <div class="callout">
+        <p><strong>As duas cópias divergem sempre nas bordas.</strong> Em <code>moving-time</code>, o cálculo é idêntico e a diferença é um adaptador de entrada do HealthKit. Em <code>planned-match</code>, o cálculo é idêntico e a diferença é a montagem da grade da semana. O núcleo nunca diverge — divergem a entrada e a apresentação. É essa observação que define a fronteira.</p>
+      </div>
+
+      <p>Fora do runtime, o conhecimento mais caro do projeto — zonas de FC como percentual da FC máxima, o dedupe multi-fonte do HealthKit, o timeout de oito segundos ao ler rotas — vive em 24 arquivos de memória fora do repositório. Esse é o acoplamento real a uma ferramenta, muito mais que o nome de qualquer pasta.</p>
+    </section>
+
+    <section id="paradigma">
+      <h2>Núcleo compartilhado com adaptadores de plataforma</h2>
+      <p class="sec-note"><code>packages/shared</code> é o núcleo: domínio, cálculo, vocabulário e contrato de dados, sem nenhuma API de plataforma. Os apps são adaptadores. O banco é persistência e fronteira externa.</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 640 300" role="img" aria-label="Direção de dependência: web e mobile dependem do núcleo; o núcleo recebe o client Supabase por parâmetro; edge functions fazem a ponte com serviços externos.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow" />
+            </marker>
+          </defs>
+
+          <rect x="24" y="24" width="180" height="54" class="dg-box" />
+          <rect x="24" y="24" width="4" height="54" class="bar-adapter" />
+          <text x="42" y="46" class="dg-label">web/src</text>
+          <text x="42" y="63" class="dg-sub">Angular · signals</text>
+
+          <rect x="436" y="24" width="180" height="54" class="dg-box" />
+          <rect x="436" y="24" width="4" height="54" class="bar-adapter" />
+          <text x="454" y="46" class="dg-label">mobile/src</text>
+          <text x="454" y="63" class="dg-sub">Expo · Zustand</text>
+
+          <rect x="196" y="120" width="248" height="58" class="dg-box" />
+          <rect x="196" y="120" width="4" height="58" class="bar-core" />
+          <text x="214" y="143" class="dg-label">packages/shared</text>
+          <text x="214" y="160" class="dg-sub">domínio · cálculo · vocabulário · data</text>
+
+          <rect x="196" y="226" width="248" height="52" class="dg-box" />
+          <rect x="196" y="226" width="4" height="52" class="bar-db" />
+          <text x="214" y="248" class="dg-label">Supabase Postgres</text>
+          <text x="214" y="265" class="dg-sub">RLS · 41 migrations</text>
+
+          <rect x="24" y="226" width="140" height="52" class="dg-box" />
+          <rect x="24" y="226" width="4" height="52" class="bar-db" />
+          <text x="42" y="248" class="dg-label">functions</text>
+          <text x="42" y="265" class="dg-sub">Deno · OAuth</text>
+
+          <rect x="476" y="226" width="140" height="52" class="dg-box" />
+          <text x="494" y="248" class="dg-label">externos</text>
+          <text x="494" y="265" class="dg-sub">Strava · HealthKit</text>
+
+          <path d="M 114 82 L 114 101 L 250 101 L 250 116" class="dg-edge" marker-end="url(#ar)" />
+          <path d="M 526 82 L 526 101 L 390 101 L 390 116" class="dg-edge" marker-end="url(#ar)" />
+          <path d="M 320 182 L 320 222" class="dg-edge-soft" marker-end="url(#ar)" />
+          <text x="330" y="206" class="dg-tag">client injetado</text>
+          <path d="M 164 252 L 192 252" class="dg-edge" marker-end="url(#ar)" />
+          <path d="M 476 252 L 448 252" class="dg-edge" marker-end="url(#ar)" />
+        </svg>
+      </div>
+      <p class="caption">Proibido: o núcleo importar dos apps; os apps importarem um do outro; o núcleo construir um client Supabase.</p>
+    </section>
+
+    <section id="invariantes">
+      <h2>As treze invariantes</h2>
+      <p class="sec-note">Cada uma existe porque duas unidades construídas de forma independente poderiam escolher de forma incompatível — e, na maioria dos casos aqui, já escolheram.</p>
+
+      <ul class="legend">
+        <li><span class="chip core">Núcleo</span></li>
+        <li><span class="chip adapter">Adaptador</span></li>
+        <li><span class="chip db">Banco</span></li>
+        <li><span class="chip know">Conhecimento</span></li>
+      </ul>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-1</span><h3 class="ad-title">Fronteira mecânica entre núcleo e adaptador</h3><span class="chip core">Núcleo</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Duplicação por deriva — cinco pares de lógica idêntica divergindo hoje.</dd>
+          <dt>Regra</dt><dd class="rule">Módulo que não importa API de plataforma pertence a <code>packages/shared</code>. O critério é o conjunto de imports, nunca um julgamento sobre o que "é domínio".</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-2</span><h3 class="ad-title">Arquivo que mistura é partido</h3><span class="chip core">Núcleo</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Derrotar a AD-1 por co-locação: um store importa <code>signal()</code>, fica no app e leva a query pura junto.</dd>
+          <dt>Regra</dt><dd class="rule">Arquivo misto é dividido antes de aplicar a AD-1; a metade pura sobe. A AD-1 vale para o módulo resultante, não para o arquivo original.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-3</span><h3 class="ad-title">Dono único do vocabulário de domínio</h3><span class="chip core">Núcleo</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Dois donos da mesma entidade — <code>GPS_ACTIVITY_IDS</code> definido em web e mobile enquanto o núcleo detém só os rótulos.</dd>
+          <dt>Regra</dt><dd class="rule">Cada conceito tem exatamente um módulo dono no núcleo. Antes de criar um módulo, o conceito é procurado: um segundo nome para a mesma coisa viola tanto quanto uma cópia.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-4</span><h3 class="ad-title">Contrato de schema no núcleo, client injetado</h3><span class="chip db">Banco</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Schema escrito à mão em dois apps, com filtros que já divergem em <code>todo_templates</code>.</dd>
+          <dt>Regra</dt><dd class="rule">Query vive em <code>shared/src/data/</code> e recebe o client por parâmetro. Cada tabela tem um módulo dono, que devolve modelo de domínio — nunca linha crua.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-5</span><h3 class="ad-title">Banco como exceção nomeada</h3><span class="chip db">Banco</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Empurrar lógica ao banco por preferência, pagando atrito de migration manual sem ganho medido.</dd>
+          <dt>Regra</dt><dd class="rule">Só quando o ganho for reduzir payload ou colapsar round-trip; o precedente é <code>activity_routes.route_overview</code>. View exige <code>security_invoker = true</code>. RPC não se aplica onde o cliente precise escolher colunas.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-6</span><h3 class="ad-title">Edge function só para integração com segredo</h3><span class="chip db">Banco</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Regra de negócio migrando para um runtime sem teste local nem CI.</dd>
+          <dt>Regra</dt><dd class="rule">Edge function existe para integração externa que exija segredo server-side. Lógica de negócio fica no núcleo.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-7</span><h3 class="ad-title">Guarda mecânica no teste</h3><span class="chip core">Núcleo</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>AD-1 a AD-4 virarem prosa não verificada — não há CI nem git hooks neste repositório.</dd>
+          <dt>Regra</dt><dd class="rule">O teste falha quando um basename duplica entre os apps fora da allowlist de stores, ou quando um módulo sem import de plataforma existe fora do núcleo. Só vale depois que o núcleo tiver runner real.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-8</span><h3 class="ad-title">Instância Supabase única</h3><span class="adopted">Adotado</span><span class="chip db">Banco</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Supor um isolamento de ambiente que não existe.</dd>
+          <dt>Regra</dt><dd class="rule">Uma instância serve todos os ambientes; todo trabalho de desenvolvimento escreve em dado real. Migration só com confirmação explícita; DDL destrutivo nunca sem aval.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-9</span><h3 class="ad-title">Build do web não injeta segredo</h3><span class="chip adapter">Adaptador</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Etapa de substituição de placeholder que já existe morta no repositório e engana quem a encontra.</dd>
+          <dt>Regra</dt><dd class="rule">A anon key é pública e protegida por RLS; fica versionada em um único environment. O build de produção não substitui arquivo nem injeta segredo.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-10</span><h3 class="ad-title">Conhecimento estratificado por volatilidade</h3><span class="chip know">Conhecimento</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Documentação apodrecendo por misturar o durável com o descartável.</dd>
+          <dt>Regra</dt><dd class="rule">O derivável do código não se escreve. Regra operacional verificada vai no bloco do <code>AGENTS.md</code>. Durável vai em <code>docs/</code>. Efêmero vai em <code>_bmad-output/</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-11</span><h3 class="ad-title">ADR é imutável</h3><span class="chip know">Conhecimento</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Registro de decisão virando documento vivo, que envelhece como todo documento vivo.</dd>
+          <dt>Regra</dt><dd class="rule">ADR é numerada e append-only. Mudar de ideia não edita a ADR: escreve outra que a supersede, citando a anterior.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-12</span><h3 class="ad-title">Estado é do app; query, cálculo e vocabulário não são</h3><span class="chip adapter">Adaptador</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>A máquina de estado servir de esconderijo para lógica compartilhável.</dd>
+          <dt>Regra</dt><dd class="rule">Cada app é dono da sua máquina de estado — signals no web, Zustand no mobile. Não é dono de query, cálculo nem vocabulário.</dd>
+        </dl>
+      </article>
+
+      <article class="ad">
+        <div class="ad-head"><span class="ad-id">AD-13</span><h3 class="ad-title">Target de teste não pode ser stub</h3><span class="chip core">Núcleo</span></div>
+        <dl class="ad-grid">
+          <dt>Impede</dt><dd>Suíte verde que não executa nada — o núcleo tem três arquivos de teste e um script <code>echo</code>, e eles nunca rodaram.</dd>
+          <dt>Regra</dt><dd class="rule">Workspace cujo <code>npm test</code> não executa um runner de verdade não declara target <code>test</code>. Falhar é aceitável; mentir que passou, não.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <section id="convencoes">
+      <h2>Convenções e stack</h2>
+      <p class="sec-note">Defaults que amarram onde construtores independentes derivariam. A stack é semente: verdadeira ao fixar, e do código depois disso.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Assunto</th><th>Convenção</th></tr></thead>
+          <tbody>
+            <tr><td>Nomeação de entidade</td><td>Um nome por conceito em todo o sistema, do Postgres ao componente.</td></tr>
+            <tr><td>Data e hora</td><td>Data local <code>YYYY-MM-DD</code> da timezone do dispositivo, nunca UTC. Instante em ISO 8601.</td></tr>
+            <tr><td>Leitura de tabela grande</td><td>Colunas explícitas. <code>select('*')</code> proibido em tabela de payload grande.</td></tr>
+            <tr><td>Mutação de estado</td><td>Só o adaptador muta. Função do núcleo é pura: recebe e devolve, não altera a entrada.</td></tr>
+            <tr><td>Segredos</td><td>Anon key é pública e versionada. Segredo real só em edge function.</td></tr>
+            <tr><td>Artefato gerado</td><td><code>mobile/ios/</code> e <code>patches/</code> mudam pela ferramenta que os gera, nunca à mão.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tecnologia</th><th>Versão</th><th>Tecnologia</th><th>Versão</th></tr></thead>
+          <tbody>
+            <tr><td>TypeScript</td><td class="num">5.9</td><td>Expo</td><td class="num">54</td></tr>
+            <tr><td>Angular</td><td class="num">21</td><td>React Native</td><td class="num">0.81.5</td></tr>
+            <tr><td>Vitest</td><td class="num">4</td><td>React</td><td class="num">19.1.0</td></tr>
+            <tr><td>supabase-js</td><td class="num">2.106</td><td>Zustand</td><td class="num">5</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="caption">O mobile está preso à SDK do Expo: subir React Native exige subir a SDK inteira, e <code>mobile/ios/</code> é versionado, o que torna o salto um trabalho de prebuild, não de bump.</p>
+    </section>
+
+    <section id="migracao">
+      <h2>Oito fases, nesta ordem</h2>
+      <p class="sec-note">A ordem carrega informação: cada fase depende de invariantes que a anterior torna verdadeiras. A guarda vem por último porque falharia de imediato se viesse antes.</p>
+
+      <div class="phase">
+        <div class="phase-n">00</div>
+        <div>
+          <h3>Destravar a verificação</h3>
+          <p>Runner de teste real no núcleo. Rodar os três testes que nunca rodaram — assumir que passam é erro.</p>
+          <div class="binds"><span class="chip core">AD-13</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n">01</div>
+        <div>
+          <h3>Limpar as mentiras do repositório</h3>
+          <p>Apagar o <code>environment.prod.ts</code> órfão e a permissão obsoleta que sobrou nas configurações.</p>
+          <div class="binds"><span class="chip adapter">AD-9</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n">02</div>
+        <div>
+          <h3>Arquitetura de conhecimento</h3>
+          <p>As 55 specs vão para <code>docs/specs/</code>; plan e tasks vão para os artefatos efêmeros; um tombstone resolve as 28 referências nas migrations aplicadas, que não são reescritas.</p>
+          <div class="binds"><span class="chip know">AD-10</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n">03</div>
+        <div>
+          <h3>ADRs: trazer o conhecimento caro para o git</h3>
+          <p>As 24 memórias mais uma varredura de decisões que hoje só existem em comentário.</p>
+          <div class="binds"><span class="chip know">AD-11</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n">04</div>
+        <div>
+          <h3>Consolidar o vocabulário</h3>
+          <p>Antes da lógica, o vocabulário — a lógica depende dele. As constantes de tipo de atividade sobem para quem já é dono dos rótulos.</p>
+          <div class="binds"><span class="chip core">AD-3</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n">05</div>
+        <div>
+          <h3>Consolidar a lógica duplicada</h3>
+          <p>Os cinco pares, um commit cada. <code>moving-time</code> é o modelo: o mobile já tinha separado o núcleo dos adaptadores — promover é reconhecer o que estava certo.</p>
+          <div class="binds"><span class="chip core">AD-1</span><span class="chip core">AD-2</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n">06</div>
+        <div>
+          <h3>Contrato de schema</h3>
+          <p>A fase maior: 139 chamadas, 19 tabelas, um módulo dono por tabela. Resolver antes o mistério de <code>profiles</code> contra <code>user_profiles</code>.</p>
+          <div class="binds"><span class="chip db">AD-4</span><span class="chip adapter">AD-12</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n">07</div>
+        <div>
+          <h3>Fechar a guarda</h3>
+          <p>Só agora. E o aceite exige vê-la falhar de propósito: guarda que nunca foi vista falhando não é guarda.</p>
+          <div class="binds"><span class="chip core">AD-7</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="diferido">
+      <h2>O que este spine não decide</h2>
+      <p class="sec-note">Diferimento com condição de revisita escrita não é omissão. Silêncio é.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th>Condição de revisita</th></tr></thead>
+          <tbody>
+            <tr><td>Alvo de hospedagem do web</td><td>Ao publicar. A AD-9 já elimina a necessidade de injetar segredo no build.</td></tr>
+            <tr><td>Pipeline de CI</td><td>Quando a guarda passar a ser burlada por esquecimento de rodar os testes.</td></tr>
+            <tr><td>Segunda instância Supabase</td><td>Quando houver um segundo usuário real, ou quando uma perda de dado em desenvolvimento custar mais que manter dois schemas em sincronia.</td></tr>
+            <tr><td>Comentários nas 28 migrations aplicadas</td><td>Nunca por si só — migration aplicada não se reescreve.</td></tr>
+            <tr><td>Tabela <code>profiles</code> sem migration</td><td>Antes de qualquer trabalho em perfil de usuário.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    Destilado de 36 entradas de memlog · lint determinístico sem achados · revisão adversarial fechou 3 buracos
+  </footer>
+
+</div>
