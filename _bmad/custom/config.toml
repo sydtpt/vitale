@@ -1,0 +1,16 @@
+# Team / enterprise overrides for _bmad/config.toml.
+# Committed to the repo — applies to every developer on the project.
+# Tables deep-merge over base config; keyed entries merge by key.
+# Example: override an agent descriptor, or add a new agent.
+#
+# [agents.bmad-agent-pm]
+# description = "Prefers short, bulleted PRDs over narrative drafts."
+
+# Monorepo: a raiz é reservada para os workspaces (web/, mobile/, packages/).
+# O TEA grava por padrão em {project-root}/skills/test-artifacts — movido para
+# dentro de _bmad-custom/ para não criar uma pasta `skills/` solta na raiz.
+[modules.tea]
+test_artifacts = "{project-root}/_bmad-custom/test-artifacts"
+test_design_output = "_bmad-custom/test-artifacts/test-design"
+test_review_output = "_bmad-custom/test-artifacts/test-reviews"
+trace_output = "_bmad-custom/test-artifacts/traceability"
