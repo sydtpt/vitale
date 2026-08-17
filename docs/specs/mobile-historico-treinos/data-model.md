@@ -1,6 +1,6 @@
 # Data Model: Histórico de Treinos (mobile)
 
-> Esta feature **reusa** o schema do sync e o delta de schema do web ([data-model web](../historico-treinos/data-model.md)). As colunas `locally_edited`, `edited_at` e `hidden` já devem existir (criadas na migration do web — T001 de [tasks web](../historico-treinos/tasks.md)).  
+> Esta feature **reusa** o schema do sync e o delta de schema do web ([data-model web](../historico-treinos/data-model.md)). As colunas `locally_edited`, `edited_at` e `hidden` já devem existir (criadas na migration do web — T001 de [tasks web](../../../_bmad-output/implementation-artifacts/historico-treinos/tasks.md)).  
 > Aqui estão os **tipos e interfaces mobile** e as derivações de leitura.
 
 ---

@@ -1,6 +1,6 @@
 # Plan: Visão detalhada por país
 
-> Plano técnico para [spec.md](./spec.md). Modelo de dados em [data-model.md](./data-model.md); tarefas em [tasks.md](./tasks.md).
+> Plano técnico para [spec.md](./spec.md). Modelo de dados em [data-model.md](./data-model.md); tarefas em [tasks.md](../../../_bmad-output/implementation-artifacts/mapa-por-pais/tasks.md).
 
 ## 1. Contexto técnico
 

@@ -74,7 +74,7 @@ async function pushActivities(
   for (let i = 0; i < rows.length; i += BATCH) {
     const chunk = rows.slice(i, i + BATCH);
     // RPC upsert: atualiza a linha, mas PRESERVA os campos editados manualmente
-    // (`name_edited`/`duration_edited`). Ver .claude/specs/historico-treinos/data-model.md §2.
+    // (`name_edited`/`duration_edited`). Ver docs/specs/historico-treinos/data-model.md §2.
     const res = await supabase.rpc('sync_upsert_activities', { rows: chunk });
     if (res.error) {
       if (!error) error = res.error.message;

@@ -1,6 +1,6 @@
 /**
  * Derivações puras de hábitos contadores (sem persistência).
- * Espelha a regra de [data-model §4](.claude/specs/habitos/data-model.md).
+ * Espelha a regra de [data-model §4](docs/specs/habitos/data-model.md).
  * Mantido fora de `@vitale/shared` (que é só modelos/tokens, sem lógica);
  * a web deve espelhar estas funções na F3.
  */

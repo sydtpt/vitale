@@ -63,7 +63,7 @@ export type HabitDirection = 'at_least' | 'at_most';
 /**
  * Hábito contador (quantitativo) — distinto do `Habit` binário acima.
  * O valor diário acumula em `HabitLog`. Só campos, sem lógica.
- * Ver .claude/specs/habitos/.
+ * Ver docs/specs/habitos/.
  */
 export interface CounterHabit {
   id: string;
@@ -207,7 +207,7 @@ export interface CasaTarefa {
  * Metas anuais contabilizadas automaticamente a partir de dados que já existem
  * no app (atividades, tarefas concluídas, hábitos) ou informados à mão.
  * Só campos, sem lógica — a avaliação de progresso vive em `goals/evaluate`.
- * Ver .claude/specs/web-metas.md.
+ * Ver docs/specs/web-metas.md.
  */
 
 /**
@@ -427,7 +427,7 @@ export interface LinkedAccount {
 /**
  * Tarefas (to-do com agendamento) — módulo separado de Habitos.
  * Uma `TodoTemplate` (regra/série) gera `TodoOccurrence` (itens na lista).
- * Só campos, sem lógica. Ver .claude/specs/tarefas/.
+ * Só campos, sem lógica. Ver docs/specs/tarefas/.
  */
 
 /** Categoria/ponte de integração da tarefa com outros módulos. */
@@ -509,7 +509,7 @@ export interface TodoOccurrence {
  * Registros — marcação diária de atividades avulsas. Módulo separado de Habitos
  * (contador com meta) e Tarefas (to-do com agendamento). Sem recorrência nem meta:
  * o usuário só marca "feito hoje" (1×/dia) para registrar e analisar depois.
- * Reusa `TodoModule` para a categoria. Só campos, sem lógica. Ver .claude/specs/registros/.
+ * Reusa `TodoModule` para a categoria. Só campos, sem lógica. Ver docs/specs/registros/.
  */
 
 /** Definição de um registro avulso (ex.: Pizza, Dentista). Mapeia `registros`. */
@@ -545,7 +545,7 @@ export interface DailyRating {
 
 /**
  * Perfil visível do usuário. Mapeia a tabela `user_profiles`.
- * Ver .claude/specs/settings/.
+ * Ver docs/specs/settings/.
  */
 export interface UserProfile {
   id: string;
@@ -558,7 +558,7 @@ export type AppTheme = 'system' | 'light' | 'dark';
 
 /**
  * Preferências de app do usuário (tema, notificações, metas). 1 linha por usuário.
- * Mapeia a tabela `user_preferences`. Ver .claude/specs/settings/.
+ * Mapeia a tabela `user_preferences`. Ver docs/specs/settings/.
  */
 export interface UserPreferences {
   userId: string;

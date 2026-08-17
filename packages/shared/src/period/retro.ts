@@ -6,7 +6,7 @@
  *
  * Reusa as primitivas de `../week/recap` (range-based), os recaps de saúde,
  * `detectTrend` e os utilitários de cruzamento (`triggerImpact`, `correlate`,
- * `sportHealthCorrelations`). Ver .claude/specs/retrospectiva/.
+ * `sportHealthCorrelations`). Ver docs/specs/retrospectiva/.
  */
 import type { Activity } from '../models/index';
 import {

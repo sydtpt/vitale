@@ -1,6 +1,6 @@
 /**
  * Avaliação de progresso de Metas — derivação 100% pura (sem Angular/React),
- * compartilhada por web e mobile. Datas em horário local. Ver .claude/specs/web-metas.md.
+ * compartilhada por web e mobile. Datas em horário local. Ver docs/specs/web-metas.md.
  *
  * Uma Meta pertence a um ano e mede progresso conforme a `family`:
  *  - cadence    → nº de sub-períodos (semana|mês) que cumpriram "≥N por período";

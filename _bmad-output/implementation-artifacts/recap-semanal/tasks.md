@@ -6,7 +6,7 @@
 - [x] **T3 — Card** `components/weekly-recap-card.component.{ts,html,scss}`
   - tiles de treino + médias de saúde (tom por polaridade) + gatilhos condicionais + estado vazio.
 - [x] **T4 — Wiring** `semana-page` importa e renderiza o card no topo (antes das stats mock).
-- [x] **T5 — Spec** `.claude/specs/recap-semanal/`.
+- [x] **T5 — Spec** `docs/specs/recap-semanal/`.
 - [x] **T6 — Validação** `ng build` ✅ (AOT compila limpo). Os `.spec.ts` do web rodam desde 2026-08-17 com `cd web && npx ng test --watch=false` (Vitest) ✅.
 
 ## Follow-up

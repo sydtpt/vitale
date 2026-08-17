@@ -9,7 +9,7 @@ Plataforma pessoal para gerenciar a rotina — treinos, saúde, alimentação, c
 finanças. Monorepo npm workspaces: dashboard analítico Angular em `web/`, app de captura
 rápida Expo/React Native em `mobile/`, modelos de domínio e design tokens em
 `packages/shared/` (`@vitale/shared`), backend Supabase (Postgres + RLS + edge functions
-Deno) em `supabase/`. Specs de produto vivem em `.claude/specs/`; artefatos de planejamento
+Deno) em `supabase/`. Specs de produto vivem em `docs/specs/`; artefatos de planejamento
 do BMAD, em `_bmad-output/`.
 
 ## Policy
@@ -28,7 +28,7 @@ do BMAD, em `_bmad-output/`.
 
 - Regras do dashboard: `web/AGENTS.md` · do app: `mobile/AGENTS.md` · do pacote
   compartilhado: `packages/shared/AGENTS.md`
-- Spec de uma feature: `.claude/specs/<feature>/{spec,plan,data-model,tasks}.md`
+- Spec de uma feature: `docs/specs/<feature>/{spec,plan,data-model,tasks}.md`
 - Banco: `supabase/migrations/` · edge functions: `supabase/functions/`
 
 ## Running and verifying

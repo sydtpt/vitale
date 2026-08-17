@@ -1,7 +1,7 @@
 /**
  * Derivações puras de Registros (sem persistência).
  * Marca binária por dia: um Set de datas 'YYYY-MM-DD' dos dias marcados.
- * Espelha a regra de [data-model §3](.claude/specs/registros/data-model.md).
+ * Espelha a regra de [data-model §3](docs/specs/registros/data-model.md).
  */
 import type { RegistroLog } from '@vitale/shared';
 

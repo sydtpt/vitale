@@ -1,6 +1,6 @@
 /**
  * Derivações puras de tarefas (sem persistência).
- * Espelha a regra de [data-model](.claude/specs/tarefas/data-model.md).
+ * Espelha a regra de [data-model](docs/specs/tarefas/data-model.md).
  * Mantido fora de `@vitale/shared` (que é só modelos/tokens, sem lógica);
  * a web espelha estas funções em `web/.../tarefas/data/todo-logic.ts`.
  */

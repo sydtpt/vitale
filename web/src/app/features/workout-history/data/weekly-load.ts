@@ -1,7 +1,7 @@
 /**
  * Agregação semanal do tempo em zonas de FC (carga e intensidade).
  * Derivação pura, sem Angular/DOM — testável isoladamente. Ver
- * .claude/specs/carga-semanal/.
+ * docs/specs/carga-semanal/.
  *
  * Soma `activity.hrZones[z]` (segundos) por semana (seg–dom, hora local) numa
  * janela móvel de N semanas, e deriva polarização (leve vs forte) e um alerta

@@ -1,7 +1,7 @@
 /**
  * Derivações puras de tarefas (sem persistência).
  * Espelho de `mobile/src/lib/todo-logic.ts` — manter as duas versões em sincronia.
- * Regra em [data-model](../../../../../../.claude/specs/tarefas/data-model.md).
+ * Regra em [data-model](../../../../../../docs/specs/tarefas/data-model.md).
  */
 import type { TodoRecurrence, TodoTemplate, TodoOccurrence } from '@vitale/shared';
 

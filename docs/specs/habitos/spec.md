@@ -105,7 +105,7 @@ Como usuário, quero editar a configuração de um hábito ou arquivá-lo sem pe
 ## 8. Fora de escopo
 
 - Hábitos **binários** (check sim/não) — continuam no `Habit` atual; podem ser unificados no futuro (backlog).
-- Lembretes / push notifications ("beba água") — feature separada ([backend.md](./backend.md) §Push).
+- Lembretes / push notifications ("beba água") — feature separada ([backend.md](../backend.md) §Push).
 - Múltiplos presets de quick-add por hábito (ex.: +250 / +500 juntos) — um `step` único no MVP (backlog).
 - Metas semanais/mensais (só meta **diária** no MVP).
 - Integração com HealthKit (água do Apple Health) — captura é manual no MVP.

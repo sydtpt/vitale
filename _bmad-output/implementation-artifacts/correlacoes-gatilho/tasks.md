@@ -6,7 +6,7 @@
 - [x] **T3 — Card** `components/trigger-impact-card.component.{ts,html,scss}`
   - injeta Health/Habits/Registros; chips de gatilhos; linhas por métrica com tom good/bad/neutral; estados insuficiente/vazio; rodapé de "associação".
 - [x] **T4 — Wiring** `saude-page` importa e renderiza o card após Correlações.
-- [x] **T5 — Spec** `.claude/specs/correlacoes-gatilho/`.
+- [x] **T5 — Spec** `docs/specs/correlacoes-gatilho/`.
 - [x] **T6 — Validação** `ng build` ✅ (AOT compila limpo). Os `.spec.ts` do web rodam desde 2026-08-17 com `cd web && npx ng test --watch=false` (Vitest) ✅.
 
 ## Follow-up

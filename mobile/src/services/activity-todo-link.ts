@@ -7,7 +7,7 @@
  * a store Zustand está fria. A conclusão passa pelo seam único `resolveAndAdvance`,
  * para encadeamento/challenge futuros encaixarem sem divergir.
  *
- * Ver .claude/specs/tarefas/ e .claude/specs/sync-atividades/.
+ * Ver docs/specs/tarefas/ e docs/specs/sync-atividades/.
  */
 import type { TodoRecurrence } from '@vitale/shared';
 import { supabase } from '../lib/supabase';

@@ -1,7 +1,7 @@
 /**
  * Recomendação de treino a partir da prontidão (readiness) do dia.
  * Derivação pura, sem I/O — compartilhada por web e mobile. Ver
- * .claude/specs/readiness-treino/.
+ * docs/specs/readiness-treino/.
  *
  * Cruza o score 0–100 de `computeReadiness` com a intensidade do treino
  * planejado para hoje e devolve uma orientação curta. A ideia é tornar o

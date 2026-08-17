@@ -1,7 +1,7 @@
 /**
  * Agregações puras da visão geral do Histórico de Treinos.
  * Sem dependência de Angular/DOM — testável isoladamente.
- * Períodos = janelas móveis (ver .claude/specs/historico-treinos/spec.md §9).
+ * Períodos = janelas móveis (ver docs/specs/historico-treinos/spec.md §9).
  */
 import type { Activity, BucketGranularity } from '@vitale/shared';
 import { DEFAULT_WEEKLY_TARGET_MIN, effectiveSeconds, elapsedFraction, mondayOf, weeklyTargetSeconds } from '@vitale/shared';

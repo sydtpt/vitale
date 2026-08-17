@@ -1,7 +1,7 @@
 /**
  * Impacto de um gatilho/evento categórico sobre uma métrica de saúde.
  * Derivação pura, sem I/O — compartilhada por web e mobile. Ver
- * .claude/specs/correlacoes-gatilho/.
+ * docs/specs/correlacoes-gatilho/.
  *
  * Distinto do `correlate` (Pearson entre duas séries contínuas): aqui o gatilho
  * é um EVENTO por dia (um hábito-ruim, um Registro, ou "dia seguinte a treino

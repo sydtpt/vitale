@@ -5,7 +5,7 @@
   - `readinessAdvice(total, hasData, kind, label)` → `{ tone, title, text }`.
 - [x] **T2 — Testes** `readiness-advice.spec.ts` (Jasmine) — classificação + matriz score×intensidade + estado sem dados.
 - [x] **T3 — UI** banner no `day-score-card` (`advice()` computed; cor por `data-tone`).
-- [x] **T4 — Spec** `.claude/specs/readiness-treino/`.
+- [x] **T4 — Spec** `docs/specs/readiness-treino/`.
 - [x] **T5 — Validação** `ng build` limpo; `tsc` sem erros de tipo reais.
 
 ## Portado para shared + mobile (2026-06-07)

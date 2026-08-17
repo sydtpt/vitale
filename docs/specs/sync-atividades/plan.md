@@ -1,6 +1,6 @@
 # Plan: Sincronização de Atividades
 
-> Plano técnico para [spec.md](./spec.md). Schema detalhado em [data-model.md](./data-model.md); tarefas em [tasks.md](./tasks.md).
+> Plano técnico para [spec.md](./spec.md). Schema detalhado em [data-model.md](./data-model.md); tarefas em [tasks.md](../../../_bmad-output/implementation-artifacts/sync-atividades/tasks.md).
 
 ## 1. Contexto técnico
 

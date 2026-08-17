@@ -8,7 +8,7 @@ Arquivo `supabase/migrations/<timestamp>_habitos.sql`:
 
 ```sql
 -- Vitale — Habitos (contadores diários)
--- Spec: .claude/specs/habitos/
+-- Spec: docs/specs/habitos/
 -- Só contadores; direção at_least/at_most; reset diário por data local. RLS por usuário.
 
 -- ─────────────────────────────────────────────────────────────

@@ -37,7 +37,7 @@ interface DbActivityRow {
 /**
  * Fonte única das atividades do usuário no web. Faz um único fetch e mantém
  * tudo em memória; visão geral, resumos por tipo e listas derivam por computed().
- * Decisão de performance: ver .claude/specs/historico-treinos/plan.md §4.1.
+ * Decisão de performance: ver docs/specs/historico-treinos/plan.md §4.1.
  */
 @Injectable({ providedIn: 'root' })
 export class ActivitiesStore {

@@ -97,7 +97,7 @@ Proibido: `shared` importar de `web` ou `mobile`; `web` e `mobile` importarem um
 
 - **Binds:** `docs/`, `_bmad-output/`, `AGENTS.md`, `CLAUDE.md`
 - **Prevents:** documentação apodrecendo por misturar o durável com o descartável
-- **Rule:** o que é derivável do código não se escreve. Regra operacional verificada vai no bloco de `AGENTS.md`. Durável — spec, data-model, decisão — vai em `docs/`. Efêmero — plan, tasks, sprint — vai em `_bmad-output/`.
+- **Rule:** o que é derivável do código não se escreve. Regra operacional verificada vai no bloco de `AGENTS.md`. Durável — o que segue verdadeiro depois da feature entregue: spec, modelo de dados, rationale de decisão — vai em `docs/`. Efêmero — o que morre na entrega: lista de tarefas, tracking de sprint — vai em `_bmad-output/`. A classificação é pelo conteúdo, nunca pelo nome do arquivo: um `plan.md` que carrega decisões técnicas é durável.
 
 ### AD-11 — ADR é imutável
 

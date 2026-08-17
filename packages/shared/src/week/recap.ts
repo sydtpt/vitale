@@ -1,7 +1,7 @@
 /**
  * Resumo da semana ("recap") — agregados desta semana vs a anterior.
  * Derivação pura, sem Angular/DOM nem React — testável isoladamente e
- * compartilhada por web e mobile. Ver .claude/specs/recap-semanal/.
+ * compartilhada por web e mobile. Ver docs/specs/recap-semanal/.
  *
  * Roda apenas sobre dado REAL: atividades (HealthKit) e séries de `health_daily`.
  * Hábitos/registros são opcionais e entram via `countRecap` genérico, para o

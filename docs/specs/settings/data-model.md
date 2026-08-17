@@ -6,7 +6,7 @@
 
 ```sql
 -- Vitale — User Settings (perfil + preferências)
--- Spec: .claude/specs/settings/
+-- Spec: docs/specs/settings/
 -- Uma linha por usuário em cada tabela; upsert por id.
 
 -- ─────────────────────────────────────────────────────────────
