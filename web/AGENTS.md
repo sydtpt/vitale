@@ -1,5 +1,5 @@
 <!-- bmad:context -->
-<!-- Verificado em 2026-08-17 contra a711c41. Mantido por bmad-project-context;
+<!-- Verificado em 2026-08-17 contra b8de47e. Mantido por bmad-project-context;
      edições dentro deste bloco são substituídas no refresh. -->
 
 ## web (@vitale/web)

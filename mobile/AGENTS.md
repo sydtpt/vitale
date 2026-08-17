@@ -1,5 +1,5 @@
 <!-- bmad:context -->
-<!-- Verificado em 2026-08-17 contra a711c41. Mantido por bmad-project-context;
+<!-- Verificado em 2026-08-17 contra b8de47e. Mantido por bmad-project-context;
      edições dentro deste bloco são substituídas no refresh. -->
 
 ## mobile (@vitale/mobile)
@@ -11,8 +11,9 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
 
 - Valide com `cd mobile && npx tsc --noEmit && npx jest` (29 suítes, 349 testes hoje).
 - `npm run lint` falha: `eslint` não está instalado.
-- Teste de lógica pura mora em `src/lib/__tests__/*.test.ts` — inclusive a lógica de
-  `@vitale/shared`, que o jest daqui resolve.
+- Teste de lógica pura mora em `src/lib/__tests__/*.test.ts`; 16 deles exercitam
+  `@vitale/shared`, que o jest daqui resolve. O shared também tem teste próprio — ver
+  `packages/shared/AGENTS.md`.
 
 ## Conventions that differ from defaults
 

@@ -33,7 +33,8 @@ npm run mobile:android     # Emulador Android
 cd web && npx ng build                      # valida o web
 cd web && npx ng test --watch=false         # testes unitários do web (Vitest)
 cd mobile && npx tsc --noEmit && npx jest   # valida o mobile
-npm run lint -w @vitale/shared              # valida o shared
+npm run lint -w @vitale/shared              # valida o shared (tsc)
+npm test -w @vitale/shared                  # testes do shared (scripts tsx)
 ```
 
 > **Regras para agentes de IA:** [AGENTS.md](AGENTS.md) (+ um por workspace em
