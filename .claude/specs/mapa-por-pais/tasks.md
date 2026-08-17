@@ -7,7 +7,7 @@
 - [x] **T1 — `CityMark.countryCode`** em [`models/index.ts`](../../../packages/shared/src/models/index.ts#L359-L371) (campo opcional, ver [data-model §1](./data-model.md#1-citymarkcountrycode)).
 - [x] **T2 — `constants/country-bboxes.ts`** — `COUNTRY_BBOXES` (42 países comuns), `flagEmoji(code)`, `countryName(code)`. Exportado em `packages/shared/src/index.ts`.
 - [x] **T3 — `geo/country-explorer.ts`** — `countryForCity`, `ridesByCountry`, `activitiesInCountry`, `citiesInCountry`, `countryViewport` + `cityBelongsToCountry` (interno). Exportado no `index.ts`.
-- [x] **T4 — Testes** [`country-explorer.spec.ts`](../../../web/src/app/features/workout-history/data/country-explorer.spec.ts) (Jasmine). **Lógica verificada por harness `tsx`: 13/13 casos passam** (o runner Jasmine do repo não roda — `tsconfig.spec.json` ausente, mesma limitação dos demais specs).
+- [x] **T4 — Testes** [`country-explorer.spec.ts`](../../../web/src/app/features/workout-history/data/country-explorer.spec.ts) (Vitest). Na época, a lógica foi verificada por harness `tsx` (13/13 casos) porque o runner do repo não existia; desde 2026-08-17 o arquivo roda de verdade com `cd web && npx ng test --watch=false`.
 
 ## Backend
 

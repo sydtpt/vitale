@@ -10,8 +10,9 @@ Regras gerais do repositório: `../AGENTS.md`.
 ## Running and verifying
 
 - Valide com `cd web && npx ng build` — compila templates e TS.
-- `ng test` não roda: falta `karma-jasmine`. Os 11 `*.spec.ts` do diretório não executam
-  hoje; consertar o runner é tarefa aberta.
+- Testes unitários: `cd web && npx ng test --watch=false` — builder `@angular/build:unit-test`
+  com Vitest em Node/jsdom. Sem `--watch=false` um terminal interativo entra em watch e
+  nunca dá veredito. Use os matchers do Vitest (`toBe(true)`, não `toBeTrue()`).
 - `ng lint` não existe — `angular.json` tem só os targets `build`, `serve` e `test`.
 
 ## Conventions that differ from defaults

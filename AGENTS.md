@@ -33,8 +33,11 @@ do BMAD, em `_bmad-output/`.
 
 ## Running and verifying
 
-- `npm run lint` e `npm run test` na raiz falham (quebram no workspace `web`). Valide
-  workspace a workspace — cada `AGENTS.md` filho diz como.
+- `npm run lint` na raiz falha, e não para no primeiro erro: `@vitale/shared` passa, `web`
+  falha (não tem target `lint` no `angular.json`) e `mobile` também falha depois
+  (`eslint: command not found`, exit 127). Valide workspace a workspace — cada `AGENTS.md`
+  filho diz como.
+- `npm run test` na raiz roda todos os workspaces (web em Vitest, mobile em Jest).
 - Não há CI nem git hooks: nada é verificado automaticamente no commit.
 
 ## Known pitfalls

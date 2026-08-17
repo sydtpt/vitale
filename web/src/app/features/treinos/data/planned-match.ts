@@ -35,8 +35,8 @@ export function weekDatesOf(d: Date = new Date()): string[] {
 
 /** Tipos HealthKit de musculação/força. */
 const STRENGTH_IDS = new Set<number>([11, 20, 35, 50, 59]);
-/** Tipos de baixa intensidade (mobilidade, yoga, caminhada). */
-const EASY_IDS = new Set<number>([52, 57, 66]);
+/** Tipos de baixa intensidade (yoga, pilates). */
+const EASY_IDS = new Set<number>([57, 66]);
 
 /**
  * Intensidade de uma atividade sincronizada, para casar com o `kind` planejado.

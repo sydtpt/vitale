@@ -9,6 +9,7 @@ build/
 .angular/
 .next/
 out/
+out-tsc/
 
 # Expo
 .expo/

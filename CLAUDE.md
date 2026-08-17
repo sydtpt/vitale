@@ -29,8 +29,9 @@ npm run mobile:start       # QR code / Expo DevTools
 npm run mobile:ios         # Simulador iOS
 npm run mobile:android     # Emulador Android
 
-# Linting e testes — ver AGENTS.md: `npm run lint`/`npm run test` na raiz falham
+# Linting e testes — ver AGENTS.md: `npm run lint` na raiz falha; `npm run test` roda
 cd web && npx ng build                      # valida o web
+cd web && npx ng test --watch=false         # testes unitários do web (Vitest)
 cd mobile && npx tsc --noEmit && npx jest   # valida o mobile
 npm run lint -w @vitale/shared              # valida o shared
 ```

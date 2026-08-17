@@ -61,7 +61,7 @@ describe('readinessSeries', () => {
     const today = series[series.length - 1];
     expect(today.date).toBe('2026-06-03');
     expect(today.score).not.toBeNull();
-    expect(today.hasActivity).toBeTrue();
+    expect(today.hasActivity).toBe(true);
   });
 });
 
@@ -96,7 +96,7 @@ describe('sportHealthCorrelations', () => {
   it('marca dados insuficientes com poucos dias', () => {
     const out = sportHealthCorrelations([], { vfc: new Map(), fcRepouso: new Map(), sono: new Map() }, NOW);
     expect(out.length).toBe(3);
-    expect(out.every((r) => !r.enough)).toBeTrue();
+    expect(out.every((r) => !r.enough)).toBe(true);
   });
 });
 

@@ -37,9 +37,12 @@ describe('kindForActivity', () => {
     expect(kindForActivity(50)).toBe('strength');
     expect(kindForActivity(20)).toBe('strength');
   });
-  it('classifica yoga/caminhada como easy', () => {
-    expect(kindForActivity(57)).toBe('easy');
-    expect(kindForActivity(52)).toBe('easy');
+  it('classifica yoga/pilates como easy', () => {
+    expect(kindForActivity(57)).toBe('easy'); // yoga
+    expect(kindForActivity(66)).toBe('easy'); // pilates
+  });
+  it('classifica caminhada como endurance (é atividade com GPS)', () => {
+    expect(kindForActivity(52)).toBe('endurance');
   });
 });
 
@@ -55,7 +58,7 @@ describe('autoMatch', () => {
       [plan({ date: '2026-06-03', kind: 'endurance' })],
       [act({ startAt: '2026-06-03T07:00:00', activityId: 37 })],
     );
-    expect(out[0].done).toBeTrue();
+    expect(out[0].done).toBe(true);
     expect(out[0].doneActivityId).toBeDefined();
   });
 
@@ -64,7 +67,7 @@ describe('autoMatch', () => {
       [plan({ date: '2026-06-03', kind: 'strength' })],
       [act({ startAt: '2026-06-03T07:00:00', activityId: 37 })], // corrida
     );
-    expect(out[0].done).toBeTrue();
+    expect(out[0].done).toBe(true);
   });
 
   it('prefere a atividade do kind compatível quando há várias', () => {
@@ -76,7 +79,7 @@ describe('autoMatch', () => {
 
   it('não marca done sem atividade no dia', () => {
     const out = autoMatch([plan({ date: '2026-06-03', kind: 'endurance' })], []);
-    expect(out[0].done).toBeFalse();
+    expect(out[0].done).toBe(false);
   });
 
   it('ignora atividades ocultas', () => {
@@ -84,7 +87,7 @@ describe('autoMatch', () => {
       [plan({ date: '2026-06-03', kind: 'endurance' })],
       [act({ startAt: '2026-06-03T07:00:00', hidden: true })],
     );
-    expect(out[0].done).toBeFalse();
+    expect(out[0].done).toBe(false);
   });
 
   it('rest nunca auto-completa', () => {
@@ -92,7 +95,7 @@ describe('autoMatch', () => {
       [plan({ date: '2026-06-03', kind: 'rest' })],
       [act({ startAt: '2026-06-03T07:00:00', activityId: 37 })],
     );
-    expect(out[0].done).toBeFalse();
+    expect(out[0].done).toBe(false);
   });
 
   it('reverte done quando a atividade some', () => {
@@ -100,7 +103,7 @@ describe('autoMatch', () => {
       [plan({ date: '2026-06-03', kind: 'endurance', done: true, doneActivityId: 'x' })],
       [],
     );
-    expect(out[0].done).toBeFalse();
+    expect(out[0].done).toBe(false);
     expect(out[0].doneActivityId).toBeUndefined();
   });
 });
