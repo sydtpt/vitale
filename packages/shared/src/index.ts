@@ -24,6 +24,7 @@ export * from './chart/axis';
 export * from './date/local';
 export * from './todo/logic';
 export * from './habits/logic';
+export * from './planner/planned-match';
 export * from './fitness/activity-types';
 export * from './fitness/streams';
 export * from './fitness/dedupe';

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { HealthDaily } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
-import { localDateStr } from '../lib/planned-match';
 import { useAuthStore } from './auth.store';
+import { localDateStr } from '@vitale/shared';
 
 /** Janela analítica (~1 ano), alinhada ao backfill do sync. */
 const RANGE_DAYS = 365;

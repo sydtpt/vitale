@@ -1,5 +1,5 @@
 import type { Activity, PlannedWorkout } from '@vitale/shared';
-import { autoMatch, kindForActivity, localDateOf } from './planned-match';
+import { autoMatch, kindForActivity, localDateOf } from '@vitale/shared';
 
 function act(partial: Partial<Activity> & { startAt: string }): Activity {
   return {

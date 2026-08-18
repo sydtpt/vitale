@@ -1,10 +1,9 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { readinessAdvice, type AdviceTone } from '@vitale/shared';
+import { localDateStr, readinessAdvice, type AdviceTone } from '@vitale/shared';
 import { useHealthStore } from '../../store/health.store';
 import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { readinessFromSummaries } from '../../lib/health-readiness';
-import { localDateStr } from '../../lib/planned-match';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 import { GlassCard } from '../ui/GlassCard';
 

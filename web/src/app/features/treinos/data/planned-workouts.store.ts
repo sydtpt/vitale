@@ -3,7 +3,7 @@ import type { PlannedWorkout } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { ActivitiesStore } from '../../workout-history/data/activities.store';
-import { autoMatch, localDateStr, weekDatesOf } from './planned-match';
+import { autoMatch, localDateStr, weekDatesOf } from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 

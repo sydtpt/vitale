@@ -7,7 +7,6 @@ import type { Activity, PlannedWorkout } from '@vitale/shared';
 import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useAuthStore } from '../../store/auth.store';
-import { buildWeek } from '../../lib/planned-match';
 import {
   buildWeeklyVolume,
   ACTIVITY_RUNNING,
@@ -17,6 +16,7 @@ import {
 } from '../../lib/weekly-volume';
 import { BarChart } from '../../components/charts/BarChart';
 import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
+import { buildWeek } from '@vitale/shared';
 
 const CHART_W = Dimensions.get('window').width - spacing.lg * 2 - 28;
 

@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import type { PlannedWorkout } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
-import { weekDatesOf } from '../lib/planned-match';
 import { useAuthStore } from './auth.store';
 import { useActivitiesStore } from './activities.store';
+import { weekDatesOf } from '@vitale/shared';
 
 type Kind = PlannedWorkout['kind'];
 
