@@ -5,6 +5,25 @@
 
 Consolidação **antes** de novas features. Cada fase é commitável sozinha e a ordem importa: fases posteriores dependem de invariantes que as anteriores tornam verdadeiras.
 
+## Estado em 2026-08-18
+
+| Fase | Capability | Estado |
+| --- | --- | --- |
+| 0 — verificação | CAP-1 | ✅ os 3 testes órfãos rodam; 27 asserts, todos verdes |
+| 1 — config morta | CAP-8 | ✅ |
+| 2 — conhecimento | CAP-2 | ✅ 55 specs em `docs/specs`, tasks nos efêmeros, tombstone |
+| 3 — ADRs | CAP-3 | ✅ 11 ADRs, incluindo a 0011 sobre schema |
+| 4 — vocabulário | CAP-4 | ✅ + 2 correções de classificação e teste de disjunção |
+| 5 — lógica duplicada | CAP-5 | ✅ 10 consolidadas, 2 renomeadas; `running-highlights` diferido |
+| 6 — contrato de schema | CAP-6 | 🔨 **2 de 19 tabelas** (`profiles`, `synced_activity_types`); 132 chamadas restantes |
+| 7 — guarda | CAP-7 | ✅ em forma adaptada: 3 barreiras + 1 catraca que protege o que falta da 6 |
+
+A guarda entrou **antes** da Fase 6 terminar, ao contrário do plano original, porque a catraca protege exatamente o trabalho que sobra: o passivo de `.from()` não pode crescer enquanto encolhe.
+
+**Retomar a Fase 6 assim:** próxima tabela é `todo_templates`, onde a divergência real já existe (web lê sem filtro, mobile filtra por `active`). Ao migrar cada tabela, baixe `FROM_CALLS_CEILING` em `packages/shared/src/architecture.test.ts` para o novo total — é o que transforma a catraca em progresso medido.
+
+Divergência encontrada e ainda não tratada: o `retro.store` da web filtra `.eq('user_id', …)` e o do mobile não, confiando no RLS. Mesma classe do `todo_templates`.
+
 ---
 
 ## Fase 0 — Destravar a verificação
