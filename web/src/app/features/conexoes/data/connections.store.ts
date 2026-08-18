@@ -1,38 +1,11 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import type { ConnectionProvider, LinkedAccount } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
+import { AuthService } from '@core/auth/auth.service';
+import { deleteLinkedAccount, fetchLinkedAccounts } from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 type Busy = 'connecting' | 'syncing' | 'disconnecting';
-
-const SELECT =
-  'user_id,provider,status,athlete_id,athlete_name,backfill_done,last_sync_at,last_error,connected_at';
-
-interface DbLinkedAccount {
-  user_id: string;
-  provider: string;
-  status: string;
-  athlete_id: string | null;
-  athlete_name: string | null;
-  backfill_done: boolean | null;
-  last_sync_at: string | null;
-  last_error: string | null;
-  connected_at: string | null;
-}
-
-function mapRow(r: DbLinkedAccount): LinkedAccount {
-  return {
-    userId: r.user_id,
-    provider: r.provider as LinkedAccount['provider'],
-    status: r.status as LinkedAccount['status'],
-    athleteId: r.athlete_id ?? undefined,
-    athleteName: r.athlete_name ?? undefined,
-    backfillDone: r.backfill_done ?? false,
-    lastSyncAt: r.last_sync_at ?? undefined,
-    lastError: r.last_error ?? undefined,
-    connectedAt: r.connected_at ?? undefined,
-  };
-}
 
 /** Mensagem de erro de uma edge function (corpo JSON do FunctionsHttpError). */
 async function functionError(error: unknown, data: unknown): Promise<string | null> {
@@ -58,6 +31,8 @@ async function functionError(error: unknown, data: unknown): Promise<string | nu
  */
 @Injectable({ providedIn: 'root' })
 export class ConnectionsStore {
+  private readonly auth = inject(AuthService);
+
   readonly accounts = signal<LinkedAccount[]>([]);
   readonly state = signal<LoadState>('idle');
   readonly busy = signal<Partial<Record<ConnectionProvider, Busy>>>({});
@@ -69,13 +44,18 @@ export class ConnectionsStore {
 
   async load(): Promise<void> {
     this.state.set('loading');
-    const { data, error } = await supabase.from('linked_accounts').select(SELECT).order('provider');
-    if (error) {
-      this.error.set(error.message);
+    const userId = this.auth.user()?.id;
+    if (!userId) {
       this.state.set('error');
       return;
     }
-    this.accounts.set(((data ?? []) as DbLinkedAccount[]).map(mapRow));
+    try {
+      this.accounts.set(await fetchLinkedAccounts(supabase, userId));
+    } catch (e) {
+      this.error.set(e instanceof Error ? e.message : 'Falha ao carregar as conexões.');
+      this.state.set('error');
+      return;
+    }
     this.state.set('loaded');
   }
 
@@ -148,8 +128,9 @@ export class ConnectionsStore {
         const err = await functionError(error, data);
         if (err) return err;
       } else {
-        const { error } = await supabase.from('linked_accounts').delete().eq('provider', provider);
-        if (error) return error.message;
+        const uid = this.auth.user()?.id;
+        if (!uid) return 'Sessão não encontrada.';
+        await deleteLinkedAccount(supabase, uid, provider);
       }
       await this.load();
       return null;

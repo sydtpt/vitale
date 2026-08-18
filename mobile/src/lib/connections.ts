@@ -12,7 +12,14 @@
  * são a única fonte deles.
  * O filtro é otimização: o dedupe do ingest é quem garante a unicidade.
  */
-import { isGarminSource, isStravaSource, type LinkedAccount } from '@vitale/shared';
+import {
+  deleteLinkedAccount,
+  fetchConnectedProviders,
+  fetchLinkedAccounts as fetchAccounts,
+  isGarminSource,
+  isStravaSource,
+  type LinkedAccount,
+} from '@vitale/shared';
 import { supabase } from './supabase';
 import { asyncStore, getJSON, setJSON, type KVStore } from './local-store';
 import type { WorkoutItem } from './workout-types';
@@ -33,40 +40,20 @@ export function isStravaHkStub(w: Pick<WorkoutItem, 'sourceId' | 'sourceName'>):
   return isStravaSource(w.sourceId, w.sourceName);
 }
 
-interface DbLinkedAccount {
-  user_id: string;
-  provider: string;
-  status: string;
-  athlete_id: string | null;
-  athlete_name: string | null;
-  backfill_done: boolean | null;
-  last_sync_at: string | null;
-  last_error: string | null;
-  connected_at: string | null;
-}
-
-export function mapLinkedAccount(r: DbLinkedAccount): LinkedAccount {
-  return {
-    userId: r.user_id,
-    provider: r.provider as LinkedAccount['provider'],
-    status: r.status as LinkedAccount['status'],
-    athleteId: r.athlete_id ?? undefined,
-    athleteName: r.athlete_name ?? undefined,
-    backfillDone: r.backfill_done ?? false,
-    lastSyncAt: r.last_sync_at ?? undefined,
-    lastError: r.last_error ?? undefined,
-    connectedAt: r.connected_at ?? undefined,
-  };
-}
-
 /** Contas vinculadas do usuário logado (RLS limita às próprias). */
 export async function fetchLinkedAccounts(): Promise<LinkedAccount[]> {
-  const { data, error } = await supabase
-    .from('linked_accounts')
-    .select('user_id,provider,status,athlete_id,athlete_name,backfill_done,last_sync_at,last_error,connected_at')
-    .order('provider');
-  if (error) throw new Error(error.message);
-  return ((data ?? []) as DbLinkedAccount[]).map(mapLinkedAccount);
+  const { data } = await supabase.auth.getSession();
+  const uid = data.session?.user.id;
+  if (!uid) return [];
+  return fetchAccounts(supabase, uid);
+}
+
+/** Desvincula um provedor do usuário logado. */
+export async function unlinkProvider(provider: string): Promise<void> {
+  const { data } = await supabase.auth.getSession();
+  const uid = data.session?.user.id;
+  if (!uid) throw new Error('Sessão não encontrada.');
+  await deleteLinkedAccount(supabase, uid, provider);
 }
 
 const COVERAGE_CACHE_KEY = 'vitale:bridge-coverage-v2';
@@ -107,12 +94,11 @@ function coverageStart(rows: { connected_at: string | null }[]): number | null {
 export async function bridgeCoverage(store: KVStore = asyncStore): Promise<BridgeCoverage> {
   if (memo && Date.now() - memo.at < COVERAGE_TTL_MS) return memo.value;
   try {
-    const { data, error } = await supabase
-      .from('linked_accounts')
-      .select('provider,connected_at')
-      .eq('status', 'connected');
-    if (error) throw new Error(error.message);
-    const rows = (data ?? []) as { provider: string; connected_at: string | null }[];
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess.session?.user.id;
+    if (!uid) throw new Error('Sessão não encontrada.');
+    const providers = await fetchConnectedProviders(supabase, uid);
+    const rows = providers.map((p) => ({ provider: p.provider, connected_at: p.connectedAt }));
     const value: BridgeCoverage = {
       anyStartMs: coverageStart(rows),
       stravaStartMs: coverageStart(rows.filter((r) => r.provider === 'strava')),

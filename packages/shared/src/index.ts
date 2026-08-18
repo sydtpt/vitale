@@ -36,6 +36,7 @@ export * from './data/planned-workouts';
 export * from './data/meals';
 export * from './data/transactions';
 export * from './data/user-preferences';
+export * from './data/linked-accounts';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
 export * from './todo/format';

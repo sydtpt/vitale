@@ -12,7 +12,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import type { ConnectionProvider, LinkedAccount } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
-import { fetchLinkedAccounts, invalidateBridgeCache } from '../lib/connections';
+import { fetchLinkedAccounts, invalidateBridgeCache, unlinkProvider } from '../lib/connections';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -148,8 +148,7 @@ export const useConnectionsStore = create<ConnectionsState>((set, get) => ({
         const err = await functionError(error, data);
         if (err) return err;
       } else {
-        const { error } = await supabase.from('linked_accounts').delete().eq('provider', provider);
-        if (error) return error.message;
+        await unlinkProvider(provider);
       }
       invalidateBridgeCache();
       await get().load();
