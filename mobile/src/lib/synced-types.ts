@@ -1,8 +1,13 @@
 /**
- * Inscrição de tipos de treino (opt-in) persistida na tabela
- * `synced_activity_types` do Supabase. Fonte da verdade da inscrição;
- * o cache em memória vive na fitness store.
+ * Inscrição de tipos de treino (opt-in). O acesso à tabela vive em
+ * `@vitale/shared` (`data/synced-activity-types`); aqui fica só a resolução da
+ * sessão, que é do app. O cache em memória vive na fitness store.
  */
+import {
+  fetchSyncedTypes,
+  subscribeActivityType,
+  unsubscribeActivityType,
+} from '@vitale/shared';
 import { supabase } from './supabase';
 
 async function currentUserId(): Promise<string | null> {
@@ -14,31 +19,23 @@ async function currentUserId(): Promise<string | null> {
 export async function loadSyncedTypes(): Promise<Set<string>> {
   const uid = await currentUserId();
   if (!uid) return new Set();
-  const { data, error } = await supabase
-    .from('synced_activity_types')
-    .select('type_key')
-    .eq('user_id', uid);
-  if (error || !data) return new Set();
-  return new Set(data.map((r) => r.type_key as string));
+  try {
+    return await fetchSyncedTypes(supabase, uid);
+  } catch {
+    return new Set();
+  }
 }
 
 /** Inscreve um tipo (idempotente). */
 export async function subscribeType(label: string): Promise<void> {
   const uid = await currentUserId();
   if (!uid) throw new Error('Sem sessão para inscrever o tipo.');
-  const { error } = await supabase
-    .from('synced_activity_types')
-    .upsert({ user_id: uid, type_key: label }, { onConflict: 'user_id,type_key' });
-  if (error) throw new Error(error.message);
+  await subscribeActivityType(supabase, uid, label);
 }
 
 /** Remove a inscrição de um tipo (não apaga os treinos já enviados). */
 export async function unsubscribeType(label: string): Promise<void> {
   const uid = await currentUserId();
   if (!uid) return;
-  await supabase
-    .from('synced_activity_types')
-    .delete()
-    .eq('user_id', uid)
-    .eq('type_key', label);
+  await unsubscribeActivityType(supabase, uid, label);
 }
