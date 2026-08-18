@@ -7,7 +7,7 @@ import { IconComponent } from '@core/services/icon.component';
 import { metaForActivity } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
-import { fmtClock, fmtDate, fmtDuration, fmtElevation, fmtKcal, fmtKm, fmtRate, fmtTime, totalTimeS } from '../data/format';
+import { formatClock, fmtDate, fmtDuration, fmtElevation, fmtKcal, fmtKm, formatRate, fmtTime, totalTimeS } from '../data/format';
 import { activityRecordBadges } from '../data/running-highlights';
 
 @Component({
@@ -59,7 +59,7 @@ export class ActivityDetailPageComponent {
   /** Pace/velocidade/min-km calculado sobre o tempo em movimento (só com GPS). */
   protected readonly rate = computed(() => {
     const a = this.activity();
-    return a && this.hasGps() ? fmtRate(a.activityId, a.distanceM, this.movingTimeS()) : null;
+    return a && this.hasGps() ? formatRate(a.activityId, a.distanceM, this.movingTimeS()) : null;
   });
   /** Ganho de elevação formatado; null quando a atividade não tem o dado. */
   protected readonly elevation = computed(() => fmtElevation(this.activity()?.elevationM));
@@ -85,7 +85,7 @@ export class ActivityDetailPageComponent {
         range: hrZoneRange(def),
         seconds,
         pct: Math.round((seconds / total) * 100),
-        time: fmtClock(seconds),
+        time: formatClock(seconds),
       };
     });
     return { rows, total };

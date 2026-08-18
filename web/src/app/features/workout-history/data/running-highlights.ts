@@ -8,7 +8,7 @@
  * recordes de elevação (maior ganho, acumulado 12 meses) — só ciclismo.
  */
 import type { Activity } from '@vitale/shared';
-import { fmtClock, fmtDate, fmtElevation, fmtPace } from './format';
+import { formatClock, fmtDate, fmtElevation, formatPace } from './format';
 
 /** Códigos HealthKit. */
 const RUNNING_ACTIVITY_ID = 37;
@@ -148,11 +148,11 @@ export function activityHighlights(activities: Activity[], activityId: number): 
         }
       }
       if (best) {
-        const pace = fmtPace(meters, best.secs);
+        const pace = formatPace(meters, best.secs);
         out.push({
           key,
           label,
-          value: fmtClock(best.secs),
+          value: formatClock(best.secs),
           caption: pace ? `${pace} /km` : fmtDate(best.activity.startAt),
           group: 'record',
           ...(HL_COLORS[key] ?? HL_FALLBACK),

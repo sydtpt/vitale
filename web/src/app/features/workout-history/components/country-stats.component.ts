@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import type { CountryStats } from '@vitale/shared';
-import { fmtDuration, fmtElevation, fmtKcal, fmtKm, fmtSpeed } from '../data/format';
+import { fmtDuration, fmtElevation, fmtKcal, fmtKm, formatSpeed } from '../data/format';
 
 /** Altura do Monte Everest (m) — base do "× Everest" da subida total. */
 const EVEREST_M = 8849;
@@ -77,7 +77,7 @@ export class CountryStatsComponent {
   protected readonly fmtKcal = fmtKcal;
 
   protected readonly speed = computed(() =>
-    fmtSpeed(this.stats().distanceM, this.stats().movingTimeS),
+    formatSpeed(this.stats().distanceM, this.stats().movingTimeS),
   );
   /** "× Everest" formatado (1 casa); null quando a subida é baixa demais p/ valer. */
   protected readonly everest = computed(() => {

@@ -16,7 +16,7 @@ import {
 } from '@vitale/shared';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { IconComponent } from '@core/services/icon.component';
-import { fmtClock } from '@features/workout-history/data/format';
+import { formatClock } from '@features/workout-history/data/format';
 import { RetroStore } from '../data/retro.store';
 
 /** Ícone neutro do shared → nome do set `rt-icon`. */
@@ -134,7 +134,7 @@ export class RetrospectivaPageComponent {
   // ── esportes (Ciclismo / Corrida) ──
 
   /** Tempo no formato relógio (`h:mm:ss` / `m:ss`) — recordes. */
-  protected clock(seconds: number): string { return fmtClock(seconds); }
+  protected clock(seconds: number): string { return formatClock(seconds); }
 
   /** Velocidade média (ciclismo) a partir de m/s. */
   protected speedKmh(mps: number | null): string {
@@ -144,7 +144,7 @@ export class RetrospectivaPageComponent {
   /** Pace médio (corrida) mm:ss/km a partir de m/s. */
   protected pace(mps: number | null): string {
     if (mps == null || mps <= 0) return '—';
-    return `${fmtClock(1000 / mps)} /km`;
+    return `${formatClock(1000 / mps)} /km`;
   }
 
   /**
@@ -158,7 +158,7 @@ export class RetrospectivaPageComponent {
     if (asPace) {
       const diff = 1000 / current - 1000 / prior; // s/km; negativo = mais rápido
       if (Math.abs(diff) < 1) return { text: '—', tone: 'neutral' };
-      return { text: `${diff > 0 ? '+' : '−'}${fmtClock(Math.abs(diff))}/km`, tone };
+      return { text: `${diff > 0 ? '+' : '−'}${formatClock(Math.abs(diff))}/km`, tone };
     }
     const diff = (current - prior) * 3.6;
     if (Math.abs(diff) < 0.05) return { text: '—', tone: 'neutral' };
@@ -170,7 +170,7 @@ export class RetrospectivaPageComponent {
     if (this.isAll() || b.priorSeconds == null) return { text: '', tone: 'neutral' };
     const diff = b.seconds - b.priorSeconds;
     if (diff === 0) return { text: '—', tone: 'neutral' };
-    return { text: `${diff > 0 ? '+' : '−'}${fmtClock(Math.abs(diff))}`, tone: diff < 0 ? 'good' : 'bad' };
+    return { text: `${diff > 0 ? '+' : '−'}${formatClock(Math.abs(diff))}`, tone: diff < 0 ? 'good' : 'bad' };
   }
 
   /** Data curta `dd/mm/aa` — 'Total' atravessa anos. */
