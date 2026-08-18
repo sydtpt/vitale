@@ -34,8 +34,12 @@ create policy "upsert own profile" on public.profiles
 comment on table public.profiles is
   'Perfil do usuário (quem ele é): nome, nascimento e avatar. Configuração do app fica em user_preferences. Chaveada em auth.users.id.';
 
--- `user_profiles` (migration 20260528120000) duplica este conceito e está vazia.
--- Não é derrubada aqui: o drop é irreversível e o mobile ainda a consulta. A
--- aposentadoria acontece quando o mobile passar a ler `profiles`, na CAP-6.
+-- `user_profiles` (migration 20260528120000) duplica este conceito. Verificado em
+-- 2026-08-18 via pg_stat_user_tables: n_tup_ins = 0 — nunca recebeu um insert,
+-- não é "está vazia agora". Nenhum código a referencia desde a CAP-6.
+--
+-- Ainda assim NÃO é derrubada aqui: drop é irreversível, e o contador zera num
+-- pg_stat_reset ou recuperação de crash — é evidência forte, não prova. O drop
+-- é decisão do Syd, em migration própria.
 comment on table public.user_profiles is
   'OBSOLETA — superada por public.profiles. Não escrever. Ver ADR 0011.';
