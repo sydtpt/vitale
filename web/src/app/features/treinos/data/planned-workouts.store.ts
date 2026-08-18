@@ -4,19 +4,14 @@ import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { ActivitiesStore } from '../../workout-history/data/activities.store';
 import { autoMatch, localDateStr, weekDatesOf } from '@vitale/shared';
+import {
+  createPlannedWorkout,
+  deletePlannedWorkout,
+  fetchPlannedWorkouts,
+  updatePlannedWorkout,
+} from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
-
-interface DbRow {
-  id: string;
-  plan_date: string;
-  type: string;
-  kind: PlannedWorkout['kind'];
-  dur_min: number | string;
-  dist_km: number | string | null;
-  sort: number;
-  created_at: string;
-}
 
 export interface PlannedDay {
   date: string;
@@ -89,24 +84,19 @@ export class PlannedWorkoutsStore {
     this._error.set(null);
 
     const week = weekDatesOf();
-    const [res] = await Promise.all([
-      supabase
-        .from('planned_workouts')
-        .select('id,plan_date,type,kind,dur_min,dist_km,sort,created_at')
-        .eq('user_id', userId)
-        .gte('plan_date', week[0])
-        .lte('plan_date', week[6])
-        .order('sort', { ascending: true }),
-      this.activitiesStore.load(),
-    ]);
-
-    if (res.error) {
-      this._error.set(res.error.message);
+    let planned: PlannedWorkout[];
+    try {
+      [planned] = await Promise.all([
+        fetchPlannedWorkouts(supabase, userId, week[0], week[6]),
+        this.activitiesStore.load(),
+      ]);
+    } catch (e) {
+      this._error.set(e instanceof Error ? e.message : 'Erro ao carregar.');
       this._state.set('error');
       return;
     }
 
-    this._planned.set(((res.data ?? []) as DbRow[]).map(mapRow));
+    this._planned.set(planned);
     this._state.set('loaded');
   }
 
@@ -123,22 +113,15 @@ export class PlannedWorkoutsStore {
     const sameDay = this._planned().filter(p => p.date === data.date);
     const maxSort = Math.max(0, ...sameDay.map(p => p.sort));
 
-    const res = await supabase
-      .from('planned_workouts')
-      .insert({
-        user_id: userId,
-        plan_date: data.date,
-        type: data.type,
-        kind: data.kind,
-        dur_min: data.durMin,
-        dist_km: data.kind === 'endurance' ? data.distKm ?? null : null,
-        sort: maxSort + 1,
-      })
-      .select('id,plan_date,type,kind,dur_min,dist_km,sort,created_at')
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    this._planned.update(list => [...list, mapRow(res.data as DbRow)]);
+    const created = await createPlannedWorkout(supabase, userId, {
+      date: data.date,
+      type: data.type,
+      kind: data.kind,
+      durMin: data.durMin,
+      distKm: data.distKm,
+      sort: maxSort + 1,
+    });
+    this._planned.update(list => [...list, created]);
   }
 
   async update(id: string, data: {
@@ -150,21 +133,12 @@ export class PlannedWorkoutsStore {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
 
-    const res = await supabase
-      .from('planned_workouts')
-      .update({
-        type: data.type,
-        kind: data.kind,
-        dur_min: data.durMin,
-        dist_km: data.kind === 'endurance' ? data.distKm ?? null : null,
-      })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select('id,plan_date,type,kind,dur_min,dist_km,sort,created_at')
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    const updated = mapRow(res.data as DbRow);
+    const updated = await updatePlannedWorkout(supabase, userId, id, {
+      type: data.type,
+      kind: data.kind,
+      durMin: data.durMin,
+      distKm: data.distKm,
+    });
     this._planned.update(list => list.map(p => (p.id === id ? updated : p)));
   }
 
@@ -172,27 +146,8 @@ export class PlannedWorkoutsStore {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
 
-    const { error } = await supabase
-      .from('planned_workouts')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-
-    if (error) throw new Error(error.message);
+    await deletePlannedWorkout(supabase, userId, id);
     this._planned.update(list => list.filter(p => p.id !== id));
   }
 }
 
-function mapRow(r: DbRow): PlannedWorkout {
-  return {
-    id: r.id,
-    date: r.plan_date,
-    type: r.type,
-    kind: r.kind,
-    durMin: Number(r.dur_min),
-    distKm: r.dist_km == null ? undefined : Number(r.dist_km),
-    done: false,
-    sort: r.sort,
-    createdAt: r.created_at,
-  };
-}

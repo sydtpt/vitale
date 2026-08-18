@@ -32,6 +32,7 @@ export * from './data/habit-logs';
 export * from './data/habits';
 export * from './data/registros';
 export * from './data/goals';
+export * from './data/planned-workouts';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
 export * from './todo/format';
