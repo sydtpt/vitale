@@ -7,6 +7,10 @@
 -- ambiente novo (db reset, provisionamento) nasça igual.
 --
 -- Idempotente de propósito: em produção é no-op; em banco limpo, cria.
+--
+-- APLICADA em 2026-08-18 via Management API, envolvida em begin/commit explícito,
+-- e registrada em supabase_migrations.schema_migrations. Verificado depois: as 3
+-- policies voltaram idênticas, a linha única intacta, RLS ativo.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
