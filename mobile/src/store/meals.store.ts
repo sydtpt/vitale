@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { createMeal, fetchMealsOnDay } from '@vitale/shared';
 import type { MealLog, MealType } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './auth.store';
@@ -23,32 +24,6 @@ interface MealsState {
   createMeal: (input: NewMeal) => Promise<boolean>;
 }
 
-type MealRow = {
-  id: string;
-  meal_date: string;
-  meal_type: MealType;
-  name: string;
-  kcal: number | null;
-  protein: number | null;
-  carbs: number | null;
-  fat: number | null;
-  logged_at: string;
-};
-
-function toMeal(row: MealRow): MealLog {
-  return {
-    id: row.id,
-    mealDate: row.meal_date,
-    mealType: row.meal_type,
-    name: row.name,
-    kcal: row.kcal ?? undefined,
-    protein: row.protein ?? undefined,
-    carbs: row.carbs ?? undefined,
-    fat: row.fat ?? undefined,
-    loggedAt: row.logged_at,
-  };
-}
-
 function currentUserId(): string | undefined {
   return useAuthStore.getState().user?.id;
 }
@@ -64,17 +39,11 @@ export const useMealsStore = create<MealsState>((set, get) => ({
   todayKcal: 0,
 
   load: async () => {
-    if (!currentUserId()) return;
+    const userId = currentUserId();
+    if (!userId) return;
     set({ loading: true });
 
-    const today = localDateStr();
-    const { data } = await supabase
-      .from('meals')
-      .select('*')
-      .eq('meal_date', today)
-      .order('logged_at', { ascending: true });
-
-    const todayMeals = (data ?? []).map(toMeal);
+    const todayMeals = await fetchMealsOnDay(supabase, userId, localDateStr());
     set({ todayMeals, todayKcal: sumKcal(todayMeals), loading: false, loaded: true });
   },
 
@@ -82,23 +51,21 @@ export const useMealsStore = create<MealsState>((set, get) => ({
     const userId = currentUserId();
     if (!userId) return false;
 
-    const { data, error } = await supabase
-      .from('meals')
-      .insert({
-        user_id: userId,
-        meal_date: localDateStr(),
-        meal_type: input.mealType,
+    let meal;
+    try {
+      meal = await createMeal(supabase, userId, {
+        mealDate: localDateStr(),
+        mealType: input.mealType,
         name: input.name.trim(),
-        kcal: input.kcal ?? null,
-      })
-      .select('*')
-      .single();
-
-    if (error || !data) return false;
+        kcal: input.kcal,
+      });
+    } catch {
+      return false;
+    }
 
     // append otimista (sem recarregar tudo): a refeição é de hoje por definição
     set((s) => {
-      const todayMeals = [...s.todayMeals, toMeal(data as MealRow)];
+      const todayMeals = [...s.todayMeals, meal];
       return { todayMeals, todayKcal: sumKcal(todayMeals) };
     });
     return true;

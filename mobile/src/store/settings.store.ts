@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import type { Profile, UserPreferences, AppTheme } from '@vitale/shared';
-import { fetchProfile, patchProfile } from '@vitale/shared';
+import {
+  fetchProfile,
+  fetchUserPreferencesRow,
+  patchProfile,
+  upsertUserPreferences,
+} from '@vitale/shared';
 import {
   resolveMapStyle,
   DEFAULT_MAP_STYLE,
@@ -44,29 +49,30 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ loading: true });
     const [profileRes, prefsRes] = await Promise.all([
       fetchProfile(supabase, userId),
-      supabase.from('user_preferences').select('*').eq('id', userId).maybeSingle(),
+      fetchUserPreferencesRow(supabase, userId),
     ]);
-    const remotePrefs: UserPreferences | null = prefsRes.data
+    const pr = prefsRes as Record<string, any> | null;
+    const remotePrefs: UserPreferences | null = pr
       ? {
-          userId: prefsRes.data.id,
-          theme: (prefsRes.data.theme ?? 'system') as AppTheme,
-          glassEnabled: prefsRes.data.glass_enabled ?? false,
-          blurIntensity: prefsRes.data.blur_intensity ?? 50,
-          language: prefsRes.data.language ?? 'pt-BR',
-          notificationsEnabled: prefsRes.data.notifications_enabled ?? true,
-          mapStyle: resolveMapStyle(prefsRes.data.map_style),
-          wallpaper: resolveWallpaper(prefsRes.data.wallpaper),
-          dailyReminderTime: prefsRes.data.daily_reminder_time ?? undefined,
-          nutritionCaloriesGoal: prefsRes.data.nutrition_calories_goal ?? undefined,
-          nutritionProteinG: prefsRes.data.nutrition_protein_g ?? undefined,
-          nutritionCarbsG: prefsRes.data.nutrition_carbs_g ?? undefined,
-          nutritionFatG: prefsRes.data.nutrition_fat_g ?? undefined,
-          trainingDaysPerWeek: prefsRes.data.training_days_per_week ?? undefined,
-          maxHr: prefsRes.data.max_hr ?? undefined,
-          weeklyActivityTargetMin: prefsRes.data.weekly_activity_target_min ?? undefined,
-          referenceLineScheme: resolveReferenceLineScheme(prefsRes.data.reference_line_scheme),
-          notificationPrefs: resolveNotificationPrefs(prefsRes.data.notification_prefs),
-          updatedAt: prefsRes.data.updated_at,
+          userId: pr.id,
+          theme: (pr.theme ?? 'system') as AppTheme,
+          glassEnabled: pr.glass_enabled ?? false,
+          blurIntensity: pr.blur_intensity ?? 50,
+          language: pr.language ?? 'pt-BR',
+          notificationsEnabled: pr.notifications_enabled ?? true,
+          mapStyle: resolveMapStyle(pr.map_style),
+          wallpaper: resolveWallpaper(pr.wallpaper),
+          dailyReminderTime: pr.daily_reminder_time ?? undefined,
+          nutritionCaloriesGoal: pr.nutrition_calories_goal ?? undefined,
+          nutritionProteinG: pr.nutrition_protein_g ?? undefined,
+          nutritionCarbsG: pr.nutrition_carbs_g ?? undefined,
+          nutritionFatG: pr.nutrition_fat_g ?? undefined,
+          trainingDaysPerWeek: pr.training_days_per_week ?? undefined,
+          maxHr: pr.max_hr ?? undefined,
+          weeklyActivityTargetMin: pr.weekly_activity_target_min ?? undefined,
+          referenceLineScheme: resolveReferenceLineScheme(pr.reference_line_scheme),
+          notificationPrefs: resolveNotificationPrefs(pr.notification_prefs),
+          updatedAt: pr.updated_at,
         }
       : null;
     // Preferência local já hidratada (cache/memória). Pode conter uma escolha
@@ -135,8 +141,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ preferences: next });
     // Persiste localmente na hora ("ao ativar, salvar") — independente da rede.
     await setJSON(PREFS_KEY, next);
-    const { error } = await supabase.from('user_preferences').upsert({
-      id: userId,
+    let upsertError: string | null = null;
+    try {
+      await upsertUserPreferences(supabase, userId, {
       theme: next.theme,
       glass_enabled: next.glassEnabled,
       blur_intensity: next.blurIntensity ?? 50,
@@ -154,8 +161,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       weekly_activity_target_min: next.weeklyActivityTargetMin ?? null,
       reference_line_scheme: next.referenceLineScheme ?? null,
       notification_prefs: next.notificationPrefs ?? {},
-    });
+      });
+    } catch (e) {
+      upsertError = e instanceof Error ? e.message : String(e);
+    }
     // Falha de sync não derruba a escolha local (já no cache); só não fica silenciosa.
-    if (error) console.warn('[settings] falha ao salvar preferências no servidor:', error.message);
+    if (upsertError) console.warn('[settings] falha ao salvar preferências no servidor:', upsertError);
   },
 }));

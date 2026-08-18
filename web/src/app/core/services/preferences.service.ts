@@ -10,6 +10,7 @@ import {
 } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
+import { fetchUserPreferencesRow } from '@vitale/shared';
 
 /**
  * Preferências de app do usuário, carregadas da tabela `user_preferences`.
@@ -46,17 +47,18 @@ export class PreferencesService {
   }
 
   private async load(userId: string): Promise<void> {
-    // `select('*')` em vez de listar colunas: a web roda contra bancos onde uma
-    // migration recente pode não ter sido aplicada, e pedir uma coluna inexistente
-    // faria o PostgREST rejeitar a query inteira (perdendo até o map_style).
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    if (error) return; // tabela ausente → mantém os padrões
-    this.mapStyle.set(resolveMapStyle(data?.['map_style']));
-    this.weeklyActivityTargetMin.set(resolveWeeklyTargetMin(data?.['weekly_activity_target_min']));
-    this.referenceLines.set(referenceLineColors(data?.['reference_line_scheme']));
+    let data: Record<string, unknown> | null;
+    try {
+      data = await fetchUserPreferencesRow(supabase, userId);
+    } catch {
+      return; // leitura falhou → mantém os padrões
+    }
+    this.mapStyle.set(resolveMapStyle(data?.['map_style'] as string | null | undefined));
+    this.weeklyActivityTargetMin.set(
+      resolveWeeklyTargetMin(data?.['weekly_activity_target_min'] as number | null | undefined),
+    );
+    this.referenceLines.set(
+      referenceLineColors(data?.['reference_line_scheme'] as string | null | undefined),
+    );
   }
 }

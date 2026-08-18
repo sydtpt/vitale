@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { createTransaction, fetchTransactionsSince } from '@vitale/shared';
 import type { FinanceTransaction } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './auth.store';
@@ -23,24 +24,6 @@ interface TransactionsState {
   createTransaction: (input: NewTransaction) => Promise<boolean>;
 }
 
-type TransactionRow = {
-  id: string;
-  tx_date: string;
-  description: string;
-  category: string | null;
-  amount: number | string;   // numeric chega como string no supabase-js
-};
-
-function toTransaction(row: TransactionRow): FinanceTransaction {
-  return {
-    id: row.id,
-    date: row.tx_date,
-    description: row.description,
-    category: row.category ?? '',
-    amount: Number(row.amount),
-  };
-}
-
 function currentUserId(): string | undefined {
   return useAuthStore.getState().user?.id;
 }
@@ -51,38 +34,33 @@ export const useTransactionsStore = create<TransactionsState>((set, get) => ({
   loaded: false,
 
   load: async () => {
-    if (!currentUserId()) return;
+    const userId = currentUserId();
+    if (!userId) return;
     set({ loading: true });
 
     const since = localDateStr(new Date(Date.now() - (WINDOW_DAYS - 1) * 86_400_000));
-    const { data } = await supabase
-      .from('transactions')
-      .select('id, tx_date, description, category, amount')
-      .gte('tx_date', since)
-      .order('tx_date', { ascending: false });
+    const recent = await fetchTransactionsSince(supabase, userId, since);
 
-    set({ recent: (data ?? []).map(toTransaction), loading: false, loaded: true });
+    set({ recent, loading: false, loaded: true });
   },
 
   createTransaction: async (input) => {
     const userId = currentUserId();
     if (!userId) return false;
 
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: userId,
-        tx_date: localDateStr(),
+    let tx;
+    try {
+      tx = await createTransaction(supabase, userId, {
+        date: localDateStr(),
         description: input.description.trim(),
         category: input.category,
         amount: input.amount,
-      })
-      .select('id, tx_date, description, category, amount')
-      .single();
+      });
+    } catch {
+      return false;
+    }
 
-    if (error || !data) return false;
-
-    set((s) => ({ recent: [toTransaction(data as TransactionRow), ...s.recent] }));
+    set((s) => ({ recent: [tx, ...s.recent] }));
     return true;
   },
 }));
