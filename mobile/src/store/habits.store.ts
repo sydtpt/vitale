@@ -1,4 +1,13 @@
 import { create } from 'zustand';
+import {
+  countHabits,
+  createHabit,
+  fetchHabitLogsBetween,
+  fetchHabitLogsSince,
+  fetchHabits,
+  setHabitActive,
+  updateHabit,
+} from '@vitale/shared';
 import type { CounterHabit, HabitDirection } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import {
@@ -67,40 +76,6 @@ interface HabitsState {
   setLogForDate: (habitId: string, date: string, value: number) => Promise<void>;
 }
 
-type HabitRow = {
-  id: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  unit: string;
-  step: number | string;
-  target: number | string | null;
-  direction: HabitDirection;
-  bad: boolean | null;
-  show_on_home: boolean | null;
-  active: boolean;
-  sort: number;
-  created_at: string;
-};
-
-function toHabit(row: HabitRow): CounterHabit {
-  return {
-    id: row.id,
-    name: row.name,
-    icon: row.icon ?? '',
-    color: row.color ?? '',
-    unit: row.unit,
-    step: Number(row.step),
-    target: row.target == null ? undefined : Number(row.target),
-    direction: row.direction,
-    bad: row.bad ?? false,
-    showOnHome: row.show_on_home ?? true,
-    active: row.active,
-    sort: row.sort,
-    createdAt: row.created_at,
-  };
-}
-
 function genOpId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -156,8 +131,7 @@ async function flushDeltas(items: HabitDelta[]): Promise<HabitDelta[]> {
 
 /** Hábito-semente: substitui a água mock por um contador real (spec §9). */
 async function seedDefaults(userId: string): Promise<void> {
-  await supabase.from('habits').insert({
-    user_id: userId,
+  await createHabit(supabase, userId, {
     name: 'Água',
     icon: 'water',
     color: 'agua',
@@ -166,7 +140,7 @@ async function seedDefaults(userId: string): Promise<void> {
     target: 4,
     direction: 'at_least',
     bad: false,
-    show_on_home: true,
+    showOnHome: true,
     sort: 0,
   });
 }
@@ -204,37 +178,29 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
 
     // 2) semear defaults só se a leitura tiver sucesso E não houver nenhum
     //    hábito. Em erro, `count` vem null; semear nesse caso duplicaria a Água.
-    const { count, error: countError } = await supabase
-      .from('habits')
-      .select('id', { count: 'exact', head: true });
-    if (!countError && count === 0) {
-      await seedDefaults(userId);
+    // Em erro a contagem lança; semear às cegas duplicaria a Água.
+    try {
+      if ((await countHabits(supabase, userId)) === 0) await seedDefaults(userId);
+    } catch {
+      /* leitura falhou: não semeia */
     }
 
     // 3) hábitos ativos
-    const { data: rows } = await supabase
-      .from('habits')
-      .select('*')
-      .eq('active', true)
-      .order('sort', { ascending: true });
-    const habits = (rows ?? []).map(toHabit);
+    const habits = (await fetchHabits(supabase, userId)).filter((h) => h.active);
 
     // 4) logs da janela (base do streak); o valor de hoje sai da mesma leitura
     const today = localDateStr();
     const since = localDateStr(
       new Date(Date.now() - (HABIT_WINDOW_DAYS - 1) * 86400000),
     );
-    const { data: logs } = await supabase
-      .from('habit_logs')
-      .select('habit_id, log_date, value')
-      .gte('log_date', since);
+    const logs = await fetchHabitLogsSince(supabase, userId, since);
 
     const windowByHabit: Record<string, Record<string, number>> = {};
     const todayLogs: Record<string, number> = {};
-    for (const l of logs ?? []) {
-      const hid = l.habit_id as string;
-      const date = l.log_date as string;
-      const value = Number(l.value);
+    for (const l of logs) {
+      const hid = l.habitId;
+      const date = l.logDate;
+      const value = l.value;
       (windowByHabit[hid] ??= {})[date] = value;
       if (date === today) todayLogs[hid] = value;
     }
@@ -254,11 +220,8 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
   // de quebra, mantém a lista de captura (`habits`) coerente.
   loadAll: async () => {
     if (!currentUserId()) return;
-    const { data } = await supabase
-      .from('habits')
-      .select('*')
-      .order('sort', { ascending: true });
-    const all = (data ?? []).map(toHabit);
+    const uid0 = currentUserId();
+    const all = uid0 ? await fetchHabits(supabase, uid0) : [];
     set({ allHabits: all, habits: all.filter((h) => h.active) });
   },
 
@@ -301,8 +264,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     if (!userId) return;
     const list = get().allHabits.length ? get().allHabits : get().habits;
     const sort = list.reduce((max, h) => Math.max(max, h.sort), -1) + 1;
-    await supabase.from('habits').insert({
-      user_id: userId,
+    await createHabit(supabase, userId, {
       name: input.name,
       icon: input.icon,
       color: input.color,
@@ -311,19 +273,19 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
       target: input.target ?? null,
       direction: input.direction,
       bad: input.bad,
-      show_on_home: input.showOnHome,
+      showOnHome: input.showOnHome,
       sort,
     });
     await get().loadAll();
   },
 
   updateHabit: async (id, patch) => {
-    await supabase.from('habits').update(patch).eq('id', id);
+    await updateHabit(supabase, id, patch);
     await get().loadAll();
   },
 
   archiveHabit: async (id, active) => {
-    await supabase.from('habits').update({ active }).eq('id', id);
+    await setHabitActive(supabase, id, active);
     await get().loadAll();
   },
 
@@ -333,16 +295,12 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     if (!currentUserId()) return {};
     const from = localDateStr(new Date(year, monthIdx, 1));
     const to = localDateStr(new Date(year, monthIdx + 1, 0));
-    const { data } = await supabase
-      .from('habit_logs')
-      .select('habit_id, log_date, value')
-      .gte('log_date', from)
-      .lte('log_date', to);
+    const uidM = currentUserId();
+    const data = uidM ? await fetchHabitLogsBetween(supabase, uidM, from, to) : [];
 
     const byHabit: Record<string, Record<string, number>> = {};
-    for (const l of data ?? []) {
-      const hid = l.habit_id as string;
-      (byHabit[hid] ??= {})[l.log_date as string] = Number(l.value);
+    for (const l of data) {
+      (byHabit[l.habitId] ??= {})[l.logDate] = l.value;
     }
 
     set((s) => {

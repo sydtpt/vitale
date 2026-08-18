@@ -3,34 +3,19 @@ import type { CounterHabit, HabitLog, HabitDirection } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { lastNDates, localDateStr } from '@vitale/shared';
+import {
+  createHabit,
+  fetchHabitLogsBetween,
+  fetchHabitLogsSinceOrdered,
+  fetchHabits,
+  setHabitActive,
+  updateHabit,
+} from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 /** Janela do heatmap/análise: ~12 semanas. */
 export const RANGE_DAYS = 84;
-
-interface DbHabitRow {
-  id: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  unit: string;
-  step: number | string;
-  target: number | string | null;
-  direction: 'at_least' | 'at_most';
-  bad: boolean | null;
-  show_on_home: boolean | null;
-  active: boolean;
-  sort: number;
-  created_at: string;
-}
-
-interface DbLogRow {
-  id: string;
-  habit_id: string;
-  log_date: string;
-  value: number | string;
-}
 
 /**
  * Fonte única dos hábitos contadores no web. Um fetch dos hábitos + um dos
@@ -113,15 +98,7 @@ export class HabitsStore {
     const from = localDateStr(new Date(year, monthIdx, 1));
     const to = localDateStr(new Date(year, monthIdx + 1, 0));
 
-    const { data, error } = await supabase
-      .from('habit_logs')
-      .select('id,habit_id,log_date,value')
-      .eq('user_id', userId)
-      .gte('log_date', from)
-      .lte('log_date', to);
-    if (error) throw new Error(error.message);
-
-    const fetched = ((data ?? []) as DbLogRow[]).map(mapLog);
+    const fetched = await fetchHabitLogsBetween(supabase, userId, from, to);
     this._logs.update(logs => {
       const keys = new Set(fetched.map(l => `${l.habitId}:${l.logDate}`));
       const kept = logs.filter(l => !keys.has(`${l.habitId}:${l.logDate}`));
@@ -144,28 +121,21 @@ export class HabitsStore {
 
     const since = localDateStr(new Date(Date.now() - (RANGE_DAYS - 1) * 86400000));
 
-    const [habitsRes, logsRes] = await Promise.all([
-      supabase
-        .from('habits')
-        .select('id,name,icon,color,unit,step,target,direction,bad,show_on_home,active,sort,created_at')
-        .eq('user_id', userId)
-        .order('sort', { ascending: true }),
-      supabase
-        .from('habit_logs')
-        .select('id,habit_id,log_date,value')
-        .eq('user_id', userId)
-        .gte('log_date', since)
-        .order('log_date', { ascending: true }),
-    ]);
-
-    if (habitsRes.error || logsRes.error) {
-      this._error.set(habitsRes.error?.message ?? logsRes.error?.message ?? 'Erro ao carregar.');
+    let habits: CounterHabit[];
+    let logs: HabitLog[];
+    try {
+      [habits, logs] = await Promise.all([
+        fetchHabits(supabase, userId),
+        fetchHabitLogsSinceOrdered(supabase, userId, since),
+      ]);
+    } catch (e) {
+      this._error.set(e instanceof Error ? e.message : 'Erro ao carregar.');
       this._state.set('error');
       return;
     }
 
-    this._habits.set(((habitsRes.data ?? []) as DbHabitRow[]).map(mapHabit));
-    this._logs.set(((logsRes.data ?? []) as DbLogRow[]).map(mapLog));
+    this._habits.set(habits);
+    this._logs.set(logs);
     this._state.set('loaded');
   }
 
@@ -184,28 +154,21 @@ export class HabitsStore {
     if (!userId) throw new Error('Sessão não encontrada.');
 
     const maxSort = Math.max(0, ...this._habits().map(h => h.sort));
-    const res = await supabase
-      .from('habits')
-      .insert({
-        user_id: userId,
-        name: data.name,
-        icon: data.icon,
-        color: data.color,
-        unit: data.unit,
-        step: data.step,
-        target: data.target ?? null,
-        direction: data.direction,
-        bad: data.bad ?? false,
-        show_on_home: data.showOnHome ?? true,
-        active: true,
-        sort: maxSort + 1,
-      })
-      .select()
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    const newHabit = mapHabit(res.data as DbHabitRow);
-    this._habits.update(h => [...h, newHabit]);
+    const id = await createHabit(supabase, userId, {
+      name: data.name,
+      icon: data.icon,
+      color: data.color,
+      unit: data.unit as CounterHabit['unit'],
+      step: data.step,
+      target: data.target,
+      direction: data.direction,
+      bad: data.bad,
+      showOnHome: data.showOnHome,
+      sort: maxSort + 1,
+    });
+    const habits = await fetchHabits(supabase, userId);
+    this._habits.set(habits);
+    void id;
   }
 
   async updateHabit(id: string, data: {
@@ -222,65 +185,26 @@ export class HabitsStore {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
 
-    const res = await supabase
-      .from('habits')
-      .update({
-        name: data.name,
-        icon: data.icon,
-        color: data.color,
-        unit: data.unit,
-        step: data.step,
-        target: data.target ?? null,
-        direction: data.direction,
-        bad: data.bad ?? false,
-        show_on_home: data.showOnHome ?? true,
-      })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    const updated = mapHabit(res.data as DbHabitRow);
-    this._habits.update(h => h.map(x => x.id === id ? updated : x));
+    await updateHabit(supabase, id, {
+      name: data.name,
+      icon: data.icon,
+      color: data.color,
+      unit: data.unit as CounterHabit['unit'],
+      step: data.step,
+      target: data.target ?? null,
+      direction: data.direction,
+      bad: data.bad ?? false,
+      show_on_home: data.showOnHome ?? true,
+    });
+    this._habits.set(await fetchHabits(supabase, userId));
   }
 
   async archiveHabit(id: string, active: boolean): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
 
-    const res = await supabase
-      .from('habits')
-      .update({ active })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    const updated = mapHabit(res.data as DbHabitRow);
-    this._habits.update(h => h.map(x => x.id === id ? updated : x));
+    await setHabitActive(supabase, id, active);
+    this._habits.set(await fetchHabits(supabase, userId));
   }
 }
 
-function mapHabit(r: DbHabitRow): CounterHabit {
-  return {
-    id: r.id,
-    name: r.name,
-    icon: r.icon ?? '',
-    color: r.color ?? '',
-    unit: r.unit,
-    step: Number(r.step),
-    target: r.target == null ? undefined : Number(r.target),
-    direction: r.direction,
-    bad: r.bad ?? false,
-    showOnHome: r.show_on_home ?? true,
-    active: r.active,
-    sort: r.sort,
-    createdAt: r.created_at,
-  };
-}
-
-function mapLog(r: DbLogRow): HabitLog {
-  return { id: r.id, habitId: r.habit_id, logDate: r.log_date, value: Number(r.value) };
-}

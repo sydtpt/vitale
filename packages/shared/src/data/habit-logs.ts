@@ -1,9 +1,9 @@
 /**
  * Acesso à tabela `habit_logs` — dono único (AD-4).
  *
- * **Parcial.** Hoje cobre só a leitura que as Metas usam; as demais chamadas
- * ainda vivem nos stores de hábitos e migram junto com elas. O módulo existe
- * desde já para que acesso novo tenha onde nascer.
+ * Escrever **não** passa por aqui: vai pelas RPCs `habit_log_add` (incremento do
+ * dia) e `habit_log_set` (fixar valor, edição de passado), que resolvem
+ * concorrência no banco. Este módulo é de leitura.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { HabitLog } from '../models';
@@ -31,6 +31,39 @@ export async function fetchHabitLogsSince(
     .select('id,habit_id,log_date,value')
     .eq('user_id', userId)
     .gte('log_date', since);
+  if (error) throw error;
+  return ((data ?? []) as HabitLogRow[]).map(toHabitLog);
+}
+
+/** Registros num intervalo fechado de datas — base do heatmap mensal. */
+export async function fetchHabitLogsBetween(
+  db: SupabaseClient,
+  userId: string,
+  from: string,
+  to: string,
+): Promise<HabitLog[]> {
+  const { data, error } = await db
+    .from('habit_logs')
+    .select('id,habit_id,log_date,value')
+    .eq('user_id', userId)
+    .gte('log_date', from)
+    .lte('log_date', to);
+  if (error) throw error;
+  return ((data ?? []) as HabitLogRow[]).map(toHabitLog);
+}
+
+/** Registros desde `since`, em ordem cronológica. */
+export async function fetchHabitLogsSinceOrdered(
+  db: SupabaseClient,
+  userId: string,
+  since: string,
+): Promise<HabitLog[]> {
+  const { data, error } = await db
+    .from('habit_logs')
+    .select('id,habit_id,log_date,value')
+    .eq('user_id', userId)
+    .gte('log_date', since)
+    .order('log_date', { ascending: true });
   if (error) throw error;
   return ((data ?? []) as HabitLogRow[]).map(toHabitLog);
 }
