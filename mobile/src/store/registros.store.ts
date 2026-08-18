@@ -1,4 +1,13 @@
 import { create } from 'zustand';
+import {
+  createRegistro,
+  fetchRegistroLogDates,
+  fetchRegistroLogsSince,
+  fetchRegistros,
+  setRegistroActive,
+  setRegistroMark,
+  updateRegistro,
+} from '@vitale/shared';
 import type { Registro, TodoModule } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './auth.store';
@@ -47,30 +56,6 @@ interface RegistrosState {
   archiveRegistro: (id: string, active: boolean) => Promise<void>;
 }
 
-type RegistroRow = {
-  id: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  module: TodoModule;
-  active: boolean;
-  sort: number;
-  created_at: string;
-};
-
-function toRegistro(row: RegistroRow): Registro {
-  return {
-    id: row.id,
-    name: row.name,
-    icon: row.icon ?? '',
-    color: row.color ?? '',
-    module: row.module,
-    active: row.active,
-    sort: row.sort,
-    createdAt: row.created_at,
-  };
-}
-
 function currentUserId(): string | undefined {
   return useAuthStore.getState().user?.id;
 }
@@ -101,21 +86,22 @@ export const useRegistrosStore = create<RegistrosState>((set, get) => ({
 
   load: async () => {
     if (!currentUserId()) return;
+    const userId = currentUserId();
+    if (!userId) return;
     set({ loading: true });
 
     const today = localDateStr();
     const since = localDateStr(new Date(Date.now() - (WINDOW_DAYS - 1) * 86_400_000));
-    const [regsRes, logsRes] = await Promise.all([
-      supabase.from('registros').select('*').order('sort', { ascending: true }),
-      supabase.from('registro_logs').select('registro_id, log_date').gte('log_date', since),
+    const [registros, logs] = await Promise.all([
+      fetchRegistros(supabase, userId),
+      fetchRegistroLogsSince(supabase, userId, since),
     ]);
 
-    const registros = (regsRes.data ?? []).map(toRegistro);
     const todayMarks: Record<string, boolean> = {};
     const recentLogs: Record<string, string[]> = {};
-    for (const l of logsRes.data ?? []) {
-      const rid = l.registro_id as string;
-      const date = l.log_date as string;
+    for (const l of logs) {
+      const rid = l.registroId;
+      const date = l.logDate;
       (recentLogs[rid] ??= []).push(date);
       if (date === today) todayMarks[rid] = true;
     }
@@ -134,38 +120,29 @@ export const useRegistrosStore = create<RegistrosState>((set, get) => ({
     // otimista
     set((s) => applyMark(s, id, today, !wasDone));
 
-    const { error } = wasDone
-      ? await supabase.from('registro_logs').delete().eq('registro_id', id).eq('log_date', today)
-      : await supabase
-          .from('registro_logs')
-          .upsert({ registro_id: id, user_id: userId, log_date: today }, { onConflict: 'registro_id,log_date' });
-
-    if (error) {
+    try {
+      await setRegistroMark(supabase, userId, id, today, !wasDone);
+    } catch {
       // reverte em caso de falha
       set((s) => applyMark(s, id, today, wasDone));
     }
   },
 
   fetchRegistroLogs: async (id) => {
-    if (!currentUserId()) return [];
-    const { data } = await supabase
-      .from('registro_logs')
-      .select('log_date')
-      .eq('registro_id', id);
-    return (data ?? []).map((l) => l.log_date as string);
+    const uidL = currentUserId();
+    if (!uidL) return [];
+    return fetchRegistroLogDates(supabase, uidL, id);
   },
 
   setRegistroMark: async (id, date, done) => {
     const userId = currentUserId();
     if (!userId) return false;
 
-    const { error } = done
-      ? await supabase
-          .from('registro_logs')
-          .upsert({ registro_id: id, user_id: userId, log_date: date }, { onConflict: 'registro_id,log_date' })
-      : await supabase.from('registro_logs').delete().eq('registro_id', id).eq('log_date', date);
-
-    if (error) return false;
+    try {
+      await setRegistroMark(supabase, userId, id, date, done);
+    } catch {
+      return false;
+    }
 
     // mantém todayMarks + a janela em memória coerentes após a escrita
     set((s) => applyMark(s, id, date, done));
@@ -176,8 +153,7 @@ export const useRegistrosStore = create<RegistrosState>((set, get) => ({
     const userId = currentUserId();
     if (!userId) return;
     const sort = get().registros.reduce((max, r) => Math.max(max, r.sort), -1) + 1;
-    await supabase.from('registros').insert({
-      user_id: userId,
+    await createRegistro(supabase, userId, {
       name: input.name,
       icon: input.icon,
       color: input.color,
@@ -188,12 +164,12 @@ export const useRegistrosStore = create<RegistrosState>((set, get) => ({
   },
 
   updateRegistro: async (id, patch) => {
-    await supabase.from('registros').update(patch).eq('id', id);
+    await updateRegistro(supabase, id, patch);
     await get().load();
   },
 
   archiveRegistro: async (id, active) => {
-    await supabase.from('registros').update({ active }).eq('id', id);
+    await setRegistroActive(supabase, id, active);
     await get().load();
   },
 }));

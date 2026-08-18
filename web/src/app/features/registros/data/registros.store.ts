@@ -3,28 +3,19 @@ import type { Registro, RegistroLog, TodoModule } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { localDateStr } from './registro-logic';
+import {
+  createRegistro,
+  fetchRegistroLogsSince,
+  fetchRegistros,
+  setRegistroActive,
+  setRegistroMark,
+  updateRegistro,
+} from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 /** Janela do heatmap/análise: ~12 semanas. */
 export const RANGE_DAYS = 84;
-
-interface DbRegistroRow {
-  id: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  module: TodoModule;
-  active: boolean;
-  sort: number;
-  created_at: string;
-}
-
-interface DbLogRow {
-  id: string;
-  registro_id: string;
-  log_date: string;
-}
 
 /**
  * Fonte única dos registros no web. Um fetch dos registros + um dos logs da
@@ -86,28 +77,21 @@ export class RegistrosStore {
 
     const since = localDateStr(new Date(Date.now() - (RANGE_DAYS - 1) * 86400000));
 
-    const [registrosRes, logsRes] = await Promise.all([
-      supabase
-        .from('registros')
-        .select('id,name,icon,color,module,active,sort,created_at')
-        .eq('user_id', userId)
-        .order('sort', { ascending: true }),
-      supabase
-        .from('registro_logs')
-        .select('id,registro_id,log_date')
-        .eq('user_id', userId)
-        .gte('log_date', since)
-        .order('log_date', { ascending: true }),
-    ]);
-
-    if (registrosRes.error || logsRes.error) {
-      this._error.set(registrosRes.error?.message ?? logsRes.error?.message ?? 'Erro ao carregar.');
+    let registros: Registro[];
+    let logs: RegistroLog[];
+    try {
+      [registros, logs] = await Promise.all([
+        fetchRegistros(supabase, userId),
+        fetchRegistroLogsSince(supabase, userId, since),
+      ]);
+    } catch (e) {
+      this._error.set(e instanceof Error ? e.message : 'Erro ao carregar.');
       this._state.set('error');
       return;
     }
 
-    this._registros.set(((registrosRes.data ?? []) as DbRegistroRow[]).map(mapRegistro));
-    this._logs.set(((logsRes.data ?? []) as DbLogRow[]).map(mapLog));
+    this._registros.set(registros);
+    this._logs.set(logs);
     this._state.set('loaded');
   }
 
@@ -118,14 +102,8 @@ export class RegistrosStore {
     const today = localDateStr();
     if (this.isDoneToday(id)) return;
 
-    const res = await supabase
-      .from('registro_logs')
-      .upsert({ registro_id: id, user_id: userId, log_date: today }, { onConflict: 'registro_id,log_date' })
-      .select('id,registro_id,log_date')
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    this._logs.update((l) => [...l, mapLog(res.data as DbLogRow)]);
+    const log = await setRegistroMark(supabase, userId, id, today, true);
+    if (log) this._logs.update((l) => [...l, log]);
   }
 
   /** Desmarca hoje e atualiza o estado local. */
@@ -134,13 +112,7 @@ export class RegistrosStore {
     if (!userId) throw new Error('Sessão não encontrada.');
     const today = localDateStr();
 
-    const res = await supabase
-      .from('registro_logs')
-      .delete()
-      .eq('registro_id', id)
-      .eq('log_date', today);
-
-    if (res.error) throw new Error(res.error.message);
+    await setRegistroMark(supabase, userId, id, today, false);
     this._logs.update((l) => l.filter((x) => !(x.registroId === id && x.logDate === today)));
   }
 
@@ -158,22 +130,14 @@ export class RegistrosStore {
     if (!userId) throw new Error('Sessão não encontrada.');
 
     const maxSort = Math.max(0, ...this._registros().map((r) => r.sort));
-    const res = await supabase
-      .from('registros')
-      .insert({
-        user_id: userId,
-        name: data.name,
-        icon: data.icon,
-        color: data.color,
-        module: data.module,
-        active: true,
-        sort: maxSort + 1,
-      })
-      .select('id,name,icon,color,module,active,sort,created_at')
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    this._registros.update((r) => [...r, mapRegistro(res.data as DbRegistroRow)]);
+    await createRegistro(supabase, userId, {
+      name: data.name,
+      icon: data.icon,
+      color: data.color,
+      module: data.module,
+      sort: maxSort + 1,
+    });
+    this._registros.set(await fetchRegistros(supabase, userId));
   }
 
   async updateRegistro(id: string, data: {
@@ -185,50 +149,22 @@ export class RegistrosStore {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
 
-    const res = await supabase
-      .from('registros')
-      .update({ name: data.name, icon: data.icon, color: data.color, module: data.module })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select('id,name,icon,color,module,active,sort,created_at')
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    const updated = mapRegistro(res.data as DbRegistroRow);
-    this._registros.update((r) => r.map((x) => (x.id === id ? updated : x)));
+    await updateRegistro(supabase, id, {
+      name: data.name,
+      icon: data.icon,
+      color: data.color,
+      module: data.module,
+    });
+    this._registros.set(await fetchRegistros(supabase, userId));
   }
 
   async archiveRegistro(id: string, active: boolean): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
 
-    const res = await supabase
-      .from('registros')
-      .update({ active })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select('id,name,icon,color,module,active,sort,created_at')
-      .single();
-
-    if (res.error) throw new Error(res.error.message);
-    const updated = mapRegistro(res.data as DbRegistroRow);
-    this._registros.update((r) => r.map((x) => (x.id === id ? updated : x)));
+    await setRegistroActive(supabase, id, active);
+    this._registros.set(await fetchRegistros(supabase, userId));
   }
 }
 
-function mapRegistro(r: DbRegistroRow): Registro {
-  return {
-    id: r.id,
-    name: r.name,
-    icon: r.icon ?? '',
-    color: r.color ?? '',
-    module: r.module,
-    active: r.active,
-    sort: r.sort,
-    createdAt: r.created_at,
-  };
-}
 
-function mapLog(r: DbLogRow): RegistroLog {
-  return { id: r.id, registroId: r.registro_id, logDate: r.log_date };
-}

@@ -30,6 +30,7 @@ export * from './data/todo-templates';
 export * from './data/todo-occurrences';
 export * from './data/habit-logs';
 export * from './data/habits';
+export * from './data/registros';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
 export * from './todo/format';
