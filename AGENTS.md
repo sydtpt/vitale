@@ -1,5 +1,5 @@
 <!-- bmad:context -->
-<!-- Verificado em 2026-08-17 contra b8de47e. Mantido por bmad-project-context;
+<!-- Verificado em 2026-08-18 contra 2a26eb2. Mantido por bmad-project-context;
      edições dentro deste bloco são substituídas no refresh. O que você quiser
      preservar, deixe fora dos marcadores. -->
 
@@ -43,6 +43,9 @@ do BMAD, em `_bmad-output/`.
 - `npm run test` na raiz roda os três workspaces: shared em `tsx`, web em Vitest, mobile
   em Jest.
 - Não há CI nem git hooks: nada é verificado automaticamente no commit.
+- `supabase/scripts/check-schema-drift.sh` compara as tabelas de produção com as
+  que as migrations criam; sai != 0 no desvio. Precisa do banco, então não roda em
+  `npm run test` — rode à mão após mexer em schema.
 
 ## Known pitfalls
 
