@@ -12,7 +12,7 @@ export default function PerfilScreen() {
   const router = useRouter();
   const { profile, preferences, loadSettings, updateProfile } = useSettingsStore();
 
-  const [name, setName] = useState(profile?.displayName ?? '');
+  const [name, setName] = useState(profile?.name ?? '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -20,12 +20,12 @@ export default function PerfilScreen() {
   }, []);
 
   useEffect(() => {
-    setName(profile?.displayName ?? '');
-  }, [profile?.displayName]);
+    setName(profile?.name ?? '');
+  }, [profile?.name]);
 
   const save = async () => {
     setSaving(true);
-    await updateProfile({ displayName: name.trim() || undefined });
+    await updateProfile({ name: name.trim() || undefined });
     setSaving(false);
     router.back();
   };

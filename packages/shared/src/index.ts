@@ -25,6 +25,7 @@ export * from './chart/axis';
 export * from './chart/palettes';
 export * from './date/local';
 export * from './format/workout';
+export * from './data/profiles';
 export * from './todo/logic';
 export * from './todo/format';
 export * from './habits/logic';

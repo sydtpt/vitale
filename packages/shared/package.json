@@ -8,6 +8,9 @@
     "lint": "tsc --noEmit",
     "test": "find src -name '*.test.ts' -print0 | xargs -0 -n1 tsx"
   },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.0"
+  },
   "devDependencies": {
     "tsx": "^4.23.0",
     "typescript": "~5.8.0"

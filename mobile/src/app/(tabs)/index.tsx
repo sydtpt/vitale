@@ -48,7 +48,7 @@ export default function HojeScreen() {
   const user = useAuthStore(s => s.user);
   // Nome de exibição definido em Configurações › Perfil tem prioridade; senão
   // cai para o nome derivado do login (metadata/e-mail).
-  const displayName = useSettingsStore(s => s.profile?.displayName);
+  const displayName = useSettingsStore(s => s.profile?.name);
   const firstName = displayName ? firstNameOf(displayName) : getFirstName(user);
 
   // Refeições logadas hoje — persistidas no Supabase; alimentam o anel de comida.

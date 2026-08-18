@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { UserProfile, UserPreferences, AppTheme } from '@vitale/shared';
+import type { Profile, UserPreferences, AppTheme } from '@vitale/shared';
+import { fetchProfile, patchProfile } from '@vitale/shared';
 import {
   resolveMapStyle,
   DEFAULT_MAP_STYLE,
@@ -17,11 +18,11 @@ import { useAuthStore } from './auth.store';
 const PREFS_KEY = 'vitale.preferences';
 
 interface SettingsState {
-  profile: UserProfile | null;
+  profile: Profile | null;
   preferences: UserPreferences | null;
   loading: boolean;
   loadSettings: () => Promise<void>;
-  updateProfile: (patch: Partial<Pick<UserProfile, 'displayName' | 'avatarUrl'>>) => Promise<void>;
+  updateProfile: (patch: Partial<Pick<Profile, 'name' | 'avatarUrl'>>) => Promise<void>;
   updatePreferences: (patch: Partial<Omit<UserPreferences, 'userId' | 'updatedAt'>>) => Promise<void>;
 }
 
@@ -42,7 +43,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     set({ loading: true });
     const [profileRes, prefsRes] = await Promise.all([
-      supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
+      fetchProfile(supabase, userId),
       supabase.from('user_preferences').select('*').eq('id', userId).maybeSingle(),
     ]);
     const remotePrefs: UserPreferences | null = prefsRes.data
@@ -96,14 +97,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       };
     set({
       loading: false,
-      profile: profileRes.data
-        ? {
-            id: profileRes.data.id,
-            displayName: profileRes.data.display_name ?? undefined,
-            avatarUrl: profileRes.data.avatar_url ?? undefined,
-            updatedAt: profileRes.data.updated_at,
-          }
-        : { id: userId, updatedAt: new Date().toISOString() },
+      // `null` quando o setup ainda não rodou — o mobile não cria perfil.
+      profile: profileRes,
       preferences: prefs,
     });
     setJSON(PREFS_KEY, prefs);
@@ -113,18 +108,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const userId = useAuthStore.getState().user?.id;
     if (!userId) return;
     const current = get().profile;
-    const next: UserProfile = {
-      ...current,
-      id: userId,
-      ...patch,
-      updatedAt: new Date().toISOString(),
-    };
+    // Sem perfil não há o que editar: criar exige nome e nascimento, coletados
+    // no setup da web. `patchProfile` também é no-op sem linha. Ver ADR 0011.
+    if (!current) return;
+    const next: Profile = { ...current, ...patch, updatedAt: new Date().toISOString() };
     set({ profile: next });
-    await supabase.from('user_profiles').upsert({
-      id: userId,
-      display_name: next.displayName ?? null,
-      avatar_url: next.avatarUrl ?? null,
-    });
+    await patchProfile(supabase, userId, { name: next.name, avatarUrl: next.avatarUrl ?? null });
   },
 
   updatePreferences: async (patch) => {

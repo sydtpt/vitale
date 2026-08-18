@@ -45,7 +45,7 @@ export default function ConfiguracoesScreen() {
     {
       title: 'Conta',
       rows: [
-        { icon: 'person-outline', label: 'Perfil', sub: profile?.displayName ?? 'Definir nome', route: '/configuracoes/perfil' },
+        { icon: 'person-outline', label: 'Perfil', sub: profile?.name ?? 'Definir nome', route: '/configuracoes/perfil' },
         { icon: 'log-out-outline', label: 'Sair', destructive: true, onPress: signOut },
       ],
     },

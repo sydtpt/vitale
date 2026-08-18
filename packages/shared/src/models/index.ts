@@ -561,6 +561,21 @@ export interface DailyRating {
  * Perfil visível do usuário. Mapeia a tabela `user_profiles`.
  * Ver docs/specs/settings/.
  */
+/**
+ * Perfil do usuário — quem ele é. Configuração do app fica em
+ * `UserPreferences`. `name` e `birthdate` são obrigatórios: o banco os exige e
+ * o fluxo de setup os coleta antes de liberar o app.
+ */
+export interface Profile {
+  userId: string;
+  name: string;
+  /** 'YYYY-MM-DD'. Alimenta estimativa de FC máxima e linhas de base de saúde. */
+  birthdate: string;
+  avatarUrl?: string;
+  updatedAt?: string;
+}
+
+/** @deprecated Superada por `Profile`; some quando o mobile migrar de `user_profiles`. Ver ADR 0011. */
 export interface UserProfile {
   id: string;
   displayName?: string;
