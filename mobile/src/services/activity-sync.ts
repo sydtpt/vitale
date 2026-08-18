@@ -42,6 +42,12 @@ import { readAnchor, writeAnchor } from '../lib/sync-anchor';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
 import { linkWorkoutsToTodos } from './activity-todo-link';
 import { movingTimeFromTrack } from '@vitale/shared';
+import {
+  fetchExistingRouteIds,
+  fetchRouteBackfillCandidates,
+  setActivityHasRoute,
+  upsertActivityRoute,
+} from '@vitale/shared';
 
 export interface SyncResult {
   pushed: number;
@@ -205,7 +211,7 @@ async function pushRoutes(
   let error: string | undefined;
   for (const [activityId, points] of routes) {
     const row = toRouteRow(activityId, userId, points);
-    const res = await supabase.from('activity_routes').upsert(row, { onConflict: 'activity_id' });
+    const res = await upsertActivityRoute(supabase, row).then(() => ({ error: null })).catch((e) => ({ error: e }));
     if (res.error) {
       if (!error) error = res.error.message;
       console.warn('[sync] upsert activity_routes falhou:', res.error.message);
@@ -229,10 +235,11 @@ async function flushItems(items: QueueItem[]): Promise<QueueItem[]> {
   failed.push(...res.failed);
 
   for (const item of routes) {
-    const { error } = await supabase
-      .from('activity_routes')
-      .upsert(item.row as ActivityRouteRow, { onConflict: 'activity_id' });
-    if (error) failed.push(item);
+    try {
+      await upsertActivityRoute(supabase, item.row as ActivityRouteRow);
+    } catch {
+      failed.push(item);
+    }
   }
   return failed;
 }
@@ -244,17 +251,8 @@ const ROUTE_RETRY_DAYS = 30;
 const ROUTE_BACKFILL_PER_SYNC = 25;
 
 /** Dado um conjunto de ids, retorna os que JÁ têm linha em `activity_routes`. */
-async function existingRouteIds(ids: string[]): Promise<Set<string>> {
-  const found = new Set<string>();
-  const CHUNK = 200; // limite conservador de itens por `in(...)`
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const { data } = await supabase
-      .from('activity_routes')
-      .select('activity_id')
-      .in('activity_id', ids.slice(i, i + CHUNK));
-    for (const r of data ?? []) found.add(r.activity_id as string);
-  }
-  return found;
+async function existingRouteIds(userId: string, ids: string[]): Promise<Set<string>> {
+  return fetchExistingRouteIds(supabase, userId, ids);
 }
 
 /**
@@ -277,18 +275,17 @@ async function retryMissingRoutes(userId: string): Promise<number> {
   // HealthKit por aqui. Linhas de provider (strava/intervals) recebem rota pelo
   // ingest server-side e seu `id` nem é um id do HealthKit — não tocar.
   // has_route=true-sem-pontos (falha de push) SEM janela; has_route=false só recente.
-  const { data: candidates } = await supabase
-    .from('activities')
-    .select('id, has_route')
-    .eq('user_id', userId)
-    .in('activity_id', [...GPS_ACTIVITY_IDS])
-    .or('provider.is.null,provider.eq.healthkit')
-    .or(`has_route.eq.true,start_at.gte.${cutoff}`);
+  let candidates;
+  try {
+    candidates = await fetchRouteBackfillCandidates(supabase, userId, [...GPS_ACTIVITY_IDS], cutoff);
+  } catch {
+    return 0;
+  }
 
   if (!candidates?.length) return 0;
 
   // Mantém só as que realmente não têm rota persistida.
-  const withRoute = await existingRouteIds(candidates.map((c) => c.id));
+  const withRoute = await existingRouteIds(userId, candidates.map((c) => c.id));
   const missing = candidates
     .filter((c) => !withRoute.has(c.id))
     .slice(0, ROUTE_BACKFILL_PER_SYNC);
@@ -298,18 +295,19 @@ async function retryMissingRoutes(userId: string): Promise<number> {
     const points = await fetchWorkoutRoute(activity.id);
     if (points.length === 0) {
       // HealthKit não tem a rota: torna has_route honesto p/ não re-tentar à toa.
-      if (activity.has_route) {
-        await supabase.from('activities').update({ has_route: false }).eq('id', activity.id);
+      if (activity.hasRoute) {
+        await setActivityHasRoute(supabase, userId, activity.id, false);
       }
       continue;
     }
     const row = toRouteRow(activity.id, userId, points);
-    const { error } = await supabase
-      .from('activity_routes')
-      .upsert(row, { onConflict: 'activity_id' });
-    if (error) continue;
-    if (!activity.has_route) {
-      await supabase.from('activities').update({ has_route: true }).eq('id', activity.id);
+    try {
+      await upsertActivityRoute(supabase, row);
+    } catch {
+      continue;
+    }
+    if (!activity.hasRoute) {
+      await setActivityHasRoute(supabase, userId, activity.id, true);
     }
     count++;
   }

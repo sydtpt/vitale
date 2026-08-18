@@ -1,6 +1,18 @@
 import { create } from 'zustand';
+import { useAuthStore } from './auth.store';
+import {
+  fetchActivities,
+  fetchRouteOverviews,
+  fetchRoutePoints,
+  setActivityHidden,
+  updateActivityFields,
+} from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import type { Activity, ActivityRoutePoint, CityMark } from '@vitale/shared';
+
+function currentUserId(): string | undefined {
+  return useAuthStore.getState().user?.id;
+}
 
 export interface ActivityPatch {
   activityName?: string | null;
@@ -115,20 +127,20 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
     const { loading, loaded } = get();
     if (loading || (loaded && !force)) return;
 
+    const userId = currentUserId();
+    if (!userId) return;
     set({ loading: true, error: null });
 
-    const { data, error } = await supabase
-      .from('activities')
-      .select(SELECT)
-      .order('start_at', { ascending: false });
-
-    if (error) {
-      set({ loading: false, error: error.message });
+    let all;
+    try {
+      all = await fetchActivities(supabase, userId);
+    } catch (e) {
+      set({ loading: false, error: e instanceof Error ? e.message : 'Erro ao carregar.' });
       return;
     }
 
     set({
-      _all: ((data ?? []) as unknown as DbActivityRow[]).map(mapRow),
+      _all: all,
       loading: false,
       loaded: true,
     });
@@ -137,21 +149,13 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   findById: (id) => get()._all.find((a) => a.id === id),
 
   updateActivity: async (id, patch) => {
+    const uid = currentUserId();
+    if (!uid) throw new Error('Sessão não encontrada.');
     const editedAt = new Date().toISOString();
-    // `locally_edited` mantém o selo "editado"; as flags por campo dizem ao sync
-    // QUAIS campos preservar (ele continua atualizando os demais).
-    const dbPatch: Record<string, unknown> = { locally_edited: true, edited_at: editedAt };
-    if (patch.activityName !== undefined) {
-      dbPatch.activity_name = patch.activityName;
-      dbPatch.name_edited = true;
-    }
-    if (patch.durationS !== undefined) {
-      dbPatch.duration_s = patch.durationS;
-      dbPatch.duration_edited = true;
-    }
-
-    const { error } = await supabase.from('activities').update(dbPatch).eq('id', id);
-    if (error) throw new Error(error.message);
+    await updateActivityFields(supabase, uid, id, {
+      activityName: patch.activityName ?? undefined,
+      durationS: patch.durationS,
+    });
 
     set((state) => ({
       _all: state._all.map((a) =>
@@ -171,8 +175,9 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   },
 
   setHidden: async (id, hidden) => {
-    const { error } = await supabase.from('activities').update({ hidden }).eq('id', id);
-    if (error) throw new Error(error.message);
+    const uid = currentUserId();
+    if (!uid) throw new Error('Sessão não encontrada.');
+    await setActivityHidden(supabase, uid, id, hidden);
 
     set((state) => ({
       _all: state._all.map((a) => (a.id === id ? { ...a, hidden } : a)),
@@ -182,19 +187,18 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   loadRoute: async (activityId) => {
     if (get().routes[activityId] !== undefined) return;
 
-    const { data, error } = await supabase
-      .from('activity_routes')
-      .select('points')
-      .eq('activity_id', activityId)
-      .maybeSingle();
-
-    if (error) {
+    const uid = currentUserId();
+    if (!uid) return;
+    let raw: ActivityRoutePoint[] | null;
+    try {
+      raw = await fetchRoutePoints(supabase, uid, activityId);
+    } catch {
       // Rota ausente não é erro fatal; cacheia vazio para não refazer a busca.
       set((state) => ({ routes: { ...state.routes, [activityId]: [] } }));
       return;
     }
 
-    const points = ((data?.points ?? []) as ActivityRoutePoint[]).filter(
+    const points = (raw ?? []).filter(
       (p) => typeof p?.lat === 'number' && typeof p?.lng === 'number',
     );
     set((state) => ({ routes: { ...state.routes, [activityId]: points } }));
@@ -204,22 +208,16 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
     const cache = get().overviews;
     const missing = ids.filter((id) => cache[id] === undefined);
     if (missing.length > 0) {
-      const { data, error } = await supabase
-        .from('activity_routes')
-        .select('activity_id, route_overview')
-        .in('activity_id', missing);
-
+      const uid = currentUserId();
       const next: Record<string, ActivityRoutePoint[]> = {};
-      if (!error) {
-        for (const row of (data ?? []) as {
-          activity_id: string;
-          route_overview: [number, number][] | null;
-        }[]) {
-          // route_overview é [[lat,lng],...]; mapeia para {lat,lng} p/ o mapa.
-          next[row.activity_id] = (row.route_overview ?? [])
-            .filter((pair) => Array.isArray(pair) && pair.length >= 2)
-            .map(([lat, lng]) => ({ lat, lng }));
+      try {
+        if (uid) {
+          for (const row of await fetchRouteOverviews(supabase, uid, [...missing])) {
+            next[row.activityId] = row.overview;
+          }
         }
+      } catch {
+        /* erro: cacheia [] abaixo para não rebuscar */
       }
       // Ids sem linha (ou erro): cacheia [] para não rebuscar.
       for (const id of missing) if (next[id] === undefined) next[id] = [];

@@ -11,6 +11,7 @@ import { habitIconToIonicon } from '../../lib/habit-icons';
 import { supabase } from '../../lib/supabase';
 import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
 import { localDateStr } from '@vitale/shared';
+import { fetchRegistroLogsBetween } from '@vitale/shared';
 
 const DATE_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -41,11 +42,10 @@ export default function EditarDiaRegistrosScreen() {
     const from = localDateStr(new Date(year, monthIdx, 1));
     const to = localDateStr(new Date(year, monthIdx + 1, 0));
 
-    const { data } = await supabase
-      .from('registro_logs')
-      .select('registro_id, log_date')
-      .gte('log_date', from)
-      .lte('log_date', to);
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess.session?.user.id;
+    if (!uid) return;
+    const data = await fetchRegistroLogsBetween(supabase, uid, from, to);
 
     setMarksByRegistro((prev) => {
       const next: Record<string, Set<string>> = { ...prev };
@@ -54,9 +54,9 @@ export default function EditarDiaRegistrosScreen() {
         next[id] = new Set([...next[id]].filter((d) => d < from || d > to));
       }
       for (const l of data ?? []) {
-        const id = l.registro_id as string;
+        const id = l.registroId as string;
         next[id] = new Set(next[id] ?? []);
-        next[id].add(l.log_date as string);
+        next[id].add(l.logDate as string);
       }
       return next;
     });

@@ -184,3 +184,20 @@ export async function setRegistroMark(
   if (error) throw error;
   return toRegistroLog(data as RegistroLogRow);
 }
+
+/** Marcações num intervalo fechado de datas — base do calendário mensal. */
+export async function fetchRegistroLogsBetween(
+  db: SupabaseClient,
+  userId: string,
+  from: string,
+  to: string,
+): Promise<RegistroLog[]> {
+  const { data, error } = await db
+    .from('registro_logs')
+    .select('id,registro_id,log_date')
+    .eq('user_id', userId)
+    .gte('log_date', from)
+    .lte('log_date', to);
+  if (error) throw error;
+  return ((data ?? []) as RegistroLogRow[]).map(toRegistroLog);
+}

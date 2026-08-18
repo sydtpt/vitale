@@ -87,25 +87,21 @@ check('BARREIRA — nenhum módulo com o mesmo nome nos dois apps', () => {
 });
 
 /**
- * Teto do passivo da CAP-6. **Só desce.** Ao mover uma tabela para
- * `shared/src/data/`, baixe este número para o novo total.
+ * Foi CATRACA enquanto as 139 chamadas originais eram migradas: falhava só
+ * quando o número crescia, e o teto descia a cada tabela. Chegou a zero e
+ * virou barreira, como estava previsto desde que foi escrita.
  */
-const FROM_CALLS_CEILING = 18;
-
-check(`CATRACA — chamadas .from() fora do núcleo não passam de ${FROM_CALLS_CEILING}`, () => {
-  const count = [...webFiles, ...mobileFiles]
-    .map((f) => (readFileSync(f, 'utf8').match(/\.from\('[a-z_]+'/g) ?? []).length)
-    .reduce((a, b) => a + b, 0);
-  assert.ok(
-    count <= FROM_CALLS_CEILING,
-    `${count} chamadas .from() fora de packages/shared/src/data (teto ${FROM_CALLS_CEILING}). ` +
-      `Query nova vai no módulo dono da tabela, no núcleo (AD-4).`,
+check('BARREIRA — nenhuma chamada .from() fora do núcleo', () => {
+  const offenders = [...webFiles, ...mobileFiles]
+    .map((f) => ({ f, n: (readFileSync(f, 'utf8').match(/\.from\('[a-z_]+'/g) ?? []).length }))
+    .filter((x) => x.n > 0)
+    .map((x) => `${x.f.replace(ROOT + '/', '')} (${x.n})`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `acesso a tabela fora de packages/shared/src/data: ${offenders.join(', ')}. ` +
+      `Query nova vai no módulo dono da tabela (AD-4); se a tabela ainda não tem módulo, crie um.`,
   );
-  if (count < FROM_CALLS_CEILING) {
-    console.log(
-      `     ↓ ${count} agora — baixe FROM_CALLS_CEILING para ${count} neste commit.`,
-    );
-  }
 });
 
 check('BARREIRA — o núcleo não importa dos apps', () => {
