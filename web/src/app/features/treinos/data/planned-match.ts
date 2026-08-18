@@ -6,8 +6,10 @@
  * `kind` compatível; o id da escolhida vai em `doneActivityId`. Dias de
  * descanso (`rest`) não auto-completam — não há como detectar "descansou".
  */
-import type { Activity, PlannedWorkout, WorkoutKind } from '@vitale/shared';
-import { GPS_ACTIVITY_IDS } from '@core/models/activity-types';
+import type { Activity, PlannedWorkout } from '@vitale/shared';
+import { kindForActivity } from '@vitale/shared';
+
+export { kindForActivity };
 
 /** Data local 'YYYY-MM-DD' de uma `Date` (não UTC). */
 export function localDateStr(d: Date = new Date()): string {
@@ -31,22 +33,6 @@ export function weekDatesOf(d: Date = new Date()): string[] {
     const day = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
     return localDateStr(day);
   });
-}
-
-/** Tipos HealthKit de musculação/força. */
-const STRENGTH_IDS = new Set<number>([11, 20, 35, 50, 59]);
-/** Tipos de baixa intensidade (yoga, pilates). */
-const EASY_IDS = new Set<number>([57, 66]);
-
-/**
- * Intensidade de uma atividade sincronizada, para casar com o `kind` planejado.
- * Endurance: outdoor com distância (corrida/bike/trilha) + natação/cardio.
- */
-export function kindForActivity(activityId: number): WorkoutKind {
-  if (GPS_ACTIVITY_IDS.has(activityId) || activityId === 46 || activityId === 73) return 'endurance';
-  if (STRENGTH_IDS.has(activityId)) return 'strength';
-  if (EASY_IDS.has(activityId)) return 'easy';
-  return 'none';
 }
 
 /**

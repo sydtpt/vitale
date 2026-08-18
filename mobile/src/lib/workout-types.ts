@@ -116,12 +116,8 @@ export function milesToMeters(miles?: number): number | undefined {
   return typeof miles === 'number' ? miles * METERS_PER_MILE : undefined;
 }
 
-/** Atividades ao ar livre que costumam ter rota GPS (corrida, caminhada, ciclismo, trilha). */
-export const GPS_ACTIVITY_IDS = new Set<number>([13, 24, 37, 52]);
-
-export function hasGpsRoute(activityId: number): boolean {
-  return GPS_ACTIVITY_IDS.has(activityId);
-}
+/** Taxonomia de tipos de treino — definida em `@vitale/shared`, repassada aqui. */
+export { GPS_ACTIVITY_IDS, hasGpsRoute } from '@vitale/shared';
 
 /**
  * Janela da média móvel centrada (amostras ≈ segundos a 1 Hz) e limiar da

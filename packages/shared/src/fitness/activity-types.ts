@@ -5,6 +5,8 @@
  * daqui e só acrescentam o que é específico da plataforma (ícone, cor).
  * Adicione/edite labels somente aqui.
  */
+import type { WorkoutKind } from '../health/readiness-advice';
+
 export const ACTIVITY_TYPE_LABELS: Record<number, string> = {
   11: 'Cross Training',
   13: 'Ciclismo',
@@ -31,4 +33,38 @@ export const DEFAULT_ACTIVITY_LABEL = 'Treino';
 /** Label do tipo de atividade; `DEFAULT_ACTIVITY_LABEL` quando desconhecido. */
 export function activityTypeLabel(activityId: number): string {
   return ACTIVITY_TYPE_LABELS[activityId] ?? DEFAULT_ACTIVITY_LABEL;
+}
+
+/**
+ * Classificação dos tipos de treino por intensidade, para casar uma atividade
+ * sincronizada com o `kind` de um treino planejado.
+ *
+ * Os quatro conjuntos são **disjuntos por contrato** — `activity-types.test.ts` impõe.
+ * Sem isso a ordem de checagem em `kindForActivity` decide o resultado em silêncio:
+ * um id em dois conjuntos fica inalcançável no segundo e ninguém percebe.
+ */
+
+/** Outdoor com rota GPS: ciclismo, trilha, corrida, caminhada. */
+export const GPS_ACTIVITY_IDS = new Set<number>([13, 24, 37, 52]);
+
+/** Aeróbicos sem GPS: natação, cardio, HIIT, elíptico, escadas, pickleball, remo. */
+export const ENDURANCE_IDS = new Set<number>([46, 73, 63, 16, 44, 82, 35]);
+
+/** Força: cross training, funcional, musculação, core. */
+export const STRENGTH_IDS = new Set<number>([11, 20, 50, 59]);
+
+/** Baixa intensidade: yoga, pilates. */
+export const EASY_IDS = new Set<number>([57, 66]);
+
+/** Intensidade de uma atividade sincronizada. `'none'` quando o tipo não classifica. */
+export function kindForActivity(activityId: number): WorkoutKind {
+  if (GPS_ACTIVITY_IDS.has(activityId) || ENDURANCE_IDS.has(activityId)) return 'endurance';
+  if (STRENGTH_IDS.has(activityId)) return 'strength';
+  if (EASY_IDS.has(activityId)) return 'easy';
+  return 'none';
+}
+
+/** Atividade que costuma gravar rota GPS. */
+export function hasGpsRoute(activityId: number): boolean {
+  return GPS_ACTIVITY_IDS.has(activityId);
 }

@@ -5,7 +5,15 @@
  *
  * Mantenha os labels idênticos ao mobile para coerência entre plataformas.
  */
-import { ACTIVITY_TYPE_LABELS, DEFAULT_ACTIVITY_LABEL, activityTypeLabel, T } from '@vitale/shared';
+import {
+  ACTIVITY_TYPE_LABELS,
+  DEFAULT_ACTIVITY_LABEL,
+  GPS_ACTIVITY_IDS,
+  activityTypeLabel,
+  T,
+} from '@vitale/shared';
+
+export { GPS_ACTIVITY_IDS } from '@vitale/shared';
 
 export interface TypeMeta {
   activityId: number;
@@ -15,9 +23,6 @@ export interface TypeMeta {
   color: string;
   hasDistance: boolean;
 }
-
-/** Atividades outdoor que costumam ter distância/rota (corrida, trilha, ciclismo, caminhada). */
-export const GPS_ACTIVITY_IDS = new Set<number>([13, 24, 37, 52]);
 
 interface BaseMeta {
   icon: string;
