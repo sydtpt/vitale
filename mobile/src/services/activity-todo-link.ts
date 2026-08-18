@@ -12,7 +12,13 @@
 import type { TodoRecurrence } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { getActivityMeta, type WorkoutItem } from '../lib/healthkit-workouts';
-import { toTemplate, type TemplateRow } from '../lib/todo-map';
+import {
+  createLinkedActivityTemplate,
+  fetchOnWorkoutTemplates,
+  fetchTemplatesByLinkedActivity,
+  toTodoTemplate,
+  type TodoTemplateRow,
+} from '@vitale/shared';
 import { planLink, activityTodoIcon, type LinkOcc } from '../lib/activity-todo-link';
 import { resolveAndAdvance, insertOccurrence, hasPendingOccurrence } from './todo-resolve';
 import { localDateStr, triggeredDueDate } from '@vitale/shared';
@@ -24,12 +30,10 @@ type OnWorkoutRec = Extract<TodoRecurrence, { kind: 'on_workout' }>;
  * (de um tipo específico ou de qualquer). 1 por vez — pula se já há pendente.
  */
 async function createOnWorkoutTodos(workouts: WorkoutItem[], userId: string): Promise<number> {
-  const { data } = await supabase
-    .from('todo_templates')
-    .select('id, recurrence')
-    .eq('active', true)
-    .eq('recurrence->>kind', 'on_workout');
-  const templates = (data ?? []) as { id: string; recurrence: OnWorkoutRec }[];
+  const templates = (await fetchOnWorkoutTemplates(supabase, userId)) as unknown as {
+    id: string;
+    recurrence: OnWorkoutRec;
+  }[];
   if (templates.length === 0) return 0;
 
   const hasPending = new Set<string>();
@@ -74,14 +78,11 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
   // 1. Séries vinculadas (ativas OU inativas): inativas sinalizam opt-out do
   //    usuário, precisam ser detectadas pra não auto-criar outra. O unique
   //    partial index (user_id, linked_activity_id) garante 1 linha por tipo.
-  const { data: rows } = await supabase
-    .from('todo_templates')
-    .select('*')
-    .in('linked_activity_id', activityIds);
+  const rows = await fetchTemplatesByLinkedActivity(supabase, userId, activityIds);
 
   const hasTemplate = new Set<number>();
-  const byActivity = new Map<number, TemplateRow>();
-  for (const r of (rows ?? []) as TemplateRow[]) {
+  const byActivity = new Map<number, TodoTemplateRow>();
+  for (const r of rows) {
     if (r.linked_activity_id == null) continue;
     hasTemplate.add(r.linked_activity_id);
     if (r.active && !byActivity.has(r.linked_activity_id)) {
@@ -95,33 +96,12 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
   for (const activityId of activityIds) {
     if (hasTemplate.has(activityId)) continue;
     const meta = getActivityMeta(activityId);
-    const insert = await supabase
-      .from('todo_templates')
-      .insert({
-        user_id: userId,
-        name: meta.label,
-        icon: activityTodoIcon(activityId),
-        color: 'treino',
-        module: 'saude',
-        recurrence: { kind: 'event', label: meta.label },
-        overdue: 'expire',
-        cancel_policy: 'manual',
-        linked_activity_id: activityId,
-      })
-      .select('*')
-      .single();
-    let tRow: TemplateRow | undefined;
-    if (insert.data) {
-      tRow = insert.data as TemplateRow;
-    } else if (insert.error?.code === '23505') {
-      const { data: existing } = await supabase
-        .from('todo_templates')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('linked_activity_id', activityId)
-        .maybeSingle();
-      tRow = (existing as TemplateRow | null) ?? undefined;
-    }
+    const tRow = (await createLinkedActivityTemplate(supabase, userId, activityId, {
+      name: meta.label,
+      icon: activityTodoIcon(activityId),
+      color: 'treino',
+      module: 'saude',
+    })) ?? undefined;
     if (tRow) {
       hasTemplate.add(activityId);
       if (tRow.active) byActivity.set(activityId, tRow);
@@ -151,7 +131,7 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
   for (const w of ordered) {
     const tRow = byActivity.get(w.activityId);
     if (!tRow) continue;
-    const template = toTemplate(tRow);
+    const template = toTodoTemplate(tRow);
     const day = localDateStr(new Date(w.start));
     const occs = occsByTemplate.get(tRow.id) ?? [];
     const action = planLink(occs, day);

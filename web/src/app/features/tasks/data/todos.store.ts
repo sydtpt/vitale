@@ -12,6 +12,14 @@ import type {
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { localDateStr, localTimeStr, firstDueDate, nextDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
+import {
+  createTodoTemplate,
+  fetchTodoTemplates,
+  setTodoTemplateActive,
+  setTodoTemplateMeter,
+  setTodoTemplateMeterAtLastDone,
+  updateTodoTemplate,
+} from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -33,28 +41,6 @@ export interface NewTodo {
   startTime?: string | null; // 'HH:MM' — a ocorrência do dia só aparece a partir desse horário
   endTime?: string | null; // 'HH:MM' — após esse horário no dia, cancela automaticamente
   meta?: Record<string, unknown>;
-}
-
-interface DbTemplateRow {
-  id: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  module: TodoModule;
-  recurrence: TodoRecurrence;
-  overdue: TodoOverduePolicy;
-  cancel_policy: TodoCancelPolicy;
-  meter: number | string | null;
-  meter_at_last_done: number | string | null;
-  on_complete: TodoSpawnRule[] | null;
-  trigger_only: boolean | null;
-  start_date: string | null;
-  start_time: string | null;
-  end_time: string | null;
-  meta: Record<string, unknown> | null;
-  active: boolean;
-  sort: number;
-  created_at: string;
 }
 
 interface DbOccRow {
@@ -124,9 +110,12 @@ export class TodosStore {
     const now = localTimeStr();
     const since = localDateStr(new Date(Date.now() - (TODO_WINDOW_DAYS - 1) * 86400000));
 
-    const tRes = await supabase.from('todo_templates').select('*').eq('user_id', userId).order('sort');
-    if (tRes.error) return this.fail(tRes.error.message);
-    const templates = ((tRes.data ?? []) as DbTemplateRow[]).map(mapTemplate);
+    let templates: TodoTemplate[];
+    try {
+      templates = await fetchTodoTemplates(supabase, userId);
+    } catch (e) {
+      return this.fail(e instanceof Error ? e.message : 'Falha ao carregar as séries');
+    }
 
     let occurrences = await this.fetchOccurrences(userId, since);
 
@@ -201,48 +190,47 @@ export class TodosStore {
     const userId = this.auth.user()?.id;
     if (!userId) return;
     const sort = this.allTemplates().reduce((m, t) => Math.max(m, t.sort), -1) + 1;
-    const { data, error } = await supabase
-      .from('todo_templates')
-      .insert({
-        user_id: userId,
+    let newId: string;
+    try {
+      newId = await createTodoTemplate(supabase, userId, {
         name: input.name,
         icon: input.icon,
         color: input.color,
         module: input.module,
         recurrence: input.recurrence,
         overdue: input.overdue,
-        cancel_policy: input.cancelPolicy,
-        meter: input.meter ?? null,
-        on_complete: input.onComplete ?? null,
-        trigger_only: input.triggerOnly ?? false,
-        start_date: input.startDate ?? null,
-        start_time: input.startTime ?? null,
-        end_time: input.endTime ?? null,
-        meta: input.meta ?? null,
+        cancelPolicy: input.cancelPolicy,
         sort,
-      })
-      .select('id')
-      .single();
-    if (error || !data) return;
+        meter: input.meter,
+        onComplete: input.onComplete,
+        triggerOnly: input.triggerOnly ?? false,
+        startDate: input.startDate,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        meta: input.meta,
+      });
+    } catch {
+      return;
+    }
     // triggerOnly nunca cria ocorrência inicial — só nasce por gatilho.
     if (!input.triggerOnly) {
       if (input.recurrence.kind === 'none') {
-        await this.insertOccurrence(userId, data.id, null);
+        await this.insertOccurrence(userId, newId, null);
       } else {
         const due = firstDueDate(input.recurrence, localDateStr(), input.startDate);
-        if (due != null) await this.insertOccurrence(userId, data.id, due);
+        if (due != null) await this.insertOccurrence(userId, newId, due);
       }
     }
     await this.load(true);
   }
 
   async updateTemplate(id: string, patch: Record<string, unknown>): Promise<void> {
-    await supabase.from('todo_templates').update(patch).eq('id', id);
+    await updateTodoTemplate(supabase, id, patch);
     await this.load(true);
   }
 
   async archiveTemplate(id: string, active: boolean): Promise<void> {
-    await supabase.from('todo_templates').update({ active }).eq('id', id);
+    await setTodoTemplateActive(supabase, id, active);
     await this.load(true);
   }
 
@@ -256,7 +244,7 @@ export class TodosStore {
     if (t && userId) {
       if (status === 'done') {
         if (t.recurrence.kind === 'usage') {
-          await supabase.from('todo_templates').update({ meter_at_last_done: t.meter ?? 0 }).eq('id', t.id);
+          await setTodoTemplateMeterAtLastDone(supabase, t.id, t.meter ?? 0);
         }
         await this.fireOnComplete(userId, t, localDateStr());
       }
@@ -303,7 +291,7 @@ export class TodosStore {
   async updateMeter(templateId: string, meter: number): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) return;
-    await supabase.from('todo_templates').update({ meter }).eq('id', templateId);
+    await setTodoTemplateMeter(supabase, templateId, meter);
     const t = this.templateById(templateId);
     const pending = this._occurrences().some((o) => o.templateId === templateId && o.status === 'pending');
     if (t && dueUsage({ ...t, meter }) && !pending) {
@@ -341,30 +329,6 @@ export class TodosStore {
     this._error.set(message);
     this._state.set('error');
   }
-}
-
-function mapTemplate(r: DbTemplateRow): TodoTemplate {
-  return {
-    id: r.id,
-    name: r.name,
-    icon: r.icon ?? '',
-    color: r.color ?? 'tarefa',
-    module: r.module,
-    recurrence: r.recurrence,
-    overdue: r.overdue,
-    cancelPolicy: r.cancel_policy,
-    meter: r.meter == null ? undefined : Number(r.meter),
-    meterAtLastDone: r.meter_at_last_done == null ? undefined : Number(r.meter_at_last_done),
-    onComplete: r.on_complete ?? undefined,
-    triggerOnly: r.trigger_only ?? undefined,
-    startDate: r.start_date ?? undefined,
-    startTime: r.start_time ?? undefined,
-    endTime: r.end_time ?? undefined,
-    meta: r.meta ?? undefined,
-    active: r.active,
-    sort: r.sort,
-    createdAt: r.created_at,
-  };
 }
 
 function mapOcc(r: DbOccRow): TodoOccurrence {

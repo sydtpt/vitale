@@ -11,7 +11,14 @@ import type {
 } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { drainTodoQueue } from '../lib/todo-queue';
-import { toTemplate, toOcc } from '../lib/todo-map';
+import { toOcc } from '../lib/todo-map';
+import {
+  createTodoTemplate,
+  fetchTodoTemplates,
+  setTodoTemplateActive,
+  setTodoTemplateMeter,
+  updateTodoTemplate,
+} from '@vitale/shared';
 import { resolveAndAdvance, flushResolves, insertOccurrence } from '../services/todo-resolve';
 import { useAuthStore } from './auth.store';
 import { localDateStr, localTimeStr, firstDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
@@ -135,12 +142,9 @@ export const useTodosStore = create<TodosState>((set, get) => ({
 
     await drainTodoQueue(flushResolves);
 
-    const { data: trows } = await supabase
-      .from('todo_templates')
-      .select('*')
-      .eq('active', true)
-      .order('sort', { ascending: true });
-    const templates = (trows ?? []).map(toTemplate);
+    const uid = currentUserId();
+    const all = uid ? await fetchTodoTemplates(supabase, uid) : [];
+    const templates = all.filter((t) => t.active);
 
     const today = localDateStr();
     const now = localTimeStr();
@@ -193,11 +197,8 @@ export const useTodosStore = create<TodosState>((set, get) => ({
 
   loadAll: async () => {
     if (!currentUserId()) return;
-    const { data } = await supabase
-      .from('todo_templates')
-      .select('*')
-      .order('sort', { ascending: true });
-    const all = (data ?? []).map(toTemplate);
+    const uid = currentUserId();
+    const all = uid ? await fetchTodoTemplates(supabase, uid) : [];
     set({ allTemplates: all, templates: all.filter((t) => t.active) });
   },
 
@@ -206,52 +207,51 @@ export const useTodosStore = create<TodosState>((set, get) => ({
     if (!userId) return;
     const list = get().allTemplates.length ? get().allTemplates : get().templates;
     const sort = list.reduce((max, t) => Math.max(max, t.sort), -1) + 1;
-    const { data, error } = await supabase
-      .from('todo_templates')
-      .insert({
-        user_id: userId,
+    let newId: string;
+    try {
+      newId = await createTodoTemplate(supabase, userId, {
         name: input.name,
         icon: input.icon,
         color: input.color,
         module: input.module,
         recurrence: input.recurrence,
         overdue: input.overdue,
-        cancel_policy: input.cancelPolicy,
-        meter: input.meter ?? null,
-        linked_activity_id: input.linkedActivityId ?? null,
-        on_complete: input.onComplete ?? null,
-        trigger_only: input.triggerOnly ?? false,
-        start_date: input.startDate ?? null,
-        start_time: input.startTime ?? null,
-        end_time: input.endTime ?? null,
-        meta: input.meta ?? null,
+        cancelPolicy: input.cancelPolicy,
         sort,
-      })
-      .select('id')
-      .single();
-    if (error || !data) return;
+        meter: input.meter,
+        linkedActivityId: input.linkedActivityId,
+        onComplete: input.onComplete,
+        triggerOnly: input.triggerOnly ?? false,
+        startDate: input.startDate,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        meta: input.meta,
+      });
+    } catch {
+      return;
+    }
 
     // ocorrência inicial: 'none' aparece sem data (até concluir); calendário/after_completion
     // ganham a primeira data; usage/event/stock/on_workout esperam um gatilho.
     // triggerOnly nunca cria ocorrência inicial — só nasce por gatilho.
     if (!input.triggerOnly) {
       if (input.recurrence.kind === 'none') {
-        await insertOccurrence(userId, data.id, null);
+        await insertOccurrence(userId, newId, null);
       } else {
         const due = firstDueDate(input.recurrence, localDateStr(), input.startDate);
-        if (due != null) await insertOccurrence(userId, data.id, due);
+        if (due != null) await insertOccurrence(userId, newId, due);
       }
     }
     await get().load();
   },
 
   updateTemplate: async (id, patch) => {
-    await supabase.from('todo_templates').update(patch).eq('id', id);
+    await updateTodoTemplate(supabase, id, patch);
     await get().loadAll();
   },
 
   archiveTemplate: async (id, active) => {
-    await supabase.from('todo_templates').update({ active }).eq('id', id);
+    await setTodoTemplateActive(supabase, id, active);
     await get().loadAll();
   },
 
@@ -290,7 +290,7 @@ export const useTodosStore = create<TodosState>((set, get) => ({
   updateMeter: async (templateId, meter) => {
     const userId = currentUserId();
     if (!userId) return;
-    await supabase.from('todo_templates').update({ meter }).eq('id', templateId);
+    await setTodoTemplateMeter(supabase, templateId, meter);
     const t = get().templates.find((x) => x.id === templateId);
     const pending = get().occurrences.some(
       (o) => o.templateId === templateId && o.status === 'pending',

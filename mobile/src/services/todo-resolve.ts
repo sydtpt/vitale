@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import type { TodoTemplate, TodoStatus } from '@vitale/shared';
 import { enqueueResolve, drainTodoQueue, type TodoResolveOp } from '../lib/todo-queue';
 import { nextDueDate, localDateStr } from '@vitale/shared';
+import { setTodoTemplateMeterAtLastDone } from '@vitale/shared';
 
 export function genOpId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -119,10 +120,7 @@ export async function resolveAndAdvance(args: ResolveArgs): Promise<number> {
   let created = 0;
   if (status === 'done') {
     if (template.recurrence.kind === 'usage') {
-      await supabase
-        .from('todo_templates')
-        .update({ meter_at_last_done: template.meter ?? 0 })
-        .eq('id', template.id);
+      await setTodoTemplateMeterAtLastDone(supabase, template.id, template.meter ?? 0);
     }
     created += await fireOnComplete(userId, template, completedAt);
   }
