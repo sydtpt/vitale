@@ -2,6 +2,27 @@
 
 Medido no repositório em 2026-08-17. Números conferidos contra o código, não estimados.
 
+## Situação em 2026-08-18 — resolvido
+
+Todo o inventário abaixo foi consolidado. Ele fica como **registro da evidência**: é o que justificou cada decisão, e é contra ele que se confere se a consolidação cobriu o que prometeu.
+
+| Item | Situação |
+| --- | --- |
+| Os cinco pares medidos | Consolidados no núcleo |
+| Basenames não medidos | Classificados: 3 consolidados, 2 renomeados por colisão acidental, 1 diferido |
+| Vocabulário fragmentado | Definição única no núcleo, com teste de disjunção |
+| 139 chamadas `.from()` | Zero fora de `packages/shared/src/data/` |
+| Os 3 testes sem runner | Rodam; 27 asserts, todos verdes |
+
+**O que a consolidação achou e o inventário não previa:**
+
+- O mapeador da web não copiava `linked_activity_id` — o campo do vínculo Treino→Tarefa nascia ausente nos `TodoTemplate` da web.
+- O `SELECT` da web omitia `source_id` e `device`, e a tela de detalhe tem `@if (a.device)` renderizando uma linha "Dispositivo" que **nunca apareceu**.
+- O planner do mobile zerava duração em dia de descanso e a web não — divergência de escrita, não de leitura.
+- Os formatadores duplicavam sob **nomes diferentes** (`fmtClock` contra `formatClock`), coisa que uma checagem por basename jamais pegaria. Só 5 das 11 funções eram idênticas; as outras 5 divergem por escolha legítima de apresentação e ficaram onde estavam.
+
+O padrão que atravessa os quatro: **a divergência se esconde melhor na tradução linha→domínio do que no cálculo.** É por isso que a AD-4 exige que o módulo dono devolva modelo de domínio, nunca linha crua.
+
 ## Lógica pura duplicada — os cinco pares medidos (CAP-5)
 
 | Módulo | web | mobile | linhas divergentes | o que de fato difere |
