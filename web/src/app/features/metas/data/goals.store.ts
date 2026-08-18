@@ -14,6 +14,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { ActivitiesStore } from '@features/workout-history/data/activities.store';
 import { HabitsStore } from '@features/habits/data/habits.store';
 import { fetchDoneTodoOccurrencesSince, fetchHabitLogsSince } from '@vitale/shared';
+import { createGoal, deleteGoal, fetchGoals, setGoalActive, updateGoal } from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -29,23 +30,6 @@ export interface NewGoal {
   target: number;
   unit?: string | null;
   manualCurrent?: number | null;
-}
-
-interface DbGoalRow {
-  id: string;
-  year: number;
-  title: string;
-  cat: string | null;
-  family: GoalFamily;
-  source: GoalSource;
-  period: GoalPeriodKind | null;
-  per_period_target: number | string | null;
-  target: number | string;
-  unit: string | null;
-  manual_current: number | string | null;
-  active: boolean;
-  sort: number;
-  created_at: string;
 }
 
 interface DbOccRow {
@@ -128,9 +112,12 @@ export class GoalsStore {
     this._state.set('loading');
     this._error.set(null);
 
-    const gRes = await supabase.from('goals').select('*').eq('user_id', userId).order('sort');
-    if (gRes.error) return this.fail(gRes.error.message);
-    const goals = ((gRes.data ?? []) as DbGoalRow[]).map(mapGoal);
+    let goals: Goal[];
+    try {
+      goals = await fetchGoals(supabase, userId);
+    } catch (e) {
+      return this.fail(e instanceof Error ? e.message : 'Falha ao carregar as metas');
+    }
 
     // Janela das fontes: 1º de janeiro do menor ano entre as metas (ou ano atual).
     const minYear = goals.length ? Math.min(...goals.map((g) => g.year)) : new Date().getFullYear();
@@ -161,28 +148,24 @@ export class GoalsStore {
     const userId = this.auth.user()?.id;
     if (!userId) return;
     const sort = this.allGoals().reduce((m, g) => Math.max(m, g.sort), -1) + 1;
-    const { error } = await supabase.from('goals').insert({ user_id: userId, ...toRow(input), sort });
-    if (error) return this.fail(error.message);
+    await createGoal(supabase, userId, input, sort);
     await this.load(true);
   }
 
   async updateGoal(id: string, input: NewGoal): Promise<void> {
-    const { error } = await supabase.from('goals').update(toRow(input)).eq('id', id);
-    if (error) return this.fail(error.message);
+    await updateGoal(supabase, id, input);
     await this.load(true);
   }
 
   async archiveGoal(id: string, active: boolean): Promise<void> {
-    const { error } = await supabase.from('goals').update({ active }).eq('id', id);
-    if (error) return this.fail(error.message);
+    await setGoalActive(supabase, id, active);
     await this.load(true);
   }
 
   async deleteGoal(id: string): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) return;
-    const { error } = await supabase.from('goals').delete().eq('id', id).eq('user_id', userId);
-    if (error) return this.fail(error.message);
+    await deleteGoal(supabase, userId, id);
     await this.load(true);
   }
 
@@ -190,40 +173,6 @@ export class GoalsStore {
     this._error.set(message);
     this._state.set('error');
   }
-}
-
-function toRow(input: NewGoal): Record<string, unknown> {
-  return {
-    year: input.year,
-    title: input.title,
-    cat: input.cat,
-    family: input.family,
-    source: input.source,
-    period: input.period ?? null,
-    per_period_target: input.perPeriodTarget ?? null,
-    target: input.target,
-    unit: input.unit ?? null,
-    manual_current: input.manualCurrent ?? null,
-  };
-}
-
-function mapGoal(r: DbGoalRow): Goal {
-  return {
-    id: r.id,
-    year: r.year,
-    title: r.title,
-    cat: r.cat ?? 'geral',
-    family: r.family,
-    source: r.source,
-    period: r.period ?? undefined,
-    perPeriodTarget: r.per_period_target == null ? undefined : Number(r.per_period_target),
-    target: Number(r.target),
-    unit: r.unit ?? undefined,
-    manualCurrent: r.manual_current == null ? undefined : Number(r.manual_current),
-    active: r.active,
-    sort: r.sort,
-    createdAt: r.created_at,
-  };
 }
 
 function mapLog(r: DbHabitLogRow): HabitLog {
