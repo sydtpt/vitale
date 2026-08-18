@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { fetchHealthDailySince } from '@vitale/shared';
 import type { HealthDaily } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './auth.store';
@@ -64,19 +65,16 @@ export const useHealthDailyStore = create<HealthDailyState>((set, get) => ({
     set({ loading: true });
     const since = localDateStr(new Date(Date.now() - (RANGE_DAYS - 1) * 86400000));
 
-    const { data, error } = await supabase
-      .from('health_daily')
-      .select('day,metric,value,min_value,max_value,count,extra')
-      .gte('day', since)
-      .order('day', { ascending: true });
-
-    if (error) {
+    let rows;
+    try {
+      rows = await fetchHealthDailySince(supabase, userId, since);
+    } catch {
       set({ loading: false });
       return;
     }
 
     set({
-      rows: ((data ?? []) as DbRow[]).map((r) => toRow(userId, r)),
+      rows,
       loading: false,
       loaded: true,
     });

@@ -3,6 +3,7 @@ import type { HealthDaily } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { localDateStr } from './health-format';
+import { fetchHealthDailySince } from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -84,20 +85,13 @@ export class HealthStore {
 
     const since = localDateStr(new Date(Date.now() - (RANGE_DAYS - 1) * 86400000));
 
-    const { data, error } = await supabase
-      .from('health_daily')
-      .select('day,metric,value,min_value,max_value,count,extra')
-      .eq('user_id', userId)
-      .gte('day', since)
-      .order('day', { ascending: true });
-
-    if (error) {
-      this._error.set(error.message);
+    try {
+      this._rows.set(await fetchHealthDailySince(supabase, userId, since));
+    } catch (e) {
+      this._error.set(e instanceof Error ? e.message : 'Erro ao carregar.');
       this._state.set('error');
       return;
     }
-
-    this._rows.set(((data ?? []) as DbHealthDailyRow[]).map((r) => mapRow(userId, r)));
     this._state.set('loaded');
   }
 }

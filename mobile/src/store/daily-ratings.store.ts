@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { fetchDailyRatingsSince, setDayRating, setSleepRating } from '@vitale/shared';
 import type { DailyRating } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './auth.store';
@@ -69,20 +70,16 @@ export const useDailyRatingsStore = create<DailyRatingsState>((set, get) => ({
   loaded: false,
 
   load: async () => {
-    if (!currentUserId()) return;
+    const userId = currentUserId();
+    if (!userId) return;
     set({ loading: true });
 
     const today = localDateStr();
     const since = localDateStr(new Date(Date.now() - (WINDOW_DAYS - 1) * 86_400_000));
-    const { data } = await supabase
-      .from('daily_ratings')
-      .select('day, sleep_quality, day_quality, day_note')
-      .gte('day', since);
+    const ratings = await fetchDailyRatingsSince(supabase, userId, since);
 
     const window: Record<string, DailyRating> = {};
-    for (const row of (data ?? []) as DbRow[]) {
-      window[row.day] = toRating(row);
-    }
+    for (const r of ratings) window[r.day] = r;
 
     set({ window, today: window[today] ?? null, loading: false, loaded: true });
   },
@@ -98,11 +95,11 @@ export const useDailyRatingsStore = create<DailyRatingsState>((set, get) => ({
     const next = mergeToday(prevToday, day, { sleepQuality: value });
     set({ today: next, window: { ...prevWindow, [day]: next } });
 
-    const { error } = await supabase
-      .from('daily_ratings')
-      .upsert({ user_id: userId, day, sleep_quality: value }, { onConflict: 'user_id,day' });
-
-    if (error) set({ today: prevToday, window: prevWindow });
+    try {
+      await setSleepRating(supabase, userId, day, value);
+    } catch {
+      set({ today: prevToday, window: prevWindow });
+    }
   },
 
   setDay: async (value, note) => {
@@ -120,11 +117,11 @@ export const useDailyRatingsStore = create<DailyRatingsState>((set, get) => ({
     const isToday = day === localDateStr();
     set({ today: isToday ? next : prevToday, window: { ...prevWindow, [day]: next } });
 
-    const { error } = await supabase
-      .from('daily_ratings')
-      .upsert({ user_id: userId, day, day_quality: value, day_note: cleanNote }, { onConflict: 'user_id,day' });
-
-    if (error) set({ today: prevToday, window: prevWindow });
+    try {
+      await setDayRating(supabase, userId, day, value, cleanNote);
+    } catch {
+      set({ today: prevToday, window: prevWindow });
+    }
   },
 
   valuesByDay: (kind) => {

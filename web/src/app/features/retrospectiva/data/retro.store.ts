@@ -15,6 +15,17 @@ import {
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { ActivitiesStore } from '@features/workout-history/data/activities.store';
+import type { HabitLog, RegistroLog } from '@vitale/shared';
+import {
+  fetchDailyRatingScores,
+  fetchDoneTodoOccurrencesSince,
+  fetchHabitLogsSince,
+  fetchHabitSummaries,
+  fetchHealthDailyValues,
+  fetchRegistroLogsSince,
+  fetchRegistroSummaries,
+  fetchTodoTemplateSummaries,
+} from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -25,14 +36,6 @@ const HEALTH_SPECS: Omit<RetroHealthMetric, 'valuesByDay'>[] = [
   { metric: 'fcRepouso', label: 'FC repouso', higherIsWorse: true, icon: 'heart', decimals: 0, unit: ' bpm' },
 ];
 
-interface DbHealthRow { day: string; metric: string; value: number | string | null }
-interface DbRatingRow { day: string; sleep_quality: number | string | null; day_quality: number | string | null }
-interface DbHabitRow { id: string; name: string; bad: boolean; unit: string | null }
-interface DbHabitLogRow { habit_id: string; log_date: string; value: number | string | null }
-interface DbRegistroRow { id: string; name: string }
-interface DbRegistroLogRow { registro_id: string; log_date: string }
-interface DbTemplateRow { id: string; name: string; module: string; meta: Record<string, unknown> | null }
-interface DbOccRow { template_id: string; done_at: string | null }
 
 /**
  * Fonte de dados read-only da Retrospectiva. Busca, para um intervalo amplo
@@ -50,12 +53,12 @@ export class RetroStore {
   private readonly _error = signal<string | null>(null);
   private readonly _loadedSince = signal<string | null>(null);
 
-  private readonly _health = signal<DbHealthRow[]>([]);
-  private readonly _ratings = signal<DbRatingRow[]>([]);
-  private readonly _habits = signal<DbHabitRow[]>([]);
-  private readonly _habitLogs = signal<DbHabitLogRow[]>([]);
-  private readonly _registros = signal<DbRegistroRow[]>([]);
-  private readonly _registroLogs = signal<DbRegistroLogRow[]>([]);
+  private readonly _health = signal<Array<{ day: string; metric: string; value: number | null }>>([]);
+  private readonly _ratings = signal<Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>>([]);
+  private readonly _habits = signal<Array<{ id: string; name: string; bad: boolean; unit: string }>>([]);
+  private readonly _habitLogs = signal<HabitLog[]>([]);
+  private readonly _registros = signal<Array<{ id: string; name: string }>>([]);
+  private readonly _registroLogs = signal<RegistroLog[]>([]);
   private readonly _tasks = signal<{ doneDay: string; module: string }[]>([]);
   private readonly _purchases = signal<{ doneDay: string; cat?: string; price?: number; name: string }[]>([]);
 
@@ -78,39 +81,40 @@ export class RetroStore {
     this._state.set('loading');
     this._error.set(null);
 
-    const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs] = await Promise.all([
-      supabase.from('health_daily').select('day,metric,value').eq('user_id', userId).gte('day', since),
-      supabase.from('daily_ratings').select('day,sleep_quality,day_quality').eq('user_id', userId).gte('day', since),
-      supabase.from('habits').select('id,name,bad,unit').eq('user_id', userId),
-      supabase.from('habit_logs').select('habit_id,log_date,value').eq('user_id', userId).gte('log_date', since),
-      supabase.from('registros').select('id,name').eq('user_id', userId),
-      supabase.from('registro_logs').select('registro_id,log_date').eq('user_id', userId).gte('log_date', since),
-      supabase.from('todo_templates').select('id,name,module,meta').eq('user_id', userId),
-      supabase.from('todo_occurrences').select('template_id,done_at').eq('user_id', userId).eq('status', 'done').gte('done_at', `${since}T00:00:00`),
-    ]);
-
-    const firstErr = [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs].find((r) => r.error);
-    if (firstErr?.error) {
-      this._error.set(firstErr.error.message);
+    let health, ratings, habits, habitLogs, registros, registroLogs, templates, occs;
+    try {
+      [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs] =
+        await Promise.all([
+          fetchHealthDailyValues(supabase, userId, since),
+          fetchDailyRatingScores(supabase, userId, since),
+          fetchHabitSummaries(supabase, userId),
+          fetchHabitLogsSince(supabase, userId, since),
+          fetchRegistroSummaries(supabase, userId),
+          fetchRegistroLogsSince(supabase, userId, since),
+          fetchTodoTemplateSummaries(supabase, userId),
+          fetchDoneTodoOccurrencesSince(supabase, userId, since),
+        ]);
+    } catch (e) {
+      this._error.set(e instanceof Error ? e.message : 'Erro ao carregar a retrospectiva.');
       this._state.set('error');
       return;
     }
 
-    this._health.set((health.data ?? []) as DbHealthRow[]);
-    this._ratings.set((ratings.data ?? []) as DbRatingRow[]);
-    this._habits.set((habits.data ?? []) as DbHabitRow[]);
-    this._habitLogs.set((habitLogs.data ?? []) as DbHabitLogRow[]);
-    this._registros.set((registros.data ?? []) as DbRegistroRow[]);
-    this._registroLogs.set((registroLogs.data ?? []) as DbRegistroLogRow[]);
+    this._health.set(health);
+    this._ratings.set(ratings);
+    this._habits.set(habits);
+    this._habitLogs.set(habitLogs);
+    this._registros.set(registros);
+    this._registroLogs.set(registroLogs);
 
-    const tmplById = new Map((templates.data as DbTemplateRow[] ?? []).map((t) => [t.id, t]));
+    const tmplById = new Map(templates.map((t) => [t.id, t]));
     const tasks: { doneDay: string; module: string }[] = [];
     const purchases: { doneDay: string; cat?: string; price?: number; name: string }[] = [];
-    for (const o of (occs.data ?? []) as DbOccRow[]) {
-      if (!o.done_at) continue;
-      const tmpl = tmplById.get(o.template_id);
+    for (const o of occs) {
+      if (!o.doneAt) continue;
+      const tmpl = tmplById.get(o.templateId);
       if (!tmpl) continue;
-      const doneDay = localDateStr(new Date(o.done_at));
+      const doneDay = localDateStr(new Date(o.doneAt));
       tasks.push({ doneDay, module: tmpl.module });
       if (tmpl.module === 'compras') {
         const meta = tmpl.meta ?? {};
@@ -146,21 +150,21 @@ export class RetroStore {
     const sleepMap = new Map<string, number>();
     const dayMap = new Map<string, number>();
     for (const r of this._ratings()) {
-      if (r.sleep_quality != null) sleepMap.set(r.day, Number(r.sleep_quality));
-      if (r.day_quality != null) dayMap.set(r.day, Number(r.day_quality));
+      if (r.sleepQuality != null) sleepMap.set(r.day, r.sleepQuality);
+      if (r.dayQuality != null) dayMap.set(r.day, r.dayQuality);
     }
 
     const logsByHabit = new Map<string, Map<string, number>>();
     for (const l of this._habitLogs()) {
-      let m = logsByHabit.get(l.habit_id);
-      if (!m) { m = new Map(); logsByHabit.set(l.habit_id, m); }
-      m.set(l.log_date, Number(l.value ?? 0));
+      let m = logsByHabit.get(l.habitId);
+      if (!m) { m = new Map(); logsByHabit.set(l.habitId, m); }
+      m.set(l.logDate, l.value);
     }
     const daysByRegistro = new Map<string, string[]>();
     for (const l of this._registroLogs()) {
-      const arr = daysByRegistro.get(l.registro_id) ?? [];
-      arr.push(l.log_date);
-      daysByRegistro.set(l.registro_id, arr);
+      const arr = daysByRegistro.get(l.registroId) ?? [];
+      arr.push(l.logDate);
+      daysByRegistro.set(l.registroId, arr);
     }
 
     return {
@@ -171,7 +175,7 @@ export class RetroStore {
       stepsByDay: byMetric.get('passos'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
-      habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit ?? '', logsByDay: logsByHabit.get(h.id) ?? new Map() })),
+      habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
       registros: this._registros().map((r) => ({ id: r.id, name: r.name, days: daysByRegistro.get(r.id) ?? [] })),
       tasks: this._tasks(),
       purchases: this._purchases(),

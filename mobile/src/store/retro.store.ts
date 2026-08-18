@@ -1,4 +1,15 @@
 import { create } from 'zustand';
+import type { HabitLog, RegistroLog } from '@vitale/shared';
+import {
+  fetchDailyRatingScores,
+  fetchDoneTodoOccurrencesSince,
+  fetchHabitLogsSince,
+  fetchHabitSummaries,
+  fetchHealthDailyValues,
+  fetchRegistroLogsSince,
+  fetchRegistroSummaries,
+  fetchTodoTemplateSummaries,
+} from '@vitale/shared';
 import {
   localDateStr,
   buildRetrospective,
@@ -23,26 +34,18 @@ const HEALTH_SPECS: Omit<RetroHealthMetric, 'valuesByDay'>[] = [
   { metric: 'fcRepouso', label: 'FC repouso', higherIsWorse: true, icon: 'heart', decimals: 0, unit: ' bpm' },
 ];
 
-type DbHealthRow = { day: string; metric: string; value: number | null };
-type DbRatingRow = { day: string; sleep_quality: number | null; day_quality: number | null };
-type DbHabitRow = { id: string; name: string; bad: boolean; unit: string | null };
-type DbHabitLogRow = { habit_id: string; log_date: string; value: number | null };
-type DbRegistroRow = { id: string; name: string };
-type DbRegistroLogRow = { registro_id: string; log_date: string };
-type DbTemplateRow = { id: string; name: string; module: string; meta: Record<string, unknown> | null };
-type DbOccRow = { template_id: string; done_at: string | null };
 
 interface RetroState {
   loading: boolean;
   loaded: boolean;
   loadedSince: string | null;
 
-  health: DbHealthRow[];
-  ratings: DbRatingRow[];
-  habits: DbHabitRow[];
-  habitLogs: DbHabitLogRow[];
-  registros: DbRegistroRow[];
-  registroLogs: DbRegistroLogRow[];
+  health: Array<{ day: string; metric: string; value: number | null }>;
+  ratings: Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>;
+  habits: Array<{ id: string; name: string; bad: boolean; unit: string }>;
+  habitLogs: HabitLog[];
+  registros: Array<{ id: string; name: string }>;
+  registroLogs: RegistroLog[];
   tasks: { doneDay: string; module: string }[];
   purchases: { doneDay: string; cat?: string; price?: number; name: string }[];
 
@@ -71,21 +74,21 @@ export const useRetroStore = create<RetroState>((set, get) => {
     const sleepMap = new Map<string, number>();
     const dayMap = new Map<string, number>();
     for (const r of s.ratings) {
-      if (r.sleep_quality != null) sleepMap.set(r.day, Number(r.sleep_quality));
-      if (r.day_quality != null) dayMap.set(r.day, Number(r.day_quality));
+      if (r.sleepQuality != null) sleepMap.set(r.day, r.sleepQuality);
+      if (r.dayQuality != null) dayMap.set(r.day, r.dayQuality);
     }
 
     const logsByHabit = new Map<string, Map<string, number>>();
     for (const l of s.habitLogs) {
-      let m = logsByHabit.get(l.habit_id);
-      if (!m) { m = new Map(); logsByHabit.set(l.habit_id, m); }
-      m.set(l.log_date, Number(l.value ?? 0));
+      let m = logsByHabit.get(l.habitId);
+      if (!m) { m = new Map(); logsByHabit.set(l.habitId, m); }
+      m.set(l.logDate, l.value);
     }
     const daysByRegistro = new Map<string, string[]>();
     for (const l of s.registroLogs) {
-      const arr = daysByRegistro.get(l.registro_id) ?? [];
-      arr.push(l.log_date);
-      daysByRegistro.set(l.registro_id, arr);
+      const arr = daysByRegistro.get(l.registroId) ?? [];
+      arr.push(l.logDate);
+      daysByRegistro.set(l.registroId, arr);
     }
 
     return {
@@ -96,7 +99,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
       stepsByDay: byMetric.get('passos'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
-      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit ?? '', logsByDay: logsByHabit.get(h.id) ?? new Map() })),
+      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
       registros: s.registros.map((r) => ({ id: r.id, name: r.name, days: daysByRegistro.get(r.id) ?? [] })),
       tasks: s.tasks,
       purchases: s.purchases,
@@ -113,30 +116,32 @@ export const useRetroStore = create<RetroState>((set, get) => {
       const { loading, loaded, loadedSince } = get();
       if (loading) return;
       if (loaded && loadedSince && loadedSince <= since) return;
-      if (!currentUserId()) return;
+      const userId = currentUserId();
+      if (!userId) return;
 
       set({ loading: true });
       void useActivitiesStore.getState().load();
 
-      const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs] = await Promise.all([
-        supabase.from('health_daily').select('day,metric,value').gte('day', since),
-        supabase.from('daily_ratings').select('day,sleep_quality,day_quality').gte('day', since),
-        supabase.from('habits').select('id,name,bad,unit'),
-        supabase.from('habit_logs').select('habit_id,log_date,value').gte('log_date', since),
-        supabase.from('registros').select('id,name'),
-        supabase.from('registro_logs').select('registro_id,log_date').gte('log_date', since),
-        supabase.from('todo_templates').select('id,name,module,meta'),
-        supabase.from('todo_occurrences').select('template_id,done_at').eq('status', 'done').gte('done_at', `${since}T00:00:00`),
-      ]);
+      const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs] =
+        await Promise.all([
+          fetchHealthDailyValues(supabase, userId, since),
+          fetchDailyRatingScores(supabase, userId, since),
+          fetchHabitSummaries(supabase, userId),
+          fetchHabitLogsSince(supabase, userId, since),
+          fetchRegistroSummaries(supabase, userId),
+          fetchRegistroLogsSince(supabase, userId, since),
+          fetchTodoTemplateSummaries(supabase, userId),
+          fetchDoneTodoOccurrencesSince(supabase, userId, since),
+        ]);
 
-      const tmplById = new Map((templates.data as DbTemplateRow[] ?? []).map((t) => [t.id, t]));
+      const tmplById = new Map(templates.map((t) => [t.id, t]));
       const tasks: { doneDay: string; module: string }[] = [];
       const purchases: { doneDay: string; cat?: string; price?: number; name: string }[] = [];
-      for (const o of (occs.data ?? []) as DbOccRow[]) {
-        if (!o.done_at) continue;
-        const tmpl = tmplById.get(o.template_id);
+      for (const o of occs) {
+        if (!o.doneAt) continue;
+        const tmpl = tmplById.get(o.templateId);
         if (!tmpl) continue;
-        const doneDay = localDateStr(new Date(o.done_at));
+        const doneDay = localDateStr(new Date(o.doneAt));
         tasks.push({ doneDay, module: tmpl.module });
         if (tmpl.module === 'compras') {
           const meta = tmpl.meta ?? {};
@@ -150,12 +155,12 @@ export const useRetroStore = create<RetroState>((set, get) => {
       }
 
       set({
-        health: (health.data ?? []) as DbHealthRow[],
-        ratings: (ratings.data ?? []) as DbRatingRow[],
-        habits: (habits.data ?? []) as DbHabitRow[],
-        habitLogs: (habitLogs.data ?? []) as DbHabitLogRow[],
-        registros: (registros.data ?? []) as DbRegistroRow[],
-        registroLogs: (registroLogs.data ?? []) as DbRegistroLogRow[],
+        health,
+        ratings,
+        habits,
+        habitLogs,
+        registros,
+        registroLogs,
         tasks, purchases,
         loading: false, loaded: true, loadedSince: since,
       });
