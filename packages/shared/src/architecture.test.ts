@@ -90,7 +90,7 @@ check('BARREIRA — nenhum módulo com o mesmo nome nos dois apps', () => {
  * Teto do passivo da CAP-6. **Só desce.** Ao mover uma tabela para
  * `shared/src/data/`, baixe este número para o novo total.
  */
-const FROM_CALLS_CEILING = 115;
+const FROM_CALLS_CEILING = 102;
 
 check(`CATRACA — chamadas .from() fora do núcleo não passam de ${FROM_CALLS_CEILING}`, () => {
   const count = [...webFiles, ...mobileFiles]

@@ -27,6 +27,8 @@ export * from './date/local';
 export * from './format/workout';
 export * from './data/profiles';
 export * from './data/todo-templates';
+export * from './data/todo-occurrences';
+export * from './data/habit-logs';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
 export * from './todo/format';

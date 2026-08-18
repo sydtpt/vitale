@@ -11,9 +11,9 @@ import type {
 } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { drainTodoQueue } from '../lib/todo-queue';
-import { toOcc } from '../lib/todo-map';
 import {
   createTodoTemplate,
+  fetchTodoOccurrences,
   fetchTodoTemplates,
   setTodoTemplateActive,
   setTodoTemplateMeter,
@@ -120,12 +120,8 @@ function scheduleBoundary(templates: TodoTemplate[], occurrences: TodoOccurrence
 
 /** Busca pendentes (qualquer data) + resolvidas dentro da janela. */
 async function fetchOccurrences(since: string): Promise<TodoOccurrence[]> {
-  const { data } = await supabase
-    .from('todo_occurrences')
-    .select('*')
-    .or(`status.eq.pending,due_date.gte.${since},done_at.gte.${since}`)
-    .order('due_date', { ascending: true });
-  return (data ?? []).map(toOcc);
+  const uid = currentUserId();
+  return uid ? fetchTodoOccurrences(supabase, uid, since) : [];
 }
 
 export const useTodosStore = create<TodosState>((set, get) => ({

@@ -13,6 +13,7 @@ import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { ActivitiesStore } from '@features/workout-history/data/activities.store';
 import { HabitsStore } from '@features/habits/data/habits.store';
+import { fetchDoneTodoOccurrencesSince, fetchHabitLogsSince } from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -135,25 +136,20 @@ export class GoalsStore {
     const minYear = goals.length ? Math.min(...goals.map((g) => g.year)) : new Date().getFullYear();
     const since = `${minYear}-01-01`;
 
-    const [occRes, logRes] = await Promise.all([
-      supabase
-        .from('todo_occurrences')
-        .select('id,template_id,due_date,status,done_at,created_at')
-        .eq('user_id', userId)
-        .eq('status', 'done')
-        .gte('done_at', `${since}T00:00:00`),
-      supabase
-        .from('habit_logs')
-        .select('id,habit_id,log_date,value')
-        .eq('user_id', userId)
-        .gte('log_date', since),
-    ]);
-    if (occRes.error) return this.fail(occRes.error.message);
-    if (logRes.error) return this.fail(logRes.error.message);
+    let occs: TodoOccurrence[];
+    let logs: HabitLog[];
+    try {
+      [occs, logs] = await Promise.all([
+        fetchDoneTodoOccurrencesSince(supabase, userId, since),
+        fetchHabitLogsSince(supabase, userId, since),
+      ]);
+    } catch (e) {
+      return this.fail(e instanceof Error ? e.message : 'Falha ao carregar as fontes das metas');
+    }
 
     this._goals.set(goals);
-    this._doneOccurrences.set(((occRes.data ?? []) as DbOccRow[]).map(mapOcc));
-    this._habitLogs.set(((logRes.data ?? []) as DbHabitLogRow[]).map(mapLog));
+    this._doneOccurrences.set(occs);
+    this._habitLogs.set(logs);
     this._state.set('loaded');
 
     // Fontes que vivem nos stores existentes (histórico completo em memória).
@@ -226,17 +222,6 @@ function mapGoal(r: DbGoalRow): Goal {
     manualCurrent: r.manual_current == null ? undefined : Number(r.manual_current),
     active: r.active,
     sort: r.sort,
-    createdAt: r.created_at,
-  };
-}
-
-function mapOcc(r: DbOccRow): TodoOccurrence {
-  return {
-    id: r.id,
-    templateId: r.template_id,
-    dueDate: r.due_date,
-    status: r.status,
-    doneAt: r.done_at ?? undefined,
     createdAt: r.created_at,
   };
 }

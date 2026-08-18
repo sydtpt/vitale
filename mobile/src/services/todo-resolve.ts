@@ -13,7 +13,11 @@ import { supabase } from '../lib/supabase';
 import type { TodoTemplate, TodoStatus } from '@vitale/shared';
 import { enqueueResolve, drainTodoQueue, type TodoResolveOp } from '../lib/todo-queue';
 import { nextDueDate, localDateStr } from '@vitale/shared';
-import { setTodoTemplateMeterAtLastDone } from '@vitale/shared';
+import {
+  hasPendingTodoOccurrence,
+  insertTodoOccurrence,
+  setTodoTemplateMeterAtLastDone,
+} from '@vitale/shared';
 
 export function genOpId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -42,28 +46,12 @@ export async function insertOccurrence(
   templateId: string,
   dueDate: string | null,
 ): Promise<boolean> {
-  const { error } = await supabase.from('todo_occurrences').insert({
-    template_id: templateId,
-    user_id: userId,
-    due_date: dueDate,
-    status: 'pending',
-  });
-  if (error) {
-    if (error.code === '23505') return false;
-    throw error;
-  }
-  return true;
+  return insertTodoOccurrence(supabase, userId, templateId, dueDate);
 }
 
 /** Há ocorrência pendente da série? Dedup dos gatilhos de criação (1 por vez). */
-export async function hasPendingOccurrence(templateId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('todo_occurrences')
-    .select('id')
-    .eq('template_id', templateId)
-    .eq('status', 'pending')
-    .limit(1);
-  return (data?.length ?? 0) > 0;
+export async function hasPendingOccurrence(userId: string, templateId: string): Promise<boolean> {
+  return hasPendingTodoOccurrence(supabase, userId, templateId);
 }
 
 /**
@@ -82,7 +70,7 @@ export async function fireOnComplete(
   const rules = parent.onComplete ?? [];
   let created = 0;
   for (const r of rules) {
-    if (r.ifPending === 'ignore' && (await hasPendingOccurrence(r.templateId))) continue;
+    if (r.ifPending === 'ignore' && (await hasPendingOccurrence(userId, r.templateId))) continue;
     if (await insertOccurrence(userId, r.templateId, triggerDay)) created++;
   }
   return created;

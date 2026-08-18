@@ -13,6 +13,12 @@ import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { localDateStr, localTimeStr, firstDueDate, nextDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
 import {
+  deleteTodoOccurrence,
+  fetchTodoOccurrences,
+  hasPendingTodoOccurrence,
+  insertTodoOccurrence,
+} from '@vitale/shared';
+import {
   createTodoTemplate,
   fetchTodoTemplates,
   setTodoTemplateActive,
@@ -41,16 +47,6 @@ export interface NewTodo {
   startTime?: string | null; // 'HH:MM' — a ocorrência do dia só aparece a partir desse horário
   endTime?: string | null; // 'HH:MM' — após esse horário no dia, cancela automaticamente
   meta?: Record<string, unknown>;
-}
-
-interface DbOccRow {
-  id: string;
-  template_id: string;
-  due_date: string | null;
-  status: TodoStatus;
-  done_at: string | null;
-  meta: Record<string, unknown> | null;
-  created_at: string;
 }
 
 /**
@@ -261,14 +257,8 @@ export class TodosStore {
   private async fireOnComplete(userId: string, parent: TodoTemplate, triggerDay: string): Promise<void> {
     const rules = parent.onComplete ?? [];
     for (const r of rules) {
-      if (r.ifPending === 'ignore') {
-        const { data } = await supabase
-          .from('todo_occurrences')
-          .select('id')
-          .eq('template_id', r.templateId)
-          .eq('status', 'pending')
-          .limit(1);
-        if (data && data.length) continue;
+      if (r.ifPending === 'ignore' && (await hasPendingTodoOccurrence(supabase, userId, r.templateId))) {
+        continue;
       }
       await this.insertOccurrence(userId, r.templateId, triggerDay);
     }
@@ -284,7 +274,7 @@ export class TodosStore {
   async deleteOccurrence(occId: string): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) return;
-    await supabase.from('todo_occurrences').delete().eq('id', occId).eq('user_id', userId);
+    await deleteTodoOccurrence(supabase, userId, occId);
     await this.load(true);
   }
 
@@ -309,20 +299,11 @@ export class TodosStore {
   }
 
   private async fetchOccurrences(userId: string, since: string): Promise<TodoOccurrence[]> {
-    const { data } = await supabase
-      .from('todo_occurrences')
-      .select('*')
-      .eq('user_id', userId)
-      .or(`status.eq.pending,due_date.gte.${since},done_at.gte.${since}`)
-      .order('due_date', { ascending: true });
-    return ((data ?? []) as DbOccRow[]).map(mapOcc);
+    return fetchTodoOccurrences(supabase, userId, since);
   }
 
   private async insertOccurrence(userId: string, templateId: string, dueDate: string | null): Promise<void> {
-    const { error } = await supabase
-      .from('todo_occurrences')
-      .insert({ template_id: templateId, user_id: userId, due_date: dueDate, status: 'pending' });
-    if (error && error.code !== '23505') throw error;
+    await insertTodoOccurrence(supabase, userId, templateId, dueDate);
   }
 
   private fail(message: string): void {
@@ -331,14 +312,3 @@ export class TodosStore {
   }
 }
 
-function mapOcc(r: DbOccRow): TodoOccurrence {
-  return {
-    id: r.id,
-    templateId: r.template_id,
-    dueDate: r.due_date,
-    status: r.status,
-    doneAt: r.done_at ?? undefined,
-    meta: r.meta ?? undefined,
-    createdAt: r.created_at,
-  };
-}

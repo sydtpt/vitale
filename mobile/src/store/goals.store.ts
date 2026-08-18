@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from './auth.store';
 import { useActivitiesStore } from './activities.store';
 import { useHabitsStore } from './habits.store';
+import { fetchDoneTodoOccurrencesSince, fetchHabitLogsSince } from '@vitale/shared';
 
 /** Payload de criação/edição de uma meta (sem id/sort/createdAt/active). */
 export interface NewGoal {
@@ -112,32 +113,22 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
     const minYear = goals.length ? Math.min(...goals.map((g) => g.year)) : new Date().getFullYear();
     const since = `${minYear}-01-01`;
 
-    const [occRes, logRes] = await Promise.all([
-      supabase
-        .from('todo_occurrences')
-        .select('id,template_id,due_date,status,done_at,created_at')
-        .eq('user_id', userId)
-        .eq('status', 'done')
-        .gte('done_at', `${since}T00:00:00`),
-      supabase
-        .from('habit_logs')
-        .select('id,habit_id,log_date,value')
-        .eq('user_id', userId)
-        .gte('log_date', since),
-    ]);
-    if (occRes.error) {
-      set({ loading: false, error: occRes.error.message });
-      return;
-    }
-    if (logRes.error) {
-      set({ loading: false, error: logRes.error.message });
+    let occs: TodoOccurrence[];
+    let logs: HabitLog[];
+    try {
+      [occs, logs] = await Promise.all([
+        fetchDoneTodoOccurrencesSince(supabase, userId, since),
+        fetchHabitLogsSince(supabase, userId, since),
+      ]);
+    } catch (e) {
+      set({ loading: false, error: e instanceof Error ? e.message : 'Falha ao carregar as fontes' });
       return;
     }
 
     set({
       goals,
-      doneOccurrences: ((occRes.data ?? []) as DbOccRow[]).map(mapOcc),
-      habitLogs: ((logRes.data ?? []) as DbHabitLogRow[]).map(mapLog),
+      doneOccurrences: occs,
+      habitLogs: logs,
       loading: false,
       loaded: true,
     });
@@ -221,21 +212,6 @@ function mapGoal(r: DbGoalRow): Goal {
     sort: r.sort,
     createdAt: r.created_at,
   };
-}
-
-function mapOcc(r: DbOccRow): TodoOccurrence {
-  return {
-    id: r.id,
-    templateId: r.template_id,
-    dueDate: r.due_date,
-    status: r.status,
-    doneAt: r.done_at ?? undefined,
-    createdAt: r.created_at,
-  };
-}
-
-function mapLog(r: DbHabitLogRow): HabitLog {
-  return { id: r.id, habitId: r.habit_id, logDate: r.log_date, value: Number(r.value ?? 0) };
 }
 
 /** Contexto de avaliação a partir das fontes carregadas. Chamar no render. */

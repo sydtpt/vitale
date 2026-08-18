@@ -14,6 +14,8 @@ import { supabase } from '../lib/supabase';
 import { getActivityMeta, type WorkoutItem } from '../lib/healthkit-workouts';
 import {
   createLinkedActivityTemplate,
+  fetchTodoOccurrenceOnDay,
+  fetchTodoOccurrencesByTemplates,
   fetchOnWorkoutTemplates,
   fetchTemplatesByLinkedActivity,
   toTodoTemplate,
@@ -38,7 +40,7 @@ async function createOnWorkoutTodos(workouts: WorkoutItem[], userId: string): Pr
 
   const hasPending = new Set<string>();
   for (const t of templates) {
-    if (await hasPendingOccurrence(t.id)) hasPending.add(t.id);
+    if (await hasPendingOccurrence(userId, t.id)) hasPending.add(t.id);
   }
 
   let created = 0;
@@ -113,17 +115,14 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
 
   // 3. Ocorrências existentes dessas séries (para decidir resolve/criar/skip).
   const templateIds = templateRows.map((t) => t.id);
-  const { data: occRows } = await supabase
-    .from('todo_occurrences')
-    .select('id, template_id, due_date, status')
-    .in('template_id', templateIds);
+  const occRows = await fetchTodoOccurrencesByTemplates(supabase, userId, templateIds);
 
   // Índice mutável por série — atualizado a cada ação, p/ idempotência no mesmo lote
   // (dois treinos do mesmo tipo no mesmo dia: o 2º vê "concluída hoje" e pula).
   const occsByTemplate = new Map<string, LinkOcc[]>();
   for (const id of templateIds) occsByTemplate.set(id, []);
-  for (const o of occRows ?? []) {
-    occsByTemplate.get(o.template_id)?.push({ id: o.id, dueDate: o.due_date, status: o.status });
+  for (const o of occRows) {
+    occsByTemplate.get(o.templateId)?.push({ id: o.id, dueDate: o.dueDate, status: o.status });
   }
 
   // 4. Aplica por treino, em ordem cronológica (resolve o passado antes do recente).
@@ -155,12 +154,7 @@ export async function linkWorkoutsToTodos(workouts: WorkoutItem[], userId: strin
       // create-resolve: cria a ocorrência do dia (idempotente) e conclui.
       // A ocorrência aqui já nasce concluída, então não conta como "tarefa nova".
       await insertOccurrence(userId, tRow.id, day);
-      const { data: occ } = await supabase
-        .from('todo_occurrences')
-        .select('id')
-        .eq('template_id', tRow.id)
-        .eq('due_date', day)
-        .single();
+      const occ = await fetchTodoOccurrenceOnDay(supabase, userId, tRow.id, day);
       if (!occ) continue;
       created += await resolveAndAdvance({
         userId,
