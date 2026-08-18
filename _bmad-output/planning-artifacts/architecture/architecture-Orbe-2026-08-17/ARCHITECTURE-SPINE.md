@@ -79,7 +79,7 @@ Proibido: `shared` importar de `web` ou `mobile`; `web` e `mobile` importarem um
 
 - **Binds:** `npm run test` na raiz
 - **Prevents:** AD-1 a AD-4 virarem prosa não verificada — não há CI nem git hooks neste repositório
-- **Rule:** o teste falha quando um basename duplica entre `web/src` e `mobile/src` fora da allowlist de stores, ou quando um módulo sem import de plataforma existe fora do núcleo. A guarda vive no workspace do núcleo e só vale depois que ele tiver runner de teste real — guarda que não executa é pior que guarda nenhuma, porque passa a impressão de cobertura.
+- **Rule:** o teste falha quando um basename duplica entre `web/src` e `mobile/src` fora da allowlist de stores; quando existe `.from(` fora de `packages/shared/src/data/`; quando o núcleo importa de um app; ou quando o núcleo constrói um `SupabaseClient`. A guarda vive no workspace do núcleo e só vale onde executa — guarda que não roda é pior que guarda nenhuma, porque passa a impressão de cobertura. Uma checagem cujo passivo ainda está sendo drenado entra como **catraca** (falha só se o número crescer) e vira barreira ao chegar a zero; declarar barreira cedo demais derruba o build em massa e o teste é desligado na primeira hora.
 
 ### AD-8 — Instância Supabase única [ADOPTED]
 
@@ -183,4 +183,5 @@ _bmad-output/    # AD-10 — efêmero: plan, tasks, sprint
 | Pipeline de CI | Quando a guarda da AD-7 passar a ser burlada por esquecimento de rodar `npm run test`. |
 | Segunda instância Supabase para desenvolvimento | Quando houver um segundo usuário real, ou quando uma perda de dado em desenvolvimento custar mais que manter dois schemas em sincronia. |
 | Comentários `.claude/specs` nas 28 migrations aplicadas | Nunca por si só — migration aplicada não se reescreve. O tombstone em `.claude/specs/README.md` resolve o ponteiro. |
-| Tabela `profiles` consultada pelo web sem migration correspondente | Antes de qualquer trabalho em perfil de usuário. Pode ser tabela criada fora do versionamento ou leitura que falha calada. |
+| `running-highlights.ts` duplicado entre os apps | Quando alguém encostar em highlights. `ActivityHighlight` carrega `value` e `caption` já formatados — separar cálculo de apresentação é o que a AD-2 manda, mas muda o contrato que os componentes consomem. |
+| `drop` de `user_profiles` | Opcional e bem-informado: `n_tup_ins = 0` (nunca recebeu insert), nenhum código a referencia, comentário no banco já a marca obsoleta. Falta só a decisão de derrubar. |

@@ -15,14 +15,18 @@ Consolidação **antes** de novas features. Cada fase é commitável sozinha e a
 | 3 — ADRs | CAP-3 | ✅ 11 ADRs, incluindo a 0011 sobre schema |
 | 4 — vocabulário | CAP-4 | ✅ + 2 correções de classificação e teste de disjunção |
 | 5 — lógica duplicada | CAP-5 | ✅ 10 consolidadas, 2 renomeadas; `running-highlights` diferido |
-| 6 — contrato de schema | CAP-6 | 🔨 **2 de 19 tabelas** (`profiles`, `synced_activity_types`); 132 chamadas restantes |
-| 7 — guarda | CAP-7 | ✅ em forma adaptada: 3 barreiras + 1 catraca que protege o que falta da 6 |
+| 6 — contrato de schema | CAP-6 | ✅ **19 de 19 tabelas**; as 139 chamadas `.from()` migradas |
+| 7 — guarda | CAP-7 | ✅ 4 barreiras, nenhuma catraca — todas verificadas falhando |
 
-A guarda entrou **antes** da Fase 6 terminar, ao contrário do plano original, porque a catraca protege exatamente o trabalho que sobra: o passivo de `.from()` não pode crescer enquanto encolhe.
+**A consolidação está completa.** As oito capabilities do spec foram entregues.
 
-**Retomar a Fase 6 assim:** próxima tabela é `todo_templates`, onde a divergência real já existe (web lê sem filtro, mobile filtra por `active`). Ao migrar cada tabela, baixe `FROM_CALLS_CEILING` em `packages/shared/src/architecture.test.ts` para o novo total — é o que transforma a catraca em progresso medido.
+A guarda entrou antes da Fase 6 terminar, ao contrário do plano original: a checagem de `.from()` nasceu **catraca** (falhava só se o número crescesse) para proteger o passivo enquanto ele era drenado. O teto desceu quinze vezes e chegou a zero, quando ela virou barreira — como estava previsto no comentário desde que foi escrita.
 
-Divergência encontrada e ainda não tratada: o `retro.store` da web filtra `.eq('user_id', …)` e o do mobile não, confiando no RLS. Mesma classe do `todo_templates`.
+## O que sobrou, deliberadamente
+
+- **`running-highlights.ts`** segue duplicado. `ActivityHighlight` carrega `value` e `caption` já formatados; separar cálculo de apresentação é o que a AD-2 manda, mas muda o contrato que os componentes consomem. Diferido com condição no spine.
+- **`drop` de `user_profiles`** — opcional e bem-informado. Verificado em produção: `n_tup_ins = 0`, nunca recebeu um insert; nenhum código a referencia; o comentário no banco já a marca obsoleta.
+- **Alvo de hospedagem do web** e **pipeline de CI** — diferidos no spine, com condição escrita.
 
 ---
 
