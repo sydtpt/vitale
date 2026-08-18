@@ -1,5 +1,5 @@
 import type { Activity } from '@vitale/shared';
-import { buildWeeklyVolume } from './weekly-volume';
+import { buildWeeklyVolume } from '@vitale/shared';
 
 function act(partial: Partial<Activity> & { startAt: string }): Activity {
   return {

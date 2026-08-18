@@ -3,10 +3,9 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { PanelComponent } from '@shared/components/panel/panel.component';
 import { IconComponent } from '@core/services/icon.component';
 import { ActivityVolumeChartComponent } from '../components/activity-volume-chart.component';
-import { ACTIVITY_RUNNING, ACTIVITY_CYCLING, ACTIVITY_YOGA } from '../data/weekly-volume';
 import { PlannedWorkoutsStore } from '../data/planned-workouts.store';
 import { PlannedWorkoutEditorComponent } from '../components/planned-workout-editor.component';
-import { T, type PlannedWorkout } from '@vitale/shared';
+import { ACTIVITY_CYCLING, ACTIVITY_RUNNING, ACTIVITY_YOGA, T, type PlannedWorkout } from '@vitale/shared';
 
 const KIND_LABEL: Record<PlannedWorkout['kind'], string> = {
   strength: 'Força',

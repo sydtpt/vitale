@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { ActivitiesStore } from '@features/workout-history/data/activities.store';
-import { buildWeeklyVolume, type VolumeMetric } from '../data/weekly-volume';
+import { buildWeeklyVolume, type VolumeMetric } from '@vitale/shared';
 
 interface BarVM { week: string; value: number; x: number; y: number; w: number; h: number; cx: number; }
 interface GridVM { v: number; y: number; }

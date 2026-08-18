@@ -7,16 +7,9 @@ import type { Activity, PlannedWorkout } from '@vitale/shared';
 import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useAuthStore } from '../../store/auth.store';
-import {
-  buildWeeklyVolume,
-  ACTIVITY_RUNNING,
-  ACTIVITY_CYCLING,
-  ACTIVITY_YOGA,
-  type VolumeMetric,
-} from '../../lib/weekly-volume';
 import { BarChart } from '../../components/charts/BarChart';
 import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
-import { buildWeek } from '@vitale/shared';
+import { ACTIVITY_CYCLING, ACTIVITY_RUNNING, ACTIVITY_YOGA, buildWeek, buildWeeklyVolume, type VolumeMetric } from '@vitale/shared';
 
 const CHART_W = Dimensions.get('window').width - spacing.lg * 2 - 28;
 
