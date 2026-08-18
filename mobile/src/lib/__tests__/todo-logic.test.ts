@@ -1,23 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import type { TodoOccurrence, TodoTemplate } from '@vitale/shared';
-import {
-  localDateStr,
-  localTimeStr,
-  isValidTime,
-  isValidDate,
-  addDays,
-  daysBetween,
-  firstDueDate,
-  nextDueDate,
-  triggeredDueDate,
-  isOverdue,
-  isStarted,
-  isVisibleNow,
-  isPastEnd,
-  daysLate,
-  dueUsage,
-  reconcileTemplate,
-} from '../todo-logic';
+import { localDateStr, localTimeStr, isValidTime, isValidDate, addDays, daysBetween, firstDueDate, nextDueDate, triggeredDueDate, isOverdue, isStarted, isVisibleNow, isPastEnd, daysLate, dueUsage, reconcileTemplate } from '@vitale/shared';
 
 // 2026-05-20 é uma quarta-feira (getDay() === 3).
 const TODAY = '2026-05-20';

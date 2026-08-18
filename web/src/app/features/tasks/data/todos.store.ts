@@ -11,14 +11,7 @@ import type {
 } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
-import {
-  localDateStr,
-  localTimeStr,
-  firstDueDate,
-  nextDueDate,
-  dueUsage,
-  reconcileTemplate,
-} from './todo-logic';
+import { localDateStr, localTimeStr, firstDueDate, nextDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 

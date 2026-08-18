@@ -20,8 +20,7 @@ import type {
   TodoCancelPolicy,
   TodoSpawnRule,
 } from '@vitale/shared';
-import { HABIT_ICONS } from '@vitale/shared';
-import { isValidTime, isValidDate, localDateStr } from '../../lib/todo-logic';
+import { HABIT_ICONS, isValidDate, isValidTime, localDateStr } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';

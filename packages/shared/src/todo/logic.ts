@@ -1,17 +1,11 @@
 /**
- * Derivações puras de tarefas (sem persistência).
- * Espelho de `mobile/src/lib/todo-logic.ts` — manter as duas versões em sincronia.
- * Regra em [data-model](../../../../../../docs/specs/tarefas/data-model.md).
+ * Derivações puras de tarefas (sem persistência) — fonte única para web e mobile.
+ * Regra em [data-model](../../../../docs/specs/tarefas/data-model.md).
  */
-import type { TodoRecurrence, TodoTemplate, TodoOccurrence } from '@vitale/shared';
+import type { TodoRecurrence, TodoTemplate, TodoOccurrence } from '../models';
+import { localDateStr } from '../date/local';
 
-/** Data local 'YYYY-MM-DD' (não UTC). */
-export function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+export { localDateStr };
 
 /** Hora local 'HH:MM' (24h, zero-padded) — comparável por string. */
 export function localTimeStr(d: Date = new Date()): string {
@@ -260,6 +254,7 @@ export function reconcileTemplate(
   // triggerOnly: a série não gera ocorrência por calendário (só nasce por gatilho).
   // Pula o create quando houve cancelamento: o avanço do cancel já gera a próxima.
   if (!t.triggerOnly && canceled.size === 0 && isCalendarRecurrence(t.recurrence)) {
+    // o que continua vivo após as expirações acima
     const alive = pending.filter((o) => !(t.overdue === 'expire' && isPast(o)));
     const hasCurrentOrFuture = alive.some((o) => o.dueDate != null);
     if (!hasCurrentOrFuture) {

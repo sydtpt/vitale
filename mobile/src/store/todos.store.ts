@@ -10,17 +10,11 @@ import type {
   TodoStatus,
 } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
-import {
-  localDateStr,
-  localTimeStr,
-  firstDueDate,
-  dueUsage,
-  reconcileTemplate,
-} from '../lib/todo-logic';
 import { drainTodoQueue } from '../lib/todo-queue';
 import { toTemplate, toOcc } from '../lib/todo-map';
 import { resolveAndAdvance, flushResolves, insertOccurrence } from '../services/todo-resolve';
 import { useAuthStore } from './auth.store';
+import { localDateStr, localTimeStr, firstDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
 
 /** Janela de histórico carregada (dias) para listar concluídas/atrasadas recentes. */
 export const TODO_WINDOW_DAYS = 30;

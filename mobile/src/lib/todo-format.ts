@@ -1,6 +1,6 @@
 /** Rótulos em pt-BR para tarefas (apresentação). Espelhado na web. */
 import type { TodoRecurrence } from '@vitale/shared';
-import { addDays, localDateStr } from './todo-logic';
+import { addDays, localDateStr } from '@vitale/shared';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 

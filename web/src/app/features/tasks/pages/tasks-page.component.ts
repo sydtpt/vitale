@@ -3,12 +3,12 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { IconComponent } from '@core/services/icon.component';
 import type { TodoOccurrence, TodoTemplate } from '@vitale/shared';
 import { TodosStore } from '../data/todos.store';
-import { localDateStr, localTimeStr, isOverdue, isVisibleNow, isStarted } from '../data/todo-logic';
 import { describeRecurrence } from '../data/todo-format';
 import { TodoCardComponent } from '../components/todo-card.component';
 import { TodoEditorComponent } from '../components/todo-editor.component';
 import { HistoryViewComponent } from '../components/history-view.component';
 import { SeriesViewComponent } from '../components/series-view.component';
+import { localDateStr, localTimeStr, isOverdue, isVisibleNow, isStarted } from '@vitale/shared';
 
 interface Row { o: TodoOccurrence; t: TodoTemplate; }
 

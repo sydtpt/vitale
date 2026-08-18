@@ -1,10 +1,9 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MOD, HABIT_ICONS, type TodoModule, type TodoRecurrence, type TodoOverduePolicy, type TodoCancelPolicy, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
+import { HABIT_ICONS, isValidDate, isValidTime, localDateStr, MOD, type TodoCancelPolicy, type TodoModule, type TodoOverduePolicy, type TodoRecurrence, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
 import { IconComponent } from '@core/services/icon.component';
 import { DatePickerComponent } from './date-picker.component';
-import { isValidTime, isValidDate, localDateStr } from '../data/todo-logic';
 import { TodosStore, type NewTodo } from '../data/todos.store';
 
 /** Ícone padrão de uma nova tarefa (nome canônico de HABIT_ICONS). */

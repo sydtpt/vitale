@@ -6,6 +6,7 @@
  * store e passa para cá; a UI só desenha o resultado.
  */
 import type { Activity, HealthDaily } from '../models';
+import { localDateStr } from '../date/local';
 import { computeReadiness, rollingBaseline, type ReadinessScore } from './readiness';
 import { correlate } from './trends';
 import { triggerImpact } from './trigger-impact';
@@ -21,11 +22,6 @@ const HARD_DAY_MIN = 15;
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
-}
-
-/** 'YYYY-MM-DD' local de uma Date. */
-export function localDateStr(d: Date = new Date()): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 function parseDate(s: string): Date {

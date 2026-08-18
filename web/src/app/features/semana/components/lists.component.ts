@@ -5,7 +5,7 @@ import { TodosStore } from '../../tasks/data/todos.store';
 import { GoalsStore } from '../../metas/data/goals.store';
 import { familyLabel, goalValueText, goalPct } from '../../metas/data/goal-format';
 import { describeRecurrence, dueLabel } from '../../tasks/data/todo-format';
-import { localDateStr, isOverdue } from '../../tasks/data/todo-logic';
+import { localDateStr, isOverdue } from '@vitale/shared';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 

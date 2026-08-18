@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import { IconComponent } from '@core/services/icon.component';
-import { localDateStr } from '../data/todo-logic';
+import { localDateStr } from '@vitale/shared';
 
 interface DayCell {
   date: string;   // 'YYYY-MM-DD' ('' = célula vazia de preenchimento)

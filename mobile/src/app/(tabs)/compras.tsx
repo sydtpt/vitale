@@ -4,14 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TodoTemplate, TodoOccurrence, ShopMeta, ShopCat } from '@vitale/shared';
-import { SHOP_CATS } from '@vitale/shared';
+import { isOverdue, localDateStr, SHOP_CATS } from '@vitale/shared';
 import * as Haptics from 'expo-haptics';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { localDateStr, isOverdue } from '../../lib/todo-logic';
 import { describeRecurrence } from '../../lib/todo-format';
 import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
 

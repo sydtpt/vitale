@@ -11,8 +11,8 @@
  */
 import { supabase } from '../lib/supabase';
 import type { TodoTemplate, TodoStatus } from '@vitale/shared';
-import { nextDueDate, localDateStr } from '../lib/todo-logic';
 import { enqueueResolve, drainTodoQueue, type TodoResolveOp } from '../lib/todo-queue';
+import { nextDueDate, localDateStr } from '@vitale/shared';
 
 export function genOpId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;

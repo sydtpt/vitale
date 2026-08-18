@@ -7,8 +7,8 @@ import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { TodoItem } from '../../components/cards/TodoItem';
-import { localDateStr, localTimeStr, isOverdue, isVisibleNow, isStarted, addDays } from '../../lib/todo-logic';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { localDateStr, localTimeStr, isOverdue, isVisibleNow, isStarted, addDays } from '@vitale/shared';
 
 export default function TarefasScreen() {
   const styles = useThemedStyles(createStyles);

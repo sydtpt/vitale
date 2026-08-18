@@ -12,10 +12,10 @@
 import type { TodoRecurrence } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { getActivityMeta, type WorkoutItem } from '../lib/healthkit-workouts';
-import { localDateStr, triggeredDueDate } from '../lib/todo-logic';
 import { toTemplate, type TemplateRow } from '../lib/todo-map';
 import { planLink, activityTodoIcon, type LinkOcc } from '../lib/activity-todo-link';
 import { resolveAndAdvance, insertOccurrence, hasPendingOccurrence } from './todo-resolve';
+import { localDateStr, triggeredDueDate } from '@vitale/shared';
 
 type OnWorkoutRec = Extract<TodoRecurrence, { kind: 'on_workout' }>;
 

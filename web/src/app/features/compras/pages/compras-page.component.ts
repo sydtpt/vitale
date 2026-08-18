@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
-import { SHOP_CATS, type ShopCat, type TodoOccurrence, type TodoTemplate } from '@vitale/shared';
+import { isOverdue, localDateStr, SHOP_CATS, type ShopCat, type TodoOccurrence, type TodoTemplate } from '@vitale/shared';
 import { TodosStore } from '../../tasks/data/todos.store';
-import { localDateStr, isOverdue } from '../../tasks/data/todo-logic';
 import { describeRecurrence } from '../../tasks/data/todo-format';
 import { ComprasEditorComponent } from '../components/compras-editor.component';
 
