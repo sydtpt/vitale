@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { DailyRating } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
-import { localDateStr } from '../lib/habit-logic';
 import { useAuthStore } from './auth.store';
+import { localDateStr } from '@vitale/shared';
 
 /** Janela (em dias) de ratings mantida em memória — cobre semana atual + anterior do recap. */
 const WINDOW_DAYS = 21;

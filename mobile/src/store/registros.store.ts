@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { Registro, TodoModule } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
-import { localDateStr } from '../lib/habit-logic';
 import { useAuthStore } from './auth.store';
+import { localDateStr } from '@vitale/shared';
 
 export interface NewRegistro {
   name: string;

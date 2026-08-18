@@ -10,10 +10,9 @@
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { activityDays, buildPeriodRecap, DEFAULT_NOTIFICATION_PREFS, isOverdue, localDateStr, readinessAdvice, readinessInputsByDay, readinessSeries, recapHeadline, type NotificationPrefs, weeklyLoadVsRecovery } from '@vitale/shared';
+import { activityDays, buildPeriodRecap, DEFAULT_NOTIFICATION_PREFS, isMet, isOverdue, localDateStr, readinessAdvice, readinessInputsByDay, readinessSeries, recapHeadline, type NotificationPrefs, weeklyLoadVsRecovery } from '@vitale/shared';
 import { readinessFromSummaries } from '../lib/health-readiness';
 import { getJSON, setJSON } from '../lib/local-store';
-import { isMet } from '../lib/habit-logic';
 import { useSettingsStore } from '../store/settings.store';
 import { useHealthStore } from '../store/health.store';
 import { useHealthDailyStore } from '../store/health-daily.store';

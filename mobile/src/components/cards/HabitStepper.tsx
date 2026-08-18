@@ -4,8 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { CounterHabit } from '@vitale/shared';
 import { colors, radii, moduleColors, shadows, useThemedStyles } from '../../theme';
-import { isMet, isOver, progress } from '../../lib/habit-logic';
 import { habitIconToIonicon } from '../../lib/habit-icons';
+import { isMet, isOver, progress } from '@vitale/shared';
 
 /** Formata número na unidade do hábito (vírgula decimal, sem zeros à toa). */
 function fmt(n: number): string {

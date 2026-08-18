@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { MOD, DEFAULT_HABIT_ICON, type CounterHabit } from '@vitale/shared';
+import { DEFAULT_HABIT_ICON, isMet, isOver, MOD, progress, type CounterHabit } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
-import { isMet, isOver, progress } from '../data/habit-logic';
 
 /**
  * Stepper de captura (porta web do `HabitStepper.tsx` do mobile): ícone + nome,

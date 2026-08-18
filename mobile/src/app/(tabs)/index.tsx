@@ -17,11 +17,10 @@ import { useDailyRatingsStore, dayRatingDate } from '../../store/daily-ratings.s
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { streak, cleanStreak, daysInclusive, localDateStr } from '../../lib/habit-logic';
 import { HOJE } from '../../services/mock-data';
 import type { CounterHabit } from '@vitale/shared';
 import type { User } from '@supabase/supabase-js';
-import { isOverdue, isVisibleNow, isStarted, localTimeStr } from '@vitale/shared';
+import { cleanStreak, daysInclusive, isOverdue, isStarted, isVisibleNow, localDateStr, localTimeStr, streak } from '@vitale/shared';
 
 function getGreeting(name: string): string {
   const h = new Date().getHours();

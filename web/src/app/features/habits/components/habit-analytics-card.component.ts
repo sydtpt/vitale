@@ -1,19 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { MOD, DEFAULT_HABIT_ICON, type CounterHabit, type HabitLog } from '@vitale/shared';
+import { average, cleanStreak, daysInclusive, DEFAULT_HABIT_ICON, isOver, lastNDates, localDateStr, logsByDate, MOD, progress, streak, type CounterHabit, type HabitLog } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { HabitHeatmapComponent, type HeatCell } from './habit-heatmap.component';
 import { RANGE_DAYS } from '../data/habits.store';
-import {
-  average,
-  cleanStreak,
-  daysInclusive,
-  isOver,
-  lastNDates,
-  localDateStr,
-  logsByDate,
-  progress,
-  streak,
-} from '../data/habit-logic';
 
 /**
  * Compat: hábitos antigos do mobile guardavam nomes Ionicons. Mapeia só os que

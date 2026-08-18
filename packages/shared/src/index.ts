@@ -23,6 +23,7 @@ export * from './chart/smooth-path';
 export * from './chart/axis';
 export * from './date/local';
 export * from './todo/logic';
+export * from './habits/logic';
 export * from './fitness/activity-types';
 export * from './fitness/streams';
 export * from './fitness/dedupe';

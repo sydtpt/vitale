@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { MealLog, MealType } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
-import { localDateStr } from '../lib/habit-logic';
 import { useAuthStore } from './auth.store';
+import { localDateStr } from '@vitale/shared';
 
 /** Campos de uma refeição nova capturada pelo QuickAddSheet. */
 export interface NewMeal {

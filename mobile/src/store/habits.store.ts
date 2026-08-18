@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import type { CounterHabit, HabitDirection } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
-import { localDateStr } from '../lib/habit-logic';
 import {
   enqueueDelta,
   drainHabitQueue,
   type HabitDelta,
 } from '../lib/habit-queue';
 import { useAuthStore } from './auth.store';
+import { localDateStr } from '@vitale/shared';
 
 /** Janela de histórico carregada para derivar sequências (streaks) no mobile. */
 export const HABIT_WINDOW_DAYS = 90;

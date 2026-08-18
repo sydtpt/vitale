@@ -1,18 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import type { CounterHabit, HabitLog } from '@vitale/shared';
-import {
-  localDateStr,
-  isMet,
-  isOver,
-  progress,
-  logsByDate,
-  streak,
-  cleanStreak,
-  daysInclusive,
-  average,
-  lastNDates,
-  heatmap,
-} from '../habit-logic';
+import { localDateStr, isMet, isOver, progress, logsByDate, streak, cleanStreak, daysInclusive, average, lastNDates, heatmap } from '@vitale/shared';
 
 const agua: Pick<CounterHabit, 'direction' | 'target'> = { direction: 'at_least', target: 4 };
 const cigarro: Pick<CounterHabit, 'direction' | 'target'> = { direction: 'at_most', target: 5 };

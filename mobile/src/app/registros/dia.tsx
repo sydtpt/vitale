@@ -8,9 +8,9 @@ import { useRegistrosStore } from '../../store/registros.store';
 import { useAuthStore } from '../../store/auth.store';
 import { MonthCalendar } from '../../components/MonthCalendar';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { localDateStr } from '../../lib/habit-logic';
 import { supabase } from '../../lib/supabase';
 import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
+import { localDateStr } from '@vitale/shared';
 
 const DATE_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 

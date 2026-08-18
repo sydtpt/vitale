@@ -5,8 +5,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRegistrosStore } from '../../store/registros.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { localDateStr } from '../../lib/habit-logic';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { localDateStr } from '@vitale/shared';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const MONTHS = [

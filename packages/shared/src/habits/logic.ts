@@ -1,20 +1,13 @@
 /**
- * Derivações puras de hábitos contadores (sem persistência).
- * Espelha a regra de [data-model §4](docs/specs/habitos/data-model.md).
- * Mantido fora de `@vitale/shared` (que é só modelos/tokens, sem lógica);
- * a web deve espelhar estas funções na F3.
+ * Derivações puras de hábitos contadores (sem persistência) — fonte única.
+ * Regra em [data-model §4](../../../../docs/specs/habitos/data-model.md).
  */
-import type { CounterHabit, HabitLog } from '@vitale/shared';
+import type { CounterHabit, HabitLog } from '../models';
+import { localDateStr } from '../date/local';
+
+export { localDateStr };
 
 type Goal = Pick<CounterHabit, 'direction' | 'target'>;
-
-/** Data local 'YYYY-MM-DD' (não UTC) — base do reset diário. */
-export function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
 /** Bateu a meta? at_least: value ≥ target; at_most: value ≤ target. Sem target ⇒ false. */
 export function isMet(habit: Goal, value: number): boolean {
@@ -121,14 +114,14 @@ export function lastNDates(n: number, today: Date = new Date()): string[] {
   return out;
 }
 
-export interface HeatCell {
+export interface HabitDayCell {
   date: string;
   value: number;
   met: boolean;
 }
 
 /** Série de células para o heatmap: valor + flag de meta por dia. */
-export function heatmap(habit: Goal, byDate: Map<string, number>, dates: string[]): HeatCell[] {
+export function heatmap(habit: Goal, byDate: Map<string, number>, dates: string[]): HabitDayCell[] {
   return dates.map((date) => {
     const value = byDate.get(date) ?? 0;
     return { date, value, met: isMet(habit, value) };
