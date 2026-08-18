@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
-import { CHART_PALETTES, type PaletteRoles } from '@core/models/chart-palettes';
 import { ChartPaletteService } from '@core/services/chart-palette.service';
+import { CHART_PALETTES, type PaletteRoles } from '@vitale/shared';
 
 type Role = keyof PaletteRoles;
 

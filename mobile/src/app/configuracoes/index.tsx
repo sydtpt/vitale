@@ -6,8 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
 import { useChartPaletteStore } from '../../store/chart-palette.store';
-import { getChartPalette } from '../../lib/chart-palettes';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { getChartPalette } from '@vitale/shared';
 
 const RED = '#E05C5C';
 

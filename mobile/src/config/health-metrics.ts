@@ -14,7 +14,7 @@ import {
   formatHoursMin,
   aggregateSleepNights,
   dedupeBySource,
-} from '../lib/health-format';
+} from '../lib/health-buckets';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 

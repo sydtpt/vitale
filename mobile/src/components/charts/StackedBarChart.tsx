@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, AccessibilityInfo } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { smoothLinePath, niceAxisMax, compactNumber, type LinePoint } from '@vitale/shared';
+import { compactNumber, niceAxisMax, remapChartColor, smoothLinePath, type LinePoint } from '@vitale/shared';
 import type { OverviewBucket, Metric } from '../../lib/activity-overview';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
-import { remapChartColor } from '../../lib/chart-palettes';
 import { useChartPaletteStore } from '../../store/chart-palette.store';
 import { colors } from '../../theme';
 

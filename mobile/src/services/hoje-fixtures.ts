@@ -1,6 +1,7 @@
 /**
- * Vitale Mobile — Mock Data
- * Mirrors web mock data for the prototype. Replace with API calls later.
+ * Fixtures do protótipo da tela Hoje. Substituir por chamadas reais de API.
+ * Renomeado de `mock-data`: não espelha o mock da web (símbolos diferentes),
+ * o nome só colidia.
  */
 import type { Meal, Habit, Chore, ShopItem, WeekDay } from '@vitale/shared';
 

@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { daysLate, HABIT_ICONS, isOverdue, MOD, type TodoOccurrence, type TodoTemplate } from '@vitale/shared';
+import { daysLate, describeRecurrence, dueLabel, HABIT_ICONS, isOverdue, MOD, type TodoOccurrence, type TodoTemplate } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
-import { describeRecurrence, dueLabel } from '../data/todo-format';
 
 const HABIT_ICON_SET: ReadonlySet<string> = new Set(HABIT_ICONS);
 

@@ -16,13 +16,12 @@ import { useSettingsStore } from '../../store/settings.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { latestAvailableOffset, referenceLineColors, resolveWeeklyTargetMin } from '@vitale/shared';
+import { latestAvailableOffset, referenceLineColors, remapChartColor, resolveWeeklyTargetMin } from '@vitale/shared';
 import { buildOverview, earliestActivityYear, overviewYears, type Period, type Metric } from '../../lib/activity-overview';
 import { getJSON, setJSON } from '../../lib/local-store';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
-import { remapChartColor } from '../../lib/chart-palettes';
 import { useChartPaletteStore } from '../../store/chart-palette.store';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 

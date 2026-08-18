@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import AppleHealthKit from 'react-native-health';
-import { Period, Sample, periodRange } from '../lib/health-format';
+import { Period, Sample, periodRange } from '../lib/health-buckets';
 import {
   METRICS,
   metricById,

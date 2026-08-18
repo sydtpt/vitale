@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { MOD, HABIT_ICONS, type TodoTemplate } from '@vitale/shared';
+import { describeRecurrence, HABIT_ICONS, MOD, type TodoTemplate } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
-import { describeRecurrence } from '../data/todo-format';
 import { TodosStore } from '../data/todos.store';
 
 const HABIT_ICON_SET: ReadonlySet<string> = new Set(HABIT_ICONS);

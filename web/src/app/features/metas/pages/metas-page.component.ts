@@ -3,14 +3,7 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import type { Goal, GoalProgress } from '@vitale/shared';
 import { GoalsStore } from '../data/goals.store';
 import { GoalEditorComponent } from '../components/goal-editor.component';
-import {
-  familyLabel,
-  goalValueText,
-  goalPct,
-  goalPeriodCells,
-  isMonthlyCadence,
-  type GoalPeriodCell,
-} from '../data/goal-format';
+import { familyLabel, goalValueText, goalPct, goalPeriodCells, isMonthlyCadence, type GoalPeriodCell } from '@vitale/shared';
 
 interface GoalVM {
   goal: Goal;

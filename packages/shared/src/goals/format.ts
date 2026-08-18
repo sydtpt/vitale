@@ -1,5 +1,10 @@
-/** Formatação de exibição das metas — compartilhada pela página e pelo preview da Semana. */
-import type { Goal, GoalPeriodStatus, GoalProgress } from '@vitale/shared';
+/**
+ * Formatação de exibição das metas no mobile. Espelha web/…/data/goal-format.ts
+ * (lógica pura sobre @vitale/shared) — mantido duplicado por plataforma, como
+ * habit-logic. Progresso é sempre DERIVADO por evaluateGoal.
+ */
+import type { Goal } from '../models';
+import type { GoalPeriodStatus, GoalProgress } from './evaluate';
 
 const PERIOD_LABEL: Record<'week' | 'month', [string, string]> = {
   week: ['semana', 'semanas'],
@@ -7,10 +12,6 @@ const PERIOD_LABEL: Record<'week' | 'month', [string, string]> = {
 };
 
 const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-const MONTHS_FULL = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
 
 const FAMILY_LABEL: Record<Goal['family'], string> = {
   cadence: 'Cadência',
@@ -63,19 +64,26 @@ export function goalPct(p: GoalProgress): number {
 /** Estado visual de um sub-período de cadência. */
 export type GoalPeriodState = 'met' | 'missed' | 'current' | 'future';
 
+/** Célula pronta para render: rótulo curto (mês) e estado (cor). */
+/** Célula pronta para render: rótulo curto, estado (cor) e detalhe (tooltip). */
+export interface GoalPeriodCell {
+  label: string;
+  state: GoalPeriodState;
+  /** Descrição longa do período — o web usa como `title`; o mobile ignora. */
+  title: string;
+}
+
+const MONTHS_FULL = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
 const STATE_TEXT: Record<GoalPeriodState, string> = {
   met: 'cumprido',
   missed: 'não cumprido',
   current: 'em andamento',
   future: 'a fazer',
 };
-
-/** Célula pronta para render: rótulo curto, estado (cor) e detalhe (tooltip). */
-export interface GoalPeriodCell {
-  label: string;
-  state: GoalPeriodState;
-  title: string;
-}
 
 function periodState(s: GoalPeriodStatus): GoalPeriodState {
   if (s.met) return 'met';
@@ -91,7 +99,7 @@ export function isMonthlyCadence(goal: Goal): boolean {
 
 /**
  * Detalhamento por sub-período de uma meta de cadência — meses/semanas cumpridos
- * ou não. Vazio para metas que não são de cadência.
+ * ou não. Vazio para metas que não são de cadência. Espelha a web.
  */
 export function goalPeriodCells(goal: Goal, p: GoalProgress): GoalPeriodCell[] {
   if (goal.family !== 'cadence' || !p.periods) return [];

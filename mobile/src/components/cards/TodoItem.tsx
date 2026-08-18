@@ -3,10 +3,9 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
-import { daysLate, HABIT_ICONS, isOverdue } from '@vitale/shared';
+import { daysLate, describeRecurrence, dueLabel, HABIT_ICONS, isOverdue } from '@vitale/shared';
 import { colors, radii, MOD, shadows, useThemedStyles } from '../../theme';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { describeRecurrence, dueLabel } from '../../lib/todo-format';
 
 const HABIT_ICON_SET = new Set<string>(HABIT_ICONS);
 

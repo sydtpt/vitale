@@ -13,7 +13,7 @@ import {
   buildPeriodRecap,
   type RecapStat,
 } from '@vitale/shared';
-import type { Bucket } from '../../lib/health-format';
+import type { Bucket } from '../../lib/health-buckets';
 import { useHealthDailyStore } from '../../store/health-daily.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useAuthStore } from '../../store/auth.store';

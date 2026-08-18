@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { DEFAULT_CHART_PALETTE_ID, isChartPaletteId, remapChartColor } from '@core/models/chart-palettes';
+import { DEFAULT_CHART_PALETTE_ID, isChartPaletteId, remapChartColor } from '@vitale/shared';
 
 /** Preferência puramente local/cosmética da paleta dos gráficos (localStorage;
  * não sincroniza com Supabase). Espelha o chart-palette.store do mobile. */

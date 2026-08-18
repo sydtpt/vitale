@@ -1,6 +1,7 @@
-/** Rótulos em pt-BR para tarefas (apresentação). Espelho de mobile/src/lib/todo-format.ts. */
-import type { TodoRecurrence } from '@vitale/shared';
-import { addDays, localDateStr } from '@vitale/shared';
+/** Rótulos em pt-BR para tarefas (apresentação) — fonte única. */
+import type { TodoRecurrence } from '../models';
+import { addDays } from './logic';
+import { localDateStr } from '../date/local';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -26,6 +27,7 @@ export function dueLabel(due: string | null, today: string = localDateStr()): st
   if (due === today) return 'Hoje';
   if (due === addDays(today, 1)) return 'Amanhã';
   const d = new Date(`${due}T00:00:00`);
+  // dentro de uma semana à frente: nome do dia
   for (let i = 2; i <= 6; i++) {
     if (due === addDays(today, i)) return WEEKDAYS[d.getDay()];
   }

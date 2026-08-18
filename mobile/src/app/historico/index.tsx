@@ -16,9 +16,9 @@ import { buildOverview, type Period, type Metric } from '../../lib/activity-over
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
-import { remapChartColor } from '../../lib/chart-palettes';
 import { useChartPaletteStore } from '../../store/chart-palette.store';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { remapChartColor } from '@vitale/shared';
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'semana', label: '7d' },

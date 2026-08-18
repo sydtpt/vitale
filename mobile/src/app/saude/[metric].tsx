@@ -19,7 +19,7 @@ import {
   formatDayLabel,
   Period,
   Sample,
-} from '../../lib/health-format';
+} from '../../lib/health-buckets';
 import { BarChart, LineChart, ActivityRings, MacroDonut } from '../../components/charts';
 import { colors, spacing, radii, shadows, themed, useTheme } from '../../theme';
 

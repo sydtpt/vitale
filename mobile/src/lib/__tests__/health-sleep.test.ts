@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
-import { aggregateSleepNights } from '../health-format';
-import type { Sample } from '../health-format';
+import { aggregateSleepNights } from '../health-buckets';
+import type { Sample } from '../health-buckets';
 
 const sample = (label: string, start: string, end: string): Sample => ({
   value: 0,

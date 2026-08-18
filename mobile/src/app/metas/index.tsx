@@ -12,16 +12,8 @@ import {
 import { useActivitiesStore } from '../../store/activities.store';
 import { useHabitsStore } from '../../store/habits.store';
 import { useAuthStore } from '../../store/auth.store';
-import {
-  familyLabel,
-  goalValueText,
-  goalPct,
-  goalPeriodCells,
-  isMonthlyCadence,
-  type GoalPeriodCell,
-  type GoalPeriodState,
-} from '../../lib/goal-format';
 import { colors, spacing, radii, shadows, moduleColors, useThemedStyles } from '../../theme';
+import { familyLabel, goalValueText, goalPct, goalPeriodCells, isMonthlyCadence, type GoalPeriodCell, type GoalPeriodState } from '@vitale/shared';
 
 interface GoalVM {
   goal: Goal;

@@ -1,5 +1,7 @@
 /**
- * Helpers de agregação e formatação para a tab Saúde.
+ * Agregação de amostras do Apple Health em buckets por período, para a tab Saúde.
+ * Renomeado de `health-format`: 300 das 309 linhas agregam, não formatam — e o nome
+ * antigo colidia com `web/.../health-format.ts`, que de fato só formata datas.
  * Normaliza amostras do Apple Health em buckets por Dia/Semana/Mês e calcula stats.
  */
 

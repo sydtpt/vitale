@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
-import { dedupeBySource, bucketize } from '../health-format';
-import type { Sample } from '../health-format';
+import { dedupeBySource, bucketize } from '../health-buckets';
+import type { Sample } from '../health-buckets';
 
 const sample = (source: string, start: string, value: number): Sample => ({
   value,

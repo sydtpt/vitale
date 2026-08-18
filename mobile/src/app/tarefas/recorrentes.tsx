@@ -6,8 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TodoTemplate } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
-import { describeRecurrence } from '../../lib/todo-format';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { describeRecurrence } from '@vitale/shared';
 
 // Séries que se repetem por agenda/uso/evento/estoque. Fora: avulsas ('none') e
 // treinos ('on_workout'), que nascem de atividades físicas.

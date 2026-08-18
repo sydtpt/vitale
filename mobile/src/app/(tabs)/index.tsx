@@ -17,7 +17,7 @@ import { useDailyRatingsStore, dayRatingDate } from '../../store/daily-ratings.s
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { HOJE } from '../../services/mock-data';
+import { HOJE } from '../../services/hoje-fixtures';
 import type { CounterHabit } from '@vitale/shared';
 import type { User } from '@supabase/supabase-js';
 import { cleanStreak, daysInclusive, isOverdue, isStarted, isVisibleNow, localDateStr, localTimeStr, streak } from '@vitale/shared';

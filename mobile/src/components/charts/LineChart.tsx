@@ -1,6 +1,6 @@
 import React from 'react';
 import Svg, { Path, Circle, Text as SvgText, Line } from 'react-native-svg';
-import { Bucket } from '../../lib/health-format';
+import { Bucket } from '../../lib/health-buckets';
 import { colors } from '../../theme';
 
 interface Props {

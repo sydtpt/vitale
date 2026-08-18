@@ -9,7 +9,7 @@ import {
   type ReadinessInput,
   type ReadinessScore,
 } from '@vitale/shared';
-import type { Sample } from './health-format';
+import type { Sample } from './health-buckets';
 import { aggregateCumulative, aggregateDiscrete } from './health-aggregate';
 
 /** Valores diários (cronológicos) de uma métrica a partir das amostras da janela. */

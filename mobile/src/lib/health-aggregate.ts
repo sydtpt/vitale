@@ -5,7 +5,7 @@
  * É AQUI que mora a otimização de volume: as milhares de amostras brutas de
  * frequência cardíaca (e afins) viram ~1 linha/dia ANTES de tocar a rede.
  */
-import type { Sample } from './health-format';
+import type { Sample } from './health-buckets';
 
 /** Linha da tabela `health_daily` (snake_case, como no Postgres). */
 export interface HealthDailyRow {

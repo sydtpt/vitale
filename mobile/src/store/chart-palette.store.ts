@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getJSON, setJSON } from '../lib/local-store';
-import { DEFAULT_CHART_PALETTE_ID, isChartPaletteId } from '../lib/chart-palettes';
+import { DEFAULT_CHART_PALETTE_ID, isChartPaletteId } from '@vitale/shared';
 
 /** Preferência puramente local/cosmética (não sincroniza com Supabase). */
 const KEY = 'vitale.chartPalette';

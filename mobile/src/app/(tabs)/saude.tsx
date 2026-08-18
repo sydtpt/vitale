@@ -21,7 +21,7 @@ import {
   metricsByCategory,
   MetricDef,
 } from '../../config/health-metrics';
-import { bucketize, Sample } from '../../lib/health-format';
+import { bucketize, Sample } from '../../lib/health-buckets';
 import { Sparkline, ActivityRings, MacroDonut } from '../../components/charts';
 import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../theme';
 
