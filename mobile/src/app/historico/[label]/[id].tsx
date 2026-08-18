@@ -12,10 +12,9 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HR_ZONES, hrZoneRange } from '@vitale/shared';
+import { HR_ZONES, hrZoneRange, movingTimeFromRoutePoints } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { getActivityMeta, getActivityColor, elevationGain } from '../../../lib/workout-types';
-import { movingTimeFromRoutePoints } from '../../../lib/moving-time';
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import {

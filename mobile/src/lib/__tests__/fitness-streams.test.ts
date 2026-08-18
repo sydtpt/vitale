@@ -4,16 +4,7 @@
  * testes quebrarem, o kernel (usado pelas edge functions) divergiu do app.
  */
 import { describe, it, expect } from '@jest/globals';
-import {
-  movingTimeFromPoints,
-  computeBestEffortsFromPoints,
-  elevationGainFromPoints,
-  computeHrZonesFromSamples,
-  fitnessMaxHrFromAge,
-  HR_ZONES,
-  type FitnessPoint,
-} from '@vitale/shared';
-import { movingTimeFromTrack } from '../moving-time';
+import { computeBestEffortsFromPoints, computeHrZonesFromSamples, elevationGainFromPoints, fitnessMaxHrFromAge, HR_ZONES, movingTimeFromPoints, movingTimeFromTrack, type FitnessPoint } from '@vitale/shared';
 import { computeBestEfforts } from '../best-efforts';
 import { computeHrZones, maxHrFromAge, type HrSample } from '../heart-rate-zones';
 import { elevationGain, type RoutePoint } from '../workout-types';

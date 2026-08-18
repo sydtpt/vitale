@@ -394,6 +394,20 @@ export interface ActivityRoutePoint {
   t?: number;
 }
 
+/**
+ * Ponto de rota **como o HealthKit entrega** — nomes longos e timestamp ISO.
+ * `ActivityRoutePoint` acima é a forma **persistida**, compacta e em epoch ms.
+ * São dois formatos do mesmo conceito; converter entre eles é trabalho de
+ * adaptador, e é por isso que os dois vivem lado a lado aqui.
+ */
+export interface RoutePoint {
+  latitude: number;
+  longitude: number;
+  altitude?: number;
+  /** Timestamp do ponto (ISO) vindo do HealthKit. Base do cálculo de best efforts. */
+  timestamp?: string;
+}
+
 /** Rota GPS de um treino outdoor. Mapeia a tabela `activity_routes`. */
 export interface ActivityRoute {
   activityId: string;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import type { ActivityRoutePoint } from '@vitale/shared';
-import { movingTimeFromRoutePoints, movingTimeFromTrack } from '../moving-time';
+import { movingTimeFromRoutePoints, movingTimeFromTrack } from '@vitale/shared';
 
 // ~0.00009° de latitude ≈ 10 m. Usado para montar trechos com velocidade conhecida.
 const LAT_STEP_10M = 0.00009;

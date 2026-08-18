@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { isSameWorkout } from '@vitale/shared';
+import { isSameWorkout, movingTimeFromTrack } from '@vitale/shared';
 import {
   useFitnessStore,
   getActivityMeta,
@@ -21,7 +21,6 @@ import {
   formatElevation,
   totalTimeS,
 } from '../../../lib/workout-format';
-import { movingTimeFromTrack } from '../../../lib/moving-time';
 import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../../theme';
 
 type InfoRow = { label: string; value: string };

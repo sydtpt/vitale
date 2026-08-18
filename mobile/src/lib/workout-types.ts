@@ -4,6 +4,7 @@
  */
 import type { MaterialCommunityIcons } from '@expo/vector-icons';
 import { activityTypeLabel } from '@vitale/shared';
+import type { RoutePoint } from '@vitale/shared';
 
 export type PermissionStatus = 'unknown' | 'authorized' | 'denied' | 'unavailable';
 
@@ -96,13 +97,6 @@ export function computeMovingTimeS(args: {
   return Math.max(0, duration > 0 ? Math.min(moving, duration) : moving);
 }
 
-export interface RoutePoint {
-  latitude: number;
-  longitude: number;
-  altitude?: number;
-  /** Timestamp do ponto (ISO) vindo do HealthKit. Base do cálculo de best efforts. */
-  timestamp?: string;
-}
 
 /**
  * Fator milha → metro. O react-native-health devolve a distância dos workouts
@@ -118,6 +112,7 @@ export function milesToMeters(miles?: number): number | undefined {
 
 /** Taxonomia de tipos de treino — definida em `@vitale/shared`, repassada aqui. */
 export { GPS_ACTIVITY_IDS, hasGpsRoute } from '@vitale/shared';
+export type { RoutePoint } from '@vitale/shared';
 
 /**
  * Janela da média móvel centrada (amostras ≈ segundos a 1 Hz) e limiar da

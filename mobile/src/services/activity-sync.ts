@@ -24,7 +24,6 @@ import {
   type RoutePoint,
 } from '../lib/healthkit-workouts';
 import { computeBestEfforts } from '../lib/best-efforts';
-import { movingTimeFromTrack } from '../lib/moving-time';
 import { computeHrZones, type HrZoneParams } from '../lib/heart-rate-zones';
 import {
   toActivityRow,
@@ -42,6 +41,7 @@ import { bridgeStubKeepFilter } from '../lib/connections';
 import { readAnchor, writeAnchor } from '../lib/sync-anchor';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
 import { linkWorkoutsToTodos } from './activity-todo-link';
+import { movingTimeFromTrack } from '@vitale/shared';
 
 export interface SyncResult {
   pushed: number;

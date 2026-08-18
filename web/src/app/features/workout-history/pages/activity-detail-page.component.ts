@@ -2,13 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSig
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { ActivityRoutePoint } from '@vitale/shared';
-import { HR_ZONES, hrZoneRange } from '@vitale/shared';
+import { HR_ZONES, hrZoneRange, movingTimeFromRoutePoints } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { metaForActivity } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
 import { fmtClock, fmtDate, fmtDuration, fmtElevation, fmtKcal, fmtKm, fmtRate, fmtTime, totalTimeS } from '../data/format';
-import { movingTimeFromRoutePoints } from '../data/moving-time';
 import { activityRecordBadges } from '../data/running-highlights';
 
 @Component({

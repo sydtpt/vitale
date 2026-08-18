@@ -9,8 +9,8 @@
  * Módulo puro (sem dependência nativa) — testável isoladamente. Consumido pelo
  * sync, que tem o track com timestamps em mãos.
  */
-import { MOVING_SPEED_THRESHOLD_MPS } from './moving-time';
 import type { RoutePoint } from './workout-types';
+import { MOVING_SPEED_THRESHOLD_MPS } from '@vitale/shared';
 
 export interface BestEffortDistance {
   /** Chave estável usada no jsonb `best_efforts` e nas leituras (web/mobile). */

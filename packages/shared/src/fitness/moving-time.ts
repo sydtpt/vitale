@@ -6,10 +6,10 @@
  * não dá para derivar o tempo em movimento descontando pausas. A fonte confiável
  * é o próprio track: somamos os intervalos entre pontos consecutivos em que a
  * velocidade ficou acima de um limiar, descartando paradas (semáforo, pausa) e
- * lacunas de gravação. Módulo puro (sem dependência nativa) — testável isolado.
+ * lacunas de gravação. Fonte única: o núcleo do cálculo é o mesmo para os dois
+ * formatos de entrada, e cada adaptador só normaliza a forma da fonte.
  */
-import type { ActivityRoutePoint } from '@vitale/shared';
-import type { RoutePoint } from './workout-types';
+import type { ActivityRoutePoint, RoutePoint } from '../models';
 
 const EARTH_RADIUS_M = 6371000;
 
