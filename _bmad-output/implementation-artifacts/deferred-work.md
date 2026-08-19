@@ -38,6 +38,22 @@
   summary: Os testes unitários são construídos através da config completa do app, arrastando CSS do Leaflet, `src/styles.scss` e `public/` para o bundle de teste.
   evidence: `buildTarget: vitale-web:build:development` emite um `styles.css` de 15,2 kB para specs que não tocam o DOM. Além do tempo desperdiçado, acopla a suíte unitária ao pipeline de assets — um stylesheet global quebrado passa a derrubar os testes.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-splash-igual-ao-icone.md`
+  summary: A marca salta na transição splash nativa → `SplashOverlay`: encolhe e sobe ~50pt quando o JS assume, e fica assim pelo `MIN_SPLASH_MS` inteiro.
+  evidence: O storyboard faz aspect-fit na tela cheia, então o glifo do ícone (bbox 188,203–865,861 num canvas 1024) renderiza ~260pt de largura numa tela de 393pt. Em seguida o `SplashOverlay` desenha `OrbeMark size={220}` (~175pt de conteúdo visível) mais o wordmark de 72pt, que empurra a marca acima do centro. Antes do fix o salto existia mas era de um quadrado laranja para a marca — ninguém o leria como continuidade quebrada; agora as duas pontas são a mesma arte em tamanhos diferentes, o que torna o pulo visível. Casar o `size` do overlay com os ~260pt (ou usar `imageWidth` do plugin) fecha o handoff.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-splash-igual-ao-icone.md`
+  summary: A receita do prebuild em sandbox — único jeito sancionado de alterar `mobile/ios/` — não existe em nenhum arquivo versionado.
+  evidence: ADR 0009 diz "`mobile/ios/` nunca se edita à mão — a alteração vai pela ferramenta que o gera", mas a ferramenta (`expo prebuild`) apaga o `AppDelegate.swift:32` se rodada no repo. A saída (prebuild numa cópia, transplante só do que mudou) só está registrada neste spec, em `_bmad-output/`. `mobile/AGENTS.md` não menciona splash, prebuild, `ios/` nem assets. O próximo agente esbarra na proibição sem alternativa documentada — e está a um `npx expo prebuild` de matar o HealthKit em background.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-splash-igual-ao-icone.md`
+  summary: ADR 0009 exige bump de `runtimeVersion` em toda mudança nativa; este fix recusou o bump deliberadamente e a ressalva não está registrada em nenhum ADR.
+  evidence: O ADR diz literalmente "Mudança nativa exige rebuild e bump do runtime em dois lugares: `Expo.plist` e `app.json`". Troca de asset assado no binário é mudança nativa. O raciocínio (contrato JS↔nativo intacto; bump orfanaria a lane OTA `preview` sem ganho) é defensável mas mora num spec em `_bmad-output/` — o próximo leitor vê só o ADR contrariado. `docs/decisions/` é append-only: cabe um ADR novo que superseda com a ressalva "asset-only não bumpa".
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-splash-igual-ao-icone.md`
+  summary: `splash.backgroundColor` e `resizeMode` continuam sem guard, sendo exatamente a mesma classe de drift que o fix acabou de fechar para a imagem.
+  evidence: `app.json` declara `backgroundColor: "#FFF7EE"` e `resizeMode: "contain"`; o lado nativo carrega os valores em `SplashScreenBackground.colorset` (255,247,238) e no `contentMode="scaleAspectFit"` do storyboard. Os três são consumidos no mesmo prebuild e dessincronizam do mesmo jeito — editar a cor no `app.json` sem regenerar deixa o colorset antigo, sem nada acusando.
+
 - source_spec: none
   summary: **Fase 3 do piloto BMAD — ciclo completo sobre o Garmin Venu 4**: aba Fitness do mobile lendo do Supabase em vez do HealthKit, mais a cobertura dos dados que o Garmin não escreve no Apple Health (VFC, VO₂max, SpO₂, rota GPS, stream de FC).
   evidence: Adiado em 2026-08-17 por decisão do usuário, ao fim da Fase 2. É a única fase que exercita as 4 fases do BMAD de ponta a ponta — `bmad-deep-recon` → `bmad-product-brief`/`bmad-prd` → `bmad-architecture` + TEA → `bmad-create-epics-and-stories` → `bmad-sprint-planning` → `bmad-build` story a story → `bmad-retrospective`. Ponto de partida técnico já mapeado: `mobile/src/store/fitness.store.ts` e `mobile/src/app/fitness/*` são os únicos lugares que ainda leem HealthKit; `mobile/src/store/activities.store.ts` já é o padrão de leitura do Supabase. Começar em sessão nova — só a fase de Análise enche um contexto. Plano completo em `~/.claude/plans/quero-comecar-a-estudar-fizzy-whisper.md`.
