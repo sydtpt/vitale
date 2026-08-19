@@ -3,8 +3,6 @@
  * Camada de I/O — sem estado. Consumida pela store e pelo serviço de sync.
  * Helpers/tipos puros vivem em `workout-types.ts` (sem dependência nativa).
  */
-import { Platform } from 'react-native';
-import AppleHealthKit from 'react-native-health';
 import {
   PAGE_SIZE,
   YEARS_BACK,
@@ -16,45 +14,33 @@ import {
   type RoutePoint,
 } from './workout-types';
 import { maxHrFromAge, type HrSample, type HrZoneParams } from './heart-rate-zones';
+import { HK, healthSource, type HealthTypeId, type RawWorkout } from './health-source/active';
 
 // Re-export dos tipos/helpers puros para um único ponto de import.
 export * from './workout-types';
 
-export const PERMISSIONS = {
-  permissions: {
-    read: [
-      AppleHealthKit.Constants.Permissions.Workout,
-      AppleHealthKit.Constants.Permissions.WorkoutRoute,
-      // Necessárias para derivar o tempo em zonas de FC de cada treino (Karvonen).
-      AppleHealthKit.Constants.Permissions.HeartRate,
-      AppleHealthKit.Constants.Permissions.RestingHeartRate,
-      AppleHealthKit.Constants.Permissions.DateOfBirth,
-    ],
-    write: [] as string[],
-  },
-};
+/** Tipos do HealthKit que a aba de treinos precisa ler. */
+export const WORKOUT_PERMISSIONS: readonly HealthTypeId[] = [
+  HK.workout,
+  HK.workoutRoute,
+  // Necessárias para derivar o tempo em zonas de FC de cada treino.
+  HK.heartRate,
+  HK.restingHeartRate,
+  HK.dateOfBirth,
+];
 
 /** Busca os pontos GPS de um treino. Retorna [] se não houver rota (ex.: indoor). */
 export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
-  if (Platform.OS !== 'ios') return Promise.resolve([]);
-  const inner = new Promise<RoutePoint[]>((resolve) => {
-    AppleHealthKit.getWorkoutRouteSamples({ id }, (err, results) => {
-      if (err || !results?.data?.locations) {
-        resolve([]);
-        return;
-      }
-      resolve(
-        results.data.locations
-          .filter((l) => typeof l.latitude === 'number' && typeof l.longitude === 'number')
-          .map((l) => ({
-            latitude: l.latitude,
-            longitude: l.longitude,
-            altitude: typeof l.altitude === 'number' ? l.altitude : undefined,
-            timestamp: typeof l.timestamp === 'string' ? l.timestamp : undefined,
-          }))
-      );
-    });
-  });
+  const inner = healthSource.queryWorkoutRoute(id).then((locations) =>
+    locations
+      .filter((l) => typeof l.latitude === 'number' && typeof l.longitude === 'number')
+      .map((l) => ({
+        latitude: l.latitude,
+        longitude: l.longitude,
+        altitude: typeof l.altitude === 'number' ? l.altitude : undefined,
+        timestamp: typeof l.timestamp === 'string' ? l.timestamp : undefined,
+      })),
+  );
   return withTimeout(inner, []);
 }
 
@@ -63,33 +49,23 @@ export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
  * de tempo em zonas. Retorna [] fora do iOS ou quando não há amostras.
  */
 export function fetchWorkoutHeartRate(start: string, end: string): Promise<HrSample[]> {
-  if (Platform.OS !== 'ios') return Promise.resolve([]);
-  return new Promise((resolve) => {
-    AppleHealthKit.getHeartRateSamples(
-      { startDate: start, endDate: end, unit: 'bpm' as any, ascending: true } as any,
-      (err, results) => {
-        if (err || !Array.isArray(results)) {
-          resolve([]);
-          return;
-        }
-        resolve(
-          results
-            .map((s: any) => ({ bpm: s.value, t: Date.parse(s.startDate) }))
-            .filter((s) => Number.isFinite(s.bpm) && s.bpm > 0 && Number.isFinite(s.t)),
-        );
-      },
+  return healthSource
+    .queryQuantitySamples(HK.heartRate, {
+      startDate: start,
+      endDate: end,
+      unit: 'bpm',
+      ascending: true,
+    })
+    .then((results) =>
+      results
+        .map((s) => ({ bpm: s.value, t: Date.parse(s.startDate) }))
+        .filter((s) => Number.isFinite(s.bpm) && s.bpm > 0 && Number.isFinite(s.t)),
     );
-  });
 }
 
 /** Idade (anos) do perfil do Health. undefined se indisponível. */
 function fetchAge(): Promise<number | undefined> {
-  if (Platform.OS !== 'ios') return Promise.resolve(undefined);
-  return new Promise((resolve) => {
-    AppleHealthKit.getDateOfBirth({} as any, (err, r: any) =>
-      resolve(err || typeof r?.age !== 'number' ? undefined : r.age),
-    );
-  });
+  return healthSource.queryCharacteristics().then((c) => c.age);
 }
 
 /**
@@ -103,7 +79,7 @@ export async function fetchHrZoneParams(maxHrOverride?: number): Promise<HrZoneP
   return { maxHr: maxHrFromAge(age) };
 }
 
-function mapRawWorkout(w: any): WorkoutItem {
+function mapRawWorkout(w: RawWorkout): WorkoutItem {
   const duration = w.duration ?? 0;
   const events = Array.isArray(w.workoutEvents) ? w.workoutEvents : undefined;
   return {
@@ -141,16 +117,14 @@ function withTimeout<T>(promise: Promise<T>, fallback: T, ms = 12_000): Promise<
 
 /** Uma página de treinos terminando em `endDate`, do mais recente ao mais antigo. */
 export function fetchWorkoutsPage(endDate: string): Promise<WorkoutItem[]> {
-  if (Platform.OS !== 'ios') return Promise.resolve([]);
-  const inner = new Promise<WorkoutItem[]>((resolve) => {
-    AppleHealthKit.getAnchoredWorkouts(
-      { startDate: startDateYearsAgo(YEARS_BACK), endDate, limit: PAGE_SIZE, ascending: false } as any,
-      (err, results) => {
-        if (err || !results?.data) { resolve([]); return; }
-        resolve(results.data.map(mapRawWorkout));
-      }
-    );
-  });
+  const inner = healthSource
+    .queryWorkouts({
+      startDate: startDateYearsAgo(YEARS_BACK),
+      endDate,
+      limit: PAGE_SIZE,
+      ascending: false,
+    })
+    .then((r) => r.workouts.map(mapRawWorkout));
   return withTimeout(inner, []);
 }
 
@@ -166,22 +140,15 @@ export interface WorkoutsDelta {
  * deleções neste fluxo — ver limitação em plan.md.
  */
 export function fetchWorkoutsDelta(anchor: string | null): Promise<WorkoutsDelta> {
-  if (Platform.OS !== 'ios') return Promise.resolve({ workouts: [], anchor: anchor ?? '' });
   const fallback: WorkoutsDelta = { workouts: [], anchor: anchor ?? '' };
-  const inner = new Promise<WorkoutsDelta>((resolve) => {
-    AppleHealthKit.getAnchoredWorkouts(
-      {
-        startDate: startDateYearsAgo(YEARS_BACK),
-        limit: PAGE_SIZE,
-        ascending: true,
-        ...(anchor ? { anchor } : {}),
-      } as any,
-      (err, results) => {
-        if (err || !results?.data) { resolve(fallback); return; }
-        resolve({ workouts: results.data.map(mapRawWorkout), anchor: results.anchor ?? anchor ?? '' });
-      }
-    );
-  });
+  const inner = healthSource
+    .queryWorkouts({
+      startDate: startDateYearsAgo(YEARS_BACK),
+      limit: PAGE_SIZE,
+      ascending: true,
+      ...(anchor ? { anchor } : {}),
+    })
+    .then((r) => ({ workouts: r.workouts.map(mapRawWorkout), anchor: r.anchor || anchor || '' }));
   return withTimeout(inner, fallback);
 }
 
@@ -190,7 +157,7 @@ export function fetchWorkoutsDelta(anchor: string | null): Promise<WorkoutsDelta
  * Usado pelo backfill por tipo, que precisa de TODOS os treinos do período.
  */
 export async function fetchAllWorkouts(): Promise<WorkoutItem[]> {
-  if (Platform.OS !== 'ios') return [];
+  if (!healthSource.isAvailable()) return [];
   const all: WorkoutItem[] = [];
   let endDate = new Date().toISOString();
   // Guarda contra loop infinito caso o HealthKit devolva páginas cheias indefinidamente.

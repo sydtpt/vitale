@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
-import AppleHealthKit from 'react-native-health';
+import { healthSource } from '../lib/health-source/active';
 import { Period, Sample, periodRange } from '../lib/health-buckets';
 import {
   METRICS,
@@ -52,13 +52,9 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       set({ permissionStatus: 'unavailable' });
       return;
     }
-    await new Promise<void>((resolve) => {
-      AppleHealthKit.initHealthKit(HEALTH_PERMISSIONS as any, (err: string) => {
-        // HealthKit não revela negações de leitura; sucesso = liberado para consultar.
-        set({ permissionStatus: err ? 'denied' : 'authorized' });
-        resolve();
-      });
-    });
+    // HealthKit não revela negações de leitura; sucesso = liberado para consultar.
+    const granted = await healthSource.requestReadAuthorization(HEALTH_PERMISSIONS);
+    set({ permissionStatus: granted ? 'authorized' : 'denied' });
     if (get().permissionStatus === 'authorized') {
       loadProfile().then((profile) => set({ profile }));
       await get().loadSummaries();

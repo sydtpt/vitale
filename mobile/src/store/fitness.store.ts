@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
-import AppleHealthKit from 'react-native-health';
+import { healthSource } from '../lib/health-source/active';
 import {
-  PERMISSIONS,
+  WORKOUT_PERMISSIONS,
   PAGE_SIZE,
   fetchWorkoutsPage,
   fetchWorkoutRoute,
@@ -87,15 +87,11 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
   syncError: {},
 
   requestPermission: async () => {
-    await new Promise<void>((resolve) => {
-      AppleHealthKit.initHealthKit(PERMISSIONS as any, (err: string) => {
-        set({ permissionStatus: err ? 'denied' : 'authorized' });
-        resolve();
-      });
-    });
+    const granted = await healthSource.requestReadAuthorization(WORKOUT_PERMISSIONS);
+    set({ permissionStatus: granted ? 'authorized' : 'denied' });
     if (get().permissionStatus === 'authorized') {
       // Fire-and-forget: o loading:true já exibe o spinner; não bloquear aqui
-      // evita que a Promise do initHealthKit fique presa se o callback do HealthKit
+      // evita que a Promise da autorização fique presa se o callback do HealthKit
       // demorar a disparar logo após a concessão de permissão.
       void get().loadWorkouts();
       void get().hydrateSyncedTypes();
