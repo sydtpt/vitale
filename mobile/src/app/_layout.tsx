@@ -29,6 +29,26 @@ export default function RootLayout() {
   const segments = useSegments();
   const { initialize, session, isLoading } = useAuthStore();
 
+  /**
+   * Chave estável da sessão para os efeitos que ligam e desligam assinaturas
+   * de vida longa.
+   *
+   * `session` é um objeto NOVO a cada renovação de token do Supabase, mesmo
+   * sendo o mesmo usuário. Efeitos com `[session]` na dependência rodavam a
+   * limpeza e o setup de novo a cada renovação — e o diagnóstico em device
+   * mostrou o efeito colateral já no cold start, com `sync-start` e `bg-config`
+   * saindo duas vezes seguidas.
+   *
+   * Não é só ruído: `stopActivitySync()` remove o observer de treino, e o
+   * `tearDown()` da lib nativa **para as HKObserverQuery**. Uma renovação de
+   * token com o app em background derrubaria os observers exatamente quando
+   * eles precisam estar vivos.
+   *
+   * O id do usuário é o que esses efeitos realmente observam: entrou alguém,
+   * saiu alguém. Renovar credencial do mesmo usuário não é evento pra eles.
+   */
+  const userId = session?.user.id ?? null;
+
   // Splash de marca: visível até o app inicializar (respeitando um tempo mínimo).
   const mountedAt = useRef(Date.now());
   const [keepSplash, setKeepSplash] = useState(true);
@@ -60,22 +80,22 @@ export default function RootLayout() {
 
   // Sincronização incremental dos tipos inscritos enquanto há sessão.
   useEffect(() => {
-    if (!session) return;
+    if (!userId) return;
     startActivitySync();
     return () => stopActivitySync();
-  }, [session]);
+  }, [userId]);
 
   // Digest diário local: agenda/reagenda enquanto há sessão.
   useEffect(() => {
-    if (!session) return;
+    if (!userId) return;
     startNotifications();
     return () => stopNotifications();
-  }, [session]);
+  }, [userId]);
 
   // Volta para home se o app ficou em background por mais de 5 minutos.
   const backgroundedAt = useRef<number | null>(null);
   useEffect(() => {
-    if (!session) return;
+    if (!userId) return;
     const TIMEOUT = 5 * 60 * 1000;
     const handleAppState = (next: AppStateStatus) => {
       if (next === 'background' || next === 'inactive') {
@@ -89,7 +109,7 @@ export default function RootLayout() {
     };
     const sub = AppState.addEventListener('change', handleAppState);
     return () => sub.remove();
-  }, [session]);
+  }, [userId]);
 
   return (
     <ThemeProvider>
