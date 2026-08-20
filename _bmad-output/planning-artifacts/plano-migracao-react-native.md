@@ -1,6 +1,46 @@
 # Plano de migração — React Native 0.81.5 → 0.86 (Expo SDK 54 → 57)
 
-**Autor:** Winston (System Architect) · **Data:** 2026-08-18 · **Status:** proposto, aguardando decisão da Fase 1
+**Autor:** Winston (System Architect) · **Data:** 2026-08-18 · **Status:** em execução — Fases 0, 1B e 1 concluídas em 20/08/2026
+
+---
+
+## 0. Estado da execução
+
+> Atualizado em 20/08/2026. A seção "1. Estado medido" abaixo é o retrato de
+> **18/08**, quando o plano foi escrito, e fica como está — é o que se sabia
+> naquele momento.
+
+| Fase | Estado | Evidência |
+| --- | --- | --- |
+| 0 — alinhar o SDK 54 | ✅ | `expo-doctor` 17/18; a única falha restante é o falso positivo do `app.json`, documentado no topo de `mobile/app.config.js` |
+| 1B — trocar a biblioteca de HealthKit | ✅ | ADR [0012](../../docs/decisions/0012-kingstinct-healthkit-devolve-o-prebuild.md), [0013](../../docs/decisions/0013-background-do-healthkit-exige-patch-na-lib.md), [0014](../../docs/decisions/0014-remove-a-rede-de-rollback-do-react-native-health.md) |
+| 1 — New Architecture no SDK 54 | ✅ | `newArchEnabled: true`; 3 portões em device |
+| 2 — SDK 55 / RN 0.83 | ⬜ | |
+| 3 — SDK 56 / RN 0.85 | ⬜ | |
+| 4 — SDK 57 / RN 0.86 | ⬜ | |
+
+**A Estratégia B foi escolhida**, de forma eletiva, antes de o portão da Fase 1
+rodar. `react-native-health` foi removido (ADR 0014) e `mobile/ios/` voltou a
+ser gerado por `expo prebuild`.
+
+**O portão 3 passou pela primeira vez nesta base** em 20/08/2026: atividade em
+`activities` com `created_at` no mesmo minuto do fim do treino, app fechado.
+Não era regressão da migração — o `Info.plist` de antes dela também não
+declarava `UIBackgroundModes`, e o portão nunca havia sido verificado. Fez
+falta um patch local na lib nova; ver ADR 0013 para o que exatamente estava
+quebrado e o que reverificar a cada upgrade dela.
+
+**O que mudou no jeito de buildar.** A cota da EAS acabou; o build agora é local
+por cabo. A receita e as pegadinhas estão em [`mobile/AGENTS.md`](../../mobile/AGENTS.md)
+— resumidamente: `DEVELOPMENT_TEAM` some a cada prebuild (resolvido por
+`plugins/withDevelopmentTeam.js`), o canal de OTA precisa vir de
+`updates.requestHeaders` porque a EAS não o injeta mais, e o iPhone precisa
+estar desbloqueado no `install`.
+
+**Diagnóstico disponível.** `src/lib/sync-breadcrumbs.ts` grava um log
+persistente lido em Configurações → Dados. Ao investigar "não sincronizou",
+olhe-o antes de supor onde quebrou — foi o que permitiu separar "o iOS não
+acordou o app" de "acordou e não achou nada".
 
 ---
 
