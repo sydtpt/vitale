@@ -278,7 +278,7 @@ export function QuickAddSheet({ visible, initial = 'pick', onClose }: QuickAddSh
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(31,27,22,0.45)' },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(31,27,22,0.45)' },
   sheet: {
     backgroundColor: colors.bg,
     borderTopLeftRadius: 24,

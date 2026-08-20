@@ -2,6 +2,11 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    // O TypeScript 6 (que veio com o SDK 56) não inclui mais os pacotes `@types`
+    // automaticamente — é preciso listá-los. Sem esta linha o `@types/jest` fica
+    // fora do programa e os 3 testes que usam o `jest` global, em vez de importá-lo
+    // de `@jest/globals`, param de compilar. Confirmado com `tsc --explainFiles`.
+    "types": ["jest"],
     "paths": {
       "@vitale/shared": ["../packages/shared/src/index.ts"]
     }

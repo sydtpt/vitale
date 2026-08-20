@@ -4,7 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+// O expo-router 56 trocou o `@react-navigation/*` por `standard-navigation` e
+// internalizou o bottom-tabs, então o pacote de onde este tipo vinha deixou de
+// ser instalado. O tipo é o mesmo, só mudou de casa; o index do expo-router não
+// o reexporta, e `layouts/Tabs` é o módulo do próprio `Tabs` usado abaixo.
+import type { BottomTabBarProps } from 'expo-router/build/layouts/Tabs';
 import { useTheme, colors } from '../../theme';
 import { TabBarScrollProvider, useTabBarCollapsed } from '../../lib/tab-bar-scroll';
 import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';

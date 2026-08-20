@@ -15,11 +15,6 @@
         "expo-channel-name": "preview"
       }
     },
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFF7EE"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.sydtpt.vitale",
@@ -44,6 +39,15 @@
       "expo-font",
       "expo-secure-store",
       "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FFF7EE"
+        }
+      ],
+      "expo-status-bar",
       "expo-web-browser",
       [
         "expo-notifications",

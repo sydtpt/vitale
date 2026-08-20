@@ -22,8 +22,8 @@
     "patch-package": "^8.0.1"
   },
   "overrides": {
-    "react": "19.2.0",
-    "react-native": "0.83.10",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
     "@supabase/supabase-js": "2.106.0"
   },
   "engines": {

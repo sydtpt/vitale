@@ -128,7 +128,10 @@ function AppShell() {
 
   return (
     <View style={[styles.root, { backgroundColor: base }]}>
-      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={base} />
+      {/* Sem `backgroundColor`: a expo-status-bar 56 removeu a prop, que já era
+          no-op desde a 55 (só valia no Android, e nem lá surtia efeito). O fundo
+          continua vindo do `View` acima. */}
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       {wallpaper !== 'flat' && <RotinaBackground variant={wallpaper} />}
       <Stack
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}

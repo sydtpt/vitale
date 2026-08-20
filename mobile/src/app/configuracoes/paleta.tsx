@@ -72,7 +72,7 @@ const previewStyles = StyleSheet.create({
     backgroundColor: colors.surfaceMute,
   },
   bar: { flexDirection: 'column', justifyContent: 'flex-end' },
-  linesLayer: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', paddingHorizontal: 8, gap: 7 },
+  linesLayer: { ...StyleSheet.absoluteFill, justifyContent: 'center', paddingHorizontal: 8, gap: 7 },
   solidLine: { height: 2, borderRadius: 1, opacity: 0.85 },
   dottedRow: { flexDirection: 'row', gap: 3 },
   dot: { width: 2, height: 2, borderRadius: 1, opacity: 0.85 },

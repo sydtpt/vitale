@@ -7,8 +7,24 @@ const mobileRoot = resolve(__dirname, '../../..');
 
 // app.config.js é a config que o Expo resolve — app.json é só a base que ela espalha.
 const expoConfig = (require('../../../app.config.js') as {
-  expo: { icon: string; splash?: { image?: string } };
+  expo: { icon: string; plugins: (string | [string, Record<string, unknown>])[] };
 }).expo;
+
+/**
+ * O SDK 56 tirou a chave `splash` do schema do app config: a configuração passou
+ * a morar nas opções do config plugin `expo-splash-screen`. É de lá que estas
+ * asserções leem agora — o que se garante continua sendo o mesmo.
+ */
+function splashConfig(): { image?: string } {
+  const entry = expoConfig.plugins.find(
+    (p): p is [string, Record<string, unknown>] =>
+      Array.isArray(p) && p[0] === 'expo-splash-screen',
+  );
+  if (!entry) throw new Error('plugin expo-splash-screen não está no app config');
+  return entry[1] as { image?: string };
+}
+
+const splash = splashConfig();
 
 const imagesetDir = join(
   mobileRoot,
@@ -53,21 +69,21 @@ function pngsDoImageset(): string[] {
 
 describe('assets da splash', () => {
   it('declara uma splash com arte', () => {
-    expect(expoConfig.splash?.image).toBeDefined();
+    expect(splash.image).toBeDefined();
   });
 
   // Decisão reversível, não invariante técnico: hoje splash e ícone compartilham a arte.
   // Se a splash ganhar arte própria, é este teste que se ajusta — não um bug.
   it('aponta a splash para a mesma arte do ícone', () => {
-    expect(expoConfig.splash?.image).toBe(expoConfig.icon);
+    expect(splash.image).toBe(expoConfig.icon);
   });
 
   it('referencia um arquivo que existe', () => {
-    expect(existsSync(join(mobileRoot, expoConfig.splash!.image!))).toBe(true);
+    expect(existsSync(join(mobileRoot, splash.image!))).toBe(true);
   });
 
   it('mantém a arte de origem igual à que foi transplantada para o imageset nativo', () => {
-    expect(sha256(join(mobileRoot, expoConfig.splash!.image!))).toBe(
+    expect(sha256(join(mobileRoot, splash.image!))).toBe(
       ARTE_TRANSPLANTADA_SHA256,
     );
   });
@@ -87,7 +103,7 @@ const prebuildFeito = existsSync(imagesetDir);
 
 (prebuildFeito ? describe : describe.skip)('imageset nativo da splash (requer prebuild)', () => {
   it('mantém o imageset nativo na dimensão da arte de origem', () => {
-    const origem = pngSize(join(mobileRoot, expoConfig.splash!.image!));
+    const origem = pngSize(join(mobileRoot, splash.image!));
     const pngs = pngsDoImageset();
     expect(pngs.length).toBeGreaterThan(0);
 

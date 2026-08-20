@@ -895,7 +895,7 @@ const styles = themed(() =>
     web: { flex: 1, backgroundColor: 'transparent' },
     exportStage: { position: 'absolute', top: 0, left: 0 },
     exportOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
       gap: spacing.md,
@@ -914,7 +914,7 @@ const styles = themed(() =>
       backgroundColor: 'rgba(0,0,0,0.55)',
     },
     previewLoading: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.surfaceMute,
