@@ -55,5 +55,14 @@ do BMAD, em `_bmad-output/`.
 - Reescrita de caminho em massa com `sed` exclui `_bmad-output/` e
   `supabase/migrations/`: ambos citam caminhos antigos como registro histórico, não como
   link vivo, e a reescrita os corrompe.
+- **Mexeu no `overrides` da raiz ou regenerou o `package-lock.json`? Valide os TRÊS
+  workspaces**, não só o que motivou a mudança. O lockfile é compartilhado, então uma
+  troca feita pelo mobile chega no web e no shared. Foi assim que subir o mobile para
+  o TypeScript 6 quebrou o build do web: o `@angular/compiler-cli` fica hasteado na
+  raiz e passou a resolver o TS 6, enquanto o `@angular-devkit/build-angular`, aninhado
+  em `web/`, seguia no 5.9 — dois TypeScripts no mesmo build, e o 6 renomeou
+  `lib.esnext.float16` para `lib.es2025.float16`. O `overrides` da raiz agora prende o
+  TS do `compiler-cli` na faixa do web; o toolchain do Angular 21 **veta** TS ≥ 6
+  (`@angular-devkit/build-angular` pede `>=5.9 <6.0`), então não adianta subir o web.
 
 <!-- /bmad:context -->
