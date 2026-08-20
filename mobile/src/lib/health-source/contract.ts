@@ -229,6 +229,23 @@ export interface HealthSource {
    * cobre a lacuna com as metas configuradas pelo usuário.
    */
   queryActivityRings(range: HealthRange): Promise<RawActivityRings | undefined>;
+
+  /**
+   * Garante que a entrega em background dos tipos informados está registrada
+   * nativamente — a chamada que precisa sobreviver ao fechamento do app (Fase
+   * 1B do plano de migração, portão 3). Idempotente; chamar de novo com os
+   * mesmos tipos não duplica nada. Implementações cuja entrega em background já
+   * é fiada por fora (edição nativa fixa, por exemplo) podem tratar como no-op.
+   */
+  configureBackgroundDelivery(types: readonly HealthTypeId[]): Promise<void>;
+
+  /**
+   * Assina "há treino novo ou alterado no HealthKit". Dispara tanto com o app
+   * em primeiro plano quanto quando o sistema o acorda em segundo plano por
+   * causa da entrega configurada em `configureBackgroundDelivery`. `remove()`
+   * cancela a assinatura.
+   */
+  subscribeWorkoutObserver(onChange: () => void): { remove: () => void };
 }
 
 /** Reexportado para quem consome FC de treino sem precisar do módulo de zonas. */

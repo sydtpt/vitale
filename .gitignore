@@ -20,7 +20,6 @@ out-tsc/
 *.mobileprovision
 *.orig.*
 web-build/
-# ios/ é versionado (workflow bare p/ EAS) — gerados ignorados em mobile/.gitignore
 android/
 
 # Environment

@@ -1,0 +1,13 @@
+diff --git a/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift b/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
+index 912a5ed..e11159f 100644
+--- a/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
++++ b/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
+@@ -12,7 +12,7 @@ import HealthKit
+ /// The types to observe are persisted in UserDefaults by `configureBackgroundTypes()`
+ /// called from JS. On subsequent cold launches, the manager reads these and registers
+ /// observers immediately, queuing any events until JS subscribes via `drainPendingEvents()`.
+-@objc public class BackgroundDeliveryManager: NSObject {
++@objc(BackgroundDeliveryManager) public class BackgroundDeliveryManager: NSObject {
+   @objc public static let shared = BackgroundDeliveryManager()
+ 
+   private let healthStore = HKHealthStore()

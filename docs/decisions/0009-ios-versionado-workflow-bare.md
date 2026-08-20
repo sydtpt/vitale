@@ -1,6 +1,6 @@
 # 0009 — `mobile/ios/` versionado (workflow bare)
 
-**Status:** aceita
+**Status:** aceita · superada por [0012](0012-kingstinct-healthkit-devolve-o-prebuild.md)
 **Data:** 2026-05-23
 
 ## Contexto

@@ -11,7 +11,7 @@
  * string, callbacks de erro-primeiro, unidades impostas por tipo e o mapa de
  * permissões. Fora daqui, o app só conhece identificadores do HealthKit.
  */
-import { Platform } from 'react-native';
+import { NativeAppEventEmitter, Platform } from 'react-native';
 import AppleHealthKit from 'react-native-health';
 import {
   HK,
@@ -265,5 +265,19 @@ export const legacyHealthSource: HealthSource = {
       appleStandHours: s.appleStandHours ?? 0,
       appleStandHoursGoal: s.appleStandHoursGoal,
     };
+  },
+
+  configureBackgroundDelivery() {
+    // A entrega em background desta implementação já é fiada nativamente —
+    // `RCTAppleHealthKit().initializeBackgroundObservers(bridge)` em
+    // `AppDelegate.swift` (ADR 0009). Não há nada para configurar a partir do
+    // JS aqui; existe só para a porta ter um único ponto de troca.
+    return Promise.resolve();
+  },
+
+  subscribeWorkoutObserver(onChange) {
+    if (!isIos()) return { remove: () => {} };
+    const sub = NativeAppEventEmitter.addListener('healthKit:Workout:new', () => onChange());
+    return { remove: () => sub.remove() };
   },
 };

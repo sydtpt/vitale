@@ -2,15 +2,18 @@
  * Dispara o delta incremental dos tipos inscritos quando há treino novo.
  *
  * - Foreground: AppState 'active' → reconcilia (puro JS, sem dependência nativa).
- * - Background/foreground: evento nativo `healthKit:Workout:new` do HealthKit.
+ * - Background/foreground: observer de treino da porta de saúde (ver
+ *   `subscribeWorkoutObserver` em `health-source/contract.ts`).
  *
  * Abrir/exibir a lista NÃO chama isto (FR-003) — só estes eventos chamam.
  *
- * ⚠️ Os eventos nativos só disparam se `initializeBackgroundObservers` for
- * chamado no AppDelegate (passo nativo F4 — ver tasks.md). Sem ele, vale
- * apenas o caminho de foreground via AppState.
+ * ⚠️ O observer só dispara com o app fechado se `configureBackgroundDelivery`
+ * tiver rodado pelo menos uma vez (chamado abaixo) — cada adaptador decide
+ * como isso se sustenta nativamente (ver contract.ts). Sem isso, vale apenas
+ * o caminho de foreground via AppState.
  */
-import { AppState, NativeAppEventEmitter, Platform, type AppStateStatus } from 'react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { HK, healthSource } from '../lib/health-source/active';
 import { useFitnessStore } from '../store/fitness.store';
 import { useHealthStore } from '../store/health.store';
 
@@ -48,9 +51,14 @@ export function startActivitySync(): void {
     }
   });
 
-  workoutSub = NativeAppEventEmitter.addListener('healthKit:Workout:new', () => {
+  workoutSub = healthSource.subscribeWorkoutObserver(() => {
     void runDeltaThrottled(true);
   });
+
+  // Garante a entrega em background para o próximo cold launch (ver o aviso
+  // no topo do arquivo). Fire-and-forget: falha aqui não impede o caminho de
+  // foreground via AppState.
+  void healthSource.configureBackgroundDelivery([HK.workout]);
 
   // Reconciliação inicial ao iniciar a sessão.
   void runDeltaThrottled(true);

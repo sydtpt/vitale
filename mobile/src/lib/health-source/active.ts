@@ -1,16 +1,15 @@
 /**
  * Ponto único de troca da fonte de saúde.
  *
- * Enquanto houver uma implementação só, isto é uma reexportação. Quando o
- * adaptador sobre `@kingstinct/react-native-healthkit` entrar, a troca acontece
- * **aqui** — em uma linha, com o adaptador antigo ainda no repositório, o que
- * torna o rollback uma reversão de uma linha em vez de um revert de migração.
+ * Fase 1B do plano de migração: `kingstinctHealthSource` está ativo.
+ * `legacyHealthSource` continua no repositório — reverter é trocar a linha
+ * abaixo de volta, sem revert de migração.
  *
  * Nenhum consumidor importa um adaptador direto; todos passam por aqui.
  */
 import type { HealthSource } from './contract';
-import { legacyHealthSource } from './legacy-provider';
+import { kingstinctHealthSource } from './kingstinct-provider';
 
-export const healthSource: HealthSource = legacyHealthSource;
+export const healthSource: HealthSource = kingstinctHealthSource;
 
 export * from './contract';

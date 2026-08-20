@@ -12,10 +12,30 @@
  */
 import { describe, it, expect } from '@jest/globals';
 
-// A lib nativa não roda sob o jest; só os mapas do adaptador interessam aqui.
+// Nenhuma das duas libs nativas roda sob o jest; só os mapas dos adaptadores
+// interessam aqui. `healthkit-workouts.ts` importa `health-source/active`, que
+// hoje aponta para o adaptador kingstinct — sem este mock, carregar o módulo
+// tenta resolver o Nitro module nativo e quebra a suíte inteira.
 jest.mock('react-native-health', () => ({
   __esModule: true,
   default: { Constants: { Permissions: {} } },
+}));
+jest.mock('@kingstinct/react-native-healthkit', () => ({
+  __esModule: true,
+  configureBackgroundTypes: jest.fn(),
+  getBiologicalSexAsync: jest.fn(),
+  getBloodTypeAsync: jest.fn(),
+  getDateOfBirthAsync: jest.fn(),
+  isHealthDataAvailable: jest.fn(() => false),
+  queryCategorySamples: jest.fn(),
+  queryCorrelationSamples: jest.fn(),
+  queryQuantitySamples: jest.fn(),
+  queryStatisticsCollectionForQuantity: jest.fn(),
+  queryWorkoutSamples: jest.fn(),
+  queryWorkoutSamplesWithAnchor: jest.fn(),
+  requestAuthorization: jest.fn(),
+  subscribeToChanges: jest.fn(() => ({ remove: () => {} })),
+  UpdateFrequency: { immediate: 1, hourly: 2, daily: 3, weekly: 4 },
 }));
 
 import { HK, type HealthTypeId } from '../health-source/contract';

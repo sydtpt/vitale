@@ -8,7 +8,7 @@
     "scheme": "vitale",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "1.0.1",
     "updates": {
       "url": "https://u.expo.dev/127be066-b0bb-4469-bd58-d7e5c6c9cd22",
       "enabled": true
@@ -44,7 +44,19 @@
         {
           "color": "#F25C2B"
         }
-      ]
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "O Orbe acessa seus dados do Apple Health — atividade, coração, corpo, sono, nutrição e treinos — para exibir seu histórico e gráficos.",
+          "background": true
+        }
+      ],
+      "./plugins/withHealthKitObjcxxBridge.js",
+      "./plugins/withHealthKitBackgroundObservers.js",
+      "./plugins/withDisableExplicitModules.js",
+      "./plugins/withFmtConstevalFix.js",
+      "./plugins/withCppModulemapFix.js"
     ],
     "experiments": {
       "typedRoutes": true

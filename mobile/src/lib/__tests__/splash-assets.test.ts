@@ -12,15 +12,19 @@ const expoConfig = (require('../../../app.config.js') as {
 
 const imagesetDir = join(
   mobileRoot,
-  'ios/Vitale/Images.xcassets/SplashScreenLegacy.imageset',
+  'ios/Orbe/Images.xcassets/SplashScreenLegacy.imageset',
 );
 
 /**
  * Hash da arte que gerou o imageset nativo em `mobile/ios/`. Trocar a arte sem
- * regenerar deixa o app exibindo o asset antigo no cold start — foi assim que o
- * placeholder do template sobreviveu três meses aqui. Ao mudar a arte: rodar
- * `expo prebuild` numa sandbox (nunca em `mobile/`, ver ADR 0009), transplantar o
- * imageset e atualizar este hash.
+ * rodar `expo prebuild` de novo deixa o app exibindo o asset antigo no cold
+ * start — foi assim que o placeholder do template sobreviveu três meses aqui.
+ * Desde a ADR 0012, `mobile/ios/` é gerado (não versionado): basta trocar a
+ * arte e rodar `expo prebuild` direto em `mobile/` — sem sandbox nem
+ * transplante manual, que era o contorno da ADR 0009 (superada).
+ *
+ * Esta é a asserção que vale em qualquer máquina: a arte de origem é a que se
+ * pretende. A conferência do imageset gerado vive separada, mais abaixo.
  */
 const ARTE_TRANSPLANTADA_SHA256 =
   '7419a6baa3af84eb96f053a0bf129660c989ae749f665321353d830ffdb7e570';
@@ -68,9 +72,21 @@ describe('assets da splash', () => {
     );
   });
 
-  it('mantém o imageset nativo na dimensão da arte de origem', () => {
-    expect(existsSync(imagesetDir)).toBe(true);
+});
 
+/**
+ * O imageset é saída do `expo prebuild` e, desde a ADR 0012, não é versionado —
+ * num clone limpo `mobile/ios/` simplesmente não existe, e exigi-lo faria a
+ * suíte falhar por ausência de artefato gerado, não por defeito.
+ *
+ * Onde ele existe, ainda vale conferir: um prebuild velho no diretório de
+ * trabalho é justamente o que faz o device mostrar a arte antiga enquanto o
+ * repositório já tem a nova.
+ */
+const prebuildFeito = existsSync(imagesetDir);
+
+(prebuildFeito ? describe : describe.skip)('imageset nativo da splash (requer prebuild)', () => {
+  it('mantém o imageset nativo na dimensão da arte de origem', () => {
     const origem = pngSize(join(mobileRoot, expoConfig.splash!.image!));
     const pngs = pngsDoImageset();
     expect(pngs.length).toBeGreaterThan(0);
