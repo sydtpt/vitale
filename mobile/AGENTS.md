@@ -21,3 +21,39 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
   incompatível — anime com `Animated` do React Native.
 
 <!-- /bmad:context -->
+
+## Build local para device (fora da EAS)
+
+Quando a cota da EAS acaba, o caminho é cabo. A [ADR 0009](../docs/decisions/0009-ios-versionado-workflow-bare.md)
+registrou a receita base; o que segue são as pegadinhas que só apareceram depois
+da [ADR 0012](../docs/decisions/0012-kingstinct-healthkit-devolve-o-prebuild.md),
+quando `mobile/ios/` passou a ser gerado.
+
+```bash
+cd mobile && npx expo prebuild --platform ios --clean
+cd ios && xcodebuild -workspace Orbe.xcworkspace -scheme Orbe \
+  -configuration Release -destination 'generic/platform=iOS' \
+  -allowProvisioningUpdates build
+xcrun devicectl device install app --device <UDID> <caminho>/Orbe.app
+```
+
+- **Não use `npx expo run:ios --configuration Release`**: não passa a flag de
+  provisioning e quebra na assinatura — depois de já ter feito o bundle do JS.
+- **Nunca `xcodebuild | tail`** sem `set -o pipefail`. O status vira o do `tail`
+  e um build quebrado passa por bem-sucedido.
+- **O iPhone precisa estar desbloqueado** no `install`, senão falha em
+  `kAMDMobileImageMounterDeviceLocked`. O build em si não precisa do aparelho.
+- `DEVELOPMENT_TEAM` some a cada `prebuild` (o projeto Xcode é gerado). O plugin
+  `plugins/withDevelopmentTeam.js` repõe; aceita override por `APPLE_TEAM_ID`.
+- O canal de OTA vinha da EAS. Sem ela, `updates.requestHeaders` no app config é
+  o que mantém `eas update` alcançando o build — sem isso, toda mudança de JS
+  vira rebuild nativo.
+- Direcione o `-derivedDataPath` para fora de `~/Library/Developer/Xcode`: cada
+  build limpo custa ~7 GB e o acúmulo já estourou o disco aqui.
+
+## Diagnóstico de sync em background
+
+`src/lib/sync-breadcrumbs.ts` grava um log curto e persistente, lido em
+Configurações → Dados. Existe porque o sync em background roda sem UI, sem
+depurador e sem `console.log` alcançável — ver [ADR 0013](../docs/decisions/0013-background-do-healthkit-exige-patch-na-lib.md).
+Ao investigar "não sincronizou", olhe o log antes de supor onde quebrou.
