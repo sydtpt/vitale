@@ -26,9 +26,18 @@ function splashConfig(): { image?: string } {
 
 const splash = splashConfig();
 
+/**
+ * O SDK 57 gera a splash pelo config plugin, que troca o antigo
+ * `SplashScreenLegacy.imageset` por `SplashScreenLogo.imageset` — agora com as
+ * três escalas (1x/2x/3x) derivadas de `imageWidth`, não mais uma cópia da arte
+ * na dimensão original. Por isso a conferência abaixo mudou de "mesma dimensão
+ * da origem" para proporção e proporcionalidade entre escalas: comparar
+ * dimensão com a arte de origem deixou de ser possível quando o plugin passou a
+ * redimensionar.
+ */
 const imagesetDir = join(
   mobileRoot,
-  'ios/Orbe/Images.xcassets/SplashScreenLegacy.imageset',
+  'ios/Orbe/Images.xcassets/SplashScreenLogo.imageset',
 );
 
 /**
@@ -102,15 +111,33 @@ describe('assets da splash', () => {
 const prebuildFeito = existsSync(imagesetDir);
 
 (prebuildFeito ? describe : describe.skip)('imageset nativo da splash (requer prebuild)', () => {
-  it('mantém o imageset nativo na dimensão da arte de origem', () => {
-    const origem = pngSize(join(mobileRoot, splash.image!));
+  it('gera as três escalas que o Contents.json declara', () => {
     const pngs = pngsDoImageset();
-    expect(pngs.length).toBeGreaterThan(0);
+    expect(pngs.length).toBe(3);
 
     for (const png of pngs) {
-      const alvo = join(imagesetDir, png);
-      expect(existsSync(alvo)).toBe(true);
-      expect(pngSize(alvo)).toEqual(origem);
+      expect(existsSync(join(imagesetDir, png))).toBe(true);
     }
+  });
+
+  it('mantém as escalas proporcionais (1x/2x/3x)', () => {
+    const [x1, x2, x3] = pngsDoImageset().map((png) =>
+      pngSize(join(imagesetDir, png)),
+    );
+
+    expect(x2.width).toBe(x1.width * 2);
+    expect(x3.width).toBe(x1.width * 3);
+    expect(x2.height).toBe(x1.height * 2);
+    expect(x3.height).toBe(x1.height * 3);
+  });
+
+  it('preserva a proporção da arte de origem', () => {
+    const origem = pngSize(join(mobileRoot, splash.image!));
+    const gerado = pngSize(join(imagesetDir, pngsDoImageset()[0]));
+
+    expect(gerado.width / gerado.height).toBeCloseTo(
+      origem.width / origem.height,
+      2,
+    );
   });
 });

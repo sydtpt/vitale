@@ -16,8 +16,8 @@
 | 1B — trocar a biblioteca de HealthKit | ✅ | ADR [0012](../../docs/decisions/0012-kingstinct-healthkit-devolve-o-prebuild.md), [0013](../../docs/decisions/0013-background-do-healthkit-exige-patch-na-lib.md), [0014](../../docs/decisions/0014-remove-a-rede-de-rollback-do-react-native-health.md) |
 | 1 — New Architecture no SDK 54 | ✅ | `newArchEnabled: true`; 3 portões em device (a chave saiu do `app.json` na Fase 2 — o SDK 55 a rejeita, ver abaixo) |
 | 2 — SDK 55 / RN 0.83 | ✅ | `expo-doctor` 19/20, 37 suítes / 377 testes, `BUILD SUCCEEDED`; **os 3 portões passaram em device** (iPhone 17 Pro, 20/08/2026) · ADR [0015](../../docs/decisions/0015-overrides-fixam-copia-unica-e-versao-dos-patches.md) |
-| 3 — SDK 56 / RN 0.85 | ⬜ | |
-| 4 — SDK 57 / RN 0.86 | ⬜ | |
+| 3 — SDK 56 / RN 0.85 | 🔶 | código verde (`tsc`, 377 testes, doctor 20/22) — **sem portão em device, por decisão**: só o SDK 57 sai da regressão do Hermes, então o 56 seria um repouso abandonado em seguida |
+| 4 — SDK 57 / RN 0.86 | 🔶 | `tsc` limpo **sem mudança de código**, 377 testes, `expo-doctor` 20/21 com a checagem do Hermes aprovada; portões em device pendentes |
 
 **A Estratégia B foi escolhida**, de forma eletiva, antes de o portão da Fase 1
 rodar. `react-native-health` foi removido (ADR 0014) e `mobile/ios/` voltou a
@@ -55,10 +55,16 @@ Três consequências que mudam as fases seguintes:
   verdade nem versiona mais o `fmt` como pod separado. O plugin já documentava a
   própria validade ("remover em RN ≥ 0.83.9").
 - **Reanimated e `worklets` saíram da árvore**, efeito colateral do `overrides`.
-  Isso **elimina o ponto de atenção da Fase 3**: a regressão de memória do Hermes
-  V1 no SDK 56 atinge quem usa os dois, e agora não há nenhum dos dois. Custou
-  tirar `react-native-reanimated/plugin` do `babel.config.js`, que resolvia só
-  pela cópia acidental.
+  Custou tirar `react-native-reanimated/plugin` do `babel.config.js`, que resolvia
+  só pela cópia acidental.
+
+  > **Corrigido na Fase 3.** Na hora, isto foi anotado aqui como algo que
+  > "elimina o ponto de atenção da Fase 3". **Não elimina.** No SDK 56 o
+  > `expo-router` passou a depender de `react-native-drawer-layout`, que exige
+  > reanimated como peer obrigatório — os dois voltam à árvore, agora
+  > legitimamente. E a Fase 3 mostrou que o `expo-doctor` acusa a regressão do
+  > Hermes V1 pelo SDK em si, não por quem usa reanimated. O que de fato resolve
+  > é o SDK 57.
 
 O patch do `@kingstinct/react-native-healthkit` **não** foi mexido: a 14.0.2 segue
 sendo a última publicada, então não houve reverificação por troca de versão. O que
@@ -68,6 +74,40 @@ sobreviveu à 0.83 com o patch da ADR 0013 intacto.
 **Os 3 portões passaram em device em 20/08/2026** (iPhone 17 Pro): app abre com
 navegação e mapas, a aba Saúde popula, e a sincronização em background entregou com
 o app fechado.
+
+**O que as Fases 3 e 4 encontraram (20/08/2026).** Os dois degraus foram feitos
+em sequência, sem portão em device no meio — decisão explícita, porque o
+`expo-doctor` do SDK 56 acusa a regressão de memória do Hermes V1 e aponta o
+SDK 57 como o único conserto. Testar em aparelho um SDK que seria abandonado em
+seguida custaria um build e uma rodada de portões para nada. O preço aceito: se
+algo falhar nos portões, não dá para separar o que veio da RN 0.85 do que veio
+da 0.86.
+
+O SDK 56 foi o único degrau desta migração que **mexeu em código de produto**,
+porque o `expo-router` trocou de motor de navegação:
+
+- `@react-navigation/native` saiu (o doctor reprova tê-lo junto do expo-router
+  a partir da 56). Nenhum arquivo o importava — só o tipo `BottomTabBarProps`
+  da tab bar customizada, que passou a vir de `expo-router/build/layouts/Tabs`.
+- `StyleSheet.absoluteFillObject` foi removido na RN 0.85; o `absoluteFill` que
+  restou é hoje o mesmo objeto simples, então os 5 usos viraram rename.
+- `backgroundColor` do StatusBar saiu na `expo-status-bar` 56 — já era no-op.
+- A chave `splash` saiu do schema; foi para as opções do plugin.
+- O **TypeScript 6** parou de incluir os `@types` automaticamente: sem
+  `"types": ["jest"]` no `tsconfig`, os testes que usam o `jest` global não
+  compilam.
+
+O SDK 57, em contraste, foi **bump puro**: `tsc` limpo sem tocar em uma linha de
+código, 377 testes verdes, e o doctor aprovando a checagem do Hermes que
+reprovava no 56.
+
+Duas coisas que valem para quem vier depois. O `expo install --fix` reescreve as
+versões **depois** do install, então a regeneração do lockfile tem de vir por
+último — fazer antes deixa `mobile/node_modules` com as versões velhas e as
+duplicatas voltam. E o plugin da splash passou a **redimensionar** a arte em
+1x/2x/3x em vez de copiá-la: o teste do imageset teve de trocar "mesma dimensão
+da origem" por proporção entre escalas, senão passaria pulando a verificação em
+silêncio, já que o imageset também mudou de nome.
 
 **Diagnóstico disponível.** `src/lib/sync-breadcrumbs.ts` grava um log
 persistente lido em Configurações → Dados. Ao investigar "não sincronizou",
