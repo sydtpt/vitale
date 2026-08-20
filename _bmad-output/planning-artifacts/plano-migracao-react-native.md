@@ -1,6 +1,6 @@
 # Plano de migração — React Native 0.81.5 → 0.86 (Expo SDK 54 → 57)
 
-**Autor:** Winston (System Architect) · **Data:** 2026-08-18 · **Status:** em execução — Fases 0, 1B e 1 concluídas em 20/08/2026
+**Autor:** Winston (System Architect) · **Data:** 2026-08-18 · **Status:** em execução — Fases 0, 1B, 1 e 2 concluídas em 20/08/2026
 
 ---
 
@@ -14,8 +14,8 @@
 | --- | --- | --- |
 | 0 — alinhar o SDK 54 | ✅ | `expo-doctor` 17/18; a única falha restante é o falso positivo do `app.json`, documentado no topo de `mobile/app.config.js` |
 | 1B — trocar a biblioteca de HealthKit | ✅ | ADR [0012](../../docs/decisions/0012-kingstinct-healthkit-devolve-o-prebuild.md), [0013](../../docs/decisions/0013-background-do-healthkit-exige-patch-na-lib.md), [0014](../../docs/decisions/0014-remove-a-rede-de-rollback-do-react-native-health.md) |
-| 1 — New Architecture no SDK 54 | ✅ | `newArchEnabled: true`; 3 portões em device |
-| 2 — SDK 55 / RN 0.83 | ⬜ | |
+| 1 — New Architecture no SDK 54 | ✅ | `newArchEnabled: true`; 3 portões em device (a chave saiu do `app.json` na Fase 2 — o SDK 55 a rejeita, ver abaixo) |
+| 2 — SDK 55 / RN 0.83 | ✅ | `expo-doctor` 19/20, 37 suítes / 377 testes, `BUILD SUCCEEDED`; **os 3 portões passaram em device** (iPhone 17 Pro, 20/08/2026) · ADR [0015](../../docs/decisions/0015-overrides-fixam-copia-unica-e-versao-dos-patches.md) |
 | 3 — SDK 56 / RN 0.85 | ⬜ | |
 | 4 — SDK 57 / RN 0.86 | ⬜ | |
 
@@ -36,6 +36,38 @@ por cabo. A receita e as pegadinhas estão em [`mobile/AGENTS.md`](../../mobile/
 `plugins/withDevelopmentTeam.js`), o canal de OTA precisa vir de
 `updates.requestHeaders` porque a EAS não o injeta mais, e o iPhone precisa
 estar desbloqueado no `install`.
+
+**O que a Fase 2 encontrou (20/08/2026).** O degrau em si foi barato: `expo install
+--fix`, nenhum major de terceiro — o `gesture-handler` foi para 2.30, **não** para o
+3.x que a seção 5 temia. O caro foi o que apareceu ao **regenerar o
+`package-lock.json`**, coisa que subir de SDK obriga. A inércia do lockfile
+escondia três duplicatas latentes (RN, React e `supabase-js`), e o patch do
+`supabase-js` chegou a ser aplicado na cópia errada. A saída está na
+[ADR 0015](../../docs/decisions/0015-overrides-fixam-copia-unica-e-versao-dos-patches.md):
+`overrides` na raiz + `patch-package --error-on-fail`.
+
+Três consequências que mudam as fases seguintes:
+
+- **`newArchEnabled` saiu do `app.json`** — o schema do SDK 55 rejeita a chave,
+  porque a New Architecture virou a única. A flag da Fase 1 cumpriu seu papel; o
+  build confirma `RCT_NEW_ARCH_ENABLED=1` sem ela.
+- **`withFmtConstevalFix.js` foi removido.** A RN 0.83.10 traz `fmt` 12.1.0 — na
+  verdade nem versiona mais o `fmt` como pod separado. O plugin já documentava a
+  própria validade ("remover em RN ≥ 0.83.9").
+- **Reanimated e `worklets` saíram da árvore**, efeito colateral do `overrides`.
+  Isso **elimina o ponto de atenção da Fase 3**: a regressão de memória do Hermes
+  V1 no SDK 56 atinge quem usa os dois, e agora não há nenhum dos dois. Custou
+  tirar `react-native-reanimated/plugin` do `babel.config.js`, que resolvia só
+  pela cópia acidental.
+
+O patch do `@kingstinct/react-native-healthkit` **não** foi mexido: a 14.0.2 segue
+sendo a última publicada, então não houve reverificação por troca de versão. O que
+o portão 3 reverificou aqui foi a troca de **RN** — e a entrega em background
+sobreviveu à 0.83 com o patch da ADR 0013 intacto.
+
+**Os 3 portões passaram em device em 20/08/2026** (iPhone 17 Pro): app abre com
+navegação e mapas, a aba Saúde popula, e a sincronização em background entregou com
+o app fechado.
 
 **Diagnóstico disponível.** `src/lib/sync-breadcrumbs.ts` grava um log
 persistente lido em Configurações → Dados. Ao investigar "não sincronizou",

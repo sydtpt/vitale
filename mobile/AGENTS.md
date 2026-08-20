@@ -9,7 +9,7 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
 
 ## Running and verifying
 
-- Valide com `cd mobile && npx tsc --noEmit && npx jest` (29 suítes, 349 testes hoje).
+- Valide com `cd mobile && npx tsc --noEmit && npx jest` (37 suítes, 377 testes hoje).
 - `npm run lint` falha: `eslint` não está instalado.
 - Teste de lógica pura mora em `src/lib/__tests__/*.test.ts`; 16 deles exercitam
   `@vitale/shared`, que o jest daqui resolve. O shared também tem teste próprio — ver
@@ -17,8 +17,10 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
 
 ## Conventions that differ from defaults
 
-- Não importe `react-native-reanimated`: não está nas dependências e o 4.1.7 hoisted é
-  incompatível — anime com `Animated` do React Native.
+- Não importe `react-native-reanimated`: desde o SDK 55 ele não está nem na árvore
+  (o `overrides` da raiz fixa a RN, e o peer da 4.1.7 para na 0.82) — anime com
+  `Animated` do React Native. Ver [ADR 0010](../docs/decisions/0010-sem-reanimated-no-mobile.md)
+  e [ADR 0015](../docs/decisions/0015-overrides-fixam-copia-unica-e-versao-dos-patches.md).
 
 <!-- /bmad:context -->
 
@@ -50,6 +52,25 @@ xcrun devicectl device install app --device <UDID> <caminho>/Orbe.app
   vira rebuild nativo.
 - Direcione o `-derivedDataPath` para fora de `~/Library/Developer/Xcode`: cada
   build limpo custa ~7 GB e o acúmulo já estourou o disco aqui.
+
+## Subir o Expo SDK
+
+O `overrides` do `package.json` da **raiz** fixa `react` e `react-native` na
+versão que o SDK ativo pina ([ADR 0015](../docs/decisions/0015-overrides-fixam-copia-unica-e-versao-dos-patches.md)).
+Ele não é opcional e não se descobre sozinho:
+
+- **Suba `react` e `react-native` no `overrides` no mesmo commit do bump.** Sem
+  isso o npm resolve a versão velha e o app compila contra a RN errada — sem erro
+  de instalação.
+- **Todo pacote com patch entra no `overrides` em versão exata**, igual ao nome do
+  arquivo em `patches/`. O `postinstall` roda `patch-package --error-on-fail`, então
+  um patch que parou de aplicar derruba o `npm install` em vez de avisar.
+- **Regenere o lockfile ao mudar `overrides`.** O npm ignora `overrides` novo
+  contra lockfile existente — verificado na Fase 2. `rm package-lock.json` e
+  reinstale, depois confira que há **uma** cópia de cada:
+  `ls node_modules/react-native mobile/node_modules/react-native`.
+- Cópia duplicada de `react` ou `react-native` não falha o build: falha o `tsc`
+  (duas árvores de tipos) ou o app em runtime (dois Reacts, "Invalid hook call").
 
 ## Diagnóstico de sync em background
 

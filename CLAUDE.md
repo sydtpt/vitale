@@ -67,7 +67,7 @@ npm test -w @vitale/shared                  # testes do shared (scripts tsx)
 | `/metas`       | Metas        |
 
 ### Mobile (`mobile/`)
-- **Expo 54** / React Native 0.81
+- **Expo 55** / React Native 0.83 (New Architecture — única arquitetura a partir da RN 0.82)
 - **Roteamento:** Expo Router (file-based, pasta `mobile/src/app/`)
 - **Store:** Zustand 5
 - **Animações:** `Animated` do React Native — Reanimated **não** está instalado
