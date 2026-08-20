@@ -63,10 +63,16 @@ export async function shareCardPng(uri: string, dialogTitle: string): Promise<Sh
  * para file-URLs (só "Salvar em Arquivos"), então o salvamento é direto, via
  * expo-media-library com permissão **add-only** (NSPhotoLibraryAddUsageDescription
  * no Info.plist). 'denied' quando o usuário nega a permissão.
+ *
+ * Usa `Asset.create` da API baseada em classes. O `saveToLibraryAsync` que estava
+ * aqui **lança em runtime** desde o SDK 57 — não é aviso de depreciação, é erro:
+ * a exportação falhava com "Não foi possível salvar na galeria". A alternativa
+ * seria importar de `expo-media-library/legacy`, que só adia o mesmo trabalho.
+ * `requestPermissionsAsync(writeOnly)` não mudou e segue valendo na API nova.
  */
 export async function saveCardPngToGallery(uri: string): Promise<'saved' | 'denied'> {
   const perm = await MediaLibrary.requestPermissionsAsync(true);
   if (!perm.granted) return 'denied';
-  await MediaLibrary.saveToLibraryAsync(uri);
+  await MediaLibrary.Asset.create(uri);
   return 'saved';
 }

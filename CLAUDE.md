@@ -67,10 +67,10 @@ npm test -w @vitale/shared                  # testes do shared (scripts tsx)
 | `/metas`       | Metas        |
 
 ### Mobile (`mobile/`)
-- **Expo 55** / React Native 0.83 (New Architecture — única arquitetura a partir da RN 0.82)
+- **Expo 57** / React Native 0.86 (New Architecture — única arquitetura a partir da RN 0.82)
 - **Roteamento:** Expo Router (file-based, pasta `mobile/src/app/`)
 - **Store:** Zustand 5
-- **Animações:** `Animated` do React Native — Reanimated **não** está instalado
+- **Animações:** `Animated` do React Native — Reanimated está instalado (o `expo-router` o exige), mas **não se usa** (ADR 0010)
 - 6 tabs: Hoje, Semana, Histórico, Saúde, Compras, Mais
 
 ## Design System

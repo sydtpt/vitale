@@ -1,6 +1,6 @@
 # Plano de migração — React Native 0.81.5 → 0.86 (Expo SDK 54 → 57)
 
-**Autor:** Winston (System Architect) · **Data:** 2026-08-18 · **Status:** em execução — Fases 0, 1B, 1 e 2 concluídas em 20/08/2026
+**Autor:** Winston (System Architect) · **Data:** 2026-08-18 · **Status:** **concluído** — todas as fases executadas em 20/08/2026; o alvo (Expo SDK 57 / RN 0.86.2) está rodando em device
 
 ---
 
@@ -16,8 +16,8 @@
 | 1B — trocar a biblioteca de HealthKit | ✅ | ADR [0012](../../docs/decisions/0012-kingstinct-healthkit-devolve-o-prebuild.md), [0013](../../docs/decisions/0013-background-do-healthkit-exige-patch-na-lib.md), [0014](../../docs/decisions/0014-remove-a-rede-de-rollback-do-react-native-health.md) |
 | 1 — New Architecture no SDK 54 | ✅ | `newArchEnabled: true`; 3 portões em device (a chave saiu do `app.json` na Fase 2 — o SDK 55 a rejeita, ver abaixo) |
 | 2 — SDK 55 / RN 0.83 | ✅ | `expo-doctor` 19/20, 37 suítes / 377 testes, `BUILD SUCCEEDED`; **os 3 portões passaram em device** (iPhone 17 Pro, 20/08/2026) · ADR [0015](../../docs/decisions/0015-overrides-fixam-copia-unica-e-versao-dos-patches.md) |
-| 3 — SDK 56 / RN 0.85 | 🔶 | código verde (`tsc`, 377 testes, doctor 20/22) — **sem portão em device, por decisão**: só o SDK 57 sai da regressão do Hermes, então o 56 seria um repouso abandonado em seguida |
-| 4 — SDK 57 / RN 0.86 | 🔶 | `tsc` limpo **sem mudança de código**, 377 testes, `expo-doctor` 20/21 com a checagem do Hermes aprovada; portões em device pendentes |
+| 3 — SDK 56 / RN 0.85 | ✅ | código verde (`tsc`, doctor 20/22) — **sem portão em device, por decisão**: só o SDK 57 sai da regressão do Hermes, então o 56 seria um repouso abandonado em seguida. Validado pelos portões da Fase 4, que passam por cima dele |
+| 4 — SDK 57 / RN 0.86 | ✅ | **alvo atingido.** `tsc` limpo *sem mudança de código*, 379 testes, `expo-doctor` 20/21 com a checagem do Hermes aprovada, `BUILD SUCCEEDED`; **os 3 portões passaram em device** (iPhone 17 Pro, 20/08/2026) |
 
 **A Estratégia B foi escolhida**, de forma eletiva, antes de o portão da Fase 1
 rodar. `react-native-health` foi removido (ADR 0014) e `mobile/ios/` voltou a
@@ -98,8 +98,22 @@ porque o `expo-router` trocou de motor de navegação:
   compilam.
 
 O SDK 57, em contraste, foi **bump puro**: `tsc` limpo sem tocar em uma linha de
-código, 377 testes verdes, e o doctor aprovando a checagem do Hermes que
-reprovava no 56.
+código, testes verdes, e o doctor aprovando a checagem do Hermes que reprovava
+no 56.
+
+**Os 3 portões passaram em device em 20/08/2026** (iPhone 17 Pro), fechando a
+migração. E logo depois veio o achado que justifica o portão ser manual: com os
+três verdes, exportar a imagem de uma atividade **falhava**. O
+`saveToLibraryAsync` da `expo-media-library` não foi só depreciado no SDK 57 —
+ele **lança em runtime** (a própria lib diz "will throw in runtime"). Trocado por
+`Asset.create`, da API baseada em classes.
+
+Vale reter a forma da falha, porque é a terceira vez nesta base que ela aparece
+assim: build verde, `tsc` verde, 379 testes verdes, e a feature quebrada. É o
+mesmo formato da ADR 0013. Os 3 portões cobrem abrir, ler HealthKit e sincronizar
+em background; **não** cobrem o resto do app. Ao subir SDK, exercite também as
+features que tocam API de plataforma — exportar/compartilhar, câmera, galeria,
+notificações.
 
 Duas coisas que valem para quem vier depois. O `expo install --fix` reescreve as
 versões **depois** do install, então a regeneração do lockfile tem de vir por

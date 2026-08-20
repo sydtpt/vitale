@@ -9,7 +9,7 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
 
 ## Running and verifying
 
-- Valide com `cd mobile && npx tsc --noEmit && npx jest` (37 suítes, 377 testes hoje).
+- Valide com `cd mobile && npx tsc --noEmit && npx jest` (37 suítes, 379 testes hoje).
 - `npm run lint` falha: `eslint` não está instalado.
 - Teste de lógica pura mora em `src/lib/__tests__/*.test.ts`; 16 deles exercitam
   `@vitale/shared`, que o jest daqui resolve. O shared também tem teste próprio — ver
@@ -17,10 +17,15 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
 
 ## Conventions that differ from defaults
 
-- Não importe `react-native-reanimated`: desde o SDK 55 ele não está nem na árvore
-  (o `overrides` da raiz fixa a RN, e o peer da 4.1.7 para na 0.82) — anime com
-  `Animated` do React Native. Ver [ADR 0010](../docs/decisions/0010-sem-reanimated-no-mobile.md)
-  e [ADR 0015](../docs/decisions/0015-overrides-fixam-copia-unica-e-versao-dos-patches.md).
+- Não importe `react-native-reanimated`, **mesmo estando instalado**: anime com
+  `Animated` do React Native. Desde o SDK 56 ele está na árvore de novo porque o
+  `expo-router` depende de `react-native-drawer-layout`, que o exige como peer
+  obrigatório — ou seja, "está lá" não é sinal de que o projeto o adotou. A
+  decisão de não usá-lo segue de pé: [ADR 0010](../docs/decisions/0010-sem-reanimated-no-mobile.md).
+  Ele e o `react-native-worklets` ficam pinados nas versões que o SDK ativo
+  publica; resolver por conta própria quebra o peer do `expo-modules-core`.
+- Não declare `react-native-worklets/plugin` no `babel.config.js`: o
+  `babel-preset-expo` já o adiciona sozinho quando o pacote está instalado.
 
 <!-- /bmad:context -->
 
@@ -65,12 +70,29 @@ Ele não é opcional e não se descobre sozinho:
 - **Todo pacote com patch entra no `overrides` em versão exata**, igual ao nome do
   arquivo em `patches/`. O `postinstall` roda `patch-package --error-on-fail`, então
   um patch que parou de aplicar derruba o `npm install` em vez de avisar.
-- **Regenere o lockfile ao mudar `overrides`.** O npm ignora `overrides` novo
-  contra lockfile existente — verificado na Fase 2. `rm package-lock.json` e
-  reinstale, depois confira que há **uma** cópia de cada:
-  `ls node_modules/react-native mobile/node_modules/react-native`.
+- **Regenere o lockfile por último, depois do `expo install --fix`.** O npm ignora
+  `overrides` novo contra lockfile existente (Fase 2), e o `--fix` reescreve as
+  versões **depois** do install — regenerar antes dele deixa `mobile/node_modules`
+  com as versões velhas e as duplicatas voltam (Fase 3). A ordem que funciona:
+
+  ```bash
+  # 1. bump do `expo` + `overrides` da raiz   2. alinhar o resto
+  npm install && npx expo install --fix && npx expo install --fix -- --save-dev
+  # 3. só então regenerar
+  rm -f package-lock.json && rm -rf node_modules */node_modules && npm install
+  ```
+
+  Depois confira que há **uma** cópia de cada: `ls node_modules/react-native
+  mobile/node_modules/react-native`.
 - Cópia duplicada de `react` ou `react-native` não falha o build: falha o `tsc`
   (duas árvores de tipos) ou o app em runtime (dois Reacts, "Invalid hook call").
+- **Rode `npx expo-doctor` e leia as falhas novas.** Foi ele que apontou os plugins
+  que o SDK passou a exigir, o `@react-navigation` incompatível com o expo-router 56
+  e a regressão de memória do Hermes V1 no SDK 56 — nenhum aparece em `tsc` ou teste.
+- **Os 3 portões em device continuam sendo o portão de verdade** (ver o plano de
+  migração). Passar nos três ainda não garante a feature toda: no SDK 57 o
+  `saveToLibraryAsync` da `expo-media-library` passou a **lançar** em runtime e
+  derrubou a exportação do share composer, com build, `tsc` e 379 testes verdes.
 
 ## Diagnóstico de sync em background
 
