@@ -193,8 +193,40 @@ async function queryBloodPressure(options: QueryOptions): Promise<RawSample[]> {
 /* ───────────────────────── Treinos ───────────────────────── */
 
 /**
+ * A fonte que escreveu a amostra — e a armadilha dela.
+ *
+ * `toJSON()` do treino **não** converte em profundidade: `sourceRevision.source`
+ * continua sendo um `SourceProxy`, que é um HybridObject do Nitro. E o
+ * `HybridObject` base declara `name` como "o nome do HybridObject" — que
+ * **sombreia** o `name` da fonte. Ler `.name` direto devolve a string
+ * `"SourceProxy"` em vez de `"Strava"`.
+ *
+ * A falha é silenciosa e persistente: o valor tem o tipo certo, passa por toda
+ * a pilha e é gravado em `activities.source_name` como se fosse o nome real.
+ * `bundleIdentifier` não colide, então o `sourceId` — que é o que o
+ * `dedupeBySource` usa (ADR 0004) — escapou; só o nome se perdia.
+ *
+ * `toJSON()` do próprio SourceProxy devolve o `Source` em JS puro, sem colisão.
+ */
+interface SourceProxyLike {
+  name?: string;
+  bundleIdentifier?: string;
+  toJSON?: () => { name?: string; bundleIdentifier?: string };
+}
+
+function sourceOf(revision?: { source?: SourceProxyLike }): {
+  name?: string;
+  bundleIdentifier?: string;
+} {
+  const source = revision?.source;
+  if (!source) return {};
+  return typeof source.toJSON === 'function' ? source.toJSON() : source;
+}
+
+/**
  * Foto de um treino já em JS puro — o que `WorkoutProxy.toJSON()` devolve.
- * Ler daqui é acesso a objeto comum, sem custo de ponte.
+ * Ler daqui é acesso a objeto comum, sem custo de ponte. A exceção é
+ * `sourceRevision.source`, que segue sendo proxy — ver `sourceOf`.
  */
 interface WorkoutSnapshot {
   uuid: string;
@@ -204,7 +236,7 @@ interface WorkoutSnapshot {
   totalDistance?: { quantity: number };
   startDate: Date;
   endDate: Date;
-  sourceRevision: { source: { name: string; bundleIdentifier: string } };
+  sourceRevision: { source?: SourceProxyLike };
   device?: { name?: string };
   metadata?: Record<string, unknown>;
   events?: readonly { type: number; startDate: Date }[];
@@ -252,8 +284,8 @@ function toRawWorkout(proxy: WorkoutProxyLike): RawWorkout {
     // `mapRawWorkout` em healthkit-workouts.ts espera milhas (dialeto do
     // legado) e converte de volta — por isso a ida-e-volta aqui.
     distance: typeof w.totalDistance?.quantity === 'number' ? metersToMiles(w.totalDistance.quantity) : undefined,
-    sourceName: w.sourceRevision?.source?.name,
-    sourceId: w.sourceRevision?.source?.bundleIdentifier,
+    sourceName: sourceOf(w.sourceRevision).name,
+    sourceId: sourceOf(w.sourceRevision).bundleIdentifier,
     device: w.device?.name,
     tracked: w.metadata?.HKWasUserEntered !== true,
     metadata: w.metadata,
@@ -329,8 +361,8 @@ export const kingstinctHealthSource: HealthSource = {
           quantity: s.quantity,
           start: s.startDate.toISOString(),
           end: s.endDate.toISOString(),
-          sourceId: s.sourceRevision?.source?.bundleIdentifier,
-          sourceName: s.sourceRevision?.source?.name,
+          sourceId: sourceOf(s.sourceRevision).bundleIdentifier,
+          sourceName: sourceOf(s.sourceRevision).name,
         })),
       )
       .catch(() => []);

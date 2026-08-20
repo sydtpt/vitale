@@ -128,3 +128,72 @@ describe('adaptador kingstinct — mapeamento de treino não atravessa a ponte p
     expect(workouts[0].start).toBe('2026-08-19T10:00:00.000Z');
   });
 });
+
+/**
+ * `toJSON()` do treino não converte em profundidade: `sourceRevision.source`
+ * continua sendo um `SourceProxy`. E o `HybridObject` base do Nitro declara
+ * `name` como "o nome do HybridObject", sombreando o `name` da fonte — ler
+ * `.name` direto devolve a string "SourceProxy".
+ *
+ * Isso chegou a produção: três atividades foram gravadas no Supabase com
+ * `source_name = 'SourceProxy'` em vez de 'Strava'. A falha não tem sintoma —
+ * o valor tem o tipo certo e atravessa a pilha inteira sem reclamar.
+ *
+ * O dublê abaixo reproduz exatamente a colisão: `.name` devolve o nome da
+ * classe, `toJSON()` devolve a fonte de verdade.
+ */
+describe('adaptador kingstinct — o nome da fonte vem do toJSON(), não do proxy', () => {
+  /** SourceProxy como o Nitro o entrega: `.name` sombreado pelo HybridObject. */
+  const sourceProxy = {
+    name: 'SourceProxy',
+    bundleIdentifier: 'com.strava.stravaride',
+    toJSON: () => ({ name: 'Strava', bundleIdentifier: 'com.strava.stravaride' }),
+  };
+
+  const workoutComProxyDeFonte = {
+    toJSON: () => ({
+      uuid: 'w2',
+      workoutActivityType: 37,
+      duration: { quantity: 1800 },
+      startDate: new Date('2026-08-20T10:00:00.000Z'),
+      endDate: new Date('2026-08-20T10:30:00.000Z'),
+      sourceRevision: { source: sourceProxy },
+      metadata: {},
+      events: [],
+    }),
+  };
+
+  it('grava o nome real da fonte, não o nome da classe do HybridObject', async () => {
+    (queryWorkoutSamples as jest.Mock).mockResolvedValueOnce([workoutComProxyDeFonte]);
+
+    const { workouts } = await kingstinctHealthSource.queryWorkouts({
+      startDate: '2026-08-01T00:00:00.000Z',
+      limit: 1000,
+      ascending: false,
+    });
+
+    expect(workouts[0].sourceName).toBe('Strava');
+    expect(workouts[0].sourceName).not.toBe('SourceProxy');
+    // bundleIdentifier não colide — é o campo que o dedupeBySource usa (ADR 0004).
+    expect(workouts[0].sourceId).toBe('com.strava.stravaride');
+  });
+
+  it('tolera fonte já serializada, sem toJSON — nem toda amostra vem por proxy', async () => {
+    (queryWorkoutSamples as jest.Mock).mockResolvedValueOnce([
+      {
+        toJSON: () => ({
+          ...workoutComProxyDeFonte.toJSON(),
+          sourceRevision: { source: { name: 'Apple Watch', bundleIdentifier: 'com.apple.health' } },
+        }),
+      },
+    ]);
+
+    const { workouts } = await kingstinctHealthSource.queryWorkouts({
+      startDate: '2026-08-01T00:00:00.000Z',
+      limit: 1000,
+      ascending: false,
+    });
+
+    expect(workouts[0].sourceName).toBe('Apple Watch');
+  });
+});
