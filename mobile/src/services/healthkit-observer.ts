@@ -26,12 +26,42 @@ let lastHealthRun = 0;
 let appStateSub: { remove: () => void } | null = null;
 let workoutSub: { remove: () => void } | null = null;
 
+/**
+ * Delta em voo. Ao abrir o app, quatro gatilhos chegam no mesmo segundo —
+ * `observer`, `foreground`, o disparo inicial de `startActivitySync` e um
+ * segundo `observer` — e `force` faz três deles ignorarem o throttle. O
+ * diagnóstico flagrou os três deltas concorrentes:
+ *
+ *     14:17:44  delta  1172ms
+ *     14:17:44  delta  1188ms
+ *     14:17:44  delta  1780ms
+ *
+ * Cada um relê a mesma âncora, busca os mesmos treinos, e refaz as buscas de
+ * rota GPS e de FC — trabalho triplicado numa thread só. O upsert é idempotente,
+ * então não duplica dado; mas os três terminam gravando âncora sobre âncora, e
+ * o que perde a corrida grava uma âncora mais velha do que a já persistida.
+ * Um ciclo por vez: quem chega no meio aproveita o que já está rodando.
+ */
+let deltaEmVoo: Promise<void> | null = null;
+
 async function runDeltaThrottled(force = false): Promise<void> {
+  if (deltaEmVoo) return deltaEmVoo;
+
   const now = Date.now();
   if (!force && now - lastRun < THROTTLE_MS) return;
   lastRun = now;
-  await useFitnessStore.getState().runDelta();
-  void recordBreadcrumb('delta', `${Date.now() - now}ms`);
+
+  deltaEmVoo = useFitnessStore
+    .getState()
+    .runDelta()
+    // `syncDelta` já trata os próprios erros; se ainda assim algo escapar, não
+    // pode virar unhandled rejection — os chamadores são todos `void f()`.
+    .catch(() => undefined)
+    .finally(() => {
+      deltaEmVoo = null;
+      void recordBreadcrumb('delta', `${Date.now() - now}ms`);
+    });
+  return deltaEmVoo;
 }
 
 /** Sobe os agregados diários de saúde (re-sync da janela recente), com throttle. */
@@ -65,9 +95,12 @@ export function startActivitySync(): void {
   });
 
   // Garante a entrega em background para o próximo cold launch (ver o aviso
-  // no topo do arquivo). Fire-and-forget: falha aqui não impede o caminho de
-  // foreground via AppState.
-  void healthSource.configureBackgroundDelivery([HK.workout]);
+  // no topo do arquivo). Falha aqui não impede o caminho de foreground via
+  // AppState — mas precisa aparecer, porque é o único passo cujo fracasso é
+  // invisível: o app só deixa de ser acordado, sem sintoma na hora.
+  void healthSource
+    .configureBackgroundDelivery([HK.workout])
+    .then((ok) => recordBreadcrumb('bg-config', ok ? 'ok' : 'FALHOU'));
 
   // Reconciliação inicial ao iniciar a sessão.
   void runDeltaThrottled(true);

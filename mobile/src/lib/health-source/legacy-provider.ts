@@ -271,8 +271,9 @@ export const legacyHealthSource: HealthSource = {
     // A entrega em background desta implementação já é fiada nativamente —
     // `RCTAppleHealthKit().initializeBackgroundObservers(bridge)` em
     // `AppDelegate.swift` (ADR 0009). Não há nada para configurar a partir do
-    // JS aqui; existe só para a porta ter um único ponto de troca.
-    return Promise.resolve();
+    // JS aqui; existe só para a porta ter um único ponto de troca. `true`
+    // porque o registro de fato existe — só não passa por aqui.
+    return Promise.resolve(true);
   },
 
   subscribeWorkoutObserver(onChange) {

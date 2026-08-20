@@ -462,11 +462,14 @@ export const kingstinctHealthSource: HealthSource = {
   },
 
   configureBackgroundDelivery(types) {
-    if (!isIos()) return Promise.resolve();
+    if (!isIos()) return Promise.resolve(false);
     // Cópia mutável: a lib pede `string[]` e o contrato entrega `readonly`.
+    // O booleano é o do nativo: `configureBackgroundTypes` persiste os tipos no
+    // UserDefaults, e é dessa chave que `setupBackgroundObservers()` depende no
+    // próximo cold launch — sem ela, ele volta cedo e o app nunca é acordado.
     return configureBackgroundTypes([...types], UpdateFrequency.immediate)
-      .then(() => undefined)
-      .catch(() => undefined);
+      .then((ok) => ok === true)
+      .catch(() => false);
   },
 
   subscribeWorkoutObserver(onChange) {

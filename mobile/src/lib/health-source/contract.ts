@@ -236,8 +236,14 @@ export interface HealthSource {
    * 1B do plano de migração, portão 3). Idempotente; chamar de novo com os
    * mesmos tipos não duplica nada. Implementações cuja entrega em background já
    * é fiada por fora (edição nativa fixa, por exemplo) podem tratar como no-op.
+   *
+   * **Devolve `false` em vez de rejeitar** quando o registro não aconteceu —
+   * segue a regra de erro uniforme acima, mas sem apagar a informação. Esta é a
+   * única operação da porta cujo silêncio é indistinguível de sucesso: se o
+   * registro falha, nada quebra na hora; o app só deixa de ser acordado, dias
+   * depois, sem sintoma. O booleano é o que permite ao chamador registrar isso.
    */
-  configureBackgroundDelivery(types: readonly HealthTypeId[]): Promise<void>;
+  configureBackgroundDelivery(types: readonly HealthTypeId[]): Promise<boolean>;
 
   /**
    * Assina "há treino novo ou alterado no HealthKit". Dispara tanto com o app

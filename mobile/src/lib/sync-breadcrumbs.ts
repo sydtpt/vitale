@@ -38,6 +38,13 @@ export type BreadcrumbEvent =
   | 'foreground'
   /** O observer de treino do HealthKit disparou. */
   | 'observer'
+  /**
+   * Resultado de `configureBackgroundDelivery` — o passo que persiste os tipos
+   * no UserDefaults nativo. É dessa chave que `setupBackgroundObservers()`
+   * depende no cold launch seguinte; sem ela o iOS nunca acorda o app. Falha
+   * aqui não tem sintoma imediato, por isso o registro explícito.
+   */
+  | 'bg-config'
   /** Um ciclo de delta terminou. */
   | 'delta';
 
