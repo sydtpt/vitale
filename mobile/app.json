@@ -7,8 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "vitale",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "runtimeVersion": "1.0.3",
+    "runtimeVersion": "1.0.4",
     "updates": {
       "url": "https://u.expo.dev/127be066-b0bb-4469-bd58-d7e5c6c9cd22",
       "enabled": true,
@@ -43,6 +42,9 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-web-browser",
       [
         "expo-notifications",
         {
@@ -60,7 +62,6 @@
       "./plugins/withHealthKitObjcxxBridge.js",
       "./plugins/withHealthKitBackgroundObservers.js",
       "./plugins/withDisableExplicitModules.js",
-      "./plugins/withFmtConstevalFix.js",
       "./plugins/withCppModulemapFix.js"
     ],
     "experiments": {

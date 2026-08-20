@@ -16,10 +16,15 @@
     "mobile:ios": "cd mobile && npx expo run:ios",
     "lint": "npm run lint --workspaces",
     "test": "npm run test --workspaces",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package --error-on-fail"
   },
   "devDependencies": {
     "patch-package": "^8.0.1"
+  },
+  "overrides": {
+    "react": "19.2.0",
+    "react-native": "0.83.10",
+    "@supabase/supabase-js": "2.106.0"
   },
   "engines": {
     "node": ">=20.0.0"
