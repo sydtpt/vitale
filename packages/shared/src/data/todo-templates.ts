@@ -193,13 +193,7 @@ export interface TodoTemplateSummary {
   meta?: Record<string, unknown>;
 }
 
-/**
- * Séries em forma reduzida — para agregados que só rotulam.
- *
- * Ainda **não** usada pelas retrospectivas: elas leem ~8 tabelas num
- * `Promise.all` e conferem `.error` de cada resposta crua. Converter uma só
- * quebra essa uniformidade, então o lote da retrospectiva migra junto.
- */
+/** Séries em forma reduzida — para agregados que só rotulam, como a retrospectiva. */
 export async function fetchTodoTemplateSummaries(
   db: SupabaseClient,
   userId: string,
