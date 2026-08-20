@@ -9,6 +9,7 @@ import {
   getActivityMeta,
   hasGpsRoute,
   elevationGain,
+  mergeWorkoutSources,
 } from '../../../store/fitness.store';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { WorkoutMap } from '../../../components/WorkoutMap';
@@ -52,7 +53,20 @@ export default function WorkoutDetailScreen() {
   const loadRoute = useFitnessStore((s) => s.loadRoute);
   const hkRoute = useFitnessStore((s) => s.routes[id]) ?? [];
 
-  const workout = useMemo(() => workouts.find((w) => w.id === id), [workouts, id]);
+  const supActivities = useActivitiesStore((s) => s._all);
+  const supLoad = useActivitiesStore((s) => s.load);
+  const supRoutes = useActivitiesStore((s) => s.routes);
+  const supLoadRoute = useActivitiesStore((s) => s.loadRoute);
+
+  const mergedWorkouts = useMemo(
+    () => mergeWorkoutSources(workouts, supActivities),
+    [workouts, supActivities],
+  );
+
+  const workout = useMemo(
+    () => mergedWorkouts.find((w) => w.id === id),
+    [mergedWorkouts, id],
+  );
 
   useEffect(() => {
     if (workout && hasGpsRoute(workout.activityId)) {
@@ -64,13 +78,10 @@ export default function WorkoutDetailScreen() {
   // (ex.: stub do Garmin Connect) não têm WorkoutRoute, mas a versão rica do
   // MESMO treino chega pelo ingest server-side. O matcher do dedupe (shared)
   // encontra a atividade equivalente e usamos a rota persistida dela.
-  const supActivities = useActivitiesStore((s) => s._all);
-  const supLoad = useActivitiesStore((s) => s.load);
-  const supRoutes = useActivitiesStore((s) => s.routes);
-  const supLoadRoute = useActivitiesStore((s) => s.loadRoute);
-
   const supMatch = useMemo(() => {
     if (!workout || !hasGpsRoute(workout.activityId)) return undefined;
+    const byId = supActivities.find((a) => a.id === workout.id && a.hasRoute);
+    if (byId) return byId;
     const win = { activityId: workout.activityId, startAt: workout.start, endAt: workout.end };
     return supActivities.find(
       (a) =>

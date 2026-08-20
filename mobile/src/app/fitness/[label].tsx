@@ -12,10 +12,12 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useActivitiesStore } from '../../store/activities.store';
 import {
   useFitnessStore,
   WorkoutItem,
   getActivityMeta,
+  mergeWorkoutSources,
 } from '../../store/fitness.store';
 import {
   formatDateLabel,
@@ -77,7 +79,20 @@ export default function ActivityDetailScreen() {
   const { label = '' } = useLocalSearchParams<{ label: string }>();
 
   const { workouts, syncType, typeStatus } = useFitnessStore();
+  // Fatia crua no seletor + derivação no useMemo — ver nota em
+  // `fitness/index.tsx`: `s.activities()` devolve array novo a cada avaliação
+  // e trava o app em loop de render no Zustand 5.
+  const allActivities = useActivitiesStore((s) => s._all);
+  const supActivities = useMemo(() => allActivities.filter((a) => !a.hidden), [allActivities]);
+  const mergedWorkouts = useMemo(
+    () => mergeWorkoutSources(workouts, supActivities),
+    [workouts, supActivities],
+  );
   const syncing = typeStatus[label] === 'syncing';
+
+  useEffect(() => {
+    void useActivitiesStore.getState().load();
+  }, []);
 
   const handleFullResync = useCallback(() => {
     Alert.alert(
@@ -100,10 +115,10 @@ export default function ActivityDetailScreen() {
 
   const filtered = useMemo(
     () =>
-      workouts
+      mergedWorkouts
         .filter((w) => getActivityMeta(w.activityId).label === label)
         .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()),
-    [workouts, label]
+    [mergedWorkouts, label]
   );
 
   const [visible, setVisible] = useState(PAGE_SIZE);

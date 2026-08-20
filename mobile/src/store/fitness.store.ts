@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
+import type { Activity } from '@vitale/shared';
 import { healthSource } from '../lib/health-source/active';
 import {
   WORKOUT_PERMISSIONS,
@@ -31,6 +32,68 @@ export type {
 
 /** Estado de sincronização de um tipo de treino (label), refletido no card. */
 export type TypeSyncStatus = 'unsubscribed' | 'syncing' | 'synced' | 'pending' | 'error';
+
+function workoutDedupeKey(workout: Pick<WorkoutItem, 'activityId' | 'start' | 'end'>): string {
+  return `${workout.activityId}|${new Date(workout.start).getTime()}|${new Date(workout.end).getTime()}`;
+}
+
+export function activityToWorkoutItem(activity: Activity): WorkoutItem {
+  const duration = Number.isFinite(activity.durationS) ? Math.max(0, Math.round(activity.durationS)) : 0;
+  return {
+    id: activity.id,
+    activityId: activity.activityId,
+    activityName: activity.activityName ?? 'Treino',
+    calories: Math.round(activity.calories ?? 0),
+    start: activity.startAt,
+    end: activity.endAt,
+    duration,
+    movingTimeS: activity.movingTimeS ?? duration,
+    distance: typeof activity.distanceM === 'number' ? activity.distanceM : undefined,
+    sourceName: activity.sourceName,
+    sourceId: activity.sourceId,
+    device: activity.device,
+    tracked: activity.tracked,
+    metadata: activity.metadata,
+  };
+}
+
+export function mergeWorkoutSources(
+  workouts: WorkoutItem[],
+  activities: Activity[],
+): WorkoutItem[] {
+  const byKey = new Map<string, WorkoutItem>();
+
+  for (const workout of workouts) {
+    byKey.set(workoutDedupeKey(workout), workout);
+  }
+
+  for (const activity of activities) {
+    const next = activityToWorkoutItem(activity);
+    const key = workoutDedupeKey(next);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, next);
+      continue;
+    }
+
+    byKey.set(key, {
+      ...existing,
+      ...next,
+      calories: existing.calories > 0 ? existing.calories : next.calories,
+      distance: existing.distance ?? next.distance,
+      movingTimeS: existing.movingTimeS > 0 ? existing.movingTimeS : next.movingTimeS,
+      metadata: { ...(existing.metadata ?? {}), ...(next.metadata ?? {}) },
+      sourceName: existing.sourceName ?? next.sourceName,
+      sourceId: existing.sourceId ?? next.sourceId,
+      device: existing.device ?? next.device,
+      tracked: existing.tracked ?? next.tracked,
+    });
+  }
+
+  return Array.from(byKey.values()).sort(
+    (a, b) => new Date(b.start).getTime() - new Date(a.start).getTime(),
+  );
+}
 
 interface FitnessState {
   permissionStatus: PermissionStatus;

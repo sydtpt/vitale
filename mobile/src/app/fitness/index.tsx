@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,13 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useActivitiesStore } from '../../store/activities.store';
 import {
   useFitnessStore,
   WorkoutItem,
   getActivityMeta,
   TypeSyncStatus,
+  mergeWorkoutSources,
 } from '../../store/fitness.store';
 import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../theme';
 
@@ -164,7 +166,23 @@ export default function FitnessScreen() {
     syncedTypes,
   } = useFitnessStore();
 
-  const groups = useMemo(() => groupByActivity(workouts), [workouts]);
+  // O seletor devolve a fatia CRUA (referência estável) e a derivação vai no
+  // useMemo. `s.activities()` filtra e cria um array novo a cada avaliação —
+  // no Zustand 5 (useSyncExternalStore) isso é snapshot instável, e o React
+  // re-renderiza em loop até travar o app. É como o resto das telas já faz.
+  const allActivities = useActivitiesStore((s) => s._all);
+  const supActivities = useMemo(() => allActivities.filter((a) => !a.hidden), [allActivities]);
+
+  useEffect(() => {
+    void useActivitiesStore.getState().load();
+  }, []);
+
+  const mergedWorkouts = useMemo(
+    () => mergeWorkoutSources(workouts, supActivities),
+    [workouts, supActivities],
+  );
+
+  const groups = useMemo(() => groupByActivity(mergedWorkouts), [mergedWorkouts]);
 
   const handleSync = useCallback(
     async (label: string, status: TypeSyncStatus) => {
