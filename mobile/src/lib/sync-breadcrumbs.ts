@@ -34,8 +34,13 @@ export type BreadcrumbEvent =
   | 'app-launch'
   /** `startActivitySync` entrou: houve sessão e o serviço armou os listeners. */
   | 'sync-start'
-  /** Voltou ao primeiro plano. */
-  | 'foreground'
+  /**
+   * Transição de `AppState`, com o estado no detalhe. Registra **todas**, não
+   * só a volta ao primeiro plano: sem saber a hora em que o app saiu de cena,
+   * um `observer` solto no log é ambíguo — pode ter disparado em background
+   * (o que se quer provar) ou com o app aberto e parado (o que não prova nada).
+   */
+  | 'appstate'
   /** O observer de treino do HealthKit disparou. */
   | 'observer'
   /**

@@ -82,8 +82,10 @@ export function startActivitySync(): void {
   void recordBreadcrumb('sync-start', `state=${AppState.currentState}`);
 
   appStateSub = AppState.addEventListener('change', (state: AppStateStatus) => {
+    // Toda transição, não só a volta ao ativo: é a hora de SAÍDA que torna um
+    // `observer` posterior interpretável como disparo em background.
+    void recordBreadcrumb('appstate', state);
     if (state === 'active') {
-      void recordBreadcrumb('foreground');
       void runDeltaThrottled();
       void runHealthThrottled();
     }
