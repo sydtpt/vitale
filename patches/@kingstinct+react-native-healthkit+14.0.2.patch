@@ -1,5 +1,5 @@
 diff --git a/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift b/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
-index 912a5ed..e11159f 100644
+index 912a5ed..982178f 100644
 --- a/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
 +++ b/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
 @@ -12,7 +12,7 @@ import HealthKit
@@ -11,3 +11,127 @@ index 912a5ed..e11159f 100644
    @objc public static let shared = BackgroundDeliveryManager()
  
    private let healthStore = HKHealthStore()
+@@ -46,13 +46,17 @@ import HealthKit
+ 
+   /// Persist types and frequency, then register observers for the current session.
+   /// Called from JS via CoreModule.configureBackgroundTypes().
+-  func configure(typeIdentifiers: [String], frequency: HKUpdateFrequency) {
++  func configure(
++    typeIdentifiers: [String],
++    frequency: HKUpdateFrequency,
++    completion: ((Bool, String?) -> Void)? = nil
++  ) {
+     UserDefaults.standard.set(typeIdentifiers, forKey: BackgroundDeliveryManager.typesKey)
+     UserDefaults.standard.set(frequency.rawValue, forKey: BackgroundDeliveryManager.frequencyKey)
+ 
+     // Tear down existing observers before re-registering
+     tearDown()
+-    registerObservers(typeIdentifiers: typeIdentifiers, frequency: frequency)
++    registerObservers(typeIdentifiers: typeIdentifiers, frequency: frequency, completion: completion)
+   }
+ 
+   /// Subscribe a JS callback. Any events that arrived before JS was ready are flushed immediately.
+@@ -103,15 +107,37 @@ import HealthKit
+     tearDown()
+   }
+ 
+-  private func registerObservers(typeIdentifiers: [String], frequency: HKUpdateFrequency) {
++  // PATCH (Orbe): `completion` devolve o resultado REAL de
++  // `enableBackgroundDelivery`, que no original só ia para o `print`. Sem isso,
++  // `configureBackgroundTypes` resolve `true` incondicionalmente — o passo cujo
++  // fracasso é invisível (o app simplesmente deixa de ser acordado) não deixava
++  // nenhum rastro observável a partir do JS.
++  private func registerObservers(
++    typeIdentifiers: [String],
++    frequency: HKUpdateFrequency,
++    completion: ((Bool, String?) -> Void)? = nil
++  ) {
+     queue.sync(flags: .barrier) {
+       guard !self.isSetUp else { return }
+       self.isSetUp = true
+     }
+ 
++    let grupo = DispatchGroup()
++    let trava = NSLock()
++    var todosOk = true
++    var primeiroErro: String?
++
++    func registrarFalha(_ mensagem: String) {
++      trava.lock()
++      todosOk = false
++      if primeiroErro == nil { primeiroErro = mensagem }
++      trava.unlock()
++    }
++
+     for typeIdentifier in typeIdentifiers {
+       guard let sampleType = sampleTypeFromString(typeIdentifier) else {
+         print("[react-native-healthkit] BackgroundDeliveryManager: skipping unrecognized type \(typeIdentifier)")
++        registrarFalha("tipo não reconhecido: \(typeIdentifier)")
+         continue
+       }
+ 
+@@ -131,18 +157,32 @@ import HealthKit
+ 
+       healthStore.execute(query)
+ 
++      grupo.enter()
+       healthStore.enableBackgroundDelivery(for: sampleType, frequency: frequency) { success, error in
+         if let error = error {
+           print("[react-native-healthkit] BackgroundDeliveryManager: enableBackgroundDelivery failed for \(typeIdentifier): \(error.localizedDescription)")
++          registrarFalha("\(typeIdentifier): \(error.localizedDescription)")
+         } else if !success {
+           print("[react-native-healthkit] BackgroundDeliveryManager: enableBackgroundDelivery returned false for \(typeIdentifier)")
++          registrarFalha("\(typeIdentifier): devolveu false")
+         }
++        grupo.leave()
+       }
+ 
+       queue.sync(flags: .barrier) {
+         self.observerQueries[typeIdentifier] = query
+       }
+     }
++
++    if let completion = completion {
++      grupo.notify(queue: .main) {
++        trava.lock()
++        let ok = todosOk
++        let erro = primeiroErro
++        trava.unlock()
++        completion(ok, erro)
++      }
++    }
+   }
+ 
+   private func handleObserverCallback(typeIdentifier: String, error: Error?) {
+diff --git a/node_modules/@kingstinct/react-native-healthkit/ios/CoreModule.swift b/node_modules/@kingstinct/react-native-healthkit/ios/CoreModule.swift
+index 9ff6e3a..879a0f1 100644
+--- a/node_modules/@kingstinct/react-native-healthkit/ios/CoreModule.swift
++++ b/node_modules/@kingstinct/react-native-healthkit/ios/CoreModule.swift
+@@ -438,12 +438,21 @@ class CoreModule: HybridCoreModuleSpec {
+         throw runtimeErrorWithPrefix("Invalid update frequency rawValue: \(updateFrequency)")
+       }
+ 
+-      BackgroundDeliveryManager.shared.configure(
+-        typeIdentifiers: typeIdentifiers,
+-        frequency: frequency
+-      )
+-
+-      return true
++      // PATCH (Orbe): espera o callback de `enableBackgroundDelivery` e devolve
++      // o resultado real. No original a Promise resolvia `true` antes do
++      // callback assíncrono voltar, e o erro só ia para o `print` — deixando o
++      // JS sem como distinguir "registrado" de "falhou silenciosamente".
++      return await withCheckedContinuation { continuation in
++        BackgroundDeliveryManager.shared.configure(
++          typeIdentifiers: typeIdentifiers,
++          frequency: frequency
++        ) { ok, erro in
++          if let erro = erro {
++            print("[react-native-healthkit] configureBackgroundTypes: \(erro)")
++          }
++          continuation.resume(returning: ok)
++        }
++      }
+     }
+   }
+ 

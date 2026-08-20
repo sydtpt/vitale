@@ -8,7 +8,7 @@
     "scheme": "vitale",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-    "runtimeVersion": "1.0.1",
+    "runtimeVersion": "1.0.2",
     "updates": {
       "url": "https://u.expo.dev/127be066-b0bb-4469-bd58-d7e5c6c9cd22",
       "enabled": true
@@ -22,7 +22,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.sydtpt.vitale",
       "infoPlist": {
-        "NSHealthShareUsageDescription": "O Orbe acessa seus dados do Apple Health — atividade, coração, corpo, sono, nutrição e treinos — para exibir seu histórico e gráficos."
+        "NSHealthShareUsageDescription": "O Orbe acessa seus dados do Apple Health — atividade, coração, corpo, sono, nutrição e treinos — para exibir seu histórico e gráficos.",
+        "UIBackgroundModes": ["fetch"]
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,
@@ -52,6 +53,7 @@
           "background": true
         }
       ],
+      "./plugins/withDevelopmentTeam.js",
       "./plugins/withHealthKitObjcxxBridge.js",
       "./plugins/withHealthKitBackgroundObservers.js",
       "./plugins/withDisableExplicitModules.js",

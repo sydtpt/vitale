@@ -57,6 +57,9 @@ import {
 
 const isIos = () => Platform.OS === 'ios';
 
+/** Teto para o registro de entrega em background responder. Ver `configureBackgroundDelivery`. */
+const BG_CONFIG_TIMEOUT_MS = 10_000;
+
 /* ───────────────────────── Unidades ───────────────────────── */
 
 /**
@@ -467,9 +470,19 @@ export const kingstinctHealthSource: HealthSource = {
     // O booleano é o do nativo: `configureBackgroundTypes` persiste os tipos no
     // UserDefaults, e é dessa chave que `setupBackgroundObservers()` depende no
     // próximo cold launch — sem ela, ele volta cedo e o app nunca é acordado.
-    return configureBackgroundTypes([...types], UpdateFrequency.immediate)
+    //
+    // O patch local faz essa Promise esperar o callback de
+    // `enableBackgroundDelivery` (ver `patches/`). Esperar abre um modo de
+    // falha novo: se o callback nunca vier, a Promise pendura e o registro do
+    // resultado some — exatamente o silêncio que o booleano existe para
+    // eliminar. O timeout troca "some" por "demorou demais", que é observável.
+    const resultado = configureBackgroundTypes([...types], UpdateFrequency.immediate)
       .then((ok) => ok === true)
       .catch(() => false);
+    const limite = new Promise<boolean>((resolve) =>
+      setTimeout(() => resolve(false), BG_CONFIG_TIMEOUT_MS),
+    );
+    return Promise.race([resultado, limite]);
   },
 
   subscribeWorkoutObserver(onChange) {
