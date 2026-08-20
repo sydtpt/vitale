@@ -14,6 +14,7 @@
  */
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { HK, healthSource } from '../lib/health-source/active';
+import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
 import { useFitnessStore } from '../store/fitness.store';
 import { useHealthStore } from '../store/health.store';
 
@@ -30,6 +31,7 @@ async function runDeltaThrottled(force = false): Promise<void> {
   if (!force && now - lastRun < THROTTLE_MS) return;
   lastRun = now;
   await useFitnessStore.getState().runDelta();
+  void recordBreadcrumb('delta', `${Date.now() - now}ms`);
 }
 
 /** Sobe os agregados diários de saúde (re-sync da janela recente), com throttle. */
@@ -44,14 +46,21 @@ export function startActivitySync(): void {
   if (Platform.OS !== 'ios') return;
   if (appStateSub || workoutSub) return; // já ativo
 
+  // Migalha do outro lado da porta de sessão: `app-launch` (em `_layout.tsx`)
+  // diz que o processo subiu; esta diz que a sessão resolveu e o sync armou.
+  // Uma sem a outra é exatamente o diagnóstico — ver `sync-breadcrumbs.ts`.
+  void recordBreadcrumb('sync-start', `state=${AppState.currentState}`);
+
   appStateSub = AppState.addEventListener('change', (state: AppStateStatus) => {
     if (state === 'active') {
+      void recordBreadcrumb('foreground');
       void runDeltaThrottled();
       void runHealthThrottled();
     }
   });
 
   workoutSub = healthSource.subscribeWorkoutObserver(() => {
+    void recordBreadcrumb('observer');
     void runDeltaThrottled(true);
   });
 

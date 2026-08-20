@@ -1,17 +1,48 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Alert, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import {
+  clearBreadcrumbs,
+  readBreadcrumbs,
+  type Breadcrumb,
+} from '../../lib/sync-breadcrumbs';
+
+/** Dia + hora local. O dia importa: as migalhas atravessam o app fechado. */
+function formatarMomento(iso: string): string {
+  const d = new Date(iso);
+  const hoje = new Date().toDateString() === d.toDateString();
+  const hora = d.toLocaleTimeString('pt-BR', { hour12: false });
+  return hoje ? hora : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hora}`;
+}
 
 export default function DadosScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const [migalhas, setMigalhas] = useState<Breadcrumb[]>([]);
+
+  const carregar = useCallback(() => {
+    void readBreadcrumbs().then(setMigalhas);
+  }, []);
+
+  useEffect(carregar, [carregar]);
 
   const exportData = () => {
     Alert.alert('Em breve', 'A exportação de dados estará disponível em uma próxima versão.');
+  };
+
+  const limpar = () => {
+    Alert.alert('Limpar diagnóstico', 'Apaga o log local de sincronização.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Limpar',
+        style: 'destructive',
+        onPress: () => void clearBreadcrumbs().then(carregar),
+      },
+    ]);
   };
 
   return (
@@ -24,7 +55,7 @@ export default function DadosScreen() {
         <View style={styles.iconBtn} />
       </View>
 
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.sectionTitle}>Exportar</Text>
         <View style={styles.card}>
           <Pressable onPress={exportData} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
@@ -36,7 +67,38 @@ export default function DadosScreen() {
             <Ionicons name="chevron-forward" size={15} color={colors.ink3} />
           </Pressable>
         </View>
-      </View>
+
+        <View style={styles.diagHeader}>
+          <Text style={styles.sectionTitle}>Diagnóstico de sync</Text>
+          <View style={styles.diagActions}>
+            <Pressable onPress={carregar} hitSlop={10} style={({ pressed }) => pressed && styles.pressed}>
+              <Ionicons name="refresh-outline" size={17} color={colors.ink3} />
+            </Pressable>
+            <Pressable onPress={limpar} hitSlop={10} style={({ pressed }) => pressed && styles.pressed}>
+              <Ionicons name="trash-outline" size={17} color={colors.ink3} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          {migalhas.length === 0 ? (
+            <Text style={styles.vazio}>Nenhum registro ainda.</Text>
+          ) : (
+            migalhas.map((m, i) => (
+              <View key={`${m.at}-${i}`} style={styles.migalha}>
+                <Text style={styles.migalhaHora}>{formatarMomento(m.at)}</Text>
+                <Text style={styles.migalhaEvento}>{m.event}</Text>
+                {m.detail ? <Text style={styles.migalhaDetalhe}>{m.detail}</Text> : null}
+              </View>
+            ))
+          )}
+        </View>
+        <Text style={styles.diagNota}>
+          `app-launch` sem `sync-start` significa que o app acordou mas parou antes de
+          sincronizar. Nenhuma migalha nova enquanto o app esteve fechado significa que o
+          iOS nunca o acordou.
+        </Text>
+      </ScrollView>
     </View>
   );
 }
@@ -54,4 +116,25 @@ const createStyles = () => StyleSheet.create({
   rowContent: { flex: 1, gap: 2 },
   rowLabel: { fontSize: 15, color: colors.ink },
   rowSub: { fontSize: 13, color: colors.ink3 },
+
+  diagHeader: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xl },
+  diagActions: { flexDirection: 'row', gap: spacing.md, marginLeft: 'auto', marginBottom: spacing.sm },
+  vazio: { fontSize: 14, color: colors.ink3, padding: spacing.lg },
+  migalha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 7,
+  },
+  migalhaHora: { fontSize: 12, color: colors.ink3, fontFamily: 'GeistMono' },
+  migalhaEvento: { fontSize: 13, color: colors.ink, fontWeight: '600' },
+  migalhaDetalhe: { fontSize: 12, color: colors.ink3, fontFamily: 'GeistMono', flexShrink: 1 },
+  diagNota: {
+    fontSize: 12,
+    color: colors.ink3,
+    lineHeight: 18,
+    paddingHorizontal: 4,
+    marginTop: spacing.sm,
+  },
 });

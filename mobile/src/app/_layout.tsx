@@ -9,6 +9,14 @@ import { startNotifications, stopNotifications } from '../services/notifications
 import { ThemeProvider, useTheme, baseBg } from '../theme';
 import { RotinaBackground } from '../components/ui/RotinaBackground';
 import { SplashOverlay } from '../components/ui/SplashOverlay';
+import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
+
+// Primeira migalha, no escopo do módulo: é o carimbo de "o processo subiu",
+// antes de qualquer render ou porta de sessão. Quando o iOS acorda o app em
+// background por causa do HealthKit, esta é a única evidência de que o JS
+// chegou a rodar — `AppState` diz se foi despertar silencioso ou abertura pelo
+// usuário. Ver `sync-breadcrumbs.ts`.
+void recordBreadcrumb('app-launch', `state=${AppState.currentState}`);
 
 // Segura o splash nativo; o overlay de marca assume assim que o JS pinta.
 SplashScreen.preventAutoHideAsync().catch(() => {});
