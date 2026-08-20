@@ -4,8 +4,10 @@
  * Helpers/tipos puros vivem em `workout-types.ts` (sem dependência nativa).
  */
 import {
+  DELTA_CATCHUP_DAYS,
   PAGE_SIZE,
   YEARS_BACK,
+  startDateDaysAgo,
   startDateYearsAgo,
   deriveWorkoutId,
   milesToMeters,
@@ -135,15 +137,16 @@ export interface WorkoutsDelta {
 }
 
 /**
- * Treinos novos/alterados desde `anchor` (incremental). Sem âncora, retorna o
- * período inteiro + uma âncora inicial. Nota: o react-native-health não expõe
- * deleções neste fluxo — ver limitação em plan.md.
+ * Treinos novos/alterados desde `anchor` (incremental). Sem âncora, cobre só a
+ * janela de `DELTA_CATCHUP_DAYS` e devolve uma âncora inicial — varrer o
+ * histórico é trabalho do backfill (ver a constante para o porquê). Nota: o
+ * HealthKit não expõe deleções neste fluxo — ver limitação em plan.md.
  */
 export function fetchWorkoutsDelta(anchor: string | null): Promise<WorkoutsDelta> {
   const fallback: WorkoutsDelta = { workouts: [], anchor: anchor ?? '' };
   const inner = healthSource
     .queryWorkouts({
-      startDate: startDateYearsAgo(YEARS_BACK),
+      startDate: anchor ? startDateYearsAgo(YEARS_BACK) : startDateDaysAgo(DELTA_CATCHUP_DAYS),
       limit: PAGE_SIZE,
       ascending: true,
       ...(anchor ? { anchor } : {}),

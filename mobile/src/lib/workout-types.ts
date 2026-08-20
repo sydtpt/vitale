@@ -253,8 +253,28 @@ export function deriveWorkoutId(parts: {
 export const YEARS_BACK = 3;
 export const PAGE_SIZE = 1000;
 
+/**
+ * Janela do delta quando ainda NÃO há âncora utilizável — primeiro sync do
+ * usuário ou troca de adaptador de HealthKit (ver `sync-anchor.ts`).
+ *
+ * Sem esse limite o delta cai em `YEARS_BACK` e varre o histórico inteiro: hoje
+ * são ~400 treinos, e cada um custa uma busca de rota GPS e uma de FC, em série
+ * — dezenas de minutos de ponte nativa, sem nenhum indicador na tela. Pior: a
+ * âncora só é gravada no fim, então fechar o app antes disso faz o próximo
+ * lançamento recomeçar do zero. O sync automático nunca converge.
+ *
+ * Varrer o histórico é trabalho do backfill (`syncType`), que é disparado pelo
+ * usuário e tem barra de progresso. O delta é incremental por definição: pega a
+ * janela recente, grava a âncora e a partir daí anda de verdade.
+ */
+export const DELTA_CATCHUP_DAYS = 7;
+
 export function startDateYearsAgo(years: number): string {
   const d = new Date();
   d.setFullYear(d.getFullYear() - years);
   return d.toISOString();
+}
+
+export function startDateDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
