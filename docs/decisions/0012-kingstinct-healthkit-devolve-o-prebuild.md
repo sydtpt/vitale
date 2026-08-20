@@ -1,6 +1,6 @@
 # 0012 — Troca para @kingstinct/react-native-healthkit devolve o prebuild
 
-**Status:** aceita
+**Status:** aceita · rollback superado por [0014](0014-remove-a-rede-de-rollback-do-react-native-health.md)
 **Data:** 2026-08-19
 
 ## Contexto

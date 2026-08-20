@@ -1,99 +1,36 @@
 /**
- * Cobertura da tradução da porta de saúde.
+ * Cobertura de tipos da porta de saúde.
  *
- * A porta fala identificadores do HealthKit; o adaptador legado os traduz para o
- * dialeto de `react-native-health`. Um identificador sem tradutor **não quebra o
- * build e não lança em runtime** — a chamada simplesmente resolve `[]`, e a
- * métrica aparece vazia como se não houvesse dado. É a falha silenciosa que este
- * teste existe para tornar impossível.
+ * Este arquivo já foi maior. Ele guardava também os tradutores do adaptador
+ * legado — o dicionário que mapeava cada identificador do HealthKit para o nome
+ * de método e a constante de permissão de `react-native-health`. Um tipo sem
+ * tradutor não quebrava o build nem lançava em runtime: a chamada resolvia `[]`
+ * e a métrica aparecia vazia como se não houvesse dado.
  *
- * Vale igualmente para o adaptador que vier depois: ao trocar a implementação,
- * este teste é o que garante que nenhum dos 29 tipos ficou para trás.
+ * Aqueles testes saíram junto com o adaptador (ADR 0012 / 0013). Não é perda de
+ * cobertura: `@kingstinct/react-native-healthkit` usa os identificadores da
+ * Apple diretamente, então **não existe dicionário para ficar dessincronizado**.
+ * Era exatamente esse o ganho que a porta prometia ao trocar de implementação.
+ *
+ * O que sobra aqui é o que continua sendo verdade sobre a porta em si.
  */
 import { describe, it, expect } from '@jest/globals';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-// Nenhuma das duas libs nativas roda sob o jest; só os mapas dos adaptadores
-// interessam aqui. `healthkit-workouts.ts` importa `health-source/active`, que
-// hoje aponta para o adaptador kingstinct — sem este mock, carregar o módulo
-// tenta resolver o Nitro module nativo e quebra a suíte inteira.
-jest.mock('react-native-health', () => ({
-  __esModule: true,
-  default: { Constants: { Permissions: {} } },
-}));
 jest.mock('@kingstinct/react-native-healthkit', () => ({
   __esModule: true,
-  configureBackgroundTypes: jest.fn(),
-  getBiologicalSexAsync: jest.fn(),
-  getBloodTypeAsync: jest.fn(),
-  getDateOfBirthAsync: jest.fn(),
   isHealthDataAvailable: jest.fn(() => false),
-  queryCategorySamples: jest.fn(),
-  queryCorrelationSamples: jest.fn(),
-  queryQuantitySamples: jest.fn(),
-  queryStatisticsCollectionForQuantity: jest.fn(),
-  queryWorkoutSamples: jest.fn(),
-  queryWorkoutSamplesWithAnchor: jest.fn(),
-  requestAuthorization: jest.fn(),
-  subscribeToChanges: jest.fn(() => ({ remove: () => {} })),
-  UpdateFrequency: { immediate: 1, hourly: 2, daily: 3, weekly: 4 },
 }));
 
 import { HK, type HealthTypeId } from '../health-source/contract';
-import { LEGACY_MAPS } from '../health-source/legacy-provider';
-// `HEALTH_PERMISSIONS` fica fora daqui de propósito: importar `config/health-metrics`
-// arrasta tema → settings.store → client do Supabase, que não sobe sob o jest. A
-// propriedade que interessa (todo tipo tem permissão) é verificada sobre o `HK`
-// inteiro logo abaixo, que é um superconjunto daquela lista.
 import { WORKOUT_PERMISSIONS } from '../healthkit-workouts';
-
-const { METHOD_BY_TYPE, SOURCED_TYPE_BY_ID, PERMISSION_BY_TYPE } = LEGACY_MAPS;
 
 const ALL_TYPES = Object.values(HK) as HealthTypeId[];
 
-/**
- * Tipos que não são lidos como série de amostras: treino tem consulta própria,
- * rota é acessada pelo id do treino, e os demais são característica ou agregado.
- */
-const NOT_SAMPLE_QUERIES: readonly HealthTypeId[] = [
-  HK.workout,
-  HK.workoutRoute,
-  HK.activitySummary,
-  HK.dateOfBirth,
-  HK.biologicalSex,
-  HK.bloodType,
-  // Pedimos permissão para os dois, mas a leitura de pressão traz sístole e
-  // diástole na mesma amostra, consultada pelo identificador da sístole.
-  HK.bloodPressureDiastolic,
-  // Autorizada para o cálculo de gasto total; nenhuma métrica a plota hoje.
-  HK.basalEnergyBurned,
-];
-
-describe('porta de saúde — cobertura da tradução', () => {
+describe('porta de saúde — identificadores', () => {
   it('cada identificador do HealthKit é único', () => {
     expect(new Set(ALL_TYPES).size).toBe(ALL_TYPES.length);
-  });
-
-  it('todo tipo tem permissão mapeada — sem isso a leitura é negada em silêncio', () => {
-    const orphans = ALL_TYPES.filter((t) => !PERMISSION_BY_TYPE[t]);
-    expect(orphans).toEqual([]);
-  });
-
-  it('todo tipo lido como amostra tem tradutor no adaptador legado', () => {
-    const orphans = ALL_TYPES.filter(
-      (t) => !NOT_SAMPLE_QUERIES.includes(t) && !METHOD_BY_TYPE[t] && !SOURCED_TYPE_BY_ID[t],
-    );
-    expect(orphans).toEqual([]);
-  });
-
-  it('as exceções declaradas são exatamente as que não têm tradutor de amostra', () => {
-    const untranslated = ALL_TYPES.filter((t) => !METHOD_BY_TYPE[t] && !SOURCED_TYPE_BY_ID[t]);
-    expect(untranslated.sort()).toEqual([...NOT_SAMPLE_QUERIES].sort());
-  });
-
-  it('as cumulativas multi-fonte são só as quatro com iPhone e relógio escrevendo', () => {
-    expect(Object.keys(SOURCED_TYPE_BY_ID).sort()).toEqual(
-      [HK.stepCount, HK.distanceWalkingRunning, HK.flightsClimbed, HK.activeEnergyBurned].sort(),
-    );
   });
 });
 
@@ -106,5 +43,32 @@ describe('porta de saúde — listas de permissão', () => {
   it('treino e rota estão entre as permissões da aba de treinos', () => {
     expect(WORKOUT_PERMISSIONS).toContain(HK.workout);
     expect(WORKOUT_PERMISSIONS).toContain(HK.workoutRoute);
+  });
+});
+
+/**
+ * BARREIRA — o dedupe multi-fonte cobre exatamente as cumulativas certas.
+ *
+ * Quando iPhone e relógio (e apps como Garmin/Strava) escrevem o MESMO dia, a
+ * soma ingênua do HealthKit dobra a contagem. `multiSourceFetch` é o caminho
+ * que puxa as amostras cruas com `sourceId` e passa por `dedupeBySource`
+ * (ADR 0004); qualquer outra métrica lê pelo caminho agregado, que soma tudo.
+ *
+ * Pôr uma cumulativa multi-fonte no caminho errado não quebra nada visível —
+ * o número simplesmente vem inflado, e parece um dia bom.
+ *
+ * A guarda é de código-fonte porque importar `config/health-metrics` arrasta
+ * tema → settings.store → client do Supabase, que não sobe sob o jest. A lista
+ * vivia antes no mapa `SOURCED_TYPE_BY_ID` do adaptador legado, que saiu com
+ * ele — sem isto, a propriedade ficaria sem dono.
+ */
+describe('BARREIRA — cumulativas multi-fonte', () => {
+  it('são só as quatro que iPhone e relógio escrevem ao mesmo tempo', () => {
+    const fonte = readFileSync(join(__dirname, '..', '..', 'config', 'health-metrics.ts'), 'utf8');
+    const usos = [...fonte.matchAll(/multiSourceFetch\(\s*HK\.(\w+)/g)].map((m) => m[1]);
+
+    expect(new Set(usos)).toEqual(
+      new Set(['stepCount', 'distanceWalkingRunning', 'flightsClimbed', 'activeEnergyBurned']),
+    );
   });
 });
