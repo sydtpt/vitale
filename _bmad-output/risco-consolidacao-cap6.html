@@ -1,0 +1,422 @@
+<title>Risco da Consolidação CAP-6</title>
+<style>
+  :root {
+    --ground: #FAF3E6;
+    --surface: #FFFFFF;
+    --surface-2: #F5EDDF;
+    --line: #E4D8C4;
+    --line-soft: #EFE6D8;
+    --ink: #1F1B16;
+    --ink-2: #5C534A;
+    --ink-3: #8C8175;
+    --accent: #F25C2B;
+    --sev-crit: #A32A1B;
+    --sev-high: #F25C2B;
+    --sev-med: #B4825B;
+    --sev-low: #6FA86A;
+    --ok: #4E7F49;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #17140F;
+      --surface: #201C16;
+      --surface-2: #2A251E;
+      --line: #3A3227;
+      --line-soft: #2E2820;
+      --ink: #F3ECE0;
+      --ink-2: #B0A493;
+      --ink-3: #857A6C;
+      --accent: #FF7A4D;
+      --sev-crit: #E36A55;
+      --sev-high: #FF7A4D;
+      --sev-med: #C79A72;
+      --sev-low: #85BC7F;
+      --ok: #85BC7F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #17140F;
+    --surface: #201C16;
+    --surface-2: #2A251E;
+    --line: #3A3227;
+    --line-soft: #2E2820;
+    --ink: #F3ECE0;
+    --ink-2: #B0A493;
+    --ink-3: #857A6C;
+    --accent: #FF7A4D;
+    --sev-crit: #E36A55;
+    --sev-high: #FF7A4D;
+    --sev-med: #C79A72;
+    --sev-low: #85BC7F;
+    --ok: #85BC7F;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: clamp(1.5rem, 4vw, 4rem) clamp(1rem, 4vw, 2rem) 6rem;
+  }
+
+  .wrap {
+    max-width: 60rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3.5rem;
+  }
+
+  .eyebrow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0;
+  }
+
+  h1 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(2.1rem, 6vw, 3.2rem);
+    line-height: 1.1;
+    text-wrap: balance;
+    margin: 0.6rem 0 0;
+  }
+
+  .lede {
+    color: var(--ink-2);
+    max-width: 62ch;
+    margin: 1rem 0 0;
+    font-size: 1.05rem;
+  }
+
+  h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-weight: 400;
+    font-size: 1.65rem;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 650;
+    margin: 0;
+    line-height: 1.35;
+  }
+
+  section { display: flex; flex-direction: column; gap: 1.25rem; }
+  p { margin: 0; max-width: 68ch; }
+  p + p { margin-top: 0.85rem; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.875em;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 2px;
+    padding: 0.08em 0.32em;
+  }
+
+  .verdict {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--sev-high);
+    padding: 1.5rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .verdict-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+  }
+  .verdict-tag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--sev-high);
+  }
+  .verdict-sub { color: var(--ink-3); font-size: 0.85rem; }
+
+  .scroller { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 34rem; }
+  caption { text-align: left; padding: 0.9rem 1rem 0; color: var(--ink-3); font-size: 0.8rem; }
+  th {
+    text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 600;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  td {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .num { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+  .pass { color: var(--ok); font-weight: 600; }
+
+  .findings { display: flex; flex-direction: column; gap: 1rem; }
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--sev);
+    padding: 1.2rem 1.4rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 1.1rem;
+    row-gap: 0.7rem;
+    align-items: start;
+  }
+  .finding[data-sev="crit"] { --sev: var(--sev-crit); }
+  .finding[data-sev="high"] { --sev: var(--sev-high); }
+  .finding[data-sev="med"]  { --sev: var(--sev-med); }
+  .finding[data-sev="low"]  { --sev: var(--sev-low); }
+
+  .fid {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--sev);
+    padding-top: 0.15rem;
+  }
+  .fbody { display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+  .fbody p { font-size: 0.94rem; color: var(--ink-2); }
+  .fmeta {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .chip {
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink-2);
+    padding: 0.18rem 0.5rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .chip-sev { border-color: var(--sev); color: var(--sev); background: transparent; font-weight: 600; }
+
+  ul, ol { margin: 0; padding-left: 1.25rem; color: var(--ink-2); max-width: 68ch; }
+  li { margin-bottom: 0.45rem; }
+  li:last-child { margin-bottom: 0; }
+  li > strong { color: var(--ink); }
+
+  .unknown {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 1.3rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .sig {
+    border-top: 1px solid var(--line);
+    padding-top: 1.5rem;
+    color: var(--ink-3);
+    font-size: 0.85rem;
+  }
+  a { color: var(--accent); }
+  a:focus-visible, :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Orbe · Test Architecture · 18 ago 2026</p>
+    <h1>Risco da Consolidação CAP-6</h1>
+    <p class="lede">Vinte e cinco commits moveram 139 chamadas <code>.from()</code> para dezesseis módulos de dados com dono único. As três suítes ficaram verdes, o build passa, os dados de produção estão sãos — e ainda assim um bug de leitura chegou ao usuário. Este documento explica por que isso era inevitável com a cobertura atual, e o que fecha a lacuna.</p>
+  </header>
+
+  <section>
+    <h2>Veredito</h2>
+    <div class="verdict">
+      <div class="verdict-head">
+        <span class="verdict-tag">CONCERNS</span>
+        <span class="verdict-sub">passa para uso pessoal · reprova como base para a próxima migração</span>
+      </div>
+      <p>A consolidação está estruturalmente correta e o <code>architecture.test.ts</code> faz o que promete. O problema não é o que foi movido — é que a camada para onde tudo foi movido não tem nenhum teste. O achado F1 pontua 9 na matriz de risco (probabilidade 3 × impacto 3), o que exige mitigação documentada antes da próxima mudança de dados.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>O que verifiquei</h2>
+    <p>Tudo abaixo foi executado, não inferido.</p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>Verificação</th><th>Resultado</th><th>Leitura</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Testes do shared</td><td class="num pass">7 ✓</td><td>Só funções puras de fitness</td></tr>
+          <tr><td>Testes do web (Vitest)</td><td class="num pass">123 ✓</td><td>11 arquivos, todos de derivação</td></tr>
+          <tr><td>Testes do mobile (Jest)</td><td class="num pass">349 ✓</td><td>29 suítes, todas de lógica pura</td></tr>
+          <tr><td><code>ng build</code></td><td class="num pass">✓</td><td>7,9 s; só aviso de budget de bundle</td></tr>
+          <tr><td><code>tsc --noEmit</code> mobile</td><td class="num pass">✓</td><td>Sem erro de tipo</td></tr>
+          <tr><td>Coluna <code>route_overview</code> em prod</td><td class="num pass">existe</td><td><code>jsonb</code>, <code>GENERATED ALWAYS</code></td></tr>
+          <tr><td>Rotas com overview válido</td><td class="num">186 / 188</td><td>2 rotas degeneradas (≤1 ponto)</td></tr>
+          <tr><td><code>activity_routes.user_id</code> × <code>activities.user_id</code></td><td class="num pass">188 / 188</td><td>O filtro novo é inócuo — não é a causa</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Por que 479 testes não pegaram</h2>
+    <p>Não é uma lacuna de quantidade. É uma lacuna de <em>camada</em>, e ela é total.</p>
+    <p><strong>Nenhum dos 479 testes importa um store ou um módulo de dados.</strong> Verifiquei arquivo por arquivo: os <code>.spec.ts</code> do web vivem em <code>features/*/data/</code> mas cobrem apenas os agregadores puros — <code>overview</code>, <code>type-summary</code>, <code>country-explorer</code>, <code>weekly-load</code>. No mobile, as 29 suítes cobrem <code>lib/</code>: mapeamento, dedupe, zonas de FC, formatação. Zero mocks de <code>AuthService</code>. Zero mocks de <code>useAuthStore</code>. Zero <code>SupabaseClient</code> falso.</p>
+    <p>A consolidação moveu exatamente a camada que ninguém testa. Uma suíte de funções puras não pode, por construção, observar uma query — e portanto passa igual se a query pedir a coluna errada, filtrar pelo campo errado ou nem rodar.</p>
+    <p>O <code>architecture.test.ts</code> reforça essa falsa sensação de segurança, e vale entender por quê: as quatro barreiras verificam <strong>onde</strong> a query mora, nunca <strong>o que</strong> ela pergunta. Elas garantem que nenhum <code>.from()</code> escape do núcleo. Nenhuma delas olha para dentro do <code>select()</code>.</p>
+    <p>A melhor evidência disso está na própria mensagem do commit <code>8c0837d</code>: o <code>SELECT</code> do web omitia <code>source_id</code> e <code>device</code>, e a linha "Dispositivo" da tela de detalhe nunca aparecia. Esse bug viveu no repositório com a suíte verde o tempo todo, e foi encontrado <em>a olho</em>, durante a migração. Como você mesmo escreveu lá: uma coluna a menos no SELECT é uma feature morta sem aviso. É a mesma classe de falha do mapa.</p>
+  </section>
+
+  <section>
+    <h2>Achados</h2>
+    <p>Pontuação = probabilidade × impacto, escala 1–3 cada. ≥ 6 exige mitigação; 9 bloqueia.</p>
+
+    <div class="findings">
+
+      <article class="finding" data-sev="crit">
+        <div class="fid">F1</div>
+        <div class="fbody">
+          <h3>A camada de I/O tem 0% de cobertura — e agora concentra tudo</h3>
+          <p>Dezesseis módulos em <code>packages/shared/src/data/</code>, 90 funções exportadas (76 delas assíncronas, tocando o banco), servindo os dois apps. Antes, um erro de query afetava uma tela; agora afeta todas as que compartilham o módulo. A consolidação aumentou o raio de explosão de cada defeito sem adicionar nenhuma rede de proteção proporcional.</p>
+          <div class="fmeta">
+            <span class="chip chip-sev">Crítico · 9</span><span class="chip">TECH</span><span class="chip">Prob 3 × Imp 3</span><span class="chip">packages/shared/src/data/</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="finding" data-sev="high">
+        <div class="fid">F2</div>
+        <div class="fbody">
+          <h3>Mobile envenena o cache de rotas quando não há sessão</h3>
+          <p>Em <code>activities.store.ts:211</code>, se <code>uid</code> for falsy o bloco <code>try</code> inteiro é pulado sem erro, e o loop seguinte grava <code>[]</code> para todos os ids. O guard de refetch é <code>cache[id] === undefined</code> — e eles deixaram de ser <code>undefined</code>. O mapa fica vazio até o app reiniciar, mesmo depois de a sessão resolver. O web lança exceção no mesmo ponto; o mobile falha em silêncio, que é pior.</p>
+          <div class="fmeta">
+            <span class="chip chip-sev">Alto · 6</span><span class="chip">TECH</span><span class="chip">Prob 2 × Imp 3</span><span class="chip">mobile/src/store/activities.store.ts:211</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="finding" data-sev="med">
+        <div class="fid">F3</div>
+        <div class="fbody">
+          <h3>Noventa e cinco pontos de decisão, três políticas de falha diferentes</h3>
+          <p>O mesmo <code>if (!userId)</code> se resolve de três formas incompatíveis conforme o arquivo: <code>throw new Error('Sessão não encontrada.')</code>, <code>return</code> silencioso, ou <code>_error.set(...)</code> com estado de erro. Dentro de um único store as três convivem — <code>activities.store.ts</code> do web usa estado de erro no <code>load()</code> e <code>throw</code> nos outros quatro. Quem chama não tem como saber qual esperar, e o <code>return</code> silencioso não deixa rastro nenhum.</p>
+          <div class="fmeta">
+            <span class="chip chip-sev">Médio · 4</span><span class="chip">TECH</span><span class="chip">Prob 2 × Imp 2</span><span class="chip">web ×35 · mobile ×60</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="finding" data-sev="med">
+        <div class="fid">F4</div>
+        <div class="fbody">
+          <h3>A página de país marca a chave antes de saber se o fetch deu certo</h3>
+          <p>Em <code>activity-country-page.component.ts:130</code>, <code>this.routesKey = key</code> é gravado <em>antes</em> da chamada. Se <code>fetchRoutes</code> falhar, o <code>catch</code> zera as rotas mas a chave permanece — e o <code>effect</code> nunca mais tenta, porque a comparação na linha 129 corta. Qualquer falha transitória vira permanente até navegar para fora e voltar.</p>
+          <div class="fmeta">
+            <span class="chip chip-sev">Médio · 4</span><span class="chip">TECH</span><span class="chip">Prob 2 × Imp 2</span><span class="chip">activity-country-page.component.ts:130</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="finding" data-sev="low">
+        <div class="fid">F5</div>
+        <div class="fbody">
+          <h3>Código órfão sobreviveu à migração no store do web</h3>
+          <p><code>SELECT</code> (linha 16), <code>DbActivityRow</code> (19–42) e <code>mapRow</code> (191–216) continuam no arquivo, já substituídos por <code>ACTIVITY_COLUMNS</code> e <code>toActivity</code> no shared. O <code>SELECT</code> órfão é a versão <em>antiga</em> — sem <code>source_id</code> e <code>device</code>. Deixá-lo ali é convidar alguém a consertar o lugar errado.</p>
+          <div class="fmeta">
+            <span class="chip chip-sev">Baixo · 1</span><span class="chip">TECH</span><span class="chip">Prob 1 × Imp 1</span><span class="chip">web/.../activities.store.ts</span>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Sobre o mapa: o que não consegui confirmar</h2>
+    <div class="unknown">
+      <p><strong>Não reproduzi a falha do mapa, e não vou apresentar hipótese como diagnóstico.</strong> Levantei uma — corrida com o auth assíncrono — e ela não sobreviveu à verificação: o <code>profileGuard</code> checa a sessão na linha 13 antes de liberar a rota, então quando a página do mapa monta, <code>auth.user()</code> já está preenchido. Os dados de produção também estão sãos e o build passa.</p>
+      <p>O que resta como suspeita razoável, em ordem: (a) o evento <code>INITIAL_SESSION</code> do supabase-js zerando <code>session</code> transitoriamente depois do guard, que combinado com F4 trava o mapa vazio de forma permanente; (b) a falha estar no mobile, onde não há guard equivalente e F2 é diretamente alcançável.</p>
+      <p>O que discrimina entre elas, em um minuto: abrir a tela, ver se o erro <code>Sessão não encontrada.</code> aparece no console, e se a requisição a <code>activity_routes</code> chega a sair na aba de rede. Sem essa observação, qualquer conserto é chute — e F1 é justamente a razão de não haver um teste que responda isso por você.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Plano de teste</h2>
+    <p>Ordenado por risco coberto por hora investida. O nível mais baixo que pega o defeito é sempre o preferido.</p>
+
+    <div class="scroller">
+      <table>
+        <caption>P0 fecha F1; P1 fecha F2–F4; P2 é rede de segurança.</caption>
+        <thead>
+          <tr><th>#</th><th>Teste</th><th>Nível</th><th>Pega</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">P0</td>
+            <td><strong>Contrato SELECT × modelo.</strong> Um teste puro que compara as constantes de coluna de cada módulo de dados com as chaves que o mapeador produz, e ambas com o schema. Falha quando alguém tira uma coluna do <code>select()</code>.</td>
+            <td>unit</td>
+            <td>A classe exata do bug <code>source_id</code>/<code>device</code></td>
+          </tr>
+          <tr>
+            <td class="num">P0</td>
+            <td><strong>Módulos de dados com <code>SupabaseClient</code> falso.</strong> Um duplo que registra tabela, colunas e filtros. Afirma que <code>fetchRouteOverviews</code> lê <code>route_overview</code> e nunca <code>points</code> — a regra que o cabeçalho do módulo documenta e nada verifica.</td>
+            <td>unit</td>
+            <td>Regressão de query nos 16 módulos</td>
+          </tr>
+          <tr>
+            <td class="num">P1</td>
+            <td><strong>Stores com auth não resolvido.</strong> Para cada store com cache: chamar com sessão nula, resolver a sessão, chamar de novo, e afirmar que a segunda chamada busca de verdade.</td>
+            <td>integration</td>
+            <td>F2 e F4 diretamente</td>
+          </tr>
+          <tr>
+            <td class="num">P1</td>
+            <td><strong>Barreira de política de falha.</strong> Estender <code>architecture.test.ts</code>: todo <code>if (!userId)</code> em store resolve pela política declarada. Barreira estrutural, no espírito das quatro que já existem.</td>
+            <td>unit</td>
+            <td>F3, e impede recaída</td>
+          </tr>
+          <tr>
+            <td class="num">P2</td>
+            <td><strong>Smoke E2E na rota do mapa.</strong> Interceptar <code>activity_routes</code> antes de navegar (network-first), afirmar que o traçado renderiza. Um teste, só o caminho feliz.</td>
+            <td>e2e</td>
+            <td>Regressão de ponta a ponta</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Uma observação sobre sequência: P0 não depende de nenhuma infraestrutura nova — são testes puros com um duplo de client, no mesmo estilo do que já existe. É o melhor retorno disponível, e sozinho já teria pego o bug que o commit encontrou a olho.</p>
+  </section>
+
+  <p class="sig">Murat · Master Test Architect · avaliação sobre <code>f79a0ff</code>, branch <code>main</code>. Escopo: commits <code>a711c41..f79a0ff</code>.</p>
+
+</div>
