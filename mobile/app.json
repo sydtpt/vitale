@@ -7,8 +7,8 @@
     "icon": "./assets/images/icon.png",
     "scheme": "vitale",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
-    "runtimeVersion": "1.0.2",
+    "newArchEnabled": true,
+    "runtimeVersion": "1.0.3",
     "updates": {
       "url": "https://u.expo.dev/127be066-b0bb-4469-bd58-d7e5c6c9cd22",
       "enabled": true,
