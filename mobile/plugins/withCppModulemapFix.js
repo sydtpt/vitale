@@ -37,7 +37,7 @@
  * ficou de fora daqui — ver ADR/decisão em andamento sobre a ponte
  * Objective-C++ como alternativa que não liga interop pro target inteiro.
  */
-const { withPodfile } = require('@expo/config-plugins');
+const { withPodfile } = require('expo/config-plugins');
 
 const CPP_MODULES = ['NitroModules', 'ReactNativeHealthkit'];
 

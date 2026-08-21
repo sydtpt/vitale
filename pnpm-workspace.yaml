@@ -1,0 +1,67 @@
+# Configuração do workspace (AD-14 — resolução isolada de dependências).
+#
+# `nodeLinker` fica no padrão (isolado): cada workspace enxerga apenas o que
+# declara. É isso que impede a classe de colisão que os `overrides` do npm
+# existiam para desfazer — o TypeScript do mobile alcançando o toolchain do
+# Angular, e a segunda cópia de react/react-native nascida de peer curinga.
+#
+# A Expo suporta dependências isoladas desde a SDK 54 (docs oficiais); o projeto
+# está na 57. Se alguma biblioteca nativa quebrar sob isolamento, o conserto é
+# `publicHoistPattern` NOMEANDO a biblioteca e o motivo — nunca `nodeLinker:
+# hoisted`, que desliga o isolamento para o monorepo inteiro.
+
+packages:
+  - packages/*
+  - web
+  - mobile
+
+# O pnpm 11 bloqueia scripts de build por padrão (defesa de supply chain): um
+# pacote comprometido não roda código na instalação sem aprovação explícita. Os
+# quatro abaixo precisam rodar e são infraestrutura conhecida — o `esbuild` baixa
+# o próprio binário e sem ele o build do Angular não sai; `lmdb`, `msgpackr-extract`
+# e `@parcel/watcher` são nativos de cache e watch do Metro/Angular.
+# Aprovar um pacote aqui é decisão de segurança: só entra o que precisa de fato.
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  lmdb: true
+  msgpackr-extract: true
+
+# `minimumReleaseAge` (padrão do pnpm 11) recusa versões recém-publicadas — a
+# janela em que um release comprometido costuma ser pego. Mantido ligado: casa
+# com a cadência N-1 da AD-16, que já diz para não ser cobaia. As exclusões
+# abaixo são as versões que o SDK 57 pina e que adotamos deliberadamente; a lista
+# é gerada pelo pnpm e vai mudar a cada upgrade — é ruído esperado, não dívida.
+minimumReleaseAgeExclude:
+  - '@expo/cli@57.0.17'
+  - '@expo/fingerprint@0.20.9'
+  - '@expo/local-build-cache-provider@57.0.7'
+  - '@expo/metro-config@57.0.9'
+  - '@expo/metro-runtime@57.0.12'
+  - '@expo/prebuild-config@57.0.13'
+  - '@expo/router-server@57.0.7'
+  - '@expo/ui@57.0.12'
+  - expo-asset@57.0.13
+  - expo-auth-session@57.0.8
+  - expo-constants@57.0.13
+  - expo-file-system@57.0.5
+  - expo-linking@57.0.7
+  - expo-modules-core@57.0.12
+  - expo-modules-jsi@57.0.5
+  - expo-notifications@57.0.13
+  - expo-router@57.0.15
+  - expo-sharing@57.0.14
+  - expo-updates@57.0.16
+  - expo@57.0.15
+
+# Patches (AD-18). Chave por FAIXA, não por versão exata: versão exata que deixa
+# de casar é pulada em silêncio. `allowUnusedPatches` fica no padrão (false), então
+# patch declarado que não aplicou derruba o install — e na v11 falha de aplicação
+# sempre lança. É a proteção que antes exigia `patch-package --error-on-fail`.
+#
+# O patch do HealthKit sustenta a entrega em background (ADR 0013): se cair, não
+# quebra build nem teste — para de chegar dado. Todo upgrade dele reverifica em
+# device.
+patchedDependencies:
+  '@kingstinct/react-native-healthkit@^14.0.2': patches/@kingstinct__react-native-healthkit.patch
+  '@supabase/supabase-js@^2.106.0': patches/@supabase__supabase-js.patch

@@ -21,7 +21,7 @@
     "@angular/router": "^21.0.0",
     "@supabase/supabase-js": "^2.106.0",
     "@maplibre/maplibre-gl-leaflet": "^0.0.22",
-    "@vitale/shared": "*",
+    "@vitale/shared": "workspace:*",
     "leaflet": "^1.9.4",
     "maplibre-gl": "^4.7.1",
     "rxjs": "~7.8.0",

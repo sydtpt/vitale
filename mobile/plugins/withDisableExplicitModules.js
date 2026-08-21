@@ -21,7 +21,7 @@
  * existe no Podfile gerado) e no target do app em si — o erro aponta o
  * target 'Orbe', não só um pod.
  */
-const { withPodfile, withXcodeProject } = require('@expo/config-plugins');
+const { withPodfile, withXcodeProject } = require('expo/config-plugins');
 
 const withDisableExplicitModulesPods = (config) =>
   withPodfile(config, (mod) => {

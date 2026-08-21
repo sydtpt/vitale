@@ -29,7 +29,7 @@
  * chamada de setup, exatamente o modo de falha que a troca de lib existe
  * para fechar (ADR 0012).
  */
-const { withAppDelegate } = require('@expo/config-plugins');
+const { withAppDelegate } = require('expo/config-plugins');
 
 const SETUP_CALL = '    hk_setup_background_observers()\n';
 

@@ -3,33 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "description": "Vitale — Life organizer with Angular web dashboard and React Native mobile app",
-  "workspaces": [
-    "packages/*",
-    "web",
-    "mobile"
-  ],
   "scripts": {
     "web:dev": "cd web && ng serve",
     "web:build": "cd web && ng build",
     "mobile:start": "cd mobile && npx expo start",
     "mobile:android": "cd mobile && npx expo run:android",
     "mobile:ios": "cd mobile && npx expo run:ios",
-    "lint": "npm run lint --workspaces",
-    "test": "npm run test --workspaces",
-    "postinstall": "patch-package --error-on-fail"
-  },
-  "devDependencies": {
-    "patch-package": "^8.0.1"
-  },
-  "overrides": {
-    "@angular/compiler-cli": {
-      "typescript": "~5.9.0"
-    },
-    "react": "19.2.3",
-    "react-native": "0.86.2",
-    "@supabase/supabase-js": "2.106.0"
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test"
   },
   "engines": {
     "node": ">=20.0.0"
-  }
+  },
+  "packageManager": "pnpm@11.22.0"
 }

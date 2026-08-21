@@ -41,7 +41,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { withDangerousMod, IOSConfig } = require('@expo/config-plugins');
+const { withDangerousMod, IOSConfig } = require('expo/config-plugins');
 
 const HEADER_NAME = 'HealthKitBackgroundBridge.h';
 const IMPL_NAME = 'HealthKitBackgroundBridge.mm';

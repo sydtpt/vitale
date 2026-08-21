@@ -20,7 +20,7 @@
  * não é segredo — aparece em qualquer .ipa assinado — mas o override por
  * ambiente mantém o repositório utilizável por outra conta.
  */
-const { withXcodeProject } = require('@expo/config-plugins');
+const { withXcodeProject } = require('expo/config-plugins');
 
 const TEAM_PADRAO = 'W768FLT59N';
 

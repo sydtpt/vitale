@@ -1,7 +1,7 @@
-diff --git a/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift b/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
+diff --git a/ios/BackgroundDeliveryManager.swift b/ios/BackgroundDeliveryManager.swift
 index 912a5ed..982178f 100644
---- a/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
-+++ b/node_modules/@kingstinct/react-native-healthkit/ios/BackgroundDeliveryManager.swift
+--- a/ios/BackgroundDeliveryManager.swift
++++ b/ios/BackgroundDeliveryManager.swift
 @@ -12,7 +12,7 @@ import HealthKit
  /// The types to observe are persisted in UserDefaults by `configureBackgroundTypes()`
  /// called from JS. On subsequent cold launches, the manager reads these and registers
@@ -103,10 +103,10 @@ index 912a5ed..982178f 100644
    }
  
    private func handleObserverCallback(typeIdentifier: String, error: Error?) {
-diff --git a/node_modules/@kingstinct/react-native-healthkit/ios/CoreModule.swift b/node_modules/@kingstinct/react-native-healthkit/ios/CoreModule.swift
+diff --git a/ios/CoreModule.swift b/ios/CoreModule.swift
 index 9ff6e3a..879a0f1 100644
---- a/node_modules/@kingstinct/react-native-healthkit/ios/CoreModule.swift
-+++ b/node_modules/@kingstinct/react-native-healthkit/ios/CoreModule.swift
+--- a/ios/CoreModule.swift
++++ b/ios/CoreModule.swift
 @@ -438,12 +438,21 @@ class CoreModule: HybridCoreModuleSpec {
          throw runtimeErrorWithPrefix("Invalid update frequency rawValue: \(updateFrequency)")
        }

@@ -34,57 +34,63 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # A versão do pnpm vem do campo `packageManager` do package.json.
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      # `npm ci` roda o postinstall, que aplica os patches com --error-on-fail:
-      # patch que parou de aplicar derruba a instalação aqui (AD-18).
-      - run: npm ci
+          cache: pnpm
+      # `--frozen-lockfile` é o padrão em CI, mas explícito porque é a garantia
+      # que importa: o lockfile manda, e divergir dele falha em vez de resolver
+      # de novo. Aplica os patches nativamente e derruba o install se algum
+      # deixar de aplicar (AD-18).
+      - run: pnpm install --frozen-lockfile
       # Compila com o MENOR TypeScript entre os consumidores (AD-15).
       - name: Typecheck
-        run: npm run lint -w @vitale/shared
+        run: pnpm --filter @vitale/shared lint
       # Inclui architecture.test.ts — as barreiras das AD-1, AD-3, AD-4 (AD-7).
       - name: Testes + barreiras de arquitetura
-        run: npm test -w @vitale/shared
+        run: pnpm --filter @vitale/shared test
 
   web:
     name: web (Angular)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       # O build é o que reprova um recurso só-TS6 que entre no núcleo (AD-15).
       # Não é redundante com o typecheck do shared: é o único ponto onde o
       # núcleo é compilado pelo TypeScript do Angular.
       - name: Build
-        run: npm run build -w @vitale/web
+        run: pnpm --filter @vitale/web build
       - name: Testes
-        run: npm test -w @vitale/web
+        run: pnpm --filter @vitale/web test
 
   mobile:
     name: mobile (Expo)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Typecheck
-        run: cd mobile && npx tsc --noEmit
+        run: cd mobile && pnpm exec tsc --noEmit
       - name: Testes
-        run: cd mobile && npx jest
+        run: cd mobile && pnpm exec jest
       # Foi o expo-doctor que apontou os plugins que o SDK passou a exigir, o
-      # @react-navigation incompatível com o expo-router 56 e a regressão de
-      # memória do Hermes V1 — nada disso aparece em tsc nem em teste. Está em
-      # 21/21 desde que o falso positivo do app config foi eliminado, então pode
-      # bloquear. Depende de rede; se ficar instável, o conserto é investigar a
-      # instabilidade, não desligar a checagem.
+      # @react-navigation incompatível com o expo-router 56, a regressão de
+      # memória do Hermes V1 e o `@expo/config-plugins` importado do lugar
+      # errado — nada disso aparece em tsc nem em teste. Está em 21/21, então
+      # pode bloquear. Depende de rede; se ficar instável, o conserto é
+      # investigar a instabilidade, não desligar a checagem.
       - name: expo-doctor
-        run: cd mobile && npx expo-doctor
+        run: cd mobile && pnpm exec expo-doctor
