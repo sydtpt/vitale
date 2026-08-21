@@ -98,6 +98,34 @@ export function aggregatePressure(samples: Sample[], userId: string): HealthDail
 }
 
 /**
+ * Sono: soma as horas das noites atribuídas ao dia e leva o detalhamento por
+ * estágio (que `aggregateSleepNights` já entrega em `stages`) para o `extra`.
+ * Sem isso, 7h de sono com 20min de REM e 7h com 1h40 de REM viravam a mesma linha.
+ */
+export function aggregateSleep(samples: Sample[], userId: string): HealthDailyRow[] {
+  const rows: HealthDailyRow[] = [];
+  for (const [day, group] of groupByDay(samples)) {
+    const total = group.reduce((a, s) => a + s.value, 0);
+    const stages: Record<string, number> = {};
+    for (const s of group) {
+      for (const [stage, hours] of Object.entries(s.stages ?? {})) {
+        stages[stage] = (stages[stage] ?? 0) + hours;
+      }
+    }
+    rows.push({
+      user_id: userId,
+      day,
+      metric: 'sono',
+      value: total,
+      count: group.length,
+      // Fonte sem hipnograma (só ASLEEP genérico) não gera estágio: `extra` fica nulo.
+      extra: Object.keys(stages).length > 0 ? stages : null,
+    });
+  }
+  return rows;
+}
+
+/**
  * Anéis de atividade: o `ringsFetch` traz só o resumo mais recente (3 amostras),
  * logo gera 1 linha para o dia atual com mover/exercício/em pé + metas em `extra`.
  */
@@ -124,6 +152,8 @@ export function toHealthDailyRows(meta: AggregateMeta, samples: Sample[], userId
       return aggregatePressure(samples, userId);
     case 'aneis':
       return aggregateRings(samples, userId);
+    case 'sono':
+      return aggregateSleep(samples, userId);
     case 'macros':
       return [];
     default:

@@ -41,8 +41,13 @@ const HEAVY_MAX_DAYS = 60;
  * (união de fontes + priorização de estágios + atribuição ao dia de despertar).
  * v2 = dedupe por fonte nas cumulativas (passos/distância/andares/energia vinham
  * somando iPhone + relógio, dobrando a contagem).
+ * v3 = detalhamento do sono por estágio (deep/rem/core/unspecified/awake) no
+ * `extra`; o backfill recupera o hipnograma do histórico já gravado, porque as
+ * amostras cruas seguem no HealthKit do aparelho.
+ * v4 = tempo na cama e latência para pegar no sono (`inbed`/`onset`), que o
+ * INBED do HealthKit permitia calcular mas era descartado na agregação.
  */
-const AGG_VERSION = 2;
+const AGG_VERSION = 4;
 
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();

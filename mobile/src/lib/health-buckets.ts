@@ -16,6 +16,8 @@ export interface Sample {
   label?: string;
   /** Valor secundário (ex.: diastólica na pressão arterial). */
   extra?: number;
+  /** Detalhamento em horas por estágio (só no sono — ver `aggregateSleepNights`). */
+  stages?: Record<string, number>;
   /** Bundle id da fonte que escreveu (só nas cumulativas multi-fonte). */
   source?: string;
 }
@@ -200,6 +202,28 @@ function overlapMs(a: Interval, list: Interval[]): number {
   return ov;
 }
 
+/** Remove de `list` todo trecho coberto por `cut`, devolvendo o que sobrou. */
+function subtractIntervals(list: Interval[], cut: Interval[]): Interval[] {
+  const out: Interval[] = [];
+  for (const iv of list) {
+    let parts: Interval[] = [{ ...iv }];
+    for (const c of cut) {
+      const next: Interval[] = [];
+      for (const p of parts) {
+        if (c.end <= p.start || c.start >= p.end) {
+          next.push(p); // disjuntos: o corte não toca esta parte
+          continue;
+        }
+        if (c.start > p.start) next.push({ start: p.start, end: c.start });
+        if (c.end < p.end) next.push({ start: c.end, end: p.end });
+      }
+      parts = next;
+    }
+    out.push(...parts);
+  }
+  return out;
+}
+
 function localDayKey(ms: number): string {
   const d = new Date(ms);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -216,6 +240,13 @@ function toIntervals(samples: Sample[], match: (stage: string) => boolean): Inte
 const DETAILED_STAGES = new Set(['CORE', 'DEEP', 'REM']);
 
 /**
+ * Ordem em que os estágios reivindicam o tempo dormido. Fontes sobrepostas podem
+ * marcar o mesmo minuto com estágios diferentes; o mais específico ganha, para que
+ * a soma dos estágios feche com o total da noite em vez de estourá-lo.
+ */
+const STAGE_PRIORITY = ['DEEP', 'REM', 'CORE'] as const;
+
+/**
  * Consolida amostras de estágios de sono em UMA linha por noite.
  *
  * O Apple Health junta várias fontes (Watch com estágios + iPhone/relógio com um
@@ -230,6 +261,17 @@ const DETAILED_STAGES = new Set(['CORE', 'DEEP', 'REM']);
  *  3. Subtrai os trechos "acordado" (AWAKE).
  *  4. Atribui cada noite ao dia em que se ACORDOU (fim do trecho).
  * O `value` de cada amostra de saída é o total de horas dormidas da noite.
+ *
+ * Cada noite também sai com `stages`, o detalhamento em horas:
+ *  - `deep`/`rem`/`core` — estágios detalhados, fatiados por prioridade para não
+ *    contar o mesmo minuto duas vezes quando fontes se sobrepõem;
+ *  - `unspecified` — dormido sem hipnograma (fonte que só grava ASLEEP genérico);
+ *  - `awake` — despertares DENTRO da janela da noite. Fora do total, não somado:
+ *    `deep + rem + core + unspecified = value`, e `awake` é métrica à parte.
+ *  - `inbed`/`onset` — horas na cama e quanto tempo levou para pegar no sono.
+ *    Também fora da soma. `onset` é o único sinal de insônia de INÍCIO: sem ele,
+ *    duas horas rolando na cama viram apenas "uma noite curta", indistinguível de
+ *    ter deitado tarde. Só existem se a fonte gravar `INBED` (o Watch grava).
  */
 export function aggregateSleepNights(samples: Sample[]): Sample[] {
   const detailed = mergeIntervals(toIntervals(samples, (st) => DETAILED_STAGES.has(st)));
@@ -240,16 +282,59 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
   );
 
   const asleep = mergeIntervals([...detailed, ...generic]);
+  const inbed = mergeIntervals(toIntervals(samples, (st) => st === 'INBED'));
 
-  const byWakeDay = new Map<string, { hours: number; wake: number }>();
+  // Fatia o tempo por estágio: cada um leva só o que os anteriores (e o AWAKE,
+  // que não é sono) não reivindicaram. O resto do tempo dormido é `unspecified`.
+  let claimed = awake;
+  const byStage = new Map<string, Interval[]>();
+  for (const stage of STAGE_PRIORITY) {
+    const own = subtractIntervals(
+      mergeIntervals(toIntervals(samples, (st) => st === stage)),
+      claimed,
+    );
+    byStage.set(stage.toLowerCase(), own);
+    claimed = mergeIntervals([...claimed, ...own]);
+  }
+
+  const byWakeDay = new Map<
+    string,
+    { hours: number; wake: number; onset: number; stages: Record<string, number> }
+  >();
   for (const iv of asleep) {
-    const net = iv.end - iv.start - overlapMs(iv, awake);
+    const awakeMs = overlapMs(iv, awake);
+    const net = iv.end - iv.start - awakeMs;
     if (net <= 0) continue;
     const key = localDayKey(iv.end); // dia em que acordou
-    const cur = byWakeDay.get(key) ?? { hours: 0, wake: iv.end };
+    const cur = byWakeDay.get(key) ?? { hours: 0, wake: iv.end, onset: iv.start, stages: {} };
     cur.hours += net / HOUR;
     cur.wake = Math.max(cur.wake, iv.end);
+    cur.onset = Math.min(cur.onset, iv.start); // primeiro instante dormindo da noite
+
+    let staged = 0;
+    for (const [stage, list] of byStage) {
+      const ms = overlapMs(iv, list);
+      if (ms <= 0) continue;
+      staged += ms;
+      cur.stages[stage] = (cur.stages[stage] ?? 0) + ms / HOUR;
+    }
+    // O que sobrou de sono sem estágio detalhado por baixo.
+    const rest = net - staged;
+    if (rest > 0) cur.stages.unspecified = (cur.stages.unspecified ?? 0) + rest / HOUR;
+    if (awakeMs > 0) cur.stages.awake = (cur.stages.awake ?? 0) + awakeMs / HOUR;
+
     byWakeDay.set(key, cur);
+  }
+
+  // Tempo na cama e latência para pegar no sono: ancora no trecho INBED que
+  // cobre o instante em que se apagou (`>=` no fim para as fontes que gravam
+  // INBED só até o adormecer, sem se estender pela noite).
+  for (const night of byWakeDay.values()) {
+    const bed = inbed.find((b) => b.start <= night.onset && b.end >= night.onset);
+    if (!bed) continue;
+    night.stages.inbed = (bed.end - bed.start) / HOUR;
+    const latency = night.onset - bed.start;
+    if (latency > 0) night.stages.onset = latency / HOUR;
   }
 
   return [...byWakeDay.values()]
@@ -259,6 +344,7 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
       start: new Date(n.wake).toISOString(),
       end: new Date(n.wake).toISOString(),
       label: 'ASLEEP',
+      stages: n.stages,
     }));
 }
 
