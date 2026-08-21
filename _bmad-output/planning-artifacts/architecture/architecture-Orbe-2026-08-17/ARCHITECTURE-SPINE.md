@@ -7,7 +7,7 @@ paradigm: 'Núcleo compartilhado com adaptadores de plataforma (ports & adapters
 scope: 'Runtime do monorepo Orbe (shared/web/mobile/supabase) e arquitetura de conhecimento do repositório'
 status: final
 created: '2026-08-17'
-updated: '2026-08-17'
+updated: '2026-08-21'
 binds: []
 sources:
   - 'varredura do código (brownfield) em 2026-08-17'
@@ -117,6 +117,37 @@ Proibido: `shared` importar de `web` ou `mobile`; `web` e `mobile` importarem um
 - **Prevents:** suíte verde que não executa nada — `packages/shared` tem três arquivos de teste e um script `echo 'No tests yet'`, e eles nunca rodaram
 - **Rule:** workspace cujo `npm test` não executa um runner de verdade não declara target `test`. Falhar é aceitável; mentir que passou, não.
 
+### AD-14 — Resolução isolada de dependências
+
+- **Binds:** a árvore de `node_modules` do monorepo inteiro e toda dependência declarada por qualquer workspace
+- **Prevents:** colisão entre workspaces numa árvore plana — o TypeScript do mobile derrubando o build do web pelo `@angular/compiler-cli` hasteado, e a segunda cópia de `react`/`react-native` que peers curinga produzem quando um app pina versão exata
+- **Rule:** a árvore é isolada: cada workspace enxerga apenas o que declara. Hoisting é exceção pontual, nomeando a biblioteca e o motivo — nunca global. Dependência usada sem ser declarada é defeito, não conveniência. `overrides` que exista só para desfazer colisão de hoisting é sintoma desta AD não valer, e sai quando ela passar a valer.
+- **Corolário — singleton:** pacote que precisa ser **uma só instância** no bundle é declarado como tal e hasteado de propósito, com o motivo nomeado. São três os motivos válidos: carregar patch, guardar estado global, ou servir de identidade de tipo entre workspaces. Sem isso, o isolamento multiplica cópias onde a corretude exige uma — `@supabase/supabase-js` é declarado pelo núcleo **e** pelos apps, e o bundler do mobile alcança a cópia do núcleo.
+
+### AD-15 — Piso de TypeScript do núcleo
+
+- **Binds:** `packages/shared` e a versão de `typescript` de cada consumidor
+- **Prevents:** o núcleo adotar recurso de linguagem que um consumidor não compila. O shared não tem build — `main` e `types` apontam para `src/index.ts` e os dois apps o consomem como **fonte**, cada um com o seu compilador
+- **Rule:** `packages/shared` linta com a **menor** versão de TypeScript entre seus consumidores. Alinhar as três não é objetivo nem é possível: o toolchain do Angular veta TS ≥ 6 e o mobile segue o que o Expo SDK pina. Subir o piso exige subir todos os consumidores antes. Quem impõe é a AD-17 — o build do web no portão automatizado é o que reprova um recurso só-TS6 que entre no núcleo; sem aquele portão, esta AD é prosa.
+
+### AD-16 — Cadência de plataforma N-1, com exceção nomeada
+
+- **Binds:** Expo SDK, React Native, Angular — toda plataforma de release cadenciado
+- **Prevents:** os dois extremos. O salto acumulado (esta migração pagou três SDKs de uma vez, e o degrau do meio foi o único que exigiu mudança de código) e o represamento em defeito conhecido
+- **Rule:** ficar um release *stable* atrás do mais novo. Exceção: quando o mais novo corrigir defeito que afeta o app, sobe direto — precedente é a regressão de memória do Hermes V1, presente no SDK 56 e corrigida no 57.
+
+### AD-17 — O portão automatizado cobre os três workspaces; o device é fronteira nomeada
+
+- **Binds:** toda mudança que toque o lockfile ou um manifesto, e todo upgrade de plataforma
+- **Prevents:** quebra atravessando workspace sem ninguém ver — o mobile subiu para TypeScript 6 e o build do web caiu, com a suíte do mobile verde o tempo todo
+- **Rule:** a integração contínua valida os **três** workspaces a cada mudança de dependência. Ela **não** cobre build nativo iOS nem os portões em device: verde no portão automatizado nunca significa feature funcionando. Upgrade de SDK só fecha com os portões em aparelho, mais o exercício das features que tocam API de plataforma — exportar, compartilhar, galeria, câmera, notificações.
+
+### AD-18 — Patch é declarado no gerenciador e falha alto
+
+- **Binds:** `patches/` e todo pacote corrigido localmente
+- **Prevents:** patch deixando de aplicar **em silêncio**. O sintoma aparece longe da causa: erro de bundle, ou dado que simplesmente para de chegar
+- **Rule:** patch é declarado no manifesto do gerenciador, com falha de patch não aplicado derrubando a instalação. Chave por faixa de versão, nunca por versão exata — versão exata que deixa de casar é pulada calada. O patch cobre **toda cópia que chega a um bundler**, não a cópia de um workspace: pacote com patch é singleton pela AD-14. Todo upgrade do pacote reverifica o patch; quando o que ele sustenta é comportamento nativo, a reverificação é em device (ADR 0013).
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -127,24 +158,27 @@ Proibido: `shared` importar de `web` ou `mobile`; `web` e `mobile` importarem um
 | Leitura de tabela grande | Colunas explícitas; `select('*')` proibido em tabela com payload grande. |
 | Mutação de estado | Só o adaptador muta estado. Função do núcleo é pura e imutável — recebe e devolve, não altera a entrada. |
 | Segredos | Anon key é pública e versionada. Segredo real só em edge function; `.env` e `mobile/.env` nunca são lidos, editados nem commitados. |
-| Artefato gerado | `mobile/ios/` e `patches/` mudam pela ferramenta que os gera, nunca à mão. |
+| Artefato gerado | `mobile/ios/`, o lockfile e `patches/` mudam pela ferramenta que os gera, nunca à mão. `mobile/ios/` não é versionado — é saída de `expo prebuild`. |
+| Dependência de plataforma | Quem manda na versão é o SDK, não a preferência: no mobile, `expo install` decide; no web, o toolchain do Angular. Bump avulso de nativa de terceiro é desvio a justificar. |
 
 ## Stack
 
 | Name | Version |
 | --- | --- |
-| TypeScript | 5.9 |
+| TypeScript | 6.0 no mobile · 5.9 no web (teto do Angular) · piso do núcleo pela AD-15 |
 | Angular (web) | 21 |
 | Vitest (web) | 4 |
-| Expo | 54 |
-| React Native | 0.81.5 |
-| React | 19.1.0 |
+| Expo | 57 |
+| React Native | 0.86.2 |
+| React | 19.2.3 |
 | Zustand (mobile) | 5 |
 | Jest (mobile) | 29 |
-| @supabase/supabase-js | 2.106 |
+| @supabase/supabase-js | 2.106 no mobile (versão com patch) |
 | Supabase | Postgres + RLS + edge functions Deno |
 
-O mobile está preso à SDK do Expo: subir React Native exige subir a SDK inteira, e `mobile/ios/` é versionado (bare), o que torna o salto um trabalho de prebuild, não de bump.
+O mobile está preso à SDK do Expo: subir React Native exige subir a SDK inteira. Desde a ADR 0012 `mobile/ios/` é **gerado** por `expo prebuild` e não é versionado — o salto voltou a ser bump, não merge de projeto nativo. A entrega em background do HealthKit depende de um patch local (ADR 0013), o que faz a AD-18 valer aqui com peso: o que se perde não quebra build nem teste, só para de chegar dado.
+
+Duas versões de TypeScript convivendo é estado esperado, não desleixo: o Angular veta TS ≥ 6 e o Expo pina TS 6. A AD-15 é o que impede isso de virar defeito.
 
 ## Structural Seed
 
@@ -180,7 +214,9 @@ _bmad-output/    # AD-10 — efêmero: plan, tasks, sprint
 | Item | Condição de revisita |
 | --- | --- |
 | Alvo de hospedagem do web | Ao publicar. Recomendação: SPA estática em host estático — a AD-9 já elimina a necessidade de injetar segredo no build. |
-| Pipeline de CI | Quando a guarda da AD-7 passar a ser burlada por esquecimento de rodar `npm run test`. |
+| Troca do gerenciador de pacotes (alvo: pnpm, `nodeLinker` isolado) | A AD-14 fixa o isolamento como invariante; a troca em si acontece em fase própria, com os portões em device no fim. Não junto de um upgrade de SDK — misturar as duas fontes de quebra foi justamente o que se decidiu evitar. O primeiro trabalho da fase é a lista de singletons da AD-14, `@supabase/supabase-js` à frente. |
+| Bot de atualização (Renovate/Dependabot) | Quando a AD-17 estiver de pé e a cadência da AD-16 se mostrar trabalhosa de conduzir à mão. Antes disso, seria PR automático sem portão que o valide. |
+| Migrar `patches/` para o formato do gerenciador | Junto da troca do gerenciador (AD-14/AD-18) — o formato de arquivo e a chave mudam, e o patch do HealthKit exige reverificação em device. |
 | Segunda instância Supabase para desenvolvimento | Quando houver um segundo usuário real, ou quando uma perda de dado em desenvolvimento custar mais que manter dois schemas em sincronia. |
 | Comentários `.claude/specs` nas 28 migrations aplicadas | Nunca por si só — migration aplicada não se reescreve. O tombstone em `.claude/specs/README.md` resolve o ponteiro. |
 | `running-highlights.ts` duplicado entre os apps | Quando alguém encostar em highlights. `ActivityHighlight` carrega `value` e `caption` já formatados — separar cálculo de apresentação é o que a AD-2 manda, mas muda o contrato que os componentes consomem. |
