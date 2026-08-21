@@ -42,7 +42,10 @@ do BMAD, em `_bmad-output/`.
   filho diz como.
 - `npm run test` na raiz roda os três workspaces: shared em `tsx`, web em Vitest, mobile
   em Jest.
-- Não há CI nem git hooks: nada é verificado automaticamente no commit.
+- `.github/workflows/ci.yml` valida os três workspaces a cada push e PR (AD-17).
+  Não há git hooks: nada é verificado no momento do commit, só depois do push.
+  O CI **não** cobre build nativo iOS nem os portões em device — verde nele não
+  significa feature funcionando; ver `docs/upgrade-de-plataforma.md`.
 - `supabase/scripts/check-schema-drift.sh` compara as tabelas de produção com as
   que as migrations criam; sai != 0 no desvio. Precisa do banco, então não roda em
   `npm run test` — rode à mão após mexer em schema.

@@ -52,6 +52,10 @@ isolada), esta classe de problema deixa de existir e este bloco perde a razão.
 Não só o que motivou a mudança. O lockfile é compartilhado, então uma troca
 feita pelo mobile chega no web e no shared (AD-17).
 
+O `.github/workflows/ci.yml` roda exatamente isto a cada push — mas rode local
+antes de empurrar um upgrade, porque o ciclo de ida e volta pelo CI é lento e um
+upgrade costuma quebrar em vários lugares de uma vez.
+
 ```bash
 npm run lint -w @vitale/shared && npm test -w @vitale/shared   # shared
 cd web && npx ng build && npx ng test --watch=false            # web

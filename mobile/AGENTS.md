@@ -86,9 +86,12 @@ Ele não é opcional e não se descobre sozinho:
   mobile/node_modules/react-native`.
 - Cópia duplicada de `react` ou `react-native` não falha o build: falha o `tsc`
   (duas árvores de tipos) ou o app em runtime (dois Reacts, "Invalid hook call").
-- **Rode `npx expo-doctor` e leia as falhas novas.** Foi ele que apontou os plugins
-  que o SDK passou a exigir, o `@react-navigation` incompatível com o expo-router 56
-  e a regressão de memória do Hermes V1 no SDK 56 — nenhum aparece em `tsc` ou teste.
+- **`npx expo-doctor` está em 21/21 e o CI o bloqueia.** Foi ele que apontou os
+  plugins que o SDK passou a exigir, o `@react-navigation` incompatível com o
+  expo-router 56 e a regressão de memória do Hermes V1 — nenhum aparece em `tsc`
+  ou teste. Falha nova dele é sinal, não ruído: o único falso positivo que ele
+  tinha (o app config) foi eliminado renomeando `app.json` para `app.base.json`,
+  que o `app.config.js` importa — a config resolvida é idêntica.
 - **Os 3 portões em device continuam sendo o portão de verdade** (ver o plano de
   migração). Passar nos três ainda não garante a feature toda: no SDK 57 o
   `saveToLibraryAsync` da `expo-media-library` passou a **lançar** em runtime e

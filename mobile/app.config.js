@@ -1,18 +1,23 @@
 /**
  * Config dinâmica: só existe para injetar o que vem do ambiente (`extra`).
- * Todo o resto — plugins, ios, splash, updates — mora em `app.json`, que é
+ * Todo o resto — plugins, ios, updates — mora em `app.base.json`, que é
  * espalhado aqui pelo `require` da primeira linha.
  *
- * O `expo-doctor` reclama desta coexistência ("You have an app.json file... the
- * dynamic config may ignore it"). **É falso positivo**, e é a única checagem que
- * ele ainda reprova neste projeto: o aviso existe para quem tem os dois arquivos
- * independentes, caso em que o estático seria de fato ignorado. Aqui o dinâmico
- * lê o estático. Verificado ao alinhar as versões do SDK 54.
+ * **O nome do arquivo base é deliberado.** Enquanto ele se chamava `app.json`, o
+ * `expo-doctor` reprovava a checagem "Check Expo config for common issues" com
+ * "your app.config.js is not using the values from it" — falso positivo, porque
+ * o dinâmico lê o estático logo abaixo. Só que um aviso permanentemente vermelho
+ * treina todo mundo a ignorar o doctor, e impede usá-lo como portão no CI
+ * (AD-17). Renomear elimina a condição que dispara o aviso: não há mais um
+ * `app.json` coexistindo com um config dinâmico — há um config dinâmico e a base
+ * que ele importa. A config resolvida é idêntica; foi conferida com
+ * `expo config --json` antes e depois.
  *
- * Antes de "consertar" isso, note que mover tudo para cá quebraria os config
- * plugins e o prebuild, que leem o app config já resolvido.
+ * Antes de "consertar" isso movendo tudo para cá: os config plugins e o prebuild
+ * leem o app config já resolvido, então a separação não os afeta — mas ela
+ * mantém o JSON legível por ferramenta, que é o motivo de existir.
  */
-const base = require('./app.json');
+const base = require('./app.base.json');
 
 module.exports = {
   ...base,

@@ -123,6 +123,13 @@ duplicatas voltam. E o plugin da splash passou a **redimensionar** a arte em
 da origem" por proporção entre escalas, senão passaria pulando a verificação em
 silêncio, já que o imageset também mudou de nome.
 
+**Epílogo (21/08/2026).** O falso positivo do `app.json` que acompanhou todas as
+fases foi eliminado: o arquivo virou `app.base.json`, importado pelo
+`app.config.js`. Some a condição que dispara o aviso — não há mais um `app.json`
+coexistindo com config dinâmico — e a config resolvida é idêntica, conferida com
+`expo config --json` antes e depois. O `expo-doctor` foi a **21/21**, o que
+permitiu torná-lo portão bloqueante no CI que a AD-17 passou a exigir.
+
 **Diagnóstico disponível.** `src/lib/sync-breadcrumbs.ts` grava um log
 persistente lido em Configurações → Dados. Ao investigar "não sincronizou",
 olhe-o antes de supor onde quebrou — foi o que permitiu separar "o iOS não

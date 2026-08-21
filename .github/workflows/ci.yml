@@ -1,0 +1,90 @@
+# Portão automatizado da AD-17.
+#
+# Valida os TRÊS workspaces a cada mudança, não só o que motivou o commit. O
+# lockfile é compartilhado, então uma troca feita pelo mobile chega no web e no
+# shared — foi exatamente assim que o TypeScript 6 do SDK 57 derrubou o build do
+# Angular enquanto a suíte do mobile seguia verde.
+#
+# O que este portão NÃO cobre, e não deve dar impressão de cobrir (AD-17):
+# build nativo iOS e os 3 portões em device. Verde aqui nunca significa feature
+# funcionando — a exportação da galeria quebrou no SDK 57 com build, tsc e 379
+# testes verdes. Upgrade de SDK só fecha em aparelho; ver docs/upgrade-de-plataforma.md.
+#
+# Jobs separados de propósito: quando quebra, o nome do job já diz qual
+# workspace caiu.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# Um push novo cancela a execução anterior do mesmo ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  shared:
+    name: shared (núcleo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      # `npm ci` roda o postinstall, que aplica os patches com --error-on-fail:
+      # patch que parou de aplicar derruba a instalação aqui (AD-18).
+      - run: npm ci
+      # Compila com o MENOR TypeScript entre os consumidores (AD-15).
+      - name: Typecheck
+        run: npm run lint -w @vitale/shared
+      # Inclui architecture.test.ts — as barreiras das AD-1, AD-3, AD-4 (AD-7).
+      - name: Testes + barreiras de arquitetura
+        run: npm test -w @vitale/shared
+
+  web:
+    name: web (Angular)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # O build é o que reprova um recurso só-TS6 que entre no núcleo (AD-15).
+      # Não é redundante com o typecheck do shared: é o único ponto onde o
+      # núcleo é compilado pelo TypeScript do Angular.
+      - name: Build
+        run: npm run build -w @vitale/web
+      - name: Testes
+        run: npm test -w @vitale/web
+
+  mobile:
+    name: mobile (Expo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: cd mobile && npx tsc --noEmit
+      - name: Testes
+        run: cd mobile && npx jest
+      # Foi o expo-doctor que apontou os plugins que o SDK passou a exigir, o
+      # @react-navigation incompatível com o expo-router 56 e a regressão de
+      # memória do Hermes V1 — nada disso aparece em tsc nem em teste. Está em
+      # 21/21 desde que o falso positivo do app config foi eliminado, então pode
+      # bloquear. Depende de rede; se ficar instável, o conserto é investigar a
+      # instabilidade, não desligar a checagem.
+      - name: expo-doctor
+        run: cd mobile && npx expo-doctor
