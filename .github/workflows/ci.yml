@@ -93,4 +93,4 @@ jobs:
       # pode bloquear. Depende de rede; se ficar instável, o conserto é
       # investigar a instabilidade, não desligar a checagem.
       - name: expo-doctor
-        run: cd mobile && pnpm exec expo-doctor
+        run: cd mobile && pnpm dlx expo-doctor

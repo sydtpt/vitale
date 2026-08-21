@@ -6,7 +6,7 @@
 
 ## Arquitetura
 
-Monorepo npm workspaces com 3 pacotes:
+Monorepo pnpm workspaces (resolução isolada — ADR 0016) com 3 pacotes:
 
 ```
 life-organizer/
@@ -17,24 +17,29 @@ life-organizer/
 
 ## Comandos essenciais
 
+> **O gerenciador é pnpm** (ADR 0016 / AD-14). A versão vem do campo
+> `packageManager` — use `corepack enable pnpm` e não misture `npm install` aqui:
+> ele recria uma árvore plana e traz de volta as colisões entre workspaces.
+
 ```bash
 # Instalar dependências
-npm install
+pnpm install
 
 # Web (Angular 21) — http://localhost:4200
-npm run web:dev
+pnpm web:dev
 
 # Mobile (Expo)
-npm run mobile:start       # QR code / Expo DevTools
-npm run mobile:ios         # Simulador iOS
-npm run mobile:android     # Emulador Android
+pnpm mobile:start       # QR code / Expo DevTools
+pnpm mobile:ios         # Simulador iOS
+pnpm mobile:android     # Emulador Android
 
-# Linting e testes — ver AGENTS.md: `npm run lint` na raiz falha; `npm run test` roda
-cd web && npx ng build                      # valida o web
-cd web && npx ng test --watch=false         # testes unitários do web (Vitest)
-cd mobile && npx tsc --noEmit && npx jest   # valida o mobile
-npm run lint -w @vitale/shared              # valida o shared (tsc)
-npm test -w @vitale/shared                  # testes do shared (scripts tsx)
+# Validação — o CI roda exatamente isto nos três workspaces (AD-17)
+pnpm --filter @vitale/shared lint     # tsc do núcleo + é onde vivem as barreiras
+pnpm --filter @vitale/shared test     # testes + barreiras de arquitetura (AD-7)
+pnpm --filter @vitale/web build       # compila templates e TS
+pnpm --filter @vitale/web test        # Vitest
+cd mobile && pnpm exec tsc --noEmit && pnpm exec jest
+cd mobile && pnpm dlx expo-doctor     # 21/21; falha nova dele é sinal, não ruído
 ```
 
 > **Regras para agentes de IA:** [AGENTS.md](AGENTS.md) (+ um por workspace em

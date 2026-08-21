@@ -9,8 +9,8 @@ Regras gerais do repositório: `../../AGENTS.md`.
 
 ## Running and verifying
 
-- Valide com `npm run lint -w @vitale/shared` (é `tsc --noEmit`) e
-  `npm test -w @vitale/shared`.
+- Valide com `pnpm --filter @vitale/shared lint` (é `tsc --noEmit`) e
+  `pnpm --filter @vitale/shared test`.
 - Teste aqui é script autoexecutável, sem framework: `src/**/*.test.ts` roda por `tsx`,
   usa `node:assert` e sai com código != 0 no primeiro assert que falhar. Não há `test()`
   nem `describe()` — arquivo escrito em bloco de framework não roda.

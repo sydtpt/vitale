@@ -9,8 +9,8 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
 
 ## Running and verifying
 
-- Valide com `cd mobile && npx tsc --noEmit && npx jest` (37 suítes, 379 testes hoje).
-- `npm run lint` falha: `eslint` não está instalado.
+- Valide com `cd mobile && pnpm exec tsc --noEmit && pnpm exec jest` (37 suítes, 379 testes hoje).
+- `pnpm lint` falha no mobile: `eslint` não está instalado.
 - Teste de lógica pura mora em `src/lib/__tests__/*.test.ts`; 16 deles exercitam
   `@vitale/shared`, que o jest daqui resolve. O shared também tem teste próprio — ver
   `packages/shared/AGENTS.md`.
@@ -37,14 +37,14 @@ da [ADR 0012](../docs/decisions/0012-kingstinct-healthkit-devolve-o-prebuild.md)
 quando `mobile/ios/` passou a ser gerado.
 
 ```bash
-cd mobile && npx expo prebuild --platform ios --clean
+cd mobile && pnpm exec expo prebuild --platform ios --clean
 cd ios && xcodebuild -workspace Orbe.xcworkspace -scheme Orbe \
   -configuration Release -destination 'generic/platform=iOS' \
   -allowProvisioningUpdates build
 xcrun devicectl device install app --device <UDID> <caminho>/Orbe.app
 ```
 
-- **Não use `npx expo run:ios --configuration Release`**: não passa a flag de
+- **Não use `expo run:ios --configuration Release`**: não passa a flag de
   provisioning e quebra na assinatura — depois de já ter feito o bundle do JS.
 - **Nunca `xcodebuild | tail`** sem `set -o pipefail`. O status vira o do `tail`
   e um build quebrado passa por bem-sucedido.
@@ -60,35 +60,32 @@ xcrun devicectl device install app --device <UDID> <caminho>/Orbe.app
 
 ## Subir o Expo SDK
 
-O `overrides` do `package.json` da **raiz** fixa `react` e `react-native` na
-versão que o SDK ativo pina ([ADR 0015](../docs/decisions/0015-overrides-fixam-copia-unica-e-versao-dos-patches.md)).
-Ele não é opcional e não se descobre sozinho:
+Desde a [ADR 0016](../docs/decisions/0016-pnpm-isolado-substitui-npm-workspaces.md)
+o gerenciador é pnpm com resolução isolada, e o ritual encolheu — não há mais
+`overrides` para manter em dia:
 
-- **Suba `react` e `react-native` no `overrides` no mesmo commit do bump.** Sem
-  isso o npm resolve a versão velha e o app compila contra a RN errada — sem erro
-  de instalação.
-- **Todo pacote com patch entra no `overrides` em versão exata**, igual ao nome do
-  arquivo em `patches/`. O `postinstall` roda `patch-package --error-on-fail`, então
-  um patch que parou de aplicar derruba o `npm install` em vez de avisar.
-- **Regenere o lockfile por último, depois do `expo install --fix`.** O npm ignora
-  `overrides` novo contra lockfile existente (Fase 2), e o `--fix` reescreve as
-  versões **depois** do install — regenerar antes dele deixa `mobile/node_modules`
-  com as versões velhas e as duplicatas voltam (Fase 3). A ordem que funciona:
+```bash
+# 1. bump do `expo`   2. alinhar o resto pelo SDK
+pnpm add expo@~<versao>
+pnpm exec expo install --fix && pnpm exec expo install --fix -- --save-dev
+pnpm install
+```
 
-  ```bash
-  # 1. bump do `expo` + `overrides` da raiz   2. alinhar o resto
-  npm install && npx expo install --fix && npx expo install --fix -- --save-dev
-  # 3. só então regenerar
-  rm -f package-lock.json && rm -rf node_modules */node_modules && npm install
-  ```
-
-  Depois confira que há **uma** cópia de cada: `ls node_modules/react-native
-  mobile/node_modules/react-native`.
-- Cópia duplicada de `react` ou `react-native` não falha o build: falha o `tsc`
-  (duas árvores de tipos) ou o app em runtime (dois Reacts, "Invalid hook call").
-- **`npx expo-doctor` está em 21/21 e o CI o bloqueia.** Foi ele que apontou os
+- **O `--fix` reescreve versões depois do install**, então rode `pnpm install` no
+  fim para o lockfile refletir o que ele decidiu.
+- **Dependência nova precisa ser declarada no workspace que a usa.** Sob
+  isolamento não existe carona: se o SDK passar a exigir um pacote que os config
+  plugins ou os testes importam, ele entra no `mobile/package.json`. Os config
+  plugins importam de `expo/config-plugins` (sub-export do `expo`), **não** de
+  `@expo/config-plugins` — o `expo-doctor` reprova a segunda forma.
+- **Patch entra em `patchedDependencies`** no `pnpm-workspace.yaml`, com chave por
+  **faixa** de versão. Versão exata que deixa de casar é pulada em silêncio;
+  faixa faz o pnpm tentar aplicar e falhar alto se o conteúdo mudou. Patch
+  declarado que não aplicou derruba o install.
+- **`pnpm dlx expo-doctor` está em 21/21 e o CI o bloqueia.** Foi ele que apontou os
   plugins que o SDK passou a exigir, o `@react-navigation` incompatível com o
-  expo-router 56 e a regressão de memória do Hermes V1 — nenhum aparece em `tsc`
+  expo-router 56, a regressão do Hermes V1 e o `@expo/config-plugins` importado do
+  lugar errado — nenhum aparece em `tsc`
   ou teste. Falha nova dele é sinal, não ruído: o único falso positivo que ele
   tinha (o app config) foi eliminado renomeando `app.json` para `app.base.json`,
   que o `app.config.js` importa — a config resolvida é idêntica.

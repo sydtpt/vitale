@@ -6,7 +6,7 @@
 ## Orbe
 
 Plataforma pessoal para gerenciar a rotina — treinos, saúde, alimentação, casa, compras e
-finanças. Monorepo npm workspaces: dashboard analítico Angular em `web/`, app de captura
+finanças. Monorepo pnpm workspaces (resolução isolada): dashboard analítico Angular em `web/`, app de captura
 rápida Expo/React Native em `mobile/`, modelos de domínio e design tokens em
 `packages/shared/` (`@vitale/shared`), backend Supabase (Postgres + RLS + edge functions
 Deno) em `supabase/`. Specs de produto vivem em `docs/specs/`; artefatos de planejamento
@@ -21,8 +21,9 @@ do BMAD, em `_bmad-output/`.
 - Nunca leia, edite nem commite `.env` (raiz) e `mobile/.env`.
   `web/src/environments/environment.ts` é versionado de propósito — contém só a anon key,
   pública e protegida por RLS.
-- Nunca edite à mão `mobile/ios/` (versionado para EAS bare) nem `patches/` — mude pela
-  ferramenta que os gera (`expo prebuild`, `patch-package`).
+- Nunca edite à mão `mobile/ios/`, `patches/` nem o lockfile — mude pela ferramenta que
+  os gera (`expo prebuild`, `pnpm patch`, `pnpm install`). `mobile/ios/` **não** é
+  versionado desde a ADR 0012: é saída de prebuild, e edição manual não sobrevive.
 
 ## Where things are
 
@@ -36,11 +37,18 @@ do BMAD, em `_bmad-output/`.
 
 ## Running and verifying
 
-- `npm run lint` na raiz falha, e não para no primeiro erro: `@vitale/shared` passa, `web`
+- **O gerenciador é `pnpm`** ([ADR 0016](docs/decisions/0016-pnpm-isolado-substitui-npm-workspaces.md)),
+  versão fixada em `packageManager`. Rodar `npm install` aqui recria a árvore plana e
+  devolve as colisões entre workspaces — se acontecer, apague `node_modules` e
+  `package-lock.json` e rode `pnpm install`.
+- A resolução é **isolada**: cada workspace só enxerga o que declara. Dependência usada
+  sem estar no `package.json` daquele workspace não resolve — é defeito a declarar, não
+  a contornar.
+- `pnpm -r lint` na raiz falha e não para no primeiro erro: `@vitale/shared` passa, `web`
   falha (não tem target `lint` no `angular.json`) e `mobile` também falha depois
   (`eslint: command not found`, exit 127). Valide workspace a workspace — cada `AGENTS.md`
   filho diz como.
-- `npm run test` na raiz roda os três workspaces: shared em `tsx`, web em Vitest, mobile
+- `pnpm -r test` na raiz roda os três workspaces: shared em `tsx`, web em Vitest, mobile
   em Jest.
 - `.github/workflows/ci.yml` valida os três workspaces a cada push e PR (AD-17).
   Não há git hooks: nada é verificado no momento do commit, só depois do push.
@@ -48,7 +56,7 @@ do BMAD, em `_bmad-output/`.
   significa feature funcionando; ver `docs/upgrade-de-plataforma.md`.
 - `supabase/scripts/check-schema-drift.sh` compara as tabelas de produção com as
   que as migrations criam; sai != 0 no desvio. Precisa do banco, então não roda em
-  `npm run test` — rode à mão após mexer em schema.
+  `pnpm -r test` — rode à mão após mexer em schema.
 
 ## Known pitfalls
 
@@ -58,27 +66,18 @@ do BMAD, em `_bmad-output/`.
 - Reescrita de caminho em massa com `sed` exclui `_bmad-output/` e
   `supabase/migrations/`: ambos citam caminhos antigos como registro histórico, não como
   link vivo, e a reescrita os corrompe.
-- **Cada entrada do `overrides` da raiz tem uma razão, e nenhuma é decorativa.** Não
-  remova sem entender qual — e não acrescente sem conseguir escrever a sua:
-
-  | entrada | por que existe | quando sai |
-  | --- | --- | --- |
-  | `react`, `react-native` | o `mobile` pina versão exata (quem manda é o Expo SDK) e dezenas de libs declaram peer curinga; sem o pino o npm hasteia uma segunda cópia. Duas cópias não quebram o build: quebram o `tsc` ou o app em runtime ("Invalid hook call") | nunca — mas **sobem junto** a cada bump de SDK |
-  | `@supabase/supabase-js` | o patch em `patches/` é pinado por **nome de arquivo** na versão; se o pacote flutuar, o `patch-package` corrige a cópia errada ou nem aplica | quando o patch morrer (o `import()` de OpenTelemetry que o Metro não resolve) |
-  | `@angular/compiler-cli` → `typescript` | o `compiler-cli` fica hasteado na raiz e resolveria o TS 6 do mobile, enquanto o `@angular-devkit/build-angular` (aninhado em `web/`) usa o 5.9 | quando o toolchain do Angular aceitar TS ≥ 6 |
-
-  O que **não** deve entrar: pino "por precaução". Um `@types/node` foi adicionado assim,
-  durante um diagnóstico incompleto, e removido depois — travava atualizações sem
-  resolver nada. Se não dá para nomear o defeito que a entrada evita, ela não entra.
-
-- **Mexeu no `overrides` da raiz ou regenerou o `package-lock.json`? Valide os TRÊS
-  workspaces**, não só o que motivou a mudança. O lockfile é compartilhado, então uma
-  troca feita pelo mobile chega no web e no shared. Foi assim que subir o mobile para
-  o TypeScript 6 quebrou o build do web: o `@angular/compiler-cli` fica hasteado na
-  raiz e passou a resolver o TS 6, enquanto o `@angular-devkit/build-angular`, aninhado
-  em `web/`, seguia no 5.9 — dois TypeScripts no mesmo build, e o 6 renomeou
-  `lib.esnext.float16` para `lib.es2025.float16`. O `overrides` da raiz agora prende o
-  TS do `compiler-cli` na faixa do web; o toolchain do Angular 21 **veta** TS ≥ 6
-  (`@angular-devkit/build-angular` pede `>=5.9 <6.0`), então não adianta subir o web.
+- **Dependência que "sumiu" quase sempre é dependência não declarada.** Sob resolução
+  isolada, o workspace só enxerga o que está no `package.json` dele. Ao migrar para pnpm
+  apareceram quatro que viviam de carona na árvore plana — `@types/node` no núcleo,
+  `@jest/globals` e `@types/node` no mobile, e `@expo/config-plugins` nos config plugins
+  próprios. O conserto é **declarar no workspace que usa**, nunca hastear para a raiz.
+- **Três TypeScripts convivem de propósito:** 5.9 no web (teto do Angular 21, que veta
+  TS ≥ 6), 6.0 no mobile (o que o Expo SDK pina) e o do núcleo, que é o **menor entre os
+  consumidores** (AD-15) porque `packages/shared` não tem build — os dois apps o compilam
+  como fonte. Recurso de linguagem só-TS6 no núcleo quebra o build do web, longe de onde
+  foi escrito; quem pega isso é o job `web` do CI.
+- **Mexeu em dependência? Valide os TRÊS workspaces**, não só o que motivou a mudança —
+  é o que o CI faz. Antes do isolamento, subir o mobile para o TypeScript 6 derrubou o
+  build do web sem que nada no mobile acusasse.
 
 <!-- /bmad:context -->

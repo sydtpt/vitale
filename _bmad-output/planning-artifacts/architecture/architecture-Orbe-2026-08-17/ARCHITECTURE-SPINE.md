@@ -77,8 +77,8 @@ Proibido: `shared` importar de `web` ou `mobile`; `web` e `mobile` importarem um
 
 ### AD-7 — Guarda mecânica no teste
 
-- **Binds:** `npm run test` na raiz
-- **Prevents:** AD-1 a AD-4 virarem prosa não verificada — não há CI nem git hooks neste repositório
+- **Binds:** a suíte do núcleo, rodada na raiz e no CI
+- **Prevents:** AD-1 a AD-4 virarem prosa não verificada
 - **Rule:** o teste falha quando um basename duplica entre `web/src` e `mobile/src` fora da allowlist de stores; quando existe `.from(` fora de `packages/shared/src/data/`; quando o núcleo importa de um app; ou quando o núcleo constrói um `SupabaseClient`. A guarda vive no workspace do núcleo e só vale onde executa — guarda que não roda é pior que guarda nenhuma, porque passa a impressão de cobertura. Uma checagem cujo passivo ainda está sendo drenado entra como **catraca** (falha só se o número crescer) e vira barreira ao chegar a zero; declarar barreira cedo demais derruba o build em massa e o teste é desligado na primeira hora.
 
 ### AD-8 — Instância Supabase única [ADOPTED]
@@ -115,12 +115,13 @@ Proibido: `shared` importar de `web` ou `mobile`; `web` e `mobile` importarem um
 
 - **Binds:** o script `test` de todo workspace
 - **Prevents:** suíte verde que não executa nada — `packages/shared` tem três arquivos de teste e um script `echo 'No tests yet'`, e eles nunca rodaram
-- **Rule:** workspace cujo `npm test` não executa um runner de verdade não declara target `test`. Falhar é aceitável; mentir que passou, não.
+- **Rule:** workspace cujo script `test` não executa um runner de verdade não declara target `test`. Falhar é aceitável; mentir que passou, não.
 
 ### AD-14 — Resolução isolada de dependências
 
 - **Binds:** a árvore de `node_modules` do monorepo inteiro e toda dependência declarada por qualquer workspace
 - **Prevents:** colisão entre workspaces numa árvore plana — o TypeScript do mobile derrubando o build do web pelo `@angular/compiler-cli` hasteado, e a segunda cópia de `react`/`react-native` que peers curinga produzem quando um app pina versão exata
+- **Status:** executada em 21/08/2026 — pnpm 11 isolado, [ADR 0016](../../../../docs/decisions/0016-pnpm-isolado-substitui-npm-workspaces.md). Os quatro `overrides` saíram; o build nativo passou sem nenhum `publicHoistPattern`.
 - **Rule:** a árvore é isolada: cada workspace enxerga apenas o que declara. Hoisting é exceção pontual, nomeando a biblioteca e o motivo — nunca global. Dependência usada sem ser declarada é defeito, não conveniência. `overrides` que exista só para desfazer colisão de hoisting é sintoma desta AD não valer, e sai quando ela passar a valer.
 - **Corolário — singleton:** pacote que precisa ser **uma só instância** no bundle é declarado como tal e hasteado de propósito, com o motivo nomeado. São três os motivos válidos: carregar patch, guardar estado global, ou servir de identidade de tipo entre workspaces. Sem isso, o isolamento multiplica cópias onde a corretude exige uma — `@supabase/supabase-js` é declarado pelo núcleo **e** pelos apps, e o bundler do mobile alcança a cópia do núcleo.
 
@@ -165,7 +166,8 @@ Proibido: `shared` importar de `web` ou `mobile`; `web` e `mobile` importarem um
 
 | Name | Version |
 | --- | --- |
-| TypeScript | 6.0 no mobile · 5.9 no web (teto do Angular) · piso do núcleo pela AD-15 |
+| Gerenciador de pacotes | pnpm 11 (`nodeLinker` isolado) — ADR 0016 |
+| TypeScript | 6.0 no mobile · 5.9 no web (teto do Angular) · 5.8 no núcleo (piso, AD-15) |
 | Angular (web) | 21 |
 | Vitest (web) | 4 |
 | Expo | 57 |
@@ -214,9 +216,8 @@ _bmad-output/    # AD-10 — efêmero: plan, tasks, sprint
 | Item | Condição de revisita |
 | --- | --- |
 | Alvo de hospedagem do web | Ao publicar. Recomendação: SPA estática em host estático — a AD-9 já elimina a necessidade de injetar segredo no build. |
-| Troca do gerenciador de pacotes (alvo: pnpm, `nodeLinker` isolado) | A AD-14 fixa o isolamento como invariante; a troca em si acontece em fase própria, com os portões em device no fim. Não junto de um upgrade de SDK — misturar as duas fontes de quebra foi justamente o que se decidiu evitar. O primeiro trabalho da fase é a lista de singletons da AD-14, `@supabase/supabase-js` à frente. |
-| Bot de atualização (Renovate/Dependabot) | Quando a AD-17 estiver de pé e a cadência da AD-16 se mostrar trabalhosa de conduzir à mão. Antes disso, seria PR automático sem portão que o valide. |
-| Migrar `patches/` para o formato do gerenciador | Junto da troca do gerenciador (AD-14/AD-18) — o formato de arquivo e a chave mudam, e o patch do HealthKit exige reverificação em device. |
+| Bot de atualização (Renovate/Dependabot) | A AD-17 já está de pé; falta a cadência da AD-16 se mostrar trabalhosa de conduzir à mão. A primeira aplicação real dela será o SDK 58. |
+| `publicHoistPattern` para alguma nativa | Se uma biblioteca RN quebrar sob isolamento. Não foi preciso na migração (ADR 0016) — o build nativo passou puro. Se acontecer, nomeie a biblioteca e o motivo; nunca `nodeLinker: hoisted`, que desliga o isolamento inteiro. |
 | Segunda instância Supabase para desenvolvimento | Quando houver um segundo usuário real, ou quando uma perda de dado em desenvolvimento custar mais que manter dois schemas em sincronia. |
 | Comentários `.claude/specs` nas 28 migrations aplicadas | Nunca por si só — migration aplicada não se reescreve. O tombstone em `.claude/specs/README.md` resolve o ponteiro. |
 | `running-highlights.ts` duplicado entre os apps | Quando alguém encostar em highlights. `ActivityHighlight` carrega `value` e `caption` já formatados — separar cálculo de apresentação é o que a AD-2 manda, mas muda o contrato que os componentes consomem. |

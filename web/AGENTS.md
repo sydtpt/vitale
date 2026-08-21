@@ -9,8 +9,8 @@ Regras gerais do repositório: `../AGENTS.md`.
 
 ## Running and verifying
 
-- Valide com `cd web && npx ng build` — compila templates e TS.
-- Testes unitários: `cd web && npx ng test --watch=false` — builder `@angular/build:unit-test`
+- Valide com `pnpm --filter @vitale/web build` — compila templates e TS.
+- Testes unitários: `pnpm --filter @vitale/web test` — builder `@angular/build:unit-test`
   com Vitest em Node/jsdom. Sem `--watch=false` um terminal interativo entra em watch e
   nunca dá veredito. Use os matchers do Vitest (`toBe(true)`, não `toBeTrue()`).
 - `ng lint` não existe — `angular.json` tem só os targets `build`, `serve` e `test`.

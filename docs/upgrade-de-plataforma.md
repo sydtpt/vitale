@@ -20,32 +20,26 @@ de coisa; leia as falhas dele antes de decidir a versão alvo.
 
 ## A ordem que funciona
 
-A ordem importa mais do que parece. Esta é a que sobrou depois de errar:
-
 ```bash
-# 1. Bump do expo + os overrides da raiz JUNTOS, no mesmo passo
-#    (react e react-native no overrides precisam subir com o SDK)
-# 2. Alinhar o resto pelo SDK
-npm install && npx expo install --fix && npx expo install --fix -- --save-dev
-
-# 3. SÓ ENTÃO regenerar o lockfile
-rm -f package-lock.json && rm -rf node_modules */node_modules && npm install
+pnpm add expo@~<versao>
+pnpm exec expo install --fix && pnpm exec expo install --fix -- --save-dev
+pnpm install
 ```
 
-**Por que o passo 3 vem por último.** O `expo install --fix` reescreve as versões
-*depois* do install. Regenerar antes dele deixa `mobile/node_modules` com as
-versões velhas, e as duplicatas de `react`/`react-native` voltam sem aviso.
-Aconteceu na Fase 3.
+O `expo install --fix` reescreve as versões *depois* do install, então o
+`pnpm install` final é o que faz o lockfile refletir o que ele decidiu.
 
-**Confira que há uma cópia de cada** antes de seguir:
+Este bloco já foi bem maior. Sob npm, era preciso subir `react` e `react-native`
+num `overrides` da raiz no mesmo commit, e regenerar o lockfile na ordem certa —
+errar produzia duplicatas que não falhavam o build, só o `tsc` ou o app em
+runtime. A [ADR 0016](decisions/0016-pnpm-isolado-substitui-npm-workspaces.md)
+eliminou a classe inteira: sob resolução isolada não há árvore plana onde dois
+workspaces colidam.
 
-```bash
-ls node_modules/react-native mobile/node_modules/react-native
-```
-
-Cópia duplicada não falha o build — falha o `tsc` (duas árvores de tipos) ou o
-app em runtime, com "Invalid hook call". Depois que a AD-14 valer (árvore
-isolada), esta classe de problema deixa de existir e este bloco perde a razão.
+**O que passou a exigir atenção no lugar:** dependência nova precisa ser
+declarada no workspace que a usa. Não existe mais carona. Se o `tsc` reclamar de
+um módulo que "sempre esteve lá", quase certamente ele nunca foi declarado —
+declare, não haste.
 
 ## Validar os três workspaces
 
@@ -57,10 +51,9 @@ antes de empurrar um upgrade, porque o ciclo de ida e volta pelo CI é lento e u
 upgrade costuma quebrar em vários lugares de uma vez.
 
 ```bash
-npm run lint -w @vitale/shared && npm test -w @vitale/shared   # shared
-cd web && npx ng build && npx ng test --watch=false            # web
-cd mobile && npx tsc --noEmit && npx jest                      # mobile
-cd mobile && npx expo-doctor                                   # falhas novas
+pnpm --filter @vitale/shared lint && pnpm --filter @vitale/shared test
+pnpm --filter @vitale/web build && pnpm --filter @vitale/web test
+cd mobile && pnpm exec tsc --noEmit && pnpm exec jest && pnpm dlx expo-doctor
 ```
 
 Foi exatamente esse passo que faltou: os testes do mobile rodaram o tempo todo e
@@ -80,9 +73,11 @@ Dois, e os dois são frágeis por construção (AD-18):
 | `@kingstinct/react-native-healthkit` | entrega em background do HealthKit ([ADR 0013](decisions/0013-background-do-healthkit-exige-patch-na-lib.md)) | não quebra build nem teste — **para de chegar dado** |
 | `@supabase/supabase-js` | neutraliza o `import()` de OpenTelemetry que o Metro não resolve | erro de bundle, longe da causa |
 
-Ambos são pinados por **nome de arquivo** na versão. Se o pacote subir, o patch
-para de aplicar. O `postinstall` roda `patch-package --error-on-fail`, então hoje
-isso derruba o `npm install` em vez de passar batido — mas confira a saída.
+Ambos vivem em `patchedDependencies`, no `pnpm-workspace.yaml`, com chave por
+**faixa** de versão. Se o pacote subir dentro da faixa, o pnpm tenta aplicar e
+falha alto se o conteúdo mudou; se sair da faixa, o patch fica sem uso e o
+install cai do mesmo jeito. Em nenhum caminho o patch some calado — que era o
+risco real sob `patch-package`.
 
 Se o `@kingstinct/react-native-healthkit` mudar de versão, **reverifique em
 device**. Reaplicar não basta: o que se perde é invisível em build e em teste.
@@ -93,14 +88,14 @@ Compilar e instalar por cabo (a receita completa e as pegadinhas estão em
 [`mobile/AGENTS.md`](../mobile/AGENTS.md)):
 
 ```bash
-cd mobile && npx expo prebuild --platform ios --clean
+cd mobile && pnpm exec expo prebuild --platform ios --clean
 cd ios && xcodebuild -workspace Orbe.xcworkspace -scheme Orbe \
   -configuration Release -destination 'generic/platform=iOS' \
   -derivedDataPath <fora-de-~/Library> -allowProvisioningUpdates build
 xcrun devicectl device install app --device <UDID> <caminho>/Orbe.app
 ```
 
-Suba o `runtimeVersion` no `app.json` — é mudança nativa.
+Suba o `runtimeVersion` no `app.base.json` — é mudança nativa.
 
 **Os três portões:**
 
@@ -134,7 +129,7 @@ plataforma:** exportar e compartilhar, galeria, câmera, notificações.
 
   ```bash
   git worktree add --detach /tmp/pre <commit-de-antes>
-  cd /tmp/pre && npm install && cd web && npx ng build
+  cd /tmp/pre && pnpm install && pnpm --filter @vitale/web build
   ```
 
 - **Não subiu um degrau de cada vez?** Aí não dá para separar as causas. Se
