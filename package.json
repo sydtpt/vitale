@@ -25,7 +25,6 @@
     "@angular/compiler-cli": {
       "typescript": "~5.9.0"
     },
-    "@types/node": "25.9.1",
     "react": "19.2.3",
     "react-native": "0.86.2",
     "@supabase/supabase-js": "2.106.0"

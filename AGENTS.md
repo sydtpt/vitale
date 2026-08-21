@@ -55,6 +55,19 @@ do BMAD, em `_bmad-output/`.
 - Reescrita de caminho em massa com `sed` exclui `_bmad-output/` e
   `supabase/migrations/`: ambos citam caminhos antigos como registro histórico, não como
   link vivo, e a reescrita os corrompe.
+- **Cada entrada do `overrides` da raiz tem uma razão, e nenhuma é decorativa.** Não
+  remova sem entender qual — e não acrescente sem conseguir escrever a sua:
+
+  | entrada | por que existe | quando sai |
+  | --- | --- | --- |
+  | `react`, `react-native` | o `mobile` pina versão exata (quem manda é o Expo SDK) e dezenas de libs declaram peer curinga; sem o pino o npm hasteia uma segunda cópia. Duas cópias não quebram o build: quebram o `tsc` ou o app em runtime ("Invalid hook call") | nunca — mas **sobem junto** a cada bump de SDK |
+  | `@supabase/supabase-js` | o patch em `patches/` é pinado por **nome de arquivo** na versão; se o pacote flutuar, o `patch-package` corrige a cópia errada ou nem aplica | quando o patch morrer (o `import()` de OpenTelemetry que o Metro não resolve) |
+  | `@angular/compiler-cli` → `typescript` | o `compiler-cli` fica hasteado na raiz e resolveria o TS 6 do mobile, enquanto o `@angular-devkit/build-angular` (aninhado em `web/`) usa o 5.9 | quando o toolchain do Angular aceitar TS ≥ 6 |
+
+  O que **não** deve entrar: pino "por precaução". Um `@types/node` foi adicionado assim,
+  durante um diagnóstico incompleto, e removido depois — travava atualizações sem
+  resolver nada. Se não dá para nomear o defeito que a entrada evita, ela não entra.
+
 - **Mexeu no `overrides` da raiz ou regenerou o `package-lock.json`? Valide os TRÊS
   workspaces**, não só o que motivou a mudança. O lockfile é compartilhado, então uma
   troca feita pelo mobile chega no web e no shared. Foi assim que subir o mobile para
