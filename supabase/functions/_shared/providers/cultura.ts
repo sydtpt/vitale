@@ -40,13 +40,57 @@ async function throttleMusicBrainz(): Promise<void> {
   if (espera > 0) await new Promise((r) => setTimeout(r, espera));
 }
 
+/**
+ * UMA retentativa, com 1,1s de espera — o piso que o MusicBrainz exige entre
+ * pedidos, e portanto o mínimo seguro para todos.
+ *
+ * Foram duas retentativas até a medição de 2026-08-22 mostrar que não
+ * adiantava: os 503 do Google Books vêm em RAJADA, não isolados. Com duas
+ * retentativas a taxa de sucesso ficou nos mesmos ~75%, e a falha passou a
+ * custar 8,3s em vez de 1s — pior experiência pelo mesmo resultado. Uma
+ * retentativa segue valendo para o 503 isolado, que é barato de cobrir.
+ */
+const RETRY_MS = [1100];
+
+/**
+ * GET com retentativa em falha TRANSITÓRIA (5xx, timeout, erro de rede).
+ *
+ * Existe porque o Google Books devolve 503 de forma intermitente — medido em
+ * ~25% das buscas em 2026-08-22, com e sem vírgula na query, o que descartou
+ * a hipótese de ser a query. Sem retentativa, uma em cada quatro buscas de
+ * livro caía para a Open Library, que não tem acervo brasileiro: o usuário
+ * via lixo e concluía que o livro não existe.
+ *
+ * 4xx NÃO é retentado: 401, 404 e 429 não melhoram na segunda tentativa, e
+ * insistir só atrasa o fallback, que para esses casos é a resposta certa.
+ */
 async function getJson(url: string, headers: Record<string, string> = {}): Promise<unknown> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', ...headers },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return await res.json();
+  let ultimo: Error | undefined;
+
+  for (let tentativa = 0; tentativa <= RETRY_MS.length; tentativa++) {
+    if (tentativa > 0) await new Promise((r) => setTimeout(r, RETRY_MS[tentativa - 1]!));
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', ...headers },
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch (e) {
+      // Timeout ou erro de rede — transitório, vale outra tentativa.
+      ultimo = e instanceof Error ? e : new Error(String(e));
+      continue;
+    }
+
+    if (res.ok) return await res.json();
+
+    const erro = new Error(`${res.status} ${res.statusText}`);
+    // Fora do try de propósito: 4xx é definitivo e sai daqui sem retentativa.
+    if (res.status < 500) throw erro;
+    ultimo = erro;
+  }
+
+  throw ultimo ?? new Error('falha desconhecida');
 }
 
 function str(v: unknown): string | undefined {

@@ -21,6 +21,15 @@ export interface CulturaBusca {
   candidatos: CulturaCandidato[];
   /** `null` quando a cadeia se esgotou — sinal para oferecer cadastro manual. */
   provedor: string | null;
+  /**
+   * O provedor primário falhou e quem respondeu foi o fallback.
+   *
+   * Importa para o usuário, não só para diagnóstico: o Google Books cai com
+   * 503 em rajada, e quem assume é a Open Library, que não tem acervo
+   * brasileiro e devolve resultado irrelevante COM CONFIANÇA. Sem esse aviso
+   * a pessoa conclui que o livro não existe, quando a busca é que degradou.
+   */
+  degradada: boolean;
 }
 
 /**
@@ -32,7 +41,14 @@ export async function buscarCultura(tipo: string, q: string): Promise<CulturaBus
     body: { tipo, q },
   });
   if (error) throw error;
-  const d = data as Partial<CulturaBusca> & { error?: string };
+  const d = data as Partial<CulturaBusca> & {
+    error?: string;
+    falhas?: Array<{ provedor: string; erro: string }>;
+  };
   if (d.error) throw new Error(d.error);
-  return { candidatos: d.candidatos ?? [], provedor: d.provedor ?? null };
+  return {
+    candidatos: d.candidatos ?? [],
+    provedor: d.provedor ?? null,
+    degradada: (d.falhas?.length ?? 0) > 0 && (d.candidatos?.length ?? 0) > 0,
+  };
 }

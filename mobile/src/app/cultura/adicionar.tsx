@@ -48,6 +48,7 @@ export default function CulturaAdicionarScreen() {
   const [buscou, setBuscou] = useState(false);
   const [candidatos, setCandidatos] = useState<CulturaCandidato[]>([]);
   const [erroBusca, setErroBusca] = useState<string | null>(null);
+  const [degradada, setDegradada] = useState(false);
 
   // Etapa 2: confirmação. `escolhido === null` com `manual` ligado é cadastro à mão.
   const [escolhido, setEscolhido] = useState<CulturaCandidato | null>(null);
@@ -75,8 +76,10 @@ export default function CulturaAdicionarScreen() {
     try {
       const r = await buscarCultura(tipo, termo);
       setCandidatos(r.candidatos);
+      setDegradada(r.degradada);
     } catch (e) {
       setCandidatos([]);
+      setDegradada(false);
       setErroBusca(e instanceof Error ? e.message : 'falha na busca');
     } finally {
       setBuscando(false);
@@ -90,6 +93,7 @@ export default function CulturaAdicionarScreen() {
     setCandidatos([]);
     setBuscou(false);
     setErroBusca(null);
+    setDegradada(false);
   };
 
   const onEscolher = async (c: CulturaCandidato) => {
@@ -217,6 +221,21 @@ export default function CulturaAdicionarScreen() {
 
             {aviso && <Text style={s.aviso}>{aviso}</Text>}
             {erroBusca && <Text style={s.aviso}>Busca falhou: {erroBusca}</Text>}
+
+            {/*
+              O catálogo principal caiu e quem respondeu foi o reserva. Sem
+              este aviso a pessoa lê resultado irrelevante como "não existe" —
+              foi exatamente o que aconteceu com "Bom dia, inverno".
+            */}
+            {degradada && (
+              <View style={s.degradada}>
+                <Ionicons name="warning-outline" size={15} color={colors.ink2} />
+                <Text style={s.degradadaTxt}>
+                  O catálogo principal não respondeu. Estes resultados vêm do reserva e
+                  podem não ter o que você procura — vale buscar de novo.
+                </Text>
+              </View>
+            )}
 
             {candidatos.map((c) => (
               <Pressable key={`${c.fonte}:${c.fonteId}`} onPress={() => onEscolher(c)} style={s.card}>
@@ -409,6 +428,16 @@ const s = StyleSheet.create({
   },
   sugestaoTxt: { fontSize: 13, color: colors.ink2 },
   aviso: { fontSize: 13, color: colors.ink2, marginBottom: spacing.sm },
+  degradada: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.yellowSoft,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  degradadaTxt: { flex: 1, fontSize: 12, color: colors.ink2, lineHeight: 17 },
   btnSalvar: {
     marginTop: spacing.xl,
     borderRadius: radii.md,
