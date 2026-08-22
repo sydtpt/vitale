@@ -61,14 +61,15 @@ export const CULTURA_TIPOS: readonly CulturaTipoMeta[] = [
     rotulo: 'Livro',
     rotuloCriador: 'Autor',
     estados: { quero: 'Quero ler', consumindo: 'Lendo', concluido: 'Lido' },
-    // Open Library é o primário, não o Google Books, apesar de este ter
-    // metadado melhor: sem chave, o Books devolve 429 de cota de forma
-    // consistente — verificado em produção em 2026-08-22, tanto dos IPs do
-    // Supabase quanto de fora. Deixá-lo na frente pagava uma ida perdida em
-    // TODA busca de livro. Fica como fallback: custa zero enquanto a Open
-    // Library responde, e cobre as lacunas dela se a cota permitir.
-    // Inverter de volta exige uma chave própria (projeto no Google Cloud).
-    provedores: { primario: 'open_library', fallback: 'google_books', naturezaFallback: 'cobertura' },
+    // Google Books é o primário porque é o único dos dois que indexa editora
+    // brasileira: a Open Library não tem catálogo pt-BR contemporâneo, e para
+    // "Bom dia, inverno" (Tamara Klink) devolve 53 livros religiosos — ruído,
+    // não acervo. Descoberto no uso real em 2026-08-22.
+    //
+    // Isso exige GOOGLE_BOOKS_API_KEY na edge function. Sem a chave o Books
+    // esbarra na cota anônima por IP (429) e a busca cai para a Open Library,
+    // que é degradação aceitável — mas é degradação, não o estado desejado.
+    provedores: { primario: 'google_books', fallback: 'open_library', naturezaFallback: 'cobertura' },
   },
   {
     tipo: 'filme',

@@ -69,10 +69,10 @@ check('tipo desconhecido é rejeitado na escrita mas renderiza na leitura (CAP-1
 });
 
 check('cadeia de provedores respeita o fallback de cada tipo (CAP-1)', () => {
-  // Open Library na frente do Google Books: o Books devolve 429 de cota sem
-  // chave, verificado em produção. A ordem aqui não é preferência de qualidade
-  // de metadado — é qual dos dois responde.
-  assert.deepEqual(cadeiaDeProvedores('livro'), ['open_library', 'google_books']);
+  // Google Books na frente: é o único dos dois com acervo brasileiro. Exige
+  // GOOGLE_BOOKS_API_KEY na edge function — sem ela cai na cota anônima e a
+  // Open Library assume, que é degradação e não o estado desejado.
+  assert.deepEqual(cadeiaDeProvedores('livro'), ['google_books', 'open_library']);
   assert.deepEqual(cadeiaDeProvedores('filme'), ['tmdb', 'itunes']);
   assert.deepEqual(cadeiaDeProvedores('album'), ['itunes', 'musicbrainz']);
   // Podcast é o único sem fallback — a assimetria é declarada, não esquecida.

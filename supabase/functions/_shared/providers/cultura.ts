@@ -56,7 +56,14 @@ function str(v: unknown): string | undefined {
 /* ───────────────────────── provedores ───────────────────────── */
 
 async function googleBooks(q: string): Promise<CulturaCandidato[]> {
-  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=10`;
+  // A chave é opcional no protocolo mas necessária na prática: sem ela o Books
+  // aplica cota anônima POR IP, que nos IPs do Supabase vive esgotada (429
+  // verificado em produção em 2026-08-22). Sem chave este provedor é um
+  // fallback morto; com chave volta a ser o único que indexa editora
+  // brasileira — a Open Library não tem catálogo pt-BR contemporâneo.
+  const key = Deno.env.get('GOOGLE_BOOKS_API_KEY');
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}` +
+    `&maxResults=10&country=BR${key ? `&key=${encodeURIComponent(key)}` : ''}`;
   const d = await getJson(url) as { items?: Array<Record<string, any>> };
   return (d.items ?? []).map((it) => {
     const v = it['volumeInfo'] ?? {};

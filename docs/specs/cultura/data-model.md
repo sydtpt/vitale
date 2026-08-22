@@ -96,14 +96,16 @@ O conjunto de mídias é dado no shared, não no schema. Adicionar a quinta é e
 
 | `tipo` | Rótulos de estado (CAP-8) | `criador` é | Provedor primário | Fallback | Tipo de fallback |
 |---|---|---|---|---|---|
-| `livro` | quero ler · lendo · lido | Autor | Open Library · sem chave | Google Books · sem chave | Cobertura |
+| `livro` | quero ler · lendo · lido | Autor | Google Books · **exige chave** | Open Library · sem chave | Cobertura |
 | `filme` | quero ver · vendo · visto | Diretor | TMDB · **exige chave** | iTunes Search · sem chave | Disponibilidade |
 | `podcast` | quero ouvir · ouvindo · ouvido | Apresentador | iTunes Search · sem chave | — | — |
 | `album` | quero ouvir · ouvindo · ouvido | Artista | iTunes Search · sem chave | MusicBrainz · sem chave | Cobertura |
 
 **Cobertura** significa que o segundo provedor acha coisa que o primeiro não tem, e vale tentar sempre. **Disponibilidade** significa que ele quase nunca vai achar o que o primeiro não achou — existe para a busca não morrer se o TMDB cair ou a chave falhar, e não merece esforço de merge de resultados.
 
-> **A ordem de `livro` foi decidida por disponibilidade, não por qualidade.** O Google Books tem metadado melhor, mas sem chave devolve `429` de cota de forma consistente — verificado em produção em 2026-08-22, dos IPs do Supabase e de fora. Como primário ele custava uma ida perdida em **toda** busca de livro; como fallback custa zero enquanto a Open Library responde. Voltar à ordem original exige chave própria, ou seja, um projeto no Google Cloud.
+> **`livro` depende do Google Books, e isso exige chave.** A Open Library não tem catálogo brasileiro contemporâneo: para "Bom dia, inverno" (Tamara Klink) ela devolve 53 livros religiosos, e buscar a autora traz uma acadêmica alemã homônima. Isso é lacuna de acervo, não de query — nenhum ajuste de busca resolve. Sem `GOOGLE_BOOKS_API_KEY` o Books esbarra na cota anônima por IP (429 verificado nos IPs do Supabase e fora) e a busca degrada para a Open Library.
+>
+> **Lição de desenho que veio junto:** o fallback dispara em zero resultados ou erro — e a Open Library devolvia 53 resultados *irrelevantes*. "Devolveu algo" não é "devolveu algo útil", então o Google Books nunca era consultado e o cadastro manual nunca aparecia. Por isso a saída manual passou a ficar visível em toda busca, não só quando a lista volta vazia.
 
 O fallback dispara em **dois gatilhos, não um**: zero resultados **e** erro ou timeout do provedor. Tratar só o primeiro anularia justamente o fallback de filme, cuja razão de existir é o TMDB indisponível — um 401 não é "não achou".
 

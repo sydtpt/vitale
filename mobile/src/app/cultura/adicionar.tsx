@@ -236,12 +236,22 @@ export default function CulturaAdicionarScreen() {
               </Pressable>
             ))}
 
-            {/* Ramo terminal da CAP-1: a cadeia acabou sem resultado. */}
-            {buscou && candidatos.length === 0 && (
+            {/*
+              Ramo terminal da CAP-1. Fica visível sempre que houve busca, NÃO
+              só quando a lista voltou vazia: provedor que devolve resultado
+              irrelevante é tão terminal quanto provedor que não devolve nada,
+              e a primeira versão escondia a saída justamente aí. Descoberto no
+              uso real — "Bom dia, inverno" traz 53 livros religiosos da Open
+              Library, e o botão nunca aparecia.
+            */}
+            {buscou && (
               <View style={s.vazio}>
-                <Text style={s.vazioTxt}>
-                  Nenhum catálogo conhece “{q.trim()}”.
-                </Text>
+                {candidatos.length === 0 && (
+                  <Text style={s.vazioTxt}>Nenhum catálogo conhece “{q.trim()}”.</Text>
+                )}
+                {candidatos.length > 0 && (
+                  <Text style={s.vazioTxt}>Não é nenhum desses?</Text>
+                )}
                 <Pressable onPress={onManual} style={[s.btnManual, { borderColor: mc.accent }]}>
                   <Ionicons name="create-outline" size={16} color={mc.accent} />
                   <Text style={[s.btnManualTxt, { color: mc.accent }]}>Cadastrar à mão</Text>
