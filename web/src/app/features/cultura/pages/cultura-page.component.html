@@ -1,0 +1,121 @@
+<rt-page-header
+  eyebrow="Acervo"
+  title="Cultura"
+  subtitle="Livros, filmes, podcasts e álbuns — o que você consumiu e de onde veio">
+</rt-page-header>
+
+@if (store.loading()) {
+  <p class="muted">Carregando…</p>
+} @else if (store.error(); as erro) {
+  <p class="erro">Não foi possível carregar: {{ erro }}</p>
+} @else if (store.isEmpty()) {
+  <p class="muted">
+    Sua estante está vazia. Adicione livros, filmes, podcasts e álbuns pelo app no celular.
+  </p>
+} @else {
+
+  <!-- ── INSIGHT: as duas perguntas que o mobile não responde ── -->
+  <section class="grid-2">
+    <article class="card">
+      <h2>De quem vêm as boas indicações</h2>
+      @if (store.indicadores().length === 0) {
+        <p class="muted">
+          Ninguém registrado ainda. Preencha “Indicado por” ao adicionar — é o dado que
+          some da memória primeiro.
+        </p>
+      } @else {
+        <table class="tabela">
+          <tbody>
+            @for (ind of store.indicadores(); track ind.nome) {
+              <tr>
+                <td class="nome">{{ ind.nome }}</td>
+                <td class="nota" [style.color]="cor.accent">★ {{ media(ind.media) }}</td>
+                <!--
+                  A contagem fica à vista de propósito: sem ela, "★5,0" de um
+                  único item enterraria "★4,2" de nove. O ranking é ordenado
+                  por média, e é o número aqui que revela o quanto confiar.
+                -->
+                <td class="apoio">
+                  {{ ind.comNota }} de {{ ind.total }} {{ ind.total === 1 ? 'avaliado' : 'avaliados' }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </article>
+
+    <article class="card">
+      <h2>Parados há mais tempo</h2>
+      @if (store.parados().length === 0) {
+        <p class="muted">Nada em andamento. Estante limpa.</p>
+      } @else {
+        <ul class="lista">
+          @for (p of store.parados(); track p.item.id) {
+            <li>
+              <span class="titulo">{{ p.item.titulo }}</span>
+              <span class="apoio">
+                {{ rotuloEmCurso(p.item.tipo) }} há {{ p.dias }} {{ p.dias === 1 ? 'dia' : 'dias' }}
+              </span>
+            </li>
+          }
+        </ul>
+        <p class="rodape">
+          Não há estado de abandono: item largado fica aqui até você retomar ou remover.
+        </p>
+      }
+    </article>
+  </section>
+
+  <!-- ── ACERVO: contexto, não manchete ── -->
+  <section class="card">
+    <header class="card-head">
+      <h2>Acervo</h2>
+      <div class="periodos">
+        @for (p of periodos; track p.key) {
+          <button
+            type="button"
+            [class.ativo]="store.periodo() === p.key"
+            [style.background]="store.periodo() === p.key ? cor.accent : null"
+            (click)="store.setPeriodo(p.key)">
+            {{ p.label }}
+          </button>
+        }
+      </div>
+    </header>
+
+    <p class="muted resolucao">
+      Por janela de consumo, não por dia — o módulo sabe em que período algo foi
+      consumido, nunca em que datas exatas. “Quero” fica de fora: não tem janela.
+    </p>
+
+    <div class="tipos">
+      @for (t of store.tipos; track t.tipo) {
+        <div class="tipo">
+          <span class="num" [style.color]="cor.accent">{{ store.porTipo()[t.tipo] ?? 0 }}</span>
+          <span class="apoio">{{ rotuloTipo(t.tipo) }}s</span>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- ── NOTAS ── -->
+  <section class="card">
+    <h2>Distribuição de notas</h2>
+    @if (!temNota()) {
+      <p class="muted">Nenhum item avaliado no período.</p>
+    } @else {
+      <ul class="barras">
+        @for (n of notasOrdenadas(); track n.nota) {
+          <li>
+            <span class="estrelas">{{ '★'.repeat(n.nota) }}</span>
+            <span class="barra">
+              <span class="fill" [style.width.%]="n.pct" [style.background]="cor.accent"></span>
+            </span>
+            <span class="apoio">{{ n.total }}</span>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+}

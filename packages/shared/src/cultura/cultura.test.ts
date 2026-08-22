@@ -17,6 +17,13 @@ import {
   type CulturaEstado,
 } from './tipos';
 import {
+  distribuicaoDeNotas,
+  janelaIntersecta,
+  paradosEmAndamento,
+  rankingIndicadores,
+} from './analytics';
+import type { CulturaItem } from '../models/index';
+import {
   convergirIndicador,
   datasAposTransicao,
   normalizarIndicadoPor,
@@ -233,6 +240,85 @@ check('autocomplete converge grafias sem distinção de caixa', () => {
   assert.equal(convergirIndicador('joão', existentes), 'João');
   assert.equal(convergirIndicador('  JOÃO ', existentes), 'João');
   assert.equal(convergirIndicador('Pedro', existentes), 'Pedro');
+});
+
+/* ── Agregações da web (CAP-5, CAP-6, CAP-11) ───────────────────────── */
+
+function item(over: Partial<CulturaItem>): CulturaItem {
+  return {
+    id: Math.random().toString(36).slice(2),
+    userId: 'u',
+    tipo: 'livro',
+    titulo: 't',
+    estado: 'quero',
+    criadoEm: '2026-01-01T00:00:00Z',
+    atualizadoEm: '2026-01-01T00:00:00Z',
+    ...over,
+  };
+}
+
+check('janela: item em quero nunca intersecta — não tem janela (CAP-5)', () => {
+  assert.equal(janelaIntersecta({ estado: 'quero' }, '2026-01-01', '2026-12-31', '2026-08-22'), false);
+});
+
+check('janela: item em curso tem janela ABERTA, fechada em hoje (CAP-5)', () => {
+  const emCurso = { estado: 'consumindo' as const, iniciadoEm: '2026-01-10' };
+  // Começou em janeiro, ainda em curso: intersecta agosto porque a janela
+  // segue aberta. A regressão que isto pega é tratar concluidoEm nulo como
+  // "janela de tamanho zero" e sumir com tudo que está em andamento.
+  assert.equal(janelaIntersecta(emCurso, '2026-08-01', '2026-08-31', '2026-08-22'), true);
+});
+
+check('janela: intervalo anterior ao início não intersecta', () => {
+  const i = { estado: 'concluido' as const, iniciadoEm: '2026-05-01', concluidoEm: '2026-05-20' };
+  assert.equal(janelaIntersecta(i, '2026-01-01', '2026-04-30', '2026-08-22'), false);
+  assert.equal(janelaIntersecta(i, '2026-05-10', '2026-05-15', '2026-08-22'), true);
+});
+
+check('parados: ordena do mais antigo, só o que está em curso', () => {
+  const r = paradosEmAndamento([
+    item({ titulo: 'novo', estado: 'consumindo', iniciadoEm: '2026-08-01' }),
+    item({ titulo: 'antigo', estado: 'consumindo', iniciadoEm: '2026-05-01' }),
+    item({ titulo: 'lido', estado: 'concluido', iniciadoEm: '2020-01-01', concluidoEm: '2020-02-01' }),
+  ], '2026-08-22');
+  assert.deepEqual(r.map((x) => x.item.titulo), ['antigo', 'novo']);
+  assert.equal(r[0]!.dias, 113);
+});
+
+check('notas: item sem nota não entra na distribuição', () => {
+  const d = distribuicaoDeNotas([item({ nota: 5 }), item({ nota: 5 }), item({ nota: 2 }), item({})]);
+  assert.equal(d[5], 2);
+  assert.equal(d[2], 1);
+  assert.equal(d[3], 0);
+});
+
+check('indicadores: ordena por média e expõe quantos a sustentam (CAP-11)', () => {
+  const r = rankingIndicadores([
+    item({ indicadoPor: 'Ana', nota: 5 }),
+    item({ indicadoPor: 'Ana', nota: 4 }),
+    item({ indicadoPor: 'João', nota: 5 }),
+  ]);
+  // João tem média maior, mas de UM item só — por isso `comNota` é exibido:
+  // sem ele, ★5,0 de um item enterraria ★4,5 de nove.
+  assert.deepEqual(r.map((x) => x.nome), ['João', 'Ana']);
+  assert.equal(r[0]!.comNota, 1);
+  assert.equal(r[1]!.media, 4.5);
+});
+
+check('indicadores: quem não tem nota alguma vai para o fim, sem virar ranking', () => {
+  const r = rankingIndicadores([
+    item({ indicadoPor: 'Sem nota' }),
+    item({ indicadoPor: 'Sem nota' }),
+    item({ indicadoPor: 'Ana', nota: 1 }),
+  ]);
+  assert.deepEqual(r.map((x) => x.nome), ['Ana', 'Sem nota']);
+  assert.equal(r[1]!.media, null);
+  assert.equal(r[1]!.total, 2);
+});
+
+check('indicadores: espaço em branco não cria indicador fantasma', () => {
+  const r = rankingIndicadores([item({ indicadoPor: '  ' }), item({ indicadoPor: 'Ana' })]);
+  assert.deepEqual(r.map((x) => x.nome), ['Ana']);
 });
 
 console.log(`\n${passed} testes passaram`);

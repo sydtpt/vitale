@@ -33,6 +33,7 @@ export * from './data/habits';
 export * from './data/registros';
 export * from './cultura/tipos';
 export * from './cultura/estados';
+export * from './cultura/analytics';
 export * from './data/cultura';
 export * from './data/goals';
 export * from './data/planned-workouts';

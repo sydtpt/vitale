@@ -1,0 +1,92 @@
+/* Tokens do design system via variáveis CSS — sem hex solto aqui.
+   A cor do módulo vem do MOD, aplicada inline pelo componente. */
+
+:host { display: block; padding: 24px 32px 48px; max-width: 1200px; }
+
+.muted { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.erro { font-size: 14px; color: var(--primary-deep); }
+.apoio { font-size: 12.5px; color: var(--ink-3); }
+
+.grid-2 {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  margin-top: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.grid-2 .card { margin-top: 0; }
+
+.card h2 {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-2);
+  margin: 0 0 14px;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.periodos { display: inline-flex; gap: 6px; }
+.periodos button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.periodos button.ativo { border-color: transparent; color: #fff; }
+
+.resolucao { margin: 0 0 16px; font-size: 12.5px; }
+
+/* ── Indicadores ── */
+.tabela { width: 100%; border-collapse: collapse; }
+.tabela td { padding: 8px 0; border-bottom: 1px solid var(--line); vertical-align: baseline; }
+.tabela tr:last-child td { border-bottom: none; }
+.nome { font-size: 14px; font-weight: 600; color: var(--ink); }
+.nota { font-size: 14px; font-weight: 700; text-align: right; white-space: nowrap; padding-right: 12px !important; }
+.tabela .apoio { text-align: right; white-space: nowrap; }
+
+/* ── Parados ── */
+.lista { list-style: none; margin: 0; padding: 0; }
+.lista li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.lista li:last-child { border-bottom: none; }
+.titulo { font-size: 14px; font-weight: 600; color: var(--ink); }
+.rodape { margin: 14px 0 0; font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+
+/* ── Acervo ── */
+.tipos { display: flex; flex-wrap: wrap; gap: 32px; }
+.tipo { display: flex; flex-direction: column; gap: 2px; }
+.num { font-size: 26px; font-weight: 700; line-height: 1.1; }
+
+/* ── Notas ── */
+.barras { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.barras li { display: grid; grid-template-columns: 76px 1fr 28px; align-items: center; gap: 10px; }
+.estrelas { font-size: 12px; color: var(--yellow, #F5B946); letter-spacing: 1px; }
+.barra { height: 10px; background: var(--bg-2); border-radius: 999px; overflow: hidden; }
+.fill { display: block; height: 100%; border-radius: 999px; transition: width 0.2s; }
+.barras .apoio { text-align: right; }

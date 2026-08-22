@@ -98,6 +98,12 @@ const routes: Routes = [
       import('@features/registros/pages/registros-page.component').then(m => m.RegistrosPageComponent),
   },
   {
+    path: 'cultura',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/cultura/pages/cultura-page.component').then(m => m.CulturaPageComponent),
+  },
+  {
     path: 'alimentacao',
     canActivate: [profileGuard],
     loadComponent: () =>
