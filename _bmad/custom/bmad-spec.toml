@@ -1,0 +1,19 @@
+# Team overrides para o workflow do bmad-spec.
+# Committed no repo — vale para qualquer pessoa ou agente que rode a skill aqui.
+#
+# Por que existe: a consolidação arquitetural (CAP-2) estabeleceu que spec de
+# produto vive em `docs/specs/<feature>/{spec,plan,data-model}.md` — é o que o
+# AGENTS.md documenta e o que o CLAUDE.md linka. O padrão do bmad-spec grava em
+# `{output_folder}/specs/spec-{slug}/SPEC.md`, ou seja, dentro de `_bmad-output/`,
+# que é a pasta dos artefatos de planejamento. Sem este override, toda spec nova
+# nasce fora da convenção do repositório e some do índice do CLAUDE.md.
+#
+# `spec_filename` em minúsculas de propósito: o macOS tem filesystem
+# case-insensitive por padrão, e `SPEC.md` ao lado das 20+ `spec.md` existentes
+# lê como inconsistência sem ser uma.
+
+[workflow]
+
+spec_output_path = "{project-root}/docs/specs"
+run_folder_pattern = "{slug}"
+spec_filename = "spec.md"

@@ -1,0 +1,113 @@
+- id: "1"
+  title: Fundação do módulo Cultura no núcleo compartilhado
+  description: >-
+    Modelos CulturaItem/CulturaTipo/CulturaEstado, o registro de tipos append-only
+    com rótulos por mídia (CAP-8, CAP-9), a 9ª chave no map MOD, o módulo dono
+    packages/shared/src/data/cultura.ts com a validação de tipo (CAP-13), e a
+    migration de cultura_items com RLS e as restrições de integridade.
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Quatro constraints do SPEC que quebram silenciosamente se ignoradas:
+    (1) nenhuma chamada .from('cultura_items') pode existir fora de
+    packages/shared/src/data/cultura.ts — o módulo devolve modelo de domínio,
+    nunca linha crua;
+    (2) a coluna tipo NÃO leva check constraint — o conjunto válido vive no
+    registro de tipos do shared, e é isso que faz a quinta mídia custar zero
+    migration (CAP-9). Quem valida na escrita é cultura.ts (CAP-13), e o registro
+    é append-only: tipo removido deixaria itens órfãos, já que tipo não é editável;
+    (3) a migration leva as restrições do companion — os três checks de coerência
+    entre estado e datas, o unique parcial (user_id, fonte, fonte_id) where
+    fonte_id is not null, e o check de indicado_por não-vazio. Elas são a última
+    linha de defesa: cultura.ts valida os mesmos invariantes antes de escrever,
+    para o usuário nunca ver erro de check do Postgres;
+    (4) a migration vai gerada em supabase/migrations/ e PARA ali. O projeto está
+    linkado em produção e o AGENTS.md proíbe supabase db push sem confirmação
+    explícita do usuário. Gere o .sql, mostre, e pergunte.
+    A cor é cultura: { tint: '#EBE3F3', accent: '#8B6BB1' }.
+- id: "2"
+  title: Edge function cultura-search com fan-out multi-provedor
+  description: >-
+    Busca de catálogo para os quatro tipos, respondendo num shape único, com a
+    cadeia de fallback definida no companion data-model.md (CAP-1, CAP-7).
+    Segue o padrão de supabase/functions/strava-oauth.
+  done_checkpoint: true
+  invoke_dev_with: >-
+    A chave do TMDB é o único segredo do módulo e não pode aparecer em bundle de
+    web nem de mobile — é a razão desta função existir. Cadeia de provedores:
+    livro = Google Books → Open Library; filme = TMDB → iTunes Search;
+    album = iTunes Search → MusicBrainz; podcast = iTunes Search (sem fallback).
+    O fallback dispara em DOIS gatilhos: zero resultados E erro ou timeout do
+    provedor. Tratar só o primeiro anula o fallback de filme, que existe
+    justamente para o TMDB indisponível — um 401 não é "não achou".
+    Fallback de áudio e livro é de COBERTURA (o segundo acha coisa nova, vale
+    sempre); o de filme é de DISPONIBILIDADE (o iTunes quase nunca acha o que o
+    TMDB não achou — não gaste esforço em merge de resultados).
+    MusicBrainz exige User-Agent identificando a aplicação e no máximo um pedido
+    por segundo: espace os pedidos e, ao estourar, devolva resultado parcial em
+    vez de falhar a busca inteira.
+    Os quatro tipos devem responder no mesmo shape, senão o cliente precisa saber
+    qual provedor respondeu — o que anula o ponto da função.
+- id: "3"
+  title: "Mobile: adicionar item, por busca ou à mão"
+  description: >-
+    Tela acessível pela aba Mais: escolher tipo, buscar título, escolher candidato
+    e salvar com os metadados do provedor — com cadastro manual quando a cadeia de
+    provedores se esgota (CAP-1). Inclui indicado_por com autocomplete (CAP-11).
+  invoke_dev_with: >-
+    O ramo do cadastro manual não é opcional: sem ele, livro obscuro, podcast
+    independente ou celular offline travam o cadastro. Título e tipo obrigatórios,
+    fonte e fonte_id nulos. Candidato sem capa ou sem criador também tem que ser
+    salvável — use placeholder, não bloqueie o save.
+    Ao adicionar um item de catálogo que já está na estante, detecte ANTES do
+    insert e navegue ao item existente; o unique parcial do banco é rede de
+    segurança, não o caminho feliz.
+    O autocomplete de indicado_por não é enfeite, é constraint do SPEC: casa sem
+    distinção de caixa e reusa a grafia existente. Sem isso "joão" e "João" viram
+    dois indicadores e matam a agregação que é o único motivo do campo existir.
+    Nenhum rótulo de mídia ('ler', 'lido') pode virar nome de coluna, valor de
+    enum ou tipo TypeScript (CAP-8).
+    O item pode nascer em qualquer estado, não só em quero — é o mesmo mecanismo
+    do backfill.
+    Toda leitura e escrita passa pelo módulo do shared da story 1.
+- id: "4"
+  title: "Mobile: a estante com ciclo de vida, nota, edição e deleção"
+  description: >-
+    Lista dos itens com os rótulos certos por mídia, as doze transições da máquina
+    de estados gravando suas datas, a nota 1–5, a edição do item e a deleção
+    (CAP-2, CAP-4, CAP-8, CAP-10, CAP-12).
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Implemente a máquina de estados do companion INTEIRA, não só o caminho feliz.
+    As arestas que se esquece: quero → concluido direta (filme visto numa sentada
+    é o caso comum), concluido → consumindo (reler), e concluido → quero (quer
+    reler, ainda não começou).
+    TODA transição aceita uma data, com hoje como padrão. Sem isso o backfill
+    grava o passado com a data de hoje e a janela do CAP-5 nasce errada.
+    Ao reler, iniciado_em recebe a data NOVA, nunca a antiga, e a nota é
+    PRESERVADA — nota é opinião sobre a obra, não sobre a leitura.
+    São três estados e apenas três: quero, consumindo, concluido. NÃO existe
+    'abandonado' — largar um item é deletá-lo (CAP-10). Foi decisão explícita do
+    usuário; não invente o quarto estado por parecer mais completo.
+    Na edição (CAP-12): titulo, criador, indicado_por, nota e datas são editáveis;
+    tipo NÃO é. Data inválida volta como mensagem própria, nunca como violação de
+    check do Postgres.
+    A nota é editável em qualquer estado, não só ao concluir.
+    Os rótulos exibidos vêm do registro de tipos, nunca hardcoded na tela.
+- id: "5"
+  title: "Web: página /cultura de análise"
+  description: >-
+    Contagem por período e por tipo, distribuição de notas, itens parados em
+    consumindo há mais tempo, e agrupamento por indicador com as notas de cada um
+    (CAP-5, CAP-6, metade de análise do CAP-11).
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Página de leitura. A resolução temporal disponível é de JANELA, não de dia:
+    o par iniciado_em/concluido_em diz em que período algo foi consumido, nunca
+    em que noites. Não construa nada que sugira precisão diária.
+    A consulta por intervalo trata item em curso como janela aberta —
+    coalesce(concluido_em, current_date) — e exclui os que estão em quero, que
+    não têm janela (CAP-5).
+    Fora de escopo explícito: mexer no motor de correlação (triggerImpact) — é o
+    item A6 do backlog de instrumentação, com escopo próprio.
+    Angular standalone + OnPush + signals, SCSS com os tokens do shared,
+    e a cor do módulo vem do map MOD, sem hex solto no componente.
