@@ -94,6 +94,10 @@ async function tmdb(q: string): Promise<CulturaCandidato[]> {
   // (v3, 32 hex) vai na query; o Read Access Token (v4, JWT) vai como Bearer.
   // Aceitar as duas evita o modo de falha mais chato daqui — a credencial
   // errada dá 401, o fallback engole, e a busca de filme fica pior sem avisar.
+  //
+  // PREFIRA o Read Access Token: header não entra em log de proxy, CDN nem
+  // servidor, e query string entra. A v3 fica suportada como rede, não como
+  // recomendação.
   const ehToken = key.startsWith('eyJ');
   let url = `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(q)}&language=pt-BR`;
   const headers: Record<string, string> = {};
