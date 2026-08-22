@@ -7,7 +7,18 @@
 -- define uma janela de consumo, nunca dias. Nenhuma consulta aqui responde
 -- "em que noites li".
 --
--- NÃO APLICADA. Gerada em 2026-08-22 e aguardando aplicação manual.
+-- APLICADA em 2026-08-22 via `supabase db push --linked --include-all`, com
+-- autorização explícita do usuário, e registrada em schema_migrations.
+--
+-- Verificado depois via Management API: 16 colunas, RLS ativo, as 4 policies,
+-- os 4 índices e os 6 checks presentes com as definições esperadas — e `tipo`
+-- SEM check, que é a CAP-9 de pé em produção.
+--
+-- Nota do mesmo push: `20260722120000_activities_cities` e
+-- `20260729120000_user_preferences_notification_prefs` saíram no-op ("column
+-- already exists"). As duas tinham sido aplicadas à mão sem registro em
+-- schema_migrations — era lacuna de histórico, não schema pendente. Depois
+-- deste push, 43 migrations locais e 0 pendentes.
 
 create table if not exists public.cultura_items (
   id           uuid primary key default gen_random_uuid(),
