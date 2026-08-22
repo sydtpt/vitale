@@ -66,7 +66,7 @@ async function googleBooks(q: string): Promise<CulturaCandidato[]> {
       titulo: String(v['title'] ?? ''),
       criador: (v['authors'] as string[] | undefined)?.join(', '),
       capaUrl: str(v['imageLinks']?.['thumbnail'])?.replace('http://', 'https://'),
-      extra: { paginas: v['pageCount'], ano: anoDe(str(v['publishedDate'])) },
+      extra: limpo({ paginas: v['pageCount'], ano: anoDe(str(v['publishedDate'])) }),
     };
   }).filter((c) => c.titulo);
 }
@@ -80,7 +80,7 @@ async function openLibrary(q: string): Promise<CulturaCandidato[]> {
     titulo: String(doc['title'] ?? ''),
     criador: (doc['author_name'] as string[] | undefined)?.join(', '),
     capaUrl: doc['cover_i'] ? `https://covers.openlibrary.org/b/id/${doc['cover_i']}-M.jpg` : undefined,
-    extra: { paginas: doc['number_of_pages_median'], ano: doc['first_publish_year'] },
+    extra: limpo({ paginas: doc['number_of_pages_median'], ano: doc['first_publish_year'] }),
   })).filter((c) => c.titulo && c.fonteId);
 }
 
@@ -114,7 +114,7 @@ async function tmdb(q: string): Promise<CulturaCandidato[]> {
     // O diretor exige outra chamada (/movie/{id}/credits); fica para o save,
     // não para cada linha de resultado.
     capaUrl: m['poster_path'] ? `https://image.tmdb.org/t/p/w342${m['poster_path']}` : undefined,
-    extra: { ano: anoDe(str(m['release_date'])) },
+    extra: limpo({ ano: anoDe(str(m['release_date'])) }),
   })).filter((c) => c.titulo);
 }
 
@@ -129,11 +129,11 @@ async function itunes(q: string, entity: string): Promise<CulturaCandidato[]> {
     titulo: String(r['trackName'] ?? r['collectionName'] ?? ''),
     criador: str(r['artistName']),
     capaUrl: str(r['artworkUrl100'])?.replace('100x100', '400x400'),
-    extra: {
+    extra: limpo({
       ano: anoDe(str(r['releaseDate'])),
       duracaoMin: r['trackTimeMillis'] ? Math.round(r['trackTimeMillis'] / 60000) : undefined,
       nFaixas: r['trackCount'],
-    },
+    }),
   })).filter((c) => c.titulo && c.fonteId);
 }
 
@@ -149,13 +149,28 @@ async function musicBrainz(q: string): Promise<CulturaCandidato[]> {
     criador: (rg['artist-credit'] as Array<Record<string, any>> | undefined)?.[0]?.['name'],
     // O MusicBrainz não serve capa; a Cover Art Archive é chaveada pelo mesmo id.
     capaUrl: rg['id'] ? `https://coverartarchive.org/release-group/${rg['id']}/front-250` : undefined,
-    extra: { ano: anoDe(str(rg['first-release-date'])) },
+    extra: limpo({ ano: anoDe(str(rg['first-release-date'])) }),
   })).filter((c) => c.titulo);
 }
 
 function anoDe(data: string | undefined): number | undefined {
   const n = data ? Number(data.slice(0, 4)) : NaN;
   return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Remove do `extra` as chaves sem valor útil. Zero aqui é pior que ausente:
+ * um podcast voltou `trackTimeMillis: 0` do iTunes, e "0 min" na tela é uma
+ * afirmação errada, enquanto campo ausente é a verdade — não sabemos.
+ */
+function limpo(extra: Record<string, unknown>): Record<string, unknown> | undefined {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(extra)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === 'number' && (!Number.isFinite(v) || v === 0)) continue;
+    out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** Um provedor por nome, já ciente do tipo (o iTunes muda de `entity`). */
