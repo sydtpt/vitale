@@ -21,6 +21,7 @@ import {
   datasAposTransicao,
   normalizarIndicadoPor,
   podeTransitar,
+  resolverPatch,
   validarItem,
 } from './estados';
 
@@ -189,6 +190,31 @@ check('nota fora de 1–5 ou fracionária é inválida', () => {
 check('nota é permitida em qualquer estado, não só ao concluir (CAP-4)', () => {
   assert.deepEqual(validarItem({ estado: 'quero', nota: 4 }), []);
   assert.deepEqual(validarItem({ estado: 'consumindo', iniciadoEm: '2026-01-01', nota: 4 }), []);
+});
+
+/* ── Semântica de patch (CAP-12) ────────────────────────────────────── */
+
+check('null limpa, undefined preserva, valor substitui', () => {
+  assert.equal(resolverPatch(null, '2026-01-01'), undefined);
+  assert.equal(resolverPatch(undefined, '2026-01-01'), '2026-01-01');
+  assert.equal(resolverPatch('2026-08-22', '2026-01-01'), '2026-08-22');
+  // O caso que o `??` erraria: limpar uma nota existente.
+  assert.equal(resolverPatch<number>(null, 4), undefined);
+});
+
+check('voltar para quero limpa as datas via patch e o resultado é válido', () => {
+  // A regressão que isto pega: usar `??` no lugar de resolverPatch faria as
+  // datas sobreviverem, e o item em `quero` violaria o check da migration.
+  const atual = { estado: 'concluido' as const, iniciadoEm: '2026-01-01', concluidoEm: '2026-02-01' };
+  const datas = datasAposTransicao(atual, 'quero', '2026-08-22');
+  const alvo = {
+    estado: 'quero' as const,
+    iniciadoEm: resolverPatch(datas.iniciadoEm ?? null, atual.iniciadoEm),
+    concluidoEm: resolverPatch(datas.concluidoEm ?? null, atual.concluidoEm),
+  };
+  assert.equal(alvo.iniciadoEm, undefined);
+  assert.equal(alvo.concluidoEm, undefined);
+  assert.deepEqual(validarItem(alvo), []);
 });
 
 /* ── Indicador (CAP-11) ─────────────────────────────────────────────── */

@@ -18,6 +18,7 @@ import type { CulturaItem } from '../models/index';
 import { isTipoConhecido, type CulturaEstado, type CulturaTipo } from '../cultura/tipos';
 import {
   normalizarIndicadoPor,
+  resolverPatch,
   validarItem,
   type CulturaViolacao,
 } from '../cultura/estados';
@@ -237,9 +238,9 @@ export async function updateCulturaItem(
 ): Promise<void> {
   const alvo = {
     estado: patch.estado ?? atual.estado,
-    nota: (patch.nota === null ? undefined : patch.nota) ?? (patch.nota === null ? undefined : atual.nota),
-    iniciadoEm: patch.iniciadoEm === null ? undefined : patch.iniciadoEm ?? atual.iniciadoEm,
-    concluidoEm: patch.concluidoEm === null ? undefined : patch.concluidoEm ?? atual.concluidoEm,
+    nota: resolverPatch(patch.nota, atual.nota),
+    iniciadoEm: resolverPatch(patch.iniciadoEm, atual.iniciadoEm),
+    concluidoEm: resolverPatch(patch.concluidoEm, atual.concluidoEm),
   };
   guardInvariantes(alvo);
 

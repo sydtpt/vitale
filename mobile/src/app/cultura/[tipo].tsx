@@ -6,8 +6,8 @@
  * "Quero ler / Lendo / Lidos", em álbum "Quero ouvir / Ouvindo / Ouvidos".
  * É a CAP-8 em uso — nenhum vocabulário de mídia mora aqui.
  *
- * PARCIAL: lista e filtra. Transições de estado, nota, edição e deleção são a
- * story 4; tocar num item ainda não faz nada.
+ * Tocar num card abre /cultura/item/[id], onde vivem as transições, a nota, a
+ * edição e a deleção.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -123,7 +123,11 @@ export default function CulturaTipoScreen() {
         )}
 
         {visiveis.map((i) => (
-          <View key={i.id} style={s.card}>
+          <Pressable
+            key={i.id}
+            onPress={() => router.push(`/cultura/item/${i.id}`)}
+            style={s.card}
+          >
             {i.capaUrl
               ? <Image source={{ uri: i.capaUrl }} style={s.capa} resizeMode="cover" />
               : <View style={[s.capa, s.capaVazia]}>
@@ -146,7 +150,8 @@ export default function CulturaTipoScreen() {
                 )}
               </View>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.ink4} />
+          </Pressable>
         ))}
       </ScrollView>
     </View>

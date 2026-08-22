@@ -102,6 +102,21 @@ export function validarItem(item: Validavel): CulturaViolacao[] {
 }
 
 /**
+ * Semântica de patch, compartilhada por toda edição do módulo:
+ * `undefined` = "não mexe neste campo", `null` = "limpa este campo".
+ *
+ * O `??` sozinho não serve porque trata os dois igual — e a diferença é
+ * exatamente o que faz voltar para `quero` LIMPAR as datas em vez de
+ * preservá-las, o que deixaria o item incoerente com o próprio estado e
+ * bateria nos `check` da migration.
+ */
+export function resolverPatch<T>(novo: T | null | undefined, atual: T | undefined): T | undefined {
+  if (novo === null) return undefined;
+  if (novo === undefined) return atual;
+  return novo;
+}
+
+/**
  * Normaliza `indicadoPor` para a agregação da CAP-11: string vazia vira
  * ausência, para não abrir um grupo fantasma no agrupamento por indicador.
  */

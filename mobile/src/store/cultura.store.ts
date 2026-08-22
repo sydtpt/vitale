@@ -1,12 +1,16 @@
 import { create } from 'zustand';
 import {
   createCulturaItem,
+  datasAposTransicao,
+  deleteCulturaItem,
   fetchCulturaItems,
   fetchIndicadores,
   findCulturaItemPorFonte,
   convergirIndicador,
+  updateCulturaItem,
   type CulturaEstado,
   type CulturaItem,
+  type CulturaPatch,
   type CulturaTipo,
   type NewCulturaItem,
 } from '@vitale/shared';
@@ -31,6 +35,19 @@ interface CulturaState {
 
   /** Cria e recarrega. Devolve o id, para a tela poder navegar até ele. */
   adicionar: (input: NewCulturaItem) => Promise<string>;
+
+  /**
+   * Move o item de estado na data informada (CAP-2). As datas resultantes vêm
+   * de `datasAposTransicao` no núcleo — a tela não as calcula, senão a regra
+   * de "reler usa a data nova" precisaria ser lembrada em cada chamador.
+   */
+  transitar: (item: CulturaItem, para: CulturaEstado, data: string) => Promise<void>;
+
+  /** Edita campos do item (CAP-12). `tipo` não está entre eles, de propósito. */
+  atualizar: (item: CulturaItem, patch: CulturaPatch) => Promise<void>;
+
+  /** Deleção é a única saída da estante (CAP-10). */
+  deletar: (id: string) => Promise<void>;
 
   /** Aplica a convergência de grafia sobre os indicadores em memória. */
   convergir: (digitado: string) => string;
@@ -76,6 +93,34 @@ export const useCulturaStore = create<CulturaState>((set, get) => ({
     const id = await createCulturaItem(supabase, userId, input);
     await get().load();
     return id;
+  },
+
+  transitar: async (item, para, data) => {
+    const datas = datasAposTransicao(
+      { iniciadoEm: item.iniciadoEm, concluidoEm: item.concluidoEm },
+      para,
+      data,
+    );
+    // `?? null` e não `?? undefined`: no patch, `undefined` significa "não
+    // mexe" e `null` significa "limpa". Voltar para `quero` precisa LIMPAR as
+    // datas — com undefined elas sobreviveriam e o item ficaria incoerente
+    // com o próprio estado, batendo nos checks da migration.
+    await updateCulturaItem(supabase, item, {
+      estado: para,
+      iniciadoEm: datas.iniciadoEm ?? null,
+      concluidoEm: datas.concluidoEm ?? null,
+    });
+    await get().load();
+  },
+
+  atualizar: async (item, patch) => {
+    await updateCulturaItem(supabase, item, patch);
+    await get().load();
+  },
+
+  deletar: async (id) => {
+    await deleteCulturaItem(supabase, id);
+    await get().load();
   },
 
   convergir: (digitado) => convergirIndicador(digitado, get().indicadores),
