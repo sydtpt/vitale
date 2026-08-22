@@ -17,7 +17,9 @@
  * `verify_jwt=true` não é sobre dado do usuário — a busca não toca em nada
  * dele. É para a função não virar proxy aberto queimando a cota do TMDB.
  *
- * Secrets: TMDB_API_KEY.
+ * Secrets: TMDB_API_KEY — aceita tanto a API Key v3 (32 hex, vai na query)
+ * quanto o Read Access Token v4 (JWT, vai como Bearer). O provedor detecta
+ * qual é pelo formato; as duas funcionam.
  */
 import { json, preflight } from '../_shared/auth.ts';
 import { buscarCultura } from '../_shared/providers/cultura.ts';

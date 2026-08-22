@@ -89,8 +89,18 @@ async function tmdb(q: string): Promise<CulturaCandidato[]> {
   // Ausência de chave é ERRO, não "sem resultado": deixar cair silenciosamente
   // para o iTunes esconderia uma função mal configurada por tempo indefinido.
   if (!key) throw new Error('TMDB_API_KEY não configurado');
-  const url = `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(q)}&language=pt-BR`;
-  const d = await getJson(url, { Authorization: `Bearer ${key}` }) as {
+
+  // O TMDB emite DUAS credenciais e elas não são intercambiáveis: a API Key
+  // (v3, 32 hex) vai na query; o Read Access Token (v4, JWT) vai como Bearer.
+  // Aceitar as duas evita o modo de falha mais chato daqui — a credencial
+  // errada dá 401, o fallback engole, e a busca de filme fica pior sem avisar.
+  const ehToken = key.startsWith('eyJ');
+  let url = `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(q)}&language=pt-BR`;
+  const headers: Record<string, string> = {};
+  if (ehToken) headers['Authorization'] = `Bearer ${key}`;
+  else url += `&api_key=${encodeURIComponent(key)}`;
+
+  const d = await getJson(url, headers) as {
     results?: Array<Record<string, any>>;
   };
   return (d.results ?? []).map((m) => ({
