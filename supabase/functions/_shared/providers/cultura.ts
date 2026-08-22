@@ -23,8 +23,13 @@ export interface CulturaCandidato {
   extra?: Record<string, unknown>;
 }
 
-/** Identificação exigida pelo MusicBrainz e boa educação nos demais. */
-const USER_AGENT = 'Orbe/1.0 (https://github.com/sydtpt/life-organizer)';
+/**
+ * Identificação exigida pelo MusicBrainz e boa educação nos demais. A política
+ * deles pede contato real e alcançável — é como te avisam antes de bloquear,
+ * em vez de só bloquear. O repositório ainda se chama `vitale`: o nome visível
+ * virou Orbe, mas o repo e os bundle IDs não foram renomeados.
+ */
+const USER_AGENT = 'Orbe/1.0 (https://github.com/sydtpt/vitale)';
 
 /** MusicBrainz permite 1 req/s. Serializa e espaça, em vez de levar bloqueio. */
 let musicBrainzLivreEm = 0;
