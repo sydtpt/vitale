@@ -61,7 +61,14 @@ export const CULTURA_TIPOS: readonly CulturaTipoMeta[] = [
     rotulo: 'Livro',
     rotuloCriador: 'Autor',
     estados: { quero: 'Quero ler', consumindo: 'Lendo', concluido: 'Lido' },
-    provedores: { primario: 'google_books', fallback: 'open_library', naturezaFallback: 'cobertura' },
+    // Open Library é o primário, não o Google Books, apesar de este ter
+    // metadado melhor: sem chave, o Books devolve 429 de cota de forma
+    // consistente — verificado em produção em 2026-08-22, tanto dos IPs do
+    // Supabase quanto de fora. Deixá-lo na frente pagava uma ida perdida em
+    // TODA busca de livro. Fica como fallback: custa zero enquanto a Open
+    // Library responde, e cobre as lacunas dela se a cota permitir.
+    // Inverter de volta exige uma chave própria (projeto no Google Cloud).
+    provedores: { primario: 'open_library', fallback: 'google_books', naturezaFallback: 'cobertura' },
   },
   {
     tipo: 'filme',
