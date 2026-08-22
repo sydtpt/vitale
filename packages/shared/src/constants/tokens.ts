@@ -65,6 +65,10 @@ export const MOD = {
   compras:  { tint: '#FFE3D2', accent: '#E26A8A' },
   financas: { tint: '#EAE3D6', accent: '#1F1B16' },
   tarefa:   { tint: '#DDEEEA', accent: '#4F9D90' },
+  // Nona e ÚLTIMA cor que esta estratégia comporta — roxo era a única faixa
+  // livre da paleta quente. Ver ADR 0017: do décimo módulo em diante, `MOD` não
+  // recebe cor nova sem uma ADR que supersede aquela.
+  cultura:  { tint: '#EBE3F3', accent: '#8B6BB1' },
 } as const;
 
 export type ModuleKey = keyof typeof MOD;

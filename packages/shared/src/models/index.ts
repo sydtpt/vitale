@@ -640,3 +640,47 @@ export interface HealthDaily {
   count?: number;                       // nº de amostras agregadas
   extra?: Record<string, unknown>;      // pressão {sys,dia}, anéis, macros
 }
+
+/* ─────────────────────────────────────────────────────────────
+ * Cultura — livros, filmes, podcasts e álbuns.
+ * Spec: docs/specs/cultura/spec.md
+ * ───────────────────────────────────────────────────────────── */
+
+/**
+ * Mídia de um item de cultura. Deliberadamente `string` e não union fechada:
+ * o conjunto válido vive no registro em `cultura/tipos`, não no tipo nem no
+ * banco (CAP-9). Fechar aqui devolveria o custo que a CAP-9 evita — cada mídia
+ * nova viraria mudança de tipo propagando por web e mobile.
+ */
+export type CulturaTipo = string;
+
+/**
+ * Estado de um item. Vocabulário NEUTRO de propósito: 'ler/lido' travaria
+ * filme, podcast e álbum (CAP-8). Os rótulos por mídia vivem no registro de
+ * tipos e são só apresentação.
+ */
+export type CulturaEstado = 'quero' | 'consumindo' | 'concluido';
+
+/**
+ * Um item da estante. Mapeia `cultura_items` — tabela única, sem sessões:
+ * o par `iniciadoEm`/`concluidoEm` é todo o sinal temporal do módulo, e define
+ * uma janela de consumo, nunca dias (CAP-5).
+ */
+export interface CulturaItem {
+  id: string;
+  userId: string;
+  tipo: CulturaTipo;
+  titulo: string;
+  criador?: string;              // autor, diretor, apresentador ou artista
+  estado: CulturaEstado;
+  nota?: number;                 // 1–5, editável em qualquer estado (CAP-4)
+  indicadoPor?: string;          // quem recomendou (CAP-11)
+  fonte?: string;                // provedor; ausente em item cadastrado à mão
+  fonteId?: string;              // id externo, para reconsultar a origem
+  capaUrl?: string;
+  extra?: Record<string, unknown>; // metadado da mídia: paginas, duracaoMin, ano
+  iniciadoEm?: string;           // 'YYYY-MM-DD' — nulo se e somente se estado='quero'
+  concluidoEm?: string;          // 'YYYY-MM-DD' — não-nulo se e somente se estado='concluido'
+  criadoEm: string;              // ISO
+  atualizadoEm: string;          // ISO
+}
