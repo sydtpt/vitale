@@ -7,7 +7,6 @@
  * invariantes que o banco impõe. Cada bloco cita a capability que protege.
  */
 import assert from 'node:assert/strict';
-import type { CulturaEstado } from '../models/index';
 import {
   CULTURA_TIPOS,
   cadeiaDeProvedores,
@@ -15,6 +14,7 @@ import {
   metaDoTipo,
   rotuloEstado,
   tiposConhecidos,
+  type CulturaEstado,
 } from './tipos';
 import {
   convergirIndicador,

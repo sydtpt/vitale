@@ -123,4 +123,38 @@ check('BARREIRA — o núcleo não constrói SupabaseClient', () => {
   );
 });
 
+/**
+ * `cultura/tipos.ts` é consumido pelo Deno das edge functions por caminho
+ * relativo, e o Deno exige extensão explícita em todo specifier. Um import
+ * sem `.ts` aqui não quebra `tsc` nem os apps — quebra só no deploy da função,
+ * longe de onde a mudança foi feita.
+ */
+check('BARREIRA — cultura/tipos.ts continua auto-contido (consumido pelo Deno)', () => {
+  const src = readFileSync(join(ROOT, 'packages', 'shared', 'src', 'cultura', 'tipos.ts'), 'utf8');
+  const imports = src.match(/^\s*import\s.+$/gm) ?? [];
+  assert.deepEqual(
+    imports,
+    [],
+    `cultura/tipos.ts ganhou import: ${imports.join(' | ')}. A edge function cultura-search o ` +
+      `importa direto, e o Deno não resolve specifier sem extensão. Mantenha o módulo sem imports ` +
+      `(mesmo padrão de fitness/dedupe.ts) ou o deploy da função quebra.`,
+  );
+});
+
+/**
+ * A cadeia de provedores tem que ter fonte única entre cliente e servidor. Se
+ * a edge function passar a decidir a ordem por conta própria, o fallback
+ * diverge calado — e ninguém percebe até uma busca cair no provedor errado.
+ */
+check('BARREIRA — a edge function lê a cadeia de provedores do núcleo', () => {
+  const fn = join(ROOT, 'supabase', 'functions', '_shared', 'providers', 'cultura.ts');
+  const src = readFileSync(fn, 'utf8');
+  assert.ok(
+    /import\s*\{[^}]*cadeiaDeProvedores[^}]*\}\s*from\s*'[^']*packages\/shared\/src\/cultura\/tipos\.ts'/
+      .test(src),
+    `supabase/functions/_shared/providers/cultura.ts precisa importar cadeiaDeProvedores do ` +
+      `núcleo. Redefinir a ordem lá faz cliente e servidor divergirem sem nada acusar.`,
+  );
+});
+
 console.log(`\n${passed} testes passaram.`);

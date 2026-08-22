@@ -18,3 +18,8 @@ verify_jwt = false
 
 [functions.intervals-link]
 verify_jwt = true
+
+# cultura-search: JWT exigido não por dado do usuário — a busca não toca em
+# nada dele — mas para a função não virar proxy aberto queimando a cota do TMDB.
+[functions.cultura-search]
+verify_jwt = true

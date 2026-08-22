@@ -14,8 +14,8 @@
  *   receber mensagem própria em vez de erro 23514 do Postgres.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { CulturaEstado, CulturaItem, CulturaTipo } from '../models/index';
-import { isTipoConhecido } from '../cultura/tipos';
+import type { CulturaItem } from '../models/index';
+import { isTipoConhecido, type CulturaEstado, type CulturaTipo } from '../cultura/tipos';
 import {
   normalizarIndicadoPor,
   validarItem,

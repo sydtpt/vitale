@@ -14,7 +14,8 @@
  *    que faz uma edição de data inválida (CAP-12) voltar como mensagem própria
  *    em vez de violação de constraint do Postgres.
  */
-import type { CulturaEstado, CulturaItem } from '../models/index';
+import type { CulturaItem } from '../models/index';
+import type { CulturaEstado } from './tipos';
 
 /** Datas de um item — o par que define a janela de consumo (CAP-5). */
 export interface CulturaDatas {

@@ -10,8 +10,25 @@
  * **O registro é append-only.** Um tipo nunca é removido: `tipo` não é editável
  * (CAP-12), então remover uma mídia deixaria seus itens órfãos, com rótulo
  * genérico e sem conserto que não fosse deletar. Mesma disciplina das ADRs.
+ *
+ * **Sem imports, de propósito** — mesmo padrão de `fitness/dedupe.ts`. A edge
+ * function `cultura-search` importa este arquivo direto por caminho relativo, e
+ * o Deno exige extensão explícita em todo specifier. Manter o módulo
+ * auto-contido é o que permite a cadeia de provedores ter fonte única entre os
+ * dois apps e o servidor, em vez de uma cópia que diverge calada.
  */
-import type { CulturaEstado, CulturaTipo } from '../models/index';
+
+/**
+ * Mídia de um item. Deliberadamente `string` e não union fechada: o conjunto
+ * válido é o registro abaixo, não o tipo nem o banco (CAP-9).
+ */
+export type CulturaTipo = string;
+
+/**
+ * Estado de um item. Vocabulário NEUTRO: 'ler/lido' travaria filme, podcast e
+ * álbum (CAP-8). Os rótulos por mídia são apresentação e vivem no registro.
+ */
+export type CulturaEstado = 'quero' | 'consumindo' | 'concluido';
 
 /** Provedor de catálogo. `null` no fallback significa "não há segundo". */
 export interface CulturaProvedores {

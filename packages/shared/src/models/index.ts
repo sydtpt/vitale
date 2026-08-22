@@ -647,19 +647,12 @@ export interface HealthDaily {
  * ───────────────────────────────────────────────────────────── */
 
 /**
- * Mídia de um item de cultura. Deliberadamente `string` e não union fechada:
- * o conjunto válido vive no registro em `cultura/tipos`, não no tipo nem no
- * banco (CAP-9). Fechar aqui devolveria o custo que a CAP-9 evita — cada mídia
- * nova viraria mudança de tipo propagando por web e mobile.
+ * `CulturaTipo` e `CulturaEstado` moram em `cultura/tipos`, não aqui: aquele
+ * módulo precisa ser auto-contido para a edge function poder importá-lo, e o
+ * vocabulário é dele. Importados, nunca re-exportados — `src/index.ts` já
+ * exporta os dois de lá, e re-exportar aqui criaria ambiguidade.
  */
-export type CulturaTipo = string;
-
-/**
- * Estado de um item. Vocabulário NEUTRO de propósito: 'ler/lido' travaria
- * filme, podcast e álbum (CAP-8). Os rótulos por mídia vivem no registro de
- * tipos e são só apresentação.
- */
-export type CulturaEstado = 'quero' | 'consumindo' | 'concluido';
+import type { CulturaEstado, CulturaTipo } from '../cultura/tipos';
 
 /**
  * Um item da estante. Mapeia `cultura_items` — tabela única, sem sessões:
