@@ -57,6 +57,8 @@ export const lightColors = {
   tealSoft: '#DDEEEA',
   red: '#E05C5C',
   redSoft: '#FDDEDE',
+  purple: '#8B6BB1',
+  purpleSoft: '#EBE3F3',
   inkSoft: '#EAE3D6',
 };
 
@@ -107,6 +109,8 @@ export const darkColors: ThemeColors = {
   tealSoft: '#15302B',
   red: '#F07A7A',
   redSoft: '#3A1F22',
+  purple: '#A98BCB',
+  purpleSoft: '#241C30',
   inkSoft: '#2A241D',
 };
 
@@ -150,6 +154,9 @@ export const MOD = {
   compras:  { tint: '#FFE3D2', accent: '#E26A8A' },
   financas: { tint: '#EAE3D6', accent: '#1F1B16' },
   tarefa:   { tint: '#DDEEEA', accent: '#4F9D90' },
+  // Nona e última cor da estratégia atual — ver ADR 0017. Espelha o MOD do
+  // núcleo em packages/shared/src/constants/tokens.ts.
+  cultura:  { tint: '#EBE3F3', accent: '#8B6BB1' },
 } as const;
 
 /**
@@ -170,6 +177,7 @@ export function moduleColors(key: string): { tint: string; accent: string } {
     case 'financas': return { tint: colors.inkSoft,     accent: colors.ink };
     case 'saude':    return { tint: colors.redSoft,     accent: colors.red };
     case 'tarefa':   return { tint: colors.tealSoft,    accent: colors.teal };
+    case 'cultura':  return { tint: colors.purpleSoft,  accent: colors.purple };
     default:         return { tint: colors.blueSoft,    accent: colors.blue };
   }
 }

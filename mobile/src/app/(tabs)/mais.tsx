@@ -21,6 +21,7 @@ const LINKS: Link[] = [
   { icon: 'calendar-outline', label: 'Semana', sub: 'Visão geral da semana', mod: 'agua', route: '/(tabs)/semana' },
   { icon: 'albums-outline', label: 'Retrospectiva', sub: 'Mês, semana e ano', mod: 'habito', route: '/retrospectiva' },
   { icon: 'bookmark-outline', label: 'Registros', sub: 'Marcar atividades do dia', mod: 'food', route: '/registros' },
+  { icon: 'library-outline', label: 'Cultura', sub: 'Livros, filmes, podcasts e álbuns', mod: 'cultura', route: '/cultura' },
   { icon: 'barbell-outline', label: 'Treinos', sub: 'Planeje a semana', mod: 'treino', route: '/treinos' },
   { icon: 'sync-outline', label: 'Sync de atividades', sub: 'Treinos do Apple Health', mod: 'treino', route: '/fitness' },
   { icon: 'heart-outline', label: 'Saúde', sub: 'Métricas do Apple Health', mod: 'saude', route: '/(tabs)/saude' },
