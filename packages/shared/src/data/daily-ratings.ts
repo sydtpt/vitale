@@ -29,7 +29,14 @@ export function toDailyRating(r: DailyRatingRow): DailyRating {
   };
 }
 
-/** Avaliações desde `since`, em ordem cronológica. */
+/**
+ * Avaliações desde `since`, em ordem cronológica.
+ *
+ * Sem desempate no `order`, ao contrário das outras consultas paginadas — e de
+ * propósito: a PK é `(user_id, day)` e todas as leituras aqui fixam o `user_id`,
+ * então `day` sozinho já é uma ordenação TOTAL. Não há empate para desempatar.
+ * A tabela também não tem coluna `id`.
+ */
 export async function fetchDailyRatingsSince(
   db: SupabaseClient,
   userId: string,

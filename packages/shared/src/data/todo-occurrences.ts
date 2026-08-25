@@ -120,6 +120,7 @@ export async function fetchDoneTodoOccurrencesSince(
       .eq('status', 'done')
       .gte('done_at', `${since}T00:00:00`)
       .order('done_at', { ascending: true })
+      .order('id', { ascending: true })
       .range(lo, hi),
   );
   return data.map((r) =>

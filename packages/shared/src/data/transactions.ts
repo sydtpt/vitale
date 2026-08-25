@@ -42,6 +42,7 @@ export async function fetchTransactionsSince(
       .eq('user_id', userId)
       .gte('tx_date', since)
       .order('tx_date', { ascending: false })
+      .order('id', { ascending: false })
       .range(lo, hi),
   );
   return data.map(toFinanceTransaction);
