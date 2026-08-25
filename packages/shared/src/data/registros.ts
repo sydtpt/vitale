@@ -12,6 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Registro, RegistroLog, TodoModule } from '../models';
 import { fetchAllPages } from './paginate';
+import { localDateStr } from '../date/local';
 
 const REGISTRO_COLUMNS = 'id,name,icon,color,module,active,sort,created_at';
 
@@ -65,10 +66,18 @@ export async function fetchRegistros(db: SupabaseClient, userId: string): Promis
 export async function fetchRegistroSummaries(
   db: SupabaseClient,
   userId: string,
-): Promise<Array<{ id: string; name: string }>> {
-  const { data, error } = await db.from('registros').select('id,name').eq('user_id', userId);
+): Promise<Array<{ id: string; name: string; createdOn: string }>> {
+  const { data, error } = await db
+    .from('registros')
+    .select('id,name,created_at')
+    .eq('user_id', userId);
   if (error) throw error;
-  return (data ?? []) as Array<{ id: string; name: string }>;
+  return ((data ?? []) as Array<{ id: string; name: string; created_at: string }>).map((r) => ({
+    id: r.id,
+    name: r.name,
+    // Dia de criação: piso da amostra em `triggerImpact` (ver `RetroRegistro.createdOn`).
+    createdOn: localDateStr(new Date(r.created_at)),
+  }));
 }
 
 /** Campos aceitos na criação. `sort` é calculado pelo chamador. */
