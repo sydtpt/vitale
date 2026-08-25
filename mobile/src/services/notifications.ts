@@ -179,14 +179,14 @@ async function notifyImmediate(
 }
 
 /**
- * Deep-link da notificação de sync: a tab Histórico, onde a atividade aparece.
+ * Deep-link da notificação de sync: a tab Histórico, onde a atividade aparece —
+ * e não `/fitness`, que é o painel de sync (uma lista de TIPOS com botões).
  *
- * O grupo `(tabs)` é obrigatório no href. `app/(tabs)/historico.tsx` e
- * `app/historico/index.tsx` resolvem AMBOS para `/historico` — o segundo é uma
- * versão antiga e órfã da mesma tela (3 períodos em vez de 5, sem meta da OMS
- * nem minutos de esforço), que ninguém alcança porque nada navega para lá. Um
- * `/historico` cru deixaria o destino da notificação na mão do desempate do
- * router; qualificado pelo grupo, cai sempre na tab.
+ * Qualificado pelo grupo, como o `/(auth)/login` do `_layout`: o destino é uma
+ * tab, e `app/historico/` continua existindo por causa de `[label]`. Um
+ * `/historico` cru voltaria a ficar ambíguo no dia em que alguém criasse um
+ * `historico/index.tsx` ali dentro — foi exatamente o que existia até este
+ * commit, uma versão órfã e antiga da mesma tela que ninguém alcançava.
  */
 const HISTORICO_ROUTE = '/(tabs)/historico';
 
