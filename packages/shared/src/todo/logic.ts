@@ -88,6 +88,23 @@ export function isCalendarRecurrence(rec: TodoRecurrence): boolean {
   return rec.kind === 'monthly' || rec.kind === 'weekly' || rec.kind === 'yearly';
 }
 
+/** A semana inteira — a forma canônica de gravar uma série diária. */
+export const EVERY_WEEKDAY: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
+
+/**
+ * "Todo dia": `weekly` cobrindo os sete dias. **Não existe um `kind: 'daily'`** —
+ * uma série diária é o caso completo de `weekly`, e é assim que ela é gravada; o
+ * motor de recorrência já a trata sem nenhum ramo especial. Este predicado é a
+ * leitura inversa, usada por quem precisa reconhecer a intenção depois:
+ * o rótulo ("Todo dia" em vez de "Dom/Seg/Ter/…"), o chip "Diária" dos editores e
+ * a eleição de gatilhos da retrospectiva.
+ *
+ * `weekdays` só admite 0–6, então sete valores distintos implicam a semana toda.
+ */
+export function isDailyRecurrence(rec: TodoRecurrence): boolean {
+  return rec.kind === 'weekly' && new Set(rec.weekdays).size === 7;
+}
+
 function monthlyDue(day: number, from: string, inclusive: boolean): string {
   const f = parse(from);
   let y = f.getFullYear();

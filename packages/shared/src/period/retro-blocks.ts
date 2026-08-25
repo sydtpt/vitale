@@ -38,6 +38,7 @@ export type RetroBlockId =
   | 'highlights'
   | 'heatmap'
   | 'tasks'
+  | 'dailyTasks'
   | 'purchases'
   | 'fitness'
   | 'sports'
@@ -64,6 +65,7 @@ export const RETRO_BLOCKS: readonly RetroBlockDef[] = [
   { id: 'highlights', label: 'Destaques' },
   { id: 'heatmap', label: 'Grade diária', kinds: ['week', 'month', 'season'] },
   { id: 'tasks', label: 'Tarefas feitas' },
+  { id: 'dailyTasks', label: 'Tarefas — todo dia', kinds: ['week', 'month'] },
   { id: 'purchases', label: 'Compras & gastos' },
   { id: 'fitness', label: 'Treinos & atividade' },
   { id: 'sports', label: 'Ciclismo & corrida' },

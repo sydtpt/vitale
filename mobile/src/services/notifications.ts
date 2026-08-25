@@ -15,7 +15,10 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { activityDays, buildPeriodRecap, buildTaskReminders, DEFAULT_NOTIFICATION_PREFS, isMet, isOverdue, latestAvailableOffset, localDateStr, todoDayStr, readinessAdvice, readinessInputsByDay, readinessSeries, recapHeadline, type NotificationPrefs, type PeriodKind, weeklyLoadVsRecovery } from '@vitale/shared';
 import { readinessFromSummaries } from '../lib/health-readiness';
+import { activitySyncNotice } from '../lib/activity-sync-notice';
+import { claimUnnotified } from '../lib/notified-activities';
 import { getJSON, setJSON } from '../lib/local-store';
+import type { SyncedActivity } from './activity-sync';
 import { useSettingsStore } from '../store/settings.store';
 import { useHealthStore } from '../store/health.store';
 import { useHealthDailyStore } from '../store/health-daily.store';
@@ -175,11 +178,37 @@ async function notifyImmediate(
   }
 }
 
-/** "N treinos sincronizados" — chamado pelo sync incremental quando há novos. */
-export async function notifyActivitySync(pushed: number): Promise<void> {
-  if (pushed <= 0) return;
-  const body = pushed === 1 ? '1 treino sincronizado.' : `${pushed} treinos sincronizados.`;
-  await notifyImmediate(notifPrefs().activitySync, { title: 'Atividades sincronizadas', body }, '/fitness');
+/**
+ * Deep-link da notificação de sync: a tab Histórico, onde a atividade aparece —
+ * e não `/fitness`, que é o painel de sync (uma lista de TIPOS com botões).
+ *
+ * Qualificado pelo grupo, como o `/(auth)/login` do `_layout`: o destino é uma
+ * tab, e `app/historico/` continua existindo por causa de `[label]`. Um
+ * `/historico` cru voltaria a ficar ambíguo no dia em que alguém criasse um
+ * `historico/index.tsx` ali dentro — foi exatamente o que existia até este
+ * commit, uma versão órfã e antiga da mesma tela que ninguém alcançava.
+ */
+const HISTORICO_ROUTE = '/(tabs)/historico';
+
+/**
+ * "Atividade de Yoga sincronizada" — chamado pelo sync incremental.
+ *
+ * Recebe as atividades enviadas no ciclo (não a contagem): o TIPO nomeia a
+ * atividade no corpo, e o ID filtra o que já foi anunciado antes. O upsert é
+ * idempotente e a âncora nem sempre avança, então "enviada" e "inédita" são
+ * coisas diferentes — sem o filtro, o mesmo treino notifica a cada ciclo.
+ */
+export async function notifyActivitySync(activities: readonly SyncedActivity[]): Promise<void> {
+  if (activities.length === 0) return;
+
+  const fresh = new Set(await claimUnnotified(activities.map((a) => a.id)));
+  if (fresh.size === 0) return;
+
+  const notice = activitySyncNotice(
+    activities.filter((a) => fresh.has(a.id)).map((a) => a.activityId),
+  );
+  if (!notice) return;
+  await notifyImmediate(notifPrefs().activitySync, notice, HISTORICO_ROUTE);
 }
 
 /** "N novas tarefas automáticas" — chamado quando o sync cria ocorrências novas. */

@@ -5,8 +5,12 @@ import {
   buildRetroHighlights,
   buildYearByMonth,
   buildHeatmap,
+  buildTaskGrid,
   type Heatmap,
+  type TaskGrid,
   type PeriodKind,
+  isDailyRecurrence,
+  type RetroDailyTask,
   type RetroInput,
   type RetroSummary,
   type RetroHealthMetric,
@@ -57,11 +61,12 @@ export class RetroStore {
 
   private readonly _health = signal<Array<{ day: string; metric: string; value: number | null }>>([]);
   private readonly _ratings = signal<Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>>([]);
-  private readonly _habits = signal<Array<{ id: string; name: string; bad: boolean; unit: string }>>([]);
+  private readonly _habits = signal<Array<{ id: string; name: string; bad: boolean; unit: string; createdOn?: string }>>([]);
   private readonly _habitLogs = signal<HabitLog[]>([]);
-  private readonly _registros = signal<Array<{ id: string; name: string }>>([]);
+  private readonly _registros = signal<Array<{ id: string; name: string; createdOn?: string }>>([]);
   private readonly _registroLogs = signal<RegistroLog[]>([]);
   private readonly _tasks = signal<{ doneDay: string; module: string }[]>([]);
+  private readonly _dailyTasks = signal<RetroDailyTask[]>([]);
   private readonly _purchases = signal<{ doneDay: string; cat?: string; price?: number; name: string }[]>([]);
 
   readonly state = this._state.asReadonly();
@@ -112,12 +117,19 @@ export class RetroStore {
     const tmplById = new Map(templates.map((t) => [t.id, t]));
     const tasks: { doneDay: string; module: string }[] = [];
     const purchases: { doneDay: string; cat?: string; price?: number; name: string }[] = [];
+    // Dias de conclusão por série diária — o gatilho nomeado do cruzamento.
+    const dailyDays = new Map<string, Set<string>>();
     for (const o of occs) {
       if (!o.doneAt) continue;
       const tmpl = tmplById.get(o.templateId);
       if (!tmpl) continue;
       const doneDay = localDateStr(new Date(o.doneAt));
       tasks.push({ doneDay, module: tmpl.module });
+      if (isDailyRecurrence(tmpl.recurrence)) {
+        let s = dailyDays.get(tmpl.id);
+        if (!s) { s = new Set(); dailyDays.set(tmpl.id, s); }
+        s.add(doneDay);
+      }
       if (tmpl.module === 'compras') {
         const meta = tmpl.meta ?? {};
         purchases.push({
@@ -130,6 +142,11 @@ export class RetroStore {
     }
     this._tasks.set(tasks);
     this._purchases.set(purchases);
+    this._dailyTasks.set(
+      templates
+        .filter((t) => t.active && isDailyRecurrence(t.recurrence))
+        .map((t) => ({ id: t.id, name: t.name, days: dailyDays.get(t.id) ?? new Set<string>(), createdOn: t.createdOn })),
+    );
 
     this._loadedSince.set(since);
     this._state.set('loaded');
@@ -177,9 +194,10 @@ export class RetroStore {
       stepsByDay: byMetric.get('passos'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
-      habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
-      registros: this._registros().map((r) => ({ id: r.id, name: r.name, days: daysByRegistro.get(r.id) ?? [] })),
+      habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, createdOn: h.createdOn, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
+      registros: this._registros().map((r) => ({ id: r.id, name: r.name, createdOn: r.createdOn, days: daysByRegistro.get(r.id) ?? [] })),
       tasks: this._tasks(),
+      dailyTasks: this._dailyTasks(),
       purchases: this._purchases(),
     };
   }
@@ -200,6 +218,11 @@ export class RetroStore {
   /** Uma célula por dia do período exibido — genérico em N (spec v2 §4). */
   heatmap(now: Date, kind: PeriodKind, offset: number, metric: string): Heatmap | null {
     return buildHeatmap(this.buildInput(now, kind, offset), metric);
+  }
+
+  /** Faixa de adesão das séries diárias — uma linha por tarefa. */
+  taskGrid(now: Date, kind: PeriodKind, offset: number): TaskGrid | null {
+    return buildTaskGrid({ now, kind, offset, dailyTasks: this._dailyTasks() });
   }
 }
 

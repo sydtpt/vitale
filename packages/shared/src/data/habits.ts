@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CounterHabit } from '../models';
+import { localDateStr } from '../date/local';
 
 const COLUMNS =
   'id,name,icon,color,unit,step,target,direction,bad,show_on_home,active,sort,created_at';
@@ -76,10 +77,10 @@ export async function countHabits(db: SupabaseClient, userId: string): Promise<n
 export async function fetchHabitSummaries(
   db: SupabaseClient,
   userId: string,
-): Promise<Array<{ id: string; name: string; bad: boolean; unit: CounterHabit['unit'] }>> {
+): Promise<Array<{ id: string; name: string; bad: boolean; unit: CounterHabit['unit']; createdOn: string }>> {
   const { data, error } = await db
     .from('habits')
-    .select('id,name,bad,unit')
+    .select('id,name,bad,unit,created_at')
     .eq('user_id', userId);
   if (error) throw error;
   return ((data ?? []) as Array<{
@@ -87,7 +88,16 @@ export async function fetchHabitSummaries(
     name: string;
     bad: boolean | null;
     unit: CounterHabit['unit'];
-  }>).map((r) => ({ id: r.id, name: r.name, bad: r.bad ?? false, unit: r.unit }));
+    created_at: string;
+  }>).map((r) => ({
+    id: r.id,
+    name: r.name,
+    bad: r.bad ?? false,
+    unit: r.unit,
+    // Dia de criação: é o piso da amostra em `triggerImpact`. Sem ele o hábito
+    // seria comparado contra dias em que não existia (ver `RetroHabit.createdOn`).
+    createdOn: localDateStr(new Date(r.created_at)),
+  }));
 }
 
 /** Campos aceitos na criação. `sort` é calculado pelo chamador. */

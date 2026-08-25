@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { HABIT_ICONS, isValidDate, isValidTime, localDateStr, MOD, type TodoCancelPolicy, type TodoModule, type TodoOverduePolicy, type TodoRecurrence, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
+import { EVERY_WEEKDAY, HABIT_ICONS, isDailyRecurrence, isValidDate, isValidTime, localDateStr, MOD, type TodoCancelPolicy, type TodoModule, type TodoOverduePolicy, type TodoRecurrence, type TodoSpawnRule, type TodoTemplate } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
 import { IconComponent } from '@core/services/icon.component';
 import { DatePickerComponent } from './date-picker.component';
@@ -9,7 +9,12 @@ import { TodosStore, type NewTodo } from '../data/todos.store';
 /** Ícone padrão de uma nova tarefa (nome canônico de HABIT_ICONS). */
 const DEFAULT_TODO_ICON = 'flag';
 
-type Kind = TodoRecurrence['kind'];
+/**
+ * Chips de recorrência. `'daily'` existe só aqui: no modelo uma série diária é
+ * `weekly` com a semana inteira (ver `isDailyRecurrence`), e é assim que ela é
+ * gravada — o chip evita que "todo dia" custe sete cliques e uma descoberta.
+ */
+type Kind = TodoRecurrence['kind'] | 'daily';
 
 /** Tipos de treino oferecidos no gatilho on_workout (mesma ordem do mobile). */
 const ACTIVITY_IDS = [37, 13, 52, 24, 46, 50, 57, 66, 63, 73, 11, 20, 35, 16, 44, 59, 82];
@@ -24,6 +29,7 @@ const MODULES: { key: TodoModule; label: string }[] = [
 
 const KINDS: { key: Kind; label: string }[] = [
   { key: 'none', label: 'Avulsa' },
+  { key: 'daily', label: 'Diária' },
   { key: 'monthly', label: 'Mensal' },
   { key: 'weekly', label: 'Semanal' },
   { key: 'yearly', label: 'Anual' },
@@ -135,7 +141,8 @@ export class TodoEditorComponent implements OnInit {
     this.mod = t.module;
     const r = t.recurrence;
     // on_workout saiu das chips de Recorrência — vira o bloco "Criar/completar um treino".
-    this.kind = r.kind === 'on_workout' ? 'none' : r.kind;
+    // A semana inteira volta como "Diária": o chip tem que refletir o que foi salvo.
+    this.kind = isDailyRecurrence(r) ? 'daily' : r.kind === 'on_workout' ? 'none' : r.kind;
     if (r.kind === 'monthly') this.monthlyDay = r.day;
     if (r.kind === 'weekly') this.selectedDays = [...r.weekdays];
     if (r.kind === 'yearly') { this.yearMonth = r.month; this.yearDay = r.day; }
@@ -171,6 +178,22 @@ export class TodoEditorComponent implements OnInit {
     if (c === 'auto') this.overdue = 'expire';
   }
 
+  /**
+   * Trocar de recorrência. "Diária" já entra como **Expira** porque a combinação
+   * diária + acumula não funciona: a ocorrência de ontem continua pendente, e a
+   * reconciliação só cria a do dia quando não há nenhuma viva — a tarefa de hoje
+   * nunca apareceria. Segue o precedente de `setCancel`: ajusta o padrão sensato,
+   * sem travar a escolha (o aviso no template cobre quem voltar para Acumula).
+   */
+  protected pickKind(k: Kind): void {
+    this.kind = k;
+    if (k === 'daily' && this.overdue === 'carry') this.overdue = 'expire';
+  }
+
+  protected get dailyCarry(): boolean {
+    return this.kind === 'daily' && this.overdue === 'carry';
+  }
+
   private buildRecurrence(): TodoRecurrence | null {
     // "Criar/completar um treino": o gatilho de treino vence o picker de Recorrência.
     if (this.triggerOnly && this.workoutOn) {
@@ -178,6 +201,7 @@ export class TodoEditorComponent implements OnInit {
     }
     switch (this.kind) {
       case 'none': return { kind: 'none' };
+      case 'daily': return { kind: 'weekly', weekdays: [...EVERY_WEEKDAY] };
       case 'monthly': return this.monthlyDay >= 1 && this.monthlyDay <= 31 ? { kind: 'monthly', day: Number(this.monthlyDay) } : null;
       case 'weekly': return this.selectedDays.length ? { kind: 'weekly', weekdays: [...this.selectedDays].sort((a, b) => a - b) } : null;
       case 'yearly': return this.yearMonth >= 1 && this.yearMonth <= 12 && this.yearDay >= 1 && this.yearDay <= 31 ? { kind: 'yearly', month: Number(this.yearMonth), day: Number(this.yearDay) } : null;
@@ -192,7 +216,7 @@ export class TodoEditorComponent implements OnInit {
 
   /** Janela de horário só vale para recorrências com data (não triggerOnly). */
   protected get hasDateRecurrence(): boolean {
-    return !this.triggerOnly && ['monthly', 'weekly', 'yearly', 'after_completion'].includes(this.kind);
+    return !this.triggerOnly && ['daily', 'monthly', 'weekly', 'yearly', 'after_completion'].includes(this.kind);
   }
 
   /** "A partir de" vale para qualquer série que não nasce só por gatilho. */

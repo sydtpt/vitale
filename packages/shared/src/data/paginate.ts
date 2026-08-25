@@ -27,6 +27,16 @@ export const PAGE_SIZE = 1000;
  * **e uma ordenação estável** — sem `order`, o Postgres não garante a mesma ordem
  * entre chamadas e duas páginas podem repetir ou pular linhas.
  *
+ * **Estável quer dizer TOTAL, não só "tem um `order`".** A coluna natural destas
+ * consultas é quase sempre uma data (`log_date`, `tx_date`, `start_at`), e data
+ * empata às dezenas: vários hábitos no mesmo dia, várias transações na mesma
+ * data, o mesmo treino gravado por dois apps com o mesmo início. Dentro de um
+ * bloco empatado a ordem é livre, e ela pode mudar entre uma página e a
+ * seguinte — linhas na fronteira somem ou vêm duas vezes. Acrescente a chave
+ * primária como último critério (`.order('id', ...)`), a menos que a ordenação
+ * já seja única por construção — é o caso de `daily_ratings`, cuja PK é
+ * `(user_id, day)` com o `user_id` fixo no filtro.
+ *
  * Para quando a página volta com menos que `PAGE_SIZE`: é a única condição de
  * parada confiável, já que a resposta não traz contagem total.
  */

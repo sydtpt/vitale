@@ -35,6 +35,7 @@ import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useSettingsStore } from '../../store/settings.store';
 import { HeatmapGrid } from '../../components/HeatmapGrid';
+import { TaskGridStrip } from '../../components/TaskGridStrip';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
 const KIND_LABEL: Record<PeriodKind, string> = {
@@ -146,6 +147,7 @@ export default function RetrospectivaScreen() {
   const highlightsFn = useRetroStore((s) => s.highlights);
   const yearFn = useRetroStore((s) => s.yearByMonth);
   const heatmapFn = useRetroStore((s) => s.heatmap);
+  const taskGridFn = useRetroStore((s) => s.taskGrid);
   const allActs = useActivitiesStore((s) => s._all);
 
   useFocusEffect(useCallback(() => {
@@ -168,6 +170,15 @@ export default function RetrospectivaScreen() {
       ? heatmapFn(now, kind, offset, 'sono')
       : null,
     [heatmapFn, now, kind, offset, loaded],
+  );
+
+  // Faixa das diárias. Semana e mês só: a faixa é UMA linha por tarefa, então N
+  // vira largura — 31 células já ficam com ~7px num telefone, e uma estação (92)
+  // não caberia de jeito nenhum. É também o recorte que a pergunta pede: "quantos
+  // dias por mês eu lembrei".
+  const taskGrid = useMemo(
+    () => (kind === 'week' || kind === 'month') ? taskGridFn(now, kind, offset) : null,
+    [taskGridFn, now, kind, offset, loaded],
   );
 
   // Forma 03 — qual das seis séries está desenhada, e qual mês está tocado.
@@ -287,6 +298,21 @@ export default function RetrospectivaScreen() {
                 ))}
               </View>
             </View>
+      </>
+    ),
+    dailyTasks: (
+      <>
+    {/* Séries diárias: quantos dias lembrei, quantos esqueci, e quais. A eleição
+                é automática — vale toda tarefa que existe nos sete dias da semana. */}
+            {taskGrid && (
+              <View style={styles.card}>
+                <Text style={styles.eyebrow}>Tarefas — todo dia</Text>
+                <Text style={styles.big}>{Math.round(taskGrid.rate * 100)}%
+                  <Text style={[styles.bigDelta, { color: colors.ink3 }]}>  {taskGrid.done} de {taskGrid.possible} dias</Text>
+                </Text>
+                <TaskGridStrip data={taskGrid} />
+              </View>
+            )}
       </>
     ),
     fitness: (

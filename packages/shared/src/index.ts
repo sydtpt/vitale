@@ -19,6 +19,7 @@ export * from './week/highlights';
 export * from './period/bounds';
 export * from './period/retro';
 export * from './period/retro-blocks';
+export * from './period/task-grid';
 export * from './goals/evaluate';
 export * from './goals/format';
 export * from './chart/smooth-path';

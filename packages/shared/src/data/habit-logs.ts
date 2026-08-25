@@ -34,6 +34,7 @@ export async function fetchHabitLogsSince(
       .eq('user_id', userId)
       .gte('log_date', since)
       .order('log_date', { ascending: true })
+      .order('id', { ascending: true })
       .range(lo, hi),
   );
   return data.map(toHabitLog);
@@ -54,6 +55,7 @@ export async function fetchHabitLogsBetween(
       .gte('log_date', from)
       .lte('log_date', to)
       .order('log_date', { ascending: true })
+      .order('id', { ascending: true })
       .range(lo, hi),
   );
   return data.map(toHabitLog);
@@ -72,6 +74,7 @@ export async function fetchHabitLogsSinceOrdered(
       .eq('user_id', userId)
       .gte('log_date', since)
       .order('log_date', { ascending: true })
+      .order('id', { ascending: true })
       .range(lo, hi),
   );
   return data.map(toHabitLog);

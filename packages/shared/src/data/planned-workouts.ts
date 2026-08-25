@@ -54,6 +54,7 @@ export async function fetchPlannedWorkouts(
       .gte('plan_date', fromDate)
       .lte('plan_date', toDate)
       .order('sort', { ascending: true })
+      .order('id', { ascending: true })
       .range(lo, hi),
   );
   return data.map(toPlannedWorkout);

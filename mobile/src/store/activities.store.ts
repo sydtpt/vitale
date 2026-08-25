@@ -112,6 +112,14 @@ interface ActivitiesState {
   loadRouteOverviews: (ids: readonly string[]) => Promise<Map<string, ActivityRoutePoint[]>>;
 }
 
+/**
+ * Busca em voo, se houver. O `loading` do estado só dizia QUE existe uma; para
+ * um `force` que chega no meio dela, isso não basta — a busca em voo começou
+ * ANTES do push e não traz a atividade recém-sincronizada. Descartar o `force`
+ * aí perde a atualização em silêncio, e ela só voltaria num cold start.
+ */
+let inFlight: Promise<void> | null = null;
+
 export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   _all: [],
   loading: false,
@@ -124,26 +132,40 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   isEmpty: () => get().loaded && get()._all.filter((a) => !a.hidden).length === 0,
 
   load: async (force = false) => {
-    const { loading, loaded } = get();
-    if (loading || (loaded && !force)) return;
+    // Espera a busca em voo em vez de desistir: sem `force` ela já entrega o que
+    // se pediu; com `force`, refaz depois (ver `inFlight` acima).
+    if (inFlight) {
+      await inFlight;
+      if (!force) return;
+    }
+    if (get().loaded && !force) return;
 
     const userId = currentUserId();
     if (!userId) return;
     set({ loading: true, error: null });
 
-    let all;
-    try {
-      all = await fetchActivities(supabase, userId);
-    } catch (e) {
-      set({ loading: false, error: e instanceof Error ? e.message : 'Erro ao carregar.' });
-      return;
-    }
+    const run = (async () => {
+      let all;
+      try {
+        all = await fetchActivities(supabase, userId);
+      } catch (e) {
+        set({ loading: false, error: e instanceof Error ? e.message : 'Erro ao carregar.' });
+        return;
+      }
 
-    set({
-      _all: all,
-      loading: false,
-      loaded: true,
-    });
+      set({
+        _all: all,
+        loading: false,
+        loaded: true,
+      });
+    })();
+
+    inFlight = run;
+    try {
+      await run;
+    } finally {
+      if (inFlight === run) inFlight = null;
+    }
   },
 
   findById: (id) => get()._all.find((a) => a.id === id),

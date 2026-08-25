@@ -88,6 +88,18 @@
       } @else { <p class="empty">Nenhuma tarefa concluída.</p> }
     </div>
 
+    <!-- Séries diárias: quantos dias lembrei, quantos esqueci, e quais.
+         Eleição automática — vale toda tarefa que existe nos sete dias da semana. -->
+    @if (taskGrid(); as g) {
+      <div class="card">
+        <div class="eyebrow">Tarefas — todo dia</div>
+        <div class="big">{{ pct(g.rate) }}
+          <span class="big-delta">{{ g.done }} de {{ g.possible }} dias</span>
+        </div>
+        <rt-task-grid-strip [data]="g" />
+      </div>
+    }
+
     <!-- Compras & gastos -->
     <div class="card">
       <div class="eyebrow">Compras &amp; gastos</div>

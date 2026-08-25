@@ -19,6 +19,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Activity, ActivityRoutePoint } from '../models';
+import { fetchAllPages } from './paginate';
 
 const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
@@ -85,18 +86,35 @@ export function toActivity(r: ActivityRow): Activity {
   };
 }
 
-/** Histórico completo do usuário, da mais recente para a mais antiga. */
+/**
+ * Histórico completo do usuário, da mais recente para a mais antiga.
+ *
+ * Paginado: é o dataset que alimenta o Histórico inteiro (gráficos, totais,
+ * listas por tipo), então o teto implícito de 1000 linhas do PostgREST cortaria
+ * o histórico antigo em silêncio conforme ele cresce — ver `paginate.ts`. Como a
+ * ordem é decrescente, o corte pouparia justamente o que se olha todo dia e
+ * comeria os anos antigos: uma falha que só aparece anos depois, com sintoma
+ * ("sumiu treino de 2023") apontando para a captura em vez da leitura.
+ *
+ * O desempate por `id` não é enfeite: a paginação exige ordenação ESTÁVEL, e
+ * `start_at` empata de verdade aqui — o mesmo treino gravado no HealthKit por
+ * mais de um app gera linhas com início idêntico (ADR 0004). Sem o desempate,
+ * duas páginas podem repetir ou pular linhas.
+ */
 export async function fetchActivities(
   db: SupabaseClient,
   userId: string,
 ): Promise<Activity[]> {
-  const { data, error } = await db
-    .from('activities')
-    .select(ACTIVITY_COLUMNS)
-    .eq('user_id', userId)
-    .order('start_at', { ascending: false });
-  if (error) throw error;
-  return ((data ?? []) as unknown as ActivityRow[]).map(toActivity);
+  const data = await fetchAllPages<ActivityRow>((lo, hi) =>
+    db
+      .from('activities')
+      .select(ACTIVITY_COLUMNS)
+      .eq('user_id', userId)
+      .order('start_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(lo, hi),
+  );
+  return data.map(toActivity);
 }
 
 /**

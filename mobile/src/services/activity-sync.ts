@@ -60,6 +60,19 @@ export interface SyncResult {
   labels?: string[];
   /** Ocorrências de tarefa PENDENTES novas geradas pelo vínculo (para notificar). */
   tasksCreated?: number;
+  /**
+   * Atividades efetivamente enviadas neste ciclo (id + tipo). Só o delta
+   * preenche: é dele que sai a notificação, e ela precisa do TIPO para nomear a
+   * atividade — e do ID para não reanunciar o que o upsert idempotente reenvia
+   * quando a âncora não avança (ver `notified-activities.ts`).
+   */
+  syncedActivities?: SyncedActivity[];
+}
+
+/** Atividade enviada num ciclo de sync — o mínimo que a notificação precisa. */
+export interface SyncedActivity {
+  id: string;
+  activityId: number;
 }
 
 /** Tamanho do lote de upsert (primeiro sync cobre 3 anos de histórico). */
@@ -70,11 +83,15 @@ async function currentUserId(): Promise<string | null> {
   return data.session?.user.id ?? null;
 }
 
-/** Upsert de atividades em lotes. Devolve os lotes que falharam (para a fila). */
+/**
+ * Upsert de atividades em lotes. Devolve os lotes que falharam (para a fila) e
+ * as linhas que subiram — a notificação precisa saber QUAIS, não só quantas.
+ */
 async function pushActivities(
   rows: ActivityRow[]
-): Promise<{ pushed: number; failed: QueueItem[]; error?: string }> {
+): Promise<{ pushed: number; pushedRows: ActivityRow[]; failed: QueueItem[]; error?: string }> {
   let pushed = 0;
+  const pushedRows: ActivityRow[] = [];
   const failed: QueueItem[] = [];
   let error: string | undefined;
   for (let i = 0; i < rows.length; i += BATCH) {
@@ -88,9 +105,10 @@ async function pushActivities(
       failed.push(...chunk.map((row) => ({ kind: 'activity' as const, row })));
     } else {
       pushed += chunk.length;
+      pushedRows.push(...chunk);
     }
   }
-  return { pushed, failed, error };
+  return { pushed, pushedRows, failed, error };
 }
 
 /** Mínimo entre varreduras server-side pós-push. */
@@ -465,6 +483,7 @@ export async function syncDelta(): Promise<SyncResult> {
       error: a.error ?? r.error,
       labels,
       tasksCreated,
+      syncedActivities: a.pushedRows.map((row) => ({ id: row.id, activityId: row.activity_id })),
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Erro no sync.';

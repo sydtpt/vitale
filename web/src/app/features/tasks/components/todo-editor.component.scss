@@ -2,6 +2,7 @@
 .modal { background: var(--surface); border-radius: 18px; padding: 24px; width: min(520px, 92vw); max-height: 88vh; overflow: auto; box-shadow: var(--shadow-card); }
 .title { font-size: 19px; font-weight: 650; color: var(--ink); margin-bottom: 8px; }
 .lbl { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin: 14px 0 6px; }
+.hint { font-size: 12px; line-height: 1.45; color: var(--ink-2); margin: 6px 0 0; }
 .inp { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 14px; color: var(--ink); background: var(--surface); box-sizing: border-box; }
 .row { display: flex; gap: 12px; }
 .col { flex: 1; }
