@@ -139,6 +139,24 @@ export default function NotificacoesScreen() {
                 </View>
               )}
 
+              {/* Tarefas com hora */}
+              <View style={[styles.row, styles.rowBorder]}>
+                <View style={[styles.iconWrap, { backgroundColor: '#E26A8A' }]}>
+                  <Ionicons name="alarm-outline" size={15} color="#fff" />
+                </View>
+                <View style={styles.rowMeta}>
+                  <Text style={styles.rowLabel}>Tarefas com hora</Text>
+                  <Text style={styles.rowSub}>Um lembrete na hora marcada de cada tarefa</Text>
+                </View>
+                <Switch
+                  value={notif.taskReminders}
+                  onValueChange={(v) => setNotif({ taskReminders: v })}
+                  trackColor={{ true: colors.primary, false: colors.line }}
+                  thumbColor={colors.surface}
+                  ios_backgroundColor={colors.line}
+                />
+              </View>
+
               {/* Atividades sincronizadas */}
               <View style={[styles.row, styles.rowBorder]}>
                 <View style={[styles.iconWrap, { backgroundColor: '#6FA86A' }]}>

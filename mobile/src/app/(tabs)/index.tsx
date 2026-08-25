@@ -20,7 +20,7 @@ import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { HOJE } from '../../services/hoje-fixtures';
 import type { CounterHabit } from '@vitale/shared';
 import type { User } from '@supabase/supabase-js';
-import { cleanStreak, daysInclusive, isOverdue, isStarted, isVisibleNow, localDateStr, localTimeStr, streak } from '@vitale/shared';
+import { cleanStreak, daysInclusive, isOverdue, isStarted, isVisibleNow, localDateStr, todoDayStr, todoTimeStr, streak } from '@vitale/shared';
 
 function getGreeting(name: string): string {
   const h = new Date().getHours();
@@ -146,15 +146,18 @@ export default function HojeScreen() {
 
   // Tarefas a fazer hoje: atrasadas, do dia ou sem prazo. startTime esconde a do
   // dia antes do horário (só aparece a partir dele).
-  const nowTime = localTimeStr();
+  // Tarefas usam o dia lógico (vira às 02h, a madrugada fecha o dia anterior);
+  // hábitos e refeições seguem a data do calendário, por isso os dois "hoje".
+  const todoToday = todoDayStr();
+  const nowTime = todoTimeStr();
   const tplById = new Map(todoTemplates.map(t => [t.id, t]));
   const todayTasks = todoOccurrences.filter(o =>
     o.status === 'pending' &&
     tplById.has(o.templateId) &&
     tplById.get(o.templateId)!.module !== 'compras' &&
-    isStarted(tplById.get(o.templateId)!, today) &&
-    (isOverdue(o, today) || o.dueDate === null || o.dueDate <= today) &&
-    isVisibleNow(tplById.get(o.templateId)!, o, today, nowTime)
+    isStarted(tplById.get(o.templateId)!, todoToday) &&
+    (isOverdue(o, todoToday) || o.dueDate === null || o.dueDate <= todoToday) &&
+    isVisibleNow(tplById.get(o.templateId)!, o, todoToday, nowTime)
   );
 
   const MEAL_TARGET = 4;

@@ -247,6 +247,21 @@ const DETAILED_STAGES = new Set(['CORE', 'DEEP', 'REM']);
 const STAGE_PRIORITY = ['DEEP', 'REM', 'CORE'] as const;
 
 /**
+ * Piso para aceitar uma latência como MEDIDA de fato.
+ *
+ * Nem toda fonte separa "na cama" de "dormindo": o Garmin abre o `INBED` **1
+ * segundo** antes do sono, sempre — não é medida imprecisa, é constante. O Apple
+ * Watch, que mede a janela real, nunca desceu de 90s em 41 noites do histórico.
+ * Um corte em 1 min separa os dois casos sem descartar medida legítima: ninguém
+ * adormece em menos de um minuto ao deitar.
+ *
+ * Abaixo do piso não gravamos `onset` — e a ausência dele COM `inbed` presente é
+ * o que distingue "a fonte não mede" de "não havia dado de cama". Gravar zero
+ * seria pior que não gravar: um zero se disfarça de "apagou na hora".
+ */
+const MIN_ONSET_MS = 60_000;
+
+/**
  * Consolida amostras de estágios de sono em UMA linha por noite.
  *
  * O Apple Health junta várias fontes (Watch com estágios + iPhone/relógio com um
@@ -272,6 +287,8 @@ const STAGE_PRIORITY = ['DEEP', 'REM', 'CORE'] as const;
  *    Também fora da soma. `onset` é o único sinal de insônia de INÍCIO: sem ele,
  *    duas horas rolando na cama viram apenas "uma noite curta", indistinguível de
  *    ter deitado tarde. Só existem se a fonte gravar `INBED` (o Watch grava).
+ *    `inbed` sem `onset` significa que a FONTE não separa cama de sono (ver
+ *    `MIN_ONSET_MS`) — estado distinto de não haver dado de cama nenhum.
  */
 export function aggregateSleepNights(samples: Sample[]): Sample[] {
   const detailed = mergeIntervals(toIntervals(samples, (st) => DETAILED_STAGES.has(st)));
@@ -334,7 +351,7 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
     if (!bed) continue;
     night.stages.inbed = (bed.end - bed.start) / HOUR;
     const latency = night.onset - bed.start;
-    if (latency > 0) night.stages.onset = latency / HOUR;
+    if (latency >= MIN_ONSET_MS) night.stages.onset = latency / HOUR;
   }
 
   return [...byWakeDay.values()]

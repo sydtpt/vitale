@@ -46,8 +46,12 @@ const HEAVY_MAX_DAYS = 60;
  * amostras cruas seguem no HealthKit do aparelho.
  * v4 = tempo na cama e latência para pegar no sono (`inbed`/`onset`), que o
  * INBED do HealthKit permitia calcular mas era descartado na agregação.
+ * v5 = piso de 1 min para aceitar a latência (`MIN_ONSET_MS`). O Garmin abre o
+ * `INBED` 1 s antes do sono, gerando `onset` ≈ 0 que se disfarçava de "apagou na
+ * hora"; o backfill reescreve essas linhas sem a chave falsa (o upsert troca o
+ * `extra` inteiro, não faz merge).
  */
-const AGG_VERSION = 4;
+const AGG_VERSION = 5;
 
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();

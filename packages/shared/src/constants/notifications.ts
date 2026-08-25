@@ -32,6 +32,8 @@ export interface NotificationPrefs {
   activitySync: boolean;
   /** Tarefas automáticas recém-criadas (recorrências / geradas por sync). */
   autoTasks: boolean;
+  /** Lembrete na hora marcada das tarefas com `startTime` (1 por ocorrência). */
+  taskReminders: boolean;
   weeklyRetro: RetroSchedule;
   monthlyRetro: RetroSchedule;
   /** 1º/jan fixo; só `hour`/`minute` são usados. */
@@ -43,6 +45,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   dailyDigest: true,
   activitySync: true,
   autoTasks: true,
+  taskReminders: true,
   weeklyRetro: { enabled: true, weekday: 1, hour: 8, minute: 0 }, // segunda 8h (semana fechou domingo 20h)
   monthlyRetro: { enabled: true, day: 1, hour: 9, minute: 0 }, // dia 1 do mês seguinte
   yearlyRetro: { enabled: false, hour: 10, minute: 0 }, // 1º/jan
@@ -77,6 +80,7 @@ export function resolveNotificationPrefs(raw: unknown): NotificationPrefs {
     dailyDigest: bool(r['dailyDigest'], d.dailyDigest),
     activitySync: bool(r['activitySync'], d.activitySync),
     autoTasks: bool(r['autoTasks'], d.autoTasks),
+    taskReminders: bool(r['taskReminders'], d.taskReminders),
     weeklyRetro: resolveSchedule(r['weeklyRetro'], d.weeklyRetro),
     monthlyRetro: resolveSchedule(r['monthlyRetro'], d.monthlyRetro),
     yearlyRetro: resolveSchedule(r['yearlyRetro'], d.yearlyRetro),

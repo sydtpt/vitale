@@ -16,7 +16,11 @@ function Tile({ value, label, caption }: { value: string; label: string; caption
   );
 }
 
-/** Faixa de estatísticas agregadas do país (mesmos tiles da web). */
+/**
+ * Faixa de estatísticas agregadas do país (mesmos tiles da web). Os volumes já
+ * chegam rateados pelo trecho dentro do país, daí o "aqui" nos rótulos de
+ * máximo: numa pedalada que cruzou a fronteira, o número é o do trecho.
+ */
 export function CountryStats({ stats, cityCount }: { stats: CountryStatsData; cityCount: number }) {
   const everestRatio = stats.elevationM / EVEREST_M;
   const everest =
@@ -40,8 +44,8 @@ export function CountryStats({ stats, cityCount }: { stats: CountryStatsData; ci
       <Tile value={formatElevation(stats.elevationM) ?? '—'} label="Subida total" caption={everest} />
       <Tile value={formatDuration(stats.movingTimeS)} label="Tempo pedalando" caption={days} />
       <Tile value={speed ? `${speed} km/h` : '—'} label="Velocidade média" />
-      <Tile value={formatDistance(stats.longestRideM) ?? '—'} label="Maior pedalada" />
-      <Tile value={formatElevation(stats.maxClimbM) ?? '—'} label="Maior subida" />
+      <Tile value={formatDistance(stats.longestRideM) ?? '—'} label="Maior trecho aqui" />
+      <Tile value={formatElevation(stats.maxClimbM) ?? '—'} label="Maior subida aqui" />
       <Tile value={String(cityCount)} label="Cidades" />
       {stats.calories > 0 ? (
         <Tile value={`${Math.round(stats.calories).toLocaleString('pt-BR')} kcal`} label="Calorias" />

@@ -70,7 +70,24 @@ interface TodoOccurrence {
 - `isVisibleNow(t, occ, today, now)` — exibição: esconde a ocorrência do dia antes do `startTime`.
 - `isPastEnd(t, occ, today, now)` — pendente com data cujo dia/horário (`endTime`) já passou.
 
-Coberto por `mobile/src/lib/__tests__/todo-logic.test.ts` (23 casos).
+### Dia lógico (virada às 02h)
+
+Todo `today`/`now` das tarefas é o **dia lógico**, não a data do calendário:
+
+- `TODO_ROLLOVER_HOUR = 2` — hora da virada.
+- `todoDayStr(d?)` → `'YYYY-MM-DD'`: antes das 02h locais devolve o dia anterior.
+- `todoTimeStr(d?)` → `'HH:MM'` no mesmo relógio: 00:30 vira `'24:30'`, 01:45 vira `'25:45'`.
+  Mantém a comparação por string com `startTime`/`endTime` (≤ `'23:59'`) válida na
+  madrugada — sem isso, um `endTime` de 22h "voltaria a valer" à meia-noite.
+- `msUntilTodoRollover(now?)` — ms até a próxima virada; as stores agendam re-load nela.
+
+Os defaults das funções acima já usam os dois; quem chama passa `todoDayStr()`/`todoTimeStr()`
+(nunca `localDateStr`/`localTimeStr`). O mesmo vale para o dia de conclusão (`completedAt`,
+`fireOnComplete`) e para os filtros de "concluídas hoje". Hábitos, refeições e treinos
+continuam na data do calendário — só o módulo de tarefas (incluindo Compras) vira às 02h.
+
+Coberto por `mobile/src/lib/__tests__/todo-logic.test.ts` (23 casos) e, para a virada,
+`packages/shared/src/todo/day.test.ts` (16 casos).
 
 ## Geração de ocorrências (regras)
 

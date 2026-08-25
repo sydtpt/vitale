@@ -1,6 +1,10 @@
 /**
  * Derivações puras de tarefas (sem persistência) — fonte única para web e mobile.
  * Regra em [data-model](../../../../docs/specs/tarefas/data-model.md).
+ *
+ * "Hoje" aqui é o **dia lógico** (`todoDayStr`), que só vira às 02h — nunca a data
+ * do calendário. Quem chama passa esse dia (e `todoTimeStr` como hora) em vez de
+ * `localDateStr`/`localTimeStr`; os defaults destas funções já usam os dois.
  */
 import type { TodoRecurrence, TodoTemplate, TodoOccurrence } from '../models';
 import { localDateStr } from '../date/local';
@@ -12,6 +16,39 @@ export function localTimeStr(d: Date = new Date()): string {
   const h = String(d.getHours()).padStart(2, '0');
   const m = String(d.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
+}
+
+/**
+ * Hora em que o dia das tarefas vira. A madrugada pertence ao dia que acabou:
+ * quem lava a louça à 01h ainda está fechando terça, então a tarefa de terça não
+ * pode sumir da lista (nem virar "atrasada") na virada do relógio.
+ */
+export const TODO_ROLLOVER_HOUR = 2;
+
+/** Dia lógico das tarefas ('YYYY-MM-DD'): antes das 02h locais, ainda é ontem. */
+export function todoDayStr(d: Date = new Date()): string {
+  const shifted = new Date(d.getTime());
+  shifted.setHours(shifted.getHours() - TODO_ROLLOVER_HOUR);
+  return localDateStr(shifted);
+}
+
+/**
+ * Hora no mesmo relógio de `todoDayStr` — a madrugada continua contando do dia
+ * anterior: 00:30 vira '24:30' e 01:45 vira '25:45'. Mantém a comparação por
+ * string com `startTime`/`endTime` (no máximo '23:59') válida após a meia-noite.
+ */
+export function todoTimeStr(d: Date = new Date()): string {
+  const h = d.getHours();
+  const hh = h < TODO_ROLLOVER_HOUR ? h + 24 : h;
+  return `${String(hh).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** ms até a próxima virada do dia de tarefas (02h locais) — para reagendar a lista. */
+export function msUntilTodoRollover(now: Date = new Date()): number {
+  const t = new Date(now.getTime());
+  t.setHours(TODO_ROLLOVER_HOUR, 0, 0, 0);
+  if (t.getTime() <= now.getTime()) t.setDate(t.getDate() + 1);
+  return t.getTime() - now.getTime();
 }
 
 /** Valida 'HH:MM' (00:00–23:59). */
@@ -96,7 +133,7 @@ function yearlyDue(month: number, day: number, from: string, inclusive: boolean)
  */
 export function firstDueDate(
   rec: TodoRecurrence,
-  today: string = localDateStr(),
+  today: string = todoDayStr(),
   startDate?: string | null,
 ): string | null {
   const from = startDate && startDate > today ? startDate : today;
@@ -117,7 +154,7 @@ export function firstDueDate(
 export function nextDueDate(
   rec: TodoRecurrence,
   occDueDate: string | null,
-  completedAt: string = localDateStr(),
+  completedAt: string = todoDayStr(),
 ): string | null {
   const anchor = occDueDate ?? completedAt;
   switch (rec.kind) {
@@ -135,7 +172,7 @@ export function nextDueDate(
  */
 export function triggeredDueDate(
   rec: TodoRecurrence,
-  triggerDay: string = localDateStr(),
+  triggerDay: string = todoDayStr(),
 ): string | null {
   const days = rec.kind === 'on_workout' ? rec.dueInDays : undefined;
   if (days == null) return null;
@@ -145,7 +182,7 @@ export function triggeredDueDate(
 /** Pendente com data já passada. */
 export function isOverdue(
   occ: Pick<TodoOccurrence, 'dueDate' | 'status'>,
-  today: string = localDateStr(),
+  today: string = todoDayStr(),
 ): boolean {
   return occ.status === 'pending' && occ.dueDate != null && occ.dueDate < today;
 }
@@ -153,7 +190,7 @@ export function isOverdue(
 /** Dias de atraso (0 se não atrasada). */
 export function daysLate(
   occ: Pick<TodoOccurrence, 'dueDate' | 'status'>,
-  today: string = localDateStr(),
+  today: string = todoDayStr(),
 ): number {
   if (!isOverdue(occ, today)) return 0;
   return daysBetween(occ.dueDate as string, today);
@@ -166,7 +203,7 @@ export function daysLate(
  */
 export function isStarted(
   t: Pick<TodoTemplate, 'startDate'>,
-  today: string = localDateStr(),
+  today: string = todoDayStr(),
 ): boolean {
   return !t.startDate || today >= t.startDate;
 }
@@ -179,8 +216,8 @@ export function isStarted(
 export function isVisibleNow(
   t: Pick<TodoTemplate, 'startTime'>,
   occ: Pick<TodoOccurrence, 'dueDate'>,
-  today: string = localDateStr(),
-  now: string = localTimeStr(),
+  today: string = todoDayStr(),
+  now: string = todoTimeStr(),
 ): boolean {
   if (!t.startTime || occ.dueDate == null || occ.dueDate !== today) return true;
   return now >= t.startTime;
@@ -189,12 +226,14 @@ export function isVisibleNow(
 /**
  * Passou da `endTime`: pendente com data cujo dia (e horário, se hoje) já passou.
  * Dispara o cancelamento automático na reconciliação. Sem `endTime` → false.
+ * Na madrugada `now` vem como '24:mm'/'25:mm' (`todoTimeStr`), então qualquer
+ * `endTime` do dia lógico já conta como vencido — é isso que fecha a janela.
  */
 export function isPastEnd(
   t: Pick<TodoTemplate, 'endTime'>,
   occ: Pick<TodoOccurrence, 'dueDate' | 'status'>,
-  today: string = localDateStr(),
-  now: string = localTimeStr(),
+  today: string = todoDayStr(),
+  now: string = todoTimeStr(),
 ): boolean {
   if (!t.endTime || occ.status !== 'pending' || occ.dueDate == null) return false;
   if (occ.dueDate < today) return true;
@@ -227,8 +266,8 @@ export type TodoAction =
 export function reconcileTemplate(
   t: Pick<TodoTemplate, 'id' | 'active' | 'recurrence' | 'overdue' | 'triggerOnly' | 'endTime' | 'startDate'>,
   occ: Pick<TodoOccurrence, 'id' | 'dueDate' | 'status'>[],
-  today: string = localDateStr(),
-  now: string = localTimeStr(),
+  today: string = todoDayStr(),
+  now: string = todoTimeStr(),
 ): TodoAction[] {
   const actions: TodoAction[] = [];
   if (!t.active) return actions;

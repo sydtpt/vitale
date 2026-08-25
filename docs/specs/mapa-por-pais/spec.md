@@ -24,6 +24,7 @@ Sem essa visão, o usuário não consegue:
 | Enquadramento do mapa | `fitBounds` ao **bbox do país**; estica por eixo até no máx. **+50 km** além da borda quando alguma rota ultrapassa — nunca mais que isso | Mesma regra pedida para a lista de cidades (§ abaixo); ver [data-model §4](./data-model.md#4-enquadramento-do-mapa-countryviewport) |
 | Lista de cidades | Todas as cidades distintas cruzadas pelas pedaladas do país, **limitadas ao território do país ou no máx. 50 km fora** (rotas que cruzam fronteira) | Dedupe por nome normalizado; ordenada alfabeticamente com contador de vezes visitada |
 | Lista de treinos | Todas as pedaladas já feitas naquele país, mais recentes primeiro | Reusa [`rt-activity-item`](../../../web/src/app/features/workout-history/components/activity-item.component.ts) em modo lista — sem filtros próprios no MVP |
+| Semântica dos agregados | **Volume rateado pelo trecho no país**; contagem de pedaladas não | Uma pedalada cross-border não soma seus km inteiros nos dois lados. `rideCount` continua 1 em cada país — ela foi pedalada nos dois. Ver US6 e [data-model §4.1](./data-model.md#41-rateio-por-país-countryshares) |
 | Plataforma | **Só web** (pedido explícito) | Mobile fica fora deste spec |
 
 ## 3. Usuários e plataforma
@@ -69,10 +70,27 @@ Como usuário, quero trocar de país diretamente na tela do mapa, para comparar 
 **Cenários de aceite**
 - **Dado** que estou vendo o mapa de um país, **quando** uso o seletor de país da própria tela, **então** o mapa, a lista de cidades e a lista de treinos atualizam para o novo país sem recarregar a página (só troca o `?country=`).
 
+### US6 — Ver, por país, só o que foi pedalado ali (P1) 🎯
+Como usuário, quero que os números de um país contem só o trecho que aconteceu dentro dele, para que uma pedalada que cruzou a fronteira não infle os dois países.
+
+> Adicionada em 2026-08-24, depois da entrega: a faixa de estatísticas entrou junto com o T13 e nunca teve semântica especificada, então somava a pedalada inteira em cada país tocado. Vale para **web e mobile** — a tela mobile equivalente veio depois deste spec (que dizia "só web") e herdou o mesmo comportamento, corrigido junto.
+
+**Cenários de aceite**
+- **Dado** uma pedalada de 80 km que fez 50 km na Bélgica e 30 km na França, **quando** vejo as estatísticas de cada país, **então** a Bélgica mostra 50 km e a França 30 km — e não 80 km em cada.
+- **Dado** essa mesma pedalada, **quando** olho a contagem de pedaladas dos dois países, **então** ela conta como 1 pedalada em cada, e aparece na lista de treinos dos dois (ela foi pedalada nos dois).
+- **Dado** que as rotas GPS ainda estão carregando, **quando** a faixa aparece, **então** ela já mostra um valor aproximado (rateio por cidades) que se ajusta quando as rotas chegam — nunca o total inflado.
+- **Dado** um país onde nenhuma pedalada cruzou fronteira, **quando** vejo as estatísticas, **então** os números são idênticos aos de antes desta mudança.
+- **Dado** essa pedalada cross-border, **quando** vejo o mapa da Bélgica, **então** a linha dela para na fronteira — o trecho francês não é desenhado aqui (e aparece no mapa da França).
+- **Dado** uma rota que sai do país e volta, **quando** vejo o mapa, **então** ela aparece como mais de uma linha, uma por trecho dentro do país.
+
+> Esta última parte substitui o 3º cenário da US2 (esticar o enquadramento até 50 km além da borda para incluir o trecho estrangeiro): com o traçado recortado não há mais trecho estrangeiro para enquadrar. O buffer segue no código como guarda.
+
 ## 5. Fora de escopo
 
 - **Mobile** — só web por ora (replicar depois é um spec à parte, se fizer sentido).
 - **Estender enriquecimento a Corrida/Trilha/Caminhada** — o botão já aparece automaticamente quando algum tipo tiver `cities`; estender o `enrichCities` do ingest para outros `activityId` é uma mudança de backend separada, fora deste spec.
-- **Fronteira real (polígono)** — a classificação usa bbox ± 50 km, não a fronteira geográfica exata. Pode classificar errado um ponto muito próximo da linha divisória entre dois países vizinhos com bboxes sobrepostos (ex. Benelux). Aceitável para um registro pessoal; ver [data-model §1](./data-model.md#1-citymarkcountrycode) para o critério principal (mais preciso) usado quando disponível.
+- ~~**Fronteira real (polígono)**~~ — **passou a ser escopo em 2026-08-24** (ver [data-model §4.2](./data-model.md#42-contornos-dos-países-country-borders)): o rateio e o recorte usam ponto-em-polígono contra o contorno real. O bbox ± 50 km segue valendo só para a lista de cidades e o enquadramento.
 - **Filtros/ordenação avançados** na lista de treinos do país (US4) — herda só ordenação por data mais recente no MVP.
+- **Distância rateada por item na lista de treinos (US4)** — cada linha segue mostrando a distância cheia da pedalada, então numa pedalada cross-border a soma das linhas não fecha com a faixa de estatísticas. Decisão explícita: sem selo "parcial" por item.
+- **Rateio próprio de subida/tempo/calorias** — os três são rateados pela mesma fração de distância, porque o `route_overview` que alimenta o cálculo não tem altitude nem timestamp. Ver [data-model §4.1](./data-model.md#41-rateio-por-país-countryshares).
 - **Heatmap tipo Strava** (mapa-múndi único com todas as rotas de todos os países) — aqui a visão é sempre por-país.

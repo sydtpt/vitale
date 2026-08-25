@@ -7,7 +7,7 @@ paradigm: 'Núcleo compartilhado com adaptadores de plataforma (ports & adapters
 scope: 'Runtime do monorepo Orbe (shared/web/mobile/supabase) e arquitetura de conhecimento do repositório'
 status: final
 created: '2026-08-17'
-updated: '2026-08-21'
+updated: '2026-08-24'
 binds: []
 sources:
   - 'varredura do código (brownfield) em 2026-08-17'
@@ -107,7 +107,7 @@ Proibido: `shared` importar de `web` ou `mobile`; `web` e `mobile` importarem um
 
 ### AD-12 — Estado é do app; query, cálculo e vocabulário não são
 
-- **Binds:** os 10 pares de store duplicados
+- **Binds:** os 11 pares de store duplicados (lista viva: `STORE_ALLOWLIST` em `packages/shared/src/architecture.test.ts`)
 - **Prevents:** a máquina de estado servir de esconderijo para lógica compartilhável
 - **Rule:** cada app é dono da sua máquina de estado — signals no web, Zustand no mobile. Não é dono de query, cálculo nem vocabulário de domínio.
 

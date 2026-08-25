@@ -36,7 +36,8 @@ Os 5 exemplos do usuário:
 ## Requisitos funcionais
 
 1. Criar/editar/arquivar séries (mobile: `tarefas/editor`; web: modal).
-2. Listar ocorrências pendentes em **Atrasadas / A fazer / Em breve**.
+2. Listar ocorrências pendentes em **Atrasadas / A fazer / Em breve**, com o dia
+   virando às 02h (a madrugada ainda fecha o dia anterior).
 3. Concluir, pular e cancelar ocorrências; gerar a próxima automaticamente.
 4. Reconciliação no `load`: expira vencidas (`expire`), gera próximas de calendário, mantém vencidas (`carry`).
 5. Gatilhos manuais: `event`/`stock` (botão "Registrar"), `usage` (atualizar contador).
@@ -67,6 +68,25 @@ on_workout/sync HealthKit, gatilhos manuais event/stock/usage). Use para tarefas
 filhas que existem só como consequência de outras (ex.: "tomar shake" disparada
 por "correr"). Configurável no editor ("Só nasce por gatilho").
 
+## O dia das tarefas vira às 02h
+
+O "hoje" das listas é um **dia lógico**, não a data do relógio: entre 00h e 02h ainda
+é o dia anterior. Uma tarefa com prazo em terça continua em "A fazer" até as 02h de
+quarta — não some, não vira "atrasada" e não é expirada/cancelada na virada da
+meia-noite. Motivo: quem fecha o dia depois da meia-noite ainda está no mesmo dia,
+e perder a tarefa da lista às 00:00 é perder a chance de marcá-la.
+
+- Derivado por `todoDayStr()` / `todoTimeStr()` (shared) — usados no lugar de
+  `localDateStr`/`localTimeStr` em **tudo** que é tarefa: baldes, `isOverdue`,
+  reconciliação, `dueLabel` ("Hoje"), dia da conclusão e "concluídas hoje".
+- Na madrugada a hora vira `'24:mm'`/`'25:mm'`, então `startTime` já cumprido segue
+  visível e `endTime` já passado continua fechando a janela (cancelamento automático).
+- App/aba aberta atravessando a virada: as stores agendam um re-load para as 02h
+  (`msUntilTodoRollover`), junto com os limites de `startTime`/`endTime`.
+- Vale também para Compras (mesmo motor). Hábitos, refeições e treinos seguem a data
+  do calendário — um treino às 00:30 é do dia novo, e a tarefa que ele dispara nasce
+  com a data dele.
+
 ## Janela de horário (startTime / endTime)
 
 Campos opcionais `'HH:MM'` no template, válidos só para recorrências **com data**
@@ -81,10 +101,26 @@ herdam via `templateId`.
   `carry`/`cancelPolicy`. O cancel passa pelo seam de avanço (gera a próxima como
   qualquer resolução). (`isPastEnd` → ação `cancel` em `reconcileTemplate`)
 
-**Disparo:** sem timer em background/push, a aparição e o cancelamento acontecem na
-próxima reconciliação (`load`: abrir app, foreground, navegação) e por um `setTimeout`
-interno agendado para o próximo limite enquanto o app está aberto. `startTime` é a base
-para um lembrete push local futuro.
+**Disparo:** a aparição e o cancelamento acontecem na próxima reconciliação
+(`load`: abrir app, foreground, navegação) e por um `setTimeout` interno agendado
+para o próximo limite enquanto o app está aberto.
+
+**Lembrete (mobile):** toda ocorrência **pendente com data** de uma série ativa com
+`startTime` agenda uma notificação local para `dueDate + startTime` — título fixo
+`"Lembrete"`, corpo = o nome da tarefa, toque abre `/tarefas`. Diferente do
+`setTimeout` acima, o gatilho é do sistema (DATE), então chega com o app fechado.
+
+- Lista derivada em `buildTaskReminders` (shared, puro) — ordenada pelo horário e
+  cortada em `TASK_REMINDER_LIMIT` (32), porque o iOS só mantém 64 locais pendentes
+  por app e descarta o excedente calado.
+- Só horários **futuros**: reagendar algo no passado dispararia na hora, virando um
+  alarme falso a cada foreground.
+- Identifier estável `todo:<occId>` — reagendar substitui em vez de duplicar, e
+  concluir/pular/cancelar apaga o lembrete daquela ocorrência.
+- Reagendado no ciclo do digest (foreground) e a cada mudança relevante na store de
+  tarefas (`refreshTaskReminders`), então concluir ou mudar a hora reflete na hora.
+- Chave `taskReminders` em `notification_prefs`, ligada por padrão; alternável em
+  Configurações → Notificações ("Tarefas com hora").
 
 ## A partir de (startDate)
 
@@ -115,4 +151,5 @@ encadeamento por conclusão.
 ## Não-objetivos
 
 - Não mistura com Habitos (modelo próprio).
-- Sem notificações push (roadmap geral).
+- Sem push remoto: os lembretes são locais, agendados pelo próprio app (sem servidor),
+  então dependem de o app ter sido aberto para agendar a janela seguinte.

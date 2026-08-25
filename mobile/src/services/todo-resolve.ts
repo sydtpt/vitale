@@ -12,7 +12,7 @@
 import { supabase } from '../lib/supabase';
 import type { TodoTemplate, TodoStatus } from '@vitale/shared';
 import { enqueueResolve, drainTodoQueue, type TodoResolveOp } from '../lib/todo-queue';
-import { nextDueDate, localDateStr } from '@vitale/shared';
+import { nextDueDate, todoDayStr } from '@vitale/shared';
 import {
   hasPendingTodoOccurrence,
   insertTodoOccurrence,
@@ -100,7 +100,7 @@ export interface ResolveArgs {
 export async function resolveAndAdvance(args: ResolveArgs): Promise<number> {
   const { userId, template, occId, occDueDate } = args;
   const status = args.status ?? 'done';
-  const completedAt = args.completedAt ?? localDateStr();
+  const completedAt = args.completedAt ?? todoDayStr();
 
   await enqueueResolve({ opId: genOpId(), occId, status, meta: args.meta ?? null });
   await drainTodoQueue(flushResolves);

@@ -581,7 +581,7 @@ export default function TodoEditorScreen() {
           )}
           {hasDateRecurrence && (startTime.trim() !== '' || endTime.trim() !== '') && (
             <Text style={styles.hint}>
-              {startTime.trim() ? 'Aparece a partir da hora inicial. ' : ''}
+              {startTime.trim() ? 'Aparece e avisa por notificação na hora inicial. ' : ''}
               {endTime.trim() ? 'Cancela automaticamente após a hora final.' : ''}
             </Text>
           )}

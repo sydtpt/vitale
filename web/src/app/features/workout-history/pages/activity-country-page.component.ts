@@ -5,9 +5,12 @@ import type { ActivityRoutePoint } from '@vitale/shared';
 import {
   activitiesInCountry,
   citiesInCountry,
+  countryAt,
+  countryShares,
   countryStats,
   countryViewport,
   ridesByCountry,
+  routesInCountry,
 } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { activityIdForSlug, labelForSlug } from '@core/models/activity-types';
@@ -76,14 +79,28 @@ export class ActivityCountryPageComponent {
   protected readonly cities = computed(() =>
     this.selected() ? citiesInCountry(this.typeActivities(), this.selected()) : [],
   );
-  /** Agregados do país (faixa de estatísticas). Deriva das atividades já em
-   *  memória — não depende do carregamento das rotas GPS. */
-  protected readonly stats = computed(() => countryStats(this.rides()));
-
-  /** Rotas GPS carregadas em lote para o país atual. */
-  protected readonly routes = signal<ActivityRoutePoint[][]>([]);
+  /** Rotas GPS carregadas em lote para o país atual, por id do treino. */
+  private readonly routesById = signal<ReadonlyMap<string, ActivityRoutePoint[]>>(new Map());
   protected readonly routesLoading = signal(false);
   private routesKey = '';
+
+  /** As linhas do mapa: rotas recortadas ao território do país, pelo mesmo
+   *  critério do rateio. Uma pedalada que só encostou aqui entra só com o
+   *  trecho que aconteceu aqui — e o enquadramento segue junto. */
+  protected readonly routes = computed(() =>
+    routesInCountry(this.rides(), this.routesById(), this.selected(), countryAt),
+  );
+
+  /** Fração de cada pedalada que aconteceu dentro do país — o que impede uma
+   *  rota cross-border de somar seus km inteiros nos dois lados. Enquanto as
+   *  rotas não chegam, `countryShares` cai no rateio por cidades e a faixa já
+   *  nasce aproximada, convergindo depois. */
+  protected readonly stats = computed(() =>
+    countryStats(
+      this.rides(),
+      countryShares(this.rides(), this.routesById(), this.selected(), countryAt),
+    ),
+  );
 
   /** Enquadramento do mapa: bbox do país (piso) esticado até as rotas (±buffer). */
   protected readonly viewport = computed(() =>
@@ -122,7 +139,7 @@ export class ActivityCountryPageComponent {
       const rides = this.rides();
       const key = `${code}:${rides.map((r) => r.id).join(',')}`;
       if (!code) {
-        this.routes.set([]);
+        this.routesById.set(new Map());
         this.routesKey = '';
         return;
       }
@@ -137,12 +154,10 @@ export class ActivityCountryPageComponent {
     try {
       // Overviews reduzidos (route_overview) — leves o bastante p/ dezenas de
       // rotas juntas sem estourar o timeout; o mapa de país não precisa de
-      // resolução cheia.
-      const map = await this.store.loadRouteOverviews(ids);
-      // Preserva a ordem dos treinos e descarta rotas vazias (sem GPS).
-      this.routes.set(ids.map((id) => map.get(id) ?? []).filter((pts) => pts.length >= 2));
+      // resolução cheia, e o rateio só precisa de proporção.
+      this.routesById.set(await this.store.loadRouteOverviews(ids));
     } catch {
-      this.routes.set([]);
+      this.routesById.set(new Map());
     } finally {
       this.routesLoading.set(false);
     }

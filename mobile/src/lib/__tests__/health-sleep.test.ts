@@ -197,6 +197,36 @@ describe('aggregateSleepNights — tempo na cama e latência (insônia de iníci
     expect(out[0].stages!.onset).toBeCloseTo(0.75);
   });
 
+  it('não grava latência quando a fonte não separa cama de sono (Garmin: INBED 1s antes)', () => {
+    // Assinatura real do Garmin, medida em 19/19 noites de ago/2026: o INBED abre
+    // 1 segundo antes do sono. Não é medida, é constante — gravar 0 se disfarçaria
+    // de "apagou na hora".
+    const out = aggregateSleepNights([
+      sample('INBED', '2026-05-21T22:59:59', '2026-05-22T05:00:00'),
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T05:00:00'),
+    ]);
+    expect(out[0].stages!.onset).toBeUndefined();
+    // `inbed` presente + `onset` ausente = a fonte não separa. Estado distinto
+    // de não haver dado de cama nenhum (aí os dois somem).
+    expect(out[0].stages!.inbed).toBeDefined();
+  });
+
+  it('aceita a latência a partir de 1 minuto', () => {
+    const out = aggregateSleepNights([
+      sample('INBED', '2026-05-21T22:59:00', '2026-05-22T05:00:00'),
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T05:00:00'),
+    ]);
+    expect(out[0].stages!.onset).toBeCloseTo(1 / 60);
+  });
+
+  it('preserva a menor latência real já vista no histórico (90s do Apple Watch)', () => {
+    const out = aggregateSleepNights([
+      sample('INBED', '2026-05-21T22:58:30', '2026-05-22T05:00:00'),
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T05:00:00'),
+    ]);
+    expect(out[0].stages!.onset).toBeCloseTo(1.5 / 60);
+  });
+
   it('não inventa latência quando a fonte não grava INBED', () => {
     const out = aggregateSleepNights([
       sample('CORE', '2026-05-21T23:00:00', '2026-05-22T05:00:00'),

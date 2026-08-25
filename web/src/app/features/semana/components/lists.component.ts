@@ -3,7 +3,7 @@ import { IconComponent } from '@core/services/icon.component';
 import { FINANCAS, CASA_TAREFAS } from '@core/models/mock-data';
 import { TodosStore } from '../../tasks/data/todos.store';
 import { GoalsStore } from '../../metas/data/goals.store';
-import { describeRecurrence, dueLabel, familyLabel, goalPct, goalValueText, isOverdue, localDateStr } from '@vitale/shared';
+import { describeRecurrence, dueLabel, familyLabel, goalPct, goalValueText, isOverdue, todoDayStr } from '@vitale/shared';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
@@ -45,7 +45,8 @@ export class SpendByCategoryComponent {
 })
 export class RecurringListComponent {
   private readonly store = inject(TodosStore);
-  private readonly today = localDateStr();
+  /** Dia lógico das tarefas (vira às 02h). */
+  private readonly today = todoDayStr();
 
   constructor() {
     void this.store.load();

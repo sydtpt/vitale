@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TodoTemplate, TodoOccurrence, ShopMeta, ShopCat } from '@vitale/shared';
-import { describeRecurrence, isOverdue, localDateStr, SHOP_CATS } from '@vitale/shared';
+import { describeRecurrence, isOverdue, todoDayStr, SHOP_CATS } from '@vitale/shared';
 import * as Haptics from 'expo-haptics';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
@@ -94,7 +94,8 @@ export default function ComprasScreen() {
 
   const comprasTemplates = templates.filter((t) => t.module === 'compras');
   const tplById = new Map(comprasTemplates.map((t) => [t.id, t]));
-  const today = localDateStr();
+  // Dia lógico das tarefas: a lista só vira de dia às 02h.
+  const today = todoDayStr();
 
   const pending = occurrences.filter(
     (o) => o.status === 'pending' && tplById.has(o.templateId),
@@ -104,7 +105,7 @@ export default function ComprasScreen() {
     (o) =>
       o.status === 'done' &&
       o.doneAt != null &&
-      localDateStr(new Date(o.doneAt)) === today &&
+      todoDayStr(new Date(o.doneAt)) === today &&
       tplById.has(o.templateId),
   );
 

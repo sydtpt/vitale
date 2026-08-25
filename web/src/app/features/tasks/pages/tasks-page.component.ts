@@ -7,7 +7,7 @@ import { TodoCardComponent } from '../components/todo-card.component';
 import { TodoEditorComponent } from '../components/todo-editor.component';
 import { HistoryViewComponent } from '../components/history-view.component';
 import { SeriesViewComponent } from '../components/series-view.component';
-import { describeRecurrence, isOverdue, isStarted, isVisibleNow, localDateStr, localTimeStr } from '@vitale/shared';
+import { describeRecurrence, isOverdue, isStarted, isVisibleNow, todoTimeStr } from '@vitale/shared';
 
 interface Row { o: TodoOccurrence; t: TodoTemplate; }
 
@@ -26,7 +26,8 @@ export class TasksPageComponent {
   protected readonly editorOpen = signal(false);
   protected readonly editing = signal<TodoTemplate | null>(null);
   protected readonly view = signal<View>('tasks');
-  private readonly today = localDateStr();
+  /** Dia lógico das tarefas (vira às 02h) — vem da store para acompanhar a virada. */
+  private get today(): string { return this.store.day(); }
 
   protected toggleView(v: Exclude<View, 'tasks'>): void {
     this.view.update((cur) => (cur === v ? 'tasks' : v));
@@ -60,7 +61,7 @@ export class TasksPageComponent {
 
   private visible(o: TodoOccurrence): boolean {
     const t = this.store.templateById(o.templateId);
-    return !t || isVisibleNow(t, o, this.today, localTimeStr());
+    return !t || isVisibleNow(t, o, this.today, todoTimeStr());
   }
 
   protected readonly triggers = computed(() => {

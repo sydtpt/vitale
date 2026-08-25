@@ -41,7 +41,7 @@
           @if (summary(); as s) {
             <div class="agg">
               {{ s.rideCount }} {{ s.rideCount === 1 ? 'pedalada' : 'pedaladas' }}
-              · {{ fmtKm(s.distanceM) }} km · {{ cities().length }} cidades
+              · {{ fmtKm(stats().distanceM) }} km · {{ cities().length }} cidades
             </div>
           }
         </div>

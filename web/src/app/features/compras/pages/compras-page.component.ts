@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
-import { describeRecurrence, isOverdue, localDateStr, SHOP_CATS, type ShopCat, type TodoOccurrence, type TodoTemplate } from '@vitale/shared';
+import { describeRecurrence, isOverdue, todoDayStr, SHOP_CATS, type ShopCat, type TodoOccurrence, type TodoTemplate } from '@vitale/shared';
 import { TodosStore } from '../../tasks/data/todos.store';
 import { ComprasEditorComponent } from '../components/compras-editor.component';
 
@@ -18,7 +18,8 @@ export class ComprasPageComponent {
   protected readonly store = inject(TodosStore);
   protected readonly editorOpen = signal(false);
   protected readonly editing = signal<TodoTemplate | null>(null);
-  private readonly today = localDateStr();
+  /** Dia lógico das tarefas (vira às 02h) — mesma virada da lista de tarefas. */
+  private get today(): string { return this.store.day(); }
 
   protected readonly comprasTemplates = computed(() =>
     this.store.templates().filter((t) => t.module === 'compras'),
@@ -33,7 +34,7 @@ export class ComprasPageComponent {
     const ids = new Set(this.comprasTemplates().map((t) => t.id));
     return this.store.occurrences().filter(
       (o) => o.status === 'done' && o.doneAt != null &&
-        localDateStr(new Date(o.doneAt)) === this.today && ids.has(o.templateId),
+        todoDayStr(new Date(o.doneAt)) === this.today && ids.has(o.templateId),
     );
   });
 

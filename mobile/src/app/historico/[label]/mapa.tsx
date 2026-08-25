@@ -15,9 +15,12 @@ import type { ActivityRoutePoint, CountryCityMark } from '@vitale/shared';
 import {
   activitiesInCountry,
   citiesInCountry,
+  countryAt,
+  countryShares,
   countryStats,
   countryViewport,
   ridesByCountry,
+  routesInCountry,
 } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { filterByType } from '../../../lib/activity-list-filter';
@@ -63,8 +66,6 @@ export default function CountryMapScreen() {
     () => (selected ? citiesInCountry(typed, selected) : []),
     [typed, selected],
   );
-  const stats = useMemo(() => countryStats(rides), [rides]);
-
   // Auto-seleção quando há exatamente 1 país e nenhum na URL.
   useEffect(() => {
     if (!loaded || selected) return;
@@ -83,24 +84,41 @@ export default function CountryMapScreen() {
   // inteiro. O `.then` só aplica se ainda for a requisição vigente; um re-render
   // com a MESMA chave não cancela o fetch em voo (evita ficar preso nas rotas
   // antigas, que era o bug ao trocar de país pelo dropdown).
-  const [routes, setRoutes] = useState<ActivityRoutePoint[][]>([]);
+  const [routesById, setRoutesById] = useState<ReadonlyMap<string, ActivityRoutePoint[]>>(new Map());
   const reqKey = useRef('');
   useEffect(() => {
     if (!selected) {
       reqKey.current = '';
-      setRoutes([]);
+      setRoutesById(new Map());
       return;
     }
     const ids = rides.map((r) => r.id);
     const key = `${selected}:${ids.join(',')}`;
     if (key === reqKey.current) return;
     reqKey.current = key;
-    setRoutes([]);
+    setRoutesById(new Map());
     void loadRouteOverviews(ids).then((map) => {
       if (reqKey.current !== key) return;
-      setRoutes(ids.map((id) => map.get(id) ?? []).filter((pts) => pts.length >= 2));
+      setRoutesById(map);
     });
   }, [rides, selected, loadRouteOverviews]);
+
+  /** As linhas do mapa: rotas recortadas ao território do país, pelo mesmo
+   *  critério do rateio. Uma pedalada que só encostou aqui entra só com o trecho
+   *  que aconteceu aqui — e o enquadramento segue junto. */
+  const routes = useMemo(
+    () => routesInCountry(rides, routesById, selected, countryAt),
+    [rides, routesById, selected],
+  );
+
+  /** Agregados do país, com o volume rateado pelo trecho que aconteceu dentro
+   *  dele — sem isso uma pedalada cross-border somaria seus km inteiros nos dois
+   *  países. Enquanto as rotas não chegam, `countryShares` cai no rateio por
+   *  cidades e os números já nascem aproximados, convergindo depois. */
+  const stats = useMemo(
+    () => countryStats(rides, countryShares(rides, routesById, selected, countryAt)),
+    [rides, routesById, selected],
+  );
 
   const viewport = useMemo(
     () => (selected ? countryViewport(selected, routes) : null),
@@ -162,9 +180,11 @@ export default function CountryMapScreen() {
   }
 
   // ── país selecionado ─────────────────────────────────────────
+  // A distância vem de `stats`, não do `summary`: o resumo da grade usa o rateio
+  // grosseiro por cidades e discordaria da faixa logo abaixo.
   const sub = summary
     ? `${summary.rideCount} ${summary.rideCount === 1 ? 'pedalada' : 'pedaladas'}` +
-      `${formatDistance(summary.distanceM) ? ` · ${formatDistance(summary.distanceM)}` : ''}` +
+      `${formatDistance(stats.distanceM) ? ` · ${formatDistance(stats.distanceM)}` : ''}` +
       ` · ${cities.length} cidades`
     : undefined;
 

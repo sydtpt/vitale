@@ -54,6 +54,7 @@ const mobileFiles = walk(join(ROOT, 'mobile', 'src')).filter((f) => !/__tests__/
 const STORE_ALLOWLIST = new Set([
   'activities.store.ts',
   'connections.store.ts',
+  'cultura.store.ts',
   'daily-ratings.store.ts',
   'goals.store.ts',
   'habits.store.ts',

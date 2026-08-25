@@ -21,7 +21,7 @@ import {
 } from '@vitale/shared';
 import { resolveAndAdvance, flushResolves, insertOccurrence } from '../services/todo-resolve';
 import { useAuthStore } from './auth.store';
-import { localDateStr, localTimeStr, firstDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
+import { addDays, todoDayStr, todoTimeStr, msUntilTodoRollover, firstDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
 
 /** Janela de histórico carregada (dias) para listar concluídas/atrasadas recentes. */
 export const TODO_WINDOW_DAYS = 30;
@@ -91,14 +91,15 @@ function currentUserId(): string | undefined {
 }
 
 // Timer enquanto o app está aberto: reconciliação só roda no load, então agendamos
-// um re-load no próximo limite de horário (startTime/endTime) de hoje, para a tarefa
-// aparecer/cancelar sem depender de o usuário reabrir o app.
+// um re-load no próximo limite de horário (startTime/endTime) de hoje — ou na virada
+// do dia lógico (02h) —, para a tarefa aparecer/cancelar/rolar de dia sem depender de
+// o usuário reabrir o app.
 let boundaryTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleBoundary(templates: TodoTemplate[], occurrences: TodoOccurrence[], reload: () => void): void {
   if (boundaryTimer) { clearTimeout(boundaryTimer); boundaryTimer = null; }
-  const today = localDateStr();
-  const now = localTimeStr();
+  const today = todoDayStr();
+  const now = todoTimeStr();
   const tplById = new Map(templates.map((t) => [t.id, t]));
   const times: string[] = [];
   for (const o of occurrences) {
@@ -108,13 +109,14 @@ function scheduleBoundary(templates: TodoTemplate[], occurrences: TodoOccurrence
     if (t.startTime && t.startTime > now) times.push(t.startTime);
     if (t.endTime && t.endTime > now) times.push(t.endTime);
   }
-  if (times.length === 0) return;
-  const nextAt = times.sort()[0];
-  const [h, m] = nextAt.split(':').map(Number);
-  const target = new Date();
-  target.setHours(h, m, 0, 0);
-  const ms = target.getTime() - Date.now();
-  if (ms <= 0) return;
+  let ms = msUntilTodoRollover();
+  if (times.length > 0) {
+    const [h, m] = times.sort()[0].split(':').map(Number);
+    const target = new Date();
+    target.setHours(h, m, 0, 0);
+    const untilTime = target.getTime() - Date.now();
+    if (untilTime > 0) ms = Math.min(ms, untilTime);
+  }
   boundaryTimer = setTimeout(reload, ms);
 }
 
@@ -142,9 +144,9 @@ export const useTodosStore = create<TodosState>((set, get) => ({
     const all = uid ? await fetchTodoTemplates(supabase, uid) : [];
     const templates = all.filter((t) => t.active);
 
-    const today = localDateStr();
-    const now = localTimeStr();
-    const since = localDateStr(new Date(Date.now() - (TODO_WINDOW_DAYS - 1) * 86400000));
+    const today = todoDayStr();
+    const now = todoTimeStr();
+    const since = addDays(today, -(TODO_WINDOW_DAYS - 1));
     let occurrences = await fetchOccurrences(since);
 
     // reconciliação por série: cancela por endTime, expira vencidas (overdue=expire)
@@ -234,7 +236,7 @@ export const useTodosStore = create<TodosState>((set, get) => ({
       if (input.recurrence.kind === 'none') {
         await insertOccurrence(userId, newId, null);
       } else {
-        const due = firstDueDate(input.recurrence, localDateStr(), input.startDate);
+        const due = firstDueDate(input.recurrence, todoDayStr(), input.startDate);
         if (due != null) await insertOccurrence(userId, newId, due);
       }
     }
@@ -292,7 +294,7 @@ export const useTodosStore = create<TodosState>((set, get) => ({
       (o) => o.templateId === templateId && o.status === 'pending',
     );
     if (t && dueUsage({ ...t, meter }) && !pending) {
-      await insertOccurrence(userId, templateId, localDateStr());
+      await insertOccurrence(userId, templateId, todoDayStr());
     }
     await get().load();
   },
@@ -303,7 +305,7 @@ export const useTodosStore = create<TodosState>((set, get) => ({
     const pending = get().occurrences.some(
       (o) => o.templateId === templateId && o.status === 'pending',
     );
-    if (!pending) await insertOccurrence(userId, templateId, localDateStr());
+    if (!pending) await insertOccurrence(userId, templateId, todoDayStr());
     await get().load();
   },
 }));

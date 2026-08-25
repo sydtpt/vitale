@@ -1,7 +1,6 @@
 /** Rótulos em pt-BR para tarefas (apresentação) — fonte única. */
 import type { TodoRecurrence } from '../models';
-import { addDays } from './logic';
-import { localDateStr } from '../date/local';
+import { addDays, todoDayStr } from './logic';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -21,8 +20,8 @@ export function describeRecurrence(rec: TodoRecurrence): string {
   }
 }
 
-/** Rótulo relativo do prazo (Hoje / Amanhã / Qua / 24/05 / Sem prazo). */
-export function dueLabel(due: string | null, today: string = localDateStr()): string {
+/** Rótulo relativo do prazo (Hoje / Amanhã / Qua / 24/05 / Sem prazo) — dia lógico. */
+export function dueLabel(due: string | null, today: string = todoDayStr()): string {
   if (due == null) return 'Sem prazo';
   if (due === today) return 'Hoje';
   if (due === addDays(today, 1)) return 'Amanhã';

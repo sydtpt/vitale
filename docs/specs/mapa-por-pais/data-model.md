@@ -122,9 +122,81 @@ export function countryViewport(
 ### Regras de cálculo
 
 - **`countryForCity`** — critério 1: `city.countryCode` igual ao código do país (comparação direta, sem geometria). Critério 2 (fallback): `COUNTRY_BBOXES[code]` existe e `[city.lng, city.lat]` cai dentro do bbox esticado 50 km em todos os lados (conversão km→graus: `dLat = km/111`; `dLng = km/(111 * cos(lat))`).
-- **`ridesByCountry`** — para cada atividade com `cities?.length`, resolve o conjunto de países distintos cruzados (`countryForCity` por marca, dedupe); incrementa `rideCount`/`distanceM`/`lastRideAt` de cada país presente. Uma pedalada que passa por 2 países conta nos dois.
+- **`ridesByCountry`** — para cada atividade com `cities?.length`, resolve o conjunto de países distintos cruzados (`countryForCity` por marca, dedupe); incrementa `rideCount`/`distanceM`/`lastRideAt` de cada país presente. Uma pedalada que passa por 2 países conta como 1 pedalada nos dois, mas com a **distância rateada** — ver §4.1.
 - **`citiesInCountry`** — filtra `activitiesInCountry`, achata as `cities`, mantém as que passam no teste de bbox±50km do país (mesmo critério de `countryForCity`, aplicado sempre — não só no fallback), agrupa por nome normalizado somando `visitCount`.
 - **`countryViewport`** — começa com o bbox de `COUNTRY_BBOXES[code]`. Para cada ponto de cada rota em `routes`, se estiver fora do bbox mas dentro do buffer de 50 km, estica o lado correspondente até esse ponto (nunca além do limite de 50 km, mesmo que o ponto esteja mais longe). Retorna `null` se `code` não está no dataset (chamador mantém o enquadramento anterior ou usa um fallback genérico de `fitBounds` só nas rotas).
+
+## 4.1. Rateio por país (`countryShares`)
+
+> Adicionado em 2026-08-24. Até então todo agregado somava a atividade **inteira** em cada país que ela tocou: uma pedalada BE→FR de 85 km contava 85 km na Bélgica *e* 85 km na França (idem subida, tempo, calorias e os máximos).
+
+```ts
+/** Fração (0..1) de cada atividade que aconteceu dentro de `code`, por activity.id. */
+export function countryShares(
+  activities: readonly Activity[],
+  routes: ReadonlyMap<string, readonly ActivityRoutePoint[]>,
+  code: string,
+): Map<string, number>;
+
+/** Agregados do país. Todo volume entra multiplicado pela fração; `rideCount` não. */
+export function countryStats(
+  activities: readonly Activity[],
+  shares: ReadonlyMap<string, number>,
+): CountryStats;
+
+/** As linhas do mapa: as rotas recortadas ao território do país, pela mesma
+ *  atribuição por segmento. Achatado — mapa e enquadramento não se importam com
+ *  de qual treino é cada linha. Uma rota que sai e volta vira vários pedaços. */
+export function routesInCountry(
+  activities: readonly Activity[],
+  routes: ReadonlyMap<string, readonly ActivityRoutePoint[]>,
+  code: string,
+): ActivityRoutePoint[][];
+```
+
+### Cascata de três níveis
+
+| Situação | Fração | Custo |
+|---|---|---|
+| A atividade não cruza o país | `0` | — |
+| Cruza só esse país (caso comum) | `1` | não olha a rota |
+| Cruza N países, com rota disponível | rateio geométrico (abaixo) | 1 haversine por segmento do overview |
+| Cruza N países, sem rota (carregando, ou sem GPS) | `cidades no país / total de cidades resolvidas` | — |
+
+**Invariante:** para uma mesma atividade, a soma das frações de todos os países que ela cruza é 1 — nenhum metro se perde nem se duplica.
+
+### Rateio geométrico
+
+Cada ponto da rota é classificado num país; cada segmento vale seu comprimento (haversine, de `geo/distance.ts`), e o segmento que cruza a fronteira entra partido no ponto exato do cruzamento. `share = metrosNoPaís / metrosTotais`.
+
+**A fronteira é a de verdade** — `countryAt` (§4.2), ponto-em-polígono contra o contorno real do país. Quando ele não decide (país fora do asset, ponto sobre a água), cai na **`CityMark` da atividade mais próxima**; a busca do vizinho mais próximo usa distância planar com a longitude encolhida pelo `cos(lat)`, já que só precisamos da ordem entre candidatos.
+
+Esse fallback nunca é bom perto da fronteira, e foi o que motivou os polígonos: entre Aachen (DE, 6.083) e Vaals (NL, 5.921) a bissetriz corre em ~6.00, enquanto a fronteira real passa em ~6.02 — o traçado do mapa era cortado ~2 km dentro da Alemanha, no meio da B1. Também não dá para usar `inBbox`: com o buffer de `MAX_BORDER_BUFFER_KM` (50 km) os bboxes de vizinhos se sobrepõem exatamente na faixa que interessa (o bbox da Alemanha começa em 5.87 — Vaals cai dentro dele).
+
+O ponto de cruzamento sai por **bissecção sobre o próprio classificador** (20 iterações ≈ centímetros), então a linha termina em cima da fronteira e não no ponto de rota mais próximo dela. Vale para os dois classificadores.
+
+## 4.2. Contornos dos países (`country-borders`)
+
+`countryAt(lng, lat, candidates)` responde de que país é um ponto, testando só os candidatos (as cidades da atividade já dizem quais países estão em jogo — quase sempre 2).
+
+- **Asset:** [`geo/country-borders.data.ts`](../../../packages/shared/src/geo/country-borders.data.ts), gerado por [`scripts/build-country-borders.mjs`](../../../packages/shared/scripts/build-country-borders.mjs) a partir do `@geo-maps/countries-land-100m@0.6.0` (120 MB, **não** é dependência do repo — o script recebe o caminho do arquivo, ver o cabeçalho dele).
+- **Como 120 MB viram ~1 MB:** só os países do `COUNTRY_BBOXES`; ilhotas com menos de 2 km de diagonal fora; **fronteira terrestre preservada em resolução cheia** (~100 m) — todo vértice a ≤2 km de vértice de outro país é âncora intocável — e litoral simplificado a ~2 km, que não separa ninguém; cada anel codificado como polyline (delta + varint base64, precisão 1e-4 ≈ 11 m). Só a codificação tira 3,7 MB → 0,93 MB.
+- **Runtime:** decodifica um país no primeiro uso e cacheia; bbox por anel descarta a maioria dos testes antes de percorrer vértice nenhum; ray casting sobre `Float64Array`.
+- **Peso:** o asset é injetado (`resolve?: CountryResolver`), não importado pelo `country-explorer`. Com `"sideEffects": false` no `packages/shared/package.json`, ele fica **só no chunk da tela de país** (1,05 MB / 640 kB gzip) — o bundle inicial da web não o vê. No mobile não há code splitting, então soma ~1 MB ao app.
+
+### Recorte do traçado (`routesInCountry`)
+
+O mesmo critério que mede também **corta**: o mapa de um país desenha só os trechos atribuídos a ele, terminando **em cima da fronteira** (o segmento que cruza é partido no ponto interpolado, não descartado inteiro). Um trecho é uma sequência contígua de segmentos do país — uma rota que sai e volta vira mais de uma linha, e a emenda é exata (a linha do país vizinho retoma no ponto onde esta parou). Pedaços de um ponto só são descartados; quando não dá para atribuir (pedalada de um país só, ou sem contorno nem cidade resolvida) a rota entra inteira.
+
+Efeito colateral no enquadramento: como `countryViewport` recebe as rotas já recortadas, ele praticamente não precisa mais esticar além da borda — o trecho estrangeiro que motivava o buffer de 50 km não é mais desenhado. O buffer continua no código como guarda (US2) e para pontos de fronteira que a atribuição manteve.
+
+### Aproximações aceitas
+
+- **Subida, tempo e calorias são rateados pela fração de DISTÂNCIA**, não por geometria própria: o `route_overview` que alimenta o cálculo é só `[lat,lng]`, sem altitude nem timestamp ([activities.ts](../../../packages/shared/src/data/activities.ts#L216-L218)). Um trecho de 30% da distância leva 30% da subida, mesmo que a serra tenha ficado do outro lado da fronteira.
+- **A rota é o overview reduzido** (1 ponto a cada 40, §T15/T16 do tasks): o comprimento absoluto sai subestimado, mas o viés é uniforme ao longo da rota e some na razão.
+- **`rideCount` não é rateado** — a pedalada aconteceu nos dois países e conta como 1 em cada. Consequência: a soma dos `rideCount` de todos os países é maior que o nº de pedaladas distintas.
+- **`longestRideM`/`maxClimbM` passam a ser o maior TRECHO dentro do país**, não a maior pedalada que passou por ele — daí o "aqui" nos rótulos da faixa.
+- **`CountrySummary.distanceM` usa sempre o rateio por cidades**, nunca o geométrico: a grade de seleção (US1) é desenhada antes de qualquer rota ser carregada.
 
 ## 5. Backfill dos registros já enriquecidos
 

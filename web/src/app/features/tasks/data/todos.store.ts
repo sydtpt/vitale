@@ -11,7 +11,7 @@ import type {
 } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
-import { localDateStr, localTimeStr, firstDueDate, nextDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
+import { addDays, todoDayStr, todoTimeStr, msUntilTodoRollover, firstDueDate, nextDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
 import {
   deleteTodoOccurrence,
   fetchTodoOccurrences,
@@ -59,9 +59,16 @@ export class TodosStore {
 
   private readonly _templates = signal<TodoTemplate[]>([]);
   private readonly _occurrences = signal<TodoOccurrence[]>([]);
+  private readonly _day = signal(todoDayStr());
   private readonly _state = signal<LoadState>('idle');
   private readonly _error = signal<string | null>(null);
 
+  /**
+   * Dia lógico da última reconciliação — as listas filtram por ele em vez de
+   * chamar `todoDayStr()` na construção, senão uma aba aberta durante a virada
+   * (02h) continuaria mostrando a lista do dia anterior.
+   */
+  readonly day = this._day.asReadonly();
   readonly state = this._state.asReadonly();
   readonly error = this._error.asReadonly();
   readonly loading = computed(() => this._state() === 'loading' || this._state() === 'idle');
@@ -102,9 +109,9 @@ export class TodosStore {
     this._state.set('loading');
     this._error.set(null);
 
-    const today = localDateStr();
-    const now = localTimeStr();
-    const since = localDateStr(new Date(Date.now() - (TODO_WINDOW_DAYS - 1) * 86400000));
+    const today = todoDayStr();
+    const now = todoTimeStr();
+    const since = addDays(today, -(TODO_WINDOW_DAYS - 1));
 
     let templates: TodoTemplate[];
     try {
@@ -149,20 +156,22 @@ export class TodosStore {
 
     this._templates.set(templates);
     this._occurrences.set(occurrences);
+    this._day.set(today);
     this._state.set('loaded');
     this.scheduleBoundary(templates, occurrences);
   }
 
   /**
    * Timer enquanto a página está aberta: reconciliação só roda no load, então
-   * reagenda um re-load no próximo limite de horário (startTime/endTime) de hoje.
+   * reagenda um re-load no próximo limite de horário (startTime/endTime) de hoje —
+   * ou na virada do dia lógico às 02h, o que vier antes.
    */
   private boundaryTimer: ReturnType<typeof setTimeout> | null = null;
 
   private scheduleBoundary(templates: TodoTemplate[], occurrences: TodoOccurrence[]): void {
     if (this.boundaryTimer) { clearTimeout(this.boundaryTimer); this.boundaryTimer = null; }
-    const today = localDateStr();
-    const now = localTimeStr();
+    const today = todoDayStr();
+    const now = todoTimeStr();
     const tplById = new Map(templates.map((t) => [t.id, t]));
     const times: string[] = [];
     for (const o of occurrences) {
@@ -172,13 +181,14 @@ export class TodosStore {
       if (t.startTime && t.startTime > now) times.push(t.startTime);
       if (t.endTime && t.endTime > now) times.push(t.endTime);
     }
-    if (times.length === 0) return;
-    const nextAt = times.sort()[0];
-    const [h, m] = nextAt.split(':').map(Number);
-    const target = new Date();
-    target.setHours(h, m, 0, 0);
-    const ms = target.getTime() - Date.now();
-    if (ms <= 0) return;
+    let ms = msUntilTodoRollover();
+    if (times.length > 0) {
+      const [h, m] = times.sort()[0].split(':').map(Number);
+      const target = new Date();
+      target.setHours(h, m, 0, 0);
+      const untilTime = target.getTime() - Date.now();
+      if (untilTime > 0) ms = Math.min(ms, untilTime);
+    }
     this.boundaryTimer = setTimeout(() => void this.load(true), ms);
   }
 
@@ -213,7 +223,7 @@ export class TodosStore {
       if (input.recurrence.kind === 'none') {
         await this.insertOccurrence(userId, newId, null);
       } else {
-        const due = firstDueDate(input.recurrence, localDateStr(), input.startDate);
+        const due = firstDueDate(input.recurrence, todoDayStr(), input.startDate);
         if (due != null) await this.insertOccurrence(userId, newId, due);
       }
     }
@@ -242,9 +252,9 @@ export class TodosStore {
         if (t.recurrence.kind === 'usage') {
           await setTodoTemplateMeterAtLastDone(supabase, t.id, t.meter ?? 0);
         }
-        await this.fireOnComplete(userId, t, localDateStr());
+        await this.fireOnComplete(userId, t, todoDayStr());
       }
-      const next = nextDueDate(t.recurrence, occ.dueDate, localDateStr());
+      const next = nextDueDate(t.recurrence, occ.dueDate, todoDayStr());
       if (next != null) await this.insertOccurrence(userId, t.id, next);
     }
     await this.load(true);
@@ -285,7 +295,7 @@ export class TodosStore {
     const t = this.templateById(templateId);
     const pending = this._occurrences().some((o) => o.templateId === templateId && o.status === 'pending');
     if (t && dueUsage({ ...t, meter }) && !pending) {
-      await this.insertOccurrence(userId, templateId, localDateStr());
+      await this.insertOccurrence(userId, templateId, todoDayStr());
     }
     await this.load(true);
   }
@@ -294,7 +304,7 @@ export class TodosStore {
     const userId = this.auth.user()?.id;
     if (!userId) return;
     const pending = this._occurrences().some((o) => o.templateId === templateId && o.status === 'pending');
-    if (!pending) await this.insertOccurrence(userId, templateId, localDateStr());
+    if (!pending) await this.insertOccurrence(userId, templateId, todoDayStr());
     await this.load(true);
   }
 

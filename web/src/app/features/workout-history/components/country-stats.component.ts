@@ -9,6 +9,10 @@ const EVEREST_M = 8849;
  * Faixa de estatísticas agregadas do país (entre o mapa e as listas). Componente
  * de apresentação: recebe os agregados prontos (`countryStats`) + o nº de cidades
  * e formata com os helpers do histórico. Tiles com dado ausente mostram "—".
+ *
+ * Os volumes que chegam aqui já vêm rateados pelo trecho dentro do país, daí o
+ * "aqui" nos rótulos de máximo: numa pedalada que cruzou a fronteira, o número é
+ * o do trecho, não o da pedalada inteira (que segue cheio na lista de treinos).
  */
 @Component({
   selector: 'rt-country-stats',
@@ -36,11 +40,11 @@ const EVEREST_M = 8849;
       </div>
       <div class="tile">
         <span class="value">{{ fmtKm(stats().longestRideM) }} <span class="unit">km</span></span>
-        <span class="label">Maior pedalada</span>
+        <span class="label">Maior trecho aqui</span>
       </div>
       <div class="tile">
         <span class="value">{{ fmtElevation(stats().maxClimbM) ?? '—' }}</span>
-        <span class="label">Maior subida</span>
+        <span class="label">Maior subida aqui</span>
       </div>
       <div class="tile">
         <span class="value">{{ cityCount() }}</span>

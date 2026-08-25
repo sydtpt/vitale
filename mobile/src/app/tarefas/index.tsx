@@ -8,7 +8,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { TodoItem } from '../../components/cards/TodoItem';
 import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
-import { localDateStr, localTimeStr, isOverdue, isVisibleNow, isStarted, addDays } from '@vitale/shared';
+import { todoDayStr, todoTimeStr, isOverdue, isVisibleNow, isStarted, addDays } from '@vitale/shared';
 
 export default function TarefasScreen() {
   const styles = useThemedStyles(createStyles);
@@ -27,13 +27,14 @@ export default function TarefasScreen() {
   useEffect(() => { load(); }, [load, user?.id]);
 
   const tplById = new Map(templates.map((t) => [t.id, t]));
-  const today = localDateStr();
+  // Dia lógico: a lista de hoje só vira às 02h (a madrugada fecha o dia anterior).
+  const today = todoDayStr();
 
   // Exclui módulo 'compras' — lista de compras fica na sua própria tab.
   const isTask = (o: TodoOccurrence) =>
     tplById.has(o.templateId) && tplById.get(o.templateId)!.module !== 'compras';
 
-  const now = localTimeStr();
+  const now = todoTimeStr();
   // isStarted: "a partir de" oculta a série inteira até o dia escolhido.
   const pending = occurrences.filter(
     (o) => o.status === 'pending' && isTask(o) && isStarted(tplById.get(o.templateId)!, today),
@@ -57,7 +58,7 @@ export default function TarefasScreen() {
     (o) =>
       o.status === 'done' &&
       o.doneAt != null &&
-      localDateStr(new Date(o.doneAt)) === today &&
+      todoDayStr(new Date(o.doneAt)) === today &&
       isTask(o),
   );
 
