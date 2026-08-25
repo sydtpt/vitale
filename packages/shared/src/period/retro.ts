@@ -72,6 +72,29 @@ export interface RetroHabit {
   createdOn?: string;
 }
 
+/**
+ * Série **diária** (`isDailyRecurrence`) + os dias em que foi concluída.
+ *
+ * Uma tarefa comum entra na retrospectiva só como contagem por módulo — o nome
+ * se perde. Para o que se faz todo santo dia isso não serve: a pergunta é
+ * *"quantos dias eu lembrei, e quantos esqueci"*, e ela precisa do nome, dos
+ * dias e da janela em que a série esteve viva.
+ *
+ * A eleição é automática e a regra é uma só: **a série vale todos os dias da
+ * semana**. Criar "comer uma fruta" como diária basta para ela aparecer aqui.
+ *
+ * Consumida por `buildTaskGrid`. Não alimenta o cruzamento de saúde — ver a nota
+ * na montagem de `triggers`.
+ */
+export interface RetroDailyTask {
+  id: string;
+  name: string;
+  /** Dias 'YYYY-MM-DD' com ocorrência concluída. */
+  days: Iterable<string>;
+  /** Dia de criação ('YYYY-MM-DD'): antes disso não havia o que esquecer. */
+  createdOn?: string;
+}
+
 /** Registro avulso + dias marcados. */
 export interface RetroRegistro {
   id: string;
@@ -109,6 +132,8 @@ export interface RetroInput {
   habits: RetroHabit[];
   registros: RetroRegistro[];
   tasks: RetroTask[];
+  /** Séries diárias + os dias em que foram concluídas — gatilhos do cruzamento. */
+  dailyTasks?: RetroDailyTask[];
   purchases: RetroPurchase[];
   /** Aderência ao plano de treino no período (opcional). */
   plannedDone?: number;
@@ -713,6 +738,10 @@ export function buildRetroHighlights(
       since: h.createdOn && h.createdOn > windowStart ? h.createdOn : windowStart,
     })),
   ];
+  // Séries diárias (`input.dailyTasks`) NÃO entram aqui de propósito. Elas existem
+  // para a faixa de adesão (`buildTaskGrid`): a pergunta é "lembrei ou esqueci",
+  // não "que efeito teve". Como `cross` pesa 1000 na ordenação, promovê-las a
+  // gatilho colocaria "nos dias com ZMA, sono +9%" no topo de todo domingo.
 
   for (const metric of input.health) {
     for (const trig of triggers) {

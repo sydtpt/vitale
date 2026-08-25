@@ -19,7 +19,7 @@ recorrentes por data, por intervalo após concluir, avulsas, e gatilhos não-tem
 
 | Eixo | Opções |
 |------|--------|
-| Gatilho (recorrência) | `none` · `monthly` · `weekly` · `yearly` · `after_completion` · `usage` · `event` · `stock` · `on_workout` |
+| Gatilho (recorrência) | `none` · `monthly` · `weekly` (inclui a **diária**) · `yearly` · `after_completion` · `usage` · `event` · `stock` · `on_workout` |
 | Encadeamento (`onComplete`) | lista de séries-filhas instanciadas ao concluir esta tarefa |
 | Se não fizer no dia (`overdue`) | `carry` (mantém atrasada) · `expire` (some) |
 | Cancelamento (`cancelPolicy`) | `none` (obrigatória) · `manual` · `auto` (após o dia) |
@@ -43,6 +43,65 @@ Os 5 exemplos do usuário:
 5. Gatilhos manuais: `event`/`stock` (botão "Registrar"), `usage` (atualizar contador).
 6. Surfacing no "Hoje" (mobile): tarefas atrasadas e do dia.
 7. Offline (mobile): conclusões enfileiradas e drenadas via RPC `todo_resolve`.
+
+## Séries diárias (ZMA, creatina, nozes)
+
+**Não existe um `kind: 'daily'`.** Uma série diária é `weekly` com os sete dias —
+o caso completo da recorrência que já existe, sem ramo novo em `firstDueDate`,
+`nextDueDate` nem `reconcileTemplate`. O predicado `isDailyRecurrence` (shared) é
+a leitura inversa, para quem precisa reconhecer a intenção depois:
+
+- **Editor** (mobile e web): um chip **"Diária"** grava `weekly{weekdays:[0…6]}`
+  e volta selecionado ao reabrir. Sem ele, "todo dia" custava sete toques e a
+  descoberta de que "Semanal" também servia para isso.
+- **Rótulo**: `describeRecurrence` devolve `"Todo dia"` em vez de
+  `"Dom/Seg/Ter/Qua/Qui/Sex/Sáb"`.
+
+**`overdue` tem que ser `expire`.** Com `carry` a ocorrência de ontem continua
+pendente, e a reconciliação só cria a do dia quando não há nenhuma viva
+(`hasCurrentOrFuture`) — a tarefa de hoje nunca nasceria. Escolher "Diária" já
+move a política para `expire`; voltar para "Acumula" exibe o aviso, sem travar.
+O dia expirado é o registro de que passou batido — é dele que sai o contraste
+abaixo.
+
+### A faixa de adesão na Retrospectiva
+
+Uma tarefa comum entra na retro só como **contagem por módulo**: o nome se perde.
+Para o que se faz todo santo dia isso não serve — a pergunta é *"quantos dias eu
+lembrei, e quantos esqueci"*, e ela precisa do nome, dos dias e da janela.
+
+O bloco **"Tarefas — todo dia"** (`buildTaskGrid`, `packages/shared/src/period/task-grid.ts`)
+responde às duas de uma vez: cada linha traz o nome, a contagem (`26 de 31`) e a
+**faixa** — uma célula por dia, feito/esquecido/fora-da-janela. A tabela e o visual
+são a mesma coisa; separá-los faria o número aparecer duas vezes na mesma rolagem.
+
+**Não é o `Heatmap` de `retro.ts`.** Aquele é uma métrica contínua contra uma meta,
+em calendário de 7 colunas com escala divergente. Aqui o dado é **binário** e são
+**várias séries ao mesmo tempo**: a leitura que importa é comparar as linhas entre
+si, e isso pede faixas empilhadas no mesmo eixo de dias.
+
+**Semana e mês só.** A faixa é uma linha por tarefa, então N vira largura: 31
+células já ficam com ~7px num telefone e uma estação (92) não caberia.
+
+**Três estados, não dois** — um dia só conta como esquecido se a série existia e o
+dia acabou:
+
+| Estado | Quando |
+|--------|--------|
+| `null` (fora da janela) | antes de `createdOn`, depois de hoje, ou **hoje ainda não feito** |
+| `true` (feito) | há ocorrência concluída no dia |
+| `false` (esqueci) | a série existia, o dia passou, e não foi feita |
+
+O terceiro caso do `null` é o que impede o denominador de piscar: sem ele "26 de 31"
+viraria "26 de 32" às 00h01 e voltaria quando o ZMA fosse marcado.
+
+`createdOn` também vinha do contrato de `RetroHabit`/`RetroRegistro` sem que
+**nenhum fetcher o preenchesse** — corrigido nos três (`habits`, `registros`,
+`todo_templates`), o que de quebra conserta a amostra dos cruzamentos de saúde.
+
+**As diárias NÃO alimentam o cruzamento de saúde.** Como `cross` pesa 1000 na
+ordenação dos destaques, promovê-las a gatilho colocaria "nos dias com ZMA, sono
++9%" no topo de todo domingo. A pergunta aqui é adesão, não efeito.
 
 ## Encadeamento (onComplete)
 

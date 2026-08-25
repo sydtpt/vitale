@@ -1,0 +1,93 @@
+// Binário, não divergente: feito / esqueci / fora da janela. Três estados pedem
+// três tons, não uma rampa — uma escala contínua sugeriria "quase feito".
+:host { display: block; }
+
+.row { & + .row { margin-top: 14px; } }
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+
+  .name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .count {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .count small { font-size: 11.5px; font-weight: 500; color: var(--ink-3); }
+}
+
+// `flex: 1` em vez de largura medida: as linhas têm o mesmo número de células e
+// as mesmas quebras de semana, então elas se alinham entre si sozinhas.
+.strip { display: flex; gap: 2px; }
+
+.cell {
+  flex: 1 1 0;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  max-height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: var(--surface-mute, #F6ECDC);
+  cursor: pointer;
+
+  // Verde do módulo Tarefas (MOD.tarefa.accent) — identidade, não semáforo.
+  &[data-done]   { background: #4F9D90; }
+  &[data-missed] { background: #F5C9B8; }
+
+  // Respiro na segunda-feira: sem âncora, 31 quadrados iguais viram régua ilegível.
+  &[data-week] { margin-left: 5px; }
+
+  &[data-sel] { border-color: var(--ink); }
+  &:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+}
+
+// Leitura fixa — o valor não pode depender de o ponteiro estar em cima.
+.readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  margin-top: 12px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  background: var(--surface-mute, #F6ECDC);
+
+  .k { font-size: 12px; color: var(--ink-2); }
+  .v { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+
+  span { margin-right: 8px; }
+  .sw {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--surface-mute, #F6ECDC);
+
+    &.done   { background: #4F9D90; }
+    &.missed { background: #F5C9B8; }
+  }
+}

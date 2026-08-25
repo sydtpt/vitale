@@ -19,6 +19,7 @@ import type {
   TodoSpawnRule,
   TodoTemplate,
 } from '../models';
+import { localDateStr } from '../date/local';
 
 export interface TodoTemplateRow {
   id: string;
@@ -191,6 +192,12 @@ export interface TodoTemplateSummary {
   name: string;
   module: TodoModule;
   meta?: Record<string, unknown>;
+  /** Regra da série — a retrospectiva usa para eleger as diárias (`isDailyRecurrence`). */
+  recurrence: TodoRecurrence;
+  /** Dia de criação ('YYYY-MM-DD' local): antes dele não havia o que cobrar. */
+  createdOn: string;
+  /** Arquivada não entra na faixa de adesão — não se esquece o que não vale mais. */
+  active: boolean;
 }
 
 /** Séries em forma reduzida — para agregados que só rotulam, como a retrospectiva. */
@@ -200,7 +207,7 @@ export async function fetchTodoTemplateSummaries(
 ): Promise<TodoTemplateSummary[]> {
   const { data, error } = await db
     .from('todo_templates')
-    .select('id,name,module,meta')
+    .select('id,name,module,meta,recurrence,created_at,active')
     .eq('user_id', userId);
   if (error) throw error;
   return ((data ?? []) as Array<{
@@ -208,7 +215,18 @@ export async function fetchTodoTemplateSummaries(
     name: string;
     module: TodoModule;
     meta: Record<string, unknown> | null;
-  }>).map((r) => ({ id: r.id, name: r.name, module: r.module, meta: r.meta ?? undefined }));
+    recurrence: TodoRecurrence;
+    created_at: string;
+    active: boolean;
+  }>).map((r) => ({
+    id: r.id,
+    name: r.name,
+    module: r.module,
+    meta: r.meta ?? undefined,
+    recurrence: r.recurrence,
+    createdOn: localDateStr(new Date(r.created_at)),
+    active: r.active,
+  }));
 }
 
 /** Séries ativas disparadas por treino (`recurrence.kind === 'on_workout'`). */

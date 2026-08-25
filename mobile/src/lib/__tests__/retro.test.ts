@@ -19,7 +19,14 @@ import {
   retroSince,
   compareHighlights,
   ANALYSIS_WINDOW_DAYS,
+  buildTaskGrid,
+  isDailyRecurrence,
+  describeRecurrence,
+  firstDueDate,
+  nextDueDate,
+  EVERY_WEEKDAY,
   type Activity,
+  type PeriodKind,
   type RetroInput,
   type WeekHighlight,
 } from '@vitale/shared';
@@ -523,6 +530,136 @@ describe('insight cruzado com janela larga (§2.3, §2.5)', () => {
     if (cross) expect(cross.support).not.toBe(
       buildRetroHighlights(buildRetrospective(input), input).find((h) => h.kind === 'cross')!.support,
     );
+  });
+});
+
+describe('buildTaskGrid — a faixa das diárias', () => {
+  // Semana corrente: segunda 15/06 a domingo 21/06. NOW = quarta 17/06.
+  const semana = ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20', '2026-06-21'];
+
+  const grid = (dailyTasks: RetroInput['dailyTasks'], kind: PeriodKind = 'week') =>
+    buildTaskGrid({ now: NOW, kind, offset: 0, dailyTasks });
+
+  it('sem nenhuma série diária devolve null — a UI omite o bloco', () => {
+    expect(grid([])).toBeNull();
+    expect(grid(undefined)).toBeNull();
+  });
+
+  it('uma célula por dia do período, com a segunda em weekday 0', () => {
+    const g = grid([{ id: 't', name: 'ZMA', days: [] }])!;
+    expect(g.rows[0].cells.map((c) => c.day)).toEqual(semana);
+    expect(g.rows[0].cells[0].weekday).toBe(0); // segunda
+    expect(g.rows[0].cells[6].weekday).toBe(6); // domingo
+  });
+
+  it('conta feito e esquecido, e ignora o futuro', () => {
+    // Tomou 15 e 16; esqueceu nada ainda; 17 é hoje; 18–21 não chegaram.
+    const g = grid([{ id: 't', name: 'ZMA', days: ['2026-06-15', '2026-06-16'] }])!;
+    const r = g.rows[0];
+    expect(r.done).toBe(2);
+    expect(r.missed).toBe(0);
+    expect(r.possible).toBe(2);
+    expect(r.cells.slice(3).every((c) => c.done === null)).toBe(true);
+  });
+
+  it('o dia que passou sem marcação é esquecido', () => {
+    const g = grid([{ id: 't', name: 'ZMA', days: ['2026-06-16'] }])!;
+    const r = g.rows[0];
+    expect(r.cells[0].done).toBe(false); // segunda passou em branco
+    expect(r.done).toBe(1);
+    expect(r.missed).toBe(1);
+    expect(r.rate).toBeCloseTo(0.5);
+  });
+
+  it('hoje ainda não feito fica pendente, não esquecido — o denominador não pisca', () => {
+    const g = grid([{ id: 't', name: 'ZMA', days: ['2026-06-15', '2026-06-16'] }])!;
+    const hoje = g.rows[0].cells.find((c) => c.day === '2026-06-17')!;
+    expect(hoje.done).toBeNull();
+    expect(g.rows[0].possible).toBe(2); // 15 e 16 — hoje entra só quando marcado
+
+    const feito = grid([{ id: 't', name: 'ZMA', days: [...semana.slice(0, 3)] }])!;
+    expect(feito.rows[0].cells.find((c) => c.day === '2026-06-17')!.done).toBe(true);
+    expect(feito.rows[0].possible).toBe(3);
+  });
+
+  it('createdOn zera a cobrança dos dias anteriores à série', () => {
+    // "Comer uma fruta" criada na terça: a segunda não conta como esquecida.
+    const g = grid([{ id: 'f', name: 'Comer uma fruta', days: [], createdOn: '2026-06-16' }])!;
+    expect(g.rows[0].cells[0].done).toBeNull();
+    expect(g.rows[0].cells[1].done).toBe(false); // terça passou e não fez
+    expect(g.rows[0].missed).toBe(1);
+    expect(g.rows[0].possible).toBe(1);
+  });
+
+  it('recap compara com o mesmo período anterior', () => {
+    const g = grid([{
+      id: 't', name: 'ZMA',
+      // 2 nesta semana; 4 na semana de 08–14/06.
+      days: ['2026-06-15', '2026-06-16', '2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11'],
+    }])!;
+    expect(g.rows[0].recap.current).toBe(2);
+    expect(g.rows[0].recap.prior).toBe(4);
+  });
+
+  it('o total agrega as linhas — várias séries no mesmo eixo de dias', () => {
+    const g = grid([
+      { id: 'a', name: 'ZMA', days: ['2026-06-15', '2026-06-16'] },
+      { id: 'b', name: 'Creatina', days: ['2026-06-15'] },
+    ])!;
+    expect(g.rows).toHaveLength(2);
+    expect(g.done).toBe(3);
+    expect(g.possible).toBe(4);   // 2 dias fechados × 2 séries
+    expect(g.rate).toBeCloseTo(0.75);
+    // Mesmo comprimento: é o que permite comparar as faixas empilhadas.
+    expect(g.rows[0].cells).toHaveLength(g.rows[1].cells.length);
+  });
+
+  it('no mês a faixa cobre o mês inteiro, parando em hoje', () => {
+    const g = grid([{ id: 't', name: 'ZMA', days: [] }], 'month')!;
+    expect(g.rows[0].cells).toHaveLength(30); // junho
+    expect(g.rows[0].missed).toBe(16);        // 01–16; 17 é hoje (pendente)
+    expect(g.rows[0].cells.filter((c) => c.done === null)).toHaveLength(14);
+  });
+});
+
+describe('séries diárias NÃO alimentam o cruzamento de saúde', () => {
+  const dias = daysBack(60);
+  const falhou = dias.filter((_, i) => i % 4 === 0);
+
+  it('nenhum destaque cruzado nasce de uma tarefa diária', () => {
+    const input = baseInput({
+      kind: 'week', offset: 0,
+      health: [{
+        metric: 'sono', label: 'Sono', higherIsWorse: false, icon: 'sleep',
+        decimals: 1, unit: 'h',
+        valuesByDay: new Map(dias.map((d) => [d, falhou.includes(d) ? 6 : 8])),
+      }],
+      // Correlação forte de propósito: mesmo assim não pode virar destaque.
+      dailyTasks: [{ id: 't1', name: 'ZMA', days: dias.filter((d) => !falhou.includes(d)) }],
+    });
+    const hs = buildRetroHighlights(buildRetrospective(input), input);
+    expect(hs.some((h) => h.kind === 'cross')).toBe(false);
+  });
+});
+
+describe('recorrência diária = weekly com a semana inteira', () => {
+  it('isDailyRecurrence reconhece só os sete dias', () => {
+    expect(isDailyRecurrence({ kind: 'weekly', weekdays: [...EVERY_WEEKDAY] })).toBe(true);
+    expect(isDailyRecurrence({ kind: 'weekly', weekdays: [1, 2, 3, 4, 5] })).toBe(false);
+    expect(isDailyRecurrence({ kind: 'monthly', day: 1 })).toBe(false);
+  });
+
+  it('o rótulo vira "Todo dia" em vez dos sete abreviados', () => {
+    expect(describeRecurrence({ kind: 'weekly', weekdays: [...EVERY_WEEKDAY] })).toBe('Todo dia');
+    expect(describeRecurrence({ kind: 'weekly', weekdays: [1, 3] })).toBe('Seg/Qua');
+  });
+
+  it('o motor de recorrência já a trata como qualquer weekly — sem ramo novo', () => {
+    const diaria = { kind: 'weekly' as const, weekdays: [...EVERY_WEEKDAY] };
+    // Toda data é candidata: a primeira é hoje, e a próxima é sempre amanhã.
+    expect(firstDueDate(diaria, '2026-06-17')).toBe('2026-06-17');
+    expect(nextDueDate(diaria, '2026-06-17')).toBe('2026-06-18');
+    expect(nextDueDate(diaria, '2026-06-30')).toBe('2026-07-01'); // vira o mês
   });
 });
 

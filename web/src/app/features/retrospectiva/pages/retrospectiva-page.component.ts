@@ -24,6 +24,7 @@ import { IconComponent } from '@core/services/icon.component';
 import { formatClock } from '@features/workout-history/data/format';
 import { RetroStore } from '../data/retro.store';
 import { HeatmapGridComponent } from '../components/heatmap-grid.component';
+import { TaskGridStripComponent } from '../components/task-grid-strip.component';
 
 /** Ícone neutro do shared → nome do set `rt-icon`. */
 const ICON_MAP: Record<HighlightIcon, string> = {
@@ -51,7 +52,7 @@ const LEDE_EYEBROW: Record<PeriodKind, string> = {
   selector: 'rt-retrospectiva-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, IconComponent, HeatmapGridComponent],
+  imports: [PageHeaderComponent, IconComponent, HeatmapGridComponent, TaskGridStripComponent],
   templateUrl: './retrospectiva-page.component.html',
   styleUrl: './retrospectiva-page.component.scss',
 })
@@ -104,6 +105,16 @@ export class RetrospectivaPageComponent {
     const k = this.kind();
     if (k !== 'week' && k !== 'month' && k !== 'season') return null;
     return this.store.heatmap(this.now, k, this.offset(), 'sono');
+  });
+
+  // ── Faixa das séries diárias ────────────────────────────────────────────
+  // Semana e mês só. A faixa é UMA linha por tarefa, então N vira largura: 31
+  // células já são finas, e uma estação (92) não caberia. É também o recorte que
+  // a pergunta pede — "quantos dias por mês eu lembrei". Paridade com o mobile.
+  protected readonly taskGrid = computed(() => {
+    const k = this.kind();
+    if (k !== 'week' && k !== 'month') return null;
+    return this.store.taskGrid(this.now, k, this.offset());
   });
 
   // ── Forma 03 · seletor das seis séries do MonthBucket ───────────────────

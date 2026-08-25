@@ -16,11 +16,15 @@ import {
   buildRetroHighlights,
   buildRetroLede,
   buildHeatmap,
+  buildTaskGrid,
   buildYearByMonth,
   retroSince as retroSinceDate,
+  isDailyRecurrence,
+  type RetroDailyTask,
   type PeriodKind,
   type RetroLede,
   type Heatmap,
+  type TaskGrid,
   type RetroInput,
   type RetroSummary,
   type RetroHealthMetric,
@@ -46,11 +50,12 @@ interface RetroState {
 
   health: Array<{ day: string; metric: string; value: number | null }>;
   ratings: Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>;
-  habits: Array<{ id: string; name: string; bad: boolean; unit: string }>;
+  habits: Array<{ id: string; name: string; bad: boolean; unit: string; createdOn?: string }>;
   habitLogs: HabitLog[];
-  registros: Array<{ id: string; name: string }>;
+  registros: Array<{ id: string; name: string; createdOn?: string }>;
   registroLogs: RegistroLog[];
   tasks: { doneDay: string; module: string }[];
+  dailyTasks: RetroDailyTask[];
   purchases: { doneDay: string; cat?: string; price?: number; name: string }[];
 
   ensure: (since: string) => Promise<void>;
@@ -60,6 +65,8 @@ interface RetroState {
   lede: (now: Date, kind: PeriodKind, offset: number) => RetroLede;
   /** Uma célula por dia do período exibido — genérico em N (spec v2 §4). */
   heatmap: (now: Date, kind: PeriodKind, offset: number, metric: string) => Heatmap | null;
+  /** Faixa de adesão das séries diárias — uma linha por tarefa. */
+  taskGrid: (now: Date, kind: PeriodKind, offset: number) => TaskGrid | null;
   yearByMonth: (now: Date, offset: number) => MonthBucket[];
 }
 
@@ -107,9 +114,10 @@ export const useRetroStore = create<RetroState>((set, get) => {
       stepsByDay: byMetric.get('passos'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
-      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
-      registros: s.registros.map((r) => ({ id: r.id, name: r.name, days: daysByRegistro.get(r.id) ?? [] })),
+      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, createdOn: h.createdOn, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
+      registros: s.registros.map((r) => ({ id: r.id, name: r.name, createdOn: r.createdOn, days: daysByRegistro.get(r.id) ?? [] })),
       tasks: s.tasks,
+      dailyTasks: s.dailyTasks,
       purchases: s.purchases,
     };
   }
@@ -118,7 +126,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
     loading: false,
     loaded: false,
     loadedSince: null,
-    health: [], ratings: [], habits: [], habitLogs: [], registros: [], registroLogs: [], tasks: [], purchases: [],
+    health: [], ratings: [], habits: [], habitLogs: [], registros: [], registroLogs: [], tasks: [], dailyTasks: [], purchases: [],
 
     ensure: async (since) => {
       const { loading, loaded, loadedSince } = get();
@@ -145,12 +153,19 @@ export const useRetroStore = create<RetroState>((set, get) => {
       const tmplById = new Map(templates.map((t) => [t.id, t]));
       const tasks: { doneDay: string; module: string }[] = [];
       const purchases: { doneDay: string; cat?: string; price?: number; name: string }[] = [];
+      // Dias de conclusão por série diária — o gatilho nomeado do cruzamento.
+      const dailyDays = new Map<string, Set<string>>();
       for (const o of occs) {
         if (!o.doneAt) continue;
         const tmpl = tmplById.get(o.templateId);
         if (!tmpl) continue;
         const doneDay = localDateStr(new Date(o.doneAt));
         tasks.push({ doneDay, module: tmpl.module });
+        if (isDailyRecurrence(tmpl.recurrence)) {
+          let d = dailyDays.get(tmpl.id);
+          if (!d) { d = new Set(); dailyDays.set(tmpl.id, d); }
+          d.add(doneDay);
+        }
         if (tmpl.module === 'compras') {
           const meta = tmpl.meta ?? {};
           purchases.push({
@@ -170,6 +185,9 @@ export const useRetroStore = create<RetroState>((set, get) => {
         registros,
         registroLogs,
         tasks, purchases,
+        dailyTasks: templates
+          .filter((t) => t.active && isDailyRecurrence(t.recurrence))
+          .map((t) => ({ id: t.id, name: t.name, days: dailyDays.get(t.id) ?? new Set<string>(), createdOn: t.createdOn })),
         loading: false, loaded: true, loadedSince: since,
       });
     },
@@ -184,6 +202,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
       return buildRetroLede(buildRetroHighlights(buildRetrospective(input), input));
     },
     heatmap: (now, kind, offset, metric) => buildHeatmap(buildInput(now, kind, offset), metric),
+    taskGrid: (now, kind, offset) => buildTaskGrid({ now, kind, offset, dailyTasks: get().dailyTasks }),
     yearByMonth: (now, offset) => buildYearByMonth(buildInput(now, 'year', offset)),
   };
 });
