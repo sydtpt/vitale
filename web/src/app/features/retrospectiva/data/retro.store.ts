@@ -4,6 +4,8 @@ import {
   buildRetrospective,
   buildRetroHighlights,
   buildYearByMonth,
+  buildHeatmap,
+  type Heatmap,
   type PeriodKind,
   type RetroInput,
   type RetroSummary,
@@ -193,6 +195,11 @@ export class RetroStore {
 
   yearByMonth(now: Date, offset: number): MonthBucket[] {
     return buildYearByMonth(this.buildInput(now, 'year', offset));
+  }
+
+  /** Uma célula por dia do período exibido — genérico em N (spec v2 §4). */
+  heatmap(now: Date, kind: PeriodKind, offset: number, metric: string): Heatmap | null {
+    return buildHeatmap(this.buildInput(now, kind, offset), metric);
   }
 }
 

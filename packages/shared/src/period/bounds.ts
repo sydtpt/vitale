@@ -138,3 +138,36 @@ export function latestAvailableOffset(now: Date, kind: PeriodKind): number {
       return 0;
   }
 }
+
+/**
+ * Janela de **análise** — quantos dias de histórico os derivadores de associação
+ * (`triggerImpact`) enxergam, independente do período **exibido**.
+ *
+ * Existe porque as duas janelas não são a mesma coisa: o insight fala do usuário,
+ * não da semana; a semana é só quando ele olha. Com a janela colada no período,
+ * uma visão semanal dá 7 dias, e `MIN_DAYS_PER_SIDE = 3` de cada lado torna o
+ * insight cruzado praticamente inalcançável — era o defeito D1 da v1.
+ *
+ * Ver docs/specs/retrospectiva/v2-jornal.md §2.1.
+ */
+export const ANALYSIS_WINDOW_DAYS = 90;
+
+/**
+ * Início do fetch necessário para o período selecionado.
+ *
+ * É o **menor** entre o início do período anterior (que os deltas exigem) e
+ * `hoje − ANALYSIS_WINDOW_DAYS` (que as associações exigem). Fonte única das duas
+ * plataformas — antes a regra estava duplicada no store mobile e inline no
+ * componente web, e as duas só cobriam o período anterior.
+ *
+ * **Invariante:** alargar o fetch não altera nenhum `RecapValue`. Somas, médias e
+ * deltas continuam calculados estritamente dentro do período exibido; só os
+ * derivadores de associação leem a janela larga.
+ */
+export function retroSince(now: Date, kind: PeriodKind, offset: number): Date {
+  const prior = periodBounds(now, kind, offset - 1).start;
+  const analysis = new Date(now);
+  analysis.setHours(0, 0, 0, 0);
+  analysis.setDate(analysis.getDate() - ANALYSIS_WINDOW_DAYS);
+  return prior < analysis ? prior : analysis;
+}

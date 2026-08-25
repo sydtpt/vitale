@@ -18,6 +18,7 @@ export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bounds';
 export * from './period/retro';
+export * from './period/retro-blocks';
 export * from './goals/evaluate';
 export * from './goals/format';
 export * from './chart/smooth-path';
@@ -47,11 +48,17 @@ export * from './data/activities';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
 export * from './todo/format';
+export * from './todo/reminders';
 export * from './habits/logic';
+export * from './habits/calories';
 export * from './planner/planned-match';
 export * from './fitness/activity-types';
 export * from './fitness/weekly-volume';
 export * from './fitness/moving-time';
 export * from './fitness/streams';
 export * from './fitness/dedupe';
+export * from './geo/distance';
 export * from './geo/country-explorer';
+// Puxa ~1 MB de contornos: só importe onde o corte na fronteira importa
+// (a tela de país passa o `countryAt` como resolvedor).
+export * from './geo/country-borders';

@@ -85,3 +85,49 @@ exatamente isso — contexto de vida que o relógio nunca vê.
 > Item 7 é irrecuperável no sentido do backlog de instrumentação: registrar só "terminei
 > o livro em 12/09" não permite reconstruir depois em que noites ele leu. Se o cruzamento
 > com sono importa, as sessões precisam existir desde o v1.
+
+> As sete questões acima pertencem a **F1/F2 (Cultura)** e estão fechadas. O que segue
+> é uma entrada nova e independente.
+
+---
+
+## F3 — Seção de dicas e insights acionáveis
+
+**Pedido do usuário em 2026-08-25.** Um lugar dedicado no app para *"dicas do que fazer,
+insights sobre o que devo melhorar e etc."*
+
+**O que a torna uma feature separada, e não uma seção da Retrospectiva:** na mesma
+conversa o usuário definiu que **a Retrospectiva é um jornal** — ela informa o que
+aconteceu e não aconselha. Misturar conselho com notícia quebra esse princípio e o
+leitor perde a referência do que é fato e do que é opinião. Um jornal separa a página
+de opinião com cabeçalho próprio; o app precisa fazer o mesmo.
+
+- **Captura:** nada novo. A matéria-prima já existe — `triggerImpact`, `detectTrend`,
+  `dailyHardLoad`, `readiness`, `evaluateGoal`.
+- **Destrava:** o passo que a Retrospectiva deliberadamente não dá — transformar
+  "nos dias com X, seu sono cai 8%" em "experimente Y nesta semana".
+
+### Em aberto (decidir no spec de F3)
+
+1. **É um módulo ou uma aba?** Tela própria, ou uma seção com cabeçalho próprio dentro
+   da Retrospectiva? O princípio do jornal permite as duas — exige só que a fronteira
+   seja visível.
+2. **A dica é acionável de dentro?** Existe o caminho `evaluateGoal` → nudge → cria
+   tarefa (Metas fase 2, nunca ligado). Se a dica só informa, F3 é quase texto; se ela
+   cria tarefa, F3 depende de Metas amadurecer.
+3. **Regra ou modelo?** Regras determinísticas em cima dos derivadores puros que já
+   existem, ou geração por LLM? A primeira é testável e barata; a segunda é o que o
+   backlog de instrumentação vinha preparando.
+4. **Com que frequência fala?** Sempre que abre, semanal junto do fechamento da retro,
+   ou só quando há algo com amostra suficiente para valer.
+5. **Como se mede que serviu?** Sem isso, F3 vira mural de conselho ignorado. O usuário
+   pediu por conta própria o padrão "incluir, ver o que uso, refinar ou remover" —
+   vale herdar aqui.
+
+> **Dependência declarada:** F3 pressupõe a **Camada 0 da Retrospectiva** (janela de
+> análise de 90 dias, ordenação por classe, exibição do `n`). Sem ela, os cruzamentos
+> que alimentariam as dicas não disparam na janela em que o usuário lê.
+
+> **Bloqueio conhecido:** o usuário afirmou em 2026-08-25 que "a feature de goals não
+> está bem desenvolvida ainda". Se a decisão 2 for "sim, cria tarefa", F3 fica atrás
+> de Metas na fila.

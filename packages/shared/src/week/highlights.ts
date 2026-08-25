@@ -16,14 +16,62 @@ export type HighlightIcon =
   | 'workout' | 'distance' | 'sleep' | 'heart' | 'hrv'
   | 'habit' | 'warning' | 'money';
 
+/**
+ * Classe do destaque — o que ele *é*, não o quanto variou.
+ *
+ * Existe porque ordenar só por `|deltaPct|` faz a estatística de volume esmagar o
+ * achado cruzado: dois treinos virarem três é +50%, enquanto "nos dias com X seu
+ * sono cai 8%" é 8. Ver docs/specs/retrospectiva/v2-jornal.md §2.2.
+ */
+export type HighlightKind =
+  /** Insight cruzado (gatilho × saúde). A manchete candidata. */
+  | 'cross'
+  /** Métrica de saúde com variação relevante. */
+  | 'health'
+  /** Recorde, maior esforço, extremo do período. */
+  | 'anomaly'
+  /** Contagem, soma, distância. O padrão. */
+  | 'volume';
+
+/** Peso de cada classe na ordenação. `|deltaPct|` só desempata dentro da classe. */
+export const HIGHLIGHT_KIND_WEIGHT: Readonly<Record<HighlightKind, number>> = {
+  cross: 1000,
+  health: 300,
+  anomaly: 200,
+  volume: 100,
+};
+
+/** Classe assumida quando o destaque não declara uma. */
+export const DEFAULT_HIGHLIGHT_KIND: HighlightKind = 'volume';
+
 export interface WeekHighlight {
   id: string;
   tone: HighlightTone;
   icon: HighlightIcon;
   /** Frase pronta para render. */
   text: string;
-  /** Ordenação decrescente; maior = mais relevante. */
+  /** Ordenação decrescente **dentro da classe**; maior = mais relevante. */
   priority: number;
+  /**
+   * Classe do destaque. **Opcional de propósito:** o mesmo tipo alimenta os
+   * destaques da tela Semana, que não muda de comportamento. Ausente = 'volume'.
+   */
+  kind?: HighlightKind;
+  /**
+   * Linha de apoio exibida junto do destaque (amostra, ressalva, procedência).
+   * No celular não existe hover — isto é parte do destaque, não tooltip.
+   */
+  support?: string;
+}
+
+/**
+ * Comparador canônico de destaques: classe primeiro, `|deltaPct|` depois.
+ * Usar sempre este — ordenar por `priority` cru é o defeito D2 do spec v2.
+ */
+export function compareHighlights(a: WeekHighlight, b: WeekHighlight): number {
+  const wa = HIGHLIGHT_KIND_WEIGHT[a.kind ?? DEFAULT_HIGHLIGHT_KIND];
+  const wb = HIGHLIGHT_KIND_WEIGHT[b.kind ?? DEFAULT_HIGHLIGHT_KIND];
+  return wb - wa || b.priority - a.priority;
 }
 
 /** Uma métrica de saúde no recap + metadados de formatação/polaridade. */

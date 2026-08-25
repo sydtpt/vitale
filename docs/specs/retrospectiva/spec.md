@@ -1,19 +1,42 @@
-# Retrospectiva — resumo agregado por período (semana · mês · ano)
+# Retrospectiva — resumo agregado por período (semana · mês · estação · ano · total)
 
 > Status: **implementado (v1)** · web + mobile + shared
+> Próxima etapa: [**v2 — o jornal**](v2-jornal.md) (Camada 0 + heatmap + séries + manchete).
+
+## Princípio
+
+A Retrospectiva é **um jornal**: ela informa o que aconteceu, não aconselha o que fazer.
+Decidido pelo usuário em 2026-08-25. Consequências que valem como regra de desempate:
+
+- Há **uma manchete por edição** (o destaque principal) — não uma lista plana de números
+  com o mesmo peso.
+- A **diagramação é estável**: mesmas seções, mesma ordem, toda edição.
+- **Gráfico é apoio, nunca a matéria.**
+- Erro e incerteza aparecem — amostra (`n`), "não medido" — como a caixa de correções
+  de um jornal.
+- Conselho e sugestão de ação **não entram aqui**. Vivem numa seção futura e separada,
+  registrada em `_bmad-output/planning-artifacts/backlog-de-features.md` (F3).
 
 ## Objetivo
 
 Mostrar, de forma agregada e com insights cruzados, **o que foi feito num período**,
 dividido por seções (Tarefas feitas, Treinos/atividade, Compras & gastos, Saúde &
-bem-estar, Hábitos & registros). Três modos de visão, todos navegáveis para o passado:
+bem-estar, Hábitos & registros). **Cinco** modos de visão, todos navegáveis para o
+passado — a fonte de verdade das regras é o cabeçalho de `period/bounds.ts`:
 
-- **Semanal** — semana Seg–Dom. A semana corrente só "fecha" no **domingo ≥ 20h**;
+- **Semana** (`week`) — Seg–Dom. A semana corrente só "fecha" no **domingo ≥ 20h**;
   antes disso o período disponível é a anterior.
-- **Mensal** — só disponível a partir do **dia 01 do mês seguinte** → padrão = último mês fechado.
-- **Ano** — ano corrente **ao vivo** (offset 0) + anos passados; inclui breakdown por mês.
+- **Mês** (`month`) — só disponível a partir do **dia 01 do mês seguinte** → padrão =
+  último mês fechado.
+- **Estação** (`season`) — trimestre civil (Q1 Jan–Mar … Q4 Out–Dez), disponível **ao vivo**.
+- **Ano** (`year`) — ano corrente **ao vivo** (offset 0) + anos passados; inclui breakdown
+  por mês.
+- **Total** (`all`) — período único cobrindo tudo (offset ignorado), ao vivo. Não tem
+  período anterior: `buildRetroHighlights` degenera o `prev`, então os textos saem **sem
+  delta e com tom neutro**.
 
-Cada número vem com comparação vs período anterior (`delta`/`deltaPct`) e tom good/bad/neutral.
+Cada número vem com comparação vs período anterior (`delta`/`deltaPct`) e tom good/bad/neutral
+— exceto em `all`, pelo motivo acima.
 
 ## Arquitetura
 
@@ -54,6 +77,19 @@ As plataformas só fazem fetch por intervalo + renderização.
 - **Andares subidos** (`health_daily.metric = 'andares'`) → total por período em
   `fitness.floors` (soma, não média) + por mês no breakdown anual (`MonthBucket.floors`).
   Passado via `RetroInput.floorsByDay`; renderizado no card "Treinos & atividade".
+- **kcal gastas** (`fitness.calories`, soma de `activities.calories` no período) — no
+  mesmo card. Atividade sem caloria vinda da fonte é estimada por trigger no banco
+  (ADR 0005), então o total não tem buracos silenciosos.
+- **kcal estimadas de hábito de consumo** — `habits/calories.ts` (`habitCalories`)
+  converte o total do período em calorias aproximadas quando o nome do hábito tem
+  densidade conhecida (hoje só **cerveja**). Aparece na linha de apoio do hábito como
+  `≈N kcal`, em web e mobile. Ordem de grandeza, não nutrição.
+  - Catálogo `BEERS` (Bélgica): Stella Artois 5,2% = 450 kcal/L · Jupiler 5,2% = 430 ·
+    BBP IPA 6,5% = 600. `mlPerUnit` = copo padrão (25 cl pintje, 33 cl IPA).
+  - `habit_logs` guarda **só litros** — não há tipo por log. `DEFAULT_BEER_MIX`
+    (40/40/20) dá a densidade usada: **472 kcal/L**. `habitCaloriesRange` devolve o
+    piso/teto (430…600 kcal/L) para quem quiser exibir a incerteza.
+  - Outro item consumível = mais uma entrada em `KCAL_BY_HABIT`.
 
 ## Insights cruzados
 - Treino × carga (Z4+Z5 via `dailyHardLoad`).
@@ -69,3 +105,5 @@ Fast-follow (fora do escopo v1): migration `transactions` + store próprio para 
 `mobile/src/lib/__tests__/retro.test.ts` — `periodBounds`, `latestAvailableOffset`
 (domingo 19h vs 21h; mês = −1; ano = 0; virada de mês/ano), `buildRetrospective`
 (tarefas/treinos/gasto/hábitos) e `buildYearByMonth`.
+`packages/shared/src/habits/calories.test.ts` — `habitCalories` (L/ml/un, nome com acento
+ou complemento, total zero, hábito sem densidade conhecida).

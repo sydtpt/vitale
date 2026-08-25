@@ -17,12 +17,27 @@ import {
   countInRange,
   metricRecapRange,
 } from '../week/recap';
-import type { HighlightIcon, HighlightTone, WeekHighlight } from '../week/highlights';
+import {
+  type HighlightIcon,
+  type HighlightKind,
+  type HighlightTone,
+  type WeekHighlight,
+  compareHighlights,
+  DEFAULT_HIGHLIGHT_KIND,
+} from '../week/highlights';
 import { activityTypeLabel } from '../fitness/activity-types';
 import { dailyHardLoad } from '../health/aggregate';
 import { detectTrend } from '../health/trends';
 import { triggerImpact } from '../health/trigger-impact';
-import { periodBounds, type PeriodKind } from './bounds';
+import { MOD } from '../constants/tokens';
+import { periodBounds, retroSince, type PeriodKind } from './bounds';
+
+/**
+ * Piso de relevância do insight cruzado (%). Abaixo disso a diferença entre os
+ * dias com e sem o gatilho é ruído com aparência de achado, e um jornal não
+ * publica isso. Ver docs/specs/retrospectiva/v2-jornal.md §2.5.
+ */
+export const MIN_CROSS_DELTA_PCT = 5;
 
 // ── Entradas ───────────────────────────────────────────────
 
@@ -49,6 +64,12 @@ export interface RetroHabit {
   unit?: string;
   /** dia 'YYYY-MM-DD' → valor acumulado. */
   logsByDay: ReadonlyMap<string, number>;
+  /**
+   * Dia de criação ('YYYY-MM-DD'), quando conhecido. Usado como `sinceDate` do
+   * `triggerImpact`: sem ele, um hábito criado há 20 dias seria comparado contra
+   * dias em que nem existia. Ausente ⇒ cai no início da janela de análise.
+   */
+  createdOn?: string;
 }
 
 /** Registro avulso + dias marcados. */
@@ -56,6 +77,8 @@ export interface RetroRegistro {
   id: string;
   name: string;
   days: Iterable<string>;
+  /** Dia de criação ('YYYY-MM-DD'), quando conhecido. Ver `RetroHabit.createdOn`. */
+  createdOn?: string;
 }
 
 /** Métrica de saúde a incluir no recap. */
@@ -582,7 +605,7 @@ function deltaWord(tone: HighlightTone): string {
  */
 export function buildRetroHighlights(
   summary: RetroSummary,
-  input: Pick<RetroInput, 'kind' | 'activities' | 'health' | 'registros' | 'habits'>,
+  input: Pick<RetroInput, 'now' | 'kind' | 'activities' | 'health' | 'registros' | 'habits'>,
 ): WeekHighlight[] {
   const out: WeekHighlight[] = [];
   const noun = PERIOD_NOUN[input.kind];
@@ -598,6 +621,7 @@ export function buildRetroHighlights(
       : `${c.delta > 0 ? '+' : '−'}${Math.abs(c.delta)} ${vs}`;
     out.push({
       id: 'workouts',
+      kind: 'volume',
       tone: noPrior ? 'neutral' : tone(c.delta, c.deltaPct, false),
       icon: 'workout',
       text: noPrior
@@ -610,6 +634,7 @@ export function buildRetroHighlights(
       const km = (v: number) => `${fmt(v / 1000, 1)} km`;
       out.push({
         id: 'distance',
+        kind: 'volume',
         tone: noPrior ? 'neutral' : tone(d.delta, d.deltaPct, false),
         icon: 'distance',
         text: noPrior
@@ -629,7 +654,7 @@ export function buildRetroHighlights(
     const sign = r.delta >= 0 ? '+' : '−';
     const pct = r.deltaPct != null ? ` (${r.deltaPct >= 0 ? '+' : '−'}${fmt(Math.abs(r.deltaPct))}%)` : '';
     out.push({
-      id: `health-${h.metric}`, tone: t, icon: h.icon,
+      id: `health-${h.metric}`, kind: 'health', tone: t, icon: h.icon,
       text: `${h.label} ${deltaWord(t)}: ${sign}${fmt(Math.abs(r.delta), h.decimals)}${h.unit}${pct}`,
       priority: r.deltaPct != null ? Math.abs(r.deltaPct) : 5,
     });
@@ -643,6 +668,7 @@ export function buildRetroHighlights(
       ? `${spend.deltaPct >= 0 ? '+' : '−'}${fmt(Math.abs(spend.deltaPct))}% ${vs}` : 'sem base de comparação';
     out.push({
       id: 'spend',
+      kind: 'volume',
       tone: noPrior ? 'neutral' : t,
       icon: 'money',
       text: noPrior
@@ -657,6 +683,7 @@ export function buildRetroHighlights(
   if (tk.current > 0) {
     out.push({
       id: 'tasks',
+      kind: 'volume',
       tone: noPrior ? 'neutral' : tone(tk.delta, tk.deltaPct, false),
       icon: 'habit',
       text: noPrior
@@ -667,29 +694,226 @@ export function buildRetroHighlights(
   }
 
   // ── Insight cruzado: gatilho (registro/hábito ruim) × saúde ──
-  const sleepMetric = input.health.find((m) => m.metric === 'sono')
-    ?? input.health.find((m) => m.metric === 'vfc');
-  if (sleepMetric) {
-    const triggers: { name: string; days: Set<string> }[] = [
-      ...input.registros.map((r) => ({ name: r.name, days: new Set(r.days) })),
-      ...input.habits.filter((h) => h.bad).map((h) => ({
-        name: h.name,
-        days: new Set([...h.logsByDay.entries()].filter(([, v]) => v > 0).map(([d]) => d)),
-      })),
-    ];
+  //
+  // Duas mudanças em relação à v1, ambas do spec v2 §2:
+  //  · a amostra vem da **janela de análise** (90d), não do período exibido — numa
+  //    semana de 7 dias `MIN_DAYS_PER_SIDE = 3` de cada lado nunca fechava (D1);
+  //  · o universo é **todas** as métricas de saúde, não só `sono ?? vfc`.
+  const windowStart = localDay(retroSince(input.now, input.kind, 0));
+
+  const triggers: { name: string; days: Set<string>; since: string }[] = [
+    ...input.registros.map((r) => ({
+      name: r.name,
+      days: new Set(r.days),
+      since: r.createdOn && r.createdOn > windowStart ? r.createdOn : windowStart,
+    })),
+    ...input.habits.filter((h) => h.bad).map((h) => ({
+      name: h.name,
+      days: new Set([...h.logsByDay.entries()].filter(([, v]) => v > 0).map(([d]) => d)),
+      since: h.createdOn && h.createdOn > windowStart ? h.createdOn : windowStart,
+    })),
+  ];
+
+  for (const metric of input.health) {
     for (const trig of triggers) {
-      const imp = triggerImpact(sleepMetric.metric, trig.days, sleepMetric.valuesByDay);
-      if (!imp.enough || imp.delta == null || imp.deltaPct == null || Math.abs(imp.deltaPct) < 5) continue;
-      const worse = sleepMetric.higherIsWorse ? imp.delta > 0 : imp.delta < 0;
+      const imp = triggerImpact(metric.metric, trig.days, metric.valuesByDay, trig.since);
+      if (!imp.enough || imp.delta == null || imp.deltaPct == null) continue;
+      // Piso de relevância: abaixo disso é ruído com aparência de achado.
+      if (Math.abs(imp.deltaPct) < MIN_CROSS_DELTA_PCT) continue;
+      const worse = metric.higherIsWorse ? imp.delta > 0 : imp.delta < 0;
       out.push({
-        id: `trigger-${trig.name}`, tone: worse ? 'bad' : 'good', icon: 'warning',
-        text: `Nos dias com "${trig.name}", ${sleepMetric.label.toLowerCase()} ${imp.deltaPct >= 0 ? '+' : '−'}${fmt(Math.abs(imp.deltaPct))}%`,
-        priority: Math.abs(imp.deltaPct) + 3,
+        id: `trigger-${trig.name}-${metric.metric}`,
+        kind: 'cross',
+        tone: worse ? 'bad' : 'good',
+        icon: 'warning',
+        text: `Nos dias com "${trig.name}", ${metric.label.toLowerCase()} ${imp.deltaPct >= 0 ? '+' : '−'}${fmt(Math.abs(imp.deltaPct))}%`,
+        // A amostra é parte do destaque, não tooltip — no celular não há hover.
+        support: `${imp.nWith} dias com · ${imp.nWithout} sem · associação, não causa`,
+        priority: Math.abs(imp.deltaPct),
       });
     }
   }
 
-  return out.sort((a, b) => b.priority - a.priority);
+  // Classe primeiro, |deltaPct| depois. Ordenar por `priority` cru era o defeito D2:
+  // "+1 treino" (=+50%) enterrava "sono −8% nos dias com cerveja".
+  return out.sort(compareHighlights);
+}
+
+// ── A manchete (spec v2 §3) ────────────────────────────────
+
+/**
+ * O parágrafo de abertura da Retrospectiva — o que aconteceu com você no período,
+ * em duas ou três frases.
+ *
+ * **Não é um gerador novo:** é `buildRetroHighlights` promovido. Os destaques já
+ * são frases prontas em PT-BR e já vêm ordenados por classe; aqui escolhemos no
+ * máximo um de cada classe e os colocamos em **ordem narrativa** — o fato, depois
+ * a variação, depois o insight — que é o inverso da ordem de relevância.
+ */
+export interface RetroLede {
+  /** Frases prontas, na ordem de leitura. Vazio = não houve material. */
+  sentences: string[];
+  /** Amostra/ressalva do insight cruzado, quando há um. */
+  support?: string;
+  /** true quando não houve material suficiente para uma manchete honesta. */
+  thin: boolean;
+}
+
+/** Ordem **narrativa** — fato, variação, insight. Não é a ordem de relevância. */
+const LEDE_ORDER: readonly HighlightKind[] = ['volume', 'anomaly', 'health', 'cross'];
+
+function asSentence(text: string): string {
+  const t = text.trim();
+  if (!t) return t;
+  const head = t.charAt(0).toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(head) ? head : `${head}.`;
+}
+
+/**
+ * Monta a manchete a partir dos destaques **já ordenados** por
+ * `buildRetroHighlights`. No máximo uma frase por classe e no máximo três frases:
+ * um jornal tem uma manchete, não um índice.
+ */
+export function buildRetroLede(highlights: readonly WeekHighlight[]): RetroLede {
+  const best = new Map<HighlightKind, WeekHighlight>();
+  for (const h of highlights) {
+    const k = h.kind ?? DEFAULT_HIGHLIGHT_KIND;
+    // A lista já chega ordenada, então o primeiro de cada classe é o melhor dela.
+    if (!best.has(k)) best.set(k, h);
+  }
+
+  const picked: WeekHighlight[] = [];
+  for (const k of LEDE_ORDER) {
+    const h = best.get(k);
+    if (h) picked.push(h);
+  }
+  // 'volume' e 'anomaly' contam a mesma coisa (o fato do período) — fica só o melhor.
+  const trimmed = picked.filter(
+    (h, i) => !(i === 1 && (h.kind ?? DEFAULT_HIGHLIGHT_KIND) === 'anomaly'),
+  ).slice(0, 3);
+
+  const cross = best.get('cross');
+  return {
+    sentences: trimmed.map((h) => asSentence(h.text)),
+    support: cross?.support,
+    thin: trimmed.length === 0,
+  };
+}
+
+// ── Heatmap genérico em N (spec v2 §4) ─────────────────────
+
+/**
+ * Metas por métrica de saúde. **Constante, não preferência** — descobre-se se o
+ * número está certo usando, num domingo real; se estiver errado, aí vira campo.
+ * Quando virar, seguir o padrão `DEFAULT_/MIN_/MAX_/resolve*` de
+ * `health/who-activity.ts`. Mora aqui e só aqui. Ver v2-jornal.md §4.1.
+ */
+export const HEALTH_TARGETS: Readonly<Record<string, number>> = {
+  sono: 7,
+};
+
+/** Meta da métrica, ou `null` quando não há uma — aí não cabe escala divergente. */
+export function healthTarget(metric: string): number | null {
+  return HEALTH_TARGETS[metric] ?? null;
+}
+
+/**
+ * Passo da escala divergente. Negativo = pior que a meta, 0 = em cima dela,
+ * positivo = melhor. **Sequencial não serve aqui:** deixaria a noite ruim pálida,
+ * apagando exatamente o que importa.
+ */
+export type HeatStep = -3 | -2 | -1 | 0 | 1 | 2;
+
+
+export interface HeatCell {
+  day: string;                 // 'YYYY-MM-DD'
+  /** Valor medido, ou null. **Não medido ≠ neutro** — um jornal não finge que mediu. */
+  value: number | null;
+  step: HeatStep | null;
+  /** 0 = segunda … 6 = domingo. */
+  weekday: number;
+}
+
+export interface Heatmap {
+  metric: string;
+  label: string;
+  unit: string;
+  decimals: number;
+  higherIsWorse: boolean;
+  target: number;
+  cells: HeatCell[];
+  /** Células vazias antes da primeira, p/ alinhar a grade que começa na segunda. */
+  pad: number;
+  /** Quantos dias do período têm valor. 0 ⇒ nada a mostrar. */
+  measured: number;
+}
+
+/**
+ * Cortes em **desvio relativo à meta** — assim a mesma escala serve métricas de
+ * grandezas diferentes (horas de sono, bpm, ms de VFC).
+ */
+function heatStep(value: number, target: number, higherIsWorse: boolean): HeatStep {
+  const raw = target === 0 ? 0 : (value - target) / target;
+  // Onde subir é ruim (FC de repouso), inverter põe "pior" sempre do mesmo lado.
+  const d = higherIsWorse ? -raw : raw;
+  if (d <= -0.25) return -3;
+  if (d <= -0.16) return -2;
+  if (d <= -0.07) return -1;
+  if (d < 0.035) return 0;
+  if (d < 0.085) return 1;
+  return 2;
+}
+
+/**
+ * Uma célula por dia do período **exibido**, na ordem do calendário.
+ *
+ * **Genérico em `N` de propósito:** o número de células sai do período, não de um
+ * "mês" codificado. Semana ⇒ 7 células, mês ⇒ 28–31, estação ⇒ ~90. É o que faz a
+ * faixa semanal ser um parâmetro em vez de um componente novo.
+ *
+ * Devolve `null` quando a métrica não existe, não tem meta, ou não tem nenhum dia
+ * medido no período.
+ */
+export function buildHeatmap(
+  input: Pick<RetroInput, 'now' | 'kind' | 'offset' | 'health'>,
+  metric: string,
+): Heatmap | null {
+  const m = input.health.find((h) => h.metric === metric);
+  if (!m) return null;
+  const target = healthTarget(metric);
+  if (target == null) return null;
+
+  const { start, end } = periodBounds(input.now, input.kind, input.offset);
+  const cells: HeatCell[] = [];
+  let measured = 0;
+
+  for (const d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+    const day = localDay(d);
+    const raw = m.valuesByDay.get(day);
+    const value = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+    if (value != null) measured++;
+    cells.push({
+      day,
+      value,
+      step: value == null ? null : heatStep(value, target, m.higherIsWorse),
+      // getDay(): 0 = domingo. Normalizado para 0 = segunda.
+      weekday: (d.getDay() + 6) % 7,
+    });
+  }
+
+  if (measured === 0) return null;
+
+  return {
+    metric,
+    label: m.label,
+    unit: m.unit ?? '',
+    decimals: m.decimals ?? 1,
+    higherIsWorse: m.higherIsWorse,
+    target,
+    cells,
+    pad: cells[0]?.weekday ?? 0,
+    measured,
+  };
 }
 
 // ── Breakdown mensal (modo anual) ──────────────────────────
@@ -708,6 +932,54 @@ export interface MonthBucket {
 }
 
 const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** Nome cheio do mês — para a leitura por toque do gráfico anual. */
+export const MONTH_FULL_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+] as const;
+
+export type YearSerieKey = keyof Pick<
+  MonthBucket, 'workouts' | 'distanceKm' | 'tasks' | 'spend' | 'habitDays' | 'floors'
+>;
+
+export interface YearSerie {
+  key: YearSerieKey;
+  label: string;
+  /** Accent do módulo correspondente — cada série uma identidade só. */
+  color: string;
+  pick: (b: MonthBucket) => number;
+  fmt: (v: number) => string;
+}
+
+/**
+ * As seis séries que `buildYearByMonth` já calcula.
+ *
+ * **Mora no shared de propósito.** Até a v2 só `workouts` era desenhada e a
+ * definição de "o que existe" vivia implícita em cada plataforma — foi assim que
+ * web e mobile divergiram antes. Uma lista, dois renderizadores.
+ * Ver docs/specs/retrospectiva/v2-jornal.md §5.
+ */
+export const YEAR_SERIES: readonly YearSerie[] = [
+  { key: 'workouts', label: 'Treinos', color: MOD.treino.accent,
+    pick: (b) => b.workouts,
+    fmt: (v) => (v ? `${v} ${v > 1 ? 'sessões' : 'sessão'}` : 'sem dado') },
+  { key: 'distanceKm', label: 'Distância', color: MOD.tarefa.accent,
+    pick: (b) => b.distanceKm,
+    fmt: (v) => (v ? `${v.toFixed(1).replace('.', ',')} km` : 'sem dado') },
+  { key: 'tasks', label: 'Tarefas', color: MOD.cultura.accent,
+    pick: (b) => b.tasks,
+    fmt: (v) => (v ? `${v} feitas` : 'sem dado') },
+  { key: 'spend', label: 'Gasto', color: MOD.compras.accent,
+    pick: (b) => b.spend,
+    fmt: (v) => (v ? `R$ ${v.toFixed(0)}` : 'sem dado') },
+  { key: 'habitDays', label: 'Hábitos', color: MOD.habito.accent,
+    pick: (b) => b.habitDays,
+    fmt: (v) => (v ? `${v} ${v > 1 ? 'dias' : 'dia'}` : 'sem dado') },
+  { key: 'floors', label: 'Andares', color: MOD.casa.accent,
+    pick: (b) => b.floors,
+    fmt: (v) => (v ? `${v} andares` : 'sem dado') },
+];
 
 /** 12 baldes mensais do ano de `input.now + input.offset` (modo anual). */
 export function buildYearByMonth(input: RetroInput): MonthBucket[] {

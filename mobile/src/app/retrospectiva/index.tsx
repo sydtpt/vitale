@@ -5,6 +5,11 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   latestAvailableOffset,
+  habitCalories,
+  buildRetroLede,
+  YEAR_SERIES,
+  MONTH_FULL_PT,
+  type YearSerieKey,
   type PeriodKind,
   type RecapValue,
   type HighlightIcon,
@@ -18,10 +23,20 @@ import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 import { formatClock } from '../../lib/workout-format';
 import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
+import { HeatmapGrid } from '../../components/HeatmapGrid';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
 const KIND_LABEL: Record<PeriodKind, string> = {
   week: 'Semana', month: 'Mês', season: 'Estação', year: 'Ano', all: 'Total',
+};
+
+/** Cabeçalho da manchete — nomeia o período contado, como a chamada de um jornal. */
+const LEDE_EYEBROW: Record<PeriodKind, string> = {
+  week: 'A semana em poucas frases',
+  month: 'O mês em poucas frases',
+  season: 'A estação em poucas frases',
+  year: 'O ano em poucas frases',
+  all: 'Tudo até aqui, em poucas frases',
 };
 
 const ICON_MAP: Record<HighlightIcon, keyof typeof Ionicons.glyphMap> = {
@@ -55,10 +70,13 @@ function qty(n: number, unit: string): string {
   const v = Number.isInteger(n) ? num(n) : num(n, 1);
   return unit ? `${v} ${unit}` : v;
 }
-/** Linha de apoio do hábito: média diária + dias com registro. */
+/** Linha de apoio do hábito: média diária + dias com registro (+ kcal estimadas). */
 function habitSub(h: RetroHabitRow): string {
   const dias = `${h.recap.current} ${h.recap.current === 1 ? 'dia' : 'dias'}`;
-  return h.perDayDays === 0 ? dias : `${qty(h.perDay, h.unit)}/dia · ${dias}`;
+  const kcal = habitCalories(h.name, h.unit, h.total.current);
+  const extra = kcal == null ? '' : ` · ≈${num(kcal)} kcal`;
+  const base = h.perDayDays === 0 ? dias : `${qty(h.perDay, h.unit)}/dia · ${dias}`;
+  return `${base}${extra}`;
 }
 /** Linha de apoio do registro: frequência das marcações no período. */
 function registroSub(r: RetroRegistroRow): string {
@@ -116,6 +134,7 @@ export default function RetrospectivaScreen() {
   const summaryFn = useRetroStore((s) => s.summary);
   const highlightsFn = useRetroStore((s) => s.highlights);
   const yearFn = useRetroStore((s) => s.yearByMonth);
+  const heatmapFn = useRetroStore((s) => s.heatmap);
   const allActs = useActivitiesStore((s) => s._all);
 
   useFocusEffect(useCallback(() => {
@@ -124,9 +143,27 @@ export default function RetrospectivaScreen() {
   useEffect(() => { void ensure(retroSince(now, kind, offset)); }, [ensure, now, kind, offset]);
 
   const summary = useMemo(() => summaryFn(now, kind, offset), [summaryFn, now, kind, offset, loaded, allActs]);
-  const highlights = useMemo(() => highlightsFn(now, kind, offset).slice(0, 6), [highlightsFn, now, kind, offset, loaded, allActs]);
+  // A manchete sai da lista **completa** de destaques; a lista exibida é a fatiada.
+  // Derivar aqui evita recalcular buildRetrospective só para o lede.
+  const allHighlights = useMemo(() => highlightsFn(now, kind, offset), [highlightsFn, now, kind, offset, loaded, allActs]);
+  const highlights = useMemo(() => allHighlights.slice(0, 6), [allHighlights]);
+  const lede = useMemo(() => buildRetroLede(allHighlights), [allHighlights]);
   const buckets = useMemo(() => kind === 'year' ? yearFn(now, offset) : [], [yearFn, now, kind, offset, loaded, allActs]);
-  const maxWorkouts = Math.max(1, ...buckets.map((b) => b.workouts));
+
+  // Forma 02 — o heatmap. Só nos períodos em que uma célula por dia ainda é legível;
+  // um ano inteiro em células diárias vira ruído, e o modo Ano já tem as barras.
+  const heat = useMemo(
+    () => (kind === 'week' || kind === 'month' || kind === 'season')
+      ? heatmapFn(now, kind, offset, 'sono')
+      : null,
+    [heatmapFn, now, kind, offset, loaded],
+  );
+
+  // Forma 03 — qual das seis séries está desenhada, e qual mês está tocado.
+  const [serie, setSerie] = useState<YearSerieKey>('workouts');
+  const [mes, setMes] = useState<number | null>(null);
+  const serieDef = YEAR_SERIES.find((s) => s.key === serie) ?? YEAR_SERIES[0];
+  const serieMax = Math.max(1, ...buckets.map(serieDef.pick));
 
   const canNext = offset < latestAvailableOffset(now, kind);
   const changeKind = (k: PeriodKind) => { setKind(k); setOffset(latestAvailableOffset(now, k)); };
@@ -181,6 +218,18 @@ export default function RetrospectivaScreen() {
           </View>
         )}
 
+        {/* A manchete — antes de qualquer número (spec v2 §3). Um jornal abre
+            contando o que aconteceu, não com a tabela. */}
+        {!lede.thin && (
+          <View style={styles.card}>
+            <Text style={styles.eyebrow}>{LEDE_EYEBROW[kind]}</Text>
+            {lede.sentences.map((s, i) => (
+              <Text key={i} style={styles.lede}>{s}</Text>
+            ))}
+            {lede.support ? <Text style={styles.ledeSupport}>{lede.support}</Text> : null}
+          </View>
+        )}
+
         {/* KPIs */}
         <View style={styles.kpis}>
           {kpis.map((k) => (
@@ -201,7 +250,12 @@ export default function RetrospectivaScreen() {
               <View style={[styles.hlIco, { backgroundColor: TONE_COLOR[h.tone] + '22' }]}>
                 <Ionicons name={ICON_MAP[h.icon]} size={15} color={TONE_COLOR[h.tone]} />
               </View>
-              <Text style={styles.hlText}>{h.text}</Text>
+              {/* `support` carrega a amostra do insight cruzado. Fica visível, não em
+                  tooltip: no celular não existe hover. Ver v2-jornal.md §2.3. */}
+              <View style={styles.hlBody}>
+                <Text style={styles.hlText}>{h.text}</Text>
+                {h.support ? <Text style={styles.hlSupport}>{h.support}</Text> : null}
+              </View>
             </View>
           )) : <Text style={styles.empty}>Sem dados suficientes neste período ainda.</Text>}
         </View>
@@ -228,6 +282,7 @@ export default function RetrospectivaScreen() {
             <Mini value={dur(summary.fitness.durationS.current)} label="tempo" />
             <Mini value={`${num(summary.fitness.hardMin.current)}min`} label="carga dura" />
             <Mini value={`${num(summary.fitness.floors.current)}`} label="andares" />
+            <Mini value={`${num(summary.fitness.calories.current)}`} label="kcal gastas" />
           </View>
           {summary.fitness.byType.map((t) => (
             <Row key={t.key} l={t.label} r={`${t.count}× · ${km(t.sum || 0)}`} />
@@ -316,20 +371,65 @@ export default function RetrospectivaScreen() {
           ))}
         </View>
 
-        {/* Ano: barras por mês */}
+        {/* Heatmap — genérico em N: as células saem do período exibido. Hoje aparece
+            no mês (28–31 células); com N=7 é a faixa semanal. Ver v2-jornal.md §4. */}
+        {heat && (
+          <View style={styles.card}>
+            <Text style={styles.eyebrow}>{heat.label} por dia</Text>
+            <HeatmapGrid data={heat} />
+          </View>
+        )}
+
+        {/* Ano: barras por mês. As seis séries do MonthBucket já eram calculadas;
+            até aqui só `workouts` era desenhada. Rótulo por barra não cabe em 12
+            barras num telefone — o valor vai para a leitura fixa. Ver v2-jornal.md §5. */}
         {kind === 'year' && (
           <View style={styles.card}>
-            <Text style={styles.eyebrow}>Treinos por mês — {summary.label}</Text>
+            <Text style={styles.eyebrow}>Por mês — {summary.label}</Text>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipRow}
+            >
+              {YEAR_SERIES.map((s) => {
+                const on = s.key === serie;
+                return (
+                  <Pressable
+                    key={s.key}
+                    onPress={() => { setSerie(s.key); setMes(null); }}
+                    hitSlop={6}
+                    style={[styles.serieChip, on && { backgroundColor: colors.surface, borderColor: s.color }]}
+                  >
+                    <View style={[styles.serieDot, { backgroundColor: s.color }]} />
+                    <Text style={[styles.serieTxt, on && styles.serieTxtOn]}>{s.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.readout}>
+              <Text style={styles.readoutK}>{mes == null ? 'toque num mês' : MONTH_FULL_PT[mes]}</Text>
+              <Text style={styles.readoutV}>
+                {mes == null ? '' : serieDef.fmt(serieDef.pick(buckets[mes]))}
+              </Text>
+            </View>
+
             <View style={styles.yearGrid}>
-              {buckets.map((b) => (
-                <View key={b.month} style={styles.ybar}>
-                  <View style={styles.ybarTrack}>
-                    <View style={[styles.ybarFill, { height: `${Math.round((b.workouts / maxWorkouts) * 100)}%` }]} />
-                  </View>
-                  <Text style={styles.ybarLabel}>{b.label}</Text>
-                  <Text style={styles.ybarVal}>{b.workouts}</Text>
-                </View>
-              ))}
+              {buckets.map((b, i) => {
+                const v = serieDef.pick(b);
+                return (
+                  <Pressable key={b.month} onPress={() => setMes(i)} hitSlop={4} style={styles.ybar}>
+                    <View style={[styles.ybarTrack, i === mes && { borderWidth: 2, borderColor: colors.ink }]}>
+                      <View style={[
+                        styles.ybarFill,
+                        { height: `${Math.round((v / serieMax) * 100)}%`, backgroundColor: serieDef.color },
+                      ]} />
+                    </View>
+                    <Text style={[styles.ybarLabel, i === mes && styles.ybarLabelOn]}>{b.label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         )}
@@ -445,7 +545,11 @@ const createStyles = () => StyleSheet.create({
 
   hl: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },
   hlIco: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  hlText: { flex: 1, fontSize: 14, fontWeight: '500', color: colors.ink },
+  lede: { fontSize: 15, lineHeight: 22, color: colors.ink },
+  ledeSupport: { fontSize: 11, color: colors.ink3, marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  hlBody: { flex: 1, gap: 2 },
+  hlText: { fontSize: 14, fontWeight: '500', color: colors.ink },
+  hlSupport: { fontSize: 11, color: colors.ink3 },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   chip: { fontSize: 12, fontWeight: '600', color: colors.ink2, backgroundColor: colors.surfaceMute, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
@@ -466,5 +570,24 @@ const createStyles = () => StyleSheet.create({
   ybarTrack: { width: '100%', height: 90, backgroundColor: colors.surfaceMute, borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
   ybarFill: { width: '100%', backgroundColor: colors.primary, borderRadius: 6, minHeight: 2 },
   ybarLabel: { fontSize: 9, color: colors.ink3 },
-  ybarVal: { fontSize: 11, fontWeight: '600', color: colors.ink },
+  ybarLabelOn: { color: colors.ink, fontWeight: '700' },
+
+  // Forma 03 — seletor de série e leitura por toque (não há hover no celular).
+  chipRow: { flexDirection: 'row', gap: 6, paddingVertical: 2 },
+  serieChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.surfaceMute, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  serieDot: { width: 7, height: 7, borderRadius: 4 },
+  serieTxt: { fontSize: 12, fontWeight: '600', color: colors.ink2 },
+  serieTxtOn: { color: colors.ink },
+  readout: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    backgroundColor: colors.surfaceMute, borderRadius: 10,
+    paddingHorizontal: 11, paddingVertical: 8, marginTop: 8, minHeight: 34,
+  },
+  readoutK: { fontSize: 12, color: colors.ink2 },
+  readoutV: { fontSize: 13, fontWeight: '700', color: colors.ink },
 });

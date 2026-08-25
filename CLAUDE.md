@@ -174,6 +174,6 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [Web: Correlações de Gatilho (hábito-ruim/registro × saúde)](docs/specs/correlacoes-gatilho/spec.md) · [tasks](_bmad-output/implementation-artifacts/correlacoes-gatilho/tasks.md)
 - [Web: Recap Semanal (resumo automático da semana)](docs/specs/recap-semanal/spec.md) · [tasks](_bmad-output/implementation-artifacts/recap-semanal/tasks.md)
 - [Ratings diários subjetivos (sono ao acordar + dia após 22h)](docs/specs/ratings-diarios/spec.md)
-- [Retrospectiva (resumo agregado por semana/mês/ano com insights cruzados)](docs/specs/retrospectiva/spec.md)
+- [Retrospectiva (resumo agregado por semana/mês/estação/ano/total com insights cruzados)](docs/specs/retrospectiva/spec.md) · [v2 — o jornal](docs/specs/retrospectiva/v2-jornal.md)
 - [Web: Visão detalhada por país (Ciclismo — mapa de rotas + cidades por país)](docs/specs/mapa-por-pais/spec.md) · [plan](docs/specs/mapa-por-pais/plan.md) · [data-model](docs/specs/mapa-por-pais/data-model.md) · [tasks](_bmad-output/implementation-artifacts/mapa-por-pais/tasks.md)
 - [Cultura (livros, filmes, podcasts e álbuns)](docs/specs/cultura/spec.md) · [data-model](docs/specs/cultura/data-model.md) · [stories](docs/specs/cultura/stories.yaml)

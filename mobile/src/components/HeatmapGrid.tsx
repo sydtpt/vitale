@@ -1,0 +1,149 @@
+/**
+ * Grade divergente de N células — uma por dia do período exibido.
+ *
+ * **Genérico em N de propósito** (docs/specs/retrospectiva/v2-jornal.md §4): o
+ * número de células vem do `Heatmap` que o shared monta, não de um "mês" codificado.
+ * Semana ⇒ 7 células, mês ⇒ 28–31, estação ⇒ ~90. É o que faz a faixa semanal ser
+ * um parâmetro em vez de um componente novo.
+ *
+ * **Sem hover:** no celular o valor aparece numa leitura fixa abaixo da grade e
+ * **fica lá** — nada some quando o dedo sai.
+ */
+import React, { useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import type { Heatmap, HeatCell, HeatStep } from '@vitale/shared';
+import { colors, spacing, radii, useThemedStyles } from '../theme';
+
+/** Escala divergente: quente abaixo da meta, neutro em cima, frio acima. */
+const STEP_BG: Record<HeatStep, string> = {
+  [-3]: '#B83C12',
+  [-2]: '#F25C2B',
+  [-1]: '#FBAF8C',
+  0: '#EFE6D8',
+  1: '#AFC0E2',
+  2: '#6E8CC9',
+};
+
+/** Tinta escolhida por contraste sobre cada fundo, não por gosto. */
+const STEP_FG: Record<HeatStep, string> = {
+  [-3]: '#FFF1EA',
+  [-2]: '#4A1A08',
+  [-1]: '#5A2612',
+  0: '#6B6155',
+  1: '#26364F',
+  2: '#182338',
+};
+
+const DOW = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+const DOW_FULL = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
+const STEPS: HeatStep[] = [-3, -2, -1, 0, 1, 2];
+
+function fmt(v: number, decimals: number, unit: string): string {
+  return `${v.toFixed(decimals).replace('.', ',')}${unit}`;
+}
+
+export function HeatmapGrid({ data }: { data: Heatmap }) {
+  const styles = useThemedStyles(createStyles);
+  const [sel, setSel] = useState<HeatCell | null>(null);
+
+  const delta = sel?.value != null ? sel.value - data.target : null;
+
+  return (
+    <View>
+      <View style={styles.head}>
+        {DOW.map((d, i) => <Text key={i} style={styles.headTxt}>{d}</Text>)}
+      </View>
+
+      <View style={styles.grid}>
+        {Array.from({ length: data.pad }, (_, i) => (
+          <View key={`pad-${i}`} style={styles.pad} />
+        ))}
+        {data.cells.map((c) => {
+          const on = sel?.day === c.day;
+          // Não medido ≠ neutro: fundo vazado, sem número. Um jornal não finge que mediu.
+          const bg = c.step == null ? 'transparent' : STEP_BG[c.step];
+          const fg = c.step == null ? colors.ink4 : STEP_FG[c.step];
+          return (
+            <Pressable
+              key={c.day}
+              onPress={() => setSel(on ? null : c)}
+              disabled={c.value == null}
+              style={[
+                styles.cell,
+                { backgroundColor: bg },
+                c.step == null && styles.cellEmpty,
+                on && styles.cellOn,
+              ]}
+            >
+              <Text style={[styles.cellTxt, { color: fg }]}>
+                {Number(c.day.slice(8))}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.readout}>
+        <Text style={styles.readoutK}>
+          {sel
+            ? `${Number(sel.day.slice(8))} · ${DOW_FULL[sel.weekday]}`
+            : `toque num dia · ${data.measured} de ${data.cells.length} medidos`}
+        </Text>
+        {sel?.value != null && (
+          <Text style={styles.readoutV}>
+            {fmt(sel.value, data.decimals, data.unit)}
+            <Text style={styles.readoutSub}>
+              {'  '}{delta! >= 0 ? '+' : '−'}{fmt(Math.abs(delta!), data.decimals, data.unit)} vs. meta
+            </Text>
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.legend}>
+        <Text style={styles.legendTxt}>pior</Text>
+        <View style={styles.swatches}>
+          {STEPS.map((s) => (
+            <View key={s} style={[styles.swatch, { backgroundColor: STEP_BG[s] }]} />
+          ))}
+        </View>
+        <Text style={styles.legendTxt}>melhor</Text>
+        <Text style={[styles.legendTxt, styles.legendTarget]}>
+          meta {fmt(data.target, data.decimals, data.unit)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const createStyles = () => StyleSheet.create({
+  head: { flexDirection: 'row', marginBottom: 5 },
+  headTxt: {
+    flex: 1, textAlign: 'center', fontSize: 9, color: colors.ink3, letterSpacing: 0.4,
+  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  // 100/7 por célula; o gap sai da margem interna, para a grade não estourar a largura.
+  cell: {
+    width: `${100 / 7}%`, aspectRatio: 1, borderRadius: radii.sm,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  pad: { width: `${100 / 7}%`, aspectRatio: 1 },
+  cellEmpty: { borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed' },
+  cellOn: { borderColor: colors.ink },
+  cellTxt: { fontSize: 10, fontWeight: '600' },
+
+  readout: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    backgroundColor: colors.surfaceMute, borderRadius: radii.sm,
+    paddingHorizontal: 11, paddingVertical: 8, marginTop: spacing.sm, minHeight: 34,
+  },
+  readoutK: { fontSize: 11.5, color: colors.ink2, flexShrink: 1 },
+  readoutV: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  readoutSub: { fontSize: 11, fontWeight: '500', color: colors.ink2 },
+
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm },
+  legendTxt: { fontSize: 9.5, color: colors.ink3 },
+  legendTarget: { marginLeft: 'auto' },
+  swatches: { flexDirection: 'row', gap: 2 },
+  swatch: { width: 13, height: 9, borderRadius: 2 },
+});

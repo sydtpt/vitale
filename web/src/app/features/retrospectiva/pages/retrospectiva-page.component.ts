@@ -2,8 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import {
   T,
   localDateStr,
-  periodBounds,
+  retroSince,
+  buildRetroLede,
+  YEAR_SERIES,
+  MONTH_FULL_PT,
+  type YearSerieKey,
   latestAvailableOffset,
+  habitCalories,
   type PeriodKind,
   type RecapValue,
   type HighlightIcon,
@@ -18,6 +23,7 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { IconComponent } from '@core/services/icon.component';
 import { formatClock } from '@features/workout-history/data/format';
 import { RetroStore } from '../data/retro.store';
+import { HeatmapGridComponent } from '../components/heatmap-grid.component';
 
 /** Ícone neutro do shared → nome do set `rt-icon`. */
 const ICON_MAP: Record<HighlightIcon, string> = {
@@ -32,11 +38,20 @@ const KIND_LABEL: Record<PeriodKind, string> = {
   week: 'Semana', month: 'Mês', season: 'Estação', year: 'Ano', all: 'Total',
 };
 
+/** Cabeçalho da manchete — nomeia o período contado, como a chamada de um jornal. */
+const LEDE_EYEBROW: Record<PeriodKind, string> = {
+  week: 'A semana em poucas frases',
+  month: 'O mês em poucas frases',
+  season: 'A estação em poucas frases',
+  year: 'O ano em poucas frases',
+  all: 'Tudo até aqui, em poucas frases',
+};
+
 @Component({
   selector: 'rt-retrospectiva-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, IconComponent],
+  imports: [PageHeaderComponent, IconComponent, HeatmapGridComponent],
   templateUrl: './retrospectiva-page.component.html',
   styleUrl: './retrospectiva-page.component.scss',
 })
@@ -54,11 +69,13 @@ export class RetrospectivaPageComponent {
   protected readonly state = this.store.state;
 
   constructor() {
-    // Busca os dados a partir do início do período anterior ao selecionado.
+    // Busca a partir do que o shared decidir: cobre o período anterior (exigido
+    // pelos deltas) **e** a janela de análise de 90 dias (exigida pelos insights
+    // cruzados). Ver docs/specs/retrospectiva/v2-jornal.md §2.1.
     effect(() => {
       const k = this.kind();
       const o = this.offset();
-      const since = localDateStr(periodBounds(this.now, k, o - 1).start);
+      const since = localDateStr(retroSince(this.now, k, o));
       void this.store.ensure(since);
     });
   }
@@ -74,7 +91,51 @@ export class RetrospectivaPageComponent {
   protected next(): void { if (this.canNext()) this.offset.update((o) => o + 1); }
 
   protected readonly summary = computed(() => this.store.summary(this.now, this.kind(), this.offset()));
-  protected readonly highlights = computed(() => this.store.highlights(this.now, this.kind(), this.offset()).slice(0, 6));
+  // A manchete sai da lista **completa**; a exibida é a fatiada (spec v2 §3).
+  private readonly allHighlights = computed(() => this.store.highlights(this.now, this.kind(), this.offset()));
+  protected readonly highlights = computed(() => this.allHighlights().slice(0, 6));
+  protected readonly lede = computed(() => buildRetroLede(this.allHighlights()));
+  protected readonly ledeEyebrow = computed(() => LEDE_EYEBROW[this.kind()]);
+
+  // ── Forma 02 · heatmap ──────────────────────────────────────────────────
+  // Só onde uma célula por dia ainda é legível; um ano em células diárias vira
+  // ruído, e o modo Ano já tem as barras.
+  protected readonly heat = computed(() => {
+    const k = this.kind();
+    if (k !== 'week' && k !== 'month' && k !== 'season') return null;
+    return this.store.heatmap(this.now, k, this.offset(), 'sono');
+  });
+
+  // ── Forma 03 · seletor das seis séries do MonthBucket ───────────────────
+  protected readonly series = YEAR_SERIES;
+  protected readonly monthFull = MONTH_FULL_PT;
+  protected readonly serieKey = signal<YearSerieKey>('workouts');
+  protected readonly serie = computed(
+    () => YEAR_SERIES.find((s) => s.key === this.serieKey()) ?? YEAR_SERIES[0],
+  );
+  protected readonly serieMax = computed(
+    () => Math.max(1, ...this.buckets().map(this.serie().pick)),
+  );
+
+  /** Mês tocado — 12 barras não comportam rótulo em cada uma (spec v2 §5). */
+  protected readonly selMonth = signal<number | null>(null);
+
+  protected setSerie(k: YearSerieKey): void {
+    this.serieKey.set(k);
+    this.selMonth.set(null);
+  }
+
+  protected pickMonth(m: number): void {
+    this.selMonth.update((cur) => (cur === m ? null : m));
+  }
+
+  protected serieVal(b: MonthBucket): string {
+    return this.serie().fmt(this.serie().pick(b));
+  }
+
+  protected seriePct(b: MonthBucket): number {
+    return Math.round((this.serie().pick(b) / this.serieMax()) * 100);
+  }
   protected readonly isYear = computed(() => this.kind() === 'year');
   /** 'Total' não tem período anterior nem navegação ‹ ›. */
   protected readonly isAll = computed(() => this.kind() === 'all');
@@ -204,12 +265,14 @@ export class RetrospectivaPageComponent {
     return h.unit ? `${this.qty(h.total.current)} ${h.unit}` : this.qty(h.total.current);
   }
 
-  /** Linha de apoio: média diária + dias com registro. */
+  /** Linha de apoio: média diária + dias com registro (+ kcal estimadas). */
   protected habitSub(h: RetroHabitRow): string {
     const dias = `${h.recap.current} ${h.recap.current === 1 ? 'dia' : 'dias'}`;
-    if (h.perDayDays === 0) return dias;
+    const kcal = habitCalories(h.name, h.unit, h.total.current);
+    const extra = kcal == null ? '' : ` · ≈${this.num(kcal)} kcal`;
+    if (h.perDayDays === 0) return `${dias}${extra}`;
     const media = h.unit ? `${this.qty(h.perDay)} ${h.unit}` : this.qty(h.perDay);
-    return `${media}/dia · ${dias}`;
+    return `${media}/dia · ${dias}${extra}`;
   }
 
   /** Linha de apoio do registro: frequência das marcações no período. */

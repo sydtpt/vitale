@@ -14,9 +14,13 @@ import {
   localDateStr,
   buildRetrospective,
   buildRetroHighlights,
+  buildRetroLede,
+  buildHeatmap,
   buildYearByMonth,
-  periodBounds,
+  retroSince as retroSinceDate,
   type PeriodKind,
+  type RetroLede,
+  type Heatmap,
   type RetroInput,
   type RetroSummary,
   type RetroHealthMetric,
@@ -52,6 +56,10 @@ interface RetroState {
   ensure: (since: string) => Promise<void>;
   summary: (now: Date, kind: PeriodKind, offset: number) => RetroSummary;
   highlights: (now: Date, kind: PeriodKind, offset: number) => WeekHighlight[];
+  /** A manchete do período — o parágrafo de abertura (spec v2 §3). */
+  lede: (now: Date, kind: PeriodKind, offset: number) => RetroLede;
+  /** Uma célula por dia do período exibido — genérico em N (spec v2 §4). */
+  heatmap: (now: Date, kind: PeriodKind, offset: number, metric: string) => Heatmap | null;
   yearByMonth: (now: Date, offset: number) => MonthBucket[];
 }
 
@@ -171,11 +179,22 @@ export const useRetroStore = create<RetroState>((set, get) => {
       const input = buildInput(now, kind, offset);
       return buildRetroHighlights(buildRetrospective(input), input);
     },
+    lede: (now, kind, offset) => {
+      const input = buildInput(now, kind, offset);
+      return buildRetroLede(buildRetroHighlights(buildRetrospective(input), input));
+    },
+    heatmap: (now, kind, offset, metric) => buildHeatmap(buildInput(now, kind, offset), metric),
     yearByMonth: (now, offset) => buildYearByMonth(buildInput(now, 'year', offset)),
   };
 });
 
-/** Início do fetch necessário p/ o período selecionado (período anterior incluso). */
+/**
+ * Início do fetch necessário p/ o período selecionado.
+ *
+ * Delega a regra ao shared (`retroSinceDate`), que cobre tanto o período anterior
+ * — exigido pelos deltas — quanto a janela de análise de 90 dias, exigida pelos
+ * insights cruzados. Ver docs/specs/retrospectiva/v2-jornal.md §2.1.
+ */
 export function retroSince(now: Date, kind: PeriodKind, offset: number): string {
-  return localDateStr(periodBounds(now, kind, offset - 1).start);
+  return localDateStr(retroSinceDate(now, kind, offset));
 }

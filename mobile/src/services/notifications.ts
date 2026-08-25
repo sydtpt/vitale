@@ -6,17 +6,21 @@
  * Conteúdo recalculado a cada foreground (AppState 'active') e reagendado como
  * gatilho DAILY — então a notificação dispara todo dia mesmo sem abrir o app,
  * com o conteúdo da última vez que ele esteve aberto. Sem push remoto.
+ *
+ * Além do digest, cada tarefa com hora (`startTime`) ganha um lembrete próprio no
+ * instante marcado (gatilho DATE, um por ocorrência) — ver `scheduleTaskReminders`.
  */
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { activityDays, buildPeriodRecap, DEFAULT_NOTIFICATION_PREFS, isMet, isOverdue, localDateStr, readinessAdvice, readinessInputsByDay, readinessSeries, recapHeadline, type NotificationPrefs, weeklyLoadVsRecovery } from '@vitale/shared';
+import { activityDays, buildPeriodRecap, buildTaskReminders, DEFAULT_NOTIFICATION_PREFS, isMet, isOverdue, latestAvailableOffset, localDateStr, todoDayStr, readinessAdvice, readinessInputsByDay, readinessSeries, recapHeadline, type NotificationPrefs, type PeriodKind, weeklyLoadVsRecovery } from '@vitale/shared';
 import { readinessFromSummaries } from '../lib/health-readiness';
 import { getJSON, setJSON } from '../lib/local-store';
 import { useSettingsStore } from '../store/settings.store';
 import { useHealthStore } from '../store/health.store';
 import { useHealthDailyStore } from '../store/health-daily.store';
 import { useActivitiesStore } from '../store/activities.store';
+import { useRetroStore, retroSince } from '../store/retro.store';
 import { usePlannedWorkoutsStore } from '../store/planned-workouts.store';
 import { useTodosStore } from '../store/todos.store';
 import { useHabitsStore } from '../store/habits.store';
@@ -29,9 +33,22 @@ const ANDROID_CHANNEL_ID = 'default';
 /** Teto de espera pelas prefs no boot; passado isso, agenda com o que houver. */
 const PREFS_WAIT_MS = 4_000;
 
+/**
+ * Prefixo do identifier dos lembretes de tarefa (`todo:<occId>`). Serve a dois
+ * propósitos: reagendar só eles sem tocar no digest/retros, e tornar o
+ * agendamento idempotente — reagendar o mesmo occId substitui, não duplica.
+ */
+const TASK_PREFIX = 'todo:';
+/** Deep-link ao tocar o lembrete de uma tarefa. */
+const TAREFAS_ROUTE = '/tarefas';
+/** Janela de coalescência das mudanças na store de tarefas (concluir → reagendar). */
+const TASK_DEBOUNCE_MS = 400;
+
 let appStateSub: { remove: () => void } | null = null;
 let responseSub: { remove: () => void } | null = null;
 let settingsUnsub: (() => void) | null = null;
+let todosUnsub: (() => void) | null = null;
+let taskDebounce: ReturnType<typeof setTimeout> | null = null;
 let lastRefresh = 0;
 let configured = false;
 
@@ -206,10 +223,11 @@ async function buildDigest(): Promise<{ title: string; body: string } | null> {
   const weeks = weeklyLoadVsRecovery(acts, recByDay, 8);
   const overtraining = weeks.length > 0 ? weeks[weeks.length - 1].dip : false;
 
-  // Tarefas atrasadas
+  // Tarefas atrasadas — pelo dia lógico das tarefas (vira às 02h), não pelo calendário.
+  const todoToday = todoDayStr();
   const overdue = useTodosStore
     .getState()
-    .occurrences.filter((o) => o.status === 'pending' && o.dueDate != null && isOverdue(o, today)).length;
+    .occurrences.filter((o) => o.status === 'pending' && o.dueDate != null && isOverdue(o, todoToday)).length;
 
   // Hábitos pendentes (meta de mínimo não batida, visíveis na Hoje)
   const habitsState = useHabitsStore.getState();
@@ -271,6 +289,25 @@ async function buildWeeklyRecap(): Promise<string | null> {
   return body || null;
 }
 
+/**
+ * Corpo da notificação a partir da **manchete** da Retrospectiva (spec v2 §3.1).
+ *
+ * A manchete tem três frases e o usuário lê sempre no celular — então ela cabe
+ * numa notificação, e abrir o app vira o passo opcional em vez do requisito.
+ * Duas frases: notificação não é a tela, e o SO trunca o resto.
+ *
+ * Devolve `null` quando não houve material (`lede.thin`), e aí quem chama decide
+ * o fallback — nunca uma frase vazia.
+ */
+async function buildRetroLedeBody(kind: PeriodKind): Promise<string | null> {
+  const now = new Date();
+  const offset = latestAvailableOffset(now, kind);
+  await useRetroStore.getState().ensure(retroSince(now, kind, offset)).catch(() => {});
+  const lede = useRetroStore.getState().lede(now, kind, offset);
+  if (lede.thin) return null;
+  return lede.sentences.slice(0, 2).join(' ') || null;
+}
+
 /** Deep-link para abrir a Retrospectiva no período tocado. */
 const RETRO_ROUTE = '/retrospectiva';
 
@@ -278,13 +315,15 @@ const RETRO_ROUTE = '/retrospectiva';
 async function scheduleRetros(prefs: NotificationPrefs): Promise<void> {
   const data = { route: RETRO_ROUTE };
 
-  // Semanal — corpo enriquecido com o recap (treinos + prontidão vs semana anterior).
+  // Semanal — a manchete primeiro. O recap de treino+prontidão vira fallback: é
+  // estatística de volume, e o insight cruzado vale mais que ela (spec v2 §2.2).
   const w = prefs.weeklyRetro;
   if (w.enabled) {
-    const recap = await buildWeeklyRecap().catch(() => null);
+    const lede = await buildRetroLedeBody('week').catch(() => null);
+    const recap = lede ?? await buildWeeklyRecap().catch(() => null);
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Retrospectiva da semana',
+        title: 'Sua semana fechou',
         body: recap ?? 'Sua retrospectiva da semana está pronta — toque para ver.',
         data,
       },
@@ -302,10 +341,11 @@ async function scheduleRetros(prefs: NotificationPrefs): Promise<void> {
   // Mensal — dispara no dia configurado do mês (default 1, quando o mês anterior fechou).
   const m = prefs.monthlyRetro;
   if (m.enabled) {
+    const body = await buildRetroLedeBody('month').catch(() => null);
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Retrospectiva do mês',
-        body: 'Sua retrospectiva do mês está pronta — toque para ver.',
+        title: 'Seu mês fechou',
+        body: body ?? 'Sua retrospectiva do mês está pronta — toque para ver.',
         data,
       },
       trigger: {
@@ -321,10 +361,11 @@ async function scheduleRetros(prefs: NotificationPrefs): Promise<void> {
   // Anual — 1º de janeiro (ano anterior fechou).
   const y = prefs.yearlyRetro;
   if (y.enabled) {
+    const body = await buildRetroLedeBody('year').catch(() => null);
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Retrospectiva do ano',
-        body: 'Sua retrospectiva do ano está pronta — toque para ver.',
+        title: 'Seu ano fechou',
+        body: body ?? 'Sua retrospectiva do ano está pronta — toque para ver.',
         data,
       },
       trigger: {
@@ -337,6 +378,54 @@ async function scheduleRetros(prefs: NotificationPrefs): Promise<void> {
         minute: y.minute,
       },
     });
+  }
+}
+
+/**
+ * Um lembrete por tarefa com hora: título fixo "Lembrete", corpo = o texto da
+ * tarefa. Gatilho DATE no instante `dueDate + startTime`, então dispara com o app
+ * fechado — é o que separa isto do `setTimeout` de fronteira da store, que só
+ * vale enquanto o app está aberto.
+ *
+ * Espera que a store de tarefas já esteja carregada (quem chama garante isso).
+ * O identifier `todo:<occId>` é estável, então reagendar substitui o anterior.
+ */
+async function scheduleTaskReminders(): Promise<void> {
+  if (!notifPrefs().taskReminders) return;
+  const { templates, occurrences } = useTodosStore.getState();
+  for (const r of buildTaskReminders(templates, occurrences)) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: `${TASK_PREFIX}${r.occId}`,
+      content: { title: 'Lembrete', body: r.name, data: { route: TAREFAS_ROUTE } },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        channelId: ANDROID_CHANNEL_ID,
+        date: r.at,
+      },
+    });
+  }
+}
+
+/**
+ * Reagenda só os lembretes de tarefa, sem mexer no digest nem nas retrospectivas
+ * — concluir, criar, arquivar ou mudar a hora de uma tarefa reflete na hora, sem
+ * esperar o próximo foreground. Cancelar antes é o que apaga o lembrete de uma
+ * ocorrência que deixou de ser pendente (o identifier dela some da lista nova).
+ */
+export async function refreshTaskReminders(): Promise<void> {
+  try {
+    if (!masterOn()) return;
+    const perm = await Notifications.getPermissionsAsync();
+    if (!perm.granted) return;
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const n of scheduled) {
+      if (n.identifier.startsWith(TASK_PREFIX)) {
+        await Notifications.cancelScheduledNotificationAsync(n.identifier);
+      }
+    }
+    await scheduleTaskReminders();
+  } catch (e) {
+    console.warn('Falha ao agendar lembretes de tarefa:', e);
   }
 }
 
@@ -372,6 +461,13 @@ async function runRefresh(): Promise<void> {
 
     // Retrospectivas semana/mês/ano (agenda configurável)
     await scheduleRetros(notif);
+
+    // Lembretes das tarefas com hora. O `buildDigest` acima já recarrega as
+    // tarefas; sem digest ligado, ninguém carregou — daí o load condicional.
+    if (notif.taskReminders) {
+      if (!notif.dailyDigest) await useTodosStore.getState().load().catch(() => {});
+      await scheduleTaskReminders();
+    }
   } catch (e) {
     console.warn('Falha ao agendar notificações:', e);
   }
@@ -435,6 +531,24 @@ function prefsSignature(): string {
   return JSON.stringify([p.notificationsEnabled, p.dailyReminderTime, p.notificationPrefs]);
 }
 
+/**
+ * Só o que muda os lembretes de tarefa. Sem isso, o `loading` da própria store
+ * (que o reagendamento pode disparar) realimentaria o ciclo.
+ */
+function tasksSignature(): string {
+  const { templates, occurrences } = useTodosStore.getState();
+  const withTime = new Map(
+    templates.filter((t) => t.active && t.startTime).map((t) => [t.id, `${t.startTime}|${t.name}`]),
+  );
+  const parts: string[] = [];
+  for (const o of occurrences) {
+    if (o.status !== 'pending' || o.dueDate == null) continue;
+    const t = withTime.get(o.templateId);
+    if (t) parts.push(`${o.id}|${o.dueDate}|${t}`);
+  }
+  return parts.sort().join(';');
+}
+
 /** Liga o ciclo: configura handler, agenda já e reagenda a cada foreground. */
 export function startNotifications(): void {
   configureHandler();
@@ -463,6 +577,20 @@ export function startNotifications(): void {
     refreshThrottled(true);
   });
 
+  // Reagenda os lembretes quando as tarefas mudam (concluir, criar, editar a
+  // hora, arquivar). Debounce porque um `load` mexe na store várias vezes.
+  let lastTasks = tasksSignature();
+  todosUnsub = useTodosStore.subscribe(() => {
+    const sig = tasksSignature();
+    if (sig === lastTasks) return;
+    lastTasks = sig;
+    if (taskDebounce) clearTimeout(taskDebounce);
+    taskDebounce = setTimeout(() => {
+      taskDebounce = null;
+      void refreshTaskReminders();
+    }, TASK_DEBOUNCE_MS);
+  });
+
   // Deep-link ao tocar a notificação (app aberto/background) + cold start.
   responseSub = Notifications.addNotificationResponseReceivedListener(handleNotificationRoute);
   void Notifications.getLastNotificationResponseAsync().then(handleNotificationRoute);
@@ -475,6 +603,12 @@ export function stopNotifications(): void {
   responseSub = null;
   settingsUnsub?.();
   settingsUnsub = null;
+  todosUnsub?.();
+  todosUnsub = null;
+  if (taskDebounce) {
+    clearTimeout(taskDebounce);
+    taskDebounce = null;
+  }
 }
 
 /** Chamado ao ativar nas Configurações: pede permissão e agenda. */

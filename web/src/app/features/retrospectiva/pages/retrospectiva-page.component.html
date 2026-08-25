@@ -36,6 +36,23 @@
   </div>
 
   <!-- Destaques integrados -->
+  <!-- A manchete — antes de qualquer número (spec v2 §3). -->
+  @if (!lede().thin) {
+    <div class="card lede-card">
+      <div class="eyebrow">{{ ledeEyebrow() }}</div>
+      @for (s of lede().sentences; track $index) { <p class="lede">{{ s }}</p> }
+      @if (lede().support) { <p class="lede-support">{{ lede().support }}</p> }
+    </div>
+  }
+
+  <!-- Heatmap — genérico em N: as células saem do período exibido (spec v2 §4). -->
+  @if (heat(); as h) {
+    <div class="card">
+      <div class="eyebrow">{{ h.label }} por dia</div>
+      <rt-heatmap-grid [data]="h" />
+    </div>
+  }
+
   <div class="card">
     <div class="eyebrow">Destaques do período</div>
     @if (highlights().length > 0) {
@@ -43,7 +60,10 @@
         @for (h of highlights(); track h.id) {
           <li class="item" [attr.data-tone]="h.tone">
             <span class="ico"><rt-icon [name]="iconFor(h.icon)" [size]="16" /></span>
-            <span class="text">{{ h.text }}</span>
+            <span class="body">
+              <span class="text">{{ h.text }}</span>
+              @if (h.support) { <small class="support">{{ h.support }}</small> }
+            </span>
           </li>
         }
       </ul>
@@ -90,6 +110,7 @@
         <div><b>{{ dur(summary().fitness.durationS.current) }}</b><span>tempo</span></div>
         <div><b>{{ num(summary().fitness.hardMin.current) }}min</b><span>carga dura</span></div>
         <div><b>{{ num(summary().fitness.floors.current) }}</b><span>andares</span></div>
+        <div><b>{{ num(summary().fitness.calories.current) }}</b><span>kcal gastas</span></div>
       </div>
       @for (t of summary().fitness.byType; track t.key) {
         <div class="row"><span>{{ t.label }}</span><span class="row-v">{{ t.count }}× · {{ km(t.sum || 0) }}</span></div>
@@ -209,22 +230,48 @@
     </div>
   </div>
 
-  <!-- Breakdown anual -->
+  <!-- Breakdown anual — seletor das seis séries do MonthBucket (spec v2 §5).
+       Cinco delas já eram calculadas e nunca tinham sido desenhadas. -->
   @if (isYear()) {
     <div class="card">
       <div class="eyebrow">Por mês — {{ summary().label }}</div>
-      <div class="year-grid">
-        @for (b of buckets(); track b.month) {
-          <div class="ybar">
-            <div class="ybar-track">
-              <div class="ybar-fill" [style.height.%]="barPct(b.workouts, bucketMax().workouts)" [style.background]="T.primary"></div>
-            </div>
-            <span class="ybar-label">{{ b.label }}</span>
-            <span class="ybar-val">{{ b.workouts }}</span>
-          </div>
+
+      <div class="serie-chips" role="group" aria-label="Série do ano">
+        @for (s of series; track s.key) {
+          <button
+            type="button"
+            class="serie-chip"
+            [attr.aria-pressed]="serieKey() === s.key"
+            [style.--sw]="s.color"
+            (click)="setSerie(s.key)"
+          ><i class="dot"></i>{{ s.label }}</button>
         }
       </div>
-      <p class="muted">Treinos por mês · distância total {{ km(summary().fitness.distanceM.current) }} · {{ num(summary().fitness.floors.current) }} andares no ano</p>
+
+      <div class="readout">
+        <span class="k">
+          @if (selMonth() !== null) { {{ monthFull[selMonth()!] }} } @else { toque num mês }
+        </span>
+        @if (selMonth() !== null) { <span class="v">{{ serieVal(buckets()[selMonth()!]) }}</span> }
+      </div>
+
+      <div class="year-grid">
+        @for (b of buckets(); track b.month) {
+          <button
+            type="button"
+            class="ybar"
+            [attr.data-sel]="selMonth() === b.month ? '' : null"
+            [attr.aria-label]="monthFull[b.month] + ', ' + serieVal(b)"
+            (click)="pickMonth(b.month)"
+          >
+            <span class="ybar-track">
+              <span class="ybar-fill" [style.height.%]="seriePct(b)" [style.background]="serie().color"></span>
+            </span>
+            <span class="ybar-label">{{ b.label }}</span>
+          </button>
+        }
+      </div>
+      <p class="muted">Distância total {{ km(summary().fitness.distanceM.current) }} · {{ num(summary().fitness.floors.current) }} andares no ano</p>
     </div>
   }
 </div>

@@ -80,7 +80,19 @@
   width: 30px; height: 30px; border-radius: 9px; flex: none;
   background: var(--surface-mute); color: var(--ink-2);
 }
+// A manchete (v2-jornal.md §3) — prosa, largura de leitura, sem competir com número.
+.lede-card { margin-bottom: 12px; }
+.lede { font-size: 16px; line-height: 1.6; color: var(--ink); max-width: 62ch; margin: 0 0 10px; }
+.lede:last-of-type { margin-bottom: 0; }
+.lede-support {
+  font-size: 11px; color: var(--ink-3); margin: 12px 0 0;
+  padding-top: 10px; border-top: 1px solid var(--line);
+}
+
+.item .body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .text { font-size: 14px; font-weight: 550; color: var(--ink); line-height: 1.35; }
+// Amostra do insight cruzado — visível, não tooltip (v2-jornal.md §2.3).
+.support { font-size: 11px; color: var(--ink-3); line-height: 1.3; }
 .item[data-tone='good'] .ico { background: color-mix(in srgb, #6FA86A 16%, transparent); color: #6FA86A; }
 .item[data-tone='bad']  .ico { background: color-mix(in srgb, #D9491B 14%, transparent); color: #D9491B; }
 
@@ -122,7 +134,35 @@
 
 /* Breakdown anual */
 .year-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px; align-items: end; }
-.ybar { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ybar {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+}
+.ybar[data-sel] .ybar-track { box-shadow: inset 0 0 0 2px var(--ink); }
+.ybar[data-sel] .ybar-label { color: var(--ink); font-weight: 700; }
+.ybar:focus-visible .ybar-track { box-shadow: inset 0 0 0 2px var(--ink); }
+
+// Seletor das seis séries + leitura fixa — mesmo comportamento do mobile,
+// para as duas plataformas não divergirem de novo (spec v2 §5).
+.serie-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.serie-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--ink-2); background: var(--surface-mute);
+  border: 1.5px solid transparent; border-radius: 8px; padding: 6px 10px;
+
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sw); }
+  &[aria-pressed='true'] { background: var(--surface); border-color: var(--sw); color: var(--ink); }
+  &:focus-visible { outline: 2px solid var(--sw); outline-offset: 1px; }
+}
+.readout {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  min-height: 34px; margin-bottom: 10px; padding: 8px 11px;
+  border-radius: 8px; background: var(--surface-mute);
+
+  .k { font-size: 12px; color: var(--ink-2); }
+  .v { font-size: 13px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+}
 .ybar-track { width: 100%; height: 110px; background: var(--surface-mute); border-radius: 7px; display: flex; align-items: flex-end; overflow: hidden; }
 .ybar-fill { width: 100%; border-radius: 7px 7px 0 0; min-height: 2px; transition: height .2s; }
 .ybar-label { font-size: 10px; color: var(--ink-3); }
