@@ -20,13 +20,25 @@ import type {
   TodoCancelPolicy,
   TodoSpawnRule,
 } from '@vitale/shared';
-import { HABIT_ICONS, isValidDate, isValidTime, localDateStr } from '@vitale/shared';
+import {
+  EVERY_WEEKDAY,
+  HABIT_ICONS,
+  isDailyRecurrence,
+  isValidDate,
+  isValidTime,
+  localDateStr,
+} from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
 import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
 
-type Kind = TodoRecurrence['kind'];
+/**
+ * Chips de recorrência. `'daily'` existe só aqui: no modelo uma série diária é
+ * `weekly` com a semana inteira (ver `isDailyRecurrence`), e é assim que ela é
+ * gravada — o chip evita que "todo dia" custe sete toques e uma descoberta.
+ */
+type Kind = TodoRecurrence['kind'] | 'daily';
 
 // 'compras' é gerenciado pela sua própria tela — não aparece aqui.
 const MODULES: { key: TodoModule; label: string }[] = [
@@ -38,6 +50,7 @@ const MODULES: { key: TodoModule; label: string }[] = [
 
 const KINDS: { key: Kind; label: string }[] = [
   { key: 'none', label: 'Avulsa' },
+  { key: 'daily', label: 'Diária' },
   { key: 'monthly', label: 'Mensal' },
   { key: 'weekly', label: 'Semanal' },
   { key: 'yearly', label: 'Anual' },
@@ -172,7 +185,8 @@ export default function TodoEditorScreen() {
       setMod(existing.module);
       const r = existing.recurrence;
       // on_workout saiu das chips de Recorrência — vira o bloco "Criar/completar um treino".
-      setKind(r.kind === 'on_workout' ? 'none' : r.kind);
+      // A semana inteira volta como "Diária": o chip tem que refletir o que foi salvo.
+      setKind(isDailyRecurrence(r) ? 'daily' : r.kind === 'on_workout' ? 'none' : r.kind);
       if (r.kind === 'monthly') setMonthlyDay(String(r.day));
       if (r.kind === 'weekly') setWeekdays(r.weekdays);
       if (r.kind === 'yearly') { setYearMonth(String(r.month)); setYearDay(String(r.day)); }
@@ -210,6 +224,20 @@ export default function TodoEditorScreen() {
     if (c === 'auto') setOverdue('expire');
   };
 
+  /**
+   * Trocar de recorrência. "Diária" já entra como **Expira** porque a combinação
+   * diária + acumula não funciona: a ocorrência de ontem continua pendente, e a
+   * reconciliação só cria a do dia quando não há nenhuma viva — a tarefa de hoje
+   * nunca apareceria. Segue o precedente de `setCancel`: ajusta o padrão sensato,
+   * sem travar a escolha (o aviso abaixo cobre quem voltar para Acumula).
+   */
+  const pickKind = (k: Kind) => {
+    setKind(k);
+    if (k === 'daily' && overdue === 'carry') setOverdue('expire');
+  };
+
+  const dailyCarry = kind === 'daily' && overdue === 'carry';
+
   function buildRecurrence(): TodoRecurrence | null {
     // "Criar/completar um treino": o gatilho de treino vence o picker de Recorrência.
     if (triggerOnly && workoutOn) {
@@ -217,6 +245,7 @@ export default function TodoEditorScreen() {
     }
     switch (kind) {
       case 'none': return { kind: 'none' };
+      case 'daily': return { kind: 'weekly', weekdays: [...EVERY_WEEKDAY] };
       case 'monthly': {
         const d = parseNum(monthlyDay);
         return d && d >= 1 && d <= 31 ? { kind: 'monthly', day: d } : null;
@@ -250,7 +279,7 @@ export default function TodoEditorScreen() {
 
   // Janela de horário só vale para recorrências com data (não triggerOnly).
   const hasDateRecurrence =
-    !triggerOnly && ['monthly', 'weekly', 'yearly', 'after_completion'].includes(kind);
+    !triggerOnly && ['daily', 'monthly', 'weekly', 'yearly', 'after_completion'].includes(kind);
   const timeFieldValid = (s: string) => s.trim() === '' || isValidTime(s.trim());
   const bothTimes = startTime.trim() !== '' && endTime.trim() !== '';
   const windowValid =
@@ -449,7 +478,7 @@ export default function TodoEditorScreen() {
           <Text style={styles.label}>Recorrência</Text>
           <View style={styles.chips}>
             {KINDS.map((k) => (
-              <Pressable key={k.key} onPress={() => setKind(k.key)} style={[styles.chip, kind === k.key && { backgroundColor: accent }]}>
+              <Pressable key={k.key} onPress={() => pickKind(k.key)} style={[styles.chip, kind === k.key && { backgroundColor: accent }]}>
                 <Text style={[styles.chipText, kind === k.key && styles.chipTextActive]}>{k.label}</Text>
               </Pressable>
             ))}
@@ -609,6 +638,12 @@ export default function TodoEditorScreen() {
             ],
             overdue,
             setOverdue,
+          )}
+          {dailyCarry && (
+            <Text style={styles.hint}>
+              Numa série diária, "Acumula" segura a de ontem pendente e a de hoje não nasce.
+              Use "Expira" para que cada dia tenha a sua — e o dia perdido fique registrado.
+            </Text>
           )}
 
           {/* Cancelamento */}

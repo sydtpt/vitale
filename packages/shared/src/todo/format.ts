@@ -1,6 +1,6 @@
 /** Rótulos em pt-BR para tarefas (apresentação) — fonte única. */
 import type { TodoRecurrence } from '../models';
-import { addDays, todoDayStr } from './logic';
+import { addDays, isDailyRecurrence, todoDayStr } from './logic';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -10,6 +10,8 @@ export function describeRecurrence(rec: TodoRecurrence): string {
     case 'none': return 'Avulsa';
     case 'monthly': return `Todo dia ${rec.day}`;
     case 'weekly':
+      // A semana inteira é uma série diária: "Todo dia" lê melhor que os 7 rótulos.
+      if (isDailyRecurrence(rec)) return 'Todo dia';
       return [...rec.weekdays].sort((a, b) => a - b).map((d) => WEEKDAYS[d]).join('/') || 'Semanal';
     case 'yearly': return `Todo ano · ${rec.day}/${rec.month}`;
     case 'after_completion': return `${rec.intervalDays} dias após concluir`;

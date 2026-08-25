@@ -60,7 +60,7 @@
     <label class="lbl">Recorrência</label>
     <div class="chips">
       @for (k of kinds; track k.key) {
-        <button class="chip" [class.on]="kind === k.key" (click)="kind = k.key">{{ k.label }}</button>
+        <button class="chip" [class.on]="kind === k.key" (click)="pickKind(k.key)">{{ k.label }}</button>
       }
     </div>
 
@@ -142,6 +142,12 @@
       <button class="chip" [class.on]="overdue === 'carry'" (click)="overdue = 'carry'">Acumula</button>
       <button class="chip" [class.on]="overdue === 'expire'" (click)="overdue = 'expire'">Expira</button>
     </div>
+    @if (dailyCarry) {
+      <p class="hint">
+        Numa série diária, "Acumula" segura a de ontem pendente e a de hoje não nasce.
+        Use "Expira" para que cada dia tenha a sua — e o dia perdido fique registrado.
+      </p>
+    }
 
     <label class="lbl">Cancelável</label>
     <div class="chips">
