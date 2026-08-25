@@ -497,7 +497,7 @@ export interface TodoTemplate {
   onComplete?: TodoSpawnRule[];   // encadeamento: ao concluir, instancia ocorrências destas séries
   triggerOnly?: boolean;          // true = só nasce por gatilho (onComplete/on_workout/manual); ignora ocorrência inicial e calendário
   startDate?: string;             // 'YYYY-MM-DD' local; "a partir de": antes desse dia a série fica oculta. null/ausente = vale desde já ("Agora")
-  startTime?: string;             // 'HH:MM' local; só vale p/ recorrências com data. A ocorrência do dia só aparece a partir desse horário (base p/ lembrete push futuro)
+  startTime?: string;             // 'HH:MM' local; só vale p/ recorrências com data. A ocorrência do dia só aparece a partir desse horário — e é quando o lembrete local dispara (buildTaskReminders)
   endTime?: string;               // 'HH:MM' local; após esse horário no dia a ocorrência é cancelada automaticamente (sobrepõe carry/cancelPolicy)
   meta?: Record<string, unknown>; // dados extras por módulo (ex: ShopMeta para compras)
   active: boolean;
@@ -614,6 +614,12 @@ export interface UserPreferences {
    */
   weeklyActivityTargetMin?: number;
   /**
+   * Diagramação da Retrospectiva — ordem e visibilidade dos blocos + a data em
+   * que a prova de gráfica começou. Resolver sempre com `resolveRetroPrefs`.
+   * Ver docs/specs/retrospectiva/v2-jornal.md §6.
+   */
+  retroPrefs?: RetroPrefs;
+  /**
    * Cores das linhas de referência do gráfico de duração (esforço médio e
    * progressão). Ausente ⇒ `DEFAULT_REFERENCE_LINE_SCHEME`. Ver
    * `constants/reference-lines`.
@@ -653,6 +659,7 @@ export interface HealthDaily {
  * exporta os dois de lá, e re-exportar aqui criaria ambiguidade.
  */
 import type { CulturaEstado, CulturaTipo } from '../cultura/tipos';
+import type { RetroPrefs } from '../period/retro-blocks';
 
 /**
  * Um item da estante. Mapeia `cultura_items` — tabela única, sem sessões:

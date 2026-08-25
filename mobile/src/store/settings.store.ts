@@ -12,6 +12,7 @@ import {
   resolveWallpaper,
   DEFAULT_WALLPAPER,
   resolveNotificationPrefs,
+  resolveRetroPrefs,
   DEFAULT_NOTIFICATION_PREFS,
   resolveReferenceLineScheme,
 } from '@vitale/shared';
@@ -72,6 +73,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           weeklyActivityTargetMin: pr.weekly_activity_target_min ?? undefined,
           referenceLineScheme: resolveReferenceLineScheme(pr.reference_line_scheme),
           notificationPrefs: resolveNotificationPrefs(pr.notification_prefs),
+          retroPrefs: resolveRetroPrefs(pr.retro_prefs),
           updatedAt: pr.updated_at,
         }
       : null;
@@ -99,6 +101,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         mapStyle: DEFAULT_MAP_STYLE,
         wallpaper: DEFAULT_WALLPAPER,
         notificationPrefs: DEFAULT_NOTIFICATION_PREFS,
+        retroPrefs: resolveRetroPrefs(null),
         updatedAt: new Date().toISOString(),
       };
     set({
@@ -135,6 +138,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       mapStyle: DEFAULT_MAP_STYLE,
       wallpaper: DEFAULT_WALLPAPER,
       notificationPrefs: DEFAULT_NOTIFICATION_PREFS,
+      retroPrefs: resolveRetroPrefs(null),
       updatedAt: new Date().toISOString(),
     };
     const next: UserPreferences = { ...current, ...patch, updatedAt: new Date().toISOString() };
@@ -161,6 +165,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       weekly_activity_target_min: next.weeklyActivityTargetMin ?? null,
       reference_line_scheme: next.referenceLineScheme ?? null,
       notification_prefs: next.notificationPrefs ?? {},
+      retro_prefs: next.retroPrefs ?? {},
       });
     } catch (e) {
       upsertError = e instanceof Error ? e.message : String(e);

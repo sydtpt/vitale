@@ -7,6 +7,16 @@ import {
   latestAvailableOffset,
   habitCalories,
   buildRetroLede,
+  visibleBlocks,
+  resolveRetroPrefs,
+  type RetroBlockId,
+  type RetroPrefs,
+  layoutEditable,
+  toggleBlock,
+  moveBlock,
+  RETRO_BLOCKS,
+  DEATH_DAYS,
+  localDateStr as localDayStr,
   YEAR_SERIES,
   MONTH_FULL_PT,
   type YearSerieKey,
@@ -23,6 +33,7 @@ import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
 import { formatClock } from '../../lib/workout-format';
 import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
+import { useSettingsStore } from '../../store/settings.store';
 import { HeatmapGrid } from '../../components/HeatmapGrid';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
@@ -187,6 +198,281 @@ export default function RetrospectivaScreen() {
     return { text: `${sign}${num(Math.abs(h.recap.delta), h.decimals)}${h.unit}`, tone: h.recap.delta === 0 ? 'neutral' : worse ? 'bad' : 'good' };
   };
 
+  // Ordem e visibilidade vêm das preferências; `visibleBlocks` já filtra o que
+  // não faz sentido no período (heatmap fora do ano, séries só no ano).
+  const retroPrefs = useSettingsStore((st) => st.preferences?.retroPrefs);
+  const updatePreferences = useSettingsStore((st) => st.updatePreferences);
+  const [editando, setEditando] = useState(false);
+  const hojeStr = useMemo(() => localDayStr(now), [now]);
+  const prefs = useMemo(() => resolveRetroPrefs(retroPrefs ?? null), [retroPrefs]);
+  const editavel = layoutEditable(prefs, hojeStr);
+
+  /** Grava e carimba o início da prova de gráfica na primeira edição. */
+  const salvarPrefs = useCallback((next: RetroPrefs) => {
+    void updatePreferences({
+      retroPrefs: next.proofStartedOn ? next : { ...next, proofStartedOn: hojeStr },
+    });
+  }, [updatePreferences, hojeStr]);
+
+  const blocosVisiveis = useMemo(
+    () => visibleBlocks(prefs, kind),
+    [prefs, kind],
+  );
+
+  // Cada seção é um bloco com id — é o que torna esconder e reordenar barato o
+  // bastante para o "incluo, testo e removo" do usuário funcionar (spec v2 §6).
+  const BLOCOS: Partial<Record<RetroBlockId, React.ReactNode>> = {
+    lede: (
+      <>
+    {/* A manchete — antes de qualquer número (spec v2 §3). Um jornal abre
+                contando o que aconteceu, não com a tabela. */}
+            {!lede.thin && (
+              <View style={styles.card}>
+                <Text style={styles.eyebrow}>{LEDE_EYEBROW[kind]}</Text>
+                {lede.sentences.map((s, i) => (
+                  <Text key={i} style={styles.lede}>{s}</Text>
+                ))}
+                {lede.support ? <Text style={styles.ledeSupport}>{lede.support}</Text> : null}
+              </View>
+            )}
+      </>
+    ),
+    kpis: (
+      <>
+    {/* KPIs */}
+            <View style={styles.kpis}>
+              {kpis.map((k) => (
+                <View key={k.label} style={styles.kpi}>
+                  <Ionicons name={k.icon} size={18} color={colors.primary} />
+                  <Text style={styles.kpiValue}>{k.value}</Text>
+                  <Text style={styles.kpiLabel}>{k.label}</Text>
+                  <Text style={[styles.kpiDelta, { color: TONE_COLOR[k.d.tone] }]}>{k.d.text}</Text>
+                </View>
+              ))}
+            </View>
+      </>
+    ),
+    highlights: (
+      <>
+    {/* Destaques */}
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>Destaques do período</Text>
+              {highlights.length > 0 ? highlights.map((h) => (
+                <View key={h.id} style={styles.hl}>
+                  <View style={[styles.hlIco, { backgroundColor: TONE_COLOR[h.tone] + '22' }]}>
+                    <Ionicons name={ICON_MAP[h.icon]} size={15} color={TONE_COLOR[h.tone]} />
+                  </View>
+                  {/* `support` carrega a amostra do insight cruzado. Fica visível, não em
+                      tooltip: no celular não existe hover. Ver v2-jornal.md §2.3. */}
+                  <View style={styles.hlBody}>
+                    <Text style={styles.hlText}>{h.text}</Text>
+                    {h.support ? <Text style={styles.hlSupport}>{h.support}</Text> : null}
+                  </View>
+                </View>
+              )) : <Text style={styles.empty}>Sem dados suficientes neste período ainda.</Text>}
+            </View>
+      </>
+    ),
+    tasks: (
+      <>
+    {/* Tarefas */}
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>Tarefas feitas</Text>
+              <Text style={styles.big}>{summary.tasks.total.current}
+                <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.tasks.total, false, noPrior).tone] }]}>  {deltaVM(summary.tasks.total, false, noPrior).text}</Text>
+              </Text>
+              <View style={styles.chips}>
+                {summary.tasks.byModule.map((m) => (
+                  <Text key={m.key} style={styles.chip}>{m.label} · {m.count}</Text>
+                ))}
+              </View>
+            </View>
+      </>
+    ),
+    fitness: (
+      <>
+    {/* Treinos */}
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>Treinos & atividade</Text>
+              <View style={styles.miniGrid}>
+                <Mini value={`${summary.fitness.count.current}`} label="sessões" />
+                <Mini value={km(summary.fitness.distanceM.current)} label="distância" />
+                <Mini value={dur(summary.fitness.durationS.current)} label="tempo" />
+                <Mini value={`${num(summary.fitness.hardMin.current)}min`} label="carga dura" />
+                <Mini value={`${num(summary.fitness.floors.current)}`} label="andares" />
+                <Mini value={`${num(summary.fitness.calories.current)}`} label="kcal gastas" />
+              </View>
+              {summary.fitness.byType.map((t) => (
+                <Row key={t.key} l={t.label} r={`${t.count}× · ${km(t.sum || 0)}`} />
+              ))}
+            </View>
+      </>
+    ),
+    sports: (
+      <>
+    {/* Ciclismo */}
+            {summary.sports.cycling && (
+              <SportCard
+                title="Ciclismo"
+                sp={summary.sports.cycling}
+                asPace={false}
+                noPrior={noPrior}
+                longestLabel="Maior pedalada"
+              />
+            )}
+
+            {/* Corrida */}
+            {summary.sports.running && (
+              <SportCard
+                title="Corrida"
+                sp={summary.sports.running}
+                asPace
+                noPrior={noPrior}
+                longestLabel="Maior corrida"
+              />
+            )}
+      </>
+    ),
+    health: (
+      <>
+    {/* Saúde */}
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>Saúde & bem-estar</Text>
+              {summary.health.map((h) => (
+                <View key={h.metric} style={styles.row}>
+                  <Text style={styles.rowL}>{h.label}</Text>
+                  <Text style={styles.rowR}>{healthValue(h)}  <Text style={{ color: TONE_COLOR[healthDelta(h).tone], fontSize: 12 }}>{healthDelta(h).text}</Text></Text>
+                </View>
+              ))}
+              {summary.ratings.sleep?.current != null && <Row l="Sono percebido" r={`${num(summary.ratings.sleep.current, 1)}/5`} />}
+              {summary.ratings.day?.current != null && <Row l="Dia percebido" r={`${num(summary.ratings.day.current, 1)}/5`} />}
+            </View>
+      </>
+    ),
+    purchases: (
+      <>
+    {/* Compras */}
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>Compras & gastos</Text>
+              <Text style={styles.big}>{brl(summary.purchases.spend.current)}
+                <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.purchases.spend, true, noPrior).tone] }]}>  {deltaVM(summary.purchases.spend, true, noPrior).text}</Text>
+              </Text>
+              <Text style={styles.muted}>{summary.purchases.count.current} itens comprados</Text>
+              {summary.purchases.byCat.map((c) => (
+                <Row key={c.key} l={c.label} r={`${brl(c.sum || 0)} · ${c.count}`} />
+              ))}
+              <Text style={styles.note}>Gasto estimado a partir de Compras (sem módulo de transações).</Text>
+            </View>
+      </>
+    ),
+    habits: (
+      <>
+    {/* Hábitos */}
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>Hábitos & registros</Text>
+              {summary.habits.good.length === 0 && summary.habits.bad.length === 0 && summary.registros.length === 0 && <Text style={styles.empty}>Nenhum hábito registrado.</Text>}
+              {summary.habits.good.map((h) => (
+                <View key={h.id} style={styles.row}>
+                  <View style={styles.habitL}>
+                    <Text style={styles.rowL}>{h.name}</Text>
+                    <Text style={styles.habitSub}>{habitSub(h)}</Text>
+                  </View>
+                  <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, false, noPrior).tone], fontSize: 12 }}>{deltaVM(h.total, false, noPrior).text}</Text></Text>
+                </View>
+              ))}
+              {summary.habits.bad.map((h) => (
+                <View key={h.id} style={styles.row}>
+                  <View style={styles.habitL}>
+                    <Text style={styles.rowL}>{h.name}</Text>
+                    <Text style={styles.habitSub}>{habitSub(h)}</Text>
+                  </View>
+                  <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, true, noPrior).tone], fontSize: 12 }}>{deltaVM(h.total, true, noPrior).text}</Text></Text>
+                </View>
+              ))}
+              {summary.registros.length > 0 && <Text style={styles.sub}>Registros</Text>}
+              {summary.registros.map((r) => (
+                <View key={r.id} style={styles.row}>
+                  <View style={styles.habitL}>
+                    <Text style={styles.rowL}>{r.name}</Text>
+                    <Text style={styles.habitSub}>{registroSub(r)}</Text>
+                  </View>
+                  <Text style={styles.rowR}>{r.recap.current}×  <Text style={{ color: colors.ink3, fontSize: 12 }}>{deltaVM(r.recap, false, noPrior).text}</Text></Text>
+                </View>
+              ))}
+            </View>
+      </>
+    ),
+    heatmap: (
+      <>
+    {/* Heatmap — genérico em N: as células saem do período exibido. Hoje aparece
+                no mês (28–31 células); com N=7 é a faixa semanal. Ver v2-jornal.md §4. */}
+            {heat && (
+              <View style={styles.card}>
+                <Text style={styles.eyebrow}>{heat.label} por dia</Text>
+                <HeatmapGrid data={heat} />
+              </View>
+            )}
+      </>
+    ),
+    yearSeries: (
+      <>
+    {/* Ano: barras por mês. As seis séries do MonthBucket já eram calculadas;
+                até aqui só `workouts` era desenhada. Rótulo por barra não cabe em 12
+                barras num telefone — o valor vai para a leitura fixa. Ver v2-jornal.md §5. */}
+            {kind === 'year' && (
+              <View style={styles.card}>
+                <Text style={styles.eyebrow}>Por mês — {summary.label}</Text>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.chipRow}
+                >
+                  {YEAR_SERIES.map((s) => {
+                    const on = s.key === serie;
+                    return (
+                      <Pressable
+                        key={s.key}
+                        onPress={() => { setSerie(s.key); setMes(null); }}
+                        hitSlop={6}
+                        style={[styles.serieChip, on && { backgroundColor: colors.surface, borderColor: s.color }]}
+                      >
+                        <View style={[styles.serieDot, { backgroundColor: s.color }]} />
+                        <Text style={[styles.serieTxt, on && styles.serieTxtOn]}>{s.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+
+                <View style={styles.readout}>
+                  <Text style={styles.readoutK}>{mes == null ? 'toque num mês' : MONTH_FULL_PT[mes]}</Text>
+                  <Text style={styles.readoutV}>
+                    {mes == null ? '' : serieDef.fmt(serieDef.pick(buckets[mes]))}
+                  </Text>
+                </View>
+
+                <View style={styles.yearGrid}>
+                  {buckets.map((b, i) => {
+                    const v = serieDef.pick(b);
+                    return (
+                      <Pressable key={b.month} onPress={() => setMes(i)} hitSlop={4} style={styles.ybar}>
+                        <View style={[styles.ybarTrack, i === mes && { borderWidth: 2, borderColor: colors.ink }]}>
+                          <View style={[
+                            styles.ybarFill,
+                            { height: `${Math.round((v / serieMax) * 100)}%`, backgroundColor: serieDef.color },
+                          ]} />
+                        </View>
+                        <Text style={[styles.ybarLabel, i === mes && styles.ybarLabelOn]}>{b.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+      </>
+    ),
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -194,7 +480,14 @@ export default function RetrospectivaScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Retrospectiva</Text>
-        <View style={styles.iconBtn} />
+        {/* A prova de gráfica é reordenável; depois dela a diagramação congela e
+            este botão some — um jornal é igual toda edição (spec v2 §6.1). */}
+        {editavel ? (
+          <Pressable onPress={() => setEditando((v) => !v)} hitSlop={12}
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+            <Ionicons name={editando ? 'checkmark' : 'options-outline'} size={20} color={colors.ink} />
+          </Pressable>
+        ) : <View style={styles.iconBtn} />}
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
@@ -218,221 +511,44 @@ export default function RetrospectivaScreen() {
           </View>
         )}
 
-        {/* A manchete — antes de qualquer número (spec v2 §3). Um jornal abre
-            contando o que aconteceu, não com a tabela. */}
-        {!lede.thin && (
+                {editando && (
           <View style={styles.card}>
-            <Text style={styles.eyebrow}>{LEDE_EYEBROW[kind]}</Text>
-            {lede.sentences.map((s, i) => (
-              <Text key={i} style={styles.lede}>{s}</Text>
-            ))}
-            {lede.support ? <Text style={styles.ledeSupport}>{lede.support}</Text> : null}
-          </View>
-        )}
-
-        {/* KPIs */}
-        <View style={styles.kpis}>
-          {kpis.map((k) => (
-            <View key={k.label} style={styles.kpi}>
-              <Ionicons name={k.icon} size={18} color={colors.primary} />
-              <Text style={styles.kpiValue}>{k.value}</Text>
-              <Text style={styles.kpiLabel}>{k.label}</Text>
-              <Text style={[styles.kpiDelta, { color: TONE_COLOR[k.d.tone] }]}>{k.d.text}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Destaques */}
-        <View style={styles.card}>
-          <Text style={styles.eyebrow}>Destaques do período</Text>
-          {highlights.length > 0 ? highlights.map((h) => (
-            <View key={h.id} style={styles.hl}>
-              <View style={[styles.hlIco, { backgroundColor: TONE_COLOR[h.tone] + '22' }]}>
-                <Ionicons name={ICON_MAP[h.icon]} size={15} color={TONE_COLOR[h.tone]} />
-              </View>
-              {/* `support` carrega a amostra do insight cruzado. Fica visível, não em
-                  tooltip: no celular não existe hover. Ver v2-jornal.md §2.3. */}
-              <View style={styles.hlBody}>
-                <Text style={styles.hlText}>{h.text}</Text>
-                {h.support ? <Text style={styles.hlSupport}>{h.support}</Text> : null}
-              </View>
-            </View>
-          )) : <Text style={styles.empty}>Sem dados suficientes neste período ainda.</Text>}
-        </View>
-
-        {/* Tarefas */}
-        <View style={styles.card}>
-          <Text style={styles.eyebrow}>Tarefas feitas</Text>
-          <Text style={styles.big}>{summary.tasks.total.current}
-            <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.tasks.total, false, noPrior).tone] }]}>  {deltaVM(summary.tasks.total, false, noPrior).text}</Text>
-          </Text>
-          <View style={styles.chips}>
-            {summary.tasks.byModule.map((m) => (
-              <Text key={m.key} style={styles.chip}>{m.label} · {m.count}</Text>
-            ))}
-          </View>
-        </View>
-
-        {/* Treinos */}
-        <View style={styles.card}>
-          <Text style={styles.eyebrow}>Treinos & atividade</Text>
-          <View style={styles.miniGrid}>
-            <Mini value={`${summary.fitness.count.current}`} label="sessões" />
-            <Mini value={km(summary.fitness.distanceM.current)} label="distância" />
-            <Mini value={dur(summary.fitness.durationS.current)} label="tempo" />
-            <Mini value={`${num(summary.fitness.hardMin.current)}min`} label="carga dura" />
-            <Mini value={`${num(summary.fitness.floors.current)}`} label="andares" />
-            <Mini value={`${num(summary.fitness.calories.current)}`} label="kcal gastas" />
-          </View>
-          {summary.fitness.byType.map((t) => (
-            <Row key={t.key} l={t.label} r={`${t.count}× · ${km(t.sum || 0)}`} />
-          ))}
-        </View>
-
-        {/* Ciclismo */}
-        {summary.sports.cycling && (
-          <SportCard
-            title="Ciclismo"
-            sp={summary.sports.cycling}
-            asPace={false}
-            noPrior={noPrior}
-            longestLabel="Maior pedalada"
-          />
-        )}
-
-        {/* Corrida */}
-        {summary.sports.running && (
-          <SportCard
-            title="Corrida"
-            sp={summary.sports.running}
-            asPace
-            noPrior={noPrior}
-            longestLabel="Maior corrida"
-          />
-        )}
-
-        {/* Saúde */}
-        <View style={styles.card}>
-          <Text style={styles.eyebrow}>Saúde & bem-estar</Text>
-          {summary.health.map((h) => (
-            <View key={h.metric} style={styles.row}>
-              <Text style={styles.rowL}>{h.label}</Text>
-              <Text style={styles.rowR}>{healthValue(h)}  <Text style={{ color: TONE_COLOR[healthDelta(h).tone], fontSize: 12 }}>{healthDelta(h).text}</Text></Text>
-            </View>
-          ))}
-          {summary.ratings.sleep?.current != null && <Row l="Sono percebido" r={`${num(summary.ratings.sleep.current, 1)}/5`} />}
-          {summary.ratings.day?.current != null && <Row l="Dia percebido" r={`${num(summary.ratings.day.current, 1)}/5`} />}
-        </View>
-
-        {/* Compras */}
-        <View style={styles.card}>
-          <Text style={styles.eyebrow}>Compras & gastos</Text>
-          <Text style={styles.big}>{brl(summary.purchases.spend.current)}
-            <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.purchases.spend, true, noPrior).tone] }]}>  {deltaVM(summary.purchases.spend, true, noPrior).text}</Text>
-          </Text>
-          <Text style={styles.muted}>{summary.purchases.count.current} itens comprados</Text>
-          {summary.purchases.byCat.map((c) => (
-            <Row key={c.key} l={c.label} r={`${brl(c.sum || 0)} · ${c.count}`} />
-          ))}
-          <Text style={styles.note}>Gasto estimado a partir de Compras (sem módulo de transações).</Text>
-        </View>
-
-        {/* Hábitos */}
-        <View style={styles.card}>
-          <Text style={styles.eyebrow}>Hábitos & registros</Text>
-          {summary.habits.good.length === 0 && summary.habits.bad.length === 0 && summary.registros.length === 0 && <Text style={styles.empty}>Nenhum hábito registrado.</Text>}
-          {summary.habits.good.map((h) => (
-            <View key={h.id} style={styles.row}>
-              <View style={styles.habitL}>
-                <Text style={styles.rowL}>{h.name}</Text>
-                <Text style={styles.habitSub}>{habitSub(h)}</Text>
-              </View>
-              <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, false, noPrior).tone], fontSize: 12 }}>{deltaVM(h.total, false, noPrior).text}</Text></Text>
-            </View>
-          ))}
-          {summary.habits.bad.map((h) => (
-            <View key={h.id} style={styles.row}>
-              <View style={styles.habitL}>
-                <Text style={styles.rowL}>{h.name}</Text>
-                <Text style={styles.habitSub}>{habitSub(h)}</Text>
-              </View>
-              <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, true, noPrior).tone], fontSize: 12 }}>{deltaVM(h.total, true, noPrior).text}</Text></Text>
-            </View>
-          ))}
-          {summary.registros.length > 0 && <Text style={styles.sub}>Registros</Text>}
-          {summary.registros.map((r) => (
-            <View key={r.id} style={styles.row}>
-              <View style={styles.habitL}>
-                <Text style={styles.rowL}>{r.name}</Text>
-                <Text style={styles.habitSub}>{registroSub(r)}</Text>
-              </View>
-              <Text style={styles.rowR}>{r.recap.current}×  <Text style={{ color: colors.ink3, fontSize: 12 }}>{deltaVM(r.recap, false, noPrior).text}</Text></Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Heatmap — genérico em N: as células saem do período exibido. Hoje aparece
-            no mês (28–31 células); com N=7 é a faixa semanal. Ver v2-jornal.md §4. */}
-        {heat && (
-          <View style={styles.card}>
-            <Text style={styles.eyebrow}>{heat.label} por dia</Text>
-            <HeatmapGrid data={heat} />
-          </View>
-        )}
-
-        {/* Ano: barras por mês. As seis séries do MonthBucket já eram calculadas;
-            até aqui só `workouts` era desenhada. Rótulo por barra não cabe em 12
-            barras num telefone — o valor vai para a leitura fixa. Ver v2-jornal.md §5. */}
-        {kind === 'year' && (
-          <View style={styles.card}>
-            <Text style={styles.eyebrow}>Por mês — {summary.label}</Text>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipRow}
-            >
-              {YEAR_SERIES.map((s) => {
-                const on = s.key === serie;
-                return (
-                  <Pressable
-                    key={s.key}
-                    onPress={() => { setSerie(s.key); setMes(null); }}
-                    hitSlop={6}
-                    style={[styles.serieChip, on && { backgroundColor: colors.surface, borderColor: s.color }]}
-                  >
-                    <View style={[styles.serieDot, { backgroundColor: s.color }]} />
-                    <Text style={[styles.serieTxt, on && styles.serieTxtOn]}>{s.label}</Text>
+            <Text style={styles.eyebrow}>Diagramação</Text>
+            <Text style={styles.editNota}>
+              Esconda o que não usa e mova o que usa para cima. Bloco escondido por
+              {' '}{DEATH_DAYS} dias sai do app.
+            </Text>
+            {prefs.order.map((id, i) => {
+              const def = RETRO_BLOCKS.find((b) => b.id === id)!;
+              const oculto = !!prefs.hidden[id];
+              return (
+                <View key={id} style={styles.editRow}>
+                  <Pressable onPress={() => salvarPrefs(toggleBlock(prefs, id, hojeStr))}
+                    disabled={def.fixed} hitSlop={8}>
+                    <Ionicons
+                      name={def.fixed ? 'lock-closed-outline' : oculto ? 'eye-off-outline' : 'eye-outline'}
+                      size={18} color={def.fixed ? colors.ink4 : oculto ? colors.ink3 : colors.primary} />
                   </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.readout}>
-              <Text style={styles.readoutK}>{mes == null ? 'toque num mês' : MONTH_FULL_PT[mes]}</Text>
-              <Text style={styles.readoutV}>
-                {mes == null ? '' : serieDef.fmt(serieDef.pick(buckets[mes]))}
-              </Text>
-            </View>
-
-            <View style={styles.yearGrid}>
-              {buckets.map((b, i) => {
-                const v = serieDef.pick(b);
-                return (
-                  <Pressable key={b.month} onPress={() => setMes(i)} hitSlop={4} style={styles.ybar}>
-                    <View style={[styles.ybarTrack, i === mes && { borderWidth: 2, borderColor: colors.ink }]}>
-                      <View style={[
-                        styles.ybarFill,
-                        { height: `${Math.round((v / serieMax) * 100)}%`, backgroundColor: serieDef.color },
-                      ]} />
-                    </View>
-                    <Text style={[styles.ybarLabel, i === mes && styles.ybarLabelOn]}>{b.label}</Text>
+                  <Text style={[styles.editLbl, oculto && styles.editLblOff]}>{def.label}</Text>
+                  <Pressable onPress={() => salvarPrefs(moveBlock(prefs, id, -1))}
+                    disabled={i === 0} hitSlop={8}>
+                    <Ionicons name="chevron-up" size={18} color={i === 0 ? colors.ink4 : colors.ink2} />
                   </Pressable>
-                );
-              })}
-            </View>
+                  <Pressable onPress={() => salvarPrefs(moveBlock(prefs, id, 1))}
+                    disabled={i === prefs.order.length - 1} hitSlop={8}>
+                    <Ionicons name="chevron-down" size={18}
+                      color={i === prefs.order.length - 1 ? colors.ink4 : colors.ink2} />
+                  </Pressable>
+                </View>
+              );
+            })}
           </View>
         )}
+
+        {blocosVisiveis.map((b) => (
+          <React.Fragment key={b.id}>{BLOCOS[b.id]}</React.Fragment>
+        ))}
+
       </ScrollView>
     </View>
   );
@@ -545,6 +661,10 @@ const createStyles = () => StyleSheet.create({
 
   hl: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },
   hlIco: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  editNota: { fontSize: 11.5, color: colors.ink3, lineHeight: 16, marginBottom: 6 },
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 7 },
+  editLbl: { flex: 1, fontSize: 14, color: colors.ink },
+  editLblOff: { color: colors.ink3, textDecorationLine: 'line-through' },
   lede: { fontSize: 15, lineHeight: 22, color: colors.ink },
   ledeSupport: { fontSize: 11, color: colors.ink3, marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   hlBody: { flex: 1, gap: 2 },
