@@ -884,10 +884,19 @@ export function buildHeatmap(
   if (target == null) return null;
 
   const { start, end } = periodBounds(input.now, input.kind, input.offset);
+
+  // Período ao vivo (estação, ano, total) inclui dias que **ainda não aconteceram**.
+  // Renderizá-los como "sem dado" é mentira e, na prática, enche a tela de vazio:
+  // uma estação em agosto traria setembro inteiro em branco. A grade para hoje.
+  const tomorrow = new Date(input.now);
+  tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const stop = end < tomorrow ? end : tomorrow;
+
   const cells: HeatCell[] = [];
   let measured = 0;
 
-  for (const d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+  for (const d = new Date(start); d < stop; d.setDate(d.getDate() + 1)) {
     const day = localDay(d);
     const raw = m.valuesByDay.get(day);
     const value = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;

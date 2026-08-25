@@ -3,16 +3,21 @@
  *
  * **Genérico em N de propósito** (docs/specs/retrospectiva/v2-jornal.md §4): o
  * número de células vem do `Heatmap` que o shared monta, não de um "mês" codificado.
- * Semana ⇒ 7 células, mês ⇒ 28–31, estação ⇒ ~90. É o que faz a faixa semanal ser
- * um parâmetro em vez de um componente novo.
+ * Semana ⇒ 7 células, mês ⇒ 28–31, estação ⇒ até ~92. É o que faz a faixa semanal
+ * ser um parâmetro em vez de um componente novo.
  *
  * **Sem hover:** no celular o valor aparece numa leitura fixa abaixo da grade e
  * **fica lá** — nada some quando o dedo sai.
+ *
+ * **Por que o tamanho é medido, e não `aspectRatio`:** com largura percentual dentro
+ * de um `flexWrap`, o Yoga não resolve a altura pelo `aspectRatio` — as células saíam
+ * achatadas e o número encostava na base. Medir a largura no `onLayout` e derivar um
+ * lado inteiro em pixels dá célula quadrada de verdade e texto centrado.
  */
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import type { Heatmap, HeatCell, HeatStep } from '@vitale/shared';
-import { colors, spacing, radii, useThemedStyles } from '../theme';
+import { colors, spacing, useThemedStyles } from '../theme';
 
 /** Escala divergente: quente abaixo da meta, neutro em cima, frio acima. */
 const STEP_BG: Record<HeatStep, string> = {
@@ -37,6 +42,8 @@ const STEP_FG: Record<HeatStep, string> = {
 const DOW = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 const DOW_FULL = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
 const STEPS: HeatStep[] = [-3, -2, -1, 0, 1, 2];
+const GAP = 4;
+const COLS = 7;
 
 function fmt(v: number, decimals: number, unit: string): string {
   return `${v.toFixed(decimals).replace('.', ',')}${unit}`;
@@ -45,43 +52,63 @@ function fmt(v: number, decimals: number, unit: string): string {
 export function HeatmapGrid({ data }: { data: Heatmap }) {
   const styles = useThemedStyles(createStyles);
   const [sel, setSel] = useState<HeatCell | null>(null);
+  const [width, setWidth] = useState(0);
 
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && w !== width) setWidth(w);
+  };
+
+  // Lado inteiro: fração de pixel espalha o erro pelas 7 colunas e desalinha a grade.
+  const side = width > 0 ? Math.floor((width - GAP * (COLS - 1)) / COLS) : 0;
+  const cell = { width: side, height: side };
   const delta = sel?.value != null ? sel.value - data.target : null;
 
   return (
-    <View>
-      <View style={styles.head}>
-        {DOW.map((d, i) => <Text key={i} style={styles.headTxt}>{d}</Text>)}
-      </View>
+    <View onLayout={onLayout}>
+      {side > 0 && (
+        <>
+          <View style={styles.head}>
+            {DOW.map((d, i) => (
+              <Text key={i} style={[styles.headTxt, { width: side }]}>{d}</Text>
+            ))}
+          </View>
 
-      <View style={styles.grid}>
-        {Array.from({ length: data.pad }, (_, i) => (
-          <View key={`pad-${i}`} style={styles.pad} />
-        ))}
-        {data.cells.map((c) => {
-          const on = sel?.day === c.day;
-          // Não medido ≠ neutro: fundo vazado, sem número. Um jornal não finge que mediu.
-          const bg = c.step == null ? 'transparent' : STEP_BG[c.step];
-          const fg = c.step == null ? colors.ink4 : STEP_FG[c.step];
-          return (
-            <Pressable
-              key={c.day}
-              onPress={() => setSel(on ? null : c)}
-              disabled={c.value == null}
-              style={[
-                styles.cell,
-                { backgroundColor: bg },
-                c.step == null && styles.cellEmpty,
-                on && styles.cellOn,
-              ]}
-            >
-              <Text style={[styles.cellTxt, { color: fg }]}>
-                {Number(c.day.slice(8))}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+          <View style={styles.grid}>
+            {Array.from({ length: data.pad }, (_, i) => (
+              <View key={`pad-${i}`} style={cell} />
+            ))}
+            {data.cells.map((c) => {
+              const on = sel?.day === c.day;
+              // Não medido ≠ neutro, mas também não precisa gritar: fundo vazado e
+              // número apagado leem como "nada aqui" sem virar ruído visual.
+              const empty = c.step == null;
+              return (
+                <Pressable
+                  key={c.day}
+                  onPress={() => setSel(on ? null : c)}
+                  disabled={empty}
+                  style={[
+                    styles.cell,
+                    cell,
+                    !empty && { backgroundColor: STEP_BG[c.step as HeatStep] },
+                    on && styles.cellOn,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.cellTxt,
+                      { color: empty ? colors.ink4 : STEP_FG[c.step as HeatStep] },
+                    ]}
+                  >
+                    {Number(c.day.slice(8))}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      )}
 
       <View style={styles.readout}>
         <Text style={styles.readoutK}>
@@ -116,26 +143,24 @@ export function HeatmapGrid({ data }: { data: Heatmap }) {
 }
 
 const createStyles = () => StyleSheet.create({
-  head: { flexDirection: 'row', marginBottom: 5 },
-  headTxt: {
-    flex: 1, textAlign: 'center', fontSize: 9, color: colors.ink3, letterSpacing: 0.4,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  // 100/7 por célula; o gap sai da margem interna, para a grade não estourar a largura.
+  head: { flexDirection: 'row', gap: GAP, marginBottom: 5 },
+  headTxt: { textAlign: 'center', fontSize: 9, color: colors.ink3, letterSpacing: 0.4 },
+
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   cell: {
-    width: `${100 / 7}%`, aspectRatio: 1, borderRadius: radii.sm,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: 'transparent',
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  pad: { width: `${100 / 7}%`, aspectRatio: 1 },
-  cellEmpty: { borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed' },
   cellOn: { borderColor: colors.ink },
-  cellTxt: { fontSize: 10, fontWeight: '600' },
+  cellTxt: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
 
   readout: {
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
-    backgroundColor: colors.surfaceMute, borderRadius: radii.sm,
-    paddingHorizontal: 11, paddingVertical: 8, marginTop: spacing.sm, minHeight: 34,
+    backgroundColor: colors.surfaceMute, borderRadius: 10,
+    paddingHorizontal: 11, paddingVertical: 8, marginTop: spacing.md, minHeight: 34,
   },
   readoutK: { fontSize: 11.5, color: colors.ink2, flexShrink: 1 },
   readoutV: { fontSize: 13, fontWeight: '700', color: colors.ink },

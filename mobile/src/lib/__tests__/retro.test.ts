@@ -581,9 +581,10 @@ describe('buildRetroLede — a manchete (§3)', () => {
 });
 
 describe('buildHeatmap — genérico em N (§4)', () => {
-  /** Série de sono cobrindo junho/2026 inteiro. */
+  /** Série de sono cobrindo maio e junho/2026 — maio é período fechado, junho é o vivo. */
   function sono(over: Record<string, number> = {}, base = 7) {
     const m = new Map<string, number>();
+    for (let d = 1; d <= 31; d++) m.set(`2026-05-${String(d).padStart(2, '0')}`, base);
     for (let d = 1; d <= 30; d++) m.set(`2026-06-${String(d).padStart(2, '0')}`, base);
     for (const [k, v] of Object.entries(over)) m.set(k, v);
     return m;
@@ -593,12 +594,14 @@ describe('buildHeatmap — genérico em N (§4)', () => {
     icon: 'sleep' as const, decimals: 1, unit: 'h', valuesByDay,
   });
 
-  it('N vem do período: semana ⇒ 7 células, mês ⇒ 30', () => {
+  it('N vem do período: semana fechada ⇒ 7 células, mês fechado ⇒ 31', () => {
     const h = metric(sono());
-    const semana = buildHeatmap(baseInput({ kind: 'week', offset: 0, health: [h] }), 'sono');
-    const mes = buildHeatmap(baseInput({ kind: 'month', offset: 0, health: [h] }), 'sono');
+    // Períodos fechados: a grade é cheia. Para o período ao vivo, ver o describe
+    // 'dia futuro não é dia sem dado'.
+    const semana = buildHeatmap(baseInput({ kind: 'week', offset: -1, health: [h] }), 'sono');
+    const mes = buildHeatmap(baseInput({ kind: 'month', offset: -1, health: [h] }), 'sono');
     expect(semana!.cells).toHaveLength(7);
-    expect(mes!.cells).toHaveLength(30); // junho
+    expect(mes!.cells).toHaveLength(31); // maio
   });
 
   it('pad alinha a grade que começa na segunda', () => {
@@ -613,22 +616,22 @@ describe('buildHeatmap — genérico em N (§4)', () => {
 
   it('escala divergente: abaixo da meta é negativo, acima é positivo', () => {
     const h = metric(sono({
-      '2026-06-15': 4.9,  // −30%
-      '2026-06-16': 5.6,  // −20%
-      '2026-06-17': 6.4,  // −8,6%
-      '2026-06-18': 7.0,  // na meta
-      '2026-06-19': 7.3,  // +4,3%
-      '2026-06-20': 7.6,  // +8,6%
+      '2026-06-08': 4.9,  // −30%
+      '2026-06-09': 5.6,  // −20%
+      '2026-06-10': 6.4,  // −8,6%
+      '2026-06-11': 7.0,  // na meta
+      '2026-06-12': 7.3,  // +4,3%
+      '2026-06-13': 7.6,  // +8,6%
     }));
-    const s = buildHeatmap(baseInput({ kind: 'week', offset: 0, health: [h] }), 'sono')!;
+    const s = buildHeatmap(baseInput({ kind: 'week', offset: -1, health: [h] }), 'sono')!;
     expect(s.cells.map((c) => c.step).slice(0, 6)).toEqual([-3, -2, -1, 0, 1, 2]);
   });
 
   it('dia sem dado ≠ dia neutro', () => {
     const vals = sono();
-    vals.delete('2026-06-16');
-    const s = buildHeatmap(baseInput({ kind: 'week', offset: 0, health: [metric(vals)] }), 'sono')!;
-    const vazio = s.cells.find((c) => c.day === '2026-06-16')!;
+    vals.delete('2026-06-09');
+    const s = buildHeatmap(baseInput({ kind: 'week', offset: -1, health: [metric(vals)] }), 'sono')!;
+    const vazio = s.cells.find((c) => c.day === '2026-06-09')!;
     expect(vazio.value).toBeNull();
     expect(vazio.step).toBeNull();          // null, e não 0 — não medido não é "em cima da meta"
     expect(s.measured).toBe(6);
@@ -651,13 +654,13 @@ describe('buildHeatmap — genérico em N (§4)', () => {
   });
 
   it('higherIsWorse inverte o lado ruim da escala', () => {
-    const alto = new Map([['2026-06-15', 10]]);
+    const alto = new Map([['2026-06-08', 10]]);
     const bom = buildHeatmap(baseInput({
-      kind: 'week', offset: 0,
+      kind: 'week', offset: -1,
       health: [{ ...metric(alto), metric: 'sono', higherIsWorse: false }],
     }), 'sono')!;
     const ruim = buildHeatmap(baseInput({
-      kind: 'week', offset: 0,
+      kind: 'week', offset: -1,
       health: [{ ...metric(alto), metric: 'sono', higherIsWorse: true }],
     }), 'sono')!;
     expect(bom.cells[0].step).toBe(2);   // dormir mais é melhor
@@ -733,5 +736,35 @@ describe('diagramação em blocos (§6)', () => {
     expect(p.order[1]).toBe('highlights');
     expect(p.order[2]).toBe('kpis');
     expect(moveBlock(DEFAULT_RETRO_PREFS, 'lede', -1).order).toEqual(DEFAULT_RETRO_PREFS.order);
+  });
+});
+
+describe('heatmap — dia futuro não é dia sem dado', () => {
+  const metric = (valuesByDay: Map<string, number>) => ({
+    metric: 'sono', label: 'Sono', higherIsWorse: false,
+    icon: 'sleep' as const, decimals: 1, unit: 'h', valuesByDay,
+  });
+
+  it('período ao vivo para em hoje, em vez de pintar o futuro de vazio', () => {
+    // NOW = quarta, 17/06/2026. A estação Q2 vai de 01/abr a 30/jun.
+    const h = metric(new Map([['2026-06-15', 7]]));
+    const s = buildHeatmap(baseInput({ kind: 'season', offset: 0, health: [h] }), 'sono')!;
+    // 01/abr–17/jun = 78 dias. O trimestre inteiro teria 91 — as 13 de julho... não,
+    // as 13 restantes de junho seriam futuro puro.
+    expect(s.cells).toHaveLength(78);
+    expect(s.cells[s.cells.length - 1].day).toBe('2026-06-17');
+  });
+
+  it('período fechado no passado continua inteiro', () => {
+    const h = metric(new Map([['2026-05-10', 7]]));
+    const s = buildHeatmap(baseInput({ kind: 'month', offset: -1, health: [h] }), 'sono')!;
+    expect(s.cells).toHaveLength(31); // maio inteiro
+    expect(s.cells[30].day).toBe('2026-05-31');
+  });
+
+  it('a semana corrente também para em hoje', () => {
+    const h = metric(new Map([['2026-06-15', 7]]));
+    const s = buildHeatmap(baseInput({ kind: 'week', offset: 0, health: [h] }), 'sono')!;
+    expect(s.cells).toHaveLength(3); // seg 15, ter 16, qua 17
   });
 });

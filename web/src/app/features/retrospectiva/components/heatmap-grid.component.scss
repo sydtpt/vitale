@@ -44,11 +44,11 @@
   &[data-step='1']  { background: #AFC0E2; color: #26364F; }
   &[data-step='2']  { background: #6E8CC9; color: #182338; }
 
-  // Não medido ≠ neutro: vazado e tracejado. Um jornal não finge que mediu.
+  // Não medido ≠ neutro, mas também não precisa gritar: fundo vazado e número
+  // apagado leem como "nada aqui" sem encher a grade de contorno tracejado.
   &[data-empty] {
     background: transparent;
     color: var(--ink-4);
-    border: 1px dashed var(--line);
     cursor: default;
   }
 

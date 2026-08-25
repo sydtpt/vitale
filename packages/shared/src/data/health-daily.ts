@@ -34,20 +34,54 @@ export function toHealthDaily(r: HealthDailyRow, userId: string): HealthDaily {
   };
 }
 
+/**
+ * Tamanho da página. O PostgREST tem um teto **implícito** de 1000 linhas por
+ * resposta: passar dele não dá erro — os registros excedentes simplesmente não
+ * vêm, em ordem indefinida. `health_daily` grava ~9 linhas por dia (uma por
+ * métrica), então 111 dias já bastam para estourar.
+ *
+ * Foi assim que a Retrospectiva no modo Estação (≈147 dias ⇒ ~1400 linhas) passou
+ * a mostrar buraco onde havia dado. Paginar é obrigatório aqui, não otimização.
+ */
+const PAGE = 1000;
+
+/**
+ * Busca todas as páginas de uma consulta por intervalo.
+ *
+ * Ordenação estável é parte do contrato: sem `order`, duas páginas podem repetir
+ * ou pular linhas. Para quando `page` volta com menos que o tamanho da página —
+ * é a única condição de parada confiável, já que não há contagem total.
+ */
+async function fetchAllPages<T>(
+  run: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await run(from, from + PAGE - 1);
+    if (error) throw error;
+    const page = (data ?? []) as T[];
+    out.push(...page);
+    if (page.length < PAGE) return out;
+  }
+}
+
 /** Agregados diários desde `since`, em ordem cronológica. */
 export async function fetchHealthDailySince(
   db: SupabaseClient,
   userId: string,
   since: string,
 ): Promise<HealthDaily[]> {
-  const { data, error } = await db
-    .from('health_daily')
-    .select(COLUMNS)
-    .eq('user_id', userId)
-    .gte('day', since)
-    .order('day', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as HealthDailyRow[]).map((r) => toHealthDaily(r, userId));
+  const rows = await fetchAllPages<HealthDailyRow>((from, to) =>
+    db
+      .from('health_daily')
+      .select(COLUMNS)
+      .eq('user_id', userId)
+      .gte('day', since)
+      .order('day', { ascending: true })
+      .order('metric', { ascending: true })
+      .range(from, to),
+  );
+  return rows.map((r) => toHealthDaily(r, userId));
 }
 
 /** Só dia, métrica e valor — para agregados que não precisam de min/max/extra. */
@@ -56,13 +90,20 @@ export async function fetchHealthDailyValues(
   userId: string,
   since: string,
 ): Promise<Array<{ day: string; metric: string; value: number | null }>> {
-  const { data, error } = await db
-    .from('health_daily')
-    .select('day,metric,value')
-    .eq('user_id', userId)
-    .gte('day', since);
-  if (error) throw error;
-  return ((data ?? []) as Array<{ day: string; metric: string; value: number | string | null }>).map(
-    (r) => ({ day: r.day, metric: r.metric, value: r.value == null ? null : Number(r.value) }),
+  const rows = await fetchAllPages<{ day: string; metric: string; value: number | string | null }>(
+    (from, to) =>
+      db
+        .from('health_daily')
+        .select('day,metric,value')
+        .eq('user_id', userId)
+        .gte('day', since)
+        .order('day', { ascending: true })
+        .order('metric', { ascending: true })
+        .range(from, to),
   );
+  return rows.map((r) => ({
+    day: r.day,
+    metric: r.metric,
+    value: r.value == null ? null : Number(r.value),
+  }));
 }
