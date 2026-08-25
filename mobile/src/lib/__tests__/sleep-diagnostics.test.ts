@@ -86,3 +86,27 @@ describe('marcarNoitesVazias', () => {
     expect(d.perdidas).toBe(1);
   });
 });
+
+describe('amostra degenerada — o caso de 03/08/2026', () => {
+  /** Uma única amostra CORE com duração zero: o que apareceu no aparelho. */
+  function zeroLen(label: string, d: number): Sample {
+    const t = new Date(2026, 7, d, 3, 0, 0).toISOString();
+    return { value: 0, start: t, end: t, label };
+  }
+
+  it('rótulo de sono sem intervalo válido não vira "AWAKE cobriu tudo"', () => {
+    const diag = diagnoseSleepNights([zeroLen('CORE', 3)]);
+    expect(diag.nights[0].verdict).toBe('degenerada');
+    expect(diag.nights[0].labels).toEqual({ CORE: 1 });
+    // Dado quebrado na origem não conta como perda nossa.
+    expect(diag.perdidas).toBe(0);
+    expect(diag.degeneradas).toBe(1);
+  });
+
+  it('anulada continua exigindo sono com duração de verdade', () => {
+    const diag = diagnoseSleepNights([trecho('ASLEEP', 3, 2, 4), trecho('AWAKE', 3, 2, 4)]);
+    expect(diag.nights[0].verdict).toBe('anulada');
+    expect(diag.perdidas).toBe(1);
+    expect(diag.degeneradas).toBe(0);
+  });
+});

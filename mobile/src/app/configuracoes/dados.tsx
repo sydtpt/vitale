@@ -17,6 +17,7 @@ const VEREDITO: Record<SleepVerdict, { texto: string; cor: string }> = {
   ok: { texto: 'registrada', cor: '#6FA86A' },
   'sem-estagio': { texto: 'perdida — só INBED', cor: '#D9491B' },
   anulada: { texto: 'perdida — AWAKE cobriu tudo', cor: '#D9491B' },
+  degenerada: { texto: 'amostra sem duração na origem', cor: '#C08A2E' },
   'sem-amostra': { texto: 'sem amostra no aparelho', cor: colors.ink3 },
 };
 
@@ -151,6 +152,7 @@ export default function DadosScreen() {
               <View style={styles.resumo}>
                 <Resumo n={sono.ok} label="registradas" cor="#6FA86A" styles={styles} />
                 <Resumo n={sono.perdidas} label="perdidas" cor="#D9491B" styles={styles} />
+                <Resumo n={sono.degeneradas} label="quebradas" cor="#C08A2E" styles={styles} />
                 <Resumo n={sono.semAmostra} label="sem amostra" cor={colors.ink3} styles={styles} />
               </View>
               <Text style={styles.diagNota}>
@@ -201,7 +203,7 @@ const createStyles = () => StyleSheet.create({
   diagHeader: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xl },
   diagActions: { flexDirection: 'row', gap: spacing.md, marginLeft: 'auto', marginBottom: spacing.sm },
   diagPlay: { marginLeft: 'auto', marginBottom: spacing.sm },
-  resumo: { flexDirection: 'row', paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.xl },
+  resumo: { flexDirection: 'row', paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.lg },
   resumoBloco: { alignItems: 'flex-start' },
   resumoN: { fontSize: 22, fontWeight: '700' },
   resumoLabel: { fontSize: 11, color: colors.ink3 },
