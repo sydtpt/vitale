@@ -11,9 +11,10 @@ import {
   type RoutePoint,
   type PermissionStatus,
 } from '../lib/healthkit-workouts';
-import { syncType as runSyncType, syncDelta as runSyncDelta } from '../services/activity-sync';
+import { syncType as runSyncType, syncDelta as runSyncDelta, type SyncResult } from '../services/activity-sync';
 import { loadSyncedTypes, unsubscribeType as removeSyncedType } from '../lib/synced-types';
 import { notifyActivitySync, notifyAutoTasks } from '../services/notifications';
+import { useActivitiesStore } from './activities.store';
 
 // Re-export para manter os imports existentes das telas (`from '../store/fitness.store'`).
 export {
@@ -32,6 +33,20 @@ export type {
 
 /** Estado de sincronização de um tipo de treino (label), refletido no card. */
 export type TypeSyncStatus = 'unsubscribed' | 'syncing' | 'synced' | 'pending' | 'error';
+
+/**
+ * Recarrega a lista analítica depois de um push que subiu algo.
+ *
+ * `activities.store.load()` é cacheado por `loaded`, e as telas de tab ficam
+ * montadas: a atividade recém-sincronizada só apareceria no Histórico depois de
+ * fechar e reabrir o app (o único momento em que a store nasce de novo), ou numa
+ * volta ao primeiro plano. Nada disso acontece quando o sync roda com o app já
+ * aberto — que é justamente quando a notificação chega e o usuário vai olhar.
+ * `force` é obrigatório: sem ele o load é no-op.
+ */
+function refreshActivityList(result: SyncResult): void {
+  if (result.pushed > 0) void useActivitiesStore.getState().load(true);
+}
 
 function workoutDedupeKey(workout: Pick<WorkoutItem, 'activityId' | 'start' | 'end'>): string {
   return `${workout.activityId}|${new Date(workout.start).getTime()}|${new Date(workout.end).getTime()}`;
@@ -246,6 +261,7 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
         syncError: { ...state.syncError, [label]: hadError ? result.error ?? 'Falha no sync' : null },
       };
     });
+    refreshActivityList(result);
   },
 
   syncDeltaForLabel: async (label: string) => {
@@ -276,6 +292,7 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
         syncError: { ...state.syncError, [label]: hadError ? result.error ?? 'Falha no sync' : null },
       };
     });
+    refreshActivityList(result);
   },
 
   unsubscribeType: async (label: string) => {
@@ -303,8 +320,9 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
       }
       return { typeStatus, lastSyncedAt };
     });
+    refreshActivityList(result);
     // Notificações de evento (separadas por tipo; cada uma respeita seu toggle).
-    if (result.pushed > 0) void notifyActivitySync(result.pushed);
+    void notifyActivitySync(result.syncedActivities ?? []);
     if ((result.tasksCreated ?? 0) > 0) void notifyAutoTasks(result.tasksCreated ?? 0);
   },
 }));
