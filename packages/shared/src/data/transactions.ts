@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FinanceTransaction } from '../models';
+import { fetchAllPages } from './paginate';
 
 const COLUMNS = 'id, tx_date, description, category, amount';
 
@@ -34,14 +35,16 @@ export async function fetchTransactionsSince(
   userId: string,
   since: string,
 ): Promise<FinanceTransaction[]> {
-  const { data, error } = await db
-    .from('transactions')
-    .select(COLUMNS)
-    .eq('user_id', userId)
-    .gte('tx_date', since)
-    .order('tx_date', { ascending: false });
-  if (error) throw error;
-  return ((data ?? []) as TransactionRow[]).map(toFinanceTransaction);
+  const data = await fetchAllPages<TransactionRow>((lo, hi) =>
+    db
+      .from('transactions')
+      .select(COLUMNS)
+      .eq('user_id', userId)
+      .gte('tx_date', since)
+      .order('tx_date', { ascending: false })
+      .range(lo, hi),
+  );
+  return data.map(toFinanceTransaction);
 }
 
 /** Registra uma transação e devolve o modelo criado. */

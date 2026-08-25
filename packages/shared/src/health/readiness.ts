@@ -32,6 +32,19 @@ export interface ReadinessScore {
   /** 0–100 (média ponderada dos componentes presentes); 0 se nenhum. */
   total: number;
   components: ReadinessComponent[];
+  /**
+   * Fração 0–1 do peso total que estava disponível.
+   *
+   * A média renormaliza sobre os componentes presentes, então um score sem VFC
+   * **parece** tão confiável quanto um completo. Foi o que aconteceu na prática: a
+   * VFC parou de chegar em 17/07/2026 (o Garmin não escreve HRV no Apple Health) e
+   * a prontidão passou a rodar com 75% da informação sem avisar ninguém.
+   *
+   * Quem exibe o score deve exibir isto quando for < 1.
+   */
+  coverage: number;
+  /** Componentes que faltaram. Vazio quando `coverage === 1`. */
+  missing: ReadinessComponent['key'][];
 }
 
 /** Meta de sono (h) para o sub-score chegar a 100. */
@@ -110,5 +123,11 @@ export function computeReadiness(input: ReadinessInput): ReadinessScore {
       ? Math.round(components.reduce((a, c) => a + c.score * c.weight, 0) / totalWeight)
       : 0;
 
-  return { total, components };
+  const pesoCheio = Object.values(WEIGHTS).reduce((a, w) => a + w, 0);
+  const presentes = new Set(components.map((c) => c.key));
+  const missing = (Object.keys(WEIGHTS) as ReadinessComponent['key'][]).filter(
+    (k) => !presentes.has(k),
+  );
+
+  return { total, components, coverage: totalWeight / pesoCheio, missing };
 }

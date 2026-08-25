@@ -51,7 +51,17 @@ export type BreadcrumbEvent =
    */
   | 'bg-config'
   /** Um ciclo de delta terminou. */
-  | 'delta';
+  | 'delta'
+  /**
+   * Uma consulta ao HealthKit falhou.
+   *
+   * O provider degrada para lista vazia em vez de propagar o erro — decisão
+   * deliberada, porque uma métrica indisponível não pode derrubar o sync das
+   * outras. Mas sem registro isso é indistinguível de "não há dado", e o sintoma
+   * aparece semanas depois como buraco no histórico. O detalhe traz o tipo
+   * consultado e a mensagem.
+   */
+  | 'hk-query-fail';
 
 export interface Breadcrumb {
   /** ISO 8601. */

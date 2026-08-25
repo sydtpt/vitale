@@ -23,6 +23,11 @@ import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../the
 
 const CHART_W = Dimensions.get('window').width - spacing.lg * 2 - 28;
 
+/** Nome legível de cada componente, para nomear o que faltou. */
+const CAT_LABEL: Record<string, string> = {
+  sono: 'sono', fcRepouso: 'FC de repouso', vfc: 'VFC', aneis: 'anéis',
+};
+
 const CAT_COLOR: Record<string, string> = {
   sono: MOD.agua.accent,
   fcRepouso: MOD.compras.accent,
@@ -207,6 +212,14 @@ export default function RecuperacaoScreen() {
                     <Text style={styles.barVal}>{c.score}</Text>
                   </View>
                 ))}
+                {/* Score parcial precisa se declarar: renormalizado sobre menos
+                    sinais, ele parece tão confiável quanto um completo. */}
+                {wellness.coverage < 1 && wellness.missing.length > 0 && (
+                  <Text style={styles.parcial}>
+                    Score parcial — {Math.round(wellness.coverage * 100)}% dos sinais.
+                    Sem dado de {wellness.missing.map((m) => CAT_LABEL[m] ?? m).join(', ')}.
+                  </Text>
+                )}
               </>
             )}
           </View>
@@ -283,6 +296,7 @@ const createStyles = () => StyleSheet.create({
   barLbl: { width: 120, fontSize: 12.5, color: colors.ink2 },
   track: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMute, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4 },
+  parcial: { fontSize: 11.5, color: colors.ink3, marginTop: 8, lineHeight: 16 },
   barVal: { width: 26, textAlign: 'right', fontSize: 12.5, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
 
   trendHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CulturaItem } from '../models/index';
 import { isTipoConhecido, type CulturaEstado, type CulturaTipo } from '../cultura/tipos';
+import { fetchAllPages } from './paginate';
 import {
   normalizarIndicadoPor,
   resolverPatch,
@@ -104,16 +105,19 @@ export async function fetchCulturaItemsNaJanela(
   ate: string,
   hoje: string,
 ): Promise<CulturaItem[]> {
-  const { data, error } = await db
-    .from('cultura_items')
-    .select(COLUMNS)
-    .eq('user_id', userId)
-    .neq('estado', 'quero')
-    .lte('iniciado_em', ate)
-    .or(`concluido_em.gte.${de},and(concluido_em.is.null,${quoteDate(hoje)}.gte.${de})`)
-    .order('iniciado_em', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as CulturaItemRow[])
+  const data = await fetchAllPages<CulturaItemRow>((lo, hi) =>
+    db
+      .from('cultura_items')
+      .select(COLUMNS)
+      .eq('user_id', userId)
+      .neq('estado', 'quero')
+      .lte('iniciado_em', ate)
+      .or(`concluido_em.gte.${de},and(concluido_em.is.null,${quoteDate(hoje)}.gte.${de})`)
+      .order('iniciado_em', { ascending: true })
+      .order('id', { ascending: true })
+      .range(lo, hi),
+  );
+  return data
     .map(toCulturaItem)
     .filter((i) => (i.concluidoEm ?? hoje) >= de);
 }

@@ -9,6 +9,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PlannedWorkout } from '../models';
+import { fetchAllPages } from './paginate';
 
 const COLUMNS = 'id,plan_date,type,kind,dur_min,dist_km,sort,created_at';
 
@@ -45,15 +46,17 @@ export async function fetchPlannedWorkouts(
   fromDate: string,
   toDate: string,
 ): Promise<PlannedWorkout[]> {
-  const { data, error } = await db
-    .from('planned_workouts')
-    .select(COLUMNS)
-    .eq('user_id', userId)
-    .gte('plan_date', fromDate)
-    .lte('plan_date', toDate)
-    .order('sort', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as PlannedWorkoutRow[]).map(toPlannedWorkout);
+  const data = await fetchAllPages<PlannedWorkoutRow>((lo, hi) =>
+    db
+      .from('planned_workouts')
+      .select(COLUMNS)
+      .eq('user_id', userId)
+      .gte('plan_date', fromDate)
+      .lte('plan_date', toDate)
+      .order('sort', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toPlannedWorkout);
 }
 
 /** Campos aceitos na criação. `sort` é calculado pelo chamador. */

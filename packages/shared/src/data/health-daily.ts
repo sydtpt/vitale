@@ -71,7 +71,7 @@ export async function fetchHealthDailySince(
   userId: string,
   since: string,
 ): Promise<HealthDaily[]> {
-  const rows = await fetchAllPages<HealthDailyRow>((from, to) =>
+  const rows = await fetchAllPages<HealthDailyRow>((lo, hi) =>
     db
       .from('health_daily')
       .select(COLUMNS)
@@ -79,7 +79,7 @@ export async function fetchHealthDailySince(
       .gte('day', since)
       .order('day', { ascending: true })
       .order('metric', { ascending: true })
-      .range(from, to),
+      .range(lo, hi),
   );
   return rows.map((r) => toHealthDaily(r, userId));
 }
@@ -91,7 +91,7 @@ export async function fetchHealthDailyValues(
   since: string,
 ): Promise<Array<{ day: string; metric: string; value: number | null }>> {
   const rows = await fetchAllPages<{ day: string; metric: string; value: number | string | null }>(
-    (from, to) =>
+    (lo, hi) =>
       db
         .from('health_daily')
         .select('day,metric,value')
@@ -99,7 +99,7 @@ export async function fetchHealthDailyValues(
         .gte('day', since)
         .order('day', { ascending: true })
         .order('metric', { ascending: true })
-        .range(from, to),
+        .range(lo, hi),
   );
   return rows.map((r) => ({
     day: r.day,

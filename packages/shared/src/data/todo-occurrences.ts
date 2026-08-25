@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TodoOccurrence, TodoStatus } from '../models';
+import { fetchAllPages } from './paginate';
 
 export interface TodoOccurrenceRow {
   id: string;
@@ -111,14 +112,17 @@ export async function fetchDoneTodoOccurrencesSince(
   userId: string,
   since: string,
 ): Promise<TodoOccurrence[]> {
-  const { data, error } = await db
-    .from('todo_occurrences')
-    .select('id,template_id,due_date,status,done_at,created_at')
-    .eq('user_id', userId)
-    .eq('status', 'done')
-    .gte('done_at', `${since}T00:00:00`);
-  if (error) throw error;
-  return ((data ?? []) as TodoOccurrenceRow[]).map((r) =>
+  const data = await fetchAllPages<TodoOccurrenceRow>((lo, hi) =>
+    db
+      .from('todo_occurrences')
+      .select('id,template_id,due_date,status,done_at,created_at')
+      .eq('user_id', userId)
+      .eq('status', 'done')
+      .gte('done_at', `${since}T00:00:00`)
+      .order('done_at', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map((r) =>
     toTodoOccurrence({ ...r, meta: null }),
   );
 }

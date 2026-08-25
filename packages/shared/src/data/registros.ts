@@ -11,6 +11,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Registro, RegistroLog, TodoModule } from '../models';
+import { fetchAllPages } from './paginate';
 
 const REGISTRO_COLUMNS = 'id,name,icon,color,module,active,sort,created_at';
 
@@ -127,14 +128,16 @@ export async function fetchRegistroLogsSince(
   userId: string,
   since: string,
 ): Promise<RegistroLog[]> {
-  const { data, error } = await db
-    .from('registro_logs')
-    .select('id,registro_id,log_date')
-    .eq('user_id', userId)
-    .gte('log_date', since)
-    .order('log_date', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as RegistroLogRow[]).map(toRegistroLog);
+  const data = await fetchAllPages<RegistroLogRow>((lo, hi) =>
+    db
+      .from('registro_logs')
+      .select('id,registro_id,log_date')
+      .eq('user_id', userId)
+      .gte('log_date', since)
+      .order('log_date', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toRegistroLog);
 }
 
 /** Todas as datas marcadas de um registro — base do heatmap completo. */
@@ -143,13 +146,16 @@ export async function fetchRegistroLogDates(
   userId: string,
   registroId: string,
 ): Promise<string[]> {
-  const { data, error } = await db
-    .from('registro_logs')
-    .select('log_date')
-    .eq('user_id', userId)
-    .eq('registro_id', registroId);
-  if (error) throw error;
-  return ((data ?? []) as Array<{ log_date: string }>).map((r) => r.log_date);
+  const data = await fetchAllPages<{ log_date: string }>((lo, hi) =>
+    db
+      .from('registro_logs')
+      .select('log_date')
+      .eq('user_id', userId)
+      .eq('registro_id', registroId)
+      .order('log_date', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map((r) => r.log_date);
 }
 
 /**
@@ -192,12 +198,15 @@ export async function fetchRegistroLogsBetween(
   from: string,
   to: string,
 ): Promise<RegistroLog[]> {
-  const { data, error } = await db
-    .from('registro_logs')
-    .select('id,registro_id,log_date')
-    .eq('user_id', userId)
-    .gte('log_date', from)
-    .lte('log_date', to);
-  if (error) throw error;
-  return ((data ?? []) as RegistroLogRow[]).map(toRegistroLog);
+  const data = await fetchAllPages<RegistroLogRow>((lo, hi) =>
+    db
+      .from('registro_logs')
+      .select('id,registro_id,log_date')
+      .eq('user_id', userId)
+      .gte('log_date', from)
+      .lte('log_date', to)
+      .order('log_date', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toRegistroLog);
 }

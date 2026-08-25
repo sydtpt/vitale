@@ -7,6 +7,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { HabitLog } from '../models';
+import { fetchAllPages } from './paginate';
 
 export interface HabitLogRow {
   id: string;
@@ -26,13 +27,16 @@ export async function fetchHabitLogsSince(
   userId: string,
   since: string,
 ): Promise<HabitLog[]> {
-  const { data, error } = await db
-    .from('habit_logs')
-    .select('id,habit_id,log_date,value')
-    .eq('user_id', userId)
-    .gte('log_date', since);
-  if (error) throw error;
-  return ((data ?? []) as HabitLogRow[]).map(toHabitLog);
+  const data = await fetchAllPages<HabitLogRow>((lo, hi) =>
+    db
+      .from('habit_logs')
+      .select('id,habit_id,log_date,value')
+      .eq('user_id', userId)
+      .gte('log_date', since)
+      .order('log_date', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toHabitLog);
 }
 
 /** Registros num intervalo fechado de datas — base do heatmap mensal. */
@@ -42,14 +46,17 @@ export async function fetchHabitLogsBetween(
   from: string,
   to: string,
 ): Promise<HabitLog[]> {
-  const { data, error } = await db
-    .from('habit_logs')
-    .select('id,habit_id,log_date,value')
-    .eq('user_id', userId)
-    .gte('log_date', from)
-    .lte('log_date', to);
-  if (error) throw error;
-  return ((data ?? []) as HabitLogRow[]).map(toHabitLog);
+  const data = await fetchAllPages<HabitLogRow>((lo, hi) =>
+    db
+      .from('habit_logs')
+      .select('id,habit_id,log_date,value')
+      .eq('user_id', userId)
+      .gte('log_date', from)
+      .lte('log_date', to)
+      .order('log_date', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toHabitLog);
 }
 
 /** Registros desde `since`, em ordem cronológica. */
@@ -58,12 +65,14 @@ export async function fetchHabitLogsSinceOrdered(
   userId: string,
   since: string,
 ): Promise<HabitLog[]> {
-  const { data, error } = await db
-    .from('habit_logs')
-    .select('id,habit_id,log_date,value')
-    .eq('user_id', userId)
-    .gte('log_date', since)
-    .order('log_date', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as HabitLogRow[]).map(toHabitLog);
+  const data = await fetchAllPages<HabitLogRow>((lo, hi) =>
+    db
+      .from('habit_logs')
+      .select('id,habit_id,log_date,value')
+      .eq('user_id', userId)
+      .gte('log_date', since)
+      .order('log_date', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toHabitLog);
 }

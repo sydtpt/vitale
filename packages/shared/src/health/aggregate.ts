@@ -245,6 +245,14 @@ export interface WellnessSummary {
   overall: number | null;
   /** Componentes de prontidão como categorias (Sono, FC, VFC, Anéis). */
   categories: { key: string; label: string; score: number }[];
+  /**
+   * Fração 0–1 do peso de prontidão disponível. Menor que 1 significa que o score
+   * foi renormalizado sobre menos sinais — quem exibe precisa dizer isso, senão
+   * um score parcial passa por completo. Ver `computeReadiness`.
+   */
+  coverage: number;
+  /** Componentes ausentes, para nomear o que faltou. */
+  missing: string[];
   sport: {
     /** Treinos na semana corrente. */
     sessions: number;
@@ -284,6 +292,8 @@ export function wellnessSummary(
   return {
     overall: score ? score.total : null,
     categories: (score?.components ?? []).map((c) => ({ key: c.key, label: c.label, score: Math.round(c.score) })),
+    coverage: score?.coverage ?? 0,
+    missing: score?.missing ?? [],
     sport: { sessions, hardMin: Math.round(weekHard), loadLabel: loadTone(weekHard) },
   };
 }

@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DailyRating } from '../models';
+import { fetchAllPages } from './paginate';
 
 const COLUMNS = 'day,sleep_quality,day_quality,day_note';
 
@@ -34,14 +35,16 @@ export async function fetchDailyRatingsSince(
   userId: string,
   since: string,
 ): Promise<DailyRating[]> {
-  const { data, error } = await db
-    .from('daily_ratings')
-    .select(COLUMNS)
-    .eq('user_id', userId)
-    .gte('day', since)
-    .order('day', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as DailyRatingRow[]).map(toDailyRating);
+  const data = await fetchAllPages<DailyRatingRow>((lo, hi) =>
+    db
+      .from('daily_ratings')
+      .select(COLUMNS)
+      .eq('user_id', userId)
+      .gte('day', since)
+      .order('day', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toDailyRating);
 }
 
 /** Só as duas notas — para agregados que não precisam da anotação. */
@@ -50,13 +53,16 @@ export async function fetchDailyRatingScores(
   userId: string,
   since: string,
 ): Promise<Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>> {
-  const { data, error } = await db
-    .from('daily_ratings')
-    .select('day,sleep_quality,day_quality')
-    .eq('user_id', userId)
-    .gte('day', since);
-  if (error) throw error;
-  return ((data ?? []) as DailyRatingRow[]).map((r) => ({
+  const data = await fetchAllPages<DailyRatingRow>((lo, hi) =>
+    db
+      .from('daily_ratings')
+      .select('day,sleep_quality,day_quality')
+      .eq('user_id', userId)
+      .gte('day', since)
+      .order('day', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map((r) => ({
     day: r.day,
     sleepQuality: r.sleep_quality,
     dayQuality: r.day_quality,

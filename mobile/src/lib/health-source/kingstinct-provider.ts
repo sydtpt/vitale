@@ -24,6 +24,7 @@
  * `LEGACY_DEFAULT_UNIT`; esta troca preserva comportamento, não conserta bug.
  */
 import { Platform } from 'react-native';
+import { recordBreadcrumb } from '../sync-breadcrumbs';
 import {
   configureBackgroundTypes,
   getBiologicalSexAsync,
@@ -120,6 +121,21 @@ const metersToMiles = (m: number) => m / METERS_PER_MILE;
  * react-native-health devolvia nativamente em `.value` para este tipo, apesar
  * do contrato tipar `RawSample.value` como `number`.
  */
+/**
+ * Degrada uma consulta que falhou para o valor vazio, **registrando antes**.
+ *
+ * Devolver `[]` no erro é deliberado: uma métrica indisponível não pode derrubar
+ * o sync das outras. O problema era fazer isso em silêncio — o resultado ficava
+ * indistinguível de "não há dado", e o sintoma só aparecia semanas depois como
+ * buraco no histórico. Agora a falha vira migalha, visível em Configurações › Dados.
+ */
+function degradar<T>(tipo: string, vazio: T): (e: unknown) => T {
+  return (e) => {
+    void recordBreadcrumb('hk-query-fail', `${tipo}: ${e instanceof Error ? e.message : String(e)}`);
+    return vazio;
+  };
+}
+
 const SLEEP_LABEL: Record<number, string> = {
   0: 'INBED',
   1: 'ASLEEP',
@@ -326,7 +342,7 @@ export const kingstinctHealthSource: HealthSource = {
           endDate: s.endDate.toISOString(),
         })),
       )
-      .catch(() => []);
+      .catch(degradar(String(type), []));
   },
 
   queryAggregatedSamples(type, options) {
@@ -349,7 +365,7 @@ export const kingstinctHealthSource: HealthSource = {
             endDate: b.endDate!.toISOString(),
           })),
       )
-      .catch(() => []);
+      .catch(degradar(String(type), []));
   },
 
   querySourcedSamples(type, options): Promise<RawSourcedSample[]> {
@@ -368,7 +384,7 @@ export const kingstinctHealthSource: HealthSource = {
           sourceName: sourceOf(s.sourceRevision).name,
         })),
       )
-      .catch(() => []);
+      .catch(degradar(String(type), []));
   },
 
   queryCategorySamples(type, options) {
@@ -387,7 +403,7 @@ export const kingstinctHealthSource: HealthSource = {
           endDate: s.endDate.toISOString(),
         })),
       )
-      .catch(() => []);
+      .catch(degradar(String(type), []));
   },
 
   queryWorkouts({ startDate, endDate, limit, ascending, anchor }) {
@@ -407,7 +423,7 @@ export const kingstinctHealthSource: HealthSource = {
         ascending: false,
       })
         .then((workouts) => ({ workouts: workouts.map((w) => toRawWorkout(w as unknown as WorkoutProxyLike)), anchor: anchor ?? '' }))
-        .catch(() => ({ workouts: [], anchor: anchor ?? '' }));
+        .catch(degradar('workouts', { workouts: [], anchor: anchor ?? '' }));
     }
     return queryWorkoutSamplesWithAnchor({
       filter: { date: { startDate: from } },
@@ -418,7 +434,7 @@ export const kingstinctHealthSource: HealthSource = {
         workouts: r.workouts.map((w) => toRawWorkout(w as unknown as WorkoutProxyLike)),
         anchor: r.newAnchor || anchor || '',
       }))
-      .catch(() => ({ workouts: [], anchor: anchor ?? '' }));
+      .catch(degradar('workouts', { workouts: [], anchor: anchor ?? '' }));
   },
 
   async queryWorkoutRoute(workoutId) {
