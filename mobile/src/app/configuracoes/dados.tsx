@@ -9,6 +9,16 @@ import {
   readBreadcrumbs,
   type Breadcrumb,
 } from '../../lib/sync-breadcrumbs';
+import { type SleepDiagSummary, type SleepVerdict } from '../../lib/sleep-diagnostics';
+import { diagnosticarSonoNoAparelho } from '../../services/sleep-diagnostics';
+
+/** Rótulo e cor por veredito. Perda nossa é laranja; ausência real é neutra. */
+const VEREDITO: Record<SleepVerdict, { texto: string; cor: string }> = {
+  ok: { texto: 'registrada', cor: '#6FA86A' },
+  'sem-estagio': { texto: 'perdida — só INBED', cor: '#D9491B' },
+  anulada: { texto: 'perdida — AWAKE cobriu tudo', cor: '#D9491B' },
+  'sem-amostra': { texto: 'sem amostra no aparelho', cor: colors.ink3 },
+};
 
 /** Dia + hora local. O dia importa: as migalhas atravessam o app fechado. */
 function formatarMomento(iso: string): string {
@@ -18,11 +28,25 @@ function formatarMomento(iso: string): string {
   return hoje ? hora : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hora}`;
 }
 
+/** Um número do resumo do diagnóstico de sono. */
+function Resumo({ n, label, cor, styles }: {
+  n: number; label: string; cor: string; styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.resumoBloco}>
+      <Text style={[styles.resumoN, { color: cor }]}>{n}</Text>
+      <Text style={styles.resumoLabel}>{label}</Text>
+    </View>
+  );
+}
+
 export default function DadosScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [migalhas, setMigalhas] = useState<Breadcrumb[]>([]);
+  const [sono, setSono] = useState<(SleepDiagSummary & { amostrasLidas: number }) | null>(null);
+  const [rodando, setRodando] = useState(false);
 
   const carregar = useCallback(() => {
     void readBreadcrumbs().then(setMigalhas);
@@ -32,6 +56,14 @@ export default function DadosScreen() {
 
   const exportData = () => {
     Alert.alert('Em breve', 'A exportação de dados estará disponível em uma próxima versão.');
+  };
+
+  const rodarDiagSono = () => {
+    setRodando(true);
+    diagnosticarSonoNoAparelho(60)
+      .then(setSono)
+      .catch((e: unknown) => Alert.alert('Falhou', String(e)))
+      .finally(() => setRodando(false));
   };
 
   const limpar = () => {
@@ -98,6 +130,55 @@ export default function DadosScreen() {
           sincronizar. Nenhuma migalha nova enquanto o app esteve fechado significa que o
           iOS nunca o acordou.
         </Text>
+
+        {/* Diagnóstico de sono — separa "o relógio não gravou" de "o app perdeu".
+            Lê as amostras cruas do HealthKit e compara com o que a agregação produz. */}
+        <View style={styles.diagHeader}>
+          <Text style={styles.sectionTitle}>Noites de sono</Text>
+          <Pressable onPress={rodarDiagSono} disabled={rodando} hitSlop={10}
+            style={({ pressed }) => [styles.diagPlay, pressed && styles.pressed]}>
+            <Ionicons name={rodando ? 'hourglass-outline' : 'play-outline'} size={17} color={colors.ink3} />
+          </Pressable>
+        </View>
+
+        <View style={styles.card}>
+          {sono == null ? (
+            <Text style={styles.vazio}>
+              {rodando ? 'Lendo o HealthKit…' : 'Toque em ▶ para analisar os últimos 60 dias.'}
+            </Text>
+          ) : (
+            <>
+              <View style={styles.resumo}>
+                <Resumo n={sono.ok} label="registradas" cor="#6FA86A" styles={styles} />
+                <Resumo n={sono.perdidas} label="perdidas" cor="#D9491B" styles={styles} />
+                <Resumo n={sono.semAmostra} label="sem amostra" cor={colors.ink3} styles={styles} />
+              </View>
+              <Text style={styles.diagNota}>
+                {sono.amostrasLidas} amostras cruas lidas. “Perdidas” são noites em que o
+                HealthKit tem dado e a agregação não produziu linha — perda nossa.
+                {sono.amostrasLidas === 0
+                  ? ' Zero amostras em 60 dias é sinal de consulta falhando, não de ausência.'
+                  : ''}
+              </Text>
+              {sono.nights
+                .filter((n) => n.verdict !== 'ok')
+                .slice(0, 40)
+                .map((n) => (
+                  <View key={n.day} style={styles.migalha}>
+                    <Text style={styles.migalhaHora}>{n.day}</Text>
+                    <Text style={[styles.migalhaEvento, { color: VEREDITO[n.verdict].cor }]}>
+                      {VEREDITO[n.verdict].texto}
+                    </Text>
+                    {n.samples > 0 ? (
+                      <Text style={styles.migalhaDetalhe}>
+                        {Object.entries(n.labels).map(([l, c]) => `${l}×${c}`).join(' · ')}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+            </>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -119,6 +200,11 @@ const createStyles = () => StyleSheet.create({
 
   diagHeader: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xl },
   diagActions: { flexDirection: 'row', gap: spacing.md, marginLeft: 'auto', marginBottom: spacing.sm },
+  diagPlay: { marginLeft: 'auto', marginBottom: spacing.sm },
+  resumo: { flexDirection: 'row', paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.xl },
+  resumoBloco: { alignItems: 'flex-start' },
+  resumoN: { fontSize: 22, fontWeight: '700' },
+  resumoLabel: { fontSize: 11, color: colors.ink3 },
   vazio: { fontSize: 14, color: colors.ink3, padding: spacing.lg },
   migalha: {
     flexDirection: 'row',

@@ -1,0 +1,88 @@
+import { describe, it, expect } from '@jest/globals';
+import { diagnoseSleepNights, marcarNoitesVazias } from '../sleep-diagnostics';
+import type { Sample } from '../health-buckets';
+
+/** Amostra de sono: rótulo + janela local. `d` é o dia em que ACORDA. */
+function s(label: string, d: number, hIni: number, hFim: number): Sample {
+  const noite = new Date(2026, 7, d - 1, hIni, 0, 0);   // deitou no dia anterior
+  const manha = new Date(2026, 7, d, hFim, 0, 0);
+  return { value: 0, start: noite.toISOString(), end: manha.toISOString(), label };
+}
+/** Trecho dentro da mesma madrugada (não atravessa a meia-noite duas vezes). */
+function trecho(label: string, d: number, hIni: number, hFim: number): Sample {
+  return {
+    value: 0,
+    start: new Date(2026, 7, d, hIni, 0, 0).toISOString(),
+    end: new Date(2026, 7, d, hFim, 0, 0).toISOString(),
+    label,
+  };
+}
+
+describe('diagnoseSleepNights', () => {
+  it('noite normal com estágio detalhado vira ok, com as horas', () => {
+    const d = diagnoseSleepNights([s('INBED', 10, 23, 7), s('CORE', 10, 23, 7)]);
+    expect(d.nights).toHaveLength(1);
+    expect(d.nights[0].verdict).toBe('ok');
+    expect(d.nights[0].hours).toBeCloseTo(8, 1);
+    expect(d.ok).toBe(1);
+    expect(d.perdidas).toBe(0);
+  });
+
+  it('SÓ INBED é a noite que some calada — a hipótese das 54 noites perdidas', () => {
+    const d = diagnoseSleepNights([s('INBED', 10, 23, 7)]);
+    expect(d.nights[0].verdict).toBe('sem-estagio');
+    expect(d.nights[0].samples).toBe(1);
+    expect(d.nights[0].labels).toEqual({ INBED: 1 });
+    expect(d.nights[0].hours).toBeNull();
+    expect(d.perdidas).toBe(1);
+  });
+
+  it('INBED + AWAKE, sem nada dormindo, também é perda nossa', () => {
+    const d = diagnoseSleepNights([s('INBED', 10, 23, 7), trecho('AWAKE', 10, 2, 3)]);
+    expect(d.nights[0].verdict).toBe('sem-estagio');
+    expect(Object.keys(d.nights[0].labels).sort()).toEqual(['AWAKE', 'INBED']);
+  });
+
+  it('sono inteiramente coberto por AWAKE cai como anulada, não como ok', () => {
+    const d = diagnoseSleepNights([trecho('ASLEEP', 10, 2, 4), trecho('AWAKE', 10, 2, 4)]);
+    expect(d.nights[0].verdict).toBe('anulada');
+    expect(d.perdidas).toBe(1);
+  });
+
+  it('agrupa pelo dia em que ACORDOU, igual ao agregador', () => {
+    // Deita 23h do dia 9, acorda 7h do dia 10 → a noite é do dia 10.
+    const d = diagnoseSleepNights([s('ASLEEP', 10, 23, 7)]);
+    expect(d.nights[0].day).toBe('2026-08-10');
+  });
+
+  it('lista a mais recente primeiro', () => {
+    const d = diagnoseSleepNights([s('ASLEEP', 10, 23, 7), s('ASLEEP', 12, 23, 7)]);
+    expect(d.nights.map((n) => n.day)).toEqual(['2026-08-12', '2026-08-10']);
+  });
+
+  it('sem amostra nenhuma não inventa noite', () => {
+    const d = diagnoseSleepNights([]);
+    expect(d.nights).toEqual([]);
+    expect(d.perdidas).toBe(0);
+  });
+});
+
+describe('marcarNoitesVazias', () => {
+  it('preenche o intervalo pedido com as noites que não tiveram amostra', () => {
+    const base = diagnoseSleepNights([s('ASLEEP', 10, 23, 7)]);
+    const d = marcarNoitesVazias(base, '2026-08-08', '2026-08-12');
+    expect(d.nights).toHaveLength(5);
+    expect(d.semAmostra).toBe(4);
+    expect(d.ok).toBe(1);
+    expect(d.nights.find((n) => n.day === '2026-08-09')!.verdict).toBe('sem-amostra');
+  });
+
+  it('não reclassifica noite já diagnosticada', () => {
+    const base = diagnoseSleepNights([s('INBED', 10, 23, 7)]);
+    const d = marcarNoitesVazias(base, '2026-08-10', '2026-08-10');
+    expect(d.nights).toHaveLength(1);
+    expect(d.nights[0].verdict).toBe('sem-estagio');
+    expect(d.semAmostra).toBe(0);
+    expect(d.perdidas).toBe(1);
+  });
+});
