@@ -170,6 +170,12 @@ export async function setActivityHasRoute(
  * Candidatas a backfill de rota: tipos com GPS, só do HealthKit, e ou com
  * `has_route` ligado (push que falhou — sem janela, drena o histórico) ou
  * recentes. Ver ADR 0007.
+ *
+ * O corte "só do HealthKit" é por `external_ids`, NÃO por `provider`: a linha
+ * canônica que o ingest mergeou continua com `provider = 'healthkit'` e só
+ * ganha `intervals`/`strava` em `external_ids` (ADR 0020). Filtrar por
+ * `provider` deixava passar exatamente as atividades multi-fonte, cuja rota
+ * vem do FIT e não deve ser trocada pela cópia da ponte.
  */
 export async function fetchRouteBackfillCandidates(
   db: SupabaseClient,
@@ -179,16 +185,25 @@ export async function fetchRouteBackfillCandidates(
 ): Promise<Array<{ id: string; hasRoute: boolean }>> {
   const { data, error } = await db
     .from('activities')
-    .select('id, has_route')
+    .select('id, has_route, external_ids')
     .eq('user_id', userId)
     .in('activity_id', gpsActivityIds)
     .or('provider.is.null,provider.eq.healthkit')
     .or(`has_route.eq.true,start_at.gte.${cutoff}`);
   if (error) throw error;
-  return ((data ?? []) as Array<{ id: string; has_route: boolean | null }>).map((r) => ({
-    id: r.id,
-    hasRoute: r.has_route ?? false,
-  }));
+  type Row = { id: string; has_route: boolean | null; external_ids: Record<string, unknown> | null };
+  return ((data ?? []) as Row[])
+    .filter((r) => !hasProviderLink(r.external_ids))
+    .map((r) => ({ id: r.id, hasRoute: r.has_route ?? false }));
+}
+
+/** Provedores cujo dado vem do FIT e vence a cópia que a ponte deixa no HealthKit. */
+const ROUTE_OWNING_PROVIDERS = ['strava', 'intervals'] as const;
+
+/** A atividade está vinculada a um provider server-side? (ADR 0020) */
+export function hasProviderLink(externalIds: Record<string, unknown> | null | undefined): boolean {
+  if (!externalIds) return false;
+  return ROUTE_OWNING_PROVIDERS.some((p) => externalIds[p] != null);
 }
 
 /** Pontos de UMA rota. A única leitura que traz `points` — nunca em lote. */
