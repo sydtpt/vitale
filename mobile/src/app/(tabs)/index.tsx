@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, fonts, spacing, useThemedStyles } from '../../theme';
+import { MoonBadge } from '../../components/MoonBadge';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { HabitStepper } from '../../components/cards/HabitStepper';
 import { SleepRatingCard } from '../../components/cards/SleepRatingCard';
@@ -192,9 +193,12 @@ export default function HojeScreen() {
       <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll}>
         {/* Greeting */}
         <View style={styles.greet}>
-          <Text style={styles.date}>{formatToday(now).toUpperCase()}</Text>
-          <Text style={styles.greeting}>{getGreeting(firstName)}</Text>
-          <Text style={styles.sub}>Dia {weekPosition(now)} de 7 · {Math.max(0, MEAL_TARGET - mealsLogged)} refeições a registrar</Text>
+          <View style={styles.greetText}>
+            <Text style={styles.date}>{formatToday(now).toUpperCase()}</Text>
+            <Text style={styles.greeting}>{getGreeting(firstName)}</Text>
+            <Text style={styles.sub}>Dia {weekPosition(now)} de 7 · {Math.max(0, MEAL_TARGET - mealsLogged)} refeições a registrar</Text>
+          </View>
+          <MoonBadge date={now} size={42} />
         </View>
 
         {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido */}
@@ -250,7 +254,20 @@ export default function HojeScreen() {
 const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingTop: 54 },
-  greet: { paddingVertical: spacing.lg },
+  // A lua ganha faixa própria e o texto encolhe. O contrário — deixar a lua
+  // ceder — faria ela mudar de tamanho conforme o comprimento do nome.
+  //
+  // O `paddingRight` soma ao `spacing.lg` da tela: a lua fica a 28 pt da borda,
+  // não a 16. Colada na margem do conteúdo ela lia como parte do bloco de
+  // texto; com o respiro, lê como o que é — um objeto à parte.
+  greet: {
+    paddingVertical: spacing.lg,
+    paddingRight: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  greetText: { flex: 1, minWidth: 0 },
   date: { fontSize: 13, color: colors.ink3, letterSpacing: 0.9, fontFamily: fonts.sansSemiBold },
   // lineHeight 36 cortava o acento: o nome vem do usuário e a saudação será
   // traduzida, então "Begoña" ou "À bientôt" precisam de 39.6px de caixa.

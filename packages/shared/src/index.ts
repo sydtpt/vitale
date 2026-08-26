@@ -28,6 +28,7 @@ export * from './period/retro-blocks';
 export * from './period/task-grid';
 export * from './goals/evaluate';
 export * from './goals/format';
+export * from './astro/moon';
 export * from './chart/smooth-path';
 export * from './chart/axis';
 export * from './chart/palettes';

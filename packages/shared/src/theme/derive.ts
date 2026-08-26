@@ -178,6 +178,21 @@ export interface ResolvedTokens extends ThemeNeutrals {
   purple: string; purpleSoft: string; purpleOn: string;
   /** `inkOn` fecha o trio do papel `ink`, cujo tint é o `inkSoft` do tema. */
   inkOn: string;
+  /**
+   * Cor da parte não iluminada da lua do cabeçalho — o **fundo do tema**, para
+   * que ela dissolva na página em vez de virar uma mancha. É o `bg` e não o
+   * próprio `bg` porque o token `bg` vira `'transparent'` sob papel de parede,
+   * e uma sombra transparente apagaria a fase. Ver `astro/moon.ts`.
+   */
+  moonShade: string;
+  /**
+   * Cor do halo atrás da lua — a **tinta do tema**, e é a mesma regra que
+   * produz coisas opostas nos dois esquemas: no claro a tinta é quase preta e o
+   * halo vira uma sombra suave que dá chão ao disco; no escuro ela é quase
+   * branca e o halo vira luar. Sai na temperatura do tema de graça — creme no
+   * Orbe, neutra no Clean. A opacidade está em `MOON_GLOW_ALPHA`.
+   */
+  moonGlow: string;
 }
 
 const ROLE_KEYS: RoleKey[] = [
@@ -253,6 +268,8 @@ export function resolveTokens(
     red: roles.red.accent, redSoft: roles.red.soft, redOn: roles.red.on,
     purple: roles.purple.accent, purpleSoft: roles.purple.soft, purpleOn: roles.purple.on,
     inkOn: roles.ink.on,
+    moonShade: neutrals.bg,
+    moonGlow: neutrals.ink,
   };
   cache.set(key, tokens);
   return tokens;
