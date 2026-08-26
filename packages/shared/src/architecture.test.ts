@@ -416,12 +416,12 @@ const HEX_CEILING: {
     // conta como passivo; o resto do arquivo continua contando.
     ignorar: (f: string, src: string) =>
       f.endsWith('web/src/styles.scss') ? src.replace(/:root\s*\{[\s\S]*?\n\}/, '') : src,
-    max: 121,
+    max: 117,
   },
   {
     label: 'web TS',
     files: webFiles,
-    max: 69,
+    max: 68,
   },
 ];
 
@@ -448,6 +448,12 @@ const HEX_CEILING: {
  * rótulo de um ponto de gráfico, e alguns destes usos são legítimos. Migrar um
  * ponto é trocar o token **ou** confirmar por escrito que ali é gráfico e
  * excluí-lo — as duas saídas baixam o teto, e as duas exigem que alguém olhe.
+ *
+ * Uma classe inteira saiu por essa segunda porta: `color:` sem o lookbehind
+ * casava também o **sufixo** de `border-color:`, `border-bottom-color:` e
+ * companhia. Eram 42 dos 85 pontos da web — e borda é objeto gráfico, o piso de
+ * 3,0 que o `accent` promete, não o de 4,5 da letra. O `(?<![-\w])` exige que
+ * `color` comece a propriedade; o teto caiu de 84 para 43 no mesmo movimento.
  */
 const TEXT_ACCENT: { label: string; files: string[]; re: RegExp; max: number }[] = [
   {
@@ -459,8 +465,8 @@ const TEXT_ACCENT: { label: string; files: string[]; re: RegExp; max: number }[]
   {
     label: 'web — color: var(--acento)',
     files: walkExt(join(ROOT, 'web', 'src'), /\.(scss|html|ts)$/),
-    re: /color:\s*var\(--(primary|primary-deep|role-[a-z]+)\)/g,
-    max: 84,
+    re: /(?<![-\w])color:\s*var\(--(primary|primary-deep|role-[a-z]+)\)/g,
+    max: 43,
   },
   {
     label: 'web — [style.color] com acento',
