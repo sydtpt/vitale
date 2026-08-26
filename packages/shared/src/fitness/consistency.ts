@@ -26,6 +26,7 @@
 import type { Activity } from '../models';
 import { effectiveSeconds, weeklyTargetSeconds, DEFAULT_WEEKLY_TARGET_MIN } from '../health/who-activity';
 import { localDateStr } from '../date/local';
+import { mondayOf } from '../week/recap';
 
 /** Negativo = abaixo da meta, 0 = em cima dela, positivo = acima. */
 export type ConsistencyStep = -3 | -2 | -1 | 0 | 1 | 2;
@@ -73,16 +74,30 @@ export function consistencyStep(effectiveS: number, targetS: number): Consistenc
 }
 
 /**
- * @param days Tamanho da janela, terminando **hoje**. 28 = quatro semanas
- *   cheias, que é o que cabe numa grade de 7 colunas sem rolagem.
+ * @param weeks Semanas exibidas, **alinhadas em segunda-feira**, terminando na
+ *   semana corrente.
+ *
+ * O alinhamento é o que faz a grade não ter buraco à esquerda. Uma janela de "N
+ * dias atrás até hoje" começa num dia da semana qualquer, e a grade de 7 colunas
+ * precisa empurrar a primeira célula para a coluna certa — as células vazias
+ * antes dela são justamente esse empurrão. Começando numa segunda, o `pad` é
+ * sempre zero.
+ *
+ * As células que faltam no fim da última linha são os dias que **ainda não
+ * aconteceram**. Essas ficam de fora: desenhá-las como "sem treino" seria
+ * afirmar sobre o futuro.
  */
 export function buildActivityConsistency(
   activities: Activity[],
   weeklyTargetMin: number = DEFAULT_WEEKLY_TARGET_MIN,
-  days = 28,
+  weeks = 5,
   now: Date = new Date(),
 ): ActivityConsistency {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Segunda da semana corrente, recuada `weeks - 1` semanas.
+  const start = mondayOf(today);
+  start.setDate(start.getDate() - (weeks - 1) * 7);
+  const days = Math.round((today.getTime() - start.getTime()) / 86_400_000) + 1;
 
   // dia local → segundos de esforço
   const perDay = new Map<string, number>();
@@ -116,6 +131,8 @@ export function buildActivityConsistency(
 
   return {
     days: out,
+    // Zero por construção — a janela começa numa segunda. Continua sendo
+    // derivado, e não fixado em 0, para não mentir se a âncora mudar.
     pad: out.length ? out[0].weekday : 0,
     targetS,
     activeDays: out.filter((d) => d.effectiveS > 0).length,

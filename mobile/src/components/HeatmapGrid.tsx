@@ -49,6 +49,32 @@ function fmt(v: number, decimals: number, unit: string): string {
   return `${v.toFixed(decimals).replace('.', ',')}${unit}`;
 }
 
+export interface HeatRamp {
+  /** Fundo de cada passo, de -3 a 2. */
+  bg: Record<HeatStep, string>;
+  /** Tinta sobre cada fundo, escolhida por contraste. */
+  fg: Record<HeatStep, string>;
+  /** Extremos da legenda. Descreve o eixo, não julga: "parado"/"intenso". */
+  lowLabel: string;
+  highLabel: string;
+}
+
+/**
+ * A escala padrão é a do **sono**, e a direção dela não é universal.
+ *
+ * Aqui quente = abaixo da meta e frio = acima, porque para sono a leitura é
+ * "noite ruim é quente, noite calma é fria". Para **esforço** isso se inverte:
+ * quente é intenso, frio é parado, e pintar um dia de descanso de vermelho
+ * briga com a metáfora física. Por isso a rampa virou parâmetro — ver
+ * `ConsistencyCard`, que passa a sua.
+ */
+const SLEEP_RAMP: HeatRamp = {
+  bg: STEP_BG,
+  fg: STEP_FG,
+  lowLabel: 'pior',
+  highLabel: 'melhor',
+};
+
 interface Props {
   data: Heatmap;
   /**
@@ -58,9 +84,11 @@ interface Props {
    * dia foi medido, e um dia de descanso é um zero legítimo, não uma falta.
    */
   emptyHint?: string;
+  /** Escala de cor. Padrão: a do sono (quente = abaixo da meta). */
+  ramp?: HeatRamp;
 }
 
-export function HeatmapGrid({ data, emptyHint }: Props) {
+export function HeatmapGrid({ data, emptyHint, ramp = SLEEP_RAMP }: Props) {
   const styles = useThemedStyles(createStyles);
   const [sel, setSel] = useState<HeatCell | null>(null);
   const [width, setWidth] = useState(0);
@@ -102,14 +130,14 @@ export function HeatmapGrid({ data, emptyHint }: Props) {
                   style={[
                     styles.cell,
                     cell,
-                    !empty && { backgroundColor: STEP_BG[c.step as HeatStep] },
+                    !empty && { backgroundColor: ramp.bg[c.step as HeatStep] },
                     on && styles.cellOn,
                   ]}
                 >
                   <Text
                     style={[
                       styles.cellTxt,
-                      { color: empty ? colors.ink4 : STEP_FG[c.step as HeatStep] },
+                      { color: empty ? colors.ink4 : ramp.fg[c.step as HeatStep] },
                     ]}
                   >
                     {Number(c.day.slice(8))}
@@ -138,13 +166,13 @@ export function HeatmapGrid({ data, emptyHint }: Props) {
       </View>
 
       <View style={styles.legend}>
-        <Text style={styles.legendTxt}>pior</Text>
+        <Text style={styles.legendTxt}>{ramp.lowLabel}</Text>
         <View style={styles.swatches}>
           {STEPS.map((s) => (
-            <View key={s} style={[styles.swatch, { backgroundColor: STEP_BG[s] }]} />
+            <View key={s} style={[styles.swatch, { backgroundColor: ramp.bg[s] }]} />
           ))}
         </View>
-        <Text style={styles.legendTxt}>melhor</Text>
+        <Text style={styles.legendTxt}>{ramp.highLabel}</Text>
         <Text style={[styles.legendTxt, styles.legendTarget]}>
           meta {fmt(data.target, data.decimals, data.unit)}
         </Text>

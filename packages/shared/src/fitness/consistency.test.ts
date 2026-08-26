@@ -67,15 +67,35 @@ check('escala — meta zero não divide por zero', () => {
   assert.equal(consistencyStep(0, 0), -3, 'zero continua sendo zero');
 });
 
-check('a janela tem o tamanho pedido e termina hoje', () => {
-  const c = buildActivityConsistency([], TARGET_MIN, 28, NOW);
-  assert.equal(c.days.length, 28);
+check('a janela começa numa segunda e termina hoje — sem buraco à esquerda', () => {
+  const c = buildActivityConsistency([], TARGET_MIN, 5, NOW);
+  // 20/08/2026 é quinta. A segunda da semana é 17/08; recuando 4 semanas, 20/07.
+  assert.equal(c.days[0].day, '2026-07-20');
+  assert.equal(c.days[0].weekday, 0, 'a primeira célula é segunda-feira');
+  assert.equal(c.pad, 0, 'pad zero é o que tira as células vazias do começo da grade');
   assert.equal(c.days[c.days.length - 1].day, '2026-08-20', 'a última célula é hoje');
-  assert.equal(c.days[0].day, '2026-07-24', '28 dias atrás, inclusive');
+  // 4 semanas cheias + segunda a quinta da semana corrente.
+  assert.equal(c.days.length, 4 * 7 + 4);
+});
+
+check('os dias que ainda não aconteceram ficam fora da grade', () => {
+  const c = buildActivityConsistency([], TARGET_MIN, 5, NOW);
+  assert.ok(
+    c.days.every((d) => d.day <= '2026-08-20'),
+    'desenhar sexta e sábado como "sem treino" seria afirmar sobre o futuro',
+  );
+});
+
+check('mais semanas recuam a âncora mantendo a segunda-feira', () => {
+  const cinco = buildActivityConsistency([], TARGET_MIN, 5, NOW);
+  const oito = buildActivityConsistency([], TARGET_MIN, 8, NOW);
+  assert.equal(oito.days.length - cinco.days.length, 21, 'três semanas a mais');
+  assert.equal(oito.days[0].weekday, 0);
+  assert.equal(oito.pad, 0);
 });
 
 check('sem atividade nenhuma, todos os dias são descanso', () => {
-  const c = buildActivityConsistency([], TARGET_MIN, 28, NOW);
+  const c = buildActivityConsistency([], TARGET_MIN, 5, NOW);
   assert.equal(c.activeDays, 0);
   assert.equal(c.metDays, 0);
   assert.equal(c.longestStreak, 0);
@@ -84,9 +104,9 @@ check('sem atividade nenhuma, todos os dias são descanso', () => {
 
 check('soma vários treinos no mesmo dia', () => {
   // Dois treinos de 20 min no mesmo dia devem contar juntos contra a meta.
-  const c = buildActivityConsistency([act(0, 1200), act(0, 1200)], TARGET_MIN, 7, NOW);
+  const c = buildActivityConsistency([act(0, 1200), act(0, 1200)], TARGET_MIN, 2, NOW);
   const hoje = c.days[c.days.length - 1];
-  const um = buildActivityConsistency([act(0, 1200)], TARGET_MIN, 7, NOW);
+  const um = buildActivityConsistency([act(0, 1200)], TARGET_MIN, 2, NOW);
   assert.equal(
     hoje.effectiveS,
     um.days[um.days.length - 1].effectiveS * 2,
@@ -96,12 +116,12 @@ check('soma vários treinos no mesmo dia', () => {
 
 check('atividade oculta não conta', () => {
   const escondida: Activity = { ...act(0, 3600), hidden: true };
-  const c = buildActivityConsistency([escondida], TARGET_MIN, 7, NOW);
+  const c = buildActivityConsistency([escondida], TARGET_MIN, 2, NOW);
   assert.equal(c.activeDays, 0, 'quem está fora das métricas está fora da grade');
 });
 
 check('weekday usa segunda = 0, como a grade', () => {
-  const c = buildActivityConsistency([], TARGET_MIN, 7, NOW);
+  const c = buildActivityConsistency([], TARGET_MIN, 2, NOW);
   const hoje = c.days[c.days.length - 1];
   // 20/08/2026 é uma quinta-feira → 3 na convenção seg=0.
   assert.equal(hoje.weekday, 3);
@@ -112,7 +132,7 @@ check('a maior sequência conta dias consecutivos, não total', () => {
   // treinos em D-6, D-5, D-4 … D-2, D-1: sequências de 3 e 2.
   const c = buildActivityConsistency(
     [act(6, 3600), act(5, 3600), act(4, 3600), act(2, 3600), act(1, 3600)],
-    TARGET_MIN, 7, NOW,
+    TARGET_MIN, 2, NOW,
   );
   assert.equal(c.activeDays, 5);
   assert.equal(c.longestStreak, 3, 'a maior corrida é a de três, não a soma');
@@ -120,13 +140,13 @@ check('a maior sequência conta dias consecutivos, não total', () => {
 
 check('metDays só conta quem chegou na meta', () => {
   // 3600 s de corrida rende esforço bem acima de 20 min; 60 s, bem abaixo.
-  const c = buildActivityConsistency([act(3, 3600), act(2, 60)], TARGET_MIN, 7, NOW);
+  const c = buildActivityConsistency([act(3, 3600), act(2, 60)], TARGET_MIN, 2, NOW);
   assert.equal(c.activeDays, 2, 'os dois dias tiveram treino');
   assert.equal(c.metDays, 1, 'só um bateu a meta diária');
 });
 
 check('atividade fora da janela não entra', () => {
-  const c = buildActivityConsistency([act(400, 3600)], TARGET_MIN, 28, NOW);
+  const c = buildActivityConsistency([act(400, 3600)], TARGET_MIN, 5, NOW);
   assert.equal(c.activeDays, 0);
 });
 
