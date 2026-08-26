@@ -519,7 +519,6 @@ const createStyles = () => StyleSheet.create({
   timeChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
   timeChipOn: { backgroundColor: colors.primary },
   timeChipTxt: { fontSize: 13, color: colors.ink2, fontFamily: fonts.monoSemiBold },
-  timeChipTxtOn: { color: '#fff' },
   hint: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: spacing.sm, marginHorizontal: 4, lineHeight: 17 },
   rowMeta: { flex: 1, gap: 2 },
   rowSub: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
