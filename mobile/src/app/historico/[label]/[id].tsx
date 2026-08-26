@@ -38,6 +38,7 @@ import {
   themeFillsCards,
   useTheme,
 } from '../../../theme';
+import { HeaderSpacer } from '../../../components/ui/HeaderSpacer';
 
 type InfoRow = { label: string; value: string };
 
@@ -107,7 +108,7 @@ export default function AtividadeDetalheScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </Pressable>
-          <View style={styles.backBtn} />
+          <HeaderSpacer />
         </View>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={36} color={colors.ink4} />
@@ -243,7 +244,7 @@ export default function AtividadeDetalheScreen() {
             )}
           </Pressable>
         ) : (
-          <View style={styles.backBtn} />
+          <HeaderSpacer />
         )}
       </View>
 

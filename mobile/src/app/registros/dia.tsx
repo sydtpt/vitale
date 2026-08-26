@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase';
 import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { localDateStr } from '@vitale/shared';
 import { fetchRegistroLogsBetween } from '@vitale/shared';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const DATE_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -107,7 +108,7 @@ export default function EditarDiaRegistrosScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Editar dias</Text>
-        <View style={styles.iconBtn} />
+        <HeaderSpacer />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>

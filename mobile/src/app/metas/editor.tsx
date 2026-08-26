@@ -19,6 +19,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { useHabitsStore } from '../../store/habits.store';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 type SourceKind = GoalSource['kind'];
 
@@ -257,7 +258,7 @@ export default function GoalEditorScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>{id ? 'Editar meta' : 'Nova meta'}</Text>
-        <View style={styles.backBtn} />
+        <HeaderSpacer />
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

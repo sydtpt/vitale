@@ -10,6 +10,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { BarChart } from '../../components/charts/BarChart';
 import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { ACTIVITY_CYCLING, ACTIVITY_RUNNING, ACTIVITY_YOGA, buildWeek, buildWeeklyVolume, type VolumeMetric } from '@vitale/shared';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const CHART_W = Dimensions.get('window').width - spacing.lg * 2 - 28;
 
@@ -97,7 +98,7 @@ export default function TreinosPlannerScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Treinos</Text>
-        <View style={styles.iconBtn} />
+        <HeaderSpacer />
       </View>
 
       {loading && planned.length === 0 ? (

@@ -18,6 +18,7 @@ import { HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const ICONS = HABIT_ICONS;
 
@@ -127,7 +128,7 @@ export default function HabitEditorScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>{id ? 'Editar hábito' : 'Novo hábito'}</Text>
-        <View style={styles.backBtn} />
+        <HeaderSpacer />
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

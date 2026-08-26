@@ -20,6 +20,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { BarChart } from '../../components/charts/BarChart';
 import { LineChart } from '../../components/charts/LineChart';
 import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const CHART_W = Dimensions.get('window').width - spacing.lg * 2 - 28;
 
@@ -152,7 +153,7 @@ export default function RecuperacaoScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Recuperação</Text>
-        <View style={styles.iconBtn} />
+        <HeaderSpacer />
       </View>
 
       {loadingHealth && rows.length === 0 ? (

@@ -7,6 +7,7 @@ import { useRegistrosStore } from '../../store/registros.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 import { localDateStr } from '@vitale/shared';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const MONTHS = [
@@ -113,7 +114,7 @@ export default function RegistroMarcarScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Marcar dias</Text>
-        <View style={styles.iconBtn} />
+        <HeaderSpacer />
       </View>
 
       {registro && (

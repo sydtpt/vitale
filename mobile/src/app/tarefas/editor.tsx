@@ -32,6 +32,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 /**
  * Chips de recorrência. `'daily'` existe só aqui: no modelo uma série diária é
@@ -372,7 +373,7 @@ export default function TodoEditorScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>{id ? 'Editar tarefa' : 'Nova tarefa'}</Text>
-        <View style={styles.backBtn} />
+        <HeaderSpacer />
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

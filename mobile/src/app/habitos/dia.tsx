@@ -8,6 +8,7 @@ import { useHabitsStore } from '../../store/habits.store';
 import { MonthCalendar } from '../../components/MonthCalendar';
 import { HabitStepper } from '../../components/cards/HabitStepper';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const DATE_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -101,7 +102,7 @@ export default function EditarDiaScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Editar dia</Text>
-        <View style={styles.iconBtn} />
+        <HeaderSpacer />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>

@@ -23,6 +23,7 @@ import {
   totalTimeS,
 } from '../../../lib/workout-format';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../../theme';
+import { HeaderSpacer } from '../../../components/ui/HeaderSpacer';
 
 type InfoRow = { label: string; value: string };
 
@@ -201,7 +202,7 @@ export default function WorkoutDetailScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>{meta.label}</Text>
-        <View style={styles.backBtn} />
+        <HeaderSpacer />
       </View>
 
       <ScrollView

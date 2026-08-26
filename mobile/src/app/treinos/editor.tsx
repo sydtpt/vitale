@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { PlannedWorkout } from '@vitale/shared';
 import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 type Kind = PlannedWorkout['kind'];
 
@@ -114,7 +115,7 @@ export default function TreinoEditorScreen() {
             <Ionicons name="trash-outline" size={20} color={moduleColors('compras').accent} />
           </Pressable>
         ) : (
-          <View style={styles.backBtn} />
+          <HeaderSpacer />
         )}
       </View>
 

@@ -22,6 +22,7 @@ import {
 } from '../../lib/health-buckets';
 import { BarChart, LineChart, ActivityRings, MacroDonut } from '../../components/charts';
 import { colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'day', label: 'Dia' },
@@ -191,7 +192,7 @@ function Header({ title, onBack }: { title: string; onBack: () => void }) {
         <Ionicons name="chevron-back" size={22} color={colors.ink} />
       </Pressable>
       <Text style={styles.headerTitle}>{title}</Text>
-      <View style={styles.backBtn} />
+      <HeaderSpacer />
     </View>
   );
 }

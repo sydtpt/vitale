@@ -7,6 +7,7 @@ import type { TodoTemplate } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 function isAutomatic(t: TodoTemplate): boolean {
   return (
@@ -71,7 +72,7 @@ export default function AutomaticasScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Automáticas</Text>
-        <View style={styles.iconBtn} />
+        <HeaderSpacer />
       </View>
 
       {loading && automatic.length === 0 ? (

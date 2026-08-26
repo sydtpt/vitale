@@ -22,6 +22,7 @@ import type {
 import { SHOP_CATS } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 type Kind = Extract<TodoRecurrence['kind'], 'none' | 'monthly' | 'weekly' | 'yearly' | 'after_completion'>;
 
@@ -192,7 +193,7 @@ export default function ComprasEditorScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>{id ? 'Editar item' : 'Novo item de compras'}</Text>
-        <View style={styles.backBtn} />
+        <HeaderSpacer />
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

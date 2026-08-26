@@ -24,6 +24,7 @@ import {
 import { bucketize, Sample } from '../../lib/health-buckets';
 import { Sparkline, ActivityRings, MacroDonut } from '../../components/charts';
 import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const RING_COLORS = [colors.primary, colors.green, colors.blue]; // mover · exercício · em pé
 const MACRO_COLORS = [colors.rose, colors.yellow, colors.blue]; // proteína · carbo · gordura
@@ -177,7 +178,7 @@ export default function HealthScreen() {
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </Pressable>
           <Text style={styles.headerTitle}>Saúde</Text>
-          <View style={styles.backBtn} />
+          <HeaderSpacer size={38} />
         </View>
         <PermissionScreen onRequest={requestPermission} />
       </View>

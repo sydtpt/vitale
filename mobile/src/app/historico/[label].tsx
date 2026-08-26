@@ -42,6 +42,7 @@ import {
   themeFillsCards,
   useTheme,
 } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 /**
  * Largura fixa do cartão de recorde. Precisa ser fixa para o `snapToInterval`
@@ -341,7 +342,7 @@ export default function TipoListScreen() {
             {typed.length === 1 ? 'atividade' : 'atividades'}
           </Text>
         </View>
-        <View style={styles.backBtn} />
+        <HeaderSpacer />
       </View>
 
       <FlatList

@@ -8,6 +8,7 @@ import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { describeRecurrence } from '@vitale/shared';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 // Séries que se repetem por agenda/uso/evento/estoque. Fora: avulsas ('none') e
 // treinos ('on_workout'), que nascem de atividades físicas.
@@ -78,7 +79,7 @@ export default function RecorrentesScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Recorrentes</Text>
-        <View style={styles.iconBtn} />
+        <HeaderSpacer />
       </View>
 
       {loading && recurring.length === 0 ? (

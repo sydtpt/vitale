@@ -18,6 +18,7 @@ import { HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
 import { useRegistrosStore } from '../../store/registros.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 
 const ICONS = HABIT_ICONS;
 
@@ -115,7 +116,7 @@ export default function RegistroEditorScreen() {
             <Ionicons name="add" size={24} color={colors.ink} />
           </Pressable>
         ) : (
-          <View style={styles.backBtn} />
+          <HeaderSpacer />
         )}
       </View>
 
