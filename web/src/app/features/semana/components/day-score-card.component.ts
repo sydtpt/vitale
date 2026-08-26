@@ -2,8 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { computeReadiness, rollingBaseline, readinessAdvice, type ReadinessInput } from '@vitale/shared';
 import { HealthStore } from '@features/saude/data/health.store';
 import { PlannedWorkoutsStore } from '@features/treinos/data/planned-workouts.store';
+import { ChartPaletteService } from '@core/services/chart-palette.service';
 
-/** Cor por componente do score (concêntrico no donut). */
+/**
+ * Cor por componente do score (concêntrico no donut), no vocabulário-base do
+ * Orbe. Não é a cor final: `ChartPaletteService.remap()` a traduz para a paleta
+ * e o esquema ativos antes de chegar ao SVG.
+ */
 const COMP_COLOR: Record<string, string> = {
   sono: '#6E8CC9',
   fcRepouso: '#E26A8A',
@@ -11,7 +16,8 @@ const COMP_COLOR: Record<string, string> = {
   aneis: '#F25C2B',
 };
 
-interface RingVM { color: string; r: number; score: number; }
+/** `track` = o mesmo tom da série a 13% de opacidade (sulco do anel). */
+interface RingVM { color: string; track: string; r: number; score: number; }
 interface RowVM { color: string; label: string; sub: string; cur: string; }
 
 @Component({
@@ -24,6 +30,7 @@ interface RowVM { color: string; label: string; sub: string; cur: string; }
 export class DayScoreCardComponent {
   private readonly store = inject(HealthStore);
   private readonly planner = inject(PlannedWorkoutsStore);
+  private readonly palette = inject(ChartPaletteService);
 
   constructor() {
     void this.store.load(); // idempotente; carrega se a Semana abrir antes da Saúde
@@ -75,17 +82,23 @@ export class DayScoreCardComponent {
     return readinessAdvice(this.total(), this.hasData(), today?.kind ?? 'none', today?.type ?? '');
   });
 
+  /** Cor da série já traduzida para a paleta e o esquema ativos. */
+  private colorOf(key: string): string {
+    return this.palette.remap(COMP_COLOR[key] ?? '#F25C2B');
+  }
+
   protected readonly rings = computed<RingVM[]>(() =>
-    this.score().components.map((c, i) => ({
-      color: COMP_COLOR[c.key] ?? '#F25C2B',
-      r: 68 - i * 14,
-      score: c.score,
-    })),
+    this.score().components.map((c, i) => {
+      const color = this.colorOf(c.key);
+      // O sulco vem do hex de 8 dígitos sobre a cor **remapeada**: concatenar
+      // alfa só é seguro depois do remap, que sempre devolve hex.
+      return { color, track: `${color}22`, r: 68 - i * 14, score: c.score };
+    }),
   );
 
   protected readonly rows = computed<RowVM[]>(() =>
     this.score().components.map((c) => ({
-      color: COMP_COLOR[c.key] ?? '#F25C2B',
+      color: this.colorOf(c.key),
       label: c.label,
       sub: this.sub(c.key),
       cur: `${Math.round(c.score)}%`,

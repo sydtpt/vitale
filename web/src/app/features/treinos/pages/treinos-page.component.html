@@ -26,7 +26,7 @@
                 <div class="n mono">{{ day.date.slice(8) }}</div>
               </div>
               <button class="add" type="button" (click)="openCreate(day.date)" title="Adicionar treino">
-                <rt-icon name="plus" [size]="14" [color]="day.isToday ? '#fff' : '#5C534A'" [strokeWidth]="2.4" />
+                <rt-icon name="plus" [size]="14" color="currentColor" [strokeWidth]="2.4" />
               </button>
             </div>
 
@@ -35,7 +35,7 @@
                 <div class="type">
                   {{ w.type }}
                   @if (w.done) {
-                    <rt-icon name="check" [size]="14" [color]="day.isToday ? '#fff' : '#6FA86A'" [strokeWidth]="2.6" />
+                    <rt-icon name="check" [size]="14" color="currentColor" [strokeWidth]="2.6" />
                   }
                 </div>
                 <div class="meta">

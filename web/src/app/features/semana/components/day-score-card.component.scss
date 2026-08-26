@@ -19,13 +19,16 @@
 .advice-title {
   font-size: 13px;
   font-weight: 650;
-  color: var(--accent, var(--ink));
+  /* `-text` e não `-accent`: o acento promete 3,0 (piso de objeto gráfico),
+     que serve à borda e ao fundo acima — não a um título. */
+  color: var(--accent-text, var(--ink));
   margin-bottom: 2px;
 }
 .advice-text { font-size: 12.5px; line-height: 1.4; color: var(--ink-2); }
 
-/* Tom da recomendação → cor de destaque (alinhada ao design system). */
-.advice[data-tone='go'] { --accent: #6FA86A; }      /* verde — liberado */
-.advice[data-tone='caution'] { --accent: #F25C2B; } /* laranja — aliviar */
-.advice[data-tone='rest'] { --accent: #6E8CC9; }    /* azul — recuperar */
-.advice[data-tone='neutral'] { --accent: #B4825B; } /* terra — neutro */
+/* Tom da recomendação → papel cromático da paleta ativa (antes era hex cravado,
+   que ignorava paleta e sumia no escuro). */
+.advice[data-tone='go'] { --accent: var(--role-green); --accent-text: var(--role-green-text); }
+.advice[data-tone='caution'] { --accent: var(--role-orange); --accent-text: var(--role-orange-text); }
+.advice[data-tone='rest'] { --accent: var(--role-blue); --accent-text: var(--role-blue-text); }
+.advice[data-tone='neutral'] { --accent: var(--role-brown); --accent-text: var(--role-brown-text); }

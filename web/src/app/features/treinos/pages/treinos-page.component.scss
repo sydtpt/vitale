@@ -4,17 +4,23 @@
 .g2 { margin-top: 12px; }
 .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .cell { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 110px; display: flex; flex-direction: column; gap: 6px; }
-.cell.today { background: var(--ink); color: #fff; border-color: var(--ink); }
+// O contraste do dia de hoje é a inversão do tema, não branco fixo: no escuro
+// `--ink` é quase branco (#F6EFE6) e um `#fff` cravado sumia dentro da própria
+// célula. `--bg` é o oposto de `--ink` nos dois esquemas, por construção.
+.cell.today { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .top { display: flex; justify-content: space-between; align-items: flex-start; }
 .d { font-size: 10px; font-weight: 600; letter-spacing: 0.4px; opacity: 0.7; }
 .n { font-size: 22px; font-weight: 600; }
 
+// O `+` herda a cor do botão em vez de recebê-la do template: a versão anterior
+// passava `#5C534A` (o `--ink-2` do claro) e, no escuro, o ícone sumia — sobrava
+// um contorno vazio por dia, que lia como botão quebrado.
 .add {
   background: transparent; border: 1px solid var(--line); border-radius: 8px;
   width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; opacity: 0.6; transition: opacity 0.15s;
-  &:hover { opacity: 1; }
-  .cell.today & { border-color: rgba(255, 255, 255, 0.3); }
+  cursor: pointer; color: var(--ink-2); opacity: 0.75; transition: opacity 0.15s, border-color 0.15s;
+  &:hover { opacity: 1; border-color: var(--ink-3); }
+  .cell.today & { color: inherit; border-color: color-mix(in srgb, var(--bg) 30%, transparent); }
 }
 
 .wk {
@@ -23,8 +29,15 @@
   padding: 6px 8px; transition: border-color 0.15s;
   &:hover { border-color: var(--primary); }
   &.rest { background: var(--surface-mute); opacity: 0.85; }
-  &.done { border-color: var(--green, #6FA86A); }
-  .cell.today & { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); color: #fff; }
+  // `--green` nunca existiu: os papéis da paleta são `--role-<nome>`, então este
+  // `var()` caía sempre no fallback cravado e ignorava a paleta ativa.
+  &.done { border-color: var(--role-green); .type { color: var(--role-green-text); } }
+  .cell.today & {
+    background: color-mix(in srgb, var(--bg) 10%, transparent);
+    border-color: color-mix(in srgb, var(--bg) 20%, transparent);
+    color: var(--bg);
+    &.done .type { color: inherit; }
+  }
 }
 
 .type { font-size: 12px; font-weight: 600; line-height: 1.25; display: flex; align-items: center; gap: 4px; justify-content: space-between; }
