@@ -1,7 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivitiesStore } from '../data/activities.store';
-import { buildOverview, earliestActivityYear, overviewYears, type Metric, type Period } from '../data/overview';
+import { buildOverview, earliestActivityYear, overviewYears, totalsDelta, type Metric, type Period } from '../data/overview';
 import { latestAvailableOffset } from '@vitale/shared';
+
+/** Contra o que a variação dos tiles compara — a janela anterior, do mesmo tamanho. */
+const PREVIOUS_WORD: Record<Period, string> = {
+  semana: 'os 7 dias anteriores',
+  mes: 'as 5 semanas anteriores',
+  meses12: 'os 12 meses anteriores',
+  ano: 'o ano anterior',
+  sempre: '',
+};
 import { PeriodSelectorComponent } from './period-selector.component';
 import { StackedBarChartComponent } from './stacked-bar-chart.component';
 import { ChartPaletteService } from '@core/services/chart-palette.service';
@@ -205,4 +214,35 @@ export class OverviewCardComponent {
   protected fmtCalories(c: number): string {
     return `${Math.round(c).toLocaleString('pt-BR')} kcal`;
   }
+
+  protected abs(n: number): number {
+    return Math.abs(n);
+  }
+
+  /**
+   * Os quatro tiles com a variação sobre a janela anterior.
+   *
+   * `delta` é `null` quando não há base — período "Sempre", ou janela anterior
+   * zerada. A UI não inventa percentual: crescer a partir do nada não é
+   * "↑ 100%", é uma conta que não existe.
+   */
+  protected readonly tiles = computed(() => {
+    const o = this.overview();
+    const p = o.previous;
+    return [
+      { label: 'Atividades', value: `${o.totals.count}`, delta: totalsDelta(o.totals.count, p?.count) },
+      { label: 'Tempo', value: this.fmtDuration(o.totals.durationS), delta: totalsDelta(o.totals.durationS, p?.durationS) },
+      { label: 'Calorias', value: this.fmtCalories(o.totals.calories), delta: totalsDelta(o.totals.calories, p?.calories) },
+      { label: 'Distância', value: this.fmtDistance(o.totals.distanceM), delta: totalsDelta(o.totals.distanceM, p?.distanceM) },
+    ];
+  });
+
+  /**
+   * Contra o que a variação compara. Sem isto, "↑12%" deixa o leitor adivinhando
+   * a janela. Vazio em "Sempre" — não existe um antes de todo o histórico.
+   */
+  protected readonly previousWord = computed(() => {
+    if (!this.overview().previous) return '';
+    return PREVIOUS_WORD[this.period()];
+  });
 }

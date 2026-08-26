@@ -49,7 +49,18 @@ function fmt(v: number, decimals: number, unit: string): string {
   return `${v.toFixed(decimals).replace('.', ',')}${unit}`;
 }
 
-export function HeatmapGrid({ data }: { data: Heatmap }) {
+interface Props {
+  data: Heatmap;
+  /**
+   * Linha mostrada enquanto nenhum dia está selecionado. O padrão fala em
+   * "medidos", que é a leitura certa para métrica de saúde — uma noite sem dado
+   * é dado faltando. Não serve para toda grade: na consistência de treino todo
+   * dia foi medido, e um dia de descanso é um zero legítimo, não uma falta.
+   */
+  emptyHint?: string;
+}
+
+export function HeatmapGrid({ data, emptyHint }: Props) {
   const styles = useThemedStyles(createStyles);
   const [sel, setSel] = useState<HeatCell | null>(null);
   const [width, setWidth] = useState(0);
@@ -114,7 +125,7 @@ export function HeatmapGrid({ data }: { data: Heatmap }) {
         <Text style={styles.readoutK}>
           {sel
             ? `${Number(sel.day.slice(8))} · ${DOW_FULL[sel.weekday]}`
-            : `toque num dia · ${data.measured} de ${data.cells.length} medidos`}
+            : emptyHint ?? `toque num dia · ${data.measured} de ${data.cells.length} medidos`}
         </Text>
         {sel?.value != null && (
           <Text style={styles.readoutV}>

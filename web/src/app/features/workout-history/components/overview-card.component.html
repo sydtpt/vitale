@@ -19,23 +19,23 @@
   </div>
 
   <div class="tiles">
-    <div class="tile">
-      <div class="t-label">Atividades</div>
-      <div class="t-value mono">{{ overview().totals.count }}</div>
-    </div>
-    <div class="tile">
-      <div class="t-label">Tempo</div>
-      <div class="t-value mono">{{ fmtDuration(overview().totals.durationS) }}</div>
-    </div>
-    <div class="tile">
-      <div class="t-label">Calorias</div>
-      <div class="t-value mono">{{ fmtCalories(overview().totals.calories) }}</div>
-    </div>
-    <div class="tile">
-      <div class="t-label">Distância</div>
-      <div class="t-value mono">{{ fmtDistance(overview().totals.distanceM) }}</div>
-    </div>
+    @for (t of tiles(); track t.label) {
+      <div class="tile">
+        <div class="t-label">{{ t.label }}</div>
+        <div class="t-value mono">{{ t.value }}</div>
+        <!-- Três estados: sem base não mostra nada (crescer do zero não é "↑ 100%"),
+             zero mostra "=", e o resto mostra a seta. -->
+        @if (t.delta !== null) {
+          <div class="t-delta mono" [attr.data-dir]="t.delta > 0 ? 'up' : t.delta < 0 ? 'down' : 'flat'">
+            @if (t.delta === 0) { = } @else { {{ t.delta > 0 ? '↑' : '↓' }}{{ abs(t.delta) }}% }
+          </div>
+        }
+      </div>
+    }
   </div>
+  @if (previousWord()) {
+    <div class="tiles-caption">variação sobre {{ previousWord() }}</div>
+  }
 
   <div class="metric-toggle">
     @for (m of metrics; track m.value) {

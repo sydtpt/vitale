@@ -16,13 +16,14 @@ import { useSettingsStore } from '../../store/settings.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { latestAvailableOffset, referenceLineColors, remapChartColor, resolveWeeklyTargetMin } from '@vitale/shared';
+import { latestAvailableOffset, referenceLineColors, remapChartColor, resolveWeeklyTargetMin, totalsDelta } from '@vitale/shared';
 import { buildOverview, earliestActivityYear, overviewYears, type Period, type Metric } from '../../lib/activity-overview';
 import { getJSON, setJSON } from '../../lib/local-store';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
-import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { ConsistencyCard } from '../../components/cards/ConsistencyCard';
+import { colors, fonts, moduleColors, radii, roleColors, shadows, spacing, themed, useTheme } from '../../theme';
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'semana', label: '7d' },
@@ -46,6 +47,19 @@ const WHO_PER: Record<string, string> = {
   week: 'por semana',
   month: 'por mês',
   year: 'por ano',
+};
+
+/**
+ * Contra o que a variação dos tiles compara. É a janela imediatamente anterior,
+ * do mesmo tamanho — dizer só "↑12%" deixaria o leitor adivinhando o quê.
+ * "Sempre" não aparece aqui: não existe um antes de todo o histórico.
+ */
+const PREVIOUS_WORD: Record<Period, string> = {
+  semana: 'os 7 dias anteriores',
+  mes: 'as 5 semanas anteriores',
+  meses12: 'os 12 meses anteriores',
+  ano: 'o ano anterior',
+  sempre: '',
 };
 
 /** Nome do bucket, para "mês a mês" / "ano a ano" na legenda da progressão. */
@@ -89,10 +103,28 @@ function LineMark({ variant, color }: { variant: 'solid' | 'dashed' | 'dotted'; 
   );
 }
 
-function StatTile({ value, label }: { value: string; label: string }) {
+/**
+ * `delta` = variação sobre o período anterior, em pontos percentuais.
+ *
+ * Três estados, de propósito. `null` (não há período anterior, ou ele estava
+ * zerado) mostra **nada**: crescer a partir do nada não é "↑ 100%", é uma conta
+ * que não existe. Zero mostra `=`, que é informação — ficou igual. O resto
+ * mostra a seta. A variação vai numa linha própria: quatro tiles já dividem a
+ * largura do telefone, e pôr o número ao lado do valor apertaria os dois.
+ */
+function StatTile({ value, label, delta }: { value: string; label: string; delta: number | null }) {
   return (
     <View style={styles.statTile}>
       <Text style={styles.statValue}>{value}</Text>
+      {delta === null ? (
+        <Text style={styles.statDeltaVoid}> </Text>
+      ) : delta === 0 ? (
+        <Text style={styles.statDeltaFlat}>=</Text>
+      ) : (
+        <Text style={[styles.statDelta, delta > 0 ? styles.statDeltaUp : styles.statDeltaDown]}>
+          {delta > 0 ? '↑' : '↓'}{Math.abs(delta)}%
+        </Text>
+      )}
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -142,6 +174,8 @@ export default function HistoricoTabScreen() {
   const [period, setPeriod] = useState<Period>('semana');
   const [metric, setMetric] = useState<Metric>('count');
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Explicação dos minutos de esforço — recolhida por padrão (ver o toggle abaixo).
+  const [showMethod, setShowMethod] = useState(false);
   // Navegação do período "Ano": 0 = ano corrente, negativo = anos anteriores.
   const [yearOffset, setYearOffset] = useState(0);
   // Anos desligados no período "Sempre"; hidrata do armazenamento local no mount.
@@ -311,13 +345,39 @@ export default function HistoricoTabScreen() {
           )}
 
           <View style={styles.statsRow}>
-            <StatTile value={String(overview.totals.count)} label="atividades" />
-            <StatTile value={formatDuration(overview.totals.durationS)} label="duração" />
-            <StatTile value={`${Math.round(overview.totals.calories)}`} label="kcal" />
-            <StatTile value={formatDistance(overview.totals.distanceM) ?? '—'} label="distância" />
+            <StatTile
+              value={String(overview.totals.count)}
+              label="atividades"
+              delta={totalsDelta(overview.totals.count, overview.previous?.count)}
+            />
+            <StatTile
+              value={formatDuration(overview.totals.durationS)}
+              label="duração"
+              delta={totalsDelta(overview.totals.durationS, overview.previous?.durationS)}
+            />
+            <StatTile
+              value={`${Math.round(overview.totals.calories)}`}
+              label="kcal"
+              delta={totalsDelta(overview.totals.calories, overview.previous?.calories)}
+            />
+            <StatTile
+              value={formatDistance(overview.totals.distanceM) ?? '—'}
+              label="distância"
+              delta={totalsDelta(overview.totals.distanceM, overview.previous?.distanceM)}
+            />
           </View>
+          {overview.previous && (
+            <Text style={styles.statsCaption}>
+              variação sobre {PREVIOUS_WORD[period]}
+            </Text>
+          )}
 
           <View style={styles.chartGroup}>
+            {/* A métrica vem ANTES do gráfico: ela estava em oitavo, depois da
+                legenda e de um parágrafo, e trocar de unidade custava rolar de
+                ida e volta. A web já fazia assim; foi o mobile que divergiu. */}
+            <Segmented options={METRICS} value={metric} onChange={setMetric} />
+
             {isAll && years.length > 0 && (
               <View style={styles.yearChips}>
                 {years.map((y) => {
@@ -361,6 +421,22 @@ export default function HistoricoTabScreen() {
               />
             </View>
 
+            {/* A legenda de tipos encosta no gráfico: é o controle que muda o que
+                está desenhado ali, e ficava três blocos abaixo. */}
+            {overview.legend.length > 0 && (
+              <View style={styles.legend}>
+                {overview.legend.map((l) => {
+                  const off = hidden.has(l.label);
+                  return (
+                    <Pressable key={l.label} onPress={() => toggleType(l.label)} style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: off ? colors.line : remapChartColor(l.color, paletteId) }]} />
+                      <Text style={[styles.legendText, off && styles.legendTextOff]}>{l.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
             {isDuration && (
               <View style={styles.refLegend}>
                 <View style={styles.refRow}>
@@ -390,34 +466,41 @@ export default function HistoricoTabScreen() {
                     </Text>
                   </View>
                 )}
-                <Text style={styles.refHint}>
-                  Minutos de esforço: a barra é o tempo no relógio, a linha é quanto dele
-                  contou. Cada treino é pesado pela intensidade — pelo tempo em zonas de FC
-                  quando há batimentos, senão pelo tipo. Um minuto vigoroso conta inteiro; um
-                  moderado, metade; yoga e leves contam menos. A FC só acrescenta: nenhum
-                  treino cai abaixo do que o seu tipo já vale, então um pedal longo e fácil
-                  não é zerado por ter ficado em z1.
-                </Text>
-              </View>
-            )}
-
-            <Segmented options={METRICS} value={metric} onChange={setMetric} />
-
-            {overview.legend.length > 0 && (
-              <View style={styles.legend}>
-                {overview.legend.map((l) => {
-                  const off = hidden.has(l.label);
-                  return (
-                    <Pressable key={l.label} onPress={() => toggleType(l.label)} style={styles.legendItem}>
-                      <View style={[styles.legendDot, { backgroundColor: off ? colors.line : remapChartColor(l.color, paletteId) }]} />
-                      <Text style={[styles.legendText, off && styles.legendTextOff]}>{l.label}</Text>
-                    </Pressable>
-                  );
-                })}
+                {/* O parágrafo é referência, não leitura de cada visita: aberto por
+                    padrão ele empurrava a métrica para o oitavo lugar da tela. Fica
+                    a um toque para quem duvidar do número — que é quando ele importa. */}
+                <Pressable
+                  onPress={() => setShowMethod((v) => !v)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: showMethod }}
+                  style={styles.methodToggle}
+                >
+                  <Text style={styles.methodToggleText}>Como isto é calculado?</Text>
+                  <Ionicons
+                    name={showMethod ? 'chevron-up' : 'chevron-down'}
+                    size={13}
+                    color={colors.ink3}
+                  />
+                </Pressable>
+                {showMethod && (
+                  <Text style={styles.refHint}>
+                    Minutos de esforço: a barra é o tempo no relógio, a linha é quanto dele
+                    contou. Cada treino é pesado pela intensidade — pelo tempo em zonas de FC
+                    quando há batimentos, senão pelo tipo. Um minuto vigoroso conta inteiro; um
+                    moderado, metade; yoga e leves contam menos. A FC só acrescenta: nenhum
+                    treino cai abaixo do que o seu tipo já vale, então um pedal longo e fácil
+                    não é zerado por ter ficado em z1.
+                  </Text>
+                )}
               </View>
             )}
           </View>
         </View>
+
+        {/* Ao lado do gráfico, não no lugar dele: as barras dizem "quanto", a
+            grade diz "apareci". Some sozinha enquanto não houver nenhum dia. */}
+        <ConsistencyCard activities={activities} weeklyTargetMin={weeklyTargetMin} />
 
         <Text style={styles.sectionTitle}>Por tipo · histórico completo</Text>
         <View style={styles.typeGrid}>
@@ -518,9 +601,28 @@ const styles = themed(() => StyleSheet.create({
   segmentTextActive: { color: colors.ink },
 
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  statTile: { alignItems: 'center', flex: 1, gap: 2 },
+  statTile: { alignItems: 'center', flex: 1, gap: 1 },
   statValue: { fontSize: 15, color: colors.ink, fontFamily: fonts.monoBold },
+  statDelta: { fontSize: 10, fontFamily: fonts.monoBold },
+  // `roleColors(...).text` e não `.accent`: o acento promete 3,0 (piso de objeto
+  // gráfico) e isto é letra, que quer 4,5. Ver ADR 0024.
+  statDeltaUp: { color: roleColors('green').text },
+  statDeltaDown: { color: roleColors('red').text },
+  // Reserva a linha mesmo sem variação: sem isto os quatro tiles ficam com
+  // alturas diferentes quando só alguns têm base de comparação.
+  statDeltaVoid: { fontSize: 10, fontFamily: fonts.mono },
+  statDeltaFlat: { fontSize: 10, fontFamily: fonts.mono, color: colors.ink4 },
   statLabel: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink3 },
+  statsCaption: {
+    fontSize: 10,
+    fontFamily: fonts.sans,
+    color: colors.ink4,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+
+  methodToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 2 },
+  methodToggleText: { fontSize: 11, fontFamily: fonts.sansSemiBold, color: colors.ink3 },
 
   chartGroup: { gap: spacing.sm },
   chartWrap: { marginHorizontal: -spacing.xs },
