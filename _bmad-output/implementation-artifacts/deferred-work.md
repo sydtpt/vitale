@@ -65,3 +65,23 @@
 - source_spec: none
   summary: **Fase 5 do piloto BMAD** — decidir a adoção oficial: reescrever a seção de processo do `CLAUDE.md`, definir o destino das 55 specs em `.claude/specs/`, rodar a retrospectiva do piloto e mergear `bmad-pilot` em `main`.
   evidence: Adiado em 2026-08-17. Depende da Fase 3 para ter evidência suficiente — decidir adoção total com base só nas Fases 1 e 2 seria decidir com meio experimento. O plano do Winston em `_bmad-output/planning-artifacts/plano-mover-specs-para-docs.md` já ataca a parte das specs, com um motivo independente: `project_knowledge` do BMAD aponta para `docs/`, que não existe.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-reescrever-readme.md`
+  summary: `CLAUDE.md` está defasado nos mesmos eixos que o README acabou de corrigir — e o README novo aponta para ele como "status snapshot".
+  evidence: Diz "Fontes: Geist (sans)" quando `packages/shared/src/constants/tokens.ts:131` define `'Manrope'`; lista 7 rotas quando `web/src/main.ts` declara 20; a seção "Feito ✅" diz "Mobile: 4 telas de tab" enquanto `mobile/src/app/(tabs)/` tem 6, e a própria seção Stack do mesmo arquivo diz "6 tabs". Enquanto isso o README passou a linkar `CLAUDE.md` como referência de status, então a divergência agora é citável.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-reescrever-readme.md`
+  summary: `docs/specs/00-overview.md` descreve um projeto que não existe mais — "Vitale", "Arquitetura de dados (sem backend)", "dados mockados em memória".
+  evidence: O arquivo diz "Fase atual: dados mockados em memória (signals no Angular, Zustand no mobile)" e "Fase futura: API REST ou GraphQL". O repo tem 52 migrations em `supabase/migrations/`, 4 edge functions e `profileGuard` em 21 rotas. É o primeiro documento que a tabela de specs do README leva a ler, e desmente o resto do README.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-reescrever-readme.md`
+  summary: `web/src/app/features/auth/auth.routes.ts` é código morto — exporta `AUTH_ROUTES`, que ninguém importa.
+  evidence: `main.ts:10-19` declara `login` e `register` inline; um grep por `AUTH_ROUTES` em `web/src` acha só a própria declaração. Quem procurar onde ficam as rotas de auth acha esse arquivo primeiro e conclui que está ligado.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-reescrever-readme.md`
+  summary: O `description` do `package.json` da raiz ainda diz "Vitale — Life organizer with Angular web dashboard and React Native mobile app".
+  evidence: Único lugar versionado fora do escopo npm que ainda carrega o nome antigo como marca (o escopo `@vitale/*` é intencional, per ADR/CLAUDE.md). Ficou fora do escopo do spec do README, que proibia tocar em `package.json`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-reescrever-readme.md`
+  summary: Nada versionado documenta como levar o app ao device nem como publicar as edge functions — os dois caminhos que o CI não cobre.
+  evidence: `mobile/eas.json` define development/preview/production com distribuição interna, `mobile/plugins/` tem 5 config plugins (2 para entrega em background do HealthKit) e `supabase/config.toml` marca `connections-ingest` e `strava-oauth` com `verify_jwt = false` (autenticam-se por `x-cron-secret` e por `state` assinado). O README deliberadamente não cobre deploy — o spec listava isso em "Ask First" —, mas o vazio não é preenchido por nenhum outro doc.
