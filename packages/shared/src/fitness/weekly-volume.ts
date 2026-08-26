@@ -59,9 +59,26 @@ function round(value: number, metric: VolumeMetric): number {
     : Math.round(value / 60); //             segundos → min
 }
 
-export function buildWeeklyVolume(
+/**
+ * Quais atividades entram na série.
+ *
+ * Existe porque as duas telas que consomem isto agrupam de formas diferentes: o
+ * gráfico de volume da página de Treinos quer **um `activityId`**, enquanto os
+ * cards e a página de tipo do Histórico agrupam **por rótulo** — vários ids
+ * colapsam num só ("Corrida" cobre corrida indoor e outdoor). Um seletor
+ * atende os dois sem uma segunda função que sairia divergindo desta.
+ */
+export type ActivityMatcher = (a: Activity) => boolean;
+
+/**
+ * Série de volume por semana, para qualquer recorte de atividades.
+ *
+ * `buildWeeklyVolume` (abaixo) é o caso "um `activityId`" e continua sendo a
+ * porta de entrada de quem já a usava.
+ */
+export function buildVolumeSeries(
   activities: Activity[],
-  activityId: number,
+  match: ActivityMatcher,
   metric: VolumeMetric,
   weeks = 6,
   now: Date = new Date(),
@@ -71,7 +88,7 @@ export function buildWeeklyVolume(
   // ms da segunda → { valor bruto, sessões }
   const perWeek = new Map<number, { raw: number; count: number }>();
   for (const a of activities) {
-    if (a.hidden || a.activityId !== activityId) continue;
+    if (a.hidden || !match(a)) continue;
     const raw = metricValue(a, metric);
     if (raw <= 0) continue;
     const key = mondayOf(new Date(a.startAt)).getTime();
@@ -96,4 +113,34 @@ export function buildWeeklyVolume(
     });
   }
   return buckets;
+}
+
+export function buildWeeklyVolume(
+  activities: Activity[],
+  activityId: number,
+  metric: VolumeMetric,
+  weeks = 6,
+  now: Date = new Date(),
+): VolumeWeekBucket[] {
+  return buildVolumeSeries(activities, (a) => a.activityId === activityId, metric, weeks, now);
+}
+
+/**
+ * Série de volume de um **tipo** do Histórico — o agrupamento por rótulo que os
+ * cards e a página de tipo usam.
+ *
+ * O mesmo builder serve o gráfico grande da página de tipo e a sparkline do
+ * card; muda só quantas semanas se pede. Ter um só evita o problema clássico de
+ * o card e a página discordarem sobre o mesmo esporte.
+ */
+export function buildTypeVolumeSeries(
+  activities: Activity[],
+  /** `labelOf` do módulo já é o rótulo da semana — daí o nome diferente aqui. */
+  labelFor: (activityId: number) => string,
+  label: string,
+  metric: VolumeMetric,
+  weeks = 6,
+  now: Date = new Date(),
+): VolumeWeekBucket[] {
+  return buildVolumeSeries(activities, (a) => labelFor(a.activityId) === label, metric, weeks, now);
 }

@@ -65,6 +65,7 @@ export * from './habits/logic';
 export * from './habits/calories';
 export * from './planner/planned-match';
 export * from './fitness/activity-types';
+export * from './fitness/consistency';
 export * from './fitness/overview';
 export * from './fitness/weekly-volume';
 export * from './fitness/moving-time';
