@@ -66,7 +66,7 @@ Havia dois seletores, um deles guardado só localmente. Um seletor só, e as sé
 
 **Paleta customizada pelo usuário.** Escolher entre seis curadas e medidas é diferente de montar a sua — que só é defensável com o mesmo aparato de medição rodando no cliente.
 
-**Migrar o passivo de hex literal.** As catracas travam 230 no mobile, 121 no SCSS e 97 no TS da web. Elas não crescem; baixá-las é trabalho de fundo, não parte deste contrato.
+**Migrar o passivo de hex literal.** As catracas travam 229 no mobile, 121 no SCSS e 97 no TS da web. Elas não crescem; baixá-las é trabalho de fundo, não parte deste contrato.
 
 **Tema no cartão de compartilhamento.** `share-card-html.ts` é imagem exportada com identidade fixa: ela não deve mudar porque alguém trocou a paleta do app.
 
