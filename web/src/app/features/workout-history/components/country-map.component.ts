@@ -57,7 +57,7 @@ function downsample(points: readonly ActivityRoutePoint[], max: number): Activit
        border: 1px solid var(--line); background: var(--surface-mute); z-index: 0; }
      .map-hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
        z-index: 400; pointer-events: none; padding: 6px 12px; border-radius: 999px;
-       font-size: 12px; font-weight: 500; color: var(--ink2); white-space: nowrap;
+       font-size: 12px; font-weight: 500; color: var(--ink-2); white-space: nowrap;
        background: color-mix(in srgb, var(--surface) 88%, transparent);
        border: 1px solid var(--line); box-shadow: 0 2px 8px rgb(0 0 0 / 12%); }`,
   ],

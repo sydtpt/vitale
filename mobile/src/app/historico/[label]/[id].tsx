@@ -27,7 +27,7 @@ import {
   formatClock,
   totalTimeS,
 } from '../../../lib/workout-format';
-import { colors, spacing, radii, shadows, themed, useTheme } from '../../../theme';
+import { colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../../theme';
 
 type InfoRow = { label: string; value: string };
 
@@ -223,7 +223,7 @@ export default function AtividadeDetalheScreen() {
             style={({ pressed }) => [styles.saveBtn, pressed && styles.pressed]}
           >
             {saving ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={colors.onPrimary} />
             ) : (
               <Text style={styles.saveText}>Salvar</Text>
             )}
@@ -426,7 +426,7 @@ const styles = themed(() => StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     fontSize: 20,
-    fontFamily: 'InstrumentSerif',
+    fontFamily: fonts.serif,
     color: colors.ink,
   },
   saveBtn: {
@@ -437,7 +437,7 @@ const styles = themed(() => StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.primary,
   },
-  saveText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  saveText: { color: colors.onPrimary, fontSize: 14, fontFamily: fonts.sansSemiBold },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
 
@@ -461,12 +461,12 @@ const styles = themed(() => StyleSheet.create({
   },
   heroDate: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
     color: colors.ink,
     textTransform: 'capitalize',
     textAlign: 'center',
   },
-  heroTime: { fontSize: 13, color: colors.ink3, fontFamily: 'GeistMono' },
+  heroTime: { fontSize: 13, color: colors.ink3, fontFamily: fonts.mono },
   heroStats: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -475,8 +475,8 @@ const styles = themed(() => StyleSheet.create({
     marginTop: spacing.lg,
   },
   stat: { alignItems: 'center', gap: 3 },
-  statValue: { fontSize: 17, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
-  statCaption: { fontSize: 11, color: colors.ink3 },
+  statValue: { fontSize: 17, color: colors.ink, fontFamily: fonts.monoBold },
+  statCaption: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
   editBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -487,7 +487,7 @@ const styles = themed(() => StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: colors.surfaceMute,
   },
-  editBadgeText: { fontSize: 11.5, color: colors.ink2, fontWeight: '600' },
+  editBadgeText: { fontSize: 11.5, color: colors.ink2, fontFamily: fonts.sansSemiBold },
 
   recordBadges: {
     flexDirection: 'row',
@@ -504,17 +504,17 @@ const styles = themed(() => StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radii.pill,
   },
-  recordBadgeText: { fontSize: 12, fontWeight: '700' },
+  recordBadgeText: { fontSize: 12, fontFamily: fonts.sansBold },
 
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
     color: colors.ink2,
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   mapCard: {
     backgroundColor: colors.surface,
@@ -533,10 +533,10 @@ const styles = themed(() => StyleSheet.create({
   zoneRow: { gap: 6 },
   zoneTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   zoneDot: { width: 9, height: 9, borderRadius: 5 },
-  zoneLabel: { fontSize: 14, fontWeight: '600', color: colors.ink },
-  zoneRange: { fontSize: 11, color: colors.ink3 },
-  zoneTime: { fontSize: 13.5, fontFamily: 'GeistMono', color: colors.ink },
-  zonePct: { fontSize: 11.5, color: colors.ink3, minWidth: 32, textAlign: 'right' },
+  zoneLabel: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  zoneRange: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
+  zoneTime: { fontSize: 13.5, fontFamily: fonts.mono, color: colors.ink },
+  zonePct: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink3, minWidth: 32, textAlign: 'right' },
   zoneBar: {
     height: 8,
     borderRadius: 4,
@@ -552,10 +552,10 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   fieldLabel: {
-    fontSize: 11,
+    fontSize: 11, fontFamily: fonts.sans,
     color: colors.ink3,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
     marginBottom: spacing.xs,
   },
   input: {
@@ -563,11 +563,11 @@ const styles = themed(() => StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
   },
   inputDisabled: { color: colors.ink3, opacity: 0.7 },
-  note: { fontSize: 12, color: colors.ink3, marginTop: spacing.xs, fontStyle: 'italic' },
+  note: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: spacing.xs, fontStyle: 'italic' },
 
   toggleCard: {
     flexDirection: 'row',
@@ -579,8 +579,8 @@ const styles = themed(() => StyleSheet.create({
     marginTop: spacing.md,
     ...shadows.card,
   },
-  toggleTitle: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  toggleSub: { fontSize: 12, color: colors.ink3, marginTop: 2, lineHeight: 17 },
+  toggleTitle: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  toggleSub: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2, lineHeight: 17 },
 
   infoCard: {
     backgroundColor: colors.surface,
@@ -596,8 +596,8 @@ const styles = themed(() => StyleSheet.create({
     gap: spacing.lg,
   },
   infoRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
-  infoLabel: { fontSize: 13.5, color: colors.ink3, flexShrink: 0, maxWidth: '45%' },
-  infoValue: { fontSize: 13.5, color: colors.ink, fontFamily: 'GeistMono', flex: 1, textAlign: 'right' },
+  infoLabel: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, flexShrink: 0, maxWidth: '45%' },
+  infoValue: { fontSize: 13.5, color: colors.ink, fontFamily: fonts.mono, flex: 1, textAlign: 'right' },
 
-  emptyText: { fontSize: 15, color: colors.ink3 },
+  emptyText: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink3 },
 }));

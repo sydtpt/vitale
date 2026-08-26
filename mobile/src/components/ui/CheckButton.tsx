@@ -20,7 +20,7 @@ export function CheckButton({ checked, small = false }: CheckButtonProps) {
       ]}
     >
       {checked && (
-        <Ionicons name="checkmark" size={small ? 13 : 18} color="#fff" />
+        <Ionicons name="checkmark" size={small ? 13 : 18} color={colors.onPrimary} />
       )}
     </View>
   );
@@ -36,6 +36,9 @@ const createStyles = () => StyleSheet.create({
   },
   checked: {
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    // As marcas fluorescentes trazem contorno preto; nas demais o token é
+    // `transparent`, e aí a borda volta a ser a própria cor de marca.
+    borderColor:
+      colors.primaryOutline === 'transparent' ? colors.primary : colors.primaryOutline,
   },
 });

@@ -9,15 +9,11 @@ import { useAuthStore } from '../../store/auth.store';
 import { MonthCalendar } from '../../components/MonthCalendar';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { supabase } from '../../lib/supabase';
-import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { localDateStr } from '@vitale/shared';
 import { fetchRegistroLogsBetween } from '@vitale/shared';
 
 const DATE_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-
-function modColor(key: string): { tint: string; accent: string } {
-  return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.habito;
-}
 
 export default function EditarDiaRegistrosScreen() {
   const styles = useThemedStyles(createStyles);
@@ -132,7 +128,7 @@ export default function EditarDiaRegistrosScreen() {
             ) : (
               <View style={styles.card}>
                 {active.map((r, i) => {
-                  const mod = modColor(r.color);
+                  const mod = moduleColors(r.color, 'habito');
                   const done = isMarked(r.id, selected);
                   return (
                     <Pressable
@@ -145,7 +141,7 @@ export default function EditarDiaRegistrosScreen() {
                       ]}
                     >
                       <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>
-                        <Ionicons name={habitIconToIonicon(r.icon)} size={18} color={mod.accent} />
+                        <Ionicons name={habitIconToIonicon(r.icon)} size={18} color={mod.onTint} />
                       </View>
                       <Text style={[styles.name, done && { color: mod.accent }]}>{r.name}</Text>
                       <View style={[styles.check, done && { backgroundColor: mod.accent, borderColor: mod.accent }]}>
@@ -183,12 +179,12 @@ const createStyles = () => StyleSheet.create({
     backgroundColor: colors.surface, ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: spacing.sm },
   loader: { marginTop: spacing.lg },
-  dayTitle: { fontSize: 14, fontWeight: '700', color: colors.ink, textTransform: 'capitalize', marginTop: spacing.md },
-  hint: { fontSize: 13, color: colors.ink3, marginTop: spacing.sm },
+  dayTitle: { fontSize: 14, fontFamily: fonts.sansBold, color: colors.ink, textTransform: 'capitalize', marginTop: spacing.md },
+  hint: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, marginTop: spacing.sm },
   pickHint: { textAlign: 'center', marginTop: spacing.xl },
 
   card: {
@@ -209,7 +205,7 @@ const createStyles = () => StyleSheet.create({
   },
   noBorder: { borderBottomWidth: 0 },
   iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  name: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.ink },
+  name: { flex: 1, fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
   check: {
     width: 26, height: 26, borderRadius: 13,
     borderWidth: 1.5, borderColor: colors.line,

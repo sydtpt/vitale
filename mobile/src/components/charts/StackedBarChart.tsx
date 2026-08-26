@@ -4,8 +4,7 @@ import Svg, { Rect, Text as SvgText, Line, Path, Circle, Defs, LinearGradient, S
 import { compactNumber, niceAxisMax, remapChartColor, smoothLinePath, type LinePoint } from '@vitale/shared';
 import type { OverviewBucket, Metric } from '../../lib/activity-overview';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
-import { useChartPaletteStore } from '../../store/chart-palette.store';
-import { colors } from '../../theme';
+import { colors, fonts, useTheme } from '../../theme';
 
 interface Props {
   buckets: OverviewBucket[];
@@ -316,6 +315,8 @@ export function StackedBarChart({
   goal, goalLabel = 'Meta', goalUnit = '', currentGoal, showEffort = false, effortFlat, effortFlatLabel = 'Média',
   effortFlatColor = colors.ink2, effortColor = colors.ink2,
 }: Props) {
+  // A paleta ativa vem do tema — o app e os gráficos usam a mesma desde a unificação.
+  const { paletteId } = useTheme();
   const [display, setDisplay] = useState<Bar[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -323,7 +324,6 @@ export function StackedBarChart({
   const displayRef = useRef<Bar[]>([]);
   const rafRef = useRef<number | undefined>(undefined);
 
-  const paletteId = useChartPaletteStore((s) => s.paletteId);
   const model = useMemo(
     () => buildModel(buckets, metric, width, height, noScroll, paletteId, goal, showEffort, effortFlat, currentGoal),
     [buckets, metric, width, height, noScroll, paletteId, goal, showEffort, effortFlat, currentGoal],
@@ -418,7 +418,7 @@ export function StackedBarChart({
           strokeWidth={1}
           onPress={() => setSelected(null)}
         />
-        <SvgText x={bx + TT_PAD} y={by + TT_PAD + TT_FS} fontSize={TT_FS} fontWeight="700" fill={colors.ink}>
+        <SvgText x={bx + TT_PAD} y={by + TT_PAD + TT_FS} fontSize={TT_FS} fontFamily={fonts.sansBold} fill={colors.ink}>
           {b.label}
         </SvgText>
         {b.segments.map((s, k) => {
@@ -429,7 +429,7 @@ export function StackedBarChart({
               <SvgText x={textX} y={lineY} fontSize={TT_FS} fill={colors.ink2}>
                 {s.label}
               </SvgText>
-              <SvgText x={valX} y={lineY} fontSize={TT_FS} fill={colors.ink} textAnchor="end" fontFamily="GeistMono">
+              <SvgText x={valX} y={lineY} fontSize={TT_FS} fill={colors.ink} textAnchor="end" fontFamily={fonts.mono}>
                 {fmtValue(s.value, metric)}
               </SvgText>
             </React.Fragment>
@@ -442,7 +442,7 @@ export function StackedBarChart({
               y={by + TT_PAD + TT_FS + TT_ROW * (b.segments.length + 1)}
               fontSize={TT_FS}
               fill={colors.ink3}
-              fontWeight="700"
+              fontFamily={fonts.sansBold}
             >
               Total
             </SvgText>
@@ -452,8 +452,7 @@ export function StackedBarChart({
               fontSize={TT_FS}
               fill={colors.ink}
               textAnchor="end"
-              fontWeight="700"
-              fontFamily="GeistMono"
+              fontFamily={fonts.monoBold}
             >
               {fmtValue(b.total, metric)}
             </SvgText>
@@ -472,7 +471,7 @@ export function StackedBarChart({
             <SvgText x={textX} y={effortY} fontSize={TT_FS} fill={colors.ink2}>
               Esforço
             </SvgText>
-            <SvgText x={valX} y={effortY} fontSize={TT_FS} fill={colors.ink} textAnchor="end" fontFamily="GeistMono">
+            <SvgText x={valX} y={effortY} fontSize={TT_FS} fill={colors.ink} textAnchor="end" fontFamily={fonts.mono}>
               {fmtValue(b.effectiveS ?? 0, metric)}
             </SvgText>
           </React.Fragment>
@@ -565,7 +564,7 @@ export function StackedBarChart({
             strokeWidth={1.25}
             strokeDasharray="3 3"
           />
-          <SvgText x={chartW - 4} y={goalY - 5} fontSize={8.5} fill={colors.ink3} fillOpacity={0.85} textAnchor="end" fontFamily="GeistMono">
+          <SvgText x={chartW - 4} y={goalY - 5} fontSize={8.5} fill={colors.ink3} fillOpacity={0.85} textAnchor="end" fontFamily={fonts.mono}>
             {`${goalLabel} · ${fmtCompact(goal ?? 0, metric)}${goalUnit}`}
           </SvgText>
         </React.Fragment>
@@ -589,7 +588,7 @@ export function StackedBarChart({
             strokeDasharray="1 3"
             strokeLinecap="round"
           />
-          <SvgText x={PAD_LEFT + 4} y={effortFlatY - 5} fontSize={8.5} fill={effortFlatColor} fontFamily="GeistMono">
+          <SvgText x={PAD_LEFT + 4} y={effortFlatY - 5} fontSize={8.5} fill={effortFlatColor} fontFamily={fonts.mono}>
             {`${effortFlatLabel} · ${fmtCompact(effortFlat ?? 0, metric)}`}
           </SvgText>
         </React.Fragment>

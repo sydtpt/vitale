@@ -6,6 +6,10 @@
  * Adicione/edite labels somente aqui.
  */
 import type { WorkoutKind } from '../health/readiness-advice';
+import type { PaletteRoles } from '../theme/palettes';
+
+/** Papel cromático de série de gráfico. */
+type ChartRole = keyof PaletteRoles;
 
 export const ACTIVITY_TYPE_LABELS: Record<number, string> = {
   11: 'Cross Training',
@@ -67,4 +71,42 @@ export function kindForActivity(activityId: number): WorkoutKind {
 /** Atividade que costuma gravar rota GPS. */
 export function hasGpsRoute(activityId: number): boolean {
   return GPS_ACTIVITY_IDS.has(activityId);
+}
+
+/**
+ * Tipo de treino → **papel cromático**, não hex.
+ *
+ * Antes disso, web e mobile guardavam cada um a sua tabela de cor por
+ * atividade, escrita em hex — o mobile com 18 literais em `lib/workout-types.ts`.
+ * Duas cópias que precisavam concordar, e nenhuma delas conseguia responder à
+ * paleta escolhida pelo usuário. Guardar o papel resolve as duas coisas: a cor
+ * sai de `resolveTokens(...).roles[papel]` no tema e paleta ativos.
+ *
+ * Atividades da mesma família compartilham papel de propósito — ciclismo, remo
+ * e natação são todas `blue`. São 17 tipos para 8 papéis; agrupar por família é
+ * o que mantém o gráfico legível.
+ */
+export const ACTIVITY_ROLE: Record<number, ChartRole> = {
+  11: 'deep',    // Cross Training
+  13: 'blue',    // Ciclismo
+  16: 'green',   // Elíptico
+  20: 'brown',   // Funcional
+  24: 'green',   // Trilha
+  35: 'blue',    // Remo
+  37: 'orange',  // Corrida
+  44: 'brown',   // Escadas
+  46: 'blue',    // Natação
+  50: 'ink',     // Musculação
+  52: 'yellow',  // Caminhada
+  57: 'green',   // Yoga
+  59: 'rose',    // Core
+  63: 'deep',    // HIIT
+  66: 'rose',    // Pilates
+  73: 'rose',    // Cardio
+  82: 'yellow',  // Pickleball
+};
+
+/** Papel de um tipo de atividade; `undefined` quando o tipo é desconhecido. */
+export function activityRole(activityId: number): ChartRole | undefined {
+  return ACTIVITY_ROLE[activityId];
 }

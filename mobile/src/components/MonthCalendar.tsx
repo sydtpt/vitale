@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing } from '../theme';
+import { colors, fonts, radii, spacing, themed, useTheme } from '../theme';
 import { localDateStr } from '@vitale/shared';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -27,6 +27,7 @@ interface Props {
 
 /** Calendário mensal: grade 7 col (domingo→sábado), navegação de mês, futuro off. */
 export function MonthCalendar({ selected, marked, onSelect, onMonthChange }: Props) {
+  useTheme();
   const now = useMemo(() => new Date(), []);
   const today = localDateStr(now);
   const [year, setYear] = useState(now.getFullYear());
@@ -113,23 +114,25 @@ export function MonthCalendar({ selected, marked, onSelect, onMonthChange }: Pro
   );
 }
 
-const styles = StyleSheet.create({
-  cal: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.md, borderWidth: 1, borderColor: colors.line },
-  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
-  navBtn: { width: 32, height: 32, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 14.5, fontWeight: '700', color: colors.ink, textTransform: 'capitalize' },
-  pressed: { opacity: 0.6 },
-  disabled: { opacity: 0.4 },
-  row: { flexDirection: 'row', marginBottom: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cellWrap: { width: `${100 / 7}%`, aspectRatio: 1, padding: 2 },
-  weekday: { textAlign: 'center', fontSize: 11, fontWeight: '600', color: colors.ink3 },
-  day: { flex: 1, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
-  dayToday: { borderWidth: 1, borderColor: colors.line },
-  daySel: { backgroundColor: colors.primary },
-  dayNum: { fontSize: 14, color: colors.ink, fontWeight: '500' },
-  dayNumSel: { color: '#fff', fontWeight: '700' },
-  dayFuture: { color: colors.ink4 },
-  dot: { position: 'absolute', bottom: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary },
-  dotSel: { backgroundColor: '#fff' },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    cal: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.md, borderWidth: 1, borderColor: colors.line },
+    nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+    navBtn: { width: 32, height: 32, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+    label: { fontSize: 14.5, fontFamily: fonts.sansBold, color: colors.ink, textTransform: 'capitalize' },
+    pressed: { opacity: 0.6 },
+    disabled: { opacity: 0.4 },
+    row: { flexDirection: 'row', marginBottom: 4 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    cellWrap: { width: `${100 / 7}%`, aspectRatio: 1, padding: 2 },
+    weekday: { textAlign: 'center', fontSize: 11, fontFamily: fonts.sansSemiBold, color: colors.ink3 },
+    day: { flex: 1, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+    dayToday: { borderWidth: 1, borderColor: colors.line },
+    daySel: { backgroundColor: colors.primary },
+    dayNum: { fontSize: 14, color: colors.ink, fontFamily: fonts.sansMedium },
+    dayNumSel: { color: '#fff', fontFamily: fonts.sansBold },
+    dayFuture: { color: colors.ink4 },
+    dot: { position: 'absolute', bottom: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary },
+    dotSel: { backgroundColor: '#fff' },
+  }),
+);

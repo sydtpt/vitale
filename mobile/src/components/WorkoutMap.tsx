@@ -9,7 +9,7 @@ import { useSettingsStore } from '../store/settings.store';
 import { buildMapHtml } from '../lib/map-html';
 import type { ShareContext } from '../lib/share-card-html';
 import { ShareComposerModal } from './share/ShareComposerModal';
-import { colors, radii, spacing } from '../theme';
+import { colors, fonts, radii, spacing, themed, useTheme } from '../theme';
 
 /**
  * Renderiza a rota GPS de um treino sobre o OpenStreetMap usando Leaflet
@@ -29,6 +29,7 @@ export function WorkoutMap({
   height?: number;
   share?: ShareContext;
 }) {
+  useTheme();
   const [fullscreen, setFullscreen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const insets = useSafeAreaInsets();
@@ -110,7 +111,7 @@ export function WorkoutMap({
               hitSlop={8}
             >
               <Ionicons name="locate-outline" size={18} color="#fff" />
-              <Text style={styles.pillText}>Recentrar</Text>
+              <Text style={styles.pillTextDark}>Recentrar</Text>
             </Pressable>
 
             <View style={styles.actionSpacer} />
@@ -123,7 +124,7 @@ export function WorkoutMap({
                 accessibilityLabel="Compartilhar atividade"
                 hitSlop={8}
               >
-                <Ionicons name="share-social-outline" size={18} color="#fff" />
+                <Ionicons name="share-social-outline" size={18} color={colors.onPrimary} />
                 <Text style={styles.pillText}>Compartilhar</Text>
               </Pressable>
             )}
@@ -144,85 +145,95 @@ export function WorkoutMap({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: radii['2xl'],
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceMute,
-  },
-  web: {
-    flex: 1,
-    backgroundColor: colors.surfaceMute,
-  },
-  expandHint: {
-    position: 'absolute',
-    right: spacing.md,
-    bottom: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  expandHintText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  fullContainer: {
-    flex: 1,
-    backgroundColor: colors.surfaceMute,
-  },
-  fullWeb: {
-    flex: 1,
-    backgroundColor: colors.surfaceMute,
-  },
-  closeButton: {
-    position: 'absolute',
-    right: spacing.lg,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  closeButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  actionBar: {
-    position: 'absolute',
-    left: spacing.lg,
-    right: spacing.lg,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionSpacer: { flex: 1 },
-  pressed: { opacity: 0.7 },
-  pillDark: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  pillShare: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
-  },
-  pillText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    container: {
+      borderRadius: radii['2xl'],
+      overflow: 'hidden',
+      backgroundColor: colors.surfaceMute,
+    },
+    web: {
+      flex: 1,
+      backgroundColor: colors.surfaceMute,
+    },
+    expandHint: {
+      position: 'absolute',
+      right: spacing.md,
+      bottom: spacing.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+      borderRadius: radii.pill,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    expandHintText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontFamily: fonts.sansSemiBold,
+    },
+    fullContainer: {
+      flex: 1,
+      backgroundColor: colors.surfaceMute,
+    },
+    fullWeb: {
+      flex: 1,
+      backgroundColor: colors.surfaceMute,
+    },
+    closeButton: {
+      position: 'absolute',
+      right: spacing.lg,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+    closeButtonText: {
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontFamily: fonts.sansBold,
+      lineHeight: 20,
+    },
+    actionBar: {
+      position: 'absolute',
+      left: spacing.lg,
+      right: spacing.lg,
+      bottom: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    actionSpacer: { flex: 1 },
+    pressed: { opacity: 0.7 },
+    pillDark: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      borderRadius: radii.pill,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+    pillShare: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 10,
+      borderRadius: radii.pill,
+      backgroundColor: colors.primary,
+    },
+    // Duas pílulas, dois fundos: a de recentrar é preta translúcida sobre o
+    // mapa (branco é a cor certa e não depende de tema); a de compartilhar é
+    // preenchida com a marca, e aí o conteúdo tem de segui-la.
+    pillTextDark: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontFamily: fonts.sansBold,
+    },
+    pillText: {
+      color: colors.onPrimary,
+      fontSize: 14,
+      fontFamily: fonts.sansBold,
+    },
+  }),
+);

@@ -8,7 +8,7 @@ import { useRouter, type Href } from 'expo-router';
 import {
   MEAL_TYPES, MEAL_TYPE_LABELS, FINANCA_CATS, type MealType,
 } from '@vitale/shared';
-import { colors, shadows } from '../../theme';
+import { colors, fonts, shadows, themed, useTheme } from '../../theme';
 import { useMealsStore } from '../../store/meals.store';
 import { useTransactionsStore } from '../../store/transactions.store';
 
@@ -53,6 +53,7 @@ function parseAmount(raw: string): number {
 }
 
 export function QuickAddSheet({ visible, initial = 'pick', onClose }: QuickAddSheetProps) {
+  useTheme();
   const router = useRouter();
   const createMeal = useMealsStore((s) => s.createMeal);
   const createTransaction = useTransactionsStore((s) => s.createTransaction);
@@ -276,100 +277,102 @@ export function QuickAddSheet({ visible, initial = 'pick', onClose }: QuickAddSh
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end' },
-  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(31,27,22,0.45)' },
-  sheet: {
-    backgroundColor: colors.bg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 16,
-    paddingBottom: 36,
-    maxHeight: '82%',
-  },
-  grabber: {
-    width: 40, height: 4, backgroundColor: colors.ink4,
-    borderRadius: 2, alignSelf: 'center', marginBottom: 10,
-  },
-  title: { fontFamily: 'InstrumentSerif', fontSize: 28, color: colors.ink, marginVertical: 4 },
-  hint: { fontSize: 13, color: colors.ink2, marginBottom: 14 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  opt: {
-    width: '48%', backgroundColor: colors.surface, borderRadius: 16,
-    padding: 14, gap: 6, ...shadows.card,
-  },
-  ico: {
-    width: 32, height: 32, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  optTitle: { fontSize: 14, fontWeight: '600', color: colors.ink },
-  optSub: { fontSize: 11.5, color: colors.ink3 },
+const styles = themed(() =>
+  StyleSheet.create({
+    overlay: { flex: 1, justifyContent: 'flex-end' },
+    scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(31,27,22,0.45)' },
+    sheet: {
+      backgroundColor: colors.bg,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 16,
+      paddingBottom: 36,
+      maxHeight: '82%',
+    },
+    grabber: {
+      width: 40, height: 4, backgroundColor: colors.ink4,
+      borderRadius: 2, alignSelf: 'center', marginBottom: 10,
+    },
+    title: { fontFamily: fonts.serif, fontSize: 28, color: colors.ink, marginVertical: 4 },
+    hint: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink2, marginBottom: 14 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    opt: {
+      width: '48%', backgroundColor: colors.surface, borderRadius: 16,
+      padding: 14, gap: 6, ...shadows.card,
+    },
+    ico: {
+      width: 32, height: 32, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    optTitle: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink },
+    optSub: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink3 },
 
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  ghost: { fontSize: 14, color: colors.ink2 },
-  barTitle: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  saveBtn: {
-    backgroundColor: colors.primary, borderRadius: 999,
-    paddingHorizontal: 14, paddingVertical: 6,
-  },
-  saveBtnOff: { opacity: 0.4 },
-  saveTxt: { color: '#fff', fontWeight: '600', fontSize: 13 },
+    bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    ghost: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink2 },
+    barTitle: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
+    saveBtn: {
+      backgroundColor: colors.primary, borderRadius: 999,
+      paddingHorizontal: 14, paddingVertical: 6,
+    },
+    saveBtnOff: { opacity: 0.4 },
+    saveTxt: { color: colors.onPrimary, fontFamily: fonts.sansSemiBold, fontSize: 13 },
 
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: colors.surface, borderRadius: 999,
-    borderWidth: 1, borderColor: colors.line,
-  },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipTxt: { fontSize: 13, fontWeight: '500', color: colors.ink2 },
-  chipTxtOn: { color: '#fff' },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+    chip: {
+      paddingHorizontal: 14, paddingVertical: 8,
+      backgroundColor: colors.surface, borderRadius: 999,
+      borderWidth: 1, borderColor: colors.line,
+    },
+    chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+    chipTxt: { fontSize: 13, fontFamily: fonts.sansMedium, color: colors.ink2 },
+    chipTxtOn: { color: colors.onPrimary },
 
-  field: {
-    marginTop: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 14, ...shadows.card,
-  },
-  fieldRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-  },
-  fieldLabel: {
-    fontSize: 12, color: colors.ink3, letterSpacing: 0.3, fontWeight: '600',
-  },
-  input: {
-    marginTop: 6, fontSize: 16, color: colors.ink,
-    borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 8,
-  },
-  inputInline: {
-    fontSize: 16, color: colors.ink, minWidth: 80, textAlign: 'right',
-  },
+    field: {
+      marginTop: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 14, ...shadows.card,
+    },
+    fieldRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    fieldLabel: {
+      fontSize: 12, color: colors.ink3, letterSpacing: 0.3, fontFamily: fonts.sansSemiBold,
+    },
+    input: {
+      marginTop: 6, fontSize: 16, fontFamily: fonts.sans, color: colors.ink,
+      borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 8,
+    },
+    inputInline: {
+      fontSize: 16, fontFamily: fonts.sans, color: colors.ink, minWidth: 80, textAlign: 'right',
+    },
 
-  suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  suggest: {
-    paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: colors.surfaceWarm, borderRadius: 999,
-  },
-  suggestTxt: { fontSize: 13, fontWeight: '500', color: colors.ink },
+    suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+    suggest: {
+      paddingHorizontal: 12, paddingVertical: 8,
+      backgroundColor: colors.surfaceWarm, borderRadius: 999,
+    },
+    suggestTxt: { fontSize: 13, fontFamily: fonts.sansMedium, color: colors.ink },
 
-  amountWrap: {
-    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center',
-    marginTop: 18,
-  },
-  amountCur: { fontSize: 22, color: colors.ink3, fontFamily: 'InstrumentSerif' },
-  amountInput: {
-    fontFamily: 'InstrumentSerif', fontSize: 56, color: colors.ink,
-    minWidth: 140, textAlign: 'center', padding: 0,
-  },
+    amountWrap: {
+      flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center',
+      marginTop: 18,
+    },
+    amountCur: { fontSize: 22, color: colors.ink3, fontFamily: fonts.serif },
+    amountInput: {
+      fontFamily: fonts.serif, fontSize: 56, color: colors.ink,
+      minWidth: 140, textAlign: 'center', padding: 0,
+    },
 
-  fields: {
-    marginTop: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 10, ...shadows.card,
-  },
-  frow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
-  frowLabel: { fontSize: 12.5, color: colors.ink2, fontWeight: '500' },
-  frowInput: { flex: 1, marginLeft: 12, fontSize: 14, color: colors.ink, textAlign: 'right' },
+    fields: {
+      marginTop: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 10, ...shadows.card,
+    },
+    frow: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    },
+    frowLabel: { fontSize: 12.5, color: colors.ink2, fontFamily: fonts.sansMedium },
+    frowInput: { flex: 1, marginLeft: 12, fontSize: 14, fontFamily: fonts.sans, color: colors.ink, textAlign: 'right' },
 
-  catLabel: {
-    fontSize: 12, color: colors.ink3, letterSpacing: 0.3, fontWeight: '600',
-    marginTop: 18, marginLeft: 2,
-  },
-});
+    catLabel: {
+      fontSize: 12, color: colors.ink3, letterSpacing: 0.3, fontFamily: fonts.sansSemiBold,
+      marginTop: 18, marginLeft: 2,
+    },
+  }),
+);

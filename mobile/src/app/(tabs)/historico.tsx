@@ -22,8 +22,7 @@ import { getJSON, setJSON } from '../../lib/local-store';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
-import { useChartPaletteStore } from '../../store/chart-palette.store';
-import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'semana', label: '7d' },
@@ -127,7 +126,7 @@ function Segmented<T extends string>({
 }
 
 export default function HistoricoTabScreen() {
-  const { scheme } = useTheme();
+  const { scheme, paletteId } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
   const tabBarScroll = useTabBarScroll();
@@ -147,7 +146,6 @@ export default function HistoricoTabScreen() {
   const [yearOffset, setYearOffset] = useState(0);
   // Anos desligados no período "Sempre"; hidrata do armazenamento local no mount.
   const [hiddenYears, setHiddenYears] = useState<Set<string>>(new Set());
-  const paletteId = useChartPaletteStore((s) => s.paletteId);
   // Meta semanal configurável em Ajustes → Objetivos; cai no padrão se não definida.
   const preferences = useSettingsStore((s) => s.preferences);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
@@ -228,7 +226,7 @@ export default function HistoricoTabScreen() {
           <Text style={styles.headerTitle}>Histórico</Text>
         </View>
         <View style={styles.center}>
-          <ActivityIndicator color={MOD.treino.accent} />
+          <ActivityIndicator color={moduleColors('treino').accent} />
         </View>
       </View>
     );
@@ -258,8 +256,8 @@ export default function HistoricoTabScreen() {
           <Text style={styles.headerTitle}>Histórico</Text>
         </View>
         <View style={styles.center}>
-          <View style={[styles.emptyIcon, { backgroundColor: MOD.treino.tint }]}>
-            <Ionicons name="barbell-outline" size={30} color={MOD.treino.accent} />
+          <View style={[styles.emptyIcon, { backgroundColor: moduleColors('treino').tint }]}>
+            <Ionicons name="barbell-outline" size={30} color={moduleColors('treino').accent} />
           </View>
           <Text style={styles.emptyTitle}>Nenhuma atividade ainda</Text>
           <Text style={styles.emptyText}>
@@ -459,7 +457,7 @@ const styles = themed(() => StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
   },
-  headerTitle: { fontSize: 28, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { fontSize: 28, fontFamily: fonts.serif, color: colors.ink },
   pressed: { opacity: 0.7 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
@@ -471,19 +469,19 @@ const styles = themed(() => StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.sm,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: colors.ink, textAlign: 'center' },
-  emptyText: { fontSize: 14, color: colors.ink3, textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: 18, fontFamily: fonts.sansSemiBold, color: colors.ink, textAlign: 'center' },
+  emptyText: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center', lineHeight: 20 },
   cta: {
     marginTop: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: MOD.treino.accent,
+    backgroundColor: moduleColors('treino').accent,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: radii.pill,
   },
-  ctaText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  ctaText: { color: '#fff', fontSize: 14, fontFamily: fonts.sansSemiBold },
   retryBtn: {
     marginTop: spacing.sm,
     paddingHorizontal: spacing.lg,
@@ -491,7 +489,7 @@ const styles = themed(() => StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: colors.surfaceMute,
   },
-  retryText: { color: colors.ink, fontSize: 14, fontWeight: '600' },
+  retryText: { color: colors.ink, fontSize: 14, fontFamily: fonts.sansSemiBold },
 
   scroll: { paddingHorizontal: spacing.lg },
 
@@ -516,13 +514,13 @@ const styles = themed(() => StyleSheet.create({
     alignItems: 'center',
   },
   segmentActive: { backgroundColor: colors.surface, ...shadows.sm },
-  segmentText: { fontSize: 12.5, color: colors.ink3, fontWeight: '600' },
+  segmentText: { fontSize: 12.5, color: colors.ink3, fontFamily: fonts.sansSemiBold },
   segmentTextActive: { color: colors.ink },
 
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   statTile: { alignItems: 'center', flex: 1, gap: 2 },
-  statValue: { fontSize: 15, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
-  statLabel: { fontSize: 10.5, color: colors.ink3 },
+  statValue: { fontSize: 15, color: colors.ink, fontFamily: fonts.monoBold },
+  statLabel: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink3 },
 
   chartGroup: { gap: spacing.sm },
   chartWrap: { marginHorizontal: -spacing.xs },
@@ -538,7 +536,7 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: 'transparent',
   },
   yearChipOn: { backgroundColor: colors.surfaceMute, borderColor: colors.lineDeep },
-  yearChipText: { fontSize: 12, fontFamily: 'GeistMono', color: colors.ink4 },
+  yearChipText: { fontSize: 12, fontFamily: fonts.mono, color: colors.ink4 },
   yearChipTextOn: { color: colors.ink },
 
   refLegend: {
@@ -552,31 +550,31 @@ const styles = themed(() => StyleSheet.create({
   // é sinalizado pela cor do ícone, não por opacidade.
   yearNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.lg, marginTop: spacing.sm },
   navBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadows.card },
-  navLabel: { fontSize: 15, fontWeight: '600', color: colors.ink, minWidth: 56, textAlign: 'center' },
+  navLabel: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink, minWidth: 56, textAlign: 'center' },
 
   markRow: { flexDirection: 'row', alignItems: 'center', gap: 2, width: 18 },
   markBar: { width: 18, height: 2, borderRadius: 1 },
   markSolid: { backgroundColor: colors.ink2, opacity: 0.85 },
   markSegDashed: { width: 4, height: 2, borderRadius: 1, backgroundColor: colors.ink3, opacity: 0.7 },
   markSegDotted: { width: 2, height: 2, borderRadius: 1, backgroundColor: colors.ink2, opacity: 0.8 },
-  refText: { fontSize: 11.5, fontWeight: '600', color: colors.ink2 },
-  refHint: { fontSize: 10.5, lineHeight: 15, color: colors.ink3 },
+  refText: { fontSize: 11.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+  refHint: { fontSize: 10.5, fontFamily: fonts.sans, lineHeight: 15, color: colors.ink3 },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 9, height: 9, borderRadius: 3 },
-  legendText: { fontSize: 11.5, color: colors.ink2 },
+  legendText: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink2 },
   legendTextOff: { color: colors.ink4 },
 
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
     color: colors.ink2,
     marginTop: spacing.xl,
     marginBottom: spacing.md,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   typeCard: {
@@ -594,6 +592,6 @@ const styles = themed(() => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  typeLabel: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  typeMeta: { fontSize: 12, color: colors.ink3, fontFamily: 'GeistMono' },
+  typeLabel: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  typeMeta: { fontSize: 12, color: colors.ink3, fontFamily: fonts.mono },
 }));

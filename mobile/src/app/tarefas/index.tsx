@@ -7,7 +7,7 @@ import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
 import { TodoItem } from '../../components/cards/TodoItem';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { todoDayStr, todoTimeStr, isOverdue, isVisibleNow, isStarted, addDays } from '@vitale/shared';
 
 export default function TarefasScreen() {
@@ -155,7 +155,7 @@ export default function TarefasScreen() {
           <Text style={styles.emptyTitle}>Nenhuma tarefa</Text>
           <Text style={styles.emptyText}>Crie tarefas recorrentes ou avulsas para acompanhar no dia a dia.</Text>
           <Pressable onPress={() => router.push('/tarefas/editor')} style={({ pressed }) => [styles.cta, pressed && styles.pressed]}>
-            <Ionicons name="add" size={18} color="#fff" />
+            <Ionicons name="add" size={18} color={colors.onPrimary} />
             <Text style={styles.ctaText}>Nova tarefa</Text>
           </Pressable>
         </View>
@@ -198,31 +198,31 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
   section: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     marginTop: spacing.xl,
     marginBottom: spacing.xs,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   card: { backgroundColor: colors.surface, borderRadius: radii['2xl'], overflow: 'hidden', marginTop: 8, ...shadows.card },
   trigger: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
   iconBox: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
-  name: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
-  summary: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
+  name: { fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  summary: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
   triggerBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill },
-  triggerBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  triggerBtnText: { color: '#fff', fontSize: 13, fontFamily: fonts.sansBold },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: spacing.sm },
-  emptyText: { fontSize: 13.5, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink, marginTop: spacing.sm },
+  emptyText: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
   cta: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 11, borderRadius: radii.pill, marginTop: spacing.md },
-  ctaText: { color: '#fff', fontSize: 14.5, fontWeight: '700' },
+  ctaText: { color: colors.onPrimary, fontSize: 14.5, fontFamily: fonts.sansBold },
 });

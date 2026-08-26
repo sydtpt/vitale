@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, AppState, AppStateStatus } from 'react-native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import {
+  DefaultTheme as NavDefaultTheme,
+  Stack,
+  ThemeProvider as NavThemeProvider,
+  useRouter,
+  useSegments,
+} from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../store/auth.store';
 import { startActivitySync, stopActivitySync } from '../services/healthkit-observer';
 import { startNotifications, stopNotifications } from '../services/notifications';
-import { ThemeProvider, useTheme, baseBg } from '../theme';
+import { ThemeProvider, colors, useTheme, wallpaperBg } from '../theme';
 import { RotinaBackground } from '../components/ui/RotinaBackground';
 import { SplashOverlay } from '../components/ui/SplashOverlay';
 import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
@@ -48,6 +54,10 @@ export default function RootLayout() {
    * saiu alguém. Renovar credencial do mesmo usuário não é evento pra eles.
    */
   const userId = session?.user.id ?? null;
+
+  // As fontes vêm embarcadas no binário pelo plugin `expo-font` (lista em
+  // `app.base.json`), então já existem no primeiro frame — não há carregamento
+  // em runtime para esperar aqui. Trocar a lista exige rebuild nativo.
 
   // Splash de marca: visível até o app inicializar (respeitando um tempo mínimo).
   const mountedAt = useRef(Date.now());
@@ -123,8 +133,42 @@ export default function RootLayout() {
 
 /** Casca visual dentro do ThemeProvider: papel de parede atrás da navegação. */
 function AppShell() {
-  const { scheme, wallpaper } = useTheme();
-  const base = baseBg(scheme);
+  const { scheme, themeId, paletteId, brandId, wallpaper } = useTheme();
+  const base = wallpaperBg(scheme, wallpaper);
+
+  /**
+   * Tema de navegação com **fundo transparente** — e é isto que faz o papel de
+   * parede aparecer.
+   *
+   * O `contentStyle: 'transparent'` que o `Stack` recebe governa só o CONTEÚDO
+   * da tela. O container nativo da pilha é pintado à parte, com o
+   * `colors.background` do tema de navegação: o `nativeContainerStyle` em
+   * `NativeStackView.native.js`. No `DefaultTheme` isso é `rgb(242,242,242)`,
+   * opaco. Então, assim que uma tela ficava transparente para revelar o
+   * wallpaper, o que aparecia era aquele cinza — nunca a camada de fundo.
+   *
+   * Era por isso que só o `flat` "funcionava": ali a tela pinta o próprio fundo
+   * opaco, e o container nunca chega a ser visto.
+   *
+   * O resto das cores acompanha o tema para que qualquer cromo de navegação
+   * (transições, cabeçalhos nativos) não volte ao azul e cinza padrão.
+   */
+  const navTheme = useMemo(
+    () => ({
+      ...NavDefaultTheme,
+      dark: scheme === 'dark',
+      colors: {
+        ...NavDefaultTheme.colors,
+        background: 'transparent',
+        card: colors.surface,
+        text: colors.ink,
+        border: colors.line,
+        primary: colors.primary,
+        notification: colors.primary,
+      },
+    }),
+    [scheme, themeId, paletteId, brandId],
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: base }]}>
@@ -133,6 +177,7 @@ function AppShell() {
           continua vindo do `View` acima. */}
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       {wallpaper !== 'flat' && <RotinaBackground variant={wallpaper} />}
+      <NavThemeProvider value={navTheme}>
       <Stack
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}
       >
@@ -169,6 +214,7 @@ function AppShell() {
         <Stack.Screen name="configuracoes/dados" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/conexoes" options={{ animation: 'slide_from_right' }} />
       </Stack>
+      </NavThemeProvider>
     </View>
   );
 }

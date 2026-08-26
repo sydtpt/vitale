@@ -14,7 +14,9 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Ellipse, G } from 'react-native-svg';
-import { surfaces, brand, accents, ink } from '@vitale/shared';
+import { brand, accents } from '@vitale/shared';
+import { colors, fonts, themed } from '../../theme/tokens';
+import { useTheme } from '../../theme';
 
 const FADE_MS = 420;
 
@@ -28,7 +30,7 @@ const PLANETS: { cx: number; cy: number; r: number; fill: string }[] = [
   { cx: 168, cy: 106, r: 6, fill: accents.yellow }, // amarelo dir
   { cx: 152, cy: 150, r: 5, fill: brand.primaryDeep }, // vermelho baixo-dir
   { cx: 72, cy: 150, r: 6, fill: '#2E4A6B' }, // azul-marinho baixo-esq
-  { cx: 108, cy: 174, r: 5, fill: ink.ink }, // tinta base
+  { cx: 108, cy: 174, r: 5, fill: '#1F1B16' }, // tinta base — fixo, como o azul acima
 ];
 
 /** Marca Orbe: sol central, órbita elíptica inclinada e planetas ao redor. */
@@ -64,6 +66,7 @@ export function SplashOverlay({
   visible: boolean;
   onHidden?: () => void;
 }) {
+  useTheme();
   const opacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -85,18 +88,28 @@ export function SplashOverlay({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: surfaces.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  word: {
-    fontFamily: 'InstrumentSerif',
-    fontSize: 72,
-    lineHeight: 80,
-    color: ink.ink,
-    marginTop: 8,
-  },
-});
+/**
+ * O fundo segue o tema; os pontos e a marca não.
+ *
+ * Antes era `surfaces.bg` — a constante histórica do núcleo, creme fixo — e num
+ * tema Clean isso dava um flash creme a cada abertura. A identidade da marca
+ * (os pontos coloridos, o traço da órbita) continua fixa de propósito: é
+ * assinatura, não cromo.
+ */
+const styles = themed(() =>
+  StyleSheet.create({
+    root: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.bg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    word: {
+      fontFamily: fonts.serif,
+      fontSize: 72,
+      lineHeight: 80,
+      color: colors.ink,
+      marginTop: 8,
+    },
+  }),
+);

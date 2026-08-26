@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activityDays, activityRecap, buildPeriodRecap, buildWeek, buildWeekHighlights, countRecap, localDateStr, metricRecap, readinessInputsByDay, readinessSeries, type HealthHighlightInput, type HighlightIcon, weekDatesOf, wellnessSummary } from '@vitale/shared';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { SectionLabel } from '../../components/ui/SectionLabel';
@@ -343,28 +343,28 @@ const createStyles = () => StyleSheet.create({
   },
   pressed: { opacity: 0.7 },
   headerSpacer: { width: 36, height: 36 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
   scroll: { flex: 1 },
   content: { padding: spacing.lg, paddingTop: spacing.sm },
   greet: { paddingVertical: spacing.lg },
-  eyebrow: { fontSize: 13, color: colors.ink3, letterSpacing: 0.4, fontWeight: '600' },
-  title: { fontFamily: 'InstrumentSerif', fontSize: 32, marginTop: 4, color: colors.ink },
+  eyebrow: { fontSize: 13, color: colors.ink3, letterSpacing: 0.4, fontFamily: fonts.sansSemiBold },
+  title: { fontFamily: fonts.serif, fontSize: 32, marginTop: 4, color: colors.ink },
 
   strip: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: 18, padding: 12, paddingHorizontal: 8, marginBottom: 16 },
   day: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 12 },
   dayActive: { backgroundColor: colors.primary },
   dayPast: { opacity: 0.5 },
-  dayLabel: { fontSize: 10, color: colors.ink3, letterSpacing: 0.6, fontWeight: '600' },
+  dayLabel: { fontSize: 10, color: colors.ink3, letterSpacing: 0.6, fontFamily: fonts.sansSemiBold },
   dayLabelActive: { color: colors.primarySoft },
-  dayNum: { fontSize: 18, fontWeight: '600', color: colors.ink },
+  dayNum: { fontSize: 18, fontFamily: fonts.sansSemiBold, color: colors.ink },
   dayNumActive: { color: '#fff' },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { width: '48%', backgroundColor: colors.surface, borderRadius: 16, padding: 12 },
   tileIco: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  tileLbl: { fontSize: 11.5, color: colors.ink3, marginTop: 8, fontWeight: '600', letterSpacing: 0.3, textTransform: 'uppercase' },
-  tileVal: { fontSize: 22, fontWeight: '600', marginTop: 2, color: colors.ink },
-  tileSub: { fontSize: 11, color: colors.ink3, marginTop: 1 },
+  tileLbl: { fontSize: 11.5, color: colors.ink3, marginTop: 8, fontFamily: fonts.sansSemiBold, letterSpacing: 0.8, textTransform: 'uppercase' },
+  tileVal: { fontSize: 22, fontFamily: fonts.sansSemiBold, marginTop: 2, color: colors.ink },
+  tileSub: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3, marginTop: 1 },
 
   card: { backgroundColor: colors.surface, borderRadius: 18, marginTop: 8, overflow: 'hidden' },
   pad: { padding: 14 },
@@ -373,10 +373,10 @@ const createStyles = () => StyleSheet.create({
   hlIco: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMute },
   hlIcoGood: { backgroundColor: '#6FA86A22' },
   hlIcoBad: { backgroundColor: '#D9491B22' },
-  hlText: { flex: 1, fontSize: 13.5, color: colors.ink, fontWeight: '500', lineHeight: 18 },
+  hlText: { flex: 1, fontSize: 13.5, color: colors.ink, fontFamily: fonts.sansMedium, lineHeight: 18 },
 
   heatRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  heatLabel: { width: 90, fontSize: 11, color: colors.ink2, fontWeight: '500' },
+  heatLabel: { width: 90, fontSize: 11, color: colors.ink2, fontFamily: fonts.sansMedium },
   heatCells: { flex: 1, flexDirection: 'row', gap: 4 },
   heatCell: { flex: 1, height: 22, borderRadius: 6 },
   heatToday: { borderWidth: 1.5, borderColor: colors.ink },
@@ -386,15 +386,15 @@ const createStyles = () => StyleSheet.create({
   noBorder: { borderBottomWidth: 0 },
   rest: { opacity: 0.5 },
   tDate: { width: 36, alignItems: 'center' },
-  tDay: { fontSize: 10, color: colors.ink3, fontWeight: '600' },
-  tNum: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  tDay: { fontSize: 10, color: colors.ink3, fontFamily: fonts.sansSemiBold },
+  tNum: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink },
   flex: { flex: 1 },
-  tType: { fontSize: 14, fontWeight: '600', color: colors.ink },
-  tMeta: { fontSize: 12, color: colors.ink3 },
+  tType: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  tMeta: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
   ring: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.6, borderColor: colors.ink4 },
 
   insight: { flexDirection: 'row', justifyContent: 'space-between' },
   insightCol: { flex: 1, alignItems: 'center' },
-  insightVal: { fontSize: 22, fontWeight: '700', color: colors.ink },
-  insightLbl: { fontSize: 10.5, color: colors.ink3, marginTop: 2, textAlign: 'center' },
+  insightVal: { fontSize: 22, fontFamily: fonts.sansBold, color: colors.ink },
+  insightLbl: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2, textAlign: 'center' },
 });

@@ -7,7 +7,7 @@ import type { Registro, TodoModule } from '@vitale/shared';
 import { useRegistrosStore } from '../../store/registros.store';
 import { useAuthStore } from '../../store/auth.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 const MODULE_LABEL: Record<TodoModule, string> = {
   geral: 'Geral',
@@ -16,10 +16,6 @@ const MODULE_LABEL: Record<TodoModule, string> = {
   compras: 'Compras',
   saude: 'Saúde',
 };
-
-function modColor(key: string): { tint: string; accent: string } {
-  return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.habito;
-}
 
 export default function RegistrosScreen() {
   const styles = useThemedStyles(createStyles);
@@ -42,7 +38,7 @@ export default function RegistrosScreen() {
   const archived = registros.filter((r) => !r.active);
 
   const Row = ({ r, last }: { r: Registro; last?: boolean }) => {
-    const mod = modColor(r.color);
+    const mod = moduleColors(r.color, 'habito');
     const done = !!todayMarks[r.id];
     return (
       <View style={[styles.row, last && styles.noBorder]}>
@@ -51,7 +47,7 @@ export default function RegistrosScreen() {
           style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
         >
           <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>
-            <Ionicons name={habitIconToIonicon(r.icon)} size={20} color={mod.accent} />
+            <Ionicons name={habitIconToIonicon(r.icon)} size={20} color={mod.onTint} />
           </View>
           <View style={styles.flex}>
             <Text style={[styles.name, !r.active && styles.muted]}>{r.name}</Text>
@@ -119,7 +115,7 @@ export default function RegistrosScreen() {
           <Text style={styles.emptyTitle}>Nenhum registro ainda</Text>
           <Text style={styles.emptyText}>Crie itens livres (Pizza, Dentista…) e marque quando acontecerem.</Text>
           <Pressable onPress={() => router.push('/registros/editor')} style={({ pressed }) => [styles.cta, pressed && styles.pressed]}>
-            <Ionicons name="add" size={18} color="#fff" />
+            <Ionicons name="add" size={18} color={colors.onPrimary} />
             <Text style={styles.ctaText}>Novo registro</Text>
           </Pressable>
         </View>
@@ -171,18 +167,18 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
   section: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   card: { backgroundColor: colors.surface, borderRadius: radii['2xl'], overflow: 'hidden', ...shadows.card },
   row: { flexDirection: 'row', alignItems: 'center', paddingRight: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
@@ -190,9 +186,9 @@ const createStyles = () => StyleSheet.create({
   noBorder: { borderBottomWidth: 0 },
   iconBox: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
-  name: { fontSize: 15, fontWeight: '600', color: colors.ink },
+  name: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
   muted: { color: colors.ink3 },
-  summary: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
+  summary: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
 
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   markBtn: {
@@ -205,12 +201,12 @@ const createStyles = () => StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: colors.surface,
   },
-  markText: { fontSize: 13, fontWeight: '700' },
+  markText: { fontSize: 13, fontFamily: fonts.sansBold },
   action: { width: 34, height: 34, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: spacing.sm },
-  emptyText: { fontSize: 13.5, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink, marginTop: spacing.sm },
+  emptyText: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
   cta: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 11, borderRadius: radii.pill, marginTop: spacing.md },
-  ctaText: { color: '#fff', fontSize: 14.5, fontWeight: '700' },
+  ctaText: { color: colors.onPrimary, fontSize: 14.5, fontFamily: fonts.sansBold },
 });

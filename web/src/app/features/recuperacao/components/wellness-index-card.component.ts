@@ -65,7 +65,7 @@ const TONE_COLOR: Record<string, string> = {
     .lbl { width: 130px; font-size: 12.5px; color: var(--ink-2); }
     .track { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-mute); overflow: hidden; }
     .fill { display: block; height: 8px; border-radius: 4px; }
-    .val { width: 26px; text-align: right; font-size: 12.5px; font-weight: 700; color: var(--ink); font-family: 'Geist Mono', monospace; }
+    .val { width: 26px; text-align: right; font-size: 12.5px; font-weight: 700; color: var(--ink); font-family: var(--font-mono); }
   `],
 })
 export class WellnessIndexCardComponent {

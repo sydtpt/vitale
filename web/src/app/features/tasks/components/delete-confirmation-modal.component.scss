@@ -32,7 +32,9 @@
 
 .btn-cancel {
   background: var(--line); color: var(--ink);
-  &:hover { background: var(--line-hover, #E0D5C7); }
+  // Era `var(--line-hover, #E0D5C7)`: a variável nunca existiu, então o fallback
+  // valia sempre e o hover ficava com um bege fixo em qualquer tema.
+  &:hover { background: var(--line-deep); }
 }
 
 .btn-delete {

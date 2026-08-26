@@ -21,7 +21,7 @@ import {
   Sample,
 } from '../../lib/health-buckets';
 import { BarChart, LineChart, ActivityRings, MacroDonut } from '../../components/charts';
-import { colors, spacing, radii, shadows, themed, useTheme } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'day', label: 'Dia' },
@@ -277,7 +277,7 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
 
@@ -290,8 +290,8 @@ const styles = themed(() => StyleSheet.create({
   },
   segmentBtn: { flex: 1, paddingVertical: 8, borderRadius: radii.pill, alignItems: 'center' },
   segmentBtnActive: { backgroundColor: colors.surface, ...shadows.sm },
-  segmentText: { fontSize: 13.5, color: colors.ink3, fontWeight: '500' },
-  segmentTextActive: { color: colors.ink, fontWeight: '700' },
+  segmentText: { fontSize: 13.5, color: colors.ink3, fontFamily: fonts.sansMedium },
+  segmentTextActive: { color: colors.ink, fontFamily: fonts.sansBold },
 
   heroRow: { alignItems: 'center', marginBottom: spacing.md },
 
@@ -315,32 +315,32 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   stat: { alignItems: 'center', gap: 3 },
-  statValue: { fontSize: 18, fontWeight: '700', fontFamily: 'GeistMono' },
-  statCaption: { fontSize: 11, color: colors.ink3 },
+  statValue: { fontSize: 18, fontFamily: fonts.monoBold },
+  statCaption: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
 
   ringsBody: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl, paddingVertical: spacing.sm },
   ringsLegend: { flex: 1, gap: spacing.md },
   ringRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
-  ringLabel: { flex: 1, fontSize: 13.5, color: colors.ink2 },
-  ringValue: { fontSize: 13, color: colors.ink, fontFamily: 'GeistMono' },
+  ringLabel: { flex: 1, fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink2 },
+  ringValue: { fontSize: 13, color: colors.ink, fontFamily: fonts.mono },
 
   sectionTitle: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   listCard: { backgroundColor: colors.surface, borderRadius: radii['2xl'], paddingHorizontal: spacing.lg, ...shadows.card },
   listRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.md },
   listRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
-  listWhen: { fontSize: 13.5, color: colors.ink2 },
-  listValue: { fontSize: 13.5, color: colors.ink, fontFamily: 'GeistMono' },
+  listWhen: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink2 },
+  listValue: { fontSize: 13.5, color: colors.ink, fontFamily: fonts.mono },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
-  emptyText: { fontSize: 14, color: colors.ink3 },
+  emptyText: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink3 },
 }));

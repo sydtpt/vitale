@@ -1,7 +1,17 @@
 /**
  * Vitale — Design Tokens
  * Single source of truth for colors, spacing, typography across web & mobile.
+ *
+ * As cores aqui são o **recorte histórico** do sistema de temas: tema `orbe`,
+ * esquema claro, paleta `orbe`. Quem precisa responder à escolha do usuário usa
+ * `resolveTokens()`/`moduleOf()` de `theme/derive.ts`; estes exports continuam
+ * porque muito código ainda lê um valor fixo, e mudá-los todos de uma vez seria
+ * uma refatoração maior que a feature.
  */
+import { moduleOf, MODULE_KEYS } from '../theme/derive';
+import type { ModuleKey } from '../theme/palettes';
+
+export type { ModuleKey };
 
 // ─── Surfaces ──────────────────────────────────────────
 export const surfaces = {
@@ -56,22 +66,32 @@ export const T = {
 } as const;
 
 // ─── Module color map ─────────────────────────────────
-export const MOD = {
-  treino:   { tint: '#FFE3D2', accent: '#F25C2B' },
-  food:     { tint: '#FFEFC9', accent: '#F5B946' },
-  agua:     { tint: '#DDE4F2', accent: '#6E8CC9' },
-  habito:   { tint: '#E2EFD9', accent: '#6FA86A' },
-  casa:     { tint: '#F4E6D9', accent: '#B4825B' },
-  compras:  { tint: '#FFE3D2', accent: '#E26A8A' },
-  financas: { tint: '#EAE3D6', accent: '#1F1B16' },
-  tarefa:   { tint: '#DDEEEA', accent: '#4F9D90' },
-  // Nona e ÚLTIMA cor que esta estratégia comporta — roxo era a única faixa
-  // livre da paleta quente. Ver ADR 0017: do décimo módulo em diante, `MOD` não
-  // recebe cor nova sem uma ADR que supersede aquela.
-  cultura:  { tint: '#EBE3F3', accent: '#8B6BB1' },
-} as const;
-
-export type ModuleKey = keyof typeof MOD;
+/**
+ * Par tint/acento por módulo, **derivado** de (tema `orbe`, esquema claro,
+ * paleta `orbe`) — os mesmos valores que este objeto trazia escritos à mão,
+ * agora com uma fonte só. Ver `theme/derive.ts`.
+ *
+ * A ADR 0017 dizia que `MOD` esgotava a paleta quente na nona cor porque cada
+ * módulo novo exigia escolher um hex livre à mão. Com os papéis cromáticos isso
+ * deixa de ser verdade da mesma forma: o limite agora é **quantas faixas o olho
+ * separa**, e é medido por `theme.test.ts` em vez de julgado. A décima entrada
+ * (`saude`) entra por aqui sem ADR nova; a partir da décima primeira, o teste
+ * de separação é quem decide.
+ *
+ * **Uma correção vem junto:** `compras` trazia `tint: '#FFE3D2'` — o tint do
+ * laranja — com acento rosa. Copiar-colar antigo. Derivado, o módulo rosa passa
+ * a vestir o tint rosa (`#FBE2E8`).
+ *
+ * Prefira `moduleOf()` em código novo: ele responde à paleta e ao tema
+ * escolhidos, e traz o `onTint` — a cor legível **dentro** do chip, que este
+ * mapa não tem.
+ */
+export const MOD: Record<ModuleKey, { tint: string; accent: string }> = Object.fromEntries(
+  MODULE_KEYS.map((k) => {
+    const m = moduleOf(k, 'orbe', 'light', 'orbe');
+    return [k, { tint: m.tint, accent: m.accent }];
+  }),
+) as Record<ModuleKey, { tint: string; accent: string }>;
 
 // ─── Spacing scale (4px base) ─────────────────────────
 export const spacing = {
@@ -97,10 +117,20 @@ export const radii = {
 } as const;
 
 // ─── Typography ───────────────────────────────────────
+/**
+ * Pilhas de fonte no formato CSS — **web apenas**.
+ *
+ * O `fontFamily` do React Native não aceita pilha nem fallback: ele quer o nome
+ * de uma família registrada, e o peso vem no nome (um arquivo por peso). Por
+ * isso o mobile mantém a sua própria tabela em `mobile/src/theme/tokens.ts`, e
+ * as duas precisam ser trocadas juntas.
+ *
+ * A web consome isto pelas variáveis `--font-*` de `web/src/styles.scss`.
+ */
 export const fonts = {
-  sans: "'Geist', system-ui, sans-serif",
-  mono: "'Geist Mono', monospace",
-  serif: "'Instrument Serif', serif",
+  sans: "'Manrope', system-ui, sans-serif",
+  mono: "'Geist Mono', ui-monospace, monospace",
+  serif: "'Instrument Serif', Georgia, serif",
 } as const;
 
 export const fontSizes = {

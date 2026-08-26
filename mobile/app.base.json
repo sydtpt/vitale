@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "vitale",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "runtimeVersion": "1.0.5",
     "updates": {
       "url": "https://u.expo.dev/127be066-b0bb-4469-bd58-d7e5c6c9cd22",
@@ -36,7 +36,22 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "//": "Embarcadas no build nativo, não carregadas em runtime: existem já no primeiro frame, sem flash de fonte do sistema. Trocar esta lista exige rebuild nativo.",
+          "fonts": [
+            "./assets/fonts/Manrope-Regular.ttf",
+            "./assets/fonts/Manrope-Medium.ttf",
+            "./assets/fonts/Manrope-SemiBold.ttf",
+            "./assets/fonts/Manrope-Bold.ttf",
+            "./assets/fonts/GeistMono-Regular.ttf",
+            "./assets/fonts/GeistMono-SemiBold.ttf",
+            "./assets/fonts/GeistMono-Bold.ttf",
+            "./assets/fonts/InstrumentSerif-Regular.ttf"
+          ]
+        }
+      ],
       "expo-secure-store",
       "expo-sharing",
       [

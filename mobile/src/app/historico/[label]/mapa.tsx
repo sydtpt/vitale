@@ -28,7 +28,7 @@ import { formatDistance } from '../../../lib/workout-format';
 import { CountryMap } from '../../../components/CountryMap';
 import { CountryStats } from '../../../components/CountryStats';
 import { CountryPicker } from '../../../components/CountryPicker';
-import { colors, spacing, radii, useTheme } from '../../../theme';
+import { colors, fonts, radii, spacing, themed, useTheme } from '../../../theme';
 
 /**
  * Visão detalhada por país (mobile). A partir da tela do tipo, mostra o mapa de
@@ -246,80 +246,82 @@ export default function CountryMapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.6 },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },
-  headerSub: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
-  state: { textAlign: 'center', color: colors.ink2, fontSize: 14, padding: spacing['3xl'] },
+const styles = themed(() =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bg },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    pressed: { opacity: 0.6 },
+    headerCenter: { flex: 1, alignItems: 'center' },
+    headerTitle: { fontSize: 17, fontFamily: fonts.sansBold, color: colors.ink },
+    headerSub: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
+    state: { textAlign: 'center', color: colors.ink2, fontSize: 14, fontFamily: fonts.sans, padding: spacing['3xl'] },
 
-  pickerWrap: { padding: spacing.lg, gap: spacing.md },
-  pickerTitle: { fontSize: 13, color: colors.ink3, fontWeight: '600' },
+    pickerWrap: { padding: spacing.lg, gap: spacing.md },
+    pickerTitle: { fontSize: 13, color: colors.ink3, fontFamily: fonts.sansSemiBold },
 
-  list: { padding: spacing.lg, gap: 0 },
-  headerContent: { gap: spacing.lg, marginBottom: spacing.md },
+    list: { padding: spacing.lg, gap: 0 },
+    headerContent: { gap: spacing.lg, marginBottom: spacing.md },
 
-  chips: { gap: spacing.sm, paddingBottom: spacing.xs },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.ink2 },
-  chipTextActive: { color: colors.primaryDeep },
+    chips: { gap: spacing.sm, paddingBottom: spacing.xs },
+    chip: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radii.pill,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+    chipText: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+    chipTextActive: { color: colors.primaryDeep },
 
-  mapSkeleton: {
-    height: 260,
-    borderRadius: radii['2xl'],
-    backgroundColor: colors.surfaceMute,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    mapSkeleton: {
+      height: 260,
+      borderRadius: radii['2xl'],
+      backgroundColor: colors.surfaceMute,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  citiesHead: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  citiesTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    color: colors.ink3,
-  },
-  citiesTotal: { fontSize: 13, fontWeight: '700', color: colors.ink2 },
+    citiesHead: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+    },
+    citiesTitle: {
+      fontSize: 11,
+      fontFamily: fonts.sansBold,
+      textTransform: 'uppercase',
+      letterSpacing: 1.0,
+      color: colors.ink3,
+    },
+    citiesTotal: { fontSize: 13, fontFamily: fonts.sansBold, color: colors.ink2 },
 
-  cityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-  },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary },
-  cityName: { flex: 1, fontSize: 15, color: colors.ink },
-  cityState: { color: colors.ink3, fontSize: 13 },
-  visits: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.ink3,
-    backgroundColor: colors.surfaceMute,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-});
+    cityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+    },
+    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary },
+    cityName: { flex: 1, fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
+    cityState: { color: colors.ink3, fontSize: 13, fontFamily: fonts.sans },
+    visits: {
+      fontSize: 12,
+      fontFamily: fonts.sansBold,
+      color: colors.ink3,
+      backgroundColor: colors.surfaceMute,
+      borderRadius: radii.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+    },
+  }),
+);

@@ -16,7 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { PlannedWorkout } from '@vitale/shared';
 import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
-import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 type Kind = PlannedWorkout['kind'];
 
@@ -26,10 +26,6 @@ const KINDS: { key: Kind; label: string; mod: string }[] = [
   { key: 'easy', label: 'Leve', mod: 'habito' },
   { key: 'rest', label: 'Descanso', mod: 'casa' },
 ];
-
-function modAccent(key: string): string {
-  return (MOD as Record<string, { accent: string }>)[key]?.accent ?? MOD.treino.accent;
-}
 
 export default function TreinoEditorScreen() {
   useTheme();
@@ -67,7 +63,7 @@ export default function TreinoEditorScreen() {
   }, [existing, hydrated]);
 
   const valid = type.trim() !== '';
-  const accent = modAccent(KINDS.find((k) => k.key === kind)?.mod ?? 'treino');
+  const accent = moduleColors(KINDS.find((k) => k.key === kind)?.mod ?? 'treino', 'treino').accent;
 
   const onSave = async () => {
     if (!valid || saving) return;
@@ -115,7 +111,7 @@ export default function TreinoEditorScreen() {
         <Text style={styles.headerTitle}>{id ? 'Editar treino' : 'Novo treino'}</Text>
         {id ? (
           <Pressable onPress={onDelete} hitSlop={12} style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}>
-            <Ionicons name="trash-outline" size={20} color={MOD.compras.accent} />
+            <Ionicons name="trash-outline" size={20} color={moduleColors('compras').accent} />
           </Pressable>
         ) : (
           <View style={styles.backBtn} />
@@ -220,16 +216,16 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 24, gap: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
+  label: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.line,
@@ -237,12 +233,12 @@ const styles = themed(() => StyleSheet.create({
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
-  chipText: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
+  chipText: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sansSemiBold },
   chipTextActive: { color: '#fff' },
 
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  saveText: { fontSize: 16, fontFamily: fonts.sansBold, color: '#fff' },
 }));

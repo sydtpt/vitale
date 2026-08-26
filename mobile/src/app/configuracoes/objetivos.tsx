@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DEFAULT_WEEKLY_TARGET_MIN, WHO_RANGE_MIN, WHO_RANGE_MAX } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 function NumInput({ value, onChange, placeholder }: { value?: number; onChange: (v?: number) => void; placeholder: string }) {
   const styles = useThemedStyles(createStyles);
@@ -152,25 +152,25 @@ const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
   iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.sansSemiBold, color: colors.ink },
   saveBtn: { paddingHorizontal: spacing.sm },
-  saveTxt: { fontSize: 15, fontWeight: '600', color: colors.primary },
+  saveTxt: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.primary },
   pressed: { opacity: 0.6 },
   content: { padding: spacing.lg, paddingBottom: spacing['4xl'] },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm, paddingHorizontal: 4 },
-  hint: { fontSize: 12, color: colors.ink3, marginTop: spacing.sm, paddingHorizontal: 4, lineHeight: 17 },
+  sectionTitle: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 1.0, marginBottom: spacing.sm, paddingHorizontal: 4 },
+  hint: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: spacing.sm, paddingHorizontal: 4, lineHeight: 17 },
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', ...shadows.card },
   fieldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
   fieldLabel: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  rowLabel: { fontSize: 15, color: colors.ink },
-  unit: { fontSize: 12, color: colors.ink3 },
+  rowLabel: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
+  unit: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
   input: {
     backgroundColor: colors.bg,
     borderRadius: radii.md,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
     textAlign: 'right',
     minWidth: 80,

@@ -3,7 +3,7 @@
     @for (g of gridLines; track g.v) {
       <g>
         <line [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="g.y" [attr.y2]="g.y" stroke="#EFE6D8" stroke-dasharray="3 3"/>
-        <text [attr.x]="padL - 8" [attr.y]="g.y + 3" text-anchor="end" font-size="10" font-family="Geist Mono, monospace" fill="#9C928A">{{ g.v }}kg</text>
+        <text [attr.x]="padL - 8" [attr.y]="g.y + 3" text-anchor="end" font-size="10" class="mono" fill="#9C928A">{{ g.v }}kg</text>
       </g>
     }
     @for (lbl of xLabels; track lbl.text; let i = $index) {

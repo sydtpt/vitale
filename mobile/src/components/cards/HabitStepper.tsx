@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { CounterHabit } from '@vitale/shared';
-import { colors, radii, moduleColors, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, useThemedStyles } from '../../theme';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { isMet, isOver, progress } from '@vitale/shared';
 
@@ -77,7 +77,7 @@ export function HabitStepper({ habit, value, streak, streakBad, onIncrement, onD
         hitSlop={6}
         style={({ pressed }) => [styles.btn, { backgroundColor: mod.tint }, pressed && styles.pressed]}
       >
-        <Ionicons name="remove" size={22} color={mod.accent} />
+        <Ionicons name="remove" size={22} color={mod.onTint} />
       </Pressable>
 
       {/* centro: nome, valor/meta, progresso */}
@@ -158,17 +158,17 @@ const createStyles = () => StyleSheet.create({
   pressed: { opacity: 0.7 },
   center: { flex: 1, gap: 5 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { flex: 1, fontSize: 13.5, fontWeight: '600', color: colors.ink },
+  name: { flex: 1, fontSize: 13.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
   streakChip: {
     backgroundColor: colors.surfaceMute,
     borderRadius: radii.pill,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  streakText: { fontSize: 11.5, fontWeight: '700', color: colors.ink2 },
-  value: { fontSize: 20, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
-  target: { fontSize: 14, color: colors.ink3, fontWeight: '500' },
-  unit: { fontSize: 13, color: colors.ink2 },
+  streakText: { fontSize: 11.5, fontFamily: fonts.sansBold, color: colors.ink2 },
+  value: { fontSize: 20, color: colors.ink, fontFamily: fonts.monoBold },
+  target: { fontSize: 14, color: colors.ink3, fontFamily: fonts.sansMedium },
+  unit: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink2 },
   track: {
     height: 6,
     borderRadius: 3,

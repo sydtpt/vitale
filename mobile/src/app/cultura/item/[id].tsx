@@ -35,7 +35,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localDateStr, metaDoTipo, podeTransitar, type CulturaEstado } from '@vitale/shared';
 import { MonthCalendar } from '../../../components/MonthCalendar';
 import { useCulturaStore } from '../../../store/cultura.store';
-import { colors, moduleColors, radii, shadows, spacing, useTheme } from '../../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../../theme';
 
 const ESTADOS: CulturaEstado[] = ['quero', 'consumindo', 'concluido'];
 
@@ -299,65 +299,67 @@ function br(iso: string): string {
   return `${d}/${m}/${a}`;
 }
 
-const s = StyleSheet.create({
-  flex: { flex: 1 },
-  centro: { alignItems: 'center', justifyContent: 'center' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  title: { fontSize: 17, fontWeight: '600', color: colors.ink },
-  topo: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
-  capa: { width: 76, height: 108, borderRadius: radii.sm, backgroundColor: colors.bg2 },
-  capaVazia: { alignItems: 'center', justifyContent: 'center' },
-  titulo: { fontSize: 18, fontWeight: '600', color: colors.ink },
-  sub: { fontSize: 14, color: colors.ink2, marginTop: 2 },
-  dica: { fontSize: 12, color: colors.ink3 },
-  datas: { fontSize: 13, color: colors.ink3, marginBottom: spacing.sm },
-  erro: { fontSize: 13, color: colors.red, marginBottom: spacing.sm },
-  label: { fontSize: 13, color: colors.ink2, marginTop: spacing.lg, marginBottom: spacing.sm },
-  estrelas: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  pill: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.pill ?? 999 },
-  pillTxt: { fontSize: 11, fontWeight: '600' },
-  acoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
-  btnAcao: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    minWidth: 104,
-    alignItems: 'center',
-  },
-  btnCheio: { borderColor: 'transparent' },
-  btnAcaoTxt: { fontSize: 14, fontWeight: '600', color: colors.ink2 },
-  painel: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-    ...shadows.sm,
-  },
-  linhaEdit: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    ...shadows.sm,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    fontSize: 15,
-    color: colors.ink,
-    marginBottom: spacing.sm,
-  },
-});
+const s = themed(() =>
+  StyleSheet.create({
+    flex: { flex: 1 },
+    centro: { alignItems: 'center', justifyContent: 'center' },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    title: { fontSize: 17, fontFamily: fonts.sansSemiBold, color: colors.ink },
+    topo: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
+    capa: { width: 76, height: 108, borderRadius: radii.sm, backgroundColor: colors.bg2 },
+    capaVazia: { alignItems: 'center', justifyContent: 'center' },
+    titulo: { fontSize: 18, fontFamily: fonts.sansSemiBold, color: colors.ink },
+    sub: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink2, marginTop: 2 },
+    dica: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
+    datas: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, marginBottom: spacing.sm },
+    erro: { fontSize: 13, fontFamily: fonts.sans, color: colors.red, marginBottom: spacing.sm },
+    label: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink2, marginTop: spacing.lg, marginBottom: spacing.sm },
+    estrelas: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    pill: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.pill ?? 999 },
+    pillTxt: { fontSize: 11, fontFamily: fonts.sansSemiBold },
+    acoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+    btnAcao: {
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      minWidth: 104,
+      alignItems: 'center',
+    },
+    btnCheio: { borderColor: 'transparent' },
+    btnAcaoTxt: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+    painel: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      marginTop: spacing.sm,
+      ...shadows.sm,
+    },
+    linhaEdit: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      ...shadows.sm,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      fontSize: 15, fontFamily: fonts.sans,
+      color: colors.ink,
+      marginBottom: spacing.sm,
+    },
+  }),
+);

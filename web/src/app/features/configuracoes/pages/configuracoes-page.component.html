@@ -1,42 +1,109 @@
 <div class="page">
-  <rt-page-header eyebrow="App" title="Configurações" />
+  <rt-page-header eyebrow="App" title="Aparência" />
 
   <section class="section">
-    <h2 class="section-title">Cores dos gráficos</h2>
-    <p class="section-hint">
-      Muda as cores por tipo de atividade nos gráficos (barras empilhadas, legenda e tooltip).
-      A cor segue a atividade — a mesma atividade tem a mesma cor em qualquer período. Salvo só neste navegador.
-    </p>
+    <h2 class="section-title">Esquema</h2>
+    <p class="section-hint">Claro, escuro, ou o que o seu sistema pedir.</p>
+    <div class="seg">
+      @for (s of schemes; track s.id) {
+        <button
+          type="button"
+          [class.on]="s.id === theme.theme()"
+          [attr.aria-pressed]="s.id === theme.theme()"
+          (click)="setScheme(s.id)"
+        >{{ s.label }}</button>
+      }
+    </div>
+  </section>
 
+  <section class="section">
+    <h2 class="section-title">Tema</h2>
+    <p class="section-hint">A família de neutros — superfície, tinta e linha.</p>
+    <div class="grid cols">
+      @for (t of themes; track t.id) {
+        <button
+          type="button"
+          class="card"
+          [class.selected]="t.id === theme.themeId()"
+          [attr.aria-pressed]="t.id === theme.themeId()"
+          (click)="setTheme(t.id)"
+        >
+          <div class="tprev" [style.background]="preview(t.id).bg">
+            <div
+              class="tcard"
+              [style.background]="preview(t.id).surface"
+              [style.border-color]="preview(t.id).hairline"
+            >
+              <span class="tline" [style.background]="preview(t.id).ink"></span>
+              <span class="tline short" [style.background]="preview(t.id).ink3"></span>
+            </div>
+          </div>
+          <div class="meta">
+            <span class="name">{{ t.name }}</span>
+            <span class="hint">{{ t.hint }}</span>
+          </div>
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Cor principal</h2>
+    <p class="section-hint">
+      Vale para botões, links ativos e destaques. As cores dos módulos — Treino, Comida,
+      Água — continuam vindo da paleta abaixo.
+    </p>
+    <div class="brands">
+      @for (b of brands; track b.id) {
+        <button
+          type="button"
+          class="bcard"
+          [class.selected]="b.id === theme.brandId()"
+          [attr.aria-pressed]="b.id === theme.brandId()"
+          (click)="setBrand(b.id)"
+          [attr.title]="b.hint"
+        >
+          <span
+            class="bchip"
+            [style.background]="preview(theme.themeId(), undefined, b.id).primary"
+            [style.border-color]="preview(theme.themeId(), undefined, b.id).primaryOutline"
+            [style.color]="preview(theme.themeId(), undefined, b.id).onPrimary"
+          >{{ b.id === theme.brandId() ? '✓' : '+' }}</span>
+          <span class="name">{{ b.name }}</span>
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Paleta</h2>
+    <p class="section-hint">
+      A cor de cada módulo, e das séries nos gráficos. A cor segue a atividade — a mesma
+      atividade tem a mesma cor em qualquer período.
+    </p>
     <div class="grid">
       @for (p of palettes; track p.id) {
         <button
           type="button"
           class="pcard"
-          [class.selected]="p.id === palette.paletteId()"
-          [attr.aria-pressed]="p.id === palette.paletteId()"
-          (click)="palette.setPalette(p.id)"
+          [class.selected]="p.id === theme.paletteId()"
+          [attr.aria-pressed]="p.id === theme.paletteId()"
+          (click)="setPalette(p.id)"
         >
-          <div class="preview">
-            @for (bar of previewBars; track $index) {
-              <div class="bar">
-                @for (seg of bar; track $index) {
-                  <span
-                    class="seg"
-                    [class.top]="$first"
-                    [style.background]="color(p.roles, seg.role)"
-                    [style.height.px]="seg.h"
-                  ></span>
-                }
-              </div>
+          <div class="dots">
+            @for (r of previewRoles; track r) {
+              <span class="dot" [style.background]="roleAccent(p.id, r)"></span>
             }
           </div>
           <div class="meta">
-            <span class="name">{{ p.name }}</span>
+            <span class="name">
+              {{ p.name }}
+              @if (p.cvdSafe) { <span class="badge">daltonismo</span> }
+            </span>
             <span class="hint">{{ p.hint }}</span>
           </div>
-          <span class="check" [class.on]="p.id === palette.paletteId()">
-            @if (p.id === palette.paletteId()) { <span class="tick">✓</span> }
+          <span class="check" [class.on]="p.id === theme.paletteId()">
+            @if (p.id === theme.paletteId()) { <span class="tick">✓</span> }
           </span>
         </button>
       }

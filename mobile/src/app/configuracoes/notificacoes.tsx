@@ -10,7 +10,7 @@ import {
 } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
 import { enableNotifications } from '../../services/notifications';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 const REMINDER_TIMES = ['07:00', '08:00', '09:00', '20:00', '21:00'];
 const RETRO_TIMES = ['07:00', '08:00', '09:00', '10:00', '20:00', '21:00'];
@@ -368,15 +368,15 @@ const createStyles = () =>
       gap: spacing.sm,
     },
     iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.ink },
+    headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.sansSemiBold, color: colors.ink },
     pressed: { opacity: 0.6 },
     content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing['4xl'] },
     sectionTitle: {
       fontSize: 13,
-      fontWeight: '600',
+      fontFamily: fonts.sansSemiBold,
       color: colors.ink2,
       textTransform: 'uppercase',
-      letterSpacing: 0.5,
+      letterSpacing: 1.0,
       marginBottom: spacing.sm,
       paddingHorizontal: 4,
     },
@@ -395,9 +395,9 @@ const createStyles = () =>
       minHeight: 52,
     },
     rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
-    rowLabel: { fontSize: 15, color: colors.ink },
+    rowLabel: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
     rowMeta: { flex: 1, gap: 2 },
-    rowSub: { fontSize: 12, color: colors.ink3 },
+    rowSub: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
     iconWrap: {
       width: 30,
       height: 30,
@@ -413,11 +413,11 @@ const createStyles = () =>
       borderTopColor: colors.line,
       paddingTop: 12,
     },
-    timeLabel: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
+    timeLabel: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sansSemiBold },
     timeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     timeChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
     timeChipOn: { backgroundColor: colors.primary },
-    timeChipTxt: { fontSize: 13, fontWeight: '600', color: colors.ink2, fontFamily: 'GeistMono' },
-    timeChipTxtOn: { color: '#fff' },
-    hint: { fontSize: 12, color: colors.ink3, marginTop: spacing.sm, marginHorizontal: 4, lineHeight: 17 },
+    timeChipTxt: { fontSize: 13, color: colors.ink2, fontFamily: fonts.monoSemiBold },
+    timeChipTxtOn: { color: colors.onPrimary },
+    hint: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: spacing.sm, marginHorizontal: 4, lineHeight: 17 },
   });

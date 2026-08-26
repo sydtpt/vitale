@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors, spacing, useThemedStyles } from '../../theme';
+import { colors, fonts, spacing, useThemedStyles } from '../../theme';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { HabitStepper } from '../../components/cards/HabitStepper';
 import { SleepRatingCard } from '../../components/cards/SleepRatingCard';
@@ -17,7 +17,6 @@ import { useDailyRatingsStore, dayRatingDate } from '../../store/daily-ratings.s
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { HOJE } from '../../services/hoje-fixtures';
 import type { CounterHabit } from '@vitale/shared';
 import type { User } from '@supabase/supabase-js';
 import { cleanStreak, daysInclusive, isOverdue, isStarted, isVisibleNow, localDateStr, todoDayStr, todoTimeStr, streak } from '@vitale/shared';
@@ -26,6 +25,26 @@ function getGreeting(name: string): string {
   const h = new Date().getHours();
   const period = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   return name ? `${period}, ${name}.` : `${period}.`;
+}
+
+/**
+ * Data do cabeçalho: "qui, 21 de maio".
+ *
+ * Vinha chumbada da fixture do protótipo (`hoje-fixtures`), então exibia a mesma
+ * data para sempre. Segue o calendário, como refeições e hábitos — tarefas é que
+ * usam o dia lógico, que vira às 02h.
+ */
+function formatToday(d: Date): string {
+  // pt-BR abrevia o dia da semana com ponto ("qui."); o cabeçalho vai em caixa
+  // alta e sem pontuação.
+  return d
+    .toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' })
+    .replace(/\./g, '');
+}
+
+/** Posição do dia na semana, começando na segunda (domingo = 7). */
+function weekPosition(d: Date): number {
+  return ((d.getDay() + 6) % 7) + 1;
 }
 
 function firstNameOf(raw: string): string {
@@ -163,14 +182,19 @@ export default function HojeScreen() {
   const MEAL_TARGET = 4;
   const mealsLogged = todayMeals.length;
 
+  // Uma leitura só do relógio para os dois textos do cabeçalho, senão eles
+  // podem discordar se o render cruzar a meia-noite. `useRefreshOnForeground`
+  // acima já reavalia isto quando o app volta do background.
+  const now = new Date();
+
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll}>
         {/* Greeting */}
         <View style={styles.greet}>
-          <Text style={styles.date}>{HOJE.date.toUpperCase()}</Text>
+          <Text style={styles.date}>{formatToday(now).toUpperCase()}</Text>
           <Text style={styles.greeting}>{getGreeting(firstName)}</Text>
-          <Text style={styles.sub}>{HOJE.weekDay} · {Math.max(0, MEAL_TARGET - mealsLogged)} refeições a registrar</Text>
+          <Text style={styles.sub}>Dia {weekPosition(now)} de 7 · {Math.max(0, MEAL_TARGET - mealsLogged)} refeições a registrar</Text>
         </View>
 
         {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido */}
@@ -227,7 +251,9 @@ const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingTop: 54 },
   greet: { paddingVertical: spacing.lg },
-  date: { fontSize: 13, color: colors.ink3, letterSpacing: 0.4, fontWeight: '600' },
-  greeting: { fontFamily: 'InstrumentSerif', fontSize: 34, lineHeight: 36, marginTop: 4, color: colors.ink },
-  sub: { fontSize: 14, color: colors.ink2, marginTop: 4 },
+  date: { fontSize: 13, color: colors.ink3, letterSpacing: 0.9, fontFamily: fonts.sansSemiBold },
+  // lineHeight 36 cortava o acento: o nome vem do usuário e a saudação será
+  // traduzida, então "Begoña" ou "À bientôt" precisam de 39.6px de caixa.
+  greeting: { fontFamily: fonts.serif, fontSize: 34, lineHeight: 42, marginTop: 4, color: colors.ink },
+  sub: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink2, marginTop: 4 },
 });

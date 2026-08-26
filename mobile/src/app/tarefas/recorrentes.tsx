@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TodoTemplate } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { describeRecurrence } from '@vitale/shared';
 
 // Séries que se repetem por agenda/uso/evento/estoque. Fora: avulsas ('none') e
@@ -128,18 +128,18 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   list: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 40 },
   section: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     marginTop: spacing.lg,
     marginBottom: spacing.xs,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   row: {
     flexDirection: 'row',
@@ -155,13 +155,13 @@ const createStyles = () => StyleSheet.create({
   rowArchived: { opacity: 0.62 },
   iconBox: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
-  name: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
-  label: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
+  name: { fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  label: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
   action: { width: 32, height: 32, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
   reactivate: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: radii.pill, backgroundColor: `${colors.primary}18` },
-  reactivateText: { color: colors.primary, fontSize: 12.5, fontWeight: '700' },
+  reactivateText: { color: colors.primary, fontSize: 12.5, fontFamily: fonts.sansBold },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: spacing.sm },
-  emptyText: { fontSize: 13.5, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink, marginTop: spacing.sm },
+  emptyText: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
 });

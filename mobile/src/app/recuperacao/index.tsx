@@ -19,7 +19,7 @@ import { useActivitiesStore } from '../../store/activities.store';
 import { useAuthStore } from '../../store/auth.store';
 import { BarChart } from '../../components/charts/BarChart';
 import { LineChart } from '../../components/charts/LineChart';
-import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 const CHART_W = Dimensions.get('window').width - spacing.lg * 2 - 28;
 
@@ -28,22 +28,29 @@ const CAT_LABEL: Record<string, string> = {
   sono: 'sono', fcRepouso: 'FC de repouso', vfc: 'VFC', aneis: 'anéis',
 };
 
-const CAT_COLOR: Record<string, string> = {
-  sono: MOD.agua.accent,
-  fcRepouso: MOD.compras.accent,
-  vfc: MOD.habito.accent,
-  aneis: MOD.treino.accent,
-};
-const TONE_COLOR: Record<string, string> = {
-  good: MOD.habito.accent,
-  bad: MOD.compras.accent,
-  neutral: colors.ink3,
-};
-const LOAD_COLOR: Record<string, string> = {
-  baixa: MOD.habito.accent,
-  moderada: MOD.food.accent,
-  alta: MOD.treino.accent,
-};
+// Funções, não constantes: um `Record` no escopo do módulo congelaria as cores
+// no import, e a tela deixaria de responder a tema e paleta. Chame no render.
+const catColor = (k: string): string =>
+  ({
+    sono: moduleColors('agua').accent,
+    fcRepouso: moduleColors('compras').accent,
+    vfc: moduleColors('habito').accent,
+    aneis: moduleColors('treino').accent,
+  })[k] ?? colors.ink3;
+
+const toneColor = (k: string): string =>
+  ({
+    good: moduleColors('habito').accent,
+    bad: moduleColors('compras').accent,
+    neutral: colors.ink3,
+  })[k] ?? colors.ink3;
+
+const loadColor = (k: string): string =>
+  ({
+    baixa: moduleColors('habito').accent,
+    moderada: moduleColors('food').accent,
+    alta: moduleColors('treino').accent,
+  })[k] ?? colors.ink3;
 
 function parseMs(s: string): number {
   const [y, m, d] = s.split('-').map(Number);
@@ -64,7 +71,8 @@ function fmtDur(min: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
-const DELTA_COLOR = { up: MOD.habito.accent, down: MOD.compras.accent, flat: '' };
+const deltaColor = (t: string): string =>
+  ({ up: moduleColors('habito').accent, down: moduleColors('compras').accent, flat: '' })[t] ?? '';
 
 export default function RecuperacaoScreen() {
   const styles = useThemedStyles(createStyles);
@@ -164,7 +172,7 @@ export default function RecuperacaoScreen() {
                   <View key={t.label} style={styles.recapTile}>
                     <Text style={styles.recapLbl}>{t.label}</Text>
                     <Text style={styles.recapVal}>{t.value}</Text>
-                    <Text style={[styles.recapDelta, t.tone !== 'flat' && { color: DELTA_COLOR[t.tone] }]}>{t.txt}</Text>
+                    <Text style={[styles.recapDelta, t.tone !== 'flat' && { color: deltaColor(t.tone) }]}>{t.txt}</Text>
                   </View>
                 ))}
               </View>
@@ -179,9 +187,9 @@ export default function RecuperacaoScreen() {
             ) : (
               <>
                 <Text style={styles.sub}>Carga forte (min em Z4+Z5)</Text>
-                <BarChart buckets={loadBuckets} width={CHART_W} height={110} color={MOD.treino.accent} />
+                <BarChart buckets={loadBuckets} width={CHART_W} height={110} color={moduleColors('treino').accent} />
                 <Text style={styles.sub}>Prontidão média (0–100)</Text>
-                <LineChart buckets={recoveryBuckets} width={CHART_W} height={110} color={MOD.habito.accent} />
+                <LineChart buckets={recoveryBuckets} width={CHART_W} height={110} color={moduleColors('habito').accent} />
               </>
             )}
           </View>
@@ -201,14 +209,14 @@ export default function RecuperacaoScreen() {
                   <View style={styles.sportBox}>
                     <Text style={styles.sportLine}><Text style={styles.sv}>{wellness.sport.sessions}</Text> treinos/semana</Text>
                     <Text style={styles.sportLine}>
-                      carga <Text style={[styles.tag, { color: LOAD_COLOR[wellness.sport.loadLabel] }]}>{wellness.sport.loadLabel}</Text>
+                      carga <Text style={[styles.tag, { color: loadColor(wellness.sport.loadLabel) }]}>{wellness.sport.loadLabel}</Text>
                     </Text>
                   </View>
                 </View>
                 {wellness.categories.map((c) => (
                   <View key={c.key} style={styles.barRow}>
                     <Text style={styles.barLbl}>{c.label}</Text>
-                    <View style={styles.track}><View style={[styles.fill, { width: `${c.score}%`, backgroundColor: CAT_COLOR[c.key] ?? colors.primary }]} /></View>
+                    <View style={styles.track}><View style={[styles.fill, { width: `${c.score}%`, backgroundColor: catColor(c.key) ?? colors.primary }]} /></View>
                     <Text style={styles.barVal}>{c.score}</Text>
                   </View>
                 ))}
@@ -240,7 +248,7 @@ export default function RecuperacaoScreen() {
               <Text style={styles.empty}>Sem prontidão suficiente no período.</Text>
             ) : (
               <>
-                <LineChart buckets={trendBuckets} width={CHART_W} height={150} color={MOD.agua.accent} />
+                <LineChart buckets={trendBuckets} width={CHART_W} height={150} color={moduleColors('agua').accent} />
                 <Text style={styles.sub}>{treinos} dias com treino no período</Text>
               </>
             )}
@@ -250,7 +258,7 @@ export default function RecuperacaoScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Treino forte → recuperação (dia seguinte)</Text>
             {insights.map((r) => (
-              <View key={r.key} style={[styles.insight, { borderLeftColor: TONE_COLOR[r.tone] }]}>
+              <View key={r.key} style={[styles.insight, { borderLeftColor: toneColor(r.tone) }]}>
                 <Text style={styles.insightText}>{r.text}</Text>
                 {r.enough && <Text style={styles.insightMeta}>r = {r.r.toFixed(2)} · {r.n} pares</Text>}
               </View>
@@ -268,46 +276,46 @@ const createStyles = () => StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBtn: { width: 36, height: 36, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadows.card },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
-  intro: { fontSize: 13, color: colors.ink3, lineHeight: 18, marginBottom: spacing.md, marginTop: 2 },
+  intro: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 18, marginBottom: spacing.md, marginTop: 2 },
 
   card: { backgroundColor: colors.surface, borderRadius: radii['2xl'], padding: 14, marginBottom: 12, ...shadows.card },
-  cardTitle: { fontSize: 14.5, fontWeight: '700', color: colors.ink },
-  sub: { fontSize: 11.5, color: colors.ink3, marginTop: 8, marginBottom: 2 },
-  empty: { fontSize: 13, color: colors.ink3, paddingVertical: 14 },
+  cardTitle: { fontSize: 14.5, fontFamily: fonts.sansBold, color: colors.ink },
+  sub: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 8, marginBottom: 2 },
+  empty: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, paddingVertical: 14 },
 
   recapTiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   recapTile: { flexBasis: '31%', flexGrow: 1, backgroundColor: colors.surfaceMute, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
-  recapLbl: { fontSize: 10.5, color: colors.ink3 },
-  recapVal: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: 2, fontFamily: 'GeistMono' },
-  recapDelta: { fontSize: 11, color: colors.ink3, marginTop: 1 },
+  recapLbl: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink3 },
+  recapVal: { fontSize: 16, color: colors.ink, marginTop: 2, fontFamily: fonts.monoBold },
+  recapDelta: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3, marginTop: 1 },
 
   wellHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 10, marginBottom: 12 },
-  big: { fontSize: 38, fontWeight: '600', color: colors.ink, lineHeight: 40 },
-  cap: { fontSize: 11, color: colors.ink3 },
+  big: { fontSize: 38, fontFamily: fonts.sansSemiBold, color: colors.ink, lineHeight: 40 },
+  cap: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
   sportBox: { alignItems: 'flex-end' },
-  sportLine: { fontSize: 12, color: colors.ink2, marginTop: 2 },
-  sv: { fontWeight: '700', color: colors.ink },
-  tag: { fontWeight: '700' },
+  sportLine: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink2, marginTop: 2 },
+  sv: { fontFamily: fonts.sansBold, color: colors.ink },
+  tag: { fontFamily: fonts.sansBold },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  barLbl: { width: 120, fontSize: 12.5, color: colors.ink2 },
+  barLbl: { width: 120, fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink2 },
   track: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMute, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4 },
-  parcial: { fontSize: 11.5, color: colors.ink3, marginTop: 8, lineHeight: 16 },
-  barVal: { width: 26, textAlign: 'right', fontSize: 12.5, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
+  parcial: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 8, lineHeight: 16 },
+  barVal: { width: 26, textAlign: 'right', fontSize: 12.5, color: colors.ink, fontFamily: fonts.monoBold },
 
   trendHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   seg: { flexDirection: 'row', borderWidth: 1, borderColor: colors.line, borderRadius: 8, overflow: 'hidden' },
   segBtn: { paddingHorizontal: 12, paddingVertical: 4 },
   segOn: { backgroundColor: colors.primary },
-  segTxt: { fontSize: 12, fontWeight: '600', color: colors.ink2 },
-  segTxtOn: { color: '#fff' },
+  segTxt: { fontSize: 12, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+  segTxtOn: { color: colors.onPrimary },
 
   insight: { backgroundColor: colors.surfaceMute, borderLeftWidth: 3, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginTop: 8 },
-  insightText: { fontSize: 13, color: colors.ink },
-  insightMeta: { fontSize: 11, color: colors.ink3, marginTop: 2, fontFamily: 'GeistMono' },
-  disc: { fontSize: 11, color: colors.ink3, marginTop: 10 },
+  insightText: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink },
+  insightMeta: { fontSize: 11, color: colors.ink3, marginTop: 2, fontFamily: fonts.mono },
+  disc: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3, marginTop: 10 },
 });

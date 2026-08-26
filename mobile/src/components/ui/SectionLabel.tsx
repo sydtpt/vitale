@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, useThemedStyles } from '../../theme';
+import { colors, fonts, useThemedStyles } from '../../theme';
 
 interface SectionLabelProps {
   children: string;
@@ -28,13 +28,13 @@ const createStyles = () => StyleSheet.create({
   lbl: {
     fontSize: 13,
     color: colors.ink3,
-    fontWeight: '600',
-    letterSpacing: 0.4,
+    fontFamily: fonts.sansSemiBold,
+    letterSpacing: 0.9,
     textTransform: 'uppercase',
   },
   r: {
     fontSize: 12.5,
     color: colors.ink3,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
   },
 });

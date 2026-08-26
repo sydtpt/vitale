@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRegistrosStore } from '../../store/registros.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 import { localDateStr } from '@vitale/shared';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -210,13 +210,13 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   regRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   iconBox: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
-  regName: { fontSize: 16, fontWeight: '700', color: colors.ink },
-  regHint: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
+  regName: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink },
+  regHint: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
 
@@ -230,15 +230,15 @@ const styles = themed(() => StyleSheet.create({
   calHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   navBtn: { width: 36, height: 36, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMute },
   navDisabled: { opacity: 0.3 },
-  calTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  calTitle: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink },
 
   weekRow: { flexDirection: 'row', marginBottom: 4 },
-  weekday: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, fontWeight: '700', color: colors.ink3 },
+  weekday: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, fontFamily: fonts.sansBold, color: colors.ink3 },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: `${100 / 7}%`, alignItems: 'center', justifyContent: 'center', paddingVertical: 3 },
   dayBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  dayText: { fontSize: 14.5, color: colors.ink, fontWeight: '600' },
-  dayTextMarked: { color: '#fff', fontWeight: '700' },
+  dayText: { fontSize: 14.5, color: colors.ink, fontFamily: fonts.sansSemiBold },
+  dayTextMarked: { color: '#fff', fontFamily: fonts.sansBold },
   dayTextFuture: { color: colors.ink4 },
 }));

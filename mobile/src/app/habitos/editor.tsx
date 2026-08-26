@@ -17,19 +17,23 @@ import type { HabitDirection } from '@vitale/shared';
 import { HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 const ICONS = HABIT_ICONS;
 
-const COLORS: { key: string; accent: string }[] = [
-  { key: 'agua', accent: MOD.agua.accent },
-  { key: 'treino', accent: MOD.treino.accent },
-  { key: 'food', accent: MOD.food.accent },
-  { key: 'habito', accent: MOD.habito.accent },
-  { key: 'casa', accent: MOD.casa.accent },
-  { key: 'compras', accent: MOD.compras.accent },
-  { key: 'financas', accent: MOD.financas.accent },
-];
+// Função, não constante: as cores dependem do tema e da paleta ativos, e um
+// array no escopo do módulo as congelaria no import.
+function colorOptions(): { key: string; accent: string }[] {
+  return [
+    { key: 'agua', accent: moduleColors('agua').accent },
+    { key: 'treino', accent: moduleColors('treino').accent },
+    { key: 'food', accent: moduleColors('food').accent },
+    { key: 'habito', accent: moduleColors('habito').accent },
+    { key: 'casa', accent: moduleColors('casa').accent },
+    { key: 'compras', accent: moduleColors('compras').accent },
+    { key: 'financas', accent: moduleColors('financas').accent },
+  ];
+}
 
 const UNITS = ['L', 'ml', 'un', 'cig', 'min', 'km'];
 
@@ -114,7 +118,7 @@ export default function HabitEditorScreen() {
     }
   };
 
-  const accent = COLORS.find((c) => c.key === color)?.accent ?? MOD.habito.accent;
+  const accent = moduleColors(color, 'habito').accent;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -258,7 +262,7 @@ export default function HabitEditorScreen() {
           {/* Cor */}
           <Text style={styles.label}>Cor</Text>
           <View style={styles.chips}>
-            {COLORS.map((c) => (
+            {colorOptions().map((c) => (
               <Pressable key={c.key} onPress={() => setColor(c.key)} style={[styles.swatch, { backgroundColor: c.accent }, color === c.key && styles.swatchActive]}>
                 {color === c.key && <Ionicons name="checkmark" size={16} color="#fff" />}
               </Pressable>
@@ -309,18 +313,18 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 24, gap: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
-  hint: { fontSize: 12, color: colors.ink3, marginTop: 6 },
-  error: { fontSize: 12, color: colors.primaryDeep, marginTop: 4 },
+  label: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
+  hint: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: 6 },
+  error: { fontSize: 12, fontFamily: fonts.sans, color: colors.primaryDeep, marginTop: 4 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.line,
@@ -342,18 +346,18 @@ const styles = themed(() => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  checkLabel: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  checkHint: { fontSize: 12, color: colors.ink3, marginTop: 2 },
+  checkLabel: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  checkHint: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
 
   segment: { flexDirection: 'row', backgroundColor: colors.surfaceMute, borderRadius: radii.pill, padding: 3 },
   segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: radii.pill, alignItems: 'center' },
   segmentBtnActive: { backgroundColor: colors.surface, ...shadows.sm },
-  segmentText: { fontSize: 13.5, color: colors.ink3, fontWeight: '500' },
-  segmentTextActive: { color: colors.ink, fontWeight: '700' },
+  segmentText: { fontSize: 13.5, color: colors.ink3, fontFamily: fonts.sansMedium },
+  segmentTextActive: { color: colors.ink, fontFamily: fonts.sansBold },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
-  chipText: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
+  chipText: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sansSemiBold },
   chipTextActive: { color: '#fff' },
 
   iconChip: {
@@ -373,5 +377,5 @@ const styles = themed(() => StyleSheet.create({
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  saveText: { fontSize: 16, fontFamily: fonts.sansBold, color: '#fff' },
 }));

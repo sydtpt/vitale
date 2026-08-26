@@ -31,7 +31,7 @@ import {
 import { useTodosStore } from '../../store/todos.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
-import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 /**
  * Chips de recorrência. `'daily'` existe só aqui: no modelo uma série diária é
@@ -68,15 +68,19 @@ const ICONS = HABIT_ICONS;
 /** Ícone padrão de uma nova tarefa (nome canônico de HABIT_ICONS). */
 const DEFAULT_TODO_ICON = 'flag';
 
-const COLORS: { key: string; accent: string }[] = [
-  { key: 'tarefa', accent: MOD.tarefa.accent },
-  { key: 'casa', accent: MOD.casa.accent },
-  { key: 'financas', accent: MOD.financas.accent },
-  { key: 'compras', accent: MOD.compras.accent },
-  { key: 'habito', accent: MOD.habito.accent },
-  { key: 'treino', accent: MOD.treino.accent },
-  { key: 'food', accent: MOD.food.accent },
-];
+// Função, não constante: as cores dependem do tema e da paleta ativos, e um
+// array no escopo do módulo as congelaria no import.
+function colorOptions(): { key: string; accent: string }[] {
+  return [
+    { key: 'tarefa', accent: moduleColors('tarefa').accent },
+    { key: 'casa', accent: moduleColors('casa').accent },
+    { key: 'financas', accent: moduleColors('financas').accent },
+    { key: 'compras', accent: moduleColors('compras').accent },
+    { key: 'habito', accent: moduleColors('habito').accent },
+    { key: 'treino', accent: moduleColors('treino').accent },
+    { key: 'food', accent: moduleColors('food').accent },
+  ];
+}
 
 function parseNum(s: string): number | null {
   const t = s.trim().replace(',', '.');
@@ -346,7 +350,7 @@ export default function TodoEditorScreen() {
     }
   };
 
-  const accent = COLORS.find((c) => c.key === color)?.accent ?? MOD.tarefa.accent;
+  const accent = moduleColors(color, 'tarefa').accent;
 
   const Segment = <T extends string>(opts: { id: T; label: string }[], value: T, onPick: (v: T) => void) => (
     <View style={styles.segment}>
@@ -674,7 +678,7 @@ export default function TodoEditorScreen() {
           {/* Cor */}
           <Text style={styles.label}>Cor</Text>
           <View style={styles.chips}>
-            {COLORS.map((c) => (
+            {colorOptions().map((c) => (
               <Pressable key={c.key} onPress={() => setColor(c.key)} style={[styles.swatch, { backgroundColor: c.accent }, color === c.key && styles.swatchActive]}>
                 {color === c.key && <Ionicons name="checkmark" size={16} color="#fff" />}
               </Pressable>
@@ -720,17 +724,17 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 24, gap: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
-  hint: { fontSize: 13, color: colors.ink3, marginTop: 4 },
+  label: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
+  hint: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, marginTop: 4 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.line,
@@ -741,19 +745,19 @@ const styles = themed(() => StyleSheet.create({
   segment: { flexDirection: 'row', backgroundColor: colors.surfaceMute, borderRadius: radii.pill, padding: 3 },
   segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: radii.pill, alignItems: 'center' },
   segmentBtnActive: { backgroundColor: colors.surface, ...shadows.sm },
-  segmentText: { fontSize: 13.5, color: colors.ink3, fontWeight: '500' },
-  segmentTextActive: { color: colors.ink, fontWeight: '700' },
+  segmentText: { fontSize: 13.5, color: colors.ink3, fontFamily: fonts.sansMedium },
+  segmentTextActive: { color: colors.ink, fontFamily: fonts.sansBold },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
   chipReadonly: { borderWidth: 1, borderColor: colors.line, backgroundColor: 'transparent' },
-  chipText: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
+  chipText: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sansSemiBold },
   chipTextActive: { color: '#fff' },
   dayChip: {
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line,
   },
-  dayText: { fontSize: 14, color: colors.ink2, fontWeight: '700' },
+  dayText: { fontSize: 14, color: colors.ink2, fontFamily: fonts.sansBold },
 
   iconChip: {
     width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
@@ -766,5 +770,5 @@ const styles = themed(() => StyleSheet.create({
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  saveText: { fontSize: 16, fontFamily: fonts.sansBold, color: '#fff' },
 }));

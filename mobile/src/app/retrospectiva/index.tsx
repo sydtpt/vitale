@@ -29,7 +29,7 @@ import {
   type SportStats,
   type SportBestEffort,
 } from '@vitale/shared';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { formatClock } from '../../lib/workout-format';
 import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
@@ -367,7 +367,7 @@ export default function RetrospectivaScreen() {
               {summary.health.map((h) => (
                 <View key={h.metric} style={styles.row}>
                   <Text style={styles.rowL}>{h.label}</Text>
-                  <Text style={styles.rowR}>{healthValue(h)}  <Text style={{ color: TONE_COLOR[healthDelta(h).tone], fontSize: 12 }}>{healthDelta(h).text}</Text></Text>
+                  <Text style={styles.rowR}>{healthValue(h)}  <Text style={{ color: TONE_COLOR[healthDelta(h).tone], fontSize: 12, fontFamily: fonts.sans }}>{healthDelta(h).text}</Text></Text>
                 </View>
               ))}
               {summary.ratings.sleep?.current != null && <Row l="Sono percebido" r={`${num(summary.ratings.sleep.current, 1)}/5`} />}
@@ -403,7 +403,7 @@ export default function RetrospectivaScreen() {
                     <Text style={styles.rowL}>{h.name}</Text>
                     <Text style={styles.habitSub}>{habitSub(h)}</Text>
                   </View>
-                  <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, false, noPrior).tone], fontSize: 12 }}>{deltaVM(h.total, false, noPrior).text}</Text></Text>
+                  <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, false, noPrior).tone], fontSize: 12, fontFamily: fonts.sans }}>{deltaVM(h.total, false, noPrior).text}</Text></Text>
                 </View>
               ))}
               {summary.habits.bad.map((h) => (
@@ -412,7 +412,7 @@ export default function RetrospectivaScreen() {
                     <Text style={styles.rowL}>{h.name}</Text>
                     <Text style={styles.habitSub}>{habitSub(h)}</Text>
                   </View>
-                  <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, true, noPrior).tone], fontSize: 12 }}>{deltaVM(h.total, true, noPrior).text}</Text></Text>
+                  <Text style={styles.rowR}>{qty(h.total.current, h.unit)}  <Text style={{ color: TONE_COLOR[deltaVM(h.total, true, noPrior).tone], fontSize: 12, fontFamily: fonts.sans }}>{deltaVM(h.total, true, noPrior).text}</Text></Text>
                 </View>
               ))}
               {summary.registros.length > 0 && <Text style={styles.sub}>Registros</Text>}
@@ -422,7 +422,7 @@ export default function RetrospectivaScreen() {
                     <Text style={styles.rowL}>{r.name}</Text>
                     <Text style={styles.habitSub}>{registroSub(r)}</Text>
                   </View>
-                  <Text style={styles.rowR}>{r.recap.current}×  <Text style={{ color: colors.ink3, fontSize: 12 }}>{deltaVM(r.recap, false, noPrior).text}</Text></Text>
+                  <Text style={styles.rowR}>{r.recap.current}×  <Text style={{ color: colors.ink3, fontSize: 12, fontFamily: fonts.sans }}>{deltaVM(r.recap, false, noPrior).text}</Text></Text>
                 </View>
               ))}
             </View>
@@ -588,7 +588,7 @@ function Mini({ value, label, delta }: { value: string; label: string; delta?: {
       <Text style={styles.miniLabel}>
         {label}
         {delta && delta.text !== '' && (
-          <Text style={{ color: TONE_COLOR[delta.tone], fontWeight: '600' }}>  {delta.text}</Text>
+          <Text style={{ color: TONE_COLOR[delta.tone], fontFamily: fonts.sansSemiBold }}>  {delta.text}</Text>
         )}
       </Text>
     </View>
@@ -632,7 +632,7 @@ function SportCard({ title, sp, asPace, noPrior, longestLabel }: {
                 <Text style={styles.rowL}>{b.label}</Text>
                 <Text style={styles.rowR}>
                   {formatClock(b.seconds)}
-                  {d.text !== '' && <Text style={{ color: TONE_COLOR[d.tone], fontSize: 12 }}>  {d.text}</Text>}
+                  {d.text !== '' && <Text style={{ color: TONE_COLOR[d.tone], fontSize: 12, fontFamily: fonts.sans }}>  {d.text}</Text>}
                 </Text>
               </View>
             );
@@ -657,66 +657,66 @@ const createStyles = () => StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.6 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
   content: { padding: spacing.lg, gap: spacing.md },
 
   seg: { flexDirection: 'row', backgroundColor: colors.surfaceMute, borderRadius: 12, padding: 3, gap: 2 },
   segBtn: { flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center' },
   segOn: { backgroundColor: colors.surface, ...shadows.card },
-  segTxt: { fontSize: 12, fontWeight: '600', color: colors.ink2 }, // 12: "Estação" cabe com 5 abas
+  segTxt: { fontSize: 12, fontFamily: fonts.sansSemiBold, color: colors.ink2 }, // 12: "Estação" cabe com 5 abas
   segTxtOn: { color: colors.ink },
 
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   navBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadows.card },
-  navLabel: { fontSize: 15, fontWeight: '600', color: colors.ink, minWidth: 130, textAlign: 'center' },
+  navLabel: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink, minWidth: 130, textAlign: 'center' },
 
   kpis: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   kpi: { width: '48%', backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 2, ...shadows.card },
-  kpiValue: { fontSize: 22, fontWeight: '700', color: colors.ink, marginTop: 4 },
-  kpiLabel: { fontSize: 12, color: colors.ink3 },
-  kpiDelta: { fontSize: 12, fontWeight: '600' },
+  kpiValue: { fontSize: 22, fontFamily: fonts.sansBold, color: colors.ink, marginTop: 4 },
+  kpiLabel: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
+  kpiDelta: { fontSize: 12, fontFamily: fonts.sansSemiBold },
 
   card: { backgroundColor: colors.surface, borderRadius: radii['2xl'], padding: spacing.lg, gap: spacing.sm, ...shadows.card },
-  eyebrow: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: colors.ink3, marginBottom: 4 },
-  big: { fontSize: 28, fontWeight: '700', color: colors.ink },
-  bigDelta: { fontSize: 13, fontWeight: '600' },
-  muted: { fontSize: 13, color: colors.ink3 },
-  note: { fontSize: 11, color: colors.ink3, fontStyle: 'italic', marginTop: 6 },
-  sub: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, color: colors.ink3, marginTop: 8 },
-  empty: { fontSize: 13, color: colors.ink3 },
+  eyebrow: { fontSize: 11, fontFamily: fonts.sansBold, textTransform: 'uppercase', letterSpacing: 1.1, color: colors.ink3, marginBottom: 4 },
+  big: { fontSize: 28, fontFamily: fonts.sansBold, color: colors.ink },
+  bigDelta: { fontSize: 13, fontFamily: fonts.sansSemiBold },
+  muted: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3 },
+  note: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3, fontStyle: 'italic', marginTop: 6 },
+  sub: { fontSize: 11, fontFamily: fonts.sansSemiBold, textTransform: 'uppercase', letterSpacing: 1.0, color: colors.ink3, marginTop: 8 },
+  empty: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3 },
 
   hl: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },
   hlIco: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  editNota: { fontSize: 11.5, color: colors.ink3, lineHeight: 16, marginBottom: 6 },
+  editNota: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 16, marginBottom: 6 },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 7 },
-  editLbl: { flex: 1, fontSize: 14, color: colors.ink },
+  editLbl: { flex: 1, fontSize: 14, fontFamily: fonts.sans, color: colors.ink },
   editLblOff: { color: colors.ink3, textDecorationLine: 'line-through' },
-  lede: { fontSize: 15, lineHeight: 22, color: colors.ink },
-  ledeSupport: { fontSize: 11, color: colors.ink3, marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  lede: { fontSize: 15, fontFamily: fonts.sans, lineHeight: 22, color: colors.ink },
+  ledeSupport: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3, marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   hlBody: { flex: 1, gap: 2 },
-  hlText: { fontSize: 14, fontWeight: '500', color: colors.ink },
-  hlSupport: { fontSize: 11, color: colors.ink3 },
+  hlText: { fontSize: 14, fontFamily: fonts.sansMedium, color: colors.ink },
+  hlSupport: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-  chip: { fontSize: 12, fontWeight: '600', color: colors.ink2, backgroundColor: colors.surfaceMute, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  chip: { fontSize: 12, fontFamily: fonts.sansSemiBold, color: colors.ink2, backgroundColor: colors.surfaceMute, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
 
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
-  rowL: { fontSize: 14, color: colors.ink },
-  rowR: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  rowL: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink },
+  rowR: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink },
   habitL: { flex: 1, gap: 1 },
-  habitSub: { fontSize: 11, color: colors.ink3 },
+  habitSub: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
 
   miniGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 6 },
   mini: { width: '46%' },
-  miniValue: { fontSize: 18, fontWeight: '700', color: colors.ink },
-  miniLabel: { fontSize: 12, color: colors.ink3 },
+  miniValue: { fontSize: 18, fontFamily: fonts.sansBold, color: colors.ink },
+  miniLabel: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
 
   yearGrid: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginTop: 6 },
   ybar: { flex: 1, alignItems: 'center', gap: 4 },
   ybarTrack: { width: '100%', height: 90, backgroundColor: colors.surfaceMute, borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
   ybarFill: { width: '100%', backgroundColor: colors.primary, borderRadius: 6, minHeight: 2 },
-  ybarLabel: { fontSize: 9, color: colors.ink3 },
-  ybarLabelOn: { color: colors.ink, fontWeight: '700' },
+  ybarLabel: { fontSize: 9, fontFamily: fonts.sans, color: colors.ink3 },
+  ybarLabelOn: { color: colors.ink, fontFamily: fonts.sansBold },
 
   // Forma 03 — seletor de série e leitura por toque (não há hover no celular).
   chipRow: { flexDirection: 'row', gap: 6, paddingVertical: 2 },
@@ -727,13 +727,13 @@ const createStyles = () => StyleSheet.create({
     borderWidth: 1.5, borderColor: 'transparent',
   },
   serieDot: { width: 7, height: 7, borderRadius: 4 },
-  serieTxt: { fontSize: 12, fontWeight: '600', color: colors.ink2 },
+  serieTxt: { fontSize: 12, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
   serieTxtOn: { color: colors.ink },
   readout: {
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
     backgroundColor: colors.surfaceMute, borderRadius: 10,
     paddingHorizontal: 11, paddingVertical: 8, marginTop: 8, minHeight: 34,
   },
-  readoutK: { fontSize: 12, color: colors.ink2 },
-  readoutV: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  readoutK: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink2 },
+  readoutV: { fontSize: 13, fontFamily: fonts.sansBold, color: colors.ink },
 });

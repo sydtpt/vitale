@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../../store/settings.store';
-import { colors, spacing, radii, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, spacing, useThemedStyles } from '../../theme';
 
 export default function PerfilScreen() {
   const styles = useThemedStyles(createStyles);
@@ -66,21 +66,21 @@ const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
   iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.sansSemiBold, color: colors.ink },
   saveBtn: { paddingHorizontal: spacing.sm },
-  saveTxt: { fontSize: 15, fontWeight: '600', color: colors.primary },
+  saveTxt: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.primary },
   pressed: { opacity: 0.6 },
   content: { padding: spacing.lg, gap: spacing.sm },
-  label: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 1.0 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     paddingHorizontal: spacing.lg,
     paddingVertical: 14,
-    fontSize: 16,
+    fontSize: 16, fontFamily: fonts.sans,
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.line,
   },
-  hint: { fontSize: 13, color: colors.ink3 },
+  hint: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3 },
 });
