@@ -78,17 +78,61 @@ export function movingTimeFromPoints(
 }
 
 /**
- * Janela da média móvel centrada (em amostras ≈ segundos a 1 Hz) aplicada à
- * altitude antes da histerese. Sem ela, o jitter de barômetro/GPS (±1–2 m por
- * segundo) acumula como subida e infla o ganho em ~2× (validado contra o
- * EU-DEM em rota real).
+ * Janela (s) da média móvel centrada aplicada à altitude antes da histerese.
+ * Sem ela, o jitter de barômetro/GPS (±1–2 m por segundo) acumula como subida
+ * e infla o ganho em ~2× (validado contra o EU-DEM em rota real).
+ *
+ * A janela é em TEMPO, não em amostras: os tracks vão de 1 Hz (Apple Watch) a
+ * 1 ponto/5 s (o que chega pela ponte Strava→HealthKit). Contada em amostras,
+ * a mesma "janela" suavizaria 15 s num caso e 75 s no outro, e o track esparso
+ * perderia relevo real — era o que fazia a mesma subida render números
+ * diferentes conforme quem gravou.
+ */
+export const ELEVATION_SMOOTH_SECONDS = 15;
+/**
+ * Fallback em amostras para rotas sem `t` (≈15 s a 1 Hz, a densidade das rotas
+ * antigas do Apple Watch). Preserva o valor histórico dessas linhas.
  */
 export const ELEVATION_SMOOTH_WINDOW = 15;
-/** Limiar (m) da histerese do ganho de elevação, sobre a série suavizada. */
-export const ELEVATION_GAIN_THRESHOLD_M = 3;
 
-/** Média móvel centrada de janela `window`, encolhendo nas bordas. */
-function smoothAltitudes(xs: number[], window: number): number[] {
+/**
+ * Limiar (m) da histerese sobre série BAROMÉTRICA — a que vem de um FIT
+ * (Garmin, ciclocomputador), direto ou pela ponte da Strava. Calibrado contra o
+ * Garmin Connect: 59 vs 58 e 104 vs 103 em duas corridas, e erro mediano de 5%
+ * em 11 pedaladas. Ver ADR 0021.
+ */
+export const ELEVATION_GAIN_THRESHOLD_BARO_M = 0.7;
+/**
+ * Limiar (m) sobre altitude de GNSS — a que o Apple Watch entrega no
+ * `CLLocation.altitude` do HKWorkoutRoute. Tem deriva de baixa frequência que o
+ * limiar barométrico acumularia como subida falsa: no pedal de 124 km de
+ * 05/07/2026, 0,7 m dá 1.158 m contra os 894 m que a Strava mostra; 3 m dá 860.
+ */
+export const ELEVATION_GAIN_THRESHOLD_GNSS_M = 3;
+
+/**
+ * A série de altitude veio de um FIT? O formato guarda altitude em unidades de
+ * 1/5 m, então TODO valor é múltiplo de 0,2 — assinatura que a altitude de
+ * `CLLocation` (float arbitrário) não tem. É auto-descritivo: não depende de
+ * saber quem gravou nem de estado externo.
+ *
+ * Série sem amplitude é descartada antes do teste: um track cuja altitude é
+ * constante (fonte que gravou 0 em vez de omitir) passaria trivialmente, e o
+ * limiar não muda nada nele de qualquer forma.
+ */
+function isBarometricSeries(alts: number[]): boolean {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const a of alts) {
+    if (a < min) min = a;
+    if (a > max) max = a;
+  }
+  if (!(max - min > 1)) return false;
+  return alts.every((a) => Math.abs(a * 5 - Math.round(a * 5)) < 1e-6);
+}
+
+/** Média móvel centrada de janela `window` amostras, encolhendo nas bordas. */
+function smoothByCount(xs: number[], window: number): number[] {
   if (window <= 1) return xs;
   const half = Math.floor(window / 2);
   const prefix = new Array<number>(xs.length + 1);
@@ -104,35 +148,81 @@ function smoothAltitudes(xs: number[], window: number): number[] {
 }
 
 /**
- * Ganho de elevação acumulado (m): suaviza a altitude (média móvel centrada
- * de `ELEVATION_SMOOTH_WINDOW` amostras) e soma só as subidas, com histerese
- * — a âncora só avança quando a variação acumulada desde ela passa do limiar,
- * então subidas graduais contam por inteiro e o ruído do barômetro/GPS não.
+ * Média móvel centrada de janela `seconds` sobre `ts` (epoch ms, não-decrescente).
+ * Dois ponteiros: cada índice olha os vizinhos dentro de ±seconds/2.
+ */
+function smoothByTime(xs: number[], ts: number[], seconds: number): number[] {
+  if (seconds <= 0) return xs;
+  const half = (seconds * 1000) / 2;
+  const prefix = new Array<number>(xs.length + 1);
+  prefix[0] = 0;
+  for (let i = 0; i < xs.length; i++) prefix[i + 1] = prefix[i] + xs[i];
+  const out = new Array<number>(xs.length);
+  let a = 0;
+  let b = 0;
+  for (let i = 0; i < xs.length; i++) {
+    while (ts[a] < ts[i] - half) a++;
+    if (b < i) b = i;
+    while (b + 1 < xs.length && ts[b + 1] <= ts[i] + half) b++;
+    out[i] = (prefix[b + 1] - prefix[a]) / (b - a + 1);
+  }
+  return out;
+}
+
+/** Suaviza pela janela de tempo quando o track tem `t` utilizável; senão, por amostras. */
+function smoothAltitudes(alts: number[], ts: number[] | undefined): number[] {
+  return ts ? smoothByTime(alts, ts, ELEVATION_SMOOTH_SECONDS) : smoothByCount(alts, ELEVATION_SMOOTH_WINDOW);
+}
+
+/**
+ * Ganho de elevação acumulado (m): suaviza a altitude (média móvel centrada de
+ * `ELEVATION_SMOOTH_SECONDS`) e soma só as subidas, com histerese — a âncora só
+ * avança quando a variação acumulada desde ela passa do limiar, então subidas
+ * graduais contam por inteiro e o ruído do barômetro/GPS não.
+ *
+ * Sem `threshold` explícito, escolhe o limiar pelo TIPO DE SINAL da série
+ * (`isBarometricSeries`) — o mesmo limiar não serve para altitude de FIT e de
+ * GNSS. Este é o número canônico: vence o `total_elevation_gain` reportado por
+ * strava/intervals, que o intervals infla em corrida (ADR 0021 supersede 0019).
+ *
  * Retorna undefined quando nenhum ponto tem altitude (rota sem barômetro)
  * — espelha o `elevationGain` do mobile e o `_elevation_gain` das migrations.
  */
 export function elevationGainFromPoints(
   points: FitnessPoint[] | undefined,
-  threshold = ELEVATION_GAIN_THRESHOLD_M,
+  threshold?: number,
 ): number | undefined {
   if (!points) return undefined;
   const alts: number[] = [];
+  const ts: number[] = [];
+  let monotonic = true;
   for (const p of points) {
-    if (typeof p.alt === 'number') alts.push(p.alt);
+    if (typeof p.alt !== 'number') continue;
+    alts.push(p.alt);
+    if (typeof p.t === 'number' && Number.isFinite(p.t)) {
+      if (ts.length > 0 && p.t < ts[ts.length - 1]) monotonic = false;
+      ts.push(p.t);
+    }
   }
   if (alts.length === 0) return undefined;
+  // Só usa a janela de tempo com timestamp em TODOS os pontos e sem clock skew;
+  // um track meio-a-meio daria janelas incoerentes entre os trechos.
+  const usable = monotonic && ts.length === alts.length ? ts : undefined;
+  const limit =
+    threshold ??
+    (isBarometricSeries(alts) ? ELEVATION_GAIN_THRESHOLD_BARO_M : ELEVATION_GAIN_THRESHOLD_GNSS_M);
   let gain = 0;
   let ref: number | undefined;
-  for (const alt of smoothAltitudes(alts, ELEVATION_SMOOTH_WINDOW)) {
+  for (const alt of smoothAltitudes(alts, usable)) {
     if (ref === undefined) {
       ref = alt;
       continue;
     }
     const delta = alt - ref;
-    if (delta > threshold) {
+    if (delta > limit) {
       gain += delta;
       ref = alt;
-    } else if (delta < -threshold) {
+    } else if (delta < -limit) {
       ref = alt;
     }
   }

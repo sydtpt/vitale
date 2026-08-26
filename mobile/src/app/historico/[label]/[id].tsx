@@ -14,7 +14,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HR_ZONES, hrZoneRange, movingTimeFromRoutePoints } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
-import { getActivityMeta, getActivityColor, elevationGain } from '../../../lib/workout-types';
+import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../lib/workout-types';
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import {
@@ -125,7 +125,10 @@ export default function AtividadeDetalheScreen() {
     // `t` (epoch ms) alimenta a arte "Velocidade" do share; ausente em rotas antigas.
     timestamp: Number.isFinite(p.t) ? new Date(p.t as number).toISOString() : undefined,
   }));
-  const elevation = formatElevation(elevationGain(points));
+  // Elevação: o valor sincronizado vence o cálculo sobre o track (ADR 0019) —
+  // sem isso a tela mostrava ~metade do que a web e a retro mostram.
+  const elevationM = resolveElevationM(activity.elevationM, points);
+  const elevation = elevationM === undefined ? null : formatElevation(elevationM);
 
   // Recordes que esta atividade detém (maior distância, best efforts).
   const recordBadges = activityRecordBadges(_all, activity);
@@ -298,7 +301,7 @@ export default function AtividadeDetalheScreen() {
                   movingS,
                   totalS,
                   calories: activity.calories,
-                  elevationM: elevationGain(points),
+                  elevationM,
                   cities: activity.cities,
                 }}
               />

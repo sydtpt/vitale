@@ -36,7 +36,11 @@ export function smoothSeries(xs: number[], window: number): number[] {
   return out;
 }
 
-/** Janela de suavização (~amostras), como ELEVATION_SMOOTH_WINDOW do app. */
+/**
+ * Janela de suavização do PERFIL desenhado, em amostras. Serve só ao traçado —
+ * não é a janela do ganho de elevação (`ELEVATION_SMOOTH_SECONDS`, em tempo),
+ * que segue caminho próprio e não depende desta.
+ */
 const SMOOTH_WINDOW = 15;
 /** Mínimo de amostras válidas para a série valer a pena visualmente. */
 const MIN_SAMPLES = 10;

@@ -21,6 +21,7 @@ export {
   GPS_ACTIVITY_IDS,
   hasGpsRoute,
   elevationGain,
+  resolveElevationM,
   getActivityMeta,
   fetchWorkoutRoute,
 } from '../lib/healthkit-workouts';

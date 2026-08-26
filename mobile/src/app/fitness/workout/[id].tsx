@@ -8,7 +8,7 @@ import {
   useFitnessStore,
   getActivityMeta,
   hasGpsRoute,
-  elevationGain,
+  resolveElevationM,
   mergeWorkoutSources,
 } from '../../../store/fitness.store';
 import { useActivitiesStore } from '../../../store/activities.store';
@@ -183,7 +183,10 @@ export default function WorkoutDetailScreen() {
     totalS,
   );
   const rate = isGps ? formatRate(workout.activityId, workout.distance, movingS) : null;
-  const elevation = formatElevation(elevationGain(route));
+  // Elevação: o valor sincronizado da atividade equivalente (medido pelo
+  // altímetro da fonte) vence o cálculo sobre o track — ADR 0019.
+  const elevationM = resolveElevationM(supMatch?.elevationM, route);
+  const elevation = elevationM === undefined ? null : formatElevation(elevationM);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -249,7 +252,7 @@ export default function WorkoutDetailScreen() {
                   movingS,
                   totalS,
                   calories: workout.calories,
-                  elevationM: elevationGain(route),
+                  elevationM,
                   cities: supMatch?.cities,
                 }}
               />

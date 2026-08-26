@@ -115,15 +115,35 @@ export { GPS_ACTIVITY_IDS, hasGpsRoute } from '@vitale/shared';
 export type { RoutePoint } from '@vitale/shared';
 
 /**
- * Janela da média móvel centrada (amostras ≈ segundos a 1 Hz) e limiar da
- * histerese do ganho de elevação. DEVEM casar com o shared
- * (`ELEVATION_SMOOTH_WINDOW` / `ELEVATION_GAIN_THRESHOLD_M`).
+ * Janela (s) da média móvel centrada, seu fallback em amostras (rotas sem
+ * timestamp) e os limiares da histerese por tipo de sinal. DEVEM casar com o
+ * shared (`ELEVATION_SMOOTH_SECONDS` / `ELEVATION_SMOOTH_WINDOW` /
+ * `ELEVATION_GAIN_THRESHOLD_BARO_M` / `ELEVATION_GAIN_THRESHOLD_GNSS_M`) — um
+ * teste de paridade pina os dois. Ver ADR 0021.
  */
+const ELEVATION_SMOOTH_SECONDS = 15;
 const ELEVATION_SMOOTH_WINDOW = 15;
-const ELEVATION_GAIN_THRESHOLD_M = 3;
+const ELEVATION_GAIN_THRESHOLD_BARO_M = 0.7;
+const ELEVATION_GAIN_THRESHOLD_GNSS_M = 3;
 
-/** Média móvel centrada de janela `window`, encolhendo nas bordas. */
-function smoothAltitudes(xs: number[], window: number): number[] {
+/**
+ * Altitude vinda de FIT guarda o valor em unidades de 1/5 m — todo valor é
+ * múltiplo de 0,2. A do `CLLocation` (Apple Watch) é float arbitrário. Série
+ * sem amplitude não conta: altitude constante passaria trivialmente.
+ */
+function isBarometricSeries(alts: number[]): boolean {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const a of alts) {
+    if (a < min) min = a;
+    if (a > max) max = a;
+  }
+  if (!(max - min > 1)) return false;
+  return alts.every((a) => Math.abs(a * 5 - Math.round(a * 5)) < 1e-6);
+}
+
+/** Média móvel centrada de janela `window` amostras, encolhendo nas bordas. */
+function smoothByCount(xs: number[], window: number): number[] {
   if (window <= 1) return xs;
   const half = Math.floor(window / 2);
   const prefix = new Array<number>(xs.length + 1);
@@ -138,34 +158,90 @@ function smoothAltitudes(xs: number[], window: number): number[] {
   return out;
 }
 
-/**
- * Ganho de elevação acumulado (m): suaviza a altitude (média móvel centrada)
- * e soma só as subidas, com histerese — a âncora só avança quando a variação
- * acumulada desde ela passa do limiar, então subidas graduais contam por
- * inteiro e o ruído do barômetro/GPS não. Espelha o
- * `elevationGainFromPoints` do shared.
- */
-export function elevationGain(points: RoutePoint[], threshold = ELEVATION_GAIN_THRESHOLD_M): number {
-  const alts: number[] = [];
-  for (const p of points) {
-    if (typeof p.altitude === 'number') alts.push(p.altitude);
+/** Média móvel centrada de janela `seconds` sobre `ts` (epoch ms, não-decrescente). */
+function smoothByTime(xs: number[], ts: number[], seconds: number): number[] {
+  if (seconds <= 0) return xs;
+  const half = (seconds * 1000) / 2;
+  const prefix = new Array<number>(xs.length + 1);
+  prefix[0] = 0;
+  for (let i = 0; i < xs.length; i++) prefix[i + 1] = prefix[i] + xs[i];
+  const out = new Array<number>(xs.length);
+  let a = 0;
+  let b = 0;
+  for (let i = 0; i < xs.length; i++) {
+    while (ts[a] < ts[i] - half) a++;
+    if (b < i) b = i;
+    while (b + 1 < xs.length && ts[b + 1] <= ts[i] + half) b++;
+    out[i] = (prefix[b + 1] - prefix[a]) / (b - a + 1);
   }
+  return out;
+}
+
+/**
+ * Ganho de elevação acumulado (m): suaviza a altitude (média móvel centrada de
+ * `ELEVATION_SMOOTH_SECONDS`) e soma só as subidas, com histerese — a âncora só
+ * avança quando a variação acumulada desde ela passa do limiar, então subidas
+ * graduais contam por inteiro e o ruído do barômetro/GPS não.
+ *
+ * Sem `threshold` explícito, escolhe o limiar pelo tipo de sinal da série —
+ * o mesmo não serve para altitude de FIT e de GNSS (ADR 0021).
+ * Espelha o `elevationGainFromPoints` do shared.
+ */
+export function elevationGain(points: RoutePoint[], threshold?: number): number {
+  const alts: number[] = [];
+  const ts: number[] = [];
+  let monotonic = true;
+  for (const p of points) {
+    if (typeof p.altitude !== 'number') continue;
+    alts.push(p.altitude);
+    const t = p.timestamp ? Date.parse(p.timestamp) : NaN;
+    if (Number.isFinite(t)) {
+      if (ts.length > 0 && t < ts[ts.length - 1]) monotonic = false;
+      ts.push(t);
+    }
+  }
+  // Janela de tempo só com timestamp em todos os pontos e sem clock skew.
+  const smoothed =
+    monotonic && ts.length === alts.length
+      ? smoothByTime(alts, ts, ELEVATION_SMOOTH_SECONDS)
+      : smoothByCount(alts, ELEVATION_SMOOTH_WINDOW);
+  const limit =
+    threshold ??
+    (isBarometricSeries(alts) ? ELEVATION_GAIN_THRESHOLD_BARO_M : ELEVATION_GAIN_THRESHOLD_GNSS_M);
   let gain = 0;
   let ref: number | undefined;
-  for (const alt of smoothAltitudes(alts, ELEVATION_SMOOTH_WINDOW)) {
+  for (const alt of smoothed) {
     if (ref === undefined) {
       ref = alt;
       continue;
     }
     const delta = alt - ref;
-    if (delta > threshold) {
+    if (delta > limit) {
       gain += delta;
       ref = alt;
-    } else if (delta < -threshold) {
+    } else if (delta < -limit) {
       ref = alt;
     }
   }
   return gain;
+}
+
+/**
+ * Ganho de elevação a exibir: o valor sincronizado (`activities.elevation_m`)
+ * vence o cálculo local. Não porque o guardado venha do altímetro — desde o
+ * ADR 0021 ele é o MESMO cálculo, feito no ingest ou no sync — mas para a tela
+ * nunca discordar da web e da retrospectiva, que leem a coluna.
+ *
+ * `null` na coluna significa "desconhecido" (sem rota/altitude), não "plano" —
+ * por isso 0 conta como valor válido e não cai no cálculo.
+ */
+export function resolveElevationM(
+  reported: number | null | undefined,
+  points: RoutePoint[] | undefined,
+): number | undefined {
+  if (typeof reported === 'number' && Number.isFinite(reported)) return reported;
+  if (!points || points.length === 0) return undefined;
+  return elevationGain(points);
 }
 
 export type ActivityMeta = { icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string };

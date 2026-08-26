@@ -165,6 +165,8 @@ async function fetchRoutePointCounts(
 interface DerivedMetrics {
   movingTimeS?: number;
   elevationM?: number;
+  /** true quando `elevationM` veio medido pela fonte, não estimado do track (ADR 0019). */
+  elevationReported: boolean;
   bestEfforts?: Record<string, number>;
   hrZones?: Record<string, number>;
 }
@@ -172,8 +174,13 @@ interface DerivedMetrics {
 function deriveMetrics(norm: NormalizedActivity, hrParams: FitnessHrZoneParams): DerivedMetrics {
   // moving_time da fonte (Garmin calcula bem) > derivado do track > nada.
   const movingTimeS = norm.movingTimeS ?? movingTimeFromPoints(norm.points);
-  // Elevação: valor da fonte (bate com o que Strava/intervals mostram) > derivado do track.
-  const elevationM = norm.elevationM ?? elevationGainFromPoints(norm.points);
+  // Elevação: o cálculo sobre o track vence o `total_elevation_gain` da fonte
+  // (ADR 0021 supersede 0019) — o intervals infla corrida em 1,5–1,8×, e o
+  // cálculo com limiar por tipo de sinal reproduz o Garmin dentro de 1%. O
+  // valor reportado fica de reserva para atividade sem altitude no track.
+  const computedElevationM = elevationGainFromPoints(norm.points);
+  const elevationM = computedElevationM ?? norm.elevationM;
+  const elevationReported = computedElevationM == null && norm.elevationM != null;
   const bestEfforts =
     norm.activityId === 37 && norm.points.length > 1
       ? computeBestEffortsFromPoints(norm.points)
@@ -182,6 +189,7 @@ function deriveMetrics(norm: NormalizedActivity, hrParams: FitnessHrZoneParams):
   return {
     movingTimeS,
     elevationM,
+    elevationReported,
     bestEfforts: Object.keys(bestEfforts).length > 0 ? bestEfforts : undefined,
     hrZones: Object.keys(hrZones).length > 0 ? hrZones : undefined,
   };
@@ -276,7 +284,11 @@ async function applyMerge(
     const m = deriveMetrics(norm, hrParams);
     if (norm.distanceM != null) patch.distance_m = norm.distanceM;
     if (m.movingTimeS != null) patch.moving_time_s = m.movingTimeS;
-    if (m.elevationM != null) patch.elevation_m = m.elevationM;
+    // Valor calculado do track sempre entra; o reportado pela fonte só quando a
+    // linha ainda não tem nada (ADR 0021).
+    if (m.elevationM != null && (!m.elevationReported || target.elevation_m == null)) {
+      patch.elevation_m = m.elevationM;
+    }
     if (m.bestEfforts) patch.best_efforts = m.bestEfforts;
     if (m.hrZones) patch.hr_zones = m.hrZones;
     if (norm.calories && norm.calories > 0) patch.calories = norm.calories;

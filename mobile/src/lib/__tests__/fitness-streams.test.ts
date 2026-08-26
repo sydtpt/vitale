@@ -7,7 +7,7 @@ import { describe, it, expect } from '@jest/globals';
 import { computeBestEffortsFromPoints, computeHrZonesFromSamples, elevationGainFromPoints, fitnessMaxHrFromAge, HR_ZONES, movingTimeFromPoints, movingTimeFromTrack, type FitnessPoint } from '@vitale/shared';
 import { computeBestEfforts } from '../best-efforts';
 import { computeHrZones, maxHrFromAge, type HrSample } from '../heart-rate-zones';
-import { elevationGain, type RoutePoint } from '../workout-types';
+import { elevationGain, resolveElevationM, type RoutePoint } from '../workout-types';
 
 const BASE_MS = Date.UTC(2026, 6, 1, 8, 0, 0);
 
@@ -109,6 +109,95 @@ describe('fitness/streams — paridade com o mobile', () => {
     const g = elevationGainFromPoints(noisyClimb)!;
     expect(g).toBeGreaterThan(54);
     expect(g).toBeLessThanOrEqual(60);
+  });
+
+  it('a janela de suavização é de tempo: mesma subida rende o mesmo em 1 Hz e a 5 s/ponto', () => {
+    // Mesmo terreno (60 m em 20 min), gravado em duas densidades — a diferença
+    // entre o track do Apple Watch (1 Hz) e o que chega pela ponte Strava.
+    // Com janela contada em amostras, o track esparso era suavizado 5× mais
+    // forte e perdia relevo real; com janela de tempo, os dois convergem.
+    const ramp = (i: number, stepS: number): FitnessPoint => ({
+      lat: -23.55 + i * 1e-5 * stepS,
+      lng: -46.63,
+      alt: 700 + i * stepS * 0.05,
+      t: BASE_MS + i * stepS * 1000,
+    });
+    const denso = Array.from({ length: 1201 }, (_, i) => ramp(i, 1));
+    const esparso = Array.from({ length: 241 }, (_, i) => ramp(i, 5));
+    const gDenso = elevationGainFromPoints(denso)!;
+    const gEsparso = elevationGainFromPoints(esparso)!;
+    // Sobra só o efeito de borda da janela (< 1 m em 60 m); com janela em
+    // amostras a diferença era de dezenas de metros.
+    expect(Math.abs(gDenso - gEsparso)).toBeLessThan(1);
+    expect(gEsparso).toBeGreaterThan(55);
+  });
+
+  it('rota sem `t` cai na janela em amostras (preserva o valor das rotas antigas)', () => {
+    const semT = Array.from({ length: 601 }, (_, i) => ({
+      lat: -23.55 + i * 1e-5,
+      lng: -46.63,
+      alt: 700 + i * 0.05,
+    }));
+    // Sem timestamp, 15 amostras ≈ 15 s a 1 Hz: mesmo resultado do track com `t`.
+    const comT = semT.map((p, i) => ({ ...p, t: BASE_MS + i * 1000 }));
+    expect(elevationGainFromPoints(semT)!).toBeCloseTo(elevationGainFromPoints(comT)!, 6);
+  });
+
+  it('o limiar sai do tipo de sinal: FIT (múltiplo de 0,2 m) vs GNSS', () => {
+    // Mesma subida real de 30 m em 10 min, com ruído de ±1 m. Numa série
+    // barométrica (quantizada em 0,2 m) o limiar é 0,7 m e a subida conta quase
+    // inteira; na de GNSS o limiar é 3 m e o mesmo ruído não vira subida falsa.
+    const serie = (quantizar: boolean) =>
+      Array.from({ length: 601 }, (_, i) => {
+        const real = 700 + i * 0.05 + (i % 2 === 0 ? 1 : -1);
+        return {
+          lat: -23.55 + i * 1e-5,
+          lng: -46.63,
+          alt: quantizar ? Math.round(real * 5) / 5 : real + 0.03137,
+          t: BASE_MS + i * 1000,
+        };
+      });
+    const baro = elevationGainFromPoints(serie(true))!;
+    const gnss = elevationGainFromPoints(serie(false))!;
+    expect(baro).toBeGreaterThan(gnss);
+    // Limiar explícito continua mandando — é o que as migrations usam ao fixar
+    // um valor histórico.
+    expect(elevationGainFromPoints(serie(true), 3)).toBeCloseTo(gnss, 0);
+  });
+
+  it('série de altitude constante não é confundida com barométrica', () => {
+    // Fonte que grava 0 em vez de omitir a altitude: todo valor é múltiplo de
+    // 0,2 por acidente. Sem a guarda de amplitude, cairia no limiar barométrico.
+    const chapado = Array.from({ length: 300 }, (_, i) => ({
+      lat: -23.55 + i * 1e-5,
+      lng: -46.63,
+      alt: 0,
+      t: BASE_MS + i * 1000,
+    }));
+    expect(elevationGainFromPoints(chapado)).toBe(0);
+  });
+
+  it('resolveElevationM prefere o valor guardado na atividade', () => {
+    const track: RoutePoint[] = Array.from({ length: 601 }, (_, i) => ({
+      latitude: -23.55 + i * 1e-5,
+      longitude: -46.63,
+      altitude: 700 + i * 0.05,
+      timestamp: new Date(BASE_MS + i * 1000).toISOString(),
+    }));
+    const calculado = elevationGain(track);
+    expect(calculado).toBeGreaterThan(0);
+
+    // Reportado vence, mesmo divergindo muito do cálculo (é o caso real: sobre
+    // altitude de GNSS o cálculo fica ~40% abaixo do barômetro da fonte).
+    expect(resolveElevationM(142, track)).toBe(142);
+    // 0 é "plano medido", não "desconhecido" — não cai no cálculo.
+    expect(resolveElevationM(0, track)).toBe(0);
+    // Null/undefined ⇒ estimativa do track.
+    expect(resolveElevationM(null, track)).toBeCloseTo(calculado, 6);
+    expect(resolveElevationM(undefined, track)).toBeCloseTo(calculado, 6);
+    // Sem valor e sem track: desconhecido.
+    expect(resolveElevationM(null, [])).toBeUndefined();
+    expect(resolveElevationM(undefined, undefined)).toBeUndefined();
   });
 
   it('computeHrZonesFromSamples ≡ computeHrZones (fronteiras pinadas em HR_ZONES)', () => {
