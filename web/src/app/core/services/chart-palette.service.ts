@@ -1,39 +1,28 @@
-import { Injectable, signal } from '@angular/core';
-import { DEFAULT_CHART_PALETTE_ID, isChartPaletteId, remapChartColor } from '@vitale/shared';
+import { Injectable, computed, inject } from '@angular/core';
+import { remapChartColor } from '@vitale/shared';
+import { ThemeService } from '@core/theme/theme.service';
 
-/** Preferência puramente local/cosmética da paleta dos gráficos (localStorage;
- * não sincroniza com Supabase). Espelha o chart-palette.store do mobile. */
-const KEY = 'vitale.chartPalette';
-
+/**
+ * Cor das séries de gráfico, derivada da **paleta do app**.
+ *
+ * Antes era uma preferência à parte, guardada só no `localStorage` e com
+ * seletor próprio em Ajustes — o que produzia a pergunta "por que a paleta que
+ * escolhi não mudou meu gráfico?". Desde a unificação existe um eixo só, e este
+ * serviço é a ponte: mantém a API `remap()` que os gráficos já usam, agora lendo
+ * do tema.
+ */
 @Injectable({ providedIn: 'root' })
 export class ChartPaletteService {
-  readonly paletteId = signal<string>(readInitial());
+  private readonly theme = inject(ThemeService);
 
-  setPalette(id: string): void {
-    if (!isChartPaletteId(id)) return;
-    this.paletteId.set(id);
-    try {
-      localStorage.setItem(KEY, JSON.stringify({ id }));
-    } catch {
-      /* localStorage indisponível — mantém só em memória */
-    }
-  }
+  readonly paletteId = computed(() => this.theme.paletteId());
 
-  /** Remapeia uma cor-base para a paleta ativa. Reativo: lê o signal. */
+  /**
+   * Traduz uma cor-base (vocabulário do Orbe) para a paleta ativa, já ajustada
+   * ao tema e ao esquema — uma série precisa se destacar do fundo em que
+   * desenha, e o mesmo hex não serve para creme claro e preto.
+   */
   remap(hex: string): string {
-    return remapChartColor(hex, this.paletteId());
+    return remapChartColor(hex, this.paletteId(), this.theme.themeId(), this.theme.scheme());
   }
-}
-
-function readInitial(): string {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const v = JSON.parse(raw) as { id?: string };
-      if (v?.id && isChartPaletteId(v.id)) return v.id;
-    }
-  } catch {
-    /* ignore */
-  }
-  return DEFAULT_CHART_PALETTE_ID;
 }

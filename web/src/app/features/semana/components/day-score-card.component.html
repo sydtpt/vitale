@@ -6,7 +6,7 @@
         <circle cx="80" cy="80" [attr.r]="ring.r" fill="none" [attr.stroke]="ring.color" stroke-width="10"
                 [attr.stroke-dasharray]="dash(ring.score, ring.r)" stroke-linecap="round" transform="rotate(-90 80 80)"/>
       }
-      <text x="80" y="78" text-anchor="middle" font-family="Instrument Serif, serif" font-size="38" fill="#1F1B16">
+      <text x="80" y="78" text-anchor="middle" class="serif" font-size="38" fill="#1F1B16">
         {{ hasData() ? total() : '—' }}
       </text>
       <text x="80" y="96" text-anchor="middle" font-size="10" letter-spacing="1" font-weight="600" fill="#9C928A">HOJE</text>

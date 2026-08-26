@@ -33,7 +33,7 @@ const TONE_COLOR: Record<string, string> = {
     .rows { display: flex; flex-direction: column; gap: 8px; }
     .row { background: var(--surface-mute); border-left: 3px solid var(--ink-3); border-radius: 8px; padding: 8px 12px; }
     .text { font-size: 13px; color: var(--ink); }
-    .meta { font-size: 11px; color: var(--ink-3); margin-top: 2px; font-family: 'Geist Mono', monospace; }
+    .meta { font-size: 11px; color: var(--ink-3); margin-top: 2px; font-family: var(--font-mono); }
     .disc { font-size: 11px; color: var(--ink-3); margin-top: 8px; }
   `],
 })

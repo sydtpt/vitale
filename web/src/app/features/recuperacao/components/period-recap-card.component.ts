@@ -50,7 +50,7 @@ function fmtDuration(min: number): string {
     @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
     .tile { background: var(--surface-mute); border-radius: 10px; padding: 10px 12px; }
     .lbl { font-size: 11px; color: var(--ink-3); }
-    .val { font-size: 18px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: 'Geist Mono', monospace; }
+    .val { font-size: 18px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: var(--font-mono); }
     .delta { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
     .delta.up { color: #6FA86A; }
     .delta.down { color: #E26A8A; }

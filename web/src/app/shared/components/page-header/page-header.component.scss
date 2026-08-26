@@ -4,7 +4,7 @@
   letter-spacing: 0.4px; text-transform: uppercase;
 }
 h1 {
-  font-family: 'Instrument Serif', serif;
+  font-family: var(--font-serif);
   font-size: 44px; font-weight: 400;
   margin: 6px 0 0; letter-spacing: -0.4px;
 }

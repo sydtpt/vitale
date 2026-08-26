@@ -1,12 +1,18 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import {
+  resolveBrand,
+  resolvePalette,
+  resolveTheme,
   DEFAULT_MAP_STYLE,
   DEFAULT_WEEKLY_TARGET_MIN,
   referenceLineColors,
   resolveMapStyle,
   resolveWeeklyTargetMin,
+  type BrandId,
   type MapStyle,
+  type PaletteId,
   type ReferenceLineColors,
+  type ThemeId,
 } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
@@ -14,8 +20,11 @@ import { fetchUserPreferencesRow } from '@vitale/shared';
 
 /**
  * Preferências de app do usuário, carregadas da tabela `user_preferences`.
- * Só leitura: quem edita é o app mobile; a web apenas reflete as escolhas.
  * Recarrega quando o usuário autenticado muda.
+ *
+ * Só leitura, com **uma exceção**: a `ThemeService` grava os quatro eixos de
+ * aparência. A convenção antiga era "quem edita é o mobile", e ela se abre aqui
+ * de propósito — obrigar a pegar o celular para escurecer o desktop é UX ruim.
  */
 @Injectable({ providedIn: 'root' })
 export class PreferencesService {
@@ -30,6 +39,18 @@ export class PreferencesService {
   /** Cores das linhas de referência do gráfico de duração. */
   readonly referenceLines = signal<ReferenceLineColors>(referenceLineColors(undefined));
 
+  /**
+   * Os quatro eixos de aparência, como vieram do banco. `null` enquanto a
+   * leitura não voltou — a `ThemeService` usa o cache local até lá, para a
+   * primeira pintura não piscar.
+   */
+  readonly appearance = signal<{
+    theme: 'system' | 'light' | 'dark';
+    themeId: ThemeId;
+    paletteId: PaletteId;
+    brandId: BrandId;
+  } | null>(null);
+
   constructor() {
     effect(
       () => {
@@ -38,6 +59,7 @@ export class PreferencesService {
           this.mapStyle.set(DEFAULT_MAP_STYLE);
           this.weeklyActivityTargetMin.set(DEFAULT_WEEKLY_TARGET_MIN);
           this.referenceLines.set(referenceLineColors(undefined));
+          this.appearance.set(null);
           return;
         }
         void this.load(user.id);
@@ -60,5 +82,12 @@ export class PreferencesService {
     this.referenceLines.set(
       referenceLineColors(data?.['reference_line_scheme'] as string | null | undefined),
     );
+    const theme = (data?.['theme'] as string | undefined) ?? 'system';
+    this.appearance.set({
+      theme: theme === 'light' || theme === 'dark' ? theme : 'system',
+      themeId: resolveTheme(data?.['theme_id'] as string | null | undefined).id,
+      paletteId: resolvePalette(data?.['palette_id'] as string | null | undefined).id,
+      brandId: resolveBrand(data?.['brand_id'] as string | null | undefined).id,
+    });
   }
 }

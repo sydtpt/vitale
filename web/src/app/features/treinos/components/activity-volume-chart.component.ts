@@ -20,7 +20,7 @@ interface GridVM { v: number; y: number; }
       @for (g of grid(); track g.v) {
         <g>
           <line [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="g.y" [attr.y2]="g.y" stroke="#EFE6D8" stroke-dasharray="3 3"/>
-          <text [attr.x]="padL - 6" [attr.y]="g.y + 3" text-anchor="end" font-size="10" font-family="Geist Mono, monospace" fill="#9C928A">{{ g.v }}{{ unit() }}</text>
+          <text [attr.x]="padL - 6" [attr.y]="g.y + 3" text-anchor="end" font-size="10" class="mono" fill="#9C928A">{{ g.v }}{{ unit() }}</text>
         </g>
       }
       @for (b of bars(); track b.week) {
@@ -29,7 +29,7 @@ interface GridVM { v: number; y: number; }
             [attr.fill]="color()" [attr.fill-opacity]="$index === bars().length - 1 ? 1 : 0.4"/>
           <text [attr.x]="b.cx" [attr.y]="h - 10" text-anchor="middle" font-size="10" fill="#9C928A">{{ b.week }}</text>
           @if (b.value > 0) {
-            <text [attr.x]="b.cx" [attr.y]="b.y - 4" text-anchor="middle" font-size="10" font-family="Geist Mono, monospace" font-weight="600" fill="#1F1B16">{{ b.value }}</text>
+            <text [attr.x]="b.cx" [attr.y]="b.y - 4" text-anchor="middle" font-size="10" class="mono" font-weight="600" fill="#1F1B16">{{ b.value }}</text>
           }
         </g>
       }

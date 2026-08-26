@@ -1,8 +1,18 @@
 /* Vitale — Global Styles */
 
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap');
+/* Manrope no corpo, Geist Mono nos números, Instrument Serif nos títulos.
+   Eixo de peso contínuo (`wght@200..800`), não instâncias soltas: a web usa
+   `font-weight: 650` em dezenas de lugares e 550 em alguns, que só existem em
+   variable font — com pesos estáticos eles arredondariam para 600/700.
+   O mobile faz o contrário e embarca um arquivo por peso; ver `theme/tokens.ts`. */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&family=Geist+Mono:wght@400..700&family=Instrument+Serif&display=swap');
 
 :root {
+  /* Fontes — ponto único de troca; ver packages/shared/src/constants/tokens.ts */
+  --font-sans: 'Manrope', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+
   /* Surfaces */
   --bg: #FFF7EE;
   --bg-web: #FAF3E6;
@@ -31,6 +41,21 @@
   --blue: #6E8CC9;
   --blue-soft: #DDE4F2;
   --casa: #B4825B;
+  --casa-soft: #F4E6D9;
+  --teal: #4F9D90;
+  --teal-soft: #DDEEEA;
+  --purple: #8B6BB1;
+  --purple-soft: #EBE3F3;
+  --red: #E05C5C;
+  --red-soft: #FDDEDE;
+  --ink-soft: #EAE3D6;
+
+  /* Contorno de card — igual ao `surface` nos temas que não têm borda. */
+  --hairline: #EFE6D8;
+  /* Conteúdo sobre o preenchimento da marca (o "+" dentro do botão cheio). */
+  --on-primary: #FFFFFF;
+  /* Contorno do preenchimento da marca; `transparent` nas que não têm. */
+  --primary-outline: transparent;
 
   /* Shadows */
   --shadow-sm: 0 1px 0 rgba(31, 27, 22, 0.04);
@@ -64,7 +89,7 @@ html, body {
   padding: 0;
   background: var(--bg-web);
   min-height: 100vh;
-  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -75,12 +100,13 @@ h1, h2, h3, h4, p { margin: 0; }
 a { color: inherit; text-decoration: none; }
 
 /* Utility classes */
-.mono { font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums; }
-.serif { font-family: 'Instrument Serif', serif; font-weight: 400; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.serif { font-family: var(--font-serif); font-weight: 400; }
 
 /* Scrollbar polish */
 *::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: rgba(31, 27, 22, 0.18); border-radius: 4px; }
+/* `--ink-4` acompanha o tema; o rgba fixo daqui sumia no modo escuro. */
+*::-webkit-scrollbar-thumb { background: var(--ink-4); border-radius: 4px; }
 *::-webkit-scrollbar-track { background: transparent; }
 
 /* Transitions */
