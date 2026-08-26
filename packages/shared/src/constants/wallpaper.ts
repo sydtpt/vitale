@@ -4,6 +4,7 @@
  * Fonte única reutilizada pelo mobile (seletor em Aparência + camada de fundo).
  *
  * - `flat`        — fundo creme sólido (`bg`); o padrão histórico do app.
+ * - `pure`        — neutro puro sólido (`bgPure`): branco no claro, preto no escuro.
  * - `headerGlow`  — brilho concentrado no topo, fundo limpo embaixo.
  * - `bottomBlob`  — blobs orgânicos subindo do rodapé + 1 círculo e 1 anel no topo.
  * - `cornerRings` — anéis concêntricos saindo do canto superior direito.
@@ -17,6 +18,7 @@
  */
 export type Wallpaper =
   | 'flat'
+  | 'pure'
   | 'headerGlow'
   | 'bottomBlob'
   | 'cornerRings'
@@ -28,6 +30,7 @@ export type Wallpaper =
 /** Lista ordenada com rótulo curto exibido no seletor de Aparência. */
 export const WALLPAPERS: ReadonlyArray<{ id: Wallpaper; label: string }> = [
   { id: 'flat', label: 'Flat' },
+  { id: 'pure', label: 'Puro' },
   { id: 'headerGlow', label: 'Header' },
   { id: 'bottomBlob', label: 'Blob' },
   { id: 'cornerRings', label: 'Arcos' },
@@ -45,4 +48,15 @@ export const DEFAULT_WALLPAPER: Wallpaper = 'flat';
 /** Resolve um papel de parede (com fallback seguro) a partir de um valor possivelmente inválido/ausente. */
 export function resolveWallpaper(value: string | null | undefined): Wallpaper {
   return value && WALLPAPER_IDS.has(value) ? (value as Wallpaper) : DEFAULT_WALLPAPER;
+}
+
+/**
+ * Fundos sólidos — os únicos que sobrevivem num tema que abre mão da decoração.
+ * `flat` usa o fundo do tema; `pure` usa o neutro absoluto.
+ */
+export const SOLID_WALLPAPERS: readonly Wallpaper[] = ['flat', 'pure'];
+
+/** `true` para os fundos com desenho, que o tema pode não querer. */
+export function isDecorativeWallpaper(w: Wallpaper): boolean {
+  return !SOLID_WALLPAPERS.includes(w);
 }

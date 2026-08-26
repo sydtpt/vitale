@@ -7,6 +7,9 @@ import type { MapStyle } from '../constants/map';
 import type { Wallpaper } from '../constants/wallpaper';
 import type { NotificationPrefs } from '../constants/notifications';
 import type { ReferenceLineScheme } from '../constants/reference-lines';
+import type { ThemeId } from '../theme/themes';
+import type { PaletteId } from '../theme/palettes';
+import type { BrandId } from '../theme/brands';
 
 export interface Meal {
   id: string;
@@ -591,7 +594,22 @@ export type AppTheme = 'system' | 'light' | 'dark';
  */
 export interface UserPreferences {
   userId: string;
+  /**
+   * **Esquema** claro/escuro/sistema — não confundir com `themeId`. O nome ficou
+   * de quando havia só este eixo, e a coluna `theme` no banco carrega o mesmo
+   * mal-entendido. Renomear custaria migration nos dois apps por ganho
+   * cosmético; documentar sai mais barato.
+   */
   theme: AppTheme;
+  /** Família de neutros: `orbe`, `clean` ou `cleanElev`. Ver `theme/themes.ts`. */
+  themeId: ThemeId;
+  /** Família cromática: `orbe` + as cinco outras. Vale para o app E os gráficos. */
+  paletteId: PaletteId;
+  /**
+   * Cor de marca — o cromo (FAB, CTA, toggle). Independente da paleta: ela
+   * governa os módulos, esta governa a voz do app.
+   */
+  brandId: BrandId;
   glassEnabled: boolean;
   blurIntensity: number;           // 0–100; 100 = blur máximo / mais transparente
   language: string;

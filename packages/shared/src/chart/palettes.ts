@@ -1,22 +1,44 @@
 /**
- * Paletas de cor para os gráficos. Cada paleta remapeia as cores-base por tipo de
- * atividade (ACTIVITY_COLORS em workout-types) para um conjunto harmônico com a
- * paleta bege/creme do app. A cor segue a ENTIDADE (tipo de atividade), nunca o
- * ranking — a mesma atividade tem a mesma cor em qualquer período.
+ * Paletas de gráfico — **camada de compatibilidade**.
  *
- * Cada paleta tem um caráter próprio (quente, fria, terrosa, elétrica, escura,
- * daltônica) — não são variações da mesma ideia.
+ * Este módulo já foi a casa das paletas. Desde a unificação, a paleta é uma só:
+ * a escolhida em Aparência vale para o cromo do app **e** para as séries dos
+ * gráficos, e mora em `theme/palettes.ts`. Um seletor separado só para gráfico
+ * produzia a pergunta "por que a paleta que escolhi não mudou meu gráfico?".
  *
- * O quinteto dominante (orange/green/blue/rose/yellow = Corrida/Yoga/Ciclismo/
- * Core/Caminhada) foi validado com o script de dataviz sobre o fundo creme
- * (#F6ECDC) e o escuro (#241E18), com todos os pares: banda de luminosidade,
- * piso de chroma e separação de visão normal (≥15). CVD na faixa de aviso (6–8) é
- * aceitável porque o gráfico traz legenda rotulada + tooltip como codificação
- * secundária. Os papéis brown/deep/ink são secundários (Funcional, HIIT,
- * Musculação) e ficam abaixo desse piso — como já acontecia na paleta original.
+ * O que sobrou aqui é o vocabulário antigo, preservado para não obrigar os
+ * consumidores a mudar de uma vez. Código novo deve usar `resolveTokens()` /
+ * `moduleOf()` / `chartColor()`.
+ *
+ * A cor segue a ENTIDADE (tipo de atividade), nunca o ranking — a mesma
+ * atividade tem a mesma cor em qualquer período. Isso não mudou.
  */
 
-// Cores-base atuais (workout-types ACTIVITY_COLORS) — chaves do remap.
+import {
+  PALETTES,
+  resolvePalette,
+  type AppPalette,
+  type PaletteRoles,
+} from '../theme/palettes';
+import { resolveTokens } from '../theme/derive';
+import type { ColorScheme } from '../theme/themes';
+
+export type { PaletteRoles };
+
+/** Forma antiga de uma paleta. `AppPalette` a satisfaz estruturalmente. */
+export interface ChartPalette {
+  id: string;
+  name: string;
+  hint: string;
+  roles: PaletteRoles;
+}
+
+/**
+ * Cores-base do tema Orbe, que são as chaves do remap: um gráfico declara a cor
+ * da série no vocabulário do Orbe e `remapChartColor` a traduz para a paleta
+ * ativa. Manter o Orbe como língua franca evita ter de reescrever todos os
+ * pontos que declaram cor de série.
+ */
 const BASE = {
   orange: '#F25C2B',
   blue: '#6E8CC9',
@@ -28,40 +50,11 @@ const BASE = {
   ink: '#1F1B16',
 } as const;
 
-export interface PaletteRoles {
-  orange: string; blue: string; green: string; yellow: string;
-  rose: string; brown: string; deep: string; ink: string;
-}
-export interface ChartPalette { id: string; name: string; hint: string; roles: PaletteRoles; }
+/** @deprecated Use `PALETTES` de `theme/palettes.ts`. */
+export const CHART_PALETTES: readonly AppPalette[] = PALETTES;
 
-export const CHART_PALETTES: ChartPalette[] = [
-  {
-    id: 'vivido', name: 'Vívido', hint: 'Cores limpas e vibrantes',
-    roles: { orange: '#F35D2A', blue: '#2F7FD1', green: '#3EA05C', yellow: '#E0A22E', rose: '#E15C93', brown: '#A6714A', deep: '#D33E1C', ink: '#2A2620' },
-  },
-  {
-    id: 'artico', name: 'Ártico', hint: 'Só tons frios: teal, índigo e violeta',
-    roles: { orange: '#009EAF', blue: '#3A63CD', green: '#6ACC8E', yellow: '#A568F9', rose: '#B4398B', brown: '#5E7E92', deep: '#00697F', ink: '#232833' },
-  },
-  {
-    id: 'terra', name: 'Terra', hint: 'Terrosos suaves: terracota, oliva e ocre',
-    roles: { orange: '#974522', blue: '#3674A5', green: '#78822B', yellow: '#CCA051', rose: '#CE677A', brown: '#6D6446', deep: '#6B2F14', ink: '#2E271F' },
-  },
-  {
-    id: 'neon', name: 'Néon', hint: 'Alta saturação, quase fluorescente',
-    roles: { orange: '#E23A81', blue: '#0094BC', green: '#3FB86A', yellow: '#E79D00', rose: '#822DDA', brown: '#FF6B2C', deep: '#B8005E', ink: '#2B2140' },
-  },
-  {
-    id: 'joia', name: 'Joia', hint: 'Escuras e encorpadas, tipo pedra preciosa',
-    roles: { orange: '#B8431A', blue: '#1B62A7', green: '#157F58', yellow: '#A68500', rose: '#854079', brown: '#7A5C36', deep: '#7E2A14', ink: '#221E28' },
-  },
-  {
-    id: 'acessivel', name: 'Acessível', hint: 'Otimizada para daltonismo (Okabe–Ito)',
-    roles: { orange: '#D55E00', blue: '#0072B2', green: '#009E73', yellow: '#E69F00', rose: '#CC79A7', brown: '#56B4E9', deep: '#8A4600', ink: '#2B2B2B' },
-  },
-];
-
-export const DEFAULT_CHART_PALETTE_ID = 'vivido';
+/** @deprecated Use `DEFAULT_PALETTE_ID`. */
+export const DEFAULT_CHART_PALETTE_ID = 'orbe';
 
 // Índice cor-base → papel, para lookup O(1) no remap.
 const ROLE_OF_BASE: Record<string, keyof PaletteRoles> = {
@@ -69,19 +62,38 @@ const ROLE_OF_BASE: Record<string, keyof PaletteRoles> = {
   [BASE.rose]: 'rose', [BASE.brown]: 'brown', [BASE.deep]: 'deep', [BASE.ink]: 'ink',
 };
 
+/** @deprecated Use `isPaletteId`. Aceita os ids antigos por compatibilidade. */
 export function isChartPaletteId(id: string): boolean {
-  return CHART_PALETTES.some((p) => p.id === id);
+  return resolvePalette(id).id === id || id in LEGACY;
 }
 
-export function getChartPalette(id: string): ChartPalette {
-  return CHART_PALETTES.find((p) => p.id === id) ?? CHART_PALETTES[0];
+const LEGACY: Record<string, true> = { vivido: true, artico: true };
+
+/** @deprecated Use `resolvePalette`. */
+export function getChartPalette(id: string): AppPalette {
+  return resolvePalette(id);
 }
 
-/** Converte uma cor-base (hex de ACTIVITY_COLORS) para a cor da paleta ativa.
- * Cores fora do mapa (ex.: default) passam sem alteração. */
-export function remapChartColor(hex: string, paletteId: string): string {
+/**
+ * Traduz uma cor-base (hex no vocabulário do Orbe) para a paleta ativa. Cores
+ * fora do mapa — a linha de referência, o cinza do "sem dado" — passam intactas.
+ *
+ * `theme` e `scheme` são opcionais e só importam quando o gráfico precisa da
+ * cor já ajustada ao fundo em que vai desenhar; sem eles devolve o valor
+ * declarado da paleta, que é o comportamento que este módulo sempre teve.
+ */
+export function remapChartColor(
+  hex: string,
+  paletteId: string,
+  theme?: string,
+  scheme?: ColorScheme,
+): string {
   const role = ROLE_OF_BASE[hex];
-  return role ? getChartPalette(paletteId).roles[role] : hex;
+  if (!role) return hex;
+  if (theme != null && scheme != null) {
+    return resolveTokens(theme, scheme, paletteId).roles[role].accent;
+  }
+  return resolvePalette(paletteId).roles[role];
 }
 
 /** Amostra representativa para prévia (ordem: laranja, verde, azul, rosa, amarelo). */
