@@ -4,14 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { TodoTemplate, TodoOccurrence } from '@vitale/shared';
 import { daysLate, describeRecurrence, dueLabel, HABIT_ICONS, isOverdue } from '@vitale/shared';
-import { colors, radii, MOD, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, useThemedStyles } from '../../theme';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 
 const HABIT_ICON_SET = new Set<string>(HABIT_ICONS);
-
-function modColor(key: string): { tint: string; accent: string } {
-  return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.tarefa;
-}
 
 /** Ícones canônicos passam pelo mapa de Ionicons; legados já são nomes Ionicons. */
 function todoIcon(name: string | undefined): ComponentProps<typeof Ionicons>['name'] {
@@ -31,7 +27,8 @@ interface Props {
 /** Item da lista de tarefas: checkbox para concluir + atalho de ações (•••). */
 export function TodoItem({ template, occurrence, onDone, onMore, done = false }: Props) {
   const styles = useThemedStyles(createStyles);
-  const mod = modColor(template.color);
+  const mod = moduleColors(template.color, 'tarefa');
+  const treino = moduleColors('treino');
   const overdue = !done && isOverdue(occurrence);
   const late = daysLate(occurrence);
   const autoDone = done && occurrence.meta?.source === 'activity-sync';
@@ -62,13 +59,13 @@ export function TodoItem({ template, occurrence, onDone, onMore, done = false }:
       <View style={styles.center}>
         <View style={styles.titleRow}>
           <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>
-            <Ionicons name={todoIcon(template.icon)} size={14} color={mod.accent} />
+            <Ionicons name={todoIcon(template.icon)} size={14} color={mod.onTint} />
           </View>
           <Text style={[styles.name, done && styles.nameDone]} numberOfLines={1}>{template.name}</Text>
           {autoDone && (
-            <View style={[styles.badge, { backgroundColor: MOD.treino.tint }]}>
-              <Ionicons name="barbell-outline" size={11} color={MOD.treino.accent} />
-              <Text style={[styles.badgeText, { color: MOD.treino.accent }]}>Treino</Text>
+            <View style={[styles.badge, { backgroundColor: treino.tint }]}>
+              <Ionicons name="barbell-outline" size={11} color={treino.onTint} />
+              <Text style={[styles.badgeText, { color: treino.onTint }]}>Treino</Text>
             </View>
           )}
         </View>
@@ -111,11 +108,11 @@ const createStyles = () => StyleSheet.create({
   center: { flex: 1, gap: 4 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconBox: { width: 24, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  name: { flex: 1, fontSize: 14.5, fontWeight: '600', color: colors.ink },
+  name: { flex: 1, fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
   nameDone: { color: colors.ink3, textDecorationLine: 'line-through' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radii.pill },
-  badgeText: { fontSize: 10.5, fontWeight: '700' },
-  sub: { fontSize: 12.5, color: colors.ink3, marginLeft: 32 },
-  subOverdue: { color: colors.primaryDeep, fontWeight: '600' },
+  badgeText: { fontSize: 10.5, fontFamily: fonts.sansBold },
+  sub: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginLeft: 32 },
+  subOverdue: { color: colors.primaryDeep, fontFamily: fonts.sansSemiBold },
   more: { width: 36, height: 36, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
 });

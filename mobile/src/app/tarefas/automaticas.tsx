@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TodoTemplate } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 function isAutomatic(t: TodoTemplate): boolean {
   return (
@@ -120,7 +120,7 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   list: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 40 },
   row: {
@@ -137,10 +137,10 @@ const createStyles = () => StyleSheet.create({
   separator: { height: 0 },
   iconBox: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
-  name: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
-  label: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
+  name: { fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  label: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: spacing.sm },
-  emptyText: { fontSize: 13.5, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink, marginTop: spacing.sm },
+  emptyText: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
 });

@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, spacing, moduleColors, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, shadows, spacing, useThemedStyles } from '../../theme';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 
@@ -85,14 +85,14 @@ const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingTop: 54 },
   greet: { paddingVertical: spacing.lg },
-  title: { fontFamily: 'InstrumentSerif', fontSize: 34, color: colors.ink },
+  title: { fontFamily: fonts.serif, fontSize: 34, color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { width: '48%', backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 8, ...shadows.card },
   pressed: { opacity: 0.7 },
   ico: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  tileTitle: { fontSize: 14, fontWeight: '600', color: colors.ink },
-  tileSub: { fontSize: 12, color: colors.ink3 },
-  sectionHeader: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: spacing.xl, marginBottom: spacing.sm },
+  tileTitle: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  tileSub: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
+  sectionHeader: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 1.0, marginTop: spacing.xl, marginBottom: spacing.sm },
   settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 16, padding: 14, ...shadows.card },
   settingsIco: { backgroundColor: colors.line },
   settingsText: { flex: 1, gap: 2 },

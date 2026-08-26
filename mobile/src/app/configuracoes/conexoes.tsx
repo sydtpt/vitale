@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConnectionProvider, LinkedAccount } from '@vitale/shared';
 import { useConnectionsStore } from '../../store/connections.store';
 import { useFitnessStore } from '../../store/fitness.store';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 const RED = '#E05C5C';
 const GREEN = '#6FA86A';
@@ -310,26 +310,26 @@ const createStyles = () =>
     container: { flex: 1, backgroundColor: colors.bg },
     header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
     iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.ink },
+    headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.sansSemiBold, color: colors.ink },
     pressed: { opacity: 0.6 },
     content: { padding: spacing.lg, paddingBottom: spacing['4xl'] },
-    intro: { fontSize: 13, color: colors.ink2, marginBottom: spacing.lg, lineHeight: 19 },
+    intro: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink2, marginBottom: spacing.lg, lineHeight: 19 },
     errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, marginBottom: spacing.md, borderWidth: 1, borderColor: RED },
-    errorBannerText: { flex: 1, fontSize: 13, color: RED },
+    errorBannerText: { flex: 1, fontSize: 13, fontFamily: fonts.sans, color: RED },
     card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md, ...shadows.card },
     cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: spacing.sm },
     cardIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceMute, alignItems: 'center', justifyContent: 'center' },
-    cardTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.ink },
+    cardTitle: { flex: 1, fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
     badge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    badgeText: { fontSize: 12, fontWeight: '600', color: GREEN },
-    cardDesc: { fontSize: 13, color: colors.ink2, lineHeight: 19, marginBottom: spacing.sm },
-    cardStatus: { fontSize: 12, color: colors.ink3, marginBottom: spacing.sm },
+    badgeText: { fontSize: 12, fontFamily: fonts.sansSemiBold, color: GREEN },
+    cardDesc: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink2, lineHeight: 19, marginBottom: spacing.sm },
+    cardStatus: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginBottom: spacing.sm },
     cardStatusError: { color: RED },
-    input: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 14, color: colors.ink, marginBottom: spacing.sm, backgroundColor: colors.bg },
+    input: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 14, fontFamily: fonts.sans, color: colors.ink, marginBottom: spacing.sm, backgroundColor: colors.bg },
     primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: radii.pill, paddingVertical: 12, marginTop: 2 },
-    primaryBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
+    primaryBtnText: { color: colors.onPrimary, fontSize: 14, fontFamily: fonts.sansSemiBold },
     actions: { flexDirection: 'row', gap: spacing.sm },
     secondaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.line, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: 8 },
-    secondaryBtnText: { fontSize: 13, fontWeight: '600', color: colors.ink2 },
-    note: { fontSize: 12, color: colors.ink3, lineHeight: 18, marginTop: spacing.md },
+    secondaryBtnText: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+    note: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 18, marginTop: spacing.md },
   });

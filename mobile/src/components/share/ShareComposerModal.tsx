@@ -40,7 +40,7 @@ import {
   type ShareMetricTile,
 } from '../../lib/share-card-html';
 import { captureCardPng, saveCardPngToGallery, shareCardPng } from '../../lib/share-export';
-import { colors, spacing, radii, shadows, themed, useTheme, MOD } from '../../theme';
+import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 interface ShareComposerModalProps {
   visible: boolean;
@@ -469,7 +469,7 @@ export function ShareComposerModal({
             ]}
           >
             {exporting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={colors.onPrimary} />
             ) : (
               <Text style={styles.exportText}>Exportar</Text>
             )}
@@ -868,8 +868,8 @@ const styles = themed(() =>
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
     },
-    cancel: { fontSize: 15, color: colors.ink2 },
-    topTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },
+    cancel: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink2 },
+    topTitle: { fontSize: 17, fontFamily: fonts.sansBold, color: colors.ink },
     exportBtn: {
       paddingHorizontal: spacing.lg,
       paddingVertical: 7,
@@ -877,7 +877,7 @@ const styles = themed(() =>
       backgroundColor: colors.primary,
     },
     exportDisabled: { backgroundColor: colors.ink4, opacity: 0.5 },
-    exportText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+    exportText: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.onPrimary },
 
     previewArea: {
       flex: 1,
@@ -901,7 +901,7 @@ const styles = themed(() =>
       gap: spacing.md,
       backgroundColor: colors.bg,
     },
-    exportOverlayText: { fontSize: 14, color: colors.ink2 },
+    exportOverlayText: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink2 },
     recenterBtn: {
       position: 'absolute',
       right: spacing.md,
@@ -928,10 +928,10 @@ const styles = themed(() =>
     },
     controlsContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
     fieldLabel: {
-      fontSize: 11,
+      fontSize: 11, fontFamily: fonts.sans,
       color: colors.ink3,
       textTransform: 'uppercase',
-      letterSpacing: 0.5,
+      letterSpacing: 1.0,
       marginBottom: spacing.xs,
       marginTop: spacing.md,
     },
@@ -940,7 +940,7 @@ const styles = themed(() =>
       borderRadius: radii.md,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.md,
-      fontSize: 15,
+      fontSize: 15, fontFamily: fonts.sans,
       color: colors.ink,
     },
 
@@ -958,7 +958,7 @@ const styles = themed(() =>
       alignItems: 'center',
     },
     segItemActive: { backgroundColor: colors.primary },
-    segText: { fontSize: 13.5, fontWeight: '600', color: colors.ink2 },
+    segText: { fontSize: 13.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
     segTextActive: { color: '#fff' },
 
     // Margem negativa + padding no conteúdo: chips rolam de borda a borda.
@@ -1001,10 +1001,10 @@ const styles = themed(() =>
     },
     chipOn: { backgroundColor: MOD.treino.tint, borderColor: 'transparent' },
     chipOff: { backgroundColor: 'transparent', borderColor: colors.line },
-    chipText: { fontSize: 13.5, fontWeight: '600' },
+    chipText: { fontSize: 13.5, fontFamily: fonts.sansSemiBold },
     chipTextOn: { color: colors.primary },
     chipTextOff: { color: colors.ink3 },
-    note: { fontSize: 13, color: colors.ink3, fontStyle: 'italic' },
+    note: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, fontStyle: 'italic' },
 
     switchRow: {
       flexDirection: 'row',
@@ -1015,7 +1015,7 @@ const styles = themed(() =>
     },
     // Primeiro item da faixa: o paddingTop do container já dá o respiro.
     switchRowFirst: { marginTop: 0 },
-    switchLabel: { fontSize: 15, color: colors.ink },
+    switchLabel: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
     switchTrack: {
       width: 46,
       height: 28,

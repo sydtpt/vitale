@@ -6,7 +6,7 @@ import { WebView } from 'react-native-webview';
 import { MAP_STYLES, type ViewportBounds } from '@vitale/shared';
 import { useSettingsStore } from '../store/settings.store';
 import { buildCountryMapHtml, type MapPoint } from '../lib/map-html';
-import { colors, radii, spacing } from '../theme';
+import { colors, fonts, radii, spacing, themed, useTheme } from '../theme';
 
 /**
  * Mapa com TODAS as rotas de um país sobrepostas, enquadrado no `viewport`
@@ -22,6 +22,7 @@ export function CountryMap({
   viewport: ViewportBounds;
   height?: number;
 }) {
+  useTheme();
   const [fullscreen, setFullscreen] = useState(false);
   const insets = useSafeAreaInsets();
   const fullWebRef = useRef<WebView>(null);
@@ -108,53 +109,55 @@ export function CountryMap({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: radii['2xl'],
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceMute,
-  },
-  web: { flex: 1, backgroundColor: colors.surfaceMute },
-  expandHint: {
-    position: 'absolute',
-    right: spacing.md,
-    bottom: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  expandHintText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
-  fullContainer: { flex: 1, backgroundColor: colors.surfaceMute },
-  fullWeb: { flex: 1, backgroundColor: colors.surfaceMute },
-  closeButton: {
-    position: 'absolute',
-    right: spacing.lg,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  closeButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', lineHeight: 20 },
-  actionBar: {
-    position: 'absolute',
-    left: spacing.lg,
-    right: spacing.lg,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pressed: { opacity: 0.7 },
-  pillDark: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  pillText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    container: {
+      borderRadius: radii['2xl'],
+      overflow: 'hidden',
+      backgroundColor: colors.surfaceMute,
+    },
+    web: { flex: 1, backgroundColor: colors.surfaceMute },
+    expandHint: {
+      position: 'absolute',
+      right: spacing.md,
+      bottom: spacing.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+      borderRadius: radii.pill,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    expandHintText: { color: '#FFFFFF', fontSize: 12, fontFamily: fonts.sansSemiBold },
+    fullContainer: { flex: 1, backgroundColor: colors.surfaceMute },
+    fullWeb: { flex: 1, backgroundColor: colors.surfaceMute },
+    closeButton: {
+      position: 'absolute',
+      right: spacing.lg,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+    closeButtonText: { color: '#FFFFFF', fontSize: 18, fontFamily: fonts.sansBold, lineHeight: 20 },
+    actionBar: {
+      position: 'absolute',
+      left: spacing.lg,
+      right: spacing.lg,
+      bottom: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    pressed: { opacity: 0.7 },
+    pillDark: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      borderRadius: radii.pill,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+    pillText: { color: '#FFFFFF', fontSize: 14, fontFamily: fonts.sansBold },
+  }),
+);

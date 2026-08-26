@@ -4,7 +4,7 @@ import { localDateStr, readinessAdvice, type AdviceTone } from '@vitale/shared';
 import { useHealthStore } from '../../store/health.store';
 import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { readinessFromSummaries } from '../../lib/health-readiness';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { GlassCard } from '../ui/GlassCard';
 
 const COMP_COLOR: Record<string, string> = {
@@ -83,15 +83,15 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { fontSize: 12.5, fontWeight: '700', color: colors.ink2, letterSpacing: 0.6 },
-  caption: { fontSize: 12, color: colors.ink3, marginTop: 1 },
-  score: { fontSize: 36, fontFamily: 'InstrumentSerif', color: colors.ink },
+  eyebrow: { fontSize: 12.5, fontFamily: fonts.sansBold, color: colors.ink2, letterSpacing: 0.6 },
+  caption: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: 1 },
+  score: { fontSize: 36, fontFamily: fonts.serif, color: colors.ink },
   bars: { gap: 8 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  barLabel: { width: 92, fontSize: 12.5, color: colors.ink2 },
+  barLabel: { width: 92, fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink2 },
   track: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMute, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4 },
-  barVal: { width: 26, textAlign: 'right', fontSize: 12.5, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
+  barVal: { width: 26, textAlign: 'right', fontSize: 12.5, color: colors.ink, fontFamily: fonts.monoBold },
   advice: {
     backgroundColor: colors.surfaceMute,
     borderLeftWidth: 3,
@@ -100,6 +100,6 @@ const createStyles = () => StyleSheet.create({
     paddingHorizontal: spacing.md,
     gap: 2,
   },
-  adviceTitle: { fontSize: 13, fontWeight: '700' },
-  adviceText: { fontSize: 12.5, lineHeight: 17, color: colors.ink2 },
+  adviceTitle: { fontSize: 13, fontFamily: fonts.sansBold },
+  adviceText: { fontSize: 12.5, fontFamily: fonts.sans, lineHeight: 17, color: colors.ink2 },
 });

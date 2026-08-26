@@ -2,7 +2,8 @@
  * RotinaBackground — papéis de parede abstratos do app (camada de fundo).
  *
  * Recria, em React Native (react-native-svg), os 7 fundos mobile (retrato) da
- * paleta creme do Rotina + o fundo `flat` (creme sólido). As formas são
+ * paleta creme do Rotina + os dois fundos sólidos, `flat` (creme) e `pure`
+ * (branco no claro, preto no escuro). As formas são
  * ancoradas no topo (header) e no rodapé (tab bar). Todas as cores vêm dos
  * tokens do tema (via `colors`/`baseBg`), então cada variante adapta
  * automaticamente ao esquema claro/escuro.
@@ -26,7 +27,7 @@ import Svg, {
   G,
 } from 'react-native-svg';
 import type { Wallpaper } from '@vitale/shared';
-import { colors, baseBg, useTheme } from '../../theme';
+import { colors, wallpaperBg, useTheme } from '../../theme';
 
 interface Props {
   variant: Wallpaper;
@@ -47,8 +48,8 @@ function HeaderGlow({ bg }: { bg: string }) {
           <Stop offset="1" stopColor={bg} />
         </LinearGradient>
         <RadialGradient id="hg-p" cx="116" cy="-29" r="150" gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={colors.primarySoft} stopOpacity="1" />
-          <Stop offset="0.7" stopColor={colors.primarySoft} stopOpacity="0" />
+          <Stop offset="0" stopColor={colors.roles.orange.soft} stopOpacity="1" />
+          <Stop offset="0.7" stopColor={colors.roles.orange.soft} stopOpacity="0" />
         </RadialGradient>
         <RadialGradient id="hg-y" cx="255" cy="19" r="130" gradientUnits="userSpaceOnUse">
           <Stop offset="0" stopColor={colors.yellowSoft} stopOpacity="1" />
@@ -76,7 +77,7 @@ function BottomBlob({ bg }: { bg: string }) {
       <G opacity={0.95}>
         <Path
           d="M-20,360 C40,300 90,420 150,390 C210,360 250,420 252,478 L-20,478 Z"
-          fill={colors.primarySoft}
+          fill={colors.roles.orange.soft}
         />
         <Path
           d="M-20,420 C50,380 110,470 180,440 C220,422 252,448 252,478 L-20,478 Z"
@@ -137,7 +138,7 @@ function Hills({ bg }: { bg: string }) {
         />
         <Path
           d="M0,360 C50,335 100,390 150,372 C190,358 210,372 232,360 L232,478 L0,478 Z"
-          fill={colors.primarySoft}
+          fill={colors.roles.orange.soft}
         />
         <Path
           d="M0,420 C60,400 110,440 160,428 C200,418 215,430 232,420 L232,478 L0,478 Z"
@@ -158,8 +159,8 @@ function Mesh({ bg }: { bg: string }) {
           <Stop offset="0.65" stopColor={colors.yellowSoft} stopOpacity="0" />
         </RadialGradient>
         <RadialGradient id="mesh-p" cx="209" cy="143" r="115" gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={colors.primarySoft} stopOpacity="1" />
-          <Stop offset="0.65" stopColor={colors.primarySoft} stopOpacity="0" />
+          <Stop offset="0" stopColor={colors.roles.orange.soft} stopOpacity="1" />
+          <Stop offset="0.65" stopColor={colors.roles.orange.soft} stopOpacity="0" />
         </RadialGradient>
         <RadialGradient id="mesh-g" cx="35" cy="335" r="125" gradientUnits="userSpaceOnUse">
           <Stop offset="0" stopColor={colors.greenSoft} stopOpacity="1" />
@@ -226,7 +227,7 @@ function Bars({ bg }: { bg: string }) {
       </Defs>
       <Rect {...FILL} fill="url(#bars-base)" />
       <G opacity={0.9}>
-        <Rect x="-30" y="40" width="180" height="26" rx="13" fill={colors.primarySoft} />
+        <Rect x="-30" y="40" width="180" height="26" rx="13" fill={colors.roles.orange.soft} />
         <Rect x="120" y="100" width="160" height="22" rx="11" fill={colors.yellowSoft} />
         <Rect x="-10" y="300" width="150" height="24" rx="12" fill={colors.greenSoft} />
         <Rect x="150" y="360" width="130" height="20" rx="10" fill={colors.blueSoft} />
@@ -241,7 +242,7 @@ export function RotinaBackground({ variant, style }: Props) {
   const { scheme } = useTheme();
   // Base sempre opaca (ignora a transparência de `bg` quando há wallpaper ativo),
   // para o fundo aparecer cheio tanto na camada raiz quanto nos previews.
-  const bg = baseBg(scheme);
+  const bg = wallpaperBg(scheme, variant);
 
   let inner: React.ReactNode;
   switch (variant) {
@@ -266,6 +267,9 @@ export function RotinaBackground({ variant, style }: Props) {
     case 'bars':
       inner = <Bars bg={bg} />;
       break;
+    // `pure` e `flat` não têm desenho: são só a base opaca resolvida acima. A
+    // diferença entre eles mora no `wallpaperBg`.
+    case 'pure':
     case 'flat':
     default:
       inner = null;

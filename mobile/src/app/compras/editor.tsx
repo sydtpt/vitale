@@ -21,7 +21,7 @@ import type {
 } from '@vitale/shared';
 import { SHOP_CATS } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
-import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 type Kind = Extract<TodoRecurrence['kind'], 'none' | 'monthly' | 'weekly' | 'yearly' | 'after_completion'>;
 
@@ -35,8 +35,6 @@ const KINDS: { key: Kind; label: string }[] = [
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
-const ACCENT = MOD.compras.accent;
-const TINT = MOD.compras.tint;
 
 function parseNum(s: string): number | null {
   const t = s.trim().replace(',', '.');
@@ -226,7 +224,7 @@ export default function ComprasEditorScreen() {
           <Text style={styles.label}>Categoria</Text>
           <View style={styles.chips}>
             {SHOP_CATS.map((c) => (
-              <Pressable key={c} onPress={() => setCat(c)} style={[styles.chip, cat === c && { backgroundColor: ACCENT }]}>
+              <Pressable key={c} onPress={() => setCat(c)} style={[styles.chip, cat === c && { backgroundColor: moduleColors('compras').accent }]}>
                 <Text style={[styles.chipText, cat === c && styles.chipTextActive]}>{c}</Text>
               </Pressable>
             ))}
@@ -248,7 +246,7 @@ export default function ComprasEditorScreen() {
           <Text style={styles.label}>Tipo</Text>
           <View style={styles.chips}>
             {KINDS.map((k) => (
-              <Pressable key={k.key} onPress={() => setKind(k.key)} style={[styles.chip, kind === k.key && { backgroundColor: ACCENT }]}>
+              <Pressable key={k.key} onPress={() => setKind(k.key)} style={[styles.chip, kind === k.key && { backgroundColor: moduleColors('compras').accent }]}>
                 <Text style={[styles.chipText, kind === k.key && styles.chipTextActive]}>{k.label}</Text>
               </Pressable>
             ))}
@@ -265,7 +263,7 @@ export default function ComprasEditorScreen() {
               <Text style={styles.label}>Dias da semana</Text>
               <View style={styles.chips}>
                 {WEEKDAYS.map((w, i) => (
-                  <Pressable key={i} onPress={() => toggleWeekday(i)} style={[styles.dayChip, weekdays.includes(i) && { backgroundColor: ACCENT, borderColor: ACCENT }]}>
+                  <Pressable key={i} onPress={() => toggleWeekday(i)} style={[styles.dayChip, weekdays.includes(i) && { backgroundColor: moduleColors('compras').accent, borderColor: moduleColors('compras').accent }]}>
                     <Text style={[styles.dayText, weekdays.includes(i) && styles.chipTextActive]}>{w}</Text>
                   </Pressable>
                 ))}
@@ -358,12 +356,12 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 24, gap: 4 },
   sectionHeader: {
     fontSize: 16,
-    fontFamily: 'InstrumentSerif',
+    fontFamily: fonts.serif,
     color: colors.ink,
     marginTop: spacing.xl,
     marginBottom: 2,
@@ -371,13 +369,13 @@ const styles = themed(() => StyleSheet.create({
     borderBottomColor: colors.line,
     paddingBottom: 6,
   },
-  label: { fontSize: 13, fontWeight: '600', color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
+  label: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.line,
@@ -387,18 +385,18 @@ const styles = themed(() => StyleSheet.create({
   segment: { flexDirection: 'row', backgroundColor: colors.surfaceMute, borderRadius: radii.pill, padding: 3 },
   segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: radii.pill, alignItems: 'center' },
   segmentBtnActive: { backgroundColor: colors.surface, ...shadows.sm },
-  segmentText: { fontSize: 13.5, color: colors.ink3, fontWeight: '500' },
-  segmentTextActive: { color: colors.ink, fontWeight: '700' },
+  segmentText: { fontSize: 13.5, color: colors.ink3, fontFamily: fonts.sansMedium },
+  segmentTextActive: { color: colors.ink, fontFamily: fonts.sansBold },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
-  chipText: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
+  chipText: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sansSemiBold },
   chipTextActive: { color: '#fff' },
   dayChip: {
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line,
   },
-  dayText: { fontSize: 14, color: colors.ink2, fontWeight: '700' },
+  dayText: { fontSize: 14, color: colors.ink2, fontFamily: fonts.sansBold },
 
   footer: {
     paddingHorizontal: spacing.lg,
@@ -411,9 +409,9 @@ const styles = themed(() => StyleSheet.create({
     borderRadius: radii.lg,
     paddingVertical: 15,
     alignItems: 'center',
-    backgroundColor: ACCENT,
+    backgroundColor: moduleColors('compras').accent,
   },
   saveDisabled: { opacity: 0.4 },
   saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  saveText: { fontSize: 16, fontFamily: fonts.sansBold, color: '#fff' },
 }));

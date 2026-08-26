@@ -11,10 +11,8 @@ import { useAuthStore } from '../../store/auth.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
-import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
-const ACCENT = MOD.compras.accent;
-const TINT = MOD.compras.tint;
 
 function shopMeta(t: TodoTemplate): ShopMeta {
   const m = t.meta ?? {};
@@ -46,12 +44,12 @@ function ItemRow({ template, occurrence, onDone, onMore, done = false }: ItemRow
   return (
     <View style={[styles.row, overdue && styles.rowOverdue, done && styles.rowDone]}>
       {done ? (
-        <View style={[styles.check, { backgroundColor: ACCENT, borderColor: ACCENT }]}>
+        <View style={[styles.check, { backgroundColor: moduleColors('compras').accent, borderColor: moduleColors('compras').accent }]}>
           <Ionicons name="checkmark" size={18} color="#fff" />
         </View>
       ) : (
-        <Pressable onPress={onCheck} hitSlop={8} style={({ pressed }) => [styles.check, { borderColor: ACCENT }, pressed && styles.pressed]}>
-          <Ionicons name="checkmark" size={18} color={ACCENT} />
+        <Pressable onPress={onCheck} hitSlop={8} style={({ pressed }) => [styles.check, { borderColor: moduleColors('compras').accent }, pressed && styles.pressed]}>
+          <Ionicons name="checkmark" size={18} color={moduleColors('compras').accent} />
         </Pressable>
       )}
 
@@ -154,7 +152,7 @@ export default function ComprasTabScreen() {
 
       {totalEstimate > 0 && (
         <View style={styles.estimateBanner}>
-          <Ionicons name="pricetag-outline" size={14} color={ACCENT} />
+          <Ionicons name="pricetag-outline" size={14} color={moduleColors('compras').accent} />
           <Text style={styles.estimateText}>
             Estimativa: <Text style={styles.estimateValue}>R$ {totalEstimate.toFixed(2).replace('.', ',')}</Text>
           </Text>
@@ -247,7 +245,7 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { fontSize: 28, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { fontSize: 28, fontFamily: fonts.serif, color: colors.ink },
 
   estimateBanner: {
     flexDirection: 'row',
@@ -257,11 +255,11 @@ const createStyles = () => StyleSheet.create({
     marginBottom: spacing.sm,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: TINT,
+    backgroundColor: moduleColors('compras').tint,
     borderRadius: radii.xl,
   },
-  estimateText: { fontSize: 13, color: colors.ink2 },
-  estimateValue: { fontWeight: '700', color: ACCENT },
+  estimateText: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink2 },
+  estimateValue: { fontFamily: fonts.sansBold, color: moduleColors('compras').accent },
 
   scroll: { paddingHorizontal: spacing.lg },
 
@@ -275,16 +273,16 @@ const createStyles = () => StyleSheet.create({
   },
   catTitle: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   catCount: {
     fontSize: 12,
-    fontWeight: '600',
-    color: ACCENT,
-    backgroundColor: TINT,
+    fontFamily: fonts.sansSemiBold,
+    color: moduleColors('compras').accent,
+    backgroundColor: moduleColors('compras').tint,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: radii.pill,
@@ -292,13 +290,13 @@ const createStyles = () => StyleSheet.create({
 
   section: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     marginTop: spacing.xl,
     marginBottom: spacing.xs,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
 
   card: {
@@ -330,17 +328,17 @@ const createStyles = () => StyleSheet.create({
   },
 
   rowBody: { flex: 1 },
-  itemName: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
+  itemName: { fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
   itemNameDone: { color: colors.ink3, textDecorationLine: 'line-through' },
-  itemSub: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
+  itemSub: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
 
   qtyBadge: {
-    backgroundColor: TINT,
+    backgroundColor: moduleColors('compras').tint,
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: radii.pill,
   },
-  qtyText: { fontSize: 12, fontWeight: '700', color: ACCENT },
+  qtyText: { fontSize: 12, fontFamily: fonts.sansBold, color: moduleColors('compras').accent },
 
   moreBtn: {
     width: 32,
@@ -351,17 +349,17 @@ const createStyles = () => StyleSheet.create({
   },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: spacing.sm },
-  emptyText: { fontSize: 13.5, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink, marginTop: spacing.sm },
+  emptyText: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: ACCENT,
+    backgroundColor: moduleColors('compras').accent,
     paddingHorizontal: 18,
     paddingVertical: 11,
     borderRadius: radii.pill,
     marginTop: spacing.md,
   },
-  ctaText: { color: '#fff', fontSize: 14.5, fontWeight: '700' },
+  ctaText: { color: '#fff', fontSize: 14.5, fontFamily: fonts.sansBold },
 });

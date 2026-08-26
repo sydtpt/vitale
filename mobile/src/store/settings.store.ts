@@ -13,12 +13,19 @@ import {
   DEFAULT_WALLPAPER,
   resolveNotificationPrefs,
   resolveRetroPrefs,
+  resolveTheme,
+  resolvePalette,
+  resolveBrand,
+  DEFAULT_THEME_ID,
+  DEFAULT_BRAND_ID,
+  DEFAULT_PALETTE_ID,
   DEFAULT_NOTIFICATION_PREFS,
   resolveReferenceLineScheme,
 } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { getJSON, setJSON } from '../lib/local-store';
 import { useAuthStore } from './auth.store';
+import { defaultPreferences, mergePreferences } from './preferences-merge';
 
 /** Cache local das preferências p/ restauração instantânea no boot (sem piscar) e offline. */
 const PREFS_KEY = 'vitale.preferences';
@@ -31,6 +38,7 @@ interface SettingsState {
   updateProfile: (patch: Partial<Pick<Profile, 'name' | 'avatarUrl'>>) => Promise<void>;
   updatePreferences: (patch: Partial<Omit<UserPreferences, 'userId' | 'updatedAt'>>) => Promise<void>;
 }
+
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   profile: null,
@@ -57,6 +65,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       ? {
           userId: pr.id,
           theme: (pr.theme ?? 'system') as AppTheme,
+          themeId: resolveTheme(pr.theme_id).id,
+          paletteId: resolvePalette(pr.palette_id).id,
+          brandId: resolveBrand(pr.brand_id).id,
           glassEnabled: pr.glass_enabled ?? false,
           blurIntensity: pr.blur_intensity ?? 50,
           language: pr.language ?? 'pt-BR',
@@ -85,25 +96,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       !!localPrefs &&
       localPrefs.userId === userId &&
       Date.parse(localPrefs.updatedAt) > Date.parse(remotePrefs.updatedAt);
-    // Last-write-wins por timestamp: só deixamos o remoto sobrescrever quando ele
-    // for mais novo. Assim uma escolha local recente (ex.: papel de parede) não é
-    // revertida para o snapshot remoto/default se o upsert ainda não chegou. Sem
-    // linha remota (offline/erro), preserva o que já está em memória/cache.
     const prefs: UserPreferences =
-      (localIsNewer ? localPrefs : remotePrefs) ??
-      localPrefs ?? {
-        userId,
-        theme: 'system',
-        glassEnabled: false,
-        blurIntensity: 50,
-        language: 'pt-BR',
-        notificationsEnabled: true,
-        mapStyle: DEFAULT_MAP_STYLE,
-        wallpaper: DEFAULT_WALLPAPER,
-        notificationPrefs: DEFAULT_NOTIFICATION_PREFS,
-        retroPrefs: resolveRetroPrefs(null),
-        updatedAt: new Date().toISOString(),
-      };
+      mergePreferences(remotePrefs, localPrefs, localIsNewer) ?? defaultPreferences(userId);
     set({
       loading: false,
       // `null` quando o setup ainda não rodou — o mobile não cria perfil.
@@ -131,6 +125,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const current = get().preferences ?? {
       userId,
       theme: 'system' as AppTheme,
+      themeId: DEFAULT_THEME_ID,
+      paletteId: DEFAULT_PALETTE_ID,
+      brandId: DEFAULT_BRAND_ID,
       glassEnabled: false,
       blurIntensity: 50,
       language: 'pt-BR',
@@ -149,6 +146,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       await upsertUserPreferences(supabase, userId, {
       theme: next.theme,
+      theme_id: next.themeId,
+      palette_id: next.paletteId,
+      brand_id: next.brandId,
       glass_enabled: next.glassEnabled,
       blur_intensity: next.blurIntensity ?? 50,
       language: next.language,

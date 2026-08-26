@@ -25,7 +25,7 @@ import {
   formatDuration,
   formatDistance,
 } from '../../lib/workout-format';
-import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 const PAGE_SIZE = 10;
 
@@ -39,8 +39,8 @@ function WorkoutCard({ item, onPress }: { item: WorkoutItem; onPress: () => void
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
       <View style={styles.cardHeader}>
-        <View style={[styles.iconBox, { backgroundColor: MOD.treino.tint }]}>
-          <MaterialCommunityIcons name={meta.icon} size={20} color={MOD.treino.accent} />
+        <View style={[styles.iconBox, { backgroundColor: moduleColors('treino').tint }]}>
+          <MaterialCommunityIcons name={meta.icon} size={20} color={moduleColors('treino').accent} />
         </View>
         <View style={styles.cardHeaderText}>
           <Text style={styles.cardDate}>{formatDateLabel(item.start)}</Text>
@@ -228,13 +228,13 @@ const styles = themed(() => StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontFamily: 'InstrumentSerif',
+    fontFamily: fonts.serif,
     color: colors.ink,
   },
   headerSub: {
     fontSize: 12,
     color: colors.ink3,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
     marginTop: 2,
   },
 
@@ -271,13 +271,13 @@ const styles = themed(() => StyleSheet.create({
   },
   cardDate: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
     color: colors.ink,
   },
   cardTime: {
     fontSize: 12.5,
     color: colors.ink3,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
     marginTop: 2,
   },
 
@@ -295,7 +295,7 @@ const styles = themed(() => StyleSheet.create({
   statValue: {
     fontSize: 13,
     color: colors.ink2,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
   },
 
   empty: {
@@ -304,7 +304,7 @@ const styles = themed(() => StyleSheet.create({
     gap: spacing.md,
   },
   emptyText: {
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink3,
   },
 }));

@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Alert, ScrollView } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import {
   clearBreadcrumbs,
   readBreadcrumbs,
@@ -190,24 +190,24 @@ const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
   iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.sansSemiBold, color: colors.ink },
   pressed: { opacity: 0.6 },
   content: { padding: spacing.lg },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm, paddingHorizontal: 4 },
+  sectionTitle: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 1.0, marginBottom: spacing.sm, paddingHorizontal: 4 },
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', ...shadows.card },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: 14, gap: 12 },
   rowContent: { flex: 1, gap: 2 },
-  rowLabel: { fontSize: 15, color: colors.ink },
-  rowSub: { fontSize: 13, color: colors.ink3 },
+  rowLabel: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
+  rowSub: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3 },
 
   diagHeader: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xl },
   diagActions: { flexDirection: 'row', gap: spacing.md, marginLeft: 'auto', marginBottom: spacing.sm },
   diagPlay: { marginLeft: 'auto', marginBottom: spacing.sm },
   resumo: { flexDirection: 'row', paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.lg },
   resumoBloco: { alignItems: 'flex-start' },
-  resumoN: { fontSize: 22, fontWeight: '700' },
-  resumoLabel: { fontSize: 11, color: colors.ink3 },
-  vazio: { fontSize: 14, color: colors.ink3, padding: spacing.lg },
+  resumoN: { fontSize: 22, fontFamily: fonts.sansBold },
+  resumoLabel: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
+  vazio: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink3, padding: spacing.lg },
   migalha: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -215,11 +215,11 @@ const createStyles = () => StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: 7,
   },
-  migalhaHora: { fontSize: 12, color: colors.ink3, fontFamily: 'GeistMono' },
-  migalhaEvento: { fontSize: 13, color: colors.ink, fontWeight: '600' },
-  migalhaDetalhe: { fontSize: 12, color: colors.ink3, fontFamily: 'GeistMono', flexShrink: 1 },
+  migalhaHora: { fontSize: 12, color: colors.ink3, fontFamily: fonts.mono },
+  migalhaEvento: { fontSize: 13, color: colors.ink, fontFamily: fonts.sansSemiBold },
+  migalhaDetalhe: { fontSize: 12, color: colors.ink3, fontFamily: fonts.mono, flexShrink: 1 },
   diagNota: {
-    fontSize: 12,
+    fontSize: 12, fontFamily: fonts.sans,
     color: colors.ink3,
     lineHeight: 18,
     paddingHorizontal: 4,

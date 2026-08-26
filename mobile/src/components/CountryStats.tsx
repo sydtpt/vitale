@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { CountryStats as CountryStatsData } from '@vitale/shared';
 import { formatDistance, formatDuration, formatElevation, formatSpeed } from '../lib/workout-format';
-import { colors, radii, spacing } from '../theme';
+import { colors, fonts, radii, spacing, themed, useTheme } from '../theme';
 
 const EVEREST_M = 8849;
 
@@ -22,6 +22,7 @@ function Tile({ value, label, caption }: { value: string; label: string; caption
  * máximo: numa pedalada que cruzou a fronteira, o número é o do trecho.
  */
 export function CountryStats({ stats, cityCount }: { stats: CountryStatsData; cityCount: number }) {
+  useTheme();
   const everestRatio = stats.elevationM / EVEREST_M;
   const everest =
     everestRatio >= 0.1
@@ -54,27 +55,29 @@ export function CountryStats({ stats, cityCount }: { stats: CountryStatsData; ci
   );
 }
 
-const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  tile: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    minWidth: 100,
-    gap: 2,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-  },
-  value: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.ink,
-    letterSpacing: -0.3,
-    fontVariant: ['tabular-nums'],
-  },
-  label: { fontSize: 11, fontWeight: '600', color: colors.ink3, textTransform: 'uppercase' },
-  caption: { fontSize: 11, fontWeight: '600', color: colors.primary, marginTop: 1 },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+    tile: {
+      flexGrow: 1,
+      flexBasis: '30%',
+      minWidth: 100,
+      gap: 2,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radii.lg,
+    },
+    value: {
+      fontSize: 20,
+      fontFamily: fonts.sansBold,
+      color: colors.ink,
+      letterSpacing: -0.3,
+      fontVariant: ['tabular-nums'],
+    },
+    label: { fontSize: 11, letterSpacing: 0.5, fontFamily: fonts.sansSemiBold, color: colors.ink3, textTransform: 'uppercase' },
+    caption: { fontSize: 11, fontFamily: fonts.sansSemiBold, color: colors.primary, marginTop: 1 },
+  }),
+);

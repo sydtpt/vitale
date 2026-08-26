@@ -83,7 +83,7 @@ export default function LoginScreen() {
 
         <TouchableOpacity style={s.btn} onPress={handleSubmit} disabled={loading} activeOpacity={0.85}>
           {loading
-            ? <ActivityIndicator color="#fff" />
+            ? <ActivityIndicator color={colors.onPrimary} />
             : <Text style={s.btnText}>Entrar</Text>
           }
         </TouchableOpacity>
@@ -141,9 +141,8 @@ const createStyles = () => StyleSheet.create({
     marginBottom: spacing.md,
   },
   label: {
-    fontFamily: fonts.sans,
+    fontFamily: fonts.sansMedium,
     fontSize: 13,
-    fontWeight: '500',
     color: colors.ink,
     marginBottom: spacing.xs,
   },
@@ -178,10 +177,9 @@ const createStyles = () => StyleSheet.create({
     marginTop: spacing.sm,
   },
   btnText: {
-    color: '#fff',
+    color: colors.onPrimary,
     fontSize: 15,
-    fontWeight: '600',
-    fontFamily: fonts.sans,
+    fontFamily: fonts.sansSemiBold,
   },
   divider: {
     flexDirection: 'row',
@@ -212,9 +210,8 @@ const createStyles = () => StyleSheet.create({
   },
   btnGoogleText: {
     fontSize: 14,
-    fontWeight: '500',
     color: colors.ink,
-    fontFamily: fonts.sans,
+    fontFamily: fonts.sansMedium,
   },
   footerText: {
     fontSize: 13,
@@ -225,6 +222,6 @@ const createStyles = () => StyleSheet.create({
   },
   link: {
     color: colors.primary,
-    fontWeight: '500',
+    fontFamily: fonts.sansMedium,
   },
 });

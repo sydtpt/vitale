@@ -20,7 +20,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import { MOD, type TaskGrid, type TaskGridRow, type TaskDayCell } from '@vitale/shared';
-import { colors, spacing, radii, useThemedStyles } from '../theme';
+import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '../theme';
 
 const GAP = 2;
 /** Vão extra antes de cada segunda-feira. */
@@ -28,8 +28,8 @@ const WEEK_GAP = 5;
 const DOW_FULL = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
-/** Feito usa o verde do módulo Tarefas; esquecido é o laranja da marca, apagado. */
-const DONE_BG = MOD.tarefa.accent;
+/** Feito usa a cor do módulo Tarefas; esquecido é um laranja apagado. */
+const doneBg = (): string => moduleColors('tarefa').accent;
 const MISS_BG = '#F5C9B8';
 
 type Sel = { row: TaskGridRow; cell: TaskDayCell };
@@ -86,7 +86,7 @@ export function TaskGridStrip({ data }: { data: TaskGrid }) {
                       styles.cell,
                       { width: side, height: side },
                       i > 0 && c.weekday === 0 && weekGap > 0 && { marginLeft: weekGap },
-                      c.done === true && { backgroundColor: DONE_BG },
+                      c.done === true && { backgroundColor: doneBg() },
                       c.done === false && { backgroundColor: MISS_BG },
                       on && styles.cellOn,
                     ]}
@@ -112,7 +112,7 @@ export function TaskGridStrip({ data }: { data: TaskGrid }) {
       </View>
 
       <View style={styles.legend}>
-        <View style={[styles.swatch, { backgroundColor: DONE_BG }]} />
+        <View style={[styles.swatch, { backgroundColor: doneBg() }]} />
         <Text style={styles.legendTxt}>feito</Text>
         <View style={[styles.swatch, { backgroundColor: MISS_BG }]} />
         <Text style={styles.legendTxt}>esqueci</Text>
@@ -129,9 +129,9 @@ const createStyles = () => StyleSheet.create({
     flexDirection: 'row', alignItems: 'baseline',
     justifyContent: 'space-between', marginBottom: 5, gap: spacing.sm,
   },
-  name: { fontSize: 13, fontWeight: '600', color: colors.ink, flexShrink: 1 },
-  count: { fontSize: 13, fontWeight: '700', color: colors.ink },
-  countSub: { fontSize: 11, fontWeight: '500', color: colors.ink3 },
+  name: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink, flexShrink: 1 },
+  count: { fontSize: 13, fontFamily: fonts.sansBold, color: colors.ink },
+  countSub: { fontSize: 11, fontFamily: fonts.sansMedium, color: colors.ink3 },
 
   strip: { flexDirection: 'row', gap: GAP },
   cell: {
@@ -147,11 +147,11 @@ const createStyles = () => StyleSheet.create({
     backgroundColor: colors.surfaceMute, borderRadius: radii.sm,
     paddingHorizontal: 11, paddingVertical: 8, marginTop: spacing.xs, minHeight: 34, gap: spacing.sm,
   },
-  readoutK: { fontSize: 11.5, color: colors.ink2, flexShrink: 1 },
-  readoutV: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  readoutK: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink2, flexShrink: 1 },
+  readoutV: { fontSize: 13, fontFamily: fonts.sansBold, color: colors.ink },
 
   legend: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing.sm },
-  legendTxt: { fontSize: 9.5, color: colors.ink3, marginRight: 5 },
+  legendTxt: { fontSize: 9.5, fontFamily: fonts.sans, color: colors.ink3, marginRight: 5 },
   swatch: { width: 9, height: 9, borderRadius: 2 },
   swatchOff: { backgroundColor: colors.surfaceMute },
 });

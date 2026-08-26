@@ -18,7 +18,7 @@ import { useGoalsStore, type NewGoal } from '../../store/goals.store';
 import { useTodosStore } from '../../store/todos.store';
 import { useHabitsStore } from '../../store/habits.store';
 import { getActivityMeta, KNOWN_ACTIVITY_IDS } from '../../lib/workout-types';
-import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 type SourceKind = GoalSource['kind'];
 
@@ -48,14 +48,18 @@ const BEST_EFFORTS: { key: string; label: string }[] = [
   { key: '5000', label: '5 km' },
 ];
 
-const COLORS: { key: string; accent: string }[] = [
-  { key: 'treino', accent: MOD.treino.accent },
-  { key: 'habito', accent: MOD.habito.accent },
-  { key: 'financas', accent: MOD.financas.accent },
-  { key: 'casa', accent: MOD.casa.accent },
-  { key: 'compras', accent: MOD.compras.accent },
-  { key: 'tarefa', accent: MOD.tarefa.accent },
-];
+// Função, não constante: as cores dependem do tema e da paleta ativos, e um
+// array no escopo do módulo as congelaria no import.
+function colorOptions(): { key: string; accent: string }[] {
+  return [
+    { key: 'treino', accent: moduleColors('treino').accent },
+    { key: 'habito', accent: moduleColors('habito').accent },
+    { key: 'financas', accent: moduleColors('financas').accent },
+    { key: 'casa', accent: moduleColors('casa').accent },
+    { key: 'compras', accent: moduleColors('compras').accent },
+    { key: 'tarefa', accent: moduleColors('tarefa').accent },
+  ];
+}
 
 const ACTIVITY_TYPES = KNOWN_ACTIVITY_IDS.map((id) => ({ activityId: id, label: getActivityMeta(id).label }));
 
@@ -152,7 +156,7 @@ export default function GoalEditorScreen() {
   const isDistance = sourceKind === 'activity' && metric === 'distance';
   const isBestEffort = sourceKind === 'activity' && metric === 'bestEffort';
 
-  const accent = COLORS.find((c) => c.key === cat)?.accent ?? MOD.treino.accent;
+  const accent = moduleColors(cat, 'treino').accent;
 
   /** Só séries com recorrência ativa podem ser fonte de uma meta (avulsas não). */
   const recurringTemplates = useMemo(
@@ -282,7 +286,7 @@ export default function GoalEditorScreen() {
             <View style={styles.flex}>
               <Text style={styles.label}>Cor</Text>
               <View style={styles.chips}>
-                {COLORS.map((c) => (
+                {colorOptions().map((c) => (
                   <Pressable
                     key={c.key}
                     onPress={() => setCat(c.key)}
@@ -509,17 +513,17 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 24, gap: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
-  hint: { fontSize: 12, color: colors.ink3, marginTop: 6, lineHeight: 17 },
+  label: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
+  hint: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: 6, lineHeight: 17 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.line,
@@ -537,7 +541,7 @@ const styles = themed(() => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  chipText: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
+  chipText: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sansSemiBold },
   chipTextActive: { color: '#fff' },
 
   swatch: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
@@ -547,5 +551,5 @@ const styles = themed(() => StyleSheet.create({
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  saveText: { fontSize: 16, fontFamily: fonts.sansBold, color: '#fff' },
 }));

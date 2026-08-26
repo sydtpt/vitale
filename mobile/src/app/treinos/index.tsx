@@ -8,16 +8,19 @@ import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useAuthStore } from '../../store/auth.store';
 import { BarChart } from '../../components/charts/BarChart';
-import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { ACTIVITY_CYCLING, ACTIVITY_RUNNING, ACTIVITY_YOGA, buildWeek, buildWeeklyVolume, type VolumeMetric } from '@vitale/shared';
 
 const CHART_W = Dimensions.get('window').width - spacing.lg * 2 - 28;
 
-const VOLUME_PANELS: { title: string; activityId: number; metric: VolumeMetric; unit: string; color: string }[] = [
-  { title: 'Corrida', activityId: ACTIVITY_RUNNING, metric: 'distance', unit: 'km', color: MOD.treino.accent },
-  { title: 'Bicicleta', activityId: ACTIVITY_CYCLING, metric: 'distance', unit: 'km', color: MOD.agua.accent },
-  { title: 'Yoga', activityId: ACTIVITY_YOGA, metric: 'duration', unit: 'min', color: MOD.habito.accent },
-];
+// Função, não constante: as cores seguem tema e paleta. Chame no render.
+function volumePanels(): { title: string; activityId: number; metric: VolumeMetric; unit: string; color: string }[] {
+  return [
+    { title: 'Corrida', activityId: ACTIVITY_RUNNING, metric: 'distance', unit: 'km', color: moduleColors('treino').accent },
+    { title: 'Bicicleta', activityId: ACTIVITY_CYCLING, metric: 'distance', unit: 'km', color: moduleColors('agua').accent },
+    { title: 'Yoga', activityId: ACTIVITY_YOGA, metric: 'duration', unit: 'min', color: moduleColors('habito').accent },
+  ];
+}
 
 type Kind = PlannedWorkout['kind'];
 
@@ -27,10 +30,6 @@ const KIND_META: Record<Kind, { label: string; mod: string }> = {
   easy: { label: 'Leve', mod: 'habito' },
   rest: { label: 'Descanso', mod: 'casa' },
 };
-
-function modColor(key: string): { tint: string; accent: string } {
-  return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.habito;
-}
 
 function metaLine(w: PlannedWorkout): string {
   const kind = KIND_META[w.kind].label;
@@ -46,7 +45,7 @@ function VolumePanel({
   styles,
 }: {
   visible: Activity[];
-  config: (typeof VOLUME_PANELS)[number];
+  config: ReturnType<typeof volumePanels>[number];
   styles: ReturnType<typeof createStyles>;
 }) {
   const buckets = useMemo(
@@ -110,7 +109,7 @@ export default function TreinosPlannerScreen() {
           <Text style={styles.intro}>Planeje a semana. Treinos viram “feito” ao casar com uma atividade sincronizada do mesmo dia.</Text>
 
           <Text style={styles.section}>Volume · 6 semanas</Text>
-          {VOLUME_PANELS.map((c) => (
+          {volumePanels().map((c) => (
             <VolumePanel key={c.title} visible={visible} config={c} styles={styles} />
           ))}
 
@@ -136,7 +135,7 @@ export default function TreinosPlannerScreen() {
                 <Text style={styles.dayEmpty}>—</Text>
               ) : (
                 day.workouts.map((w) => {
-                  const mc = modColor(KIND_META[w.kind].mod);
+                  const mc = moduleColors(KIND_META[w.kind].mod);
                   return (
                     <Pressable
                       key={w.id}
@@ -149,8 +148,8 @@ export default function TreinosPlannerScreen() {
                         <Text style={styles.wkMeta}>{metaLine(w)}</Text>
                       </View>
                       {w.done && (
-                        <View style={[styles.doneBadge, { backgroundColor: MOD.habito.tint }]}>
-                          <Ionicons name="checkmark" size={15} color={MOD.habito.accent} />
+                        <View style={[styles.doneBadge, { backgroundColor: moduleColors('habito').tint }]}>
+                          <Ionicons name="checkmark" size={15} color={moduleColors('habito').accent} />
                         </View>
                       )}
                     </Pressable>
@@ -185,43 +184,43 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
-  intro: { fontSize: 13, color: colors.ink3, lineHeight: 18, marginBottom: spacing.sm, marginTop: 2 },
+  intro: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 18, marginBottom: spacing.sm, marginTop: 2 },
   section: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
     marginLeft: 2,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
 
   volCard: { backgroundColor: colors.surface, borderRadius: radii['2xl'], padding: 14, marginBottom: 10, ...shadows.card },
   volHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
-  volTitle: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
-  volTotal: { fontSize: 14, fontWeight: '700', fontFamily: 'GeistMono' },
-  volEmpty: { fontSize: 12.5, color: colors.ink4, paddingVertical: 12 },
+  volTitle: { fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  volTotal: { fontSize: 14, fontFamily: fonts.monoBold },
+  volEmpty: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink4, paddingVertical: 12 },
 
   dayCard: { backgroundColor: colors.surface, borderRadius: radii['2xl'], padding: 14, marginBottom: 10, ...shadows.card },
   dayToday: { borderWidth: 1.5, borderColor: colors.primary },
   dayHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dayHeadLeft: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  dayLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: colors.ink3 },
-  dayNum: { fontSize: 18, fontWeight: '700', color: colors.ink },
+  dayLabel: { fontSize: 11, fontFamily: fonts.sansBold, letterSpacing: 0.5, color: colors.ink3 },
+  dayNum: { fontSize: 18, fontFamily: fonts.sansBold, color: colors.ink },
   todayText: { color: colors.primary },
   todayDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary, alignSelf: 'center' },
   addBtn: { width: 32, height: 32, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMute },
 
-  dayEmpty: { fontSize: 13, color: colors.ink4, marginTop: 8, marginLeft: 2 },
+  dayEmpty: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink4, marginTop: 8, marginLeft: 2 },
   flex: { flex: 1 },
   wk: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: colors.surfaceMute, borderRadius: radii.lg, padding: 10 },
   wkBar: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
-  wkType: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
-  wkMeta: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
+  wkType: { fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  wkMeta: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
   doneBadge: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },

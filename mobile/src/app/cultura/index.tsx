@@ -17,7 +17,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CULTURA_TIPOS } from '@vitale/shared';
 import { useCulturaStore } from '../../store/cultura.store';
-import { colors, moduleColors, radii, shadows, spacing, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 /** Ícone por mídia. Fora do registro do núcleo de propósito: Ionicons é do mobile. */
 const ICONE: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -131,32 +131,34 @@ export default function CulturaHubScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  flex: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  title: { fontSize: 17, fontWeight: '600', color: colors.ink },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    ...shadows.sm,
-  },
-  icone: { width: 40, height: 40, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center' },
-  cardTitulo: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  cardSub: { fontSize: 13, color: colors.ink3, marginTop: 2 },
-  contagem: { fontSize: 15, fontWeight: '600' },
-  vazio: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.md },
-  vazioTxt: { fontSize: 14, color: colors.ink2, textAlign: 'center', paddingHorizontal: spacing.xl },
-  btn: { borderRadius: radii.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
-  btnTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
-});
+const s = themed(() =>
+  StyleSheet.create({
+    flex: { flex: 1 },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    title: { fontSize: 17, fontFamily: fonts.sansSemiBold, color: colors.ink },
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+      ...shadows.sm,
+    },
+    icone: { width: 40, height: 40, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center' },
+    cardTitulo: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
+    cardSub: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
+    contagem: { fontSize: 15, fontFamily: fonts.sansSemiBold },
+    vazio: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.md },
+    vazioTxt: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink2, textAlign: 'center', paddingHorizontal: spacing.xl },
+    btn: { borderRadius: radii.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
+    btnTxt: { color: '#fff', fontSize: 14, fontFamily: fonts.sansSemiBold },
+  }),
+);

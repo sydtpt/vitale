@@ -31,7 +31,7 @@ import {
   formatDistance,
 } from '../../lib/workout-format';
 import { activityHighlights, type ActivityHighlight } from '../../lib/running-highlights';
-import { colors, spacing, radii, shadows, themed, useTheme } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 const PAGE_SIZE = 12;
 
@@ -541,7 +541,7 @@ const styles = themed(() => StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radii.lg,
   },
-  detailBtnText: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.primary },
+  detailBtnText: { flex: 1, fontSize: 14, fontFamily: fonts.sansBold, color: colors.primary },
   header: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -560,8 +560,8 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 22, fontFamily: 'InstrumentSerif', color: colors.ink },
-  headerSub: { fontSize: 12, color: colors.ink3, fontFamily: 'GeistMono', marginTop: 2 },
+  headerTitle: { fontSize: 22, fontFamily: fonts.serif, color: colors.ink },
+  headerSub: { fontSize: 12, color: colors.ink3, fontFamily: fonts.mono, marginTop: 2 },
 
   list: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: 10 },
 
@@ -570,8 +570,8 @@ const styles = themed(() => StyleSheet.create({
     fontSize: 11,
     color: colors.ink3,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontWeight: '600',
+    letterSpacing: 1.0,
+    fontFamily: fonts.sansSemiBold,
   },
   hlRow: { gap: spacing.sm, paddingRight: spacing.lg },
   hlCard: {
@@ -582,9 +582,9 @@ const styles = themed(() => StyleSheet.create({
     minWidth: 120,
     gap: 4,
   },
-  hlLabel: { fontSize: 11.5, color: colors.ink3, fontWeight: '600' },
-  hlValue: { fontSize: 20, fontFamily: 'GeistMono', color: colors.ink, marginTop: 2 },
-  hlCaption: { fontSize: 11, color: colors.ink3, fontFamily: 'GeistMono' },
+  hlLabel: { fontSize: 11.5, color: colors.ink3, fontFamily: fonts.sansSemiBold },
+  hlValue: { fontSize: 20, fontFamily: fonts.mono, color: colors.ink, marginTop: 2 },
+  hlCaption: { fontSize: 11, color: colors.ink3, fontFamily: fonts.mono },
 
   filterWrap: { marginBottom: 10, gap: 10 },
   toolbarRow: {
@@ -603,7 +603,7 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: colors.surface,
     ...shadows.sm,
   },
-  filterToggleText: { fontSize: 13, fontWeight: '600', color: colors.ink2 },
+  filterToggleText: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
   sortPanel: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
@@ -618,8 +618,8 @@ const styles = themed(() => StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm + 1,
   },
-  sortOptionText: { fontSize: 14, color: colors.ink2 },
-  sortOptionTextActive: { color: colors.primary, fontWeight: '600' },
+  sortOptionText: { fontSize: 14, fontFamily: fonts.sans, color: colors.ink2 },
+  sortOptionTextActive: { color: colors.primary, fontFamily: fonts.sansSemiBold },
   filterPanel: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
@@ -628,10 +628,10 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   fieldLabel: {
-    fontSize: 11,
+    fontSize: 11, fontFamily: fonts.sans,
     color: colors.ink3,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
     marginTop: spacing.xs,
   },
   row: { flexDirection: 'row', gap: spacing.sm },
@@ -643,7 +643,7 @@ const styles = themed(() => StyleSheet.create({
     paddingVertical: spacing.sm,
     fontSize: 14,
     color: colors.ink,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
@@ -653,10 +653,10 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: colors.surfaceMute,
   },
   chipActive: { backgroundColor: colors.ink },
-  chipText: { fontSize: 12.5, color: colors.ink2 },
+  chipText: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink2 },
   chipTextActive: { color: '#fff' },
   clearBtn: { alignSelf: 'flex-start', marginTop: spacing.sm },
-  clearText: { fontSize: 13, color: colors.primary, fontWeight: '600' },
+  clearText: { fontSize: 13, color: colors.primary, fontFamily: fonts.sansSemiBold },
 
   card: {
     backgroundColor: colors.surface,
@@ -667,8 +667,8 @@ const styles = themed(() => StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  cardDate: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  cardTime: { fontSize: 12.5, color: colors.ink3, fontFamily: 'GeistMono', marginTop: 2 },
+  cardDate: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  cardTime: { fontSize: 12.5, color: colors.ink3, fontFamily: fonts.mono, marginTop: 2 },
   editBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -678,12 +678,12 @@ const styles = themed(() => StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: colors.surfaceMute,
   },
-  editBadgeText: { fontSize: 10.5, color: colors.ink2 },
+  editBadgeText: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink2 },
 
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, paddingLeft: 52 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statValue: { fontSize: 13, color: colors.ink2, fontFamily: 'GeistMono' },
+  statValue: { fontSize: 13, color: colors.ink2, fontFamily: fonts.mono },
 
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
-  emptyText: { fontSize: 15, color: colors.ink3, textAlign: 'center' },
+  emptyText: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center' },
 }));

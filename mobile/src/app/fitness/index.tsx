@@ -21,7 +21,7 @@ import {
   TypeSyncStatus,
   mergeWorkoutSources,
 } from '../../store/fitness.store';
-import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 type ActivityGroup = {
   key: string;
@@ -45,16 +45,19 @@ function groupByActivity(workouts: WorkoutItem[]): ActivityGroup[] {
   return Array.from(map.values()).sort((a, b) => b.total - a.total);
 }
 
-const SYNC_ICON: Record<Exclude<TypeSyncStatus, 'syncing'>, {
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  tint: string;
-}> = {
-  unsubscribed: { icon: 'sync-outline', color: MOD.treino.accent, tint: MOD.treino.tint },
-  synced: { icon: 'checkmark-circle', color: colors.green, tint: colors.greenSoft },
-  pending: { icon: 'cloud-upload-outline', color: colors.yellow, tint: colors.yellowSoft },
-  error: { icon: 'alert-circle', color: colors.primaryDeep, tint: colors.primarySoft },
-};
+type SyncIcon = { icon: keyof typeof Ionicons.glyphMap; color: string; tint: string };
+
+// Função, não constante: `tint` e `color` seguem tema e paleta, e um objeto no
+// escopo do módulo os congelaria no import.
+function syncIcon(status: Exclude<TypeSyncStatus, 'syncing'>): SyncIcon {
+  const treino = moduleColors('treino');
+  return {
+    unsubscribed: { icon: 'sync-outline' as const, color: treino.accent, tint: treino.tint },
+    synced: { icon: 'checkmark-circle' as const, color: colors.green, tint: colors.greenSoft },
+    pending: { icon: 'cloud-upload-outline' as const, color: colors.yellow, tint: colors.yellowSoft },
+    error: { icon: 'alert-circle' as const, color: colors.primaryDeep, tint: colors.primarySoft },
+  }[status];
+}
 
 function ActivityTypeCard({
   group,
@@ -70,7 +73,7 @@ function ActivityTypeCard({
   progress: number;
 }) {
   const syncing = status === 'syncing';
-  const meta = syncing ? null : SYNC_ICON[status];
+  const meta = syncing ? null : syncIcon(status);
   const pct = Math.round(Math.min(Math.max(progress, 0), 1) * 100);
   const subtitle = syncing
     ? `Sincronizando… ${pct}%`
@@ -87,8 +90,8 @@ function ActivityTypeCard({
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
-      <View style={[styles.iconBox, { backgroundColor: MOD.treino.tint }]}>
-        <MaterialCommunityIcons name={group.icon} size={24} color={MOD.treino.accent} />
+      <View style={[styles.iconBox, { backgroundColor: moduleColors('treino').tint }]}>
+        <MaterialCommunityIcons name={group.icon} size={24} color={moduleColors('treino').accent} />
       </View>
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle}>{group.label}</Text>
@@ -104,14 +107,14 @@ function ActivityTypeCard({
         disabled={syncing}
         style={({ pressed }) => [
           styles.syncBtn,
-          { backgroundColor: meta?.tint ?? MOD.treino.tint },
+          { backgroundColor: meta?.tint ?? moduleColors('treino').tint },
           pressed && styles.syncBtnPressed,
           syncing && styles.syncBtnDisabled,
         ]}
         hitSlop={8}
       >
         {syncing || !meta ? (
-          <ActivityIndicator size="small" color={MOD.treino.accent} />
+          <ActivityIndicator size="small" color={moduleColors('treino').accent} />
         ) : (
           <Ionicons name={meta.icon} size={18} color={meta.color} />
         )}
@@ -125,7 +128,7 @@ function PermissionScreen({ onRequest }: { onRequest: () => void }) {
   return (
     <View style={styles.permCenter}>
       <View style={styles.permIconWrap}>
-        <Ionicons name="barbell-outline" size={40} color={MOD.treino.accent} />
+        <Ionicons name="barbell-outline" size={40} color={moduleColors('treino').accent} />
       </View>
       <Text style={styles.permTitle}>Acesse seus Treinos</Text>
       <Text style={styles.permDesc}>
@@ -315,7 +318,7 @@ const styles = themed(() => StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontFamily: 'InstrumentSerif',
+    fontFamily: fonts.serif,
     color: colors.ink,
   },
   backBtn: {
@@ -330,7 +333,7 @@ const styles = themed(() => StyleSheet.create({
   headerSub: {
     fontSize: 13,
     color: colors.ink3,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
   },
 
   list: {
@@ -363,14 +366,14 @@ const styles = themed(() => StyleSheet.create({
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
     color: colors.ink,
     marginBottom: 2,
   },
   cardMeta: {
     fontSize: 13,
     color: colors.ink3,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
   },
   progressTrack: {
     height: 4,
@@ -382,13 +385,13 @@ const styles = themed(() => StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
-    backgroundColor: MOD.treino.accent,
+    backgroundColor: moduleColors('treino').accent,
   },
   syncBtn: {
     width: 40,
     height: 40,
     borderRadius: radii.pill,
-    backgroundColor: MOD.treino.tint,
+    backgroundColor: moduleColors('treino').tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -414,11 +417,11 @@ const styles = themed(() => StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
     color: colors.ink2,
   },
   emptySubText: {
-    fontSize: 13.5,
+    fontSize: 13.5, fontFamily: fonts.sans,
     color: colors.ink3,
     textAlign: 'center',
     paddingHorizontal: spacing['3xl'],
@@ -442,19 +445,19 @@ const styles = themed(() => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 28,
-    backgroundColor: MOD.treino.tint,
+    backgroundColor: moduleColors('treino').tint,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
   },
   permTitle: {
     fontSize: 22,
-    fontFamily: 'InstrumentSerif',
+    fontFamily: fonts.serif,
     color: colors.ink,
     textAlign: 'center',
   },
   permDesc: {
-    fontSize: 14.5,
+    fontSize: 14.5, fontFamily: fonts.sans,
     color: colors.ink2,
     textAlign: 'center',
     lineHeight: 22,
@@ -468,12 +471,12 @@ const styles = themed(() => StyleSheet.create({
   },
   permBtnText: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
+    fontFamily: fonts.sansBold,
+    color: colors.onPrimary,
     letterSpacing: 0.2,
   },
   permNote: {
-    fontSize: 12,
+    fontSize: 12, fontFamily: fonts.sans,
     color: colors.ink4,
     textAlign: 'center',
   },

@@ -94,6 +94,43 @@ pnpm install
   `saveToLibraryAsync` da `expo-media-library` passou a **lançar** em runtime e
   derrubou a exportação do share composer, com build, `tsc` e 379 testes verdes.
 
+## Tema: duas armadilhas que já custaram caro
+
+**O fundo da navegação não é o `contentStyle`.** O `Stack` aceita
+`contentStyle: { backgroundColor: 'transparent' }`, mas isso governa só o
+CONTEÚDO da tela. O container nativo da pilha é pintado à parte, com o
+`colors.background` do tema de navegação (`nativeContainerStyle` em
+`NativeStackView.native.js` do expo-router) — `rgb(242,242,242)` no
+`DefaultTheme`, opaco. Enquanto ele não for transparente, **nenhuma camada
+desenhada atrás da navegação aparece**: foi assim que os papéis de parede
+ficaram invisíveis, com todo o resto correto. Ver o `NavThemeProvider` em
+`src/app/_layout.tsx`.
+
+**`BlurView` com `tint="default"` segue o SISTEMA, não o app.** É
+`UIBlurEffectStyleRegular`, que lê a trait collection do iOS. Isso passou
+despercebido enquanto `userInterfaceStyle` era `light` no app config e travava o
+app em claro; virou defeito no instante em que passou a `automatic`. Use as
+variantes de aparência fixa — `systemChromeMaterialLight` / `…Dark` — escolhidas
+pelo esquema do app.
+
+## Cor: onde ela pode e onde não pode nascer
+
+Cor nasce em `packages/shared/src/theme` e chega por `resolveTokens()` /
+`moduleOf()`. Quatro eixos independentes: **tema** (neutros), **esquema**
+(claro/escuro), **paleta** (módulos e séries) e **marca** (o cromo — FAB, CTA,
+toggle).
+
+- **Não leia tema no escopo do módulo.** `colors`, `MOD`, `moduleColors()` e as
+  constantes históricas do núcleo (`surfaces`, `ink`, `brand`, `accents`, `T`)
+  resolvem no momento da leitura; num `StyleSheet.create` de módulo isso é o
+  import, e a folha congela. Embrulhe em `themed(() => …)` ou use
+  `useThemedStyles`. `architecture.test.ts` cobra.
+- **Eixo novo entra em dois lugares:** nas dependências do `useThemedStyles` e em
+  `themedCacheKey()`. Esquecer um faz a tela não mudar, sem erro nenhum.
+- **Dentro de um chip, use `onTint`, não `accent`.** Sobre o preenchimento cheio
+  da marca, use `onPrimary`. O par `accent` sobre `tint` chegou a medir 1,55 de
+  contraste no amarelo.
+
 ## Diagnóstico de sync em background
 
 `src/lib/sync-breadcrumbs.ts` grava um log curto e persistente, lido em

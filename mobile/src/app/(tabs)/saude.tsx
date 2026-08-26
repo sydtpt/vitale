@@ -16,14 +16,14 @@ import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import {
-  CATEGORIES,
+  categories,
   categoryMeta,
   metricsByCategory,
   MetricDef,
 } from '../../config/health-metrics';
 import { bucketize, Sample } from '../../lib/health-buckets';
 import { Sparkline, ActivityRings, MacroDonut } from '../../components/charts';
-import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../theme';
+import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 const RING_COLORS = [colors.primary, colors.green, colors.blue]; // mover · exercício · em pé
 const MACRO_COLORS = [colors.rose, colors.yellow, colors.blue]; // proteína · carbo · gordura
@@ -211,7 +211,7 @@ export default function HealthScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false} {...tabBarScroll}>
-          {CATEGORIES.map((cat) => (
+          {categories().map((cat) => (
             <View key={cat.id} style={styles.section}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionDot, { backgroundColor: cat.accent }]} />
@@ -239,7 +239,7 @@ const styles = themed(() => StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 24, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 24, fontFamily: fonts.serif, color: colors.ink },
   backBtn: {
     width: 38,
     height: 38,
@@ -266,10 +266,10 @@ const styles = themed(() => StyleSheet.create({
   sectionDot: { width: 8, height: 8, borderRadius: 4 },
   sectionTitle: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 1.1,
   },
 
   card: {
@@ -286,11 +286,11 @@ const styles = themed(() => StyleSheet.create({
   cardPressed: { opacity: 0.7 },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cardBody: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  cardCaption: { fontSize: 12, color: colors.ink3, marginTop: 1 },
+  cardTitle: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  cardCaption: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: 1 },
   rightCol: { alignItems: 'flex-end', gap: 3 },
-  cardValue: { fontSize: 15, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
-  emptyMini: { fontSize: 11, color: colors.ink4, fontFamily: 'GeistMono' },
+  cardValue: { fontSize: 15, color: colors.ink, fontFamily: fonts.monoBold },
+  emptyMini: { fontSize: 11, color: colors.ink4, fontFamily: fonts.mono },
 
   profileCard: {
     backgroundColor: colors.surfaceMute,
@@ -302,8 +302,8 @@ const styles = themed(() => StyleSheet.create({
     marginTop: 2,
   },
   profileItem: { alignItems: 'center', gap: 2 },
-  profileValue: { fontSize: 16, fontWeight: '700', color: colors.ink, fontFamily: 'GeistMono' },
-  profileLabel: { fontSize: 11, color: colors.ink3, textTransform: 'uppercase', letterSpacing: 0.4 },
+  profileValue: { fontSize: 16, color: colors.ink, fontFamily: fonts.monoBold },
+  profileLabel: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3, textTransform: 'uppercase', letterSpacing: 0.9 },
 
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -323,8 +323,8 @@ const styles = themed(() => StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.sm,
   },
-  permTitle: { fontSize: 22, fontFamily: 'InstrumentSerif', color: colors.ink, textAlign: 'center' },
-  permDesc: { fontSize: 14.5, color: colors.ink2, textAlign: 'center', lineHeight: 22 },
+  permTitle: { fontSize: 22, fontFamily: fonts.serif, color: colors.ink, textAlign: 'center' },
+  permDesc: { fontSize: 14.5, fontFamily: fonts.sans, color: colors.ink2, textAlign: 'center', lineHeight: 22 },
   permBtn: {
     backgroundColor: colors.primary,
     paddingVertical: 15,
@@ -332,6 +332,6 @@ const styles = themed(() => StyleSheet.create({
     borderRadius: radii.pill,
     marginTop: spacing.sm,
   },
-  permBtnText: { fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
-  permNote: { fontSize: 12, color: colors.ink4, textAlign: 'center' },
+  permBtnText: { fontSize: 15, fontFamily: fonts.sansBold, color: colors.onPrimary, letterSpacing: 0.2 },
+  permNote: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink4, textAlign: 'center' },
 }));

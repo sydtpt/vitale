@@ -6,7 +6,7 @@
 import type { Ionicons } from '@expo/vector-icons';
 import { HK, healthSource, type HealthTypeId } from '../lib/health-source/active';
 import { HEALTH_METRICS, healthMetricById, type HealthMetricMeta } from '@vitale/shared';
-import { colors, MOD } from '../theme';
+import { colors, moduleColors } from '../theme';
 import {
   Sample,
   Period,
@@ -35,16 +35,28 @@ export interface CategoryMeta {
   accent: string;
 }
 
-export const CATEGORIES: CategoryMeta[] = [
-  { id: 'atividade', label: 'Atividade', icon: 'flame-outline', tint: MOD.treino.tint, accent: MOD.treino.accent },
-  { id: 'coracao', label: 'Coração', icon: 'heart-outline', tint: colors.roseSoft, accent: colors.rose },
-  { id: 'corpo', label: 'Corpo', icon: 'body-outline', tint: MOD.casa.tint, accent: MOD.casa.accent },
-  { id: 'sono', label: 'Sono', icon: 'moon-outline', tint: colors.blueSoft, accent: colors.blue },
-  { id: 'nutricao', label: 'Nutrição', icon: 'restaurant-outline', tint: MOD.food.tint, accent: MOD.food.accent },
-];
+/**
+ * Função, não constante: `tint` e `accent` dependem do tema e da paleta ativos,
+ * e um array no escopo do módulo os congelaria no import — o que produzia chip
+ * claro sobre fundo escuro. Chame no render.
+ */
+export function categories(): CategoryMeta[] {
+  const treino = moduleColors('treino');
+  const casa = moduleColors('casa');
+  const food = moduleColors('food');
+  const saude = moduleColors('saude');
+  const agua = moduleColors('agua');
+  return [
+    { id: 'atividade', label: 'Atividade', icon: 'flame-outline', tint: treino.tint, accent: treino.accent },
+    { id: 'coracao', label: 'Coração', icon: 'heart-outline', tint: saude.tint, accent: saude.accent },
+    { id: 'corpo', label: 'Corpo', icon: 'body-outline', tint: casa.tint, accent: casa.accent },
+    { id: 'sono', label: 'Sono', icon: 'moon-outline', tint: agua.tint, accent: agua.accent },
+    { id: 'nutricao', label: 'Nutrição', icon: 'restaurant-outline', tint: food.tint, accent: food.accent },
+  ];
+}
 
 export function categoryMeta(id: CategoryId): CategoryMeta {
-  return CATEGORIES.find((c) => c.id === id)!;
+  return categories().find((c) => c.id === id)!;
 }
 
 /**

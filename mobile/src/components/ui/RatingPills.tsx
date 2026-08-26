@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, radii, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, useThemedStyles } from '../../theme';
 
 /** Cor graduada 1→5 (ruim → bom): vermelho, laranja, amarelo, verde-claro, verde. */
 const SCALE_COLORS = ['#E05C5C', '#F2873C', '#F5B946', '#9CC06A', '#6FA86A'];
@@ -58,7 +58,7 @@ const createStyles = () => StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.7 },
-  num: { fontSize: 17, fontWeight: '700', fontFamily: 'GeistMono' },
+  num: { fontSize: 17, fontFamily: fonts.monoBold },
   numOn: { color: '#fff' },
   numOff: { color: colors.ink3 },
 });

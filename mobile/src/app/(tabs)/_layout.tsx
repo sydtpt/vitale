@@ -3,15 +3,34 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // O expo-router 56 trocou o `@react-navigation/*` por `standard-navigation` e
 // internalizou o bottom-tabs, então o pacote de onde este tipo vinha deixou de
 // ser instalado. O tipo é o mesmo, só mudou de casa; o index do expo-router não
 // o reexporta, e `layouts/Tabs` é o módulo do próprio `Tabs` usado abaixo.
 import type { BottomTabBarProps } from 'expo-router/build/layouts/Tabs';
-import { useTheme, colors } from '../../theme';
+import { colors, fonts, themed, useTheme } from '../../theme';
 import { TabBarScrollProvider, useTabBarCollapsed } from '../../lib/tab-bar-scroll';
 import { QuickAddSheet } from '../../components/sheets/QuickAddSheet';
+
+/**
+ * `UIGlassEffect` (o Liquid Glass do iOS 26) contra `UIBlurEffect` (o material
+ * do `expo-blur`, que é o de sempre desde o iOS 7).
+ *
+ * São renderizadores **diferentes**, não dois ajustes do mesmo: só o primeiro
+ * refrata o conteúdo atrás nos poucos pontos da beirada — como uma lente — e
+ * desenha um realce especular que varia ao redor do formato e reage à
+ * inclinação do aparelho. É por isso que a barra parecia "quase igual, menos na
+ * borda": a borda é justamente onde os dois materiais divergem, e nenhum ajuste
+ * de `borderColor` chega lá. O `PillSurface` abaixo usa o material do sistema
+ * quando ele existe e imita o que dá no resto.
+ *
+ * Constant nativo lido uma vez — não muda em runtime. No Android e no iOS < 26 o
+ * pacote cai no shim JS e isto é `false`.
+ */
+const LIQUID_GLASS = isLiquidGlassAvailable();
 
 type TabDef = {
   name: string;
@@ -96,29 +115,113 @@ function TabItems({
       {TABS.slice(0, mid).map(renderTab)}
       <Pressable
         onPress={onQuickAdd}
-        style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85 }]}
+        style={({ pressed }) => [
+          styles.fab,
+          // O contorno é `transparent` nas marcas que não têm — desenhar sempre
+          // evita o pulo de layout que apareceria ao trocar de marca.
+          { borderColor: colors.primaryOutline },
+          pressed && { opacity: 0.85 },
+        ]}
         accessibilityRole="button"
         accessibilityLabel="Registrar"
       >
-        <Ionicons name="add" size={28} color="#fff" />
+        <Ionicons name="add" size={28} color={colors.onPrimary} />
       </Pressable>
       {TABS.slice(mid).map(renderTab)}
     </>
   );
 }
 
-function AdaptiveTabBar({ state, navigation, onQuickAdd }: BottomTabBarProps & { onQuickAdd: () => void }) {
+/**
+ * A superfície de vidro da pílula. Duas implementações, a mesma forma.
+ */
+function PillSurface({ children }: { children: React.ReactNode }) {
   const { scheme, blurIntensity } = useTheme();
+  const isDark = scheme === 'dark';
+
+  if (LIQUID_GLASS) {
+    return (
+      <GlassView
+        glassEffectStyle="regular"
+        /**
+         * O app tem o próprio seletor de tema, então a aparência do material é
+         * escolha nossa, não do sistema. Sem isto (o padrão é `auto`) voltaria o
+         * mesmo defeito que o `tint="default"` tinha no `BlurView`: iPhone no
+         * escuro e app no claro renderizavam uma pílula escura.
+         */
+        colorScheme={isDark ? 'dark' : 'light'}
+        /**
+         * Sem `overflow: 'hidden'` aqui de propósito: o `UIGlassEffect` desenha
+         * o próprio aro e o próprio recorte, e recortar por fora comeria a
+         * sombra do "+".
+         */
+        style={styles.pill}
+      >
+        {children}
+      </GlassView>
+    );
+  }
+
+  /**
+   * Fallback (iOS < 26 e Android): `UIBlurEffect` com o realce especular
+   * aproximado à mão.
+   *
+   * Material com aparência **fixa**, não `default` — `tint="default"` mapeia
+   * para `UIBlurEffectStyleRegular`, que segue a aparência do SISTEMA. Era
+   * invisível enquanto o `userInterfaceStyle: light` travava o app em claro, e
+   * virou defeito quando ele passou a `automatic`. `systemChromeMaterial{Light,
+   * Dark}` é o mesmo material de cromo com a aparência escolhida por nós.
+   */
+  return (
+    <BlurView
+      tint={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
+      intensity={blurIntensity}
+      experimentalBlurMethod="dimezisBlurView"
+      style={[styles.pill, styles.pillClip]}
+    >
+      {/* Brilho do topo: o especular do vidro é forte na aresta de cima e some
+          na metade. Vai atrás do conteúdo. */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={
+          [
+            isDark ? 'rgba(255,255,255,0.13)' : 'rgba(255,255,255,0.50)',
+            'rgba(255,255,255,0)',
+          ] as const
+        }
+        locations={[0, 0.5] as const}
+        style={StyleSheet.absoluteFill}
+      />
+      {children}
+      {/**
+       * Aro CLARO, e é este o ponto. O aro escuro que vivia aqui
+       * (`rgba(0,0,0,0.08)`) era o que mais destoava do material do sistema: o
+       * vidro do iOS nunca se separa do fundo por um contorno escuro, e sim pelo
+       * realce claro somado à sombra difusa lá do `pillWrapper`.
+       */}
+      <View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          styles.rim,
+          { borderColor: isDark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.70)' },
+        ]}
+      />
+    </BlurView>
+  );
+}
+
+function AdaptiveTabBar({ state, navigation, onQuickAdd }: BottomTabBarProps & { onQuickAdd: () => void }) {
+  const { scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const collapsed = useTabBarCollapsed();
   const isDark = scheme === 'dark';
 
   const bottom = Math.max(insets.bottom, 16) + 8;
-  const inactiveColor = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(31,27,22,0.45)';
-  // tint "default" (UIBlurEffectStyleRegular) = material nativo translúcido,
-  // sem a camada branca leitosa do "extraLight" que deixava a pill opaca.
-  const borderColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.55)';
-  const shadowOpacity = isDark ? 0.22 : 0.10;
+  const inactiveColor = colors.ink3;
+  // Sombra larga e fraca. Sombra curta e forte "achata" o vidro — no material do
+  // sistema ela é o que dá o descolamento do fundo, sem virar um contorno.
+  const shadowOpacity = isDark ? 0.28 : 0.09;
 
   // Colapsa 25% ao rolar para baixo, ancorado na base (translateY compensa a
   // escala p/ a pill não "subir" ao encolher).
@@ -134,23 +237,11 @@ function AdaptiveTabBar({ state, navigation, onQuickAdd }: BottomTabBarProps & {
 
   return (
     <Animated.View style={[styles.pillWrapper, { bottom, shadowOpacity }, animatedStyle]}>
-      <BlurView
-        tint={isDark ? 'dark' : 'default'}
-        intensity={blurIntensity}
-        experimentalBlurMethod="dimezisBlurView"
-        style={styles.pill}
-      >
-        <View
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            { borderRadius: RADIUS, borderWidth: StyleSheet.hairlineWidth * 1.5, borderColor },
-          ]}
-        />
+      <PillSurface>
         <View style={styles.row}>
           <TabItems state={state} navigation={navigation} inactiveColor={inactiveColor} onQuickAdd={onQuickAdd} />
         </View>
-      </BlurView>
+      </PillSurface>
     </Animated.View>
   );
 }
@@ -179,63 +270,72 @@ const RADIUS = 36;
 const PILL_HEIGHT = 70;
 const COLLAPSED_SCALE = 0.75;
 
-const styles = StyleSheet.create({
-  // Glass pill
-  pillWrapper: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 18,
-    elevation: 20,
-  },
-  pill: {
-    borderRadius: RADIUS,
-    overflow: 'hidden',
-  },
+const styles = themed(() =>
+  StyleSheet.create({
+    // Glass pill
+    pillWrapper: {
+      position: 'absolute',
+      left: 16,
+      right: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowRadius: 24,
+      elevation: 20,
+    },
+    pill: {
+      borderRadius: RADIUS,
+    },
+    // Só o fallback recorta: o `GlassView` recorta sozinho (ver `PillSurface`).
+    pillClip: {
+      overflow: 'hidden',
+    },
+    rim: {
+      borderRadius: RADIUS,
+      borderWidth: StyleSheet.hairlineWidth * 1.5,
+    },
 
-  // Shared
-  row: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  fab: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginHorizontal: 6,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  tabInner: {
-    alignItems: 'center',
-    gap: 3,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 24,
-  },
-  tabInnerActive: {
-    backgroundColor: 'rgba(242, 92, 43, 0.10)',
-  },
-  label: {
-    fontSize: 10,
-    fontWeight: '500',
-    letterSpacing: 0.2,
-  },
-  labelActive: {
-    fontWeight: '700',
-  },
-});
+    // Shared
+    row: {
+      flexDirection: 'row',
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+    },
+    tab: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    fab: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      marginHorizontal: 6,
+      alignSelf: 'center',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    tabInner: {
+      alignItems: 'center',
+      gap: 3,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 24,
+    },
+    tabInnerActive: {
+      backgroundColor: 'rgba(242, 92, 43, 0.10)',
+    },
+    label: {
+      fontSize: 10,
+      fontFamily: fonts.sansMedium,
+      letterSpacing: 0.2,
+    },
+    labelActive: {
+      fontFamily: fonts.sansBold,
+    },
+  }),
+);

@@ -17,7 +17,7 @@ import type { TodoModule } from '@vitale/shared';
 import { HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
 import { useRegistrosStore } from '../../store/registros.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { colors, spacing, radii, shadows, MOD, themed, useTheme } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 
 const ICONS = HABIT_ICONS;
 
@@ -29,16 +29,20 @@ const MODULES: { key: TodoModule; label: string }[] = [
   { key: 'saude', label: 'Saúde' },
 ];
 
-const COLORS: { key: string; accent: string }[] = [
-  { key: 'habito', accent: MOD.habito.accent },
-  { key: 'tarefa', accent: MOD.tarefa.accent },
-  { key: 'agua', accent: MOD.agua.accent },
-  { key: 'food', accent: MOD.food.accent },
-  { key: 'treino', accent: MOD.treino.accent },
-  { key: 'casa', accent: MOD.casa.accent },
-  { key: 'compras', accent: MOD.compras.accent },
-  { key: 'financas', accent: MOD.financas.accent },
-];
+// Função, não constante: as cores dependem do tema e da paleta ativos, e um
+// array no escopo do módulo as congelaria no import.
+function colorOptions(): { key: string; accent: string }[] {
+  return [
+    { key: 'habito', accent: moduleColors('habito').accent },
+    { key: 'tarefa', accent: moduleColors('tarefa').accent },
+    { key: 'agua', accent: moduleColors('agua').accent },
+    { key: 'food', accent: moduleColors('food').accent },
+    { key: 'treino', accent: moduleColors('treino').accent },
+    { key: 'casa', accent: moduleColors('casa').accent },
+    { key: 'compras', accent: moduleColors('compras').accent },
+    { key: 'financas', accent: moduleColors('financas').accent },
+  ];
+}
 
 export default function RegistroEditorScreen() {
   useTheme();
@@ -93,7 +97,7 @@ export default function RegistroEditorScreen() {
     }
   };
 
-  const accent = COLORS.find((c) => c.key === color)?.accent ?? MOD.habito.accent;
+  const accent = moduleColors(color, 'habito').accent;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -153,7 +157,7 @@ export default function RegistroEditorScreen() {
           {/* Cor */}
           <Text style={styles.label}>Cor</Text>
           <View style={styles.chips}>
-            {COLORS.map((c) => (
+            {colorOptions().map((c) => (
               <Pressable key={c.key} onPress={() => setColor(c.key)} style={[styles.swatch, { backgroundColor: c.accent }, color === c.key && styles.swatchActive]}>
                 {color === c.key && <Ionicons name="checkmark" size={16} color="#fff" />}
               </Pressable>
@@ -204,16 +208,16 @@ const styles = themed(() => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 24, gap: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
+  label: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, marginTop: spacing.lg, marginBottom: 6 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
     borderWidth: 1,
     borderColor: colors.line,
@@ -221,7 +225,7 @@ const styles = themed(() => StyleSheet.create({
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill, backgroundColor: colors.surfaceMute },
-  chipText: { fontSize: 13, color: colors.ink2, fontWeight: '600' },
+  chipText: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sansSemiBold },
   chipTextActive: { color: '#fff' },
 
   iconChip: {
@@ -241,5 +245,5 @@ const styles = themed(() => StyleSheet.create({
   saveBtn: { borderRadius: radii.lg, paddingVertical: 15, alignItems: 'center' },
   saveDisabled: { opacity: 0.4 },
   saveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  saveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  saveText: { fontSize: 16, fontFamily: fonts.sansBold, color: '#fff' },
 }));

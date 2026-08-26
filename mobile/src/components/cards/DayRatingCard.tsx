@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { RatingPills } from '../ui/RatingPills';
 
 interface Props {
@@ -59,14 +59,14 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
+  title: { fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
   input: {
     minHeight: 44,
     borderRadius: radii.lg,
     backgroundColor: colors.surfaceMute,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 14, fontFamily: fonts.sans,
     color: colors.ink,
     textAlignVertical: 'top',
   },

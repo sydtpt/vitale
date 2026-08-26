@@ -6,16 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CounterHabit } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
-import { colors, spacing, radii, shadows, MOD, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 function fmt(n: number): string {
   const r = Math.round(n * 100) / 100;
   const s = Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/\.?0+$/, '');
   return s.replace('.', ',');
-}
-
-function modColor(key: string): { tint: string; accent: string } {
-  return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.habito;
 }
 
 function summary(h: CounterHabit): string {
@@ -44,14 +40,14 @@ export default function HabitosScreen() {
   const archived = allHabits.filter((h) => !h.active);
 
   const Row = ({ h, last }: { h: CounterHabit; last?: boolean }) => {
-    const mod = modColor(h.color);
+    const mod = moduleColors(h.color, 'habito');
     return (
       <Pressable
         onPress={() => router.push({ pathname: '/habitos/editor', params: { id: h.id } })}
         style={({ pressed }) => [styles.row, last && styles.noBorder, pressed && styles.pressed]}
       >
         <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>
-          <Ionicons name={habitIconToIonicon(h.icon)} size={20} color={mod.accent} />
+          <Ionicons name={habitIconToIonicon(h.icon)} size={20} color={mod.onTint} />
         </View>
         <View style={styles.flex}>
           <Text style={[styles.name, !h.active && styles.muted]}>{h.name}</Text>
@@ -93,7 +89,7 @@ export default function HabitosScreen() {
           <Text style={styles.emptyTitle}>Nenhum hábito ainda</Text>
           <Text style={styles.emptyText}>Crie um contador (água, cigarro…) para acompanhar no dia a dia.</Text>
           <Pressable onPress={() => router.push('/habitos/editor')} style={({ pressed }) => [styles.cta, pressed && styles.pressed]}>
-            <Ionicons name="add" size={18} color="#fff" />
+            <Ionicons name="add" size={18} color={colors.onPrimary} />
             <Text style={styles.ctaText}>Novo hábito</Text>
           </Pressable>
         </View>
@@ -145,32 +141,32 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
   section: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.sansBold,
     color: colors.ink2,
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   card: { backgroundColor: colors.surface, borderRadius: radii['2xl'], overflow: 'hidden', ...shadows.card },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
   noBorder: { borderBottomWidth: 0 },
   iconBox: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
-  name: { fontSize: 15, fontWeight: '600', color: colors.ink },
+  name: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
   muted: { color: colors.ink3 },
-  summary: { fontSize: 12.5, color: colors.ink3, marginTop: 2 },
+  summary: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
   action: { width: 36, height: 36, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: spacing.sm },
-  emptyText: { fontSize: 13.5, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink, marginTop: spacing.sm },
+  emptyText: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
   cta: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 11, borderRadius: radii.pill, marginTop: spacing.md },
-  ctaText: { color: '#fff', fontSize: 14.5, fontWeight: '700' },
+  ctaText: { color: colors.onPrimary, fontSize: 14.5, fontFamily: fonts.sansBold },
 });

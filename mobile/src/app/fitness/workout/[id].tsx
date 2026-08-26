@@ -22,7 +22,7 @@ import {
   formatElevation,
   totalTimeS,
 } from '../../../lib/workout-format';
-import { colors, spacing, radii, MOD, shadows, themed, useTheme } from '../../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../../theme';
 
 type InfoRow = { label: string; value: string };
 
@@ -37,7 +37,7 @@ function Stat({
 }) {
   return (
     <View style={styles.stat}>
-      <Ionicons name={icon} size={18} color={MOD.treino.accent} />
+      <Ionicons name={icon} size={18} color={moduleColors('treino').accent} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statCaption}>{caption}</Text>
     </View>
@@ -206,8 +206,8 @@ export default function WorkoutDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <View style={[styles.heroIcon, { backgroundColor: MOD.treino.tint }]}>
-            <MaterialCommunityIcons name={meta.icon} size={28} color={MOD.treino.accent} />
+          <View style={[styles.heroIcon, { backgroundColor: moduleColors('treino').tint }]}>
+            <MaterialCommunityIcons name={meta.icon} size={28} color={moduleColors('treino').accent} />
           </View>
           <Text style={styles.heroDate}>{formatFullDate(workout.start)}</Text>
           <Text style={styles.heroTime}>
@@ -305,7 +305,7 @@ const styles = themed(() => StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     fontSize: 20,
-    fontFamily: 'InstrumentSerif',
+    fontFamily: fonts.serif,
     color: colors.ink,
   },
 
@@ -332,7 +332,7 @@ const styles = themed(() => StyleSheet.create({
   },
   heroDate: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
     color: colors.ink,
     textTransform: 'capitalize',
     textAlign: 'center',
@@ -340,7 +340,7 @@ const styles = themed(() => StyleSheet.create({
   heroTime: {
     fontSize: 13,
     color: colors.ink3,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
   },
   statsRow: {
     flexDirection: 'row',
@@ -355,24 +355,23 @@ const styles = themed(() => StyleSheet.create({
   },
   statValue: {
     fontSize: 17,
-    fontWeight: '700',
     color: colors.ink,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.monoBold,
   },
   statCaption: {
-    fontSize: 11,
+    fontSize: 11, fontFamily: fonts.sans,
     color: colors.ink3,
   },
 
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
     color: colors.ink2,
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
     marginLeft: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.0,
   },
   mapCard: {
     backgroundColor: colors.surface,
@@ -398,7 +397,7 @@ const styles = themed(() => StyleSheet.create({
     borderBottomColor: colors.line,
   },
   infoLabel: {
-    fontSize: 13.5,
+    fontSize: 13.5, fontFamily: fonts.sans,
     color: colors.ink3,
     flexShrink: 0,
     maxWidth: '45%',
@@ -406,7 +405,7 @@ const styles = themed(() => StyleSheet.create({
   infoValue: {
     fontSize: 13.5,
     color: colors.ink,
-    fontFamily: 'GeistMono',
+    fontFamily: fonts.mono,
     flex: 1,
     textAlign: 'right',
   },
@@ -418,7 +417,7 @@ const styles = themed(() => StyleSheet.create({
     gap: spacing.md,
   },
   emptyText: {
-    fontSize: 15,
+    fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink3,
   },
 }));

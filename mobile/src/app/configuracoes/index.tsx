@@ -5,9 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
-import { useChartPaletteStore } from '../../store/chart-palette.store';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
-import { getChartPalette } from '@vitale/shared';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 const RED = '#E05C5C';
 
@@ -30,7 +28,6 @@ export default function ConfiguracoesScreen() {
   const profile = useSettingsStore((s) => s.profile);
   const preferences = useSettingsStore((s) => s.preferences);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
-  const chartPaletteId = useChartPaletteStore((s) => s.paletteId);
 
   useEffect(() => {
     if (!profile) loadSettings();
@@ -54,7 +51,7 @@ export default function ConfiguracoesScreen() {
       rows: [
         { icon: 'color-palette-outline', label: 'Aparência', sub: appearanceSub, route: '/configuracoes/app' },
         { icon: 'notifications-outline', label: 'Notificações', sub: notifSub, route: '/configuracoes/notificacoes' },
-        { icon: 'color-filter-outline', label: 'Cores dos gráficos', sub: getChartPalette(chartPaletteId).name, route: '/configuracoes/paleta' },
+        { icon: 'color-filter-outline', label: 'Gráficos', sub: 'Linhas de referência', route: '/configuracoes/paleta' },
         { icon: 'trophy-outline', label: 'Objetivos', sub: 'Macros e treino', route: '/configuracoes/objetivos' },
       ],
     },
@@ -116,18 +113,18 @@ const createStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
   iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.sansSemiBold, color: colors.ink },
   pressed: { opacity: 0.6 },
   content: { padding: spacing.lg, paddingBottom: spacing['4xl'] },
   section: { marginBottom: spacing.xl },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm, paddingHorizontal: 4 },
+  sectionTitle: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 1.0, marginBottom: spacing.sm, paddingHorizontal: 4 },
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, overflow: 'hidden', ...shadows.card },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: 14, gap: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
   rowIcon: { width: 28, alignItems: 'center' },
   rowContent: { flex: 1, gap: 2 },
-  rowLabel: { fontSize: 15, color: colors.ink },
-  rowSub: { fontSize: 13, color: colors.ink3 },
+  rowLabel: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
+  rowSub: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3 },
   destructive: { color: RED },
-  version: { textAlign: 'center', fontSize: 13, color: colors.ink3, marginTop: spacing.xl },
+  version: { textAlign: 'center', fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, marginTop: spacing.xl },
 });

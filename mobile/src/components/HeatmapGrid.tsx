@@ -17,7 +17,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import type { Heatmap, HeatCell, HeatStep } from '@vitale/shared';
-import { colors, spacing, useThemedStyles } from '../theme';
+import { colors, fonts, spacing, useThemedStyles } from '../theme';
 
 /** Escala divergente: quente abaixo da meta, neutro em cima, frio acima. */
 const STEP_BG: Record<HeatStep, string> = {
@@ -144,7 +144,7 @@ export function HeatmapGrid({ data }: { data: Heatmap }) {
 
 const createStyles = () => StyleSheet.create({
   head: { flexDirection: 'row', gap: GAP, marginBottom: 5 },
-  headTxt: { textAlign: 'center', fontSize: 9, color: colors.ink3, letterSpacing: 0.4 },
+  headTxt: { textAlign: 'center', fontSize: 9, fontFamily: fonts.sans, color: colors.ink3, letterSpacing: 0.4 },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   cell: {
@@ -155,19 +155,19 @@ const createStyles = () => StyleSheet.create({
     borderColor: 'transparent',
   },
   cellOn: { borderColor: colors.ink },
-  cellTxt: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  cellTxt: { fontSize: 11, fontFamily: fonts.sansSemiBold, textAlign: 'center' },
 
   readout: {
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
     backgroundColor: colors.surfaceMute, borderRadius: 10,
     paddingHorizontal: 11, paddingVertical: 8, marginTop: spacing.md, minHeight: 34,
   },
-  readoutK: { fontSize: 11.5, color: colors.ink2, flexShrink: 1 },
-  readoutV: { fontSize: 13, fontWeight: '700', color: colors.ink },
-  readoutSub: { fontSize: 11, fontWeight: '500', color: colors.ink2 },
+  readoutK: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink2, flexShrink: 1 },
+  readoutV: { fontSize: 13, fontFamily: fonts.sansBold, color: colors.ink },
+  readoutSub: { fontSize: 11, fontFamily: fonts.sansMedium, color: colors.ink2 },
 
   legend: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm },
-  legendTxt: { fontSize: 9.5, color: colors.ink3 },
+  legendTxt: { fontSize: 9.5, fontFamily: fonts.sans, color: colors.ink3 },
   legendTarget: { marginLeft: 'auto' },
   swatches: { flexDirection: 'row', gap: 2 },
   swatch: { width: 13, height: 9, borderRadius: 2 },

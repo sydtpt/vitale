@@ -12,7 +12,7 @@ import {
 import { useActivitiesStore } from '../../store/activities.store';
 import { useHabitsStore } from '../../store/habits.store';
 import { useAuthStore } from '../../store/auth.store';
-import { colors, spacing, radii, shadows, moduleColors, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { familyLabel, goalValueText, goalPct, goalPeriodCells, isMonthlyCadence, type GoalPeriodCell, type GoalPeriodState } from '@vitale/shared';
 
 interface GoalVM {
@@ -218,7 +218,7 @@ export default function MetasScreen() {
             onPress={() => router.push('/metas/editor')}
             style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
           >
-            <Ionicons name="add" size={18} color="#fff" />
+            <Ionicons name="add" size={18} color={colors.onPrimary} />
             <Text style={styles.ctaText}>Nova meta</Text>
           </Pressable>
         </View>
@@ -289,12 +289,12 @@ const createStyles = () =>
       flex: 1,
       textAlign: 'center',
       fontSize: 20,
-      fontFamily: 'InstrumentSerif',
+      fontFamily: fonts.serif,
       color: colors.ink,
     },
 
     scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
-    subtitle: { fontSize: 13.5, color: colors.ink3, marginBottom: spacing.md, marginLeft: 2 },
+    subtitle: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, marginBottom: spacing.md, marginLeft: 2 },
 
     chips: { gap: spacing.sm, paddingBottom: spacing.md, paddingRight: spacing.lg },
     chip: {
@@ -306,7 +306,7 @@ const createStyles = () =>
       borderColor: colors.line,
     },
     chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-    chipText: { fontSize: 13, fontWeight: '600', color: colors.ink2, textTransform: 'capitalize' },
+    chipText: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, textTransform: 'capitalize' },
     chipTextOn: { color: colors.bg },
 
     card: {
@@ -319,8 +319,8 @@ const createStyles = () =>
     cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     dot: { width: 10, height: 10, borderRadius: 5 },
     flex: { flex: 1 },
-    name: { fontSize: 15.5, fontWeight: '700', color: colors.ink },
-    sub: { fontSize: 12.5, color: colors.ink3, marginTop: 2, textTransform: 'capitalize' },
+    name: { fontSize: 15.5, fontFamily: fonts.sansBold, color: colors.ink },
+    sub: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2, textTransform: 'capitalize' },
     badge: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -329,7 +329,7 @@ const createStyles = () =>
       paddingVertical: 4,
       borderRadius: radii.pill,
     },
-    badgeText: { fontSize: 11.5, fontWeight: '700' },
+    badgeText: { fontSize: 11.5, fontFamily: fonts.sansBold },
     removeBtn: { width: 30, height: 30, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
 
     valueRow: {
@@ -338,8 +338,8 @@ const createStyles = () =>
       justifyContent: 'space-between',
       marginTop: spacing.md,
     },
-    value: { fontSize: 14, fontWeight: '600', color: colors.ink2, fontFamily: 'GeistMono' },
-    pct: { fontSize: 13, fontWeight: '700', color: colors.ink3, fontFamily: 'GeistMono' },
+    value: { fontSize: 14, color: colors.ink2, fontFamily: fonts.monoSemiBold },
+    pct: { fontSize: 13, color: colors.ink3, fontFamily: fonts.monoBold },
 
     track: {
       height: 8,
@@ -361,11 +361,11 @@ const createStyles = () =>
       justifyContent: 'center',
     },
     cellWeek: { width: 10, height: 10, borderRadius: 3, borderWidth: 1 },
-    cellText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
+    cellText: { fontSize: 11, fontFamily: fonts.sansBold, textTransform: 'capitalize' },
 
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-    emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: spacing.sm },
-    emptyText: { fontSize: 13.5, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
+    emptyTitle: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink, marginTop: spacing.sm },
+    emptyText: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, textAlign: 'center', lineHeight: 19 },
     cta: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 11, borderRadius: radii.pill, marginTop: spacing.md },
-    ctaText: { color: '#fff', fontSize: 14.5, fontWeight: '700' },
+    ctaText: { color: colors.onPrimary, fontSize: 14.5, fontFamily: fonts.sansBold },
   });

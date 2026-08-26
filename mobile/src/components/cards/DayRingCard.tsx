@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { colors, useThemedStyles } from '../../theme';
+import { colors, fonts, useThemedStyles } from '../../theme';
 
 interface DayRingCardProps {
   activity: number;
@@ -78,16 +78,16 @@ const createStyles = () => StyleSheet.create({
     fontSize: 12,
     color: '#FFE3D2',
     letterSpacing: 0.4,
-    fontWeight: '600',
+    fontFamily: fonts.sansSemiBold,
   },
   num: {
-    fontFamily: 'InstrumentSerif',
+    fontFamily: fonts.serif,
     fontSize: 42,
     lineHeight: 46,
     marginVertical: 4,
     color: '#FFFFFF',
   },
-  of: { fontSize: 18, color: 'rgba(255,255,255,0.6)' },
+  of: { fontSize: 18, fontFamily: fonts.sans, color: 'rgba(255,255,255,0.6)' },
   legend: { gap: 3, marginTop: 8 },
   row: {
     flexDirection: 'row',
@@ -95,6 +95,6 @@ const createStyles = () => StyleSheet.create({
     gap: 8,
   },
   dot: { width: 8, height: 8, borderRadius: 2 },
-  legendLabel: { flex: 1, fontSize: 11.5, color: 'rgba(255,255,255,0.85)' },
-  legendValue: { fontSize: 11.5, fontFamily: 'GeistMono', color: 'rgba(255,255,255,0.6)' },
+  legendLabel: { flex: 1, fontSize: 11.5, fontFamily: fonts.sans, color: 'rgba(255,255,255,0.85)' },
+  legendValue: { fontSize: 11.5, fontFamily: fonts.mono, color: 'rgba(255,255,255,0.6)' },
 });

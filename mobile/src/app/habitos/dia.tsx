@@ -7,7 +7,7 @@ import type { CounterHabit } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
 import { MonthCalendar } from '../../components/MonthCalendar';
 import { HabitStepper } from '../../components/cards/HabitStepper';
-import { colors, spacing, radii, shadows, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 
 const DATE_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -163,18 +163,18 @@ const createStyles = () => StyleSheet.create({
     backgroundColor: colors.surface, ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'InstrumentSerif', color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.serif, color: colors.ink },
 
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: spacing.sm },
-  dayTitle: { fontSize: 14, fontWeight: '700', color: colors.ink, textTransform: 'capitalize', marginTop: spacing.md },
-  hint: { fontSize: 13, color: colors.ink3, marginTop: spacing.sm },
+  dayTitle: { fontSize: 14, fontFamily: fonts.sansBold, color: colors.ink, textTransform: 'capitalize', marginTop: spacing.md },
+  hint: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3, marginTop: spacing.sm },
   pickHint: { textAlign: 'center', marginTop: spacing.xl },
 
   footer: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   btn: { flex: 1, paddingVertical: 13, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center' },
   ghost: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  ghostText: { fontSize: 14.5, fontWeight: '600', color: colors.ink2 },
+  ghostText: { fontSize: 14.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
   primary: { backgroundColor: colors.primary },
-  primaryText: { fontSize: 14.5, fontWeight: '700', color: '#fff' },
+  primaryText: { fontSize: 14.5, fontFamily: fonts.sansBold, color: colors.onPrimary },
   disabled: { opacity: 0.5 },
 });
