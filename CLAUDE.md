@@ -151,6 +151,8 @@ O recorte abaixo é o tema **Orbe claro** — o padrão histórico, preservado p
 - Web: página Finanças (gráfico de gastos, transações)
 - Mobile: navegação por tabs, Zustand store, tema
 - Mobile: 4 telas de tab (Hoje, Semana, Compras, Mais)
+- Temas: quatro eixos (esquema, tema, paleta, marca) nos dois apps, com contraste
+  medido em vez de conferido. A web ganhou modo escuro, que não tinha
 
 ### Em andamento / Próximo 🔧
 - Tarefas: módulo to-do (web + mobile) — recorrências, carry/expire, gatilhos, conclusão rica. Falta aplicar migration e ponte real com Compras/Finanças

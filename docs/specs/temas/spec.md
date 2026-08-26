@@ -84,7 +84,8 @@ O sinal negativo é específico e conhecido: uma tela que **não muda** ao troca
 
 ## Open Questions
 
+> O modo escuro da web era pergunta aberta e deixou de ser: verificado rodando em 2026-08-26, com os quatro eixos alternados em `/configuracoes`.
+
 - **A marca `tinta` deveria ser preto absoluto ou a tinta do tema?** Hoje é a tinta do tema, o que a torna levemente quente no Orbe. Foi escolha declarada, não medida.
 - **O contorno preto das marcas fluorescentes some no escuro** — preto sobre quase-preto não tem contraste. O fluorescente sozinho separa (10,86), mas o caráter de adesivo se perde. A alternativa é a borda usar a tinta do tema, virando um anel claro.
 - **`blur_intensity` tem padrão 100 no banco e 50 no código.** Quem nunca mexeu no slider vê valores diferentes conforme a linha exista.
-- **O modo escuro da web nasceu aqui e ainda não foi visto rodando.** Build e testes passam; isso não prova que a `ThemeService` pinta.
