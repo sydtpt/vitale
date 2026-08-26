@@ -2,19 +2,21 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSig
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { ActivityRoutePoint } from '@vitale/shared';
-import { HR_ZONES, hrZoneRange, movingTimeFromRoutePoints } from '@vitale/shared';
+import { fillsCards, HR_ZONES, hrZoneRange, movingTimeFromRoutePoints } from '@vitale/shared';
+import { NgStyle } from '@angular/common';
 import { IconComponent } from '@core/services/icon.component';
+import { ThemeService } from '@core/theme/theme.service';
 import { metaForActivity } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
 import { formatClock, fmtDate, fmtDuration, fmtElevation, fmtKcal, fmtKm, formatRate, fmtTime, totalTimeS } from '../data/format';
-import { activityRecordBadges } from '../data/running-highlights';
+import { activityRecordBadges, type RecordBadge } from '../data/running-highlights';
 
 @Component({
   selector: 'rt-activity-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent, ActivityMapComponent],
+  imports: [RouterLink, NgStyle, IconComponent, ActivityMapComponent],
   templateUrl: './activity-detail-page.component.html',
   styleUrl: './activity-detail-page.component.scss',
 })
@@ -69,6 +71,22 @@ export class ActivityDetailPageComponent {
     const a = this.activity();
     return a ? activityRecordBadges(this.store.activities(), a) : [];
   });
+
+  /**
+   * Mesma casca da tira de Recordes: tema com degrau de superfície preenche a
+   * pílula; tema de contorno pinta a cor na borda. Ver ADR 0022.
+   */
+  private readonly theme = inject(ThemeService);
+  protected readonly badgesFilled = computed(() =>
+    fillsCards(this.theme.themeId(), this.theme.scheme()),
+  );
+
+  protected badgeSkin(b: RecordBadge): Record<string, string> {
+    const r = this.theme.tokens().roles[b.role];
+    return this.badgesFilled()
+      ? { background: r.soft, borderColor: 'transparent', color: r.on }
+      : { background: 'transparent', borderColor: r.accent, color: r.text };
+  }
 
   /** Tempo em cada zona de FC (com %), ordenado por zona; null se sem dados. */
   protected readonly hrZones = computed(() => {

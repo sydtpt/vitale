@@ -43,7 +43,7 @@
     @if (recordBadges().length > 0) {
       <div class="record-badges">
         @for (b of recordBadges(); track b.key) {
-          <span class="record-badge" [style.background]="b.bg" [style.color]="b.fg">
+          <span class="record-badge" [ngStyle]="badgeSkin(b)">
             <rt-icon name="trophy" [size]="13" color="currentColor" [strokeWidth]="2" />
             {{ b.label }}
           </span>

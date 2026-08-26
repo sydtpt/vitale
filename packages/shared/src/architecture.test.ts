@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { WALLPAPERS } from './constants/wallpaper';
+import { APP_THEMES } from './models';
 import { THEMES } from './theme/themes';
 import { PALETTES } from './theme/palettes';
 import { BRANDS } from './theme/brands';
@@ -173,6 +174,10 @@ check('BARREIRA — a edge function lê a cadeia de provedores do núcleo', () =
  * modo escuro junto.
  */
 const ID_COLUMNS: { coluna: string; ids: () => string[] }[] = [
+  // `theme` é o ESQUEMA (claro/escuro/sistema/solar), não o tema — o nome ficou
+  // de quando havia só este eixo. A regex abaixo distingue: `theme\s+in` não
+  // casa com `theme_id in`.
+  { coluna: 'theme', ids: () => [...APP_THEMES] },
   { coluna: 'wallpaper', ids: () => WALLPAPERS.map((w) => w.id) },
   { coluna: 'theme_id', ids: () => THEMES.map((t) => t.id) },
   { coluna: 'palette_id', ids: () => PALETTES.map((p) => p.id) },
@@ -274,7 +279,10 @@ check('BARREIRA — nenhuma variável CSS da web fora do sistema de temas', () =
 
   // Comentário citando uma variável não é uso — e uma barreira que tropeça no
   // comentário que explica a própria correção seria um convite a desligá-la.
-  const semComentario = (src: string): string => src.replace(/\/\/.*$/gm, '');
+  // Vale para as duas formas: a versão que só limpava `//` reprovava um bloco
+  // `/** */` que documentava justamente por que aquele `var()` não devia existir.
+  const semComentario = (src: string): string =>
+    src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
   const usadas = new Map<string, string[]>();
   for (const f of arquivos) {
@@ -336,7 +344,7 @@ const HEX_CEILING: {
   {
     label: 'mobile/src (fora de theme/)',
     files: mobileFiles.filter((f) => !f.includes('/src/theme/')),
-    max: 229,
+    max: 197,
   },
   {
     label: 'web SCSS',
@@ -351,9 +359,75 @@ const HEX_CEILING: {
   {
     label: 'web TS',
     files: webFiles,
-    max: 97,
+    max: 69,
   },
 ];
+
+/**
+ * CATRACA — acento usado como cor de **texto**.
+ *
+ * `accent` promete 3,0 contra a superfície: o piso de *objeto gráfico* da WCAG
+ * 1.4.11, correto para o ponto, a barra e o traço que ele foi feito para pintar.
+ * Texto quer 4,5 (1.4.3), e é aí que os dois se separam — 54% das combinações de
+ * papel × tema × paleta × esquema ficam entre um piso e o outro. Medido no dia
+ * em que a tira de Recordes foi migrada: as estrelas de nota da Cultura, em
+ * `yellow` sobre branco, davam **1,76**, abaixo até do piso gráfico; a marca
+ * `verde` no claro, **2,09**; a `laranja`, que é o padrão do app, **3,31**.
+ *
+ * O conserto por chamada é trocar `accent` por `*Text` (ou `primaryText`), que
+ * é o mesmo acento empurrado até 4,5 — no escuro ele quase nunca desloca. Ver
+ * `docs/decisions/0024-acento-nao-e-cor-de-texto.md`.
+ *
+ * É catraca e não barreira porque são 115 pontos: declarar barreira hoje
+ * derrubaria o build em 115 lugares e o teste seria desligado na primeira hora,
+ * exatamente como diz a nota no topo deste arquivo.
+ *
+ * **A contagem erra para mais, de propósito.** A regex não sabe distinguir um
+ * rótulo de um ponto de gráfico, e alguns destes usos são legítimos. Migrar um
+ * ponto é trocar o token **ou** confirmar por escrito que ali é gráfico e
+ * excluí-lo — as duas saídas baixam o teto, e as duas exigem que alguém olhe.
+ */
+const TEXT_ACCENT: { label: string; files: string[]; re: RegExp; max: number }[] = [
+  {
+    label: 'mobile — color: colors.<acento>',
+    files: mobileFiles,
+    re: /color:\s*colors\.(primary|primaryDeep|yellow|green|rose|blue|casa|teal|red|purple)\b/g,
+    max: 29,
+  },
+  {
+    label: 'web — color: var(--acento)',
+    files: walkExt(join(ROOT, 'web', 'src'), /\.(scss|html|ts)$/),
+    re: /color:\s*var\(--(primary|primary-deep|role-[a-z]+)\)/g,
+    max: 84,
+  },
+  {
+    label: 'web — [style.color] com acento',
+    files: walkExt(join(ROOT, 'web', 'src'), /\.(html|ts)$/),
+    re: /\[style\.color\]="[^"]*(accent|primary)[^"]*"/g,
+    max: 2,
+  },
+];
+
+check('CATRACA — acento como cor de texto não cresce', () => {
+  const over: string[] = [];
+  for (const bucket of TEXT_ACCENT) {
+    const n = bucket.files.reduce(
+      (sum, f) => sum + (readFileSync(f, 'utf8').match(bucket.re) ?? []).length,
+      0,
+    );
+    if (n > bucket.max) over.push(`${bucket.label}: ${n} > teto ${bucket.max}`);
+    else if (n < bucket.max) {
+      console.log(`     ↓ ${bucket.label} caiu para ${n} (teto ${bucket.max}) — baixe o teto`);
+    }
+  }
+  assert.deepEqual(
+    over,
+    [],
+    `acento novo como cor de texto: ${over.join(', ')}.\n` +
+      `  \`accent\` garante 3,0 — o piso do traço, não o da letra. Para texto use ` +
+      `\`roles[x].text\` / \`colors.<papel>Text\` / \`var(--role-x-text)\`, que garante 4,5.`,
+  );
+});
 
 check('CATRACA — hex fora do sistema de temas não cresce', () => {
   const over: string[] = [];

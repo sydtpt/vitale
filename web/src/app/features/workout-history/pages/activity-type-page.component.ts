@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { NgStyle } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ridesByCountry } from '@vitale/shared';
+import { fillsCards, ridesByCountry } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
+import { ThemeService } from '@core/theme/theme.service';
 import { activityIdForSlug, labelForSlug } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import {
@@ -15,7 +17,7 @@ import {
   type SortKey,
 } from '../data/activity-list';
 import { fmtDuration, fmtKcal, fmtKm } from '../data/format';
-import { activityHighlights } from '../data/running-highlights';
+import { activityHighlights, type ActivityHighlight } from '../data/running-highlights';
 import { ActivityFiltersComponent } from '../components/activity-filters.component';
 import { ActivityItemComponent } from '../components/activity-item.component';
 
@@ -23,7 +25,7 @@ import { ActivityItemComponent } from '../components/activity-item.component';
   selector: 'rt-activity-type-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent, ActivityFiltersComponent, ActivityItemComponent],
+  imports: [RouterLink, NgStyle, IconComponent, ActivityFiltersComponent, ActivityItemComponent],
   templateUrl: './activity-type-page.component.html',
   styleUrl: './activity-type-page.component.scss',
 })
@@ -31,6 +33,7 @@ export class ActivityTypePageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly store = inject(ActivitiesStore);
+  private readonly theme = inject(ThemeService);
 
   private readonly _slug = signal('');
 
@@ -60,6 +63,36 @@ export class ActivityTypePageComponent {
     this.highlights().filter((h) => h.group === 'record'),
   );
   protected readonly showDistance = computed(() => this.summary()?.hasDistance ?? true);
+
+  /**
+   * A casca do cartão de recorde sai do tema, não do esquema: temas sem degrau
+   * de superfície (Clean) pintam a cor na borda em vez do preenchimento. Ver
+   * `fillsCards()` no shared e a ADR 0022.
+   */
+  protected readonly cardsFilled = computed(() =>
+    fillsCards(this.theme.themeId(), this.theme.scheme()),
+  );
+
+  /**
+   * Estilo do cartão de um destaque, resolvido do tema ativo.
+   *
+   * Lê o hex de `tokens()` em vez de montar `var(--role-${h.role}-soft)`: nome
+   * de variável construído por interpolação escapa da barreira de variáveis CSS
+   * do `architecture.test.ts`, que só consegue casar nomes literais. Um `-sofft`
+   * digitado errado passaria calado. Aqui o compilador pega.
+   */
+  protected hlSkin(h: ActivityHighlight): Record<string, string> {
+    const r = this.theme.tokens().roles[h.role];
+    return this.cardsFilled()
+      ? { background: r.soft, borderColor: 'transparent' }
+      : { background: 'transparent', borderColor: r.accent };
+  }
+
+  /** Cor do valor: `on` dentro do tint, `text` sobre a página. Pisos diferentes. */
+  protected hlValueColor(h: ActivityHighlight): string {
+    const r = this.theme.tokens().roles[h.role];
+    return this.cardsFilled() ? r.on : r.text;
+  }
 
   /**
    * Países já cruzados por atividades deste tipo (com `cities` enriquecidas).

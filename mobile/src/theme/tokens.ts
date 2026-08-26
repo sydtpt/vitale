@@ -15,6 +15,7 @@
  */
 import type { ViewStyle } from 'react-native';
 import {
+  fillsCards,
   moduleOf,
   resolveTheme,
   resolveTokens,
@@ -26,6 +27,8 @@ import {
   type ModuleTokens,
   type PaletteId,
   type ResolvedTokens,
+  type RoleKey,
+  type RoleTokens,
   type ThemeId,
   type Wallpaper,
 } from '@vitale/shared';
@@ -107,6 +110,23 @@ export function wallpaperBg(scheme: ColorScheme, variant: Wallpaper): string {
  */
 export function moduleColors(key: string, fallback?: ModuleKey): ModuleTokens {
   return moduleOf(key, activeTheme, activeScheme, activePalette, fallback);
+}
+
+/**
+ * Quarteto de um papel cromático nos eixos ativos. Irmão do `moduleColors`, para
+ * quem tem um papel na mão em vez de um módulo — a tira de Recordes é o caso.
+ */
+export function roleColors(role: RoleKey): RoleTokens {
+  return resolveTokens(activeTheme, activeScheme, activePalette, activeBrand).roles[role];
+}
+
+/**
+ * O tema ativo preenche cards, ou os desenha só com contorno? Decide a casca do
+ * cartão de recorde. Não use `colors.bg` para isto: ele devolve `'transparent'`
+ * sob papel de parede, e a comparação daria falso no tema errado.
+ */
+export function themeFillsCards(): boolean {
+  return fillsCards(activeTheme, activeScheme);
 }
 
 /**

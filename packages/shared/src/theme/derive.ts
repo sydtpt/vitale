@@ -9,13 +9,14 @@
  * **11 matizes** e o resto é calculado, com `theme.test.ts` medindo contraste em
  * todas as 24 em vez de confiar no olho de alguém.
  *
- * ## Os três tokens de cada papel
+ * ## Os quatro tokens de cada papel
  *
  * | token | onde vive | garantia |
  * |---|---|---|
  * | `accent` | ponto, barra, traço sobre o fundo | ≥ 3,0 contra `surface` |
  * | `*Soft`  | preenchimento de chip/caixa | — é fundo, não precisa |
  * | `*On`    | ícone ou texto **dentro** do chip | ≥ 3,0 contra o `*Soft` |
+ * | `*Text`  | texto **fora** do chip, direto na superfície | ≥ 4,5 contra `surface` |
  *
  * O terceiro existe por um defeito real encontrado no Orbe: o padrão do app é
  * ícone em `accent` sobre caixa em `tint`, e o par amarelo media **1,55** de
@@ -23,6 +24,15 @@
  * conserto pelo tint: `#F5B946` é claro demais para atingir 3,0 sobre qualquer
  * fundo claro. A saída é a mesma da Material ("on-container"): uma cor de
  * primeiro plano própria, escurecida só o quanto for preciso.
+ *
+ * **O quarto é o mesmo defeito na outra superfície**, e chegou tarde porque
+ * ninguém tinha medido. `accent` promete 3,0 — o piso de *objeto gráfico* da
+ * WCAG 1.4.11, correto para o ponto e para o traço que a linha acima descreve.
+ * Texto quer 4,5 (1.4.3). Setenta e dois pontos dos dois apps pintavam texto com
+ * `accent`, e 54% das combinações ficavam abaixo do piso: as estrelas de nota da
+ * Cultura, em `yellow` sobre branco, mediam **1,76** — abaixo até do piso
+ * gráfico. `*Text` é o `accent` empurrado até 4,5, e no escuro ele quase nunca
+ * desloca, porque lá o acento já passa folgado.
  *
  * ## Os pinos históricos
  *
@@ -62,6 +72,8 @@ export type RoleKey = keyof AppPaletteRoles;
 
 /** Piso de contraste para objeto gráfico não-textual (WCAG 2.1, 1.4.11). */
 const GRAPHIC_FLOOR = 3;
+/** Piso de contraste para texto de corpo (WCAG 2.1, 1.4.3, nível AA). */
+const TEXT_FLOOR = 4.5;
 
 /** Alvos de luminosidade do tint, calibrados sobre os pares do Orbe. */
 const SOFT_L = { light: 0.932, dark: 0.275 } as const;
@@ -114,6 +126,15 @@ export function onTintOf(accent: string, tint: string): string {
   return ensureContrast(accent, tint, GRAPHIC_FLOOR);
 }
 
+/**
+ * Cor do papel quando ele é **texto direto na superfície** — link, rótulo de
+ * botão de texto, número em destaque. Use este e não `accent`: aquele promete o
+ * piso gráfico de 3,0, que é o do traço, não o da letra.
+ */
+export function textOf(accent: string, surface: string): string {
+  return ensureContrast(accent, surface, TEXT_FLOOR);
+}
+
 /* ─────────────── Pinos históricos: orbe × orbe ─────────────── */
 
 const PINNED_ACCENT: Record<ColorScheme, Partial<Record<RoleKey, string>>> = {
@@ -137,11 +158,13 @@ const PINNED_SOFT: Record<ColorScheme, Partial<Record<RoleKey, string>>> = {
 
 /* ─────────────────────── Tokens resolvidos ─────────────────────── */
 
-/** Trio de tokens de um papel cromático. */
+/** Quarteto de tokens de um papel cromático. */
 export interface RoleTokens {
   accent: string;
   soft: string;
   on: string;
+  /** Texto do papel sobre a superfície do tema. Ver a tabela no topo. */
+  text: string;
 }
 
 export interface ResolvedTokens extends ThemeNeutrals {
@@ -168,16 +191,23 @@ export interface ResolvedTokens extends ThemeNeutrals {
    * assim o componente desenha a borda sempre, sem condicional.
    */
   primaryOutline: string;
-  yellow: string; yellowSoft: string; yellowOn: string;
-  green: string; greenSoft: string; greenOn: string;
-  rose: string; roseSoft: string; roseOn: string;
-  blue: string; blueSoft: string; blueOn: string;
-  casa: string; casaSoft: string; casaOn: string;
-  teal: string; tealSoft: string; tealOn: string;
-  red: string; redSoft: string; redOn: string;
-  purple: string; purpleSoft: string; purpleOn: string;
-  /** `inkOn` fecha o trio do papel `ink`, cujo tint é o `inkSoft` do tema. */
+  yellow: string; yellowSoft: string; yellowOn: string; yellowText: string;
+  green: string; greenSoft: string; greenOn: string; greenText: string;
+  rose: string; roseSoft: string; roseOn: string; roseText: string;
+  blue: string; blueSoft: string; blueOn: string; blueText: string;
+  casa: string; casaSoft: string; casaOn: string; casaText: string;
+  teal: string; tealSoft: string; tealOn: string; tealText: string;
+  red: string; redSoft: string; redOn: string; redText: string;
+  purple: string; purpleSoft: string; purpleOn: string; purpleText: string;
+  /** `inkOn` fecha o quarteto do papel `ink`, cujo tint é o `inkSoft` do tema. */
   inkOn: string;
+  /**
+   * Texto da marca sobre a superfície. Existe pela mesma razão que os `*Text`
+   * dos papéis: `primary` é escolhido como cor de preenchimento e de cromo, e
+   * oito das 24 combinações de tema × marca ficam abaixo de 4,5 como texto — a
+   * marca `verde` no claro mede **2,09** sobre branco.
+   */
+  primaryText: string;
   /**
    * Cor da parte não iluminada da lua do cabeçalho — o **fundo do tema**, para
    * que ela dissolva na página em vez de virar uma mancha. É o `bg` e não o
@@ -234,7 +264,12 @@ export function resolveTokens(
         : historical
           ? (PINNED_SOFT[scheme][role] ?? softOf(accent, scheme))
           : softOf(accent, scheme);
-    roles[role] = { accent, soft, on: onTintOf(accent, soft) };
+    roles[role] = {
+      accent,
+      soft,
+      on: onTintOf(accent, soft),
+      text: textOf(accent, neutrals.surface),
+    };
   }
 
   // A marca `tinta` não tem cor própria: usa a tinta do tema, que já é preta no
@@ -259,15 +294,16 @@ export function resolveTokens(
       brand.on?.[scheme] ??
       (contrast('#FFFFFF', brandBase) >= contrast('#000000', brandBase) ? '#FFFFFF' : '#000000'),
     primaryOutline: brand.outline?.[scheme] ?? 'transparent',
-    yellow: roles.yellow.accent, yellowSoft: roles.yellow.soft, yellowOn: roles.yellow.on,
-    green: roles.green.accent, greenSoft: roles.green.soft, greenOn: roles.green.on,
-    rose: roles.rose.accent, roseSoft: roles.rose.soft, roseOn: roles.rose.on,
-    blue: roles.blue.accent, blueSoft: roles.blue.soft, blueOn: roles.blue.on,
-    casa: roles.brown.accent, casaSoft: roles.brown.soft, casaOn: roles.brown.on,
-    teal: roles.teal.accent, tealSoft: roles.teal.soft, tealOn: roles.teal.on,
-    red: roles.red.accent, redSoft: roles.red.soft, redOn: roles.red.on,
-    purple: roles.purple.accent, purpleSoft: roles.purple.soft, purpleOn: roles.purple.on,
+    yellow: roles.yellow.accent, yellowSoft: roles.yellow.soft, yellowOn: roles.yellow.on, yellowText: roles.yellow.text,
+    green: roles.green.accent, greenSoft: roles.green.soft, greenOn: roles.green.on, greenText: roles.green.text,
+    rose: roles.rose.accent, roseSoft: roles.rose.soft, roseOn: roles.rose.on, roseText: roles.rose.text,
+    blue: roles.blue.accent, blueSoft: roles.blue.soft, blueOn: roles.blue.on, blueText: roles.blue.text,
+    casa: roles.brown.accent, casaSoft: roles.brown.soft, casaOn: roles.brown.on, casaText: roles.brown.text,
+    teal: roles.teal.accent, tealSoft: roles.teal.soft, tealOn: roles.teal.on, tealText: roles.teal.text,
+    red: roles.red.accent, redSoft: roles.red.soft, redOn: roles.red.on, redText: roles.red.text,
+    purple: roles.purple.accent, purpleSoft: roles.purple.soft, purpleOn: roles.purple.on, purpleText: roles.purple.text,
     inkOn: roles.ink.on,
+    primaryText: textOf(brandBase, neutrals.surface),
     moonShade: neutrals.bg,
     moonGlow: neutrals.ink,
   };
@@ -296,6 +332,31 @@ export function moduleOf(
   const role = map[key] ?? map[fallback];
   const r = tokens.roles[role];
   return { tint: r.soft, accent: r.accent, onTint: r.on };
+}
+
+/**
+ * O tema dá **preenchimento próprio** ao card, ou o card é só um contorno?
+ *
+ * `surface === bg` significa que o card é a mesma cor da página, e quem o
+ * delimita é a linha — está na docstring do `clean` desde que ele existe:
+ * *"o card não tem preenchimento próprio — é o mesmo branco (ou o mesmo preto)
+ * do fundo, e o que o delimita é uma linha fina."*
+ *
+ * Existe como função, e não como campo no tema, para não haver duas fontes que
+ * possam discordar: quem responde é o hex, não uma declaração paralela. E não é
+ * o mesmo que `cardChrome`, que separa **sombra de linha** — o `cleanElev` não
+ * tem sombra e ainda assim preenche, com um degrau de superfície.
+ *
+ * A resposta é a mesma nos dois esquemas de cada tema, e `highlight-roles.test.ts`
+ * cobra isso: um componente que mudasse de casca com o esquema ganharia duas
+ * gramáticas, que é justamente o que a ADR 0022 rejeitou.
+ */
+export function fillsCards(
+  themeId: string | null | undefined,
+  scheme: ColorScheme,
+): boolean {
+  const n = neutralsOf(resolveTheme(themeId), scheme);
+  return n.surface !== n.bg;
 }
 
 /**

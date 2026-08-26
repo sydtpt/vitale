@@ -31,7 +31,25 @@ import {
   formatDistance,
 } from '../../lib/workout-format';
 import { activityHighlights, type ActivityHighlight } from '../../lib/running-highlights';
-import { colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import {
+  colors,
+  fonts,
+  radii,
+  roleColors,
+  shadows,
+  spacing,
+  themed,
+  themeFillsCards,
+  useTheme,
+} from '../../theme';
+
+/**
+ * Largura fixa do cartão de recorde. Precisa ser fixa para o `snapToInterval`
+ * ter passo — com largura ditada pelo conteúdo, cada cartão encaixaria num
+ * lugar diferente. 148 comporta o maior valor ("2863.8 km" em Geist Mono 20)
+ * e o maior rótulo ("Elevação 12 meses") sem truncar.
+ */
+const HL_CARD_W = 148;
 
 const PAGE_SIZE = 12;
 
@@ -118,13 +136,24 @@ function HighlightsRow({
   const summary = items.filter((h) => h.group === 'summary');
   const records = items.filter((h) => h.group === 'record');
 
+  // A casca sai do tema, não do esquema: temas que não dão preenchimento ao card
+  // (Clean) pintam a cor na borda, e o valor usa `text` em vez de `on`. Ver a
+  // ADR 0022 e `fillsCards()` no shared.
+  const filled = themeFillsCards();
+
   const renderCard = (h: ActivityHighlight) => {
+    const r = roleColors(h.role);
+    const skin = filled
+      ? { backgroundColor: r.soft, borderColor: 'transparent' }
+      : { backgroundColor: 'transparent', borderColor: r.accent };
+    const valueColor = filled ? r.on : r.text;
+
     const inner = (
       <>
         <Text style={styles.hlLabel} numberOfLines={1}>
           {h.label}
         </Text>
-        <Text style={[styles.hlValue, { color: h.fg }]}>{h.value}</Text>
+        <Text style={[styles.hlValue, { color: valueColor }]}>{h.value}</Text>
         {h.caption ? (
           <Text style={styles.hlCaption} numberOfLines={1}>
             {h.caption}
@@ -137,7 +166,7 @@ function HighlightsRow({
     const id = h.activityId;
     if (!id) {
       return (
-        <View key={h.key} style={[styles.hlCard, { backgroundColor: h.bg }]}>
+        <View key={h.key} style={[styles.hlCard, skin]}>
           {inner}
         </View>
       );
@@ -146,34 +175,35 @@ function HighlightsRow({
       <Pressable
         key={h.key}
         onPress={() => onPick(id)}
-        style={({ pressed }) => [styles.hlCard, { backgroundColor: h.bg }, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.hlCard, skin, pressed && styles.pressed]}
       >
         {inner}
       </Pressable>
     );
   };
 
+  // O corte na borda direita era o pior valor possível: perto demais de inteiro
+  // para ler como "arrasta para ver mais", cortado demais para ler como inteiro.
+  // O encaixe dá batente ao gesto e torna o cartão parcial francamente parcial.
+  const row = (items: ActivityHighlight[]) => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.hlRow}
+      snapToInterval={HL_CARD_W + spacing.sm}
+      snapToAlignment="start"
+      decelerationRate="fast"
+      disableIntervalMomentum
+    >
+      {items.map(renderCard)}
+    </ScrollView>
+  );
+
   return (
     <View style={styles.hlWrap}>
       <Text style={styles.hlTitle}>Recordes</Text>
-      {summary.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.hlRow}
-        >
-          {summary.map(renderCard)}
-        </ScrollView>
-      )}
-      {records.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.hlRow}
-        >
-          {records.map(renderCard)}
-        </ScrollView>
-      )}
+      {summary.length > 0 && row(summary)}
+      {records.length > 0 && row(records)}
     </View>
   );
 }
@@ -575,16 +605,19 @@ const styles = themed(() => StyleSheet.create({
   },
   hlRow: { gap: spacing.sm, paddingRight: spacing.lg },
   hlCard: {
-    backgroundColor: colors.surface,
     borderRadius: radii.xl,
+    // Sempre 1px: na casca preenchida a borda é transparente. Desenhar a linha
+    // condicionalmente mudaria a caixa de tamanho entre os temas.
+    borderWidth: 1,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    minWidth: 120,
+    width: HL_CARD_W,
     gap: 4,
   },
-  hlLabel: { fontSize: 11.5, color: colors.ink3, fontFamily: fonts.sansSemiBold },
+  // `ink2` e não `ink3`: o cinza claro do escuro sobre o tint claro media 2,94.
+  hlLabel: { fontSize: 11.5, color: colors.ink2, fontFamily: fonts.sansSemiBold },
   hlValue: { fontSize: 20, fontFamily: fonts.mono, color: colors.ink, marginTop: 2 },
-  hlCaption: { fontSize: 11, color: colors.ink3, fontFamily: fonts.mono },
+  hlCaption: { fontSize: 11, color: colors.ink2, fontFamily: fonts.mono },
 
   filterWrap: { marginBottom: 10, gap: 10 },
   toolbarRow: {

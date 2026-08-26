@@ -37,6 +37,8 @@ export {
   wallpaperBg,
   MOD,
   moduleColors,
+  roleColors,
+  themeFillsCards,
   themed,
   themedCacheKey,
   spacing,

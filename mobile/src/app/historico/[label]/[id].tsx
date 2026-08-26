@@ -27,7 +27,17 @@ import {
   formatClock,
   totalTimeS,
 } from '../../../lib/workout-format';
-import { colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../../theme';
+import {
+  colors,
+  fonts,
+  radii,
+  roleColors,
+  shadows,
+  spacing,
+  themed,
+  themeFillsCards,
+  useTheme,
+} from '../../../theme';
 
 type InfoRow = { label: string; value: string };
 
@@ -132,6 +142,7 @@ export default function AtividadeDetalheScreen() {
 
   // Recordes que esta atividade detém (maior distância, best efforts).
   const recordBadges = activityRecordBadges(_all, activity);
+  const badgesFilled = themeFillsCards();
 
   // Tempo em cada zona de FC (com % do total). null quando a atividade não tem dados.
   const hrZones = (() => {
@@ -269,12 +280,20 @@ export default function AtividadeDetalheScreen() {
 
           {recordBadges.length > 0 && (
             <View style={styles.recordBadges}>
-              {recordBadges.map((b) => (
-                <View key={b.key} style={[styles.recordBadge, { backgroundColor: b.bg }]}>
-                  <Ionicons name="trophy" size={12} color={b.fg} />
-                  <Text style={[styles.recordBadgeText, { color: b.fg }]}>{b.label}</Text>
-                </View>
-              ))}
+              {recordBadges.map((b) => {
+                const r = roleColors(b.role);
+                // Mesma casca da tira de Recordes — ver ADR 0022.
+                const skin = badgesFilled
+                  ? { backgroundColor: r.soft, borderColor: 'transparent' }
+                  : { backgroundColor: 'transparent', borderColor: r.accent };
+                const fg = badgesFilled ? r.on : r.text;
+                return (
+                  <View key={b.key} style={[styles.recordBadge, skin]}>
+                    <Ionicons name="trophy" size={12} color={fg} />
+                    <Text style={[styles.recordBadgeText, { color: fg }]}>{b.label}</Text>
+                  </View>
+                );
+              })}
             </View>
           )}
 
@@ -506,6 +525,9 @@ const styles = themed(() => StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 5,
     borderRadius: radii.pill,
+    // Sempre 1px; transparente na casca preenchida, para a pílula não mudar de
+    // tamanho entre os temas.
+    borderWidth: 1,
   },
   recordBadgeText: { fontSize: 12, fontFamily: fonts.sansBold },
 

@@ -122,6 +122,23 @@ check('ícone dentro do chip passa em todas as combinações', () => {
   );
 });
 
+check('texto de papel sobre a superfície passa em todas as combinações', () => {
+  const bad: string[] = [];
+  for (const c of COMBOS) {
+    for (const [role, r] of Object.entries(c.tokens.roles) as [RoleKey, { text: string }][]) {
+      const ratio = contrast(r.text, c.tokens.surface);
+      if (ratio < 4.5) bad.push(`${label(c)} ${role} text/surface ${ratio.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    `cor de papel ilegível como texto — é o que o token \`*Text\` existe para ` +
+      `impedir. \`accent\` promete só 3,0, que é o piso do traço, não o da ` +
+      `letra:\n    ${bad.join('\n    ')}`,
+  );
+});
+
 check('todo módulo tem ícone legível na sua caixa', () => {
   const bad: string[] = [];
   for (const c of COMBOS) {
@@ -251,6 +268,27 @@ check('a marca se destaca do fundo em toda combinação', () => {
     bad,
     [],
     `marca some no fundo — nem o preenchimento nem o contorno a separam:\n    ${bad.join('\n    ')}`,
+  );
+});
+
+/**
+ * O irmão do teste acima, na outra superfície e com o outro piso. Aquele cobra
+ * que a marca **se separe** do fundo — 3,0, piso de objeto gráfico. Este cobra
+ * que ela seja **legível como letra** — 4,5. São perguntas diferentes, e a
+ * distância entre elas é onde oito das 24 combinações estavam morando: o
+ * `verde` claro mede 2,09 sobre a superfície, e o `laranja` — a marca padrão —
+ * mede 3,31. Passavam no de cima e reprovavam aqui.
+ */
+check('texto da marca sobre a superfície passa em toda combinação', () => {
+  const bad: string[] = [];
+  for (const c of BRAND_COMBOS) {
+    const ratio = contrast(c.tokens.primaryText, c.tokens.surface);
+    if (ratio < 4.5) bad.push(`${brandLabel(c)} primaryText/surface ${ratio.toFixed(2)}`);
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    `marca ilegível como texto de link ou de botão sem preenchimento:\n    ${bad.join('\n    ')}`,
   );
 });
 

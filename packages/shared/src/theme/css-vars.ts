@@ -44,6 +44,7 @@ export function cssVars(tokens: ResolvedTokens): Record<string, string> {
     out[`--role-${role}`] = trio.accent;
     out[`--role-${role}-soft`] = trio.soft;
     out[`--role-${role}-on`] = trio.on;
+    out[`--role-${role}-text`] = trio.text;
   }
   return out;
 }
