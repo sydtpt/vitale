@@ -10,18 +10,31 @@ import {
   PALETTES,
   SAMPLE_ROUTE,
   THEMES,
+  deviceTimeZone,
   resolveTheme,
   resolveTokens,
   wallpapersFor,
+  type AppTheme,
   type BrandId,
   type MapStyle,
   type PaletteId,
+  type SolarScheme,
   type ThemeId,
 } from '@vitale/shared';
 import { useSettingsStore } from '../../store/settings.store';
 import { buildMapHtml } from '../../lib/map-html';
 import { RotinaBackground } from '../../components/ui/RotinaBackground';
-import { colors, fonts, radii, shadows, spacing, themed, useTheme, useThemedStyles } from '../../theme';
+import {
+  colors,
+  fonts,
+  radii,
+  shadows,
+  spacing,
+  themed,
+  useSolarScheme,
+  useTheme,
+  useThemedStyles,
+} from '../../theme';
 
 const MAP_STYLE_ORDER: MapStyle[] = [
   'voyager',
@@ -39,6 +52,88 @@ const MAP_STYLE_ORDER: MapStyle[] = [
 ];
 
 const THUMB = 24;
+
+/**
+ * O eixo Esquema, como quatro opções exclusivas.
+ *
+ * Era um `Switch` de "Modo Escuro" mais uma linha "Usar tema do sistema", e a
+ * dupla mentia: com o sistema no escuro, o switch aparecia desligado. Quatro
+ * estados mutuamente exclusivos pedem lista com marca de seleção, não um
+ * booleano com um modificador ao lado.
+ *
+ * O badge de cada uma aponta para um **papel da paleta**, não para um hex: o
+ * amarelo do sol e o roxo da noite mudam junto com a paleta escolhida, como
+ * qualquer outra cor do app. `role: null` é o neutro, que é a leitura certa
+ * para "o que o aparelho pedir" — nenhuma cor a reivindicar.
+ *
+ * As cores saem daqui em `badgeColors()`, e não desta constante, porque
+ * `colors` é um Proxy que resolve na LEITURA: lido no escopo do módulo, ele
+ * congelaria no esquema claro do boot. É a armadilha que `architecture.test.ts`
+ * cobra nos `StyleSheet`, e vale igual para um array de constantes.
+ */
+const SCHEME_OPTIONS: {
+  id: AppTheme;
+  label: string;
+  hint: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  role: 'yellow' | 'purple' | 'orange' | null;
+}[] = [
+  { id: 'light', label: 'Claro', hint: '', icon: 'sunny', role: 'yellow' },
+  { id: 'dark', label: 'Escuro', hint: '', icon: 'moon', role: 'purple' },
+  {
+    id: 'system',
+    label: 'Sistema',
+    hint: 'Acompanha o ajuste do aparelho',
+    icon: 'phone-portrait-outline',
+    role: null,
+  },
+  {
+    id: 'solar',
+    label: 'Solar',
+    hint: 'Acompanha o nascer e o pôr do sol',
+    icon: 'partly-sunny',
+    role: 'orange',
+  },
+];
+
+/** Fundo e primeiro plano do badge. Chamada no render — ver `SCHEME_OPTIONS`. */
+function badgeColors(role: 'yellow' | 'purple' | 'orange' | null): {
+  bg: string;
+  fg: string;
+} {
+  if (!role) return { bg: colors.ink3, fg: colors.surface };
+  const papel = colors.roles[role];
+  // `on` e não `accent`: é ícone DENTRO do preenchimento, e o amarelo cheio com
+  // branco por cima é justamente o par que o sistema de temas rejeita.
+  return { bg: papel.accent, fg: papel.on };
+}
+
+const HORA_FMT = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Legenda do "Solar" — o horário real da próxima virada, no lugar do usuário.
+ *
+ * Existe porque a opção, sem isso, é uma promessa não verificável: o usuário
+ * escolhe "Solar" e não tem como saber se o app achou onde ele está, se pegou
+ * a cidade certa, nem quando a tela vai mudar. Dizer "escurece às 21h17,
+ * Europe/Brussels" responde as três de uma vez — inclusive no caso chato, o de
+ * um fuso sem coordenada, onde a resposta honesta é dizer que caiu no sistema.
+ */
+function legendaSolar(estado: SolarScheme | null, fuso: string | null): string {
+  if (!estado) {
+    return fuso
+      ? `${fuso} não tem localização — seguindo o sistema`
+      : 'Sem fuso horário — seguindo o sistema';
+  }
+  const lugar = fuso ? ` · ${fuso.split('/').pop()!.replace(/_/g, ' ')}` : '';
+  if (!estado.until) {
+    // Dia ou noite polar: não há virada a anunciar, e inventar uma seria pior
+    // que não dizer nada.
+    return `${estado.scheme === 'light' ? 'Sol o dia todo' : 'Noite o dia todo'}${lugar}`;
+  }
+  const verbo = estado.scheme === 'light' ? 'Escurece' : 'Clareia';
+  return `${verbo} às ${HORA_FMT.format(estado.until)}${lugar}`;
+}
 
 function BlurSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   useTheme();
@@ -188,7 +283,12 @@ export default function AppSettingsScreen() {
   const blurIntensity = preferences?.blurIntensity ?? 50;
   const mapStyle = preferences?.mapStyle ?? 'voyager';
   const wallpaper = preferences?.wallpaper ?? 'flat';
-  const darkMode = theme === 'dark';
+
+  // Ligado mesmo quando a preferência é outra: a legenda só ajuda a escolher se
+  // aparecer ANTES de escolher. O timer vive enquanto esta tela estiver aberta.
+  const solar = useSolarScheme(true);
+  const fuso = useMemo(() => deviceTimeZone(), []);
+  const solarHint = legendaSolar(solar, fuso);
 
   // O núcleo decide o que faz sentido oferecer: some o decorativo nos temas que
   // abrem mão dele, e some o `pure` onde ele pintaria igual ao `flat` — no Clean,
@@ -228,36 +328,36 @@ export default function AppSettingsScreen() {
         {/* Appearance section */}
         <Text style={styles.sectionTitle}>Aparência</Text>
         <View style={styles.card}>
-          {/* Dark Mode */}
-          <View style={[styles.row, styles.rowBorder]}>
-            <View style={[styles.iconWrap, { backgroundColor: '#6E6CE8' }]}>
-              <Ionicons name="moon" size={15} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Modo Escuro</Text>
-            <Switch
-              value={darkMode}
-              onValueChange={(v) => updatePreferences({ theme: v ? 'dark' : 'light' })}
-              trackColor={{ true: colors.primary, false: colors.line }}
-              thumbColor={colors.surface}
-              ios_backgroundColor={colors.line}
-            />
-          </View>
-
-          {/* System theme */}
-          <Pressable
-            onPress={() => updatePreferences({ theme: 'system' })}
-            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-          >
-            <View style={[styles.iconWrap, { backgroundColor: '#9B9B9B' }]}>
-              <Ionicons name="phone-portrait-outline" size={15} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Usar tema do sistema</Text>
-            <View style={styles.rowRight}>
-              {theme === 'system' && (
-                <Ionicons name="checkmark" size={18} color={colors.primary} />
-              )}
-            </View>
-          </Pressable>
+          {SCHEME_OPTIONS.map((opcao, i) => {
+            const selected = theme === opcao.id;
+            const sub = opcao.id === 'solar' ? solarHint : opcao.hint;
+            const badge = badgeColors(opcao.role);
+            return (
+              <Pressable
+                key={opcao.id}
+                onPress={() => updatePreferences({ theme: opcao.id })}
+                style={({ pressed }) => [
+                  styles.row,
+                  i < SCHEME_OPTIONS.length - 1 && styles.rowBorder,
+                  pressed && styles.pressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Esquema ${opcao.label}`}
+              >
+                <View style={[styles.iconWrap, { backgroundColor: badge.bg }]}>
+                  <Ionicons name={opcao.icon} size={15} color={badge.fg} />
+                </View>
+                <View style={styles.rowMeta}>
+                  <Text style={styles.rowLabel}>{opcao.label}</Text>
+                  {!!sub && <Text style={styles.rowSub}>{sub}</Text>}
+                </View>
+                <View style={styles.rowRight}>
+                  {selected && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
         <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Visual</Text>
@@ -293,6 +393,9 @@ export default function AppSettingsScreen() {
               value={blurIntensity}
               onChange={(v) => updatePreferences({ blurIntensity: v })}
             />
+            <Text style={styles.sliderHint}>
+              Na barra de abas, 100% é o vidro do iOS 26 intacto e 0% não tem vidro nenhum.
+            </Text>
           </View>
         </View>
 
@@ -533,6 +636,13 @@ const createStyles = () => StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 2,
+  },
+  sliderHint: {
+    fontSize: 12,
+    fontFamily: fonts.sans,
+    color: colors.ink3,
+    marginTop: 6,
+    lineHeight: 16,
   },
   intensityValue: {
     marginLeft: 'auto',

@@ -8,12 +8,14 @@ O schema aqui **já está aplicado em produção** e registrado em `schema_migra
 
 | Coluna | Valores | Nota |
 |---|---|---|
-| `theme` | `system` \| `light` \| `dark` | **É o ESQUEMA, não o tema.** O nome ficou de quando havia só este eixo |
+| `theme` | `system` \| `light` \| `dark` \| `solar` | **É o ESQUEMA, não o tema.** O nome ficou de quando havia só este eixo |
 | `theme_id` | `orbe` \| `clean` \| `cleanElev` | A família de neutros |
 | `palette_id` | `orbe` \| `bruma` \| `terra` \| `neon` \| `joia` \| `acessivel` | Módulos **e** séries de gráfico |
 | `brand_id` | `laranja` \| `tinta` \| `azul` \| `verde` | O cromo |
 
 **A convivência de `theme` e `theme_id` é deliberada.** Renomear a coluna antiga custaria migration nos dois apps por ganho cosmético. Documentado nos dois lados; `UserPreferences.theme` carrega o mesmo aviso.
+
+**`solar` é a quarta opção do esquema** (`20260827130000_esquema_solar.sql`, aplicada e registrada em 2026-08-26, como o resto desta tabela): segue o nascer e o pôr do sol no lugar onde o aparelho está, deduzido do fuso horário. Ver [ADR 0023](../../decisions/0023-o-esquema-solar-le-o-fuso-nao-o-gps.md) e `packages/shared/src/astro/`. A coluna `theme` entrou no `ID_COLUMNS` do `architecture.test.ts` junto com a migration — ela tem `CHECK` desde a criação da tabela, mas estava fora da barreira que confere se o `CHECK` cobre o que o app grava.
 
 **Todo `CHECK` é criado com `drop constraint` + `add constraint` incondicional.** Nunca colado no `add column if not exists` — o Postgres pula o statement inteiro quando a coluna já existe, e o `check` vai junto, calado. Foi assim que o `wallpaper` ficou meses aceitando um conjunto de ids que nunca existiu no código. `architecture.test.ts` cobra que cada coluna de id aceite os ids que o app grava.
 

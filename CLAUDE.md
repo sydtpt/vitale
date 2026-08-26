@@ -86,7 +86,7 @@ hex numa tela.
 
 | Eixo | Opções | Governa |
 |---|---|---|
-| Esquema | sistema · claro · escuro | claro/escuro |
+| Esquema | sistema · claro · escuro · solar | claro/escuro |
 | Tema | Orbe · Clean · Clean elevado | superfície, tinta, linha |
 | Paleta | Orbe · Bruma · Terra · Néon · Joia · Acessível | cor dos módulos e das séries |
 | Marca | Laranja · Tinta · Azul · Verde | o cromo: FAB, CTA, toggle |

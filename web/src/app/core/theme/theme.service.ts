@@ -1,23 +1,34 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import {
+  APP_THEMES,
   cssVars,
+  msUntilSolarChange,
   resolveBrand,
   resolvePalette,
   resolveTheme,
   resolveTokens,
   shadowVars,
+  solarScheme,
   upsertUserPreferences,
+  type AppTheme,
   type BrandId,
   type ColorScheme,
   type PaletteId,
+  type SolarScheme,
   type ThemeId,
 } from '@vitale/shared';
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { PreferencesService } from '@core/services/preferences.service';
 
-/** Preferência de esquema; `system` segue o sistema operacional. */
-export type AppTheme = 'system' | 'light' | 'dark';
+/**
+ * Preferência de esquema.
+ *
+ * Reexportado do núcleo em vez de redeclarado: a web já teve a sua própria
+ * cópia desta união, e um valor novo no núcleo entrava aqui como `'system'`
+ * silencioso.
+ */
+export type { AppTheme };
 
 /** Espelho local dos quatro eixos, para a primeira pintura não piscar. */
 const CACHE_KEY = 'vitale.theme';
@@ -45,6 +56,7 @@ interface Cached {
 export class ThemeService {
   private readonly auth = inject(AuthService);
   private readonly prefs = inject(PreferencesService);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly cached = readCache();
 
@@ -56,11 +68,19 @@ export class ThemeService {
   /** O que o sistema operacional pede, quando a preferência é `system`. */
   private readonly systemDark = signal(prefersDark());
 
+  /**
+   * O que o sol pede, quando a preferência é `solar`. `null` num fuso sem
+   * coordenada (`UTC`, `Etc/GMT+3`), e aí a decisão volta para o sistema.
+   */
+  readonly solar = signal<SolarScheme | null>(solarScheme());
+
   /** Esquema efetivo, já resolvido. */
   readonly scheme = computed<ColorScheme>(() => {
     const pref = this.theme();
-    if (pref !== 'system') return pref;
-    return this.systemDark() ? 'dark' : 'light';
+    const doSistema: ColorScheme = this.systemDark() ? 'dark' : 'light';
+    if (pref === 'system') return doSistema;
+    if (pref === 'solar') return this.solar()?.scheme ?? doSistema;
+    return pref;
   });
 
   readonly tokens = computed(() =>
@@ -72,6 +92,8 @@ export class ThemeService {
     // SO com a aba aberta); sem este listener, `system` só valeria no boot.
     const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
     mq?.addEventListener('change', (e) => this.systemDark.set(e.matches));
+
+    this.watchSolar();
 
     // Espelha o que a PreferencesService carregou do Supabase.
     effect(
@@ -93,6 +115,45 @@ export class ThemeService {
     );
 
     effect(() => this.apply());
+  }
+
+  /**
+   * Mantém `solar` em dia: um timer até a próxima virada, mais um recálculo
+   * quando a aba volta a ficar visível.
+   *
+   * O timer sozinho não basta, e por dois motivos que só aparecem em uso real.
+   * O navegador **estrangula timers de aba em segundo plano** — um `setTimeout`
+   * de oito horas numa aba escondida acorda tarde, e o Orbe é um dashboard que
+   * fica aberto o dia inteiro, que é exatamente o caso. E a máquina pode ter
+   * hibernado no meio, ou o usuário ter atravessado um fuso com o notebook
+   * fechado. `visibilitychange` cobre os três: quando alguém volta a olhar para
+   * a página, ela recalcula antes de ser vista.
+   *
+   * Roda o relógio mesmo quando a preferência não é `solar`, e isso é de
+   * propósito: a tela de Aparência mostra o horário da próxima virada como
+   * legenda da opção, e ela precisa estar certa **antes** de alguém escolher.
+   * É um `setTimeout` por virada — duas vezes por dia.
+   */
+  private watchSolar(): void {
+    let timer: ReturnType<typeof setTimeout>;
+
+    const reagendar = () => {
+      const atual = solarScheme();
+      this.solar.set(atual);
+      clearTimeout(timer);
+      timer = setTimeout(reagendar, msUntilSolarChange(atual));
+    };
+    reagendar();
+
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') reagendar();
+    };
+    document.addEventListener('visibilitychange', aoVoltar);
+
+    this.destroyRef.onDestroy(() => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', aoVoltar);
+    });
   }
 
   /** Escreve tudo no `:root`. Chamado a cada mudança de qualquer eixo. */
@@ -167,7 +228,9 @@ function readCache(): Cached {
     if (!raw) return padrao;
     const v = JSON.parse(raw) as Partial<Cached>;
     return {
-      theme: v.theme ?? padrao.theme,
+      // Validado, e não só `?? padrao`: o cache é de outra versão do app tanto
+      // quanto desta, e os outros três eixos já passam por um `resolve*`.
+      theme: v.theme && APP_THEMES.includes(v.theme) ? v.theme : padrao.theme,
       themeId: resolveTheme(v.themeId).id,
       paletteId: resolvePalette(v.paletteId).id,
       brandId: resolveBrand(v.brandId).id,

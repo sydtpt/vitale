@@ -1,5 +1,6 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import {
+  APP_THEMES,
   resolveBrand,
   resolvePalette,
   resolveTheme,
@@ -11,6 +12,7 @@ import {
   type BrandId,
   type MapStyle,
   type PaletteId,
+  type AppTheme,
   type ReferenceLineColors,
   type ThemeId,
 } from '@vitale/shared';
@@ -45,7 +47,7 @@ export class PreferencesService {
    * primeira pintura não piscar.
    */
   readonly appearance = signal<{
-    theme: 'system' | 'light' | 'dark';
+    theme: AppTheme;
     themeId: ThemeId;
     paletteId: PaletteId;
     brandId: BrandId;
@@ -82,9 +84,11 @@ export class PreferencesService {
     this.referenceLines.set(
       referenceLineColors(data?.['reference_line_scheme'] as string | null | undefined),
     );
-    const theme = (data?.['theme'] as string | undefined) ?? 'system';
+    // A lista vem do núcleo em vez de repetida aqui: enumerar os valores à mão
+    // fez `solar`, escolhido no celular, chegar na web como `system` calado.
+    const theme = (data?.['theme'] as AppTheme | undefined) ?? 'system';
     this.appearance.set({
-      theme: theme === 'light' || theme === 'dark' ? theme : 'system',
+      theme: APP_THEMES.includes(theme) ? theme : 'system',
       themeId: resolveTheme(data?.['theme_id'] as string | null | undefined).id,
       paletteId: resolvePalette(data?.['palette_id'] as string | null | undefined).id,
       brandId: resolveBrand(data?.['brand_id'] as string | null | undefined).id,

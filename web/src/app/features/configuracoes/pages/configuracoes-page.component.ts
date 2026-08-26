@@ -1,16 +1,19 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { ThemeService, type AppTheme } from '@core/theme/theme.service';
 import {
   BRANDS,
   PALETTES,
   THEMES,
+  deviceTimeZone,
   resolveTokens,
   type BrandId,
   type ColorScheme,
   type PaletteId,
   type ThemeId,
 } from '@vitale/shared';
+
+const HORA_FMT = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 /**
  * Aparência da web — os quatro eixos do sistema de temas.
@@ -42,7 +45,33 @@ export class ConfiguracoesPageComponent {
     { id: 'system', label: 'Sistema' },
     { id: 'light', label: 'Claro' },
     { id: 'dark', label: 'Escuro' },
+    { id: 'solar', label: 'Solar' },
   ];
+
+  /**
+   * Explica o "Solar" com o horário real da próxima virada.
+   *
+   * A opção é uma promessa não verificável sem isto: nada na tela diz se o app
+   * achou onde você está, se pegou a cidade certa, nem quando a página vai
+   * mudar de cor. O horário responde as três — e o caso chato, o do fuso sem
+   * coordenada, é justamente o que mais precisa ser dito em voz alta.
+   */
+  protected readonly solarHint = computed(() => {
+    const estado = this.theme.solar();
+    const fuso = deviceTimeZone();
+    if (!estado) {
+      return fuso
+        ? `Solar: ${fuso} não tem localização — cai no esquema do sistema.`
+        : 'Solar: sem fuso horário — cai no esquema do sistema.';
+    }
+    const lugar = fuso ? fuso.split('/').pop()!.replace(/_/g, ' ') : 'aqui';
+    if (!estado.until) {
+      const cara = estado.scheme === 'light' ? 'sol o dia todo' : 'noite o dia todo';
+      return `Solar: ${cara} em ${lugar} — sem virada hoje.`;
+    }
+    const verbo = estado.scheme === 'light' ? 'escurece' : 'clareia';
+    return `Solar: ${verbo} às ${HORA_FMT.format(estado.until)} em ${lugar}.`;
+  });
 
   /** Papéis da prévia de paleta, na ordem em que aparecem na tela Semana. */
   protected readonly previewRoles = ['orange', 'yellow', 'blue', 'green', 'purple'] as const;

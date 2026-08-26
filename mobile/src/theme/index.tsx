@@ -27,6 +27,9 @@ import {
 import { useSettingsStore } from '../store/settings.store';
 import { useAuthStore } from '../store/auth.store';
 import { colors, setActiveAxes, type ColorScheme, type ThemeColors } from './tokens';
+import { useSolarScheme } from './useSolarScheme';
+
+export { useSolarScheme } from './useSolarScheme';
 
 export {
   colors,
@@ -79,7 +82,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [session, preferences]);
 
   const pref = preferences?.theme ?? 'system';
-  const scheme: ColorScheme = pref === 'system' ? (system === 'dark' ? 'dark' : 'light') : pref;
+
+  // O hook precisa ser chamado sempre (regra dos hooks); `enabled` é que decide
+  // se ele mantém timer. Devolve `null` num fuso sem coordenada — daí o `solar`
+  // cai no esquema do sistema, que é a degradação certa e não uma escolha
+  // arbitrária entre claro e escuro.
+  const solar = useSolarScheme(pref === 'solar');
+  const doSistema: ColorScheme = system === 'dark' ? 'dark' : 'light';
+  const scheme: ColorScheme =
+    pref === 'system' ? doSistema : pref === 'solar' ? (solar?.scheme ?? doSistema) : pref;
   const theme = resolveTheme(preferences?.themeId);
   const palette = resolvePalette(preferences?.paletteId);
   const brand = resolveBrand(preferences?.brandId);

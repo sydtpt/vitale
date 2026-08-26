@@ -19,7 +19,7 @@ O que o módulo entrega é a separação de quatro coisas que estavam grudadas, 
 
 | Eixo | Governa | Pergunta que responde |
 |---|---|---|
-| **Esquema** | claro / escuro / sistema | "está de dia ou de noite?" |
+| **Esquema** | claro / escuro / sistema / solar | "está de dia ou de noite?" |
 | **Tema** | superfície, tinta, linha | "que material é este app?" |
 | **Paleta** | cor dos módulos e das séries | "que clima cromático eu quero?" |
 | **Marca** | o cromo — FAB, CTA, toggle | "qual é a voz do app?" |
@@ -45,6 +45,9 @@ Travado por teste. Esses valores já estão na tela de quem usa o app; refatora�
 **CAP-5 — A paleta vale para o app e para os gráficos.**
 Havia dois seletores, um deles guardado só localmente. Um seletor só, e as séries de gráfico falam o mesmo vocabulário de papéis que os módulos.
 
+**CAP-7 — O esquema pode responder sozinho a "está de dia?".**
+A opção `solar` acompanha o nascer e o pôr do sol no lugar onde o aparelho está, deduzido do fuso horário — sem permissão de localização, sem dependência nativa, offline, e igual nos dois apps. A virada é no **crepúsculo civil**, não no pôr do sol: no instante em que o sol some ainda há meia hora de luz na rua. O núcleo (`astro/sun`, `astro/solar-scheme`) devolve o estado **e o instante da próxima virada**, para os apps agendarem um timer em vez de varrer o relógio. Ver [ADR 0023](../../decisions/0023-o-esquema-solar-le-o-fuso-nao-o-gps.md).
+
 **CAP-6 — Um módulo aponta para um papel, não para um hex.**
 `MODULE_ROLE` é a ponte. Módulo novo é uma linha ali, e as seis paletas o servem. Ver [ADR 0018](../../decisions/0018-cor-de-modulo-deriva-de-papel-cromatico.md).
 
@@ -53,6 +56,8 @@ Havia dois seletores, um deles guardado só localmente. Um seletor só, e as sé
 **Sombra e contorno são declarados pelo tema, não pelo componente.** `cardChrome` diz se o card se separa do fundo por sombra (`orbe`) ou por linha de 1px (`clean`, `cleanElev`). Os ~82 pontos que desenham card fazem `...shadows.card` e herdam a decisão.
 
 **Um card se separa do fundo por elevação OU por contorno — nunca por nada.** Quando o tema abre mão da elevação (`surface` igual ao `bg`), a borda deixa de ser acabamento e vira a única coisa que define o card. Testado.
+
+**Automático que não sabe onde está diz isso, em vez de chutar.** Fuso sem coordenada (`UTC`, `Etc/GMT+3`) faz o `solar` cair no esquema do sistema, e a tela de Aparência anuncia. Chutar o meridiano daria noites de 12 h o ano todo para quem pode estar em qualquer lugar do planeta.
 
 **Nenhum seletor oferece duas opções que produzem o mesmo resultado.** Foi o caso de `flat` e `pure` no Clean, onde `bg` e `bgPure` são o mesmo hex. `wallpapersFor()` filtra; testado.
 

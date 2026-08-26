@@ -586,7 +586,19 @@ export interface UserProfile {
   updatedAt: string;
 }
 
-export type AppTheme = 'system' | 'light' | 'dark';
+/**
+ * Preferência de **esquema** claro/escuro.
+ *
+ * `system` segue o sistema operacional; `solar` segue o sol no lugar onde o
+ * aparelho está — ver `astro/solar-scheme`. Os dois são automáticos, mas por
+ * autoridades diferentes, e é por isso que são opções separadas em vez de uma:
+ * quem deixa o celular no escuro o dia todo quer `system`, quem quer o app
+ * acompanhando a luz da janela quer `solar`.
+ */
+export type AppTheme = 'system' | 'light' | 'dark' | 'solar';
+
+/** Os valores de `AppTheme`, para UI e para a barreira do CHECK no banco. */
+export const APP_THEMES: readonly AppTheme[] = ['system', 'light', 'dark', 'solar'];
 
 /**
  * Preferências de app do usuário (tema, notificações, metas). 1 linha por usuário.
