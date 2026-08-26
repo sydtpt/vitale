@@ -80,7 +80,22 @@ cd mobile && pnpm dlx expo-doctor     # 21/21; falha nova dele é sinal, não ru
 
 ## Design System
 
-Paleta quente, orgânica:
+**Quatro eixos independentes** — ver [spec](docs/specs/temas/spec.md). Cor nasce em
+`packages/shared/src/theme` e chega por `resolveTokens()` / `moduleOf()`; nunca escreva
+hex numa tela.
+
+| Eixo | Opções | Governa |
+|---|---|---|
+| Esquema | sistema · claro · escuro | claro/escuro |
+| Tema | Orbe · Clean · Clean elevado | superfície, tinta, linha |
+| Paleta | Orbe · Bruma · Terra · Néon · Joia · Acessível | cor dos módulos e das séries |
+| Marca | Laranja · Tinta · Azul · Verde | o cromo: FAB, CTA, toggle |
+
+Três regras que o `architecture.test.ts` cobra: nenhum `StyleSheet` de escopo de módulo
+lê tema (congela no import), nenhuma variável CSS da web fora do sistema, e todo `CHECK`
+de id em `user_preferences` cobre os ids que o app grava.
+
+O recorte abaixo é o tema **Orbe claro** — o padrão histórico, preservado por teste:
 
 | Token         | Valor     | Uso                    |
 |---------------|-----------|------------------------|
@@ -176,4 +191,5 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [Ratings diários subjetivos (sono ao acordar + dia após 22h)](docs/specs/ratings-diarios/spec.md)
 - [Retrospectiva (resumo agregado por semana/mês/estação/ano/total com insights cruzados)](docs/specs/retrospectiva/spec.md) · [v2 — o jornal](docs/specs/retrospectiva/v2-jornal.md)
 - [Web: Visão detalhada por país (Ciclismo — mapa de rotas + cidades por país)](docs/specs/mapa-por-pais/spec.md) · [plan](docs/specs/mapa-por-pais/plan.md) · [data-model](docs/specs/mapa-por-pais/data-model.md) · [tasks](_bmad-output/implementation-artifacts/mapa-por-pais/tasks.md)
+- [Temas (quatro eixos: esquema, tema, paleta e marca)](docs/specs/temas/spec.md) · [data-model](docs/specs/temas/data-model.md)
 - [Cultura (livros, filmes, podcasts e álbuns)](docs/specs/cultura/spec.md) · [data-model](docs/specs/cultura/data-model.md) · [stories](docs/specs/cultura/stories.yaml)

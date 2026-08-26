@@ -1,6 +1,6 @@
 # 0017 — O map `MOD` esgota a paleta quente na nona cor
 
-**Status:** aceita
+**Status:** aceita · superada por [0018](0018-cor-de-modulo-deriva-de-papel-cromatico.md)
 **Data:** 2026-08-22
 
 ## Contexto
