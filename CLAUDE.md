@@ -61,15 +61,22 @@ cd mobile && pnpm dlx expo-doctor     # 21/21; falha nova dele é sinal, não ru
 - **Roteamento:** lazy-loaded feature routes
 - Estrutura: `web/src/app/features/<modulo>/`
 
-| Rota           | Módulo       |
-|----------------|--------------|
-| `/semana`      | Semana       |
-| `/treinos`     | Treinos      |
-| `/alimentacao` | Alimentação  |
-| `/compras`     | Compras      |
-| `/casa`        | Casa         |
-| `/financas`    | Finanças     |
-| `/metas`       | Metas        |
+As rotas moram em `web/src/main.ts` — **não** existe `app.routes.ts` (o
+`features/auth/auth.routes.ts` é código morto: exporta `AUTH_ROUTES`, que ninguém
+importa). Toda rota de aplicação está atrás de `profileGuard`; `''` redireciona para
+`/semana` e `**` para `/login`.
+
+| Grupo | Rotas |
+|---|---|
+| Visão geral | `/semana` (padrão) · `/retrospectiva` |
+| Treino e saúde | `/treinos` · `/workout-history` · `/saude` · `/recuperacao` · `/habits` |
+| Dia a dia | `/alimentacao` · `/compras` · `/casa` · `/tasks` · `/registros` · `/cultura` |
+| Dinheiro e metas | `/financas` · `/metas` |
+| Configuração | `/conexoes` · `/configuracoes` |
+| Auth | `/login` · `/register` · `/setup` |
+
+`/workout-history` aninha: `/:slug`, `/:slug/mapa` e `/:slug/:id`. A ordem importa —
+`/mapa` é declarada antes de `/:id`, senão o param a engole.
 
 ### Mobile (`mobile/`)
 - **Expo 57** / React Native 0.86 (New Architecture — única arquitetura a partir da RN 0.82)
@@ -107,16 +114,30 @@ O recorte abaixo é o tema **Orbe claro** — o padrão histórico, preservado p
 | `ink2`        | `#5C534A` | Texto secundário       |
 | `line`        | `#EFE6D8` | Bordas, separadores    |
 
-**Fontes:** Geist (sans), Geist Mono, Instrument Serif
+**Fontes:** Manrope (sans), Geist Mono (números — tabular, alinha em coluna),
+Instrument Serif (títulos). Embarcadas no binário do mobile pelo plugin `expo-font`.
 
-**Cores por módulo** (via `MOD` do shared):
-- `treino` → laranja `#F25C2B`
-- `food` → amarelo `#F5B946`
-- `agua` → azul `#6E8CC9`
-- `habito` → verde `#6FA86A`
-- `casa` → marrom `#B4825B`
-- `compras` → rosa `#E26A8A`
-- `financas` → tinta `#1F1B16`
+**Cores por módulo.** Desde a [ADR 0018](docs/decisions/0018-cor-de-modulo-deriva-de-papel-cromatico.md)
+cor de módulo **não é hex autorado**: cada paleta declara *papéis* e cada módulo aponta
+para um papel via `MODULE_ROLE` (`packages/shared/src/theme/palettes.ts`). O `tint` sai de
+`softOf(accent, esquema)` em OKLab. Em código novo use `moduleOf()` — ele responde à
+paleta e ao esquema; o `MOD` de `constants/tokens.ts` é só o recorte derivado da
+combinação histórica (paleta orbe · tema orbe · claro).
+
+São **10** módulos, não 7:
+
+| Módulo | Papel | `accent` no recorte Orbe claro |
+|---|---|---|
+| `treino` | orange | `#F25C2B` |
+| `food` | yellow | `#F5B946` |
+| `agua` | blue | `#6E8CC9` |
+| `habito` | green | `#6FA86A` |
+| `casa` | brown | `#B4825B` |
+| `compras` | rose | `#E26A8A` |
+| `financas` | ink | `#1F1B16` |
+| `tarefa` | teal | `#4F9D90` |
+| `cultura` | purple | `#8B6BB1` |
+| `saude` | red | `#E05C5C` |
 
 ## Convenções de código
 
@@ -145,22 +166,30 @@ O recorte abaixo é o tema **Orbe claro** — o padrão histórico, preservado p
 ### Feito ✅
 - Estrutura monorepo com workspace compartilhado
 - Design tokens e modelos de domínio completos
-- Web: roteamento, sidebar, 7 páginas de feature
+- Web: roteamento, sidebar, 17 páginas de feature
 - Web: dashboard Semana completo (heatmap, gráficos, listas, stats)
 - Web: página Treinos (gráfico de lift, gráfico de corrida, planejador semanal)
 - Web: página Finanças (gráfico de gastos, transações)
 - Mobile: navegação por tabs, Zustand store, tema
-- Mobile: 4 telas de tab (Hoje, Semana, Compras, Mais)
+- Mobile: 6 telas de tab (Hoje, Semana, Histórico, Saúde, Compras, Mais), mais as rotas
+  de stack (treinos, metas, cultura, tarefas, registros, hábitos, retrospectiva…)
+- Mobile: componentes UI (`DayRingCard`, `CheckButton`, `QuickAddSheet`) e fontes
+  embarcadas via plugin `expo-font`
+- Backend: Supabase — Postgres com RLS, 52 migrations, 4 edge functions Deno
+  (`connections-ingest`, `strava-oauth`, `intervals-link`, `cultura-search`)
+- Autenticação: `/login`, `/register`, `/setup`, com `profileGuard` em toda rota
+- Notificações **locais** (client-side, `scheduleNotificationAsync`): eventos de sync e
+  tarefas, retros agendadas; prefs em `user_preferences.notification_prefs`
+- Tarefas: módulo to-do nos dois apps — recorrências, carry/expire, gatilhos, conclusão
+  rica. 8 migrations `todo_*`/`tarefas` no repo
 - Temas: quatro eixos (esquema, tema, paleta, marca) nos dois apps, com contraste
   medido em vez de conferido. A web ganhou modo escuro, que não tinha
 
 ### Em andamento / Próximo 🔧
-- Tarefas: módulo to-do (web + mobile) — recorrências, carry/expire, gatilhos, conclusão rica. Falta aplicar migration e ponte real com Compras/Finanças
-- Mobile: componentes UI completos (`DayRingCard`, `CheckButton`, `QuickAddSheet`)
-- Mobile: carregamento de fontes (Geist, Instrument Serif)
-- Backend / integração com API
-- Autenticação
-- Push notifications
+- Tarefas: ponte real com Compras/Finanças
+- Push **remoto** (servidor): hoje só há notificação local agendada no device — não há
+  registro de token nem envio server-side
+- Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc
 
 ## Specs detalhados
 
