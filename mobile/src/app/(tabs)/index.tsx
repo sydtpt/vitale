@@ -190,7 +190,7 @@ export default function HojeScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
         <View style={styles.greet}>
           <View style={styles.greetText}>

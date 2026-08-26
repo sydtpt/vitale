@@ -253,6 +253,68 @@ check('BARREIRA — nenhum StyleSheet no escopo do módulo lê o tema', () => {
 });
 
 /**
+ * BARREIRA — nenhuma lista rolável do mobile mostra a barra de rolagem.
+ *
+ * O app é de captura rápida no telefone: a barra do sistema aparece por cima do
+ * conteúdo enquanto o dedo desliza, some sozinha e não informa nada que o
+ * próprio movimento já não diga. Eram 19 telas sem a prop contra ~40 com ela —
+ * o padrão já existia, só não estava trancado, e a barra pipocava justo nas
+ * telas mais usadas (Hoje, Semana, Mais).
+ *
+ * A prop é por eixo: rolagem horizontal esconde a horizontal, o resto esconde a
+ * vertical. Trancar em `={false}` (e não só na presença do nome) evita que um
+ * `showsVerticalScrollIndicator={debug}` passe batido.
+ */
+check('BARREIRA — nenhuma lista rolável do mobile mostra barra', () => {
+  const ROLAVEL = /^(?:Animated\.)?(?:ScrollView|FlatList|SectionList|VirtualizedList)$/;
+
+  // Os atributos vão até o `>` do NÍVEL ZERO de chaves: props carregam arrow
+  // functions (`renderItem={({ item }) => <Card />}`) e objetos aninhados, e um
+  // regex que parasse no primeiro `>` cortaria a tag no meio — lendo como
+  // "sem a prop" justamente as telas que a têm no fim da lista.
+  const tag = (src: string, i: number): { nome: string; attrs: string; fim: number } | null => {
+    let j = i + 1;
+    let nome = '';
+    while (j < src.length && /[A-Za-z0-9_.$]/.test(src[j])) nome += src[j++];
+    if (!ROLAVEL.test(nome)) return null;
+    let chaves = 0;
+    let aspas: string | null = null;
+    for (; j < src.length; j++) {
+      const c = src[j];
+      if (aspas) {
+        if (c === aspas && src[j - 1] !== '\\') aspas = null;
+      } else if (c === '"' || c === "'" || c === '`') aspas = c;
+      else if (c === '{') chaves++;
+      else if (c === '}') chaves--;
+      else if (c === '>' && chaves === 0) return { nome, attrs: src.slice(i, j + 1), fim: j };
+    }
+    return null;
+  };
+
+  const offenders: string[] = [];
+  for (const f of mobileFiles) {
+    const src = readFileSync(f, 'utf8');
+    for (let i = 0; i < src.length; i++) {
+      if (src[i] !== '<') continue;
+      const t = tag(src, i);
+      if (!t) continue;
+      i = t.fim;
+      const horizontal = /\bhorizontal\b(?!\s*=\s*\{false\})/.test(t.attrs);
+      const prop = horizontal ? 'showsHorizontalScrollIndicator' : 'showsVerticalScrollIndicator';
+      if (new RegExp(`${prop}=\\{false\\}`).test(t.attrs)) continue;
+      const linha = src.slice(0, i).split('\n').length;
+      offenders.push(`${f.replace(ROOT + '/', '')}:${linha} <${t.nome}> sem ${prop}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `lista rolável mostrando a barra:\n    ${offenders.join('\n    ')}\n` +
+      `  Acrescente showsVerticalScrollIndicator={false} (ou a horizontal, se rolar de lado).`,
+  );
+});
+
+/**
  * BARREIRA — toda `var(--x)` da web vem do sistema de temas ou de uma escala.
  *
  * A web pinta o `:root` em runtime a partir do `cssVars()`. Uma variável que o

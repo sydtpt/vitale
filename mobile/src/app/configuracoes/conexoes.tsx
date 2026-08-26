@@ -84,7 +84,7 @@ export default function ConexoesScreen() {
         <View style={styles.iconBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {actionError ? (
           <View style={styles.errorBanner}>
             <Ionicons name="alert-circle-outline" size={16} color={RED} />

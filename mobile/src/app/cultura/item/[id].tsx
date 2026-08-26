@@ -167,6 +167,7 @@ export default function CulturaItemScreen() {
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing['3xl'] }}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View style={s.topo}>
           {item.capaUrl

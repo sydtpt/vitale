@@ -516,7 +516,7 @@ export default function RetrospectivaScreen() {
         ) : <View style={styles.iconBtn} />}
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]} showsVerticalScrollIndicator={false}>
         {/* Controles */}
         <View style={styles.seg}>
           {KINDS.map((k) => (

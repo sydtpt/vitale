@@ -37,7 +37,7 @@ export default function RegisterScreen() {
       style={s.page}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={s.card}>
           <Text style={s.logo}>Orbe</Text>
           <Text style={s.subtitle}>Crie sua conta</Text>

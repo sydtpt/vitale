@@ -39,7 +39,7 @@ export default function MaisScreen() {
   const tabBarHeight = useTabBarHeight();
   const tabBarScroll = useTabBarScroll();
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll} showsVerticalScrollIndicator={false}>
       <View style={styles.greet}>
         <Text style={styles.title}>Mais</Text>
       </View>

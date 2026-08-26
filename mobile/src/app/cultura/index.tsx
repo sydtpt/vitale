@@ -81,6 +81,7 @@ export default function CulturaHubScreen() {
           padding: spacing.lg,
           paddingBottom: insets.bottom + spacing['3xl'],
         }}
+        showsVerticalScrollIndicator={false}
       >
         {loading && !loaded && (
           <ActivityIndicator color={mc.accent} style={{ marginTop: spacing.xl }} />

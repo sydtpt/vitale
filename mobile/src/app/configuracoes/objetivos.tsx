@@ -84,7 +84,7 @@ export default function ObjetivosScreen() {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.sectionTitle}>Nutrição diária</Text>
           <View style={styles.card}>
             {[

@@ -166,7 +166,7 @@ export default function SemanaScreen() {
         <Text style={styles.headerTitle}>Semana</Text>
         <View style={styles.headerSpacer} />
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]} {...tabBarScroll} showsVerticalScrollIndicator={false}>
         <View style={styles.greet}>
           <Text style={styles.eyebrow}>{weekRangeLabel(weekDates)}</Text>
           <Text style={styles.title}>Sua semana</Text>

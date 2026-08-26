@@ -179,6 +179,7 @@ export default function CulturaAdicionarScreen() {
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing['3xl'] }}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         {!confirmando && (
           <>

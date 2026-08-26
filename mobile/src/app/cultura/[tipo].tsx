@@ -89,6 +89,7 @@ export default function CulturaTipoScreen() {
           padding: spacing.lg,
           paddingBottom: insets.bottom + spacing['3xl'],
         }}
+        showsVerticalScrollIndicator={false}
       >
         <View style={s.filtros}>
           {(['todos', ...ORDEM] as Filtro[]).map((f) => {

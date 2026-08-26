@@ -88,7 +88,7 @@ export default function DadosScreen() {
         <View style={styles.iconBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Exportar</Text>
         <View style={styles.card}>
           <Pressable onPress={exportData} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
