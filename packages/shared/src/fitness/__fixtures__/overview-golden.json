@@ -1,0 +1,1954 @@
+{
+  "semana/distance": {
+    "granularity": "day",
+    "totals": {
+      "count": 3,
+      "distanceM": 15000,
+      "durationS": 11400,
+      "calories": 1300
+    },
+    "targetS": 814.2857142857143,
+    "currentTargetS": 559.8214285714286,
+    "effortAvgS": 1073.5714285714287,
+    "effortTotalS": 7515,
+    "legend": [
+      "Ciclismo",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2026-08-14",
+        "SEX",
+        12000,
+        "Ciclismo:12000",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-15",
+        "SÁB",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-16",
+        "DOM",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "SEG",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-18",
+        "TER",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-19",
+        "QUA",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-20",
+        "QUI",
+        3000,
+        "Corrida:3000",
+        1755.0000000000002,
+        ""
+      ]
+    ]
+  },
+  "semana/duration": {
+    "granularity": "day",
+    "totals": {
+      "count": 3,
+      "distanceM": 15000,
+      "durationS": 11400,
+      "calories": 1300
+    },
+    "targetS": 814.2857142857143,
+    "currentTargetS": 559.8214285714286,
+    "effortAvgS": 1073.5714285714287,
+    "effortTotalS": 7515,
+    "legend": [
+      "Ciclismo",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2026-08-14",
+        "SEX",
+        9600,
+        "Ciclismo:9600",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-15",
+        "SÁB",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-16",
+        "DOM",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "SEG",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-18",
+        "TER",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-19",
+        "QUA",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-20",
+        "QUI",
+        1800,
+        "Corrida:1800",
+        1755.0000000000002,
+        ""
+      ]
+    ]
+  },
+  "semana/calories": {
+    "granularity": "day",
+    "totals": {
+      "count": 3,
+      "distanceM": 15000,
+      "durationS": 11400,
+      "calories": 1300
+    },
+    "targetS": 814.2857142857143,
+    "currentTargetS": 559.8214285714286,
+    "effortAvgS": 1073.5714285714287,
+    "effortTotalS": 7515,
+    "legend": [
+      "Ciclismo",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2026-08-14",
+        "SEX",
+        1100,
+        "Ciclismo:1100",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-15",
+        "SÁB",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-16",
+        "DOM",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "SEG",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-18",
+        "TER",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-19",
+        "QUA",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-20",
+        "QUI",
+        200,
+        "Corrida:200",
+        1755.0000000000002,
+        ""
+      ]
+    ]
+  },
+  "semana/count": {
+    "granularity": "day",
+    "totals": {
+      "count": 3,
+      "distanceM": 15000,
+      "durationS": 11400,
+      "calories": 1300
+    },
+    "targetS": 814.2857142857143,
+    "currentTargetS": 559.8214285714286,
+    "effortAvgS": 1073.5714285714287,
+    "effortTotalS": 7515,
+    "legend": [
+      "Ciclismo",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2026-08-14",
+        "SEX",
+        2,
+        "Ciclismo:2",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-15",
+        "SÁB",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-16",
+        "DOM",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "SEG",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-18",
+        "TER",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-19",
+        "QUA",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-20",
+        "QUI",
+        1,
+        "Corrida:1",
+        1755.0000000000002,
+        ""
+      ]
+    ]
+  },
+  "mes/distance": {
+    "granularity": "week",
+    "totals": {
+      "count": 9,
+      "distanceM": 69000,
+      "durationS": 44400,
+      "calories": 3400
+    },
+    "targetS": 5700,
+    "currentTargetS": 3002.6785714285716,
+    "effortAvgS": 5601,
+    "effortTotalS": 28005,
+    "legend": [
+      "Corrida",
+      "Caminhada",
+      "Ciclismo",
+      "Musculação"
+    ],
+    "buckets": [
+      [
+        "2026-07-20",
+        "20/07",
+        30000,
+        "Corrida:30000",
+        8190.000000000002,
+        ""
+      ],
+      [
+        "2026-07-27",
+        "27/07",
+        24000,
+        "Caminhada:24000",
+        6600,
+        ""
+      ],
+      [
+        "2026-08-03",
+        "03/08",
+        0,
+        "",
+        5700,
+        ""
+      ],
+      [
+        "2026-08-10",
+        "10/08",
+        12000,
+        "Ciclismo:12000",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "17/08",
+        3000,
+        "Corrida:3000",
+        1755.0000000000002,
+        ""
+      ]
+    ]
+  },
+  "mes/duration": {
+    "granularity": "week",
+    "totals": {
+      "count": 9,
+      "distanceM": 69000,
+      "durationS": 44400,
+      "calories": 3400
+    },
+    "targetS": 5700,
+    "currentTargetS": 3002.6785714285716,
+    "effortAvgS": 5601,
+    "effortTotalS": 28005,
+    "legend": [
+      "Caminhada",
+      "Musculação",
+      "Corrida",
+      "Ciclismo"
+    ],
+    "buckets": [
+      [
+        "2026-07-20",
+        "20/07",
+        8400,
+        "Corrida:8400",
+        8190.000000000002,
+        ""
+      ],
+      [
+        "2026-07-27",
+        "27/07",
+        13200,
+        "Caminhada:13200",
+        6600,
+        ""
+      ],
+      [
+        "2026-08-03",
+        "03/08",
+        11400,
+        "Musculação:11400",
+        5700,
+        ""
+      ],
+      [
+        "2026-08-10",
+        "10/08",
+        9600,
+        "Ciclismo:9600",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "17/08",
+        1800,
+        "Corrida:1800",
+        1755.0000000000002,
+        ""
+      ]
+    ]
+  },
+  "mes/calories": {
+    "granularity": "week",
+    "totals": {
+      "count": 9,
+      "distanceM": 69000,
+      "durationS": 44400,
+      "calories": 3400
+    },
+    "targetS": 5700,
+    "currentTargetS": 3002.6785714285716,
+    "effortAvgS": 5601,
+    "effortTotalS": 28005,
+    "legend": [
+      "Ciclismo",
+      "Musculação",
+      "Corrida",
+      "Caminhada"
+    ],
+    "buckets": [
+      [
+        "2026-07-20",
+        "20/07",
+        500,
+        "Corrida:500",
+        8190.000000000002,
+        ""
+      ],
+      [
+        "2026-07-27",
+        "27/07",
+        700,
+        "Caminhada:700",
+        6600,
+        ""
+      ],
+      [
+        "2026-08-03",
+        "03/08",
+        900,
+        "Musculação:900",
+        5700,
+        ""
+      ],
+      [
+        "2026-08-10",
+        "10/08",
+        1100,
+        "Ciclismo:1100",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "17/08",
+        200,
+        "Corrida:200",
+        1755.0000000000002,
+        ""
+      ]
+    ]
+  },
+  "mes/count": {
+    "granularity": "week",
+    "totals": {
+      "count": 9,
+      "distanceM": 69000,
+      "durationS": 44400,
+      "calories": 3400
+    },
+    "targetS": 5700,
+    "currentTargetS": 3002.6785714285716,
+    "effortAvgS": 5601,
+    "effortTotalS": 28005,
+    "legend": [
+      "Corrida",
+      "Ciclismo",
+      "Musculação",
+      "Caminhada"
+    ],
+    "buckets": [
+      [
+        "2026-07-20",
+        "20/07",
+        2,
+        "Corrida:2",
+        8190.000000000002,
+        ""
+      ],
+      [
+        "2026-07-27",
+        "27/07",
+        2,
+        "Caminhada:2",
+        6600,
+        ""
+      ],
+      [
+        "2026-08-03",
+        "03/08",
+        2,
+        "Musculação:2",
+        5700,
+        ""
+      ],
+      [
+        "2026-08-10",
+        "10/08",
+        2,
+        "Ciclismo:2",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "17/08",
+        1,
+        "Corrida:1",
+        1755.0000000000002,
+        ""
+      ]
+    ]
+  },
+  "meses12/distance": {
+    "granularity": "month",
+    "totals": {
+      "count": 67,
+      "distanceM": 462000,
+      "durationS": 323400,
+      "calories": 26800
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 17077.5,
+    "effortTotalS": 204930,
+    "legend": [
+      "Corrida",
+      "Caminhada",
+      "Ciclismo",
+      "Musculação"
+    ],
+    "buckets": [
+      [
+        "2025-8",
+        "set",
+        43500,
+        "Corrida:12000|Caminhada:16500|Ciclismo:15000",
+        16965,
+        ""
+      ],
+      [
+        "2025-9",
+        "out",
+        27000,
+        "Corrida:13500|Caminhada:10500|Ciclismo:3000",
+        9255,
+        ""
+      ],
+      [
+        "2025-10",
+        "nov",
+        31500,
+        "Corrida:15000|Caminhada:12000|Ciclismo:4500",
+        14520,
+        ""
+      ],
+      [
+        "2025-11",
+        "dez",
+        22500,
+        "Corrida:3000|Caminhada:13500|Ciclismo:6000",
+        15645,
+        ""
+      ],
+      [
+        "2026-0",
+        "jan",
+        36000,
+        "Corrida:4500|Caminhada:15000|Ciclismo:16500",
+        12555,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        19500,
+        "Corrida:6000|Caminhada:3000|Ciclismo:10500",
+        15900,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        24000,
+        "Corrida:7500|Caminhada:4500|Ciclismo:12000",
+        9930,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        28500,
+        "Corrida:9000|Caminhada:6000|Ciclismo:13500",
+        14355,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        79500,
+        "Corrida:34500|Caminhada:15000|Ciclismo:30000",
+        29925,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        51000,
+        "Corrida:27000|Caminhada:18000|Ciclismo:6000",
+        22155,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        84000,
+        "Corrida:30000|Caminhada:45000|Ciclismo:9000",
+        30510,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        15000,
+        "Corrida:3000|Ciclismo:12000",
+        13215,
+        "emp"
+      ],
+      [
+        "2025-7",
+        "ago '25",
+        30000,
+        "Corrida:10500|Caminhada:6000|Ciclismo:13500",
+        null,
+        "cmp"
+      ]
+    ]
+  },
+  "meses12/duration": {
+    "granularity": "month",
+    "totals": {
+      "count": 67,
+      "distanceM": 462000,
+      "durationS": 323400,
+      "calories": 26800
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 17077.5,
+    "effortTotalS": 204930,
+    "legend": [
+      "Ciclismo",
+      "Musculação",
+      "Caminhada",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2025-8",
+        "set",
+        28200,
+        "Ciclismo:3000|Musculação:7200|Caminhada:12600|Corrida:5400",
+        16965,
+        ""
+      ],
+      [
+        "2025-9",
+        "out",
+        15600,
+        "Ciclismo:6000|Musculação:3600|Caminhada:4200|Corrida:1800",
+        9255,
+        ""
+      ],
+      [
+        "2025-10",
+        "nov",
+        24000,
+        "Ciclismo:2400|Musculação:9600|Caminhada:7200|Corrida:4800",
+        14520,
+        ""
+      ],
+      [
+        "2025-11",
+        "dez",
+        22800,
+        "Ciclismo:5400|Musculação:6000|Caminhada:3600|Corrida:7800",
+        15645,
+        ""
+      ],
+      [
+        "2026-0",
+        "jan",
+        19800,
+        "Ciclismo:6600|Musculação:2400|Caminhada:6600|Corrida:4200",
+        12555,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        23400,
+        "Ciclismo:7800|Musculação:5400|Caminhada:3000|Corrida:7200",
+        15900,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        15600,
+        "Ciclismo:4200|Musculação:1800|Caminhada:6000|Corrida:3600",
+        9930,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        21000,
+        "Ciclismo:7200|Musculação:4800|Caminhada:2400|Corrida:6600",
+        14355,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        45600,
+        "Ciclismo:11400|Musculação:13200|Caminhada:8400|Corrida:12600",
+        29925,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        33600,
+        "Ciclismo:10800|Musculação:6000|Caminhada:7800|Corrida:9000",
+        22155,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        51000,
+        "Ciclismo:10200|Musculação:12000|Caminhada:20400|Corrida:8400",
+        30510,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        22800,
+        "Ciclismo:9600|Musculação:11400|Corrida:1800",
+        13215,
+        "emp"
+      ],
+      [
+        "2025-7",
+        "ago '25",
+        15000,
+        "Ciclismo:6600|Musculação:4200|Caminhada:1800|Corrida:2400",
+        null,
+        "cmp"
+      ]
+    ]
+  },
+  "meses12/calories": {
+    "granularity": "month",
+    "totals": {
+      "count": 67,
+      "distanceM": 462000,
+      "durationS": 323400,
+      "calories": 26800
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 17077.5,
+    "effortTotalS": 204930,
+    "legend": [
+      "Musculação",
+      "Caminhada",
+      "Ciclismo",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2025-8",
+        "set",
+        2000,
+        "Musculação:300|Caminhada:800|Ciclismo:400|Corrida:500",
+        16965,
+        ""
+      ],
+      [
+        "2025-9",
+        "out",
+        1700,
+        "Musculação:275|Caminhada:575|Ciclismo:375|Corrida:475",
+        9255,
+        ""
+      ],
+      [
+        "2025-10",
+        "nov",
+        1825,
+        "Musculação:475|Caminhada:550|Ciclismo:350|Corrida:450",
+        14520,
+        ""
+      ],
+      [
+        "2025-11",
+        "dez",
+        1475,
+        "Musculação:200|Caminhada:525|Ciclismo:325|Corrida:425",
+        15645,
+        ""
+      ],
+      [
+        "2026-0",
+        "jan",
+        2075,
+        "Musculação:600|Caminhada:500|Ciclismo:575|Corrida:400",
+        12555,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        1675,
+        "Musculação:575|Caminhada:475|Ciclismo:250|Corrida:375",
+        15900,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        1575,
+        "Musculação:550|Caminhada:450|Ciclismo:225|Corrida:350",
+        9930,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        1475,
+        "Musculação:525|Caminhada:425|Ciclismo:200|Corrida:325",
+        14355,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        3625,
+        "Musculação:1050|Caminhada:850|Ciclismo:825|Corrida:900",
+        29925,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        3125,
+        "Musculação:1000|Caminhada:800|Ciclismo:775|Corrida:550",
+        22155,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        4050,
+        "Musculação:950|Caminhada:1450|Ciclismo:1150|Corrida:500",
+        30510,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        2200,
+        "Musculação:900|Ciclismo:1100|Corrida:200",
+        13215,
+        "emp"
+      ],
+      [
+        "2025-7",
+        "ago '25",
+        1500,
+        "Musculação:325|Caminhada:225|Ciclismo:425|Corrida:525",
+        null,
+        "cmp"
+      ]
+    ]
+  },
+  "meses12/count": {
+    "granularity": "month",
+    "totals": {
+      "count": 67,
+      "distanceM": 462000,
+      "durationS": 323400,
+      "calories": 26800
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 17077.5,
+    "effortTotalS": 204930,
+    "legend": [
+      "Ciclismo",
+      "Musculação",
+      "Caminhada",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2025-8",
+        "set",
+        5,
+        "Ciclismo:1|Musculação:1|Caminhada:2|Corrida:1",
+        16965,
+        ""
+      ],
+      [
+        "2025-9",
+        "out",
+        4,
+        "Ciclismo:1|Musculação:1|Caminhada:1|Corrida:1",
+        9255,
+        ""
+      ],
+      [
+        "2025-10",
+        "nov",
+        5,
+        "Ciclismo:1|Musculação:2|Caminhada:1|Corrida:1",
+        14520,
+        ""
+      ],
+      [
+        "2025-11",
+        "dez",
+        4,
+        "Ciclismo:1|Musculação:1|Caminhada:1|Corrida:1",
+        15645,
+        ""
+      ],
+      [
+        "2026-0",
+        "jan",
+        5,
+        "Ciclismo:2|Musculação:1|Caminhada:1|Corrida:1",
+        12555,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        4,
+        "Ciclismo:1|Musculação:1|Caminhada:1|Corrida:1",
+        15900,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        4,
+        "Ciclismo:1|Musculação:1|Caminhada:1|Corrida:1",
+        9930,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        4,
+        "Ciclismo:1|Musculação:1|Caminhada:1|Corrida:1",
+        14355,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        9,
+        "Ciclismo:2|Musculação:2|Caminhada:2|Corrida:3",
+        29925,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        8,
+        "Ciclismo:2|Musculação:2|Caminhada:2|Corrida:2",
+        22155,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        10,
+        "Ciclismo:2|Musculação:2|Caminhada:4|Corrida:2",
+        30510,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        5,
+        "Ciclismo:2|Musculação:2|Corrida:1",
+        13215,
+        "emp"
+      ],
+      [
+        "2025-7",
+        "ago '25",
+        4,
+        "Ciclismo:1|Musculação:1|Caminhada:1|Corrida:1",
+        null,
+        "cmp"
+      ]
+    ]
+  },
+  "ano/distance": {
+    "granularity": "month",
+    "totals": {
+      "count": 49,
+      "distanceM": 337500,
+      "durationS": 232800,
+      "calories": 19800
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 18568.125,
+    "effortTotalS": 148545,
+    "legend": [
+      "Corrida",
+      "Ciclismo",
+      "Caminhada",
+      "Musculação"
+    ],
+    "buckets": [
+      [
+        "2026-0",
+        "jan",
+        36000,
+        "Corrida:4500|Ciclismo:16500|Caminhada:15000",
+        12555,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        19500,
+        "Corrida:6000|Ciclismo:10500|Caminhada:3000",
+        15900,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        24000,
+        "Corrida:7500|Ciclismo:12000|Caminhada:4500",
+        9930,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        28500,
+        "Corrida:9000|Ciclismo:13500|Caminhada:6000",
+        14355,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        79500,
+        "Corrida:34500|Ciclismo:30000|Caminhada:15000",
+        29925,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        51000,
+        "Corrida:27000|Ciclismo:6000|Caminhada:18000",
+        22155,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        84000,
+        "Corrida:30000|Ciclismo:9000|Caminhada:45000",
+        30510,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        15000,
+        "Corrida:3000|Ciclismo:12000",
+        13215,
+        "emp"
+      ]
+    ]
+  },
+  "ano/duration": {
+    "granularity": "month",
+    "totals": {
+      "count": 49,
+      "distanceM": 337500,
+      "durationS": 232800,
+      "calories": 19800
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 18568.125,
+    "effortTotalS": 148545,
+    "legend": [
+      "Ciclismo",
+      "Musculação",
+      "Caminhada",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2026-0",
+        "jan",
+        19800,
+        "Ciclismo:6600|Musculação:2400|Caminhada:6600|Corrida:4200",
+        12555,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        23400,
+        "Ciclismo:7800|Musculação:5400|Caminhada:3000|Corrida:7200",
+        15900,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        15600,
+        "Ciclismo:4200|Musculação:1800|Caminhada:6000|Corrida:3600",
+        9930,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        21000,
+        "Ciclismo:7200|Musculação:4800|Caminhada:2400|Corrida:6600",
+        14355,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        45600,
+        "Ciclismo:11400|Musculação:13200|Caminhada:8400|Corrida:12600",
+        29925,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        33600,
+        "Ciclismo:10800|Musculação:6000|Caminhada:7800|Corrida:9000",
+        22155,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        51000,
+        "Ciclismo:10200|Musculação:12000|Caminhada:20400|Corrida:8400",
+        30510,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        22800,
+        "Ciclismo:9600|Musculação:11400|Corrida:1800",
+        13215,
+        "emp"
+      ]
+    ]
+  },
+  "ano/calories": {
+    "granularity": "month",
+    "totals": {
+      "count": 49,
+      "distanceM": 337500,
+      "durationS": 232800,
+      "calories": 19800
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 18568.125,
+    "effortTotalS": 148545,
+    "legend": [
+      "Musculação",
+      "Ciclismo",
+      "Caminhada",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2026-0",
+        "jan",
+        2075,
+        "Musculação:600|Ciclismo:575|Caminhada:500|Corrida:400",
+        12555,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        1675,
+        "Musculação:575|Ciclismo:250|Caminhada:475|Corrida:375",
+        15900,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        1575,
+        "Musculação:550|Ciclismo:225|Caminhada:450|Corrida:350",
+        9930,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        1475,
+        "Musculação:525|Ciclismo:200|Caminhada:425|Corrida:325",
+        14355,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        3625,
+        "Musculação:1050|Ciclismo:825|Caminhada:850|Corrida:900",
+        29925,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        3125,
+        "Musculação:1000|Ciclismo:775|Caminhada:800|Corrida:550",
+        22155,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        4050,
+        "Musculação:950|Ciclismo:1150|Caminhada:1450|Corrida:500",
+        30510,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        2200,
+        "Musculação:900|Ciclismo:1100|Corrida:200",
+        13215,
+        "emp"
+      ]
+    ]
+  },
+  "ano/count": {
+    "granularity": "month",
+    "totals": {
+      "count": 49,
+      "distanceM": 337500,
+      "durationS": 232800,
+      "calories": 19800
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 18568.125,
+    "effortTotalS": 148545,
+    "legend": [
+      "Ciclismo",
+      "Corrida",
+      "Musculação",
+      "Caminhada"
+    ],
+    "buckets": [
+      [
+        "2026-0",
+        "jan",
+        5,
+        "Ciclismo:2|Corrida:1|Musculação:1|Caminhada:1",
+        12555,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        4,
+        "Ciclismo:1|Corrida:1|Musculação:1|Caminhada:1",
+        15900,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        4,
+        "Ciclismo:1|Corrida:1|Musculação:1|Caminhada:1",
+        9930,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        4,
+        "Ciclismo:1|Corrida:1|Musculação:1|Caminhada:1",
+        14355,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        9,
+        "Ciclismo:2|Corrida:3|Musculação:2|Caminhada:2",
+        29925,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        8,
+        "Ciclismo:2|Corrida:2|Musculação:2|Caminhada:2",
+        22155,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        10,
+        "Ciclismo:2|Corrida:2|Musculação:2|Caminhada:4",
+        30510,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        5,
+        "Ciclismo:2|Corrida:1|Musculação:2",
+        13215,
+        "emp"
+      ]
+    ]
+  },
+  "sempre/distance": {
+    "granularity": "year",
+    "totals": {
+      "count": 160,
+      "distanceM": 1083000,
+      "durationS": 766800,
+      "calories": 63900
+    },
+    "targetS": 297214.28571428574,
+    "currentTargetS": 188625.89285714287,
+    "effortAvgS": 123000,
+    "effortTotalS": 492000,
+    "legend": [
+      "Corrida",
+      "Caminhada",
+      "Ciclismo",
+      "Musculação"
+    ],
+    "buckets": [
+      [
+        "2023",
+        "2023",
+        43500,
+        "Corrida:7500|Caminhada:28500|Ciclismo:7500",
+        17550,
+        ""
+      ],
+      [
+        "2024",
+        "2024",
+        342000,
+        "Corrida:114000|Caminhada:102000|Ciclismo:126000",
+        159780,
+        ""
+      ],
+      [
+        "2025",
+        "2025",
+        360000,
+        "Corrida:124500|Caminhada:126000|Ciclismo:109500",
+        166125,
+        ""
+      ],
+      [
+        "2026",
+        "2026",
+        337500,
+        "Corrida:121500|Caminhada:106500|Ciclismo:109500",
+        148545,
+        ""
+      ]
+    ]
+  },
+  "sempre/duration": {
+    "granularity": "year",
+    "totals": {
+      "count": 160,
+      "distanceM": 1083000,
+      "durationS": 766800,
+      "calories": 63900
+    },
+    "targetS": 297214.28571428574,
+    "currentTargetS": 188625.89285714287,
+    "effortAvgS": 123000,
+    "effortTotalS": 492000,
+    "legend": [
+      "Ciclismo",
+      "Musculação",
+      "Caminhada",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2023",
+        "2023",
+        25800,
+        "Ciclismo:6600|Musculação:4200|Caminhada:6600|Corrida:8400",
+        17550,
+        ""
+      ],
+      [
+        "2024",
+        "2024",
+        250200,
+        "Ciclismo:61800|Musculação:63600|Caminhada:64800|Corrida:60000",
+        159780,
+        ""
+      ],
+      [
+        "2025",
+        "2025",
+        258000,
+        "Ciclismo:60600|Musculação:68400|Caminhada:63600|Corrida:65400",
+        166125,
+        ""
+      ],
+      [
+        "2026",
+        "2026",
+        232800,
+        "Ciclismo:67800|Musculação:57000|Caminhada:54600|Corrida:53400",
+        148545,
+        ""
+      ]
+    ]
+  },
+  "sempre/calories": {
+    "granularity": "year",
+    "totals": {
+      "count": 160,
+      "distanceM": 1083000,
+      "durationS": 766800,
+      "calories": 63900
+    },
+    "targetS": 297214.28571428574,
+    "currentTargetS": 188625.89285714287,
+    "effortAvgS": 123000,
+    "effortTotalS": 492000,
+    "legend": [
+      "Musculação",
+      "Ciclismo",
+      "Caminhada",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2023",
+        "2023",
+        2150,
+        "Musculação:450|Ciclismo:550|Caminhada:675|Corrida:475",
+        17550,
+        ""
+      ],
+      [
+        "2024",
+        "2024",
+        20825,
+        "Musculação:4850|Ciclismo:4875|Caminhada:5350|Corrida:5750",
+        159780,
+        ""
+      ],
+      [
+        "2025",
+        "2025",
+        21125,
+        "Musculação:5075|Ciclismo:5750|Caminhada:4950|Corrida:5350",
+        166125,
+        ""
+      ],
+      [
+        "2026",
+        "2026",
+        19800,
+        "Musculação:6150|Ciclismo:5100|Caminhada:4950|Corrida:3600",
+        148545,
+        ""
+      ]
+    ]
+  },
+  "sempre/count": {
+    "granularity": "year",
+    "totals": {
+      "count": 160,
+      "distanceM": 1083000,
+      "durationS": 766800,
+      "calories": 63900
+    },
+    "targetS": 297214.28571428574,
+    "currentTargetS": 188625.89285714287,
+    "effortAvgS": 123000,
+    "effortTotalS": 492000,
+    "legend": [
+      "Corrida",
+      "Ciclismo",
+      "Musculação",
+      "Caminhada"
+    ],
+    "buckets": [
+      [
+        "2023",
+        "2023",
+        6,
+        "Corrida:2|Ciclismo:1|Musculação:1|Caminhada:2",
+        17550,
+        ""
+      ],
+      [
+        "2024",
+        "2024",
+        52,
+        "Corrida:13|Ciclismo:13|Musculação:13|Caminhada:13",
+        159780,
+        ""
+      ],
+      [
+        "2025",
+        "2025",
+        53,
+        "Corrida:13|Ciclismo:13|Musculação:14|Caminhada:13",
+        166125,
+        ""
+      ],
+      [
+        "2026",
+        "2026",
+        49,
+        "Corrida:12|Ciclismo:13|Musculação:12|Caminhada:12",
+        148545,
+        ""
+      ]
+    ]
+  },
+  "semana/duration/oculto-corrida": {
+    "granularity": "day",
+    "totals": {
+      "count": 2,
+      "distanceM": 12000,
+      "durationS": 9600,
+      "calories": 1100
+    },
+    "targetS": 814.2857142857143,
+    "currentTargetS": 559.8214285714286,
+    "effortAvgS": 822.8571428571429,
+    "effortTotalS": 5760,
+    "legend": [
+      "Ciclismo",
+      "Corrida"
+    ],
+    "buckets": [
+      [
+        "2026-08-14",
+        "SEX",
+        9600,
+        "Ciclismo:9600",
+        5760,
+        ""
+      ],
+      [
+        "2026-08-15",
+        "SÁB",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-16",
+        "DOM",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-17",
+        "SEG",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-18",
+        "TER",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-19",
+        "QUA",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-08-20",
+        "QUI",
+        0,
+        "",
+        0,
+        ""
+      ]
+    ]
+  },
+  "ano/count/offset-1": {
+    "granularity": "month",
+    "totals": {
+      "count": 53,
+      "distanceM": 360000,
+      "durationS": 258000,
+      "calories": 21125
+    },
+    "targetS": 39857.14285714286,
+    "effortAvgS": 13843.75,
+    "effortTotalS": 166125,
+    "legend": [
+      "Musculação",
+      "Caminhada",
+      "Corrida",
+      "Ciclismo"
+    ],
+    "buckets": [
+      [
+        "2025-0",
+        "jan",
+        5,
+        "Musculação:2|Caminhada:1|Corrida:1|Ciclismo:1",
+        14520,
+        ""
+      ],
+      [
+        "2025-1",
+        "fev",
+        4,
+        "Musculação:1|Caminhada:1|Corrida:1|Ciclismo:1",
+        15645,
+        ""
+      ],
+      [
+        "2025-2",
+        "mar",
+        4,
+        "Musculação:1|Caminhada:1|Corrida:1|Ciclismo:1",
+        9675,
+        ""
+      ],
+      [
+        "2025-3",
+        "abr",
+        5,
+        "Musculação:1|Caminhada:1|Corrida:1|Ciclismo:2",
+        18780,
+        ""
+      ],
+      [
+        "2025-4",
+        "mai",
+        4,
+        "Musculação:1|Caminhada:1|Corrida:1|Ciclismo:1",
+        9930,
+        ""
+      ],
+      [
+        "2025-5",
+        "jun",
+        5,
+        "Musculação:1|Caminhada:1|Corrida:2|Ciclismo:1",
+        17280,
+        ""
+      ],
+      [
+        "2025-6",
+        "jul",
+        4,
+        "Musculação:1|Caminhada:1|Corrida:1|Ciclismo:1",
+        14610,
+        ""
+      ],
+      [
+        "2025-7",
+        "ago",
+        4,
+        "Musculação:1|Caminhada:1|Corrida:1|Ciclismo:1",
+        9300,
+        ""
+      ],
+      [
+        "2025-8",
+        "set",
+        5,
+        "Musculação:1|Caminhada:2|Corrida:1|Ciclismo:1",
+        16965,
+        ""
+      ],
+      [
+        "2025-9",
+        "out",
+        4,
+        "Musculação:1|Caminhada:1|Corrida:1|Ciclismo:1",
+        9255,
+        ""
+      ],
+      [
+        "2025-10",
+        "nov",
+        5,
+        "Musculação:2|Caminhada:1|Corrida:1|Ciclismo:1",
+        14520,
+        ""
+      ],
+      [
+        "2025-11",
+        "dez",
+        4,
+        "Musculação:1|Caminhada:1|Corrida:1|Ciclismo:1",
+        15645,
+        ""
+      ]
+    ]
+  },
+  "sempre/distance/2025-oculto": {
+    "granularity": "year",
+    "totals": {
+      "count": 107,
+      "distanceM": 723000,
+      "durationS": 508800,
+      "calories": 42775
+    },
+    "targetS": 469285.7142857143,
+    "currentTargetS": 297830.35714285716,
+    "effortAvgS": 108625,
+    "effortTotalS": 325875,
+    "legend": [
+      "Corrida",
+      "Ciclismo",
+      "Caminhada",
+      "Musculação"
+    ],
+    "buckets": [
+      [
+        "2023",
+        "2023",
+        43500,
+        "Corrida:7500|Ciclismo:7500|Caminhada:28500",
+        17550,
+        ""
+      ],
+      [
+        "2024",
+        "2024",
+        342000,
+        "Corrida:114000|Ciclismo:126000|Caminhada:102000",
+        159780,
+        ""
+      ],
+      [
+        "2026",
+        "2026",
+        337500,
+        "Corrida:121500|Ciclismo:109500|Caminhada:106500",
+        148545,
+        ""
+      ]
+    ]
+  },
+  "vazio": {
+    "granularity": "month",
+    "totals": {
+      "count": 0,
+      "distanceM": 0,
+      "durationS": 0,
+      "calories": 0
+    },
+    "targetS": 25242.857142857145,
+    "currentTargetS": 16031.250000000002,
+    "effortAvgS": 0,
+    "effortTotalS": 0,
+    "legend": [],
+    "buckets": [
+      [
+        "2025-8",
+        "set",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2025-9",
+        "out",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2025-10",
+        "nov",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2025-11",
+        "dez",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-0",
+        "jan",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-1",
+        "fev",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-2",
+        "mar",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-3",
+        "abr",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-4",
+        "mai",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-5",
+        "jun",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-6",
+        "jul",
+        0,
+        "",
+        0,
+        ""
+      ],
+      [
+        "2026-7",
+        "ago",
+        0,
+        "",
+        0,
+        "emp"
+      ],
+      [
+        "2025-7",
+        "ago '25",
+        0,
+        "",
+        null,
+        "cmp"
+      ]
+    ]
+  }
+}
