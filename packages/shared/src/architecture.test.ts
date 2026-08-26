@@ -336,10 +336,7 @@ const HEX_CEILING: {
   {
     label: 'mobile/src (fora de theme/)',
     files: mobileFiles.filter((f) => !f.includes('/src/theme/')),
-    // +1 sobre 229: o ponto de tinta do splash virou literal ao deixar de ler a
-    // constante congelada do núcleo. Os pontos do splash são assinatura de
-    // marca, fixos de propósito — o vizinho `#2E4A6B` sempre foi literal.
-    max: 230,
+    max: 229,
   },
   {
     label: 'web SCSS',
