@@ -9,6 +9,7 @@
     "mobile:start": "cd mobile && npx expo start",
     "mobile:android": "cd mobile && npx expo run:android",
     "mobile:ios": "cd mobile && npx expo run:ios",
+    "mobile:device": "cd mobile && ./scripts/ios-device.sh",
     "lint": "pnpm -r --if-present lint",
     "test": "pnpm -r --if-present test"
   },

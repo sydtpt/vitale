@@ -7,6 +7,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "device": "./scripts/ios-device.sh",
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "jest"

@@ -31,9 +31,16 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
 
 ## Build local para device (fora da EAS)
 
-Quando a cota da EAS acaba, o caminho é cabo. A [ADR 0009](../docs/decisions/0009-ios-versionado-workflow-bare.md)
-registrou a receita base; o que segue são as pegadinhas que só apareceram depois
-da [ADR 0012](../docs/decisions/0012-kingstinct-healthkit-devolve-o-prebuild.md),
+**Use `pnpm mobile:device`.** O script `mobile/scripts/ios-device.sh` faz build
+Release, instala e abre, com todas as pegadinhas abaixo já codificadas — inclusive
+pular o prebuild quando nada nativo mudou e repetir o install quando o túnel cai.
+`--build-only`, `--no-launch`, `--prebuild` e `--device <id|udid|nome>` ajustam os
+passos; `--help` mostra tudo.
+
+A receita crua continua aqui porque ela documenta o **porquê**, e o script só
+executa. A [ADR 0009](../docs/decisions/0009-ios-versionado-workflow-bare.md)
+registrou a base; o que segue são as pegadinhas que só apareceram depois da
+[ADR 0012](../docs/decisions/0012-kingstinct-healthkit-devolve-o-prebuild.md),
 quando `mobile/ios/` passou a ser gerado.
 
 ```bash
@@ -43,6 +50,10 @@ cd ios && xcodebuild -workspace Orbe.xcworkspace -scheme Orbe \
   -allowProvisioningUpdates build
 xcrun devicectl device install app --device <UDID> <caminho>/Orbe.app
 ```
+
+- **Nunca entregue com o Metro na LAN.** `expo run:ios`, `expo start` e
+  `pnpm mobile:ios` são Debug: o JS vem do dev server e o app só funciona dentro
+  de casa. Entrega é sempre Release, que é autocontido.
 
 - **Não use `expo run:ios --configuration Release`**: não passa a flag de
   provisioning e quebra na assinatura — depois de já ter feito o bundle do JS.
