@@ -61,9 +61,4 @@ export class SidebarComponent {
     { path: '/configuracoes', icon: '⚙️', label: 'Configurações' },
   ];
 
-  protected readonly weekStats = [
-    { l: 'Streak hábitos',  v: '12d' },
-    { l: 'Pontuação média', v: '78/100' },
-    { l: 'Treinos feitos',  v: '3 de 5' },
-  ];
 }
