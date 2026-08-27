@@ -55,7 +55,11 @@
   width: 34px; height: 34px; border-radius: 50%; background: var(--surface-warm);
   display: flex; align-items: center; justify-content: center;
   font-weight: 600; font-size: 13px;
+  flex-shrink: 0; object-fit: cover;
 }
 .who { flex: 1; min-width: 0; }
 .n { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.p { font-size: 11px; color: var(--ink-3); }
+.p {
+  font-size: 11px; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

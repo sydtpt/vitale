@@ -1,5 +1,7 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '@core/auth/auth.service';
+import { ProfileService } from '@core/auth/profile.service';
 
 interface NavItem {
   path: string;
@@ -16,6 +18,29 @@ interface NavItem {
   styleUrl: './sidebar.component.scss',
 })
 export class SidebarComponent {
+  private readonly profile = inject(ProfileService);
+  private readonly auth = inject(AuthService);
+
+  /**
+   * A identidade vem do perfil, não de uma constante.
+   *
+   * O rodapé dizia "CR · Cristiano R. · Plano pessoal" em toda tela — nome de
+   * protótipo, e o `ProfileService` já servia o nome de verdade três linhas
+   * acima, no "Bom dia" da tela Semana. Sem perfil carregado o bloco some, em
+   * vez de mostrar iniciais de ninguém.
+   */
+  protected readonly name = this.profile.displayName;
+  protected readonly avatarUrl = this.profile.avatarUrl;
+  protected readonly email = computed(() => this.auth.user()?.email ?? '');
+
+  protected readonly initials = computed(() => {
+    const parts = this.name().trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '';
+    const first = parts[0][0];
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+    return `${first}${last}`.toUpperCase();
+  });
+
   protected readonly items: NavItem[] = [
     { path: '/semana',      icon: '📅', label: 'Semana' },
     { path: '/retrospectiva', icon: '🗓️', label: 'Retrospectiva' },
