@@ -2,20 +2,7 @@
  * Vitale — Mock Data
  * Seeded data for the prototype. Replace with real API calls later.
  */
-import type { Meal, Habit, Chore, Treino, Lift, RunWeek, FinancaCategory, Transaction, CasaTarefa, WeekDay } from '@vitale/shared';
-
-export const WEEK: WeekDay[] = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
-export const TODAY_IDX = 3;
-
-export const HEATMAP: Record<string, number[]> = {
-  Treino:      [3, 0, 4, 3, 0, 4, 0],
-  Alimentação: [4, 3, 4, 3, 0, 0, 0],
-  Água:        [4, 4, 3, 4, 0, 0, 0],
-  Yoga:        [0, 2, 0, 3, 0, 0, 0],
-  Leitura:     [2, 3, 2, 2, 0, 0, 0],
-  Casa:        [3, 0, 2, 0, 0, 0, 0],
-  Compras:     [0, 0, 4, 0, 0, 0, 0],
-};
+import type { Meal, Habit, Chore, Treino, Lift, RunWeek, FinancaCategory, Transaction, CasaTarefa } from '@vitale/shared';
 
 export const HOJE = {
   date: 'Qui, 21 de maio',

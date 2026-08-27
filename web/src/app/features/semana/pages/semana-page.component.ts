@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { ProfileService } from '@core/auth/profile.service';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { PanelComponent } from '@shared/components/panel/panel.component';
-import { HeatmapComponent } from '@shared/components/heatmap/heatmap.component';
 import { BigStatComponent } from '../components/big-stat.component';
 import { DayScoreCardComponent } from '../components/day-score-card.component';
+import { HabitsWeekCardComponent } from '../components/habits-week-card.component';
 import { WeeklyRecapCardComponent } from '../components/weekly-recap-card.component';
 import { WeekHighlightsCardComponent } from '../components/week-highlights-card.component';
 import { LiftsChartComponent } from '../components/lifts-chart.component';
@@ -21,7 +21,7 @@ import { T, activityRecap, weekBounds } from '@vitale/shared';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    PageHeaderComponent, PanelComponent, HeatmapComponent,
+    PageHeaderComponent, PanelComponent, HabitsWeekCardComponent,
     BigStatComponent, DayScoreCardComponent, WeeklyRecapCardComponent, WeekHighlightsCardComponent,
     LiftsChartComponent, RatingsTrendCardComponent, MacrosCardComponent,
     SpendByCategoryComponent, RecurringListComponent, CasaListComponent, MetasListComponent,

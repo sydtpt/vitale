@@ -1,6 +1,0 @@
-.hdr, .row { display: grid; gap: 4px; margin-bottom: 4px; align-items: center; }
-.dlabel { font-size: 10px; color: var(--ink-3); text-align: center; font-weight: 600; letter-spacing: 0.4px; }
-.rowlabel { color: var(--ink-2); font-weight: 500; }
-.cell { border-radius: 6px; }
-.cell.today { outline: 1.5px solid var(--ink); outline-offset: -1.5px; }
-.cell.future { opacity: 0.4; }

@@ -1,0 +1,44 @@
+@if (loading()) {
+  <div class="state">Carregando hábitos…</div>
+} @else if (rows().length === 0) {
+  <div class="state">Nenhum hábito ativo. Crie um em <a routerLink="/habits" class="link">Hábitos</a>.</div>
+} @else {
+  <div class="grid">
+    <div class="hdr">
+      <div></div>
+      @for (d of dow; track d) { <div class="dlabel">{{ d }}</div> }
+    </div>
+
+    @for (row of rows(); track row.id) {
+      <div class="row">
+        <div class="rowlabel" [title]="row.name">{{ row.name }}</div>
+        @for (c of row.cells; track c.date) {
+          <div class="cell" [class.today]="c.today" [class.future]="c.future"
+            [style.background]="c.color" [title]="c.title"></div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="foot">
+    <span>
+      <b>{{ checkins() }} check-ins</b> nesta semana
+      @if (delta() === 0) {
+        · igual a {{ comparisonWord() }}
+      } @else {
+        ·
+        <b class="delta" [attr.data-dir]="delta() > 0 ? 'up' : 'down'">
+          {{ delta() > 0 ? '+' : '−' }}{{ abs(delta()) }}
+        </b>
+        vs. {{ comparisonWord() }}
+      }
+    </span>
+    <!-- A cor cheia é a do próprio hábito, então a legenda só nomeia o que não
+         se adivinha: o cinza, o vermelho do estouro e o contorno de hoje. -->
+    <span class="legend">
+      <span class="sw" [style.background]="empty"></span> vazio
+      <span class="sw over"></span> acima do limite
+      <span class="sw today-sw"></span> hoje
+    </span>
+  </div>
+}

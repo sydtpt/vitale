@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { average, cleanStreak, daysInclusive, DEFAULT_HABIT_ICON, isOver, lastNDates, localDateStr, logsByDate, MOD, progress, streak, type CounterHabit, type HabitLog } from '@vitale/shared';
+import { average, cleanStreak, daysInclusive, DEFAULT_HABIT_ICON, isOver, lastNDates, localDateStr, logsByDate, progress, streak, type CounterHabit, type HabitLog } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { HabitHeatmapComponent, type HeatCell } from './habit-heatmap.component';
+import { habitAccent, habitCellColor } from './habit-cell-color';
 import { RANGE_DAYS } from '../data/habits.store';
 
 /**
@@ -11,8 +12,6 @@ import { RANGE_DAYS } from '../data/habits.store';
 const LEGACY_ICON_MAP: Record<string, string> = {
   water: 'droplet', cafe: 'coffee', fitness: 'dumbbell', bed: 'moon', nutrition: 'apple',
 };
-
-const EMPTY = 'var(--surface-mute)';
 
 @Component({
   selector: 'rt-habit-analytics-card',
@@ -29,7 +28,7 @@ export class HabitAnalyticsCardComponent {
   private readonly byDate = computed(() => logsByDate(this.logs()));
 
   protected accent(): string {
-    return (MOD as Record<string, { accent: string }>)[this.habit().color]?.accent ?? MOD.habito.accent;
+    return habitAccent(this.habit());
   }
   protected tint(): string {
     return `color-mix(in srgb, ${this.accent()} 14%, white)`;
@@ -85,29 +84,11 @@ export class HabitAnalyticsCardComponent {
       const value = by.get(date) ?? 0;
       return {
         date,
-        color: this.cellColor(value),
+        color: habitCellColor(h, value),
         title: `${date}: ${this.fmt(value)} ${h.unit}`,
       };
     });
   });
-
-  private cellColor(value: number): string {
-    const h = this.habit();
-    // Hábito ruim: qualquer dia com registro é uma recaída (vermelho); dia limpo fica vazio.
-    if (h.bad) return value > 0 ? 'var(--primary-deep)' : EMPTY;
-    const acc = this.accent();
-    const mix = (pct: number) => `color-mix(in srgb, ${acc} ${Math.round(pct)}%, white)`;
-    if (value <= 0) return EMPTY;
-    if (h.target == null || h.target <= 0) return mix(45);
-    if (h.direction === 'at_least') {
-      const p = Math.min(1, value / h.target);
-      return mix(25 + p * 60);
-    }
-    // at_most: dentro do limite preenche suave; acima vira vermelho
-    if (value > h.target) return 'var(--primary-deep)';
-    const p = value / h.target;
-    return mix(25 + p * 55);
-  }
 
   protected fmt(n: number): string {
     const r = Math.round(n * 100) / 100;
