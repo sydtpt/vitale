@@ -96,6 +96,11 @@
           <div class="route-state">Carregando rota…</div>
         } @else if (routePoints().length > 0) {
           <rt-activity-map [points]="routePoints()" />
+          <!-- Depois do mapa: ele responde "por onde", estes respondem "como
+               foi". Somem sozinhos quando o percurso é plano ou a rota não tem
+               horário por ponto. -->
+          <rt-route-profile-card [points]="routePoints()" [activityId]="a.activityId"
+            [color]="meta()?.color ?? 'var(--primary)'" />
         } @else {
           <div class="route-state">Rota indisponível para esta atividade.</div>
         }

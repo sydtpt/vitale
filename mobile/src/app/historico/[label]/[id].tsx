@@ -17,6 +17,7 @@ import { useActivitiesStore } from '../../../store/activities.store';
 import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../lib/workout-types';
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
+import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
 import {
   formatFullDate,
   formatTime,
@@ -326,6 +327,14 @@ export default function AtividadeDetalheScreen() {
                 }}
               />
             </View>
+            {/* Depois do mapa: ele responde "por onde", estes respondem "como
+                foi". Somem sozinhos quando o percurso é plano ou a rota não tem
+                horário por ponto. */}
+            <RouteProfileCard
+              points={routePoints ?? []}
+              activityId={activity.activityId}
+              color={color}
+            />
           </>
         )}
 

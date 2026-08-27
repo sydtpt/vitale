@@ -9,6 +9,7 @@ import { ThemeService } from '@core/theme/theme.service';
 import { metaForActivity } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
+import { RouteProfileCardComponent } from '../components/route-profile-card.component';
 import { formatClock, fmtDate, fmtDuration, fmtElevation, fmtKcal, fmtKm, formatRate, fmtTime, totalTimeS } from '../data/format';
 import { activityRecordBadges, type RecordBadge } from '../data/running-highlights';
 
@@ -16,7 +17,7 @@ import { activityRecordBadges, type RecordBadge } from '../data/running-highligh
   selector: 'rt-activity-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, NgStyle, IconComponent, ActivityMapComponent],
+  imports: [RouterLink, NgStyle, IconComponent, ActivityMapComponent, RouteProfileCardComponent],
   templateUrl: './activity-detail-page.component.html',
   styleUrl: './activity-detail-page.component.scss',
 })
