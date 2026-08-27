@@ -421,7 +421,9 @@ const HEX_CEILING: {
   {
     label: 'web TS',
     files: webFiles,
-    max: 68,
+    // 68 → 62 quando o gráfico de volume da página de Treinos parou de desenhar
+    // grade, eixo e valor em hex do Orbe claro (o que quebrava o modo escuro).
+    max: 62,
   },
 ];
 
