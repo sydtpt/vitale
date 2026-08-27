@@ -1,12 +1,19 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import type { Activity, HeatCell, HeatStep, Heatmap } from '@vitale/shared';
-import { buildActivityConsistency, contrast, mix } from '@vitale/shared';
+import type { Activity, ActivityConsistency, HeatCell, HeatStep, Heatmap } from '@vitale/shared';
+import { buildActivityConsistency, consistencyStep, contrast, mix, totalsDelta } from '@vitale/shared';
 import { HeatmapGrid, type HeatRamp } from '../HeatmapGrid';
 import { colors, fonts, radii, roleColors, shadows, spacing, useTheme, useThemedStyles } from '../../theme';
 
 /**
  * Um mês de treino em 28 células — apareci ou não, e quanto.
+ *
+ * ## Por que a grade não é um calendário
+ *
+ * A coluna não significa dia da semana e a janela não começa numa segunda: são
+ * os 28 dias fechados mais recentes, terminando em **ontem**. Em troca de perder
+ * o eixo de dia da semana — que a leitura ao tocar a célula devolve — a grade
+ * fica sempre com quatro linhas cheias, sem buraco no começo nem na ponta.
  *
  * ## Por que ao lado do gráfico de barras, e não no lugar dele
  *
@@ -71,12 +78,12 @@ function useConsistencyRamp(): HeatRamp {
 export function ConsistencyCard({
   activities,
   weeklyTargetMin,
-  weeks = 5,
+  weeks = 4,
   now,
 }: {
   activities: Activity[];
   weeklyTargetMin: number;
-  /** Semanas exibidas, alinhadas em segunda-feira. 5 = 35 células, sem buraco à esquerda. */
+  /** Linhas da grade. 4 = 28 células, quatro linhas de sete, sempre cheias. */
   weeks?: number;
   now?: Date;
 }) {
@@ -105,7 +112,8 @@ export function ConsistencyCard({
       higherIsWorse: false,
       target: Math.round(c.targetS / 60),
       cells,
-      pad: c.pad,
+      // A janela é corrida: a primeira célula é a primeira coluna, sempre.
+      pad: 0,
       measured: c.activeDays,
     };
   }, [c]);
@@ -122,13 +130,106 @@ export function ConsistencyCard({
       <HeatmapGrid
         data={data}
         ramp={ramp}
+        showWeekdays={false}
         emptyHint={`toque num dia · ${c.activeDays} de ${c.days.length} dias com treino`}
       />
+
+      <Score c={c} weeks={weeks} ramp={ramp} />
 
       <View style={styles.footer}>
         <Stat value={`${c.activeDays}/${c.days.length}`} label="dias com treino" />
         <Stat value={`${c.metDays}`} label="bateram a meta" />
         <Stat value={`${c.longestStreak}`} label="maior sequência" />
+      </View>
+    </View>
+  );
+}
+
+/** Altura útil do gráfico das barrinhas, em pixels. */
+const BAR_H = 34;
+
+/**
+ * O score das quatro semanas.
+ *
+ * É uma divisão, não uma nota: esforço acumulado ÷ meta do período — a mesma
+ * grandeza da linha da OMS no gráfico de barras logo acima do card. Um índice
+ * composto (0–100 misturando volume, aderência e regularidade) lê mais fácil e
+ * não sobrevive à pergunta "de onde saiu esse 78"; esta conta qualquer um refaz.
+ *
+ * As quatro barrinhas são a **derivação** do número grande, uma por linha da
+ * grade e na mesma ordem. Sem elas, 112% feito de uma semana enorme e três
+ * paradas passaria como período bom — exatamente o padrão que um painel de
+ * consistência existe para denunciar, não para esconder. Elas se pintam com a
+ * mesma rampa das células, então a barra de uma semana forte é a mesma cor dos
+ * dias fortes que a formaram.
+ */
+function Score({ c, weeks, ramp }: { c: ActivityConsistency; weeks: number; ramp: HeatRamp }) {
+  const styles = useThemedStyles(createStyles);
+  if (c.targetTotalS <= 0) return null;
+
+  const pct = Math.round((c.totalS / c.targetTotalS) * 100);
+  const delta = totalsDelta(c.totalS, c.previousTotalS);
+
+  const blockTargetS = c.targetS * 7;
+  const ratios = c.blocks.map((b) => (blockTargetS > 0 ? b.effectiveS / blockTargetS : 0));
+  // A meta fica no topo enquanto ninguém a ultrapassa; quando alguém passa, o
+  // eixo cresce e a linha desce. Assim uma semana de 250% não achata as outras
+  // três contra o chão, e a referência continua visível.
+  const scale = Math.max(1, ...ratios);
+
+  return (
+    <View style={styles.score}>
+      <View style={styles.scoreHead}>
+        <Text style={styles.scoreValue}>{pct}%</Text>
+        <Text style={styles.scoreLabel}>da meta de {weeks} semanas</Text>
+        {delta !== null && (
+          <View style={styles.scoreDeltaBox}>
+            <Text
+              style={[
+                styles.scoreDelta,
+                delta > 0 ? styles.scoreDeltaUp : delta < 0 ? styles.scoreDeltaDown : styles.scoreDeltaFlat,
+              ]}
+            >
+              {delta === 0 ? '=' : `${delta > 0 ? '↑' : '↓'}${Math.abs(delta)}%`}
+            </Text>
+            <Text style={styles.scoreDeltaSub}>vs. {weeks * 7} dias antes</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.plot}>
+        {c.blocks.map((b, i) => {
+          const r = ratios[i];
+          return (
+            <View key={b.start} style={styles.slot}>
+              {r > 0 && (
+                <View
+                  style={[
+                    styles.bar,
+                    {
+                      // Mínimo de 3 px: uma semana de 4% existe e some se a
+                      // altura for só proporcional.
+                      height: Math.max(3, (r / scale) * BAR_H),
+                      backgroundColor: ramp.bg[consistencyStep(b.effectiveS, blockTargetS)],
+                    },
+                  ]}
+                />
+              )}
+            </View>
+          );
+        })}
+        <View style={styles.baseline} />
+        {/* Com `scale` em 1 a meta é o teto do gráfico; sem o clamp a linha cai
+            fora da caixa e some. */}
+        <View style={[styles.metaLine, { bottom: Math.min(BAR_H - 1, BAR_H / scale) }]} />
+      </View>
+
+      <View style={styles.plotLabels}>
+        {ratios.map((r, i) => (
+          <Text key={c.blocks[i].start} style={styles.barTxt}>
+            {Math.round(r * 100)}%
+          </Text>
+        ))}
       </View>
     </View>
   );
@@ -156,6 +257,42 @@ const createStyles = () =>
     },
     title: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
     sub: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink3, marginTop: -4 },
+    score: {
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+      paddingTop: spacing.sm,
+      marginTop: spacing.xs,
+      gap: 6,
+    },
+    scoreHead: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+    scoreValue: { fontSize: 22, fontFamily: fonts.monoBold, color: colors.ink },
+    scoreLabel: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3, flexShrink: 1 },
+    scoreDeltaBox: { marginLeft: 'auto', alignItems: 'flex-end' },
+    scoreDelta: { fontSize: 12, fontFamily: fonts.monoBold },
+    // `.text` e não `.accent`: o acento promete 3,0 (piso de objeto gráfico) e
+    // isto é letra, que quer 4,5. Ver ADR 0024.
+    scoreDeltaUp: { color: roleColors('green').text },
+    scoreDeltaDown: { color: roleColors('red').text },
+    scoreDeltaFlat: { color: colors.ink4 },
+    scoreDeltaSub: { fontSize: 9.5, fontFamily: fonts.sans, color: colors.ink4 },
+
+    plot: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: BAR_H },
+    slot: { flex: 1, justifyContent: 'flex-end' },
+    bar: { width: '100%', borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+    baseline: {
+      position: 'absolute', left: 0, right: 0, bottom: 0, height: 1,
+      backgroundColor: colors.line,
+    },
+    metaLine: {
+      position: 'absolute', left: 0, right: 0, height: 1,
+      backgroundColor: colors.ink4,
+    },
+    plotLabels: { flexDirection: 'row', gap: 6 },
+    barTxt: {
+      flex: 1, textAlign: 'center', fontSize: 9.5,
+      fontFamily: fonts.mono, color: colors.ink3,
+    },
+
     footer: {
       flexDirection: 'row',
       justifyContent: 'space-between',

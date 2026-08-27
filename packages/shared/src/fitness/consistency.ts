@@ -26,7 +26,6 @@
 import type { Activity } from '../models';
 import { effectiveSeconds, weeklyTargetSeconds, DEFAULT_WEEKLY_TARGET_MIN } from '../health/who-activity';
 import { localDateStr } from '../date/local';
-import { mondayOf } from '../week/recap';
 
 /** Negativo = abaixo da meta, 0 = em cima dela, positivo = acima. */
 export type ConsistencyStep = -3 | -2 | -1 | 0 | 1 | 2;
@@ -34,17 +33,37 @@ export type ConsistencyStep = -3 | -2 | -1 | 0 | 1 | 2;
 export interface ConsistencyDay {
   /** 'YYYY-MM-DD' local. */
   day: string;
-  /** 0 = segunda … 6 = domingo — a convenção da grade, não a do `Date`. */
+  /**
+   * 0 = segunda … 6 = domingo.
+   *
+   * A grade **não** é mais um calendário — a coluna não significa dia da semana.
+   * O campo continua aqui porque a leitura ao tocar a célula diz "12 · terça", e
+   * essa informação some se ela não vier junto do dia.
+   */
   weekday: number;
   /** Segundos de esforço do dia (0 = não treinou). */
   effectiveS: number;
   step: ConsistencyStep;
 }
 
+/**
+ * Um bloco de sete dias — uma linha da grade.
+ *
+ * Não é "a semana" no sentido do calendário: a janela é corrida, então o bloco
+ * começa no dia da semana em que a janela começou. São sete dias contíguos, que
+ * é o que a comparação com a meta semanal precisa.
+ */
+export interface ConsistencyBlock {
+  /** Primeiro e último dia do bloco, 'YYYY-MM-DD' local. */
+  start: string;
+  end: string;
+  /** Segundos de esforço somados nos sete dias. */
+  effectiveS: number;
+}
+
 export interface ActivityConsistency {
+  /** `weeks × 7` dias, do mais antigo ao mais recente. Sempre cheio. */
   days: ConsistencyDay[];
-  /** Células vazias antes da primeira, para a grade começar na segunda-feira. */
-  pad: number;
   /** Meta diária em segundos de esforço. */
   targetS: number;
   /** Dias com algum treino. */
@@ -53,6 +72,20 @@ export interface ActivityConsistency {
   metDays: number;
   /** Maior sequência de dias consecutivos com treino. */
   longestStreak: number;
+  /** Esforço somado na janela inteira. */
+  totalS: number;
+  /** Meta da janela inteira — `targetS × days`. O denominador do score. */
+  targetTotalS: number;
+  /**
+   * O mesmo somatório para a janela imediatamente anterior, do mesmo tamanho.
+   *
+   * Zero aqui não distingue "mês parado" de "app novo, sem histórico" — por isso
+   * quem exibe a variação usa `totalsDelta`, que devolve `null` quando a base é
+   * zero em vez de inventar um crescimento infinito.
+   */
+  previousTotalS: number;
+  /** Um bloco por linha da grade, do mais antigo ao mais recente. */
+  blocks: ConsistencyBlock[];
 }
 
 /**
@@ -74,30 +107,31 @@ export function consistencyStep(effectiveS: number, targetS: number): Consistenc
 }
 
 /**
- * @param weeks Semanas exibidas, **alinhadas em segunda-feira**, terminando na
- *   semana corrente.
+ * @param weeks Linhas da grade. A janela é **corrida**: `weeks × 7` dias
+ *   terminando **ontem**, sem alinhamento com o dia da semana.
  *
- * O alinhamento é o que faz a grade não ter buraco à esquerda. Uma janela de "N
- * dias atrás até hoje" começa num dia da semana qualquer, e a grade de 7 colunas
- * precisa empurrar a primeira célula para a coluna certa — as células vazias
- * antes dela são justamente esse empurrão. Começando numa segunda, o `pad` é
- * sempre zero.
+ * Duas escolhas que valem registro, porque a primeira versão fazia o contrário:
  *
- * As células que faltam no fim da última linha são os dias que **ainda não
- * aconteceram**. Essas ficam de fora: desenhá-las como "sem treino" seria
- * afirmar sobre o futuro.
+ * **A grade não é um calendário.** Ancorar a primeira célula numa segunda-feira
+ * deixava a última linha pela metade (os dias que ainda não aconteceram) e fazia
+ * a contagem de células variar conforme o dia em que se olhasse. Sem
+ * alinhamento, `weeks × 7` preenche sempre `weeks` linhas cheias — em troca, a
+ * coluna deixa de significar dia da semana, e quem quiser o dia toca a célula.
+ *
+ * **A última célula é ontem.** Hoje ainda está correndo: enquanto o treino do
+ * dia não acontece, a célula mais visível da grade seria a menos verdadeira,
+ * afirmando "parado" sobre um dia que nem terminou. A janela só mostra dias
+ * fechados.
  */
 export function buildActivityConsistency(
   activities: Activity[],
   weeklyTargetMin: number = DEFAULT_WEEKLY_TARGET_MIN,
-  weeks = 5,
+  weeks = 4,
   now: Date = new Date(),
 ): ActivityConsistency {
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  // Segunda da semana corrente, recuada `weeks - 1` semanas.
-  const start = mondayOf(today);
-  start.setDate(start.getDate() - (weeks - 1) * 7);
-  const days = Math.round((today.getTime() - start.getTime()) / 86_400_000) + 1;
+  // Ontem, à meia-noite local: o último dia fechado.
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const days = weeks * 7;
 
   // dia local → segundos de esforço
   const perDay = new Map<string, number>();
@@ -107,15 +141,15 @@ export function buildActivityConsistency(
     perDay.set(key, (perDay.get(key) ?? 0) + effectiveSeconds(a));
   }
 
-  const targetS = weeklyTargetSeconds('day', today, weeklyTargetMin);
+  const targetS = weeklyTargetSeconds('day', end, weeklyTargetMin);
 
   const out: ConsistencyDay[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const d = new Date(end.getFullYear(), end.getMonth(), end.getDate() - i);
     const effS = perDay.get(localDateStr(d)) ?? 0;
     out.push({
       day: localDateStr(d),
-      // `getDay()` põe domingo em 0; a grade começa na segunda.
+      // `getDay()` põe domingo em 0; aqui segunda é 0.
       weekday: (d.getDay() + 6) % 7,
       effectiveS: effS,
       step: consistencyStep(effS, targetS),
@@ -129,14 +163,34 @@ export function buildActivityConsistency(
     if (run > longestStreak) longestStreak = run;
   }
 
+  // Uma linha da grade = um bloco. A correspondência é visual de propósito: a
+  // barrinha embaixo do score diz de onde veio a linha logo acima dela.
+  const blocks: ConsistencyBlock[] = [];
+  for (let i = 0; i < out.length; i += 7) {
+    const slice = out.slice(i, i + 7);
+    blocks.push({
+      start: slice[0].day,
+      end: slice[slice.length - 1].day,
+      effectiveS: slice.reduce((s, d) => s + d.effectiveS, 0),
+    });
+  }
+
+  // Os `days` dias anteriores ao primeiro da janela.
+  let previousTotalS = 0;
+  for (let i = days; i < days * 2; i++) {
+    const d = new Date(end.getFullYear(), end.getMonth(), end.getDate() - i);
+    previousTotalS += perDay.get(localDateStr(d)) ?? 0;
+  }
+
   return {
     days: out,
-    // Zero por construção — a janela começa numa segunda. Continua sendo
-    // derivado, e não fixado em 0, para não mentir se a âncora mudar.
-    pad: out.length ? out[0].weekday : 0,
     targetS,
     activeDays: out.filter((d) => d.effectiveS > 0).length,
     metDays: out.filter((d) => d.effectiveS >= targetS).length,
     longestStreak,
+    totalS: out.reduce((s, d) => s + d.effectiveS, 0),
+    targetTotalS: targetS * days,
+    previousTotalS,
+    blocks,
   };
 }

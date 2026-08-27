@@ -86,9 +86,16 @@ interface Props {
   emptyHint?: string;
   /** Escala de cor. Padrão: a do sono (quente = abaixo da meta). */
   ramp?: HeatRamp;
+  /**
+   * Cabeçalho S T Q Q S S D. Só faz sentido quando a grade **é** um calendário —
+   * quando a janela está ancorada num dia da semana e a coluna, portanto,
+   * significa alguma coisa. Numa janela corrida o cabeçalho seria uma legenda
+   * errada, e a leitura ao tocar a célula é que passa a dizer o dia.
+   */
+  showWeekdays?: boolean;
 }
 
-export function HeatmapGrid({ data, emptyHint, ramp = SLEEP_RAMP }: Props) {
+export function HeatmapGrid({ data, emptyHint, ramp = SLEEP_RAMP, showWeekdays = true }: Props) {
   const styles = useThemedStyles(createStyles);
   const [sel, setSel] = useState<HeatCell | null>(null);
   const [width, setWidth] = useState(0);
@@ -107,11 +114,13 @@ export function HeatmapGrid({ data, emptyHint, ramp = SLEEP_RAMP }: Props) {
     <View onLayout={onLayout}>
       {side > 0 && (
         <>
-          <View style={styles.head}>
-            {DOW.map((d, i) => (
-              <Text key={i} style={[styles.headTxt, { width: side }]}>{d}</Text>
-            ))}
-          </View>
+          {showWeekdays && (
+            <View style={styles.head}>
+              {DOW.map((d, i) => (
+                <Text key={i} style={[styles.headTxt, { width: side }]}>{d}</Text>
+              ))}
+            </View>
+          )}
 
           <View style={styles.grid}>
             {Array.from({ length: data.pad }, (_, i) => (
