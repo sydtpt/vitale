@@ -22,6 +22,7 @@ import { getJSON, setJSON } from '../../lib/local-store';
 import { buildTypeSummaries } from '../../lib/activity-type-summary';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
+import { Sparkline } from '../../components/charts/Sparkline';
 import { ConsistencyCard } from '../../components/cards/ConsistencyCard';
 import { colors, fonts, moduleColors, radii, roleColors, shadows, spacing, themed, useTheme } from '../../theme';
 
@@ -112,6 +113,21 @@ function LineMark({ variant, color }: { variant: 'solid' | 'dashed' | 'dotted'; 
  * mostra a seta. A variação vai numa linha própria: quatro tiles já dividem a
  * largura do telefone, e pôr o número ao lado do valor apertaria os dois.
  */
+/** A variação da sparkline do card de tipo — os mesmos três estados do tile. */
+function TypeDelta({ delta }: { delta: number | null }) {
+  if (delta === null) return null;
+  return (
+    <Text
+      style={[
+        styles.typeDelta,
+        delta > 0 ? styles.statDeltaUp : delta < 0 ? styles.statDeltaDown : styles.typeDeltaFlat,
+      ]}
+    >
+      {delta === 0 ? '=' : `${delta > 0 ? '↑' : '↓'}${Math.abs(delta)}%`}
+    </Text>
+  );
+}
+
 function StatTile({ value, label, delta }: { value: string; label: string; delta: number | null }) {
   return (
     <View style={styles.statTile}>
@@ -524,6 +540,22 @@ export default function HistoricoTabScreen() {
                   {t.count} {t.count === 1 ? 'atv' : 'atvs'}
                   {detail ? ` · ${detail}` : ''}
                 </Text>
+                {/* Seis semanas sem eixo: o card diz "quanto no total", a
+                    sparkline acrescenta "e vindo de onde" sem virar um segundo
+                    gráfico. Some quando não há o que comparar — seis barras
+                    zeradas parecem defeito e não informam nada. */}
+                {(t.trend.total > 0 || t.trend.previousTotal > 0) && (
+                  <View style={styles.typeSpark}>
+                    <Sparkline
+                      values={t.trend.buckets.map((b) => b.value)}
+                      width={64}
+                      height={22}
+                      color={t.color}
+                      mode="bar"
+                    />
+                    <TypeDelta delta={totalsDelta(t.trend.total, t.trend.previousTotal)} />
+                  </View>
+                )}
               </Pressable>
             );
           })}
@@ -696,4 +728,16 @@ const styles = themed(() => StyleSheet.create({
   },
   typeLabel: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
   typeMeta: { fontSize: 12, color: colors.ink3, fontFamily: fonts.mono },
+  typeSpark: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingTop: spacing.sm,
+    marginTop: 2,
+  },
+  typeDelta: { fontSize: 11, fontFamily: fonts.monoBold },
+  typeDeltaFlat: { fontSize: 11, fontFamily: fonts.mono, color: colors.ink4 },
 }));

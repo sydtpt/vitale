@@ -53,3 +53,25 @@
   color: var(--ink-3);
   margin-top: 4px;
 }
+
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.spark-svg { display: block; flex-shrink: 0; }
+.delta {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ink-3);
+  &[data-dir='up'] { color: var(--role-green-text); }
+  &[data-dir='down'] { color: var(--role-red-text); }
+}
+.spark-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ink-4);
+}

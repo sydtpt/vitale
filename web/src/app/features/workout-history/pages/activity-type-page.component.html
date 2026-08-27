@@ -67,6 +67,11 @@
       </section>
     }
 
+    @if (summary(); as s) {
+      <rt-type-evolution-card [activities]="store.activities()" [label]="s.label"
+        [hasDistance]="s.hasDistance" [color]="s.color" />
+    }
+
     <rt-activity-filters [filters]="filters()" [sources]="result().sources"
       [showDistance]="showDistance()" (filtersChange)="setFilters($event)" />
 

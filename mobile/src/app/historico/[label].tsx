@@ -43,6 +43,7 @@ import {
   useTheme,
 } from '../../theme';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
+import { TypeEvolutionCard } from '../../components/cards/TypeEvolutionCard';
 
 /**
  * Largura fixa do cartão de recorde. Precisa ser fixa para o `snapToInterval`
@@ -280,6 +281,9 @@ export default function TipoListScreen() {
       : { icon: 'dumbbell' as const, color: colors.ink2 };
   }, [typed]);
 
+  /** Mesma regra do card do tipo: mede em km quem tem distância, em min o resto. */
+  const hasDistance = useMemo(() => typed.some((a) => (a.distanceM ?? 0) > 0), [typed]);
+
   // Recordes do tipo (corrida/ciclismo) — de todo o histórico, sem os filtros.
   const highlights = useMemo(() => {
     const id = typed[0]?.activityId;
@@ -371,6 +375,15 @@ export default function TipoListScreen() {
             {highlights.length > 0 && (
               <HighlightsRow items={highlights} onPick={goToWorkout} />
             )}
+
+            {/* Depois dos recordes, de propósito: eles contam o que já
+                aconteceu, este conta para onde está indo. */}
+            <TypeEvolutionCard
+              activities={typed}
+              label={label}
+              hasDistance={hasDistance}
+              color={meta.color}
+            />
             <View style={styles.filterWrap}>
             <View style={styles.toolbarRow}>
               <Pressable

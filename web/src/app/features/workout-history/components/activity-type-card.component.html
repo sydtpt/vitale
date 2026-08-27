@@ -19,4 +19,24 @@
       @if (s().calories > 0) { · {{ fmtKcal(s().calories) }} }
     </div>
   }
+
+  @if (hasSpark()) {
+    <!-- Seis semanas sem eixo: o card responde "quanto no total", e a sparkline
+         acrescenta "e vindo de onde" sem virar um segundo gráfico. -->
+    <div class="spark">
+      <svg [attr.width]="w" [attr.height]="h" class="spark-svg" aria-hidden="true">
+        @for (b of bars(); track b.key) {
+          <rect [attr.x]="b.x" [attr.y]="b.y" [attr.width]="b.w" [attr.height]="b.h"
+            rx="1.5" [attr.fill]="s().color" fill-opacity="0.8" />
+        }
+      </svg>
+      @if (delta() !== null) {
+        <span class="delta mono"
+          [attr.data-dir]="delta()! > 0 ? 'up' : delta()! < 0 ? 'down' : 'flat'">
+          @if (delta() === 0) { = } @else { {{ delta()! > 0 ? '↑' : '↓' }}{{ abs(delta()!) }}% }
+        </span>
+      }
+      <span class="spark-hint">6 sem.</span>
+    </div>
+  }
 </a>

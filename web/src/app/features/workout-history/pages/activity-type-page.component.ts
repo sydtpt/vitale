@@ -20,12 +20,20 @@ import { fmtDuration, fmtKcal, fmtKm } from '../data/format';
 import { activityHighlights, type ActivityHighlight } from '../data/running-highlights';
 import { ActivityFiltersComponent } from '../components/activity-filters.component';
 import { ActivityItemComponent } from '../components/activity-item.component';
+import { TypeEvolutionCardComponent } from '../components/type-evolution-card.component';
 
 @Component({
   selector: 'rt-activity-type-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, NgStyle, IconComponent, ActivityFiltersComponent, ActivityItemComponent],
+  imports: [
+    RouterLink,
+    NgStyle,
+    IconComponent,
+    ActivityFiltersComponent,
+    ActivityItemComponent,
+    TypeEvolutionCardComponent,
+  ],
   templateUrl: './activity-type-page.component.html',
   styleUrl: './activity-type-page.component.scss',
 })

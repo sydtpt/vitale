@@ -3,8 +3,11 @@
  * de período do topo). Puro/testável. Ver spec §US3/FR-006.
  */
 import type { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { Activity } from '@vitale/shared';
+import { buildTypeVolumeTrend, type Activity, type VolumeTrend } from '@vitale/shared';
 import { getActivityMeta, getActivityColor } from './workout-types';
+
+/** Semanas da sparkline do card. A tela do tipo mostra uma janela maior. */
+const SPARK_WEEKS = 6;
 
 export interface TypeSummary {
   label: string;
@@ -15,10 +18,21 @@ export interface TypeSummary {
   totalDurationS: number;
   totalCalories: number;
   hasDistance: boolean;
+  /**
+   * As últimas seis semanas, para a sparkline e a variação do card.
+   *
+   * Sai do mesmo builder do painel da tela do tipo, só que com janela menor — o
+   * card e a tela têm de concordar sobre o mesmo esporte.
+   */
+  trend: VolumeTrend;
 }
 
-export function buildTypeSummaries(activities: Activity[]): TypeSummary[] {
-  const map = new Map<string, TypeSummary>();
+export function buildTypeSummaries(
+  activities: Activity[],
+  /** Parâmetro para o teste: a tendência é uma janela móvel presa ao relógio. */
+  now: Date = new Date(),
+): TypeSummary[] {
+  const map = new Map<string, Omit<TypeSummary, 'hasDistance' | 'trend'>>();
 
   for (const a of activities) {
     const meta = getActivityMeta(a.activityId);
@@ -32,7 +46,6 @@ export function buildTypeSummaries(activities: Activity[]): TypeSummary[] {
         totalDistanceM: 0,
         totalDurationS: 0,
         totalCalories: 0,
-        hasDistance: false,
       };
       map.set(meta.label, s);
     }
@@ -42,7 +55,21 @@ export function buildTypeSummaries(activities: Activity[]): TypeSummary[] {
     s.totalCalories += a.calories;
   }
 
-  for (const s of map.values()) s.hasDistance = s.totalDistanceM > 0;
-
-  return [...map.values()].sort((a, b) => b.count - a.count);
+  return [...map.values()]
+    .sort((a, b) => b.count - a.count)
+    .map((s) => {
+      const hasDistance = s.totalDistanceM > 0;
+      return {
+        ...s,
+        hasDistance,
+        trend: buildTypeVolumeTrend(
+          activities,
+          (id) => getActivityMeta(id).label,
+          s.label,
+          hasDistance ? 'distance' : 'duration',
+          SPARK_WEEKS,
+          now,
+        ),
+      };
+    });
 }
