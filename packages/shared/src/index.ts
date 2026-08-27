@@ -70,6 +70,7 @@ export * from './fitness/overview';
 export * from './fitness/weekly-volume';
 export * from './fitness/moving-time';
 export * from './fitness/route-profile';
+export * from './chart/stacked-bars';
 export * from './fitness/streams';
 export * from './fitness/dedupe';
 export * from './fitness/highlight-roles';
