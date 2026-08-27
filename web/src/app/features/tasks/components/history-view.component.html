@@ -43,7 +43,7 @@
           @for (serieGroup of bySerie(); track serieGroup.template.id) {
             <div class="group">
               <button class="group-title" (click)="toggleSerie(serieGroup)">
-                <rt-icon name="chevron-down" [size]="16" [class.rotated]="!serieGroup.expanded" />
+                <rt-icon name="chev-d" [size]="16" [class.rotated]="!serieGroup.expanded" />
                 <span>{{ serieGroup.template.name }}</span>
                 <span class="counts">
                   {{ serieGroup.doneCount }}× ·
