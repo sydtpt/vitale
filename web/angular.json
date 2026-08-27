@@ -34,7 +34,11 @@
               { "glob": "**/*", "input": "public" },
               { "glob": "**/*", "input": "src/assets", "output": "assets" }
             ],
-            "styles": ["leaflet/dist/leaflet.css", "src/styles.scss"],
+            "styles": [
+              "leaflet/dist/leaflet.css",
+              "maplibre-gl/dist/maplibre-gl.css",
+              "src/styles.scss"
+            ],
             "scripts": []
           },
           "configurations": {
