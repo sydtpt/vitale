@@ -29,7 +29,16 @@ import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme 
 
 const PAGE_SIZE = 10;
 
-function WorkoutCard({ item, onPress }: { item: WorkoutItem; onPress: () => void }) {
+function WorkoutCard({
+  item,
+  synced,
+  onPress,
+}: {
+  item: WorkoutItem;
+  /** Existe no Supabase — só então há detalhe para abrir. */
+  synced: boolean;
+  onPress: () => void;
+}) {
   const meta = getActivityMeta(item.activityId);
   const distance = formatDistance(item.distance);
 
@@ -48,6 +57,14 @@ function WorkoutCard({ item, onPress }: { item: WorkoutItem; onPress: () => void
             {formatTime(item.start)} – {formatTime(item.end)}
           </Text>
         </View>
+        {/* O aviso fica no card, e não só no toque: dá para ver o que falta
+            enviar sem tocar item por item. */}
+        {!synced && (
+          <View style={styles.pending}>
+            <Ionicons name="cloud-offline-outline" size={12} color={colors.ink3} />
+            <Text style={styles.pendingText}>só no iPhone</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.statsRow}>
@@ -134,16 +151,47 @@ export default function ActivityDetailScreen() {
     setVisible((v) => (v >= filtered.length ? v : v + PAGE_SIZE));
   }, [filtered.length]);
 
+  /**
+   * O detalhe é o do Histórico. Esta tela não tem mais um seu.
+   *
+   * A armadilha é a lista ser `mergeWorkoutSources`: HealthKit **unido** ao
+   * Supabase. Um treino de um tipo nunca sincronizado só existe no HealthKit e
+   * carrega o id do HealthKit, que não existe em `activities` — rotear cego
+   * daria "Atividade não encontrada". Quando os dois casam, o spread do merge
+   * faz o id do Supabase vencer, e aí a rota funciona.
+   */
+  const syncedIds = useMemo(() => new Set(supActivities.map((a) => a.id)), [supActivities]);
+
+  const openWorkout = useCallback(
+    (item: WorkoutItem) => {
+      if (syncedIds.has(item.id)) {
+        router.push({ pathname: '/historico/[label]/[id]', params: { label, id: item.id } });
+        return;
+      }
+      Alert.alert(
+        'Ainda não sincronizado',
+        'Este treino existe só no app Saúde do iPhone. Envie este tipo ao servidor para abrir o detalhe completo — rota, zonas de FC e recordes.',
+        [
+          { text: 'Agora não', style: 'cancel' },
+          {
+            text: 'Sincronizar',
+            onPress: async () => {
+              await syncType(label);
+              const err = useFitnessStore.getState().syncError[label];
+              if (err) Alert.alert('Erro ao sincronizar', err);
+            },
+          },
+        ],
+      );
+    },
+    [syncedIds, router, label, syncType],
+  );
+
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<WorkoutItem>) => (
-      <WorkoutCard
-        item={item}
-        onPress={() =>
-          router.push({ pathname: '/fitness/workout/[id]', params: { id: item.id } })
-        }
-      />
+      <WorkoutCard item={item} synced={syncedIds.has(item.id)} onPress={() => openWorkout(item)} />
     ),
-    [router]
+    [syncedIds, openWorkout]
   );
 
   return (
@@ -268,6 +316,20 @@ const styles = themed(() => StyleSheet.create({
   },
   cardHeaderText: {
     flex: 1,
+  },
+  pending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMute,
+  },
+  pendingText: {
+    fontSize: 10.5,
+    fontFamily: fonts.sans,
+    color: colors.ink3,
   },
   cardDate: {
     fontSize: 15,

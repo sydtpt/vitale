@@ -6,9 +6,7 @@ import {
   WORKOUT_PERMISSIONS,
   PAGE_SIZE,
   fetchWorkoutsPage,
-  fetchWorkoutRoute,
   type WorkoutItem,
-  type RoutePoint,
   type PermissionStatus,
 } from '../lib/healthkit-workouts';
 import { syncType as runSyncType, syncDelta as runSyncDelta, type SyncResult } from '../services/activity-sync';
@@ -118,9 +116,6 @@ interface FitnessState {
   loadingMore: boolean;
   hasMore: boolean;
   oldestStart: string | null;
-  /** Cache de rotas por treino. undefined = não carregada, [] = sem rota. */
-  routes: Record<string, RoutePoint[]>;
-
   // ── Sincronização opt-in por tipo ────────────────────────────
   /** Labels de tipos inscritos (fonte: Supabase, cache em memória). */
   syncedTypes: Set<string>;
@@ -136,7 +131,6 @@ interface FitnessState {
   requestPermission: () => Promise<void>;
   loadWorkouts: () => Promise<void>;
   loadMore: () => Promise<void>;
-  loadRoute: (id: string) => Promise<void>;
 
   /** Hidrata os tipos inscritos a partir do Supabase. */
   hydrateSyncedTypes: () => Promise<void>;
@@ -157,7 +151,6 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
   loadingMore: false,
   hasMore: true,
   oldestStart: null,
-  routes: {},
 
   syncedTypes: new Set<string>(),
   typeStatus: {},
@@ -200,12 +193,6 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
       oldestStart: newOldest,
       hasMore: results.length === PAGE_SIZE,
     }));
-  },
-
-  loadRoute: async (id: string) => {
-    if (get().routes[id] !== undefined) return;
-    const points = await fetchWorkoutRoute(id);
-    set((state) => ({ routes: { ...state.routes, [id]: points } }));
   },
 
   hydrateSyncedTypes: async () => {
