@@ -9,7 +9,12 @@
  */
 
 import assert from 'node:assert/strict';
-import { buildTypeVolumeSeries, buildVolumeSeries, buildWeeklyVolume } from './weekly-volume';
+import {
+  buildTypeVolumeSeries,
+  buildTypeVolumeTrend,
+  buildVolumeSeries,
+  buildWeeklyVolume,
+} from './weekly-volume';
 import type { Activity } from '../models';
 
 let passed = 0;
@@ -109,6 +114,53 @@ check('buildWeeklyVolume é buildVolumeSeries com o seletor de id', () => {
     buildWeeklyVolume(dados, 37, 'distance', 3, NOW),
     buildVolumeSeries(dados, (a) => a.activityId === 37, 'distance', 3, NOW),
   );
+});
+
+check('a tendência exibe N semanas e compara com as N de trás', () => {
+  const t = buildTypeVolumeTrend(
+    // 3 dias atrás cai na janela exibida; 30 dias atrás, na anterior.
+    [act(3, 37, 10000), act(30, 37, 4000)],
+    labelFor, 'Corrida', 'distance', 4, NOW,
+  );
+  assert.equal(t.buckets.length, 4, 'só as semanas desenhadas saem daqui');
+  assert.equal(t.buckets[t.buckets.length - 1].key, '2026-08-17', 'termina na semana atual');
+  assert.equal(t.total, 10);
+  assert.equal(t.previousTotal, 4, 'a janela anterior não aparece no gráfico, só na variação');
+});
+
+check('o total fecha com as barras desenhadas', () => {
+  // É o ponto do arredondamento: 3 × 3,333 km desenha 3,3 + 3,3 + 3,3.
+  const t = buildTypeVolumeTrend(
+    [act(0, 37, 3333), act(7, 37, 3333), act(14, 37, 3333)],
+    labelFor, 'Corrida', 'distance', 4, NOW,
+  );
+  const soma = t.buckets.reduce((s, b) => s + b.value, 0);
+  assert.equal(t.total, 9.9, 'e não 9,999 — o total segue o desenho, não o dado bruto');
+  assert.equal(
+    t.total,
+    Math.round(soma * 10) / 10,
+    'somar o que está na tela tem que dar o número embaixo dela',
+  );
+  // A soma crua dá 9.899999999999999: é para isto que o corte existe.
+  assert.notEqual(t.total, soma);
+});
+
+check('a média divide pela janela inteira, incluindo as semanas paradas', () => {
+  const t = buildTypeVolumeTrend([act(0, 37, 8000)], labelFor, 'Corrida', 'distance', 4, NOW);
+  assert.equal(t.total, 8);
+  assert.equal(t.mean, 2, 'oito quilômetros em quatro semanas são dois por semana, não oito');
+});
+
+check('sem nada atrás, a variação fica sem base — e quem exibe decide', () => {
+  const t = buildTypeVolumeTrend([act(0, 37, 5000)], labelFor, 'Corrida', 'distance', 4, NOW);
+  assert.equal(t.previousTotal, 0);
+});
+
+check('a tendência é a mesma série do gráfico grande, sem uma segunda conta', () => {
+  const dados = [act(0, 37, 5000), act(8, 38, 7000), act(20, 37, 3000)];
+  const serie = buildTypeVolumeSeries(dados, labelFor, 'Corrida', 'distance', 6, NOW);
+  const t = buildTypeVolumeTrend(dados, labelFor, 'Corrida', 'distance', 6, NOW);
+  assert.deepEqual(t.buckets, serie, 'a sparkline do card não pode discordar do painel da página');
 });
 
 console.log(`\n${passed} testes passaram.`);

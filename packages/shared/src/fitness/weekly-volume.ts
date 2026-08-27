@@ -144,3 +144,55 @@ export function buildTypeVolumeSeries(
 ): VolumeWeekBucket[] {
   return buildVolumeSeries(activities, (a) => labelFor(a.activityId) === label, metric, weeks, now);
 }
+
+/** A janela exibida, mais o que se diz **sobre** ela. */
+export interface VolumeTrend {
+  /** As `weeks` semanas exibidas, da mais antiga à atual. */
+  buckets: VolumeWeekBucket[];
+  /** Soma dos valores desenhados — km ou min, conforme a métrica. */
+  total: number;
+  /** A mesma soma para as `weeks` semanas imediatamente anteriores. */
+  previousTotal: number;
+  /** `total / weeks` — a linha de referência do gráfico. */
+  mean: number;
+}
+
+/**
+ * Já arredondado: os valores que chegam aqui saíram de `round`, e somá-los sem
+ * cortar de novo devolve o ruído de ponto flutuante ("18.299999999999997 km").
+ */
+function roundOut(value: number, metric: VolumeMetric): number {
+  return metric === 'distance' ? Math.round(value * 10) / 10 : Math.round(value);
+}
+
+/**
+ * A série de um tipo com a comparação e a média já feitas.
+ *
+ * Existe para os **quatro** lugares que mostram essa evolução — o gráfico grande
+ * e a sparkline do card, nos dois apps — não carregarem quatro cópias do mesmo
+ * recorte de "pega o dobro de semanas e parte no meio". Foi assim que as duas
+ * cópias de `buildOverview` começaram.
+ *
+ * O total soma os valores **desenhados**, não os brutos, de propósito: quem lê
+ * "292,4 km" embaixo do gráfico consegue somar as barras e chegar no mesmo
+ * número. Um total mais preciso que o desenho seria um número que não fecha.
+ */
+export function buildTypeVolumeTrend(
+  activities: Activity[],
+  labelFor: (activityId: number) => string,
+  label: string,
+  metric: VolumeMetric,
+  weeks = 6,
+  now: Date = new Date(),
+): VolumeTrend {
+  const all = buildTypeVolumeSeries(activities, labelFor, label, metric, weeks * 2, now);
+  const buckets = all.slice(weeks);
+  const sum = (bs: VolumeWeekBucket[]) => bs.reduce((s, b) => s + b.value, 0);
+  const total = roundOut(sum(buckets), metric);
+  return {
+    buckets,
+    total,
+    previousTotal: roundOut(sum(all.slice(0, weeks)), metric),
+    mean: roundOut(total / weeks, metric),
+  };
+}
