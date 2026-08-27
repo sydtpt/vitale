@@ -1,7 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, AccessibilityInfo } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { compactNumber, niceAxisMax, remapChartColor, smoothLinePath, type LinePoint } from '@vitale/shared';
+import {
+  buildStackedBars,
+  easeOutCubic,
+  formatAxisLabel,
+  formatCompactLabel,
+  interpolateStackedBars,
+  isHexColor,
+  remapChartColor,
+  smoothLinePath,
+  stackedGradientId,
+  stackedGradientStops,
+  type LinePoint,
+  type StackedBar,
+  type StackedBarsGeometry,
+} from '@vitale/shared';
 import type { OverviewBucket, Metric } from '../../lib/activity-overview';
 import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { colors, fonts, useTheme } from '../../theme';
@@ -44,68 +58,38 @@ interface Props {
   effortColor?: string;
 }
 
-const PAD_TOP = 16;
-const PAD_BOTTOM = 22;
 const PAD_LEFT = 36;
-const MIN_SLOT = 44; // largura mínima por barra antes de habilitar rolagem horizontal
-const TOP_RADIUS = 7; // raio dos cantos superiores do segmento do topo da pilha
 const ANIM_MS = 360;
-/** Divisões do eixo Y: 4 passos = 5 linhas de grade (com a do zero). */
-const GRID_TICKS = 4;
-/** Unidade em que cada métrica é lida — o eixo escolhe passos redondos nela. */
-const AXIS_UNIT: Record<Metric, number> = { distance: 1000, duration: 3600, calories: 1, count: 1 };
-/** Métricas sem casa decimal: o passo do eixo tem que ser inteiro. */
-const INTEGER_METRICS: ReadonlySet<Metric> = new Set<Metric>(['calories', 'count']);
+/** Cor de uma série que já sumiu do alvo e ainda está encolhendo. */
+const FADING_COLOR = '#5C534A';
 
-// Tom quente usado para suavizar/clarear as cores das séries (casa com a paleta bege/creme).
-const WARM = '#FBF1E2';
-
-interface Seg { x: number; y: number; w: number; h: number; color: string; label: string; value: number; opacity: number; top: boolean; }
-interface Bar {
-  key: string; label: string; center: number; barW: number; x: number; comparison: boolean;
-  total: number; topY: number; segs: Seg[];
-  /** Y do ponto de esforço ponderado; `null` = bucket sem ponto (comparação / série desligada). */
-  effY: number | null;
-  /** Valor do esforço em segundos, para o tooltip. */
-  effS: number;
-}
-interface SlotLayout { x0: number; slot: number; center: number; }
-interface Model {
-  chartW: number; baseY: number; layout: SlotLayout[];
-  /** `base` = linha do zero: fecha o painel do plot, então tem traço mais firme. */
-  grid: { y: number; label: string; base: boolean }[]; bars: Bar[];
-  /** Path da linha de meta (reta ou com degrau no bucket em curso); '' = sem meta. */
-  goalPath: string;
-  /** Y da meta cheia, p/ posicionar o rótulo. */
-  goalY: number | null;
-  /** Y da reta de esforço médio; `null` = sem reta (série ou métrica não-duração). */
-  effortFlatY: number | null;
-}
-
-/** Formata o valor do eixo Y de acordo com a métrica selecionada. */
-function fmtAxis(v: number, metric: Metric): string {
-  switch (metric) {
-    case 'distance':
-      return `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}km`;
-    case 'duration':
-      return `${(v / 3600).toFixed(v >= 36000 ? 0 : 1)}h`;
-    case 'calories':
-    case 'count':
-      // "17426" rouba largura do eixo e não informa mais que "17k".
-      return compactNumber(v);
-  }
+/**
+ * A geometria deste app. O modelo é o do núcleo; o que fica aqui são as medidas
+ * de tela — padding, raio, largura de barra e o mínimo por slot, que é o que
+ * liga a rolagem horizontal quando o período tem barra demais para a largura.
+ */
+function geometry(width: number, height: number, noScroll: boolean): StackedBarsGeometry {
+  return {
+    width,
+    height,
+    padTop: 16,
+    padRight: 0,
+    padBottom: 22,
+    padLeft: PAD_LEFT,
+    minSlot: noScroll ? 0 : 44,
+    topRadius: 7,
+    maxBarWidth: { normal: 42, emphasis: 52, comparison: 26 },
+  };
 }
 
 /**
- * Rótulo de valores pequenos: `fmtAxis` de duração sempre imprime horas, e a meta
- * diária (~21 min) viraria "0.4h". Abaixo de 1h usa minutos.
+ * Valor exato de uma série, para o tooltip.
+ *
+ * Fica aqui e não no núcleo de propósito: o tooltip do celular tem espaço para
+ * "1h 30min" e é onde se vai buscar o número cheio. A web mostra o mesmo valor
+ * num `<title>` de SVG, onde a forma curta ("1,5h") cabe melhor. São duas
+ * superfícies diferentes, não uma divergência.
  */
-function fmtCompact(v: number, metric: Metric): string {
-  if (metric !== 'duration' || v >= 3600) return fmtAxis(v, metric);
-  return `${Math.round(v / 60)} min`;
-}
-
-/** Valor exato de uma série (usado no tooltip). */
 function fmtValue(v: number, metric: Metric): string {
   switch (metric) {
     case 'distance':
@@ -119,197 +103,19 @@ function fmtValue(v: number, metric: Metric): string {
   }
 }
 
-// ---- Utilidades de cor (mix hex→hex, sem dependência) ----
-const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-function isHex(c: string): boolean { return HEX_RE.test(c); }
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '');
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  const n = parseInt(full, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-function rgbToHex(r: number, g: number, b: number): string {
-  const to = (v: number) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
-  return `#${to(r)}${to(g)}${to(b)}`;
-}
-function mix(hex: string, withHex: string, amount: number): string {
-  const [r1, g1, b1] = hexToRgb(hex);
-  const [r2, g2, b2] = hexToRgb(withHex);
-  return rgbToHex(r1 + (r2 - r1) * amount, g1 + (g2 - g1) * amount, b1 + (b2 - b1) * amount);
-}
-function gradTop(hex: string): string { return mix(hex, WARM, 0.32); }
-function gradBase(hex: string): string { return mix(hex, WARM, 0.08); }
-function gradId(hex: string): string { return `sbc-grad-${hex.replace('#', '')}`; }
-function fillFor(color: string): string { return isHex(color) ? `url(#${gradId(color)})` : color; }
-function easeOutCubic(t: number): number { return 1 - Math.pow(1 - t, 3); }
-
-/** Retângulo com cantos superiores arredondados e base reta. */
-function topRoundedRectPath(x: number, y: number, w: number, h: number, r: number): string {
-  const rr = Math.max(0, Math.min(r, w / 2, h));
-  return [
-    `M ${x} ${y + h}`,
-    `L ${x} ${y + rr}`,
-    `Q ${x} ${y} ${x + rr} ${y}`,
-    `L ${x + w - rr} ${y}`,
-    `Q ${x + w} ${y} ${x + w} ${y + rr}`,
-    `L ${x + w} ${y + h}`,
-    'Z',
-  ].join(' ');
-}
-
-/** Peso de largura de cada bucket: mês atual (destaque) ganha mais espaço; a
- * barra de comparação, menos. Os demais têm peso 1. */
-function slotWeight(b: OverviewBucket): number {
-  if (b.emphasis) return 1.5;
-  if (b.comparison) return 0.72;
-  return 1;
-}
-
-/** Largura máxima da barra por bucket, acompanhando o peso do slot. */
-function maxBarWidth(b: OverviewBucket): number {
-  if (b.emphasis) return 52;
-  if (b.comparison) return 26;
-  return 42;
-}
-
-/** Geometria-alvo (grow=1) de todo o gráfico. As cores dos segmentos já saem
- * remapeadas para a paleta ativa. */
-function buildModel(
-  buckets: OverviewBucket[], metric: Metric, width: number, height: number,
-  noScroll: boolean, paletteId: string, goal: number | undefined, showEffort: boolean,
-  effortFlat: number | undefined, currentGoal: number | undefined,
-): Model {
-  const weights = buckets.map(slotWeight);
-  const totalWeight = weights.reduce((s, w) => s + w, 0) || 1;
-  const naturalUnit = (width - PAD_LEFT) / totalWeight;
-  const unit = noScroll ? naturalUnit : Math.max(naturalUnit, MIN_SLOT);
-  const chartW = noScroll ? width : PAD_LEFT + unit * totalWeight;
-  const innerH = height - PAD_TOP - PAD_BOTTOM;
-  const baseY = PAD_TOP + innerH;
-  // O eixo precisa absorver a meta e a série de esforço: uma meta acima da barra
-  // mais alta seria cortada silenciosamente fora do plot.
-  const axisUnit = AXIS_UNIT[metric];
-  const rawMax = Math.max(
-    ...buckets.map((b) => Math.max(b.total, showEffort ? b.effectiveS ?? 0 : 0)),
-    goal ?? 0,
-    effortFlat ?? 0,
-    axisUnit, // piso: sem dados, um eixo de 0–1h/1km é mais legível que um de 0–1s/1m
-  );
-  // Topo redondo e acima do máximo: dá folga sobre a barra mais alta e faz as 5
-  // linhas da grade caírem em valores legíveis.
-  const maxV = niceAxisMax(rawMax, {
-    unit: axisUnit, ticks: GRID_TICKS, integer: INTEGER_METRICS.has(metric),
-  });
-
-  let cursor = PAD_LEFT;
-  const layout: SlotLayout[] = buckets.map((b, i) => {
-    const slot = unit * weights[i];
-    const x0 = cursor;
-    cursor += slot;
-    return { x0, slot, center: x0 + slot / 2 };
-  });
-
-  const grid = Array.from({ length: GRID_TICKS + 1 }, (_, i) => i / GRID_TICKS).map((f) => ({
-    y: baseY - f * innerH, label: fmtAxis(maxV * f, metric), base: f === 0,
-  }));
-
-  const bars: Bar[] = buckets.map((b, i) => {
-    const { slot, center } = layout[i];
-    const barW = Math.min(slot * 0.62, maxBarWidth(b));
-    const x = center - barW / 2;
-    const opacity = b.comparison ? 0.4 : 1;
-    const topIdx = b.segments.length - 1;
-    let acc = 0;
-    const segs: Seg[] = b.segments.map((s, si) => {
-      const h = (s.value / maxV) * innerH;
-      acc += h;
-      const y = baseY - acc;
-      return { x, y, w: barW, h, color: remapChartColor(s.color, paletteId), label: s.label, value: s.value, opacity, top: si === topIdx };
-    });
-    // Barras de comparação ficam fora da série de esforço (não são cronológicas).
-    const effS = b.effectiveS ?? 0;
-    const effY = showEffort && !b.comparison && b.effectiveS !== undefined
-      ? baseY - (effS / maxV) * innerH
-      : null;
-    return {
-      key: b.key, label: b.label, center, barW, x, comparison: !!b.comparison,
-      total: b.total, topY: baseY - acc, segs, effY, effS,
-    };
-  });
-
-  const goalY = goal && goal > 0 ? baseY - (goal / maxV) * innerH : null;
-  const effortFlatY = effortFlat && effortFlat > 0 ? baseY - (effortFlat / maxV) * innerH : null;
-
-  // Meta: reta quando o período está fechado; com degrau sobre o bucket em curso.
-  // Saltos (M) em vez de conectores verticais — degrau legível sem poluir.
-  let goalPath = '';
-  if (goalY !== null && goal) {
-    const right = chartW;
-    // O bucket em curso é o último NÃO-comparação ("12 meses" põe a comparação depois dele).
-    let idx = -1;
-    for (let i = buckets.length - 1; i >= 0; i--) if (!buckets[i].comparison) { idx = i; break; }
-    if (currentGoal === undefined || currentGoal >= goal || idx < 0) {
-      goalPath = `M ${PAD_LEFT} ${goalY} L ${right} ${goalY}`;
-    } else {
-      const { x0, slot } = layout[idx];
-      const stepStart = Math.max(PAD_LEFT, x0);
-      const stepEnd = Math.min(right, x0 + slot);
-      const yCur = baseY - (currentGoal / maxV) * innerH;
-      const parts = [`M ${PAD_LEFT} ${goalY} L ${stepStart} ${goalY}`, `M ${stepStart} ${yCur} L ${stepEnd} ${yCur}`];
-      if (stepEnd < right) parts.push(`M ${stepEnd} ${goalY} L ${right} ${goalY}`);
-      goalPath = parts.join(' ');
-    }
-  }
-
-  return { chartW, baseY, layout, grid, bars, goalPath, goalY, effortFlatY };
-}
-
-/** Interpola um bar do estado anterior (mesma key) até o alvo. Séries removidas
- * encolhem a 0 no lugar; novas crescem de 0; a pilha é re-empilhada por quadro. */
-function interpBar(from: Bar | undefined, to: Bar, e: number, baseY: number): Bar {
-  const fromSegs = from?.segs ?? [];
-  const fromByLabel = new Map(fromSegs.map((s) => [s.label, s]));
-  const toByLabel = new Map(to.segs.map((s) => [s.label, s]));
-  // Ordem = a do alvo; séries removidas voltam à sua posição anterior.
-  const order: string[] = to.segs.map((s) => s.label);
-  fromSegs.forEach((s, idx) => {
-    if (!toByLabel.has(s.label)) order.splice(Math.min(idx, order.length), 0, s.label);
-  });
-
-  const rows = order.map((label) => {
-    const fs = fromByLabel.get(label);
-    const ts = toByLabel.get(label);
-    const fromH = fs?.h ?? 0;
-    const toH = ts?.h ?? 0;
-    return { label, h: fromH + (toH - fromH) * e, color: ts?.color ?? fs?.color ?? '#5C534A', value: ts?.value ?? 0 };
-  });
-
-  let topIdx = -1;
-  for (let i = rows.length - 1; i >= 0; i--) if (rows[i].h > 0.5) { topIdx = i; break; }
-
-  let acc = 0;
-  const opacity = to.comparison ? 0.4 : 1;
-  const segs: Seg[] = rows.map((r, i) => {
-    acc += r.h;
-    const y = baseY - acc;
-    return { x: to.x, y, w: to.barW, h: r.h, color: r.color, label: r.label, value: r.value, opacity, top: i === topIdx };
-  });
-  // O ponto de esforço anima junto com as barras; um bucket novo cresce da base.
-  const fromEffY = from?.effY ?? baseY;
-  const effY = to.effY === null ? null : fromEffY + (to.effY - fromEffY) * e;
-  return {
-    key: to.key, label: to.label, center: to.center, barW: to.barW, x: to.x,
-    comparison: to.comparison, total: to.total, topY: baseY - acc, segs, effY, effS: to.effS,
-  };
-}
-
 // Dimensões do tooltip.
 const TT_PAD = 8;
 const TT_ROW = 15;
 const TT_DOT = 7;
 const TT_FS = 10;
 
-/** Barras empilhadas por tipo de atividade. Portado do gráfico do web. */
+/**
+ * Barras empilhadas por tipo de atividade.
+ *
+ * A geometria é a do núcleo (`buildStackedBars`), a mesma que a web desenha; o
+ * que fica aqui é o desenho em `react-native-svg`, a rolagem horizontal e o
+ * tooltip, que no celular é um painel medido em vez de um `<title>`.
+ */
 export function StackedBarChart({
   buckets, metric, width, height = 200, noScroll = false, animationKey,
   goal, goalLabel = 'Meta', goalUnit = '', currentGoal, showEffort = false, effortFlat, effortFlatLabel = 'Média',
@@ -317,16 +123,26 @@ export function StackedBarChart({
 }: Props) {
   // A paleta ativa vem do tema — o app e os gráficos usam a mesma desde a unificação.
   const { paletteId } = useTheme();
-  const [display, setDisplay] = useState<Bar[]>([]);
+  const [display, setDisplay] = useState<StackedBar[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
 
-  const displayRef = useRef<Bar[]>([]);
+  const displayRef = useRef<StackedBar[]>([]);
   const rafRef = useRef<number | undefined>(undefined);
 
+  const geo = useMemo(() => geometry(width, height, noScroll), [width, height, noScroll]);
   const model = useMemo(
-    () => buildModel(buckets, metric, width, height, noScroll, paletteId, goal, showEffort, effortFlat, currentGoal),
-    [buckets, metric, width, height, noScroll, paletteId, goal, showEffort, effortFlat, currentGoal],
+    () => buildStackedBars({
+      buckets,
+      metric,
+      geometry: geo,
+      goal,
+      currentGoal,
+      showEffort,
+      effortFlat,
+      colorOf: (c) => remapChartColor(c, paletteId),
+    }),
+    [buckets, metric, geo, goal, currentGoal, showEffort, effortFlat, paletteId],
   );
 
   useEffect(() => {
@@ -339,7 +155,7 @@ export function StackedBarChart({
   // Fecha o tooltip ao trocar período/métrica (não na legenda).
   useEffect(() => { setSelected(null); }, [animationKey]);
 
-  const setDisp = (bars: Bar[]) => { displayRef.current = bars; setDisplay(bars); };
+  const setDisp = (bars: StackedBar[]) => { displayRef.current = bars; setDisplay(bars); };
 
   // Tween: interpola do estado atual até o alvo a cada mudança dos dados.
   useEffect(() => {
@@ -347,40 +163,43 @@ export function StackedBarChart({
     const baseY = model.baseY;
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     if (reduceMotion) { setDisp(target); return; }
-    const fromByKey = new Map(displayRef.current.map((b) => [b.key, b]));
+    // Congelado ANTES do laço, de propósito: interpolar a partir do quadro
+    // anterior em vez do estado de partida achataria a curva do easing — cada
+    // quadro andaria uma fração do que resta, e a barra nunca chegaria.
+    const from = displayRef.current;
     const start = Date.now();
     const step = () => {
       const t = Math.min(1, (Date.now() - start) / ANIM_MS);
       if (t >= 1) { setDisp(target); rafRef.current = undefined; return; }
       const e = easeOutCubic(t);
-      setDisp(target.map((tb) => interpBar(fromByKey.get(tb.key), tb, e, baseY)));
+      setDisp(interpolateStackedBars(from, target, e, baseY, geo.topRadius, FADING_COLOR));
       rafRef.current = requestAnimationFrame(step);
     };
     rafRef.current = requestAnimationFrame(step);
     return () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); };
-  }, [model, reduceMotion]);
+  }, [model, reduceMotion, geo.topRadius]);
 
   if (buckets.length === 0 || width <= 0) return null;
 
-  const { chartW, baseY, layout, grid, goalPath, goalY, effortFlatY } = model;
+  const { chartW, baseY, grid, goalPath, goalY, effortFlatY } = model;
 
   // Curva do esforço ponderado: cúbica monotônica (suaviza sem inventar picos).
   // Quebra (null) nos buckets sem ponto.
   const effortPath = smoothLinePath(
-    display.map<LinePoint | null>((b) => (b.effY === null ? null : { x: b.center, y: b.effY })),
+    display.map<LinePoint | null>((b) => (b.effY === null ? null : { x: b.cx, y: b.effY })),
   );
 
   // Cores distintas atualmente renderizadas (inclui séries que estão encolhendo).
   const gradColors = Array.from(
-    new Set(display.flatMap((b) => b.segs.map((s) => s.color)).filter(isHex)),
+    new Set(display.flatMap((b) => b.segs.map((s) => s.color)).filter(isHexColor)),
   );
 
   // ---- Tooltip (opcional) ----
   let tooltip: React.ReactNode = null;
   const selBucket = selected != null ? buckets[selected] : null;
-  if (selected != null && selBucket && selBucket.segments.length > 0 && layout[selected]) {
+  if (selected != null && selBucket && selBucket.segments.length > 0 && model.bars[selected]) {
     const b = selBucket;
-    const { center } = layout[selected];
+    const center = model.bars[selected].cx;
     const barTopY = display[selected]?.topY ?? model.bars[selected]?.topY ?? baseY;
     const showTotal = b.segments.length > 1;
     const effortLabel = showEffort && b.effectiveS !== undefined
@@ -483,12 +302,15 @@ export function StackedBarChart({
   const svg = (
     <Svg width={chartW} height={height}>
       <Defs>
-        {gradColors.map((c) => (
-          <LinearGradient key={gradId(c)} id={gradId(c)} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={gradTop(c)} />
-            <Stop offset="1" stopColor={gradBase(c)} />
-          </LinearGradient>
-        ))}
+        {gradColors.map((c) => {
+          const stops = stackedGradientStops(c, colors.surface);
+          return (
+            <LinearGradient key={stackedGradientId(c)} id={stackedGradientId(c)} x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={stops.top} />
+              <Stop offset="1" stopColor={stops.base} />
+            </LinearGradient>
+          );
+        })}
         {/* Painel da área de plot: um só tom com rampa de opacidade (o degradê some
             na base, onde a linha de eixo assume). Segue o tema pelo proxy `colors`. */}
         <LinearGradient id="sbc-plot-bg" x1="0" y1="0" x2="0" y2="1">
@@ -498,18 +320,19 @@ export function StackedBarChart({
       </Defs>
 
       {/* Largura em `chartW` (não na da tela): no scroll horizontal o painel acompanha as barras. */}
-      <Rect x={PAD_LEFT} y={PAD_TOP} width={chartW - PAD_LEFT} height={baseY - PAD_TOP} fill="url(#sbc-plot-bg)" />
+      <Rect x={model.plotLeft} y={geo.padTop} width={model.plotRight - model.plotLeft}
+        height={model.plotH} fill="url(#sbc-plot-bg)" />
 
       {grid.map((g, i) => (
         <React.Fragment key={`g${i}`}>
           <Line
-            x1={PAD_LEFT} y1={g.y} x2={chartW} y2={g.y}
+            x1={model.plotLeft} y1={g.y} x2={model.plotRight} y2={g.y}
             stroke={g.base ? colors.lineDeep : colors.line}
             strokeWidth={g.base ? 1 : 0.5}
             strokeOpacity={g.base ? 0.8 : 0.4}
           />
-          <SvgText x={PAD_LEFT - 6} y={g.y + 3} fontSize={9} fill={colors.ink3} textAnchor="end">
-            {g.label}
+          <SvgText x={model.plotLeft - 6} y={g.y + 3} fontSize={9} fill={colors.ink3} textAnchor="end">
+            {formatAxisLabel(g.value, metric)}
           </SvgText>
         </React.Fragment>
       ))}
@@ -517,11 +340,10 @@ export function StackedBarChart({
       {display.map((b) => (
         <React.Fragment key={b.key}>
           {b.segs.map((s, si) => {
-            const fill = fillFor(s.color);
+            const fill = isHexColor(s.color) ? `url(#${stackedGradientId(s.color)})` : s.color;
             if (s.top && s.h > 0.5) {
-              const r = Math.min(TOP_RADIUS, s.w / 2, s.h);
               return (
-                <Path key={`${b.key}-${si}`} d={topRoundedRectPath(s.x, s.y, s.w, s.h, r)} fill={fill} fillOpacity={s.opacity} />
+                <Path key={`${b.key}-${si}`} d={s.d} fill={fill} fillOpacity={s.opacity} />
               );
             }
             return (
@@ -534,7 +356,7 @@ export function StackedBarChart({
       {model.bars.map((b) => (
         <SvgText
           key={`lbl-${b.key}`}
-          x={b.center}
+          x={b.cx}
           y={height - 6}
           fontSize={9}
           fill={b.comparison ? colors.ink4 : colors.ink3}
@@ -564,8 +386,8 @@ export function StackedBarChart({
             strokeWidth={1.25}
             strokeDasharray="3 3"
           />
-          <SvgText x={chartW - 4} y={goalY - 5} fontSize={8.5} fill={colors.ink3} fillOpacity={0.85} textAnchor="end" fontFamily={fonts.mono}>
-            {`${goalLabel} · ${fmtCompact(goal ?? 0, metric)}${goalUnit}`}
+          <SvgText x={model.plotRight - 4} y={goalY - 5} fontSize={8.5} fill={colors.ink3} fillOpacity={0.85} textAnchor="end" fontFamily={fonts.mono}>
+            {`${goalLabel} · ${formatCompactLabel(goal ?? 0, metric)}${goalUnit}`}
           </SvgText>
         </React.Fragment>
       )}
@@ -575,21 +397,21 @@ export function StackedBarChart({
           {/* Pontilhada: traço diferente da meta tracejada e da polilinha sólida.
               Rótulo à esquerda; a meta ancora à direita, então nunca colidem. */}
           <Line
-            x1={PAD_LEFT} y1={effortFlatY} x2={chartW} y2={effortFlatY}
+            x1={model.plotLeft} y1={effortFlatY} x2={model.plotRight} y2={effortFlatY}
             stroke={colors.surface} strokeWidth={3.5} strokeOpacity={0.9} strokeLinecap="round"
           />
           <Line
-            x1={PAD_LEFT}
+            x1={model.plotLeft}
             y1={effortFlatY}
-            x2={chartW}
+            x2={model.plotRight}
             y2={effortFlatY}
             stroke={effortFlatColor}
             strokeWidth={1.5}
             strokeDasharray="1 3"
             strokeLinecap="round"
           />
-          <SvgText x={PAD_LEFT + 4} y={effortFlatY - 5} fontSize={8.5} fill={effortFlatColor} fontFamily={fonts.mono}>
-            {`${effortFlatLabel} · ${fmtCompact(effortFlat ?? 0, metric)}`}
+          <SvgText x={model.plotLeft + 4} y={effortFlatY - 5} fontSize={8.5} fill={effortFlatColor} fontFamily={fonts.mono}>
+            {`${effortFlatLabel} · ${formatCompactLabel(effortFlat ?? 0, metric)}`}
           </SvgText>
         </React.Fragment>
       )}
@@ -600,20 +422,20 @@ export function StackedBarChart({
           <Path d={effortPath} fill="none" stroke={effortColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           {display.map((b) => (b.effY === null ? null : (
             <React.Fragment key={`eff-${b.key}`}>
-              <Circle cx={b.center} cy={b.effY} r={3.2} fill={colors.surface} fillOpacity={0.9} />
-              <Circle cx={b.center} cy={b.effY} r={2.2} fill={effortColor} />
+              <Circle cx={b.cx} cy={b.effY} r={3.2} fill={colors.surface} fillOpacity={0.9} />
+              <Circle cx={b.cx} cy={b.effY} r={2.2} fill={effortColor} />
             </React.Fragment>
           )))}
         </React.Fragment>
       )}
 
       {/* Áreas transparentes de toque, por slot (renderizadas por cima das barras). */}
-      {layout.map((l, i) => (
+      {model.bars.map((b, i) => (
         <Rect
-          key={`tap-${i}`}
-          x={l.x0}
+          key={`tap-${b.key}`}
+          x={b.x0}
           y={0}
-          width={l.slot}
+          width={b.slot}
           height={height}
           fill="transparent"
           onPress={() => setSelected((prev) => (prev === i ? null : i))}

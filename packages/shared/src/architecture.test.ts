@@ -406,7 +406,9 @@ const HEX_CEILING: {
   {
     label: 'mobile/src (fora de theme/)',
     files: mobileFiles.filter((f) => !f.includes('/src/theme/')),
-    max: 197,
+    // 197 → 196 quando o `WARM = '#FBF1E2'` do gráfico empilhado saiu: o degradê
+    // da barra passou a clarear em direção à superfície do tema.
+    max: 196,
   },
   {
     label: 'web SCSS',
@@ -422,8 +424,9 @@ const HEX_CEILING: {
     label: 'web TS',
     files: webFiles,
     // 68 → 62 quando o gráfico de volume da página de Treinos parou de desenhar
-    // grade, eixo e valor em hex do Orbe claro (o que quebrava o modo escuro).
-    max: 62,
+    // grade, eixo e valor em hex do Orbe claro (o que quebrava o modo escuro);
+    // 62 → 61 quando o `WARM` do gráfico empilhado virou a superfície do tema.
+    max: 61,
   },
 ];
 
