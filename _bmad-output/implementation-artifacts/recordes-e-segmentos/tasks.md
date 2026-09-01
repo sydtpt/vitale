@@ -132,6 +132,12 @@ mesmo**. O ranking filtra por esporte — um 5 km de bicicleta nunca disputa com
 
 ## Fase 2 — A tendência do seu melhor por distância
 
+> **Feita** em 01/09/2026 — `bestEffortTrend` + `distancesWithData` no núcleo
+> (8 testes), `EffortTrendCard` (mobile) e `rt-effort-trend-card` (web) na
+> página do tipo, abaixo do volume. De carona: `LineChart` com `gaps` e
+> `reference`, `Segmented` extraído para `components/ui/`, `rt-trend-chart`
+> novo na web. **Não conferida no aparelho ainda.**
+
 A tela que responde *"estou diminuindo?"* — o objetivo declarado.
 
 Um ponto por mês: **o melhor 5 km daquele mês**. Linha de referência no recorde
