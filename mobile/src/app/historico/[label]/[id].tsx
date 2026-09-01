@@ -29,6 +29,7 @@ import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../l
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
+import { SegmentsCard } from '../../../components/cards/SegmentsCard';
 import {
   formatFullDate,
   formatTime,
@@ -388,6 +389,11 @@ export default function AtividadeDetalheScreen() {
             />
           </>
         )}
+
+        {/* Fora do bloco do percurso de propósito: `bestEfforts` vem do sync e
+            existe mesmo antes de a rota ser carregada nesta sessão. Some sozinho
+            quando a corrida não tem GPS. */}
+        <SegmentsCard activities={_all} activity={activity} />
 
         {hrZones && (
           <>

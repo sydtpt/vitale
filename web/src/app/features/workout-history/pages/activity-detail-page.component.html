@@ -117,6 +117,28 @@
       </section>
     }
 
+    <!-- Fora do bloco da rota de propósito: `bestEfforts` vem do sync e existe
+         mesmo antes de a rota carregar. Some sozinho quando não há GPS. -->
+    @if (segments().length > 0) {
+      <section class="segments">
+        <h3 class="segments-title">Dentro {{ segmentNoun(a.activityId) }}</h3>
+        <div class="segment-list">
+          @for (s of segments(); track s.key) {
+            <div class="segment-row">
+              <span class="segment-label">{{ s.label }}</span>
+              <span class="segment-time mono">{{ s.time }}</span>
+              <span class="segment-rate mono">{{ s.rate }}</span>
+              @if (s.rank !== null) {
+                <span class="segment-medal" [class.gold]="s.rank === 1">{{ medalLabel(s.rank) }}</span>
+              } @else {
+                <span></span>
+              }
+            </div>
+          }
+        </div>
+      </section>
+    }
+
     @if (hrZones(); as hz) {
       <section class="zones">
         <h3 class="zones-title">Zonas de frequência cardíaca</h3>

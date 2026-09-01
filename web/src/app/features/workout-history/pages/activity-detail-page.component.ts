@@ -11,7 +11,9 @@ import {
   movingTimeFromRoutePoints,
   routeCursorAt,
   routeDistances,
+  segmentsInside,
   speedSeries,
+  type MedalRank,
 } from '@vitale/shared';
 import { NgStyle } from '@angular/common';
 import { IconComponent } from '@core/services/icon.component';
@@ -82,6 +84,40 @@ export class ActivityDetailPageComponent {
     const a = this.activity();
     return a ? activityRecordBadges(this.store.activities(), a) : [];
   });
+
+  /**
+   * As distâncias padrão que couberam dentro desta atividade, com a medalha.
+   *
+   * `bestEfforts` é calculado por treino no sync — a linha de um 20 km carrega
+   * o melhor 5 km que aconteceu dentro dele — e nenhuma tela lia isso: a tira
+   * de Recordes mostra só o mínimo entre todas as corridas. A medalha mora aqui
+   * e não no topo por decisão do Sydnei: na corrida específica ela é legenda;
+   * no topo seria ruído. Vazio (sem GPS, linha antiga) esconde a seção.
+   */
+  protected readonly segments = computed(() => {
+    const a = this.activity();
+    if (!a) return [];
+    // Formatado aqui, como as zonas: o template só lê strings.
+    return segmentsInside(this.store.activities(), a).map((s) => {
+      const r = formatRate(a.activityId, s.meters, s.secs);
+      return {
+        key: s.key,
+        label: s.label,
+        time: formatClock(s.secs),
+        rate: r ? `${r.value} ${r.caption === 'pace' ? '/km' : r.caption}` : '',
+        rank: s.rank,
+      };
+    });
+  });
+
+  protected segmentNoun(activityId: number): string {
+    return activityId === 13 ? 'desta pedalada' : 'desta corrida';
+  }
+
+  /** O emoji carrega a cor: ouro/prata/bronze não são papéis da paleta. */
+  protected medalLabel(rank: MedalRank): string {
+    return rank === 1 ? '🥇 melhor de sempre' : rank === 2 ? '🥈 2º melhor' : '🥉 3º melhor';
+  }
 
   /**
    * Mesma casca da tira de Recordes: tema com degrau de superfície preenche a
