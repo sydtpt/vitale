@@ -154,6 +154,34 @@ export interface SegmentInside extends BestEffortDistance {
  * Recebe a população inteira porque a medalha é uma comparação; sem ela a lista
  * seria só números, que é o que a tela mostra quando não há pódio.
  */
+/** Um ponto da curva de recordes: a melhor marca de sempre numa distância. */
+export interface CurvePoint extends BestEffortDistance {
+  secs: number;
+  secPerKm: number;
+  /** A corrida que detém a marca — para navegar. */
+  id: string;
+  startAt: string;
+}
+
+/**
+ * A curva de recordes de um esporte: a melhor marca em cada distância que tem
+ * marca, em ordem crescente de distância.
+ *
+ * Uma leitura responde o que oito cards não respondem — se você é forte no
+ * curto e cai no longo, ou o contrário. É um **envelope de melhores marcas**,
+ * não um teste: o 1 km pode ser de um tiro em março e o 21 km de uma prova em
+ * setembro. Quem desenha deve dizer isso no rótulo.
+ */
+export function bestEffortCurve(activities: readonly Activity[], sportId: number): CurvePoint[] {
+  const out: CurvePoint[] = [];
+  for (const d of BEST_EFFORT_DISTANCES) {
+    const best = rankBestEfforts(activities, sportId, d.key)[0];
+    if (!best) continue;
+    out.push({ ...d, secs: best.secs, secPerKm: best.secs / (d.meters / 1000), id: best.id, startAt: best.startAt });
+  }
+  return out;
+}
+
 export function segmentsInside(activities: readonly Activity[], activity: Activity): SegmentInside[] {
   const out: SegmentInside[] = [];
   for (const d of BEST_EFFORT_DISTANCES) {

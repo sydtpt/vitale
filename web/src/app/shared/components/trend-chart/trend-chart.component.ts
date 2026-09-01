@@ -5,9 +5,13 @@ export interface TrendPoint {
   key: string;
   label: string;
   value: number | null;
+  /** Posição numérica no eixo x (só com `logX`). Precisa ser > 0. */
+  x?: number;
+  /** Tooltip nativo do ponto. */
+  title?: string;
 }
 
-interface DotVM { key: string; x: number; y: number; last: boolean; }
+interface DotVM { key: string; x: number; y: number; last: boolean; title: string; }
 interface GridVM { v: number; y: number; label: string; }
 
 /**
@@ -42,7 +46,9 @@ interface GridVM { v: number; y: number; label: string; }
 
       @for (d of dots(); track d.key) {
         <circle [attr.cx]="d.x" [attr.cy]="d.y" [attr.r]="d.last ? 4 : 2.6" [attr.fill]="color()"
-          [attr.stroke]="d.last ? 'var(--surface)' : 'none'" stroke-width="2" />
+          [attr.stroke]="d.last ? 'var(--surface)' : 'none'" stroke-width="2">
+          @if (d.title) { <title>{{ d.title }}</title> }
+        </circle>
       }
 
       @for (t of xTicks(); track t.key) {
@@ -64,6 +70,11 @@ interface GridVM { v: number; y: number; label: string; }
 })
 export class TrendChartComponent {
   readonly points = input.required<TrendPoint[]>();
+  /**
+   * Eixo x logarítmico pelo `x` de cada ponto, em vez de uma coluna por índice.
+   * É o que faz 1 km e 42 km caberem no mesmo eixo sem esmagar o 5 e o 10.
+   */
+  readonly logX = input(false);
   readonly color = input('var(--primary)');
   /** Entra na escala; `null` esconde a linha. */
   readonly reference = input<number | null>(null);
@@ -99,9 +110,15 @@ export class TrendChartComponent {
   });
 
   private xAt(i: number): number {
-    const n = this.points().length;
+    const ps = this.points();
     const plotW = this.w - this.padL - this.padR;
-    return n > 1 ? this.padL + (i / (n - 1)) * plotW : this.padL + plotW / 2;
+    if (this.logX()) {
+      const xs = ps.map((p) => Math.log(p.x ?? 1));
+      const lo = Math.min(...xs);
+      const hi = Math.max(...xs);
+      return hi > lo ? this.padL + ((xs[i] - lo) / (hi - lo)) * plotW : this.padL + plotW / 2;
+    }
+    return ps.length > 1 ? this.padL + (i / (ps.length - 1)) * plotW : this.padL + plotW / 2;
   }
 
   private yAt(v: number): number {
@@ -111,7 +128,7 @@ export class TrendChartComponent {
 
   protected readonly dots = computed<DotVM[]>(() => {
     const f = this.filled();
-    return f.map((p, k) => ({ key: p.key, x: this.xAt(p.i), y: this.yAt(p.value), last: k === f.length - 1 }));
+    return f.map((p, k) => ({ key: p.key, x: this.xAt(p.i), y: this.yAt(p.value), last: k === f.length - 1, title: p.title ?? '' }));
   });
 
   /** Um salto de índice > 1 recomeça o traço: o buraco não vira ponte. */

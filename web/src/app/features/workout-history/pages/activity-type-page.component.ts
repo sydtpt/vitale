@@ -22,6 +22,7 @@ import { ActivityFiltersComponent } from '../components/activity-filters.compone
 import { ActivityItemComponent } from '../components/activity-item.component';
 import { TypeEvolutionCardComponent } from '../components/type-evolution-card.component';
 import { EffortTrendCardComponent } from '../components/effort-trend-card.component';
+import { RecordCurveCardComponent } from '../components/record-curve-card.component';
 
 @Component({
   selector: 'rt-activity-type-page',
@@ -35,6 +36,7 @@ import { EffortTrendCardComponent } from '../components/effort-trend-card.compon
     ActivityItemComponent,
     TypeEvolutionCardComponent,
     EffortTrendCardComponent,
+    RecordCurveCardComponent,
   ],
   templateUrl: './activity-type-page.component.html',
   styleUrl: './activity-type-page.component.scss',

@@ -45,6 +45,7 @@ import {
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { TypeEvolutionCard } from '../../components/cards/TypeEvolutionCard';
 import { EffortTrendCard } from '../../components/cards/EffortTrendCard';
+import { RecordCurveCard } from '../../components/cards/RecordCurveCard';
 
 /**
  * Largura fixa do cartão de recorde. Precisa ser fixa para o `snapToInterval`
@@ -379,6 +380,11 @@ export default function TipoListScreen() {
 
             {/* Depois dos recordes, de propósito: eles contam o que já
                 aconteceu, este conta para onde está indo. */}
+            {/* Os recordes em forma: os mesmos pontos da tira acima, num eixo
+                só, para ler onde é forte e onde cai. Some com menos de duas marcas. */}
+            {typed[0] && (
+              <RecordCurveCard activities={_all} sportId={typed[0].activityId} color={meta.color} onPick={goToWorkout} />
+            )}
             <TypeEvolutionCard
               activities={typed}
               label={label}

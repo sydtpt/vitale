@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   BEST_EFFORT_DISTANCES,
   MIN_CONTEST_SIZE,
+  bestEffortCurve,
   bestEffortRank,
   rankBestEfforts,
   segmentsInside,
@@ -174,6 +175,28 @@ check('segmentos — sem disputa o número fica e a medalha não', () => {
 check('segmentos — corrida sem bestEfforts devolve lista vazia, não erro', () => {
   const semGps = act('x', undefined);
   assert.deepEqual(segmentsInside([semGps], semGps), []);
+});
+
+check('curva — a melhor marca de cada distância, crescente, apontando para a corrida', () => {
+  const pop = [
+    act('marco', { '1000': 240, '5000': 1400 }, { day: 3 }),
+    act('setembro', { '5000': 1300, '10000': 2800, half: 6300 }, { day: 20 }),
+    act('pedal', { '5000': 500 }, { sport: RIDE }),
+  ];
+  const c = bestEffortCurve(pop, RUN);
+  assert.deepEqual(c.map((p) => p.key), ['1000', '5000', '10000', 'half'], 'só o que tem marca, em ordem');
+  assert.deepEqual(
+    c.map((p) => p.id),
+    ['marco', 'setembro', 'setembro', 'setembro'],
+    'cada ponto vem da corrida que o detém — pode ser de dias diferentes, e é isso que o rótulo avisa',
+  );
+  assert.equal(c[1].secPerKm, 260, '1300 s em 5 km = 4:20 /km');
+  assert.deepEqual(bestEffortCurve(pop, RIDE).map((p) => p.key), ['5000'], 'o pedal tem a própria curva');
+});
+
+check('curva — sem marca nenhuma é vazia, e uma marca só é um ponto (quem desenha decide)', () => {
+  assert.deepEqual(bestEffortCurve([act('x', undefined)], RUN), []);
+  assert.equal(bestEffortCurve([act('um', { '5000': 1400 })], RUN).length, 1);
 });
 
 console.log(`\n${passed} testes passaram.`);
