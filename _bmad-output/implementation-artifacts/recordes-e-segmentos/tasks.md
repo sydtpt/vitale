@@ -96,9 +96,13 @@ ranqueamento, e a mesma corrida sendo ouro em duas distâncias.
 
 ## Fase 1 — Segmentos com medalha, no detalhe · **mobile primeiro**
 
-> ~~Bloqueada até a outra tab commitar~~ — **destravada em 01/09**: a outra
-> sessão commitou os dois detalhes em `1f9c3c6` (régua gráfico↔mapa), já na
-> `main`. É a próxima fase.
+> **Feita** em 01/09/2026 — `SegmentsCard` no mobile e seção `.segments` na
+> web, os dois por `segmentsInside`. (Tinha sido bloqueada pela outra tab nos
+> detalhes; destravou com `1f9c3c6`.) **Não conferida no aparelho ainda.**
+>
+> Sobra visual a decidir olhando: o ouro do painel repete o troféu de recorde
+> que já aparece no herói (`activityRecordBadges`). Dois selos para o mesmo
+> fato — ou o troféu passa a cobrir só distância/elevação, ou fica assim.
 
 Painel novo no detalhe da atividade, abaixo do percurso:
 
