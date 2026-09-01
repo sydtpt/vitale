@@ -49,7 +49,7 @@ arquivos não commitados, incluindo os dois detalhes de atividade.
 | `running-highlights.ts` (web + mobile) | — | **Fase 0** |
 | `weekly-load.ts` | — | **Paralelo** |
 | `activity-type-page.component.html` | — | Fases 2 e 3 |
-| `[id].tsx` · `activity-detail-page.component.*` | **em uso** | **Fase 1 — bloqueada** |
+| `[id].tsx` · `activity-detail-page.component.*` | commitado em `1f9c3c6` | **Fase 1 — livre** |
 | `type-summary.ts` (web + mobile) | **em uso** | não tocar |
 
 **A Fase 1 é a que o Sydnei mais quer e é a única bloqueada.** Por isso a ordem
@@ -60,6 +60,9 @@ fundação pronta e vira uma tela.
 ---
 
 ## Fase 0 — O ranking sai da duplicata
+
+> **Feita** em 01/09/2026 — `546e952` na branch `feat/recordes-e-segmentos`.
+> 12 testes no núcleo; web e mobile passaram a ler a tabela de distâncias de lá.
 
 Nada de UI. É a fase invisível, e é a que impede a medalha de significar coisas
 diferentes em duas telas.
@@ -93,8 +96,9 @@ ranqueamento, e a mesma corrida sendo ouro em duas distâncias.
 
 ## Fase 1 — Segmentos com medalha, no detalhe · **mobile primeiro**
 
-> **Bloqueada** até a outra tab commitar `[id].tsx` e
-> `activity-detail-page.component.*`.
+> ~~Bloqueada até a outra tab commitar~~ — **destravada em 01/09**: a outra
+> sessão commitou os dois detalhes em `1f9c3c6` (régua gráfico↔mapa), já na
+> `main`. É a próxima fase.
 
 Painel novo no detalhe da atividade, abaixo do percurso:
 
@@ -116,10 +120,9 @@ Regras: some inteiro quando não há `bestEfforts` (corrida sem GPS, linha antig
 Só mostra distâncias que **couberam** na atividade. Mobile primeiro; a web recebe
 o mesmo painel depois, pelo mesmo builder.
 
-**Pergunta aberta para o Sydnei:** o sync calcula `bestEfforts` para toda
-atividade com GPS, mas o `running-highlights` só exibe em corrida. "Os 20 km mais
-rápidos dentro do pedal de 60" é uma pergunta que faz sentido para você, ou
-segmentos são coisa de corrida?
+**Decidido (01/09):** segmentos em **corrida e ciclismo, cada um consigo
+mesmo**. O ranking filtra por esporte — um 5 km de bicicleta nunca disputa com um
+5 km de corrida. Já está assim no núcleo (`rankBestEfforts` recebe o `sportId`).
 
 ---
 
