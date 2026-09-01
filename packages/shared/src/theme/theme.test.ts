@@ -19,6 +19,7 @@ import { shadowVars } from './css-vars';
 import { BRANDS } from './brands';
 import { moduleOf, resolveTokens, wallpapersFor, MODULE_KEYS, type RoleKey } from './derive';
 import { ACTIVITY_ROLE, ACTIVITY_TYPE_LABELS } from '../fitness/activity-types';
+import { HR_ZONES } from '../health/hr-zones';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -137,6 +138,54 @@ check('texto de papel sobre a superfície passa em todas as combinações', () =
       `impedir. \`accent\` promete só 3,0, que é o piso do traço, não o da ` +
       `letra:\n    ${bad.join('\n    ')}`,
   );
+});
+
+/**
+ * O buraco que faltava. Havia teste para `on` sobre o tint e para `text` sobre a
+ * superfície, mas nenhum para o **acento sobre a superfície** — que é o que o
+ * traço de gráfico, o ícone de estatística e o acento de módulo desenham. Foi
+ * por aí que o papel `ink` escapou: o caminho histórico (orbe × orbe) não passa
+ * pelo `ensureContrast`, o `PINNED_ACCENT.dark` esquecia esse papel, e o acento
+ * media **1,01** sobre a superfície escura sem ninguém reclamar. Não era só
+ * gráfico — `financas` aponta para esse papel e pintava quase-preto no escuro.
+ *
+ * As duas exceções são **do Orbe claro e só dele**, e estão aqui nomeadas em vez
+ * de virarem um piso mais frouxo: amarelo e verde sobre branco sempre foram
+ * assim, é a cara da paleta original, e para esses casos existem `text` e `on`.
+ * Uma exceção nova precisa ser escrita aqui, que é justamente o que o `ink`
+ * nunca foi.
+ */
+const ACCENT_FLOOR_EXCEPTIONS = new Set(['orbe/light/orbe yellow', 'orbe/light/orbe green']);
+
+check('acento de papel passa o piso gráfico sobre a superfície', () => {
+  const bad: string[] = [];
+  for (const c of COMBOS) {
+    for (const [role, r] of Object.entries(c.tokens.roles) as [RoleKey, { accent: string }][]) {
+      if (ACCENT_FLOOR_EXCEPTIONS.has(`${label(c)} ${role}`)) continue;
+      const ratio = contrast(r.accent, c.tokens.surface);
+      if (ratio < 3) bad.push(`${label(c)} ${role} accent/surface ${ratio.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    `acento invisível sobre a superfície — o traço de gráfico e o acento de ` +
+      `módulo desenham com ele:\n    ${bad.join('\n    ')}`,
+  );
+});
+
+/**
+ * A rampa de FC declara papel **e** hex — o hex é a ponte para quem ainda fala
+ * o vocabulário do Orbe (`remapChartColor`). Os dois têm de contar a mesma
+ * história: se alguém trocar um sem o outro, a legenda passa a discordar do
+ * gráfico que ela legenda, e é o tipo de divergência que ninguém vê revisando.
+ */
+check('a rampa de FC concorda com os papéis que declara', () => {
+  const orbe = PALETTES.find((p) => p.id === 'orbe')!;
+  const bad = HR_ZONES.filter((z) => orbe.roles[z.role] !== z.color).map(
+    (z) => `${z.key} papel ${z.role} = ${orbe.roles[z.role]}, hex declarado ${z.color}`,
+  );
+  assert.deepEqual(bad, [], `rampa de FC fora do vocabulário do Orbe:\n    ${bad.join('\n    ')}`);
 });
 
 check('todo módulo tem ícone legível na sua caixa', () => {

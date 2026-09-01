@@ -142,6 +142,13 @@ const PINNED_ACCENT: Record<ColorScheme, Partial<Record<RoleKey, string>>> = {
   dark: {
     green: '#7FB97A', rose: '#E87B98', blue: '#84A0DA', brown: '#C49A72',
     teal: '#5FB3A4', red: '#F07A7A', purple: '#A98BCB', deep: '#FF6A3C',
+    // O `ink` faltava aqui, e no caminho histórico ninguém corrige o que não
+    // está pinado: o acento caía no `#1F1B16` declarado e media **1,01** sobre
+    // a superfície escura — invisível. Não era só gráfico: `MODULE_ROLE.financas`
+    // aponta para este papel, então o módulo inteiro pintava quase-preto no
+    // escuro. O valor é o grafite quente do tema, entre `ink4` e `ink3`, com
+    // folga sobre o piso (3,52 na superfície, 3,83 no fundo) em vez de raspá-lo.
+    ink: '#767065',
   },
 };
 

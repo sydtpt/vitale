@@ -18,7 +18,7 @@
     <rt-stacked-bar-chart [buckets]="load().buckets" [metric]="'duration'" />
 
     <div class="legend">
-      @for (z of zones; track z.label) {
+      @for (z of zones(); track z.label) {
         <span class="leg">
           <span class="dot" [style.background]="z.color"></span>{{ z.label }}
         </span>

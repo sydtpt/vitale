@@ -408,7 +408,15 @@ const HEX_CEILING: {
     files: mobileFiles.filter((f) => !f.includes('/src/theme/')),
     // 197 → 196 quando o `WARM = '#FBF1E2'` do gráfico empilhado saiu: o degradê
     // da barra passou a clarear em direção à superfície do tema.
-    max: 196,
+    //
+    // 196 → 200 com o cursor do scrub no HTML do mapa (Leaflet e MapLibre, dois
+    // literais cada): núcleo escuro + anel branco. Cai na exceção declarada
+    // acima — o marcador vive sobre os tiles, que não seguem o tema do app, e a
+    // lista tem estilo claro *e* escuro. Um token viraria quase-branco no
+    // esquema escuro e sumiria sobre o Positron; um fixo escuro sumiria sobre o
+    // Dark Matter. O par núcleo+anel é legível nos dois, e é a mesma solução do
+    // casing branco que já está sob a linha da rota.
+    max: 200,
   },
   {
     label: 'web SCSS',
@@ -426,6 +434,16 @@ const HEX_CEILING: {
     // 68 → 62 quando o gráfico de volume da página de Treinos parou de desenhar
     // grade, eixo e valor em hex do Orbe claro (o que quebrava o modo escuro);
     // 62 → 61 quando o `WARM` do gráfico empilhado virou a superfície do tema.
+    //
+    // 61 → 63 com o cursor do scrub no mapa (`activity-map.component.ts`), pela
+    // mesma razão do bucket do mobile: marcador sobre tile, fora do tema, com
+    // estilo de mapa claro e escuro na mesma lista.
+    //
+    // E 63 → 61 no mesmo arquivo, no mesmo dia: a rota lia `--primary` (eixo
+    // marca) com fallback cravado, e o ponto de largada era um verde literal.
+    // Os dois viraram papel — `treino`/`orange` e `green` — então a rota deixou
+    // de ficar preta quando a marca é `tinta`, e o mapa passou a acompanhar a
+    // paleta como o resto do app.
     max: 61,
   },
 ];
@@ -471,7 +489,16 @@ const TEXT_ACCENT: { label: string; files: string[]; re: RegExp; max: number }[]
     label: 'web — color: var(--acento)',
     files: walkExt(join(ROOT, 'web', 'src'), /\.(scss|html|ts)$/),
     re: /(?<![-\w])color:\s*var\(--(primary|primary-deep|role-[a-z]+)\)/g,
-    max: 43,
+    // 43 → 42 quando o destaque em `--primary-deep` do primeiro card de
+    // estatística saiu: era a marca elegendo "movimento" entre as cinco
+    // métricas, sem razão. Cada uma passou a ter o acento do seu papel.
+    //
+    // 42 → 39 nos três pontos que pintavam conteúdo **dentro** do preenchimento
+    // da marca com `--primary`, quando o token para isso é `--primary-on`: o
+    // toggle "nas estatísticas" do detalhe e as duas pílulas de atrasado da
+    // Semana. Media 2,71 na marca padrão e 1,86 na verde — abaixo do piso de
+    // 3,0, o ícone sumia dentro do próprio botão.
+    max: 39,
   },
   {
     label: 'web — [style.color] com acento',
