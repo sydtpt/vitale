@@ -182,6 +182,12 @@ assumidamente diferentes, mesmo componente por baixo.
 
 ## Em paralelo — Carga por zona da semana, no celular
 
+> **Feita** em 01/09/2026 — `buildWeeklyLoad` no núcleo (10 checks; o
+> `mondayOf` local da web saiu, é o de `week/recap`), a web virou adaptador com
+> o spec intacto, e `WeeklyLoadCard` entrou na aba Histórico do mobile ao lado
+> da consistência. **Com isto o plano inteiro está implementado — e nada foi
+> conferido no aparelho.**
+
 Independente de tudo acima; pode entrar a qualquer momento e é o único item que
 paga a regra que o Sydnei declarou hoje.
 
