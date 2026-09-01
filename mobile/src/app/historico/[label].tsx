@@ -44,6 +44,7 @@ import {
 } from '../../theme';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { TypeEvolutionCard } from '../../components/cards/TypeEvolutionCard';
+import { EffortTrendCard } from '../../components/cards/EffortTrendCard';
 
 /**
  * Largura fixa do cartão de recorde. Precisa ser fixa para o `snapToInterval`
@@ -384,6 +385,12 @@ export default function TipoListScreen() {
               hasDistance={hasDistance}
               color={meta.color}
             />
+            {/* Volume responde "quanto"; isto responde "estou diminuindo?" —
+                o melhor por distância, contra o recorde. Some quando o tipo
+                não tem marca nenhuma. */}
+            {typed[0] && (
+              <EffortTrendCard activities={_all} sportId={typed[0].activityId} color={meta.color} />
+            )}
             <View style={styles.filterWrap}>
             <View style={styles.toolbarRow}>
               <Pressable

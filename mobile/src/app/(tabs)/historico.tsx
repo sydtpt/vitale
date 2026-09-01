@@ -24,6 +24,7 @@ import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
 import { Sparkline } from '../../components/charts/Sparkline';
 import { ConsistencyCard } from '../../components/cards/ConsistencyCard';
+import { Segmented } from '../../components/ui/Segmented';
 import { colors, fonts, moduleColors, radii, roleColors, shadows, spacing, themed, useTheme } from '../../theme';
 
 const PERIODS: { key: Period; label: string }[] = [
@@ -142,33 +143,6 @@ function StatTile({ value, label, delta }: { value: string; label: string; delta
         </Text>
       )}
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { key: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <View style={styles.segmented}>
-      {options.map((o) => {
-        const active = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            style={[styles.segment, active && styles.segmentActive]}
-          >
-            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
     </View>
   );
 }
@@ -615,22 +589,6 @@ const styles = themed(() => StyleSheet.create({
     gap: spacing.lg,
     ...shadows.card,
   },
-
-  segmented: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceMute,
-    borderRadius: radii.pill,
-    padding: 3,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-  },
-  segmentActive: { backgroundColor: colors.surface, ...shadows.sm },
-  segmentText: { fontSize: 12.5, color: colors.ink3, fontFamily: fonts.sansSemiBold },
-  segmentTextActive: { color: colors.ink },
 
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   statTile: { alignItems: 'center', flex: 1, gap: 1 },

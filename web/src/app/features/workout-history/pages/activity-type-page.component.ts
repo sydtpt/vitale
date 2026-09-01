@@ -21,6 +21,7 @@ import { activityHighlights, type ActivityHighlight } from '../data/running-high
 import { ActivityFiltersComponent } from '../components/activity-filters.component';
 import { ActivityItemComponent } from '../components/activity-item.component';
 import { TypeEvolutionCardComponent } from '../components/type-evolution-card.component';
+import { EffortTrendCardComponent } from '../components/effort-trend-card.component';
 
 @Component({
   selector: 'rt-activity-type-page',
@@ -33,6 +34,7 @@ import { TypeEvolutionCardComponent } from '../components/type-evolution-card.co
     ActivityFiltersComponent,
     ActivityItemComponent,
     TypeEvolutionCardComponent,
+    EffortTrendCardComponent,
   ],
   templateUrl: './activity-type-page.component.html',
   styleUrl: './activity-type-page.component.scss',
@@ -71,6 +73,8 @@ export class ActivityTypePageComponent {
     this.highlights().filter((h) => h.group === 'record'),
   );
   protected readonly showDistance = computed(() => this.summary()?.hasDistance ?? true);
+  /** Código do esporte da rota; `null` para rótulos sem id (a tendência então não aparece). */
+  protected readonly sportId = computed(() => activityIdForSlug(this._slug()) ?? null);
 
   /**
    * A casca do cartão de recorde sai do tema, não do esquema: temas sem degrau

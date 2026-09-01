@@ -70,6 +70,11 @@
     @if (summary(); as s) {
       <rt-type-evolution-card [activities]="store.activities()" [label]="s.label"
         [hasDistance]="s.hasDistance" [color]="s.color" />
+      <!-- Volume responde "quanto"; isto responde "estou diminuindo?" — o melhor
+           por distância, contra o recorde. Some quando o tipo não tem marca. -->
+      @if (sportId(); as id) {
+        <rt-effort-trend-card [activities]="store.activities()" [sportId]="id" [color]="s.color" />
+      }
     }
 
     <rt-activity-filters [filters]="filters()" [sources]="result().sources"
