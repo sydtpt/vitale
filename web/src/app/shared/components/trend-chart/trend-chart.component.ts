@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 /** Um ponto da série; `value: null` é buraco — não se liga por cima dele. */
 export interface TrendPoint {
@@ -9,9 +9,11 @@ export interface TrendPoint {
   x?: number;
   /** Tooltip nativo do ponto. */
   title?: string;
+  /** Quando presente, o ponto é clicável e `pick` emite este id. */
+  id?: string;
 }
 
-interface DotVM { key: string; x: number; y: number; last: boolean; title: string; }
+interface DotVM { key: string; x: number; y: number; last: boolean; title: string; id: string | null; }
 interface GridVM { v: number; y: number; label: string; }
 
 /**
@@ -45,9 +47,16 @@ interface GridVM { v: number; y: number; label: string; }
         stroke-linejoin="round" stroke-linecap="round" />
 
       @for (d of dots(); track d.key) {
-        <circle [attr.cx]="d.x" [attr.cy]="d.y" [attr.r]="d.last ? 4 : 2.6" [attr.fill]="color()"
+        <!-- Área de clique maior que o ponto: 2,6 px de raio não é alvo para ninguém. -->
+        @if (d.id) {
+          <circle class="hit" [attr.cx]="d.x" [attr.cy]="d.y" r="12" fill="transparent"
+            (click)="pick.emit(d.id)" role="button" tabindex="0" (keydown.enter)="pick.emit(d.id)">
+            @if (d.title) { <title>{{ d.title }}</title> }
+          </circle>
+        }
+        <circle class="dot" [attr.cx]="d.x" [attr.cy]="d.y" [attr.r]="d.last ? 4 : 2.6" [attr.fill]="color()"
           [attr.stroke]="d.last ? 'var(--surface)' : 'none'" stroke-width="2">
-          @if (d.title) { <title>{{ d.title }}</title> }
+          @if (d.title && !d.id) { <title>{{ d.title }}</title> }
         </circle>
       }
 
@@ -66,6 +75,8 @@ interface GridVM { v: number; y: number; label: string; }
     .axis { font-size: 10px; fill: var(--ink-4); }
     .ref-line { stroke: var(--ink-3); stroke-dasharray: 1 3; }
     .ref-label { font-size: 9px; fill: var(--ink-3); }
+    .hit { cursor: pointer; outline: none; }
+    .dot { pointer-events: none; }
   `],
 })
 export class TrendChartComponent {
@@ -83,6 +94,8 @@ export class TrendChartComponent {
   readonly formatValue = input<(v: number) => string>((v) => String(Math.round(v)));
   readonly emptyLabel = input('Sem dados');
   readonly ariaLabel = input('Tendência');
+  /** Clique num ponto que tem `id`. */
+  readonly pick = output<string>();
 
   protected readonly w = 360;
   protected readonly h = 180;
@@ -128,7 +141,10 @@ export class TrendChartComponent {
 
   protected readonly dots = computed<DotVM[]>(() => {
     const f = this.filled();
-    return f.map((p, k) => ({ key: p.key, x: this.xAt(p.i), y: this.yAt(p.value), last: k === f.length - 1, title: p.title ?? '' }));
+    return f.map((p, k) => ({
+      key: p.key, x: this.xAt(p.i), y: this.yAt(p.value),
+      last: k === f.length - 1, title: p.title ?? '', id: p.id ?? null,
+    }));
   });
 
   /** Um salto de índice > 1 recomeça o traço: o buraco não vira ponte. */

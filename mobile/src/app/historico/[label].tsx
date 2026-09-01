@@ -13,7 +13,10 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Activity } from '@vitale/shared';
-import { ridesByCountry } from '@vitale/shared';
+import { BEST_EFFORT_DISTANCES, ridesByCountry } from '@vitale/shared';
+
+/** As distâncias padrão — os recordes por distância agora vivem na curva, não em cards. */
+const EFFORT_KEYS = new Set(BEST_EFFORT_DISTANCES.map((d) => d.key));
 import { useActivitiesStore } from '../../store/activities.store';
 import { getActivityMeta, getActivityColor } from '../../lib/workout-types';
 import {
@@ -136,9 +139,13 @@ function HighlightsRow({
   items: ActivityHighlight[];
   onPick: (id: string) => void;
 }) {
-  // Linha 1 → distâncias (resumo); linha 2 → recordes por distância (decrescente).
+  // Linha 1 → distâncias (resumo). Linha 2 → recordes que não são por distância
+  // (a elevação do ciclismo). Os oito cards de best effort saíram daqui: viraram
+  // a curva de recordes logo abaixo, que mostra os mesmos números como forma e,
+  // no toque, com data e link. Dois lugares para o mesmo número, na mesma tela,
+  // era ruído. Os badges do herói e o ranking continuam vendo tudo.
   const summary = items.filter((h) => h.group === 'summary');
-  const records = items.filter((h) => h.group === 'record');
+  const records = items.filter((h) => h.group === 'record' && !EFFORT_KEYS.has(h.key));
 
   // A casca sai do tema, não do esquema: temas que não dão preenchimento ao card
   // (Clean) pintam a cor na borda, e o valor usa `text` em vez de `on`. Ver a

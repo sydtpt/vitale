@@ -71,7 +71,7 @@
       <!-- Os recordes em forma: os mesmos pontos da tira acima, num eixo só,
            para ler onde é forte e onde cai. Some com menos de duas marcas. -->
       @if (sportId(); as id) {
-        <rt-record-curve-card [activities]="store.activities()" [sportId]="id" [color]="s.color" />
+        <rt-record-curve-card [activities]="store.activities()" [sportId]="id" [slug]="slug()" [color]="s.color" />
       }
       <rt-type-evolution-card [activities]="store.activities()" [label]="s.label"
         [hasDistance]="s.hasDistance" [color]="s.color" />

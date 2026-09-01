@@ -2,7 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NgStyle } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { fillsCards, ridesByCountry } from '@vitale/shared';
+import { BEST_EFFORT_DISTANCES, fillsCards, ridesByCountry } from '@vitale/shared';
+
+/** As distâncias padrão — os recordes por distância agora vivem na curva, não em cards. */
+const EFFORT_KEYS = new Set(BEST_EFFORT_DISTANCES.map((d) => d.key));
 import { IconComponent } from '@core/services/icon.component';
 import { ThemeService } from '@core/theme/theme.service';
 import { activityIdForSlug, labelForSlug } from '@core/models/activity-types';
@@ -70,9 +73,16 @@ export class ActivityTypePageComponent {
   protected readonly summaryHighlights = computed(() =>
     this.highlights().filter((h) => h.group === 'summary'),
   );
-  /** Linha 2 — recordes por distância (best efforts), em ordem decrescente. */
+  /**
+   * Linha 2 — recordes que não são por distância (a elevação do ciclismo).
+   *
+   * Os oito cards de best effort saíram daqui: viraram a curva de recordes logo
+   * abaixo, que mostra os mesmos oito números como forma — e, no toque, com data
+   * e link. Dois lugares para o mesmo número, na mesma tela, era ruído. Os
+   * badges do herói e o ranking continuam vendo tudo: o filtro é só de exibição.
+   */
   protected readonly recordHighlights = computed(() =>
-    this.highlights().filter((h) => h.group === 'record'),
+    this.highlights().filter((h) => h.group === 'record' && !EFFORT_KEYS.has(h.key)),
   );
   protected readonly showDistance = computed(() => this.summary()?.hasDistance ?? true);
   /** Código do esporte da rota; `null` para rótulos sem id (a tendência então não aparece). */
