@@ -31,7 +31,7 @@ export class HabitAnalyticsCardComponent {
     return habitAccent(this.habit());
   }
   protected tint(): string {
-    return `color-mix(in srgb, ${this.accent()} 14%, white)`;
+    return `color-mix(in srgb, ${this.accent()} 14%, var(--surface))`;
   }
   protected icon(): string {
     const raw = this.habit().icon;

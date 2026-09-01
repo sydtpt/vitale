@@ -41,7 +41,7 @@ export class SeriesViewComponent {
     return (MOD as Record<string, { accent: string }>)[t.color]?.accent ?? MOD.tarefa.accent;
   }
   protected tint(t: TodoTemplate): string {
-    return `color-mix(in srgb, ${this.accent(t)} 14%, white)`;
+    return `color-mix(in srgb, ${this.accent(t)} 14%, var(--surface))`;
   }
   protected icon(t: TodoTemplate): string {
     return HABIT_ICON_SET.has(t.icon) ? t.icon : (ICON_MAP[t.icon] ?? 'check');

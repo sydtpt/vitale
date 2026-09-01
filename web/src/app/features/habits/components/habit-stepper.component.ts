@@ -95,7 +95,7 @@ export class HabitStepperComponent {
     return (MOD as Record<string, { accent: string }>)[this.habit().color]?.accent ?? MOD.habito.accent;
   }
   protected tint(): string {
-    return `color-mix(in srgb, ${this.accent()} 14%, white)`;
+    return `color-mix(in srgb, ${this.accent()} 14%, var(--surface))`;
   }
   protected icon(): string {
     return this.habit().icon || DEFAULT_HABIT_ICON;

@@ -81,7 +81,7 @@ export class RegistroAnalyticsCardComponent {
     return (MOD as Record<string, { accent: string }>)[this.registro().color]?.accent ?? MOD.habito.accent;
   }
   protected tint(): string {
-    return `color-mix(in srgb, ${this.accent()} 14%, white)`;
+    return `color-mix(in srgb, ${this.accent()} 14%, var(--surface))`;
   }
   protected icon(): string {
     return this.registro().icon || DEFAULT_HABIT_ICON;

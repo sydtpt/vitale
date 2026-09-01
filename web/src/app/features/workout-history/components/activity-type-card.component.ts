@@ -62,7 +62,7 @@ export class ActivityTypeCardComponent {
   }
 
   protected tint(color: string): string {
-    return `color-mix(in srgb, ${color} 14%, white)`;
+    return `color-mix(in srgb, ${color} 14%, var(--surface))`;
   }
 
   protected fmtKm(m: number): string {
