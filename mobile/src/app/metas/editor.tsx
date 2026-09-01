@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { GoalActivityMetric, GoalFamily, GoalPeriodKind, GoalSource } from '@vitale/shared';
+import { BEST_EFFORT_DISTANCES } from '@vitale/shared';
 import { useGoalsStore, type NewGoal } from '../../store/goals.store';
 import { useTodosStore } from '../../store/todos.store';
 import { useHabitsStore } from '../../store/habits.store';
@@ -42,12 +43,14 @@ const METRICS: { key: GoalActivityMetric; label: string }[] = [
   { key: 'bestEffort', label: 'Distância padrão' },
 ];
 
-const BEST_EFFORTS: { key: string; label: string }[] = [
-  { key: 'half', label: 'Meia-maratona' },
-  { key: 'marathon', label: 'Maratona' },
-  { key: '10000', label: '10 km' },
-  { key: '5000', label: '5 km' },
-];
+/**
+ * As distâncias que fazem sentido como meta — um subconjunto da tabela do
+ * núcleo, não uma cópia dela. Chave e rótulo vêm de lá: era a quarta lista
+ * paralela no repo, e escrevia "Meia-maratona" enquanto o resto do app escreve
+ * sem hífen.
+ */
+const GOAL_EFFORT_KEYS = new Set(['5000', '10000', 'half', 'marathon']);
+const BEST_EFFORTS = BEST_EFFORT_DISTANCES.filter((d) => GOAL_EFFORT_KEYS.has(d.key));
 
 // Função, não constante: as cores dependem do tema e da paleta ativos, e um
 // array no escopo do módulo as congelaria no import.

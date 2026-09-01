@@ -41,6 +41,7 @@ import {
 } from '../../lib/share-card-html';
 import { captureCardPng, saveCardPngToGallery, shareCardPng } from '../../lib/share-export';
 import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { Segmented } from '../ui/Segmented';
 
 interface ShareComposerModalProps {
   visible: boolean;
@@ -575,6 +576,7 @@ export function ShareComposerModal({
 
           <Text style={styles.fieldLabel}>Formato</Text>
           <Segmented
+            variant="brand"
             options={FORMAT_OPTS}
             value={format}
             onChange={(v) => {
@@ -585,6 +587,7 @@ export function ShareComposerModal({
 
           <Text style={styles.fieldLabel}>Fundo</Text>
           <Segmented
+            variant="brand"
             options={BG_OPTS}
             value={background}
             onChange={(v) => {
@@ -829,33 +832,6 @@ function ChipRow<T extends string>({
 }
 
 /** Controle segmentado genérico (Pressables ad-hoc, tokens do tema). */
-function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { key: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <View style={styles.segment}>
-      {options.map((o) => {
-        const active = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            style={[styles.segItem, active && styles.segItemActive]}
-          >
-            <Text style={[styles.segText, active && styles.segTextActive]}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 const styles = themed(() =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
@@ -944,22 +920,6 @@ const styles = themed(() =>
       color: colors.ink,
     },
 
-    segment: {
-      flexDirection: 'row',
-      backgroundColor: colors.surfaceMute,
-      borderRadius: radii.pill,
-      padding: 3,
-      gap: 3,
-    },
-    segItem: {
-      flex: 1,
-      paddingVertical: 8,
-      borderRadius: radii.pill,
-      alignItems: 'center',
-    },
-    segItemActive: { backgroundColor: colors.primary },
-    segText: { fontSize: 13.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
-    segTextActive: { color: '#fff' },
 
     // Margem negativa + padding no conteúdo: chips rolam de borda a borda.
     chipRow: { flexGrow: 0, marginHorizontal: -spacing.lg },
