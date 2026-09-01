@@ -10,31 +10,15 @@
  * sync, que tem o track com timestamps em mãos.
  */
 import type { RoutePoint } from './workout-types';
-import { MOVING_SPEED_THRESHOLD_MPS } from '@vitale/shared';
-
-export interface BestEffortDistance {
-  /** Chave estável usada no jsonb `best_efforts` e nas leituras (web/mobile). */
-  key: string;
-  /** Distância-alvo em metros. */
-  meters: number;
-  /** Rótulo de exibição. */
-  label: string;
-}
+import { BEST_EFFORT_DISTANCES, MOVING_SPEED_THRESHOLD_MPS, type BestEffortDistance } from '@vitale/shared';
 
 /**
- * Distâncias padrão dos recordes, na ordem de exibição do card. As chaves DEVEM
- * casar com as lidas em `running-highlights` (web e mobile).
+ * A tabela de distâncias mora no núcleo (`fitness/best-efforts.ts`), derivada
+ * da mesma `BEST_EFFORT_TARGETS` que o sync usa para escrever o jsonb. Antes
+ * era uma cópia aqui e outra na web, com um comentário pedindo que "DEVEM
+ * casar" na mão. Re-exportada para os imports existentes não mudarem.
  */
-export const BEST_EFFORT_DISTANCES: BestEffortDistance[] = [
-  { key: '1000', meters: 1000, label: '1 km' },
-  { key: '5000', meters: 5000, label: '5 km' },
-  { key: '10000', meters: 10000, label: '10 km' },
-  { key: '20000', meters: 20000, label: '20 km' },
-  { key: 'half', meters: 21097.5, label: 'Meia maratona' },
-  { key: '30000', meters: 30000, label: '30 km' },
-  { key: '40000', meters: 40000, label: '40 km' },
-  { key: 'marathon', meters: 42195, label: 'Maratona' },
-];
+export { BEST_EFFORT_DISTANCES, type BestEffortDistance };
 
 const EARTH_RADIUS_M = 6371000;
 

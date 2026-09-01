@@ -14,7 +14,7 @@
  * classe de divergência deixa de ser possível. Ver ADR 0022.
  */
 import type { Activity, RoleKey } from '@vitale/shared';
-import { highlightRole } from '@vitale/shared';
+import { BEST_EFFORT_DISTANCES, highlightRole } from '@vitale/shared';
 import { formatClock, fmtDate, fmtElevation, formatPace } from './format';
 
 /** Códigos HealthKit. */
@@ -34,20 +34,8 @@ function noun(activityId: number, n: number): string {
   return `${n} ${n === 1 ? w.one : w.many}`;
 }
 
-/**
- * Distâncias dos recordes, na ordem de exibição. As chaves DEVEM casar com
- * `BEST_EFFORT_DISTANCES` de `mobile/src/lib/best-efforts.ts`.
- */
-const BEST_EFFORT_DISTANCES: { key: string; meters: number; label: string }[] = [
-  { key: '1000', meters: 1000, label: '1 km' },
-  { key: '5000', meters: 5000, label: '5 km' },
-  { key: '10000', meters: 10000, label: '10 km' },
-  { key: '20000', meters: 20000, label: '20 km' },
-  { key: 'half', meters: 21097.5, label: 'Meia maratona' },
-  { key: '30000', meters: 30000, label: '30 km' },
-  { key: '40000', meters: 40000, label: '40 km' },
-  { key: 'marathon', meters: 42195, label: 'Maratona' },
-];
+// As distâncias dos recordes vêm do núcleo (`BEST_EFFORT_DISTANCES`), derivadas
+// da tabela que o sync usa para escrever o jsonb — não há mais cópia para casar.
 
 export interface ActivityHighlight {
   key: string;
