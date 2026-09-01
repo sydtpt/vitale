@@ -153,6 +153,12 @@ Onde: página do tipo, abaixo dos recordes. Mobile e web.
 
 ## Fase 3 — A curva de recordes · por último e sozinha
 
+> **Feita** em 01/09/2026 — `bestEffortCurve` no núcleo (14 testes no módulo),
+> `RecordCurveCard` + `CurveChart` (mobile), `rt-record-curve-card` e `logX` no
+> `rt-trend-chart` (web). Fica logo abaixo da tira de Recordes; **os cards
+> ficaram** — a curva é a forma deles, não substituto. Trocar um pelo outro é
+> decisão de olho. **Não conferida no aparelho ainda.**
+
 Escolha do Sydnei para a forma grande da página do tipo, deixada para o fim **de
 propósito**: é a única forma nova da lista, e é a que mais tem a perder se for
 construída sobre fundação instável. Mesma disciplina que funcionou com o
