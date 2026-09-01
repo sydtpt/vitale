@@ -20,12 +20,14 @@ interface Props {
   occurrence: TodoOccurrence;
   onDone?: () => void;
   onMore?: () => void;
-  /** Variante somente-leitura para ocorrências já concluídas (seção "Concluídas hoje"). */
+  /** Variante da seção "Concluídas hoje": check preenchido, sem menu de ações. */
   done?: boolean;
+  /** Desfaz a conclusão (toque no próprio check). Sem isto, o check fica inerte. */
+  onReopen?: () => void;
 }
 
-/** Item da lista de tarefas: checkbox para concluir + atalho de ações (•••). */
-export function TodoItem({ template, occurrence, onDone, onMore, done = false }: Props) {
+/** Item da lista de tarefas: checkbox para concluir/reabrir + atalho de ações (•••). */
+export function TodoItem({ template, occurrence, onDone, onMore, done = false, onReopen }: Props) {
   const styles = useThemedStyles(createStyles);
   const mod = moduleColors(template.color, 'tarefa');
   const treino = moduleColors('treino');
@@ -34,7 +36,7 @@ export function TodoItem({ template, occurrence, onDone, onMore, done = false }:
   const autoDone = done && occurrence.meta?.source === 'activity-sync';
 
   const subtitle = done
-    ? 'Concluída'
+    ? onReopen ? 'Concluída · toque para desfazer' : 'Concluída'
     : overdue
       ? `Atrasada há ${late}d`
       : `${dueLabel(occurrence.dueDate)} · ${describeRecurrence(template.recurrence)}`;
@@ -44,14 +46,33 @@ export function TodoItem({ template, occurrence, onDone, onMore, done = false }:
     onDone?.();
   };
 
+  // Desfazer é gesto leve: o toque errado que abre esta porta já custou um Medium.
+  const onUncheck = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onReopen?.();
+  };
+
   return (
     <View style={[styles.card, overdue && styles.cardOverdue, done && styles.cardDone]}>
       {done ? (
-        <View style={[styles.check, { backgroundColor: mod.accent, borderColor: mod.accent }]}>
+        <Pressable
+          onPress={onUncheck}
+          disabled={!onReopen}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Reabrir ${template.name}`}
+          style={({ pressed }) => [styles.check, { backgroundColor: mod.accent, borderColor: mod.accent }, pressed && styles.pressed]}
+        >
           <Ionicons name="checkmark" size={20} color="#fff" />
-        </View>
+        </Pressable>
       ) : (
-        <Pressable onPress={onCheck} hitSlop={8} style={({ pressed }) => [styles.check, { borderColor: mod.accent }, pressed && styles.pressed]}>
+        <Pressable
+          onPress={onCheck}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Concluir ${template.name}`}
+          style={({ pressed }) => [styles.check, { borderColor: mod.accent }, pressed && styles.pressed]}
+        >
           <Ionicons name="checkmark" size={20} color={mod.accent} />
         </Pressable>
       )}

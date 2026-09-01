@@ -39,6 +39,7 @@ Os 5 exemplos do usuário:
 2. Listar ocorrências pendentes em **Atrasadas / A fazer / Em breve**, com o dia
    virando às 02h (a madrugada ainda fecha o dia anterior).
 3. Concluir, pular e cancelar ocorrências; gerar a próxima automaticamente.
+   Conclusão do dia é reversível — ver *Reabrir*.
 4. Reconciliação no `load`: expira vencidas (`expire`), gera próximas de calendário, mantém vencidas (`carry`).
 5. Gatilhos manuais: `event`/`stock` (botão "Registrar"), `usage` (atualizar contador).
 6. Surfacing no "Hoje" (mobile): tarefas atrasadas e do dia.
@@ -102,6 +103,28 @@ viraria "26 de 32" às 00h01 e voltaria quando o ZMA fosse marcado.
 **As diárias NÃO alimentam o cruzamento de saúde.** Como `cross` pesa 1000 na
 ordenação dos destaques, promovê-las a gatilho colocaria "nos dias com ZMA, sono
 +9%" no topo de todo domingo. A pergunta aqui é adesão, não efeito.
+
+## Reabrir (desfazer conclusão)
+
+O check de um item em **"Concluídas hoje"** (mobile) é um botão: tocá-lo devolve a
+ocorrência para `pending`. É a saída do toque errado — a lista de concluídas fica
+ao alcance do polegar e marcar a tarefa vizinha é fácil.
+
+Desfazer é desfazer a conclusão **inteira**, não só o status:
+
+- a RPC `todo_resolve` com `p_status = 'pending'` limpa `done_at` e o `meta` da
+  conclusão (valor pago, `source='activity-sync'`);
+- `spawnedByCompletion` (shared, puro) diz o que aquela conclusão gerou — a
+  próxima da série e as filhas do `onComplete` — e `reopenOccurrence` apaga.
+  Sem isso a série apareceria duas vezes: a tarefa de volta em "A fazer" e a
+  próxima já criada em "Em breve".
+
+Só sai o que ainda está `pending`, nasceu **depois** do `done_at` que se desfaz e
+na data que aquela conclusão geraria; o resto é de outro caminho e fica de pé.
+
+**O contador de `usage` não volta.** A conclusão sobrescreve `meter_at_last_done`
+e a leitura anterior não fica guardada em lugar nenhum — a tarefa reabre, mas o
+gatilho por uso só dispara de novo quando o contador andar outro `every`.
 
 ## Encadeamento (onComplete)
 

@@ -5,15 +5,18 @@
  *
  * Todo gatilho de conclusão passa por aqui: a UI (todos.store), o sync de
  * atividades (activity-todo-link) e, no futuro, encadeamento ("concluir X gera Y")
- * e challenges. Mantê-lo num só lugar evita que essas fontes divirjam.
+ * e challenges. Mantê-lo num só lugar evita que essas fontes divirjam. O caminho
+ * de volta (`reopenOccurrence`, para o toque errado) mora aqui pelo mesmo motivo:
+ * desfazer é desfazer os efeitos colaterais, não só o status.
  *
  * Não depende de Zustand (chamável em background, com a store fria).
  */
 import { supabase } from '../lib/supabase';
-import type { TodoTemplate, TodoStatus } from '@vitale/shared';
+import type { TodoTemplate, TodoOccurrence, TodoStatus } from '@vitale/shared';
 import { enqueueResolve, drainTodoQueue, type TodoResolveOp } from '../lib/todo-queue';
-import { nextDueDate, todoDayStr } from '@vitale/shared';
+import { nextDueDate, spawnedByCompletion, todoDayStr } from '@vitale/shared';
 import {
+  deleteTodoOccurrence,
   hasPendingTodoOccurrence,
   insertTodoOccurrence,
   setTodoTemplateMeterAtLastDone,
@@ -116,4 +119,48 @@ export async function resolveAndAdvance(args: ResolveArgs): Promise<number> {
   const next = nextDueDate(template.recurrence, occDueDate, completedAt);
   if (next != null && (await insertOccurrence(userId, template.id, next))) created++;
   return created;
+}
+
+export interface ReopenArgs {
+  userId: string;
+  template: TodoTemplate;
+  /** A ocorrência concluída, como veio do servidor (precisa do `doneAt` real). */
+  occ: TodoOccurrence;
+  /** Ocorrências carregadas — onde estão as candidatas geradas pela conclusão. */
+  occurrences: TodoOccurrence[];
+}
+
+/**
+ * Desfaz UMA conclusão — o oposto de `resolveAndAdvance`, e no mesmo seam:
+ *  1. devolve a ocorrência para 'pending' (a rpc limpa done_at e meta da conclusão);
+ *  2. apaga o que aquela conclusão gerou — a próxima da série e as filhas do
+ *     encadeamento —, enquanto ninguém mexeu nelas (`spawnedByCompletion`).
+ *
+ * O contador de 'usage' **não** volta: a conclusão sobrescreveu
+ * `meter_at_last_done` e a leitura anterior não ficou guardada em lugar nenhum.
+ * A tarefa reabre, mas o gatilho por uso só dispara de novo quando o contador
+ * andar outro `every` — ajustável à mão pelo editor da série.
+ *
+ * Devolve os ids apagados.
+ */
+export async function reopenOccurrence(args: ReopenArgs): Promise<string[]> {
+  const { userId, template, occ, occurrences } = args;
+  const spawned = spawnedByCompletion(template, occ, occurrences);
+
+  await enqueueResolve({ opId: genOpId(), occId: occ.id, status: 'pending', meta: null });
+  await drainTodoQueue(flushResolves);
+
+  const deleted: string[] = [];
+  for (const id of spawned) {
+    // Sem rede a reabertura fica na fila e o delete falha junto — os dois voltam
+    // no próximo load. Falha isolada é benigna: concluir de novo reinsere a
+    // mesma data (insert idempotente pelo índice único).
+    try {
+      await deleteTodoOccurrence(supabase, userId, id);
+      deleted.push(id);
+    } catch {
+      /* segue: nada aqui justifica derrubar a reabertura */
+    }
+  }
+  return deleted;
 }

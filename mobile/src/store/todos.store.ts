@@ -19,9 +19,9 @@ import {
   setTodoTemplateMeter,
   updateTodoTemplate,
 } from '@vitale/shared';
-import { resolveAndAdvance, flushResolves, insertOccurrence } from '../services/todo-resolve';
+import { resolveAndAdvance, reopenOccurrence, flushResolves, insertOccurrence } from '../services/todo-resolve';
 import { useAuthStore } from './auth.store';
-import { addDays, todoDayStr, todoTimeStr, msUntilTodoRollover, firstDueDate, dueUsage, reconcileTemplate } from '@vitale/shared';
+import { addDays, todoDayStr, todoTimeStr, msUntilTodoRollover, firstDueDate, dueUsage, reconcileTemplate, spawnedByCompletion } from '@vitale/shared';
 
 /** Janela de histórico carregada (dias) para listar concluídas/atrasadas recentes. */
 export const TODO_WINDOW_DAYS = 30;
@@ -79,6 +79,7 @@ interface TodosState {
   archiveTemplate: (id: string, active: boolean) => Promise<void>;
 
   resolve: (occId: string, status?: TodoStatus, meta?: Record<string, unknown>) => Promise<void>;
+  reopen: (occId: string) => Promise<void>;
   skip: (occId: string) => Promise<void>;
   cancel: (occId: string) => Promise<void>;
 
@@ -279,6 +280,34 @@ export const useTodosStore = create<TodosState>((set, get) => ({
         meta: meta ?? null,
       });
     }
+    await get().load();
+  },
+
+  // Desfaz a conclusão (toque errado na lista de "Concluídas hoje"): volta a
+  // pendente e leva junto o que a conclusão gerou — senão a série aparece duas
+  // vezes, a tarefa de volta em "A fazer" e a próxima em "Em breve".
+  reopen: async (occId) => {
+    const occ = get().occurrences.find((o) => o.id === occId);
+    if (!occ || occ.status !== 'done') return;
+    const userId = currentUserId();
+    const t = get().templates.find((x) => x.id === occ.templateId);
+    if (!t || !userId) return;
+
+    const occurrences = get().occurrences;
+    const spawned = new Set(spawnedByCompletion(t, occ, occurrences));
+
+    // otimista
+    set((s) => ({
+      occurrences: s.occurrences
+        .filter((o) => !spawned.has(o.id))
+        .map((o) =>
+          o.id === occId
+            ? { ...o, status: 'pending' as TodoStatus, doneAt: undefined, meta: undefined }
+            : o,
+        ),
+    }));
+
+    await reopenOccurrence({ userId, template: t, occ, occurrences });
     await get().load();
   },
 

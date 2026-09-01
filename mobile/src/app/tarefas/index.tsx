@@ -20,6 +20,7 @@ export default function TarefasScreen() {
   const loading = useTodosStore((s) => s.loading);
   const load = useTodosStore((s) => s.load);
   const resolve = useTodosStore((s) => s.resolve);
+  const reopen = useTodosStore((s) => s.reopen);
   const skip = useTodosStore((s) => s.skip);
   const cancel = useTodosStore((s) => s.cancel);
   const user = useAuthStore((s) => s.user);
@@ -115,7 +116,13 @@ export default function TarefasScreen() {
   };
 
   const renderDone = (o: TodoOccurrence) => (
-    <TodoItem key={o.id} template={tplById.get(o.templateId)!} occurrence={o} done />
+    <TodoItem
+      key={o.id}
+      template={tplById.get(o.templateId)!}
+      occurrence={o}
+      done
+      onReopen={() => reopen(o.id)}
+    />
   );
 
 

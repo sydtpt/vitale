@@ -184,6 +184,37 @@ export function nextDueDate(
 }
 
 /**
+ * Desfazer uma conclusão: as ocorrências que NASCERAM dela e precisam sumir
+ * junto. Concluir avança a série (`nextDueDate`) e dispara o encadeamento
+ * (`onComplete`); reabrir sem desfazer isso deixa a mesma série duas vezes na
+ * lista — a tarefa de volta em "A fazer" e a próxima já criada em "Em breve".
+ *
+ * Só entra o que ainda está `pending`, nasceu DEPOIS do `doneAt` que se desfaz e
+ * na data que aquela conclusão geraria. Ocorrência anterior à conclusão veio de
+ * outro caminho, e ocorrência já resolvida (pulada, cancelada) não é para apagar.
+ */
+export function spawnedByCompletion(
+  t: Pick<TodoTemplate, 'id' | 'recurrence' | 'onComplete'>,
+  occ: Pick<TodoOccurrence, 'id' | 'dueDate' | 'doneAt'>,
+  all: Pick<TodoOccurrence, 'id' | 'templateId' | 'dueDate' | 'status' | 'createdAt'>[],
+): string[] {
+  if (!occ.doneAt) return [];
+  const doneMs = new Date(occ.doneAt).getTime();
+  const day = todoDayStr(new Date(occ.doneAt));
+  const next = nextDueDate(t.recurrence, occ.dueDate, day);
+  const children = new Set((t.onComplete ?? []).map((r) => r.templateId));
+  return all
+    .filter((o) => o.id !== occ.id && o.status === 'pending')
+    .filter((o) => new Date(o.createdAt).getTime() >= doneMs)
+    .filter((o) =>
+      o.templateId === t.id
+        ? next != null && o.dueDate === next
+        : children.has(o.templateId) && o.dueDate === day,
+    )
+    .map((o) => o.id);
+}
+
+/**
  * Prazo de uma ocorrência criada por gatilho on_workout, a partir do dia do
  * gatilho. `dueInDays`: undefined → sem prazo (null); 0 → no dia; N → +N dias.
  */
