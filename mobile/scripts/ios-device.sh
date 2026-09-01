@@ -165,6 +165,15 @@ for attempt in 1 2 3; do
   if grep -q "DeviceLocked\|kAMDMobileImageMounterDeviceLocked" <<<"$OUT"; then
     die "o iPhone está bloqueado — desbloqueie a tela e rode de novo"
   fi
+  # 1011 = "não achei o aparelho": o Mac não enxerga o iPhone agora. É transitório
+  # do mesmo jeito que a queda de túnel — o telefone acorda, entra na Wi-Fi, o
+  # cabo assenta — só que demora mais. Repete com folga maior e diz o que fazer.
+  if grep -qE "CoreDeviceError 1011|unable to locate a device" <<<"$OUT"; then
+    [[ $attempt -eq 3 ]] && die "o Mac não enxergou o iPhone em 3 tentativas — desbloqueie a tela, confira o cabo ou a Wi-Fi, e rode de novo (o build já está pronto; a repetição é rápida)"
+    echo "  o Mac não enxerga o iPhone — desbloqueie a tela e confira cabo/Wi-Fi; tentando de novo em 8 s" >&2
+    sleep 8
+    continue
+  fi
   # Queda de túnel é transitória; o resto não vale repetir.
   if ! grep -qE "Connection reset by peer|CoreDeviceError 4000|tunnel" <<<"$OUT"; then
     die "install falhou por um motivo que não é queda de túnel (acima)"
