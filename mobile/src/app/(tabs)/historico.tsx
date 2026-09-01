@@ -24,6 +24,7 @@ import { formatDuration, formatDistance } from '../../lib/workout-format';
 import { StackedBarChart } from '../../components/charts/StackedBarChart';
 import { Sparkline } from '../../components/charts/Sparkline';
 import { ConsistencyCard } from '../../components/cards/ConsistencyCard';
+import { WeeklyLoadCard } from '../../components/cards/WeeklyLoadCard';
 import { Segmented } from '../../components/ui/Segmented';
 import { colors, fonts, moduleColors, radii, roleColors, shadows, spacing, themed, useTheme } from '../../theme';
 
@@ -491,6 +492,10 @@ export default function HistoricoTabScreen() {
         {/* Ao lado do gráfico, não no lugar dele: as barras dizem "quanto", a
             grade diz "apareci". Some sozinha enquanto não houver nenhum dia. */}
         <ConsistencyCard activities={activities} weeklyTargetMin={weeklyTargetMin} />
+
+        {/* A grade responde "apareci?"; esta responde "e a que custo?" — o tempo
+            em cada zona, semana a semana. Existia só na web. */}
+        <WeeklyLoadCard activities={activities} />
 
         <Text style={styles.sectionTitle}>Por tipo · histórico completo</Text>
         <View style={styles.typeGrid}>
