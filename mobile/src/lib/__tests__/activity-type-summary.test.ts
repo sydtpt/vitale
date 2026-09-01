@@ -18,7 +18,7 @@ function act(partial: Partial<Activity> & { activityId: number; startAt: string 
 }
 
 describe('buildTypeSummaries', () => {
-  it('agrega por tipo com somas all-time e ordena por contagem', () => {
+  it('agrega por tipo com somas all-time e ordena pelo treino mais recente', () => {
     const activities = [
       act({ activityId: 37, startAt: '2026-05-20T08:00:00', distanceM: 5000, durationS: 1800, calories: 300 }),
       act({ activityId: 37, startAt: '2026-05-19T08:00:00', distanceM: 3000, durationS: 1200, calories: 200 }),
@@ -34,6 +34,16 @@ describe('buildTypeSummaries', () => {
     expect(corrida.totalDurationS).toBe(3000);
     expect(corrida.totalCalories).toBe(500);
     expect(corrida.hasDistance).toBe(true);
+  });
+
+  it('põe na frente o tipo praticado por último, mesmo com menos atividades', () => {
+    const summaries = buildTypeSummaries([
+      act({ activityId: 37, startAt: '2026-05-19T08:00:00' }),
+      act({ activityId: 37, startAt: '2026-05-18T08:00:00' }),
+      act({ activityId: 50, startAt: '2026-05-20T20:00:00', distanceM: 0 }),
+    ]);
+    expect(summaries.map((s) => s.label)).toEqual(['Musculação', 'Corrida']);
+    expect(summaries[0].lastAtMs).toBe(new Date('2026-05-20T20:00:00').getTime());
   });
 
   it('marca tipos sem distância', () => {

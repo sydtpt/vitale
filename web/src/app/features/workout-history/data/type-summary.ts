@@ -19,6 +19,11 @@ export interface TypeSummary {
   durationS: number;
   calories: number;
   /**
+   * Instante (ms) da atividade mais recente do tipo — é o que ordena os cards:
+   * o esporte que você praticou por último vem primeiro.
+   */
+  lastAtMs: number;
+  /**
    * As últimas seis semanas, para a sparkline e a variação do card.
    *
    * Sai do mesmo builder do painel da página do tipo, só que com janela menor —
@@ -47,6 +52,7 @@ export function buildTypeSummaries(
         distanceM: 0,
         durationS: 0,
         calories: 0,
+        lastAtMs: 0,
       };
       map.set(meta.label, s);
     }
@@ -54,10 +60,13 @@ export function buildTypeSummaries(
     s.distanceM += a.distanceM ?? 0;
     s.durationS += a.durationS;
     s.calories += a.calories;
+    const t = new Date(a.startAt).getTime();
+    if (Number.isFinite(t) && t > s.lastAtMs) s.lastAtMs = t;
   }
 
   return [...map.values()]
-    .sort((a, b) => b.count - a.count)
+    // Mais recente primeiro; a contagem só desempata (mesmo dia, mesmo instante).
+    .sort((a, b) => b.lastAtMs - a.lastAtMs || b.count - a.count)
     .map((s) => {
       const hasDistance = s.distanceM > 0;
       return {

@@ -36,13 +36,24 @@ describe('buildTypeSummaries', () => {
     expect(musc?.calories).toBe(250);
   });
 
-  it('ordena por contagem desc', () => {
+  it('ordena pela atividade mais recente, não pela contagem', () => {
     const summaries = buildTypeSummaries([
-      act({ startAt: '2026-01-01T08:00:00', activityId: 50, distanceM: undefined }),
+      act({ startAt: '2026-01-01T08:00:00', activityId: 37 }),
       act({ startAt: '2026-01-02T08:00:00', activityId: 37 }),
+      act({ startAt: '2026-01-03T08:00:00', activityId: 50, distanceM: undefined }),
+    ]);
+    // Musculação tem uma atividade só, mas é a última praticada.
+    expect(summaries.map((s) => s.label)).toEqual(['Musculação', 'Corrida']);
+    expect(summaries[0].lastAtMs).toBe(new Date('2026-01-03T08:00:00').getTime());
+  });
+
+  it('desempata por contagem quando o último treino é o mesmo instante', () => {
+    const summaries = buildTypeSummaries([
+      act({ startAt: '2026-01-03T08:00:00', activityId: 50, distanceM: undefined }),
+      act({ startAt: '2026-01-01T08:00:00', activityId: 37 }),
       act({ startAt: '2026-01-03T08:00:00', activityId: 37 }),
     ]);
-    expect(summaries[0].label).toBe('Corrida');
+    expect(summaries.map((s) => s.label)).toEqual(['Corrida', 'Musculação']);
   });
 
   it('expõe slug do tipo para a rota', () => {
