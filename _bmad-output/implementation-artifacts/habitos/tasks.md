@@ -2,6 +2,12 @@
 
 > Derivado de [plan.md](./plan.md). Fases entregáveis e verificáveis isoladas. F1 é o MVP de uso diário; F3/F4 são web.
 
+> **Auditoria 2026-08-26.** Atenção ao procurar o código: no web a pasta é
+> **`features/habits/`** (inglês), não `features/habitos/` como os links deste
+> arquivo dizem — só no mobile o diretório é `habitos`. O T040 estava aberto com
+> o componente já entregue. O que resta são verificações em device/dados reais,
+> nenhuma delas feita.
+
 ## F0 — Schema + tipos ✅
 
 - [x] **T001** Migration [`20260520140000_habitos.sql`](../../../supabase/migrations/20260520140000_habitos.sql): tabelas `habits` e `habit_logs` (unique `(habit_id, log_date)`) + índices ([data-model §1](./data-model.md)).
@@ -39,12 +45,12 @@
 
 ## F4 — CRUD web (opcional)
 
-- [ ] **T040** `habit-editor` no web (criar/editar/arquivar) com `create/update/archive` no store; paridade com o mobile.
-- [ ] **T041** Verificar paridade: hábito criado no web aparece na captura mobile e vice-versa.
+- [x] **T040** `habit-editor` no web (criar/editar/arquivar) com `create/update/archive` no store; paridade com o mobile. — [habit-editor.component.ts](../../../web/src/app/features/habits/components/habit-editor.component.ts) + `createHabit`/`updateHabit`/`archiveHabit` em [habits.store.ts:142,174,202](../../../web/src/app/features/habits/data/habits.store.ts#L142). *Auditado em 2026-08-26: estava aberto com o código já entregue.*
+- [ ] **T041** Verificar paridade: hábito criado no web aparece na captura mobile e vice-versa. *Exige os dois apps rodando na mesma conta.*
 
 ## Validação final
 
-- [ ] **T050** `npm run lint` e `npm run test`.
+- [x] **T050** lint e testes. *Rodado em 2026-08-26: `@vitale/shared` tsc + 17 testes, `@vitale/web build`, `@vitale/web test` (140 testes / 11 arquivos), mobile `tsc --noEmit` + jest (480 testes / 42 suítes) — todos exit 0.*
 - [ ] **T051** `npm run mobile:ios` — stepper (soma/subtrai/piso 0), batida/alerta, long-press zera, offline + reconectar, CRUD.
 - [ ] **T052** `npm run web:dev` — empty-state, cards de analytics, heatmap.
 - [ ] **T053** Teste de RLS com duas contas (SC-005); conferir totais/streak do web × SQL.

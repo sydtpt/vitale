@@ -4,7 +4,27 @@
 >
 > Legenda: `[x]` feito · `[~]` parcial · `[ ]` pendente. Tarefas marcadas _(usuário, ao testar)_ exigem device/projeto Supabase e ficam para a validação final.
 >
-> **Status:** F0–F3 e F5 implementados (escrita por tipo + delta + fila offline + rotas). F4 só no JS — falta o passo nativo T053. Deleções (FR-008) pendentes por limitação da lib.
+> **Status:** F0–F3, F5 e F6 implementados (escrita por tipo + delta + fila offline + rotas + leitura web). F4 só no JS — falta o passo nativo T053. Deleções (FR-008) pendentes por limitação da lib.
+
+> ⚠️ **Auditoria 2026-08-26 — o FR-008 é o buraco funcional mais sério em aberto.**
+> Treino apagado no Apple Health nunca sai do Supabase: `deleted` é zero literal em
+> todos os caminhos de `SyncResult`. O efeito é silencioso — infla totais,
+> distância, calorias e esforço sem erro nem contador.
+>
+> Saída recomendada, que não depende da lib: em vez de `delete`, marcar
+> `hidden=true` por diferença no `syncType`, restrito às linhas cuja fonte é o
+> HealthKit e à janela que o backfill cobriu. A coluna, o índice parcial e o
+> filtro `!hidden` já existem em toda leitura, e o `hidden` **sobrevive ao sync**
+> (não está no `SET` do `on conflict` de `sync_upsert_activities`) — é por isso que
+> as limpezas manuais de duplicatas usam flip de `hidden` e não `delete`.
+>
+> Corolário que vale registrar: `syncType` refaz o backfill completo do tipo com
+> upsert por id determinístico, então uma linha de fato **apagada** do Supabase
+> volta no próximo sync daquele tipo. Deletar linha de HealthKit aqui não é opção.
+>
+> Fechar o FR-008 assim reescreve o contrato de "removido" para "ocultado" —
+> mudança que merece ADR próprio em `docs/decisions/`. Detalhe completo no T054 de
+> [historico-treinos](../historico-treinos/tasks.md).
 
 ## Fase 0 — Pré-requisitos (resolver antes de codar)
 
@@ -61,9 +81,16 @@
 
 ## Fase 7 — F6: Leitura web (derivado, fora do MVP de escrita)
 
-- [ ] **T070** Cliente Supabase no web (Angular) — ver [auth.md](../auth.md).
-- [ ] **T071** Página Treinos lê `activities`/`activity_routes` do Supabase em vez de mock.
-- [ ] **T072** Render do mapa de percurso no web a partir de `activity_routes.points`.
+> **Auditoria 2026-08-26 — a F6 está entregue, só não onde esta fase previa.**
+> A leitura web não nasceu na página Treinos e sim na feature
+> **`workout-history`**; `/treinos` seguiu como planejador (`PlannedWorkoutsStore`).
+> Nenhuma query fica no componente: o acesso a `activities`/`activity_routes`
+> mora em [`packages/shared/src/data/activities.ts`](../../../packages/shared/src/data/activities.ts)
+> e é consumido pelo store da web.
+
+- [x] **T070** Cliente Supabase no web (Angular) — [supabase.client.ts](../../../web/src/app/core/supabase/supabase.client.ts), com `auth.service.ts` e `profile.service.ts` ao redor.
+- [x] **T071** Leitura de `activities`/`activity_routes` do Supabase em vez de mock — via `fetchActivities`/`fetchRouteOverviews`/`fetchRoutePoints` do shared em [activities.store.ts](../../../web/src/app/features/workout-history/data/activities.store.ts).
+- [x] **T072** Render do mapa de percurso no web a partir de `activity_routes.points` — [activity-map.component.ts](../../../web/src/app/features/workout-history/components/activity-map.component.ts).
 
 ## Dependências entre fases
 
