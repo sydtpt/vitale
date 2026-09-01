@@ -12,7 +12,18 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HR_ZONES, hrZoneRange, movingTimeFromRoutePoints } from '@vitale/shared';
+import {
+  HR_ZONES,
+  METRIC_ROLE,
+  elevationProfile,
+  hrZoneRange,
+  movingTimeFromRoutePoints,
+  routeCursorAt,
+  routeDistances,
+  speedSeries,
+  type MetricKey,
+  type RouteCursor,
+} from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../lib/workout-types';
 import { activityRecordBadges } from '../../../lib/running-highlights';
@@ -43,20 +54,28 @@ import { HeaderSpacer } from '../../../components/ui/HeaderSpacer';
 
 type InfoRow = { label: string; value: string };
 
+/**
+ * Uma estatística da tira do herói.
+ *
+ * A cor vem da **métrica**, não da atividade: numa tela de uma atividade só, o
+ * tipo é constante — o título e o ícone do herói já o dizem — e pintar as cinco
+ * com ele era gastar cor num dado que não varia. O ícone do herói continua na
+ * cor do tipo, e é onde essa identidade fica concentrada.
+ */
 function Stat({
   icon,
   value,
   caption,
-  color,
+  metric,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   value: string;
   caption: string;
-  color: string;
+  metric: MetricKey;
 }) {
   return (
     <View style={styles.stat}>
-      <Ionicons name={icon} size={18} color={color} />
+      <Ionicons name={icon} size={18} color={roleColors(METRIC_ROLE[metric]).accent} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statCaption}>{caption}</Text>
     </View>
@@ -87,6 +106,35 @@ export default function AtividadeDetalheScreen() {
   useEffect(() => {
     if (activity?.hasRoute) loadRoute(activity.id);
   }, [activity?.id, activity?.hasRoute, loadRoute]);
+
+  // ── cursor do scrub: o dedo no gráfico vira um ponto no mapa ──
+  const [cursorX, setCursorX] = useState<number | null>(null);
+  /**
+   * A régua só muda quando a rota muda. Sem o memo, cada quadro do arrasto
+   * recalcularia milhares de haversines e o ponto engasgaria atrás do dedo.
+   */
+  const scrubRuler = useMemo(() => {
+    const pts = routePoints ?? [];
+    return {
+      pts,
+      distances: routeDistances(pts),
+      profile: elevationProfile(pts),
+      speed: speedSeries(pts),
+    };
+  }, [routePoints]);
+  const mapCursor = useMemo<RouteCursor | null>(
+    () =>
+      cursorX === null
+        ? null
+        : routeCursorAt(
+            scrubRuler.pts,
+            scrubRuler.distances,
+            cursorX,
+            scrubRuler.profile,
+            scrubRuler.speed,
+          ),
+    [cursorX, scrubRuler],
+  );
 
   // ── estado de edição ──────────────────────────────────────────
   const [name, setName] = useState('');
@@ -157,7 +205,9 @@ export default function AtividadeDetalheScreen() {
       return {
         key: def.key,
         label: def.label,
-        color: def.color,
+        // O papel resolvido nos eixos ativos — antes era o hex cru do Orbe
+        // claro, e a rampa não acompanhava paleta nem esquema.
+        color: roleColors(def.role).accent,
         range: hrZoneRange(def),
         pct: Math.round((seconds / total) * 100),
         time: formatClock(seconds),
@@ -261,22 +311,22 @@ export default function AtividadeDetalheScreen() {
 
           <View style={styles.heroStats}>
             {hasGps ? (
-              <Stat icon="time-outline" value={formatDuration(movingS)} caption="movimento" color={color} />
+              <Stat icon="time-outline" value={formatDuration(movingS)} caption="movimento" metric="movimento" />
             ) : (
-              <Stat icon="time-outline" value={formatDuration(activity.durationS)} caption="duração" color={color} />
+              <Stat icon="time-outline" value={formatDuration(activity.durationS)} caption="duração" metric="movimento" />
             )}
             {activity.calories > 0 && (
               <Stat
                 icon="flame-outline"
                 value={`${activity.caloriesEstimated ? '≈' : ''}${activity.calories}`}
                 caption={activity.caloriesEstimated ? 'kcal (est.)' : 'kcal'}
-                color={color}
+                metric="kcal"
               />
             )}
-            {distance && <Stat icon="map-outline" value={distance} caption="distância" color={color} />}
-            {rate && <Stat icon="speedometer-outline" value={rate.value} caption={rate.caption} color={color} />}
+            {distance && <Stat icon="map-outline" value={distance} caption="distância" metric="distancia" />}
+            {rate && <Stat icon="speedometer-outline" value={rate.value} caption={rate.caption} metric="velocidade" />}
             {elevation && (
-              <Stat icon="trending-up-outline" value={elevation} caption="elevação" color={color} />
+              <Stat icon="trending-up-outline" value={elevation} caption="elevação" metric="elevacao" />
             )}
           </View>
 
@@ -313,6 +363,7 @@ export default function AtividadeDetalheScreen() {
             <View style={styles.mapCard}>
               <WorkoutMap
                 points={points}
+                cursor={mapCursor}
                 share={{
                   activityId: activity.activityId,
                   activityName: activity.activityName,
@@ -333,7 +384,7 @@ export default function AtividadeDetalheScreen() {
             <RouteProfileCard
               points={routePoints ?? []}
               activityId={activity.activityId}
-              color={color}
+              onScrub={setCursorX}
             />
           </>
         )}

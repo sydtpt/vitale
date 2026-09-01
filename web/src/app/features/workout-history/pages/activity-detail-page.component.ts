@@ -1,8 +1,18 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import type { ActivityRoutePoint } from '@vitale/shared';
-import { fillsCards, HR_ZONES, hrZoneRange, movingTimeFromRoutePoints } from '@vitale/shared';
+import type { ActivityRoutePoint, MetricKey } from '@vitale/shared';
+import {
+  METRIC_ROLE,
+  elevationProfile,
+  fillsCards,
+  HR_ZONES,
+  hrZoneRange,
+  movingTimeFromRoutePoints,
+  routeCursorAt,
+  routeDistances,
+  speedSeries,
+} from '@vitale/shared';
 import { NgStyle } from '@angular/common';
 import { IconComponent } from '@core/services/icon.component';
 import { ThemeService } from '@core/theme/theme.service';
@@ -82,6 +92,15 @@ export class ActivityDetailPageComponent {
     fillsCards(this.theme.themeId(), this.theme.scheme()),
   );
 
+  /**
+   * Acento do papel da métrica. É o número que carrega a cor — a web não tem os
+   * ícones que o mobile usa na mesma tira, e inventar três só para isto pagaria
+   * caro por um sinal que o próprio valor já dá.
+   */
+  protected metricColor(metric: MetricKey): string {
+    return this.theme.tokens().roles[METRIC_ROLE[metric]].accent;
+  }
+
   protected badgeSkin(b: RecordBadge): Record<string, string> {
     const r = this.theme.tokens().roles[b.role];
     return this.badgesFilled()
@@ -100,7 +119,9 @@ export class ActivityDetailPageComponent {
       return {
         key: def.key,
         label: def.label,
-        color: def.color,
+        // O papel resolvido no tema ativo — antes era o hex cru do Orbe claro, e
+        // a rampa era a única coisa da tela que não acompanhava paleta e esquema.
+        color: this.theme.tokens().roles[def.role].accent,
         range: hrZoneRange(def),
         seconds,
         pct: Math.round((seconds / total) * 100),
@@ -116,6 +137,32 @@ export class ActivityDetailPageComponent {
   protected readonly routePoints = signal<ActivityRoutePoint[]>([]);
   protected readonly routeLoading = signal(false);
   private routeFor = '';
+
+  /** Distância (m) sob o cursor do gráfico de perfil. `null` = sem cursor. */
+  protected readonly cursorX = signal<number | null>(null);
+
+  /**
+   * A régua do scrub, recalculada só quando a rota muda. Sem isso, cada
+   * `pointermove` refaria milhares de haversines e o ponto ficaria atrás do
+   * mouse na rota longa.
+   */
+  private readonly scrubRuler = computed(() => {
+    const pts = this.routePoints();
+    return {
+      pts,
+      distances: routeDistances(pts),
+      profile: elevationProfile(pts),
+      speed: speedSeries(pts),
+    };
+  });
+
+  /** Onde o cursor do gráfico cai no mapa. */
+  protected readonly mapCursor = computed(() => {
+    const x = this.cursorX();
+    if (x === null) return null;
+    const r = this.scrubRuler();
+    return routeCursorAt(r.pts, r.distances, x, r.profile, r.speed);
+  });
 
   protected readonly listQueryParams = signal<Record<string, string>>({});
 

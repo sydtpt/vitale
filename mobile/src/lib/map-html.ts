@@ -4,6 +4,19 @@ import { colors, MOD } from '../theme';
 /** Ponto mínimo de rota aceito pelo gerador de HTML (estrutural). */
 export type MapPoint = { latitude: number; longitude: number };
 
+/**
+ * Comentário injetado nos dois scripts, para quem abrir o HTML gerado entender
+ * de onde vem a chamada. Mora aqui para não divergir entre Leaflet e MapLibre.
+ *
+ * **Núcleo escuro com anel branco, e não uma cor de tema.** O marcador tem de
+ * ser legível sobre qualquer tile, e há estilo de mapa claro *e* escuro na
+ * lista: um token que virasse quase-branco no esquema escuro sumiria sobre o
+ * Positron, e um fixo escuro sumiria sobre o Dark Matter. O par núcleo+anel é
+ * a mesma solução do casing branco sob a linha da rota, logo acima.
+ */
+const CURSOR_API_COMMENT = `// Cursor do scrub: o RN chama por injectJavaScript quando o dedo (ou o
+    // mouse) percorre o gráfico de elevação/velocidade. Ver RouteProfileCard.`;
+
 /** Estado de vista do mapa (enquadramento): centro [lat, lng], zoom e rotação. */
 export interface MapViewState {
   center: [number, number];
@@ -140,6 +153,17 @@ function leafletScript(
       dot(coords[0], '${colors.green}');
       dot(coords[coords.length - 1], '${MOD.treino.accent}');
     }
+
+    ${CURSOR_API_COMMENT}
+    var cursor = null;
+    window.__cursor = function (lat, lng) {
+      if (cursor) { cursor.setLatLng([lat, lng]); return; }
+      cursor = L.circleMarker([lat, lng], {
+        radius: 4, color: '#FFFFFF', weight: 3,
+        fillColor: '#1F1B16', fillOpacity: 1, interactive: false,
+      }).addTo(map);
+    };
+    window.__cursorHide = function () { if (cursor) { cursor.remove(); cursor = null; } };
 
     // Cidades atravessadas: ponto sobre a rota + rótulo (divIcon com o nome via
     // textContent — sem interpolar HTML, evita quebra/injeção por nomes com aspas).
@@ -328,6 +352,22 @@ function maplibreScript(
         : ''
     }
 
+    ${CURSOR_API_COMMENT}
+    // A camada só existe depois do 'load'; um scrub que chegue antes disso fica
+    // guardado em vez de virar exceção dentro do WebView, onde ninguém a veria.
+    var cursorReady = false;
+    var pendingCursor = null;
+    window.__cursor = function (lat, lng) {
+      if (!cursorReady) { pendingCursor = [lat, lng]; return; }
+      map.getSource('cursor').setData({ type: 'FeatureCollection', features: [
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] } }
+      ] });
+    };
+    window.__cursorHide = function () {
+      pendingCursor = null;
+      if (cursorReady) map.getSource('cursor').setData({ type: 'FeatureCollection', features: [] });
+    };
+
     map.on('load', function () {
       if (coords.length === 0) return;
 ${buildings}
@@ -342,6 +382,13 @@ ${buildings}
         'circle-radius': 6,
         'circle-color': ['match', ['get', 'role'], 'start', '${colors.green}', '${MOD.treino.accent}'],
         'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 } });
+
+      map.addSource('cursor', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'cursor', type: 'circle', source: 'cursor', paint: {
+        'circle-radius': 4, 'circle-color': '#1F1B16',
+        'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 3 } });
+      cursorReady = true;
+      if (pendingCursor) { window.__cursor(pendingCursor[0], pendingCursor[1]); pendingCursor = null; }
 
       // Cidades atravessadas: pontos + rótulos nativos (symbol). O text-font
       // depende dos glyphs do estilo — try/catch cai para o default se faltar.

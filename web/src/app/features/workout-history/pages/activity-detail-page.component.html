@@ -51,39 +51,48 @@
       </div>
     }
 
+    <!-- Ícone e número na cor da métrica, os mesmos cinco do mobile. O destaque
+         em laranja que o primeiro card tinha saiu — era a marca escolhendo uma
+         métrica entre as cinco, sem razão. -->
     <div class="stats">
       @if (hasGps()) {
-        <div class="stat hl">
-          <span class="stat-v">{{ fmtDuration(movingTimeS()) }}</span>
+        <div class="stat">
+          <rt-icon name="clock" [size]="17" [color]="metricColor('movimento')" [strokeWidth]="1.8" />
+          <span class="stat-v" [style.color]="metricColor('movimento')">{{ fmtDuration(movingTimeS()) }}</span>
           <span class="stat-c">movimento</span>
         </div>
       } @else {
-        <div class="stat hl">
-          <span class="stat-v">{{ fmtDuration(a.durationS) }}</span>
+        <div class="stat">
+          <rt-icon name="clock" [size]="17" [color]="metricColor('movimento')" [strokeWidth]="1.8" />
+          <span class="stat-v" [style.color]="metricColor('movimento')">{{ fmtDuration(a.durationS) }}</span>
           <span class="stat-c">duração</span>
         </div>
       }
       @if (rate(); as r) {
         <div class="stat">
-          <span class="stat-v">{{ r.value }}</span>
+          <rt-icon name="gauge" [size]="17" [color]="metricColor('velocidade')" [strokeWidth]="1.8" />
+          <span class="stat-v" [style.color]="metricColor('velocidade')">{{ r.value }}</span>
           <span class="stat-c">{{ r.caption }}</span>
         </div>
       }
       @if ((a.distanceM ?? 0) > 0) {
         <div class="stat">
-          <span class="stat-v">{{ fmtKm(a.distanceM ?? 0) }} km</span>
+          <rt-icon name="map" [size]="17" [color]="metricColor('distancia')" [strokeWidth]="1.8" />
+          <span class="stat-v" [style.color]="metricColor('distancia')">{{ fmtKm(a.distanceM ?? 0) }} km</span>
           <span class="stat-c">distância</span>
         </div>
       }
       @if (elevation(); as e) {
         <div class="stat">
-          <span class="stat-v">{{ e }}</span>
+          <rt-icon name="trend" [size]="17" [color]="metricColor('elevacao')" [strokeWidth]="1.8" />
+          <span class="stat-v" [style.color]="metricColor('elevacao')">{{ e }}</span>
           <span class="stat-c">elevação</span>
         </div>
       }
       @if (a.calories > 0) {
         <div class="stat">
-          <span class="stat-v">{{ a.caloriesEstimated ? '≈' : '' }}{{ fmtKcal(a.calories) }}</span>
+          <rt-icon name="flame" [size]="17" [color]="metricColor('kcal')" [strokeWidth]="1.8" />
+          <span class="stat-v" [style.color]="metricColor('kcal')">{{ a.caloriesEstimated ? '≈' : '' }}{{ fmtKcal(a.calories) }}</span>
           <span class="stat-c">kcal{{ a.caloriesEstimated ? ' (estimado)' : '' }}</span>
         </div>
       }
@@ -95,12 +104,13 @@
         @if (routeLoading()) {
           <div class="route-state">Carregando rota…</div>
         } @else if (routePoints().length > 0) {
-          <rt-activity-map [points]="routePoints()" />
+          <rt-activity-map [points]="routePoints()" [cursor]="mapCursor()" />
           <!-- Depois do mapa: ele responde "por onde", estes respondem "como
                foi". Somem sozinhos quando o percurso é plano ou a rota não tem
-               horário por ponto. -->
+               horário por ponto. O `scrub` fecha o circuito: o mouse no gráfico
+               acende o ponto no mapa acima. -->
           <rt-route-profile-card [points]="routePoints()" [activityId]="a.activityId"
-            [color]="meta()?.color ?? 'var(--primary)'" />
+            (scrub)="cursorX.set($event)" />
         } @else {
           <div class="route-state">Rota indisponível para esta atividade.</div>
         }

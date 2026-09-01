@@ -1,4 +1,7 @@
-.page { padding: 24px 32px 48px; max-width: 720px; }
+/* 1200 é a largura da casa — a lista, a página do tipo e a do país já usam. O
+   detalhe era o único do módulo em 720, e a tela dava um pulo ao navegar da
+   lista para cá, com o mapa e os perfis espremidos na metade esquerda. */
+.page { padding: 24px 32px 48px; max-width: 1200px; }
 
 .state { padding: 48px 0; text-align: center; font-size: 14px; color: var(--ink-2); }
 .link { color: var(--primary); font-weight: 600; }
@@ -51,10 +54,13 @@
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .stats-toggle:not(:disabled):hover { border-color: var(--ink-3); }
+/* `--primary-on` e não `--primary`: aquele é a cor de **preenchimento** da
+   marca, e aqui ela seria o conteúdo *dentro* do preenchimento. Media 2,71 na
+   marca padrão e 1,86 na verde — o ícone sumia no próprio botão ligado. */
 .stats-toggle.on {
   background: var(--primary-soft);
   border-color: transparent;
-  color: var(--primary);
+  color: var(--primary-on);
 }
 .stats-toggle:disabled { opacity: 0.6; cursor: default; }
 
@@ -110,20 +116,18 @@
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  /* O ícone encosta no número e a legenda respira embaixo — a ordem de leitura
+     é "que métrica é esta" → "quanto" → "de quê". */
+  gap: 6px;
   box-shadow: var(--shadow-card);
 }
-.stat.hl {
-  background: var(--primary-soft);
-  border-color: transparent;
-}
+.stat rt-icon { display: block; line-height: 0; }
 .stat-v {
   font-size: 18px;
   font-weight: 650;
   letter-spacing: -0.3px;
   color: var(--ink);
 }
-.stat.hl .stat-v { color: var(--primary-deep); }
 .stat-c { font-size: 11.5px; color: var(--ink-3); }
 
 /* Cartões (informações, zonas, edição) compartilham a mesma moldura. */
@@ -139,7 +143,10 @@
 /* Bloco completo de informações — abaixo dos campos editáveis. */
 .info { margin-top: 24px; }
 .info-title { margin-bottom: 12px; }
-.info-grid { display: flex; flex-direction: column; }
+/* Uma coluna só de rótulo→valor num card de 1160 px deixaria os dois nas pontas,
+   com um vão no meio que separa o que devia andar junto. Em duas colunas o par
+   fica perto e a largura vira leitura, não vazio. */
+.info-grid { display: grid; grid-template-columns: 1fr; }
 .info-row {
   display: flex;
   align-items: baseline;
@@ -158,6 +165,13 @@
   word-break: break-word;
 }
 .info-row dd.id { font-size: 12px; color: var(--ink-2); font-weight: 400; }
+
+@media (min-width: 900px) {
+  .info-grid { grid-template-columns: 1fr 1fr; column-gap: 36px; }
+  /* Com duas colunas, a segunda também começa uma fila — o `:first-child`
+     sozinho deixaria só a da esquerda sem a linha de cima. */
+  .info-row:nth-child(2) { border-top: none; }
+}
 
 .route { margin-bottom: 24px; }
 .route-title { margin-bottom: 12px; }
@@ -204,6 +218,9 @@
   color: var(--ink-3);
 }
 .field input {
+  /* Um campo de uma linha com 1160 px de pista é difícil de mirar e de ler de
+     volta; o card acompanha a página, o campo não precisa. */
+  max-width: 420px;
   font-family: inherit;
   font-size: 14px;
   color: var(--ink);

@@ -11,8 +11,9 @@ import {
   viewChild,
 } from '@angular/core';
 import type { ActivityRoutePoint, MapStyle } from '@vitale/shared';
-import { MAP_STYLES } from '@vitale/shared';
+import { MAP_STYLES, moduleOf } from '@vitale/shared';
 import { PreferencesService } from '@core/services/preferences.service';
+import { ThemeService } from '@core/theme/theme.service';
 import * as L from 'leaflet';
 import maplibregl from 'maplibre-gl';
 
@@ -26,6 +27,9 @@ import '@maplibre/maplibre-gl-leaflet';
  * Leaflet; estilos vetoriais (OpenFreeMap) entram como camada MapLibre GL via
  * `maplibre-gl-leaflet` (renderização 2D — o tilt 3D só existe no mobile).
  * Desenha a polyline, marca início/fim e ajusta o zoom à rota.
+ *
+ * `cursor` acende um ponto sobre a rota — é o mouse percorrendo o gráfico de
+ * elevação/velocidade logo abaixo.
  */
 @Component({
   selector: 'rt-activity-map',
@@ -36,6 +40,8 @@ import '@maplibre/maplibre-gl-leaflet';
 })
 export class ActivityMapComponent {
   readonly points = input.required<ActivityRoutePoint[]>();
+  /** Ponto do percurso a destacar, ou `null` para apagar o destaque. */
+  readonly cursor = input<{ lat: number; lng: number } | null>(null);
 
   /** Zoom por scroll começa travado; vira `true` ao clicar no mapa (esconde a dica). */
   protected readonly interactive = signal(false);
@@ -43,12 +49,17 @@ export class ActivityMapComponent {
   private readonly mapEl = viewChild.required<ElementRef<HTMLElement>>('map');
   private readonly destroyRef = inject(DestroyRef);
   private readonly prefs = inject(PreferencesService);
+  private readonly theme = inject(ThemeService);
 
   private map?: L.Map;
   private baseLayer?: L.Layer;
   private casing?: L.Polyline;
   private line?: L.Polyline;
   private markers: L.Layer[] = [];
+  /** Guardados à parte dos `markers` porque recolorem quando a paleta muda. */
+  private startMarker?: L.CircleMarker;
+  private endMarker?: L.CircleMarker;
+  private cursorMarker?: L.CircleMarker;
   private ro?: ResizeObserver;
   private fitted = false;
 
@@ -66,6 +77,17 @@ export class ActivityMapComponent {
     effect(() => {
       const style = this.prefs.mapStyle();
       if (this.map) this.applyStyle(style);
+    });
+    // Move (ou apaga) o ponto do scrub, sem redesenhar a rota nem reenquadrar.
+    effect(() => this.drawCursor(this.cursor()));
+    // Trocar de paleta ou de esquema recolore a rota na hora. Sem isto ela
+    // ficaria na cor de quando a tela abriu, que é o que o `getComputedStyle`
+    // fazia: lia uma vez e congelava.
+    effect(() => {
+      const [route, start] = [this.routeColor(), this.startColor()];
+      this.line?.setStyle({ color: route });
+      this.endMarker?.setStyle({ fillColor: route });
+      this.startMarker?.setStyle({ fillColor: start });
     });
     this.destroyRef.onDestroy(() => {
       this.ro?.disconnect();
@@ -152,16 +174,46 @@ export class ActivityMapComponent {
 
     const start = latlngs[0];
     const end = latlngs[latlngs.length - 1];
+    this.startMarker = L.circleMarker(start, {
+      radius: 6, color: '#fff', weight: 2, fillColor: this.startColor(), fillOpacity: 1,
+    }).bindTooltip('Início').addTo(map);
+    this.endMarker = L.circleMarker(end, {
+      radius: 6, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1,
+    }).bindTooltip('Fim').addTo(map);
     this.markers.push(
-      L.circleMarker(start, {
-        radius: 6, color: '#fff', weight: 2, fillColor: '#3FA34D', fillOpacity: 1,
-      }).bindTooltip('Início').addTo(map),
-      L.circleMarker(end, {
-        radius: 6, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1,
-      }).bindTooltip('Fim').addTo(map),
+      this.startMarker,
+      this.endMarker,
     );
 
     this.fit();
+  }
+
+  /**
+   * Ponto do scrub sobre a rota.
+   *
+   * **Núcleo escuro com anel branco, e não uma cor de tema.** O marcador tem de
+   * ser legível sobre qualquer tile, e há estilo de mapa claro *e* escuro na
+   * lista: um token que virasse quase-branco no esquema escuro sumiria sobre o
+   * Positron, e um fixo escuro sumiria sobre o Dark Matter. É a mesma solução do
+   * casing branco sob a linha da rota. Verde e laranja também estão fora: são o
+   * início e o fim, que ficam desenhados ao mesmo tempo que este.
+   */
+  private drawCursor(at: { lat: number; lng: number } | null): void {
+    const map = this.map;
+    if (!map) return;
+    if (!at) {
+      this.cursorMarker?.remove();
+      this.cursorMarker = undefined;
+      return;
+    }
+    if (this.cursorMarker) {
+      this.cursorMarker.setLatLng([at.lat, at.lng]);
+      return;
+    }
+    this.cursorMarker = L.circleMarker([at.lat, at.lng], {
+      radius: 5, color: '#FFFFFF', weight: 3,
+      fillColor: '#1F1B16', fillOpacity: 1, interactive: false,
+    }).addTo(map);
   }
 
   /** Enquadra a rota; só marca como ajustado quando o mapa já tem tamanho. */
@@ -175,9 +227,25 @@ export class ActivityMapComponent {
     if (size.x > 0 && size.y > 0) this.fitted = true;
   }
 
-  /** Lê a cor primária do design system; cai no laranja da marca se ausente. */
+  /**
+   * Cor da rota: o papel do módulo **treino**, que é o `orange`.
+   *
+   * Lia `--primary`, e isso era erro de categoria. `--primary` vem do eixo
+   * **marca**, que governa o cromo — FAB, CTA, toggle, estado ativo. A rota não
+   * é cromo, é dado: com a marca em `tinta` o percurso saía quase-preto, e em
+   * `azul` sairia azul. O papel responde à **paleta**, que é o eixo da cor de
+   * dado, e por construção continua da família laranja nas seis.
+   *
+   * É também o que o mobile sempre desenhou (`MOD.treino.accent`) — as duas
+   * telas discordavam sobre a cor do mesmo percurso.
+   */
   private routeColor(): string {
-    const v = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
-    return v || '#F25C2B';
+    return moduleOf('treino', this.theme.themeId(), this.theme.scheme(), this.theme.paletteId())
+      .accent;
+  }
+
+  /** Cor do ponto de largada: o papel `green`, como no mobile. */
+  private startColor(): string {
+    return this.theme.tokens().roles.green.accent;
   }
 }

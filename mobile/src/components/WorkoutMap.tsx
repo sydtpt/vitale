@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,25 +19,43 @@ import { colors, fonts, radii, spacing, themed, useTheme } from '../theme';
  * tela cheia, onde o usuário pode arrastar e dar zoom livremente. Na tela
  * cheia há uma barra inferior com "Recentrar" e "Compartilhar" (quando o
  * detalhe fornece `share`), abrindo o composer de cartão estilo Strava.
+ *
+ * `cursor` acende um ponto sobre a rota — é o dedo percorrendo o gráfico de
+ * elevação/velocidade logo abaixo. Vai por `injectJavaScript` e não por um novo
+ * `source`: reconstruir o HTML a cada quadro do arrasto recarregaria o WebView,
+ * apagaria o enquadramento e piscaria os tiles.
  */
 export function WorkoutMap({
   points,
   height = 240,
   share,
+  cursor,
 }: {
   points: RoutePoint[];
   height?: number;
   share?: ShareContext;
+  cursor?: { lat: number; lng: number } | null;
 }) {
   useTheme();
   const [fullscreen, setFullscreen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const fullWebRef = useRef<WebView>(null);
+  const previewWebRef = useRef<WebView>(null);
   const mapStyle = useSettingsStore((s) => s.preferences?.mapStyle) ?? 'voyager';
   const tile = MAP_STYLES[mapStyle];
   const previewHtml = useMemo(() => buildMapHtml(points, false, tile), [points, tile]);
   const fullHtml = useMemo(() => buildMapHtml(points, true, tile), [points, tile]);
+
+  // Os dois WebViews recebem o cursor: o de tela cheia pode estar aberto sobre a
+  // prévia, e ao fechar ele a prévia precisa já estar com o ponto no lugar.
+  useEffect(() => {
+    const js = cursor
+      ? `window.__cursor && window.__cursor(${cursor.lat}, ${cursor.lng}); true;`
+      : 'window.__cursorHide && window.__cursorHide(); true;';
+    previewWebRef.current?.injectJavaScript(js);
+    fullWebRef.current?.injectJavaScript(js);
+  }, [cursor]);
 
   if (points.length === 0) return null;
 
@@ -59,6 +77,7 @@ export function WorkoutMap({
         accessibilityLabel="Abrir mapa em tela cheia"
       >
         <WebView
+          ref={previewWebRef}
           originWhitelist={['*']}
           source={{ html: previewHtml }}
           style={styles.web}
