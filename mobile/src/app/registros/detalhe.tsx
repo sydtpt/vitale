@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   buildRegistroDetail,
   yearHeatmap,
+  yearHeatmapMonthStarts,
   DIAS_ABREV_SEG,
   MESES_ABREV,
   MESES_INICIAIS,
@@ -129,6 +130,11 @@ const HEAT_GAP = 1;
  * Heatmap anual binário (célula marcada = acento do módulo, vazia = linha) —
  * não é a escala divergente do `HeatmapGrid`, de propósito. Só-leitura: o
  * toque, em qualquer célula, abre o calendário mensal de `marcar`.
+ *
+ * Rótulos: iniciais de mês em cima (na coluna do dia 1º) e legenda embaixo.
+ * Dia da semana na lateral NÃO cabe — a linha tem a altura da célula (~4px),
+ * menor que qualquer texto legível; quem precisa do dia exato vai ao
+ * calendário de `marcar`, que é o destino do toque mesmo.
  */
 function YearHeatmapGrid({ weeks, accent, onPress }: {
   weeks: RegistroHeatCell[][];
@@ -143,6 +149,8 @@ function YearHeatmapGrid({ weeks, accent, onPress }: {
   const n = weeks.length;
   // Lado inteiro, como no HeatmapGrid: fração de pixel desalinha as 53 colunas.
   const side = width > 0 && n > 0 ? Math.max(2, Math.floor((width - (n - 1) * HEAT_GAP) / n)) : 0;
+  const monthStarts = useMemo(() => yearHeatmapMonthStarts(weeks), [weeks]);
+  const pitch = side + HEAT_GAP;
   return (
     <Pressable
       onLayout={onLayout}
@@ -155,26 +163,44 @@ function YearHeatmapGrid({ weeks, accent, onPress }: {
       style={{ alignItems: 'center' }}
     >
       {side > 0 && (
-        <View style={{ flexDirection: 'row', gap: HEAT_GAP }}>
-          {weeks.map((week, wi) => (
-            <View key={wi} style={{ gap: HEAT_GAP }}>
-              {week.map((c) => (
-                <View
-                  key={c.date}
-                  style={{
-                    width: side,
-                    height: side,
-                    borderRadius: 1.5,
-                    backgroundColor: !c.inYear
-                      ? 'transparent'
-                      : c.marked
-                        ? accent
-                        : colors.line,
-                  }}
-                />
-              ))}
-            </View>
-          ))}
+        <View>
+          <View style={{ height: 13, position: 'relative' }}>
+            {monthStarts.map((m) => (
+              <Text
+                key={m.month}
+                style={[styles.heatMonth, { left: m.week * pitch }]}
+              >
+                {MESES_INICIAIS[m.month]}
+              </Text>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', gap: HEAT_GAP }}>
+            {weeks.map((week, wi) => (
+              <View key={wi} style={{ gap: HEAT_GAP }}>
+                {week.map((c) => (
+                  <View
+                    key={c.date}
+                    style={{
+                      width: side,
+                      height: side,
+                      borderRadius: 1.5,
+                      backgroundColor: !c.inYear
+                        ? 'transparent'
+                        : c.marked
+                          ? accent
+                          : colors.line,
+                    }}
+                  />
+                ))}
+              </View>
+            ))}
+          </View>
+          <View style={styles.heatLegend}>
+            <View style={[styles.heatSwatch, { backgroundColor: accent }]} />
+            <Text style={styles.heatLegendText}>marcado</Text>
+            <View style={[styles.heatSwatch, { backgroundColor: colors.line, marginLeft: 8 }]} />
+            <Text style={styles.heatLegendText}>vazio</Text>
+          </View>
         </View>
       )}
     </Pressable>
@@ -538,6 +564,10 @@ const styles = themed(() => StyleSheet.create({
   navLabel: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink, minWidth: 48, textAlign: 'center' },
 
   heatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heatMonth: { position: 'absolute', top: 0, fontSize: 8.5, fontFamily: fonts.sans, color: colors.ink3 },
+  heatLegend: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm, justifyContent: 'center' },
+  heatSwatch: { width: 8, height: 8, borderRadius: 2 },
+  heatLegendText: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink3 },
   editDays: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 4 },
   editDaysText: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
 

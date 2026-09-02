@@ -8,7 +8,7 @@
  * manual sobre registro_logs num caso plurianual".
  */
 import assert from 'node:assert/strict';
-import { buildRegistroDetail, yearHeatmap } from './detail';
+import { buildRegistroDetail, yearHeatmap, yearHeatmapMonthStarts } from './detail';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -270,6 +270,18 @@ check('heatmap: marca cai na célula certa (terça 18/08 na coluna de 17/08)', (
   assert.equal(weeks[33][1].marked, true);
   assert.equal(weeks[33][0].marked, false);
   assert.equal(weeks.flat().filter((c) => c.marked).length, 1);
+});
+
+check('rótulos de mês: 12 inícios em ordem, com a coluna certa', () => {
+  const starts = yearHeatmapMonthStarts(yearHeatmap([], 2026));
+  assert.equal(starts.length, 12);
+  assert.deepEqual(starts.map((s) => s.month), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  assert.equal(starts[0].week, 0); // 1º/jan/2026 (quinta) na 1ª coluna
+  // 1º/ago/2026 é sábado: cai na coluna da segunda 27/07 — 210 dias (30
+  // semanas exatas) depois de 29/12/2025.
+  assert.equal(starts[7].week, 30);
+  // O 1º/jan de 2012 é domingo: fim da 1ª coluna, mesmo com a ponta de 2011.
+  assert.equal(yearHeatmapMonthStarts(yearHeatmap([], 2012))[0].week, 0);
 });
 
 console.log(`\n${passed} testes ok`);

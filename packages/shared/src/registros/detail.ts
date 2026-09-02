@@ -359,6 +359,31 @@ export interface RegistroHeatCell {
  * da semana que contém 1º/jan à que contém 31/dez (53–54 colunas). Cada semana
  * vem completa; os dias de dezembro/janeiro vizinhos entram com `inYear: false`.
  */
+/** Onde cada mês começa na grade de `yearHeatmap` — insumo dos rótulos de mês. */
+export interface HeatmapMonthStart {
+  /** Índice da coluna (semana) na grade. */
+  week: number;
+  /** Mês civil, 0 = jan. */
+  month: number;
+}
+
+/**
+ * As 12 colunas onde os meses começam, em ordem (jan → dez). Um mês "começa"
+ * na semana que contém o seu dia 1º dentro do ano; como todo mês tem ≥ 28
+ * dias, nunca há dois inícios na mesma coluna.
+ */
+export function yearHeatmapMonthStarts(weeks: RegistroHeatCell[][]): HeatmapMonthStart[] {
+  const starts: HeatmapMonthStart[] = [];
+  weeks.forEach((week, wi) => {
+    for (const c of week) {
+      if (c.inYear && c.date.slice(8) === '01') {
+        starts.push({ week: wi, month: Number(c.date.slice(5, 7)) - 1 });
+      }
+    }
+  });
+  return starts;
+}
+
 export function yearHeatmap(dates: string[], year: number): RegistroHeatCell[][] {
   const marked = new Set(dates);
   const start = mondayOf(new Date(year, 0, 1));
