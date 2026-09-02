@@ -1,121 +1,78 @@
-# Spec: Registros — marcação diária de atividades avulsas
+---
+id: SPEC-registros
+companions:
+  - metricas-do-detalhe.md
+  - data-model.md
+  - plan.md
+sources: []
+---
 
-> **Feature:** `registros` · **Status:** 🔧 implementação inicial (web + mobile) · **Data:** 2026-05-21
+> **Contrato canônico.** Este SPEC e os arquivos em `companions:` são o contrato completo do que construir, testar e validar. O spec narrativo v1 (2026-05-21) foi absorvido aqui; o texto antigo vive no git.
+> **Aviso:** `plan.md` descreve o layout v1 — a camada de dados que ele situa no web migrou para `packages/shared/src/data/registros.ts`; em divergência, o código do núcleo vale.
 
-## 1. Por quê (problema)
+# Registros — marcação diária avulsa + detalhe com métricas
 
-Existe `Habitos` (contadores diários, com meta e recorrência implícita) e `Tarefas`
-(to-do com agendamento e conclusão). Falta um modelo para **atividades que se repetem
-sem frequência definida** e que o usuário quer apenas **registrar que fez naquele dia**,
-para consulta e análise futura — sem meta, sem recorrência, sem controle quantitativo.
+## Why
 
-Exemplos do usuário: **Pizza**, **Comida japonesa**, **Dentista**, **Médico**.
+Dor a resolver, em dois tempos. **v1 (entregue):** Habitos tem meta e contador, Tarefas tem agendamento — faltava um modelo para atividades sem frequência definida (Pizza, Dentista) que o usuário só quer marcar "fiz hoje" e consultar depois. **Agora:** o histórico acumulado é write-only — tocar num registro abre o editor, e ler o dado exige a página web. O usuário quer o mesmo gesto do histórico de treinos: tocar num item e ver as métricas daquele dado, com períodos alternáveis, no celular primeiro.
 
-**Objetivo:** uma seção **Registros** onde o usuário cria itens livres, associa cada um a
-um **módulo** (com ícone e cor), e marca **"feito hoje"** com um toque — uma vez por dia.
-O histórico fica durável no Supabase para análise (com que frequência, quando foi a
-última vez, em que dias).
+## Capabilities
 
-## 2. Decisões de produto (fechadas)
+- **CAP-1** — Marcar feito hoje *(v1, entregue)*
+  - **intent:** Usuário marca com um toque que fez a atividade hoje; tocar de novo desmarca.
+  - **success:** Marcar grava e persiste ao reabrir; segundo toque remove só o dia atual; na virada do dia local tudo volta a "não marcado" sem apagar o histórico.
 
-| Decisão | Escolha | Implicação |
-|---------|---------|------------|
-| Granularidade | **Marca binária por dia** | "Feito / não feito" hoje. Sem valor/contador (≠ Habitos). 1 linha por `(registro, dia)` |
-| Frequência | **Nenhuma** | Sem recorrência nem agendamento (≠ Tarefas). Itens só existem para serem marcados quando acontecem |
-| Marcação | **Toggle, 1×/dia** | Marcar grava o dia; tocar de novo **desmarca** (corrigir engano). No dia seguinte volta a "não marcado" |
-| Categoria | **Módulo (como Tarefas)** | Reusa `TodoModule` (`financas`/`compras`/`casa`/`saude`/`geral`) para categorizar e colorir |
-| Ícone/cor | **Set canônico** | Reusa `HABIT_ICONS` (web `<rt-icon>` / mobile Ionicons) e tokens `MOD` para a cor |
-| Persistência | **Supabase agora** | Tabelas `registros` + `registro_logs` com RLS por usuário; reset diário pela data local |
-| Plataformas | **Web (análise + CRUD) e Mobile (captura + CRUD)** | Espelha o padrão de Habitos |
+- **CAP-2** — Criar e configurar um registro *(v1, entregue)*
+  - **intent:** Usuário cria um registro com nome, módulo, ícone e cor.
+  - **success:** Item criado aparece na lista pronto para marcar; editar nome/módulo/ícone/cor reflete em lista e análise sem afetar marcas passadas.
 
-## 3. Usuários e plataforma
+- **CAP-3** — Editar, arquivar e reativar *(v1, entregue)*
+  - **intent:** Usuário arquiva sem perder histórico, reativa depois e controla a ordem da captura.
+  - **success:** Arquivado some da captura e mantém histórico na análise; reativado volta com histórico; `sort` controla a ordem.
 
-- Usuário único autenticado (Supabase Auth). Leitura/escrita isolada por `user_id` via RLS.
-- **Mobile (Expo)** = captura: tela **Registros** (via aba **Mais**) lista os itens com botão
-  "marcar hoje"; CRUD no editor.
-- **Web (Angular)** = análise + CRUD: página `/registros` com lista (marcar hoje), contagem
-  por período, dias desde a última vez e heatmap.
+- **CAP-4** — Análise na página web *(v1, entregue)*
+  - **intent:** Usuário vê de relance, por registro, quanto/quando aconteceu.
+  - **success:** `/registros` mostra por card a contagem no período, "última vez há N dias" e heatmap; sem registros, estado vazio orienta criar o primeiro.
 
-## 4. Histórias de usuário (priorizadas)
+- **CAP-5** — View de detalhe por registro
+  - **intent:** Tocar num registro abre uma view de métricas daquele dado (não mais o editor), com seletor de período no molde do histórico de treinos.
+  - **success:** Tap na lista (mobile e web `/registros/:id`) abre o detalhe; alternar entre os 5 períodos (7d · 4s · 12m · Ano · Sempre) redesenha gráfico de barras por bucket e métricas; o editor continua a um toque, por botão no header do detalhe.
 
-### US1 — Marcar uma atividade como feita hoje (P1) 🎯 MVP
-Como usuário, quero tocar no botão de um registro para marcar que **fiz isso hoje**, e ver
-de relance o que já marquei no dia.
+- **CAP-6** — Métricas derivadas do detalhe
+  - **intent:** O detalhe responde "com que frequência, quando e em que padrão" para um registro.
+  - **success:** Cabeçalho com total no período + delta vs período anterior + última vez; frequência média, intervalo médio entre ocorrências, maior jejum, distribuição por dia da semana, sazonalidade e primeira vez/total histórico conferem com cálculo manual sobre `registro_logs` num caso plurianual (testes no shared). Catálogo e definições em [metricas-do-detalhe.md](metricas-do-detalhe.md).
 
-**Cenários de aceite**
-- **Dado** um registro "Pizza", **quando** toco em "marcar", **então** o dia de hoje fica
-  registrado e o estado **persiste** (visível ao reabrir).
-- **Dado** que já marquei "Pizza" hoje, **quando** toco de novo, **então** **desmarca** o dia
-  (sem afetar dias anteriores).
-- **Dado** que virou o dia (data local), **quando** abro a tela, **então** todos voltam a
-  "não marcado", e os dias anteriores continuam no histórico.
+- **CAP-7** — Corrigir o passado a partir do detalhe
+  - **intent:** Usuário corrige dias passados a partir da view de detalhe, sem ganhar uma superfície nova de edição (o retroativo já existe: calendário mensal `/registros/marcar` e edição por dia `/registros/dia`).
+  - **success:** Mobile: o heatmap é só-leitura e um toque nele (ou botão "editar dias") abre o calendário mensal existente; web: clique numa célula ≤ hoje alterna a marca daquele dia. Em ambos, a mudança persiste e as métricas do detalhe refletem imediatamente; dias futuros não respondem.
 
-### US2 — Criar e configurar um registro (P1) 🎯 MVP
-Como usuário, quero criar um registro escolhendo **nome**, **módulo**, **ícone** e **cor**.
+## Constraints
 
-**Cenários de aceite**
-- **Dado** o formulário, **quando** defino "Dentista", módulo Saúde, ícone tooth, **então** o
-  item passa a aparecer na lista pronto para marcar.
-- **Dado** um registro existente, **quando** edito nome/ícone/cor/módulo, **então** a lista e a
-  análise refletem (marcas passadas permanecem).
+- O eixo de período reusa `Period` do núcleo (`semana`/`mes`/`meses12`/`ano`/`sempre`, labels 7d/4s/12m/Ano/Sempre) e o padrão `buildOverview` — nenhum app cria eixo próprio.
+- Derivações são funções puras testadas em `packages/shared` (padrão `fitness/overview`/`consistency`); web e mobile só renderizam.
+- Sem migration: tudo deriva de `registro_logs`; retroativo usa o mesmo `insert … on conflict do nothing` / `delete` por `(registro_id, log_date)` — nenhuma RPC nova.
+- PostgREST corta em 1000 linhas sem erro: o fetch do histórico completo de um registro exige range+order/paginação.
+- O detalhe reusa a camada de dados do núcleo (`packages/shared/src/data/registros.ts` — `fetchRegistroLogsBetween` e afins, que já paginam); nenhum app escreve fetch novo.
+- RLS por usuário: cada usuário só lê/escreve os próprios registros e logs.
+- Retroativo não aceita dias futuros; registros arquivados também abrem o detalhe (o histórico preservado é promessa de CAP-3).
+- Mobile entrega primeiro; a web segue no mesmo contrato.
+- Done inclui conferência visual em escala real e build Release no iPhone — mergeado sem rodar no aparelho não conta como entregue.
 
-### US3 — Analisar histórico no web (P2)
-Como usuário, quero ver, por registro, **quantas vezes** fiz no período, **quando foi a última
-vez** e um **heatmap** dos dias marcados.
+## Non-goals
 
-**Cenários de aceite**
-- **Dado** que tenho histórico, **quando** abro `/registros`, **então** vejo um card por
-  registro com total no período, "última vez há N dias" e o heatmap.
-- **Dado** que nunca criei nenhum, **quando** abro a página, **então** vejo um estado vazio
-  orientando a criar o primeiro.
+- Atalho "ver correlações" no detalhe (o cruzamento com saúde segue vivendo na Retrospectiva; backlog).
+- Contagem de mais de 1×/dia e anotação por marca (`count`/`note`) — seguem no backlog.
+- Recorrência, lembretes/push, metas ou streaks esperados (não há frequência alvo por definição).
+- Surfacing na tela Hoje do mobile e filtro/agrupamento por módulo — backlog.
+- Unificar Habitos + Registros num modelo com `kind` — backlog.
+- Ponte com Compras/Finanças (exclusão herdada do v1; a razão original — "módulos mock" — envelheceu, mas a exclusão segue).
+- Redesenhar a lista/captura v1 além de trocar o destino do tap.
 
-### US4 — Editar e arquivar (P2)
-Como usuário, quero arquivar um registro sem perder o histórico, e reativá-lo depois.
+## Success signal
 
-**Cenários de aceite**
-- **Dado** um registro ativo, **quando** o arquivo (`active = false`), **então** some da captura
-  mas o histórico continua na análise.
-- **Dado** um arquivado, **quando** o reativo, **então** volta à lista mantendo o histórico.
+Abrir "Pizza" no celular com mais de um ano de histórico, varrer os 5 períodos e responder "com que frequência, quando foi a última vez e em que dias costuma acontecer" sem sair da tela; tocar num dia esquecido do heatmap e ver todas as métricas refletirem na hora.
 
-## 5. Requisitos funcionais
+## Assumptions
 
-- **FR-001** O usuário DEVE poder criar um registro com `name`, `icon`, `color` e `module`.
-- **FR-002** A lista DEVE oferecer, por registro ativo, um botão **marcar/desmarcar hoje**.
-- **FR-003** A marca DEVE ser **binária por dia**: 1 linha por `(registro_id, log_date)`;
-  marcar grava, desmarcar remove a linha do dia.
-- **FR-004** O dia DEVE **resetar pela data local**: novo dia começa "não marcado" sem apagar o histórico.
-- **FR-005** Cada usuário SÓ PODE ler/escrever os próprios registros e logs (RLS).
-- **FR-006** O usuário DEVE poder **editar** e **arquivar/reativar** (`active`); arquivar some da
-  captura mas **preserva** o histórico.
-- **FR-007** A ordem na captura DEVE ser controlável (`sort`).
-- **FR-008** O web DEVE exibir, por registro: **contagem** no período, **dias desde a última vez**
-  e **heatmap** dos dias marcados.
-
-## 6. Entidades-chave
-
-- **Registro** — definição do item. `name`, `icon`, `color`, `module`, `active`, `sort`, `createdAt`.
-- **RegistroLog** — marca de um dia. 1 linha por `(registro_id, log_date)`. Ausência de linha ⇒
-  não feito naquele dia.
-
-## 7. Critérios de sucesso (mensuráveis)
-
-- **SC-001** Marcar e reabrir o app mantém o dia marcado; desmarcar remove só o dia atual.
-- **SC-002** Ao virar o dia local, tudo volta a "não marcado"; dias anteriores seguem consultáveis.
-- **SC-003** Um registro arquivado some da captura, mas seu histórico continua na análise web.
-- **SC-004** Um usuário nunca lê registros nem logs de outro (RLS).
-
-## 8. Fora de escopo
-
-- Contagem de **mais de uma vez por dia** (é binário; backlog: `count` por dia).
-- Anotações por marca (ex.: "pizza calabresa") — backlog (`note`/`meta`).
-- Recorrência, lembretes/push, metas/streak esperado (não há frequência alvo).
-- Surfacing na tela "Hoje" do mobile (vive na própria tela de Registros no v1).
-- Ponte com Compras/Finanças (esses módulos ainda são mock).
-
-## 9. Backlog (pós-MVP)
-
-- Marcar com **data retroativa** (registrar que fiz ontem).
-- **Contagem/anotação** por dia (`count`, `note`).
-- Filtro/agrupamento por **módulo** na lista e na análise.
-- Surfacing rápido no "Hoje" do mobile (flag tipo `showOnHome`).
-- Unificar Habitos + Registros num modelo com `kind` (`counter` | `mark`).
+- A navegação de ano no detalhe espelha o histórico de treinos (ano corrente + anteriores até o primeiro com dado); sem os toggles multi-ano do período Sempre.
+- Os cards de análise da página web v1 permanecem; o detalhe soma, não substitui.

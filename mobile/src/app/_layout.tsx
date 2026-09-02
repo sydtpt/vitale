@@ -196,6 +196,7 @@ function AppShell() {
         <Stack.Screen name="metas/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="metas/editor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="registros/index" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="registros/detalhe" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="registros/editor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="registros/marcar" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="treinos/index" options={{ animation: 'slide_from_right' }} />

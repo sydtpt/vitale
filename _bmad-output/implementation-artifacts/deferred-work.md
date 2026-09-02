@@ -85,3 +85,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-reescrever-readme.md`
   summary: Nada versionado documenta como levar o app ao device nem como publicar as edge functions — os dois caminhos que o CI não cobre.
   evidence: `mobile/eas.json` define development/preview/production com distribuição interna, `mobile/plugins/` tem 5 config plugins (2 para entrega em background do HealthKit) e `supabase/config.toml` marca `connections-ingest` e `strava-oauth` com `verify_jwt = false` (autenticam-se por `x-cron-secret` e por `state` assinado). O README deliberadamente não cobre deploy — o spec listava isso em "Ask First" —, mas o vazio não é preenchido por nenhum outro doc.
+- source_spec: none
+  summary: Detalhe web de Registros — rota /registros/:id com métricas por período e heatmap clicável (CAP-5/6/7 lado web do SPEC-registros).
+  evidence: Split do build de 2026-09-02; mobile-first é constraint do spec e o lado web só consome o núcleo depois de entregue, sem acoplamento reverso.
+- source_spec: `_bmad-output/implementation-artifacts/spec-registros-detalhe-mobile.md`
+  summary: Extrair nomes de mês/dia pt-BR para módulo único no shared — a story criou a 4ª e 5ª cópias (detail.ts e detalhe.tsx, além de fitness/overview.ts e goals/format.ts).
+  evidence: Achado do blind-hunter na revisão de 2026-09-02; duplicação real confirmada por grep, mas o merge das cópias pré-existentes excede o escopo da story.
+- source_spec: `_bmad-output/implementation-artifacts/spec-registros-detalhe-mobile.md`
+  summary: CI não valida typed routes do Expo Router — gerar .expo/types/router.d.ts antes do tsc no job mobile (ou commitar a declaração), senão pathname inválido passa verde.
+  evidence: Verification-gap demonstrou: com router.d.ts ausente (condição exata do CI), push para rota inexistente compila com 0 erros; gap pré-existente que afeta o app inteiro, exposto pela rota nova.

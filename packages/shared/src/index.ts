@@ -63,6 +63,7 @@ export * from './todo/format';
 export * from './todo/reminders';
 export * from './habits/logic';
 export * from './habits/calories';
+export * from './registros/detail';
 export * from './planner/planned-match';
 export * from './fitness/activity-types';
 export * from './fitness/consistency';

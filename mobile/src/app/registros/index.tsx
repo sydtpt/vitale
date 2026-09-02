@@ -42,8 +42,11 @@ export default function RegistrosScreen() {
     const done = !!todayMarks[r.id];
     return (
       <View style={[styles.row, last && styles.noBorder]}>
+        {/* Detalhe, não editor (SPEC-registros CAP-5): a leitura é o gesto
+            principal; editar fica no lápis do header do detalhe. Arquivado
+            também navega — o histórico preservado é promessa de CAP-3. */}
         <Pressable
-          onPress={() => router.push({ pathname: '/registros/editor', params: { id: r.id } })}
+          onPress={() => router.push({ pathname: '/registros/detalhe', params: { id: r.id } })}
           style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
         >
           <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>
