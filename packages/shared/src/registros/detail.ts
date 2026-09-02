@@ -19,10 +19,9 @@
 import type { Period } from '../fitness/overview';
 import { mondayOf } from '../week/recap';
 import { localDateStr } from '../date/local';
+import { DIAS_ABREV, MESES_ABREV } from '../date/ptbr';
 
 const DAY_MS = 86_400_000;
-const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
-const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
@@ -130,7 +129,7 @@ function planFor(
     const buckets = [];
     for (let i = 6; i >= 0; i--) {
       const d = dayAt(i);
-      buckets.push({ key: localDateStr(d), label: WEEKDAYS[d.getDay()], date: d.getTime() });
+      buckets.push({ key: localDateStr(d), label: DIAS_ABREV[d.getDay()], date: d.getTime() });
     }
     const prevKeys = new Set<string>();
     for (let i = 13; i >= 7; i--) prevKeys.add(localDateStr(dayAt(i)));
@@ -165,7 +164,7 @@ function planFor(
       const d = monthAt(i);
       buckets.push({
         key: monthKey(d.getFullYear(), d.getMonth()),
-        label: MONTHS[d.getMonth()],
+        label: MESES_ABREV[d.getMonth()],
         date: d.getTime(),
       });
     }
@@ -186,7 +185,7 @@ function planFor(
     for (let m = 0; m <= lastMonth; m++) {
       buckets.push({
         key: monthKey(shownYear, m),
-        label: MONTHS[m],
+        label: MESES_ABREV[m],
         date: new Date(shownYear, m, 1).getTime(),
       });
     }

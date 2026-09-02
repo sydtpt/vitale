@@ -19,14 +19,12 @@
  */
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from 'react-native';
-import { MOD, type TaskGrid, type TaskGridRow, type TaskDayCell } from '@vitale/shared';
+import { DIAS_COMPLETOS_SEG, MESES_ABREV, MOD, type TaskGrid, type TaskGridRow, type TaskDayCell } from '@vitale/shared';
 import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '../theme';
 
 const GAP = 2;
 /** Vão extra antes de cada segunda-feira. */
 const WEEK_GAP = 5;
-const DOW_FULL = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
-const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 /** Feito usa a cor do módulo Tarefas; esquecido é um laranja apagado. */
 const doneBg = (): string => moduleColors('tarefa').accent;
@@ -35,7 +33,7 @@ const MISS_BG = '#F5C9B8';
 type Sel = { row: TaskGridRow; cell: TaskDayCell };
 
 function dataCurta(day: string): string {
-  return `${Number(day.slice(8))} ${MESES[Number(day.slice(5, 7)) - 1]}`;
+  return `${Number(day.slice(8))} ${MESES_ABREV[Number(day.slice(5, 7)) - 1]}`;
 }
 
 export function TaskGridStrip({ data }: { data: TaskGrid }) {
@@ -101,7 +99,7 @@ export function TaskGridStrip({ data }: { data: TaskGrid }) {
       <View style={styles.readout}>
         <Text style={styles.readoutK} numberOfLines={1}>
           {sel
-            ? `${sel.row.name} · ${dataCurta(sel.cell.day)}, ${DOW_FULL[sel.cell.weekday]}`
+            ? `${sel.row.name} · ${dataCurta(sel.cell.day)}, ${DIAS_COMPLETOS_SEG[sel.cell.weekday]}`
             : `toque num dia · ${data.done} de ${data.possible} no total`}
         </Text>
         {sel && (

@@ -36,6 +36,7 @@ export * from './chart/smooth-path';
 export * from './chart/axis';
 export * from './chart/palettes';
 export * from './date/local';
+export * from './date/ptbr';
 export * from './format/workout';
 export * from './data/paginate';
 export * from './data/profiles';

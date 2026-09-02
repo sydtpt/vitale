@@ -26,6 +26,7 @@ import {
   type BucketGranularity,
 } from '../health/who-activity';
 import { mondayOf } from '../week/recap';
+import { DIAS_ABREV, MESES_ABREV } from '../date/ptbr';
 
 export type Period = 'semana' | 'mes' | 'meses12' | 'ano' | 'sempre';
 export type Metric = 'distance' | 'duration' | 'calories' | 'count';
@@ -104,8 +105,7 @@ export interface Overview {
   previous?: OverviewTotals;
 }
 
-const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
-const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const WEEKDAYS = DIAS_ABREV.map((d) => d.toUpperCase());
 
 export function metricValue(a: Activity, metric: Metric): number {
   switch (metric) {
@@ -187,7 +187,7 @@ function bucketPlan(
     for (let m = 0; m <= lastMonth; m++) {
       buckets.push({
         key: `${year}-${m}`,
-        label: MONTHS[m],
+        label: MESES_ABREV[m],
         emphasis: isCurrentYear && m === lastMonth,
       });
     }
@@ -206,7 +206,7 @@ function bucketPlan(
     // 11 meses anteriores + mês atual (em destaque, i === 0).
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      buckets.push({ key: monthKey(d), label: MONTHS[d.getMonth()], emphasis: i === 0 });
+      buckets.push({ key: monthKey(d), label: MESES_ABREV[d.getMonth()], emphasis: i === 0 });
     }
     // Comparação: mesmo mês do ano anterior, DEPOIS do mês atual (à direita) —
     // fora da sequência cronológica p/ não se confundir com os meses passados.
@@ -214,7 +214,7 @@ function bucketPlan(
     const cmp = new Date(now.getFullYear() - 1, now.getMonth(), 1);
     buckets.push({
       key: monthKey(cmp),
-      label: `${MONTHS[cmp.getMonth()]} '${String(cmp.getFullYear()).slice(-2)}`,
+      label: `${MESES_ABREV[cmp.getMonth()]} '${String(cmp.getFullYear()).slice(-2)}`,
       comparison: true,
     });
     const curStart = new Date(now.getFullYear(), now.getMonth(), 1);

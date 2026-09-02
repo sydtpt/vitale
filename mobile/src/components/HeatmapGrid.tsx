@@ -16,7 +16,7 @@
  */
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from 'react-native';
-import type { Heatmap, HeatCell, HeatStep } from '@vitale/shared';
+import { DIAS_COMPLETOS_SEG, DIAS_LETRAS_SEG, type Heatmap, type HeatCell, type HeatStep } from '@vitale/shared';
 import { colors, fonts, spacing, useThemedStyles } from '../theme';
 
 /** Escala divergente: quente abaixo da meta, neutro em cima, frio acima. */
@@ -39,8 +39,6 @@ const STEP_FG: Record<HeatStep, string> = {
   2: '#182338',
 };
 
-const DOW = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
-const DOW_FULL = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
 const STEPS: HeatStep[] = [-3, -2, -1, 0, 1, 2];
 const GAP = 4;
 const COLS = 7;
@@ -116,7 +114,7 @@ export function HeatmapGrid({ data, emptyHint, ramp = SLEEP_RAMP, showWeekdays =
         <>
           {showWeekdays && (
             <View style={styles.head}>
-              {DOW.map((d, i) => (
+              {DIAS_LETRAS_SEG.map((d, i) => (
                 <Text key={i} style={[styles.headTxt, { width: side }]}>{d}</Text>
               ))}
             </View>
@@ -161,7 +159,7 @@ export function HeatmapGrid({ data, emptyHint, ramp = SLEEP_RAMP, showWeekdays =
       <View style={styles.readout}>
         <Text style={styles.readoutK}>
           {sel
-            ? `${Number(sel.day.slice(8))} · ${DOW_FULL[sel.weekday]}`
+            ? `${Number(sel.day.slice(8))} · ${DIAS_COMPLETOS_SEG[sel.weekday]}`
             : emptyHint ?? `toque num dia · ${data.measured} de ${data.cells.length} medidos`}
         </Text>
         {sel?.value != null && (

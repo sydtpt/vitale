@@ -3,7 +3,7 @@ import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { activityDays, activityRecap, buildPeriodRecap, buildWeek, buildWeekHighlights, countRecap, localDateStr, metricRecap, readinessInputsByDay, readinessSeries, type HealthHighlightInput, type HighlightIcon, weekDatesOf, wellnessSummary } from '@vitale/shared';
+import { activityDays, activityRecap, buildPeriodRecap, buildWeek, buildWeekHighlights, countRecap, DIAS_ABREV_SEG, localDateStr, metricRecap, readinessInputsByDay, readinessSeries, type HealthHighlightInput, type HighlightIcon, weekDatesOf, wellnessSummary } from '@vitale/shared';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
@@ -15,7 +15,7 @@ import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { useRegistrosStore } from '../../store/registros.store';
 import { useDailyRatingsStore } from '../../store/daily-ratings.store';
 
-const DOW = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
+const DOW = DIAS_ABREV_SEG.map((d) => d.toUpperCase());
 const HEAT_OPACITY = [0, 0.25, 0.45, 0.7, 1];
 
 /** Métricas de saúde no recap + polaridade/formatação. */

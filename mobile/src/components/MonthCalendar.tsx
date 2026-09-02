@@ -2,13 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, radii, spacing, themed, useTheme } from '../theme';
-import { localDateStr } from '@vitale/shared';
-
-const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-const MONTHS = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
-];
+import { DIAS_LETRAS, MESES_COMPLETOS, localDateStr } from '@vitale/shared';
 
 interface Cell {
   key: string;
@@ -65,7 +59,8 @@ export function MonthCalendar({ selected, marked, onSelect, onMonthChange }: Pro
         <Pressable onPress={() => step(-1)} hitSlop={8} style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}>
           <Ionicons name="chevron-back" size={18} color={colors.ink2} />
         </Pressable>
-        <Text style={styles.label}>{MONTHS[month]} {year}</Text>
+        {/* minúsculo: o cabeçalho deste calendário sempre foi "janeiro 2026" */}
+        <Text style={styles.label}>{MESES_COMPLETOS[month].toLowerCase()} {year}</Text>
         <Pressable
           onPress={() => step(1)}
           disabled={!canNext}
@@ -77,7 +72,7 @@ export function MonthCalendar({ selected, marked, onSelect, onMonthChange }: Pro
       </View>
 
       <View style={styles.row}>
-        {WEEKDAYS.map((w, i) => (
+        {DIAS_LETRAS.map((w, i) => (
           <View key={`wd${i}`} style={styles.cellWrap}>
             <Text style={styles.weekday}>{w}</Text>
           </View>

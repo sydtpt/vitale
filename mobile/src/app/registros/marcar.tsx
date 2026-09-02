@@ -6,14 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRegistrosStore } from '../../store/registros.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
-import { localDateStr } from '@vitale/shared';
+import { DIAS_LETRAS, MESES_COMPLETOS, localDateStr } from '@vitale/shared';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
-
-const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-const MONTHS = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
 
 function modColor(key: string): { tint: string; accent: string } {
   return (MOD as Record<string, { tint: string; accent: string }>)[key] ?? MOD.habito;
@@ -140,7 +134,7 @@ export default function RegistroMarcarScreen() {
               <Ionicons name="chevron-back" size={20} color={colors.ink2} />
             </Pressable>
             <Text style={styles.calTitle}>
-              {MONTHS[view.month]} {view.year}
+              {MESES_COMPLETOS[view.month]} {view.year}
             </Text>
             <Pressable
               onPress={goNext}
@@ -153,7 +147,7 @@ export default function RegistroMarcarScreen() {
           </View>
 
           <View style={styles.weekRow}>
-            {WEEKDAYS.map((w, i) => (
+            {DIAS_LETRAS.map((w, i) => (
               <Text key={i} style={styles.weekday}>
                 {w}
               </Text>

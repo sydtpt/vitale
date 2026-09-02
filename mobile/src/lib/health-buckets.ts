@@ -4,6 +4,7 @@
  * antigo colidia com `web/.../health-format.ts`, que de fato só formata datas.
  * Normaliza amostras do Apple Health em buckets por Dia/Semana/Mês e calcula stats.
  */
+import { DIAS_ABREV } from '@vitale/shared';
 
 export type Period = 'day' | 'week' | 'month';
 
@@ -44,8 +45,6 @@ export interface Stats {
 
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
-
-const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -89,7 +88,7 @@ function emptyBuckets(period: Period, now: Date): Bucket[] {
     for (let i = 0; i < days; i++) {
       const d = new Date(base);
       d.setDate(base.getDate() + i);
-      const label = period === 'week' ? WEEKDAYS[d.getDay()] : String(d.getDate());
+      const label = period === 'week' ? DIAS_ABREV[d.getDay()] : String(d.getDate());
       buckets.push({ label, date: d.getTime(), value: 0, count: 0, empty: true });
     }
   }

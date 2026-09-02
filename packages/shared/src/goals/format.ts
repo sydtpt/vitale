@@ -5,13 +5,12 @@
  */
 import type { Goal } from '../models';
 import type { GoalPeriodStatus, GoalProgress } from './evaluate';
+import { MESES_ABREV, MESES_COMPLETOS } from '../date/ptbr';
 
 const PERIOD_LABEL: Record<'week' | 'month', [string, string]> = {
   week: ['semana', 'semanas'],
   month: ['mês', 'meses'],
 };
-
-const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 const FAMILY_LABEL: Record<Goal['family'], string> = {
   cadence: 'Cadência',
@@ -73,11 +72,6 @@ export interface GoalPeriodCell {
   title: string;
 }
 
-const MONTHS_FULL = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
-
 const STATE_TEXT: Record<GoalPeriodState, string> = {
   met: 'cumprido',
   missed: 'não cumprido',
@@ -109,10 +103,10 @@ export function goalPeriodCells(goal: Goal, p: GoalProgress): GoalPeriodCell[] {
     const d = new Date(s.start);
     const state = periodState(s);
     const name = monthly
-      ? MONTHS_FULL[d.getMonth()]
+      ? MESES_COMPLETOS[d.getMonth()]
       : `Semana de ${d.toLocaleDateString('pt-BR')}`;
     return {
-      label: monthly ? MONTHS_SHORT[d.getMonth()] : '',
+      label: monthly ? MESES_ABREV[d.getMonth()] : '',
       state,
       title: `${name} · ${s.count}/${per} · ${STATE_TEXT[state]}`,
     };

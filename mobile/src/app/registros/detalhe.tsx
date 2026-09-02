@@ -28,6 +28,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   buildRegistroDetail,
   yearHeatmap,
+  DIAS_ABREV_SEG,
+  MESES_ABREV,
+  MESES_INICIAIS,
   type Period,
   type RegistroHeatCell,
 } from '@vitale/shared';
@@ -53,12 +56,8 @@ const PERIODS: { key: Period; label: string }[] = [
 const PERIOD_KEY = 'vitale.registroDetailPeriod';
 const DEFAULT_PERIOD: Period = 'meses12';
 
-const WEEKDAY_LABELS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
-const MONTH_INITIALS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
-const MONTHS_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
 function fmtDay(s: string): string {
-  return `${Number(s.slice(8, 10))} ${MONTHS_ABBR[Number(s.slice(5, 7)) - 1]} ${s.slice(0, 4)}`;
+  return `${Number(s.slice(8, 10))} ${MESES_ABREV[Number(s.slice(5, 7)) - 1]} ${s.slice(0, 4)}`;
 }
 
 function fmtLast(days: number | null): string {
@@ -422,7 +421,7 @@ export default function RegistroDetalheScreen() {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Dia da semana</Text>
-            <MiniBars values={detail.weekdayCounts} labels={WEEKDAY_LABELS} accent={mod.accent} />
+            <MiniBars values={detail.weekdayCounts} labels={DIAS_ABREV_SEG} accent={mod.accent} />
           </View>
 
           {/* Só em janelas ≥ 12 meses: em 7d/4s a "sazonalidade" seria ruído.
@@ -431,7 +430,7 @@ export default function RegistroDetalheScreen() {
           {detail.monthCounts && !isYear && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Sazonalidade</Text>
-              <MiniBars values={detail.monthCounts} labels={MONTH_INITIALS} accent={mod.accent} />
+              <MiniBars values={detail.monthCounts} labels={MESES_INICIAIS} accent={mod.accent} />
             </View>
           )}
 
