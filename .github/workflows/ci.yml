@@ -82,6 +82,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Os typed routes do Expo Router nascem em .expo/types/router.d.ts, que é
+      # git-ignored e só existe onde alguém rodou `expo start` — num checkout
+      # limpo o tsc valida pathname de rota contra nada, e um push para rota
+      # inexistente passa verde. `expo customize tsconfig.json` roda o gerador
+      # sem subir o Metro e não altera o tsconfig quando ele já está conforme.
+      - name: Typed routes
+        run: cd mobile && pnpm exec expo customize tsconfig.json
       - name: Typecheck
         run: cd mobile && pnpm exec tsc --noEmit
       - name: Testes
