@@ -76,7 +76,9 @@ importa). Toda rota de aplicação está atrás de `profileGuard`; `''` redireci
 | Auth | `/login` · `/register` · `/setup` |
 
 `/workout-history` aninha: `/:slug`, `/:slug/mapa` e `/:slug/:id`. A ordem importa —
-`/mapa` é declarada antes de `/:id`, senão o param a engole.
+`/mapa` é declarada antes de `/:id`, senão o param a engole. `/registros` aninha
+`/registros/:id` — o detalhe de um registro (métricas por período + heatmap anual
+clicável).
 
 ### Mobile (`mobile/`)
 - **Expo 57** / React Native 0.86 (New Architecture — única arquitetura a partir da RN 0.82)

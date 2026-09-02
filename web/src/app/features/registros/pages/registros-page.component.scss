@@ -37,7 +37,14 @@
   background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
   padding: 10px 14px; box-shadow: var(--shadow-card);
   &.muted { opacity: 0.7; }
+  &.clickable { cursor: pointer; transition: border-color 0.15s; }
+  &.clickable:hover { border-color: var(--ink-4); }
 }
+
+/* O link real ao detalhe é o nome; o clique na linha é enhancement de mouse. */
+.name-link { color: inherit; }
+.name-link:hover { text-decoration: underline; }
+.name-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
 .icon-box { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .flex { flex: 1; min-width: 0; }
 .name { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); &.muted { color: var(--ink-3); } }

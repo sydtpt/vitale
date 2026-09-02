@@ -94,3 +94,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-registros-detalhe-mobile.md`
   summary: CI não valida typed routes do Expo Router — gerar .expo/types/router.d.ts antes do tsc no job mobile (ou commitar a declaração), senão pathname inválido passa verde.
   evidence: Verification-gap demonstrou: com router.d.ts ausente (condição exata do CI), push para rota inexistente compila com 0 erros; gap pré-existente que afeta o app inteiro, exposto pela rota nova.
+- source_spec: `_bmad-output/implementation-artifacts/spec-registros-detalhe-web.md`
+  summary: Heatmap anual de Registros sem rótulos de mês/dia nem legenda marcado/não — achar "aquele dia de março" num grid 53×7 depende só do tooltip; merece um passe de design (mobile idem).
+  evidence: Achado do blind-hunter na revisão de 2026-09-02; enhancement de produto, não bug — o spec não pedia rótulos e a decisão de layout pede calibração visual.

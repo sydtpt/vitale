@@ -1,31 +1,27 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router, RouterLink } from '@angular/router';
 import type { TodoModule } from '@vitale/shared';
-import { MOD } from '@vitale/shared';
+import { DEFAULT_HABIT_ICON, MOD } from '@vitale/shared';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { IconComponent } from '@core/services/icon.component';
 import { RegistrosStore } from '../data/registros.store';
+import { MODULE_LABEL } from '../data/registro-logic';
 import { RegistroEditorComponent } from '../components/registro-editor.component';
 import { RegistroAnalyticsCardComponent } from '../components/registro-analytics-card.component';
-
-const MODULE_LABEL: Record<TodoModule, string> = {
-  geral: 'Geral',
-  casa: 'Casa',
-  financas: 'Finanças',
-  compras: 'Compras',
-  saude: 'Saúde',
-};
 
 @Component({
   selector: 'rt-registros-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, PageHeaderComponent, IconComponent, RegistroEditorComponent, RegistroAnalyticsCardComponent],
+  imports: [CommonModule, RouterLink, PageHeaderComponent, IconComponent, RegistroEditorComponent, RegistroAnalyticsCardComponent],
   templateUrl: './registros-page.component.html',
   styleUrl: './registros-page.component.scss',
 })
 export class RegistrosPageComponent {
   protected readonly store = inject(RegistrosStore);
+  private readonly router = inject(Router);
+  protected readonly DEFAULT_ICON = DEFAULT_HABIT_ICON;
   protected readonly count = computed(() => this.store.registros().filter((r) => r.active).length);
 
   protected readonly activeRegistros = computed(() => this.store.registros().filter((r) => r.active));
@@ -48,6 +44,11 @@ export class RegistrosPageComponent {
   openEdit(id: string) {
     this.editingId.set(id);
     this.editor?.open();
+  }
+
+  /** Linha e card de análise abrem o detalhe (CAP-5) — ativo ou arquivado. */
+  goDetail(id: string) {
+    void this.router.navigate(['/registros', id]);
   }
 
   async toggleToday(id: string) {

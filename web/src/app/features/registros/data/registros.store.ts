@@ -4,7 +4,9 @@ import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { localDateStr } from './registro-logic';
 import {
+  applyMarkToWindow,
   createRegistro,
+  fetchRegistroLogDates,
   fetchRegistroLogsSince,
   fetchRegistros,
   setRegistroActive,
@@ -16,6 +18,17 @@ type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 /** Janela do heatmap/análise: ~12 semanas. */
 export const RANGE_DAYS = 84;
+
+/**
+ * Início da janela ('YYYY-MM-DD'): hoje − (RANGE_DAYS − 1), em aritmética de
+ * calendário — `setDate` absorve o horário de verão, que `Date.now() − n×24h`
+ * atravessa deslocado (a Bélgica tem).
+ */
+function windowStart(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - (RANGE_DAYS - 1));
+  return localDateStr(d);
+}
 
 /**
  * Fonte única dos registros no web. Um fetch dos registros + um dos logs da
@@ -75,7 +88,7 @@ export class RegistrosStore {
     this._state.set('loading');
     this._error.set(null);
 
-    const since = localDateStr(new Date(Date.now() - (RANGE_DAYS - 1) * 86400000));
+    const since = windowStart();
 
     let registros: Registro[];
     let logs: RegistroLog[];
@@ -118,6 +131,32 @@ export class RegistrosStore {
 
   async toggleToday(id: string): Promise<void> {
     return this.isDoneToday(id) ? this.unmarkToday(id) : this.markToday(id);
+  }
+
+  /**
+   * Histórico completo de um registro ('YYYY-MM-DD', ascendente) — base do
+   * detalhe. A paginação (PostgREST corta em 1000) já mora no núcleo.
+   */
+  async fetchAllDatesFor(id: string): Promise<string[]> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('Sessão não encontrada.');
+    return fetchRegistroLogDates(supabase, userId, id);
+  }
+
+  /**
+   * Alterna a marca de um dia qualquer (CAP-7 web — clique no heatmap anual).
+   * Persiste via `setRegistroMark` e, quando o dia cai na janela da lista,
+   * mantém `_logs` coerente — os cards de análise refletem sem refetch. A
+   * transição em si é a função pura do núcleo, coberta por `toggle.test.ts`.
+   */
+  async toggleDay(id: string, date: string, marked: boolean): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId) throw new Error('Sessão não encontrada.');
+
+    const log = await setRegistroMark(supabase, userId, id, date, marked);
+    this._logs.update((l) =>
+      applyMarkToWindow(l, windowStart(), id, date, marked, log ?? undefined),
+    );
   }
 
   async createRegistro(data: {

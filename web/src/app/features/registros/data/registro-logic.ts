@@ -3,15 +3,23 @@
  * Marca binária por dia: um Set de datas 'YYYY-MM-DD' dos dias marcados.
  * Espelha a regra de [data-model §3](docs/specs/registros/data-model.md).
  */
-import type { RegistroLog } from '@vitale/shared';
+import { localDateStr, type RegistroLog, type TodoModule } from '@vitale/shared';
 
-/** Data local 'YYYY-MM-DD' (não UTC) — base do reset diário. */
-export function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+/**
+ * Data local 'YYYY-MM-DD' (não UTC) — base do reset diário. Re-export da fonte
+ * única do núcleo: este arquivo tinha uma cópia própria, byte a byte idêntica,
+ * convivendo com a do `@vitale/shared` nos arquivos mais novos da feature.
+ */
+export { localDateStr };
+
+/** Rótulo de módulo — fonte única da feature (lista, detalhe e card de análise). */
+export const MODULE_LABEL: Record<TodoModule, string> = {
+  geral: 'Geral',
+  casa: 'Casa',
+  financas: 'Finanças',
+  compras: 'Compras',
+  saude: 'Saúde',
+};
 
 /** Conjunto de datas marcadas a partir dos logs de UM registro. */
 export function markedDates(logs: RegistroLog[]): Set<string> {

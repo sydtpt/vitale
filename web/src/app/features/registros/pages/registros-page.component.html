@@ -38,12 +38,19 @@
           <h3 class="section-title">Ativos</h3>
           <div class="list">
             @for (r of activeRegistros(); track r.id) {
-              <div class="card">
+              <!-- O NOME é o link real ao detalhe (CAP-5) — teclado, ctrl+clique
+                   e nova aba de graça; o clique na linha inteira é só
+                   enhancement de mouse. Os botões seguem agindo na lista —
+                   stopPropagation barra o clique de subir. -->
+              <div class="card clickable" (click)="goDetail(r.id)">
                 <div class="icon-box" [ngStyle]="{ backgroundColor: modColor(r.color).tint }">
-                  <rt-icon [name]="r.icon || 'check'" [size]="18" [color]="modColor(r.color).accent" />
+                  <rt-icon [name]="r.icon || DEFAULT_ICON" [size]="18" [color]="modColor(r.color).accent" />
                 </div>
                 <div class="flex">
-                  <h4 class="name">{{ r.name }}</h4>
+                  <h4 class="name">
+                    <a class="name-link" [routerLink]="['/registros', r.id]"
+                      (click)="$event.stopPropagation()">{{ r.name }}</a>
+                  </h4>
                   <p class="summary">{{ moduleLabel(r.module) }}</p>
                 </div>
                 <div class="actions">
@@ -51,16 +58,16 @@
                     class="mark-btn"
                     [class.done]="isDoneToday(r.id)"
                     [style.--accent]="modColor(r.color).accent"
-                    (click)="toggleToday(r.id)"
+                    (click)="toggleToday(r.id); $event.stopPropagation()"
                     [title]="isDoneToday(r.id) ? 'Feito hoje — desmarcar' : 'Marcar como feito hoje'"
                   >
                     <rt-icon name="check" [size]="15" color="currentColor" [strokeWidth]="2.4" />
                     <span>{{ isDoneToday(r.id) ? 'Feito' : 'Marcar' }}</span>
                   </button>
-                  <button class="action-btn" (click)="openEdit(r.id)" title="Editar">
+                  <button class="action-btn" (click)="openEdit(r.id); $event.stopPropagation()" title="Editar">
                     <rt-icon name="edit-2" [size]="16" color="currentColor" />
                   </button>
-                  <button class="action-btn" (click)="archive(r.id, false)" title="Arquivar">
+                  <button class="action-btn" (click)="archive(r.id, false); $event.stopPropagation()" title="Arquivar">
                     <rt-icon name="archive" [size]="16" color="currentColor" />
                   </button>
                 </div>
@@ -73,19 +80,24 @@
           <h3 class="section-title">Arquivados</h3>
           <div class="list">
             @for (r of archivedRegistros(); track r.id) {
-              <div class="card muted">
+              <!-- Arquivado também abre o detalhe — o histórico preservado é
+                   promessa de CAP-3. -->
+              <div class="card muted clickable" (click)="goDetail(r.id)">
                 <div class="icon-box" [ngStyle]="{ backgroundColor: modColor(r.color).tint, opacity: 0.5 }">
-                  <rt-icon [name]="r.icon || 'check'" [size]="18" [color]="modColor(r.color).accent" />
+                  <rt-icon [name]="r.icon || DEFAULT_ICON" [size]="18" [color]="modColor(r.color).accent" />
                 </div>
                 <div class="flex">
-                  <h4 class="name muted">{{ r.name }}</h4>
+                  <h4 class="name muted">
+                    <a class="name-link" [routerLink]="['/registros', r.id]"
+                      (click)="$event.stopPropagation()">{{ r.name }}</a>
+                  </h4>
                   <p class="summary">{{ moduleLabel(r.module) }}</p>
                 </div>
                 <div class="actions">
-                  <button class="action-btn" (click)="openEdit(r.id)" title="Editar">
+                  <button class="action-btn" (click)="openEdit(r.id); $event.stopPropagation()" title="Editar">
                     <rt-icon name="edit-2" [size]="16" color="currentColor" />
                   </button>
-                  <button class="action-btn" (click)="archive(r.id, true)" title="Reativar">
+                  <button class="action-btn" (click)="archive(r.id, true); $event.stopPropagation()" title="Reativar">
                     <rt-icon name="undo" [size]="16" color="currentColor" />
                   </button>
                 </div>
@@ -97,7 +109,11 @@
     } @else {
       <div class="grid">
         @for (r of store.registros(); track r.id) {
-          <rt-registro-analytics-card [registro]="r" [logs]="store.logsFor(r.id)" />
+          <!-- O link real vive no nome, dentro do card; o clique no card
+               inteiro é enhancement de mouse. -->
+          <rt-registro-analytics-card class="clickable"
+            [registro]="r" [logs]="store.logsFor(r.id)"
+            (click)="goDetail(r.id)" />
         }
       </div>
     }

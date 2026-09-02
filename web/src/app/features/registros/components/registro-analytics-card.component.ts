@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MOD, DEFAULT_HABIT_ICON, type Registro, type RegistroLog, type TodoModule } from '@vitale/shared';
+import { RouterLink } from '@angular/router';
+import { MOD, DEFAULT_HABIT_ICON, type Registro, type RegistroLog } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { HabitHeatmapComponent, type HeatCell } from '../../habits/components/habit-heatmap.component';
 import { RANGE_DAYS } from '../data/registros.store';
 import {
+  MODULE_LABEL,
   countInWindow,
   daysBetween,
   lastDone,
@@ -13,14 +15,6 @@ import {
   markedDates,
 } from '../data/registro-logic';
 
-const MODULE_LABEL: Record<TodoModule, string> = {
-  geral: 'Geral',
-  casa: 'Casa',
-  financas: 'Finanças',
-  compras: 'Compras',
-  saude: 'Saúde',
-};
-
 const EMPTY = 'var(--surface-mute)';
 
 /** Card de análise de um registro: contagem no período, última vez e heatmap dos dias marcados. */
@@ -28,7 +22,7 @@ const EMPTY = 'var(--surface-mute)';
   selector: 'rt-registro-analytics-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, IconComponent, HabitHeatmapComponent],
+  imports: [CommonModule, RouterLink, IconComponent, HabitHeatmapComponent],
   template: `
     <div class="card">
       <div class="head">
@@ -36,7 +30,12 @@ const EMPTY = 'var(--surface-mute)';
           <rt-icon [name]="icon()" [size]="18" [color]="accent()" />
         </div>
         <div class="flex">
-          <h3 class="name" [class.muted]="!registro().active">{{ registro().name }}</h3>
+          <h3 class="name" [class.muted]="!registro().active">
+            <!-- Link real ao detalhe (CAP-5): teclado, ctrl+clique e nova aba.
+                 O clique no card inteiro (na página) é só enhancement. -->
+            <a class="name-link" [routerLink]="['/registros', registro().id]"
+              (click)="$event.stopPropagation()">{{ registro().name }}</a>
+          </h3>
           <p class="subtitle">{{ moduleLabel() }}{{ registro().active ? '' : ' · Arquivado' }}</p>
         </div>
       </div>
@@ -60,10 +59,18 @@ const EMPTY = 'var(--surface-mute)';
       background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
       padding: 16px; box-shadow: var(--shadow-card); display: flex; flex-direction: column; gap: 14px;
     }
+    /* Affordance quando a página marca o card como navegável (enhancement de
+       mouse por cima do link real, que é o nome). */
+    :host(.clickable) { cursor: pointer; }
+    :host(.clickable) .card { transition: border-color 0.15s; }
+    :host(.clickable:hover) .card { border-color: var(--ink-4); }
     .head { display: flex; align-items: center; gap: 12px; }
     .icon-box { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .flex { flex: 1; min-width: 0; }
     .name { margin: 0; font-size: 15px; font-weight: 650; color: var(--ink); &.muted { color: var(--ink-3); } }
+    .name-link { color: inherit; }
+    .name-link:hover { text-decoration: underline; }
+    .name-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
     .subtitle { margin: 2px 0 0 0; font-size: 12px; color: var(--ink-3); }
     .stats { display: flex; gap: 24px; }
     .stat { display: flex; flex-direction: column; gap: 2px; }

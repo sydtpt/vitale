@@ -1,0 +1,193 @@
+<div class="page">
+  <a routerLink="/registros" class="back">
+    <rt-icon name="chev-l" [size]="16" color="var(--ink-3)" /> Registros
+  </a>
+
+  @if (registro(); as r) {
+    <header class="head">
+      <div class="icon-box" [style.background-color]="mod().tint">
+        <rt-icon [name]="r.icon || DEFAULT_ICON" [size]="22" [color]="mod().onTint" />
+      </div>
+      <div class="head-main">
+        <h1 class="title">{{ r.name }}</h1>
+        <div class="sub">
+          {{ moduleLabel(r.module) }}
+          @if (!r.active) { <span class="badge">Arquivado</span> }
+        </div>
+      </div>
+      <button type="button" class="edit-btn" (click)="openEdit()">
+        <rt-icon name="edit-2" [size]="15" color="currentColor" /> Editar
+      </button>
+    </header>
+  }
+
+  @if (showError()) {
+    <div class="state">
+      Não deu para carregar.
+      <button type="button" class="retry" (click)="retry()">Tentar de novo</button>
+    </div>
+  } @else if (loading()) {
+    <div class="state">Carregando histórico…</div>
+  } @else if (detail(); as d) {
+    @if (d.allTimeTotal === 0) {
+      <!-- Sem marca nenhuma: layout inteiro fica (barras zeradas, "—"), e a
+           orientação aponta para os dois gestos que existem — marcar hoje na
+           lista ou corrigir o passado clicando no heatmap (CAP-7). O segundo
+           vale até para registro arquivado: correção ≠ captura. -->
+      <div class="hint">
+        Nenhuma marca ainda — marque "feito hoje" na lista de registros, ou
+        clique num dia passado no calendário do ano, aqui embaixo.
+      </div>
+    }
+
+    <div class="card">
+      <div class="top">
+        <rt-period-selector [value]="period()" (select)="setPeriod($event)" />
+        @if (isYear()) {
+          <div class="nav">
+            <button type="button" (click)="prevYear()" [disabled]="!d.canPrevYear"
+              aria-label="Ano anterior">‹</button>
+            <span class="nav-label">{{ shownYear() }}</span>
+            <button type="button" (click)="nextYear()" [disabled]="!d.canNextYear"
+              aria-label="Próximo ano">›</button>
+          </div>
+        }
+      </div>
+
+      <div class="tiles">
+        <div class="tile">
+          <div class="t-label">No período</div>
+          <div class="t-value mono">{{ d.total }}</div>
+          <!-- Três estados: `null` não renderiza (sem período anterior
+               comparável), zero mostra "=", o resto o sinal com a contagem
+               absoluta — nunca percentual. -->
+          @if (d.delta !== null) {
+            <div class="t-delta mono" [attr.data-dir]="deltaDir(d.delta)">{{ fmtDelta(d.delta) }}</div>
+          }
+        </div>
+        <div class="tile">
+          <div class="t-label">Última vez</div>
+          <div class="t-value mono">{{ fmtLast(d.daysSinceLast) }}</div>
+        </div>
+        <div class="tile">
+          <div class="t-label">{{ d.freq.per === 'semana' ? 'Por semana' : 'Por mês' }}</div>
+          <div class="t-value mono">{{ fmtFreq(d.freq.value) }}×</div>
+        </div>
+      </div>
+      @if (d.delta !== null) {
+        <div class="tiles-caption">variação sobre o período anterior</div>
+      }
+
+      @if (chart(); as c) {
+        <svg [attr.viewBox]="'0 0 ' + CHART.w + ' ' + CHART.h" class="chart"
+          preserveAspectRatio="xMidYMid meet" role="img" aria-label="Marcas por período">
+          @for (g of c.grid; track g.v) {
+            <line [attr.x1]="CHART.padL" [attr.x2]="CHART.w - CHART.padR"
+              [attr.y1]="g.y" [attr.y2]="g.y" stroke="var(--line)" stroke-width="1"
+              [attr.stroke-opacity]="g.v === 0 ? 0.9 : 0.45" />
+            <text [attr.x]="CHART.padL - 6" [attr.y]="g.y + 3" text-anchor="end"
+              font-size="9.5" class="mono" fill="var(--ink-3)">{{ g.v }}</text>
+          }
+          @for (b of c.bars; track b.key) {
+            <rect [attr.x]="b.x" [attr.y]="b.y" [attr.width]="b.w" [attr.height]="b.h"
+              rx="3" [attr.fill]="mod().accent">
+              <title>{{ b.label }} · {{ b.value }}</title>
+            </rect>
+            @if (b.value > 0) {
+              <text [attr.x]="b.cx" [attr.y]="b.y - 5" text-anchor="middle" font-size="10"
+                class="mono" font-weight="600" fill="var(--ink)">{{ b.value }}</text>
+            }
+            <text [attr.x]="b.cx" [attr.y]="CHART.h - 8" text-anchor="middle" font-size="10"
+              fill="var(--ink-3)">{{ b.label }}</text>
+          }
+        </svg>
+      }
+    </div>
+
+    <div class="cols">
+      <div class="card">
+        <h2 class="section">Ritmo</h2>
+        <div class="metric-row">
+          <span class="m-label">Intervalo médio</span>
+          <span class="m-value mono">{{ fmtGap(d.avgGapDays) }}</span>
+        </div>
+        <div class="metric-row">
+          <span class="m-label">Maior jejum</span>
+          <span class="m-value mono">{{ fmtGap(d.maxGapDays) }}</span>
+        </div>
+        <div class="metric-row">
+          <span class="m-label">Primeira vez</span>
+          <span class="m-value mono">{{ d.firstDate ? fmtDay(d.firstDate) : '—' }}</span>
+        </div>
+        <div class="metric-row last">
+          <span class="m-label">Total histórico</span>
+          <span class="m-value mono">{{ d.allTimeTotal }}×</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section">Dia da semana</h2>
+        <div class="mini-row">
+          @for (v of d.weekdayCounts; track $index) {
+            <div class="mini-col">
+              <span class="mini-count mono">{{ v > 0 ? v : '' }}</span>
+              <div class="mini-bar"
+                [style.height.px]="3 + (v / miniMax(d.weekdayCounts)) * 40"
+                [style.background-color]="v > 0 ? mod().accent : 'var(--line)'"></div>
+              <span class="mini-label">{{ WEEKDAY_LABELS[$index] }}</span>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Só em janelas ≥ 12 meses; no período Ano duplicaria exatamente as
+           barras de cima (com meses futuros zerados de brinde). -->
+      @if (d.monthCounts && !isYear()) {
+        <div class="card">
+          <h2 class="section">Sazonalidade</h2>
+          <div class="mini-row">
+            @for (v of d.monthCounts; track $index) {
+              <div class="mini-col">
+                <span class="mini-count mono">{{ v > 0 ? v : '' }}</span>
+                <div class="mini-bar"
+                  [style.height.px]="3 + (v / miniMax(d.monthCounts)) * 40"
+                  [style.background-color]="v > 0 ? mod().accent : 'var(--line)'"></div>
+                <span class="mini-label">{{ MONTH_LABELS[$index] }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (heat(); as weeks) {
+      <!-- O toggle funciona também em registro ARQUIVADO, de propósito:
+           correção do passado ≠ captura — o arquivado some do Marcar da
+           lista, mas o histórico dele continua editável aqui (CAP-3/7).
+           Não "consertar" escondendo o clique. -->
+      <div class="card">
+        <div class="heat-head">
+          <h2 class="section">Dias do ano</h2>
+          <!-- Um só controle de ano: no período Ano ele já está no gráfico. -->
+          @if (!isYear()) {
+            <div class="nav">
+              <button type="button" (click)="prevYear()" [disabled]="!d.canPrevYear"
+                aria-label="Ano anterior">‹</button>
+              <span class="nav-label">{{ shownYear() }}</span>
+              <button type="button" (click)="nextYear()" [disabled]="!d.canNextYear"
+                aria-label="Próximo ano">›</button>
+            </div>
+          }
+        </div>
+        <rt-registro-year-heatmap [weeks]="weeks" [accent]="mod().accent"
+          [today]="todayStr()" (toggle)="onToggle($event)" />
+        @if (toggleError()) {
+          <p class="save-error" role="status">Não deu para salvar a última marca — tente de novo.</p>
+        }
+        <p class="heat-hint">Clique num dia para marcar ou desmarcar.</p>
+      </div>
+    }
+  }
+
+  <rt-registro-editor [registroId]="id()" />
+</div>
