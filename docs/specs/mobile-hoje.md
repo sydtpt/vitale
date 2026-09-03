@@ -12,8 +12,8 @@ Tela principal do app mobile. O usuário abre o app pela manhã e vê tudo que p
 ┌─────────────────────────────┐
 │  Bom dia, [nome] 👋  SEG 19 │  ← Header com saudação e data
 ├─────────────────────────────┤
-│  FORMA DE HOJE              │  ← FormCurveCard (curva de forma) — carrossel
-│  +36 de saldo  ●●           │     de 2 slides com 223 pt fixos: saldo + faísca
+│  SALDO DE HOJE              │  ← FormCurveCard (curva de forma) — carrossel
+│  +36 de folga  ●●           │     de 2 slides com 223 pt fixos: saldo + faísca
 │  ~~~~~~~~~~~~~~~~~~  42d hoje│     de 42 d · barras Base/Cansaço com o típico
 ├─────────────────────────────┤
 │  🏋️ Treino: Upper Body      │  ← DayRingCard (treino)

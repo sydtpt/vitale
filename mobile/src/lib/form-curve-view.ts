@@ -65,6 +65,14 @@ export interface FormState {
   tone: FormTone;
   /** `+36`, `-48`, `0` — inteiro com sinal. */
   valueText: string;
+  /**
+   * A palavra depois do número, escolhida pelo sinal: "de folga" é o que sobra
+   * depois de descontar o cansaço, "de dívida" é o que ainda está sendo cobrado.
+   * "de saldo" fica para o zero e para quando não há confiança no número.
+   * "Forma" saiu da tela de propósito: em pt-BR "estar em forma" é a base, não
+   * o saldo — a palavra apontava para o eixo errado.
+   */
+  unitText: string;
   phrase: string;
   /** Selo do canto; `null` quando o dado é confiável. */
   badge: string | null;
@@ -107,9 +115,11 @@ export function formState(curve: FormCurve): FormState {
     : curve.shortWindow
       ? { kind: 'warmup', text: warmupLabel(curve.historyDays) }
       : { kind: 'axis', left: `${SPARK_DAYS} dias`, right: 'hoje' };
+  const unitText = tone === 'unsure' || shown === 0 ? 'de saldo' : shown > 0 ? 'de folga' : 'de dívida';
   return {
     tone,
     valueText: signedInt(curve.form),
+    unitText,
     phrase: PHRASES[tone],
     badge: curve.trusted ? null : staleLabel(curve.daysSinceLastActivity),
     footer,

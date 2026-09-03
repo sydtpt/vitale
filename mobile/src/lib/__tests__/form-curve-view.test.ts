@@ -99,6 +99,14 @@ describe('formState — a matriz de estados', () => {
     expect(s.valueText).toBe('0');
   });
 
+  it('a unidade segue o sinal: folga no positivo, dívida no negativo, saldo no zero e sem confiança', () => {
+    expect(formState(curve({ form: 36 })).unitText).toBe('de folga');
+    expect(formState(curve({ form: -48 })).unitText).toBe('de dívida');
+    expect(formState(curve({ form: 0 })).unitText).toBe('de saldo');
+    expect(formState(curve({ form: -0.3 })).unitText).toBe('de saldo');
+    expect(formState(curve({ form: 36, trusted: false, daysSinceLastActivity: 12 })).unitText).toBe('de saldo');
+  });
+
   it('o tom segue o número impresso: −0,3 vira "0" e não pode ser vermelho', () => {
     const s = formState(curve({ form: -0.3 }));
     expect(s.valueText).toBe('0');

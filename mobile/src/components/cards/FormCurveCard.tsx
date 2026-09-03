@@ -154,12 +154,12 @@ export function FormCurveCard({ activities, loaded }: Props) {
                   <View
                     style={styles.headText}
                     accessible
-                    accessibilityLabel={`Forma de hoje: ${state.valueText} de saldo. ${state.phrase}`}
+                    accessibilityLabel={`Saldo de hoje: ${state.valueText} ${state.unitText}. ${state.phrase}`}
                   >
-                    <Text style={styles.eyebrow}>FORMA DE HOJE</Text>
+                    <Text style={styles.eyebrow}>SALDO DE HOJE</Text>
                     <View style={styles.numberRow}>
                       <Text style={[styles.number, { color: toneText[state.tone] }]}>{state.valueText}</Text>
-                      <Text style={styles.numberUnit}>de saldo</Text>
+                      <Text style={styles.numberUnit}>{state.unitText}</Text>
                     </View>
                     <Text style={styles.phrase}>{state.phrase}</Text>
                   </View>
