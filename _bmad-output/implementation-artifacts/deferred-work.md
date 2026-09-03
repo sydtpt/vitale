@@ -97,3 +97,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-registros-detalhe-web.md`
   summary: Heatmap anual de Registros sem rótulos de mês/dia nem legenda marcado/não — achar "aquele dia de março" num grid 53×7 depende só do tooltip; merece um passe de design (mobile idem).
   evidence: Achado do blind-hunter na revisão de 2026-09-02; enhancement de produto, não bug — o spec não pedia rótulos e a decisão de layout pede calibração visual.
+- source_spec: `_bmad-output/implementation-artifacts/spec-curva-de-forma-shared.md`
+  summary: A curva de forma é só de frequência cardíaca; treino de força (`Treino`, `Lift`) entra como duração × MET independentemente da intensidade e subconta o custo de recuperação.
+  evidence: Revisão da etapa 1 apontou que sessão de força gera pouco tempo em zona e muito custo de recuperação; o módulo não tem entrada para carga de força e a limitação foi apenas documentada.
+- source_spec: `_bmad-output/implementation-artifacts/spec-curva-de-forma-shared.md`
+  summary: Todo módulo do repo tem spec durável em `docs/specs/`, mas a curva de forma só tem o spec de implementação em `_bmad-output`; decidir se ganha `docs/specs/curva-de-forma/` quando a etapa 2 (UI) fechar.
+  evidence: Revisão notou que o cabeçalho do teste cita "a matriz de casos do spec" sem nada em `docs/specs/`; o CLAUDE.md lista os specs de feature ali.
