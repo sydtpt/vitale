@@ -103,3 +103,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-curva-de-forma-shared.md`
   summary: Todo módulo do repo tem spec durável em `docs/specs/`, mas a curva de forma só tem o spec de implementação em `_bmad-output`; decidir se ganha `docs/specs/curva-de-forma/` quando a etapa 2 (UI) fechar.
   evidence: Revisão notou que o cabeçalho do teste cita "a matriz de casos do spec" sem nada em `docs/specs/`; o CLAUDE.md lista os specs de feature ali.
+- source_spec: `_bmad-output/implementation-artifacts/spec-curva-de-forma-mobile.md`
+  summary: A linha "Ver a curva completa" do canvas (tela da curva de forma com a série longa, base e cansaço lado a lado) não entrou — não há tela destino; decidir onde ela mora (`fitness/` ou `saude/`) e desenhá-la antes de ligar o rodapé do cartão.
+  evidence: O design aprovado tem a linha no rodapé da Hoje, mas as propostas de tela cheia (Faixa, Ano, Web) ficaram na página "Descartadas" do canvas; a etapa 2 se restringiu ao cartão.
+- source_spec: `_bmad-output/implementation-artifacts/spec-curva-de-forma-mobile.md`
+  summary: O selo "N DIAS SEM SINCRONIZAR" afirma uma causa que o dado não distingue — `daysSinceLastActivity` conta dias sem atividade, não sem sync; um descanso real de 5 dias com a conexão sadia manda o usuário a Conexões. O lado das Conexões sabe o último sync bem-sucedido e poderia desambiguar (descanso × pipeline parado).
+  evidence: Limitação vem da etapa 1 (o núcleo documenta que silêncio e sync parado chegam iguais) e da regra de UX dos 4 dias; a revisão da etapa 2 apontou que o texto do selo escolhe uma das causas. Não é da história do cartão, é do modelo de confiança.
+- source_spec: `_bmad-output/implementation-artifacts/spec-curva-de-forma-mobile.md`
+  summary: A barreira "nenhuma lista rolável do mobile mostra barra" (`packages/shared/src/architecture.test.ts:268`) lê um genérico de tipo como tag JSX — `useRef<ScrollView>(null)` é acusado de `<ScrollView>` sem `showsVerticalScrollIndicator`; o parser deveria ignorar `<` precedido de identificador (`useRef<`, `Ref<`), como faz com chaves e aspas.
+  evidence: Falso positivo reproduzido na etapa 2 (`FormCurveCard.tsx:72`); contornado com `React.ComponentRef<typeof ScrollView>`. Limitação pré-existente da barreira, não do cartão.

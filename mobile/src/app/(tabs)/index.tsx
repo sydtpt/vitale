@@ -7,6 +7,7 @@ import { SectionLabel } from '../../components/ui/SectionLabel';
 import { HabitStepper } from '../../components/cards/HabitStepper';
 import { SleepRatingCard } from '../../components/cards/SleepRatingCard';
 import { DayRatingCard } from '../../components/cards/DayRatingCard';
+import { FormCurveCard } from '../../components/cards/FormCurveCard';
 import { TodoItem } from '../../components/cards/TodoItem';
 import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
 import { useTodosStore } from '../../store/todos.store';
@@ -14,6 +15,7 @@ import { useMealsStore } from '../../store/meals.store';
 import { useAuthStore } from '../../store/auth.store';
 import { useSettingsStore } from '../../store/settings.store';
 import { useHealthStore } from '../../store/health.store';
+import { useActivitiesStore } from '../../store/activities.store';
 import { useDailyRatingsStore, dayRatingDate } from '../../store/daily-ratings.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
@@ -118,9 +120,20 @@ export default function HojeScreen() {
   const showDayRating = dayRatingDay !== null;
   const dayRating = dayRatingDay ? ratingsWindow[dayRatingDay] : null;
 
+  // Atividades (Supabase, via Conexões): alimentam a curva de forma. O núcleo
+  // ignora as ocultas, então o dataset completo basta. Ao contrário dos demais
+  // stores desta tela, `load()` sem `force` é no-op depois de carregado — por
+  // isso `true`, como Histórico e Semana: sem ele, uma atividade que chegou do
+  // servidor enquanto o app estava em background (ou a troca de conta) nunca
+  // alcança o cartão, e o selo "sem sincronizar" não limpa ao voltar de Conexões.
+  const allActs = useActivitiesStore(s => s._all);
+  const actsLoaded = useActivitiesStore(s => s.loaded);
+  const loadActs = useActivitiesStore(s => s.load);
+  useEffect(() => { loadActs(true); }, [loadActs, user?.id]);
+
   // Ao retomar o app (background → active), a tela segue montada, então
   // recarrega o que pode ter mudado desde a última vez.
-  useRefreshOnForeground(() => { loadCounters(); loadTodos(); loadRatings(); loadMeals(); });
+  useRefreshOnForeground(() => { loadCounters(); loadTodos(); loadRatings(); loadMeals(); loadActs(true); });
 
   // Só os hábitos marcados como "Mostrar na home" viram steppers aqui; os demais
   // ficam restritos à tela de hábitos. (O anel da água acima usa a lista completa.)
@@ -200,6 +213,9 @@ export default function HojeScreen() {
           </View>
           <MoonBadge date={now} size={42} />
         </View>
+
+        {/* Curva de forma — carrossel de altura fixa; some sem atividades carregadas */}
+        <FormCurveCard activities={allActs} loaded={actsLoaded} />
 
         {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido */}
         {showSleepRating && (

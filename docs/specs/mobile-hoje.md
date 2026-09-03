@@ -12,6 +12,10 @@ Tela principal do app mobile. O usuário abre o app pela manhã e vê tudo que p
 ┌─────────────────────────────┐
 │  Bom dia, [nome] 👋  SEG 19 │  ← Header com saudação e data
 ├─────────────────────────────┤
+│  FORMA DE HOJE              │  ← FormCurveCard (curva de forma) — carrossel
+│  +36 de saldo  ●●           │     de 2 slides com 223 pt fixos: saldo + faísca
+│  ~~~~~~~~~~~~~~~~~~  42d hoje│     de 42 d · barras Base/Cansaço com o típico
+├─────────────────────────────┤
 │  🏋️ Treino: Upper Body      │  ← DayRingCard (treino)
 │     17:00 • 1h • 12 exerc. │
 │     [Iniciar] [Pular]       │
@@ -34,6 +38,20 @@ Tela principal do app mobile. O usuário abre o app pela manhã e vê tudo que p
 └─────────────────────────────┘
          [+ Adicionar]          ← FAB ou QuickAddSheet
 ```
+
+## Componentes
+
+### `FormCurveCard` ✅ (2026-09-03)
+- Carrossel de altura fixa (trilho 206 pt + pílulas = 223 pt): trocar de slide ou de
+  estado não move o resto da tela. Slide 1: saldo (`base − cansaço`, em minutos
+  equivalentes por semana), frase de estado e faísca de 42 dias segmentada por sinal.
+  Slide 2: barras Base 42 d / Cansaço 7 d com o traço do típico pessoal (mediana de 90 d).
+- Dado: `useActivitiesStore` (`_all`, `load(true)` no mount, na troca de usuário e ao
+  voltar do background) → `buildFormCurve` do `@vitale/shared`. Sem atividade, não renderiza.
+- Estados: fresco / enterrado / sem confiança (≥ 4 dias sem atividade: número neutro,
+  selo e alerta que abre Conexões) / base aquecendo (< 42 dias de histórico).
+- Lógica pura e testada em `src/lib/form-curve-view.ts`; cor só pelo tema (`roleColors`).
+- Fora: "Ver a curva completa" (sem tela destino) — ver `deferred-work.md`.
 
 ## Componentes a implementar
 
