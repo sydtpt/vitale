@@ -20,6 +20,7 @@ export * from './health/hr-zones';
 export * from './health/who-activity';
 export * from './health/trigger-impact';
 export * from './health/aggregate';
+export * from './health/wellness';
 export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bounds';

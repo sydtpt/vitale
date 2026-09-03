@@ -674,7 +674,7 @@ export interface HealthDaily {
   minValue?: number;                    // só discretas
   maxValue?: number;                    // só discretas
   count?: number;                       // nº de amostras agregadas
-  extra?: Record<string, unknown>;      // pressão {sys,dia}, anéis, macros
+  extra?: Record<string, unknown>;      // pressão {sys,dia}, anéis, macros; VFC do intervals: {source,kind} (ADR 0026)
 }
 
 /* ─────────────────────────────────────────────────────────────

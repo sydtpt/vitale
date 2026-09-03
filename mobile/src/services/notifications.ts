@@ -231,16 +231,17 @@ async function buildDigest(): Promise<{ title: string; body: string } | null> {
   ]);
 
   const today = localDateStr();
+  const hd = useHealthDailyStore.getState();
 
-  // Prontidão + treino do dia + recomendação
-  const score = readinessFromSummaries(useHealthStore.getState().summaries);
+  // Prontidão + treino do dia + recomendação (VFC cai para `health_daily`
+  // quando o HealthKit não a tem — a do intervals.icu mora lá, ADR 0026).
+  const score = readinessFromSummaries(useHealthStore.getState().summaries, { vfc: hd.seriesFor('vfc') });
   const hasReadiness = score.components.length > 0;
   const plan = usePlannedWorkoutsStore.getState().planned.find((p) => p.date === today);
   const advice = readinessAdvice(score.total, hasReadiness, plan?.kind ?? 'none', plan?.type ?? '');
 
   // Overtraining: dip da semana corrente (carga forte ↑ + recuperação ↓)
   const acts = useActivitiesStore.getState().activities();
-  const hd = useHealthDailyStore.getState();
   const inputs = readinessInputsByDay({
     sono: hd.seriesFor('sono'),
     fcRepouso: hd.seriesFor('fcRepouso'),

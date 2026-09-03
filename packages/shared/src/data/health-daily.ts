@@ -3,7 +3,9 @@
  *
  * Uma linha por (dia, métrica). Escrever **não** passa por aqui: quem grava é o
  * sync do mobile, via upsert em lote com `AGG_VERSION` (ADR 0004) — recorrigir
- * agregação é bump de versão, não migration nem escrita avulsa. Daqui só se lê.
+ * agregação é bump de versão, não migration nem escrita avulsa — e, para a
+ * `'vfc'` do intervals.icu, a edge function `connections-ingest` (ADR 0026),
+ * que marca as linhas dela em `extra.source`. Daqui só se lê.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { HealthDaily } from '../models';

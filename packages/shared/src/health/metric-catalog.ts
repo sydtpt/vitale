@@ -49,7 +49,9 @@ export const HEALTH_METRICS: HealthMetricMeta[] = [
   // ── Coração ────────────────────────────────────────────────
   { id: 'fc', label: 'Freq. cardíaca', category: 'coracao', unit: 'bpm', kind: 'discrete', caption: 'Batimentos por minuto' },
   { id: 'fcRepouso', label: 'FC em repouso', category: 'coracao', unit: 'bpm', kind: 'discrete', caption: 'Em descanso' },
-  { id: 'vfc', label: 'Variabilidade (VFC)', category: 'coracao', unit: 'ms', kind: 'discrete', caption: 'HRV — SDNN' },
+  // Duas fontes na mesma métrica (ADR 0026): SDNN do Apple Watch, RMSSD do Garmin via
+  // intervals.icu. `health_daily.extra.kind` diz qual escala cada linha carrega.
+  { id: 'vfc', label: 'Variabilidade (VFC)', category: 'coracao', unit: 'ms', kind: 'discrete', caption: 'HRV — SDNN (Apple) · RMSSD (intervals.icu)' },
   { id: 'vo2max', label: 'VO₂ máx', category: 'coracao', unit: 'mL/kg·min', kind: 'discrete', decimals: 1, caption: 'Capacidade aeróbica' },
   { id: 'spo2', label: 'Oxigênio (SpO₂)', category: 'coracao', unit: '%', kind: 'discrete', caption: 'Saturação de oxigênio' },
   { id: 'respiracao', label: 'Freq. respiratória', category: 'coracao', unit: 'resp/min', kind: 'discrete', caption: 'Respirações por minuto' },

@@ -8,6 +8,7 @@ import { HabitStepper } from '../../components/cards/HabitStepper';
 import { SleepRatingCard } from '../../components/cards/SleepRatingCard';
 import { DayRatingCard } from '../../components/cards/DayRatingCard';
 import { FormCurveCard } from '../../components/cards/FormCurveCard';
+import { ReadinessCard } from '../../components/cards/ReadinessCard';
 import { TodoItem } from '../../components/cards/TodoItem';
 import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
 import { useTodosStore } from '../../store/todos.store';
@@ -216,6 +217,10 @@ export default function HojeScreen() {
 
         {/* Curva de forma — carrossel de altura fixa; some sem atividades carregadas */}
         <FormCurveCard activities={allActs} loaded={actsLoaded} />
+
+        {/* Prontidão — como o corpo amanheceu. Complementa a curva: uma é carga
+            acumulada, a outra é o estado de hoje. Some sem dado de saúde. */}
+        <ReadinessCard />
 
         {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido */}
         {showSleepRating && (

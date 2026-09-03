@@ -38,7 +38,10 @@ export interface ReadinessScore {
    * A média renormaliza sobre os componentes presentes, então um score sem VFC
    * **parece** tão confiável quanto um completo. Foi o que aconteceu na prática: a
    * VFC parou de chegar em 17/07/2026 (o Garmin não escreve HRV no Apple Health) e
-   * a prontidão passou a rodar com 75% da informação sem avisar ninguém.
+   * a prontidão passou a rodar com 75% da informação sem avisar ninguém. Desde a
+   * ADR 0026 a VFC do Garmin volta pelo intervals.icu, na mesma métrica `'vfc'` —
+   * mas a medida de lá é RMSSD, não SDNN, e este número continua sendo o aviso
+   * quando qualquer componente falta.
    *
    * Quem exibe o score deve exibir isto quando for < 1.
    */

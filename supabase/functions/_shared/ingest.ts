@@ -31,11 +31,19 @@ import {
   computeHrZonesFromSamples,
   type FitnessHrZoneParams,
 } from '../../../packages/shared/src/fitness/streams.ts';
+import {
+  planWellnessRows,
+  wellnessWindow,
+  WELLNESS_METRIC,
+  WELLNESS_SOURCE,
+  type WellnessExistingRow,
+} from '../../../packages/shared/src/health/wellness.ts';
 import { citiesFromPoints } from './geocode.ts';
 import type { NormalizedActivity } from './normalize.ts';
 import { AuthError } from './providers/errors.ts';
 import {
   fetchIntervalsActivities,
+  fetchIntervalsWellness,
   intervalsStartMs,
   normalizeIntervalsActivity,
 } from './providers/intervals.ts';
@@ -58,6 +66,30 @@ const SWEEP_DAYS = 7;
 const HOUR_MS = 3600_000;
 const DAY_MS = 24 * HOUR_MS;
 
+/**
+ * Resultado do passo de bem-estar (VFC do intervals.icu → `health_daily`).
+ *
+ * `WellnessIngestSummary`, e não `WellnessSummary`: esse nome já existe em
+ * `health/aggregate.ts` para o resumo de bem-estar que o usuário lê na tela.
+ */
+export interface WellnessIngestSummary {
+  /** Registros que a API devolveu, antes de qualquer descarte. */
+  received: number;
+  /** Dias com VFC válida depois da normalização. */
+  fetched: number;
+  /** Linhas gravadas (dia sem linha ou já do intervals, com valor diferente). */
+  upserted: number;
+  /** Dias pulados porque outra fonte — na prática o Apple Health — já mediu. */
+  skipped: number;
+  /** Dias já gravados por esta fonte com o mesmo valor. */
+  unchanged: number;
+  /** Dias descartados por virem datados no futuro (fuso do atleta à frente). */
+  future: number;
+  window?: { oldest: string; newest: string; days: number };
+  /** O passo é best-effort: erro fica aqui e não no `error` do run. */
+  error?: string;
+}
+
 export interface IngestSummary {
   userId: string;
   provider: string;
@@ -65,6 +97,8 @@ export interface IngestSummary {
   merged: number;
   skipped: number;
   swept: number;
+  /** Só no provedor intervals. */
+  wellness?: WellnessIngestSummary;
   error?: string;
 }
 
@@ -603,6 +637,94 @@ export async function enrichCities(admin: Admin, userId: string): Promise<number
   return enriched;
 }
 
+/* ───────────────────── Bem-estar (VFC do intervals.icu) ───────────────────── */
+
+/**
+ * Grava em `health_daily` a VFC noturna que o Garmin manda ao intervals.icu e
+ * não ao Apple Health. Precedência do Apple: só toca o dia sem linha `'vfc'` ou
+ * cuja linha já é desta fonte (`extra.source === 'intervals'`) — o RPC do
+ * mobile, por sua vez, sobrescreve incondicionalmente, então uma medição do
+ * Watch que chegue depois vence de qualquer jeito.
+ *
+ * Janela: 14 dias por run; 120 na primeira vez (nenhuma linha desta fonte).
+ * Best-effort: nunca lança — erro vira `error` no resultado e o run de
+ * atividades, o cursor e o status seguem normais.
+ */
+export async function ingestWellness(
+  admin: Admin,
+  userId: string,
+  apiKey: string,
+  athleteId: string,
+  now: Date = new Date(),
+): Promise<WellnessIngestSummary> {
+  const out: WellnessIngestSummary = {
+    received: 0,
+    fetched: 0,
+    upserted: 0,
+    skipped: 0,
+    unchanged: 0,
+    future: 0,
+  };
+  try {
+    const { data: probe, error: probeErr } = await admin
+      .from('health_daily')
+      .select('day')
+      .eq('user_id', userId)
+      .eq('metric', WELLNESS_METRIC)
+      .contains('extra', { source: WELLNESS_SOURCE })
+      .limit(1);
+    if (probeErr) throw new Error(`health_daily leitura falhou: ${probeErr.message}`);
+    const window = wellnessWindow((probe ?? []).length > 0, now);
+    out.window = { oldest: window.oldest, newest: window.newest, days: window.days };
+
+    const { hrv, received } = await fetchIntervalsWellness(apiKey, athleteId, window);
+    out.received = received;
+    out.fetched = hrv.length;
+    if (hrv.length === 0) return out;
+
+    const { data: existing, error: readErr } = await admin
+      .from('health_daily')
+      .select('day,value,extra')
+      .eq('user_id', userId)
+      .eq('metric', WELLNESS_METRIC)
+      .in('day', hrv.map((h) => h.day));
+    if (readErr) throw new Error(`health_daily leitura falhou: ${readErr.message}`);
+
+    // Toda a decisão — precedência, idempotência e corte do futuro — mora no
+    // núcleo, onde há teste. Aqui só entram as linhas como o PostgREST as devolve.
+    const plan = planWellnessRows(hrv, (existing ?? []) as WellnessExistingRow[], window.today);
+    out.skipped = plan.skipped;
+    out.unchanged = plan.unchanged;
+    out.future = plan.future;
+    if (plan.write.length === 0) return out;
+
+    const rows = plan.write.map((h) => ({
+      user_id: userId,
+      day: h.day,
+      metric: WELLNESS_METRIC,
+      value: h.value,
+      min_value: h.value,
+      max_value: h.value,
+      count: 1,
+      extra: { source: WELLNESS_SOURCE, kind: h.kind },
+    }));
+
+    const { error: upErr } = await admin
+      .from('health_daily')
+      .upsert(rows, { onConflict: 'user_id,day,metric' });
+    if (upErr) throw new Error(`health_daily upsert falhou: ${upErr.message}`);
+    out.upserted = rows.length;
+    return out;
+  } catch (err) {
+    out.error = err instanceof Error ? err.message : String(err);
+    // O erro não sobe para `linked_accounts.last_error` (o passo é best-effort)
+    // e o cron descarta o corpo da resposta, então este log é a única superfície
+    // onde uma falha permanente aparece.
+    console.warn(`[wellness] ${userId}: ${out.error}`);
+    return out;
+  }
+}
+
 /* ───────────────────── Run por (usuário, provedor) ───────────────────── */
 
 interface LinkedAccountRow {
@@ -671,6 +793,14 @@ export async function runIngest(
     if (!secret) {
       summary.error = 'credenciais ausentes';
       return summary;
+    }
+
+    // Bem-estar ANTES das atividades, e não depois: "best-effort" precisa valer
+    // nos dois sentidos. Lá embaixo, uma 429 da lista de atividades cairia no
+    // catch do run e a VFC nunca seria buscada — o passo que não pode derrubar
+    // ninguém acabaria sendo o derrubado. `ingestWellness` não lança.
+    if (provider === 'intervals' && secret.api_key && account.athlete_id) {
+      summary.wellness = await ingestWellness(admin, userId, secret.api_key, account.athlete_id);
     }
 
     const nowMs = Date.now();
@@ -756,7 +886,6 @@ export async function runIngest(
     } catch (_err) {
       // ignora — o passe é retry-safe e roda de novo no próximo tick.
     }
-
     await admin
       .from('linked_accounts')
       .update({

@@ -112,3 +112,27 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-curva-de-forma-mobile.md`
   summary: A barreira "nenhuma lista rolável do mobile mostra barra" (`packages/shared/src/architecture.test.ts:268`) lê um genérico de tipo como tag JSX — `useRef<ScrollView>(null)` é acusado de `<ScrollView>` sem `showsVerticalScrollIndicator`; o parser deveria ignorar `<` precedido de identificador (`useRef<`, `Ref<`), como faz com chaves e aspas.
   evidence: Falso positivo reproduzido na etapa 2 (`FormCurveCard.tsx:72`); contornado com `React.ComponentRef<typeof ScrollView>`. Limitação pré-existente da barreira, não do cartão.
+- source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
+  summary: Os demais consumidores de `'vfc'` (retrospectiva, destaques da semana, tendências 30/90d da Saúde, correlações de gatilho) comparam período contra período na série crua e vão narrar o degrau SDNN→RMSSD como queda fisiológica; nenhum lê `extra.kind` nem conhece a data da virada.
+  evidence: A prontidão ganhou baseline filtrada por tipo de medida na revisão da etapa; os outros caminhos não. É trabalho de produto (como anotar a virada num gráfico), não do passo de ingestão.
+- source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
+  summary: A janela inicial de 120 dias é escolhida por "não existe nenhuma linha `'vfc'` desta fonte"; um usuário cujo Apple Watch cubra todos os dias nunca grava uma, e refaz a busca de 120 dias a cada tick (96×/dia). O conserto certo é estado persistido (coluna `wellness_backfilled_at` em `linked_accounts`), o que pede migration.
+  evidence: Apontado por dois revisores. Não afeta o caso real (a VFC do Watch parou em 17/07, então a primeira gravação acontece no primeiro run), mas é desperdício estrutural para instalação nova.
+- source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
+  summary: A prontidão aceita como "VFC de hoje" a leitura mais recente da janela de 7 dias, que pode ter 6 dias — o cartão apresenta isso como o estado da manhã. Vale para o HealthKit e para o fallback; exigir hoje/ontem (mantendo as antigas só na baseline) é mudança de semântica dos dois caminhos.
+  evidence: Revisão da VFC. Comportamento pré-existente do caminho HealthKit, herdado pelo fallback; mudar só um dos dois criaria assimetria pior que o problema.
+- source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
+  summary: A Hoje passou a carregar `useHealthDailyStore` (um ano de `health_daily`, todas as métricas, paginado) para ler 7 linhas de VFC; uma leitura dirigida (`metric='vfc'`, últimos 7 dias) seria uma requisição pequena. O store é cache compartilhado com Semana, Recuperação e notificações, então a economia depende de decidir quem paga a carga.
+  evidence: Revisão da VFC. Custo de rede na tela inicial, não erro; o cartão renderiza sem a tabela e ela chega depois.
+- source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
+  summary: O fallback da VFC congela numa sessão longa: `useHealthDailyStore.load()` é no-op depois de carregado e nada na Hoje força recarga, enquanto o ingest grava a cada 15 min. Semana e o digest já usam `load(true)`; falta decidir quem força na Hoje sem refazer a busca de um ano.
+  evidence: Revisão da VFC, mesmo padrão que a curva de forma resolveu com `load(true)` no foreground — lá o store é barato, aqui não.
+- source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
+  summary: `supabase/functions` não tem typecheck nem teste em comando nenhum do CI (não há Deno no ambiente); `ingestWellness` é exportada e recebe o `admin` por parâmetro, então um cliente-stub cobriria a sonda, a leitura de precedência e o `catch` best-effort.
+  evidence: Achado do revisor de lacunas de verificação. Mitigado em parte nesta etapa (toda a decisão foi movida para o núcleo, que tem 18 checks), mas o corpo da function segue verificado só por leitura.
+- source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
+  summary: O cartão de prontidão não mostra `coverage` nem a origem da VFC, embora o docblock de `readiness.ts` peça que quem exibe o score avise quando `coverage < 1`; a legenda segue "sono · coração · atividade" e o número vira instrução de treinar ou descansar.
+  evidence: Revisão da VFC. Decisão de design (o que mostrar e como), não correção do dado.
+- source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
+  summary: A aba Saúde do mobile lê VFC só do HealthKit, enquanto a Hoje (fallback) e a web (tabela) passam a ver a do intervals.icu — duas telas do mesmo app discordam sobre a mesma métrica no mesmo dia. `docs/specs/mobile-saude.md` e `docs/specs/readiness-treino/spec.md` ainda descrevem a VFC como métrica exclusiva do Apple Health.
+  evidence: Achado de dois revisores. A fronteira do spec limitava a mudança mobile ao cartão de prontidão, então é escopo novo, não desvio.

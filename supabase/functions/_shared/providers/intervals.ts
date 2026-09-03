@@ -5,10 +5,17 @@
  *   GET /api/v1/athlete/{id}                         — validação do vínculo
  *   GET /api/v1/athlete/{id}/activities?oldest&newest — lista (ISO local)
  *   GET /api/v1/activity/{id}/streams?types=...       — streams do FIT
+ *   GET /api/v1/athlete/{id}/wellness?oldest&newest   — bem-estar diário (só a VFC)
  * Parsing defensivo: campos variam entre versões da API. O stream `latlng`
  * separa as coordenadas em `data` (lat) e `data2` (lng) — não são pares.
  */
 import { mapIntervalsType } from '../../../../packages/shared/src/fitness/dedupe.ts';
+import {
+  normalizeIntervalsWellness,
+  wellnessQuery,
+  type WellnessHrv,
+  type WellnessWindow,
+} from '../../../../packages/shared/src/health/wellness.ts';
 import {
   localIsoToUtcMs,
   streamsToPointsAndHr,
@@ -94,6 +101,34 @@ export async function fetchIntervalsActivities(
   return list
     .filter((a) => a && a.id != null && (a.start_date || a.start_date_local))
     .sort((a, b) => intervalsStartMs(a) - intervalsStartMs(b));
+}
+
+/**
+ * Bem-estar diário da janela, já normalizado para a VFC por dia (ADR 0026).
+ * Recebe a `WellnessWindow` inteira e monta a query pelo `wellnessQuery` do
+ * núcleo: os dois parâmetros são strings de data, e trocá-los devolveria lista
+ * vazia sem erro nenhum. Mesmo cliente e mesmos erros do fetch de atividades —
+ * 401/403 viram `AuthError`; quem chama decide se isso derruba o run (o ingest
+ * não deixa).
+ *
+ * `received` é a contagem bruta antes do descarte. Sem ela, uma mudança de nome
+ * de campo na origem chegaria como `fetched: 0` — igualzinho a "o atleta não
+ * tem VFC ainda", que é o estado normal de quem nunca usou o Garmin.
+ */
+export async function fetchIntervalsWellness(
+  apiKey: string,
+  athleteId: string,
+  window: WellnessWindow,
+): Promise<{ hrv: WellnessHrv[]; received: number }> {
+  const path = `/athlete/${encodeURIComponent(athleteId)}/wellness?${wellnessQuery(window)}`;
+  const res = await icuGet(apiKey, path);
+  if (res.status === 401 || res.status === 403) throw new AuthError('intervals.icu: API key rejeitada');
+  if (!res.ok) throw new Error(`intervals.icu /wellness respondeu ${res.status}`);
+  const body = await res.json();
+  return {
+    hrv: normalizeIntervalsWellness(body),
+    received: Array.isArray(body) ? body.length : 0,
+  };
 }
 
 /** Início da atividade em epoch ms (exportado p/ o check de idempotência do ingest). */

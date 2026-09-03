@@ -191,3 +191,38 @@ Arquivo: `supabase/migrations/<timestamp>_activities.sql` contendo, nesta ordem:
 3. `synced_activity_types`
 4. `sync_state`
 5. `enable row level security` + policies das quatro tabelas
+
+## Bem-estar (VFC) — `health_daily`
+
+> Acrescentado em 2026-09-04. Decisão: [ADR 0026](../../decisions/0026-vfc-do-intervals-na-mesma-metrica.md).
+
+A ponte do intervals.icu (`connections-ingest`, a cada 15 min) traz também a **VFC noturna** que o Garmin manda para lá e não para o Apple Health. Sem tabela, migration ou métrica nova: a linha entra em `health_daily` (`supabase/migrations/20260523120000_health_daily.sql`) sob a métrica que todo consumidor já lê.
+
+| Coluna | Valor | Observação |
+|---|---|---|
+| `metric` | `'vfc'` | a mesma do Apple Health |
+| `day` | `id` do registro do `/wellness` | `'YYYY-MM-DD'` local do atleta |
+| `value` · `min_value` · `max_value` | `hrvSDNN` se existir, senão `hrv` | ms; uma medida por noite, então os três coincidem |
+| `count` | `1` | |
+| `extra` | `{ "source": "intervals", "kind": "sdnn" \| "rmssd" }` | a marca da fonte e a escala da medida |
+
+**Precedência.** O passo só grava no dia **sem linha `'vfc'`** ou cuja linha tem `extra.source = 'intervals'`. Linha do Apple Health (o mobile não grava `extra` nas discretas) fica intacta. O RPC `sync_upsert_health_daily` do mobile segue sobrescrevendo sem condição.
+
+**Janela.** 14 dias por run; 120 na primeira vez (nenhuma linha `'vfc'` de `intervals`). Datas locais sem fuso, `newest` = amanhã por causa do fuso do atleta — o que chegar datado depois de hoje é descartado na gravação.
+
+**Descartes.** Registro sem `id` de data real (`2026-13-45` casa com o formato e não existe), ou com VFC fora de 5–300 ms, não vira linha: um valor absurdo contamina a baseline de 7 dias, ou seja, a prontidão de uma semana. Dia cujo valor já está gravado por esta fonte também não volta ao banco — o run roda a cada 15 min sobre 14 dias.
+
+**Best-effort.** Erro do `/wellness` vai para `summary.wellness.error` e para o log da function; atividades, cursor e `last_error` seguem normais. O passo roda **antes** das atividades, para que uma falha na lista de atividades não o impeça. O resumo do run ganha:
+
+```json
+"wellness": {
+  "received": 14, "fetched": 14, "upserted": 2, "skipped": 1, "unchanged": 11, "future": 0,
+  "window": { "oldest": "2026-08-21", "newest": "2026-09-05", "days": 14 }
+}
+```
+
+`received` é a contagem bruta: `received > 0` com `fetched: 0` significa que a API respondeu e nenhum registro serviu — o sintoma de um nome de campo mudado na origem, que sem esse par seria indistinguível de "o atleta não tem VFC".
+
+**Fora de escopo, de propósito:** sono e FC de repouso do `/wellness` — o Apple Watch cobre, e misturar fontes é o que o dedupe evita.
+
+Normalização, janela, query e a decisão do que gravar: `packages/shared/src/health/wellness.ts` (puro, sem imports — o Deno importa por caminho relativo). Está tudo no núcleo de propósito: `supabase/functions` não é typechecada nem testada por nenhum comando do CI, então regra que mora lá é regra sem teste. Busca: `fetchIntervalsWellness` em `supabase/functions/_shared/providers/intervals.ts`. Gravação: `ingestWellness` em `supabase/functions/_shared/ingest.ts`.

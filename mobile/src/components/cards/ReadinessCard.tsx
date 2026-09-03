@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { localDateStr, readinessAdvice, type AdviceTone } from '@vitale/shared';
 import { useHealthStore } from '../../store/health.store';
+import { useHealthDailyStore } from '../../store/health-daily.store';
 import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { readinessFromSummaries } from '../../lib/health-readiness';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
@@ -26,14 +27,25 @@ const TONE_COLOR: Record<AdviceTone, string> = {
 export function ReadinessCard() {
   const styles = useThemedStyles(createStyles);
   const summaries = useHealthStore((s) => s.summaries);
+  // Assina `rows` (e não `seriesFor`, que é estável): é a chegada da tabela que
+  // precisa acordar o componente. O recorte da métrica sai do `useMemo` abaixo,
+  // porque `rows` cobre um ano de todas as métricas.
+  const dailyRows = useHealthDailyStore((s) => s.rows);
+  const loadDaily = useHealthDailyStore((s) => s.load);
   const planned = usePlannedWorkoutsStore((s) => s.planned);
   const loadPlanner = usePlannedWorkoutsStore((s) => s.load);
 
   useEffect(() => {
     loadPlanner();
-  }, [loadPlanner]);
+    // VFC do intervals.icu mora em `health_daily`, não no HealthKit (ADR 0026).
+    void loadDaily();
+  }, [loadPlanner, loadDaily]);
 
-  const score = readinessFromSummaries(summaries);
+  const vfcRows = useMemo(() => dailyRows.filter((r) => r.metric === 'vfc'), [dailyRows]);
+  const score = useMemo(
+    () => readinessFromSummaries(summaries, { vfc: vfcRows }),
+    [summaries, vfcRows],
+  );
   if (score.components.length === 0) return null;
 
   // Recomendação: prontidão × intensidade do treino planejado de hoje (real).

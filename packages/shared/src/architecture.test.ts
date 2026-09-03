@@ -15,7 +15,7 @@
  * na primeira hora.
  */
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { WALLPAPERS } from './constants/wallpaper';
 import { APP_THEMES } from './models';
@@ -146,6 +146,46 @@ check('BARREIRA — cultura/tipos.ts continua auto-contido (consumido pelo Deno)
     `cultura/tipos.ts ganhou import: ${imports.join(' | ')}. A edge function cultura-search o ` +
       `importa direto, e o Deno não resolve specifier sem extensão. Mantenha o módulo sem imports ` +
       `(mesmo padrão de fitness/dedupe.ts) ou o deploy da função quebra.`,
+  );
+});
+
+/**
+ * O mesmo motivo, generalizado: todo módulo do núcleo que alguma edge function
+ * importa por caminho relativo (`packages/shared/src/….ts`) precisa continuar
+ * sem imports. Hoje são `fitness/dedupe.ts`, `fitness/streams.ts`,
+ * `cultura/tipos.ts` e `health/wellness.ts`; a lista sai do próprio código das
+ * functions, então um módulo novo entra na guarda no dia em que for importado.
+ */
+check('BARREIRA — módulo do núcleo importado pelo Deno continua sem imports', () => {
+  const fnFiles = walk(join(ROOT, 'supabase', 'functions'));
+  const targets = new Set<string>();
+  for (const f of fnFiles) {
+    const src = readFileSync(f, 'utf8');
+    // Aspas simples ou duplas, `import` ou `export … from`: a guarda não pode
+    // depender do estilo de quem escreveu a function.
+    for (const m of src.matchAll(/from\s*['"][^'"]*packages\/shared\/src\/([^'"]+\.ts)['"]/g)) {
+      targets.add(m[1]);
+    }
+  }
+  assert.ok(targets.size > 0, 'nenhuma edge function importa do núcleo — a guarda ficou sem alvo');
+  const offenders: string[] = [];
+  for (const rel of [...targets].sort()) {
+    const abs = join(ROOT, 'packages', 'shared', 'src', rel);
+    // Caminho que não existe é falha da guarda, não exceção dela: sem isto o
+    // `readFileSync` estoura um ENOENT cru e a mensagem explicativa nunca sai.
+    if (!existsSync(abs)) {
+      offenders.push(`${rel} (não existe — a function importa um caminho morto)`);
+      continue;
+    }
+    const src = readFileSync(abs, 'utf8');
+    const imports = src.match(/^\s*import\s.+$/gm) ?? [];
+    if (imports.length > 0) offenders.push(`${rel} (${imports.length})`);
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `módulo consumido pelo Deno ganhou import: ${offenders.join(', ')}. O Deno não resolve ` +
+      `specifier sem extensão e o deploy da function quebra longe daqui.`,
   );
 });
 
