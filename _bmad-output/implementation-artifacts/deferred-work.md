@@ -145,3 +145,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-carga-acwr.md`
   summary: `training-load` e `form-curve` são módulos de feature sem spec durável em `docs/specs/` — o repo lista os specs de feature no CLAUDE.md e os dois só têm o spec de implementação em `_bmad-output`. Decidir se ganham `docs/specs/carga/` quando a etapa 2 fechar.
   evidence: Mesma lacuna já registrada para a curva de forma; o segundo módulo da família a herda.
+- source_spec: `docs/decisions/0030-prontidao-nao-pontua-dado-velho.md`
+  summary: O sub-score de FC em repouso é `100 − delta×4` com teto em 100, então qualquer leitura no nível da baseline ou abaixo marca 100 — e a baseline de 90 dias tornou isso mais frequente, porque ela inclui um período de forma pior. Em 04/09 a FC de 49 bpm marcava 100 contra a base de 90 dias (51,7) e marcaria 93 contra a de 14 (47,2). É a mesma saturação que a curva do sono acabou de resolver, no componente vizinho.
+  evidence: Medido na produção ao conferir a implementação do R2. A ADR excluiu recalibrar pesos e fórmulas do escopo; a `baselineShort` já viaja no componente e é o insumo de uma curva assimétrica, se ela vier.
+- source_spec: `docs/decisions/0030-prontidao-nao-pontua-dado-velho.md`
+  summary: A web não datou as leituras nem alimenta o componente de carga — `latestFor` não devolve o dia e o ACWR vem das atividades, que o `day-score-card` não carrega. Sem `ageDays` o portão de frescor trata tudo como fresco, que é o comportamento antigo, e a cobertura fica no teto de 0,80. É a única superfície que ainda pode publicar nota apoiada em dado velho.
+  evidence: Declarado na ADR 0030 e no docblock de `hasData`. A proposta do R2 limitou a superfície ao mobile.
+- source_spec: `docs/decisions/0030-prontidao-nao-pontua-dado-velho.md`
+  summary: `rollingBaseline` conta LEITURAS, não dias, e as duas coisas só coincidem em série sem buraco. O adaptador do mobile recorta por data antes de chamar; `dayReadiness` (núcleo, usado pela web e pelo digest) e o `day-score-card` ainda passam a constante direto como contagem. Com um mês sem sincronizar no meio, a janela de "90 dias" alcança bem mais que 90.
+  evidence: Achado por um teste que falhou ao afirmar que a baseline curta e a longa diferiam com poucas leituras. Corrigido onde a data existe; registrado onde não existe.
+- source_spec: `docs/decisions/0030-prontidao-nao-pontua-dado-velho.md`
+  summary: Regularidade de sono — o sinal que falta na prontidão e que a pesquisa apontou. Confirmado viável em 04/09: `mobile/src/lib/health-buckets.ts` já recebe os intervalos `{start, end}` e descarta os horários; gravar `bedAt`/`wakeAt` no `extra` e subir `AGG_VERSION` de 5 para 6 recupera 295 das 308 noites, pelo mesmo mecanismo que o v3 (estágios) e o v4 (`inbed`/`onset`) usaram. Depende de as amostras brutas continuarem no aparelho, e o fuso precisa ser gravado para a regularidade ser em hora local.
+  evidence: Investigado a pedido do dono durante o R2 e deixado fora do escopo por exigir migration e backfill de 500 dias.

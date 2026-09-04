@@ -180,6 +180,19 @@ export interface ReadinessSources {
    * `null` e fica com quatro sinais.
    */
   acwr?: number | null;
+  /**
+   * `daysSinceLastActivity` da curva de forma — a idade da carga.
+   *
+   * **Não é detalhe.** A série termina em hoje mesmo quando o sync parou, e
+   * silêncio chega nela como zeros indistinguíveis de descanso; zeros na janela
+   * aguda empurram o ACWR para baixo, ou seja, para `undertraining`, que é a
+   * faixa mais tranquilizadora — e que aqui vale 100. Sem esta idade, um sync de
+   * atividades parado **sustentaria** a prontidão com um sinal cheio, que é
+   * exatamente o defeito que o portão de frescor fecha nos outros quatro.
+   *
+   * Ausente conta como fresca, como toda idade omitida.
+   */
+  acwrAgeDays?: number | null;
 }
 
 export function buildReadinessInput(
@@ -219,8 +232,9 @@ export function buildReadinessInput(
       fcRepouso: fc.ageDays,
       vfc: vfc.ageDays,
       aneis: aneis.ageDays,
-      // A carga sai da curva de forma, que sempre termina hoje.
-      carga: sources?.acwr == null ? null : 0,
+      // A curva sempre termina hoje, então a idade da carga é o silêncio desde
+      // a última atividade — nunca a posição do último ponto da série.
+      carga: sources?.acwr == null ? null : (sources.acwrAgeDays ?? 0),
     },
   };
 }

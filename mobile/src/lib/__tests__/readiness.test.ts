@@ -246,6 +246,19 @@ describe('a carga', () => {
     expect(input.ageDays?.carga).toBeNull();
     expect(readinessFromSummaries({}, {}, NOW).missing).toContain('carga');
   });
+
+  it('a idade da carga é o silêncio desde a última atividade, não o fim da série', () => {
+    // A curva termina em hoje mesmo com o sync parado, e o silêncio entra nela
+    // como zeros: o ACWR desce para "abaixo do costume", que vale 100. Sem a
+    // idade, sync parado SUSTENTARIA a nota com um sinal cheio.
+    const parado = readinessFromSummaries({}, { acwr: 0.36, acwrAgeDays: 9 }, NOW);
+    expect(parado.stale).toEqual(['carga']);
+    expect(parado.components.find((c) => c.key === 'carga')?.score).toBe(100);
+    expect(parado.total).toBeNull();
+
+    const recente = readinessFromSummaries({}, { acwr: 0.36, acwrAgeDays: 1 }, NOW);
+    expect(recente.stale).toEqual([]);
+  });
 });
 
 describe('a baseline longa é de fato longa', () => {

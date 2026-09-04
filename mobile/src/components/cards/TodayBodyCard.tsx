@@ -304,8 +304,16 @@ export function TodayBodyCard({ activities, loaded }: Props) {
     [dailyRows],
   );
   const score = useMemo(
-    () => readinessFromSummaries(summaries, { ...readinessRows, acwr: load.acwr }),
-    [summaries, readinessRows, load],
+    () =>
+      readinessFromSummaries(summaries, {
+        ...readinessRows,
+        acwr: load.acwr,
+        // Sync de atividades parado vira zeros na janela aguda, o ACWR desce, e
+        // "abaixo do costume" vale 100 — a carga sustentaria a nota justamente
+        // quando não há dado. A idade é o silêncio, não o fim da série.
+        acwrAgeDays: curve.daysSinceLastActivity,
+      }),
+    [summaries, readinessRows, load, curve],
   );
 
   // Largura mudou (rotação, split view): reencaixa o slide ativo, senão o
