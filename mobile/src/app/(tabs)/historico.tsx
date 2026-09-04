@@ -599,6 +599,10 @@ const styles = themed(() => StyleSheet.create({
     borderRadius: radii['2xl'],
     padding: spacing.lg,
     gap: spacing.lg,
+    // Não era preciso enquanto este era o primeiro da rolagem; com a Carga da
+    // semana acima, os dois cards se encostavam. É o mesmo respiro que todos os
+    // outros cards da aba já declaram por conta própria.
+    marginTop: spacing.md,
     ...shadows.card,
   },
 
