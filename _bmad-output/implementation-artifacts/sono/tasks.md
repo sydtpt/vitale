@@ -230,8 +230,12 @@
   Tempos ⇄ Estágios em `/sono/tempos` — noites com os segmentos na posição real, semanas em
   composição (horas médias por estágio, `stagesH`); rótulo de incerteza sempre; o detalhe da
   noite ganha `StageTimeline`. Testes: agregador emite segmentos em ordem sem o AWAKE, horas
-  batem com segmentos; `stagesH`; `stageFacts`. **Falta:** backfill v8 no aparelho
-  (`verify-stages.sh`) e conferência no iPhone.
+  batem com segmentos; `stagesH`; `stageFacts`. **Backfill v8 rodado em 05/09 (~02:20):**
+  285 de 287 linhas com segmentos (as 2 sem estão fora da janela de 500 dias de hoje), 0
+  vazias, 31,6 segmentos/noite em média, **paridade deep horas × segmentos com diferença
+  máxima 0,0 min** em 277 noites. A noite de 04/09, segmento a segmento, mostra o vão
+  02:47–03:10 — exatamente o despertar de 23 min que a tela de diagnóstico tinha contado.
+  **Falta:** conferência de Tempos → Estágios no iPhone.
 - [x] T7.3 — Spec reconciliada em 05/09: a peça ② fica sem seletor na visão geral; o seletor
   mora nas subviews. Nem absorção nem duplicação.
 - [ ] T7.4 — **Web:** `/sono/tempos` e `/sono/despertares` em Angular, pelo mesmo núcleo —
