@@ -141,25 +141,39 @@
 
 ## Fase 4 — Tela mobile
 
-- [ ] T4.1 — `mobile/src/store/sono.store.ts` (Zustand, padrão de `registros.store.ts`).
-- [ ] T4.2 — **CAP-1** — os relógios: deitou · apagou · acordou, sem a subtração e sem
+- [x] T4.1 — `mobile/src/store/sono.store.ts` (Zustand, padrão de `registros.store.ts`).
+- [x] T4.2 — **CAP-1** — os relógios: deitou · apagou · acordou, sem a subtração e sem
   rotular latência. `in_bed_at` nulo mostra o vazio com a explicação, nunca o horário de
   apagar, nunca oculto.
-- [ ] T4.3 — **CAP-2** — `components/charts/SleepTimingChart.tsx`: ~14 noites, eixo Y de hora
+- [x] T4.3 — **CAP-2** — `components/charts/SleepTimingChart.tsx`: ~14 noites, eixo Y de hora
   do dia invertido, buracos de vigília, contorno tracejado do tempo na cama, célula hachurada
   para noite sem dado. **Sem seletor de período.** `react-native-svg`.
-- [ ] T4.4 — **CAP-5.2** — `components/charts/AwakeningsClock.tsx`: despertares da janela
+- [x] T4.4 — **CAP-5.2** — `components/charts/AwakeningsClock.tsx`: despertares da janela
   sobrepostos num eixo de 24 h, por densidade. Estado próprio para "a fonte não reporta".
-- [ ] T4.5 — **CAP-5.3** — série de tempo acordado por noite, sem meta e sem faixa de
+- [x] T4.5 — **CAP-5.3** — série de tempo acordado por noite, sem meta e sem faixa de
   referência.
-- [ ] T4.6 — **CAP-3** — nota × medição: intervalo mín–máx, média e **o n** por nota. Sem
+- [x] T4.6 — **CAP-3** — nota × medição: intervalo mín–máx, média e **o n** por nota. Sem
   seta, sem "melhorou", sem correlação declarada.
-- [ ] T4.7 — **CAP-4** — `app/sono/[day].tsx`: faixa de estágio **cortada pelos despertares
-  nas posições reais**, durações absolutas, rótulo de incerteza obrigatório e legível.
-- [ ] T4.8 — **CAP-6** — cartão da categoria Sono na aba Saúde navega para `/sono`;
+- [x] T4.7 — **CAP-4** — `app/sono/[day].tsx`. Implementado como **duas faixas**, não uma: a
+  linha do tempo (sono do apagar ao acordar, despertares cortando nas posições reais) e,
+  separada, a composição por estágio em proporção — porque o que se grava são horas por
+  estágio, não intervalos. Spec CAP-4 ajustada para dizer isso. Rótulo de incerteza presente.
+- [x] T4.8 — **CAP-6** — cartão da categoria Sono na aba Saúde navega para `/sono`;
   `/saude/sono` sai. Conferir que `metricById('sono')` continua servindo prontidão e retro.
-- [ ] T4.9 — Cor: tudo via `moduleOf('agua')`. **Zero hex em tela.** Ver
+- [x] T4.9 — Cor: tudo via `moduleOf('agua')`. **Zero hex em tela.** Ver
   [ADR 0031](../../../docs/decisions/0031-sono-e-categoria-nao-modulo.md).
+
+> **Fase 4 escrita e tipada em 04/09/2026** (`data/sleep.ts` no shared, `sono.store.ts`,
+> `SleepTimingChart`, `AwakeningsClock`, `app/sono/index.tsx`, `app/sono/[day].tsx`, rotas no
+> `_layout.tsx`, `saude.tsx` roteando sono para `/sono`). Validação: shared lint 0 · shared
+> test 549 asserts + arquitetura 13/13 · web build 0 · mobile tsc 0 · mobile jest 621/621.
+> **Conferência no aparelho pendente — é o Done (T6.3).**
+>
+> Dois tropeços que valem para a próxima tela: (1) as **rotas tipadas** do expo-router só
+> regeneram com `expo start`/`export` — os três builds de device da noite não tocaram o
+> `.expo/types/router.d.ts` (datado de 03/09); a saída foi subir o Metro por 6 s e derrubar.
+> (2) A catraca de hex pegou **meu próprio** `dados.tsx` da tarde (203 > 200): segui o padrão
+> local do arquivo em vez do tema e não rodei o `shared test` depois daquele commit.
 
 ## Fase 5 — Web (segunda rodada, não bloqueia o merge do mobile)
 
@@ -170,9 +184,10 @@
 
 ## Fechamento
 
-- [ ] T6.1 — Link dos specs no `CLAUDE.md`.
-- [ ] T6.2 — Validação nos três workspaces: `shared lint`+`test`, `web build`+`test`, mobile
-  `tsc --noEmit`+`jest`, `expo-doctor` 21/21.
+- [x] T6.1 — Link dos specs no `CLAUDE.md`.
+- [x] T6.2 — Validação nos três workspaces em 04/09 (após a Fase 4): `shared lint` 0 · `shared
+  test` 549 asserts + `architecture.test.ts` 13/13 · `web build` 0 · `web test` 141 · mobile
+  `tsc` 0 · `jest` 621/621. *(`expo-doctor` não rodado: nenhuma mudança nativa ou de pacote.)*
 - [ ] T6.3 — **Conferência visual em escala real e build Release no iPhone.** Mergeado sem
   rodar no aparelho não conta como entregue.
 
