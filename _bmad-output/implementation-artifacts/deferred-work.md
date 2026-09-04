@@ -136,3 +136,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-vfc-intervals.md`
   summary: A aba Saúde do mobile lê VFC só do HealthKit, enquanto a Hoje (fallback) e a web (tabela) passam a ver a do intervals.icu — duas telas do mesmo app discordam sobre a mesma métrica no mesmo dia. `docs/specs/mobile-saude.md` e `docs/specs/readiness-treino/spec.md` ainda descrevem a VFC como métrica exclusiva do Apple Health.
   evidence: Achado de dois revisores. A fronteira do spec limitava a mudança mobile ao cartão de prontidão, então é escopo novo, não desvio.
+- source_spec: `_bmad-output/implementation-artifacts/spec-carga-acwr.md`
+  summary: Etapa 2 do ACWR/monotonia/strain — nenhuma superfície consome `buildTrainingLoad` ainda; a UI precisa de um texto para cada `null` (`monotonyReason`: crônica zerada, semana constante, semana parada, série curta), cruzar com o `trusted` da curva antes de mostrar faixa, e resolver o caso "voltei de um período parado" (ACWR nulo justamente no salto maior).
+  evidence: O spec limitou o escopo ao núcleo; a ADR 0027 lista essas obrigações como consequências, e nenhuma delas tem onde acontecer sem tela.
+- source_spec: `_bmad-output/implementation-artifacts/spec-carga-acwr.md`
+  summary: As fronteiras de faixa do ACWR foram calibradas na literatura sobre a forma acoplada e são aplicadas ao número desacoplado, que é mais sensível — `risk` acende mais que a taxa de base sugere. Calibrar fronteiras próprias exigiria histórico e método que hoje não existem; por ora está documentado e avisado.
+  evidence: Levantado pela revisão da etapa 1 e registrado na ADR 0027. Não é bug: é o limite honesto de herdar limiares de estudos de outro desenho.
+- source_spec: `_bmad-output/implementation-artifacts/spec-carga-acwr.md`
+  summary: `training-load` e `form-curve` são módulos de feature sem spec durável em `docs/specs/` — o repo lista os specs de feature no CLAUDE.md e os dois só têm o spec de implementação em `_bmad-output`. Decidir se ganham `docs/specs/carga/` quando a etapa 2 fechar.
+  evidence: Mesma lacuna já registrada para a curva de forma; o segundo módulo da família a herda.

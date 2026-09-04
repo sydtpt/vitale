@@ -84,6 +84,7 @@ export * from './fitness/streams';
 export * from './fitness/dedupe';
 export * from './fitness/highlight-roles';
 export * from './fitness/form-curve';
+export * from './fitness/training-load';
 export * from './geo/distance';
 export * from './geo/country-explorer';
 // Puxa ~1 MB de contornos: só importe onde o corte na fronteira importa
