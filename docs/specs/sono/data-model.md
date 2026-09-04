@@ -116,9 +116,12 @@ Medido em produção, 04/09/2026:
 | `awakenings` **na fonte** | 233/270 (86%) | **38 de 38 medidas** |
 | `awakenings` **que chegam ao banco** | 233/270 | **2 de 38** — ver §4.2 |
 
-O Garmin escreve `INBED`, mas abrindo a janela no instante em que o sono começa: em 37 de 38
+O Garmin escreve `INBED`, mas abrindo a janela no instante em que o sono começa: em 41 de 42
 noites a latência fica abaixo de `MIN_ONSET_MS = 60_000`. A folga entre cama e sono é de
-**9,5 min mediana contra 100 min** na era Apple, e cai quase toda *depois* de acordar.
+**9,5 min mediana contra 100 min** na era Apple — e no Garmin essa folga **é a vigília**,
+ao minuto (5 de 5 noites conferidas contra o HealthKit), não sobra depois de acordar. Na
+era Apple os dois não batem porque lá o `INBED` começa antes do sono e a folga inclui a
+latência. *(Uma versão anterior deste parágrafo dizia o contrário; corrigida em 04/09.)*
 
 **Consequência para o esquema:** `in_bed_at`/`in_bed_end` guardam a janela `INBED` **crua**
 da fonte, e são `NULL` só quando não há amostra `INBED` nenhuma. A duração da janela é
