@@ -471,3 +471,32 @@ describe('janela na cama — a união das amostras INBED, nunca menor que o sono
     expect(p.inBedEnd).toBeNull();
   });
 });
+
+describe('identidade ao minuto — o onset é truncado no cliente', () => {
+  it('INBED no mesmo minuto do onset não viola in_bed_at ≤ onset_at (57 noites do 1º backfill)', () => {
+    // Garmin: INBED 01:05:10, primeiro sono 01:05:40. Só o servidor truncando,
+    // onset_at viraria 01:05:00 e in_bed_at ficaria 10 s DEPOIS dele.
+    const [p] = aggregateSleepPeriods([
+      sample('INBED', '2026-09-04T01:05:10', '2026-09-04T08:12:00'),
+      sample('CORE', '2026-09-04T01:05:40', '2026-09-04T08:00:00'),
+    ]);
+    expect(p.onsetAt).toBe(new Date('2026-09-04T01:05:00').toISOString());
+    expect(new Date(p.inBedAt!).getTime()).toBeLessThanOrEqual(new Date(p.onsetAt).getTime());
+    expect(new Date(p.inBedEnd!).getTime()).toBeGreaterThanOrEqual(new Date(p.wakeAt).getTime());
+    // ...e continua sem latência: 10 s não é deitar.
+    const [n] = aggregateSleepNights([
+      sample('INBED', '2026-09-04T01:05:10', '2026-09-04T08:12:00'),
+      sample('CORE', '2026-09-04T01:05:40', '2026-09-04T08:00:00'),
+    ]);
+    expect(n.stages!.onset).toBeUndefined();
+  });
+
+  it('o truncamento não move o buraco de vigília: os segundos de latência não viram despertar', () => {
+    const [p] = aggregateSleepPeriods([
+      sample('AWAKE', '2026-09-04T01:05:00', '2026-09-04T01:05:40'), // antes do sono
+      sample('CORE', '2026-09-04T01:05:40', '2026-09-04T08:00:00'),
+    ]);
+    expect(p.awakenings).toEqual([]);
+    expect(p.stages!.awake).toBeUndefined();
+  });
+});

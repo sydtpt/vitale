@@ -45,6 +45,14 @@ export interface Stats {
 
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
+/**
+ * Arredonda um instante para baixo, ao minuto. A identidade de um período de
+ * sono é `(user, onset_at)` com o onset AO MINUTO — a RPC também trunca, mas
+ * truncar aqui é o que faz `in_bed_at <= onset_at` valer por construção: se só
+ * o servidor truncasse, um INBED começando no mesmo minuto ficaria DEPOIS do
+ * onset por até 59 s. Foi assim em 57 noites no primeiro backfill.
+ */
+const floorMin = (ms: number): number => Math.floor(ms / 60_000) * 60_000;
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -370,7 +378,7 @@ export function aggregateSleepPeriods(samples: Sample[], userId = ''): SleepPeri
       continue;
     }
     night.bed = {
-      start: Math.min(night.onset, ...touching.map((b) => b.start)),
+      start: Math.min(floorMin(night.onset), ...touching.map((b) => b.start)),
       end: Math.max(night.wake, ...touching.map((b) => b.end)),
     };
   }
@@ -399,7 +407,9 @@ export function aggregateSleepPeriods(samples: Sample[], userId = ''): SleepPeri
 
       return {
         userId,
-        onsetAt: new Date(n.onset).toISOString(),
+        // Ao minuto — ver `floorMin`. Os buracos acima usam o onset exato, para
+        // não engolir como despertar os segundos de latência do mesmo minuto.
+        onsetAt: new Date(floorMin(n.onset)).toISOString(),
         wakeAt: new Date(n.wake).toISOString(),
         inBedAt: n.bed ? new Date(n.bed.start).toISOString() : null,
         inBedEnd: n.bed ? new Date(n.bed.end).toISOString() : null,

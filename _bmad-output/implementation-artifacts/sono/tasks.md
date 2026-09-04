@@ -102,11 +102,32 @@
   **Teste de paridade** em `health-sleep.test.ts`: a linha diária derivada dos períodos ==
   a do caminho antigo, noite a noite (`value`, `count`, `extra`), numa fixture com as três
   formas reais — Apple em camadas, Garmin encostado, genérico.
-- [ ] T3.4 — `AGG_VERSION` 5 → 6 em `services/health-sync.ts`. Dispara `BACKFILL_DAYS = 500`.
-  **Segurado de propósito** até o veredito do Foco de Sono (05/09) — um backfill só. O
-  comentário `v6 (PENDENTE)` já está no arquivo; é uma linha.
-- [ ] T3.5 — Rodar o backfill no aparelho e conferir: `sleep_periods` com ~500 linhas,
-  `health_daily.sono` inalterado no `value` (a derivação tem que reproduzir o que já estava lá).
+- [x] T3.4 — `AGG_VERSION` 5 → 6. *(Eu tinha segurado "até o veredito do Foco de Sono, para
+  um backfill só" — errado: o backfill reescreve o passado e a noite nova entra pelo
+  incremental de 14 dias sem bump. Os dois não se tocam. Desamarrado pela pergunta do
+  usuário em 04/09.)* Snapshot local de `health_daily.sono` tirado antes — 312 linhas, 233
+  com `awake`, 14 com sono > cama — para a paridade ser conferida no dado real.
+- [x] T3.5 — **Backfill v6 rodado no iPhone em 04/09/2026**, conferido contra o snapshot local:
+  · `sleep_periods`: **286 linhas** (a janela de 500 dias começa em 23/04/2025; as 26 noites
+    mais antigas de `health_daily` ficaram fora, como esperado), `awakenings` sem nenhum
+    `'null'` textual (275 com despertar, 11 `[]`), **2 fusos** (120 e 60 — horário de verão
+    saiu certo), 9 noites sem `INBED`.
+  · **Paridade: 311 de 312 noites com `value` idêntico.** A exceção, 16/08/2026, não é código:
+    `inbed` idêntico (8,3 h), `core` cresceu exatamente 10 min, a latência de 10 min sumiu e
+    surgiu `awake` de 15 min — o Garmin reprocessou a noite entre o v5 e agora. Nenhuma
+    mudança nossa altera `core`.
+  · `awake` **ganhou em 45 noites, perdeu em 0**; era Garmin de 0/42 → **35/42**, média 23 min.
+  · Sono > cama: **14 → 0**.
+  · 03/09 em `sleep_periods`: apagou 01:45 · acordou 08:20 · **5 despertares** — os mesmos
+    `AWAKE×5` da tela do diagnóstico.
+  · **Achado:** 57 noites com `in_bed_at` 1–57 s DEPOIS de `onset_at`. Causa: a RPC truncava
+    o onset ao minuto e o `in_bed_at` não. Corrigido no cliente (`floorMin` antes de derivar
+    a janela), 2 testes; `AGG_VERSION` 6 → **7** para o próximo backfill reescrever só o
+    `in_bed_at` dessas linhas (mesma chave). Funcionalmente inofensivo até lá —
+    `bedtimeMeasured` já as lê como "--:--".
+- [ ] T3.6 — Rodar o backfill **v7** (build + sync) e conferir `viola_invariante = 0` com
+  `scratchpad/verify.sh`. Depois disso, o `CHECK` de janela (`in_bed_at ≤ onset_at`,
+  `in_bed_end ≥ wake_at`) pode virar migration.
 
 ## Fase 4 — Tela mobile
 

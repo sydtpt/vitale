@@ -59,8 +59,12 @@ const HEAVY_MAX_DAYS = 60;
  * a janela na cama vira a união das INBED, nunca menor que o sono (14 noites do
  * histórico tinham eficiência > 100%); e `value` fica idêntico ao de antes,
  * por teste de paridade. Ver docs/specs/sono/.
+ * v7 = onset truncado ao minuto NO CLIENTE, antes de derivar a janela na cama.
+ * No v6 só a RPC truncava, e um INBED começando no mesmo minuto ficava até 57 s
+ * DEPOIS do onset — 57 noites violando `in_bed_at <= onset_at`. Mesma chave,
+ * mesmas linhas: o backfill só corrige o `in_bed_at`.
  */
-const AGG_VERSION = 6;
+const AGG_VERSION = 7;
 
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
