@@ -233,7 +233,11 @@ function bloodPressureFetch(range: Range): Promise<Sample[]> {
  * `aggregateSleepNights` (união de intervalos − despertares, atribuído ao dia em
  * que se acordou). Sem isso, fontes sobrepostas dobravam o tempo dormido.
  */
-function sleepFetch(range: Range): Promise<Sample[]> {
+/**
+ * Os estágios crus, um por amostra. É o insumo de `aggregateSleepPeriods` no
+ * sync — que precisa dos instantes, não das noites já consolidadas.
+ */
+export function sleepRawFetch(range: Range): Promise<Sample[]> {
   return healthSource
     .queryCategorySamples(HK.sleepAnalysis, {
       startDate: range.startDate,
@@ -242,13 +246,16 @@ function sleepFetch(range: Range): Promise<Sample[]> {
     })
     .then((raw) =>
       raw.map((v) => ({
-        value: 0, // recalculado em aggregateSleepNights a partir dos intervalos
+        value: 0, // recalculado a partir dos intervalos
         start: v.startDate,
         end: v.endDate,
         label: String(v.value).toUpperCase(),
       })),
-    )
-    .then(aggregateSleepNights);
+    );
+}
+
+function sleepFetch(range: Range): Promise<Sample[]> {
+  return sleepRawFetch(range).then(aggregateSleepNights);
 }
 
 /** Anéis de atividade: 3 amostras (mover/exercício/em pé) do dia mais recente. */

@@ -4,7 +4,7 @@
  * antigo colidia com `web/.../health-format.ts`, que de fato só formata datas.
  * Normaliza amostras do Apple Health em buckets por Dia/Semana/Mês e calcula stats.
  */
-import { DIAS_ABREV } from '@vitale/shared';
+import { DIAS_ABREV, localDateStr, type SleepPeriod } from '@vitale/shared';
 
 export type Period = 'day' | 'week' | 'month';
 
@@ -261,7 +261,9 @@ const STAGE_PRIORITY = ['DEEP', 'REM', 'CORE'] as const;
 const MIN_ONSET_MS = 60_000;
 
 /**
- * Consolida amostras de estágios de sono em UMA linha por noite.
+ * Consolida amostras de estágios de sono em UM período por noite (`SleepPeriod`
+ * do núcleo, com instantes). `aggregateSleepNights`, abaixo, projeta a forma
+ * antiga — uma `Sample` por noite — a partir daqui.
  *
  * O Apple Health junta várias fontes (Watch com estágios + iPhone/relógio com um
  * "ASLEEP" genérico + apps de terceiros) que se SOBREPÕEM no mesmo período.
@@ -282,14 +284,17 @@ const MIN_ONSET_MS = 60_000;
  *  - `unspecified` — dormido sem hipnograma (fonte que só grava ASLEEP genérico);
  *  - `awake` — despertares DENTRO da janela da noite. Fora do total, não somado:
  *    `deep + rem + core + unspecified = value`, e `awake` é métrica à parte.
- *  - `inbed`/`onset` — horas na cama e quanto tempo levou para pegar no sono.
- *    Também fora da soma. `onset` é o único sinal de insônia de INÍCIO: sem ele,
- *    duas horas rolando na cama viram apenas "uma noite curta", indistinguível de
- *    ter deitado tarde. Só existem se a fonte gravar `INBED` (o Watch grava).
- *    `inbed` sem `onset` significa que a FONTE não separa cama de sono (ver
- *    `MIN_ONSET_MS`) — estado distinto de não haver dado de cama nenhum.
+ *  - a janela na cama sai como INSTANTES (`inBedAt`/`inBedEnd`), crua; na
+ *    projeção antiga vira `inbed`/`onset` em horas. `onset` é o único sinal de
+ *    insônia de INÍCIO: sem ele, duas horas rolando na cama viram apenas "uma
+ *    noite curta", indistinguível de ter deitado tarde. Só existe se a fonte
+ *    gravar `INBED` (o Watch grava). `inbed` sem `onset` significa que a FONTE
+ *    não separa cama de sono (ver `MIN_ONSET_MS`) — estado distinto de não
+ *    haver dado de cama nenhum.
+ *  - `awakenings` — os despertares INDIVIDUAIS, dentro do vão da noite. `null`
+ *    quando a fonte não reporta vigília, `[]` quando reporta e não houve.
  */
-export function aggregateSleepNights(samples: Sample[]): Sample[] {
+export function aggregateSleepPeriods(samples: Sample[], userId = ''): SleepPeriod[] {
   const detailed = mergeIntervals(toIntervals(samples, (st) => DETAILED_STAGES.has(st)));
   const awake = mergeIntervals(toIntervals(samples, (st) => st === 'AWAKE'));
   // ASLEEP genérico: mantém só os trechos sem nenhum estágio detalhado por baixo.
@@ -315,14 +320,14 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
 
   const byWakeDay = new Map<
     string,
-    { hours: number; wake: number; onset: number; stages: Record<string, number> }
+    { hours: number; wake: number; onset: number; stages: Record<string, number>; bed: Interval | null }
   >();
   for (const iv of asleep) {
     const awakeMs = overlapMs(iv, awake);
     const net = iv.end - iv.start - awakeMs;
     if (net <= 0) continue;
     const key = localDayKey(iv.end); // dia em que acordou
-    const cur = byWakeDay.get(key) ?? { hours: 0, wake: iv.end, onset: iv.start, stages: {} };
+    const cur = byWakeDay.get(key) ?? { hours: 0, wake: iv.end, onset: iv.start, stages: {}, bed: null };
     cur.hours += net / HOUR;
     cur.wake = Math.max(cur.wake, iv.end);
     cur.onset = Math.min(cur.onset, iv.start); // primeiro instante dormindo da noite
@@ -337,7 +342,8 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
     // O que sobrou de sono sem estágio detalhado por baixo.
     const rest = net - staged;
     if (rest > 0) cur.stages.unspecified = (cur.stages.unspecified ?? 0) + rest / HOUR;
-    if (awakeMs > 0) cur.stages.awake = (cur.stages.awake ?? 0) + awakeMs / HOUR;
+    // `awake` NÃO é somado aqui, por intervalo: é creditado uma vez por noite,
+    // pelo vão da noite inteira — ver o `return` abaixo e o porquê.
 
     byWakeDay.set(key, cur);
   }
@@ -345,23 +351,79 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
   // Tempo na cama e latência para pegar no sono: ancora no trecho INBED que
   // cobre o instante em que se apagou (`>=` no fim para as fontes que gravam
   // INBED só até o adormecer, sem se estender pela noite).
+  // A janela na cama vai CRUA para o período: a duração dela é grandeza real
+  // mesmo quando o instante não é (o Garmin abre o INBED junto com o sono em 41
+  // de 42 noites). Quem decide se o instante vira "hora que deitou" é
+  // `bedtimeMeasured()` no núcleo; `inbed`/`onset` em horas saem de lá também.
   for (const night of byWakeDay.values()) {
-    const bed = inbed.find((b) => b.start <= night.onset && b.end >= night.onset);
-    if (!bed) continue;
-    night.stages.inbed = (bed.end - bed.start) / HOUR;
-    const latency = night.onset - bed.start;
-    if (latency >= MIN_ONSET_MS) night.stages.onset = latency / HOUR;
+    night.bed = inbed.find((b) => b.start <= night.onset && b.end >= night.onset) ?? null;
   }
+
+  // Vigília creditada UMA vez por noite, pelo vão de [onset, wake] — não pela
+  // sobreposição com cada intervalo dormindo. Fonte em camadas (Apple Watch,
+  // AWAKE por cima do envelope) dá o mesmo resultado de antes; fonte em
+  // segmentos encostados (Garmin, CORE·AWAKE·CORE) deixa de perder tudo — o
+  // diagnóstico de 04/09/2026 achou 36 de 38 noites zeradas por isso. O que
+  // fica ANTES do onset não é despertar, é latência, e mora no `onset`.
+  //
+  // `null` ≠ `[]`: se a janela inteira não tem UMA amostra AWAKE, a fonte não
+  // reporta vigília e a noite recebe `null`; se tem, a noite sem despertar
+  // recebe `[]`. A diferença chega até a tela ("não sei" vs "dormiu direto").
+  const reportsAwake = samples.some((s) => (s.label ?? '').toUpperCase() === 'AWAKE');
 
   return [...byWakeDay.values()]
     .sort((a, b) => a.wake - b.wake)
-    .map((n) => ({
-      value: n.hours,
-      start: new Date(n.wake).toISOString(),
-      end: new Date(n.wake).toISOString(),
-      label: 'ASLEEP',
-      stages: n.stages,
-    }));
+    .map((n): SleepPeriod => {
+      const holes = awake
+        .map((a) => ({ start: Math.max(a.start, n.onset), end: Math.min(a.end, n.wake) }))
+        .filter((h) => h.end > h.start);
+      const awakeH = holes.reduce((s, h) => s + (h.end - h.start), 0) / HOUR;
+      const stages: Record<string, number> = { ...n.stages };
+      if (awakeH > 0) stages.awake = awakeH;
+
+      return {
+        userId,
+        onsetAt: new Date(n.onset).toISOString(),
+        wakeAt: new Date(n.wake).toISOString(),
+        inBedAt: n.bed ? new Date(n.bed.start).toISOString() : null,
+        inBedEnd: n.bed ? new Date(n.bed.end).toISOString() : null,
+        // Sinal invertido de propósito: o JS devolve minutos ATRÁS do UTC
+        // (Bruxelas no verão = −120); o esquema guarda minutos vs UTC (+120).
+        // É o fuso do aparelho NAQUELE instante — cobre o horário de verão, não
+        // cobre viagem: o provider não expõe o fuso da amostra do HealthKit.
+        tzOffset: -new Date(n.onset).getTimezoneOffset(),
+        wakeDay: localDateStr(new Date(n.wake)),
+        asleepH: n.hours,
+        awakenings: reportsAwake
+          ? holes.map((h) => ({
+              from: new Date(h.start).toISOString(),
+              to: new Date(h.end).toISOString(),
+            }))
+          : null,
+        stages: Object.keys(stages).length > 0 ? stages : null,
+      };
+    });
+}
+
+/**
+ * A forma antiga — uma `Sample` por noite, `start`/`end` no instante de acordar,
+ * `stages` com `inbed`/`onset` em horas — projetada dos períodos. É o que a aba
+ * Saúde e o diagnóstico consomem; o sync não passa mais por aqui.
+ *
+ * Projeção, não reimplementação: se os dois caminhos divergirem, o teste de
+ * paridade em `health-sleep.test.ts` acusa antes do backfill.
+ */
+export function aggregateSleepNights(samples: Sample[]): Sample[] {
+  return aggregateSleepPeriods(samples).map((p) => {
+    const stages: Record<string, number> = { ...(p.stages ?? {}) };
+    if (p.inBedAt && p.inBedEnd) {
+      const bedStart = new Date(p.inBedAt).getTime();
+      stages.inbed = (new Date(p.inBedEnd).getTime() - bedStart) / HOUR;
+      const latency = new Date(p.onsetAt).getTime() - bedStart;
+      if (latency >= MIN_ONSET_MS) stages.onset = latency / HOUR;
+    }
+    return { value: p.asleepH, start: p.wakeAt, end: p.wakeAt, label: 'ASLEEP', stages };
+  });
 }
 
 /**
@@ -382,6 +444,11 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
  *
  * Leitura do resultado: `totalMin > 0 && keptMin === 0` é o caso ruim — o dado
  * está no HealthKit e o app o joga fora.
+ *
+ * O caso ruim FOI o caso: o diagnóstico de 04/09/2026 achou 36 de 38 noites
+ * assim, e `aggregateSleepPeriods` passou a creditar pelo vão da noite. O
+ * `keptMin` mede o que o agregador credita HOJE — se uma fonte nova quebrar a
+ * regra de novo, é aqui que aparece.
  */
 export interface AwakeAudit {
   /** Amostras rotuladas `AWAKE` na noite. */
@@ -394,21 +461,13 @@ export interface AwakeAudit {
 
 export function auditAwake(samples: Sample[]): AwakeAudit {
   const awake = mergeIntervals(toIntervals(samples, (st) => st === 'AWAKE'));
-  // Mesma construção de `asleep` do agregador — inclusive o descarte do ASLEEP
-  // genérico que se sobrepõe aos estágios detalhados.
-  const detailed = mergeIntervals(toIntervals(samples, (st) => DETAILED_STAGES.has(st)));
-  const generic = mergeIntervals(toIntervals(samples, (st) => st === 'ASLEEP')).filter(
-    (iv) => overlapMs(iv, detailed) === 0,
-  );
-  const asleep = mergeIntervals([...detailed, ...generic]);
-
-  let keptMs = 0;
-  for (const iv of asleep) keptMs += overlapMs(iv, awake);
+  // O que o agregador credita, pelo agregador de verdade — não uma simulação.
+  const keptH = aggregateSleepPeriods(samples).reduce((s, p) => s + (p.stages?.awake ?? 0), 0);
 
   return {
     samples: samples.filter((s) => (s.label ?? '').toUpperCase() === 'AWAKE').length,
     totalMin: awake.reduce((a, iv) => a + (iv.end - iv.start), 0) / 60_000,
-    keptMin: keptMs / 60_000,
+    keptMin: keptH * 60,
   };
 }
 

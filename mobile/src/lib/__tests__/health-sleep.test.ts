@@ -267,3 +267,168 @@ describe('aggregateSleep → linha de health_daily', () => {
     expect(rows[0].extra).toBeNull();
   });
 });
+
+/* ───────────────────────── Períodos (sleep_periods) ───────────────────────── */
+
+import { aggregateSleepPeriods } from '../health-buckets';
+import { toSleepDailyRows, toSleepPeriodRows } from '../sleep-rows';
+
+/** Compara `extra` chave a chave com tolerância — horas em ponto flutuante. */
+function expectExtraClose(a: Record<string, unknown> | null | undefined, b: Record<string, unknown> | null | undefined) {
+  if (a == null || b == null) {
+    expect(a ?? null).toEqual(b ?? null);
+    return;
+  }
+  expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
+  for (const k of Object.keys(a)) expect(a[k] as number).toBeCloseTo(b[k] as number, 9);
+}
+
+describe('aggregateSleepPeriods — o período com instantes', () => {
+  it('guarda onset, wake e a janela na cama CRUA — mesmo quando ela abre junto com o sono', () => {
+    const [p] = aggregateSleepPeriods([
+      sample('INBED', '2026-05-21T23:09:30', '2026-05-22T07:12:00'), // Garmin: 30 s antes
+      sample('CORE', '2026-05-21T23:10:00', '2026-05-22T07:00:00'),
+    ], 'u1');
+    expect(p.onsetAt).toBe(new Date('2026-05-21T23:10:00').toISOString());
+    expect(p.wakeAt).toBe(new Date('2026-05-22T07:00:00').toISOString());
+    expect(p.inBedAt).toBe(new Date('2026-05-21T23:09:30').toISOString()); // cru, não NULL
+    expect(p.inBedEnd).toBe(new Date('2026-05-22T07:12:00').toISOString());
+    expect(p.wakeDay).toBe('2026-05-22');
+    expect(p.userId).toBe('u1');
+    // ...e a projeção antiga continua sem `onset`, porque 30 s não é latência.
+    const [n] = aggregateSleepNights([
+      sample('INBED', '2026-05-21T23:09:30', '2026-05-22T07:12:00'),
+      sample('CORE', '2026-05-21T23:10:00', '2026-05-22T07:00:00'),
+    ]);
+    expect(n.stages!.onset).toBeUndefined();
+    expect(n.stages!.inbed).toBeCloseTo(8.04, 2);
+  });
+
+  it('tzOffset é minutos vs UTC, com o sinal do esquema (Bruxelas no verão = +120)', () => {
+    const [p] = aggregateSleepPeriods([sample('CORE', '2026-07-01T23:00:00', '2026-07-02T06:00:00')]);
+    const esperado = -new Date('2026-07-01T23:00:00').getTimezoneOffset();
+    expect(p.tzOffset).toBe(esperado);
+  });
+
+  it('CORE · AWAKE · CORE encostados (Garmin): a vigília é creditada e o total dormido não muda', () => {
+    const raw = [
+      sample('CORE', '2026-05-22T00:00:00', '2026-05-22T02:00:00'),
+      sample('AWAKE', '2026-05-22T02:00:00', '2026-05-22T02:45:00'),
+      sample('CORE', '2026-05-22T02:45:00', '2026-05-22T07:00:00'),
+    ];
+    const [p] = aggregateSleepPeriods(raw);
+    expect(p.asleepH).toBeCloseTo(6.25); // 2 h + 4 h 15 — sem tocar no total
+    expect(p.stages!.awake).toBeCloseTo(0.75); // antes: undefined (36 de 38 noites)
+    expect(p.awakenings).toHaveLength(1);
+    expect(p.awakenings![0]).toEqual({
+      from: new Date('2026-05-22T02:00:00').toISOString(),
+      to: new Date('2026-05-22T02:45:00').toISOString(),
+    });
+  });
+
+  it('fonte em camadas (Apple): AWAKE dentro do envelope dá o mesmo crédito de antes', () => {
+    const [p] = aggregateSleepPeriods([
+      sample('ASLEEP', '2026-05-21T23:00:00', '2026-05-22T05:00:00'),
+      sample('AWAKE', '2026-05-22T02:00:00', '2026-05-22T02:30:00'),
+    ]);
+    expect(p.asleepH).toBeCloseTo(5.5);
+    expect(p.stages!.awake).toBeCloseTo(0.5);
+  });
+
+  it('AWAKE antes do onset é latência, não despertar: fica fora do vão', () => {
+    const [p] = aggregateSleepPeriods([
+      sample('INBED', '2026-05-21T22:00:00', '2026-05-22T07:00:00'),
+      sample('AWAKE', '2026-05-21T22:00:00', '2026-05-21T23:00:00'),
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T07:00:00'),
+    ]);
+    expect(p.stages!.awake).toBeUndefined();
+    expect(p.awakenings).toEqual([]); // a fonte reporta AWAKE; nesta noite não houve
+  });
+
+  it('null ≠ []: sem UMA amostra AWAKE na janela, a fonte não reporta', () => {
+    const [semReporte] = aggregateSleepPeriods([
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T07:00:00'),
+    ]);
+    expect(semReporte.awakenings).toBeNull();
+
+    // Duas noites; só a segunda tem AWAKE. A primeira recebe [] — a fonte reporta.
+    const duas = aggregateSleepPeriods([
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T07:00:00'),
+      sample('CORE', '2026-05-22T23:00:00', '2026-05-23T02:00:00'),
+      sample('AWAKE', '2026-05-23T02:00:00', '2026-05-23T02:10:00'),
+      sample('CORE', '2026-05-23T02:10:00', '2026-05-23T07:00:00'),
+    ]);
+    expect(duas[0].awakenings).toEqual([]);
+    expect(duas[1].awakenings).toHaveLength(1);
+  });
+
+  it('sem estágio nem cama, stages é null — não {}', () => {
+    const [p] = aggregateSleepPeriods([sample('ASLEEP', '2026-05-21T23:00:00', '2026-05-22T07:00:00')]);
+    // ASLEEP genérico vira `unspecified`, então há UM estágio. Sem nada mesmo:
+    expect(p.stages).toEqual({ unspecified: expect.any(Number) });
+  });
+});
+
+describe('paridade: a linha diária derivada dos períodos == a do caminho antigo', () => {
+  // Fixture com as formas reais: Apple em camadas com latência e despertar
+  // sobreposto; Garmin encostado com AWAKE no vão; noite só com genérico.
+  const raw: Sample[] = [
+    // Noite 1 — Apple
+    sample('INBED', '2026-05-21T21:30:00', '2026-05-22T07:10:00'),
+    sample('ASLEEP', '2026-05-21T23:00:00', '2026-05-22T07:00:00'),
+    sample('CORE', '2026-05-21T23:00:00', '2026-05-22T01:00:00'),
+    sample('DEEP', '2026-05-22T01:00:00', '2026-05-22T02:30:00'),
+    sample('AWAKE', '2026-05-22T02:30:00', '2026-05-22T02:50:00'),
+    sample('REM', '2026-05-22T02:50:00', '2026-05-22T07:00:00'),
+    // Noite 2 — Garmin
+    sample('INBED', '2026-05-22T23:39:30', '2026-05-23T06:52:00'),
+    sample('CORE', '2026-05-22T23:40:00', '2026-05-23T02:00:00'),
+    sample('AWAKE', '2026-05-23T02:00:00', '2026-05-23T02:27:00'),
+    sample('DEEP', '2026-05-23T02:27:00', '2026-05-23T04:00:00'),
+    sample('CORE', '2026-05-23T04:00:00', '2026-05-23T06:40:00'),
+    // Noite 3 — genérico
+    sample('ASLEEP', '2026-05-23T23:00:00', '2026-05-24T06:00:00'),
+  ];
+
+  it('value, count e extra batem noite a noite', () => {
+    const antigo = aggregateSleep(aggregateSleepNights(raw), 'u1');
+    const novo = toSleepDailyRows(aggregateSleepPeriods(raw, 'u1'), 'u1');
+
+    expect(novo.map((r) => r.day)).toEqual(antigo.map((r) => r.day));
+    for (let i = 0; i < antigo.length; i += 1) {
+      expect(novo[i].value).toBeCloseTo(antigo[i].value!, 9);
+      expect(novo[i].count).toBe(antigo[i].count);
+      expect(novo[i].metric).toBe('sono');
+      expectExtraClose(novo[i].extra, antigo[i].extra);
+    }
+  });
+
+  it('e o AWAKE do Garmin agora aparece no extra — no antigo E no novo, pela mesma regra', () => {
+    const antigo = aggregateSleep(aggregateSleepNights(raw), 'u1');
+    const garmin = antigo.find((r) => r.day === '2026-05-23')!;
+    expect(garmin.extra!.awake as number).toBeCloseTo(0.45); // 27 min
+    expect(garmin.extra!.onset).toBeUndefined(); // 30 s não é latência
+    expect(garmin.extra!.inbed as number).toBeCloseTo(7.208, 2); // janela crua preservada
+  });
+});
+
+describe('toSleepPeriodRows — a forma que a RPC lê', () => {
+  it('snake_case, e null passa como null (a RPC faz o nullif)', () => {
+    const [row] = toSleepPeriodRows(aggregateSleepPeriods([
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T07:00:00'),
+    ], 'u1'));
+    expect(row).toEqual({
+      user_id: 'u1',
+      onset_at: new Date('2026-05-21T23:00:00').toISOString(),
+      wake_at: new Date('2026-05-22T07:00:00').toISOString(),
+      in_bed_at: null,
+      in_bed_end: null,
+      tz_offset: -new Date('2026-05-21T23:00:00').getTimezoneOffset(),
+      wake_day: '2026-05-22',
+      asleep_h: 8,
+      awakenings: null,
+      stages: { core: 8 },
+      source: null,
+    });
+  });
+});

@@ -73,26 +73,31 @@
 
 ## Fase 3 — Sync
 
-- [ ] T3.1 — `mobile/src/lib/health-buckets.ts`: `aggregateSleepNights` para de descartar o
-  `onset` (hoje `:356-362` grava o instante de acordar em `start` **e** `end`). Passa a
-  devolver `onset`, `wake`, `inBedStart`/`inBedEnd`, vigílias individuais e `tz_offset`.
-- [ ] T3.2 — `in_bed_at`/`in_bed_end`: gravar a janela `INBED` **crua** sempre que existir
-  (a duração é o `extra.inbed` de hoje, 42/42 na era Garmin — não pode sumir). A decisão de
-  mostrar ou não o instante como "hora que deitou" é de `bedtimeMeasured()` no núcleo, já
-  escrita e testada; a tela **obedece**, nunca reimplementa. *(Regra anterior — gravar
-  `NULL` no caso degenerado — corrigida em 04/09: apagaria dado real para resolver problema
-  de exibição.)*
-- [ ] T3.2b — **Creditar o `AWAKE` que cai no vão da noite.** Hoje `stages.awake` só é setado
-  quando `overlapMs(iv, awake) > 0`, e fonte que escreve `CORE·AWAKE·CORE` encostados perde
-  tudo — 36 de 38 noites (T0.1b). Passar a creditar, **uma vez por noite**, a vigília dentro
-  de `[onset, wake]`. A correção é **aditiva**: `value` não muda (cada intervalo dormindo já
-  é sono puro) e a era Apple dá o mesmo resultado de hoje. Teste: o caso encostado do
-  `sleep-diagnostics.test.ts` tem de passar a creditar 60 min.
+- [x] T3.1 — `aggregateSleepPeriods(samples, userId): SleepPeriod[]` em `health-buckets.ts`
+  — a construção única. `aggregateSleepNights` virou **projeção** dela (mesma saída de
+  antes, para a aba Saúde e o diagnóstico). `onset`/`wake` como instantes, `wakeDay`,
+  `tzOffset` = `−getTimezoneOffset()` no instante do onset (cobre horário de verão; **não
+  cobre viagem** — o provider não expõe o fuso da amostra do HealthKit).
+- [x] T3.2 — Janela `INBED` **crua** em `inBedAt`/`inBedEnd`, sempre que existir. A projeção
+  antiga re-deriva `inbed`/`onset` em horas com o mesmo `MIN_ONSET_MS`.
+- [x] T3.2b — **`AWAKE` creditado uma vez por noite, pelo vão `[onset, wake]`.** O caso
+  encostado do `sleep-diagnostics.test.ts` passou de 0 para 60 min creditados; `value`
+  não muda (teste: 6,25 h antes e depois). `awakenings` individuais com `null` ≠ `[]`
+  decidido pela **janela inteira** (alguma amostra `AWAKE` → a fonte reporta → noite sem
+  despertar recebe `[]`). `AWAKE` antes do onset fica fora — é latência, não despertar.
+  `auditAwake` passou a medir o que o agregador credita **hoje**, pelo próprio agregador.
 - [ ] T3.2c — Investigar as **4 noites com `inbed − dormido` negativo** na era Garmin
   (mín −39 min): sono maior que a janela na cama não deveria existir.
-- [ ] T3.3 — `health-aggregate.ts`: monta linhas de período; a linha diária passa a vir de
-  `sleep/derive.ts`. As duas escritas no mesmo ciclo.
+- [x] T3.3 — `sleep-rows.ts` (novo): `toSleepPeriodRows` (snake_case para a RPC) e
+  `toSleepDailyRows` via `deriveSleepDays` do shared. `health-sync.ts` tira `sono` do loop
+  genérico e faz as **duas escritas no mesmo ciclo** (`pushSleepPeriods` + a diária);
+  cursor só avança se as duas subiram; fila offline ganhou `kind: 'sleep'`.
+  **Teste de paridade** em `health-sleep.test.ts`: a linha diária derivada dos períodos ==
+  a do caminho antigo, noite a noite (`value`, `count`, `extra`), numa fixture com as três
+  formas reais — Apple em camadas, Garmin encostado, genérico.
 - [ ] T3.4 — `AGG_VERSION` 5 → 6 em `services/health-sync.ts`. Dispara `BACKFILL_DAYS = 500`.
+  **Segurado de propósito** até o veredito do Foco de Sono (05/09) — um backfill só. O
+  comentário `v6 (PENDENTE)` já está no arquivo; é uma linha.
 - [ ] T3.5 — Rodar o backfill no aparelho e conferir: `sleep_periods` com ~500 linhas,
   `health_daily.sono` inalterado no `value` (a derivação tem que reproduzir o que já estava lá).
 

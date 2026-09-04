@@ -10,8 +10,10 @@
  * Espelha a infra de `activity-sync.ts`: lotes, fila offline e cursor local.
  */
 import { supabase } from '../lib/supabase';
-import { METRICS, type Range } from '../config/health-metrics';
+import { METRICS, sleepRawFetch, type Range } from '../config/health-metrics';
 import { toHealthDailyRows, localDay, type HealthDailyRow } from '../lib/health-aggregate';
+import { aggregateSleepPeriods } from '../lib/health-buckets';
+import { toSleepDailyRows, toSleepPeriodRows, type SleepPeriodRow } from '../lib/sleep-rows';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
 import { readHealthCursor, writeHealthCursor } from '../lib/health-sync-cursor';
 
@@ -51,6 +53,10 @@ const HEAVY_MAX_DAYS = 60;
  * hora"; o backfill reescreve essas linhas sem a chave falsa (o upsert troca o
  * `extra` inteiro, não faz merge).
  */
+// v6 (PENDENTE — bump só depois do veredito do Foco de Sono, para um backfill
+// só): sono passa a gravar `sleep_periods` (instantes) e a linha diária vira
+// derivada dos períodos; o AWAKE em segmentos encostados (Garmin) deixa de ser
+// descartado — 36 de 38 noites vinham zeradas. Ver docs/specs/sono/.
 const AGG_VERSION = 5;
 
 async function currentUserId(): Promise<string | null> {
@@ -88,12 +94,38 @@ async function pushHealthDaily(
   return { pushed, failed, error };
 }
 
-/** Reprocessa a fila: tenta os itens de saúde; preserva os de outro tipo. */
+/**
+ * Upsert de períodos de sono em lotes, na RPC irmã da diária. A identidade
+ * (user, onset ao minuto) é resolvida no servidor — ver a migration.
+ */
+async function pushSleepPeriods(
+  rows: SleepPeriodRow[]
+): Promise<{ pushed: number; failed: QueueItem[]; error?: string }> {
+  let pushed = 0;
+  const failed: QueueItem[] = [];
+  let error: string | undefined;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const chunk = rows.slice(i, i + BATCH);
+    const res = await supabase.rpc('sync_upsert_sleep_periods', { rows: chunk });
+    if (res.error) {
+      if (!error) error = res.error.message;
+      console.warn('[health-sync] upsert de sleep_periods falhou:', res.error.message);
+      failed.push(...chunk.map((row) => ({ kind: 'sleep' as const, row })));
+    } else {
+      pushed += chunk.length;
+    }
+  }
+  return { pushed, failed, error };
+}
+
+/** Reprocessa a fila: tenta os itens de saúde e de sono; preserva os de outro tipo. */
 async function flushItems(items: QueueItem[]): Promise<QueueItem[]> {
   const health = items.filter((i): i is Extract<QueueItem, { kind: 'health' }> => i.kind === 'health');
-  const others = items.filter((i) => i.kind !== 'health');
+  const sleep = items.filter((i): i is Extract<QueueItem, { kind: 'sleep' }> => i.kind === 'sleep');
+  const others = items.filter((i) => i.kind !== 'health' && i.kind !== 'sleep');
   const res = await pushHealthDaily(health.map((i) => i.row));
-  return [...others, ...res.failed];
+  const resSleep = await pushSleepPeriods(sleep.map((i) => i.row));
+  return [...others, ...res.failed, ...resSleep.failed];
 }
 
 /**
@@ -119,20 +151,36 @@ export async function syncHealth(daysBack?: number): Promise<HealthSyncResult> {
     // limitada no backfill para não puxar amostras cruas de um ano inteiro.
     const rows: HealthDailyRow[] = [];
     for (const metric of METRICS) {
+      if (metric.id === 'sono') continue; // caminho próprio, abaixo
       const window = HEAVY_METRICS.has(metric.id) ? Math.min(baseWindow, HEAVY_MAX_DAYS) : baseWindow;
       const samples = await metric.fetch(rangeForDays(window), 'month');
       rows.push(...toHealthDailyRows({ id: metric.id, kind: metric.kind }, samples, userId));
     }
 
+    // Sono: uma fonte, duas formas. Os estágios crus viram PERÍODOS (instantes,
+    // vigília individual, janela na cama) e a linha diária é DERIVADA deles —
+    // nunca calculada em paralelo, senão as duas tabelas discordam sobre a
+    // mesma noite. As duas escritas saem do mesmo ciclo.
+    const periods = aggregateSleepPeriods(await sleepRawFetch(rangeForDays(baseWindow)), userId);
+    rows.push(...toSleepDailyRows(periods, userId));
+    const sleepRows = toSleepPeriodRows(periods);
+
     const { pushed, failed, error } = await pushHealthDaily(rows);
-    if (failed.length) await enqueue(failed);
+    const sleepRes = await pushSleepPeriods(sleepRows);
+    const allFailed = [...failed, ...sleepRes.failed];
+    if (allFailed.length) await enqueue(allFailed);
 
     // Só avança o cursor (e marca a versão) se tudo subiu; senão re-tenta no próximo ciclo.
-    if (failed.length === 0) {
+    if (allFailed.length === 0) {
       await writeHealthCursor(userId, { lastDay: localDay(new Date().toISOString()), version: AGG_VERSION });
     }
 
-    return { pushed, queued: failed.length, ok: true, error };
+    return {
+      pushed: pushed + sleepRes.pushed,
+      queued: allFailed.length,
+      ok: true,
+      error: error ?? sleepRes.error,
+    };
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Erro no sync.';
     console.warn('[health-sync] syncHealth falhou:', message);

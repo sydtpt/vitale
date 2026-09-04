@@ -138,8 +138,10 @@ describe('auditoria de despertares', () => {
     expect(d.awakeDescartado).toBe(0);
   });
 
-  it('fonte em segmentos encostados: o AWAKE existe e a agregação credita ZERO', () => {
-    // CORE · AWAKE · CORE, sem nada cobrindo o buraco. A hipótese do Garmin.
+  it('fonte em segmentos encostados (Garmin): o AWAKE no vão da noite é creditado', () => {
+    // CORE · AWAKE · CORE, sem nada cobrindo o buraco. Antes de 04/09/2026 isto
+    // creditava ZERO — 36 de 38 noites reais — porque a regra era de sobreposição
+    // com cada intervalo dormindo. Agora é o vão de [onset, wake].
     const d = diagnoseSleepNights([
       s('INBED', 11, 23, 7),
       trecho('CORE', 11, 0, 2),
@@ -147,12 +149,31 @@ describe('auditoria de despertares', () => {
       trecho('CORE', 11, 3, 7),
     ]);
     const n = d.nights[0];
-    expect(n.verdict).toBe('ok');           // a noite passa — o defeito é silencioso
+    expect(n.verdict).toBe('ok');
     expect(n.awake.samples).toBe(1);
     expect(n.awake.totalMin).toBeCloseTo(60, 0);
-    expect(n.awake.keptMin).toBe(0);        // ...e a vigília some
+    expect(n.awake.keptMin).toBeCloseTo(60, 0); // a vigília chega ao banco
     expect(d.awakeComAmostra).toBe(1);
-    expect(d.awakeDescartado).toBe(1);
+    expect(d.awakeDescartado).toBe(0);
+  });
+
+  it('AWAKE antes de apagar não é despertar — é latência, e não entra no crédito', () => {
+    // O diagnóstico agrupa pelo dia em que a amostra TERMINA (a regra do
+    // agregador para atribuir a noite), então o AWAKE pré-sono precisa cruzar a
+    // meia-noite para cair na mesma noite do CORE — 23h→00h, e o sono às 00h.
+    const d = diagnoseSleepNights([
+      s('INBED', 13, 22, 7),
+      trecho('AWAKE', 12, 23, 24), // rolando na cama, antes do primeiro sono
+      trecho('CORE', 13, 0, 7),
+    ]);
+    expect(d.nights).toHaveLength(1);
+    const n = d.nights[0];
+    expect(n.awake.totalMin).toBeCloseTo(60, 0);
+    expect(n.awake.keptMin).toBe(0); // fora do vão [onset, wake]
+    expect(d.awakeDescartado).toBe(1); // o audit acusa: há AWAKE na noite e crédito zero…
+    // …e está certo em acusar? Não: este AWAKE é latência, não despertar. O
+    // audit é um alarme grosso — "existe AWAKE e nada foi creditado" — e quem
+    // lê a tela vê o horário e decide. Aceito como limite conhecido do audit.
   });
 
   it('sem amostra AWAKE, a auditoria fica zerada — é ausência na fonte, não perda', () => {
