@@ -109,11 +109,12 @@ Consumidores que **não podem quebrar**: `health-readiness.ts` (`seriesFor('sono
 
 Medido em produção, 04/09/2026:
 
-| Campo | Era Apple Watch (270 noites) | Era Garmin (38 noites) |
+| Campo | Era Apple Watch (270 noites) | Era Garmin (42 noites) |
 |---|---|---|
-| `in_bed_at` **útil** | 219/270 (81%) | **1/38** |
-| `stages` | 241/270 (89%) | 38/38 |
-| `awakenings` | 233/270 (86%) | **0/38** |
+| `in_bed_at` **útil** | 219/270 (81%) | **1/42** |
+| `stages` | 241/270 (89%) | 42/42 |
+| `awakenings` **na fonte** | 233/270 (86%) | **38 de 38 medidas** |
+| `awakenings` **que chegam ao banco** | 233/270 | **2 de 38** — ver §4.2 |
 
 O Garmin escreve `INBED`, mas abrindo a janela no instante em que o sono começa: em 37 de 38
 noites a latência fica abaixo de `MIN_ONSET_MS = 60_000`. A folga entre cama e sono é de
@@ -125,9 +126,43 @@ e a heurística de gravação deve ser explícita — `in_bed_at` só é preench
 Gravar o valor degenerado faria a tela mentir dizendo "você deitou 00:08" quando ela quis
 dizer "não sei".
 
-**Consequência para CAP-2 e CAP-5:** sem `awakenings` na fonte atual, os buracos das barras
-não aparecem nas noites recentes. O gráfico continua correto — barra contínua é a verdade
-disponível —, mas o recurso só brilha no histórico Apple e se a fonte voltar a reportar.
+## 4.2 O `AWAKE` descartado — pré-requisito de CAP-5
+
+Medido no aparelho em 04/09/2026, últimos 60 dias: **38 noites têm amostra `AWAKE` no
+HealthKit e 36 delas são creditadas como zero.**
+
+`aggregateSleepNights` só conta vigília que se **sobrepõe** a um intervalo dormindo:
+
+```ts
+const awakeMs = overlapMs(iv, awake);   // iv ∈ asleep
+...
+if (awakeMs > 0) cur.stages.awake = ...
+```
+
+Isso é correto para fonte que escreve **camadas que se cobrem** — o Apple Watch escreve um
+envelope junto dos estágios, e o `AWAKE` cai dentro dele. É uma armadilha para fonte que
+escreve **segmentos encostados**, `CORE·AWAKE·CORE`: o `AWAKE` preenche o vão *entre* os
+intervalos de sono em vez de cair *dentro* deles, a sobreposição dá zero, e a vigília some
+enquanto a noite passa como registrada com sucesso.
+
+**A correção é aditiva e não mexe no `value`.** Cada intervalo dormindo já é sono puro, então
+`net` por intervalo continua certo — o que falta é creditar, uma vez por noite, o `AWAKE`
+que cai no vão de `[onset, wake]`. Para a era Apple o resultado é idêntico ao de hoje (o
+`AWAKE` sobreposto também está dentro do vão); para a era Garmin, a vigília deixa de sumir.
+
+Prova aritmética independente, sem depender do aparelho: no Garmin a janela `INBED` começa
+junto com o sono, então `inbed − dormido` **é** a vigília. Cinco noites conferidas ao minuto
+contra o HealthKit (04/09: 23 · 03/09: 27 · 02/09: 1 · 01/09: 33 · 31/08: 12). Na era Apple
+os dois **não** batem — diferença média de 67 min —, porque lá o `INBED` começa antes do sono
+e a folga inclui a latência.
+
+O que o backfill recupera na era Garmin: 42 noites, vigília mediana **12 min**, média 16,1,
+máximo **1h43**, 9 noites acima de meia hora. Quatro noites têm folga **negativa** — anomalia
+a investigar quando o agregador for tocado.
+
+**Consequência para CAP-2 e CAP-5:** com a correção, os buracos das barras e o relógio de
+vigília nascem vivos no dado atual. Sem ela, o gráfico continua correto — barra contínua é a
+verdade disponível — mas a feature só brilharia no histórico Apple.
 
 ## 4.1 `awakenings` — o formato, e por que não são linhas
 

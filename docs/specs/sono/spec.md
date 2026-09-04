@@ -108,8 +108,9 @@ dano, não é o que falta ao Orbe.**
        ver se a vigília está crescendo, **sem meta e sem faixa de referência**.
   - **success (negativo):** O app **não** deriva score, índice de fragmentação, nem qualquer
     número composto a partir dos despertares. Ver o quadro em §6.
-  - **dependência dura:** exige `awakenings` individuais da fonte. **A fonte atual não
-    reporta nenhum** — ver §6.
+  - **dependência dura:** exige `awakenings` individuais. A fonte atual **reporta** —
+    medido em 04/09/2026 — mas a agregação descarta 36 de 38 noites; a correção é
+    pré-requisito desta capability e mora na Fase 3. Ver §6.
 
 - **CAP-6** — Substituir `Saúde › Sono`
   - **intent:** Existe **uma** superfície de leitura de sono no app.
@@ -142,8 +143,8 @@ dano, não é o que falta ao Orbe.**
 
 ## 5. Recorte do V1
 
-**Entra:** CAP-1 a CAP-6 — com a ressalva de que as leituras 2 e 3 de CAP-5 nascem vazias na
-fonte atual (§6) e vivas em todo o histórico anterior a 18/07/2026.
+**Entra:** CAP-1 a CAP-6. CAP-5 depende da correção do agregador na Fase 3 (§6) — sem ela
+nasce vazia na fonte atual; com ela, viva em todo o histórico.
 
 **Fica para depois:**
 
@@ -175,13 +176,15 @@ Consulta só-leitura em produção, 312 noites de 24/03/2025 a 04/09/2026.
 
 | Fato | Valor |
 |---|---|
-| Noites com vigília registrada, era Apple | **233/270** |
+| Noites com vigília **gravada no banco**, era Apple | **233/270** |
 | Tempo acordado médio nessas noites | **60,2 min** · máximo **3h19** |
 | Noites com mais de 1h acordado | **101 de 233 (43%)** |
-| Noites com vigília registrada, **era Garmin** | **0/42** |
+| Noites com vigília **gravada no banco**, era Garmin | **0/42** |
+| Noites em que o **HealthKit tem** `AWAKE` (últimos 60 dias) | **38** |
+| Dessas, quantas a agregação **descarta** | **36** |
 | Noites que são **um único período** | 258/270 na era Apple |
 
-Duas leituras saem daí, e as duas são estruturais:
+Três leituras saem daí, e as três são estruturais:
 
 **A vigília mora *dentro* do período, não entre períodos.** 258 de 270 noites da era Apple
 são um único bloco de sono contínuo — e ainda assim 43% delas têm mais de uma hora acordado.
@@ -189,15 +192,30 @@ Interrupção **não** é fragmentação em vários períodos: é buraco dentro 
 `awakenings` é um `jsonb` de intervalos dentro da linha, e não linhas separadas em
 `sleep_periods`.
 
-**A fonte atual não reporta interrupção nenhuma.** Zero em 42 noites, incluindo as cinco
-sincronizadas em 04/09. O Garmin entrega o bloco de sono e os estágios, não a vigília. CAP-5
-nasce, portanto, como uma feature que **lê o passado**: 233 noites ricas até 17/07 e nada
-depois. Isso não é motivo para não construir — o histórico é real e é dele —, mas precisa
-estar escrito, senão a tela parece quebrada.
+**O zero da era Garmin é bug nosso, não silêncio da fonte.** Medido no aparelho em
+04/09/2026: das 38 noites com amostra `AWAKE` no HealthKit, **36 são creditadas como zero**.
+`aggregateSleepNights` só conta vigília que se **sobrepõe** a um intervalo dormindo
+(`overlapMs(iv, awake)`), e o Garmin escreve segmentos **encostados** — `CORE·AWAKE·CORE`.
+O `AWAKE` preenche o buraco *entre* os intervalos em vez de cair *dentro* deles, a
+sobreposição dá zero, e a noite passa como registrada com sucesso enquanto a vigília some.
 
-> **Pendência barata:** confirmar se o Garmin Connect simplesmente não escreve `AWAKE` no
-> HealthKit, ou se escreve e algo no caminho descarta.
-> `Configurações › Dados › Noites de sono` lê as amostras cruas e responde.
+**Consequência: CAP-5 nasce viva, não histórica.** As interrupções do Garmin existem, e a
+correção é aditiva — o `value` da linha diária não muda, porque cada intervalo dormindo já
+é sono puro; o que falta é creditar o `AWAKE` que cai no vão da noite. A correção entra na
+Fase 3, junto do bump de `AGG_VERSION` que o backfill já exige, para não gastar duas
+releituras de 500 dias.
+
+> **Correção registrada.** Uma versão anterior desta seção afirmava que "a fonte atual não
+> reporta interrupção nenhuma" e que a folga entre cama e sono no Garmin ficava "quase toda
+> depois de acordar". As duas estavam erradas: a folga **é** a vigília. Cinco noites
+> conferidas ao minuto (04/09: 23 · 03/09: 27 · 02/09: 1 · 01/09: 33 · 31/08: 12), com o
+> `AWAKE` do HealthKit batendo exatamente com `inbed − dormido` do banco. Na era Apple os
+> dois **não** batem (diferença média de 67 min), porque lá o `INBED` começa antes do sono e
+> a folga inclui a latência.
+>
+> **Recuperável pelo backfill, sem depender do aparelho:** 42 noites da era Garmin, vigília
+> mediana de **12 min**, média 16,1, máximo **1h43**, 9 noites acima de meia hora. *(4 noites
+> têm folga negativa — anomalia de dado a investigar na Fase 3.)*
 
 ### O achado que justifica o princípio da §2
 

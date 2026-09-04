@@ -16,10 +16,11 @@
   (`health-buckets.ts`) compara a vigília que **existe** nas amostras com a que a agregação
   **credita**, usando a construção idêntica à do agregador, e a seção "Despertares" em
   `Configurações › Dados` mostra as duas.
-- [ ] T0.1b — Rodar no aparelho (exige build: `pnpm mobile:device`) e ler o veredito:
-  · `noites com AWAKE = 0` → a fonte não reporta; CAP-5 é histórica.
-  · `descartados > 0` → **o dado existe e nós o jogamos fora**; é perda nossa, corrigível,
-  e a CAP-5 nasce viva no dado de hoje.
+- [x] T0.1b — **Rodado no iPhone em 04/09/2026. Veredito: 38 noites com `AWAKE`, 36
+  descartadas.** O dado existe e nós o jogamos fora — perda nossa, corrigível, e a **CAP-5
+  nasce viva** no dado de hoje. Confirmado por aritmética independente: no Garmin
+  `inbed − dormido` bate ao minuto com o `AWAKE` do HealthKit em 5 de 5 noites conferidas.
+  Gera T3.2b.
 - [ ] T0.2 — Verificar o resultado do **Foco de Sono agendado** (ligado em 04/09): se o
   iPhone passou a escrever `INBED` começando antes do sono, `extra.onset` volta a aparecer
   nas noites novas. **Decide se CAP-1 tem dois ou três relógios.** Consulta:
@@ -71,6 +72,14 @@
 - [ ] T3.2 — Regra de `in_bed_at`: só grava quando `onset − inBedStart ≥ MIN_ONSET_MS`
   (60 s). Abaixo disso, `null`. Sem isso a tela diria "você deitou 00:08" em 41 das 42
   noites da era Garmin, quando a verdade é "não sei". **Teste com um caso degenerado.**
+- [ ] T3.2b — **Creditar o `AWAKE` que cai no vão da noite.** Hoje `stages.awake` só é setado
+  quando `overlapMs(iv, awake) > 0`, e fonte que escreve `CORE·AWAKE·CORE` encostados perde
+  tudo — 36 de 38 noites (T0.1b). Passar a creditar, **uma vez por noite**, a vigília dentro
+  de `[onset, wake]`. A correção é **aditiva**: `value` não muda (cada intervalo dormindo já
+  é sono puro) e a era Apple dá o mesmo resultado de hoje. Teste: o caso encostado do
+  `sleep-diagnostics.test.ts` tem de passar a creditar 60 min.
+- [ ] T3.2c — Investigar as **4 noites com `inbed − dormido` negativo** na era Garmin
+  (mín −39 min): sono maior que a janela na cama não deveria existir.
 - [ ] T3.3 — `health-aggregate.ts`: monta linhas de período; a linha diária passa a vir de
   `sleep/derive.ts`. As duas escritas no mesmo ciclo.
 - [ ] T3.4 — `AGG_VERSION` 5 → 6 em `services/health-sync.ts`. Dispara `BACKFILL_DAYS = 500`.
