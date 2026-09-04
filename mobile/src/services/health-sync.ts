@@ -52,12 +52,15 @@ const HEAVY_MAX_DAYS = 60;
  * `INBED` 1 s antes do sono, gerando `onset` ≈ 0 que se disfarçava de "apagou na
  * hora"; o backfill reescreve essas linhas sem a chave falsa (o upsert troca o
  * `extra` inteiro, não faz merge).
+ * v6 = sono passa a gravar `sleep_periods` (instantes, vigílias individuais,
+ * janela na cama crua) e a linha diária vira DERIVADA dos períodos — uma fonte,
+ * duas formas. Três correções entram no mesmo backfill: o AWAKE em segmentos
+ * encostados (Garmin) deixa de ser descartado (36 de 38 noites vinham zeradas);
+ * a janela na cama vira a união das INBED, nunca menor que o sono (14 noites do
+ * histórico tinham eficiência > 100%); e `value` fica idêntico ao de antes,
+ * por teste de paridade. Ver docs/specs/sono/.
  */
-// v6 (PENDENTE — bump só depois do veredito do Foco de Sono, para um backfill
-// só): sono passa a gravar `sleep_periods` (instantes) e a linha diária vira
-// derivada dos períodos; o AWAKE em segmentos encostados (Garmin) deixa de ser
-// descartado — 36 de 38 noites vinham zeradas. Ver docs/specs/sono/.
-const AGG_VERSION = 5;
+const AGG_VERSION = 6;
 
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
