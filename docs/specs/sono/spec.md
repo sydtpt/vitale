@@ -132,10 +132,18 @@ dano, não é o que falta ao Orbe.**
     destaque** — o usuário quer saber *quando* tem acordado e *por quanto tempo*.
   - **Opção 2 — Estágios:** cada barra mostra os **períodos de cada estágio**, nas horas em
     que ocorreram — posição real, não proporção.
-  - **Seletor:** última noite · 7d · 4s · 12 meses · ano · sempre. Em *última noite*, *7d* e
-    *4s* **todos os dias aparecem**. Para *12 meses*, *ano* e *sempre* a forma está **em
-    aberto** — decidir com dados reais antes de codar (regra da casa: proposta antes de
-    mudança visual).
+  - **Seletor (decidido em 05/09/2026):** última noite · 7d · 4s · 12 meses · ano. **Sem
+    "sempre"** — retirado pelo usuário. **Todo período é navegável:** ◀ ▶ recua ou avança *um
+    período do próprio tamanho* (7d anda sete dias, 4s anda 28, 12m anda doze meses, ano anda
+    um ano, última anda uma noite), e o ◀ só acende onde há noite. Navegar substitui acumular.
+    Em *última noite*, *7d* e *4s* **todos os dias aparecem**.
+    Em *12 meses* e *ano* a forma é **coluna por semana**: mediana de apagar e acordar como
+    barra, o miolo p25–p75 como faixa — a regularidade continua sendo forma. A **troca de
+    relógio (18/07/2026) fica marcada** no gráfico, e nas contagens de despertar as eras saem
+    separadas (Apple contava 11,8 por noite; Garmin, 2,6–3,4 — não são comparáveis).
+  - **Médias do topo (decidido):** *dormindo* sempre; o segundo número é *na cama* quando ≥ 80%
+    das noites do período medem a cama (`bedtimeMeasured`), senão vira *acordado*. Nas
+    curtas, hoje, a cama é medida em 0% — o topo diz "acordado".
   - **success:** trocar o período recalcula as médias e redesenha o gráfico; trocar a opção
     mantém o período; as duas opções distinguem "não sei" de "não houve" (§6).
   - **dependência dura (Opção 2):** intervalos de estágio **não são gravados** — só horas por

@@ -197,20 +197,30 @@
 > visual: a tela de Sono do app Saúde da Apple (M · Amounts). **Quem pegar o repo depois
 > de 05/09 e vir a Fase 4 conferida no aparelho: é hora de levantar esta.**
 
-- [ ] T7.0 — Decidir, com dados reais e mockup antes de código. **(a) decidida pelo usuário em
+- [x] T7.0 — Decidido em 05/09/2026, com dados reais e mockup antes de código. **(a) decidida pelo usuário em
   05/09:** nem absorve nem convive — a peça ② fica no `/sono` e **tocar nela abre
-  `/sono/tempos`**; Despertares (③) abre **`/sono/despertares`**. (b) a forma dos períodos
-  longos — mockup propõe **semanas** (mediana + p25–p75) para 12m/ano e **meses** para sempre,
-  com a troca de relógio (18/07) marcada; (c) a média "na cama" — mockup propõe mostrar só
-  quando ≥ 80% das noites medem a cama (em última/7d/4s é **0%** no Garmin), senão o segundo
-  número vira "acordado"; **(d) nova:** "sempre" mistura instrumentos — Apple 11,8
-  despertares/noite vs Garmin 2,6–3,4; contagem não é comparável entre eras. Paleta do
+  `/sono/tempos`**; Despertares (③) abre **`/sono/despertares`**. **(b) decidida:** semanas
+  (mediana + p25–p75) para 12m e ano; **"sempre" retirado** pelo usuário em 05/09, e **todo
+  período navegável** — ◀ ▶ anda um período do próprio tamanho, só onde há noite; troca de
+  relógio (18/07) marcada. **(c) decidida:** média
+  "na cama" só quando ≥ 80% das noites medem a cama (em última/7d/4s é **0%** no Garmin),
+  senão o segundo número vira "acordado". **(d) decidida:** contagens de despertar saem por
+  era quando o período cruza a troca — Apple 11,8/noite vs Garmin 2,6–3,4 não se somam.
+  Ordem: **Opção 1 (Tempos) + Despertares primeiro**, com o dado de hoje; Estágios depois. Paleta do
   destaque validada: azul + amarelo, CVD ΔE 27; amarelo no claro pede contorno
   (`roleColors('yellow').text`).
-- [ ] T7.1 — **Opção 1 — Tempos.** Roda com o dado de hoje. Médias no topo (na cama ·
-  dormindo) para o período; barra = janela na cama, **sem muito destaque**; despertares
-  **em destaque**, com hora e duração. Seletor última noite · 7d · 4s · 12m · ano · sempre
-  reusando o componente de período do Histórico; em última noite/7d/4s, todos os dias.
+- [x] T7.1 — **Opção 1 — Tempos + subview Despertares**, escritas em 05/09/2026. Núcleo no
+  shared: `ranges.ts` (5 períodos, `offset` de navegação, `hasNights`, `rangeLabel`),
+  `summary.ts` (regra dos 80%), `buckets.ts` (semanas: mediana + p25–p75, `quantile` =
+  `percentile_cont`), `facts.ts` (`nightFacts`, `bucketFacts` por era, `awakeFacts`),
+  `awakenings.ts` (+`awakeningsByHour` contando NOITES, `awakeningDurations`,
+  `awakeByWeekday`) — 19 testes. Mobile: `PeriodNav` (o `Segmented` do Histórico + ◀ ▶),
+  `PeriodAverages`, `FactsList`, `SleepBucketsChart`, `SleepTimingChart` com
+  `emphasis="awake"` (cama sem destaque, despertar amarelo com contorno `roleColors('yellow').text`),
+  `app/sono/tempos.tsx`, `app/sono/despertares.tsx`, cards ② e ③ do `/sono` viraram links,
+  marcador da troca de relógio em `config/sono-markers.ts` (dado do usuário, não lógica).
+  Store carrega o histórico inteiro. Validação: shared 569 asserts · mobile tsc 0 · jest 621 ·
+  web build 0. **Conferência no aparelho pendente.**
 - [ ] T7.2 — **Opção 2 — Estágios.** Pré-requisito: gravar intervalos de estágio
   (data-model §7): coluna `stage_segments`, agregador emitindo o que já fatia, `AGG_VERSION`,
   backfill. Depois a barra por estágio na posição real.

@@ -185,9 +185,17 @@ export default function SonoScreen() {
           )}
         </Pressable>
 
-        {/* ② O timing chart — a regularidade aparece na forma, não num índice. */}
-        <View style={styles.card} onLayout={onChartLayout}>
-          <Text style={styles.cardTitle}>Últimas {TIMING_NIGHTS} noites</Text>
+        {/* ② O timing chart — a regularidade aparece na forma, não num índice.
+            Tocar abre /sono/tempos: períodos navegáveis, despertares em destaque, fatos. */}
+        <Pressable
+          onPress={() => router.push('/sono/tempos')}
+          onLayout={onChartLayout}
+          style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+        >
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>Últimas {TIMING_NIGHTS} noites</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.ink4} />
+          </View>
           <SleepTimingChart
             days={timingDays}
             periods={periods}
@@ -199,11 +207,15 @@ export default function SonoScreen() {
             <LegendItem swatch={{ borderWidth: 1, borderStyle: 'dashed', borderColor: mod.accent }} label="na cama" styles={styles} />
             <LegendItem swatch={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line }} label="sem dado" styles={styles} />
           </View>
-        </View>
+        </Pressable>
 
-        {/* ③ Despertares — quando a noite quebra, não quantas vezes na média. */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Despertares</Text>
+        {/* ③ Despertares — quando a noite quebra, não quantas vezes na média.
+            Tocar abre /sono/despertares: quando, quanto, por dia da semana. */}
+        <Pressable onPress={() => router.push('/sono/despertares')} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>Despertares</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.ink4} />
+          </View>
           <Text style={styles.cardSub}>últimas {recent.length} noites, sobrepostas na hora do dia</Text>
           <AwakeningsClock periods={recent} width={Math.max(0, chartW - spacing.lg * 2)} accent={mod.accent} />
           <View style={styles.seriesRow}>
@@ -226,7 +238,7 @@ export default function SonoScreen() {
             ))}
           </View>
           <Text style={styles.cardNote}>Minutos acordado por noite. Sem meta — a série existe para você ver, não para bater um alvo.</Text>
-        </View>
+        </Pressable>
 
         {/* ④ Nota × medição — o par que só o Orbe tem. Sem seta, sem "melhorou". */}
         {groups.length > 0 && (
@@ -341,6 +353,7 @@ const createStyles = () =>
     card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.line, ...shadows.card },
     listCard: { backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden', ...shadows.card },
     eyebrow: { fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.ink3, fontFamily: fonts.sansSemiBold, marginBottom: spacing.md },
+    cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     cardTitle: { fontSize: 15, fontFamily: fonts.sansBold, color: colors.ink, marginBottom: 2 },
     cardSub: { fontSize: 12, color: colors.ink3, fontFamily: fonts.sans, marginBottom: spacing.sm },
     cardNote: { fontSize: 12, lineHeight: 17, color: colors.ink3, fontFamily: fonts.sans, marginTop: spacing.sm },

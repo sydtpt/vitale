@@ -18,6 +18,18 @@ interface Props {
   height?: number;
   /** Cor do módulo (o azul da água, por decisão — ADR 0031). */
   accent: string;
+  /**
+   * `sleep` (padrão, a visão geral): o sono é a barra e a vigília fura.
+   * `awake` (a subview Tempos): a cama é o fundo sem destaque, o sono fica mais
+   * leve e cada despertar vira um traço **em destaque** — é o que o usuário pediu
+   * ver: quando e por quanto tempo acordou.
+   */
+  emphasis?: 'sleep' | 'awake';
+  /** Cor do traço de despertar e do seu contorno (amarelo 1,7:1 no claro pede contorno). */
+  awakeColor?: string;
+  awakeOutline?: string;
+  /** Fundo da janela na cama em `emphasis='awake'`. */
+  tint?: string;
 }
 
 const PAD_TOP = 8;
@@ -37,8 +49,11 @@ const PAD_LEFT = 30;
  * Toda posição vem do núcleo (`toTimingBar`/`axisRange`, com o `tzOffset` de cada
  * período); aqui só se desenha.
  */
-export function SleepTimingChart({ days, periods, width, height = 220, accent }: Props) {
+export function SleepTimingChart({
+  days, periods, width, height = 220, accent, emphasis = 'sleep', awakeColor, awakeOutline, tint,
+}: Props) {
   if (days.length === 0 || width <= 0) return null;
+  const awakeMode = emphasis === 'awake';
 
   const byDay = new Map<string, TimingBar>();
   for (const p of periods) byDay.set(p.wakeDay, toTimingBar(p));
@@ -96,7 +111,16 @@ export function SleepTimingChart({ days, periods, width, height = 220, accent }:
 
         return (
           <React.Fragment key={day}>
-            {bar.bed && (
+            {bar.bed && (awakeMode ? (
+              <Rect
+                x={x}
+                y={y(bar.bed.from)}
+                width={barW}
+                height={Math.max(2, y(bar.bed.to) - y(bar.bed.from))}
+                rx={3}
+                fill={tint ?? colors.line}
+              />
+            ) : (
               <Rect
                 x={x - 2}
                 y={y(bar.bed.from)}
@@ -109,7 +133,7 @@ export function SleepTimingChart({ days, periods, width, height = 220, accent }:
                 strokeDasharray="3 2"
                 opacity={0.55}
               />
-            )}
+            ))}
             <Rect
               x={x}
               y={y(bar.onset)}
@@ -117,21 +141,28 @@ export function SleepTimingChart({ days, periods, width, height = 220, accent }:
               height={Math.max(2, y(bar.wake) - y(bar.onset))}
               rx={3}
               fill={accent}
+              opacity={awakeMode ? 0.7 : 1}
             />
-            {/* Os buracos: a vigília fura a barra, não a encurta. */}
+            {/* Os buracos: a vigília fura a barra, não a encurta — e em `awake`
+                ela vira o destaque, não o vazio. */}
             {(bar.holes ?? []).map((h, k) => (
               <Rect
                 key={k}
-                x={x}
+                x={awakeMode ? x - 1 : x}
                 y={y(h.from)}
-                width={barW}
-                height={Math.max(1.5, y(h.to) - y(h.from))}
-                fill={colors.surface}
+                width={awakeMode ? barW + 2 : barW}
+                height={Math.max(awakeMode ? 2.5 : 1.5, y(h.to) - y(h.from))}
+                rx={awakeMode ? 1.5 : 0}
+                fill={awakeMode ? awakeColor ?? accent : colors.surface}
+                stroke={awakeMode ? awakeOutline : undefined}
+                strokeWidth={awakeMode ? 1 : 0}
               />
             ))}
-            <SvgText x={x + barW / 2} y={height - 4} fontSize={9} fill={colors.ink3} textAnchor="middle">
-              {label}
-            </SvgText>
+            {(days.length <= 14 || i % 2 === 0) && (
+              <SvgText x={x + barW / 2} y={height - 4} fontSize={9} fill={colors.ink3} textAnchor="middle">
+                {label}
+              </SvgText>
+            )}
           </React.Fragment>
         );
       })}

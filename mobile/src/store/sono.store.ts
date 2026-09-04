@@ -47,10 +47,12 @@ export const useSonoStore = create<SonoState>((set, get) => ({
     if (!userId) return;
     set({ loading: true, error: undefined });
     try {
-      const since = sinceDay(SONO_WINDOW_DAYS);
+      // Períodos: o histórico inteiro — as subviews navegam por ano e por
+      // 12 meses, e a tabela tem no máximo o backfill de 500 dias (~1 linha/dia).
+      // Notas: só a janela de análise; o par nota × medição do /sono usa 90 dias.
       const [periods, ratings] = await Promise.all([
-        fetchSleepPeriodsSince(supabase, userId, since),
-        fetchDailyRatingsSince(supabase, userId, since),
+        fetchSleepPeriodsSince(supabase, userId, '2000-01-01'),
+        fetchDailyRatingsSince(supabase, userId, sinceDay(SONO_WINDOW_DAYS)),
       ]);
       const sleepRatings: Record<string, number> = {};
       for (const r of ratings) if (r.sleepQuality != null) sleepRatings[r.day] = r.sleepQuality;
