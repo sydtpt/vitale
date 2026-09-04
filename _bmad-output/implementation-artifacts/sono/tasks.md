@@ -223,9 +223,15 @@
   marcador da troca de relógio em `config/sono-markers.ts` (dado do usuário, não lógica).
   Store carrega o histórico inteiro. Validação: shared 569 asserts · mobile tsc 0 · jest 621 ·
   web build 0. **Conferida no iPhone em 05/09/2026 (~01:45): "está ótimo".**
-- [ ] T7.2 — **Opção 2 — Estágios.** Pré-requisito: gravar intervalos de estágio
-  (data-model §7): coluna `stage_segments`, agregador emitindo o que já fatia, `AGG_VERSION`,
-  backfill. Depois a barra por estágio na posição real.
+- [ ] T7.2 — **Opção 2 — Estágios**, escrita em 05/09/2026 (~02:00). `stage_segments` no
+  modelo, na RPC e no agregador (que já fatiava por estágio e passou a emitir; `unspecified`
+  é o sono sem hipnograma; o despertar é o vão). **Migration aplicada em produção em 05/09**
+  (dry-run em `begin…rollback` antes; 8 checks; registrada). `AGG_VERSION` 8. Na tela: toggle
+  Tempos ⇄ Estágios em `/sono/tempos` — noites com os segmentos na posição real, semanas em
+  composição (horas médias por estágio, `stagesH`); rótulo de incerteza sempre; o detalhe da
+  noite ganha `StageTimeline`. Testes: agregador emite segmentos em ordem sem o AWAKE, horas
+  batem com segmentos; `stagesH`; `stageFacts`. **Falta:** backfill v8 no aparelho
+  (`verify-stages.sh`) e conferência no iPhone.
 - [x] T7.3 — Spec reconciliada em 05/09: a peça ② fica sem seletor na visão geral; o seletor
   mora nas subviews. Nem absorção nem duplicação.
 - [ ] T7.4 — **Web:** `/sono/tempos` e `/sono/despertares` em Angular, pelo mesmo núcleo —
