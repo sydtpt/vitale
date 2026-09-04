@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Alert, ScrollView } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import {
   clearBreadcrumbs,
   readBreadcrumbs,
@@ -186,11 +186,11 @@ export default function DadosScreen() {
               <View style={styles.diagDivisor} />
               <Text style={styles.diagSubtitulo}>Despertares</Text>
               <View style={styles.resumo}>
-                <Resumo n={sono.awakeComAmostra} label="noites com AWAKE" cor="#6FA86A" styles={styles} />
+                <Resumo n={sono.awakeComAmostra} label="noites com AWAKE" cor={moduleColors('habito').accent} styles={styles} />
                 <Resumo
                   n={sono.awakeDescartado}
                   label="descartados"
-                  cor={sono.awakeDescartado > 0 ? '#D9491B' : colors.ink3}
+                  cor={sono.awakeDescartado > 0 ? moduleColors('treino').accent : colors.ink3}
                   styles={styles}
                 />
               </View>
@@ -210,7 +210,7 @@ export default function DadosScreen() {
                     <Text
                       style={[
                         styles.migalhaEvento,
-                        { color: n.awake.keptMin === 0 ? '#D9491B' : colors.ink },
+                        { color: n.awake.keptMin === 0 ? moduleColors('treino').accent : colors.ink },
                       ]}
                     >
                       AWAKE×{n.awake.samples} · {Math.round(n.awake.totalMin)} min no HealthKit

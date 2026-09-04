@@ -88,10 +88,12 @@ dano, não é o que falta ao Orbe.**
 
 - **CAP-4** — Ver o detalhe de uma noite
   - **intent:** O usuário abre uma noite e vê a composição por estágio que o app já grava.
-  - **success:** Faixa proporcional (profundo · REM · leve · sem estágio) com as durações
-    absolutas, **cortada pelos despertares nas posições em que ocorreram** — a vigília é um
-    corte na faixa, não uma fatia empilhada no fim. Ao lado, o par bruto: *n despertares ·
-    tempo total acordado*. **Rótulo de incerteza obrigatório e legível** — "estimativa do seu
+  - **success:** Duas faixas, e a diferença entre elas é o que o dado sustenta. A **linha do
+    tempo** da noite — sono do apagar ao acordar, com os despertares **cortando nas posições
+    em que ocorreram** — e, separada, a **composição por estágio em proporção** (profundo ·
+    REM · leve · sem estágio) com as durações absolutas. Não se cruzam: o que se grava são
+    horas por estágio, não os intervalos, e fingir posição para o estágio seria inventar. Ao
+    lado, o par bruto: *n despertares · tempo total acordado*. **Rótulo de incerteza obrigatório e legível** — "estimativa do seu
     relógio; vale para comparar você com você mesmo, não é medida clínica". Nunca percentual
     contra norma clínica, nunca base de conselho, nunca texto interpretativo gerado pelo app.
 

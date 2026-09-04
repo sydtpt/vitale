@@ -29,6 +29,7 @@ import {
   axisPosition,
   axisRange,
   bedtimeMeasured,
+  clockLabel,
   efficiency,
   latencyMin,
   localHourOf,
@@ -121,6 +122,12 @@ check('axisRange enquadra as barras em vez de desenhar 24h para mostrar 8', () =
 check('axisRange sem barras utilizáveis cai num default legível', () => {
   const r = axisRange([]);
   assert.deepEqual(r, { from: 4, to: 16 }, '22h → 10h');
+});
+
+check('clockLabel escreve a hora no fuso do período, não do aparelho', () => {
+  assert.equal(clockLabel('2026-08-30T21:40:00.000Z', 120), '23:40');
+  assert.equal(clockLabel('2026-08-30T21:40:00.000Z', 0), '21:40');
+  assert.equal(clockLabel('2026-08-31T05:05:00.000Z', 120), '07:05', 'zero à esquerda');
 });
 
 check('midpoint é o meio da noite, no fuso do período', () => {

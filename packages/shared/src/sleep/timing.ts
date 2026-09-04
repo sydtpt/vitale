@@ -214,6 +214,20 @@ export function efficiency(p: SleepPeriod): number | null {
   return bedH > 0 ? p.asleepH / bedH : null;
 }
 
+/**
+ * "HH:MM" de um instante, no fuso em que ele ocorreu.
+ *
+ * É o rótulo dos três relógios da tela — e é a única forma sancionada de
+ * escrever uma hora de sono: pelo `tzOffset` do período, nunca pelo relógio do
+ * aparelho, senão a noite dormida em Bruxelas muda de hora depois de um voo.
+ */
+export function clockLabel(iso: string, tzOffset: number): string {
+  const shifted = new Date(new Date(iso).getTime() + tzOffset * 60_000);
+  const hh = String(shifted.getUTCHours()).padStart(2, '0');
+  const mm = String(shifted.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 /** Duração de um trecho acordado, em minutos. */
 export function awakeningMin(a: Awakening): number {
   return (new Date(a.to).getTime() - new Date(a.from).getTime()) / 60_000;

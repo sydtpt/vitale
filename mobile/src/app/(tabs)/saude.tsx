@@ -161,8 +161,14 @@ export default function HealthScreen() {
     void syncToCloud();
   }, [loadSummaries, syncToCloud]);
 
+  // Sono tem tela própria (spec docs/specs/sono, CAP-6): o template genérico de
+  // métrica somava horas do mês e punha a noite na hora em que se acordou. O id
+  // continua no catálogo — prontidão e retro leem `seriesFor('sono')`.
   const openMetric = useCallback(
-    (id: string) => router.push({ pathname: '/saude/[metric]', params: { metric: id } }),
+    (id: string) =>
+      id === 'sono'
+        ? router.push('/sono')
+        : router.push({ pathname: '/saude/[metric]', params: { metric: id } }),
     [router]
   );
 
