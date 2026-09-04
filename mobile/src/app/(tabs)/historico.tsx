@@ -307,6 +307,12 @@ export default function HistoricoTabScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false} {...tabBarScroll}>
+        {/* O veredito antes do detalhe: "está subindo rápido demais?" é a
+            pergunta que se responde de relance, e o gráfico abaixo é onde se vai
+            atrás do porquê. Lê a mesma carga diária da curva de forma, como
+            razão entre a semana e as três anteriores. */}
+        <TrainingLoadCard activities={activities} loaded={loaded} />
+
         <View style={styles.card}>
           <Segmented options={PERIODS} value={period} onChange={changePeriod} />
 
@@ -490,18 +496,13 @@ export default function HistoricoTabScreen() {
           </View>
         </View>
 
-        {/* Ao lado do gráfico, não no lugar dele: as barras dizem "quanto", a
-            grade diz "apareci". Some sozinha enquanto não houver nenhum dia. */}
-        <ConsistencyCard activities={activities} weeklyTargetMin={weeklyTargetMin} />
-
-        {/* A grade responde "apareci?"; esta responde "e a que custo?" — o tempo
-            em cada zona, semana a semana. Existia só na web. */}
+        {/* Depois do gráfico: ele diz "quanto", esta diz "e a que custo?" — o
+            tempo em cada zona, semana a semana. Existia só na web. */}
         <WeeklyLoadCard activities={activities} />
 
-        {/* E esta fecha a sequência: "está subindo rápido demais?". Lê a mesma
-            carga diária da curva de forma, agora como razão entre a semana e as
-            três anteriores. */}
-        <TrainingLoadCard activities={activities} loaded={loaded} />
+        {/* Por último a grade, que responde a pergunta mais simples das três —
+            "apareci?". Some sozinha enquanto não houver nenhum dia. */}
+        <ConsistencyCard activities={activities} weeklyTargetMin={weeklyTargetMin} />
 
         <Text style={styles.sectionTitle}>Por tipo · histórico completo</Text>
         <View style={styles.typeGrid}>
