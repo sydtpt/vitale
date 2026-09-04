@@ -178,6 +178,48 @@ export default function DadosScreen() {
                     ) : null}
                   </View>
                 ))}
+
+              {/* Vigília: a pergunta que o veredito não responde. Numa noite `ok`,
+                  não haver despertar pode ser da fonte OU nosso — a agregação só
+                  credita AWAKE que se sobrepõe ao sono, e fonte que escreve
+                  segmentos encostados perde tudo. Ver `auditAwake`. */}
+              <View style={styles.diagDivisor} />
+              <Text style={styles.diagSubtitulo}>Despertares</Text>
+              <View style={styles.resumo}>
+                <Resumo n={sono.awakeComAmostra} label="noites com AWAKE" cor="#6FA86A" styles={styles} />
+                <Resumo
+                  n={sono.awakeDescartado}
+                  label="descartados"
+                  cor={sono.awakeDescartado > 0 ? '#D9491B' : colors.ink3}
+                  styles={styles}
+                />
+              </View>
+              <Text style={styles.diagNota}>
+                {sono.awakeComAmostra === 0
+                  ? 'Nenhuma amostra AWAKE no período: a fonte não reporta despertar. O dado não existe — não é perda nossa.'
+                  : sono.awakeDescartado > 0
+                    ? 'O HealthKit TEM despertares que a agregação credita como zero: a fonte escreve segmentos encostados e a regra de sobreposição os descarta. É perda nossa, e é corrigível.'
+                    : 'Todos os despertares do período foram creditados. A regra de sobreposição está funcionando para esta fonte.'}
+              </Text>
+              {sono.nights
+                .filter((n) => n.awake.samples > 0)
+                .slice(0, 20)
+                .map((n) => (
+                  <View key={`awake-${n.day}`} style={styles.migalha}>
+                    <Text style={styles.migalhaHora}>{n.day}</Text>
+                    <Text
+                      style={[
+                        styles.migalhaEvento,
+                        { color: n.awake.keptMin === 0 ? '#D9491B' : colors.ink },
+                      ]}
+                    >
+                      AWAKE×{n.awake.samples} · {Math.round(n.awake.totalMin)} min no HealthKit
+                    </Text>
+                    <Text style={styles.migalhaDetalhe}>
+                      {Math.round(n.awake.keptMin)} min creditados pela agregação
+                    </Text>
+                  </View>
+                ))}
             </>
           )}
         </View>
@@ -224,5 +266,18 @@ const createStyles = () => StyleSheet.create({
     lineHeight: 18,
     paddingHorizontal: 4,
     marginTop: spacing.sm,
+  },
+  diagDivisor: {
+    height: 1,
+    backgroundColor: colors.line,
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.lg,
+  },
+  diagSubtitulo: {
+    fontSize: 13,
+    fontFamily: fonts.sansBold,
+    color: colors.ink,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
   },
 });

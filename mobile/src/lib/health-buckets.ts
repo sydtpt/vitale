@@ -364,6 +364,54 @@ export function aggregateSleepNights(samples: Sample[]): Sample[] {
     }));
 }
 
+/**
+ * Quanto da vigília o agregador **credita**, contra quanto dela **existe**.
+ *
+ * A regra de `aggregateSleepNights` é que `AWAKE` só conta onde ele se sobrepõe a
+ * um intervalo dormindo (`overlapMs(iv, awake)`). Isso é correto quando a fonte
+ * escreve camadas que se cobrem — o Apple Watch faz isso —, e é uma armadilha
+ * quando a fonte escreve segmentos **encostados**: `CORE`, `AWAKE`, `CORE`. Aí o
+ * `AWAKE` preenche o buraco *entre* os intervalos de sono em vez de cair *dentro*
+ * deles, a sobreposição dá zero, e a vigília some sem deixar rastro.
+ *
+ * Motivo de existir: `health_daily` tem `awake` em 233 das 270 noites da era
+ * Apple Watch e em **0 das 42** da era Garmin. Duas explicações cabem no mesmo
+ * silêncio — a fonte não escreve, ou nós descartamos — e elas levam a decisões
+ * opostas. Esta função separa as duas usando a construção **idêntica** à do
+ * agregador; um diagnóstico que reimplementasse a regra não provaria nada.
+ *
+ * Leitura do resultado: `totalMin > 0 && keptMin === 0` é o caso ruim — o dado
+ * está no HealthKit e o app o joga fora.
+ */
+export interface AwakeAudit {
+  /** Amostras rotuladas `AWAKE` na noite. */
+  samples: number;
+  /** Minutos que essas amostras cobrem (união, sem contar sobreposição). */
+  totalMin: number;
+  /** Minutos que a agregação de fato credita como vigília. */
+  keptMin: number;
+}
+
+export function auditAwake(samples: Sample[]): AwakeAudit {
+  const awake = mergeIntervals(toIntervals(samples, (st) => st === 'AWAKE'));
+  // Mesma construção de `asleep` do agregador — inclusive o descarte do ASLEEP
+  // genérico que se sobrepõe aos estágios detalhados.
+  const detailed = mergeIntervals(toIntervals(samples, (st) => DETAILED_STAGES.has(st)));
+  const generic = mergeIntervals(toIntervals(samples, (st) => st === 'ASLEEP')).filter(
+    (iv) => overlapMs(iv, detailed) === 0,
+  );
+  const asleep = mergeIntervals([...detailed, ...generic]);
+
+  let keptMs = 0;
+  for (const iv of asleep) keptMs += overlapMs(iv, awake);
+
+  return {
+    samples: samples.filter((s) => (s.label ?? '').toUpperCase() === 'AWAKE').length,
+    totalMin: awake.reduce((a, iv) => a + (iv.end - iv.start), 0) / 60_000,
+    keptMin: keptMs / 60_000,
+  };
+}
+
 /* ───────────────────────── Fontes concorrentes ───────────────────────── */
 
 /**

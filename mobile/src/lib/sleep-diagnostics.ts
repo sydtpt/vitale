@@ -22,7 +22,7 @@
  * Este módulo é derivação pura: recebe as amostras cruas já buscadas e devolve o
  * veredito por noite, sem tocar em HealthKit.
  */
-import { aggregateSleepNights, type Sample } from './health-buckets';
+import { aggregateSleepNights, auditAwake, type AwakeAudit, type Sample } from './health-buckets';
 
 export type SleepVerdict =
   /** Virou linha normalmente. */
@@ -51,6 +51,13 @@ export interface SleepNightDiag {
   labels: Record<string, number>;
   /** Horas agregadas quando o veredito é 'ok'. */
   hours: number | null;
+  /**
+   * Vigília que existe nas amostras contra a que a agregação credita.
+   *
+   * Serve à pergunta que o veredito não responde: numa noite `ok`, a ausência de
+   * despertar pode ser da fonte ou nossa. Ver `auditAwake`.
+   */
+  awake: AwakeAudit;
 }
 
 export interface SleepDiagSummary {
@@ -62,6 +69,10 @@ export interface SleepDiagSummary {
   degeneradas: number;
   /** Noites sem amostra nenhuma: nada a fazer do lado do app. */
   semAmostra: number;
+  /** Noites em que o HealthKit tem `AWAKE` e a agregação credita zero. Perda nossa. */
+  awakeDescartado: number;
+  /** Noites com pelo menos uma amostra `AWAKE`, creditada ou não. */
+  awakeComAmostra: number;
 }
 
 /** 'YYYY-MM-DD' local. */
@@ -119,7 +130,14 @@ export function diagnoseSleepNights(raw: Sample[]): SleepDiagSummary {
           ? 'degenerada'     // rótulo de sono, mas sem intervalo válido
           : 'sem-estagio';   // só INBED/AWAKE — o agregador descarta calado
 
-    nights.push({ day, verdict, samples: samples.length, labels, hours: hours ?? null });
+    nights.push({
+      day,
+      verdict,
+      samples: samples.length,
+      labels,
+      hours: hours ?? null,
+      awake: auditAwake(samples),
+    });
   }
 
   nights.sort((a, b) => (a.day < b.day ? 1 : -1)); // mais recente primeiro
@@ -130,6 +148,8 @@ export function diagnoseSleepNights(raw: Sample[]): SleepDiagSummary {
     perdidas: nights.filter((n) => n.verdict === 'sem-estagio' || n.verdict === 'anulada').length,
     degeneradas: nights.filter((n) => n.verdict === 'degenerada').length,
     semAmostra: 0, // preenchido por quem sabe o intervalo pedido — ver `marcarNoitesVazias`
+    awakeComAmostra: nights.filter((n) => n.awake.samples > 0).length,
+    awakeDescartado: nights.filter((n) => n.awake.totalMin > 0 && n.awake.keptMin === 0).length,
   };
 }
 
@@ -151,7 +171,14 @@ export function marcarNoitesVazias(
   for (const d = new Date(ini); d <= fim; d.setDate(d.getDate() + 1)) {
     const day = dayStr(d.getTime());
     if (vistas.has(day)) continue;
-    nights.push({ day, verdict: 'sem-amostra', samples: 0, labels: {}, hours: null });
+    nights.push({
+      day,
+      verdict: 'sem-amostra',
+      samples: 0,
+      labels: {},
+      hours: null,
+      awake: { samples: 0, totalMin: 0, keptMin: 0 },
+    });
   }
 
   nights.sort((a, b) => (a.day < b.day ? 1 : -1));
@@ -161,5 +188,7 @@ export function marcarNoitesVazias(
     perdidas: diag.perdidas,
     degeneradas: diag.degeneradas,
     semAmostra: nights.filter((n) => n.verdict === 'sem-amostra').length,
+    awakeComAmostra: diag.awakeComAmostra,
+    awakeDescartado: diag.awakeDescartado,
   };
 }

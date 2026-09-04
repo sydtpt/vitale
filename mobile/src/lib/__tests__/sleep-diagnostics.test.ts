@@ -110,3 +110,65 @@ describe('amostra degenerada — o caso de 03/08/2026', () => {
     expect(diag.degeneradas).toBe(0);
   });
 });
+
+/**
+ * A auditoria de vigília.
+ *
+ * Existe porque `health_daily` tem `awake` em 233 das 270 noites da era Apple
+ * Watch e em **0 das 42** da era Garmin, e duas explicações opostas cabem no
+ * mesmo silêncio: a fonte não escreve, ou nós descartamos. Os dois testes abaixo
+ * são exatamente esses dois mundos.
+ */
+describe('auditoria de despertares', () => {
+  it('fonte em camadas (Apple Watch): o AWAKE cai dentro do sono e é creditado', () => {
+    // Envelope ASLEEP genérico da noite inteira + estágios por cima + o AWAKE
+    // no meio. O genérico não sobrepõe os detalhados aqui, então sobrevive e
+    // atravessa o buraco — é o que faz a sobreposição existir.
+    const d = diagnoseSleepNights([
+      s('INBED', 10, 23, 7),
+      trecho('CORE', 10, 0, 2),
+      trecho('ASLEEP', 10, 2, 3), // cobre o mesmo trecho do AWAKE
+      trecho('AWAKE', 10, 2, 3),
+      trecho('CORE', 10, 3, 7),
+    ]);
+    const n = d.nights[0];
+    expect(n.awake.samples).toBe(1);
+    expect(n.awake.totalMin).toBeCloseTo(60, 0);
+    expect(n.awake.keptMin).toBeCloseTo(60, 0);
+    expect(d.awakeDescartado).toBe(0);
+  });
+
+  it('fonte em segmentos encostados: o AWAKE existe e a agregação credita ZERO', () => {
+    // CORE · AWAKE · CORE, sem nada cobrindo o buraco. A hipótese do Garmin.
+    const d = diagnoseSleepNights([
+      s('INBED', 11, 23, 7),
+      trecho('CORE', 11, 0, 2),
+      trecho('AWAKE', 11, 2, 3),
+      trecho('CORE', 11, 3, 7),
+    ]);
+    const n = d.nights[0];
+    expect(n.verdict).toBe('ok');           // a noite passa — o defeito é silencioso
+    expect(n.awake.samples).toBe(1);
+    expect(n.awake.totalMin).toBeCloseTo(60, 0);
+    expect(n.awake.keptMin).toBe(0);        // ...e a vigília some
+    expect(d.awakeComAmostra).toBe(1);
+    expect(d.awakeDescartado).toBe(1);
+  });
+
+  it('sem amostra AWAKE, a auditoria fica zerada — é ausência na fonte, não perda', () => {
+    const d = diagnoseSleepNights([s('INBED', 12, 23, 7), s('CORE', 12, 23, 7)]);
+    expect(d.awakeComAmostra).toBe(0);
+    expect(d.awakeDescartado).toBe(0);
+  });
+
+  it('noites vazias entram na conta sem sujar a auditoria', () => {
+    const d = marcarNoitesVazias(
+      diagnoseSleepNights([s('INBED', 12, 23, 7), s('CORE', 12, 23, 7)]),
+      '2026-08-11',
+      '2026-08-13',
+    );
+    expect(d.semAmostra).toBe(2);
+    expect(d.awakeComAmostra).toBe(0);
+    expect(d.nights.every((n) => n.awake.samples >= 0)).toBe(true);
+  });
+});
