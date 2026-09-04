@@ -85,7 +85,11 @@ const UNIT_ALIAS: Record<string, string> = {
  * entra aqui porque `multiSourceFetch` em `health-metrics.ts` não passa `unit`
  * e assume milhas (por isso o `scale: METERS_PER_MILE` do lado de lá).
  */
+/** SDNN em milissegundos, como o catálogo declara e como a ponte grava. */
+const HRV_UNIT = 'ms';
+
 const LEGACY_DEFAULT_UNIT: Partial<Record<HealthTypeId, string>> = {
+  [HK.heartRateVariability]: HRV_UNIT,
   [HK.appleExerciseTime]: 's',
   [HK.respiratoryRate]: 'count/min',
   [HK.vo2Max]: 'ml/(kg*min)',
@@ -95,12 +99,20 @@ const LEGACY_DEFAULT_UNIT: Partial<Record<HealthTypeId, string>> = {
 
 /**
  * Unidades que o react-native-health **hardcodeia** nativamente — o `unit`
- * das opções nem chega a ser lido para esses dois tipos. Vence mesmo que o
- * chamador peça outra coisa, replicando o comportamento exato (bug incluso:
- * HRV em segundos é estranho para um card, mas é o que o app sempre mostrou).
+ * das opções nem chega a ser lido para esses tipos. Vence mesmo que o chamador
+ * peça outra coisa, replicando o comportamento exato da lib antiga.
+ *
+ * **A VFC saiu daqui em 04/09/2026.** Ela vinha em segundos, herdado da lib
+ * legada, e a nota antiga aceitava isso ("estranho para um card, mas é o que o
+ * app sempre mostrou"). O argumento morreu quando a ponte do intervals.icu
+ * passou a gravar a VFC do Garmin em **milissegundos** na mesma coluna
+ * `health_daily.metric = 'vfc'` (ADR 0026): a compatibilidade com o número
+ * antigo virou uma coluna com duas unidades mil vezes distantes. O catálogo
+ * sempre declarou `ms`, e 53 ms é o valor real de um SDNN — quem estava errado
+ * era o número exibido, não a declaração. As 395 linhas antigas foram
+ * convertidas em produção no mesmo dia.
  */
 const FORCED_UNIT: Partial<Record<HealthTypeId, string>> = {
-  [HK.heartRateVariability]: 's',
   [HK.dietaryWater]: 'L',
 };
 

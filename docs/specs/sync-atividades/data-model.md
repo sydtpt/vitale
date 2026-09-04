@@ -226,3 +226,26 @@ A ponte do intervals.icu (`connections-ingest`, a cada 15 min) traz também a **
 **Fora de escopo, de propósito:** sono e FC de repouso do `/wellness` — o Apple Watch cobre, e misturar fontes é o que o dedupe evita.
 
 Normalização, janela, query e a decisão do que gravar: `packages/shared/src/health/wellness.ts` (puro, sem imports — o Deno importa por caminho relativo). Está tudo no núcleo de propósito: `supabase/functions` não é typechecada nem testada por nenhum comando do CI, então regra que mora lá é regra sem teste. Busca: `fetchIntervalsWellness` em `supabase/functions/_shared/providers/intervals.ts`. Gravação: `ingestWellness` em `supabase/functions/_shared/ingest.ts`.
+
+### Unidade: a VFC é gravada em milissegundos
+
+Descoberto no primeiro run em produção (04/09/2026). O mobile lia
+`HKQuantityTypeIdentifierHeartRateVariabilitySDNN` em **segundos** — herança da
+lib legada, preservada de propósito no `FORCED_UNIT` de
+`mobile/src/lib/health-source/kingstinct-provider.ts` para o número exibido não
+mudar. Com a ponte gravando em milissegundos na mesma coluna, a compatibilidade
+virou uma coluna com duas unidades mil vezes distantes: 395 linhas do Apple
+entre 0,016 e 0,151 contra 41 da ponte entre 19 e 87.
+
+O catálogo sempre declarou `ms`, e 53 ms é o SDNN real — o número exibido é que
+estava errado desde março de 2025 ("0,05 ms" na aba Saúde). Corrigido nos dois
+lados no mesmo dia: a leitura passou a pedir `ms`, e as 395 linhas antigas foram
+multiplicadas por mil em produção (`update … where metric='vfc' and extra is
+null and value < 1`, idempotente pela guarda do `value < 1`; cópia em
+`health_daily_vfc_backup_20260904`).
+
+**Consequência para quem tem build antigo:** um app anterior a essa correção
+ainda lê segundos. O sync normal só escreve dias com amostra, e o Apple não
+mede VFC desde 17/07, então na prática ele não regride nada — mas um
+**backfill** (500 dias, disparado quando o cursor local se perde) reescreveria o
+histórico em segundos. Rebuild antes de forçar backfill.
