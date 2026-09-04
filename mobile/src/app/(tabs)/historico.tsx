@@ -25,6 +25,7 @@ import { StackedBarChart } from '../../components/charts/StackedBarChart';
 import { Sparkline } from '../../components/charts/Sparkline';
 import { ConsistencyCard } from '../../components/cards/ConsistencyCard';
 import { WeeklyLoadCard } from '../../components/cards/WeeklyLoadCard';
+import { TrainingLoadCard } from '../../components/cards/TrainingLoadCard';
 import { Segmented } from '../../components/ui/Segmented';
 import { colors, fonts, moduleColors, radii, roleColors, shadows, spacing, themed, useTheme } from '../../theme';
 
@@ -496,6 +497,11 @@ export default function HistoricoTabScreen() {
         {/* A grade responde "apareci?"; esta responde "e a que custo?" — o tempo
             em cada zona, semana a semana. Existia só na web. */}
         <WeeklyLoadCard activities={activities} />
+
+        {/* E esta fecha a sequência: "está subindo rápido demais?". Lê a mesma
+            carga diária da curva de forma, agora como razão entre a semana e as
+            três anteriores. */}
+        <TrainingLoadCard activities={activities} loaded={loaded} />
 
         <Text style={styles.sectionTitle}>Por tipo · histórico completo</Text>
         <View style={styles.typeGrid}>
