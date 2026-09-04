@@ -77,7 +77,7 @@ type TabRect = { x: number; y: number; width: number; height: number };
  * Ele carregava duas intenções na mesma linha — realce especular quando a marca
  * não declarava contorno, cor da marca quando declarava — e por isso só o
  * `laranja` e a `tinta` pareciam de vidro; `azul` e `verde` trocavam a luz da
- * beirada por um anel `#000000` opaco, que sumia por completo no escuro.
+ * beirada por um anel preto opaco, que sumia por completo no escuro.
  *
  * Sem preenchimento o botão fica mais quieto do que era, e isso é o custo
  * aceito: numa barra cuja função é registrar rápido, a ação principal deixa de
@@ -618,7 +618,7 @@ const styles = themed(() =>
        * `primaryGraphic`, e não mais o par `primary` / `primaryOutline`.
        *
        * O aro antigo carregava duas intenções: realce especular branco quando a
-       * marca não declarava contorno, `#000000` quando declarava. Era o que
+       * marca não declarava contorno, preto opaco quando declarava. Era o que
        * fazia só o `laranja` e a `tinta` parecerem de vidro — e o que sumia por
        * completo no escuro, onde preto sobre quase-preto não tem contraste.
        * Agora o aro tem um trabalho só: separar o botão do fundo, no piso de

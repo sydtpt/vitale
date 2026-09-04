@@ -195,7 +195,10 @@ export function activityLoad(a: Activity): number {
   }
 
   const uncoveredS = durationS - Math.min(durationS, rawZoneS);
-  return byZones + uncoveredS * FORM_ZONE_WEIGHTS.z1;
+  // Colchete, não ponto: `FORM_ZONE_WEIGHTS` é um `Record<string, number>`, e a
+  // web compila com `noPropertyAccessFromIndexSignature`. O núcleo e o mobile
+  // não, então o acesso por ponto passava nos dois e só quebrava lá.
+  return byZones + uncoveredS * FORM_ZONE_WEIGHTS['z1'];
 }
 
 /** Um dia da série. `base`/`fatigue`/`form` em escala equivalente-semanal. */

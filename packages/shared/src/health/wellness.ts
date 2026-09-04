@@ -94,10 +94,12 @@ export function normalizeIntervalsWellness(raw: unknown): WellnessHrv[] {
   for (const item of raw) {
     if (item == null || typeof item !== 'object') continue;
     const r = item as Record<string, unknown>;
-    const day = r.id;
+    // Colchete, não ponto: `r` é um `Record<string, unknown>`, e a web compila
+    // com `noPropertyAccessFromIndexSignature`.
+    const day = r['id'];
     if (!isDay(day)) continue;
-    if (plausible(r.hrvSDNN)) byDay.set(day, { day, value: r.hrvSDNN, kind: 'sdnn' });
-    else if (plausible(r.hrv)) byDay.set(day, { day, value: r.hrv, kind: 'rmssd' });
+    if (plausible(r['hrvSDNN'])) byDay.set(day, { day, value: r['hrvSDNN'], kind: 'sdnn' });
+    else if (plausible(r['hrv'])) byDay.set(day, { day, value: r['hrv'], kind: 'rmssd' });
   }
   return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
 }
