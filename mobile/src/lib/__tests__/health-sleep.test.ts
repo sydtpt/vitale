@@ -432,3 +432,42 @@ describe('toSleepPeriodRows — a forma que a RPC lê', () => {
     });
   });
 });
+
+describe('janela na cama — a união das amostras INBED, nunca menor que o sono (T3.2c)', () => {
+  it('INBED parcial (fonte fechou cedo): a janela alarga até o fim do sono', () => {
+    // 17/07/2025 real: 33 min de INBED para 5h44 dormindo.
+    const [p] = aggregateSleepPeriods([
+      sample('INBED', '2025-07-16T23:00:00', '2025-07-16T23:33:00'),
+      sample('CORE', '2025-07-16T23:05:00', '2025-07-17T04:49:00'),
+    ]);
+    expect(p.inBedAt).toBe(new Date('2025-07-16T23:00:00').toISOString()); // a latência fica
+    expect(p.inBedEnd).toBe(new Date('2025-07-17T04:49:00').toISOString()); // alargou até o wake
+    const [n] = aggregateSleepNights([
+      sample('INBED', '2025-07-16T23:00:00', '2025-07-16T23:33:00'),
+      sample('CORE', '2025-07-16T23:05:00', '2025-07-17T04:49:00'),
+    ]);
+    expect(n.stages!.inbed).toBeGreaterThanOrEqual(n.value); // o invariante
+    expect(n.stages!.onset).toBeCloseTo(5 / 60); // 5 min — não mudou
+  });
+
+  it('duas amostras INBED na mesma noite (partidas num despertar) viram uma janela', () => {
+    const [p] = aggregateSleepPeriods([
+      sample('INBED', '2026-05-21T22:30:00', '2026-05-22T02:00:00'),
+      sample('INBED', '2026-05-22T02:20:00', '2026-05-22T07:15:00'),
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T02:00:00'),
+      sample('AWAKE', '2026-05-22T02:00:00', '2026-05-22T02:20:00'),
+      sample('CORE', '2026-05-22T02:20:00', '2026-05-22T07:00:00'),
+    ]);
+    expect(p.inBedAt).toBe(new Date('2026-05-21T22:30:00').toISOString());
+    expect(p.inBedEnd).toBe(new Date('2026-05-22T07:15:00').toISOString());
+  });
+
+  it('INBED de OUTRA noite não entra na janela desta', () => {
+    const [p] = aggregateSleepPeriods([
+      sample('INBED', '2026-05-20T22:00:00', '2026-05-21T06:00:00'), // ontem
+      sample('CORE', '2026-05-21T23:00:00', '2026-05-22T07:00:00'), // hoje, sem INBED
+    ]);
+    expect(p.inBedAt).toBeNull();
+    expect(p.inBedEnd).toBeNull();
+  });
+});

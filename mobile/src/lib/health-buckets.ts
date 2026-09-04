@@ -355,8 +355,24 @@ export function aggregateSleepPeriods(samples: Sample[], userId = ''): SleepPeri
   // mesmo quando o instante não é (o Garmin abre o INBED junto com o sono em 41
   // de 42 noites). Quem decide se o instante vira "hora que deitou" é
   // `bedtimeMeasured()` no núcleo; `inbed`/`onset` em horas saem de lá também.
+  //
+  // A janela é a UNIÃO das amostras INBED que tocam a noite — não a primeira
+  // que cobre o onset. Pegar uma só deixava 14 noites do histórico com mais
+  // sono do que cama (17/07/2025: 33 min de cama para 5h44 dormindo), porque a
+  // fonte parte o INBED ou o fecha antes do sono acabar. E a união é alargada
+  // para cobrir [onset, wake]: dormir fora da cama não existe para este dado,
+  // então `inbed >= dormido` é invariante e a eficiência para de passar de 100%.
+  // Só alarga para FORA — a latência (onset − inBedAt) não muda por isso.
   for (const night of byWakeDay.values()) {
-    night.bed = inbed.find((b) => b.start <= night.onset && b.end >= night.onset) ?? null;
+    const touching = inbed.filter((b) => b.start <= night.wake && b.end >= night.onset);
+    if (touching.length === 0) {
+      night.bed = null;
+      continue;
+    }
+    night.bed = {
+      start: Math.min(night.onset, ...touching.map((b) => b.start)),
+      end: Math.max(night.wake, ...touching.map((b) => b.end)),
+    };
   }
 
   // Vigília creditada UMA vez por noite, pelo vão de [onset, wake] — não pela

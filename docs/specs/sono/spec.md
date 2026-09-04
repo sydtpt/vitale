@@ -214,8 +214,9 @@ releituras de 500 dias.
 > a folga inclui a latência.
 >
 > **Recuperável pelo backfill, sem depender do aparelho:** 42 noites da era Garmin, vigília
-> mediana de **12 min**, média 16,1, máximo **1h43**, 9 noites acima de meia hora. *(4 noites
-> têm folga negativa — anomalia de dado a investigar na Fase 3.)*
+> mediana de **12 min**, média 16,1, máximo **1h43**, 9 noites acima de meia hora. *(14 noites
+> do histórico tinham mais sono do que cama — o agregador pegava uma só amostra `INBED`;
+> corrigido na Fase 3 com a união alargada ao sono, `inbed ≥ dormido` como invariante.)*
 
 ### O achado que justifica o princípio da §2
 

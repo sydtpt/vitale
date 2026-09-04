@@ -86,8 +86,15 @@
   decidido pela **janela inteira** (alguma amostra `AWAKE` → a fonte reporta → noite sem
   despertar recebe `[]`). `AWAKE` antes do onset fica fora — é latência, não despertar.
   `auditAwake` passou a medir o que o agregador credita **hoje**, pelo próprio agregador.
-- [ ] T3.2c — Investigar as **4 noites com `inbed − dormido` negativo** na era Garmin
-  (mín −39 min): sono maior que a janela na cama não deveria existir.
+- [x] T3.2c — Eram **14 noites em todo o histórico**, não 4 (a consulta anterior só olhava a
+  era Garmin); o extremo é 17/07/2025, 33 min de cama para 5h44 dormindo, e o 30/08/2026 do
+  mockup é uma delas. Causa no código: o agregador pegava **uma** amostra `INBED` (a que
+  cobre o onset) e ignorava as outras da noite, ou a fonte fechava o `INBED` antes do sono
+  acabar. Correção: a janela é a **união** das amostras `INBED` que tocam a noite,
+  **alargada** para cobrir `[onset, wake]` — `inbed ≥ dormido` vira invariante e a
+  eficiência para de passar de 100%. Só alarga para fora: a latência não muda. 3 testes.
+  *(Candidato a `CHECK` no banco depois do backfill: `in_bed_at ≤ onset_at` e
+  `in_bed_end ≥ wake_at` quando não nulos.)*
 - [x] T3.3 — `sleep-rows.ts` (novo): `toSleepPeriodRows` (snake_case para a RPC) e
   `toSleepDailyRows` via `deriveSleepDays` do shared. `health-sync.ts` tira `sono` do loop
   genérico e faz as **duas escritas no mesmo ciclo** (`pushSleepPeriods` + a diária);

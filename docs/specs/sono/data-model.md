@@ -162,8 +162,14 @@ os dois **não** batem — diferença média de 67 min —, porque lá o `INBED`
 e a folga inclui a latência.
 
 O que o backfill recupera na era Garmin: 42 noites, vigília mediana **12 min**, média 16,1,
-máximo **1h43**, 9 noites acima de meia hora. Quatro noites têm folga **negativa** — anomalia
-a investigar quando o agregador for tocado.
+máximo **1h43**, 9 noites acima de meia hora.
+
+**Invariante da janela na cama (Fase 3):** `in_bed_at ≤ onset_at` e `in_bed_end ≥ wake_at`
+sempre que a janela existe. Vem da correção de 14 noites do histórico em que o sono era
+maior que a cama — o agregador pegava uma só amostra `INBED` e a fonte parte ou fecha cedo.
+A janela agora é a **união** das amostras que tocam a noite, alargada ao sono; a latência
+não muda, porque só alarga para fora. É invariante no cliente; vira `CHECK` no banco depois
+que o backfill provar que nenhuma noite histórica o viola.
 
 **Consequência para CAP-2 e CAP-5:** com a correção, os buracos das barras e o relógio de
 vigília nascem vivos no dado atual. Sem ela, o gráfico continua correto — barra contínua é a
