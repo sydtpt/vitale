@@ -6,8 +6,8 @@
 >
 > **Fases 0–4 entregues em 04/09/2026** — núcleo no shared, `sleep_periods` + `CHECK` em
 > produção, sync com backfill v7 verificado contra snapshot, e a tela `/sono` conferida no
-> iPhone. **Aberto:** T0.2 (Foco de Sono — responde 05/09), Fase 5 (web) e Fase 6 (CAP-7,
-> adiada por pedido do usuário — avisá-lo). Origem: party mode de 04/09/2026 + pesquisa
+> iPhone, e a **Fase 5 (web)** conferida no navegador. **Aberto:** T0.2 (Foco de Sono —
+> responde 05/09) e Fase 6 (CAP-7, adiada por pedido do usuário — avisá-lo). Origem: party mode de 04/09/2026 + pesquisa
 > competitiva do mesmo dia. Os mockups aprovados pelo usuário estão no artifact
 > `claude.ai/code/artifact/b9afbb6a-9c59-40d5-a9f2-85ceded2ed90`.
 
@@ -187,8 +187,8 @@
   720 px) — a web recompõe, não redesenha; duas colunas seria decisão visual nova, com
   mockup antes. Todo cálculo vem de `@vitale/shared/sleep`; a web só desenha. `sono.store.ts`
   entrou na `STORE_ALLOWLIST` do teste de arquitetura (signals ≠ Zustand, AD-12).
-  Validação: `ng build` 0 · Vitest 141/141 · arquitetura 13/13. **Conferência no navegador
-  pendente** (`pnpm web:dev` → `/sono`).
+  Validação: `ng build` 0 · Vitest 141/141 · arquitetura 13/13. **Conferida no navegador em
+  05/09/2026 ~00:30** — o usuário abriu `/sono` no `ng serve` dele e disse *"está ok"*.
 
 ## Fase 6 — Seção "Tempos e estágios" (CAP-7) — **adiada por pedido do usuário**
 
