@@ -1,0 +1,30 @@
+.page { padding: 24px 32px 48px; max-width: 720px; display: flex; flex-direction: column; gap: 14px; }
+.state { padding: 48px 0; text-align: center; font-size: 14px; color: var(--ink-2); }
+.back { font-size: 13px; color: var(--ink-3); text-decoration: none; &:hover { color: var(--ink); } }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  padding: 18px 20px; box-shadow: var(--shadow-card);
+}
+.card-title { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: var(--ink); }
+.card-note { margin: 10px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); }
+
+.clocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 12px; }
+.clock { display: flex; flex-direction: column; gap: 2px; }
+.clock-label { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.clock-value { font-size: 30px; font-weight: 500; letter-spacing: -1px; color: var(--ink); line-height: 1.1; }
+.clock-value.muted { color: var(--ink-4); }
+.dur { margin: 0; font-size: 13.5px; color: var(--ink-2); strong { color: var(--ink); font-weight: 600; } }
+
+/* linha do tempo: o sono, furado pelos despertares nas posições reais */
+.timeline { position: relative; height: 22px; border-radius: 6px; overflow: hidden; }
+.timeline-fill { position: absolute; inset: 0; background: var(--role-blue); }
+.timeline-hole { position: absolute; top: 0; bottom: 0; background: var(--surface); }
+.ticks { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10.5px; color: var(--ink-3); }
+
+/* estágios em proporção */
+.stage-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; }
+.stage-key { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 11.5px; color: var(--ink-2); }
+.key-item { display: inline-flex; align-items: center; gap: 5px; }
+.key-sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+.uncert { margin: 12px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }

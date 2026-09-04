@@ -69,6 +69,7 @@ const STORE_ALLOWLIST = new Set([
   'planned-workouts.store.ts',
   'registros.store.ts',
   'retro.store.ts',
+  'sono.store.ts',
   'todos.store.ts',
 ]);
 

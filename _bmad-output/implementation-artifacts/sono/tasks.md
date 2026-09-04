@@ -180,10 +180,15 @@
 
 ## Fase 5 — Web (segunda rodada, não bloqueia o merge do mobile)
 
-- [ ] T5.1 — `web/src/app/features/sono/`, rota `/sono` com `profileGuard` em
-  `web/src/main.ts` + item na sidebar.
-- [ ] T5.2 — Portar as quatro peças consumindo **o mesmo núcleo**. Nenhum cálculo de sono
-  nasce em `web/`.
+- [x] T5.1 — `web/src/app/features/sono/` (store por signals, 2 gráficos SVG, 2 páginas),
+  rotas `/sono` e `/sono/:day` com `profileGuard`, item 🌙 na sidebar, CLAUDE.md. Escrito em
+  04/09/2026 ~00:15.
+- [x] T5.2 — As quatro peças + detalhe da noite, **mesma composição do mobile** (coluna única,
+  720 px) — a web recompõe, não redesenha; duas colunas seria decisão visual nova, com
+  mockup antes. Todo cálculo vem de `@vitale/shared/sleep`; a web só desenha. `sono.store.ts`
+  entrou na `STORE_ALLOWLIST` do teste de arquitetura (signals ≠ Zustand, AD-12).
+  Validação: `ng build` 0 · Vitest 141/141 · arquitetura 13/13. **Conferência no navegador
+  pendente** (`pnpm web:dev` → `/sono`).
 
 ## Fase 6 — Seção "Tempos e estágios" (CAP-7) — **adiada por pedido do usuário**
 

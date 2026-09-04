@@ -104,6 +104,18 @@ const routes: Routes = [
       import('@features/registros/pages/registro-detail-page.component').then(m => m.RegistroDetailPageComponent),
   },
   {
+    path: 'sono',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/sono/pages/sono-page.component').then(m => m.SonoPageComponent),
+  },
+  {
+    path: 'sono/:day',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/sono/pages/sono-day-page.component').then(m => m.SonoDayPageComponent),
+  },
+  {
     path: 'cultura',
     canActivate: [profileGuard],
     loadComponent: () =>

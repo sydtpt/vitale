@@ -1,0 +1,117 @@
+<div class="page">
+  @if (store.loading()) {
+    <div class="state">Carregando o sono…</div>
+  } @else if (store.error()) {
+    <div class="state error">Não foi possível carregar: {{ store.error() }}</div>
+  } @else if (store.isEmpty() || !top()) {
+    <div class="empty">
+      <h2 class="empty-title">Nenhuma noite sincronizada ainda</h2>
+      <p class="empty-text">O sync de Saúde no celular traz as noites do seu relógio para cá.</p>
+    </div>
+  } @else {
+    <rt-page-header
+      eyebrow="Sono"
+      [title]="dayLabel(top()!.p.wakeDay, true)"
+      subtitle="O fato, não o placar — a que horas, com que buracos, e como você acordou"
+    />
+
+    <!-- ① Os relógios — a frase que o usuário pediu, sem a subtração. -->
+    <a class="card clickable clocks-card" [routerLink]="['/sono', top()!.p.wakeDay]">
+      <div class="clocks">
+        <div class="clock">
+          <span class="clock-label">Deitou</span>
+          <span class="clock-value mono" [class.muted]="!top()!.bedOk">{{ top()!.deitou }}</span>
+        </div>
+        <div class="clock">
+          <span class="clock-label">Apagou</span>
+          <span class="clock-value mono">{{ top()!.apagou }}</span>
+        </div>
+        <div class="clock">
+          <span class="clock-label">Acordou</span>
+          <span class="clock-value mono">{{ top()!.acordou }}</span>
+        </div>
+      </div>
+      <div class="rule"></div>
+      <p class="dur">
+        <strong>{{ top()!.dormindo }}</strong> dormindo
+        @if (top()!.naCama) { · <strong>{{ top()!.naCama }}</strong> na cama }
+        @if (top()!.acordado !== null) { · <strong>{{ top()!.acordado }} min</strong> acordado }
+      </p>
+      @if (!top()!.bedOk) {
+        <p class="absent"><strong>Seu relógio não registra a hora de deitar.</strong> Ele começa a contar quando você já apagou.</p>
+      }
+    </a>
+
+    <!-- ② O timing chart — a regularidade aparece na forma, não num índice. -->
+    <section class="card">
+      <h3 class="card-title">Últimas {{ TIMING_NIGHTS }} noites</h3>
+      <rt-sleep-timing-chart [days]="store.timingDays()" [periods]="store.periods()" />
+      <div class="legend">
+        <span class="legend-item"><i class="sw sw-sleep"></i>dormindo</span>
+        <span class="legend-item"><i class="sw sw-bed"></i>na cama</span>
+        <span class="legend-item"><i class="sw sw-empty"></i>sem dado</span>
+      </div>
+    </section>
+
+    <!-- ③ Despertares — quando a noite quebra, não quantas vezes na média. -->
+    <section class="card">
+      <h3 class="card-title">Despertares</h3>
+      <p class="card-sub">últimas {{ store.recent().length }} noites, sobrepostas na hora do dia</p>
+      <rt-awakenings-clock [periods]="store.recent()" />
+      <div class="series">
+        @for (s of store.awakeSeries(); track s.wakeDay) {
+          <div class="series-col">
+            <div class="series-track">
+              @if (s.awakeMin === null) {
+                <div class="series-unknown"></div>
+              } @else {
+                <div class="series-bar" [style.height.px]="seriesH(s.awakeMin)"></div>
+              }
+            </div>
+            <span class="series-label mono">{{ s.wakeDay.slice(8) }}</span>
+          </div>
+        }
+      </div>
+      <p class="card-note">Minutos acordado por noite. Sem meta — a série existe para você ver, não para bater um alvo.</p>
+    </section>
+
+    <!-- ④ Nota × medição — o par que só o Orbe tem. Sem seta, sem "melhorou". -->
+    @if (store.groups().length > 0) {
+      <section class="card">
+        <h3 class="card-title">Como você acordou</h3>
+        <p class="card-sub">{{ store.groupsTotal() }} noites com nota e medição</p>
+        @for (g of store.groups(); track g.nota) {
+          <div class="pair">
+            <span class="pips"><span class="on">{{ pips(g.nota) }}</span><span class="off">{{ pips(5 - g.nota) }}</span></span>
+            <div class="range">
+              <div class="range-bar" [style.left]="pct(g.min)" [style.right]="'calc(100% - ' + pct(g.max) + ')'"></div>
+              <div class="range-dot" [style.left]="pct(g.mean)"></div>
+            </div>
+            <div class="pair-n">
+              <span class="mono">{{ hm(g.mean) }}</span>
+              <span class="pair-count">{{ g.n }} {{ g.n === 1 ? 'noite' : 'noites' }}</span>
+            </div>
+          </div>
+        }
+        <p class="card-note">Barra = do mínimo ao máximo dormido; ponto = média. Se a medição discordar do corpo, quem está certo é o corpo.</p>
+      </section>
+    }
+
+    <!-- Noites — cada uma abre o detalhe. -->
+    <h3 class="section-title">Noites</h3>
+    <div class="list">
+      @for (p of store.nights(); track p.onsetAt) {
+        <a class="row" [routerLink]="['/sono', p.wakeDay]">
+          <div class="flex">
+            <div class="row-day">{{ dayLabel(p.wakeDay) }}</div>
+            <div class="row-sub mono">{{ clockLabel(p.onsetAt, p.tzOffset) }} → {{ clockLabel(p.wakeAt, p.tzOffset) }}{{ despertares(p) }}</div>
+          </div>
+          <span class="row-hours mono">{{ hm(p.asleepH) }}</span>
+          @if (store.sleepRatings()[p.wakeDay] != null) {
+            <span class="row-nota mono">{{ store.sleepRatings()[p.wakeDay] }}/5</span>
+          }
+        </a>
+      }
+    </div>
+  }
+</div>

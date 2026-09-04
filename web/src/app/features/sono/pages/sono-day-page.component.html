@@ -1,0 +1,64 @@
+<div class="page">
+  @if (!p()) {
+    <div class="state">{{ store.loading() ? 'Carregando…' : 'Noite não encontrada.' }}</div>
+    <a class="back" routerLink="/sono">← Sono</a>
+  } @else {
+    <a class="back" routerLink="/sono">← Sono</a>
+    <rt-page-header eyebrow="Noite" [title]="dayLabel(p()!.wakeDay, true)" />
+
+    <section class="card">
+      <div class="clocks">
+        <div class="clock">
+          <span class="clock-label">Deitou</span>
+          <span class="clock-value mono" [class.muted]="!bedOk()">{{ bedOk() ? clockLabel(p()!.inBedAt!, p()!.tzOffset) : '--:--' }}</span>
+        </div>
+        <div class="clock">
+          <span class="clock-label">Apagou</span>
+          <span class="clock-value mono">{{ clockLabel(p()!.onsetAt, p()!.tzOffset) }}</span>
+        </div>
+        <div class="clock">
+          <span class="clock-label">Acordou</span>
+          <span class="clock-value mono">{{ clockLabel(p()!.wakeAt, p()!.tzOffset) }}</span>
+        </div>
+      </div>
+      <p class="dur">
+        <strong>{{ hm(p()!.asleepH) }}</strong> dormindo
+        @if (nota() !== null) { · acordou dando <strong>{{ nota() }}/5</strong> }
+      </p>
+    </section>
+
+    <!-- A linha do tempo: o sono, e os despertares onde ocorreram. -->
+    <section class="card">
+      <h3 class="card-title">A noite</h3>
+      <div class="timeline">
+        <div class="timeline-fill"></div>
+        @for (h of holes(); track $index) {
+          <div class="timeline-hole" [style.left]="h.left" [style.width]="h.width"></div>
+        }
+      </div>
+      <div class="ticks mono">
+        <span>{{ clockLabel(p()!.onsetAt, p()!.tzOffset) }}</span>
+        <span>{{ clockLabel(p()!.wakeAt, p()!.tzOffset) }}</span>
+      </div>
+      <p class="card-note">{{ awakeText() }}</p>
+    </section>
+
+    <!-- Estágios em proporção — textura, não conselho. -->
+    @if (stages().length > 0) {
+      <section class="card">
+        <h3 class="card-title">Estágios</h3>
+        <div class="stage-bar">
+          @for (s of stages(); track s.key) {
+            <div [style.flex]="s.flex" [style.background]="s.color" [title]="s.label + ' ' + hm(s.hours)"></div>
+          }
+        </div>
+        <div class="stage-key">
+          @for (s of stages(); track s.key) {
+            <span class="key-item"><i class="key-sw" [style.background]="s.color"></i>{{ s.label }} {{ hm(s.hours) }}</span>
+          }
+        </div>
+        <p class="uncert">⚠ Estimativa do seu relógio. Vale para comparar você com você mesmo — não é medida clínica.</p>
+      </section>
+    }
+  }
+</div>

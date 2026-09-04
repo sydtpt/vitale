@@ -69,7 +69,7 @@ importa). Toda rota de aplicação está atrás de `profileGuard`; `''` redireci
 | Grupo | Rotas |
 |---|---|
 | Visão geral | `/semana` (padrão) · `/retrospectiva` |
-| Treino e saúde | `/treinos` · `/workout-history` · `/saude` · `/recuperacao` · `/habits` |
+| Treino e saúde | `/treinos` · `/workout-history` · `/saude` · `/sono` · `/recuperacao` · `/habits` |
 | Dia a dia | `/alimentacao` · `/compras` · `/casa` · `/tasks` · `/registros` · `/cultura` |
 | Dinheiro e metas | `/financas` · `/metas` |
 | Configuração | `/conexoes` · `/configuracoes` |

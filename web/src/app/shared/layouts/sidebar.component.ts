@@ -51,6 +51,7 @@ export class SidebarComponent {
     { path: '/registros',   icon: '📌', label: 'Registros' },
     { path: '/cultura',     icon: '📚', label: 'Cultura' },
     { path: '/saude',       icon: '❤️', label: 'Saúde' },
+    { path: '/sono',        icon: '🌙', label: 'Sono' },
     { path: '/recuperacao', icon: '🔋', label: 'Recuperação' },
     { path: '/alimentacao', icon: '🍽️', label: 'Alimentação' },
     { path: '/compras',     icon: '🛒', label: 'Compras' },
