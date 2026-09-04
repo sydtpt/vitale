@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   View,
   Text,
   ScrollView,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
   buildFormCurve,
@@ -62,10 +64,35 @@ import { canShowReadiness, coverageNote, shortLabel } from '../../lib/readiness-
  * tiver o que mostrar, o bloco some se nenhum tiver, e as pílulas só aparecem
  * com mais de uma página.
  *
- * A casca de card (superfície, raio, sombra ou contorno) fica no **trilho**, e
- * não nos slides: um `ScrollView` recorta os filhos, e a sombra de um slide
- * seria cortada na borda. Como o trilho tem exatamente o tamanho de um slide,
- * o resultado visual é o mesmo de qualquer outro card da tela.
+ * **A casca de card viaja com o slide.** Cada página é um cartão inteiro —
+ * superfície, raio e sombra ou contorno —, e entre dois cartões há um vinco de
+ * `CARD_GAP` por onde se vê o fundo da tela. É o que faz o gesto ler como
+ * cartas trocando de lugar, e não como texto correndo atrás de um vidro: com a
+ * borda parada o olho fica procurando a moldura, e nenhuma dose de animação no
+ * conteúdo resolve isso — a moldura é que precisa andar.
+ *
+ * Isso custa o recorte, e é por ele que a casca já morou no trilho: um
+ * `ScrollView` corta os filhos nas próprias bordas, e a sombra do cartão
+ * morreria ali. A saída é o trilho ser **maior** do que mostra e devolver a
+ * diferença em margem negativa — `BLEED_V` em cima e embaixo, `CARD_GAP / 2`
+ * dos lados. No fluxo ele continua ocupando exatamente `RAIL_H`.
+ *
+ * O `pagingEnabled` continua valendo porque a página é a **viewport**, não o
+ * cartão: o cartão mede `CARD_GAP` a menos e fica centrado nela pela margem, de
+ * modo que dois cartões consecutivos avançam exatos `width` — a conta do
+ * `onMomentumScrollEnd` e as interpolações não mudam.
+ *
+ * Sobre isso, o movimento: o deslocamento vem todo do `scrollX`, que é a única
+ * fonte de verdade. As camadas do cartão andam em velocidades diferentes
+ * (paralaxe), o cartão que sai recua, e o cursor das pílulas escorre junto com
+ * o dedo. O estado `page` continua existindo para o leitor de tela e para o
+ * clamp de páginas que somem — ele só não manda no visual, e é por isso que
+ * arrastar e tocar numa pílula produzem exatamente o mesmo movimento.
+ *
+ * Tudo isso é `translateX`, `scale` e `opacity` sobre um `Animated.Value`
+ * alimentado por evento nativo: roda na thread de UI, sem depender do JS. Nada
+ * aqui é animação autônoma — é resposta direta ao gesto —, então não há o que
+ * desligar sob "reduzir movimento".
  *
  * Cor nasce do tema. Cansaço é o papel `rose` na variante de texto; Base é o
  * papel `blue` num passo mais fundo (`baseBarColor`), porque os dois `text`
@@ -75,7 +102,9 @@ import { canShowReadiness, coverageNote, shortLabel } from '../../lib/readiness-
  */
 
 /**
- * Altura do trilho: os três slides preenchem isto, nunca mais nem menos.
+ * Altura do cartão: os três slides preenchem isto, nunca mais nem menos. O
+ * trilho mede `RAIL_H + 2 × BLEED_V` e devolve a diferença em margem negativa,
+ * então é este o número que o resto da tela enxerga.
  *
  * Eram 206 com dois slides. A prontidão pede 8 pt a mais — cabeçalho com nota,
  * quatro barras e o bloco de conselho — e os outros dois absorvem a folga no
@@ -92,6 +121,73 @@ const SPARK_H = 44;
 /** Folga à esquerda para o rótulo "0" e à direita para o marcador final. */
 const SPARK_LEFT = 10;
 const SPARK_RIGHT = 4;
+
+/**
+ * Paralaxe entre as camadas do slide, em pontos no extremo da travessia.
+ *
+ * O slide inteiro anda 1× com o dedo; o cabeçalho fica `HEAD_LAG` atrás e o
+ * rodapé chega `FOOT_LEAD` na frente. O miolo (o gráfico, as barras — o dado)
+ * não recebe nada: é a âncora contra a qual o resto se move. No meio do gesto
+ * a diferença é de ~7 pt, o bastante para o olho ler profundidade sem que
+ * ninguém note o truque.
+ *
+ * Em pontos e não em fração da largura porque a dose certa não muda com o
+ * tamanho da tela: 12% da largura num telefone é discreto, num iPad é solavanco.
+ */
+const HEAD_LAG = 14;
+const FOOT_LEAD = 12;
+/**
+ * Vinco entre dois cartões — é ele que se vê no meio do arrasto, e é por ele
+ * que o gesto lê como dois objetos e não como um só. Vale `spacing.lg`, o mesmo
+ * gutter que o cartão já tem contra a borda da tela: o cartão que sai parece
+ * deslizar para fora mantendo a folga que sempre teve.
+ */
+const CARD_GAP = spacing.lg;
+/**
+ * Folga vertical do trilho, para a sombra do cartão caber no recorte. A sombra
+ * do tema Orbe desce `8 + 14` (deslocamento mais raio); 18 pega o corpo dela e
+ * deixa de fora só a cauda, que é onde ela já é imperceptível. Devolvida em
+ * margem negativa, não muda nada do que vem depois na tela.
+ */
+const BLEED_V = 18;
+/**
+ * O cartão que sai não some — cartão não é transparente. Ele só cede um pouco
+ * de presença para o que entra, para o olho saber qual dos dois seguir no meio
+ * da travessia. Fração da largura para o gatilho, opacidade no piso.
+ */
+const FADE_AT = 0.7;
+const FADE_TO = 0.82;
+/** E recua: com sombra viajando junto, é isto que vende a profundidade. */
+const SLIDE_MIN_SCALE = 0.94;
+/**
+ * E gira. O cartão à esquerda mostra a face virada para o centro, o da direita
+ * também — é a inclinação que transforma "dois retângulos deslizando" em "um
+ * baralho sendo folheado". Graus no extremo da travessia: no meio do gesto,
+ * onde o olho de fato está, dá metade disto.
+ *
+ * A perspectiva tem que vir primeira no `transform`, senão a rotação sai chapada.
+ */
+const CARD_TILT = 14;
+const PERSPECTIVE = 900;
+
+/**
+ * Pílulas: pontos inertes por baixo — eles dizem quantas páginas existem — e um
+ * cursor por cima que translada com o `scrollX`.
+ *
+ * Largura fixa e só `translateX`/`scaleX` para o cursor caber inteiro no driver
+ * nativo; interpolar `width` e `backgroundColor` de cada pílula daria o mesmo
+ * desenho pela thread do JS. Como todos os pontos medem igual, a fileira também
+ * parou de se remontar a cada troca de página.
+ *
+ * O cursor **estica no meio do caminho** e volta ao pousar: em `CURSOR_STRETCH`
+ * ele fica largo o bastante para cobrir os dois pontos ao mesmo tempo, e a
+ * leitura é de uma gota que se estende de um para o outro em vez de um bloco
+ * que se teleporta. É o que dá vida à fileira sem inventar um elemento novo.
+ */
+const DOT = 6;
+const DOT_GAP = 6;
+const CURSOR_W = 12;
+const CURSOR_STRETCH = 1.8;
 
 /** Papel cromático de cada sinal da prontidão. Preenchimento de barra usa `accent`. */
 const COMP_ROLE: Record<ReadinessComponent['key'], RoleKey> = {
@@ -126,11 +222,18 @@ export function TodayBodyCard({ activities, loaded }: Props) {
   // componente: a barreira de `architecture.test.ts` lê esse genérico (e até um
   // comentário com ele) como tag JSX e cobra a prop da barra de rolagem.
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  // Tamanho útil do trilho, medido no ScrollView (já descontado o contorno que
-  // `shadows.card` acrescenta nos temas Clean).
-  const [size, setSize] = useState({ width: 0, height: RAIL_H });
+  // Tamanho do trilho, medido no ScrollView. É a **página**, não o cartão: o
+  // cartão é isto menos o vinco e menos a folga da sombra.
+  const [size, setSize] = useState({ width: 0, height: RAIL_H + 2 * BLEED_V });
   const [page, setPage] = useState(0);
   const { width } = size;
+
+  // A posição do trilho, em pontos. Tudo que se mexe pendura aqui.
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const onScroll = useMemo(
+    () => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true }),
+    [scrollX],
+  );
 
   const summaries = useHealthStore((s) => s.summaries);
   // Assina `rows` (e não `seriesFor`, que é estável): é a chegada da tabela que
@@ -180,7 +283,14 @@ export function TodayBodyCard({ activities, loaded }: Props) {
   const baseColor = baseBarColor(roleColors('blue').text, colors.ink);
   const fatigueColor = roleColors('rose').text;
 
-  const innerW = Math.max(0, width - 2 * SLIDE_PAD);
+  // O cartão é a viewport menos o vinco; a medição do `onLayout` é do trilho,
+  // que agora é maior do que mostra. O contorno dos temas Clean entra na conta
+  // porque o `shadows.card` deles é uma borda de 1 pt, e ela come largura útil —
+  // sem isto a faísca do SVG passaria 2 pt por baixo do padding no Clean.
+  const cardBorder = (shadows.card.borderWidth as number | undefined) ?? 0;
+  const cardW = Math.max(0, width - CARD_GAP);
+  const cardH = Math.max(0, size.height - 2 * BLEED_V);
+  const innerW = Math.max(0, cardW - 2 * (SLIDE_PAD + cardBorder));
   const plotW = Math.max(0, innerW - SPARK_LEFT - SPARK_RIGHT);
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -188,7 +298,50 @@ export function TodayBodyCard({ activities, loaded }: Props) {
     setSize({ width: Math.round(w), height: Math.round(h) });
   };
 
-  const slideStyle = [styles.slide, { width, height: size.height }];
+  // Largura útil para interpolar. Os slides só entram na árvore depois da
+  // medição, mas os elementos são construídos antes dela — e uma faixa de
+  // entrada degenerada (`[0, 0, 0]`) divide por zero no primeiro render.
+  const W = width || 1;
+  /** Quanto o slide `i` está fora de posição: −W à esquerda, 0 ativo, +W à direita. */
+  const localOf = (i: number) => Animated.subtract(scrollX, i * W);
+  /** Camada do slide `i`: `px` positivo fica para trás, negativo vai na frente. */
+  const layer = (i: number, px: number) => ({
+    transform: [
+      { translateX: localOf(i).interpolate({ inputRange: [-W, 0, W], outputRange: [-px, 0, px] }) },
+    ],
+  });
+  /** O slide como um todo: desbota e recua conforme sai de cena. */
+  const motion = (i: number) => {
+    const local = localOf(i);
+    return {
+      opacity: local.interpolate({
+        inputRange: [-W * FADE_AT, 0, W * FADE_AT],
+        outputRange: [FADE_TO, 1, FADE_TO],
+        extrapolate: 'clamp' as const,
+      }),
+      transform: [
+        { perspective: PERSPECTIVE },
+        {
+          // Sinal: rotação positiva empurra a borda direita para o fundo. O
+          // cartão que ficou à direita (local negativo) leva o positivo, e é
+          // assim que os dois ficam virados para o centro da tela.
+          rotateY: local.interpolate({
+            inputRange: [-W, 0, W],
+            outputRange: [`${CARD_TILT}deg`, '0deg', `${-CARD_TILT}deg`],
+            extrapolate: 'clamp' as const,
+          }),
+        },
+        {
+          scale: local.interpolate({
+            inputRange: [-W, 0, W],
+            outputRange: [SLIDE_MIN_SCALE, 1, SLIDE_MIN_SCALE],
+            extrapolate: 'clamp' as const,
+          }),
+        },
+      ],
+    };
+  };
+  const slideStyle = (i: number) => [styles.slide, { width: cardW, height: cardH }, motion(i)];
   const labels: string[] = [];
   const slides: React.ReactNode[] = [];
 
@@ -206,8 +359,8 @@ export function TodayBodyCard({ activities, loaded }: Props) {
     labels.push('Ver o saldo de hoje', 'Ver de onde vem');
     slides.push(
       // Slide — Saldo de hoje
-      <View key="saldo" style={slideStyle}>
-        <View style={styles.headRow}>
+      <Animated.View key="saldo" style={slideStyle(0)}>
+        <Animated.View style={[styles.headRow, layer(0, HEAD_LAG)]}>
           <View
             style={styles.headText}
             accessible
@@ -226,7 +379,7 @@ export function TodayBodyCard({ activities, loaded }: Props) {
               <Text style={styles.badgeText}>{state.badge}</Text>
             </View>
           )}
-        </View>
+        </Animated.View>
 
         <View style={styles.sparkBlock}>
           {/* Decorativa: o leitor de tela já tem o número e a frase. */}
@@ -259,38 +412,41 @@ export function TodayBodyCard({ activities, loaded }: Props) {
             </Svg>
           </View>
 
-          {state.footer.kind === 'axis' && (
-            <View style={styles.footRow}>
-              <Text style={styles.axisText}>{state.footer.left}</Text>
-              <Text style={styles.axisText}>{state.footer.right}</Text>
-            </View>
-          )}
-          {state.footer.kind === 'warmup' && (
-            <View style={styles.footRow}>
-              <Text style={styles.noteText}>{state.footer.text}</Text>
-            </View>
-          )}
-          {state.footer.kind === 'alert' && (
-            <Pressable
-              accessibilityRole="button"
-              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-              onPress={() => router.push('/configuracoes/conexoes')}
-              style={({ pressed }) => [styles.footRow, styles.alertRow, pressed && styles.pressed]}
-            >
-              <Ionicons name="alert-circle-outline" size={14} color={colors.primaryDeep} />
-              <Text style={styles.alertText}>{state.footer.text}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.ink3} />
-            </Pressable>
-          )}
+          {/* As três variantes dividem a mesma altura e a mesma camada. */}
+          <Animated.View style={layer(0, -FOOT_LEAD)}>
+            {state.footer.kind === 'axis' && (
+              <View style={styles.footRow}>
+                <Text style={styles.axisText}>{state.footer.left}</Text>
+                <Text style={styles.axisText}>{state.footer.right}</Text>
+              </View>
+            )}
+            {state.footer.kind === 'warmup' && (
+              <View style={styles.footRow}>
+                <Text style={styles.noteText}>{state.footer.text}</Text>
+              </View>
+            )}
+            {state.footer.kind === 'alert' && (
+              <Pressable
+                accessibilityRole="button"
+                hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                onPress={() => router.push('/configuracoes/conexoes')}
+                style={({ pressed }) => [styles.footRow, styles.alertRow, pressed && styles.pressed]}
+              >
+                <Ionicons name="alert-circle-outline" size={14} color={colors.primaryDeep} />
+                <Text style={styles.alertText}>{state.footer.text}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.ink3} />
+              </Pressable>
+            )}
+          </Animated.View>
         </View>
-      </View>,
+      </Animated.View>,
 
       // Slide — De onde vem
-      <View key="origem" style={slideStyle}>
-        <View style={styles.headRowCenter}>
+      <Animated.View key="origem" style={slideStyle(1)}>
+        <Animated.View style={[styles.headRowCenter, layer(1, HEAD_LAG)]}>
           <Text style={styles.eyebrow}>DE ONDE VEM</Text>
           <Text style={styles.headHint}>esforço por semana</Text>
-        </View>
+        </Animated.View>
 
         <View style={styles.bars}>
           <BarRow
@@ -316,10 +472,10 @@ export function TodayBodyCard({ activities, loaded }: Props) {
         </View>
 
         {/* Sem frase a série é curta; a altura é fixa, então nada se move. */}
-        <Text style={styles.detail} numberOfLines={2}>
+        <Animated.Text style={[styles.detail, layer(1, -FOOT_LEAD)]} numberOfLines={2}>
           {detail ?? ''}
-        </Text>
-      </View>,
+        </Animated.Text>
+      </Animated.View>,
     );
   }
 
@@ -334,10 +490,13 @@ export function TodayBodyCard({ activities, loaded }: Props) {
     const ruleColor = tone?.accent ?? colors.ink4;
     const titleColor = tone?.text ?? colors.ink2;
 
+    // Índice real: sem a curva, a prontidão é a primeira (e única) página.
+    const i = slides.length;
+
     labels.push('Ver a prontidão');
     slides.push(
-      <View key="prontidao" style={slideStyle}>
-        <View style={styles.headRowCenter}>
+      <Animated.View key="prontidao" style={slideStyle(i)}>
+        <Animated.View style={[styles.headRowCenter, layer(i, HEAD_LAG)]}>
           <View>
             <Text style={styles.eyebrow}>PRONTIDÃO</Text>
             <Text style={styles.headHint}>{coverageNote(score)}</Text>
@@ -349,7 +508,7 @@ export function TodayBodyCard({ activities, loaded }: Props) {
           >
             {score.total}
           </Text>
-        </View>
+        </Animated.View>
 
         <View style={styles.barsTight}>
           {score.components.map((c) => (
@@ -380,61 +539,116 @@ export function TodayBodyCard({ activities, loaded }: Props) {
             token dos trilhos inertes, e como destaque ele mede 1,05 de contraste
             contra o cartão no Clean elevado e no Orbe escuro — some — e 1,10 no
             Clean branco, onde vira a única mancha cinza de um cartão limpo. */}
-        <View style={[styles.advice, { borderLeftColor: ruleColor }]}>
+        <Animated.View style={[styles.advice, { borderLeftColor: ruleColor }, layer(i, -FOOT_LEAD)]}>
           <Text style={[styles.adviceTitle, { color: titleColor }]}>{advice.title}</Text>
           <Text style={styles.adviceText} numberOfLines={2}>
             {advice.text}
           </Text>
-        </View>
-      </View>,
+        </Animated.View>
+      </Animated.View>,
     );
   }
 
   // O dado pode encolher entre renders (logout, permissão revogada): o slide
   // ativo é clampado aqui, senão o trilho fica rolado para uma página que sumiu.
   const active = Math.min(page, slides.length - 1);
+  /** A virada de página é a única coisa que vibra: olho, dedo e tato no mesmo instante. */
+  const settle = (p: number) => {
+    if (p !== page) Haptics.selectionAsync().catch(() => {});
+    setPage(p);
+  };
   const onMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (width > 0) {
       const p = Math.round(e.nativeEvent.contentOffset.x / width);
-      setPage(Math.min(slides.length - 1, Math.max(0, p)));
+      settle(Math.min(slides.length - 1, Math.max(0, p)));
     }
   };
+  // Dente de serra do estiramento: 1 sobre cada ponto, `CURSOR_STRETCH` no meio
+  // do caminho entre dois. Construído em laço porque o número de páginas é
+  // dinâmico — com duas ou três páginas a faixa tem tamanhos diferentes.
+  const stretchIn: number[] = [];
+  const stretchOut: number[] = [];
+  for (let p = 0; p < slides.length; p++) {
+    if (p > 0) {
+      stretchIn.push((p - 0.5) * W);
+      stretchOut.push(CURSOR_STRETCH);
+    }
+    stretchIn.push(p * W);
+    stretchOut.push(1);
+  }
+
   const goTo = (p: number) => {
-    setPage(p);
+    settle(p);
+    // O cursor não é avisado: ele lê o `scrollX`, e este `scrollTo` o move
+    // exatamente como o dedo moveria. É o que faz tocar e arrastar coincidirem.
     scrollRef.current?.scrollTo({ x: p * width, animated: true });
   };
 
   return (
     <View style={styles.block}>
       <View style={styles.rail}>
-        <ScrollView
+        <Animated.ScrollView
           ref={scrollRef}
           horizontal
           pagingEnabled
           bounces={false}
           showsHorizontalScrollIndicator={false}
           onLayout={onLayout}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           onMomentumScrollEnd={onMomentumEnd}
           scrollEnabled={slides.length > 1}
           style={styles.track}
         >
           {width > 0 && slides}
-        </ScrollView>
+        </Animated.ScrollView>
       </View>
 
       {slides.length > 1 && (
         <View style={styles.pills}>
-          {labels.map((label, i) => (
-            <Pressable
-              key={label}
-              accessibilityRole="button"
-              accessibilityLabel={label}
-              accessibilityState={{ selected: active === i }}
-              hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
-              onPress={() => goTo(i)}
-              style={[styles.pill, active === i ? styles.pillOn : styles.pillOff]}
-            />
-          ))}
+          <View style={styles.dotRow}>
+            {labels.map((label, i) => (
+              <Pressable
+                key={label}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                accessibilityState={{ selected: active === i }}
+                // 6 pt de alvo com 12 de folga dava ~30×18 — abaixo dos 44 da HIG.
+                hitSlop={{ top: 18, bottom: 18, left: 10, right: 10 }}
+                onPress={() => goTo(i)}
+                style={styles.dot}
+              />
+            ))}
+            {width > 0 && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.cursor,
+                  {
+                    // `translateX` primeiro: o `scaleX` estica em torno do
+                    // próprio centro e não multiplica o deslocamento.
+                    transform: [
+                      {
+                        translateX: scrollX.interpolate({
+                          // Sem `extrapolate`: a reta continua sozinha para a
+                          // terceira página e para as que vierem depois.
+                          inputRange: [0, W],
+                          outputRange: [0, DOT + DOT_GAP],
+                        }),
+                      },
+                      {
+                        scaleX: scrollX.interpolate({
+                          inputRange: stretchIn,
+                          outputRange: stretchOut,
+                          extrapolate: 'clamp',
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
+          </View>
         </View>
       )}
     </View>
@@ -468,17 +682,27 @@ function BarRow({ label, fill, tick, color, value, styles }: BarRowProps) {
 const createStyles = () =>
   StyleSheet.create({
     block: { marginTop: spacing.md },
-    // A casca de card mora aqui — ver o cabeçalho do arquivo.
+    // O trilho enxerga um retângulo maior do que mostra, para a sombra do
+    // cartão não morrer no recorte do ScrollView; a margem negativa devolve a
+    // folga, e no fluxo ele ocupa RAIL_H como sempre ocupou.
     rail: {
-      height: RAIL_H,
+      height: RAIL_H + 2 * BLEED_V,
+      marginVertical: -BLEED_V,
+      marginHorizontal: -CARD_GAP / 2,
+    },
+    // Sem `overflow: 'hidden'`: quem arredonda agora é o cartão, e recortar
+    // aqui cortaria justamente a sombra que o trilho ganhou folga para mostrar.
+    track: { flex: 1 },
+    // A casca de card mora aqui — ver o cabeçalho do arquivo. A margem centra o
+    // cartão na página e abre o vinco: dois cartões avançam exatos `width`.
+    slide: {
+      marginHorizontal: CARD_GAP / 2,
+      marginVertical: BLEED_V,
+      padding: SLIDE_PAD,
+      justifyContent: 'space-between',
       backgroundColor: colors.surface,
       borderRadius: radii['3xl'],
       ...shadows.card,
-    },
-    track: { flex: 1, borderRadius: radii['3xl'], overflow: 'hidden' },
-    slide: {
-      padding: SLIDE_PAD,
-      justifyContent: 'space-between',
     },
     headRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
     headText: { flex: 1, minWidth: 0, gap: 2 },
@@ -530,9 +754,20 @@ const createStyles = () =>
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
-      gap: 6,
     },
-    pill: { height: 6, borderRadius: radii.pill },
-    pillOn: { width: 16, backgroundColor: colors.ink2 },
-    pillOff: { width: 6, backgroundColor: colors.ink4 },
+    // A fileira é a referência do cursor absoluto — e, como todos os pontos
+    // medem igual, ela não se remonta mais quando a página muda.
+    dotRow: { flexDirection: 'row', alignItems: 'center', gap: DOT_GAP },
+    dot: { width: DOT, height: DOT, borderRadius: radii.pill, backgroundColor: colors.ink4 },
+    cursor: {
+      position: 'absolute',
+      top: 0,
+      // Centrado no primeiro ponto: a sobra de 5 pt invade a folga dos dois
+      // lados, que é o que dá a leitura de "cápsula por cima da fileira".
+      left: -(CURSOR_W - DOT) / 2,
+      width: CURSOR_W,
+      height: DOT,
+      borderRadius: radii.pill,
+      backgroundColor: colors.ink2,
+    },
   });
