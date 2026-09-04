@@ -91,9 +91,11 @@ export interface ActivityConsistency {
 /**
  * O passo divergente.
  *
- * `-3` é reservado para **zero**: não treinar não é "treinar pouco", e a cor
- * mais forte de um lado da escala é o lugar certo para isso num painel cujo
- * assunto é aparecer.
+ * `-3` é reservado para **zero**: não treinar não é "treinar pouco", e num
+ * painel cujo assunto é aparecer o dia parado merece um degrau só dele, não o
+ * fundo de um gradiente. Que cor cada degrau veste é decisão de quem renderiza
+ * — a rampa da Consistência, por exemplo, usa um matiz só: neutro no zero,
+ * lavados parecidos abaixo da meta, e a saturação saltando no degrau que bate.
  */
 export function consistencyStep(effectiveS: number, targetS: number): ConsistencyStep {
   if (effectiveS <= 0) return -3;

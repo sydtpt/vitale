@@ -31,17 +31,24 @@ import { colors, fonts, radii, roleColors, shadows, spacing, useTheme, useThemed
  * quais dias isso aconteceu.
  */
 /**
- * A escala: frio = parado, quente = intenso.
+ * A escala: um matiz só — o laranja do treino — e a meta como salto.
  *
  * A rampa padrão do `HeatmapGrid` é a do **sono**, onde quente marca a noite
  * ruim. Herdá-la aqui invertia a leitura: um dia de descanso saía vermelho e um
  * treino forte saía azul, brigando com a metáfora física de que calor é esforço.
  *
- * Duas coisas acontecem ao mesmo tempo na rampa, de propósito. A **intensidade**
- * da cor acompanha a magnitude — dia parado é o mais lavado, dia forte é o mais
- * saturado. O **matiz** diz de que lado da meta o dia caiu: frio abaixo, neutro
- * em cima, quente acima. Assim a grade se lê de longe pela intensidade e de
- * perto pelo matiz.
+ * A primeira rampa própria usava dois matizes — azul abaixo da meta, laranja
+ * acima. Não sobreviveu ao uso: dois matizes em volta de um neutro têm cara de
+ * escala divergente, e nessa gramática um azul forte lê "muito abaixo da meta"
+ * — o contrário do que ele significava aqui (quase na meta). No claro a
+ * leitura invertia de verdade.
+ *
+ * Com um matiz, a ordem vive só na luminância — imune a daltonismo, idêntica
+ * nos dois esquemas: neutro é o dia parado, e o laranja engrossa com os
+ * minutos. Abaixo da meta tudo fica pálido e parecido, e a saturação **salta**
+ * no primeiro degrau que bate: o salto é a linha da meta, sem segundo matiz
+ * nem marcador. A granularidade do lado de cá importa menos, de propósito — o
+ * toque na célula devolve o número.
  *
  * Nenhuma cor é literal: tudo sai dos papéis da paleta ativa por `mix`, então a
  * grade acompanha as seis paletas e os dois esquemas sem uma linha de hex.
@@ -50,17 +57,16 @@ function useConsistencyRamp(): HeatRamp {
   // Lido a cada render de propósito: `roleColors` e `colors` seguem o tema ativo,
   // e memoizar congelaria a grade na paleta em que ela montou.
   useTheme();
-  const cold = roleColors('blue').accent;
   const hot = roleColors('orange').accent;
   const surface = colors.surface;
 
   const bg: Record<HeatStep, string> = {
-    [-3]: mix(cold, surface, 0.74), //  0 min — o mais lavado, e frio
-    [-2]: mix(cold, surface, 0.52),
-    [-1]: mix(cold, surface, 0.26),
-    0: colors.line, //                  em cima da meta — neutro
-    1: mix(hot, surface, 0.26),
-    2: hot, //                          o mais saturado, e quente
+    [-3]: colors.line, //              0 min — neutro, fora da rampa
+    [-2]: mix(hot, surface, 0.86), //  pálidos e parecidos: não bateu
+    [-1]: mix(hot, surface, 0.72),
+    0: mix(hot, surface, 0.42), //     bateu — a saturação salta aqui
+    1: mix(hot, surface, 0.22),
+    2: hot, //                         o mais saturado
   };
 
   // Tinta por contraste medido, não por gosto: a mesma regra que a rampa do sono
