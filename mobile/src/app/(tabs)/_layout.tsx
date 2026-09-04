@@ -13,7 +13,6 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { hexToRgb } from '@vitale/shared';
 // O expo-router 56 trocou o `@react-navigation/*` por `standard-navigation` e
 // internalizou o bottom-tabs, então o pacote de onde este tipo vinha deixou de
 // ser instalado. O tipo é o mesmo, só mudou de casa; o index do expo-router não
@@ -69,21 +68,29 @@ const TABS: TabDef[] = [
 type TabRect = { x: number; y: number; width: number; height: number };
 
 /**
- * O "+" — a ação proeminente da barra.
+ * O "+" — **vazado**: um furo no vidro da pílula, com a marca só no aro e no
+ * glifo.
  *
- * **Continua tinta cheia, e isso é iOS 26.** Dentro de uma superfície de vidro o
- * sistema desenha a ação principal como preenchimento tingido (o
- * `.glassProminent`), não como mais uma camada de vidro. Um `GlassView` aqui
- * seria `UIVisualEffectView` dentro de `UIVisualEffectView`: o efeito de dentro
- * amostraria o backdrop já borrado pelo de fora e a marca sairia lavada. E o
- * `GlassContainer` não se aplica pelo mesmo motivo da `SelectionCapsule`: ele
- * funde formas **irmãs** que se aproximam, e este botão mora dentro da pílula.
- * Só valeria se ele saísse para fora dela — o que é outro desenho, não um
- * ajuste.
+ * Era tinta cheia, e a tinta cheia era defensável: dentro de uma superfície de
+ * vidro o iOS 26 desenha a ação principal como preenchimento tingido (o
+ * `.glassProminent`). O que derrubou aquele desenho não foi a tinta, foi o aro.
+ * Ele carregava duas intenções na mesma linha — realce especular quando a marca
+ * não declarava contorno, cor da marca quando declarava — e por isso só o
+ * `laranja` e a `tinta` pareciam de vidro; `azul` e `verde` trocavam a luz da
+ * beirada por um anel `#000000` opaco, que sumia por completo no escuro.
  *
- * O que muda é o que fazia dele um FAB de Material em vez de um botão do iOS.
+ * Sem preenchimento o botão fica mais quieto do que era, e isso é o custo
+ * aceito: numa barra cuja função é registrar rápido, a ação principal deixa de
+ * gritar. O que compensa é que ele passa a ser o **único** controle da barra com
+ * enclausuramento — nenhuma aba tem aro —, e o glifo continua em 28px contra os
+ * 22px dos ícones de aba.
+ *
+ * Nada disto é `GlassView`: o furo mostra o vidro que já existe. Um material
+ * novo aqui seria `UIVisualEffectView` dentro de `UIVisualEffectView`, que
+ * amostraria o backdrop já borrado pelo de fora.
  */
 function QuickAddButton({ onPress }: { onPress: () => void }) {
+  const { scheme } = useTheme();
   // O toque AFUNDA, não desbota. `opacity: 0.85` é o gesto do Android; o iOS
   // responde com escala, e com mola — driver nativo, como o resto da barra.
   const press = useRef(new Animated.Value(0)).current;
@@ -115,15 +122,22 @@ function QuickAddButton({ onPress }: { onPress: () => void }) {
         accessibilityRole="button"
         accessibilityLabel="Registrar"
       >
-        {/* Iluminado por cima. Sem isto a tinta cheia lê como adesivo chapado —
-            é o que dá ao botão tingido do iOS o ar de material, e não de cor. */}
-        <LinearGradient
+        {/* A aresta interna do corte. É ela que faz o círculo ler como um furo
+            no vidro e não como um anel desenhado por cima dele: vidro cortado
+            pega luz na beirada. Fica DENTRO do aro da marca — o `absoluteFill`
+            de um filho já mede a partir da borda, não da caixa externa. */}
+        <View
           pointerEvents="none"
-          colors={['rgba(255,255,255,0.30)', 'rgba(255,255,255,0)'] as const}
-          locations={[0, 0.6] as const}
-          style={StyleSheet.absoluteFill}
+          style={[
+            StyleSheet.absoluteFill,
+            styles.fabCut,
+            { borderColor: scheme === 'dark' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.55)' },
+          ]}
         />
-        <Ionicons name="add" size={28} color={colors.onPrimary} />
+        {/* `primaryGraphic`, não `primary`: sem preenchimento, o traço é a única
+            coisa que separa o botão do fundo, e o piso que vale para ele é o de
+            objeto gráfico. O `verde` claro reprovava em 2,11. */}
+        <Ionicons name="add" size={28} color={colors.primaryGraphic} />
       </Pressable>
     </Animated.View>
   );
@@ -174,22 +188,28 @@ function TabItems({
         accessibilityState={{ selected: isFocused }}
         accessibilityLabel={tab.label}
       >
-        {/* O realce da aba ativa NÃO mora mais aqui: é a `SelectionCapsule`, uma
+        {/* O realce da aba ativa NÃO mora mais aqui: é a `SelectionRail`, uma
             só, que desliza entre as abas. Este `onLayout` é o que diz a ela onde
             cada aba começa e quão larga ela é. */}
         <View
           style={styles.tabInner}
           onLayout={(e) => onMeasure(tab.name, 'inner', e.nativeEvent.layout)}
         >
+          {/* `primaryText` e não `primary`. O rótulo é letra de 10px, então o
+              piso é o de texto (4,5) e não o gráfico — e `primary` é uma cor
+              escolhida para PREENCHER, não para escrever: a marca `verde` no
+              claro media 2,11 aqui. O ícone acompanha o rótulo em vez de usar o
+              piso gráfico mais frouxo, porque os dois formam um bloco só e duas
+              cores quase iguais lado a lado leem como defeito. */}
           <Ionicons
             name={isFocused ? tab.iconActive : tab.icon}
             size={22}
-            color={isFocused ? colors.primary : inactiveColor}
+            color={isFocused ? colors.primaryText : inactiveColor}
           />
           <Text
             style={[
               styles.label,
-              { color: isFocused ? colors.primary : inactiveColor },
+              { color: isFocused ? colors.primaryText : inactiveColor },
               isFocused && styles.labelActive,
             ]}
           >
@@ -212,18 +232,26 @@ function TabItems({
 }
 
 /**
- * O realce da aba ativa — **um só**, que desliza de aba em aba com mola, como o
- * indicador de seleção da barra de abas do iOS 26. Antes eram quatro fundos
- * estáticos ligados/desligados no `tabInner`, e a troca de aba dava um salto.
+ * O realce da aba ativa — uma **régua** de 3px sob o par ícone+rótulo, uma só,
+ * que desliza de aba em aba com mola.
  *
- * Por que não é um `GlassView` dentro de um `GlassContainer`, como cheguei a
- * sugerir: o `UIGlassContainerEffect` funde formas de vidro **irmãs** quando
- * elas chegam perto — e esta fica inteiramente dentro da pílula, então a fusão
- * simplesmente a engoliria. Vidro dentro de vidro também é o que a Apple pede
- * para não fazer (dobra o material). O indicador do sistema é o que está aqui:
- * um preenchimento tingido desenhado DENTRO do vidro da barra.
+ * Era uma cápsula preenchida a 10% da marca, e duas coisas a derrubaram. A
+ * primeira é que sobre vidro borrado aquele preenchimento não chegava a formar
+ * degrau: quatro sinais fracos ao mesmo tempo — ícone cheio, cor, negrito e
+ * cápsula — e nenhum decisivo. A segunda é que a largura vinha do rótulo
+ * medido, e o rótulo engorda para `sansBold` justamente ao ficar ativo: o
+ * `onLayout` disparava com a mola em voo e mexia no `outputRange` no meio do
+ * caminho.
+ *
+ * A régua tem largura fixa — a mesma do ícone acima dela —, e isso resolve as
+ * duas de uma vez. Some a interpolação de largura, e com ela some a segunda
+ * mola: sobrou `translateX`, que roda no driver nativo, que é o que segura a
+ * animação quando a troca de aba monta a tela nova e trava a thread JS. O
+ * negrito também deixa de importar: o `tabInner` é centrado dentro de um
+ * `Pressable` com `flex: 1`, então quando ele alarga o `x` recua metade e o
+ * CENTRO fica parado — e é o centro que a régua persegue.
  */
-function SelectionCapsule({
+function SelectionRail({
   rects,
   activeIndex,
 }: {
@@ -234,82 +262,77 @@ function SelectionCapsule({
   // faixas completas, e antes disso não há posição para onde deslizar.
   const ready = TABS.every((t) => rects[t.name]);
 
-  /**
-   * Dois valores para a mesma mola, e não é redundância.
-   *
-   * `translateX` e `opacity` rodam no driver nativo — é o que a barra toda já
-   * faz (`tab-bar-scroll`), e é o que segura a animação quando a troca de aba
-   * monta a tela nova e trava a thread JS. `width` não existe no driver nativo,
-   * então tem de ficar no JS.
-   *
-   * E precisam ser valores SEPARADOS, em views ANINHADAS: `__makeNative()` sobe
-   * pelo nó de props da view e desce de novo, então um único valor — ou duas
-   * interpolações na mesma view — arrastaria a largura para o nativo e o
-   * `spring` do JS estouraria em runtime. Mesma configuração de mola nos dois,
-   * mesmo início e mesmo fim: andam juntos.
-   */
   const posX = useRef(new Animated.Value(Math.max(activeIndex, 0))).current;
-  const posW = useRef(new Animated.Value(Math.max(activeIndex, 0))).current;
   const opacity = useRef(new Animated.Value(activeIndex >= 0 ? 1 : 0)).current;
 
   useEffect(() => {
-    const spring = (value: Animated.Value, native: boolean) =>
-      Animated.spring(value, {
-        toValue: activeIndex,
-        useNativeDriver: native,
-        damping: 20,
-        stiffness: 220,
-        mass: 0.9,
-      });
-
     Animated.parallel([
-      ...(activeIndex >= 0 ? [spring(posX, true), spring(posW, false)] : []),
+      ...(activeIndex >= 0
+        ? [
+            Animated.spring(posX, {
+              toValue: activeIndex,
+              useNativeDriver: true,
+              damping: 20,
+              stiffness: 220,
+              mass: 0.9,
+            }),
+          ]
+        : []),
       Animated.timing(opacity, {
         toValue: activeIndex >= 0 ? 1 : 0,
         duration: 160,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [activeIndex, posX, posW, opacity]);
+  }, [activeIndex, posX, opacity]);
 
   if (!ready) return null;
 
   const inputRange = TABS.map((_, i) => i);
   // A geometria vertical é a mesma nas quatro (mesmo `tabInner`), então sai da
-  // primeira; só o eixo X e a largura mudam de aba para aba.
+  // primeira; só o eixo X muda de aba para aba.
   const { y, height } = rects[TABS[0].name];
+
+  /**
+   * A travessia por baixo do "+".
+   *
+   * Enquanto o botão era tinta cheia ele escondia a régua nesse trecho, e o
+   * defeito passava despercebido. Vazado, ele não esconde mais nada: a régua
+   * atravessaria VISÍVEL por dentro do furo ao ir de Compras para Histórico.
+   * Some no meio do caminho — e some saindo da própria mola, por interpolação
+   * do mesmo valor, então continua tudo nativo e não há segunda animação para
+   * dessincronizar. `clamp` segura os extremos em 1: 0→3 também cruza o furo, e
+   * também mergulha.
+   */
+  const gap = TABS.length / 2 - 0.5;
+  const crossing = posX.interpolate({
+    inputRange: [gap - 0.5, gap - 0.15, gap + 0.15, gap + 0.5],
+    outputRange: [1, 0, 0, 1],
+    extrapolate: 'clamp',
+  });
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <Animated.View
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: y,
-          opacity,
-          transform: [
-            {
-              translateX: posX.interpolate({
-                inputRange,
-                outputRange: TABS.map((t) => rects[t.name].x),
-              }),
-            },
-          ],
-        }}
-      >
-        <Animated.View
-          style={[
-            styles.capsule,
-            {
-              height,
-              width: posW.interpolate({
-                inputRange,
-                outputRange: TABS.map((t) => rects[t.name].width),
-              }),
-            },
-          ]}
-        />
-      </Animated.View>
+        style={[
+          styles.rail,
+          {
+            // Dentro do respiro de baixo do `tabInner`, colada no rótulo.
+            top: y + height - RAIL_H - 3,
+            opacity: Animated.multiply(opacity, crossing),
+            transform: [
+              {
+                translateX: posX.interpolate({
+                  inputRange,
+                  outputRange: TABS.map(
+                    (t) => rects[t.name].x + rects[t.name].width / 2 - RAIL_W / 2,
+                  ),
+                }),
+              },
+            ],
+          },
+        ]}
+      />
     </View>
   );
 }
@@ -481,8 +504,8 @@ function AdaptiveTabBar({ state, navigation, onQuickAdd }: BottomTabBarProps & {
       <PillSurface>
         {/* Antes da `row`, para ficar ATRÁS dos ícones. A `row` é o único filho
             em fluxo da pílula, então as medidas das abas já são coordenadas da
-            pílula e a cápsula pode usá-las direto. */}
-        <SelectionCapsule rects={rects} activeIndex={activeIndex} />
+            pílula e a régua pode usá-las direto. */}
+        <SelectionRail rects={rects} activeIndex={activeIndex} />
         <View style={styles.row}>
           <TabItems
             state={state}
@@ -521,11 +544,13 @@ const RADIUS = 36;
 const PILL_HEIGHT = 70;
 const COLLAPSED_SCALE = 0.75;
 
-/** Tinta da marca com alfa — o `hexToRgb` do shared devolve os canais em 0–1. */
-function brandTint(hex: string, alpha: number): string {
-  const { r, g, b } = hexToRgb(hex);
-  return `rgba(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)},${alpha})`;
-}
+const FAB_SIZE = 50;
+/** Espessura do aro do "+". Era 1,6; sem preenchimento, o traço é tudo o que há. */
+const FAB_RING = 2;
+
+/** A régua da aba ativa. Largura igual à do ícone que ela sublinha. */
+const RAIL_W = 22;
+const RAIL_H = 3;
 
 const styles = themed(() =>
   StyleSheet.create({
@@ -577,38 +602,35 @@ const styles = themed(() =>
       alignSelf: 'center',
     },
     fab: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
+      width: FAB_SIZE,
+      height: FAB_SIZE,
+      borderRadius: FAB_SIZE / 2,
       alignItems: 'center',
       justifyContent: 'center',
-      // Recorta o realce no círculo. Também é o motivo de a sombra ter de sair
-      // de vez: no iOS, `overflow: 'hidden'` e `shadow*` na MESMA view brigam
-      // (a sombra pede `masksToBounds = false`).
-      overflow: 'hidden',
-      backgroundColor: colors.primary,
       /**
-       * O `borderWidth` FALTAVA. O `borderColor` era aplicado sem espessura, e o
-       * "contorno preto" que as marcas `azul` e `verde` anunciam no próprio
-       * `hint` nunca desenhou — o `CheckButton` já fazia certo, com `1.6`.
+       * Vazado: o furo mostra o vidro da pílula que já está atrás. Sem
+       * preenchimento não há mais o que recortar, então caiu o
+       * `overflow: 'hidden'` junto — e com ele a briga que ele tinha com
+       * `shadow*` na mesma view no iOS.
+       */
+      backgroundColor: 'transparent',
+      /**
+       * `primaryGraphic`, e não mais o par `primary` / `primaryOutline`.
        *
-       * Nas marcas sem contorno o aro vira o realce especular, e não a cor da
-       * marca: desenhar sempre é o que evita o pulo de layout ao trocar de
-       * marca, que era a intenção do comentário original.
+       * O aro antigo carregava duas intenções: realce especular branco quando a
+       * marca não declarava contorno, `#000000` quando declarava. Era o que
+       * fazia só o `laranja` e a `tinta` parecerem de vidro — e o que sumia por
+       * completo no escuro, onde preto sobre quase-preto não tem contraste.
+       * Agora o aro tem um trabalho só: separar o botão do fundo, no piso de
+       * objeto gráfico. O `primaryOutline` continua vivo no `CheckButton`, que
+       * ainda é preenchido.
        */
-      borderWidth: 1.6,
-      borderColor:
-        colors.primaryOutline === 'transparent'
-          ? 'rgba(255,255,255,0.25)'
-          : colors.primaryOutline,
-      /**
-       * Sem sombra. O brilho laranja (`shadowColor: colors.primary`, opacidade
-       * 0.35) era o halo de um FAB de Material — o iOS não põe sombra colorida
-       * em controle dentro de barra, quem dá a profundidade é a sombra da
-       * pílula. Além disso ela ficava escondida pelo `overflow: 'hidden'` da
-       * pílula até a troca para `GlassView`, que removeu esse recorte e passou a
-       * derramar o halo sobre o vidro.
-       */
+      borderWidth: FAB_RING,
+      borderColor: colors.primaryGraphic,
+    },
+    fabCut: {
+      borderRadius: FAB_SIZE / 2 - FAB_RING,
+      borderWidth: StyleSheet.hairlineWidth * 1.5,
     },
     tabInner: {
       alignItems: 'center',
@@ -616,12 +638,15 @@ const styles = themed(() =>
       paddingVertical: 8,
       paddingHorizontal: 12,
     },
-    capsule: {
-      borderRadius: 24,
-      // Era `rgba(242, 92, 43, 0.10)` cravado — o laranja da marca padrão posto
-      // à mão, que continuava laranja em todas as outras marcas. Agora sai da
-      // marca ativa.
-      backgroundColor: brandTint(colors.primary, 0.1),
+    rail: {
+      position: 'absolute',
+      left: 0,
+      width: RAIL_W,
+      height: RAIL_H,
+      borderRadius: RAIL_H / 2,
+      // A mesma cor do ícone e do rótulo que ela sublinha: os três são um bloco
+      // só, e a régua é o traço mais grosso dele, não um objeto à parte.
+      backgroundColor: colors.primaryText,
     },
     label: {
       fontSize: 10,

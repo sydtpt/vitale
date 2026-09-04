@@ -216,6 +216,22 @@ export interface ResolvedTokens extends ThemeNeutrals {
    */
   primaryText: string;
   /**
+   * A marca como **traço sobre o fundo**, e não como preenchimento.
+   *
+   * O irmão do `primaryText` no outro piso: aquele cobra 4,5 porque é letra,
+   * este cobra os 3,0 de objeto gráfico (WCAG 1.4.11). A distância entre os dois
+   * não é acadêmica — é o que decide se o `laranja` continua sendo `#F25C2B`.
+   * Ele mede 3,31 sobre a superfície: passa aqui intacto e reprovaria no
+   * `primaryText`, que o escureceria. A promessa de não mexer no Orbe depende
+   * deste piso ser o certo, não o mais alto.
+   *
+   * Existe porque o “+” da barra virou **vazado**: sem preenchimento, quem
+   * separa o botão do fundo é o aro. Enquanto ele era tinta cheia esse papel era
+   * do `primary` (e, no `verde` fluorescente, do contorno preto — ver
+   * `primaryOutline`); num controle sem preenchimento nenhum dos dois serve.
+   */
+  primaryGraphic: string;
+  /**
    * Cor da parte não iluminada da lua do cabeçalho — o **fundo do tema**, para
    * que ela dissolva na página em vez de virar uma mancha. É o `bg` e não o
    * próprio `bg` porque o token `bg` vira `'transparent'` sob papel de parede,
@@ -286,6 +302,21 @@ export function resolveTokens(
     ? brand.deep[scheme]
     : shiftLightness(brandBase, scheme === 'light' ? -0.07 : 0.07);
   const brandSoft = brand.soft ? brand.soft[scheme] : softOf(brandBase, scheme);
+  /**
+   * Contra qual neutro o piso gráfico é cobrado.
+   *
+   * O “+” vazado flutua sobre o `bg` da tela, atravessando o vidro da barra;
+   * outros traços da marca caem sobre `surface`. Os dois neutros ficam perto —
+   * creme contra branco no claro, dois quase-pretos no escuro — mas **qual dos
+   * dois é o mais duro depende da marca**, não do esquema: contra um `bg` mais
+   * escuro o `verde` fluorescente ganha contraste e a `tinta` do modo claro
+   * perde. Cobrar contra um fixo deixaria um dos dois casos passar por fora,
+   * então o piso é cobrado contra o pior dos dois.
+   */
+  const graphicAnchor =
+    contrast(brandBase, neutrals.bg) < contrast(brandBase, neutrals.surface)
+      ? neutrals.bg
+      : neutrals.surface;
 
   const tokens: ResolvedTokens = {
     ...neutrals,
@@ -311,6 +342,7 @@ export function resolveTokens(
     purple: roles.purple.accent, purpleSoft: roles.purple.soft, purpleOn: roles.purple.on, purpleText: roles.purple.text,
     inkOn: roles.ink.on,
     primaryText: textOf(brandBase, neutrals.surface),
+    primaryGraphic: ensureContrast(brandBase, graphicAnchor, GRAPHIC_FLOOR),
     moonShade: neutrals.bg,
     moonGlow: neutrals.ink,
   };

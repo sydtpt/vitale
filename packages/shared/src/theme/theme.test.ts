@@ -341,6 +341,43 @@ check('texto da marca sobre a superfície passa em toda combinação', () => {
   );
 });
 
+/**
+ * O “+” da barra é **vazado**: sem preenchimento, quem o separa do fundo é o
+ * aro. Enquanto ele era tinta cheia esse papel cabia ao `primary` — e, no
+ * `verde`, ao contorno preto, que é o que o teste acima ainda cobra para o
+ * `CheckButton`. Num controle sem preenchimento nenhum dos dois vale, e é este
+ * piso que o substitui.
+ *
+ * Cobrado nas duas superfícies porque o botão flutua sobre o `bg` através do
+ * vidro, e o mesmo token pinta traço sobre `surface` em outros lugares.
+ */
+check('a marca como traço passa o piso gráfico nas duas superfícies', () => {
+  const bad: string[] = [];
+  for (const c of BRAND_COMBOS) {
+    for (const [nome, fundo] of [
+      ['bg', c.tokens.bg],
+      ['surface', c.tokens.surface],
+    ] as const) {
+      const ratio = contrast(c.tokens.primaryGraphic, fundo);
+      if (ratio < 3) {
+        bad.push(`${brandLabel(c)} primaryGraphic/${nome} ${ratio.toFixed(2)}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, [], `aro do “+” vazado some no fundo:\n    ${bad.join('\n    ')}`);
+});
+
+/**
+ * O piso gráfico é 3,0 — e usar 4,5 “por segurança” teria custo: escureceria o
+ * `#F25C2B`, que mede 3,31 e é a cor que o app sempre teve. Este teste é a
+ * trava dessa promessa, e falha tanto se o piso subir quanto se o pino do Orbe
+ * sair do lugar.
+ */
+check('o “+” do Orbe claro continua sendo o laranja da marca', () => {
+  const t = resolveTokens('orbe', 'light', 'orbe', 'laranja');
+  assert.equal(t.primaryGraphic, '#F25C2B');
+});
+
 check('conteúdo sobre o tint da marca é legível', () => {
   const bad: string[] = [];
   for (const c of BRAND_COMBOS) {
