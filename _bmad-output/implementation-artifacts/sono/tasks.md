@@ -69,9 +69,12 @@
 - [ ] T3.1 — `mobile/src/lib/health-buckets.ts`: `aggregateSleepNights` para de descartar o
   `onset` (hoje `:356-362` grava o instante de acordar em `start` **e** `end`). Passa a
   devolver `onset`, `wake`, `inBedStart`/`inBedEnd`, vigílias individuais e `tz_offset`.
-- [ ] T3.2 — Regra de `in_bed_at`: só grava quando `onset − inBedStart ≥ MIN_ONSET_MS`
-  (60 s). Abaixo disso, `null`. Sem isso a tela diria "você deitou 00:08" em 41 das 42
-  noites da era Garmin, quando a verdade é "não sei". **Teste com um caso degenerado.**
+- [ ] T3.2 — `in_bed_at`/`in_bed_end`: gravar a janela `INBED` **crua** sempre que existir
+  (a duração é o `extra.inbed` de hoje, 42/42 na era Garmin — não pode sumir). A decisão de
+  mostrar ou não o instante como "hora que deitou" é de `bedtimeMeasured()` no núcleo, já
+  escrita e testada; a tela **obedece**, nunca reimplementa. *(Regra anterior — gravar
+  `NULL` no caso degenerado — corrigida em 04/09: apagaria dado real para resolver problema
+  de exibição.)*
 - [ ] T3.2b — **Creditar o `AWAKE` que cai no vão da noite.** Hoje `stages.awake` só é setado
   quando `overlapMs(iv, awake) > 0`, e fonte que escreve `CORE·AWAKE·CORE` encostados perde
   tudo — 36 de 38 noites (T0.1b). Passar a creditar, **uma vez por noite**, a vigília dentro

@@ -120,11 +120,16 @@ O Garmin escreve `INBED`, mas abrindo a janela no instante em que o sono começa
 noites a latência fica abaixo de `MIN_ONSET_MS = 60_000`. A folga entre cama e sono é de
 **9,5 min mediana contra 100 min** na era Apple, e cai quase toda *depois* de acordar.
 
-**Consequência para o esquema:** `in_bed_at` é `nullable` por natureza, não por conveniência,
-e a heurística de gravação deve ser explícita — `in_bed_at` só é preenchido quando
-`onset_at − in_bed_at ≥ 60 s`; abaixo disso a janela é derivada do sono e grava-se `NULL`.
-Gravar o valor degenerado faria a tela mentir dizendo "você deitou 00:08" quando ela quis
-dizer "não sei".
+**Consequência para o esquema:** `in_bed_at`/`in_bed_end` guardam a janela `INBED` **crua**
+da fonte, e são `NULL` só quando não há amostra `INBED` nenhuma. A duração da janela é
+grandeza real (o `extra.inbed` de hoje, 42/42 na era Garmin) e apagá-la mudaria o formato
+que os consumidores leem. O que muda é a **leitura**: a tela só escreve "Deitou 22h28" quando
+`bedtimeMeasured()` (`sleep/timing.ts`) diz que a latência passa de 60 s; abaixo disso,
+"Deitou --:--". O instante degenerado fica no banco como janela, nunca como hora de deitar.
+
+> *Correção:* uma versão anterior mandava gravar `NULL` no caso degenerado. Isso teria
+> apagado o `inbed` de 42 noites que hoje existem, para resolver um problema que é de
+> exibição — e a regra de exibição já mora no núcleo.
 
 ## 4.2 O `AWAKE` descartado — pré-requisito de CAP-5
 

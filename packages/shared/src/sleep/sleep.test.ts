@@ -28,6 +28,7 @@ import {
   SLEEP_AXIS_ORIGIN_H,
   axisPosition,
   axisRange,
+  bedtimeMeasured,
   efficiency,
   latencyMin,
   localHourOf,
@@ -142,6 +143,24 @@ check('latência real: deitou 22h00, apagou 23h40 → 100 min', () => {
   assert.equal(latencyMin(p), 100);
   // 7,333 h dormindo em 9 h de cama.
   assert.ok(Math.abs(efficiency(p)! - 7.333 / 9) < 1e-9);
+});
+
+check('bedtimeMeasured é a única voz sobre mostrar ou não a hora de deitar', () => {
+  assert.equal(bedtimeMeasured(period()), false, 'sem janela INBED');
+  assert.equal(
+    bedtimeMeasured(
+      period({ inBedAt: '2026-08-30T21:39:30.000Z', inBedEnd: '2026-08-31T05:12:00.000Z' }),
+    ),
+    false,
+    'janela crua gravada, mas abre junto com o sono — a tela escreve "--:--"',
+  );
+  assert.equal(
+    bedtimeMeasured(
+      period({ inBedAt: '2026-08-30T20:00:00.000Z', inBedEnd: '2026-08-31T05:00:00.000Z' }),
+    ),
+    true,
+    '100 min antes de apagar — isso é deitar',
+  );
 });
 
 check('janela de cama que abre junto com o sono não vira latência', () => {

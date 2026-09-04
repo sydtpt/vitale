@@ -66,10 +66,13 @@ conferir depois com `supabase/scripts/check-schema-drift.sh`.
 `onset`, `wake`, `inBedStart`/`inBedEnd`, os intervalos de vigília individuais e o
 `tz_offset`.
 
-> **Regra de gravação de `in_bed_at`:** só preencher quando `onset − inBedStart ≥ 60 s`
-> (`MIN_ONSET_MS`). Abaixo disso a janela é derivada do sono pela própria fonte — é o caso
-> do Garmin em 41 de 42 noites — e gravar o valor degenerado faria a tela dizer "você deitou
-> 00:08" quando ela quer dizer "não sei".
+> **Regra de `in_bed_at`: gravar a janela `INBED` crua, sempre que existir.** A duração dela
+> é grandeza real — é o `extra.inbed` de hoje, presente em 42/42 noites da era Garmin — e
+> apagá-la mudaria o formato que prontidão e retro leem. O que **não** se pode fazer é
+> mostrá-la como "hora que deitou" quando ela abre junto com o sono (41 de 42 noites do
+> Garmin). Quem decide isso é `bedtimeMeasured()` em `sleep/timing.ts`, que a tela obedece:
+> abaixo de 60 s de latência, "Deitou --:--". A regra mora no núcleo, uma vez, e não em
+> cada tela.
 
 **`lib/health-aggregate.ts`** — `aggregateSleep` deixa de ser a fonte da linha diária e passa
 a montar as linhas de período; a linha diária vem de `sleep/derive.ts` do shared, a partir

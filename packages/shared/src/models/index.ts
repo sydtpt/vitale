@@ -717,10 +717,14 @@ export interface SleepPeriod {
   onsetAt: string;                      // ISO — primeiro instante DORMINDO
   wakeAt: string;                       // ISO — último instante dormindo
   /**
-   * Início da janela na cama. `null` quando a fonte não mede: o Garmin abre a
-   * janela `INBED` no mesmo instante em que o sono começa (41 de 42 noites
-   * medidas), então gravar o valor degenerado faria a tela dizer "você deitou
-   * 00:08" quando a verdade é "não sei".
+   * Janela `INBED` **crua** da fonte. `null` só quando não há amostra nenhuma.
+   *
+   * Não é a "hora que deitou": o Garmin abre a janela no mesmo instante em que o
+   * sono começa (41 de 42 noites medidas), e gravar isso como hora de deitar
+   * faria a tela dizer "você deitou 00:08" quando a verdade é "não sei". A
+   * janela é gravada mesmo assim porque a duração dela é grandeza real (o
+   * `extra.inbed` de hoje) — quem decide se o instante é confiável é
+   * `bedtimeMeasured()` em `sleep/timing.ts`, e a tela obedece a ele.
    */
   inBedAt: string | null;
   inBedEnd: string | null;

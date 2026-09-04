@@ -181,6 +181,27 @@ export function latencyMin(p: SleepPeriod): number | null {
 }
 
 /**
+ * Piso abaixo do qual a hora de deitar não é medição.
+ *
+ * Fontes que derivam a janela "na cama" do próprio sono abrem `INBED` junto com
+ * o `onset` — o Garmin faz isso em 41 de 42 noites medidas. Espelha
+ * `MIN_ONSET_MS` de `mobile/src/lib/health-buckets.ts`.
+ */
+export const MIN_BEDTIME_GAP_MIN = 1;
+
+/**
+ * Se a hora de deitar pode ser mostrada como tal.
+ *
+ * `in_bed_at` é gravado cru, porque a duração da janela é grandeza real mesmo
+ * quando o instante não é. Esta é a única função que decide se a tela escreve
+ * "Deitou 22h28" ou "Deitou --:--" — a regra mora aqui, e não em cada tela.
+ */
+export function bedtimeMeasured(p: SleepPeriod): boolean {
+  const lat = latencyMin(p);
+  return lat !== null && lat >= MIN_BEDTIME_GAP_MIN;
+}
+
+/**
  * Eficiência: dormindo ÷ na cama.
  *
  * A pesquisa competitiva listou esta métrica como incalculável por falta do
