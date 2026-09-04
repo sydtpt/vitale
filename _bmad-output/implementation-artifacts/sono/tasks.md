@@ -197,10 +197,16 @@
 > visual: a tela de Sono do app Saúde da Apple (M · Amounts). **Quem pegar o repo depois
 > de 05/09 e vir a Fase 4 conferida no aparelho: é hora de levantar esta.**
 
-- [ ] T7.0 — Decidir, com dados reais e mockup antes de código: (a) a seção **absorve** a
-  peça ② (14 noites fixas) ou convive com ela? (b) a forma dos períodos longos — *12 meses*,
-  *ano*, *sempre* — que não cabem como barra por noite (midpoint com dispersão? semanas?
-  heatmap?); (c) o rótulo da média "tempo na cama" quando a fonte não mede a hora de deitar.
+- [ ] T7.0 — Decidir, com dados reais e mockup antes de código. **(a) decidida pelo usuário em
+  05/09:** nem absorve nem convive — a peça ② fica no `/sono` e **tocar nela abre
+  `/sono/tempos`**; Despertares (③) abre **`/sono/despertares`**. (b) a forma dos períodos
+  longos — mockup propõe **semanas** (mediana + p25–p75) para 12m/ano e **meses** para sempre,
+  com a troca de relógio (18/07) marcada; (c) a média "na cama" — mockup propõe mostrar só
+  quando ≥ 80% das noites medem a cama (em última/7d/4s é **0%** no Garmin), senão o segundo
+  número vira "acordado"; **(d) nova:** "sempre" mistura instrumentos — Apple 11,8
+  despertares/noite vs Garmin 2,6–3,4; contagem não é comparável entre eras. Paleta do
+  destaque validada: azul + amarelo, CVD ΔE 27; amarelo no claro pede contorno
+  (`roleColors('yellow').text`).
 - [ ] T7.1 — **Opção 1 — Tempos.** Roda com o dado de hoje. Médias no topo (na cama ·
   dormindo) para o período; barra = janela na cama, **sem muito destaque**; despertares
   **em destaque**, com hora e duração. Seletor última noite · 7d · 4s · 12m · ano · sempre

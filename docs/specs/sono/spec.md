@@ -141,10 +141,15 @@ dano, não é o que falta ao Orbe.**
   - **dependência dura (Opção 2):** intervalos de estágio **não são gravados** — só horas por
     estágio. Exige coluna nova em `sleep_periods`, o agregador emitindo os intervalos, bump de
     `AGG_VERSION` e backfill. Ver data-model §7. **A Opção 1 roda com o dado de hoje.**
-  - **o que ela revê da mesa de 04/09:** a decisão 2 ("janela ≠ seletor — o timing chart não
-    tem seletor") vale para a peça ② como nasceu; esta seção **tem** seletor por pedido
-    explícito. Provavelmente ela **absorve** a peça ② (14 noites fixas é o *7d/4s* dela) —
-    decidir quando construir, não agora.
+  - **navegação (decidida pelo usuário em 05/09/2026):** a peça ② **fica como está** no `/sono`
+    — 14 noites, sem seletor, a decisão da mesa sobrevive na visão geral. **Tocar nela abre
+    `/sono/tempos`**, a subview com o seletor, as duas leituras e as análises. **Tocar em
+    Despertares (③) abre `/sono/despertares`**, uma subview com mais dado e análises — quando,
+    quanto, com que frequência, por dia da semana. Nem absorção nem duplicação: a visão geral
+    é o cartão; a subview é a tela.
+  - **análises:** as linhas sob os gráficos são **fatos** — medianas com faixa p25–p75,
+    contagens, a diferença fim de semana × semana, a hora mais comum com o *n* ao lado. Nenhuma
+    vira índice ou nota. Se alguma parecer placar disfarçado, sai.
   - **detalhe a decidir:** a média "tempo na cama" só é honesta quando `bedtimeMeasured`; no
     Garmin a janela abre com o sono (≈ dormindo + acordado). Rotular, ou omitir, quando a
     fonte não mede.
