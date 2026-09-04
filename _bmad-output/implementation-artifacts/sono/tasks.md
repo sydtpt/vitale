@@ -56,13 +56,20 @@
 
 ## Fase 2 — Banco
 
-- [ ] T2.1 — Migration `sleep_periods`: tabela, índice `(user_id, wake_day desc)`, trigger
-  `touch_updated_at`, RLS `own sleep_periods`. Ver data-model §2.
-- [ ] T2.2 — RPC `sync_upsert_sleep_periods(rows jsonb)`, `security invoker`,
-  `on conflict (user_id, onset_at) do update` — espelha `sync_upsert_health_daily`.
-- [ ] T2.3 — Aplicar em produção **com confirmação explícita**, registrar em
-  `supabase_migrations.schema_migrations` ([ADR 0011](../../../docs/decisions/0011-schema-mora-em-migrations.md))
-  e conferir com `supabase/scripts/check-schema-drift.sh`.
+- [x] T2.1 — Migration `sleep_periods`: tabela, índice `(user_id, wake_day desc)`, trigger
+  `touch_updated_at`, RLS `own sleep_periods`, e seis `check` — inclusive a **forma** de
+  `awakenings` (NULL ou array) e de `stages`. — [migration](../../../supabase/migrations/20260904120000_sleep_periods.sql)
+- [x] T2.2 — RPC `sync_upsert_sleep_periods(rows jsonb)`, `security invoker`, `on conflict
+  (user_id, onset_at) do update`. `onset_at` truncado ao minuto **no servidor**;
+  `nullif(r->'awakenings', 'null'::jsonb)` porque JSON null vira `'null'::jsonb`, não SQL NULL.
+- [x] T2.3 — **Aplicada em produção em 04/09/2026**, com confirmação explícita, numa transação
+  única (migration + `insert` em `schema_migrations` + commit) via Management API. Verificado:
+  `to_regclass`, `to_regprocedure`, RLS ativa, 1 policy, 6 checks, versão `20260904120000`
+  registrada. Antes disso a migration inteira + teste funcional rodaram em `begin…rollback`.
+
+> **Drift encontrado no caminho, não relacionado:** `health_daily_vfc_backup_20260904` existe
+> em produção e nenhuma migration a cria. É backup da frente de VFC/intervals.icu, datado de
+> hoje. Não tocada — quem a criou decide se ela fica, vira migration ou some.
 
 ## Fase 3 — Sync
 
