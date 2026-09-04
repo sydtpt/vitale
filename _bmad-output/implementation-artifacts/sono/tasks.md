@@ -7,8 +7,8 @@
 > **Fases 0–4 entregues em 04/09/2026** — núcleo no shared, `sleep_periods` + `CHECK` em
 > produção, sync com backfill v7 verificado contra snapshot, e a tela `/sono` conferida no
 > iPhone, e a **Fase 5 (web)** conferida no navegador. **Fase 6 (CAP-7) em andamento desde
-> 05/09** — o usuário a levantou; Tempos + Despertares **conferidos no iPhone**; falta a web
-> (T7.4) e Estágios (T7.2), que depende de `stage_segments`. **Aberto também:** T0.2
+> 05/09** — o usuário a levantou; Tempos, Despertares e **Estágios conferidos no iPhone**;
+> falta só a web (T7.4). **Aberto também:** T0.2
 > (Foco de Sono — responde 05/09). Origem: party mode de 04/09/2026 + pesquisa
 > competitiva do mesmo dia. Os mockups aprovados pelo usuário estão no artifact
 > `claude.ai/code/artifact/b9afbb6a-9c59-40d5-a9f2-85ceded2ed90`.
@@ -223,7 +223,7 @@
   marcador da troca de relógio em `config/sono-markers.ts` (dado do usuário, não lógica).
   Store carrega o histórico inteiro. Validação: shared 569 asserts · mobile tsc 0 · jest 621 ·
   web build 0. **Conferida no iPhone em 05/09/2026 (~01:45): "está ótimo".**
-- [ ] T7.2 — **Opção 2 — Estágios**, escrita em 05/09/2026 (~02:00). `stage_segments` no
+- [x] T7.2 — **Opção 2 — Estágios**, escrita em 05/09/2026 (~02:00). `stage_segments` no
   modelo, na RPC e no agregador (que já fatiava por estágio e passou a emitir; `unspecified`
   é o sono sem hipnograma; o despertar é o vão). **Migration aplicada em produção em 05/09**
   (dry-run em `begin…rollback` antes; 8 checks; registrada). `AGG_VERSION` 8. Na tela: toggle
@@ -235,7 +235,7 @@
   vazias, 31,6 segmentos/noite em média, **paridade deep horas × segmentos com diferença
   máxima 0,0 min** em 277 noites. A noite de 04/09, segmento a segmento, mostra o vão
   02:47–03:10 — exatamente o despertar de 23 min que a tela de diagnóstico tinha contado.
-  **Falta:** conferência de Tempos → Estágios no iPhone.
+  **Conferida no iPhone em 05/09/2026 (~02:30): "está ok".**
 - [x] T7.3 — Spec reconciliada em 05/09: a peça ② fica sem seletor na visão geral; o seletor
   mora nas subviews. Nem absorção nem duplicação.
 - [ ] T7.4 — **Web:** `/sono/tempos` e `/sono/despertares` em Angular, pelo mesmo núcleo —
