@@ -177,7 +177,7 @@ São **10** módulos, não 7:
   de stack (treinos, metas, cultura, tarefas, registros, hábitos, retrospectiva…)
 - Mobile: componentes UI (`DayRingCard`, `CheckButton`, `QuickAddSheet`) e fontes
   embarcadas via plugin `expo-font`
-- Backend: Supabase — Postgres com RLS, 52 migrations, 4 edge functions Deno
+- Backend: Supabase — Postgres com RLS, 55 migrations, 4 edge functions Deno
   (`connections-ingest`, `strava-oauth`, `intervals-link`, `cultura-search`)
 - Autenticação: `/login`, `/register`, `/setup`, com `profileGuard` em toda rota
 - Notificações **locais** (client-side, `scheduleNotificationAsync`): eventos de sync e
@@ -186,9 +186,14 @@ São **10** módulos, não 7:
   rica. 8 migrations `todo_*`/`tarefas` no repo
 - Temas: quatro eixos (esquema, tema, paleta, marca) nos dois apps, com contraste
   medido em vez de conferido. A web ganhou modo escuro, que não tinha
+- Sono (mobile): `sleep_periods` — a noite como evento com instantes — e a tela `/sono`
+  (relógios deitou/apagou/acordou, timing chart de 14 noites, despertares por hora do dia,
+  nota × medição). Sem score, por princípio. Sono é categoria de Saúde, não módulo (ADR 0031)
 
 ### Em andamento / Próximo 🔧
 - Tarefas: ponte real com Compras/Finanças
+- Sono: a web (segunda rodada) e a CAP-7 — seção "Tempos e estágios" com seletor até
+  "sempre", **adiada por pedido do usuário**; ver Fase 6 do tasks
 - Push **remoto** (servidor): hoje só há notificação local agendada no device — não há
   registro de token nem envio server-side
 - Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc

@@ -4,8 +4,10 @@
 > [data-model](../../../docs/specs/sono/data-model.md) ·
 > [plan](../../../docs/specs/sono/plan.md)
 >
-> **Fase 1 entregue** (04/09/2026) — o núcleo em `packages/shared/src/sleep/` está escrito e
-> testado; nada de banco, sync ou tela. Origem: party mode de 04/09/2026 + pesquisa
+> **Fases 0–4 entregues em 04/09/2026** — núcleo no shared, `sleep_periods` + `CHECK` em
+> produção, sync com backfill v7 verificado contra snapshot, e a tela `/sono` conferida no
+> iPhone. **Aberto:** T0.2 (Foco de Sono — responde 05/09), Fase 5 (web) e Fase 6 (CAP-7,
+> adiada por pedido do usuário — avisá-lo). Origem: party mode de 04/09/2026 + pesquisa
 > competitiva do mesmo dia. Os mockups aprovados pelo usuário estão no artifact
 > `claude.ai/code/artifact/b9afbb6a-9c59-40d5-a9f2-85ceded2ed90`.
 
@@ -134,10 +136,11 @@
   fabrica latência, ocasionalmente deixa de registrar uma de ~1 min — que é ruído pela
   própria definição de `MIN_ONSET_MS`, e latência é "gravada, nunca exibida" (spec §5).
   Aceito; não há mais mudança de código aqui.
-- [ ] T3.7 — Migration com o `CHECK` de janela agora que o backfill provou o invariante em
-  286 noites: `in_bed_at is null or (in_bed_at <= onset_at and in_bed_end >= wake_at)`.
-  Aplicar em prod **com confirmação explícita** (dry-run em `begin…rollback` antes, como
-  a 20260904120000).
+- [x] T3.7 — **`CHECK` aplicado em produção em 04/09/2026** (`20260905000000_sleep_periods_janela_check`),
+  com confirmação explícita, depois de dry-run em `begin…rollback` que já validava sobre as
+  286 noites reais. `not valid` + `validate` em separado; `convalidated: true`; 7 checks na
+  tabela; registrada em `schema_migrations`. A ordem que valeu: regra no código → dado
+  conformado pelo backfill → trava no banco.
 
 ## Fase 4 — Tela mobile
 
@@ -209,8 +212,8 @@
 - [x] T6.2 — Validação nos três workspaces em 04/09 (após a Fase 4): `shared lint` 0 · `shared
   test` 549 asserts + `architecture.test.ts` 13/13 · `web build` 0 · `web test` 141 · mobile
   `tsc` 0 · `jest` 621/621. *(`expo-doctor` não rodado: nenhuma mudança nativa ou de pacote.)*
-- [ ] T6.3 — **Conferência visual em escala real e build Release no iPhone.** Mergeado sem
-  rodar no aparelho não conta como entregue.
+- [x] T6.3 — **Conferida no iPhone em 04/09/2026** (build Release por cabo, `pnpm mobile:device`):
+  o usuário abriu Saúde › Sono e disse *"está ok no telefone"*. É o Done da Fase 4.
 
 ## Fora do escopo (registrado para não voltar como ideia nova)
 

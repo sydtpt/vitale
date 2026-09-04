@@ -168,8 +168,8 @@ máximo **1h43**, 9 noites acima de meia hora.
 sempre que a janela existe. Vem da correção de 14 noites do histórico em que o sono era
 maior que a cama — o agregador pegava uma só amostra `INBED` e a fonte parte ou fecha cedo.
 A janela agora é a **união** das amostras que tocam a noite, alargada ao sono; a latência
-não muda, porque só alarga para fora. É invariante no cliente; vira `CHECK` no banco depois
-que o backfill provar que nenhuma noite histórica o viola.
+não muda, porque só alarga para fora. Provado pelo backfill v7 em 286 noites e **aplicado como `CHECK` em
+04/09/2026** — `20260905000000_sleep_periods_janela_check`, `convalidated`.
 
 **Consequência para CAP-2 e CAP-5:** com a correção, os buracos das barras e o relógio de
 vigília nascem vivos no dado atual. Sem ela, o gráfico continua correto — barra contínua é a
