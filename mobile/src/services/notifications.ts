@@ -235,8 +235,14 @@ async function buildDigest(): Promise<{ title: string; body: string } | null> {
 
   // Prontidão + treino do dia + recomendação (VFC cai para `health_daily`
   // quando o HealthKit não a tem — a do intervals.icu mora lá, ADR 0026).
-  const score = readinessFromSummaries(useHealthStore.getState().summaries, { vfc: hd.seriesFor('vfc') });
-  const hasReadiness = score.components.length > 0;
+  const score = readinessFromSummaries(useHealthStore.getState().summaries, {
+    vfc: hd.seriesFor('vfc'),
+    fcRepouso: hd.seriesFor('fcRepouso'),
+    sono: hd.seriesFor('sono'),
+  });
+  // Sem nota (sinal velho ou pouca cobertura) o conselho já cai no neutro — e
+  // notificar "prontidão alta" com dado de domingo era o defeito, não o recurso.
+  const hasReadiness = score.total !== null;
   const plan = usePlannedWorkoutsStore.getState().planned.find((p) => p.date === today);
   const advice = readinessAdvice(score.total, hasReadiness, plan?.kind ?? 'none', plan?.type ?? '');
 

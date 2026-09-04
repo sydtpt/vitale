@@ -9,6 +9,7 @@
  * alta → liberar; dia já leve/descanso → confirmar que está adequado.
  */
 import type { Treino } from '../models';
+import { READINESS_BANDS } from './readiness';
 
 /** Intensidade do treino do dia, derivada do `Treino`. */
 export type WorkoutKind = 'strength' | 'endurance' | 'easy' | 'rest' | 'none';
@@ -22,9 +23,12 @@ export interface ReadinessAdvice {
   text: string;
 }
 
-/** Limiares do score (0–100). */
-const HIGH = 70;
-const LOW = 50;
+/**
+ * Limiares do score (0–100). Moravam aqui como `LOW`/`HIGH` e o cartão não os
+ * enxergava: a recomendação classificava a nota com números que a tela não tinha.
+ * Agora vêm de `READINESS_BANDS`, um lugar só para conselho, cartão e teste.
+ */
+const { lowBelow: LOW, highFrom: HIGH } = READINESS_BANDS;
 
 /**
  * Classifica o treino planejado do dia pela carga que impõe.
@@ -48,14 +52,19 @@ function isHard(kind: WorkoutKind): boolean {
 /**
  * Recomendação para hoje. Sem dados de prontidão → orientação neutra
  * (não inventa conselho). Caso contrário cruza score × intensidade do dia.
+ *
+ * `total` nulo cai na mesma orientação neutra que `hasData: false`, e de
+ * propósito: desde o piso de cobertura de `computeReadiness`, "não há nota"
+ * acontece também quando **há** sinais, só que velhos ou poucos demais. Nos dois
+ * casos a resposta certa é a mesma — sincronizar —, então o texto serve aos dois.
  */
 export function readinessAdvice(
-  total: number,
+  total: number | null,
   hasData: boolean,
   kind: WorkoutKind,
   label: string,
 ): ReadinessAdvice {
-  if (!hasData) {
+  if (!hasData || total == null) {
     return {
       tone: 'neutral',
       title: 'Prontidão indisponível',

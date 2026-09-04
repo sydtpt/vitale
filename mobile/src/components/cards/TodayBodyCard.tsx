@@ -16,11 +16,13 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
   buildFormCurve,
+  buildTrainingLoad,
   localDateStr,
   readinessAdvice,
   type Activity,
   type AdviceTone,
   type ReadinessComponent,
+  type ReadinessKey,
   type RoleKey,
 } from '@vitale/shared';
 import { useHealthStore } from '../../store/health.store';
@@ -40,7 +42,17 @@ import {
   sparkValues,
   type FormTone,
 } from '../../lib/form-curve-view';
-import { canShowReadiness, coverageNote, shortLabel } from '../../lib/readiness-slide';
+import {
+  NO_SCORE_TITLE,
+  ageNote,
+  bandText,
+  canShowReadiness,
+  coverageNote,
+  noScoreNote,
+  scoreLabel,
+  scoreText,
+  shortLabel,
+} from '../../lib/readiness-slide';
 
 /**
  * O corpo hoje: um carrossel de altura fixa com o saldo de forma, de onde ele
@@ -106,13 +118,22 @@ import { canShowReadiness, coverageNote, shortLabel } from '../../lib/readiness-
  * trilho mede `RAIL_H + 2 × BLEED_V` e devolve a diferença em margem negativa,
  * então é este o número que o resto da tela enxerga.
  *
- * Eram 206 com dois slides. A prontidão pede 8 pt a mais — cabeçalho com nota,
- * quatro barras e o bloco de conselho — e os outros dois absorvem a folga no
+ * Eram 206 com dois slides. A prontidão pediu 8 pt a mais — cabeçalho com nota,
+ * barras e o bloco de conselho — e os outros dois absorvem a folga no
  * `space-between`, que só respira. Medido com os rótulos curtos de
  * `readiness-slide.ts`: com os rótulos do núcleo, dois deles quebram em duas
  * linhas e nem 260 bastariam.
+ *
+ * Foram 214 enquanto a prontidão tinha quatro sinais. A carga é o quinto, e a
+ * conta não fecha em 214: com 18 pt de padding em cima e embaixo sobram 178, e o
+ * conteúdo passa a medir 36 (cabeçalho) + 91 (cinco barras) + 49 (conselho) =
+ * 176. Caber é diferente de respirar — sobrariam 2 pt para os dois vãos do
+ * `space-between`, contra os 10 pt que os quatro slides têm hoje. 232 devolve
+ * exatamente esses 10 pt, e é a razão de o cartão crescer 18 pt em vez de
+ * espremer. As alturas de linha das barras deixaram de ser implícitas
+ * (`barLabel`/`barValue`) para que essa conta continue verdadeira.
  */
-const RAIL_H = 214;
+const RAIL_H = 232;
 /** Respiro entre trilho e pílulas + altura da linha de pílulas. Bloco = 231. */
 const GAP = 9;
 const PILLS_H = 8;
@@ -189,13 +210,22 @@ const DOT_GAP = 6;
 const CURSOR_W = 12;
 const CURSOR_STRETCH = 1.8;
 
-/** Papel cromático de cada sinal da prontidão. Preenchimento de barra usa `accent`. */
-const COMP_ROLE: Record<ReadinessComponent['key'], RoleKey> = {
+/**
+ * Papel cromático de cada sinal da prontidão. Preenchimento de barra usa
+ * `accent`. A carga fica com `purple` porque os quatro vizinhos já ocupam os
+ * matizes quentes e frios óbvios, e ela é o único sinal que não mede o corpo —
+ * separá-la à vista é coerente com pesar menos.
+ */
+const COMP_ROLE: Record<ReadinessKey, RoleKey> = {
   sono: 'blue',
   fcRepouso: 'rose',
   vfc: 'green',
   aneis: 'orange',
+  carga: 'purple',
 };
+
+/** Opacidade de um sinal fora do peso: visível, mas claramente sem voto. */
+const STALE_DIM = 0.4;
 
 /**
  * Papel do tom da recomendação. `neutral` não tem papel: é ausência de
@@ -259,10 +289,23 @@ export function TodayBodyCard({ activities, loaded }: Props) {
     [activities, today],
   );
 
-  const vfcRows = useMemo(() => dailyRows.filter((r) => r.metric === 'vfc'), [dailyRows]);
+  // A carga da prontidão é o mesmo ACWR do cartão de carga: a curva já está
+  // montada aqui, e recalcular carga do zero deixaria os dois números divergirem.
+  const load = useMemo(() => buildTrainingLoad(curve.series), [curve]);
+
+  // As três séries que a prontidão usa. As summaries do HealthKit cobrem 7 dias;
+  // a baseline de 90 que o núcleo pede só existe nestas linhas.
+  const readinessRows = useMemo(
+    () => ({
+      vfc: dailyRows.filter((r) => r.metric === 'vfc'),
+      fcRepouso: dailyRows.filter((r) => r.metric === 'fcRepouso'),
+      sono: dailyRows.filter((r) => r.metric === 'sono'),
+    }),
+    [dailyRows],
+  );
   const score = useMemo(
-    () => readinessFromSummaries(summaries, { vfc: vfcRows }),
-    [summaries, vfcRows],
+    () => readinessFromSummaries(summaries, { ...readinessRows, acwr: load.acwr }),
+    [summaries, readinessRows, load],
   );
 
   // Largura mudou (rotação, split view): reencaixa o slide ativo, senão o
@@ -481,8 +524,11 @@ export function TodayBodyCard({ activities, loaded }: Props) {
 
   if (hasReady) {
     // Recomendação: prontidão × intensidade do treino planejado de hoje (real).
+    // Com `total` nulo o conselho já devolve a orientação neutra — o rodapé então
+    // troca o texto pela razão de não haver nota, que é mais específica.
     const todayPlan = planned.find((p) => p.date === today);
     const advice = readinessAdvice(score.total, true, todayPlan?.kind ?? 'none', todayPlan?.type ?? '');
+    const semNota = noScoreNote(score);
     const role = TONE_ROLE[advice.tone];
     const tone = role ? roleColors(role) : null;
     // Régua é objeto gráfico (piso 3,0) e o título é letra (piso 4,5): `accent`
@@ -501,38 +547,53 @@ export function TodayBodyCard({ activities, loaded }: Props) {
             <Text style={styles.eyebrow}>PRONTIDÃO</Text>
             <Text style={styles.headHint}>{coverageNote(score)}</Text>
           </View>
-          <Text
-            style={styles.score}
-            accessible
-            accessibilityLabel={`Prontidão de hoje: ${score.total} de 100`}
-          >
-            {score.total}
-          </Text>
+          {/* Número e faixa numa coluna só: a palavra alinha à direita, sob a
+              nota, para não empurrar o serif do lugar quando ela muda. */}
+          <View style={styles.scoreBox} accessible accessibilityLabel={scoreLabel(score)}>
+            <Text style={styles.score}>{scoreText(score)}</Text>
+            <Text style={styles.scoreBand}>{bandText(score)}</Text>
+          </View>
         </Animated.View>
 
         <View style={styles.barsTight}>
-          {score.components.map((c) => (
-            <View key={c.key} style={styles.barRow} accessible accessibilityLabel={`${c.label}: ${Math.round(c.score)}`}>
-              {/* Uma linha, sempre: um rótulo que quebra estoura o trilho. */}
-              <Text style={styles.barLabel} numberOfLines={1}>
-                {shortLabel(c)}
-              </Text>
-              <View style={styles.barTrack}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      width: `${Math.round(c.score)}%` as const,
-                      // Sinal novo no núcleo cai no neutro em vez de quebrar o
-                      // `roleColors`, como `shortLabel` cai no rótulo longo.
-                      backgroundColor: COMP_ROLE[c.key] ? roleColors(COMP_ROLE[c.key]).accent : colors.ink3,
-                    },
-                  ]}
-                />
+          {score.components.map((c) => {
+            const age = ageNote(c);
+            return (
+              <View
+                key={c.key}
+                style={[styles.barRow, c.stale && { opacity: STALE_DIM }]}
+                accessible
+                accessibilityLabel={
+                  c.stale
+                    ? `${c.label}: ${Math.round(c.score)}, leitura de ${age}, fora da nota`
+                    : `${c.label}: ${Math.round(c.score)}`
+                }
+              >
+                {/* Uma linha, sempre: um rótulo que quebra estoura o trilho. */}
+                <Text style={styles.barLabel} numberOfLines={1}>
+                  {shortLabel(c)}
+                </Text>
+                <View style={styles.barTrack}>
+                  <View
+                    style={[
+                      styles.barFill,
+                      {
+                        width: `${Math.round(c.score)}%` as const,
+                        // Sinal novo no núcleo cai no neutro em vez de quebrar o
+                        // `roleColors`, como `shortLabel` cai no rótulo longo.
+                        backgroundColor: COMP_ROLE[c.key] ? roleColors(COMP_ROLE[c.key]).accent : colors.ink3,
+                      },
+                    ]}
+                  />
+                </View>
+                {/* A idade toma o lugar do número quando existe: o sub-score de
+                    um sinal que não vota importa menos que a data dele. */}
+                <Text style={[styles.barValue, age !== '' && styles.barAge]}>
+                  {age !== '' ? age : Math.round(c.score)}
+                </Text>
               </View>
-              <Text style={styles.barValue}>{Math.round(c.score)}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* Sem preenchimento, só a régua: o `surfaceMute` que ficava aqui é o
@@ -540,9 +601,11 @@ export function TodayBodyCard({ activities, loaded }: Props) {
             contra o cartão no Clean elevado e no Orbe escuro — some — e 1,10 no
             Clean branco, onde vira a única mancha cinza de um cartão limpo. */}
         <Animated.View style={[styles.advice, { borderLeftColor: ruleColor }, layer(i, -FOOT_LEAD)]}>
-          <Text style={[styles.adviceTitle, { color: titleColor }]}>{advice.title}</Text>
+          <Text style={[styles.adviceTitle, { color: titleColor }]}>
+            {semNota !== '' ? NO_SCORE_TITLE : advice.title}
+          </Text>
           <Text style={styles.adviceText} numberOfLines={2}>
-            {advice.text}
+            {semNota !== '' ? semNota : advice.text}
           </Text>
         </Animated.View>
       </Animated.View>,
@@ -731,16 +794,41 @@ const createStyles = () =>
     pressed: { opacity: 0.7 },
     headRowCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     headHint: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
+    // A faixa fica ao LADO da nota, na mesma linha de base: embaixo ela somaria
+    // uma linha ao cabeçalho e empurraria as barras, e a palavra muda mais vezes
+    // que o número — nada pode se mover quando ela troca.
+    scoreBox: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
     score: { fontSize: 32, lineHeight: 36, fontFamily: fonts.serif, color: colors.ink },
+    scoreBand: {
+      fontSize: 10,
+      lineHeight: 13,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      fontFamily: fonts.sansBold,
+      color: colors.ink3,
+    },
     bars: { gap: 9 },
-    // Quatro barras em vez de duas: o mesmo respiro não caberia.
-    barsTight: { gap: 5 },
+    // Cinco barras em vez de duas: o mesmo respiro não caberia.
+    barsTight: { gap: 4 },
     barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    barLabel: { width: 92, fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink2 },
+    // `lineHeight` explícito nos dois textos da linha: sem ele a altura da barra
+    // depende da métrica da fonte, e a conta de `RAIL_H` deixaria de fechar no
+    // dia em que a família mudasse — calada, como já aconteceu com os rótulos.
+    barLabel: { width: 92, fontSize: 12.5, lineHeight: 15, fontFamily: fonts.sans, color: colors.ink2 },
     barTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMute },
     barFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 4 },
     barTick: { position: 'absolute', top: -3, width: 2, height: 14, borderRadius: 1, backgroundColor: colors.ink2 },
-    barValue: { width: 34, textAlign: 'right', fontFamily: fonts.monoSemiBold, fontSize: 12.5, color: colors.ink },
+    barValue: {
+      width: 34,
+      textAlign: 'right',
+      fontFamily: fonts.monoSemiBold,
+      fontSize: 12.5,
+      lineHeight: 15,
+      color: colors.ink,
+    },
+    // A idade é palavra, não número: sai do mono tabular e perde o peso — ela
+    // explica a barra apagada, não compete com os valores que ainda votam.
+    barAge: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.ink3 },
     legend: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     legendTick: { width: 2, height: 11, borderRadius: 1, backgroundColor: colors.ink2 },
     legendText: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink3 },

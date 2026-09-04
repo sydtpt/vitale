@@ -1,5 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { computeReadiness, rollingBaseline, readinessAdvice, type ReadinessInput } from '@vitale/shared';
+import {
+  READINESS_BASELINE_DAYS,
+  READINESS_BASELINE_SHORT_DAYS,
+  computeReadiness,
+  rollingBaseline,
+  readinessAdvice,
+  type ReadinessInput,
+} from '@vitale/shared';
 import { HealthStore } from '@features/saude/data/health.store';
 import { PlannedWorkoutsStore } from '@features/treinos/data/planned-workouts.store';
 import { ChartPaletteService } from '@core/services/chart-palette.service';
@@ -14,6 +21,9 @@ const COMP_COLOR: Record<string, string> = {
   fcRepouso: '#E26A8A',
   vfc: '#6FA86A',
   aneis: '#F25C2B',
+  // Sem `carga`: este cartão não alimenta o componente de carga (o ACWR vem das
+  // atividades, que ele não carrega), então a chave nunca chega aqui. Quando
+  // chegar, a cor entra como papel de paleta — não como mais um literal.
 };
 
 /** `track` = o mesmo tom da série a 13% de opacidade (sulco do anel). */
@@ -41,12 +51,16 @@ export class DayScoreCardComponent {
     return this.store.latestFor(metric)?.value ?? null;
   }
 
-  /** Baseline = média móvel recente excluindo o dia corrente (fallback: único valor). */
-  private baseline(metric: string): number | null {
+  /**
+   * Baseline = média móvel recente excluindo o dia corrente (fallback: único
+   * valor). `window` escolhe entre o habitual longo, que pontua, e o curto, que
+   * só é exibido — ver `READINESS_BASELINE_DAYS`.
+   */
+  private baseline(metric: string, window: number): number | null {
     const vals = this.store.seriesFor(metric).map((d) => d.value);
     if (vals.length === 0) return null;
     if (vals.length === 1) return vals[0];
-    return rollingBaseline(vals.slice(0, -1), 7);
+    return rollingBaseline(vals.slice(0, -1), window);
   }
 
   private ringsPct(): number[] {
@@ -65,16 +79,27 @@ export class DayScoreCardComponent {
     return {
       sleepHours: this.latest('sono'),
       restingHr: this.latest('fcRepouso'),
-      restingHrBaseline: this.baseline('fcRepouso'),
+      restingHrBaseline: this.baseline('fcRepouso', READINESS_BASELINE_DAYS),
+      restingHrBaselineShort: this.baseline('fcRepouso', READINESS_BASELINE_SHORT_DAYS),
       hrv: this.latest('vfc'),
-      hrvBaseline: this.baseline('vfc'),
+      hrvBaseline: this.baseline('vfc', READINESS_BASELINE_DAYS),
+      hrvBaselineShort: this.baseline('vfc', READINESS_BASELINE_SHORT_DAYS),
       ringsPct: this.ringsPct(),
     };
   });
 
   protected readonly score = computed(() => computeReadiness(this.inputs()));
   protected readonly total = computed(() => this.score().total);
-  protected readonly hasData = computed(() => this.score().components.length > 0);
+  /**
+   * O donut só mostra número quando o núcleo deu um. Antes bastava haver
+   * componente; agora `total` também é `null` com sinal de menos, e o travessão
+   * do template passa a cobrir os dois casos.
+   *
+   * A web ainda não alimenta o portão de frescor nem o componente de carga —
+   * `latestFor` não diz de quando é a leitura, e o ACWR vem das atividades, que
+   * este cartão não carrega. Enquanto isso a cobertura fica no teto de 0,8.
+   */
+  protected readonly hasData = computed(() => this.score().total !== null);
 
   /** Recomendação acionável: prontidão × intensidade do treino planejado de hoje. */
   protected readonly advice = computed(() => {

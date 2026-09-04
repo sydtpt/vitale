@@ -7,7 +7,13 @@
  */
 import type { Activity, HealthDaily } from '../models';
 import { localDateStr } from '../date/local';
-import { computeReadiness, rollingBaseline, type ReadinessScore } from './readiness';
+import {
+  READINESS_BASELINE_DAYS,
+  READINESS_BASELINE_SHORT_DAYS,
+  computeReadiness,
+  rollingBaseline,
+  type ReadinessScore,
+} from './readiness';
 import { correlate } from './trends';
 import { triggerImpact } from './trigger-impact';
 
@@ -101,22 +107,47 @@ export function readinessInputsByDay(series: {
   return map;
 }
 
-/** Prontidão de um dia, com baselines de FC/VFC a partir dos dias anteriores. */
+/** Distância em dias entre duas chaves 'YYYY-MM-DD' (negativa vira 0). */
+function daysBetween(from: string, to: string): number {
+  const ms = parseDate(to).getTime() - parseDate(from).getTime();
+  return Math.max(0, Math.round(ms / 86_400_000));
+}
+
+/**
+ * Prontidão de um dia, com baselines de FC/VFC a partir dos dias anteriores.
+ *
+ * Este caminho **não alimenta o componente de carga**: aqui só chegam séries de
+ * `health_daily`, e o ACWR sai das atividades. A cobertura fica no teto de 0,8, o
+ * que ainda passa do piso — quem quiser os cinco sinais monta o `ReadinessInput`
+ * com o `acwr` de `buildTrainingLoad` do seu lado.
+ *
+ * @param asOf Quando dado, as leituras de `date` são datadas contra este dia e o
+ *   portão de frescor passa a valer. Sem ele o dia é pontuado **como se fosse
+ *   hoje**, que é o certo para uma série histórica — cada ponto é a prontidão
+ *   daquele dia — e errado para "o meu número agora", em que o dado mais recente
+ *   pode ser de semana passada.
+ */
 export function dayReadiness(
   inputsByDay: ReadonlyMap<string, ReadinessDayInput>,
   date: string,
+  asOf?: string,
 ): ReadinessScore {
   const today = inputsByDay.get(date);
   const prior = [...inputsByDay.keys()].filter((d) => d < date).sort();
   const restingPrior = prior.map((d) => inputsByDay.get(d)?.restingHr).filter((v): v is number => v != null);
   const hrvPrior = prior.map((d) => inputsByDay.get(d)?.hrv).filter((v): v is number => v != null);
+  // Todas as leituras vêm do mesmo dia, então a idade é uma só.
+  const age = asOf ? daysBetween(date, asOf) : null;
   return computeReadiness({
     sleepHours: today?.sono ?? null,
     restingHr: today?.restingHr ?? null,
-    restingHrBaseline: rollingBaseline(restingPrior, 7),
+    restingHrBaseline: rollingBaseline(restingPrior, READINESS_BASELINE_DAYS),
+    restingHrBaselineShort: rollingBaseline(restingPrior, READINESS_BASELINE_SHORT_DAYS),
     hrv: today?.hrv ?? null,
-    hrvBaseline: rollingBaseline(hrvPrior, 7),
+    hrvBaseline: rollingBaseline(hrvPrior, READINESS_BASELINE_DAYS),
+    hrvBaselineShort: rollingBaseline(hrvPrior, READINESS_BASELINE_SHORT_DAYS),
     ringsPct: today?.ringsPct ?? null,
+    ageDays: age === null ? undefined : { sono: age, fcRepouso: age, vfc: age, aneis: age },
   });
 }
 
@@ -168,7 +199,9 @@ export function readinessSeries(
     return {
       date,
       label: shortLabel(date),
-      score: r.components.length > 0 ? r.total : null,
+      // `total` já é `null` quando o dia não tem informação suficiente — não há
+      // mais o que checar aqui, e o ponto some do gráfico em vez de virar zero.
+      score: r.total,
       hasActivity: actDays.has(date),
     };
   });
@@ -273,10 +306,13 @@ export function wellnessSummary(
   activities: Activity[],
   now: Date = new Date(),
 ): WellnessSummary {
-  // dia mais recente (até 7 dias atrás) com componentes de prontidão
+  // Dia mais recente (até 7 dias atrás) com componentes de prontidão, datado
+  // contra hoje: um resumo montado sobre a última leitura disponível é
+  // exatamente o caso em que dado de domingo era publicado como número de hoje.
+  const hoje = localDateStr(now);
   let score: ReadinessScore | null = null;
   for (const date of datesEndingAt(7, now).reverse()) {
-    const r = dayReadiness(inputsByDay, date);
+    const r = dayReadiness(inputsByDay, date, hoje);
     if (r.components.length > 0) { score = r; break; }
   }
 
@@ -290,7 +326,7 @@ export function wellnessSummary(
   ).length;
 
   return {
-    overall: score ? score.total : null,
+    overall: score?.total ?? null,
     categories: (score?.components ?? []).map((c) => ({ key: c.key, label: c.label, score: Math.round(c.score) })),
     coverage: score?.coverage ?? 0,
     missing: score?.missing ?? [],
