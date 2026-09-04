@@ -7,8 +7,7 @@ import { SectionLabel } from '../../components/ui/SectionLabel';
 import { HabitStepper } from '../../components/cards/HabitStepper';
 import { SleepRatingCard } from '../../components/cards/SleepRatingCard';
 import { DayRatingCard } from '../../components/cards/DayRatingCard';
-import { FormCurveCard } from '../../components/cards/FormCurveCard';
-import { ReadinessCard } from '../../components/cards/ReadinessCard';
+import { TodayBodyCard } from '../../components/cards/TodayBodyCard';
 import { TodoItem } from '../../components/cards/TodoItem';
 import { useHabitsStore, HABIT_WINDOW_DAYS } from '../../store/habits.store';
 import { useTodosStore } from '../../store/todos.store';
@@ -215,12 +214,10 @@ export default function HojeScreen() {
           <MoonBadge date={now} size={42} />
         </View>
 
-        {/* Curva de forma — carrossel de altura fixa; some sem atividades carregadas */}
-        <FormCurveCard activities={allActs} loaded={actsLoaded} />
-
-        {/* Prontidão — como o corpo amanheceu. Complementa a curva: uma é carga
-            acumulada, a outra é o estado de hoje. Some sem dado de saúde. */}
-        <ReadinessCard />
+        {/* O corpo hoje — carrossel de altura fixa: saldo de forma, de onde ele
+            vem, e a prontidão. Cada página entra se tiver dado; o bloco some se
+            nenhuma tiver. */}
+        <TodayBodyCard activities={allActs} loaded={actsLoaded} />
 
         {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido */}
         {showSleepRating && (
