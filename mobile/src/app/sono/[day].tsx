@@ -96,11 +96,16 @@ export default function SonoDayScreen() {
             <AwakeLine p={p} styles={styles} />
           </View>
 
-          {/* Estágios em proporção — textura, não conselho. */}
+          {/* Estágios — na posição real quando os intervalos existem; em proporção
+              nas noites gravadas antes da coluna. Textura, não conselho. */}
           {p.stages && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Estágios</Text>
-              <StageBar stages={p.stages} palette={{ deep, rem: mod.accent, core: mod.tint, unspecified: colors.ink4 }} styles={styles} />
+              {p.stageSegments && p.stageSegments.length > 0 ? (
+                <StageTimeline p={p} width={Math.max(0, w - spacing.lg * 2)} palette={{ deep, rem: mod.accent, core: mod.tint, unspecified: colors.ink4 }} styles={styles} />
+              ) : (
+                <StageBar stages={p.stages} palette={{ deep, rem: mod.accent, core: mod.tint, unspecified: colors.ink4 }} styles={styles} />
+              )}
               <View style={styles.stageKey}>
                 {STAGES.filter((s) => (p.stages?.[s.key] ?? 0) > 0).map((s) => (
                   <View key={s.key} style={styles.keyItem}>
@@ -170,6 +175,26 @@ function AwakeLine({ p, styles }: { p: SleepPeriod; styles: Styles }) {
     <Text style={styles.cardNote}>
       {n} {n === 1 ? 'despertar' : 'despertares'} · {Math.round(min)} min acordado
     </Text>
+  );
+}
+
+/** Os estágios na hora em que ocorreram, do apagar ao acordar; o despertar é o vão. */
+function StageTimeline({
+  p, width, palette, styles,
+}: { p: SleepPeriod; width: number; palette: Record<string, string>; styles: Styles }) {
+  if (width <= 0) return null;
+  const start = new Date(p.onsetAt).getTime();
+  const span = Math.max(new Date(p.wakeAt).getTime() - start, 1);
+  const x = (iso: string) => ((new Date(iso).getTime() - start) / span) * width;
+  return (
+    <View style={[styles.timeline, { width, backgroundColor: colors.surface }]}>
+      {(p.stageSegments ?? []).map((s, i) => (
+        <View
+          key={i}
+          style={[styles.timelineHole, { left: x(s.from), width: Math.max(1, x(s.to) - x(s.from)), backgroundColor: palette[s.stage] }]}
+        />
+      ))}
+    </View>
   );
 }
 

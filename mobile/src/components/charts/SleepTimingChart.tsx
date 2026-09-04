@@ -5,6 +5,7 @@ import {
   axisRange,
   toTimingBar,
   type SleepPeriod,
+  type StageKey,
   type TimingBar,
 } from '@vitale/shared';
 import { colors } from '../../theme';
@@ -24,12 +25,17 @@ interface Props {
    * leve e cada despertar vira um traço **em destaque** — é o que o usuário pediu
    * ver: quando e por quanto tempo acordou.
    */
-  emphasis?: 'sleep' | 'awake';
+  emphasis?: 'sleep' | 'awake' | 'stages';
   /** Cor do traço de despertar e do seu contorno (amarelo 1,7:1 no claro pede contorno). */
   awakeColor?: string;
   awakeOutline?: string;
   /** Fundo da janela na cama em `emphasis='awake'`. */
   tint?: string;
+  /**
+   * `emphasis='stages'`: cor por estágio. Os segmentos vêm do núcleo na POSIÇÃO
+   * real (`stage_segments`); noite sem segmentos cai na barra simples.
+   */
+  stageColors?: Record<StageKey, string>;
 }
 
 const PAD_TOP = 8;
@@ -50,10 +56,11 @@ const PAD_LEFT = 30;
  * período); aqui só se desenha.
  */
 export function SleepTimingChart({
-  days, periods, width, height = 220, accent, emphasis = 'sleep', awakeColor, awakeOutline, tint,
+  days, periods, width, height = 220, accent, emphasis = 'sleep', awakeColor, awakeOutline, tint, stageColors,
 }: Props) {
   if (days.length === 0 || width <= 0) return null;
   const awakeMode = emphasis === 'awake';
+  const stagesMode = emphasis === 'stages' && !!stageColors;
 
   const byDay = new Map<string, TimingBar>();
   for (const p of periods) byDay.set(p.wakeDay, toTimingBar(p));
@@ -134,23 +141,37 @@ export function SleepTimingChart({
                 opacity={0.55}
               />
             ))}
-            <Rect
-              x={x}
-              y={y(bar.onset)}
-              width={barW}
-              height={Math.max(2, y(bar.wake) - y(bar.onset))}
-              rx={3}
-              fill={accent}
-              opacity={awakeMode ? 0.7 : 1}
-            />
+            {stagesMode && bar.segments && bar.segments.length > 0 ? (
+              // Os estágios na posição em que ocorreram — não em proporção.
+              bar.segments.map((s, k) => (
+                <Rect
+                  key={`s${k}`}
+                  x={x}
+                  y={y(s.from)}
+                  width={barW}
+                  height={Math.max(1.5, y(s.to) - y(s.from))}
+                  fill={stageColors![s.stage]}
+                />
+              ))
+            ) : (
+              <Rect
+                x={x}
+                y={y(bar.onset)}
+                width={barW}
+                height={Math.max(2, y(bar.wake) - y(bar.onset))}
+                rx={3}
+                fill={accent}
+                opacity={awakeMode ? 0.7 : 1}
+              />
+            )}
             {/* Os buracos: a vigília fura a barra, não a encurta — e em `awake`
                 ela vira o destaque, não o vazio. */}
             {(bar.holes ?? []).map((h, k) => (
               <Rect
                 key={k}
-                x={awakeMode ? x - 1 : x}
+                x={x}
                 y={y(h.from)}
-                width={awakeMode ? barW + 2 : barW}
+                width={barW}
                 height={Math.max(awakeMode ? 2.5 : 1.5, y(h.to) - y(h.from))}
                 rx={awakeMode ? 1.5 : 0}
                 fill={awakeMode ? awakeColor ?? accent : colors.surface}

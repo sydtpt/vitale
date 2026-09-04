@@ -737,9 +737,24 @@ export interface SleepPeriod {
    * `null` = a fonte não reporta · `[]` = não houve · `[…]` = os intervalos.
    */
   awakenings: Awakening[] | null;
-  /** Horas por estágio: deep/rem/core/unspecified/awake. */
+  /** Horas por estágio: deep/rem/core/unspecified/awake. Derivado de `stageSegments`. */
   stages: Record<string, number> | null;
+  /**
+   * Os intervalos por estágio, na posição em que ocorreram — o que a Opção 2 da
+   * CAP-7 desenha. `null` só em linhas gravadas antes da coluna existir; o
+   * backfill preenche. O `AWAKE` não está aqui: mora em `awakenings`.
+   */
+  stageSegments: StageSegment[] | null;
   source?: string;                      // HKSource — diagnóstico de cobertura
+}
+
+export type StageKey = 'deep' | 'rem' | 'core' | 'unspecified';
+
+/** Um trecho de sono num estágio. Contíguos entre si; o despertar é o vão. */
+export interface StageSegment {
+  stage: StageKey;
+  from: string;                         // ISO
+  to: string;                           // ISO
 }
 
 /* ─────────────────────────────────────────────────────────────

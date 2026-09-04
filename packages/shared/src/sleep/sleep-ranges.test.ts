@@ -20,7 +20,7 @@ import type { SleepPeriod } from '../models';
 import { SONO_RANGES, filterByRange, hasNights, rangeBounds, rangeForm, rangeLabel } from './ranges';
 import { BED_AVG_MIN_SHARE, periodSummary } from './summary';
 import { bucketPeriods, median, monthKey, quantile, weekKey } from './buckets';
-import { awakeFacts, bucketFacts, clockOfAxis, formatHm, isFreeWakeDay, nightFacts } from './facts';
+import { awakeFacts, bucketFacts, clockOfAxis, formatHm, isFreeWakeDay, nightFacts, stageFacts } from './facts';
 import { awakeByWeekday, awakeningDurations, awakeningsByHour } from './awakenings';
 
 let passed = 0;
@@ -50,6 +50,7 @@ function night(wakeDay: string, onsetH = 23.5, durH = 7.5, over: Partial<SleepPe
     asleepH: durH,
     awakenings: [],
     stages: null,
+    stageSegments: null,
     ...over,
   };
 }
@@ -249,6 +250,31 @@ check('awakeFacts: hora mais comum só com repetição, e com o n ao lado', () =
   assert.equal(two.find((f) => f.label === 'Hora mais comum')!.value, '03:00–04:00 · 2 de 2 noites');
   assert.equal(two.find((f) => f.label === 'Mais longo')!.value, '40 min · 3/09 às 03:18');
   assert.equal(awakeFacts([night('2026-09-02', 23.5, 7.5, { awakenings: null })])[0].value, 'a fonte não reporta');
+});
+
+check('buckets: horas médias por estágio só sobre as noites com hipnograma', () => {
+  const ps = [
+    night('2026-09-01', 23.5, 7.5, { stages: { deep: 1.5, rem: 1.5, core: 4.5 } }),
+    night('2026-09-02', 23.5, 7.5, { stages: { deep: 0.5, rem: 1.5, core: 5.5 } }),
+    night('2026-09-03', 23.5, 7.5, { stages: { unspecified: 7.5 } }), // sem hipnograma
+  ];
+  const [b] = bucketPeriods(ps, 'week');
+  assert.equal(b.stagedNights, 2);
+  assert.equal(b.stagesH['deep'], 1);
+  assert.equal(b.stagesH['core'], 5);
+  assert.equal(b.stagesH['unspecified'], undefined, 'a noite sem hipnograma não entra na composição');
+});
+
+check('stageFacts: medianas por estágio com o n, e "não reporta" sem hipnograma', () => {
+  const ps = [
+    night('2026-09-01', 23.5, 7.5, { stages: { deep: 1.5, rem: 1, core: 5 } }),
+    night('2026-09-02', 23.5, 7.5, { stages: { deep: 2.5, rem: 1, core: 4 } }),
+    night('2026-09-03', 23.5, 7.5, { stages: null }),
+  ];
+  const f = stageFacts(ps);
+  assert.equal(f[0].value, '2 de 3');
+  assert.equal(f.find((x) => x.label.startsWith('Profundo'))!.value, '2h00');
+  assert.equal(stageFacts([night('2026-09-03', 23.5, 7.5, { stages: null })])[0].value, 'a fonte não reporta');
 });
 
 console.log(`\n${passed} testes passaram.`);

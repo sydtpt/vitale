@@ -35,6 +35,14 @@ export interface SleepBucket {
   awakeMin: number | null;
   /** Noites com hora de deitar medida — alimenta a regra dos 80%. */
   bedMeasured: number;
+  /**
+   * Horas médias por estágio (deep/rem/core/unspecified), sobre as noites que
+   * têm hipnograma — a Opção 2 nos períodos longos é composição, não posição:
+   * uma "noite típica" não tem hora para cada estágio.
+   */
+  stagesH: Record<string, number>;
+  /** Noites da coluna com hipnograma. */
+  stagedNights: number;
 }
 
 function pad2(n: number): string {
@@ -82,7 +90,15 @@ export function bucketPeriods(periods: readonly SleepPeriod[], kind: BucketKind)
       const on = ps.map((p) => axisPosition(p.onsetAt, p.tzOffset));
       const wk = ps.map((p) => axisPosition(p.wakeAt, p.tzOffset));
       const aw = ps.map(awakeMinOf).filter((m): m is number => m !== null);
+      const staged = ps.filter((p) => p.stages && ['deep', 'rem', 'core'].some((k) => (p.stages?.[k] ?? 0) > 0));
+      const stagesH: Record<string, number> = {};
+      for (const k of ['deep', 'rem', 'core', 'unspecified']) {
+        const sum = staged.reduce((s, p) => s + (p.stages?.[k] ?? 0), 0);
+        if (staged.length && sum > 0) stagesH[k] = sum / staged.length;
+      }
       return {
+        stagesH,
+        stagedNights: staged.length,
         key,
         kind,
         nights: ps.length,

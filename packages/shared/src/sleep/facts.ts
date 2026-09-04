@@ -9,7 +9,7 @@
  * o cálculo é o dos módulos vizinhos, este só junta e formata.
  */
 
-import type { SleepPeriod } from '../models';
+import type { SleepPeriod, StageKey } from '../models';
 import { SLEEP_AXIS_ORIGIN_H, axisPosition, awakeningMin } from './timing';
 import { awakeMinOf } from './derive';
 import { median, quantile, type SleepBucket } from './buckets';
@@ -195,6 +195,30 @@ export function awakeFacts(periods: readonly SleepPeriod[]): Fact[] {
   const work = reporting.filter((p) => !isFreeWakeDay(p.wakeDay)).map((p) => awakeMinOf(p) ?? 0);
   if (free.length >= 2 && work.length >= 2) {
     facts.push({ label: 'Fim de semana vs semana (acordado)', value: signedMin(median(free) - median(work)) });
+  }
+  return facts;
+}
+
+/** Rótulo de cada estágio, para os dois apps escreverem o mesmo. */
+export const STAGE_LABEL: Record<StageKey, string> = {
+  deep: 'Profundo',
+  rem: 'REM',
+  core: 'Leve',
+  unspecified: 'Sem estágio',
+};
+
+/**
+ * Fatos da leitura por estágio — medianas por noite, só sobre as noites que têm
+ * hipnograma. **Estimativa do aparelho, comparável com você mesmo**: a
+ * especificidade sono/vigília destes relógios fica entre 30% e 61% contra
+ * polissonografia (spec R5). Nunca contra norma clínica.
+ */
+export function stageFacts(periods: readonly SleepPeriod[]): Fact[] {
+  const staged = periods.filter((p) => p.stages && (['deep', 'rem', 'core'] as const).some((k) => (p.stages?.[k] ?? 0) > 0));
+  if (staged.length === 0) return [{ label: 'Estágios', value: 'a fonte não reporta' }];
+  const facts: Fact[] = [{ label: 'Noites com hipnograma', value: `${staged.length} de ${periods.length}` }];
+  for (const k of ['deep', 'rem', 'core'] as const) {
+    facts.push({ label: `${STAGE_LABEL[k]} por noite (mediana)`, value: formatHm(median(staged.map((p) => p.stages?.[k] ?? 0))) });
   }
   return facts;
 }
