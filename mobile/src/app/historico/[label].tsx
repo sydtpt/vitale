@@ -48,6 +48,7 @@ import {
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { TypeEvolutionCard } from '../../components/cards/TypeEvolutionCard';
 import { EffortTrendCard } from '../../components/cards/EffortTrendCard';
+import { RecurringRoutesCard } from '../../components/cards/RecurringRoutesCard';
 import { RecordCurveCard } from '../../components/cards/RecordCurveCard';
 
 /**
@@ -404,6 +405,10 @@ export default function TipoListScreen() {
             {typed[0] && (
               <EffortTrendCard activities={_all} sportId={typed[0].activityId} color={meta.color} />
             )}
+            {/* Recorde compara a mesma distância; isto compara o mesmo
+                percurso, que controla desnível, curvas e semáforos. Some quando
+                o esporte não repete rota — o caso do ciclismo. */}
+            <RecurringRoutesCard activities={typed} onPick={goToWorkout} />
             <View style={styles.filterWrap}>
             <View style={styles.toolbarRow}>
               <Pressable

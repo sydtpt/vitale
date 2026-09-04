@@ -74,6 +74,8 @@ export * from './fitness/overview';
 export * from './fitness/weekly-volume';
 export * from './fitness/moving-time';
 export * from './fitness/route-profile';
+export * from './fitness/climbs';
+export * from './fitness/recurring-routes';
 export * from './fitness/best-efforts';
 export * from './fitness/best-effort-trend';
 export * from './fitness/weekly-load';

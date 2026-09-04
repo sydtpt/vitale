@@ -29,6 +29,7 @@ import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../l
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
+import { ClimbsCard } from '../../../components/cards/ClimbsCard';
 import { SegmentsCard } from '../../../components/cards/SegmentsCard';
 import {
   formatFullDate,
@@ -387,6 +388,10 @@ export default function AtividadeDetalheScreen() {
               activityId={activity.activityId}
               onScrub={setCursorX}
             />
+            {/* O perfil mostra o relevo; este recorta dele o que foi subida de
+                verdade. Some em percurso plano — e some em quase toda corrida,
+                que é a resposta certa para corrida. */}
+            <ClimbsCard points={routePoints ?? []} />
           </>
         )}
 
