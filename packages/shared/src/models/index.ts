@@ -687,6 +687,58 @@ export interface HealthDaily {
 }
 
 /* ─────────────────────────────────────────────────────────────
+ * Sono — o período é um EVENTO com instantes, não uma grandeza diária.
+ * Spec: docs/specs/sono/spec.md · data-model: docs/specs/sono/data-model.md
+ * ───────────────────────────────────────────────────────────── */
+
+/**
+ * Um trecho acordado **dentro** de um período de sono.
+ *
+ * Medido: 258 de 270 noites da era Apple Watch são um único período, e ainda
+ * assim 43% delas têm mais de uma hora acordado. Vigília é buraco dentro de um
+ * bloco, não quebra em vários blocos — por isso mora aqui, e não em linhas
+ * separadas de `SleepPeriod`.
+ */
+export interface Awakening {
+  from: string;                         // ISO — instante em que acordou
+  to: string;                           // ISO — instante em que voltou a dormir
+}
+
+/**
+ * Um período de sono. Mapeia a tabela `sleep_periods`.
+ *
+ * Existe porque `health_daily` tem chave `(user, day, metric)`, e isso é uma
+ * afirmação de que a grandeza pertence a um dia. Um período tem **duas** datas
+ * (apaga terça, acorda quarta), e sem hora do dia regularidade, jetlag social,
+ * midpoint e cronotipo são incalculáveis.
+ */
+export interface SleepPeriod {
+  userId: string;
+  onsetAt: string;                      // ISO — primeiro instante DORMINDO
+  wakeAt: string;                       // ISO — último instante dormindo
+  /**
+   * Início da janela na cama. `null` quando a fonte não mede: o Garmin abre a
+   * janela `INBED` no mesmo instante em que o sono começa (41 de 42 noites
+   * medidas), então gravar o valor degenerado faria a tela dizer "você deitou
+   * 00:08" quando a verdade é "não sei".
+   */
+  inBedAt: string | null;
+  inBedEnd: string | null;
+  /** Minutos vs UTC no `onsetAt`. Sem ele, viagem lê como irregularidade. */
+  tzOffset: number;
+  wakeDay: string;                      // 'YYYY-MM-DD' local — ponte com health_daily
+  asleepH: number;                      // horas líquidas (já descontada a vigília)
+  /**
+   * Três estados distintos, e a diferença chega até a tela:
+   * `null` = a fonte não reporta · `[]` = não houve · `[…]` = os intervalos.
+   */
+  awakenings: Awakening[] | null;
+  /** Horas por estágio: deep/rem/core/unspecified/awake. */
+  stages: Record<string, number> | null;
+  source?: string;                      // HKSource — diagnóstico de cobertura
+}
+
+/* ─────────────────────────────────────────────────────────────
  * Cultura — livros, filmes, podcasts e álbuns.
  * Spec: docs/specs/cultura/spec.md
  * ───────────────────────────────────────────────────────────── */

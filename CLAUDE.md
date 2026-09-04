@@ -226,3 +226,4 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [Web: Visão detalhada por país (Ciclismo — mapa de rotas + cidades por país)](docs/specs/mapa-por-pais/spec.md) · [plan](docs/specs/mapa-por-pais/plan.md) · [data-model](docs/specs/mapa-por-pais/data-model.md) · [tasks](_bmad-output/implementation-artifacts/mapa-por-pais/tasks.md)
 - [Temas (quatro eixos: esquema, tema, paleta e marca)](docs/specs/temas/spec.md) · [data-model](docs/specs/temas/data-model.md)
 - [Cultura (livros, filmes, podcasts e álbuns)](docs/specs/cultura/spec.md) · [data-model](docs/specs/cultura/data-model.md) · [stories](docs/specs/cultura/stories.yaml)
+- [Sono (tela própria: horários, timing chart, despertares e percepção × medição)](docs/specs/sono/spec.md) · [data-model](docs/specs/sono/data-model.md) · [plan](docs/specs/sono/plan.md) · [tasks](_bmad-output/implementation-artifacts/sono/tasks.md)
