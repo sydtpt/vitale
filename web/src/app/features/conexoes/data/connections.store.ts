@@ -26,7 +26,7 @@ async function functionError(error: unknown, data: unknown): Promise<string | nu
 }
 
 /**
- * Contas vinculadas (Strava, intervals.icu). Estado de `linked_accounts` (RLS);
+ * Contas vinculadas (intervals.icu). Estado de `linked_accounts` (RLS);
  * vincular/sincronizar via edge functions — o client nunca vê tokens.
  */
 @Injectable({ providedIn: 'root' })
@@ -80,26 +80,6 @@ export class ConnectionsStore {
     }
   }
 
-  /** Inicia o OAuth da Strava — navega para a página de autorização. */
-  async connectStrava(): Promise<string | null> {
-    this.setBusy('strava', 'connecting');
-    try {
-      const { data, error } = await supabase.functions.invoke('strava-oauth/authorize', {
-        body: { platform: 'web' },
-      });
-      const err = await functionError(error, data);
-      if (err) return err;
-      const url = (data as { url?: string })?.url;
-      if (!url) return 'Resposta inválida do servidor.';
-      window.location.assign(url); // volta em /conexoes?provider=strava&status=…
-      return null;
-    } catch (e) {
-      return e instanceof Error ? e.message : 'Falha ao conectar com a Strava.';
-    } finally {
-      this.setBusy('strava', undefined);
-    }
-  }
-
   async syncNow(provider: ConnectionProvider): Promise<string | null> {
     this.setBusy(provider, 'syncing');
     try {
@@ -120,18 +100,9 @@ export class ConnectionsStore {
   async disconnect(provider: ConnectionProvider): Promise<string | null> {
     this.setBusy(provider, 'disconnecting');
     try {
-      if (provider === 'strava') {
-        // Via edge function: além de apagar o vínculo, desautoriza o app na Strava.
-        const { data, error } = await supabase.functions.invoke('strava-oauth/link', {
-          method: 'DELETE',
-        });
-        const err = await functionError(error, data);
-        if (err) return err;
-      } else {
-        const uid = this.auth.user()?.id;
-        if (!uid) return 'Sessão não encontrada.';
-        await deleteLinkedAccount(supabase, uid, provider);
-      }
+      const uid = this.auth.user()?.id;
+      if (!uid) return 'Sessão não encontrada.';
+      await deleteLinkedAccount(supabase, uid, provider);
       await this.load();
       return null;
     } catch (e) {

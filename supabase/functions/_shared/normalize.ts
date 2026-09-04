@@ -1,13 +1,13 @@
 /**
- * Shape normalizado de um treino vindo de provedor externo (Strava,
- * intervals.icu), pronto para o dedupe/merge e para virar linha de
+ * Shape normalizado de um treino vindo do intervals.icu, pronto para o
+ * dedupe/merge e para virar linha de
  * `activities` + `activity_routes`. Pontos no shape persistido
  * (`{lat,lng,alt?,t?}`, `t` em epoch ms) — o mesmo do kernel fitness do shared.
  */
 import type { FitnessPoint, FitnessHrSample } from '../../../packages/shared/src/fitness/streams.ts';
 
 export interface NormalizedActivity {
-  provider: 'strava' | 'intervals';
+  provider: 'intervals';
   externalId: string;
   /** Código de atividade do HealthKit (37 corrida, 13 ciclismo…). */
   activityId: number;
@@ -58,7 +58,7 @@ export function localIsoToUtcMs(iso: string, timeZone?: string): number {
 
 /**
  * Monta pontos e amostras de FC a partir de streams paralelos estilo
- * Strava/intervals: `time` (s desde o início), `latlng` ([lat,lng]),
+ * intervals.icu: `time` (s desde o início), `latlng` ([lat,lng]),
  * `altitude` (m), `heartrate` (bpm). Índices sem dado são pulados.
  */
 export function streamsToPointsAndHr(

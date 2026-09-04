@@ -1,9 +1,7 @@
 /**
  * Configurações → Conexões: vincular fontes de dados de treino.
  *  - Apple Health: permissão local do HealthKit (fitness.store).
- *  - Strava: OAuth via navegador (edge fn strava-oauth).
  *  - intervals.icu: API key + Athlete ID (edge fn intervals-link) — ponte Garmin.
- * O retorno do OAuth chega por deep link (?provider=&status=) — ver strava-oauth.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -38,7 +36,7 @@ export default function ConexoesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ provider?: string; status?: string; reason?: string }>();
 
-  const { accounts, loading, busy, load, linkIntervals, connectStrava, syncNow, disconnect } =
+  const { accounts, loading, busy, load, linkIntervals, syncNow, disconnect } =
     useConnectionsStore();
   const permissionStatus = useFitnessStore((s) => s.permissionStatus);
   const requestPermission = useFitnessStore((s) => s.requestPermission);
@@ -71,7 +69,6 @@ export default function ConexoesScreen() {
     if (err) setActionError(err);
   };
 
-  const strava = byProvider.get('strava');
   const intervals = byProvider.get('intervals');
 
   return (
@@ -94,7 +91,7 @@ export default function ConexoesScreen() {
 
         <Text style={styles.intro}>
           Vincule suas contas para trazer treinos com rota GPS e frequência cardíaca. Os dados do
-          Garmin chegam pela Strava ou pelo intervals.icu — sem duplicar com o Apple Health.
+          Garmin chegam pelo intervals.icu — sem duplicar com o Apple Health.
         </Text>
 
         {/* ── Apple Health ─────────────────────────────── */}
@@ -117,32 +114,6 @@ export default function ConexoesScreen() {
             <>
               <Text style={styles.cardDesc}>Permita o acesso ao HealthKit para ler seus treinos.</Text>
               <PrimaryButton styles={styles} label="Permitir acesso" onPress={requestPermission} />
-            </>
-          )}
-        </View>
-
-        {/* ── Strava ───────────────────────────────────── */}
-        <View style={styles.card}>
-          <CardHeader styles={styles} icon="logo-rss" title="Strava" connected={strava?.status === 'connected'} />
-          {strava ? (
-            <ConnectedBody
-              styles={styles}
-              account={strava}
-              busy={busy.strava}
-              onSync={() => run(() => syncNow('strava'))}
-              onDisconnect={() => run(() => disconnect('strava'))}
-            />
-          ) : (
-            <>
-              <Text style={styles.cardDesc}>
-                Conecte sua conta Strava para importar treinos com rota e FC — inclusive os do Garmin.
-              </Text>
-              <PrimaryButton
-                styles={styles}
-                label="Conectar Strava"
-                busy={busy.strava === 'connecting'}
-                onPress={() => run(connectStrava)}
-              />
             </>
           )}
         </View>
@@ -202,7 +173,7 @@ export default function ConexoesScreen() {
         {loading ? <ActivityIndicator style={{ marginTop: spacing.lg }} color={colors.ink3} /> : null}
 
         <Text style={styles.note}>
-          Ao vincular Strava ou intervals.icu, os treinos que o Garmin Connect grava no Apple Health
+          Ao vincular o intervals.icu, os treinos que o Garmin Connect grava no Apple Health
           deixam de ser sincronizados — a versão completa (rota, FC) vem da conta vinculada.
         </Text>
       </ScrollView>

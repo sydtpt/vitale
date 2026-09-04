@@ -418,8 +418,17 @@ export interface ActivityRoute {
   pointCount: number;
 }
 
-/** Provedores externos vinculáveis na tela de Conexões. */
-export type ConnectionProvider = 'strava' | 'intervals';
+/**
+ * Provedores externos vinculáveis na tela de Conexões.
+ *
+ * Era `'strava' | 'intervals'`. A integração com a API do Strava foi removida
+ * na ADR 0029: ela existia em código, nunca foi vinculada em produção, e o app
+ * do Strava continua escrevendo no Apple Health — que é por onde os treinos do
+ * Garmin realmente chegam. O `CHECK` da migration ainda aceita `'strava'`, e
+ * fica: constraint permissiva não cria linha, e mexer nela pediria migration
+ * para apagar um valor que ninguém grava.
+ */
+export type ConnectionProvider = 'intervals';
 
 export type ConnectionStatus = 'pending' | 'connected' | 'error' | 'revoked';
 

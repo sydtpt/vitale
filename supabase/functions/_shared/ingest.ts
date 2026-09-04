@@ -1,12 +1,12 @@
 /**
- * Ingestão de treinos de provedores externos (Strava, intervals.icu) com
+ * Ingestão de treinos do intervals.icu com
  * dedupe/merge cross-source — o mesmo treino físico chegando por HealthKit,
- * Strava e intervals.icu vira UMA linha canônica em `activities`.
+ * intervals.icu vira UMA linha canônica em `activities`.
  *
  * Fluxo por (usuário, provedor):
  *   1. janela = [cursor − 24h, agora] (primeira vez: últimos 90 dias)
  *   2. lista atividades ascendentes, cap de 30 por run (backfill espalha
- *      entre ticks do cron; rate limit da Strava fica com folga)
+ *      entre ticks do cron; rate limit do intervals.icu fica com folga)
  *   3. para cada treino: dedupe (passos 0–4 do kernel) → insert ou merge
  *   4. varredura de reconciliação dos últimos 7 dias (pares que escaparam,
  *      ex.: treino do Apple Watch que também subiu para a Strava)
@@ -47,12 +47,6 @@ import {
   intervalsStartMs,
   normalizeIntervalsActivity,
 } from './providers/intervals.ts';
-import {
-  fetchStravaActivities,
-  normalizeStravaActivity,
-  refreshStravaToken,
-  stravaStartMs,
-} from './providers/strava.ts';
 
 /** Máximo de treinos processados por run — o backfill continua no próximo tick. */
 export const MAX_ACTIVITIES_PER_RUN = 30;
@@ -283,7 +277,7 @@ async function insertNew(
       moving_time_s: m.movingTimeS ?? null,
       distance_m: norm.distanceM ?? null,
       elevation_m: m.elevationM ?? null,
-      source_name: norm.provider === 'strava' ? 'Strava' : 'intervals.icu',
+      source_name: 'intervals.icu',
       source_id: norm.provider,
       device: norm.device ?? null,
       tracked: true,
@@ -729,7 +723,7 @@ export async function ingestWellness(
 
 interface LinkedAccountRow {
   user_id: string;
-  provider: 'strava' | 'intervals';
+  provider: 'intervals';
   status: string;
   athlete_id: string | null;
   athlete_meta: Record<string, unknown> | null;
@@ -744,31 +738,12 @@ interface SecretRow {
   api_key: string | null;
 }
 
-/** Garante access token válido da Strava, persistindo a rotação do refresh. */
-async function freshStravaToken(admin: Admin, userId: string, secret: SecretRow): Promise<string> {
-  const expMs = secret.expires_at ? Date.parse(secret.expires_at) : 0;
-  if (secret.access_token && expMs > Date.now() + 5 * 60_000) return secret.access_token;
-  if (!secret.refresh_token) throw new AuthError('Strava: sem refresh token');
-  const tokens = await refreshStravaToken(secret.refresh_token);
-  const { error } = await admin
-    .from('linked_account_secrets')
-    .update({
-      access_token: tokens.accessToken,
-      refresh_token: tokens.refreshToken,
-      expires_at: tokens.expiresAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId)
-    .eq('provider', 'strava');
-  if (error) throw new Error(`persistir tokens falhou: ${error.message}`);
-  return tokens.accessToken;
-}
 
 /** Ingestão completa de um (usuário, provedor). Nunca lança — retorna o erro no summary. */
 export async function runIngest(
   admin: Admin,
   userId: string,
-  provider: 'strava' | 'intervals',
+  provider: 'intervals',
 ): Promise<IngestSummary> {
   const summary: IngestSummary = { userId, provider, inserted: 0, merged: 0, skipped: 0, swept: 0 };
   try {
@@ -815,36 +790,25 @@ export async function runIngest(
       startMs: number;
       normalize: () => Promise<NormalizedActivity | null>;
     }
-    let refs: PendingRef[];
-    if (provider === 'intervals') {
-      if (!secret.api_key || !account.athlete_id) throw new AuthError('intervals.icu: vínculo incompleto');
-      const raws = await fetchIntervalsActivities(
-        secret.api_key,
-        account.athlete_id,
-        new Date(fromMs).toISOString(),
-        new Date(nowMs + DAY_MS).toISOString(),
-      );
-      refs = raws.map((r) => ({
-        externalId: String(r.id),
-        startMs: intervalsStartMs(r),
-        normalize: () => normalizeIntervalsActivity(secret.api_key!, r),
-      }));
-    } else {
-      const access = await freshStravaToken(admin, userId, secret);
-      const raws = await fetchStravaActivities(access, fromMs / 1000);
-      refs = raws.map((r) => ({
-        externalId: String(r.id),
-        startMs: stravaStartMs(r),
-        normalize: () => normalizeStravaActivity(access, r),
-      }));
-    }
+    if (!secret.api_key || !account.athlete_id) throw new AuthError('intervals.icu: vínculo incompleto');
+    const raws = await fetchIntervalsActivities(
+      secret.api_key,
+      account.athlete_id,
+      new Date(fromMs).toISOString(),
+      new Date(nowMs + DAY_MS).toISOString(),
+    );
+    const refs: PendingRef[] = raws.map((r) => ({
+      externalId: String(r.id),
+      startMs: intervalsStartMs(r),
+      normalize: () => normalizeIntervalsActivity(secret.api_key!, r),
+    }));
     const total = refs.length;
     const capped = refs.slice(0, MAX_ACTIVITIES_PER_RUN);
 
     // Idempotência barata ANTES dos streams: a releitura sobreposta do cursor
     // (24h) relista atividades já ingeridas a cada tick — sem este check, cada
     // uma rebaixaria GPS+FC completos só para o passo 0 responder "refreshed"
-    // (desperdício direto contra o rate limit da Strava). Cobre linhas criadas
+    // (desperdício direto contra o rate limit do intervals.icu). Cobre linhas criadas
     // por esta fonte; casos mesclados em linha de outra fonte (raros, janela de
     // 24h) ainda passam pelo passo 0 do ingestOne.
     const { data: knownData } = await admin
@@ -921,7 +885,7 @@ export async function runIngestAll(admin: Admin): Promise<IngestSummary[]> {
     .eq('status', 'connected');
   const out: IngestSummary[] = [];
   for (const row of data ?? []) {
-    out.push(await runIngest(admin, row.user_id as string, row.provider as 'strava' | 'intervals'));
+    out.push(await runIngest(admin, row.user_id as string, 'intervals'));
   }
   return out;
 }

@@ -5,9 +5,6 @@
     subtitle="Traga treinos com rota GPS e frequência cardíaca — sem duplicar entre fontes"
   />
 
-  @if (oauthOk()) {
-    <div class="banner ok">Strava conectada! Os treinos começam a chegar em instantes.</div>
-  }
   @if (actionError(); as err) {
     <div class="banner error">{{ err }}</div>
   }
@@ -16,38 +13,6 @@
     <div class="state">Carregando conexões…</div>
   } @else {
     <div class="cards">
-      <!-- ── Strava ─────────────────────────────────── -->
-      <section class="card">
-        <header class="card-head">
-          <span class="card-emoji">🟠</span>
-          <h3 class="card-title">Strava</h3>
-          @if (strava()?.status === 'connected') {
-            <span class="badge">Conectado</span>
-          }
-        </header>
-        @if (strava(); as acc) {
-          @if (acc.athleteName) {
-            <p class="card-desc">{{ acc.athleteName }}</p>
-          }
-          <p class="card-status" [class.error]="acc.status === 'error'">{{ statusLine(acc) }}</p>
-          <div class="actions">
-            <button class="btn" (click)="syncNow('strava')" [disabled]="store.busy()['strava']">
-              {{ store.busy()['strava'] === 'syncing' ? 'Sincronizando…' : 'Sincronizar agora' }}
-            </button>
-            <button class="btn danger" (click)="disconnect('strava')" [disabled]="store.busy()['strava']">
-              Desvincular
-            </button>
-          </div>
-        } @else {
-          <p class="card-desc">
-            Conecte sua conta Strava para importar treinos com rota e FC — inclusive os do Garmin.
-          </p>
-          <button class="btn primary" (click)="connectStrava()" [disabled]="store.busy()['strava']">
-            {{ store.busy()['strava'] === 'connecting' ? 'Abrindo Strava…' : 'Conectar Strava' }}
-          </button>
-        }
-      </section>
-
       <!-- ── intervals.icu ──────────────────────────── -->
       <section class="card">
         <header class="card-head">
@@ -117,7 +82,7 @@
     </div>
 
     <p class="note">
-      O mesmo treino chegando por mais de uma fonte (Apple Watch, Garmin via Strava/intervals.icu)
+      O mesmo treino chegando por mais de uma fonte (Apple Watch, Garmin via intervals.icu)
       é reconhecido e mesclado numa única atividade — a fonte com mais dados (rota, FC) prevalece e
       suas edições manuais são preservadas.
     </p>

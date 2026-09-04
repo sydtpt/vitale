@@ -1,5 +1,5 @@
 /**
- * Ingestão de treinos das contas vinculadas (Strava, intervals.icu).
+ * Ingestão de treinos das contas vinculadas (intervals.icu).
  *
  * Três modos de chamada (verify_jwt=false — cada modo autentica por si):
  *   1. Cron (pg_cron + pg_net, a cada 15 min): header `x-cron-secret` igual ao
@@ -55,8 +55,8 @@ Deno.serve(async (req) => {
   }
 
   const provider = body.provider;
-  if (provider !== 'strava' && provider !== 'intervals') {
-    return json({ error: "provider deve ser 'strava' ou 'intervals', ou mode: 'reconcile'" }, 400);
+  if (provider !== 'intervals') {
+    return json({ error: "provider deve ser 'intervals', ou mode: 'reconcile'" }, 400);
   }
   const summary = await runIngest(admin, user.id, provider);
   return json({ mode: 'user', summary }, summary.error ? 422 : 200);

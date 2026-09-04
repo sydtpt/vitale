@@ -7,9 +7,8 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { ConnectionsStore } from '../data/connections.store';
 
 /**
- * Conexões: vincular fontes de treino (Strava OAuth, intervals.icu por API key).
+ * Conexões: vincular fontes de treino (intervals.icu por API key).
  * Apple Health é gerenciado no app iPhone — aqui é só informativo.
- * O retorno do OAuth chega em ?provider=&status=&reason= (edge fn strava-oauth).
  */
 @Component({
   selector: 'rt-conexoes-page',
@@ -24,11 +23,9 @@ export class ConexoesPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  protected readonly strava = computed(() => this.store.account('strava'));
   protected readonly intervals = computed(() => this.store.account('intervals'));
 
   protected readonly actionError = signal<string | null>(null);
-  protected readonly oauthOk = signal(false);
 
   protected intervalsKey = '';
   protected intervalsAthleteId = '';
@@ -36,24 +33,12 @@ export class ConexoesPageComponent {
   constructor() {
     void this.store.load();
 
-    // Retorno do OAuth da Strava (query params) — mostra o resultado e limpa a URL.
-    const qp = this.route.snapshot.queryParamMap;
-    if (qp.get('provider') === 'strava' && qp.get('status')) {
-      if (qp.get('status') === 'ok') this.oauthOk.set(true);
-      else this.actionError.set(`Conexão com a Strava falhou: ${qp.get('reason') ?? 'erro desconhecido'}`);
-      void this.router.navigate([], { queryParams: {}, replaceUrl: true });
-    }
   }
 
   protected async run(fn: () => Promise<string | null>): Promise<void> {
     this.actionError.set(null);
-    this.oauthOk.set(false);
     const err = await fn();
     if (err) this.actionError.set(err);
-  }
-
-  protected connectStrava(): void {
-    void this.run(() => this.store.connectStrava());
   }
 
   protected linkIntervals(): void {
