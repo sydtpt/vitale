@@ -125,9 +125,19 @@
     a janela), 2 testes; `AGG_VERSION` 6 → **7** para o próximo backfill reescrever só o
     `in_bed_at` dessas linhas (mesma chave). Funcionalmente inofensivo até lá —
     `bedtimeMeasured` já as lê como "--:--".
-- [ ] T3.6 — Rodar o backfill **v7** (build + sync) e conferir `viola_invariante = 0` com
-  `scratchpad/verify.sh`. Depois disso, o `CHECK` de janela (`in_bed_at ≤ onset_at`,
-  `in_bed_end ≥ wake_at`) pode virar migration.
+- [x] T3.6 — **Backfill v7 rodado em 04/09/2026: `viola_invariante = 0`.** Tudo o mais idêntico
+  ao v6 (286 linhas, paridade 311/312, awake +45/−0, sono > cama 0, 2 fusos). Efeito
+  colateral registrado: `onset_perdeu` foi de 1 para **3** — além do 16/08 (Garmin, 600 s),
+  duas noites com latência real na faixa 60–119 s caíram abaixo do piso de 1 min quando o
+  onset foi arredondado para baixo: **26/09/2025 (68 s)** e **21/03/2026 (72 s)**, `inbed`
+  e `value` intocados nas duas. É o lado **conservador** da quantização ao minuto: nunca
+  fabrica latência, ocasionalmente deixa de registrar uma de ~1 min — que é ruído pela
+  própria definição de `MIN_ONSET_MS`, e latência é "gravada, nunca exibida" (spec §5).
+  Aceito; não há mais mudança de código aqui.
+- [ ] T3.7 — Migration com o `CHECK` de janela agora que o backfill provou o invariante em
+  286 noites: `in_bed_at is null or (in_bed_at <= onset_at and in_bed_end >= wake_at)`.
+  Aplicar em prod **com confirmação explícita** (dry-run em `begin…rollback` antes, como
+  a 20260904120000).
 
 ## Fase 4 — Tela mobile
 
