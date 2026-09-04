@@ -1,0 +1,38 @@
+{
+ "orbe-light": {
+  "base": "#324D86",
+  "cansaco": "#DD4E74",
+  "meta": "#5C534A",
+  "tick": "#5C534A"
+ },
+ "clean-light": {
+  "base": "#34518C",
+  "cansaco": "#DE587C",
+  "meta": "#55555C",
+  "tick": "#55555C"
+ },
+ "elev-light": {
+  "base": "#33508A",
+  "cansaco": "#DE5378",
+  "meta": "#55555C",
+  "tick": "#55555C"
+ },
+ "orbe-dark": {
+  "base": "#BBCAEA",
+  "cansaco": "#E87B98",
+  "meta": "#BDB3A6",
+  "tick": "#BDB3A6"
+ },
+ "clean-dark": {
+  "base": "#AFC2E7",
+  "cansaco": "#E87B98",
+  "meta": "#A0A0A8",
+  "tick": "#A0A0A8"
+ },
+ "elev-dark": {
+  "base": "#C2CFEC",
+  "cansaco": "#E87B98",
+  "meta": "#A0A0A8",
+  "tick": "#A0A0A8"
+ }
+}

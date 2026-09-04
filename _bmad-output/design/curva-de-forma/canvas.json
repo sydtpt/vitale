@@ -1,0 +1,165 @@
+{
+ "pages": [
+  {
+   "id": "page-1",
+   "name": "B · três temas"
+  },
+  {
+   "id": "page-2",
+   "name": "Descartadas"
+  }
+ ],
+ "artboards": [
+  {
+   "file": "Main.dc.html",
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Orbe · claro",
+   "page": "page-1"
+  },
+  {
+   "file": "CleanClaro.dc.html",
+   "x": 490,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Clean · claro",
+   "page": "page-1"
+  },
+  {
+   "file": "ElevClaro.dc.html",
+   "x": 980,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Clean elevado · claro",
+   "page": "page-1"
+  },
+  {
+   "file": "Escuro.dc.html",
+   "x": 0,
+   "y": 1000,
+   "w": 390,
+   "h": 844,
+   "title": "Orbe · escuro",
+   "page": "page-1"
+  },
+  {
+   "file": "CleanEscuro.dc.html",
+   "x": 490,
+   "y": 1000,
+   "w": 390,
+   "h": 844,
+   "title": "Clean · escuro",
+   "page": "page-1"
+  },
+  {
+   "file": "ElevEscuro.dc.html",
+   "x": 980,
+   "y": 1000,
+   "w": 390,
+   "h": 844,
+   "title": "Clean elevado · escuro",
+   "page": "page-1"
+  },
+  {
+   "file": "Faixa.dc.html",
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "A · A Faixa",
+   "page": "page-2"
+  },
+  {
+   "file": "Ano.dc.html",
+   "x": 490,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "C · O Ano em Forma",
+   "page": "page-2"
+  },
+  {
+   "file": "Web.dc.html",
+   "x": 980,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "D · Recorte web",
+   "page": "page-2"
+  }
+ ],
+ "annotations": [
+  {
+   "id": "nota-a",
+   "page": "page-2",
+   "x": 0,
+   "y": -300,
+   "w": 390,
+   "text": "A · A FAIXA\nUma leitura conta a história toda: as duas curvas e o vão entre elas.\n\nGanha: o saldo vira área, então dá para ver quanto tempo a dívida durou.\nCusta: altura de tela, e pede entender duas séries.\nReusa: smoothLinePath e a anatomia do cartão claro."
+  },
+  {
+   "id": "nota-c",
+   "page": "page-2",
+   "x": 490,
+   "y": -300,
+   "w": 390,
+   "text": "C · O ANO EM FORMA\nResponde 'quando eu estive bem?' num olhar, e denuncia buraco de sincronização como célula vazia.\n\nGanha: memória longa, que nenhuma das outras dá.\nCusta: precisão, e o dia tem 5px — a interação teve de virar arraste com stepper de 44px.\nReusa: o heatmap anual de Registros."
+  },
+  {
+   "id": "nota-d",
+   "page": "page-2",
+   "x": 980,
+   "y": -300,
+   "w": 420,
+   "text": "D · RECORTE WEB\nDensidade que só o monitor aguenta: curva grande, dedo no gráfico com os valores reais do dia, e o contexto da semana ao lado.\n\nGanha: comparação e leitura fina do bloco.\nCusta: um segundo layout para manter.\nReusa: o scrub do perfil de rota e a sidebar de 220px."
+  },
+  {
+   "id": "nota-cor",
+   "page": "page-2",
+   "x": 1520,
+   "y": 924,
+   "w": 420,
+   "text": "A DECISÃO DE COR, QUE VALE PARA TODAS\nSobra um papel só na paleta (rose) e a curva pede três séries. A saída não é inventar cor, é usar forma.\n\nBase = linha cheia no papel ink.\nCansaço = linha tracejada em rose, o papel livre.\nSaldo = o vão entre as duas, tingido pelo sinal.\n\nVerde e vermelho aqui são semânticos (sobra e dívida), não categóricos: nunca aparecem no mesmo x, então não disputam com a rampa de zonas."
+  },
+  {
+   "id": "sally-carrossel",
+   "page": "page-1",
+   "x": 1470,
+   "y": 0,
+   "w": 430,
+   "text": "O CARROSSEL, E POR QUE ELE NÃO EMPURRA NADA\n\nTrilho de 206px fixos. Os dois slides preenchem essa altura com space-between em vez de empilhar conteúdo, então nenhum deles é mais alto que o outro por acidente.\n\nO bloco inteiro mede sempre 223px: 206 de trilho, 9 de respiro, 8 das pílulas. Trocar de slide, ou de estado, não move uma linha do que vem depois.\n\nAS PÍLULAS. A ativa é um traço de 16px, a inativa um ponto de 6. Preferi isso a dois pontos iguais porque diz de que lado você está, não só quantos existem.\n\nSEM ESPIADA DA PRÓXIMA. Cogitei deixar 12px do próximo card aparecendo na direita, que é o sinal mais claro de que dá para arrastar. Deixei de fora porque você pediu largura cheia, e porque num app que só você usa a descoberta acontece uma vez. Se depois quiser, é mudar uma margem."
+  },
+  {
+   "id": "sally-alerta",
+   "page": "page-1",
+   "x": 1470,
+   "y": 640,
+   "w": 430,
+   "text": "O ALERTA DEIXOU DE SER UM CARD\n\nEle era um bloco à parte que aparecia só no estado 'sem confirmar' — ou seja, empurrava a view inteira para baixo justamente no dia em que algo estava errado.\n\nAgora ele mora dentro do slide de hoje, no lugar do rótulo do eixo. Mesma altura, mesmo trilho, zero deslocamento. E faz mais sentido ali: o aviso é sobre a confiança naquele número, então pertence ao mesmo cartão que o número.\n\nVeja no Orbe escuro, que está nesse estado de propósito: compare a altura com os outros cinco."
+  },
+  {
+   "id": "sally-tabela",
+   "page": "page-1",
+   "x": 0,
+   "y": 1960,
+   "w": 1370,
+   "text": "OS NEUTROS, TEMA A TEMA — todos de packages/shared/src/theme/themes.ts, nenhum inventado\n\nFUNDO DA TELA        Orbe #FFF7EE → #14110D        Clean #FFFFFF → #000000        Elevado #FFFFFF → #000000\nSLIDE E CARDS        Orbe #FFFFFF → #262019        Clean contorno da marca         Elevado #F7F7F8 → #1F1F23\nCONTORNO DO CARD     Orbe #EFE6D8 → nada           Clean #E1E1E6 → #31313A        Elevado #E7E7EA → nada\nTRILHO DA BARRA      Orbe #F6ECDC → #241E18        Clean #F4F4F6 → #16161A        Elevado #F1F1F3 → #232327\nPÍLULA ATIVA         ink2 do tema                  PÍLULA INATIVA  ink4 do tema\nTINTA / SECUNDÁRIA   Orbe #1F1B16 #5C534A → #F6EFE6 #BDB3A6      Clean e Elevado #101012 #55555C → #F5F5F7 #A0A0A8\n\nO QUE NÃO MUDA COM O TEMA, porque vem da paleta:\nBase #1F1B16 → #767065     Cansaço #E26A8A → #E87B98     Sobra #6FA86A → #7FB97A     Dívida #E05C5C → #F07A7A\n\nDuas regras do arquivo que o desenho teve de obedecer:\n· A hairline do Clean existe no claro e some no escuro. No claro, sem contorno, branco sobre branco fica lavado; no escuro a borda suja e a elevação lê sozinha.\n· O Base usa o papel ink, e no escuro ele é #767065. Esse valor foi pinado porque no caminho antigo o acento media 1,01 de contraste e sumia — e não era só gráfico, o módulo Finanças inteiro pintava quase preto."
+  },
+  {
+   "id": "sally-barras",
+   "page": "page-1",
+   "x": 1470,
+   "y": 1180,
+   "w": 430,
+   "text": "AS BARRAS, DEPOIS DA SUA CHAMADA\n\nBASE EM AZUL. É o papel blue da paleta, mas num passo mais fundo: #324D86 no claro, #BBCAEA no escuro.\n\nPor que não o azul cru. No piso mínimo de 3,0 o azul e o rose ficavam com luminância praticamente idêntica — separação de 1,00. Ou seja, só o matiz separava as duas barras. Quem tem deficiência de visão de cor, ou quem olha o telefone no sol, veria duas barras iguais. Puxando o azul para 7,0 no claro e 10,0 no escuro, a separação de luz vai a 2,13 e 1,65: agora elas se distinguem por peso e por cor.\n\nGanho de brinde: o azul da zona 1 (Recuperação) é #6E8CC9, e o Base cru media 1,15 contra ele — praticamente a mesma cor. No passo fundo a distância vai para 2,46. A rima falsa com 'recuperação' fica bem mais fraca.\n\nCANSAÇO segue rose, corrigido contra o trilho como estava.\n\nA META SAIU, e o motivo é mais forte do que estética.\n\nEla está em minutos de esforço da OMS: ancorada no vigoroso, com teto na duração, feita para responder 'bati o mínimo de saúde?'. A Base e o Cansaço da curva vêm de carga ponderada por zona, que é outra unidade. Pôr 95 na mesma coluna que 93 sugere uma comparação que não existe. A própria ADR 0002 já avisava: um número não responde 'bati o mínimo?' e 'quão duro treinei?' ao mesmo tempo.\n\nNO LUGAR ENTROU O SEU PRÓPRIO TÍPICO. Um traço no trilho, na média dos seus últimos 90 dias — 96 na Base, 101 no Cansaço. Auto-calculado, sem nada para configurar, e na mesma unidade da barra.\n\nE responde a pergunta certa. '93 bate o mínimo de saúde?' não ajuda a decidir o treino de hoje. '93 é muito para mim?' ajuda. É o mesmo princípio de linha de base pessoal que o readiness já usa com a HRV, e que a Apple aprendeu a duras penas com o Sleep Score.\n\nA meta não sumiu do app: continua no gráfico de Duração do Histórico, onde ela responde a pergunta para a qual foi feita."
+  }
+ ],
+ "launch": {
+  "view": "canvas",
+  "page": "page-1"
+ }
+}

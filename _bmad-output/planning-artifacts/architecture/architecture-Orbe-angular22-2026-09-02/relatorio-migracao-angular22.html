@@ -1,0 +1,739 @@
+<title>Rumo ao Angular 22</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #FAF3E6;
+    --surface: #FFFFFF;
+    --surface-mute: #F4EBDC;
+    --ink: #1F1B16;
+    --ink2: #5C534A;
+    --line: #EFE6D8;
+    --primary: #F25C2B;
+    --primary-soft: #FBE8DE;
+    --v18: #6E8CC9;
+    --v19: #4F9D90;
+    --v20: #6FA86A;
+    --v21: #8B6BB1;
+    --v22: #F25C2B;
+    --rose: #E26A8A;
+    --add-bg: #EAF3E7;
+    --del-bg: #FBEAEE;
+    --code-bg: #24201A;
+    --code-ink: #F0E8DC;
+    --code-mute: #9A8F80;
+    --code-kw: #C9A6E8;
+    --code-str: #A8CF9C;
+    --code-num: #F5B946;
+    --code-fn: #93B5F0;
+    --shadow: 0 1px 2px rgba(31,27,22,.05), 0 8px 28px rgba(31,27,22,.07);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17130F;
+      --surface: #211C16;
+      --surface-mute: #2A241C;
+      --ink: #F1E9DE;
+      --ink2: #A89C8D;
+      --line: #362E25;
+      --primary: #F5764A;
+      --primary-soft: #3A281F;
+      --v18: #8CA6DC;
+      --v19: #6FB5A8;
+      --v20: #8CBE87;
+      --v21: #A98BCB;
+      --v22: #F5764A;
+      --rose: #E98BA3;
+      --add-bg: #24301F;
+      --del-bg: #372228;
+      --code-bg: #211C16;
+      --code-ink: #EDE4D6;
+      --code-mute: #8B8072;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17130F;
+    --surface: #211C16;
+    --surface-mute: #2A241C;
+    --ink: #F1E9DE;
+    --ink2: #A89C8D;
+    --line: #362E25;
+    --primary: #F5764A;
+    --primary-soft: #3A281F;
+    --v18: #8CA6DC;
+    --v19: #6FB5A8;
+    --v20: #8CBE87;
+    --v21: #A98BCB;
+    --v22: #F5764A;
+    --rose: #E98BA3;
+    --add-bg: #24301F;
+    --del-bg: #372228;
+    --code-bg: #211C16;
+    --code-ink: #EDE4D6;
+    --code-mute: #8B8072;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    margin: 0;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px 96px; }
+  .prose { max-width: 720px; }
+  h1, h2, h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; line-height: 1.12; text-wrap: balance; margin: 0; }
+  h2 { font-size: clamp(28px, 4vw, 38px); }
+  h3 { font-size: 23px; }
+  p { margin: 14px 0; color: var(--ink); }
+  p.muted, li.muted { color: var(--ink2); }
+  a { color: var(--primary); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  em.serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 1.06em; }
+  code.inline {
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: .84em;
+    background: var(--surface-mute); border: 1px solid var(--line);
+    padding: 1px 6px; border-radius: 6px; white-space: nowrap;
+  }
+  .eyebrow {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink2); display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  }
+  .eyebrow::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); flex: none; }
+  section { margin-top: 88px; }
+  section:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 4px; }
+
+  /* ---------- hero ---------- */
+  header.hero { padding: 72px 0 24px; }
+  .hero-kicker {
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: 12.5px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink2); margin-bottom: 22px;
+  }
+  .hero-kicker b { color: var(--primary); font-weight: 600; }
+  h1.hero-title { font-size: clamp(44px, 7.5vw, 82px); max-width: 820px; }
+  h1 .laranja { color: var(--primary); font-style: italic; }
+  .hero-sub { font-size: 19px; color: var(--ink2); max-width: 640px; margin-top: 22px; }
+
+  /* orbit rail */
+  .rail { margin: 56px 0 8px; position: relative; }
+  .rail-line { position: absolute; left: 0; right: 0; top: 13px; height: 2px; background: var(--line); }
+  .rail-stops { display: flex; justify-content: space-between; position: relative; }
+  .stop { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
+  .stop .dot {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--bg);
+    border: 2px solid var(--c); display: flex; align-items: center; justify-content: center;
+  }
+  .stop .dot i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  .stop.hollow .dot i { background: transparent; border: 2px solid var(--c); width: 8px; height: 8px; }
+  .stop .v { font-family: "Geist Mono", ui-monospace, monospace; font-weight: 600; font-size: 14px; color: var(--c); }
+  .stop .quando { font-size: 12px; color: var(--ink2); }
+  .stop .marco { font-size: 12.5px; color: var(--ink2); max-width: 150px; line-height: 1.4; }
+  .stop .aqui {
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--primary); background: var(--primary-soft); border-radius: 99px; padding: 2px 9px; margin-top: 2px;
+  }
+  @media (max-width: 760px) {
+    .rail-line { display: none; }
+    .rail-stops { flex-direction: column; gap: 18px; }
+    .stop { flex-direction: row; align-items: baseline; flex-wrap: wrap; }
+    .stop .dot { align-self: center; }
+    .stop .marco { max-width: none; }
+  }
+
+  /* ---------- cards & panels ---------- */
+  .panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+    padding: 26px 28px; box-shadow: var(--shadow);
+  }
+  .callout {
+    border-left: 3px solid var(--primary); background: var(--surface);
+    border-radius: 0 14px 14px 0; padding: 16px 22px; margin: 26px 0;
+    box-shadow: var(--shadow); max-width: 720px;
+  }
+  .callout p { margin: 6px 0; }
+  .callout .rotulo {
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--primary); font-weight: 600;
+  }
+
+  /* stat tiles */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 30px 0 10px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .stat .n {
+    font-family: "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;
+    font-size: 34px; font-weight: 600; line-height: 1.1; color: var(--ink);
+  }
+  .stat .n.ok { color: var(--v20); }
+  .stat .n.alvo { color: var(--primary); }
+  .stat .l { font-size: 13px; color: var(--ink2); margin-top: 6px; line-height: 1.45; }
+
+  /* ---------- comparison table ---------- */
+  .tbl-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); margin-top: 30px; }
+  table.cmp { border-collapse: collapse; width: 100%; min-width: 860px; font-size: 14.5px; }
+  table.cmp th, table.cmp td { text-align: left; vertical-align: top; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  table.cmp tr:last-child td { border-bottom: none; }
+  table.cmp th {
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--ink2);
+    border-bottom: 2px solid var(--line); white-space: nowrap;
+  }
+  table.cmp th .vv { display: inline-flex; align-items: center; gap: 7px; }
+  table.cmp th .vv::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+  table.cmp td.tema { font-weight: 700; font-size: 13.5px; color: var(--ink); white-space: nowrap; }
+  table.cmp td { color: var(--ink2); }
+  table.cmp td b { color: var(--ink); font-weight: 700; }
+  .chip {
+    display: inline-block; font-family: "Geist Mono", ui-monospace, monospace; font-size: 10.5px;
+    letter-spacing: .08em; text-transform: uppercase; border-radius: 99px; padding: 1px 8px;
+    border: 1px solid var(--line); color: var(--ink2); white-space: nowrap;
+  }
+  .chip.estavel { color: var(--v20); border-color: var(--v20); }
+  .chip.padrao { color: var(--primary); border-color: var(--primary); font-weight: 600; }
+  .chip.exp { color: var(--v21); border-color: var(--v21); }
+  .chip.morto { color: var(--rose); border-color: var(--rose); text-decoration: line-through; }
+
+  /* ---------- code ---------- */
+  .code-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 26px 0; align-items: stretch; }
+  @media (max-width: 860px) { .code-cmp { grid-template-columns: 1fr; } }
+  .code-card { display: flex; flex-direction: column; min-width: 0; }
+  .code-card .tag {
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: 11.5px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px; color: var(--c, var(--ink2));
+  }
+  .code-card .tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--ink2)); }
+  pre.code {
+    background: var(--code-bg); color: var(--code-ink);
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: 12.8px; line-height: 1.62;
+    border-radius: 14px; padding: 18px 20px; margin: 0; overflow-x: auto; flex: 1;
+    border: 1px solid var(--line);
+  }
+  pre.code.solo { margin: 24px 0; flex: none; }
+  .c-kw { color: var(--code-kw); }
+  .c-str { color: var(--code-str); }
+  .c-num { color: var(--code-num); }
+  .c-fn { color: var(--code-fn); }
+  .c-cm { color: var(--code-mute); font-style: italic; }
+  pre.diff { background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  pre.diff .add { display: block; background: var(--add-bg); margin: 0 -20px; padding: 0 20px; }
+  pre.diff .del { display: block; background: var(--del-bg); margin: 0 -20px; padding: 0 20px; color: var(--ink2); }
+  pre.diff .ctx { display: block; color: var(--ink2); }
+  pre.diff .add::before { content: "+ "; color: var(--v20); font-weight: 600; }
+  pre.diff .del::before { content: "− "; color: var(--rose); font-weight: 600; }
+  pre.diff .ctx::before { content: "  "; }
+
+  /* ---------- steps ---------- */
+  .passos { counter-reset: passo; display: flex; flex-direction: column; gap: 18px; margin-top: 34px; max-width: 820px; }
+  .passo { display: grid; grid-template-columns: 52px 1fr; gap: 18px; align-items: start; }
+  .passo::before {
+    counter-increment: passo; content: counter(passo, decimal-leading-zero);
+    font-family: "Geist Mono", ui-monospace, monospace; font-size: 20px; font-weight: 600;
+    color: var(--primary); border: 1px solid var(--line); background: var(--surface);
+    border-radius: 12px; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow);
+  }
+  .passo h3 { margin-bottom: 4px; }
+  .passo p { margin: 6px 0; color: var(--ink2); }
+  .passo pre.code { margin-top: 10px; }
+
+  /* footer / fontes */
+  .fontes { border-top: 1px solid var(--line); margin-top: 96px; padding-top: 34px; }
+  .fontes ul { margin: 14px 0 0; padding-left: 20px; }
+  .fontes li { margin: 7px 0; color: var(--ink2); font-size: 14.5px; }
+  .assinatura { margin-top: 44px; font-size: 13.5px; color: var(--ink2); }
+  .assinatura em { font-family: "Instrument Serif", Georgia, serif; font-size: 16px; color: var(--ink); }
+
+  ul.lista { padding-left: 20px; margin: 14px 0; }
+  ul.lista li { margin: 8px 0; color: var(--ink2); }
+  ul.lista li b { color: var(--ink); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .stat, .panel { transition: transform .18s ease; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="hero-kicker">Relatório de migração · estudo de caso real · <b>Orbe</b>, dashboard Angular</div>
+    <h1 class="hero-title">Rumo ao <span class="laranja">Angular&nbsp;22</span>: a colheita de quatro anos de signals</h1>
+    <p class="hero-sub">
+      Desde a v16 o Angular empurra na mesma direção — reatividade explícita por signals,
+      menos mágica do zone.js. A v22 é o momento em que tudo isso vira <em class="serif">padrão</em>.
+      Este relatório usa um projeto real, o Orbe, para mostrar o que muda da v18 à v22 —
+      e por que, se você seguiu as deprecações, a conta chega pequena.
+    </p>
+
+    <div class="rail" role="img" aria-label="Linha do tempo das versões do Angular, da 18 à 22">
+      <div class="rail-line"></div>
+      <div class="rail-stops">
+        <div class="stop" style="--c: var(--v18)">
+          <span class="dot"><i></i></span>
+          <span class="v">v18</span><span class="quando">mai/2024</span>
+          <span class="marco">Control flow e <code class="inline">@defer</code> estáveis; zoneless experimental</span>
+        </div>
+        <div class="stop hollow" style="--c: var(--v19)">
+          <span class="dot"><i></i></span>
+          <span class="v">v19</span><span class="quando">nov/2024</span>
+          <span class="marco">Standalone vira padrão; <code class="inline">resource()</code> nasce</span>
+        </div>
+        <div class="stop" style="--c: var(--v20)">
+          <span class="dot"><i></i></span>
+          <span class="v">v20</span><span class="quando">mai/2025</span>
+          <span class="marco">Signals estáveis; <code class="inline">*ngIf</code> deprecado; zoneless em preview</span>
+        </div>
+        <div class="stop hollow" style="--c: var(--v21)">
+          <span class="dot"><i></i></span>
+          <span class="v">v21</span><span class="quando">nov/2025</span>
+          <span class="marco">Zoneless e Vitest viram o padrão</span>
+          <span class="aqui">o Orbe está aqui</span>
+        </div>
+        <div class="stop" style="--c: var(--v22)">
+          <span class="dot"><i></i></span>
+          <span class="v">v22</span><span class="quando">jun/2026</span>
+          <span class="marco">OnPush padrão; Signal Forms e resource estáveis</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section id="por-que">
+    <div class="eyebrow">Por que migrar agora</div>
+    <h2>Ficar parado é a opção mais cara</h2>
+    <div class="prose">
+      <p>
+        Cada major do Angular tem <b>18 meses de vida</b>: 6 de suporte ativo e 12 de LTS.
+        A v18 saiu de suporte em novembro de 2025 — quem está nela hoje não recebe
+        <em class="serif">nem correção de segurança</em>. A v20 sai de LTS em novembro de 2026.
+        A migração não é modernismo: é manutenção.
+      </p>
+      <p>
+        E há um segundo motivo, mais animador: as versões recentes devolvem coisas concretas.
+        Zoneless corta o zone.js do bundle e limpa os stack traces. OnPush por padrão reduz
+        trabalho de change detection. Signal Forms fecha o último buraco da reatividade.
+        O <code class="inline">ng update</code> automatiza a parte chata com schematics de migração.
+      </p>
+    </div>
+    <div class="callout">
+      <p class="rotulo">A tese deste relatório</p>
+      <p>
+        Quem tratou as deprecações como aviso — e não como ruído — atravessa a v22 quase de graça.
+        O Orbe, com <b>17 páginas de feature</b> e <b>87 componentes standalone</b>, precisa tocar em
+        <b>cerca de dez arquivos</b> para chegar lá. Os números reais estão logo abaixo.
+      </p>
+    </div>
+  </section>
+
+  <section id="comparativo">
+    <div class="eyebrow">v18 → v20 → v22</div>
+    <h2>O mesmo framework, três eras</h2>
+    <p class="prose muted">
+      A leitura por coluna mostra a mecânica das releases do Angular: quase tudo que é
+      <span class="chip padrao">padrão</span> na v22 estreou como
+      <span class="chip exp">experimental</span> duas versões antes. Deprecação é a v22 avisando com dois anos de antecedência.
+    </p>
+
+    <div class="tbl-scroll">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th>Tema</th>
+            <th style="--c: var(--v18)"><span class="vv">v18 · mai/2024</span></th>
+            <th style="--c: var(--v20)"><span class="vv">v20 · mai/2025</span></th>
+            <th style="--c: var(--v22)"><span class="vv">v22 · jun/2026</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="tema">Change detection</td>
+            <td>zone.js obrigatório; zoneless <span class="chip exp">experimental</span> (<code class="inline">provideExperimentalZonelessChangeDetection</code>)</td>
+            <td>zoneless em <span class="chip exp">dev preview</span>, já como <code class="inline">provideZonelessChangeDetection</code>; default de componente ainda é Eager</td>
+            <td>zoneless <span class="chip padrao">padrão</span> (desde a v21) e <b>OnPush vira a estratégia padrão</b> de todo componente</td>
+          </tr>
+          <tr>
+            <td class="tema">Templates</td>
+            <td><code class="inline">@if</code>/<code class="inline">@for</code>/<code class="inline">@defer</code> ficam <span class="chip estavel">estáveis</span>; <code class="inline">*ngIf</code> convive em paz</td>
+            <td><code class="inline">*ngIf</code>/<code class="inline">*ngFor</code>/<code class="inline">*ngSwitch</code> <span class="chip morto">deprecados</span>; template ganha <code class="inline">**</code>, <code class="inline">in</code>, tagged literals</td>
+            <td><code class="inline">strictTemplates</code> <span class="chip padrao">padrão</span>; comentários HTML dentro de elemento; <code class="inline">?.</code> devolve <code class="inline">undefined</code> como no TS</td>
+          </tr>
+          <tr>
+            <td class="tema">Formulários</td>
+            <td>Reactive Forms tipados + <code class="inline">events</code> observable no <code class="inline">AbstractControl</code></td>
+            <td>sem mudança de rumo — a equipe já prototipava a resposta</td>
+            <td><b>Signal Forms</b> <span class="chip estavel">estável</span>: tipagem forte, validação declarativa, estado 100% em signals</td>
+          </tr>
+          <tr>
+            <td class="tema">Dados assíncronos</td>
+            <td>— (o conceito nem existia; <code class="inline">resource()</code> nasce na v19)</td>
+            <td><code class="inline">resource()</code> / <code class="inline">httpResource()</code> <span class="chip exp">experimentais</span>, API ainda mudando</td>
+            <td><code class="inline">resource()</code>, <code class="inline">rxResource()</code> e <code class="inline">httpResource()</code> <span class="chip estavel">estáveis</span>; HttpClient usa <b>fetch</b> por padrão</td>
+          </tr>
+          <tr>
+            <td class="tema">Injeção de dependência</td>
+            <td><code class="inline">inject()</code> + <code class="inline">@Injectable({ providedIn: 'root' })</code></td>
+            <td>idem</td>
+            <td><code class="inline">@Service</code> encurta o caso comum (estável na 22.1); <code class="inline">injectAsync()</code> carrega serviço sob demanda</td>
+          </tr>
+          <tr>
+            <td class="tema">Testes</td>
+            <td>Karma (deprecado) por inércia; alternativas por conta própria</td>
+            <td>Vitest chega como runner <span class="chip exp">experimental</span> do CLI</td>
+            <td>Vitest <span class="chip padrao">padrão</span> (desde a v21); builders experimentais de jest/web-test-runner <span class="chip morto">removidos</span></td>
+          </tr>
+          <tr>
+            <td class="tema">Acessibilidade</td>
+            <td>—</td>
+            <td>—</td>
+            <td><code class="inline">@angular/aria</code> <span class="chip estavel">estável</span>: primitivos acessíveis sem CSS imposto</td>
+          </tr>
+          <tr>
+            <td class="tema">Chão exigido</td>
+            <td>TypeScript ≥ 5.4 · Node 18</td>
+            <td>TypeScript ≥ 5.8 · Node ≥ 20</td>
+            <td><b>TypeScript ≥ 6.0 · Node 22/24/26</b> (Node 20 e versões ímpares fora do jogo)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="breaking">
+    <div class="eyebrow">O que quebra na v22</div>
+    <h2>Breaking changes — e para quem elas quebram de verdade</h2>
+    <div class="prose">
+      <p>
+        A lista parece longa, mas quase toda entrada tem uma <em class="serif">migração automática</em>
+        no <code class="inline">ng update</code> — e várias só atingem código que já estava deprecado.
+      </p>
+    </div>
+    <ul class="lista prose">
+      <li><b>OnPush vira o padrão de <code class="inline">changeDetection</code>.</b> Componente sem estratégia declarada passa a ser OnPush. A migração automática adiciona <code class="inline">Eager</code> a quem não declarava — preservando o comportamento antigo enquanto você decide.</li>
+      <li><b><code class="inline">paramsInheritanceStrategy</code> muda para <code class="inline">'always'</code>.</b> Rota filha passa a enxergar params do pai. Só afeta quem tem rotas aninhadas com params homônimos.</li>
+      <li><b><code class="inline">canMatch</code> ganha um terceiro parâmetro obrigatório</b> (<code class="inline">currentSnapshot</code>) — com schematic de migração.</li>
+      <li><b><code class="inline">?.</code> no template devolve <code class="inline">undefined</code></b>, alinhado ao TypeScript (antes devolvia <code class="inline">null</code>). Comparações estritas com <code class="inline">null</code> são o único risco; há migração.</li>
+      <li><b>HttpClient usa fetch por padrão</b>; <code class="inline">reportProgress</code> deprecado em favor de <code class="inline">reportUploadProgress</code>/<code class="inline">reportDownloadProgress</code>.</li>
+      <li><b>Removidos de vez:</b> <code class="inline">ComponentFactoryResolver</code>, <code class="inline">checkNoChanges</code>, <code class="inline">provideRoutes()</code>, integração Hammer.js, valores string em <code class="inline">min</code>/<code class="inline">max</code>. Tudo deprecado há anos.</li>
+      <li><b>Chão novo:</b> TypeScript 6.0 e Node 22 são o mínimo.</li>
+    </ul>
+  </section>
+
+  <section id="orbe">
+    <div class="eyebrow">Estudo de caso</div>
+    <h2>O placar do Orbe: o que a v22 custa num app que fez a lição de casa</h2>
+    <div class="prose">
+      <p>
+        O Orbe é um dashboard pessoal em Angular 21: 17 páginas de feature, 87 componentes standalone,
+        estado em signals, rotas lazy. Medimos com <code class="inline">grep</code> o impacto de cada
+        breaking change da v22. O resultado é o argumento central deste relatório:
+      </p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n ok">0</div><div class="l">arquivos tocados pelo OnPush padrão — 100% dos componentes já declaravam OnPush</div></div>
+      <div class="stat"><div class="n ok">0</div><div class="l">usos de <code class="inline">canMatch</code>, Hammer.js, <code class="inline">ComponentFactory</code>, <code class="inline">provideRoutes</code> ou <code class="inline">checkNoChanges</code></div></div>
+      <div class="stat"><div class="n ok">0</div><div class="l">rotas aninhadas — o novo <code class="inline">paramsInheritanceStrategy</code> não muda nada</div></div>
+      <div class="stat"><div class="n ok">69</div><div class="l">arquivos já no control flow novo (<code class="inline">@if</code>/<code class="inline">@for</code>)</div></div>
+      <div class="stat"><div class="n alvo">4</div><div class="l">arquivos ainda com <code class="inline">*ngIf</code>/<code class="inline">*ngFor</code> — um comando resolve</div></div>
+      <div class="stat"><div class="n alvo">1</div><div class="l">dependência morta a remover: <code class="inline">zone.js</code> — o app já roda zoneless desde a v21</div></div>
+      <div class="stat"><div class="n alvo">10</div><div class="l">editores com <code class="inline">ngModel</code>, candidatos a Signal Forms — sem pressa, quando forem tocados</div></div>
+      <div class="stat"><div class="n">17</div><div class="l">serviços <code class="inline">providedIn: 'root'</code> que podem virar <code class="inline">@Service</code> — cosmético, opcional</div></div>
+    </div>
+    <div class="callout">
+      <p class="rotulo">A lição</p>
+      <p>
+        Cada zero dessa lista é uma deprecação atendida no passado. O custo da v22 não se paga na
+        migração — se paga (ou se evita) <em class="serif">nos dois anos anteriores</em>, a cada
+        release em que você escolhe seguir ou ignorar o aviso.
+      </p>
+    </div>
+  </section>
+
+  <section id="codigo">
+    <div class="eyebrow">Mão na massa</div>
+    <h2>As mudanças, em código de verdade</h2>
+    <p class="prose muted">Todos os trechos abaixo vêm do código real do Orbe — encurtados, não inventados.</p>
+
+    <h3 style="margin-top: 44px">1 · O chão: package.json</h3>
+    <p class="prose">O <code class="inline">ng update</code> cuida das versões; o diff que importa é este — repare no que <em class="serif">sai</em>:</p>
+    <pre class="code diff solo"><span class="ctx">"dependencies": {</span><span class="del">  "@angular/core": "^21.0.0",</span><span class="add">  "@angular/core": "^22.1.0",</span><span class="del">  "zone.js": "~0.15.0"</span><span class="ctx">},</span><span class="ctx">"devDependencies": {</span><span class="del">  "typescript": "~5.9.0"</span><span class="add">  "typescript": "~6.0.0"</span><span class="ctx">}</span></pre>
+
+    <h3 style="margin-top: 44px">2 · Zoneless: você talvez já esteja nele — e nem sabe</h3>
+    <p class="prose">
+      Eis a pegadinha boa da era v21+: o scheduler zoneless virou o <em class="serif">padrão para todo mundo</em>,
+      não só para app novo. Se o seu bootstrap não pede <code class="inline">provideZoneChangeDetection()</code>
+      explicitamente, o seu app já roda zoneless desde que subiu para a v21 — foi o caso do Orbe.
+      O zone.js que ficou no <code class="inline">angular.json</code> está <b>carregado, porém inerte</b>:
+      puro peso morto no bundle. A "migração", então, é uma faxina:
+    </p>
+    <div class="code-cmp">
+      <div class="code-card" style="--c: var(--ink2)">
+        <div class="tag">angular.json — o diff que importa</div>
+        <pre class="code diff"><span class="ctx">"options": {</span><span class="ctx">  "outputPath": "dist/vitale-web",</span><span class="ctx">  "browser": "src/main.ts",</span><span class="del">  "polyfills": ["zone.js"],</span><span class="add">  "polyfills": [],</span><span class="ctx">  ...</span><span class="ctx">}</span></pre>
+      </div>
+      <div class="code-card" style="--c: var(--ink2)">
+        <div class="tag">main.ts — opcional, mas honesto</div>
+        <pre class="code diff"><span class="ctx">bootstrapApplication(AppComponent, {</span><span class="ctx">  providers: [</span><span class="ctx">    provideRouter(routes),</span><span class="add">    <span class="c-cm">// redundante desde a v21 —</span></span><span class="add">    <span class="c-cm">// mas deixa a escolha explícita:</span></span><span class="add">    provideZonelessChangeDetection(),</span><span class="ctx">  ],</span><span class="ctx">});</span></pre>
+      </div>
+    </div>
+    <div class="callout">
+      <p class="rotulo">O que dispara render sem zone.js?</p>
+      <p>
+        Escrita em signal, evento de template (<code class="inline">(click)</code>, <code class="inline">(input)</code>…),
+        <code class="inline">AsyncPipe</code> e <code class="inline">markForCheck()</code>. O que <b>não</b> dispara:
+        um <code class="inline">setTimeout</code> ou uma Promise soltos mutando um campo de classe.
+        Se o seu app roda na v21 sem esquisitice de tela desatualizada, você já passou no teste em produção.
+        Se ainda está numa versão com zone, a v21 trouxe uma migração guiada
+        (<code class="inline">onpush_zoneless_migration</code>) para diagnosticar antes de desligar.
+      </p>
+    </div>
+
+    <h3 style="margin-top: 44px">3 · O decorator emagrece a cada versão</h3>
+    <p class="prose">
+      O mesmo componente, três eras. Na v18, três declarações obrigatórias.
+      Na v19, <code class="inline">standalone</code> vira padrão. Na v22, OnPush vira padrão —
+      e com control flow nativo o <code class="inline">CommonModule</code> some dos imports:
+    </p>
+    <div class="code-cmp">
+      <div class="code-card" style="--c: var(--v18)">
+        <div class="tag">era v18</div>
+        <pre class="code"><span class="c-kw">@Component</span>({
+  selector: <span class="c-str">'rt-registro-editor'</span>,
+  <span class="c-kw">standalone</span>: <span class="c-num">true</span>,
+  <span class="c-kw">changeDetection</span>:
+    ChangeDetectionStrategy.OnPush,
+  imports: [<span class="c-fn">CommonModule</span>, FormsModule],
+  template: <span class="c-str">`…`</span>,
+})
+<span class="c-kw">export class</span> <span class="c-fn">RegistroEditorComponent</span> {}</pre>
+      </div>
+      <div class="code-card" style="--c: var(--v22)">
+        <div class="tag">era v22</div>
+        <pre class="code"><span class="c-kw">@Component</span>({
+  selector: <span class="c-str">'rt-registro-editor'</span>,
+  <span class="c-cm">// standalone: padrão desde a v19</span>
+  <span class="c-cm">// OnPush: padrão desde a v22</span>
+  imports: [FormsModule],
+  template: <span class="c-str">`…`</span>,
+})
+<span class="c-kw">export class</span> <span class="c-fn">RegistroEditorComponent</span> {}</pre>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 44px">4 · Control flow: adeus, <code class="inline">*ngIf</code></h3>
+    <p class="prose">
+      Deprecado na v20, o dialeto antigo segue funcionando na v22 — mas cada arquivo dele é um
+      import de <code class="inline">CommonModule</code> que não morre. O schematic
+      <code class="inline">ng generate @angular/core:control-flow</code> converte sozinho.
+      Do editor de registros do Orbe:
+    </p>
+    <div class="code-cmp">
+      <div class="code-card" style="--c: var(--v18)">
+        <div class="tag">como está</div>
+        <pre class="code">&lt;<span class="c-fn">div</span> <span class="c-kw">class</span>=<span class="c-str">"backdrop"</span>
+  <span class="c-kw">*ngIf</span>=<span class="c-str">"isOpen()"</span>&gt;&lt;/<span class="c-fn">div</span>&gt;
+
+&lt;<span class="c-fn">button</span> <span class="c-kw">*ngFor</span>=<span class="c-str">"let m of MODULES"</span>
+  (<span class="c-kw">click</span>)=<span class="c-str">"selectModule(m.key)"</span>&gt;
+  {{ m.label }}
+&lt;/<span class="c-fn">button</span>&gt;</pre>
+      </div>
+      <div class="code-card" style="--c: var(--v22)">
+        <div class="tag">como fica</div>
+        <pre class="code"><span class="c-kw">@if</span> (isOpen()) {
+  &lt;<span class="c-fn">div</span> <span class="c-kw">class</span>=<span class="c-str">"backdrop"</span>&gt;&lt;/<span class="c-fn">div</span>&gt;
+}
+
+<span class="c-kw">@for</span> (m <span class="c-kw">of</span> MODULES; <span class="c-kw">track</span> m.key) {
+  &lt;<span class="c-fn">button</span> (<span class="c-kw">click</span>)=<span class="c-str">"selectModule(m.key)"</span>&gt;
+    {{ m.label }}
+  &lt;/<span class="c-fn">button</span>&gt;
+}</pre>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 44px">5 · Signal Forms: o elo que faltava</h3>
+    <p class="prose">
+      O editor do Orbe hoje usa um arranjo comum na era v18–v21: um signal guardando o objeto do
+      formulário e <code class="inline">[(ngModel)]</code> mutando os campos por dentro. Funciona —
+      mas a reatividade é implícita e a validação é artesanal
+      (<code class="inline">isValid = computed(…)</code> escrito à mão). Signal Forms, estável na v22,
+      dá nome oficial a esse desejo:
+    </p>
+    <div class="code-cmp">
+      <div class="code-card" style="--c: var(--v18)">
+        <div class="tag">era v18–v21 · ngModel sobre signal</div>
+        <pre class="code"><span class="c-kw">readonly</span> form = <span class="c-fn">signal</span>&lt;EditorState&gt;({
+  name: <span class="c-str">''</span>,
+  module: <span class="c-str">'geral'</span>,
+});
+<span class="c-kw">readonly</span> isValid = <span class="c-fn">computed</span>(() =&gt;
+  <span class="c-kw">this</span>.form().name.trim() !== <span class="c-str">''</span>);
+
+<span class="c-cm">// template — mutação por dentro do signal:</span>
+&lt;<span class="c-fn">input</span> <span class="c-kw">[(ngModel)]</span>=<span class="c-str">"form().name"</span> /&gt;</pre>
+      </div>
+      <div class="code-card" style="--c: var(--v22)">
+        <div class="tag">era v22 · signal forms</div>
+        <pre class="code"><span class="c-kw">import</span> { form, required, Control }
+  <span class="c-kw">from</span> <span class="c-str">'@angular/forms/signals'</span>;
+
+<span class="c-kw">readonly</span> model = <span class="c-fn">signal</span>&lt;EditorState&gt;({
+  name: <span class="c-str">''</span>,
+  module: <span class="c-str">'geral'</span>,
+});
+<span class="c-kw">readonly</span> f = <span class="c-fn">form</span>(<span class="c-kw">this</span>.model, (p) =&gt; {
+  <span class="c-fn">required</span>(p.name);
+});
+
+<span class="c-cm">// template — reatividade explícita:</span>
+&lt;<span class="c-fn">input</span> <span class="c-kw">[control]</span>=<span class="c-str">"f.name"</span> /&gt;
+<span class="c-cm">// f().valid(), f.name().touched()…</span></pre>
+      </div>
+    </div>
+    <p class="prose muted">
+      A validação vira dado derivado — <code class="inline">f().valid()</code> substitui o
+      <code class="inline">computed</code> artesanal — e estados como <code class="inline">touched</code>
+      e <code class="inline">dirty</code> chegam de graça, por campo. A migração pode ser editor a editor:
+      os dois estilos coexistem no mesmo app sem conflito.
+    </p>
+
+    <h3 style="margin-top: 44px">6 · DI: <code class="inline">@Service</code>, o atalho honesto</h3>
+    <p class="prose">
+      Puro açúcar — e dos bons. O caso de longe mais comum de <code class="inline">@Injectable</code>
+      ganha um nome que diz o que a classe é. Um detalhe de calendário: estreou como
+      developer preview na 22.0 e ficou <em class="serif">estável na 22.1</em> (ago/2026) —
+      quem migra hoje já chega na versão certa:
+    </p>
+    <div class="code-cmp">
+      <div class="code-card" style="--c: var(--v18)">
+        <div class="tag">até a v21</div>
+        <pre class="code"><span class="c-kw">@Injectable</span>({ providedIn: <span class="c-str">'root'</span> })
+<span class="c-kw">export class</span> <span class="c-fn">RegistrosStore</span> {
+  <span class="c-cm">// …</span>
+}</pre>
+      </div>
+      <div class="code-card" style="--c: var(--v22)">
+        <div class="tag">v22</div>
+        <pre class="code"><span class="c-kw">@Service</span>()
+<span class="c-kw">export class</span> <span class="c-fn">RegistrosStore</span> {
+  <span class="c-cm">// …</span>
+}</pre>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 44px">7 · Rotas: o melhor diff é o que não existe</h3>
+    <p class="prose">
+      As rotas lazy do Orbe — <code class="inline">loadComponent</code> com guards funcionais,
+      escritas na era v16 — passam pela v22 <em class="serif">sem alterar uma linha</em>.
+      Vale como lembrete do que envelhece bem: API funcional, componente standalone, import dinâmico.
+    </p>
+    <pre class="code solo"><span class="c-kw">const</span> routes: Routes = [
+  { path: <span class="c-str">''</span>, redirectTo: <span class="c-str">'semana'</span>, pathMatch: <span class="c-str">'full'</span> },
+  {
+    path: <span class="c-str">'registros/:id'</span>,
+    canActivate: [profileGuard],
+    loadComponent: () =&gt;
+      <span class="c-kw">import</span>(<span class="c-str">'@features/registros/pages/registro-detail-page.component'</span>)
+        .then(m =&gt; m.RegistroDetailPageComponent),
+  },
+  <span class="c-cm">// … as 20 rotas seguem intactas na v22</span>
+];</pre>
+    <p class="prose muted">
+      Os dois avisos do router na v22 — <code class="inline">canMatch</code> com terceiro parâmetro
+      obrigatório e <code class="inline">paramsInheritanceStrategy: 'always'</code> — só alcançam quem
+      usa <code class="inline">canMatch</code> ou rotas aninhadas com params. O Orbe não usa nenhum dos dois: zero diff.
+    </p>
+  </section>
+
+  <section id="passos">
+    <div class="eyebrow">O roteiro</div>
+    <h2>A migração em seis passos</h2>
+    <p class="prose muted">
+      A ordem importa: cada passo termina com build e testes verdes antes do próximo.
+      Num monorepo, repare que só o workspace web é tocado — os irmãos (React Native, pacote compartilhado) ficam onde estão.
+    </p>
+    <div class="passos">
+      <div class="passo">
+        <div>
+          <h3>Confira o chão</h3>
+          <p>Node em versão par e recente (22, 24 ou 26) na máquina e no CI — o range oficial rejeita patches antigas e versões ímpares. TypeScript vai a 6.0 junto com o update — confirme que libs sensíveis a tipos compilam.</p>
+          <pre class="code">node -v   <span class="c-cm"># 22, 24 ou 26 — atualizado</span></pre>
+        </div>
+      </div>
+      <div class="passo">
+        <div>
+          <h3>Rode o <code class="inline">ng update</code></h3>
+          <p>Ele sobe as versões <em class="serif">e</em> roda os schematics: safe navigation, <code class="inline">canMatch</code>, e a adição de <code class="inline">Eager</code> a componentes sem estratégia declarada. Num workspace pnpm, garanta antes que o CLI não caia no npm — um update pelo gerenciador errado recria a árvore de dependências plana.</p>
+          <pre class="code">pnpm exec ng config cli.packageManager pnpm
+pnpm exec ng update @angular/core@22 @angular/cli@22</pre>
+        </div>
+      </div>
+      <div class="passo">
+        <div>
+          <h3>Leia o diff das migrações</h3>
+          <p>Aqui está o diagnóstico do seu app. Se a migração de <code class="inline">Eager</code> encheu o diff, seus componentes dependiam do default antigo — cada um é um débito nomeado. No Orbe, esse diff é vazio: todos já declaravam OnPush.</p>
+        </div>
+      </div>
+      <div class="passo">
+        <div>
+          <h3>Tire o zone.js do bundle</h3>
+          <p>Polyfill fora do <code class="inline">angular.json</code>, dependência fora do <code class="inline">package.json</code> (seção 2 acima) — na v21+ ele já estava inerte. Dê uma navegada de sanidade: componente que não atualiza dependia de zone e já estava quebrado antes, só que ninguém tinha olhado. Aproveite a faxina para caçar mais dependência morta: no Orbe, <code class="inline">@angular/animations</code> saiu na mesma leva (pacote deprecado desde a v20.2, nenhum <code class="inline">trigger()</code> real no app).</p>
+        </div>
+      </div>
+      <div class="passo">
+        <div>
+          <h3>Converta o control flow restante</h3>
+          <p>O schematic converte <code class="inline">*ngIf</code>/<code class="inline">*ngFor</code>/<code class="inline">*ngSwitch</code> e aponta onde o <code class="inline">CommonModule</code> ficou órfão.</p>
+          <pre class="code">pnpm exec ng generate @angular/core:control-flow</pre>
+        </div>
+      </div>
+      <div class="passo">
+        <div>
+          <h3>Feche o portão</h3>
+          <p>Os mesmos comandos do CI, verdes. O resto — Signal Forms, <code class="inline">@Service</code> — entra aos poucos, quando cada arquivo for tocado.</p>
+          <pre class="code">pnpm --filter @vitale/web build
+pnpm --filter @vitale/web test</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="conclusao">
+    <div class="eyebrow">Conclusão</div>
+    <h2>O update é um espelho</h2>
+    <div class="prose">
+      <p>
+        A v22 não pune ninguém por surpresa: tudo que ela quebra foi deprecado com uma ou duas versões
+        de aviso, e quase tudo tem schematic. O tamanho do seu diff na migração mede uma única coisa —
+        <em class="serif">quanto das versões anteriores você realmente adotou</em>.
+      </p>
+      <p>
+        Se o seu app está na v18 ou na v20, o caminho é o mesmo deste relatório, só que em etapas:
+        <code class="inline">ng update</code> major a major (18 → 19 → 20 → 21 → 22), adotando em cada
+        parada o que ela pede — control flow na 18–19, signals estáveis na 20, zoneless e Vitest na 21.
+        A recompensa da v22 é chegar num framework em que reatividade explícita, OnPush e formulários
+        tipados não são mais disciplina de equipe: são o padrão.
+      </p>
+    </div>
+  </section>
+
+  <footer class="fontes">
+    <div class="eyebrow">Fontes</div>
+    <ul>
+      <li><a href="https://github.com/angular/angular/releases/tag/v22.0.0">Release notes oficiais — Angular v22.0.0</a> (GitHub)</li>
+      <li><a href="https://blog.ninja-squad.com/2026/06/03/what-is-new-angular-22.0">What's new in Angular 22.0?</a> — Ninja Squad</li>
+      <li><a href="https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0/">What's new in Angular 20.0?</a> — Ninja Squad</li>
+      <li><a href="https://blog.ninja-squad.com/2024/05/22/what-is-new-angular-18.0/">What's new in Angular 18.0?</a> — Ninja Squad</li>
+      <li><a href="https://blog.ninja-squad.com/2025/11/20/what-is-new-angular-21.0">What's new in Angular 21.0?</a> — Ninja Squad</li>
+      <li><a href="https://angular.dev/update-guide">Angular Update Guide</a> — passo a passo interativo oficial</li>
+    </ul>
+    <p class="assinatura">
+      Estudo de caso: <em>Orbe</em> — dashboard pessoal em Angular (17 features, ~140 componentes standalone,
+      signals + OnPush, Supabase). Números levantados por inspeção direta do código em setembro de 2026.
+    </p>
+  </footer>
+
+</div>

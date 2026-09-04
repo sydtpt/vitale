@@ -1,0 +1,1099 @@
+<title>Dossiê Strava e concorrentes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #FAF3E6;
+    --surface: #FFFFFF;
+    --surface-2: #FFFBF4;
+    --ink: #1F1B16;
+    --ink2: #5C534A;
+    --ink3: #8A7F73;
+    --line: #EFE6D8;
+    --line-strong: #DDD0BC;
+    --primary: #F25C2B;
+    --primary-soft: #FBE4D8;
+    --ok: #4F7C4A;
+    --ok-soft: #E4EFE2;
+    --warn: #9A7318;
+    --warn-soft: #FBEFD5;
+    --bad: #B33F3F;
+    --bad-soft: #F9E1E1;
+    --over: #6B4E8F;
+    --over-soft: #EDE4F5;
+    --shadow: 0 1px 2px rgba(31,27,22,.05), 0 8px 24px -16px rgba(31,27,22,.28);
+    --sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+    --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16120D;
+      --surface: #1F1A14;
+      --surface-2: #241E17;
+      --ink: #F3EBDF;
+      --ink2: #AFA396;
+      --ink3: #8B8175;
+      --line: #322B22;
+      --line-strong: #443A2E;
+      --primary: #FF7A4D;
+      --primary-soft: #3A241A;
+      --ok: #8CC286;
+      --ok-soft: #22301F;
+      --warn: #E8BC61;
+      --warn-soft: #332714;
+      --bad: #F08585;
+      --bad-soft: #3A1E1E;
+      --over: #BB98E0;
+      --over-soft: #2C2136;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16120D;
+    --surface: #1F1A14;
+    --surface-2: #241E17;
+    --ink: #F3EBDF;
+    --ink2: #AFA396;
+    --ink3: #8B8175;
+    --line: #322B22;
+    --line-strong: #443A2E;
+    --primary: #FF7A4D;
+    --primary-soft: #3A241A;
+    --ok: #8CC286;
+    --ok-soft: #22301F;
+    --warn: #E8BC61;
+    --warn-soft: #332714;
+    --bad: #F08585;
+    --bad-soft: #3A1E1E;
+    --over: #BB98E0;
+    --over-soft: #2C2136;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.62;
+    margin: 0;
+    -webkit-text-size-adjust: 100%;
+  }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { transition: none !important; animation: none !important; }
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 2px; }
+
+  .shell { max-width: 1200px; margin: 0 auto; padding: 0 20px 80px; }
+  @media (min-width: 1040px) {
+    .shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; padding: 0 32px 96px; }
+    .rail { grid-column: 1; }
+    .flow { grid-column: 2; }
+    .masthead { grid-column: 1 / -1; }
+  }
+  .flow { max-width: 72ch; min-width: 0; }
+
+  /* Masthead */
+  .masthead { padding: 56px 0 28px; border-bottom: 1px solid var(--line-strong); }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(38px, 7vw, 66px);
+    line-height: 1.02;
+    letter-spacing: -.015em;
+    text-wrap: balance;
+    margin: 0 0 18px;
+    max-width: 18ch;
+  }
+  .standfirst {
+    font-size: clamp(17px, 2.3vw, 19px);
+    color: var(--ink2);
+    max-width: 62ch;
+    margin: 0 0 32px;
+  }
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 2px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .meta div { background: var(--surface); padding: 12px 14px; }
+  .meta dt {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    margin: 0 0 4px;
+  }
+  .meta dd { margin: 0; font-size: 14px; font-weight: 600; }
+  .meta dd small { display: block; font-weight: 400; color: var(--ink2); font-size: 12.5px; }
+
+  /* Rail */
+  .rail { padding: 32px 0; }
+  @media (min-width: 1040px) {
+    .rail nav { position: sticky; top: 28px; }
+  }
+  .rail h2 {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    margin: 0 0 12px;
+    font-weight: 500;
+  }
+  .rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; counter-reset: toc; }
+  .rail li { counter-increment: toc; }
+  .rail a {
+    display: flex;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink2);
+    font-size: 13.5px;
+    padding: 5px 0;
+    border-bottom: 1px solid transparent;
+  }
+  .rail a::before {
+    content: counter(toc, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink3);
+    padding-top: 3px;
+  }
+  .rail a:hover { color: var(--primary); }
+  @media (max-width: 1039px) {
+    .rail { border-bottom: 1px solid var(--line); }
+    .rail ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0 20px; }
+  }
+
+  /* Sections */
+  section { padding: 44px 0 8px; scroll-margin-top: 20px; }
+  section + section { border-top: 1px solid var(--line); }
+  h2.sec {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(26px, 4vw, 34px);
+    line-height: 1.12;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+    margin: 0 0 6px;
+  }
+  .sec-note { color: var(--ink2); font-size: 15px; margin: 0 0 26px; max-width: 60ch; }
+  h3 {
+    font-size: 16.5px;
+    font-weight: 700;
+    letter-spacing: -.005em;
+    margin: 30px 0 8px;
+    text-wrap: balance;
+  }
+  h3 .num {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--primary);
+    margin-right: 8px;
+  }
+  p { margin: 0 0 14px; }
+  .lead { font-size: 17px; }
+  strong { font-weight: 700; }
+  em.term { font-style: normal; font-family: var(--mono); font-size: .9em; color: var(--ink2); }
+
+  /* Citations */
+  a.c {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--ink3);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: 0 3px;
+    margin-left: 2px;
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
+  a.c:hover { color: var(--primary); border-color: var(--primary); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .b-ok { color: var(--ok); background: var(--ok-soft); }
+  .b-un { color: var(--bad); background: var(--bad-soft); border-color: var(--bad); font-weight: 500; }
+  .b-di { color: var(--warn); background: var(--warn-soft); border-color: var(--warn); font-weight: 500; }
+  .b-ov { color: var(--over); background: var(--over-soft); border-color: var(--over); font-weight: 500; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 24px 26px;
+    box-shadow: var(--shadow);
+  }
+  .card.accent { border-left: 3px solid var(--primary); }
+  .card h3:first-child { margin-top: 0; }
+
+  /* Verdict list (summary) */
+  .verdicts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
+  .verdicts li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 14px; }
+  .verdicts .k {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--primary);
+    padding-top: 3px;
+  }
+  .verdicts p { margin: 0; }
+  .verdicts .t { font-weight: 700; }
+
+  /* Ledger bar */
+  .ledger { margin: 26px 0 8px; }
+  .bar { display: flex; height: 30px; border-radius: 3px; overflow: hidden; border: 1px solid var(--line-strong); }
+  .bar span { display: block; }
+  .bar .s-ok { background: var(--ok); }
+  .bar .s-un { background: var(--bad); }
+  .bar .s-di { background: var(--warn); }
+  .bar .s-ov { background: var(--over); }
+  .legend { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 0; padding: 0; }
+  .legend li { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink2); }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: block; }
+  .legend b { font-family: var(--mono); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* Price bars */
+  .prices { list-style: none; margin: 22px 0 10px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .prices li { display: grid; grid-template-columns: minmax(96px, 118px) minmax(0, 1fr) 74px; gap: 12px; align-items: center; }
+  .prices .n { font-size: 13.5px; }
+  .prices .track { background: var(--line); border-radius: 2px; height: 12px; }
+  .prices .fill { background: var(--primary); height: 12px; border-radius: 2px; display: block; }
+  .prices .fill.free { background: var(--ok); }
+  .prices .v {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink2);
+  }
+  @media (max-width: 520px) {
+    .prices li { grid-template-columns: minmax(0, 1fr) 74px; }
+    .prices .track { grid-column: 1 / -1; }
+  }
+
+  /* Tables */
+  .scroller { overflow-x: auto; margin: 20px 0; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--surface-2);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.yes { color: var(--ok); font-weight: 600; }
+  td.no { color: var(--bad); font-weight: 600; }
+
+  /* Split list (free vs paid) */
+  .split { display: grid; gap: 2px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin: 20px 0; }
+  @media (min-width: 640px) { .split { grid-template-columns: 1fr 1fr; } }
+  .split > div { background: var(--surface); padding: 18px 20px; }
+  .split h4 {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin: 0 0 12px;
+    color: var(--ink3);
+    font-weight: 500;
+  }
+  .split ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--ink2); }
+  .split li { margin-bottom: 6px; }
+  .split .paid h4 { color: var(--primary); }
+
+  /* Timeline */
+  .timeline { list-style: none; margin: 22px 0 8px; padding: 0 0 0 22px; border-left: 1px solid var(--line-strong); display: flex; flex-direction: column; gap: 20px; }
+  .timeline li { position: relative; }
+  .timeline li::before {
+    content: "";
+    position: absolute;
+    left: -27px;
+    top: 6px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--line-strong);
+  }
+  .timeline li.now::before { background: var(--bad); border-color: var(--bad); }
+  .timeline .when {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .timeline .what { font-size: 14px; color: var(--ink2); margin: 3px 0 0; }
+  .timeline .count { font-family: var(--mono); font-size: 11px; color: var(--ink3); }
+
+  /* Recommendation rows */
+  .recs { list-style: none; margin: 22px 0 0; padding: 0; display: flex; flex-direction: column; }
+  .recs li { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); }
+  .recs li:last-child { border-bottom: 1px solid var(--line); }
+  .recs .id {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--primary);
+    padding-top: 1px;
+  }
+  .recs .t { font-weight: 600; margin: 0 0 5px; }
+  .recs .why { font-size: 13.5px; color: var(--ink2); margin: 0; }
+  .recs .dest {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    display: block;
+    margin-top: 6px;
+  }
+  .recs li.against .id { color: var(--ink3); }
+
+  /* Proposals */
+  .props { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 22px; }
+  .props li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; }
+  .props .id { font-family: var(--mono); font-size: 12.5px; color: var(--primary); padding-top: 2px; }
+  .props .t { font-weight: 700; margin: 0 0 5px; }
+  .props p { margin: 0; font-size: 14.5px; color: var(--ink2); }
+  .props code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0 4px;
+    color: var(--ink);
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: .88em;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0 4px;
+  }
+  .recs .resolved { color: var(--ink); font-size: 13.5px; margin: 8px 0 0; }
+
+  /* Callout */
+  .callout {
+    border-left: 3px solid var(--bad);
+    background: var(--bad-soft);
+    padding: 16px 20px;
+    border-radius: 0 4px 4px 0;
+    margin: 22px 0;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .h {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--bad);
+    display: block;
+    margin-bottom: 8px;
+  }
+  blockquote {
+    margin: 14px 0;
+    padding-left: 16px;
+    border-left: 2px solid var(--line-strong);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink2);
+  }
+
+  /* Method steps */
+  .steps { list-style: none; margin: 22px 0 0; padding: 0; counter-reset: step; display: flex; flex-direction: column; gap: 0; }
+  .steps li { counter-increment: step; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 16px; padding: 15px 0; border-top: 1px solid var(--line); }
+  .steps li:last-child { border-bottom: 1px solid var(--line); }
+  .steps li::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink3);
+    padding-top: 3px;
+  }
+  .steps .t { font-weight: 600; margin: 0 0 4px; }
+  .steps p { margin: 0; font-size: 14px; color: var(--ink2); }
+
+  /* Sources */
+  details.sources-wrap {
+    margin: 24px 0 0;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  details.sources-wrap > summary {
+    cursor: pointer;
+    padding: 14px 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink2);
+    list-style: none;
+  }
+  details.sources-wrap > summary::-webkit-details-marker { display: none; }
+  details.sources-wrap > summary::before { content: "▸ "; color: var(--primary); }
+  details.sources-wrap[open] > summary::before { content: "▾ "; }
+  details.sources-wrap[open] > summary { border-bottom: 1px solid var(--line); }
+  .sources-scroll { overflow-x: auto; }
+  table.sources { font-size: 12.5px; }
+  table.sources td { padding: 8px 12px; }
+  table.sources td:first-child { font-family: var(--mono); color: var(--ink3); white-space: nowrap; }
+  table.sources td:nth-child(4), table.sources td:nth-child(5) {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    white-space: nowrap;
+    color: var(--ink2);
+    font-variant-numeric: tabular-nums;
+  }
+  table.sources td:last-child { font-size: 11.5px; color: var(--ink2); white-space: nowrap; }
+  table.sources a { color: var(--primary); }
+  table.sources tr:target td { background: var(--primary-soft); }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line-strong);
+    font-size: 13px;
+    color: var(--ink3);
+  }
+  footer code { font-family: var(--mono); font-size: 12px; }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Deep Recon · pesquisa competitiva · 3 de setembro de 2026</p>
+    <h1>Dossiê Strava e concorrentes</h1>
+    <p class="standfirst">O que oito apps de treino cobram pela análise, quanto disso o Orbe já calcula hoje, e o que falta construir com os dados que você já colhe. App pessoal, sem nova integração, sem publicação.</p>
+    <dl class="meta">
+      <div><dt>Decisão que serve</dt><dd>Roadmap de análise<small>App pessoal, sem integração</small></dd></div>
+      <div><dt>Profundidade</dt><dd>Standard<small>4 dimensões, 2 rodadas</small></dd></div>
+      <div><dt>Validação</dt><dd>Normal<small>Verificação na chegada</small></dd></div>
+      <div><dt>Ledger</dt><dd>32 claims<small>18 verificadas</small></dd></div>
+      <div><dt>Fontes</dt><dd>107 citadas<small>Apêndice ao final</small></dd></div>
+    </dl>
+  </header>
+
+  <aside class="rail">
+    <nav aria-label="Sumário">
+      <h2>Nesta página</h2>
+      <ol>
+        <li><a href="#veredito">O veredito</a></li>
+        <li><a href="#recorte">O recorte</a></li>
+        <li><a href="#metodo">Como foi feito</a></li>
+        <li><a href="#strava">Strava</a></li>
+        <li><a href="#desempenho">Peers de desempenho</a></li>
+        <li><a href="#recuperacao">Peers de recuperação</a></li>
+        <li><a href="#termos">Termos da API</a></li>
+        <li><a href="#matriz">O que dá para replicar</a></li>
+        <li><a href="#custo">O preço da análise</a></li>
+        <li><a href="#recomendacoes">Recomendações</a></li>
+        <li><a href="#propostas">Propostas</a></li>
+        <li><a href="#abertas">Perguntas abertas</a></li>
+        <li><a href="#reconferir">Quando reconferir</a></li>
+        <li><a href="#fontes">Fontes</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <main class="flow">
+
+    <section id="veredito">
+      <h2 class="sec">O veredito</h2>
+      <p class="sec-note">Decisão primeiro. Os três blocos abaixo são análises que o Strava cobra, têm receita publicada por alguém e rodam com dados que o Orbe já tem no banco.</p>
+
+      <div class="card accent">
+        <h3>Fazer</h3>
+        <ol class="verdicts">
+          <li>
+            <span class="k">01</span>
+            <div>
+              <p class="t">Carga e forma: Fitness, Fatigue e Form, mais ACWR, monotonia e strain.</p>
+              <p>Pago no Strava e na TrainingPeaks, gratuito no intervals.icu e na Runalyze, com receita aberta: médias exponenciais de 42 e 7 dias, que usuários relatam ajustar, e TRIMP quando só há frequência cardíaca<a class="c" href="#src-15">15</a><a class="c" href="#src-20">20</a><a class="c" href="#src-24">24</a><a class="c" href="#src-29">29</a>. O Fitness &amp; Freshness do Strava é percebido como opaco, diverge entre plataformas e não sai pela API<a class="c" href="#src-96">96</a><a class="c" href="#src-97">97</a><a class="c" href="#src-101">101</a>.</p>
+            </div>
+          </li>
+          <li>
+            <span class="k">02</span>
+            <div>
+              <p class="t">Prontidão composta e recuperação noturna.</p>
+              <p>A Garmin publica os seis componentes do Training Readiness<a class="c" href="#src-2">2</a> e a Oura os nove contributors do Readiness, com faixas e janelas<a class="c" href="#src-67">67</a>. Sete dos nove saem de frequência de repouso, HRV, sono e atividade. O Athlytic prova que o pacote inteiro roda só com HealthKit, por 29,99 dólares por ano<a class="c" href="#src-76">76</a>.</p>
+            </div>
+          </li>
+          <li>
+            <span class="k">03</span>
+            <div>
+              <p class="t">Recordes, esforços e rotas recorrentes.</p>
+              <p>Best Efforts, Segment Efforts, Matched Activities e heatmap pessoal são pagos no Strava<a class="c" href="#src-38">38</a>. A Runalyze agrupa rotas recorrentes e pontua climbs de graça<a class="c" href="#src-33">33</a>. Cabem nos termos quando exibidos só ao próprio atleta<a class="c" href="#src-85">85</a><a class="c" href="#src-86">86</a>.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <h3>Não fazer agora</h3>
+      <p>Copiar o acesso conversacional aos dados e a prescrição de treino. Em 2026 todos vendem isso como premium: MCP do Strava e da Runalyze, Active Intelligence da Garmin, Adaptive Workouts do Strava<a class="c" href="#src-1">1</a><a class="c" href="#src-34">34</a><a class="c" href="#src-46">46</a><a class="c" href="#src-50">50</a>. A avaliação independente do MCP do Strava resume o estado da arte:</p>
+      <blockquote>“Spectacular… but it's still not a coach. Claude waits for your prompt. It won't text you on Monday with your week planned.”<a class="c" href="#src-51">51</a></blockquote>
+      <p>E a Garmin comprou a TrainingPeaks em julho para dar substância a um Connect+ que, segundo o DC Rainmaker, “doesn't offer a compelling reason for people to pay for it”<a class="c" href="#src-13">13</a>. O mercado correu para prescrição e inteligência artificial. A análise transparente sobre os próprios dados é a lacuna que ficou aberta.</p>
+
+      <div class="callout">
+        <span class="h">Maior ressalva</span>
+        <p>Não é legal nem de custo, é de dado. A variabilidade cardíaca parou de chegar em 17 de julho de 2026, porque o Garmin não escreve VFC no Apple Health, e a prontidão que você já tem passou a rodar com três quartos da informação. Isso decide a ordem: a curva de forma vem antes da prontidão, porque não depende de VFC.</p>
+      </div>
+    </section>
+
+    <section id="recorte">
+      <h2 class="sec">O recorte desta decisão</h2>
+      <p class="sec-note">Duas restrições fixadas depois que a pesquisa fechou: o app é pessoal, não será publicado, e não haverá nova integração. Nenhum achado muda. Muda o que é decisão e o que virou contexto.</p>
+
+      <div class="split">
+        <div>
+          <h4>Vale como decisão</h4>
+          <ul>
+            <li>As receitas publicadas: 42 e 7 dias, componentes da prontidão, 50 / 30 / 20, 7 contra 28</li>
+            <li>A matriz do que é replicável com os dados que você já colhe</li>
+            <li>A lição da recalibração da Apple: score sem linha de base pessoal perde credibilidade rápido</li>
+            <li>As duas queixas sobre a Whoop, que viram especificação do que não fazer</li>
+            <li>A Retrospectiva, que virou artigo pago fora e você já tem</li>
+          </ul>
+        </div>
+        <div class="paid">
+          <h4>Virou contexto</h4>
+          <ul>
+            <li>Custo da assinatura de desenvolvedor da API</li>
+            <li>Endpoints aposentados e a migração obrigatória de junho de 2027</li>
+            <li>A cláusula de replicar funcionalidade e o risco competitivo</li>
+            <li>A comparação de preços entre os oito apps</li>
+            <li>A governança do Strava como registro de decisão de arquitetura</li>
+          </ul>
+        </div>
+      </div>
+
+      <p>Sem integração nova e sem publicação, o Agreement e a API Policy deixam de reger o que você constrói. A cláusula de exibir dados só ao próprio usuário é satisfeita por definição num app de um atleta só, e as cláusulas de replicação e de uso competitivo pressupõem uma aplicação distribuída, que não vai existir.</p>
+      <p>Sobrava um fio, e ele praticamente fecha: os parágrafos falam de dados <em>de origem</em> Strava, não de integração ativa. Como as atividades mais completas vêm do Garmin pela ponte do intervals.icu, e o resto do HealthKit, o material que alimenta a análise não é Strava Data. Vale uma conferência única do campo de origem em <code>activities</code> para as linhas antigas, e o assunto encerra.</p>
+    </section>
+
+    <section id="metodo">
+      <h2 class="sec">Como a pesquisa foi feita</h2>
+      <p class="sec-note">Um run nativo da Deep Recon, tipo competitivo, forma explore. Tudo o que segue está no disco: oito digests de pesquisa, um de checagem de citações, o relatório e o memlog com 58 entradas.</p>
+
+      <ol class="steps">
+        <li>
+          <div>
+            <p class="t">Portão de plano</p>
+            <p>Quatro dimensões independentes, decomposição em largura: teardown do Strava, peers de desempenho, peers de recuperação, termos da API e voz dos usuários. Posicionamento e mensagem foram podados por não servirem à decisão. Preset standard: até 8 a 10 fontes e 15 a 18 chamadas por assistente, no máximo 2 rodadas por dimensão, validação normal, red team desligado.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="t">Barreira de pesquisa</p>
+            <p>Cada assistente recebeu apenas o seu brief. Nenhum viu o código do Orbe, o CLAUDE.md ou as memórias do projeto. O contexto do projeto moldou <em>o que perguntar</em>, nunca <em>o que é verdade</em>, então toda afirmação do relatório vem de uma fonte recuperada nesta rodada.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="t">Rodada 1 abortada e relançada</p>
+            <p>Em 2 de setembro os quatro assistentes morreram com HTTP 429, limite de sessão, antes de qualquer busca. Nenhum digest foi escrito. O evento ficou registrado no memlog e a rodada foi relançada intacta em 3 de setembro, com as datas de acesso ajustadas.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="t">Duas rodadas por dimensão</p>
+            <p>A rodada 1 mapeou em largura. A rodada 2 gastou o orçamento em duas coisas: verificar de forma independente as quatro claims de sustentação de cada dimensão e perseguir os leads que a rodada 1 abriu. As quatro dimensões pararam por teto de rodadas, não por cobertura exaurida, e isso está dito em cada seção do relatório.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="t">Verificação na chegada</p>
+            <p>Nada de revisão no fim. Cada dimensão foi verificada quando aterrissou, com fonte de publisher diferente, e a seção só foi escrita depois. Uma claim foi derrubada, três ficaram disputadas, dez seguem sem checagem independente e estão marcadas assim no texto.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="t">Checagem de citações em duas metades</p>
+            <p>A metade mecânica cruzou marcadores e apêndice por script, sem sobra dos dois lados. A metade de julgamento foi um verificador de contexto limpo que abriu as fontes ao vivo e perguntou se elas dizem mesmo o que o texto afirma. Resultado: 84 batem, 12 parciais, 2 erradas, 14 inalcançáveis. As 28 correções que isso gerou foram aplicadas.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="t">Passe editorial</p>
+            <p>Lentes de estrutura e prosa sobre o relatório pronto, modelo pirâmide, conteúdo intocado. Seis recomendações, cinco aplicadas: as tabelas-resumo subiram para antes dos achados em cada dimensão, e sobraram microcorreções de texto.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h3>O que a checagem de citações mudou</h3>
+      <p>Duas descobertas mereceram correção no relatório. A primeira derrubou uma conclusão minha.</p>
+      <div class="callout">
+        <span class="h">Claim derrubada <span class="badge b-ov">overturned</span></span>
+        <p>Eu havia escrito que as cláusulas de 2024 sobre inteligência artificial tinham sumido do texto de 2026. O verificador mostrou que o Agreement realmente não as contém, mas <strong>incorpora por referência a API Policy</strong>, com a mesma vigência de 1º de junho de 2026. O parágrafo 5.3 dela veda usar Strava Data “in connection with the development, training, evaluation, or operation of any AI Application”, incluindo geração aumentada por recuperação e ingestão em contexto de modelo. O 5.4 veda processar Strava Data “for the purposes of analytics, analyses”. A proibição não sumiu, mudou de página e ficou mais ampla<a class="c" href="#src-106">106</a>. Só a cláusula de “look and feel” de fato desapareceu.</p>
+      </div>
+      <p>A segunda foi mundana e igualmente importante: uma citação de imprensa estava atribuída ao veículo errado, e a data “desde 2016” pertencia a outra fonte da mesma notícia. Corrigidas as duas<a class="c" href="#src-41">41</a><a class="c" href="#src-42">42</a>.</p>
+
+      <h3>Estado do ledger</h3>
+      <div class="ledger">
+        <div class="bar" role="img" aria-label="32 claims: 18 verificadas, 10 não verificadas, 3 disputadas, 1 derrubada">
+          <span class="s-ok" style="flex: 18"></span>
+          <span class="s-un" style="flex: 10"></span>
+          <span class="s-di" style="flex: 3"></span>
+          <span class="s-ov" style="flex: 1"></span>
+        </div>
+        <ul class="legend">
+          <li><i style="background: var(--ok)"></i><b>18</b> verificadas</li>
+          <li><i style="background: var(--bad)"></i><b>10</b> não verificadas</li>
+          <li><i style="background: var(--warn)"></i><b>3</b> disputadas</li>
+          <li><i style="background: var(--over)"></i><b>1</b> derrubada</li>
+        </ul>
+      </div>
+      <p>Verificada quer dizer que um publisher independente, com reportagem própria, concorda. Não verificada não quer dizer falsa: quer dizer que a fonte é única, quase sempre a página do próprio fornecedor, e que o orçamento acabou antes da segunda checagem.</p>
+
+      <h3>O que atrapalhou</h3>
+      <p>Reddit devolveu erro 400 e 403 a todas as tentativas, as lojas de aplicativos não foram alcançadas e o Wayback Machine ficou bloqueado. Por isso a voz de usuário final é a parte fraca do relatório: das citações datadas que sobraram, todas são de desenvolvedores, não de atletas. Páginas da WHOOP e da Runalyze responderam 403 ao leitor automatizado, o que empurrou preços dessas duas para confiança média.</p>
+    </section>
+
+    <section id="strava">
+      <h2 class="sec">Strava</h2>
+      <p class="sec-note">O que é gratuito, o que fica atrás da assinatura em setembro de 2026, e para onde o produto está indo.</p>
+
+      <div class="split">
+        <div>
+          <h4>Gratuito</h4>
+          <ul>
+            <li>Gravar atividade, sensores, Beacon</li>
+            <li>Feed, kudos, clubes, segurança</li>
+            <li>Top 10 do leaderboard de cada segmento</li>
+            <li>Amostra de rotas sugeridas</li>
+            <li>Local Legends, provável mas não verificado item a item</li>
+          </ul>
+        </div>
+        <div class="paid">
+          <h4>Só assinante</h4>
+          <ul>
+            <li>Fitness &amp; Freshness, Relative Effort, Training Log</li>
+            <li>Best Efforts, Matched Activities, Cumulative Stats</li>
+            <li>Leaderboards completos, filtrados, Live Segments, Segment Efforts</li>
+            <li>Ritmo ajustado por inclinação, zonas de FC customizadas, análise de potência, ritmo e treino</li>
+            <li>Metas, planos, desafios em grupo, previsões de desempenho</li>
+            <li>Rotas, heatmap pessoal, mapas offline, clima</li>
+            <li>Year in Sport, Athlete Intelligence, MCP Connector, Adaptive Workouts</li>
+          </ul>
+        </div>
+      </div>
+      <p style="font-size:13.5px;color:var(--ink2)">Fontes da divisão: help center<a class="c" href="#src-38">38</a>, página comercial<a class="c" href="#src-39">39</a>, BikeTips<a class="c" href="#src-52">52</a>, Wareable<a class="c" href="#src-56">56</a>.</p>
+
+      <h3><span class="num">01</span>Praticamente toda análise é paga</h3>
+      <p>A lista de recursos de assinante do help center engole o catálogo analítico inteiro<a class="c" href="#src-38">38</a>. No plano gratuito sobram gravar, comunidade, segurança e uma amostra de rotas<a class="c" href="#src-39">39</a>. Fonte independente de maio de 2026 confirma o recorte<a class="c" href="#src-52">52</a>. <span class="badge b-ok">verified</span></p>
+
+      <h3><span class="num">02</span>Year in Sport virou pago</h3>
+      <p>Em dezembro de 2025, pela primeira vez desde a estreia em 2016<a class="c" href="#src-41">41</a><a class="c" href="#src-42">42</a>. A imprensa enquadrou como “Strava follows Garmin”, em referência ao Rundown pago do Connect+<a class="c" href="#src-55">55</a>. Retrospectiva agregada virou artigo premium no mercado. <span class="badge b-ok">verified</span></p>
+
+      <h3><span class="num">03</span>Athlete Intelligence é descritivo, não coach</h3>
+      <p>Resumo por atividade gerado com inteligência artificial, com um botão que aprofunda em ritmo, velocidade, frequência cardíaca e zonas, e tendências numa janela de 30 dias. Só assinantes e trial<a class="c" href="#src-40">40</a><a class="c" href="#src-53">53</a>. Nenhum press release entre março e setembro de 2026 anuncia evolução dele<a class="c" href="#src-45">45</a>. <span class="badge b-ok">verified</span></p>
+
+      <h3><span class="num">04</span>O movimento de 2026 é o MCP Connector</h3>
+      <p>Desde 1º de junho, assinantes conectam o Claude ao histórico em modo somente leitura, com streams por segundo de frequência cardíaca e ritmo, GPS e potência. Só o Claude é citado como cliente<a class="c" href="#src-50">50</a><a class="c" href="#src-51">51</a>. A justificativa da Strava é a demanda dos atletas por analisar os próprios dados. <span class="badge b-ok">verified</span></p>
+
+      <h3><span class="num">05</span>Trajetória: força e prescrição</h3>
+      <p>Maio trouxe 14 integrações de treino de força com mapas musculares e recomendações adaptativas de treino<a class="c" href="#src-46">46</a>. Janeiro, Instant Workouts global<a class="c" href="#src-49">49</a>. Junho, pacote de hiking<a class="c" href="#src-47">47</a>. Julho, aba de eventos, parceria com a adidas e Strava pré-instalado no Galaxy Watch<a class="c" href="#src-45">45</a>. A Runna segue app e assinatura separados<a class="c" href="#src-53">53</a>. <span class="badge b-un">unverified</span></p>
+
+      <h3><span class="num">06</span>Preço</h3>
+      <p>Europa: 10,99 euros por mês ou 69,99 por ano, harmonizados desde julho de 2025. A página lista 30 países, a primeira rodada tinha contado 23<a class="c" href="#src-43">43</a>. Sem reajuste documentado nos últimos 12 meses<a class="c" href="#src-44">44</a>. Estados Unidos: 11,99 e 79,99 dólares, sem fonte primária legível<a class="c" href="#src-54">54</a>. <span class="badge b-di">disputed</span></p>
+    </section>
+
+    <section id="desempenho">
+      <h2 class="sec">Peers de desempenho</h2>
+      <p class="sec-note">Garmin Connect, intervals.icu, TrainingPeaks e Runalyze. O que entregam, o que cobram e qual receita está publicada.</p>
+
+      <h3>O mapa mudou em julho de 2026</h3>
+      <p>A Garmin anunciou e fechou em 22 de julho a compra da TrainingPeaks e da TrainHeroic. Cento e vinte pessoas passam ao quadro da Garmin e os termos não foram divulgados<a class="c" href="#src-13">13</a><a class="c" href="#src-14">14</a><a class="c" href="#src-28">28</a>. Nenhum plano declarado de levar TSS e o gráfico de gestão de desempenho ao Connect, nem de mexer no preço. O DC Rainmaker aponta como riscos abertos o bloqueio de upload de aparelhos de terceiros e licenciamento restritivo. <span class="badge b-ok">verified</span></p>
+
+      <h3>Garmin: métricas grátis, inteligência artificial paga</h3>
+      <p>O Connect+ custa 6,99 dólares por mês ou 69,99 por ano desde março de 2025, sem reajuste<a class="c" href="#src-1">1</a><a class="c" href="#src-9">9</a>. Fecha Active Intelligence, Performance Dashboard, Live Activity, vídeos de coaching e social. A Garmin declarou que todas as métricas fisiológicas seguem gratuitas, promessa reproduzida por terceiros e não auditada. O perímetro pago cresceu desde o lançamento e a revisão de um ano ainda conclui que não vale<a class="c" href="#src-10">10</a>.</p>
+      <p><strong>Receita publicada:</strong> Training Readiness soma o score de sono da noite, o tempo de recuperação, o status de HRV, a carga aguda, o histórico de três noites de sono e o de três dias de stress, em cinco faixas<a class="c" href="#src-2">2</a>. É a única prontidão do grupo com a composição aberta.</p>
+
+      <h3>intervals.icu: o núcleo é grátis</h3>
+      <p>Fitness, Fatigue e Form, detecção de intervalos, curva de potência, gráficos customizados, calendário e construtor de treinos estão no tier gratuito. O apoio custa 4 dólares por mês e compra clima, plano anual, importação completa do histórico do Strava e zonas totalmente customizadas<a class="c" href="#src-15">15</a><a class="c" href="#src-21">21</a>. <span class="badge b-ok">verified</span></p>
+      <p>Segundo o autor, Fitness e Fatigue derivam da carga por atividade e do FTP da época, com frequência cardíaca quando não há potência, e Form aparece como percentual da Fitness, não como número absoluto à moda do Strava<a class="c" href="#src-20">20</a>. Usuários do mesmo tópico relatam ajustar as constantes de 42 e 7 dias.</p>
+
+      <h3>TrainingPeaks cobra o que a intervals.icu dá</h3>
+      <p>Premium a 19,95 dólares por mês ou 134,99 por ano, com reajuste de 8% em abril de 2025<a class="c" href="#src-24">24</a><a class="c" href="#src-26">26</a>. Destrava o gráfico de gestão de desempenho, analytics profundos, plano anual e envio de treinos<a class="c" href="#src-21">21</a>. A inovação de 2026 está no simulador indoor, não em análise pós-treino<a class="c" href="#src-27">27</a>.</p>
+
+      <h3>Runalyze tem o catálogo derivado mais rico</h3>
+      <p>VO2max efetivo estimado por corrida pela relação entre frequência cardíaca e ritmo<a class="c" href="#src-35">35</a>. Marathon Shape corrige a previsão de provas longas pela base de resistência que falta<a class="c" href="#src-36">36</a>. Rotas recorrentes e climbs com score<a class="c" href="#src-33">33</a>. O servidor MCP, de junho de 2026 e só para pagantes, revela o catálogo completo: carga crônica e aguda, razão aguda sobre crônica, monotonia e strain de Foster, linha de base e faixa normal de HRV, sono e frequência cardíaca noturna<a class="c" href="#src-34">34</a>. <span class="badge b-ok">verified</span></p>
+      <p>Preço em disputa: 6 euros por mês na leitura de uma fonte, 5,50 em outra<a class="c" href="#src-29">29</a><a class="c" href="#src-37">37</a>. <span class="badge b-di">disputed</span></p>
+    </section>
+
+    <section id="recuperacao">
+      <h2 class="sec">Peers de recuperação</h2>
+      <p class="sec-note">Whoop, Oura, Athlytic e Apple Fitness. A pergunta que importa: o que precisa de sensor proprietário e o que não precisa.</p>
+
+      <h3>A Oura publica a receita, e sete dos nove componentes cabem no HealthKit</h3>
+      <p>A página oficial, atualizada em 14 de julho de 2026, lista nove contributors do Readiness com faixas de 85 a 100, 70 a 84, 60 a 69 e 0 a 59<a class="c" href="#src-67">67</a>. Os detalhes também estão lá: a frequência de repouso pesa contra quando está de 3 a 5 batimentos acima ou de 10 a 15 abaixo do habitual, o equilíbrio de HRV compara 14 dias ponderados com a média de três meses, a regularidade de sono olha duas semanas de horários. Só temperatura corporal, que exige sensor, e o índice de recuperação, que exige a curva de frequência cardíaca ao longo da noite, ficam fora do alcance. <span class="badge b-un">unverified</span> nenhum publisher independente enumerou os nove.</p>
+
+      <h3>O Athlytic é a prova de existência</h3>
+      <p>Recovery, Exertion, Sleep, Training Load, Stress, condicionamento cardíaco, efeito do treino e idade calculada, tudo a partir do HealthKit, por 29,99 dólares por ano, com 4,8 estrelas em 11 mil avaliações e uma empresa de duas pessoas atrás<a class="c" href="#src-75">75</a><a class="c" href="#src-76">76</a>. A crítica independente é útil: o Recovery pesa demais o lado cardíaco e subestima fadiga muscular<a class="c" href="#src-77">77</a>. <span class="badge b-ok">verified</span></p>
+
+      <h3>Apple: duas receitas triviais de replicar</h3>
+      <p>O Training Load compara intensidade vezes duração dos últimos 7 dias com a média ponderada dos 28 anteriores, com esforço estimado automaticamente em cardio e ajustável de 1 a 10, e 10 dias de linha de base<a class="c" href="#src-79">79</a><a class="c" href="#src-83">83</a>. O Sleep Score soma duração até 50 pontos, consistência de horário até 30 e interrupções até 20<a class="c" href="#src-78">78</a><a class="c" href="#src-81">81</a>. Nenhum dos dois usa HRV.</p>
+      <p>A lição mais valiosa da Apple não é a fórmula: é que ela precisou recalibrar as faixas do Sleep Score dois meses depois do lançamento, porque a versão inicial era generosa demais<a class="c" href="#src-82">82</a>.</p>
+
+      <h3>Whoop mostra a fronteira do hardware</h3>
+      <p>O Recovery usa frequência de repouso, HRV, respiração, sono, temperatura da pele e oxigenação<a class="c" href="#src-58">58</a>. O Strain é uma escala logarítmica de 0 a 21 com fórmula proprietária<a class="c" href="#src-59">59</a>. O Stress Monitor exige HRV contínua durante o dia contra uma linha de base de 14 dias, e esse não se replica com HRV esparsa<a class="c" href="#src-60">60</a>. A calibração leva semanas e o Strain demora mais de um mês a assentar sem histórico<a class="c" href="#src-61">61</a>. <span class="badge b-un">unverified</span> preços em dólar por tier não confirmados.</p>
+      <p>As duas queixas recorrentes valem como especificação do que não fazer: atribuir frequência cardíaca elevada a stress quando era atividade leve, e não deixar o usuário remover um ponto de dado errado que contaminou o score<a class="c" href="#src-61">61</a>.</p>
+    </section>
+
+    <section id="termos">
+      <h2 class="sec">Termos da API do Strava</h2>
+      <p class="sec-note">O que o Orbe pode fazer com dados sincronizados, quanto custa manter a integração, e onde está a fronteira.</p>
+      <p style="font-size:13.5px;color:var(--ink2)">Esta dimensão virou contexto, não decisão. Ver <a href="#recorte">o recorte</a>: sem integração nova e sem publicação, nada aqui rege o que você constrói. Fica registrado porque descreve o mercado e porque um fio sobrevive, o da origem dos dados já gravados.</p>
+
+      <h3>Dois textos, mesma vigência</h3>
+      <p>O Agreement de 1º de junho de 2026 traz duas frases que importam: “Strava Data provided by a specific user can only be displayed or disclosed in your Developer Application to that user” e “You may not create applications that compete with or replicate Strava functionality”<a class="c" href="#src-85">85</a>. Não existe isenção para uso pessoal, hobby ou não comercial, e o contrato não define tiers nem tetos de atletas. <span class="badge b-ok">verified</span></p>
+      <p>A API Policy que ele incorpora, com a mesma data, é onde mora a restrição mais dura<a class="c" href="#src-106">106</a>:</p>
+      <blockquote>§5.3 “You may not use the Strava API Materials or Strava Data… in connection with the development, training, evaluation, or operation of any AI Application”, estendido a “retrieval-augmented generation, ingestion into a context window or working memory”.<br><br>§5.4 “You may not process or disclose Strava Data… for the purposes of analytics, analyses, customer insight generation, or product or service improvements”.</blockquote>
+      <p><span class="badge b-un">unverified</span> A Policy é renderizada por JavaScript. O texto acima veio de duas leituras automatizadas consistentes e pede confirmação humana antes de virar decisão.</p>
+
+      <h3>A integração pessoal passou a custar</h3>
+      <p>Desde 1º de junho de 2026 o tier padrão exige assinatura Strava ativa do desenvolvedor. Os existentes tiveram até 30 de junho, com três meses grátis<a class="c" href="#src-89">89</a><a class="c" href="#src-90">90</a><a class="c" href="#src-91">91</a>. Em 1º de setembro o Segments Explore foi para o tier estendido e os endpoints de clube foram aposentados. Até 1º de junho de 2027 tornam-se obrigatórios o token no cabeçalho, a nova URL base e a revogação por outro endpoint. <span class="badge b-ok">verified</span></p>
+      <p>A restrição a plataformas intermediárias ficou sem definição. Um desenvolvedor no fórum do intervals.icu resumiu o problema:</p>
+      <blockquote>“I have no idea what this means and it's vague enough to mean anything. What counts as an 'intermediary platform'?”<a class="c" href="#src-91">91</a></blockquote>
+      <p>Nem o intervals.icu nem a Terra se pronunciaram. OpenRowingMonitor e Avitu anunciaram que abandonam o Strava<a class="c" href="#src-91">91</a>.</p>
+
+      <h3>Resposta à pergunta central</h3>
+      <p>Um app de um único atleta que mostra só a ele curvas de forma, recordes, esforços e heatmaps calculados sobre as próprias atividades satisfaz a cláusula de exibição por construção, e cabe na frase oficial da Strava de 2024 sobre “tools that help users understand their data and performance”<a class="c" href="#src-86">86</a>. Contra ele pesam o “replicate functionality” não definido e os parágrafos 5.3 e 5.4 da Policy. <strong>Conclusão: análise determinística exibida só ao atleta é defensável pela palavra da Strava, não pelo texto literal. Inteligência artificial sobre dados de origem Strava está vedada.</strong> <span class="badge b-di">disputed</span></p>
+
+      <h3>A voz dos usuários, que ficou rasa</h3>
+      <p>O que sobreviveu ao bloqueio: o Fitness &amp; Freshness é desconfiado por quem compara. No fórum do intervals.icu, em janeiro de 2025, um usuário relatou que “not only are the numbers different but the fitness trend line is almost the opposite”<a class="c" href="#src-96">96</a>. A Athletica documenta o mesmo desencontro entre plataformas<a class="c" href="#src-97">97</a>. As ideias no hub da Strava pedem janela longa customizável e cruzamento com sono e peso<a class="c" href="#src-100">100</a><a class="c" href="#src-107">107</a>. E a curva não existe na API, então quem a quer fora do Strava precisa recalculá-la<a class="c" href="#src-101">101</a>.</p>
+    </section>
+
+    <section id="matriz">
+      <h2 class="sec">O que dá para replicar</h2>
+      <p class="sec-note">Cruzamento das duas dimensões de peers com os dados que o Orbe já sincroniza: atividades com frequência cardíaca, potência e ritmo pelo Strava e intervals.icu, mais HRV, frequência de repouso e sono pelo Apple Health.</p>
+
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr><th>Análise</th><th>Referência</th><th>Insumos</th><th>Receita pública</th><th>Replicável</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Fitness, Fatigue e Form</td><td>intervals.icu, TrainingPeaks, Runalyze</td><td>carga por atividade, potência ou FC</td><td>Sim<a class="c" href="#src-20">20</a></td><td class="yes">Sim</td></tr>
+            <tr><td>ACWR, monotonia, strain</td><td>Runalyze</td><td>carga diária</td><td>Métricas de Foster<a class="c" href="#src-34">34</a></td><td class="yes">Sim</td></tr>
+            <tr><td>Prontidão composta</td><td>Garmin, Oura</td><td>sono, HRV, FC repouso, carga aguda</td><td>Componentes e faixas<a class="c" href="#src-2">2</a><a class="c" href="#src-67">67</a></td><td class="yes">Sim, 7 de 9</td></tr>
+            <tr><td>Carga aguda sobre crônica</td><td>Apple Training Load</td><td>treinos, esforço 1 a 10</td><td>Sim<a class="c" href="#src-79">79</a></td><td class="yes">Sim</td></tr>
+            <tr><td>Score de sono</td><td>Apple</td><td>duração, horário, interrupções</td><td>50 / 30 / 20<a class="c" href="#src-78">78</a></td><td class="yes">Sim</td></tr>
+            <tr><td>VO2max efetivo e prognose</td><td>Runalyze</td><td>FC e ritmo por corrida</td><td>Sim<a class="c" href="#src-35">35</a><a class="c" href="#src-36">36</a></td><td class="yes">Sim</td></tr>
+            <tr><td>Curvas de potência e ritmo comparáveis</td><td>intervals.icu</td><td>séries por atividade</td><td>Sim<a class="c" href="#src-16">16</a></td><td class="yes">Sim</td></tr>
+            <tr><td>Rotas recorrentes e climbs</td><td>Runalyze</td><td>GPS</td><td>Sim<a class="c" href="#src-33">33</a></td><td class="yes">Sim</td></tr>
+            <tr><td>Desvio noturno multivariado</td><td>Oura Symptom Radar</td><td>séries noturnas de FC, HRV, respiração</td><td>Parcial<a class="c" href="#src-68">68</a></td><td>Parcial</td></tr>
+            <tr><td>Stress diurno contínuo</td><td>Whoop</td><td>HRV contínua acordado</td><td>Não<a class="c" href="#src-60">60</a></td><td class="no">Não</td></tr>
+            <tr><td>Temperatura, índice de recuperação, pressão</td><td>Oura, Whoop</td><td>sensor térmico, PPG noturno</td><td>Parcial<a class="c" href="#src-67">67</a><a class="c" href="#src-70">70</a></td><td class="no">Não</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="custo">
+      <h2 class="sec">O preço da análise</h2>
+      <p class="sec-note">Custo anual publicado por cada fornecedor, na moeda em que ele publica, sem conversão. O ponto não é a comparação exata entre moedas: é a ordem de grandeza do que o mercado cobra por análises cuja receita está publicada.</p>
+
+      <ul class="prices">
+        <li><span class="n">intervals.icu<br><small style="color:var(--ink2);font-size:12px">núcleo</small></span><span class="track"><span class="fill free" style="width:2%"></span></span><span class="v">grátis</span></li>
+        <li><span class="n">Runalyze<br><small style="color:var(--ink2);font-size:12px">núcleo</small></span><span class="track"><span class="fill free" style="width:2%"></span></span><span class="v">grátis</span></li>
+        <li><span class="n">Athlytic</span><span class="track"><span class="fill" style="width:15%"></span></span><span class="v">US$ 29,99</span></li>
+        <li><span class="n">intervals.icu<br><small style="color:var(--ink2);font-size:12px">supporter</small></span><span class="track"><span class="fill" style="width:24%"></span></span><span class="v">US$ 48,00</span></li>
+        <li><span class="n">Runalyze<br><small style="color:var(--ink2);font-size:12px">premium</small></span><span class="track"><span class="fill" style="width:33%"></span></span><span class="v">€ 66,00</span></li>
+        <li><span class="n">Garmin Connect+</span><span class="track"><span class="fill" style="width:35%"></span></span><span class="v">US$ 69,99</span></li>
+        <li><span class="n">Oura</span><span class="track"><span class="fill" style="width:35%"></span></span><span class="v">US$ 69,99</span></li>
+        <li><span class="n">Strava</span><span class="track"><span class="fill" style="width:35%"></span></span><span class="v">€ 69,99</span></li>
+        <li><span class="n">TrainingPeaks</span><span class="track"><span class="fill" style="width:68%"></span></span><span class="v">US$ 134,99</span></li>
+        <li><span class="n">WHOOP One</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="v">US$ 199,00</span></li>
+      </ul>
+      <p style="font-size:13.5px;color:var(--ink2)">Fontes na ordem: intervals.icu<a class="c" href="#src-15">15</a>, Runalyze<a class="c" href="#src-29">29</a>, Athlytic<a class="c" href="#src-76">76</a>, Garmin<a class="c" href="#src-1">1</a>, Oura<a class="c" href="#src-66">66</a>, Strava<a class="c" href="#src-43">43</a>, TrainingPeaks<a class="c" href="#src-24">24</a>, WHOOP<a class="c" href="#src-57">57</a>. Os dois últimos e a Runalyze carregam confiança média por bloqueio de leitura. A assinatura do Strava passou a ser também o custo de manter a integração pessoal com a API<a class="c" href="#src-89">89</a>.</p>
+    </section>
+
+    <section id="recomendacoes">
+      <h2 class="sec">Recomendações</h2>
+      <p class="sec-note">Sete, cada uma amarrada à decisão e ao artefato que a consome. As cinco primeiras vão para o backlog de features, a sexta vira registro de decisão de arquitetura, a sétima é decisão de roadmap.</p>
+
+      <ol class="recs">
+        <li>
+          <span class="id">R1</span>
+          <div>
+            <p class="t">Curva de forma transparente</p>
+            <p class="why">Constantes de 42 e 7 dias configuráveis, TRIMP quando só há frequência cardíaca, Form como percentual, janela longa customizável. Confiança alta: receita pública e commodity gratuita, mais queixa documentada sobre o Strava.</p>
+            <span class="dest">backlog · candidata a spec</span>
+          </div>
+        </li>
+        <li>
+          <span class="id">R2</span>
+          <div>
+            <p class="t">Prontidão diária composta</p>
+            <p class="why">Sono da noite, HRV contra linha de base de 14 dias e 3 meses, frequência de repouso contra o habitual, carga aguda e regularidade de sono, com faixas explícitas. Confiança média: componentes publicados, fórmula não. O Athlytic prova a viabilidade em HealthKit.</p>
+            <span class="dest">backlog</span>
+          </div>
+        </li>
+        <li>
+          <span class="id">R3</span>
+          <div>
+            <p class="t">ACWR, monotonia e strain</p>
+            <p class="why">Sobre a mesma carga diária de R1. Confiança média: expostas pela Runalyze e amparadas em literatura aberta.</p>
+            <span class="dest">backlog · junto de R1</span>
+          </div>
+        </li>
+        <li>
+          <span class="id">R4</span>
+          <div>
+            <p class="t">Recordes e esforços</p>
+            <p class="why">Best Efforts por distância, recordes por rota recorrente, climbs com score. Confiança alta: pagos no Strava, gratuitos na Runalyze. Conferir a sobreposição com o que já foi mergeado em Recordes e segmentos.</p>
+            <span class="dest">backlog</span>
+          </div>
+        </li>
+        <li>
+          <span class="id">R5</span>
+          <div>
+            <p class="t">Score de sono e carga de treino à moda da Apple</p>
+            <p class="why">Divisão de 50, 30 e 20 pontos e comparação de 7 contra 28 dias, com esforço editável e linha de base pessoal. Confiança alta: receitas publicadas e verificadas, mais a lição da recalibração.</p>
+            <span class="dest">backlog</span>
+          </div>
+        </li>
+        <li>
+          <span class="id">R6</span>
+          <div>
+            <p class="t">Governança do Strava</p>
+            <p class="why">Decidir se a assinatura de desenvolvedor vale a pena ou se o Strava vira só destino social. Preferir Apple Health e intervals.icu como fonte das análises. Não usar Segments Explore. Migrar para a nova URL base, token no cabeçalho e revogação antes de junho de 2027. Confiança alta no programa, média na fronteira legal.</p>
+            <p class="resolved"><strong>Resolvida por decisão.</strong> Sem integração nova e sem publicar o app, isto deixa de ser registro de arquitetura. Sobra conferir uma vez a origem das linhas já gravadas.</p>
+            <span class="dest">encerrada</span>
+          </div>
+        </li>
+        <li class="against">
+          <span class="id">R7</span>
+          <div>
+            <p class="t">Não priorizar MCP, inteligência artificial conversacional nem prescrição</p>
+            <p class="why">Mercado saturado e crítica convergente. Além disso, com dados de origem Strava, qualquer uso em inteligência artificial está vedado pela API Policy.</p>
+            <p class="resolved"><strong>Continua valendo, por um motivo só.</strong> A razão legal caiu junto com a integração. A razão de produto fica de pé: mercado saturado e a crítica de que ainda não é coach.</p>
+            <span class="dest">decisão de roadmap</span>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="propostas">
+      <h2 class="sec">Propostas</h2>
+      <p class="sec-note">Estas são minhas, não da pesquisa. Saíram de ler o código do Orbe depois que o relatório fechou, e por isso ficam fora dele: a pesquisa não usa o repositório como evidência.</p>
+
+      <h3>Você já construiu metade disto</h3>
+      <p>O inventário abaixo veio de <code>packages/shared</code> e das migrations. Três das cinco recomendações já têm código pronto, puro e testado.</p>
+
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Análise</th><th>Onde está</th><th>Situação</th></tr></thead>
+          <tbody>
+            <tr><td>Prontidão diária, 0 a 100</td><td><code>health/readiness.ts</code></td><td class="yes">Pronta</td></tr>
+            <tr><td>Conselho de treino pela prontidão</td><td><code>health/readiness-advice.ts</code></td><td class="yes">Pronto</td></tr>
+            <tr><td>Carga semanal por zonas e polarização</td><td><code>fitness/weekly-load.ts</code></td><td class="yes">Pronta</td></tr>
+            <tr><td>Média móvel, tendência, anomalia, correlação</td><td><code>health/trends.ts</code></td><td class="yes">Prontas</td></tr>
+            <tr><td>Recordes e tendência de recordes</td><td><code>fitness/best-efforts.ts</code></td><td class="yes">Prontos</td></tr>
+            <tr><td>Impacto de gatilho</td><td><code>health/trigger-impact.ts</code></td><td class="yes">Pronto</td></tr>
+            <tr><td>Curva de forma diária, exponencial</td><td>—</td><td class="no">Falta</td></tr>
+            <tr><td>Razão aguda sobre crônica, monotonia, strain</td><td>—</td><td class="no">Falta</td></tr>
+            <tr><td>Score de sono composto</td><td>—</td><td class="no">Falta</td></tr>
+            <tr><td>VO2max efetivo e prognose de prova</td><td>—</td><td class="no">Falta</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>A prontidão que já existe soma sono, frequência de repouso e variabilidade contra linha de base móvel, mais anéis, renormaliza os pesos quando falta componente e declara a própria cobertura. É mais honesta que a da Whoop, que não deixa o usuário remover um dado ruim.</p>
+      <p>No banco, <code>activities</code> guarda o tempo em cada zona de frequência cardíaca desde maio, mais melhores esforços, elevação e rota. O <code>health_daily</code> guarda sono, variabilidade, frequência cardíaca, respiração e peso por dia. O <code>daily_ratings</code> guarda sono e dia percebidos de 1 a 5. Nada do que segue precisa de coleta nova.</p>
+      <p>As atividades mais completas chegam do Garmin pela ponte do intervals.icu, e o dedupe entre fontes já resolve a sobreposição com o HealthKit. Duas observações sobre essa ponte, tiradas do código do conector: ela pede quatro streams, tempo, coordenadas, altitude e frequência cardíaca, então <strong>potência não está sendo trazida</strong>; e ela não toca o registro diário de bem-estar do intervals.icu, que é onde a variabilidade do Garmin provavelmente está. As duas coisas são ampliação de uma conexão existente, não integração nova.</p>
+
+      <div class="callout">
+        <span class="h">O bloqueio não é código</span>
+        <p>O comentário no seu próprio <code>readiness.ts</code> registra que a variabilidade parou de chegar em 17 de julho de 2026, porque o Garmin não escreve VFC no Apple Health, e a prontidão passou a rodar com três quartos da informação sem avisar ninguém. O campo de cobertura existe justamente para expor isso. Antes de melhorar a prontidão, a decisão é sobre o dado: recuperar a fonte ou assumir o score sem ela e mostrar a cobertura na tela.</p>
+      </div>
+
+      <h3>Sequência</h3>
+      <ol class="props">
+        <li>
+          <span class="id">P1</span>
+          <div>
+            <p class="t">Curva de forma primeiro, prontidão depois</p>
+            <p>É a inversão que a falta de VFC impõe. A curva não depende de variabilidade, o insumo já está no banco, e a carga semanal já provou que esse dado é bom o bastante. Uma média exponencial diária sobre a mesma série entrega forma, razão aguda sobre crônica, monotonia e strain de uma vez. Uma implementação, quatro métricas.</p>
+          </div>
+        </li>
+        <li>
+          <span class="id">P2</span>
+          <div>
+            <p class="t">A variabilidade pode voltar por uma conexão que já está de pé</p>
+            <p>O conector do intervals.icu hoje chama três endpoints: o do atleta, para pegar frequência máxima e de repouso, o de atividades, e o de streams, pedindo só tempo, coordenadas, altitude e frequência cardíaca. O intervals.icu mantém um registro diário de bem-estar, separado das atividades, e é para lá que a ponte do Garmin manda o que o Apple Health não recebe. Se ele carregar a variabilidade que o Garmin mede, a VFC volta sem integração nova: é ampliar uma conexão existente, não abrir outra.</p>
+            <p><strong>Isto é hipótese, não achado.</strong> A pesquisa tentou confirmar o módulo de bem-estar do intervals.icu em fonte primária e não conseguiu dentro do orçamento. Mas o custo do teste é uma requisição com a chave que você já tem. Se der certo, resolve o único bloqueio real do roadmap. Se não, ficam as duas saídas honestas: assumir o score de três componentes exibindo a cobertura, ou voltar a um relógio que escreva no Apple Health.</p>
+          </div>
+        </li>
+        <li>
+          <span class="id">P3</span>
+          <div>
+            <p class="t">O diferencial que nenhum dos oito tem</p>
+            <p>Com o app pessoal, isto deixa de ser argumento competitivo e vira o motivo principal de construir. Nenhum concorrente tem treino, alimentação, hábitos, tarefas, casa e finanças no mesmo banco. Cruzar carga e prontidão com cerveja, suplementos, sono e tarefas concluídas é a análise que só o seu app pode fazer. A Retrospectiva já cruza por período. A curva de forma daria a série diária para cruzar contra.</p>
+          </div>
+        </li>
+        <li>
+          <span class="id">P4</span>
+          <div>
+            <p class="t">Score de sono com linha de base sua, e o direito de corrigir</p>
+            <p>A divisão de 50, 30 e 20 pontos da Apple é replicável com início, fim e despertares. Mas a lição que vale mais é a outra: a Apple recalibrou as faixas dois meses depois do lançamento por serem generosas demais. Calibrar contra o seu próprio histórico, e deixar marcar uma noite como inválida, resolve de saída as duas queixas que a Whoop leva.</p>
+          </div>
+        </li>
+        <li>
+          <span class="id">P5</span>
+          <div>
+            <p class="t">Nomes próprios em português</p>
+            <p>Não chamar de Fitness &amp; Freshness, Body Battery ou Relative Effort. A razão legal caiu com o app pessoal. A razão de produto continua: você lê em português, e nome emprestado de outro app carrega a expectativa do número do outro app.</p>
+          </div>
+        </li>
+        <li>
+          <span class="id">P6</span>
+          <div>
+            <p class="t">Retirando a proposta da barreira de arquitetura</p>
+            <p>Eu havia proposto uma quarta regra no <code>architecture.test.ts</code>, proibindo dados de origem Strava em qualquer caminho de inteligência artificial. Com o app pessoal e sem publicação, aquilo é cerimônia sem ganho: um teste para fazer cumprir uma cláusula que não te obriga. Fica retirada. No lugar, uma conferência única da origem das atividades já gravadas.</p>
+          </div>
+        </li>
+        <li>
+          <span class="id">P7</span>
+          <div>
+            <p class="t">A Retrospectiva merece cuidado, não porque os outros cobram</p>
+            <p>O Year in Sport foi para o paywall em dezembro e o Rundown da Garmin nasceu pago. Isso deixa de ser vantagem competitiva e vira só a confirmação de que a peça tem valor. Vale mantê-la viva, com a regra que ela já tem de informar sem aconselhar.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="abertas">
+      <h2 class="sec">Perguntas abertas</h2>
+      <p class="sec-note">O que a pesquisa não respondeu, e o que resolveria cada uma.</p>
+      <ul>
+        <li><strong>API Policy de 2026.</strong> Confirmar por leitura humana o texto dos parágrafos 5.3 e 5.4, obtido por renderização automatizada, e descobrir se dados de origem Strava que chegam pelo intervals.icu contam como Strava Data.</li>
+        <li><strong>Voz de usuário final.</strong> O que justifica pagar o Strava e o que a análise faz mal, em fóruns e lojas nos últimos 12 meses. Resolve-se por outro caminho de acesso, ou por um prompt de pesquisa para uma ferramenta externa.</li>
+        <li><strong>Definições da Garmin</strong> para foco de carga, efeito do treino, score de resistência, score de subida e previsor de prova. Manuais estáticos ou a patente Firstbeat<a class="c" href="#src-12">12</a>.</li>
+        <li><strong>Método do FTP estimado</strong> e a fórmula literal de Fitness e Fatigue do intervals.icu.</li>
+        <li><strong>Status individual</strong> de heatmap global, Flyby, Flyover, esforço percebido e edição rápida no Strava, e o que o item de planos de treino entrega ao assinante.</li>
+        <li><strong>Preços da WHOOP em dólar por tier</strong>, e o que a Oura calcula em Resilience e entrega no Advisor.</li>
+        <li><strong>Definição de plataforma intermediária</strong> e a posição do intervals.icu e da Terra.</li>
+      </ul>
+    </section>
+
+    <section id="reconferir">
+      <h2 class="sec">Quando reconferir</h2>
+      <p class="sec-note">Calculado sobre as 32 claims do ledger, com as janelas do pacote competitivo: preço, recurso e termos valem 3 meses, trajetória 6, sentimento 12. Páginas sem data usam o dia do acesso como âncora.</p>
+
+      <ul class="timeline">
+        <li class="now">
+          <span class="when">Já vencidas</span> <span class="count">· 13 claims</span>
+          <p class="what">Termos e API Policy do Strava, preços do Connect+, TrainingPeaks, Strava Europa e WHOOP, Year in Sport, Sleep Score, sentimento sobre Fitness &amp; Freshness. Os termos são a prioridade: reconferir antes de decidir R6.</p>
+        </li>
+        <li>
+          <span class="when">1 out 2026</span> <span class="count">· 1 claim</span>
+          <p class="what">Contributors do Readiness da Oura, página atualizada em julho.</p>
+        </li>
+        <li>
+          <span class="when">1 nov 2026</span> <span class="count">· 2 claims</span>
+          <p class="what">Lançamentos do Strava de maio e preço do Athlytic.</p>
+        </li>
+        <li>
+          <span class="when">1 a 3 dez 2026</span> <span class="count">· 14 claims</span>
+          <p class="what">O grosso do dossiê: recursos e preços lidos em setembro completam a janela de 3 meses.</p>
+        </li>
+        <li>
+          <span class="when">1 jan a 3 mar 2027</span> <span class="count">· 2 claims</span>
+          <p class="what">Desdobramentos da compra da TrainingPeaks pela Garmin e o Health Radar da Oura.</p>
+        </li>
+      </ul>
+      <p>A Deep Recon reabre esta mesma pasta em modo Refresh para recolher as vencidas, ou em modo Deepen para atacar uma pergunta aberta específica.</p>
+    </section>
+
+    <section id="fontes">
+      <h2 class="sec">Fontes</h2>
+      <p class="sec-note">Cento e sete fontes, cada uma com o que sustenta, a data de publicação, a data de acesso e a confiança atribuída. Todo marcador no texto aponta para a linha correspondente.</p>
+      <details class="sources-wrap" id="apendice">
+        <summary>Abrir apêndice de fontes · 107 linhas</summary>
+        <div class="sources-scroll">
+<table class="sources"><thead><tr><th>Ref</th><th>Sustenta</th><th>Publisher</th><th>Publicação</th><th>Acesso</th><th>Confiança</th></tr></thead><tbody><tr id="src-1"><td>[1]</td><td>Connect+ preço e o que fecha; métricas seguem grátis</td><td><a href="https://www.garmin.com/en-US/newsroom/press-release/wearables-health/elevate-your-health-and-fitness-goals-with-garmin-connect/" target="_blank" rel="noopener">Garmin newsroom</a></td><td>2025-03-27</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-2"><td>[2]</td><td>Composição do Training Readiness</td><td><a href="https://www8.garmin.com/manuals/webhelp/GUID-0221611A-992D-495E-8DED-1DD448F7A066/EN-US/GUID-C21BE0C8-A08E-4DA1-B6C6-2E0E2DDDB372.html" target="_blank" rel="noopener">Garmin, manual Forerunner 965</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-3"><td>[3]</td><td>HRV Status vs baseline</td><td><a href="https://www.garmin.com/en-US/blog/fitness/new-features-on-garmin-smartwatches-help-to-maximize-your-training/" target="_blank" rel="noopener">Garmin blog</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-4"><td>[4]</td><td>Training Status descrição qualitativa</td><td><a href="https://www.garmin.com/en-US/garmin-technology/running-science/physiological-measurements/training-readiness/" target="_blank" rel="noopener">Garmin Technology</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-5"><td>[5]</td><td>Firmware fev/2026 sem métrica nova</td><td><a href="https://www8.garmin.com/wearables/PDF/WearablesSoftwareUpdate/2026/February2026.pdf" target="_blank" rel="noopener">Garmin, PDF de atualização</a></td><td>2026-02</td><td>2026-09-03</td><td>média</td></tr><tr id="src-6"><td>[6]</td><td>Firmware jun/2026</td><td><a href="https://www8.garmin.com/wearables/PDF/WearablesSoftwareUpdate/2026/June2026.pdf" target="_blank" rel="noopener">Garmin, PDF de atualização</a></td><td>2026-06</td><td>2026-09-03</td><td>média</td></tr><tr id="src-7"><td>[7]</td><td>Atualização Q3 2026</td><td><a href="https://gadgetsandwearables.com/2026/09/01/garmin-q3-2026-feature-update/" target="_blank" rel="noopener">Gadgets &amp; Wearables</a></td><td>2026-09-01</td><td>2026-09-03</td><td>média</td></tr><tr id="src-8"><td>[8]</td><td>Recepção morna do Connect+</td><td><a href="https://www.androidauthority.com/garmin-connect-plus-features-3542436/" target="_blank" rel="noopener">Android Authority</a></td><td>sem data (2025)</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-9"><td>[9]</td><td>Connect+ US$ 6,99 confirmado em 2026</td><td><a href="https://www.shoulditrain.com/blog/garmin-connect-plus-review" target="_blank" rel="noopener">Should I Train</a></td><td>2026-03-02</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-10"><td>[10]</td><td>Perímetro do Connect+ cresceu; &quot;not worth it&quot;</td><td><a href="https://the5krunner.com/2026/04/20/garmin-connect-plus-review/" target="_blank" rel="noopener">the5krunner</a></td><td>2026-04-20</td><td>2026-09-03</td><td>média</td></tr><tr id="src-11"><td>[11]</td><td>Active Intelligence e Performance Dashboard</td><td><a href="https://www.garmin.com/en-US/blog/fitness/what-is-the-garmin-connect-performance-dashboard/" target="_blank" rel="noopener">Garmin blog</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-12"><td>[12]</td><td>Tendência de carga na patente Firstbeat</td><td><a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/10580532" target="_blank" rel="noopener">USPTO, US 10.580.532</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-13"><td>[13]</td><td>Garmin compra TrainingPeaks; sem plano de métricas/preço</td><td><a href="https://www.dcrainmaker.com/2026/07/garmin-acquires-training-trainheroic.html" target="_blank" rel="noopener">DC Rainmaker</a></td><td>2026-07-22</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-14"><td>[14]</td><td>Release oficial da aquisição</td><td><a href="https://www.prnewswire.com/news-releases/garmin-acquires-trainingpeaks-and-trainheroic-leading-endurance-and-strength-training-platforms-for-athletes-and-coaches-302832078.html" target="_blank" rel="noopener">PR Newswire (Garmin)</a></td><td>2026-07-22</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-15"><td>[15]</td><td>intervals.icu free vs Supporter</td><td><a href="https://www.intervals.icu/pricing/" target="_blank" rel="noopener">Intervals.icu pricing</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-16"><td>[16]</td><td>Expressões matemáticas e comparação de curvas</td><td><a href="https://forum.intervals.icu/t/intervals-icu-news-2026-04-29/128374" target="_blank" rel="noopener">Intervals.icu Forum</a></td><td>2026-04-29</td><td>2026-09-03</td><td>média</td></tr><tr id="src-17"><td>[17]</td><td>Dark mode</td><td><a href="https://forum.intervals.icu/t/intervals-icu-news-2026-06-03/130271" target="_blank" rel="noopener">Intervals.icu Forum</a></td><td>2026-06-03</td><td>2026-09-03</td><td>média</td></tr><tr id="src-18"><td>[18]</td><td>Push notifications</td><td><a href="https://forum.intervals.icu/t/intervals-icu-news-2026-08-11/130965" target="_blank" rel="noopener">Intervals.icu Forum</a></td><td>2026-08-11</td><td>2026-09-03</td><td>média</td></tr><tr id="src-19"><td>[19]</td><td>Suporte Huawei</td><td><a href="https://forum.intervals.icu/t/intervals-icu-news-2026-03-08/123942" target="_blank" rel="noopener">Intervals.icu Forum</a></td><td>2026-03-08</td><td>2026-09-03</td><td>média</td></tr><tr id="src-20"><td>[20]</td><td>Receita de Fitness/Fatigue/Form</td><td><a href="https://forum.intervals.icu/t/fitness-fatigue-and-form/1259" target="_blank" rel="noopener">Intervals.icu Forum, post do autor</a></td><td>2020-06-30</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-21"><td>[21]</td><td>intervals.icu vs TrainingPeaks 2026</td><td><a href="https://appsforstrava.com/blog/intervals-icu-vs-trainingpeaks/" target="_blank" rel="noopener">Apps for Strava</a></td><td>2026-06</td><td>2026-09-03</td><td>média</td></tr><tr id="src-22"><td>[22]</td><td>Tração da intervals.icu; quem vence para quem</td><td><a href="https://coachbox.app/en/compare/intervals-icu-vs-trainingpeaks/" target="_blank" rel="noopener">Coachbox</a></td><td>2026</td><td>2026-09-03</td><td>média</td></tr><tr id="src-23"><td>[23]</td><td>Sentimento intervals.icu, TP, Runalyze</td><td><a href="https://www.letsrun.com/forum/flat_read.php?thread=12445016" target="_blank" rel="noopener">LetsRun fórum</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-24"><td>[24]</td><td>TP Premium preço e promessas</td><td><a href="https://www.trainingpeaks.com/pricing/for-athletes/" target="_blank" rel="noopener">TrainingPeaks pricing</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-25"><td>[25]</td><td>Blog TP com preço antigo</td><td><a href="https://www.trainingpeaks.com/blog/trainingpeaks-pricing/" target="_blank" rel="noopener">TrainingPeaks blog</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-26"><td>[26]</td><td>Reajuste anual de 2025-04-02</td><td><a href="https://help.trainingpeaks.com/hc/en-us/articles/12916774026765-TrainingPeaks-Annual-Premium-Subscription-Pricing-Update" target="_blank" rel="noopener">TrainingPeaks Help Center</a></td><td>2025-02</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-27"><td>[27]</td><td>TP Virtual release notes</td><td><a href="https://help.trainingpeaks.com/hc/en-us/articles/34924247758477-TrainingPeaks-Virtual-Release-Notes" target="_blank" rel="noopener">TrainingPeaks Help Center</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-28"><td>[28]</td><td>Aquisição Garmin×TP (primeira fonte)</td><td><a href="https://the5krunner.com/2026/07/22/garmin-acquires-trainingpeaks-what-changes/" target="_blank" rel="noopener">the5krunner</a></td><td>2026-07-22</td><td>2026-09-03</td><td>média</td></tr><tr id="src-29"><td>[29]</td><td>Tiers Runalyze (página 403)</td><td><a href="https://runalyze.com/pricing" target="_blank" rel="noopener">Runalyze pricing</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-30"><td>[30]</td><td>O que o Premium da Runalyze acrescenta</td><td><a href="https://blog.runalyze.com/allgemein-en/runalyze-early-premium/" target="_blank" rel="noopener">Runalyze blog</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-31"><td>[31]</td><td>Redesign 2026-05-05</td><td><a href="https://blog.runalyze.com/releases/the-new-runalyze-design-is-now-live/" target="_blank" rel="noopener">Runalyze blog</a></td><td>2026-05-05</td><td>2026-09-03</td><td>média</td></tr><tr id="src-32"><td>[32]</td><td>Changelog ago/2026 (TRIMP, streaks)</td><td><a href="https://runalyze.com/changelog?_locale=en" target="_blank" rel="noopener">Runalyze changelog</a></td><td>2026-08-26</td><td>2026-09-03</td><td>média</td></tr><tr id="src-33"><td>[33]</td><td>Recurring Routes e climbs</td><td><a href="https://blog.runalyze.com/allgemein-en/new-feature-recurring-routes/" target="_blank" rel="noopener">Runalyze blog</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-34"><td>[34]</td><td>MCP Server da Runalyze e métricas expostas</td><td><a href="https://the5krunner.com/2026/06/22/runalyze-mcp-server/" target="_blank" rel="noopener">the5krunner</a></td><td>2026-06-22</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-35"><td>[35]</td><td>Effective VO2max</td><td><a href="https://runalyze.com/help/article/vo2max" target="_blank" rel="noopener">Runalyze help</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-36"><td>[36]</td><td>Marathon Shape</td><td><a href="https://runalyze.com/glossary/marathon-shape" target="_blank" rel="noopener">Runalyze glossário</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-37"><td>[37]</td><td>Premium €5,50 (conflita com €6)</td><td><a href="https://www.runifyapp.com/blog/trainingpeaks-vs-runalyze-2026" target="_blank" rel="noopener">Runify blog</a></td><td>2026</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-38"><td>[38]</td><td>Lista de recursos exclusivos de assinante</td><td><a href="https://support.strava.com/hc/en-us/articles/216917657-Strava-Subscription-Features" target="_blank" rel="noopener">Strava Help Center</a></td><td>sem data (atualizada 2026-09-03)</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-39"><td>[39]</td><td>O que fica no plano gratuito</td><td><a href="https://www.strava.com/subscribe" target="_blank" rel="noopener">Strava, /subscribe</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-40"><td>[40]</td><td>Athlete Intelligence: escopo e limites</td><td><a href="https://support.strava.com/en-us/articles/15401629-athlete-intelligence-on-strava" target="_blank" rel="noopener">Strava Help Center</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-41"><td>[41]</td><td>Year in Sport só para assinantes</td><td><a href="https://road.cc/content/news/strava-year-sport-now-only-subscribers-317425" target="_blank" rel="noopener">road.cc</a></td><td>2025-12</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-42"><td>[42]</td><td>Reação ao paywall do Year in Sport</td><td><a href="https://news.slashdot.org/story/25/12/19/2158235/strava-puts-popular-year-in-sport-recap-behind-an-80-paywall" target="_blank" rel="noopener">Slashdot (Ars Technica)</a></td><td>2025-12-19</td><td>2026-09-03</td><td>média</td></tr><tr id="src-43"><td>[43]</td><td>Preços EUR e harmonização 2025-07-01</td><td><a href="https://www.strava.com/pricing" target="_blank" rel="noopener">Strava, /pricing</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-44"><td>[44]</td><td>Sem reajuste documentado; aviso 30 dias</td><td><a href="https://support.strava.com/en-us/articles/15401674-subscription-pricing-faq" target="_blank" rel="noopener">Strava Help Center, Pricing FAQ</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-45"><td>[45]</td><td>Índice de anúncios mar–set/2026</td><td><a href="https://press.strava.com/" target="_blank" rel="noopener">Strava Press</a></td><td>2026</td><td>2026-09-03</td><td>média</td></tr><tr id="src-46"><td>[46]</td><td>What&#x27;s New maio/2026: força, Adaptive Workouts</td><td><a href="https://stories.strava.com/articles/whats-new-on-strava-may-2026" target="_blank" rel="noopener">Strava Stories</a></td><td>2026-05-28</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-47"><td>[47]</td><td>Pacote de hiking</td><td><a href="https://press.strava.com/articles/strava-adds-new-features-for-hiking-making-the-outdoor-experience-more-discoverable-navigable-and-social" target="_blank" rel="noopener">Strava Press</a></td><td>2026-06-11</td><td>2026-09-03</td><td>média</td></tr><tr id="src-48"><td>[48]</td><td>What&#x27;s New março/2026: muscle maps</td><td><a href="https://stories.strava.com/articles/whats-new-on-strava-muscle-maps-new-sports-and-expanded-training-tools" target="_blank" rel="noopener">Strava Stories</a></td><td>2026-03</td><td>2026-09-03</td><td>média</td></tr><tr id="src-49"><td>[49]</td><td>Instant Workouts global</td><td><a href="https://press.strava.com/articles/strava-launches-new-instant-workouts-feature-worldwide-to-provide" target="_blank" rel="noopener">Strava Press</a></td><td>2026-01</td><td>2026-09-03</td><td>média</td></tr><tr id="src-50"><td>[50]</td><td>MCP Connector: dados, elegibilidade, motivação</td><td><a href="https://press.strava.com/articles/strava-launches-mcp-connector" target="_blank" rel="noopener">Strava Press</a></td><td>2026-06-01</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-51"><td>[51]</td><td>MCP Connector confirmado; &quot;still not a coach&quot;</td><td><a href="https://nua.coach/en/learn/strava-mcp-claude" target="_blank" rel="noopener">NUA Coach</a></td><td>2026-06-10</td><td>2026-09-03</td><td>média</td></tr><tr id="src-52"><td>[52]</td><td>Free vs paid confirmado; top 10; Local Legends</td><td><a href="https://biketips.com/strava-free-vs-paid/" target="_blank" rel="noopener">BikeTips</a></td><td>2026-05-06</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-53"><td>[53]</td><td>Athlete Intelligence descritivo; Runna separado</td><td><a href="https://therunninggenie.com/blog/strava-athlete-intelligence-vs-ai-coaches" target="_blank" rel="noopener">The Running Genie</a></td><td>2026-05-09</td><td>2026-09-03</td><td>média</td></tr><tr id="src-54"><td>[54]</td><td>Preço USD</td><td><a href="https://communityhub.strava.com/t5/campfire-chat/subscription-fee-increase/m-p/25821" target="_blank" rel="noopener">Strava Community Hub</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-55"><td>[55]</td><td>&quot;Strava follows Garmin&quot;</td><td><a href="https://gadgetsandwearables.com/2025/12/20/strava-year-in-sport/" target="_blank" rel="noopener">Gadgets &amp; Wearables</a></td><td>2025-12-20</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-56"><td>[56]</td><td>Performance Predictions, Group Challenges pagos</td><td><a href="https://www.wareable.com/sport/is-strava-premium-worth-it" target="_blank" rel="noopener">Wareable</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-57"><td>[57]</td><td>Tiers WHOOP (página 403, via snippet)</td><td><a href="https://www.whoop.com/us/en/membership/" target="_blank" rel="noopener">WHOOP membership</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-58"><td>[58]</td><td>Insumos do WHOOP Recovery</td><td><a href="https://www.whoop.com/us/en/thelocker/how-does-whoop-recovery-work-101/" target="_blank" rel="noopener">WHOOP, The Locker</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-59"><td>[59]</td><td>WHOOP Strain 0–21</td><td><a href="https://www.whoop.com/us/en/thelocker/how-does-whoop-strain-work-101/" target="_blank" rel="noopener">WHOOP, The Locker</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-60"><td>[60]</td><td>Stress Monitor exige HRV contínua</td><td><a href="https://support.whoop.com/s/article/Get-to-Know-the-Stress-Monitor?language=en_US" target="_blank" rel="noopener">WHOOP Support</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-61"><td>[61]</td><td>WHOOP 5.0: tiers em GBP, calibração, Coach, críticas</td><td><a href="https://road.cc/content/review/whoop-50-315523" target="_blank" rel="noopener">road.cc</a></td><td>2025-09-01</td><td>2026-09-03</td><td>média</td></tr><tr id="src-62"><td>[62]</td><td>Lançamento WHOOP 5.0 e MG</td><td><a href="https://www.businesswire.com/news/home/20250508546933/en/WHOOP-Unveils-WHOOP-5.0-and-WHOOP-MG-Powerful-New-Devices-with-Breakthrough-Health-and-Longevity-Features" target="_blank" rel="noopener">BusinessWire (release WHOOP)</a></td><td>2025-05-08</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-63"><td>[63]</td><td>Backlash da taxa de upgrade</td><td><a href="https://www.dcrainmaker.com/2025/05/whoop-5-mg-backlash.html" target="_blank" rel="noopener">DC Rainmaker</a></td><td>2025-05-25</td><td>2026-09-03</td><td>média</td></tr><tr id="src-64"><td>[64]</td><td>Pressão arterial sem certificação</td><td><a href="https://www.dcrainmaker.com/2025/12/backlog-product-reviews.html" target="_blank" rel="noopener">DC Rainmaker</a></td><td>2025-12</td><td>2026-09-03</td><td>média</td></tr><tr id="src-65"><td>[65]</td><td>&quot;Difficult to recommend&quot; no tier Life</td><td><a href="https://www.tomsguide.com/wellness/fitness-trackers/whoop-5-0-review-should-you-give-a-whoop-about-this-new-tracker" target="_blank" rel="noopener">Tom&#x27;s Guide</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-66"><td>[66]</td><td>Oura Membership preço</td><td><a href="https://support.ouraring.com/hc/en-us/articles/4409086524819-Oura-Membership" target="_blank" rel="noopener">Oura Member Care</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-67"><td>[67]</td><td>Nove contributors do Readiness e suas janelas</td><td><a href="https://support.ouraring.com/hc/en-us/articles/360057791533-Readiness-Contributors" target="_blank" rel="noopener">Oura Member Care</a></td><td>2026-07-14</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-68"><td>[68]</td><td>Symptom Radar</td><td><a href="https://support.ouraring.com/hc/en-us/articles/35593651188115-Symptom-Radar" target="_blank" rel="noopener">Oura Member Care</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-69"><td>[69]</td><td>Cardiovascular Age</td><td><a href="https://ouraring.com/blog/heart-health-at-oura/" target="_blank" rel="noopener">Oura, The Pulse Blog</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-70"><td>[70]</td><td>Health Radar: Blood Pressure Signals, Nighttime Breathing</td><td><a href="https://ouraring.com/blog/introducing-health-radar/" target="_blank" rel="noopener">Oura, The Pulse Blog</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-71"><td>[71]</td><td>Health Radar em produção</td><td><a href="https://support.ouraring.com/hc/en-us/articles/52627030482707-Health-Radar" target="_blank" rel="noopener">Oura Member Care</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-72"><td>[72]</td><td>O que resta sem membership</td><td><a href="https://www.bettervitals.com/learn/oura-ring-subscription-worth-it-2026" target="_blank" rel="noopener">bettervitals.com</a></td><td>2026</td><td>2026-09-03</td><td>média</td></tr><tr id="src-73"><td>[73]</td><td>Preço Oura confirmado</td><td><a href="https://unanswered.io/guide/oura-ring-pricing-and-monthly-fee" target="_blank" rel="noopener">unanswered.io</a></td><td>2026</td><td>2026-09-03</td><td>média</td></tr><tr id="src-74"><td>[74]</td><td>Oura Ring 5 anunciado (corpo 403)</td><td><a href="https://www.mobihealthnews.com/news/oura-unveils-ai-enabled-oura-ring-5-predictive-health-features" target="_blank" rel="noopener">MobiHealthNews</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-75"><td>[75]</td><td>Athlytic: métricas e preço</td><td><a href="https://www.athlyticapp.com/" target="_blank" rel="noopener">Athlytic, site oficial</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-76"><td>[76]</td><td>Athlytic na App Store: versão 26.5.6, métricas, preço</td><td><a href="https://apps.apple.com/us/app/athlytic-ai-fitness-coach/id1543571755" target="_blank" rel="noopener">Apple App Store (ficha MyndArc)</a></td><td>2026-08</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-77"><td>[77]</td><td>Recovery pesa demais o cardio</td><td><a href="https://ibikerun.substack.com/p/athlytic-app-review-iosapple-watch" target="_blank" rel="noopener">ibikerun (Substack)</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-78"><td>[78]</td><td>Sleep Score 50/30/20</td><td><a href="https://support.apple.com/guide/watch/view-your-sleep-score-apded441a669/watchos" target="_blank" rel="noopener">Apple Support</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-79"><td>[79]</td><td>Training Load 7 d vs 28 d</td><td><a href="https://support.apple.com/guide/watch/track-your-training-load-apde4c07a6cf/watchos" target="_blank" rel="noopener">Apple Support</a></td><td>sem data</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-80"><td>[80]</td><td>Vitals: faixa típica por métrica</td><td><a href="https://support.apple.com/guide/watch/vitals-apd15aa7ed96/watchos" target="_blank" rel="noopener">Apple Support</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-81"><td>[81]</td><td>Sleep Score no watchOS 26; composição confirmada</td><td><a href="https://appleinsider.com/articles/25/09/12/how-sleep-score-works-on-apple-watch-with-watchos-26" target="_blank" rel="noopener">AppleInsider</a></td><td>2025-09-12</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-82"><td>[82]</td><td>Recalibração das faixas na 26.2</td><td><a href="https://9to5mac.com/2025/11/04/watchos-26-2-sleep-score-changes-apple-watch/" target="_blank" rel="noopener">9to5Mac</a></td><td>2025-11-04</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-83"><td>[83]</td><td>Training Load: esforço automático, 10 dias de baseline</td><td><a href="https://www.t3.com/tech/smartwatches/apple-watch-training-load" target="_blank" rel="noopener">T3</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-84"><td>[84]</td><td>Quantified Scientist (resumo secundário)</td><td><a href="https://newzapiens.com/magazine/oura-vs-whoop-vs-apple-watch-the-quantified-scientist-on-what-the-accuracy-data-shows" target="_blank" rel="noopener">New Zapiens</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-85"><td>[85]</td><td>API Agreement vigente: cláusulas-destaque, sem isenção pessoal</td><td><a href="https://www.strava.com/legal/api" target="_blank" rel="noopener">Strava, legal</a></td><td>2026-06-01</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-86"><td>[86]</td><td>Nota de nov/2024: três mudanças; &quot;tools that help users understand their data&quot;</td><td><a href="https://press.strava.com/articles/updates-to-stravas-api-agreement" target="_blank" rel="noopener">Strava Press</a></td><td>2024-11-15</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-87"><td>[87]</td><td>Cláusulas de IA e look and feel de 2024; contradição com analytics</td><td><a href="https://www.dcrainmaker.com/2024/11/stravas-changes-to-kill-off-apps.html" target="_blank" rel="noopener">DC Rainmaker</a></td><td>2024-11-19</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-88"><td>[88]</td><td>&quot;Restricted Processing&quot; (snippet)</td><td><a href="https://support.strava.com/hc/en-us/articles/31798729397773-API-Agreement-Update-How-Data-Appears-on-3rd-Party-Apps" target="_blank" rel="noopener">Strava Help Center</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-89"><td>[89]</td><td>Developer Program 2026: tiers, assinatura, prazos, intermediários, MCP</td><td><a href="https://communityhub.strava.com/insider-journal-9/an-update-to-our-developer-program-13428" target="_blank" rel="noopener">Strava Community Hub, Insider Journal</a></td><td>2026-06-01</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-90"><td>[90]</td><td>Confirmação independente do programa de 2026</td><td><a href="https://github.com/r-huijts/strava-mcp/issues/53" target="_blank" rel="noopener">GitHub, r-huijts/strava-mcp issue #53</a></td><td>2026-06-01</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-91"><td>[91]</td><td>Reações de terceiros; intermediário indefinido</td><td><a href="https://forum.intervals.icu/t/strava-api-update-new-terms-subs-required-for-api-access/130240" target="_blank" rel="noopener">Intervals.icu Forum</a></td><td>2026-06-01 a 06-04</td><td>2026-09-03</td><td>média</td></tr><tr id="src-92"><td>[92]</td><td>MCP oficial só assinantes, read-only; leitura da Tredict</td><td><a href="https://www.tredict.com/blog/strava_mcp_server/" target="_blank" rel="noopener">Tredict blog</a></td><td>2026-06-05</td><td>2026-09-03</td><td>média</td></tr><tr id="src-93"><td>[93]</td><td>Assinatura exigida; wearables não afetados (snippet)</td><td><a href="https://www.notebookcheck.net/Strava-just-pulled-a-Reddit-on-its-developer-community.1312468.0.html" target="_blank" rel="noopener">Notebookcheck</a></td><td>2026-06</td><td>2026-09-03</td><td>média</td></tr><tr id="src-94"><td>[94]</td><td>448% de apps; enquadramento IPO (snippet)</td><td><a href="https://appsforstrava.com/blog/strava-developer-program-changes-2026" target="_blank" rel="noopener">Apps for Strava</a></td><td>2026-06</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-95"><td>[95]</td><td>&quot;Strava Tightens Its API Ahead of an IPO&quot;</td><td><a href="https://forum.slowtwitch.com/t/strava-tightens-its-api-ahead-of-an-ipo/1298514" target="_blank" rel="noopener">Slowtwitch fórum</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-96"><td>[96]</td><td>Fitness &amp; Freshness diverge do intervals.icu</td><td><a href="https://forum.intervals.icu/t/intervals-v-strava/88823" target="_blank" rel="noopener">Intervals.icu Forum</a></td><td>2025-01-30</td><td>2026-09-03</td><td>alta</td></tr><tr id="src-97"><td>[97]</td><td>Discrepâncias de Fitness/Form entre plataformas</td><td><a href="https://support.athletica.ai/hc/en-us/articles/32994375773339-Understanding-Fitness-Form-and-Fatigue-Discrepancies-Between-Athletica-Intervals-icu-and-Strava" target="_blank" rel="noopener">Athletica support</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-98"><td>[98]</td><td>Athlete Intelligence &quot;more like a meme&quot;</td><td><a href="https://fortune.com/2024/10/11/strava-app-artificial-intelligence-fitness-athletic-memes" target="_blank" rel="noopener">Fortune</a></td><td>2024-10-11</td><td>2026-09-03</td><td>média</td></tr><tr id="src-99"><td>[99]</td><td>&quot;Getting expensive&quot;</td><td><a href="https://www.techradar.com/health-fitness/strava-is-still-the-best-training-app-for-runners-and-cyclists-but-its-getting-expensive" target="_blank" rel="noopener">TechRadar</a></td><td>sem data</td><td>2026-09-03</td><td>média</td></tr><tr id="src-100"><td>[100]</td><td>Ideia: F&amp;F com janela longa customizável</td><td><a href="https://communityhub.strava.com/t5/ideas/better-fitness-and-freshness-chart-for-long-term-analysis/idi-p/406" target="_blank" rel="noopener">Strava Community Hub, Ideas</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-101"><td>[101]</td><td>F&amp;F não existe na API</td><td><a href="https://communityhub.strava.com/developers-api-7/is-there-any-way-to-get-fitness-freshness-1625" target="_blank" rel="noopener">Strava Community Hub, devs</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-102"><td>[102]</td><td>Pedidos de capacidade negados (fórum de devs, 2026-09-03)</td><td><a href="https://communityhub.strava.com/developers-api-7" target="_blank" rel="noopener">Strava Community Hub, fórum de devs</a></td><td>2026-09-03</td><td>2026-09-03</td><td>média</td></tr><tr id="src-103"><td>[103]</td><td>&quot;Strava API forbids data forwarding&quot;</td><td><a href="https://forum.intervals.icu/t/solved-mcp-server-for-coaches-via-api-do-not-see-athletes-activities-brought-from-strava-ans-strava-api-forbids-data-fowarding/113828" target="_blank" rel="noopener">Intervals.icu Forum</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-104"><td>[104]</td><td>intervals.icu batendo rate limits do Strava</td><td><a href="https://www.trainerroad.com/forum/t/intervals-icu-hitting-strava-rate-limits-big-consequences-for-tr-users/81273" target="_blank" rel="noopener">TrainerRoad Forum</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr><tr id="src-105"><td>[105]</td><td>Reversão do bloqueio de links externos</td><td><a href="https://tomsguide.com/wellness/fitness/good-news-for-strava-users-the-app-just-reversed-a-hugely-unpopular-decision" target="_blank" rel="noopener">Tom&#x27;s Guide</a></td><td>sem data (2025)</td><td>2026-09-03</td><td>média</td></tr><tr id="src-106"><td>[106]</td><td>API Policy 2026-06-01: §5.3 IA e RAG, §5.4 analytics, uso competitivo</td><td><a href="https://www.strava.com/legal/api_policy" target="_blank" rel="noopener">Strava, legal, API Policy</a></td><td>2026-06-01</td><td>2026-09-03</td><td>média (renderização JS, duas leituras)</td></tr><tr id="src-107"><td>[107]</td><td>Ideia: F&amp;F cruzado com sono e peso</td><td><a href="https://communityhub.strava.com/t5/ideas/fitness-and-freshness-to-factor-sleep-and-weight/idi-p/408" target="_blank" rel="noopener">Strava Community Hub, Ideas</a></td><td>sem data</td><td>2026-09-03</td><td>baixa</td></tr></tbody></table>
+        </div>
+      </details>
+    </section>
+
+    <footer>
+      <p>Gerado a partir de <code>research.md</code> na pasta do run, em 3 de setembro de 2026. O relatório em markdown é a fonte de verdade: mesmos números, mesmas citações, mesmas confianças. Também estão lá o memlog com o histórico da investigação, os oito digests de pesquisa e o digest da checagem de citações.</p>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  (function () {
+    var det = document.getElementById('apendice');
+    if (!det) return;
+    function reveal(hash) {
+      if (!hash || hash.indexOf('#src-') !== 0) return;
+      det.open = true;
+      var row = document.getElementById(hash.slice(1));
+      if (row) {
+        window.requestAnimationFrame(function () {
+          row.scrollIntoView({ block: 'center', behavior: 'auto' });
+        });
+      }
+    }
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var a = t.closest('a[href^="#src-"]');
+      if (a) det.open = true;
+    }, true);
+    window.addEventListener('hashchange', function () { reveal(location.hash); });
+    reveal(location.hash);
+  })();
+</script>

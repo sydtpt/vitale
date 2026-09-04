@@ -45,3 +45,9 @@ coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Canvas do Claude Design: os .dc.html e os scripts ao lado são a fonte; o
+# .html montado pelo editor é saída (2,6 MB no caso da curva de forma) e se
+# refaz a partir deles.
+_bmad-output/design/**/*.html
+!_bmad-output/design/**/*.dc.html
