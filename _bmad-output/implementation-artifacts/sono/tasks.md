@@ -6,8 +6,10 @@
 >
 > **Fases 0–4 entregues em 04/09/2026** — núcleo no shared, `sleep_periods` + `CHECK` em
 > produção, sync com backfill v7 verificado contra snapshot, e a tela `/sono` conferida no
-> iPhone, e a **Fase 5 (web)** conferida no navegador. **Aberto:** T0.2 (Foco de Sono —
-> responde 05/09) e Fase 6 (CAP-7, adiada por pedido do usuário — avisá-lo). Origem: party mode de 04/09/2026 + pesquisa
+> iPhone, e a **Fase 5 (web)** conferida no navegador. **Fase 6 (CAP-7) em andamento desde
+> 05/09** — o usuário a levantou; Tempos + Despertares **conferidos no iPhone**; falta a web
+> (T7.4) e Estágios (T7.2), que depende de `stage_segments`. **Aberto também:** T0.2
+> (Foco de Sono — responde 05/09). Origem: party mode de 04/09/2026 + pesquisa
 > competitiva do mesmo dia. Os mockups aprovados pelo usuário estão no artifact
 > `claude.ai/code/artifact/b9afbb6a-9c59-40d5-a9f2-85ceded2ed90`.
 
@@ -220,12 +222,14 @@
   `app/sono/tempos.tsx`, `app/sono/despertares.tsx`, cards ② e ③ do `/sono` viraram links,
   marcador da troca de relógio em `config/sono-markers.ts` (dado do usuário, não lógica).
   Store carrega o histórico inteiro. Validação: shared 569 asserts · mobile tsc 0 · jest 621 ·
-  web build 0. **Conferência no aparelho pendente.**
+  web build 0. **Conferida no iPhone em 05/09/2026 (~01:45): "está ótimo".**
 - [ ] T7.2 — **Opção 2 — Estágios.** Pré-requisito: gravar intervalos de estágio
   (data-model §7): coluna `stage_segments`, agregador emitindo o que já fatia, `AGG_VERSION`,
   backfill. Depois a barra por estágio na posição real.
-- [ ] T7.3 — Reconciliar a spec: a decisão 2 da mesa ("timing chart sem seletor") passa a
-  valer só para a peça ② como nasceu — ou cai, se a seção a absorver.
+- [x] T7.3 — Spec reconciliada em 05/09: a peça ② fica sem seletor na visão geral; o seletor
+  mora nas subviews. Nem absorção nem duplicação.
+- [ ] T7.4 — **Web:** `/sono/tempos` e `/sono/despertares` em Angular, pelo mesmo núcleo —
+  mesma composição do mobile (coluna única), como a Fase 5.
 
 ## Fechamento
 
