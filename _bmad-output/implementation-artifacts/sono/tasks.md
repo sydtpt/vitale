@@ -182,6 +182,27 @@
 - [ ] T5.2 — Portar as quatro peças consumindo **o mesmo núcleo**. Nenhum cálculo de sono
   nasce em `web/`.
 
+## Fase 6 — Seção "Tempos e estágios" (CAP-7) — **adiada por pedido do usuário**
+
+> Pedida em 04/09/2026 às 23:30, com a instrução explícita: *"não precisa ser feito agora,
+> mas incluir a feature e faremos quando for a melhor momento. Me avisar."* Referência
+> visual: a tela de Sono do app Saúde da Apple (M · Amounts). **Quem pegar o repo depois
+> de 05/09 e vir a Fase 4 conferida no aparelho: é hora de levantar esta.**
+
+- [ ] T7.0 — Decidir, com dados reais e mockup antes de código: (a) a seção **absorve** a
+  peça ② (14 noites fixas) ou convive com ela? (b) a forma dos períodos longos — *12 meses*,
+  *ano*, *sempre* — que não cabem como barra por noite (midpoint com dispersão? semanas?
+  heatmap?); (c) o rótulo da média "tempo na cama" quando a fonte não mede a hora de deitar.
+- [ ] T7.1 — **Opção 1 — Tempos.** Roda com o dado de hoje. Médias no topo (na cama ·
+  dormindo) para o período; barra = janela na cama, **sem muito destaque**; despertares
+  **em destaque**, com hora e duração. Seletor última noite · 7d · 4s · 12m · ano · sempre
+  reusando o componente de período do Histórico; em última noite/7d/4s, todos os dias.
+- [ ] T7.2 — **Opção 2 — Estágios.** Pré-requisito: gravar intervalos de estágio
+  (data-model §7): coluna `stage_segments`, agregador emitindo o que já fatia, `AGG_VERSION`,
+  backfill. Depois a barra por estágio na posição real.
+- [ ] T7.3 — Reconciliar a spec: a decisão 2 da mesa ("timing chart sem seletor") passa a
+  valer só para a peça ② como nasceu — ou cai, se a seção a absorver.
+
 ## Fechamento
 
 - [x] T6.1 — Link dos specs no `CLAUDE.md`.

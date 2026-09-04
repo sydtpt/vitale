@@ -120,6 +120,37 @@ dano, não é o que falta ao Orbe.**
     deixa de ser alcançável. O id `'sono'` **permanece** em `metric-catalog.ts` — a prontidão
     (`health-readiness.ts`) e a retrospectiva leem `seriesFor('sono')` e não podem quebrar.
 
+- **CAP-7** — Seção "Tempos e estágios" com seletor de período *(pedida em 04/09/2026 —
+  **não construir agora**; entra quando for o melhor momento, e o usuário pediu para ser
+  **avisado**)*
+  - **intent:** Dentro de `/sono`, uma seção no molde da tela de Sono do app Saúde da Apple
+    (aba *Amounts*): **médias no topo** — tempo na cama · tempo dormindo — para o período
+    escolhido, e abaixo o gráfico de barras por noite na hora do dia, em **duas leituras
+    alternáveis**.
+  - **Opção 1 — Tempos:** a barra é a **janela na cama** (hora que deitou → hora que saiu da
+    cama), **sem muito destaque**; os **despertares no meio da noite** marcados **com
+    destaque** — o usuário quer saber *quando* tem acordado e *por quanto tempo*.
+  - **Opção 2 — Estágios:** cada barra mostra os **períodos de cada estágio**, nas horas em
+    que ocorreram — posição real, não proporção.
+  - **Seletor:** última noite · 7d · 4s · 12 meses · ano · sempre. Em *última noite*, *7d* e
+    *4s* **todos os dias aparecem**. Para *12 meses*, *ano* e *sempre* a forma está **em
+    aberto** — decidir com dados reais antes de codar (regra da casa: proposta antes de
+    mudança visual).
+  - **success:** trocar o período recalcula as médias e redesenha o gráfico; trocar a opção
+    mantém o período; as duas opções distinguem "não sei" de "não houve" (§6).
+  - **dependência dura (Opção 2):** intervalos de estágio **não são gravados** — só horas por
+    estágio. Exige coluna nova em `sleep_periods`, o agregador emitindo os intervalos, bump de
+    `AGG_VERSION` e backfill. Ver data-model §7. **A Opção 1 roda com o dado de hoje.**
+  - **o que ela revê da mesa de 04/09:** a decisão 2 ("janela ≠ seletor — o timing chart não
+    tem seletor") vale para a peça ② como nasceu; esta seção **tem** seletor por pedido
+    explícito. Provavelmente ela **absorve** a peça ② (14 noites fixas é o *7d/4s* dela) —
+    decidir quando construir, não agora.
+  - **detalhe a decidir:** a média "tempo na cama" só é honesta quando `bedtimeMeasured`; no
+    Garmin a janela abre com o sono (≈ dormindo + acordado). Rotular, ou omitir, quando a
+    fonte não mede.
+  - **referência visual:** screenshot do app Saúde (M · Amounts) de 04/09/2026 23:30 — eixo
+    22:00 → 14:00, barras segmentadas, despertares marcados, "Sleep Schedule 00:30–07:15".
+
 ## 4. Constraints
 
 - **Mobile primeiro.** A web não pauta nenhuma decisão desta entrega e entra numa segunda
@@ -154,7 +185,7 @@ nasce vazia na fonte atual; com ela, viva em todo o histórico.
 |---|---|
 | Score / nota de sono de qualquer tipo | §2 — é o princípio, não um corte de escopo |
 | Hipnograma com scrub | O card de estágio (CAP-4) já entrega o que o dado sustenta |
-| Tendência com seletor Semana/Ano/Sempre | É a segunda tela; reusa o componente do Histórico, não um primo |
+| Seção "Tempos e estágios" com seletor (última noite · 7d · 4s · 12m · ano · sempre) | **CAP-7** — pedida em 04/09; construir quando for o momento, e avisar o usuário. Reusa o componente de período do Histórico, não um primo |
 | Latência como número rotulado | CAP-1 mostra dois relógios; a latência fica gravada para cruzamento futuro |
 | `is_nap` | **Zero cochilos em 308 dias** — infraestrutura especulativa |
 | Web | Segunda rodada |

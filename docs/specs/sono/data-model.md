@@ -249,3 +249,29 @@ Calculadas sob demanda no `packages/shared`, nunca persistidas:
 > 2017, que **não foi lido** (paywall). A fonte secundária confirma a escala mas não
 > reproduz a fórmula. **Conferir no original antes de o SRI virar número exibido** — o que,
 > pelo princípio da spec (§2), não está previsto para o V1.
+
+## 7. Pendente para CAP-7 — intervalos de estágio
+
+A Opção 2 da seção "Tempos e estágios" (spec CAP-7) desenha **cada estágio na hora em que
+ocorreu**. Hoje `stages` guarda **horas por estágio** — a posição foi descartada na
+agregação, e a tela de detalhe (CAP-4) mostra estágios em proporção justamente por isso.
+
+O que precisa existir, quando for a hora:
+
+```sql
+-- candidato — NÃO aplicado
+alter table public.sleep_periods
+  add column stage_segments jsonb;   -- [{stage:'deep'|'rem'|'core'|'unspecified', from, to}]
+```
+
+- O agregador (`aggregateSleepPeriods`) já fatia o tempo por estágio em intervalos
+  (`byStage`, com a prioridade DEEP → REM → CORE e o `AWAKE` subtraído) — só não os
+  **emite**. É acrescentar a saída, não refazer a conta.
+- `stages` (horas) continua, derivado dos segmentos: uma fonte, duas formas — a mesma regra
+  de `health_daily.sono`.
+- Bump de `AGG_VERSION` + backfill de 500 dias. Mesma chave, mesmas linhas; só a coluna nova
+  se preenche.
+- Constraint de forma, como em `awakenings`: `stage_segments is null or
+  jsonb_typeof(stage_segments) = 'array'`.
+
+**A Opção 1 (Tempos) não depende disto** — janela na cama e despertares já estão gravados.
