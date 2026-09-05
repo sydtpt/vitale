@@ -71,9 +71,10 @@ const PAD_LEFT = 34;
     .axis { font-size: 9.5px; fill: var(--ink-4); }
     .xlab { font-size: 9.5px; fill: var(--ink-3); }
     .xlab.faint { fill: var(--ink-4); }
-    .sleep { fill: var(--role-blue); }
+    /* A gramática de cor do sono (shared sleep/colors.ts): azul é sono, o vão é o despertar. */
+    .sleep { fill: var(--sleep-sleep); }
     .hole { fill: var(--surface); }
-    .bed { fill: none; stroke: var(--role-blue); stroke-width: 1; stroke-dasharray: 3 2; opacity: .55; }
+    .bed { fill: none; stroke: var(--sleep-sleep); stroke-width: 1; stroke-dasharray: 3 2; opacity: .55; }
     .empty { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
   `],
 })

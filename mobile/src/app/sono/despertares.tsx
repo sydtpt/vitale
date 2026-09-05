@@ -19,7 +19,7 @@ import { PeriodNav } from '../../components/sono/PeriodNav';
 import { PeriodAverages } from '../../components/sono/PeriodAverages';
 import { FactsList } from '../../components/sono/FactsList';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
-import { colors, fonts, moduleColors, radii, roleColors, shadows, spacing, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
 const DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
@@ -30,6 +30,10 @@ const DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
  * (o relógio de vigília), em quantas noites por hora, a duração de cada
  * despertar, e por dia da semana. Embaixo, fatos com o *n* ao lado.
  *
+ * Tudo aqui é vigília, e vigília é amarelo — uma cor só. O fim de semana é
+ * rótulo em tinta forte, não cor de barra: cor por categoria num eixo que já
+ * nomeia a categoria gasta o canal à toa.
+ *
  * Sem score, sem índice de fragmentação: o par vigília × nota corre ao contrário
  * do que um score assumiria (spec §6). A tela mostra e não conclui.
  */
@@ -37,8 +41,7 @@ export default function SonoDespertaresScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const mod = moduleColors('agua');
-  const yellow = roleColors('yellow');
+  const sc = sleepColors();
 
   const periods = useSonoStore((s) => s.periods);
   const loaded = useSonoStore((s) => s.loaded);
@@ -90,18 +93,18 @@ export default function SonoDespertaresScreen() {
           <PeriodNav range={range} offset={offset} periods={periods} nights={nights} onRange={setRange} onOffset={setOffset} />
 
           {!loaded ? (
-            <View style={styles.center}><ActivityIndicator color={mod.accent} /></View>
+            <View style={styles.center}><ActivityIndicator color={sc.sleep} /></View>
           ) : nights.length === 0 ? (
             <Text style={styles.empty}>Sem noites neste período.</Text>
           ) : reporting === 0 ? (
             <Text style={styles.empty}>Seu relógio não reporta despertares nestas noites — não dá para saber.</Text>
           ) : (
             <>
-              {summary && <PeriodAverages summary={summary} accent={mod.accent} tint={mod.tint} awakeColor={yellow.accent} />}
+              {summary && <PeriodAverages summary={summary} palette={sc} />}
 
               <Text style={styles.h}>Quando</Text>
               <Text style={styles.sub}>densidade por hora da noite · {reporting} noites</Text>
-              <AwakeningsClock periods={nights} width={chartW} accent={mod.accent} />
+              <AwakeningsClock periods={nights} width={chartW} color={sc.awake} />
 
               {hourBins.length > 0 && (
                 <>
@@ -110,7 +113,7 @@ export default function SonoDespertaresScreen() {
                     {hourBins.map((b) => (
                       <View key={b.from} style={styles.col}>
                         <View style={styles.track}>
-                          <View style={[styles.bar, { height: Math.max(2, (b.nights / maxNights) * 56), backgroundColor: yellow.accent, borderColor: yellow.text, opacity: b.nights ? 0.45 + 0.55 * (b.nights / maxNights) : 0.15 }]} />
+                          <View style={[styles.bar, { height: Math.max(2, (b.nights / maxNights) * 56), backgroundColor: sc.awake, opacity: b.nights ? 0.45 + 0.55 * (b.nights / maxNights) : 0.15 }]} />
                         </View>
                         <Text style={styles.xl}>{b.from % 2 === 0 ? `${String((SLEEP_AXIS_ORIGIN_H + b.from) % 24).padStart(2, '0')}h` : ''}</Text>
                       </View>
@@ -125,7 +128,7 @@ export default function SonoDespertaresScreen() {
                 {durations.map((d) => (
                   <View key={d.label} style={styles.col}>
                     <View style={styles.track}>
-                      <View style={[styles.bar, { height: Math.max(2, (d.count / maxDur) * 56), backgroundColor: yellow.accent, borderColor: yellow.text }]} />
+                      <View style={[styles.bar, { height: Math.max(2, (d.count / maxDur) * 56), backgroundColor: sc.awake }]} />
                     </View>
                     <Text style={styles.xl}>{d.label}</Text>
                     <Text style={styles.xn}>{d.count}</Text>
@@ -134,21 +137,24 @@ export default function SonoDespertaresScreen() {
               </View>
 
               <Text style={styles.h}>Por dia da semana</Text>
-              <Text style={styles.sub}>minutos acordado, média por noite · fim de semana em azul</Text>
+              <Text style={styles.sub}>minutos acordado, média por noite · fim de semana em destaque</Text>
               <View style={styles.bars}>
-                {byDow.map((d) => (
-                  <View key={d.weekday} style={styles.col}>
-                    <View style={styles.track}>
-                      {d.avgMin == null ? (
-                        <View style={[styles.unknown, { borderColor: colors.line }]} />
-                      ) : (
-                        <View style={[styles.bar, { height: Math.max(2, (d.avgMin / maxDow) * 56), backgroundColor: d.weekday === 0 || d.weekday === 6 ? mod.accent : yellow.accent, borderColor: d.weekday === 0 || d.weekday === 6 ? mod.accent : yellow.text }]} />
-                      )}
+                {byDow.map((d) => {
+                  const fds = d.weekday === 0 || d.weekday === 6;
+                  return (
+                    <View key={d.weekday} style={styles.col}>
+                      <View style={styles.track}>
+                        {d.avgMin == null ? (
+                          <View style={[styles.unknown, { borderColor: colors.line }]} />
+                        ) : (
+                          <View style={[styles.bar, { height: Math.max(2, (d.avgMin / maxDow) * 56), backgroundColor: sc.awake }]} />
+                        )}
+                      </View>
+                      <Text style={[styles.xl, fds && styles.xlFds]}>{DOW[d.weekday]}</Text>
+                      <Text style={styles.xn}>{d.avgMin == null ? '—' : Math.round(d.avgMin)}</Text>
                     </View>
-                    <Text style={styles.xl}>{DOW[d.weekday]}</Text>
-                    <Text style={styles.xn}>{d.avgMin == null ? '—' : Math.round(d.avgMin)}</Text>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
 
               <FactsList facts={facts} />
@@ -177,8 +183,9 @@ const createStyles = () =>
     bars: { flexDirection: 'row', gap: 3, alignItems: 'flex-end', marginTop: 6 },
     col: { flex: 1, alignItems: 'center' },
     track: { height: 56, width: '100%', justifyContent: 'flex-end', alignItems: 'center' },
-    bar: { width: '72%', borderRadius: 2, borderWidth: 1, borderBottomWidth: 0 },
+    bar: { width: '72%', borderRadius: 2 },
     unknown: { width: '72%', height: 56, borderRadius: 2, borderWidth: 1, borderStyle: 'dashed' },
     xl: { fontSize: 8.5, color: colors.ink4, fontFamily: fonts.mono, marginTop: 4 },
+    xlFds: { color: colors.ink, fontFamily: fonts.monoSemiBold },
     xn: { fontSize: 9.5, color: colors.ink3, fontFamily: fonts.mono },
   });

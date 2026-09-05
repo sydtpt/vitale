@@ -130,8 +130,12 @@ dano, não é o que falta ao Orbe.**
   - **Opção 1 — Tempos:** a barra é a **janela na cama** (hora que deitou → hora que saiu da
     cama), **sem muito destaque**; os **despertares no meio da noite** marcados **com
     destaque** — o usuário quer saber *quando* tem acordado e *por quanto tempo*.
-  - **Opção 2 — Estágios:** cada barra mostra os **períodos de cada estágio**, nas horas em
-    que ocorreram — posição real, não proporção.
+  - **Opção 2 — Estágios:** em **duas leituras**, trocadas por um sub-seletor *na hora · total*
+    (pedido em 05/09/2026). **Na hora:** cada barra mostra os períodos de cada estágio nas horas
+    em que ocorreram — posição real, não proporção. **Total:** uma coluna por noite em horas por
+    estágio, empilhada na ordem do hipnograma (profundo na base, leve, REM, sem estágio em
+    hachura, a vigília amarela no topo) — a altura é a noite inteira. Nos períodos longos só
+    existe o total.
   - **Seletor (decidido em 05/09/2026):** última noite · 7d · 4s · 12 meses · ano. **Sem
     "sempre"** — retirado pelo usuário. **Todo período é navegável:** ◀ ▶ recua ou avança *um
     período do próprio tamanho* (7d anda sete dias, 4s anda 28, 12m anda doze meses, ano anda
@@ -173,8 +177,15 @@ dano, não é o que falta ao Orbe.**
   Padrão de `fitness/overview` e `period/retro`.
 - **Sem Reanimated** ([ADR 0010](../../decisions/0010-sem-reanimated-no-mobile.md)). Animação
   é o `Animated` do React Native.
-- **Cor vem do tema.** Sono usa `moduleOf('agua')` — o papel `blue`. **Sono não é módulo**;
-  ver [ADR 0031](../../decisions/0031-sono-e-categoria-nao-modulo.md). Nenhum hex em tela.
+- **Cor vem do tema — e é uma gramática só.** Sono empresta o papel `blue` (**Sono não é
+  módulo**; ver [ADR 0031](../../decisions/0031-sono-e-categoria-nao-modulo.md)) e, para o REM,
+  o `rose`. Os dois apps leem `sleepColorsOf()` (`packages/shared/src/sleep/colors.ts`):
+  **azul é sono** (barra, mediana, série de horas), a **rampa do azul é profundidade** (Leve = o
+  traço, Profundo = o degrau escuro), **REM é rosa** em todas as paletas (outro estado, não um
+  degrau), **amarelo é vigília** em toda tela, **hachura é
+  "sem estágio"**, tracejado é "sem noite". O despertar é o vão da barra; nas subviews o vão
+  ganha a marca amarela ao lado. Nenhum hex em tela, e nenhum token de UI (`soft`, `text`) como
+  marca de dado — ver [ADR 0032](../../decisions/0032-cor-de-sono-e-gramatica-derivada.md).
 - **Sem captura manual noturna.** Decisão explícita do usuário (04/09/2026): o app já cobra
   a nota de manhã, e um segundo ritual à noite cobra caro por um campo. **Custo assumido:**
   quando a janela do sensor errar, não há conserto — é o padrão nº 3 de reclamação da

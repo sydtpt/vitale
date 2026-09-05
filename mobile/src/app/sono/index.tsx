@@ -25,8 +25,9 @@ import { useAuthStore } from '../../store/auth.store';
 import { formatHoursMin } from '../../lib/health-buckets';
 import { SleepTimingChart } from '../../components/charts/SleepTimingChart';
 import { AwakeningsClock } from '../../components/charts/AwakeningsClock';
+import { SleepLegend, SwDashed, SwGap, SwSolid } from '../../components/sono/SleepLegend';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
-import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
 /** Noites no timing chart — o que cabe legível na largura de um telefone. */
 const TIMING_NIGHTS = 14;
@@ -59,12 +60,13 @@ function dayLabel(day: string): string {
  * ④ a nota contra a medição. Sem score, sem streak, sem seta.
  *
  * Sono usa a cor da água por decisão (ADR 0031): é categoria de Saúde, não módulo.
+ * As cores vêm de `sleepColors()` — azul é sono, amarelo é vigília, em toda tela.
  */
 export default function SonoScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const mod = moduleColors('agua');
+  const sc = sleepColors();
 
   const periods = useSonoStore((s) => s.periods);
   const sleepRatings = useSonoStore((s) => s.sleepRatings);
@@ -115,7 +117,7 @@ export default function SonoScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <Header onBack={() => router.back()} styles={styles} />
         <View style={styles.center}>
-          <ActivityIndicator color={mod.accent} />
+          <ActivityIndicator color={sc.sleep} />
         </View>
       </View>
     );
@@ -200,13 +202,17 @@ export default function SonoScreen() {
             days={timingDays}
             periods={periods}
             width={Math.max(0, chartW - spacing.lg * 2)}
-            accent={mod.accent}
+            palette={sc}
+            emphasis="sleep"
           />
-          <View style={styles.legend}>
-            <LegendItem swatch={{ backgroundColor: mod.accent }} label="dormindo" styles={styles} />
-            <LegendItem swatch={{ borderWidth: 1, borderStyle: 'dashed', borderColor: mod.accent }} label="na cama" styles={styles} />
-            <LegendItem swatch={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line }} label="sem dado" styles={styles} />
-          </View>
+          <SleepLegend
+            items={[
+              { swatch: <SwSolid color={sc.sleep} />, label: 'dormindo' },
+              { swatch: <SwGap />, label: 'despertar (o vão)' },
+              { swatch: <SwDashed color={sc.sleep} />, label: 'na cama' },
+              { swatch: <SwDashed color={colors.line} />, label: 'sem dado' },
+            ]}
+          />
         </Pressable>
 
         {/* ③ Despertares — quando a noite quebra, não quantas vezes na média.
@@ -217,7 +223,7 @@ export default function SonoScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.ink4} />
           </View>
           <Text style={styles.cardSub}>últimas {recent.length} noites, sobrepostas na hora do dia</Text>
-          <AwakeningsClock periods={recent} width={Math.max(0, chartW - spacing.lg * 2)} accent={mod.accent} />
+          <AwakeningsClock periods={recent} width={Math.max(0, chartW - spacing.lg * 2)} color={sc.awake} />
           <View style={styles.seriesRow}>
             {series.map((s) => (
               <View key={s.wakeDay} style={styles.seriesCol}>
@@ -228,7 +234,7 @@ export default function SonoScreen() {
                     <View
                       style={[
                         styles.seriesBar,
-                        { backgroundColor: mod.accent, height: Math.max(2, Math.min(40, (s.awakeMin / 60) * 40)) },
+                        { backgroundColor: sc.awake, height: Math.max(2, Math.min(40, (s.awakeMin / 60) * 40)) },
                       ]}
                     />
                   )}
@@ -250,17 +256,17 @@ export default function SonoScreen() {
             {groups.map((g) => (
               <View key={g.nota} style={styles.pairRow}>
                 <Text style={styles.pips}>
-                  <Text style={{ color: mod.accent }}>{'●'.repeat(g.nota)}</Text>
+                  <Text style={{ color: sc.sleep }}>{'●'.repeat(g.nota)}</Text>
                   <Text style={{ color: colors.ink4 }}>{'●'.repeat(5 - g.nota)}</Text>
                 </Text>
                 <View style={styles.rangeWrap}>
                   <View
                     style={[
                       styles.rangeBar,
-                      { backgroundColor: mod.tint, left: `${(g.min / 12) * 100}%`, right: `${100 - (g.max / 12) * 100}%` },
+                      { backgroundColor: sc.bed, left: `${(g.min / 12) * 100}%`, right: `${100 - (g.max / 12) * 100}%` },
                     ]}
                   />
-                  <View style={[styles.rangeDot, { backgroundColor: mod.accent, left: `${(g.mean / 12) * 100}%` }]} />
+                  <View style={[styles.rangeDot, { backgroundColor: sc.sleep, left: `${(g.mean / 12) * 100}%` }]} />
                 </View>
                 <View style={styles.pairN}>
                   <Text style={styles.pairMean}>{formatHoursMin(g.mean)}</Text>
@@ -278,7 +284,7 @@ export default function SonoScreen() {
         <Text style={styles.sectionTitle}>Noites</Text>
         <View style={styles.listCard}>
           {[...recent].reverse().map((p, i, arr) => (
-            <NightRow key={p.onsetAt} p={p} nota={sleepRatings[p.wakeDay]} last={i === arr.length - 1} accent={mod.accent} styles={styles} onPress={() => router.push({ pathname: '/sono/[day]', params: { day: p.wakeDay } })} />
+            <NightRow key={p.onsetAt} p={p} nota={sleepRatings[p.wakeDay]} last={i === arr.length - 1} accent={sc.sleep} styles={styles} onPress={() => router.push({ pathname: '/sono/[day]', params: { day: p.wakeDay } })} />
           ))}
         </View>
       </ScrollView>
@@ -305,15 +311,6 @@ function Clock({ label, value, muted, styles }: { label: string; value: string; 
     <View style={styles.clock}>
       <Text style={styles.clockLabel}>{label}</Text>
       <Text style={[styles.clockValue, muted && styles.clockMuted]}>{value}</Text>
-    </View>
-  );
-}
-
-function LegendItem({ swatch, label, styles }: { swatch: object; label: string; styles: Styles }) {
-  return (
-    <View style={styles.legendItem}>
-      <View style={[styles.swatch, swatch]} />
-      <Text style={styles.legendText}>{label}</Text>
     </View>
   );
 }
@@ -370,11 +367,6 @@ const createStyles = () =>
     absent: { marginTop: spacing.md, padding: spacing.md, borderRadius: radii.md, borderWidth: 1, borderStyle: 'dashed' },
     absentText: { fontSize: 12, lineHeight: 17, color: colors.ink2, fontFamily: fonts.sans },
     absentStrong: { color: colors.ink, fontFamily: fonts.sansSemiBold },
-
-    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.md },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    swatch: { width: 11, height: 11, borderRadius: 3 },
-    legendText: { fontSize: 11, color: colors.ink2, fontFamily: fonts.sans },
 
     seriesRow: { flexDirection: 'row', gap: 3, marginTop: spacing.md, alignItems: 'flex-end' },
     seriesCol: { flex: 1, alignItems: 'center' },

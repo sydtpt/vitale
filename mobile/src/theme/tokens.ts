@@ -19,6 +19,8 @@ import {
   moduleOf,
   resolveTheme,
   resolveTokens,
+  sleepColorsOf,
+  type SleepColors,
   DEFAULT_BRAND_ID,
   DEFAULT_PALETTE_ID,
   DEFAULT_THEME_ID,
@@ -118,6 +120,15 @@ export function moduleColors(key: string, fallback?: ModuleKey): ModuleTokens {
  */
 export function roleColors(role: RoleKey): RoleTokens {
   return resolveTokens(activeTheme, activeScheme, activePalette, activeBrand).roles[role];
+}
+
+/**
+ * A gramática de cor do sono nos eixos ativos — sono, REM, leve, profundo,
+ * vigília, cama e "sem estágio". Uma cor, um significado, em toda tela de sono;
+ * nenhuma tela decide cor. Ver `sleep/colors.ts` no shared.
+ */
+export function sleepColors(): SleepColors {
+  return sleepColorsOf(tokens(), activePalette);
 }
 
 /**

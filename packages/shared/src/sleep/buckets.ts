@@ -19,10 +19,15 @@ import type { SleepPeriod } from '../models';
 import { axisPosition } from './timing';
 import { awakeMinOf } from './derive';
 
-export type BucketKind = 'week' | 'month';
+/**
+ * `night` existe para a leitura em **total** dos estágios (CAP-7, pedida em
+ * 05/09/2026): uma coluna por noite, em horas por estágio, pelo mesmo agregador
+ * e pelo mesmo gráfico da semana — a coluna é uma "noite" de uma noite só.
+ */
+export type BucketKind = 'night' | 'week' | 'month';
 
 export interface SleepBucket {
-  /** 'YYYY-MM-DD' da segunda-feira (semana) ou do dia 1 (mês). */
+  /** 'YYYY-MM-DD' da segunda-feira (semana), do dia 1 (mês) ou do dia de acordar (noite). */
   key: string;
   kind: BucketKind;
   nights: number;
@@ -78,7 +83,7 @@ export function quantile(xs: readonly number[], q: number): number {
 export function bucketPeriods(periods: readonly SleepPeriod[], kind: BucketKind): SleepBucket[] {
   const groups = new Map<string, SleepPeriod[]>();
   for (const p of periods) {
-    const key = kind === 'week' ? weekKey(p.wakeDay) : monthKey(p.wakeDay);
+    const key = kind === 'night' ? p.wakeDay : kind === 'week' ? weekKey(p.wakeDay) : monthKey(p.wakeDay);
     const arr = groups.get(key);
     if (arr) arr.push(p);
     else groups.set(key, [p]);

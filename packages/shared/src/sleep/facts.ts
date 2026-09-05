@@ -217,8 +217,13 @@ export function stageFacts(periods: readonly SleepPeriod[]): Fact[] {
   const staged = periods.filter((p) => p.stages && (['deep', 'rem', 'core'] as const).some((k) => (p.stages?.[k] ?? 0) > 0));
   if (staged.length === 0) return [{ label: 'Estágios', value: 'a fonte não reporta' }];
   const facts: Fact[] = [{ label: 'Noites com hipnograma', value: `${staged.length} de ${periods.length}` }];
-  for (const k of ['deep', 'rem', 'core'] as const) {
+  // A ordem do hipnograma — a mesma da legenda e da pilha: REM · Leve · Profundo.
+  for (const k of ['rem', 'core', 'deep'] as const) {
     facts.push({ label: `${STAGE_LABEL[k]} por noite (mediana)`, value: formatHm(median(staged.map((p) => p.stages?.[k] ?? 0))) });
+  }
+  const reporting = periods.filter((p) => p.awakenings !== null);
+  if (reporting.length > 0) {
+    facts.push({ label: 'Acordado por noite (mediana)', value: `${Math.round(median(reporting.map((p) => awakeMinOf(p) ?? 0)))} min` });
   }
   return facts;
 }

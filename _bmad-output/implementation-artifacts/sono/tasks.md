@@ -240,6 +240,20 @@
   mora nas subviews. Nem absorção nem duplicação.
 - [ ] T7.4 — **Web:** `/sono/tempos` e `/sono/despertares` em Angular, pelo mesmo núcleo —
   mesma composição do mobile (coluna única), como a Fase 5.
+- [x] T7.5 — **Gramática de cor (review de UX, 05/09/2026).** Medido nas 36 combinações: o Leve
+  era o tint (1,14–1,43), REM = Profundo em 22/36, o azul dizia três coisas. Feito: `graphic`,
+  `wash` e `ramp` por papel em `derive.ts` (+ barreira no `theme.test.ts`), `sleep/colors.ts`
+  com a gramática (+ `colors.test.ts`), `bucketPeriods(…, 'night')`, `stageFacts` com a vigília.
+  Mobile: `sleepColors()`, `SleepLegend`, `SleepTimingChart` (vão + marca amarela ao lado,
+  hachura, cama em `wash`), `SleepStagesStackChart` (por noite ou semana, ordem = legenda, gap
+  2 px, vigília no topo), sub-seletor **na hora · total** em `tempos.tsx`, Despertares em
+  amarelo com fim de semana por rótulo, detalhe da noite em Svg. Web: `--sleep-*` pelo
+  `ThemeService`, as páginas existentes trocadas. Docs: spec §4 e CAP-7, [ADR 0032](../../../docs/decisions/0032-cor-de-sono-e-gramatica-derivada.md).
+  Mockup aprovado: `claude.ai/code/artifact/b6db5657-2531-42c2-a91d-7c532ab10601`.
+  **Conferida no iPhone em 05/09/2026** (build por cabo, paleta Acessível, tema Clean): "está
+  ótimo". No caminho ele escolheu a forma do despertar (vão + marca ao lado, entre três) e o
+  REM rosa também na Acessível — a exceção que voltava à rampa azul saiu. Falta a web no
+  navegador.
 
 ## Fechamento
 

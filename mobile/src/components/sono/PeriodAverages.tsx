@@ -1,28 +1,27 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { formatHm, type PeriodSummary } from '@vitale/shared';
+import { formatHm, type PeriodSummary, type SleepColors } from '@vitale/shared';
 import { colors, fonts, spacing, useThemedStyles } from '../../theme';
 
 interface Props {
   summary: PeriodSummary;
-  accent: string;
-  tint: string;
-  awakeColor: string;
+  palette: SleepColors;
 }
 
 /**
  * As médias do topo: *dormindo* sempre; o segundo número é *na cama* quando a
  * cama foi medida em ≥ 80% das noites, senão *acordado*. É a regra de
- * `periodSummary` — a tela só a escreve. Sem meta, sem seta.
+ * `periodSummary` — a tela só a escreve. Sem meta, sem seta. O ponto ao lado
+ * do rótulo é a cor da coisa: sono, cama ou vigília.
  */
-export function PeriodAverages({ summary, accent, tint, awakeColor }: Props) {
+export function PeriodAverages({ summary, palette }: Props) {
   const styles = useThemedStyles(createStyles);
   const s = summary.secondary;
   return (
     <View style={styles.row}>
       <View style={styles.tile}>
         <View style={styles.lab}>
-          <View style={[styles.dot, { backgroundColor: accent }]} />
+          <View style={[styles.dot, { backgroundColor: palette.sleep }]} />
           <Text style={styles.labText}>dormindo</Text>
         </View>
         <Text style={styles.val}>{formatHm(summary.asleepH)}</Text>
@@ -31,7 +30,14 @@ export function PeriodAverages({ summary, accent, tint, awakeColor }: Props) {
       {s && (
         <View style={styles.tile}>
           <View style={styles.lab}>
-            <View style={[styles.dot, s.kind === 'bed' ? { backgroundColor: tint, borderWidth: 1, borderColor: accent } : { backgroundColor: awakeColor }]} />
+            <View
+              style={[
+                styles.dot,
+                s.kind === 'bed'
+                  ? { backgroundColor: palette.bed, borderWidth: 1, borderColor: palette.sleep }
+                  : { backgroundColor: palette.awake },
+              ]}
+            />
             <Text style={styles.labText}>{s.kind === 'bed' ? 'na cama' : 'acordado'}</Text>
           </View>
           <Text style={styles.val}>

@@ -3,6 +3,8 @@ import {
   APP_THEMES,
   cssVars,
   msUntilSolarChange,
+  sleepColorsOf,
+  sleepCssVars,
   resolveBrand,
   resolvePalette,
   resolveTheme,
@@ -163,6 +165,8 @@ export class ThemeService {
     const vars = {
       ...cssVars(this.tokens()),
       ...shadowVars(this.themeId(), scheme),
+      // A gramática de cor do sono (`--sleep-*`): a mesma função que o mobile lê.
+      ...sleepCssVars(sleepColorsOf(this.tokens(), this.paletteId())),
     };
     for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
 

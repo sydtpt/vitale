@@ -1,6 +1,6 @@
 import React from 'react';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
-import { SLEEP_AXIS_ORIGIN_H, type SleepBucket, type SleepMarker } from '@vitale/shared';
+import { SLEEP_AXIS_ORIGIN_H, type SleepBucket, type SleepColors, type SleepMarker } from '@vitale/shared';
 import { colors } from '../../theme';
 
 interface Props {
@@ -8,10 +8,7 @@ interface Props {
   markers?: readonly SleepMarker[];
   width: number;
   height?: number;
-  accent: string;
-  tint: string;
-  awakeColor: string;
-  awakeOutline: string;
+  palette: SleepColors;
 }
 
 const PAD_TOP = 8;
@@ -25,11 +22,12 @@ const AWAKE_MAX_H = 10;
  * mediana de apagar e acordar como barra, o miolo p25–p75 como faixa em volta.
  * A dispersão vira largura da faixa: a regularidade continua sendo forma.
  *
- * O traço amarelo no rodapé é o tempo acordado médio da semana. Onde o período
+ * A faixa é a lavagem do azul (existe sem destacar), a barra é o sono, e o traço
+ * no rodapé é a vigília — amarelo, como em toda tela de sono. Onde o período
  * cruza a troca de relógio, a linha tracejada avisa que o amarelo à esquerda e à
  * direita não se compara — a contagem de despertares muda de instrumento.
  */
-export function SleepBucketsChart({ buckets, markers = [], width, height = 232, accent, tint, awakeColor, awakeOutline }: Props) {
+export function SleepBucketsChart({ buckets, markers = [], width, height = 232, palette }: Props) {
   if (buckets.length === 0 || width <= 0) return null;
 
   const from = Math.max(0, Math.min(...buckets.map((b) => b.onset.p25)) - 0.5);
@@ -64,10 +62,10 @@ export function SleepBucketsChart({ buckets, markers = [], width, height = 232, 
         const awakeH = b.awakeMin == null ? 0 : Math.max(1.5, (b.awakeMin / maxAwake) * AWAKE_MAX_H);
         return (
           <React.Fragment key={b.key}>
-            <Rect x={x} y={y(b.onset.p25)} width={bw} height={Math.max(2, y(b.wake.p75) - y(b.onset.p25))} rx={3} fill={tint} />
-            <Rect x={x + bw * 0.25} y={y(b.onset.median)} width={bw * 0.5} height={Math.max(2, y(b.wake.median) - y(b.onset.median))} rx={2} fill={accent} />
+            <Rect x={x} y={y(b.onset.p25)} width={bw} height={Math.max(2, y(b.wake.p75) - y(b.onset.p25))} rx={3} fill={palette.bed} />
+            <Rect x={x + bw * 0.25} y={y(b.onset.median)} width={bw * 0.5} height={Math.max(2, y(b.wake.median) - y(b.onset.median))} rx={2} fill={palette.sleep} />
             {awakeH > 0 && (
-              <Rect x={x} y={height - PAD_BOTTOM - awakeH} width={bw} height={awakeH} fill={awakeColor} stroke={awakeOutline} strokeWidth={0.75} />
+              <Rect x={x} y={height - PAD_BOTTOM - awakeH} width={bw} height={awakeH} fill={palette.awake} />
             )}
             {i % labelStep === 0 && (
               <SvgText x={x + bw / 2} y={height - 4} fontSize={8.5} fill={colors.ink4} textAnchor="middle">

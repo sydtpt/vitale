@@ -175,6 +175,43 @@ check('acento de papel passa o piso gráfico sobre a superfície', () => {
 });
 
 /**
+ * O traço gráfico e a rampa ordinal de cada papel, nas 36 combinações.
+ *
+ * Nasceu do gráfico de estágios do Sono, que usava `soft` e `text` como degraus:
+ * o Leve media 1,1–1,4 sobre a superfície e REM = Profundo em 22 das 36
+ * combinações, porque `text` é o próprio `accent` sempre que ele passa em 4,5.
+ * Aqui se cobra o que uma rampa promete: ponta clara ≥ 2,0, meio e escuro ≥ 3,0,
+ * vizinhos a ΔE ≥ 10 — sem exceção nomeada, porque `graphic` já não tem pino.
+ */
+check('traço gráfico e rampa de cada papel passam nas 36 combinações', () => {
+  const bad: string[] = [];
+  for (const c of COMBOS) {
+    const S = c.tokens.surface;
+    for (const [role, r] of Object.entries(c.tokens.roles) as [RoleKey, { graphic: string; wash: string; ramp: { pale: string; mid: string; strong: string } }][]) {
+      const g = contrast(r.graphic, S);
+      if (g < 3) bad.push(`${label(c)} ${role} graphic/surface ${g.toFixed(2)}`);
+      const w = contrast(r.wash, S);
+      if (w < 1.4 || w > 2.2) bad.push(`${label(c)} ${role} wash/surface ${w.toFixed(2)}`);
+      const pale = contrast(r.ramp.pale, S);
+      if (pale < 2) bad.push(`${label(c)} ${role} pale/surface ${pale.toFixed(2)}`);
+      const mid = contrast(r.ramp.mid, S);
+      if (mid < 3) bad.push(`${label(c)} ${role} mid/surface ${mid.toFixed(2)}`);
+      const strong = contrast(r.ramp.strong, S);
+      if (strong < 3) bad.push(`${label(c)} ${role} strong/surface ${strong.toFixed(2)}`);
+      const d1 = deltaE(r.ramp.pale, r.ramp.mid);
+      if (d1 < 10) bad.push(`${label(c)} ${role} pale×mid ΔE ${d1.toFixed(1)}`);
+      const d2 = deltaE(r.ramp.mid, r.ramp.strong);
+      if (d2 < 10) bad.push(`${label(c)} ${role} mid×strong ΔE ${d2.toFixed(1)}`);
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    `rampa que não lê — é o que fazia REM = Profundo no Sono:\n    ${bad.join('\n    ')}`,
+  );
+});
+
+/**
  * A rampa de FC declara papel **e** hex — o hex é a ponte para quem ainda fala
  * o vocabulário do Orbe (`remapChartColor`). Os dois têm de contar a mesma
  * história: se alguém trocar um sem o outro, a legenda passa a discordar do

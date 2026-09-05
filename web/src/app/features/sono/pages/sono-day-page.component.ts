@@ -5,12 +5,16 @@ import { awakeMinOf, bedtimeMeasured, clockLabel, type SleepPeriod } from '@vita
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { SonoStore, dayLabel, hm } from '../data/sono.store';
 
-/** Estágios na ordem da faixa, com o rótulo que o usuário lê e a variável de cor. */
+/**
+ * Estágios na ordem do hipnograma — REM · Leve · Profundo —, com o rótulo que o
+ * usuário lê e a cor da gramática do sono (`--sleep-*`, de shared `sleep/colors.ts`).
+ * "Sem estágio" é hachura: sono (azul) sem o detalhe, não cinza.
+ */
 const STAGES = [
-  { key: 'deep', label: 'Profundo', color: 'var(--role-blue-text)' },
-  { key: 'rem', label: 'REM', color: 'var(--role-blue)' },
-  { key: 'core', label: 'Leve', color: 'var(--role-blue-soft)' },
-  { key: 'unspecified', label: 'Sem estágio', color: 'var(--ink-4)' },
+  { key: 'rem', label: 'REM', color: 'var(--sleep-rem)' },
+  { key: 'core', label: 'Leve', color: 'var(--sleep-light)' },
+  { key: 'deep', label: 'Profundo', color: 'var(--sleep-deep)' },
+  { key: 'unspecified', label: 'Sem estágio', color: 'repeating-linear-gradient(45deg, transparent 0 3px, var(--sleep-unknown) 3px 4.3px)' },
 ] as const;
 
 interface StageVM { key: string; label: string; color: string; hours: number; flex: number; }
