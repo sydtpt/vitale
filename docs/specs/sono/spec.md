@@ -218,9 +218,14 @@ dano, não é o que falta ao Orbe.**
     `period/retro.ts` (`RetroInput.sleepPeriods`, `RetroSummary.sleep`), `retro-blocks.ts`,
     `mobile/src/components/SleepRetroCard.tsx`. Ver `docs/specs/retrospectiva/v2-jornal.md §9`.
 
-- **CAP-10** — Duas leituras novas no Tempos: **Dispersão** e **antes × agora** *(05/09/2026,
-  mesma proposta; B1 e B4 das cinco opções — B2 "grade semana × dia" fica na fila)*
-  - **intent:** Ver a regularidade como **largura** e o período contra o anterior, sem índice.
+- **CAP-10** — Três leituras novas no Tempos: **Dispersão**, **antes × agora** e a **grade
+  semana × dia** *(05/09/2026, mesma proposta; B1, B4 e B2 das cinco opções)*
+  - **intent:** Ver a regularidade como **largura**, o período contra o anterior, e a mesma
+    noite da semana ao longo do mês — sem índice.
+  - **success (grade):** Quarto modo **Grade**, só nos períodos por noite: as semanas em
+    linhas, os dias em colunas, cada célula a noite em miniatura (apagar → acordar) no mesmo
+    eixo de horas; marca amarela ao lado com ≥ 30 min acordado; tracejado onde não há noite;
+    toque abre o detalhe. Em 12m e ano o modo não existe e a tela volta a Tempos.
   - **success:** Terceiro modo **Dispersão** no Tempos: cada noite é um ponto numa régua, a
     mediana é a linha, o miolo p25–p75 é a faixa (a lavagem do azul), o fim de semana é ponto
     vazado — quatro réguas: apagou, acordou, dormido, acordado. Nos períodos longos os pontos
@@ -229,7 +234,11 @@ dano, não é o que falta ao Orbe.**
     a composição por fase dos dois, e as diferenças em minutos — sem cor de bom ou ruim. Só
     com ≥ 3 noites de cada lado; "última" não compara.
   - **onde:** `mobile/src/components/sono/SleepDispersion.tsx`, `BeforeAfter.tsx`,
-    `sono/tempos.tsx`. A web recebe depois, se fizer falta.
+    `SleepWeekGrid.tsx`, `sono/tempos.tsx`. A web recebe depois, se fizer falta.
+  - **também na retro (05/09):** o cruzamento gatilho × saúde passa a comparar **dormido,
+    acordado, REM e profundo** das noites, chaveadas pelo dia em que a noite começou
+    (`sleepCrossMetrics`), em valores absolutos e com o `n` dos dois lados; e o bloco "Por
+    mês" do Ano ganha as séries **Sono** e **Acordado** (`MonthBucket.sleepH`/`awakeMin`).
 
 ## 4. Constraints
 

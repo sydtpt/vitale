@@ -196,8 +196,9 @@ São **10** módulos, não 7:
 - Tarefas: ponte real com Compras/Finanças
 - Sono: CAP-7 (Tempos, Despertares, Estágios) entregue em 05/09 no mobile e na web; o bloco
   **Sono na Retrospectiva** (`sleep/retro.ts`, noite típica vs período anterior, nota ×
-  medição como manchete) e as leituras **Dispersão** e **antes × agora** do Tempos foram
-  escritos em 05/09 e aguardam conferência no iPhone; ver Fase 6 do tasks
+  medição como manchete, gatilho × noite em valores absolutos, séries Sono/Acordado no
+  Ano) e as leituras **Dispersão**, **antes × agora** e **Grade** do Tempos foram escritos
+  em 05/09 e aguardam conferência no iPhone; ver Fase 6 do tasks
 - Push **remoto** (servidor): hoje só há notificação local agendada no device — não há
   registro de token nem envio server-side
 - Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc

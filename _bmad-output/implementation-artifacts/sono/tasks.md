@@ -300,8 +300,21 @@
   como terceiro modo; `BeforeAfter.tsx` (duas noites típicas com bigode, composição dos dois
   lados, diferenças em minutos) abaixo dos fatos em todos os modos, com ≥ 3 noites de cada
   lado; `SleepLegend` ganha `SwDot`/`SwRing`/`SwBar`. Mesmo núcleo `sleepRetro` do T7.7.
-  **Falta conferir no iPhone.** B2 (grade semana × dia), séries do ano e gatilho × fases
-  ficam na fila (v2-jornal §9).
+  **Falta conferir no iPhone.** Commit `f553924`.
+- [x] T7.9 — **Gatilho × noite** ("pode comitar e seguir", 05/09). `sleepCrossMetrics` em
+  `sleep/retro.ts`: dormido, acordado, REM e profundo **chaveados pelo dia em que a noite
+  começou** — a soma diária (`health_daily.sono`, chave = dia de acordar) comparava a noite
+  *anterior* ao gatilho, e sai do universo do cruzamento assim que há noites.
+  `sleepCrossHighlight` escreve em valores absolutos ("nas noites depois de "Cerveja",
+  dormiu 5h52 contra 6h47") com o `n` dos dois lados; piso `MIN_CROSS_DELTA_PCT`. 2 checks.
+- [x] T7.10 — **Sono nas séries do ano.** `MonthBucket.sleepH`/`awakeMin` (médias por
+  noite, pelo mês de acordar) e dois chips em `YEAR_SERIES` — azul da água (ADR 0031) e
+  amarelo da vigília. Teste em `retro.test.ts`. A web recebe os chips de graça e passa a
+  buscar `sleep_periods` no `RetroStore` para não escrever "sem noite".
+- [x] T7.11 — **B2 — grade semana × dia** (`SleepWeekGrid.tsx`): semanas em linhas, dias em
+  colunas, cada célula a noite em miniatura no mesmo eixo; marca amarela com ≥ 30 min
+  acordado; tracejado sem noite; toque abre `/sono/[day]`. Quarto modo **Grade** do Tempos,
+  só nos períodos por noite (em 12m/ano a tela volta a Tempos). **Falta conferir no iPhone.**
 
 ## Fechamento
 

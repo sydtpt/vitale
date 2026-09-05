@@ -31,6 +31,7 @@
 
 import type { SleepPeriod } from '../models';
 import type { WeekHighlight } from '../week/highlights';
+import type { MetricImpact } from '../health/trigger-impact';
 import { axisPosition, awakeningMin } from './timing';
 import { awakeMinOf } from './derive';
 import { bucketPeriods, median, quantile, type SleepBucket } from './buckets';
@@ -316,6 +317,88 @@ export function sleepRetro(
     weekend: weekendShift(cur),
     weeks: bucketPeriods(cur, 'week'),
     sourceChange,
+  };
+}
+
+// ── Gatilho × noite ─────────────────────────────────────────
+
+/** O dia em que a noite começou — a véspera do dia de acordar. É o dia do gatilho. */
+export function nightStartDay(wakeDay: string): string {
+  const d = new Date(`${wakeDay}T12:00:00`);
+  d.setDate(d.getDate() - 1);
+  const p = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+export type SleepCrossKey = 'dormido' | 'acordado' | 'rem' | 'profundo';
+
+/**
+ * Uma grandeza da noite pronta para `triggerImpact`, **chaveada pelo dia em que a
+ * noite começou** — o dia em que se bebeu a cerveja, não o dia em que se acordou.
+ * É a correção que `health_daily.sono` (chave = dia de acordar) não permitia: ali
+ * "nos dias com cerveja" comparava a noite *anterior* à cerveja.
+ */
+export interface SleepCrossMetric {
+  metric: SleepCrossKey;
+  /** Subir é ruim? Só a vigília. */
+  higherIsWorse: boolean;
+  valuesByDay: Map<string, number>;
+  /** "dormiu 5h52 contra 6h47" — o verbo e a unidade são da grandeza. */
+  phrase: (withMean: number, withoutMean: number) => string;
+}
+
+/**
+ * As quatro grandezas que o cruzamento passa a comparar. Vigília só nas noites
+ * cuja fonte reporta; fases só nas que têm hipnograma. A hora de apagar fica fora:
+ * um percentual de hora do dia não significa nada.
+ */
+export function sleepCrossMetrics(periods: readonly SleepPeriod[]): SleepCrossMetric[] {
+  const asleep = new Map<string, number>();
+  const awake = new Map<string, number>();
+  const rem = new Map<string, number>();
+  const deep = new Map<string, number>();
+  for (const p of periods) {
+    const day = nightStartDay(p.wakeDay);
+    asleep.set(day, p.asleepH);
+    const aw = awakeMinOf(p);
+    if (aw !== null) awake.set(day, aw);
+    if (p.stages && STAGE_KEYS.some((k) => (p.stages?.[k] ?? 0) > 0)) {
+      // Colchetes: o build da web roda com `noPropertyAccessFromIndexSignature`.
+      rem.set(day, (p.stages['rem'] ?? 0) * 60);
+      deep.set(day, (p.stages['deep'] ?? 0) * 60);
+    }
+  }
+  const min = (v: number) => `${Math.round(v)} min`;
+  return [
+    { metric: 'dormido', higherIsWorse: false, valuesByDay: asleep, phrase: (a, b) => `dormiu ${formatHm(a)} contra ${formatHm(b)}` },
+    { metric: 'acordado', higherIsWorse: true, valuesByDay: awake, phrase: (a, b) => `ficou ${min(a)} acordado contra ${min(b)}` },
+    { metric: 'rem', higherIsWorse: false, valuesByDay: rem, phrase: (a, b) => `teve ${min(a)} de REM contra ${min(b)}` },
+    { metric: 'profundo', higherIsWorse: false, valuesByDay: deep, phrase: (a, b) => `teve ${min(a)} de profundo contra ${min(b)}` },
+  ];
+}
+
+/**
+ * O destaque `cross` de um gatilho sobre uma grandeza da noite, em valores
+ * absolutos — "nas noites depois de cerveja dormiu 5h52 contra 6h47", com o `n`
+ * dos dois lados. `null` sem amostra ou abaixo do piso de relevância (`minPct`).
+ */
+export function sleepCrossHighlight(
+  m: SleepCrossMetric,
+  triggerName: string,
+  imp: MetricImpact,
+  minPct: number,
+): WeekHighlight | null {
+  if (!imp.enough || imp.withMean === null || imp.withoutMean === null || imp.delta === null || imp.deltaPct === null) return null;
+  if (Math.abs(imp.deltaPct) < minPct) return null;
+  const worse = m.higherIsWorse ? imp.delta > 0 : imp.delta < 0;
+  return {
+    id: `sleep-trigger-${triggerName}-${m.metric}`,
+    kind: 'cross',
+    tone: worse ? 'bad' : 'good',
+    icon: 'sleep',
+    text: `Nas noites depois de "${triggerName}", ${m.phrase(imp.withMean, imp.withoutMean)}`,
+    support: `${imp.nWith} noites com · ${imp.nWithout} sem · associação, não causa`,
+    priority: Math.abs(imp.deltaPct),
   };
 }
 

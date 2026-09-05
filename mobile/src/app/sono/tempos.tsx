@@ -25,18 +25,22 @@ import { PeriodNav } from '../../components/sono/PeriodNav';
 import { PeriodAverages } from '../../components/sono/PeriodAverages';
 import { FactsList } from '../../components/sono/FactsList';
 import { SleepDispersion, dispersionPoints, dispersionPointsFromBuckets } from '../../components/sono/SleepDispersion';
+import { SleepWeekGrid } from '../../components/sono/SleepWeekGrid';
 import { BeforeAfter } from '../../components/sono/BeforeAfter';
-import { SleepLegend, SwBar, SwDot, SwGapTick, SwHatch, SwRing, SwSolid, type LegendEntry } from '../../components/sono/SleepLegend';
+import { SleepLegend, SwBar, SwDashed, SwDot, SwGapTick, SwHatch, SwRing, SwSolid, type LegendEntry } from '../../components/sono/SleepLegend';
 import { Segmented } from '../../components/ui/Segmented';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
-type Mode = 'tempos' | 'estagios' | 'dispersao';
+type Mode = 'tempos' | 'estagios' | 'dispersao' | 'grade';
 const MODES = [
   { key: 'tempos' as Mode, label: 'Tempos' },
   { key: 'estagios' as Mode, label: 'Estágios' },
   { key: 'dispersao' as Mode, label: 'Dispersão' },
+  { key: 'grade' as Mode, label: 'Grade' },
 ];
+/** A grade é semana × dia: só existe onde há uma célula por noite (última · 7d · 4s). */
+const MODES_WEEKS = MODES.filter((m) => m.key !== 'grade');
 /** Noites mínimas de cada lado para o "antes × agora" ter mediana que signifique algo. */
 const MIN_COMPARE_NIGHTS = 3;
 /** As duas leituras do Estágios nas noites: onde cada estágio cai, ou quanto de cada. */
@@ -72,6 +76,10 @@ function calendarDays(first: string, last: string): string[] {
  * linha, o miolo p25–p75 é a faixa: a regularidade lida como largura, em quatro
  * réguas (apagou, acordou, dormido, acordado). Nos períodos longos os pontos são
  * as semanas.
+ *
+ * **Grade** (05/09/2026) — semana × dia: as semanas em linhas, os dias em colunas,
+ * cada célula a noite em miniatura no mesmo eixo. Só nos períodos por noite; em
+ * 12m e ano o modo não existe (52 linhas não cabem) e a tela volta a Tempos.
  *
  * Embaixo de todos, o **antes × agora**: a noite típica deste período ao lado da
  * do anterior, com as diferenças em minutos — a mesma peça que o bloco Sono da
@@ -127,25 +135,34 @@ export default function SonoTemposScreen() {
     if (mode === 'estagios') return stageFacts(nights);
     return form === 'weeks' ? bucketFacts(weekBuckets, SONO_MARKERS) : nightFacts(nights);
   }, [mode, form, weekBuckets, nights]);
+  const openNight = (day: string) => router.push({ pathname: '/sono/[day]', params: { day } });
   const days = useMemo(() => {
     if (form !== 'nights' || nights.length === 0) return [];
     if (range === 'ultima') return [nights[0].wakeDay];
     return calendarDays(nights[0].wakeDay, nights[nights.length - 1].wakeDay);
   }, [form, range, nights]);
   const hasSegments = nights.some((n) => n.stageSegments && n.stageSegments.length > 0);
-  const composition = mode === 'estagios' && (form === 'weeks' || view === 'total');
+  // O modo que a tela mostra: a grade não existe nos períodos por semana.
+  const shown: Mode = mode === 'grade' && form !== 'nights' ? 'tempos' : mode;
+  const composition = shown === 'estagios' && (form === 'weeks' || view === 'total');
 
   const chartW = Math.max(0, w - spacing.lg * 2);
 
   const legend: LegendEntry[] =
-    mode === 'dispersao'
+    shown === 'grade'
+      ? [
+          { swatch: <SwSolid color={sc.sleep} />, label: 'apagou → acordou' },
+          { swatch: <SwBar color={sc.awake} />, label: '30 min ou mais acordado' },
+          { swatch: <SwDashed color={colors.line} />, label: 'sem noite' },
+        ]
+      : shown === 'dispersao'
       ? [
           { swatch: <SwDot color={sc.sleep} />, label: form === 'weeks' ? 'semana (noite típica)' : 'noite de semana' },
           ...(form === 'nights' ? [{ swatch: <SwRing color={sc.sleep} />, label: 'fim de semana' }] : []),
           { swatch: <SwSolid color={sc.bed} />, label: 'miolo p25–p75' },
           { swatch: <SwBar color={colors.ink} />, label: 'mediana' },
         ]
-      : mode === 'estagios'
+      : shown === 'estagios'
       ? [
           { swatch: <SwSolid color={sc.rem} />, label: STAGE_LABEL.rem },
           { swatch: <SwSolid color={sc.light} />, label: STAGE_LABEL.core },
@@ -189,9 +206,9 @@ export default function SonoTemposScreen() {
               {summary && <PeriodAverages summary={summary} palette={sc} />}
 
               <View style={styles.modeRow}>
-                <Segmented options={MODES} value={mode} onChange={setMode} />
+                <Segmented options={form === 'nights' ? MODES : MODES_WEEKS} value={shown} onChange={setMode} />
               </View>
-              {mode === 'estagios' && form === 'nights' && (
+              {shown === 'estagios' && form === 'nights' && (
                 <View style={styles.subRow}>
                   <View style={styles.subSeg}>
                     <Segmented options={VIEWS} value={view} onChange={setView} />
@@ -200,7 +217,9 @@ export default function SonoTemposScreen() {
               )}
 
               <View style={styles.chartWrap}>
-                {mode === 'dispersao' ? (
+                {shown === 'grade' ? (
+                  <SleepWeekGrid nights={nights} width={chartW} palette={sc} onPressNight={openNight} />
+                ) : shown === 'dispersao' ? (
                   <SleepDispersion points={points} width={chartW} palette={sc} unit={form === 'weeks' ? 'semana' : 'noite'} />
                 ) : form === 'nights' ? (
                   composition ? (
@@ -211,10 +230,10 @@ export default function SonoTemposScreen() {
                       periods={nights}
                       width={chartW}
                       palette={sc}
-                      emphasis={mode === 'estagios' ? 'stages' : 'awake'}
+                      emphasis={shown === 'estagios' ? 'stages' : 'awake'}
                     />
                   )
-                ) : mode === 'estagios' ? (
+                ) : shown === 'estagios' ? (
                   <SleepStagesStackChart buckets={weekBuckets} width={chartW} palette={sc} />
                 ) : (
                   <SleepBucketsChart buckets={weekBuckets} markers={SONO_MARKERS} width={chartW} palette={sc} />
@@ -235,7 +254,7 @@ export default function SonoTemposScreen() {
                 />
               )}
 
-              {mode === 'estagios' && (
+              {shown === 'estagios' && (
                 <View style={styles.uncert}>
                   <Ionicons name="alert-circle-outline" size={13} color={colors.ink3} />
                   <Text style={styles.uncertText}>

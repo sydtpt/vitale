@@ -339,9 +339,17 @@ medição como `cross`**, tom neutro, só com ≥ 3 noites de cada lado — e po
 do mês (decisão do usuário). A caixa de correções nomeia o `n` do período anterior e o
 marcador de troca de relógio: quando a comparação o cruza, `delta.awakeMin` é `null`.
 
+**Gatilho × noite** (mesmo dia, "seguir"): o cruzamento da §2.5 passa a comparar também
+**dormido, acordado, REM e profundo** das noites (`sleepCrossMetrics`), **chaveados pelo dia
+em que a noite começou** — a soma diária comparava a noite anterior ao gatilho, e sai do
+universo assim que há noites. Texto em valores absolutos: *nas noites depois de "Cerveja",
+dormiu 5h52 contra 6h47 · 9 noites com · 49 sem*. **Séries do ano:** `MonthBucket` ganha
+`sleepH` e `awakeMin`, e o bloco "Por mês" dois chips — Sono (azul da água) e Acordado
+(amarelo).
+
 **Fora, por decisão:** saldo contra 7 h (tem cara de placar), SRI como número (fórmula não
-conferida no original), qualquer nota composta. **Fila:** sono nas séries do ano, grade
-diária de "acordado" centrada na mediana, extremos do período, gatilho × vigília/fases.
+conferida no original), qualquer nota composta. **Fila:** grade diária de "acordado"
+centrada na mediana, extremos do período.
 
 ---
 

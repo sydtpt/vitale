@@ -19,13 +19,17 @@ import {
   FLAT_SLEEP_MIN,
   MIN_RATING_NIGHTS,
   NIGHT_REFERENCE_H,
+  nightStartDay,
   ratingsSplit,
   signedMin,
+  sleepCrossHighlight,
+  sleepCrossMetrics,
   sleepHighlights,
   sleepRetro,
   sleepSide,
   weekendShift,
 } from './retro';
+import { triggerImpact } from '../health/trigger-impact';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -241,6 +245,54 @@ check('sleepHighlights — em Total (noPrior) a variação some mesmo com anteri
   assert.equal(hs.length, 1);
   assert.equal(hs[0].tone, 'neutral');
   assert.ok(!hs[0].text.includes('vs.'));
+});
+
+check('sleepCrossMetrics — chave é o dia em que a noite começou, não o de acordar', () => {
+  assert.equal(nightStartDay('2026-06-15'), '2026-06-14');
+  assert.equal(nightStartDay('2026-03-01'), '2026-02-28');
+  const ms = sleepCrossMetrics(WEEK);
+  const dormido = ms.find((m) => m.metric === 'dormido')!;
+  assert.ok(dormido.valuesByDay.has('2026-06-14'), 'a noite de 15/06 conta para o dia 14');
+  assert.ok(!dormido.valuesByDay.has('2026-06-15') || WEEK.some((p) => p.wakeDay === '2026-06-16'));
+  assert.equal(dormido.valuesByDay.size, 7);
+  const acordado = ms.find((m) => m.metric === 'acordado')!;
+  assert.equal(acordado.higherIsWorse, true);
+  assert.equal(acordado.valuesByDay.get('2026-06-18'), 30); // noite de 19/06: 30 min
+  const rem = ms.find((m) => m.metric === 'rem')!;
+  assert.equal(rem.valuesByDay.get('2026-06-14'), 90); // 1,5 h em minutos
+  // Fonte que não reporta vigília e noite sem hipnograma ficam de fora dos seus mapas.
+  const mudo = sleepCrossMetrics(WEEK.map((p) => ({ ...p, awakenings: null, stages: null })));
+  assert.equal(mudo.find((m) => m.metric === 'acordado')!.valuesByDay.size, 0);
+  assert.equal(mudo.find((m) => m.metric === 'profundo')!.valuesByDay.size, 0);
+  assert.equal(mudo.find((m) => m.metric === 'dormido')!.valuesByDay.size, 7);
+});
+
+check('sleepCrossHighlight — valores absolutos, n dos dois lados, tom pelo pior lado', () => {
+  const ms = sleepCrossMetrics([...PREV, ...WEEK]);
+  const dormido = ms.find((m) => m.metric === 'dormido')!;
+  // "Cerveja" nas vésperas de 15, 16 e 17/06 — as três noites mais curtas da semana.
+  const dias = new Set(['2026-06-14', '2026-06-15', '2026-06-16']);
+  const imp = triggerImpact('dormido', dias, dormido.valuesByDay);
+  assert.equal(imp.nWith, 3);
+  assert.equal(imp.nWithout, 9);
+  const h = sleepCrossHighlight(dormido, 'Cerveja', imp, 5)!;
+  assert.ok(h, 'diferença acima do piso');
+  assert.equal(h.kind, 'cross');
+  assert.equal(h.tone, 'bad');
+  assert.ok(h.text.startsWith('Nas noites depois de "Cerveja", dormiu '));
+  assert.ok(h.text.includes(' contra '));
+  assert.equal(h.support, '3 noites com · 9 sem · associação, não causa');
+  // Abaixo do piso: nada.
+  assert.equal(sleepCrossHighlight(dormido, 'Cerveja', imp, 99), null);
+  // Sem amostra de um lado: nada.
+  const pouco = triggerImpact('dormido', new Set(['2026-06-14']), dormido.valuesByDay);
+  assert.equal(sleepCrossHighlight(dormido, 'Cerveja', pouco, 5), null);
+  // Vigília: subir é pior.
+  const acordado = ms.find((m) => m.metric === 'acordado')!;
+  const impAw = triggerImpact('acordado', new Set(['2026-06-08', '2026-06-09', '2026-06-10']), acordado.valuesByDay);
+  const hAw = sleepCrossHighlight(acordado, 'Cerveja', impAw, 5)!;
+  assert.equal(hAw.tone, 'bad');
+  assert.ok(hAw.text.includes('ficou ') && hAw.text.includes(' acordado contra '));
 });
 
 console.log(`\n${passed} checks passaram`);
