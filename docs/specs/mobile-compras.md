@@ -1,5 +1,9 @@
 # Spec: Mobile — Tab Compras
 
+> **05/09/2026:** saiu da barra — Sono ficou com o lugar (`(tabs)/_layout.tsx`). Continua
+> uma tela de tab, **oculta** (`href: null`), aberta pelo tile "Compras" do Mais, e por isso
+> ganhou o botão de voltar no header, como Saúde. Volta à barra quando a UI ficar pronta.
+
 ## Objetivo
 
 Lista de compras otimizada para uso no supermercado: navegação rápida, check-in fácil, agrupamento por categoria para seguir o percurso da loja.

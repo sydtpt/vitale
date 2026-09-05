@@ -9,7 +9,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   awakeMinOf,
@@ -23,10 +23,11 @@ import {
 import { useSonoStore } from '../../store/sono.store';
 import { useAuthStore } from '../../store/auth.store';
 import { formatHoursMin } from '../../lib/health-buckets';
+import { useTabBarHeight } from '../../hooks/useTabBarHeight';
+import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { SleepTimingChart } from '../../components/charts/SleepTimingChart';
 import { AwakeningsClock } from '../../components/charts/AwakeningsClock';
 import { SleepLegend, SwDashed, SwGap, SwSolid } from '../../components/sono/SleepLegend';
-import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
 /** Noites no timing chart — o que cabe legível na largura de um telefone. */
@@ -59,12 +60,21 @@ function dayLabel(day: string): string {
  * ① os relógios (o fato), ② o timing chart (a forma), ③ os despertares,
  * ④ a nota contra a medição. Sem score, sem streak, sem seta.
  *
- * Sono usa a cor da água por decisão (ADR 0031): é categoria de Saúde, não módulo.
- * As cores vêm de `sleepColors()` — azul é sono, amarelo é vigília, em toda tela.
+ * É uma **aba** da barra desde 05/09/2026 — entrou no lugar de Compras, que
+ * passou ao Mais. Por isso não tem botão de voltar e respeita a pílula: o
+ * `paddingBottom` vem de `useTabBarHeight` e o scroll a colapsa como as outras.
+ * As subviews (`/sono/tempos`, `/sono/despertares`, `/sono/[day]`) continuam na
+ * pilha raiz, empilhadas por cima da aba.
+ *
+ * Sono usa a cor da água por decisão (ADR 0031): é categoria de Saúde, não módulo —
+ * ter aba própria não muda isso. As cores vêm de `sleepColors()` — azul é sono,
+ * amarelo é vigília, em toda tela.
  */
 export default function SonoScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useTabBarHeight();
+  const tabBarScroll = useTabBarScroll();
   const router = useRouter();
   const sc = sleepColors();
 
@@ -114,8 +124,7 @@ export default function SonoScreen() {
   if (!loaded && loading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={() => router.back()} styles={styles} />
+        <Header styles={styles} />
         <View style={styles.center}>
           <ActivityIndicator color={sc.sleep} />
         </View>
@@ -126,8 +135,7 @@ export default function SonoScreen() {
   if (!last) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={() => router.back()} styles={styles} />
+        <Header styles={styles} />
         <View style={styles.center}>
           <Ionicons name="moon-outline" size={36} color={colors.ink4} />
           <Text style={styles.emptyText}>Nenhuma noite sincronizada ainda.</Text>
@@ -143,10 +151,13 @@ export default function SonoScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <Header onBack={() => router.back()} styles={styles} />
+      <Header styles={styles} />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]}
+        showsVerticalScrollIndicator={false}
+        {...tabBarScroll}
+      >
         {/* ① Os relógios — a frase que o usuário pediu, sem a subtração. */}
         <Pressable
           onPress={() => router.push({ pathname: '/sono/[day]', params: { day: last.wakeDay } })}
@@ -294,14 +305,11 @@ export default function SonoScreen() {
 
 type Styles = ReturnType<typeof createStyles>;
 
-function Header({ onBack, styles }: { onBack: () => void; styles: Styles }) {
+/** O cabeçalho de aba — o mesmo desenho do de Compras e do Mais: título serifado, sem voltar. */
+function Header({ styles }: { styles: Styles }) {
   return (
     <View style={styles.header}>
-      <Pressable onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}>
-        <Ionicons name="chevron-back" size={22} color={colors.ink} />
-      </Pressable>
       <Text style={styles.headerTitle}>Sono</Text>
-      <HeaderSpacer />
     </View>
   );
 }
@@ -339,11 +347,11 @@ function NightRow({
 const createStyles = () =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
-    scroll: { padding: spacing.lg, paddingBottom: spacing.xl * 2, gap: spacing.md },
+    // O respiro de baixo é a altura da pílula, aplicado no render.
+    scroll: { padding: spacing.lg, gap: spacing.md },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-    backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
-    headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.sansBold, color: colors.ink },
+    header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center' },
+    headerTitle: { fontSize: 28, fontFamily: fonts.serif, color: colors.ink },
     pressed: { opacity: 0.7 },
     flex: { flex: 1 },
 

@@ -28,7 +28,7 @@ mobile/src/
     └── MacroDonut.tsx           # donut de macronutrientes
 ```
 
-Rota registrada em `app/_layout.tsx` (`saude/[metric]`, slide). Tab registrada em `app/(tabs)/_layout.tsx` (ícone `heart-outline`). A tab **Compras** foi removida do tab bar para abrir espaço.
+Rota registrada em `app/_layout.tsx` (`saude/[metric]`, slide). Saúde é uma tela de tab **oculta** (`href: null` em `app/(tabs)/_layout.tsx`), aberta pelo Mais — por isso tem botão de voltar. A categoria **Sono** não aparece na lista desde 05/09/2026: virou aba própria na barra (`(tabs)/sono.tsx`), no lugar de Compras; o id `sono` continua no catálogo para prontidão e retro.
 
 ## Registro de métricas (config-driven)
 

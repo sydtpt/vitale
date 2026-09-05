@@ -57,9 +57,14 @@ type TabDef = {
   iconActive: keyof typeof Ionicons.glyphMap;
 };
 
+/**
+ * As quatro abas visíveis. Sono entrou no lugar de Compras em 05/09/2026: a
+ * lista de mercado ainda está crua, e a tela de sono é a que se abre todo dia.
+ * Compras, Saúde e Semana continuam telas de aba (`href: null`), abertas pelo Mais.
+ */
 const TABS: TabDef[] = [
   { name: 'index',     label: 'Hoje',      icon: 'home-outline',                       iconActive: 'home' },
-  { name: 'compras',   label: 'Compras',   icon: 'cart-outline',                       iconActive: 'cart' },
+  { name: 'sono',      label: 'Sono',      icon: 'moon-outline',                       iconActive: 'moon' },
   { name: 'historico', label: 'Histórico', icon: 'barbell-outline',                    iconActive: 'barbell' },
   { name: 'mais',      label: 'Mais',      icon: 'ellipsis-horizontal-circle-outline', iconActive: 'ellipsis-horizontal-circle' },
 ];
@@ -298,7 +303,7 @@ function SelectionRail({
    *
    * Enquanto o botão era tinta cheia ele escondia a régua nesse trecho, e o
    * defeito passava despercebido. Vazado, ele não esconde mais nada: a régua
-   * atravessaria VISÍVEL por dentro do furo ao ir de Compras para Histórico.
+   * atravessaria VISÍVEL por dentro do furo ao ir de Sono para Histórico.
    * Some no meio do caminho — e some saindo da própria mola, por interpolação
    * do mesmo valor, então continua tudo nativo e não há segunda animação para
    * dessincronizar. `clamp` segura os extremos em 1: 0→3 também cruza o furo, e
@@ -529,8 +534,9 @@ export default function TabLayout() {
         screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: 'transparent' } }}
       >
         <Tabs.Screen name="index"     options={{ title: 'Hoje' }} />
-        <Tabs.Screen name="compras"   options={{ title: 'Compras' }} />
+        <Tabs.Screen name="sono"      options={{ title: 'Sono' }} />
         <Tabs.Screen name="historico" options={{ title: 'Histórico' }} />
+        <Tabs.Screen name="compras"   options={{ href: null }} />
         <Tabs.Screen name="saude"     options={{ href: null }} />
         <Tabs.Screen name="semana"    options={{ href: null }} />
         <Tabs.Screen name="mais"      options={{ title: 'Mais' }} />
