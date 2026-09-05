@@ -109,6 +109,19 @@ const routes: Routes = [
     loadComponent: () =>
       import('@features/sono/pages/sono-page.component').then(m => m.SonoPageComponent),
   },
+  // As subviews vêm antes de `sono/:day` — senão o param engole "tempos".
+  {
+    path: 'sono/tempos',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/sono/pages/sono-tempos-page.component').then(m => m.SonoTemposPageComponent),
+  },
+  {
+    path: 'sono/despertares',
+    canActivate: [profileGuard],
+    loadComponent: () =>
+      import('@features/sono/pages/sono-despertares-page.component').then(m => m.SonoDespertaresPageComponent),
+  },
   {
     path: 'sono/:day',
     canActivate: [profileGuard],

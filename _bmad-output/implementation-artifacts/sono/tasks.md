@@ -238,8 +238,17 @@
   **Conferida no iPhone em 05/09/2026 (~02:30): "está ok".**
 - [x] T7.3 — Spec reconciliada em 05/09: a peça ② fica sem seletor na visão geral; o seletor
   mora nas subviews. Nem absorção nem duplicação.
-- [ ] T7.4 — **Web:** `/sono/tempos` e `/sono/despertares` em Angular, pelo mesmo núcleo —
-  mesma composição do mobile (coluna única), como a Fase 5.
+- [x] T7.4 — **Web:** `/sono/tempos` e `/sono/despertares` em Angular, pelo mesmo núcleo —
+  mesma composição do mobile (coluna única), como a Fase 5. Escritas em 05/09/2026:
+  `SonoPeriodNavComponent` (o segmentado do Histórico + ◀ ▶), `PeriodAveragesComponent`,
+  `FactsListComponent`, `SleepLegendComponent`, `SleepTimingChartComponent` com as três
+  ênfases (vão + marca ao lado, hachura, cama em `wash`), `SleepBucketsChartComponent` e
+  `SleepStagesStackComponent` (por noite ou semana), sub-seletor na hora · total; as peças ②
+  e ③ da visão geral viraram links. O `SonoStore` passou a carregar o histórico inteiro
+  (as notas continuam na janela de 90 dias). `SONO_MARKERS` subiu para o shared
+  (`sleep/markers.ts`) — a barreira de nomes duplicados não deixa duas cópias. Rotas antes
+  de `sono/:day`. Validação: web build 0 (só avisos pré-existentes) · 141 testes ·
+  architecture 13/13. **Falta a conferência no navegador.**
 - [x] T7.5 — **Gramática de cor (review de UX, 05/09/2026).** Medido nas 36 combinações: o Leve
   era o tint (1,14–1,43), REM = Profundo em 22/36, o azul dizia três coisas. Feito: `graphic`,
   `wash` e `ramp` por papel em `derive.ts` (+ barreira no `theme.test.ts`), `sleep/colors.ts`

@@ -42,9 +42,10 @@
       }
     </a>
 
-    <!-- ② O timing chart — a regularidade aparece na forma, não num índice. -->
-    <section class="card">
-      <h3 class="card-title">Últimas {{ TIMING_NIGHTS }} noites</h3>
+    <!-- ② O timing chart — a regularidade aparece na forma, não num índice.
+         Clicar abre /sono/tempos: períodos navegáveis, despertares em destaque, fatos. -->
+    <a class="card clickable" routerLink="/sono/tempos">
+      <h3 class="card-title">Últimas {{ TIMING_NIGHTS }} noites <span class="chev">›</span></h3>
       <rt-sleep-timing-chart [days]="store.timingDays()" [periods]="store.periods()" />
       <div class="legend">
         <span class="legend-item"><i class="sw sw-sleep"></i>dormindo</span>
@@ -52,11 +53,12 @@
         <span class="legend-item"><i class="sw sw-bed"></i>na cama</span>
         <span class="legend-item"><i class="sw sw-empty"></i>sem dado</span>
       </div>
-    </section>
+    </a>
 
-    <!-- ③ Despertares — quando a noite quebra, não quantas vezes na média. -->
-    <section class="card">
-      <h3 class="card-title">Despertares</h3>
+    <!-- ③ Despertares — quando a noite quebra, não quantas vezes na média.
+         Clicar abre /sono/despertares: quando, quanto, por dia da semana. -->
+    <a class="card clickable" routerLink="/sono/despertares">
+      <h3 class="card-title">Despertares <span class="chev">›</span></h3>
       <p class="card-sub">últimas {{ store.recent().length }} noites, sobrepostas na hora do dia</p>
       <rt-awakenings-clock [periods]="store.recent()" />
       <div class="series">
@@ -74,7 +76,7 @@
         }
       </div>
       <p class="card-note">Minutos acordado por noite. Sem meta — a série existe para você ver, não para bater um alvo.</p>
-    </section>
+    </a>
 
     <!-- ④ Nota × medição — o par que só o Orbe tem. Sem seta, sem "melhorou". -->
     @if (store.groups().length > 0) {

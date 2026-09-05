@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  SONO_MARKERS,
   STAGE_LABEL,
   bucketFacts,
   bucketPeriods,
@@ -15,7 +16,6 @@ import {
   type SonoRange,
 } from '@vitale/shared';
 import { useSonoStore } from '../../store/sono.store';
-import { SONO_MARKERS } from '../../config/sono-markers';
 import { SleepTimingChart } from '../../components/charts/SleepTimingChart';
 import { SleepBucketsChart } from '../../components/charts/SleepBucketsChart';
 import { SleepStagesStackChart } from '../../components/charts/SleepStagesStackChart';

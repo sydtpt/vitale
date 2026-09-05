@@ -30,6 +30,7 @@ export * from './sleep/summary';
 export * from './sleep/buckets';
 export * from './sleep/facts';
 export * from './sleep/colors';
+export * from './sleep/markers';
 export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bounds';
