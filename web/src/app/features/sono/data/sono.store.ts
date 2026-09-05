@@ -13,8 +13,11 @@ import {
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 /**
- * Janela em memória, em dias — a mesma do mobile e da Retrospectiva: abaixo de
+ * Janela das **notas**, em dias — a mesma do mobile e da Retrospectiva: abaixo de
  * 90 o `n` por nota do par percepção × medição fica pequeno demais para mostrar.
+ * Os **períodos** vêm inteiros, como no mobile: as subviews (12m, ano, e o ◀ que
+ * anda um período do próprio tamanho) precisam do histórico todo, e são ~300
+ * linhas paginadas — barato.
  */
 export const SONO_WINDOW_DAYS = 90;
 /** Noites no timing chart — as mesmas 14 do mobile; a web não redesenha, recompõe. */
@@ -135,10 +138,9 @@ export class SonoStore {
     this._state.set('loading');
     this._error.set(null);
     try {
-      const since = windowStart(SONO_WINDOW_DAYS);
       const [periods, ratings] = await Promise.all([
-        fetchSleepPeriodsSince(supabase, userId, since),
-        fetchDailyRatingsSince(supabase, userId, since),
+        fetchSleepPeriodsSince(supabase, userId, '2000-01-01'),
+        fetchDailyRatingsSince(supabase, userId, windowStart(SONO_WINDOW_DAYS)),
       ]);
       const map: Record<string, number> = {};
       for (const r of ratings) if (r.sleepQuality != null) map[r.day] = r.sleepQuality;

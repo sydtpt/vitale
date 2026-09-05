@@ -143,7 +143,12 @@ export default function ComprasTabScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Aba oculta desde 05/09/2026 (Sono ficou com o lugar na barra): abre pelo
+          Mais, como Saúde, e por isso ganha o botão de voltar. */}
       <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        </Pressable>
         <Text style={styles.headerTitle}>Compras</Text>
         <Pressable onPress={() => router.push('/compras/editor')} hitSlop={12} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
           <Ionicons name="add" size={24} color={colors.ink} />
@@ -234,6 +239,7 @@ const createStyles = () => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   iconBtn: {
     width: 36,
@@ -245,7 +251,8 @@ const createStyles = () => StyleSheet.create({
     ...shadows.card,
   },
   pressed: { opacity: 0.7 },
-  headerTitle: { fontSize: 28, fontFamily: fonts.serif, color: colors.ink },
+  // Centrado entre voltar e "+", como o de Saúde — o desenho das abas ocultas.
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 24, fontFamily: fonts.serif, color: colors.ink },
 
   estimateBanner: {
     flexDirection: 'row',

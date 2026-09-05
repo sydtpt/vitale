@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, fonts, spacing, useThemedStyles } from '../../theme';
@@ -17,6 +17,7 @@ import { useSettingsStore } from '../../store/settings.store';
 import { useHealthStore } from '../../store/health.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useDailyRatingsStore, dayRatingDate } from '../../store/daily-ratings.store';
+import { useSonoStore } from '../../store/sono.store';
 import { useRefreshOnForeground } from '../../hooks/useRefreshOnForeground';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
@@ -114,6 +115,19 @@ export default function HojeScreen() {
   // Sono só aparece depois de realmente acordar (a partir das 06h).
   const showSleepRating = new Date().getHours() >= 6;
 
+  // A noite medida, ao lado da nota (spec Sono CAP-8): só a que acordou hoje —
+  // o histórico é da aba Sono. Seleciona a fatia crua e deriva no `useMemo`;
+  // `byDay()` da store é função, e função em seletor trava o render
+  // (barreira `store-selector-stability`).
+  const sonoPeriods = useSonoStore(s => s.periods);
+  const loadTonight = useSonoStore(s => s.loadToday);
+  useEffect(() => { loadTonight(); }, [loadTonight, user?.id]);
+  const todayStr = localDateStr();
+  const lastNight = useMemo(
+    () => [...sonoPeriods].reverse().find(p => p.wakeDay === todayStr) ?? null,
+    [sonoPeriods, todayStr],
+  );
+
   // "Como foi seu dia?" abre na janela noturna (22h–04h59). Na madrugada o card
   // avalia/mostra o dia anterior, então o valor vem da janela pelo dia resolvido.
   const dayRatingDay = dayRatingDate();
@@ -133,7 +147,7 @@ export default function HojeScreen() {
 
   // Ao retomar o app (background → active), a tela segue montada, então
   // recarrega o que pode ter mudado desde a última vez.
-  useRefreshOnForeground(() => { loadCounters(); loadTodos(); loadRatings(); loadMeals(); loadActs(true); });
+  useRefreshOnForeground(() => { loadCounters(); loadTodos(); loadRatings(); loadMeals(); loadActs(true); loadTonight(); });
 
   // Só os hábitos marcados como "Mostrar na home" viram steppers aqui; os demais
   // ficam restritos à tela de hábitos. (O anel da água acima usa a lista completa.)
@@ -219,9 +233,15 @@ export default function HojeScreen() {
             nenhuma tiver. */}
         <TodayBodyCard activities={allActs} loaded={actsLoaded} />
 
-        {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido */}
+        {/* Sono percebido — só a partir das 06h; colapsa em chip depois de preenchido,
+            e aí a noite medida entra à direita (nunca antes da nota). */}
         {showSleepRating && (
-          <SleepRatingCard value={todayRating?.sleepQuality ?? null} onSelect={setSleep} />
+          <SleepRatingCard
+            value={todayRating?.sleepQuality ?? null}
+            onSelect={setSleep}
+            night={lastNight}
+            onNightPress={() => { if (lastNight) router.push({ pathname: '/sono/[day]', params: { day: lastNight.wakeDay } }); }}
+          />
         )}
 
         {/* Hábitos com valor hoje */}

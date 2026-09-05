@@ -119,6 +119,11 @@ dano, não é o que falta ao Orbe.**
   - **success:** O cartão da categoria Sono na aba Saúde navega para `/sono`; `/saude/sono`
     deixa de ser alcançável. O id `'sono'` **permanece** em `metric-catalog.ts` — a prontidão
     (`health-readiness.ts`) e a retrospectiva leem `seriesFor('sono')` e não podem quebrar.
+  - **05/09/2026 — a entrada mudou:** `/sono` é **aba da barra** (`(tabs)/sono.tsx`), no lugar
+    de Compras, que passou ao Mais como aba oculta. A categoria Sono **some da lista da
+    Saúde** — a tela deixa de ser "parte de Saúde" na navegação, sem mexer na cor nem na
+    taxonomia da ADR 0031. As subviews (`/sono/tempos`, `/sono/despertares`, `/sono/[day]`)
+    seguem na pilha raiz, empilhadas sobre a aba.
 
 - **CAP-7** — Seção "Tempos e estágios" com seletor de período *(pedida em 04/09/2026 —
   **não construir agora**; entra quando for o melhor momento, e o usuário pediu para ser
@@ -130,12 +135,24 @@ dano, não é o que falta ao Orbe.**
   - **Opção 1 — Tempos:** a barra é a **janela na cama** (hora que deitou → hora que saiu da
     cama), **sem muito destaque**; os **despertares no meio da noite** marcados **com
     destaque** — o usuário quer saber *quando* tem acordado e *por quanto tempo*.
-  - **Opção 2 — Estágios:** cada barra mostra os **períodos de cada estágio**, nas horas em
-    que ocorreram — posição real, não proporção.
-  - **Seletor:** última noite · 7d · 4s · 12 meses · ano · sempre. Em *última noite*, *7d* e
-    *4s* **todos os dias aparecem**. Para *12 meses*, *ano* e *sempre* a forma está **em
-    aberto** — decidir com dados reais antes de codar (regra da casa: proposta antes de
-    mudança visual).
+  - **Opção 2 — Estágios:** em **duas leituras**, trocadas por um sub-seletor *na hora · total*
+    (pedido em 05/09/2026). **Na hora:** cada barra mostra os períodos de cada estágio nas horas
+    em que ocorreram — posição real, não proporção. **Total:** uma coluna por noite em horas por
+    estágio, empilhada na ordem do hipnograma (profundo na base, leve, REM, sem estágio em
+    hachura, a vigília amarela no topo) — a altura é a noite inteira. Nos períodos longos só
+    existe o total.
+  - **Seletor (decidido em 05/09/2026):** última noite · 7d · 4s · 12 meses · ano. **Sem
+    "sempre"** — retirado pelo usuário. **Todo período é navegável:** ◀ ▶ recua ou avança *um
+    período do próprio tamanho* (7d anda sete dias, 4s anda 28, 12m anda doze meses, ano anda
+    um ano, última anda uma noite), e o ◀ só acende onde há noite. Navegar substitui acumular.
+    Em *última noite*, *7d* e *4s* **todos os dias aparecem**.
+    Em *12 meses* e *ano* a forma é **coluna por semana**: mediana de apagar e acordar como
+    barra, o miolo p25–p75 como faixa — a regularidade continua sendo forma. A **troca de
+    relógio (18/07/2026) fica marcada** no gráfico, e nas contagens de despertar as eras saem
+    separadas (Apple contava 11,8 por noite; Garmin, 2,6–3,4 — não são comparáveis).
+  - **Médias do topo (decidido):** *dormindo* sempre; o segundo número é *na cama* quando ≥ 80%
+    das noites do período medem a cama (`bedtimeMeasured`), senão vira *acordado*. Nas
+    curtas, hoje, a cama é medida em 0% — o topo diz "acordado".
   - **success:** trocar o período recalcula as médias e redesenha o gráfico; trocar a opção
     mantém o período; as duas opções distinguem "não sei" de "não houve" (§6).
   - **dependência dura (Opção 2):** intervalos de estágio **não são gravados** — só horas por
@@ -156,6 +173,73 @@ dano, não é o que falta ao Orbe.**
   - **referência visual:** screenshot do app Saúde (M · Amounts) de 04/09/2026 23:30 — eixo
     22:00 → 14:00, barras segmentadas, despertares marcados, "Sleep Schedule 00:30–07:15".
 
+- **CAP-8** — Ver a noite ao lado da nota, na Hoje *(pedida e decidida em 05/09/2026, com
+  mockup em tamanho real e dados reais antes do código — artifact
+  `claude.ai/code/artifact/5d2b47a9-70e1-4e67-9b44-d5d3a63dc816`, opção A, sem veto)*
+  - **intent:** Ao dar a nota de manhã, o usuário vê na mesma linha o que foi medido:
+    **percepção à esquerda** (o chip `Sono 3/5`), **medição à direita**.
+  - **success:** Duas linhas de texto à direita do chip, alinhadas à direita e centradas na
+    altura dele (36 pt): `01:26 → 08:39` e `3 despertares · 8 min`, 12/16 pt. **Só tinta** —
+    número em mono `ink`, palavra em `ink2`; nenhuma cor de sono, porque o bloco é legenda,
+    não gráfico. O texto nasce em `nightLine()` (`sleep/facts.ts`), a tela não formata hora.
+    Toque no bloco abre `/sono/[day]`; o lápis do chip segue abrindo a nota.
+  - **success (negativo):** **nunca antes da nota** — o card "Como foi seu sono?" não mostra
+    medição, para o relógio não puxar a resposta; o par nota × medição de CAP-3 só vale se a
+    nota for do usuário. Sem noite medida, o espaço fica **em branco**: nem "sem dado", nem
+    spinner — a aba Sono é o lugar de explicar ausência. `awakenings: []` escreve
+    "sem despertar"; `null` omite a segunda linha.
+  - **dado:** uma consulta por `wake_day = hoje` (`loadToday()` na store), não o histórico —
+    os 288 períodos com segmentos de estágio pesam ~380 kB e são da aba Sono. Recarrega ao
+    voltar do background, como os demais stores da Hoje.
+  - **medido (05/09/2026, 63 noites desde 01/06):** 7 sem despertar, 9 com ≥ 10 despertares,
+    pior caso 21 despertares e 127 min. Em texto, a pior noite ocupa 173 dos 221 pt
+    disponíveis; a forma "mais dois chips" quebraria a linha em 9 das 63 noites, e a faixa em
+    miniatura poria o amarelo da vigília sobre o `bg` do Orbe claro a 2,83 — por isso texto.
+
+- **CAP-9** — Sono na Retrospectiva *(pedida em 05/09/2026 — "média de quanto estou
+  acordando por noite, tempos de sono por fase, e outras ideias"; proposta com dados reais no
+  artifact `claude.ai/code/artifact/73f0edb9-ae85-42d5-9216-0d51b39c2d0c`, aprovada com as
+  quatro decisões em "sim")*
+  - **intent:** No jornal de domingo, a noite típica do período em cinco linhas de fato:
+    quanto dormi, quando, quanto fiquei acordado, de que o sono foi feito, como acordei.
+  - **success:** Bloco `sleep` na Retrospectiva, lido de `sleep_periods` (não da soma diária).
+    Média de horas com a diferença **em minutos** vs o período anterior; apagou · acordou como
+    medianas com o miolo p25–p75; **acordado por noite** (minutos, despertares por noite,
+    noites com despertar, o mais longo); **por fase** como uma barra só (REM · Leve · Profundo
+    · acordado) e os minutos de cada com Δ; nota × medição por lado (≥ 4 · ≤ 3) com o `n`. Em
+    Mês e Estação: a faixa semana a semana e o fim de semana × semana em minutos (≥ 2 noites
+    de cada tipo). A linha "Sono" e "Sono percebido" **saem do card Saúde** enquanto o bloco
+    existir. A manchete ganha frases de sono: horas e vigília como `health`, **nota × medição
+    como `cross`** (≥ 3 noites de cada lado), que pode abrir a edição do mês.
+  - **success (negativo):** sem saldo contra meta, sem índice de regularidade, sem nota
+    composta. `awake: null` quando a fonte não reporta; a diferença de vigília é `null` quando
+    a comparação cruza a troca de relógio (`SONO_MARKERS`), e a caixa de correções o diz.
+  - **onde:** `packages/shared/src/sleep/retro.ts` (`sleepRetro`, `sleepHighlights`),
+    `period/retro.ts` (`RetroInput.sleepPeriods`, `RetroSummary.sleep`), `retro-blocks.ts`,
+    `mobile/src/components/SleepRetroCard.tsx`. Ver `docs/specs/retrospectiva/v2-jornal.md §9`.
+
+- **CAP-10** — Três leituras novas no Tempos: **Dispersão**, **antes × agora** e a **grade
+  semana × dia** *(05/09/2026, mesma proposta; B1, B4 e B2 das cinco opções)*
+  - **intent:** Ver a regularidade como **largura**, o período contra o anterior, e a mesma
+    noite da semana ao longo do mês — sem índice.
+  - **success (grade):** Quarto modo **Grade**, só nos períodos por noite: as semanas em
+    linhas, os dias em colunas, cada célula a noite em miniatura (apagar → acordar) no mesmo
+    eixo de horas; marca amarela ao lado com ≥ 30 min acordado; tracejado onde não há noite;
+    toque abre o detalhe. Em 12m e ano o modo não existe e a tela volta a Tempos.
+  - **success:** Terceiro modo **Dispersão** no Tempos: cada noite é um ponto numa régua, a
+    mediana é a linha, o miolo p25–p75 é a faixa (a lavagem do azul), o fim de semana é ponto
+    vazado — quatro réguas: apagou, acordou, dormido, acordado. Nos períodos longos os pontos
+    são as semanas. Em todos os modos, abaixo dos fatos, o **antes × agora**: a noite típica
+    deste período ao lado da do anterior (barra = mediana apagar → acordar, bigode = p25–p75),
+    a composição por fase dos dois, e as diferenças em minutos — sem cor de bom ou ruim. Só
+    com ≥ 3 noites de cada lado; "última" não compara.
+  - **onde:** `mobile/src/components/sono/SleepDispersion.tsx`, `BeforeAfter.tsx`,
+    `SleepWeekGrid.tsx`, `sono/tempos.tsx`. A web recebe depois, se fizer falta.
+  - **também na retro (05/09):** o cruzamento gatilho × saúde passa a comparar **dormido,
+    acordado, REM e profundo** das noites, chaveadas pelo dia em que a noite começou
+    (`sleepCrossMetrics`), em valores absolutos e com o `n` dos dois lados; e o bloco "Por
+    mês" do Ano ganha as séries **Sono** e **Acordado** (`MonthBucket.sleepH`/`awakeMin`).
+
 ## 4. Constraints
 
 - **Mobile primeiro.** A web não pauta nenhuma decisão desta entrega e entra numa segunda
@@ -165,8 +249,15 @@ dano, não é o que falta ao Orbe.**
   Padrão de `fitness/overview` e `period/retro`.
 - **Sem Reanimated** ([ADR 0010](../../decisions/0010-sem-reanimated-no-mobile.md)). Animação
   é o `Animated` do React Native.
-- **Cor vem do tema.** Sono usa `moduleOf('agua')` — o papel `blue`. **Sono não é módulo**;
-  ver [ADR 0031](../../decisions/0031-sono-e-categoria-nao-modulo.md). Nenhum hex em tela.
+- **Cor vem do tema — e é uma gramática só.** Sono empresta o papel `blue` (**Sono não é
+  módulo**; ver [ADR 0031](../../decisions/0031-sono-e-categoria-nao-modulo.md)) e, para o REM,
+  o `rose`. Os dois apps leem `sleepColorsOf()` (`packages/shared/src/sleep/colors.ts`):
+  **azul é sono** (barra, mediana, série de horas), a **rampa do azul é profundidade** (Leve = o
+  traço, Profundo = o degrau escuro), **REM é rosa** em todas as paletas (outro estado, não um
+  degrau), **amarelo é vigília** em toda tela, **hachura é
+  "sem estágio"**, tracejado é "sem noite". O despertar é o vão da barra; nas subviews o vão
+  ganha a marca amarela ao lado. Nenhum hex em tela, e nenhum token de UI (`soft`, `text`) como
+  marca de dado — ver [ADR 0032](../../decisions/0032-cor-de-sono-e-gramatica-derivada.md).
 - **Sem captura manual noturna.** Decisão explícita do usuário (04/09/2026): o app já cobra
   a nota de manhã, e um segundo ritual à noite cobra caro por um campo. **Custo assumido:**
   quando a janela do sensor errar, não há conserto — é o padrão nº 3 de reclamação da
@@ -182,7 +273,8 @@ dano, não é o que falta ao Orbe.**
 ## 5. Recorte do V1
 
 **Entra:** CAP-1 a CAP-6. CAP-5 depende da correção do agregador na Fase 3 (§6) — sem ela
-nasce vazia na fonte atual; com ela, viva em todo o histórico.
+nasce vazia na fonte atual; com ela, viva em todo o histórico. **CAP-8** entrou em 05/09/2026,
+a pedido do usuário, já com a tela pronta.
 
 **Fica para depois:**
 

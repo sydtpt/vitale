@@ -6,8 +6,11 @@
 >
 > **Fases 0–4 entregues em 04/09/2026** — núcleo no shared, `sleep_periods` + `CHECK` em
 > produção, sync com backfill v7 verificado contra snapshot, e a tela `/sono` conferida no
-> iPhone, e a **Fase 5 (web)** conferida no navegador. **Aberto:** T0.2 (Foco de Sono —
-> responde 05/09) e Fase 6 (CAP-7, adiada por pedido do usuário — avisá-lo). Origem: party mode de 04/09/2026 + pesquisa
+> iPhone, e a **Fase 5 (web)** conferida no navegador. **Fase 6 (CAP-7) em andamento desde
+> 05/09** — o usuário a levantou; Tempos, Despertares e **Estágios conferidos no iPhone**;
+> web entregue (T7.4). **T7.6 (CAP-8, a noite ao lado da nota na Hoje) escrita em 05/09,
+> falta o iPhone.** **Aberto também:** T0.2
+> (Foco de Sono — responde 05/09). Origem: party mode de 04/09/2026 + pesquisa
 > competitiva do mesmo dia. Os mockups aprovados pelo usuário estão no artifact
 > `claude.ai/code/artifact/b9afbb6a-9c59-40d5-a9f2-85ceded2ed90`.
 
@@ -170,6 +173,9 @@
 > `SleepTimingChart`, `AwakeningsClock`, `app/sono/index.tsx`, `app/sono/[day].tsx`, rotas no
 > `_layout.tsx`, `saude.tsx` roteando sono para `/sono`). Validação: shared lint 0 · shared
 > test 549 asserts + arquitetura 13/13 · web build 0 · mobile tsc 0 · mobile jest 621/621.
+>
+> **05/09/2026:** `app/sono/index.tsx` virou `app/(tabs)/sono.tsx` — Sono é aba da barra, no
+> lugar de Compras (que passou ao Mais como aba oculta), e saiu da lista da Saúde.
 > **Conferência no aparelho pendente — é o Done (T6.3).**
 >
 > Dois tropeços que valem para a próxima tela: (1) as **rotas tipadas** do expo-router só
@@ -197,25 +203,118 @@
 > visual: a tela de Sono do app Saúde da Apple (M · Amounts). **Quem pegar o repo depois
 > de 05/09 e vir a Fase 4 conferida no aparelho: é hora de levantar esta.**
 
-- [ ] T7.0 — Decidir, com dados reais e mockup antes de código. **(a) decidida pelo usuário em
+- [x] T7.0 — Decidido em 05/09/2026, com dados reais e mockup antes de código. **(a) decidida pelo usuário em
   05/09:** nem absorve nem convive — a peça ② fica no `/sono` e **tocar nela abre
-  `/sono/tempos`**; Despertares (③) abre **`/sono/despertares`**. (b) a forma dos períodos
-  longos — mockup propõe **semanas** (mediana + p25–p75) para 12m/ano e **meses** para sempre,
-  com a troca de relógio (18/07) marcada; (c) a média "na cama" — mockup propõe mostrar só
-  quando ≥ 80% das noites medem a cama (em última/7d/4s é **0%** no Garmin), senão o segundo
-  número vira "acordado"; **(d) nova:** "sempre" mistura instrumentos — Apple 11,8
-  despertares/noite vs Garmin 2,6–3,4; contagem não é comparável entre eras. Paleta do
+  `/sono/tempos`**; Despertares (③) abre **`/sono/despertares`**. **(b) decidida:** semanas
+  (mediana + p25–p75) para 12m e ano; **"sempre" retirado** pelo usuário em 05/09, e **todo
+  período navegável** — ◀ ▶ anda um período do próprio tamanho, só onde há noite; troca de
+  relógio (18/07) marcada. **(c) decidida:** média
+  "na cama" só quando ≥ 80% das noites medem a cama (em última/7d/4s é **0%** no Garmin),
+  senão o segundo número vira "acordado". **(d) decidida:** contagens de despertar saem por
+  era quando o período cruza a troca — Apple 11,8/noite vs Garmin 2,6–3,4 não se somam.
+  Ordem: **Opção 1 (Tempos) + Despertares primeiro**, com o dado de hoje; Estágios depois. Paleta do
   destaque validada: azul + amarelo, CVD ΔE 27; amarelo no claro pede contorno
   (`roleColors('yellow').text`).
-- [ ] T7.1 — **Opção 1 — Tempos.** Roda com o dado de hoje. Médias no topo (na cama ·
-  dormindo) para o período; barra = janela na cama, **sem muito destaque**; despertares
-  **em destaque**, com hora e duração. Seletor última noite · 7d · 4s · 12m · ano · sempre
-  reusando o componente de período do Histórico; em última noite/7d/4s, todos os dias.
-- [ ] T7.2 — **Opção 2 — Estágios.** Pré-requisito: gravar intervalos de estágio
-  (data-model §7): coluna `stage_segments`, agregador emitindo o que já fatia, `AGG_VERSION`,
-  backfill. Depois a barra por estágio na posição real.
-- [ ] T7.3 — Reconciliar a spec: a decisão 2 da mesa ("timing chart sem seletor") passa a
-  valer só para a peça ② como nasceu — ou cai, se a seção a absorver.
+- [x] T7.1 — **Opção 1 — Tempos + subview Despertares**, escritas em 05/09/2026. Núcleo no
+  shared: `ranges.ts` (5 períodos, `offset` de navegação, `hasNights`, `rangeLabel`),
+  `summary.ts` (regra dos 80%), `buckets.ts` (semanas: mediana + p25–p75, `quantile` =
+  `percentile_cont`), `facts.ts` (`nightFacts`, `bucketFacts` por era, `awakeFacts`),
+  `awakenings.ts` (+`awakeningsByHour` contando NOITES, `awakeningDurations`,
+  `awakeByWeekday`) — 19 testes. Mobile: `PeriodNav` (o `Segmented` do Histórico + ◀ ▶),
+  `PeriodAverages`, `FactsList`, `SleepBucketsChart`, `SleepTimingChart` com
+  `emphasis="awake"` (cama sem destaque, despertar amarelo com contorno `roleColors('yellow').text`),
+  `app/sono/tempos.tsx`, `app/sono/despertares.tsx`, cards ② e ③ do `/sono` viraram links,
+  marcador da troca de relógio em `config/sono-markers.ts` (dado do usuário, não lógica).
+  Store carrega o histórico inteiro. Validação: shared 569 asserts · mobile tsc 0 · jest 621 ·
+  web build 0. **Conferida no iPhone em 05/09/2026 (~01:45): "está ótimo".**
+- [x] T7.2 — **Opção 2 — Estágios**, escrita em 05/09/2026 (~02:00). `stage_segments` no
+  modelo, na RPC e no agregador (que já fatiava por estágio e passou a emitir; `unspecified`
+  é o sono sem hipnograma; o despertar é o vão). **Migration aplicada em produção em 05/09**
+  (dry-run em `begin…rollback` antes; 8 checks; registrada). `AGG_VERSION` 8. Na tela: toggle
+  Tempos ⇄ Estágios em `/sono/tempos` — noites com os segmentos na posição real, semanas em
+  composição (horas médias por estágio, `stagesH`); rótulo de incerteza sempre; o detalhe da
+  noite ganha `StageTimeline`. Testes: agregador emite segmentos em ordem sem o AWAKE, horas
+  batem com segmentos; `stagesH`; `stageFacts`. **Backfill v8 rodado em 05/09 (~02:20):**
+  285 de 287 linhas com segmentos (as 2 sem estão fora da janela de 500 dias de hoje), 0
+  vazias, 31,6 segmentos/noite em média, **paridade deep horas × segmentos com diferença
+  máxima 0,0 min** em 277 noites. A noite de 04/09, segmento a segmento, mostra o vão
+  02:47–03:10 — exatamente o despertar de 23 min que a tela de diagnóstico tinha contado.
+  **Conferida no iPhone em 05/09/2026 (~02:30): "está ok".**
+- [x] T7.3 — Spec reconciliada em 05/09: a peça ② fica sem seletor na visão geral; o seletor
+  mora nas subviews. Nem absorção nem duplicação.
+- [x] T7.4 — **Web:** `/sono/tempos` e `/sono/despertares` em Angular, pelo mesmo núcleo —
+  mesma composição do mobile (coluna única), como a Fase 5. Escritas em 05/09/2026:
+  `SonoPeriodNavComponent` (o segmentado do Histórico + ◀ ▶), `PeriodAveragesComponent`,
+  `FactsListComponent`, `SleepLegendComponent`, `SleepTimingChartComponent` com as três
+  ênfases (vão + marca ao lado, hachura, cama em `wash`), `SleepBucketsChartComponent` e
+  `SleepStagesStackComponent` (por noite ou semana), sub-seletor na hora · total; as peças ②
+  e ③ da visão geral viraram links. O `SonoStore` passou a carregar o histórico inteiro
+  (as notas continuam na janela de 90 dias). `SONO_MARKERS` subiu para o shared
+  (`sleep/markers.ts`) — a barreira de nomes duplicados não deixa duas cópias. Rotas antes
+  de `sono/:day`. Validação: web build 0 (só avisos pré-existentes) · 141 testes ·
+  architecture 13/13. **Falta a conferência no navegador.**
+- [x] T7.5 — **Gramática de cor (review de UX, 05/09/2026).** Medido nas 36 combinações: o Leve
+  era o tint (1,14–1,43), REM = Profundo em 22/36, o azul dizia três coisas. Feito: `graphic`,
+  `wash` e `ramp` por papel em `derive.ts` (+ barreira no `theme.test.ts`), `sleep/colors.ts`
+  com a gramática (+ `colors.test.ts`), `bucketPeriods(…, 'night')`, `stageFacts` com a vigília.
+  Mobile: `sleepColors()`, `SleepLegend`, `SleepTimingChart` (vão + marca amarela ao lado,
+  hachura, cama em `wash`), `SleepStagesStackChart` (por noite ou semana, ordem = legenda, gap
+  2 px, vigília no topo), sub-seletor **na hora · total** em `tempos.tsx`, Despertares em
+  amarelo com fim de semana por rótulo, detalhe da noite em Svg. Web: `--sleep-*` pelo
+  `ThemeService`, as páginas existentes trocadas. Docs: spec §4 e CAP-7, [ADR 0032](../../../docs/decisions/0032-cor-de-sono-e-gramatica-derivada.md).
+  Mockup aprovado: `claude.ai/code/artifact/b6db5657-2531-42c2-a91d-7c532ab10601`.
+  **Conferida no iPhone em 05/09/2026** (build por cabo, paleta Acessível, tema Clean): "está
+  ótimo". No caminho ele escolheu a forma do despertar (vão + marca ao lado, entre três) e o
+  REM rosa também na Acessível — a exceção que voltava à rampa azul saiu. Falta a web no
+  navegador.
+- [x] T7.6 — **CAP-8 — a noite ao lado da nota, na Hoje.** Pedida e decidida em 05/09/2026:
+  proposta com mockup em 402 pt, seletor dos 144 eixos e sete noites reais
+  (`claude.ai/code/artifact/5d2b47a9-70e1-4e67-9b44-d5d3a63dc816`); o usuário escolheu a
+  **opção A** (duas linhas de texto) **sem veto** às decisões D1–D8. Shared: `nightLine()` e
+  `lineText()` em `facts.ts` — partes `num`/`sym`/`word`, os três estados de vigília —, 4
+  checks em `sleep-ranges.test.ts` com as noites da proposta (a do screenshot, o fuso, o
+  singular/zero/nulo, a pior com 21). Mobile: `loadToday()` na `sono.store` (uma consulta por
+  `wake_day`, mesclada por `onset_at`, sem marcar `loaded`), `SleepRatingCard` com o bloco à
+  direita do chip (12/16 pt, `ink`/`ink2`, `marginLeft: auto`, toque → `/sono/[day]`),
+  `(tabs)/index.tsx` carrega no boot e no foreground. Specs: ratings-diarios FR-009 e tabela
+  de decisões, sono CAP-8 e §5, mobile-hoje. **Falta conferir no iPhone** — é lá que os 12 pt
+  se confirmam ou viram 12,5 (D7).
+- [x] T7.7 — **CAP-9 — Sono na Retrospectiva.** Pedida em 05/09/2026 ("média de quanto estou
+  acordando por noite, tempos de sono por fase, e outras ideias"); proposta com 63 noites
+  reais de prod no artifact `claude.ai/code/artifact/73f0edb9-ae85-42d5-9216-0d51b39c2d0c`
+  ("Sono no Jornal"), aprovada com os quatro "sim": a linha Sono sai do card Saúde, B1 + B4
+  entram no Tempos, saldo contra 7 h fica fora, nota × medição pode ser manchete. Shared:
+  `sleep/retro.ts` (`sleepSide`, `sleepRetro`, `ratingsSplit`, `weekendShift`,
+  `sleepHighlights`, `NIGHT_REFERENCE_H` — a constante que `HEALTH_TARGETS.sono` passa a
+  apontar), 13 checks em `sleep-retro.test.ts`; `period/retro.ts` ganha
+  `RetroInput.sleepPeriods` e `RetroSummary.sleep`, pula a linha `sono` dos destaques de
+  saúde quando o bloco existe; `retro-blocks.ts` ganha o id `sleep`. Mobile: `retro.store`
+  busca `sleep_periods` na mesma janela; `SleepRetroCard.tsx` (número grande com Δ em min,
+  apagou · acordou com miolo, acordado por noite, composição por fase, semana a semana e fim
+  de semana × semana no mês, nota × medição, caixa de correções com o `n` anterior e o
+  marcador Garmin); `retrospectiva/index.tsx` renderiza o bloco e esconde "Sono" e "Sono
+  percebido" do card Saúde. Docs: v2-jornal §9, spec CAP-9, CLAUDE.md. Validação: shared
+  lint 0 · shared test ok · mobile tsc 0 · jest 626/626. **Falta conferir no iPhone.**
+- [x] T7.8 — **CAP-10 — Dispersão e antes × agora no Tempos.** `SleepDispersion.tsx` (quatro
+  réguas com mediana e miolo, fim de semana vazado, semanas como pontos nos períodos longos)
+  como terceiro modo; `BeforeAfter.tsx` (duas noites típicas com bigode, composição dos dois
+  lados, diferenças em minutos) abaixo dos fatos em todos os modos, com ≥ 3 noites de cada
+  lado; `SleepLegend` ganha `SwDot`/`SwRing`/`SwBar`. Mesmo núcleo `sleepRetro` do T7.7.
+  **Falta conferir no iPhone.** Commit `f553924`.
+- [x] T7.9 — **Gatilho × noite** ("pode comitar e seguir", 05/09). `sleepCrossMetrics` em
+  `sleep/retro.ts`: dormido, acordado, REM e profundo **chaveados pelo dia em que a noite
+  começou** — a soma diária (`health_daily.sono`, chave = dia de acordar) comparava a noite
+  *anterior* ao gatilho, e sai do universo do cruzamento assim que há noites.
+  `sleepCrossHighlight` escreve em valores absolutos ("nas noites depois de "Cerveja",
+  dormiu 5h52 contra 6h47") com o `n` dos dois lados; piso `MIN_CROSS_DELTA_PCT`. 2 checks.
+- [x] T7.10 — **Sono nas séries do ano.** `MonthBucket.sleepH`/`awakeMin` (médias por
+  noite, pelo mês de acordar) e dois chips em `YEAR_SERIES` — azul da água (ADR 0031) e
+  amarelo da vigília. Teste em `retro.test.ts`. A web recebe os chips de graça e passa a
+  buscar `sleep_periods` no `RetroStore` para não escrever "sem noite".
+- [x] T7.11 — **B2 — grade semana × dia** (`SleepWeekGrid.tsx`): semanas em linhas, dias em
+  colunas, cada célula a noite em miniatura no mesmo eixo; marca amarela com ≥ 30 min
+  acordado; tracejado sem noite; toque abre `/sono/[day]`. Quarto modo **Grade** do Tempos,
+  só nos períodos por noite (em 12m/ano a tela volta a Tempos). **Falta conferir no iPhone.**
 
 ## Fechamento
 

@@ -21,7 +21,7 @@ import {
 import { supabase } from '@core/supabase/supabase.client';
 import { AuthService } from '@core/auth/auth.service';
 import { ActivitiesStore } from '@features/workout-history/data/activities.store';
-import type { HabitLog, RegistroLog } from '@vitale/shared';
+import type { HabitLog, RegistroLog, SleepPeriod } from '@vitale/shared';
 import {
   fetchDailyRatingScores,
   fetchDoneTodoOccurrencesSince,
@@ -30,6 +30,7 @@ import {
   fetchHealthDailyValues,
   fetchRegistroLogsSince,
   fetchRegistroSummaries,
+  fetchSleepPeriodsSince,
   fetchTodoTemplateSummaries,
 } from '@vitale/shared';
 
@@ -68,6 +69,8 @@ export class RetroStore {
   private readonly _tasks = signal<{ doneDay: string; module: string }[]>([]);
   private readonly _dailyTasks = signal<RetroDailyTask[]>([]);
   private readonly _purchases = signal<{ doneDay: string; cat?: string; price?: number; name: string }[]>([]);
+  /** As noites da janela — `summary.sleep`, o cruzamento gatilho × noite e as séries Sono/Acordado do ano. */
+  private readonly _sleepPeriods = signal<SleepPeriod[]>([]);
 
   readonly state = this._state.asReadonly();
   readonly error = this._error.asReadonly();
@@ -88,9 +91,9 @@ export class RetroStore {
     this._state.set('loading');
     this._error.set(null);
 
-    let health, ratings, habits, habitLogs, registros, registroLogs, templates, occs;
+    let health, ratings, habits, habitLogs, registros, registroLogs, templates, occs, sleepPeriods;
     try {
-      [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs] =
+      [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs, sleepPeriods] =
         await Promise.all([
           fetchHealthDailyValues(supabase, userId, since),
           fetchDailyRatingScores(supabase, userId, since),
@@ -100,6 +103,7 @@ export class RetroStore {
           fetchRegistroLogsSince(supabase, userId, since),
           fetchTodoTemplateSummaries(supabase, userId),
           fetchDoneTodoOccurrencesSince(supabase, userId, since),
+          fetchSleepPeriodsSince(supabase, userId, since),
         ]);
     } catch (e) {
       this._error.set(e instanceof Error ? e.message : 'Erro ao carregar a retrospectiva.');
@@ -109,6 +113,7 @@ export class RetroStore {
 
     this._health.set(health);
     this._ratings.set(ratings);
+    this._sleepPeriods.set(sleepPeriods);
     this._habits.set(habits);
     this._habitLogs.set(habitLogs);
     this._registros.set(registros);
@@ -199,6 +204,7 @@ export class RetroStore {
       tasks: this._tasks(),
       dailyTasks: this._dailyTasks(),
       purchases: this._purchases(),
+      sleepPeriods: this._sleepPeriods(),
     };
   }
 

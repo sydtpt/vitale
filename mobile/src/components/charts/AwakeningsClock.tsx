@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import {
   SLEEP_AXIS_ORIGIN_H,
+  awakeDensityOpacity,
   axisRange,
   buildAwakeClock,
   peakAwakeWindow,
@@ -15,7 +16,8 @@ interface Props {
   periods: SleepPeriod[];
   width: number;
   height?: number;
-  accent: string;
+  /** A cor da vigília — `sleepColors().awake`. Amarelo, como em toda tela de sono. */
+  color: string;
 }
 
 const PAD_BOTTOM = 16;
@@ -23,8 +25,9 @@ const PAD_BOTTOM = 16;
 /**
  * O relógio de vigília: os despertares de todas as noites da janela sobrepostos
  * num único eixo de hora do dia. Responde "eu acordo sempre às 3h?" — que nenhum
- * score da categoria responde — por DENSIDADE (faixas mais escuras onde mais
- * noites coincidem), não por contagem.
+ * score da categoria responde — por DENSIDADE (faixas mais cheias onde mais
+ * noites coincidem), não por contagem. É magnitude de vigília: o matiz é o da
+ * vigília, e a opacidade faz o "quanto".
  *
  * Três estados, e a tela diz qual é: a fonte não reporta ("não sei"), reporta e
  * não houve, reporta e houve. Colapsar os dois primeiros em zero faria a tela
@@ -33,7 +36,7 @@ const PAD_BOTTOM = 16;
  * Sem score, sem índice de fragmentação — o dado do usuário mostra vigília × nota
  * correndo ao contrário do que um score assumiria (spec §6).
  */
-export function AwakeningsClock({ periods, width, height = 64, accent }: Props) {
+export function AwakeningsClock({ periods, width, height = 64, color }: Props) {
   const styles = useThemedStyles(createStyles);
   if (width <= 0) return null;
 
@@ -71,8 +74,8 @@ export function AwakeningsClock({ periods, width, height = 64, accent }: Props) 
               y={0}
               width={Math.max(1, x(Math.min(b.to, range.to)) - x(Math.max(b.from, range.from)))}
               height={innerH}
-              fill={accent}
-              opacity={0.15 + 0.85 * b.density}
+              fill={color}
+              opacity={awakeDensityOpacity(b.density)}
             />
           ))}
         <Line x1={0} y1={innerH} x2={width} y2={innerH} stroke={colors.line} strokeWidth={1} />

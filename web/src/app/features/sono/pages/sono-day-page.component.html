@@ -6,7 +6,8 @@
     <a class="back" routerLink="/sono">← Sono</a>
     <rt-page-header eyebrow="Noite" [title]="dayLabel(p()!.wakeDay, true)" />
 
-    <section class="card">
+    <div class="grid">
+    <section class="card span">
       <div class="clocks">
         <div class="clock">
           <span class="clock-label">Deitou</span>
@@ -36,6 +37,13 @@
           <div class="timeline-hole" [style.left]="h.left" [style.width]="h.width"></div>
         }
       </div>
+      @if (holes().length > 0) {
+        <div class="awake-row">
+          @for (h of holes(); track $index) {
+            <div class="awake-tick" [style.left]="h.left" [style.width]="h.width"></div>
+          }
+        </div>
+      }
       <div class="ticks mono">
         <span>{{ clockLabel(p()!.onsetAt, p()!.tzOffset) }}</span>
         <span>{{ clockLabel(p()!.wakeAt, p()!.tzOffset) }}</span>
@@ -60,5 +68,6 @@
         <p class="uncert">⚠ Estimativa do seu relógio. Vale para comparar você com você mesmo — não é medida clínica.</p>
       </section>
     }
+    </div>
   }
 </div>

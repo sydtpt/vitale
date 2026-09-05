@@ -186,7 +186,9 @@ function AppShell() {
         <Stack.Screen name="fitness/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="fitness/[label]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="saude/[metric]" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="sono/index" options={{ animation: 'slide_from_right' }} />
+        {/* `/sono` é aba (`(tabs)/sono`); só as subviews vivem nesta pilha. */}
+        <Stack.Screen name="sono/tempos" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="sono/despertares" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="sono/[day]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="cultura/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="cultura/adicionar" options={{ animation: 'slide_from_right' }} />

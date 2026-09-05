@@ -161,16 +161,17 @@ export default function HealthScreen() {
     void syncToCloud();
   }, [loadSummaries, syncToCloud]);
 
-  // Sono tem tela própria (spec docs/specs/sono, CAP-6): o template genérico de
-  // métrica somava horas do mês e punha a noite na hora em que se acordou. O id
-  // continua no catálogo — prontidão e retro leem `seriesFor('sono')`.
   const openMetric = useCallback(
-    (id: string) =>
-      id === 'sono'
-        ? router.push('/sono')
-        : router.push({ pathname: '/saude/[metric]', params: { metric: id } }),
+    (id: string) => router.push({ pathname: '/saude/[metric]', params: { metric: id } }),
     [router]
   );
+
+  // Sono não aparece aqui: tem aba própria na barra desde 05/09/2026 (antes, o
+  // cartão da categoria navegava para `/sono`). O id continua no catálogo —
+  // prontidão e retro leem `seriesFor('sono')`, e `categoryMeta('sono')` segue
+  // válido — só a listagem o pula. `/saude/sono` fica inalcançável de propósito:
+  // o template genérico somava horas do mês e punha a noite na hora de acordar.
+  const sections = categories().filter((cat) => cat.id !== 'sono');
 
   if (Platform.OS !== 'ios' || permissionStatus === 'unavailable') {
     return <UnavailableScreen />;
@@ -218,7 +219,7 @@ export default function HealthScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]} showsVerticalScrollIndicator={false} {...tabBarScroll}>
-          {categories().map((cat) => (
+          {sections.map((cat) => (
             <View key={cat.id} style={styles.section}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionDot, { backgroundColor: cat.accent }]} />

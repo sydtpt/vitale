@@ -9,7 +9,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   awakeMinOf,
@@ -23,10 +23,12 @@ import {
 import { useSonoStore } from '../../store/sono.store';
 import { useAuthStore } from '../../store/auth.store';
 import { formatHoursMin } from '../../lib/health-buckets';
+import { useTabBarHeight } from '../../hooks/useTabBarHeight';
+import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { SleepTimingChart } from '../../components/charts/SleepTimingChart';
 import { AwakeningsClock } from '../../components/charts/AwakeningsClock';
-import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
-import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { SleepLegend, SwDashed, SwGap, SwSolid } from '../../components/sono/SleepLegend';
+import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
 /** Noites no timing chart — o que cabe legível na largura de um telefone. */
 const TIMING_NIGHTS = 14;
@@ -58,13 +60,23 @@ function dayLabel(day: string): string {
  * ① os relógios (o fato), ② o timing chart (a forma), ③ os despertares,
  * ④ a nota contra a medição. Sem score, sem streak, sem seta.
  *
- * Sono usa a cor da água por decisão (ADR 0031): é categoria de Saúde, não módulo.
+ * É uma **aba** da barra desde 05/09/2026 — entrou no lugar de Compras, que
+ * passou ao Mais. Por isso não tem botão de voltar e respeita a pílula: o
+ * `paddingBottom` vem de `useTabBarHeight` e o scroll a colapsa como as outras.
+ * As subviews (`/sono/tempos`, `/sono/despertares`, `/sono/[day]`) continuam na
+ * pilha raiz, empilhadas por cima da aba.
+ *
+ * Sono usa a cor da água por decisão (ADR 0031): é categoria de Saúde, não módulo —
+ * ter aba própria não muda isso. As cores vêm de `sleepColors()` — azul é sono,
+ * amarelo é vigília, em toda tela.
  */
 export default function SonoScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useTabBarHeight();
+  const tabBarScroll = useTabBarScroll();
   const router = useRouter();
-  const mod = moduleColors('agua');
+  const sc = sleepColors();
 
   const periods = useSonoStore((s) => s.periods);
   const sleepRatings = useSonoStore((s) => s.sleepRatings);
@@ -112,10 +124,9 @@ export default function SonoScreen() {
   if (!loaded && loading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={() => router.back()} styles={styles} />
+        <Header styles={styles} />
         <View style={styles.center}>
-          <ActivityIndicator color={mod.accent} />
+          <ActivityIndicator color={sc.sleep} />
         </View>
       </View>
     );
@@ -124,8 +135,7 @@ export default function SonoScreen() {
   if (!last) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={() => router.back()} styles={styles} />
+        <Header styles={styles} />
         <View style={styles.center}>
           <Ionicons name="moon-outline" size={36} color={colors.ink4} />
           <Text style={styles.emptyText}>Nenhuma noite sincronizada ainda.</Text>
@@ -141,10 +151,13 @@ export default function SonoScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <Header onBack={() => router.back()} styles={styles} />
+      <Header styles={styles} />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight }]}
+        showsVerticalScrollIndicator={false}
+        {...tabBarScroll}
+      >
         {/* ① Os relógios — a frase que o usuário pediu, sem a subtração. */}
         <Pressable
           onPress={() => router.push({ pathname: '/sono/[day]', params: { day: last.wakeDay } })}
@@ -185,27 +198,43 @@ export default function SonoScreen() {
           )}
         </Pressable>
 
-        {/* ② O timing chart — a regularidade aparece na forma, não num índice. */}
-        <View style={styles.card} onLayout={onChartLayout}>
-          <Text style={styles.cardTitle}>Últimas {TIMING_NIGHTS} noites</Text>
+        {/* ② O timing chart — a regularidade aparece na forma, não num índice.
+            Tocar abre /sono/tempos: períodos navegáveis, despertares em destaque, fatos. */}
+        <Pressable
+          onPress={() => router.push('/sono/tempos')}
+          onLayout={onChartLayout}
+          style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+        >
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>Últimas {TIMING_NIGHTS} noites</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.ink4} />
+          </View>
           <SleepTimingChart
             days={timingDays}
             periods={periods}
             width={Math.max(0, chartW - spacing.lg * 2)}
-            accent={mod.accent}
+            palette={sc}
+            emphasis="sleep"
           />
-          <View style={styles.legend}>
-            <LegendItem swatch={{ backgroundColor: mod.accent }} label="dormindo" styles={styles} />
-            <LegendItem swatch={{ borderWidth: 1, borderStyle: 'dashed', borderColor: mod.accent }} label="na cama" styles={styles} />
-            <LegendItem swatch={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line }} label="sem dado" styles={styles} />
-          </View>
-        </View>
+          <SleepLegend
+            items={[
+              { swatch: <SwSolid color={sc.sleep} />, label: 'dormindo' },
+              { swatch: <SwGap />, label: 'despertar (o vão)' },
+              { swatch: <SwDashed color={sc.sleep} />, label: 'na cama' },
+              { swatch: <SwDashed color={colors.line} />, label: 'sem dado' },
+            ]}
+          />
+        </Pressable>
 
-        {/* ③ Despertares — quando a noite quebra, não quantas vezes na média. */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Despertares</Text>
+        {/* ③ Despertares — quando a noite quebra, não quantas vezes na média.
+            Tocar abre /sono/despertares: quando, quanto, por dia da semana. */}
+        <Pressable onPress={() => router.push('/sono/despertares')} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>Despertares</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.ink4} />
+          </View>
           <Text style={styles.cardSub}>últimas {recent.length} noites, sobrepostas na hora do dia</Text>
-          <AwakeningsClock periods={recent} width={Math.max(0, chartW - spacing.lg * 2)} accent={mod.accent} />
+          <AwakeningsClock periods={recent} width={Math.max(0, chartW - spacing.lg * 2)} color={sc.awake} />
           <View style={styles.seriesRow}>
             {series.map((s) => (
               <View key={s.wakeDay} style={styles.seriesCol}>
@@ -216,7 +245,7 @@ export default function SonoScreen() {
                     <View
                       style={[
                         styles.seriesBar,
-                        { backgroundColor: mod.accent, height: Math.max(2, Math.min(40, (s.awakeMin / 60) * 40)) },
+                        { backgroundColor: sc.awake, height: Math.max(2, Math.min(40, (s.awakeMin / 60) * 40)) },
                       ]}
                     />
                   )}
@@ -226,7 +255,7 @@ export default function SonoScreen() {
             ))}
           </View>
           <Text style={styles.cardNote}>Minutos acordado por noite. Sem meta — a série existe para você ver, não para bater um alvo.</Text>
-        </View>
+        </Pressable>
 
         {/* ④ Nota × medição — o par que só o Orbe tem. Sem seta, sem "melhorou". */}
         {groups.length > 0 && (
@@ -238,17 +267,17 @@ export default function SonoScreen() {
             {groups.map((g) => (
               <View key={g.nota} style={styles.pairRow}>
                 <Text style={styles.pips}>
-                  <Text style={{ color: mod.accent }}>{'●'.repeat(g.nota)}</Text>
+                  <Text style={{ color: sc.sleep }}>{'●'.repeat(g.nota)}</Text>
                   <Text style={{ color: colors.ink4 }}>{'●'.repeat(5 - g.nota)}</Text>
                 </Text>
                 <View style={styles.rangeWrap}>
                   <View
                     style={[
                       styles.rangeBar,
-                      { backgroundColor: mod.tint, left: `${(g.min / 12) * 100}%`, right: `${100 - (g.max / 12) * 100}%` },
+                      { backgroundColor: sc.bed, left: `${(g.min / 12) * 100}%`, right: `${100 - (g.max / 12) * 100}%` },
                     ]}
                   />
-                  <View style={[styles.rangeDot, { backgroundColor: mod.accent, left: `${(g.mean / 12) * 100}%` }]} />
+                  <View style={[styles.rangeDot, { backgroundColor: sc.sleep, left: `${(g.mean / 12) * 100}%` }]} />
                 </View>
                 <View style={styles.pairN}>
                   <Text style={styles.pairMean}>{formatHoursMin(g.mean)}</Text>
@@ -266,7 +295,7 @@ export default function SonoScreen() {
         <Text style={styles.sectionTitle}>Noites</Text>
         <View style={styles.listCard}>
           {[...recent].reverse().map((p, i, arr) => (
-            <NightRow key={p.onsetAt} p={p} nota={sleepRatings[p.wakeDay]} last={i === arr.length - 1} accent={mod.accent} styles={styles} onPress={() => router.push({ pathname: '/sono/[day]', params: { day: p.wakeDay } })} />
+            <NightRow key={p.onsetAt} p={p} nota={sleepRatings[p.wakeDay]} last={i === arr.length - 1} accent={sc.sleep} styles={styles} onPress={() => router.push({ pathname: '/sono/[day]', params: { day: p.wakeDay } })} />
           ))}
         </View>
       </ScrollView>
@@ -276,14 +305,11 @@ export default function SonoScreen() {
 
 type Styles = ReturnType<typeof createStyles>;
 
-function Header({ onBack, styles }: { onBack: () => void; styles: Styles }) {
+/** O cabeçalho de aba — o mesmo desenho do de Compras e do Mais: título serifado, sem voltar. */
+function Header({ styles }: { styles: Styles }) {
   return (
     <View style={styles.header}>
-      <Pressable onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}>
-        <Ionicons name="chevron-back" size={22} color={colors.ink} />
-      </Pressable>
       <Text style={styles.headerTitle}>Sono</Text>
-      <HeaderSpacer />
     </View>
   );
 }
@@ -293,15 +319,6 @@ function Clock({ label, value, muted, styles }: { label: string; value: string; 
     <View style={styles.clock}>
       <Text style={styles.clockLabel}>{label}</Text>
       <Text style={[styles.clockValue, muted && styles.clockMuted]}>{value}</Text>
-    </View>
-  );
-}
-
-function LegendItem({ swatch, label, styles }: { swatch: object; label: string; styles: Styles }) {
-  return (
-    <View style={styles.legendItem}>
-      <View style={[styles.swatch, swatch]} />
-      <Text style={styles.legendText}>{label}</Text>
     </View>
   );
 }
@@ -330,17 +347,18 @@ function NightRow({
 const createStyles = () =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
-    scroll: { padding: spacing.lg, paddingBottom: spacing.xl * 2, gap: spacing.md },
+    // O respiro de baixo é a altura da pílula, aplicado no render.
+    scroll: { padding: spacing.lg, gap: spacing.md },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-    backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
-    headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.sansBold, color: colors.ink },
+    header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center' },
+    headerTitle: { fontSize: 28, fontFamily: fonts.serif, color: colors.ink },
     pressed: { opacity: 0.7 },
     flex: { flex: 1 },
 
     card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.line, ...shadows.card },
     listCard: { backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden', ...shadows.card },
     eyebrow: { fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.ink3, fontFamily: fonts.sansSemiBold, marginBottom: spacing.md },
+    cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     cardTitle: { fontSize: 15, fontFamily: fonts.sansBold, color: colors.ink, marginBottom: 2 },
     cardSub: { fontSize: 12, color: colors.ink3, fontFamily: fonts.sans, marginBottom: spacing.sm },
     cardNote: { fontSize: 12, lineHeight: 17, color: colors.ink3, fontFamily: fonts.sans, marginTop: spacing.sm },
@@ -357,11 +375,6 @@ const createStyles = () =>
     absent: { marginTop: spacing.md, padding: spacing.md, borderRadius: radii.md, borderWidth: 1, borderStyle: 'dashed' },
     absentText: { fontSize: 12, lineHeight: 17, color: colors.ink2, fontFamily: fonts.sans },
     absentStrong: { color: colors.ink, fontFamily: fonts.sansSemiBold },
-
-    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.md },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    swatch: { width: 11, height: 11, borderRadius: 3 },
-    legendText: { fontSize: 11, color: colors.ink2, fontFamily: fonts.sans },
 
     seriesRow: { flexDirection: 'row', gap: 3, marginTop: spacing.md, alignItems: 'flex-end' },
     seriesCol: { flex: 1, alignItems: 'center' },
