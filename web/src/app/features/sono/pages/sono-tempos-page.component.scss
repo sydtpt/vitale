@@ -1,11 +1,19 @@
-/* A mesma composição do mobile, em coluna: a web recompõe, não redesenha. */
-.page { padding: 24px 32px 48px; max-width: 720px; display: flex; flex-direction: column; gap: 14px; }
+/* A mesma composição do mobile, recomposta na largura padrão das outras páginas (1200):
+   acima de 900px o gráfico fica à esquerda e os fatos à direita; abaixo, uma coluna. */
+.page { padding: 24px 32px 48px; max-width: 1200px; display: flex; flex-direction: column; gap: 14px; }
 .back { font-size: 13px; color: var(--ink-3); text-decoration: none; &:hover { color: var(--ink); } }
 
 .card {
   background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
   padding: 18px 20px; box-shadow: var(--shadow-card);
 }
+.cols { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 900px) {
+  .cols { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); column-gap: 32px; align-items: start; }
+}
+.main { min-width: 0; }
+.side { min-width: 0; }
+.side-title { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink); }
 .state { margin: 0; padding: 32px 0; text-align: center; font-size: 13.5px; color: var(--ink-3); }
 .modes { margin-top: 14px; }
 .subrow { display: flex; justify-content: flex-end; margin-top: 8px; }

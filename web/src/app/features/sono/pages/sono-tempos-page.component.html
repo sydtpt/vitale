@@ -3,52 +3,61 @@
   <rt-page-header eyebrow="Sono" title="Tempos" subtitle="Quando você dormiu, quando acordou no meio, e de que o sono foi feito." />
 
   <section class="card">
-    <rt-sono-period-nav
-      [range]="range()" [offset]="offset()" [periods]="store.periods()" [nights]="nights()"
-      (rangeChange)="setRange($event)" (offsetChange)="offset.set($event)" />
+    <div class="cols">
+      <div class="main">
+        <rt-sono-period-nav
+          [range]="range()" [offset]="offset()" [periods]="store.periods()" [nights]="nights()"
+          (rangeChange)="setRange($event)" (offsetChange)="offset.set($event)" />
 
-    @if (store.state() === 'loading' || store.state() === 'idle') {
-      <p class="state">Carregando…</p>
-    } @else if (nights().length === 0) {
-      <p class="state">Sem noites neste período.</p>
-    } @else {
-      @if (summary(); as s) {
-        <rt-period-averages [summary]="s" />
-      }
-
-      <div class="modes">
-        <rt-sono-segmented [options]="MODES" [value]="mode()" [full]="true" (select)="setMode($event)" />
-      </div>
-      @if (mode() === 'estagios' && form() === 'nights') {
-        <div class="subrow">
-          <rt-sono-segmented [options]="VIEWS" [value]="view()" [small]="true" (select)="setView($event)" />
-        </div>
-      }
-
-      <div class="chart">
-        @if (form() === 'nights') {
-          @if (composition()) {
-            <rt-sleep-stages-stack [buckets]="nightBuckets()" />
-          } @else {
-            <rt-sleep-timing-chart [days]="days()" [periods]="nights()" [emphasis]="mode() === 'estagios' ? 'stages' : 'awake'" />
-          }
-        } @else if (mode() === 'estagios') {
-          <rt-sleep-stages-stack [buckets]="weekBuckets()" />
+        @if (store.state() === 'loading' || store.state() === 'idle') {
+          <p class="state">Carregando…</p>
+        } @else if (nights().length === 0) {
+          <p class="state">Sem noites neste período.</p>
         } @else {
-          <rt-sleep-buckets-chart [buckets]="weekBuckets()" [markers]="MARKERS" />
+          @if (summary(); as s) {
+            <rt-period-averages [summary]="s" />
+          }
+
+          <div class="modes">
+            <rt-sono-segmented [options]="MODES" [value]="mode()" [full]="true" (select)="setMode($event)" />
+          </div>
+          @if (mode() === 'estagios' && form() === 'nights') {
+            <div class="subrow">
+              <rt-sono-segmented [options]="VIEWS" [value]="view()" [small]="true" (select)="setView($event)" />
+            </div>
+          }
+
+          <div class="chart">
+            @if (form() === 'nights') {
+              @if (composition()) {
+                <rt-sleep-stages-stack [buckets]="nightBuckets()" />
+              } @else {
+                <rt-sleep-timing-chart [days]="days()" [periods]="nights()" [emphasis]="mode() === 'estagios' ? 'stages' : 'awake'" />
+              }
+            } @else if (mode() === 'estagios') {
+              <rt-sleep-stages-stack [buckets]="weekBuckets()" />
+            } @else {
+              <rt-sleep-buckets-chart [buckets]="weekBuckets()" [markers]="MARKERS" />
+            }
+          </div>
+
+          <rt-sleep-legend [items]="legend()" />
         }
       </div>
 
-      <rt-sleep-legend [items]="legend()" />
-      <rt-facts-list [facts]="facts()" />
-
-      @if (mode() === 'estagios') {
-        <p class="uncert">
-          ⚠ Estimativa do seu relógio. Vale para comparar você com você mesmo — não é medida clínica.
-          @if (composition()) { Em total, a coluna é composição (horas por estágio), não posição; a altura é a noite inteira, sono mais vigília. }
-          @if (form() === 'nights' && !hasSegments()) { Estas noites ainda não têm os intervalos gravados — o próximo sync os traz. }
-        </p>
+      @if (store.state() === 'loaded' && nights().length > 0) {
+        <aside class="side">
+          <h4 class="side-title">Fatos do período</h4>
+          <rt-facts-list [facts]="facts()" />
+          @if (mode() === 'estagios') {
+            <p class="uncert">
+              ⚠ Estimativa do seu relógio. Vale para comparar você com você mesmo — não é medida clínica.
+              @if (composition()) { Em total, a coluna é composição (horas por estágio), não posição; a altura é a noite inteira, sono mais vigília. }
+              @if (form() === 'nights' && !hasSegments()) { Estas noites ainda não têm os intervalos gravados — o próximo sync os traz. }
+            </p>
+          }
+        </aside>
       }
-    }
+    </div>
   </section>
 </div>

@@ -1,5 +1,8 @@
-/* A mesma composição aprovada no mobile, em coluna: a web recompõe, não redesenha. */
-.page { padding: 24px 32px 48px; max-width: 720px; display: flex; flex-direction: column; gap: 14px; }
+/* A mesma composição aprovada no mobile — as quatro peças —, recomposta na largura
+   padrão das outras páginas (1200) em duas colunas; abaixo de 900px volta à coluna. */
+.page { padding: 24px 32px 48px; max-width: 1200px; display: flex; flex-direction: column; gap: 14px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
 
 .state { padding: 48px 0; text-align: center; font-size: 14px; color: var(--ink-2); }
 .state.error { color: var(--role-red-text); }

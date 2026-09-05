@@ -15,6 +15,7 @@
       subtitle="O fato, não o placar — a que horas, com que buracos, e como você acordou"
     />
 
+    <div class="grid">
     <!-- ① Os relógios — a frase que o usuário pediu, sem a subtração. -->
     <a class="card clickable clocks-card" [routerLink]="['/sono', top()!.p.wakeDay]">
       <div class="clocks">
@@ -99,6 +100,7 @@
         <p class="card-note">Barra = do mínimo ao máximo dormido; ponto = média. Se a medição discordar do corpo, quem está certo é o corpo.</p>
       </section>
     }
+    </div>
 
     <!-- Noites — cada uma abre o detalhe. -->
     <h3 class="section-title">Noites</h3>

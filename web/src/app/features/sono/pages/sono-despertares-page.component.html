@@ -3,64 +3,72 @@
   <rt-page-header eyebrow="Sono" title="Despertares" subtitle="Quando a noite quebra, e por quanto tempo." />
 
   <section class="card">
-    <rt-sono-period-nav
-      [range]="range()" [offset]="offset()" [periods]="store.periods()" [nights]="nights()"
-      (rangeChange)="setRange($event)" (offsetChange)="offset.set($event)" />
+    <div class="cols">
+      <div class="main">
+        <rt-sono-period-nav
+          [range]="range()" [offset]="offset()" [periods]="store.periods()" [nights]="nights()"
+          (rangeChange)="setRange($event)" (offsetChange)="offset.set($event)" />
 
-    @if (store.state() === 'loading' || store.state() === 'idle') {
-      <p class="state">Carregando…</p>
-    } @else if (nights().length === 0) {
-      <p class="state">Sem noites neste período.</p>
-    } @else if (reporting() === 0) {
-      <p class="state">Seu relógio não reporta despertares nestas noites — não dá para saber.</p>
-    } @else {
-      @if (summary(); as s) {
-        <rt-period-averages [summary]="s" />
-      }
+        @if (store.state() === 'loading' || store.state() === 'idle') {
+          <p class="state">Carregando…</p>
+        } @else if (nights().length === 0) {
+          <p class="state">Sem noites neste período.</p>
+        } @else if (reporting() === 0) {
+          <p class="state">Seu relógio não reporta despertares nestas noites — não dá para saber.</p>
+        } @else {
+          @if (summary(); as s) {
+            <rt-period-averages [summary]="s" />
+          }
 
-      <h4 class="h">Quando</h4>
-      <p class="sub">densidade por hora da noite · {{ reporting() }} noites</p>
-      <rt-awakenings-clock [periods]="nights()" />
+          <h4 class="h">Quando</h4>
+          <p class="sub">densidade por hora da noite · {{ reporting() }} noites</p>
+          <rt-awakenings-clock [periods]="nights()" />
 
-      @if (hourBars().length > 0) {
-        <p class="sub2">em quantas noites houve despertar em cada hora</p>
-        <div class="bars">
-          @for (b of hourBars(); track b.key) {
-            <div class="col">
-              <div class="track"><div class="bar" [style.height.px]="b.h" [style.opacity]="b.opacity"></div></div>
-              <span class="xl mono">{{ b.label }}</span>
+          @if (hourBars().length > 0) {
+            <p class="sub2">em quantas noites houve despertar em cada hora</p>
+            <div class="bars">
+              @for (b of hourBars(); track b.key) {
+                <div class="col">
+                  <div class="track"><div class="bar" [style.height.px]="b.h" [style.opacity]="b.opacity"></div></div>
+                  <span class="xl mono">{{ b.label }}</span>
+                </div>
+              }
             </div>
           }
-        </div>
+        }
+      </div>
+
+      @if (store.state() === 'loaded' && nights().length > 0 && reporting() > 0) {
+        <aside class="side">
+          <h4 class="h">Quanto</h4>
+          <p class="sub">duração de cada despertar, em minutos</p>
+          <div class="bars">
+            @for (b of durationBars(); track b.key) {
+              <div class="col">
+                <div class="track"><div class="bar" [style.height.px]="b.h"></div></div>
+                <span class="xl mono">{{ b.label }}</span>
+                <span class="xn mono">{{ b.n }}</span>
+              </div>
+            }
+          </div>
+
+          <h4 class="h">Por dia da semana</h4>
+          <p class="sub">minutos acordado, média por noite · fim de semana em destaque</p>
+          <div class="bars">
+            @for (b of dowBars(); track b.key) {
+              <div class="col">
+                <div class="track">
+                  @if (b.unknown) { <div class="unknown"></div> } @else { <div class="bar" [style.height.px]="b.h"></div> }
+                </div>
+                <span class="xl mono" [class.fds]="b.fds">{{ b.label }}</span>
+                <span class="xn mono">{{ b.n }}</span>
+              </div>
+            }
+          </div>
+
+          <rt-facts-list [facts]="facts()" />
+        </aside>
       }
-
-      <h4 class="h">Quanto</h4>
-      <p class="sub">duração de cada despertar, em minutos</p>
-      <div class="bars">
-        @for (b of durationBars(); track b.key) {
-          <div class="col">
-            <div class="track"><div class="bar" [style.height.px]="b.h"></div></div>
-            <span class="xl mono">{{ b.label }}</span>
-            <span class="xn mono">{{ b.n }}</span>
-          </div>
-        }
-      </div>
-
-      <h4 class="h">Por dia da semana</h4>
-      <p class="sub">minutos acordado, média por noite · fim de semana em destaque</p>
-      <div class="bars">
-        @for (b of dowBars(); track b.key) {
-          <div class="col">
-            <div class="track">
-              @if (b.unknown) { <div class="unknown"></div> } @else { <div class="bar" [style.height.px]="b.h"></div> }
-            </div>
-            <span class="xl mono" [class.fds]="b.fds">{{ b.label }}</span>
-            <span class="xn mono">{{ b.n }}</span>
-          </div>
-        }
-      </div>
-
-      <rt-facts-list [facts]="facts()" />
-    }
+    </div>
   </section>
 </div>
