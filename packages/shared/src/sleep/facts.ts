@@ -10,7 +10,7 @@
  */
 
 import type { SleepPeriod, StageKey } from '../models';
-import { SLEEP_AXIS_ORIGIN_H, axisPosition, awakeningMin } from './timing';
+import { SLEEP_AXIS_ORIGIN_H, axisPosition, awakeningMin, clockLabel } from './timing';
 import { awakeMinOf } from './derive';
 import { median, quantile, type SleepBucket } from './buckets';
 import { awakeningsByHour } from './awakenings';
@@ -110,6 +110,60 @@ export function nightFacts(periods: readonly SleepPeriod[]): Fact[] {
     facts.push({ label: 'Acordado por noite (mediana)', value: `${Math.round(median(mins))} min` });
   }
   return facts;
+}
+
+/**
+ * Um pedaço de uma linha curta. `kind` diz a fonte, não a cor: `num` vai em
+ * mono, `sym` (a seta, o ponto) em mono para o glifo não cair em fallback, e
+ * `word` na sans. Quem pinta é o app; quem escreve é este módulo.
+ */
+export interface LinePart {
+  text: string;
+  kind: 'num' | 'sym' | 'word';
+}
+
+/**
+ * A noite em duas linhas sem rótulo, para caber ao lado de um chip — o que a
+ * Hoje escreve à direita da nota (spec CAP-8, decidido em 05/09/2026). Mesma
+ * matéria de `nightFacts()` para uma noite só; o relógio e a seta dizem o que
+ * a primeira linha é, e a palavra "despertar" é o rótulo da segunda.
+ *
+ * Os três estados de vigília chegam inteiros: `awake === null` quando a fonte
+ * não reporta — a linha **some**, porque "a fonte não reporta" não é o que a
+ * Hoje quer dizer nem cabe em 221 pt; `[]` vira "sem despertar" (7 de 63 noites
+ * medidas); e o par contagem · minutos nos demais.
+ */
+export interface NightLine {
+  /** `01:26 → 08:39` — do apagar ao acordar, na hora local do período. */
+  clocks: LinePart[];
+  /** `3 despertares · 8 min` · `sem despertar` · `null` quando a fonte não reporta. */
+  awake: LinePart[] | null;
+}
+
+export function nightLine(p: SleepPeriod): NightLine {
+  const clocks: LinePart[] = [
+    { text: clockLabel(p.onsetAt, p.tzOffset), kind: 'num' },
+    { text: ' → ', kind: 'sym' },
+    { text: clockLabel(p.wakeAt, p.tzOffset), kind: 'num' },
+  ];
+  const min = awakeMinOf(p);
+  if (min === null) return { clocks, awake: null };
+  const n = p.awakenings?.length ?? 0;
+  if (n === 0) return { clocks, awake: [{ text: 'sem despertar', kind: 'word' }] };
+  return {
+    clocks,
+    awake: [
+      { text: String(n), kind: 'num' },
+      { text: n === 1 ? ' despertar' : ' despertares', kind: 'word' },
+      { text: ' · ', kind: 'sym' },
+      { text: `${Math.round(min)} min`, kind: 'num' },
+    ],
+  };
+}
+
+/** A linha inteira como texto — para a web, o `accessibilityLabel` e os testes. */
+export function lineText(parts: readonly LinePart[]): string {
+  return parts.map((x) => x.text).join('');
 }
 
 /**

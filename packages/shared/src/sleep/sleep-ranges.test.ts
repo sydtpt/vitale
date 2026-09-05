@@ -20,7 +20,7 @@ import type { SleepPeriod } from '../models';
 import { SONO_RANGES, filterByRange, hasNights, rangeBounds, rangeForm, rangeLabel } from './ranges';
 import { BED_AVG_MIN_SHARE, periodSummary } from './summary';
 import { bucketPeriods, median, monthKey, quantile, weekKey } from './buckets';
-import { awakeFacts, bucketFacts, clockOfAxis, formatHm, isFreeWakeDay, nightFacts, stageFacts } from './facts';
+import { awakeFacts, bucketFacts, clockOfAxis, formatHm, isFreeWakeDay, lineText, nightFacts, nightLine, stageFacts } from './facts';
 import { awakeByWeekday, awakeningDurations, awakeningsByHour } from './awakenings';
 
 let passed = 0;
@@ -275,6 +275,43 @@ check('stageFacts: medianas por estágio com o n, e "não reporta" sem hipnogram
   assert.equal(f[0].value, '2 de 3');
   assert.equal(f.find((x) => x.label.startsWith('Profundo'))!.value, '2h00');
   assert.equal(stageFacts([night('2026-09-03', 23.5, 7.5, { stages: null })])[0].value, 'a fonte não reporta');
+});
+
+/* ───────────── a noite ao lado da nota (CAP-8) ───────────── */
+
+/** Despertar `min` minutos depois de apagar, durando `dur`. */
+function awakeAt(p: SleepPeriod, min: number, dur: number) {
+  const s = new Date(p.onsetAt).getTime() + min * 60_000;
+  return { from: new Date(s).toISOString(), to: new Date(s + dur * 60_000).toISOString() };
+}
+
+check('nightLine: a noite do screenshot — relógios do período e o par contagem · minutos, em partes', () => {
+  // 05/09/2026: apagou 01:26, acordou 08:39, despertares às 06:06 (4), 07:47 (3), 08:12 (1)
+  const base = night('2026-09-05', 25 + 26 / 60, 7 + 13 / 60);
+  const l = nightLine({ ...base, awakenings: [awakeAt(base, 280, 4), awakeAt(base, 381, 3), awakeAt(base, 406, 1)] });
+  assert.equal(lineText(l.clocks), '01:26 → 08:39');
+  assert.deepEqual(l.clocks.map((x) => x.kind), ['num', 'sym', 'num']);
+  assert.equal(lineText(l.awake!), '3 despertares · 8 min');
+  assert.deepEqual(l.awake!.map((x) => x.kind), ['num', 'word', 'sym', 'num']);
+});
+
+check('nightLine: o fuso é o do período, não o do aparelho', () => {
+  const base = night('2026-09-05', 25 + 26 / 60, 7 + 13 / 60);
+  assert.equal(lineText(nightLine({ ...base, tzOffset: -180 }).clocks), '20:26 → 03:39');
+});
+
+check('nightLine: singular, "sem despertar", e a fonte que não reporta some a linha', () => {
+  const um = night('2026-09-02', 24 + 37 / 60, 8.5);
+  assert.equal(lineText(nightLine({ ...um, awakenings: [awakeAt(um, 420, 1)] }).awake!), '1 despertar · 1 min');
+  assert.deepEqual(nightLine(night('2026-08-24', 23.05, 7)).awake, [{ text: 'sem despertar', kind: 'word' }]);
+  assert.equal(nightLine(night('2026-09-04', 23.5, 7.5, { awakenings: null })).awake, null);
+});
+
+check('nightLine: a pior noite medida — dois dígitos e minutos arredondados não mudam a forma', () => {
+  const base = night('2026-06-05', 24 + 34 / 60, 7.6);
+  const aw = Array.from({ length: 21 }, (_, i) => awakeAt(base, 10 + i * 20, 2.3));
+  const l = nightLine({ ...base, awakenings: aw });
+  assert.equal(lineText(l.awake!), '21 despertares · 48 min');
 });
 
 console.log(`\n${passed} testes passaram.`);

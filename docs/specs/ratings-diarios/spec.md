@@ -23,10 +23,10 @@ dias) e destaques da Semana mobile.
 |---------|---------|------------|
 | Escala | **1–5, pílulas numeradas** com cor graduada (vermelho→verde) | Combina com o design system; neutro/analítico |
 | Captura | **Só mobile** (tela Hoje) | Alinha com "mobile = captura rápida"; web é só análise |
-| Sono | Card no topo da Hoje, **só com `getHours() >= 6`**, visível até preencher e depois colapsa em chip | "Ao acordar"; reabre ao toque p/ corrigir |
+| Sono | Card no topo da Hoje, **só com `getHours() >= 6`**, visível até preencher e depois colapsa em chip | "Ao acordar"; reabre ao toque p/ corrigir. Com a nota dada, a **medição da mesma noite** entra à direita do chip (apagou → acordou · despertares) — ver [Sono CAP-8](../sono/spec.md) |
 | Dia | Card no fim da Hoje, **janela noturna 22h–04h59** (`getHours() >= 22 \|\| getHours() < 5`) | "Fim do dia"; na madrugada grava o dia anterior (label "Como foi ontem?") |
 | Anotação | **Texto livre opcional** no rating do dia | Ex.: "dia corrido mas produtivo" |
-| Acoplamento | **Nenhum** — valor 100% subjetivo | Não deriva de sono HealthKit nem de prontidão |
+| Acoplamento | **Nenhum** — valor 100% subjetivo | Não deriva de sono HealthKit nem de prontidão. A medição só aparece **depois** da nota, nunca no card de captura — o relógio não pode puxar a resposta |
 | Persistência | **Supabase** — `daily_ratings`, 1 linha por `(user, dia)` | Sono e dia moram juntos; upsert por campo; RLS por usuário |
 | Agregação | Reusa `metricRecap` do `@vitale/shared` | Sem lógica nova; média semana vs. anterior |
 
@@ -49,14 +49,20 @@ dias) e destaques da Semana mobile.
 - **FR-006** O **recap web** DEVE mostrar média X,X/5 de sono e dia vs. semana anterior (tom: subir = bom).
 - **FR-007** O **gráfico web** DEVE plotar tendência de 30 dias (duas séries, escala 1–5).
 - **FR-008** A **Semana mobile** DEVE incluir sono/dia percebidos nos destaques quando houver dado.
+- **FR-009** *(05/09/2026)* Com a nota de sono dada, a Hoje DEVE mostrar à direita do chip a
+  medição da noite com `wake_day = hoje`, em duas linhas de texto na altura do chip:
+  `01:26 → 08:39` e `3 despertares · 8 min` (texto de `nightLine()` no shared). Toque abre
+  `/sono/[day]`; o lápis do chip segue abrindo a nota. Sem noite medida, o espaço fica em
+  branco; `awakenings: []` escreve "sem despertar" e `null` omite a segunda linha. A medição
+  **nunca** aparece antes da nota.
 
 ## 5. Arquivos
 
 | Camada | Arquivo |
 |---|---|
 | Migration | `supabase/migrations/20260607130000_daily_ratings.sql` |
-| Shared | `packages/shared/src/models/index.ts` (`DailyRating`) |
-| Mobile store | `mobile/src/store/daily-ratings.store.ts` |
+| Shared | `packages/shared/src/models/index.ts` (`DailyRating`) · `packages/shared/src/sleep/facts.ts` (`nightLine`, o texto ao lado do chip) |
+| Mobile store | `mobile/src/store/daily-ratings.store.ts` · `mobile/src/store/sono.store.ts` (`loadToday`, a noite de hoje) |
 | Mobile UI | `components/ui/RatingPills.tsx`, `components/cards/SleepRatingCard.tsx`, `DayRatingCard.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/semana.tsx` |
 | Web store | `web/src/app/features/semana/data/daily-ratings.store.ts` |
 | Web UI | `components/weekly-recap-card.component.*`, `components/ratings-trend-card.component.*`, `pages/semana-page.component.*` |
