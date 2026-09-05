@@ -16,6 +16,7 @@ import {
   HR_ZONES,
   METRIC_ROLE,
   elevationProfile,
+  gearForActivity,
   hrZoneRange,
   movingTimeFromRoutePoints,
   routeCursorAt,
@@ -25,6 +26,7 @@ import {
   type RouteCursor,
 } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
+import { useGearStore } from '../../../store/gear.store';
 import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../lib/workout-types';
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
@@ -96,12 +98,17 @@ export default function AtividadeDetalheScreen() {
   const updateActivity = useActivitiesStore((s) => s.updateActivity);
   const setHidden = useActivitiesStore((s) => s.setHidden);
   const routePoints = useActivitiesStore((s) => s.routes[id]);
+  const gears = useGearStore((s) => s.gears);
+  const loadGear = useGearStore((s) => s.load);
 
   const activity = useMemo(() => _all.find((a) => a.id === id), [_all, id]);
+  // A bike desta pedalada: override explícito ou herança pela data (ADR 0033).
+  const gear = useMemo(() => (activity ? gearForActivity(gears, activity) : undefined), [gears, activity]);
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadGear();
+  }, [load, loadGear]);
 
   const hasGps = !!activity && (activity.hasRoute || (activity.distanceM ?? 0) > 0);
 
@@ -265,6 +272,8 @@ export default function AtividadeDetalheScreen() {
     { label: 'Distância', value: distance ?? '—' },
     { label: 'Fonte', value: activity.sourceName || '—' },
     { label: 'Dispositivo', value: activity.device || '—' },
+    // Só quando há bike resolvida: uma sessão de yoga não ganha "Bicicleta —".
+    ...(gear ? [{ label: 'Bicicleta', value: gear.name }] : []),
     {
       label: 'Rastreado',
       value: activity.tracked === undefined ? '—' : activity.tracked ? 'Sim' : 'Não',

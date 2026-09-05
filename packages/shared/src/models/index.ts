@@ -295,6 +295,30 @@ export interface AuthUser {
   createdAt: string;
 }
 
+/** Hoje só bicicleta; tênis e pneu (filho de bike) são migration, não improviso (ADR 0033). */
+export type GearKind = 'bike';
+
+/**
+ * Um equipamento com janela de vigência — a bicicleta, hoje. Mapeia a tabela
+ * `gear`. A pergunta "de qual bike foi esta pedalada" não está aqui: é
+ * `gearForActivity` (gear/assign.ts), que combina `Activity.gearId` com a janela.
+ */
+export interface Gear {
+  id: string;
+  userId: string;
+  kind: GearKind;
+  name: string;
+  /** 'YYYY-MM-DD' — primeiro dia em uso (inclusivo). */
+  activeFrom: string;
+  /** 'YYYY-MM-DD' — último dia em uso (inclusivo); null = em uso hoje. */
+  activeTo: string | null;
+  /** Ids HealthKit de atividade que herdam este gear pela data (13 = ciclismo). */
+  activityTypes: number[];
+  /** Ids do mesmo equipamento nos providers (strava, intervals). Reservado. */
+  externalIds?: Record<string, string>;
+  notes?: string;
+}
+
 /**
  * Treino sincronizado do HealthKit (push-only). Identidade = ID do HealthKit.
  * Mapeia a tabela `activities` do Supabase.
@@ -367,6 +391,11 @@ export interface Activity {
    * enriquecidas (o passe do ingest preenche ao longo dos ticks).
    */
   cities?: CityMark[];
+  /**
+   * Override explícito da bicicleta (ADR 0033). Ausente na quase totalidade das
+   * linhas: a bike vem da janela de datas do `Gear` — ver `gearForActivity`.
+   */
+  gearId?: string;
 }
 
 /**
