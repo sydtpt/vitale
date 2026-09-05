@@ -53,6 +53,9 @@ Branch `feat/fc-serie`, criada da `main` em 05/09/2026 (worktree `.claude/worktr
       web (curva do dia, dias sobrepostos, faixa noturna) e a aba Saúde do mobile lendo o
       Supabase em vez do HealthKit na era Garmin. Mockups em tamanho real, seletor dos seis
       temas, decisões para vetar. **Perguntar antes de construir.**
+      Publicada em 05/09/2026: `claude.ai/code/artifact/40958370-db73-4342-ad26-e74838b4ef2a`.
+      Três painéis na web (curva do dia, Noites, dia × hora) e o detalhe de FC no iPhone com o card
+      Dormindo; oito decisões listadas com a alternativa rejeitada. Aguardando vetos.
 - [ ] **T3.2** Só depois da aprovação: o código de tela.
 
 ## Diferido
