@@ -85,7 +85,8 @@ clicável).
 - **Roteamento:** Expo Router (file-based, pasta `mobile/src/app/`)
 - **Store:** Zustand 5
 - **Animações:** `Animated` do React Native — Reanimated está instalado (o `expo-router` o exige), mas **não se usa** (ADR 0010)
-- 6 tabs: Hoje, Semana, Histórico, Saúde, Compras, Mais
+- 4 tabs na barra: Hoje, Sono, Histórico, Mais — Semana, Saúde e Compras são telas de tab
+  ocultas (`href: null`), abertas pelo Mais
 
 ## Design System
 
@@ -173,8 +174,9 @@ São **10** módulos, não 7:
 - Web: página Treinos (gráfico de lift, gráfico de corrida, planejador semanal)
 - Web: página Finanças (gráfico de gastos, transações)
 - Mobile: navegação por tabs, Zustand store, tema
-- Mobile: 6 telas de tab (Hoje, Semana, Histórico, Saúde, Compras, Mais), mais as rotas
-  de stack (treinos, metas, cultura, tarefas, registros, hábitos, retrospectiva…)
+- Mobile: 7 telas de tab (Hoje, Sono, Histórico e Mais na barra; Semana, Saúde e Compras
+  pelo Mais), mais as rotas de stack (treinos, metas, cultura, tarefas, registros, hábitos,
+  retrospectiva…)
 - Mobile: componentes UI (`DayRingCard`, `CheckButton`, `QuickAddSheet`) e fontes
   embarcadas via plugin `expo-font`
 - Backend: Supabase — Postgres com RLS, 55 migrations, 4 edge functions Deno
@@ -192,8 +194,10 @@ São **10** módulos, não 7:
 
 ### Em andamento / Próximo 🔧
 - Tarefas: ponte real com Compras/Finanças
-- Sono: a web (segunda rodada) e a CAP-7 — seção "Tempos e estágios" com seletor até
-  "sempre", **adiada por pedido do usuário**; ver Fase 6 do tasks
+- Sono: CAP-7 (Tempos, Despertares, Estágios) entregue em 05/09 no mobile e na web; o bloco
+  **Sono na Retrospectiva** (`sleep/retro.ts`, noite típica vs período anterior, nota ×
+  medição como manchete) e as leituras **Dispersão** e **antes × agora** do Tempos foram
+  escritos em 05/09 e aguardam conferência no iPhone; ver Fase 6 do tasks
 - Push **remoto** (servidor): hoje só há notificação local agendada no device — não há
   registro de token nem envio server-side
 - Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc

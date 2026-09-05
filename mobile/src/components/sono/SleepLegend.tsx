@@ -56,6 +56,21 @@ export function SwGapTick({ awake }: { awake: string }) {
   );
 }
 
+/** Ponto cheio — uma noite de semana na dispersão. */
+export function SwDot({ color }: { color: string }) {
+  return <View style={{ width: SW, height: SW, borderRadius: SW / 2, backgroundColor: color }} />;
+}
+
+/** Ponto vazado — uma noite de fim de semana na dispersão. */
+export function SwRing({ color }: { color: string }) {
+  return <View style={{ width: SW, height: SW, borderRadius: SW / 2, borderWidth: 1.6, borderColor: color, backgroundColor: colors.surface }} />;
+}
+
+/** Traço vertical — a mediana na dispersão. */
+export function SwBar({ color }: { color: string }) {
+  return <View style={{ width: 2, height: SW, borderRadius: 1, backgroundColor: color, marginHorizontal: 4 }} />;
+}
+
 /** Hachura — "sono sem hipnograma": azul, sem o detalhe. */
 export function SwHatch({ color, id = 'sw-hatch' }: { color: string; id?: string }) {
   return (

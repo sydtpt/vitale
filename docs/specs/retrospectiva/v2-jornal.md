@@ -302,6 +302,49 @@ sem I/O:
 
 ---
 
+## 9. O bloco Sono (05/09/2026)
+
+> Pedido do usuário: *"incluir análises de sono na retrospectiva — uma média de quanto
+> estou acordando por noite, tempos de sono por fase, e outras ideias"*. E a direção:
+> *"a retrospectiva vai virar um relatório, com análises e números para eu revisar por
+> período"*. Proposta com dados reais aprovada no artifact "Sono no Jornal"
+> (`claude.ai/code/artifact/73f0edb9-ae85-42d5-9216-0d51b39c2d0c`); as quatro decisões
+> pendentes foram todas "sim".
+
+**Fonte.** `sleep_periods` (a noite como evento), não `health_daily.sono` (uma soma por
+dia). O `RetroInput` ganha `sleepPeriods`; o `RetroSummary` ganha `sleep: SleepRetro |
+null`. Tudo puro em `packages/shared/src/sleep/retro.ts`, testado em `sleep-retro.test.ts`.
+
+**A noite típica** (`sleepRetro(cur, prev, ratings, markers)`), em cinco linhas do bloco
+`sleep` (id novo em `RETRO_BLOCKS`, entra no fim da ordem salva):
+
+| Linha | O que diz | Regra |
+|---|---|---|
+| Quanto dormi | média por noite · diferença em **minutos** vs período anterior · noites com 7 h ou mais | \|Δ\| < 5 min é "o mesmo" |
+| Quando | apagou · acordou como **medianas**, com o miolo p25–p75 | regularidade como fato, sem índice |
+| Acordado por noite | minutos, despertares por noite, noites com despertar, o mais longo | `null` = a fonte não reporta ≠ zero |
+| Por fase | a noite média como **uma barra** (REM · Leve · Profundo · acordado) e os minutos de cada, com Δ | estimativa do relógio, comparável com você mesmo |
+| Como acordou | nota média e, por lado (≥ 4 · ≤ 3), quanto dormiu e ficou acordado | o par que só o Orbe tem |
+
+Em **Mês** e **Estação** entram a faixa **semana a semana** (noite típica de cada semana com
+≥ 3 noites) e **fim de semana × semana** — o jetlag social de Roenneberg dito em minutos,
+só com ≥ 2 noites de cada tipo. Em **Total** os deltas somem, como nos outros blocos.
+
+**A linha "Sono" sai do card Saúde**, e "Sono percebido" também, enquanto o bloco existir:
+dois lugares dizendo horas dormidas é o que a v1 fazia com volume. O id `sono` continua em
+`HEALTH_SPECS` — a grade diária e o cruzamento gatilho × saúde dependem dele.
+
+**A manchete aprende sono** (`sleepHighlights`): horas e vigília como `health`; **nota ×
+medição como `cross`**, tom neutro, só com ≥ 3 noites de cada lado — e pode abrir a edição
+do mês (decisão do usuário). A caixa de correções nomeia o `n` do período anterior e o
+marcador de troca de relógio: quando a comparação o cruza, `delta.awakeMin` é `null`.
+
+**Fora, por decisão:** saldo contra 7 h (tem cara de placar), SRI como número (fórmula não
+conferida no original), qualquer nota composta. **Fila:** sono nas séries do ano, grade
+diária de "acordado" centrada na mediana, extremos do período, gatilho × vigília/fases.
+
+---
+
 ## Procedência
 
 Sessão de round-table de 2026-08-25 (`_bmad-output/party-mode/memories/installed/.memlog.md`).

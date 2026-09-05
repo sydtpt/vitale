@@ -43,6 +43,7 @@ export type RetroBlockId =
   | 'fitness'
   | 'sports'
   | 'health'
+  | 'sleep'
   | 'habits'
   | 'yearSeries';
 
@@ -70,6 +71,9 @@ export const RETRO_BLOCKS: readonly RetroBlockDef[] = [
   { id: 'fitness', label: 'Treinos & atividade' },
   { id: 'sports', label: 'Ciclismo & corrida' },
   { id: 'health', label: 'Saúde & bem-estar' },
+  // 05/09/2026: a noite típica do período (sleep/retro.ts). Entra no fim da ordem
+  // já salva — `resolveRetroPrefs` — e sobe na prova de gráfica, se ele quiser.
+  { id: 'sleep', label: 'Sono' },
   { id: 'habits', label: 'Hábitos & registros' },
   { id: 'yearSeries', label: 'Por mês', kinds: ['year'] },
 ];

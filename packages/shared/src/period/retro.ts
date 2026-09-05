@@ -30,6 +30,9 @@ import { dailyHardLoad } from '../health/aggregate';
 import { detectTrend } from '../health/trends';
 import { triggerImpact } from '../health/trigger-impact';
 import { MOD } from '../constants/tokens';
+import type { SleepPeriod } from '../models/index';
+import { NIGHT_REFERENCE_H, sleepHighlights, sleepRetro, type SleepRetro } from '../sleep/retro';
+import { SONO_MARKERS } from '../sleep/markers';
 import { periodBounds, retroSince, type PeriodKind } from './bounds';
 
 /**
@@ -138,6 +141,12 @@ export interface RetroInput {
   /** Aderência ao plano de treino no período (opcional). */
   plannedDone?: number;
   plannedTotal?: number;
+  /**
+   * As noites (`sleep_periods`) da janela buscada — o bloco Sono e as frases de
+   * sono da manchete saem daqui, não de `health.sono`, que é uma soma por dia.
+   * Ausente ⇒ `summary.sleep` é `null` e a retro segue como antes.
+   */
+  sleepPeriods?: readonly SleepPeriod[];
 }
 
 // ── Saídas ─────────────────────────────────────────────────
@@ -279,6 +288,8 @@ export interface RetroSummary {
   ratings: { sleep: MetricRecap | null; day: MetricRecap | null };
   purchases: { count: RecapValue; spend: RecapValue; byCat: CountByKey[] };
   adherence: { done: number; total: number } | null;
+  /** A noite típica do período contra a do anterior. `null` sem noites ou sem `sleepPeriods`. */
+  sleep: SleepRetro | null;
 }
 
 const MODULE_LABELS: Record<string, string> = {
@@ -581,6 +592,23 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     ? { done: input.plannedDone ?? 0, total: input.plannedTotal }
     : null;
 
+  // ── Sono ──
+  // A noite pertence ao dia em que se acorda (`wakeDay`), a mesma ponte que
+  // `health_daily` usa. Em 'all' não há anterior — `prev` é degenerado.
+  const nightsIn = (start: Date, end: Date): SleepPeriod[] => {
+    const lo = localDay(start);
+    const hi = localDay(end);
+    return (input.sleepPeriods ?? []).filter((p) => p.wakeDay >= lo && p.wakeDay < hi);
+  };
+  const sleep = input.sleepPeriods
+    ? sleepRetro(
+        nightsIn(cur.start, cur.end),
+        input.kind === 'all' ? null : nightsIn(prev.start, prev.end),
+        input.ratingsSleep,
+        SONO_MARKERS,
+      )
+    : null;
+
   return {
     kind: input.kind,
     offset: input.offset,
@@ -596,6 +624,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     ratings,
     purchases,
     adherence,
+    sleep,
   };
 }
 
@@ -672,6 +701,9 @@ export function buildRetroHighlights(
 
   // Saúde
   for (const h of summary.health) {
+    // Com as noites gravadas, o sono fala por `sleepHighlights` — em minutos e
+    // com vigília; a soma por dia de `health_daily` repetiria a mesma coisa em %.
+    if (h.metric === 'sono' && summary.sleep) continue;
     const r = h.recap;
     if (r.current == null || r.delta == null) continue;
     const t = tone(r.delta, r.deltaPct, h.higherIsWorse);
@@ -684,6 +716,10 @@ export function buildRetroHighlights(
       priority: r.deltaPct != null ? Math.abs(r.deltaPct) : 5,
     });
   }
+
+  // Sono — horas e vigília como `health`; nota × medição como `cross`, que pode
+  // ser a manchete do mês (decisão do usuário, 05/09/2026). Ver sleep/retro.ts.
+  if (summary.sleep) out.push(...sleepHighlights(summary.sleep, noun, noPrior));
 
   // Gasto
   const spend = summary.purchases.spend;
@@ -838,7 +874,8 @@ export function buildRetroLede(highlights: readonly WeekHighlight[]): RetroLede 
  * `health/who-activity.ts`. Mora aqui e só aqui. Ver v2-jornal.md §4.1.
  */
 export const HEALTH_TARGETS: Readonly<Record<string, number>> = {
-  sono: 7,
+  // A mesma constante que o bloco Sono conta ("noites com 7 h ou mais"): um lugar só.
+  sono: NIGHT_REFERENCE_H,
 };
 
 /** Meta da métrica, ou `null` quando não há uma — aí não cabe escala divergente. */

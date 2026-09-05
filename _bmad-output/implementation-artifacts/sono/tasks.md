@@ -8,7 +8,8 @@
 > produção, sync com backfill v7 verificado contra snapshot, e a tela `/sono` conferida no
 > iPhone, e a **Fase 5 (web)** conferida no navegador. **Fase 6 (CAP-7) em andamento desde
 > 05/09** — o usuário a levantou; Tempos, Despertares e **Estágios conferidos no iPhone**;
-> falta só a web (T7.4). **Aberto também:** T0.2
+> web entregue (T7.4). **T7.6 (CAP-8, a noite ao lado da nota na Hoje) escrita em 05/09,
+> falta o iPhone.** **Aberto também:** T0.2
 > (Foco de Sono — responde 05/09). Origem: party mode de 04/09/2026 + pesquisa
 > competitiva do mesmo dia. Os mockups aprovados pelo usuário estão no artifact
 > `claude.ai/code/artifact/b9afbb6a-9c59-40d5-a9f2-85ceded2ed90`.
@@ -172,6 +173,9 @@
 > `SleepTimingChart`, `AwakeningsClock`, `app/sono/index.tsx`, `app/sono/[day].tsx`, rotas no
 > `_layout.tsx`, `saude.tsx` roteando sono para `/sono`). Validação: shared lint 0 · shared
 > test 549 asserts + arquitetura 13/13 · web build 0 · mobile tsc 0 · mobile jest 621/621.
+>
+> **05/09/2026:** `app/sono/index.tsx` virou `app/(tabs)/sono.tsx` — Sono é aba da barra, no
+> lugar de Compras (que passou ao Mais como aba oculta), e saiu da lista da Saúde.
 > **Conferência no aparelho pendente — é o Done (T6.3).**
 >
 > Dois tropeços que valem para a próxima tela: (1) as **rotas tipadas** do expo-router só
@@ -263,6 +267,41 @@
   ótimo". No caminho ele escolheu a forma do despertar (vão + marca ao lado, entre três) e o
   REM rosa também na Acessível — a exceção que voltava à rampa azul saiu. Falta a web no
   navegador.
+- [x] T7.6 — **CAP-8 — a noite ao lado da nota, na Hoje.** Pedida e decidida em 05/09/2026:
+  proposta com mockup em 402 pt, seletor dos 144 eixos e sete noites reais
+  (`claude.ai/code/artifact/5d2b47a9-70e1-4e67-9b44-d5d3a63dc816`); o usuário escolheu a
+  **opção A** (duas linhas de texto) **sem veto** às decisões D1–D8. Shared: `nightLine()` e
+  `lineText()` em `facts.ts` — partes `num`/`sym`/`word`, os três estados de vigília —, 4
+  checks em `sleep-ranges.test.ts` com as noites da proposta (a do screenshot, o fuso, o
+  singular/zero/nulo, a pior com 21). Mobile: `loadToday()` na `sono.store` (uma consulta por
+  `wake_day`, mesclada por `onset_at`, sem marcar `loaded`), `SleepRatingCard` com o bloco à
+  direita do chip (12/16 pt, `ink`/`ink2`, `marginLeft: auto`, toque → `/sono/[day]`),
+  `(tabs)/index.tsx` carrega no boot e no foreground. Specs: ratings-diarios FR-009 e tabela
+  de decisões, sono CAP-8 e §5, mobile-hoje. **Falta conferir no iPhone** — é lá que os 12 pt
+  se confirmam ou viram 12,5 (D7).
+- [x] T7.7 — **CAP-9 — Sono na Retrospectiva.** Pedida em 05/09/2026 ("média de quanto estou
+  acordando por noite, tempos de sono por fase, e outras ideias"); proposta com 63 noites
+  reais de prod no artifact `claude.ai/code/artifact/73f0edb9-ae85-42d5-9216-0d51b39c2d0c`
+  ("Sono no Jornal"), aprovada com os quatro "sim": a linha Sono sai do card Saúde, B1 + B4
+  entram no Tempos, saldo contra 7 h fica fora, nota × medição pode ser manchete. Shared:
+  `sleep/retro.ts` (`sleepSide`, `sleepRetro`, `ratingsSplit`, `weekendShift`,
+  `sleepHighlights`, `NIGHT_REFERENCE_H` — a constante que `HEALTH_TARGETS.sono` passa a
+  apontar), 13 checks em `sleep-retro.test.ts`; `period/retro.ts` ganha
+  `RetroInput.sleepPeriods` e `RetroSummary.sleep`, pula a linha `sono` dos destaques de
+  saúde quando o bloco existe; `retro-blocks.ts` ganha o id `sleep`. Mobile: `retro.store`
+  busca `sleep_periods` na mesma janela; `SleepRetroCard.tsx` (número grande com Δ em min,
+  apagou · acordou com miolo, acordado por noite, composição por fase, semana a semana e fim
+  de semana × semana no mês, nota × medição, caixa de correções com o `n` anterior e o
+  marcador Garmin); `retrospectiva/index.tsx` renderiza o bloco e esconde "Sono" e "Sono
+  percebido" do card Saúde. Docs: v2-jornal §9, spec CAP-9, CLAUDE.md. Validação: shared
+  lint 0 · shared test ok · mobile tsc 0 · jest 626/626. **Falta conferir no iPhone.**
+- [x] T7.8 — **CAP-10 — Dispersão e antes × agora no Tempos.** `SleepDispersion.tsx` (quatro
+  réguas com mediana e miolo, fim de semana vazado, semanas como pontos nos períodos longos)
+  como terceiro modo; `BeforeAfter.tsx` (duas noites típicas com bigode, composição dos dois
+  lados, diferenças em minutos) abaixo dos fatos em todos os modos, com ≥ 3 noites de cada
+  lado; `SleepLegend` ganha `SwDot`/`SwRing`/`SwBar`. Mesmo núcleo `sleepRetro` do T7.7.
+  **Falta conferir no iPhone.** B2 (grade semana × dia), séries do ano e gatilho × fases
+  ficam na fila (v2-jornal §9).
 
 ## Fechamento
 

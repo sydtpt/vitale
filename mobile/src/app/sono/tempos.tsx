@@ -12,6 +12,8 @@ import {
   nightFacts,
   periodSummary,
   rangeForm,
+  rangeLabel,
+  sleepRetro,
   stageFacts,
   type SonoRange,
 } from '@vitale/shared';
@@ -22,16 +24,21 @@ import { SleepStagesStackChart } from '../../components/charts/SleepStagesStackC
 import { PeriodNav } from '../../components/sono/PeriodNav';
 import { PeriodAverages } from '../../components/sono/PeriodAverages';
 import { FactsList } from '../../components/sono/FactsList';
-import { SleepLegend, SwGapTick, SwHatch, SwSolid, type LegendEntry } from '../../components/sono/SleepLegend';
+import { SleepDispersion, dispersionPoints, dispersionPointsFromBuckets } from '../../components/sono/SleepDispersion';
+import { BeforeAfter } from '../../components/sono/BeforeAfter';
+import { SleepLegend, SwBar, SwDot, SwGapTick, SwHatch, SwRing, SwSolid, type LegendEntry } from '../../components/sono/SleepLegend';
 import { Segmented } from '../../components/ui/Segmented';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
-type Mode = 'tempos' | 'estagios';
+type Mode = 'tempos' | 'estagios' | 'dispersao';
 const MODES = [
   { key: 'tempos' as Mode, label: 'Tempos' },
   { key: 'estagios' as Mode, label: 'Estágios' },
+  { key: 'dispersao' as Mode, label: 'Dispersão' },
 ];
+/** Noites mínimas de cada lado para o "antes × agora" ter mediana que signifique algo. */
+const MIN_COMPARE_NIGHTS = 3;
 /** As duas leituras do Estágios nas noites: onde cada estágio cai, ou quanto de cada. */
 type StageView = 'hora' | 'total';
 const VIEWS = [
@@ -61,6 +68,15 @@ function calendarDays(first: string, last: string): string[] {
  * noite, a vigília no topo). Nos períodos longos só existe o total, porque uma
  * "noite típica" não tem hora para cada estágio.
  *
+ * **Dispersão** (05/09/2026) — cada noite é um ponto numa régua, a mediana é a
+ * linha, o miolo p25–p75 é a faixa: a regularidade lida como largura, em quatro
+ * réguas (apagou, acordou, dormido, acordado). Nos períodos longos os pontos são
+ * as semanas.
+ *
+ * Embaixo de todos, o **antes × agora**: a noite típica deste período ao lado da
+ * do anterior, com as diferenças em minutos — a mesma peça que o bloco Sono da
+ * Retrospectiva desenha (`sleepRetro`).
+ *
  * As cores vêm de `sleepColors()` — uma cor, um significado, em toda tela de
  * sono. Embaixo, fatos: medianas, faixas, contagens. Nenhum vira nota. Estágios
  * levam o rótulo de incerteza — estimativa do aparelho, comparável com você mesmo.
@@ -85,11 +101,28 @@ export default function SonoTemposScreen() {
   const [w, setW] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
 
-  const nights = useMemo(() => filterByRange(periods, range, new Date(), offset), [periods, range, offset]);
+  const today = useMemo(() => new Date(), []);
+  const nights = useMemo(() => filterByRange(periods, range, today, offset), [periods, range, offset, today]);
   const form = rangeForm(range);
   const summary = useMemo(() => periodSummary(nights), [nights]);
   const weekBuckets = useMemo(() => (form === 'weeks' ? bucketPeriods(nights, 'week') : []), [nights, form]);
   const nightBuckets = useMemo(() => (form === 'nights' ? bucketPeriods(nights, 'night') : []), [nights, form]);
+  // O período de mesmo tamanho logo antes — o "antes" do antes × agora. "Última"
+  // é uma noite só: não há noite típica para comparar.
+  const prevNights = useMemo(
+    () => (range === 'ultima' ? [] : filterByRange(periods, range, today, offset + 1)),
+    [periods, range, offset, today],
+  );
+  const compare = useMemo(
+    () => (nights.length >= MIN_COMPARE_NIGHTS && prevNights.length >= MIN_COMPARE_NIGHTS
+      ? sleepRetro(nights, prevNights, undefined, SONO_MARKERS)
+      : null),
+    [nights, prevNights],
+  );
+  const points = useMemo(
+    () => (form === 'weeks' ? dispersionPointsFromBuckets(weekBuckets) : dispersionPoints(nights)),
+    [form, weekBuckets, nights],
+  );
   const facts = useMemo(() => {
     if (mode === 'estagios') return stageFacts(nights);
     return form === 'weeks' ? bucketFacts(weekBuckets, SONO_MARKERS) : nightFacts(nights);
@@ -105,7 +138,14 @@ export default function SonoTemposScreen() {
   const chartW = Math.max(0, w - spacing.lg * 2);
 
   const legend: LegendEntry[] =
-    mode === 'estagios'
+    mode === 'dispersao'
+      ? [
+          { swatch: <SwDot color={sc.sleep} />, label: form === 'weeks' ? 'semana (noite típica)' : 'noite de semana' },
+          ...(form === 'nights' ? [{ swatch: <SwRing color={sc.sleep} />, label: 'fim de semana' }] : []),
+          { swatch: <SwSolid color={sc.bed} />, label: 'miolo p25–p75' },
+          { swatch: <SwBar color={colors.ink} />, label: 'mediana' },
+        ]
+      : mode === 'estagios'
       ? [
           { swatch: <SwSolid color={sc.rem} />, label: STAGE_LABEL.rem },
           { swatch: <SwSolid color={sc.light} />, label: STAGE_LABEL.core },
@@ -160,7 +200,9 @@ export default function SonoTemposScreen() {
               )}
 
               <View style={styles.chartWrap}>
-                {form === 'nights' ? (
+                {mode === 'dispersao' ? (
+                  <SleepDispersion points={points} width={chartW} palette={sc} unit={form === 'weeks' ? 'semana' : 'noite'} />
+                ) : form === 'nights' ? (
                   composition ? (
                     <SleepStagesStackChart buckets={nightBuckets} width={chartW} palette={sc} />
                   ) : (
@@ -182,6 +224,16 @@ export default function SonoTemposScreen() {
               <SleepLegend items={legend} />
 
               <FactsList facts={facts} />
+
+              {compare && (
+                <BeforeAfter
+                  retro={compare}
+                  prevLabel={rangeLabel(range, prevNights, today, offset + 1)}
+                  curLabel={rangeLabel(range, nights, today, offset)}
+                  width={chartW}
+                  palette={sc}
+                />
+              )}
 
               {mode === 'estagios' && (
                 <View style={styles.uncert}>
