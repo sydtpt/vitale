@@ -26,15 +26,26 @@ Branch `feat/fc-serie`, criada da `main` em 05/09/2026 (worktree `.claude/worktr
       `health_series` ainda não existe em produção (mais dois desvios anteriores a esta branch:
       `health_daily_vfc_backup_20260904` e `sleep_periods.stage_segments`, da PR #1 do sono).
 
-## Fase 2 — Produção (pendente; depende do usuário)
+## Fase 2 — Produção (feita em 05/09/2026, com autorização do usuário)
 
-- [ ] **T2.1** Aplicar a migration em produção — **manual, com confirmação** (AGENTS.md). Registrar
-      em `supabase_migrations.schema_migrations` e rodar `supabase/scripts/check-schema-drift.sh`.
-- [ ] **T2.2** Rebuild do iPhone (`pnpm mobile:device`) **depois** da migration. O bump para v9
-      dispara o backfill sozinho.
-- [ ] **T2.3** Conferir no banco: linhas de `fc` desde ~18/02/2026 (200 dias), 300–720 minutos por
-      dia na era Garmin; `health_daily.fc.count` inalterado nos dias já gravados; nenhum item
-      `series` preso na fila (Configurações → Dados).
+- [x] **T2.1** Migration aplicada pela Management API e registrada em `schema_migrations`
+      (`20260905120000 · health_series`). `check-schema-drift.sh` passou a acusar só os dois
+      desvios anteriores a esta branch.
+- [x] **T2.2** Build Release por cabo a partir do diretório principal (branch do sono + este
+      commit aplicado como patch, `AGG_VERSION` resolvido em 9). Instalou; o launch falhou porque
+      o iPhone estava bloqueado — aberto pelo ícone.
+- [x] **T2.3** Backfill verificado no banco minutos depois da abertura:
+
+      | Medida | Valor |
+      |---|---|
+      | Dias com série | 177, de 20/02 a 05/09/2026 (o teto de 200 dias alcança 18/02) |
+      | Era Garmin (≥ 18/07) | 48 dias, 45 deles com 300–720 minutos; média 628 |
+      | Era Watch | média de 245 minutos por dia |
+      | Integridade | 0 linhas com minutos fora de ordem, 0 com minuto repetido; 2 fusos (verão/inverno) |
+      | Paridade com `health_daily.fc` | em 04/09, 02/09, 30/08 e 26/08: mesmo `count`, mesma média, mín e máx |
+      | Linha diária | ganhou 20/02 como primeiro dia (era 26/02); nenhuma linha perdida |
+      | Sono | `stage_segments` em 286 de 288 noites — o backfill v9 não os zerou |
+      | Tamanho | 432 kB para 177 dias (~2,4 kB/dia, abaixo da estimativa) |
 
 ## Fase 3 — Tela (pendente; passa por proposta antes de código)
 
