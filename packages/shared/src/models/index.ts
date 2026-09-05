@@ -686,6 +686,23 @@ export interface HealthDaily {
   extra?: Record<string, unknown>;      // pressão {sys,dia}, anéis, macros; VFC do intervals: {source,kind} (ADR 0026)
 }
 
+/**
+ * Série intradiária de uma métrica de saúde — a FORMA do dia que `HealthDaily`
+ * resume e descarta. 1 linha por (user, dia local, métrica), tabela
+ * `health_series` (ADR 0033). `minutes` e `readings` são paralelos: o minuto
+ * local do dia (0–1439, crescente) e a leitura média daquele minuto. O sync
+ * do mobile a produz das mesmas amostras da linha diária, no mesmo ciclo.
+ * Spec: docs/specs/fc-serie/spec.md · data-model: docs/specs/fc-serie/data-model.md
+ */
+export interface HealthSeriesDay {
+  userId: string;
+  day: string;                          // 'YYYY-MM-DD' (data local)
+  metric: string;                       // id de HealthMetricMeta ('fc', ...)
+  tzOffset: number;                     // minutos vs UTC à meia-noite local do dia
+  minutes: number[];                    // minuto local do dia, crescente
+  readings: number[];                   // leitura média do minuto, paralela a `minutes`
+}
+
 /* ─────────────────────────────────────────────────────────────
  * Sono — o período é um EVENTO com instantes, não uma grandeza diária.
  * Spec: docs/specs/sono/spec.md · data-model: docs/specs/sono/data-model.md

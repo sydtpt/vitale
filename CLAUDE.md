@@ -191,6 +191,9 @@ São **10** módulos, não 7:
   nota × medição). Sem score, por princípio. Sono é categoria de Saúde, não módulo (ADR 0031)
 
 ### Em andamento / Próximo 🔧
+- FC ao longo do dia: `health_series` — a série intradiária (minuto → bpm) gravada pelo
+  mesmo sync que produz a linha diária (ADR 0033). Núcleo e sync prontos; migration gerada
+  e **não aplicada**; tela passa por proposta antes de código. Ver `docs/specs/fc-serie/`
 - Tarefas: ponte real com Compras/Finanças
 - Sono: a web (segunda rodada) e a CAP-7 — seção "Tempos e estágios" com seletor até
   "sempre", **adiada por pedido do usuário**; ver Fase 6 do tasks
@@ -232,3 +235,4 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [Temas (quatro eixos: esquema, tema, paleta e marca)](docs/specs/temas/spec.md) · [data-model](docs/specs/temas/data-model.md)
 - [Cultura (livros, filmes, podcasts e álbuns)](docs/specs/cultura/spec.md) · [data-model](docs/specs/cultura/data-model.md) · [stories](docs/specs/cultura/stories.yaml)
 - [Sono (tela própria: horários, timing chart, despertares e percepção × medição)](docs/specs/sono/spec.md) · [data-model](docs/specs/sono/data-model.md) · [plan](docs/specs/sono/plan.md) · [tasks](_bmad-output/implementation-artifacts/sono/tasks.md)
+- [FC ao longo do dia (série intradiária em `health_series`)](docs/specs/fc-serie/spec.md) · [data-model](docs/specs/fc-serie/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fc-serie/tasks.md)
