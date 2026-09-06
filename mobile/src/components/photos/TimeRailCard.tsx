@@ -15,7 +15,6 @@
 
 import React, { useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, PanResponder, useWindowDimensions } from 'react-native';
-import { foraDaBordaDeVoltar } from '../../lib/back-gesture';
 import {
   type ActivityRoutePoint,
   detectStops,
@@ -58,19 +57,10 @@ export function TimeRailCard({ points, totalDistanceM, marks = [], onScrub }: Pr
   /** A régua só muda quando a rota muda — o arrasto não pode recalculá-la. */
   const distances = useMemo(() => routeDistances(points), [points]);
 
-  // Um arrasto que começa na borda esquerda é do sistema, não do trilho.
-  const nasceuNaBorda = useRef(false);
-
   const pan = useRef(
     PanResponder.create({
-      // Ver `back-gesture.ts`: o toque que nasce na borda esquerda é do
-      // swipe-back do sistema, e reivindicá-lo dispara os dois.
-      onStartShouldSetPanResponderCapture: (e) => {
-        nasceuNaBorda.current = !foraDaBordaDeVoltar(e.nativeEvent.pageX);
-        return false;
-      },
-      onStartShouldSetPanResponder: () => !nasceuNaBorda.current,
-      onMoveShouldSetPanResponder: () => !nasceuNaBorda.current,
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
       onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
       onPanResponderRelease: () => onScrub?.(null),
