@@ -146,14 +146,27 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
 
   const confirm = useCallback(
     async (accepted: PhotoCandidate[], rejected: PhotoCandidate[]) => {
-      if (!userId) return;
+      if (!userId) {
+        Alert.alert('Sem sessão', 'Entre na sua conta para ligar fotos a uma pedalada.');
+        return;
+      }
       setSheetOpen(false);
       try {
         await saveDecisions(userId, activity.id, accepted, rejected);
         setChecked(true);
         await reload();
-      } catch {
-        /* a folha volta pelo cartão; nada se perde */
+      } catch (e) {
+        /**
+         * NUNCA engolir este erro. A primeira versão tinha um `catch {}` mudo
+         * com um comentário dizendo "nada se perde" — e era falso: a seleção
+         * inteira ia embora e a tela não dizia nada. "Não acontece nada" foi
+         * exatamente como o usuário descreveu o bug em 07/09/2026, e o silêncio
+         * custou uma sessão de diagnóstico às cegas.
+         */
+        Alert.alert(
+          'Não consegui ligar as fotos',
+          e instanceof Error ? e.message : String(e),
+        );
       }
     },
     [userId, activity.id, reload],

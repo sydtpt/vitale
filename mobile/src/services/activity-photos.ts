@@ -199,10 +199,27 @@ export async function saveDecisions(
     state,
   });
 
-  const rows = [
-    ...accepted.map((c) => row(c, 'linked')),
-    ...rejected.map((c) => row(c, 'dismissed')),
-  ];
+  /**
+   * Duas mídias no MESMO instante colidem na chave de cura — e o upsert manda
+   * tudo num `INSERT ... ON CONFLICT` só, onde o Postgres recusa a operação
+   * inteira ("cannot affect row a second time"). Uma rajada ou o par de uma
+   * Live Photo produz exatamente isso, e derrubava a gravação de TODA a folha.
+   *
+   * Fica a primeira de cada instante: são a mesma foto para o modelo, que é a
+   * premissa da chave (ADR 0037 §2).
+   */
+  const seen = new Set<number>();
+  const rows: ActivityPhotoWrite[] = [];
+  for (const [list, state] of [
+    [accepted, 'linked'],
+    [rejected, 'dismissed'],
+  ] as const) {
+    for (const c of list) {
+      if (seen.has(c.takenAtMs)) continue;
+      seen.add(c.takenAtMs);
+      rows.push(row(c, state));
+    }
+  }
 
   await upsertActivityPhotos(supabase, rows);
   await markPhotosChecked(supabase, userId, activityId);
