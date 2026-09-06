@@ -37,6 +37,8 @@ import { useSettingsStore } from '../../store/settings.store';
 import { HeatmapGrid } from '../../components/HeatmapGrid';
 import { TaskGridStrip } from '../../components/TaskGridStrip';
 import { SleepRetroCard } from '../../components/SleepRetroCard';
+import { EdicaoCard } from '../../components/EdicaoCard';
+import { useEdicaoStore } from '../../store/edicao.store';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
 const KIND_LABEL: Record<PeriodKind, string> = {
@@ -162,6 +164,21 @@ export default function RetrospectivaScreen() {
   const allHighlights = useMemo(() => highlightsFn(now, kind, offset), [highlightsFn, now, kind, offset, loaded, allActs]);
   const highlights = useMemo(() => allHighlights.slice(0, 6), [allHighlights]);
   const lede = useMemo(() => buildRetroLede(allHighlights), [allHighlights]);
+
+  // A edição do período. `entrada` é o que o núcleo precisa para montar o pacote
+  // — o mesmo `summary` que a tela já usa, sem recalcular nada.
+  const entradaPacote = useMemo(() => ({ resumo: summary, agora: now }), [summary, now]);
+  const carregarEdicao = useEdicaoStore((s) => s.carregar);
+  const gerarEdicaoFn = useEdicaoStore((s) => s.gerar);
+  const edicoes = useEdicaoStore((s) => s.porPeriodo);
+  const chaveEdicao = `${summary.kind}|${summary.startISO}|${summary.endISO}`;
+  const edicaoEstado = edicoes[chaveEdicao] ?? { fase: 'vazio' as const };
+  // Ler é grátis; escrever custa e só acontece a pedido (ver EdicaoCard).
+  useEffect(() => { void carregarEdicao(entradaPacote); }, [carregarEdicao, entradaPacote]);
+  const gerarEdicao = useCallback(
+    () => { void gerarEdicaoFn(entradaPacote); },
+    [gerarEdicaoFn, entradaPacote],
+  );
   const buckets = useMemo(() => kind === 'year' ? yearFn(now, offset) : [], [yearFn, now, kind, offset, loaded, allActs]);
 
   // Forma 02 — o heatmap. Só nos períodos em que uma célula por dia ainda é legível;
@@ -247,6 +264,9 @@ export default function RetrospectivaScreen() {
                 {lede.support ? <Text style={styles.ledeSupport}>{lede.support}</Text> : null}
               </View>
             )}
+            {/* A edição escrita por modelo, logo abaixo da manchete apurada.
+                Some sozinha em período em curso (ADRs 0038/0040). */}
+            <EdicaoCard estado={edicaoEstado} onGerar={gerarEdicao} />
       </>
     ),
     kpis: (
