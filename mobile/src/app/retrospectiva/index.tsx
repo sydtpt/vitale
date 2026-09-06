@@ -1,9 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  type ActivityPhoto,
+  fetchPhotosForActivities,
+  periodBounds,
+  photoRetro,
+  photoRetroLabel,
   latestAvailableOffset,
   habitCalories,
   buildRetroLede,
@@ -33,6 +38,8 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../t
 import { formatClock } from '../../lib/workout-format';
 import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
+import { useAuthStore } from '../../store/auth.store';
+import { supabase } from '../../lib/supabase';
 import { useSettingsStore } from '../../store/settings.store';
 import { HeatmapGrid } from '../../components/HeatmapGrid';
 import { TaskGridStrip } from '../../components/TaskGridStrip';
@@ -157,6 +164,41 @@ export default function RetrospectivaScreen() {
   useEffect(() => { void ensure(retroSince(now, kind, offset)); }, [ensure, now, kind, offset]);
 
   const summary = useMemo(() => summaryFn(now, kind, offset), [summaryFn, now, kind, offset, loaded, allActs]);
+
+  /**
+   * As fotos do período (ADR 0037) — versão 2 do bloco: tira discreta no fim de
+   * Ciclismo & corrida, subordinada ao texto. A carga é por atividade porque a
+   * tabela é indexada por `activity_id`; o período vira uma lista de ids.
+   */
+  const [periodPhotos, setPeriodPhotos] = useState<ActivityPhoto[]>([]);
+  const periodActIds = useMemo(() => {
+    const b = periodBounds(now, kind, offset);
+    return allActs
+      .filter((a) => {
+        const t = Date.parse(a.startAt);
+        return t >= b.start.getTime() && t <= b.end.getTime();
+      })
+      .map((a) => a.id);
+  }, [allActs, now, kind, offset]);
+
+  useEffect(() => {
+    const uid = useAuthStore.getState().user?.id;
+    if (!uid || periodActIds.length === 0) {
+      setPeriodPhotos([]);
+      return;
+    }
+    let alive = true;
+    fetchPhotosForActivities(supabase, uid, periodActIds)
+      .then((rows) => {
+        if (alive) setPeriodPhotos(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [periodActIds]);
+
+  const photoBlock = useMemo(() => photoRetro(periodPhotos), [periodPhotos]);
   // A manchete sai da lista **completa** de destaques; a lista exibida é a fatiada.
   // Derivar aqui evita recalcular buildRetrospective só para o lede.
   const allHighlights = useMemo(() => highlightsFn(now, kind, offset), [highlightsFn, now, kind, offset, loaded, allActs]);
@@ -357,6 +399,31 @@ export default function RetrospectivaScreen() {
                 noPrior={noPrior}
                 longestLabel="Maior corrida"
               />
+            )}
+
+            {/* As fotos do período (ADR 0037), versão 2: tira discreta no FIM,
+                subordinada ao texto. Some por completo quando não houve foto —
+                o jornal informa o que aconteceu, não o que faltou. */}
+            {photoBlock && (
+              <View style={styles.card}>
+                <Text style={styles.eyebrow}>{photoRetroLabel(photoBlock)}</Text>
+                <View style={styles.photoStrip}>
+                  {photoBlock.sample.map((p) => (
+                    <Image
+                      key={p.id}
+                      source={{
+                        uri: p.assetId?.includes('://') ? p.assetId : `ph://${p.assetId}`,
+                      }}
+                      style={styles.photoThumb}
+                    />
+                  ))}
+                  {photoBlock.rest > 0 && (
+                    <View style={[styles.photoThumb, styles.photoRest]}>
+                      <Text style={styles.photoRestText}>+{photoBlock.rest}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
             )}
       </>
     ),
@@ -672,6 +739,21 @@ function Row({ l, r }: { l: string; r: string }) {
 }
 
 const createStyles = () => StyleSheet.create({
+  photoStrip: { flexDirection: 'row', gap: 6, marginTop: spacing.sm },
+  photoThumb: {
+    width: 58,
+    height: 58,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMute,
+  },
+  photoRest: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.lineDeep,
+    borderStyle: 'dashed',
+  },
+  photoRestText: { fontSize: 13, fontFamily: fonts.monoSemiBold, color: colors.ink3 },
   container: { flex: 1, backgroundColor: colors.bg },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

@@ -107,6 +107,7 @@ export * from './photos/window';
 export * from './photos/stops';
 export * from './photos/match';
 export * from './photos/group';
+export * from './photos/retro';
 export * from './surface/classify';
 export * from './surface/aggregate';
 export * from './surface/colors';

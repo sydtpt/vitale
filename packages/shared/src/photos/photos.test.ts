@@ -29,6 +29,8 @@ import {
 import { PHOTO_CORRIDOR_M, classifyCandidate, matchToRoute } from './match';
 import { groupByStop } from './group';
 import { indexAtTimeFraction, timeRail } from '../fitness/time-rail';
+import { photoRetro, photoRetroLabel } from './retro';
+import type { ActivityPhoto } from '../models';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -352,6 +354,60 @@ check('a fração de tempo vira índice no traçado', () => {
   assert.equal(indexAtTimeFraction(straight, 0), 0);
   assert.equal(indexAtTimeFraction(straight, 1), straight.length - 1);
   assert.equal(indexAtTimeFraction(straight, 0.5), 20, 'meio do tempo, ponto do meio');
+});
+
+// ── Retrospectiva ───────────────────────────────────────
+
+const retroPhoto = (id: string, activityId: string, takenAt: number): ActivityPhoto => ({
+  id,
+  activityId,
+  assetId: `a/${id}`,
+  takenAt,
+  lat: null,
+  lng: null,
+  mediaType: 'photo',
+  durationS: null,
+  routeIndex: null,
+  routeDistanceM: null,
+  offsetM: null,
+  onRoute: true,
+  state: 'linked',
+  isCover: false,
+});
+
+check('o período conta fotos e atividades, e a web tem o que escrever', () => {
+  const r = photoRetro([
+    retroPhoto('a', 'ACT1', 300),
+    retroPhoto('b', 'ACT1', 100),
+    retroPhoto('c', 'ACT2', 200),
+  ]);
+  assert.ok(r);
+  assert.equal(r.total, 3);
+  assert.equal(r.activities, 2);
+  assert.equal(photoRetroLabel(r), '3 fotos em 2 atividades');
+  assert.deepEqual(r.sample.map((p) => p.id), ['b', 'c', 'a'], 'em ordem cronológica');
+});
+
+check('a amostra é espalhada, não os cinco primeiros', () => {
+  // 20 fotos: os cinco primeiros seriam a mesma parada. A tira precisa do
+  // período inteiro em cinco quadros.
+  const many = Array.from({ length: 20 }, (_, i) => retroPhoto(String(i), 'ACT', i * 1000));
+  const r = photoRetro(many);
+  assert.ok(r);
+  assert.equal(r.sample.length, 5);
+  assert.equal(r.rest, 15);
+  assert.equal(r.sample[0].id, '0', 'começa no começo');
+  assert.equal(r.sample[4].id, '19', 'e termina no fim');
+  assert.ok(Number(r.sample[2].id) > 5, `o meio é do meio: ${r.sample[2].id}`);
+});
+
+check('período sem foto some do jornal', () => {
+  assert.equal(photoRetro([]), null);
+  assert.equal(
+    photoRetro([{ ...retroPhoto('x', 'A', 1), state: 'dismissed' }]),
+    null,
+    'desligada não conta',
+  );
 });
 
 console.log(`\n${passed} testes passaram.`);

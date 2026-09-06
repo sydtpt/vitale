@@ -135,13 +135,21 @@ Duas barreiras de arquitetura pegaram **defeito real**, não estilo:
       abaixo em superfície sólida).
 - [ ] **T5.2** A capa (`is_cover`) é o que o composer abre por padrão.
 
-## Fase 6 — Corrida, Retrospectiva e web
+## Fase 6 — Corrida, Retrospectiva e web (feita em 06/09/2026)
 
-- [ ] **T6.1** Corrida usa o mesmo caminho — o desenho não muda.
-- [ ] **T6.2** Retrospectiva **versão 2**: tira discreta no fim do bloco, subordinada ao
-      texto, que some sem deixar buraco.
-- [ ] **T6.3** Web: pin no mapa, marca no trilho e contagem por período. Sem imagem, com
-      leitura em texto ("11 fotos, em 3 lugares").
+- [x] **T6.1** Corrida entra sem código próprio: a tela de detalhe é
+      `historico/[label]/[id]`, genérica por tipo, e o núcleo só olha `points` e
+      instantes. Nenhum `if` por modalidade foi preciso.
+- [x] **T6.2** Retrospectiva **versão 2**: `photos/retro.ts` (`photoRetro`,
+      `photoRetroLabel`) mais a tira no fim de *Ciclismo & corrida* no iPhone. A amostra é
+      **espalhada**, não os cinco primeiros — cinco fotos seguidas costumam ser a mesma
+      parada, e a tira mostraria o mesmo café cinco vezes.
+- [x] **T6.3** Web: a mesma seção existe, e mostra o **fato** em vez da imagem
+      ("N fotos em M atividades" + "As imagens ficam na biblioteca do aparelho"). É a
+      degradação honesta que fez a versão 2 ser a escolhida: no navegador vira uma linha
+      de texto, não uma moldura vazia.
+- [x] **T6.4** Validação: shared 28 suítes (23 no núcleo de fotos), web build + 141 testes,
+      mobile `tsc` + 49 suítes.
 
 ## Fase 7 — Vídeo
 
