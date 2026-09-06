@@ -69,8 +69,30 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
 
 ## Pesquisa
 
-- [ ] Deep recon (competitivo): "que análise de terreno mudou uma decisão de
-      alguém" — Komoot, Wandrer, VeloViewer, Strava, Ride with GPS. Régua de
-      custo do Quinn: já no banco (tempo parado por cidade, noturno, perfil por
-      bike) · um passe externo (piso, tipo de via, limite, iluminação, vento e
-      chuva via Open-Meteo) · instrumento novo (potência, pressão).
+- [x] Deep recon (competitivo) feita em 05/09/2026:
+      `_bmad-output/planning-artifacts/research/competitive-terreno-e-contexto-de-rota-no-ciclismo-2026-09-05/research.md`
+      (8 verified · 4 unverified · 1 disputed · 1 overturned; Reddit inacessível).
+
+**O que a pesquisa mudou neste plano (R1–R7 do relatório):**
+
+- R1 → T1.1 ganha duas regras: `surface_segments` guarda **fonte e data do
+  extrato OSM** por trecho, e "não especificado/inferido" é **classe própria**
+  em toda soma e toda tela (nunca redistribuída — o bug da Strava que soma 61%).
+- R2 → a visão global por bicicleta (Fase 2) é a superfície de decisão; o Garmin
+  mostra piso por pedalada mas ninguém agrega por período/bike/pneu.
+- R3 → **T3.3 nova**: "km por piso por equipamento", quando o pneu virar filho de
+  `gear` (março/2027). Sem concorrente documentado.
+- R4 → **vento por trecho NÃO se constrói**: o intervals.icu (que o Sydnei usa)
+  está entregando; reavaliar em março/2027. Vai para o backlog de features.
+- R5 → semáforo e noturno viram **fatos da retrospectiva**, não features: tempo
+  parado por cidade só da era Garmin (18/07/2026+); "km após o pôr do sol" pela
+  efeméride do núcleo. Zero demanda medida.
+- R6 → método da Fase 1 fica como está (25 m, ciclovia ≤ 12 m) **+ guarda de reta
+  > 500 m** (VeloViewer) + golden set (T1.4). Não perseguir a tolerância do
+  Wandrer (não publicada; ele desistiu do algoritmo e fez editor manual).
+- R7 → exploração ("km em vias nunca pedaladas", modelo Wandrer de fração de via)
+  entra no backlog como candidata forte depois do piso.
+
+**Perguntas abertas que dois minutos num navegador logado resolvem:** a Strava
+mostra percentuais na atividade ou só na rota? O RwGPS cumpriu o "(MORE SOON)"
+de 2021? Quais Edge (e o Venu 4?) trazem a quebra por pedalada?

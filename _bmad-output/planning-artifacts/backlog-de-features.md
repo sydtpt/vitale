@@ -131,3 +131,40 @@ de opinião com cabeçalho próprio; o app precisa fazer o mesmo.
 > **Bloqueio conhecido:** o usuário afirmou em 2026-08-25 que "a feature de goals não
 > está bem desenvolvida ainda". Se a decisão 2 for "sim, cria tarefa", F3 fica atrás
 > de Metas na fila.
+
+---
+
+## F4 — Vento por trecho (observar, não construir)
+
+**Origem: deep recon de 2026-09-05** (`research/competitive-terreno-e-contexto-de-rota-no-ciclismo-2026-09-05`),
+recomendação R4. O usuário não pediu; a mesa levantou como "passe externo" possível.
+
+- **Por que não agora:** o intervals.icu, que o usuário já usa, anexa clima histórico do
+  Open-Meteo e tem headwind/tailwind "MyWindsock-style" em desenvolvimento; o myWindsock
+  já entrega o modelo completo (contrafactual de potência, tempo ganho/perdido por trecho).
+  Construir é correr atrás.
+- **Se um dia entrar:** fonte Open-Meteo histórico (vento por hora), rumo por segmento do
+  `route_overview`, modelo contrafactual do myWindsock. A decisão embutida que os usuários
+  citam é "sair contra o vento e voltar a favor" — prospectiva, não retrospectiva.
+- **Reavaliar em março/2027**, junto com a troca de pneu.
+
+## F5 — Exploração: km em vias nunca pedaladas
+
+**Origem: deep recon de 2026-09-05**, recomendação R7. Candidata forte para depois do piso.
+
+- **Por que faz sentido aqui:** o ciclismo do usuário tem zero rotas recorrentes (medido em
+  04/09: 0 em 136 pedaladas). Novidade é a métrica natural.
+- **Modelo:** o do Wandrer — fração de via do OSM percorrida, não tile; guarda de reta
+  > 500 m (VeloViewer) contra GPS perdido. Reusa o casamento GPS↔via da Fase 1 do piso.
+- **Ressalva:** nenhuma evidência de decisão associada — é prazer, não decisão.
+
+## F6 — Fatos de contexto na Retrospectiva (semáforo, noturno)
+
+**Origem: deep recon de 2026-09-05**, recomendação R5. Não é feature; é uma ou duas frases
+no jornal, quando houver amostra.
+
+- **Tempo parado por cidade:** só comparável a partir do Garmin (18/07/2026) — medido
+  na mesma bike: Apple Watch 7,5% × Garmin 22%. A hipótese acadêmica que justifica a frase:
+  ciclistas superestimam a espera em semáforo em ~5×.
+- **Km depois do pôr do sol:** a efeméride solar já existe no núcleo (esquema solar).
+- Zero demanda medida nas duas rodadas da pesquisa; custo perto de zero.
