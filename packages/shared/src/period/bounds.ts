@@ -10,7 +10,8 @@
  *             período disponível é a semana anterior.
  *   - month:  o mês corrente só fica disponível no dia 01 do mês seguinte → o
  *             último disponível é sempre o mês anterior.
- *   - season: trimestre civil (Q1 Jan–Mar … Q4 Out–Dez), disponível ao vivo.
+ *   - season: trimestre civil (Q1 Jan–Mar … Q4 Out–Dez), com a mesma regra do
+ *             mês → o último disponível é sempre o trimestre anterior.
  *   - year:   o ano corrente fica disponível ao vivo (offset 0).
  *   - all:    período único de tudo (offset ignorado), disponível ao vivo.
  */
@@ -128,8 +129,9 @@ export function latestAvailableOffset(now: Date, kind: PeriodKind): number {
       // O mês corrente só fecha no dia 01 do mês seguinte → último é o anterior.
       return -1;
     case 'season':
-      // Trimestre corrente disponível ao vivo, como o ano.
-      return 0;
+      // Como o mês: o trimestre corrente só fecha no dia 01 do trimestre
+      // seguinte → o último disponível é sempre o anterior.
+      return -1;
     case 'year':
       // Ano corrente disponível ao vivo.
       return 0;
