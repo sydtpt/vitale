@@ -6,8 +6,14 @@ ADR: [0037](../../../docs/decisions/0037-a-foto-e-ponteiro-com-chave-de-cura.md)
 
 Mockups aprovados em 06/09/2026: `claude.ai/code/artifact/8e093ae5-72dc-4a19-b13c-f2c8f330e210`.
 
-**Ainda não começou.** Branch a criar: `feat/fotos-na-pedalada`, da `main`, em worktree
-(regra da casa: validar do commit num worktree limpo antes da main).
+**Fases 0–6 feitas em 06/09/2026.** Branch `feat/fotos-na-pedalada`, no worktree
+`/Users/sydtpt/Projects/life-organizer-wt-fotos`, **sem push**. Falta a Fase 7 (vídeo) e,
+sobretudo, a **Fase 8 — conferência no aparelho**, que nada aqui substitui.
+
+> A branch nasceu com `git checkout -b` na árvore principal, e isso moveu a árvore
+> compartilhada por baixo de uma sessão concorrente, que commitou docs desta frente junto
+> com os dela (`92502a4`). Desfeito sem reescrever histórico. O caminho certo é
+> `git worktree add <path> -b <branch>`.
 
 ## Fase 0 — Pesquisa e proposta (feita em 06/09/2026)
 
@@ -63,14 +69,24 @@ Testável sem aparelho e sem banco. **Fazer inteira antes de qualquer tela.**
       do traçado. Validação nos três workspaces: shared `tsc` + todas as suítes, web
       `build`, mobile `tsc --noEmit`.
 
-## Fase 2 — Banco
+## Fase 2 — Banco (feita em 06/09/2026, com autorização do usuário)
 
-- [ ] **T2.1** Migration `20260906150000_activity_photos.sql` (data-model §1): tabela,
-      constraints, três índices, RLS, trigger, e `activities.photos_checked_at`.
-- [ ] **T2.2** Aplicar em produção **à mão, com confirmação** (política do AGENTS.md) e
-      registrar em `supabase_migrations.schema_migrations`. Rodar `check-schema-drift.sh`.
-- [ ] **T2.3** Leitura `packages/shared/src/data/activity-photos.ts` — colunas explícitas,
-      paginada (o teto de 1000 linhas do PostgREST vale aqui como em tudo).
+- [x] **T2.1** Migration `20260906150000_activity_photos.sql`: tabela, 7 checks, três
+      índices (chave de cura, caminho quente parcial, capa única parcial), RLS, trigger
+      `touch_updated_at` e `activities.photos_checked_at`.
+- [x] **T2.2** Aplicada em produção pela Management API e registrada em
+      `schema_migrations` (`20260906150000 · activity_photos`). Conferido no banco:
+      17 colunas, RLS ligado com 1 policy, 4 índices (pk + 3), 7 checks, 1 trigger, e
+      `activities.photos_checked_at` presente.
+- [x] **T2.3** Leitura `packages/shared/src/data/activity-photos.ts` — colunas explícitas,
+      paginada. `fetchActivityPhotos` traz `dismissed` por padrão, porque a varredura
+      precisa saber o que não sugerir; `fetchPhotosForActivities` traz só `linked`, para a
+      retro e o mapa de período. A **escrita** também mora aqui (AD-4).
+- [x] **T2.4** Smoke test das constraints contra produção, com a atividade real
+      `A958ACC6…`, e limpeza depois (0 linhas ao fim). Os cinco casos que **têm** de
+      falhar falharam: `on_route` sem posição, `lat` sem `lng`, mesmo instante na mesma
+      atividade, segunda capa, vídeo sem duração. RLS conferido pelos dois lados — o dono
+      vê 1, outro usuário vê 0 — e o trigger tocou `updated_at`.
 
 ## Fase 3 — Mobile: varredura, cura e confirmação (feita em 06/09/2026)
 
