@@ -13,11 +13,21 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Activity } from '@vitale/shared';
-import { BEST_EFFORT_DISTANCES, ridesByCountry } from '@vitale/shared';
+import {
+  BEST_EFFORT_DISTANCES,
+  SURFACE_RANGES,
+  gearForActivity,
+  gearUsage,
+  ridesByCountry,
+  summarizeSurface,
+  surfaceWindow,
+  type SurfaceRange,
+} from '@vitale/shared';
 
 /** As distâncias padrão — os recordes por distância agora vivem na curva, não em cards. */
 const EFFORT_KEYS = new Set(BEST_EFFORT_DISTANCES.map((d) => d.key));
 import { useActivitiesStore } from '../../store/activities.store';
+import { useGearStore } from '../../store/gear.store';
 import { getActivityMeta, getActivityColor } from '../../lib/workout-types';
 import {
   applyFilters,
@@ -46,10 +56,14 @@ import {
   useTheme,
 } from '../../theme';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
+import { Segmented } from '../../components/ui/Segmented';
 import { TypeEvolutionCard } from '../../components/cards/TypeEvolutionCard';
 import { EffortTrendCard } from '../../components/cards/EffortTrendCard';
 import { RecurringRoutesCard } from '../../components/cards/RecurringRoutesCard';
 import { RecordCurveCard } from '../../components/cards/RecordCurveCard';
+import { SurfaceCard } from '../../components/cards/SurfaceCard';
+
+const SURFACE_OPTIONS = SURFACE_RANGES.map((r) => ({ key: r.id, label: r.label }));
 
 /**
  * Largura fixa do cartão de recorde. Precisa ser fixa para o `snapToInterval`
@@ -69,6 +83,17 @@ function parseInputDate(s: string): string | undefined {
   if (!m) return undefined;
   const [, d, mo, y] = m;
   return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
+/**
+ * O rodapé do cartão de piso diz de onde o número veio: quantas pedaladas da
+ * janela entraram na soma e quanto do piso foi inferido pelo tipo de via em vez
+ * de lido de uma tag — o "não sei" tem que ser visível (ADR 0035).
+ */
+function surfaceCaption(count: number, withSurface: number, inferidoM: number, totalM: number, period: string): string {
+  const cover = withSurface === count ? `${count} pedaladas` : `${withSurface} de ${count} pedaladas com piso`;
+  const inf = totalM > 0 ? Math.round((inferidoM / totalM) * 100) : 0;
+  return `${period} · ${cover}${inf > 0 ? ` · ${inf}% inferido pelo tipo de via` : ''}`;
 }
 
 function numOr(s: string): number | undefined {
@@ -228,15 +253,41 @@ export default function TipoListScreen() {
 
   const _all = useActivitiesStore((s) => s._all);
   const load = useActivitiesStore((s) => s.load);
+  const gears = useGearStore((s) => s.gears);
+  const loadGear = useGearStore((s) => s.load);
   useEffect(() => {
     load();
-  }, [load]);
+    loadGear();
+  }, [load, loadGear]);
 
-  const typed = useMemo(
+  /** Tudo do tipo, sem a lente de bicicleta — é o universo do seletor. */
+  const typedAll = useMemo(
     () => filterByType(_all.filter((a) => !a.hidden), label),
     [_all, label],
   );
+
+  // ── lente de bicicleta (ADR 0034) ──────────────────────────────
+  // Só as bikes que este tipo de fato usou; tipo sem bike não ganha seletor.
+  // A lente vale para tudo abaixo — lista, recordes, curvas, evolução — porque
+  // "recorde com a Nuroad" e "recorde de sempre" são perguntas diferentes.
+  const bikes = useMemo(() => gearUsage(gears, typedAll).filter((u) => u.count > 0), [gears, typedAll]);
+  const [gearId, setGearId] = useState<string>('all');
+  const typed = useMemo(
+    () =>
+      gearId === 'all' ? typedAll : typedAll.filter((a) => gearForActivity(gears, a)?.id === gearId),
+    [typedAll, gears, gearId],
+  );
   const sources = useMemo(() => distinctSources(typed), [typed]);
+
+  // ── piso (ADR 0035): soma do período, sob a lente de bicicleta ────
+  // Só aparece quando alguma pedalada do tipo já tem piso calculado — corrida
+  // e yoga nunca terão, e um cartão vazio não diz nada.
+  const [surfaceRange, setSurfaceRange] = useState<SurfaceRange>('tudo');
+  const hasSurface = useMemo(() => typed.some((a) => a.surfaceMix && a.surfaceMix.total > 0), [typed]);
+  const surface = useMemo(
+    () => (hasSurface ? summarizeSurface(typed, surfaceWindow(surfaceRange)) : null),
+    [typed, surfaceRange, hasSurface],
+  );
 
   // ── estado dos filtros (inputs crus) ──────────────────────────
   const [showFilters, setShowFilters] = useState(false);
@@ -277,7 +328,7 @@ export default function TipoListScreen() {
   const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => {
     setVisible(PAGE_SIZE);
-  }, [filters, sort, label]);
+  }, [filters, sort, label, gearId]);
 
   const data = useMemo(() => filtered.slice(0, visible), [filtered, visible]);
   const loadMore = useCallback(() => {
@@ -294,7 +345,8 @@ export default function TipoListScreen() {
   /** Mesma regra do card do tipo: mede em km quem tem distância, em min o resto. */
   const hasDistance = useMemo(() => typed.some((a) => (a.distanceM ?? 0) > 0), [typed]);
 
-  // Recordes do tipo (corrida/ciclismo) — de todo o histórico, sem os filtros.
+  // Recordes do tipo (corrida/ciclismo) — de todo o histórico, sem os filtros
+  // da lista; a lente de bicicleta, essa vale.
   const highlights = useMemo(() => {
     const id = typed[0]?.activityId;
     return id != null ? activityHighlights(typed, id) : [];
@@ -370,6 +422,27 @@ export default function TipoListScreen() {
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
           <View>
+            {bikes.length > 0 && (
+              <View style={styles.gearSeg}>
+                <Segmented
+                  options={[
+                    { key: 'all', label: 'Todas' },
+                    ...bikes.map((u) => ({ key: u.gear.id, label: u.gear.name })),
+                  ]}
+                  value={gearId}
+                  onChange={setGearId}
+                />
+              </View>
+            )}
+            {surface && (
+              <View style={styles.surfaceWrap}>
+                <Segmented options={SURFACE_OPTIONS} value={surfaceRange} onChange={setSurfaceRange} />
+                <SurfaceCard
+                  mix={surface.mix}
+                  caption={surfaceCaption(surface.count, surface.withSurface, surface.mix.inferido, surface.mix.total, surfaceWindow(surfaceRange).label)}
+                />
+              </View>
+            )}
             {hasCountries && (
               <Pressable
                 onPress={() => router.push({ pathname: '/historico/[label]/mapa', params: { label } })}
@@ -391,7 +464,7 @@ export default function TipoListScreen() {
             {/* Os recordes em forma: os mesmos pontos da tira acima, num eixo
                 só, para ler onde é forte e onde cai. Some com menos de duas marcas. */}
             {typed[0] && (
-              <RecordCurveCard activities={_all} sportId={typed[0].activityId} color={meta.color} onPick={goToWorkout} />
+              <RecordCurveCard activities={gearId === 'all' ? _all : typed} sportId={typed[0].activityId} color={meta.color} onPick={goToWorkout} />
             )}
             <TypeEvolutionCard
               activities={typed}
@@ -403,7 +476,7 @@ export default function TipoListScreen() {
                 o melhor por distância, contra o recorde. Some quando o tipo
                 não tem marca nenhuma. */}
             {typed[0] && (
-              <EffortTrendCard activities={_all} sportId={typed[0].activityId} color={meta.color} />
+              <EffortTrendCard activities={gearId === 'all' ? _all : typed} sportId={typed[0].activityId} color={meta.color} />
             )}
             {/* Recorde compara a mesma distância; isto compara o mesmo
                 percurso, que controla desnível, curvas e semáforos. Some quando
@@ -633,6 +706,8 @@ const styles = themed(() => StyleSheet.create({
   headerSub: { fontSize: 12, color: colors.ink3, fontFamily: fonts.mono, marginTop: 2 },
 
   list: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: 10 },
+  gearSeg: { marginBottom: 10 },
+  surfaceWrap: { gap: 10 },
 
   hlWrap: { marginBottom: 14, gap: spacing.sm },
   hlTitle: {

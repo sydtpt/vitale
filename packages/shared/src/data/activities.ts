@@ -19,12 +19,13 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Activity, ActivityRoutePoint } from '../models';
+import type { SurfaceMix } from '../surface/classify';
 import { fetchAllPages } from './paginate';
 
 const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
   'distance_m,elevation_m,source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,' +
-  'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden';
+  'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix';
 
 export interface ActivityRow {
   id: string;
@@ -51,6 +52,8 @@ export interface ActivityRow {
   locally_edited: boolean | null;
   edited_at: string | null;
   hidden: boolean | null;
+  gear_id: string | null;
+  surface_mix: SurfaceMix | null;
 }
 
 const num = (v: number | string | null | undefined): number | undefined =>
@@ -83,6 +86,8 @@ export function toActivity(r: ActivityRow): Activity {
     locallyEdited: r.locally_edited ?? undefined,
     editedAt: r.edited_at ?? undefined,
     hidden: r.hidden ?? false,
+    gearId: r.gear_id ?? undefined,
+    surfaceMix: r.surface_mix ?? undefined,
   };
 }
 

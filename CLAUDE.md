@@ -191,12 +191,19 @@ São **10** módulos, não 7:
 - Sono (mobile): `sleep_periods` — a noite como evento com instantes — e a tela `/sono`
   (relógios deitou/apagou/acordou, timing chart de 14 noites, despertares por hora do dia,
   nota × medição). Sem score, por princípio. Sono é categoria de Saúde, não módulo (ADR 0031)
+- FC ao longo do dia: `health_series` — a série intradiária (minuto → bpm) gravada pelo mesmo
+  sync que produz a linha diária (ADR 0033). Em produção desde 05/09, com 177 dias de backfill.
+  Web: três painéis em Coração (curva do dia, Noites, dia × hora). iPhone: o detalhe de FC no
+  período Dia com a noite, o treino e a faixa típica, mais o card Dormindo. Conferido em 06/09.
+  Ver [docs/specs/fc-serie/](docs/specs/fc-serie/spec.md)
 
 ### Em andamento / Próximo 🔧
-- FC ao longo do dia: `health_series` — a série intradiária (minuto → bpm) gravada pelo
-  mesmo sync que produz a linha diária (ADR 0033), em produção desde 05/09. Tela construída
-  em 06/09 (três painéis na Saúde da web; detalhe de FC do iPhone com noite, treino, faixa
-  típica e card Dormindo); falta a conferência no navegador e no aparelho. Ver `docs/specs/fc-serie/`
+- Piso das rotas: o chão de cada pedalada medido contra o OpenStreetMap no ingest
+  ([ADR 0035](docs/decisions/0035-piso-das-rotas-vem-do-osm-no-ingest.md)), com a bicicleta
+  como entidade que a pedalada herda pela data ([ADR 0034](docs/decisions/0034-bicicleta-e-entidade-com-heranca-por-data.md)).
+  Migrations aplicadas e 137 rotas backfilladas em prod (06/09); cartão de piso no Ciclismo e
+  no detalhe da pedalada. Faltam o smoke test do passe deployado, o golden set e a web.
+  Tarefas: `_bmad-output/implementation-artifacts/piso-das-rotas/tasks.md`
 - Tarefas: ponte real com Compras/Finanças
 - Sono: CAP-7 (Tempos, Despertares, Estágios) entregue em 05/09 no mobile e na web; o bloco
   **Sono na Retrospectiva** (`sleep/retro.ts`, noite típica vs período anterior, nota ×

@@ -39,6 +39,7 @@ import {
   type WellnessExistingRow,
 } from '../../../packages/shared/src/health/wellness.ts';
 import { citiesFromPoints } from './geocode.ts';
+import { enrichSurface } from './surface.ts';
 import type { NormalizedActivity } from './normalize.ts';
 import { AuthError } from './providers/errors.ts';
 import {
@@ -849,6 +850,12 @@ export async function runIngest(
       await enrichCities(admin, userId);
     } catch (_err) {
       // ignora — o passe é retry-safe e roda de novo no próximo tick.
+    }
+    // Piso das rotas (ADR 0035): uma pedalada por tick, mesmo contrato.
+    try {
+      await enrichSurface(admin, userId);
+    } catch (_err) {
+      // ignora — falha fica em surface_meta e volta à fila depois.
     }
     await admin
       .from('linked_accounts')
