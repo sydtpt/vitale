@@ -66,7 +66,8 @@ Branch `feat/fc-serie`, criada da `main` em 05/09/2026 (worktree `.claude/worktr
       - **Merge de `feat/sono-cap7`** na branch (7520a51): a gramática de cor da ADR 0032 e o
         `loadToday` do sono não existem na main. `AGG_VERSION` resolvido em 9.
 - [ ] **T3.3** Conferir no navegador (`/saude`) e no iPhone (detalhe de Freq. cardíaca, Dia).
-      Build do iPhone precisa do diretório principal, que já carrega o sono.
+      Build Release instalado e aberto no iPhone em 06/09/2026 (diretório principal, sono + série);
+      falta o olhar do usuário no aparelho e no navegador.
 - [ ] **T3.4** Abrir a PR depois da PR #1 do sono, ou com ela como base.
 
 ## Diferido
