@@ -1,4 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import type { VolumeWeekBucket } from '@vitale/shared';
 
 interface BarVM {
@@ -34,11 +45,11 @@ interface GridVM { v: number; y: number; }
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <svg [attr.viewBox]="'0 0 ' + w + ' ' + h" class="chart" role="img"
+    <svg #svg [attr.viewBox]="'0 0 ' + w() + ' ' + h" class="chart" role="img"
       [attr.aria-label]="ariaLabel()">
       @for (g of grid(); track g.v) {
         <g>
-          <line class="grid-line" [attr.x1]="padL" [attr.x2]="w - padR"
+          <line class="grid-line" [attr.x1]="padL" [attr.x2]="w() - padR"
             [attr.y1]="g.y" [attr.y2]="g.y" />
           <text class="axis mono" [attr.x]="padL - 6" [attr.y]="g.y + 3" text-anchor="end">
             {{ g.v }}{{ unit() }}
@@ -61,15 +72,15 @@ interface GridVM { v: number; y: number; }
 
       @if (referenceY(); as ry) {
         <g>
-          <line class="ref-line" [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="ry" [attr.y2]="ry" />
-          <text class="ref-label" [attr.x]="w - padR" [attr.y]="ry - 4" text-anchor="end">
+          <line class="ref-line" [attr.x1]="padL" [attr.x2]="w() - padR" [attr.y1]="ry" [attr.y2]="ry" />
+          <text class="ref-label" [attr.x]="w() - padR" [attr.y]="ry - 4" text-anchor="end">
             {{ referenceLabel() }}
           </text>
         </g>
       }
 
       @if (isEmpty()) {
-        <text class="axis" [attr.x]="w / 2" [attr.y]="h / 2" text-anchor="middle">{{ emptyLabel() }}</text>
+        <text class="axis" [attr.x]="w() / 2" [attr.y]="h / 2" text-anchor="middle">{{ emptyLabel() }}</text>
       }
     </svg>
   `,
@@ -94,7 +105,20 @@ export class VolumeChartComponent {
   readonly emptyLabel = input('Sem dados sincronizados');
   readonly ariaLabel = input('Volume por semana');
 
-  protected readonly w = 360;
+  /**
+   * A largura é **medida**, não constante.
+   *
+   * Com `viewBox` fixo em 360 e altura travada em 200 px, o
+   * `preserveAspectRatio` padrão encolhe o desenho para caber na altura e o
+   * centraliza: num card de mil e tantos pixels o gráfico virava uma ilha de
+   * 360, com margens vazias dos dois lados. `preserveAspectRatio="none"`
+   * resolveria a largura e estragaria o resto — esticaria os rótulos e afinaria
+   * o traço. Medir custa um `ResizeObserver` e mantém tudo redondo. É a mesma
+   * solução do perfil de rota, que teve este defeito antes.
+   */
+  private readonly svgEl = viewChild<ElementRef<SVGSVGElement>>('svg');
+  private readonly destroyRef = inject(DestroyRef);
+  protected readonly w = signal(360);
   protected readonly h = 200;
   protected readonly padL = 36;
   protected readonly padR = 12;
@@ -133,7 +157,7 @@ export class VolumeChartComponent {
     const dense = bs.length > 6;
     const step = dense ? Math.ceil(bs.length / 6) : 1;
     const maxIdx = bs.reduce((mi, b, i) => (b.value > bs[mi].value ? i : mi), 0);
-    const slot = (this.w - this.padL - this.padR) / bs.length;
+    const slot = (this.w() - this.padL - this.padR) / bs.length;
 
     return bs.map((b, i) => {
       const width = slot * 0.6;
@@ -155,6 +179,24 @@ export class VolumeChartComponent {
       };
     });
   });
+
+  private ro?: ResizeObserver;
+
+  constructor() {
+    effect(() => {
+      const el = this.svgEl()?.nativeElement;
+      this.ro?.disconnect();
+      if (!el) return;
+      this.ro = new ResizeObserver(([entry]) => {
+        const w = Math.round(entry.contentRect.width);
+        // Zero acontece no primeiro quadro e num card oculto: manter a largura
+        // anterior evita uma divisão por zero no slot das barras.
+        if (w > 0) this.w.set(w);
+      });
+      this.ro.observe(el);
+    });
+    this.destroyRef.onDestroy(() => this.ro?.disconnect());
+  }
 
   private yFor(v: number): number {
     return this.padT + (1 - v / this.max()) * (this.h - this.padT - this.padB);

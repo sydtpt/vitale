@@ -1,4 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 
 /** Um ponto da série; `value: null` é buraco — não se liga por cima dele. */
 export interface TrendPoint {
@@ -32,15 +44,15 @@ interface GridVM { v: number; y: number; label: string; }
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <svg [attr.viewBox]="'0 0 ' + w + ' ' + h" class="chart" role="img" [attr.aria-label]="ariaLabel()">
+    <svg #svg [attr.viewBox]="'0 0 ' + w() + ' ' + h" class="chart" role="img" [attr.aria-label]="ariaLabel()">
       @for (g of grid(); track g.v) {
-        <line class="grid-line" [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="g.y" [attr.y2]="g.y" />
+        <line class="grid-line" [attr.x1]="padL" [attr.x2]="w() - padR" [attr.y1]="g.y" [attr.y2]="g.y" />
         <text class="axis mono" [attr.x]="padL - 6" [attr.y]="g.y + 3" text-anchor="end">{{ g.label }}</text>
       }
 
       @if (referenceY(); as ry) {
-        <line class="ref-line" [attr.x1]="padL" [attr.x2]="w - padR" [attr.y1]="ry" [attr.y2]="ry" />
-        <text class="ref-label mono" [attr.x]="w - padR" [attr.y]="ry - 4" text-anchor="end">{{ referenceLabel() }}</text>
+        <line class="ref-line" [attr.x1]="padL" [attr.x2]="w() - padR" [attr.y1]="ry" [attr.y2]="ry" />
+        <text class="ref-label mono" [attr.x]="w() - padR" [attr.y]="ry - 4" text-anchor="end">{{ referenceLabel() }}</text>
       }
 
       <path [attr.d]="path()" [attr.stroke]="color()" stroke-width="2" fill="none"
@@ -65,7 +77,7 @@ interface GridVM { v: number; y: number; label: string; }
       }
 
       @if (isEmpty()) {
-        <text class="axis" [attr.x]="w / 2" [attr.y]="h / 2" text-anchor="middle">{{ emptyLabel() }}</text>
+        <text class="axis" [attr.x]="w() / 2" [attr.y]="h / 2" text-anchor="middle">{{ emptyLabel() }}</text>
       }
     </svg>
   `,
@@ -97,7 +109,15 @@ export class TrendChartComponent {
   /** Clique num ponto que tem `id`. */
   readonly pick = output<string>();
 
-  protected readonly w = 360;
+  /**
+   * A largura é **medida**, não constante — mesmo motivo do `volume-chart` e do
+   * perfil de rota: com `viewBox` fixo e altura travada, o `preserveAspectRatio`
+   * padrão encolhe o desenho para caber na altura e o centraliza, deixando o
+   * gráfico numa ilha de 360 px com margens vazias dos dois lados.
+   */
+  private readonly svgEl = viewChild<ElementRef<SVGSVGElement>>('svg');
+  private readonly destroyRef = inject(DestroyRef);
+  protected readonly w = signal(360);
   protected readonly h = 180;
   protected readonly padL = 44;
   protected readonly padR = 12;
@@ -124,7 +144,7 @@ export class TrendChartComponent {
 
   private xAt(i: number): number {
     const ps = this.points();
-    const plotW = this.w - this.padL - this.padR;
+    const plotW = this.w() - this.padL - this.padR;
     if (this.logX()) {
       const xs = ps.map((p) => Math.log(p.x ?? 1));
       const lo = Math.min(...xs);
@@ -176,4 +196,21 @@ export class TrendChartComponent {
       .map((p, i) => ({ key: p.key, label: p.label, x: this.xAt(i), show: i % step === 0 || i === ps.length - 1 }))
       .filter((t) => t.show);
   });
+
+  private ro?: ResizeObserver;
+
+  constructor() {
+    effect(() => {
+      const el = this.svgEl()?.nativeElement;
+      this.ro?.disconnect();
+      if (!el) return;
+      this.ro = new ResizeObserver(([entry]) => {
+        const w = Math.round(entry.contentRect.width);
+        // Zero no primeiro quadro e no card oculto: manter a largura anterior.
+        if (w > 0) this.w.set(w);
+      });
+      this.ro.observe(el);
+    });
+    this.destroyRef.onDestroy(() => this.ro?.disconnect());
+  }
 }
