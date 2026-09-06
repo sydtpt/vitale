@@ -439,7 +439,14 @@ export interface ActivityRoutePoint {
   lat: number;
   lng: number;
   alt?: number;
-  /** Timestamp do ponto em epoch ms. Ausente em rotas antigas. Base dos best efforts. */
+  /**
+   * Timestamp do ponto em epoch ms. Base dos best efforts e do casamento de
+   * fotos com o traçado (ADR 0037).
+   *
+   * Continua opcional no tipo por segurança, mas a conferência de 06/09/2026
+   * encontrou `t` em **275 de 275** rotas de produção, desde julho de 2023 —
+   * não há, na prática, rota antiga sem tempo por ponto.
+   */
   t?: number;
 }
 
@@ -462,6 +469,46 @@ export interface ActivityRoute {
   activityId: string;
   points: ActivityRoutePoint[];
   pointCount: number;
+}
+
+/**
+ * Uma foto (ou vídeo) da biblioteca do iPhone ligada a uma atividade.
+ * Mapeia a tabela `activity_photos` — ver [ADR 0037].
+ *
+ * **A imagem não mora aqui, nem no Supabase.** O que sobe é o fato: quando,
+ * onde, e em que ponto do traçado. A web nunca renderiza a foto; ela desenha o
+ * pin e conta quantas foram.
+ *
+ * `assetId` é um **ponteiro descartável**. A Apple documenta que o
+ * `localIdentifier` só vale no contexto do dispositivo local, e há relatos de
+ * mudança em Quick Start, restore de backup e atualização do iOS. A chave real
+ * é `(activityId, takenAt)`: quando o ponteiro não resolve, o app varre a
+ * janela outra vez, re-casa pelo instante — exato dos dois lados, porque vem do
+ * mesmo relógio — e reescreve o `assetId`. A cura é silenciosa.
+ */
+export interface ActivityPhoto {
+  id: string;
+  activityId: string;
+  /** `localIdentifier` da biblioteca. Ponteiro, não chave; nulo enquanto não resolve. */
+  assetId: string | null;
+  /** Instante da captura em epoch ms. Metade da chave real. */
+  takenAt: number;
+  lat: number | null;
+  lng: number | null;
+  mediaType: 'photo' | 'video';
+  /** Só vídeo. */
+  durationS: number | null;
+  /** Índice em `ActivityRoute.points`; nulo quando não houve como posicionar. */
+  routeIndex: number | null;
+  /** Distância acumulada até a foto, em metros. */
+  routeDistanceM: number | null;
+  /** Distância da foto ao traçado; nulo quando casou pelo instante. */
+  offsetM: number | null;
+  onRoute: boolean;
+  /** `dismissed` faz a foto não voltar na próxima varredura. */
+  state: 'linked' | 'dismissed';
+  /** A foto que o cartão de compartilhar abre. Uma por atividade. */
+  isCover: boolean;
 }
 
 /**

@@ -33,23 +33,35 @@ Mockups aprovados em 06/09/2026: `claude.ai/code/artifact/8e093ae5-72dc-4a19-b13
       três versões da Retrospectiva, extremos (0 e 34 fotos), menu de desligar, e duas
       direções de cartão. Aprovada com 11 respostas (spec §6).
 
-## Fase 1 — Núcleo puro (`packages/shared/src/photos/`)
+## Fase 1 — Núcleo puro (`packages/shared/src/photos/`) — feita em 06/09/2026
 
 Testável sem aparelho e sem banco. **Fazer inteira antes de qualquer tela.**
 
-- [ ] **T1.1** `window.ts` — `photoWindow(activity, { beforeMin: 30, afterMin: 60 })`.
-- [ ] **T1.2** `stops.ts` — `detectStops(points, { minPausedS: 240, radiusM: 60 })`, com a
-      fusão de janelas contíguas (< 5 min e < 120 m). Devolve
-      `{ startIdx, endIdx, startT, endT, durationS, lat, lng, distanceM }`.
-- [ ] **T1.3** `match.ts` — `matchToRoute(coord | null, takenAt, points, { corridorM: 40 })`:
-      vizinho mais próximo na polilinha quando há coordenada; **busca binária em `t`**
-      quando não há. Devolve `{ routeIndex, routeDistanceM, offsetM, onRoute }`.
-- [ ] **T1.4** `group.ts` — `groupByStop(photos, stops)` → `{ stops[], moving[] }`.
-- [ ] **T1.5** Modelo `ActivityPhoto` em `packages/shared/src/models/index.ts`.
-- [ ] **T1.6** Testes: janela assimétrica; parada partida que funde; parada que **não**
-      existe (as 8 urbanas da T0.3 como caso de regressão); foto sem coordenada caindo no
-      caminho do tempo; foto a 41 m ficando fora do corredor; ida e volta do índice.
-- [ ] **T1.7** Exportar no `index.ts` e registrar a barreira em `architecture.test.ts`.
+- [x] **T1.1** `window.ts` — `photoWindow(startAtMs, endAtMs, { beforeMin: 30, afterMin: 60 })`.
+      Recebe epoch ms em vez do `Activity` para o módulo não depender de modelo.
+- [x] **T1.2** `stops.ts` — `detectStops`, com a fusão de janelas contíguas
+      (< 5 min e < 120 m) e `cumulativeDistances` exportado.
+- [x] **T1.3** `match.ts` — `matchToRoute`: **projeção no segmento** (não vértice mais
+      próximo — meio segmento de erro seria visível com 25 m entre pontos) quando há
+      coordenada; busca binária em `t` quando não há. Mais `classifyCandidate`.
+- [x] **T1.4** `group.ts` — `groupByStop(photos, stops)` → `{ stops[], moving[] }`.
+      Agrupa **por tempo**, não por coordenada: senão a foto da ida se juntaria à parada
+      da volta no mesmo lugar.
+- [x] **T1.5** Modelo `ActivityPhoto` em `packages/shared/src/models/index.ts`, e o
+      comentário de `ActivityRoutePoint.t` corrigido com a medição das 275 rotas.
+- [x] **T1.6** `photos.test.ts` — 16 checks, incluindo a **regressão urbana** (semáforos
+      de 90 s não viram parada) e o corredor de 40 m como fronteira dura.
+- [x] **T1.7** Exportado no `index.ts`; barreiras de arquitetura passam.
+- [x] **T1.8** **Achado durante a construção:** o track cru superestima a distância —
+      67,3 km somando ponto a ponto contra os 57,05 km de `activities.distance_m`, 18% de
+      jitter. Sem tratar, o cartão diria "km 45,1" numa pedalada cujo cabeçalho diz 57,05.
+      `detectStops` e `matchToRoute` ganharam `totalDistanceM`, que reescala para a
+      distância oficial; `distanceScale` é exportado. Com ele, o núcleo reproduz
+      exatamente os números do mockup: **km 24,6 e km 38,2**.
+- [x] **T1.9** Conferência contra a pedalada real `A958ACC6…` (2 620 pontos de produção):
+      janela 10:38→17:50, duas paradas em 13:33–13:40 e 14:20–15:08, foto casada a 7,4 m
+      do traçado. Validação nos três workspaces: shared `tsc` + todas as suítes, web
+      `build`, mobile `tsc --noEmit`.
 
 ## Fase 2 — Banco
 
