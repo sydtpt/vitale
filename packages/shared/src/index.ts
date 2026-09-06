@@ -77,6 +77,7 @@ export * from './data/health-series';
 export * from './data/daily-ratings';
 export * from './data/sleep';
 export * from './data/activities';
+export * from './data/activity-photos';
 export * from './data/gear';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
