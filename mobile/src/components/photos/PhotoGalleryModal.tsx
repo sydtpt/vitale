@@ -160,9 +160,16 @@ interface Props {
   sections: GallerySection[];
   total: number;
   onClose: () => void;
+  /**
+   * Procurar fotos de novo. Mora aqui, e não na tela da pedalada, porque é
+   * onde o álbum está — e porque a biblioteca muda depois: foto que ainda
+   * estava subindo do iCloud, ou uma pedalada antiga varrida antes de você ter
+   * tirado as fotos dela.
+   */
+  onRescan?: () => void;
 }
 
-export function PhotoGalleryModal({ visible, sections, total, onClose }: Props) {
+export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan }: Props) {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -184,6 +191,12 @@ export function PhotoGalleryModal({ visible, sections, total, onClose }: Props) 
             <Ionicons name="chevron-down" size={24} color={colors.ink} />
           </Pressable>
           <Text style={styles.galleryTitle}>Fotos</Text>
+          {onRescan && (
+            <Pressable onPress={onRescan} hitSlop={10} style={styles.rescan}>
+              <Ionicons name="search" size={13} color={colors.ink2} />
+              <Text style={styles.rescanText}>Procurar mais</Text>
+            </Pressable>
+          )}
           <Text style={styles.galleryCount}>{total}</Text>
         </View>
 
@@ -232,7 +245,18 @@ const createStyles = () =>
       paddingVertical: spacing.md,
     },
     galleryTitle: { fontSize: 17, fontFamily: fonts.sansBold, color: colors.ink },
-    galleryCount: { marginLeft: 'auto', fontSize: 13, fontFamily: fonts.mono, color: colors.ink3 },
+    galleryCount: { fontSize: 13, fontFamily: fonts.mono, color: colors.ink3 },
+    rescan: {
+      marginLeft: 'auto',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: radii.md,
+      backgroundColor: colors.surfaceMute,
+    },
+    rescanText: { fontSize: 12, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
     galleryBody: { paddingHorizontal: spacing.lg },
 
     section: { marginBottom: spacing.xl },

@@ -244,14 +244,29 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
     />
   );
 
-  // Nunca procurada: uma linha fina de convite, não um cartão vazio.
+  /**
+   * Sem foto ligada. O convite continua existindo **mesmo depois de já ter
+   * procurado** — a primeira versão sumia para sempre assim que
+   * `photos_checked_at` era gravado, e bastava tocar "Não ligar nenhuma" uma vez
+   * para a pedalada ficar sem nenhum caminho de volta (conferido no iPhone em
+   * 07/09/2026).
+   *
+   * "Zero foto some por completo" era sobre não pedir atenção, não sobre virar
+   * beco sem saída: depois de procurado, o convite fica mais quieto — texto
+   * apagado, sem moldura — mas fica.
+   */
   if (photos.length === 0) {
-    if (checked) return sheet;
     return (
       <>
-        <Pressable style={styles.invite} onPress={openSheet}>
-          <Ionicons name="images-outline" size={16} color={colors.ink3} />
-          <Text style={styles.inviteText}>Procurar fotos desta pedalada</Text>
+        <Pressable style={[styles.invite, checked && styles.inviteQuiet]} onPress={openSheet}>
+          <Ionicons
+            name="images-outline"
+            size={16}
+            color={checked ? colors.ink4 : colors.ink3}
+          />
+          <Text style={[styles.inviteText, checked && styles.inviteTextQuiet]}>
+            {checked ? 'Procurar fotos de novo' : 'Procurar fotos desta pedalada'}
+          </Text>
           {scanning ? (
             <ActivityIndicator size="small" color={colors.ink3} />
           ) : (
@@ -347,6 +362,10 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
         sections={sections}
         total={photos.length}
         onClose={() => setGalleryOpen(false)}
+        onRescan={() => {
+          setGalleryOpen(false);
+          void openSheet();
+        }}
       />
     </>
   );
@@ -448,4 +467,7 @@ const createStyles = () =>
       borderStyle: 'dashed',
     },
     inviteText: { flex: 1, fontSize: 12.5, fontFamily: fonts.sansMedium, color: colors.ink3 },
+    /** Depois de já ter procurado: presente, mas sem pedir atenção. */
+    inviteQuiet: { borderColor: 'transparent', paddingVertical: spacing.sm },
+    inviteTextQuiet: { color: colors.ink4 },
   });
