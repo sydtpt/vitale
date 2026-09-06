@@ -211,7 +211,8 @@ São **10** módulos, não 7:
   no detalhe da pedalada. Faltam o smoke test do passe deployado, o golden set e a web.
   Tarefas: `_bmad-output/implementation-artifacts/piso-das-rotas/tasks.md`
 - Tarefas: ponte real com Compras/Finanças
-- Sono: CAP-7 (Tempos, Despertares, Estágios) entregue em 05/09 no mobile e na web; o bloco
+- Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
+  iPhone em 05/09, mas o bloco
   **Sono na Retrospectiva** (`sleep/retro.ts`, noite típica vs período anterior, nota ×
   medição como manchete, gatilho × noite em valores absolutos, séries Sono/Acordado no
   Ano) e as leituras **Dispersão**, **antes × agora** e **Grade** do Tempos foram escritos

@@ -26,7 +26,13 @@
   nasce viva** no dado de hoje. Confirmado por aritmética independente: no Garmin
   `inbed − dormido` bate ao minuto com o `AWAKE` do HealthKit em 5 de 5 noites conferidas.
   Gera T3.2b.
-- [ ] T0.2 — Verificar o resultado do **Foco de Sono agendado** (ligado em 04/09): se o
+- [x] T0.2 — **Respondida em 06/09/2026: não. CAP-1 fica com dois relógios.** Cinco noites
+  desde 01/09, todas com `extra ? 'onset'` = false, e no `sleep_periods` a janela `INBED`
+  abre **exatamente** no instante do sono nas cinco (folga de 0 min antes de apagar). O Foco
+  de Sono agendado no iPhone não fez o iOS escrever `inBed` com o Garmin no pulso: o Garmin
+  continua renomeando a janela de sono. O campo "Deitou" segue mostrando `--:--` com a
+  explicação, como CAP-1 já previa. *(Reabrir só se o usuário voltar a usar o Apple Watch
+  para dormir.)* Consulta original abaixo:
   iPhone passou a escrever `INBED` começando antes do sono, `extra.onset` volta a aparecer
   nas noites novas. **Decide se CAP-1 tem dois ou três relógios.** Consulta:
   `select day, extra ? 'onset' from health_daily where metric='sono' and day >= '2026-09-05'`.
