@@ -48,6 +48,28 @@ import { PhotoSuggestSheet } from './PhotoSuggestSheet';
 /** Miniaturas por linha de parada antes de cortar. */
 const PREVIEW = 2;
 
+/**
+ * Uma miniatura que sabe falhar.
+ *
+ * Foto apagada da biblioteca vira ligação órfã: o instante ainda existe no
+ * banco, mas não há arquivo. A cura pelo instante (ADR 0037 §2) não resolve
+ * isso — ela reendereça ponteiro trocado, não ressuscita arquivo. Mostrar a
+ * lacuna é a resposta honesta; sumir calado faria a contagem do cabeçalho
+ * discordar do que se vê.
+ */
+function Thumb({ uri, style }: { uri?: string; style: object }) {
+  const styles = useThemedStyles(createStyles);
+  const [broken, setBroken] = useState(!uri);
+  if (broken) {
+    return (
+      <View style={[style, styles.gap]}>
+        <Ionicons name="help-outline" size={14} color={colors.ink4} />
+      </View>
+    );
+  }
+  return <Image source={{ uri }} style={style} onError={() => setBroken(true)} />;
+}
+
 function assetUri(assetId: string | null): string | undefined {
   if (!assetId) return undefined;
   return assetId.includes('://') ? assetId : `ph://${assetId}`;
@@ -242,7 +264,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
               <View style={styles.strip}>
                 {ps.slice(0, PREVIEW).map((p) => (
                   <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
-                    <Image source={{ uri: assetUri(p.assetId) }} style={styles.thumb} />
+                    <Thumb uri={assetUri(p.assetId)} style={styles.thumb} />
                     {p.isCover && (
                       <View style={styles.coverBadge}>
                         <Ionicons name="star" size={9} color={onMedia} />
@@ -270,7 +292,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
             <View style={styles.strip}>
               {grouped.moving.slice(0, PREVIEW).map((p) => (
                 <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
-                  <Image source={{ uri: assetUri(p.assetId) }} style={styles.thumb} />
+                  <Thumb uri={assetUri(p.assetId)} style={styles.thumb} />
                 </Pressable>
               ))}
             </View>
@@ -331,6 +353,13 @@ const createStyles = () =>
       backgroundColor: colors.surfaceMute,
     },
 
+    gap: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.lineDeep,
+      borderStyle: 'dashed',
+    },
     coverBadge: {
       position: 'absolute',
       right: 3,
