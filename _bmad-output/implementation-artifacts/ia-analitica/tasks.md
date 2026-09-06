@@ -140,13 +140,40 @@ começar hoje.
       não reescrever.
 - [x] T3.3 Estado de carregamento e de falha que não quebram a página: sem parágrafo,
       a retro é exatamente o que já é.
-- [ ] T3.4 Conferência no iPhone. **Nada segue sem isso.**
+- [x] **T3.4 CONFERIDA no iPhone em 06/09.** Nada segue sem isso — e seguiu.
 
 ## Fase 4 — Web e os outros consumidores
 
 - [ ] T4.1 O mesmo bloco na retro da web (que ganhou o bloco de Sono em 06/09).
 - [ ] T4.2 Uso 2 — leitura de sono por período, reaproveitando o pacote.
 - [ ] T4.3 Uso 3 — leitura de saúde/FC/esporte por período.
+
+## Veredito do usuário sobre o texto (06/09)
+
+> *"ainda está fraca e apenas lendo os dados, quero algo mais analítico junto"*
+
+O diagnóstico não é "seco": é **descritivo em vez de analítico**. O parágrafo
+transcreve o que aconteceu e não diz o que aquilo significa. Duas causas
+separadas, e só a segunda é de redação:
+
+1. **O pacote não carrega o que sustentaria análise.** No caso de agosto,
+   `correlacoes` e `lacunas` vieram vazias e `eventos` tinha um item. Sem
+   gatilho × métrica, sem dia atípico, sem streak quebrado, não há o que
+   analisar — só o que listar. É a instrumentação de contexto que o intent de
+   21/08 chamou de fosso, e ela não existe ainda.
+2. **O prompt manda escolher, mas não manda concluir.** Ele proíbe causa (com
+   razão) e pede a observação mais notável — mas não pede a **leitura** do
+   contraste. "Fez mais e pediu menos" é análise; "21 atividades e 435 km" é
+   leitura.
+
+A tensão a resolver com o time: **análise sem causalidade**. A lei de 21/08 diz
+que a LLM não afirma causa, e a §1.8 da política do Google proíbe decisão
+automática — mas nenhuma das duas proíbe *interpretar um contraste*. Onde fica a
+linha entre "notar que duas medidas discordam" e "explicar por quê" é a decisão
+que a próxima sessão precisa tomar. Sem ela, mexer no prompt é chute.
+
+Ferramentas que já existem para medir a melhora: `PROMPT_VERSAO` (hoje 2) e a
+assinatura gravada em cada edição.
 
 ## Fase 5 — O chat (desenhado para, não construído)
 
