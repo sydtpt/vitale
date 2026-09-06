@@ -34,8 +34,7 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
 - [x] T0.3 Mobile: `gear.store.ts`; linha "Bicicleta" no detalhe; seletor de bike
       na página do tipo (filtra lista, recordes, curvas e evolução).
 - [x] T0.4 Cadastro em prod (06/09): **Riverside** 01/01/2025→29/05/2026 (126 pedaladas,
-      4.051 km) e **Cube Nuroad SLX** 30/05/2026→ (22, 1.321 km). Falta conferir o
-      seletor no iPhone (build Release).
+      4.051 km) e **Cube Nuroad SLX** 30/05/2026→ (22, 1.321 km).
 - [ ] T0.5 Web: linha "Bicicleta" no detalhe (recompõe; mesmo núcleo).
 - [ ] T0.6 Tela de gerenciar bicicletas (nome, janela) — quando houver a 3ª.
 - [ ] T0.7 Ingest: ler `gear_id` de Strava/intervals → `gear.external_ids`.
@@ -106,6 +105,20 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
       logo depois do percurso; some enquanto o passe não calculou.
 - [ ] T3.2 Toque pinta a rota por segmento (overview 1/40 → blocos de ~200 m no
       track cheio, ou interpolar — decidir).
+
+## Conferência no aparelho (06/09)
+
+Build Release instalado no iPhone às 12h56 a partir da branch (o túnel do cabo caiu
+várias vezes antes; o install passou na tentativa seguinte, e o launch ficou para o
+usuário porque o aparelho estava bloqueado). O que há para olhar:
+
+- [ ] Ciclismo: seletor Todas · Riverside · Cube Nuroad SLX; a lente vale para a lista,
+      os recordes e as curvas.
+- [ ] Ciclismo: cartão Piso com o seletor 4 sem / 12 sem / Ano / Tudo, e o rodapé com
+      cobertura e % inferido.
+- [ ] Detalhe de uma pedalada: linha "Bicicleta" e o cartão Piso daquela rota.
+- [ ] Próxima pedalada: sincronizar e ver o piso aparecer sozinho (é o teste do passe
+      novo, T1.4).
 
 ## Fase 4 — Web recompõe
 
