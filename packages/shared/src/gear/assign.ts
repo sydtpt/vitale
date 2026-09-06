@@ -16,7 +16,20 @@
  * Bruxelas é 21h30 UTC — o mesmo dia — mas o caso inverso (00h30 local = dia
  * anterior em UTC) existe, e a fronteira entre bikes é declarada em dias locais.
  */
-import type { Activity, Gear } from '../models';
+import type { Activity, Gear, GearStyle } from '../models';
+
+/** Os estilos, na ordem em que a tela os oferece, com o rótulo que ela mostra. */
+export const GEAR_STYLES: readonly { id: GearStyle; label: string }[] = [
+  { id: 'gravel', label: 'Gravel' },
+  { id: 'road', label: 'Estrada' },
+  { id: 'mtb', label: 'MTB' },
+  { id: 'city', label: 'Urbana' },
+  { id: 'other', label: 'Outra' },
+];
+
+export function gearStyleLabel(style?: GearStyle): string | undefined {
+  return GEAR_STYLES.find((s) => s.id === style)?.label;
+}
 
 /** 'YYYY-MM-DD' do instante no fuso do aparelho. */
 export function activityLocalDate(startAt: string): string {
@@ -43,6 +56,61 @@ export function gearForActivity(gears: readonly Gear[], activity: ActivityRef): 
     if (!best || g.activeFrom > best.activeFrom) best = g;
   }
   return best;
+}
+
+/** Uma bicicleta "em uso" é a que tem a janela aberta. É isso que a tela chama de padrão. */
+export function isGearOpen(gear: Pick<Gear, 'activeTo'>): boolean {
+  return gear.activeTo == null;
+}
+
+/** 'YYYY-MM-DD' do dia anterior — fecha a janela da bike que sai sem deixar vão nem sobreposição. */
+export function dayBefore(ymd: string): string {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export interface GearWindowChange {
+  id: string;
+  /** Presente quando a janela precisa reabrir (bike aposentada que volta a ser padrão). */
+  activeFrom?: string;
+  activeTo: string | null;
+}
+
+/**
+ * O que muda quando uma bicicleta vira a padrão a partir de `from`.
+ *
+ * "Padrão" é o nome de tela para **a janela aberta** — não há um campo separado,
+ * e é de propósito: dois lugares dizendo qual bicicleta está em uso é um lugar
+ * a mais para discordarem. Quem é padrão é quem não tem data de fim.
+ *
+ * A escolhida abre (e reabre, se estava aposentada); toda outra que estivesse
+ * aberta fecha no dia anterior a `from` — sem vão e sem sobreposição, que é o
+ * que mantém a herança por data sem ambiguidade.
+ *
+ * Uma bicicleta cuja janela **começa depois** de `from` não é fechada: fechá-la
+ * criaria uma janela invertida (fim antes do início). Esse caso vira uma
+ * sobreposição legítima, resolvida pelo `activeFrom` mais recente e, no limite,
+ * pela exceção por pedalada.
+ */
+export function planDefaultGear(
+  gears: readonly Gear[],
+  id: string,
+  from: string,
+): GearWindowChange[] {
+  const changes: GearWindowChange[] = [];
+  const target = gears.find((g) => g.id === id);
+  if (!target) return changes;
+  if (target.activeTo !== null) changes.push({ id: target.id, activeTo: null });
+
+  const close = dayBefore(from);
+  for (const g of gears) {
+    if (g.id === id || !isGearOpen(g)) continue;
+    // Fechar antes de a bike ter começado inverteria a janela.
+    if (close < g.activeFrom) continue;
+    changes.push({ id: g.id, activeTo: close });
+  }
+  return changes;
 }
 
 export interface GearUsage {

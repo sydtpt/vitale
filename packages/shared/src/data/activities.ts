@@ -156,6 +156,27 @@ export async function setActivityHidden(
   if (error) throw error;
 }
 
+/**
+ * A exceção de bicicleta de UMA pedalada (ADR 0033).
+ *
+ * `null` devolve a pedalada à herança por data — é o desfazer, e por isso a
+ * assinatura aceita nulo em vez de ter duas funções. Só isto escreve
+ * `activities.gear_id`; o resto do app lê a herança.
+ */
+export async function setActivityGear(
+  db: SupabaseClient,
+  userId: string,
+  id: string,
+  gearId: string | null,
+): Promise<void> {
+  const { error } = await db
+    .from('activities')
+    .update({ gear_id: gearId })
+    .eq('id', id)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
 /** Ajusta `has_route` para refletir a existência real da rota. */
 export async function setActivityHasRoute(
   db: SupabaseClient,

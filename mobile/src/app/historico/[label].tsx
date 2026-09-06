@@ -272,6 +272,11 @@ export default function TipoListScreen() {
   // "recorde com a Nuroad" e "recorde de sempre" são perguntas diferentes.
   const bikes = useMemo(() => gearUsage(gears, typedAll).filter((u) => u.count > 0), [gears, typedAll]);
   const [gearId, setGearId] = useState<string>('all');
+  const [showGear, setShowGear] = useState(false);
+  const gearLabel = useMemo(
+    () => (gearId === 'all' ? 'Todas as bikes' : bikes.find((u) => u.gear.id === gearId)?.gear.name ?? 'Bicicleta'),
+    [gearId, bikes],
+  );
   const typed = useMemo(
     () =>
       gearId === 'all' ? typedAll : typedAll.filter((a) => gearForActivity(gears, a)?.id === gearId),
@@ -422,18 +427,6 @@ export default function TipoListScreen() {
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
           <View>
-            {bikes.length > 0 && (
-              <View style={styles.gearSeg}>
-                <Segmented
-                  options={[
-                    { key: 'all', label: 'Todas' },
-                    ...bikes.map((u) => ({ key: u.gear.id, label: u.gear.name })),
-                  ]}
-                  value={gearId}
-                  onChange={setGearId}
-                />
-              </View>
-            )}
             {surface && (
               <View style={styles.surfaceWrap}>
                 <Segmented options={SURFACE_OPTIONS} value={surfaceRange} onChange={setSurfaceRange} />
@@ -488,6 +481,7 @@ export default function TipoListScreen() {
                 onPress={() => {
                   setShowFilters((v) => !v);
                   setShowSort(false);
+                  setShowGear(false);
                 }}
                 style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
               >
@@ -504,6 +498,7 @@ export default function TipoListScreen() {
                 onPress={() => {
                   setShowSort((v) => !v);
                   setShowFilters(false);
+                  setShowGear(false);
                 }}
                 style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
               >
@@ -515,7 +510,75 @@ export default function TipoListScreen() {
                   color={colors.ink3}
                 />
               </Pressable>
+
+              {/* A bicicleta é um filtro, e entra na barra dos filtros — não numa
+                  linha só dela. Selecionada, o chip fica cheio e mostra o nome,
+                  para a lente não ficar ligada sem ninguém ver. */}
+              {bikes.length > 0 && (
+                <Pressable
+                  onPress={() => {
+                    setShowGear((v) => !v);
+                    setShowSort(false);
+                    setShowFilters(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.filterToggle,
+                    gearId !== 'all' && styles.filterToggleOn,
+                    pressed && styles.pressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Filtrar por bicicleta"
+                >
+                  <MaterialCommunityIcons
+                    name="bike"
+                    size={16}
+                    color={gearId === 'all' ? colors.ink2 : colors.bgPure}
+                  />
+                  <Text
+                    style={[styles.filterToggleText, gearId !== 'all' && styles.filterToggleTextOn]}
+                    numberOfLines={1}
+                  >
+                    {gearLabel}
+                  </Text>
+                  <Ionicons
+                    name={showGear ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={gearId === 'all' ? colors.ink3 : colors.bgPure}
+                  />
+                </Pressable>
+              )}
             </View>
+
+            {showGear && (
+              <View style={styles.sortPanel}>
+                {[{ id: 'all', name: 'Todas as bicicletas', sub: `${typedAll.length} saídas` },
+                  ...bikes.map((u) => ({
+                    id: u.gear.id,
+                    name: u.gear.name,
+                    sub: `${u.count} · ${Math.round(u.distanceM / 1000).toLocaleString('pt-BR')} km`,
+                  }))].map((o) => {
+                  const active = gearId === o.id;
+                  return (
+                    <Pressable
+                      key={o.id}
+                      onPress={() => {
+                        setGearId(o.id);
+                        setShowGear(false);
+                      }}
+                      style={({ pressed }) => [styles.sortOption, pressed && styles.pressed]}
+                    >
+                      <Text style={[styles.sortOptionText, active && styles.sortOptionTextActive]}>
+                        {o.name}
+                      </Text>
+                      <Text style={styles.gearOptionSub}>{o.sub}</Text>
+                      {active && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                    </Pressable>
+                  );
+                })}
+                {/* Aqui entra "Gerenciar bicicletas ›" quando a tela tiver endereço:
+                    é escolhendo bicicleta que a vontade de cadastrar aparece. */}
+              </View>
+            )}
 
             {showSort && (
               <View style={styles.sortPanel}>
@@ -706,8 +769,8 @@ const styles = themed(() => StyleSheet.create({
   headerSub: { fontSize: 12, color: colors.ink3, fontFamily: fonts.mono, marginTop: 2 },
 
   list: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: 10 },
-  gearSeg: { marginBottom: 10 },
-  surfaceWrap: { gap: 10 },
+  surfaceWrap: { gap: 10, marginBottom: 10 },
+  gearOptionSub: { marginLeft: 'auto', marginRight: spacing.sm, fontSize: 11.5, fontFamily: fonts.mono, color: colors.ink3 },
 
   hlWrap: { marginBottom: 14, gap: spacing.sm },
   hlTitle: {
@@ -750,7 +813,11 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: colors.surface,
     ...shadows.sm,
   },
-  filterToggleText: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+  filterToggleText: { fontSize: 13, fontFamily: fonts.sansSemiBold, color: colors.ink2, flexShrink: 1 },
+  // Lente ligada = chip cheio. `ink` sobre `bgPure` em vez da marca: a marca é
+  // cromo (ADR do tema), e aqui o que se comunica é "há um filtro", não uma ação.
+  filterToggleOn: { backgroundColor: colors.ink },
+  filterToggleTextOn: { color: colors.bgPure },
   sortPanel: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,

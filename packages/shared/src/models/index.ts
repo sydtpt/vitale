@@ -301,6 +301,13 @@ import type { SurfaceMix } from '../surface/classify';
 export type GearKind = 'bike';
 
 /**
+ * O estilo da bicicleta — descritivo, opcional. `kind` é estrutural (governa a
+ * herança); `style` é o que a tela mostra e o que um dia agrupa piso por tipo
+ * de bicicleta em vez de por unidade.
+ */
+export type GearStyle = 'gravel' | 'road' | 'mtb' | 'city' | 'other';
+
+/**
  * Um equipamento com janela de vigência — a bicicleta, hoje. Mapeia a tabela
  * `gear`. A pergunta "de qual bike foi esta pedalada" não está aqui: é
  * `gearForActivity` (gear/assign.ts), que combina `Activity.gearId` com a janela.
@@ -319,6 +326,8 @@ export interface Gear {
   /** Ids do mesmo equipamento nos providers (strava, intervals). Reservado. */
   externalIds?: Record<string, string>;
   notes?: string;
+  /** Gravel, estrada, MTB… Ausente = não classificada. */
+  style?: GearStyle;
 }
 
 /**

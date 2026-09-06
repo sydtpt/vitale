@@ -13,7 +13,15 @@
  */
 import assert from 'node:assert/strict';
 import type { Activity, Gear } from '../models';
-import { activityLocalDate, gearForActivity, gearUsage, gearWindowContains } from './assign';
+import {
+  activityLocalDate,
+  dayBefore,
+  gearForActivity,
+  gearUsage,
+  gearWindowContains,
+  isGearOpen,
+  planDefaultGear,
+} from './assign';
 
 const antiga: Gear = {
   id: 'g-antiga', userId: 'u', kind: 'bike', name: 'Antiga',
@@ -88,5 +96,50 @@ assert.equal(gearForActivity(gears, ride('2026-08-31', { activityId: 37 })), und
   // gear sem atividade sai com 0, não some
   assert.equal(gearUsage([antiga], [ride('2026-08-31')])[0]!.count, 0);
 }
+
+// 5. "usar como padrão" = abrir a janela desta e fechar a das outras no dia anterior.
+//    É o beat que o cadastro precisa acertar: sem ele, as 126 pedaladas antigas
+//    passariam a ter duas donas.
+assert.equal(dayBefore('2026-05-30'), '2026-05-29');
+assert.equal(dayBefore('2026-01-01'), '2025-12-31', 'vira o ano');
+assert.equal(dayBefore('2026-03-01'), '2026-02-28', 'fevereiro de ano comum');
+assert.equal(isGearOpen(nuroad), true);
+assert.equal(isGearOpen(antiga), false);
+
+{
+  // a Nuroad entra em 30/05: a antiga (aberta) teria de fechar em 29/05
+  const aberta: Gear = { ...antiga, activeTo: null };
+  const nova: Gear = { ...nuroad, activeFrom: '2026-05-30' };
+  const changes = planDefaultGear([aberta, nova], 'g-nuroad', '2026-05-30');
+  assert.deepEqual(changes, [{ id: 'g-antiga', activeTo: '2026-05-29' }]);
+}
+{
+  // já é a padrão e as outras já estão fechadas: nada a fazer
+  assert.deepEqual(planDefaultGear([antiga, nuroad], 'g-nuroad', '2026-09-06'), []);
+}
+{
+  // voltar para a aposentada: ela reabre e a atual fecha ontem
+  const changes = planDefaultGear([antiga, nuroad], 'g-antiga', '2026-09-06');
+  assert.deepEqual(changes, [
+    { id: 'g-antiga', activeTo: null },
+    { id: 'g-nuroad', activeTo: '2026-09-05' },
+  ]);
+}
+{
+  // não inverter janela: fechar uma bike ANTES de ela ter começado seria fim < início
+  const futura: Gear = { ...nuroad, id: 'g-futura', activeFrom: '2026-12-01', activeTo: null };
+  const changes = planDefaultGear([futura, antiga], 'g-antiga', '2026-06-01');
+  assert.deepEqual(
+    changes,
+    [{ id: 'g-antiga', activeTo: null }],
+    'a antiga reabre; a futura não fecha antes de existir',
+  );
+}
+{
+  // alvo já aberto e nada mais a fechar: plano vazio, e a tela não escreve nada
+  const changes = planDefaultGear([{ ...antiga, activeTo: null }], 'g-antiga', '2026-06-01');
+  assert.deepEqual(changes, []);
+}
+assert.deepEqual(planDefaultGear([antiga], 'g-inexistente', '2026-09-06'), [], 'id desconhecido não muda nada');
 
 console.log('gear/assign: ok');
