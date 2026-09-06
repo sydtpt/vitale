@@ -43,6 +43,16 @@
       }
     </a>
 
+    <!-- ①b Saúde do sono — a contagem das quatro dimensões da noite, com o fato
+         cru ao lado de cada uma. Clicar abre /sono/saude, onde entra a quinta. -->
+    @if (score(); as sc) {
+      <a class="card clickable" routerLink="/sono/saude">
+        <h3 class="card-title">Saúde do sono <span class="chev">›</span></h3>
+        <p class="card-sub">quatro medidas desta noite · clique para a semana e o mês</p>
+        <rt-sleep-score-dims [score]="sc" note="regularidade só existe entre noites — ela mora no período" />
+      </a>
+    }
+
     <!-- ② O timing chart — a regularidade aparece na forma, não num índice.
          Clicar abre /sono/tempos: períodos navegáveis, despertares em destaque, fatos. -->
     <a class="card clickable" routerLink="/sono/tempos">

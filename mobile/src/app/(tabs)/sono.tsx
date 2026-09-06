@@ -18,6 +18,7 @@ import {
   clockLabel,
   efficiency,
   localDateStr,
+  nightScore,
   type SleepPeriod,
 } from '@vitale/shared';
 import { useSonoStore } from '../../store/sono.store';
@@ -28,6 +29,7 @@ import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { SleepTimingChart } from '../../components/charts/SleepTimingChart';
 import { AwakeningsClock } from '../../components/charts/AwakeningsClock';
 import { SleepLegend, SwDashed, SwGap, SwSolid } from '../../components/sono/SleepLegend';
+import { SleepScoreDims } from '../../components/sono/SleepScoreDims';
 import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
 /** Noites no timing chart — o que cabe legível na largura de um telefone. */
@@ -148,6 +150,9 @@ export default function SonoScreen() {
   const bedOk = bedtimeMeasured(last);
   const eff = efficiency(last);
   const lastAwake = awakeMinOf(last);
+  // A contagem da última noite — quatro dimensões. A quinta (regularidade) não
+  // existe numa noite só, e é por isso que o cartão leva para `/sono/saude`.
+  const score = nightScore(last, periods, sleepRatings[last.wakeDay] ?? null);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -196,6 +201,23 @@ export default function SonoScreen() {
               </Text>
             </View>
           )}
+        </Pressable>
+
+        {/* ①b Saúde do sono — a contagem das quatro dimensões da noite, com o
+            fato cru ao lado de cada uma. Vem DEPOIS dos relógios de propósito:
+            o número não é o herói, o fato é. Tocar abre o período, onde entra a
+            quinta dimensão (ADR 0036). */}
+        <Pressable onPress={() => router.push('/sono/saude')} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>Saúde do sono</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.ink4} />
+          </View>
+          <Text style={styles.cardSub}>quatro medidas desta noite · toque para a semana e o mês</Text>
+          <SleepScoreDims
+            score={score}
+            palette={sc}
+            note="regularidade só existe entre noites — ela mora no período"
+          />
         </Pressable>
 
         {/* ② O timing chart — a regularidade aparece na forma, não num índice.

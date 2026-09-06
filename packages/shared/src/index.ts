@@ -34,6 +34,7 @@ export * from './sleep/facts';
 export * from './sleep/colors';
 export * from './sleep/markers';
 export * from './sleep/retro';
+export * from './sleep/score';
 export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bounds';

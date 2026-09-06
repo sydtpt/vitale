@@ -112,6 +112,29 @@ export function filterByRange(
   return sorted.filter((p) => (since === null || p.wakeDay >= since) && (until === null || p.wakeDay <= until));
 }
 
+/**
+ * Quantas noites o período comporta — o denominador da cobertura.
+ *
+ * Não é o mesmo que "quantas noites tem o intervalo": a janela corrente é aberta
+ * e ainda está acontecendo, então ela vale até **hoje**, não até o fim nominal.
+ * Sem isso, a semana em curso na terça-feira apareceria com 2 de 7 e perderia a
+ * contagem por "cobertura baixa" todo começo de semana.
+ *
+ * "Última" é uma noite por definição.
+ */
+export function rangeNights(range: SonoRange, today: Date = new Date(), offset = 0): number {
+  if (range === 'ultima') return 1;
+  const { since, until } = rangeBounds(range, today, offset);
+  if (since === null) return 1;
+  const from = new Date(`${since}T12:00:00`);
+  const nominal = until === null ? new Date(today) : new Date(`${until}T12:00:00`);
+  // Um ano navegado no futuro não existe; o corrente vale até hoje.
+  const to = nominal.getTime() > today.getTime() ? new Date(today) : nominal;
+  to.setHours(12, 0, 0, 0);
+  const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+  return Math.max(1, days);
+}
+
 /** Há noite no período `offset` passos atrás? É o que liga ou apaga o ◀. */
 export function hasNights(periods: readonly SleepPeriod[], range: SonoRange, today: Date = new Date(), offset = 0): boolean {
   return filterByRange(periods, range, today, offset).length > 0;

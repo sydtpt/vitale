@@ -316,6 +316,48 @@
   acordado; tracejado sem noite; toque abre `/sono/[day]`. Quarto modo **Grade** do Tempos,
   só nos períodos por noite (em 12m/ano a tela volta a Tempos). **Falta conferir no iPhone.**
 
+## Fase 7 — CAP-11: Saúde do sono (06/09/2026)
+
+> Pedida pelo usuário ("gostaria de montar um score do sono também, para dia, semana, mês e
+> etc"), com pesquisa em artigos científicos antes. **Reabre a §2 do spec** —
+> [ADR 0036](../../../docs/decisions/0036-saude-do-sono-e-contagem-nao-placar.md). O artifact
+> com a pesquisa, os achados nos dados reais e os mockups aprovados:
+> `claude.ai/code/artifact/8a4579f8-6731-4920-a744-ba71d5992bf8`.
+
+- [x] T8.0 — **Pesquisa + medição, antes do código.** Onze fontes verificadas (Ohayon 2017,
+  Buysse 2014, Windred 2024, **Phillips 2017 — a fórmula do SRI, que era a citação pendente
+  do spec**, Watson 2015, Kaplan 2017, Srivali 2026, Roenneberg 2012, Chinoy 2021,
+  Wallace 2018, Della Monica 2018). Medição sobre as **288 noites** e as **83 notas** em
+  produção. Quatro achados que decidem o desenho:
+  - a troca Apple→Garmin (18/07) move a vigília mediana de **71,5 → 13 min** e a eficiência
+    de **76% → 97%** sem nada mudar no corpo → **linha de base móvel, não limiar de painel**;
+  - a fração de sono profundo tem ρ = **−0,61** com as horas dormidas (e −0,56 com a nota)
+    → **estágios não pontuam**, seria premiar noite curta;
+  - das medidas objetivas só a **duração** acompanha a nota (ρ 0,49 total, 0,61 na era Garmin);
+  - **57% de cobertura**, 14 dos 18 meses abaixo de 70% → **piso de cobertura**.
+  - E duas ressalvas registradas: ele não usa a escala (0 notas 1 ou 2; 38 de 56 são 4), e a
+    nota do **dia** não tem relação com a noite anterior (ρ 0,16) → a tela nunca dirá que a
+    noite explica o dia.
+- [x] T8.1 — **Núcleo:** `packages/shared/src/sleep/score.ts` — `nightScore` (4 dimensões,
+  0–8), `periodScore` (5, 0–10), `sleepBaseline` (janela de 30 noites, só para trás),
+  `longestRun` (o índice de regularidade roda só em noites seguidas, senão o buraco lê como
+  constância e infla), `coverageNote`. Escadas com direção **declarada**, não inferida da
+  ordem dos limiares — com vigília quase sempre zero, p25 e mediana empatam e a inferência
+  premiaria a noite mais fragmentada. `rangeNights` em `ranges.ts` para o denominador da
+  cobertura. **17 testes** em `score.test.ts`.
+- [x] T8.2 — **Mobile:** `SleepScoreDims.tsx` (rótulo · dois traços · fato cru) + o cartão
+  em `(tabs)/sono.tsx` logo **depois** dos relógios + a subview `app/sono/saude.tsx` com o
+  período navegável e a origem de cada linha. Rota em `_layout.tsx`.
+- [x] T8.3 — **Web:** `sleep-score-dims.component.ts`, `sono-saude-page.component.*`, o
+  cartão na visão geral e a rota `/sono/saude` (antes de `sono/:day`).
+- [x] T8.4 — **Docs:** ADR 0036, emenda na §2 do spec, CAP-11, CLAUDE.md.
+- [x] T8.5 — **Validação (06/09):** shared lint 0 · shared test 634 asserts + arquitetura ok ·
+  mobile `tsc` 0 · `jest` 627/627 · web build 0 (só os avisos pré-existentes de budget e o
+  NG8102 de Cultura) · web test 141/141. Conferido também contra os dados reais: a noite de
+  05/09 sai **6/8** e agosto **9/10**, com julho sem contagem por cobertura de 45%.
+- [ ] T8.6 — **Conferir no iPhone** (build por cabo) **e no navegador**. Nada disso foi visto
+  em aparelho ainda.
+
 ## Fechamento
 
 - [x] T6.1 — Link dos specs no `CLAUDE.md`.

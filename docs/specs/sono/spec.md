@@ -46,10 +46,8 @@ horário de acordar duas vezes em `start` e `end`.
 
 **A tela entrega o fato e para de falar.**
 
-Não existe nota de sono, score, streak, seta de tendência ou meta. A regularidade — a
-métrica com maior poder preditivo demonstrado na literatura — **não aparece como índice**:
-ela aparece como *forma*, porque barras alinhadas parecem alinhadas. O usuário lê o gráfico,
-não um número sobre o gráfico.
+Não existe **placar**: nem nota de 0 a 100, nem streak, nem seta de tendência, nem meta, nem
+comparação com outras pessoas, nem conselho.
 
 Isso não é preferência estética. É a resposta a três achados convergentes da pesquisa: o
 padrão nº 1 de reclamação da categoria inteira é "a nota discorda do corpo" (4 fontes
@@ -57,6 +55,29 @@ independentes, + class action contra a Oura em 08/2026); ortossonia é entidade 
 prevalência de ~3–5%; e a especificidade sono/vigília destes aparelhos contra polissonografia
 tem médias de 30% a 61%. **Um placar que a categoria mede mal, e que documentadamente causa
 dano, não é o que falta ao Orbe.**
+
+> **Emenda de 06/09/2026 — [ADR 0036](../../decisions/0036-saude-do-sono-e-contagem-nao-placar.md).**
+> Uma versão anterior deste parágrafo dizia "não existe nota de sono, score" e que a
+> regularidade **não aparece como índice**. As duas frases foram estreitadas, e a diferença é
+> de objeto, não de rigor.
+>
+> Existe **Saúde do sono** (CAP-11): uma **contagem de dimensões** — cinco medidas valendo 0, 1
+> ou 2, na escala do RU-SATED —, com o dado cru sempre ao lado de cada linha, limiares de
+> continuidade e horário tirados da **distribuição recente do próprio usuário**, estágios fora
+> da contagem e travada por um piso de cobertura. É o formato que a literatura usa quando
+> compõe (Wallace 2018 conta dimensões extremas; não pondera).
+>
+> O que continua proibido é a **forma** que a §2 sempre mirou: o composto normalizado da
+> categoria, derivado de estágios, com pesos não publicados, apresentado como veredito. E os
+> guarda-corpos contra ortossonia valem na íntegra.
+>
+> A regularidade **passa a poder aparecer como índice** dentro dessa contagem, porque a
+> citação foi verificada nesta rodada: a fórmula do SRI vem do
+> [Phillips 2017](https://www.nature.com/articles/s41598-017-03171-4), e a implementação em
+> `regularity.ts` está correta. A ressalva de citação que este spec carregava está resolvida.
+>
+> Ela **também** continua aparecendo como *forma* — barras alinhadas parecem alinhadas —, que
+> é o que o timing chart de CAP-2 faz e continua fazendo.
 
 ## 3. Capabilities
 
@@ -239,6 +260,34 @@ dano, não é o que falta ao Orbe.**
     acordado, REM e profundo** das noites, chaveadas pelo dia em que a noite começou
     (`sleepCrossMetrics`), em valores absolutos e com o `n` dos dois lados; e o bloco "Por
     mês" do Ano ganha as séries **Sono** e **Acordado** (`MonthBucket.sleepH`/`awakeMin`).
+
+- **CAP-11** — Saúde do sono: a contagem de dimensões *(pedida em 06/09/2026 — "gostaria de
+  montar um score do sono também, para dia, semana, mês e etc"; pesquisa e mockups com dados
+  reais no artifact `claude.ai/code/artifact/8a4579f8-6731-4920-a744-ba71d5992bf8`, seguida com
+  "vamos seguir". Reabre a §2 — ver
+  [ADR 0036](../../decisions/0036-saude-do-sono-e-contagem-nao-placar.md))*
+  - **intent:** O usuário vê, na noite e no período, **quantas das medidas de sono saudável
+    estão em dia** — e o fato cru que sustenta cada uma, ao lado.
+  - **success:** Cinco dimensões valendo 0, 1 ou 2 cada, na escala do RU-SATED (Buysse 2014):
+    **duração** (≥ 7 h, AASM/SRS 2015), **continuidade** (tempo acordado contra o p25 e a
+    mediana das 30 noites anteriores do próprio usuário), **horário** (desvio do midpoint
+    habitual na noite; dispersão dentro do período), **regularidade** (SRI ≥ 72, a fronteira do
+    quintil inferior do UK Biobank) e **percepção** (a nota 1–5 ao acordar). A **noite conta
+    quatro** (0–8) e o **período conta cinco** (0–10): regularidade é relação entre noites, não
+    propriedade de uma. Cartão em `/sono` logo **depois** dos relógios, e a subview
+    `/sono/saude` com o período navegável e a origem de cada linha.
+  - **success (negativo):** **estágios não pontuam** — sem consenso (Ohayon 2017), 30–50% de
+    erro nos aparelhos (Chinoy 2021) e, nos dados dele, a fração de profundo é artefato da
+    duração (ρ = −0,61). **Latência não pontua** — o Garmin não mede o deitar. **Sem streak,
+    meta, seta, comparação com outras pessoas ou conselho.** A tela **nunca diz que a noite
+    explica o dia**: ρ = 0,16 entre duração e a nota do dia, ρ = −0,09 entre as duas notas.
+  - **cobertura:** período abaixo de **70%** das noites não recebe contagem — as medidas
+    aparecem e o total some. É o caso comum: 14 dos 18 meses do histórico estão abaixo.
+  - **dimensão não medida encolhe o denominador**, com o motivo escrito; nunca vira zero.
+  - **onde:** `packages/shared/src/sleep/score.ts` (`nightScore`, `periodScore`,
+    `sleepBaseline`, `longestRun`, `coverageNote`) + `score.test.ts`; `rangeNights` em
+    `ranges.ts`; `SleepScoreDims.tsx` e `app/sono/saude.tsx` no mobile;
+    `sleep-score-dims.component.ts` e `sono-saude-page.component.*` na web.
 
 ## 4. Constraints
 
