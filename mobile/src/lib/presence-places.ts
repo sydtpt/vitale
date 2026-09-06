@@ -47,16 +47,30 @@ export async function writePresencePlaces(
   await setJSON(KEY, places.slice(0, MAX_REGIONS), store);
 }
 
-/** Acrescenta ou substitui pelo `id`. Devolve a lista resultante. */
+/**
+ * Acrescenta ou substitui pelo `id`. Devolve a lista resultante.
+ *
+ * Lança quando um lugar **novo** estouraria o teto do iOS, em vez de aceitar e
+ * descartar no corte. O descarte silencioso seria a pior falha possível aqui: o
+ * lugar apareceria na lista, nunca entregaria evento, e o buraco só apareceria
+ * semanas depois como "esse lugar não registra nada". Substituir um lugar que
+ * já existe nunca estoura, então continua permitido no teto.
+ */
 export async function upsertPresencePlace(
   place: PresencePlace,
   store: KVStore = asyncStore,
 ): Promise<PresencePlace[]> {
   const current = await readPresencePlaces(store);
+  const jaExiste = current.some((p) => p.id === place.id);
+  if (!jaExiste && current.length >= MAX_REGIONS) {
+    throw new Error(
+      `O iOS vigia no máximo ${MAX_REGIONS} regiões por app. Apague um lugar antes de criar outro.`,
+    );
+  }
   const without = current.filter((p) => p.id !== place.id);
   const next = [...without, { ...place, radiusM: Math.max(MIN_RADIUS_M, place.radiusM) }];
   await writePresencePlaces(next, store);
-  return next.slice(0, MAX_REGIONS);
+  return next;
 }
 
 export async function removePresencePlace(

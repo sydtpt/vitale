@@ -48,6 +48,42 @@ describe('presence-places', () => {
     expect(await readPresencePlaces(s)).toHaveLength(MAX_REGIONS);
   });
 
+  it('recusa lugar novo no teto em vez de descartar calado', async () => {
+    const s = memStore();
+    await writePresencePlaces(
+      Array.from({ length: MAX_REGIONS }, (_, i) => place(`p${i}`)),
+      s,
+    );
+    await expect(upsertPresencePlace(place('novo'), s)).rejects.toThrow(/máximo/);
+    // E a lista não mudou: nada entrou, nada saiu.
+    expect(await readPresencePlaces(s)).toHaveLength(MAX_REGIONS);
+  });
+
+  it('substituir no teto continua permitido — não estoura nada', async () => {
+    const s = memStore();
+    await writePresencePlaces(
+      Array.from({ length: MAX_REGIONS }, (_, i) => place(`p${i}`)),
+      s,
+    );
+    const lista = await upsertPresencePlace(place('p3', { name: 'Renomeado' }), s);
+    expect(lista).toHaveLength(MAX_REGIONS);
+    expect(lista.find((p) => p.id === 'p3')?.name).toBe('Renomeado');
+  });
+
+  it('aceita mais que três — o teto é o do iOS, não uma lista de nomes', async () => {
+    const s = memStore();
+    for (const nome of ['Casa', 'Escritório', 'Academia', 'Mercado', 'Casa da sogra']) {
+      await upsertPresencePlace(place(nome, { name: nome }), s);
+    }
+    expect((await readPresencePlaces(s)).map((p) => p.name)).toEqual([
+      'Casa',
+      'Escritório',
+      'Academia',
+      'Mercado',
+      'Casa da sogra',
+    ]);
+  });
+
   it('remove pelo id', async () => {
     const s = memStore();
     await upsertPresencePlace(place('p1'), s);

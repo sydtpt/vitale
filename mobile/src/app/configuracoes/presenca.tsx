@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,9 +44,9 @@ import {
  * /configuracoes/presenca — a Fase 0 da Presença, e nada além dela.
  *
  * Esta tela **não é o produto**. Ela é o instrumento de medição que decide se o
- * produto vale ser construído: três lugares, o log cru do que o iOS entregou, e
- * as três contagens que calibram os limiares da fase 1. Nada sobe para o
- * Supabase, nada notifica, nenhum módulo é tocado.
+ * produto vale ser construído: os lugares que você nomear, o log cru do que o
+ * iOS entregou, e as três contagens que calibram os limiares da fase 1. Nada
+ * sobe para o Supabase, nada notifica, nenhum módulo é tocado.
  *
  * Ela vive em Configurações, junto de "Dados", porque é irmã do diagnóstico de
  * sync — mesma natureza, mesmo público de um leitor só.
@@ -45,7 +54,12 @@ import {
  * Quando a fase 1 chegar, esta tela é descartável.
  */
 
-const OS_NOMES = ['Casa', 'Escritório', 'Academia'];
+/**
+ * Sugestões, não uma lista fechada. Aparecem como atalho enquanto o campo está
+ * vazio e somem depois que o lugar de mesmo nome existe — qualquer nome serve,
+ * e o teto é o do iOS (20), não o desta lista.
+ */
+const SUGESTOES = ['Casa', 'Escritório', 'Academia', 'Mercado'];
 
 function formatarMomento(iso: string): string {
   const d = new Date(iso);
@@ -91,6 +105,7 @@ export default function PresencaScreen() {
   const [lugares, setLugares] = useState<PresencePlace[]>([]);
   const [eventos, setEventos] = useState<PresenceEvent[]>([]);
   const [ocupado, setOcupado] = useState(false);
+  const [nomeNovo, setNomeNovo] = useState('');
 
   const carregar = useCallback(async () => {
     const [p, r, l, e] = await Promise.all([
@@ -121,7 +136,8 @@ export default function PresencaScreen() {
   };
 
   const adicionarDaqui = () => {
-    const nome = OS_NOMES[lugares.length] ?? `Lugar ${lugares.length + 1}`;
+    const nome = nomeNovo.trim();
+    if (!nome) return;
     setOcupado(true);
     currentFix()
       .then(async (fix) => {
@@ -133,15 +149,18 @@ export default function PresencaScreen() {
           radiusM: DEFAULT_RADIUS_M,
         });
         setLugares(proximos);
+        setNomeNovo('');
         if (rodando) await startPresence(proximos);
         Alert.alert(
-          `"${nome}" registrado`,
+          `“${nome}” registrado`,
           `Raio de ${DEFAULT_RADIUS_M} m, precisão do ponto: ${Math.round(fix.coords.accuracy ?? 0)} m.\n\n` +
             'Se você não estiver exatamente no lugar agora, apague e refaça quando estiver — ' +
             'o centro é o que o iOS vai vigiar.',
         );
       })
-      .catch((e: unknown) => Alert.alert('Não consegui a posição', String(e)))
+      .catch((e: unknown) =>
+        Alert.alert('Não deu', e instanceof Error ? e.message : String(e)),
+      )
       .finally(() => setOcupado(false));
   };
 
@@ -292,18 +311,63 @@ export default function PresencaScreen() {
             ))
           )}
 
-          {lugares.length < 3 ? (
-            <Pressable
-              onPress={adicionarDaqui}
-              disabled={ocupado}
-              style={({ pressed }) => [styles.botaoSec, pressed && styles.pressed, ocupado && styles.desabilitado]}
-            >
-              <Ionicons name="location-outline" size={17} color={colors.ink} />
-              <Text style={styles.botaoSecTexto}>
-                Registrar “{OS_NOMES[lugares.length] ?? 'lugar'}” aqui
+          {lugares.length < MAX_REGIONS ? (
+            <>
+              <View style={styles.divisor} />
+
+              <TextInput
+                value={nomeNovo}
+                onChangeText={setNomeNovo}
+                placeholder="Nome do lugar"
+                placeholderTextColor={colors.ink3}
+                style={styles.campo}
+                autoCapitalize="sentences"
+                returnKeyType="done"
+                maxLength={40}
+                onSubmitEditing={adicionarDaqui}
+              />
+
+              {nomeNovo.trim() === '' ? (
+                <View style={styles.sugestoes}>
+                  {SUGESTOES.filter(
+                    (s) => !lugares.some((p) => p.name.toLowerCase() === s.toLowerCase()),
+                  ).map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() => setNomeNovo(s)}
+                      style={({ pressed }) => [styles.sugestao, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.sugestaoTexto}>{s}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              <Pressable
+                onPress={adicionarDaqui}
+                disabled={ocupado || nomeNovo.trim() === ''}
+                style={({ pressed }) => [
+                  styles.botaoSec,
+                  pressed && styles.pressed,
+                  (ocupado || nomeNovo.trim() === '') && styles.desabilitado,
+                ]}
+              >
+                <Ionicons name="location-outline" size={17} color={colors.ink} />
+                <Text style={styles.botaoSecTexto}>
+                  {nomeNovo.trim() === ''
+                    ? 'Registrar daqui'
+                    : `Registrar “${nomeNovo.trim()}” daqui`}
+                </Text>
+              </Pressable>
+              <Text style={styles.nota}>
+                O ponto de agora vira o centro do raio. Cadastre estando no lugar.
               </Text>
-            </Pressable>
-          ) : null}
+            </>
+          ) : (
+            <Text style={styles.nota}>
+              As {MAX_REGIONS} vagas do iOS estão ocupadas. Apague um lugar para criar outro.
+            </Text>
+          )}
         </View>
 
         {/* ---------- medidas ---------- */}
@@ -475,6 +539,26 @@ function createStyles() {
     desabilitado: { opacity: 0.4 },
 
     lugarLinha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+
+    campo: {
+      fontFamily: fonts.sans,
+      fontSize: 15,
+      color: colors.ink,
+      backgroundColor: colors.bg2,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm + 2,
+      minHeight: 42,
+    },
+    sugestoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+    sugestao: {
+      borderRadius: radii.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.line,
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: spacing.xs + 1,
+    },
+    sugestaoTexto: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.ink2 },
 
     medidas: { flexDirection: 'row', gap: spacing.sm },
     medida: { flex: 1, gap: 1 },
