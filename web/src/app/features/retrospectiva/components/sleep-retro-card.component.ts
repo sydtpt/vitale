@@ -8,7 +8,10 @@ import {
   signedMin,
   type PeriodKind,
   type SleepRetro,
+  type SleepTriggerBoard,
 } from '@vitale/shared';
+import { TypicalAwakeComponent } from '@features/sono/components/typical-awake.component';
+import { SleepTriggersComponent } from './sleep-triggers.component';
 import { SleepScoreDimsComponent } from '@features/sono/components/sleep-score-dims.component';
 
 const NOUN: Record<PeriodKind, string> = {
@@ -47,7 +50,7 @@ function weekRange(key: string): string {
   selector: 'rt-sleep-retro-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SleepScoreDimsComponent],
+  imports: [SleepScoreDimsComponent, TypicalAwakeComponent, SleepTriggersComponent],
   template: `
     <div class="eyebrow">
       Sono <span class="n">· {{ r().cur.nights }} {{ r().cur.nights === 1 ? 'noite' : 'noites' }}</span>
@@ -87,7 +90,13 @@ function weekRange(key: string): string {
       <div class="row"><span>Por noite</span><span class="row-v mono">{{ round(aw.minMean) }} min <small>· {{ aw.countMean.toFixed(1) }} despertares</small></span></div>
       @if (r().awakeSpread; as sp) {
         @if (sp.total > 0) {
-          <div class="row"><span>Acima de {{ COUNTED }} min</span><span class="row-v mono">{{ sp.counted }} <small>de {{ sp.total }}</small></span></div>
+          <div class="row"><span>De {{ COUNTED }} min para cima</span><span class="row-v mono">{{ sp.counted }} <small>de {{ sp.total }}</small></span></div>
+        }
+      }
+      @if (r().typical; as t) {
+        @if (t.medianMin !== null) {
+          <rt-typical-awake [typical]="t" [longestDay]="t.longest ? dm(t.longest.day) : null" />
+          <p class="fine">a duração de um despertar não muda de aparelho — a contagem, sim</p>
         }
       }
       @if (peak(); as pk) {
@@ -183,6 +192,14 @@ function weekRange(key: string): string {
       <div class="row"><span>{{ dm(b.day) }} — a de maior contagem</span><span class="row-v mono">{{ b.points }}/{{ b.max }}</span></div>
     }
 
+    @if (triggers(); as tb) {
+      <div class="standing">
+        <span class="tag">todo o histórico · não é {{ deste() }}</span>
+        <p class="sub st">O que precedeu a noite</p>
+        <rt-sleep-triggers [board]="tb" />
+      </div>
+    }
+
     <p class="fix">
       @if (r().prev; as p) { {{ nounCap() }} anterior: {{ p.nights }} {{ p.nights === 1 ? 'noite' : 'noites' }}. }
       @if (r().cur.stages) { Fases são estimativa do relógio, comparáveis com você mesmo. }
@@ -232,6 +249,11 @@ function weekRange(key: string): string {
     .wk-l { font-size: 9.5px; color: var(--ink-3); white-space: nowrap; }
     .wk-n { font-size: 9px; color: var(--ink-4); }
 
+    /* Os gatilhos falam de outra janela. O vão e a tarja avisam antes do número. */
+    .standing { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .standing .tag { display: block; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-4); font-weight: 600; }
+    .sub.st { margin-top: 4px; }
+
     .fix { margin: 14px 0 0; padding-left: 12px; border-left: 2px solid var(--line-deep); font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }
   `],
 })
@@ -240,6 +262,11 @@ export class SleepRetroCardComponent {
   readonly kind = input.required<PeriodKind>();
   /** 'Total' não tem período anterior — as variações somem. */
   readonly noPrior = input(false);
+  /**
+   * O que precedeu a noite. Roda em todo o histórico, não no período — por isso
+   * chega por fora de `retro`, que é do período. `null` esconde o bloco.
+   */
+  readonly triggers = input<SleepTriggerBoard | null>(null);
 
   protected readonly REF = NIGHT_REFERENCE_H;
   protected readonly COUNTED = AWAKE_COUNTED_MIN;
@@ -253,6 +280,11 @@ export class SleepRetroCardComponent {
   protected readonly r = this.retro;
   protected readonly d = computed(() => (this.noPrior() ? null : this.retro().delta));
   protected readonly noun = computed(() => NOUN[this.kind()]);
+  /** 'desta semana' | 'deste mês' — a tarja dos gatilhos concorda com o período. */
+  protected readonly deste = computed(() => {
+    const n = NOUN[this.kind()];
+    return n === 'semana' || n === 'estação' ? `desta ${n}` : `deste ${n}`;
+  });
   protected readonly nounCap = computed(() => {
     const n = this.noun();
     return n.charAt(0).toUpperCase() + n.slice(1);

@@ -384,7 +384,14 @@ export default function RetrospectivaScreen() {
     {/* Sono — a noite típica do período contra a anterior (sleep/retro.ts).
                 Só existe com noites gravadas em `sleep_periods`; sem elas, nada aparece
                 e a linha "Sono" do card Saúde volta a valer. */}
-            {summary.sleep && <SleepRetroCard retro={summary.sleep} kind={kind} noPrior={noPrior} />}
+            {summary.sleep && (
+              <SleepRetroCard
+                retro={summary.sleep}
+                kind={kind}
+                noPrior={noPrior}
+                triggers={summary.sleepTriggers}
+              />
+            )}
       </>
     ),
     purchases: (

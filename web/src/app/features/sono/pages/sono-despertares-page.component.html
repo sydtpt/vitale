@@ -20,6 +20,12 @@
             <rt-period-averages [summary]="s" />
           }
 
+          @if (typical(); as t) {
+            <h4 class="h">O despertar típico</h4>
+            <p class="sub">quanto dura, quando dura · {{ t.reporting }} noites que reportam</p>
+            <rt-typical-awake [typical]="t" [longestDay]="longestDay()" />
+          }
+
           <h4 class="h">Quando</h4>
           <p class="sub">densidade por hora da noite · {{ reporting() }} noites</p>
           <rt-awakenings-clock [periods]="nights()" />
@@ -70,5 +76,14 @@
         </aside>
       }
     </div>
+
+    @if (alignment(); as a) {
+      <div class="standing">
+        <span class="tag">não é deste período</span>
+        <h3 class="h2">Relógio ou corpo</h3>
+        <p class="sub">tem algo te acordando sempre na mesma hora?</p>
+        <rt-awake-alignment [alignment]="a" [fromLabel]="alignFrom()" [toLabel]="alignTo()" />
+      </div>
+    }
   </section>
 </div>

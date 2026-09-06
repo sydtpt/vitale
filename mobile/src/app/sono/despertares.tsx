@@ -5,12 +5,14 @@ import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   SLEEP_AXIS_ORIGIN_H,
+  awakeAlignment,
   awakeByWeekday,
   awakeFacts,
   awakeningDurations,
   awakeningsByHour,
   filterByRange,
   periodSummary,
+  typicalAwakening,
   type SonoRange,
 } from '@vitale/shared';
 import { useSonoStore } from '../../store/sono.store';
@@ -18,10 +20,18 @@ import { AwakeningsClock } from '../../components/charts/AwakeningsClock';
 import { PeriodNav } from '../../components/sono/PeriodNav';
 import { PeriodAverages } from '../../components/sono/PeriodAverages';
 import { FactsList } from '../../components/sono/FactsList';
+import { TypicalAwake } from '../../components/sono/TypicalAwake';
+import { AwakeAlignmentView } from '../../components/sono/AwakeAlignmentView';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
 const DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** '14/03' — o dia de um despertar. */
+const dm = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+/** 'out/25' — os extremos da janela do alinhamento. */
+const my = (day: string) => `${MES[+day.slice(5, 7) - 1]}/${day.slice(2, 4)}`;
 
 /**
  * /sono/despertares — a subview que abre ao tocar em Despertares (CAP-7). A
@@ -61,6 +71,11 @@ export default function SonoDespertaresScreen() {
   const durations = useMemo(() => awakeningDurations(nights), [nights]);
   const byDow = useMemo(() => awakeByWeekday(nights), [nights]);
   const facts = useMemo(() => awakeFacts(nights), [nights]);
+  const typical = useMemo(() => typicalAwakening(nights), [nights]);
+  // O alinhamento NÃO é do período: roda nas últimas 180 noites, sempre. Um mês
+  // rende 29 despertares e o teste precisa de centenas — no período ele sumiria
+  // em quase toda janela. Ver `awake-shape.ts`.
+  const alignment = useMemo(() => awakeAlignment(periods), [periods]);
   const reporting = nights.filter((n) => n.awakenings !== null).length;
   const chartW = Math.max(0, w - spacing.lg * 2);
 
@@ -101,6 +116,20 @@ export default function SonoDespertaresScreen() {
           ) : (
             <>
               {summary && <PeriodAverages summary={summary} palette={sc} />}
+
+              {typical && (
+                <>
+                  <Text style={styles.h}>O despertar típico</Text>
+                  <Text style={styles.sub}>
+                    quanto dura, quando dura · {typical.reporting} noites que reportam
+                  </Text>
+                  <TypicalAwake
+                    typical={typical}
+                    palette={sc}
+                    longestDay={typical.longest ? dm(typical.longest.day) : undefined}
+                  />
+                </>
+              )}
 
               <Text style={styles.h}>Quando</Text>
               <Text style={styles.sub}>densidade por hora da noite · {reporting} noites</Text>
@@ -158,6 +187,22 @@ export default function SonoDespertaresScreen() {
               </View>
 
               <FactsList facts={facts} />
+
+              {alignment && (
+                <View style={styles.standing}>
+                  <Text style={styles.standingTag}>não é deste período</Text>
+                  <Text style={styles.h2}>Relógio ou corpo</Text>
+                  <Text style={styles.subTight}>
+                    tem algo te acordando sempre na mesma hora?
+                  </Text>
+                  <AwakeAlignmentView
+                    alignment={alignment}
+                    palette={sc}
+                    fromLabel={my(alignment.from)}
+                    toLabel={my(alignment.to)}
+                  />
+                </View>
+              )}
             </>
           )}
         </View>
@@ -178,7 +223,25 @@ const createStyles = () =>
     center: { paddingVertical: spacing.xl, alignItems: 'center' },
     empty: { paddingVertical: spacing.xl, textAlign: 'center', color: colors.ink3, fontFamily: fonts.sans, fontSize: 13 },
     h: { marginTop: spacing.lg, fontSize: 13, fontFamily: fonts.sansBold, color: colors.ink },
+    h2: { fontSize: 17, fontFamily: fonts.serif, color: colors.ink },
     sub: { fontSize: 11.5, color: colors.ink3, fontFamily: fonts.sans, marginBottom: 6 },
+    subTight: { fontSize: 11.5, color: colors.ink3, fontFamily: fonts.sans },
+    // A peça de alinhamento fala de outra janela (180 noites). O vão e a tarja
+    // dizem isso antes de o leitor ler o número e achar que é do período.
+    standing: {
+      marginTop: spacing.xl,
+      paddingTop: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+    },
+    standingTag: {
+      fontSize: 9.5,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+      color: colors.ink4,
+      fontFamily: fonts.sansSemiBold,
+      marginBottom: 3,
+    },
     sub2: { fontSize: 11, color: colors.ink3, fontFamily: fonts.sans, marginTop: spacing.sm },
     bars: { flexDirection: 'row', gap: 3, alignItems: 'flex-end', marginTop: 6 },
     col: { flex: 1, alignItems: 'center' },

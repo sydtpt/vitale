@@ -2,12 +2,14 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { RouterLink } from '@angular/router';
 import {
   SLEEP_AXIS_ORIGIN_H,
+  awakeAlignment,
   awakeByWeekday,
   awakeFacts,
   awakeningDurations,
   awakeningsByHour,
   filterByRange,
   periodSummary,
+  typicalAwakening,
   type SonoRange,
 } from '@vitale/shared';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
@@ -16,11 +18,19 @@ import { SonoPeriodNavComponent } from '../components/period-nav.component';
 import { PeriodAveragesComponent } from '../components/period-averages.component';
 import { FactsListComponent } from '../components/facts-list.component';
 import { AwakeningsClockComponent } from '../components/awakenings-clock.component';
+import { TypicalAwakeComponent } from '../components/typical-awake.component';
+import { AwakeAlignmentComponent } from '../components/awake-alignment.component';
 
 interface BarVM { key: string; h: number; opacity: number; label: string; n: string; fds: boolean; unknown: boolean; }
 
 const DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const TRACK = 56;
+
+/** '14/03' — o dia de um despertar. */
+const dm = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+/** 'out/25' — os extremos da janela do alinhamento. */
+const my = (day: string) => `${MES[+day.slice(5, 7) - 1]}/${day.slice(2, 4)}`;
 
 /**
  * /sono/despertares na web — a subview de CAP-7: *quando* acordo e por *quanto*
@@ -35,7 +45,10 @@ const TRACK = 56;
   selector: 'rt-sono-despertares-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, PageHeaderComponent, SonoPeriodNavComponent, PeriodAveragesComponent, FactsListComponent, AwakeningsClockComponent],
+  imports: [
+    RouterLink, PageHeaderComponent, SonoPeriodNavComponent, PeriodAveragesComponent,
+    FactsListComponent, AwakeningsClockComponent, TypicalAwakeComponent, AwakeAlignmentComponent,
+  ],
   templateUrl: './sono-despertares-page.component.html',
   styleUrl: './sono-despertares-page.component.scss',
 })
@@ -52,6 +65,26 @@ export class SonoDespertaresPageComponent {
   protected readonly summary = computed(() => periodSummary(this.nights()));
   protected readonly reporting = computed(() => this.nights().filter((n) => n.awakenings !== null).length);
   protected readonly facts = computed(() => awakeFacts(this.nights()));
+  protected readonly typical = computed(() => typicalAwakening(this.nights()));
+  protected readonly longestDay = computed(() => {
+    const l = this.typical()?.longest;
+    return l ? dm(l.day) : null;
+  });
+
+  /**
+   * O alinhamento **não é do período**: roda nas últimas 180 noites, sempre. Um
+   * mês rende 29 despertares e o teste precisa de centenas — no período ele
+   * sumiria em quase toda janela. Ver `awake-shape.ts`.
+   */
+  protected readonly alignment = computed(() => awakeAlignment(this.store.periods()));
+  protected readonly alignFrom = computed(() => {
+    const a = this.alignment();
+    return a ? my(a.from) : '';
+  });
+  protected readonly alignTo = computed(() => {
+    const a = this.alignment();
+    return a ? my(a.to) : '';
+  });
 
   /** Faixas de hora contíguas da primeira à última com despertar, contando noites. */
   protected readonly hourBars = computed<BarVM[]>(() => {

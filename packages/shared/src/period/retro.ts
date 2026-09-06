@@ -41,6 +41,13 @@ import {
 } from '../sleep/retro';
 import { SONO_MARKERS } from '../sleep/markers';
 import { formatHm } from '../sleep/facts';
+import {
+  habitCut,
+  sleepTriggerBoard,
+  triggerNights,
+  type SleepTriggerBoard,
+  type TriggerSource,
+} from '../sleep/triggers';
 import { periodBounds, retroSince, type PeriodKind } from './bounds';
 
 /**
@@ -298,6 +305,13 @@ export interface RetroSummary {
   adherence: { done: number; total: number } | null;
   /** A noite típica do período contra a do anterior. `null` sem noites ou sem `sleepPeriods`. */
   sleep: SleepRetro | null;
+  /**
+   * O que precedeu a noite — esporte, hábito, registro — sob a regra das duas
+   * colunas (`sleep/triggers.ts`). **Não é do período**: roda em todo o
+   * histórico, porque um mês rende células de três noites e nenhuma leitura
+   * passaria. `null` sem `sleepPeriods`.
+   */
+  sleepTriggers: SleepTriggerBoard | null;
 }
 
 const MODULE_LABELS: Record<string, string> = {
@@ -623,6 +637,55 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     return Math.max(1, days);
   })();
 
+  /**
+   * O que precedeu a noite. Lê o que o app **tem**, não uma lista fixa: cada
+   * esporte praticado vira um gatilho, e cada hábito e registro do usuário
+   * também — se ele criar "chá antes de dormir" amanhã, o quadro o inclui sem
+   * uma linha de código nova.
+   */
+  const sleepTriggers = ((): SleepTriggerBoard | null => {
+    if (!input.sleepPeriods) return null;
+    const nights = triggerNights(input.sleepPeriods, input.ratingsSleep);
+    if (nights.length === 0) return null;
+    const eves = [...new Set(nights.map((n) => n.eve))].sort();
+    const sources: TriggerSource[] = [];
+
+    // ── esporte: um gatilho por tipo praticado, mais o "qualquer um"
+    const bySport = new Map<number, Set<string>>();
+    const anySport = new Set<string>();
+    for (const a of input.activities) {
+      if (a.hidden) continue;
+      const day = localDay(new Date(a.startAt));
+      const set = bySport.get(a.activityId) ?? new Set<string>();
+      set.add(day);
+      bySport.set(a.activityId, set);
+      anySport.add(day);
+    }
+    for (const [id, days] of bySport) {
+      sources.push({ id: `sport:${id}`, label: activityTypeLabel(id), days });
+    }
+    if (bySport.size > 1) sources.push({ id: 'sport:any', label: 'Qualquer esporte', days: anySport });
+
+    // ── hábito com valor: o corte adaptativo (dose no frequente, presença no raro)
+    for (const h of input.habits) {
+      const scoped = h.createdOn ? eves.filter((d) => d >= h.createdOn!) : eves;
+      const { cut, days } = habitCut(h.logsByDay, scoped);
+      sources.push({
+        id: `habit:${h.id}`,
+        label: cut > 0 ? `${h.name} acima de ${cut}${h.unit ? ` ${h.unit}` : ''}` : h.name,
+        days,
+        since: h.createdOn,
+      });
+    }
+
+    // ── registro: marca binária, presença e pronto
+    for (const r of input.registros) {
+      sources.push({ id: `reg:${r.id}`, label: r.name, days: new Set(r.days), since: r.createdOn });
+    }
+
+    return sleepTriggerBoard(sources, nights);
+  })();
+
   const sleep = input.sleepPeriods
     ? sleepRetro(
         nightsIn(cur.start, cur.end),
@@ -654,6 +717,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     purchases,
     adherence,
     sleep,
+    sleepTriggers,
   };
 }
 

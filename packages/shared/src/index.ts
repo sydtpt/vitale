@@ -26,6 +26,8 @@ export * from './health/series-derive';
 export * from './sleep/timing';
 export * from './sleep/derive';
 export * from './sleep/awakenings';
+export * from './sleep/awake-shape';
+export * from './sleep/triggers';
 export * from './sleep/regularity';
 export * from './sleep/ranges';
 export * from './sleep/summary';
