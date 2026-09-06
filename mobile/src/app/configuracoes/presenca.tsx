@@ -15,6 +15,7 @@ import {
 } from '../../lib/presence-events';
 import {
   MAX_REGIONS,
+  MIN_RADIUS_M,
   placeName,
   readPresencePlaces,
   removePresencePlace,
@@ -361,6 +362,34 @@ export default function PresencaScreen() {
               cor={resumo.openEnters > 0 ? alerta.text : colors.ink2}
               styles={styles}
             />
+          </View>
+
+          <View style={styles.divisor} />
+
+          <View style={styles.estadoLinha}>
+            <Ionicons
+              name="resize-outline"
+              size={18}
+              color={
+                resumo.medianAccuracyM != null && resumo.medianAccuracyM >= MIN_RADIUS_M
+                  ? alerta.text
+                  : colors.ink3
+              }
+            />
+            <View style={styles.rowContent}>
+              <Text style={styles.rowLabel}>
+                {resumo.medianAccuracyM != null
+                  ? `Precisão mediana: ±${resumo.medianAccuracyM} m`
+                  : 'Precisão mediana: sem fix ainda'}
+              </Text>
+              <Text style={styles.rowSub}>
+                {resumo.medianAccuracyM == null
+                  ? 'Aparece depois dos primeiros eventos. É ela que decide o menor raio viável.'
+                  : resumo.medianAccuracyM >= MIN_RADIUS_M
+                    ? `Seu erro típico alcança o piso de ${MIN_RADIUS_M} m. Um raio no piso vai gerar entradas e saídas com você parado — suba os raios.`
+                    : `O raio precisa ser maior que isso. Com ±${resumo.medianAccuracyM} m, ${MIN_RADIUS_M} m tem folga de ${Math.round((MIN_RADIUS_M / resumo.medianAccuracyM) * 10) / 10}×.`}
+              </Text>
+            </View>
           </View>
 
           {resumo.staleFixes > 0 ? (
