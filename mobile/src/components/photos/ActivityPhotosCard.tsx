@@ -47,6 +47,7 @@ import {
 } from '../../services/activity-photos';
 import { resolveAssetUri } from '../../services/asset-uri';
 import { PhotoSuggestSheet } from './PhotoSuggestSheet';
+import { PhotoGalleryModal, type GallerySection } from './PhotoGalleryModal';
 
 /** Miniaturas por linha de parada antes de cortar. */
 const PREVIEW = 2;
@@ -104,6 +105,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [access, setAccess] = useState<PhotoAccess>('full');
   const [scanning, setScanning] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   /** A cidade mais próxima da parada — o "Vrouwenakker · km 38,2" da tela. */
   const cityNear = useCallback(
@@ -205,6 +207,31 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
     [userId, activity.id, reload],
   );
 
+  /**
+   * As seções da galeria saem do MESMO agrupamento do cartão — o cartão é o
+   * índice, a galeria é o álbum, e os dois têm de contar a mesma história.
+   */
+  const sections = useMemo<GallerySection[]>(() => {
+    const out: GallerySection[] = grouped.stops.map(({ stop, photos: ps }) => {
+      const city = cityNear(stop.lat, stop.lng);
+      return {
+        key: `s${stop.startIdx}`,
+        title: `${city ? `${city} · ` : ''}km ${(stop.distanceM / 1000).toFixed(1).replace('.', ',')}`,
+        subtitle: `${hhmm(stop.startMs)} – ${hhmm(stop.endMs)} · ${Math.round(stop.durationS / 60)} min parado · ${ps.length} ${ps.length === 1 ? 'foto' : 'fotos'}`,
+        photos: ps,
+      };
+    });
+    if (grouped.moving.length > 0) {
+      out.push({
+        key: 'moving',
+        title: 'Em movimento',
+        subtitle: `${grouped.moving.length} ${grouped.moving.length === 1 ? 'foto' : 'fotos'} · sem parada`,
+        photos: grouped.moving,
+      });
+    }
+    return out;
+  }, [grouped, cityNear]);
+
   const sheet = (
     <PhotoSuggestSheet
       visible={sheetOpen}
@@ -240,12 +267,13 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
 
   return (
     <>
-      <View style={styles.card}>
+      <Pressable style={styles.card} onPress={() => setGalleryOpen(true)}>
         <View style={styles.head}>
           <Text style={styles.title}>Fotos</Text>
           <Text style={styles.meta}>
             {photos.length} · {grouped.stops.length === 1 ? '1 parada' : `${grouped.stops.length} paradas`}
           </Text>
+          <Ionicons name="chevron-forward" size={15} color={colors.ink4} style={styles.chevron} />
         </View>
 
         {grouped.stops.map(({ stop, photos: ps }) => {
@@ -312,8 +340,14 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
             </View>
           </View>
         )}
-      </View>
+      </Pressable>
       {sheet}
+      <PhotoGalleryModal
+        visible={galleryOpen}
+        sections={sections}
+        total={photos.length}
+        onClose={() => setGalleryOpen(false)}
+      />
     </>
   );
 }
@@ -330,6 +364,7 @@ const createStyles = () =>
     head: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
     title: { fontSize: 13, fontFamily: fonts.sansBold, color: colors.ink },
     meta: { marginLeft: 'auto', fontSize: 11.5, fontFamily: fonts.mono, color: colors.ink3 },
+    chevron: { marginLeft: 4 },
 
     row: {
       flexDirection: 'row',
