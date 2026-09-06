@@ -28,6 +28,12 @@ import {
   sleepRetro,
   sleepSide,
   weekendShift,
+  AWAKE_COUNTED_MIN,
+  MEAN_MEDIAN_GAP_MIN,
+  SLEEP_BANDS,
+  awakeSpread,
+  regularityByWeek,
+  sleepBands,
 } from './retro';
 import { triggerImpact } from '../health/trigger-impact';
 
@@ -293,6 +299,142 @@ check('sleepCrossHighlight — valores absolutos, n dos dois lados, tom pelo pio
   const hAw = sleepCrossHighlight(acordado, 'Cerveja', impAw, 5)!;
   assert.equal(hAw.tone, 'bad');
   assert.ok(hAw.text.includes('ficou ') && hAw.text.includes(' acordado contra '));
+});
+
+
+/* ═══════════ As seis pautas de 06/09/2026 — a página completa ═══════════ */
+
+/** `n` noites seguidas terminando em `lastDay`, com horários constantes. */
+function seq(lastDay: string, n: number, onset = '23:30', wake = '07:00'): SleepPeriod[] {
+  const out: SleepPeriod[] = [];
+  const d = new Date(`${lastDay}T12:00:00Z`);
+  for (let i = n - 1; i >= 0; i -= 1) {
+    const x = new Date(d);
+    x.setUTCDate(d.getUTCDate() - i);
+    out.push(night(x.toISOString().slice(0, 10), onset, wake));
+  }
+  return out;
+}
+
+check('média × mediana: uma noite curta desloca a média e o jornal publica as duas', () => {
+  // Seis noites de 7h30 e uma de 1h — o caso de 7 de agosto de 2026.
+  const ns = [...seq('2026-08-06', 6), night('2026-08-07', '05:00', '06:00')];
+  const r = sleepRetro(ns, null)!;
+  assert.ok(r.medianH > r.cur.asleepH, 'a mediana resiste ao que a média não resiste');
+  assert.equal(r.meanMedianSplit, true);
+  // Sem a noite curta, as duas convergem e o jornal publica uma só.
+  const limpo = sleepRetro(seq('2026-08-06', 6), null)!;
+  assert.equal(limpo.meanMedianSplit, false);
+  assert.equal(Math.round(limpo.medianH * 60), Math.round(limpo.cur.asleepH * 60));
+});
+
+check('o limiar de publicar as duas é de minutos, não de gosto', () => {
+  assert.equal(MEAN_MEDIAN_GAP_MIN, 10);
+});
+
+check('faixas de duração: contagem e a nota média de cada, sem inventar nota', () => {
+  const ns = [
+    night('2026-08-01', '01:00', '06:00'),          // 5 h
+    night('2026-08-02', '00:30', '07:00'),          // 6,5 h
+    night('2026-08-03', '23:30', '07:00'),          // 7,5 h
+    night('2026-08-04', '22:30', '07:00'),          // 8,5 h
+  ];
+  const notas = new Map([['2026-08-01', 2], ['2026-08-03', 5]]);
+  const b = sleepBands(ns, notas);
+  assert.deepEqual(b.map((x) => x.nights), [1, 1, 1, 1]);
+  assert.deepEqual(b.map((x) => x.label), SLEEP_BANDS.map((x) => x.label));
+  assert.equal(b[0].rating, 2);
+  assert.equal(b[1].rating, null, 'faixa sem nota não recebe nota média');
+  assert.equal(b[1].ratedNights, 0);
+  assert.equal(b[2].rating, 5);
+});
+
+check('faixas sem mapa de notas: contagem existe, nota é null', () => {
+  const b = sleepBands(seq('2026-08-07', 4));
+  assert.equal(b.reduce((s, x) => s + x.nights, 0), 4);
+  assert.ok(b.every((x) => x.rating === null));
+});
+
+check('duração dos despertares: o critério de contagem é acima de 5 min', () => {
+  const ns = [
+    night('2026-08-01', '23:30', '07:00', { awakenings: [[60, 2], [120, 3], [200, 20]] }),
+    night('2026-08-02', '23:30', '07:00', { awakenings: [[90, 45]] }),
+  ];
+  const sp = awakeSpread(ns)!;
+  assert.equal(sp.total, 4);
+  assert.equal(sp.counted, 2, 'só os de 20 e 45 min passam do critério do consenso');
+  assert.equal(AWAKE_COUNTED_MIN, 5);
+});
+
+check('fonte que não reporta: espalhamento é null, não um zero', () => {
+  assert.equal(awakeSpread([night('2026-08-01', '23:30', '07:00', { awakenings: null })]), null);
+});
+
+check('regularidade por semana: buraco não vira constância', () => {
+  // Semana cheia de 7 noites idênticas → índice alto.
+  const cheia = seq('2026-08-09', 7);
+  const [w] = regularityByWeek(cheia);
+  assert.equal(w.nights, 7);
+  assert.ok(w.sri !== null && w.sri > 90, 'sete noites iguais são muito regulares');
+
+  // A mesma semana com dois buracos: o maior trecho seguido tem 3 noites.
+  const furada = [...cheia.slice(0, 3), ...cheia.slice(5)];
+  const [f] = regularityByWeek(furada);
+  assert.equal(f.nights, 5);
+  assert.equal(f.sri, null, 'sem 5 noites seguidas o índice não sai');
+});
+
+check('regularidade por semana devolve uma linha por semana, em ordem', () => {
+  const duas = [...seq('2026-08-09', 7), ...seq('2026-08-16', 7)];
+  const ws = regularityByWeek(duas);
+  assert.equal(ws.length, 2);
+  assert.ok(ws[0].key < ws[1].key);
+  assert.ok(ws.every((w) => w.sri !== null));
+});
+
+check('o selo só existe quando o chamador diz de quantas noites o período é', () => {
+  const ns = seq('2026-08-28', 20);
+  assert.equal(sleepRetro(ns, null)!.score, null, 'sem expectedNights não há selo');
+
+  const comSelo = sleepRetro(ns, null, undefined, [], { expectedNights: 31, history: seq('2026-07-31', 30) })!;
+  assert.ok(comSelo.score);
+  assert.equal(comSelo.score!.coverage!.nights, 20);
+  assert.equal(comSelo.score!.coverage!.expected, 31);
+  assert.equal(comSelo.score!.scored, false, '20 de 31 é 65%, abaixo do piso');
+});
+
+check('cobertura suficiente: o selo pontua e traz as cinco dimensões', () => {
+  const s = sleepRetro(seq('2026-08-28', 25), null, undefined, [], {
+    expectedNights: 31, history: seq('2026-07-31', 30),
+  })!.score!;
+  assert.equal(s.scored, true);
+  assert.equal(s.dimensions.length, 5);
+  assert.ok(s.dimensions.some((d) => d.key === 'regularidade' && d.points !== null));
+});
+
+check('extremos: as duas datas saem sempre; a contagem só com histórico', () => {
+  const ns = [...seq('2026-08-06', 6), night('2026-08-07', '05:00', '06:00')];
+  const semHist = sleepRetro(ns, null)!;
+  assert.equal(semHist.extremes.shortest.day, '2026-08-07');
+  assert.equal(semHist.extremes.best, null, 'sem linha de base não há contagem por noite');
+
+  const comHist = sleepRetro(ns, null, new Map([['2026-08-07', 2], ['2026-08-05', 5]]), [], {
+    history: seq('2026-07-31', 30),
+  })!;
+  assert.equal(comHist.extremes.shortest.day, '2026-08-07');
+  assert.equal(comHist.extremes.worst!.day, '2026-08-07', 'a noite de 1 h é a de menor contagem');
+  assert.ok(comHist.extremes.best !== null && comHist.extremes.best.max >= 6);
+});
+
+check('a peça de 05/09 continua inteira quando ninguém passa as opções novas', () => {
+  const r = sleepRetro(seq('2026-08-09', 7), seq('2026-08-02', 7))!;
+  assert.ok(r.cur && r.delta && r.weeks.length > 0, 'o que existia continua');
+  assert.equal(r.score, null);
+  assert.equal(r.extremes.best, null);
+  // E o que é fato do período sai mesmo sem opções.
+  assert.equal(r.bands.length, 4);
+  assert.ok(r.regularityWeeks.length > 0);
+  assert.ok(typeof r.medianH === 'number');
 });
 
 console.log(`\n${passed} checks passaram`);

@@ -203,6 +203,13 @@
       }
     </div>
 
+    <!-- Sono — a página do jornal (ADR 0036 e v2-jornal §9) -->
+    @if (summary().sleep; as sleep) {
+      <div class="card">
+        <rt-sleep-retro-card [retro]="sleep" [kind]="kind()" [noPrior]="kind() === 'all'" />
+      </div>
+    }
+
     <!-- Hábitos -->
     <div class="card">
       <div class="eyebrow">Hábitos &amp; registros</div>

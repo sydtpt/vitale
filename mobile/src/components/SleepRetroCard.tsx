@@ -1,16 +1,21 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import {
+  AWAKE_COUNTED_MIN,
   NIGHT_REFERENCE_H,
   clockOfAxis,
+  coverageNote,
   formatHm,
   signedMin,
   type PeriodKind,
+  type SleepBand,
   type SleepBucket,
   type SleepRetro,
+  type SleepWeekRegularity,
 } from '@vitale/shared';
 import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../theme';
 import { CompositionBar } from './sono/BeforeAfter';
+import { SleepScoreDims } from './sono/SleepScoreDims';
 
 interface Props {
   retro: SleepRetro;
@@ -52,7 +57,10 @@ function weekRange(key: string): string {
 export function SleepRetroCard({ retro, kind, noPrior }: Props) {
   const styles = useThemedStyles(createStyles);
   const sc = sleepColors();
-  const { cur, prev, delta, ratings, weekend, weeks, sourceChange } = retro;
+  const {
+    cur, prev, delta, ratings, weekend, weeks, sourceChange,
+    score, medianH, meanMedianSplit, bands, awakeHours, awakeSpread, regularityWeeks, extremes,
+  } = retro;
   const d = noPrior ? null : delta;
   const noun = NOUN[kind];
   const days = daysIn(kind);
@@ -76,6 +84,14 @@ export function SleepRetroCard({ retro, kind, noPrior }: Props) {
 
   const showWeeks = (kind === 'month' || kind === 'season') && weeks.filter((w) => w.nights >= 3).length >= 2;
   const showWeekend = kind !== 'week' && weekend !== null;
+  // A regularidade por semana precisa de duas semanas com índice: uma só é um
+  // número solto, e o que a linha diz é a direção.
+  const sriWeeks = regularityWeeks.filter((w) => w.sri !== null);
+  const showSri = sriWeeks.length >= 2;
+  // As faixas só falam quando há nota em duas delas — senão é contagem, não par.
+  const ratedBands = bands.filter((b) => b.rating !== null && b.nights > 0);
+  const showBands = ratedBands.length >= 2;
+  const peakHour = awakeHours.length > 0 ? awakeHours.reduce((m, h) => (h.nights > m.nights ? h : m)) : null;
 
   return (
     <View style={styles.card}>
@@ -83,15 +99,32 @@ export function SleepRetroCard({ retro, kind, noPrior }: Props) {
         Sono <Text style={styles.eyebrowN}>· {cur.nights} {days ? `de ${days} ` : ''}{cur.nights === 1 ? 'noite' : 'noites'}</Text>
       </Text>
 
+      {/* O selo — o resumo em caixa da página, DEPOIS da tarja e ANTES do corpo.
+          Ele não é a manchete: a chamada continua sendo `sleepHighlights`. */}
+      {score && (
+        <View style={styles.seal}>
+          <Text style={styles.sealTitle}>Saúde do sono</Text>
+          <SleepScoreDims score={score} palette={sc} note={coverageNote(score) ?? undefined} />
+        </View>
+      )}
+
+      {/* A MEDIANA é o número grande. A média entra na linha de baixo quando as
+          duas discordam — esconder uma delas seria publicar o número errado. */}
       <Text style={styles.big}>
-        {formatHm(cur.asleepH)}
+        {formatHm(medianH)}
         {d && prev && (
           <Text style={[styles.bigDelta, { color: toneOf(d.asleepMin, false, 5) }]}>  {signedMin(d.asleepMin)} vs {noun} anterior</Text>
         )}
       </Text>
       <Text style={styles.lab}>
-        dormindo por noite · {cur.nightsAtReference} de {cur.nights} com {NIGHT_REFERENCE_H} h ou mais
+        dormindo numa noite típica · {cur.nightsAtReference} de {cur.nights} com {NIGHT_REFERENCE_H} h ou mais
       </Text>
+      {meanMedianSplit && (
+        <Text style={styles.labTight}>
+          a média foi {formatHm(cur.asleepH)} — a noite de {dm(extremes.shortest.day)}, com{' '}
+          {formatHm(extremes.shortest.h)}, puxa sozinha
+        </Text>
+      )}
 
       <View style={styles.row}>
         <Text style={styles.rowL}>Apagou · acordou</Text>
@@ -114,6 +147,20 @@ export function SleepRetroCard({ retro, kind, noPrior }: Props) {
             {aw.countMean.toFixed(1).replace('.', ',')} despertares por noite · {aw.nightsWith} de {aw.reporting} noites com despertar
             {aw.longest ? ` · o mais longo ${Math.round(aw.longest.min)} min (${dm(aw.longest.day)} às ${clockOfAxis(aw.longest.at)})` : ''}
           </Text>
+          {awakeSpread && awakeSpread.total > 0 && (
+            <View style={styles.row}>
+              <Text style={styles.rowL}>Acima de {AWAKE_COUNTED_MIN} min</Text>
+              <Text style={styles.rowR}>{awakeSpread.counted}<Text style={styles.rowDelta}>  de {awakeSpread.total}</Text></Text>
+            </View>
+          )}
+          {peakHour !== null && awakeHours.length >= 3 && (
+            <>
+              <HoursStrip hours={awakeHours} color={sc.awake} peak={peakHour.nights} />
+              <Text style={styles.labTight}>
+                a noite quebrou mais entre {clockOfAxis(peakHour.from)} e {clockOfAxis(peakHour.from + 1)} — {peakHour.nights} noites
+              </Text>
+            </>
+          )}
         </>
       ) : (
         <Text style={styles.lab}>a fonte não reporta despertares neste período</Text>
@@ -139,6 +186,7 @@ export function SleepRetroCard({ retro, kind, noPrior }: Props) {
       )}
 
       {showWeeks && <WeeksStrip weeks={weeks} color={sc.sleep} />}
+      {showSri && <RegularityStrip weeks={sriWeeks} color={sc.deep} />}
 
       {showWeekend && weekend && (
         <>
@@ -176,15 +224,114 @@ export function SleepRetroCard({ retro, kind, noPrior }: Props) {
               <Text style={styles.rowR}>{formatHm(ratings.lo.asleepH)}{ratings.lo.awakeMin !== null ? ` · ${ratings.lo.awakeMin} min acordado` : ''}</Text>
             </View>
           )}
+          {/* O corte ao contrário: parte da DURAÇÃO e mostra a nota. É o que
+              responde "vale a pena dormir mais?", que o corte por nota não responde. */}
+          {showBands && (
+            <>
+              <Text style={styles.labTight}>e por quanto você dormiu naquelas noites</Text>
+              {ratedBands.map((b) => (
+                <View key={b.label} style={styles.row}>
+                  <Text style={styles.rowL}>Noites de {b.label} ({b.ratedNights})</Text>
+                  <Text style={styles.rowR}>{b.rating!.toFixed(2).replace('.', ',')}</Text>
+                </View>
+              ))}
+            </>
+          )}
         </>
+      )}
+
+      {/* As duas datas que fecham a página. Jornal nomeia — sem adjetivo. */}
+      <Text style={styles.sub}>{noun.charAt(0).toUpperCase()}{noun.slice(1)} em duas datas</Text>
+      <View style={styles.row}>
+        <Text style={styles.rowL}>{dm(extremes.shortest.day)} — a mais curta</Text>
+        <Text style={styles.rowR}>
+          {formatHm(extremes.shortest.h)}
+          {extremes.worst && extremes.worst.day === extremes.shortest.day && (
+            <Text style={styles.rowDelta}>  {extremes.worst.points}/{extremes.worst.max}</Text>
+          )}
+        </Text>
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.rowL}>{dm(extremes.longest.day)} — a mais longa</Text>
+        <Text style={styles.rowR}>
+          {formatHm(extremes.longest.h)}
+          {extremes.best && extremes.best.day === extremes.longest.day && (
+            <Text style={styles.rowDelta}>  {extremes.best.points}/{extremes.best.max}</Text>
+          )}
+        </Text>
+      </View>
+      {extremes.best && extremes.best.day !== extremes.longest.day && (
+        <View style={styles.row}>
+          <Text style={styles.rowL}>{dm(extremes.best.day)} — a de maior contagem</Text>
+          <Text style={styles.rowR}>{extremes.best.points}/{extremes.best.max}</Text>
+        </View>
       )}
 
       <Text style={styles.note}>
         {prev ? `${noun.charAt(0).toUpperCase()}${noun.slice(1)} anterior: ${prev.nights} ${prev.nights === 1 ? 'noite' : 'noites'}. ` : noPrior ? '' : `Sem noites no ${noun} anterior. `}
         {st ? 'Fases são estimativa do relógio, comparáveis com você mesmo. ' : ''}
-        {sourceChange ? `A comparação cruza a troca para ${sourceChange.label} (${dm(sourceChange.day)}): despertares não se comparam.` : ''}
+        {sourceChange ? `A comparação cruza a troca para ${sourceChange.label} (${dm(sourceChange.day)}): despertares não se comparam. ` : ''}
+        {score && !score.scored && score.coverage
+          ? `${score.coverage.nights} de ${score.coverage.expected} noites gravadas — abaixo do piso, as medidas aparecem e a contagem não.`
+          : ''}
       </Text>
     </View>
+  );
+}
+
+/**
+ * A que horas a noite quebrou — conta **noites**, não eventos: uma noite com
+ * cinco micro-despertares às 3h vale uma, senão a barra mede o relógio.
+ */
+function HoursStrip({ hours, color, peak }: { hours: SleepRetro['awakeHours']; color: string; peak: number }) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.hours}>
+      {hours.map((h) => (
+        <View key={h.from} style={styles.hour}>
+          <View style={styles.hourTrack}>
+            <View
+              style={[
+                styles.hourBar,
+                {
+                  height: Math.max(2, (h.nights / peak) * 30),
+                  backgroundColor: color,
+                  // O pico fica cheio; o resto recua, para o horário aparecer.
+                  opacity: h.nights === peak ? 1 : 0.42,
+                },
+              ]}
+            />
+          </View>
+          <Text style={styles.hourLab}>{clockOfAxis(h.from).slice(0, 2)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** A regularidade de cada semana — a única medida com evidência de desfecho. */
+function RegularityStrip({ weeks, color }: { weeks: SleepWeekRegularity[]; color: string }) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <>
+      <Text style={styles.sub}>Regularidade, semana a semana</Text>
+      <View style={styles.weeks}>
+        {weeks.map((w) => (
+          <View key={w.key} style={styles.week}>
+            <Text style={styles.weekVal}>{Math.round(w.sri!)}</Text>
+            <View style={styles.weekTrack}>
+              <View style={[styles.weekBar, { height: Math.max(3, (Math.max(0, w.sri!) / 100) * 40), backgroundColor: color }]} />
+            </View>
+            <Text style={styles.weekLab}>{weekRange(w.key)}</Text>
+            <Text style={styles.weekN}>n{w.nights}</Text>
+          </View>
+        ))}
+      </View>
+      <Text style={styles.labTight}>
+        índice de 0 a 100 — a chance de você estar no mesmo estado 24 h depois. Abaixo de 72 fica o
+        quintil de maior risco do UK Biobank.
+      </Text>
+    </>
   );
 }
 
@@ -232,6 +379,23 @@ const createStyles = () =>
     rowDelta: { fontSize: 12, color: colors.ink3, fontFamily: fonts.sans },
     rowMono: { fontSize: 12, fontFamily: fonts.mono, color: colors.ink },
     note: { fontSize: 11.5, lineHeight: 16, color: colors.ink3, fontFamily: fonts.sans, marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, borderStyle: 'dashed' },
+    seal: {
+      backgroundColor: colors.surfaceMute,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.md,
+      marginTop: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    sealTitle: { fontSize: 10.5, letterSpacing: 0.9, textTransform: 'uppercase', color: colors.ink3, fontFamily: fonts.sansBold },
+
+    hours: { flexDirection: 'row', gap: 3, alignItems: 'flex-end', marginTop: spacing.sm },
+    hour: { flex: 1, alignItems: 'center' },
+    hourTrack: { height: 30, width: '100%', justifyContent: 'flex-end', alignItems: 'center' },
+    hourBar: { width: '68%', borderRadius: 2 },
+    hourLab: { fontSize: 8, color: colors.ink4, fontFamily: fonts.mono, marginTop: 3 },
+
     weeks: { flexDirection: 'row', gap: 6, alignItems: 'flex-end', marginTop: 4 },
     week: { flex: 1, alignItems: 'center' },
     weekVal: { fontSize: 10, fontFamily: fonts.mono, color: colors.ink2, marginBottom: 2 },

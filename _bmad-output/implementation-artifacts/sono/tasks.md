@@ -361,7 +361,31 @@
   mobile `tsc` 0 · `jest` 627/627 · web build 0 (só os avisos pré-existentes de budget e o
   NG8102 de Cultura) · web test 141/141. Conferido também contra os dados reais: a noite de
   05/09 sai **6/8** e agosto **9/10**, com julho sem contagem por cobertura de 45%.
-- [ ] T8.6 — **Conferir no iPhone** (build por cabo) **e no navegador**. Nada disso foi visto
+- [x] T8.7 — **CAP-11 na Retrospectiva: o Sono vira página inteira de jornal** (06/09,
+  "vamos seguir" nas quatro decisões: selo **dentro** do bloco, **todas** as seis pautas,
+  semana **também**, web **junto**). Proposta com dados reais de agosto no artifact
+  `claude.ai/code/artifact/a0f5d8f4-5439-46c9-a0d2-de54ab391dce`.
+  - **O achado:** o bloco publicava o número errado. Ele mostrava a **média** (6h38 em agosto)
+    quando a mediana era 7h02 — e a diferença inteira era **uma** noite, a de 7/8 com 58 min.
+    O número grande virou a mediana; a média entra embaixo com `MEAN_MEDIAN_GAP_MIN` = 10.
+  - **Duas exclusões da §9 caducaram por motivo:** SRI como número (fórmula conferida no
+    Phillips 2017) e nota composta (a contagem da ADR 0036). O saldo contra 7 h continua fora,
+    e o selo não o reintroduz.
+  - **As outras cinco pautas:** hora do despertar (conta noites, 12 entre 4h e 5h), despertares
+    acima de 5 min (27 de 85, critério do Ohayon), regularidade por semana (só no trecho
+    contíguo), nota por faixa de duração, extremos com data.
+  - **No Ano a contagem não serve:** existe em 2 dos 12 meses do histórico. Dizer isso é o
+    conteúdo; a cobertura entrou na caixa de correções.
+  - **A web recebeu o bloco pela primeira vez** — ela já calculava `summary.sleep` desde 05/09
+    e não o desenhava. `sleep-retro-card.component.ts`.
+  - `sleepRetro` ganhou um **quinto parâmetro opcional**; quem chama sem ele recebe a peça de
+    05/09 intacta, e há teste travando isso. Validação: shared lint 0 · 646 asserts ·
+    mobile tsc 0 · jest 627 · web build 0 · web test 141. Commit `f0ceae0`, merge `fa1fb30`.
+- [ ] T8.6 — **A conferência em tela, que é tudo o que falta da frente de Sono.** Um build por
+  cabo e uma passada no navegador fecham **seis** entregas escritas em 05 e 06/09 e nunca
+  vistas em aparelho: T7.4 (web de Tempos e Despertares), T7.6 (a noite na Hoje), T7.7 (o
+  bloco da retro), T7.8 (Dispersão e antes × agora), T7.11 (a Grade), T8.2–T8.4 (Saúde do sono
+  nas duas telas) e T8.7 (a página de jornal). Nada disso foi visto
   em aparelho ainda.
 
 ## Fechamento
