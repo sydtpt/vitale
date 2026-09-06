@@ -13,9 +13,10 @@ const THUMB = 22;
  *
  * **Atenção ao swipe-back:** o polegar no valor mínimo fica encostado na borda
  * esquerda, dentro da faixa que o iOS reserva para o gesto de voltar, e os dois
- * disparam juntos. A guarda de borda de `lib/back-gesture.ts` não resolve aqui
- * (ela protegeria justamente o alvo útil) — a tela que usa este slider precisa
- * de `<Stack.Screen options={{ gestureEnabled: false }} />`.
+ * disparam juntos — o `PanResponder` do JS não cancela reconhecedor nativo do
+ * `react-native-screens`. A tela que usa este slider precisa de
+ * `<Stack.Screen options={{ gestureEnabled: false }} />` e de um botão de voltar
+ * no cabeçalho.
  *
  * Nada de Reanimated — ADR 0010. O arrasto é síncrono e não precisa de worklet:
  * o valor sai direto do `locationX` do toque, sem animação intermediária.

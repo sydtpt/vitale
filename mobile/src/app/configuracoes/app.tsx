@@ -313,7 +313,7 @@ export default function AppSettingsScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* O polegar do BlurSlider em 0 fica dentro da faixa do swipe-back de
           borda, e os dois gestos disparam juntos. Mesmo defeito do slider de
-          raio da Presença — ver `lib/back-gesture.ts`. Some o gesto de borda,
+          raio da Presença e do scrub do perfil de elevação. Some o gesto de borda,
           fica o chevron do cabeçalho. */}
       <Stack.Screen options={{ gestureEnabled: false }} />
       {/* Header */}

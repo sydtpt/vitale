@@ -175,7 +175,21 @@ export default function AtividadeDetalheScreen() {
   if (!activity) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ headerShown: false }} />
+        <Stack.Screen
+          options={{
+            headerShown: false,
+            // O scrub do perfil de elevação ocupa a largura da janela, e a
+            // borda esquerda dele é o INÍCIO dos dados — onde a mão naturalmente
+            // começa a arrastar. O swipe-back é um reconhecedor de borda e
+            // disputa exatamente essa faixa; o `PanResponder` do JS não cancela
+            // reconhecedor nativo do `react-native-screens`, então os dois
+            // disparavam. Guardar a faixa (tentado antes) só troca o sintoma:
+            // some o arrasto duplo, mas a esquerda do gráfico continua
+            // inutilizável. Aqui o gráfico vale mais que o gesto — sai o gesto,
+            // fica o chevron logo abaixo.
+            gestureEnabled: false,
+          }}
+        />
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
@@ -306,7 +320,21 @@ export default function AtividadeDetalheScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen
+          options={{
+            headerShown: false,
+            // O scrub do perfil de elevação ocupa a largura da janela, e a
+            // borda esquerda dele é o INÍCIO dos dados — onde a mão naturalmente
+            // começa a arrastar. O swipe-back é um reconhecedor de borda e
+            // disputa exatamente essa faixa; o `PanResponder` do JS não cancela
+            // reconhecedor nativo do `react-native-screens`, então os dois
+            // disparavam. Guardar a faixa (tentado antes) só troca o sintoma:
+            // some o arrasto duplo, mas a esquerda do gráfico continua
+            // inutilizável. Aqui o gráfico vale mais que o gesto — sai o gesto,
+            // fica o chevron logo abaixo.
+            gestureEnabled: false,
+          }}
+        />
 
       <View style={styles.header}>
         <Pressable
