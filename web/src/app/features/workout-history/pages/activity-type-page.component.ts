@@ -26,6 +26,8 @@ import { ActivityItemComponent } from '../components/activity-item.component';
 import { TypeEvolutionCardComponent } from '../components/type-evolution-card.component';
 import { EffortTrendCardComponent } from '../components/effort-trend-card.component';
 import { RecordCurveCardComponent } from '../components/record-curve-card.component';
+import { SurfaceCardComponent } from '../components/surface-card.component';
+import { GearStore } from '../data/gear.store';
 
 @Component({
   selector: 'rt-activity-type-page',
@@ -40,6 +42,7 @@ import { RecordCurveCardComponent } from '../components/record-curve-card.compon
     TypeEvolutionCardComponent,
     EffortTrendCardComponent,
     RecordCurveCardComponent,
+    SurfaceCardComponent,
   ],
   templateUrl: './activity-type-page.component.html',
   styleUrl: './activity-type-page.component.scss',
@@ -48,6 +51,7 @@ export class ActivityTypePageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly store = inject(ActivitiesStore);
+  protected readonly gearStore = inject(GearStore);
   private readonly theme = inject(ThemeService);
 
   private readonly _slug = signal('');
@@ -85,6 +89,15 @@ export class ActivityTypePageComponent {
     this.highlights().filter((h) => h.group === 'record' && !EFFORT_KEYS.has(h.key)),
   );
   protected readonly showDistance = computed(() => this.summary()?.hasDistance ?? true);
+
+  /**
+   * Todas as atividades deste tipo, sem os filtros da lista — o piso é um
+   * retrato do esporte, não do recorte que se está olhando na tabela.
+   */
+  protected readonly typedActivities = computed(() => {
+    const id = activityIdForSlug(this._slug());
+    return id == null ? [] : this.store.activities().filter((a) => a.activityId === id);
+  });
   /** Código do esporte da rota; `null` para rótulos sem id (a tendência então não aparece). */
   protected readonly sportId = computed(() => activityIdForSlug(this._slug()) ?? null);
 
@@ -145,6 +158,9 @@ export class ActivityTypePageComponent {
   protected readonly fmtKcal = fmtKcal;
 
   constructor() {
+    // As bicicletas: poucas linhas, e o cartão de Piso as usa como lente.
+    void this.gearStore.load();
+
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((pm) => {
       this._slug.set(pm.get('slug') ?? '');
       this.page.set(1);

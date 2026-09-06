@@ -68,6 +68,11 @@
     }
 
     @if (summary(); as s) {
+      <!-- O chão que este esporte pisa (ADR 0034). Antes dos recordes de
+           propósito: recorde é desempenho, piso é contexto — e é o contexto que
+           explica por que um número foi o que foi. Some sozinho no esporte sem
+           piso medido, que hoje é todo mundo menos o ciclismo. -->
+      <rt-surface-card [activities]="typedActivities()" [gears]="gearStore.gears()" />
       <!-- Os recordes em forma: os mesmos pontos da tira acima, num eixo só,
            para ler onde é forte e onde cai. Some com menos de duas marcas. -->
       @if (sportId(); as id) {

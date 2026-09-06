@@ -127,7 +127,15 @@ usuário porque o aparelho estava bloqueado). O que há para olhar:
 
 ## Fase 4 — Web recompõe
 
-- [ ] T4.1 Coluna única, mesmo núcleo; nenhuma decisão visual nova.
+- [x] T4.1 (06/09) `SurfaceCardComponent` — o mesmo cartão, recomposto em Angular:
+      dois modos (período com lente de bicicleta, ou uma pedalada só). A rampa sai
+      de `surfaceRamp` com os tokens do `ThemeService`; classes, ordem e legenda
+      vêm do núcleo. Entra na página do tipo **antes dos recordes** (recorde é
+      desempenho, piso é contexto) e no detalhe, depois da rota.
+- [x] T4.2 `GearStore` (web, signals) e a linha "Bicicleta" no detalhe, **só
+      leitura**: cadastrar e corrigir é captura, e captura vive no celular. Entrou
+      na STORE_ALLOWLIST do `architecture.test.ts` (AD-12).
+- [ ] T4.3 Conferir no navegador.
 
 ## Pesquisa
 

@@ -117,6 +117,12 @@
       </section>
     }
 
+    <!-- O chão desta pedalada (ADR 0034). Fora do bloco da rota: o piso vem do
+         sync e não depende dos pontos carregados nesta sessão. -->
+    @if (a.surfaceMix) {
+      <rt-surface-card [mix]="a.surfaceMix" />
+    }
+
     <!-- Fora do bloco da rota de propósito: `bestEfforts` vem do sync e existe
          mesmo antes de a rota carregar. Some sozinho quando não há GPS. -->
     @if (segments().length > 0) {
@@ -228,6 +234,14 @@
         }
         @if (a.device) {
           <div class="info-row"><dt>Dispositivo</dt><dd>{{ a.device }}</dd></div>
+        }
+        <!-- Qual bicicleta era, pela data (ADR 0033). Só leitura aqui: corrigir
+             é captura, e captura vive no celular. -->
+        @if (gear(); as g) {
+          <div class="info-row">
+            <dt>Bicicleta</dt>
+            <dd>{{ g.name }}{{ a.gearId ? ' · corrigida' : '' }}</dd>
+          </div>
         }
         <div class="info-row"><dt>Rastreado por GPS</dt><dd>{{ a.tracked ? 'Sim' : 'Não' }}</dd></div>
         <div class="info-row"><dt>Possui rota</dt><dd>{{ a.hasRoute ? 'Sim' : 'Não' }}</dd></div>

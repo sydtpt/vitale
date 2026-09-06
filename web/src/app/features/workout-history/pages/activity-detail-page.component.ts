@@ -6,6 +6,7 @@ import {
   METRIC_ROLE,
   elevationProfile,
   fillsCards,
+  gearForActivity,
   HR_ZONES,
   hrZoneRange,
   movingTimeFromRoutePoints,
@@ -20,7 +21,9 @@ import { IconComponent } from '@core/services/icon.component';
 import { ThemeService } from '@core/theme/theme.service';
 import { metaForActivity } from '@core/models/activity-types';
 import { ActivitiesStore } from '../data/activities.store';
+import { GearStore } from '../data/gear.store';
 import { ActivityMapComponent } from '../components/activity-map.component';
+import { SurfaceCardComponent } from '../components/surface-card.component';
 import { RouteProfileCardComponent } from '../components/route-profile-card.component';
 import { formatClock, fmtDate, fmtDuration, fmtElevation, fmtKcal, fmtKm, formatRate, fmtTime, totalTimeS } from '../data/format';
 import { activityRecordBadges, type RecordBadge } from '../data/running-highlights';
@@ -29,7 +32,14 @@ import { activityRecordBadges, type RecordBadge } from '../data/running-highligh
   selector: 'rt-activity-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, NgStyle, IconComponent, ActivityMapComponent, RouteProfileCardComponent],
+  imports: [
+    RouterLink,
+    NgStyle,
+    IconComponent,
+    ActivityMapComponent,
+    RouteProfileCardComponent,
+    SurfaceCardComponent,
+  ],
   templateUrl: './activity-detail-page.component.html',
   styleUrl: './activity-detail-page.component.scss',
 })
@@ -37,11 +47,18 @@ export class ActivityDetailPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly store = inject(ActivitiesStore);
+  private readonly gearStore = inject(GearStore);
 
   private readonly _id = signal('');
   protected readonly slug = signal('');
 
   protected readonly activity = computed(() => this.store.findById(this._id()));
+
+  /** A bicicleta desta pedalada: exceção explícita, ou a que a data escolhe. */
+  protected readonly gear = computed(() => {
+    const a = this.activity();
+    return a ? gearForActivity(this.gearStore.gears(), a) : undefined;
+  });
   protected readonly meta = computed(() => {
     const a = this.activity();
     return a ? metaForActivity(a.activityId) : undefined;

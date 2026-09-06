@@ -64,6 +64,7 @@ const STORE_ALLOWLIST = new Set([
   'connections.store.ts',
   'cultura.store.ts',
   'daily-ratings.store.ts',
+  'gear.store.ts',
   'goals.store.ts',
   'habits.store.ts',
   'health.store.ts',
