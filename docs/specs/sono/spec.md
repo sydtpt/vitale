@@ -425,10 +425,13 @@ usuário deitou: ele renomeia a janela de sono. **A hora de deitar deixou de ser
 Por isso CAP-1 é especificado para funcionar com **dois** relógios e exibir o terceiro
 quando ele existir — o V1 não depende de ele voltar.
 
-> **Aberto (04/09/2026):** se o **Foco de Sono agendado** no iPhone faz o iOS escrever
-> `inBed` mesmo com o Garmin no pulso. Era o que produzia os 100 min de folga na era Apple.
-> Custo zero, decide se CAP-1 tem dois ou três relógios. Teste ligado em 04/09; resultado
-> pendente.
+> **Resolvido em 06/09/2026 — não, e CAP-1 fica com dois relógios.** A pergunta era se o
+> **Foco de Sono agendado** no iPhone (ligado em 04/09) faria o iOS escrever `inBed` mesmo com
+> o Garmin no pulso, como produzia os 100 min de folga na era Apple. Medido nas cinco noites
+> de 01 a 05/09: **nenhuma tem `extra.onset`**, e no `sleep_periods` a janela `INBED` abre
+> **exatamente** no instante do sono nas cinco — folga de 0 min antes de apagar. O Garmin
+> continua renomeando a janela de sono, e o campo "Deitou" segue vazio com a explicação.
+> Reabre só se ele voltar a dormir com o Apple Watch.
 >
 > **Resolvido em 04/09:** a lacuna de 01 a 04/09 era atraso de sync, não perda. As quatro
 > noites entraram (7,33 h · 8,47 h · 6,13 h · 6,53 h), todas com `inbed`, nenhuma com `onset`
