@@ -225,6 +225,36 @@ export function summarizePresence(events: PresenceEvent[]): PresenceSummary {
   };
 }
 
+/** Os sinais vitais de um lugar: ele está vivo, e com que intensidade. */
+export interface PlaceVitals {
+  count: number;
+  /** ISO do último evento, ou null se o lugar nunca disparou. */
+  lastAt: string | null;
+}
+
+/**
+ * Contagem e último evento por lugar.
+ *
+ * É o que a lista mostra embaixo do nome, e responde à única pergunta que
+ * importa de relance na fase 0: **este lugar está mudo?** Um lugar sem evento
+ * nenhum depois de dias é o sintoma central — raio pequeno demais, centro no
+ * lugar errado, ou a permissão caiu. Ler isso hoje exige percorrer o log
+ * inteiro; aqui custa uma passada.
+ */
+export function vitalsByPlace(events: readonly PresenceEvent[]): Map<string, PlaceVitals> {
+  const out = new Map<string, PlaceVitals>();
+  for (const e of events) {
+    const atual = out.get(e.placeId);
+    if (!atual) {
+      out.set(e.placeId, { count: 1, lastAt: e.at });
+    } else {
+      atual.count += 1;
+      if (e.at > atual.lastAt!) atual.lastAt = e.at;
+    }
+  }
+  return out;
+}
+
 function minutesBetween(a: string, b: string): number {
   return Math.abs(new Date(b).getTime() - new Date(a).getTime()) / 60000;
 }

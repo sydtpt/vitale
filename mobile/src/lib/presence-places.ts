@@ -14,6 +14,24 @@ export interface PresencePlace {
   lat: number;
   lon: number;
   radiusM: number;
+  /** ISO da criação. Ausente nos lugares gravados antes deste campo existir. */
+  createdAt?: string;
+  /**
+   * ISO da última mudança de **geometria** — centro ou raio.
+   *
+   * Existe porque mexer no raio no meio da observação troca o instrumento: as
+   * passagens e colagens contadas antes vieram de outro círculo, e somá-las às
+   * de depois produz um número que não mede nada. O carimbo não impede a
+   * mudança; ele impede que ela seja silenciosa.
+   *
+   * Renomear **não** carimba: o nome não muda o que o iOS vigia.
+   */
+  geometryChangedAt?: string;
+}
+
+/** Mudou o que o iOS vigia? Nome não conta; centro e raio contam. */
+export function geometryDiffers(a: PresencePlace, b: PresencePlace): boolean {
+  return a.lat !== b.lat || a.lon !== b.lon || a.radiusM !== b.radiusM;
 }
 
 const KEY = 'vitale:presence-places';
@@ -67,8 +85,24 @@ export async function upsertPresencePlace(
       `O iOS vigia no máximo ${MAX_REGIONS} regiões por app. Apague um lugar antes de criar outro.`,
     );
   }
-  const without = current.filter((p) => p.id !== place.id);
-  const next = [...without, { ...place, radiusM: Math.max(MIN_RADIUS_M, place.radiusM) }];
+  const anterior = current.find((p) => p.id === place.id);
+  const normalizado: PresencePlace = {
+    ...place,
+    radiusM: Math.max(MIN_RADIUS_M, place.radiusM),
+    createdAt: anterior?.createdAt ?? place.createdAt ?? new Date().toISOString(),
+  };
+  // O carimbo é herdado, e só é reposto quando a geometria de fato mudou —
+  // salvar a tela sem mexer no mapa nem no slider não pode inventar uma troca.
+  normalizado.geometryChangedAt = anterior
+    ? geometryDiffers(anterior, normalizado)
+      ? new Date().toISOString()
+      : anterior.geometryChangedAt
+    : undefined;
+
+  // Preserva a ordem: um lugar editado não deve pular para o fim da lista.
+  const next = anterior
+    ? current.map((p) => (p.id === place.id ? normalizado : p))
+    : [...current, normalizado];
   await writePresencePlaces(next, store);
   return next;
 }
