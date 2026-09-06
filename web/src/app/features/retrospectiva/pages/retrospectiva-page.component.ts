@@ -25,6 +25,7 @@ import { formatClock } from '@features/workout-history/data/format';
 import { RetroStore } from '../data/retro.store';
 import { HeatmapGridComponent } from '../components/heatmap-grid.component';
 import { TaskGridStripComponent } from '../components/task-grid-strip.component';
+import { SleepRetroCardComponent } from '../components/sleep-retro-card.component';
 
 /** Ícone neutro do shared → nome do set `rt-icon`. */
 const ICON_MAP: Record<HighlightIcon, string> = {
@@ -52,7 +53,7 @@ const LEDE_EYEBROW: Record<PeriodKind, string> = {
   selector: 'rt-retrospectiva-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, IconComponent, HeatmapGridComponent, TaskGridStripComponent],
+  imports: [PageHeaderComponent, IconComponent, HeatmapGridComponent, TaskGridStripComponent, SleepRetroCardComponent],
   templateUrl: './retrospectiva-page.component.html',
   styleUrl: './retrospectiva-page.component.scss',
 })
