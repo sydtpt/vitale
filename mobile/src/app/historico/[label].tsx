@@ -814,9 +814,15 @@ const styles = themed(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    // Com o chip de bicicleta a linha ganhou um terceiro controle, e nome de
+    // bicicleta é longo ("Cube Nuroad SLX"): sem quebra, o chip saía pela borda
+    // da tela. Quebrando, ele desce inteiro e legível em vez de ser cortado —
+    // e nos tipos sem bicicleta a linha continua com dois chips, como era.
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   filterToggle: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
