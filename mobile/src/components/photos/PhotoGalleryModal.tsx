@@ -123,8 +123,21 @@ function Viewer({
   const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const pan = useRef(
     PanResponder.create({
+      /**
+       * **Captura**, não a fase normal. O `ScrollView` horizontal é uma view
+       * nativa e assume o responder assim que o dedo se move: pedindo o gesto
+       * pela fase de bolha o pai nunca o recebe, e foi por isso que a primeira
+       * versão simplesmente não fez nada (conferido no iPhone em 07/09/2026).
+       *
+       * A guarda continua sendo o que protege o carrossel: só captura quando o
+       * movimento é claramente vertical e já andou o suficiente para não ser
+       * um toque trêmulo.
+       */
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponderCapture: (_, g) =>
+        g.dy > 12 && Math.abs(g.dy) > Math.abs(g.dx) * 2,
       onMoveShouldSetPanResponder: (_, g) =>
-        g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx) * 2,
+        g.dy > 12 && Math.abs(g.dy) > Math.abs(g.dx) * 2,
       onPanResponderMove: (_, g) => {
         if (g.dy > 0) drag.setValue({ x: 0, y: g.dy });
       },
