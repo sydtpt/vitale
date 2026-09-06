@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { MAP_STYLES } from '@vitale/shared';
@@ -212,6 +212,12 @@ export default function PresencaLocalScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* O swipe-back de borda compete com o slider: o polegar no raio mínimo
+          fica a ~24 px da esquerda, dentro da faixa que o iOS reconhece, e os
+          dois gestos disparam juntos. Aqui não dá para guardar a borda como o
+          scrub do gráfico faz — o alvo útil mora nela. Some o gesto, fica o
+          chevron do cabeçalho. Ver `lib/back-gesture.ts`. */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
