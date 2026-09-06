@@ -381,12 +381,30 @@
   - `sleepRetro` ganhou um **quinto parâmetro opcional**; quem chama sem ele recebe a peça de
     05/09 intacta, e há teste travando isso. Validação: shared lint 0 · 646 asserts ·
     mobile tsc 0 · jest 627 · web build 0 · web test 141. Commit `f0ceae0`, merge `fa1fb30`.
-- [ ] T8.6 — **A conferência em tela, que é tudo o que falta da frente de Sono.** Um build por
-  cabo e uma passada no navegador fecham **seis** entregas escritas em 05 e 06/09 e nunca
-  vistas em aparelho: T7.4 (web de Tempos e Despertares), T7.6 (a noite na Hoje), T7.7 (o
-  bloco da retro), T7.8 (Dispersão e antes × agora), T7.11 (a Grade), T8.2–T8.4 (Saúde do sono
-  nas duas telas) e T8.7 (a página de jornal). Nada disso foi visto
-  em aparelho ainda.
+- [x] T8.6 — **Conferida em 06/09/2026, no iPhone e no navegador.** Um build Release por cabo
+  (`pnpm mobile:device`) e uma passada na web fecharam de uma vez **seis** entregas escritas em
+  05 e 06/09 e até então nunca vistas em tela: T7.4 (web de Tempos e Despertares), T7.6 (a
+  noite na Hoje), T7.7 (o bloco da retro), T7.8 (Dispersão e antes × agora), T7.11 (a Grade),
+  T8.2–T8.4 (Saúde do sono nas duas telas) e T8.7 (a página de jornal). O usuário aprovou nos
+  dois — *"ficou otimo"* no aparelho e *"ficou bom na web"*. Junto foi a T8.8.
+
+- [x] T8.8 — **CAP-12: a forma do despertar e o que precedeu a noite** (06/09, quatro decisões
+  aprovadas na proposta `claude.ai/code/artifact/58b884cf-b5bb-4285-83f3-c2f6199d2dd0`: peça
+  nos dois lugares · janela de 180 noites fixas · régua de alcance entra · regra das duas
+  colunas aceita). Commit `2faefcf`, **sem push**.
+  - **O despertar típico** — mediana, p90 e o maior com data, mais a fração abaixo de 5 min. O
+    mínimo ficou de fora: vale 0,0 em toda janela, é a resolução do sensor. Única leitura de
+    vigília que atravessa a troca de relógio (contagem 4,3 → 1,1; mediana 9 → 11 min).
+  - **Relógio ou corpo** — relógio 1,28× e p = 0,50 (nada); corpo 2,45× e p < 0,001 na primeira
+    meia hora. **O guarda de 1 h é o que impede o falso positivo**: sem ele o pico de início de
+    noite vaza para o eixo do relógio e o teste acusa 23h (44 contra 19,6, p < 0,001).
+  - **O que precedeu a noite** — a regra das duas colunas
+    ([ADR 0040](../../../docs/decisions/0040-o-cruzamento-so-fala-quando-as-duas-colunas-concordam.md))
+    mata oito cruzamentos falsos, entre eles "fumar te faz dormir 2h39 a mais". Sobrevivem
+    oito leituras; a cerveja é uma delas (−33 min, com −30 e −36 nas duas colunas).
+  - **Validação:** shared `tsc` 0 · 653 asserts com as 13 barreiras · web build 0 e 141 testes ·
+    mobile `tsc` 0 e 629 testes. Núcleo com 29 testes novos, incluindo o **controle positivo**
+    (um "trem das 6h10" sintético É detectado, na hora certa).
 
 ## Fechamento
 
