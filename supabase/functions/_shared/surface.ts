@@ -38,11 +38,38 @@ import {
 type Admin = any;
 
 const BIKE_ACTIVITY_ID = 13;
-const OVERPASS_URL = Deno.env.get('OVERPASS_URL') ?? 'https://overpass-api.de/api/interpreter';
+
+/**
+ * Espelhos do Overpass, na ordem de tentativa. `OVERPASS_URL` (env) entra na
+ * frente quando existe.
+ *
+ * Por que mais de um: a mesma consulta desta rota responde em ~5 s da rede de
+ * casa e ficou **125 s pendurada** saindo da edge function (smoke test de
+ * 06/09/2026). O Overpass dá slots por IP, e o IP de saída da Supabase é
+ * compartilhado — quando os slots dele estão gastos, a requisição fica na fila
+ * em vez de levar 429. Espelho diferente é fila diferente.
+ */
+const OVERPASS_MIRRORS = [
+  Deno.env.get('OVERPASS_URL'),
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+].filter((u): u is string => !!u);
+
 const OVERPASS_UA = Deno.env.get('GEOCODE_UA') ?? 'Orbe/1.0 (life-organizer)';
-const OVERPASS_TIMEOUT_MS = 120_000;
+/**
+ * Curto de propósito. A consulta real custa segundos; qualquer coisa acima
+ * disto é fila, e esperar na fila com o relógio da function correndo é pior que
+ * desistir — o passe é retry-safe e a pedalada volta na próxima janela.
+ */
+const OVERPASS_TIMEOUT_MS = 25_000;
 export const MAX_SURFACE_ACTIVITIES_PER_RUN = 1;
-const RETRY_AFTER_H = 24;
+/**
+ * Falha volta à fila em horas, não em um dia: com o backfill feito, o passe só
+ * cuida das pedaladas novas, e uma janela curta dá várias chances por dia sem
+ * custar nada quando não há o que fazer.
+ */
+const RETRY_AFTER_H = 6;
 
 interface OverpassElement {
   type: string;
@@ -50,31 +77,52 @@ interface OverpassElement {
   geometry?: Array<{ lat: number; lon: number }>;
 }
 
-/** Uma chamada por rota: todas as vias `highway` a até `radiusM` da polilinha das amostras. */
+function parseWays(body: unknown): OsmWay[] {
+  const elements = ((body as { elements?: OverpassElement[] })?.elements ?? []);
+  return elements
+    .filter((e) => e.type === 'way' && e.geometry && e.geometry.length > 0)
+    .map((e) => ({
+      tags: e.tags ?? {},
+      geometry: e.geometry!.map((g) => ({ lat: g.lat, lng: g.lon })),
+    }));
+}
+
+/**
+ * Uma chamada por rota: todas as vias `highway` a até `radiusM` da polilinha das
+ * amostras. Tenta os espelhos em ordem e devolve o primeiro que responder; se
+ * todos falharem, lança com o motivo de cada um — a mensagem vai para
+ * `surface_meta.error` e é o que diz se foi fila, 429 ou rede.
+ */
 async function fetchWaysAlong(points: readonly LatLng[], radiusM: number): Promise<OsmWay[]> {
   const poly = points.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join(',');
   const query = `[out:json][timeout:${Math.floor(OVERPASS_TIMEOUT_MS / 1000)}];way(around:${radiusM},${poly})[highway];out geom;`;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), OVERPASS_TIMEOUT_MS + 5_000);
-  try {
-    const res = await fetch(OVERPASS_URL, {
-      method: 'POST',
-      headers: { 'User-Agent': OVERPASS_UA, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `data=${encodeURIComponent(query)}`,
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`overpass HTTP ${res.status}`);
-    const body = await res.json();
-    const elements = (body?.elements ?? []) as OverpassElement[];
-    return elements
-      .filter((e) => e.type === 'way' && e.geometry && e.geometry.length > 0)
-      .map((e) => ({
-        tags: e.tags ?? {},
-        geometry: e.geometry!.map((g) => ({ lat: g.lat, lng: g.lon })),
-      }));
-  } finally {
-    clearTimeout(timer);
+  const failures: string[] = [];
+  for (const url of OVERPASS_MIRRORS) {
+    const host = new URL(url).host;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), OVERPASS_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'User-Agent': OVERPASS_UA, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`,
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        failures.push(`${host} HTTP ${res.status}`);
+        continue;
+      }
+      return parseWays(await res.json());
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // O abort tem mensagem genérica ("The signal has been aborted"); o que
+      // importa registrar é QUAL espelho ficou pendurado e por quanto tempo.
+      failures.push(`${host} ${ctrl.signal.aborted ? `timeout ${OVERPASS_TIMEOUT_MS / 1000}s` : msg}`);
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw new Error(`overpass indisponível — ${failures.join(' · ')}`);
 }
 
 /** Calcula piso, segmentos e meta de uma rota já reduzida (`route_overview`). */
