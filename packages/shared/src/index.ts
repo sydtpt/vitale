@@ -100,6 +100,7 @@ export * from './fitness/best-efforts';
 export * from './fitness/best-effort-trend';
 export * from './fitness/weekly-load';
 export * from './fitness/route-cursor';
+export * from './fitness/time-rail';
 export * from './fitness/metric-roles';
 export * from './gear/assign';
 export * from './photos/window';

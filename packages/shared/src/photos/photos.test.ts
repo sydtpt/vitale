@@ -28,6 +28,7 @@ import {
 } from './stops';
 import { PHOTO_CORRIDOR_M, classifyCandidate, matchToRoute } from './match';
 import { groupByStop } from './group';
+import { indexAtTimeFraction, timeRail } from '../fitness/time-rail';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -320,6 +321,37 @@ check('parada sem foto não aparece, e pedalada sem foto não quebra', () => {
 
   const noStops = groupByStop([{ takenAtMs: T0 }], []);
   assert.equal(noStops.moving.length, 1, 'sem parada, tudo é movimento');
+});
+
+// ── Trilho do tempo ─────────────────────────────────────
+
+check('o trilho separa movimento de parada, e o vão é o dado', () => {
+  const rail = timeRail(withStop, detectStops(withStop));
+  assert.ok(rail);
+  assert.equal(rail.stopped.length, 1, 'uma parada');
+  assert.equal(rail.moving.length, 2, 'ela parte o movimento em dois');
+  assert.ok(rail.moving[0].to === rail.stopped[0].from, 'o vão começa onde o movimento para');
+  assert.ok(rail.stopped[0].to === rail.moving[1].from, 'e termina onde ele volta');
+  assert.equal(rail.moving[0].from, 0);
+  assert.equal(rail.moving[1].to, 1);
+});
+
+check('pedalada sem parada é um trecho só', () => {
+  const rail = timeRail(straight, []);
+  assert.ok(rail);
+  assert.deepEqual(rail.moving, [{ from: 0, to: 1 }]);
+  assert.deepEqual(rail.stopped, []);
+});
+
+check('sem tempo não há trilho', () => {
+  assert.equal(timeRail([{ lat: 51.9, lng: 4.5 }, { lat: 51.91, lng: 4.5 }], []), null);
+  assert.equal(timeRail([], []), null);
+});
+
+check('a fração de tempo vira índice no traçado', () => {
+  assert.equal(indexAtTimeFraction(straight, 0), 0);
+  assert.equal(indexAtTimeFraction(straight, 1), straight.length - 1);
+  assert.equal(indexAtTimeFraction(straight, 0.5), 20, 'meio do tempo, ponto do meio');
 });
 
 console.log(`\n${passed} testes passaram.`);

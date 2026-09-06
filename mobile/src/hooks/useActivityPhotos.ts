@@ -24,6 +24,8 @@ export interface ActivityPhotoView {
   stopMarks: { lat: number; lng: number; count: number }[];
   /** Fotos fora de parada — ponto pequeno no mapa. */
   dotMarks: { lat: number; lng: number }[];
+  /** Paradas com foto no eixo do tempo — o que o trilho marca. */
+  railMarks: { atMs: number; count: number }[];
   grouped: ReturnType<typeof groupByStop<ActivityPhoto & { takenAtMs: number }>>;
   reload: () => Promise<void>;
 }
@@ -78,5 +80,10 @@ export function useActivityPhotos(
     [grouped],
   );
 
-  return { photos, stopMarks, dotMarks, grouped, reload };
+  const railMarks = useMemo(
+    () => grouped.stops.map(({ stop, photos: ps }) => ({ atMs: stop.startMs, count: ps.length })),
+    [grouped],
+  );
+
+  return { photos, stopMarks, dotMarks, railMarks, grouped, reload };
 }

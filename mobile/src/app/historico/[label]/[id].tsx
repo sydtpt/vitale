@@ -37,6 +37,7 @@ import { WorkoutMap } from '../../../components/WorkoutMap';
 import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
 import { ActivityPhotosCard } from '../../../components/photos/ActivityPhotosCard';
 import { useActivityPhotos } from '../../../hooks/useActivityPhotos';
+import { TimeRailCard } from '../../../components/photos/TimeRailCard';
 import { ClimbsCard } from '../../../components/cards/ClimbsCard';
 import { SegmentsCard } from '../../../components/cards/SegmentsCard';
 import { SurfaceCard } from '../../../components/cards/SurfaceCard';
@@ -430,6 +431,14 @@ export default function AtividadeDetalheScreen() {
                 verdade. Some em percurso plano — e some em quase toda corrida,
                 que é a resposta certa para corrida. */}
             <ClimbsCard points={routePoints ?? []} />
+            {/* O eixo que sempre significa algo (ADR 0037): o relógio. Onde o
+                perfil é plano — a Holanda inteira — é este que conta o dia. */}
+            <TimeRailCard
+              points={routePoints ?? []}
+              totalDistanceM={activity.distanceM}
+              marks={photoView.railMarks}
+              onScrub={setCursorX}
+            />
           </>
         )}
 
