@@ -22,9 +22,14 @@ import {
   ScrollView,
   Image,
   Animated,
-  PanResponder,
   useWindowDimensions,
 } from 'react-native';
+import {
+  GestureHandlerRootView,
+  PanGestureHandler,
+  State,
+  type PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ActivityPhoto } from '@vitale/shared';
@@ -112,72 +117,71 @@ function Viewer({
   const [current, setCurrent] = useState(index);
 
   /**
-   * Arrastar para baixo fecha — o gesto que todo visor de foto tem, e que o
-   * usuário pediu em 07/09/2026 depois de tentar usá-lo por instinto.
+   * Arrastar para baixo fecha.
    *
-   * `Animated` do RN, não Reanimated (ADR 0010). O responder só assume quando o
-   * movimento é **claramente vertical** (|dy| > 2·|dx|): sem isso ele roubaria
-   * o gesto do carrossel horizontal, e deslizar entre fotos deixaria de
-   * funcionar — que seria trocar um bug por outro.
+   * Duas tentativas anteriores falharam no aparelho, e a razão é a mesma: o
+   * `ScrollView` horizontal do iOS resolve o arrasto no **nível nativo**, com
+   * o próprio `UIPanGestureRecognizer`. O `PanResponder` do RN — nem na fase
+   * de bolha nem na de captura — chega a ver o gesto, porque ele nunca vira
+   * evento de toque no JS.
+   *
+   * O `react-native-gesture-handler` fala com os reconhecedores nativos, que é
+   * o único nível onde os dois gestos podem negociar. Ele já estava instalado,
+   * e a ADR 0010 proíbe o **Reanimated**, não ele — por isso a animação segue
+   * no `Animated` do RN, via `Animated.event`.
+   *
+   * `activeOffsetY` só ativa depois de 12 px verticais; `failOffsetX` desiste
+   * assim que o dedo anda 16 px na horizontal, devolvendo o gesto ao carrossel.
+   * É essa dupla que faz os dois conviverem, e não um limiar em JS.
    */
-  const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const pan = useRef(
-    PanResponder.create({
-      /**
-       * **Captura**, não a fase normal. O `ScrollView` horizontal é uma view
-       * nativa e assume o responder assim que o dedo se move: pedindo o gesto
-       * pela fase de bolha o pai nunca o recebe, e foi por isso que a primeira
-       * versão simplesmente não fez nada (conferido no iPhone em 07/09/2026).
-       *
-       * A guarda continua sendo o que protege o carrossel: só captura quando o
-       * movimento é claramente vertical e já andou o suficiente para não ser
-       * um toque trêmulo.
-       */
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponderCapture: (_, g) =>
-        g.dy > 12 && Math.abs(g.dy) > Math.abs(g.dx) * 2,
-      onMoveShouldSetPanResponder: (_, g) =>
-        g.dy > 12 && Math.abs(g.dy) > Math.abs(g.dx) * 2,
-      onPanResponderMove: (_, g) => {
-        if (g.dy > 0) drag.setValue({ x: 0, y: g.dy });
-      },
-      onPanResponderRelease: (_, g) => {
-        // Fecha por distância OU por velocidade: um puxão curto e rápido é tão
-        // intencional quanto um arrasto longo.
-        if (g.dy > 110 || g.vy > 0.7) {
-          Animated.timing(drag, {
-            toValue: { x: 0, y: height },
-            duration: 160,
-            useNativeDriver: true,
-          }).start(onClose);
-        } else {
-          Animated.spring(drag, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: true,
-            bounciness: 0,
-          }).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(drag, { toValue: { x: 0, y: 0 }, useNativeDriver: true, bounciness: 0 }).start();
-      },
-    }),
-  ).current;
+  const dragY = useRef(new Animated.Value(0)).current;
+
+  const onDrag = Animated.event([{ nativeEvent: { translationY: dragY } }], {
+    useNativeDriver: true,
+  });
+
+  const onDragEnd = (e: PanGestureHandlerStateChangeEvent) => {
+    if (e.nativeEvent.state !== State.END && e.nativeEvent.state !== State.CANCELLED) return;
+    const { translationY, velocityY } = e.nativeEvent;
+    // Fecha por distância OU por velocidade: um puxão curto e rápido é tão
+    // intencional quanto um arrasto longo.
+    if (translationY > 110 || velocityY > 700) {
+      Animated.timing(dragY, {
+        toValue: height,
+        duration: 160,
+        useNativeDriver: true,
+      }).start(onClose);
+    } else {
+      Animated.spring(dragY, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+    }
+  };
 
   /** O fundo clareia conforme o dedo desce — o visor "solta" a foto. */
-  const backdrop = drag.y.interpolate({
+  const backdrop = dragY.interpolate({
     inputRange: [0, height * 0.5],
     outputRange: [1, 0.2],
     extrapolate: 'clamp',
   });
+  /** Só para baixo: puxar para cima não arrasta nada. */
+  const shift = dragY.interpolate({
+    inputRange: [0, height],
+    outputRange: [0, height],
+    extrapolateLeft: 'clamp',
+  });
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Animated.View style={[styles.viewerBackdrop, { opacity: backdrop }]} />
-      <Animated.View
-        style={[styles.viewer, { transform: [{ translateY: drag.y }] }]}
-        {...pan.panHandlers}
-      >
+      {/* O RNGH exige a própria raiz dentro de um `Modal` do RN — sem ela o
+          gesto não chega ao handler, e o visor volta a não fazer nada. */}
+      <GestureHandlerRootView style={styles.viewerRoot}>
+        <Animated.View style={[styles.viewerBackdrop, { opacity: backdrop }]} />
+        <PanGestureHandler
+          activeOffsetY={12}
+          failOffsetX={[-16, 16]}
+          onGestureEvent={onDrag}
+          onHandlerStateChange={onDragEnd}
+        >
+          <Animated.View style={[styles.viewer, { transform: [{ translateY: shift }] }]}>
         <ScrollView
           horizontal
           pagingEnabled
@@ -209,7 +213,9 @@ function Viewer({
             {current + 1} de {photos.length}
           </Text>
         </View>
-      </Animated.View>
+          </Animated.View>
+        </PanGestureHandler>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -515,6 +521,7 @@ const createStyles = () =>
      * O visor é escuro nos dois esquemas, de propósito: a foto é que manda, e
      * um fundo claro em volta dela lava a imagem. É a convenção de todo visor.
      */
+    viewerRoot: { flex: 1 },
     viewer: { flex: 1 },
     /**
      * O fundo é uma camada à parte para poder clarear enquanto a foto desce.
