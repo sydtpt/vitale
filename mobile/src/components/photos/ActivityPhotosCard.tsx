@@ -32,6 +32,7 @@ import type { ActivityRoutePoint } from '@vitale/shared';
 import { colors, fonts, onMedia, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { useAuthStore } from '../../store/auth.store';
 import { useActivityPhotos } from '../../hooks/useActivityPhotos';
+import { formatClip } from '../../lib/workout-format';
 import type { PhotoCandidate } from '../../lib/activity-photos';
 import {
   type PhotoAccess,
@@ -265,6 +266,12 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
                 {ps.slice(0, PREVIEW).map((p) => (
                   <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
                     <Thumb uri={assetUri(p.assetId)} style={styles.thumb} />
+                    {p.mediaType === 'video' && p.durationS !== null && (
+                      <View style={styles.clip}>
+                        <Ionicons name="play" size={7} color={onMedia} />
+                        <Text style={styles.clipText}>{formatClip(p.durationS)}</Text>
+                      </View>
+                    )}
                     {p.isCover && (
                       <View style={styles.coverBadge}>
                         <Ionicons name="star" size={9} color={onMedia} />
@@ -293,6 +300,12 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
               {grouped.moving.slice(0, PREVIEW).map((p) => (
                 <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
                   <Thumb uri={assetUri(p.assetId)} style={styles.thumb} />
+                  {p.mediaType === 'video' && p.durationS !== null && (
+                    <View style={styles.clip}>
+                      <Ionicons name="play" size={7} color={onMedia} />
+                      <Text style={styles.clipText}>{formatClip(p.durationS)}</Text>
+                    </View>
+                  )}
                 </Pressable>
               ))}
             </View>
@@ -360,6 +373,20 @@ const createStyles = () =>
       borderColor: colors.lineDeep,
       borderStyle: 'dashed',
     },
+    /** A duração fica na base, onde não briga com a estrela de capa (topo). */
+    clip: {
+      position: 'absolute',
+      left: 3,
+      bottom: 3,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+      borderRadius: 6,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    clipText: { fontSize: 9, fontFamily: fonts.monoSemiBold, color: onMedia },
     coverBadge: {
       position: 'absolute',
       right: 3,

@@ -24,6 +24,7 @@ import type { CandidateGroup } from '@vitale/shared';
 import type { PhotoCandidate } from '../../lib/activity-photos';
 import type { PhotoAccess, ScanResult } from '../../services/activity-photos';
 import { colors, fonts, onMedia, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { formatClip } from '../../lib/workout-format';
 
 /** Miniaturas mostradas por grupo antes do "+N". */
 const PREVIEW = 4;
@@ -226,7 +227,10 @@ export function PhotoSuggestSheet({
                             </View>
                             {p.mediaType === 'video' && (
                               <View style={styles.badge}>
-                                <Ionicons name="play" size={9} color={onMedia} />
+                                <Ionicons name="play" size={8} color={onMedia} />
+                                {p.durationS !== null && (
+                                  <Text style={styles.badgeText}>{formatClip(p.durationS)}</Text>
+                                )}
                               </View>
                             )}
                             {p.inCloud && (
@@ -344,13 +348,16 @@ const createStyles = () =>
       position: 'absolute',
       left: 4,
       bottom: 4,
-      width: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+      paddingHorizontal: 4,
       height: 15,
       borderRadius: 8,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      alignItems: 'center',
+      backgroundColor: 'rgba(0,0,0,0.55)',
       justifyContent: 'center',
     },
+    badgeText: { fontSize: 9, fontFamily: fonts.monoSemiBold, color: onMedia },
     cloud: {
       position: 'absolute',
       left: 4,

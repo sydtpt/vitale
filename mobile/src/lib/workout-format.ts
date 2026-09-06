@@ -61,3 +61,14 @@ export function formatElevation(meters: number): string | null {
   if (!meters || meters <= 0) return null;
   return `${Math.round(meters)} m`;
 }
+
+/**
+ * Duração de um clipe curto: `0:07`, `1:12`.
+ *
+ * Distinta de `formatDuration`, que fala em horas e minutos porque descreve
+ * treino. Um vídeo de pedalada tem segundos, e "0 min" não diz nada.
+ */
+export function formatClip(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}

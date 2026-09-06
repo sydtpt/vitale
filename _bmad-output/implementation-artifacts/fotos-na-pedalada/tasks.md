@@ -167,11 +167,19 @@ Duas barreiras de arquitetura pegaram **defeito real**, não estilo:
 - [x] **T6.4** Validação: shared 28 suítes (23 no núcleo de fotos), web build + 141 testes,
       mobile `tsc` + 49 suítes.
 
-## Fase 7 — Vídeo
+## Fase 7 — Vídeo (feita em 06/09/2026)
 
-- [ ] **T7.1** `mediaType: ['photo','video']` na varredura, `duration_s` gravado.
-- [ ] **T7.2** Marca de duração na tira; miniatura por `expo-video-thumbnails` ou pelo
-      thumbnail do asset.
+- [x] **T7.1** Vídeo já entrava na varredura desde a Fase 3 (`MediaType.VIDEO`), com
+      `duration_s` gravado e a constraint `activity_photos_video_dur` cobrando que exista.
+- [x] **T7.2** Marca de duração no cartão e na folha, com `formatClip` em
+      `lib/workout-format.ts` — distinta de `formatDuration`, que fala em horas porque
+      descreve treino; um vídeo de pedalada tem segundos, e "0 min" não diz nada.
+      A duração fica na base do quadro, onde não briga com a estrela de capa (topo).
+- [x] **T7.3** **`expo-video-thumbnails` NÃO foi adicionado, de propósito.** Seria mais um
+      plugin nativo e mais um prebuild para resolver um problema ainda não confirmado: no
+      iOS o `Image` com `ph://` costuma renderizar o quadro-pôster do vídeo. A Fase 8
+      responde isso de graça, e se falhar o `Thumb` já mostra a lacuna em vez de quebrar.
+      **Decidir só com o aparelho na mão.**
 
 ## Fase 8 — Conferência no aparelho
 

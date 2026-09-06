@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { formatPace, formatSpeed, formatRate, totalTimeS } from '../workout-format';
+import { formatClip, formatPace, formatSpeed, formatRate, totalTimeS } from '../workout-format';
 
 describe('totalTimeS', () => {
   const start = '2026-05-01T10:00:00.000Z';
@@ -60,5 +60,15 @@ describe('formatRate', () => {
 
   it('sem distância → null', () => {
     expect(formatRate(37, 0, 1500)).toBeNull();
+  });
+});
+
+describe('formatClip', () => {
+  it('fala em segundos, que é a escala de um vídeo de pedalada', () => {
+    expect(formatClip(7)).toBe('0:07');
+    expect(formatClip(72)).toBe('1:12');
+    expect(formatClip(0)).toBe('0:00');
+    expect(formatClip(-3)).toBe('0:00');
+    expect(formatClip(59.6)).toBe('1:00');
   });
 });
