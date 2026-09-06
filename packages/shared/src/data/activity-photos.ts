@@ -169,6 +169,30 @@ export async function upsertActivityPhotos(
   if (error) throw error;
 }
 
+/**
+ * Desliga várias fotos de uma vez.
+ *
+ * Existe porque a curadoria acontece **depois**: numa pedalada com muitas
+ * fotos não dá para julgar uma a uma na folha de confirmação, então liga-se
+ * tudo e limpa-se em seguida — e limpar de uma em uma, com rajadas de fotos
+ * quase iguais, é castigo.
+ *
+ * Nunca apaga arquivo: o app não é dono dele (ADR 0037).
+ */
+export async function setPhotosDismissed(
+  db: SupabaseClient,
+  userId: string,
+  photoIds: readonly string[],
+): Promise<void> {
+  if (photoIds.length === 0) return;
+  const { error } = await db
+    .from('activity_photos')
+    .update({ state: 'dismissed', is_cover: false })
+    .in('id', [...photoIds])
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
 /** Desliga uma foto. Nunca apaga o arquivo — o app não é dono dele. */
 export async function setPhotoDismissed(
   db: SupabaseClient,

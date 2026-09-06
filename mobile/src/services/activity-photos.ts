@@ -47,6 +47,7 @@ import {
   setPhotoAssetId,
   setPhotoCover as setPhotoCoverRow,
   setPhotoDismissed,
+  setPhotosDismissed,
   upsertActivityPhotos,
 } from '@vitale/shared';
 import {
@@ -225,6 +226,11 @@ export async function saveDecisions(
   await markPhotosChecked(supabase, userId, activityId);
 
   return { linked: accepted.length, dismissed: rejected.length };
+}
+
+/** Desliga várias fotos de uma vez — a limpeza depois da ligação em massa. */
+export async function dismissPhotos(userId: string, photoIds: readonly string[]): Promise<void> {
+  await setPhotosDismissed(supabase, userId, photoIds);
 }
 
 /** Desliga uma foto já ligada. Nunca apaga o arquivo — o app não é dono dele. */

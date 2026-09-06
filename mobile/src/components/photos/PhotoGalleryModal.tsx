@@ -49,17 +49,23 @@ function GridTile({
   photo,
   size,
   onPress,
+  onLongPress,
+  selecting,
+  selected,
 }: {
   photo: ActivityPhoto;
   size: number;
   onPress: () => void;
+  onLongPress?: () => void;
+  selecting: boolean;
+  selected: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
   const uri = useAssetUri(photo.assetId, photo.mediaType === 'video');
   const box = { width: size, height: size };
 
   return (
-    <Pressable onPress={onPress} style={[box, styles.tile]}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={280} style={[box, styles.tile]}>
       {typeof uri === 'string' ? (
         <Image source={{ uri }} style={styles.tileImg} />
       ) : (
@@ -73,10 +79,18 @@ function GridTile({
           <Text style={styles.clipText}>{formatClip(photo.durationS)}</Text>
         </View>
       )}
-      {photo.isCover && (
+      {photo.isCover && !selecting && (
         <View style={styles.cover}>
           <Ionicons name="star" size={9} color={onMedia} />
         </View>
+      )}
+      {selecting && (
+        <>
+          {selected && <View style={styles.selVeil} />}
+          <View style={[styles.selMark, selected && styles.selMarkOn]}>
+            {selected && <Ionicons name="checkmark" size={12} color={onMedia} />}
+          </View>
+        </>
       )}
     </Pressable>
   );
@@ -220,13 +234,36 @@ interface Props {
    * tirado as fotos dela.
    */
   onRescan?: () => void;
+  /** Desliga as fotos escolhidas. Nunca apaga arquivo — só a ligação. */
+  onDismiss?: (photoIds: string[]) => Promise<void> | void;
 }
 
-export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan }: Props) {
+export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan, onDismiss }: Props) {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [viewing, setViewing] = useState<number | null>(null);
+
+  /**
+   * A curadoria acontece **depois**: numa pedalada com muitas fotos não dá para
+   * julgar uma a uma na folha, então liga-se tudo e limpa-se aqui. O modo entra
+   * por toque longo numa foto — o mesmo gesto do app Fotos, para não precisar
+   * de um botão a mais no cabeçalho.
+   */
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) => {
+    const next = new Set(picked);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setPicked(next);
+  };
+
+  const leaveSelection = () => {
+    setSelecting(false);
+    setPicked(new Set());
+  };
 
   /** A ordem plana da grade — é o que o visor percorre ao deslizar. */
   const flat = useMemo(() => sections.flatMap((s) => s.photos), [sections]);
@@ -240,17 +277,35 @@ export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan 
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.gallery, { paddingTop: insets.top }]}>
         <View style={styles.galleryHead}>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <Ionicons name="chevron-down" size={24} color={colors.ink} />
-          </Pressable>
-          <Text style={styles.galleryTitle}>Fotos</Text>
-          {onRescan && (
-            <Pressable onPress={onRescan} hitSlop={10} style={styles.rescan}>
-              <Ionicons name="search" size={13} color={colors.ink2} />
-              <Text style={styles.rescanText}>Procurar mais</Text>
-            </Pressable>
+          {selecting ? (
+            <>
+              <Pressable onPress={leaveSelection} hitSlop={12}>
+                <Text style={styles.headAction}>Cancelar</Text>
+              </Pressable>
+              <Text style={styles.galleryTitle}>
+                {picked.size === 0
+                  ? 'Escolha as fotos'
+                  : `${picked.size} ${picked.size === 1 ? 'escolhida' : 'escolhidas'}`}
+              </Text>
+              <Pressable onPress={() => setPicked(new Set(flat.map((p) => p.id)))} hitSlop={12}>
+                <Text style={[styles.headAction, styles.headActionRight]}>Tudo</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Pressable onPress={onClose} hitSlop={12}>
+                <Ionicons name="chevron-down" size={24} color={colors.ink} />
+              </Pressable>
+              <Text style={styles.galleryTitle}>Fotos</Text>
+              {onRescan && (
+                <Pressable onPress={onRescan} hitSlop={10} style={styles.rescan}>
+                  <Ionicons name="search" size={13} color={colors.ink2} />
+                  <Text style={styles.rescanText}>Procurar mais</Text>
+                </Pressable>
+              )}
+              <Text style={styles.galleryCount}>{total}</Text>
+            </>
           )}
-          <Text style={styles.galleryCount}>{total}</Text>
         </View>
 
         <ScrollView
@@ -270,7 +325,14 @@ export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan 
                       key={p.id}
                       photo={p}
                       size={size}
-                      onPress={() => setViewing(base + i)}
+                      selecting={selecting}
+                      selected={picked.has(p.id)}
+                      onPress={() => (selecting ? toggle(p.id) : setViewing(base + i))}
+                      onLongPress={() => {
+                        if (!onDismiss) return;
+                        setSelecting(true);
+                        setPicked(new Set([p.id]));
+                      }}
                     />
                   ))}
                 </View>
@@ -278,6 +340,25 @@ export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan 
             );
           })}
         </ScrollView>
+
+        {selecting && picked.size > 0 && (
+          <View style={[styles.actionBar, { paddingBottom: insets.bottom + spacing.md }]}>
+            <Pressable
+              style={styles.dismissBtn}
+              onPress={async () => {
+                const ids = [...picked];
+                leaveSelection();
+                await onDismiss?.(ids);
+              }}
+            >
+              <Ionicons name="remove-circle-outline" size={17} color={onMedia} />
+              <Text style={styles.dismissText}>
+                Desligar {picked.size} {picked.size === 1 ? 'foto' : 'fotos'}
+              </Text>
+            </Pressable>
+            <Text style={styles.dismissHint}>As imagens continuam no seu iPhone.</Text>
+          </View>
+        )}
 
         {viewing !== null && (
           <Viewer photos={flat} index={viewing} onClose={() => setViewing(null)} />
@@ -311,6 +392,66 @@ const createStyles = () =>
     },
     rescanText: { fontSize: 12, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
     galleryBody: { paddingHorizontal: spacing.lg },
+    /**
+     * Tinta, não marca. `primary`/`primaryDeep` garantem 3,0 — o piso do traço,
+     * não o da letra (4,5) —, e a barreira mantém um teto de quantas vezes o
+     * acento vira texto. Aqui não vale gastar: "Cancelar" e "Tudo" são ações de
+     * cabeçalho, e a ênfase da tela é a contagem de escolhidas.
+     */
+    headAction: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
+    headActionRight: { marginLeft: 'auto' },
+
+    selVeil: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(242,92,43,0.28)',
+    },
+    selMark: {
+      position: 'absolute',
+      right: 4,
+      bottom: 4,
+      width: 19,
+      height: 19,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      borderColor: 'rgba(255,255,255,0.9)',
+      backgroundColor: 'rgba(0,0,0,0.3)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    selMarkOn: { backgroundColor: colors.primary },
+
+    actionBar: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingTop: spacing.md,
+      paddingHorizontal: spacing.lg,
+      gap: 6,
+      backgroundColor: colors.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.line,
+    },
+    dismissBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      paddingVertical: 13,
+      borderRadius: radii.lg,
+      backgroundColor: colors.primary,
+    },
+    dismissText: { fontSize: 15, fontFamily: fonts.sansBold, color: onMedia },
+    dismissHint: {
+      fontSize: 11,
+      fontFamily: fonts.sansMedium,
+      color: colors.ink3,
+      textAlign: 'center',
+    },
 
     section: { marginBottom: spacing.xl },
     sectionTitle: { fontSize: 13.5, fontFamily: fonts.sansBold, color: colors.ink },

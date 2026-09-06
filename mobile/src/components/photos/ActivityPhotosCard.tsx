@@ -41,6 +41,7 @@ import {
   currentPhotoAccess,
   requestPhotoAccess,
   dismissPhoto,
+  dismissPhotos,
   saveDecisions,
   scanActivity,
   setCover,
@@ -386,6 +387,18 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
         onRescan={() => {
           setGalleryOpen(false);
           void openSheet();
+        }}
+        onDismiss={async (ids) => {
+          if (!userId) return;
+          try {
+            await dismissPhotos(userId, ids);
+            await reload();
+          } catch (e) {
+            Alert.alert(
+              'Não consegui desligar',
+              e instanceof Error ? e.message : String(e),
+            );
+          }
         }}
       />
     </>
