@@ -130,6 +130,15 @@ export interface PresenceSummary {
   openEnters: number;
   /** Eventos cuja coordenada veio de um fix com mais de 5 min. */
   staleFixes: number;
+  /**
+   * Mediana da precisão relatada pelo iOS, em metros. `null` sem nenhum fix.
+   *
+   * É **a** evidência para escolher o raio: ele precisa ser maior que o erro de
+   * posição, senão o fix cai fora do círculo com o usuário dentro. Mediana e não
+   * média porque um único fix ruim de 800 m — comum ao sair do metrô — puxaria a
+   * média e faria o raio parecer inviável.
+   */
+  medianAccuracyM: number | null;
 }
 
 /** Dia local do evento, derivado do fuso que ele mesmo carrega. */
@@ -160,11 +169,13 @@ export function summarizePresence(events: PresenceEvent[]): PresenceSummary {
   const sorted = [...events].sort((a, b) => a.at.localeCompare(b.at));
 
   const byDay = new Map<string, number>();
+  const precisoes: number[] = [];
   let staleFixes = 0;
   for (const e of sorted) {
     const day = presenceDay(e);
     byDay.set(day, (byDay.get(day) ?? 0) + 1);
     if (e.fixAgeS != null && e.fixAgeS > STALE_FIX_S) staleFixes += 1;
+    if (e.accuracyM != null) precisoes.push(e.accuracyM);
   }
 
   const perDay: PresenceDayCount[] = [...byDay.entries()]
@@ -222,7 +233,15 @@ export function summarizePresence(events: PresenceEvent[]): PresenceSummary {
     shortGaps,
     openEnters,
     staleFixes,
+    medianAccuracyM: mediana(precisoes),
   };
+}
+
+function mediana(xs: number[]): number | null {
+  if (xs.length === 0) return null;
+  const ord = [...xs].sort((a, b) => a - b);
+  const meio = Math.floor(ord.length / 2);
+  return ord.length % 2 === 1 ? ord[meio] : Math.round((ord[meio - 1] + ord[meio]) / 2);
 }
 
 /** Os sinais vitais de um lugar: ele está vivo, e com que intensidade. */

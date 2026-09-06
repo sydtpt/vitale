@@ -203,6 +203,22 @@ describe('presence-events · resumo', () => {
     expect(v.get('casa')?.lastAt).toBe('2026-09-06T18:00:00.000Z');
   });
 
+  it('mediana da precisão ignora evento sem fix e resiste a um fix péssimo', () => {
+    const r = summarizePresence([
+      ev('casa', 'enter', '2026-09-06T08:00:00.000Z', { accuracyM: 30 }),
+      ev('casa', 'exit', '2026-09-06T09:00:00.000Z', { accuracyM: 40 }),
+      // O fix de 800 m ao sair do metrô puxaria a média; a mediana o ignora.
+      ev('casa', 'enter', '2026-09-06T10:00:00.000Z', { accuracyM: 800 }),
+      ev('casa', 'exit', '2026-09-06T11:00:00.000Z'), // sem fix: não entra
+    ]);
+    expect(r.medianAccuracyM).toBe(40);
+  });
+
+  it('sem nenhum fix a mediana é null, não zero', () => {
+    const r = summarizePresence([ev('casa', 'enter', '2026-09-06T08:00:00.000Z')]);
+    expect(r.medianAccuracyM).toBeNull();
+  });
+
   it('os limiares são os que a proposta assumiu', () => {
     // Se a fase 0 os desmentir, este teste muda junto com a proposta.
     expect(SHORT_STAY_MIN).toBe(8);

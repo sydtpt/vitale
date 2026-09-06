@@ -45,14 +45,25 @@ const KEY = 'vitale:presence-places';
 export const MAX_REGIONS = 20;
 
 /**
- * Piso do raio. Abaixo de ~100 m o monitoramento de região do iOS fica pouco
- * confiável: a localização grosseira por célula e Wi-Fi tem erro dessa ordem, e
- * o resultado é entrar e sair repetidamente parado no mesmo lugar. 150 m é o
- * padrão porque a rua dele é calma e o comércio mais próximo está a 300 m — não
- * há o que colidir, e a folga compra estabilidade.
+ * Piso do raio, e a razão dele é a margem de erro — não o gosto.
+ *
+ * O raio tem de ser **maior que o erro típico de posição**, senão o fix cai fora
+ * do círculo com o usuário dentro dele (saída falsa) ou dentro com ele fora. O
+ * monitoramento de região do iOS se apoia em torre de celular e Wi-Fi, com erro
+ * da ordem de 100 m — é justamente isso que o torna barato de bateria. Abaixo
+ * desse piso os eventos param de ser sobre movimento e passam a ser sobre
+ * flutuação do sinal, com o aparelho entrando e saindo parado no mesmo lugar.
+ *
+ * O padrão é o próprio piso: o menor raio que ainda mede movimento. A troca que
+ * vem junto é a nitidez da **saída** — o iOS aplica histerese antes de disparar
+ * o `exit`, e quanto menor o raio, maior essa folga em proporção. Se a fase 0
+ * mostrar saídas atrasadas ou perdidas, é aqui que se sobe.
+ *
+ * `medianAccuracyM` no resumo da fase 0 é a evidência para revisar este número
+ * com dado do aparelho dele, em vez de com a média de ninguém.
  */
 export const MIN_RADIUS_M = 100;
-export const DEFAULT_RADIUS_M = 150;
+export const DEFAULT_RADIUS_M = 100;
 
 export async function readPresencePlaces(store: KVStore = asyncStore): Promise<PresencePlace[]> {
   return (await getJSON<PresencePlace[]>(KEY, store)) ?? [];
