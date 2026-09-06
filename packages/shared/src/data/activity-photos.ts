@@ -110,3 +110,116 @@ export async function fetchPhotosForActivities(
   );
   return rows.map(toActivityPhoto);
 }
+
+/* ─────────────────────── Escrita ───────────────────────
+ * Toda query da tabela mora aqui, e não no serviço do mobile: é a AD-4, e o
+ * `architecture.test.ts` a cobra. O serviço decide *o quê* gravar; este módulo
+ * sabe *como* a tabela é.
+ */
+
+/** Uma linha pronta para gravar — a forma do Postgres, não a do domínio. */
+export interface ActivityPhotoWrite {
+  user_id: string;
+  activity_id: string;
+  asset_id: string | null;
+  taken_at: string;
+  lat: number | null;
+  lng: number | null;
+  media_type: 'photo' | 'video';
+  duration_s: number | null;
+  route_index: number | null;
+  route_distance_m: number | null;
+  offset_m: number | null;
+  on_route: boolean;
+  state: 'linked' | 'dismissed';
+}
+
+/**
+ * Os instantes já decididos numa atividade — ligados **e** desligados.
+ *
+ * A varredura precisa dos dois: sem os `dismissed`, a foto que o dono recusou
+ * voltaria como sugestão a cada abertura da atividade.
+ */
+export async function fetchDecidedInstants(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+): Promise<number[]> {
+  const rows = await fetchAllPages<{ taken_at: string }>((lo, hi) =>
+    db
+      .from('activity_photos')
+      .select('taken_at')
+      .eq('user_id', userId)
+      .eq('activity_id', activityId)
+      .order('taken_at', { ascending: true })
+      .range(lo, hi),
+  );
+  return rows.map((r) => Date.parse(r.taken_at));
+}
+
+/** Grava as decisões da folha. Conflita pela chave de cura, então reenviar substitui. */
+export async function upsertActivityPhotos(
+  db: SupabaseClient,
+  rows: readonly ActivityPhotoWrite[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await db
+    .from('activity_photos')
+    .upsert([...rows], { onConflict: 'user_id,activity_id,taken_at' });
+  if (error) throw error;
+}
+
+/** Desliga uma foto. Nunca apaga o arquivo — o app não é dono dele. */
+export async function setPhotoDismissed(
+  db: SupabaseClient,
+  userId: string,
+  photoId: string,
+): Promise<void> {
+  const { error } = await db
+    .from('activity_photos')
+    .update({ state: 'dismissed', is_cover: false })
+    .eq('id', photoId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+/**
+ * Define a capa da atividade.
+ *
+ * Limpa a anterior antes: o índice parcial `activity_photos_cover_uq` garante
+ * uma capa por atividade, e sem limpar o segundo update bateria em 23505.
+ */
+export async function setPhotoCover(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+  photoId: string,
+): Promise<void> {
+  await db
+    .from('activity_photos')
+    .update({ is_cover: false })
+    .eq('user_id', userId)
+    .eq('activity_id', activityId)
+    .eq('is_cover', true);
+  const { error } = await db
+    .from('activity_photos')
+    .update({ is_cover: true })
+    .eq('id', photoId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+/** Reendereça o ponteiro de uma foto (a cura da ADR 0037 §2). */
+export async function setPhotoAssetId(
+  db: SupabaseClient,
+  userId: string,
+  photoId: string,
+  assetId: string,
+): Promise<void> {
+  const { error } = await db
+    .from('activity_photos')
+    .update({ asset_id: assetId })
+    .eq('id', photoId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}

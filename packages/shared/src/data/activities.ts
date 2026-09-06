@@ -25,7 +25,7 @@ import { fetchAllPages } from './paginate';
 const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
   'distance_m,elevation_m,source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,' +
-  'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix';
+  'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix,photos_checked_at';
 
 export interface ActivityRow {
   id: string;
@@ -54,6 +54,7 @@ export interface ActivityRow {
   hidden: boolean | null;
   gear_id: string | null;
   surface_mix: SurfaceMix | null;
+  photos_checked_at: string | null;
 }
 
 const num = (v: number | string | null | undefined): number | undefined =>
@@ -88,6 +89,7 @@ export function toActivity(r: ActivityRow): Activity {
     hidden: r.hidden ?? false,
     gearId: r.gear_id ?? undefined,
     surfaceMix: r.surface_mix ?? undefined,
+    photosCheckedAt: r.photos_checked_at ?? null,
   };
 }
 
@@ -405,5 +407,25 @@ export async function upsertActivityRoute(
   row: object,
 ): Promise<void> {
   const { error } = await db.from('activity_routes').upsert(row, { onConflict: 'activity_id' });
+  if (error) throw error;
+}
+
+/**
+ * Marca que a biblioteca de fotos já foi varrida para esta atividade (ADR 0037).
+ *
+ * Mora aqui, e não no módulo de `activity_photos`, porque a coluna é de
+ * `activities` — a AD-4 é sobre a tabela, não sobre a feature.
+ */
+export async function markPhotosChecked(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+  at: string = new Date().toISOString(),
+): Promise<void> {
+  const { error } = await db
+    .from('activities')
+    .update({ photos_checked_at: at })
+    .eq('id', activityId)
+    .eq('user_id', userId);
   if (error) throw error;
 }

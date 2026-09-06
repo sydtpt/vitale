@@ -37,7 +37,18 @@ import {
   getPermissionsAsync,
   requestPermissionsAsync,
 } from 'expo-media-library';
-import { type ActivityPhoto, type ActivityRoutePoint, photoWindow } from '@vitale/shared';
+import {
+  type ActivityPhoto,
+  type ActivityPhotoWrite,
+  type ActivityRoutePoint,
+  fetchDecidedInstants,
+  markPhotosChecked,
+  photoWindow,
+  setPhotoAssetId,
+  setPhotoCover as setPhotoCoverRow,
+  setPhotoDismissed,
+  upsertActivityPhotos,
+} from '@vitale/shared';
 import {
   type PhotoCandidate,
   type RawMedia,
@@ -152,13 +163,11 @@ export async function scanActivity(
 
 /** Os instantes já decididos nesta atividade — ligados **e** desligados. */
 async function fetchKnownInstants(userId: string, activityId: string): Promise<Set<number>> {
-  const { data, error } = await supabase
-    .from('activity_photos')
-    .select('taken_at')
-    .eq('user_id', userId)
-    .eq('activity_id', activityId);
-  if (error || !data) return new Set();
-  return new Set(data.map((r: { taken_at: string }) => Date.parse(r.taken_at)));
+  try {
+    return new Set(await fetchDecidedInstants(supabase, userId, activityId));
+  } catch {
+    return new Set();
+  }
 }
 
 /**
@@ -174,7 +183,7 @@ export async function saveDecisions(
   accepted: readonly PhotoCandidate[],
   rejected: readonly PhotoCandidate[],
 ): Promise<{ linked: number; dismissed: number }> {
-  const row = (c: PhotoCandidate, state: 'linked' | 'dismissed') => ({
+  const row = (c: PhotoCandidate, state: 'linked' | 'dismissed'): ActivityPhotoWrite => ({
     user_id: userId,
     activity_id: activityId,
     asset_id: c.assetId,
@@ -195,47 +204,20 @@ export async function saveDecisions(
     ...rejected.map((c) => row(c, 'dismissed')),
   ];
 
-  if (rows.length > 0) {
-    const { error } = await supabase
-      .from('activity_photos')
-      .upsert(rows, { onConflict: 'user_id,activity_id,taken_at' });
-    if (error) throw error;
-  }
-
-  await supabase
-    .from('activities')
-    .update({ photos_checked_at: new Date().toISOString() })
-    .eq('id', activityId)
-    .eq('user_id', userId);
+  await upsertActivityPhotos(supabase, rows);
+  await markPhotosChecked(supabase, userId, activityId);
 
   return { linked: accepted.length, dismissed: rejected.length };
 }
 
 /** Desliga uma foto já ligada. Nunca apaga o arquivo — o app não é dono dele. */
 export async function dismissPhoto(userId: string, photoId: string): Promise<void> {
-  const { error } = await supabase
-    .from('activity_photos')
-    .update({ state: 'dismissed', is_cover: false })
-    .eq('id', photoId)
-    .eq('user_id', userId);
-  if (error) throw error;
+  await setPhotoDismissed(supabase, userId, photoId);
 }
 
 /** Define a capa da atividade — a foto que o cartão de compartilhar abre. */
 export async function setCover(userId: string, activityId: string, photoId: string): Promise<void> {
-  // O índice parcial garante uma capa por atividade: limpar antes evita o 23505.
-  await supabase
-    .from('activity_photos')
-    .update({ is_cover: false })
-    .eq('user_id', userId)
-    .eq('activity_id', activityId)
-    .eq('is_cover', true);
-  const { error } = await supabase
-    .from('activity_photos')
-    .update({ is_cover: true })
-    .eq('id', photoId)
-    .eq('user_id', userId);
-  if (error) throw error;
+  await setPhotoCoverRow(supabase, userId, activityId, photoId);
 }
 
 /**
@@ -274,12 +256,12 @@ export async function healPointers(
 
   let healed = 0;
   for (const step of plan) {
-    const { error } = await supabase
-      .from('activity_photos')
-      .update({ asset_id: step.assetId })
-      .eq('id', step.id)
-      .eq('user_id', userId);
-    if (!error) healed += 1;
+    try {
+      await setPhotoAssetId(supabase, userId, step.id, step.assetId);
+      healed += 1;
+    } catch {
+      // Uma cura que falha não invalida as outras.
+    }
   }
   return healed;
 }

@@ -35,6 +35,7 @@ import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../l
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
+import { ActivityPhotosCard } from '../../../components/photos/ActivityPhotosCard';
 import { ClimbsCard } from '../../../components/cards/ClimbsCard';
 import { SegmentsCard } from '../../../components/cards/SegmentsCard';
 import { SurfaceCard } from '../../../components/cards/SurfaceCard';
@@ -434,6 +435,22 @@ export default function AtividadeDetalheScreen() {
             }
           />
         )}
+
+        {/* As fotos desta pedalada (ADR 0037). Depois dos números de propósito:
+            o dono abre uma pedalada antiga procurando mapa e números, e foto não
+            é destaque. Some por completo quando não há foto — a única exceção é
+            a pedalada nunca procurada, que ganha uma linha fina de convite. */}
+        <ActivityPhotosCard
+          activity={{
+            id: activity.id,
+            startAtMs: Date.parse(activity.startAt),
+            endAtMs: Date.parse(activity.endAt ?? activity.startAt),
+            distanceM: activity.distanceM,
+            photosCheckedAt: activity.photosCheckedAt ?? null,
+            cities: activity.cities ?? null,
+          }}
+          points={routePoints ?? []}
+        />
 
         {/* Fora do bloco do percurso de propósito: `bestEfforts` vem do sync e
             existe mesmo antes de a rota ser carregada nesta sessão. Some sozinho

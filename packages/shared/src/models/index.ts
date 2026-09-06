@@ -413,6 +413,12 @@ export interface Activity {
    * `activity_routes.surface_segments`. Forma em `surface/classify.ts`.
    */
   surfaceMix?: SurfaceMix;
+  /**
+   * Quando a biblioteca de fotos foi varrida para esta atividade (ADR 0037).
+   * `null` = nunca. É o que evita reabrir a folha de sugestão a cada visita —
+   * e o que distingue "não tem foto" de "ainda não olhei".
+   */
+  photosCheckedAt?: string | null;
 }
 
 /**
