@@ -40,6 +40,7 @@ import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useAuthStore } from '../../store/auth.store';
 import { supabase } from '../../lib/supabase';
+import { useAssetUri } from '../../hooks/useAssetUri';
 import { useSettingsStore } from '../../store/settings.store';
 import { HeatmapGrid } from '../../components/HeatmapGrid';
 import { TaskGridStrip } from '../../components/TaskGridStrip';
@@ -429,13 +430,7 @@ export default function RetrospectivaScreen() {
                 <Text style={styles.eyebrow}>{photoRetroLabel(photoBlock)}</Text>
                 <View style={styles.photoStrip}>
                   {photoBlock.sample.map((p) => (
-                    <Image
-                      key={p.id}
-                      source={{
-                        uri: p.assetId?.includes('://') ? p.assetId : `ph://${p.assetId}`,
-                      }}
-                      style={styles.photoThumb}
-                    />
+                    <RetroThumb key={p.id} assetId={p.assetId} style={styles.photoThumb} />
                   ))}
                   {photoBlock.rest > 0 && (
                     <View style={[styles.photoThumb, styles.photoRest]}>
@@ -756,6 +751,13 @@ function Row({ l, r }: { l: string; r: string }) {
       <Text style={styles.rowR}>{r}</Text>
     </View>
   );
+}
+
+/** Miniatura da tira do jornal — resolve o endereço da foto sozinha. */
+function RetroThumb({ assetId, style }: { assetId: string | null; style: object }) {
+  const uri = useAssetUri(assetId);
+  if (typeof uri !== 'string') return <View style={style} />;
+  return <Image source={{ uri }} style={style} />;
 }
 
 const createStyles = () => StyleSheet.create({

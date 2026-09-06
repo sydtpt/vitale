@@ -42,6 +42,14 @@ import {
 } from '../../lib/share-card-html';
 import { captureCardPng, saveCardPngToGallery, shareCardPng } from '../../lib/share-export';
 import type { ActivityPhoto } from '@vitale/shared';
+import { useAssetUri } from '../../hooks/useAssetUri';
+
+/** Miniatura do seletor de foto — resolve o endereço sozinha. */
+function PickerThumb({ assetId, style }: { assetId: string | null; style: object }) {
+  const uri = useAssetUri(assetId);
+  if (typeof uri !== 'string') return <View style={style} />;
+  return <Image source={{ uri }} style={style} />;
+}
 import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 import { Segmented } from '../ui/Segmented';
 
@@ -225,9 +233,10 @@ export function ShareComposerModal({
     () => photoChoices.find((p) => p.id === photoId) ?? photoChoices.find((p) => p.isCover) ?? photoChoices[0],
     [photoChoices, photoId],
   );
-  const photoUri = chosenPhoto?.assetId
-    ? (chosenPhoto.assetId.includes('://') ? chosenPhoto.assetId : `ph://${chosenPhoto.assetId}`)
-    : undefined;
+  // Resolvido pelo `getUri()` da biblioteca: o `ph://` montado à mão não
+  // carrega (conferido no iPhone em 06/09/2026). Ver services/asset-uri.ts.
+  const resolvedPhoto = useAssetUri(chosenPhoto?.assetId ?? null);
+  const photoUri = typeof resolvedPhoto === 'string' ? resolvedPhoto : undefined;
 
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
@@ -631,22 +640,18 @@ export function ShareComposerModal({
             <>
               <Text style={styles.fieldLabel}>Qual foto</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoPicker}>
-                {photoChoices.map((p) => {
-                  const uri = p.assetId?.includes('://') ? p.assetId : `ph://${p.assetId}`;
-                  const on = chosenPhoto?.id === p.id;
-                  return (
-                    <Pressable
-                      key={p.id}
-                      onPress={() => {
-                        tap();
-                        setPhotoId(p.id);
-                      }}
-                      style={[styles.photoOpt, on && styles.photoOptOn]}
-                    >
-                      <Image source={{ uri }} style={styles.photoOptImg} />
-                    </Pressable>
-                  );
-                })}
+                {photoChoices.map((p) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => {
+                      tap();
+                      setPhotoId(p.id);
+                    }}
+                    style={[styles.photoOpt, chosenPhoto?.id === p.id && styles.photoOptOn]}
+                  >
+                    <PickerThumb assetId={p.assetId} style={styles.photoOptImg} />
+                  </Pressable>
+                ))}
               </ScrollView>
             </>
           )}

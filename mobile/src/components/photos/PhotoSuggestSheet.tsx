@@ -25,16 +25,16 @@ import type { PhotoCandidate } from '../../lib/activity-photos';
 import type { PhotoAccess, ScanResult } from '../../services/activity-photos';
 import { colors, fonts, onMedia, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { formatClip } from '../../lib/workout-format';
+import { useAssetUri } from '../../hooks/useAssetUri';
 
 /** Miniaturas mostradas por grupo antes do "+N". */
 const PREVIEW = 4;
 
-/**
- * O id do asset já é uma URI de `PHAsset` no iOS; no Android é `content://`.
- * O prefixo só entra quando o id vem cru.
- */
-function assetUri(assetId: string): string {
-  return assetId.includes('://') ? assetId : `ph://${assetId}`;
+/** Miniatura que resolve o endereço sozinha — ver `services/asset-uri.ts`. */
+function Tile({ assetId, style }: { assetId: string; style: object }) {
+  const uri = useAssetUri(assetId);
+  if (typeof uri !== 'string') return <View style={style} />;
+  return <Image source={{ uri }} style={style} />;
 }
 
 const GROUP_LABEL: Record<CandidateGroup, string> = {
@@ -220,7 +220,7 @@ export function PhotoSuggestSheet({
                         const on = selected.has(p.takenAtMs);
                         return (
                           <Pressable key={p.takenAtMs} onPress={() => toggleOne(p)} style={styles.thumbWrap}>
-                            <Image source={{ uri: assetUri(p.assetId) }} style={styles.thumb} />
+                            <Tile assetId={p.assetId} style={styles.thumb} />
                             {!on && <View style={styles.veil} />}
                             <View style={[styles.check, on && styles.checkOn]}>
                               {on && <Ionicons name="checkmark" size={11} color={colors.onPrimary} />}

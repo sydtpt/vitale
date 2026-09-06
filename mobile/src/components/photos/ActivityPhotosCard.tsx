@@ -32,6 +32,7 @@ import type { ActivityRoutePoint } from '@vitale/shared';
 import { colors, fonts, onMedia, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { useAuthStore } from '../../store/auth.store';
 import { useActivityPhotos } from '../../hooks/useActivityPhotos';
+import { useAssetUri } from '../../hooks/useAssetUri';
 import { formatClip } from '../../lib/workout-format';
 import type { PhotoCandidate } from '../../lib/activity-photos';
 import {
@@ -44,6 +45,7 @@ import {
   scanActivity,
   setCover,
 } from '../../services/activity-photos';
+import { resolveAssetUri } from '../../services/asset-uri';
 import { PhotoSuggestSheet } from './PhotoSuggestSheet';
 
 /** Miniaturas por linha de parada antes de cortar. */
@@ -58,10 +60,13 @@ const PREVIEW = 2;
  * lacuna é a resposta honesta; sumir calado faria a contagem do cabeçalho
  * discordar do que se vê.
  */
-function Thumb({ uri, style }: { uri?: string; style: object }) {
+function Thumb({ assetId, style }: { assetId: string | null; style: object }) {
   const styles = useThemedStyles(createStyles);
-  const [broken, setBroken] = useState(!uri);
-  if (broken) {
+  const uri = useAssetUri(assetId);
+  const [broken, setBroken] = useState(false);
+
+  if (uri === 'loading') return <View style={[style, styles.loadingTile]} />;
+  if (uri === null || broken) {
     return (
       <View style={[style, styles.gap]}>
         <Ionicons name="help-outline" size={14} color={colors.ink4} />
@@ -69,11 +74,6 @@ function Thumb({ uri, style }: { uri?: string; style: object }) {
     );
   }
   return <Image source={{ uri }} style={style} onError={() => setBroken(true)} />;
-}
-
-function assetUri(assetId: string | null): string | undefined {
-  if (!assetId) return undefined;
-  return assetId.includes('://') ? assetId : `ph://${assetId}`;
 }
 
 function hhmm(ms: number): string {
@@ -171,8 +171,9 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
         {
           text: 'Ver no app Fotos',
           onPress: () => {
-            const uri = assetUri(assetId);
-            if (uri) void Linking.openURL(uri).catch(() => undefined);
+            void resolveAssetUri(assetId).then((uri) => {
+              if (uri) void Linking.openURL(uri).catch(() => undefined);
+            });
           },
         },
         {
@@ -265,7 +266,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
               <View style={styles.strip}>
                 {ps.slice(0, PREVIEW).map((p) => (
                   <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
-                    <Thumb uri={assetUri(p.assetId)} style={styles.thumb} />
+                    <Thumb assetId={p.assetId} style={styles.thumb} />
                     {p.mediaType === 'video' && p.durationS !== null && (
                       <View style={styles.clip}>
                         <Ionicons name="play" size={7} color={onMedia} />
@@ -299,7 +300,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
             <View style={styles.strip}>
               {grouped.moving.slice(0, PREVIEW).map((p) => (
                 <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
-                  <Thumb uri={assetUri(p.assetId)} style={styles.thumb} />
+                  <Thumb assetId={p.assetId} style={styles.thumb} />
                   {p.mediaType === 'video' && p.durationS !== null && (
                     <View style={styles.clip}>
                       <Ionicons name="play" size={7} color={onMedia} />
@@ -366,6 +367,7 @@ const createStyles = () =>
       backgroundColor: colors.surfaceMute,
     },
 
+    loadingTile: { backgroundColor: colors.surfaceMute },
     gap: {
       alignItems: 'center',
       justifyContent: 'center',
