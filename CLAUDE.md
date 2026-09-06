@@ -210,6 +210,12 @@ São **10** módulos, não 7:
   Migrations aplicadas e 137 rotas backfilladas em prod (06/09); cartão de piso no Ciclismo e
   no detalhe da pedalada. Faltam o smoke test do passe deployado, o golden set e a web.
   Tarefas: `_bmad-output/implementation-artifacts/piso-das-rotas/tasks.md`
+- Fotos na pedalada: ligar as fotos do iPhone à atividade, agrupadas por **parada** e não
+  por ponto ([ADR 0037](docs/decisions/0037-a-foto-e-ponteiro-com-chave-de-cura.md)). A imagem
+  fica na biblioteca; só o fato sobe, com `taken_at` como chave de cura porque o
+  `localIdentifier` não é estável. Proposta aprovada em 06/09 com mockups sobre uma pedalada
+  real; **nenhuma linha de código escrita**. Tarefas:
+  `_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md`
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco
@@ -261,3 +267,4 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [Cultura (livros, filmes, podcasts e álbuns)](docs/specs/cultura/spec.md) · [data-model](docs/specs/cultura/data-model.md) · [stories](docs/specs/cultura/stories.yaml)
 - [Sono (tela própria: horários, timing chart, despertares e percepção × medição)](docs/specs/sono/spec.md) · [data-model](docs/specs/sono/data-model.md) · [plan](docs/specs/sono/plan.md) · [tasks](_bmad-output/implementation-artifacts/sono/tasks.md)
 - [FC ao longo do dia (série intradiária em `health_series`)](docs/specs/fc-serie/spec.md) · [data-model](docs/specs/fc-serie/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fc-serie/tasks.md)
+- [Fotos na pedalada (a foto ligada à atividade, agrupada por parada)](docs/specs/fotos-na-pedalada/spec.md) · [data-model](docs/specs/fotos-na-pedalada/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md)
