@@ -217,8 +217,11 @@ São **10** módulos, não 7:
   medição como manchete, gatilho × noite em valores absolutos, séries Sono/Acordado no
   Ano) e as leituras **Dispersão**, **antes × agora** e **Grade** do Tempos foram escritos
   em 05/09 e aguardam conferência no iPhone; ver Fase 6 do tasks
-- Sono: **Saúde do sono** (CAP-11, ADR 0036) escrita em 06/09 nos dois apps — núcleo testado
-  e validado contra as 288 noites reais, mas **sem conferência no iPhone nem no navegador**
+- Sono: **Saúde do sono** (CAP-11, ADR 0036) escrita em 06/09 nos dois apps — a tela `/sono/saude`
+  e o **bloco Sono da Retrospectiva**, que ganhou o selo e mais seis leituras (média × mediana,
+  hora do despertar, duração dos despertares, regularidade por semana, nota por faixa e os
+  extremos com data) e passou a existir **também na web**. Núcleo testado e validado contra as
+  288 noites reais, mas **sem conferência no iPhone nem no navegador**
 - Push **remoto** (servidor): hoje só há notificação local agendada no device — não há
   registro de token nem envio server-side
 - Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc

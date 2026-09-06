@@ -34,9 +34,17 @@ import type { WeekHighlight } from '../week/highlights';
 import type { MetricImpact } from '../health/trigger-impact';
 import { axisPosition, awakeningMin } from './timing';
 import { awakeMinOf } from './derive';
-import { bucketPeriods, median, quantile, type SleepBucket } from './buckets';
+import { bucketPeriods, median, quantile, weekKey, type SleepBucket } from './buckets';
 import { formatHm, isFreeWakeDay, type SleepMarker } from './facts';
-import { socialJetlag } from './regularity';
+import { socialJetlag, sleepRegularityIndex } from './regularity';
+import { awakeningsByHour, awakeningDurations, type AwakeHourBin } from './awakenings';
+import {
+  REGULARITY_MIN_NIGHTS,
+  longestRun,
+  nightScore,
+  periodScore,
+  type SleepScore,
+} from './score';
 
 /**
  * A referência de horas por noite — a **única** constante de sono do app. É a
@@ -147,6 +155,90 @@ export interface SleepWeekend {
   workNights: number;
 }
 
+/* ── As seis pautas de 06/09/2026 (a página completa do jornal) ── */
+
+/**
+ * Diferença mínima entre média e mediana, em minutos, para o jornal publicar as
+ * duas.
+ *
+ * Abaixo disso elas dizem a mesma coisa e o segundo número é ruído na página.
+ * Acima, esconder uma delas é publicar o número errado: em agosto de 2026 a média
+ * foi 6h38 e a mediana 7h02, e a diferença inteira era **uma** noite de 58 min.
+ */
+export const MEAN_MEDIAN_GAP_MIN = 10;
+
+/** As faixas de duração da distribuição. Fechadas à esquerda. */
+export const SLEEP_BANDS: readonly { label: string; minH: number; maxH: number }[] = [
+  { label: '< 6h', minH: 0, maxH: 6 },
+  { label: '6–7h', minH: 6, maxH: 7 },
+  { label: '7–8h', minH: 7, maxH: 8 },
+  { label: '≥ 8h', minH: 8, maxH: Infinity },
+];
+
+/**
+ * Despertar que o consenso do NSF (Ohayon 2017) conta: acima de cinco minutos.
+ * Em agosto de 2026, 56 dos 85 despertares ficaram abaixo disso — a contagem crua
+ * sugere uma noite picada que a distribuição desmente.
+ */
+export const AWAKE_COUNTED_MIN = 5;
+
+/** Uma faixa de duração e como o usuário acordou nas noites dela. */
+export interface SleepBand {
+  label: string;
+  nights: number;
+  /** Nota média das noites da faixa que têm nota. `null` se nenhuma tem. */
+  rating: number | null;
+  ratedNights: number;
+}
+
+/** O índice de regularidade de uma semana do período. */
+export interface SleepWeekRegularity {
+  /** Segunda-feira da semana, como em {@link weekKey}. */
+  key: string;
+  nights: number;
+  /** `null` sem noites seguidas suficientes — buraco não vira constância. */
+  sri: number | null;
+}
+
+/** Como os despertares do período se distribuem em duração. */
+export interface SleepAwakeSpread {
+  buckets: readonly { label: string; count: number }[];
+  /** Despertares acima de {@link AWAKE_COUNTED_MIN} minutos. */
+  counted: number;
+  total: number;
+}
+
+/** Uma noite com a contagem que ela tirou. */
+export interface SleepNightMark {
+  day: string;
+  points: number;
+  max: number;
+}
+
+/** As datas que fecham a página. Jornal nomeia. */
+export interface SleepExtremes {
+  shortest: { day: string; h: number };
+  longest: { day: string; h: number };
+  /** A noite de maior e de menor contagem. `null` sem histórico para a linha de base. */
+  best: SleepNightMark | null;
+  worst: SleepNightMark | null;
+}
+
+/** O que o chamador sabe e o núcleo não pode adivinhar. */
+export interface SleepRetroOptions {
+  /**
+   * Noites que o período comporta — o denominador da cobertura do selo. Sem
+   * isto não há selo: uma contagem sem saber de quantas noites ela fala seria
+   * uma contagem sobre as noites que o relógio conseguiu gravar.
+   */
+  expectedNights?: number;
+  /**
+   * Noites **anteriores** ao período, para a linha de base das dimensões
+   * relativas (continuidade e horário) e para a contagem por noite dos extremos.
+   */
+  history?: readonly SleepPeriod[];
+}
+
 export interface SleepRetro {
   cur: SleepSide;
   /** `null` sem noites no período anterior, ou quando não há anterior (Total). */
@@ -161,6 +253,22 @@ export interface SleepRetro {
    * entre o anterior e o atual). Quando existe, `delta.awakeMin` é `null`.
    */
   sourceChange: SleepMarker | null;
+
+  /** O selo: a Saúde do sono do período (ADR 0036). `null` sem `expectedNights`. */
+  score: SleepScore | null;
+  /** Mediana de horas dormidas — o número que a média esconde. */
+  medianH: number;
+  /** `true` quando média e mediana discordam o bastante para o jornal dizer as duas. */
+  meanMedianSplit: boolean;
+  /** A distribuição por faixa, com a nota média de cada. */
+  bands: SleepBand[];
+  /** Em quantas noites a noite quebrou em cada hora — conta noites, não eventos. */
+  awakeHours: AwakeHourBin[];
+  /** Duração dos despertares. `null` quando a fonte não reporta. */
+  awakeSpread: SleepAwakeSpread | null;
+  /** A regularidade de cada semana do período. */
+  regularityWeeks: SleepWeekRegularity[];
+  extremes: SleepExtremes;
 }
 
 function mean(xs: readonly number[]): number {
@@ -285,17 +393,74 @@ export function weekendShift(periods: readonly SleepPeriod[]): SleepWeekend | nu
   };
 }
 
+/** A distribuição por faixa, com a nota média de cada uma. */
+export function sleepBands(
+  periods: readonly SleepPeriod[],
+  ratings?: ReadonlyMap<string, number>,
+): SleepBand[] {
+  return SLEEP_BANDS.map((b) => {
+    const g = periods.filter((p) => p.asleepH >= b.minH && p.asleepH < b.maxH);
+    const notes = g.map((p) => ratings?.get(p.wakeDay)).filter((r): r is number => r != null);
+    return {
+      label: b.label,
+      nights: g.length,
+      rating: notes.length > 0 ? mean(notes) : null,
+      ratedNights: notes.length,
+    };
+  });
+}
+
+/**
+ * A regularidade de cada semana do período.
+ *
+ * O índice roda no **trecho contíguo** de cada semana ({@link longestRun}): um
+ * buraco no meio lê como "acordado nos dois lados" da comparação de 24 h e
+ * **infla** o índice, exatamente nas semanas em que faltou dado.
+ */
+export function regularityByWeek(periods: readonly SleepPeriod[]): SleepWeekRegularity[] {
+  const by = new Map<string, SleepPeriod[]>();
+  for (const p of byDay(periods)) {
+    const k = weekKey(p.wakeDay);
+    const arr = by.get(k);
+    if (arr) arr.push(p);
+    else by.set(k, [p]);
+  }
+  return [...by.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, ps]) => {
+      const run = longestRun(ps);
+      const sri = run.length >= REGULARITY_MIN_NIGHTS ? sleepRegularityIndex(run) : null;
+      return { key, nights: ps.length, sri };
+    });
+}
+
+/** Duração dos despertares do período. `null` quando nenhuma noite reporta. */
+export function awakeSpread(periods: readonly SleepPeriod[]): SleepAwakeSpread | null {
+  const reporting = periods.filter((p) => p.awakenings !== null);
+  if (reporting.length === 0) return null;
+  const all = reporting.flatMap((p) => (p.awakenings ?? []).map(awakeningMin));
+  return {
+    buckets: awakeningDurations(reporting),
+    counted: all.filter((m) => m > AWAKE_COUNTED_MIN).length,
+    total: all.length,
+  };
+}
+
 /**
  * A comparação inteira. `null` sem noites no período exibido.
  *
  * `prev` é `null` quando não há período anterior (Total). Um `prev` vazio dá
  * `prev: null` e `delta: null` — a UI escreve o fato sem a variação.
+ *
+ * `opts.expectedNights` liga o selo; `opts.history` liga as dimensões relativas
+ * e os extremos por contagem. Sem eles a peça é a de 05/09, intacta.
  */
 export function sleepRetro(
   cur: readonly SleepPeriod[],
   prev: readonly SleepPeriod[] | null,
   ratings?: ReadonlyMap<string, number>,
   markers: readonly SleepMarker[] = [],
+  opts: SleepRetroOptions = {},
 ): SleepRetro | null {
   const c = sleepSide(cur);
   if (!c) return null;
@@ -309,6 +474,30 @@ export function sleepRetro(
   let delta = p ? deltaOf(c, p) : null;
   if (delta && sourceChange) delta = { ...delta, awakeMin: null };
 
+  const medianH = median(cur.map((x) => x.asleepH));
+  const ratingMap: Record<string, number> = {};
+  if (ratings) for (const [d, v] of ratings) ratingMap[d] = v;
+
+  // Os extremos por contagem só existem com histórico: sem linha de base, duas
+  // das quatro dimensões saem não medidas e a comparação entre noites deixa de
+  // ser justa.
+  let best: SleepNightMark | null = null;
+  let worst: SleepNightMark | null = null;
+  if (opts.history && opts.history.length > 0) {
+    const marks = cur
+      .map((x) => {
+        const s = nightScore(x, opts.history!, ratingMap[x.wakeDay] ?? null);
+        return { day: x.wakeDay, points: s.points, max: s.max };
+      })
+      // Uma noite com uma dimensão medida não disputa com uma de quatro.
+      .filter((m) => m.max >= 6);
+    if (marks.length > 0) {
+      const share = (m: SleepNightMark) => m.points / m.max;
+      best = marks.reduce((a, b) => (share(b) > share(a) ? b : a));
+      worst = marks.reduce((a, b) => (share(b) < share(a) ? b : a));
+    }
+  }
+
   return {
     cur: c,
     prev: p,
@@ -317,6 +506,18 @@ export function sleepRetro(
     weekend: weekendShift(cur),
     weeks: bucketPeriods(cur, 'week'),
     sourceChange,
+
+    score:
+      opts.expectedNights === undefined
+        ? null
+        : periodScore(cur, opts.expectedNights, ratingMap, opts.history ?? cur),
+    medianH,
+    meanMedianSplit: Math.abs(toMin(c.asleepH - medianH)) >= MEAN_MEDIAN_GAP_MIN,
+    bands: sleepBands(cur, ratings),
+    awakeHours: awakeningsByHour(cur),
+    awakeSpread: awakeSpread(cur),
+    regularityWeeks: regularityByWeek(cur),
+    extremes: { shortest: c.shortest, longest: c.longest, best, worst },
   };
 }
 

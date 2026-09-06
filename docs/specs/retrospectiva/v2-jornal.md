@@ -351,6 +351,53 @@ dormiu 5h52 contra 6h47 · 9 noites com · 49 sem*. **Séries do ano:** `MonthBu
 conferida no original), qualquer nota composta. **Fila:** grade diária de "acordado"
 centrada na mediana, extremos do período.
 
+### 9.1 A página completa (06/09/2026)
+
+> Pedido: *"quero levar a Saúde do sono para a retrospectiva também… é uma das seções mais
+> importantes e quero que seja bem completa, seguindo a ideia de ser um jornal"*. Proposta com
+> dados reais de agosto de 2026 no artifact "O Sono no Jornal"
+> (`claude.ai/code/artifact/a0f5d8f4-5439-46c9-a0d2-de54ab391dce`); as quatro decisões
+> respondidas: selo **dentro** do bloco, **todas** as seis pautas, semana **também** com selo,
+> web **junto**.
+
+**Duas das três exclusões acima caducaram**, e por motivo, não por gosto:
+
+- **SRI como número** estava fora porque a fórmula não fora conferida no original. O
+  [Phillips 2017](https://www.nature.com/articles/s41598-017-03171-4) foi lido em 06/09; a
+  implementação em `regularity.ts` está correta. Ele entra — como dimensão do selo e como a
+  faixa semana a semana.
+- **Nota composta** estava fora porque não havia uma defensável. Agora há: a **Saúde do sono**
+  da [ADR 0036](../../decisions/0036-saude-do-sono-e-contagem-nao-placar.md), que é contagem e
+  não placar.
+- **Saldo contra 7 h continua fora**, e o selo não o reintroduz: ele conta quantas noites
+  chegaram a 7 h, nunca quantas faltaram.
+
+**O selo** entra no bloco Sono, depois da tarja e antes do corpo — é o resumo em caixa da
+página, não a chamada de capa. Vale em **Semana, Mês, Estação e Ano**; em **Total** não há
+selo, porque "sempre" não tem denominador de cobertura. Abaixo de 70% das noites a contagem
+some e as medidas ficam, e a caixa de correções passa a dizer isso.
+
+**As seis pautas**, todas medidas em agosto de 2026 (27 noites de 31):
+
+| Pauta | O que muda | Regra |
+|---|---|---|
+| Média × mediana | o número grande passa a ser a **mediana**; a média entra embaixo quando discordam | `MEAN_MEDIAN_GAP_MIN` = 10 min. Em agosto: média 6h38, mediana 7h02, e a diferença inteira é a noite de 58 min do dia 7 |
+| A que horas a noite quebra | faixa de barras por hora sob "Acordado", com o pico cheio | conta **noites**, não eventos. Em agosto: 12 noites entre 4h e 5h |
+| Duração dos despertares | linha "acima de 5 min: 27 de 85" | é o critério de contagem do consenso Ohayon 2017 — a contagem crua sugere uma noite picada que a distribuição desmente |
+| Regularidade por semana | segunda faixa de barras, ao lado das horas por semana | o índice roda só no **trecho contíguo** de cada semana; buraco não vira constância |
+| Nota por faixa de duração | dentro de "Como você acordou", o corte ao contrário | responde "vale a pena dormir mais?", que o corte por nota não responde. Em agosto: 3,00 abaixo de 6 h, 4,00 acima de 7 |
+| Os extremos com data | duas ou três linhas que fecham a página | jornal nomeia. Sem adjetivo, sem elogio |
+
+**No Ano e no Total a contagem não serve, e dizer isso é o conteúdo.** Rodada nos doze meses
+do histórico, ela existe em **dois**: só outubro/25 e agosto/26 passam do piso de cobertura.
+
+**Onde:** `sleepRetro` ganha `opts` (`expectedNights`, `history`) e devolve `score`, `medianH`,
+`meanMedianSplit`, `bands`, `awakeHours`, `awakeSpread`, `regularityWeeks` e `extremes`; o
+`period/retro.ts` calcula o denominador pelo calendário do período, com a janela corrente
+valendo até hoje. `SleepRetroCard.tsx` no mobile e `sleep-retro-card.component.ts` na web — a
+**web recebe o bloco pela primeira vez**; ela já calculava `summary.sleep` desde 05/09 e não o
+desenhava.
+
 ---
 
 ## Procedência

@@ -608,12 +608,33 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     const hi = localDay(end);
     return (input.sleepPeriods ?? []).filter((p) => p.wakeDay >= lo && p.wakeDay < hi);
   };
+  /**
+   * Noites que o período comporta — o denominador da cobertura do selo.
+   *
+   * Sai do calendário do próprio período, e a janela **corrente** vale até hoje:
+   * sem isso, a semana em curso na terça-feira apareceria com 2 de 7 e perderia
+   * a contagem por cobertura baixa todo começo de semana. Em 'all' não há selo —
+   * "sempre" não tem denominador.
+   */
+  const expectedNights = ((): number | undefined => {
+    if (input.kind === 'all') return undefined;
+    const end = cur.end.getTime() > input.now.getTime() ? input.now : cur.end;
+    const days = Math.round((end.getTime() - cur.start.getTime()) / 86_400_000);
+    return Math.max(1, days);
+  })();
+
   const sleep = input.sleepPeriods
     ? sleepRetro(
         nightsIn(cur.start, cur.end),
         input.kind === 'all' ? null : nightsIn(prev.start, prev.end),
         input.ratingsSleep,
         SONO_MARKERS,
+        {
+          expectedNights,
+          // A linha de base olha só para ANTES do período: se ele se comparasse
+          // consigo mesmo, a continuidade seria sempre a própria mediana.
+          history: (input.sleepPeriods ?? []).filter((p) => p.wakeDay < localDay(cur.start)),
+        },
       )
     : null;
 
