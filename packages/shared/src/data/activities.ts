@@ -277,6 +277,107 @@ export async function fetchExistingRouteIds(
   return found;
 }
 
+/* ─────────────────────────── piso das rotas (ADR 0034/0035) ─────────────────────────── */
+
+/**
+ * Pedaladas com rota e ainda sem piso — a fila do passe.
+ *
+ * Duas leituras em vez de um join embutido: o dono da fila é
+ * `activity_routes` (é lá que a ausência mora), mas o filtro por tipo e a ordem
+ * "mais recente primeiro" moram em `activities`. Cruzar em memória custa nada
+ * neste volume e evita depender da forma do relacionamento no PostgREST.
+ *
+ * `retryBefore` (ISO) exclui as que falharam recentemente: falha grava
+ * `surface_meta.failedAt` e a rota só volta à fila depois dessa marca.
+ */
+export async function fetchSurfaceCandidates(
+  db: SupabaseClient,
+  userId: string,
+  activityIds: readonly number[],
+  limit: number,
+  retryBefore: string,
+): Promise<Array<{ activityId: string; overview: ActivityRoutePoint[] }>> {
+  const { data: routes, error } = await db
+    .from('activity_routes')
+    .select('activity_id, route_overview, surface_meta')
+    .eq('user_id', userId)
+    .is('surface_segments', null)
+    .limit(40);
+  if (error) throw error;
+  type Row = {
+    activity_id: string;
+    route_overview: [number, number][] | null;
+    surface_meta: { status?: string; failedAt?: string } | null;
+  };
+  const pending = ((routes ?? []) as Row[]).filter(
+    (r) => !r.surface_meta || r.surface_meta.status !== 'failed' || (r.surface_meta.failedAt ?? '') < retryBefore,
+  );
+  if (pending.length === 0) return [];
+
+  const { data: acts, error: e2 } = await db
+    .from('activities')
+    .select('id')
+    .eq('user_id', userId)
+    .in('activity_id', [...activityIds])
+    .in('id', pending.map((r) => r.activity_id))
+    .order('start_at', { ascending: false })
+    .limit(limit);
+  if (e2) throw e2;
+
+  const byId = new Map(pending.map((r) => [r.activity_id, r]));
+  return ((acts ?? []) as Array<{ id: string }>).flatMap((a) => {
+    const row = byId.get(a.id);
+    if (!row) return [];
+    const overview = (row.route_overview ?? [])
+      .filter((p) => Array.isArray(p) && p.length >= 2)
+      .map(([lat, lng]) => ({ lat, lng }));
+    return [{ activityId: a.id, overview }];
+  });
+}
+
+/**
+ * Grava o piso de uma pedalada: os segmentos e a procedência na rota, a soma na
+ * atividade. Duas escritas porque são duas tabelas; a da atividade é a que as
+ * telas agregadas leem, e vai por último — uma soma sem os segmentos que a
+ * originaram seria um número sem lastro.
+ */
+export async function saveActivitySurface(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+  segments: unknown,
+  meta: unknown,
+  mix: unknown,
+): Promise<void> {
+  const { error } = await db
+    .from('activity_routes')
+    .update({ surface_segments: segments, surface_meta: meta })
+    .eq('user_id', userId)
+    .eq('activity_id', activityId);
+  if (error) throw error;
+  const { error: e2 } = await db
+    .from('activities')
+    .update({ surface_mix: mix })
+    .eq('user_id', userId)
+    .eq('id', activityId);
+  if (e2) throw e2;
+}
+
+/** Marca a falha (com o motivo) para a rota sair da fila até a próxima janela. */
+export async function saveSurfaceFailure(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+  meta: unknown,
+): Promise<void> {
+  const { error } = await db
+    .from('activity_routes')
+    .update({ surface_meta: meta })
+    .eq('user_id', userId)
+    .eq('activity_id', activityId);
+  if (error) throw error;
+}
+
 /** Grava (ou substitui) a rota de uma atividade. */
 export async function upsertActivityRoute(
   db: SupabaseClient,

@@ -45,9 +45,13 @@ import { movingTimeFromTrack } from '@vitale/shared';
 import {
   fetchExistingRouteIds,
   fetchRouteBackfillCandidates,
+  fetchSurfaceCandidates,
+  saveActivitySurface,
+  saveSurfaceFailure,
   setActivityHasRoute,
   upsertActivityRoute,
 } from '@vitale/shared';
+import { surfaceFailureMeta, surfaceOfOverview } from '../lib/surface-osm';
 
 export interface SyncResult {
   pushed: number;
@@ -332,6 +336,55 @@ async function retryMissingRoutes(userId: string): Promise<number> {
   return count;
 }
 
+/** Código de ciclismo do HealthKit — o único tipo com piso hoje (ADR 0034). */
+const BIKE_ACTIVITY_ID = 13;
+/**
+ * Pedaladas com piso calculado por sync. Baixo de propósito: cada uma é uma
+ * consulta ao Overpass de alguns segundos, e o sync não pode virar espera. Com
+ * o histórico já preenchido pelo backfill, sobram 2–3 pedaladas novas por
+ * semana — duas por sync drenam de sobra.
+ */
+const SURFACE_PER_SYNC = 2;
+/** Falha volta à fila em 6 h: várias chances por dia sem custo quando não há o que fazer. */
+const SURFACE_RETRY_H = 6;
+
+/**
+ * Calcula o piso das pedaladas que ainda não têm (ADR 0035).
+ *
+ * Roda **aqui, no aparelho**, e não no ingest: da edge function o Overpass
+ * devolve 504 (slots por IP, saída compartilhada), enquanto daqui a mesma
+ * consulta responde em segundos. A regra é a mesma do núcleo nos dois casos —
+ * o que muda é de onde sai o pacote.
+ *
+ * Best-effort: erro numa pedalada grava o motivo e não impede a próxima, e o
+ * passe inteiro nunca derruba o sync.
+ */
+async function backfillSurface(userId: string): Promise<number> {
+  const retryBefore = new Date(Date.now() - SURFACE_RETRY_H * 3600_000).toISOString();
+  let pending;
+  try {
+    pending = await fetchSurfaceCandidates(supabase, userId, [BIKE_ACTIVITY_ID], SURFACE_PER_SYNC, retryBefore);
+  } catch {
+    return 0;
+  }
+
+  let count = 0;
+  for (const { activityId, overview } of pending) {
+    try {
+      const { segments, meta, mix } = await surfaceOfOverview(overview);
+      await saveActivitySurface(supabase, userId, activityId, segments, meta, mix);
+      count++;
+    } catch (e) {
+      try {
+        await saveSurfaceFailure(supabase, userId, activityId, surfaceFailureMeta(e));
+      } catch {
+        // Nem a marca de falha subiu: a rota volta na próxima janela do mesmo jeito.
+      }
+    }
+  }
+  return count;
+}
+
 /**
  * Pesos das fases para a barra de progresso (somam 1). As duas coletas
  * treino-a-treino dominam o tempo (uma leitura do HealthKit por treino); o
@@ -471,6 +524,14 @@ export async function syncDelta(): Promise<SyncResult> {
       retriedRoutes = await retryMissingRoutes(userId);
     } catch (e) {
       console.warn('[sync] retry de rotas falhou:', e instanceof Error ? e.message : e);
+    }
+
+    // 5. Piso das pedaladas novas (ADR 0035). Depois das rotas de propósito: o
+    //    passe lê `route_overview`, que só existe depois que a rota subiu.
+    try {
+      await backfillSurface(userId);
+    } catch (e) {
+      console.warn('[sync] piso falhou:', e instanceof Error ? e.message : e);
     }
 
     const labels = [...new Set(ofType.map((w) => getActivityMeta(w.activityId).label))];

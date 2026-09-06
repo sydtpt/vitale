@@ -13,9 +13,13 @@
 import assert from 'node:assert/strict';
 import {
   classifyOsmTags,
+  overpassWaysQuery,
+  parseOverpassWays,
   pickWay,
+  planSurface,
   sampleRoute,
   segmentsFromSamples,
+  surfaceFromWays,
   surfaceMix,
   surfaceShares,
   sumSurfaceMix,
@@ -107,6 +111,48 @@ const pts = Array.from({ length: 11 }, (_, i) => ({ lat: 50.85 + i * STEP_DEG, l
   assert.equal(soma.total, 3400);
   assert.equal(soma.pave, 600);
   assert.equal(surfaceShares(surfaceMix([])).liso, 0, 'sem rota, tudo zero');
+}
+
+// 5. o protocolo do Overpass — é o contrato entre o aparelho e um eventual servidor,
+//    então tem de produzir a MESMA consulta e ler a MESMA resposta dos dois lados.
+{
+  const q = overpassWaysQuery([{ lat: 50.85, lng: 4.35 }, { lat: 50.851, lng: 4.351 }], 25, 25);
+  assert.equal(q, '[out:json][timeout:25];way(around:25,50.850000,4.350000,50.851000,4.351000)[highway];out geom;');
+
+  const ways = parseOverpassWays({
+    elements: [
+      { type: 'way', tags: { highway: 'cycleway', surface: 'asphalt' }, geometry: [{ lat: 1, lon: 2 }, { lat: 1, lon: 3 }] },
+      { type: 'node', tags: { highway: 'crossing' } },                       // não é via
+      { type: 'way', tags: { highway: 'residential' } },                     // sem geometria
+      { type: 'way', tags: { highway: 'path' }, geometry: [] },              // geometria vazia
+    ],
+  });
+  assert.equal(ways.length, 1, 'só way com traçado entra');
+  assert.deepEqual(ways[0]!.geometry, [{ lat: 1, lng: 2 }, { lat: 1, lng: 3 }], 'lon vira lng');
+  assert.deepEqual(parseOverpassWays(null), [], 'resposta vazia não quebra');
+  assert.deepEqual(parseOverpassWays({}), []);
+
+  // plano + classificação: a rota reta de 1 km sobre uma ciclovia de asfalto
+  const plan = planSurface(pts, 400);
+  assert.ok(plan.query.startsWith('[out:json]'), 'o plano já traz a consulta pronta');
+  assert.equal(plan.samples.length > 0, true);
+  const via: OsmWay = {
+    tags: { highway: 'cycleway', surface: 'compacted' },
+    geometry: [{ lat: 50.85, lng: 4.35 }, { lat: 50.85 + 11 * STEP_DEG, lng: 4.35 }],
+  };
+  const { segments, meta } = surfaceFromWays(plan, [via], '2026-09-06');
+  assert.deepEqual(segments.map((s) => s[2]), ['cascalho'], 'um segmento só, do começo ao fim');
+  assert.equal(segments[0]![3], 0, 'veio de tag, não é inferido');
+  assert.equal(meta.status, 'ok');
+  assert.equal(meta.samples, plan.samples.length);
+  assert.ok(meta.matchMedianM !== undefined && meta.matchMedianM < 1, 'o ponto cai em cima da via');
+  assert.equal(surfaceMix(segments).total, segments[0]![1], 'a soma fecha com o segmento');
+
+  // sem nenhuma via perto, tudo vira "desconhecido" — e continua somando o comprimento
+  const semVia = surfaceFromWays(plan, [], '2026-09-06');
+  const mixSemVia = surfaceMix(semVia.segments);
+  assert.equal(mixSemVia.desconhecido, mixSemVia.total, 'sem via, o total inteiro é "não sei"');
+  assert.equal(semVia.meta.matchMedianM, undefined, 'sem casamento não há mediana');
 }
 
 console.log('surface/classify: ok');

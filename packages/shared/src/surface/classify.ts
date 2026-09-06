@@ -1,9 +1,11 @@
 /**
  * Piso das rotas — a classificação e a geometria, puras (ADR 0034).
  *
- * SEM IMPORTS de propósito: a edge function `connections-ingest` consome este
- * módulo por caminho relativo, e o Deno não resolve specifier sem extensão. A
- * barreira em `architecture.test.ts` cobra que continue assim.
+ * Sem imports, e vale manter assim: o módulo nasceu para ser consumido também
+ * pelo Deno da edge function (que não resolve specifier sem extensão). O passe
+ * server-side saiu na ADR 0035 — o Overpass não responde àquele IP —, mas a
+ * regra continua sendo a mesma nos dois lados de uma eventual volta, e um
+ * módulo puro sem dependências é o que torna isso barato.
  *
  * O que vive aqui: (1) a tabela que traduz tags do OpenStreetMap em cinco
  * categorias de piso + "desconhecido"; (2) a regra de escolher a via quando há
@@ -64,6 +66,10 @@ export interface SurfaceMeta {
   matchMedianM?: number;
   status?: 'ok' | 'failed';
   error?: string;
+  /** ISO da falha — o retry usa isto para saber quando pode tentar de novo. */
+  failedAt?: string;
+  /** Nota livre: de onde veio este cálculo quando não foi o caminho normal. */
+  note?: string;
 }
 
 export const SURFACE_SAMPLE_SPACING_M = 400;
@@ -317,6 +323,106 @@ export function surfaceShares(mix: SurfaceMix): Record<SurfaceCategory, number> 
     terra: mix.terra / t,
     desconhecido: mix.desconhecido / t,
   };
+}
+
+/* ───────────────────── o protocolo do Overpass ─────────────────────
+ * Montar a consulta e ler a resposta são puros, e ficam aqui para o aparelho e
+ * o servidor falarem exatamente a mesma língua com o OSM. Só o `fetch` é de
+ * plataforma — e é justamente ele que muda de comportamento conforme o IP de
+ * saída (ADR 0035).
+ */
+
+/** A consulta: todas as vias `highway` a até `radiusM` da polilinha das amostras. */
+export function overpassWaysQuery(
+  points: readonly LatLng[],
+  radiusM = SURFACE_MATCH_RADIUS_M,
+  timeoutS = 25,
+): string {
+  const poly = points.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join(',');
+  return `[out:json][timeout:${timeoutS}];way(around:${radiusM},${poly})[highway];out geom;`;
+}
+
+interface OverpassElement {
+  type?: string;
+  tags?: Record<string, string>;
+  geometry?: Array<{ lat: number; lon: number }>;
+}
+
+/** Resposta do Overpass → vias com geometria. Ignora o que não for `way` com traçado. */
+export function parseOverpassWays(body: unknown): OsmWay[] {
+  const elements = (body as { elements?: OverpassElement[] })?.elements ?? [];
+  const out: OsmWay[] = [];
+  for (const e of elements) {
+    if (e.type !== 'way' || !e.geometry || e.geometry.length === 0) continue;
+    out.push({
+      tags: e.tags ?? {},
+      geometry: e.geometry.map((g) => ({ lat: g.lat, lng: g.lon })),
+    });
+  }
+  return out;
+}
+
+export interface SurfacePlan {
+  samples: SurfaceSample[];
+  gaps: Array<[number, number]>;
+  lengthM: number;
+  /** A consulta pronta; vazia quando não há amostra (rota degenerada). */
+  query: string;
+}
+
+/** Passo 1: amostrar a rota e montar a consulta. Puro. */
+export function planSurface(
+  overview: readonly LatLng[],
+  spacingM = SURFACE_SAMPLE_SPACING_M,
+  radiusM = SURFACE_MATCH_RADIUS_M,
+  timeoutS = 25,
+): SurfacePlan {
+  const { samples, gaps, lengthM } = sampleRoute(overview, spacingM);
+  const query = samples.length > 0 ? overpassWaysQuery(samples.map((s) => s.point), radiusM, timeoutS) : '';
+  return { samples, gaps, lengthM, query };
+}
+
+/**
+ * Passo 2: com as vias em mãos, classificar e montar segmentos + procedência.
+ * Puro — quem buscou as vias não importa, e é isso que deixa o mesmo cálculo
+ * rodar no aparelho e no servidor com resultado idêntico.
+ */
+export function surfaceFromWays(
+  plan: SurfacePlan,
+  ways: readonly OsmWay[],
+  sampledAt: string,
+  source: SurfaceMeta['source'] = 'osm-overpass',
+  radiusM = SURFACE_MATCH_RADIUS_M,
+  spacingM = SURFACE_SAMPLE_SPACING_M,
+): { segments: SurfaceSegment[]; meta: SurfaceMeta } {
+  const classified: ClassifiedSample[] = [];
+  const dists: number[] = [];
+  for (const s of plan.samples) {
+    const m = pickWay(s.point, ways, radiusM);
+    if (!m) {
+      classified.push({ startM: s.startM, endM: s.endM, cat: 'desconhecido', inferred: true });
+      continue;
+    }
+    dists.push(m.distM);
+    const { cat, inferred } = classifyOsmTags(m.way.tags);
+    classified.push({ startM: s.startM, endM: s.endM, cat, inferred });
+  }
+  for (const [a, b] of plan.gaps) {
+    classified.push({ startM: a, endM: b, cat: 'desconhecido', inferred: true });
+  }
+  dists.sort((x, y) => x - y);
+  const meta: SurfaceMeta = {
+    version: 1,
+    source,
+    sampledAt,
+    spacingM,
+    radiusM,
+    samples: plan.samples.length,
+    lengthM: Math.round(plan.lengthM),
+    matchMedianM: dists.length ? Math.round(dists[Math.floor(dists.length / 2)] * 10) / 10 : undefined,
+    status: 'ok',
+  };
+  return { segments: segmentsFromSamples(classified), meta };
 }
 
 /** Soma de várias rotas — a visão global por período ou por bicicleta. */

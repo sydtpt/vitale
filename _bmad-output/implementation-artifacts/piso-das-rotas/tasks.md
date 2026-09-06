@@ -71,18 +71,19 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
       **Estado atual: inofensivo e dormente** — o backfill cobriu 137/137, não há rota
       pendente, e o passe só tentaria numa pedalada nova.
 
-### T1.4 — DECISÃO PENDENTE: onde o passe roda
+### T1.4 — RESOLVIDA: o passe roda no aparelho (ADR 0035)
 
-- [ ] **Opção A (recomendada): mover o passe para o aparelho**, no sync. O núcleo puro
-      (`surface/classify.ts`) já está pronto e o mobile o importa sem a restrição do
-      Deno; a rede de casa faz a consulta em 5 s. É o mesmo padrão do backfill de rotas
-      (ADR 0007). Custo: uma função no `mobile/src/lib` + escrita pelo `data/`.
-      Supersede a parte "no ingest" da ADR 0034 (ADR nova, append-only).
-- [ ] Opção B: manter na function e conviver com a falha (retry de 6 h). Com 504
-      consistente, provavelmente nunca completa.
-- [ ] Opção C: trocar a fonte (Overpass próprio, extrato Geofabrik no Postgres, API paga).
-      Caro para 2–3 pedaladas por semana.
-- [ ] Enquanto não se decide: rodar o cruzamento à mão daqui, como foi o backfill.
+- [x] Opção A escolhida em 06/09 ("vamos seguir"). O protocolo do Overpass subiu para o
+      núcleo (`planSurface`, `parseOverpassWays`, `surfaceFromWays` — puros, testados),
+      `mobile/src/lib/surface-osm.ts` faz só o `fetch` com três espelhos e 25 s, e
+      `backfillSurface` entra no `syncDelta` depois da recuperação de rotas: 2 pedaladas
+      por sync, falha volta à fila em 6 h com o motivo em `surface_meta`.
+      `data/activities.ts` ganhou `fetchSurfaceCandidates`, `saveActivitySurface` e
+      `saveSurfaceFailure` (AD-4).
+- [x] O passe server-side e o `_shared/surface.ts` foram **removidos** e a function
+      redeployada — código que falha em silêncio a cada tick é pior que código ausente.
+- [ ] Conferir no aparelho: rodar um sync e ver uma pedalada nova ganhar piso sozinha.
+      (O histórico já está inteiro pelo backfill, então o teste real é a próxima pedalada.)
 - [ ] T1.4 Golden set: Sydnei marca 10 pedaladas que lembra; conferir.
 - [ ] T1.5 Conferir se `activity_routes.points` tem timestamp (velocidade por piso).
 
