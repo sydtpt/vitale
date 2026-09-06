@@ -1,0 +1,62 @@
+<div class="page">
+  <a class="back" routerLink="/sono">← Sono</a>
+  <rt-page-header eyebrow="Sono" title="Saúde do sono" subtitle="Cinco medidas contadas, cada uma com o fato ao lado." />
+
+  <section class="card">
+    <div class="cols">
+      <div class="main">
+        <rt-sono-period-nav
+          [range]="range()" [offset]="offset()" [periods]="store.periods()" [nights]="nights()"
+          (rangeChange)="setRange($event)" (offsetChange)="offset.set($event)" />
+
+        @if (store.state() === 'loading' || store.state() === 'idle') {
+          <p class="state">Carregando…</p>
+        } @else {
+          <rt-sleep-score-dims [score]="score()" [note]="note()" />
+
+          @if (lowCoverage()) {
+            <p class="warn">
+              Abaixo de {{ floorPct }}% das noites, uma contagem seria sobre as noites que o
+              relógio conseguiu gravar — não sobre o período.
+            </p>
+          }
+        }
+      </div>
+
+      <aside class="side">
+        <h4 class="side-title">De onde vem cada linha</h4>
+
+        <div class="origin">
+          <span class="o-lab">Duração</span>
+          <p class="o-txt">Dois traços a partir de {{ DURATION_FULL_H }} h — o consenso da AASM e da Sleep Research Society (2015).</p>
+        </div>
+        <div class="origin">
+          <span class="o-lab">Continuidade</span>
+          <p class="o-txt">
+            Tempo acordado, comparado com as suas 30 noites anteriores. É relativo de propósito:
+            a troca de relógio em julho derrubou a sua vigília mediana de 71 para 13 minutos sem
+            você mudar nada.
+          </p>
+        </div>
+        <div class="origin">
+          <span class="o-lab">Horário</span>
+          <p class="o-txt">Quanto o meio das suas noites se espalha dentro do período. Uma semana inteira deslocada, mas coerente consigo, não é desordem.</p>
+        </div>
+        <div class="origin">
+          <span class="o-lab">Regularidade</span>
+          <p class="o-txt">O índice que compara o seu estado agora com o de 24 h atrás, minuto a minuto. É a medida com a melhor evidência de desfecho que existe, e só roda em noites seguidas.</p>
+        </div>
+        <div class="origin last">
+          <span class="o-lab">Percepção</span>
+          <p class="o-txt">A nota que você deu ao acordar. É a única dimensão que nenhum aparelho tem — e nas suas noites é a duração que mais anda junto com ela.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <p class="foot">
+    Não é diagnóstico, e não é comparação com outras pessoas. Estágios de sono ficam de fora da
+    contagem por decisão: nas suas noites, a fração de sono profundo cai quando você dorme mais,
+    então pontuá-la seria premiar noite curta.
+  </p>
+</div>

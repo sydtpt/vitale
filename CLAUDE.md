@@ -190,7 +190,13 @@ São **10** módulos, não 7:
   medido em vez de conferido. A web ganhou modo escuro, que não tinha
 - Sono (mobile): `sleep_periods` — a noite como evento com instantes — e a tela `/sono`
   (relógios deitou/apagou/acordou, timing chart de 14 noites, despertares por hora do dia,
-  nota × medição). Sem score, por princípio. Sono é categoria de Saúde, não módulo (ADR 0031)
+  nota × medição). Sono é categoria de Saúde, não módulo (ADR 0031)
+- Sono — **Saúde do sono**: contagem de cinco dimensões (duração, continuidade, horário,
+  regularidade, percepção), 0–2 cada, na escala do RU-SATED. A noite conta quatro; o período
+  conta cinco, porque regularidade é relação entre noites. Estágios ficam fora da contagem, e
+  os limiares de continuidade saem da distribuição recente do usuário — a troca de relógio
+  move a vigília mediana de 71 para 13 min sozinha. `/sono/saude` nos dois apps
+  ([ADR 0036](docs/decisions/0036-saude-do-sono-e-contagem-nao-placar.md))
 - FC ao longo do dia: `health_series` — a série intradiária (minuto → bpm) gravada pelo mesmo
   sync que produz a linha diária (ADR 0033). Em produção desde 05/09, com 177 dias de backfill.
   Web: três painéis em Coração (curva do dia, Noites, dia × hora). iPhone: o detalhe de FC no
@@ -210,6 +216,8 @@ São **10** módulos, não 7:
   medição como manchete, gatilho × noite em valores absolutos, séries Sono/Acordado no
   Ano) e as leituras **Dispersão**, **antes × agora** e **Grade** do Tempos foram escritos
   em 05/09 e aguardam conferência no iPhone; ver Fase 6 do tasks
+- Sono: **Saúde do sono** (CAP-11, ADR 0036) escrita em 06/09 nos dois apps — núcleo testado
+  e validado contra as 288 noites reais, mas **sem conferência no iPhone nem no navegador**
 - Push **remoto** (servidor): hoje só há notificação local agendada no device — não há
   registro de token nem envio server-side
 - Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc

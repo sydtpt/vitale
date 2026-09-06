@@ -1,0 +1,24 @@
+/* A mesma composição do mobile, na largura padrão das outras páginas (1200):
+   acima de 900px a contagem à esquerda e a origem de cada linha à direita. */
+.page { padding: 24px 32px 48px; max-width: 1200px; display: flex; flex-direction: column; gap: 14px; }
+.back { font-size: 13px; color: var(--ink-3); text-decoration: none; &:hover { color: var(--ink); } }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  padding: 18px 20px; box-shadow: var(--shadow-card);
+}
+.cols { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 900px) {
+  .cols { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); column-gap: 32px; align-items: start; }
+}
+.main, .side { min-width: 0; }
+.state { margin: 0; padding: 32px 0; text-align: center; font-size: 13.5px; color: var(--ink-3); }
+.warn { margin: 14px 0 0; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+
+.side-title { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.origin { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.origin.last { border-bottom: 0; padding-bottom: 0; }
+.o-lab { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.o-txt { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+
+.foot { margin: 0; padding: 0 4px; font-size: 12px; line-height: 1.55; color: var(--ink-3); }
