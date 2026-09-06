@@ -55,6 +55,15 @@
       "expo-secure-store",
       "expo-sharing",
       [
+        "expo-media-library",
+        {
+          "//": "Fotos na pedalada (ADR 0037). A imagem NUNCA sai do aparelho: o app lê a janela da atividade, guarda instante e coordenada, e resolve o arquivo localmente pelo assetId. Precisa de acesso COMPLETO — o acesso limitado do iOS 14+ responde só o que foi escolhido à mão e quebra a consulta por janela. Sem escrita: o app não cria nem apaga foto.",
+          "photosPermission": "O Orbe procura, na sua biblioteca, as fotos tiradas durante cada pedalada, para mostrá-las junto do mapa e dos números. As imagens ficam no seu iPhone — o app guarda só o horário e o local.",
+          "savePhotosPermission": false,
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/icon.png",
