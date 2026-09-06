@@ -22,6 +22,7 @@ export * from './health/trigger-impact';
 export * from './health/aggregate';
 export * from './health/wellness';
 export * from './health/series';
+export * from './health/series-derive';
 export * from './sleep/timing';
 export * from './sleep/derive';
 export * from './sleep/awakenings';

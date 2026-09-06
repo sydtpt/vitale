@@ -1,5 +1,6 @@
 export { BarChart } from './BarChart';
 export { LineChart } from './LineChart';
+export { DayHeartChart } from './DayHeartChart';
 export { Sparkline } from './Sparkline';
 export { ActivityRings } from './ActivityRings';
 export type { Ring } from './ActivityRings';
