@@ -85,7 +85,8 @@ clicável).
 - **Roteamento:** Expo Router (file-based, pasta `mobile/src/app/`)
 - **Store:** Zustand 5
 - **Animações:** `Animated` do React Native — Reanimated está instalado (o `expo-router` o exige), mas **não se usa** (ADR 0010)
-- 6 tabs: Hoje, Semana, Histórico, Saúde, Compras, Mais
+- 4 tabs na barra: Hoje, Sono, Histórico, Mais — Semana, Saúde e Compras são telas de tab
+  ocultas (`href: null`), abertas pelo Mais
 
 ## Design System
 
@@ -173,8 +174,9 @@ São **10** módulos, não 7:
 - Web: página Treinos (gráfico de lift, gráfico de corrida, planejador semanal)
 - Web: página Finanças (gráfico de gastos, transações)
 - Mobile: navegação por tabs, Zustand store, tema
-- Mobile: 6 telas de tab (Hoje, Semana, Histórico, Saúde, Compras, Mais), mais as rotas
-  de stack (treinos, metas, cultura, tarefas, registros, hábitos, retrospectiva…)
+- Mobile: 7 telas de tab (Hoje, Sono, Histórico e Mais na barra; Semana, Saúde e Compras
+  pelo Mais), mais as rotas de stack (treinos, metas, cultura, tarefas, registros, hábitos,
+  retrospectiva…)
 - Mobile: componentes UI (`DayRingCard`, `CheckButton`, `QuickAddSheet`) e fontes
   embarcadas via plugin `expo-font`
 - Backend: Supabase — Postgres com RLS, 55 migrations, 4 edge functions Deno
@@ -188,12 +190,34 @@ São **10** módulos, não 7:
   medido em vez de conferido. A web ganhou modo escuro, que não tinha
 - Sono (mobile): `sleep_periods` — a noite como evento com instantes — e a tela `/sono`
   (relógios deitou/apagou/acordou, timing chart de 14 noites, despertares por hora do dia,
-  nota × medição). Sem score, por princípio. Sono é categoria de Saúde, não módulo (ADR 0031)
+  nota × medição). Sono é categoria de Saúde, não módulo (ADR 0031)
+- Sono — **Saúde do sono**: contagem de cinco dimensões (duração, continuidade, horário,
+  regularidade, percepção), 0–2 cada, na escala do RU-SATED. A noite conta quatro; o período
+  conta cinco, porque regularidade é relação entre noites. Estágios ficam fora da contagem, e
+  os limiares de continuidade saem da distribuição recente do usuário — a troca de relógio
+  move a vigília mediana de 71 para 13 min sozinha. `/sono/saude` nos dois apps
+  ([ADR 0036](docs/decisions/0036-saude-do-sono-e-contagem-nao-placar.md))
+- FC ao longo do dia: `health_series` — a série intradiária (minuto → bpm) gravada pelo mesmo
+  sync que produz a linha diária (ADR 0033). Em produção desde 05/09, com 177 dias de backfill.
+  Web: três painéis em Coração (curva do dia, Noites, dia × hora). iPhone: o detalhe de FC no
+  período Dia com a noite, o treino e a faixa típica, mais o card Dormindo. Conferido em 06/09.
+  Ver [docs/specs/fc-serie/](docs/specs/fc-serie/spec.md)
 
 ### Em andamento / Próximo 🔧
+- Piso das rotas: o chão de cada pedalada medido contra o OpenStreetMap no ingest
+  ([ADR 0035](docs/decisions/0035-piso-das-rotas-vem-do-osm-no-ingest.md)), com a bicicleta
+  como entidade que a pedalada herda pela data ([ADR 0034](docs/decisions/0034-bicicleta-e-entidade-com-heranca-por-data.md)).
+  Migrations aplicadas e 137 rotas backfilladas em prod (06/09); cartão de piso no Ciclismo e
+  no detalhe da pedalada. Faltam o smoke test do passe deployado, o golden set e a web.
+  Tarefas: `_bmad-output/implementation-artifacts/piso-das-rotas/tasks.md`
 - Tarefas: ponte real com Compras/Finanças
-- Sono: a web (segunda rodada) e a CAP-7 — seção "Tempos e estágios" com seletor até
-  "sempre", **adiada por pedido do usuário**; ver Fase 6 do tasks
+- Sono: CAP-7 (Tempos, Despertares, Estágios) entregue em 05/09 no mobile e na web; o bloco
+  **Sono na Retrospectiva** (`sleep/retro.ts`, noite típica vs período anterior, nota ×
+  medição como manchete, gatilho × noite em valores absolutos, séries Sono/Acordado no
+  Ano) e as leituras **Dispersão**, **antes × agora** e **Grade** do Tempos foram escritos
+  em 05/09 e aguardam conferência no iPhone; ver Fase 6 do tasks
+- Sono: **Saúde do sono** (CAP-11, ADR 0036) escrita em 06/09 nos dois apps — núcleo testado
+  e validado contra as 288 noites reais, mas **sem conferência no iPhone nem no navegador**
 - Push **remoto** (servidor): hoje só há notificação local agendada no device — não há
   registro de token nem envio server-side
 - Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc
@@ -232,3 +256,4 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [Temas (quatro eixos: esquema, tema, paleta e marca)](docs/specs/temas/spec.md) · [data-model](docs/specs/temas/data-model.md)
 - [Cultura (livros, filmes, podcasts e álbuns)](docs/specs/cultura/spec.md) · [data-model](docs/specs/cultura/data-model.md) · [stories](docs/specs/cultura/stories.yaml)
 - [Sono (tela própria: horários, timing chart, despertares e percepção × medição)](docs/specs/sono/spec.md) · [data-model](docs/specs/sono/data-model.md) · [plan](docs/specs/sono/plan.md) · [tasks](_bmad-output/implementation-artifacts/sono/tasks.md)
+- [FC ao longo do dia (série intradiária em `health_series`)](docs/specs/fc-serie/spec.md) · [data-model](docs/specs/fc-serie/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fc-serie/tasks.md)

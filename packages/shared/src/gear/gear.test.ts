@@ -1,5 +1,5 @@
 /**
- * A regra "de qual bicicleta foi esta pedalada" (ADR 0033).
+ * A regra "de qual bicicleta foi esta pedalada" (ADR 0034).
  *
  * O que estes testes protegem:
  *  1. A fronteira é em DIAS LOCAIS e inclusiva nas duas pontas — a primeira

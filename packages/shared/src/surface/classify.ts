@@ -1,5 +1,5 @@
 /**
- * Piso das rotas — a classificação e a geometria, puras (ADR 0034).
+ * Piso das rotas — a classificação e a geometria, puras (ADR 0035).
  *
  * Sem imports, e vale manter assim: o módulo nasceu para ser consumido também
  * pelo Deno da edge function (que não resolve specifier sem extensão). O passe

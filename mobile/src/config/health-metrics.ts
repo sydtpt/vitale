@@ -146,8 +146,11 @@ const CHUNK_DAYS = 30;
 const DAY_MS = 86_400_000;
 const METERS_PER_MILE = 1609.344;
 
-/** Fatia um intervalo em janelas de no máximo `days` dias, sem sobreposição. */
-function chunkRange(range: Range, days: number): Range[] {
+/**
+ * Fatia um intervalo em janelas de no máximo `days` dias, sem sobreposição.
+ * Exportado porque o sync fatia também as métricas pesadas (FC crua).
+ */
+export function chunkRange(range: Range, days: number): Range[] {
   const startMs = new Date(range.startDate).getTime();
   const endMs = new Date(range.endDate).getTime();
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return [range];

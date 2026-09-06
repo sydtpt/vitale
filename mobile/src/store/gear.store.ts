@@ -13,7 +13,7 @@ import { useAuthStore } from './auth.store';
 import { supabase } from '../lib/supabase';
 
 /**
- * As bicicletas do usuário (ADR 0033). Poucas linhas, lidas uma vez por sessão;
+ * As bicicletas do usuário (ADR 0034). Poucas linhas, lidas uma vez por sessão;
  * a pergunta "de qual bike foi esta pedalada" não fica aqui — é
  * `gearForActivity` do shared, que a tela chama com `gears` + a atividade.
  *

@@ -88,7 +88,7 @@ function parseInputDate(s: string): string | undefined {
 /**
  * O rodapé do cartão de piso diz de onde o número veio: quantas pedaladas da
  * janela entraram na soma e quanto do piso foi inferido pelo tipo de via em vez
- * de lido de uma tag — o "não sei" tem que ser visível (ADR 0034).
+ * de lido de uma tag — o "não sei" tem que ser visível (ADR 0035).
  */
 function surfaceCaption(count: number, withSurface: number, inferidoM: number, totalM: number, period: string): string {
   const cover = withSurface === count ? `${count} pedaladas` : `${withSurface} de ${count} pedaladas com piso`;
@@ -266,7 +266,7 @@ export default function TipoListScreen() {
     [_all, label],
   );
 
-  // ── lente de bicicleta (ADR 0033) ──────────────────────────────
+  // ── lente de bicicleta (ADR 0034) ──────────────────────────────
   // Só as bikes que este tipo de fato usou; tipo sem bike não ganha seletor.
   // A lente vale para tudo abaixo — lista, recordes, curvas, evolução — porque
   // "recorde com a Nuroad" e "recorde de sempre" são perguntas diferentes.
@@ -284,7 +284,7 @@ export default function TipoListScreen() {
   );
   const sources = useMemo(() => distinctSources(typed), [typed]);
 
-  // ── piso (ADR 0034): soma do período, sob a lente de bicicleta ────
+  // ── piso (ADR 0035): soma do período, sob a lente de bicicleta ────
   // Só aparece quando alguma pedalada do tipo já tem piso calculado — corrida
   // e yoga nunca terão, e um cartão vazio não diz nada.
   const [surfaceRange, setSurfaceRange] = useState<SurfaceRange>('tudo');

@@ -28,6 +28,8 @@ export interface SleepPeriodRow {
    */
   awakenings: { from: string; to: string }[] | null;
   stages: Record<string, number> | null;
+  /** Intervalos por estágio na posição real — a Opção 2 da CAP-7. */
+  stage_segments: { stage: string; from: string; to: string }[] | null;
   source: string | null;
 }
 
@@ -43,6 +45,7 @@ export function toSleepPeriodRows(periods: readonly SleepPeriod[]): SleepPeriodR
     asleep_h: p.asleepH,
     awakenings: p.awakenings,
     stages: p.stages,
+    stage_segments: p.stageSegments,
     source: p.source ?? null,
   }));
 }

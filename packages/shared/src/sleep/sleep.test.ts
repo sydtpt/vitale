@@ -62,6 +62,7 @@ function period(over: Partial<SleepPeriod> = {}): SleepPeriod {
     asleepH: 7.333,
     awakenings: null,
     stages: null,
+    stageSegments: null,
     ...over,
   };
 }

@@ -142,6 +142,76 @@ export function peakAwakeWindow(clock: AwakeClock, minNights = 2): AwakeBin | nu
   return best;
 }
 
+/* ─────────── As três leituras da subview de despertares (CAP-7) ─────────── */
+
+/** Uma faixa de hora da noite: em quantas noites houve despertar começando nela. */
+export interface AwakeHourBin {
+  /** Início, em horas de eixo (origem 18h). Largura 1 h. */
+  from: number;
+  nights: number;
+  awakenings: number;
+}
+
+/**
+ * "Quando": despertares por hora da noite, contando **noites** (não eventos)
+ * por faixa — uma noite com cinco micro-despertares às 3h vale uma vez, senão
+ * o gráfico mede o relógio, não você. `awakenings` fica ao lado para quem quiser.
+ */
+export function awakeningsByHour(periods: readonly SleepPeriod[]): AwakeHourBin[] {
+  const bins = new Map<number, { nights: Set<string>; awakenings: number }>();
+  for (const p of periods) {
+    for (const a of p.awakenings ?? []) {
+      const h = Math.floor(axisPosition(a.from, p.tzOffset));
+      const b = bins.get(h) ?? { nights: new Set<string>(), awakenings: 0 };
+      b.nights.add(p.onsetAt);
+      b.awakenings += 1;
+      bins.set(h, b);
+    }
+  }
+  return [...bins.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([from, b]) => ({ from, nights: b.nights.size, awakenings: b.awakenings }));
+}
+
+/** Faixas de duração de um despertar, em minutos — fechadas à esquerda. */
+export const AWAKE_DURATION_BUCKETS: readonly { label: string; min: number; max: number }[] = [
+  { label: '< 5', min: 0, max: 5 },
+  { label: '5–15', min: 5, max: 15 },
+  { label: '15–30', min: 15, max: 30 },
+  { label: '30–60', min: 30, max: 60 },
+  { label: '> 60', min: 60, max: Infinity },
+];
+
+/** "Quanto": quantos despertares caem em cada faixa de duração. */
+export function awakeningDurations(periods: readonly SleepPeriod[]): { label: string; count: number }[] {
+  const counts = AWAKE_DURATION_BUCKETS.map(() => 0);
+  for (const p of periods) {
+    for (const a of p.awakenings ?? []) {
+      const min = (new Date(a.to).getTime() - new Date(a.from).getTime()) / 60_000;
+      const i = AWAKE_DURATION_BUCKETS.findIndex((b) => min >= b.min && min < b.max);
+      if (i >= 0) counts[i] += 1;
+    }
+  }
+  return AWAKE_DURATION_BUCKETS.map((b, i) => ({ label: b.label, count: counts[i] }));
+}
+
+/** Minutos acordado, média por noite, por dia da semana de acordar (0 = domingo). */
+export function awakeByWeekday(
+  periods: readonly SleepPeriod[],
+): { weekday: number; avgMin: number | null; nights: number }[] {
+  const by = Array.from({ length: 7 }, () => [] as number[]);
+  for (const p of periods) {
+    if (p.awakenings === null) continue;
+    const w = new Date(`${p.wakeDay}T12:00:00`).getDay();
+    by[w].push(p.awakenings.reduce((s, a) => s + (new Date(a.to).getTime() - new Date(a.from).getTime()) / 60_000, 0));
+  }
+  return by.map((xs, weekday) => ({
+    weekday,
+    nights: xs.length,
+    avgMin: xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null,
+  }));
+}
+
 /** Série de minutos acordados por noite, para a leitura 3 de CAP-5. */
 export interface AwakeNight {
   wakeDay: string;

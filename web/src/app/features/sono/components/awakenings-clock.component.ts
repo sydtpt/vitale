@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import {
   SLEEP_AXIS_ORIGIN_H,
+  awakeDensityOpacity,
   axisRange,
   buildAwakeClock,
   peakAwakeWindow,
@@ -53,7 +54,8 @@ const PAD_BOTTOM = 16;
   styles: [`
     :host { display: block; }
     .chart { width: 100%; height: auto; display: block; }
-    .bin { fill: var(--role-blue); }
+    /* Vigília é amarelo, em toda tela de sono; a opacidade faz o "quanto". */
+    .bin { fill: var(--sleep-awake); }
     .base { stroke: var(--line); stroke-width: 1; }
     .axis { font-size: 9.5px; fill: var(--ink-4); }
     .note { margin: 6px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); }
@@ -80,7 +82,7 @@ export class AwakeningsClockComponent {
       .map((b) => {
         const x0 = this.x(Math.max(b.from, r.from));
         const x1 = this.x(Math.min(b.to, r.to));
-        return { x: x0, w: Math.max(1, x1 - x0), opacity: 0.15 + 0.85 * b.density };
+        return { x: x0, w: Math.max(1, x1 - x0), opacity: awakeDensityOpacity(b.density) };
       });
   });
 

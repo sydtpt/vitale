@@ -1,21 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, type LayoutChangeEvent } from 'react-native';
+import Svg, { Defs, Line, Pattern, Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { awakeMinOf, bedtimeMeasured, clockLabel, type SleepPeriod } from '@vitale/shared';
+import { STAGE_LABEL, awakeMinOf, bedtimeMeasured, clockLabel, type SleepColors, type SleepPeriod, type StageKey } from '@vitale/shared';
 import { useSonoStore } from '../../store/sono.store';
 import { formatHoursMin } from '../../lib/health-buckets';
+import { SwGapTick, SwHatch, SwSolid } from '../../components/sono/SleepLegend';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
-import { colors, fonts, moduleColors, radii, roleColors, shadows, spacing, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../../theme';
 
-/** Estágios na ordem da faixa, com o rótulo que o usuário lê. */
-const STAGES: { key: string; label: string }[] = [
-  { key: 'deep', label: 'Profundo' },
-  { key: 'rem', label: 'REM' },
-  { key: 'core', label: 'Leve' },
-  { key: 'unspecified', label: 'Sem estágio' },
-];
+/** Estágios na ordem do hipnograma — a mesma da legenda e da pilha. */
+const STAGES: StageKey[] = ['rem', 'core', 'deep', 'unspecified'];
+const STRIP_H = 22;
+/** A marca amarela do despertar, abaixo da faixa — o "ao lado" de uma faixa deitada. */
+const TICK_H = 4;
 
 function dayTitle(day: string): string {
   return new Date(`${day}T12:00:00`).toLocaleDateString('pt-BR', {
@@ -25,24 +25,31 @@ function dayTitle(day: string): string {
   });
 }
 
+function stageFill(k: StageKey, sc: SleepColors, hatchId: string): string {
+  if (k === 'deep') return sc.deep;
+  if (k === 'rem') return sc.rem;
+  if (k === 'core') return sc.light;
+  return `url(#${hatchId})`;
+}
+
 /**
  * O detalhe de uma noite (CAP-4). Duas faixas, e a diferença entre elas é o que
  * o dado sustenta: a de cima é a LINHA DO TEMPO real — sono do apagar ao acordar,
- * com os despertares cortando nas posições em que ocorreram; a de baixo é a
- * composição por estágio em PROPORÇÃO, porque o que se grava são horas por
- * estágio, não os intervalos.
+ * com os despertares cortando nas posições em que ocorreram; a de baixo são os
+ * estágios — na posição real quando os intervalos existem, em proporção nas
+ * noites gravadas antes da coluna.
  *
- * O rótulo de incerteza não é rodapé: os aparelhos acertam "dormiu" e erram
- * "acordou" (especificidade sono/vigília entre 30% e 61% contra polissonografia).
- * A tela mostra e não conclui.
+ * As cores vêm de `sleepColors()`: azul é sono, o rosa é REM, o amarelo é
+ * vigília — o vão na faixa, com a marca embaixo. O rótulo de incerteza não é
+ * rodapé: os aparelhos acertam "dormiu" e erram "acordou" (especificidade
+ * sono/vigília entre 30% e 61% contra polissonografia). A tela mostra e não conclui.
  */
 export default function SonoDayScreen() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { day = '' } = useLocalSearchParams<{ day: string }>();
-  const mod = moduleColors('agua');
-  const deep = roleColors('blue').text;
+  const sc = sleepColors();
 
   const loaded = useSonoStore((s) => s.loaded);
   const load = useSonoStore((s) => s.load);
@@ -57,6 +64,7 @@ export default function SonoDayScreen() {
   const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
 
   const p: SleepPeriod | undefined = byDay(day);
+  const stripW = Math.max(0, w - spacing.lg * 2);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -92,24 +100,35 @@ export default function SonoDayScreen() {
           {/* A linha do tempo: o sono, e os despertares onde ocorreram. */}
           <View style={styles.card} onLayout={onLayout}>
             <Text style={styles.cardTitle}>A noite</Text>
-            <Timeline p={p} width={Math.max(0, w - spacing.lg * 2)} accent={mod.accent} styles={styles} />
+            <NightStrip p={p} width={stripW} sc={sc} mode="sleep" />
+            <View style={styles.ticks}>
+              <Text style={styles.tick}>{clockLabel(p.onsetAt, p.tzOffset)}</Text>
+              <Text style={styles.tick}>{clockLabel(p.wakeAt, p.tzOffset)}</Text>
+            </View>
             <AwakeLine p={p} styles={styles} />
           </View>
 
-          {/* Estágios em proporção — textura, não conselho. */}
+          {/* Estágios — na posição real quando os intervalos existem; em proporção
+              nas noites gravadas antes da coluna. Textura, não conselho. */}
           {p.stages && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Estágios</Text>
-              <StageBar stages={p.stages} palette={{ deep, rem: mod.accent, core: mod.tint, unspecified: colors.ink4 }} styles={styles} />
+              <NightStrip p={p} width={stripW} sc={sc} mode="stages" />
               <View style={styles.stageKey}>
-                {STAGES.filter((s) => (p.stages?.[s.key] ?? 0) > 0).map((s) => (
-                  <View key={s.key} style={styles.keyItem}>
-                    <View style={[styles.keySwatch, { backgroundColor: { deep, rem: mod.accent, core: mod.tint, unspecified: colors.ink4 }[s.key] }]} />
+                {STAGES.filter((k) => (p.stages?.[k] ?? 0) > 0).map((k) => (
+                  <View key={k} style={styles.keyItem}>
+                    {k === 'unspecified' ? <SwHatch color={sc.unknown} id="day-hatch-key" /> : <SwSolid color={stageFill(k, sc, '')} />}
                     <Text style={styles.keyText}>
-                      {s.label} {formatHoursMin(p.stages![s.key])}
+                      {STAGE_LABEL[k]} {formatHoursMin(p.stages![k])}
                     </Text>
                   </View>
                 ))}
+                {p.awakenings && p.awakenings.length > 0 && (
+                  <View style={styles.keyItem}>
+                    <SwGapTick awake={sc.awake} />
+                    <Text style={styles.keyText}>despertar {Math.round(awakeMinOf(p) ?? 0)} min</Text>
+                  </View>
+                )}
               </View>
               <View style={styles.uncert}>
                 <Ionicons name="alert-circle-outline" size={13} color={colors.ink3} />
@@ -136,27 +155,65 @@ function Clock({ label, value, muted, styles }: { label: string; value: string; 
   );
 }
 
-/** Sono do apagar ao acordar; os despertares cortam nas posições reais. */
-function Timeline({ p, width, accent, styles }: { p: SleepPeriod; width: number; accent: string; styles: Styles }) {
+/**
+ * A faixa da noite, do apagar ao acordar. `sleep`: o sono inteiro, furado pelos
+ * despertares. `stages`: cada estágio na posição real — ou, sem intervalos, em
+ * proporção — e o mesmo vão. Embaixo da faixa, a marca amarela de cada despertar:
+ * o "ao lado" de uma barra deitada.
+ */
+function NightStrip({ p, width, sc, mode }: { p: SleepPeriod; width: number; sc: SleepColors; mode: 'sleep' | 'stages' }) {
   if (width <= 0) return null;
+  const hatchId = `night-hatch-${mode}`;
   const start = new Date(p.onsetAt).getTime();
-  const end = new Date(p.wakeAt).getTime();
-  const span = Math.max(end - start, 1);
+  const span = Math.max(new Date(p.wakeAt).getTime() - start, 1);
   const x = (iso: string) => ((new Date(iso).getTime() - start) / span) * width;
+  const holes = p.awakenings ?? [];
+  const segments = p.stageSegments ?? [];
+
+  // Sem intervalos, a composição em proporção: cada estágio ocupa a fração das horas.
+  const proportional: { stage: StageKey; from: number; to: number }[] = [];
+  if (mode === 'stages' && segments.length === 0 && p.stages) {
+    const total = STAGES.reduce((a, k) => a + (p.stages?.[k] ?? 0), 0);
+    let acc = 0;
+    for (const k of STAGES) {
+      const h = p.stages[k] ?? 0;
+      if (h <= 0 || total <= 0) continue;
+      proportional.push({ stage: k, from: (acc / total) * width, to: ((acc + h) / total) * width });
+      acc += h;
+    }
+  }
+
   return (
-    <View style={[styles.timeline, { width }]}>
-      <View style={[styles.timelineFill, { backgroundColor: accent }]} />
-      {(p.awakenings ?? []).map((a, i) => (
-        <View
-          key={i}
-          style={[
-            styles.timelineHole,
-            { left: x(a.from), width: Math.max(2, x(a.to) - x(a.from)), backgroundColor: colors.surface },
-          ]}
-        />
-      ))}
-      <Text style={[styles.timelineTick, { left: 0 }]}>{clockLabel(p.onsetAt, p.tzOffset)}</Text>
-      <Text style={[styles.timelineTick, { right: 0 }]}>{clockLabel(p.wakeAt, p.tzOffset)}</Text>
+    <View>
+      <Svg width={width} height={STRIP_H} style={{ borderRadius: 6, overflow: 'hidden' }}>
+        <Defs>
+          <Pattern id={hatchId} patternUnits="userSpaceOnUse" width={5} height={5} patternTransform="rotate(45)">
+            <Line x1={0} y1={0} x2={0} y2={5} stroke={sc.unknown} strokeWidth={1.3} />
+          </Pattern>
+        </Defs>
+        {mode === 'sleep' ? (
+          <Rect x={0} y={0} width={width} height={STRIP_H} rx={6} fill={sc.sleep} />
+        ) : segments.length > 0 ? (
+          segments.map((s, i) => (
+            <Rect key={i} x={x(s.from)} y={0} width={Math.max(1, x(s.to) - x(s.from))} height={STRIP_H} fill={stageFill(s.stage, sc, hatchId)} />
+          ))
+        ) : (
+          proportional.map((s, i) => (
+            <Rect key={i} x={s.from} y={0} width={Math.max(1, s.to - s.from)} height={STRIP_H} fill={stageFill(s.stage, sc, hatchId)} />
+          ))
+        )}
+        {(mode === 'sleep' || segments.length > 0) &&
+          holes.map((a, i) => (
+            <Rect key={`h${i}`} x={x(a.from)} y={0} width={Math.max(2, x(a.to) - x(a.from))} height={STRIP_H} fill={colors.surface} />
+          ))}
+      </Svg>
+      {holes.length > 0 && (
+        <Svg width={width} height={TICK_H} style={{ marginTop: 2 }}>
+          {holes.map((a, i) => (
+            <Rect key={i} x={x(a.from)} y={0} width={Math.max(3, x(a.to) - x(a.from))} height={TICK_H} rx={1} fill={sc.awake} />
+          ))}
+        </Svg>
+      )}
     </View>
   );
 }
@@ -170,20 +227,6 @@ function AwakeLine({ p, styles }: { p: SleepPeriod; styles: Styles }) {
     <Text style={styles.cardNote}>
       {n} {n === 1 ? 'despertar' : 'despertares'} · {Math.round(min)} min acordado
     </Text>
-  );
-}
-
-function StageBar({
-  stages, palette, styles,
-}: { stages: Record<string, number>; palette: Record<string, string>; styles: Styles }) {
-  const total = STAGES.reduce((a, s) => a + (stages[s.key] ?? 0), 0);
-  if (total <= 0) return null;
-  return (
-    <View style={styles.stageBar}>
-      {STAGES.filter((s) => (stages[s.key] ?? 0) > 0).map((s) => (
-        <View key={s.key} style={{ flex: stages[s.key] / total, backgroundColor: palette[s.key] }} />
-      ))}
-    </View>
   );
 }
 
@@ -210,15 +253,11 @@ const createStyles = () =>
     dur: { fontSize: 13.5, color: colors.ink2, fontFamily: fonts.sans },
     durStrong: { color: colors.ink, fontFamily: fonts.sansSemiBold },
 
-    timeline: { height: 22, borderRadius: 6, overflow: 'hidden', position: 'relative', marginTop: spacing.sm, marginBottom: 18 },
-    timelineFill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-    timelineHole: { position: 'absolute', top: 0, bottom: 0 },
-    timelineTick: { position: 'absolute', top: 24, fontSize: 10, fontFamily: fonts.mono, color: colors.ink3 },
+    ticks: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+    tick: { fontSize: 10, fontFamily: fonts.mono, color: colors.ink3 },
 
-    stageBar: { flexDirection: 'row', height: 22, borderRadius: 6, overflow: 'hidden' },
     stageKey: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, columnGap: spacing.md, marginTop: spacing.sm },
     keyItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    keySwatch: { width: 9, height: 9, borderRadius: 2 },
     keyText: { fontSize: 11, color: colors.ink2, fontFamily: fonts.sans },
     uncert: { flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginTop: spacing.md },
     uncertText: { flex: 1, fontSize: 11, lineHeight: 16, color: colors.ink3, fontFamily: fonts.sans },

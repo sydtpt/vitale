@@ -17,6 +17,8 @@ type Link = {
 
 const LINKS: Link[] = [
   { icon: 'checkmark-done-outline', label: 'Tarefas', sub: 'To-do e recorrências', mod: 'tarefa', route: '/tarefas' },
+  // Saiu da barra em 05/09/2026 (Sono ficou com o lugar); é aba oculta, como Saúde.
+  { icon: 'cart-outline', label: 'Compras', sub: 'Lista de mercado', mod: 'compras', route: '/(tabs)/compras' },
   { icon: 'repeat-outline', label: 'Hábitos', sub: 'Contadores diários', mod: 'habito', route: '/habitos' },
   { icon: 'calendar-outline', label: 'Semana', sub: 'Visão geral da semana', mod: 'agua', route: '/(tabs)/semana' },
   { icon: 'albums-outline', label: 'Retrospectiva', sub: 'Mês, semana e ano', mod: 'habito', route: '/retrospectiva' },

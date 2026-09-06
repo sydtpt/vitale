@@ -49,6 +49,12 @@
     <rt-trigger-impact-card />
 
     @for (cat of view(); track cat.id) {
+      @if (cat.id === 'coracao') {
+        <!-- FC ao longo do dia (spec fc-serie): a série intradiária, acima dos cards de Coração. -->
+        <rt-heart-day-card />
+        <rt-heart-nights-card />
+        <rt-heart-heatmap-card />
+      }
       <rt-panel [title]="cat.label">
         <div class="grid">
           @for (m of cat.metrics; track m.id) {

@@ -297,7 +297,7 @@ export interface AuthUser {
 
 import type { SurfaceMix } from '../surface/classify';
 
-/** Hoje só bicicleta; tênis e pneu (filho de bike) são migration, não improviso (ADR 0033). */
+/** Hoje só bicicleta; tênis e pneu (filho de bike) são migration, não improviso (ADR 0034). */
 export type GearKind = 'bike';
 
 /**
@@ -403,13 +403,13 @@ export interface Activity {
    */
   cities?: CityMark[];
   /**
-   * Override explícito da bicicleta (ADR 0033). Ausente na quase totalidade das
+   * Override explícito da bicicleta (ADR 0034). Ausente na quase totalidade das
    * linhas: a bike vem da janela de datas do `Gear` — ver `gearForActivity`.
    */
   gearId?: string;
   /**
    * Metros por categoria de piso, medidos contra o OpenStreetMap no ingest
-   * (ADR 0034). Ausente até o passe calcular; o detalhe por trecho vive em
+   * (ADR 0035). Ausente até o passe calcular; o detalhe por trecho vive em
    * `activity_routes.surface_segments`. Forma em `surface/classify.ts`.
    */
   surfaceMix?: SurfaceMix;
@@ -732,6 +732,23 @@ export interface HealthDaily {
   extra?: Record<string, unknown>;      // pressão {sys,dia}, anéis, macros; VFC do intervals: {source,kind} (ADR 0026)
 }
 
+/**
+ * Série intradiária de uma métrica de saúde — a FORMA do dia que `HealthDaily`
+ * resume e descarta. 1 linha por (user, dia local, métrica), tabela
+ * `health_series` (ADR 0033). `minutes` e `readings` são paralelos: o minuto
+ * local do dia (0–1439, crescente) e a leitura média daquele minuto. O sync
+ * do mobile a produz das mesmas amostras da linha diária, no mesmo ciclo.
+ * Spec: docs/specs/fc-serie/spec.md · data-model: docs/specs/fc-serie/data-model.md
+ */
+export interface HealthSeriesDay {
+  userId: string;
+  day: string;                          // 'YYYY-MM-DD' (data local)
+  metric: string;                       // id de HealthMetricMeta ('fc', ...)
+  tzOffset: number;                     // minutos vs UTC à meia-noite local do dia
+  minutes: number[];                    // minuto local do dia, crescente
+  readings: number[];                   // leitura média do minuto, paralela a `minutes`
+}
+
 /* ─────────────────────────────────────────────────────────────
  * Sono — o período é um EVENTO com instantes, não uma grandeza diária.
  * Spec: docs/specs/sono/spec.md · data-model: docs/specs/sono/data-model.md
@@ -783,9 +800,24 @@ export interface SleepPeriod {
    * `null` = a fonte não reporta · `[]` = não houve · `[…]` = os intervalos.
    */
   awakenings: Awakening[] | null;
-  /** Horas por estágio: deep/rem/core/unspecified/awake. */
+  /** Horas por estágio: deep/rem/core/unspecified/awake. Derivado de `stageSegments`. */
   stages: Record<string, number> | null;
+  /**
+   * Os intervalos por estágio, na posição em que ocorreram — o que a Opção 2 da
+   * CAP-7 desenha. `null` só em linhas gravadas antes da coluna existir; o
+   * backfill preenche. O `AWAKE` não está aqui: mora em `awakenings`.
+   */
+  stageSegments: StageSegment[] | null;
   source?: string;                      // HKSource — diagnóstico de cobertura
+}
+
+export type StageKey = 'deep' | 'rem' | 'core' | 'unspecified';
+
+/** Um trecho de sono num estágio. Contíguos entre si; o despertar é o vão. */
+export interface StageSegment {
+  stage: StageKey;
+  from: string;                         // ISO
+  to: string;                           // ISO
 }
 
 /* ─────────────────────────────────────────────────────────────

@@ -1,16 +1,21 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { awakeMinOf, bedtimeMeasured, clockLabel, type SleepPeriod } from '@vitale/shared';
+import { awakeMinOf, bedtimeMeasured, clockLabel, nightScore, type SleepPeriod } from '@vitale/shared';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { SonoStore, TIMING_NIGHTS, dayLabel, hm } from '../data/sono.store';
 import { SleepTimingChartComponent } from '../components/sleep-timing-chart.component';
 import { AwakeningsClockComponent } from '../components/awakenings-clock.component';
+import { SleepScoreDimsComponent } from '../components/sleep-score-dims.component';
 
 /**
  * A tela de sono na web — a mesma composição aprovada no mobile, em coluna: ① os
- * relógios (o fato), ② o timing chart (a forma), ③ os despertares, ④ a nota
- * contra a medição. Sem score, sem streak, sem seta. Ver docs/specs/sono/spec.md.
+ * relógios (o fato), ①b a saúde do sono da noite, ② o timing chart (a forma),
+ * ③ os despertares, ④ a nota contra a medição. Ver docs/specs/sono/spec.md.
+ *
+ * A contagem de ①b vem depois dos relógios de propósito: o número não é o herói,
+ * o fato é — e cada dimensão carrega o dado cru ao lado (ADR 0036). Sem streak,
+ * sem meta, sem seta.
  *
  * Nenhum cálculo de sono nasce aqui: tudo vem de `@vitale/shared/sleep` pelo
  * `SonoStore`. Cor pela variável do papel `blue` — sono é categoria, não módulo
@@ -20,7 +25,10 @@ import { AwakeningsClockComponent } from '../components/awakenings-clock.compone
   selector: 'rt-sono-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterLink, PageHeaderComponent, SleepTimingChartComponent, AwakeningsClockComponent],
+  imports: [
+    CommonModule, RouterLink, PageHeaderComponent, SleepTimingChartComponent, AwakeningsClockComponent,
+    SleepScoreDimsComponent,
+  ],
   templateUrl: './sono-page.component.html',
   styleUrl: './sono-page.component.scss',
 })
@@ -35,6 +43,16 @@ export class SonoPageComponent {
   constructor() {
     void this.store.load();
   }
+
+  /**
+   * A contagem da última noite — quatro dimensões. A quinta (regularidade) é uma
+   * relação entre noites e não existe aqui; por isso o cartão leva a /sono/saude.
+   */
+  protected readonly score = computed(() => {
+    const p = this.store.last();
+    if (!p) return null;
+    return nightScore(p, this.store.periods(), this.store.sleepRatings()[p.wakeDay] ?? null);
+  });
 
   /** A noite do topo, com o que a tela escreve dela. */
   protected readonly top = computed(() => {

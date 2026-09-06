@@ -22,7 +22,7 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
   via mais próxima em 25 m, ciclovia a ≤ 12 m vence rua. 14,5% dos pontos sem
   `surface` são inferidos pelo tipo de via. Golden set de 10 pedaladas (Murat)
   antes de qualquer número virar tela.
-- **Só a bicicleta é entidade agora** (ADR 0033). Pneu em março/2027.
+- **Só a bicicleta é entidade agora** (ADR 0034). Pneu em março/2027.
 
 ## Fase 0 — Bicicleta como entidade (sem risco externo)
 
@@ -45,7 +45,7 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
       ([[startM,endM,cat,inferido]] em metros ao longo do overview) + `surface_meta`
       (procedência: fonte, data, espaçamento, raio, mediana da distância à via, erro) +
       `activities.surface_mix` (metros por classe, desnormalizado). **Aplicada em prod
-      em 06/09** com "pode seguir" (registrada como `piso_das_rotas`). ADR 0034.
+      em 06/09** com "pode seguir" (registrada como `piso_das_rotas`). ADR 0035.
 - [x] T1.2 `surface/classify.ts` no núcleo (sem imports; tabela OSM→classe, ciclovia ≤ 12 m
       vence rua, reta > 500 m = buraco, segmentos e soma) + 30 asserts;
       `_shared/surface.ts` na function (1 chamada Overpass por rota pela polilinha das

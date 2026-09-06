@@ -1,5 +1,5 @@
 -- Orbe — Bicicleta como ENTIDADE (gear), com herança por janela de datas.
--- ADR 0033 · tasks: _bmad-output/implementation-artifacts/piso-das-rotas/tasks.md
+-- ADR 0034 · tasks: _bmad-output/implementation-artifacts/piso-das-rotas/tasks.md
 --
 -- Por que existe: o histórico de ciclismo tem duas bicicletas e o banco não
 -- sabia. Toda média "de todas as pedaladas" misturava uma bike aposentada com a

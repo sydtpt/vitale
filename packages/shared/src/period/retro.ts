@@ -30,6 +30,17 @@ import { dailyHardLoad } from '../health/aggregate';
 import { detectTrend } from '../health/trends';
 import { triggerImpact } from '../health/trigger-impact';
 import { MOD } from '../constants/tokens';
+import type { SleepPeriod } from '../models/index';
+import {
+  NIGHT_REFERENCE_H,
+  sleepCrossHighlight,
+  sleepCrossMetrics,
+  sleepHighlights,
+  sleepRetro,
+  type SleepRetro,
+} from '../sleep/retro';
+import { SONO_MARKERS } from '../sleep/markers';
+import { formatHm } from '../sleep/facts';
 import { periodBounds, retroSince, type PeriodKind } from './bounds';
 
 /**
@@ -138,6 +149,12 @@ export interface RetroInput {
   /** Aderência ao plano de treino no período (opcional). */
   plannedDone?: number;
   plannedTotal?: number;
+  /**
+   * As noites (`sleep_periods`) da janela buscada — o bloco Sono e as frases de
+   * sono da manchete saem daqui, não de `health.sono`, que é uma soma por dia.
+   * Ausente ⇒ `summary.sleep` é `null` e a retro segue como antes.
+   */
+  sleepPeriods?: readonly SleepPeriod[];
 }
 
 // ── Saídas ─────────────────────────────────────────────────
@@ -279,6 +296,8 @@ export interface RetroSummary {
   ratings: { sleep: MetricRecap | null; day: MetricRecap | null };
   purchases: { count: RecapValue; spend: RecapValue; byCat: CountByKey[] };
   adherence: { done: number; total: number } | null;
+  /** A noite típica do período contra a do anterior. `null` sem noites ou sem `sleepPeriods`. */
+  sleep: SleepRetro | null;
 }
 
 const MODULE_LABELS: Record<string, string> = {
@@ -581,6 +600,23 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     ? { done: input.plannedDone ?? 0, total: input.plannedTotal }
     : null;
 
+  // ── Sono ──
+  // A noite pertence ao dia em que se acorda (`wakeDay`), a mesma ponte que
+  // `health_daily` usa. Em 'all' não há anterior — `prev` é degenerado.
+  const nightsIn = (start: Date, end: Date): SleepPeriod[] => {
+    const lo = localDay(start);
+    const hi = localDay(end);
+    return (input.sleepPeriods ?? []).filter((p) => p.wakeDay >= lo && p.wakeDay < hi);
+  };
+  const sleep = input.sleepPeriods
+    ? sleepRetro(
+        nightsIn(cur.start, cur.end),
+        input.kind === 'all' ? null : nightsIn(prev.start, prev.end),
+        input.ratingsSleep,
+        SONO_MARKERS,
+      )
+    : null;
+
   return {
     kind: input.kind,
     offset: input.offset,
@@ -596,6 +632,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     ratings,
     purchases,
     adherence,
+    sleep,
   };
 }
 
@@ -630,7 +667,7 @@ function deltaWord(tone: HighlightTone): string {
  */
 export function buildRetroHighlights(
   summary: RetroSummary,
-  input: Pick<RetroInput, 'now' | 'kind' | 'activities' | 'health' | 'registros' | 'habits'>,
+  input: Pick<RetroInput, 'now' | 'kind' | 'activities' | 'health' | 'registros' | 'habits' | 'sleepPeriods'>,
 ): WeekHighlight[] {
   const out: WeekHighlight[] = [];
   const noun = PERIOD_NOUN[input.kind];
@@ -672,6 +709,9 @@ export function buildRetroHighlights(
 
   // Saúde
   for (const h of summary.health) {
+    // Com as noites gravadas, o sono fala por `sleepHighlights` — em minutos e
+    // com vigília; a soma por dia de `health_daily` repetiria a mesma coisa em %.
+    if (h.metric === 'sono' && summary.sleep) continue;
     const r = h.recap;
     if (r.current == null || r.delta == null) continue;
     const t = tone(r.delta, r.deltaPct, h.higherIsWorse);
@@ -684,6 +724,10 @@ export function buildRetroHighlights(
       priority: r.deltaPct != null ? Math.abs(r.deltaPct) : 5,
     });
   }
+
+  // Sono — horas e vigília como `health`; nota × medição como `cross`, que pode
+  // ser a manchete do mês (decisão do usuário, 05/09/2026). Ver sleep/retro.ts.
+  if (summary.sleep) out.push(...sleepHighlights(summary.sleep, noun, noPrior));
 
   // Gasto
   const spend = summary.purchases.spend;
@@ -744,6 +788,10 @@ export function buildRetroHighlights(
   // gatilho colocaria "nos dias com ZMA, sono +9%" no topo de todo domingo.
 
   for (const metric of input.health) {
+    // Com as noites gravadas, o sono cruza pelo bloco abaixo — chaveado pelo dia em
+    // que a noite começou. A soma diária (chave = dia de acordar) comparava a noite
+    // ANTERIOR ao gatilho, então sai do universo assim que houver noite.
+    if (metric.metric === 'sono' && summary.sleep) continue;
     for (const trig of triggers) {
       const imp = triggerImpact(metric.metric, trig.days, metric.valuesByDay, trig.since);
       if (!imp.enough || imp.delta == null || imp.deltaPct == null) continue;
@@ -760,6 +808,20 @@ export function buildRetroHighlights(
         support: `${imp.nWith} dias com · ${imp.nWithout} sem · associação, não causa`,
         priority: Math.abs(imp.deltaPct),
       });
+    }
+  }
+
+  // ── Gatilho × noite: horas, vigília e fases, em valores absolutos ──
+  // A mesma janela e os mesmos gatilhos; as grandezas vêm de `sleep_periods`,
+  // chaveadas pelo dia em que a noite começou (sleep/retro.ts). É o cruzamento
+  // que a proposta de 05/09 mediu como o mais forte dos dados — a cerveja.
+  if (summary.sleep && input.sleepPeriods) {
+    for (const m of sleepCrossMetrics(input.sleepPeriods)) {
+      for (const trig of triggers) {
+        const imp = triggerImpact(m.metric, trig.days, m.valuesByDay, trig.since);
+        const h = sleepCrossHighlight(m, trig.name, imp, MIN_CROSS_DELTA_PCT);
+        if (h) out.push(h);
+      }
     }
   }
 
@@ -838,7 +900,8 @@ export function buildRetroLede(highlights: readonly WeekHighlight[]): RetroLede 
  * `health/who-activity.ts`. Mora aqui e só aqui. Ver v2-jornal.md §4.1.
  */
 export const HEALTH_TARGETS: Readonly<Record<string, number>> = {
-  sono: 7,
+  // A mesma constante que o bloco Sono conta ("noites com 7 h ou mais"): um lugar só.
+  sono: NIGHT_REFERENCE_H,
 };
 
 /** Meta da métrica, ou `null` quando não há uma — aí não cabe escala divergente. */
@@ -967,6 +1030,10 @@ export interface MonthBucket {
   habitDays: number;
   /** Total de andares subidos no mês. */
   floors: number;
+  /** Horas dormidas por noite, média do mês (de `sleep_periods`). 0 sem noite. */
+  sleepH: number;
+  /** Minutos acordado por noite, média sobre as noites que reportam. 0 sem noite. */
+  awakeMin: number;
 }
 
 const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -978,7 +1045,7 @@ export const MONTH_FULL_PT = [
 ] as const;
 
 export type YearSerieKey = keyof Pick<
-  MonthBucket, 'workouts' | 'distanceKm' | 'tasks' | 'spend' | 'habitDays' | 'floors'
+  MonthBucket, 'workouts' | 'distanceKm' | 'tasks' | 'spend' | 'habitDays' | 'floors' | 'sleepH' | 'awakeMin'
 >;
 
 export interface YearSerie {
@@ -1017,13 +1084,21 @@ export const YEAR_SERIES: readonly YearSerie[] = [
   { key: 'floors', label: 'Andares', color: MOD.casa.accent,
     pick: (b) => b.floors,
     fmt: (v) => (v ? `${v} andares` : 'sem dado') },
+  // Sono empresta a cor da água (ADR 0031); a vigília é amarela, como em toda tela
+  // de sono. Duas séries sobre agregação que `sleep_periods` já permite.
+  { key: 'sleepH', label: 'Sono', color: MOD.agua.accent,
+    pick: (b) => b.sleepH,
+    fmt: (v) => (v ? `${formatHm(v)} por noite` : 'sem noite') },
+  { key: 'awakeMin', label: 'Acordado', color: MOD.food.accent,
+    pick: (b) => b.awakeMin,
+    fmt: (v) => (v ? `${Math.round(v)} min acordado por noite` : 'sem noite') },
 ];
 
 /** 12 baldes mensais do ano de `input.now + input.offset` (modo anual). */
 export function buildYearByMonth(input: RetroInput): MonthBucket[] {
   const year = input.now.getFullYear() + input.offset;
   const buckets: MonthBucket[] = MONTH_ABBR.map((label, month) => ({
-    month, label, workouts: 0, distanceKm: 0, tasks: 0, spend: 0, habitDays: 0, floors: 0,
+    month, label, workouts: 0, distanceKm: 0, tasks: 0, spend: 0, habitDays: 0, floors: 0, sleepH: 0, awakeMin: 0,
   }));
 
   for (const a of input.activities) {
@@ -1053,6 +1128,28 @@ export function buildYearByMonth(input: RetroInput): MonthBucket[] {
     for (const [day, v] of input.floorsByDay) {
       const [y, m] = day.split('-').map(Number);
       if (y === year) buckets[m - 1].floors += v;
+    }
+  }
+  if (input.sleepPeriods) {
+    // A noite pertence ao mês em que se acorda, como no resto da retro. Médias, não
+    // somas: "quanto dormi por noite" é a pergunta, e os meses têm n diferentes.
+    const sleepSum = new Array<number>(12).fill(0);
+    const sleepN = new Array<number>(12).fill(0);
+    const awakeSum = new Array<number>(12).fill(0);
+    const awakeN = new Array<number>(12).fill(0);
+    for (const p of input.sleepPeriods) {
+      const [y, m] = p.wakeDay.split('-').map(Number);
+      if (y !== year) continue;
+      sleepSum[m - 1] += p.asleepH;
+      sleepN[m - 1] += 1;
+      const aw = p.awakenings === null
+        ? null
+        : (p.awakenings ?? []).reduce((s, a) => s + (new Date(a.to).getTime() - new Date(a.from).getTime()) / 60_000, 0);
+      if (aw !== null) { awakeSum[m - 1] += aw; awakeN[m - 1] += 1; }
+    }
+    for (let i = 0; i < 12; i++) {
+      if (sleepN[i] > 0) buckets[i].sleepH = sleepSum[i] / sleepN[i];
+      if (awakeN[i] > 0) buckets[i].awakeMin = awakeSum[i] / awakeN[i];
     }
   }
   return buckets;

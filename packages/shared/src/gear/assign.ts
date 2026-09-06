@@ -1,5 +1,5 @@
 /**
- * De qual bicicleta foi esta pedalada — a regra, num lugar só (ADR 0033).
+ * De qual bicicleta foi esta pedalada — a regra, num lugar só (ADR 0034).
  *
  * Duas fontes, nesta ordem:
  *  1. `activity.gearId` — override explícito (usuário ou provider). Se apontar

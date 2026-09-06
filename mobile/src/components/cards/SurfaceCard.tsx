@@ -8,7 +8,7 @@ import { colors, fonts, moduleColors, radii, shadows, spacing, useTheme, useThem
  * e no detalhe de uma pedalada (uma rota só). Herói em %, barra de proporção
  * com vão de superfície entre os degraus, legenda com km e %.
  *
- * A cor é a rampa ordinal do módulo (ADR 0034, `surface/colors.ts`): quatro
+ * A cor é a rampa ordinal do módulo (ADR 0035, `surface/colors.ts`): quatro
  * degraus de um tom só, do liso ao áspero, e neutro para o "não especificado",
  * que aparece SÓ quando existe — mas quando existe, aparece: é a classe que a
  * Strava escondeu e somou 61%.

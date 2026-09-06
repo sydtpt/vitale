@@ -26,6 +26,14 @@ interface SonoState {
   error?: string;
 
   load: () => Promise<void>;
+  /**
+   * Só a noite de hoje — o que a Hoje pede ao lado da nota (spec Sono CAP-8).
+   * Uma consulta por `wake_day`, não o histórico: os 288 períodos com segmentos
+   * de estágio pesam ~380 kB e são da aba Sono, que os carrega ao abrir. Mescla
+   * em `periods` sem duplicar e **não** marca `loaded`, para a aba seguir
+   * carregando o resto quando for aberta.
+   */
+  loadToday: () => Promise<void>;
   /** O período de um dia de acordar — a chave de junção com a nota. */
   byDay: (wakeDay: string) => SleepPeriod | undefined;
 }
@@ -47,16 +55,37 @@ export const useSonoStore = create<SonoState>((set, get) => ({
     if (!userId) return;
     set({ loading: true, error: undefined });
     try {
-      const since = sinceDay(SONO_WINDOW_DAYS);
+      // Períodos: o histórico inteiro — as subviews navegam por ano e por
+      // 12 meses, e a tabela tem no máximo o backfill de 500 dias (~1 linha/dia).
+      // Notas: só a janela de análise; o par nota × medição do /sono usa 90 dias.
       const [periods, ratings] = await Promise.all([
-        fetchSleepPeriodsSince(supabase, userId, since),
-        fetchDailyRatingsSince(supabase, userId, since),
+        fetchSleepPeriodsSince(supabase, userId, '2000-01-01'),
+        fetchDailyRatingsSince(supabase, userId, sinceDay(SONO_WINDOW_DAYS)),
       ]);
       const sleepRatings: Record<string, number> = {};
       for (const r of ratings) if (r.sleepQuality != null) sleepRatings[r.day] = r.sleepQuality;
       set({ periods, sleepRatings, loading: false, loaded: true });
     } catch (e) {
       set({ loading: false, error: e instanceof Error ? e.message : 'Erro ao carregar o sono.' });
+    }
+  },
+
+  async loadToday() {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+    try {
+      const today = await fetchSleepPeriodsSince(supabase, userId, localDateStr());
+      if (today.length === 0) return;
+      set((s) => {
+        // `onset_at` identifica o período; o que já estava (de um `load()`
+        // anterior ou de um foreground) sai antes de entrar de novo.
+        const fresh = new Set(today.map((p) => p.onsetAt));
+        const kept = s.periods.filter((p) => !fresh.has(p.onsetAt));
+        return { periods: [...kept, ...today].sort((a, b) => a.onsetAt.localeCompare(b.onsetAt)) };
+      });
+    } catch {
+      // A Hoje não tem onde mostrar erro de sono: o espaço fica em branco
+      // (decisão D2 da CAP-8) e a aba Sono, com o `load()` inteiro, reporta o dela.
     }
   },
 

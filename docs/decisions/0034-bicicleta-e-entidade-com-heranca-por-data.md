@@ -1,4 +1,4 @@
-# ADR 0033 — Bicicleta é entidade, e a pedalada herda a bike pela data
+# ADR 0034 — Bicicleta é entidade, e a pedalada herda a bike pela data
 
 **Data:** 2026-09-05 · **Status:** aceita
 

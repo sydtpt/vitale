@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { HabitLog, RegistroLog } from '@vitale/shared';
+import type { HabitLog, RegistroLog, SleepPeriod } from '@vitale/shared';
 import {
   fetchDailyRatingScores,
   fetchDoneTodoOccurrencesSince,
@@ -8,6 +8,7 @@ import {
   fetchHealthDailyValues,
   fetchRegistroLogsSince,
   fetchRegistroSummaries,
+  fetchSleepPeriodsSince,
   fetchTodoTemplateSummaries,
 } from '@vitale/shared';
 import {
@@ -57,6 +58,8 @@ interface RetroState {
   tasks: { doneDay: string; module: string }[];
   dailyTasks: RetroDailyTask[];
   purchases: { doneDay: string; cat?: string; price?: number; name: string }[];
+  /** As noites da janela — o bloco Sono e as frases de sono da manchete (sleep/retro.ts). */
+  sleepPeriods: SleepPeriod[];
 
   ensure: (since: string) => Promise<void>;
   summary: (now: Date, kind: PeriodKind, offset: number) => RetroSummary;
@@ -119,6 +122,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
       tasks: s.tasks,
       dailyTasks: s.dailyTasks,
       purchases: s.purchases,
+      sleepPeriods: s.sleepPeriods,
     };
   }
 
@@ -127,6 +131,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
     loaded: false,
     loadedSince: null,
     health: [], ratings: [], habits: [], habitLogs: [], registros: [], registroLogs: [], tasks: [], dailyTasks: [], purchases: [],
+    sleepPeriods: [],
 
     ensure: async (since) => {
       const { loading, loaded, loadedSince } = get();
@@ -138,7 +143,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
       set({ loading: true });
       void useActivitiesStore.getState().load();
 
-      const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs] =
+      const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs, sleepPeriods] =
         await Promise.all([
           fetchHealthDailyValues(supabase, userId, since),
           fetchDailyRatingScores(supabase, userId, since),
@@ -148,6 +153,8 @@ export const useRetroStore = create<RetroState>((set, get) => {
           fetchRegistroLogsSince(supabase, userId, since),
           fetchTodoTemplateSummaries(supabase, userId),
           fetchDoneTodoOccurrencesSince(supabase, userId, since),
+          // Por dia de acordar ≥ `since`: a mesma janela dos deltas e dos 90 dias.
+          fetchSleepPeriodsSince(supabase, userId, since),
         ]);
 
       const tmplById = new Map(templates.map((t) => [t.id, t]));
@@ -185,6 +192,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
         registros,
         registroLogs,
         tasks, purchases,
+        sleepPeriods,
         dailyTasks: templates
           .filter((t) => t.active && isDailyRecurrence(t.recurrence))
           .map((t) => ({ id: t.id, name: t.name, days: dailyDays.get(t.id) ?? new Set<string>(), createdOn: t.createdOn })),

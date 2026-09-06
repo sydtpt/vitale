@@ -109,7 +109,7 @@ export default function AtividadeDetalheScreen() {
   const [pickingGear, setPickingGear] = useState(false);
 
   const activity = useMemo(() => _all.find((a) => a.id === id), [_all, id]);
-  // A bike desta pedalada: override explícito ou herança pela data (ADR 0033).
+  // A bike desta pedalada: override explícito ou herança pela data (ADR 0034).
   const gear = useMemo(() => (activity ? gearForActivity(gears, activity) : undefined), [gears, activity]);
 
   useEffect(() => {
@@ -421,7 +421,7 @@ export default function AtividadeDetalheScreen() {
           </>
         )}
 
-        {/* O chão desta pedalada (ADR 0034). Também fora do bloco do percurso:
+        {/* O chão desta pedalada (ADR 0035). Também fora do bloco do percurso:
             `surfaceMix` vem do ingest e não depende da rota carregada aqui. Some
             enquanto o passe não calculou. */}
         {activity.surfaceMix && activity.surfaceMix.total > 0 && (

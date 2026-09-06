@@ -1,5 +1,5 @@
 -- Orbe — Piso das rotas: o chão de cada pedalada, medido contra o OpenStreetMap.
--- ADR 0034 · tasks: _bmad-output/implementation-artifacts/piso-das-rotas/tasks.md
+-- ADR 0035 · tasks: _bmad-output/implementation-artifacts/piso-das-rotas/tasks.md
 -- Pesquisa: _bmad-output/planning-artifacts/research/competitive-terreno-e-contexto-de-rota-no-ciclismo-2026-09-05
 --
 -- Três colunas, mesmo padrão de `activities.cities` (preenchidas por um passe

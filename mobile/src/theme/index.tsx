@@ -38,6 +38,7 @@ export {
   MOD,
   moduleColors,
   roleColors,
+  sleepColors,
   themeFillsCards,
   themed,
   themedCacheKey,

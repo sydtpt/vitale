@@ -20,9 +20,21 @@ import {
   Period,
   Sample,
 } from '../../lib/health-buckets';
-import { BarChart, LineChart, ActivityRings, MacroDonut } from '../../components/charts';
-import { colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
+import { BarChart, LineChart, ActivityRings, MacroDonut, DayHeartChart } from '../../components/charts';
+import { colors, fonts, radii, shadows, sleepColors, spacing, themed, useTheme } from '../../theme';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
+import { useSonoStore } from '../../store/sono.store';
+import { useActivitiesStore } from '../../store/activities.store';
+import { useHeartSeriesStore } from '../../store/heart-days.store';
+import {
+  activityMarkLabel,
+  activitySpansOnDay,
+  activityTypeLabel,
+  hourlyProfile,
+  localDateStr,
+  nightHeartRates,
+  sleepSpansOnDay,
+} from '@vitale/shared';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'day', label: 'Dia' },
@@ -89,6 +101,41 @@ export default function MetricDetailScreen() {
     if (metric) loadMetric(metric.id);
   }, [metric, period, loadMetric]);
 
+  // FC no período Dia (spec fc-serie): a curva do HealthKit ganha a noite, o
+  // treino e a faixa típica; do Supabase vem só o que o aparelho não tem — o
+  // perfil por hora e a noite medida.
+  const heartDay = metricId === 'fc' && period === 'day';
+  const periods = useSonoStore((s) => s.periods);
+  const allActivities = useActivitiesStore((s) => s._all);
+  const seriesDays = useHeartSeriesStore((s) => s.days);
+  useEffect(() => {
+    if (!heartDay) return;
+    void useSonoStore.getState().loadToday();
+    void useActivitiesStore.getState().load();
+    void useHeartSeriesStore.getState().load();
+  }, [heartDay]);
+  const heart = useMemo(() => {
+    if (!heartDay) return null;
+    const today = localDateStr();
+    const tz = -new Date().getTimezoneOffset();
+    const sleep = sleepSpansOnDay(today, tz, periods);
+    const workouts = activitySpansOnDay(
+      today,
+      tz,
+      allActivities
+        .filter((a) => !a.hidden)
+        .map((a) => ({
+          startAt: a.startAt,
+          endAt: a.endAt,
+          name: activityMarkLabel(a.activityName, activityTypeLabel(a.activityId)),
+        })),
+    );
+    const profile = hourlyProfile(seriesDays);
+    const night = nightHeartRates(seriesDays, periods).find((n) => n.wakeDay === today) ?? null;
+    const nightPeriod = night ? periods.find((p) => p.onsetAt === night.onsetAt) ?? null : null;
+    return { sleep, workouts, profile, night, nightPeriod };
+  }, [heartDay, periods, allActivities, seriesDays]);
+
   if (!metric) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -140,6 +187,14 @@ export default function MetricDetailScreen() {
             <RingsBody data={data} />
           ) : metric.chart === 'donut' ? (
             <DonutBody data={data} format={metric.format} />
+          ) : heartDay && heart ? (
+            <DayHeartChart
+              samples={data}
+              width={Math.max(0, chartW - spacing.lg * 2)}
+              sleep={heart.sleep}
+              workouts={heart.workouts}
+              profile={heart.profile}
+            />
           ) : metric.chart === 'line' ? (
             <LineChart buckets={buckets} width={Math.max(0, chartW - spacing.lg * 2)} color={cat.accent} />
           ) : (
@@ -165,6 +220,9 @@ export default function MetricDetailScreen() {
             )}
           </View>
         )}
+
+        {/* A noite medida: média e mínima da série dentro da janela dormindo */}
+        {heartDay && heart && <NightCard night={heart.night} asleepH={heart.nightPeriod?.asleepH ?? null} />}
 
         {/* Lista de amostras */}
         {!special && hasData && (
@@ -233,6 +291,46 @@ function DonutBody({ data, format }: { data: Sample[]; format: (v: number) => st
             </Text>
           </View>
         ))}
+      </View>
+    </View>
+  );
+}
+
+/** "6h33" a partir de horas decimais. */
+function hoursLabel(h: number): string {
+  const whole = Math.floor(h);
+  const min = Math.round((h - whole) * 60);
+  return `${whole}h${String(min).padStart(2, '0')}`;
+}
+
+function NightCard({
+  night,
+  asleepH,
+}: {
+  night: { mean: number; min: number; minAtMs: number } | null;
+  asleepH: number | null;
+}) {
+  const sleep = sleepColors();
+  const minAt = night ? new Date(night.minAtMs).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+  return (
+    <View style={styles.nightCard}>
+      <View style={[styles.nightIcon, { backgroundColor: sleep.bed }]}>
+        <Ionicons name="moon" size={16} color={sleep.sleep} />
+      </View>
+      <View style={styles.nightBody}>
+        <Text style={styles.nightTitle}>Dormindo</Text>
+        {night ? (
+          <>
+            <Text style={styles.nightValue}>
+              {night.mean} <Text style={styles.nightUnit}>média</Text>
+              {'  ·  '}
+              {night.min} <Text style={styles.nightUnit}>mínima às {minAt}</Text>
+            </Text>
+            <Text style={styles.nightSub}>noite de hoje{asleepH != null ? ` · ${hoursLabel(asleepH)} dormindo` : ''}</Text>
+          </>
+        ) : (
+          <Text style={styles.nightSub}>sem noite medida ainda — precisa da série e da janela de sono da mesma noite</Text>
+        )}
       </View>
     </View>
   );
@@ -318,6 +416,23 @@ const styles = themed(() => StyleSheet.create({
   stat: { alignItems: 'center', gap: 3 },
   statValue: { fontSize: 18, fontFamily: fonts.monoBold },
   statCaption: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
+
+  nightCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii['2xl'],
+    padding: spacing.lg,
+    marginTop: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    ...shadows.card,
+  },
+  nightIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  nightBody: { flex: 1, gap: 2 },
+  nightTitle: { fontSize: 12, fontFamily: fonts.sansBold, color: colors.ink2 },
+  nightValue: { fontSize: 16, fontFamily: fonts.mono, color: colors.ink },
+  nightUnit: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
+  nightSub: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3 },
 
   ringsBody: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl, paddingVertical: spacing.sm },
   ringsLegend: { flex: 1, gap: spacing.md },
