@@ -84,6 +84,52 @@ describe('presence-places', () => {
     ]);
   });
 
+  it('carimba quando o raio muda — vira outro instrumento', async () => {
+    const s = memStore();
+    await upsertPresencePlace(place('p1', { radiusM: 150 }), s);
+    const [antes] = await readPresencePlaces(s);
+    expect(antes.geometryChangedAt).toBeUndefined();
+
+    const depois = await upsertPresencePlace(place('p1', { radiusM: 300 }), s);
+    expect(depois[0].geometryChangedAt).toBeDefined();
+  });
+
+  it('carimba quando o centro muda', async () => {
+    const s = memStore();
+    await upsertPresencePlace(place('p1'), s);
+    const depois = await upsertPresencePlace(place('p1', { lat: 50.86 }), s);
+    expect(depois[0].geometryChangedAt).toBeDefined();
+  });
+
+  it('NÃO carimba ao renomear — o nome não muda o que o iOS vigia', async () => {
+    const s = memStore();
+    await upsertPresencePlace(place('p1', { name: 'Casa' }), s);
+    const depois = await upsertPresencePlace(place('p1', { name: 'Casa nova' }), s);
+    expect(depois[0].name).toBe('Casa nova');
+    expect(depois[0].geometryChangedAt).toBeUndefined();
+  });
+
+  it('preserva o carimbo antigo quando nada geométrico muda', async () => {
+    const s = memStore();
+    await upsertPresencePlace(place('p1', { radiusM: 150 }), s);
+    const [comCarimbo] = await upsertPresencePlace(place('p1', { radiusM: 300 }), s);
+    const carimbo = comCarimbo.geometryChangedAt;
+    const [semMudanca] = await upsertPresencePlace(
+      place('p1', { radiusM: 300, name: 'Outro nome' }),
+      s,
+    );
+    expect(semMudanca.geometryChangedAt).toBe(carimbo);
+  });
+
+  it('editar não joga o lugar para o fim da lista', async () => {
+    const s = memStore();
+    await upsertPresencePlace(place('a'), s);
+    await upsertPresencePlace(place('b'), s);
+    await upsertPresencePlace(place('c'), s);
+    const lista = await upsertPresencePlace(place('a', { name: 'Editado' }), s);
+    expect(lista.map((p) => p.id)).toEqual(['a', 'b', 'c']);
+  });
+
   it('remove pelo id', async () => {
     const s = memStore();
     await upsertPresencePlace(place('p1'), s);

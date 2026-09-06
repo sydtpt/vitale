@@ -259,6 +259,96 @@ export function buildCountryMapHtml(
 </html>`;
 }
 
+/** Cores do mapa de lugar. Vêm de fora, resolvidas por `moduleColors()` na tela. */
+export interface PlaceMapColors {
+  /** Traço e preenchimento do círculo do raio. */
+  accent: string;
+  /** Ponto “você está aqui” e o halo de precisão. */
+  me: string;
+}
+
+/**
+ * HTML do editor de local: um mapa arrastável com o **círculo do raio preso ao
+ * centro da tela**.
+ *
+ * A mira não é desenhada aqui — ela é uma `View` do RN por cima do WebView,
+ * fixa no centro. Assim ela fica sempre exatamente no meio do viewport, com o
+ * nitidez de um vetor nativo, e o mapa não precisa saber que ela existe.
+ *
+ * O círculo segue `map.getCenter()` a cada quadro do arrasto porque o centro do
+ * lugar **é** o centro da tela: quem se move é o mundo, não o alvo. Ver a nota
+ * da mira fixa na proposta — dedo em cima do pino é o problema que isto evita.
+ *
+ * O ponto “você” é separado do círculo de propósito. O halo é a precisão do fix,
+ * e ela é sobre onde o **aparelho** está; assim que o mapa é arrastado, o centro
+ * escolhido e a sua posição passam a ser dois fatos diferentes, e desenhá-los
+ * concêntricos afirmaria algo falso sobre o centro.
+ */
+export function buildPlaceMapHtml(
+  center: MapPoint,
+  radiusM: number,
+  tile: Extract<MapStyleConfig, { kind: 'raster' }>,
+  c: PlaceMapColors,
+): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  ${mapHead(tile)}
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; background: ${colors.surfaceMute}; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    var map = L.map('map', {
+      zoomControl: false, attributionControl: true, zoomSnap: 0,
+    }).setView([${center.latitude}, ${center.longitude}], 16);
+    L.tileLayer('${tile.url}', { maxZoom: ${tile.maxZoom}, subdomains: '${tile.subdomains}', attribution: '${tile.attribution}' }).addTo(map);
+
+    var circle = L.circle(map.getCenter(), {
+      radius: ${radiusM}, color: '${c.accent}', weight: 2,
+      fillColor: '${c.accent}', fillOpacity: 0.16,
+    }).addTo(map);
+
+    var meHalo = null, meDot = null;
+
+    function post(o) {
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(o));
+    }
+
+    // O círculo mora no centro da tela: quem se move é o mundo.
+    map.on('move', function () { circle.setLatLng(map.getCenter()); });
+    map.on('moveend', function () {
+      var p = map.getCenter();
+      post({ type: 'placeCenter', lat: p.lat, lng: p.lng });
+    });
+
+    // API para o RN via injectJavaScript — nunca reconstruir o HTML, que
+    // recarregaria os tiles e perderia o enquadramento. Mesma razão do cursor
+    // do scrub lá em cima.
+    window.setRadius = function (m) { circle.setRadius(m); };
+    window.fitRadius = function () { map.fitBounds(circle.getBounds(), { padding: [36, 36] }); };
+    window.goTo = function (lat, lng) { map.setView([lat, lng], map.getZoom(), { animate: true }); };
+    window.setMe = function (lat, lng, acc) {
+      var at = [lat, lng];
+      if (!meDot) {
+        meHalo = L.circle(at, { radius: acc, color: '${c.me}', weight: 0, fillColor: '${c.me}', fillOpacity: 0.18 }).addTo(map);
+        meDot = L.circleMarker(at, { radius: 5, color: '#ffffff', weight: 2, fillColor: '${c.me}', fillOpacity: 1 }).addTo(map);
+      } else {
+        meHalo.setLatLng(at); meHalo.setRadius(acc); meDot.setLatLng(at);
+      }
+    };
+
+    window.fitRadius();
+    post({ type: 'ready' });
+  </script>
+</body>
+</html>`;
+}
+
 function countryLeafletScript(
   routes: readonly MapPoint[][],
   bounds: ViewportBounds,

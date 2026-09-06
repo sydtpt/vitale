@@ -9,6 +9,7 @@ import {
   presenceEventId,
   readPresenceLog,
   summarizePresence,
+  vitalsByPlace,
   type PresenceEvent,
   type PresenceEventKind,
 } from '../presence-events';
@@ -177,6 +178,29 @@ describe('presence-events · resumo', () => {
   it('resume um log vazio sem quebrar', () => {
     const r = summarizePresence([]);
     expect(r).toMatchObject({ total: 0, days: 0, busiestDay: null, openEnters: 0 });
+  });
+
+  it('conta e último evento por lugar', () => {
+    const v = vitalsByPlace([
+      ev('casa', 'enter', '2026-09-06T08:00:00.000Z'),
+      ev('casa', 'exit', '2026-09-06T09:00:00.000Z'),
+      ev('escritorio', 'enter', '2026-09-06T09:30:00.000Z'),
+    ]);
+    expect(v.get('casa')).toEqual({ count: 2, lastAt: '2026-09-06T09:00:00.000Z' });
+    expect(v.get('escritorio')?.count).toBe(1);
+  });
+
+  it('o lugar mudo não aparece — é o que a lista precisa distinguir', () => {
+    const v = vitalsByPlace([ev('casa', 'enter', '2026-09-06T08:00:00.000Z')]);
+    expect(v.get('academia')).toBeUndefined();
+  });
+
+  it('o último é o mais recente mesmo com evento fora de ordem', () => {
+    const v = vitalsByPlace([
+      ev('casa', 'exit', '2026-09-06T18:00:00.000Z'),
+      ev('casa', 'enter', '2026-09-06T08:00:00.000Z'),
+    ]);
+    expect(v.get('casa')?.lastAt).toBe('2026-09-06T18:00:00.000Z');
   });
 
   it('os limiares são os que a proposta assumiu', () => {

@@ -1,16 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
-  TextInput,
-} from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii, roleColors, shadows, spacing, useThemedStyles } from '../../theme';
 import {
@@ -19,19 +10,17 @@ import {
   clearPresenceLog,
   readPresenceLog,
   summarizePresence,
+  vitalsByPlace,
   type PresenceEvent,
 } from '../../lib/presence-events';
 import {
-  DEFAULT_RADIUS_M,
   MAX_REGIONS,
   placeName,
   readPresencePlaces,
   removePresencePlace,
-  upsertPresencePlace,
   type PresencePlace,
 } from '../../lib/presence-places';
 import {
-  currentFix,
   getPresencePermission,
   isPresenceRunning,
   requestPresencePermission,
@@ -54,12 +43,14 @@ import {
  * Quando a fase 1 chegar, esta tela é descartável.
  */
 
-/**
- * Sugestões, não uma lista fechada. Aparecem como atalho enquanto o campo está
- * vazio e somem depois que o lugar de mesmo nome existe — qualquer nome serve,
- * e o teto é o do iOS (20), não o desta lista.
- */
-const SUGESTOES = ['Casa', 'Escritório', 'Academia', 'Mercado'];
+/** "há 2 h", "há 3 d", "agora" — a idade de um sinal, não a data dele. */
+function desde(iso: string): string {
+  const min = (Date.now() - new Date(iso).getTime()) / 60000;
+  if (min < 2) return 'agora';
+  if (min < 60) return `há ${Math.round(min)} min`;
+  if (min < 48 * 60) return `há ${Math.round(min / 60)} h`;
+  return `há ${Math.round(min / 1440)} d`;
+}
 
 function formatarMomento(iso: string): string {
   const d = new Date(iso);
@@ -105,7 +96,6 @@ export default function PresencaScreen() {
   const [lugares, setLugares] = useState<PresencePlace[]>([]);
   const [eventos, setEventos] = useState<PresenceEvent[]>([]);
   const [ocupado, setOcupado] = useState(false);
-  const [nomeNovo, setNomeNovo] = useState('');
 
   const carregar = useCallback(async () => {
     const [p, r, l, e] = await Promise.all([
@@ -120,11 +110,16 @@ export default function PresencaScreen() {
     setEventos(e);
   }, []);
 
-  useEffect(() => {
-    void carregar();
-  }, [carregar]);
+  // Carrega na montagem e a cada volta do editor — `useFocusEffect` cobre as
+  // duas, então um `useEffect` de montagem seria uma leitura duplicada.
+  useFocusEffect(
+    useCallback(() => {
+      void carregar();
+    }, [carregar]),
+  );
 
   const resumo = useMemo(() => summarizePresence(eventos), [eventos]);
+  const vitais = useMemo(() => vitalsByPlace(eventos), [eventos]);
   const recentes = useMemo(() => [...eventos].reverse().slice(0, 60), [eventos]);
 
   const pedirPermissao = () => {
@@ -132,35 +127,6 @@ export default function PresencaScreen() {
     requestPresencePermission()
       .then(setPerm)
       .catch((e: unknown) => Alert.alert('Não deu', String(e)))
-      .finally(() => setOcupado(false));
-  };
-
-  const adicionarDaqui = () => {
-    const nome = nomeNovo.trim();
-    if (!nome) return;
-    setOcupado(true);
-    currentFix()
-      .then(async (fix) => {
-        const proximos = await upsertPresencePlace({
-          id: `p${Date.now().toString(36)}`,
-          name: nome,
-          lat: fix.coords.latitude,
-          lon: fix.coords.longitude,
-          radiusM: DEFAULT_RADIUS_M,
-        });
-        setLugares(proximos);
-        setNomeNovo('');
-        if (rodando) await startPresence(proximos);
-        Alert.alert(
-          `“${nome}” registrado`,
-          `Raio de ${DEFAULT_RADIUS_M} m, precisão do ponto: ${Math.round(fix.coords.accuracy ?? 0)} m.\n\n` +
-            'Se você não estiver exatamente no lugar agora, apague e refaça quando estiver — ' +
-            'o centro é o que o iOS vai vigiar.',
-        );
-      })
-      .catch((e: unknown) =>
-        Alert.alert('Não deu', e instanceof Error ? e.message : String(e)),
-      )
       .finally(() => setOcupado(false));
   };
 
@@ -289,86 +255,67 @@ export default function PresencaScreen() {
         </View>
 
         {/* ---------- lugares ---------- */}
-        <Text style={styles.sectionTitle}>Lugares</Text>
+        <Text style={styles.sectionTitle}>
+          Lugares · {lugares.length} de {MAX_REGIONS} vagas
+        </Text>
         <View style={styles.card}>
           {lugares.length === 0 ? (
             <Text style={styles.vazio}>
-              Nenhum ainda. Cadastre estando no lugar: o ponto de agora vira o centro do raio.
+              Nenhum ainda. O primeiro define o que a observação mede.
             </Text>
           ) : (
-            lugares.map((p) => (
-              <View key={p.id} style={styles.lugarLinha}>
-                <View style={styles.rowContent}>
-                  <Text style={styles.rowLabel}>{p.name}</Text>
-                  <Text style={styles.mono}>
-                    {p.lat.toFixed(5)}, {p.lon.toFixed(5)} · raio {p.radiusM} m
-                  </Text>
-                </View>
-                <Pressable onPress={() => apagarLugar(p)} hitSlop={10} style={({ pressed }) => pressed && styles.pressed}>
-                  <Ionicons name="trash-outline" size={17} color={colors.ink3} />
+            lugares.map((p) => {
+              const v = vitais.get(p.id);
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => router.push(`/configuracoes/presenca-local?id=${p.id}`)}
+                  style={({ pressed }) => [styles.lugarLinha, pressed && styles.pressed]}
+                >
+                  <View style={styles.rowContent}>
+                    <Text style={styles.rowLabel}>{p.name}</Text>
+                    {/* Sinais vitais, não coordenada: de relance o que importa
+                        é se o lugar está vivo. A coordenada mora no editor. */}
+                    <Text style={[styles.mono, !v && styles.mudo]}>
+                      {v
+                        ? `${v.count} evento${v.count > 1 ? 's' : ''} · ${desde(v.lastAt!)} · ${p.radiusM} m`
+                        : `nenhum evento ainda · ${p.radiusM} m`}
+                    </Text>
+                    {p.geometryChangedAt ? (
+                      <Text style={styles.mono}>
+                        geometria alterada {desde(p.geometryChangedAt)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Pressable
+                    onPress={() => apagarLugar(p)}
+                    hitSlop={12}
+                    style={({ pressed }) => pressed && styles.pressed}
+                  >
+                    <Ionicons name="trash-outline" size={17} color={colors.ink3} />
+                  </Pressable>
+                  <Ionicons name="chevron-forward" size={15} color={colors.ink3} />
                 </Pressable>
-              </View>
-            ))
+              );
+            })
           )}
 
           {lugares.length < MAX_REGIONS ? (
-            <>
-              <View style={styles.divisor} />
-
-              <TextInput
-                value={nomeNovo}
-                onChangeText={setNomeNovo}
-                placeholder="Nome do lugar"
-                placeholderTextColor={colors.ink3}
-                style={styles.campo}
-                autoCapitalize="sentences"
-                returnKeyType="done"
-                maxLength={40}
-                onSubmitEditing={adicionarDaqui}
-              />
-
-              {nomeNovo.trim() === '' ? (
-                <View style={styles.sugestoes}>
-                  {SUGESTOES.filter(
-                    (s) => !lugares.some((p) => p.name.toLowerCase() === s.toLowerCase()),
-                  ).map((s) => (
-                    <Pressable
-                      key={s}
-                      onPress={() => setNomeNovo(s)}
-                      style={({ pressed }) => [styles.sugestao, pressed && styles.pressed]}
-                    >
-                      <Text style={styles.sugestaoTexto}>{s}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-
-              <Pressable
-                onPress={adicionarDaqui}
-                disabled={ocupado || nomeNovo.trim() === ''}
-                style={({ pressed }) => [
-                  styles.botaoSec,
-                  pressed && styles.pressed,
-                  (ocupado || nomeNovo.trim() === '') && styles.desabilitado,
-                ]}
-              >
-                <Ionicons name="location-outline" size={17} color={colors.ink} />
-                <Text style={styles.botaoSecTexto}>
-                  {nomeNovo.trim() === ''
-                    ? 'Registrar daqui'
-                    : `Registrar “${nomeNovo.trim()}” daqui`}
-                </Text>
-              </Pressable>
-              <Text style={styles.nota}>
-                O ponto de agora vira o centro do raio. Cadastre estando no lugar.
-              </Text>
-            </>
+            <Pressable
+              onPress={() => router.push('/configuracoes/presenca-local')}
+              style={({ pressed }) => [styles.botao, pressed && styles.pressed]}
+            >
+              <Text style={styles.botaoTexto}>+  Adicionar local</Text>
+            </Pressable>
           ) : (
             <Text style={styles.nota}>
               As {MAX_REGIONS} vagas do iOS estão ocupadas. Apague um lugar para criar outro.
             </Text>
           )}
         </View>
+        {lugares.length > 0 ? (
+          <Text style={styles.nota}>Toque num lugar para ajustar o raio ou mover o centro.</Text>
+        ) : null}
 
         {/* ---------- medidas ---------- */}
         <Text style={styles.sectionTitle}>O que esta fase mede</Text>
@@ -525,40 +472,12 @@ function createStyles() {
     botaoTexto: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.onPrimary },
     botaoParar: { backgroundColor: colors.surfaceMute },
     botaoPararTexto: { color: colors.ink },
-    botaoSec: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: spacing.xs,
-      borderRadius: radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.line,
-      paddingVertical: spacing.sm,
-    },
-    botaoSecTexto: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.ink },
     desabilitado: { opacity: 0.4 },
 
     lugarLinha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 
-    campo: {
-      fontFamily: fonts.sans,
-      fontSize: 15,
-      color: colors.ink,
-      backgroundColor: colors.bg2,
-      borderRadius: radii.md,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm + 2,
-      minHeight: 42,
-    },
-    sugestoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-    sugestao: {
-      borderRadius: radii.pill,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.line,
-      paddingHorizontal: spacing.sm + 2,
-      paddingVertical: spacing.xs + 1,
-    },
-    sugestaoTexto: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.ink2 },
+    /** Um lugar sem nenhum evento: o sintoma central da fase 0. */
+    mudo: { color: colors.ink2, fontStyle: 'italic' as const },
 
     medidas: { flexDirection: 'row', gap: spacing.sm },
     medida: { flex: 1, gap: 1 },
