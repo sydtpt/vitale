@@ -45,18 +45,22 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
 - [x] T1.1 Migration `20260906130000_piso_das_rotas.sql`: `activity_routes.surface_segments`
       ([[startM,endM,cat,inferido]] em metros ao longo do overview) + `surface_meta`
       (procedência: fonte, data, espaçamento, raio, mediana da distância à via, erro) +
-      `activities.surface_mix` (metros por classe, desnormalizado). Dry-run em rollback
-      ok. **NÃO aplicada — pede "pode".** ADR 0034.
+      `activities.surface_mix` (metros por classe, desnormalizado). **Aplicada em prod
+      em 06/09** com "pode seguir" (registrada como `piso_das_rotas`). ADR 0034.
 - [x] T1.2 `surface/classify.ts` no núcleo (sem imports; tabela OSM→classe, ciclovia ≤ 12 m
       vence rua, reta > 500 m = buraco, segmentos e soma) + 30 asserts;
       `_shared/surface.ts` na function (1 chamada Overpass por rota pela polilinha das
       amostras, 1 rota por run, falha → `surface_meta.status=failed` e retry em 24 h),
-      chamada no `runIngest` e no `mode: reconcile`. **Deploy manual pendente**
-      (`supabase functions deploy connections-ingest`); sem `deno` local, a function
-      não foi type-checkada aqui.
-- [ ] T1.3 Backfill das 137 rotas: SQL gerado do cruzamento de 05/09
-      (`backfill-piso.sql`, 274 updates, mesmas regras do classify.ts). Roda depois da
-      migration, com "pode".
+      chamada no `runIngest` e no `mode: reconcile`. **Deploy feito em 06/09**
+      (`supabase functions deploy connections-ingest` a partir do worktree; o bundle
+      subiu `packages/shared/src/surface/classify.ts` junto). Sem `deno` local, a
+      function não foi type-checkada aqui — o primeiro run real é o teste (T1.3b).
+- [x] T1.3 Backfill das 137 rotas em prod (06/09): 274 updates numa transação, a partir
+      do cruzamento de 05/09. Verificado: 137/137 com piso, 5.032 km, liso 78,9% ·
+      blocos+pavé 8,5% · cascalho 8,6% · terra 3,9% · desconhecido 0,1% · inferido 14,6%;
+      mediana média da distância à via 1,8 m.
+- [ ] T1.3b Smoke test do passe deployado: uma rota curta (Amsterdam, 31/08, 5,4 km) teve
+      o piso apagado para o cron recalcular via Overpass; comparar com o backfill.
 - [ ] T1.4 Golden set: Sydnei marca 10 pedaladas que lembra; conferir.
 - [ ] T1.5 Conferir se `activity_routes.points` tem timestamp (velocidade por piso).
 
