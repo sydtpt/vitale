@@ -21,6 +21,7 @@
  */
 
 import { Asset } from 'expo-media-library';
+import { getThumbnailAsync } from 'expo-video-thumbnails';
 
 const cache = new Map<string, string | null>();
 /** Promessas em voo: dois quadros pedindo a mesma foto fazem UMA extração. */
@@ -55,6 +56,50 @@ export async function resolveAssetUri(assetId: string | null): Promise<string | 
   })();
 
   inflight.set(assetId, task);
+  return task;
+}
+
+/**
+ * O endereço de uma **imagem** para o asset: a própria foto, ou o quadro-pôster
+ * do vídeo.
+ *
+ * Conferido no iPhone em 07/09/2026: `getUri()` de um vídeo devolve o arquivo
+ * de vídeo, e o `Image` do React Native não desenha isso — os vídeos apareciam
+ * como quadro vazio. Foi exatamente a dúvida que a Fase 7 deixou aberta para o
+ * aparelho responder, e ele respondeu que o pôster não vem de graça.
+ *
+ * O pôster é gerado uma vez e memorizado junto com o resto: extrair quadro é
+ * caro e o vídeo não muda.
+ */
+export async function resolvePosterUri(
+  assetId: string | null,
+  isVideo: boolean,
+): Promise<string | null> {
+  const source = await resolveAssetUri(assetId);
+  if (!source || !isVideo) return source;
+
+  const key = `poster:${assetId}`;
+  const hit = cache.get(key);
+  if (hit !== undefined) return hit;
+
+  const pending = inflight.get(key);
+  if (pending) return pending;
+
+  const task = (async () => {
+    try {
+      // `time: 0` é o primeiro quadro — o mais barato e o mais previsível.
+      const { uri } = await getThumbnailAsync(source, { time: 0 });
+      cache.set(key, uri);
+      return uri;
+    } catch {
+      cache.set(key, null);
+      return null;
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+
+  inflight.set(key, task);
   return task;
 }
 

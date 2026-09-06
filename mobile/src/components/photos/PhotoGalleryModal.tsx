@@ -12,7 +12,7 @@
  * dela são o que nenhum outro app mostra.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ import {
   Pressable,
   ScrollView,
   Image,
+  Animated,
+  PanResponder,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,7 +55,7 @@ function GridTile({
   onPress: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
-  const uri = useAssetUri(photo.assetId);
+  const uri = useAssetUri(photo.assetId, photo.mediaType === 'video');
   const box = { width: size, height: size };
 
   return (
@@ -91,13 +93,64 @@ function Viewer({
   onClose: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [current, setCurrent] = useState(index);
 
+  /**
+   * Arrastar para baixo fecha — o gesto que todo visor de foto tem, e que o
+   * usuário pediu em 07/09/2026 depois de tentar usá-lo por instinto.
+   *
+   * `Animated` do RN, não Reanimated (ADR 0010). O responder só assume quando o
+   * movimento é **claramente vertical** (|dy| > 2·|dx|): sem isso ele roubaria
+   * o gesto do carrossel horizontal, e deslizar entre fotos deixaria de
+   * funcionar — que seria trocar um bug por outro.
+   */
+  const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx) * 2,
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) drag.setValue({ x: 0, y: g.dy });
+      },
+      onPanResponderRelease: (_, g) => {
+        // Fecha por distância OU por velocidade: um puxão curto e rápido é tão
+        // intencional quanto um arrasto longo.
+        if (g.dy > 110 || g.vy > 0.7) {
+          Animated.timing(drag, {
+            toValue: { x: 0, y: height },
+            duration: 160,
+            useNativeDriver: true,
+          }).start(onClose);
+        } else {
+          Animated.spring(drag, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: true,
+            bounciness: 0,
+          }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(drag, { toValue: { x: 0, y: 0 }, useNativeDriver: true, bounciness: 0 }).start();
+      },
+    }),
+  ).current;
+
+  /** O fundo clareia conforme o dedo desce — o visor "solta" a foto. */
+  const backdrop = drag.y.interpolate({
+    inputRange: [0, height * 0.5],
+    outputRange: [1, 0.2],
+    extrapolate: 'clamp',
+  });
+
   return (
-    <Modal visible transparent={false} animationType="fade" onRequestClose={onClose}>
-      <View style={styles.viewer}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Animated.View style={[styles.viewerBackdrop, { opacity: backdrop }]} />
+      <Animated.View
+        style={[styles.viewer, { transform: [{ translateY: drag.y }] }]}
+        {...pan.panHandlers}
+      >
         <ScrollView
           horizontal
           pagingEnabled
@@ -129,14 +182,14 @@ function Viewer({
             {current + 1} de {photos.length}
           </Text>
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
 
 function ViewerPage({ photo, width }: { photo: ActivityPhoto; width: number }) {
   const styles = useThemedStyles(createStyles);
-  const uri = useAssetUri(photo.assetId);
+  const uri = useAssetUri(photo.assetId, photo.mediaType === 'video');
   return (
     <View style={[styles.viewerPage, { width }]}>
       {typeof uri === 'string' ? (
@@ -308,7 +361,20 @@ const createStyles = () =>
      * O visor é escuro nos dois esquemas, de propósito: a foto é que manda, e
      * um fundo claro em volta dela lava a imagem. É a convenção de todo visor.
      */
-    viewer: { flex: 1, backgroundColor: 'rgb(10,9,8)' },
+    viewer: { flex: 1 },
+    /**
+     * O fundo é uma camada à parte para poder clarear enquanto a foto desce.
+     * Escuro nos dois esquemas: a foto é que manda, e fundo claro em volta lava
+     * a imagem — é a convenção de todo visor.
+     */
+    viewerBackdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgb(10,9,8)',
+    },
     viewerPage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     viewerImg: { width: '100%', height: '100%' },
     viewerClose: {

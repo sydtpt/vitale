@@ -8,23 +8,27 @@
  */
 
 import { useEffect, useState } from 'react';
-import { resolveAssetUri } from '../services/asset-uri';
+import { resolveAssetUri, resolvePosterUri } from '../services/asset-uri';
 
 export type AssetUri = string | null | 'loading';
 
-export function useAssetUri(assetId: string | null): AssetUri {
+/**
+ * `isVideo` troca o endereço pelo **quadro-pôster**: o `Image` do RN não desenha
+ * um arquivo de vídeo, e sem isto o vídeo aparece como quadro vazio.
+ */
+export function useAssetUri(assetId: string | null, isVideo = false): AssetUri {
   const [uri, setUri] = useState<AssetUri>('loading');
 
   useEffect(() => {
     let alive = true;
     setUri('loading');
-    void resolveAssetUri(assetId).then((u) => {
+    void resolvePosterUri(assetId, isVideo).then((u) => {
       if (alive) setUri(u);
     });
     return () => {
       alive = false;
     };
-  }, [assetId]);
+  }, [assetId, isVideo]);
 
   return uri;
 }

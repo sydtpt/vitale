@@ -430,7 +430,7 @@ export default function RetrospectivaScreen() {
                 <Text style={styles.eyebrow}>{photoRetroLabel(photoBlock)}</Text>
                 <View style={styles.photoStrip}>
                   {photoBlock.sample.map((p) => (
-                    <RetroThumb key={p.id} assetId={p.assetId} style={styles.photoThumb} />
+                    <RetroThumb key={p.id} assetId={p.assetId} style={styles.photoThumb} isVideo={p.mediaType === 'video'} />
                   ))}
                   {photoBlock.rest > 0 && (
                     <View style={[styles.photoThumb, styles.photoRest]}>
@@ -754,8 +754,16 @@ function Row({ l, r }: { l: string; r: string }) {
 }
 
 /** Miniatura da tira do jornal — resolve o endereço da foto sozinha. */
-function RetroThumb({ assetId, style }: { assetId: string | null; style: object }) {
-  const uri = useAssetUri(assetId);
+function RetroThumb({
+  assetId,
+  style,
+  isVideo,
+}: {
+  assetId: string | null;
+  style: object;
+  isVideo: boolean;
+}) {
+  const uri = useAssetUri(assetId, isVideo);
   if (typeof uri !== 'string') return <View style={style} />;
   return <Image source={{ uri }} style={style} />;
 }

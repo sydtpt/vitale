@@ -61,9 +61,17 @@ const PREVIEW = 2;
  * lacuna é a resposta honesta; sumir calado faria a contagem do cabeçalho
  * discordar do que se vê.
  */
-function Thumb({ assetId, style }: { assetId: string | null; style: object }) {
+function Thumb({
+  assetId,
+  style,
+  isVideo = false,
+}: {
+  assetId: string | null;
+  style: object;
+  isVideo?: boolean;
+}) {
   const styles = useThemedStyles(createStyles);
-  const uri = useAssetUri(assetId);
+  const uri = useAssetUri(assetId, isVideo);
   const [broken, setBroken] = useState(false);
 
   if (uri === 'loading') return <View style={[style, styles.loadingTile]} />;
@@ -322,7 +330,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
               <View style={styles.strip}>
                 {ps.slice(0, PREVIEW).map((p) => (
                   <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
-                    <Thumb assetId={p.assetId} style={styles.thumb} />
+                    <Thumb assetId={p.assetId} style={styles.thumb} isVideo={p.mediaType === 'video'} />
                     {p.mediaType === 'video' && p.durationS !== null && (
                       <View style={styles.clip}>
                         <Ionicons name="play" size={7} color={onMedia} />
@@ -356,7 +364,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
             <View style={styles.strip}>
               {grouped.moving.slice(0, PREVIEW).map((p) => (
                 <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
-                  <Thumb assetId={p.assetId} style={styles.thumb} />
+                  <Thumb assetId={p.assetId} style={styles.thumb} isVideo={p.mediaType === 'video'} />
                   {p.mediaType === 'video' && p.durationS !== null && (
                     <View style={styles.clip}>
                       <Ionicons name="play" size={7} color={onMedia} />

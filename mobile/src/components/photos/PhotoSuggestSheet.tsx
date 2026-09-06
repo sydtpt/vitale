@@ -31,8 +31,8 @@ import { useAssetUri } from '../../hooks/useAssetUri';
 const PREVIEW = 4;
 
 /** Miniatura que resolve o endereço sozinha — ver `services/asset-uri.ts`. */
-function Tile({ assetId, style }: { assetId: string; style: object }) {
-  const uri = useAssetUri(assetId);
+function Tile({ assetId, style, isVideo }: { assetId: string; style: object; isVideo: boolean }) {
+  const uri = useAssetUri(assetId, isVideo);
   if (typeof uri !== 'string') return <View style={style} />;
   return <Image source={{ uri }} style={style} />;
 }
@@ -220,7 +220,7 @@ export function PhotoSuggestSheet({
                         const on = selected.has(p.takenAtMs);
                         return (
                           <Pressable key={p.takenAtMs} onPress={() => toggleOne(p)} style={styles.thumbWrap}>
-                            <Tile assetId={p.assetId} style={styles.thumb} />
+                            <Tile assetId={p.assetId} style={styles.thumb} isVideo={p.mediaType === 'video'} />
                             {!on && <View style={styles.veil} />}
                             <View style={[styles.check, on && styles.checkOn]}>
                               {on && <Ionicons name="checkmark" size={11} color={colors.onPrimary} />}
