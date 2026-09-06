@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, PanResponder, useWindowDimensions } from 'react-native';
+import { foraDaBordaDeVoltar } from '../../lib/back-gesture';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 import type { ActivityRoutePoint } from '@vitale/shared';
 import {
@@ -173,6 +174,9 @@ export function RouteProfileCard({
    * horizontal viram scrub, e o arrasto vertical vira rolagem — o ScrollView
    * pede a posse e a recebe.
    */
+  // Um arrasto que começa na borda esquerda é do sistema, não do gráfico.
+  const nasceuNaBorda = useRef(false);
+
   const pan = useMemo(
     () => {
       const emit = (locationX: number) => {
@@ -181,8 +185,15 @@ export function RouteProfileCard({
         onScrub?.(x);
       };
       return PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
+        // Marca, antes de qualquer decisão, se o toque nasceu na faixa do
+        // swipe-back. Captura porque esta fase roda sempre, mesmo quando as
+        // fases seguintes recusam. Ver `back-gesture.ts`.
+        onStartShouldSetPanResponderCapture: (e) => {
+          nasceuNaBorda.current = !foraDaBordaDeVoltar(e.nativeEvent.pageX);
+          return false;
+        },
+        onStartShouldSetPanResponder: () => !nasceuNaBorda.current,
+        onMoveShouldSetPanResponder: () => !nasceuNaBorda.current,
         onPanResponderTerminationRequest: () => true,
         onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
         onPanResponderMove: (e) => emit(e.nativeEvent.locationX),

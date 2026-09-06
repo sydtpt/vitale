@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Switch, StyleSheet, ScrollView, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import {
@@ -311,6 +311,11 @@ export default function AppSettingsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* O polegar do BlurSlider em 0 fica dentro da faixa do swipe-back de
+          borda, e os dois gestos disparam juntos. Mesmo defeito do slider de
+          raio da Presença — ver `lib/back-gesture.ts`. Some o gesto de borda,
+          fica o chevron do cabeçalho. */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       {/* Header */}
       <View style={styles.header}>
         <Pressable

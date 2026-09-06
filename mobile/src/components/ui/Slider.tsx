@@ -11,6 +11,12 @@ const THUMB = 22;
  * aqui obrigaria a reconferir uma tela que não tem nada a ver com esta mudança).
  * Se um terceiro slider aparecer, o de Aparência migra para cá.
  *
+ * **Atenção ao swipe-back:** o polegar no valor mínimo fica encostado na borda
+ * esquerda, dentro da faixa que o iOS reserva para o gesto de voltar, e os dois
+ * disparam juntos. A guarda de borda de `lib/back-gesture.ts` não resolve aqui
+ * (ela protegeria justamente o alvo útil) — a tela que usa este slider precisa
+ * de `<Stack.Screen options={{ gestureEnabled: false }} />`.
+ *
  * Nada de Reanimated — ADR 0010. O arrasto é síncrono e não precisa de worklet:
  * o valor sai direto do `locationX` do toque, sem animação intermediária.
  */
