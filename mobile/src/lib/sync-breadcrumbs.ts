@@ -61,7 +61,17 @@ export type BreadcrumbEvent =
    * aparece semanas depois como buraco no histórico. O detalhe traz o tipo
    * consultado e a mensagem.
    */
-  | 'hk-query-fail';
+  | 'hk-query-fail'
+  /**
+   * Um evento de geofence chegou (fase 0 da Presença). O detalhe traz o lugar,
+   * a direção e o `AppState`.
+   *
+   * Existe pelo mesmo motivo de `observer`: um `enter` com `state=background` é
+   * a única prova de que o iOS relançou o app sozinho para entregá-lo — que é a
+   * premissa inteira da feature. Sem o carimbo, "o geofence não disparou" e "o
+   * app nunca acordou" são a mesma tela vazia.
+   */
+  | 'geofence';
 
 export interface Breadcrumb {
   /** ISO 8601. */

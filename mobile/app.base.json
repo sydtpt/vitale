@@ -20,7 +20,8 @@
       "bundleIdentifier": "com.sydtpt.vitale",
       "infoPlist": {
         "NSHealthShareUsageDescription": "O Orbe acessa seus dados do Apple Health — atividade, coração, corpo, sono, nutrição e treinos — para exibir seu histórico e gráficos.",
-        "UIBackgroundModes": ["fetch"]
+        "//UIBackgroundModes": "`location` entrou com a fase 0 da Presença: sem ele o iOS não relança o app para entregar um evento de região, e a captura só funcionaria com o app aberto — que é o oposto do ponto.",
+        "UIBackgroundModes": ["fetch", "location"]
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,
@@ -61,6 +62,17 @@
           "photosPermission": "O Orbe procura, na sua biblioteca, as fotos tiradas durante cada pedalada, para mostrá-las junto do mapa e dos números. As imagens ficam no seu iPhone — o app guarda só o horário e o local.",
           "savePhotosPermission": false,
           "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "//": "Fase 0 da Presença: geofence de até 20 regiões, sem código nativo próprio. O app NUNCA liga o GPS num evento — a coordenada do evento vem do fix já em cache (`getLastKnownPositionAsync`). Posição nova só quando o usuário toca em registrar um lugar.",
+          "locationAlwaysAndWhenInUsePermission": "O Orbe usa sua localização em segundo plano para saber quando você chega e sai dos lugares que você mesmo cadastrou — e assim medir quanto tempo você passa em cada um. Ele não grava seu trajeto e nada disso sai do seu iPhone.",
+          "//locationAlwaysPermission": "Chave legada do iOS 10. Sem ela explícita o plugin injeta o texto padrão dele, em inglês — e um diálogo do sistema em inglês num app em português é a única coisa que o usuário vê deste bloco.",
+          "locationAlwaysPermission": "O Orbe usa sua localização em segundo plano para saber quando você chega e sai dos lugares que você mesmo cadastrou. Ele não grava seu trajeto e nada disso sai do seu iPhone.",
+          "locationWhenInUsePermission": "O Orbe usa sua localização para você registrar um lugar a partir de onde está.",
+          "isIosBackgroundLocationEnabled": true
         }
       ],
       [

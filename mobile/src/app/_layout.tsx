@@ -17,6 +17,14 @@ import { RotinaBackground } from '../components/ui/RotinaBackground';
 import { SplashOverlay } from '../components/ui/SplashOverlay';
 import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
 
+// Import por efeito colateral, e é deliberado: o módulo chama
+// `TaskManager.defineTask` no escopo dele. Quando o iOS relança o app só para
+// entregar um evento de geofence, não há tela, sessão nem efeito de React — há
+// o bundle sendo avaliado, e a task precisa existir ao fim dessa avaliação.
+// Trocar isto por uma chamada dentro de um `useEffect` faz o evento se perder
+// calado exatamente no cenário que a feature existe para cobrir.
+import '../services/presence';
+
 // Primeira migalha, no escopo do módulo: é o carimbo de "o processo subiu",
 // antes de qualquer render ou porta de sessão. Quando o iOS acorda o app em
 // background por causa do HealthKit, esta é a única evidência de que o JS
