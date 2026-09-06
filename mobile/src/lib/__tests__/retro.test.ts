@@ -414,6 +414,26 @@ describe('buildYearByMonth', () => {
     expect(buckets[2].workouts).toBe(2);  // março
     expect(buckets[2].distanceKm).toBe(6);
     expect(buckets[6].tasks).toBe(1);      // julho
+    expect(buckets[2].sleepH).toBe(0);     // sem noites → 0, e a série escreve "sem noite"
+  });
+
+  it('sono por mês: média de horas por noite e de minutos acordado, pelo mês de acordar', () => {
+    const night = (wakeDay: string, asleepH: number, awakeMin: number | null) => ({
+      userId: 'u', onsetAt: `${wakeDay}T00:00:00+02:00`, wakeAt: `${wakeDay}T08:00:00+02:00`,
+      inBedAt: null, inBedEnd: null, tzOffset: 120, wakeDay, asleepH,
+      awakenings: awakeMin === null ? null : awakeMin === 0 ? [] : [{ from: `${wakeDay}T03:00:00+02:00`, to: `${wakeDay}T03:${String(awakeMin).padStart(2, '0')}:00+02:00` }],
+      stages: null, stageSegments: null,
+    });
+    const buckets = buildYearByMonth(baseInput({
+      kind: 'year', offset: 0,
+      sleepPeriods: [
+        night('2026-03-10', 7, 10), night('2026-03-11', 6, 20), night('2026-03-12', 8, null),
+        night('2025-03-12', 4, 50), // outro ano: fora
+      ],
+    }));
+    expect(buckets[2].sleepH).toBeCloseTo(7, 5);      // (7 + 6 + 8) / 3
+    expect(buckets[2].awakeMin).toBeCloseTo(15, 5);   // (10 + 20) / 2 — a noite muda não entra
+    expect(buckets[3].sleepH).toBe(0);
   });
 });
 

@@ -40,11 +40,16 @@ export function cssVars(tokens: ResolvedTokens): Record<string, string> {
     if (key === 'roles') continue;
     if (typeof value === 'string') out[cssVarName(key)] = value;
   }
-  for (const [role, trio] of Object.entries(tokens.roles)) {
-    out[`--role-${role}`] = trio.accent;
-    out[`--role-${role}-soft`] = trio.soft;
-    out[`--role-${role}-on`] = trio.on;
-    out[`--role-${role}-text`] = trio.text;
+  for (const [role, r] of Object.entries(tokens.roles)) {
+    out[`--role-${role}`] = r.accent;
+    out[`--role-${role}-soft`] = r.soft;
+    out[`--role-${role}-on`] = r.on;
+    out[`--role-${role}-text`] = r.text;
+    out[`--role-${role}-graphic`] = r.graphic;
+    out[`--role-${role}-wash`] = r.wash;
+    out[`--role-${role}-pale`] = r.ramp.pale;
+    out[`--role-${role}-mid`] = r.ramp.mid;
+    out[`--role-${role}-strong`] = r.ramp.strong;
   }
   return out;
 }

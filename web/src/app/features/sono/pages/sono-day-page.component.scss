@@ -1,4 +1,9 @@
-.page { padding: 24px 32px 48px; max-width: 720px; display: flex; flex-direction: column; gap: 14px; }
+/* Largura padrão das outras páginas (1200), em duas colunas acima de 900px: os relógios
+   atravessam, a noite e os estágios ficam lado a lado. */
+.page { padding: 24px 32px 48px; max-width: 1200px; display: flex; flex-direction: column; gap: 14px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.span { grid-column: 1 / -1; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
 .state { padding: 48px 0; text-align: center; font-size: 14px; color: var(--ink-2); }
 .back { font-size: 13px; color: var(--ink-3); text-decoration: none; &:hover { color: var(--ink); } }
 
@@ -16,10 +21,14 @@
 .clock-value.muted { color: var(--ink-4); }
 .dur { margin: 0; font-size: 13.5px; color: var(--ink-2); strong { color: var(--ink); font-weight: 600; } }
 
-/* linha do tempo: o sono, furado pelos despertares nas posições reais */
+/* linha do tempo: o sono, furado pelos despertares nas posições reais; embaixo, a
+   marca amarela de cada despertar — o "ao lado" de uma faixa deitada. Cores da
+   gramática do sono (`--sleep-*`). */
 .timeline { position: relative; height: 22px; border-radius: 6px; overflow: hidden; }
-.timeline-fill { position: absolute; inset: 0; background: var(--role-blue); }
+.timeline-fill { position: absolute; inset: 0; background: var(--sleep-sleep); }
 .timeline-hole { position: absolute; top: 0; bottom: 0; background: var(--surface); }
+.awake-row { position: relative; height: 4px; margin-top: 2px; }
+.awake-tick { position: absolute; top: 0; bottom: 0; border-radius: 1px; background: var(--sleep-awake); min-width: 3px; }
 .ticks { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10.5px; color: var(--ink-3); }
 
 /* estágios em proporção */

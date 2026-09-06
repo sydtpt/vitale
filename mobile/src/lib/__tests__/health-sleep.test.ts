@@ -428,6 +428,9 @@ describe('toSleepPeriodRows — a forma que a RPC lê', () => {
       asleep_h: 8,
       awakenings: null,
       stages: { core: 8 },
+      stage_segments: [
+        { stage: 'core', from: new Date('2026-05-21T23:00:00').toISOString(), to: new Date('2026-05-22T07:00:00').toISOString() },
+      ],
       source: null,
     });
   });
@@ -498,5 +501,42 @@ describe('identidade ao minuto — o onset é truncado no cliente', () => {
     ]);
     expect(p.awakenings).toEqual([]);
     expect(p.stages!.awake).toBeUndefined();
+  });
+});
+
+describe('stageSegments — os estágios na posição real (CAP-7, Opção 2)', () => {
+  it('emite os intervalos por estágio em ordem, sem o AWAKE, e o resto como unspecified', () => {
+    const [p] = aggregateSleepPeriods([
+      sample('CORE', '2026-05-22T00:00:00', '2026-05-22T02:00:00'),
+      sample('AWAKE', '2026-05-22T02:00:00', '2026-05-22T02:30:00'),
+      sample('DEEP', '2026-05-22T02:30:00', '2026-05-22T04:00:00'),
+      sample('ASLEEP', '2026-05-22T04:00:00', '2026-05-22T06:00:00'), // sem hipnograma por baixo
+    ]);
+    expect(p.stageSegments!.map((s) => s.stage)).toEqual(['core', 'deep', 'unspecified']);
+    expect(p.stageSegments![0]).toEqual({
+      stage: 'core',
+      from: new Date('2026-05-22T00:00:00').toISOString(),
+      to: new Date('2026-05-22T02:00:00').toISOString(),
+    });
+    expect(p.stageSegments![1].from).toBe(new Date('2026-05-22T02:30:00').toISOString()); // o vão do AWAKE fica de fora
+    expect(p.awakenings).toHaveLength(1);
+    // As horas por estágio continuam batendo com os segmentos — uma fonte, duas formas.
+    const hours = (k: string) => p.stageSegments!.filter((s) => s.stage === k).reduce((a, s) => a + (new Date(s.to).getTime() - new Date(s.from).getTime()) / 3_600_000, 0);
+    expect(hours('core')).toBeCloseTo(p.stages!.core);
+    expect(hours('deep')).toBeCloseTo(p.stages!.deep);
+    expect(hours('unspecified')).toBeCloseTo(p.stages!.unspecified);
+  });
+
+  it('fonte só com ASLEEP genérico vira um único segmento unspecified', () => {
+    const [p] = aggregateSleepPeriods([sample('ASLEEP', '2026-05-21T23:00:00', '2026-05-22T07:00:00')]);
+    expect(p.stageSegments).toEqual([
+      { stage: 'unspecified', from: new Date('2026-05-21T23:00:00').toISOString(), to: new Date('2026-05-22T07:00:00').toISOString() },
+    ]);
+  });
+
+  it('a linha da RPC leva stage_segments', () => {
+    const [row] = toSleepPeriodRows(aggregateSleepPeriods([sample('DEEP', '2026-05-21T23:00:00', '2026-05-22T07:00:00')], 'u1'));
+    expect(row.stage_segments).toHaveLength(1);
+    expect(row.stage_segments![0].stage).toBe('deep');
   });
 });

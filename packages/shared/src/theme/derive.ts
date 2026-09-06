@@ -45,7 +45,9 @@
 
 import {
   contrast,
+  deltaE,
   hexToOklch,
+  mix,
   oklchToHex,
   type Oklch,
 } from './color';
@@ -135,6 +137,102 @@ export function textOf(accent: string, surface: string): string {
   return ensureContrast(accent, surface, TEXT_FLOOR);
 }
 
+/* ─────────────── Rampa ordinal, traço e lavagem ─────────────── */
+
+/** Move a luminosidade e escala o chroma, mantendo o matiz. */
+function step(hex: string, l: number, cScale = 1): string {
+  const o = hexToOklch(hex);
+  return oklchToHex({ l, c: o.c * cScale, h: o.h });
+}
+
+/** Piso da ponta clara de uma rampa ordinal (dataviz: ≥ 2,0 sobre a superfície). */
+const RAMP_PALE_FLOOR = 2;
+/** Separação mínima entre degraus vizinhos, em ΔE OKLab ×100 — abaixo disso é "parecido". */
+const RAMP_STEP_DE = 10;
+/** Contraste-alvo da lavagem: existe, mas não destaca. */
+const WASH_CONTRAST = 1.6;
+
+/** Três degraus de um papel, do mais claro ao mais escuro. */
+export interface RoleRamp {
+  /** Ponta clara — ≥ 2,0 sobre a superfície. Serve a um degrau ordinal, não a um traço sozinho. */
+  pale: string;
+  /** O meio — o traço gráfico do papel, salvo quando o piso obriga a rampa a subir no escuro. */
+  mid: string;
+  /** Degrau escuro — ≥ 3,0 sobre a superfície nos dois esquemas. */
+  strong: string;
+}
+
+/**
+ * Rampa ordinal de três degraus a partir do traço gráfico de um papel.
+ *
+ * Existe porque a tela de Sono desenhava os estágios com `soft` (o tint, 1,1–1,4
+ * sobre a superfície) e `text` (que é o próprio `accent` sempre que ele passa em
+ * 4,5 — ou seja, em todo o escuro). Eram tokens de UI fazendo o papel de degraus
+ * de uma rampa que o tema não tinha; REM e Profundo saíam com o mesmo hex em 22
+ * das 36 combinações. A rampa é derivada e medida, não autorada.
+ *
+ * "Mais fundo = mais escuro" vale nos dois esquemas. No escuro o piso empurra o
+ * degrau escuro para **cima**; quando ele encosta no meio (paletas cujo acento já
+ * raspa o piso — Terra, Joia, Acessível), a rampa inteira sobe e o meio deixa de
+ * ser o traço exato, mas a ordem se mantém. `theme.test.ts` cobra os três pisos e
+ * as duas separações nas 36 combinações.
+ */
+export function rampOf(graphic: string, surface: string, scheme: ColorScheme): RoleRamp {
+  const dark = scheme === 'dark';
+  const L = (h: string): number => hexToOklch(h).l;
+  const aL = L(graphic);
+
+  let pale = step(graphic, Math.min(dark ? 0.9 : 0.8, aL + (dark ? 0.13 : 0.15)), dark ? 0.7 : 0.75);
+  pale = ensureContrast(pale, surface, RAMP_PALE_FLOOR);
+  let mid = graphic;
+  let strong = ensureContrast(step(graphic, aL - (dark ? 0.15 : 0.17), dark ? 1 : 1.05), surface, GRAPHIC_FLOOR);
+
+  if (dark) {
+    if (deltaE(strong, mid) < RAMP_STEP_DE) {
+      const sl = L(strong);
+      mid = step(graphic, sl + 0.13, 0.95);
+      pale = step(graphic, sl + 0.26, 0.7);
+    }
+    // Papéis já muito claros no escuro (o amarelo, a L 0,83) não têm para onde
+    // subir só em luminosidade; a ponta clara se afasta também perdendo chroma —
+    // é o que "pálido" quer dizer.
+    for (let i = 0; i < 12 && deltaE(pale, mid) < RAMP_STEP_DE; i += 1) {
+      const o = hexToOklch(pale);
+      pale = oklchToHex({ l: Math.min(0.97, o.l + 0.02), c: o.c * 0.85, h: o.h });
+    }
+  } else {
+    for (let i = 0; i < 12 && deltaE(strong, mid) < RAMP_STEP_DE; i += 1) strong = step(strong, L(strong) - 0.02);
+    for (let i = 0; i < 12 && deltaE(pale, mid) < RAMP_STEP_DE; i += 1) {
+      const up = step(pale, L(pale) + 0.02);
+      if (contrast(up, surface) < RAMP_PALE_FLOOR) break;
+      pale = up;
+    }
+  }
+  return { pale, mid, strong };
+}
+
+/**
+ * Lavagem de um papel: o traço misturado na superfície até `WASH_CONTRAST`.
+ * É um fundo de gráfico que existe — a janela na cama, a faixa p25–p75 — e
+ * não o `soft`, que é tint de chip e mede 1,1–1,4 sobre a superfície.
+ */
+export function washOf(graphic: string, surface: string): string {
+  let lo = 0;
+  let hi = 1;
+  let best = graphic;
+  for (let i = 0; i < 24; i += 1) {
+    const t = (lo + hi) / 2;
+    const cand = mix(graphic, surface, t);
+    if (contrast(cand, surface) >= WASH_CONTRAST) {
+      best = cand;
+      lo = t;
+    } else {
+      hi = t;
+    }
+  }
+  return best;
+}
+
 /* ─────────────── Pinos históricos: orbe × orbe ─────────────── */
 
 const PINNED_ACCENT: Record<ColorScheme, Partial<Record<RoleKey, string>>> = {
@@ -165,13 +263,24 @@ const PINNED_SOFT: Record<ColorScheme, Partial<Record<RoleKey, string>>> = {
 
 /* ─────────────────────── Tokens resolvidos ─────────────────────── */
 
-/** Quarteto de tokens de um papel cromático. */
+/** Tokens de um papel cromático. */
 export interface RoleTokens {
   accent: string;
   soft: string;
   on: string;
   /** Texto do papel sobre a superfície do tema. Ver a tabela no topo. */
   text: string;
+  /**
+   * O papel como **traço de gráfico**: o acento empurrado até o piso de 3,0 sobre
+   * a superfície, **sem pino histórico**. Difere do `accent` só onde o pino o
+   * deixa abaixo do piso — o amarelo e o verde do Orbe claro (1,76 e 2,81), que
+   * como traço sempre precisaram de contorno. Marca de dado lê este.
+   */
+  graphic: string;
+  /** Fundo de gráfico que existe sem destacar (≈1,6 sobre a superfície). Ver `washOf`. */
+  wash: string;
+  /** Três degraus ordinais a partir do `graphic`. Ver `rampOf`. */
+  ramp: RoleRamp;
 }
 
 export interface ResolvedTokens extends ThemeNeutrals {
@@ -287,11 +396,15 @@ export function resolveTokens(
         : historical
           ? (PINNED_SOFT[scheme][role] ?? softOf(accent, scheme))
           : softOf(accent, scheme);
+    const graphic = ensureContrast(accent, neutrals.surface, GRAPHIC_FLOOR);
     roles[role] = {
       accent,
       soft,
       on: onTintOf(accent, soft),
       text: textOf(accent, neutrals.surface),
+      graphic,
+      wash: washOf(graphic, neutrals.surface),
+      ramp: rampOf(graphic, neutrals.surface, scheme),
     };
   }
 

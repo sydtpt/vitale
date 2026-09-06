@@ -23,6 +23,7 @@ import { THEMES } from './theme/themes';
 import { PALETTES } from './theme/palettes';
 import { BRANDS } from './theme/brands';
 import { cssVars } from './theme/css-vars';
+import { sleepColorsOf, sleepCssVars } from './sleep/colors';
 import { resolveTokens } from './theme/derive';
 
 let passed = 0;
@@ -367,7 +368,14 @@ check('BARREIRA — nenhuma lista rolável do mobile mostra barra', () => {
  * cor. A sombra entra pelo `shadowVars()`, que varia só por esquema.
  */
 check('BARREIRA — nenhuma variável CSS da web fora do sistema de temas', () => {
-  const doTema = new Set(Object.keys(cssVars(resolveTokens('orbe', 'light', 'orbe', 'laranja'))));
+  const tokens = resolveTokens('orbe', 'light', 'orbe', 'laranja');
+  // O `ThemeService` escreve as duas famílias: os tokens do tema e a gramática
+  // de cor do sono (`--sleep-*`), que é derivada deles pela mesma função que o
+  // mobile lê. As duas são "o sistema".
+  const doTema = new Set([
+    ...Object.keys(cssVars(tokens)),
+    ...Object.keys(sleepCssVars(sleepColorsOf(tokens, 'orbe'))),
+  ]);
   const escalas = /^--(spacing|radii|font|shadow)-/;
 
   // Variável de escopo de componente é legítima: quem a define é o próprio
@@ -402,7 +410,8 @@ check('BARREIRA — nenhuma variável CSS da web fora do sistema de temas', () =
     orfas,
     [],
     `variável CSS que nenhum tema alcança:\n    ${orfas.join('\n    ')}\n` +
-      `  Cor nova nasce em packages/shared/src/theme e chega sozinha pelo cssVars().`,
+      `  Cor nova nasce em packages/shared/src/theme e chega sozinha pelo cssVars() — ` +
+      `ou, se é de sono, por sleepCssVars().`,
   );
 });
 

@@ -10,7 +10,7 @@
  * `user_id`, então não há empate para desempatar.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Awakening, SleepPeriod } from '../models';
+import type { Awakening, SleepPeriod, StageSegment } from '../models';
 import { fetchAllPages } from './paginate';
 
 /** Linha como o PostgREST a devolve (snake_case; `numeric` chega como string). */
@@ -25,11 +25,12 @@ export interface SleepPeriodRecord {
   asleep_h: number | string;
   awakenings: Awakening[] | null;
   stages: Record<string, number> | null;
+  stage_segments: StageSegment[] | null;
   source: string | null;
 }
 
 const COLUMNS =
-  'user_id,onset_at,wake_at,in_bed_at,in_bed_end,tz_offset,wake_day,asleep_h,awakenings,stages,source';
+  'user_id,onset_at,wake_at,in_bed_at,in_bed_end,tz_offset,wake_day,asleep_h,awakenings,stages,stage_segments,source';
 
 export function toSleepPeriod(r: SleepPeriodRecord): SleepPeriod {
   return {
@@ -44,6 +45,7 @@ export function toSleepPeriod(r: SleepPeriodRecord): SleepPeriod {
     // Os três estados chegam intactos do jsonb: null, [] ou [...]. Não normalizar.
     awakenings: r.awakenings,
     stages: r.stages,
+    stageSegments: r.stage_segments ?? null,
     source: r.source ?? undefined,
   };
 }

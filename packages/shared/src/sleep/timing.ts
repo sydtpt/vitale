@@ -33,7 +33,7 @@
  * Bruxelas depois de um voo.
  */
 
-import type { Awakening, SleepPeriod } from '../models';
+import type { Awakening, SleepPeriod, StageKey } from '../models';
 
 const MS_H = 3_600_000;
 
@@ -85,6 +85,11 @@ export interface TimingBar {
    */
   holes: { from: number; to: number }[] | null;
   /**
+   * Os estágios na posição real, em coordenada de eixo — a Opção 2 da CAP-7.
+   * `null` em linhas gravadas antes de `stage_segments` existir.
+   */
+  segments: { stage: StageKey; from: number; to: number }[] | null;
+  /**
    * `false` quando a noite não cabe no eixo (começou antes da origem, ou passou
    * de 24 h). Quem desenha decide recortar ou pular; o dado continua correto.
    */
@@ -113,13 +118,18 @@ export function toTimingBar(
       ? null
       : p.awakenings.map((a) => ({ from: pos(a.from), to: pos(a.to) }));
 
+  const segments =
+    p.stageSegments === null
+      ? null
+      : p.stageSegments.map((s) => ({ stage: s.stage, from: pos(s.from), to: pos(s.to) }));
+
   // Cabe quando tudo que a barra desenha corre para baixo sem dar a volta no
   // eixo. `bed` entra na conta porque ela é desenhada junto e pode extrapolar
   // dos dois lados.
   const ordered = wake > onset;
   const bedFits = bed === null || (bed.to > bed.from && bed.from <= onset + 1e-9);
 
-  return { onset, wake, bed, holes, fitsAxis: ordered && bedFits };
+  return { onset, wake, bed, holes, segments, fitsAxis: ordered && bedFits };
 }
 
 /**

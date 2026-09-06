@@ -16,6 +16,9 @@ Tela principal do app mobile. O usuário abre o app pela manhã e vê tudo que p
 │  +36 de folga  ●●           │     de 2 slides com 223 pt fixos: saldo + faísca
 │  ~~~~~~~~~~~~~~~~~~  42d hoje│     de 42 d · barras Base/Cansaço com o típico
 ├─────────────────────────────┤
+│ (🌙 Sono 3/5 ✎) 01:26 → 08:39│  ← SleepRatingCard: a nota (chip) e, à direita,
+│            3 despertares · 8 min│     a noite medida (Sono CAP-8); toque abre /sono/[day]
+├─────────────────────────────┤
 │  🏋️ Treino: Upper Body      │  ← DayRingCard (treino)
 │     17:00 • 1h • 12 exerc. │
 │     [Iniciar] [Pular]       │
@@ -40,6 +43,17 @@ Tela principal do app mobile. O usuário abre o app pela manhã e vê tudo que p
 ```
 
 ## Componentes
+
+### `SleepRatingCard` ✅ (nota: 2026-06 · noite ao lado: 2026-09-05)
+- A partir das 06h. Sem nota, o card "Como foi seu sono?" com as pílulas 1–5; com nota,
+  colapsa no chip `🌙 Sono 3/5 ✎`, que reabre ao toque.
+- **Com a nota dada, a mesma linha ganha a medição à direita** — `01:26 → 08:39` e
+  `3 despertares · 8 min`, duas linhas de 12/16 pt centradas nos 36 pt do chip, alinhadas ao
+  limite direito. Número em mono `ink`, palavra em `ink2`; sem casca e sem cor de sono. O
+  texto vem de `nightLine()` do shared; a noite vem de `useSonoStore().loadToday()` — uma
+  consulta por `wake_day`, não o histórico. Toque abre `/sono/[day]`.
+- Nunca antes da nota; sem noite medida, o espaço fica em branco. Spec:
+  [Sono CAP-8](sono/spec.md) · [ratings FR-009](ratings-diarios/spec.md).
 
 ### `FormCurveCard` ✅ (2026-09-03)
 - Carrossel de altura fixa (trilho 206 pt + pílulas = 223 pt): trocar de slide ou de

@@ -4,7 +4,7 @@
  * antigo colidia com `web/.../health-format.ts`, que de fato só formata datas.
  * Normaliza amostras do Apple Health em buckets por Dia/Semana/Mês e calcula stats.
  */
-import { DIAS_ABREV, localDateStr, type SleepPeriod } from '@vitale/shared';
+import { DIAS_ABREV, localDateStr, type SleepPeriod, type StageKey, type StageSegment } from '@vitale/shared';
 
 export type Period = 'day' | 'week' | 'month';
 
@@ -405,6 +405,27 @@ export function aggregateSleepPeriods(samples: Sample[], userId = ''): SleepPeri
       const stages: Record<string, number> = { ...n.stages };
       if (awakeH > 0) stages.awake = awakeH;
 
+      // Os intervalos por estágio, na posição real — o que a Opção 2 da CAP-7
+      // desenha. `byStage` já veio fatiado por prioridade (DEEP → REM → CORE) e
+      // sem o AWAKE; o que sobrou de sono sem hipnograma vira `unspecified`. O
+      // despertar não entra aqui: é o vão entre segmentos, e mora em `awakenings`.
+      const clip = (list: Interval[]): Interval[] =>
+        list
+          .map((iv) => ({ start: Math.max(iv.start, n.onset), end: Math.min(iv.end, n.wake) }))
+          .filter((iv) => iv.end > iv.start);
+      const segs: { stage: StageKey; start: number; end: number }[] = [];
+      for (const [stage, list] of byStage) {
+        for (const iv of clip(list)) segs.push({ stage: stage as StageKey, ...iv });
+      }
+      const unspecified = subtractIntervals(clip(asleep), [...clip([...byStage.values()].flat()), ...holes]);
+      for (const iv of unspecified) segs.push({ stage: 'unspecified', ...iv });
+      segs.sort((a, b) => a.start - b.start);
+      const stageSegments: StageSegment[] = segs.map((s) => ({
+        stage: s.stage,
+        from: new Date(s.start).toISOString(),
+        to: new Date(s.end).toISOString(),
+      }));
+
       return {
         userId,
         // Ao minuto — ver `floorMin`. Os buracos acima usam o onset exato, para
@@ -427,6 +448,7 @@ export function aggregateSleepPeriods(samples: Sample[], userId = ''): SleepPeri
             }))
           : null,
         stages: Object.keys(stages).length > 0 ? stages : null,
+        stageSegments,
       };
     });
 }

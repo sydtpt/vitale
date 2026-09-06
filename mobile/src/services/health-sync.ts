@@ -78,8 +78,10 @@ const SERIES_BATCH = 50;
  * No v6 só a RPC truncava, e um INBED começando no mesmo minuto ficava até 57 s
  * DEPOIS do onset — 57 noites violando `in_bed_at <= onset_at`. Mesma chave,
  * mesmas linhas: o backfill só corrige o `in_bed_at`.
- * v8 = `stage_segments` do sono (branch feat/sono-cap7, PR #1) — número reservado
- * para ela; quem mesclar por último fica com o maior.
+ * v8 = `stage_segments`: os intervalos por estágio na posição real, que o
+ * agregador já fatiava e não emitia. É o dado da Opção 2 da CAP-7 (estágios na
+ * barra do timing chart) e do detalhe da noite. Mesma chave, mesmas linhas; só a
+ * coluna nova se preenche.
  * v9 = série intradiária da FC em `health_series` (minuto → bpm), a partir das
  * mesmas amostras que já produziam a linha diária; o teto das pesadas sobe de 60
  * para 200 dias, fatiado. A linha diária de `fc` não muda de valor — só ganha

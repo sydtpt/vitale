@@ -36,6 +36,7 @@ import { useActivitiesStore } from '../../store/activities.store';
 import { useSettingsStore } from '../../store/settings.store';
 import { HeatmapGrid } from '../../components/HeatmapGrid';
 import { TaskGridStrip } from '../../components/TaskGridStrip';
+import { SleepRetroCard } from '../../components/SleepRetroCard';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
 const KIND_LABEL: Record<PeriodKind, string> = {
@@ -364,15 +365,26 @@ export default function RetrospectivaScreen() {
     {/* Saúde */}
             <View style={styles.card}>
               <Text style={styles.eyebrow}>Saúde & bem-estar</Text>
-              {summary.health.map((h) => (
+              {/* Com o bloco Sono existindo, a linha "Sono" (soma por dia) e a nota
+                  percebida saem daqui — dois lugares dizendo horas dormidas é o que a
+                  v1 fazia com volume. Ver sleep/retro.ts. */}
+              {summary.health.filter((h) => !(h.metric === 'sono' && summary.sleep)).map((h) => (
                 <View key={h.metric} style={styles.row}>
                   <Text style={styles.rowL}>{h.label}</Text>
                   <Text style={styles.rowR}>{healthValue(h)}  <Text style={{ color: TONE_COLOR[healthDelta(h).tone], fontSize: 12, fontFamily: fonts.sans }}>{healthDelta(h).text}</Text></Text>
                 </View>
               ))}
-              {summary.ratings.sleep?.current != null && <Row l="Sono percebido" r={`${num(summary.ratings.sleep.current, 1)}/5`} />}
+              {summary.ratings.sleep?.current != null && !summary.sleep && <Row l="Sono percebido" r={`${num(summary.ratings.sleep.current, 1)}/5`} />}
               {summary.ratings.day?.current != null && <Row l="Dia percebido" r={`${num(summary.ratings.day.current, 1)}/5`} />}
             </View>
+      </>
+    ),
+    sleep: (
+      <>
+    {/* Sono — a noite típica do período contra a anterior (sleep/retro.ts).
+                Só existe com noites gravadas em `sleep_periods`; sem elas, nada aparece
+                e a linha "Sono" do card Saúde volta a valer. */}
+            {summary.sleep && <SleepRetroCard retro={summary.sleep} kind={kind} noPrior={noPrior} />}
       </>
     ),
     purchases: (
