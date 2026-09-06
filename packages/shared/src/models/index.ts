@@ -295,6 +295,8 @@ export interface AuthUser {
   createdAt: string;
 }
 
+import type { SurfaceMix } from '../surface/classify';
+
 /** Hoje só bicicleta; tênis e pneu (filho de bike) são migration, não improviso (ADR 0033). */
 export type GearKind = 'bike';
 
@@ -396,6 +398,12 @@ export interface Activity {
    * linhas: a bike vem da janela de datas do `Gear` — ver `gearForActivity`.
    */
   gearId?: string;
+  /**
+   * Metros por categoria de piso, medidos contra o OpenStreetMap no ingest
+   * (ADR 0034). Ausente até o passe calcular; o detalhe por trecho vive em
+   * `activity_routes.surface_segments`. Forma em `surface/classify.ts`.
+   */
+  surfaceMix?: SurfaceMix;
 }
 
 /**

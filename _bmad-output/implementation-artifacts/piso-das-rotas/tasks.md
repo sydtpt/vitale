@@ -27,25 +27,36 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
 ## Fase 0 — Bicicleta como entidade (sem risco externo)
 
 - [x] T0.1 Migration `20260906120000_gear_bicicleta.sql`: tabela `gear` + RLS +
-      `activities.gear_id` (override, nulo). **Não aplicada em prod — pede confirmação.**
+      `activities.gear_id` (override, nulo). **Aplicada em prod em 06/09** com "pode"
+      explícito (registrada como `gear_bicicleta`).
 - [x] T0.2 Núcleo: `Gear` nos models, `Activity.gearId`, `data/gear.ts`,
       `gear/assign.ts` (herança por dia local, override, sobreposição) + testes.
 - [x] T0.3 Mobile: `gear.store.ts`; linha "Bicicleta" no detalhe; seletor de bike
       na página do tipo (filtra lista, recordes, curvas e evolução).
-- [ ] T0.4 Cadastro inicial por SQL (duas bikes; antiga até 29/05, Nuroad desde
-      30/05). **Pede confirmação e o nome da bike antiga.**
+- [x] T0.4 Cadastro em prod (06/09): **Riverside** 01/01/2025→29/05/2026 (126 pedaladas,
+      4.051 km) e **Cube Nuroad SLX** 30/05/2026→ (22, 1.321 km). Falta conferir o
+      seletor no iPhone (build Release).
 - [ ] T0.5 Web: linha "Bicicleta" no detalhe (recompõe; mesmo núcleo).
 - [ ] T0.6 Tela de gerenciar bicicletas (nome, janela) — quando houver a 3ª.
 - [ ] T0.7 Ingest: ler `gear_id` de Strava/intervals → `gear.external_ids`.
 
 ## Fase 1 — Passe de piso (o único risco real: Overpass público)
 
-- [ ] T1.1 Coluna `activity_routes.surface_segments` (índices do `route_overview`
-      + categoria) e percentuais derivados. Migration + CHECK de forma.
-- [ ] T1.2 `enrichSurface` ao lado do `enrichCities` em `connections-ingest`:
-      1 rota por tick, retry com espera, marca de falha.
-- [ ] T1.3 Backfill das 137 à mão (~30 min) + `verify` (cobertura, mediana da
-      distância à via, % inferido).
+- [x] T1.1 Migration `20260906130000_piso_das_rotas.sql`: `activity_routes.surface_segments`
+      ([[startM,endM,cat,inferido]] em metros ao longo do overview) + `surface_meta`
+      (procedência: fonte, data, espaçamento, raio, mediana da distância à via, erro) +
+      `activities.surface_mix` (metros por classe, desnormalizado). Dry-run em rollback
+      ok. **NÃO aplicada — pede "pode".** ADR 0034.
+- [x] T1.2 `surface/classify.ts` no núcleo (sem imports; tabela OSM→classe, ciclovia ≤ 12 m
+      vence rua, reta > 500 m = buraco, segmentos e soma) + 30 asserts;
+      `_shared/surface.ts` na function (1 chamada Overpass por rota pela polilinha das
+      amostras, 1 rota por run, falha → `surface_meta.status=failed` e retry em 24 h),
+      chamada no `runIngest` e no `mode: reconcile`. **Deploy manual pendente**
+      (`supabase functions deploy connections-ingest`); sem `deno` local, a function
+      não foi type-checkada aqui.
+- [ ] T1.3 Backfill das 137 rotas: SQL gerado do cruzamento de 05/09
+      (`backfill-piso.sql`, 274 updates, mesmas regras do classify.ts). Roda depois da
+      migration, com "pode".
 - [ ] T1.4 Golden set: Sydnei marca 10 pedaladas que lembra; conferir.
 - [ ] T1.5 Conferir se `activity_routes.points` tem timestamp (velocidade por piso).
 

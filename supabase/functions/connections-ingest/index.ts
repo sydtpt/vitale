@@ -13,6 +13,7 @@
 import { adminClient } from '../_shared/admin.ts';
 import { getUserFromRequest, json, preflight } from '../_shared/auth.ts';
 import { enrichCities, reconcileRecent, runIngest, runIngestAll } from '../_shared/ingest.ts';
+import { enrichSurface } from '../_shared/surface.ts';
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -47,6 +48,12 @@ Deno.serve(async (req) => {
         await enrichCities(admin, user.id);
       } catch (_err) {
         // best-effort — retry no próximo push/reconcile.
+      }
+      // Piso das rotas (ADR 0034) pelo mesmo gancho: uma pedalada por chamada.
+      try {
+        await enrichSurface(admin, user.id);
+      } catch (_err) {
+        // best-effort — falha fica em surface_meta.
       }
       return json({ mode: 'reconcile', swept });
     } catch (err) {
