@@ -84,7 +84,12 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
 - [ ] Conferir no aparelho: rodar um sync e ver uma pedalada nova ganhar piso sozinha.
       (O histórico já está inteiro pelo backfill, então o teste real é a próxima pedalada.)
 - [ ] T1.4 Golden set: Sydnei marca 10 pedaladas que lembra; conferir.
-- [ ] T1.5 Conferir se `activity_routes.points` tem timestamp (velocidade por piso).
+- [x] T1.5 `activity_routes.points` **tem horário por ponto**: `{t, lat, lng, alt}` em
+      **137/137** rotas de bicicleta (Apple Watch 112, Strava 22, iGPSPORT 3), desde
+      24/01/2025; altitude em 134. Ou seja, **velocidade por tipo de piso é calculável
+      hoje**, sem instrumento novo — basta casar o `t` do track cheio com os segmentos
+      (que estão em metros ao longo do `route_overview`, 1/40 dos pontos: a ponte é a
+      distância acumulada, não o índice). Vira candidata da Fase 3, junto com T3.2.
 
 ## Fase 2 — Visão global no celular (mockup aprovado antes)
 
