@@ -38,9 +38,22 @@ interface Props {
   activities: Activity[];
   /** Abre a atividade tocada. */
   onPick?: (id: string) => void;
+  /**
+   * O que dizer quando nenhuma volta se repetiu, em vez de sumir.
+   *
+   * Sumir é o certo numa pilha. Dentro de uma **aba** não é: a barra precisa
+   * saber, antes de desenhar, se a aba existe — e este cartão só descobre
+   * depois de carregar os traçados. Ou a aba apareceria com atraso, empurrando
+   * o conteúdo, ou a tela carregaria os traçados só para decidir a barra.
+   *
+   * E o "vazio" aqui não é ausência de dado: medido no histórico real, 55% das
+   * corridas repetem uma volta e **nenhuma** das 148 pedaladas repetiu. Dizer
+   * isso é um achado sobre como se anda de bicicleta; sumir não diz nada.
+   */
+  emptyLabel?: string;
 }
 
-export function RecurringRoutesCard({ activities, onPick }: Props) {
+export function RecurringRoutesCard({ activities, onPick, emptyLabel }: Props) {
   const styles = useThemedStyles(createStyles);
   const loadOverviews = useActivitiesStore((s) => s.loadRouteOverviews);
   const overviews = useActivitiesStore((s) => s.overviews);
@@ -88,7 +101,20 @@ export function RecurringRoutesCard({ activities, onPick }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, overviews, activities]);
 
-  if (routes.length === 0) return null;
+  if (routes.length === 0) {
+    if (!emptyLabel) return null;
+    return (
+      <View style={styles.card}>
+        <View style={styles.head}>
+          <Text style={styles.eyebrow}>SUAS ROTAS</Text>
+        </View>
+        {/* Enquanto os traçados não chegaram, `routes` é vazio por falta de
+            dado e não por falta de repetição — dizer "nenhuma volta repetida"
+            aqui seria mentir por um instante. */}
+        <Text style={styles.empty}>{ready ? emptyLabel : 'Comparando os traçados…'}</Text>
+      </View>
+    );
+  }
 
   const shown = routes.slice(0, MAX_ROWS);
   const rest = routes.length - shown.length;
@@ -196,4 +222,5 @@ const createStyles = () =>
     spark: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: SPARK_H },
     bar: { width: 5, borderRadius: 1 },
     more: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3, marginTop: 2 },
+    empty: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, paddingVertical: spacing.md },
   });

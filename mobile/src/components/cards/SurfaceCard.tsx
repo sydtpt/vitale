@@ -19,6 +19,7 @@ export function SurfaceCard({
   caption,
 }: {
   mix: SurfaceMix;
+  /** Vazio esconde a linha: sob a aba "Piso", o rótulo "PISO" é eco. */
   title?: string;
   /** Linha discreta no rodapé: cobertura, inferido, período. */
   caption?: string;
@@ -35,7 +36,7 @@ export function SurfaceCard({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>{title}</Text>
+      {title ? <Text style={styles.title}>{title}</Text> : null}
       <View style={styles.hero}>
         <Text style={styles.big}>{pct(paved)}</Text>
         <Text style={styles.cap}>

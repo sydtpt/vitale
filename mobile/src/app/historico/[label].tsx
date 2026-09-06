@@ -16,6 +16,8 @@ import type { Activity } from '@vitale/shared';
 import {
   BEST_EFFORT_DISTANCES,
   SURFACE_RANGES,
+  bestEffortCurve,
+  distancesWithData,
   gearForActivity,
   gearUsage,
   ridesByCountry,
@@ -390,6 +392,14 @@ export default function TipoListScreen() {
   // Só mostra o Mapa quando há país resolvido (cidades enriquecidas).
   const hasCountries = useMemo(() => ridesByCountry(typed).length > 0, [typed]);
 
+  // Declarado antes dos painéis: eles o passam para os cartões que abrem uma
+  // atividade, e `const` não sobe.
+  const goToWorkout = useCallback(
+    (id: string) =>
+      router.push({ pathname: '/historico/[label]/[id]', params: { label, id } }),
+    [router, label],
+  );
+
   /**
    * Os painéis de leitura, um por vez.
    *
@@ -398,14 +408,39 @@ export default function TipoListScreen() {
    * rolagem. Em abas custam 276 e se revezam.
    *
    * Evolução é a aba padrão porque "como estou indo" é pergunta de todo dia e
-   * "onde ando pisando" é de todo mês. O Piso só vira aba quando existe — a
-   * corrida nunca terá piso medido, e aba vazia é pior que aba nenhuma.
+   * "onde ando pisando" é de todo mês.
    *
-   * A Curva, o Melhor-por-mês e as Rotas continuam **fora** do painel, abaixo
-   * dele: no Ciclismo nenhum deles renderiza (não há `bestEfforts`, e ciclismo
-   * não repete rota), e na Corrida quatro abas apertam a barra. Essa é a
-   * decisão que espera conferência no aparelho.
+   * **Cada aba precisa saber que existe ANTES de a barra ser desenhada** — aba
+   * que aparece com atraso empurra o conteúdo debaixo do dedo. Por isso a
+   * disponibilidade é calculada aqui, com as mesmas funções que os cartões
+   * usam por dentro (`bestEffortCurve`, `distancesWithData`): um reduce puro
+   * sobre a lista já carregada, barato o bastante para rodar duas vezes.
+   *
+   * As Rotas são a exceção: só se sabe se houve repetição depois de carregar os
+   * traçados. Então a aba existe sempre que o esporte tem rota, e quando não
+   * houver repetição ela **diz isso** — que no ciclismo é um achado (nenhuma
+   * das 148 pedaladas repetiu percurso, contra 55% das corridas), não um vazio.
+   *
+   * O rótulo é de uma palavra. "Melhor 5 km por mês" vira **Ritmo** na aba e
+   * continua descritivo dentro do cartão: quatro rótulos longos não cabem na
+   * barra de um iPhone.
    */
+  const sportId = typed[0]?.activityId;
+  /** Sem lente, os cartões de marca leem o histórico inteiro — como antes. */
+  const recordScope = gearId === 'all' ? _all : typed;
+  const hasCurve = useMemo(
+    () => (sportId != null ? bestEffortCurve(recordScope, sportId).length >= 2 : false),
+    [recordScope, sportId],
+  );
+  const hasEffortTrend = useMemo(
+    () => (sportId != null ? distancesWithData(recordScope, sportId).length > 0 : false),
+    [recordScope, sportId],
+  );
+  const routeCount = useMemo(
+    () => typed.filter((a) => a.hasRoute && (a.distanceM ?? 0) > 0).length,
+    [typed],
+  );
+
   const panels = useMemo<Panel[]>(() => {
     const out: Panel[] = [
       {
@@ -417,14 +452,15 @@ export default function TipoListScreen() {
             label={label}
             hasDistance={hasDistance}
             color={meta.color}
-            // Só dentro do painel: numa pilha, sumir é o certo; numa aba
-            // selecionada, sumir vira tela em branco. Acontece de verdade com a
-            // lente numa bicicleta parada há meses.
-            emptyLabel={surface ? 'Nada nas últimas 24 semanas com esta lente.' : undefined}
+            // Numa pilha, sumir é o certo; numa aba selecionada, sumir vira
+            // tela em branco. Acontece de verdade com a lente numa bicicleta
+            // parada há meses.
+            emptyLabel="Nada nas últimas 24 semanas com esta lente."
           />
         ),
       },
     ];
+
     if (surface) {
       out.push({
         key: 'piso',
@@ -432,7 +468,9 @@ export default function TipoListScreen() {
         render: () => (
           <View style={styles.surfaceWrap}>
             <Segmented options={SURFACE_OPTIONS} value={surfaceRange} onChange={setSurfaceRange} />
+            {/* Sem título: a aba já se chama Piso, e o cartão repetiria o eco. */}
             <SurfaceCard
+              title=""
               mix={surface.mix}
               caption={surfaceCaption(
                 surface.count,
@@ -446,14 +484,61 @@ export default function TipoListScreen() {
         ),
       });
     }
-    return out;
-  }, [typed, label, hasDistance, meta.color, surface, surfaceRange]);
 
-  const goToWorkout = useCallback(
-    (id: string) =>
-      router.push({ pathname: '/historico/[label]/[id]', params: { label, id } }),
-    [router, label],
-  );
+    if (sportId != null && hasCurve) {
+      out.push({
+        key: 'curva',
+        label: 'Curva',
+        render: () => (
+          <RecordCurveCard
+            activities={recordScope}
+            sportId={sportId}
+            color={meta.color}
+            onPick={goToWorkout}
+          />
+        ),
+      });
+    }
+
+    if (sportId != null && hasEffortTrend) {
+      out.push({
+        key: 'ritmo',
+        label: 'Ritmo',
+        render: () => (
+          <EffortTrendCard activities={recordScope} sportId={sportId} color={meta.color} />
+        ),
+      });
+    }
+
+    if (routeCount > 0) {
+      out.push({
+        key: 'rotas',
+        label: 'Rotas',
+        render: () => (
+          <RecurringRoutesCard
+            activities={typed}
+            onPick={goToWorkout}
+            emptyLabel={`Nenhuma volta repetida entre as ${routeCount} com rota — cada saída foi um percurso novo.`}
+          />
+        ),
+      });
+    }
+
+    return out;
+  }, [
+    typed,
+    label,
+    hasDistance,
+    meta.color,
+    surface,
+    surfaceRange,
+    sportId,
+    recordScope,
+    hasCurve,
+    hasEffortTrend,
+    routeCount,
+    goToWorkout,
+  ]);
 
   const clearFilters = () => {
     setFromStr('');
@@ -625,24 +710,14 @@ export default function TipoListScreen() {
             )}
 
             {/* Depois dos recordes, de propósito: eles contam o que já
-                aconteceu, o painel conta para onde está indo — e onde se pisa. */}
-            <PanelTabs panels={panels} />
+                aconteceu, o painel conta para onde está indo, quão rápido,
+                onde se pisa e por onde se anda — um por vez.
 
-            {/* Os recordes em forma: os mesmos pontos da tira acima, num eixo
-                só, para ler onde é forte e onde cai. Some com menos de duas marcas. */}
-            {typed[0] && (
-              <RecordCurveCard activities={gearId === 'all' ? _all : typed} sportId={typed[0].activityId} color={meta.color} onPick={goToWorkout} />
-            )}
-            {/* Volume responde "quanto"; isto responde "estou diminuindo?" —
-                o melhor por distância, contra o recorde. Some quando o tipo
-                não tem marca nenhuma. */}
-            {typed[0] && (
-              <EffortTrendCard activities={gearId === 'all' ? _all : typed} sportId={typed[0].activityId} color={meta.color} />
-            )}
-            {/* Recorde compara a mesma distância; isto compara o mesmo
-                percurso, que controla desnível, curvas e semáforos. Some quando
-                o esporte não repete rota — o caso do ciclismo. */}
-            <RecurringRoutesCard activities={typed} onPick={goToWorkout} />
+                Antes eram cinco cartões empilhados aqui. Na Corrida isso somava
+                ~1.430 pt antes da primeira corrida, quase duas telas: Evolução,
+                Curva, Melhor-por-mês e Rotas, todos densos, todos disputando a
+                mesma atenção. */}
+            <PanelTabs panels={panels} />
             <View style={styles.filterWrap}>
             <View style={styles.toolbarRow}>
               <Pressable
