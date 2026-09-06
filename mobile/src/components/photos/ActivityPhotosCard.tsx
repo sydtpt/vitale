@@ -17,26 +17,31 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ActivityIndicator, Linking } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import {
-  type ActivityPhoto,
-  type ActivityRoutePoint,
-  detectStops,
-  fetchActivityPhotos,
-  groupByStop,
-} from '@vitale/shared';
-import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
-import { supabase } from '../../lib/supabase';
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Image,
+  ActivityIndicator,
+  Linking,
+  Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import type { ActivityRoutePoint } from '@vitale/shared';
+import { colors, fonts, onMedia, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { useAuthStore } from '../../store/auth.store';
+import { useActivityPhotos } from '../../hooks/useActivityPhotos';
 import type { PhotoCandidate } from '../../lib/activity-photos';
 import {
   type PhotoAccess,
   type ScanResult,
   currentPhotoAccess,
   requestPhotoAccess,
+  dismissPhoto,
   saveDecisions,
   scanActivity,
+  setCover,
 } from '../../services/activity-photos';
 import { PhotoSuggestSheet } from './PhotoSuggestSheet';
 
@@ -53,6 +58,8 @@ function hhmm(ms: number): string {
 }
 
 interface Props {
+  /** Vem do hook da tela: mapa e cartão precisam do MESMO dado. */
+  view: ReturnType<typeof useActivityPhotos>;
   activity: {
     id: string;
     startAtMs: number;
@@ -64,42 +71,16 @@ interface Props {
   points: readonly ActivityRoutePoint[];
 }
 
-export function ActivityPhotosCard({ activity, points }: Props) {
+export function ActivityPhotosCard({ activity, points, view }: Props) {
   const styles = useThemedStyles(createStyles);
   const userId = useAuthStore((s) => s.user?.id);
+  const { photos, grouped, reload } = view;
 
-  const [photos, setPhotos] = useState<ActivityPhoto[]>([]);
   const [checked, setChecked] = useState<boolean>(!!activity.photosCheckedAt);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [access, setAccess] = useState<PhotoAccess>('full');
   const [scanning, setScanning] = useState(false);
-
-  useEffect(() => {
-    if (!userId) return;
-    let alive = true;
-    fetchActivityPhotos(supabase, userId, activity.id, { linkedOnly: true })
-      .then((rows) => {
-        if (alive) setPhotos(rows);
-      })
-      .catch(() => {
-        /* sem foto é um estado válido, não um erro de tela */
-      });
-    return () => {
-      alive = false;
-    };
-  }, [userId, activity.id]);
-
-  /** As paradas saem do traçado, com o km já na escala oficial da atividade. */
-  const stops = useMemo(
-    () => detectStops(points, { totalDistanceM: activity.distanceM }),
-    [points, activity.distanceM],
-  );
-
-  const grouped = useMemo(
-    () => groupByStop(photos.map((p) => ({ ...p, takenAtMs: p.takenAt })), stops),
-    [photos, stops],
-  );
 
   /** A cidade mais próxima da parada — o "Vrouwenakker · km 38,2" da tela. */
   const cityNear = useCallback(
@@ -145,12 +126,59 @@ export function ActivityPhotosCard({ activity, points }: Props) {
       try {
         await saveDecisions(userId, activity.id, accepted, rejected);
         setChecked(true);
-        setPhotos(await fetchActivityPhotos(supabase, userId, activity.id, { linkedOnly: true }));
+        await reload();
       } catch {
         /* a folha volta pelo cartão; nada se perde */
       }
     },
-    [userId, activity.id],
+    [userId, activity.id, reload],
+  );
+
+  /**
+   * Toque longo numa miniatura.
+   *
+   * "Desligar da pedalada" é a palavra certa, e não "excluir": o app não é dono
+   * do arquivo. Oferecer "Ver no app Fotos" logo acima torna isso explícito —
+   * a foto continua lá, inteira, depois de desligada.
+   */
+  const onLongPress = useCallback(
+    (photoId: string, assetId: string | null) => {
+      if (!userId) return;
+      Alert.alert('Foto', undefined, [
+        {
+          text: 'Ver no app Fotos',
+          onPress: () => {
+            const uri = assetUri(assetId);
+            if (uri) void Linking.openURL(uri).catch(() => undefined);
+          },
+        },
+        {
+          text: 'Tornar a capa',
+          onPress: async () => {
+            try {
+              await setCover(userId, activity.id, photoId);
+              await reload();
+            } catch {
+              /* a capa é preferência, não dado: falhar em silêncio é aceitável */
+            }
+          },
+        },
+        {
+          text: 'Desligar da pedalada',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dismissPhoto(userId, photoId);
+              await reload();
+            } catch {
+              /* idem */
+            }
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]);
+    },
+    [userId, activity.id, reload],
   );
 
   const sheet = (
@@ -213,7 +241,14 @@ export function ActivityPhotosCard({ activity, points }: Props) {
               </View>
               <View style={styles.strip}>
                 {ps.slice(0, PREVIEW).map((p) => (
-                  <Image key={p.id} source={{ uri: assetUri(p.assetId) }} style={styles.thumb} />
+                  <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
+                    <Image source={{ uri: assetUri(p.assetId) }} style={styles.thumb} />
+                    {p.isCover && (
+                      <View style={styles.coverBadge}>
+                        <Ionicons name="star" size={9} color={onMedia} />
+                      </View>
+                    )}
+                  </Pressable>
                 ))}
               </View>
             </View>
@@ -234,7 +269,9 @@ export function ActivityPhotosCard({ activity, points }: Props) {
             </View>
             <View style={styles.strip}>
               {grouped.moving.slice(0, PREVIEW).map((p) => (
-                <Image key={p.id} source={{ uri: assetUri(p.assetId) }} style={styles.thumb} />
+                <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
+                  <Image source={{ uri: assetUri(p.assetId) }} style={styles.thumb} />
+                </Pressable>
               ))}
             </View>
           </View>
@@ -294,6 +331,17 @@ const createStyles = () =>
       backgroundColor: colors.surfaceMute,
     },
 
+    coverBadge: {
+      position: 'absolute',
+      right: 3,
+      top: 3,
+      width: 15,
+      height: 15,
+      borderRadius: 8,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     invite: {
       flexDirection: 'row',
       alignItems: 'center',

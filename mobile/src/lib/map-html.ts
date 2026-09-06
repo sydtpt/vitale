@@ -38,6 +38,22 @@ export interface MapScriptOptions {
   reportView?: boolean;
   /** Cidades a rotular sobre a rota (cartão de share). Ausente/vazio ⇒ nenhuma. */
   cities?: readonly CityMark[];
+  /**
+   * As fotos desta pedalada (ADR 0037), agrupadas por parada.
+   *
+   * O marcador é **neutro** e as cores vêm de fora: a rota e as cidades já
+   * gastam o papel `orange`, e dar cor própria à foto brigaria com o dado.
+   * Receber `ink`/`fill` do chamador é o que faz o marcador inverter no escuro
+   * sem literal nenhum aqui dentro.
+   */
+  photos?: {
+    /** Paradas com foto: círculo com a contagem dentro. */
+    stops: readonly { lat: number; lng: number; count: number }[];
+    /** Fotos em movimento: ponto pequeno, sem contagem. */
+    dots: readonly { lat: number; lng: number }[];
+    ink: string;
+    fill: string;
+  };
 }
 
 /**
@@ -54,6 +70,7 @@ export function buildMapHtml(
   points: readonly MapPoint[],
   interactive: boolean,
   tile: MapStyleConfig,
+  photos?: MapScriptOptions['photos'],
 ): string {
   return `<!DOCTYPE html>
 <html>
@@ -67,7 +84,7 @@ export function buildMapHtml(
 </head>
 <body>
   <div id="map"></div>
-  ${mapScript(points, tile, { interactive })}
+  ${mapScript(points, tile, { interactive, photos })}
 </body>
 </html>`;
 }
@@ -105,12 +122,15 @@ export function mapScript(
 function leafletScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'raster' }>,
-  { interactive, padding = 24, view, reportView, cities }: MapScriptOptions,
+  { interactive, padding = 24, view, reportView, cities, photos }: MapScriptOptions,
 ): string {
   const coords = points.map((p) => [p.latitude, p.longitude]);
   const data = JSON.stringify(coords);
   const cityData = JSON.stringify(
     (cities ?? []).map((c) => ({ name: c.name, lat: c.lat, lng: c.lng })),
+  );
+  const photoData = JSON.stringify(
+    photos ?? { stops: [], dots: [], ink: '', fill: '' },
   );
 
   return `<script>
@@ -174,6 +194,21 @@ function leafletScript(
       el.textContent = c.name;
       el.style.cssText = 'white-space:nowrap;transform:translate(-50%,-150%);font:600 12px -apple-system,system-ui,sans-serif;color:#FFFFFF;text-shadow:0 1px 4px rgba(0,0,0,0.95);';
       L.marker([c.lat, c.lng], { icon: L.divIcon({ html: el, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
+    });
+
+    // Fotos (ADR 0037): a parada é um círculo com a contagem; a foto solta em
+    // movimento é um ponto pequeno. Desenhadas por último para ficarem acima da
+    // rota e das cidades — é o dado mais recente da tela.
+    var photoData = ${photoData};
+    photoData.dots.forEach(function (p) {
+      L.circleMarker([p.lat, p.lng], { radius: 5.5, color: photoData.fill, weight: 2, fillColor: photoData.ink, fillOpacity: 1, interactive: false }).addTo(map);
+    });
+    photoData.stops.forEach(function (p) {
+      L.circleMarker([p.lat, p.lng], { radius: 13, color: photoData.ink, weight: 2, fillColor: photoData.fill, fillOpacity: 1, interactive: false }).addTo(map);
+      var pe = document.createElement('div');
+      pe.textContent = String(p.count);
+      pe.style.cssText = 'white-space:nowrap;transform:translate(-50%,-50%);font:600 12px ui-monospace,Menlo,monospace;color:' + photoData.ink + ';';
+      L.marker([p.lat, p.lng], { icon: L.divIcon({ html: pe, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     });
   </script>`;
 }
@@ -291,13 +326,16 @@ function countryMaplibreScript(
 function maplibreScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'vector' }>,
-  { interactive, padding, view, reportView, cities }: MapScriptOptions,
+  { interactive, padding, view, reportView, cities, photos }: MapScriptOptions,
 ): string {
   // MapLibre usa ordem [lng, lat].
   const coords = points.map((p) => [p.longitude, p.latitude]);
   const data = JSON.stringify(coords);
   const cityData = JSON.stringify(
     (cities ?? []).map((c) => ({ name: c.name, lat: c.lat, lng: c.lng })),
+  );
+  const photoData = JSON.stringify(
+    photos ?? { stops: [], dots: [], ink: '', fill: '' },
   );
   const pitch = view?.pitch ?? tile.pitch ?? 0;
   const bearing = view?.bearing ?? (tile.pitch ? -18 : 0);
@@ -409,6 +447,29 @@ ${buildings}
         } catch (e) {
           try { map.addLayer({ id: 'city-labels', type: 'symbol', source: 'cities', layout: labelLayout, paint: labelPaint }); } catch (e2) {}
         }
+      }
+
+      // Fotos (ADR 0037) — ver a nota do Leaflet acima.
+      var photoData = ${photoData};
+      if (photoData.dots.length) {
+        map.addSource('photo-dots', { type: 'geojson', data: { type: 'FeatureCollection', features: photoData.dots.map(function (p) {
+          return { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } };
+        }) } });
+        try {
+          map.addLayer({ id: 'photo-dots', type: 'circle', source: 'photo-dots', paint: {
+            'circle-radius': 5.5, 'circle-color': photoData.ink, 'circle-stroke-color': photoData.fill, 'circle-stroke-width': 2 } });
+        } catch (e) {}
+      }
+      if (photoData.stops.length) {
+        map.addSource('photo-stops', { type: 'geojson', data: { type: 'FeatureCollection', features: photoData.stops.map(function (p) {
+          return { type: 'Feature', properties: { n: String(p.count) }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } };
+        }) } });
+        try {
+          map.addLayer({ id: 'photo-stop-dots', type: 'circle', source: 'photo-stops', paint: {
+            'circle-radius': 13, 'circle-color': photoData.fill, 'circle-stroke-color': photoData.ink, 'circle-stroke-width': 2 } });
+          map.addLayer({ id: 'photo-stop-labels', type: 'symbol', source: 'photo-stops',
+            layout: { 'text-field': ['get', 'n'], 'text-size': 12 }, paint: { 'text-color': photoData.ink } });
+        } catch (e) {}
       }
 
       var b = new maplibregl.LngLatBounds(coords[0], coords[0]);

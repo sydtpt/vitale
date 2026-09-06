@@ -36,6 +36,7 @@ import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
 import { ActivityPhotosCard } from '../../../components/photos/ActivityPhotosCard';
+import { useActivityPhotos } from '../../../hooks/useActivityPhotos';
 import { ClimbsCard } from '../../../components/cards/ClimbsCard';
 import { SegmentsCard } from '../../../components/cards/SegmentsCard';
 import { SurfaceCard } from '../../../components/cards/SurfaceCard';
@@ -152,6 +153,10 @@ export default function AtividadeDetalheScreen() {
           ),
     [cursorX, scrubRuler],
   );
+
+  // As fotos desta pedalada (ADR 0037). Um só carregamento para as duas telas
+  // que precisam delas: os marcadores do mapa e o cartão embaixo dos números.
+  const photoView = useActivityPhotos(id, routePoints ?? [], activity?.distanceM);
 
   // ── estado de edição ──────────────────────────────────────────
   const [name, setName] = useState('');
@@ -405,6 +410,12 @@ export default function AtividadeDetalheScreen() {
                   elevationM,
                   cities: activity.cities,
                 }}
+                photos={{
+                  stops: photoView.stopMarks,
+                  dots: photoView.dotMarks,
+                  ink: colors.ink,
+                  fill: colors.surface,
+                }}
               />
             </View>
             {/* Depois do mapa: ele responde "por onde", estes respondem "como
@@ -441,6 +452,7 @@ export default function AtividadeDetalheScreen() {
             é destaque. Some por completo quando não há foto — a única exceção é
             a pedalada nunca procurada, que ganha uma linha fina de convite. */}
         <ActivityPhotosCard
+          view={photoView}
           activity={{
             id: activity.id,
             startAtMs: Date.parse(activity.startAt),
