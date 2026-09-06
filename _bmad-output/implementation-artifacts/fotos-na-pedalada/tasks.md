@@ -72,32 +72,61 @@ Testável sem aparelho e sem banco. **Fazer inteira antes de qualquer tela.**
 - [ ] **T2.3** Leitura `packages/shared/src/data/activity-photos.ts` — colunas explícitas,
       paginada (o teto de 1000 linhas do PostgREST vale aqui como em tudo).
 
-## Fase 3 — Mobile: varredura, cura e confirmação
+## Fase 3 — Mobile: varredura, cura e confirmação (feita em 06/09/2026)
 
-- [ ] **T3.1** Permissão: exigir `accessPrivileges === 'all'`; detectar o acesso limitado
-      do iOS 14+ e **explicar** em vez de falhar calado (spec §7).
-- [ ] **T3.2** `services/activity-photos.ts` — `getAssetsAsync` na janela,
-      `getAssetInfoAsync` para coordenada e `localUri`, classificação nos três grupos,
-      persistência, e `photos_checked_at`.
-- [ ] **T3.3** **A cura do ponteiro:** `asset_id` que não resolve → varre a janela e
-      re-casa por `taken_at`; reescreve o ponteiro. Sem tela, sem aviso.
-- [ ] **T3.4** Folha de confirmação (`PhotoSuggestSheet`): três grupos com toggle, os dois
-      de fora desligados, a janela escrita no cabeçalho, "Ligar N fotos" / "Agora não".
-- [ ] **T3.5** Teste do mobile: asset do `expo-media-library` → linha; foto `dismissed`
-      não volta na segunda varredura; ponteiro morto cura pelo instante.
+- [x] **T3.1** Permissão com `PhotoAccess` de três estados. `limited` **não** é sucesso:
+      a folha explica que o "Selecionar fotos" do iOS quebra a busca por janela, em vez
+      de mostrar "nenhuma foto" numa pedalada cheia delas.
+- [x] **T3.2** `services/activity-photos.ts`. **A API do briefing não existe mais como
+      padrão:** no `expo-media-library` 57 o `getAssetsAsync`/`getAssetInfoAsync` viraram
+      `legacy` e o import padrão é um builder de `Query`. Fui para a nova, e ela resolve
+      um risco em vez de contorná-lo — `exeForMetadata()` lê data e tipo **sem resolver
+      arquivo nem decodificar imagem** (a antiga passava por `getAssetInfoAsync`, que
+      baixa do iCloud por padrão), e `getIsInCloud()` torna o risco nº 2 do spec um dado.
+- [x] **T3.3** A cura do ponteiro, com a parte pura (`planHealing`) separada da escrita.
+- [x] **T3.4** `PhotoSuggestSheet`: **quatro** grupos, não três — foto tirada no meio da
+      pedalada a 500 m do traçado não é "depois da chegada", e o mockup já dizia "fora da
+      rota" na legenda. Confirmação **por grupo**; só "Na rota" ligada. Os quatro estados
+      que o mockup não mostrava (varrendo, negado, limitado, zero) estão todos na folha.
+- [x] **T3.5** 9 testes em `lib/__tests__/activity-photos.test.ts`.
+- [x] **T3.6** Plugin `expo-media-library` registrado no `app.base.json` com
+      `NSPhotoLibraryUsageDescription`. Estava na dependência mas **fora dos plugins**:
+      do jeito que estava, o iOS nunca pediria a permissão. **Exige prebuild + pod
+      install** — o `ios/` da árvore principal foi gerado antes disto. expo-doctor 21/21.
+- [x] **T3.7** Lógica pura em `lib/`, I/O em `services/` — o padrão do `activity-todo-link`.
+      Não é cerimônia: `Query` e `Asset` são classes nativas que nem importam fora do
+      aparelho, e sem a separação não haveria como testar classificação nenhuma.
 
-## Fase 4 — Mobile: as telas
+## Fase 4 — Mobile: as telas (feita em 06/09/2026)
 
-- [ ] **T4.1** Cartão Fotos no detalhe, **abaixo dos números**, agrupado por parada, com
-      cidade (`activities.cities`), km, tempo parado e FC do minuto (`health_series`).
-      Some por completo quando não há foto.
-- [ ] **T4.2** Marcadores no `lib/map-html.ts`: círculo neutro com contagem por parada,
-      ponto pequeno para foto em movimento. Inverte no escuro; **sem cor de paleta**.
-- [ ] **T4.3** Trilho do tempo com scrub (substitui o perfil de elevação nesta tela):
-      trecho laranja = movimento, vão = parada, dedo move o ponto no mapa.
-- [ ] **T4.4** Toque longo → "Ver no app Fotos" / "Tornar a capa" / "Desligar da pedalada".
-- [ ] **T4.5** Estado de carregamento para foto em iCloud não baixada, e a lacuna honesta
-      para foto apagada da biblioteca.
+- [x] **T4.1** Cartão Fotos abaixo dos números, agrupado por parada, com a cidade real, o
+      km e o tempo parado. Some por completo sem foto; a pedalada nunca procurada ganha
+      uma linha fina de convite, que é o caminho de volta de quem tocou "Agora não".
+- [x] **T4.2** Marcadores nos **dois** renderizadores (Leaflet e MapLibre). As cores vêm
+      do chamador: a rota e as cidades já gastam o papel `orange`, e receber `ink`/`fill`
+      por parâmetro é o que faz o marcador inverter no escuro sem literal no `map-html.ts`.
+      O círculo fica na coordenada **da parada**, não da primeira foto — senão ele dança
+      conforme quais fotos entram.
+- [x] **T4.3** `TimeRailCard` + `fitness/time-rail.ts`. Mora em `fitness/` porque descreve
+      a **atividade** no relógio; as fotos só foram o motivo de precisarem dele. Emite
+      **distância em metros**, não tempo, para entrar na máquina de scrub que já existia.
+- [x] **T4.4** Toque longo → Ver no app Fotos / Tornar a capa / **Desligar da pedalada**.
+- [x] **T4.5** Foto órfã mostra **lacuna tracejada**. A cura reendereça ponteiro trocado,
+      não ressuscita arquivo apagado; sumir calado faria a contagem do cabeçalho mentir.
+- [x] **T4.6** `useActivityPhotos`: mapa e cartão leem do **mesmo** carregamento. Dois
+      carregamentos dariam contagens diferentes na mesma tela por alguns milissegundos.
+
+### Achado da Fase 4 (registrado porque muda decisão futura)
+
+Duas barreiras de arquitetura pegaram **defeito real**, não estilo:
+
+- **AD-4** — as 7 queries diretas do serviço mobile foram para `packages/shared/src/data`.
+  A de `photos_checked_at` foi para `data/activities.ts`: a regra é sobre a **tabela**,
+  não sobre a feature.
+- **Teto de hex literais** (catraca em 200, exata) — o `#FFFFFF` do botão cheio viraria
+  branco sobre branco na marca **Tinta** no escuro, que é justamente o que
+  `colors.onPrimary` existe para evitar. O branco legítimo (ícone sobre véu escuro em
+  cima da foto) virou o token `onMedia`, declarado uma vez no tema.
 
 ## Fase 5 — Compartilhar
 

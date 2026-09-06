@@ -11,7 +11,7 @@ import { speedFractions, elevationProfile } from './share-art-data';
 export type ShareFormat = 'story' | 'square' | 'portrait'; // 9:16 · 1:1 · 4:5
 /** Ambos os fundos sem mapa exportam PNG com alpha (sticker): 'art' desenha a
  *  rota/perfil sobre transparência, 'data' só título/métricas/marca. */
-export type ShareBackground = 'art' | 'map' | 'data';
+export type ShareBackground = 'art' | 'map' | 'data' | 'photo';
 /** Desenho da região central no fundo "arte" — todos data-driven. 'speed' e
  *  'elevation' dependem de timestamp/altitude no track (caem no traçado padrão
  *  quando faltam); 'route' é só o traçado. */
@@ -468,6 +468,16 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
 
   const isData = background === 'data';
   const isMap = background === 'map' && !!mapTile;
+  /**
+   * Fundo "foto" (ADR 0037): a imagem **não** é desenhada aqui.
+   *
+   * O WKWebView do iOS não carrega `ph://`, e embutir a foto como data URI
+   * custaria megabytes de base64 por cartão. Em vez disso o composer põe um
+   * `<Image>` nativo ATRÁS do WebView, dentro da mesma View que o `captureRef`
+   * fotografa — o snapshot compõe os dois. Aqui só sai o véu e o texto, sobre
+   * transparência.
+   */
+  const isPhoto = background === 'photo';
 
   // Cor de texto automática: branco + sombra em todos os fundos — sobre mapa
   // porque os tiles são imprevisíveis, sobre arte/dados porque o cartão sai
@@ -504,9 +514,9 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     routeLayer = artRouteLayer(artStyle, points, accent, fg, cities);
   }
 
-  const scrim = isMap
-    ? '<div class="scrim"></div>'
-    : '';
+  // O véu vale para mapa e foto pela mesma razão: o que está atrás é
+  // imprevisível, e sem ele o texto branco some numa foto clara.
+  const scrim = isMap || isPhoto ? '<div class="scrim"></div>' : '';
 
   const tiles = metrics
     .map((m) => {
@@ -546,7 +556,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
   // Fundo do documento: preto só sob o mapa (evita flash branco enquanto os
   // tiles carregam); transparente nos demais, para o PNG sair com alpha. O
   // xadrez de preview usa tons escuros — o texto branco continua legível.
-  const bodyBg = isMap
+  const bodyBg = isMap && !isPhoto
     ? '#000'
     : previewChecker
       ? 'conic-gradient(#4A4A4A 25%, #3A3A3A 0 50%, #4A4A4A 0 75%, #3A3A3A 0) 0 0 / 12vw 12vw'

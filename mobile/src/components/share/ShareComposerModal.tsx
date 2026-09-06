@@ -11,6 +11,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Image,
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -40,6 +41,7 @@ import {
   type ShareMetricTile,
 } from '../../lib/share-card-html';
 import { captureCardPng, saveCardPngToGallery, shareCardPng } from '../../lib/share-export';
+import type { ActivityPhoto } from '@vitale/shared';
 import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 import { Segmented } from '../ui/Segmented';
 
@@ -51,6 +53,8 @@ interface ShareComposerModalProps {
   /** Estilo de mapa inicial (das preferências do usuário); a troca no composer é local. */
   initialMapStyle: MapStyle;
   context: ShareContext;
+  /** Fotos ligadas à atividade (ADR 0037). Vazio ⇒ o fundo "Foto" nem aparece. */
+  photos?: readonly ActivityPhoto[];
 }
 
 interface MetricDef {
@@ -123,7 +127,12 @@ const BG_OPTS: { key: ShareBackground; label: string }[] = [
   { key: 'art', label: 'Transparente' },
   { key: 'map', label: 'Mapa' },
   { key: 'data', label: 'Dados' },
+  { key: 'photo', label: 'Foto' },
 ];
+/** Sem foto ligada, o fundo "Foto" não existe — em vez de existir e falhar. */
+function bgOptions(hasPhoto: boolean) {
+  return hasPhoto ? BG_OPTS : BG_OPTS.filter((o) => o.key !== 'photo');
+}
 const ART_OPTS: { key: ShareArtStyle; label: string }[] = [
   { key: 'speed', label: 'Velocidade' },
   { key: 'route', label: 'Rota' },
@@ -194,12 +203,31 @@ export function ShareComposerModal({
   points,
   initialMapStyle,
   context,
+  photos = [],
 }: ShareComposerModalProps) {
   const insets = useSafeAreaInsets();
   useTheme();
 
   const metrics = useMemo(() => availableMetrics(context), [context]);
   const defaultTitle = (context.activityName?.trim() || context.metaLabel).trim();
+
+  /**
+   * A foto do cartão (ADR 0037). A capa é o padrão — é para isso que o
+   * `is_cover` existe: o dono escolhe uma vez no cartão Fotos e o composer
+   * abre nela, sem perguntar de novo a cada compartilhamento.
+   */
+  const photoChoices = useMemo(
+    () => photos.filter((p) => p.assetId),
+    [photos],
+  );
+  const [photoId, setPhotoId] = useState<string | null>(null);
+  const chosenPhoto = useMemo(
+    () => photoChoices.find((p) => p.id === photoId) ?? photoChoices.find((p) => p.isCover) ?? photoChoices[0],
+    [photoChoices, photoId],
+  );
+  const photoUri = chosenPhoto?.assetId
+    ? (chosenPhoto.assetId.includes('://') ? chosenPhoto.assetId : `ph://${chosenPhoto.assetId}`)
+    : undefined;
 
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
@@ -486,6 +514,9 @@ export function ShareComposerModal({
                 { width: box.width, height: box.height },
               ]}
             >
+              {background === 'photo' && photoUri && (
+                <Image source={{ uri: photoUri }} style={styles.photoBehind} resizeMode="cover" />
+              )}
               <WebView
                 ref={previewRef}
                 key={`${format}-${background}-${artStyle}-${mapStyle}-${mapEffect}-${textColor ?? 'auto'}`}
@@ -588,13 +619,37 @@ export function ShareComposerModal({
           <Text style={styles.fieldLabel}>Fundo</Text>
           <Segmented
             variant="brand"
-            options={BG_OPTS}
+            options={bgOptions(photoChoices.length > 0)}
             value={background}
             onChange={(v) => {
               tap();
               setBackground(v);
             }}
           />
+
+          {background === 'photo' && photoChoices.length > 1 && (
+            <>
+              <Text style={styles.fieldLabel}>Qual foto</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoPicker}>
+                {photoChoices.map((p) => {
+                  const uri = p.assetId?.includes('://') ? p.assetId : `ph://${p.assetId}`;
+                  const on = chosenPhoto?.id === p.id;
+                  return (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => {
+                        tap();
+                        setPhotoId(p.id);
+                      }}
+                      style={[styles.photoOpt, on && styles.photoOptOn]}
+                    >
+                      <Image source={{ uri }} style={styles.photoOptImg} />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
 
           {background === 'art' && (
             <>
@@ -724,6 +779,12 @@ export function ShareComposerModal({
               pointerEvents="none"
               collapsable={false}
             >
+              {/* A foto entra como view NATIVA atrás do cartão: o WKWebView não
+                  carrega `ph://`, e o `captureRef` fotografa esta View inteira,
+                  então o snapshot compõe foto + cartão sem base64 nenhum. */}
+              {background === 'photo' && photoUri && (
+                <Image source={{ uri: photoUri }} style={styles.photoBehind} resizeMode="cover" />
+              )}
               <WebView
                 originWhitelist={['*']}
                 source={{ html: exportHtml }}
@@ -869,7 +930,20 @@ const styles = themed(() =>
       ...shadows.card,
     },
     web: { flex: 1, backgroundColor: 'transparent' },
-    exportStage: { position: 'absolute', top: 0, left: 0 },
+    photoBehind: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  photoPicker: { flexGrow: 0 },
+  photoOpt: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.md,
+    marginRight: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  photoOptOn: { borderColor: colors.primary },
+  photoOptImg: { width: '100%', height: '100%' },
+  exportStage: { position: 'absolute', top: 0, left: 0 },
     exportOverlay: {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',

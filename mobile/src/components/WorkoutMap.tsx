@@ -7,6 +7,7 @@ import { MAP_STYLES } from '@vitale/shared';
 import type { RoutePoint } from '../store/fitness.store';
 import { useSettingsStore } from '../store/settings.store';
 import { buildMapHtml, type MapScriptOptions } from '../lib/map-html';
+import type { ActivityPhoto } from '@vitale/shared';
 import type { ShareContext } from '../lib/share-card-html';
 import { ShareComposerModal } from './share/ShareComposerModal';
 import { colors, fonts, radii, spacing, themed, useTheme } from '../theme';
@@ -36,8 +37,11 @@ export function WorkoutMap({
   height?: number;
   share?: ShareContext;
   cursor?: { lat: number; lng: number } | null;
-  /** Marcadores de foto (ADR 0037) — paradas com contagem e fotos em movimento. */
-  photos?: MapScriptOptions['photos'];
+  /**
+   * Fotos desta pedalada (ADR 0037): `stops`/`dots` marcam o mapa, `list`
+   * alimenta o fundo "Foto" do cartão de compartilhar.
+   */
+  photos?: MapScriptOptions['photos'] & { list?: readonly ActivityPhoto[] };
 }) {
   useTheme();
   const [fullscreen, setFullscreen] = useState(false);
@@ -161,6 +165,7 @@ export function WorkoutMap({
           points={points}
           initialMapStyle={mapStyle}
           context={share}
+          photos={photos?.list}
         />
       )}
     </>

@@ -416,6 +416,7 @@ export default function AtividadeDetalheScreen() {
                   dots: photoView.dotMarks,
                   ink: colors.ink,
                   fill: colors.surface,
+                  list: photoView.photos,
                 }}
               />
             </View>
