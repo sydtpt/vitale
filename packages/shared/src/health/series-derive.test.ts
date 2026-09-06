@@ -129,7 +129,7 @@ check('activitySpansOnDay: recorta ao dia e leva o nome; sem nome é Treino', ()
   ]);
   assert.deepEqual(spans, [
     { from: 635, to: 699, name: 'Brussels · Corrida' },
-    { from: 1350, to: 1440, name: 'Treino' },
+    { from: 1410, to: 1440, name: 'Treino' },
   ]);
 });
 

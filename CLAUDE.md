@@ -194,8 +194,9 @@ São **10** módulos, não 7:
 
 ### Em andamento / Próximo 🔧
 - FC ao longo do dia: `health_series` — a série intradiária (minuto → bpm) gravada pelo
-  mesmo sync que produz a linha diária (ADR 0033). Núcleo e sync prontos; migration gerada
-  e **não aplicada**; tela passa por proposta antes de código. Ver `docs/specs/fc-serie/`
+  mesmo sync que produz a linha diária (ADR 0033), em produção desde 05/09. Tela construída
+  em 06/09 (três painéis na Saúde da web; detalhe de FC do iPhone com noite, treino, faixa
+  típica e card Dormindo); falta a conferência no navegador e no aparelho. Ver `docs/specs/fc-serie/`
 - Tarefas: ponte real com Compras/Finanças
 - Sono: CAP-7 (Tempos, Despertares, Estágios) entregue em 05/09 no mobile e na web; o bloco
   **Sono na Retrospectiva** (`sleep/retro.ts`, noite típica vs período anterior, nota ×

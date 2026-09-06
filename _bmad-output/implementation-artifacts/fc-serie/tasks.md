@@ -56,7 +56,18 @@ Branch `feat/fc-serie`, criada da `main` em 05/09/2026 (worktree `.claude/worktr
       Publicada em 05/09/2026: `claude.ai/code/artifact/40958370-db73-4342-ad26-e74838b4ef2a`.
       Três painéis na web (curva do dia, Noites, dia × hora) e o detalhe de FC no iPhone com o card
       Dormindo; oito decisões listadas com a alternativa rejeitada. Aguardando vetos.
-- [ ] **T3.2** Só depois da aprovação: o código de tela.
+- [x] **T3.2** Aprovada sem vetos em 05/09/2026 ("pode seguir sem veto"). Construída em
+      06/09/2026 (spec §8):
+      - núcleo `series-derive.ts` + `series-derive.test.ts` (11 checks);
+      - web: `HeartSeriesStore` (60 dias de série + janelas de sono), `rt-heart-day-card`,
+        `rt-heart-nights-card`, `rt-heart-heatmap-card`, inseridos acima dos cards de Coração;
+      - iPhone: `heart-days.store.ts` (nome distinto do store da web: a barreira de arquitetura
+        veta o mesmo basename nos dois apps), `DayHeartChart`, card Dormindo no detalhe de FC (Dia).
+      - **Merge de `feat/sono-cap7`** na branch (7520a51): a gramática de cor da ADR 0032 e o
+        `loadToday` do sono não existem na main. `AGG_VERSION` resolvido em 9.
+- [ ] **T3.3** Conferir no navegador (`/saude`) e no iPhone (detalhe de Freq. cardíaca, Dia).
+      Build do iPhone precisa do diretório principal, que já carrega o sono.
+- [ ] **T3.4** Abrir a PR depois da PR #1 do sono, ou com ela como base.
 
 ## Diferido
 

@@ -25,7 +25,7 @@ import { colors, fonts, radii, shadows, sleepColors, spacing, themed, useTheme }
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { useSonoStore } from '../../store/sono.store';
 import { useActivitiesStore } from '../../store/activities.store';
-import { useHeartSeriesStore } from '../../store/heart-series.store';
+import { useHeartSeriesStore } from '../../store/heart-days.store';
 import {
   activityMarkLabel,
   activitySpansOnDay,

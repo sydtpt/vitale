@@ -1,7 +1,8 @@
 # FC ao longo do dia — a série intradiária no Supabase
 
-> **Status:** núcleo e sync construídos (05/09/2026); migration gerada e **não aplicada**;
-> nenhuma tela lê a série ainda. Decisão: [ADR 0033](../../decisions/0033-serie-intradiaria-em-arrays-por-dia.md).
+> **Status:** núcleo e sync em produção desde 05/09/2026 (migration aplicada, backfill de 177
+> dias verificado). Tela construída em 06/09/2026 a partir da proposta aprovada sem vetos
+> (§8). Decisão: [ADR 0033](../../decisions/0033-serie-intradiaria-em-arrays-por-dia.md).
 > Data-model: [data-model.md](data-model.md). Tarefas: [tasks](../../../_bmad-output/implementation-artifacts/fc-serie/tasks.md).
 
 ## 1. Problema
@@ -80,6 +81,41 @@ a partir de Configurações → Dados. Mesma chave, mesmas linhas — só acresc
    decisões para vetar. Só então código de tela.
 4. Candidatas a entrar na mesma tabela sem migration: stress e body battery intradiários, que
    só chegariam por um app Connect IQ no Venu 4 (avaliado em 05/09/2026).
+
+## 8. A tela (aprovada em 05/09/2026, construída em 06/09)
+
+Proposta com os dados reais, mockups nas 36 combinações de tema e oito decisões para vetar:
+`claude.ai/code/artifact/40958370-db73-4342-ad26-e74838b4ef2a`. Nenhum veto.
+
+**Núcleo puro** (`packages/shared/src/health/series-derive.ts`, testado): a linha em trechos
+(buraco > 10 min quebra), a faixa típica p25–p75 por hora, a noite pela janela de
+`sleep_periods` (média, mínima, instante da mínima; menos de 30 pontos não é noite), as células
+dia × hora, e as projeções no minuto local para sombrear o sono e marcar o treino.
+
+**Web**, página Saúde, três painéis acima dos cards de Coração (`HeartSeriesStore`, janela de
+60 dias):
+- *FC ao longo do dia*: tira de 14 dias, curva do dia sobre a faixa típica, noite em
+  `--sleep-bed`, treino como marca no papel de Treino, hover com hora e valor.
+- *Noites*: média dormindo em linha, faixa até a mínima, repouso do Garmin como ponto vazado.
+- *Dia a dia, hora a hora*: mapa de calor em cinco degraus do papel vermelho
+  (`wash` → `pale` → `graphic` → `strong`).
+
+**iPhone**, detalhe de Freq. cardíaca no período Dia: a curva continua vindo do HealthKit
+(`DayHeartChart`), com a noite, as marcas e a faixa; embaixo dos totais, o card Dormindo.
+Do Supabase vêm só a faixa e a noite (`heart-days.store`, 60 dias).
+
+**Decisões tomadas, com a alternativa rejeitada:** papel `red` no `graphic`, faixa no `wash`
+(não a rampa das zonas: ela codifica intensidade de treino); escala fixa 40–170 (não por dia);
+sem suavização; noite é sombra, não linha; treino é marca, não preenchimento; faixa por hora,
+sem mediana desenhada; noites sem cruzar com a nota de sono (já existe no Sono); mapa
+sequencial de um matiz; o iPhone segue no HealthKit para a curva do dia.
+
+**Dependência:** a gramática de cor (`graphic`, `wash`, `ramp`, `--sleep-bed`) e o
+`loadToday` do sono vivem na branch `feat/sono-cap7` (PR #1). `feat/fc-serie` a mesclou em
+06/09/2026 e deve entrar na main depois dela.
+
+**Cromo:** os painéis usam o `rt-panel` da página, com o título de 14 px dos vizinhos, e não
+o título em serifa do mockup — o mockup mostrava o gráfico, não a moldura.
 
 ## 7. Riscos e limites conhecidos
 
