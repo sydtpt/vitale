@@ -269,6 +269,38 @@ export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan,
    * por toque longo numa foto — o mesmo gesto do app Fotos, para não precisar
    * de um botão a mais no cabeçalho.
    */
+  /**
+   * Deslizar da esquerda para a direita fecha — o mesmo gesto de voltar que o
+   * resto do app tem por ser pilha de navegação. Aqui a galeria é um `Modal`,
+   * que não ganha isso de graça, então o gesto é explícito.
+   *
+   * `activeOffsetX={[-999, 24]}` só ativa para a direita; `failOffsetY` devolve
+   * o gesto à grade assim que o dedo tende ao vertical, senão rolar a lista
+   * fecharia a tela sem querer.
+   */
+  const slideX = useRef(new Animated.Value(0)).current;
+  const onSlide = Animated.event([{ nativeEvent: { translationX: slideX } }], {
+    useNativeDriver: true,
+  });
+  const onSlideEnd = (e: PanGestureHandlerStateChangeEvent) => {
+    if (e.nativeEvent.state !== State.END && e.nativeEvent.state !== State.CANCELLED) return;
+    const { translationX, velocityX } = e.nativeEvent;
+    if (translationX > 90 || velocityX > 700) {
+      Animated.timing(slideX, {
+        toValue: width,
+        duration: 160,
+        useNativeDriver: true,
+      }).start(onClose);
+    } else {
+      Animated.spring(slideX, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+    }
+  };
+  const slide = slideX.interpolate({
+    inputRange: [0, width],
+    outputRange: [0, width],
+    extrapolateLeft: 'clamp',
+  });
+
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
@@ -294,7 +326,17 @@ export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan,
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={[styles.gallery, { paddingTop: insets.top }]}>
+      <GestureHandlerRootView style={styles.viewerRoot}>
+        <PanGestureHandler
+          activeOffsetX={[-999, 24]}
+          failOffsetY={[-14, 14]}
+          onGestureEvent={onSlide}
+          onHandlerStateChange={onSlideEnd}
+          enabled={!selecting}
+        >
+          <Animated.View
+            style={[styles.gallery, { paddingTop: insets.top, transform: [{ translateX: slide }] }]}
+          >
         <View style={styles.galleryHead}>
           {selecting ? (
             <>
@@ -379,10 +421,12 @@ export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan,
           </View>
         )}
 
-        {viewing !== null && (
-          <Viewer photos={flat} index={viewing} onClose={() => setViewing(null)} />
-        )}
-      </View>
+            {viewing !== null && (
+              <Viewer photos={flat} index={viewing} onClose={() => setViewing(null)} />
+            )}
+          </Animated.View>
+        </PanGestureHandler>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
