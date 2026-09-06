@@ -28,6 +28,7 @@ import {
 } from './stops';
 import { PHOTO_CORRIDOR_M, classifyCandidate, matchToRoute } from './match';
 import { groupByStop } from './group';
+import { gapAt, trackGaps } from './gaps';
 import { indexAtTimeFraction, timeRail } from '../fitness/time-rail';
 import { photoRetro, photoRetroLabel } from './retro';
 import type { ActivityPhoto } from '../models';
@@ -408,6 +409,61 @@ check('período sem foto some do jornal', () => {
     null,
     'desligada não conta',
   );
+});
+
+// ── Buracos do traçado ──────────────────────────────────
+
+check('o buraco é achado, com a distância entre as pontas', () => {
+  const pts: ActivityRoutePoint[] = [
+    { lat: 51.9, lng: 4.5, t: T0 },
+    { lat: 51.9, lng: 4.5, t: T0 + 10_000 },
+    // 35 min depois, 6 km adiante — o buraco real da travessia de 29/08.
+    { lat: 51.954, lng: 4.5, t: T0 + 2_110_000 },
+    { lat: 51.9541, lng: 4.5, t: T0 + 2_115_000 },
+  ];
+  const gaps = trackGaps(pts);
+  assert.equal(gaps.length, 1);
+  assert.ok(gaps[0].durationS > 2000, `${gaps[0].durationS}s`);
+  assert.ok(gaps[0].spanM > 5000, `${gaps[0].spanM.toFixed(0)} m entre as pontas`);
+});
+
+check('buraco de pontas próximas NÃO é ignorância — é parada, e o detectStops já pega', () => {
+  const pts: ActivityRoutePoint[] = [
+    { lat: 51.9, lng: 4.5, t: T0 },
+    // 6 minutos parado: o relógio calou, mas voltou no mesmo lugar.
+    { lat: 51.90005, lng: 4.5, t: T0 + 360_000 },
+  ];
+  const gaps = trackGaps(pts);
+  assert.equal(gaps.length, 1, 'é um buraco no tempo');
+  assert.ok(gaps[0].spanM < 60, 'mas as pontas estão juntas');
+  assert.equal(gapAt(gaps, T0 + 100_000), null, 'então não conta como silêncio');
+  assert.equal(detectStops(pts).length, 1, 'e vira parada pelo caminho normal');
+});
+
+check('REGRESSÃO: as 12 fotos do parque não são "em movimento"', () => {
+  // O caso que originou tudo (29/08/2026): o GPS parou às 12:54 e voltou 35 min
+  // e 6,3 km depois. As fotos caem dentro, e antes disto o app afirmava
+  // "sem parada" — dizer que não houve parada é diferente de não saber.
+  const pts: ActivityRoutePoint[] = [
+    { lat: 51.9, lng: 4.5, t: T0 },
+    { lat: 51.9, lng: 4.5, t: T0 + 10_000 },
+    { lat: 51.954, lng: 4.5, t: T0 + 2_110_000 },
+  ];
+  const fotos = Array.from({ length: 12 }, (_, i) => ({
+    takenAtMs: T0 + 60_000 + i * 35_000,
+    id: `f${i}`,
+  }));
+  const g = groupByStop(fotos, detectStops(pts), pts);
+  assert.deepEqual(g.moving, [], 'nenhuma vira "em movimento"');
+  assert.equal(g.silent.length, 1, 'as doze são um momento só');
+  assert.equal(g.silent[0].photos.length, 12);
+  assert.ok(g.silent[0].spanS > 300, `duração provada pelas fotos: ${g.silent[0].spanS}s`);
+});
+
+check('sem traçado não se inventa silêncio', () => {
+  const g = groupByStop([{ takenAtMs: T0 }], [], []);
+  assert.deepEqual(g.silent, [], 'sem pontos não há buraco que se afirme');
+  assert.equal(g.moving.length, 1);
 });
 
 console.log(`\n${passed} testes passaram.`);

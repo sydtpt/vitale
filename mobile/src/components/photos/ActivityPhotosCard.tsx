@@ -243,6 +243,16 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
         photos: ps,
       };
     });
+    for (const g of grouped.silent) {
+      const first = g.photos[0];
+      const city = first.lat !== null && first.lng !== null ? cityNear(first.lat, first.lng) : null;
+      out.push({
+        key: `q${g.firstMs}`,
+        title: city ?? 'Parada não gravada',
+        subtitle: `${hhmm(g.firstMs)} – ${hhmm(g.lastMs)} · ${Math.max(1, Math.round(g.spanS / 60))} min · o GPS não gravou aqui`,
+        photos: g.photos,
+      });
+    }
     if (grouped.moving.length > 0) {
       out.push({
         key: 'moving',
@@ -308,7 +318,11 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
         <View style={styles.head}>
           <Text style={styles.title}>Fotos</Text>
           <Text style={styles.meta}>
-            {photos.length} · {grouped.stops.length === 1 ? '1 parada' : `${grouped.stops.length} paradas`}
+            {photos.length} ·{' '}
+            {(() => {
+              const n = grouped.stops.length + grouped.silent.length;
+              return n === 1 ? '1 parada' : `${n} paradas`;
+            })()}
           </Text>
           <Ionicons name="chevron-forward" size={15} color={colors.ink4} style={styles.chevron} />
         </View>
@@ -344,6 +358,29 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
                       </View>
                     )}
                   </Pressable>
+                ))}
+              </View>
+            </View>
+          );
+        })}
+
+        {grouped.silent.map((g) => {
+          const first = g.photos[0];
+          const city = first.lat !== null && first.lng !== null ? cityNear(first.lat, first.lng) : null;
+          return (
+            <View key={g.firstMs} style={styles.row}>
+              <View style={[styles.pin, styles.pinSilent]}>
+                <Text style={styles.pinText}>{g.photos.length}</Text>
+              </View>
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle} numberOfLines={1}>{city ?? 'Parada não gravada'}</Text>
+                <Text style={styles.rowSub}>
+                  {hhmm(g.firstMs)} – {hhmm(g.lastMs)} · o GPS não gravou
+                </Text>
+              </View>
+              <View style={styles.strip}>
+                {g.photos.slice(0, PREVIEW).map((p) => (
+                  <Thumb key={p.id} assetId={p.assetId} style={styles.thumb} isVideo={p.mediaType === 'video'} />
                 ))}
               </View>
             </View>
@@ -441,6 +478,11 @@ const createStyles = () =>
       justifyContent: 'center',
     },
     pinLoose: { borderStyle: 'dashed', borderColor: colors.ink3 },
+    /**
+     * A parada que o GPS não viu: contorno pontilhado, para dizer que ela é
+     * **provada pelas fotos** e não medida pelo traçado.
+     */
+    pinSilent: { borderStyle: 'dotted', borderColor: colors.ink2 },
     pinText: { fontSize: 11, fontFamily: fonts.monoSemiBold, color: colors.ink },
 
     rowText: { flex: 1, minWidth: 0 },

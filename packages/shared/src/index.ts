@@ -110,6 +110,7 @@ export * from './gear/assign';
 export * from './photos/window';
 export * from './photos/stops';
 export * from './photos/match';
+export * from './photos/gaps';
 export * from './photos/group';
 export * from './photos/retro';
 export * from './surface/classify';

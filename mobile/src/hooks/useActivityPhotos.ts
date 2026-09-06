@@ -57,8 +57,8 @@ export function useActivityPhotos(
   );
 
   const grouped = useMemo(
-    () => groupByStop(photos.map((p) => ({ ...p, takenAtMs: p.takenAt })), stops),
-    [photos, stops],
+    () => groupByStop(photos.map((p) => ({ ...p, takenAtMs: p.takenAt })), stops, points),
+    [photos, stops, points],
   );
 
   /**
@@ -80,8 +80,15 @@ export function useActivityPhotos(
     [grouped],
   );
 
+  /**
+   * O trilho marca as paradas **e** os momentos silenciosos: a parada que o GPS
+   * não gravou é tão real quanto a que ele viu — a prova são as fotos.
+   */
   const railMarks = useMemo(
-    () => grouped.stops.map(({ stop, photos: ps }) => ({ atMs: stop.startMs, count: ps.length })),
+    () => [
+      ...grouped.stops.map(({ stop, photos: ps }) => ({ atMs: stop.startMs, count: ps.length })),
+      ...grouped.silent.map((g) => ({ atMs: g.firstMs, count: g.photos.length })),
+    ],
     [grouped],
   );
 
