@@ -59,8 +59,30 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
       do cruzamento de 05/09. Verificado: 137/137 com piso, 5.032 km, liso 78,9% ·
       blocos+pavé 8,5% · cascalho 8,6% · terra 3,9% · desconhecido 0,1% · inferido 14,6%;
       mediana média da distância à via 1,8 m.
-- [ ] T1.3b Smoke test do passe deployado: uma rota curta (Amsterdam, 31/08, 5,4 km) teve
-      o piso apagado para o cron recalcular via Overpass; comparar com o backfill.
+- [x] T1.3b Smoke test do passe deployado (06/09, duas rodadas na rota Amsterdam 31/08,
+      5,4 km, apagada e restaurada pelo backfill idempotente): **o passe NÃO funciona da
+      edge function.** 1ª rodada: 125 s pendurado até o abort próprio. Depois do fix
+      (fail-fast 25 s + espelhos), 2ª rodada em ~2 min com o motivo nomeado:
+      `overpass-api.de HTTP 504 · kumi.systems timeout 25s · private.coffee timeout 25s`.
+      A MESMA consulta responde em 5,5 s da rede de casa (430 vias, 368 KB). É o risco que
+      a pesquisa apontou como o único real da Fase 1, e ele se realizou: o Overpass dá
+      slots por IP e o IP de saída da Supabase é compartilhado. O Nominatim (cidades) do
+      mesmo caminho funciona, então não é bloqueio geral — é carga do Overpass.
+      **Estado atual: inofensivo e dormente** — o backfill cobriu 137/137, não há rota
+      pendente, e o passe só tentaria numa pedalada nova.
+
+### T1.4 — DECISÃO PENDENTE: onde o passe roda
+
+- [ ] **Opção A (recomendada): mover o passe para o aparelho**, no sync. O núcleo puro
+      (`surface/classify.ts`) já está pronto e o mobile o importa sem a restrição do
+      Deno; a rede de casa faz a consulta em 5 s. É o mesmo padrão do backfill de rotas
+      (ADR 0007). Custo: uma função no `mobile/src/lib` + escrita pelo `data/`.
+      Supersede a parte "no ingest" da ADR 0034 (ADR nova, append-only).
+- [ ] Opção B: manter na function e conviver com a falha (retry de 6 h). Com 504
+      consistente, provavelmente nunca completa.
+- [ ] Opção C: trocar a fonte (Overpass próprio, extrato Geofabrik no Postgres, API paga).
+      Caro para 2–3 pedaladas por semana.
+- [ ] Enquanto não se decide: rodar o cruzamento à mão daqui, como foi o backfill.
 - [ ] T1.4 Golden set: Sydnei marca 10 pedaladas que lembra; conferir.
 - [ ] T1.5 Conferir se `activity_routes.points` tem timestamp (velocidade por piso).
 
