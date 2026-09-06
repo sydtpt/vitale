@@ -65,9 +65,7 @@ Branch `feat/fc-serie`, criada da `main` em 05/09/2026 (worktree `.claude/worktr
         veta o mesmo basename nos dois apps), `DayHeartChart`, card Dormindo no detalhe de FC (Dia).
       - **Merge de `feat/sono-cap7`** na branch (7520a51): a gramática de cor da ADR 0032 e o
         `loadToday` do sono não existem na main. `AGG_VERSION` resolvido em 9.
-- [ ] **T3.3** Conferir no navegador (`/saude`) e no iPhone (detalhe de Freq. cardíaca, Dia).
-      Build Release instalado e aberto no iPhone em 06/09/2026 (diretório principal, sono + série);
-      falta o olhar do usuário no aparelho e no navegador.
+- [x] **T3.3** Conferida pelo usuário em 06/09/2026, no iPhone e no navegador, sem pedido de ajuste.
 - [x] **T3.4** Na main em 06/09/2026: a PR #1 do sono já tinha entrado em `origin/main` por
       fast-forward com os mesmos SHAs, então `main` avançou por fast-forward até `830f019` e foi
       pushada, com `feat/fc-serie` junto. Sem PR própria. Worktree removido; a branch ficou.
