@@ -33,6 +33,7 @@ import { WorkoutMap } from '../../../components/WorkoutMap';
 import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
 import { ClimbsCard } from '../../../components/cards/ClimbsCard';
 import { SegmentsCard } from '../../../components/cards/SegmentsCard';
+import { SurfaceCard } from '../../../components/cards/SurfaceCard';
 import {
   formatFullDate,
   formatTime,
@@ -402,6 +403,20 @@ export default function AtividadeDetalheScreen() {
                 que é a resposta certa para corrida. */}
             <ClimbsCard points={routePoints ?? []} />
           </>
+        )}
+
+        {/* O chão desta pedalada (ADR 0034). Também fora do bloco do percurso:
+            `surfaceMix` vem do ingest e não depende da rota carregada aqui. Some
+            enquanto o passe não calculou. */}
+        {activity.surfaceMix && activity.surfaceMix.total > 0 && (
+          <SurfaceCard
+            mix={activity.surfaceMix}
+            caption={
+              activity.surfaceMix.inferido > 0
+                ? `${Math.round((activity.surfaceMix.inferido / activity.surfaceMix.total) * 100)}% inferido pelo tipo de via`
+                : undefined
+            }
+          />
         )}
 
         {/* Fora do bloco do percurso de propósito: `bestEfforts` vem do sync e

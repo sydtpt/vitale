@@ -89,6 +89,8 @@ export * from './fitness/route-cursor';
 export * from './fitness/metric-roles';
 export * from './gear/assign';
 export * from './surface/classify';
+export * from './surface/aggregate';
+export * from './surface/colors';
 export * from './chart/stacked-bars';
 export * from './fitness/streams';
 export * from './fitness/dedupe';

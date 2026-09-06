@@ -62,15 +62,21 @@ https://claude.ai/code/artifact/c487cbb0-3205-44d4-9e9a-a795243ef8cd
 
 ## Fase 2 — Visão global no celular (mockup aprovado antes)
 
-- [ ] T2.1 Núcleo: agregação por período/bucket (semana ↔ mês, regra do Sono),
-      fronteiras como marcas.
-- [ ] T2.2 Página de Ciclismo: cartão Piso (herói + barra + legenda), série com
-      as duas marcas, fatos. Chips de bike já vêm da Fase 0.
+- [x] T2.1a Núcleo: `surface/aggregate.ts` (janela 4 sem / 12 sem / ano / tudo,
+      soma sob a lente de bike, legenda com blocos+pavé fundidos e "não
+      especificado" só quando existe) + `surface/colors.ts` (rampa ordinal do
+      acento do módulo, zero hex) + 20 asserts.
+- [ ] T2.1b Série por mês/semana com as duas fronteiras (bike 30/05, Garmin 18/07)
+      — segunda passada; o modelo `chart/stacked-bars` do núcleo serve.
+- [x] T2.2 Página de Ciclismo: seletor de período + `SurfaceCard` (herói + barra
+      + legenda + rodapé com cobertura e % inferido). Aprovado pelo Sydnei em
+      06/09 sobre o mockup; visível só quando há pedalada com piso.
 - [ ] T2.3 Tabela como alternativa ao gráfico (acessibilidade).
 
 ## Fase 3 — Por pedalada
 
-- [ ] T3.1 Barra fina de piso no detalhe, embaixo do mapa.
+- [x] T3.1 O MESMO cartão no detalhe da pedalada (pedido do Sydnei em 06/09: "inclua"),
+      logo depois do percurso; some enquanto o passe não calculou.
 - [ ] T3.2 Toque pinta a rota por segmento (overview 1/40 → blocos de ~200 m no
       track cheio, ou interpolar — decidir).
 

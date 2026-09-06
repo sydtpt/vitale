@@ -13,7 +13,16 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Activity } from '@vitale/shared';
-import { BEST_EFFORT_DISTANCES, gearForActivity, gearUsage, ridesByCountry } from '@vitale/shared';
+import {
+  BEST_EFFORT_DISTANCES,
+  SURFACE_RANGES,
+  gearForActivity,
+  gearUsage,
+  ridesByCountry,
+  summarizeSurface,
+  surfaceWindow,
+  type SurfaceRange,
+} from '@vitale/shared';
 
 /** As distâncias padrão — os recordes por distância agora vivem na curva, não em cards. */
 const EFFORT_KEYS = new Set(BEST_EFFORT_DISTANCES.map((d) => d.key));
@@ -52,6 +61,9 @@ import { TypeEvolutionCard } from '../../components/cards/TypeEvolutionCard';
 import { EffortTrendCard } from '../../components/cards/EffortTrendCard';
 import { RecurringRoutesCard } from '../../components/cards/RecurringRoutesCard';
 import { RecordCurveCard } from '../../components/cards/RecordCurveCard';
+import { SurfaceCard } from '../../components/cards/SurfaceCard';
+
+const SURFACE_OPTIONS = SURFACE_RANGES.map((r) => ({ key: r.id, label: r.label }));
 
 /**
  * Largura fixa do cartão de recorde. Precisa ser fixa para o `snapToInterval`
@@ -71,6 +83,17 @@ function parseInputDate(s: string): string | undefined {
   if (!m) return undefined;
   const [, d, mo, y] = m;
   return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
+/**
+ * O rodapé do cartão de piso diz de onde o número veio: quantas pedaladas da
+ * janela entraram na soma e quanto do piso foi inferido pelo tipo de via em vez
+ * de lido de uma tag — o "não sei" tem que ser visível (ADR 0034).
+ */
+function surfaceCaption(count: number, withSurface: number, inferidoM: number, totalM: number, period: string): string {
+  const cover = withSurface === count ? `${count} pedaladas` : `${withSurface} de ${count} pedaladas com piso`;
+  const inf = totalM > 0 ? Math.round((inferidoM / totalM) * 100) : 0;
+  return `${period} · ${cover}${inf > 0 ? ` · ${inf}% inferido pelo tipo de via` : ''}`;
 }
 
 function numOr(s: string): number | undefined {
@@ -256,6 +279,16 @@ export default function TipoListScreen() {
   );
   const sources = useMemo(() => distinctSources(typed), [typed]);
 
+  // ── piso (ADR 0034): soma do período, sob a lente de bicicleta ────
+  // Só aparece quando alguma pedalada do tipo já tem piso calculado — corrida
+  // e yoga nunca terão, e um cartão vazio não diz nada.
+  const [surfaceRange, setSurfaceRange] = useState<SurfaceRange>('tudo');
+  const hasSurface = useMemo(() => typed.some((a) => a.surfaceMix && a.surfaceMix.total > 0), [typed]);
+  const surface = useMemo(
+    () => (hasSurface ? summarizeSurface(typed, surfaceWindow(surfaceRange)) : null),
+    [typed, surfaceRange, hasSurface],
+  );
+
   // ── estado dos filtros (inputs crus) ──────────────────────────
   const [showFilters, setShowFilters] = useState(false);
   const [showSort, setShowSort] = useState(false);
@@ -398,6 +431,15 @@ export default function TipoListScreen() {
                   ]}
                   value={gearId}
                   onChange={setGearId}
+                />
+              </View>
+            )}
+            {surface && (
+              <View style={styles.surfaceWrap}>
+                <Segmented options={SURFACE_OPTIONS} value={surfaceRange} onChange={setSurfaceRange} />
+                <SurfaceCard
+                  mix={surface.mix}
+                  caption={surfaceCaption(surface.count, surface.withSurface, surface.mix.inferido, surface.mix.total, surfaceWindow(surfaceRange).label)}
                 />
               </View>
             )}
@@ -665,6 +707,7 @@ const styles = themed(() => StyleSheet.create({
 
   list: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: 10 },
   gearSeg: { marginBottom: 10 },
+  surfaceWrap: { gap: 10 },
 
   hlWrap: { marginBottom: 14, gap: spacing.sm },
   hlTitle: {
