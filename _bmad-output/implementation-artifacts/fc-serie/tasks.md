@@ -68,7 +68,9 @@ Branch `feat/fc-serie`, criada da `main` em 05/09/2026 (worktree `.claude/worktr
 - [ ] **T3.3** Conferir no navegador (`/saude`) e no iPhone (detalhe de Freq. cardíaca, Dia).
       Build Release instalado e aberto no iPhone em 06/09/2026 (diretório principal, sono + série);
       falta o olhar do usuário no aparelho e no navegador.
-- [ ] **T3.4** Abrir a PR depois da PR #1 do sono, ou com ela como base.
+- [x] **T3.4** Na main em 06/09/2026: a PR #1 do sono já tinha entrado em `origin/main` por
+      fast-forward com os mesmos SHAs, então `main` avançou por fast-forward até `830f019` e foi
+      pushada, com `feat/fc-serie` junto. Sem PR própria. Worktree removido; a branch ficou.
 
 ## Diferido
 
