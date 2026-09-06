@@ -104,6 +104,29 @@ describe('cyclingHighlights (recordes de elevação)', () => {
     expect(byKey['elev12mo'].caption).toBe('1 pedalada');
   });
 
+  // A tira virou uma fileira só, então a ORDEM da lista é a ordem na tela: os
+  // recordes de sempre antes dos agregados de doze meses.
+  it('ordena recorde de sempre antes do agregado de 12 meses', () => {
+    const hi = activityHighlights(
+      [
+        ride({ id: 'hilly', distanceM: 40000, elevationM: 850 }),
+        ride({ id: 'long', distanceM: 60000, elevationM: 120 }),
+      ],
+      13,
+    );
+    expect(hi.map((h) => h.key)).toEqual(['longest', 'maxElev', 'last12mo', 'elev12mo']);
+  });
+
+  // O total do histórico virou a manchete do cabeçalho: aqui ele seria o mesmo
+  // número num segundo lugar, e o leitor pararia para conferir se batem.
+  it('não emite mais o cartão "Total"', () => {
+    const hi = activityHighlights([ride({ distanceM: 40000, elevationM: 100 })], 13);
+    expect(hi.find((h) => h.key === 'total')).toBeUndefined();
+
+    const corrida = runningHighlights([run({ distanceM: 10000 })]);
+    expect(corrida.find((h) => h.key === 'total')).toBeUndefined();
+  });
+
   it('sem elevação → sem cards de elevação; corrida nunca os exibe', () => {
     const semElev = activityHighlights([ride({ distanceM: 20000 })], 13);
     expect(semElev.find((h) => h.key === 'maxElev')).toBeUndefined();

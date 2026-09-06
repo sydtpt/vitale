@@ -3,8 +3,9 @@
  * ciclismo), derivados das atividades já carregadas. Módulo puro — a UI só
  * renderiza o resultado.
  *
- * - Maior distância, km dos últimos 12 meses e total vêm de `distanceM` (qualquer
- *   tipo habilitado).
+ * - Maior distância e km dos últimos 12 meses vêm de `distanceM` (qualquer tipo
+ *   habilitado). O total do histórico **não** está aqui: virou a manchete do
+ *   cabeçalho da tela, para não existir em dois lugares.
  * - Os recordes por distância (1/5/10/20 km, meia, 30/40 km, maratona) vêm de
  *   `bestEfforts`, calculado no sync a partir do track GPS — só corrida.
  * - Os recordes de elevação (maior ganho, acumulado 12 meses) vêm de
@@ -33,6 +34,15 @@ const ACTIVITY_NOUN: Record<number, { one: string; many: string }> = {
 function noun(activityId: number, n: number): string {
   const w = ACTIVITY_NOUN[activityId] ?? { one: 'atividade', many: 'atividades' };
   return `${n} ${n === 1 ? w.one : w.many}`;
+}
+
+/**
+ * O mesmo substantivo, para a manchete do cabeçalho ("148 pedaladas"). Vive
+ * aqui porque a tabela já vive aqui — dois mapas de plural para os mesmos
+ * esportes divergiriam no dia em que um terceiro esporte entrasse.
+ */
+export function activityNoun(activityId: number, n: number): string {
+  return noun(activityId, n);
 }
 
 export interface ActivityHighlight {
@@ -64,7 +74,14 @@ export function activityHighlights(activities: Activity[], activityId: number): 
 
   const out: ActivityHighlight[] = [];
 
-  // ── Linha 1: distâncias (resumo) ──────────────────────────────
+  // A ORDEM AQUI É A ORDEM NA TELA. A tira virou uma fileira só — antes eram
+  // duas, `summary` em cima e `record` embaixo — então quem define a leitura
+  // é esta sequência, e não mais o `group`. Primeiro os recordes de sempre,
+  // depois os agregados de doze meses: "o meu melhor" antes de "o meu último
+  // ano" é a ordem em que a pergunta é feita.
+  const cutoff = Date.now() - TWELVE_MONTHS_MS;
+  const recent = items.filter((a) => new Date(a.startAt).getTime() >= cutoff);
+
   // #0 — Maior distância já percorrida.
   let longest: Activity | undefined;
   for (const a of items) {
@@ -82,9 +99,27 @@ export function activityHighlights(activities: Activity[], activityId: number): 
     });
   }
 
-  // #1 — Km nos últimos 12 meses (agregado, sem link).
-  const cutoff = Date.now() - TWELVE_MONTHS_MS;
-  const recent = items.filter((a) => new Date(a.startAt).getTime() >= cutoff);
+  // #1 (ciclismo) — Maior ganho de elevação em uma única pedalada.
+  if (activityId === CYCLING_ACTIVITY_ID) {
+    let maxElev: Activity | undefined;
+    for (const a of items) {
+      if ((a.elevationM ?? 0) > (maxElev?.elevationM ?? 0)) maxElev = a;
+    }
+    const maxElevValue = maxElev ? formatElevation(maxElev.elevationM ?? 0) : null;
+    if (maxElev && maxElevValue) {
+      out.push({
+        key: 'maxElev',
+        label: 'Maior elevação',
+        value: maxElevValue,
+        caption: formatDateLabel(maxElev.startAt),
+        group: 'record',
+        role: highlightRole('maxElev'),
+        activityId: maxElev.id,
+      });
+    }
+  }
+
+  // #2 — Km nos últimos 12 meses (agregado, sem link).
   const recentM = recent.reduce((sum, a) => sum + (a.distanceM ?? 0), 0);
   if (recentM > 0) {
     out.push({
@@ -97,21 +132,30 @@ export function activityHighlights(activities: Activity[], activityId: number): 
     });
   }
 
-  // #2 — Total em todo o histórico (agregado, sem link).
-  const totalM = items.reduce((sum, a) => sum + (a.distanceM ?? 0), 0);
-  if (totalM > 0) {
-    out.push({
-      key: 'total',
-      label: 'Total',
-      value: fmtKm(totalM),
-      caption: noun(activityId, items.length),
-      group: 'summary',
-      role: highlightRole('total'),
-    });
+  // #3 (ciclismo) — Elevação acumulada nos últimos 12 meses (sem link).
+  if (activityId === CYCLING_ACTIVITY_ID) {
+    const climbed = recent.filter((a) => (a.elevationM ?? 0) > 0);
+    const elev12moValue = formatElevation(climbed.reduce((sum, a) => sum + (a.elevationM ?? 0), 0));
+    if (elev12moValue) {
+      out.push({
+        key: 'elev12mo',
+        label: 'Elevação 12 meses',
+        value: elev12moValue,
+        caption: noun(activityId, climbed.length),
+        group: 'record',
+        role: highlightRole('elev12mo'),
+      });
+    }
   }
 
-  // ── Linha 2: recordes por distância (best efforts), ordem decrescente ──
-  // Só corrida tem best efforts; ciclismo tem recordes de elevação abaixo.
+  // O cartão "Total" saiu daqui: o mesmo número aparecia no subtítulo do
+  // cabeçalho, no cartão e no rodapé do Piso, e um número repetido não é
+  // reforço — faz parar para conferir se são o mesmo. Agora ele é a manchete
+  // do cabeçalho, com `activityNoun`, e sobrou uma fileira em vez de duas.
+
+  // ── Recordes por distância (best efforts) — só corrida ────────
+  // A tela do tipo não os desenha (viraram a curva de recordes); quem os lê é
+  // o badge de recorde no detalhe da corrida, via `activityRecordBadges`.
   if (activityId === RUNNING_ACTIVITY_ID) {
     for (const { key, label, meters } of [...BEST_EFFORT_DISTANCES].reverse()) {
       let best: { activity: Activity; secs: number } | undefined;
@@ -136,41 +180,6 @@ export function activityHighlights(activities: Activity[], activityId: number): 
     }
   }
 
-  // ── Linha 2 (ciclismo): recordes de elevação ──────────────────
-  if (activityId === CYCLING_ACTIVITY_ID) {
-    // Maior ganho de elevação em uma única pedalada.
-    let maxElev: Activity | undefined;
-    for (const a of items) {
-      if ((a.elevationM ?? 0) > (maxElev?.elevationM ?? 0)) maxElev = a;
-    }
-    const maxElevValue = maxElev ? formatElevation(maxElev.elevationM ?? 0) : null;
-    if (maxElev && maxElevValue) {
-      out.push({
-        key: 'maxElev',
-        label: 'Maior elevação',
-        value: maxElevValue,
-        caption: formatDateLabel(maxElev.startAt),
-        group: 'record',
-        role: highlightRole('maxElev'),
-        activityId: maxElev.id,
-      });
-    }
-
-    // Elevação acumulada nos últimos 12 meses (agregado, sem link).
-    const climbed = recent.filter((a) => (a.elevationM ?? 0) > 0);
-    const elev12moValue = formatElevation(climbed.reduce((sum, a) => sum + (a.elevationM ?? 0), 0));
-    if (elev12moValue) {
-      out.push({
-        key: 'elev12mo',
-        label: 'Elevação 12 meses',
-        value: elev12moValue,
-        caption: noun(activityId, climbed.length),
-        group: 'record',
-        role: highlightRole('elev12mo'),
-      });
-    }
-  }
-
   return out;
 }
 
@@ -180,7 +189,7 @@ export function runningHighlights(activities: Activity[]): ActivityHighlight[] {
 }
 
 /** Highlights agregados — não pertencem a uma única atividade, então não viram badge. */
-const AGGREGATE_KEYS = new Set<string>(['last12mo', 'total', 'elev12mo']);
+const AGGREGATE_KEYS = new Set<string>(['last12mo', 'elev12mo']);
 
 export interface RecordBadge {
   key: string;

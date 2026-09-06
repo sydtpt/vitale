@@ -534,7 +534,10 @@ const TEXT_ACCENT: { label: string; files: string[]; re: RegExp; max: number }[]
     label: 'mobile — color: colors.<acento>',
     files: mobileFiles,
     re: /color:\s*colors\.(primary|primaryDeep|yellow|green|rose|blue|casa|teal|red|purple)\b/g,
-    max: 29,
+    // 29 → 28 quando a faixa "Visão detalhada" virou o chip Mapa no cabeçalho
+    // da tela de um tipo: o rótulo em marca saiu junto, e quem sinaliza a saída
+    // agora é o ícone, na cor do esporte.
+    max: 28,
   },
   {
     label: 'web — color: var(--acento)',

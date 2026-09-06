@@ -25,6 +25,7 @@ export function TypeEvolutionCard({
   color,
   weeks = 12,
   now,
+  emptyLabel,
 }: {
   /** O histórico inteiro do tipo — o recorte por rótulo é feito aqui. */
   activities: Activity[];
@@ -34,6 +35,15 @@ export function TypeEvolutionCard({
   color: string;
   weeks?: number;
   now?: Date;
+  /**
+   * O que dizer quando não há nada nas duas janelas, em vez de sumir.
+   *
+   * Sumir é o certo quando o card está numa pilha — ninguém sente falta do que
+   * nunca esteve lá. Mas dentro de uma **aba** sumir vira uma aba selecionada e
+   * vazia, que se lê como defeito. É o caso real da lente numa bicicleta velha:
+   * a Riverside não roda desde maio, e a aba Evolução ficaria em branco.
+   */
+  emptyLabel?: string;
 }) {
   const styles = useThemedStyles(createStyles);
   const { width } = useWindowDimensions();
@@ -56,7 +66,17 @@ export function TypeEvolutionCard({
 
   // Nem a janela nem a anterior tiveram nada: seriam doze barras de altura zero,
   // que parecem defeito e não dizem nada que a contagem do topo já não diga.
-  if (trend.total === 0 && trend.previousTotal === 0) return null;
+  if (trend.total === 0 && trend.previousTotal === 0) {
+    if (!emptyLabel) return null;
+    return (
+      <View style={styles.card}>
+        <View style={styles.head}>
+          <Text style={styles.title}>Evolução</Text>
+        </View>
+        <Text style={styles.empty}>{emptyLabel}</Text>
+      </View>
+    );
+  }
 
   const delta = totalsDelta(trend.total, trend.previousTotal);
 
@@ -117,4 +137,5 @@ const createStyles = () =>
     deltaDown: { color: roleColors('red').text },
     deltaFlat: { color: colors.ink4 },
     caption: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink3 },
+    empty: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, paddingVertical: spacing.md },
   });

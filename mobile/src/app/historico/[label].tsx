@@ -43,7 +43,7 @@ import {
   formatDuration,
   formatDistance,
 } from '../../lib/workout-format';
-import { activityHighlights, type ActivityHighlight } from '../../lib/running-highlights';
+import { activityHighlights, activityNoun, type ActivityHighlight } from '../../lib/running-highlights';
 import {
   colors,
   fonts,
@@ -57,6 +57,7 @@ import {
 } from '../../theme';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
 import { Segmented } from '../../components/ui/Segmented';
+import { PanelTabs, type Panel } from '../../components/ui/PanelTabs';
 import { TypeEvolutionCard } from '../../components/cards/TypeEvolutionCard';
 import { EffortTrendCard } from '../../components/cards/EffortTrendCard';
 import { RecurringRoutesCard } from '../../components/cards/RecurringRoutesCard';
@@ -165,13 +166,16 @@ function HighlightsRow({
   items: ActivityHighlight[];
   onPick: (id: string) => void;
 }) {
-  // Linha 1 → distâncias (resumo). Linha 2 → recordes que não são por distância
-  // (a elevação do ciclismo). Os oito cards de best effort saíram daqui: viraram
-  // a curva de recordes logo abaixo, que mostra os mesmos números como forma e,
-  // no toque, com data e link. Dois lugares para o mesmo número, na mesma tela,
-  // era ruído. Os badges do herói e o ranking continuam vendo tudo.
-  const summary = items.filter((h) => h.group === 'summary');
-  const records = items.filter((h) => h.group === 'record' && !EFFORT_KEYS.has(h.key));
+  // UMA fileira, não duas. Eram duas — resumo em cima, recordes embaixo — para
+  // cinco números, e duas fileiras de carrossel custam 214 pt logo no topo da
+  // tela. Sem o cartão "Total" (que virou a manchete do cabeçalho) sobram
+  // quatro no Ciclismo e dois na Corrida: cabem numa fileira só, e os Recordes
+  // voltam a ser a primeira coisa que se lê.
+  //
+  // Os oito cards de best effort continuam de fora: viraram a curva de
+  // recordes, que mostra os mesmos números como forma e, no toque, com data e
+  // link. Os badges do herói e o ranking continuam vendo tudo.
+  const cards = items.filter((h) => !EFFORT_KEYS.has(h.key));
 
   // A casca sai do tema, não do esquema: temas que não dão preenchimento ao card
   // (Clean) pintam a cor na borda, e o valor usa `text` em vez de `on`. Ver a
@@ -236,11 +240,12 @@ function HighlightsRow({
     </ScrollView>
   );
 
+  if (cards.length === 0) return null;
+
   return (
     <View style={styles.hlWrap}>
       <Text style={styles.hlTitle}>Recordes</Text>
-      {summary.length > 0 && row(summary)}
-      {records.length > 0 && row(records)}
+      {row(cards)}
     </View>
   );
 }
@@ -350,6 +355,31 @@ export default function TipoListScreen() {
   /** Mesma regra do card do tipo: mede em km quem tem distância, em min o resto. */
   const hasDistance = useMemo(() => typed.some((a) => (a.distanceM ?? 0) > 0), [typed]);
 
+  /**
+   * A manchete do cabeçalho: o que este esporte é, em dois números.
+   *
+   * Existe porque o cartão "Total" saiu da tira de Recordes — o mesmo número
+   * morava no subtítulo, no cartão e no rodapé do Piso, e número repetido não é
+   * reforço: faz parar para conferir se são o mesmo. Responde à lente, como
+   * tudo abaixo dela: "1.321 km · 22 pedaladas" é a Nuroad, não o histórico.
+   *
+   * Com filtro ligado ela cede o lugar para a contagem. Saber que 12 de 148
+   * passaram é mais urgente que o total, e é a única resposta que a tela dá
+   * sobre o filtro ter pegado alguma coisa.
+   */
+  const headline = useMemo(() => {
+    const n = typed.length;
+    if (n === 0) return 'nenhuma atividade';
+    const noun = activityNoun(typed[0].activityId, n);
+    if (filtered.length !== n) return `${filtered.length} de ${noun}`;
+    if (!hasDistance) {
+      const secs = typed.reduce((s, a) => s + (a.movingTimeS ?? a.durationS), 0);
+      return `${formatDuration(secs)} · ${noun}`;
+    }
+    const km = typed.reduce((s, a) => s + (a.distanceM ?? 0), 0) / 1000;
+    return `${km.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km · ${noun}`;
+  }, [typed, filtered.length, hasDistance]);
+
   // Recordes do tipo (corrida/ciclismo) — de todo o histórico, sem os filtros
   // da lista; a lente de bicicleta, essa vale.
   const highlights = useMemo(() => {
@@ -357,8 +387,67 @@ export default function TipoListScreen() {
     return id != null ? activityHighlights(typed, id) : [];
   }, [typed]);
 
-  // Só mostra "Visão detalhada" quando há país resolvido (cidades enriquecidas).
+  // Só mostra o Mapa quando há país resolvido (cidades enriquecidas).
   const hasCountries = useMemo(() => ridesByCountry(typed).length > 0, [typed]);
+
+  /**
+   * Os painéis de leitura, um por vez.
+   *
+   * Evolução e Piso empilhados custavam 500 pt e competiam: dois cartões
+   * densos, um atrás do outro, e a lista de pedaladas nascia na segunda
+   * rolagem. Em abas custam 276 e se revezam.
+   *
+   * Evolução é a aba padrão porque "como estou indo" é pergunta de todo dia e
+   * "onde ando pisando" é de todo mês. O Piso só vira aba quando existe — a
+   * corrida nunca terá piso medido, e aba vazia é pior que aba nenhuma.
+   *
+   * A Curva, o Melhor-por-mês e as Rotas continuam **fora** do painel, abaixo
+   * dele: no Ciclismo nenhum deles renderiza (não há `bestEfforts`, e ciclismo
+   * não repete rota), e na Corrida quatro abas apertam a barra. Essa é a
+   * decisão que espera conferência no aparelho.
+   */
+  const panels = useMemo<Panel[]>(() => {
+    const out: Panel[] = [
+      {
+        key: 'evolucao',
+        label: 'Evolução',
+        render: () => (
+          <TypeEvolutionCard
+            activities={typed}
+            label={label}
+            hasDistance={hasDistance}
+            color={meta.color}
+            // Só dentro do painel: numa pilha, sumir é o certo; numa aba
+            // selecionada, sumir vira tela em branco. Acontece de verdade com a
+            // lente numa bicicleta parada há meses.
+            emptyLabel={surface ? 'Nada nas últimas 24 semanas com esta lente.' : undefined}
+          />
+        ),
+      },
+    ];
+    if (surface) {
+      out.push({
+        key: 'piso',
+        label: 'Piso',
+        render: () => (
+          <View style={styles.surfaceWrap}>
+            <Segmented options={SURFACE_OPTIONS} value={surfaceRange} onChange={setSurfaceRange} />
+            <SurfaceCard
+              mix={surface.mix}
+              caption={surfaceCaption(
+                surface.count,
+                surface.withSurface,
+                surface.mix.inferido,
+                surface.mix.total,
+                surfaceWindow(surfaceRange).label,
+              )}
+            />
+          </View>
+        ),
+      });
+    }
+    return out;
+  }, [typed, label, hasDistance, meta.color, surface, surfaceRange]);
 
   const goToWorkout = useCallback(
     (id: string) =>
@@ -408,13 +497,114 @@ export default function TipoListScreen() {
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{label}</Text>
-          <Text style={styles.headerSub}>
-            {filtered.length} de {typed.length}{' '}
-            {typed.length === 1 ? 'atividade' : 'atividades'}
-          </Text>
+          <Text style={styles.headerSub} numberOfLines={1}>{headline}</Text>
         </View>
         <HeaderSpacer />
       </View>
+
+      {/* A lente e a saída, fixas acima da lista.
+          A bicicleta governa TUDO abaixo — manchete, recordes, painéis e lista —
+          e vivia na barra de filtros, depois de tudo que comanda: dava para ler
+          "87% pavimentado" sem saber de qual bike. Aqui ela fica à vista mesmo
+          com a lista rolada, que é quando a pergunta "de qual bike é isto?"
+          aparece. O Mapa vem junto porque é saída, não dado — era uma faixa de
+          largura inteira só para dizer que existe outra tela; na web ele já
+          mora no cabeçalho, e agora as duas plataformas concordam. */}
+      {(bikes.length > 0 || hasCountries) && (
+        <View style={styles.lensWrap}>
+          <View style={styles.lensRow}>
+            {bikes.length > 0 && (
+              <Pressable
+                onPress={() => {
+                  setShowGear((v) => !v);
+                  setShowSort(false);
+                  setShowFilters(false);
+                }}
+                style={({ pressed }) => [
+                  styles.filterToggle,
+                  styles.lensGrow,
+                  gearId !== 'all' && styles.filterToggleOn,
+                  pressed && styles.pressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Filtrar por bicicleta"
+              >
+                <MaterialCommunityIcons
+                  name="bike"
+                  size={16}
+                  color={gearId === 'all' ? colors.ink2 : colors.bgPure}
+                />
+                <Text
+                  style={[styles.filterToggleText, gearId !== 'all' && styles.filterToggleTextOn]}
+                  numberOfLines={1}
+                >
+                  {gearLabel}
+                </Text>
+                <Ionicons
+                  name={showGear ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={gearId === 'all' ? colors.ink3 : colors.bgPure}
+                />
+              </Pressable>
+            )}
+
+            {hasCountries && (
+              <Pressable
+                onPress={() =>
+                  router.push({ pathname: '/historico/[label]/mapa', params: { label } })
+                }
+                style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Visão detalhada por país"
+              >
+                <Ionicons name="map-outline" size={16} color={meta.color} />
+                <Text style={styles.filterToggleText}>Mapa</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {showGear && (
+            <View style={styles.sortPanel}>
+              {[{ id: 'all', name: 'Todas as bicicletas', sub: `${typedAll.length} saídas` },
+                ...bikes.map((u) => ({
+                  id: u.gear.id,
+                  name: u.gear.name,
+                  sub: `${u.count} · ${Math.round(u.distanceM / 1000).toLocaleString('pt-BR')} km`,
+                }))].map((o) => {
+                const active = gearId === o.id;
+                return (
+                  <Pressable
+                    key={o.id}
+                    onPress={() => {
+                      setGearId(o.id);
+                      setShowGear(false);
+                    }}
+                    style={({ pressed }) => [styles.sortOption, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.sortOptionText, active && styles.sortOptionTextActive]}>
+                      {o.name}
+                    </Text>
+                    <Text style={styles.gearOptionSub}>{o.sub}</Text>
+                    {active && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                  </Pressable>
+                );
+              })}
+              {/* A vontade de cadastrar aparece aqui, escolhendo bicicleta e não
+                  achando a que se quer — então é daqui que se chega à tela. */}
+              <Pressable
+                onPress={() => {
+                  setShowGear(false);
+                  router.push('/bicicletas');
+                }}
+                style={({ pressed }) => [styles.sortOption, pressed && styles.pressed]}
+              >
+                <Text style={[styles.sortOptionText, styles.gearManage]}>Gerenciar bicicletas</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.ink3} />
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
 
       <FlatList
         data={data}
@@ -427,44 +617,22 @@ export default function TipoListScreen() {
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
           <View>
-            {surface && (
-              <View style={styles.surfaceWrap}>
-                <Segmented options={SURFACE_OPTIONS} value={surfaceRange} onChange={setSurfaceRange} />
-                <SurfaceCard
-                  mix={surface.mix}
-                  caption={surfaceCaption(surface.count, surface.withSurface, surface.mix.inferido, surface.mix.total, surfaceWindow(surfaceRange).label)}
-                />
-              </View>
-            )}
-            {hasCountries && (
-              <Pressable
-                onPress={() => router.push({ pathname: '/historico/[label]/mapa', params: { label } })}
-                style={({ pressed }) => [styles.detailBtn, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Visão detalhada por país"
-              >
-                <Ionicons name="map-outline" size={18} color={colors.primary} />
-                <Text style={styles.detailBtnText}>Visão detalhada</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.ink3} />
-              </Pressable>
-            )}
+            {/* Os Recordes são a primeira coisa — o que a tela promete. O Piso
+                os havia empurrado para baixo da dobra: contexto tinha virado
+                manchete, e o que se abre a tela para ver ficou em terceiro. */}
             {highlights.length > 0 && (
               <HighlightsRow items={highlights} onPick={goToWorkout} />
             )}
 
             {/* Depois dos recordes, de propósito: eles contam o que já
-                aconteceu, este conta para onde está indo. */}
+                aconteceu, o painel conta para onde está indo — e onde se pisa. */}
+            <PanelTabs panels={panels} />
+
             {/* Os recordes em forma: os mesmos pontos da tira acima, num eixo
                 só, para ler onde é forte e onde cai. Some com menos de duas marcas. */}
             {typed[0] && (
               <RecordCurveCard activities={gearId === 'all' ? _all : typed} sportId={typed[0].activityId} color={meta.color} onPick={goToWorkout} />
             )}
-            <TypeEvolutionCard
-              activities={typed}
-              label={label}
-              hasDistance={hasDistance}
-              color={meta.color}
-            />
             {/* Volume responde "quanto"; isto responde "estou diminuindo?" —
                 o melhor por distância, contra o recorde. Some quando o tipo
                 não tem marca nenhuma. */}
@@ -511,84 +679,11 @@ export default function TipoListScreen() {
                 />
               </Pressable>
 
-              {/* A bicicleta é um filtro, e entra na barra dos filtros — não numa
-                  linha só dela. Selecionada, o chip fica cheio e mostra o nome,
-                  para a lente não ficar ligada sem ninguém ver. */}
-              {bikes.length > 0 && (
-                <Pressable
-                  onPress={() => {
-                    setShowGear((v) => !v);
-                    setShowSort(false);
-                    setShowFilters(false);
-                  }}
-                  style={({ pressed }) => [
-                    styles.filterToggle,
-                    gearId !== 'all' && styles.filterToggleOn,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Filtrar por bicicleta"
-                >
-                  <MaterialCommunityIcons
-                    name="bike"
-                    size={16}
-                    color={gearId === 'all' ? colors.ink2 : colors.bgPure}
-                  />
-                  <Text
-                    style={[styles.filterToggleText, gearId !== 'all' && styles.filterToggleTextOn]}
-                    numberOfLines={1}
-                  >
-                    {gearLabel}
-                  </Text>
-                  <Ionicons
-                    name={showGear ? 'chevron-up' : 'chevron-down'}
-                    size={16}
-                    color={gearId === 'all' ? colors.ink3 : colors.bgPure}
-                  />
-                </Pressable>
-              )}
+              {/* A bicicleta saiu daqui: ela não é um filtro entre outros, é a
+                  lente que governa a tela inteira — e mora no cabeçalho, acima
+                  do que comanda. Com dois chips a linha volta a caber sem
+                  quebrar, que era o outro defeito. */}
             </View>
-
-            {showGear && (
-              <View style={styles.sortPanel}>
-                {[{ id: 'all', name: 'Todas as bicicletas', sub: `${typedAll.length} saídas` },
-                  ...bikes.map((u) => ({
-                    id: u.gear.id,
-                    name: u.gear.name,
-                    sub: `${u.count} · ${Math.round(u.distanceM / 1000).toLocaleString('pt-BR')} km`,
-                  }))].map((o) => {
-                  const active = gearId === o.id;
-                  return (
-                    <Pressable
-                      key={o.id}
-                      onPress={() => {
-                        setGearId(o.id);
-                        setShowGear(false);
-                      }}
-                      style={({ pressed }) => [styles.sortOption, pressed && styles.pressed]}
-                    >
-                      <Text style={[styles.sortOptionText, active && styles.sortOptionTextActive]}>
-                        {o.name}
-                      </Text>
-                      <Text style={styles.gearOptionSub}>{o.sub}</Text>
-                      {active && <Ionicons name="checkmark" size={18} color={colors.primary} />}
-                    </Pressable>
-                  );
-                })}
-                {/* A vontade de cadastrar aparece aqui, escolhendo bicicleta e não
-                    achando a que se quer — então é daqui que se chega à tela. */}
-                <Pressable
-                  onPress={() => {
-                    setShowGear(false);
-                    router.push('/bicicletas');
-                  }}
-                  style={({ pressed }) => [styles.sortOption, pressed && styles.pressed]}
-                >
-                  <Text style={[styles.sortOptionText, styles.gearManage]}>Gerenciar bicicletas</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.ink3} />
-                </Pressable>
-              </View>
-            )}
 
             {showSort && (
               <View style={styles.sortPanel}>
@@ -744,19 +839,11 @@ const styles = themed(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   pressed: { opacity: 0.7 },
-  detailBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-  },
-  detailBtnText: { flex: 1, fontSize: 14, fontFamily: fonts.sansBold, color: colors.primary },
+  // A lente vive fora da FlatList, e por isso fica fixa: a pergunta "de qual
+  // bike é isto?" aparece justamente com a lista rolada.
+  lensWrap: { paddingHorizontal: spacing.lg, paddingBottom: 10, gap: 10 },
+  lensRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  lensGrow: { flex: 1 },
   header: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -814,10 +901,9 @@ const styles = themed(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    // Com o chip de bicicleta a linha ganhou um terceiro controle, e nome de
-    // bicicleta é longo ("Cube Nuroad SLX"): sem quebra, o chip saía pela borda
-    // da tela. Quebrando, ele desce inteiro e legível em vez de ser cortado —
-    // e nos tipos sem bicicleta a linha continua com dois chips, como era.
+    // A quebra fica mesmo com o chip de bicicleta fora daqui: rótulo de ordem
+    // é longo ("Maior distância") e o aparelho pode estar em fonte grande.
+    // Quebrando, o chip desce inteiro e legível em vez de ser cortado.
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
