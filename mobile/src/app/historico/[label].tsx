@@ -575,8 +575,18 @@ export default function TipoListScreen() {
                     </Pressable>
                   );
                 })}
-                {/* Aqui entra "Gerenciar bicicletas ›" quando a tela tiver endereço:
-                    é escolhendo bicicleta que a vontade de cadastrar aparece. */}
+                {/* A vontade de cadastrar aparece aqui, escolhendo bicicleta e não
+                    achando a que se quer — então é daqui que se chega à tela. */}
+                <Pressable
+                  onPress={() => {
+                    setShowGear(false);
+                    router.push('/bicicletas');
+                  }}
+                  style={({ pressed }) => [styles.sortOption, pressed && styles.pressed]}
+                >
+                  <Text style={[styles.sortOptionText, styles.gearManage]}>Gerenciar bicicletas</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.ink3} />
+                </Pressable>
               </View>
             )}
 
@@ -771,6 +781,9 @@ const styles = themed(() => StyleSheet.create({
   list: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: 10 },
   surfaceWrap: { gap: 10, marginBottom: 10 },
   gearOptionSub: { marginLeft: 'auto', marginRight: spacing.sm, fontSize: 11.5, fontFamily: fonts.mono, color: colors.ink3 },
+  // Tinta, não marca: a catraca da ADR 0024 não deixa o acento crescer como cor
+  // de letra, e quem sinaliza navegação aqui é o chevron.
+  gearManage: { color: colors.ink, fontFamily: fonts.sansSemiBold },
 
   hlWrap: { marginBottom: 14, gap: spacing.sm },
   hlTitle: {

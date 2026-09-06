@@ -4,6 +4,7 @@ import {
   fetchActivities,
   fetchRouteOverviews,
   fetchRoutePoints,
+  setActivityGear,
   setActivityHidden,
   updateActivityFields,
 } from '@vitale/shared';
@@ -103,6 +104,8 @@ interface ActivitiesState {
   findById: (id: string) => Activity | undefined;
   updateActivity: (id: string, patch: ActivityPatch) => Promise<void>;
   setHidden: (id: string, hidden: boolean) => Promise<void>;
+  /** Exceção de bicicleta de uma pedalada; `null` devolve à herança por data. */
+  setGear: (id: string, gearId: string | null) => Promise<void>;
   loadRoute: (activityId: string) => Promise<void>;
   /**
    * Carrega em lote os overviews reduzidos (mapa por país). Busca só os ainda
@@ -203,6 +206,15 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
 
     set((state) => ({
       _all: state._all.map((a) => (a.id === id ? { ...a, hidden } : a)),
+    }));
+  },
+
+  setGear: async (id, gearId) => {
+    const uid = currentUserId();
+    if (!uid) throw new Error('Sessão não encontrada.');
+    await setActivityGear(supabase, uid, id, gearId);
+    set((state) => ({
+      _all: state._all.map((a) => (a.id === id ? { ...a, gearId: gearId ?? undefined } : a)),
     }));
   },
 

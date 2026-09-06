@@ -170,6 +170,7 @@ const createStyles = () =>
     actions: { flexDirection: 'row', gap: spacing.lg, marginTop: 4 },
     action: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     actionText: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
-    actionPrimary: { color: colors.primary },
+    // O ícone leva a marca; a letra fica na tinta (catraca da ADR 0024).
+    actionPrimary: { color: colors.ink },
     actionMuted: { color: colors.ink3 },
   });

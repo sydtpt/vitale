@@ -27,6 +27,10 @@ import {
 } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { useGearStore } from '../../../store/gear.store';
+import { GearPicker } from '../../../components/cards/GearPicker';
+
+/** Código de ciclismo do HealthKit — só pedalada tem bicicleta. */
+const BIKE_ACTIVITY_ID = 13;
 import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../lib/workout-types';
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
@@ -57,7 +61,7 @@ import {
 } from '../../../theme';
 import { HeaderSpacer } from '../../../components/ui/HeaderSpacer';
 
-type InfoRow = { label: string; value: string };
+type InfoRow = { label: string; value: string; onPress?: () => void };
 
 /**
  * Uma estatística da tira do herói.
@@ -101,6 +105,8 @@ export default function AtividadeDetalheScreen() {
   const routePoints = useActivitiesStore((s) => s.routes[id]);
   const gears = useGearStore((s) => s.gears);
   const loadGear = useGearStore((s) => s.load);
+  const setActivityGearId = useActivitiesStore((s) => s.setGear);
+  const [pickingGear, setPickingGear] = useState(false);
 
   const activity = useMemo(() => _all.find((a) => a.id === id), [_all, id]);
   // A bike desta pedalada: override explícito ou herança pela data (ADR 0033).
@@ -273,8 +279,18 @@ export default function AtividadeDetalheScreen() {
     { label: 'Distância', value: distance ?? '—' },
     { label: 'Fonte', value: activity.sourceName || '—' },
     { label: 'Dispositivo', value: activity.device || '—' },
-    // Só quando há bike resolvida: uma sessão de yoga não ganha "Bicicleta —".
-    ...(gear ? [{ label: 'Bicicleta', value: gear.name }] : []),
+    // Só em pedalada: uma sessão de yoga não ganha "Bicicleta —". Tocável porque
+    // é aqui que se conserta a fronteira de data errada por um dia, ou o dia em
+    // que se levou a outra bicicleta (ADR 0033 — a exceção por pedalada).
+    ...(gears.length > 0 && activity.activityId === BIKE_ACTIVITY_ID
+      ? [
+          {
+            label: 'Bicicleta',
+            value: gear ? `${gear.name}${activity.gearId ? ' · corrigida' : ''}` : 'Escolher',
+            onPress: () => setPickingGear(true),
+          },
+        ]
+      : []),
     {
       label: 'Rastreado',
       value: activity.tracked === undefined ? '—' : activity.tracked ? 'Sim' : 'Não',
@@ -424,6 +440,22 @@ export default function AtividadeDetalheScreen() {
             quando a corrida não tem GPS. */}
         <SegmentsCard activities={_all} activity={activity} />
 
+        <GearPicker
+          visible={pickingGear}
+          gears={gears}
+          current={activity.gearId ?? null}
+          inherited={gearForActivity(gears, { ...activity, gearId: undefined })}
+          onPick={async (gid) => {
+            setPickingGear(false);
+            try {
+              await setActivityGearId(activity.id, gid);
+            } catch {
+              // Sem sessão ou rede: a linha volta ao que era no próximo load.
+            }
+          }}
+          onClose={() => setPickingGear(false)}
+        />
+
         {hrZones && (
           <>
             <Text style={styles.sectionTitle}>Zonas de frequência cardíaca</Text>
@@ -502,17 +534,33 @@ export default function AtividadeDetalheScreen() {
 
         <Text style={styles.sectionTitle}>Todos os dados</Text>
         <View style={styles.infoCard}>
-          {rows.map((row, i) => (
-            <View
-              key={`${row.label}-${i}`}
-              style={[styles.infoRow, i < rows.length - 1 && styles.infoRowBorder]}
-            >
-              <Text style={styles.infoLabel}>{row.label}</Text>
-              <Text style={styles.infoValue} selectable numberOfLines={3}>
-                {row.value}
-              </Text>
-            </View>
-          ))}
+          {rows.map((row, i) => {
+            const border = i < rows.length - 1 && styles.infoRowBorder;
+            if (!row.onPress) {
+              return (
+                <View key={`${row.label}-${i}`} style={[styles.infoRow, border]}>
+                  <Text style={styles.infoLabel}>{row.label}</Text>
+                  <Text style={styles.infoValue} selectable numberOfLines={3}>
+                    {row.value}
+                  </Text>
+                </View>
+              );
+            }
+            return (
+              <Pressable
+                key={`${row.label}-${i}`}
+                onPress={row.onPress}
+                style={({ pressed }) => [styles.infoRow, border, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.infoLabel}>{row.label}</Text>
+                <Text style={[styles.infoValue, styles.infoValueTap]} numberOfLines={2}>
+                  {row.value}
+                </Text>
+                <Ionicons name="chevron-forward" size={15} color={colors.ink3} />
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -719,6 +767,9 @@ const styles = themed(() => StyleSheet.create({
   infoRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   infoLabel: { fontSize: 13.5, fontFamily: fonts.sans, color: colors.ink3, flexShrink: 0, maxWidth: '45%' },
   infoValue: { fontSize: 13.5, color: colors.ink, fontFamily: fonts.mono, flex: 1, textAlign: 'right' },
+  // Linha que abre algo: sai da mono para a sans semibold, e o chevron ao lado
+  // faz o resto. A marca não entra como cor de letra (catraca da ADR 0024).
+  infoValueTap: { fontFamily: fonts.sansSemiBold },
 
   emptyText: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink3 },
 }));
