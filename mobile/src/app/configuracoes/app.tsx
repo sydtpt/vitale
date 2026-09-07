@@ -289,6 +289,19 @@ export default function AppSettingsScreen() {
   const styles = useThemedStyles(createStyles);
   /** Ver a nota do swipe-back em `components/ui/Slider.tsx`. */
   const [arrastandoBlur, setArrastandoBlur] = useState(false);
+  /**
+   * Valor do blur enquanto o dedo está no slider.
+   *
+   * `updatePreferences` não é barato: por chamada ele re-renderiza tudo que lê
+   * tema, grava no AsyncStorage e faz um upsert no Supabase **pela rede**.
+   * Ligado ao `onChange` do arrasto, isso virava dezenas de idas ao servidor num
+   * gesto só — e o polegar, desenhado a partir do valor da store, ficava
+   * esperando o round-trip e brigando com o dedo.
+   *
+   * Agora o arrasto é local e a gravação acontece uma vez, ao soltar. Não há
+   * prévia a perder: o vidro é a barra de abas, que não está nesta tela.
+   */
+  const [blurLocal, setBlurLocal] = useState<number | null>(null);
   const { scheme, themeId, paletteId, brandId } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -300,7 +313,7 @@ export default function AppSettingsScreen() {
 
   const theme = preferences?.theme ?? 'system';
   const glass = preferences?.glassEnabled ?? false;
-  const blurIntensity = preferences?.blurIntensity ?? 50;
+  const blurIntensity = blurLocal ?? preferences?.blurIntensity ?? 50;
   const mapStyle = preferences?.mapStyle ?? 'voyager';
   const wallpaper = preferences?.wallpaper ?? 'flat';
 
@@ -416,8 +429,14 @@ export default function AppSettingsScreen() {
             </View>
             <BlurSlider
               value={blurIntensity}
-              onChange={(v) => updatePreferences({ blurIntensity: v })}
-              onDragging={setArrastandoBlur}
+              onChange={setBlurLocal}
+              onDragging={(ativo) => {
+                setArrastandoBlur(ativo);
+                // Soltou: uma gravação, com o valor final. `blurLocal` continua
+                // sendo o exibido — a store chega no mesmo número e não há
+                // piscada de volta ao valor antigo.
+                if (!ativo && blurLocal != null) void updatePreferences({ blurIntensity: blurLocal });
+              }}
             />
             <Text style={styles.sliderHint}>
               Na barra de abas, 100% é o vidro do iOS 26 intacto e 0% não tem vidro nenhum.
