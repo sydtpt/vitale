@@ -42,10 +42,40 @@ const inflight = new Map<string, Promise<string | null>>();
  * nosso diretório de cache, sem chave nenhuma.
  */
 async function extractUri(assetId: string): Promise<string | null> {
+  return withSlot(async () => {
+    try {
+      return (await new Asset(assetId).getUri()) ?? null;
+    } catch {
+      return null;
+    }
+  });
+}
+
+/**
+ * Quantas extrações podem correr ao mesmo tempo.
+ *
+ * `getUri()` **exporta o recurso** — não é uma leitura de ponteiro. Numa galeria
+ * de uma pedalada isso passa despercebido; na do período de julho de 2026, com
+ * 372 fotos, disparar todas de uma vez derrubou o app (conferido no aparelho em
+ * 07/09/2026). A lista virtualizada já pede muito menos, mas uma rolagem rápida
+ * ainda enfileira dezenas — o teto é o que garante que o pico não dependa da
+ * velocidade do dedo.
+ *
+ * Seis: o suficiente para a grade de três colunas encher sem esperar, e pouco
+ * o bastante para o pico caber com folga.
+ */
+const MAX_EM_VOO = 6;
+let emVoo = 0;
+const fila: (() => void)[] = [];
+
+async function withSlot<T>(job: () => Promise<T>): Promise<T> {
+  if (emVoo >= MAX_EM_VOO) await new Promise<void>((r) => fila.push(r));
+  emVoo += 1;
   try {
-    return (await new Asset(assetId).getUri()) ?? null;
-  } catch {
-    return null;
+    return await job();
+  } finally {
+    emVoo -= 1;
+    fila.shift()?.();
   }
 }
 
@@ -64,14 +94,13 @@ export async function resolveAssetUri(assetId: string | null): Promise<string | 
   const pending = inflight.get(assetId);
   if (pending) return pending;
 
+  // Passa pelo mesmo teto de concorrência da extração de vídeo: este é o
+  // caminho da FOTO, e é o que derrubou o app na galeria do período.
   const task = (async () => {
     try {
-      const uri = await new Asset(assetId).getUri();
-      cache.set(assetId, uri ?? null);
-      return uri ?? null;
-    } catch {
-      cache.set(assetId, null);
-      return null;
+      const uri = await extractUri(assetId);
+      cache.set(assetId, uri);
+      return uri;
     } finally {
       inflight.delete(assetId);
     }

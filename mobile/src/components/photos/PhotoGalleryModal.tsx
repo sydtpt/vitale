@@ -20,6 +20,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  SectionList,
   Image,
   Animated,
   ActivityIndicator,
@@ -592,6 +593,17 @@ export function PhotoGalleryModal({
   /** A ordem plana da grade — é o que o visor percorre ao deslizar. */
   const flat = useMemo(() => sections.flatMap((s) => s.photos), [sections]);
 
+  /** Cada seção vira linhas de três — a unidade que a `SectionList` virtualiza. */
+  const rows = useMemo(
+    () =>
+      sections.map((s) => {
+        const data: ActivityPhoto[][] = [];
+        for (let i = 0; i < s.photos.length; i += COLS) data.push(s.photos.slice(i, i + COLS));
+        return { ...s, data };
+      }),
+    [sections],
+  );
+
   const gap = 3;
   const size = Math.floor((width - spacing.lg * 2 - gap * (COLS - 1)) / COLS);
 
@@ -642,38 +654,62 @@ export function PhotoGalleryModal({
           )}
         </View>
 
-        <ScrollView
+        {/**
+         * **Virtualizada, e não um `ScrollView`.**
+         *
+         * A galeria nasceu para UMA pedalada — dezenas de fotos —, e passou a
+         * servir também o período inteiro: julho de 2026 tem **372 fotos em 12
+         * atividades**. Montando todas de uma vez, cada quadro dispara uma
+         * extração de arquivo da biblioteca e uma decodificação de imagem, e o
+         * app morre antes de desenhar a primeira tela. Foi o que aconteceu no
+         * aparelho em 07/09/2026.
+         *
+         * A `SectionList` monta só o que está perto da janela. As fotos de cada
+         * seção viram **linhas de três**, porque a virtualização é por item e
+         * uma foto por item daria uma linha de scroll por foto.
+         */}
+        <SectionList
+          sections={rows}
+          keyExtractor={(row) => row[0]?.id ?? String(Math.random())}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={styles.sectionSub}>{section.subtitle}</Text>
+            </View>
+          )}
+          renderItem={({ item, section }) => (
+            <View style={[styles.grid, { gap }]}>
+              {item.map((p) => (
+                <GridTile
+                  key={p.id}
+                  photo={p}
+                  size={size}
+                  selecting={selecting}
+                  selected={picked.has(p.id)}
+                  onPress={() =>
+                    selecting ? toggle(p.id) : setViewing(flat.findIndex((f) => f.id === p.id))
+                  }
+                  onLongPress={() => {
+                    if (!onDismiss) return;
+                    setSelecting(true);
+                    setPicked(new Set([p.id]));
+                  }}
+                />
+              ))}
+              {/* Preenche a última linha para os quadros não esticarem. */}
+              {item.length < COLS &&
+                Array.from({ length: COLS - item.length }, (_, k) => (
+                  <View key={`v${section.key}${k}`} style={{ width: size }} />
+                ))}
+            </View>
+          )}
           contentContainerStyle={[styles.galleryBody, { paddingBottom: insets.bottom + spacing.xl }]}
           showsVerticalScrollIndicator={false}
-        >
-          {sections.map((s) => {
-            const base = offset;
-            offset += s.photos.length;
-            return (
-              <View key={s.key} style={styles.section}>
-                <Text style={styles.sectionTitle}>{s.title}</Text>
-                <Text style={styles.sectionSub}>{s.subtitle}</Text>
-                <View style={[styles.grid, { gap }]}>
-                  {s.photos.map((p, i) => (
-                    <GridTile
-                      key={p.id}
-                      photo={p}
-                      size={size}
-                      selecting={selecting}
-                      selected={picked.has(p.id)}
-                      onPress={() => (selecting ? toggle(p.id) : setViewing(base + i))}
-                      onLongPress={() => {
-                        if (!onDismiss) return;
-                        setSelecting(true);
-                        setPicked(new Set([p.id]));
-                      }}
-                    />
-                  ))}
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
+          initialNumToRender={6}
+          windowSize={5}
+          removeClippedSubviews
+          stickySectionHeadersEnabled={false}
+        />
 
         {selecting && picked.size > 0 && (
           <View style={[styles.actionBar, { paddingBottom: insets.bottom + spacing.md }]}>
@@ -808,6 +844,8 @@ const createStyles = () =>
     },
 
     section: { marginBottom: spacing.xl },
+    /** Cabeçalho de seção da lista virtualizada — o respiro que o `section` dava. */
+    sectionHead: { marginTop: spacing.lg, marginBottom: spacing.sm },
     sectionTitle: { fontSize: 13.5, fontFamily: fonts.sansBold, color: colors.ink },
     sectionSub: {
       fontSize: 11,
