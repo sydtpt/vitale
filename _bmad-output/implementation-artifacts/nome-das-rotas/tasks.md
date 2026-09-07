@@ -124,9 +124,25 @@ os do plano; os reais estão entre parênteses.
       resto. *Rodou: **133 nomeadas** em produção.*
 - [ ] **T4.2** Ler as 138 saídas inteiras. É uma pessoa só e ela está disponível — não fingir
       que a conferência dá para automatizar. **É o que falta.**
-- [ ] **T4.3** Medir a taxa de recusa contra a previsão de ~15%. Com 133 de 138 nomeadas, a
-      recusa observada é de ~3,6% — **bem abaixo** do previsto, o que levanta a pergunta
-      oposta: o portão de degenerescência está *frouxo* demais? Fechar junto com o T4.2.
+- [x] **T4.3** Medido em produção em 07/09/2026 (Management API). **138 com rota · 133
+      nomeadas · 4 recusadas · 1 não tentada.** Recusa de **2,9%**, contra os ~15% previstos
+      pela amostra — cinco vezes menos.
+
+      **O achado não é a taxa, é a origem dela.** As 4 recusas são *todas* `degenerada`, o
+      portão que roda **antes** de chamar o modelo. Os outros quatro motivos —
+      `truncado`, `ilegivel`, `reprovado`, `sem-molde` — **nunca dispararam nenhuma vez**.
+      Ou seja: o `verificar.ts` inteiro, que existe para reprovar justificativa que não se
+      sustenta, jamais reprovou nada em produção, e `lerRespostaDoModelo` jamais recebeu
+      resposta ilegível.
+
+      Isso não prova que ele está frouxo — prova que **nunca foi exercitado**. A rede de
+      segurança está intacta porque nada caiu nela. Duas leituras possíveis, e o T4.2
+      decide qual: se os 133 nomes estiverem bons, o prompt é apertado o bastante e o
+      `verificar` é seguro dormente; se houver nome ruim entre eles, então o `verificar`
+      deixou passar e é aí que ele precisa apertar.
+
+      Distribuição das formas entre as nomeadas: 76 casa-loop-casa · 22 casa-b · 18 a-b ·
+      15 a-casa · 2 a-loop-a — bate com o levantamento da Fase 0 (75/23/19/18/3).
 
 ## Fase 5 — Leitura nos apps
 

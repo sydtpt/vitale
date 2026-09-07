@@ -287,8 +287,13 @@ decisões que ele já tinha tomado à mão viraram a base de medida:
       liga as fotos sozinha e não trava a tela; que a linha de pendência aparece
       e some depois de julgada; e que o selo cabe ao lado de `editado` sem
       espremer a data.
-- [ ] **T10.8** A **web** ficou de fora por decisão dele (07/09). O
-      `fetchMediaCounts` já é do shared e serve quando a hora chegar.
+- [x] **T10.8** **Decisão fechada, não tarefa pendente.** A web ficou de fora por
+      escolha dele em 07/09 — a mesma escolha que a §"a web mostra o fato, não a
+      imagem" já registrava. Estava marcada como aberta só porque ninguém baixou o
+      martelo no papel; não há trabalho aqui esperando alguém.
+      O `fetchMediaCounts` é do shared e serve no dia em que ele mudar de ideia —
+      esse dia abre um item novo, não reabre este. Movido para o **Diferido** em
+      espírito; fica marcado aqui para o quadro parar de contá-lo como dívida.
 - [x] **T10.9** **Dois defeitos meus, achados por ele no aparelho.** O primeiro é o
       mesmo erro que esta feature já documentava: a tela passava `routePoints ?? []`
       e a rota carrega assíncrona, então o vínculo rodava com traçado vazio,
