@@ -125,9 +125,15 @@ interface Props {
   onSharePhoto?: (photo: ActivityPhoto) => void;
   /** O compositor da foto está aberto — o visor mostra que está indo. */
   sharingPhoto?: boolean;
+  /**
+   * O compositor, para ser montado DENTRO da galeria. O iOS não apresenta um
+   * `Modal` da tela de baixo enquanto a galeria está de pé — ver `shareSlot`
+   * em `PhotoGalleryModal`.
+   */
+  shareSlot?: React.ReactNode;
 }
 
-export function ActivityPhotosCard({ activity, points: rawPoints, view, onSharePhoto, sharingPhoto }: Props) {
+export function ActivityPhotosCard({ activity, points: rawPoints, view, onSharePhoto, sharingPhoto, shareSlot }: Props) {
   const points = rawPoints ?? [];
   const styles = useThemedStyles(createStyles);
   const userId = useAuthStore((s) => s.user?.id);
@@ -569,6 +575,7 @@ export function ActivityPhotosCard({ activity, points: rawPoints, view, onShareP
         }}
         onSharePhoto={onSharePhoto}
         sharing={sharingPhoto}
+        shareSlot={shareSlot}
         onCover={async (p) => {
           if (!userId) return;
           try {

@@ -521,25 +521,24 @@ export default function AtividadeDetalheScreen() {
           }
           onSharePhoto={setSharePhoto}
           sharingPhoto={!!sharePhoto}
+          /**
+           * O compositor vai DENTRO da galeria, não aqui: o iOS não apresenta
+           * um `Modal` desta tela enquanto a galeria está de pé — ele só
+           * aparecia depois de ela fechar. Ver `shareSlot`.
+           */
+          shareSlot={
+            <ShareComposerModal
+              visible={!!sharePhoto}
+              onClose={() => setSharePhoto(null)}
+              points={points}
+              initialMapStyle={mapStyle}
+              context={shareContext}
+              photos={photoView.photos}
+              initialPhotoId={sharePhoto?.id}
+            />
+          }
         />
 
-        {/**
-         * O compositor do caminho da foto.
-         *
-         * Mora aqui, e não dentro do mapa como o outro caminho, para poder
-         * abrir POR CIMA da galeria — que é um `Modal` do cartão acima. Assim
-         * fechar o compositor devolve o dono à mesma foto que ele estava vendo,
-         * em vez de largá-lo no topo de uma galeria de 60.
-         */}
-        <ShareComposerModal
-          visible={!!sharePhoto}
-          onClose={() => setSharePhoto(null)}
-          points={points}
-          initialMapStyle={mapStyle}
-          context={shareContext}
-          photos={photoView.photos}
-          initialPhotoId={sharePhoto?.id}
-        />
 
         {/* Fora do bloco do percurso de propósito: `bestEfforts` vem do sync e
             existe mesmo antes de a rota ser carregada nesta sessão. Some sozinho

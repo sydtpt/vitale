@@ -465,6 +465,18 @@ interface Props {
   onCover?: (photo: ActivityPhoto) => void;
   /** O compositor está abrindo — o visor troca o ícone por um indicador. */
   sharing?: boolean;
+  /**
+   * O compositor, montado **dentro** desta galeria.
+   *
+   * Não é elegância: é a única forma que o iOS aceita. Um `Modal` montado pela
+   * tela de baixo não é apresentado enquanto a galeria estiver de pé — ele só
+   * aparece quando ela fecha, que foi exatamente o que ele viu ("fica
+   * 'Abrindo', mas não abre; só quando volto para o detalhe").
+   *
+   * Aqui dentro, a profundidade é a mesma do visor — galeria → compositor —, e
+   * essa já era provada: o visor abre assim desde o primeiro dia.
+   */
+  shareSlot?: React.ReactNode;
 }
 
 export function PhotoGalleryModal({
@@ -477,11 +489,26 @@ export function PhotoGalleryModal({
   onSharePhoto,
   onCover,
   sharing,
+  shareSlot,
 }: Props) {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [viewing, setViewing] = useState<number | null>(null);
+  /**
+   * A foto que estava no visor quando ele foi compartilhar.
+   *
+   * O visor precisa fechar — senão seriam três modais e o compositor não
+   * aparece —, mas fechar sem voltar largaria o dono no topo de uma grade de
+   * 60. Guardado aqui, ele é restaurado quando o compositor sai.
+   */
+  const returnTo = useRef<number | null>(null);
+  useEffect(() => {
+    if (!sharing && returnTo.current !== null) {
+      setViewing(returnTo.current);
+      returnTo.current = null;
+    }
+  }, [sharing]);
 
   /**
    * A curadoria acontece **depois**: numa pedalada com muitas fotos não dá para
@@ -646,7 +673,15 @@ export function PhotoGalleryModal({
                 photos={flat}
                 index={viewing}
                 onClose={() => setViewing(null)}
-                onShare={onSharePhoto}
+                onShare={
+                  onSharePhoto
+                    ? (p) => {
+                        returnTo.current = viewing;
+                        setViewing(null);
+                        onSharePhoto(p);
+                      }
+                    : undefined
+                }
                 sharing={sharing}
                 onCover={onCover}
                 onDismiss={onDismiss ? (p) => void onDismiss([p.id]) : undefined}
@@ -654,6 +689,7 @@ export function PhotoGalleryModal({
             )}
           </Animated.View>
         </PanGestureHandler>
+        {shareSlot}
       </GestureHandlerRootView>
     </Modal>
   );
