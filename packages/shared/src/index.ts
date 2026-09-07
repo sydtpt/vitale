@@ -127,6 +127,7 @@ export * from './routes/nomear';
 export * from './search/normalize';
 export * from './search/campos';
 export * from './search/buscar';
+export * from './search/realce';
 
 export * from './photos/window';
 export * from './photos/stops';

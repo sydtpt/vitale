@@ -2,7 +2,8 @@
  * Filtro, ordenação e paginação (em memória) da lista de atividades de um tipo.
  * Puro/testável. Ver spec §US4/FR-008.
  */
-import type { Activity } from '@vitale/shared';
+import type { Activity, SearchHit } from '@vitale/shared';
+import { buildSearchIndex, consultaAtiva, searchActivities } from '@vitale/shared';
 import { metaForActivity } from '@core/models/activity-types';
 
 export type RouteFilter = 'all' | 'yes' | 'no';
@@ -26,6 +27,8 @@ export interface ListOptions {
   dir: SortDir;
   page: number;            // 1-based
   pageSize: number;
+  /** Busca textual. Recorta a lista; NÃO reordena — ver `buildActivityList`. */
+  busca?: string;
 }
 
 export interface ActivityListResult {
@@ -34,6 +37,10 @@ export interface ActivityListResult {
   page: number;            // página efetiva (clampada)
   pageCount: number;
   sources: string[];       // fontes distintas do tipo (antes dos filtros)
+  /** Por atividade, o casamento que a trouxe. Vazio quando não há busca. */
+  hits: Map<string, SearchHit>;
+  /** O termo em vigor, para a tela grifar o trecho certo. */
+  busca: string;
 }
 
 export const EMPTY_FILTERS: ActivityFilters = { hasRoute: 'all' };
@@ -122,7 +129,21 @@ export function buildActivityList(
 
   const sources = [...new Set(typed.map((a) => a.sourceName).filter((s): s is string => !!s))].sort();
 
-  const filtered = sortActivities(applyFilters(typed, opts.filters), opts.sort, opts.dir);
+  const ordenada = sortActivities(applyFilters(typed, opts.filters), opts.sort, opts.dir);
+
+  /*
+   * A busca é o ÚLTIMO recorte, depois de filtros e ordenação. Ela filtra e não
+   * reordena: o `select` de ordenação é escolha explícita do usuário, e
+   * atropelá-la com o ranqueamento por relevância seria ignorar o que ele
+   * acabou de pedir. Mesma regra do celular.
+   */
+  const busca = opts.busca ?? '';
+  const hits = new Map<string, SearchHit>();
+  let filtered = ordenada;
+  if (consultaAtiva(busca)) {
+    for (const h of searchActivities(busca, buildSearchIndex(ordenada))) hits.set(h.activity.id, h);
+    filtered = ordenada.filter((a) => hits.has(a.id));
+  }
 
   const total = filtered.length;
   const pageCount = Math.max(1, Math.ceil(total / opts.pageSize));
@@ -130,5 +151,5 @@ export function buildActivityList(
   const start = (page - 1) * opts.pageSize;
   const items = filtered.slice(start, start + opts.pageSize);
 
-  return { items, total, page, pageCount, sources };
+  return { items, total, page, pageCount, sources, hits, busca };
 }

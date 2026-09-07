@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { nomeDaAtividade, type Activity } from '@vitale/shared';
+import { nomeDaAtividade, realcar, type Activity, type SearchHit, type Trecho } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { metaForActivity } from '@core/models/activity-types';
 import { filtersToQueryParams, type ActivityFilters } from '../data/activity-list';
@@ -20,6 +20,27 @@ export class ActivityItemComponent {
   readonly filters = input<ActivityFilters | undefined>();
   readonly sort = input<string | undefined>();
   readonly dir = input<string | undefined>();
+  /** O casamento que trouxe esta atividade. Ausente = lista normal. */
+  readonly hit = input<SearchHit | undefined>();
+  /** O termo digitado, para grifar o trecho certo. */
+  readonly busca = input<string>('');
+
+  /*
+   * Mesma regra da CAP-9 do celular: `label` ausente no casamento significa que
+   * o campo JÁ está à vista, então grifa-se em vez de explicar. Aqui o nome é a
+   * manchete da linha, então casar nele nunca precisa de explicação; casar em
+   * cidade, aparelho ou fonte sempre precisa.
+   */
+  protected readonly explicar = computed(() => this.hit()?.match.label !== undefined);
+  /** O nome quebrado em trechos, com o que casou marcado. */
+  protected readonly nomeTrechos = computed<Trecho[]>(() =>
+    this.hit() && !this.explicar() ? realcar(this.nome(), this.busca()) : [],
+  );
+  /** A proveniência quebrada em trechos, quando o casamento foi invisível. */
+  protected readonly provTrechos = computed<Trecho[]>(() => {
+    const h = this.hit();
+    return h && this.explicar() ? realcar(h.match.text, this.busca()) : [];
+  });
 
   protected readonly meta = computed(() => metaForActivity(this.activity().activityId));
   /** Precedência única (ADR 0041 §8): editado → derivado → fonte → tipo. */
