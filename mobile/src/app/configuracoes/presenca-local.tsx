@@ -68,8 +68,6 @@ export default function PresencaLocalScreen() {
   const [centro, setCentro] = useState<{ lat: number; lon: number } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
-  /** Ver a nota do swipe-back em `components/ui/Slider.tsx`. */
-  const [arrastandoSlider, setArrastandoSlider] = useState(false);
 
   /* ---------- ponto de partida ---------- */
 
@@ -215,10 +213,10 @@ export default function PresencaLocalScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* O polegar do slider no raio mínimo fica a ~24 px da esquerda, dentro
-          da faixa do swipe-back, e os dois gestos disparavam juntos. Desligar
-          só durante o arrasto preserva o gesto no resto da tela — ver a nota
-          em `components/ui/Slider.tsx`. */}
-      <Stack.Screen options={{ gestureEnabled: !arrastandoSlider }} />
+          da faixa do swipe-back, e os dois gestos disparam juntos. Desligar só
+          durante o arrasto não funciona: não chega a tempo. Ver a nota em
+          `components/ui/Slider.tsx`. */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -297,7 +295,6 @@ export default function PresencaLocalScreen() {
           step={10}
           onChange={mudarRaio}
           accent={casa.accent}
-          onDragging={setArrastandoSlider}
         />
         <View style={styles.raioLinha}>
           <Text style={styles.extremo}>{MIN_RADIUS_M} m</Text>

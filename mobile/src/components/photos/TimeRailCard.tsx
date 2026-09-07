@@ -41,11 +41,9 @@ interface Props {
   marks?: { atMs: number; count: number }[];
   /** Distância acumulada (m) sob o dedo, ou `null` ao soltar. */
   onScrub?: (distanceM: number | null) => void;
-  /** `true` enquanto o dedo está no trilho — a tela desliga o swipe-back aí. */
-  onScrubbing?: (ativo: boolean) => void;
 }
 
-export function TimeRailCard({ points, totalDistanceM, marks = [], onScrub, onScrubbing }: Props) {
+export function TimeRailCard({ points, totalDistanceM, marks = [], onScrub }: Props) {
   const styles = useThemedStyles(createStyles);
   const { width } = useWindowDimensions();
   /** Padding do scroll dos dois lados, mais o do card. */
@@ -59,30 +57,14 @@ export function TimeRailCard({ points, totalDistanceM, marks = [], onScrub, onSc
   /** A régua só muda quando a rota muda — o arrasto não pode recalculá-la. */
   const distances = useMemo(() => routeDistances(points), [points]);
 
-  // Ref porque o PanResponder é criado uma vez: uma closure sobre a prop
-  // congelaria o callback da primeira renderização.
-  const onScrubbingRef = useRef(onScrubbing);
-  onScrubbingRef.current = onScrubbing;
-
   const pan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      // Ver RouteProfileCard: avisar no toque é o que permite desligar o
-      // swipe-back antes de o reconhecedor de borda começar.
-      onPanResponderGrant: (e) => {
-        onScrubbingRef.current?.(true);
-        emit(e.nativeEvent.locationX);
-      },
+      onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
       onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
-      onPanResponderRelease: () => {
-        onScrubbingRef.current?.(false);
-        onScrub?.(null);
-      },
-      onPanResponderTerminate: () => {
-        onScrubbingRef.current?.(false);
-        onScrub?.(null);
-      },
+      onPanResponderRelease: () => onScrub?.(null),
+      onPanResponderTerminate: () => onScrub?.(null),
     }),
   ).current;
 

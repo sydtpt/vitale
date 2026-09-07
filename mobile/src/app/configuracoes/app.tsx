@@ -287,8 +287,6 @@ const previewStyles = themed(() =>
 
 export default function AppSettingsScreen() {
   const styles = useThemedStyles(createStyles);
-  /** Ver a nota do swipe-back em `components/ui/Slider.tsx`. */
-  const [arrastandoBlur, setArrastandoBlur] = useState(false);
   /**
    * Valor do blur enquanto o dedo está no slider.
    *
@@ -344,11 +342,12 @@ export default function AppSettingsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* O polegar do BlurSlider em 0 fica dentro da faixa do swipe-back de
-          borda, e os dois gestos disparavam juntos. Desligar só durante o
-          arrasto preserva o gesto no resto da tela — ver a nota em
-          `components/ui/Slider.tsx`. */}
-      <Stack.Screen options={{ gestureEnabled: !arrastandoBlur }} />
+      {/* O polegar do BlurSlider em 0 fica dentro da faixa do swipe-back, e os
+          dois gestos disparam juntos. Desligar só durante o arrasto não chega a
+          tempo — ver a nota em `components/ui/Slider.tsx`. O `onDragging` do
+          slider continua existindo, mas por outro motivo: é ele que adia a
+          gravação para o release. */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -431,7 +430,6 @@ export default function AppSettingsScreen() {
               value={blurIntensity}
               onChange={setBlurLocal}
               onDragging={(ativo) => {
-                setArrastandoBlur(ativo);
                 // Soltou: uma gravação, com o valor final. `blurLocal` continua
                 // sendo o exibido — a store chega no mesmo número e não há
                 // piscada de volta ao valor antigo.

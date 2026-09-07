@@ -14,10 +14,10 @@ const THUMB = 22;
  * **Atenção ao swipe-back.** O polegar no valor mínimo fica encostado na borda
  * esquerda, dentro da faixa que o iOS reserva para o gesto de voltar, e os dois
  * disparam juntos — o `PanResponder` do JS não cancela reconhecedor nativo do
- * `react-native-screens`. Por isso `onDragging` existe: a tela desliga
- * `gestureEnabled` só enquanto o dedo está no slider. Funciona porque o
- * reconhecedor de borda só *começa* com movimento, e desabilitá-lo no toque
- * cancela o rastreio. Ignorar `onDragging` traz o bug de volta.
+ * `react-native-screens`. A tela que usa este slider **precisa** de
+ * `<Stack.Screen options={{ gestureEnabled: false }} />` e de um botão de voltar
+ * no cabeçalho. Desligar o gesto só durante o arrasto foi tentado e não
+ * funciona: a viagem JS→nativo leva um quadro e o reconhecedor já começou.
  *
  * Nada de Reanimated — ADR 0010. O arrasto é síncrono e não precisa de worklet:
  * o valor sai direto do `locationX` do toque, sem animação intermediária.
@@ -29,7 +29,6 @@ export function Slider({
   step = 1,
   onChange,
   accent,
-  onDragging,
 }: {
   value: number;
   min: number;
@@ -38,8 +37,6 @@ export function Slider({
   onChange: (v: number) => void;
   /** Cor do preenchimento e do polegar. Padrão: a marca. */
   accent?: string;
-  /** `true` enquanto o dedo está no controle. Ver a nota do swipe-back acima. */
-  onDragging?: (ativo: boolean) => void;
 }) {
   useTheme();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -47,10 +44,8 @@ export function Slider({
   // Refs evitam closures obsoletas dentro do PanResponder, criado uma única vez.
   const widthRef = useRef(0);
   const onChangeRef = useRef(onChange);
-  const onDraggingRef = useRef(onDragging);
   const rangeRef = useRef({ min, max, step });
   onChangeRef.current = onChange;
-  onDraggingRef.current = onDragging;
   rangeRef.current = { min, max, step };
 
   const panResponder = useRef(
@@ -60,13 +55,8 @@ export function Slider({
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (e) => {
-        onDraggingRef.current?.(true);
-        emit(e.nativeEvent.locationX);
-      },
+      onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
       onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
-      onPanResponderRelease: () => onDraggingRef.current?.(false),
-      onPanResponderTerminate: () => onDraggingRef.current?.(false),
     }),
   ).current;
 

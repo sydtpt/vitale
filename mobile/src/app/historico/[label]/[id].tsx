@@ -129,20 +129,6 @@ export default function AtividadeDetalheScreen() {
   // ── cursor do scrub: o dedo no gráfico vira um ponto no mapa ──
   const [cursorX, setCursorX] = useState<number | null>(null);
   /**
-   * `true` enquanto o dedo está sobre o perfil ou o trilho.
-   *
-   * O swipe-back é um reconhecedor de BORDA e disputa a esquerda desses
-   * gráficos, que ocupam a largura da janela — e a esquerda deles é o início
-   * dos dados. Matar o gesto na tela inteira resolvia, mas cobrava caro numa
-   * tela que se abre e fecha o tempo todo. Desligar só durante o toque dá as
-   * duas coisas: funciona porque o reconhecedor de borda só começa com
-   * MOVIMENTO, e desabilitá-lo enquanto ainda está no estado possível cancela
-   * o rastreio daquele toque. Por isso o aviso sai no `onPanResponderGrant`,
-   * que dispara no toque — e volta no release e no terminate, este último
-   * para a rolagem vertical não deixar o gesto desligado.
-   */
-  const [arrastandoGrafico, setArrastandoGrafico] = useState(false);
-  /**
    * A régua só muda quando a rota muda. Sem o memo, cada quadro do arrasto
    * recalcularia milhares de haversines e o ponto engasgaria atrás do dedo.
    */
@@ -189,7 +175,19 @@ export default function AtividadeDetalheScreen() {
   if (!activity) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ headerShown: false, gestureEnabled: !arrastandoGrafico }} />
+        <Stack.Screen
+          options={{
+            headerShown: false,
+            // O perfil e o trilho ocupam a largura da janela, e a esquerda deles
+            // é o início dos dados — a mesma faixa em que o iOS reconhece o
+            // swipe-back. Três tentativas de conviver falharam: a guarda de
+            // borda inutiliza a esquerda do gráfico, e desligar o gesto no
+            // toque não chega a tempo (a viagem JS→nativo leva um quadro e o
+            // reconhecedor já começou). Só o desligamento estático funciona.
+            // Fica o chevron do cabeçalho.
+            gestureEnabled: false,
+          }}
+        />
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
@@ -320,7 +318,19 @@ export default function AtividadeDetalheScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: !arrastandoGrafico }} />
+      <Stack.Screen
+          options={{
+            headerShown: false,
+            // O perfil e o trilho ocupam a largura da janela, e a esquerda deles
+            // é o início dos dados — a mesma faixa em que o iOS reconhece o
+            // swipe-back. Três tentativas de conviver falharam: a guarda de
+            // borda inutiliza a esquerda do gráfico, e desligar o gesto no
+            // toque não chega a tempo (a viagem JS→nativo leva um quadro e o
+            // reconhecedor já começou). Só o desligamento estático funciona.
+            // Fica o chevron do cabeçalho.
+            gestureEnabled: false,
+          }}
+        />
 
       <View style={styles.header}>
         <Pressable
@@ -441,7 +451,6 @@ export default function AtividadeDetalheScreen() {
               points={routePoints ?? []}
               activityId={activity.activityId}
               onScrub={setCursorX}
-              onScrubbing={setArrastandoGrafico}
             />
             {/* O perfil mostra o relevo; este recorta dele o que foi subida de
                 verdade. Some em percurso plano — e some em quase toda corrida,
@@ -454,7 +463,6 @@ export default function AtividadeDetalheScreen() {
               totalDistanceM={activity.distanceM}
               marks={photoView.railMarks}
               onScrub={setCursorX}
-              onScrubbing={setArrastandoGrafico}
             />
           </>
         )}
