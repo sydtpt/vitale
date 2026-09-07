@@ -117,15 +117,20 @@ export function planHealing(
   photos: readonly ActivityPhoto[],
   mediaInWindow: readonly { assetId: string; takenAtMs: number }[],
   resolves: (assetId: string | null) => boolean,
-): Array<{ id: string; assetId: string }> {
+): { heal: Array<{ id: string; assetId: string }>; orphans: string[] } {
   const byInstant = new Map<number, string>();
   for (const m of mediaInWindow) byInstant.set(m.takenAtMs, m.assetId);
 
-  const plan: Array<{ id: string; assetId: string }> = [];
+  const heal: Array<{ id: string; assetId: string }> = [];
+  const orphans: string[] = [];
   for (const p of photos) {
     if (resolves(p.assetId)) continue;
     const found = byInstant.get(p.takenAt);
-    if (found && found !== p.assetId) plan.push({ id: p.id, assetId: found });
+    if (found && found !== p.assetId) heal.push({ id: p.id, assetId: found });
+    // Ponteiro não resolve **e** o instante não existe mais na janela: a mídia
+    // saiu da biblioteca. Ela vira `dismissed` — nunca `delete` —, porque a
+    // ADR 0037 não apaga linha: desligar é reversível, apagar não é.
+    else if (!found) orphans.push(p.id);
   }
-  return plan;
+  return { heal, orphans };
 }

@@ -403,18 +403,49 @@ export async function healPointers(
   const resolves = (id: string | null) => (id ? (resolved.get(id) ?? false) : false);
   if (photos.every((p) => resolves(p.assetId))) return 0;
 
+  /**
+   * **Acesso total é condição para declarar órfã.**
+   *
+   * Com o acesso limitado do iOS 14+, a consulta por janela responde só o que
+   * foi escolhido à mão — e aí toda foto que ele não escolheu *parece* apagada.
+   * Desligar por causa disso apagaria ligações boas em silêncio, que é o pior
+   * resultado possível. Sem acesso total, só a cura roda; a lacuna fica.
+   */
+  const full = (await currentPhotoAccess()) === 'full';
+
   const w = photoWindow(activity.startAtMs, activity.endAtMs);
   if (!w) return 0;
   const media = await readWindow(w.fromMs, w.toMs);
-  const plan = planHealing(photos, media, resolves);
+  const { heal, orphans } = planHealing(photos, media, resolves);
 
   let healed = 0;
-  for (const step of plan) {
+  for (const step of heal) {
     try {
       await setPhotoAssetId(supabase, userId, step.id, step.assetId);
       healed += 1;
     } catch {
       // Uma cura que falha não invalida as outras.
+    }
+  }
+
+  /**
+   * A foto apagada do iPhone sai da pedalada (07/09/2026, a pedido dele).
+   *
+   * A versão original mostrava a lacuna com "?" e deixava o dono desligar, para
+   * a contagem do cabeçalho nunca mentir. Na prática o "?" só aparecia quando
+   * ele já tinha apagado a foto de propósito — a decisão já estava tomada, e o
+   * app pedia que ele a tomasse de novo.
+   *
+   * O que se preserva do desenho antigo é o cuidado, não a lacuna: só desliga
+   * quando a mídia **não existe** na janela, e só com acesso total. Ponteiro
+   * quebrado com o instante ainda presente é cura, não remoção — essa distinção
+   * é a razão de a chave de cura existir (ADR 0037 §2).
+   */
+  if (full && orphans.length > 0) {
+    try {
+      await setPhotosDismissed(supabase, userId, orphans);
+    } catch {
+      // A lacuna continuar na tela é melhor que a tela quebrar por causa dela.
     }
   }
   return healed;

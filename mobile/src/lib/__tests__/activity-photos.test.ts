@@ -138,7 +138,7 @@ describe('planHealing', () => {
       [{ assetId: 'novo/p1', takenAtMs: T0 + 1000 }],
       () => false, // nenhum ponteiro resolve
     );
-    expect(plan).toEqual([{ id: 'p1', assetId: 'novo/p1' }]);
+    expect(plan.heal).toEqual([{ id: 'p1', assetId: 'novo/p1' }]);
   });
 
   it('não mexe em ponteiro que ainda resolve', () => {
@@ -147,16 +147,33 @@ describe('planHealing', () => {
       [{ assetId: 'novo/p1', takenAtMs: T0 + 1000 }],
       () => true,
     );
-    expect(plan).toEqual([]);
+    expect(plan.heal).toEqual([]);
+    expect(plan.orphans).toEqual([]);
   });
 
-  it('foto apagada da biblioteca não vira cura — fica órfã, e a tela mostra a lacuna', () => {
+  /**
+   * Mudou em 07/09/2026, a pedido dele: a foto apagada do iPhone sai da
+   * pedalada em vez de virar lacuna com "?". O que se preserva é a DISTINÇÃO —
+   * ponteiro quebrado com o instante ainda presente é cura, não remoção.
+   */
+  it('foto apagada da biblioteca vira órfã, para ser desligada', () => {
     const plan = planHealing(
       [photo({ id: 'p1', takenAt: T0 + 1000 })],
       [{ assetId: 'novo/outro', takenAtMs: T0 + 999_999 }],
       () => false,
     );
-    expect(plan).toEqual([]);
+    expect(plan.heal).toEqual([]);
+    expect(plan.orphans).toEqual(['p1']);
+  });
+
+  it('ponteiro quebrado com o instante presente é CURA, nunca remoção', () => {
+    const plan = planHealing(
+      [photo({ id: 'p1', takenAt: T0 + 1000 })],
+      [{ assetId: 'novo/p1', takenAtMs: T0 + 1000 }],
+      () => false,
+    );
+    expect(plan.heal).toEqual([{ id: 'p1', assetId: 'novo/p1' }]);
+    expect(plan.orphans).toEqual([]);
   });
 });
 

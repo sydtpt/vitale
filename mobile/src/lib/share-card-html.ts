@@ -12,6 +12,62 @@ export type ShareFormat = 'story' | 'square' | 'portrait'; // 9:16 · 1:1 · 4:5
 /** Ambos os fundos sem mapa exportam PNG com alpha (sticker): 'art' desenha a
  *  rota/perfil sobre transparência, 'data' só título/métricas/marca. */
 export type ShareBackground = 'art' | 'map' | 'data' | 'photo';
+
+/**
+ * Como a foto ocupa o cartão.
+ *
+ * `fill` é o que sempre existiu: a foto sangra até a borda e os números ficam
+ * sobre ela. Os outros três a transformam num **bloco** sobre papel escuro, nas
+ * três proporções em que uma foto existe no mundo — a rede social, a câmera na
+ * vertical, a paisagem.
+ *
+ * Recorte livre não entra de propósito: pareceria liberdade e entregaria
+ * hesitação. A liberdade que importa é *qual parte da foto*, e essa é a pinça.
+ */
+export type PhotoFit = 'fill' | 'square' | 'portrait' | 'pano';
+
+const PHOTO_RATIO: Record<Exclude<PhotoFit, 'fill'>, number> = {
+  square: 1,
+  portrait: 4 / 5,
+  pano: 16 / 9,
+};
+
+/** O enquadramento escolhido no preview — o mesmo valor vai para a exportação. */
+export interface PhotoFrame {
+  fit: PhotoFit;
+  /** 1 = a foto cobre o quadro; acima disso, aproxima. */
+  scale: number;
+  /** Deslocamento em fração da largura/altura do quadro. */
+  dx: number;
+  dy: number;
+}
+
+export const PHOTO_FRAME_DEFAULT: PhotoFrame = { fit: 'fill', scale: 1, dx: 0, dy: 0 };
+
+/**
+ * Onde o bloco de foto fica, em **fração** da caixa do cartão.
+ *
+ * Precisa ser determinístico porque duas camadas diferentes o consomem: o HTML
+ * (que reserva o espaço) e a `<Image>` nativa (que desenha a foto por cima).
+ * Se dependesse da altura do rodapé — que varia com as métricas ligadas — as
+ * duas discordariam, e a foto sairia deslocada no PNG exportado.
+ *
+ * Por isso o bloco é ancorado no **topo**: `padding` de 7vw/6vw e a margem de
+ * 4vw da faixa da arte, os mesmos valores do CSS do cartão.
+ */
+export function photoBlockRect(
+  format: ShareFormat,
+  fit: PhotoFit,
+): { top: number; left: number; width: number; height: number } | null {
+  if (fit === 'fill') return null;
+  const { width: W, height: H } = FORMAT_DIMENSIONS[format];
+  const padH = 0.06 * W;
+  const padV = 0.07 * W;
+  const margin = 0.04 * W;
+  const w = W - padH * 2;
+  const h = w / PHOTO_RATIO[fit];
+  return { top: (padV + margin) / H, left: padH / W, width: w / W, height: h / H };
+}
 /** Desenho da região central no fundo "arte" — todos data-driven. 'speed' e
  *  'elevation' dependem de timestamp/altitude no track (caem no traçado padrão
  *  quando faltam); 'route' é só o traçado. */
@@ -84,6 +140,13 @@ export interface ShareCardOptions {
   textColor?: string;
   /** Desenho da região central no fundo "arte". Default: 'speed'. */
   artStyle?: ShareArtStyle;
+  /**
+   * Como a foto ocupa o cartão quando `background === 'photo'`. Default:
+   * `'fill'`, que é o comportamento de sempre. Nos demais o cartão pinta papel
+   * escuro e **reserva** o retângulo — a imagem vem de uma `<Image>` nativa por
+   * cima, porque o WebView não carrega o caminho do contêiner do Fotos.
+   */
+  photoFit?: PhotoFit;
   /** Efeito sobre os tiles quando `background === 'map'`. Default: 'none'. */
   mapEffect?: ShareMapEffect;
   /** Obrigatório quando `background === 'map'`. */
@@ -459,6 +522,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     accent = MOD.treino.accent,
     textColor,
     artStyle = 'speed',
+    photoFit = 'fill',
     mapEffect = 'none',
     mapTile,
     mapInteractive = false,
@@ -514,9 +578,27 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     routeLayer = artRouteLayer(artStyle, points, accent, fg, cities);
   }
 
+  /**
+   * Foto em **bloco** (`fit` diferente de `fill`).
+   *
+   * Aqui o cartão pinta papel escuro próprio e reserva o retângulo do bloco;
+   * a imagem em si é uma `<Image>` nativa desenhada POR CIMA do WebView, no
+   * mesmo retângulo — ver `ShareComposerModal`. O WebView não carrega o
+   * caminho do contêiner do Fotos, então a foto nunca pode vir daqui.
+   *
+   * O véu (`scrim`) **não** entra no modo bloco: ele existe para salvar o texto
+   * branco sobre uma foto clara, e no bloco o texto está sobre papel escuro.
+   * Mantê-lo só escureceria o papel à toa.
+   */
+  const blockRect = isPhoto ? photoBlockRect(format, photoFit) : null;
+  if (blockRect) {
+    bgLayer = '<div class="bg paper"></div>';
+    routeLayer = `<div class="photoSlot" style="height:${round(blockRect.height * 100)}%"></div>`;
+  }
+
   // O véu vale para mapa e foto pela mesma razão: o que está atrás é
   // imprevisível, e sem ele o texto branco some numa foto clara.
-  const scrim = isMap || isPhoto ? '<div class="scrim"></div>' : '';
+  const scrim = (isMap || isPhoto) && !blockRect ? '<div class="scrim"></div>' : '';
 
   const tiles = metrics
     .map((m) => {
@@ -586,6 +668,21 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
       justify-content: flex-end; padding: 7vw 6vw; font-family: ${SANS}; color: ${fg};
       pointer-events: none; ${shadow} }
     .routeArea { flex: 1; position: relative; min-height: 0; margin: 4vw 0; }
+    /**
+     * Papel do modo bloco. Escuro de propósito, e **não** a foto desfocada
+     * atrás dela: aquele truque de app de story suja o contraste dos números
+     * justamente onde eles precisam ser lidos. O papel também faz o bloco
+     * parecer uma fotografia impressa, que é o que ele é.
+     */
+    .bg.paper { background: linear-gradient(165deg, rgb(36,28,22), rgb(16,14,12)); }
+    /**
+     * O espaço reservado para a foto. Vazio: a imagem é nativa e fica POR CIMA
+     * do WebView. O space-between prende o bloco no topo e o rodapé embaixo —
+     * é o que torna o retângulo previsível dos dois lados (ver photoBlockRect),
+     * já que a altura do rodapé varia com as métricas ligadas.
+     */
+    .cardBlock { justify-content: space-between; }
+    .photoSlot { width: 100%; margin: 4vw 0 0; flex: none; }
     .routeArea svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
     /* Legenda da arte 'speed' (rampa lento → rápido). */
     .speedLegend { position: absolute; left: 0; right: 0; bottom: 0; display: flex;
@@ -620,7 +717,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
 <body>
   ${bgLayer}
   ${scrim}
-  <div class="card">
+  <div class="card${blockRect ? ' cardBlock' : ''}">
     ${routeLayer}
     <div class="footer">
       ${titleBlock}

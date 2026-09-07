@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  PanGestureHandler,
+  PinchGestureHandler,
+  State,
+  type PanGestureHandlerGestureEvent,
+  type PinchGestureHandlerGestureEvent,
+} from 'react-native-gesture-handler';
 import {
   Modal,
   View,
@@ -31,7 +38,11 @@ import {
 import {
   buildShareCardHtml,
   formatRatio,
+  photoBlockRect,
   FORMAT_DIMENSIONS,
+  PHOTO_FRAME_DEFAULT,
+  type PhotoFit,
+  type PhotoFrame,
   type ShareArtStyle,
   type ShareBackground,
   type ShareContext,
@@ -45,6 +56,63 @@ import type { ActivityPhoto } from '@vitale/shared';
 import { useAssetUri } from '../../hooks/useAssetUri';
 
 /** Miniatura do seletor de foto — resolve o endereço sozinha. */
+/**
+ * A camada da foto — a mesma no preview e na exportação.
+ *
+ * Existe como componente porque as duas camadas **têm** de concordar: o
+ * `captureRef` fotografa a pilha inteira, e qualquer diferença entre o que se
+ * vê e o que se exporta viraria um PNG deslocado que só aparece depois de
+ * compartilhado.
+ *
+ * A ordem na pilha muda com o modo, e é deliberada:
+ *
+ * - **Preencher** — a foto vai ATRÁS do WebView, para o véu e o texto caírem
+ *   sobre ela, como sempre foi.
+ * - **Bloco** — a foto vai POR CIMA, porque o cartão pinta papel escuro e
+ *   reserva o retângulo. Fosse atrás, o papel a cobriria.
+ */
+function PhotoLayer({
+  uri,
+  frame,
+  format,
+  box,
+}: {
+  uri: string;
+  frame: PhotoFrame;
+  format: ShareFormat;
+  box: { width: number; height: number };
+}) {
+  const r = photoBlockRect(format, frame.fit);
+  const win = r
+    ? {
+        left: r.left * box.width,
+        top: r.top * box.height,
+        width: r.width * box.width,
+        height: r.height * box.height,
+      }
+    : { left: 0, top: 0, width: box.width, height: box.height };
+
+  return (
+    <View style={[styles.photoWindow, win, r ? styles.photoBlockChrome : null]}>
+      <Image
+        source={{ uri }}
+        resizeMode="cover"
+        style={{
+          width: '100%',
+          height: '100%',
+          // Ordem importa: a escala entra por último, então o deslocamento fica
+          // em pixels da janela e não cresce junto com a aproximação.
+          transform: [
+            { translateX: frame.dx * win.width },
+            { translateY: frame.dy * win.height },
+            { scale: frame.scale },
+          ],
+        }}
+      />
+    </View>
+  );
+}
+
 function PickerThumb({
   assetId,
   style,
@@ -151,6 +219,19 @@ const BG_OPTS: { key: ShareBackground; label: string }[] = [
 function bgOptions(hasPhoto: boolean) {
   return hasPhoto ? BG_OPTS : BG_OPTS.filter((o) => o.key !== 'photo');
 }
+/**
+ * As quatro formas da foto no cartão.
+ *
+ * `shape` é o desenho do próprio botão: um retângulo na proporção que ele
+ * representa. Um ícone abstrato exigiria decorar o que cada um quer dizer;
+ * a forma **é** a legenda.
+ */
+const FIT_OPTS: { key: PhotoFit; label: string; shape: { width: number; height: number } }[] = [
+  { key: 'fill', label: 'Preencher', shape: { width: 22, height: 34 } },
+  { key: 'square', label: '1:1', shape: { width: 28, height: 28 } },
+  { key: 'portrait', label: '4:5', shape: { width: 25, height: 31 } },
+  { key: 'pano', label: '16:9', shape: { width: 34, height: 19 } },
+];
 const ART_OPTS: { key: ShareArtStyle; label: string }[] = [
   { key: 'speed', label: 'Velocidade' },
   { key: 'route', label: 'Rota' },
@@ -252,6 +333,21 @@ export function ShareComposerModal({
   );
   const photoUri = typeof resolvedPhoto === 'string' ? resolvedPhoto : undefined;
 
+  /**
+   * O enquadramento da foto.
+   *
+   * `fit` decide se ela preenche o cartão ou vira bloco; `scale`/`dx`/`dy` são
+   * o que a pinça e o arrasto movem. Fica em **estado**, e não em `ref` como o
+   * enquadramento do mapa, porque aqui a `<Image>` é uma view nativa nossa: ela
+   * precisa re-renderizar a cada quadro do gesto. O mapa mora dentro do WebView,
+   * e re-renderizar aquilo recarregaria a página inteira.
+   */
+  const [frame, setFrame] = useState<PhotoFrame>(PHOTO_FRAME_DEFAULT);
+  /** O valor no início do gesto — a pinça é relativa ao que já estava lá. */
+  const frameStart = useRef<PhotoFrame>(PHOTO_FRAME_DEFAULT);
+  const pinchRef = useRef<PinchGestureHandler>(null);
+  const panRef = useRef<PanGestureHandler>(null);
+
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
   const [artStyle, setArtStyle] = useState<ShareArtStyle>('speed');
@@ -331,6 +427,7 @@ export function ShareComposerModal({
         format,
         background,
         artStyle,
+        photoFit: frame.fit,
         mapEffect,
         textColor: textColor ?? undefined,
         title: debouncedTitle || defaultTitle,
@@ -365,6 +462,51 @@ export function ShareComposerModal({
       ? { width: area.h * ratio, height: area.h }
       : { width: area.w, height: area.w / ratio };
   }, [area, ratio]);
+
+  /** Só há o que enquadrar quando o fundo é foto e ela já resolveu. */
+  const showPhoto = background === 'photo' && !!photoUri;
+
+  /**
+   * O enquadramento, pelo dedo.
+   *
+   * O limite de 1× para baixo é o que garante que a foto **sempre cubra** a
+   * janela: abaixo disso apareceria papel por dentro do quadro, e o cartão
+   * sairia com uma faixa vazia que ninguém pediu. Para cima, 4× — passando
+   * disso a foto do iPhone começa a mostrar o próprio grão.
+   */
+  const onPinch = useCallback(
+    (e: PinchGestureHandlerGestureEvent) => {
+      const next = frameStart.current.scale * e.nativeEvent.scale;
+      setFrame((f) => ({ ...f, scale: Math.min(4, Math.max(1, next)) }));
+    },
+    [],
+  );
+
+  const onFramePan = useCallback(
+    (e: PanGestureHandlerGestureEvent) => {
+      if (box.width <= 0 || box.height <= 0) return;
+      setFrame((f) => ({
+        ...f,
+        dx: frameStart.current.dx + e.nativeEvent.translationX / box.width,
+        dy: frameStart.current.dy + e.nativeEvent.translationY / box.height,
+      }));
+    },
+    [box.width, box.height],
+  );
+
+  /**
+   * A âncora do gesto.
+   *
+   * Guardar o valor no **início** é o que faz pinça e arrasto se somarem em vez
+   * de brigarem: os dois handlers rodam ao mesmo tempo, e cada um lê a mesma
+   * âncora em vez do estado que o outro acabou de mudar.
+   */
+  const onFrameGestureState = useCallback(
+    (e: { nativeEvent: { state: number } }) => {
+      if (e.nativeEvent.state === State.BEGAN) frameStart.current = frame;
+    },
+    [frame],
+  );
 
   const toggleMetric = (key: ShareMetricKey) => {
     tap();
@@ -421,6 +563,7 @@ export function ShareComposerModal({
         format,
         background,
         artStyle,
+        photoFit: frame.fit,
         mapEffect,
         textColor: textColor ?? undefined,
         title: title || defaultTitle,
@@ -537,8 +680,8 @@ export function ShareComposerModal({
                 { width: box.width, height: box.height },
               ]}
             >
-              {background === 'photo' && photoUri && (
-                <Image source={{ uri: photoUri }} style={styles.photoBehind} resizeMode="cover" />
+              {showPhoto && frame.fit === 'fill' && (
+                <PhotoLayer uri={photoUri!} frame={frame} format={format} box={box} />
               )}
               <WebView
                 ref={previewRef}
@@ -575,6 +718,37 @@ export function ShareComposerModal({
                   }
                 }}
               />
+              {showPhoto && frame.fit !== 'fill' && (
+                <PhotoLayer uri={photoUri!} frame={frame} format={format} box={box} />
+              )}
+              {/* A rede de gestos cobre o preview inteiro nos dois modos: no
+                  bloco o dedo raramente cai exatamente sobre ele, e exigir
+                  precisão para enquadrar seria o contrário do que se quer.
+
+                  `react-native-gesture-handler`, e não `PanResponder`: o
+                  `ScrollView` do iOS resolve arrasto no nível NATIVO, e o
+                  PanResponder não vê o gesto em fase nenhuma. Esta feature já
+                  descobriu isso duas vezes — no visor da galeria e no trilho do
+                  tempo. A ADR 0010 proíbe o Reanimated, não o gesture-handler. */}
+              {showPhoto && (
+                <PinchGestureHandler
+                  ref={pinchRef}
+                  simultaneousHandlers={panRef}
+                  onGestureEvent={onPinch}
+                  onHandlerStateChange={onFrameGestureState}
+                >
+                  <View style={StyleSheet.absoluteFill}>
+                    <PanGestureHandler
+                      ref={panRef}
+                      simultaneousHandlers={pinchRef}
+                      onGestureEvent={onFramePan}
+                      onHandlerStateChange={onFrameGestureState}
+                    >
+                      <View style={StyleSheet.absoluteFill} />
+                    </PanGestureHandler>
+                  </View>
+                </PinchGestureHandler>
+              )}
               {background === 'map' && (
                 <Pressable
                   style={({ pressed }) => [styles.recenterBtn, pressed && styles.pressed]}
@@ -672,6 +846,43 @@ export function ShareComposerModal({
                   </Pressable>
                 ))}
               </ScrollView>
+            </>
+          )}
+
+          {/* O enquadramento aparece só com o fundo Foto — ele não existe para
+              mapa nem para arte, e um controle morto na tela é pior que um
+              controle a menos. */}
+          {background === 'photo' && (
+            <>
+              <Text style={styles.fieldLabel}>Enquadramento</Text>
+              <View style={styles.fitRow}>
+                {FIT_OPTS.map((o) => {
+                  const on = frame.fit === o.key;
+                  return (
+                    <Pressable
+                      key={o.key}
+                      onPress={() => {
+                        tap();
+                        // Trocar de proporção volta ao enquadramento neutro: o
+                        // deslocamento que servia num quadro 16:9 não quer dizer
+                        // nada num 4:5, e herdá-lo cortaria a foto num lugar que
+                        // ninguém escolheu.
+                        setFrame({ ...PHOTO_FRAME_DEFAULT, fit: o.key });
+                        frameStart.current = { ...PHOTO_FRAME_DEFAULT, fit: o.key };
+                      }}
+                      style={styles.fitOpt}
+                    >
+                      <View style={[styles.fitShape, o.shape, on && styles.fitShapeOn]} />
+                      <Text style={[styles.fitLabel, on && styles.fitLabelOn]}>{o.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.fitHint}>
+                {frame.scale > 1.02
+                  ? `Pinça para aproximar, dedo para mover · ${frame.scale.toFixed(1)}×`
+                  : 'Pinça para aproximar, dedo para mover'}
+              </Text>
             </>
           )}
 
@@ -806,8 +1017,8 @@ export function ShareComposerModal({
               {/* A foto entra como view NATIVA atrás do cartão: o WKWebView não
                   carrega `ph://`, e o `captureRef` fotografa esta View inteira,
                   então o snapshot compõe foto + cartão sem base64 nenhum. */}
-              {background === 'photo' && photoUri && (
-                <Image source={{ uri: photoUri }} style={styles.photoBehind} resizeMode="cover" />
+              {showPhoto && frame.fit === 'fill' && (
+                <PhotoLayer uri={photoUri!} frame={frame} format={format} box={exportBox} />
               )}
               <WebView
                 originWhitelist={['*']}
@@ -821,6 +1032,9 @@ export function ShareComposerModal({
                 androidLayerType="hardware"
                 onLoadEnd={onExportLoaded}
               />
+              {showPhoto && frame.fit !== 'fill' && (
+                <PhotoLayer uri={photoUri!} frame={frame} format={format} box={exportBox} />
+              )}
             </View>
             <View style={styles.exportOverlay}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -955,6 +1169,29 @@ const styles = themed(() =>
     },
     web: { flex: 1, backgroundColor: 'transparent' },
     photoBehind: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+    fitRow: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-end' },
+    fitOpt: { alignItems: 'center', gap: 6 },
+    /** O botão é a proporção que ele representa — a forma é a legenda. */
+    fitShape: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 3, backgroundColor: colors.surfaceMute },
+    fitShapeOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+    fitLabel: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
+    fitLabelOn: { color: colors.ink, fontFamily: fonts.sansSemiBold },
+    fitHint: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink4, marginTop: spacing.sm },
+
+    /** A janela do enquadramento — recorta a foto ampliada dentro dela. */
+    photoWindow: { position: 'absolute', overflow: 'hidden' },
+    /**
+     * O bloco parece uma fotografia impressa sobre o papel: canto levemente
+     * arredondado e uma sombra contida, que é o que separa os dois planos sem
+     * precisar de moldura desenhada.
+     */
+    photoBlockChrome: {
+      borderRadius: 4,
+      shadowColor: 'black',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.45,
+      shadowRadius: 14,
+    },
   photoPicker: { flexGrow: 0 },
   photoOpt: {
     width: 52,
