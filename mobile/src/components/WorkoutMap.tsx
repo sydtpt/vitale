@@ -32,6 +32,8 @@ export function WorkoutMap({
   share,
   cursor,
   photos,
+  surface,
+  surfacePainted = false,
 }: {
   points: RoutePoint[];
   height?: number;
@@ -42,6 +44,10 @@ export function WorkoutMap({
    * alimenta o fundo "Foto" do cartão de compartilhar.
    */
   photos?: MapScriptOptions['photos'] & { list?: readonly ActivityPhoto[] };
+  /** A rota fatiada por piso (T3.2), já colorida pela rampa. */
+  surface?: MapScriptOptions['surface'];
+  /** Liga a pintura. Quem manda é a tela — aqui só se obedece. */
+  surfacePainted?: boolean;
 }) {
   useTheme();
   const [fullscreen, setFullscreen] = useState(false);
@@ -51,8 +57,8 @@ export function WorkoutMap({
   const previewWebRef = useRef<WebView>(null);
   const mapStyle = useSettingsStore((s) => s.preferences?.mapStyle) ?? 'voyager';
   const tile = MAP_STYLES[mapStyle];
-  const previewHtml = useMemo(() => buildMapHtml(points, false, tile, photos), [points, tile, photos]);
-  const fullHtml = useMemo(() => buildMapHtml(points, true, tile, photos), [points, tile, photos]);
+  const previewHtml = useMemo(() => buildMapHtml(points, false, tile, photos, surface), [points, tile, photos, surface]);
+  const fullHtml = useMemo(() => buildMapHtml(points, true, tile, photos, surface), [points, tile, photos, surface]);
 
   // Os dois WebViews recebem o cursor: o de tela cheia pode estar aberto sobre a
   // prévia, e ao fechar ele a prévia precisa já estar com o ponto no lugar.
@@ -63,6 +69,17 @@ export function WorkoutMap({
     previewWebRef.current?.injectJavaScript(js);
     fullWebRef.current?.injectJavaScript(js);
   }, [cursor]);
+
+  // A pintura de piso, pelo mesmo caminho do cursor e pelo mesmo motivo: os
+  // dois WebViews existem ao mesmo tempo, e fechar a tela cheia não pode
+  // devolver uma prévia pintada de um jeito e um mapa de outro.
+  // `setSurfacePaint` sempre existe — sem trechos ele é uma função vazia, então
+  // não há guarda a escrever aqui.
+  useEffect(() => {
+    const js = `window.setSurfacePaint && window.setSurfacePaint(${surfacePainted ? 'true' : 'false'}); true;`;
+    previewWebRef.current?.injectJavaScript(js);
+    fullWebRef.current?.injectJavaScript(js);
+  }, [surfacePainted, previewHtml, fullHtml]);
 
   if (points.length === 0) return null;
 

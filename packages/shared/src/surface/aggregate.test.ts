@@ -6,10 +6,21 @@
  *  3. A legenda funde blocos e pavé num degrau só e só mostra "não especificado"
  *     quando existe.
  *  4. A rampa é monotônica e nunca inventa hex: tudo sai do mix.
+ *  5. A estação: o corte é do hemisfério norte, e `surfaceBySeason` devolve só
+ *     as estações que a janela CONTÉM — é o que decide se o cartão desenha uma
+ *     barra ou quatro colunas.
  */
 import assert from 'node:assert/strict';
 import type { Activity } from '../models';
-import { inSurfaceWindow, summarizeSurface, surfaceLegend, surfaceWindow } from './aggregate';
+import {
+  inSurfaceWindow,
+  seasonAccessibilityLabel,
+  seasonOf,
+  summarizeSurface,
+  surfaceBySeason,
+  surfaceLegend,
+  surfaceWindow,
+} from './aggregate';
 import { surfaceRamp } from './colors';
 import { relativeLuminance as luminance } from '../theme/color';
 
@@ -75,6 +86,52 @@ const today = new Date('2026-09-06T12:00:00');
   const D = [dark.liso, dark.blocos, dark.cascalho, dark.terra].map(luminance);
   for (let i = 1; i < D.length; i++) assert.ok(D[i]! < D[i - 1]!, `escuro: degrau ${i} mais escuro que o anterior`);
   assert.ok([light, dark].every((r) => Object.values(r).every((c) => /^#[0-9A-Fa-f]{6}$/.test(c))), 'toda cor é hex derivado');
+}
+
+// 5. estação: o corte, o recorte da janela e a frase do VoiceOver
+{
+  // As fronteiras que erram fácil: dezembro é inverno (não outono) e maio é
+  // primavera (não verão).
+  assert.equal(seasonOf('2026-12-15T09:00:00'), 'inverno');
+  assert.equal(seasonOf('2026-01-15T09:00:00'), 'inverno');
+  assert.equal(seasonOf('2026-02-28T09:00:00'), 'inverno');
+  assert.equal(seasonOf('2026-03-01T09:00:00'), 'primavera');
+  assert.equal(seasonOf('2026-05-31T09:00:00'), 'primavera');
+  assert.equal(seasonOf('2026-06-01T09:00:00'), 'verao');
+  assert.equal(seasonOf('2026-08-31T09:00:00'), 'verao');
+  assert.equal(seasonOf('2026-09-01T09:00:00'), 'outono');
+  assert.equal(seasonOf('2026-11-30T09:00:00'), 'outono');
+
+  const acts: Activity[] = [
+    ride('2026-01-10', { liso: 9_000, cascalho: 1_000 }), // inverno
+    ride('2026-01-20', { liso: 9_000, cascalho: 1_000 }), // inverno
+    ride('2026-04-10', { liso: 6_000, cascalho: 4_000 }), // primavera
+    ride('2026-07-10', { liso: 8_000, terra: 2_000 }), // verão
+  ];
+
+  // "tudo" contém as três estações que existem — outono não entra, porque não
+  // há pedalada nele. Barra que não tem dado não vira coluna vazia.
+  const todas = surfaceBySeason(acts, surfaceWindow('tudo'));
+  assert.deepEqual(todas.map((b) => b.season), ['inverno', 'primavera', 'verao']);
+  assert.equal(todas[0]!.rides, 2, 'inverno soma as duas pedaladas');
+  assert.equal(todas[0]!.mix.liso, 18_000);
+  assert.ok(Math.abs(todas[1]!.offroadShare - 0.4) < 1e-9, 'primavera 40% fora do asfalto');
+
+  // A regra que decide a forma do cartão: uma janela curta contém UMA estação,
+  // e aí quem chama desenha a barra única de sempre.
+  const jan = surfaceBySeason(acts, { from: '2026-01-01', to: '2026-01-31', label: 'jan' });
+  assert.equal(jan.length, 1, 'janela dentro de uma estação devolve uma só');
+
+  // Pedalada sem piso calculado não entra na barra — a coluna afirma o que mediu.
+  const comSemPiso = surfaceBySeason([...acts, ride('2026-01-25')], surfaceWindow('tudo'));
+  assert.equal(comSemPiso[0]!.rides, 2, 'sem surfaceMix não conta na estação');
+
+  // A alternativa acessível ao gráfico (T2.3): a coluna se lê em voz alta.
+  const frase = seasonAccessibilityLabel(todas[1]!);
+  assert.match(frase, /^Primavera, 1 pedalada\./, 'singular quando é uma só');
+  assert.match(frase, /60% asfalto/);
+  assert.match(frase, /40% cascalho/);
+  assert.match(seasonAccessibilityLabel(todas[0]!), /^Inverno, 2 pedaladas\./);
 }
 
 console.log('surface/aggregate: ok');

@@ -16,19 +16,24 @@ import {
   HR_ZONES,
   METRIC_ROLE,
   elevationProfile,
+  fetchRouteSurface,
   gearForActivity,
   hrZoneRange,
   movingTimeFromRoutePoints,
   nomeProprio,
+  paintRoute,
   routeCursorAt,
   routeDistances,
   speedSeries,
+  surfaceRamp,
   type MetricKey,
+  type PaintedRun,
   type ActivityPhoto,
   type RouteCursor,
 } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { useAuthStore } from '../../../store/auth.store';
+import { supabase } from '../../../lib/supabase';
 import { nomearPedaladaSePreciso, precisaDeNome } from '../../../services/route-name';
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
@@ -60,6 +65,7 @@ import {
 import {
   colors,
   fonts,
+  moduleColors,
   radii,
   roleColors,
   shadows,
@@ -101,7 +107,7 @@ function Stat({
 }
 
 export default function AtividadeDetalheScreen() {
-  useTheme();
+  const { scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id = '' } = useLocalSearchParams<{ label: string; id: string }>();
@@ -231,6 +237,43 @@ export default function AtividadeDetalheScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activity?.id, nomeExibido]);
+
+  // ── a rota pintada por piso (T3.2) ────────────────────────────────
+  // Só busca quando há piso: sem `surfaceMix` não há trecho gravado, e a
+  // consulta voltaria vazia. Falha fica quieta — o mapa cai na linha lisa de
+  // sempre, que é o que ele já era antes desta feature.
+  const [painted, setPainted] = useState<PaintedRun[]>([]);
+  const [surfacePainted, setSurfacePainted] = useState(false);
+  const hasSurface = !!activity?.surfaceMix && activity.surfaceMix.total > 0;
+  useEffect(() => {
+    let alive = true;
+    if (!activity?.id || !userId || !hasSurface) {
+      setPainted([]);
+      return;
+    }
+    fetchRouteSurface(supabase, userId, activity.id)
+      .then((r) => {
+        if (alive && r) setPainted(paintRoute(r.overview, r.segments));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [activity?.id, userId, hasSurface]);
+
+  // A cor sai da rampa aqui, na tela, e viaja pronta até o WebView — o
+  // `map-html.ts` não lê tema, pela mesma razão que o marcador de foto recebe
+  // `ink`/`fill` de fora.
+  const surfaceRuns = useMemo(() => {
+    if (painted.length === 0) return undefined;
+    const ramp = surfaceRamp(scheme, moduleColors('treino').accent, colors.surface, colors.ink, colors.ink4);
+    return {
+      runs: painted.map((r) => ({
+        coords: r.coords,
+        color: ramp[r.category === 'pave' ? 'blocos' : r.category],
+      })),
+    };
+  }, [painted, scheme]);
 
   if (!activity) {
     return (
@@ -512,6 +555,8 @@ export default function AtividadeDetalheScreen() {
                 points={points}
                 cursor={mapCursor}
                 share={shareContext}
+                surface={surfaceRuns}
+                surfacePainted={surfacePainted}
                 photos={{
                   stops: photoView.stopMarks,
                   dots: photoView.dotMarks,
@@ -550,6 +595,10 @@ export default function AtividadeDetalheScreen() {
         {activity.surfaceMix && activity.surfaceMix.total > 0 && (
           <SurfaceCard
             mix={activity.surfaceMix}
+            // A ação só existe quando há o que pintar: sem trechos gravados o
+            // botão prometeria uma cor que não vem.
+            onTogglePaint={surfaceRuns ? () => setSurfacePainted((v) => !v) : undefined}
+            painted={surfacePainted}
             caption={
               activity.surfaceMix.inferido > 0
                 ? `${Math.round((activity.surfaceMix.inferido / activity.surfaceMix.total) * 100)}% inferido pelo tipo de via`

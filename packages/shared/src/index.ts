@@ -138,6 +138,7 @@ export * from './photos/retro';
 export * from './surface/classify';
 export * from './surface/aggregate';
 export * from './surface/colors';
+export * from './surface/paint';
 export * from './chart/stacked-bars';
 export * from './fitness/streams';
 export * from './fitness/dedupe';

@@ -127,3 +127,90 @@ export function surfaceLegend(mix: SurfaceMix): SurfaceLegendRow[] {
 
 /** Garante que a ordem das categorias é a da escada — a rampa de cor depende disso. */
 export const SURFACE_ORDER: readonly SurfaceCategory[] = SURFACE_CATEGORIES;
+
+// ─── Piso por estação ─────────────────────────────────────────────────────
+//
+// A série mês a mês foi descartada por medição: nas 138 pedaladas de produção,
+// metade da variação entre meses é tamanho de amostra (fev/2026 tem UMA
+// pedalada e apareceria como barra cheia). Somando os anos por estação, a barra
+// mais magra tem 13 pedaladas e a mais gorda 56 — e a primavera anda em
+// cascalho o dobro do inverno (11,7% contra 5,8%).
+//
+// Estação é do hemisfério NORTE, fixa: quem usa isto mora na Bélgica.
+
+export type Season = 'inverno' | 'primavera' | 'verao' | 'outono';
+
+export const SEASONS: readonly { id: Season; label: string }[] = [
+  { id: 'inverno', label: 'Inverno' },
+  { id: 'primavera', label: 'Primavera' },
+  { id: 'verao', label: 'Verão' },
+  { id: 'outono', label: 'Outono' },
+];
+
+/** A estação de um instante, no fuso do aparelho. */
+export function seasonOf(startAt: string): Season {
+  const m = new Date(startAt).getMonth() + 1;
+  if (m === 12 || m <= 2) return 'inverno';
+  if (m <= 5) return 'primavera';
+  if (m <= 8) return 'verao';
+  return 'outono';
+}
+
+export interface SeasonBucket {
+  season: Season;
+  label: string;
+  mix: SurfaceMix;
+  shares: Record<SurfaceCategory, number>;
+  /** Pedaladas com piso nesta barra — é a honestidade dela. */
+  rides: number;
+  offroadShare: number;
+}
+
+/**
+ * O piso por estação, na ordem do ano.
+ *
+ * Devolve **só as estações que a janela contém**, e é isso que decide a forma
+ * do cartão. Medido: 4 semanas contêm 1 estação, 12 semanas contêm 1, o ano
+ * contém 4. Com uma só, quem chama desenha a barra única de sempre; com duas ou
+ * mais, as colunas. Nenhum chip novo e nenhuma altura nova — o miolo do cartão
+ * responde ao que a janela tem dentro.
+ */
+export function surfaceBySeason(
+  activities: readonly Activity[],
+  w: SurfaceWindow,
+): SeasonBucket[] {
+  const withMix = activities
+    .filter((a) => inSurfaceWindow(a, w))
+    .filter((a) => a.surfaceMix && a.surfaceMix.total > 0);
+
+  const out: SeasonBucket[] = [];
+  for (const s of SEASONS) {
+    const mine = withMix.filter((a) => seasonOf(a.startAt) === s.id);
+    if (mine.length === 0) continue;
+    const mix = sumSurfaceMix(mine.map((a) => a.surfaceMix));
+    const shares = surfaceShares(mix);
+    out.push({
+      season: s.id,
+      label: s.label,
+      mix,
+      shares,
+      rides: mine.length,
+      offroadShare: shares.cascalho + shares.terra,
+    });
+  }
+  return out;
+}
+
+/**
+ * A frase que o VoiceOver lê numa coluna — a alternativa acessível ao gráfico.
+ * Não há tabela na tela: quem precisa, ouve.
+ */
+export function seasonAccessibilityLabel(b: SeasonBucket): string {
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+  const rides = b.rides === 1 ? '1 pedalada' : `${b.rides} pedaladas`;
+  return (
+    `${b.label}, ${rides}. ${pct(b.shares.liso)} asfalto, ` +
+    `${pct(b.shares.blocos + b.shares.pave)} blocos e pavé, ` +
+    `${pct(b.shares.cascalho)} cascalho, ${pct(b.shares.terra)} terra.`
+  );
+}
