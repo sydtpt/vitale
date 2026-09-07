@@ -94,6 +94,46 @@ export function buildMapHtml(
  * controle específico (tamanho da atribuição). Reutilizado por `buildMapHtml` e
  * pelo cartão de compartilhamento (que embute o mapa como camada de fundo).
  */
+/**
+ * O desenho do marcador de foto, escrito **uma vez** (ADR 0037).
+ *
+ * Leaflet e MapLibre montam o mesmo HTML: o pino tem duas formas — cabeça e
+ * ponta — e nenhum dos dois desenha isso em camada nativa sem um sprite. Ter o
+ * CSS num lugar só é o que impede os dois mapas de divergirem com o tempo, e o
+ * usuário troca de estilo de mapa, não de app.
+ *
+ * Os tamanhos foram reduzidos em 07/09/2026: o primeiro pino saiu grande demais
+ * no aparelho. O piso é a legibilidade do número — 10 px em mono, que a
+ * contagem de duas casas ainda lê. A cabeça cresce sozinha com `min-width` mais
+ * padding, para "12" e "104" caberem sem apertar.
+ */
+function photoPinJs(): string {
+  return `
+    function orbePhotoPin(count, fill, ink) {
+      var el = document.createElement('div');
+      el.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
+      var head = document.createElement('div');
+      head.textContent = String(count);
+      head.style.cssText = 'display:flex;align-items:center;justify-content:center;min-width:21px;'
+        + 'height:16px;padding:0 4px;border-radius:3px;box-sizing:border-box;'
+        + 'font:600 10px ui-monospace,Menlo,monospace;background:' + fill
+        + ';border:1.5px solid ' + ink + ';color:' + ink + ';';
+      var tail = document.createElement('div');
+      tail.style.cssText = 'width:0;height:0;margin-top:-1px;border-left:4px solid transparent;'
+        + 'border-right:4px solid transparent;border-top:5px solid ' + ink + ';';
+      el.appendChild(head);
+      el.appendChild(tail);
+      return el;
+    }
+    function orbePhotoDot(fill, ink) {
+      var el = document.createElement('div');
+      el.style.cssText = 'width:7px;height:5.5px;border-radius:1.5px;pointer-events:none;'
+        + 'background:' + fill + ';border:1px solid ' + ink + ';';
+      return el;
+    }
+  `;
+}
+
 export function mapHead(tile: MapStyleConfig): string {
   return tile.kind === 'vector'
     ? `<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
@@ -214,27 +254,17 @@ function leafletScript(
      *
      * Desenhadas por último para ficarem acima da rota e das cidades.
      */
+    ${photoPinJs()}
     var photoData = ${photoData};
     photoData.dots.forEach(function (p) {
-      var de = document.createElement('div');
-      de.style.cssText = 'width:9px;height:7px;border-radius:1.5px;transform:translate(-50%,-50%);'
-        + 'background:' + photoData.fill + ';border:1.5px solid ' + photoData.ink + ';';
+      var de = orbePhotoDot(photoData.fill, photoData.ink);
+      de.style.transform = 'translate(-50%,-50%)';
       L.marker([p.lat, p.lng], { icon: L.divIcon({ html: de, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     });
     photoData.stops.forEach(function (p) {
-      var pe = document.createElement('div');
+      var pe = orbePhotoPin(p.count, photoData.fill, photoData.ink);
       // translate(-50%,-100%): a PONTA fica no ponto, não o centro do pino.
-      pe.style.cssText = 'transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;';
-      var head = document.createElement('div');
-      head.textContent = String(p.count);
-      head.style.cssText = 'display:flex;align-items:center;justify-content:center;width:28px;height:24px;'
-        + 'border-radius:4px;box-sizing:border-box;font:600 12px ui-monospace,Menlo,monospace;'
-        + 'background:' + photoData.fill + ';border:2px solid ' + photoData.ink + ';color:' + photoData.ink + ';';
-      var tail = document.createElement('div');
-      tail.style.cssText = 'width:0;height:0;margin-top:-1px;border-left:5px solid transparent;'
-        + 'border-right:5px solid transparent;border-top:7px solid ' + photoData.ink + ';';
-      pe.appendChild(head);
-      pe.appendChild(tail);
+      pe.style.transform = 'translate(-50%,-100%)';
       L.marker([p.lat, p.lng], { icon: L.divIcon({ html: pe, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     });
   </script>`;
@@ -567,42 +597,22 @@ ${buildings}
       }
 
       // Fotos (ADR 0037) — ver a nota do Leaflet acima.
-      var photoData = ${photoData};
+      ${photoPinJs()}
+    var photoData = ${photoData};
       // Quadradinho, não ponto: a mesma família do pino. Vira Marker de HTML
       // porque camada de círculo não desenha retângulo — e assim os dois
       // renderizadores usam exatamente o mesmo desenho.
       photoData.dots.forEach(function (p) {
-        var de = document.createElement('div');
-        de.style.cssText = 'width:9px;height:7px;border-radius:1.5px;pointer-events:none;'
-          + 'background:' + photoData.fill + ';border:1.5px solid ' + photoData.ink + ';';
-        new maplibregl.Marker({ element: de }).setLngLat([p.lng, p.lat]).addTo(map);
+        new maplibregl.Marker({ element: orbePhotoDot(photoData.fill, photoData.ink) })
+          .setLngLat([p.lng, p.lat]).addTo(map);
       });
       /**
-       * O pino da parada — ver a nota no renderizador Leaflet, que explica por
-       * que deixou de ser círculo.
-       *
-       * Aqui vai como Marker de HTML, e não como camada de círculo + camada de
-       * símbolo: o pino tem duas partes com formas diferentes, e desenhá-lo em
-       * camadas nativas exigiria um sprite de imagem para a ponta. O HTML é o
-       * mesmo dos dois renderizadores, então os dois mapas ficam idênticos —
-       * que é o que importa, já que o usuário troca de estilo e não de app.
-       *
-       * O anchor 'bottom' faz a PONTA cair no ponto, não o centro do pino.
+       * O pino da parada — ver a nota do Leaflet, que explica por que deixou de
+       * ser círculo. O anchor 'bottom' faz a PONTA cair no ponto.
        */
       photoData.stops.forEach(function (p) {
-        var pe = document.createElement('div');
-        pe.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
-        var head = document.createElement('div');
-        head.textContent = String(p.count);
-        head.style.cssText = 'display:flex;align-items:center;justify-content:center;width:28px;height:24px;'
-          + 'border-radius:4px;box-sizing:border-box;font:600 12px ui-monospace,Menlo,monospace;'
-          + 'background:' + photoData.fill + ';border:2px solid ' + photoData.ink + ';color:' + photoData.ink + ';';
-        var tail = document.createElement('div');
-        tail.style.cssText = 'width:0;height:0;margin-top:-1px;border-left:5px solid transparent;'
-          + 'border-right:5px solid transparent;border-top:7px solid ' + photoData.ink + ';';
-        pe.appendChild(head);
-        pe.appendChild(tail);
-        new maplibregl.Marker({ element: pe, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(map);
+        new maplibregl.Marker({ element: orbePhotoPin(p.count, photoData.fill, photoData.ink), anchor: 'bottom' })
+          .setLngLat([p.lng, p.lat]).addTo(map);
       });
 
       var b = new maplibregl.LngLatBounds(coords[0], coords[0]);
