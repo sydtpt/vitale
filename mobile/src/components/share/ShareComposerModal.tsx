@@ -318,6 +318,11 @@ export function ShareComposerModal({
 
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
+  /**
+   * A linha da parada. Opcional a pedido dele — nem toda foto vale um lugar, e
+   * há cartão em que o nome da pedalada basta.
+   */
+  const [showPlace, setShowPlace] = useState(true);
 
   /**
    * A parada da foto escolhida — "Ittre · km 31,1 · 12:38".
@@ -331,7 +336,7 @@ export function ShareComposerModal({
    * é a chave da própria feature (ADR 0037 §2).
    */
   const placeLine = useMemo(() => {
-    if (background !== 'photo' || !chosenPhoto) return undefined;
+    if (background !== 'photo' || !showPlace || !chosenPhoto) return undefined;
     const parts: string[] = [];
 
     const cs = context.cities ?? [];
@@ -359,7 +364,7 @@ export function ShareComposerModal({
       }),
     );
     return parts.join(' · ');
-  }, [background, chosenPhoto, context.cities]);
+  }, [background, showPlace, chosenPhoto, context.cities]);
 
   const [artStyle, setArtStyle] = useState<ShareArtStyle>('speed');
   const [mapStyle, setMapStyle] = useState<MapStyle>(initialMapStyle);
@@ -887,7 +892,19 @@ export function ShareComposerModal({
                 style={styles.switchRow}
                 onPress={() => {
                   tap();
-                  setShowRoute((s) => !s);
+                  setShowPlace((v) => !v);
+                }}
+              >
+                <Text style={styles.switchLabel}>Mostrar onde a foto foi tirada</Text>
+                <View style={[styles.switchTrack, showPlace && styles.switchTrackOn]}>
+                  <View style={[styles.switchThumb, showPlace && styles.switchThumbOn]} />
+                </View>
+              </Pressable>
+              <Pressable
+                style={styles.switchRow}
+                onPress={() => {
+                  tap();
+                  setShowRoute((v) => !v);
                 }}
               >
                 <Text style={styles.switchLabel}>Desenhar a rota sobre a foto</Text>
@@ -898,7 +915,11 @@ export function ShareComposerModal({
             </>
           )}
 
-          {background === 'art' && (
+          {/* Também sobre a foto: desde que a rota seja desenhada, escolher se
+              ela mostra velocidade, traçado puro ou elevação é a mesma decisão.
+              Esconder o seletor ali obrigava a voltar ao fundo Transparente
+              para trocar, e voltar de novo. */}
+          {(background === 'art' || (background === 'photo' && showRoute)) && (
             <>
               <Text style={styles.fieldLabel}>Estilo da arte</Text>
               <ChipRow
