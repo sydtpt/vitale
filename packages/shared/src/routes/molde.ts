@@ -84,6 +84,17 @@ export function montarNome(
   const destino = preenchido.destino ?? leitura.destino;
   const alvoLoop = preenchido.destino ?? leitura.cidadeDistante ?? leitura.destino;
 
+  /*
+   * Quem decide entre "região na cabeça" e "trajeto na cabeça" num A→B é o
+   * MODELO, não uma regra daqui — ele preenche `regiao` ou preenche as pontas.
+   *
+   * A tentativa anterior rebaixava toda região de `a-b` para passagem, e o golden
+   * a derrubou na hora: `Tour de la Meuse-Rhin` (Liège → Lanaken) virou
+   * `De Liège à Lanaken par la Meuse-Rhin`. Rotterdam → Amsterdam quer trajeto,
+   * Liège → Lanaken quer região, e as duas são `a-b` de mais de 50 km. O que as
+   * separa é se as pontas valem ser nomeadas — julgamento de mundo, que mora do
+   * outro lado da lacuna.
+   */
   const base = preenchido.regiao
     ? comRegiao(lingua, preenchido.regiao, preenchido.artigo ?? null, leitura.forma, distanciaM)
     : semRegiao(lingua, leitura.forma, origem, destino, alvoLoop);
@@ -105,7 +116,7 @@ function comRegiao(
    * `Tour` é distância, não topologia — foi o que as 20 aprovadas mostraram: o
    * Hageland (55 km, loop) virou *Tour*, e a forêt de Soignes (33 km, que nem
    * loop é) virou *Boucle*. A única correção topológica é o `a-b`: um trajeto
-   * curto entre duas cidades diferentes não é uma volta, por mais curto que seja.
+   * entre duas cidades diferentes não é uma volta, por mais curto que seja.
    */
   const tour = distanciaM >= KM_TOUR * 1000 || forma === 'a-b';
   if (lingua === 'fr') return tour ? `Tour ${frDe(regiao, artigo)}` : `Boucle ${frDe(regiao, artigo)}`;

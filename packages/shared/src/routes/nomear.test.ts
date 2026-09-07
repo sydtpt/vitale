@@ -68,7 +68,7 @@ check('o feliz produz o nome aprovado e a meta completa', async () => {
   assert.equal(r.meta.lingua, 'fr');
   assert.equal(r.meta.regiao, 'Pajottenland');
   assert.equal(r.meta.artigo, 'le');
-  assert.equal(r.meta.versaoPrompt, 1);
+  assert.equal(r.meta.versaoPrompt, 2);
   assert.equal(r.meta.provedor, 'fake');
   assert.equal(r.meta.modelo, 'fake-1');
   assert.deepEqual(r.meta.tokens, { entrada: 120, saida: 40 });

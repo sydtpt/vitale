@@ -83,14 +83,28 @@ check('acento e caixa não decidem nada', () => {
   assert.equal(v.ok, true, JSON.stringify(v.problemas));
 });
 
-check('partida igual à chegada reprova', () => {
-  const v = verificarNome(rota, viva, {
+check('num A→B, partida igual à chegada reprova', () => {
+  const v = verificarNome(rota, { forma: 'a-b' }, {
     origem: 'Ninove',
     destino: 'Ninove',
     justificativa: ['Ninove'],
   });
   assert.equal(v.ok, false);
   assert.ok(v.problemas.some((p) => p.regra === 'repeticao'));
+});
+
+check('num LOOP, partida igual à chegada é o esperado — não reprova', () => {
+  // A primeira versão desta regra não distinguia a forma e reprovou, no primeiro
+  // smoke test contra o modelo real, o Hageland e a volta em São Paulo — os dois
+  // loops, os dois com o modelo respondendo certo.
+  for (const forma of ['casa-loop-casa', 'a-loop-a'] as const) {
+    const v = verificarNome(rota, { forma }, {
+      origem: 'Ninove',
+      destino: 'Ninove',
+      justificativa: ['Ninove'],
+    });
+    assert.equal(v.ok, true, `${forma}: ${JSON.stringify(v.problemas)}`);
+  }
 });
 
 check('as 20 do golden passam na conferência', () => {

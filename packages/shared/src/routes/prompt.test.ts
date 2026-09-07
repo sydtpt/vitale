@@ -70,7 +70,7 @@ check('o prompt NUNCA leva os pontos do GPX', () => {
 check('o prompt pede JSON e carrega versão', () => {
   const p = montarPromptDeNome(lerRota(pajottenland, ancoras), pajottenland);
   assert.equal(p.json, true);
-  assert.equal(PROMPT_NOME_VERSAO, 1);
+  assert.equal(PROMPT_NOME_VERSAO, 2);
 });
 
 check('a travessia de três países nomeia os três', () => {

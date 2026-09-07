@@ -76,8 +76,22 @@ export function verificarNome(
   if (preenchido.via && preenchido.regiao && chave(preenchido.via) === chave(preenchido.regiao)) {
     problemas.push({ regra: 'repeticao', detalhe: 'via repete a região' });
   }
-  if (preenchido.origem && preenchido.destino && chave(preenchido.origem) === chave(preenchido.destino)) {
-    problemas.push({ regra: 'repeticao', detalhe: 'partida e chegada são a mesma' });
+  /*
+   * Partida igual à chegada só é defeito num `a-b`, que por definição vai de um
+   * lugar a OUTRO. Num loop é o contrário: sair e voltar ao mesmo ponto é o que
+   * a forma significa.
+   *
+   * A primeira versão desta regra não fazia a distinção e reprovou, no primeiro
+   * smoke test contra o modelo real, duas das cinco rotas — o Hageland e a volta
+   * em São Paulo, ambas loops, ambas com o modelo respondendo corretamente.
+   */
+  if (
+    leitura.forma === 'a-b' &&
+    preenchido.origem &&
+    preenchido.destino &&
+    chave(preenchido.origem) === chave(preenchido.destino)
+  ) {
+    problemas.push({ regra: 'repeticao', detalhe: 'num A→B a chegada não pode ser a partida' });
   }
 
   return { ok: problemas.length === 0, problemas };

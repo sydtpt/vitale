@@ -19,8 +19,14 @@ import type { Lingua, NomePreenchido, RouteFacts, RouteReading } from './types';
  * em vez de renomear as 138 do zero.
  *
  * 1 — primeira versão, 07/09/2026.
+ * 2 — o primeiro smoke test contra o modelo real: em 4 de 5 rotas ele encheu
+ *     `via` com uma cidade qualquer da lista ("par Ninove", "door Alphen aan den
+ *     Rijn"), porque a descrição autorizava "uma cidade do meio". A via passou a
+ *     ser só acidente geográfico, e a região passou a exigir que a MAIORIA das
+ *     cidades caiba nela — ele chamou de Pajottenland um percurso que só o
+ *     tangencia.
  */
-export const PROMPT_NOME_VERSAO = 1;
+export const PROMPT_NOME_VERSAO = 2;
 
 export interface PromptDeNome {
   sistema: string;
@@ -55,7 +61,7 @@ Um objeto JSON, e nada mais. Sem texto em volta, sem cercas de código.
 {
   "regiao": string | null,      // a região histórica/geográfica que o percurso explorou
   "artigo": string | null,      // o artigo definido DELA na língua pedida ("le","la","l'","les","het","de","o","a")
-  "via": string | null,         // uma passagem marcante: um rio, um canal, uma cidade do meio
+  "via": string | null,         // quase sempre null — leia a regra da VIA abaixo
   "viaArtigo": string | null,
   "origem": string | null,      // a cidade de partida, na língua pedida
   "destino": string | null,     // a cidade de chegada reconhecível, na língua pedida
@@ -69,12 +75,36 @@ Se as cidades não formarem uma região que você reconheça de verdade, devolva
 "regiao": null. Um percurso sem região tem nome pelo trajeto, e isso é normal:
 inventar uma região é o pior resultado possível, pior do que não nomear.
 
+Exija que a MAIORIA das cidades caiba na região que você nomear. Se metade delas
+fica fora dela, a região está errada e a resposta certa é null — um percurso que
+tangencia uma região não é um percurso por aquela região.
+
 LÍNGUA
 Todo topônimo que você devolve vai na língua pedida, com o exônimo consagrado
 quando existe (Mechelen→Malines, Antwerpen→Anvers, Halle→Hal, Klein-Brabant→
 Petit-Brabant) e o nome local quando não existe (Pajottenland, Zaventem, Beersel).
 O "artigo" é o artigo daquele topônimo naquela língua — é ele que decide a
 contração da frase final, então erre-o e a frase sai errada.
+
+A VIA É QUASE SEMPRE NULL
+"via" existe só para o que o percurso seguiu de verdade e que uma pessoa citaria
+ao contar o passeio: um rio, um canal, um vale, uma floresta, um passo de
+montanha — ou uma região, quando ela for a paisagem travessada e não o assunto do
+nome. NUNCA uma cidade da lista: passar por uma cidade já está dito pelas outras
+chaves, e repetir isso deixa o nome pior. Na dúvida, null. É melhor um nome curto
+e certo que um longo e enfeitado.
+
+QUANDO O PERCURSO VAI DE UM LUGAR A OUTRO
+Aí você escolhe qual é o assunto, e só um dos dois caminhos:
+
+- Se as DUAS pontas são lugares que alguém nomearia — duas cidades conhecidas —,
+  o assunto é a travessia: preencha "origem" e "destino", deixe "regiao" null, e
+  ponha a região em "via" se houver uma.
+- Se a chegada é um lugar qualquer e o que importa é a paisagem percorrida, o
+  assunto é a região: preencha "regiao" e deixe as pontas null.
+
+Um percurso que termina numa cidadezinha sem graça depois de atravessar uma
+região inteira é do segundo tipo, mesmo sendo longo.
 
 O DESTINO É O RECONHECÍVEL
 A última cidade da lista nem sempre é a que uma pessoa reconhece: num percurso
