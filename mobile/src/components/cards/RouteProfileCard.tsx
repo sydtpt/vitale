@@ -93,11 +93,17 @@ export function RouteProfileCard({
   points,
   activityId,
   onScrub,
+  onScrubbing,
 }: {
   points: ActivityRoutePoint[];
   activityId: number;
   /** Distância (m) sob o dedo, ou `null` quando o cursor é limpo. */
   onScrub?: (distanceM: number | null) => void;
+  /**
+   * `true` enquanto o dedo está no gráfico. A tela usa isto para desligar o
+   * swipe-back só nesse intervalo, em vez de matá-lo na tela inteira.
+   */
+  onScrubbing?: (ativo: boolean) => void;
 }) {
   const styles = useThemedStyles(createStyles);
   const { width } = useWindowDimensions();
@@ -184,11 +190,22 @@ export function RouteProfileCard({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderTerminationRequest: () => true,
-        onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
+        onPanResponderGrant: (e) => {
+          // Avisa a tela no TOQUE, não no arrasto. O swipe-back de borda só
+          // *começa* com movimento; desligá-lo enquanto ainda está no estado
+          // possível cancela o rastreio deste toque. Depois do arrasto começar
+          // seria tarde. Ver o comentário do `gestureEnabled` na tela.
+          onScrubbing?.(true);
+          emit(e.nativeEvent.locationX);
+        },
         onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
+        onPanResponderRelease: () => onScrubbing?.(false),
+        // Terminate cobre a rolagem vertical roubando o gesto: sem isto o
+        // swipe-back ficaria desligado até o próximo toque no gráfico.
+        onPanResponderTerminate: () => onScrubbing?.(false),
       });
     },
-    [w, xMax, onScrub],
+    [w, xMax, onScrub, onScrubbing],
   );
 
   if (panels.length === 0 || w <= 0) return null;

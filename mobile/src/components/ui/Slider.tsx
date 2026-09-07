@@ -11,12 +11,13 @@ const THUMB = 22;
  * aqui obrigaria a reconferir uma tela que não tem nada a ver com esta mudança).
  * Se um terceiro slider aparecer, o de Aparência migra para cá.
  *
- * **Atenção ao swipe-back:** o polegar no valor mínimo fica encostado na borda
+ * **Atenção ao swipe-back.** O polegar no valor mínimo fica encostado na borda
  * esquerda, dentro da faixa que o iOS reserva para o gesto de voltar, e os dois
  * disparam juntos — o `PanResponder` do JS não cancela reconhecedor nativo do
- * `react-native-screens`. A tela que usa este slider precisa de
- * `<Stack.Screen options={{ gestureEnabled: false }} />` e de um botão de voltar
- * no cabeçalho.
+ * `react-native-screens`. Por isso `onDragging` existe: a tela desliga
+ * `gestureEnabled` só enquanto o dedo está no slider. Funciona porque o
+ * reconhecedor de borda só *começa* com movimento, e desabilitá-lo no toque
+ * cancela o rastreio. Ignorar `onDragging` traz o bug de volta.
  *
  * Nada de Reanimated — ADR 0010. O arrasto é síncrono e não precisa de worklet:
  * o valor sai direto do `locationX` do toque, sem animação intermediária.
@@ -28,6 +29,7 @@ export function Slider({
   step = 1,
   onChange,
   accent,
+  onDragging,
 }: {
   value: number;
   min: number;
@@ -36,6 +38,8 @@ export function Slider({
   onChange: (v: number) => void;
   /** Cor do preenchimento e do polegar. Padrão: a marca. */
   accent?: string;
+  /** `true` enquanto o dedo está no controle. Ver a nota do swipe-back acima. */
+  onDragging?: (ativo: boolean) => void;
 }) {
   useTheme();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -43,8 +47,10 @@ export function Slider({
   // Refs evitam closures obsoletas dentro do PanResponder, criado uma única vez.
   const widthRef = useRef(0);
   const onChangeRef = useRef(onChange);
+  const onDraggingRef = useRef(onDragging);
   const rangeRef = useRef({ min, max, step });
   onChangeRef.current = onChange;
+  onDraggingRef.current = onDragging;
   rangeRef.current = { min, max, step };
 
   const panResponder = useRef(
@@ -54,8 +60,13 @@ export function Slider({
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
+      onPanResponderGrant: (e) => {
+        onDraggingRef.current?.(true);
+        emit(e.nativeEvent.locationX);
+      },
       onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
+      onPanResponderRelease: () => onDraggingRef.current?.(false),
+      onPanResponderTerminate: () => onDraggingRef.current?.(false),
     }),
   ).current;
 

@@ -135,13 +135,24 @@ function legendaSolar(estado: SolarScheme | null, fuso: string | null): string {
   return `${verbo} às ${HORA_FMT.format(estado.until)}${lugar}`;
 }
 
-function BlurSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function BlurSlider({
+  value,
+  onChange,
+  onDragging,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  /** `true` enquanto o dedo está no controle — a tela desliga o swipe-back aí. */
+  onDragging?: (ativo: boolean) => void;
+}) {
   useTheme();
   const [trackWidth, setTrackWidth] = useState(0);
   // Refs evitam closures obsoletas dentro do PanResponder (criado 1x).
   const widthRef = useRef(0);
   const onChangeRef = useRef(onChange);
+  const onDraggingRef = useRef(onDragging);
   onChangeRef.current = onChange;
+  onDraggingRef.current = onDragging;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -150,8 +161,15 @@ function BlurSlider({ value, onChange }: { value: number; onChange: (v: number) 
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
+      // Aviso no toque: é o que permite desligar o swipe-back antes de o
+      // reconhecedor de borda começar. Ver `components/ui/Slider.tsx`.
+      onPanResponderGrant: (e) => {
+        onDraggingRef.current?.(true);
+        emit(e.nativeEvent.locationX);
+      },
       onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
+      onPanResponderRelease: () => onDraggingRef.current?.(false),
+      onPanResponderTerminate: () => onDraggingRef.current?.(false),
     }),
   ).current;
 
@@ -269,6 +287,8 @@ const previewStyles = themed(() =>
 
 export default function AppSettingsScreen() {
   const styles = useThemedStyles(createStyles);
+  /** Ver a nota do swipe-back em `components/ui/Slider.tsx`. */
+  const [arrastandoBlur, setArrastandoBlur] = useState(false);
   const { scheme, themeId, paletteId, brandId } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -312,10 +332,10 @@ export default function AppSettingsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* O polegar do BlurSlider em 0 fica dentro da faixa do swipe-back de
-          borda, e os dois gestos disparam juntos. Mesmo defeito do slider de
-          raio da Presença e do scrub do perfil de elevação. Some o gesto de borda,
-          fica o chevron do cabeçalho. */}
-      <Stack.Screen options={{ gestureEnabled: false }} />
+          borda, e os dois gestos disparavam juntos. Desligar só durante o
+          arrasto preserva o gesto no resto da tela — ver a nota em
+          `components/ui/Slider.tsx`. */}
+      <Stack.Screen options={{ gestureEnabled: !arrastandoBlur }} />
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -397,6 +417,7 @@ export default function AppSettingsScreen() {
             <BlurSlider
               value={blurIntensity}
               onChange={(v) => updatePreferences({ blurIntensity: v })}
+              onDragging={setArrastandoBlur}
             />
             <Text style={styles.sliderHint}>
               Na barra de abas, 100% é o vidro do iOS 26 intacto e 0% não tem vidro nenhum.
