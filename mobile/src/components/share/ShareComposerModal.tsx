@@ -121,6 +121,14 @@ interface ShareComposerModalProps {
   context: ShareContext;
   /** Fotos ligadas à atividade (ADR 0037). Vazio ⇒ o fundo "Foto" nem aparece. */
   photos?: readonly ActivityPhoto[];
+  /**
+   * Abre já com esta foto escolhida e o fundo **Foto** ligado.
+   *
+   * É o caminho que vem do visor da galeria: quem tocou em compartilhar estava
+   * olhando uma foto específica, e chegar ao compositor num fundo diferente —
+   * ou noutra foto — seria perder o que ele acabou de escolher.
+   */
+  initialPhotoId?: string;
 }
 
 interface MetricDef {
@@ -270,6 +278,7 @@ export function ShareComposerModal({
   initialMapStyle,
   context,
   photos = [],
+  initialPhotoId,
 }: ShareComposerModalProps) {
   const insets = useSafeAreaInsets();
   useTheme();
@@ -407,8 +416,16 @@ export function ShareComposerModal({
     setMapEffect('none');
     setTextColor(null);
     mapViewRef.current = null;
+    setFrame(PHOTO_FRAME_DEFAULT);
+    frameStart.current = PHOTO_FRAME_DEFAULT;
+    setShowRoute(true);
+    setShowPlace(true);
+    // Vindo do visor, o fundo e a foto já estão decididos; vindo do mapa, o
+    // compositor abre como sempre abriu.
+    setBackground(initialPhotoId ? 'photo' : 'art');
+    setPhotoId(initialPhotoId ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, context.activityId]);
+  }, [visible, context.activityId, initialPhotoId]);
 
   // Título com debounce p/ não recarregar o WebView a cada tecla.
   const [debouncedTitle, setDebouncedTitle] = useState(title);

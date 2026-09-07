@@ -120,10 +120,16 @@ function Viewer({
   photos,
   index,
   onClose,
+  onShare,
+  onCover,
+  onDismiss,
 }: {
   photos: ActivityPhoto[];
   index: number;
   onClose: () => void;
+  onShare?: (photo: ActivityPhoto) => void;
+  onCover?: (photo: ActivityPhoto) => void;
+  onDismiss?: (photo: ActivityPhoto) => void;
 }) {
   const styles = useThemedStyles(createStyles);
   const { width, height } = useWindowDimensions();
@@ -219,13 +225,61 @@ function Viewer({
         </Pressable>
 
         <View style={[styles.viewerFoot, { paddingBottom: insets.bottom + spacing.lg }]}>
-          <Text style={styles.viewerTime}>{hhmm(photos[current]?.takenAt ?? 0)}</Text>
-          {km(photos[current]?.routeDistanceM ?? null) && (
-            <Text style={styles.viewerMeta}>{km(photos[current]!.routeDistanceM)}</Text>
+          <View style={styles.viewerCtx}>
+            <Text style={styles.viewerTime}>{hhmm(photos[current]?.takenAt ?? 0)}</Text>
+            {km(photos[current]?.routeDistanceM ?? null) && (
+              <Text style={styles.viewerMeta}>{km(photos[current]!.routeDistanceM)}</Text>
+            )}
+            <Text style={styles.viewerMeta}>
+              {current + 1} de {photos.length}
+            </Text>
+          </View>
+
+          {/**
+           * As ações da foto que se está olhando.
+           *
+           * As duas últimas já existiam — num toque longo nas miniaturas do
+           * cartão, que o visor não alcançava. Para desligar uma foto que se
+           * está OLHANDO era preciso fechar o visor, achar a miniatura certa e
+           * segurar o dedo nela. É olhando que se decide se a foto fica.
+           *
+           * A ordem é deliberada: compartilhar primeiro, desligar por último e
+           * em vermelho, por ser a única com consequência — e mesmo assim
+           * reversível, porque a imagem nunca sai do iPhone.
+           */}
+          {(onShare || onCover || onDismiss) && (
+            <View style={styles.viewerActs}>
+              {onShare && (
+                <Pressable style={styles.act} onPress={() => onShare(photos[current]!)}>
+                  <Ionicons name="share-outline" size={21} color={onMedia} />
+                  <Text style={styles.actText}>Compartilhar</Text>
+                </Pressable>
+              )}
+              {onCover && (
+                <Pressable style={styles.act} onPress={() => onCover(photos[current]!)}>
+                  <Ionicons
+                    name={photos[current]?.isCover ? 'star' : 'star-outline'}
+                    size={21}
+                    color={onMedia}
+                  />
+                  <Text style={styles.actText}>Tornar a capa</Text>
+                </Pressable>
+              )}
+              {onDismiss && (
+                <Pressable
+                  style={styles.act}
+                  onPress={() => {
+                    const p = photos[current]!;
+                    onClose();
+                    onDismiss(p);
+                  }}
+                >
+                  <Ionicons name="remove-circle-outline" size={21} color={styles.actOff.color} />
+                  <Text style={[styles.actText, styles.actOff]}>Desligar</Text>
+                </Pressable>
+              )}
+            </View>
           )}
-          <Text style={styles.viewerMeta}>
-            {current + 1} de {photos.length}
-          </Text>
         </View>
           </Animated.View>
         </PanGestureHandler>
@@ -368,9 +422,28 @@ interface Props {
   onRescan?: () => void;
   /** Desliga as fotos escolhidas. Nunca apaga arquivo — só a ligação. */
   onDismiss?: (photoIds: string[]) => Promise<void> | void;
+  /**
+   * Compartilhar a foto que está no visor.
+   *
+   * A galeria **não fecha**: o compositor abre por cima, e sair dele devolve o
+   * dono à mesma foto. Uma pedalada tem até 60 — fechar aqui obrigaria a rolar
+   * tudo de novo para reencontrar a que ele estava vendo.
+   */
+  onSharePhoto?: (photo: ActivityPhoto) => void;
+  /** Tornar capa, a partir do visor. */
+  onCover?: (photo: ActivityPhoto) => void;
 }
 
-export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan, onDismiss }: Props) {
+export function PhotoGalleryModal({
+  visible,
+  sections,
+  total,
+  onClose,
+  onRescan,
+  onDismiss,
+  onSharePhoto,
+  onCover,
+}: Props) {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -535,7 +608,14 @@ export function PhotoGalleryModal({ visible, sections, total, onClose, onRescan,
         )}
 
             {viewing !== null && (
-              <Viewer photos={flat} index={viewing} onClose={() => setViewing(null)} />
+              <Viewer
+                photos={flat}
+                index={viewing}
+                onClose={() => setViewing(null)}
+                onShare={onSharePhoto}
+                onCover={onCover}
+                onDismiss={onDismiss ? (p) => void onDismiss([p.id]) : undefined}
+              />
             )}
           </Animated.View>
         </PanGestureHandler>
@@ -716,12 +796,21 @@ const createStyles = () =>
       left: 0,
       right: 0,
       bottom: 0,
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: spacing.md,
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.lg,
     },
+    viewerCtx: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
+    viewerActs: {
+      flexDirection: 'row',
+      marginTop: spacing.lg,
+      paddingTop: spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: 'rgba(255,255,255,0.18)',
+    },
+    act: { flex: 1, alignItems: 'center', gap: 6 },
+    actText: { fontSize: 11, fontFamily: fonts.sansMedium, color: onMedia },
+    /** A única com consequência. Sobre o visor escuro, um coral que se lê. */
+    actOff: { color: 'rgb(255,154,138)' },
     viewerTime: { fontSize: 17, fontFamily: fonts.mono, color: onMedia },
     viewerMeta: { fontSize: 12, fontFamily: fonts.mono, color: 'rgba(255,255,255,0.7)' },
   });

@@ -116,9 +116,16 @@ interface Props {
    * não é saber que não.**
    */
   points: readonly ActivityRoutePoint[] | undefined;
+  /**
+   * Compartilhar uma foto do visor da galeria.
+   *
+   * Sobe até a tela porque o compositor mora lá: a galeria precisa continuar
+   * aberta atrás dele, e ela é um `Modal` deste cartão.
+   */
+  onSharePhoto?: (photo: ActivityPhoto) => void;
 }
 
-export function ActivityPhotosCard({ activity, points: rawPoints, view }: Props) {
+export function ActivityPhotosCard({ activity, points: rawPoints, view, onSharePhoto }: Props) {
   const points = rawPoints ?? [];
   const styles = useThemedStyles(createStyles);
   const userId = useAuthStore((s) => s.user?.id);
@@ -557,6 +564,16 @@ export function ActivityPhotosCard({ activity, points: rawPoints, view }: Props)
         onRescan={() => {
           setGalleryOpen(false);
           void openSheet();
+        }}
+        onSharePhoto={onSharePhoto}
+        onCover={async (p) => {
+          if (!userId) return;
+          try {
+            await setCover(userId, activity.id, p.id);
+            await reload();
+          } catch {
+            /* a capa é preferência, não dado: falhar em silêncio é aceitável */
+          }
         }}
         onDismiss={async (ids) => {
           if (!userId) return;

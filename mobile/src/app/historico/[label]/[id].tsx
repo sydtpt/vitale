@@ -23,10 +23,12 @@ import {
   routeDistances,
   speedSeries,
   type MetricKey,
+  type ActivityPhoto,
   type RouteCursor,
 } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
 import { useGearStore } from '../../../store/gear.store';
+import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
 
 /** Código de ciclismo do HealthKit — só pedalada tem bicicleta. */
@@ -36,6 +38,7 @@ import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
 import { ActivityPhotosCard } from '../../../components/photos/ActivityPhotosCard';
+import { ShareComposerModal } from '../../../components/share/ShareComposerModal';
 import { useActivityPhotos } from '../../../hooks/useActivityPhotos';
 import { TimeRailCard } from '../../../components/photos/TimeRailCard';
 import { ClimbsCard } from '../../../components/cards/ClimbsCard';
@@ -110,6 +113,8 @@ export default function AtividadeDetalheScreen() {
   const loadGear = useGearStore((s) => s.load);
   const setActivityGearId = useActivitiesStore((s) => s.setGear);
   const [pickingGear, setPickingGear] = useState(false);
+  /** Mesma preferência que o mapa usa — o compositor abre no estilo dele. */
+  const mapStyle = useSettingsStore((st) => st.preferences?.mapStyle) ?? 'voyager';
 
   const activity = useMemo(() => _all.find((a) => a.id === id), [_all, id]);
   // A bike desta pedalada: override explícito ou herança pela data (ADR 0034).
@@ -164,6 +169,17 @@ export default function AtividadeDetalheScreen() {
   const [durationMin, setDurationMin] = useState('');
   const [saving, setSaving] = useState(false);
   const [togglingHidden, setTogglingHidden] = useState(false);
+
+  /**
+   * Compartilhar a partir do visor da galeria (ADR 0037).
+   *
+   * O compositor mora **aqui**, e não dentro do mapa como o outro caminho,
+   * porque a galeria precisa continuar aberta atrás dele: sair do compositor
+   * devolve o dono à mesma foto. Uma pedalada tem até 60, e fechar a galeria
+   * obrigaria a rolar tudo de novo.
+   */
+  const [sharePhoto, setSharePhoto] = useState<ActivityPhoto | null>(null);
+
 
   useEffect(() => {
     if (activity) {
@@ -223,6 +239,20 @@ export default function AtividadeDetalheScreen() {
   // Elevação: o valor sincronizado vence o cálculo sobre o track (ADR 0019) —
   // sem isso a tela mostrava ~metade do que a web e a retro mostram.
   const elevationM = resolveElevationM(activity.elevationM, points);
+
+  /** O mesmo contexto para os dois caminhos de compartilhar: o mapa e o visor. */
+  const shareContext = {
+    activityId: activity.activityId,
+    activityName: activity.activityName,
+    metaLabel: meta.label,
+    startISO: activity.startAt,
+    distanceM: activity.distanceM,
+    movingS,
+    totalS,
+    calories: activity.calories,
+    elevationM,
+    cities: activity.cities,
+  };
   const elevation = elevationM === undefined ? null : formatElevation(elevationM);
 
   // Recordes que esta atividade detém (maior distância, best efforts).
@@ -423,18 +453,7 @@ export default function AtividadeDetalheScreen() {
               <WorkoutMap
                 points={points}
                 cursor={mapCursor}
-                share={{
-                  activityId: activity.activityId,
-                  activityName: activity.activityName,
-                  metaLabel: meta.label,
-                  startISO: activity.startAt,
-                  distanceM: activity.distanceM,
-                  movingS,
-                  totalS,
-                  calories: activity.calories,
-                  elevationM,
-                  cities: activity.cities,
-                }}
+                share={shareContext}
                 photos={{
                   stops: photoView.stopMarks,
                   dots: photoView.dotMarks,
@@ -500,6 +519,25 @@ export default function AtividadeDetalheScreen() {
             // atividade **sem rota** — ver o comentário da prop.
             routePoints
           }
+          onSharePhoto={setSharePhoto}
+        />
+
+        {/**
+         * O compositor do caminho da foto.
+         *
+         * Mora aqui, e não dentro do mapa como o outro caminho, para poder
+         * abrir POR CIMA da galeria — que é um `Modal` do cartão acima. Assim
+         * fechar o compositor devolve o dono à mesma foto que ele estava vendo,
+         * em vez de largá-lo no topo de uma galeria de 60.
+         */}
+        <ShareComposerModal
+          visible={!!sharePhoto}
+          onClose={() => setSharePhoto(null)}
+          points={points}
+          initialMapStyle={mapStyle}
+          context={shareContext}
+          photos={photoView.photos}
+          initialPhotoId={sharePhoto?.id}
         />
 
         {/* Fora do bloco do percurso de propósito: `bestEfforts` vem do sync e
