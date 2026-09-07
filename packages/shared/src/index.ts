@@ -112,6 +112,13 @@ export * from './fitness/route-cursor';
 export * from './fitness/time-rail';
 export * from './fitness/metric-roles';
 export * from './gear/assign';
+
+// Nome das rotas (ADR 0041) — a metade pura: forma, âncora, molde e conferência.
+export * from './routes/types';
+export * from './routes/anchor';
+export * from './routes/shape';
+export * from './routes/molde';
+export * from './routes/verificar';
 export * from './photos/window';
 export * from './photos/stops';
 export * from './photos/match';
