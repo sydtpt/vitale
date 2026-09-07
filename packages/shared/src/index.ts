@@ -122,6 +122,12 @@ export * from './routes/molde';
 export * from './routes/verificar';
 export * from './routes/prompt';
 export * from './routes/nomear';
+
+// Busca textual sobre as atividades já carregadas (spec busca-textual).
+export * from './search/normalize';
+export * from './search/campos';
+export * from './search/buscar';
+
 export * from './photos/window';
 export * from './photos/stops';
 export * from './photos/match';

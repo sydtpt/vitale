@@ -581,25 +581,34 @@ async function mergeRows(
 
 /* ───────────────────── Enriquecimento de cidades ───────────────────── */
 
-/** Código de ciclismo do HealthKit — único tipo enriquecido com cidades hoje. */
-const BIKE_ACTIVITY_ID = 13;
 /** Teto de atividades geocodificadas por run (geocoding é lento; drena histórico
  *  ao longo dos ticks e respeita o rate limit do Nominatim). */
 export const MAX_GEOCODE_ACTIVITIES_PER_RUN = 3;
 
 /**
- * Preenche `activities.cities` para treinos de bicicleta com rota ainda não
- * enriquecidos (source-agnostic: varre linhas persistidas, então cobre
- * HealthKit, Strava e intervals uniformemente e faz backfill do histórico).
+ * Preenche `activities.cities` para **qualquer** treino com rota ainda não
+ * enriquecido (source-agnostic: varre linhas persistidas, então cobre HealthKit,
+ * Strava e intervals uniformemente e faz backfill do histórico).
+ *
+ * Até 07/09/2026 isto filtrava por `activity_id = 13` e só cobria bicicleta,
+ * o que deixava **137 atividades com rota e nenhuma cidade** — 80 caminhadas e
+ * 57 corridas. Uma busca por cidade sobre esse acervo pareceria completa e
+ * estaria pela metade, então o filtro saiu (spec busca-textual, CAP-4).
+ * `has_route` já é o critério certo: ioga e musculação não têm rota e nunca
+ * entram.
+ *
  * Best-effort: nunca lança — erro por atividade deixa `cities` NULL para tentar
  * no próximo run; `[]` só quando o geocoder resolveu e nada foi encontrado.
+ *
+ * Este é o caminho INCREMENTAL, para atividade nova. O acervo velho não drena
+ * por aqui: a 3 atividades por run seriam ~92 syncs, e por isso o backfill roda
+ * como passe dedicado fora da edge function (ADR 0006/0007).
  */
 export async function enrichCities(admin: Admin, userId: string): Promise<number> {
   const { data } = await admin
     .from('activities')
     .select('id')
     .eq('user_id', userId)
-    .eq('activity_id', BIKE_ACTIVITY_ID)
     .eq('has_route', true)
     .is('cities', null)
     .order('start_at', { ascending: false })

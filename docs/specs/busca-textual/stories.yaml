@@ -1,0 +1,89 @@
+- id: "1"
+  title: Ingest — apelidos de cidade e cobertura além da bicicleta
+  description: >-
+    Colher as sete chaves de apelido em `reverseGeocode` e gravá-las em
+    `CityMark.aliases`, e remover o filtro de bicicleta do `enrichCities` para
+    que corrida e caminhada com rota entrem no passe (CAP-3, CAP-4).
+  invoke_dev_with: >-
+    `CityMark` está redefinido em DOIS lugares por restrição do Deno —
+    `supabase/functions/_shared/geocode.ts` e `packages/shared/src/models/index.ts`
+    — e os dois precisam de `aliases`. Colher só as sete chaves da lista fechada
+    (`name:fr`, `name:nl`, `name:de`, `name:en`, `name:pt`, `alt_name`,
+    `short_name`): a resposta de Bruxelas traz 188 chaves em `namedetails`.
+    Deduplicar sem acento e em minúscula contra o `name` canônico, que nunca
+    aparece em `aliases`; `alt_name` e `short_name` podem trazer várias grafias
+    separadas por `;`. No `enrichCities` (`_shared/ingest.ts:597`) a mudança é
+    REMOVER a linha `.eq('activity_id', BIKE_ACTIVITY_ID)` — `has_route` já é o
+    filtro certo, ioga e musculação nunca entram. Não tocar em
+    `sync_upsert_activities`: se ela passar a referenciar `cities`, o re-push do
+    HealthKit apaga os apelidos. O deploy da edge function é manual neste projeto.
+
+- id: "2"
+  title: Backfill em produção — 254 cidades e 137 rotas
+  description: >-
+    Rodar os dois passes fora da edge function — B (cidades para as 137
+    corridas e caminhadas), depois A (apelidos nas 254 cidades distintas já
+    gravadas) — e conferir com as três queries do data-model §7.
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Roda FORA da edge function, no precedente das ADR 0006/0007: o teto de 3
+    atividades por run do `enrichCities` levaria ~92 syncs para drenar 275
+    atividades. Respeitar 1,1 s entre chamadas e User-Agent identificável
+    (política do Nominatim); o total é ~992 chamadas ≈ 19 min. O passe A resolve
+    UMA vez por cidade distinta, no centro já guardado na própria marca
+    (`lat`/`lng` do município) — não re-geocodificar as atividades, que custaria
+    ~3.700 chamadas para o mesmo resultado. O passe A não pode tocar em `name`,
+    na ordem das marcas, nem em marca que já tenha `aliases`. Os dois passes
+    escrevem em conjuntos disjuntos de linhas (B só onde `cities is null`, A só
+    onde `cities is not null`), então rodar com sync ativo é seguro. Terminar
+    pelas três queries de verificação do data-model §7 e reportar os números.
+
+- id: "3"
+  title: Motor de busca no shared
+  description: >-
+    O registro de campos buscáveis, a normalização, o índice e o ranqueamento
+    com proveniência — funções puras testadas no núcleo, sem nenhuma tela e sem
+    nenhuma mudança de schema (CAP-2, CAP-5, CAP-6, CAP-8).
+  invoke_dev_with: >-
+    NÃO usar `name_edited` para ranquear e não mexer em `ACTIVITY_COLUMNS`,
+    `ActivityRow`, `toActivity` nem no modelo `Activity` — nada de schema muda
+    aqui. Medido em produção: dos 33 nomes com `name_edited`, 31 são "Yoga", e
+    os informativos (*Tour de la Meuse-Rhin*, *Morning Ride*, *Rotterdam
+    Cycling*) têm `name_edited = false`. O peso do nome sai da FREQUÊNCIA dele
+    no acervo, contada ao montar o índice: 1–3 ocorrências pesa 80, 4–20 pesa
+    45, mais de 20 pesa 20 (data-model §3). `route_name` É campo buscável na
+    v1 — ganhou 133 linhas em produção em 07/09 e é o único visível no cartão,
+    então quando ele casa o texto é grifado e nenhuma linha de proveniência
+    nasce. O índice normalizado é derivado
+    uma vez por carga do store, nunca no evento de digitação. Casamento por
+    prefixo de PALAVRA, não substring: `pierre` acha Woluwe-Saint-Pierre e
+    `elles` não acha Ixelles. Nome genérico é deranqueado (peso 20), nunca
+    excluído — é ele que resgata as corridas sem `cities` cujo nome carrega a
+    cidade. Testar contra os quatro casos do brief (Tervuren, Tour de la Meuse,
+    Garmin, Brussels→Bruxelles) e contra a exclusão do `elles`. Manter a
+    assinatura `(consulta, atividades) → SearchHit[]`: é a fronteira que deixa
+    trocar o motor por Postgres sem tocar nas telas.
+
+- id: "4"
+  title: A busca nas duas telas — Histórico do iPhone e /workout-history
+  description: >-
+    O campo de busca nas duas superfícies, consumindo o motor do shared e
+    mostrando a proveniência de cada resultado. Mobile primeiro, web no mesmo
+    passo, como a D3 pede (CAP-1, CAP-5, CAP-7, CAP-9, CAP-10).
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    O desenho já foi aprovado em 07/09 (artifact ff071157): A2 grifa o campo
+    visível e só explica o invisível, B2 põe a lupa no cabeçalho, C1 deixa o
+    estado vazio seco. Três regras que saíram dessa revisão e são fáceis de
+    violar: (1) na linha 2 do cartão o campo VISÍVEL vem antes da proveniência
+    — todas as 21 rotas com Tervuren no nome também passam por Tervuren, e
+    inverter esconderia o texto digitado; (2) quem quer que ocupe a linha 2
+    manda a hora para a fileira de números, senão a hora evapora numa corrida,
+    que não tem route_name; (3) query ativa esvazia carga, período, os quatro
+    números e os gráficos — estatística de período em cima de resultado de
+    busca é mentira por vizinhança. O destaque do trecho
+    que casou usa papel de paleta, nunca `--primary`: marca é cromo, não cor de
+    dado. O estado vazio é seco, sem contagem de pendentes (C1) — mas nenhuma
+    linha pode AFIRMAR ausência de cidade: o silêncio é correto, a afirmação
+    não. Nenhuma tela normaliza texto no evento de digitação; ambas consomem o
+    índice memoizado do store.
