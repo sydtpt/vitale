@@ -91,7 +91,18 @@ export async function resolvePosterUri(
       const { uri } = await getThumbnailAsync(source, { time: 0 });
       cache.set(key, uri);
       return uri;
-    } catch {
+    } catch (err) {
+      // O `catch {}` que existia aqui custou uma hora de investigação às cegas
+      // em 07/09/2026: o quadro saía vazio e não havia como saber de quê. São
+      // duas causas possíveis, e elas pedem consertos opostos —
+      // `FileSystemReadPermissionException` (o sandbox recusa o caminho do
+      // contêiner do Fotos) ou uma falha do `AVAssetImageGenerator`, que este
+      // módulo roda com tolerância ZERO e por isso engasga em HEVC/Dolby Vision.
+      //
+      // O visor usa o MESMO endereço para tocar o vídeo, de propósito: se o
+      // clipe toca e só o pôster falha, o arquivo é legível e a causa é a
+      // extração de quadro exato. Se nem toca, é o caminho.
+      console.warn('[fotos] pôster do vídeo falhou:', String(err));
       cache.set(key, null);
       return null;
     } finally {

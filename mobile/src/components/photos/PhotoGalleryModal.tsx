@@ -12,7 +12,7 @@
  * dela são o que nenhum outro app mostra.
  */
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ import {
   type PanGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ActivityPhoto } from '@vitale/shared';
 import { colors, fonts, onMedia, radii, spacing, useThemedStyles } from '../../theme';
@@ -66,19 +67,32 @@ function GridTile({
   selected: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
-  const uri = useAssetUri(photo.assetId, photo.mediaType === 'video');
+  const isVideo = photo.mediaType === 'video';
+  const uri = useAssetUri(photo.assetId, isVideo);
   const box = { width: size, height: size };
 
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={280} style={[box, styles.tile]}>
       {typeof uri === 'string' ? (
         <Image source={{ uri }} style={styles.tileImg} />
-      ) : (
-        <View style={[styles.tileImg, uri === null && styles.tileGap]}>
-          {uri === null && <Ionicons name="help-outline" size={16} color={colors.ink4} />}
+      ) : uri === null ? (
+        /**
+         * Vídeo sem pôster **não** é vídeo perdido: a extração do quadro pode
+         * falhar com o clipe inteiro intacto e tocável. Por isso a lacuna
+         * pontilhada com "?" — que afirma "esta mídia sumiu da biblioteca" —
+         * fica só para foto; o vídeo cai num quadro de filme, que não mente.
+         */
+        <View style={[styles.tileImg, isVideo ? styles.tileFilm : styles.tileGap]}>
+          <Ionicons
+            name={isVideo ? 'play' : 'help-outline'}
+            size={isVideo ? 20 : 16}
+            color={isVideo ? onMedia : colors.ink4}
+          />
         </View>
+      ) : (
+        <View style={styles.tileImg} />
       )}
-      {photo.mediaType === 'video' && photo.durationS !== null && (
+      {isVideo && photo.durationS !== null && (
         <View style={styles.clip}>
           <Ionicons name="play" size={7} color={onMedia} />
           <Text style={styles.clipText}>{formatClip(photo.durationS)}</Text>
@@ -191,8 +205,8 @@ function Viewer({
             setCurrent(Math.round(e.nativeEvent.contentOffset.x / width))
           }
         >
-          {photos.map((p) => (
-            <ViewerPage key={p.id} photo={p} width={width} />
+          {photos.map((p, i) => (
+            <ViewerPage key={p.id} photo={p} width={width} active={i === current} />
           ))}
         </ScrollView>
 
@@ -220,15 +234,92 @@ function Viewer({
   );
 }
 
-function ViewerPage({ photo, width }: { photo: ActivityPhoto; width: number }) {
+/**
+ * Foto e vídeo são componentes separados porque hook não é condicional — e
+ * porque só um dos dois precisa de um player.
+ */
+function ViewerPage({
+  photo,
+  width,
+  active,
+}: {
+  photo: ActivityPhoto;
+  width: number;
+  active: boolean;
+}) {
+  return photo.mediaType === 'video' ? (
+    <VideoPage photo={photo} width={width} active={active} />
+  ) : (
+    <PhotoPage photo={photo} width={width} />
+  );
+}
+
+function PhotoPage({ photo, width }: { photo: ActivityPhoto; width: number }) {
   const styles = useThemedStyles(createStyles);
-  const uri = useAssetUri(photo.assetId, photo.mediaType === 'video');
+  const uri = useAssetUri(photo.assetId, false);
   return (
     <View style={[styles.viewerPage, { width }]}>
       {typeof uri === 'string' ? (
         <Image source={{ uri }} style={styles.viewerImg} resizeMode="contain" />
       ) : (
         <Ionicons name="help-outline" size={30} color={onMedia} />
+      )}
+    </View>
+  );
+}
+
+/**
+ * O clipe toca **aqui dentro** (ADR 0037): mandar para o app Fotos perderia a
+ * hora e o quilômetro embaixo da imagem, que são justamente o que nenhum outro
+ * app mostra. Os controles são os nativos — eles já trazem barra de tempo, som
+ * e tela cheia, e reinventá-los aqui seria pior em todos os três.
+ *
+ * **O player só existe na página ativa.** O `ScrollView` monta todas as páginas
+ * de uma vez, e uma pedalada real tem 14 vídeos (a Tour de la Wallonie
+ * Picarde, 21/07/2026): 14 `AVPlayer` simultâneos passam do que o iOS
+ * decodifica, e garantiriam dois clipes falando ao mesmo tempo.
+ *
+ * Não toca sozinho, de propósito: chega-se a esta tela varrendo a grade, e um
+ * vídeo que começa a falar no meio da curadoria é pior do que um toque a mais.
+ *
+ * O endereço é o **mesmo** que o pôster da grade usa — ver `asset-uri.ts`. Se o
+ * clipe toca e só o pôster falha, o arquivo é legível e a culpa é da extração
+ * de quadro exato; se nem toca, a culpa é do caminho.
+ */
+function VideoPage({
+  photo,
+  width,
+  active,
+}: {
+  photo: ActivityPhoto;
+  width: number;
+  active: boolean;
+}) {
+  const styles = useThemedStyles(createStyles);
+  const uri = useAssetUri(photo.assetId, false);
+  const source = active && typeof uri === 'string' ? uri : null;
+  const player = useVideoPlayer(source);
+
+  useEffect(() => {
+    if (!active) player.pause();
+  }, [active, player]);
+
+  return (
+    <View style={[styles.viewerPage, { width }]}>
+      {source ? (
+        <VideoView
+          player={player}
+          style={styles.viewerImg}
+          contentFit="contain"
+          nativeControls
+          allowsPictureInPicture={false}
+        />
+      ) : (
+        <Ionicons
+          name={uri === null ? 'help-outline' : 'play-circle-outline'}
+          size={54}
+          color={onMedia}
+        />
       )}
     </View>
   );
@@ -535,6 +626,12 @@ const createStyles = () =>
       borderWidth: 1,
       borderColor: colors.lineDeep,
       borderStyle: 'dashed',
+    },
+    /** Escuro nos dois esquemas, como o crachá de duração logo abaixo dele. */
+    tileFilm: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.55)',
     },
     clip: {
       position: 'absolute',

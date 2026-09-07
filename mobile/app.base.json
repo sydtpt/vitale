@@ -65,6 +65,14 @@
         }
       ],
       [
+        "expo-video",
+        {
+          "//": "O clipe da pedalada toca DENTRO do visor (ADR 0037): sair para o app Fotos perderia a hora e o quilômetro, que são o que dá sentido à imagem aqui. Os dois suportes ficam desligados de propósito — som em segundo plano e picture-in-picture pedem entitlement e modo de fundo que este app não tem motivo para carregar.",
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ],
+      [
         "expo-location",
         {
           "//": "Fase 0 da Presença: geofence de até 20 regiões, sem código nativo próprio. O app NUNCA liga o GPS num evento — a coordenada do evento vem do fix já em cache (`getLastKnownPositionAsync`). Posição nova só quando o usuário toca em registrar um lugar.",

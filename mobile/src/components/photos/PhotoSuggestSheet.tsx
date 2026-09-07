@@ -32,7 +32,11 @@ const PREVIEW = 4;
 
 /** Miniatura que resolve o endereço sozinha — ver `services/asset-uri.ts`. */
 function Tile({ assetId, style, isVideo }: { assetId: string; style: object; isVideo: boolean }) {
+  const styles = useThemedStyles(createStyles);
   const uri = useAssetUri(assetId, isVideo);
+  // Pôster de vídeo pode falhar com o clipe intacto; o quadro escuro sustenta o
+  // crachá de play que vem por cima e não deixa a tira parecer quebrada.
+  if (uri === null && isVideo) return <View style={[style, styles.film]} />;
   if (typeof uri !== 'string') return <View style={style} />;
   return <Image source={{ uri }} style={style} />;
 }
@@ -322,6 +326,8 @@ const createStyles = () =>
     strip: { flexDirection: 'row', gap: 7 },
     thumbWrap: { width: 60, height: 60, borderRadius: radii.md, overflow: 'hidden' },
     thumb: { width: '100%', height: '100%', backgroundColor: colors.surfaceMute },
+    /** Escuro nos dois esquemas, como o crachá de play que fica sobre ele. */
+    film: { backgroundColor: 'rgba(0,0,0,0.55)' },
     veil: {
       position: 'absolute',
       top: 0,

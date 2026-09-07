@@ -130,7 +130,12 @@ async function readWindow(fromMs: number, toMs: number): Promise<RawMedia[]> {
       lat,
       lng,
       mediaType: meta.mediaType === MediaType.VIDEO ? 'video' : 'photo',
-      durationS: meta.duration && meta.duration > 0 ? meta.duration : null,
+      // A API **nova** devolve `Int(duration * 1000)` — milissegundos. A legada
+      // devolvia segundos, e a coluna se chama `duration_s`, então o valor cru
+      // entrava mil vezes maior sem que nada reclamasse: um clipe de 68 s
+      // aparecia no crachá como `1137:15`. Conferido contra os 37 vídeos em
+      // produção em 07/09/2026, todos entre 98 e 68 235 — ms, sem exceção.
+      durationS: meta.duration && meta.duration > 0 ? meta.duration / 1000 : null,
       inCloud,
     });
   }

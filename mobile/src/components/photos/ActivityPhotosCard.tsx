@@ -77,9 +77,15 @@ function Thumb({
 
   if (uri === 'loading') return <View style={[style, styles.loadingTile]} />;
   if (uri === null || broken) {
+    // Vídeo sem pôster não é vídeo perdido — ver `PhotoGalleryModal`. A lacuna
+    // com "?" afirma que a mídia sumiu da biblioteca, e isso só se sabe da foto.
     return (
-      <View style={[style, styles.gap]}>
-        <Ionicons name="help-outline" size={14} color={colors.ink4} />
+      <View style={[style, isVideo ? styles.film : styles.gap]}>
+        <Ionicons
+          name={isVideo ? 'play' : 'help-outline'}
+          size={14}
+          color={isVideo ? onMedia : colors.ink4}
+        />
       </View>
     );
   }
@@ -504,6 +510,12 @@ const createStyles = () =>
       borderWidth: 1,
       borderColor: colors.lineDeep,
       borderStyle: 'dashed',
+    },
+    /** Escuro nos dois esquemas, como o crachá de duração que fica sobre ele. */
+    film: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.55)',
     },
     /** A duração fica na base, onde não briga com a estrela de capa (topo). */
     clip: {
