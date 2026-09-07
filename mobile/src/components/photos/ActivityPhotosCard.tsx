@@ -123,9 +123,11 @@ interface Props {
    * aberta atrás dele, e ela é um `Modal` deste cartão.
    */
   onSharePhoto?: (photo: ActivityPhoto) => void;
+  /** O compositor da foto está aberto — o visor mostra que está indo. */
+  sharingPhoto?: boolean;
 }
 
-export function ActivityPhotosCard({ activity, points: rawPoints, view, onSharePhoto }: Props) {
+export function ActivityPhotosCard({ activity, points: rawPoints, view, onSharePhoto, sharingPhoto }: Props) {
   const points = rawPoints ?? [];
   const styles = useThemedStyles(createStyles);
   const userId = useAuthStore((s) => s.user?.id);
@@ -566,6 +568,7 @@ export function ActivityPhotosCard({ activity, points: rawPoints, view, onShareP
           void openSheet();
         }}
         onSharePhoto={onSharePhoto}
+        sharing={sharingPhoto}
         onCover={async (p) => {
           if (!userId) return;
           try {

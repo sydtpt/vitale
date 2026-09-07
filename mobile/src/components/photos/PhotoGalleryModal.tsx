@@ -22,6 +22,7 @@ import {
   ScrollView,
   Image,
   Animated,
+  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import {
@@ -123,6 +124,7 @@ function Viewer({
   onShare,
   onCover,
   onDismiss,
+  sharing = false,
 }: {
   photos: ActivityPhoto[];
   index: number;
@@ -130,6 +132,8 @@ function Viewer({
   onShare?: (photo: ActivityPhoto) => void;
   onCover?: (photo: ActivityPhoto) => void;
   onDismiss?: (photo: ActivityPhoto) => void;
+  /** O compositor está montando. Vem da tela, que é quem sabe. */
+  sharing?: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
   const { width, height } = useWindowDimensions();
@@ -250,19 +254,46 @@ function Viewer({
           {(onShare || onCover || onDismiss) && (
             <View style={styles.viewerActs}>
               {onShare && (
-                <Pressable style={styles.act} onPress={() => onShare(photos[current]!)}>
-                  <Ionicons name="share-outline" size={21} color={onMedia} />
-                  <Text style={styles.actText}>Compartilhar</Text>
+                <Pressable
+                  style={styles.act}
+                  onPress={() => onShare(photos[current]!)}
+                  disabled={sharing}
+                >
+                  {/**
+                   * O visor **não** fecha: o compositor abre por cima dele, e
+                   * fechar o compositor devolve o dono à mesma foto. Foi o que
+                   * o estudo desenhou, e funciona.
+                   *
+                   * O que faltava era dizer que está indo. Montar o compositor
+                   * leva tempo — o WebView do cartão e a extração do arquivo da
+                   * foto —, e sem sinal o toque parecia perdido.
+                   */}
+                  {sharing ? (
+                    <ActivityIndicator size="small" color={onMedia} />
+                  ) : (
+                    <Ionicons name="share-outline" size={21} color={onMedia} />
+                  )}
+                  <Text style={styles.actText}>{sharing ? 'Abrindo…' : 'Compartilhar'}</Text>
                 </Pressable>
               )}
               {onCover && (
-                <Pressable style={styles.act} onPress={() => onCover(photos[current]!)}>
+                <Pressable
+                  style={styles.act}
+                  disabled={photos[current]?.isCover}
+                  onPress={() => onCover(photos[current]!)}
+                >
+                  {/* A estrela cheia e o rótulo no passado são o único retorno
+                      que esta ação dá: ela grava no banco e não muda mais nada
+                      na tela. Sem isso o toque parece não ter funcionado — foi
+                      exatamente como ele descreveu (07/09/2026). */}
                   <Ionicons
                     name={photos[current]?.isCover ? 'star' : 'star-outline'}
                     size={21}
                     color={onMedia}
                   />
-                  <Text style={styles.actText}>Tornar a capa</Text>
+                  <Text style={styles.actText}>
+                    {photos[current]?.isCover ? 'É a capa' : 'Tornar a capa'}
+                  </Text>
                 </Pressable>
               )}
               {onDismiss && (
@@ -432,6 +463,8 @@ interface Props {
   onSharePhoto?: (photo: ActivityPhoto) => void;
   /** Tornar capa, a partir do visor. */
   onCover?: (photo: ActivityPhoto) => void;
+  /** O compositor está abrindo — o visor troca o ícone por um indicador. */
+  sharing?: boolean;
 }
 
 export function PhotoGalleryModal({
@@ -443,6 +476,7 @@ export function PhotoGalleryModal({
   onDismiss,
   onSharePhoto,
   onCover,
+  sharing,
 }: Props) {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
@@ -613,6 +647,7 @@ export function PhotoGalleryModal({
                 index={viewing}
                 onClose={() => setViewing(null)}
                 onShare={onSharePhoto}
+                sharing={sharing}
                 onCover={onCover}
                 onDismiss={onDismiss ? (p) => void onDismiss([p.id]) : undefined}
               />

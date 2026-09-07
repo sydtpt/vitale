@@ -520,6 +520,7 @@ export default function AtividadeDetalheScreen() {
             routePoints
           }
           onSharePhoto={setSharePhoto}
+          sharingPhoto={!!sharePhoto}
         />
 
         {/**
