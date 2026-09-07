@@ -467,7 +467,13 @@ const HEX_CEILING: {
     // esquema escuro e sumiria sobre o Positron; um fixo escuro sumiria sobre o
     // Dark Matter. O par núcleo+anel é legível nos dois, e é a mesma solução do
     // casing branco que já está sob a linha da rota.
-    max: 200,
+    //
+    // 200 → 201 com o ponto "eu" do mapa de raio da Presença (`map-html.ts`,
+    // `window.setMe`): o miolo usa a cor de tema (`c.me`) e o anel é branco fixo.
+    // Mesmo caso do cursor do scrub, pelo mesmo motivo — o marcador vive sobre os
+    // tiles. Entrou em `1514bb3` sem que o teto subisse junto, e por isso a main
+    // ficou vermelha; o literal é legítimo, faltou o registro.
+    max: 201,
   },
   {
     label: 'web SCSS',
