@@ -28,7 +28,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { ActivityRoutePoint } from '@vitale/shared';
+import type { ActivityPhoto, ActivityRoutePoint } from '@vitale/shared';
 import { colors, fonts, onMedia, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { useAuthStore } from '../../store/auth.store';
 import { useActivityPhotos } from '../../hooks/useActivityPhotos';
@@ -62,17 +62,10 @@ const PREVIEW = 2;
  * lacuna é a resposta honesta; sumir calado faria a contagem do cabeçalho
  * discordar do que se vê.
  */
-function Thumb({
-  assetId,
-  style,
-  isVideo = false,
-}: {
-  assetId: string | null;
-  style: object;
-  isVideo?: boolean;
-}) {
+function Thumb({ photo, style }: { photo: ActivityPhoto; style: object }) {
   const styles = useThemedStyles(createStyles);
-  const uri = useAssetUri(assetId, isVideo);
+  const isVideo = photo.mediaType === 'video';
+  const uri = useAssetUri(photo.assetId, isVideo, photo.durationS);
   const [broken, setBroken] = useState(false);
 
   if (uri === 'loading') return <View style={[style, styles.loadingTile]} />;
@@ -351,7 +344,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
               <View style={styles.strip}>
                 {ps.slice(0, PREVIEW).map((p) => (
                   <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
-                    <Thumb assetId={p.assetId} style={styles.thumb} isVideo={p.mediaType === 'video'} />
+                    <Thumb photo={p} style={styles.thumb} />
                     {p.mediaType === 'video' && p.durationS !== null && (
                       <View style={styles.clip}>
                         <Ionicons name="play" size={7} color={onMedia} />
@@ -386,7 +379,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
               </View>
               <View style={styles.strip}>
                 {g.photos.slice(0, PREVIEW).map((p) => (
-                  <Thumb key={p.id} assetId={p.assetId} style={styles.thumb} isVideo={p.mediaType === 'video'} />
+                  <Thumb key={p.id} photo={p} style={styles.thumb} />
                 ))}
               </View>
             </View>
@@ -408,7 +401,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
             <View style={styles.strip}>
               {grouped.moving.slice(0, PREVIEW).map((p) => (
                 <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
-                  <Thumb assetId={p.assetId} style={styles.thumb} isVideo={p.mediaType === 'video'} />
+                  <Thumb photo={p} style={styles.thumb} />
                   {p.mediaType === 'video' && p.durationS !== null && (
                     <View style={styles.clip}>
                       <Ionicons name="play" size={7} color={onMedia} />

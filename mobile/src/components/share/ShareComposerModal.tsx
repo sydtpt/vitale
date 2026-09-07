@@ -49,12 +49,14 @@ function PickerThumb({
   assetId,
   style,
   isVideo,
+  durationS = null,
 }: {
   assetId: string | null;
   style: object;
   isVideo: boolean;
+  durationS?: number | null;
 }) {
-  const uri = useAssetUri(assetId, isVideo);
+  const uri = useAssetUri(assetId, isVideo, durationS);
   if (typeof uri !== 'string') return <View style={style} />;
   return <Image source={{ uri }} style={style} />;
 }
@@ -243,7 +245,11 @@ export function ShareComposerModal({
   );
   // Resolvido pelo `getUri()` da biblioteca: o `ph://` montado à mão não
   // carrega (conferido no iPhone em 06/09/2026). Ver services/asset-uri.ts.
-  const resolvedPhoto = useAssetUri(chosenPhoto?.assetId ?? null, chosenPhoto?.mediaType === 'video');
+  const resolvedPhoto = useAssetUri(
+    chosenPhoto?.assetId ?? null,
+    chosenPhoto?.mediaType === 'video',
+    chosenPhoto?.durationS ?? null,
+  );
   const photoUri = typeof resolvedPhoto === 'string' ? resolvedPhoto : undefined;
 
   const [format, setFormat] = useState<ShareFormat>('story');
@@ -657,7 +663,12 @@ export function ShareComposerModal({
                     }}
                     style={[styles.photoOpt, chosenPhoto?.id === p.id && styles.photoOptOn]}
                   >
-                    <PickerThumb assetId={p.assetId} style={styles.photoOptImg} isVideo={p.mediaType === 'video'} />
+                    <PickerThumb
+                      assetId={p.assetId}
+                      style={styles.photoOptImg}
+                      isVideo={p.mediaType === 'video'}
+                      durationS={p.durationS}
+                    />
                   </Pressable>
                 ))}
               </ScrollView>

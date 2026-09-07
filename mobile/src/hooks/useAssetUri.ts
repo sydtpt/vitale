@@ -15,20 +15,28 @@ export type AssetUri = string | null | 'loading';
 /**
  * `isVideo` troca o endereço pelo **quadro-pôster**: o `Image` do RN não desenha
  * um arquivo de vídeo, e sem isto o vídeo aparece como quadro vazio.
+ *
+ * `durationS` só serve ao vídeo, e só à segunda tentativa do pôster — ver
+ * `resolvePosterUri`. Sem ela o quadro do fim é impedível, e o clipe cujo
+ * primeiro quadro não sai fica sem pôster nenhum.
  */
-export function useAssetUri(assetId: string | null, isVideo = false): AssetUri {
+export function useAssetUri(
+  assetId: string | null,
+  isVideo = false,
+  durationS: number | null = null,
+): AssetUri {
   const [uri, setUri] = useState<AssetUri>('loading');
 
   useEffect(() => {
     let alive = true;
     setUri('loading');
-    void resolvePosterUri(assetId, isVideo).then((u) => {
+    void resolvePosterUri(assetId, isVideo, durationS).then((u) => {
       if (alive) setUri(u);
     });
     return () => {
       alive = false;
     };
-  }, [assetId, isVideo]);
+  }, [assetId, isVideo, durationS]);
 
   return uri;
 }

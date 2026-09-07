@@ -31,9 +31,19 @@ import { useAssetUri } from '../../hooks/useAssetUri';
 const PREVIEW = 4;
 
 /** Miniatura que resolve o endereço sozinha — ver `services/asset-uri.ts`. */
-function Tile({ assetId, style, isVideo }: { assetId: string; style: object; isVideo: boolean }) {
+function Tile({
+  assetId,
+  style,
+  isVideo,
+  durationS = null,
+}: {
+  assetId: string;
+  style: object;
+  isVideo: boolean;
+  durationS?: number | null;
+}) {
   const styles = useThemedStyles(createStyles);
-  const uri = useAssetUri(assetId, isVideo);
+  const uri = useAssetUri(assetId, isVideo, durationS);
   // Pôster de vídeo pode falhar com o clipe intacto; o quadro escuro sustenta o
   // crachá de play que vem por cima e não deixa a tira parecer quebrada.
   if (uri === null && isVideo) return <View style={[style, styles.film]} />;
@@ -224,7 +234,12 @@ export function PhotoSuggestSheet({
                         const on = selected.has(p.takenAtMs);
                         return (
                           <Pressable key={p.takenAtMs} onPress={() => toggleOne(p)} style={styles.thumbWrap}>
-                            <Tile assetId={p.assetId} style={styles.thumb} isVideo={p.mediaType === 'video'} />
+                            <Tile
+                              assetId={p.assetId}
+                              style={styles.thumb}
+                              isVideo={p.mediaType === 'video'}
+                              durationS={p.durationS}
+                            />
                             {!on && <View style={styles.veil} />}
                             <View style={[styles.check, on && styles.checkOn]}>
                               {on && <Ionicons name="checkmark" size={11} color={colors.onPrimary} />}

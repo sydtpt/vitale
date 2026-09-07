@@ -68,7 +68,7 @@ function GridTile({
 }) {
   const styles = useThemedStyles(createStyles);
   const isVideo = photo.mediaType === 'video';
-  const uri = useAssetUri(photo.assetId, isVideo);
+  const uri = useAssetUri(photo.assetId, isVideo, photo.durationS);
   const box = { width: size, height: size };
 
   return (
@@ -282,9 +282,19 @@ function PhotoPage({ photo, width }: { photo: ActivityPhoto; width: number }) {
  * Não toca sozinho, de propósito: chega-se a esta tela varrendo a grade, e um
  * vídeo que começa a falar no meio da curadoria é pior do que um toque a mais.
  *
- * O endereço é o **mesmo** que o pôster da grade usa — ver `asset-uri.ts`. Se o
- * clipe toca e só o pôster falha, o arquivo é legível e a culpa é da extração
- * de quadro exato; se nem toca, a culpa é do caminho.
+ * ## Por que a fonte é `ph://` e entra por `replaceAsync`
+ *
+ * A primeira versão passava ao player o endereço `file://` extraído — o mesmo
+ * do pôster — e **nenhum clipe tocava**. O motivo está no código nativo do
+ * `expo-video`: aquele caminho carrega uma chave de sandbox concedida no
+ * momento da extração, e o `VideoPlayer.swift` recusa de saída uma URL `ph://`
+ * no construtor síncrono, dizendo em quantas letras que ela "só pode ser
+ * carregada de forma assíncrona".
+ *
+ * `replaceAsync` é esse caminho: ele pede o `AVAsset` ao PhotoKit e recebe uma
+ * URL **com permissão válida**. Ou seja, o `assetId` que já guardamos — que é
+ * literalmente `ph://<localIdentifier>` — é a fonte certa, e a extração de
+ * arquivo não era só supérflua aqui: era o defeito.
  */
 function VideoPage({
   photo,
@@ -296,17 +306,29 @@ function VideoPage({
   active: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
-  const uri = useAssetUri(photo.assetId, false);
-  const source = active && typeof uri === 'string' ? uri : null;
-  const player = useVideoPlayer(source);
+  const player = useVideoPlayer(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!active) player.pause();
-  }, [active, player]);
+    if (!active) {
+      player.pause();
+      return;
+    }
+    if (!photo.assetId) return;
+    let alive = true;
+    setFailed(false);
+    player.replaceAsync(photo.assetId).catch((err) => {
+      console.warn('[fotos] o clipe não carregou:', String(err));
+      if (alive) setFailed(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [active, photo.assetId, player]);
 
   return (
     <View style={[styles.viewerPage, { width }]}>
-      {source ? (
+      {active && !failed ? (
         <VideoView
           player={player}
           style={styles.viewerImg}
@@ -316,7 +338,7 @@ function VideoPage({
         />
       ) : (
         <Ionicons
-          name={uri === null ? 'help-outline' : 'play-circle-outline'}
+          name={failed ? 'help-outline' : 'play-circle-outline'}
           size={54}
           color={onMedia}
         />

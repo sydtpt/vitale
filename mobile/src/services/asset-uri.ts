@@ -28,6 +28,28 @@ const cache = new Map<string, string | null>();
 const inflight = new Map<string, Promise<string | null>>();
 
 /**
+ * A extração crua, **sem cache**.
+ *
+ * O endereço que o `getUri()` devolve não é um caminho comum: ele carrega uma
+ * *chave de sandbox* concedida pelo PhotoKit no momento do pedido. O próprio
+ * `expo-video` documenta isso em `URL+MediaLibraryAssets.swift` — "once we
+ * request an AVAsset for a PHAsset url, the URI (…) has a valid sandbox key".
+ *
+ * Guardar essa string e reusá-la depois é guardar uma chave que pode já não
+ * abrir. Foi o que explicou o sintoma de 07/09/2026: **alguns** pôsteres de
+ * vídeo apareciam e outros não, sem padrão visível. Para vídeo, extrai-se de
+ * novo a cada uso; o que se memoriza é o **pôster**, que é arquivo nosso, no
+ * nosso diretório de cache, sem chave nenhuma.
+ */
+async function extractUri(assetId: string): Promise<string | null> {
+  try {
+    return (await new Asset(assetId).getUri()) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolve o `assetId` num endereço carregável.
  *
  * Devolve `null` quando a foto não existe mais na biblioteca — que é um estado
@@ -63,20 +85,31 @@ export async function resolveAssetUri(assetId: string | null): Promise<string | 
  * O endereço de uma **imagem** para o asset: a própria foto, ou o quadro-pôster
  * do vídeo.
  *
- * Conferido no iPhone em 07/09/2026: `getUri()` de um vídeo devolve o arquivo
- * de vídeo, e o `Image` do React Native não desenha isso — os vídeos apareciam
- * como quadro vazio. Foi exatamente a dúvida que a Fase 7 deixou aberta para o
- * aparelho responder, e ele respondeu que o pôster não vem de graça.
+ * ## As duas armadilhas do pôster, ambas conferidas no iPhone
  *
- * O pôster é gerado uma vez e memorizado junto com o resto: extrair quadro é
- * caro e o vídeo não muda.
+ * **1. A chave de sandbox envelhece.** O endereço extraído não é um caminho
+ * comum — ver `extractUri`. Por isso o vídeo extrai de novo a cada tentativa, e
+ * só o pôster gerado (arquivo nosso) fica memorizado.
+ *
+ * **2. O gerador de quadro é estrito demais.** O `expo-video-thumbnails` roda o
+ * `AVAssetImageGenerator` com `requestedTimeToleranceAfter = .zero`, e ainda
+ * zera a tolerância *anterior* sempre que o instante pedido cai **dentro** do
+ * clipe. Pedir o quadro em `t=0` é, portanto, exigir aquele quadro exato — o
+ * que HEVC/Dolby Vision, câmera lenta e clipes aparados nem sempre entregam.
+ *
+ * Há uma única fresta na regra dele: quando o instante pedido **não** é menor
+ * que a duração, a tolerância anterior fica no padrão (infinita) e o gerador
+ * passa a poder devolver o quadro recuperável mais próximo para trás. Daí a
+ * segunda tentativa, no fim do clipe: um último quadro é pôster pior que o
+ * primeiro, e infinitamente melhor que um retângulo escuro.
  */
 export async function resolvePosterUri(
   assetId: string | null,
   isVideo: boolean,
+  durationS: number | null = null,
 ): Promise<string | null> {
-  const source = await resolveAssetUri(assetId);
-  if (!source || !isVideo) return source;
+  if (!assetId) return null;
+  if (!isVideo) return resolveAssetUri(assetId);
 
   const key = `poster:${assetId}`;
   const hit = cache.get(key);
@@ -87,21 +120,29 @@ export async function resolvePosterUri(
 
   const task = (async () => {
     try {
-      // `time: 0` é o primeiro quadro — o mais barato e o mais previsível.
-      const { uri } = await getThumbnailAsync(source, { time: 0 });
-      cache.set(key, uri);
-      return uri;
+      const source = await extractUri(assetId);
+      if (!source) {
+        cache.set(key, null);
+        return null;
+      }
+      try {
+        // `time: 0` é o primeiro quadro — o mais barato e o melhor pôster.
+        const first = await getThumbnailAsync(source, { time: 0 });
+        cache.set(key, first.uri);
+        return first.uri;
+      } catch (strict) {
+        // A fresta: `time >= duração` afrouxa a tolerância anterior. Sem saber
+        // a duração não há como pedir isso, e aí não há segunda tentativa.
+        if (!durationS || durationS <= 0) throw strict;
+        const last = await getThumbnailAsync(source, {
+          time: Math.round(durationS * 1000),
+        });
+        cache.set(key, last.uri);
+        return last.uri;
+      }
     } catch (err) {
-      // O `catch {}` que existia aqui custou uma hora de investigação às cegas
-      // em 07/09/2026: o quadro saía vazio e não havia como saber de quê. São
-      // duas causas possíveis, e elas pedem consertos opostos —
-      // `FileSystemReadPermissionException` (o sandbox recusa o caminho do
-      // contêiner do Fotos) ou uma falha do `AVAssetImageGenerator`, que este
-      // módulo roda com tolerância ZERO e por isso engasga em HEVC/Dolby Vision.
-      //
-      // O visor usa o MESMO endereço para tocar o vídeo, de propósito: se o
-      // clipe toca e só o pôster falha, o arquivo é legível e a causa é a
-      // extração de quadro exato. Se nem toca, é o caminho.
+      // O `catch {}` que existia aqui custou uma hora de investigação às cegas:
+      // o quadro saía vazio e não havia como saber de quê.
       console.warn('[fotos] pôster do vídeo falhou:', String(err));
       cache.set(key, null);
       return null;
