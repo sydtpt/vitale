@@ -212,11 +212,10 @@ export default function PresencaLocalScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* O swipe-back de borda compete com o slider: o polegar no raio mínimo
-          fica a ~24 px da esquerda, dentro da faixa que o iOS reconhece, e os
-          dois gestos disparam juntos — o `PanResponder` do JS não cancela
-          reconhecedor nativo do `react-native-screens`. Some o gesto de borda,
-          fica o chevron do cabeçalho. */}
+      {/* O polegar do slider no raio mínimo fica a ~24 px da esquerda, dentro
+          da faixa do swipe-back, e os dois gestos disparam juntos. Desligar só
+          durante o arrasto não funciona: não chega a tempo. Ver a nota em
+          `components/ui/Slider.tsx`. */}
       <Stack.Screen options={{ gestureEnabled: false }} />
       <View style={styles.header}>
         <Pressable

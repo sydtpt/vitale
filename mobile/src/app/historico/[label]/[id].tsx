@@ -178,15 +178,13 @@ export default function AtividadeDetalheScreen() {
         <Stack.Screen
           options={{
             headerShown: false,
-            // O scrub do perfil de elevação ocupa a largura da janela, e a
-            // borda esquerda dele é o INÍCIO dos dados — onde a mão naturalmente
-            // começa a arrastar. O swipe-back é um reconhecedor de borda e
-            // disputa exatamente essa faixa; o `PanResponder` do JS não cancela
-            // reconhecedor nativo do `react-native-screens`, então os dois
-            // disparavam. Guardar a faixa (tentado antes) só troca o sintoma:
-            // some o arrasto duplo, mas a esquerda do gráfico continua
-            // inutilizável. Aqui o gráfico vale mais que o gesto — sai o gesto,
-            // fica o chevron logo abaixo.
+            // O perfil e o trilho ocupam a largura da janela, e a esquerda deles
+            // é o início dos dados — a mesma faixa em que o iOS reconhece o
+            // swipe-back. Três tentativas de conviver falharam: a guarda de
+            // borda inutiliza a esquerda do gráfico, e desligar o gesto no
+            // toque não chega a tempo (a viagem JS→nativo leva um quadro e o
+            // reconhecedor já começou). Só o desligamento estático funciona.
+            // Fica o chevron do cabeçalho.
             gestureEnabled: false,
           }}
         />
@@ -323,15 +321,13 @@ export default function AtividadeDetalheScreen() {
       <Stack.Screen
           options={{
             headerShown: false,
-            // O scrub do perfil de elevação ocupa a largura da janela, e a
-            // borda esquerda dele é o INÍCIO dos dados — onde a mão naturalmente
-            // começa a arrastar. O swipe-back é um reconhecedor de borda e
-            // disputa exatamente essa faixa; o `PanResponder` do JS não cancela
-            // reconhecedor nativo do `react-native-screens`, então os dois
-            // disparavam. Guardar a faixa (tentado antes) só troca o sintoma:
-            // some o arrasto duplo, mas a esquerda do gráfico continua
-            // inutilizável. Aqui o gráfico vale mais que o gesto — sai o gesto,
-            // fica o chevron logo abaixo.
+            // O perfil e o trilho ocupam a largura da janela, e a esquerda deles
+            // é o início dos dados — a mesma faixa em que o iOS reconhece o
+            // swipe-back. Três tentativas de conviver falharam: a guarda de
+            // borda inutiliza a esquerda do gráfico, e desligar o gesto no
+            // toque não chega a tempo (a viagem JS→nativo leva um quadro e o
+            // reconhecedor já começou). Só o desligamento estático funciona.
+            // Fica o chevron do cabeçalho.
             gestureEnabled: false,
           }}
         />

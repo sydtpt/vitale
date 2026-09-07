@@ -11,12 +11,13 @@ const THUMB = 22;
  * aqui obrigaria a reconferir uma tela que não tem nada a ver com esta mudança).
  * Se um terceiro slider aparecer, o de Aparência migra para cá.
  *
- * **Atenção ao swipe-back:** o polegar no valor mínimo fica encostado na borda
+ * **Atenção ao swipe-back.** O polegar no valor mínimo fica encostado na borda
  * esquerda, dentro da faixa que o iOS reserva para o gesto de voltar, e os dois
  * disparam juntos — o `PanResponder` do JS não cancela reconhecedor nativo do
- * `react-native-screens`. A tela que usa este slider precisa de
+ * `react-native-screens`. A tela que usa este slider **precisa** de
  * `<Stack.Screen options={{ gestureEnabled: false }} />` e de um botão de voltar
- * no cabeçalho.
+ * no cabeçalho. Desligar o gesto só durante o arrasto foi tentado e não
+ * funciona: a viagem JS→nativo leva um quadro e o reconhecedor já começou.
  *
  * Nada de Reanimated — ADR 0010. O arrasto é síncrono e não precisa de worklet:
  * o valor sai direto do `locationX` do toque, sem animação intermediária.
