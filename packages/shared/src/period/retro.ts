@@ -49,6 +49,7 @@ import {
   type TriggerSource,
 } from '../sleep/triggers';
 import { periodBounds, retroSince, type PeriodKind } from './bounds';
+import { fmtMoney } from '../format/money';
 
 /**
  * Piso de relevância do insight cruzado (%). Abaixo disso a diferença entre os
@@ -80,6 +81,8 @@ export interface RetroHabit {
   bad: boolean;
   /** Unidade do contador ('L', 'un', 'cig'…); '' quando desconhecida. */
   unit?: string;
+  /** Preço médio de uma unidade (€), quando o hábito tem um. Ver `habitCost`. */
+  unitPrice?: number;
   /** dia 'YYYY-MM-DD' → valor acumulado. */
   logsByDay: ReadonlyMap<string, number>;
   /**
@@ -257,6 +260,13 @@ export interface RetroHabitRow {
   bad: boolean;
   /** Unidade do contador para exibição ('L', 'cig'…); '' quando desconhecida. */
   unit: string;
+  /**
+   * Preço médio de uma unidade (€). A linha do hábito multiplica por `total`
+   * (via `habitCost`) em vez de trazer o gasto pronto: a conta é uma
+   * multiplicação, e mantê-la na UI deixa a mesma regra valendo para o total do
+   * período e para o de qualquer recorte que a tela queira mostrar.
+   */
+  unitPrice?: number;
   /** dias com registro no período (× alvo é responsabilidade da UI). */
   recap: RecapValue;
   /** Soma dos valores registrados no período (ex.: litros de água). */
@@ -532,6 +542,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
       name: h.name,
       bad: h.bad,
       unit: h.unit ?? '',
+      unitPrice: h.unitPrice,
       recap: recapValue(
         countInRange(days, cur.start, cur.end),
         countInRange(days, prev.start, prev.end),
@@ -826,8 +837,8 @@ export function buildRetroHighlights(
       tone: noPrior ? 'neutral' : t,
       icon: 'money',
       text: noPrior
-        ? `R$ ${fmt(spend.current)} em compras no total`
-        : `R$ ${fmt(spend.current)} em compras · ${pct}`,
+        ? `${fmtMoney(spend.current)} em compras no total`
+        : `${fmtMoney(spend.current)} em compras · ${pct}`,
       priority: spend.deltaPct != null ? Math.abs(spend.deltaPct) : 8,
     });
   }
@@ -1162,7 +1173,7 @@ export const YEAR_SERIES: readonly YearSerie[] = [
     fmt: (v) => (v ? `${v} feitas` : 'sem dado') },
   { key: 'spend', label: 'Gasto', color: MOD.compras.accent,
     pick: (b) => b.spend,
-    fmt: (v) => (v ? `R$ ${v.toFixed(0)}` : 'sem dado') },
+    fmt: (v) => (v ? fmtMoney(v) : 'sem dado') },
   { key: 'habitDays', label: 'Hábitos', color: MOD.habito.accent,
     pick: (b) => b.habitDays,
     fmt: (v) => (v ? `${v} ${v > 1 ? 'dias' : 'dia'}` : 'sem dado') },

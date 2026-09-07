@@ -26,7 +26,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
-import { MAP_STYLES, type MapStyle } from '@vitale/shared';
+import {
+  MAP_STYLES,
+  coverOf,
+  detectStops,
+  groupByStop,
+  type ActivityRoutePoint,
+  type MapStyle,
+} from '@vitale/shared';
 import type { MapViewState } from '../../lib/map-html';
 import type { RoutePoint } from '../../lib/workout-types';
 import {
@@ -50,6 +57,7 @@ import {
   type ShareMetricTile,
 } from '../../lib/share-card-html';
 import { captureCardPng, saveCardPngToGallery, shareCardPng } from '../../lib/share-export';
+import { resolvePosterUri } from '../../services/asset-uri';
 import type { ActivityPhoto } from '@vitale/shared';
 import { useAssetUri } from '../../hooks/useAssetUri';
 
@@ -459,7 +467,98 @@ export function ShareComposerModal({
     [context.cities, enabledCities],
   );
 
+  /**
+   * A sequência: um cartão por parada (proposta D do estudo).
+   *
+   * Não é um cartão novo — é o MESMO cartão, N vezes, cada um com a foto e a
+   * parada dele. Foi a proposta A que tornou isto barato: quando o cartão
+   * aprendeu a dizer de onde a foto é, a sequência virou uma lista de fotos
+   * diferentes no mesmo desenho.
+   *
+   * A capa de cada parada escolhe qual foto entra — a do meio da maior rajada,
+   * ou a que ele estrelou (ver `coverOf`). É a mesma regra da Retrospectiva, e
+   * a coerência importa: a foto que representa o dia no jornal é a mesma que o
+   * representa no Story.
+   */
+  const stopCards = useMemo(() => {
+    if (photos.length === 0) return [];
+    const pts = points as unknown as ActivityRoutePoint[];
+    const withMs = photos
+      .filter((p) => p.state === 'linked')
+      .map((p) => ({ ...p, takenAtMs: p.takenAt }));
+    if (withMs.length === 0) return [];
+
+    const stops = detectStops(pts, { totalDistanceM: context.distanceM });
+    const grouped = groupByStop(withMs, stops, pts);
+
+    const cities = context.cities ?? [];
+    const near = (lat: number | null, lng: number | null): string | null => {
+      if (lat === null || lng === null || cities.length === 0) return null;
+      let best = cities[0];
+      let bestD = Infinity;
+      for (const c of cities) {
+        const d = (c.lat - lat) ** 2 + (c.lng - lng) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      return best.name;
+    };
+
+    const out: { photo: ActivityPhoto; city: string | null; km: number | null; atMs: number }[] = [];
+    for (const g of grouped.stops) {
+      const cover = coverOf(g.photos);
+      if (cover) out.push({ photo: cover, city: near(g.stop.lat, g.stop.lng), km: g.stop.distanceM, atMs: g.stop.startMs });
+    }
+    for (const g of grouped.silent) {
+      const cover = coverOf(g.photos);
+      const first = g.photos[0];
+      if (cover) out.push({ photo: cover, city: near(first.lat, first.lng), km: cover.routeDistanceM, atMs: g.firstMs });
+    }
+    return out.sort((a, b) => a.atMs - b.atMs);
+  }, [photos, points, context.distanceM, context.cities]);
+
+  /** Liga a sequência. Só existe com foto e mais de uma parada. */
+  const [sequence, setSequence] = useState(false);
+  const [seqAt, setSeqAt] = useState(0);
+  const canSequence = background === 'photo' && stopCards.length > 1;
+  const seqOn = sequence && canSequence;
+  const seqCard = seqOn ? stopCards[Math.min(seqAt, stopCards.length - 1)] : null;
+
   const mapTile = MAP_STYLES[mapStyle];
+  /**
+   * Os campos que a sequência sobrescreve no cartão.
+   *
+   * A cidade vira o TÍTULO e a pedalada sai de cena: numa sequência de Stories
+   * o que muda de quadro para quadro é o lugar, e repetir o nome da pedalada
+   * seis vezes gastaria a manchete com o que já se sabe. O quilômetro percorrido
+   * é a única métrica, e é ele que faz o dia crescer diante de quem assiste.
+   */
+  const seqOverrides = useCallback(
+    (card: { city: string | null; km: number | null; atMs: number }, i: number, n: number) => {
+      const hhmm = new Date(card.atMs).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return {
+        title: card.city ?? 'Parada',
+        place: `Parada ${i + 1} de ${n} · ${hhmm}`,
+        metrics:
+          card.km === null
+            ? []
+            : [
+                {
+                  key: 'distance' as ShareMetricKey,
+                  value: (card.km / 1000).toFixed(1).replace('.', ','),
+                  caption: 'km percorridos',
+                },
+              ],
+      };
+    },
+    [],
+  );
+
   const html = useMemo(
     () =>
       buildShareCardHtml({
@@ -468,13 +567,13 @@ export function ShareComposerModal({
         background,
         artStyle,
         showRoute,
-        place: placeLine,
         mapEffect,
         textColor: textColor ?? undefined,
-        title: debouncedTitle || defaultTitle,
         showTitle,
         activityId: context.activityId,
-        metrics: selectedTiles,
+        ...(seqCard
+          ? seqOverrides(seqCard, Math.min(seqAt, stopCards.length - 1), stopCards.length)
+          : { title: debouncedTitle || defaultTitle, place: placeLine, metrics: selectedTiles }),
         cities: showCities ? selectedCities : undefined,
         watermark,
         mapTile,
@@ -494,7 +593,7 @@ export function ShareComposerModal({
     // `showRoute` e `frame` entram aqui porque o HTML depende dos dois. Sem o
     // primeiro, ligar o interruptor da rota não redesenhava nada até outra
     // opção mudar por acidente — foi assim que ele descobriu (07/09/2026).
-    [points, format, background, artStyle, showRoute, placeLine, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
+    [points, format, background, artStyle, showRoute, placeLine, seqCard, seqAt, stopCards, seqOverrides, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
   );
 
   // Letterbox: dimensiona o WebView à proporção real de saída dentro da área.
@@ -585,6 +684,18 @@ export function ShareComposerModal({
   const exportStageRef = useRef<View>(null);
   const [exporting, setExporting] = useState(false);
   const [exportHtml, setExportHtml] = useState('');
+  /**
+   * A fila da sequência.
+   *
+   * O palco de exportação é UM só: ele monta o HTML, espera o WebView carregar,
+   * fotografa e entrega. Para N cartões a fila reusa exatamente esse ciclo —
+   * trocar o `exportHtml` faz o WebView recarregar, e o `onLoadEnd` volta.
+   * Nada de montar seis palcos, que seriam seis WebViews vivos ao mesmo tempo.
+   */
+  const seqQueue = useRef<{ html: string; uri: string }[]>([]);
+  const seqDone = useRef<string[]>([]);
+  /** A foto que o palco desenha agora — a da carta da vez, na sequência. */
+  const [exportPhotoUri, setExportPhotoUri] = useState<string | null>(null);
 
   // Palco de export: o maior tamanho com a proporção do formato que cabe na
   // tela. Precisa ficar DENTRO da tela: o WKWebView só rasteriza a região
@@ -599,30 +710,73 @@ export function ShareComposerModal({
   // Congela o cartão atual em versão estática para o snapshot. O zoom do
   // enquadramento é corrigido para o viewport do palco (mesma área visível:
   // z' = z + log2(largura_palco / largura_preview)).
-  const startExport = () => {
+  const startExport = async () => {
     tap();
     let view = adaptView(mapViewRef.current, mapTile.kind);
     if (view && box.width > 0) {
       view = { ...view, zoom: view.zoom + Math.log2(exportBox.width / box.width) };
     }
+    const base = {
+      points,
+      format,
+      background,
+      artStyle,
+      showRoute,
+      mapEffect,
+      textColor: textColor ?? undefined,
+      showTitle,
+      activityId: context.activityId,
+      cities: showCities ? selectedCities : undefined,
+      watermark,
+      mapTile,
+      mapView: background === 'map' ? view : undefined,
+    };
+
+    /**
+     * A sequência resolve **todas as fotos antes** de começar.
+     *
+     * O endereço da biblioteca não sai de um hook aqui — cada carta precisa do
+     * dela, e hook não roda em laço. Resolver tudo na frente também evita a
+     * fila parar no meio esperando o iCloud, com o palco montado e o usuário
+     * olhando um indicador que não anda.
+     */
+    if (seqOn) {
+      const cartas: { html: string; uri: string }[] = [];
+      for (let i = 0; i < stopCards.length; i += 1) {
+        const c = stopCards[i];
+        const uri = await resolvePosterUri(
+          c.photo.assetId,
+          c.photo.mediaType === 'video',
+          c.photo.durationS,
+        );
+        if (!uri) continue; // foto que não resolve não vira cartão vazio
+        cartas.push({
+          uri,
+          html: buildShareCardHtml({ ...base, ...seqOverrides(c, i, stopCards.length) }),
+        });
+      }
+      if (cartas.length === 0) {
+        Alert.alert('Sem cartões', 'Nenhuma foto das paradas pôde ser aberta agora.');
+        return;
+      }
+      const primeira = cartas.shift()!;
+      seqQueue.current = cartas;
+      seqDone.current = [];
+      setExportPhotoUri(primeira.uri);
+      setExportHtml(primeira.html);
+      setExporting(true);
+      return;
+    }
+
+    seqQueue.current = [];
+    seqDone.current = [];
+    setExportPhotoUri(null);
     setExportHtml(
       buildShareCardHtml({
-        points,
-        format,
-        background,
-        artStyle,
-        showRoute,
+        ...base,
         place: placeLine,
-        mapEffect,
-        textColor: textColor ?? undefined,
         title: title || defaultTitle,
-        showTitle,
-        activityId: context.activityId,
         metrics: selectedTiles,
-        cities: showCities ? selectedCities : undefined,
-        watermark,
-        mapTile,
-        mapView: background === 'map' ? view : undefined,
       }),
     );
     setExporting(true);
@@ -637,8 +791,22 @@ export function ShareComposerModal({
         setTimeout(r, background === 'map' ? (mapTile.kind === 'vector' ? 2200 : 1500) : 350),
       );
       const uri = await captureCardPng(exportStageRef, dim);
+
+      // A fila da sequência: fotografa, guarda, e passa para a próxima carta
+      // sem desmontar o palco. Só a última entrega.
+      if (seqQueue.current.length > 0) {
+        seqDone.current.push(uri);
+        const next = seqQueue.current.shift()!;
+        setExportPhotoUri(next.uri);
+        setExportHtml(next.html);
+        return;
+      }
+      const todas = seqDone.current.length > 0 ? [...seqDone.current, uri] : null;
+      seqDone.current = [];
+      setExportPhotoUri(null);
       setExporting(false); // desmonta o palco antes do diálogo de destino
-      offerDelivery(uri);
+      if (todas) void deliverSequence(todas);
+      else offerDelivery(uri);
     } catch (e) {
       // Inclui o detalhe técnico — sem ele é impossível diagnosticar no device.
       const detail = e instanceof Error && e.message ? `\n\n${e.message}` : '';
@@ -646,6 +814,33 @@ export function ShareComposerModal({
     } finally {
       setExporting(false);
     }
+  };
+
+  /**
+   * A entrega da sequência: **tudo para a galeria**, em ordem.
+   *
+   * Não há diálogo de destino aqui, e não é preguiça: o `expo-sharing` manda
+   * UM arquivo por vez, e seis diálogos seguidos seriam piores que nenhum. E o
+   * destino real de uma sequência é o carretel — é de lá que os Stories são
+   * postados, um atrás do outro.
+   */
+  const deliverSequence = async (uris: readonly string[]) => {
+    let saved = 0;
+    for (const u of uris) {
+      try {
+        if ((await saveCardPngToGallery(u)) === 'saved') saved += 1;
+      } catch {
+        // Um cartão que falha não derruba os outros — o que salvou, salvou.
+      }
+    }
+    if (saved === 0) {
+      Alert.alert('Não consegui salvar', 'O Orbe precisa de permissão para gravar na galeria.');
+      return;
+    }
+    Alert.alert(
+      saved === uris.length ? 'Sequência salva' : 'Sequência salva em parte',
+      `${saved} ${saved === 1 ? 'cartão foi' : 'cartões foram'} para a galeria, em ordem — de lá você posta um atrás do outro.`,
+    );
   };
 
   // O share sheet não oferece "Salvar imagem" para file-URLs — daí a escolha
@@ -715,7 +910,9 @@ export function ShareComposerModal({
             {exporting ? (
               <ActivityIndicator size="small" color={colors.onPrimary} />
             ) : (
-              <Text style={styles.exportText}>Exportar</Text>
+              <Text style={styles.exportText}>
+                {seqOn ? `Salvar ${stopCards.length}` : 'Exportar'}
+              </Text>
             )}
           </Pressable>
         </View>
@@ -913,6 +1110,60 @@ export function ShareComposerModal({
                   ? `Pinça para aproximar, dedo para mover · ${frame.scale.toFixed(1)}×`
                   : 'Pinça para aproximar, dedo para mover'}
               </Text>
+              {canSequence && (
+                <>
+                  <Pressable
+                    style={styles.switchRow}
+                    onPress={() => {
+                      tap();
+                      setSequence((v) => !v);
+                      setSeqAt(0);
+                    }}
+                  >
+                    <Text style={styles.switchLabel}>
+                      Um cartão por parada · {stopCards.length}
+                    </Text>
+                    <View style={[styles.switchTrack, seqOn && styles.switchTrackOn]}>
+                      <View style={[styles.switchThumb, seqOn && styles.switchThumbOn]} />
+                    </View>
+                  </Pressable>
+                  {seqOn && (
+                    <View style={styles.pager}>
+                      <Pressable
+                        onPress={() => {
+                          tap();
+                          setSeqAt((i) => Math.max(0, i - 1));
+                        }}
+                        disabled={seqAt === 0}
+                        hitSlop={10}
+                      >
+                        <Ionicons
+                          name="chevron-back"
+                          size={18}
+                          color={seqAt === 0 ? colors.ink4 : colors.ink2}
+                        />
+                      </Pressable>
+                      <Text style={styles.pagerText}>
+                        {seqCard?.city ?? 'Parada'} · {seqAt + 1} de {stopCards.length}
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          tap();
+                          setSeqAt((i) => Math.min(stopCards.length - 1, i + 1));
+                        }}
+                        disabled={seqAt >= stopCards.length - 1}
+                        hitSlop={10}
+                      >
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color={seqAt >= stopCards.length - 1 ? colors.ink4 : colors.ink2}
+                        />
+                      </Pressable>
+                    </View>
+                  )}
+                </>
+              )}
               <Pressable
                 style={styles.switchRow}
                 onPress={() => {
@@ -1075,8 +1326,12 @@ export function ShareComposerModal({
               {/* A foto entra como view NATIVA atrás do cartão: o WKWebView não
                   carrega `ph://`, e o `captureRef` fotografa esta View inteira,
                   então o snapshot compõe foto + cartão sem base64 nenhum. */}
-              {showPhoto && (
-                <PhotoLayer uri={photoUri!} frame={frame} box={exportBox} />
+              {(exportPhotoUri ?? (showPhoto ? photoUri : null)) && (
+                <PhotoLayer
+                  uri={(exportPhotoUri ?? photoUri)!}
+                  frame={frame}
+                  box={exportBox}
+                />
               )}
               <WebView
                 originWhitelist={['*']}
@@ -1237,6 +1492,14 @@ const styles = themed(() =>
     borderColor: 'transparent',
   },
   photoOptOn: { borderColor: colors.primary },
+  pager: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  pagerText: { fontSize: 13, fontFamily: fonts.sansMedium, color: colors.ink2 },
   /** A estrela da capa — a escolha padrão deixa de ser invisível. */
   photoOptStar: {
     position: 'absolute',

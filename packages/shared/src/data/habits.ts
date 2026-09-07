@@ -15,7 +15,7 @@ import type { CounterHabit } from '../models';
 import { localDateStr } from '../date/local';
 
 const COLUMNS =
-  'id,name,icon,color,unit,step,target,direction,bad,show_on_home,active,sort,created_at';
+  'id,name,icon,color,unit,step,target,direction,bad,show_on_home,active,sort,created_at,unit_price';
 
 export interface HabitRow {
   id: string;
@@ -31,6 +31,7 @@ export interface HabitRow {
   active: boolean;
   sort: number;
   created_at: string;
+  unit_price: number | string | null;
 }
 
 /** Linha do Postgres → modelo de domínio. Único lugar onde essa tradução existe. */
@@ -49,6 +50,7 @@ export function toCounterHabit(r: HabitRow): CounterHabit {
     active: r.active,
     sort: r.sort,
     createdAt: r.created_at,
+    unitPrice: r.unit_price == null ? undefined : Number(r.unit_price),
   };
 }
 
@@ -77,10 +79,17 @@ export async function countHabits(db: SupabaseClient, userId: string): Promise<n
 export async function fetchHabitSummaries(
   db: SupabaseClient,
   userId: string,
-): Promise<Array<{ id: string; name: string; bad: boolean; unit: CounterHabit['unit']; createdOn: string }>> {
+): Promise<Array<{
+  id: string;
+  name: string;
+  bad: boolean;
+  unit: CounterHabit['unit'];
+  createdOn: string;
+  unitPrice?: number;
+}>> {
   const { data, error } = await db
     .from('habits')
-    .select('id,name,bad,unit,created_at')
+    .select('id,name,bad,unit,created_at,unit_price')
     .eq('user_id', userId);
   if (error) throw error;
   return ((data ?? []) as Array<{
@@ -89,11 +98,13 @@ export async function fetchHabitSummaries(
     bad: boolean | null;
     unit: CounterHabit['unit'];
     created_at: string;
+    unit_price: number | string | null;
   }>).map((r) => ({
     id: r.id,
     name: r.name,
     bad: r.bad ?? false,
     unit: r.unit,
+    unitPrice: r.unit_price == null ? undefined : Number(r.unit_price),
     // Dia de criação: é o piso da amostra em `triggerImpact`. Sem ele o hábito
     // seria comparado contra dias em que não existia (ver `RetroHabit.createdOn`).
     createdOn: localDateStr(new Date(r.created_at)),
@@ -112,6 +123,7 @@ export interface NewHabit {
   target?: number | null;
   bad?: boolean;
   showOnHome?: boolean;
+  unitPrice?: number | null;
 }
 
 /** Cria um hábito e devolve o id gerado. */
@@ -133,6 +145,7 @@ export async function createHabit(
       direction: input.direction,
       bad: input.bad ?? false,
       show_on_home: input.showOnHome ?? true,
+      unit_price: input.unitPrice ?? null,
       sort: input.sort,
     })
     .select('id')

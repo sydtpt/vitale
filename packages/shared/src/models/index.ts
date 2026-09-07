@@ -82,6 +82,12 @@ export interface CounterHabit {
   active: boolean;
   sort: number;
   createdAt: string;       // ISO; usado para limitar a contagem de dias "sem fazer" à idade do hábito
+  /**
+   * Preço médio de **uma unidade** (a mesma de `unit`), em euros. Ausente = o
+   * hábito não estima gasto. Um preço só, aplicado a toda a história — ver
+   * `habitCost` para o que isso significa (e não significa).
+   */
+  unitPrice?: number;
 }
 
 /** Valor acumulado de um CounterHabit num dia (1 por habit/dia). */
