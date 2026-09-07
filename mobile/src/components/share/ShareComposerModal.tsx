@@ -83,31 +83,44 @@ function PhotoLayer({
   box: { width: number; height: number };
 }) {
   const r = photoBlockRect(format, frame.fit);
-  const win = r
-    ? {
-        left: r.left * box.width,
-        top: r.top * box.height,
-        width: r.width * box.width,
-        height: r.height * box.height,
-      }
-    : { left: 0, top: 0, width: box.width, height: box.height };
 
-  return (
-    <View style={[styles.photoWindow, win, r ? styles.photoBlockChrome : null]}>
+  // Ordem importa: a escala entra por último, então o deslocamento fica em
+  // pixels da janela e não cresce junto com a aproximação.
+  const move = (w: number, h: number) => [
+    { translateX: frame.dx * w },
+    { translateY: frame.dy * h },
+    { scale: frame.scale },
+  ];
+
+  /**
+   * **Preencher mantém a estrutura antiga, de propósito.** Envolvê-la numa View
+   * com largura e altura calculadas fez a foto sumir do preview (conferido no
+   * iPhone em 07/09/2026) e não valeu a pena descobrir por quê: o modo que
+   * sempre funcionou não precisa de camada nova. Só o bloco precisa de janela,
+   * porque só ele recorta.
+   */
+  if (!r) {
+    return (
       <Image
         source={{ uri }}
         resizeMode="cover"
-        style={{
-          width: '100%',
-          height: '100%',
-          // Ordem importa: a escala entra por último, então o deslocamento fica
-          // em pixels da janela e não cresce junto com a aproximação.
-          transform: [
-            { translateX: frame.dx * win.width },
-            { translateY: frame.dy * win.height },
-            { scale: frame.scale },
-          ],
-        }}
+        style={[styles.photoBehind, { transform: move(box.width, box.height) }]}
+      />
+    );
+  }
+
+  const win = {
+    left: r.left * box.width,
+    top: r.top * box.height,
+    width: r.width * box.width,
+    height: r.height * box.height,
+  };
+  return (
+    <View style={[styles.photoWindow, win, styles.photoBlockChrome]}>
+      <Image
+        source={{ uri }}
+        resizeMode="cover"
+        style={{ width: '100%', height: '100%', transform: move(win.width, win.height) }}
       />
     </View>
   );
@@ -220,7 +233,7 @@ function bgOptions(hasPhoto: boolean) {
   return hasPhoto ? BG_OPTS : BG_OPTS.filter((o) => o.key !== 'photo');
 }
 /**
- * As quatro formas da foto no cartão.
+ * As cinco formas da foto no cartão.
  *
  * `shape` é o desenho do próprio botão: um retângulo na proporção que ele
  * representa. Um ícone abstrato exigiria decorar o que cada um quer dizer;
@@ -230,6 +243,7 @@ const FIT_OPTS: { key: PhotoFit; label: string; shape: { width: number; height: 
   { key: 'fill', label: 'Preencher', shape: { width: 22, height: 34 } },
   { key: 'square', label: '1:1', shape: { width: 28, height: 28 } },
   { key: 'portrait', label: '4:5', shape: { width: 25, height: 31 } },
+  { key: 'tall', label: '9:16', shape: { width: 20, height: 35 } },
   { key: 'pano', label: '16:9', shape: { width: 34, height: 19 } },
 ];
 const ART_OPTS: { key: ShareArtStyle; label: string }[] = [

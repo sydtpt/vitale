@@ -18,17 +18,21 @@ export type ShareBackground = 'art' | 'map' | 'data' | 'photo';
  *
  * `fill` é o que sempre existiu: a foto sangra até a borda e os números ficam
  * sobre ela. Os outros três a transformam num **bloco** sobre papel escuro, nas
- * três proporções em que uma foto existe no mundo — a rede social, a câmera na
- * vertical, a paisagem.
+ * quatro proporções em que uma foto existe no mundo — a rede social, a câmera
+ * na vertical, o Story e a paisagem.
  *
  * Recorte livre não entra de propósito: pareceria liberdade e entregaria
  * hesitação. A liberdade que importa é *qual parte da foto*, e essa é a pinça.
  */
-export type PhotoFit = 'fill' | 'square' | 'portrait' | 'pano';
+export type PhotoFit = 'fill' | 'square' | 'portrait' | 'tall' | 'pano';
 
 const PHOTO_RATIO: Record<Exclude<PhotoFit, 'fill'>, number> = {
   square: 1,
   portrait: 4 / 5,
+  // A proporção do Story. Como bloco ela quase preenche o cartão — sobra só a
+  // margem e o rodapé —, e é o que dá a foto "cheia" com os números sobre papel
+  // em vez de sobre a imagem.
+  tall: 9 / 16,
   pano: 16 / 9,
 };
 
