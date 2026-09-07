@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { Activity } from '@vitale/shared';
+import { nomeDaAtividade, type Activity } from '@vitale/shared';
 import { IconComponent } from '@core/services/icon.component';
 import { metaForActivity } from '@core/models/activity-types';
 import { filtersToQueryParams, type ActivityFilters } from '../data/activity-list';
@@ -22,6 +22,8 @@ export class ActivityItemComponent {
   readonly dir = input<string | undefined>();
 
   protected readonly meta = computed(() => metaForActivity(this.activity().activityId));
+  /** Precedência única (ADR 0041 §8): editado → derivado → fonte → tipo. */
+  protected readonly nome = computed(() => nomeDaAtividade(this.activity(), this.meta().label));
   protected readonly hasDistance = computed(() => (this.activity().distanceM ?? 0) > 0);
   /** Atividades com GPS (rota ou distância) exibem o tempo em movimento. */
   protected readonly isGps = computed(() => this.activity().hasRoute || (this.activity().distanceM ?? 0) > 0);

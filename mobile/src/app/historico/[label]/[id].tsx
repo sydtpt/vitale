@@ -27,6 +27,8 @@ import {
   type RouteCursor,
 } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
+import { useAuthStore } from '../../../store/auth.store';
+import { nomearPedaladaSePreciso, precisaDeNome } from '../../../services/route-name';
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
@@ -109,6 +111,7 @@ export default function AtividadeDetalheScreen() {
   const updateActivity = useActivitiesStore((s) => s.updateActivity);
   const setHidden = useActivitiesStore((s) => s.setHidden);
   const routePoints = useActivitiesStore((s) => s.routes[id]);
+  const userId = useAuthStore((s) => s.user?.id);
   const gears = useGearStore((s) => s.gears);
   const loadGear = useGearStore((s) => s.load);
   const setActivityGearId = useActivitiesStore((s) => s.setGear);
@@ -126,6 +129,30 @@ export default function AtividadeDetalheScreen() {
   }, [load, loadGear]);
 
   const hasGps = !!activity && (activity.hasRoute || (activity.distanceM ?? 0) > 0);
+
+  /**
+   * O nome da rota, uma vez por pedalada (ADR 0042).
+   *
+   * Mesmo gatilho e mesmo contrato da varredura de fotos: espera o traçado
+   * chegar, roda uma vez, e falha em silêncio. A pedalada que não ganhou nome
+   * fica sem `route_name_meta` e volta a tentar na próxima abertura — não há
+   * nada que o dono possa fazer com um aviso de cota do provedor.
+   */
+  useEffect(() => {
+    if (!activity || !userId) return;
+    if (!precisaDeNome(activity)) return;
+    if (!routePoints || routePoints.length < 2) return;
+    let alive = true;
+    void (async () => {
+      const nome = await nomearPedaladaSePreciso(activity, routePoints, userId);
+      if (alive && nome) await load();
+    })();
+    return () => {
+      alive = false;
+    };
+    // Governam esta passagem a pedalada, o dono e **se a rota já chegou**.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity?.id, activity?.routeName, activity?.routeNameChecked, userId, routePoints]);
 
   useEffect(() => {
     if (activity?.hasRoute) loadRoute(activity.id);

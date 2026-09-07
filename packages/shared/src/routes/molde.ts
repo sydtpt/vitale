@@ -156,6 +156,27 @@ function semRegiao(
   return `De ${origem} a ${destino}`;
 }
 
+/**
+ * A precedência de leitura, num lugar só (spec §8).
+ *
+ * ```
+ * nome editado pelo dono → nome derivado → nome da fonte → rótulo do tipo
+ * ```
+ *
+ * O derivado vem ANTES do nome da fonte de propósito: 175 das 196 pedaladas se
+ * chamam literalmente "Cycling", e é isso que a feature existe para substituir.
+ * Mas nunca antes do que o dono escreveu à mão — daí o `nameEdited`, e não o
+ * `locallyEdited`, que também acende quando só a duração foi corrigida.
+ */
+export function nomeDaAtividade(
+  a: { activityName?: string; routeName?: string; nameEdited?: boolean },
+  rotuloDoTipo: string,
+): string {
+  const daFonte = a.activityName?.trim();
+  if (a.nameEdited && daFonte) return daFonte;
+  return a.routeName?.trim() || daFonte || rotuloDoTipo;
+}
+
 function sufixoVia(lingua: Lingua, via: string, artigo: Artigo): string {
   if (lingua === 'fr') return ` ${frPar(via, artigo)}`;
   if (lingua === 'nl') return ` ${nlDoor(via, artigo)}`;

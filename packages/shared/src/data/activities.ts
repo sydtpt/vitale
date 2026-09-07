@@ -26,7 +26,7 @@ const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
   'distance_m,elevation_m,source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,' +
   'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix,photos_checked_at,' +
-  'route_name,route_name_meta';
+  'route_name,route_name_meta,name_edited';
 
 export interface ActivityRow {
   id: string;
@@ -34,6 +34,8 @@ export interface ActivityRow {
   activity_id: number;
   activity_name: string | null;
   route_name?: string | null;
+  route_name_meta?: unknown;
+  name_edited?: boolean | null;
   calories: number | string | null;
   start_at: string;
   end_at: string | null;
@@ -70,6 +72,8 @@ export function toActivity(r: ActivityRow): Activity {
     activityId: r.activity_id,
     activityName: r.activity_name ?? '',
     routeName: r.route_name ?? undefined,
+    routeNameChecked: r.route_name_meta != null,
+    nameEdited: r.name_edited ?? undefined,
     calories: num(r.calories) ?? 0,
     startAt: r.start_at,
     endAt: r.end_at ?? '',

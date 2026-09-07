@@ -38,6 +38,7 @@ import {
   type RetroRegistroRow,
   type SportStats,
   type SportBestEffort,
+  nomeDaAtividade,
 } from '@vitale/shared';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { formatClock, formatFullDate } from '../../lib/workout-format';
@@ -242,7 +243,7 @@ export default function RetrospectivaScreen() {
         const meta = act ? getActivityMeta(act.activityId) : null;
         return {
           key: id,
-          title: act?.activityName || meta?.label || 'Atividade',
+          title: act ? nomeDaAtividade(act, meta?.label ?? 'Atividade') : 'Atividade',
           subtitle: `${formatFullDate(act?.startAt ?? new Date(fotos[0].takenAt).toISOString())} · ${
             fotos.length === 1 ? '1 foto' : `${fotos.length} fotos`
           }`,

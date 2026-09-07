@@ -10,6 +10,7 @@ import {
   HR_ZONES,
   hrZoneRange,
   movingTimeFromRoutePoints,
+  nomeDaAtividade,
   routeCursorAt,
   routeDistances,
   segmentsInside,
@@ -62,6 +63,11 @@ export class ActivityDetailPageComponent {
   protected readonly meta = computed(() => {
     const a = this.activity();
     return a ? metaForActivity(a.activityId) : undefined;
+  });
+  /** Precedência única (ADR 0041 §8): editado → derivado → fonte → tipo. */
+  protected readonly nome = computed(() => {
+    const a = this.activity();
+    return a ? nomeDaAtividade(a, this.meta()?.label ?? '') : '';
   });
   /** "sem GPS" = sem rota e sem distância → tempo é editável. */
   protected readonly hasGps = computed(() => {

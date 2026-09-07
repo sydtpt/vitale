@@ -351,6 +351,14 @@ export interface Activity {
    * Ausente = ainda não nomeada, ou deliberadamente sem nome.
    */
   routeName?: string;
+  /**
+   * O passe de nome já visitou esta rota? Distingue "ainda não passou" de
+   * "passou e decidiu não nomear" — sem isto, uma rota degenerada seria
+   * reprocessada a cada abertura. É o `photos_checked_at` desta frente.
+   */
+  routeNameChecked?: boolean;
+  /** O dono renomeou esta atividade à mão. É o que faz o nome dele vencer o derivado. */
+  nameEdited?: boolean;
   calories: number;
   startAt: string;
   endAt: string;
