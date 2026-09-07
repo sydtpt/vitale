@@ -18,7 +18,7 @@
 import { describe, it, expect } from '@jest/globals';
 import type { ActivityPhoto, ActivityRoutePoint } from '@vitale/shared';
 
-import { classifyMedia, planHealing, type RawMedia } from '../activity-photos';
+import { classifyMedia, planHealing, splitAutoLink, type RawMedia } from '../activity-photos';
 
 const T0 = Date.UTC(2026, 7, 29, 9, 8, 3);
 const M = 1 / 111_320;
@@ -157,5 +157,65 @@ describe('planHealing', () => {
       () => false,
     );
     expect(plan).toEqual([]);
+  });
+});
+
+/**
+ * O vínculo automático (07/09/2026).
+ *
+ * A regra é curta e a consequência é grande: o que ela deixa passar entra no
+ * mapa, no trilho do tempo, no cartão de compartilhar e na tira da
+ * Retrospectiva — que amostra cinco fotos para representar um período inteiro.
+ * Uma foto do café virando a cara de um mês é o custo de errar aqui.
+ */
+describe('splitAutoLink', () => {
+  it('liga sozinho só o que está no corredor', () => {
+    const p = points[20];
+    const cands = classifyMedia(
+      [
+        // no corredor: 8 m do traçado, no meio da pedalada
+        media({ takenAtMs: T0 + 100_000, lat: p.lat, lng: p.lng + 8 * MLNG }),
+        // fora do corredor: 500 m de lado — é onde caem as do Lightroom e as
+        // que o GPS não soube colocar. 68% de aceitação: olho, não palpite.
+        media({ takenAtMs: T0 + 101_000, lat: p.lat, lng: p.lng + 500 * MLNG }),
+      ],
+      points,
+      activity,
+      new Set(),
+    );
+
+    const { auto, pending } = splitAutoLink(cands);
+    expect(auto.map((c) => c.group)).toEqual(['on-route']);
+    expect(pending.map((c) => c.group)).toEqual(['off-route']);
+  });
+
+  it('a foto depois da chegada NÃO entra sozinha — 28% de aceitação', () => {
+    const cands = classifyMedia(
+      [media({ takenAtMs: activity.endAtMs + 20 * 60_000 })],
+      points,
+      activity,
+      new Set(),
+    );
+    const { auto, pending } = splitAutoLink(cands);
+    expect(auto).toEqual([]);
+    expect(pending).toHaveLength(1);
+  });
+
+  it('não recusa nada: o que sobra fica indeciso e volta a ser oferecido', () => {
+    const cands = classifyMedia(
+      [media({ takenAtMs: activity.endAtMs + 60_000 })],
+      points,
+      activity,
+      new Set(),
+    );
+    const { auto, pending } = splitAutoLink(cands);
+    // Nada em `auto` significa nada gravado como `linked`; e `pending` não é
+    // `dismissed` — só o dono grava isso, porque só ele sabe dizer "esta não".
+    expect(auto).toHaveLength(0);
+    expect(pending).toHaveLength(1);
+  });
+
+  it('pedalada sem candidato não quebra a partilha', () => {
+    expect(splitAutoLink([])).toEqual({ auto: [], pending: [] });
   });
 });

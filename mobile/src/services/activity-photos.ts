@@ -55,6 +55,7 @@ import {
   type RawMedia,
   classifyMedia,
   planHealing,
+  splitAutoLink,
 } from '../lib/activity-photos';
 import { supabase } from '../lib/supabase';
 
@@ -165,6 +166,41 @@ export async function scanActivity(
     candidates: classifyMedia(media, points, activity, known),
     knownCount: known.size,
   };
+}
+
+/**
+ * Liga sozinho o que está no corredor, e devolve o que ficou para o dono ver.
+ *
+ * Roda **uma vez por pedalada**, na primeira abertura do detalhe, guardada pelo
+ * `photos_checked_at` — que o `saveDecisions` grava no fim. Sem essa guarda, o
+ * app leria a biblioteca a cada abertura de uma pedalada antiga que ele quis só
+ * conferir no mapa.
+ *
+ * **Não abre folha nenhuma.** Um modal saltando toda vez que se abre uma
+ * pedalada antiga seria pior que o problema que ele resolve; o que sobrou vira
+ * uma linha quieta no cartão, e quem decide se olha é ele.
+ *
+ * Devolve `null` quando não há o que fazer — sem permissão total, sem janela,
+ * ou nada de novo na biblioteca —, e aí o cartão não muda de estado.
+ */
+export async function autoLinkCorridor(
+  activity: { id: string; startAtMs: number; endAtMs: number; distanceM?: number },
+  points: readonly ActivityRoutePoint[],
+  userId: string,
+): Promise<{ linked: number; rest: ScanResult } | null> {
+  if ((await currentPhotoAccess()) !== 'full') return null;
+
+  const scan = await scanActivity(activity, points, userId);
+  if (!scan) return null;
+
+  const { auto, pending } = splitAutoLink(scan.candidates);
+  // `rejected` vazio, de propósito: o que não entrou continua indeciso e volta
+  // na próxima varredura. Só o dono grava `dismissed`.
+  await saveDecisions(userId, activity.id, auto, []);
+
+  // O resto sai na forma que a folha consome — a janela junto, porque é ela que
+  // a folha mostra quando não sobrou nada ("Nada entre 10:43 e 20:48").
+  return { linked: auto.length, rest: { ...scan, candidates: pending } };
 }
 
 /** Os instantes já decididos nesta atividade — ligados **e** desligados. */

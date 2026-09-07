@@ -64,6 +64,46 @@ export function classifyMedia(
 }
 
 /**
+ * O que entra sozinho e o que espera o dono.
+ *
+ * ## Por que só o corredor
+ *
+ * A partilha não é palpite: em 07/09/2026, sobre as 707 decisões que ele já
+ * tinha tomado à mão, a taxa de aceitação por grupo era
+ *
+ * | grupo          | ligou | recusou | aceita |
+ * |----------------|-------|---------|--------|
+ * | no corredor    |   549 |      69 |  89 %  |
+ * | 40 a 250 m     |    15 |       7 |  68 %  |
+ * | depois         |    10 |      26 |  28 %  |
+ *
+ * Ligar o corredor sozinho acerta 9 em 10. Ligar o que vem **depois** da
+ * chegada erraria em quase 3 de 4 — é a janela de uma hora onde moram a foto
+ * em casa e a do café, e ela não entra.
+ *
+ * A faixa de 40 a 250 m fica de fora por um motivo diferente: 68 % é bom
+ * demais para descartar e ruim demais para automatizar. É onde caem as fotos
+ * que ele edita no Lightroom (a exportação mexe na precisão da coordenada o
+ * bastante para sair do corredor) e também as que o GPS não soube colocar,
+ * porque o traçado tem buracos. As duas merecem um olhar, não um palpite.
+ *
+ * **Nada é recusado aqui.** O que não entra volta a ser oferecido na próxima
+ * varredura — só o dono grava `dismissed`, porque só ele sabe dizer "esta não".
+ */
+export function splitAutoLink(candidates: readonly PhotoCandidate[]): {
+  auto: PhotoCandidate[];
+  pending: PhotoCandidate[];
+} {
+  const auto: PhotoCandidate[] = [];
+  const pending: PhotoCandidate[] = [];
+  for (const c of candidates) {
+    if (c.group === 'on-route') auto.push(c);
+    else pending.push(c);
+  }
+  return { auto, pending };
+}
+
+/**
  * Quais linhas precisam de `asset_id` novo (ADR 0037 §2).
  *
  * O `localIdentifier` muda em Quick Start, restore de backup e às vezes em

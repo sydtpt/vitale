@@ -42,6 +42,7 @@ import {
   requestPhotoAccess,
   dismissPhoto,
   dismissPhotos,
+  autoLinkCorridor,
   saveDecisions,
   scanActivity,
   setCover,
@@ -114,6 +115,57 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
   const [access, setAccess] = useState<PhotoAccess>('full');
   const [scanning, setScanning] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  /** O que a varredura automática deixou para ele olhar — ver `autoLinkCorridor`. */
+  const [rest, setRest] = useState<ScanResult | null>(null);
+  const pendingCount = rest?.candidates.length ?? 0;
+
+  /**
+   * O vínculo automático (07/09/2026).
+   *
+   * Roda **uma vez por pedalada**, na primeira abertura, e liga só o que está
+   * no corredor da rota — 89% de acerto medido nas 707 decisões que ele já
+   * tinha tomado à mão. O resto vira a linha quieta abaixo do cartão.
+   *
+   * A guarda é o `photos_checked_at`: sem ela, abrir uma pedalada antiga só
+   * para ver o mapa custaria uma leitura da biblioteca toda vez.
+   */
+  useEffect(() => {
+    if (checked || !userId) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await autoLinkCorridor({ ...activity }, points, userId);
+        if (!alive || !r) return;
+        setChecked(true);
+        setRest(r.rest);
+        if (r.linked > 0) await reload();
+      } catch {
+        // Falhar aqui deixa a pedalada exatamente como estava: sem
+        // `photos_checked_at`, ela tenta de novo na próxima abertura. É o
+        // comportamento certo — e por isso o erro não vira alerta na tela.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // `activity` e `points` mudam de identidade a cada render da tela; o que
+    // governa esta varredura é a pedalada e o dono, não a referência do objeto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity.id, userId, checked]);
+
+  /**
+   * A folha, aberta com o que sobrou — sem varrer de novo.
+   *
+   * A biblioteca já foi lida na abertura da tela; reler para mostrar o mesmo
+   * resultado gastaria segundos para não mudar nada.
+   */
+  const openPending = useCallback(() => {
+    if (!rest) return;
+    setScan(rest);
+    setAccess('full');
+    setScanning(false);
+    setSheetOpen(true);
+  }, [rest]);
 
   /** A cidade mais próxima da parada — o "Vrouwenakker · km 38,2" da tela. */
   const cityNear = useCallback(
@@ -162,6 +214,9 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
       try {
         await saveDecisions(userId, activity.id, accepted, rejected);
         setChecked(true);
+        // Ele acabou de julgar o que sobrou: a linha de pendência some, e o que
+        // ficou de fora agora é `dismissed` — não volta.
+        setRest(null);
         await reload();
       } catch (e) {
         /**
@@ -286,9 +341,32 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
    * beco sem saída: depois de procurado, o convite fica mais quieto — texto
    * apagado, sem moldura — mas fica.
    */
+  /**
+   * O que a varredura automática não teve certeza de ligar.
+   *
+   * Fica **quieta**: nenhuma folha abre sozinha. Um modal saltando a cada
+   * pedalada antiga que ele abre para ver o mapa seria pior que o problema.
+   * Some assim que ele julgar, e não volta a aparecer numa próxima abertura —
+   * a varredura não roda de novo. O caminho de volta é "Procurar fotos de
+   * novo", logo abaixo, e o "Procurar mais" da galeria.
+   */
+  const pendingRow =
+    pendingCount > 0 ? (
+      <Pressable style={styles.pending} onPress={openPending}>
+        <Ionicons name="help-circle-outline" size={15} color={colors.ink3} />
+        <Text style={styles.pendingText}>
+          {pendingCount === 1
+            ? 'Mais 1 foto perto da rota, para você ver'
+            : `Mais ${pendingCount} fotos perto da rota, para você ver`}
+        </Text>
+        <Ionicons name="chevron-forward" size={14} color={colors.ink4} />
+      </Pressable>
+    ) : null;
+
   if (photos.length === 0) {
     return (
       <>
+        {pendingRow}
         <Pressable style={[styles.invite, checked && styles.inviteQuiet]} onPress={openSheet}>
           <Ionicons
             name="images-outline"
@@ -414,6 +492,7 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
           </View>
         )}
       </Pressable>
+      {pendingRow}
       {sheet}
       <PhotoGalleryModal
         visible={galleryOpen}
@@ -551,4 +630,18 @@ const createStyles = () =>
     /** Depois de já ter procurado: presente, mas sem pedir atenção. */
     inviteQuiet: { borderColor: 'transparent', paddingVertical: spacing.sm },
     inviteTextQuiet: { color: colors.ink4 },
+
+    /**
+     * A pendência do vínculo automático. Mais quieta que o convite — sem
+     * moldura e sem preenchimento: é um lembrete, não uma tarefa.
+     */
+    pending: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    pendingText: { flex: 1, fontSize: 12.5, fontFamily: fonts.sansMedium, color: colors.ink3 },
   });
