@@ -42,6 +42,7 @@ export {
   themeFillsCards,
   themed,
   themedCacheKey,
+  onMedia,
   spacing,
   radii,
   fonts,

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Switch, StyleSheet, ScrollView, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import {
@@ -135,13 +135,24 @@ function legendaSolar(estado: SolarScheme | null, fuso: string | null): string {
   return `${verbo} às ${HORA_FMT.format(estado.until)}${lugar}`;
 }
 
-function BlurSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function BlurSlider({
+  value,
+  onChange,
+  onDragging,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  /** `true` enquanto o dedo está no controle — a tela desliga o swipe-back aí. */
+  onDragging?: (ativo: boolean) => void;
+}) {
   useTheme();
   const [trackWidth, setTrackWidth] = useState(0);
   // Refs evitam closures obsoletas dentro do PanResponder (criado 1x).
   const widthRef = useRef(0);
   const onChangeRef = useRef(onChange);
+  const onDraggingRef = useRef(onDragging);
   onChangeRef.current = onChange;
+  onDraggingRef.current = onDragging;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -150,8 +161,15 @@ function BlurSlider({ value, onChange }: { value: number; onChange: (v: number) 
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (e) => emit(e.nativeEvent.locationX),
+      // Aviso no toque: é o que permite desligar o swipe-back antes de o
+      // reconhecedor de borda começar. Ver `components/ui/Slider.tsx`.
+      onPanResponderGrant: (e) => {
+        onDraggingRef.current?.(true);
+        emit(e.nativeEvent.locationX);
+      },
       onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
+      onPanResponderRelease: () => onDraggingRef.current?.(false),
+      onPanResponderTerminate: () => onDraggingRef.current?.(false),
     }),
   ).current;
 
@@ -269,6 +287,19 @@ const previewStyles = themed(() =>
 
 export default function AppSettingsScreen() {
   const styles = useThemedStyles(createStyles);
+  /**
+   * Valor do blur enquanto o dedo está no slider.
+   *
+   * `updatePreferences` não é barato: por chamada ele re-renderiza tudo que lê
+   * tema, grava no AsyncStorage e faz um upsert no Supabase **pela rede**.
+   * Ligado ao `onChange` do arrasto, isso virava dezenas de idas ao servidor num
+   * gesto só — e o polegar, desenhado a partir do valor da store, ficava
+   * esperando o round-trip e brigando com o dedo.
+   *
+   * Agora o arrasto é local e a gravação acontece uma vez, ao soltar. Não há
+   * prévia a perder: o vidro é a barra de abas, que não está nesta tela.
+   */
+  const [blurLocal, setBlurLocal] = useState<number | null>(null);
   const { scheme, themeId, paletteId, brandId } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -280,7 +311,7 @@ export default function AppSettingsScreen() {
 
   const theme = preferences?.theme ?? 'system';
   const glass = preferences?.glassEnabled ?? false;
-  const blurIntensity = preferences?.blurIntensity ?? 50;
+  const blurIntensity = blurLocal ?? preferences?.blurIntensity ?? 50;
   const mapStyle = preferences?.mapStyle ?? 'voyager';
   const wallpaper = preferences?.wallpaper ?? 'flat';
 
@@ -311,6 +342,12 @@ export default function AppSettingsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* O polegar do BlurSlider em 0 fica dentro da faixa do swipe-back, e os
+          dois gestos disparam juntos. Desligar só durante o arrasto não chega a
+          tempo — ver a nota em `components/ui/Slider.tsx`. O `onDragging` do
+          slider continua existindo, mas por outro motivo: é ele que adia a
+          gravação para o release. */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -391,7 +428,13 @@ export default function AppSettingsScreen() {
             </View>
             <BlurSlider
               value={blurIntensity}
-              onChange={(v) => updatePreferences({ blurIntensity: v })}
+              onChange={setBlurLocal}
+              onDragging={(ativo) => {
+                // Soltou: uma gravação, com o valor final. `blurLocal` continua
+                // sendo o exibido — a store chega no mesmo número e não há
+                // piscada de volta ao valor antigo.
+                if (!ativo && blurLocal != null) void updatePreferences({ blurIntensity: blurLocal });
+              }}
             />
             <Text style={styles.sliderHint}>
               Na barra de abas, 100% é o vidro do iOS 26 intacto e 0% não tem vidro nenhum.

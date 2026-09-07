@@ -8,6 +8,7 @@
  * mobile). Não depende de Angular/React.
  */
 import type { RecapValue, MetricRecap, ActivityRecap } from './recap';
+import { fmtMoney } from '../format/money';
 
 export type HighlightTone = 'good' | 'bad' | 'neutral';
 
@@ -98,7 +99,7 @@ export interface WeekHighlightInput {
   goodHabits?: { name: string; recap: RecapValue }[];
   /** Hábitos ruins / registros — subir é ruim. */
   badHabits?: { name: string; recap: RecapValue }[];
-  /** Gasto da semana (R$) — subir é ruim. Opcional (sem store de transações ainda). */
+  /** Gasto da semana (€) — subir é ruim. Opcional (sem store de transações ainda). */
   spend?: RecapValue;
 }
 
@@ -216,7 +217,6 @@ export function buildWeekHighlights(input: WeekHighlightInput): WeekHighlight[] 
   const spend = input.spend;
   if (spend && (spend.current > 0 || spend.prior > 0)) {
     const tone = toneFor(spend.delta, spend.deltaPct, true);
-    const brl = (v: number) => `R$ ${fmtNum(v)}`;
     const pct = spend.deltaPct != null
       ? `${spend.deltaPct >= 0 ? '+' : '−'}${fmtNum(Math.abs(spend.deltaPct))}% vs. semana passada`
       : 'sem base de comparação';
@@ -224,7 +224,7 @@ export function buildWeekHighlights(input: WeekHighlightInput): WeekHighlight[] 
       id: 'spend',
       tone,
       icon: 'money',
-      text: `${brl(spend.current)} gastos · ${pct}`,
+      text: `${fmtMoney(spend.current)} gastos · ${pct}`,
       priority: priorityOf(spend.deltaPct, 8),
     });
   }

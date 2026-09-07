@@ -20,7 +20,12 @@ import {
   distancesWithData,
   gearForActivity,
   gearUsage,
+  buildSearchIndex,
+  consultaAtiva,
+  nomeProprio,
   ridesByCountry,
+  searchActivities,
+  type SearchHit,
   summarizeSurface,
   surfaceWindow,
   type SurfaceRange,
@@ -30,7 +35,11 @@ import {
 const EFFORT_KEYS = new Set(BEST_EFFORT_DISTANCES.map((d) => d.key));
 import { useActivitiesStore } from '../../store/activities.store';
 import { useGearStore } from '../../store/gear.store';
+import { useMediaCounts } from '../../hooks/useMediaCounts';
 import { getActivityMeta, getActivityColor } from '../../lib/workout-types';
+// O cartão vive num componente próprio desde a busca: as duas telas mostram o
+// MESMO cartão, e não duas cópias que divergiriam em silêncio.
+import { ActivityCard, MediaBadge } from '../../components/cards/ActivityCard';
 import {
   applyFilters,
   filterByType,
@@ -104,63 +113,19 @@ function numOr(s: string): number | undefined {
   return Number.isFinite(v) ? v : undefined;
 }
 
-function ActivityCard({
-  item,
-  color,
-  icon,
-  onPress,
-}: {
-  item: Activity;
-  color: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  onPress: () => void;
-}) {
-  const distance = formatDistance(item.distanceM);
-  // Atividades com GPS exibem o tempo em movimento; as demais, a duração total.
-  const isGps = item.hasRoute || (item.distanceM ?? 0) > 0;
-  const timeS = isGps ? item.movingTimeS ?? item.durationS : item.durationS;
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-      <View style={styles.cardHeader}>
-        <View style={[styles.iconBox, { backgroundColor: `${color}22` }]}>
-          <MaterialCommunityIcons name={icon} size={20} color={color} />
-        </View>
-        <View style={styles.flex}>
-          <Text style={styles.cardDate}>{formatDateLabel(item.startAt)}</Text>
-          <Text style={styles.cardTime}>
-            {formatTime(item.startAt)} – {formatTime(item.endAt)}
-          </Text>
-        </View>
-        {item.locallyEdited && (
-          <View style={styles.editBadge}>
-            <Ionicons name="create-outline" size={11} color={colors.ink2} />
-            <Text style={styles.editBadgeText}>editado</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.statsRow}>
-        <View style={styles.stat}>
-          <Ionicons name="time-outline" size={14} color={colors.ink3} />
-          <Text style={styles.statValue}>{formatDuration(timeS)}</Text>
-        </View>
-        {item.calories > 0 && (
-          <View style={styles.stat}>
-            <Ionicons name="flame-outline" size={14} color={colors.ink3} />
-            <Text style={styles.statValue}>{item.calories} kcal</Text>
-          </View>
-        )}
-        {distance && (
-          <View style={styles.stat}>
-            <Ionicons name="map-outline" size={14} color={colors.ink3} />
-            <Text style={styles.statValue}>{distance}</Text>
-          </View>
-        )}
-      </View>
-    </Pressable>
-  );
-}
-
+/**
+ * O selo de mídia (ADR 0037).
+ *
+ * Fica no **cabeçalho**, ao lado de `editado`, e não na régua de números. A
+ * régua é a linguagem do esforço — tempo, calorias, distância descrevem o que o
+ * corpo fez, e foto não é isso. Aqui ela é o que de fato é: propriedade do
+ * registro.
+ *
+ * Foto e vídeo cabem no **mesmo** selo, separados por um fio, para não esticar
+ * o cabeçalho em dois objetos quando a pedalada tem os dois — e para o conjunto
+ * sumir inteiro quando não tem nenhum. Em 9 de cada 10 cartões não há mídia, e
+ * um vão reservado ali desalinharia a lista toda.
+ */
 function HighlightsRow({
   items,
   onPick,
@@ -267,6 +232,9 @@ export default function TipoListScreen() {
     loadGear();
   }, [load, loadGear]);
 
+  /** O selo de mídia do cartão (ADR 0037) — uma consulta para a lista inteira. */
+  const { counts: mediaCounts } = useMediaCounts();
+
   /** Tudo do tipo, sem a lente de bicicleta — é o universo do seletor. */
   const typedAll = useMemo(
     () => filterByType(_all.filter((a) => !a.hidden), label),
@@ -304,6 +272,9 @@ export default function TipoListScreen() {
   // ── estado dos filtros (inputs crus) ──────────────────────────
   const [showFilters, setShowFilters] = useState(false);
   const [showSort, setShowSort] = useState(false);
+  const [showBusca, setShowBusca] = useState(false);
+  const [busca, setBusca] = useState('');
+
   const [sort, setSort] = useState<ActivitySort>('date-desc');
   const [fromStr, setFromStr] = useState('');
   const [toStr, setToStr] = useState('');
@@ -332,6 +303,29 @@ export default function TipoListScreen() {
   }, [fromStr, toStr, minKm, maxKm, minMin, maxMin, source, routeChoice]);
 
   const filtered = useMemo(() => applyFilters(typed, filters, sort), [typed, filters, sort]);
+
+  /*
+   * A busca é o ÚLTIMO recorte, aplicado sobre o que os filtros e a ordenação já
+   * decidiram. Ela filtra, não reordena: o controle de Ordenar é uma escolha
+   * explícita do usuário, e atropelá-la com o ranqueamento por relevância seria
+   * ignorar o que ele acabou de pedir. O ranqueamento continua vivo onde importa
+   * — em QUAL casamento o cartão mostra quando vários campos casam.
+   *
+   * O índice é derivado uma vez por mudança da lista, nunca por tecla.
+   */
+  const buscando = consultaAtiva(busca);
+  const searchIndex = useMemo(() => buildSearchIndex(filtered), [filtered]);
+  const hitsPorId = useMemo(() => {
+    if (!buscando) return null;
+    const m = new Map<string, SearchHit>();
+    for (const h of searchActivities(busca, searchIndex)) m.set(h.activity.id, h);
+    return m;
+  }, [buscando, busca, searchIndex]);
+  /** O que a lista de fato mostra: filtros + ordenação + busca. */
+  const listaFinal = useMemo(
+    () => (hitsPorId ? filtered.filter((a) => hitsPorId.has(a.id)) : filtered),
+    [filtered, hitsPorId],
+  );
   const sortLabel = useMemo(
     () => SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '',
     [sort],
@@ -342,10 +336,10 @@ export default function TipoListScreen() {
     setVisible(PAGE_SIZE);
   }, [filters, sort, label, gearId]);
 
-  const data = useMemo(() => filtered.slice(0, visible), [filtered, visible]);
+  const data = useMemo(() => listaFinal.slice(0, visible), [listaFinal, visible]);
   const loadMore = useCallback(() => {
-    setVisible((v) => (v >= filtered.length ? v : v + PAGE_SIZE));
-  }, [filtered.length]);
+    setVisible((v) => (v >= listaFinal.length ? v : v + PAGE_SIZE));
+  }, [listaFinal.length]);
 
   const meta = useMemo(() => {
     const first = typed[0];
@@ -373,14 +367,14 @@ export default function TipoListScreen() {
     const n = typed.length;
     if (n === 0) return 'nenhuma atividade';
     const noun = activityNoun(typed[0].activityId, n);
-    if (filtered.length !== n) return `${filtered.length} de ${noun}`;
+    if (listaFinal.length !== n) return `${listaFinal.length} de ${noun}`;
     if (!hasDistance) {
       const secs = typed.reduce((s, a) => s + (a.movingTimeS ?? a.durationS), 0);
       return `${formatDuration(secs)} · ${noun}`;
     }
     const km = typed.reduce((s, a) => s + (a.distanceM ?? 0), 0) / 1000;
     return `${km.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km · ${noun}`;
-  }, [typed, filtered.length, hasDistance]);
+  }, [typed, listaFinal.length, hasDistance]);
 
   // Recordes do tipo (corrida/ciclismo) — de todo o histórico, sem os filtros
   // da lista; a lente de bicicleta, essa vale.
@@ -557,6 +551,9 @@ export default function TipoListScreen() {
         item={item}
         color={meta.color}
         icon={meta.icon}
+        media={mediaCounts.get(item.id)}
+        hit={hitsPorId?.get(item.id)}
+        consulta={busca}
         onPress={() =>
           router.push({
             pathname: '/historico/[label]/[id]',
@@ -565,7 +562,10 @@ export default function TipoListScreen() {
         }
       />
     ),
-    [router, label, meta],
+    // `hitsPorId` e `busca` PRECISAM estar aqui: sem eles o cartão fica preso ao
+    // primeiro render e o grifo nunca acompanha o que se digita — um defeito que
+    // nenhum teste de tipo pega e que na tela parece "a busca não destaca nada".
+    [router, label, meta, mediaCounts, hitsPorId, busca],
   );
 
   return (
@@ -691,12 +691,46 @@ export default function TipoListScreen() {
         </View>
       )}
 
+      {/*
+        * O campo fica FORA da lista, fixo abaixo do cabeçalho da tela. Dentro da
+        * rolagem ele nascia lá embaixo (a barra de Filtros vem depois dos
+        * Recordes, das abas e do gráfico) e o teclado o cobria. As saídas por
+        * dentro da rolagem — rolar até a barra, reservar folga no fim — ou não
+        * alcançavam com a lista vazia, ou deixavam um vão enorme no fim da tela.
+        * Fora da rolagem o problema não existe: o campo está sempre visível, a
+        * lista corre por baixo dele e não há nada a compensar.
+        */}
+      {showBusca && (
+        <View style={styles.buscaRow}>
+          <Ionicons name="search" size={17} color={colors.ink3} />
+          <TextInput
+            value={busca}
+            onChangeText={setBusca}
+            placeholder="Cidade, rota, aparelho…"
+            placeholderTextColor={colors.ink4}
+            style={styles.buscaInput}
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {busca.length > 0 && (
+            <Pressable onPress={() => setBusca('')} hitSlop={10}>
+              <Ionicons name="close-circle" size={17} color={colors.ink3} />
+            </Pressable>
+          )}
+        </View>
+      )}
+
       <FlatList
         data={data}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        // O teclado fica de pé enquanto se toca na lista: sem isto, o primeiro
+        // toque num resultado só fecha o teclado e o segundo é que navega.
+        keyboardShouldPersistTaps="handled"
         initialNumToRender={PAGE_SIZE}
         onEndReached={loadMore}
         onEndReachedThreshold={0.4}
@@ -739,9 +773,50 @@ export default function TipoListScreen() {
 
               <Pressable
                 onPress={() => {
+                  const abrindo = !showBusca;
+                  setShowBusca(abrindo);
+                  if (!abrindo) setBusca('');
+                  setShowFilters(false);
+                  setShowSort(false);
+                  setShowGear(false);
+                }}
+                style={({ pressed }) => [
+                  styles.filterToggle,
+                  pressed && styles.pressed,
+                  buscando && styles.filterToggleOn,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Buscar nesta lista"
+              >
+                {/*
+                  * O chip NÃO mostra a contagem: o subtítulo do cabeçalho já vira
+                  * "7 de 148 pedaladas" assim que a lista estreita, e o número
+                  * repetido aqui virava uma pílula preta com um algarismo solto,
+                  * sem ícone nem rótulo — deixava de parecer um controle.
+                  * O rótulo fica; o estado ativo é o mesmo preenchimento que o
+                  * chip da bicicleta já usa nesta barra.
+                  */}
+                <Ionicons
+                  name="search"
+                  size={16}
+                  color={buscando ? colors.bgPure : colors.ink2}
+                />
+                <Text style={[styles.filterToggleText, buscando && styles.filterToggleTextOn]}>
+                  Buscar
+                </Text>
+                <Ionicons
+                  name={showBusca ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={buscando ? colors.bgPure : colors.ink3}
+                />
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
                   setShowSort((v) => !v);
                   setShowFilters(false);
                   setShowGear(false);
+                  setShowBusca(false);
                 }}
                 style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
               >
@@ -901,8 +976,16 @@ export default function TipoListScreen() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="filter-outline" size={36} color={colors.ink4} />
-            <Text style={styles.emptyText}>Nenhuma atividade com esses filtros</Text>
+            <Ionicons
+              name={buscando ? 'search-outline' : 'filter-outline'}
+              size={36}
+              color={colors.ink4}
+            />
+            <Text style={styles.emptyText}>
+              {buscando
+                ? `Nada encontrado para “${busca.trim()}”`
+                : 'Nenhuma atividade com esses filtros'}
+            </Text>
           </View>
         }
       />
@@ -1048,6 +1131,19 @@ const styles = themed(() => StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.ink },
   chipText: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink2 },
+  buscaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    ...shadows.sm,
+  },
+  buscaInput: { flex: 1, fontSize: 15, fontFamily: fonts.sans, color: colors.ink, paddingVertical: 2 },
   chipTextActive: { color: '#fff' },
   clearBtn: { alignSelf: 'flex-start', marginTop: spacing.sm },
   clearText: { fontSize: 13, color: colors.primary, fontFamily: fonts.sansSemiBold },
@@ -1063,6 +1159,9 @@ const styles = themed(() => StyleSheet.create({
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cardDate: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
   cardTime: { fontSize: 12.5, color: colors.ink3, fontFamily: fonts.mono, marginTop: 2 },
+  // 13 pt sans contra 15 pt semibold da data: menor e mais leve, como ele pediu.
+  // Sans e não mono porque é prosa, e é o que a separa da fileira de números.
+  cardName: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sans, marginTop: 2 },
   editBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1073,6 +1172,25 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: colors.surfaceMute,
   },
   editBadgeText: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink2 },
+
+  /** Mesma régua do `editBadge`: os dois dividem o canto e têm de casar. */
+  mediaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMute,
+  },
+  /** Mono, como todo número do app: 73 e 7 alinham na coluna da lista. */
+  mediaCount: {
+    fontSize: 11.5,
+    fontFamily: fonts.mono,
+    color: colors.ink2,
+    fontVariant: ['tabular-nums'],
+  },
+  mediaSep: { width: 1, height: 11, marginHorizontal: 1, backgroundColor: colors.lineDeep },
 
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, paddingLeft: 52 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 5 },

@@ -5,10 +5,26 @@
     </span>
     <div class="info">
       <div class="name">
-        {{ activity().activityName || meta().label }}
+        @if (nomeTrechos().length) {
+          @for (t of nomeTrechos(); track $index) {
+            @if (t.hit) { <mark class="hit">{{ t.t }}</mark> } @else { {{ t.t }} }
+          }
+        } @else {
+          {{ nome() }}
+        }
         @if (activity().locallyEdited) { <span class="badge">editado</span> }
       </div>
-      <div class="when">{{ fmtDate(activity().startAt) }} · {{ fmtTime(activity().startAt) }}</div>
+      <div class="when">
+        {{ fmtDate(activity().startAt) }} · {{ fmtTime(activity().startAt) }}
+        @if (provTrechos().length) {
+          <span class="prov">
+            @for (t of provTrechos(); track $index) {
+              @if (t.hit) { <mark class="hit">{{ t.t }}</mark> } @else { {{ t.t }} }
+            }
+            <span class="provlbl">{{ hit()!.match.label }}</span>
+          </span>
+        }
+      </div>
     </div>
     <div class="metrics mono">
       @if (hasDistance()) { <span class="m strong">{{ fmtKm(activity().distanceM ?? 0) }} km</span> }
@@ -25,7 +41,7 @@
       </span>
       @if (activity().locallyEdited) { <span class="badge">editado</span> }
     </div>
-    <div class="name">{{ activity().activityName || meta().label }}</div>
+    <div class="name">{{ nome() }}</div>
     <div class="when">{{ fmtDate(activity().startAt) }} · {{ fmtTime(activity().startAt) }}</div>
     <div class="grid mono">
       @if (hasDistance()) {

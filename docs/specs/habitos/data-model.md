@@ -25,6 +25,7 @@ create table if not exists public.habits (
   target     numeric(8,3) check (target is null or target >= 0), -- meta/teto (null = sem meta)
   direction  text        not null default 'at_least'
                check (direction in ('at_least','at_most')),
+  unit_price numeric(10,4) check (unit_price is null or unit_price >= 0), -- € por unidade (null = sem estimativa)
   active     boolean     not null default true,
   sort       int         not null default 0,
   created_at timestamptz not null default now(),
@@ -83,6 +84,7 @@ create policy "own habit_logs" on public.habit_logs
 | `step` | `numeric(8,3)` | Quanto o `＋`/`−` soma/subtrai (> 0) |
 | `target` | `numeric(8,3)?` | Meta (`at_least`) ou teto (`at_most`); `null` = contador puro |
 | `direction` | `text` | `at_least` (atingir) \| `at_most` (não passar) |
+| `unit_price` | `numeric(10,4)?` | Preço médio de **uma unidade** de `unit`, em euro; `null` = o hábito não estima gasto |
 | `active` | `boolean` | `false` = arquivado (some da captura, mantém histórico) |
 | `sort` | `int` | Ordem na captura |
 
@@ -125,6 +127,7 @@ export interface CounterHabit {
   step: number;          // incremento por toque
   target?: number;       // meta (at_least) / teto (at_most); ausente = sem meta
   direction: HabitDirection;
+  unitPrice?: number;    // € por unidade; ausente = sem estimativa de gasto
   bad: boolean;          // hábito a evitar: exibe dias SEM fazer no lugar da sequência
   active: boolean;
   sort: number;
@@ -149,6 +152,15 @@ Computadas no cliente sobre os logs carregados — nenhuma coluna derivada no ba
 - **valueToday(habit):** `value` da linha de `habit_logs` com `log_date = hoje` (local), ou 0.
 - **isMet(habit, value):** `at_least` → `target != null && value >= target`; `at_most` → `target == null ? false : value <= target` (sem meta ⇒ sem estado de "batida").
 - **isOver(habit, value):** `at_most && target != null && value > target` → alerta.
+- **habitCost(unitPrice, total):** `total × unitPrice`, ou `null` sem preço (e `null` com total 0 —
+  "não gastou" e "não houve registro" leem igual na tela, e a segunda é a verdadeira). O gasto
+  **nunca é persistido**: é o que torna o preço retroativo sem backfill. Ver `habits/cost.ts`.
+- **habitCellLevel(habit, value, { scaleMax? }):** a intensidade de uma célula — vazio / acima do
+  limite / `pct`% de acento. Com meta a escala é adesão; sem meta, `scaleMax` (maior dia da grade)
+  ou tom único. A **regra** é do núcleo; a cor é de cada app (`color-mix` na web, `mix()` no mobile).
+- **buildHabitDetail(logs, period, { now, yearOffset }):** todas as métricas do detalhe. Soma valor
+  em vez de contar marcas — daí delta na unidade, média por dia **com registro** e `best` (maior
+  dia). Eixo de tempo compartilhado com Registros em `period/bucket-plan.ts`.
 - **streak(habit):** dias consecutivos (até hoje) com `isMet = true`, varrendo `habit_logs` por `log_date` decrescente. Em `at_most`, um dia **sem linha** conta como 0 ⇒ dentro do teto (cumpre), o que torna o streak correto para "não fumei".
 - **cleanStreak(habit):** para `bad = true` — dias consecutivos (terminando hoje) com `value = 0` ("há quantos dias sem fazer"). Hoje conta; se já fez hoje (`value > 0`), volta a 0. Limitado a `daysInclusive(createdAt, hoje)` para não exibir mais dias do que o hábito existe.
 - **average(habit, period):** média de `value` por dia no período (web).

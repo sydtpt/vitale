@@ -38,6 +38,7 @@ import { bucketPeriods, median, quantile, weekKey, type SleepBucket } from './bu
 import { formatHm, isFreeWakeDay, type SleepMarker } from './facts';
 import { socialJetlag, sleepRegularityIndex } from './regularity';
 import { awakeningsByHour, awakeningDurations, type AwakeHourBin } from './awakenings';
+import { AWAKE_REAL_MIN, typicalAwakening, type TypicalAwakening } from './awake-shape';
 import {
   REGULARITY_MIN_NIGHTS,
   longestRun,
@@ -176,11 +177,16 @@ export const SLEEP_BANDS: readonly { label: string; minH: number; maxH: number }
 ];
 
 /**
- * Despertar que o consenso do NSF (Ohayon 2017) conta: acima de cinco minutos.
+ * Despertar que o consenso do NSF (Ohayon 2017) conta: cinco minutos ou mais.
  * Em agosto de 2026, 56 dos 85 despertares ficaram abaixo disso — a contagem crua
  * sugere uma noite picada que a distribuição desmente.
+ *
+ * É o mesmo piso de `awake-shape.ts`, e a comparação é `>=` desde 06/09/2026:
+ * antes disso `counted` usava `>` enquanto as faixas de {@link AWAKE_DURATION_BUCKETS}
+ * usavam `>=`, e a soma das faixas de 5 min para cima não fechava com o número
+ * que a tela imprimia ao lado (29 contra 27, em agosto).
  */
-export const AWAKE_COUNTED_MIN = 5;
+export const AWAKE_COUNTED_MIN = AWAKE_REAL_MIN;
 
 /** Uma faixa de duração e como o usuário acordou nas noites dela. */
 export interface SleepBand {
@@ -266,6 +272,13 @@ export interface SleepRetro {
   awakeHours: AwakeHourBin[];
   /** Duração dos despertares. `null` quando a fonte não reporta. */
   awakeSpread: SleepAwakeSpread | null;
+  /**
+   * O despertar típico do período — mediana, p90, o maior com data, e a fração
+   * de piscada. É a única leitura de vigília que **atravessa a troca de relógio**
+   * sem mentir: a contagem por noite cai 4× entre Apple e Garmin, a duração não
+   * se move (9 e 11 min de mediana). Ver `awake-shape.ts`.
+   */
+  typical: TypicalAwakening | null;
   /** A regularidade de cada semana do período. */
   regularityWeeks: SleepWeekRegularity[];
   extremes: SleepExtremes;
@@ -441,7 +454,7 @@ export function awakeSpread(periods: readonly SleepPeriod[]): SleepAwakeSpread |
   const all = reporting.flatMap((p) => (p.awakenings ?? []).map(awakeningMin));
   return {
     buckets: awakeningDurations(reporting),
-    counted: all.filter((m) => m > AWAKE_COUNTED_MIN).length,
+    counted: all.filter((m) => m >= AWAKE_COUNTED_MIN).length,
     total: all.length,
   };
 }
@@ -516,6 +529,7 @@ export function sleepRetro(
     bands: sleepBands(cur, ratings),
     awakeHours: awakeningsByHour(cur),
     awakeSpread: awakeSpread(cur),
+    typical: typicalAwakening(cur),
     regularityWeeks: regularityByWeek(cur),
     extremes: { shortest: c.shortest, longest: c.longest, best, worst },
   };

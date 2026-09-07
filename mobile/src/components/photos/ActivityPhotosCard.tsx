@@ -1,0 +1,729 @@
+/**
+ * O cartão Fotos do detalhe da atividade (ADR 0037, prancha A).
+ *
+ * Fica **abaixo dos números**, e é deliberado: o dono disse que abre uma
+ * pedalada antiga procurando o mapa e os números, e que foto não é destaque.
+ * A foto entra como camada sobre o que já manda na tela, não como seção nova
+ * competindo por espaço.
+ *
+ * A unidade é a **parada**, não o ponto: doze fotos numa pedalada não são doze
+ * lugares. Cada linha carrega o que só este app tem — a cidade real de
+ * `activities.cities`, o km, e quanto tempo a bicicleta ficou parada ali.
+ *
+ * **Sem foto, o cartão não existe.** Some por completo, sem moldura vazia e sem
+ * "adicione fotos" pedindo atenção. A única exceção é a pedalada que nunca foi
+ * procurada: aí aparece uma linha fina de convite, que é também o caminho de
+ * volta para quem tocou "Agora não".
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Image,
+  ActivityIndicator,
+  Linking,
+  Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import type { ActivityPhoto, ActivityRoutePoint } from '@vitale/shared';
+import { colors, fonts, onMedia, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { useAuthStore } from '../../store/auth.store';
+import { useActivityPhotos } from '../../hooks/useActivityPhotos';
+import { useAssetUri } from '../../hooks/useAssetUri';
+import { formatClip } from '../../lib/workout-format';
+import type { PhotoCandidate } from '../../lib/activity-photos';
+import {
+  type PhotoAccess,
+  type ScanResult,
+  currentPhotoAccess,
+  requestPhotoAccess,
+  dismissPhoto,
+  dismissPhotos,
+  autoLinkCorridor,
+  healPointers,
+  saveDecisions,
+  scanActivity,
+  setCover,
+} from '../../services/activity-photos';
+import { resolveAssetUri } from '../../services/asset-uri';
+import { PhotoSuggestSheet } from './PhotoSuggestSheet';
+import { PhotoGalleryModal, type GallerySection } from './PhotoGalleryModal';
+
+/** Miniaturas por linha de parada antes de cortar. */
+const PREVIEW = 2;
+
+/**
+ * Uma miniatura que sabe falhar.
+ *
+ * Foto apagada da biblioteca vira ligação órfã: o instante ainda existe no
+ * banco, mas não há arquivo. A cura pelo instante (ADR 0037 §2) não resolve
+ * isso — ela reendereça ponteiro trocado, não ressuscita arquivo. Mostrar a
+ * lacuna é a resposta honesta; sumir calado faria a contagem do cabeçalho
+ * discordar do que se vê.
+ */
+function Thumb({ photo, style }: { photo: ActivityPhoto; style: object }) {
+  const styles = useThemedStyles(createStyles);
+  const isVideo = photo.mediaType === 'video';
+  const uri = useAssetUri(photo.assetId, isVideo, photo.durationS);
+  const [broken, setBroken] = useState(false);
+
+  if (uri === 'loading') return <View style={[style, styles.loadingTile]} />;
+  if (uri === null || broken) {
+    // Vídeo sem pôster não é vídeo perdido — ver `PhotoGalleryModal`. A lacuna
+    // com "?" afirma que a mídia sumiu da biblioteca, e isso só se sabe da foto.
+    return (
+      <View style={[style, isVideo ? styles.film : styles.gap]}>
+        <Ionicons
+          name={isVideo ? 'play' : 'help-outline'}
+          size={14}
+          color={isVideo ? onMedia : colors.ink4}
+        />
+      </View>
+    );
+  }
+  return <Image source={{ uri }} style={style} onError={() => setBroken(true)} />;
+}
+
+function hhmm(ms: number): string {
+  return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+interface Props {
+  /** Vem do hook da tela: mapa e cartão precisam do MESMO dado. */
+  view: ReturnType<typeof useActivityPhotos>;
+  activity: {
+    id: string;
+    startAtMs: number;
+    endAtMs: number;
+    distanceM?: number;
+    photosCheckedAt: string | null;
+    cities?: { name: string; lat: number; lng: number }[] | null;
+  };
+  /**
+   * O traçado — **`undefined` enquanto carrega**, e essa distinção é o dado.
+   *
+   * A tela buscava a rota de forma assíncrona e passava `routePoints ?? []`,
+   * o que apagava a diferença entre "ainda não sei" e "não tem". O vínculo
+   * automático rodava no primeiro quadro, com traçado vazio, classificava tudo
+   * como fora da rota, não ligava nada — e ainda assim gravava
+   * `photos_checked_at`, então nunca mais tentava. Conferido no iPhone em
+   * 07/09/2026: era preciso adicionar à mão as fotos que deviam entrar sozinhas.
+   *
+   * É a mesma armadilha da ADR 0037 §5.3 sobre os buracos do GPS: **não saber
+   * não é saber que não.**
+   */
+  points: readonly ActivityRoutePoint[] | undefined;
+  /**
+   * Compartilhar uma foto do visor da galeria.
+   *
+   * Sobe até a tela porque o compositor mora lá: a galeria precisa continuar
+   * aberta atrás dele, e ela é um `Modal` deste cartão.
+   */
+  onSharePhoto?: (photo: ActivityPhoto) => void;
+  /** O compositor da foto está aberto — o visor mostra que está indo. */
+  sharingPhoto?: boolean;
+  /**
+   * O compositor, para ser montado DENTRO da galeria. O iOS não apresenta um
+   * `Modal` da tela de baixo enquanto a galeria está de pé — ver `shareSlot`
+   * em `PhotoGalleryModal`.
+   */
+  shareSlot?: React.ReactNode;
+}
+
+export function ActivityPhotosCard({ activity, points: rawPoints, view, onSharePhoto, sharingPhoto, shareSlot }: Props) {
+  const points = rawPoints ?? [];
+  const styles = useThemedStyles(createStyles);
+  const userId = useAuthStore((s) => s.user?.id);
+  const { photos, grouped, reload } = view;
+
+  const [checked, setChecked] = useState<boolean>(!!activity.photosCheckedAt);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [scan, setScan] = useState<ScanResult | null>(null);
+  const [access, setAccess] = useState<PhotoAccess>('full');
+  const [scanning, setScanning] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  /** O que a varredura automática deixou para ele olhar — ver `autoLinkCorridor`. */
+  const [rest, setRest] = useState<ScanResult | null>(null);
+  const pendingCount = rest?.candidates.length ?? 0;
+
+  /**
+   * O vínculo automático (07/09/2026).
+   *
+   * Roda **uma vez por pedalada**, na primeira abertura, e liga só o que está
+   * no corredor da rota — 89% de acerto medido nas 707 decisões que ele já
+   * tinha tomado à mão. O resto vira a linha quieta abaixo do cartão.
+   *
+   * A guarda é o `photos_checked_at`: sem ela, abrir uma pedalada antiga só
+   * para ver o mapa custaria uma leitura da biblioteca toda vez.
+   */
+  useEffect(() => {
+    if (checked || !userId) return;
+    // Sem traçado carregado não há corredor, e sem corredor a partilha diria
+    // "fora da rota" para tudo. Esperar é o certo: `undefined` é a rota em voo,
+    // e `[]` é a atividade que não tem rota nenhuma — nessa, o corredor não
+    // existe e quem decide é ele, na folha.
+    if (!rawPoints || rawPoints.length === 0) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await autoLinkCorridor({ ...activity }, rawPoints, userId);
+        if (!alive || !r) return;
+        setChecked(true);
+        setRest(r.rest);
+        if (r.linked > 0) await reload();
+      } catch {
+        // Falhar aqui deixa a pedalada exatamente como estava: sem
+        // `photos_checked_at`, ela tenta de novo na próxima abertura. É o
+        // comportamento certo — e por isso o erro não vira alerta na tela.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // `activity` muda de identidade a cada render da tela; o que governa esta
+    // varredura é a pedalada, o dono, e **se a rota já chegou**.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity.id, userId, checked, rawPoints]);
+
+  /**
+   * A cura do ponteiro, e a remoção da foto apagada (ADR 0037 §2).
+   *
+   * **Isto faltava.** A função existia desde a Fase 2 e não era chamada por
+   * ninguém — escrita, testada e nunca ligada. Sem ela, o `localIdentifier`
+   * trocado por um Quick Start ou um restore mataria todas as ligações em
+   * silêncio, que é exatamente o que a chave de cura foi feita para evitar.
+   *
+   * Roda depois que as fotos carregam, e é barata no caso comum: a função sai
+   * logo na entrada quando todos os ponteiros resolvem, e só então lê a janela
+   * da biblioteca. Recarrega a tela apenas se mudou alguma coisa.
+   */
+  const healedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!userId || photos.length === 0) return;
+    // Uma vez por pedalada, por montagem: sem a trava, cada `reload` dispararia
+    // a cura de novo — e a cura chama `reload`.
+    if (healedRef.current === activity.id) return;
+    healedRef.current = activity.id;
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await healPointers(userId, activity, photos);
+        if (alive && r.healed + r.dismissed > 0) await reload();
+      } catch {
+        // Cura é conserto oportunista: falhar deixa a lacuna na tela, que é o
+        // comportamento anterior, e não quebra nada.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, activity.id, photos.length]);
+
+  /**
+   * A folha, aberta com o que sobrou — sem varrer de novo.
+   *
+   * A biblioteca já foi lida na abertura da tela; reler para mostrar o mesmo
+   * resultado gastaria segundos para não mudar nada.
+   */
+  const openPending = useCallback(() => {
+    if (!rest) return;
+    setScan(rest);
+    setAccess('full');
+    setScanning(false);
+    setSheetOpen(true);
+  }, [rest]);
+
+  /** A cidade mais próxima da parada — o "Vrouwenakker · km 38,2" da tela. */
+  const cityNear = useCallback(
+    (lat: number, lng: number): string | null => {
+      const cs = activity.cities ?? [];
+      if (cs.length === 0) return null;
+      let best = cs[0];
+      let bestD = Infinity;
+      for (const c of cs) {
+        const d = (c.lat - lat) ** 2 + (c.lng - lng) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      return best.name;
+    },
+    [activity.cities],
+  );
+
+  const openSheet = useCallback(async () => {
+    if (!userId) return;
+    setSheetOpen(true);
+    setScanning(true);
+    try {
+      let a = await currentPhotoAccess();
+      if (a === 'denied') a = await requestPhotoAccess();
+      setAccess(a);
+      if (a === 'full') {
+        setScan(await scanActivity({ ...activity }, points, userId));
+      }
+    } catch {
+      setScan(null);
+    } finally {
+      setScanning(false);
+    }
+  }, [userId, activity, points]);
+
+  const confirm = useCallback(
+    async (accepted: PhotoCandidate[], rejected: PhotoCandidate[]) => {
+      if (!userId) {
+        Alert.alert('Sem sessão', 'Entre na sua conta para ligar fotos a uma pedalada.');
+        return;
+      }
+      setSheetOpen(false);
+      try {
+        await saveDecisions(userId, activity.id, accepted, rejected);
+        setChecked(true);
+        // Ele acabou de julgar o que sobrou: a linha de pendência some, e o que
+        // ficou de fora agora é `dismissed` — não volta.
+        setRest(null);
+        await reload();
+      } catch (e) {
+        /**
+         * NUNCA engolir este erro. A primeira versão tinha um `catch {}` mudo
+         * com um comentário dizendo "nada se perde" — e era falso: a seleção
+         * inteira ia embora e a tela não dizia nada. "Não acontece nada" foi
+         * exatamente como o usuário descreveu o bug em 07/09/2026, e o silêncio
+         * custou uma sessão de diagnóstico às cegas.
+         */
+        Alert.alert(
+          'Não consegui ligar as fotos',
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    },
+    [userId, activity.id, reload],
+  );
+
+  /**
+   * Toque longo numa miniatura.
+   *
+   * "Desligar da pedalada" é a palavra certa, e não "excluir": o app não é dono
+   * do arquivo. Oferecer "Ver no app Fotos" logo acima torna isso explícito —
+   * a foto continua lá, inteira, depois de desligada.
+   */
+  const onLongPress = useCallback(
+    (photoId: string, assetId: string | null) => {
+      if (!userId) return;
+      Alert.alert('Foto', undefined, [
+        {
+          text: 'Ver no app Fotos',
+          onPress: () => {
+            void resolveAssetUri(assetId).then((uri) => {
+              if (uri) void Linking.openURL(uri).catch(() => undefined);
+            });
+          },
+        },
+        {
+          text: 'Tornar a capa',
+          onPress: async () => {
+            try {
+              await setCover(userId, activity.id, photoId);
+              await reload();
+            } catch {
+              /* a capa é preferência, não dado: falhar em silêncio é aceitável */
+            }
+          },
+        },
+        {
+          text: 'Desligar da pedalada',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dismissPhoto(userId, photoId);
+              await reload();
+            } catch {
+              /* idem */
+            }
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]);
+    },
+    [userId, activity.id, reload],
+  );
+
+  /**
+   * As seções da galeria saem do MESMO agrupamento do cartão — o cartão é o
+   * índice, a galeria é o álbum, e os dois têm de contar a mesma história.
+   */
+  const sections = useMemo<GallerySection[]>(() => {
+    const out: GallerySection[] = grouped.stops.map(({ stop, photos: ps }) => {
+      const city = cityNear(stop.lat, stop.lng);
+      return {
+        key: `s${stop.startIdx}`,
+        title: `${city ? `${city} · ` : ''}km ${(stop.distanceM / 1000).toFixed(1).replace('.', ',')}`,
+        subtitle: `${hhmm(stop.startMs)} – ${hhmm(stop.endMs)} · ${Math.round(stop.durationS / 60)} min parado · ${ps.length} ${ps.length === 1 ? 'foto' : 'fotos'}`,
+        photos: ps,
+      };
+    });
+    for (const g of grouped.silent) {
+      const first = g.photos[0];
+      const city = first.lat !== null && first.lng !== null ? cityNear(first.lat, first.lng) : null;
+      out.push({
+        key: `q${g.firstMs}`,
+        title: city ?? 'Parada não gravada',
+        subtitle: `${hhmm(g.firstMs)} – ${hhmm(g.lastMs)} · ${Math.max(1, Math.round(g.spanS / 60))} min · o GPS não gravou aqui`,
+        photos: g.photos,
+      });
+    }
+    if (grouped.moving.length > 0) {
+      out.push({
+        key: 'moving',
+        title: 'Em movimento',
+        subtitle: `${grouped.moving.length} ${grouped.moving.length === 1 ? 'foto' : 'fotos'} · sem parada`,
+        photos: grouped.moving,
+      });
+    }
+    return out;
+  }, [grouped, cityNear]);
+
+  const sheet = (
+    <PhotoSuggestSheet
+      visible={sheetOpen}
+      scan={scan}
+      access={access}
+      loading={scanning}
+      onClose={() => setSheetOpen(false)}
+      onConfirm={confirm}
+      onOpenSettings={() => Linking.openSettings()}
+    />
+  );
+
+  /**
+   * Sem foto ligada. O convite continua existindo **mesmo depois de já ter
+   * procurado** — a primeira versão sumia para sempre assim que
+   * `photos_checked_at` era gravado, e bastava tocar "Não ligar nenhuma" uma vez
+   * para a pedalada ficar sem nenhum caminho de volta (conferido no iPhone em
+   * 07/09/2026).
+   *
+   * "Zero foto some por completo" era sobre não pedir atenção, não sobre virar
+   * beco sem saída: depois de procurado, o convite fica mais quieto — texto
+   * apagado, sem moldura — mas fica.
+   */
+  /**
+   * O que a varredura automática não teve certeza de ligar.
+   *
+   * Fica **quieta**: nenhuma folha abre sozinha. Um modal saltando a cada
+   * pedalada antiga que ele abre para ver o mapa seria pior que o problema.
+   * Some assim que ele julgar, e não volta a aparecer numa próxima abertura —
+   * a varredura não roda de novo. O caminho de volta é "Procurar fotos de
+   * novo", logo abaixo, e o "Procurar mais" da galeria.
+   */
+  const pendingRow =
+    pendingCount > 0 ? (
+      <Pressable style={styles.pending} onPress={openPending}>
+        <Ionicons name="help-circle-outline" size={15} color={colors.ink3} />
+        <Text style={styles.pendingText}>
+          {pendingCount === 1
+            ? 'Mais 1 foto perto da rota, para você ver'
+            : `Mais ${pendingCount} fotos perto da rota, para você ver`}
+        </Text>
+        <Ionicons name="chevron-forward" size={14} color={colors.ink4} />
+      </Pressable>
+    ) : null;
+
+  if (photos.length === 0) {
+    return (
+      <>
+        {pendingRow}
+        <Pressable style={[styles.invite, checked && styles.inviteQuiet]} onPress={openSheet}>
+          <Ionicons
+            name="images-outline"
+            size={16}
+            color={checked ? colors.ink4 : colors.ink3}
+          />
+          <Text style={[styles.inviteText, checked && styles.inviteTextQuiet]}>
+            {checked ? 'Procurar fotos de novo' : 'Procurar fotos desta pedalada'}
+          </Text>
+          {scanning ? (
+            <ActivityIndicator size="small" color={colors.ink3} />
+          ) : (
+            <Ionicons name="chevron-forward" size={15} color={colors.ink4} />
+          )}
+        </Pressable>
+        {sheet}
+      </>
+    );
+  }
+
+  const movingCount = grouped.moving.length;
+
+  return (
+    <>
+      <Pressable style={styles.card} onPress={() => setGalleryOpen(true)}>
+        <View style={styles.head}>
+          <Text style={styles.title}>Fotos</Text>
+          <Text style={styles.meta}>
+            {photos.length} ·{' '}
+            {(() => {
+              const n = grouped.stops.length + grouped.silent.length;
+              return n === 1 ? '1 parada' : `${n} paradas`;
+            })()}
+          </Text>
+          <Ionicons name="chevron-forward" size={15} color={colors.ink4} style={styles.chevron} />
+        </View>
+
+        {grouped.stops.map(({ stop, photos: ps }) => {
+          const city = cityNear(stop.lat, stop.lng);
+          return (
+            <View key={stop.startIdx} style={styles.row}>
+              <View style={styles.pin}>
+                <Text style={styles.pinText}>{ps.length}</Text>
+              </View>
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {city ? `${city} · ` : ''}km {(stop.distanceM / 1000).toFixed(1).replace('.', ',')}
+                </Text>
+                <Text style={styles.rowSub}>
+                  {hhmm(stop.startMs)} – {hhmm(stop.endMs)} · {Math.round(stop.durationS / 60)} min parado
+                </Text>
+              </View>
+              <View style={styles.strip}>
+                {ps.slice(0, PREVIEW).map((p) => (
+                  <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
+                    <Thumb photo={p} style={styles.thumb} />
+                    {p.mediaType === 'video' && p.durationS !== null && (
+                      <View style={styles.clip}>
+                        <Ionicons name="play" size={7} color={onMedia} />
+                        <Text style={styles.clipText}>{formatClip(p.durationS)}</Text>
+                      </View>
+                    )}
+                    {p.isCover && (
+                      <View style={styles.coverBadge}>
+                        <Ionicons name="star" size={9} color={onMedia} />
+                      </View>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          );
+        })}
+
+        {grouped.silent.map((g) => {
+          const first = g.photos[0];
+          const city = first.lat !== null && first.lng !== null ? cityNear(first.lat, first.lng) : null;
+          return (
+            <View key={g.firstMs} style={styles.row}>
+              <View style={[styles.pin, styles.pinSilent]}>
+                <Text style={styles.pinText}>{g.photos.length}</Text>
+              </View>
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle} numberOfLines={1}>{city ?? 'Parada não gravada'}</Text>
+                <Text style={styles.rowSub}>
+                  {hhmm(g.firstMs)} – {hhmm(g.lastMs)} · o GPS não gravou
+                </Text>
+              </View>
+              <View style={styles.strip}>
+                {g.photos.slice(0, PREVIEW).map((p) => (
+                  <Thumb key={p.id} photo={p} style={styles.thumb} />
+                ))}
+              </View>
+            </View>
+          );
+        })}
+
+        {movingCount > 0 && (
+          <View style={styles.row}>
+            <View style={[styles.pin, styles.pinLoose]}>
+              <Text style={styles.pinText}>{movingCount}</Text>
+            </View>
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle}>Em movimento</Text>
+              <Text style={styles.rowSub}>
+                {grouped.moving.slice(0, 2).map((p) => hhmm(p.takenAtMs)).join(' e ')}
+                {movingCount > 2 ? ' e mais' : ''} · sem parada
+              </Text>
+            </View>
+            <View style={styles.strip}>
+              {grouped.moving.slice(0, PREVIEW).map((p) => (
+                <Pressable key={p.id} onLongPress={() => onLongPress(p.id, p.assetId)} delayLongPress={300}>
+                  <Thumb photo={p} style={styles.thumb} />
+                  {p.mediaType === 'video' && p.durationS !== null && (
+                    <View style={styles.clip}>
+                      <Ionicons name="play" size={7} color={onMedia} />
+                      <Text style={styles.clipText}>{formatClip(p.durationS)}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+      </Pressable>
+      {pendingRow}
+      {sheet}
+      <PhotoGalleryModal
+        visible={galleryOpen}
+        sections={sections}
+        total={photos.length}
+        onClose={() => setGalleryOpen(false)}
+        onRescan={() => {
+          setGalleryOpen(false);
+          void openSheet();
+        }}
+        onSharePhoto={onSharePhoto}
+        sharing={sharingPhoto}
+        shareSlot={shareSlot}
+        onCover={async (p) => {
+          if (!userId) return;
+          try {
+            await setCover(userId, activity.id, p.id);
+            await reload();
+          } catch {
+            /* a capa é preferência, não dado: falhar em silêncio é aceitável */
+          }
+        }}
+        onDismiss={async (ids) => {
+          if (!userId) return;
+          try {
+            await dismissPhotos(userId, ids);
+            await reload();
+          } catch (e) {
+            Alert.alert(
+              'Não consegui desligar',
+              e instanceof Error ? e.message : String(e),
+            );
+          }
+        }}
+      />
+    </>
+  );
+}
+
+const createStyles = () =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radii['2xl'],
+      padding: spacing.lg,
+      marginTop: spacing.sm,
+      ...shadows.card,
+    },
+    head: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+    title: { fontSize: 13, fontFamily: fonts.sansBold, color: colors.ink },
+    meta: { marginLeft: 'auto', fontSize: 11.5, fontFamily: fonts.mono, color: colors.ink3 },
+    chevron: { marginLeft: 4 },
+
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.line,
+    },
+    /**
+     * O marcador é **neutro**: a rota e as cidades já usam o papel `orange`, e
+     * dar cor à foto brigaria com o dado. Ver ADR 0018 e "marca não é cor de dado".
+     */
+    pin: {
+      width: 23,
+      height: 23,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pinLoose: { borderStyle: 'dashed', borderColor: colors.ink3 },
+    /**
+     * A parada que o GPS não viu: contorno pontilhado, para dizer que ela é
+     * **provada pelas fotos** e não medida pelo traçado.
+     */
+    pinSilent: { borderStyle: 'dotted', borderColor: colors.ink2 },
+    pinText: { fontSize: 11, fontFamily: fonts.monoSemiBold, color: colors.ink },
+
+    rowText: { flex: 1, minWidth: 0 },
+    rowTitle: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
+    rowSub: { fontSize: 11, fontFamily: fonts.mono, color: colors.ink3, marginTop: 1 },
+
+    strip: { flexDirection: 'row', gap: 5 },
+    thumb: {
+      width: 44,
+      height: 44,
+      borderRadius: radii.sm,
+      backgroundColor: colors.surfaceMute,
+    },
+
+    loadingTile: { backgroundColor: colors.surfaceMute },
+    gap: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.lineDeep,
+      borderStyle: 'dashed',
+    },
+    /** Escuro nos dois esquemas, como o crachá de duração que fica sobre ele. */
+    film: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    /** A duração fica na base, onde não briga com a estrela de capa (topo). */
+    clip: {
+      position: 'absolute',
+      left: 3,
+      bottom: 3,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+      borderRadius: 6,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    clipText: { fontSize: 9, fontFamily: fonts.monoSemiBold, color: onMedia },
+    coverBadge: {
+      position: 'absolute',
+      right: 3,
+      top: 3,
+      width: 15,
+      height: 15,
+      borderRadius: 8,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    invite: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderStyle: 'dashed',
+    },
+    inviteText: { flex: 1, fontSize: 12.5, fontFamily: fonts.sansMedium, color: colors.ink3 },
+    /** Depois de já ter procurado: presente, mas sem pedir atenção. */
+    inviteQuiet: { borderColor: 'transparent', paddingVertical: spacing.sm },
+    inviteTextQuiet: { color: colors.ink4 },
+
+    /**
+     * A pendência do vínculo automático. Mais quieta que o convite — sem
+     * moldura e sem preenchimento: é um lembrete, não uma tarefa.
+     */
+    pending: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    pendingText: { flex: 1, fontSize: 12.5, fontFamily: fonts.sansMedium, color: colors.ink3 },
+  });

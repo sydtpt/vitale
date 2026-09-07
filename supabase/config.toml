@@ -23,3 +23,8 @@ verify_jwt = true
 # nada dele — mas para a função não virar proxy aberto queimando a cota do TMDB.
 [functions.cultura-search]
 verify_jwt = true
+
+# ia-narrar: mesmo motivo da cultura-search, com aposta maior — aqui o que se
+# queima é o crédito Prepay (ADR 0038). O corpo já chega pronto do aparelho.
+[functions.ia-narrar]
+verify_jwt = true

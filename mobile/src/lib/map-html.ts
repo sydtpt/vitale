@@ -38,6 +38,22 @@ export interface MapScriptOptions {
   reportView?: boolean;
   /** Cidades a rotular sobre a rota (cartão de share). Ausente/vazio ⇒ nenhuma. */
   cities?: readonly CityMark[];
+  /**
+   * As fotos desta pedalada (ADR 0037), agrupadas por parada.
+   *
+   * O marcador é **neutro** e as cores vêm de fora: a rota e as cidades já
+   * gastam o papel `orange`, e dar cor própria à foto brigaria com o dado.
+   * Receber `ink`/`fill` do chamador é o que faz o marcador inverter no escuro
+   * sem literal nenhum aqui dentro.
+   */
+  photos?: {
+    /** Paradas com foto: círculo com a contagem dentro. */
+    stops: readonly { lat: number; lng: number; count: number }[];
+    /** Fotos em movimento: ponto pequeno, sem contagem. */
+    dots: readonly { lat: number; lng: number }[];
+    ink: string;
+    fill: string;
+  };
 }
 
 /**
@@ -54,6 +70,7 @@ export function buildMapHtml(
   points: readonly MapPoint[],
   interactive: boolean,
   tile: MapStyleConfig,
+  photos?: MapScriptOptions['photos'],
 ): string {
   return `<!DOCTYPE html>
 <html>
@@ -67,7 +84,7 @@ export function buildMapHtml(
 </head>
 <body>
   <div id="map"></div>
-  ${mapScript(points, tile, { interactive })}
+  ${mapScript(points, tile, { interactive, photos })}
 </body>
 </html>`;
 }
@@ -77,6 +94,50 @@ export function buildMapHtml(
  * controle específico (tamanho da atribuição). Reutilizado por `buildMapHtml` e
  * pelo cartão de compartilhamento (que embute o mapa como camada de fundo).
  */
+/**
+ * O desenho do marcador de foto, escrito **uma vez** (ADR 0037).
+ *
+ * Leaflet e MapLibre montam o mesmo HTML: o pino tem duas formas — cabeça e
+ * ponta — e nenhum dos dois desenha isso em camada nativa sem um sprite. Ter o
+ * CSS num lugar só é o que impede os dois mapas de divergirem com o tempo, e o
+ * usuário troca de estilo de mapa, não de app.
+ *
+ * Os tamanhos foram reduzidos em 07/09/2026: o primeiro pino saiu grande demais
+ * no aparelho. O piso é a legibilidade do número — 10 px em mono, que a
+ * contagem de duas casas ainda lê. A cabeça cresce sozinha com `min-width` mais
+ * padding, para "12" e "104" caberem sem apertar.
+ */
+function photoPinJs(): string {
+  return `
+    function orbePhotoPin(count, fill, ink) {
+      var el = document.createElement('div');
+      el.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
+      var head = document.createElement('div');
+      head.textContent = String(count);
+      head.style.cssText = 'display:flex;align-items:center;justify-content:center;min-width:21px;'
+        + 'height:16px;padding:0 4px;border-radius:3px;box-sizing:border-box;'
+        + 'font:600 10px ui-monospace,Menlo,monospace;background:' + fill
+        + ';border:1.5px solid ' + ink + ';color:' + ink + ';';
+      var tail = document.createElement('div');
+      tail.style.cssText = 'width:0;height:0;margin-top:-1px;border-left:4px solid transparent;'
+        + 'border-right:4px solid transparent;border-top:5px solid ' + ink + ';';
+      el.appendChild(head);
+      el.appendChild(tail);
+      return el;
+    }
+    function orbePhotoDot(fill, ink) {
+      var el = document.createElement('div');
+      // Preenchido de TINTA, com anel claro — a mesma inversão do ponto que
+      // existia antes de virar quadrado. Ao trocar a forma eu troquei as cores
+      // também, e um quadradinho branco vazio não diz "foto aqui": diz que algo
+      // não carregou. Conferido no aparelho em 07/09/2026.
+      el.style.cssText = 'width:7px;height:6px;border-radius:1.5px;pointer-events:none;'
+        + 'background:' + ink + ';border:1.5px solid ' + fill + ';';
+      return el;
+    }
+  `;
+}
+
 export function mapHead(tile: MapStyleConfig): string {
   return tile.kind === 'vector'
     ? `<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
@@ -105,12 +166,15 @@ export function mapScript(
 function leafletScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'raster' }>,
-  { interactive, padding = 24, view, reportView, cities }: MapScriptOptions,
+  { interactive, padding = 24, view, reportView, cities, photos }: MapScriptOptions,
 ): string {
   const coords = points.map((p) => [p.latitude, p.longitude]);
   const data = JSON.stringify(coords);
   const cityData = JSON.stringify(
     (cities ?? []).map((c) => ({ name: c.name, lat: c.lat, lng: c.lng })),
+  );
+  const photoData = JSON.stringify(
+    photos ?? { stops: [], dots: [], ink: '', fill: '' },
   );
 
   return `<script>
@@ -175,6 +239,38 @@ function leafletScript(
       el.style.cssText = 'white-space:nowrap;transform:translate(-50%,-150%);font:600 12px -apple-system,system-ui,sans-serif;color:#FFFFFF;text-shadow:0 1px 4px rgba(0,0,0,0.95);';
       L.marker([c.lat, c.lng], { icon: L.divIcon({ html: el, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     });
+
+    /**
+     * Fotos (ADR 0037): a parada é um **pino de cabeça quadrada**, a foto solta
+     * em movimento é um quadradinho.
+     *
+     * Era um círculo, e trocou em 07/09/2026 por duas razões. A primeira o dono
+     * disse: círculo é a forma universal de PONTO — é o que o mapa já usa para
+     * posição, para o começo e para o fim da rota —, então ele nunca ia dizer
+     * "foto". A segunda apareceu ao desenhar: o círculo ficava centrado no
+     * ponto e **cobria a própria rota**, escondendo o traçado exatamente no
+     * lugar em que a bicicleta parou.
+     *
+     * O pino resolve as duas: a cabeça quadrada não é a forma do ponto, e a
+     * ponta toca o lugar enquanto o corpo sobe e desocupa a linha. De quebra a
+     * ponta é mais honesta que um disco de 13 px de raio, que só dizia "por
+     * aqui".
+     *
+     * Desenhadas por último para ficarem acima da rota e das cidades.
+     */
+    ${photoPinJs()}
+    var photoData = ${photoData};
+    photoData.dots.forEach(function (p) {
+      var de = orbePhotoDot(photoData.fill, photoData.ink);
+      de.style.transform = 'translate(-50%,-50%)';
+      L.marker([p.lat, p.lng], { icon: L.divIcon({ html: de, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
+    });
+    photoData.stops.forEach(function (p) {
+      var pe = orbePhotoPin(p.count, photoData.fill, photoData.ink);
+      // translate(-50%,-100%): a PONTA fica no ponto, não o centro do pino.
+      pe.style.transform = 'translate(-50%,-100%)';
+      L.marker([p.lat, p.lng], { icon: L.divIcon({ html: pe, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
+    });
   </script>`;
 }
 
@@ -220,6 +316,96 @@ export function buildCountryMapHtml(
 <body>
   <div id="map"></div>
   ${script}
+</body>
+</html>`;
+}
+
+/** Cores do mapa de lugar. Vêm de fora, resolvidas por `moduleColors()` na tela. */
+export interface PlaceMapColors {
+  /** Traço e preenchimento do círculo do raio. */
+  accent: string;
+  /** Ponto “você está aqui” e o halo de precisão. */
+  me: string;
+}
+
+/**
+ * HTML do editor de local: um mapa arrastável com o **círculo do raio preso ao
+ * centro da tela**.
+ *
+ * A mira não é desenhada aqui — ela é uma `View` do RN por cima do WebView,
+ * fixa no centro. Assim ela fica sempre exatamente no meio do viewport, com o
+ * nitidez de um vetor nativo, e o mapa não precisa saber que ela existe.
+ *
+ * O círculo segue `map.getCenter()` a cada quadro do arrasto porque o centro do
+ * lugar **é** o centro da tela: quem se move é o mundo, não o alvo. Ver a nota
+ * da mira fixa na proposta — dedo em cima do pino é o problema que isto evita.
+ *
+ * O ponto “você” é separado do círculo de propósito. O halo é a precisão do fix,
+ * e ela é sobre onde o **aparelho** está; assim que o mapa é arrastado, o centro
+ * escolhido e a sua posição passam a ser dois fatos diferentes, e desenhá-los
+ * concêntricos afirmaria algo falso sobre o centro.
+ */
+export function buildPlaceMapHtml(
+  center: MapPoint,
+  radiusM: number,
+  tile: Extract<MapStyleConfig, { kind: 'raster' }>,
+  c: PlaceMapColors,
+): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  ${mapHead(tile)}
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; background: ${colors.surfaceMute}; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    var map = L.map('map', {
+      zoomControl: false, attributionControl: true, zoomSnap: 0,
+    }).setView([${center.latitude}, ${center.longitude}], 16);
+    L.tileLayer('${tile.url}', { maxZoom: ${tile.maxZoom}, subdomains: '${tile.subdomains}', attribution: '${tile.attribution}' }).addTo(map);
+
+    var circle = L.circle(map.getCenter(), {
+      radius: ${radiusM}, color: '${c.accent}', weight: 2,
+      fillColor: '${c.accent}', fillOpacity: 0.16,
+    }).addTo(map);
+
+    var meHalo = null, meDot = null;
+
+    function post(o) {
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(o));
+    }
+
+    // O círculo mora no centro da tela: quem se move é o mundo.
+    map.on('move', function () { circle.setLatLng(map.getCenter()); });
+    map.on('moveend', function () {
+      var p = map.getCenter();
+      post({ type: 'placeCenter', lat: p.lat, lng: p.lng });
+    });
+
+    // API para o RN via injectJavaScript — nunca reconstruir o HTML, que
+    // recarregaria os tiles e perderia o enquadramento. Mesma razão do cursor
+    // do scrub lá em cima.
+    window.setRadius = function (m) { circle.setRadius(m); };
+    window.fitRadius = function () { map.fitBounds(circle.getBounds(), { padding: [36, 36] }); };
+    window.goTo = function (lat, lng) { map.setView([lat, lng], map.getZoom(), { animate: true }); };
+    window.setMe = function (lat, lng, acc) {
+      var at = [lat, lng];
+      if (!meDot) {
+        meHalo = L.circle(at, { radius: acc, color: '${c.me}', weight: 0, fillColor: '${c.me}', fillOpacity: 0.18 }).addTo(map);
+        meDot = L.circleMarker(at, { radius: 5, color: '#ffffff', weight: 2, fillColor: '${c.me}', fillOpacity: 1 }).addTo(map);
+      } else {
+        meHalo.setLatLng(at); meHalo.setRadius(acc); meDot.setLatLng(at);
+      }
+    };
+
+    window.fitRadius();
+    post({ type: 'ready' });
+  </script>
 </body>
 </html>`;
 }
@@ -291,13 +477,16 @@ function countryMaplibreScript(
 function maplibreScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'vector' }>,
-  { interactive, padding, view, reportView, cities }: MapScriptOptions,
+  { interactive, padding, view, reportView, cities, photos }: MapScriptOptions,
 ): string {
   // MapLibre usa ordem [lng, lat].
   const coords = points.map((p) => [p.longitude, p.latitude]);
   const data = JSON.stringify(coords);
   const cityData = JSON.stringify(
     (cities ?? []).map((c) => ({ name: c.name, lat: c.lat, lng: c.lng })),
+  );
+  const photoData = JSON.stringify(
+    photos ?? { stops: [], dots: [], ink: '', fill: '' },
   );
   const pitch = view?.pitch ?? tile.pitch ?? 0;
   const bearing = view?.bearing ?? (tile.pitch ? -18 : 0);
@@ -410,6 +599,25 @@ ${buildings}
           try { map.addLayer({ id: 'city-labels', type: 'symbol', source: 'cities', layout: labelLayout, paint: labelPaint }); } catch (e2) {}
         }
       }
+
+      // Fotos (ADR 0037) — ver a nota do Leaflet acima.
+      ${photoPinJs()}
+    var photoData = ${photoData};
+      // Quadradinho, não ponto: a mesma família do pino. Vira Marker de HTML
+      // porque camada de círculo não desenha retângulo — e assim os dois
+      // renderizadores usam exatamente o mesmo desenho.
+      photoData.dots.forEach(function (p) {
+        new maplibregl.Marker({ element: orbePhotoDot(photoData.fill, photoData.ink) })
+          .setLngLat([p.lng, p.lat]).addTo(map);
+      });
+      /**
+       * O pino da parada — ver a nota do Leaflet, que explica por que deixou de
+       * ser círculo. O anchor 'bottom' faz a PONTA cair no ponto.
+       */
+      photoData.stops.forEach(function (p) {
+        new maplibregl.Marker({ element: orbePhotoPin(p.count, photoData.fill, photoData.ink), anchor: 'bottom' })
+          .setLngLat([p.lng, p.lat]).addTo(map);
+      });
 
       var b = new maplibregl.LngLatBounds(coords[0], coords[0]);
       for (var i = 1; i < coords.length; i++) b.extend(coords[i]);

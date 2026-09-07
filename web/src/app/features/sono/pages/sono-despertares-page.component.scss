@@ -27,3 +27,15 @@
 .xl { font-size: 8.5px; color: var(--ink-4); margin-top: 4px; }
 .xl.fds { color: var(--ink); font-weight: 600; }
 .xn { font-size: 9.5px; color: var(--ink-3); }
+
+/* A peça de alinhamento fala de outra janela (180 noites, não o período). O vão
+   e a tarja dizem isso antes de o leitor ler o número e achar que é daqui. */
+.standing {
+  margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line);
+  max-width: 720px;
+}
+.standing .tag {
+  display: block; font-size: 9.5px; letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--ink-4); font-weight: 600; margin-bottom: 3px;
+}
+.h2 { margin: 0; font-size: 20px; font-weight: 400; font-family: var(--font-serif); color: var(--ink); }

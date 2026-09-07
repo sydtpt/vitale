@@ -60,6 +60,7 @@ export default function ConfiguracoesScreen() {
       rows: [
         { icon: 'link-outline', label: 'Conexões', sub: 'Strava · intervals.icu · Apple Health', route: '/configuracoes/conexoes' },
         { icon: 'download-outline', label: 'Exportar dados', route: '/configuracoes/dados' },
+        { icon: 'navigate-outline', label: 'Presença', sub: 'Fase 0 · observação', route: '/configuracoes/presenca' },
       ],
     },
   ];

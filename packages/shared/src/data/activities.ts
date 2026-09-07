@@ -25,13 +25,17 @@ import { fetchAllPages } from './paginate';
 const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
   'distance_m,elevation_m,source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,' +
-  'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix';
+  'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix,photos_checked_at,' +
+  'route_name,route_name_meta,name_edited';
 
 export interface ActivityRow {
   id: string;
   user_id: string;
   activity_id: number;
   activity_name: string | null;
+  route_name?: string | null;
+  route_name_meta?: unknown;
+  name_edited?: boolean | null;
   calories: number | string | null;
   start_at: string;
   end_at: string | null;
@@ -54,6 +58,7 @@ export interface ActivityRow {
   hidden: boolean | null;
   gear_id: string | null;
   surface_mix: SurfaceMix | null;
+  photos_checked_at: string | null;
 }
 
 const num = (v: number | string | null | undefined): number | undefined =>
@@ -66,6 +71,9 @@ export function toActivity(r: ActivityRow): Activity {
     userId: r.user_id,
     activityId: r.activity_id,
     activityName: r.activity_name ?? '',
+    routeName: r.route_name ?? undefined,
+    routeNameChecked: r.route_name_meta != null,
+    nameEdited: r.name_edited ?? undefined,
     calories: num(r.calories) ?? 0,
     startAt: r.start_at,
     endAt: r.end_at ?? '',
@@ -88,6 +96,7 @@ export function toActivity(r: ActivityRow): Activity {
     hidden: r.hidden ?? false,
     gearId: r.gear_id ?? undefined,
     surfaceMix: r.surface_mix ?? undefined,
+    photosCheckedAt: r.photos_checked_at ?? null,
   };
 }
 
@@ -142,6 +151,33 @@ export async function updateActivityFields(
     row['duration_edited'] = true;
   }
   const { error } = await db.from('activities').update(row).eq('id', id).eq('user_id', userId);
+  if (error) throw error;
+}
+
+/**
+ * Grava o nome derivado da rota (ADR 0041/0042).
+ *
+ * **Não** marca `locally_edited` nem `name_edited` — e essa ausência é a
+ * decisão inteira. Aquelas flags dizem "o dono corrigiu isto à mão"; usá-las
+ * aqui seria mentir para o sync e, pior, passaria a **bloquear atualizações
+ * legítimas da fonte** (distância, zonas, best efforts) numa linha que ninguém
+ * editou.
+ *
+ * Grava também quando não houve nome: a meta guarda a recusa, e é ela que
+ * distingue "ainda não passou" de "passou e decidiu não nomear".
+ */
+export async function saveRouteName(
+  db: SupabaseClient,
+  userId: string,
+  id: string,
+  nome: string | null,
+  meta: unknown,
+): Promise<void> {
+  const { error } = await db
+    .from('activities')
+    .update({ route_name: nome, route_name_meta: meta })
+    .eq('id', id)
+    .eq('user_id', userId);
   if (error) throw error;
 }
 
@@ -405,5 +441,25 @@ export async function upsertActivityRoute(
   row: object,
 ): Promise<void> {
   const { error } = await db.from('activity_routes').upsert(row, { onConflict: 'activity_id' });
+  if (error) throw error;
+}
+
+/**
+ * Marca que a biblioteca de fotos já foi varrida para esta atividade (ADR 0037).
+ *
+ * Mora aqui, e não no módulo de `activity_photos`, porque a coluna é de
+ * `activities` — a AD-4 é sobre a tabela, não sobre a feature.
+ */
+export async function markPhotosChecked(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+  at: string = new Date().toISOString(),
+): Promise<void> {
+  const { error } = await db
+    .from('activities')
+    .update({ photos_checked_at: at })
+    .eq('id', activityId)
+    .eq('user_id', userId);
   if (error) throw error;
 }

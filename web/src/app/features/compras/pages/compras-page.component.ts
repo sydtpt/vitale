@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
-import { describeRecurrence, isOverdue, todoDayStr, SHOP_CATS, type ShopCat, type TodoOccurrence, type TodoTemplate } from '@vitale/shared';
+import { describeRecurrence, fmtMoney, isOverdue, todoDayStr, SHOP_CATS, type ShopCat, type TodoOccurrence, type TodoTemplate } from '@vitale/shared';
 import { TodosStore } from '../../tasks/data/todos.store';
 import { ComprasEditorComponent } from '../components/compras-editor.component';
 
@@ -95,9 +95,14 @@ export class ComprasPageComponent {
     return (t.meta?.['cat'] as string | undefined) ?? 'Outros';
   }
 
+  /** Total do carrinho no cabeçalho — o template não chama `fmtMoney` direto. */
+  protected money(v: number): string {
+    return fmtMoney(v, 2);
+  }
+
   protected metaPrice(t: TodoTemplate): string {
     const p = t.meta?.['price'] as number | undefined;
-    return p != null ? `R$ ${p.toFixed(2).replace('.', ',')}` : '';
+    return p != null ? fmtMoney(p, 2) : '';
   }
 
   protected recLabel(t: TodoTemplate): string {

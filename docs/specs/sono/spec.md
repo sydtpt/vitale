@@ -289,6 +289,49 @@ dano, não é o que falta ao Orbe.**
     `ranges.ts`; `SleepScoreDims.tsx` e `app/sono/saude.tsx` no mobile;
     `sleep-score-dims.component.ts` e `sono-saude-page.component.*` na web.
 
+- **CAP-12** — A forma do despertar, e o que precedeu a noite *(pedida em 06/09/2026 —
+  "gostei da parte relativa a despertares... quanto em média (max, min) duram esses tempos
+  acordados", "se tenho acordado em horas parecidas... aviao, trem ou algo que esta me
+  acordando", "analise de sono por tipo de esporte" e "por habitos, cerveja, cafe e cigarro,
+  nao ler fixo, analizer o que tem add no app". Proposta com dados reais no artifact
+  `claude.ai/code/artifact/58b884cf-b5bb-4285-83f3-c2f6199d2dd0`, com as quatro decisões
+  respondidas. Ver [ADR 0040](../../decisions/0040-o-cruzamento-so-fala-quando-as-duas-colunas-concordam.md))*
+  - **intent (a):** O usuário sabe **quanto dura** um despertar seu, sem que a distribuição
+    torta o engane.
+  - **success (a):** Três números — **típico** (mediana dos de 5 min para cima), **o longo**
+    (p90) e **o maior** com a data —, mais a **fração abaixo de 5 min**. O mínimo **não entra**:
+    vale `0,0` em toda janela do arquivo, é a resolução do aparelho, não um fato sobre a noite.
+    É a única leitura de vigília que **atravessa a troca de relógio**: a contagem por noite cai
+    de 4,3 (Apple, 245 noites) para 1,1 (Garmin, 44), e a mediana do despertar de verdade fica
+    em 9 e 11 min, com p90 de 27 e 26. Vai à subview Despertares **e** ao bloco Sono da retro.
+  - **intent (b):** O usuário descobre se **algo externo** o acorda sempre na mesma hora.
+  - **success (b):** Os **mesmos** despertares alinhados de duas maneiras — pela hora do
+    relógio e pelo tempo desde que apagou —, cada uma contra o que o acaso daria. O esperado
+    sai de espalhar os despertares *de cada noite dentro daquela noite*: é o denominador de
+    exposição, e sem ele o gráfico mede o relógio (às 4h ele quase sempre está dormindo), não a
+    pessoa. O teste de relógio **desconta a primeira hora de sono** — sem esse guarda o pico de
+    início de noite vaza para o eixo do relógio e o teste acusa 23h (44 contra 19,6, p < 0,001),
+    inventando um evento externo que não existe. No arquivo: relógio 1,28× e **p = 0,50**
+    (nada), corpo 2,45× e **p < 0,001** na primeira meia hora. Confirmado por permutação com
+    2.000 embaralhamentos (p = 0,72 e p < 0,001), método caro demais para o aparelho.
+  - **janela:** **180 noites fixas**, não o período — agosto inteiro rende 29 despertares e o
+    teste precisa de centenas. Decisão do usuário em 06/09/2026. Só na subview Despertares.
+  - **intent (c):** O usuário vê **o que precedeu a noite** — esporte, hábito, registro — sem
+    que o cruzamento lhe minta.
+  - **success (c):** A regra das duas colunas (ADR 0040): noite presa × noite livre, mesmo
+    sinal, 5 noites de cada lado em cada coluna, e um piso de tamanho por métrica. Os gatilhos
+    são **lidos do app**, não de uma lista fixa: cada esporte praticado, cada hábito e cada
+    registro do usuário. O que não passa **não some** — vira "o que ainda não dá para dizer"
+    (com quanto falta) ou "medidos, e sem efeito", que são coisas opostas.
+  - **success (negativo):** Nenhuma leitura vira conselho, seta ou nota; o `n` anda junto do
+    número; e o texto nunca afirma causa.
+  - **onde:** `packages/shared/src/sleep/awake-shape.ts` (`typicalAwakening`,
+    `awakeAlignment`, `poissonTailAtLeast`) e `sleep/triggers.ts` (`twoColumnReading`,
+    `habitCut`, `triggerReach`, `sleepTriggerBoard`), com testes;
+    `TypicalAwake.tsx`, `AwakeAlignmentView.tsx` e `SleepTriggers.tsx` no mobile;
+    `typical-awake.component.ts`, `awake-alignment.component.ts` e
+    `sleep-triggers.component.ts` na web.
+
 ## 4. Constraints
 
 - **Mobile primeiro.** A web não pauta nenhuma decisão desta entrega e entra numa segunda

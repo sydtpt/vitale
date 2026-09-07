@@ -28,7 +28,9 @@ passado — a fonte de verdade das regras é o cabeçalho de `period/bounds.ts`:
   antes disso o período disponível é a anterior.
 - **Mês** (`month`) — só disponível a partir do **dia 01 do mês seguinte** → padrão =
   último mês fechado.
-- **Estação** (`season`) — trimestre civil (Q1 Jan–Mar … Q4 Out–Dez), disponível **ao vivo**.
+- **Estação** (`season`) — trimestre civil (Q1 Jan–Mar … Q4 Out–Dez). Mesma regra do mês:
+  só disponível a partir do **dia 01 do trimestre seguinte** → padrão = último trimestre
+  fechado. Período **em curso** é privilégio de Ano e Total.
 - **Ano** (`year`) — ano corrente **ao vivo** (offset 0) + anos passados; inclui breakdown
   por mês.
 - **Total** (`all`) — período único cobrindo tudo (offset ignorado), ao vivo. Não tem

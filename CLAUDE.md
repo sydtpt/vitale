@@ -203,6 +203,18 @@ São **10** módulos, não 7:
   período Dia com a noite, o treino e a faixa típica, mais o card Dormindo. Conferido em 06/09.
   Ver [docs/specs/fc-serie/](docs/specs/fc-serie/spec.md)
 
+- Busca textual nas atividades (07/09): campo na lista de **cada tipo** — celular e web —
+  buscando em cidade, nome da rota, nome, fonte e aparelho ao mesmo tempo. Função pura no
+  shared sobre a lista já carregada (índice de 555 atividades em 5 ms, consultas em 0–2 ms),
+  sem consulta nova ao banco. O cartão **grifa** o trecho quando ele já está à vista e
+  **explica** (`Leuven · cidade`) só quando o casamento foi num campo invisível. O
+  ranqueamento usa a **raridade do nome no acervo**, não `name_edited` — dos 33 nomes
+  editados à mão, 31 são "Yoga". `CityMark.aliases` guarda as grafias que o Nominatim já
+  devolvia e o código descartava, então `Brussels`, `Bruxelas` e `Elsene` passam a achar
+  Bruxelles e Ixelles. No mesmo passo o enriquecimento de cidades deixou de ser só de
+  bicicleta: o acervo geográfico foi de 138 para **274** atividades e de 1.376 para **1.727**
+  marcas — e "Visão detalhada por país" passou a existir para Corrida e Caminhada
+
 ### Em andamento / Próximo 🔧
 - Piso das rotas: o chão de cada pedalada medido contra o OpenStreetMap no ingest
   ([ADR 0035](docs/decisions/0035-piso-das-rotas-vem-do-osm-no-ingest.md)), com a bicicleta
@@ -210,6 +222,36 @@ São **10** módulos, não 7:
   Migrations aplicadas e 137 rotas backfilladas em prod (06/09); cartão de piso no Ciclismo e
   no detalhe da pedalada. Faltam o smoke test do passe deployado, o golden set e a web.
   Tarefas: `_bmad-output/implementation-artifacts/piso-das-rotas/tasks.md`
+- Fotos na pedalada: **na main em 07/09** ([ADR 0037](docs/decisions/0037-a-foto-e-ponteiro-com-chave-de-cura.md)).
+  A imagem fica na biblioteca do iPhone e só o fato sobe (`activity_photos`), com `taken_at`
+  como chave de cura porque o `localIdentifier` não é estável. Agrupa por **parada**, não por
+  ponto — e quando o GPS não gravou, a parada é provada pelas próprias fotos. Folha de
+  confirmação, cartão no detalhe, marcadores no mapa, trilho do tempo, galeria com seleção
+  múltipla, fundo "Foto" no cartão de compartilhar, tira na Retrospectiva (a web mostra o
+  fato, não a imagem). **Vídeo** (Fase 9, 07/09): o clipe toca dentro do visor via
+  `expo-video`, com o player só na página ativa; a duração, que a API nova entrega em
+  **milissegundos**, foi corrigida na origem e nos 37 registros em produção. O **pôster do
+  vídeo segue em branco** — o próximo build separa as duas causas possíveis (T9.5).
+  **A foto sai para fora** (Fase 11, 07/09, quatro estudos de UX): enquadramento por
+  pinça no compositor, a parada no cartão (`Ittre · km 31,1 · 12:38`), ações no visor
+  com um caminho novo até o compartilhar, **pino de cabeça quadrada** no mapa no lugar
+  do círculo, a **capa** acordada (o app escolhe, a estrela corrige) alimentando a tira
+  da Retrospectiva, e a **sequência** de um cartão por parada para Stories.
+  **Vínculo automático** (Fase 10, 07/09): a pedalada aberta pela primeira vez liga
+  sozinha o que está no **corredor de 40 m** — 89% de acerto medido nas 707 decisões
+  manuais dele; "depois da chegada" ficou de fora porque erraria em 3 de 4. Nada é
+  recusado pela máquina, nenhuma folha abre sozinha, e a varredura roda uma vez por
+  pedalada. O **cartão do Histórico** ganhou o selo de mídia no cabeçalho, com a
+  contagem agrupada no banco (`activity_media_counts()`). A web ficou de fora por
+  decisão dele. **Falta o veredito dele** sobre gestos e a "parada não gravada".
+  Tarefas: `_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md`
+- Hábitos — **preço médio e tela de detalhe** (07/09): `habits.unit_price` (€ por unidade do
+  hábito) e o gasto derivado na leitura, nunca gravado — o preço vale retroativo sem backfill.
+  Cerveja em 11 €/L: os 60 L gravados desde 23/05 viram **≈€660**. Aparece na linha do hábito na
+  Retrospectiva, no card de Gráficos da web e na nova tela `/habitos/detalhe` do celular, no molde
+  do detalhe de Registros (períodos, barras por valor, dia da semana, heatmap anual com
+  intensidade). No mesmo passo, `R$` virou `€` onde há dado real (retro, Semana, Compras) — o
+  símbolo agora sai de `format/money.ts`. **Falta a conferência dele** no iPhone e no navegador.
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco
@@ -261,3 +303,5 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [Cultura (livros, filmes, podcasts e álbuns)](docs/specs/cultura/spec.md) · [data-model](docs/specs/cultura/data-model.md) · [stories](docs/specs/cultura/stories.yaml)
 - [Sono (tela própria: horários, timing chart, despertares e percepção × medição)](docs/specs/sono/spec.md) · [data-model](docs/specs/sono/data-model.md) · [plan](docs/specs/sono/plan.md) · [tasks](_bmad-output/implementation-artifacts/sono/tasks.md)
 - [FC ao longo do dia (série intradiária em `health_series`)](docs/specs/fc-serie/spec.md) · [data-model](docs/specs/fc-serie/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fc-serie/tasks.md)
+- [Fotos na pedalada (a foto ligada à atividade, agrupada por parada)](docs/specs/fotos-na-pedalada/spec.md) · [data-model](docs/specs/fotos-na-pedalada/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md)
+- [Busca textual nas atividades (cidade, nome da rota, nome, fonte, aparelho)](docs/specs/busca-textual/spec.md) · [data-model](docs/specs/busca-textual/data-model.md) · [stories](docs/specs/busca-textual/stories.yaml)

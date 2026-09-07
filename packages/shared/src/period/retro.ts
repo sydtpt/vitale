@@ -41,7 +41,15 @@ import {
 } from '../sleep/retro';
 import { SONO_MARKERS } from '../sleep/markers';
 import { formatHm } from '../sleep/facts';
+import {
+  habitCut,
+  sleepTriggerBoard,
+  triggerNights,
+  type SleepTriggerBoard,
+  type TriggerSource,
+} from '../sleep/triggers';
 import { periodBounds, retroSince, type PeriodKind } from './bounds';
+import { fmtMoney } from '../format/money';
 
 /**
  * Piso de relevância do insight cruzado (%). Abaixo disso a diferença entre os
@@ -73,6 +81,8 @@ export interface RetroHabit {
   bad: boolean;
   /** Unidade do contador ('L', 'un', 'cig'…); '' quando desconhecida. */
   unit?: string;
+  /** Preço médio de uma unidade (€), quando o hábito tem um. Ver `habitCost`. */
+  unitPrice?: number;
   /** dia 'YYYY-MM-DD' → valor acumulado. */
   logsByDay: ReadonlyMap<string, number>;
   /**
@@ -250,6 +260,13 @@ export interface RetroHabitRow {
   bad: boolean;
   /** Unidade do contador para exibição ('L', 'cig'…); '' quando desconhecida. */
   unit: string;
+  /**
+   * Preço médio de uma unidade (€). A linha do hábito multiplica por `total`
+   * (via `habitCost`) em vez de trazer o gasto pronto: a conta é uma
+   * multiplicação, e mantê-la na UI deixa a mesma regra valendo para o total do
+   * período e para o de qualquer recorte que a tela queira mostrar.
+   */
+  unitPrice?: number;
   /** dias com registro no período (× alvo é responsabilidade da UI). */
   recap: RecapValue;
   /** Soma dos valores registrados no período (ex.: litros de água). */
@@ -298,6 +315,13 @@ export interface RetroSummary {
   adherence: { done: number; total: number } | null;
   /** A noite típica do período contra a do anterior. `null` sem noites ou sem `sleepPeriods`. */
   sleep: SleepRetro | null;
+  /**
+   * O que precedeu a noite — esporte, hábito, registro — sob a regra das duas
+   * colunas (`sleep/triggers.ts`). **Não é do período**: roda em todo o
+   * histórico, porque um mês rende células de três noites e nenhuma leitura
+   * passaria. `null` sem `sleepPeriods`.
+   */
+  sleepTriggers: SleepTriggerBoard | null;
 }
 
 const MODULE_LABELS: Record<string, string> = {
@@ -518,6 +542,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
       name: h.name,
       bad: h.bad,
       unit: h.unit ?? '',
+      unitPrice: h.unitPrice,
       recap: recapValue(
         countInRange(days, cur.start, cur.end),
         countInRange(days, prev.start, prev.end),
@@ -623,6 +648,55 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     return Math.max(1, days);
   })();
 
+  /**
+   * O que precedeu a noite. Lê o que o app **tem**, não uma lista fixa: cada
+   * esporte praticado vira um gatilho, e cada hábito e registro do usuário
+   * também — se ele criar "chá antes de dormir" amanhã, o quadro o inclui sem
+   * uma linha de código nova.
+   */
+  const sleepTriggers = ((): SleepTriggerBoard | null => {
+    if (!input.sleepPeriods) return null;
+    const nights = triggerNights(input.sleepPeriods, input.ratingsSleep);
+    if (nights.length === 0) return null;
+    const eves = [...new Set(nights.map((n) => n.eve))].sort();
+    const sources: TriggerSource[] = [];
+
+    // ── esporte: um gatilho por tipo praticado, mais o "qualquer um"
+    const bySport = new Map<number, Set<string>>();
+    const anySport = new Set<string>();
+    for (const a of input.activities) {
+      if (a.hidden) continue;
+      const day = localDay(new Date(a.startAt));
+      const set = bySport.get(a.activityId) ?? new Set<string>();
+      set.add(day);
+      bySport.set(a.activityId, set);
+      anySport.add(day);
+    }
+    for (const [id, days] of bySport) {
+      sources.push({ id: `sport:${id}`, label: activityTypeLabel(id), days });
+    }
+    if (bySport.size > 1) sources.push({ id: 'sport:any', label: 'Qualquer esporte', days: anySport });
+
+    // ── hábito com valor: o corte adaptativo (dose no frequente, presença no raro)
+    for (const h of input.habits) {
+      const scoped = h.createdOn ? eves.filter((d) => d >= h.createdOn!) : eves;
+      const { cut, days } = habitCut(h.logsByDay, scoped);
+      sources.push({
+        id: `habit:${h.id}`,
+        label: cut > 0 ? `${h.name} acima de ${cut}${h.unit ? ` ${h.unit}` : ''}` : h.name,
+        days,
+        since: h.createdOn,
+      });
+    }
+
+    // ── registro: marca binária, presença e pronto
+    for (const r of input.registros) {
+      sources.push({ id: `reg:${r.id}`, label: r.name, days: new Set(r.days), since: r.createdOn });
+    }
+
+    return sleepTriggerBoard(sources, nights);
+  })();
+
   const sleep = input.sleepPeriods
     ? sleepRetro(
         nightsIn(cur.start, cur.end),
@@ -654,6 +728,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     purchases,
     adherence,
     sleep,
+    sleepTriggers,
   };
 }
 
@@ -762,8 +837,8 @@ export function buildRetroHighlights(
       tone: noPrior ? 'neutral' : t,
       icon: 'money',
       text: noPrior
-        ? `R$ ${fmt(spend.current)} em compras no total`
-        : `R$ ${fmt(spend.current)} em compras · ${pct}`,
+        ? `${fmtMoney(spend.current)} em compras no total`
+        : `${fmtMoney(spend.current)} em compras · ${pct}`,
       priority: spend.deltaPct != null ? Math.abs(spend.deltaPct) : 8,
     });
   }
@@ -1098,7 +1173,7 @@ export const YEAR_SERIES: readonly YearSerie[] = [
     fmt: (v) => (v ? `${v} feitas` : 'sem dado') },
   { key: 'spend', label: 'Gasto', color: MOD.compras.accent,
     pick: (b) => b.spend,
-    fmt: (v) => (v ? `R$ ${v.toFixed(0)}` : 'sem dado') },
+    fmt: (v) => (v ? fmtMoney(v) : 'sem dado') },
   { key: 'habitDays', label: 'Hábitos', color: MOD.habito.accent,
     pick: (b) => b.habitDays,
     fmt: (v) => (v ? `${v} ${v > 1 ? 'dias' : 'dia'}` : 'sem dado') },

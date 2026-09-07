@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  PanGestureHandler,
+  PinchGestureHandler,
+  State,
+  type PanGestureHandlerGestureEvent,
+  type PinchGestureHandlerGestureEvent,
+} from 'react-native-gesture-handler';
 import {
   Modal,
   View,
@@ -11,6 +18,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Image,
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -18,7 +26,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
-import { MAP_STYLES, type MapStyle } from '@vitale/shared';
+import {
+  MAP_STYLES,
+  coverOf,
+  detectStops,
+  groupByStop,
+  type ActivityRoutePoint,
+  type MapStyle,
+} from '@vitale/shared';
 import type { MapViewState } from '../../lib/map-html';
 import type { RoutePoint } from '../../lib/workout-types';
 import {
@@ -31,6 +46,8 @@ import {
   buildShareCardHtml,
   formatRatio,
   FORMAT_DIMENSIONS,
+  PHOTO_FRAME_DEFAULT,
+  type PhotoFrame,
   type ShareArtStyle,
   type ShareBackground,
   type ShareContext,
@@ -40,6 +57,65 @@ import {
   type ShareMetricTile,
 } from '../../lib/share-card-html';
 import { captureCardPng, saveCardPngToGallery, shareCardPng } from '../../lib/share-export';
+import { resolvePosterUri } from '../../services/asset-uri';
+import type { ActivityPhoto } from '@vitale/shared';
+import { useAssetUri } from '../../hooks/useAssetUri';
+
+/** Miniatura do seletor de foto — resolve o endereço sozinha. */
+/**
+ * A camada da foto — a mesma no preview e na exportação.
+ *
+ * Existe como componente porque as duas **têm** de concordar: o `captureRef`
+ * fotografa a pilha inteira, e qualquer diferença entre o que se vê e o que se
+ * exporta viraria um PNG deslocado que só aparece depois de compartilhado.
+ *
+ * Fica sempre ATRÁS do WebView. A versão com bloco a punha por cima, e ela
+ * cobria o texto — a foto pertence ao fundo.
+ */
+function PhotoLayer({
+  uri,
+  frame,
+  box,
+}: {
+  uri: string;
+  frame: PhotoFrame;
+  box: { width: number; height: number };
+}) {
+  return (
+    <Image
+      source={{ uri }}
+      resizeMode="cover"
+      style={[
+        styles.photoBehind,
+        {
+          // Ordem importa: a escala entra por último, então o deslocamento fica
+          // em pixels do cartão e não cresce junto com a aproximação.
+          transform: [
+            { translateX: frame.dx * box.width },
+            { translateY: frame.dy * box.height },
+            { scale: frame.scale },
+          ],
+        },
+      ]}
+    />
+  );
+}
+
+function PickerThumb({
+  assetId,
+  style,
+  isVideo,
+  durationS = null,
+}: {
+  assetId: string | null;
+  style: object;
+  isVideo: boolean;
+  durationS?: number | null;
+}) {
+  const uri = useAssetUri(assetId, isVideo, durationS);
+  if (typeof uri !== 'string') return <View style={style} />;
+  return <Image source={{ uri }} style={style} />;
+}
 import { MOD, colors, fonts, radii, shadows, spacing, themed, useTheme } from '../../theme';
 import { Segmented } from '../ui/Segmented';
 
@@ -51,6 +127,16 @@ interface ShareComposerModalProps {
   /** Estilo de mapa inicial (das preferências do usuário); a troca no composer é local. */
   initialMapStyle: MapStyle;
   context: ShareContext;
+  /** Fotos ligadas à atividade (ADR 0037). Vazio ⇒ o fundo "Foto" nem aparece. */
+  photos?: readonly ActivityPhoto[];
+  /**
+   * Abre já com esta foto escolhida e o fundo **Foto** ligado.
+   *
+   * É o caminho que vem do visor da galeria: quem tocou em compartilhar estava
+   * olhando uma foto específica, e chegar ao compositor num fundo diferente —
+   * ou noutra foto — seria perder o que ele acabou de escolher.
+   */
+  initialPhotoId?: string;
 }
 
 interface MetricDef {
@@ -123,7 +209,12 @@ const BG_OPTS: { key: ShareBackground; label: string }[] = [
   { key: 'art', label: 'Transparente' },
   { key: 'map', label: 'Mapa' },
   { key: 'data', label: 'Dados' },
+  { key: 'photo', label: 'Foto' },
 ];
+/** Sem foto ligada, o fundo "Foto" não existe — em vez de existir e falhar. */
+function bgOptions(hasPhoto: boolean) {
+  return hasPhoto ? BG_OPTS : BG_OPTS.filter((o) => o.key !== 'photo');
+}
 const ART_OPTS: { key: ShareArtStyle; label: string }[] = [
   { key: 'speed', label: 'Velocidade' },
   { key: 'route', label: 'Rota' },
@@ -194,6 +285,8 @@ export function ShareComposerModal({
   points,
   initialMapStyle,
   context,
+  photos = [],
+  initialPhotoId,
 }: ShareComposerModalProps) {
   const insets = useSafeAreaInsets();
   useTheme();
@@ -201,8 +294,95 @@ export function ShareComposerModal({
   const metrics = useMemo(() => availableMetrics(context), [context]);
   const defaultTitle = (context.activityName?.trim() || context.metaLabel).trim();
 
+  /**
+   * A foto do cartão (ADR 0037). A capa é o padrão — é para isso que o
+   * `is_cover` existe: o dono escolhe uma vez no cartão Fotos e o composer
+   * abre nela, sem perguntar de novo a cada compartilhamento.
+   */
+  const photoChoices = useMemo(
+    () => photos.filter((p) => p.assetId),
+    [photos],
+  );
+  const [photoId, setPhotoId] = useState<string | null>(null);
+  const chosenPhoto = useMemo(
+    () => photoChoices.find((p) => p.id === photoId) ?? photoChoices.find((p) => p.isCover) ?? photoChoices[0],
+    [photoChoices, photoId],
+  );
+  // Resolvido pelo `getUri()` da biblioteca: o `ph://` montado à mão não
+  // carrega (conferido no iPhone em 06/09/2026). Ver services/asset-uri.ts.
+  const resolvedPhoto = useAssetUri(
+    chosenPhoto?.assetId ?? null,
+    chosenPhoto?.mediaType === 'video',
+    chosenPhoto?.durationS ?? null,
+  );
+  const photoUri = typeof resolvedPhoto === 'string' ? resolvedPhoto : undefined;
+
+
+  /**
+   * O enquadramento da foto.
+   *
+   * `fit` decide se ela preenche o cartão ou vira bloco; `scale`/`dx`/`dy` são
+   * o que a pinça e o arrasto movem. Fica em **estado**, e não em `ref` como o
+   * enquadramento do mapa, porque aqui a `<Image>` é uma view nativa nossa: ela
+   * precisa re-renderizar a cada quadro do gesto. O mapa mora dentro do WebView,
+   * e re-renderizar aquilo recarregaria a página inteira.
+   */
+  const [frame, setFrame] = useState<PhotoFrame>(PHOTO_FRAME_DEFAULT);
+  /** O valor no início do gesto — a pinça é relativa ao que já estava lá. */
+  const frameStart = useRef<PhotoFrame>(PHOTO_FRAME_DEFAULT);
+  const pinchRef = useRef<PinchGestureHandler>(null);
+  const panRef = useRef<PanGestureHandler>(null);
+
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
+  /**
+   * A linha da parada. Opcional a pedido dele — nem toda foto vale um lugar, e
+   * há cartão em que o nome da pedalada basta.
+   */
+  const [showPlace, setShowPlace] = useState(true);
+
+  /**
+   * A parada da foto escolhida — "Ittre · km 31,1 · 12:38".
+   *
+   * A cidade sai da mesma conta que o cartão de fotos faz: a mais próxima da
+   * coordenada, entre as que a rota atravessou. Não é geocodificação nova — é
+   * `activities.cities`, que o ingest já enriqueceu.
+   *
+   * Cada pedaço é opcional e some sozinho: foto sem coordenada não tem cidade,
+   * foto fora do traçado não tem quilômetro. O que sempre existe é a hora, que
+   * é a chave da própria feature (ADR 0037 §2).
+   */
+  const placeLine = useMemo(() => {
+    if (background !== 'photo' || !showPlace || !chosenPhoto) return undefined;
+    const parts: string[] = [];
+
+    const cs = context.cities ?? [];
+    if (chosenPhoto.lat !== null && chosenPhoto.lng !== null && cs.length > 0) {
+      let best = cs[0];
+      let bestD = Infinity;
+      for (const c of cs) {
+        const d = (c.lat - chosenPhoto.lat) ** 2 + (c.lng - chosenPhoto.lng) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      parts.push(best.name);
+    }
+
+    if (chosenPhoto.routeDistanceM !== null) {
+      parts.push(`km ${(chosenPhoto.routeDistanceM / 1000).toFixed(1).replace('.', ',')}`);
+    }
+
+    parts.push(
+      new Date(chosenPhoto.takenAt).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    );
+    return parts.join(' · ');
+  }, [background, showPlace, chosenPhoto, context.cities]);
+
   const [artStyle, setArtStyle] = useState<ShareArtStyle>('speed');
   const [mapStyle, setMapStyle] = useState<MapStyle>(initialMapStyle);
   const [mapEffect, setMapEffect] = useState<ShareMapEffect>('none');
@@ -220,6 +400,13 @@ export function ShareComposerModal({
   );
   // Cidades da rota (bike enriquecida): toggle "Mostrar cidades" + quais exibir.
   const [showCities, setShowCities] = useState(false);
+  /**
+   * A arte da rota sobre a foto.
+   *
+   * Ligada por padrão, que é como sempre foi — mas opcional a pedido dele: numa
+   * foto boa o traçado por cima é ruído, e quem decide isso é quem olha a foto.
+   */
+  const [showRoute, setShowRoute] = useState(true);
   const [enabledCities, setEnabledCities] = useState<Set<string>>(
     () => new Set((context.cities ?? []).map((c) => c.name)),
   );
@@ -237,8 +424,16 @@ export function ShareComposerModal({
     setMapEffect('none');
     setTextColor(null);
     mapViewRef.current = null;
+    setFrame(PHOTO_FRAME_DEFAULT);
+    frameStart.current = PHOTO_FRAME_DEFAULT;
+    setShowRoute(true);
+    setShowPlace(true);
+    // Vindo do visor, o fundo e a foto já estão decididos; vindo do mapa, o
+    // compositor abre como sempre abriu.
+    setBackground(initialPhotoId ? 'photo' : 'art');
+    setPhotoId(initialPhotoId ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, context.activityId]);
+  }, [visible, context.activityId, initialPhotoId]);
 
   // Título com debounce p/ não recarregar o WebView a cada tecla.
   const [debouncedTitle, setDebouncedTitle] = useState(title);
@@ -272,7 +467,98 @@ export function ShareComposerModal({
     [context.cities, enabledCities],
   );
 
+  /**
+   * A sequência: um cartão por parada (proposta D do estudo).
+   *
+   * Não é um cartão novo — é o MESMO cartão, N vezes, cada um com a foto e a
+   * parada dele. Foi a proposta A que tornou isto barato: quando o cartão
+   * aprendeu a dizer de onde a foto é, a sequência virou uma lista de fotos
+   * diferentes no mesmo desenho.
+   *
+   * A capa de cada parada escolhe qual foto entra — a do meio da maior rajada,
+   * ou a que ele estrelou (ver `coverOf`). É a mesma regra da Retrospectiva, e
+   * a coerência importa: a foto que representa o dia no jornal é a mesma que o
+   * representa no Story.
+   */
+  const stopCards = useMemo(() => {
+    if (photos.length === 0) return [];
+    const pts = points as unknown as ActivityRoutePoint[];
+    const withMs = photos
+      .filter((p) => p.state === 'linked')
+      .map((p) => ({ ...p, takenAtMs: p.takenAt }));
+    if (withMs.length === 0) return [];
+
+    const stops = detectStops(pts, { totalDistanceM: context.distanceM });
+    const grouped = groupByStop(withMs, stops, pts);
+
+    const cities = context.cities ?? [];
+    const near = (lat: number | null, lng: number | null): string | null => {
+      if (lat === null || lng === null || cities.length === 0) return null;
+      let best = cities[0];
+      let bestD = Infinity;
+      for (const c of cities) {
+        const d = (c.lat - lat) ** 2 + (c.lng - lng) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      return best.name;
+    };
+
+    const out: { photo: ActivityPhoto; city: string | null; km: number | null; atMs: number }[] = [];
+    for (const g of grouped.stops) {
+      const cover = coverOf(g.photos);
+      if (cover) out.push({ photo: cover, city: near(g.stop.lat, g.stop.lng), km: g.stop.distanceM, atMs: g.stop.startMs });
+    }
+    for (const g of grouped.silent) {
+      const cover = coverOf(g.photos);
+      const first = g.photos[0];
+      if (cover) out.push({ photo: cover, city: near(first.lat, first.lng), km: cover.routeDistanceM, atMs: g.firstMs });
+    }
+    return out.sort((a, b) => a.atMs - b.atMs);
+  }, [photos, points, context.distanceM, context.cities]);
+
+  /** Liga a sequência. Só existe com foto e mais de uma parada. */
+  const [sequence, setSequence] = useState(false);
+  const [seqAt, setSeqAt] = useState(0);
+  const canSequence = background === 'photo' && stopCards.length > 1;
+  const seqOn = sequence && canSequence;
+  const seqCard = seqOn ? stopCards[Math.min(seqAt, stopCards.length - 1)] : null;
+
   const mapTile = MAP_STYLES[mapStyle];
+  /**
+   * Os campos que a sequência sobrescreve no cartão.
+   *
+   * A cidade vira o TÍTULO e a pedalada sai de cena: numa sequência de Stories
+   * o que muda de quadro para quadro é o lugar, e repetir o nome da pedalada
+   * seis vezes gastaria a manchete com o que já se sabe. O quilômetro percorrido
+   * é a única métrica, e é ele que faz o dia crescer diante de quem assiste.
+   */
+  const seqOverrides = useCallback(
+    (card: { city: string | null; km: number | null; atMs: number }, i: number, n: number) => {
+      const hhmm = new Date(card.atMs).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return {
+        title: card.city ?? 'Parada',
+        place: `Parada ${i + 1} de ${n} · ${hhmm}`,
+        metrics:
+          card.km === null
+            ? []
+            : [
+                {
+                  key: 'distance' as ShareMetricKey,
+                  value: (card.km / 1000).toFixed(1).replace('.', ','),
+                  caption: 'km percorridos',
+                },
+              ],
+      };
+    },
+    [],
+  );
+
   const html = useMemo(
     () =>
       buildShareCardHtml({
@@ -280,12 +566,14 @@ export function ShareComposerModal({
         format,
         background,
         artStyle,
+        showRoute,
         mapEffect,
         textColor: textColor ?? undefined,
-        title: debouncedTitle || defaultTitle,
         showTitle,
         activityId: context.activityId,
-        metrics: selectedTiles,
+        ...(seqCard
+          ? seqOverrides(seqCard, Math.min(seqAt, stopCards.length - 1), stopCards.length)
+          : { title: debouncedTitle || defaultTitle, place: placeLine, metrics: selectedTiles }),
         cities: showCities ? selectedCities : undefined,
         watermark,
         mapTile,
@@ -295,10 +583,17 @@ export function ShareComposerModal({
         mapView: adaptView(mapViewRef.current, mapTile.kind),
         // Fundos com alpha (arte e dados) precisam do xadrez para o usuário ver
         // que o PNG sai sem fundo.
-        previewChecker: background !== 'map',
+        // Só os fundos que REALMENTE saem com alpha. A condição era
+        // `!== 'map'`, que pegava a foto junto: o xadrez é opaco e cobria a
+        // `<Image>` nativa que fica atrás do WebView — a foto simplesmente não
+        // aparecia no preview, e no bloco o xadrez saía no lugar do papel.
+        previewChecker: background === 'art' || background === 'data',
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, format, background, artStyle, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
+    // `showRoute` e `frame` entram aqui porque o HTML depende dos dois. Sem o
+    // primeiro, ligar o interruptor da rota não redesenhava nada até outra
+    // opção mudar por acidente — foi assim que ele descobriu (07/09/2026).
+    [points, format, background, artStyle, showRoute, placeLine, seqCard, seqAt, stopCards, seqOverrides, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
   );
 
   // Letterbox: dimensiona o WebView à proporção real de saída dentro da área.
@@ -314,6 +609,51 @@ export function ShareComposerModal({
       ? { width: area.h * ratio, height: area.h }
       : { width: area.w, height: area.w / ratio };
   }, [area, ratio]);
+
+  /** Só há o que enquadrar quando o fundo é foto e ela já resolveu. */
+  const showPhoto = background === 'photo' && !!photoUri;
+
+  /**
+   * O enquadramento, pelo dedo.
+   *
+   * O limite de 1× para baixo é o que garante que a foto **sempre cubra** a
+   * janela: abaixo disso apareceria papel por dentro do quadro, e o cartão
+   * sairia com uma faixa vazia que ninguém pediu. Para cima, 4× — passando
+   * disso a foto do iPhone começa a mostrar o próprio grão.
+   */
+  const onPinch = useCallback(
+    (e: PinchGestureHandlerGestureEvent) => {
+      const next = frameStart.current.scale * e.nativeEvent.scale;
+      setFrame((f) => ({ ...f, scale: Math.min(4, Math.max(1, next)) }));
+    },
+    [],
+  );
+
+  const onFramePan = useCallback(
+    (e: PanGestureHandlerGestureEvent) => {
+      if (box.width <= 0 || box.height <= 0) return;
+      setFrame((f) => ({
+        ...f,
+        dx: frameStart.current.dx + e.nativeEvent.translationX / box.width,
+        dy: frameStart.current.dy + e.nativeEvent.translationY / box.height,
+      }));
+    },
+    [box.width, box.height],
+  );
+
+  /**
+   * A âncora do gesto.
+   *
+   * Guardar o valor no **início** é o que faz pinça e arrasto se somarem em vez
+   * de brigarem: os dois handlers rodam ao mesmo tempo, e cada um lê a mesma
+   * âncora em vez do estado que o outro acabou de mudar.
+   */
+  const onFrameGestureState = useCallback(
+    (e: { nativeEvent: { state: number } }) => {
+      if (e.nativeEvent.state === State.BEGAN) frameStart.current = frame;
+    },
+    [frame],
+  );
 
   const toggleMetric = (key: ShareMetricKey) => {
     tap();
@@ -344,6 +684,18 @@ export function ShareComposerModal({
   const exportStageRef = useRef<View>(null);
   const [exporting, setExporting] = useState(false);
   const [exportHtml, setExportHtml] = useState('');
+  /**
+   * A fila da sequência.
+   *
+   * O palco de exportação é UM só: ele monta o HTML, espera o WebView carregar,
+   * fotografa e entrega. Para N cartões a fila reusa exatamente esse ciclo —
+   * trocar o `exportHtml` faz o WebView recarregar, e o `onLoadEnd` volta.
+   * Nada de montar seis palcos, que seriam seis WebViews vivos ao mesmo tempo.
+   */
+  const seqQueue = useRef<{ html: string; uri: string }[]>([]);
+  const seqDone = useRef<string[]>([]);
+  /** A foto que o palco desenha agora — a da carta da vez, na sequência. */
+  const [exportPhotoUri, setExportPhotoUri] = useState<string | null>(null);
 
   // Palco de export: o maior tamanho com a proporção do formato que cabe na
   // tela. Precisa ficar DENTRO da tela: o WKWebView só rasteriza a região
@@ -358,28 +710,73 @@ export function ShareComposerModal({
   // Congela o cartão atual em versão estática para o snapshot. O zoom do
   // enquadramento é corrigido para o viewport do palco (mesma área visível:
   // z' = z + log2(largura_palco / largura_preview)).
-  const startExport = () => {
+  const startExport = async () => {
     tap();
     let view = adaptView(mapViewRef.current, mapTile.kind);
     if (view && box.width > 0) {
       view = { ...view, zoom: view.zoom + Math.log2(exportBox.width / box.width) };
     }
+    const base = {
+      points,
+      format,
+      background,
+      artStyle,
+      showRoute,
+      mapEffect,
+      textColor: textColor ?? undefined,
+      showTitle,
+      activityId: context.activityId,
+      cities: showCities ? selectedCities : undefined,
+      watermark,
+      mapTile,
+      mapView: background === 'map' ? view : undefined,
+    };
+
+    /**
+     * A sequência resolve **todas as fotos antes** de começar.
+     *
+     * O endereço da biblioteca não sai de um hook aqui — cada carta precisa do
+     * dela, e hook não roda em laço. Resolver tudo na frente também evita a
+     * fila parar no meio esperando o iCloud, com o palco montado e o usuário
+     * olhando um indicador que não anda.
+     */
+    if (seqOn) {
+      const cartas: { html: string; uri: string }[] = [];
+      for (let i = 0; i < stopCards.length; i += 1) {
+        const c = stopCards[i];
+        const uri = await resolvePosterUri(
+          c.photo.assetId,
+          c.photo.mediaType === 'video',
+          c.photo.durationS,
+        );
+        if (!uri) continue; // foto que não resolve não vira cartão vazio
+        cartas.push({
+          uri,
+          html: buildShareCardHtml({ ...base, ...seqOverrides(c, i, stopCards.length) }),
+        });
+      }
+      if (cartas.length === 0) {
+        Alert.alert('Sem cartões', 'Nenhuma foto das paradas pôde ser aberta agora.');
+        return;
+      }
+      const primeira = cartas.shift()!;
+      seqQueue.current = cartas;
+      seqDone.current = [];
+      setExportPhotoUri(primeira.uri);
+      setExportHtml(primeira.html);
+      setExporting(true);
+      return;
+    }
+
+    seqQueue.current = [];
+    seqDone.current = [];
+    setExportPhotoUri(null);
     setExportHtml(
       buildShareCardHtml({
-        points,
-        format,
-        background,
-        artStyle,
-        mapEffect,
-        textColor: textColor ?? undefined,
+        ...base,
+        place: placeLine,
         title: title || defaultTitle,
-        showTitle,
-        activityId: context.activityId,
         metrics: selectedTiles,
-        cities: showCities ? selectedCities : undefined,
-        watermark,
-        mapTile,
-        mapView: background === 'map' ? view : undefined,
       }),
     );
     setExporting(true);
@@ -394,8 +791,22 @@ export function ShareComposerModal({
         setTimeout(r, background === 'map' ? (mapTile.kind === 'vector' ? 2200 : 1500) : 350),
       );
       const uri = await captureCardPng(exportStageRef, dim);
+
+      // A fila da sequência: fotografa, guarda, e passa para a próxima carta
+      // sem desmontar o palco. Só a última entrega.
+      if (seqQueue.current.length > 0) {
+        seqDone.current.push(uri);
+        const next = seqQueue.current.shift()!;
+        setExportPhotoUri(next.uri);
+        setExportHtml(next.html);
+        return;
+      }
+      const todas = seqDone.current.length > 0 ? [...seqDone.current, uri] : null;
+      seqDone.current = [];
+      setExportPhotoUri(null);
       setExporting(false); // desmonta o palco antes do diálogo de destino
-      offerDelivery(uri);
+      if (todas) void deliverSequence(todas);
+      else offerDelivery(uri);
     } catch (e) {
       // Inclui o detalhe técnico — sem ele é impossível diagnosticar no device.
       const detail = e instanceof Error && e.message ? `\n\n${e.message}` : '';
@@ -403,6 +814,33 @@ export function ShareComposerModal({
     } finally {
       setExporting(false);
     }
+  };
+
+  /**
+   * A entrega da sequência: **tudo para a galeria**, em ordem.
+   *
+   * Não há diálogo de destino aqui, e não é preguiça: o `expo-sharing` manda
+   * UM arquivo por vez, e seis diálogos seguidos seriam piores que nenhum. E o
+   * destino real de uma sequência é o carretel — é de lá que os Stories são
+   * postados, um atrás do outro.
+   */
+  const deliverSequence = async (uris: readonly string[]) => {
+    let saved = 0;
+    for (const u of uris) {
+      try {
+        if ((await saveCardPngToGallery(u)) === 'saved') saved += 1;
+      } catch {
+        // Um cartão que falha não derruba os outros — o que salvou, salvou.
+      }
+    }
+    if (saved === 0) {
+      Alert.alert('Não consegui salvar', 'O Orbe precisa de permissão para gravar na galeria.');
+      return;
+    }
+    Alert.alert(
+      saved === uris.length ? 'Sequência salva' : 'Sequência salva em parte',
+      `${saved} ${saved === 1 ? 'cartão foi' : 'cartões foram'} para a galeria, em ordem — de lá você posta um atrás do outro.`,
+    );
   };
 
   // O share sheet não oferece "Salvar imagem" para file-URLs — daí a escolha
@@ -472,7 +910,9 @@ export function ShareComposerModal({
             {exporting ? (
               <ActivityIndicator size="small" color={colors.onPrimary} />
             ) : (
-              <Text style={styles.exportText}>Exportar</Text>
+              <Text style={styles.exportText}>
+                {seqOn ? `Salvar ${stopCards.length}` : 'Exportar'}
+              </Text>
             )}
           </Pressable>
         </View>
@@ -486,9 +926,12 @@ export function ShareComposerModal({
                 { width: box.width, height: box.height },
               ]}
             >
+              {showPhoto && (
+                <PhotoLayer uri={photoUri!} frame={frame} box={box} />
+              )}
               <WebView
                 ref={previewRef}
-                key={`${format}-${background}-${artStyle}-${mapStyle}-${mapEffect}-${textColor ?? 'auto'}`}
+                key={`${format}-${background}-${artStyle}-${showRoute ? 'r' : 'n'}-${mapStyle}-${mapEffect}-${textColor ?? 'auto'}`}
                 originWhitelist={['*']}
                 source={{ html }}
                 style={styles.web}
@@ -521,6 +964,34 @@ export function ShareComposerModal({
                   }
                 }}
               />
+              {/* A rede de gestos cobre o preview inteiro nos dois modos: no
+                  bloco o dedo raramente cai exatamente sobre ele, e exigir
+                  precisão para enquadrar seria o contrário do que se quer.
+
+                  `react-native-gesture-handler`, e não `PanResponder`: o
+                  `ScrollView` do iOS resolve arrasto no nível NATIVO, e o
+                  PanResponder não vê o gesto em fase nenhuma. Esta feature já
+                  descobriu isso duas vezes — no visor da galeria e no trilho do
+                  tempo. A ADR 0010 proíbe o Reanimated, não o gesture-handler. */}
+              {showPhoto && (
+                <PinchGestureHandler
+                  ref={pinchRef}
+                  simultaneousHandlers={panRef}
+                  onGestureEvent={onPinch}
+                  onHandlerStateChange={onFrameGestureState}
+                >
+                  <View style={StyleSheet.absoluteFill}>
+                    <PanGestureHandler
+                      ref={panRef}
+                      simultaneousHandlers={pinchRef}
+                      onGestureEvent={onFramePan}
+                      onHandlerStateChange={onFrameGestureState}
+                    >
+                      <View style={StyleSheet.absoluteFill} />
+                    </PanGestureHandler>
+                  </View>
+                </PinchGestureHandler>
+              )}
               {background === 'map' && (
                 <Pressable
                   style={({ pressed }) => [styles.recenterBtn, pressed && styles.pressed]}
@@ -588,7 +1059,7 @@ export function ShareComposerModal({
           <Text style={styles.fieldLabel}>Fundo</Text>
           <Segmented
             variant="brand"
-            options={BG_OPTS}
+            options={bgOptions(photoChoices.length > 0)}
             value={background}
             onChange={(v) => {
               tap();
@@ -596,7 +1067,135 @@ export function ShareComposerModal({
             }}
           />
 
-          {background === 'art' && (
+          {background === 'photo' && photoChoices.length > 1 && (
+            <>
+              <Text style={styles.fieldLabel}>Qual foto</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoPicker}>
+                {photoChoices.map((p) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => {
+                      tap();
+                      setPhotoId(p.id);
+                    }}
+                    style={[styles.photoOpt, chosenPhoto?.id === p.id && styles.photoOptOn]}
+                  >
+                    <PickerThumb
+                      assetId={p.assetId}
+                      style={styles.photoOptImg}
+                      isVideo={p.mediaType === 'video'}
+                      durationS={p.durationS}
+                    />
+                    {/* A capa é a foto que este compositor já abria por padrão
+                        — estava numa linha de código e em lugar nenhum da tela.
+                        A estrela é a única mudança visível desta frente. */}
+                    {p.isCover && (
+                      <View style={styles.photoOptStar}>
+                        <Ionicons name="star" size={9} color={colors.onPrimary} />
+                      </View>
+                    )}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          {/* Só com o fundo Foto: um controle morto na tela é pior que um
+              controle a menos. */}
+          {background === 'photo' && (
+            <>
+              <Text style={styles.fieldLabel}>Enquadramento</Text>
+              <Text style={styles.fitHint}>
+                {frame.scale > 1.02
+                  ? `Pinça para aproximar, dedo para mover · ${frame.scale.toFixed(1)}×`
+                  : 'Pinça para aproximar, dedo para mover'}
+              </Text>
+              {canSequence && (
+                <>
+                  <Pressable
+                    style={styles.switchRow}
+                    onPress={() => {
+                      tap();
+                      setSequence((v) => !v);
+                      setSeqAt(0);
+                    }}
+                  >
+                    <Text style={styles.switchLabel}>
+                      Um cartão por parada · {stopCards.length}
+                    </Text>
+                    <View style={[styles.switchTrack, seqOn && styles.switchTrackOn]}>
+                      <View style={[styles.switchThumb, seqOn && styles.switchThumbOn]} />
+                    </View>
+                  </Pressable>
+                  {seqOn && (
+                    <View style={styles.pager}>
+                      <Pressable
+                        onPress={() => {
+                          tap();
+                          setSeqAt((i) => Math.max(0, i - 1));
+                        }}
+                        disabled={seqAt === 0}
+                        hitSlop={10}
+                      >
+                        <Ionicons
+                          name="chevron-back"
+                          size={18}
+                          color={seqAt === 0 ? colors.ink4 : colors.ink2}
+                        />
+                      </Pressable>
+                      <Text style={styles.pagerText}>
+                        {seqCard?.city ?? 'Parada'} · {seqAt + 1} de {stopCards.length}
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          tap();
+                          setSeqAt((i) => Math.min(stopCards.length - 1, i + 1));
+                        }}
+                        disabled={seqAt >= stopCards.length - 1}
+                        hitSlop={10}
+                      >
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color={seqAt >= stopCards.length - 1 ? colors.ink4 : colors.ink2}
+                        />
+                      </Pressable>
+                    </View>
+                  )}
+                </>
+              )}
+              <Pressable
+                style={styles.switchRow}
+                onPress={() => {
+                  tap();
+                  setShowPlace((v) => !v);
+                }}
+              >
+                <Text style={styles.switchLabel}>Mostrar onde a foto foi tirada</Text>
+                <View style={[styles.switchTrack, showPlace && styles.switchTrackOn]}>
+                  <View style={[styles.switchThumb, showPlace && styles.switchThumbOn]} />
+                </View>
+              </Pressable>
+              <Pressable
+                style={styles.switchRow}
+                onPress={() => {
+                  tap();
+                  setShowRoute((v) => !v);
+                }}
+              >
+                <Text style={styles.switchLabel}>Desenhar a rota sobre a foto</Text>
+                <View style={[styles.switchTrack, showRoute && styles.switchTrackOn]}>
+                  <View style={[styles.switchThumb, showRoute && styles.switchThumbOn]} />
+                </View>
+              </Pressable>
+            </>
+          )}
+
+          {/* Também sobre a foto: desde que a rota seja desenhada, escolher se
+              ela mostra velocidade, traçado puro ou elevação é a mesma decisão.
+              Esconder o seletor ali obrigava a voltar ao fundo Transparente
+              para trocar, e voltar de novo. */}
+          {(background === 'art' || (background === 'photo' && showRoute)) && (
             <>
               <Text style={styles.fieldLabel}>Estilo da arte</Text>
               <ChipRow
@@ -724,6 +1323,16 @@ export function ShareComposerModal({
               pointerEvents="none"
               collapsable={false}
             >
+              {/* A foto entra como view NATIVA atrás do cartão: o WKWebView não
+                  carrega `ph://`, e o `captureRef` fotografa esta View inteira,
+                  então o snapshot compõe foto + cartão sem base64 nenhum. */}
+              {(exportPhotoUri ?? (showPhoto ? photoUri : null)) && (
+                <PhotoLayer
+                  uri={(exportPhotoUri ?? photoUri)!}
+                  frame={frame}
+                  box={exportBox}
+                />
+              )}
               <WebView
                 originWhitelist={['*']}
                 source={{ html: exportHtml }}
@@ -869,7 +1478,42 @@ const styles = themed(() =>
       ...shadows.card,
     },
     web: { flex: 1, backgroundColor: 'transparent' },
-    exportStage: { position: 'absolute', top: 0, left: 0 },
+    photoBehind: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+    fitHint: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink4, marginTop: spacing.sm },
+
+  photoPicker: { flexGrow: 0 },
+  photoOpt: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.md,
+    marginRight: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  photoOptOn: { borderColor: colors.primary },
+  pager: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  pagerText: { fontSize: 13, fontFamily: fonts.sansMedium, color: colors.ink2 },
+  /** A estrela da capa — a escolha padrão deixa de ser invisível. */
+  photoOptStar: {
+    position: 'absolute',
+    right: 2,
+    top: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoOptImg: { width: '100%', height: '100%' },
+  exportStage: { position: 'absolute', top: 0, left: 0 },
     exportOverlay: {
       ...StyleSheet.absoluteFill,
       alignItems: 'center',

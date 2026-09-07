@@ -61,6 +61,32 @@ export async function fetchHabitLogsBetween(
   return data.map(toHabitLog);
 }
 
+/**
+ * Histórico completo de **um** hábito, em ordem cronológica.
+ *
+ * As demais leituras deste módulo trazem todos os hábitos numa janela (90 dias
+ * no mobile) porque é o que a captura precisa. O detalhe pergunta outra coisa —
+ * "quanto, desde sempre" — e uma janela responderia errado no período 'sempre'
+ * e em qualquer ano navegado para trás. Por hábito e sem piso de data, porque o
+ * recorte é a coluna `habit_id`, não o tempo.
+ */
+export async function fetchHabitLogHistory(
+  db: SupabaseClient,
+  userId: string,
+  habitId: string,
+): Promise<HabitLog[]> {
+  const data = await fetchAllPages<HabitLogRow>((lo, hi) =>
+    db
+      .from('habit_logs')
+      .select('id,habit_id,log_date,value')
+      .eq('user_id', userId)
+      .eq('habit_id', habitId)
+      .order('log_date', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toHabitLog);
+}
+
 /** Registros desde `since`, em ordem cronológica. */
 export async function fetchHabitLogsSinceOrdered(
   db: SupabaseClient,

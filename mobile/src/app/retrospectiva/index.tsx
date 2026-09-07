@@ -1,11 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { getActivityMeta } from '../../lib/workout-types';
+import { PhotoGalleryModal, type GallerySection } from '../../components/photos/PhotoGalleryModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  type ActivityPhoto,
+  fetchPhotosForActivities,
+  periodBounds,
+  photoRetro,
+  photoRetroLabel,
   latestAvailableOffset,
   habitCalories,
+  habitCost,
+  fmtMoney,
+  fmtMoneyAuto,
   buildRetroLede,
   visibleBlocks,
   resolveRetroPrefs,
@@ -28,15 +38,21 @@ import {
   type RetroRegistroRow,
   type SportStats,
   type SportBestEffort,
+  nomeDaAtividade,
 } from '@vitale/shared';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
-import { formatClock } from '../../lib/workout-format';
+import { formatClock, formatFullDate } from '../../lib/workout-format';
 import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
+import { useAuthStore } from '../../store/auth.store';
+import { supabase } from '../../lib/supabase';
+import { useAssetUri } from '../../hooks/useAssetUri';
 import { useSettingsStore } from '../../store/settings.store';
 import { HeatmapGrid } from '../../components/HeatmapGrid';
 import { TaskGridStrip } from '../../components/TaskGridStrip';
 import { SleepRetroCard } from '../../components/SleepRetroCard';
+import { EdicaoCard } from '../../components/EdicaoCard';
+import { useEdicaoStore } from '../../store/edicao.store';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
 const KIND_LABEL: Record<PeriodKind, string> = {
@@ -62,7 +78,7 @@ function num(n: number, d = 0): string {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 function km(m: number): string { return `${num(m / 1000, 1)} km`; }
-function brl(v: number): string { return `R$ ${num(v)}`; }
+
 function dur(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.round((s % 3600) / 60);
@@ -83,11 +99,19 @@ function qty(n: number, unit: string): string {
   const v = Number.isInteger(n) ? num(n) : num(n, 1);
   return unit ? `${v} ${unit}` : v;
 }
-/** Linha de apoio do hábito: média diária + dias com registro (+ kcal estimadas). */
+/**
+ * Linha de apoio do hábito: média diária + dias com registro, e as estimativas
+ * que existirem. Gasto antes de kcal — dinheiro é o que ele pediu para ver, e é
+ * o número que decide alguma coisa. Cada estimativa só aparece quando há de
+ * onde tirá-la: sem preço não há gasto, sem densidade conhecida não há kcal.
+ */
 function habitSub(h: RetroHabitRow): string {
   const dias = `${h.recap.current} ${h.recap.current === 1 ? 'dia' : 'dias'}`;
+  const cost = habitCost(h.unitPrice, h.total.current);
   const kcal = habitCalories(h.name, h.unit, h.total.current);
-  const extra = kcal == null ? '' : ` · ≈${num(kcal)} kcal`;
+  const extra =
+    (cost == null ? '' : ` · ≈${fmtMoneyAuto(cost)}`) +
+    (kcal == null ? '' : ` · ≈${num(kcal)} kcal`);
   const base = h.perDayDays === 0 ? dias : `${qty(h.perDay, h.unit)}/dia · ${dias}`;
   return `${base}${extra}`;
 }
@@ -157,11 +181,119 @@ export default function RetrospectivaScreen() {
   useEffect(() => { void ensure(retroSince(now, kind, offset)); }, [ensure, now, kind, offset]);
 
   const summary = useMemo(() => summaryFn(now, kind, offset), [summaryFn, now, kind, offset, loaded, allActs]);
+
+  /**
+   * As fotos do período (ADR 0037) — versão 2 do bloco: tira discreta no fim de
+   * Ciclismo & corrida, subordinada ao texto. A carga é por atividade porque a
+   * tabela é indexada por `activity_id`; o período vira uma lista de ids.
+   */
+  const [periodPhotos, setPeriodPhotos] = useState<ActivityPhoto[]>([]);
+  const periodActIds = useMemo(() => {
+    const b = periodBounds(now, kind, offset);
+    return allActs
+      .filter((a) => {
+        const t = Date.parse(a.startAt);
+        return t >= b.start.getTime() && t <= b.end.getTime();
+      })
+      .map((a) => a.id);
+  }, [allActs, now, kind, offset]);
+
+  useEffect(() => {
+    const uid = useAuthStore.getState().user?.id;
+    if (!uid || periodActIds.length === 0) {
+      setPeriodPhotos([]);
+      return;
+    }
+    let alive = true;
+    fetchPhotosForActivities(supabase, uid, periodActIds)
+      .then((rows) => {
+        if (alive) setPeriodPhotos(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [periodActIds]);
+
+  const photoBlock = useMemo(() => photoRetro(periodPhotos), [periodPhotos]);
+
+  /**
+   * A galeria do período — **todas** as fotos, agrupadas por pedalada.
+   *
+   * A tira mostra cinco, e é o que ela deve fazer: é a chamada, não o álbum.
+   * Mas ela não levava a álbum nenhum — tocar levava direto para a pedalada, o
+   * que pulava a etapa que ele queria ("estou na retrospectiva, gostaria de ver
+   * todas as fotos"). Agora a tira abre a galeria, e é de dentro da foto
+   * maximizada que se vai para o dia.
+   *
+   * Por pedalada, e não por dia: um dia pode ter dois treinos, e é a pedalada
+   * que a ação do visor promete abrir depois.
+   */
+  const [galeriaAberta, setGaleriaAberta] = useState(false);
+  const secoesDoPeriodo = useMemo<GallerySection[]>(() => {
+    const porAtividade = new Map<string, ActivityPhoto[]>();
+    for (const p of [...periodPhotos].sort((a, b) => a.takenAt - b.takenAt)) {
+      const lista = porAtividade.get(p.activityId);
+      if (lista) lista.push(p);
+      else porAtividade.set(p.activityId, [p]);
+    }
+    return [...porAtividade.entries()]
+      .map(([id, fotos]) => {
+        const act = allActs.find((a) => a.id === id);
+        const meta = act ? getActivityMeta(act.activityId) : null;
+        return {
+          key: id,
+          title: act ? nomeDaAtividade(act, meta?.label ?? 'Atividade') : 'Atividade',
+          subtitle: `${formatFullDate(act?.startAt ?? new Date(fotos[0].takenAt).toISOString())} · ${
+            fotos.length === 1 ? '1 foto' : `${fotos.length} fotos`
+          }`,
+          photos: fotos,
+          _at: fotos[0].takenAt,
+        };
+      })
+      .sort((a, b) => b._at - a._at)
+      .map(({ _at, ...rest }) => rest);
+  }, [periodPhotos, allActs]);
+
+  /**
+   * A foto da tira leva à pedalada dela.
+   *
+   * A rota do detalhe pede o rótulo do tipo além do id — o mesmo que o
+   * Histórico usa —, então ele sai do `activityId` numérico da atividade. Se a
+   * atividade não estiver carregada, o toque não faz nada: melhor não navegar
+   * do que abrir uma tela vazia.
+   */
+  const abrirPedalada = useCallback(
+    (id: string) => {
+      const act = allActs.find((a) => a.id === id);
+      if (!act) return;
+      router.push({
+        pathname: '/historico/[label]/[id]',
+        params: { label: getActivityMeta(act.activityId).label, id },
+      });
+    },
+    [allActs, router],
+  );
   // A manchete sai da lista **completa** de destaques; a lista exibida é a fatiada.
   // Derivar aqui evita recalcular buildRetrospective só para o lede.
   const allHighlights = useMemo(() => highlightsFn(now, kind, offset), [highlightsFn, now, kind, offset, loaded, allActs]);
   const highlights = useMemo(() => allHighlights.slice(0, 6), [allHighlights]);
   const lede = useMemo(() => buildRetroLede(allHighlights), [allHighlights]);
+
+  // A edição do período. `entrada` é o que o núcleo precisa para montar o pacote
+  // — o mesmo `summary` que a tela já usa, sem recalcular nada.
+  const entradaPacote = useMemo(() => ({ resumo: summary, agora: now }), [summary, now]);
+  const carregarEdicao = useEdicaoStore((s) => s.carregar);
+  const gerarEdicaoFn = useEdicaoStore((s) => s.gerar);
+  const edicoes = useEdicaoStore((s) => s.porPeriodo);
+  const chaveEdicao = `${summary.kind}|${summary.startISO}|${summary.endISO}`;
+  const edicaoEstado = edicoes[chaveEdicao] ?? { fase: 'vazio' as const };
+  // Ler é grátis; escrever custa e só acontece a pedido (ver EdicaoCard).
+  useEffect(() => { void carregarEdicao(entradaPacote); }, [carregarEdicao, entradaPacote]);
+  const gerarEdicao = useCallback(
+    () => { void gerarEdicaoFn(entradaPacote); },
+    [gerarEdicaoFn, entradaPacote],
+  );
   const buckets = useMemo(() => kind === 'year' ? yearFn(now, offset) : [], [yearFn, now, kind, offset, loaded, allActs]);
 
   // Forma 02 — o heatmap. Só nos períodos em que uma célula por dia ainda é legível;
@@ -199,7 +331,7 @@ export default function RetrospectivaScreen() {
     // Passos, não distância: a distância já aparece no card de treinos e só conta
     // o que virou atividade — os passos medem o movimento do dia inteiro.
     { icon: 'footsteps-outline' as const, label: 'Passos', value: num(summary.fitness.steps.current), d: deltaVM(summary.fitness.steps, false, noPrior) },
-    { icon: 'wallet-outline' as const, label: 'Compras', value: brl(summary.purchases.spend.current), d: deltaVM(summary.purchases.spend, true, noPrior) },
+    { icon: 'wallet-outline' as const, label: 'Compras', value: fmtMoney(summary.purchases.spend.current), d: deltaVM(summary.purchases.spend, true, noPrior) },
   ];
 
   const healthValue = (h: RetroHealthRow) => h.recap.current == null ? '—' : `${num(h.recap.current, h.decimals)}${h.unit}`;
@@ -247,6 +379,9 @@ export default function RetrospectivaScreen() {
                 {lede.support ? <Text style={styles.ledeSupport}>{lede.support}</Text> : null}
               </View>
             )}
+            {/* A edição escrita por modelo, logo abaixo da manchete apurada.
+                Some sozinha em período em curso (ADRs 0038/0040). */}
+            <EdicaoCard estado={edicaoEstado} onGerar={gerarEdicao} />
       </>
     ),
     kpis: (
@@ -358,6 +493,47 @@ export default function RetrospectivaScreen() {
                 longestLabel="Maior corrida"
               />
             )}
+
+            {/* As fotos do período (ADR 0037), versão 2: tira discreta no FIM,
+                subordinada ao texto. Some por completo quando não houve foto —
+                o jornal informa o que aconteceu, não o que faltou. */}
+            {photoBlock && (
+              <View style={styles.card}>
+                <Text style={styles.eyebrow}>{photoRetroLabel(photoBlock)}</Text>
+                {/**
+                 * Cinco lugares na tira, sempre — e o contador ocupa um deles.
+                 *
+                 * Antes eram cinco quadros MAIS o "+N", e os seis não cabiam:
+                 * 378 pt de conteúdo numa faixa de 329, com o contador saindo
+                 * pela borda do cartão (visto no aparelho em 07/09/2026). O
+                 * corte é na exibição, não na amostra — o `photoRetro` continua
+                 * escolhendo cinco, e a quinta some quando há resto a anunciar.
+                 */}
+                <View style={styles.photoStrip}>
+                  {photoBlock.sample
+                    .slice(0, photoBlock.rest > 0 ? 4 : 5)
+                    .map((p) => (
+                    <RetroThumb
+                      key={p.id}
+                      assetId={p.assetId}
+                      style={styles.photoThumb}
+                      isVideo={p.mediaType === 'video'}
+                      onPress={() => setGaleriaAberta(true)}
+                      />
+                    ))}
+                  {photoBlock.rest > 0 && (
+                    <Pressable
+                      style={[styles.photoThumb, styles.photoRest]}
+                      onPress={() => setGaleriaAberta(true)}
+                    >
+                      {/* O resto conta a partir do que REALMENTE aparece: com
+                          quatro quadros na tela, sobram total menos quatro. */}
+                      <Text style={styles.photoRestText}>+{photoBlock.total - 4}</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            )}
       </>
     ),
     health: (
@@ -384,7 +560,14 @@ export default function RetrospectivaScreen() {
     {/* Sono — a noite típica do período contra a anterior (sleep/retro.ts).
                 Só existe com noites gravadas em `sleep_periods`; sem elas, nada aparece
                 e a linha "Sono" do card Saúde volta a valer. */}
-            {summary.sleep && <SleepRetroCard retro={summary.sleep} kind={kind} noPrior={noPrior} />}
+            {summary.sleep && (
+              <SleepRetroCard
+                retro={summary.sleep}
+                kind={kind}
+                noPrior={noPrior}
+                triggers={summary.sleepTriggers}
+              />
+            )}
       </>
     ),
     purchases: (
@@ -392,12 +575,12 @@ export default function RetrospectivaScreen() {
     {/* Compras */}
             <View style={styles.card}>
               <Text style={styles.eyebrow}>Compras & gastos</Text>
-              <Text style={styles.big}>{brl(summary.purchases.spend.current)}
+              <Text style={styles.big}>{fmtMoney(summary.purchases.spend.current)}
                 <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.purchases.spend, true, noPrior).tone] }]}>  {deltaVM(summary.purchases.spend, true, noPrior).text}</Text>
               </Text>
               <Text style={styles.muted}>{summary.purchases.count.current} itens comprados</Text>
               {summary.purchases.byCat.map((c) => (
-                <Row key={c.key} l={c.label} r={`${brl(c.sum || 0)} · ${c.count}`} />
+                <Row key={c.key} l={c.label} r={`${fmtMoney(c.sum || 0)} · ${c.count}`} />
               ))}
               <Text style={styles.note}>Gasto estimado a partir de Compras (sem módulo de transações).</Text>
             </View>
@@ -588,6 +771,22 @@ export default function RetrospectivaScreen() {
         ))}
 
       </ScrollView>
+
+      {/**
+       * A galeria do período. Reusa a mesma da pedalada — grade por seção,
+       * visor com arrastar para baixo e deslizar para fechar —, e troca a barra
+       * de ações por uma só: ir para a pedalada da foto.
+       */}
+      <PhotoGalleryModal
+        visible={galeriaAberta}
+        sections={secoesDoPeriodo}
+        total={periodPhotos.length}
+        onClose={() => setGaleriaAberta(false)}
+        onOpenActivity={(p) => {
+          setGaleriaAberta(false);
+          abrirPedalada(p.activityId);
+        }}
+      />
     </View>
   );
 }
@@ -664,7 +863,52 @@ function Row({ l, r }: { l: string; r: string }) {
   );
 }
 
+/** Miniatura da tira do jornal — resolve o endereço da foto sozinha. */
+/**
+ * Uma foto da tira do período.
+ *
+ * **Toca e vai para a pedalada.** A tira nasceu decorativa — dava para ver
+ * cinco quadros e nada mais, e ele reparou ("não tenho acesso às fotos"). O
+ * destino é a pedalada, e não um visor aqui: a foto no jornal é um anzol, e o
+ * que ela promete é o dia inteiro — o mapa, os números, e a galeria a um toque.
+ */
+function RetroThumb({
+  assetId,
+  style,
+  isVideo,
+  onPress,
+}: {
+  assetId: string | null;
+  style: object;
+  isVideo: boolean;
+  onPress?: () => void;
+}) {
+  const uri = useAssetUri(assetId, isVideo);
+  const img =
+    typeof uri === 'string' ? (
+      <Image source={{ uri }} style={style} />
+    ) : (
+      <View style={style} />
+    );
+  return onPress ? <Pressable onPress={onPress}>{img}</Pressable> : img;
+}
+
 const createStyles = () => StyleSheet.create({
+  photoStrip: { flexDirection: 'row', gap: 6, marginTop: spacing.sm },
+  photoThumb: {
+    width: 58,
+    height: 58,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMute,
+  },
+  photoRest: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.lineDeep,
+    borderStyle: 'dashed',
+  },
+  photoRestText: { fontSize: 13, fontFamily: fonts.monoSemiBold, color: colors.ink3 },
   container: { flex: 1, backgroundColor: colors.bg },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

@@ -82,6 +82,12 @@ export interface CounterHabit {
   active: boolean;
   sort: number;
   createdAt: string;       // ISO; usado para limitar a contagem de dias "sem fazer" à idade do hábito
+  /**
+   * Preço médio de **uma unidade** (a mesma de `unit`), em euros. Ausente = o
+   * hábito não estima gasto. Um preço só, aplicado a toda a história — ver
+   * `habitCost` para o que isso significa (e não significa).
+   */
+  unitPrice?: number;
 }
 
 /** Valor acumulado de um CounterHabit num dia (1 por habit/dia). */
@@ -339,6 +345,20 @@ export interface Activity {
   userId: string;
   activityId: number;
   activityName?: string;
+  /**
+   * Nome derivado da rota (ADR 0041). Fica AO LADO do `activityName` da fonte,
+   * nunca por cima: quem escreve naquele é o sync, a cada sincronização.
+   * Ausente = ainda não nomeada, ou deliberadamente sem nome.
+   */
+  routeName?: string;
+  /**
+   * O passe de nome já visitou esta rota? Distingue "ainda não passou" de
+   * "passou e decidiu não nomear" — sem isto, uma rota degenerada seria
+   * reprocessada a cada abertura. É o `photos_checked_at` desta frente.
+   */
+  routeNameChecked?: boolean;
+  /** O dono renomeou esta atividade à mão. É o que faz o nome dele vencer o derivado. */
+  nameEdited?: boolean;
   calories: number;
   startAt: string;
   endAt: string;
@@ -413,6 +433,12 @@ export interface Activity {
    * `activity_routes.surface_segments`. Forma em `surface/classify.ts`.
    */
   surfaceMix?: SurfaceMix;
+  /**
+   * Quando a biblioteca de fotos foi varrida para esta atividade (ADR 0037).
+   * `null` = nunca. É o que evita reabrir a folha de sugestão a cada visita —
+   * e o que distingue "não tem foto" de "ainda não olhei".
+   */
+  photosCheckedAt?: string | null;
 }
 
 /**
@@ -433,13 +459,37 @@ export interface CityMark {
   countryCode?: string;
   lat: number;
   lng: number;
+  /**
+   * Outras grafias do nome, colhidas do `namedetails` que o Nominatim já
+   * devolve na mesma resposta (spec busca-textual, CAP-3). É o que faz digitar
+   * `Brussels`, `Brussel` ou `Bruxelas` achar **Bruxelles** — o nome que o
+   * `preferredLang()` escolheu pela região, e que um brasileiro em Bruxelas não
+   * tem por que adivinhar.
+   *
+   * Nunca repete `name`. Lista FECHADA (7 chaves — ver `geocode.ts`): a
+   * resposta de Bruxelas traz 188 variantes, e guardar todas encheria as 1.376
+   * marcas do acervo de texto que ninguém digita.
+   *
+   * `[]` é resposta, não lacuna: a cidade foi consultada e se escreve igual em
+   * todas as línguas da lista (Etterbeek, por exemplo). **Ausente** é que
+   * significa "marca gravada antes de o passe colher apelidos" — a busca por
+   * cidade funciona sem elas, só não alcança as outras grafias.
+   */
+  aliases?: string[];
 }
 
 export interface ActivityRoutePoint {
   lat: number;
   lng: number;
   alt?: number;
-  /** Timestamp do ponto em epoch ms. Ausente em rotas antigas. Base dos best efforts. */
+  /**
+   * Timestamp do ponto em epoch ms. Base dos best efforts e do casamento de
+   * fotos com o traçado (ADR 0037).
+   *
+   * Continua opcional no tipo por segurança, mas a conferência de 06/09/2026
+   * encontrou `t` em **275 de 275** rotas de produção, desde julho de 2023 —
+   * não há, na prática, rota antiga sem tempo por ponto.
+   */
   t?: number;
 }
 
@@ -462,6 +512,46 @@ export interface ActivityRoute {
   activityId: string;
   points: ActivityRoutePoint[];
   pointCount: number;
+}
+
+/**
+ * Uma foto (ou vídeo) da biblioteca do iPhone ligada a uma atividade.
+ * Mapeia a tabela `activity_photos` — ver [ADR 0037].
+ *
+ * **A imagem não mora aqui, nem no Supabase.** O que sobe é o fato: quando,
+ * onde, e em que ponto do traçado. A web nunca renderiza a foto; ela desenha o
+ * pin e conta quantas foram.
+ *
+ * `assetId` é um **ponteiro descartável**. A Apple documenta que o
+ * `localIdentifier` só vale no contexto do dispositivo local, e há relatos de
+ * mudança em Quick Start, restore de backup e atualização do iOS. A chave real
+ * é `(activityId, takenAt)`: quando o ponteiro não resolve, o app varre a
+ * janela outra vez, re-casa pelo instante — exato dos dois lados, porque vem do
+ * mesmo relógio — e reescreve o `assetId`. A cura é silenciosa.
+ */
+export interface ActivityPhoto {
+  id: string;
+  activityId: string;
+  /** `localIdentifier` da biblioteca. Ponteiro, não chave; nulo enquanto não resolve. */
+  assetId: string | null;
+  /** Instante da captura em epoch ms. Metade da chave real. */
+  takenAt: number;
+  lat: number | null;
+  lng: number | null;
+  mediaType: 'photo' | 'video';
+  /** Só vídeo. */
+  durationS: number | null;
+  /** Índice em `ActivityRoute.points`; nulo quando não houve como posicionar. */
+  routeIndex: number | null;
+  /** Distância acumulada até a foto, em metros. */
+  routeDistanceM: number | null;
+  /** Distância da foto ao traçado; nulo quando casou pelo instante. */
+  offsetM: number | null;
+  onRoute: boolean;
+  /** `dismissed` faz a foto não voltar na próxima varredura. */
+  state: 'linked' | 'dismissed';
+  /** A foto que o cartão de compartilhar abre. Uma por atividade. */
+  isCover: boolean;
 }
 
 /**

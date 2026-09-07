@@ -184,6 +184,18 @@
       </div>
     }
 
+    <!-- As fotos do período (ADR 0037). A web não resolve `localIdentifier`, então
+         aqui vai o FATO, não a imagem: é a degradação honesta que fez a versão 2
+         do bloco ser a escolhida — a mesma seção existe nos dois apps, e no
+         navegador ela é uma linha de texto em vez de moldura vazia. -->
+    @if (photoBlock(); as pb) {
+      <div class="card">
+        <div class="eyebrow">Fotos</div>
+        <div class="row"><span>{{ photoLabel() }}</span><span class="row-v">no iPhone</span></div>
+        <p class="sub">As imagens ficam na biblioteca do aparelho.</p>
+      </div>
+    }
+
     <!-- Saúde & bem-estar -->
     <div class="card">
       <div class="eyebrow">Saúde &amp; bem-estar</div>
@@ -206,7 +218,7 @@
     <!-- Sono — a página do jornal (ADR 0036 e v2-jornal §9) -->
     @if (summary().sleep; as sleep) {
       <div class="card">
-        <rt-sleep-retro-card [retro]="sleep" [kind]="kind()" [noPrior]="kind() === 'all'" />
+        <rt-sleep-retro-card [retro]="sleep" [kind]="kind()" [noPrior]="kind() === 'all'" [triggers]="summary().sleepTriggers" />
       </div>
     }
 

@@ -1,0 +1,7652 @@
+[
+  {
+    "startAt": "2025-01-24T17:53:08.461+00:00",
+    "distanceM": 12951,
+    "elevationM": 79,
+    "name": "Cycling",
+    "lat0": 50.85126,
+    "lng0": 4.34281,
+    "lat1": 50.85213,
+    "lng1": 4.34373,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Saint-Gilles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.825,
+        "lng": 4.3455
+      }
+    ]
+  },
+  {
+    "startAt": "2025-01-27T11:37:11.782+00:00",
+    "distanceM": 9271,
+    "elevationM": 94,
+    "name": "Cycling",
+    "lat0": 50.85173,
+    "lng0": 4.34426,
+    "lat1": 50.8523,
+    "lng1": 4.34439,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-01-27T18:32:42.798+00:00",
+    "distanceM": 13469,
+    "elevationM": 79,
+    "name": "Cycling",
+    "lat0": 50.85206,
+    "lng0": 4.34381,
+    "lat1": 50.85185,
+    "lng1": 4.34363,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Koekelberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8606,
+        "lng": 4.3316
+      },
+      {
+        "name": "Jette",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.876,
+        "lng": 4.3246
+      }
+    ]
+  },
+  {
+    "startAt": "2025-01-29T10:59:32.742+00:00",
+    "distanceM": 12371,
+    "elevationM": 9,
+    "name": "Cycling",
+    "lat0": 50.85188,
+    "lng0": 4.34345,
+    "lat1": 50.85198,
+    "lng1": 4.34329,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-01-30T19:58:32+00:00",
+    "distanceM": 13420,
+    "elevationM": 0,
+    "name": "Cycling",
+    "lat0": 50.85204,
+    "lng0": 4.34384,
+    "lat1": 50.85189,
+    "lng1": 4.34348,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-01-31T12:22:06.56+00:00",
+    "distanceM": 19232,
+    "elevationM": 110,
+    "name": "Cycling",
+    "lat0": 50.84092,
+    "lng0": 4.37512,
+    "lat1": 50.85182,
+    "lng1": 4.34387,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Saint-Gilles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.825,
+        "lng": 4.3455
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-02T11:16:15.571+00:00",
+    "distanceM": 31406,
+    "elevationM": 263,
+    "name": "Cycling",
+    "lat0": 50.85097,
+    "lng0": 4.34532,
+    "lat1": 50.85191,
+    "lng1": 4.34349,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-03T11:13:53.823+00:00",
+    "distanceM": 14149,
+    "elevationM": 52,
+    "name": "Cycling",
+    "lat0": 50.85192,
+    "lng0": 4.34355,
+    "lat1": 50.85203,
+    "lng1": 4.34369,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-04T11:09:34.648+00:00",
+    "distanceM": 16828,
+    "elevationM": 131,
+    "name": "Cycling",
+    "lat0": 50.85193,
+    "lng0": 4.34357,
+    "lat1": 50.85193,
+    "lng1": 4.34361,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Saint-Gilles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.825,
+        "lng": 4.3455
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-08T11:59:21.237+00:00",
+    "distanceM": 18916,
+    "elevationM": 159,
+    "name": "Cycling",
+    "lat0": 50.85182,
+    "lng0": 4.34361,
+    "lat1": 50.85201,
+    "lng1": 4.34374,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-10T18:17:39.094+00:00",
+    "distanceM": 19030,
+    "elevationM": 167,
+    "name": "Cycling",
+    "lat0": 50.85039,
+    "lng0": 4.34614,
+    "lat1": 50.85186,
+    "lng1": 4.34362,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-12T11:24:32.751+00:00",
+    "distanceM": 18719,
+    "elevationM": 150,
+    "name": "Cycling",
+    "lat0": 50.85188,
+    "lng0": 4.34358,
+    "lat1": 50.85206,
+    "lng1": 4.34381,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-13T11:10:35.123+00:00",
+    "distanceM": 17714,
+    "elevationM": 119,
+    "name": "Cycling",
+    "lat0": 50.85184,
+    "lng0": 4.3435,
+    "lat1": 50.85196,
+    "lng1": 4.34356,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-13T16:48:37.108+00:00",
+    "distanceM": 23101,
+    "elevationM": 172,
+    "name": "Cycling",
+    "lat0": 50.85022,
+    "lng0": 4.34633,
+    "lat1": 50.85213,
+    "lng1": 4.34355,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-14T11:29:26.087+00:00",
+    "distanceM": 18357,
+    "elevationM": 150,
+    "name": "Cycling",
+    "lat0": 50.85177,
+    "lng0": 4.34366,
+    "lat1": 50.85176,
+    "lng1": 4.34366,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-18T19:32:41.547+00:00",
+    "distanceM": 16245,
+    "elevationM": 136,
+    "name": "Cycling",
+    "lat0": 50.85142,
+    "lng0": 4.34458,
+    "lat1": 50.85189,
+    "lng1": 4.34438,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-19T10:51:39.002+00:00",
+    "distanceM": 21140,
+    "elevationM": 163,
+    "name": "Cycling",
+    "lat0": 50.85191,
+    "lng0": 4.34357,
+    "lat1": 50.85208,
+    "lng1": 4.34332,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-21T12:09:35.69+00:00",
+    "distanceM": 26444,
+    "elevationM": 419,
+    "name": "Cycling",
+    "lat0": 50.84956,
+    "lng0": 4.34698,
+    "lat1": 50.78104,
+    "lng1": 4.38825,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-23T11:52:33.184+00:00",
+    "distanceM": 7816,
+    "elevationM": 98,
+    "name": "Cycling",
+    "lat0": 50.85188,
+    "lng0": 4.34355,
+    "lat1": 50.8324,
+    "lng1": 4.42871,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-23T12:41:53.887+00:00",
+    "distanceM": 27660,
+    "elevationM": 272,
+    "name": "Cycling",
+    "lat0": 50.8124,
+    "lng0": 4.40708,
+    "lat1": 50.85209,
+    "lng1": 4.34338,
+    "cities": [
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-24T11:25:23.291+00:00",
+    "distanceM": 18582,
+    "elevationM": 147,
+    "name": "Cycling",
+    "lat0": 50.85189,
+    "lng0": 4.34354,
+    "lat1": 50.85187,
+    "lng1": 4.34366,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-26T11:40:25.419+00:00",
+    "distanceM": 18521,
+    "elevationM": 151,
+    "name": "Cycling",
+    "lat0": 50.85188,
+    "lng0": 4.34364,
+    "lat1": 50.85192,
+    "lng1": 4.3435,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-27T18:47:19.445+00:00",
+    "distanceM": 4164,
+    "elevationM": 21,
+    "name": "Cycling",
+    "lat0": 50.83508,
+    "lng0": 4.36388,
+    "lat1": 50.85183,
+    "lng1": 4.34358,
+    "cities": [
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-02-28T11:53:37.654+00:00",
+    "distanceM": 24924,
+    "elevationM": 184,
+    "name": "Cycling",
+    "lat0": 50.85042,
+    "lng0": 4.35012,
+    "lat1": 50.85186,
+    "lng1": 4.34368,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-01T12:04:19.769+00:00",
+    "distanceM": 25890,
+    "elevationM": 162,
+    "name": "Cycling",
+    "lat0": 50.83424,
+    "lng0": 4.36523,
+    "lat1": 50.85175,
+    "lng1": 4.34359,
+    "cities": [
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Saint-Josse-ten-Noode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8498,
+        "lng": 4.3746
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-02T13:16:22.639+00:00",
+    "distanceM": 43879,
+    "elevationM": 340,
+    "name": "Cycling",
+    "lat0": 50.85151,
+    "lng0": 4.34443,
+    "lat1": 50.85203,
+    "lng1": 4.34353,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Overijse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7702,
+        "lng": 4.5352
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-04T19:20:34+00:00",
+    "distanceM": 25532,
+    "elevationM": 0,
+    "name": "Cycling",
+    "lat0": 50.85183,
+    "lng0": 4.34345,
+    "lat1": 50.85193,
+    "lng1": 4.34364,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-05T10:59:17+00:00",
+    "distanceM": 28195,
+    "elevationM": 0,
+    "name": "Cycling",
+    "lat0": 50.85183,
+    "lng0": 4.34373,
+    "lat1": 50.85184,
+    "lng1": 4.34355,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-11T18:24:19.375+00:00",
+    "distanceM": 25324,
+    "elevationM": 187,
+    "name": "Cycling",
+    "lat0": 50.85183,
+    "lng0": 4.34367,
+    "lat1": 50.85174,
+    "lng1": 4.34362,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-14T13:18:05.026+00:00",
+    "distanceM": 25188,
+    "elevationM": 184,
+    "name": "Cycling",
+    "lat0": 50.85189,
+    "lng0": 4.34365,
+    "lat1": 50.85163,
+    "lng1": 4.34349,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-19T11:46:15.158+00:00",
+    "distanceM": 18353,
+    "elevationM": 151,
+    "name": "Cycling",
+    "lat0": 50.85135,
+    "lng0": 4.34473,
+    "lat1": 50.85229,
+    "lng1": 4.34366,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-21T13:02:29.808+00:00",
+    "distanceM": 30508,
+    "elevationM": 250,
+    "name": "Cycling",
+    "lat0": 50.85136,
+    "lng0": 4.34469,
+    "lat1": 50.85198,
+    "lng1": 4.34361,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-22T15:00:58.36+00:00",
+    "distanceM": 37487,
+    "elevationM": 362,
+    "name": "Cycling",
+    "lat0": 50.85182,
+    "lng0": 4.34358,
+    "lat1": 50.85194,
+    "lng1": 4.34339,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-24T17:34:39.682+00:00",
+    "distanceM": 24656,
+    "elevationM": 202,
+    "name": "Cycling",
+    "lat0": 50.85181,
+    "lng0": 4.34363,
+    "lat1": 50.85204,
+    "lng1": 4.34312,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-29T11:00:25.075+00:00",
+    "distanceM": 51030,
+    "elevationM": 292,
+    "name": "Cycling",
+    "lat0": 50.8531,
+    "lng0": 4.34079,
+    "lat1": 50.85193,
+    "lng1": 4.34358,
+    "cities": [
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.79,
+        "lng": 4.2981
+      },
+      {
+        "name": "Drogenbos",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7865,
+        "lng": 4.3174
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      },
+      {
+        "name": "Dworp",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7304,
+        "lng": 4.2985
+      },
+      {
+        "name": "Braine-l'Alleud",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6943,
+        "lng": 4.3548
+      },
+      {
+        "name": "Halle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7364,
+        "lng": 4.223
+      },
+      {
+        "name": "Braine-le-Château",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6809,
+        "lng": 4.2667
+      },
+      {
+        "name": "Tubize",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6897,
+        "lng": 4.2218
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-03-31T17:08:56.72+00:00",
+    "distanceM": 28791,
+    "elevationM": 223,
+    "name": "Cycling",
+    "lat0": 50.8501,
+    "lng0": 4.34647,
+    "lat1": 50.85202,
+    "lng1": 4.34339,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-04-05T10:34:13.393+00:00",
+    "distanceM": 52393,
+    "elevationM": 544,
+    "name": "Cycling",
+    "lat0": 50.85182,
+    "lng0": 4.34361,
+    "lat1": 50.84834,
+    "lng1": 4.34984,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Woluwe-Saint-Lambert",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.843,
+        "lng": 4.4257
+      },
+      {
+        "name": "Wezembeek-Oppem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8441,
+        "lng": 4.4872
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-04-14T16:13:43.978+00:00",
+    "distanceM": 31066,
+    "elevationM": 224,
+    "name": "Cycling",
+    "lat0": 50.85139,
+    "lng0": 4.34467,
+    "lat1": 50.85211,
+    "lng1": 4.3436,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Woluwe-Saint-Lambert",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.843,
+        "lng": 4.4257
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-04-27T09:23:29.947+00:00",
+    "distanceM": 50803,
+    "elevationM": 424,
+    "name": "Cycling",
+    "lat0": 50.85069,
+    "lng0": 4.3457,
+    "lat1": 50.85146,
+    "lng1": 4.34312,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-04-28T16:26:22.325+00:00",
+    "distanceM": 38921,
+    "elevationM": 229,
+    "name": "Cycling",
+    "lat0": 50.85245,
+    "lng0": 4.34302,
+    "lat1": 50.85194,
+    "lng1": 4.34356,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8076,
+        "lng": 4.2452
+      },
+      {
+        "name": "Gaasbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7999,
+        "lng": 4.189
+      },
+      {
+        "name": "Dilbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8396,
+        "lng": 4.2501
+      },
+      {
+        "name": "Berchem-Sainte-Agathe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8649,
+        "lng": 4.2947
+      },
+      {
+        "name": "Koekelberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8606,
+        "lng": 4.3316
+      }
+    ]
+  },
+  {
+    "startAt": "2025-04-29T17:38:55.482+00:00",
+    "distanceM": 25149,
+    "elevationM": 211,
+    "name": "Cycling",
+    "lat0": 50.8519,
+    "lng0": 4.34353,
+    "lat1": 50.84798,
+    "lng1": 4.34941,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      }
+    ]
+  },
+  {
+    "startAt": "2025-05-13T17:16:46.348+00:00",
+    "distanceM": 31362,
+    "elevationM": 245,
+    "name": "Cycling",
+    "lat0": 50.85194,
+    "lng0": 4.34366,
+    "lat1": 50.85185,
+    "lng1": 4.3435,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      }
+    ]
+  },
+  {
+    "startAt": "2025-05-16T16:58:09.507+00:00",
+    "distanceM": 36303,
+    "elevationM": 270,
+    "name": "Cycling",
+    "lat0": 50.85188,
+    "lng0": 4.34358,
+    "lat1": 50.85192,
+    "lng1": 4.34343,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-05-20T17:26:54.229+00:00",
+    "distanceM": 39383,
+    "elevationM": 320,
+    "name": "Cycling",
+    "lat0": 50.85179,
+    "lng0": 4.34354,
+    "lat1": 50.85199,
+    "lng1": 4.34327,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-05-30T17:06:27.357+00:00",
+    "distanceM": 4429,
+    "elevationM": 97,
+    "name": "Cycling",
+    "lat0": 50.84866,
+    "lng0": 4.34867,
+    "lat1": 50.8166,
+    "lng1": 4.33762,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Saint-Gilles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.825,
+        "lng": 4.3455
+      },
+      {
+        "name": "Forest",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8118,
+        "lng": 4.3181
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-01T15:58:15.396+00:00",
+    "distanceM": 30052,
+    "elevationM": 240,
+    "name": "Cycling",
+    "lat0": 50.85188,
+    "lng0": 4.34346,
+    "lat1": 50.84814,
+    "lng1": 4.34952,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-03T17:22:23.874+00:00",
+    "distanceM": 30402,
+    "elevationM": 243,
+    "name": "Cycling",
+    "lat0": 50.85188,
+    "lng0": 4.34351,
+    "lat1": 50.84843,
+    "lng1": 4.34943,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-08T12:33:13.033+00:00",
+    "distanceM": 34689,
+    "elevationM": 274,
+    "name": "Cycling",
+    "lat0": 50.85181,
+    "lng0": 4.34365,
+    "lat1": 50.85188,
+    "lng1": 4.34335,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-11T17:09:09.087+00:00",
+    "distanceM": 3898,
+    "elevationM": 0,
+    "name": "Cycling",
+    "lat0": 50.83552,
+    "lng0": 4.36509,
+    "lat1": 50.84826,
+    "lng1": 4.34958,
+    "cities": [
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-14T11:13:18.855+00:00",
+    "distanceM": 31685,
+    "elevationM": 259,
+    "name": "Cycling",
+    "lat0": 50.85187,
+    "lng0": 4.34356,
+    "lat1": 50.852,
+    "lng1": 4.34359,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-15T10:24:54.788+00:00",
+    "distanceM": 41948,
+    "elevationM": 378,
+    "name": "Cycling",
+    "lat0": 50.85176,
+    "lng0": 4.34386,
+    "lat1": 50.84852,
+    "lng1": 4.3513,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-17T17:43:41.108+00:00",
+    "distanceM": 31642,
+    "elevationM": 262,
+    "name": "Cycling",
+    "lat0": 50.85176,
+    "lng0": 4.34351,
+    "lat1": 50.8519,
+    "lng1": 4.34343,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-21T16:35:36.346+00:00",
+    "distanceM": 64,
+    "elevationM": 0,
+    "name": "Cycling",
+    "lat0": 50.8318,
+    "lng0": 4.3212,
+    "lat1": 50.83183,
+    "lng1": 4.32122,
+    "cities": [
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-22T09:32:47.969+00:00",
+    "distanceM": 47104,
+    "elevationM": 344,
+    "name": "Cycling",
+    "lat0": 50.85121,
+    "lng0": 4.34493,
+    "lat1": 50.85194,
+    "lng1": 4.34342,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-24T18:06:47.639+00:00",
+    "distanceM": 31418,
+    "elevationM": 258,
+    "name": "Cycling",
+    "lat0": 50.85159,
+    "lng0": 4.34453,
+    "lat1": 50.85207,
+    "lng1": 4.34358,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-25T15:46:15.239+00:00",
+    "distanceM": 22646,
+    "elevationM": 178,
+    "name": "Cycling",
+    "lat0": 50.85162,
+    "lng0": 4.34437,
+    "lat1": 50.82638,
+    "lng1": 4.52344,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-25T17:00:23.681+00:00",
+    "distanceM": 22990,
+    "elevationM": 171,
+    "name": "Cycling",
+    "lat0": 50.82649,
+    "lng0": 4.52341,
+    "lat1": 50.84822,
+    "lng1": 4.34957,
+    "cities": [
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-06-29T10:00:02.426+00:00",
+    "distanceM": 77358,
+    "elevationM": 525,
+    "name": "Cycling",
+    "lat0": 50.85194,
+    "lng0": 4.34359,
+    "lat1": 50.85192,
+    "lng1": 4.3435,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8354,
+        "lng": 4.5608
+      },
+      {
+        "name": "Leefdaal",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8473,
+        "lng": 4.5912
+      },
+      {
+        "name": "Bertem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.866,
+        "lng": 4.6306
+      },
+      {
+        "name": "Leuven",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8646,
+        "lng": 4.6938
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-01T18:14:17.519+00:00",
+    "distanceM": 26388,
+    "elevationM": 308,
+    "name": "Cycling",
+    "lat0": 50.85183,
+    "lng0": 4.34359,
+    "lat1": 50.80533,
+    "lng1": 4.38351,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-04T17:54:21.802+00:00",
+    "distanceM": 35045,
+    "elevationM": 338,
+    "name": "Cycling",
+    "lat0": 50.84904,
+    "lng0": 4.34778,
+    "lat1": 50.85185,
+    "lng1": 4.34366,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-05T13:27:53.953+00:00",
+    "distanceM": 62210,
+    "elevationM": 207,
+    "name": "Cycling",
+    "lat0": 51.01855,
+    "lng0": 4.48386,
+    "lat1": 50.85207,
+    "lng1": 4.34343,
+    "cities": [
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.028,
+        "lng": 4.4713
+      },
+      {
+        "name": "Bonheiden",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0011,
+        "lng": 4.5842
+      },
+      {
+        "name": "Keerbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0044,
+        "lng": 4.6529
+      },
+      {
+        "name": "Haacht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9785,
+        "lng": 4.6325
+      },
+      {
+        "name": "Leuven",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9104,
+        "lng": 4.7142
+      },
+      {
+        "name": "Bertem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.866,
+        "lng": 4.6306
+      },
+      {
+        "name": "Leefdaal",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8473,
+        "lng": 4.5912
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8354,
+        "lng": 4.5608
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-08T17:54:58.266+00:00",
+    "distanceM": 27400,
+    "elevationM": 237,
+    "name": "Cycling",
+    "lat0": 50.85184,
+    "lng0": 4.34356,
+    "lat1": 50.838,
+    "lng1": 4.35191,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-09T18:48:09.129+00:00",
+    "distanceM": 27450,
+    "elevationM": 233,
+    "name": "Cycling",
+    "lat0": 50.85189,
+    "lng0": 4.34364,
+    "lat1": 50.83798,
+    "lng1": 4.35187,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-12T12:11:35.283+00:00",
+    "distanceM": 42444,
+    "elevationM": 552,
+    "name": "Cycling",
+    "lat0": 50.85164,
+    "lng0": 4.34433,
+    "lat1": 50.827,
+    "lng1": 4.37474,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "La Hulpe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7314,
+        "lng": 4.4894
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-13T17:23:48.343+00:00",
+    "distanceM": 31840,
+    "elevationM": 271,
+    "name": "Cycling",
+    "lat0": 50.85178,
+    "lng0": 4.34375,
+    "lat1": 50.85194,
+    "lng1": 4.34352,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-15T18:41:41.534+00:00",
+    "distanceM": 32146,
+    "elevationM": 307,
+    "name": "Cycling",
+    "lat0": 50.85085,
+    "lng0": 4.34538,
+    "lat1": 50.85196,
+    "lng1": 4.34388,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-19T07:29:52.998+00:00",
+    "distanceM": 91091,
+    "elevationM": 807,
+    "name": "Cycling",
+    "lat0": 50.84958,
+    "lng0": 4.34702,
+    "lat1": 50.8519,
+    "lng1": 4.3435,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8354,
+        "lng": 4.5608
+      },
+      {
+        "name": "Leefdaal",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8473,
+        "lng": 4.5912
+      },
+      {
+        "name": "Leuven",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8646,
+        "lng": 4.6938
+      },
+      {
+        "name": "Oud-Heverlee",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8272,
+        "lng": 4.6895
+      },
+      {
+        "name": "Neerijse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8166,
+        "lng": 4.6236
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Forest",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8118,
+        "lng": 4.3181
+      },
+      {
+        "name": "Saint-Gilles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.825,
+        "lng": 4.3455
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-20T08:25:03.647+00:00",
+    "distanceM": 54982,
+    "elevationM": 83,
+    "name": "Cycling",
+    "lat0": 50.84907,
+    "lng0": 4.3477,
+    "lat1": 50.85189,
+    "lng1": 4.34358,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4445
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.028,
+        "lng": 4.4713
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      }
+    ]
+  },
+  {
+    "startAt": "2025-07-30T18:07:57+00:00",
+    "distanceM": 30053,
+    "elevationM": 256,
+    "name": "Cycling",
+    "lat0": 50.84996,
+    "lng0": 4.3468,
+    "lat1": 50.85197,
+    "lng1": 4.34353,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-03T14:37:47+00:00",
+    "distanceM": 60165,
+    "elevationM": 547,
+    "name": "Cycling",
+    "lat0": 50.84767,
+    "lng0": 4.35728,
+    "lat1": 50.85176,
+    "lng1": 4.34349,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Waterloo",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7033,
+        "lng": 4.4084
+      },
+      {
+        "name": "Lasne",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6951,
+        "lng": 4.4506
+      },
+      {
+        "name": "La Hulpe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7314,
+        "lng": 4.4894
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Saint-Josse-ten-Noode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8498,
+        "lng": 4.3746
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-09T08:55:27+00:00",
+    "distanceM": 41376,
+    "elevationM": 55,
+    "name": "Cycling",
+    "lat0": 51.23582,
+    "lng0": 3.19744,
+    "lat1": 51.24123,
+    "lng1": 2.9711,
+    "cities": [
+      {
+        "name": "Brugge",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.2317,
+        "lng": 3.2112
+      },
+      {
+        "name": "Zedelgem",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1402,
+        "lng": 3.1816
+      },
+      {
+        "name": "Varsenare",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.19,
+        "lng": 3.1434
+      },
+      {
+        "name": "Jabbeke",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1823,
+        "lng": 3.0935
+      },
+      {
+        "name": "Oudenburg",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1792,
+        "lng": 3.0318
+      },
+      {
+        "name": "Bredene",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.2408,
+        "lng": 2.9648
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-09T09:45:09.691+00:00",
+    "distanceM": 26972,
+    "elevationM": 45,
+    "name": "Cycling",
+    "lat0": 51.20683,
+    "lng0": 3.21948,
+    "lat1": 51.20162,
+    "lng1": 3.07295,
+    "cities": [
+      {
+        "name": "Brugge",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.2317,
+        "lng": 3.2112
+      },
+      {
+        "name": "Zedelgem",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1402,
+        "lng": 3.1816
+      },
+      {
+        "name": "Varsenare",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.19,
+        "lng": 3.1434
+      },
+      {
+        "name": "Snellegem",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1688,
+        "lng": 3.1231
+      },
+      {
+        "name": "Jabbeke",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1823,
+        "lng": 3.0935
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-10T10:39:03.881+00:00",
+    "distanceM": 64732,
+    "elevationM": 296,
+    "name": "Cycling",
+    "lat0": 51.05914,
+    "lng0": 3.72489,
+    "lat1": 50.85183,
+    "lng1": 4.34362,
+    "cities": [
+      {
+        "name": "Gent",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1016,
+        "lng": 3.7395
+      },
+      {
+        "name": "Heusden",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0287,
+        "lng": 3.8003
+      },
+      {
+        "name": "Wetteren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9984,
+        "lng": 3.8731
+      },
+      {
+        "name": "Wichelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9888,
+        "lng": 3.9295
+      },
+      {
+        "name": "Lede",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9742,
+        "lng": 3.957
+      },
+      {
+        "name": "Aalst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.961,
+        "lng": 4.134
+      },
+      {
+        "name": "Affligem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.908,
+        "lng": 4.1091
+      },
+      {
+        "name": "Opwijk",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9429,
+        "lng": 4.1718
+      },
+      {
+        "name": "Asse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9136,
+        "lng": 4.1804
+      },
+      {
+        "name": "Ganshoren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8703,
+        "lng": 4.3078
+      },
+      {
+        "name": "Koekelberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8606,
+        "lng": 4.3316
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-12T18:42:44.99+00:00",
+    "distanceM": 12981,
+    "elevationM": 108,
+    "name": "Cycling",
+    "lat0": 50.85184,
+    "lng0": 4.34355,
+    "lat1": 50.85189,
+    "lng1": 4.34333,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-13T16:39:18.226+00:00",
+    "distanceM": 40201,
+    "elevationM": 269,
+    "name": "Cycling",
+    "lat0": 50.85239,
+    "lng0": 4.34324,
+    "lat1": 50.85195,
+    "lng1": 4.3434,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7812,
+        "lng": 4.2452
+      },
+      {
+        "name": "Dilbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8396,
+        "lng": 4.2501
+      },
+      {
+        "name": "Berchem-Sainte-Agathe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8649,
+        "lng": 4.2947
+      },
+      {
+        "name": "Koekelberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8606,
+        "lng": 4.3316
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-16T12:18:32.94+00:00",
+    "distanceM": 48231,
+    "elevationM": 397,
+    "name": "Cycling",
+    "lat0": 50.85133,
+    "lng0": 4.34477,
+    "lat1": 50.85197,
+    "lng1": 4.34358,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Drogenbos",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7865,
+        "lng": 4.3174
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.79,
+        "lng": 4.2981
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      },
+      {
+        "name": "Dworp",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7304,
+        "lng": 4.2985
+      },
+      {
+        "name": "Beersel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7661,
+        "lng": 4.308
+      },
+      {
+        "name": "Linkebeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7732,
+        "lng": 4.336
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-17T17:32:03.232+00:00",
+    "distanceM": 31818,
+    "elevationM": 286,
+    "name": "Cycling",
+    "lat0": 50.85184,
+    "lng0": 4.34368,
+    "lat1": 50.85193,
+    "lng1": 4.34376,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Saint-Josse-ten-Noode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8498,
+        "lng": 4.3746
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-19T09:54:23.991+00:00",
+    "distanceM": 22791,
+    "elevationM": 195,
+    "name": "Cycling",
+    "lat0": 50.85077,
+    "lng0": 4.34558,
+    "lat1": 50.85184,
+    "lng1": 4.34357,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Saint-Josse-ten-Noode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8498,
+        "lng": 4.3746
+      }
+    ]
+  },
+  {
+    "startAt": "2025-08-24T06:21:13.998+00:00",
+    "distanceM": 55365,
+    "elevationM": 401,
+    "name": "Cycling",
+    "lat0": 50.85522,
+    "lng0": 4.70488,
+    "lat1": 50.85615,
+    "lng1": 4.7048,
+    "cities": [
+      {
+        "name": "Leuven",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8852,
+        "lng": 4.7314
+      },
+      {
+        "name": "Oud-Heverlee",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8278,
+        "lng": 4.7182
+      },
+      {
+        "name": "Bierbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8241,
+        "lng": 4.7714
+      },
+      {
+        "name": "Korbeek-Lo",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8597,
+        "lng": 4.7628
+      },
+      {
+        "name": "Pellenberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8706,
+        "lng": 4.794
+      },
+      {
+        "name": "Lubbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8821,
+        "lng": 4.8401
+      },
+      {
+        "name": "Houwaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.933,
+        "lng": 4.8596
+      },
+      {
+        "name": "Holsbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9494,
+        "lng": 4.833
+      }
+    ]
+  },
+  {
+    "startAt": "2025-09-07T11:01:14+00:00",
+    "distanceM": 46898,
+    "elevationM": 399,
+    "name": "Cycling",
+    "lat0": 50.84368,
+    "lng0": 4.36342,
+    "lat1": 50.85197,
+    "lng1": 4.34351,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-09-13T08:10:15+00:00",
+    "distanceM": 45392,
+    "elevationM": 426,
+    "name": "Cycling",
+    "lat0": 50.85184,
+    "lng0": 4.34382,
+    "lat1": 50.85183,
+    "lng1": 4.3434,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Drogenbos",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7865,
+        "lng": 4.3174
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.79,
+        "lng": 4.2981
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      },
+      {
+        "name": "Dworp",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7304,
+        "lng": 4.2985
+      },
+      {
+        "name": "Beersel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7661,
+        "lng": 4.308
+      },
+      {
+        "name": "Linkebeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7732,
+        "lng": 4.336
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-09-23T17:28:47.555+00:00",
+    "distanceM": 27493,
+    "elevationM": 228,
+    "name": "Cycling",
+    "lat0": 50.8518,
+    "lng0": 4.34362,
+    "lat1": 50.85186,
+    "lng1": 4.34338,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2025-09-27T14:28:42.625+00:00",
+    "distanceM": 40468,
+    "elevationM": 255,
+    "name": "Cycling",
+    "lat0": 50.85182,
+    "lng0": 4.34364,
+    "lat1": 50.85186,
+    "lng1": 4.34345,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8076,
+        "lng": 4.2452
+      },
+      {
+        "name": "Gaasbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7999,
+        "lng": 4.189
+      },
+      {
+        "name": "Dilbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8396,
+        "lng": 4.2501
+      },
+      {
+        "name": "Berchem-Sainte-Agathe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8649,
+        "lng": 4.2947
+      },
+      {
+        "name": "Koekelberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8606,
+        "lng": 4.3316
+      }
+    ]
+  },
+  {
+    "startAt": "2025-09-29T16:04:26.452+00:00",
+    "distanceM": 46709,
+    "elevationM": 110,
+    "name": "Cycling",
+    "lat0": 50.85178,
+    "lng0": 4.34362,
+    "lat1": 50.85188,
+    "lng1": 4.34359,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Koekelberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8606,
+        "lng": 4.3316
+      },
+      {
+        "name": "Berchem-Sainte-Agathe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8649,
+        "lng": 4.2947
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.79,
+        "lng": 4.2981
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      },
+      {
+        "name": "Halle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7412,
+        "lng": 4.2493
+      },
+      {
+        "name": "Tubize",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6897,
+        "lng": 4.2218
+      },
+      {
+        "name": "Drogenbos",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7865,
+        "lng": 4.3174
+      }
+    ]
+  },
+  {
+    "startAt": "2025-10-01T15:43:18.975+00:00",
+    "distanceM": 53269,
+    "elevationM": 33,
+    "name": "Cycling",
+    "lat0": 50.85191,
+    "lng0": 4.34352,
+    "lat1": 50.8519,
+    "lng1": 4.34353,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      },
+      {
+        "name": "Humbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9674,
+        "lng": 4.3794
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4441
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0351,
+        "lng": 4.4398
+      },
+      {
+        "name": "Kapelle-op-den-Bos",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0124,
+        "lng": 4.358
+      }
+    ]
+  },
+  {
+    "startAt": "2025-10-05T09:52:19.667+00:00",
+    "distanceM": 57785,
+    "elevationM": 446,
+    "name": "Cycling",
+    "lat0": 50.85187,
+    "lng0": 4.34357,
+    "lat1": 50.84182,
+    "lng1": 4.38599,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Woluwe-Saint-Lambert",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.843,
+        "lng": 4.4257
+      },
+      {
+        "name": "Wezembeek-Oppem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8441,
+        "lng": 4.4872
+      },
+      {
+        "name": "Zaventem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.854,
+        "lng": 4.5157
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8354,
+        "lng": 4.5608
+      },
+      {
+        "name": "Leefdaal",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8473,
+        "lng": 4.5912
+      },
+      {
+        "name": "Everberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8779,
+        "lng": 4.5695
+      },
+      {
+        "name": "Meerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8822,
+        "lng": 4.5857
+      },
+      {
+        "name": "Bertem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.866,
+        "lng": 4.6306
+      },
+      {
+        "name": "Veltem-Beisem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9021,
+        "lng": 4.6255
+      },
+      {
+        "name": "Kortenberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8859,
+        "lng": 4.5391
+      },
+      {
+        "name": "Kraainem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.861,
+        "lng": 4.4663
+      }
+    ]
+  },
+  {
+    "startAt": "2025-10-07T18:52:01.327+00:00",
+    "distanceM": 15821,
+    "elevationM": 70,
+    "name": "Cycling",
+    "lat0": 50.85228,
+    "lng0": 4.34337,
+    "lat1": 50.8519,
+    "lng1": 4.34359,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Ganshoren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8703,
+        "lng": 4.3078
+      },
+      {
+        "name": "Jette",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.876,
+        "lng": 4.3246
+      }
+    ]
+  },
+  {
+    "startAt": "2025-10-09T16:44:53.789+00:00",
+    "distanceM": 50106,
+    "elevationM": 27,
+    "name": "Cycling",
+    "lat0": 50.85186,
+    "lng0": 4.34356,
+    "lat1": 50.86448,
+    "lng1": 4.35307,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      },
+      {
+        "name": "Humbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9674,
+        "lng": 4.3794
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4441
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0159,
+        "lng": 4.4398
+      }
+    ]
+  },
+  {
+    "startAt": "2025-10-11T07:46:59.078+00:00",
+    "distanceM": 90056,
+    "elevationM": 134,
+    "name": "Cycling",
+    "lat0": 50.85182,
+    "lng0": 4.34361,
+    "lat1": 50.85035,
+    "lng1": 4.34307,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4445
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0469,
+        "lng": 4.4398
+      },
+      {
+        "name": "Rumst",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0858,
+        "lng": 4.4392
+      },
+      {
+        "name": "Boom",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0935,
+        "lng": 4.3731
+      },
+      {
+        "name": "Willebroek",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0627,
+        "lng": 4.3572
+      }
+    ]
+  },
+  {
+    "startAt": "2025-10-12T11:44:33.001+00:00",
+    "distanceM": 43603,
+    "elevationM": 330,
+    "name": "Cycling",
+    "lat0": 50.85196,
+    "lng0": 4.34367,
+    "lat1": 50.85206,
+    "lng1": 4.34385,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      }
+    ]
+  },
+  {
+    "startAt": "2025-10-12T14:43:33+00:00",
+    "distanceM": 20898,
+    "elevationM": 143,
+    "name": "Cycling",
+    "lat0": 50.81931,
+    "lng0": 4.49222,
+    "lat1": 50.85195,
+    "lng1": 4.34336,
+    "cities": [
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-11-02T10:48:35.155+00:00",
+    "distanceM": 79812,
+    "elevationM": 724,
+    "name": "Cycling",
+    "lat0": 50.46749,
+    "lng0": 4.86248,
+    "lat1": 50.77386,
+    "lng1": 4.32673,
+    "cities": [
+      {
+        "name": "Namur",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4572,
+        "lng": 4.8498
+      },
+      {
+        "name": "Floreffe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.455,
+        "lng": 4.7596
+      },
+      {
+        "name": "Franière",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.44,
+        "lng": 4.7286
+      },
+      {
+        "name": "Jemeppe-sur-Sambre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4661,
+        "lng": 4.6967
+      },
+      {
+        "name": "Gembloux",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.5124,
+        "lng": 4.6761
+      },
+      {
+        "name": "Tongrinne",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.5157,
+        "lng": 4.6239
+      },
+      {
+        "name": "Sombreffe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.5428,
+        "lng": 4.6087
+      },
+      {
+        "name": "Villers-la-Ville",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.5631,
+        "lng": 4.5467
+      },
+      {
+        "name": "Genappe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.604,
+        "lng": 4.4881
+      },
+      {
+        "name": "Lasne",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6625,
+        "lng": 4.4212
+      },
+      {
+        "name": "Braine-l'Alleud",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6943,
+        "lng": 4.3548
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Alsemberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.742,
+        "lng": 4.3383
+      },
+      {
+        "name": "Beersel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7661,
+        "lng": 4.308
+      },
+      {
+        "name": "Linkebeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7732,
+        "lng": 4.336
+      }
+    ]
+  },
+  {
+    "startAt": "2025-12-06T09:21:35.213+00:00",
+    "distanceM": 37368,
+    "elevationM": 334,
+    "name": "Cycling",
+    "lat0": 50.81549,
+    "lng0": 4.38474,
+    "lat1": 50.67325,
+    "lng1": 4.56931,
+    "cities": [
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Overijse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7702,
+        "lng": 4.5352
+      },
+      {
+        "name": "Wavre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7231,
+        "lng": 4.6153
+      },
+      {
+        "name": "Ottignies-Louvain-la-Neuve",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6741,
+        "lng": 4.6138
+      }
+    ]
+  },
+  {
+    "startAt": "2025-12-07T10:05:43+00:00",
+    "distanceM": 21436,
+    "elevationM": 40,
+    "name": "Cycling",
+    "lat0": 50.46367,
+    "lng0": 4.86259,
+    "lat1": 50.49358,
+    "lng1": 5.10323,
+    "cities": [
+      {
+        "name": "Namur",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4572,
+        "lng": 4.8498
+      },
+      {
+        "name": "Andenne",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4598,
+        "lng": 4.9782
+      }
+    ]
+  },
+  {
+    "startAt": "2025-12-25T12:02:58.918+00:00",
+    "distanceM": 45241,
+    "elevationM": 479,
+    "name": "Cycling",
+    "lat0": 50.85176,
+    "lng0": 4.34345,
+    "lat1": 50.85193,
+    "lng1": 4.34338,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      }
+    ]
+  },
+  {
+    "startAt": "2025-12-28T11:59:10.342+00:00",
+    "distanceM": 58435,
+    "elevationM": 135,
+    "name": "Cycling",
+    "lat0": 51.171,
+    "lng0": 4.45565,
+    "lat1": 50.85182,
+    "lng1": 4.34377,
+    "cities": [
+      {
+        "name": "Mortsel",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1753,
+        "lng": 4.4586
+      },
+      {
+        "name": "Hove",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1468,
+        "lng": 4.4788
+      },
+      {
+        "name": "Boechout",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1597,
+        "lng": 4.5099
+      },
+      {
+        "name": "Lier",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1329,
+        "lng": 4.5717
+      },
+      {
+        "name": "Sint-Katelijne-Waver",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0623,
+        "lng": 4.5114
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.028,
+        "lng": 4.4713
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9939,
+        "lng": 4.5076
+      },
+      {
+        "name": "Boortmeerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9852,
+        "lng": 4.54
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2025-12-30T11:14:33.944+00:00",
+    "distanceM": 38459,
+    "elevationM": 233,
+    "name": "Cycling",
+    "lat0": 50.85185,
+    "lng0": 4.34354,
+    "lat1": 50.87903,
+    "lng1": 4.70016,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Leefdaal",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8473,
+        "lng": 4.5912
+      },
+      {
+        "name": "Neerijse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8166,
+        "lng": 4.6236
+      },
+      {
+        "name": "Korbeek-Dijle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8397,
+        "lng": 4.6408
+      },
+      {
+        "name": "Leuven",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8646,
+        "lng": 4.6938
+      }
+    ]
+  },
+  {
+    "startAt": "2026-01-10T13:53:21.076+00:00",
+    "distanceM": 33413,
+    "elevationM": 326,
+    "name": "Cycling",
+    "lat0": 50.85176,
+    "lng0": 4.34381,
+    "lat1": 50.85189,
+    "lng1": 4.3435,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2026-01-21T17:13:50.037+00:00",
+    "distanceM": 27291,
+    "elevationM": 18,
+    "name": "Cycling",
+    "lat0": 50.8519,
+    "lng0": 4.34361,
+    "lat1": 50.85192,
+    "lng1": 4.34348,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Drogenbos",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7865,
+        "lng": 4.3174
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.79,
+        "lng": 4.2981
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      }
+    ]
+  },
+  {
+    "startAt": "2026-01-23T17:54:23.06+00:00",
+    "distanceM": 32093,
+    "elevationM": 256,
+    "name": "Cycling",
+    "lat0": 50.85189,
+    "lng0": 4.3436,
+    "lat1": 50.85189,
+    "lng1": 4.34348,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Saint-Josse-ten-Noode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8498,
+        "lng": 4.3746
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2026-01-25T09:36:30.444+00:00",
+    "distanceM": 77882,
+    "elevationM": 662,
+    "name": "Cycling",
+    "lat0": 50.85158,
+    "lng0": 4.34345,
+    "lat1": 50.67376,
+    "lng1": 4.56841,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Leefdaal",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8473,
+        "lng": 4.5912
+      },
+      {
+        "name": "Neerijse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8166,
+        "lng": 4.6236
+      },
+      {
+        "name": "Korbeek-Dijle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8397,
+        "lng": 4.6408
+      },
+      {
+        "name": "Leuven",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8646,
+        "lng": 4.6938
+      },
+      {
+        "name": "Oud-Heverlee",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8272,
+        "lng": 4.6895
+      },
+      {
+        "name": "Sint-Agatha-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7868,
+        "lng": 4.6338
+      },
+      {
+        "name": "Ottenburg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7522,
+        "lng": 4.6153
+      },
+      {
+        "name": "Wavre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7231,
+        "lng": 4.6153
+      },
+      {
+        "name": "Ottignies-Louvain-la-Neuve",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6741,
+        "lng": 4.6138
+      }
+    ]
+  },
+  {
+    "startAt": "2026-02-23T22:07:48+00:00",
+    "distanceM": 24474,
+    "elevationM": 0,
+    "name": "Cycling",
+    "lat0": -23.53633,
+    "lng0": -46.66674,
+    "lat1": -23.53654,
+    "lng1": -46.66813,
+    "cities": [
+      {
+        "name": "São Paulo",
+        "country": "Brasil",
+        "lat": -23.5507,
+        "lng": -46.6334
+      }
+    ]
+  },
+  {
+    "startAt": "2026-03-01T08:34:56.285+00:00",
+    "distanceM": 74739,
+    "elevationM": 116,
+    "name": "Cycling",
+    "lat0": 50.85189,
+    "lng0": 4.34346,
+    "lat1": 50.85191,
+    "lng1": 4.3435,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9939,
+        "lng": 4.5043
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.028,
+        "lng": 4.4713
+      },
+      {
+        "name": "Humbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9674,
+        "lng": 4.3794
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      },
+      {
+        "name": "Strombeek-Bever",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.911,
+        "lng": 4.3423
+      }
+    ]
+  },
+  {
+    "startAt": "2026-03-04T18:20:30.287+00:00",
+    "distanceM": 15629,
+    "elevationM": 152,
+    "name": "Cycling",
+    "lat0": 50.85145,
+    "lng0": 4.34461,
+    "lat1": 50.85204,
+    "lng1": 4.34368,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      }
+    ]
+  },
+  {
+    "startAt": "2026-03-07T07:34:35.769+00:00",
+    "distanceM": 54685,
+    "elevationM": 119,
+    "name": "Cycling",
+    "lat0": 50.85179,
+    "lng0": 4.34363,
+    "lat1": 50.85197,
+    "lng1": 4.34343,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4445
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0159,
+        "lng": 4.4398
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      },
+      {
+        "name": "Humbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9674,
+        "lng": 4.3794
+      },
+      {
+        "name": "Strombeek-Bever",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.911,
+        "lng": 4.3423
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      }
+    ]
+  },
+  {
+    "startAt": "2026-04-06T11:38:10.57+00:00",
+    "distanceM": 50010,
+    "elevationM": 275,
+    "name": "Cycling",
+    "lat0": 50.85178,
+    "lng0": 4.34323,
+    "lat1": 50.85204,
+    "lng1": 4.33974,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Saint-Gilles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.825,
+        "lng": 4.3455
+      },
+      {
+        "name": "Forest",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8118,
+        "lng": 4.3181
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Drogenbos",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7865,
+        "lng": 4.3174
+      },
+      {
+        "name": "Beersel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7661,
+        "lng": 4.308
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      },
+      {
+        "name": "Huizingen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7481,
+        "lng": 4.2767
+      },
+      {
+        "name": "Dworp",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7304,
+        "lng": 4.2985
+      },
+      {
+        "name": "Halle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7412,
+        "lng": 4.2493
+      },
+      {
+        "name": "Braine-le-Château",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6809,
+        "lng": 4.2667
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.79,
+        "lng": 4.2981
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      }
+    ]
+  },
+  {
+    "startAt": "2026-04-08T13:22:32.505+00:00",
+    "distanceM": 46717,
+    "elevationM": 372,
+    "name": "Cycling",
+    "lat0": 50.8518,
+    "lng0": 4.34354,
+    "lat1": 50.84972,
+    "lng1": 4.34673,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2026-04-11T07:45:51.767+00:00",
+    "distanceM": 33864,
+    "elevationM": 311,
+    "name": "Cycling",
+    "lat0": 50.85162,
+    "lng0": 4.34435,
+    "lat1": 50.71527,
+    "lng1": 4.22098,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Saint-Gilles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.825,
+        "lng": 4.3455
+      },
+      {
+        "name": "Forest",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8118,
+        "lng": 4.3181
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Drogenbos",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7865,
+        "lng": 4.3174
+      },
+      {
+        "name": "Beersel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7661,
+        "lng": 4.308
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      },
+      {
+        "name": "Huizingen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7481,
+        "lng": 4.2767
+      },
+      {
+        "name": "Dworp",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7304,
+        "lng": 4.2985
+      },
+      {
+        "name": "Halle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7364,
+        "lng": 4.2197
+      }
+    ]
+  },
+  {
+    "startAt": "2026-04-11T10:36:09.019+00:00",
+    "distanceM": 20280,
+    "elevationM": 6,
+    "name": "Cycling",
+    "lat0": 50.71528,
+    "lng0": 4.22099,
+    "lat1": 50.85189,
+    "lng1": 4.34315,
+    "cities": [
+      {
+        "name": "Halle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7135,
+        "lng": 4.223
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.79,
+        "lng": 4.2981
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2026-04-19T10:35:24.644+00:00",
+    "distanceM": 71649,
+    "elevationM": 76,
+    "name": "Cycling",
+    "lat0": 50.85247,
+    "lng0": 4.34326,
+    "lat1": 50.85194,
+    "lng1": 4.34401,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      },
+      {
+        "name": "Humbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9674,
+        "lng": 4.3794
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4441
+      },
+      {
+        "name": "Kapelle-op-den-Bos",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0124,
+        "lng": 4.358
+      },
+      {
+        "name": "Willebroek",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.034,
+        "lng": 4.3598
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0469,
+        "lng": 4.4218
+      }
+    ]
+  },
+  {
+    "startAt": "2026-04-24T16:54:02.902+00:00",
+    "distanceM": 15481,
+    "elevationM": 85,
+    "name": "Cycling",
+    "lat0": 50.83707,
+    "lng0": 4.358,
+    "lat1": 50.84829,
+    "lng1": 4.3702,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Lambert",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.843,
+        "lng": 4.4257
+      },
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Saint-Josse-ten-Noode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8498,
+        "lng": 4.3746
+      }
+    ]
+  },
+  {
+    "startAt": "2026-04-25T08:13:11.906+00:00",
+    "distanceM": 70059,
+    "elevationM": 499,
+    "name": "Cycling",
+    "lat0": 50.84378,
+    "lng0": 4.36312,
+    "lat1": 50.84839,
+    "lng1": 4.35806,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Overijse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7702,
+        "lng": 4.5352
+      },
+      {
+        "name": "Huldenberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7893,
+        "lng": 4.5834
+      },
+      {
+        "name": "Loonbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.807,
+        "lng": 4.6068
+      },
+      {
+        "name": "Neerijse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8166,
+        "lng": 4.6236
+      },
+      {
+        "name": "Oud-Heverlee",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8032,
+        "lng": 4.6524
+      },
+      {
+        "name": "Korbeek-Dijle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8397,
+        "lng": 4.6408
+      },
+      {
+        "name": "Leuven",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8646,
+        "lng": 4.6938
+      },
+      {
+        "name": "Bertem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.866,
+        "lng": 4.6306
+      },
+      {
+        "name": "Meerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8822,
+        "lng": 4.5857
+      },
+      {
+        "name": "Everberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8779,
+        "lng": 4.5695
+      },
+      {
+        "name": "Kortenberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8859,
+        "lng": 4.5391
+      },
+      {
+        "name": "Zaventem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8662,
+        "lng": 4.5157
+      },
+      {
+        "name": "Kraainem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.861,
+        "lng": 4.4663
+      },
+      {
+        "name": "Woluwe-Saint-Lambert",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.843,
+        "lng": 4.4257
+      },
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      }
+    ]
+  },
+  {
+    "startAt": "2026-04-26T13:21:37.671+00:00",
+    "distanceM": 53105,
+    "elevationM": 116,
+    "name": "Cycling",
+    "lat0": 50.85192,
+    "lng0": 4.34323,
+    "lat1": 50.85334,
+    "lng1": 4.34099,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4445
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0159,
+        "lng": 4.4398
+      },
+      {
+        "name": "Humbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9674,
+        "lng": 4.3794
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      },
+      {
+        "name": "Strombeek-Bever",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.911,
+        "lng": 4.3423
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      }
+    ]
+  },
+  {
+    "startAt": "2026-05-23T12:56:51.937+00:00",
+    "distanceM": 52878,
+    "elevationM": 34,
+    "name": "Cycling",
+    "lat0": 50.85234,
+    "lng0": 4.34329,
+    "lat1": 50.85188,
+    "lng1": 4.34355,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      },
+      {
+        "name": "Humbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9674,
+        "lng": 4.3794
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4441
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0159,
+        "lng": 4.4398
+      }
+    ]
+  },
+  {
+    "startAt": "2026-05-25T08:51:35.337+00:00",
+    "distanceM": 29113,
+    "elevationM": 99,
+    "name": "Cycling",
+    "lat0": 50.46766,
+    "lng0": 4.86257,
+    "lat1": 50.26046,
+    "lng1": 4.91143,
+    "cities": [
+      {
+        "name": "Namur",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4572,
+        "lng": 4.8498
+      },
+      {
+        "name": "Profondeville",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.3786,
+        "lng": 4.8579
+      },
+      {
+        "name": "Annevoie-Rouillon",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.3416,
+        "lng": 4.8385
+      },
+      {
+        "name": "Warnant",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.3238,
+        "lng": 4.8361
+      },
+      {
+        "name": "Anhée",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.2988,
+        "lng": 4.8779
+      },
+      {
+        "name": "Dinant",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.2726,
+        "lng": 4.8984
+      }
+    ]
+  },
+  {
+    "startAt": "2026-05-30T10:05:56.534+00:00",
+    "distanceM": 55204,
+    "elevationM": 50,
+    "name": "Cycling",
+    "lat0": 50.84514,
+    "lng0": 3.38258,
+    "lat1": 51.03626,
+    "lng1": 3.7111,
+    "cities": [
+      {
+        "name": "Deerlijk",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8536,
+        "lng": 3.3546
+      },
+      {
+        "name": "Waregem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8753,
+        "lng": 3.3458
+      },
+      {
+        "name": "Sint-Baafs-Vijve",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9101,
+        "lng": 3.3909
+      },
+      {
+        "name": "Zulte",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9151,
+        "lng": 3.4516
+      },
+      {
+        "name": "Oeselgem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9348,
+        "lng": 3.4319
+      },
+      {
+        "name": "Olsene",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9358,
+        "lng": 3.4652
+      },
+      {
+        "name": "Machelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9592,
+        "lng": 3.4859
+      },
+      {
+        "name": "Deinze",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9691,
+        "lng": 3.5325
+      },
+      {
+        "name": "Lovendegem",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0957,
+        "lng": 3.6076
+      },
+      {
+        "name": "Vinderhoute",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0876,
+        "lng": 3.6412
+      },
+      {
+        "name": "Gent",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0727,
+        "lng": 3.6751
+      }
+    ]
+  },
+  {
+    "startAt": "2026-06-01T15:49:23.198+00:00",
+    "distanceM": 46860,
+    "elevationM": 18,
+    "name": "Cycling",
+    "lat0": 50.85186,
+    "lng0": 4.34353,
+    "lat1": 50.85185,
+    "lng1": 4.34374,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4445
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.028,
+        "lng": 4.4713
+      }
+    ]
+  },
+  {
+    "startAt": "2026-06-07T09:21:41.721+00:00",
+    "distanceM": 38607,
+    "elevationM": 430,
+    "name": "Cycling",
+    "lat0": 50.85183,
+    "lng0": 4.3436,
+    "lat1": 50.80723,
+    "lng1": 4.38078,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8309,
+        "lng": 4.5308
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7675,
+        "lng": 4.4744
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      }
+    ]
+  },
+  {
+    "startAt": "2026-06-21T14:22:46.675+00:00",
+    "distanceM": 26917,
+    "elevationM": 28,
+    "name": "Cycling",
+    "lat0": 51.02655,
+    "lng0": 4.48114,
+    "lat1": 50.87221,
+    "lng1": 4.37288,
+    "cities": [
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.028,
+        "lng": 4.4713
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9939,
+        "lng": 4.5043
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-02T16:45:58.84+00:00",
+    "distanceM": 218,
+    "elevationM": 0,
+    "name": "Cycling",
+    "lat0": 50.87229,
+    "lng0": 4.37303,
+    "lat1": 50.87216,
+    "lng1": 4.37296,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-02T16:51:38.286+00:00",
+    "distanceM": 40785,
+    "elevationM": 224,
+    "name": "Cycling",
+    "lat0": 50.87218,
+    "lng0": 4.37302,
+    "lat1": 50.8721,
+    "lng1": 4.37305,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Evere",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.872,
+        "lng": 4.4034
+      },
+      {
+        "name": "Woluwe-Saint-Lambert",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.843,
+        "lng": 4.4257
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Forest",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8118,
+        "lng": 4.3181
+      },
+      {
+        "name": "Saint-Gilles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.825,
+        "lng": 4.3455
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-05T09:39:12.038+00:00",
+    "distanceM": 124081,
+    "elevationM": 860,
+    "name": "Cycling",
+    "lat0": 50.87224,
+    "lng0": 4.37305,
+    "lat1": 50.87222,
+    "lng1": 4.37297,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8722,
+        "lng": 4.373
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8907,
+        "lng": 4.3938
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9312,
+        "lng": 4.4151
+      },
+      {
+        "name": "Steenokkerzeel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9388,
+        "lng": 4.5001
+      },
+      {
+        "name": "Kampenhout",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9374,
+        "lng": 4.5179
+      },
+      {
+        "name": "Erps-Kwerps",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9026,
+        "lng": 4.5481
+      },
+      {
+        "name": "Everberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8837,
+        "lng": 4.5606
+      },
+      {
+        "name": "Leefdaal",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8541,
+        "lng": 4.5756
+      },
+      {
+        "name": "Tervuren",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8351,
+        "lng": 4.5625
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7923,
+        "lng": 4.4542
+      },
+      {
+        "name": "Hoeilaart",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7761,
+        "lng": 4.4275
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7705,
+        "lng": 4.4008
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7592,
+        "lng": 4.3766
+      },
+      {
+        "name": "Alsemberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7498,
+        "lng": 4.3339
+      },
+      {
+        "name": "Beersel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7718,
+        "lng": 4.3161
+      },
+      {
+        "name": "Sint-Pieters-Leeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7817,
+        "lng": 4.3033
+      },
+      {
+        "name": "Forest",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8019,
+        "lng": 4.3036
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8084,
+        "lng": 4.2788
+      },
+      {
+        "name": "Dilbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8333,
+        "lng": 4.2348
+      },
+      {
+        "name": "Asse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8833,
+        "lng": 4.241
+      },
+      {
+        "name": "Merchtem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9135,
+        "lng": 4.2755
+      },
+      {
+        "name": "Meise",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9249,
+        "lng": 4.2992
+      },
+      {
+        "name": "Strombeek-Bever",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9042,
+        "lng": 4.3448
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-12T08:54:26.901+00:00",
+    "distanceM": 86960,
+    "elevationM": 637,
+    "name": "Cycling",
+    "lat0": 50.26057,
+    "lng0": 4.90867,
+    "lat1": 49.87488,
+    "lng1": 4.88296,
+    "cities": [
+      {
+        "name": "Dinant",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.2606,
+        "lng": 4.9087
+      },
+      {
+        "name": "Waulsort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.2304,
+        "lng": 4.8874
+      },
+      {
+        "name": "Hastière-par-delà",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.2115,
+        "lng": 4.8461
+      },
+      {
+        "name": "Hastière-Lavaux",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.2143,
+        "lng": 4.8241
+      },
+      {
+        "name": "Hermeton-sur-Meuse",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.196,
+        "lng": 4.8211
+      },
+      {
+        "name": "Agimont",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.1772,
+        "lng": 4.8208
+      },
+      {
+        "name": "Givet",
+        "country": "France",
+        "lat": 50.1505,
+        "lng": 4.8121
+      },
+      {
+        "name": "Rancennes",
+        "country": "France",
+        "lat": 50.1314,
+        "lng": 4.8086
+      },
+      {
+        "name": "Chooz",
+        "country": "France",
+        "lat": 50.0985,
+        "lng": 4.8115
+      },
+      {
+        "name": "Ham-sur-Meuse",
+        "country": "France",
+        "lat": 50.0965,
+        "lng": 4.7824
+      },
+      {
+        "name": "Aubrives",
+        "country": "France",
+        "lat": 50.1039,
+        "lng": 4.767
+      },
+      {
+        "name": "Vireux-Wallerand",
+        "country": "France",
+        "lat": 50.0914,
+        "lng": 4.7482
+      },
+      {
+        "name": "Haybes",
+        "country": "France",
+        "lat": 50.0287,
+        "lng": 4.724
+      },
+      {
+        "name": "Hargnies",
+        "country": "France",
+        "lat": 49.9606,
+        "lng": 4.7715
+      },
+      {
+        "name": "Thilay",
+        "country": "France",
+        "lat": 49.9423,
+        "lng": 4.7805
+      },
+      {
+        "name": "Les Hautes-Rivières",
+        "country": "France",
+        "lat": 49.914,
+        "lng": 4.8199
+      },
+      {
+        "name": "Bohan",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.8665,
+        "lng": 4.8812
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-14T11:48:51.006+00:00",
+    "distanceM": 57960,
+    "elevationM": 832,
+    "name": "Cycling",
+    "lat0": 49.86463,
+    "lng0": 4.88593,
+    "lat1": 50.26064,
+    "lng1": 4.90851,
+    "cities": [
+      {
+        "name": "Bohan",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.8642,
+        "lng": 4.8856
+      },
+      {
+        "name": "Membre",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.8655,
+        "lng": 4.9003
+      },
+      {
+        "name": "Vresse-sur-Semois",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.8807,
+        "lng": 4.9225
+      },
+      {
+        "name": "Orchimont",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.8938,
+        "lng": 4.9274
+      },
+      {
+        "name": "Bellefontaine",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.9177,
+        "lng": 4.9731
+      },
+      {
+        "name": "Houdremont",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.9419,
+        "lng": 4.9445
+      },
+      {
+        "name": "Louette-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.9601,
+        "lng": 4.9277
+      },
+      {
+        "name": "Gedinne",
+        "country": "België / Belgique / Belgien",
+        "lat": 49.9809,
+        "lng": 4.9483
+      },
+      {
+        "name": "Sart-Custinne",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.0015,
+        "lng": 4.9176
+      },
+      {
+        "name": "Vencimont",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.0324,
+        "lng": 4.9198
+      },
+      {
+        "name": "Beauraing",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.102,
+        "lng": 4.9189
+      },
+      {
+        "name": "Mesnil-Saint-Blaise",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.1672,
+        "lng": 4.8855
+      },
+      {
+        "name": "Dinant",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.2003,
+        "lng": 4.8971
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-18T08:43:52+00:00",
+    "distanceM": 114438,
+    "elevationM": 1225,
+    "name": "Tour de la Meuse-Rhin",
+    "lat0": 50.63416,
+    "lng0": 5.57215,
+    "lat1": 50.90414,
+    "lng1": 5.63392,
+    "cities": [
+      {
+        "name": "Liège",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6401,
+        "lng": 5.5643
+      },
+      {
+        "name": "Herstal",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6779,
+        "lng": 5.6205
+      },
+      {
+        "name": "Vivegnis",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6979,
+        "lng": 5.6527
+      },
+      {
+        "name": "Hermalle-sous-Argenteau",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7107,
+        "lng": 5.6807
+      },
+      {
+        "name": "Visé",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7372,
+        "lng": 5.7008
+      },
+      {
+        "name": "Feneur",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7042,
+        "lng": 5.7139
+      },
+      {
+        "name": "Mortroux",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.713,
+        "lng": 5.7521
+      },
+      {
+        "name": "Neufchâteau",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7178,
+        "lng": 5.772
+      },
+      {
+        "name": "Aubel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6969,
+        "lng": 5.8392
+      },
+      {
+        "name": "Hombourg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7233,
+        "lng": 5.9206
+      },
+      {
+        "name": "Montzen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7076,
+        "lng": 5.962
+      },
+      {
+        "name": "Gemmenich",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7464,
+        "lng": 5.9968
+      },
+      {
+        "name": "Aachen",
+        "country": "Deutschland",
+        "lat": 50.7764,
+        "lng": 6.0839
+      },
+      {
+        "name": "Vaals",
+        "country": "Nederland",
+        "lat": 50.771,
+        "lng": 6.019
+      },
+      {
+        "name": "Vijlen",
+        "country": "Nederland",
+        "lat": 50.7878,
+        "lng": 5.9644
+      },
+      {
+        "name": "Mechelen",
+        "country": "Nederland",
+        "lat": 50.7964,
+        "lng": 5.9255
+      },
+      {
+        "name": "Gulpen",
+        "country": "Nederland",
+        "lat": 50.814,
+        "lng": 5.89
+      },
+      {
+        "name": "Gulpen-Wittem",
+        "country": "Nederland",
+        "lat": 50.8182,
+        "lng": 5.8585
+      },
+      {
+        "name": "Margraten",
+        "country": "Nederland",
+        "lat": 50.8202,
+        "lng": 5.8217
+      },
+      {
+        "name": "Eckelrade",
+        "country": "Nederland",
+        "lat": 50.8064,
+        "lng": 5.7664
+      },
+      {
+        "name": "Maastricht",
+        "country": "Nederland",
+        "lat": 50.8512,
+        "lng": 5.691
+      },
+      {
+        "name": "Lanaken",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9006,
+        "lng": 5.6498
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-19T08:43:58+00:00",
+    "distanceM": 54008,
+    "elevationM": 232,
+    "name": "Morning Ride",
+    "lat0": 50.9042,
+    "lng0": 5.63406,
+    "lat1": 50.93084,
+    "lng1": 5.32749,
+    "cities": [
+      {
+        "name": "Lanaken",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9006,
+        "lng": 5.6498
+      },
+      {
+        "name": "Maasmechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9556,
+        "lng": 5.6085
+      },
+      {
+        "name": "Lanklaar",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0139,
+        "lng": 5.7205
+      },
+      {
+        "name": "Niel-bij-As",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0153,
+        "lng": 5.6005
+      },
+      {
+        "name": "As",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0005,
+        "lng": 5.5727
+      },
+      {
+        "name": "Genk",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9655,
+        "lng": 5.5001
+      },
+      {
+        "name": "Hasselt",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9304,
+        "lng": 5.3366
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-21T09:05:40+00:00",
+    "distanceM": 151372,
+    "elevationM": 664,
+    "name": "Tour de la Wallonie Picarde",
+    "lat0": 50.87218,
+    "lng0": 4.37295,
+    "lat1": 50.60643,
+    "lng1": 3.38948,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Drogenbos",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7865,
+        "lng": 4.3174
+      },
+      {
+        "name": "Lot",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7631,
+        "lng": 4.279
+      },
+      {
+        "name": "Halle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7364,
+        "lng": 4.2197
+      },
+      {
+        "name": "Tubize",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6897,
+        "lng": 4.2218
+      },
+      {
+        "name": "Ittre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6463,
+        "lng": 4.2612
+      },
+      {
+        "name": "Braine-le-Comte",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6084,
+        "lng": 4.2235
+      },
+      {
+        "name": "Seneffe",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.5625,
+        "lng": 4.2508
+      },
+      {
+        "name": "La Louvière",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4794,
+        "lng": 4.1856
+      },
+      {
+        "name": "Thieu",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4735,
+        "lng": 4.0917
+      },
+      {
+        "name": "Ville-sur-Haine",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4769,
+        "lng": 4.0618
+      },
+      {
+        "name": "Mons",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.476,
+        "lng": 4.0062
+      },
+      {
+        "name": "Colfontaine",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4219,
+        "lng": 3.8438
+      },
+      {
+        "name": "Boussu",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4275,
+        "lng": 3.7943
+      },
+      {
+        "name": "Pommerœul",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4612,
+        "lng": 3.7107
+      },
+      {
+        "name": "Hensies",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.4414,
+        "lng": 3.6801
+      },
+      {
+        "name": "Saint-Aybert",
+        "country": "France",
+        "lat": 50.4477,
+        "lng": 3.6551
+      },
+      {
+        "name": "Condé-sur-l'Escaut",
+        "country": "France",
+        "lat": 50.4483,
+        "lng": 3.5929
+      },
+      {
+        "name": "Fresnes-sur-Escaut",
+        "country": "France",
+        "lat": 50.4321,
+        "lng": 3.5801
+      },
+      {
+        "name": "Bruille-Saint-Amand",
+        "country": "France",
+        "lat": 50.4648,
+        "lng": 3.5076
+      },
+      {
+        "name": "Château-l'Abbaye",
+        "country": "France",
+        "lat": 50.4867,
+        "lng": 3.4768
+      },
+      {
+        "name": "Maulde",
+        "country": "France",
+        "lat": 50.5033,
+        "lng": 3.4331
+      },
+      {
+        "name": "Hollain",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.5416,
+        "lng": 3.427
+      },
+      {
+        "name": "Antoing",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.566,
+        "lng": 3.4511
+      },
+      {
+        "name": "Tournai",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.5906,
+        "lng": 3.44
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-25T11:02:08+00:00",
+    "distanceM": 105533,
+    "elevationM": 354,
+    "name": "Schaarbeek Cycling",
+    "lat0": 50.87215,
+    "lng0": 4.373,
+    "lat1": 50.87252,
+    "lng1": 4.37312,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4445
+      },
+      {
+        "name": "Mechelen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.028,
+        "lng": 4.4713
+      },
+      {
+        "name": "Sint-Katelijne-Waver",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0623,
+        "lng": 4.5114
+      },
+      {
+        "name": "Duffel",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0947,
+        "lng": 4.5197
+      },
+      {
+        "name": "Kontich",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1261,
+        "lng": 4.4419
+      },
+      {
+        "name": "Hove",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1468,
+        "lng": 4.4788
+      },
+      {
+        "name": "Mortsel",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1753,
+        "lng": 4.4586
+      },
+      {
+        "name": "Antwerpen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1944,
+        "lng": 4.433
+      },
+      {
+        "name": "Aartselaar",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1302,
+        "lng": 4.3863
+      },
+      {
+        "name": "Hemiksem",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1458,
+        "lng": 4.3419
+      },
+      {
+        "name": "Schelle",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1237,
+        "lng": 4.338
+      },
+      {
+        "name": "Niel",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.1056,
+        "lng": 4.336
+      },
+      {
+        "name": "Boom",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0935,
+        "lng": 4.3731
+      },
+      {
+        "name": "Willebroek",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0627,
+        "lng": 4.3572
+      },
+      {
+        "name": "Kapelle-op-den-Bos",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0124,
+        "lng": 4.358
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-27T07:28:43+00:00",
+    "distanceM": 49503,
+    "elevationM": 662,
+    "name": "Schaarbeek Cycling",
+    "lat0": 50.87209,
+    "lng0": 4.37287,
+    "lat1": 50.84077,
+    "lng1": 4.38612,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      },
+      {
+        "name": "Uccle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8035,
+        "lng": 4.3338
+      },
+      {
+        "name": "Linkebeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7732,
+        "lng": 4.336
+      },
+      {
+        "name": "Alsemberg",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.742,
+        "lng": 4.3383
+      },
+      {
+        "name": "Sint-Genesius-Rode",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.745,
+        "lng": 4.3464
+      },
+      {
+        "name": "Braine-l'Alleud",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.6943,
+        "lng": 4.3548
+      },
+      {
+        "name": "Halle",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7364,
+        "lng": 4.2197
+      },
+      {
+        "name": "Beersel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7661,
+        "lng": 4.308
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-27T12:49:51+00:00",
+    "distanceM": 3001,
+    "elevationM": 7,
+    "name": "Schaarbeek Cycling",
+    "lat0": 50.85175,
+    "lng0": 4.38743,
+    "lat1": 50.86995,
+    "lng1": 4.37197,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      }
+    ]
+  },
+  {
+    "startAt": "2026-07-29T17:18:28+00:00",
+    "distanceM": 33131,
+    "elevationM": 329,
+    "name": "Brussels Cycling",
+    "lat0": 50.87194,
+    "lng0": 4.37267,
+    "lat1": 50.84025,
+    "lng1": 4.39497,
+    "cities": [
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Etterbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8361,
+        "lng": 4.3862
+      },
+      {
+        "name": "Woluwe-Saint-Pierre",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.837,
+        "lng": 4.4275
+      },
+      {
+        "name": "Auderghem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8172,
+        "lng": 4.4271
+      },
+      {
+        "name": "Watermael-Boitsfort",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.7981,
+        "lng": 4.4176
+      },
+      {
+        "name": "Ixelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8331,
+        "lng": 4.3668
+      }
+    ]
+  },
+  {
+    "startAt": "2026-08-12T15:51:22+00:00",
+    "distanceM": 14470,
+    "elevationM": 108,
+    "name": "Brussels Cycling",
+    "lat0": 50.87239,
+    "lng0": 4.37302,
+    "lat1": 50.89872,
+    "lng1": 4.52891,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Evere",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.872,
+        "lng": 4.4034
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Diegem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8946,
+        "lng": 4.4365
+      },
+      {
+        "name": "Zaventem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.885,
+        "lng": 4.4762
+      },
+      {
+        "name": "Steenokkerzeel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9107,
+        "lng": 4.5138
+      }
+    ]
+  },
+  {
+    "startAt": "2026-08-12T19:49:48+00:00",
+    "distanceM": 14760,
+    "elevationM": 82,
+    "name": "Zaventem Cycling",
+    "lat0": 50.88044,
+    "lng0": 4.51553,
+    "lat1": 50.8722,
+    "lng1": 4.37287,
+    "cities": [
+      {
+        "name": "Zaventem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8807,
+        "lng": 4.503
+      },
+      {
+        "name": "Kraainem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.861,
+        "lng": 4.4663
+      },
+      {
+        "name": "Woluwe-Saint-Lambert",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.843,
+        "lng": 4.4257
+      },
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      }
+    ]
+  },
+  {
+    "startAt": "2026-08-15T12:49:19+00:00",
+    "distanceM": 75194,
+    "elevationM": 413,
+    "name": "Schaarbeek Cycling",
+    "lat0": 50.87215,
+    "lng0": 4.37293,
+    "lat1": 50.87315,
+    "lng1": 4.35932,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Molenbeek-Saint-Jean",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8546,
+        "lng": 4.3386
+      },
+      {
+        "name": "Anderlecht",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8391,
+        "lng": 4.3297
+      },
+      {
+        "name": "Dilbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8442,
+        "lng": 4.2657
+      },
+      {
+        "name": "Sint-Martens-Lennik",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8122,
+        "lng": 4.1661
+      },
+      {
+        "name": "Sint-Kwintens-Lennik",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8058,
+        "lng": 4.1526
+      },
+      {
+        "name": "Strijtem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8406,
+        "lng": 4.1146
+      },
+      {
+        "name": "Pamel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8444,
+        "lng": 4.0743
+      },
+      {
+        "name": "Ninove",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8354,
+        "lng": 4.0242
+      },
+      {
+        "name": "Meerbeke",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.824,
+        "lng": 4.0392
+      },
+      {
+        "name": "Liedekerke",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8711,
+        "lng": 4.0861
+      },
+      {
+        "name": "Denderleeuw",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8834,
+        "lng": 4.0816
+      },
+      {
+        "name": "Ternat",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8727,
+        "lng": 4.1536
+      }
+    ]
+  },
+  {
+    "startAt": "2026-08-23T10:38:18+00:00",
+    "distanceM": 103413,
+    "elevationM": 385,
+    "name": "Schaarbeek Cycling",
+    "lat0": 50.86388,
+    "lng0": 4.37553,
+    "lat1": 50.87224,
+    "lng1": 4.37295,
+    "cities": [
+      {
+        "name": "Schaerbeek",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8676,
+        "lng": 4.3737
+      },
+      {
+        "name": "Bruxelles",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.8467,
+        "lng": 4.3525
+      },
+      {
+        "name": "Jette",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.876,
+        "lng": 4.3246
+      },
+      {
+        "name": "Wemmel",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9088,
+        "lng": 4.3035
+      },
+      {
+        "name": "Merchtem",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9142,
+        "lng": 4.2766
+      },
+      {
+        "name": "Opwijk",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9648,
+        "lng": 4.1838
+      },
+      {
+        "name": "Lebbeke",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9955,
+        "lng": 4.1377
+      },
+      {
+        "name": "Buggenhout",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0114,
+        "lng": 4.1928
+      },
+      {
+        "name": "Dendermonde",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0359,
+        "lng": 4.1635
+      },
+      {
+        "name": "Hamme",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.063,
+        "lng": 4.1532
+      },
+      {
+        "name": "Bornem",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0631,
+        "lng": 4.1911
+      },
+      {
+        "name": "Ruisbroek",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0881,
+        "lng": 4.3307
+      },
+      {
+        "name": "Boom",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0935,
+        "lng": 4.3731
+      },
+      {
+        "name": "Willebroek",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0627,
+        "lng": 4.3572
+      },
+      {
+        "name": "Kapelle-op-den-Bos",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.0124,
+        "lng": 4.358
+      },
+      {
+        "name": "Zemst",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9865,
+        "lng": 4.4441
+      },
+      {
+        "name": "Grimbergen",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9325,
+        "lng": 4.3718
+      },
+      {
+        "name": "Vilvoorde",
+        "country": "België / Belgique / Belgien",
+        "lat": 50.9281,
+        "lng": 4.4328
+      }
+    ]
+  },
+  {
+    "startAt": "2026-08-28T08:38:46+00:00",
+    "distanceM": 62805,
+    "elevationM": 142,
+    "name": "Essen Cycling",
+    "lat0": 51.46288,
+    "lng0": 4.45235,
+    "lat1": 51.90276,
+    "lng1": 4.46893,
+    "cities": [
+      {
+        "name": "Essen",
+        "country": "België / Belgique / Belgien",
+        "lat": 51.4491,
+        "lng": 4.4443
+      },
+      {
+        "name": "Nispen",
+        "country": "Nederland",
+        "lat": 51.4823,
+        "lng": 4.4616
+      },
+      {
+        "name": "Roosendaal",
+        "country": "Nederland",
+        "lat": 51.5331,
+        "lng": 4.4561
+      },
+      {
+        "name": "Oud Gastel",
+        "country": "Nederland",
+        "lat": 51.5876,
+        "lng": 4.46
+      },
+      {
+        "name": "Fijnaart",
+        "country": "Nederland",
+        "lat": 51.6353,
+        "lng": 4.4673
+      },
+      {
+        "name": "Heijningen",
+        "country": "Nederland",
+        "lat": 51.6566,
+        "lng": 4.41
+      },
+      {
+        "name": "Willemstad",
+        "country": "Nederland",
+        "lat": 51.6924,
+        "lng": 4.4384
+      },
+      {
+        "name": "Ooltgensplaat",
+        "country": "Nederland",
+        "lat": 51.6836,
+        "lng": 4.3491
+      },
+      {
+        "name": "Numansdorp",
+        "country": "Nederland",
+        "lat": 51.7266,
+        "lng": 4.4374
+      },
+      {
+        "name": "Klaaswaal",
+        "country": "Nederland",
+        "lat": 51.7684,
+        "lng": 4.4445
+      },
+      {
+        "name": "Mijnsheerenland",
+        "country": "Nederland",
+        "lat": 51.7987,
+        "lng": 4.4875
+      },
+      {
+        "name": "Heinenoord",
+        "country": "Nederland",
+        "lat": 51.8269,
+        "lng": 4.4801
+      },
+      {
+        "name": "Barendrecht",
+        "country": "Nederland",
+        "lat": 51.8567,
+        "lng": 4.5369
+      },
+      {
+        "name": "Rotterdam",
+        "country": "Nederland",
+        "lat": 51.9244,
+        "lng": 4.4778
+      }
+    ]
+  },
+  {
+    "startAt": "2026-08-29T09:08:03+00:00",
+    "distanceM": 57051,
+    "elevationM": 125,
+    "name": "Rotterdam Cycling",
+    "lat0": 51.94705,
+    "lng0": 4.48481,
+    "lat1": 52.36516,
+    "lng1": 4.95956,
+    "cities": [
+      {
+        "name": "Rotterdam",
+        "country": "Nederland",
+        "lat": 51.9244,
+        "lng": 4.4778
+      },
+      {
+        "name": "Bergschenhoek",
+        "country": "Nederland",
+        "lat": 51.9893,
+        "lng": 4.5017
+      },
+      {
+        "name": "Bleiswijk",
+        "country": "Nederland",
+        "lat": 52.011,
+        "lng": 4.5311
+      },
+      {
+        "name": "Benthuizen",
+        "country": "Nederland",
+        "lat": 52.0776,
+        "lng": 4.5413
+      },
+      {
+        "name": "Hazerswoude-Dorp",
+        "country": "Nederland",
+        "lat": 52.0963,
+        "lng": 4.5915
+      },
+      {
+        "name": "Alphen aan den Rijn",
+        "country": "Nederland",
+        "lat": 52.1343,
+        "lng": 4.6561
+      },
+      {
+        "name": "Ter Aar",
+        "country": "Nederland",
+        "lat": 52.1656,
+        "lng": 4.7094
+      },
+      {
+        "name": "Nieuwveen",
+        "country": "Nederland",
+        "lat": 52.1966,
+        "lng": 4.7562
+      },
+      {
+        "name": "Vrouwenakker",
+        "country": "Nederland",
+        "lat": 52.2274,
+        "lng": 4.7851
+      },
+      {
+        "name": "Amstelveen",
+        "country": "Nederland",
+        "lat": 52.3028,
+        "lng": 4.8597
+      },
+      {
+        "name": "Amsterdam",
+        "country": "Nederland",
+        "lat": 52.3731,
+        "lng": 4.8925
+      }
+    ]
+  },
+  {
+    "startAt": "2026-08-31T08:33:41+00:00",
+    "distanceM": 5351,
+    "elevationM": 18,
+    "name": "Amsterdam Cycling",
+    "lat0": 52.36195,
+    "lng0": 4.94139,
+    "lat1": 52.35692,
+    "lng1": 4.87928,
+    "cities": [
+      {
+        "name": "Amsterdam",
+        "country": "Nederland",
+        "lat": 52.3731,
+        "lng": 4.8925
+      }
+    ]
+  }
+]

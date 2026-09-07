@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,9 @@ import {
 } from '../../lib/sync-breadcrumbs';
 import { type SleepDiagSummary, type SleepVerdict } from '../../lib/sleep-diagnostics';
 import { diagnosticarSonoNoAparelho } from '../../services/sleep-diagnostics';
+import { type BackfillProgress, backfillCorridor } from '../../services/activity-photos';
+import { useActivitiesStore } from '../../store/activities.store';
+import { useAuthStore } from '../../store/auth.store';
 
 /** Rótulo e cor por veredito. Perda nossa é laranja; ausência real é neutra. */
 const VEREDITO: Record<SleepVerdict, { texto: string; cor: string }> = {
@@ -46,6 +49,83 @@ export default function DadosScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [migalhas, setMigalhas] = useState<Breadcrumb[]>([]);
+
+  // ── o lote de fotos (ADR 0037) ────────────────────────────────────
+  const userId = useAuthStore((s) => s.user?.id);
+  const todas = useActivitiesStore((s) => s._all);
+  const carregarAtividades = useActivitiesStore((s) => s.load);
+  useEffect(() => {
+    carregarAtividades();
+  }, [carregarAtividades]);
+
+  /**
+   * As pendentes, **da mais nova para a mais velha**.
+   *
+   * A ordem é a decisão: se ele parar na metade, ficou com a metade que vai
+   * abrir. As de 2023 são as que menos importam.
+   */
+  const pendentes = useMemo(
+    () =>
+      todas
+        .filter((a) => !a.photosCheckedAt && a.hasRoute && !a.hidden)
+        .sort((x, y) => Date.parse(y.startAt) - Date.parse(x.startAt))
+        .map((a) => ({
+          id: a.id,
+          startAtMs: Date.parse(a.startAt),
+          endAtMs: Date.parse(a.endAt ?? a.startAt),
+          distanceM: a.distanceM,
+        })),
+    [todas],
+  );
+
+  /**
+   * As sem traçado aparecem como **puladas**, não somem.
+   *
+   * São 280 hoje, e 185 delas são Yoga. Se o botão disser "222" quando há 502
+   * pendentes, o número parece errado — e a explicação (sem rota não há
+   * corredor) é justamente o que dá sentido ao resto da tela.
+   */
+  const semRota = useMemo(
+    () => todas.filter((a) => !a.photosCheckedAt && !a.hasRoute && !a.hidden).length,
+    [todas],
+  );
+
+  const [lote, setLote] = useState<{
+    rodando: boolean;
+    p: BackfillProgress;
+    fim: BackfillProgress | null;
+  }>({
+    rodando: false,
+    p: { done: 0, total: 0, linked: 0, withRest: 0, rest: 0, skipped: 0 },
+    fim: null,
+  });
+  /** Ref, não estado: o laço lê isto a cada volta e não pode esperar render. */
+  const pararRef = useRef(false);
+
+  const rodarLote = useCallback(async () => {
+    if (!userId || pendentes.length === 0) return;
+    pararRef.current = false;
+    setLote({
+      rodando: true,
+      p: { done: 0, total: pendentes.length, linked: 0, withRest: 0, rest: 0, skipped: 0 },
+      fim: null,
+    });
+    try {
+      const fim = await backfillCorridor(
+        pendentes,
+        userId,
+        (p) => setLote((s) => ({ ...s, p })),
+        () => pararRef.current,
+      );
+      setLote({ rodando: false, p: fim, fim });
+      // A lista de atividades carrega `photos_checked_at`: sem recarregar, o
+      // botão continuaria oferecendo as pedaladas que ele acabou de varrer.
+      await carregarAtividades();
+    } catch (e) {
+      setLote((s) => ({ ...s, rodando: false }));
+      Alert.alert('Não consegui procurar', e instanceof Error ? e.message : String(e));
+    }
+  }, [userId, pendentes, carregarAtividades]);
   const [sono, setSono] = useState<(SleepDiagSummary & { amostrasLidas: number }) | null>(null);
   const [rodando, setRodando] = useState(false);
 
@@ -99,6 +179,69 @@ export default function DadosScreen() {
             </View>
             <Ionicons name="chevron-forward" size={15} color={colors.ink3} />
           </Pressable>
+        </View>
+
+        <Text style={[styles.sectionTitle, styles.blocoTitulo]}>Fotos nas pedaladas</Text>
+        <View style={styles.card}>
+          <Pressable
+            onPress={rodarLote}
+            disabled={lote.rodando || pendentes.length === 0}
+            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          >
+            <Ionicons name="images-outline" size={20} color={colors.ink2} />
+            <View style={styles.rowContent}>
+              <Text style={styles.rowLabel}>
+                {lote.rodando ? 'Procurando…' : 'Procurar em todas as pedaladas'}
+              </Text>
+              <Text style={styles.rowSub}>
+                {lote.rodando
+                  ? `${lote.p.done} de ${lote.p.total} · ${lote.p.linked} ${lote.p.linked === 1 ? 'foto ligada' : 'fotos ligadas'}`
+                  : pendentes.length === 0
+                    ? 'Nada pendente — todas já foram procuradas'
+                    : `${pendentes.length} com traçado${semRota > 0 ? ` · ${semRota} sem rota ficam de fora` : ''}`}
+              </Text>
+            </View>
+            {lote.rodando ? (
+              <Pressable onPress={() => (pararRef.current = true)} hitSlop={12}>
+                <Text style={styles.parar}>Parar</Text>
+              </Pressable>
+            ) : (
+              <Ionicons name="chevron-forward" size={15} color={colors.ink3} />
+            )}
+          </Pressable>
+
+          {lote.rodando && (
+            <View style={styles.barraTrilho}>
+              <View
+                style={[
+                  styles.barraCheia,
+                  { width: `${lote.p.total === 0 ? 0 : (lote.p.done / lote.p.total) * 100}%` },
+                ]}
+              />
+            </View>
+          )}
+
+          {!lote.rodando && lote.fim && (
+            <View style={styles.relatorio}>
+              <Text style={styles.relatorioTexto}>
+                {lote.fim.linked === 0
+                  ? 'Nenhuma foto nova no corredor das rotas.'
+                  : `${lote.fim.linked} ${lote.fim.linked === 1 ? 'foto ligada' : 'fotos ligadas'} em ${lote.fim.done - lote.fim.skipped} ${lote.fim.done - lote.fim.skipped === 1 ? 'pedalada' : 'pedaladas'}.`}
+              </Text>
+              {lote.fim.rest > 0 && (
+                <Text style={styles.relatorioSub}>
+                  Outras {lote.fim.rest} ficaram fora do corredor, em {lote.fim.withRest}{' '}
+                  {lote.fim.withRest === 1 ? 'pedalada' : 'pedaladas'} — elas aparecem ao abrir
+                  cada uma e tocar &ldquo;Procurar fotos de novo&rdquo;.
+                </Text>
+              )}
+            </View>
+          )}
+
+          <Text style={styles.aviso}>
+            Deixe o app aberto: o iOS suspende o que roda em segundo plano. Pode parar quando
+            quiser — o que já foi procurado não se perde, e continuar recomeça de onde parou.
+          </Text>
         </View>
 
         <View style={styles.diagHeader}>
@@ -241,6 +384,33 @@ const createStyles = () => StyleSheet.create({
   rowContent: { flex: 1, gap: 2 },
   rowLabel: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
   rowSub: { fontSize: 13, fontFamily: fonts.sans, color: colors.ink3 },
+
+  blocoTitulo: { marginTop: spacing.xl },
+  /**
+   * Tinta, não marca. O acento garante 3,0 — o piso do traço, não o da letra —
+   * e a barreira mantém um teto de quantas vezes ele vira texto. Aqui não vale
+   * gastar: o peso já diz que é ação, e a ênfase da linha é o progresso.
+   * Mesma decisão do cabeçalho da galeria.
+   */
+  parar: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink },
+  barraTrilho: { height: 3, backgroundColor: colors.surfaceMute, marginHorizontal: spacing.lg },
+  barraCheia: { height: 3, backgroundColor: colors.primary, borderRadius: 2 },
+  relatorio: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    gap: 4,
+  },
+  relatorioTexto: { fontSize: 13.5, fontFamily: fonts.sansMedium, color: colors.ink },
+  relatorioSub: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 17 },
+  aviso: {
+    fontSize: 11.5,
+    fontFamily: fonts.sans,
+    color: colors.ink4,
+    lineHeight: 16,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
 
   diagHeader: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xl },
   diagActions: { flexDirection: 'row', gap: spacing.md, marginLeft: 'auto', marginBottom: spacing.sm },

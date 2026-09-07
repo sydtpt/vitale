@@ -19,7 +19,7 @@ import type {
   TodoCancelPolicy,
   ShopCat,
 } from '@vitale/shared';
-import { SHOP_CATS } from '@vitale/shared';
+import { CURRENCY, SHOP_CATS } from '@vitale/shared';
 import { useTodosStore } from '../../store/todos.store';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
 import { HeaderSpacer } from '../../components/ui/HeaderSpacer';
@@ -231,7 +231,7 @@ export default function ComprasEditorScreen() {
             ))}
           </View>
 
-          <Text style={styles.label}>Preço estimado (R$)</Text>
+          <Text style={styles.label}>Preço estimado ({CURRENCY})</Text>
           <TextInput
             value={price}
             onChangeText={setPrice}

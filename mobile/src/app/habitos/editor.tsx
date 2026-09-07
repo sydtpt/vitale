@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { HabitDirection } from '@vitale/shared';
-import { HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
+import { HABIT_ICONS, DEFAULT_HABIT_ICON, CURRENCY } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { colors, fonts, moduleColors, radii, shadows, spacing, themed, useTheme } from '../../theme';
@@ -65,6 +65,7 @@ export default function HabitEditorScreen() {
   const [target, setTarget] = useState('');
   const [unit, setUnit] = useState('un');
   const [step, setStep] = useState('1');
+  const [price, setPrice] = useState('');
   const [icon, setIcon] = useState<string>(DEFAULT_HABIT_ICON);
   const [color, setColor] = useState<string>('habito');
   const [hydrated, setHydrated] = useState(false);
@@ -84,6 +85,7 @@ export default function HabitEditorScreen() {
       setTarget(existing.target == null ? '' : String(existing.target).replace('.', ','));
       setUnit(existing.unit);
       setStep(String(existing.step).replace('.', ','));
+      setPrice(existing.unitPrice == null ? '' : String(existing.unitPrice).replace('.', ','));
       setIcon(existing.icon || DEFAULT_HABIT_ICON);
       setColor(existing.color || 'habito');
       setHydrated(true);
@@ -92,6 +94,7 @@ export default function HabitEditorScreen() {
 
   const stepN = parseNum(step);
   const targetN = parseNum(target);
+  const priceN = parseNum(price);
   const valid = name.trim() !== '' && unit.trim() !== '' && stepN !== null && stepN > 0;
 
   const onSave = async () => {
@@ -108,9 +111,19 @@ export default function HabitEditorScreen() {
     setSaving(true);
     try {
       if (id) {
-        await updateHabit(id, { ...base, target: targetN, show_on_home: showOnHome });
+        await updateHabit(id, {
+          ...base,
+          target: targetN,
+          show_on_home: showOnHome,
+          unit_price: priceN,
+        });
       } else {
-        await createHabit({ ...base, target: targetN ?? undefined, showOnHome });
+        await createHabit({
+          ...base,
+          target: targetN ?? undefined,
+          showOnHome,
+          unitPrice: priceN,
+        });
       }
       router.back();
     } catch (e) {
@@ -247,6 +260,25 @@ export default function HabitEditorScreen() {
           />
           {stepN !== null && stepN <= 0 && <Text style={styles.error}>O incremento deve ser maior que 0.</Text>}
 
+          {/* Preço médio — o gasto do período sai daqui, multiplicado pelo total */}
+          <Text style={styles.label}>Preço médio (opcional)</Text>
+          <View style={styles.priceRow}>
+            <TextInput
+              value={price}
+              onChangeText={setPrice}
+              placeholder="Ex.: 11"
+              placeholderTextColor={colors.ink4}
+              keyboardType="decimal-pad"
+              style={[styles.input, styles.flex, priceN !== null && priceN < 0 && styles.inputError]}
+            />
+            <View style={styles.priceUnit}>
+              <Text style={styles.priceUnitText}>{`${CURRENCY} / ${unit.trim() || 'un'}`}</Text>
+            </View>
+          </View>
+          <Text style={styles.hint}>
+            Vira gasto estimado nos períodos e no detalhe. Vazio = sem estimativa.
+          </Text>
+
           {/* Ícone */}
           <Text style={styles.label}>Ícone</Text>
           <View style={styles.chips}>
@@ -334,6 +366,14 @@ const styles = themed(() => StyleSheet.create({
 
   row: { flexDirection: 'row', gap: spacing.md },
   unitCol: { width: 110 },
+  priceRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'stretch' },
+  priceUnit: {
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceMute,
+  },
+  priceUnitText: { fontSize: 14, fontFamily: fonts.mono, color: colors.ink2 },
 
   checkRow: {
     flexDirection: 'row',

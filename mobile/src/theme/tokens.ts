@@ -201,6 +201,15 @@ export function themed<T extends object>(factory: () => T): T {
 
 /* ─────────────────── Escalas (não dependem de tema) ─────────────────── */
 
+/**
+ * Conteúdo desenhado **sobre mídia** — o ícone dentro do véu escuro que fica em
+ * cima de uma foto. É o caso que a barreira de hex literais isenta
+ * explicitamente ("overlay sobre foto"): a foto não tem tema, então a cor aqui
+ * não pode responder ao esquema. Declarado uma vez, no tema, para não virar
+ * `#FFFFFF` espalhado pelas telas.
+ */
+export const onMedia = '#FFFFFF';
+
 export const spacing = {
   xs: 4,
   sm: 8,

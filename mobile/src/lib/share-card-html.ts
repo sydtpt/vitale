@@ -11,7 +11,31 @@ import { speedFractions, elevationProfile } from './share-art-data';
 export type ShareFormat = 'story' | 'square' | 'portrait'; // 9:16 · 1:1 · 4:5
 /** Ambos os fundos sem mapa exportam PNG com alpha (sticker): 'art' desenha a
  *  rota/perfil sobre transparência, 'data' só título/métricas/marca. */
-export type ShareBackground = 'art' | 'map' | 'data';
+export type ShareBackground = 'art' | 'map' | 'data' | 'photo';
+
+/**
+ * O enquadramento da foto no cartão.
+ *
+ * A foto **sempre preenche** — as proporções em bloco (1:1, 4:5, 9:16, 16:9)
+ * foram construídas em 07/09/2026 e removidas no mesmo dia, a pedido do dono:
+ * nenhuma delas servia. O motivo é geométrico e vale ficar escrito, para não
+ * voltarem: um bloco 9:16 dentro de um cartão 9:16 só seria "tela cheia" sem
+ * margem nenhuma — e aí ele é o Preencher. Os demais só encolhiam a foto para
+ * mostrar papel, que ninguém pediu.
+ *
+ * O que sobrou é o que importava: **qual parte da foto aparece**. Pinça
+ * aproxima, dedo move.
+ */
+export interface PhotoFrame {
+  /** 1 = a foto cobre o cartão; acima disso, aproxima. */
+  scale: number;
+  /** Deslocamento em fração da largura/altura do cartão. */
+  dx: number;
+  dy: number;
+}
+
+export const PHOTO_FRAME_DEFAULT: PhotoFrame = { scale: 1, dx: 0, dy: 0 };
+
 /** Desenho da região central no fundo "arte" — todos data-driven. 'speed' e
  *  'elevation' dependem de timestamp/altitude no track (caem no traçado padrão
  *  quando faltam); 'route' é só o traçado. */
@@ -84,6 +108,18 @@ export interface ShareCardOptions {
   textColor?: string;
   /** Desenho da região central no fundo "arte". Default: 'speed'. */
   artStyle?: ShareArtStyle;
+  /**
+   * Desenha a arte da rota sobre o fundo. Default: `true`, que é como sempre
+   * foi. Sobre uma foto boa o traçado costuma ser ruído — e quem julga isso é
+   * quem olha a foto, não o app.
+   */
+  showRoute?: boolean;
+  /**
+   * A parada da foto escolhida — "Ittre · km 31,1 · 12:38". Ausente ⇒ a linha
+   * não existe. Já vem montada: quem sabe qual foto está escolhida é o
+   * compositor, não o cartão.
+   */
+  place?: string;
   /** Efeito sobre os tiles quando `background === 'map'`. Default: 'none'. */
   mapEffect?: ShareMapEffect;
   /** Obrigatório quando `background === 'map'`. */
@@ -459,6 +495,8 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     accent = MOD.treino.accent,
     textColor,
     artStyle = 'speed',
+    showRoute = true,
+    place,
     mapEffect = 'none',
     mapTile,
     mapInteractive = false,
@@ -468,6 +506,16 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
 
   const isData = background === 'data';
   const isMap = background === 'map' && !!mapTile;
+  /**
+   * Fundo "foto" (ADR 0037): a imagem **não** é desenhada aqui.
+   *
+   * O WKWebView do iOS não carrega `ph://`, e embutir a foto como data URI
+   * custaria megabytes de base64 por cartão. Em vez disso o composer põe um
+   * `<Image>` nativo ATRÁS do WebView, dentro da mesma View que o `captureRef`
+   * fotografa — o snapshot compõe os dois. Aqui só sai o véu e o texto, sobre
+   * transparência.
+   */
+  const isPhoto = background === 'photo';
 
   // Cor de texto automática: branco + sombra em todos os fundos — sobre mapa
   // porque os tiles são imprevisíveis, sobre arte/dados porque o cartão sai
@@ -504,9 +552,36 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     routeLayer = artRouteLayer(artStyle, points, accent, fg, cities);
   }
 
-  const scrim = isMap
-    ? '<div class="scrim"></div>'
-    : '';
+  /**
+   * Foto em **bloco** (`fit` diferente de `fill`).
+   *
+   * Aqui o cartão pinta papel escuro próprio e reserva o retângulo do bloco;
+   * a imagem em si é uma `<Image>` nativa desenhada POR CIMA do WebView, no
+   * mesmo retângulo — ver `ShareComposerModal`. O WebView não carrega o
+   * caminho do contêiner do Fotos, então a foto nunca pode vir daqui.
+   *
+   * O véu (`scrim`) **não** entra no modo bloco: ele existe para salvar o texto
+   * branco sobre uma foto clara, e no bloco o texto está sobre papel escuro.
+   * Mantê-lo só escureceria o papel à toa.
+   */
+  /**
+   * **O cartão não sabe do enquadramento, e é de propósito.**
+   *
+   * A primeira versão pintava papel aqui e reservava o retângulo do bloco, o
+   * que empurrava a foto para CIMA do WebView — e aí ela cobria o texto.
+   * Conferido no iPhone em 07/09/2026, com a marca d'água sumindo atrás da
+   * imagem.
+   *
+   * A foto pertence ao fundo, sempre. Então o papel e o retângulo viraram views
+   * nativas ATRÁS do WebView, e aqui o cartão continua sendo o que sempre foi:
+   * texto sobre transparência, com o véu para salvar o branco. Menos código, e
+   * uma regra a menos para lembrar.
+   */
+  if (!showRoute) routeLayer = '';
+
+  // O véu vale para mapa e foto pela mesma razão: o que está atrás é
+  // imprevisível, e sem ele o texto branco some numa foto clara.
+  const scrim = isMap || isPhoto ? '<div class="scrim"></div>' : '';
 
   const tiles = metrics
     .map((m) => {
@@ -538,15 +613,30 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
   const titleIcon = iconPath
     ? `<svg class="titleIcon" viewBox="0 0 24 24"><path d="${iconPath}" fill="currentColor"/></svg>`
     : '';
-  const titleBlock = showTitle
-    ? `<div class="titleRow">${titleIcon}<div class="title">${escapeHtml(title)}</div></div>
-      <div class="rule"></div>`
+  /**
+   * A linha da parada (ADR 0037).
+   *
+   * O app sabe de cada foto a cidade, o quilômetro e a hora — e o compositor
+   * era o único lugar que descartava os três, justamente o que sai para fora.
+   * Sem ela a foto é papel de parede: podia ser de qualquer dia. Com ela vira
+   * prova — *foi ali, naquele minuto, depois de 31 km*.
+   *
+   * Vai **acima** do título e menor: quem lê chega pelo nome da pedalada, e a
+   * parada é o detalhe que prende depois. Some sozinha quando a foto não tem
+   * lugar, que é o caso de toda foto sem coordenada.
+   */
+  const placeLine = place
+    ? `<div class="place"><span class="placeDot"></span>${escapeHtml(place)}</div>`
     : '';
+  const titleBlock = showTitle
+    ? `<div>${placeLine}<div class="titleRow">${titleIcon}<div class="title">${escapeHtml(title)}</div></div></div>
+      <div class="rule"></div>`
+    : placeLine;
 
   // Fundo do documento: preto só sob o mapa (evita flash branco enquanto os
   // tiles carregam); transparente nos demais, para o PNG sair com alpha. O
   // xadrez de preview usa tons escuros — o texto branco continua legível.
-  const bodyBg = isMap
+  const bodyBg = isMap && !isPhoto
     ? '#000'
     : previewChecker
       ? 'conic-gradient(#4A4A4A 25%, #3A3A3A 0 50%, #4A4A4A 0 75%, #3A3A3A 0) 0 0 / 12vw 12vw'
@@ -584,6 +674,11 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     .legendBar { width: 24vw; height: 1.2vw; border-radius: 1vw;
       background: linear-gradient(to right, ${HEAT_SLOW}, ${HEAT_MID}, ${accent}); }
     .titleRow { display: flex; align-items: center; gap: 2.6vw; }
+    /* Mesma régua da legenda das métricas: é informação de contexto, não título. */
+    .place { display: flex; align-items: center; gap: 2vw; font-size: 3vw;
+      letter-spacing: 0.1em; text-transform: uppercase; color: ${fgMuted};
+      margin-bottom: 1.6vw; }
+    .placeDot { width: 1.8vw; height: 1.8vw; border-radius: 50%; background: ${accent}; flex: none; }
     /* Ícone do tamanho da fonte do título; text-shadow não pega em SVG, daí o
        drop-shadow equivalente. */
     .titleIcon { width: 8.6vw; height: 8.6vw; flex: none;

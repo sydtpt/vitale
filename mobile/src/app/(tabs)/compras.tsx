@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TodoTemplate, TodoOccurrence, ShopMeta, ShopCat } from '@vitale/shared';
-import { describeRecurrence, isOverdue, todoDayStr, SHOP_CATS } from '@vitale/shared';
+import { describeRecurrence, fmtMoney, isOverdue, todoDayStr, SHOP_CATS } from '@vitale/shared';
 import * as Haptics from 'expo-haptics';
 import { useTodosStore } from '../../store/todos.store';
 import { useAuthStore } from '../../store/auth.store';
@@ -59,7 +59,7 @@ function ItemRow({ template, occurrence, onDone, onMore, done = false }: ItemRow
         </Text>
         <Text style={styles.itemSub}>
           {meta.qty ? meta.qty : describeRecurrence(template.recurrence)}
-          {meta.price != null ? ` · R$ ${meta.price.toFixed(2).replace('.', ',')}` : ''}
+          {meta.price != null ? ` · ${fmtMoney(meta.price, 2)}` : ''}
         </Text>
       </View>
 
@@ -159,7 +159,7 @@ export default function ComprasTabScreen() {
         <View style={styles.estimateBanner}>
           <Ionicons name="pricetag-outline" size={14} color={moduleColors('compras').accent} />
           <Text style={styles.estimateText}>
-            Estimativa: <Text style={styles.estimateValue}>R$ {totalEstimate.toFixed(2).replace('.', ',')}</Text>
+            Estimativa: <Text style={styles.estimateValue}>{fmtMoney(totalEstimate, 2)}</Text>
           </Text>
         </View>
       )}

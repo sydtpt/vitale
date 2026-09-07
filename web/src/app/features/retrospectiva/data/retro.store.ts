@@ -62,7 +62,7 @@ export class RetroStore {
 
   private readonly _health = signal<Array<{ day: string; metric: string; value: number | null }>>([]);
   private readonly _ratings = signal<Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>>([]);
-  private readonly _habits = signal<Array<{ id: string; name: string; bad: boolean; unit: string; createdOn?: string }>>([]);
+  private readonly _habits = signal<Array<{ id: string; name: string; bad: boolean; unit: string; createdOn?: string; unitPrice?: number }>>([]);
   private readonly _habitLogs = signal<HabitLog[]>([]);
   private readonly _registros = signal<Array<{ id: string; name: string; createdOn?: string }>>([]);
   private readonly _registroLogs = signal<RegistroLog[]>([]);
@@ -199,7 +199,7 @@ export class RetroStore {
       stepsByDay: byMetric.get('passos'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
-      habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, createdOn: h.createdOn, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
+      habits: this._habits().map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, unitPrice: h.unitPrice, createdOn: h.createdOn, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
       registros: this._registros().map((r) => ({ id: r.id, name: r.name, createdOn: r.createdOn, days: daysByRegistro.get(r.id) ?? [] })),
       tasks: this._tasks(),
       dailyTasks: this._dailyTasks(),

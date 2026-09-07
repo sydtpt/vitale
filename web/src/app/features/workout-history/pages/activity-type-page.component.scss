@@ -159,3 +159,30 @@ rt-activity-filters { display: block; margin-bottom: 16px; }
 .pager button:not(:disabled):hover { border-color: var(--ink-3); }
 .pager button:disabled { opacity: 0.4; cursor: default; }
 .pinfo { font-size: 13px; color: var(--ink-3); }
+
+/* O campo de busca da barra. Permanente: no navegador não há teclado para
+   cobri-lo nem disputa por altura vertical. */
+.busca {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+
+  input {
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    padding: 7px 0;
+    width: 190px;
+
+    &::placeholder { color: var(--ink-4); }
+  }
+
+  &:focus-within { border-color: var(--role-blue-graphic); }
+}

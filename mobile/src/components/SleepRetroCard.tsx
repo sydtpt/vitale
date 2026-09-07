@@ -11,17 +11,25 @@ import {
   type SleepBand,
   type SleepBucket,
   type SleepRetro,
+  type SleepTriggerBoard,
   type SleepWeekRegularity,
 } from '@vitale/shared';
 import { colors, fonts, radii, shadows, sleepColors, spacing, useThemedStyles } from '../theme';
 import { CompositionBar } from './sono/BeforeAfter';
 import { SleepScoreDims } from './sono/SleepScoreDims';
+import { TypicalAwake } from './sono/TypicalAwake';
+import { SleepTriggers } from './sono/SleepTriggers';
 
 interface Props {
   retro: SleepRetro;
   kind: PeriodKind;
   /** 'Total' não tem período anterior — as variações somem. */
   noPrior: boolean;
+  /**
+   * O que precedeu a noite. Roda em todo o histórico, não no período — por isso
+   * chega por fora de `retro`, que é do período. `null` esconde o bloco.
+   */
+  triggers?: SleepTriggerBoard | null;
 }
 
 const NOUN: Record<PeriodKind, string> = {
@@ -54,12 +62,13 @@ function weekRange(key: string): string {
  * Tudo vem pronto de `sleepRetro` (shared): a tela só escreve. As cores são as
  * de `sleepColors()` — azul dorme, rosa sonha, amarelo acorda.
  */
-export function SleepRetroCard({ retro, kind, noPrior }: Props) {
+export function SleepRetroCard({ retro, kind, noPrior, triggers }: Props) {
   const styles = useThemedStyles(createStyles);
   const sc = sleepColors();
   const {
     cur, prev, delta, ratings, weekend, weeks, sourceChange,
-    score, medianH, meanMedianSplit, bands, awakeHours, awakeSpread, regularityWeeks, extremes,
+    score, medianH, meanMedianSplit, bands, awakeHours, awakeSpread, typical,
+    regularityWeeks, extremes,
   } = retro;
   const d = noPrior ? null : delta;
   const noun = NOUN[kind];
@@ -149,9 +158,23 @@ export function SleepRetroCard({ retro, kind, noPrior }: Props) {
           </Text>
           {awakeSpread && awakeSpread.total > 0 && (
             <View style={styles.row}>
-              <Text style={styles.rowL}>Acima de {AWAKE_COUNTED_MIN} min</Text>
+              <Text style={styles.rowL}>De {AWAKE_COUNTED_MIN} min para cima</Text>
               <Text style={styles.rowR}>{awakeSpread.counted}<Text style={styles.rowDelta}>  de {awakeSpread.total}</Text></Text>
             </View>
+          )}
+          {typical && typical.medianMin !== null && (
+            <>
+              <TypicalAwake
+                typical={typical}
+                palette={sc}
+                longestDay={typical.longest ? dm(typical.longest.day) : undefined}
+              />
+              {/* A única leitura de vigília que atravessa a troca de relógio: a
+                  contagem por noite cai 4× entre Apple e Garmin, a duração não. */}
+              <Text style={styles.labTight}>
+                a duração de um despertar não muda de aparelho — a contagem, sim
+              </Text>
+            </>
           )}
           {peakHour !== null && awakeHours.length >= 3 && (
             <>
@@ -267,6 +290,14 @@ export function SleepRetroCard({ retro, kind, noPrior }: Props) {
         </View>
       )}
 
+      {triggers && (
+        <View style={styles.standing}>
+          <Text style={styles.standingTag}>todo o histórico · não é deste {noun}</Text>
+          <Text style={styles.sub}>O que precedeu a noite</Text>
+          <SleepTriggers board={triggers} palette={sc} />
+        </View>
+      )}
+
       <Text style={styles.note}>
         {prev ? `${noun.charAt(0).toUpperCase()}${noun.slice(1)} anterior: ${prev.nights} ${prev.nights === 1 ? 'noite' : 'noites'}. ` : noPrior ? '' : `Sem noites no ${noun} anterior. `}
         {st ? 'Fases são estimativa do relógio, comparáveis com você mesmo. ' : ''}
@@ -371,6 +402,12 @@ const createStyles = () =>
     lab: { fontSize: 12.5, color: colors.ink3, fontFamily: fonts.sans, lineHeight: 17 },
     labTight: { fontSize: 12, color: colors.ink3, fontFamily: fonts.sans, marginTop: -4 },
     sub: { fontSize: 12.5, fontFamily: fonts.sansBold, color: colors.ink2, marginTop: spacing.md, marginBottom: 2 },
+    // Os gatilhos falam de outra janela. O vão e a tarja avisam antes do número.
+    standing: { marginTop: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
+    standingTag: {
+      fontSize: 9.5, letterSpacing: 0.8, textTransform: 'uppercase',
+      color: colors.ink4, fontFamily: fonts.sansSemiBold,
+    },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, paddingVertical: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
     rowLWrap: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     dot: { width: 9, height: 9, borderRadius: 2 },

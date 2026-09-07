@@ -1,6 +1,6 @@
 <div class="page">
   <rt-page-header eyebrow="Compras" title="Lista de mercado"
-    [subtitle]="totalEstimate() > 0 ? 'Estimativa: R$ ' + totalEstimate().toFixed(2).replace('.', ',') : ''" />
+    [subtitle]="totalEstimate() > 0 ? 'Estimativa: ' + money(totalEstimate()) : ''" />
 
   <div class="toolbar">
     <button class="add-btn" (click)="openNew()">+ Novo item</button>

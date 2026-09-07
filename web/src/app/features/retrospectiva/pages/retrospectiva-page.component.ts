@@ -9,6 +9,8 @@ import {
   type YearSerieKey,
   latestAvailableOffset,
   habitCalories,
+  habitCost,
+  fmtMoneyAuto,
   type PeriodKind,
   type RecapValue,
   type HighlightIcon,
@@ -22,6 +24,10 @@ import {
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { IconComponent } from '@core/services/icon.component';
 import { formatClock } from '@features/workout-history/data/format';
+import { fetchPhotosForActivities, periodBounds, photoRetro, photoRetroLabel, type ActivityPhoto } from '@vitale/shared';
+import { supabase } from '@core/supabase/supabase.client';
+import { AuthService } from '@core/auth/auth.service';
+import { ActivitiesStore } from '@features/workout-history/data/activities.store';
 import { RetroStore } from '../data/retro.store';
 import { HeatmapGridComponent } from '../components/heatmap-grid.component';
 import { TaskGridStripComponent } from '../components/task-grid-strip.component';
@@ -63,6 +69,8 @@ export class RetrospectivaPageComponent {
   protected readonly kindLabel = KIND_LABEL;
 
   private readonly store = inject(RetroStore);
+  private readonly auth = inject(AuthService);
+  private readonly activitiesStore = inject(ActivitiesStore);
   private readonly now = new Date();
 
   protected readonly kind = signal<PeriodKind>('week');
@@ -80,6 +88,30 @@ export class RetrospectivaPageComponent {
       const since = localDateStr(retroSince(this.now, k, o));
       void this.store.ensure(since);
     });
+
+    // As fotos do período, por atividade — a tabela é indexada por `activity_id`.
+    effect(() => {
+      const userId = this.auth.user()?.id;
+      const acts = this.activitiesStore.activities();
+      if (!userId || acts.length === 0) {
+        this.photoRows.set([]);
+        return;
+      }
+      const b = periodBounds(this.now, this.kind(), this.offset());
+      const ids = acts
+        .filter((a) => {
+          const t = Date.parse(a.startAt);
+          return t >= b.start.getTime() && t <= b.end.getTime();
+        })
+        .map((a) => a.id);
+      if (ids.length === 0) {
+        this.photoRows.set([]);
+        return;
+      }
+      void fetchPhotosForActivities(supabase, userId, ids)
+        .then((rows) => this.photoRows.set(rows))
+        .catch(() => this.photoRows.set([]));
+    });
   }
 
   protected setKind(k: PeriodKind): void {
@@ -93,6 +125,22 @@ export class RetrospectivaPageComponent {
   protected next(): void { if (this.canNext()) this.offset.update((o) => o + 1); }
 
   protected readonly summary = computed(() => this.store.summary(this.now, this.kind(), this.offset()));
+
+  /**
+   * As fotos do período (ADR 0037).
+   *
+   * A web **não mostra imagem** — o `localIdentifier` só resolve no iPhone. O
+   * que ela mostra é o fato: quantas fotos, em quantas atividades. É a
+   * degradação honesta que fez a versão 2 do bloco ser a escolhida: a mesma
+   * seção existe nos dois apps, e no navegador ela vira uma linha de texto em
+   * vez de uma moldura vazia.
+   */
+  private readonly photoRows = signal<ActivityPhoto[]>([]);
+  protected readonly photoBlock = computed(() => photoRetro(this.photoRows()));
+  protected readonly photoLabel = computed(() => {
+    const b = this.photoBlock();
+    return b ? photoRetroLabel(b) : '';
+  });
   // A manchete sai da lista **completa**; a exibida é a fatiada (spec v2 §3).
   private readonly allHighlights = computed(() => this.store.highlights(this.now, this.kind(), this.offset()));
   protected readonly highlights = computed(() => this.allHighlights().slice(0, 6));
@@ -277,11 +325,18 @@ export class RetrospectivaPageComponent {
     return h.unit ? `${this.qty(h.total.current)} ${h.unit}` : this.qty(h.total.current);
   }
 
-  /** Linha de apoio: média diária + dias com registro (+ kcal estimadas). */
+  /**
+   * Linha de apoio: média diária + dias com registro, e as estimativas que
+   * existirem. Gasto antes de kcal, como no celular — e cada uma só aparece
+   * quando há de onde tirá-la.
+   */
   protected habitSub(h: RetroHabitRow): string {
     const dias = `${h.recap.current} ${h.recap.current === 1 ? 'dia' : 'dias'}`;
+    const cost = habitCost(h.unitPrice, h.total.current);
     const kcal = habitCalories(h.name, h.unit, h.total.current);
-    const extra = kcal == null ? '' : ` · ≈${this.num(kcal)} kcal`;
+    const extra =
+      (cost == null ? '' : ` · ≈${fmtMoneyAuto(cost)}`) +
+      (kcal == null ? '' : ` · ≈${this.num(kcal)} kcal`);
     if (h.perDayDays === 0) return `${dias}${extra}`;
     const media = h.unit ? `${this.qty(h.perDay)} ${h.unit}` : this.qty(h.perDay);
     return `${media}/dia · ${dias}${extra}`;

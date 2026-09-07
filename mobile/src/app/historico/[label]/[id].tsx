@@ -19,14 +19,19 @@ import {
   gearForActivity,
   hrZoneRange,
   movingTimeFromRoutePoints,
+  nomeProprio,
   routeCursorAt,
   routeDistances,
   speedSeries,
   type MetricKey,
+  type ActivityPhoto,
   type RouteCursor,
 } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
+import { useAuthStore } from '../../../store/auth.store';
+import { nomearPedaladaSePreciso, precisaDeNome } from '../../../services/route-name';
 import { useGearStore } from '../../../store/gear.store';
+import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
 
 /** Código de ciclismo do HealthKit — só pedalada tem bicicleta. */
@@ -35,6 +40,10 @@ import { getActivityMeta, getActivityColor, resolveElevationM } from '../../../l
 import { activityRecordBadges } from '../../../lib/running-highlights';
 import { WorkoutMap } from '../../../components/WorkoutMap';
 import { RouteProfileCard } from '../../../components/cards/RouteProfileCard';
+import { ActivityPhotosCard } from '../../../components/photos/ActivityPhotosCard';
+import { ShareComposerModal } from '../../../components/share/ShareComposerModal';
+import { useActivityPhotos } from '../../../hooks/useActivityPhotos';
+import { TimeRailCard } from '../../../components/photos/TimeRailCard';
 import { ClimbsCard } from '../../../components/cards/ClimbsCard';
 import { SegmentsCard } from '../../../components/cards/SegmentsCard';
 import { SurfaceCard } from '../../../components/cards/SurfaceCard';
@@ -103,14 +112,18 @@ export default function AtividadeDetalheScreen() {
   const updateActivity = useActivitiesStore((s) => s.updateActivity);
   const setHidden = useActivitiesStore((s) => s.setHidden);
   const routePoints = useActivitiesStore((s) => s.routes[id]);
+  const userId = useAuthStore((s) => s.user?.id);
   const gears = useGearStore((s) => s.gears);
   const loadGear = useGearStore((s) => s.load);
   const setActivityGearId = useActivitiesStore((s) => s.setGear);
   const [pickingGear, setPickingGear] = useState(false);
+  /** Mesma preferência que o mapa usa — o compositor abre no estilo dele. */
+  const mapStyle = useSettingsStore((st) => st.preferences?.mapStyle) ?? 'voyager';
 
   const activity = useMemo(() => _all.find((a) => a.id === id), [_all, id]);
   // A bike desta pedalada: override explícito ou herança pela data (ADR 0034).
   const gear = useMemo(() => (activity ? gearForActivity(gears, activity) : undefined), [gears, activity]);
+  const nomeDaRota = activity ? nomeProprio(activity) : undefined;
 
   useEffect(() => {
     load();
@@ -118,6 +131,30 @@ export default function AtividadeDetalheScreen() {
   }, [load, loadGear]);
 
   const hasGps = !!activity && (activity.hasRoute || (activity.distanceM ?? 0) > 0);
+
+  /**
+   * O nome da rota, uma vez por pedalada (ADR 0042).
+   *
+   * Mesmo gatilho e mesmo contrato da varredura de fotos: espera o traçado
+   * chegar, roda uma vez, e falha em silêncio. A pedalada que não ganhou nome
+   * fica sem `route_name_meta` e volta a tentar na próxima abertura — não há
+   * nada que o dono possa fazer com um aviso de cota do provedor.
+   */
+  useEffect(() => {
+    if (!activity || !userId) return;
+    if (!precisaDeNome(activity)) return;
+    if (!routePoints || routePoints.length < 2) return;
+    let alive = true;
+    void (async () => {
+      const nome = await nomearPedaladaSePreciso(activity, routePoints, userId);
+      if (alive && nome) await load();
+    })();
+    return () => {
+      alive = false;
+    };
+    // Governam esta passagem a pedalada, o dono e **se a rota já chegou**.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity?.id, activity?.routeName, activity?.routeNameChecked, userId, routePoints]);
 
   useEffect(() => {
     if (activity?.hasRoute) loadRoute(activity.id);
@@ -152,23 +189,65 @@ export default function AtividadeDetalheScreen() {
     [cursorX, scrubRuler],
   );
 
+  // As fotos desta pedalada (ADR 0037). Um só carregamento para as duas telas
+  // que precisam delas: os marcadores do mapa e o cartão embaixo dos números.
+  const photoView = useActivityPhotos(id, routePoints ?? [], activity?.distanceM);
+
   // ── estado de edição ──────────────────────────────────────────
   const [name, setName] = useState('');
   const [durationMin, setDurationMin] = useState('');
   const [saving, setSaving] = useState(false);
   const [togglingHidden, setTogglingHidden] = useState(false);
 
+  /**
+   * Compartilhar a partir do visor da galeria (ADR 0037).
+   *
+   * O compositor mora **aqui**, e não dentro do mapa como o outro caminho,
+   * porque a galeria precisa continuar aberta atrás dele: sair do compositor
+   * devolve o dono à mesma foto. Uma pedalada tem até 60, e fechar a galeria
+   * obrigaria a rolar tudo de novo.
+   */
+  const [sharePhoto, setSharePhoto] = useState<ActivityPhoto | null>(null);
+
+
+  /**
+   * O campo de nome semeia com o nome QUE ELE VÊ, não com o da fonte.
+   *
+   * Semear com `activity_name` deixava a pedalada exibindo "Boucle de Bruxelles"
+   * no cabeçalho e "Cycling" no campo — para corrigir o nome derivado ele teria
+   * de digitar por cima de um texto que não é o que está na tela.
+   *
+   * Salvar grava em `activity_name` e acende `name_edited`, e é justamente isso
+   * que faz a correção dele vencer o derivado para sempre (ADR 0041, §8). O
+   * campo é, portanto, o caminho de correção do nome automático — não um campo
+   * paralelo a ele.
+   */
+  const nomeExibido = nomeDaRota ?? activity?.activityName ?? '';
+
   useEffect(() => {
     if (activity) {
-      setName(activity.activityName ?? '');
+      setName(nomeExibido);
       setDurationMin(String(Math.round(activity.durationS / 60)));
     }
-  }, [activity?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity?.id, nomeExibido]);
 
   if (!activity) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ headerShown: false }} />
+        <Stack.Screen
+          options={{
+            headerShown: false,
+            // O perfil e o trilho ocupam a largura da janela, e a esquerda deles
+            // é o início dos dados — a mesma faixa em que o iOS reconhece o
+            // swipe-back. Três tentativas de conviver falharam: a guarda de
+            // borda inutiliza a esquerda do gráfico, e desligar o gesto no
+            // toque não chega a tempo (a viagem JS→nativo leva um quadro e o
+            // reconhecedor já começou). Só o desligamento estático funciona.
+            // Fica o chevron do cabeçalho.
+            gestureEnabled: false,
+          }}
+        />
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
@@ -204,6 +283,21 @@ export default function AtividadeDetalheScreen() {
   // Elevação: o valor sincronizado vence o cálculo sobre o track (ADR 0019) —
   // sem isso a tela mostrava ~metade do que a web e a retro mostram.
   const elevationM = resolveElevationM(activity.elevationM, points);
+
+  /** O mesmo contexto para os dois caminhos de compartilhar: o mapa e o visor. */
+  const shareContext = {
+    activityId: activity.activityId,
+    // O cartão leva o nome que a tela mostra — derivado ou corrigido por ele.
+    activityName: nomeExibido || undefined,
+    metaLabel: meta.label,
+    startISO: activity.startAt,
+    distanceM: activity.distanceM,
+    movingS,
+    totalS,
+    calories: activity.calories,
+    elevationM,
+    cities: activity.cities,
+  };
   const elevation = elevationM === undefined ? null : formatElevation(elevationM);
 
   // Recordes que esta atividade detém (maior distância, best efforts).
@@ -231,7 +325,7 @@ export default function AtividadeDetalheScreen() {
     });
   })();
 
-  const nameDirty = name.trim() !== (activity.activityName ?? '');
+  const nameDirty = name.trim() !== nomeExibido;
   const durDirty =
     !hasGps && durationMin.trim() !== String(Math.round(activity.durationS / 60));
   const dirty = nameDirty || durDirty;
@@ -264,6 +358,7 @@ export default function AtividadeDetalheScreen() {
   const rows: InfoRow[] = [
     { label: 'Tipo', value: meta.label },
     { label: 'Nome (Health)', value: activity.activityName || '—' },
+    ...(activity.routeName ? [{ label: 'Nome da rota', value: activity.routeName }] : []),
     { label: 'Código', value: String(activity.activityId) },
     { label: 'Início', value: `${formatFullDate(activity.startAt)} · ${formatTime(activity.startAt)}` },
     { label: 'Fim', value: `${formatFullDate(activity.endAt)} · ${formatTime(activity.endAt)}` },
@@ -299,7 +394,19 @@ export default function AtividadeDetalheScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen
+          options={{
+            headerShown: false,
+            // O perfil e o trilho ocupam a largura da janela, e a esquerda deles
+            // é o início dos dados — a mesma faixa em que o iOS reconhece o
+            // swipe-back. Três tentativas de conviver falharam: a guarda de
+            // borda inutiliza a esquerda do gráfico, e desligar o gesto no
+            // toque não chega a tempo (a viagem JS→nativo leva um quadro e o
+            // reconhecedor já começou). Só o desligamento estático funciona.
+            // Fica o chevron do cabeçalho.
+            gestureEnabled: false,
+          }}
+        />
 
       <View style={styles.header}>
         <Pressable
@@ -309,7 +416,19 @@ export default function AtividadeDetalheScreen() {
         >
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
-        <Text style={styles.headerTitle}>{meta.label}</Text>
+        {/*
+          O tipo continua sendo a manchete e o nome entra ABAIXO dele — a mesma
+          regra do cartão: nunca com mais peso que a âncora genérica. Sem nome
+          próprio, o cabeçalho fica exatamente como sempre foi.
+        */}
+        <View style={styles.headerTitleBox}>
+          <Text style={styles.headerTitle}>{meta.label}</Text>
+          {nomeDaRota && (
+            <Text style={styles.headerName} numberOfLines={1}>
+              {nomeDaRota}
+            </Text>
+          )}
+        </View>
         {dirty ? (
           <Pressable
             onPress={onSave}
@@ -392,17 +511,13 @@ export default function AtividadeDetalheScreen() {
               <WorkoutMap
                 points={points}
                 cursor={mapCursor}
-                share={{
-                  activityId: activity.activityId,
-                  activityName: activity.activityName,
-                  metaLabel: meta.label,
-                  startISO: activity.startAt,
-                  distanceM: activity.distanceM,
-                  movingS,
-                  totalS,
-                  calories: activity.calories,
-                  elevationM,
-                  cities: activity.cities,
+                share={shareContext}
+                photos={{
+                  stops: photoView.stopMarks,
+                  dots: photoView.dotMarks,
+                  ink: colors.ink,
+                  fill: colors.surface,
+                  list: photoView.photos,
                 }}
               />
             </View>
@@ -418,6 +533,14 @@ export default function AtividadeDetalheScreen() {
                 verdade. Some em percurso plano — e some em quase toda corrida,
                 que é a resposta certa para corrida. */}
             <ClimbsCard points={routePoints ?? []} />
+            {/* O eixo que sempre significa algo (ADR 0037): o relógio. Onde o
+                perfil é plano — a Holanda inteira — é este que conta o dia. */}
+            <TimeRailCard
+              points={routePoints ?? []}
+              totalDistanceM={activity.distanceM}
+              marks={photoView.railMarks}
+              onScrub={setCursorX}
+            />
           </>
         )}
 
@@ -434,6 +557,46 @@ export default function AtividadeDetalheScreen() {
             }
           />
         )}
+
+        {/* As fotos desta pedalada (ADR 0037). Depois dos números de propósito:
+            o dono abre uma pedalada antiga procurando mapa e números, e foto não
+            é destaque. Some por completo quando não há foto — a única exceção é
+            a pedalada nunca procurada, que ganha uma linha fina de convite. */}
+        <ActivityPhotosCard
+          view={photoView}
+          activity={{
+            id: activity.id,
+            startAtMs: Date.parse(activity.startAt),
+            endAtMs: Date.parse(activity.endAt ?? activity.startAt),
+            distanceM: activity.distanceM,
+            photosCheckedAt: activity.photosCheckedAt ?? null,
+            cities: activity.cities ?? null,
+          }}
+          points={
+            // Cru, sem `?? []`: o cartão precisa distinguir a rota **em voo** da
+            // atividade **sem rota** — ver o comentário da prop.
+            routePoints
+          }
+          onSharePhoto={setSharePhoto}
+          sharingPhoto={!!sharePhoto}
+          /**
+           * O compositor vai DENTRO da galeria, não aqui: o iOS não apresenta
+           * um `Modal` desta tela enquanto a galeria está de pé — ele só
+           * aparecia depois de ela fechar. Ver `shareSlot`.
+           */
+          shareSlot={
+            <ShareComposerModal
+              visible={!!sharePhoto}
+              onClose={() => setSharePhoto(null)}
+              points={points}
+              initialMapStyle={mapStyle}
+              context={shareContext}
+              photos={photoView.photos}
+              initialPhotoId={sharePhoto?.id}
+            />
+          }
+        />
+
 
         {/* Fora do bloco do percurso de propósito: `bestEfforts` vem do sync e
             existe mesmo antes de a rota ser carregada nesta sessão. Some sozinho
@@ -588,12 +751,20 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: colors.surface,
     ...shadows.card,
   },
+  headerTitleBox: { flex: 1, alignItems: 'center' },
   headerTitle: {
-    flex: 1,
     textAlign: 'center',
     fontSize: 20,
     fontFamily: fonts.serif,
     color: colors.ink,
+  },
+  // Abaixo do tipo em tamanho e em tinta — a mesma subordinação do cartão.
+  headerName: {
+    textAlign: 'center',
+    fontSize: 12.5,
+    fontFamily: fonts.sans,
+    color: colors.ink2,
+    marginTop: 1,
   },
   saveBtn: {
     height: 36,

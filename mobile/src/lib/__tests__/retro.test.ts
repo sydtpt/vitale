@@ -139,8 +139,8 @@ describe('latestAvailableOffset', () => {
     expect(latestAvailableOffset(NOW, 'year')).toBe(0);
   });
 
-  it('estação e total disponíveis ao vivo', () => {
-    expect(latestAvailableOffset(NOW, 'season')).toBe(0);
+  it('estação fecha como o mês; só total e ano vêem o corrente', () => {
+    expect(latestAvailableOffset(NOW, 'season')).toBe(-1);
     expect(latestAvailableOffset(NOW, 'all')).toBe(0);
   });
 });

@@ -467,7 +467,13 @@ const HEX_CEILING: {
     // esquema escuro e sumiria sobre o Positron; um fixo escuro sumiria sobre o
     // Dark Matter. O par núcleo+anel é legível nos dois, e é a mesma solução do
     // casing branco que já está sob a linha da rota.
-    max: 200,
+    //
+    // 200 → 201 com o ponto "eu" do mapa de raio da Presença (`map-html.ts`,
+    // `window.setMe`): o miolo usa a cor de tema (`c.me`) e o anel é branco fixo.
+    // Mesmo caso do cursor do scrub, pelo mesmo motivo — o marcador vive sobre os
+    // tiles. Entrou em `1514bb3` sem que o teto subisse junto, e por isso a main
+    // ficou vermelha; o literal é legítimo, faltou o registro.
+    max: 201,
   },
   {
     label: 'web SCSS',
@@ -602,6 +608,68 @@ check('CATRACA — hex fora do sistema de temas não cresce', () => {
     `hex literal novo fora do tema: ${over.join(', ')}. ` +
       `Cor nova entra como papel em theme/palettes.ts e sai por resolveTokens()/moduleOf(); ` +
       `literal só se for mesmo independente de tema (SVG exportado, overlay sobre foto).`,
+  );
+});
+
+/**
+ * A costura de provedor de modelo (ADR 0040). O requisito do usuário é que "a
+ * empresa e os modelos poderão ser alterados com o tempo" — e requisito só é
+ * invariante quando alguém cobra.
+ *
+ * `ia/` monta o pacote de fatos e nada mais. No dia em que um `fetch`, um SDK
+ * ou o nome de um fornecedor entrar aqui, trocar de provedor deixa de ser
+ * escrever um arquivo novo e vira refatoração — que é exatamente o custo que a
+ * ADR existe para não pagar.
+ *
+ * Os adaptadores vivem na edge function, não no núcleo; por isso a guarda é
+ * barreira, não catraca: hoje está em zero e não há passivo a migrar.
+ */
+check('BARREIRA — o núcleo que fala com modelo não conhece rede, SDK nem fornecedor', () => {
+  /*
+   * Dois inquilinos desde 07/09/2026: `ia/` monta o pacote da narração e
+   * `routes/` monta o prompt do nome de rota (ADR 0041). A guarda passou a
+   * cobrir os dois no mesmo dia em que o segundo nasceu — invariante que vale
+   * só para quem chegou primeiro não é invariante, é coincidência.
+   */
+  const dirs = ['ia', 'routes']
+    .map((d) => join(ROOT, 'packages', 'shared', 'src', d))
+    .filter((d) => existsSync(d));
+  if (dirs.length === 0) return;                  // a fase 1 ainda não chegou
+  const files = dirs.flatMap((d) => walk(d)).filter((f) => !f.endsWith('.test.ts'));
+  assert.ok(files.length > 0, 'os diretórios existem e estão vazios — a guarda ficou sem alvo');
+
+  const PROIBIDO = [
+    { re: /\bfetch\s*\(/, o: 'fetch(' },
+    { re: /\bXMLHttpRequest\b/, o: 'XMLHttpRequest' },
+    { re: /\bWebSocket\b/, o: 'WebSocket' },
+    { re: /from\s*['"](?!\.)/, o: "import de pacote externo (só relativo é permitido)" },
+    { re: /\b(google|gemini|anthropic|claude|openai|mistral|vertex|firebase)\b/i, o: 'nome de fornecedor' },
+    { re: /\bprocess\.env\b|\bDeno\.env\b/, o: 'leitura de ambiente' },
+  ];
+
+  // Comentário fora, código e LITERAL DE STRING dentro. A distinção não é
+  // frouxidão: o primeiro autor a tropeçar nesta guarda foi o comentário do
+  // `prompt.ts` que dizia "nenhuma linha daqui conhece Google, Anthropic ou
+  // qualquer outro" — a frase que afirma a propriedade cobrada. Já o texto do
+  // prompt é literal de string e continua sob a guarda, porque nomear um
+  // fornecedor ali vaza para o contexto do modelo.
+  const semComentario = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+  const offenders: string[] = [];
+  for (const f of files) {
+    const src = semComentario(readFileSync(f, 'utf8'));
+    for (const { re, o } of PROIBIDO) {
+      if (re.test(src)) offenders.push(`${basename(f)}: ${o}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `o núcleo de IA sujou: ${offenders.join(', ')}. ` +
+      `Pacote de fatos é derivação pura — rede, chave e nome de fornecedor moram no ` +
+      `adaptador da edge function (ADR 0040). Trocar de provedor tem que continuar sendo ` +
+      `escrever um arquivo novo.`,
   );
 });
 
