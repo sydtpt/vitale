@@ -345,6 +345,12 @@ export interface Activity {
   userId: string;
   activityId: number;
   activityName?: string;
+  /**
+   * Nome derivado da rota (ADR 0041). Fica AO LADO do `activityName` da fonte,
+   * nunca por cima: quem escreve naquele é o sync, a cada sincronização.
+   * Ausente = ainda não nomeada, ou deliberadamente sem nome.
+   */
+  routeName?: string;
   calories: number;
   startAt: string;
   endAt: string;

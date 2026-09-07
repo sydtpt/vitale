@@ -624,11 +624,19 @@ check('CATRACA — hex fora do sistema de temas não cresce', () => {
  * Os adaptadores vivem na edge function, não no núcleo; por isso a guarda é
  * barreira, não catraca: hoje está em zero e não há passivo a migrar.
  */
-check('BARREIRA — o núcleo de IA não conhece rede, SDK nem fornecedor', () => {
-  const iaDir = join(ROOT, 'packages', 'shared', 'src', 'ia');
-  if (!existsSync(iaDir)) return;                 // a fase 1 ainda não chegou
-  const files = walk(iaDir).filter((f) => !f.endsWith('.test.ts'));
-  assert.ok(files.length > 0, 'src/ia/ existe e está vazio — a guarda ficou sem alvo');
+check('BARREIRA — o núcleo que fala com modelo não conhece rede, SDK nem fornecedor', () => {
+  /*
+   * Dois inquilinos desde 07/09/2026: `ia/` monta o pacote da narração e
+   * `routes/` monta o prompt do nome de rota (ADR 0041). A guarda passou a
+   * cobrir os dois no mesmo dia em que o segundo nasceu — invariante que vale
+   * só para quem chegou primeiro não é invariante, é coincidência.
+   */
+  const dirs = ['ia', 'routes']
+    .map((d) => join(ROOT, 'packages', 'shared', 'src', d))
+    .filter((d) => existsSync(d));
+  if (dirs.length === 0) return;                  // a fase 1 ainda não chegou
+  const files = dirs.flatMap((d) => walk(d)).filter((f) => !f.endsWith('.test.ts'));
+  assert.ok(files.length > 0, 'os diretórios existem e estão vazios — a guarda ficou sem alvo');
 
   const PROIBIDO = [
     { re: /\bfetch\s*\(/, o: 'fetch(' },

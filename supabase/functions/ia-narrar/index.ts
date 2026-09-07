@@ -41,7 +41,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
-  let body: { sistema?: unknown; usuario?: unknown };
+  let body: { sistema?: unknown; usuario?: unknown; json?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -50,6 +50,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const sistema = typeof body.sistema === 'string' ? body.sistema : '';
   const usuario = typeof body.usuario === 'string' ? body.usuario : '';
+  // Repassa a intenção sem interpretá-la — a function continua burra (ADR 0042).
+  const querJson = body.json === true;
 
   if (!sistema.trim() || !usuario.trim()) return json({ error: 'prompt_vazio' }, 400);
   if (sistema.length + usuario.length > MAX_CHARS) {
@@ -68,7 +70,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   try {
     const n = await resolvido.narrador.narrar(
-      { sistema, usuario },
+      { sistema, usuario, json: querJson },
       resolvido.modelo,
       resolvido.chave,
     );
