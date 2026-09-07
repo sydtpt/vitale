@@ -148,8 +148,17 @@ export class ActivityTypePageComponent {
       dir: this.dir(),
       page: this.page(),
       pageSize: this.pageSize(),
+      busca: this.busca(),
     }),
   );
+
+  /** Termo digitado na barra. Recorta a lista sem mexer na ordenação. */
+  protected readonly busca = signal('');
+
+  protected onBusca(e: Event): void {
+    this.busca.set((e.target as HTMLInputElement).value);
+    this.page.set(1);
+  }
 
   protected readonly sortValue = computed(() => `${this.sort()}-${this.dir()}`);
 

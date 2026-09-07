@@ -93,6 +93,14 @@
     <div class="toolbar">
       <div class="count">{{ result().total }} {{ result().total === 1 ? 'resultado' : 'resultados' }}</div>
       <div class="right">
+        <!-- No navegador o campo é permanente: não há teclado para cobri-lo nem
+             disputa por altura, então esconder atrás de um botão só custaria um
+             clique. É a mesma busca do celular, com a forma que a tela pede. -->
+        <label class="busca">
+          <rt-icon name="search" [size]="15" color="var(--ink-3)" />
+          <input type="search" [value]="busca()" (input)="onBusca($event)"
+            placeholder="Cidade, rota, aparelho…" aria-label="Buscar nesta lista" />
+        </label>
         <select class="sort" (change)="onSort($event)">
           <option value="date-desc" [selected]="sortValue() === 'date-desc'">Mais recentes</option>
           <option value="date-asc" [selected]="sortValue() === 'date-asc'">Mais antigas</option>
@@ -115,17 +123,25 @@
     </div>
 
     @if (result().items.length === 0) {
-      <div class="state">Nenhuma atividade com esses filtros.</div>
+      <div class="state">
+        @if (busca().trim()) {
+          Nada encontrado para “{{ busca().trim() }}”.
+        } @else {
+          Nenhuma atividade com esses filtros.
+        }
+      </div>
     } @else if (view() === 'list') {
       <div class="list">
         @for (a of result().items; track a.id) {
-          <rt-activity-item [activity]="a" [filters]="filters()" [sort]="sort()" [dir]="dir()" mode="list" />
+          <rt-activity-item [activity]="a" [filters]="filters()" [sort]="sort()" [dir]="dir()" mode="list"
+            [hit]="result().hits.get(a.id)" [busca]="result().busca" />
         }
       </div>
     } @else {
       <div class="cards">
         @for (a of result().items; track a.id) {
-          <rt-activity-item [activity]="a" [filters]="filters()" [sort]="sort()" [dir]="dir()" mode="cards" />
+          <rt-activity-item [activity]="a" [filters]="filters()" [sort]="sort()" [dir]="dir()" mode="cards"
+            [hit]="result().hits.get(a.id)" [busca]="result().busca" />
         }
       </div>
     }

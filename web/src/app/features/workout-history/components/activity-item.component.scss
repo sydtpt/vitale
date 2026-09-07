@@ -51,3 +51,34 @@
 .carditem .grid { display: flex; gap: 16px; margin-top: 12px; }
 .carditem .v { font-size: 15px; font-weight: 650; color: var(--ink); }
 .carditem .u { font-size: 12px; color: var(--ink-3); }
+
+/*
+ * O trecho que casou com a busca. RÉGUA, não preenchimento — bloco preenchido
+ * já foi reprovado como destaque nesta base — e a cor sai do papel `blue` da
+ * paleta, nunca de `--primary`: marca é cromo, cor de dado é papel.
+ *
+ * `mark` traz fundo amarelo por padrão no navegador; zerar é obrigatório.
+ */
+.hit {
+  background: none;
+  color: inherit;
+  border-bottom: 2px solid var(--role-blue-graphic);
+  padding-bottom: 0.5px;
+}
+
+/* A proveniência: só nasce quando o casamento foi num campo que a linha não
+   mostra (cidade, aparelho, fonte). Ver CAP-9. */
+.prov {
+  margin-left: 0.5ch;
+
+  &::before {
+    content: '· ';
+    color: var(--ink-4);
+  }
+}
+
+.provlbl {
+  margin-left: 0.4ch;
+  font-size: 0.85em;
+  color: var(--ink-4);
+}

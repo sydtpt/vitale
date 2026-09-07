@@ -15,6 +15,7 @@ import type { Activity } from '../models';
 import { buildSearchIndex, searchActivities } from './buscar';
 import { faixaDe } from './campos';
 import { consultaAtiva, tokenizar } from './normalize';
+import { realcar } from './realce';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -250,6 +251,35 @@ check('funciona antes da story 1, com marcas de cidade ainda sem aliases', () =>
   const idx = buildSearchIndex([ativ({ dia: '2026-01-01', cidades: [TERVUREN] })]);
   assert.equal(searchActivities('tervuren', idx).length, 1);
   assert.equal(searchActivities('brussels', idx).length, 0);
+});
+
+/* ─────────────── realce (CAP-5) ─────────────── */
+
+const junta = (t: string, q: string) => realcar(t, q).map((p) => (p.hit ? `[${p.t}]` : p.t)).join('');
+
+check('grifa a palavra que casou, e só ela', () => {
+  assert.equal(junta('De Bruxelles à Louvain', 'louvain'), 'De Bruxelles à [Louvain]');
+  assert.equal(junta('Boucle de Bruxelles', 'bruxelles'), 'Boucle de [Bruxelles]');
+});
+
+check('o texto original sobrevive intacto — acento incluído', () => {
+  assert.equal(junta('Boucle de la Forêt de Soignes', 'foret'), 'Boucle de la [Forêt] de Soignes');
+  assert.equal(realcar('Forêt', 'foret').map((p) => p.t).join(''), 'Forêt');
+});
+
+check('usa a MESMA regra da busca: prefixo de palavra', () => {
+  assert.equal(junta('Ixelles', 'elles'), 'Ixelles', 'trecho no meio não grifa');
+  assert.equal(junta('Woluwe-Saint-Pierre', 'pierre'), 'Woluwe-Saint-[Pierre]');
+});
+
+check('funde vizinhos do mesmo estado em vez de picotar', () => {
+  assert.equal(realcar('Aller à Ottignies-Louvain-la-Neuve', 'louvain').length, 3);
+  assert.equal(realcar('Boucle de Bruxelles', 'zzz').length, 1);
+});
+
+check('consulta vazia devolve o texto inteiro sem grifo', () => {
+  assert.deepEqual(realcar('Boucle', ''), [{ t: 'Boucle', hit: false }]);
+  assert.deepEqual(realcar('', 'x'), []);
 });
 
 console.log(`\n${passed} checagens de busca ok`);
