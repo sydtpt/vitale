@@ -3,6 +3,7 @@ import { ScrollView, View, Text, Pressable, StyleSheet, Image } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getActivityMeta } from '../../lib/workout-types';
+import { PhotoGalleryModal, type GallerySection } from '../../components/photos/PhotoGalleryModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   type ActivityPhoto,
@@ -12,6 +13,9 @@ import {
   photoRetroLabel,
   latestAvailableOffset,
   habitCalories,
+  habitCost,
+  fmtMoney,
+  fmtMoneyAuto,
   buildRetroLede,
   visibleBlocks,
   resolveRetroPrefs,
@@ -36,7 +40,7 @@ import {
   type SportBestEffort,
 } from '@vitale/shared';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
-import { formatClock } from '../../lib/workout-format';
+import { formatClock, formatFullDate } from '../../lib/workout-format';
 import { useRetroStore, retroSince } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useAuthStore } from '../../store/auth.store';
@@ -73,7 +77,7 @@ function num(n: number, d = 0): string {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 function km(m: number): string { return `${num(m / 1000, 1)} km`; }
-function brl(v: number): string { return `R$ ${num(v)}`; }
+
 function dur(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.round((s % 3600) / 60);
@@ -94,11 +98,19 @@ function qty(n: number, unit: string): string {
   const v = Number.isInteger(n) ? num(n) : num(n, 1);
   return unit ? `${v} ${unit}` : v;
 }
-/** Linha de apoio do hábito: média diária + dias com registro (+ kcal estimadas). */
+/**
+ * Linha de apoio do hábito: média diária + dias com registro, e as estimativas
+ * que existirem. Gasto antes de kcal — dinheiro é o que ele pediu para ver, e é
+ * o número que decide alguma coisa. Cada estimativa só aparece quando há de
+ * onde tirá-la: sem preço não há gasto, sem densidade conhecida não há kcal.
+ */
 function habitSub(h: RetroHabitRow): string {
   const dias = `${h.recap.current} ${h.recap.current === 1 ? 'dia' : 'dias'}`;
+  const cost = habitCost(h.unitPrice, h.total.current);
   const kcal = habitCalories(h.name, h.unit, h.total.current);
-  const extra = kcal == null ? '' : ` · ≈${num(kcal)} kcal`;
+  const extra =
+    (cost == null ? '' : ` · ≈${fmtMoneyAuto(cost)}`) +
+    (kcal == null ? '' : ` · ≈${num(kcal)} kcal`);
   const base = h.perDayDays === 0 ? dias : `${qty(h.perDay, h.unit)}/dia · ${dias}`;
   return `${base}${extra}`;
 }
@@ -205,6 +217,44 @@ export default function RetrospectivaScreen() {
   const photoBlock = useMemo(() => photoRetro(periodPhotos), [periodPhotos]);
 
   /**
+   * A galeria do período — **todas** as fotos, agrupadas por pedalada.
+   *
+   * A tira mostra cinco, e é o que ela deve fazer: é a chamada, não o álbum.
+   * Mas ela não levava a álbum nenhum — tocar levava direto para a pedalada, o
+   * que pulava a etapa que ele queria ("estou na retrospectiva, gostaria de ver
+   * todas as fotos"). Agora a tira abre a galeria, e é de dentro da foto
+   * maximizada que se vai para o dia.
+   *
+   * Por pedalada, e não por dia: um dia pode ter dois treinos, e é a pedalada
+   * que a ação do visor promete abrir depois.
+   */
+  const [galeriaAberta, setGaleriaAberta] = useState(false);
+  const secoesDoPeriodo = useMemo<GallerySection[]>(() => {
+    const porAtividade = new Map<string, ActivityPhoto[]>();
+    for (const p of [...periodPhotos].sort((a, b) => a.takenAt - b.takenAt)) {
+      const lista = porAtividade.get(p.activityId);
+      if (lista) lista.push(p);
+      else porAtividade.set(p.activityId, [p]);
+    }
+    return [...porAtividade.entries()]
+      .map(([id, fotos]) => {
+        const act = allActs.find((a) => a.id === id);
+        const meta = act ? getActivityMeta(act.activityId) : null;
+        return {
+          key: id,
+          title: act?.activityName || meta?.label || 'Atividade',
+          subtitle: `${formatFullDate(act?.startAt ?? new Date(fotos[0].takenAt).toISOString())} · ${
+            fotos.length === 1 ? '1 foto' : `${fotos.length} fotos`
+          }`,
+          photos: fotos,
+          _at: fotos[0].takenAt,
+        };
+      })
+      .sort((a, b) => b._at - a._at)
+      .map(({ _at, ...rest }) => rest);
+  }, [periodPhotos, allActs]);
+
+  /**
    * A foto da tira leva à pedalada dela.
    *
    * A rota do detalhe pede o rótulo do tipo além do id — o mesmo que o
@@ -280,7 +330,7 @@ export default function RetrospectivaScreen() {
     // Passos, não distância: a distância já aparece no card de treinos e só conta
     // o que virou atividade — os passos medem o movimento do dia inteiro.
     { icon: 'footsteps-outline' as const, label: 'Passos', value: num(summary.fitness.steps.current), d: deltaVM(summary.fitness.steps, false, noPrior) },
-    { icon: 'wallet-outline' as const, label: 'Compras', value: brl(summary.purchases.spend.current), d: deltaVM(summary.purchases.spend, true, noPrior) },
+    { icon: 'wallet-outline' as const, label: 'Compras', value: fmtMoney(summary.purchases.spend.current), d: deltaVM(summary.purchases.spend, true, noPrior) },
   ];
 
   const healthValue = (h: RetroHealthRow) => h.recap.current == null ? '—' : `${num(h.recap.current, h.decimals)}${h.unit}`;
@@ -456,13 +506,16 @@ export default function RetrospectivaScreen() {
                       assetId={p.assetId}
                       style={styles.photoThumb}
                       isVideo={p.mediaType === 'video'}
-                      onPress={() => abrirPedalada(p.activityId)}
+                      onPress={() => setGaleriaAberta(true)}
                     />
                   ))}
                   {photoBlock.rest > 0 && (
-                    <View style={[styles.photoThumb, styles.photoRest]}>
+                    <Pressable
+                      style={[styles.photoThumb, styles.photoRest]}
+                      onPress={() => setGaleriaAberta(true)}
+                    >
                       <Text style={styles.photoRestText}>+{photoBlock.rest}</Text>
-                    </View>
+                    </Pressable>
                   )}
                 </View>
               </View>
@@ -508,12 +561,12 @@ export default function RetrospectivaScreen() {
     {/* Compras */}
             <View style={styles.card}>
               <Text style={styles.eyebrow}>Compras & gastos</Text>
-              <Text style={styles.big}>{brl(summary.purchases.spend.current)}
+              <Text style={styles.big}>{fmtMoney(summary.purchases.spend.current)}
                 <Text style={[styles.bigDelta, { color: TONE_COLOR[deltaVM(summary.purchases.spend, true, noPrior).tone] }]}>  {deltaVM(summary.purchases.spend, true, noPrior).text}</Text>
               </Text>
               <Text style={styles.muted}>{summary.purchases.count.current} itens comprados</Text>
               {summary.purchases.byCat.map((c) => (
-                <Row key={c.key} l={c.label} r={`${brl(c.sum || 0)} · ${c.count}`} />
+                <Row key={c.key} l={c.label} r={`${fmtMoney(c.sum || 0)} · ${c.count}`} />
               ))}
               <Text style={styles.note}>Gasto estimado a partir de Compras (sem módulo de transações).</Text>
             </View>
@@ -704,6 +757,22 @@ export default function RetrospectivaScreen() {
         ))}
 
       </ScrollView>
+
+      {/**
+       * A galeria do período. Reusa a mesma da pedalada — grade por seção,
+       * visor com arrastar para baixo e deslizar para fechar —, e troca a barra
+       * de ações por uma só: ir para a pedalada da foto.
+       */}
+      <PhotoGalleryModal
+        visible={galeriaAberta}
+        sections={secoesDoPeriodo}
+        total={periodPhotos.length}
+        onClose={() => setGaleriaAberta(false)}
+        onOpenActivity={(p) => {
+          setGaleriaAberta(false);
+          abrirPedalada(p.activityId);
+        }}
+      />
     </View>
   );
 }

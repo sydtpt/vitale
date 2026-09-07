@@ -204,6 +204,7 @@ function AppShell() {
         <Stack.Screen name="cultura/[tipo]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="cultura/item/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="habitos/index" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="habitos/detalhe" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="habitos/editor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="habitos/dia" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="metas/index" options={{ animation: 'slide_from_right' }} />

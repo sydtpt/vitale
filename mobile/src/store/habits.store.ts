@@ -2,13 +2,14 @@ import { create } from 'zustand';
 import {
   countHabits,
   createHabit,
+  fetchHabitLogHistory,
   fetchHabitLogsBetween,
   fetchHabitLogsSince,
   fetchHabits,
   setHabitActive,
   updateHabit,
 } from '@vitale/shared';
-import type { CounterHabit, HabitDirection } from '@vitale/shared';
+import type { CounterHabit, HabitDirection, HabitLog } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import {
   enqueueDelta,
@@ -31,6 +32,8 @@ export interface NewHabit {
   direction: HabitDirection;
   bad: boolean;
   showOnHome: boolean;
+  /** Preço médio de uma unidade (€); ausente = o hábito não estima gasto. */
+  unitPrice?: number | null;
 }
 
 /** Campos editáveis de um hábito. `target: null` limpa a meta. */
@@ -44,6 +47,8 @@ export interface HabitPatch {
   direction?: HabitDirection;
   bad?: boolean;
   show_on_home?: boolean;
+  /** `null` limpa o preço, como `target: null` limpa a meta. */
+  unit_price?: number | null;
   active?: boolean;
   sort?: number;
 }
@@ -74,6 +79,8 @@ interface HabitsState {
     monthIdx: number,
   ) => Promise<Record<string, Record<string, number>>>;
   setLogForDate: (habitId: string, date: string, value: number) => Promise<void>;
+  /** Histórico completo de um hábito — o detalhe precisa de tudo, não da janela. */
+  fetchHistory: (habitId: string) => Promise<HabitLog[]>;
 }
 
 function genOpId(): string {
@@ -274,6 +281,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
       direction: input.direction,
       bad: input.bad,
       showOnHome: input.showOnHome,
+      unitPrice: input.unitPrice ?? null,
       sort,
     });
     await get().loadAll();
@@ -311,6 +319,12 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
       return { windowByHabit: merged };
     });
     return byHabit;
+  },
+
+  fetchHistory: async (habitId) => {
+    const userId = currentUserId();
+    if (!userId) return [];
+    return fetchHabitLogHistory(supabase, userId, habitId);
   },
 
   // Fixa o valor absoluto de um dia (edição de passado) via rpc compartilhada.

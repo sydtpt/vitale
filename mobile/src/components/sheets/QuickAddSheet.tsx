@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
 import {
-  MEAL_TYPES, MEAL_TYPE_LABELS, FINANCA_CATS, type MealType,
+  CURRENCY, MEAL_TYPES, MEAL_TYPE_LABELS, FINANCA_CATS, type MealType,
 } from '@vitale/shared';
 import { colors, fonts, shadows, themed, useTheme } from '../../theme';
 import { useMealsStore } from '../../store/meals.store';
@@ -231,7 +231,7 @@ export function QuickAddSheet({ visible, initial = 'pick', onClose }: QuickAddSh
               </View>
 
               <View style={styles.amountWrap}>
-                <Text style={styles.amountCur}>R$ </Text>
+                <Text style={styles.amountCur}>{CURRENCY} </Text>
                 <TextInput
                   style={styles.amountInput}
                   value={amount}

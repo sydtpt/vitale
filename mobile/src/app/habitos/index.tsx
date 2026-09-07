@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { CounterHabit } from '@vitale/shared';
+import { CURRENCY, type CounterHabit } from '@vitale/shared';
 import { useHabitsStore } from '../../store/habits.store';
 import { habitIconToIonicon } from '../../lib/habit-icons';
 import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
@@ -17,9 +17,10 @@ function fmt(n: number): string {
 function summary(h: CounterHabit): string {
   const tag = h.bad ? 'A evitar · ' : '';
   const inc = `+${fmt(h.step)} ${h.unit}`;
-  if (h.target == null) return `${tag}Contador · ${inc}`;
+  const preco = h.unitPrice == null ? '' : ` · ${fmt(h.unitPrice)} ${CURRENCY}/${h.unit}`;
+  if (h.target == null) return `${tag}Contador · ${inc}${preco}`;
   const goal = h.direction === 'at_least' ? `Meta ${fmt(h.target)} ${h.unit}` : `Limite ${fmt(h.target)} ${h.unit}`;
-  return `${tag}${goal} · ${inc}`;
+  return `${tag}${goal} · ${inc}${preco}`;
 }
 
 export default function HabitosScreen() {
@@ -43,7 +44,7 @@ export default function HabitosScreen() {
     const mod = moduleColors(h.color, 'habito');
     return (
       <Pressable
-        onPress={() => router.push({ pathname: '/habitos/editor', params: { id: h.id } })}
+        onPress={() => router.push({ pathname: '/habitos/detalhe', params: { id: h.id } })}
         style={({ pressed }) => [styles.row, last && styles.noBorder, pressed && styles.pressed]}
       >
         <View style={[styles.iconBox, { backgroundColor: mod.tint }]}>

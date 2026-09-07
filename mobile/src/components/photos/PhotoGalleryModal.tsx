@@ -124,6 +124,7 @@ function Viewer({
   onShare,
   onCover,
   onDismiss,
+  onOpenActivity,
   sharing = false,
 }: {
   photos: ActivityPhoto[];
@@ -132,6 +133,15 @@ function Viewer({
   onShare?: (photo: ActivityPhoto) => void;
   onCover?: (photo: ActivityPhoto) => void;
   onDismiss?: (photo: ActivityPhoto) => void;
+  /**
+   * Ir para a pedalada da foto.
+   *
+   * É a ação da galeria **de período** (a Retrospectiva), onde as outras três
+   * não cabem: compartilhar dali abriria o compositor com o contexto de uma
+   * pedalada que não se está vendo, e capa/desligar são decisões que se toma
+   * dentro do dia, não folheando o mês.
+   */
+  onOpenActivity?: (photo: ActivityPhoto) => void;
   /** O compositor está montando. Vem da tela, que é quem sabe. */
   sharing?: boolean;
 }) {
@@ -251,7 +261,7 @@ function Viewer({
            * em vermelho, por ser a única com consequência — e mesmo assim
            * reversível, porque a imagem nunca sai do iPhone.
            */}
-          {(onShare || onCover || onDismiss) && (
+          {(onShare || onCover || onDismiss || onOpenActivity) && (
             <View style={styles.viewerActs}>
               {onShare && (
                 <Pressable
@@ -294,6 +304,19 @@ function Viewer({
                   <Text style={styles.actText}>
                     {photos[current]?.isCover ? 'É a capa' : 'Usar como capa'}
                   </Text>
+                </Pressable>
+              )}
+              {onOpenActivity && (
+                <Pressable
+                  style={styles.act}
+                  onPress={() => {
+                    const p = photos[current]!;
+                    onClose();
+                    onOpenActivity(p);
+                  }}
+                >
+                  <Ionicons name="bicycle-outline" size={21} color={onMedia} />
+                  <Text style={styles.actText}>Ir para a pedalada</Text>
                 </Pressable>
               )}
               {onDismiss && (
@@ -463,6 +486,8 @@ interface Props {
   onSharePhoto?: (photo: ActivityPhoto) => void;
   /** Tornar capa, a partir do visor. */
   onCover?: (photo: ActivityPhoto) => void;
+  /** Da galeria de período: o visor oferece ir para a pedalada da foto. */
+  onOpenActivity?: (photo: ActivityPhoto) => void;
   /** O compositor está abrindo — o visor troca o ícone por um indicador. */
   sharing?: boolean;
   /**
@@ -488,6 +513,7 @@ export function PhotoGalleryModal({
   onDismiss,
   onSharePhoto,
   onCover,
+  onOpenActivity,
   sharing,
   shareSlot,
 }: Props) {
@@ -684,6 +710,7 @@ export function PhotoGalleryModal({
                 }
                 sharing={sharing}
                 onCover={onCover}
+                onOpenActivity={onOpenActivity}
                 onDismiss={onDismiss ? (p) => void onDismiss([p.id]) : undefined}
               />
             )}

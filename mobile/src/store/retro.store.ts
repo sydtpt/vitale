@@ -51,7 +51,7 @@ interface RetroState {
 
   health: Array<{ day: string; metric: string; value: number | null }>;
   ratings: Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>;
-  habits: Array<{ id: string; name: string; bad: boolean; unit: string; createdOn?: string }>;
+  habits: Array<{ id: string; name: string; bad: boolean; unit: string; createdOn?: string; unitPrice?: number }>;
   habitLogs: HabitLog[];
   registros: Array<{ id: string; name: string; createdOn?: string }>;
   registroLogs: RegistroLog[];
@@ -117,7 +117,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
       stepsByDay: byMetric.get('passos'),
       ratingsSleep: sleepMap,
       ratingsDay: dayMap,
-      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, createdOn: h.createdOn, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
+      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, unitPrice: h.unitPrice, createdOn: h.createdOn, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
       registros: s.registros.map((r) => ({ id: r.id, name: r.name, createdOn: r.createdOn, days: daysByRegistro.get(r.id) ?? [] })),
       tasks: s.tasks,
       dailyTasks: s.dailyTasks,
