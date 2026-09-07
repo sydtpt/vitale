@@ -7,7 +7,11 @@ ADR: [0041](../../../docs/decisions/0041-o-nome-da-rota-e-molde-com-lacuna.md)
 **Estado em 07/09/2026 (fim do dia): as Fases 0, 1, 2, 3 e 5 estão na main.** O núcleo inteiro
 vive em `packages/shared/src/routes/` (7 módulos com teste + golden set), a migration
 `20260907170000_nome_das_rotas.sql` está aplicada, e o passe roda **no aparelho** por
-`mobile/src/services/route-name.ts`. Falta só o **veredito do dono** sobre os nomes gerados.
+`mobile/src/services/route-name.ts`.
+
+**Os 133 nomes foram aprovados por ele em 07/09** — "os nomes já estão ok", o único critério
+de aceite que a Fase 6 reconhece. Restam as duas conferências de *tela* (T6.1 e T6.2): que o
+nome apareça certo no iPhone e no navegador é pergunta diferente de se o nome é bom.
 
 > O cabeçalho anterior dizia "só a Fase 0 existe, nada foi construído" — ficou parado
 > enquanto a frente inteira era escrita e mesclada no mesmo dia. Conferido contra o código
@@ -122,8 +126,8 @@ os do plano; os reais estão entre parênteses.
 
 - [x] **T4.1** Rodar sobre as 138 em lotes, com o golden set conferido **antes** de soltar o
       resto. *Rodou: **133 nomeadas** em produção.*
-- [ ] **T4.2** Ler as 138 saídas inteiras. É uma pessoa só e ela está disponível — não fingir
-      que a conferência dá para automatizar. **É o que falta.**
+- [x] **T4.2** Ler as 138 saídas inteiras. **Lidas e aprovadas em 07/09/2026: "os nomes já
+      estão ok".** Não houve nome ruim entre os 133 — o que fecha a pergunta do T4.3 abaixo.
 - [x] **T4.3** Medido em produção em 07/09/2026 (Management API). **138 com rota · 133
       nomeadas · 4 recusadas · 1 não tentada.** Recusa de **2,9%**, contra os ~15% previstos
       pela amostra — cinco vezes menos.
@@ -136,10 +140,14 @@ os do plano; os reais estão entre parênteses.
       resposta ilegível.
 
       Isso não prova que ele está frouxo — prova que **nunca foi exercitado**. A rede de
-      segurança está intacta porque nada caiu nela. Duas leituras possíveis, e o T4.2
-      decide qual: se os 133 nomes estiverem bons, o prompt é apertado o bastante e o
-      `verificar` é seguro dormente; se houver nome ruim entre eles, então o `verificar`
-      deixou passar e é aí que ele precisa apertar.
+      segurança está intacta porque nada caiu nela.
+
+      **Resolvido pelo T4.2 (07/09):** os 133 nomes foram lidos e aprovados, sem nome ruim
+      entre eles. Então a leitura correta é a primeira — **o prompt é apertado o bastante e
+      o `verificar` é rede dormente, não portão frouxo**. Fica o registro para a próxima
+      troca de modelo ou de prompt: se a recusa continuar em zero fora do `degenerada`, isso
+      é sinal de que o prompt segue firme; se começar a disparar, o `verificar` acordou e
+      vale ler o que ele barrou antes de mexer nele.
 
       Distribuição das formas entre as nomeadas: 76 casa-loop-casa · 22 casa-b · 18 a-b ·
       15 a-casa · 2 a-loop-a — bate com o levantamento da Fase 0 (75/23/19/18/3).
@@ -157,8 +165,12 @@ os do plano; os reais estão entre parênteses.
 
 - [ ] **T6.1** No iPhone: Histórico, detalhe, Retrospectiva.
 - [ ] **T6.2** No navegador: `/workout-history` e o detalhe.
-- [ ] **T6.3** **Veredito do dono** sobre os nomes das 138. É o único critério de aceite que
+- [x] **T6.3** **Veredito do dono** sobre os nomes das 138. É o único critério de aceite que
       importa — a spec §6 é a régua, mas o gosto dele é o juiz.
+      **APROVADO em 07/09/2026: "os nomes já estão ok".** A frente passa no seu único
+      critério de aceite. A parede de 22 `Boucle de Bruxelles` (133 nomes, 65 distintos)
+      já tinha sido julgada por ele no mesmo dia, do lado da busca textual, e também não
+      incomoda — a data e a distância bastam para diferenciar.
 - [x] **T6.4** Rodar a validação dos três workspaces (CLAUDE.md) e o `expo-doctor`.
 
 ---
