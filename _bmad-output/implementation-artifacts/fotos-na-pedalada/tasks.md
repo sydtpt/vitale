@@ -181,11 +181,45 @@ Duas barreiras de arquitetura pegaram **defeito real**, não estilo:
       responde isso de graça, e se falhar o `Thumb` já mostra a lacuna em vez de quebrar.
       **Decidir só com o aparelho na mão.**
 
-## Fase 8 — Conferência no aparelho
+## Fase 8 — Conferência no aparelho (06–07/09/2026)
 
-- [ ] **T8.1** Build Release por cabo (nunca Metro pela LAN) e conferência numa pedalada
-      real: custo do iCloud, comportamento da permissão, e os 393 px em escala de verdade.
-- [ ] **T8.2** Julgamento do dono antes de considerar entregue.
+- [x] **T8.1** Builds Release por cabo, em ciclos curtos, com o dono usando entre um e
+      outro. **Sete achados que os 673 testes não pegaram** — nenhum deles é bug de
+      lógica; são premissas erradas sobre como o iOS, o GPS e o Postgres se comportam:
+
+      | # | O que se viu na tela | A causa | O conserto |
+      |---|---|---|---|
+      | 1 | Fotos achadas, todos os quadros vazios | `ph://<localIdentifier>` montado à mão não é carregado pelo `Image` do RN 0.86 | `Asset.getUri()`, que devolve `file://` real, com cache por id |
+      | 2 | "km 45,1" numa pedalada de 57,05 km | somar o track ponto a ponto superestima (67,3 km) | `totalDistanceM` reescala para a distância oficial |
+      | 3 | Pedalada sem foto ficava muda para sempre | `if (checked) return sheet` — levei "zero foto some por completo" longe demais | convite fica, mais quieto; e "Procurar mais" na galeria |
+      | 4 | "Ligar N fotos" não fazia nada | duas mídias no mesmo instante derrubam o `INSERT` inteiro; e um vídeo sem duração violava a constraint | dedupe por instante + constraint removida + **erro visível** |
+      | 5 | Vídeos como quadro vazio | `getUri()` de vídeo devolve o arquivo de vídeo | `expo-video-thumbnails` (a dependência que a Fase 7 deixou para o aparelho decidir) |
+      | 6 | Arrastar para baixo não fazia nada | o `ScrollView` do iOS resolve o arrasto no nível **nativo**; o `PanResponder` nunca vê o gesto, em fase nenhuma | `react-native-gesture-handler` (ADR 0010 proíbe o Reanimated, não ele) |
+      | 7 | "Em movimento · sem parada" com 12 fotos de uma parada óbvia | o traçado tem **12 buracos**; um vai de 12:54 a 13:29, 6,3 km — `detectStops` conta pontos, e onde não há pontos ele não acha nada | `trackGaps` + grupo `silent`: a parada provada pelas **fotos**, não medida pelo track |
+
+- [x] **T8.2** Confirmado por ele na tela: miniaturas aparecem, ligar funciona, o convite
+      voltou, e a galeria abre com as seções por parada.
+- [ ] **T8.3** **Ainda sem veredito dele** (construído e instalado, não julgado): o
+      quadro-pôster de vídeo, arrastar para baixo no visor, deslizar da esquerda para
+      fechar a galeria, a seleção múltipla por toque longo, e a "parada não gravada" com
+      marcador pontilhado.
+- [ ] **T8.4** Medir o custo da varredura numa pedalada grande com iCloud otimizado. Ele
+      ligou 73 fotos numa e 60 noutra sem reclamar de lentidão, mas não foi cronometrado.
+
+### A lição da fase
+
+O núcleo puro fez o que devia: quando as fotos finalmente renderizaram, **os números
+estavam certos** — as paradas, os quilômetros, a janela. Nada disso precisou de conserto.
+O que quebrou foi a **borda**, onde o app encosta no iOS, no GPS e no banco — e ali
+nenhum teste ajuda, porque nenhum deles toca uma tela de verdade.
+
+Dois erros de processo meus, registrados para não repetir:
+
+- **`comando | tail` devolve o status do `tail`.** Mascarou um build quebrado e um merge
+  que não aconteceu — duas vezes buildei a versão errada. O cabeçalho do próprio
+  `ios-device.sh` documenta essa armadilha.
+- **`catch {}` com comentário otimista.** O "nada se perde" era falso e transformou um
+  erro diagnosticável numa hora de investigação às cegas.
 
 ## Diferido
 

@@ -1,6 +1,9 @@
 # Fotos na pedalada — a foto pertence à parada, não ao ponto
 
-> **Status:** proposta aprovada em 06/09/2026, **nenhuma linha de código escrita**.
+> **Status:** construída e **na main** (07/09/2026), conferida no iPhone em ciclos curtos.
+> Sete achados que só o aparelho deu estão na Fase 8 do tasks — nenhum de lógica, todos de
+> borda (iOS, GPS, Postgres). Falta o veredito dele sobre os gestos, o pôster de vídeo e a
+> "parada não gravada"; e medir a varredura com iCloud otimizado.
 > Decisão: [ADR 0037](../../decisions/0037-a-foto-e-ponteiro-com-chave-de-cura.md).
 > Data-model: [data-model.md](data-model.md).
 > Tarefas: [tasks](../../../_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md).
@@ -81,6 +84,17 @@ Foto sem coordenada (Local desligado naquele momento, captura de tela) não some
 "depois da chegada" com posição por tempo e entra na tira cronológica sem pin no mapa.
 
 ### 5.3 A parada
+
+> **O traçado tem buracos, e o silêncio não é resposta.** Conferido em 07/09/2026: a
+> travessia de 29/08 tem **12 buracos**, um deles de 35 min e 6,3 km entre dois pontos
+> consecutivos. `detectStops` mede "ficou parado" contando pontos — onde não há pontos,
+> ele não acha nada, e isso estava virando a afirmação de que não houve parada.
+>
+> `trackGaps` separa os dois casos. Buraco de **pontas próximas** já é parada pelo caminho
+> normal. Buraco de **pontas longas** é ignorância: a foto ali não é "em movimento", e sim
+> uma parada **provada pelas fotos** — doze fotos em 6,5 min no mesmo lugar são evidência
+> melhor que o track ausente. Na tela ela vem com marcador pontilhado e diz que o GPS não
+> gravou.
 
 `detectStops(points, { minPausedS: 240, radiusM: 60 })` — uma janela em que o traçado não
 saiu de 60 m por 4 minutos ou mais. Duas janelas contíguas separadas por menos de 5 min e

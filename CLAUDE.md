@@ -210,12 +210,14 @@ São **10** módulos, não 7:
   Migrations aplicadas e 137 rotas backfilladas em prod (06/09); cartão de piso no Ciclismo e
   no detalhe da pedalada. Faltam o smoke test do passe deployado, o golden set e a web.
   Tarefas: `_bmad-output/implementation-artifacts/piso-das-rotas/tasks.md`
-- Fotos na pedalada: ligar as fotos do iPhone à atividade, agrupadas por **parada** e não
-  por ponto ([ADR 0037](docs/decisions/0037-a-foto-e-ponteiro-com-chave-de-cura.md)). A imagem
-  fica na biblioteca; só o fato sobe, com `taken_at` como chave de cura porque o
-  `localIdentifier` não é estável. Proposta aprovada em 06/09 com mockups sobre uma pedalada
-  real; **nenhuma linha de código escrita**. Tarefas:
-  `_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md`
+- Fotos na pedalada: **na main em 07/09** ([ADR 0037](docs/decisions/0037-a-foto-e-ponteiro-com-chave-de-cura.md)).
+  A imagem fica na biblioteca do iPhone e só o fato sobe (`activity_photos`), com `taken_at`
+  como chave de cura porque o `localIdentifier` não é estável. Agrupa por **parada**, não por
+  ponto — e quando o GPS não gravou, a parada é provada pelas próprias fotos. Folha de
+  confirmação, cartão no detalhe, marcadores no mapa, trilho do tempo, galeria com seleção
+  múltipla, fundo "Foto" no cartão de compartilhar, tira na Retrospectiva (a web mostra o
+  fato, não a imagem). **Falta o veredito dele** sobre gestos, pôster de vídeo e a "parada
+  não gravada". Tarefas: `_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md`
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco
