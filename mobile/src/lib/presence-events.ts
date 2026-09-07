@@ -149,9 +149,41 @@ export async function appendPresenceEvent(
   return withLogLock(async () => {
     const current = await readPresenceLog(store);
     if (current.some((e) => e.id === event.id)) return;
-    const next = [...current, event];
-    await setJSON(KEY, next.slice(Math.max(0, next.length - PRESENCE_LOG_CAP)), store);
+    await setJSON(KEY, aparar([...current, event]), store);
   });
+}
+
+/**
+ * Corta no teto **sacrificando relatório de estado antes de travessia**.
+ *
+ * Um corte cronológico simples perderia o dado precioso primeiro. Com vários
+ * lugares o volume é dominado por relatórios — cada lançamento do app gera um
+ * por região monitorada, então dez lugares e dez aberturas por dia dão cem
+ * eventos diários. Aparando por ordem de chegada, duas semanas de travessias
+ * reais evaporariam em menos de uma semana de uso normal, caladas.
+ *
+ * Travessia é o que a fase 0 existe para colher; relatório é só prova de que a
+ * task rodou, e alguns bastam.
+ */
+function aparar(eventos: PresenceEvent[]): PresenceEvent[] {
+  if (eventos.length <= PRESENCE_LOG_CAP) return eventos;
+
+  const excedente = eventos.length - PRESENCE_LOG_CAP;
+  const redundantes = eventos.filter((e) => e.redundant).length;
+  const aDescartar = Math.min(excedente, redundantes);
+
+  // Descarta os `aDescartar` relatórios mais antigos, preservando a ordem.
+  let restam = aDescartar;
+  const podado = eventos.filter((e) => {
+    if (restam > 0 && e.redundant) {
+      restam -= 1;
+      return false;
+    }
+    return true;
+  });
+
+  // Se ainda estourar, só há travessia: aí o corte é cronológico mesmo.
+  return podado.slice(Math.max(0, podado.length - PRESENCE_LOG_CAP));
 }
 
 export async function clearPresenceLog(store: KVStore = asyncStore): Promise<void> {

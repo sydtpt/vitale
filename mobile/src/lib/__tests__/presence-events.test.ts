@@ -74,6 +74,39 @@ describe('presence-events · log', () => {
     expect(log[0].at).toBe(new Date(Date.UTC(2026, 8, 6, 0, 5)).toISOString());
   });
 
+  it('no teto, sacrifica relatório de estado antes de travessia', async () => {
+    const s = memStore();
+    // 490 relatórios (o volume real: um por região a cada lançamento do app)…
+    for (let i = 0; i < 490; i += 1) {
+      const at = new Date(Date.UTC(2026, 8, 7, 0, i)).toISOString();
+      await appendPresenceEvent(ev('casa', 'enter', at, { redundant: true }), s);
+    }
+    // …e 10 travessias reais, que são o dado que a fase 0 existe para colher.
+    for (let i = 0; i < 10; i += 1) {
+      const at = new Date(Date.UTC(2026, 8, 7, 9, i)).toISOString();
+      await appendPresenceEvent(ev('casa', i % 2 === 0 ? 'exit' : 'enter', at), s);
+    }
+    // Mais 20 relatórios estouram o teto: quem sai são eles, não as travessias.
+    for (let i = 0; i < 20; i += 1) {
+      const at = new Date(Date.UTC(2026, 8, 7, 12, i)).toISOString();
+      await appendPresenceEvent(ev('casa', 'enter', at, { redundant: true }), s);
+    }
+    const log = await readPresenceLog(s);
+    expect(log).toHaveLength(PRESENCE_LOG_CAP);
+    expect(log.filter((e) => !e.redundant)).toHaveLength(10);
+  });
+
+  it('só corta travessia quando não há mais relatório a sacrificar', async () => {
+    const s = memStore();
+    for (let i = 0; i < PRESENCE_LOG_CAP + 3; i += 1) {
+      const at = new Date(Date.UTC(2026, 8, 7, 0, i)).toISOString();
+      await appendPresenceEvent(ev('casa', 'enter', at), s);
+    }
+    const log = await readPresenceLog(s);
+    expect(log).toHaveLength(PRESENCE_LOG_CAP);
+    expect(log[0].at).toBe(new Date(Date.UTC(2026, 8, 7, 0, 3)).toISOString());
+  });
+
   it('limpa sem apagar nada além do log', async () => {
     const s = memStore();
     await appendPresenceEvent(ev('casa', 'enter', '2026-09-06T08:00:00.000Z'), s);
