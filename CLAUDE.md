@@ -203,6 +203,18 @@ São **10** módulos, não 7:
   período Dia com a noite, o treino e a faixa típica, mais o card Dormindo. Conferido em 06/09.
   Ver [docs/specs/fc-serie/](docs/specs/fc-serie/spec.md)
 
+- Busca textual nas atividades (07/09): campo na lista de **cada tipo** — celular e web —
+  buscando em cidade, nome da rota, nome, fonte e aparelho ao mesmo tempo. Função pura no
+  shared sobre a lista já carregada (índice de 555 atividades em 5 ms, consultas em 0–2 ms),
+  sem consulta nova ao banco. O cartão **grifa** o trecho quando ele já está à vista e
+  **explica** (`Leuven · cidade`) só quando o casamento foi num campo invisível. O
+  ranqueamento usa a **raridade do nome no acervo**, não `name_edited` — dos 33 nomes
+  editados à mão, 31 são "Yoga". `CityMark.aliases` guarda as grafias que o Nominatim já
+  devolvia e o código descartava, então `Brussels`, `Bruxelas` e `Elsene` passam a achar
+  Bruxelles e Ixelles. No mesmo passo o enriquecimento de cidades deixou de ser só de
+  bicicleta: o acervo geográfico foi de 138 para **274** atividades e de 1.376 para **1.727**
+  marcas — e "Visão detalhada por país" passou a existir para Corrida e Caminhada
+
 ### Em andamento / Próximo 🔧
 - Piso das rotas: o chão de cada pedalada medido contra o OpenStreetMap no ingest
   ([ADR 0035](docs/decisions/0035-piso-das-rotas-vem-do-osm-no-ingest.md)), com a bicicleta
@@ -292,3 +304,4 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [Sono (tela própria: horários, timing chart, despertares e percepção × medição)](docs/specs/sono/spec.md) · [data-model](docs/specs/sono/data-model.md) · [plan](docs/specs/sono/plan.md) · [tasks](_bmad-output/implementation-artifacts/sono/tasks.md)
 - [FC ao longo do dia (série intradiária em `health_series`)](docs/specs/fc-serie/spec.md) · [data-model](docs/specs/fc-serie/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fc-serie/tasks.md)
 - [Fotos na pedalada (a foto ligada à atividade, agrupada por parada)](docs/specs/fotos-na-pedalada/spec.md) · [data-model](docs/specs/fotos-na-pedalada/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md)
+- [Busca textual nas atividades (cidade, nome da rota, nome, fonte, aparelho)](docs/specs/busca-textual/spec.md) · [data-model](docs/specs/busca-textual/data-model.md) · [stories](docs/specs/busca-textual/stories.yaml)
