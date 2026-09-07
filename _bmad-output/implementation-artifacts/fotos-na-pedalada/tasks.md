@@ -286,6 +286,29 @@ decisões que ele já tinha tomado à mão viraram a base de medida:
       espremer a data.
 - [ ] **T10.8** A **web** ficou de fora por decisão dele (07/09). O
       `fetchMediaCounts` já é do shared e serve quando a hora chegar.
+- [x] **T10.9** **Dois defeitos meus, achados por ele no aparelho.** O primeiro é o
+      mesmo erro que esta feature já documentava: a tela passava `routePoints ?? []`
+      e a rota carrega assíncrona, então o vínculo rodava com traçado vazio,
+      classificava tudo como "fora da rota" e ainda gravava `photos_checked_at` —
+      a pedalada ficava marcada como varrida sem nunca ter sido.
+      **`?? []` num dado assíncrono apaga a diferença entre "ainda não sei" e "não
+      tem"**, que é a armadilha da §5.3 vista do outro lado. A prop passou a aceitar
+      `undefined`. O segundo: a contagem do selo era lida só na montagem, e a lista
+      fica viva atrás do detalhe — virou `useFocusEffect`. Quatro pedaladas marcadas
+      à toa pelo build quebrado foram destravadas em produção.
+- [x] **T10.10** **O lote** — "Procurar em todas as pedaladas", em Configurações →
+      Dados. Mais recentes primeiro (parar na metade deixa a metade que importa);
+      uma rota por vez e descartada (são 31 MB nas 222 pendentes com rota);
+      **sem `route_overview`**, cujos segmentos de ~445 m fariam a foto de qualquer
+      curva cair fora do corredor de 40 m; retomável sem estado próprio, pelo
+      `photos_checked_at`; e as 280 sem rota contadas como puladas, porque um total
+      de "222" com 502 pendentes pareceria errado. O relatório final diz **o que o
+      lote não fez** — quantas ficaram fora do corredor e em quantas pedaladas.
+- [ ] **T10.11** **O gancho no sync não foi feito** — ele aprovou o botão, não o
+      gancho. É a mudança menor e a de maior valor contínuo: o `syncDelta` já
+      carrega as rotas em memória para calcular tempo em movimento, então a
+      pedalada nova poderia ligar as fotos sem nenhum download extra. Ressalva: se
+      o sync rodar em segundo plano, o iOS pode barrar a leitura da biblioteca.
 
 ### A lição das fases 8 e 9
 
