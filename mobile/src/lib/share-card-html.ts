@@ -14,64 +14,28 @@ export type ShareFormat = 'story' | 'square' | 'portrait'; // 9:16 · 1:1 · 4:5
 export type ShareBackground = 'art' | 'map' | 'data' | 'photo';
 
 /**
- * Como a foto ocupa o cartão.
+ * O enquadramento da foto no cartão.
  *
- * `fill` é o que sempre existiu: a foto sangra até a borda e os números ficam
- * sobre ela. Os outros três a transformam num **bloco** sobre papel escuro, nas
- * quatro proporções em que uma foto existe no mundo — a rede social, a câmera
- * na vertical, o Story e a paisagem.
+ * A foto **sempre preenche** — as proporções em bloco (1:1, 4:5, 9:16, 16:9)
+ * foram construídas em 07/09/2026 e removidas no mesmo dia, a pedido do dono:
+ * nenhuma delas servia. O motivo é geométrico e vale ficar escrito, para não
+ * voltarem: um bloco 9:16 dentro de um cartão 9:16 só seria "tela cheia" sem
+ * margem nenhuma — e aí ele é o Preencher. Os demais só encolhiam a foto para
+ * mostrar papel, que ninguém pediu.
  *
- * Recorte livre não entra de propósito: pareceria liberdade e entregaria
- * hesitação. A liberdade que importa é *qual parte da foto*, e essa é a pinça.
+ * O que sobrou é o que importava: **qual parte da foto aparece**. Pinça
+ * aproxima, dedo move.
  */
-export type PhotoFit = 'fill' | 'square' | 'portrait' | 'tall' | 'pano';
-
-const PHOTO_RATIO: Record<Exclude<PhotoFit, 'fill'>, number> = {
-  square: 1,
-  portrait: 4 / 5,
-  // A proporção do Story. Como bloco ela quase preenche o cartão — sobra só a
-  // margem e o rodapé —, e é o que dá a foto "cheia" com os números sobre papel
-  // em vez de sobre a imagem.
-  tall: 9 / 16,
-  pano: 16 / 9,
-};
-
-/** O enquadramento escolhido no preview — o mesmo valor vai para a exportação. */
 export interface PhotoFrame {
-  fit: PhotoFit;
-  /** 1 = a foto cobre o quadro; acima disso, aproxima. */
+  /** 1 = a foto cobre o cartão; acima disso, aproxima. */
   scale: number;
-  /** Deslocamento em fração da largura/altura do quadro. */
+  /** Deslocamento em fração da largura/altura do cartão. */
   dx: number;
   dy: number;
 }
 
-export const PHOTO_FRAME_DEFAULT: PhotoFrame = { fit: 'fill', scale: 1, dx: 0, dy: 0 };
+export const PHOTO_FRAME_DEFAULT: PhotoFrame = { scale: 1, dx: 0, dy: 0 };
 
-/**
- * Onde o bloco de foto fica, em **fração** da caixa do cartão.
- *
- * Precisa ser determinístico porque duas camadas diferentes o consomem: o HTML
- * (que reserva o espaço) e a `<Image>` nativa (que desenha a foto por cima).
- * Se dependesse da altura do rodapé — que varia com as métricas ligadas — as
- * duas discordariam, e a foto sairia deslocada no PNG exportado.
- *
- * Por isso o bloco é ancorado no **topo**: `padding` de 7vw/6vw e a margem de
- * 4vw da faixa da arte, os mesmos valores do CSS do cartão.
- */
-export function photoBlockRect(
-  format: ShareFormat,
-  fit: PhotoFit,
-): { top: number; left: number; width: number; height: number } | null {
-  if (fit === 'fill') return null;
-  const { width: W, height: H } = FORMAT_DIMENSIONS[format];
-  const padH = 0.06 * W;
-  const padV = 0.07 * W;
-  const margin = 0.04 * W;
-  const w = W - padH * 2;
-  const h = w / PHOTO_RATIO[fit];
-  return { top: (padV + margin) / H, left: padH / W, width: w / W, height: h / H };
-}
 /** Desenho da região central no fundo "arte" — todos data-driven. 'speed' e
  *  'elevation' dependem de timestamp/altitude no track (caem no traçado padrão
  *  quando faltam); 'route' é só o traçado. */
@@ -144,13 +108,6 @@ export interface ShareCardOptions {
   textColor?: string;
   /** Desenho da região central no fundo "arte". Default: 'speed'. */
   artStyle?: ShareArtStyle;
-  /**
-   * Como a foto ocupa o cartão quando `background === 'photo'`. Default:
-   * `'fill'`, que é o comportamento de sempre. Nos demais o cartão pinta papel
-   * escuro e **reserva** o retângulo — a imagem vem de uma `<Image>` nativa por
-   * cima, porque o WebView não carrega o caminho do contêiner do Fotos.
-   */
-  photoFit?: PhotoFit;
   /**
    * Desenha a arte da rota sobre o fundo. Default: `true`, que é como sempre
    * foi. Sobre uma foto boa o traçado costuma ser ruído — e quem julga isso é
@@ -532,7 +489,6 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     accent = MOD.treino.accent,
     textColor,
     artStyle = 'speed',
-    photoFit = 'fill',
     showRoute = true,
     mapEffect = 'none',
     mapTile,

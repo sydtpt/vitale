@@ -38,10 +38,8 @@ import {
 import {
   buildShareCardHtml,
   formatRatio,
-  photoBlockRect,
   FORMAT_DIMENSIONS,
   PHOTO_FRAME_DEFAULT,
-  type PhotoFit,
   type PhotoFrame,
   type ShareArtStyle,
   type ShareBackground,
@@ -59,76 +57,39 @@ import { useAssetUri } from '../../hooks/useAssetUri';
 /**
  * A camada da foto — a mesma no preview e na exportação.
  *
- * Existe como componente porque as duas camadas **têm** de concordar: o
- * `captureRef` fotografa a pilha inteira, e qualquer diferença entre o que se
- * vê e o que se exporta viraria um PNG deslocado que só aparece depois de
- * compartilhado.
+ * Existe como componente porque as duas **têm** de concordar: o `captureRef`
+ * fotografa a pilha inteira, e qualquer diferença entre o que se vê e o que se
+ * exporta viraria um PNG deslocado que só aparece depois de compartilhado.
  *
- * **A foto fica sempre no fundo.** A primeira versão punha o bloco por cima do
- * WebView, porque o cartão pintava o papel — e aí a imagem cobria o texto, com
- * a marca d'água sumindo atrás dela (conferido no iPhone em 07/09/2026). Agora
- * o papel é uma view nativa aqui, atrás de tudo: o texto volta a ser a camada
- * de cima em qualquer enquadramento, e o cartão deixou de precisar saber que
- * enquadramento existe.
+ * Fica sempre ATRÁS do WebView. A versão com bloco a punha por cima, e ela
+ * cobria o texto — a foto pertence ao fundo.
  */
 function PhotoLayer({
   uri,
   frame,
-  format,
   box,
 }: {
   uri: string;
   frame: PhotoFrame;
-  format: ShareFormat;
   box: { width: number; height: number };
 }) {
-  const r = photoBlockRect(format, frame.fit);
-
-  // Ordem importa: a escala entra por último, então o deslocamento fica em
-  // pixels da janela e não cresce junto com a aproximação.
-  const move = (w: number, h: number) => [
-    { translateX: frame.dx * w },
-    { translateY: frame.dy * h },
-    { scale: frame.scale },
-  ];
-
-  /**
-   * **Preencher mantém a estrutura antiga, de propósito.** Envolvê-la numa View
-   * com largura e altura calculadas fez a foto sumir do preview (conferido no
-   * iPhone em 07/09/2026) e não valeu a pena descobrir por quê: o modo que
-   * sempre funcionou não precisa de camada nova. Só o bloco precisa de janela,
-   * porque só ele recorta.
-   */
-  if (!r) {
-    return (
-      <Image
-        source={{ uri }}
-        resizeMode="cover"
-        style={[styles.photoBehind, { transform: move(box.width, box.height) }]}
-      />
-    );
-  }
-
-  const win = {
-    left: r.left * box.width,
-    top: r.top * box.height,
-    width: r.width * box.width,
-    height: r.height * box.height,
-  };
   return (
-    <>
-      {/* O papel do bloco. Escuro nos dois esquemas, e **não** a foto desfocada
-          atrás dela: aquele truque de app de story suja o contraste dos números
-          justamente onde eles precisam ser lidos. */}
-      <View style={[styles.photoBehind, styles.photoPaper]} />
-      <View style={[styles.photoWindow, win, styles.photoBlockChrome]}>
-        <Image
-          source={{ uri }}
-          resizeMode="cover"
-          style={{ width: '100%', height: '100%', transform: move(win.width, win.height) }}
-        />
-      </View>
-    </>
+    <Image
+      source={{ uri }}
+      resizeMode="cover"
+      style={[
+        styles.photoBehind,
+        {
+          // Ordem importa: a escala entra por último, então o deslocamento fica
+          // em pixels do cartão e não cresce junto com a aproximação.
+          transform: [
+            { translateX: frame.dx * box.width },
+            { translateY: frame.dy * box.height },
+            { scale: frame.scale },
+          ],
+        },
+      ]}
+    />
   );
 }
 
@@ -238,20 +199,6 @@ const BG_OPTS: { key: ShareBackground; label: string }[] = [
 function bgOptions(hasPhoto: boolean) {
   return hasPhoto ? BG_OPTS : BG_OPTS.filter((o) => o.key !== 'photo');
 }
-/**
- * As cinco formas da foto no cartão.
- *
- * `shape` é o desenho do próprio botão: um retângulo na proporção que ele
- * representa. Um ícone abstrato exigiria decorar o que cada um quer dizer;
- * a forma **é** a legenda.
- */
-const FIT_OPTS: { key: PhotoFit; label: string; shape: { width: number; height: number } }[] = [
-  { key: 'fill', label: 'Preencher', shape: { width: 22, height: 34 } },
-  { key: 'square', label: '1:1', shape: { width: 28, height: 28 } },
-  { key: 'portrait', label: '4:5', shape: { width: 25, height: 31 } },
-  { key: 'tall', label: '9:16', shape: { width: 20, height: 35 } },
-  { key: 'pano', label: '16:9', shape: { width: 34, height: 19 } },
-];
 const ART_OPTS: { key: ShareArtStyle; label: string }[] = [
   { key: 'speed', label: 'Velocidade' },
   { key: 'route', label: 'Rota' },
@@ -454,7 +401,6 @@ export function ShareComposerModal({
         format,
         background,
         artStyle,
-        photoFit: frame.fit,
         showRoute,
         mapEffect,
         textColor: textColor ?? undefined,
@@ -478,7 +424,10 @@ export function ShareComposerModal({
         previewChecker: background === 'art' || background === 'data',
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, format, background, artStyle, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
+    // `showRoute` e `frame` entram aqui porque o HTML depende dos dois. Sem o
+    // primeiro, ligar o interruptor da rota não redesenhava nada até outra
+    // opção mudar por acidente — foi assim que ele descobriu (07/09/2026).
+    [points, format, background, artStyle, showRoute, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
   );
 
   // Letterbox: dimensiona o WebView à proporção real de saída dentro da área.
@@ -595,7 +544,6 @@ export function ShareComposerModal({
         format,
         background,
         artStyle,
-        photoFit: frame.fit,
         showRoute,
         mapEffect,
         textColor: textColor ?? undefined,
@@ -714,11 +662,11 @@ export function ShareComposerModal({
               ]}
             >
               {showPhoto && (
-                <PhotoLayer uri={photoUri!} frame={frame} format={format} box={box} />
+                <PhotoLayer uri={photoUri!} frame={frame} box={box} />
               )}
               <WebView
                 ref={previewRef}
-                key={`${format}-${background}-${artStyle}-${mapStyle}-${mapEffect}-${textColor ?? 'auto'}`}
+                key={`${format}-${background}-${artStyle}-${showRoute ? 'r' : 'n'}-${mapStyle}-${mapEffect}-${textColor ?? 'auto'}`}
                 originWhitelist={['*']}
                 source={{ html }}
                 style={styles.web}
@@ -879,48 +827,24 @@ export function ShareComposerModal({
             </>
           )}
 
-          {/* O enquadramento aparece só com o fundo Foto — ele não existe para
-              mapa nem para arte, e um controle morto na tela é pior que um
+          {/* Só com o fundo Foto: um controle morto na tela é pior que um
               controle a menos. */}
           {background === 'photo' && (
             <>
               <Text style={styles.fieldLabel}>Enquadramento</Text>
-              <View style={styles.fitRow}>
-                {FIT_OPTS.map((o) => {
-                  const on = frame.fit === o.key;
-                  return (
-                    <Pressable
-                      key={o.key}
-                      onPress={() => {
-                        tap();
-                        // Trocar de proporção volta ao enquadramento neutro: o
-                        // deslocamento que servia num quadro 16:9 não quer dizer
-                        // nada num 4:5, e herdá-lo cortaria a foto num lugar que
-                        // ninguém escolheu.
-                        setFrame({ ...PHOTO_FRAME_DEFAULT, fit: o.key });
-                        frameStart.current = { ...PHOTO_FRAME_DEFAULT, fit: o.key };
-                      }}
-                      style={styles.fitOpt}
-                    >
-                      <View style={[styles.fitShape, o.shape, on && styles.fitShapeOn]} />
-                      <Text style={[styles.fitLabel, on && styles.fitLabelOn]}>{o.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
               <Text style={styles.fitHint}>
                 {frame.scale > 1.02
                   ? `Pinça para aproximar, dedo para mover · ${frame.scale.toFixed(1)}×`
                   : 'Pinça para aproximar, dedo para mover'}
               </Text>
               <Pressable
-                  style={styles.switchRow}
-                  onPress={() => {
-                    tap();
-                    setShowRoute((s) => !s);
-                  }}
-                >
-                  <Text style={styles.switchLabel}>Desenhar a rota sobre a foto</Text>
+                style={styles.switchRow}
+                onPress={() => {
+                  tap();
+                  setShowRoute((s) => !s);
+                }}
+              >
+                <Text style={styles.switchLabel}>Desenhar a rota sobre a foto</Text>
                 <View style={[styles.switchTrack, showRoute && styles.switchTrackOn]}>
                   <View style={[styles.switchThumb, showRoute && styles.switchThumbOn]} />
                 </View>
@@ -1060,7 +984,7 @@ export function ShareComposerModal({
                   carrega `ph://`, e o `captureRef` fotografa esta View inteira,
                   então o snapshot compõe foto + cartão sem base64 nenhum. */}
               {showPhoto && (
-                <PhotoLayer uri={photoUri!} frame={frame} format={format} box={exportBox} />
+                <PhotoLayer uri={photoUri!} frame={frame} box={exportBox} />
               )}
               <WebView
                 originWhitelist={['*']}
@@ -1208,30 +1132,8 @@ const styles = themed(() =>
     },
     web: { flex: 1, backgroundColor: 'transparent' },
     photoBehind: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-    fitRow: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-end' },
-    fitOpt: { alignItems: 'center', gap: 6 },
-    /** O botão é a proporção que ele representa — a forma é a legenda. */
-    fitShape: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 3, backgroundColor: colors.surfaceMute },
-    fitShapeOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-    fitLabel: { fontSize: 11, fontFamily: fonts.sans, color: colors.ink3 },
-    fitLabelOn: { color: colors.ink, fontFamily: fonts.sansSemiBold },
     fitHint: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink4, marginTop: spacing.sm },
 
-    /** A janela do enquadramento — recorta a foto ampliada dentro dela. */
-    photoWindow: { position: 'absolute', overflow: 'hidden' },
-    photoPaper: { backgroundColor: 'rgb(20,17,14)' },
-    /**
-     * O bloco parece uma fotografia impressa sobre o papel: canto levemente
-     * arredondado e uma sombra contida, que é o que separa os dois planos sem
-     * precisar de moldura desenhada.
-     */
-    photoBlockChrome: {
-      borderRadius: 4,
-      shadowColor: 'black',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.45,
-      shadowRadius: 14,
-    },
   photoPicker: { flexGrow: 0 },
   photoOpt: {
     width: 52,
