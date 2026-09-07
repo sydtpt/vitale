@@ -18,6 +18,7 @@ import {
   SURFACE_RANGES,
   gearForActivity,
   gearUsage,
+  nomeProprio,
   ridesByCountry,
   summarizeSurface,
   surfaceWindow,
@@ -154,6 +155,19 @@ function ActivityCard({
   // Atividades com GPS exibem o tempo em movimento; as demais, a duração total.
   const isGps = item.hasRoute || (item.distanceM ?? 0) > 0;
   const timeS = isGps ? item.movingTimeS ?? item.durationS : item.durationS;
+  /*
+   * O nome ocupa a linha da hora, e a hora de início desce para os números
+   * (proposta C, aprovada em 07/09/2026). Custo zero de altura: a data continua
+   * sendo a manchete e o nome entra abaixo dela, sem empurrar o cartão.
+   *
+   * Só o nome PRÓPRIO conta. Uma corrida não tem `route_name`, e "Cycling" — que
+   * é o que a fonte deu a 175 das 196 pedaladas — não é nome. Nesses casos a
+   * linha da hora fica como sempre foi e o cartão não muda em nada.
+   *
+   * Trunca em uma linha: 18 dos 133 nomes reais passam da largura disponível,
+   * medido em 07/09/2026. A média tem 23 caracteres.
+   */
+  const nome = nomeProprio(item);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.cardHeader}>
@@ -162,9 +176,15 @@ function ActivityCard({
         </View>
         <View style={styles.flex}>
           <Text style={styles.cardDate}>{formatDateLabel(item.startAt)}</Text>
-          <Text style={styles.cardTime}>
-            {formatTime(item.startAt)} – {formatTime(item.endAt)}
-          </Text>
+          {nome ? (
+            <Text style={styles.cardName} numberOfLines={1}>
+              {nome}
+            </Text>
+          ) : (
+            <Text style={styles.cardTime}>
+              {formatTime(item.startAt)} – {formatTime(item.endAt)}
+            </Text>
+          )}
         </View>
         {media && <MediaBadge photos={media.photos} videos={media.videos} />}
         {item.locallyEdited && (
@@ -176,8 +196,15 @@ function ActivityCard({
       </View>
 
       <View style={styles.statsRow}>
+        {/* A hora de início só desce para cá quando o nome tomou a linha dela. */}
+        {nome && (
+          <View style={styles.stat}>
+            <Ionicons name="time-outline" size={14} color={colors.ink3} />
+            <Text style={styles.statValue}>{formatTime(item.startAt)}</Text>
+          </View>
+        )}
         <View style={styles.stat}>
-          <Ionicons name="time-outline" size={14} color={colors.ink3} />
+          <Ionicons name={nome ? 'stopwatch-outline' : 'time-outline'} size={14} color={colors.ink3} />
           <Text style={styles.statValue}>{formatDuration(timeS)}</Text>
         </View>
         {item.calories > 0 && (
@@ -1030,6 +1057,9 @@ const styles = themed(() => StyleSheet.create({
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cardDate: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
   cardTime: { fontSize: 12.5, color: colors.ink3, fontFamily: fonts.mono, marginTop: 2 },
+  // 13 pt sans contra 15 pt semibold da data: menor e mais leve, como ele pediu.
+  // Sans e não mono porque é prosa, e é o que a separa da fileira de números.
+  cardName: { fontSize: 13, color: colors.ink2, fontFamily: fonts.sans, marginTop: 2 },
   editBadge: {
     flexDirection: 'row',
     alignItems: 'center',

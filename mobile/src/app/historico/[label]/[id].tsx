@@ -19,6 +19,7 @@ import {
   gearForActivity,
   hrZoneRange,
   movingTimeFromRoutePoints,
+  nomeProprio,
   routeCursorAt,
   routeDistances,
   speedSeries,
@@ -122,6 +123,7 @@ export default function AtividadeDetalheScreen() {
   const activity = useMemo(() => _all.find((a) => a.id === id), [_all, id]);
   // A bike desta pedalada: override explícito ou herança pela data (ADR 0034).
   const gear = useMemo(() => (activity ? gearForActivity(gears, activity) : undefined), [gears, activity]);
+  const nomeDaRota = activity ? nomeProprio(activity) : undefined;
 
   useEffect(() => {
     load();
@@ -397,7 +399,19 @@ export default function AtividadeDetalheScreen() {
         >
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
-        <Text style={styles.headerTitle}>{meta.label}</Text>
+        {/*
+          O tipo continua sendo a manchete e o nome entra ABAIXO dele — a mesma
+          regra do cartão: nunca com mais peso que a âncora genérica. Sem nome
+          próprio, o cabeçalho fica exatamente como sempre foi.
+        */}
+        <View style={styles.headerTitleBox}>
+          <Text style={styles.headerTitle}>{meta.label}</Text>
+          {nomeDaRota && (
+            <Text style={styles.headerName} numberOfLines={1}>
+              {nomeDaRota}
+            </Text>
+          )}
+        </View>
         {dirty ? (
           <Pressable
             onPress={onSave}
@@ -720,12 +734,20 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: colors.surface,
     ...shadows.card,
   },
+  headerTitleBox: { flex: 1, alignItems: 'center' },
   headerTitle: {
-    flex: 1,
     textAlign: 'center',
     fontSize: 20,
     fontFamily: fonts.serif,
     color: colors.ink,
+  },
+  // Abaixo do tipo em tamanho e em tinta — a mesma subordinação do cartão.
+  headerName: {
+    textAlign: 'center',
+    fontSize: 12.5,
+    fontFamily: fonts.sans,
+    color: colors.ink2,
+    marginTop: 1,
   },
   saveBtn: {
     height: 36,

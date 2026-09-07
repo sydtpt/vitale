@@ -172,9 +172,27 @@ export function nomeDaAtividade(
   a: { activityName?: string; routeName?: string; nameEdited?: boolean },
   rotuloDoTipo: string,
 ): string {
+  return nomeProprio(a) ?? a.activityName?.trim() ?? rotuloDoTipo;
+}
+
+/**
+ * O nome **próprio** da atividade, ou `undefined` quando não há um.
+ *
+ * A diferença para o `nomeDaAtividade` é o que ele NÃO devolve: o rótulo genérico
+ * que veio da fonte. "Cycling" é o nome de 175 das 196 pedaladas — como título
+ * ele serve de último recurso, mas num cartão que já mostra o ícone e a cor do
+ * tipo ele é ruído ocupando uma linha.
+ *
+ * Por isso o cartão pergunta por este, e o título por aquele.
+ */
+export function nomeProprio(a: {
+  activityName?: string;
+  routeName?: string;
+  nameEdited?: boolean;
+}): string | undefined {
   const daFonte = a.activityName?.trim();
   if (a.nameEdited && daFonte) return daFonte;
-  return a.routeName?.trim() || daFonte || rotuloDoTipo;
+  return a.routeName?.trim() || undefined;
 }
 
 function sufixoVia(lingua: Lingua, via: string, artigo: Artigo): string {
