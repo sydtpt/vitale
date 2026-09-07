@@ -389,7 +389,7 @@ export async function healPointers(
   userId: string,
   activity: { startAtMs: number; endAtMs: number },
   photos: readonly ActivityPhoto[],
-): Promise<number> {
+): Promise<{ healed: number; dismissed: number }> {
   const resolved = new Map<string, boolean>();
   for (const p of photos) {
     if (!p.assetId) continue;
@@ -401,7 +401,7 @@ export async function healPointers(
     }
   }
   const resolves = (id: string | null) => (id ? (resolved.get(id) ?? false) : false);
-  if (photos.every((p) => resolves(p.assetId))) return 0;
+  if (photos.every((p) => resolves(p.assetId))) return { healed: 0, dismissed: 0 };
 
   /**
    * **Acesso total é condição para declarar órfã.**
@@ -414,7 +414,7 @@ export async function healPointers(
   const full = (await currentPhotoAccess()) === 'full';
 
   const w = photoWindow(activity.startAtMs, activity.endAtMs);
-  if (!w) return 0;
+  if (!w) return { healed: 0, dismissed: 0 };
   const media = await readWindow(w.fromMs, w.toMs);
   const { heal, orphans } = planHealing(photos, media, resolves);
 
@@ -441,12 +441,14 @@ export async function healPointers(
    * quebrado com o instante ainda presente é cura, não remoção — essa distinção
    * é a razão de a chave de cura existir (ADR 0037 §2).
    */
+  let dismissed = 0;
   if (full && orphans.length > 0) {
     try {
       await setPhotosDismissed(supabase, userId, orphans);
+      dismissed = orphans.length;
     } catch {
       // A lacuna continuar na tela é melhor que a tela quebrar por causa dela.
     }
   }
-  return healed;
+  return { healed, dismissed };
 }

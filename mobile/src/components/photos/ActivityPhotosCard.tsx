@@ -16,7 +16,7 @@
  * volta para quem tocou "Agora não".
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,7 @@ import {
   dismissPhoto,
   dismissPhotos,
   autoLinkCorridor,
+  healPointers,
   saveDecisions,
   scanActivity,
   setCover,
@@ -171,6 +172,41 @@ export function ActivityPhotosCard({ activity, points: rawPoints, view }: Props)
     // varredura é a pedalada, o dono, e **se a rota já chegou**.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activity.id, userId, checked, rawPoints]);
+
+  /**
+   * A cura do ponteiro, e a remoção da foto apagada (ADR 0037 §2).
+   *
+   * **Isto faltava.** A função existia desde a Fase 2 e não era chamada por
+   * ninguém — escrita, testada e nunca ligada. Sem ela, o `localIdentifier`
+   * trocado por um Quick Start ou um restore mataria todas as ligações em
+   * silêncio, que é exatamente o que a chave de cura foi feita para evitar.
+   *
+   * Roda depois que as fotos carregam, e é barata no caso comum: a função sai
+   * logo na entrada quando todos os ponteiros resolvem, e só então lê a janela
+   * da biblioteca. Recarrega a tela apenas se mudou alguma coisa.
+   */
+  const healedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!userId || photos.length === 0) return;
+    // Uma vez por pedalada, por montagem: sem a trava, cada `reload` dispararia
+    // a cura de novo — e a cura chama `reload`.
+    if (healedRef.current === activity.id) return;
+    healedRef.current = activity.id;
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await healPointers(userId, activity, photos);
+        if (alive && r.healed + r.dismissed > 0) await reload();
+      } catch {
+        // Cura é conserto oportunista: falhar deixa a lacuna na tela, que é o
+        // comportamento anterior, e não quebra nada.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, activity.id, photos.length]);
 
   /**
    * A folha, aberta com o que sobrou — sem varrer de novo.
