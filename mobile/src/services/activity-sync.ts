@@ -10,6 +10,7 @@
  * remoções (FR-008) ainda não são propagadas — ver plan.md.
  */
 import { supabase } from '../lib/supabase';
+import { linkNewActivityPhotos } from './activity-photos';
 import {
   fetchAllWorkouts,
   fetchWorkoutsDelta,
@@ -507,6 +508,31 @@ export async function syncDelta(): Promise<SyncResult> {
         tasksCreated = await linkWorkoutsToTodos(ofType, userId);
       } catch (e) {
         console.warn('[sync] link de tarefas falhou:', e instanceof Error ? e.message : e);
+      }
+
+      /**
+       * As fotos das pedaladas novas (ADR 0037), com o traçado que este sync já
+       * tem em memória — zero download. Mesma guarda de âncora das tarefas, e
+       * pelo mesmo motivo: sem ela, o primeiro sync varreria a biblioteca
+       * inteira contra três anos de histórico.
+       */
+      try {
+        await linkNewActivityPhotos(
+          pushable,
+          // O HealthKit fala `latitude/longitude/timestamp`; o núcleo fala
+          // `lat/lng/t`. A mesma conversão que o `toRouteRow` faz para gravar —
+          // aqui em memória, só para as pedaladas deste delta.
+          (id) =>
+            routes.get(id)?.map((pt) => ({
+              lat: pt.latitude,
+              lng: pt.longitude,
+              ...(pt.altitude !== undefined ? { alt: pt.altitude } : {}),
+              ...(pt.timestamp ? { t: new Date(pt.timestamp).getTime() } : {}),
+            })),
+          userId,
+        );
+      } catch (e) {
+        console.warn('[sync] link de fotos falhou:', e instanceof Error ? e.message : e);
       }
     }
 

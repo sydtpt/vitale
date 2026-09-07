@@ -293,6 +293,65 @@ export async function backfillCorridor(
   return p;
 }
 
+/**
+ * Liga as fotos das pedaladas que **acabaram de chegar** pelo sync (ADR 0037).
+ *
+ * ## Por que aqui, e não numa varredura própria
+ *
+ * O `syncDelta` já carrega o traçado de cada atividade nova em memória — ele
+ * precisa dele para calcular tempo em movimento e best efforts. Ligar as fotos
+ * ali custa **zero download**: as rotas do lote de Configurações são 31 MB
+ * porque vêm do banco; estas já estão na mão.
+ *
+ * ## O que pode dar errado, e por que não vira alarme
+ *
+ * O sync roda também em segundo plano, disparado pelo observer do HealthKit, e
+ * o iOS restringe a leitura da biblioteca de fotos ali. Quando isso acontece a
+ * pedalada fica **sem** `photos_checked_at` — e é exatamente o que se quer: ela
+ * entra de novo na próxima abertura do detalhe, com o app na frente. Por isso o
+ * erro é engolido em vez de virar aviso: não há nada que o dono possa fazer, e
+ * nada se perde.
+ *
+ * Vale só para o delta, nunca para o backfill por tipo: `fetchWorkoutsDelta`
+ * sem âncora devolve três anos de histórico, e varrer a biblioteca inteira num
+ * primeiro sync seria minutos de trabalho que ninguém pediu.
+ */
+export async function linkNewActivityPhotos(
+  activities: readonly { id: string; start: string; end: string; distance?: number }[],
+  // Uma função de busca, e não o `Map`: o sync guarda `RoutePoint` e o núcleo
+  // pede `ActivityRoutePoint` — a mesma forma, tipos distintos —, e `Map` é
+  // invariante nos genéricos. Assim o chamador entrega o que já tem, sem cópia.
+  routeOf: (activityId: string) => readonly ActivityRoutePoint[] | undefined,
+  userId: string,
+): Promise<number> {
+  if (activities.length === 0) return 0;
+  if ((await currentPhotoAccess()) !== 'full') return 0;
+
+  let linked = 0;
+  for (const a of activities) {
+    const points = routeOf(a.id);
+    // Sem traçado não há corredor — a mesma regra do cartão, e pela mesma razão:
+    // sem ele a partilha diria "fora da rota" para tudo.
+    if (!points || points.length === 0) continue;
+    try {
+      const r = await autoLinkCorridor(
+        {
+          id: a.id,
+          startAtMs: Date.parse(a.start),
+          endAtMs: Date.parse(a.end),
+          distanceM: a.distance,
+        },
+        points,
+        userId,
+      );
+      linked += r?.linked ?? 0;
+    } catch {
+      // Ver o comentário acima: sem a marca, ela tenta de novo.
+    }
+  }
+  return linked;
+}
+
 /** Os instantes já decididos nesta atividade — ligados **e** desligados. */
 async function fetchKnownInstants(userId: string, activityId: string): Promise<Set<number>> {
   try {

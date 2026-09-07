@@ -339,6 +339,15 @@ export default function HabitoDetalheScreen() {
     }, [load, loadAll, allHabits.length]),
   );
 
+  // Id que não existe mais (hábito apagado, deep link velho): volta silencioso
+  // em vez de ficar numa tela em branco. Só depois de a lista ter chegado.
+  React.useEffect(() => {
+    if (allHabits.length > 0 && !habit) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/habitos');
+    }
+  }, [allHabits.length, habit, router]);
+
   const changePeriod = (p: Period) => {
     touched.current = true;
     setPeriod(p);

@@ -499,22 +499,35 @@ export default function RetrospectivaScreen() {
             {photoBlock && (
               <View style={styles.card}>
                 <Text style={styles.eyebrow}>{photoRetroLabel(photoBlock)}</Text>
+                {/**
+                 * Cinco lugares na tira, sempre — e o contador ocupa um deles.
+                 *
+                 * Antes eram cinco quadros MAIS o "+N", e os seis não cabiam:
+                 * 378 pt de conteúdo numa faixa de 329, com o contador saindo
+                 * pela borda do cartão (visto no aparelho em 07/09/2026). O
+                 * corte é na exibição, não na amostra — o `photoRetro` continua
+                 * escolhendo cinco, e a quinta some quando há resto a anunciar.
+                 */}
                 <View style={styles.photoStrip}>
-                  {photoBlock.sample.map((p) => (
+                  {photoBlock.sample
+                    .slice(0, photoBlock.rest > 0 ? 4 : 5)
+                    .map((p) => (
                     <RetroThumb
                       key={p.id}
                       assetId={p.assetId}
                       style={styles.photoThumb}
                       isVideo={p.mediaType === 'video'}
                       onPress={() => setGaleriaAberta(true)}
-                    />
-                  ))}
+                      />
+                    ))}
                   {photoBlock.rest > 0 && (
                     <Pressable
                       style={[styles.photoThumb, styles.photoRest]}
                       onPress={() => setGaleriaAberta(true)}
                     >
-                      <Text style={styles.photoRestText}>+{photoBlock.rest}</Text>
+                      {/* O resto conta a partir do que REALMENTE aparece: com
+                          quatro quadros na tela, sobram total menos quatro. */}
+                      <Text style={styles.photoRestText}>+{photoBlock.total - 4}</Text>
                     </Pressable>
                   )}
                 </View>
