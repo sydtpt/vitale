@@ -196,18 +196,45 @@ function leafletScript(
       L.marker([c.lat, c.lng], { icon: L.divIcon({ html: el, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     });
 
-    // Fotos (ADR 0037): a parada é um círculo com a contagem; a foto solta em
-    // movimento é um ponto pequeno. Desenhadas por último para ficarem acima da
-    // rota e das cidades — é o dado mais recente da tela.
+    /**
+     * Fotos (ADR 0037): a parada é um **pino de cabeça quadrada**, a foto solta
+     * em movimento é um quadradinho.
+     *
+     * Era um círculo, e trocou em 07/09/2026 por duas razões. A primeira o dono
+     * disse: círculo é a forma universal de PONTO — é o que o mapa já usa para
+     * posição, para o começo e para o fim da rota —, então ele nunca ia dizer
+     * "foto". A segunda apareceu ao desenhar: o círculo ficava centrado no
+     * ponto e **cobria a própria rota**, escondendo o traçado exatamente no
+     * lugar em que a bicicleta parou.
+     *
+     * O pino resolve as duas: a cabeça quadrada não é a forma do ponto, e a
+     * ponta toca o lugar enquanto o corpo sobe e desocupa a linha. De quebra a
+     * ponta é mais honesta que um disco de 13 px de raio, que só dizia "por
+     * aqui".
+     *
+     * Desenhadas por último para ficarem acima da rota e das cidades.
+     */
     var photoData = ${photoData};
     photoData.dots.forEach(function (p) {
-      L.circleMarker([p.lat, p.lng], { radius: 5.5, color: photoData.fill, weight: 2, fillColor: photoData.ink, fillOpacity: 1, interactive: false }).addTo(map);
+      var de = document.createElement('div');
+      de.style.cssText = 'width:9px;height:7px;border-radius:1.5px;transform:translate(-50%,-50%);'
+        + 'background:' + photoData.fill + ';border:1.5px solid ' + photoData.ink + ';';
+      L.marker([p.lat, p.lng], { icon: L.divIcon({ html: de, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     });
     photoData.stops.forEach(function (p) {
-      L.circleMarker([p.lat, p.lng], { radius: 13, color: photoData.ink, weight: 2, fillColor: photoData.fill, fillOpacity: 1, interactive: false }).addTo(map);
       var pe = document.createElement('div');
-      pe.textContent = String(p.count);
-      pe.style.cssText = 'white-space:nowrap;transform:translate(-50%,-50%);font:600 12px ui-monospace,Menlo,monospace;color:' + photoData.ink + ';';
+      // translate(-50%,-100%): a PONTA fica no ponto, não o centro do pino.
+      pe.style.cssText = 'transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;';
+      var head = document.createElement('div');
+      head.textContent = String(p.count);
+      head.style.cssText = 'display:flex;align-items:center;justify-content:center;width:28px;height:24px;'
+        + 'border-radius:4px;box-sizing:border-box;font:600 12px ui-monospace,Menlo,monospace;'
+        + 'background:' + photoData.fill + ';border:2px solid ' + photoData.ink + ';color:' + photoData.ink + ';';
+      var tail = document.createElement('div');
+      tail.style.cssText = 'width:0;height:0;margin-top:-1px;border-left:5px solid transparent;'
+        + 'border-right:5px solid transparent;border-top:7px solid ' + photoData.ink + ';';
+      pe.appendChild(head);
+      pe.appendChild(tail);
       L.marker([p.lat, p.lng], { icon: L.divIcon({ html: pe, className: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).addTo(map);
     });
   </script>`;
@@ -541,26 +568,42 @@ ${buildings}
 
       // Fotos (ADR 0037) — ver a nota do Leaflet acima.
       var photoData = ${photoData};
-      if (photoData.dots.length) {
-        map.addSource('photo-dots', { type: 'geojson', data: { type: 'FeatureCollection', features: photoData.dots.map(function (p) {
-          return { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } };
-        }) } });
-        try {
-          map.addLayer({ id: 'photo-dots', type: 'circle', source: 'photo-dots', paint: {
-            'circle-radius': 5.5, 'circle-color': photoData.ink, 'circle-stroke-color': photoData.fill, 'circle-stroke-width': 2 } });
-        } catch (e) {}
-      }
-      if (photoData.stops.length) {
-        map.addSource('photo-stops', { type: 'geojson', data: { type: 'FeatureCollection', features: photoData.stops.map(function (p) {
-          return { type: 'Feature', properties: { n: String(p.count) }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } };
-        }) } });
-        try {
-          map.addLayer({ id: 'photo-stop-dots', type: 'circle', source: 'photo-stops', paint: {
-            'circle-radius': 13, 'circle-color': photoData.fill, 'circle-stroke-color': photoData.ink, 'circle-stroke-width': 2 } });
-          map.addLayer({ id: 'photo-stop-labels', type: 'symbol', source: 'photo-stops',
-            layout: { 'text-field': ['get', 'n'], 'text-size': 12 }, paint: { 'text-color': photoData.ink } });
-        } catch (e) {}
-      }
+      // Quadradinho, não ponto: a mesma família do pino. Vira Marker de HTML
+      // porque camada de círculo não desenha retângulo — e assim os dois
+      // renderizadores usam exatamente o mesmo desenho.
+      photoData.dots.forEach(function (p) {
+        var de = document.createElement('div');
+        de.style.cssText = 'width:9px;height:7px;border-radius:1.5px;pointer-events:none;'
+          + 'background:' + photoData.fill + ';border:1.5px solid ' + photoData.ink + ';';
+        new maplibregl.Marker({ element: de }).setLngLat([p.lng, p.lat]).addTo(map);
+      });
+      /**
+       * O pino da parada — ver a nota no renderizador Leaflet, que explica por
+       * que deixou de ser círculo.
+       *
+       * Aqui vai como Marker de HTML, e não como camada de círculo + camada de
+       * símbolo: o pino tem duas partes com formas diferentes, e desenhá-lo em
+       * camadas nativas exigiria um sprite de imagem para a ponta. O HTML é o
+       * mesmo dos dois renderizadores, então os dois mapas ficam idênticos —
+       * que é o que importa, já que o usuário troca de estilo e não de app.
+       *
+       * O anchor 'bottom' faz a PONTA cair no ponto, não o centro do pino.
+       */
+      photoData.stops.forEach(function (p) {
+        var pe = document.createElement('div');
+        pe.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
+        var head = document.createElement('div');
+        head.textContent = String(p.count);
+        head.style.cssText = 'display:flex;align-items:center;justify-content:center;width:28px;height:24px;'
+          + 'border-radius:4px;box-sizing:border-box;font:600 12px ui-monospace,Menlo,monospace;'
+          + 'background:' + photoData.fill + ';border:2px solid ' + photoData.ink + ';color:' + photoData.ink + ';';
+        var tail = document.createElement('div');
+        tail.style.cssText = 'width:0;height:0;margin-top:-1px;border-left:5px solid transparent;'
+          + 'border-right:5px solid transparent;border-top:7px solid ' + photoData.ink + ';';
+        pe.appendChild(head);
+        pe.appendChild(tail);
+        new maplibregl.Marker({ element: pe, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(map);
+      });
 
       var b = new maplibregl.LngLatBounds(coords[0], coords[0]);
       for (var i = 1; i < coords.length; i++) b.extend(coords[i]);
