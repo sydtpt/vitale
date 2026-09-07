@@ -127,8 +127,12 @@ function photoPinJs(): string {
     }
     function orbePhotoDot(fill, ink) {
       var el = document.createElement('div');
-      el.style.cssText = 'width:7px;height:5.5px;border-radius:1.5px;pointer-events:none;'
-        + 'background:' + fill + ';border:1px solid ' + ink + ';';
+      // Preenchido de TINTA, com anel claro — a mesma inversão do ponto que
+      // existia antes de virar quadrado. Ao trocar a forma eu troquei as cores
+      // também, e um quadradinho branco vazio não diz "foto aqui": diz que algo
+      // não carregou. Conferido no aparelho em 07/09/2026.
+      el.style.cssText = 'width:7px;height:6px;border-radius:1.5px;pointer-events:none;'
+        + 'background:' + ink + ';border:1.5px solid ' + fill + ';';
       return el;
     }
   `;
