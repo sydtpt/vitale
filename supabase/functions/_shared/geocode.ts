@@ -28,6 +28,63 @@ export interface CityMark {
   countryCode?: string;
   lat: number;
   lng: number;
+  /** Outras grafias do nome (ver `colherApelidos`). Nunca repete `name`. */
+  aliases?: string[];
+}
+
+/**
+ * As chaves do `namedetails` que viram apelido. Lista **fechada** de propósito:
+ * a resposta de Bruxelas traz 188 variantes de nome, e persistir todas encheria
+ * as 1.376 marcas do acervo de texto que ninguém vai digitar.
+ *
+ * O recorte cobre as línguas que este acervo produz e consome: `fr`/`nl`/`de`
+ * são as oficiais da Bélgica, `en` é o que a Strava escreve no nome da
+ * atividade ao lado, e `pt` existe porque o dono do app é brasileiro e digitaria
+ * *Bruxelas*. `alt_name` e `short_name` pegam o resto (é de onde vem "BXL").
+ */
+const ALIAS_KEYS = [
+  'name:fr',
+  'name:nl',
+  'name:de',
+  'name:en',
+  'name:pt',
+  'alt_name',
+  'short_name',
+] as const;
+
+/** Minúscula e sem acento — só para deduplicar, nunca para persistir. */
+function chaveDedupe(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+/**
+ * Colhe as grafias alternativas da MESMA resposta que já foi pedida — custo
+ * zero de chamada, que é o que torna a CAP-3 barata.
+ *
+ * Deduplica contra o nome canônico já escolhido: em Bruxelas o canônico é
+ * `name:fr` = "Bruxelles", então ele sai da lista e sobram Brussel, Brüssel,
+ * Brussels, Bruxelas e BXL.
+ */
+export function colherApelidos(
+  namedetails: Record<string, unknown>,
+  canonico: string,
+): string[] {
+  const vistos = new Set<string>([chaveDedupe(canonico)]);
+  const out: string[] = [];
+  for (const k of ALIAS_KEYS) {
+    const bruto = namedetails[k];
+    if (typeof bruto !== 'string') continue;
+    // O OSM separa grafias múltiplas por ';' no mesmo valor.
+    for (const parte of bruto.split(';')) {
+      const nome = parte.trim();
+      if (nome.length < 2) continue;
+      const chave = chaveDedupe(nome);
+      if (!chave || vistos.has(chave)) continue;
+      vistos.add(chave);
+      out.push(nome);
+    }
+  }
+  return out;
 }
 
 const GEOCODE_URL = Deno.env.get('GEOCODE_URL') ?? 'https://nominatim.openstreetmap.org/reverse';
@@ -95,8 +152,10 @@ export async function reverseGeocode(lat: number, lng: number): Promise<CityMark
   const centerLat = Number(body?.lat);
   const centerLng = Number(body?.lon);
   const hasCenter = Number.isFinite(centerLat) && Number.isFinite(centerLng);
+  const aliases = colherApelidos(nd, String(name));
   return {
     name: String(name),
+    ...(aliases.length > 0 ? { aliases } : {}),
     state: a.state ? String(a.state) : undefined,
     country: a.country ? String(a.country) : undefined,
     countryCode: a.country_code ? String(a.country_code).toUpperCase() : undefined,

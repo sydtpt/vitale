@@ -459,6 +459,21 @@ export interface CityMark {
   countryCode?: string;
   lat: number;
   lng: number;
+  /**
+   * Outras grafias do nome, colhidas do `namedetails` que o Nominatim já
+   * devolve na mesma resposta (spec busca-textual, CAP-3). É o que faz digitar
+   * `Brussels`, `Brussel` ou `Bruxelas` achar **Bruxelles** — o nome que o
+   * `preferredLang()` escolheu pela região, e que um brasileiro em Bruxelas não
+   * tem por que adivinhar.
+   *
+   * Nunca repete `name`. Lista FECHADA (7 chaves — ver `geocode.ts`): a
+   * resposta de Bruxelas traz 188 variantes, e guardar todas encheria as 1.376
+   * marcas do acervo de texto que ninguém digita.
+   *
+   * Ausente nas marcas gravadas antes do passe passar a colhê-las — a busca
+   * por cidade funciona sem elas, só não alcança as outras grafias.
+   */
+  aliases?: string[];
 }
 
 export interface ActivityRoutePoint {
