@@ -210,12 +210,27 @@ export default function AtividadeDetalheScreen() {
   const [sharePhoto, setSharePhoto] = useState<ActivityPhoto | null>(null);
 
 
+  /**
+   * O campo de nome semeia com o nome QUE ELE VÊ, não com o da fonte.
+   *
+   * Semear com `activity_name` deixava a pedalada exibindo "Boucle de Bruxelles"
+   * no cabeçalho e "Cycling" no campo — para corrigir o nome derivado ele teria
+   * de digitar por cima de um texto que não é o que está na tela.
+   *
+   * Salvar grava em `activity_name` e acende `name_edited`, e é justamente isso
+   * que faz a correção dele vencer o derivado para sempre (ADR 0041, §8). O
+   * campo é, portanto, o caminho de correção do nome automático — não um campo
+   * paralelo a ele.
+   */
+  const nomeExibido = nomeDaRota ?? activity?.activityName ?? '';
+
   useEffect(() => {
     if (activity) {
-      setName(activity.activityName ?? '');
+      setName(nomeExibido);
       setDurationMin(String(Math.round(activity.durationS / 60)));
     }
-  }, [activity?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity?.id, nomeExibido]);
 
   if (!activity) {
     return (
@@ -272,7 +287,8 @@ export default function AtividadeDetalheScreen() {
   /** O mesmo contexto para os dois caminhos de compartilhar: o mapa e o visor. */
   const shareContext = {
     activityId: activity.activityId,
-    activityName: activity.activityName,
+    // O cartão leva o nome que a tela mostra — derivado ou corrigido por ele.
+    activityName: nomeExibido || undefined,
     metaLabel: meta.label,
     startISO: activity.startAt,
     distanceM: activity.distanceM,
@@ -309,7 +325,7 @@ export default function AtividadeDetalheScreen() {
     });
   })();
 
-  const nameDirty = name.trim() !== (activity.activityName ?? '');
+  const nameDirty = name.trim() !== nomeExibido;
   const durDirty =
     !hasGps && durationMin.trim() !== String(Math.round(activity.durationS / 60));
   const dirty = nameDirty || durDirty;
@@ -342,6 +358,7 @@ export default function AtividadeDetalheScreen() {
   const rows: InfoRow[] = [
     { label: 'Tipo', value: meta.label },
     { label: 'Nome (Health)', value: activity.activityName || '—' },
+    ...(activity.routeName ? [{ label: 'Nome da rota', value: activity.routeName }] : []),
     { label: 'Código', value: String(activity.activityId) },
     { label: 'Início', value: `${formatFullDate(activity.startAt)} · ${formatTime(activity.startAt)}` },
     { label: 'Fim', value: `${formatFullDate(activity.endAt)} · ${formatTime(activity.endAt)}` },

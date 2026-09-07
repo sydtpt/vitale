@@ -11,6 +11,7 @@ import {
   hrZoneRange,
   movingTimeFromRoutePoints,
   nomeDaAtividade,
+  nomeProprio,
   routeCursorAt,
   routeDistances,
   segmentsInside,
@@ -190,7 +191,19 @@ export class ActivityDetailPageComponent {
     return { rows, total };
   });
 
-  protected readonly name = linkedSignal(() => this.activity()?.activityName ?? '');
+  /**
+   * O campo semeia com o nome QUE ELE VÊ — derivado ou corrigido —, não com o da
+   * fonte. Semear com `activityName` deixava o título dizendo "Tour du
+   * Pajottenland" e o campo dizendo "Cycling": para corrigir o nome automático
+   * ele teria de digitar por cima de um texto que não está na tela.
+   *
+   * Salvar acende `name_edited`, e é isso que faz a correção dele vencer o
+   * derivado para sempre (ADR 0041, §8).
+   */
+  protected readonly name = linkedSignal(() => {
+    const a = this.activity();
+    return a ? nomeProprio(a) ?? a.activityName ?? '' : '';
+  });
   protected readonly durationMin = linkedSignal(() => Math.round((this.activity()?.durationS ?? 0) / 60));
 
   protected readonly routePoints = signal<ActivityRoutePoint[]>([]);
