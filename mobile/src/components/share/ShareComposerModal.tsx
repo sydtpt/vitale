@@ -300,6 +300,7 @@ export function ShareComposerModal({
   );
   const photoUri = typeof resolvedPhoto === 'string' ? resolvedPhoto : undefined;
 
+
   /**
    * O enquadramento da foto.
    *
@@ -317,6 +318,49 @@ export function ShareComposerModal({
 
   const [format, setFormat] = useState<ShareFormat>('story');
   const [background, setBackground] = useState<ShareBackground>('art');
+
+  /**
+   * A parada da foto escolhida — "Ittre · km 31,1 · 12:38".
+   *
+   * A cidade sai da mesma conta que o cartão de fotos faz: a mais próxima da
+   * coordenada, entre as que a rota atravessou. Não é geocodificação nova — é
+   * `activities.cities`, que o ingest já enriqueceu.
+   *
+   * Cada pedaço é opcional e some sozinho: foto sem coordenada não tem cidade,
+   * foto fora do traçado não tem quilômetro. O que sempre existe é a hora, que
+   * é a chave da própria feature (ADR 0037 §2).
+   */
+  const placeLine = useMemo(() => {
+    if (background !== 'photo' || !chosenPhoto) return undefined;
+    const parts: string[] = [];
+
+    const cs = context.cities ?? [];
+    if (chosenPhoto.lat !== null && chosenPhoto.lng !== null && cs.length > 0) {
+      let best = cs[0];
+      let bestD = Infinity;
+      for (const c of cs) {
+        const d = (c.lat - chosenPhoto.lat) ** 2 + (c.lng - chosenPhoto.lng) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      parts.push(best.name);
+    }
+
+    if (chosenPhoto.routeDistanceM !== null) {
+      parts.push(`km ${(chosenPhoto.routeDistanceM / 1000).toFixed(1).replace('.', ',')}`);
+    }
+
+    parts.push(
+      new Date(chosenPhoto.takenAt).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    );
+    return parts.join(' · ');
+  }, [background, chosenPhoto, context.cities]);
+
   const [artStyle, setArtStyle] = useState<ShareArtStyle>('speed');
   const [mapStyle, setMapStyle] = useState<MapStyle>(initialMapStyle);
   const [mapEffect, setMapEffect] = useState<ShareMapEffect>('none');
@@ -402,6 +446,7 @@ export function ShareComposerModal({
         background,
         artStyle,
         showRoute,
+        place: placeLine,
         mapEffect,
         textColor: textColor ?? undefined,
         title: debouncedTitle || defaultTitle,
@@ -427,7 +472,7 @@ export function ShareComposerModal({
     // `showRoute` e `frame` entram aqui porque o HTML depende dos dois. Sem o
     // primeiro, ligar o interruptor da rota não redesenhava nada até outra
     // opção mudar por acidente — foi assim que ele descobriu (07/09/2026).
-    [points, format, background, artStyle, showRoute, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
+    [points, format, background, artStyle, showRoute, placeLine, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
   );
 
   // Letterbox: dimensiona o WebView à proporção real de saída dentro da área.
@@ -545,6 +590,7 @@ export function ShareComposerModal({
         background,
         artStyle,
         showRoute,
+        place: placeLine,
         mapEffect,
         textColor: textColor ?? undefined,
         title: title || defaultTitle,
