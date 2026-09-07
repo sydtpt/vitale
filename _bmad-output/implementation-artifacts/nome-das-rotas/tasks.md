@@ -9,9 +9,14 @@ vive em `packages/shared/src/routes/` (7 módulos com teste + golden set), a mig
 `20260907170000_nome_das_rotas.sql` está aplicada, e o passe roda **no aparelho** por
 `mobile/src/services/route-name.ts`.
 
-**Os 133 nomes foram aprovados por ele em 07/09** — "os nomes já estão ok", o único critério
-de aceite que a Fase 6 reconhece. Restam as duas conferências de *tela* (T6.1 e T6.2): que o
-nome apareça certo no iPhone e no navegador é pergunta diferente de se o nome é bom.
+## FRENTE FECHADA em 07/09/2026
+
+Todas as seis fases estão feitas e conferidas. Os 133 nomes foram aprovados por ele — "os
+nomes já estão ok", o único critério de aceite que a Fase 6 reconhece — e as telas foram
+vistas no iPhone e no navegador no mesmo dia.
+
+Único item não marcado como feito: a **T3.3**, superada pela ADR 0042 (o passe mudou de lugar
+e roda no aparelho). Não é dívida.
 
 > O cabeçalho anterior dizia "só a Fase 0 existe, nada foi construído" — ficou parado
 > enquanto a frente inteira era escrita e mesclada no mesmo dia. Conferido contra o código
@@ -163,8 +168,8 @@ os do plano; os reais estão entre parênteses.
 
 ## Fase 6 — Conferência (nada aqui substitui)
 
-- [ ] **T6.1** No iPhone: Histórico, detalhe, Retrospectiva.
-- [ ] **T6.2** No navegador: `/workout-history` e o detalhe.
+- [x] **T6.1** No iPhone: Histórico, detalhe, Retrospectiva. *Conferido em 07/09.*
+- [x] **T6.2** No navegador: `/workout-history` e o detalhe. *Conferido em 07/09.*
 - [x] **T6.3** **Veredito do dono** sobre os nomes das 138. É o único critério de aceite que
       importa — a spec §6 é a régua, mas o gosto dele é o juiz.
       **APROVADO em 07/09/2026: "os nomes já estão ok".** A frente passa no seu único
