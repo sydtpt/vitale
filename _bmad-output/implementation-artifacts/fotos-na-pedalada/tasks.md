@@ -144,12 +144,15 @@ Duas barreiras de arquitetura pegaram **defeito real**, não estilo:
   `colors.onPrimary` existe para evitar. O branco legítimo (ícone sobre véu escuro em
   cima da foto) virou o token `onMedia`, declarado uma vez no tema.
 
-## Fase 5 — Compartilhar
+## Fase 5 — Compartilhar (feita em 06–07/09/2026)
 
-- [ ] **T5.1** `ShareComposerModal` com foto: direção A (foto como chão, rota como selo
+- [x] **T5.1** `ShareComposerModal` com foto: direção A (foto como chão, rota como selo
       branco, véu de gradiente garantindo legibilidade) e direção B (foto acima, dados
       abaixo em superfície sólida).
-- [ ] **T5.2** A capa (`is_cover`) é o que o composer abre por padrão.
+- [x] **T5.2** A capa (`is_cover`) é o que o composer abre por padrão.
+      [ShareComposerModal.tsx:308](../../../mobile/src/components/share/ShareComposerModal.tsx#L308):
+      `photoId` explícito → capa → primeira. A cadeia de fallback importa: sem a última perna,
+      pedalada com foto mas sem capa abriria o composer vazio.
 
 ## Fase 6 — Corrida, Retrospectiva e web (feita em 06/09/2026)
 
@@ -304,11 +307,15 @@ decisões que ele já tinha tomado à mão viraram a base de medida:
       `photos_checked_at`; e as 280 sem rota contadas como puladas, porque um total
       de "222" com 502 pendentes pareceria errado. O relatório final diz **o que o
       lote não fez** — quantas ficaram fora do corredor e em quantas pedaladas.
-- [ ] **T10.11** **O gancho no sync não foi feito** — ele aprovou o botão, não o
-      gancho. É a mudança menor e a de maior valor contínuo: o `syncDelta` já
-      carrega as rotas em memória para calcular tempo em movimento, então a
-      pedalada nova poderia ligar as fotos sem nenhum download extra. Ressalva: se
-      o sync rodar em segundo plano, o iOS pode barrar a leitura da biblioteca.
+- [x] **T10.11** **O gancho no sync FOI feito** (commit `f91f6db`, 07/09) — este item
+      ficou desatualizado no mesmo dia em que foi escrito.
+      [activity-sync.ts:520](../../../mobile/src/services/activity-sync.ts#L520) chama
+      `linkNewActivityPhotos` com o traçado que o `syncDelta` já tem em memória, zero
+      download extra. Converte `latitude/longitude/timestamp` do HealthKit para o
+      `lat/lng/t` do núcleo. Guarda de âncora igual à das tarefas — sem ela o primeiro
+      sync varreria a biblioteca contra três anos. O erro é **engolido** com `console.warn`,
+      de propósito: em segundo plano o iOS pode barrar a leitura da biblioteca, e aí a
+      pedalada fica sem marca e tenta de novo com o app na frente.
 
 ## Fase 11 — A foto sai para fora (07/09/2026)
 

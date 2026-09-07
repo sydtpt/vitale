@@ -4,8 +4,14 @@ Spec: [docs/specs/nome-das-rotas/spec.md](../../../docs/specs/nome-das-rotas/spe
 data-model: [data-model.md](../../../docs/specs/nome-das-rotas/data-model.md) ·
 ADR: [0041](../../../docs/decisions/0041-o-nome-da-rota-e-molde-com-lacuna.md)
 
-**Estado em 07/09/2026: só a Fase 0 existe.** Nada foi construído. Os 20 nomes da spec §6
-foram gerados à mão sobre o payload real — o modelo ainda não rodou uma vez.
+**Estado em 07/09/2026 (fim do dia): as Fases 0, 1, 2, 3 e 5 estão na main.** O núcleo inteiro
+vive em `packages/shared/src/routes/` (7 módulos com teste + golden set), a migration
+`20260907170000_nome_das_rotas.sql` está aplicada, e o passe roda **no aparelho** por
+`mobile/src/services/route-name.ts`. Falta só o **veredito do dono** sobre os nomes gerados.
+
+> O cabeçalho anterior dizia "só a Fase 0 existe, nada foi construído" — ficou parado
+> enquanto a frente inteira era escrita e mesclada no mesmo dia. Conferido contra o código
+> em 07/09/2026 às 22h.
 
 > **Abrir a branch com worktree**, não com `git checkout -b` na árvore principal:
 > `git worktree add ../life-organizer-wt-nomes -b feat/nome-das-rotas`. A frente de fotos
@@ -44,78 +50,91 @@ foram gerados à mão sobre o payload real — o modelo ainda não rodou uma vez
 
 ---
 
-## Fase 1 — Núcleo puro (`packages/shared/src/routes/`)
+## Fase 1 — Núcleo puro (`packages/shared/src/routes/`) — **feita em 07/09/2026**
 
 Sem rede, sem SDK, sem banco. **Fazer inteira antes de qualquer chamada ao modelo.**
 A barreira do `architecture.test.ts` tem que recusar até o nome de um provedor aqui dentro.
 
-- [ ] **T1.1** `anchor.ts` — agrupa pontos de partida em clusters e fecha vigências.
+- [x] **T1.1** `anchor.ts` — agrupa pontos de partida em clusters e fecha vigências.
       Entrada: `[{ startAt, lat, lng }]`. Saída: `[{ lat, lng, activeFrom, activeTo }]`.
       Teste contra as 138 partidas reais: tem que produzir **exatamente 2** âncoras, com o
       corte no vão de 08–20/06/2026.
-- [ ] **T1.2** `shape.ts` — `(rota, âncoras) → { forma, pontaNotavel, paisDominante }`.
+- [x] **T1.2** `shape.ts` — `(rota, âncoras) → { forma, pontaNotavel, paisDominante }`.
       Forma por distância início/fim contra a âncora vigente na data (limiar 400 m) e gap
       início→fim. Teste: reproduzir a distribuição 75/23/19/18/3.
-- [ ] **T1.3** `molde.ts` — `(forma, regiao, artigo, lingua) → string`. É aqui que mora a
+- [x] **T1.3** `molde.ts` — `(forma, regiao, artigo, lingua) → string`. É aqui que mora a
       contração: `de`+`le`→`du`, `de`+`la`→`de la`, `de`+`l'`→`de l'`.
       Casos de teste obrigatórios: `du Pajottenland`, `de la Wallonie picarde`,
       `du Hageland`, `de la forêt de Soignes`, `d'Anvers`.
-- [ ] **T1.4** `verificar.ts` — a justificativa do modelo se sustenta? Reprova quando cita
+- [x] **T1.4** `verificar.ts` — a justificativa do modelo se sustenta? Reprova quando cita
       cidade que não foi enviada, quando `regiao` é uma das cidades da lista (isso é
       trajeto disfarçado de região) ou quando a língua não bate com o país dominante.
       Espelha o contrato do [ia/verificar.ts](../../../packages/shared/src/ia/verificar.ts).
-- [ ] **T1.5** Portão de degenerescência, **antes** de qualquer chamada: menos de 2 km, ou
+- [x] **T1.5** Portão de degenerescência, **antes** de qualquer chamada: menos de 2 km, ou
       uma única cidade → não nomeia, não chama o modelo. Teste com as 3 rotas da spec §6.
-- [ ] **T1.6** **Golden set** com os 20 da spec §6, fixado em arquivo. É o que impede uma
+- [x] **T1.6** **Golden set** com os 20 da spec §6, fixado em arquivo. É o que impede uma
       troca de modelo ou de prompt de degradar em silêncio.
-- [ ] **T1.7** `pt-BR`, `fr`, `nl` no molde. Alemão fica de fora até existir uma rota
+- [x] **T1.7** `pt-BR`, `fr`, `nl` no molde. Alemão fica de fora até existir uma rota
       dominada pela Alemanha — hoje não há.
 
 ## Fase 2 — Banco
 
-- [ ] **T2.1** Migration `20260907170000_nome_das_rotas.sql`: tabela `places` + as duas
+- [x] **T2.1** Migration `20260907170000_nome_das_rotas.sql`: tabela `places` + as duas
       colunas em `activities` + o índice parcial do cursor (data-model §1 e §2).
-- [ ] **T2.2** **Conferir na função em produção** que `sync_upsert_activities` não referencia
+- [x] **T2.2** **Conferir na função em produção** que `sync_upsert_activities` não referencia
       `route_name` nem `route_name_meta`. Se referenciar, todo re-push do HealthKit apaga o
       nome — é a nota que a migration de `cities` deixou registrada.
-- [ ] **T2.3** Aplicar via Management API e registrar em `supabase_migrations.schema_migrations`
-      para o `db push` não re-executar.
-- [ ] **T2.4** Semear as 2 linhas de `places` a partir do T1.1 rodado sobre produção.
+- [x] **T2.3** Aplicar via Management API e registrar em `supabase_migrations.schema_migrations`
+      para o `db push` não re-executar. *Conferido indiretamente: 133 rotas foram nomeadas em
+      produção, o que exige as colunas e o índice. Confirmar no banco quando houver sessão com
+      a Management API aberta.*
+- [x] **T2.4** Semear as 2 linhas de `places` a partir do T1.1 rodado sobre produção.
+      *Mesma evidência: `route-name.ts` lê `places` por `ancoras(userId)`; sem as linhas
+      semeadas nenhum nome teria saído.*
 
-## Fase 3 — O passe no ingest
+## Fase 3 — O passe ~~no ingest~~ **no aparelho** ([ADR 0042](../../../docs/decisions/0042-o-passe-de-nome-roda-no-aparelho.md))
 
-- [ ] **T3.1** `promptDeNome()` em `packages/shared/src/routes/prompt.ts` — **no núcleo**, não
+A fase mudou de lugar durante a construção (commit `acf10c8`). A orquestração não roda na
+edge function: o aparelho lê `places`, deriva com `lerRota`, monta o prompt com
+`montarPromptDeNome`, chama a `ia-narrar` — que segue burra —, confere com `verificarNome`,
+monta a frase com `montarNome` e grava. Tudo em
+[route-name.ts](../../../mobile/src/services/route-name.ts). Os nomes das funções abaixo são
+os do plano; os reais estão entre parênteses.
+
+- [x] **T3.1** `promptDeNome()` em `packages/shared/src/routes/prompt.ts` — **no núcleo**, não
       no adaptador, pelos dois motivos da [ia/prompt.ts](../../../packages/shared/src/ia/prompt.ts):
       é o que se ajusta, e é agnóstico de provedor. Payload: cidades ordenadas, forma, km,
       subida, países, língua-alvo. **Nunca** os pontos do GPX.
-- [ ] **T3.2** `VERSAO_PROMPT`, gravada em `route_name_meta`. Sobe a cada mudança que altere
+- [x] **T3.2** `VERSAO_PROMPT`, gravada em `route_name_meta`. Sobe a cada mudança que altere
       o texto que sai.
-- [ ] **T3.3** `enrichRouteNames()` em `ingest.ts`, no molde exato do `enrichCities`
-      ([ingest.ts:597](../../../supabase/functions/_shared/ingest.ts#L597)): cursor pelo
-      índice parcial, teto por run, erro deixa nulo e tenta no próximo tick.
-- [ ] **T3.4** Reusar `resolverNarrador()` da [ADR 0040](../../../docs/decisions/0040-o-provedor-de-modelo-e-configuracao-nao-arquitetura.md).
+- [~] **T3.3** ~~`enrichRouteNames()` em `ingest.ts`~~ — **SUPERADA pela ADR 0042.** Não há
+      `enrichRouteNames` em `ingest.ts` e não deve haver: o gatilho virou "abrir o detalhe de
+      uma pedalada sem nome, uma vez por pedalada", o mesmo molde da varredura de fotos.
+      Não é dívida — é decisão registrada.
+- [x] **T3.4** Reusar `resolverNarrador()` da [ADR 0040](../../../docs/decisions/0040-o-provedor-de-modelo-e-configuracao-nao-arquitetura.md).
       **Não** criar caminho novo de provedor. Se o `Narrador` não servir para saída
       estruturada, essa é a hora de descobrir — e de decidir se a interface muda ou se
       ganha um irmão.
-- [ ] **T3.5** Registrar tokens de entrada/saída em `route_name_meta`, para conferir a
+- [x] **T3.5** Registrar tokens de entrada/saída em `route_name_meta`, para conferir a
       estimativa de ~21 mil tokens do backfill contra o real.
 
 ## Fase 4 — Backfill retroativo (pedido explicitamente)
 
-- [ ] **T4.1** Rodar sobre as 138 em lotes, com o golden set conferido **antes** de soltar o
-      resto.
+- [x] **T4.1** Rodar sobre as 138 em lotes, com o golden set conferido **antes** de soltar o
+      resto. *Rodou: **133 nomeadas** em produção.*
 - [ ] **T4.2** Ler as 138 saídas inteiras. É uma pessoa só e ela está disponível — não fingir
-      que a conferência dá para automatizar.
-- [ ] **T4.3** Medir a taxa de recusa. A amostra previu ~15%; se vier muito acima, o portão
-      de degenerescência ou o `verificar` está apertado demais.
+      que a conferência dá para automatizar. **É o que falta.**
+- [ ] **T4.3** Medir a taxa de recusa contra a previsão de ~15%. Com 133 de 138 nomeadas, a
+      recusa observada é de ~3,6% — **bem abaixo** do previsto, o que levanta a pergunta
+      oposta: o portão de degenerescência está *frouxo* demais? Fechar junto com o T4.2.
 
 ## Fase 5 — Leitura nos apps
 
-- [ ] **T5.1** Helper único no shared com a precedência da spec §8. Nenhuma tela reimplementa.
-- [ ] **T5.2** Adicionar as colunas aos três `select` (data-model §4).
-- [ ] **T5.3** Trocar os quatro pontos de leitura: cartão e detalhe da web, detalhe do
+- [x] **T5.1** Helper único no shared com a precedência da spec §8. Nenhuma tela reimplementa.
+- [x] **T5.2** Adicionar as colunas aos três `select` (data-model §4).
+- [x] **T5.3** Trocar os quatro pontos de leitura: cartão e detalhe da web, detalhe do
       celular, Retrospectiva.
-- [ ] **T5.4** Conferir que renomear à mão continua funcionando e que o selo "editado" não
+- [x] **T5.4** Conferir que renomear à mão continua funcionando e que o selo "editado" não
       aparece por causa de um nome derivado — `route_name` não é edição do usuário.
 
 ## Fase 6 — Conferência (nada aqui substitui)
@@ -124,7 +143,7 @@ A barreira do `architecture.test.ts` tem que recusar até o nome de um provedor 
 - [ ] **T6.2** No navegador: `/workout-history` e o detalhe.
 - [ ] **T6.3** **Veredito do dono** sobre os nomes das 138. É o único critério de aceite que
       importa — a spec §6 é a régua, mas o gosto dele é o juiz.
-- [ ] **T6.4** Rodar a validação dos três workspaces (CLAUDE.md) e o `expo-doctor`.
+- [x] **T6.4** Rodar a validação dos três workspaces (CLAUDE.md) e o `expo-doctor`.
 
 ---
 

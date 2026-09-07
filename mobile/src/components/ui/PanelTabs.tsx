@@ -26,8 +26,9 @@ export interface Panel {
  *   de abas como um irmão gêmeo, e nada diria qual manda em qual.
  * - **Rola quando não cabe.** Até três abas dividem a largura em partes iguais;
  *   da quarta em diante a barra vira rolagem horizontal com abas do tamanho do
- *   texto. É o caso da Corrida, que tem quatro painéis — Evolução, Curva,
- *   Melhor por mês e Rotas — contra os dois do Ciclismo.
+ *   texto. É o caso da Corrida, que tem quatro — Evolução, Curva, Ritmo e Rotas
+ *   — contra as três do Ciclismo (Evolução, Piso e Rotas: lá não há
+ *   `bestEfforts`, então Curva e Ritmo não existem).
  *
  * Uma aba só não desenha barra: barra de uma aba é moldura, não escolha.
  */
