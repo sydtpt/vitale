@@ -6,9 +6,18 @@ ADR: [0037](../../../docs/decisions/0037-a-foto-e-ponteiro-com-chave-de-cura.md)
 
 Mockups aprovados em 06/09/2026: `claude.ai/code/artifact/8e093ae5-72dc-4a19-b13c-f2c8f330e210`.
 
-**Fases 0–6 feitas em 06/09/2026.** Branch `feat/fotos-na-pedalada`, no worktree
-`/Users/sydtpt/Projects/life-organizer-wt-fotos`, **sem push**. Falta a Fase 7 (vídeo) e,
-sobretudo, a **Fase 8 — conferência no aparelho**, que nada aqui substitui.
+## FRENTE FECHADA em 07/09/2026
+
+As onze fases feitas, na main e pushadas, e **todos os vereditos dados no aparelho** — os
+cinco últimos (T8.3, T9.5, T9.6, T10.7, T11.11) no fim do dia 07/09, sobre o build que
+trouxe a main inteira mais as abas da Corrida.
+
+Uma ressalva viaja com a T9.5 e não deve se perder: o pôster do vídeo **deixou de
+reproduzir antes de o diagnóstico rodar**, então nunca se soube qual das duas causas era.
+Se voltar, as duas hipóteses e o método de separá-las continuam válidos.
+
+A T10.8 (web) está marcada como feita por ser **decisão fechada**, não trabalho entregue:
+a web mostra o fato, não a imagem.
 
 > A branch nasceu com `git checkout -b` na árvore principal, e isso moveu a árvore
 > compartilhada por baixo de uma sessão concorrente, que commitou docs desta frente junto
@@ -205,9 +214,10 @@ Duas barreiras de arquitetura pegaram **defeito real**, não estilo:
 - [x] **T8.4** Velocidade da varredura **aprovada por ele** em 07/09. Não foi
       cronometrada, e não vai ser: 73 fotos numa pedalada e 60 noutra passaram sem que
       ele notasse. Medir agora seria medir para confirmar o que o uso já respondeu.
-- [ ] **T8.3** Veredito parcial em 07/09: **"o thumbnail do vídeo e a execução não
-      funcionam"**. O resto (arrastar para baixo, deslizar da esquerda, seleção múltipla,
-      "parada não gravada") segue sem julgamento.
+- [x] **T8.3** Veredito parcial em 07/09: **"o thumbnail do vídeo e a execução não
+      funcionam"** — que virou a Fase 9 inteira. O resto (arrastar para baixo, deslizar
+      da esquerda, seleção múltipla, "parada não gravada") foi **aprovado por ele no fim
+      do mesmo dia**, sobre o build que já trazia as Fases 9, 10 e 11.
 
 ## Fase 9 — Vídeo, de verdade (07/09/2026)
 
@@ -232,14 +242,24 @@ defeitos, e um deles ele não tinha como ver.
 - [x] **T9.4** A grade para de mentir: a lacuna pontilhada com "?" afirma "esta mídia
       sumiu da biblioteca", e isso só se sabe da **foto**. Vídeo sem pôster vira quadro de
       filme com o play — verdade em qualquer das duas hipóteses do achado 10.
-- [ ] **T9.5** **Falta o aparelho.** Se o clipe toca e só o pôster falha, o arquivo é
-      legível e a culpa é da extração de quadro exato — o conserto então é trocar o
-      gerador de pôster. Se **nem toca**, é o caminho, e aí a saída é a URI `ph://`, que
-      o `expo-video` aceita e que não passa pelo sistema de arquivos.
-- [ ] **T9.6** Conferir também os gestos **sobre o vídeo**: a barra de tempo dos controles
-      nativos é horizontal, e o carrossel de páginas também. O `UIScrollView` não cancela
-      toque em `UIControl`, então a barra deve ganhar — mas isso é teoria até alguém
-      arrastar.
+- [x] **T9.5** **Aprovado por ele em 07/09** sobre o build da noite (o que trouxe a main
+      inteira mais as abas da Corrida): vídeo e pôster funcionando.
+
+      **Ressalva que precisa sobreviver a este item.** A T9.5 não era um aceite, era um
+      diagnóstico desenhado para separar duas causas com consertos opostos — pôster falho
+      com clipe tocando (extração de quadro, `AVAssetImageGenerator` com tolerância zero
+      em HEVC/Dolby Vision) contra nada tocando (caminho do arquivo, saída pela URI
+      `ph://`). **O sintoma parou de aparecer antes de o diagnóstico rodar**, então nunca
+      se soube qual das duas era.
+
+      Consequência prática: se o pôster branco voltar — outra codificação, outro
+      dispositivo, um vídeo mais longo — as duas hipóteses continuam de pé e o método de
+      separá-las continua válido. Não tratar como bug resolvido; tratar como bug que
+      deixou de reproduzir.
+- [x] **T9.6** Gestos sobre o vídeo **aprovados por ele em 07/09**. A teoria se
+      confirmou na prática: o `UIScrollView` não cancela toque em `UIControl`, então a
+      barra de tempo ganha do carrossel de páginas mesmo os dois sendo horizontais.
+      Deixa de ser teoria.
 
 ## Fase 10 — O vínculo automático e o selo no Histórico (07/09/2026)
 
@@ -283,10 +303,9 @@ decisões que ele já tinha tomado à mão viraram a base de medida:
       `security invoker` com `user_id = auth.uid()` explícito: função que só se
       protege pela RLS vira vazamento silencioso no dia em que alguém mexer na
       política.
-- [ ] **T10.7** **Falta o aparelho.** Conferir que abrir uma pedalada antiga
-      liga as fotos sozinha e não trava a tela; que a linha de pendência aparece
-      e some depois de julgada; e que o selo cabe ao lado de `editado` sem
-      espremer a data.
+- [x] **T10.7** **Aprovado por ele em 07/09.** Abrir uma pedalada antiga liga as fotos
+      sozinha sem travar a tela, a linha de pendência aparece e some depois de julgada, e
+      o selo cabe ao lado de `editado` sem espremer a data.
 - [x] **T10.8** **Decisão fechada, não tarefa pendente.** A web ficou de fora por
       escolha dele em 07/09 — a mesma escolha que a §"a web mostra o fato, não a
       imagem" já registrava. Estava marcada como aberta só porque ninguém baixou o
@@ -375,8 +394,9 @@ fora jogava os três fora.
       o app na frente. Não há nada que o dono possa fazer com esse aviso.
 - [x] **T11.10** Conferidos por ele: o lote de varredura (rodado) e o enquadramento
       no PNG exportado.
-- [ ] **T11.11 · Falta só o veredito da sequência** — a mais arriscada de tudo,
-      porque monta seis WebViews em série e resolve seis fotos antes.
+- [x] **T11.11 · A sequência aprovada por ele em 07/09** — a mais arriscada de tudo,
+      porque monta seis WebViews em série e resolve seis fotos antes. Passou sem que ele
+      registrasse queixa de lentidão nem de falha de montagem.
 
 ### A lição da fase
 
@@ -443,5 +463,9 @@ primeira coisa a conferir contra o dado real, não a última.
 
 ## Aberto
 
-- **"A web fica cega mesmo?"** — a única pergunta da proposta que ficou sem resposta em
-  06/09/2026. Segue valendo a escolha original (sem imagem na web).
+**Nada.** A última pergunta em aberto — *"a web fica cega mesmo?"*, herdada da proposta de
+06/09 — foi respondida por ele em 07/09: **sim**. A escolha original vale, a web mostra o
+fato e não a imagem, e a T10.8 registra isso como decisão em vez de dívida.
+
+O que sobra está no **Diferido** acima, e nada dali tem dono nem prazo — é lista de ideias
+para quando um deles incomodar.
