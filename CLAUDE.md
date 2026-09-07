@@ -216,8 +216,12 @@ São **10** módulos, não 7:
   ponto — e quando o GPS não gravou, a parada é provada pelas próprias fotos. Folha de
   confirmação, cartão no detalhe, marcadores no mapa, trilho do tempo, galeria com seleção
   múltipla, fundo "Foto" no cartão de compartilhar, tira na Retrospectiva (a web mostra o
-  fato, não a imagem). **Falta o veredito dele** sobre gestos, pôster de vídeo e a "parada
-  não gravada". Tarefas: `_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md`
+  fato, não a imagem). **Vídeo** (Fase 9, 07/09): o clipe toca dentro do visor via
+  `expo-video`, com o player só na página ativa; a duração, que a API nova entrega em
+  **milissegundos**, foi corrigida na origem e nos 37 registros em produção. O **pôster do
+  vídeo segue em branco** — o próximo build separa as duas causas possíveis (T9.5).
+  **Falta o veredito dele** sobre gestos e a "parada não gravada".
+  Tarefas: `_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md`
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco

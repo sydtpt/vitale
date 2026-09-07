@@ -1,9 +1,11 @@
 # Fotos na pedalada — a foto pertence à parada, não ao ponto
 
 > **Status:** construída e **na main** (07/09/2026), conferida no iPhone em ciclos curtos.
-> Sete achados que só o aparelho deu estão na Fase 8 do tasks — nenhum de lógica, todos de
-> borda (iOS, GPS, Postgres). Falta o veredito dele sobre os gestos, o pôster de vídeo e a
-> "parada não gravada"; e medir a varredura com iCloud otimizado.
+> Dez achados que só o aparelho deu estão nas fases 8 e 9 do tasks — nenhum de lógica,
+> todos de borda (iOS, GPS, Postgres). A varredura teve a velocidade aprovada por ele.
+> Falta o veredito dele sobre os gestos, a "parada não gravada" e o vídeo — cuja
+> reprodução acabou de ser construída, e cujo **pôster segue em branco** por uma de duas
+> causas que o próximo build separa (T9.5).
 > Decisão: [ADR 0037](../../decisions/0037-a-foto-e-ponteiro-com-chave-de-cura.md).
 > Data-model: [data-model.md](data-model.md).
 > Tarefas: [tasks](../../../_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md).
@@ -159,8 +161,17 @@ varreduras.
 - **Acesso limitado à biblioteca** (o "Selecionar fotos…" do iOS 14+) quebra a consulta
   por janela e faz a feature parecer defeituosa. O app tem de detectar
   `accessPrivileges !== 'all'` e explicar, não falhar calado.
-- **Miniatura de vídeo** exige `expo-video-thumbnails` ou o thumbnail do próprio asset.
-  Pequeno, mas não é de graça.
+- **Vídeo custa duas dependências, e nenhuma foi de graça.** O `expo-video-thumbnails`
+  entrou para o pôster e ainda não entrega — ele roda o `AVAssetImageGenerator` com
+  tolerância **zero**, que engasga em HEVC/Dolby Vision, e antes disso confere a leitura
+  do caminho contra o contêiner do Fotos. O `expo-video` entrou para tocar o clipe dentro
+  do visor. O `generateThumbnailsAsync` dele resolveria o pôster também, mas devolve um
+  `SharedRef` que só o `expo-image` desenha — seria uma **terceira** dependência para um
+  quadro estático, e por isso não foi.
+- **Unidade que atravessa fronteira de biblioteca.** A API nova do `expo-media-library`
+  devolve duração em **milissegundos**; a legada devolvia segundos, e a coluna se chama
+  `duration_s`. Nada reclamou por dias. Vale para toda leitura nova daquele pacote:
+  conferir a unidade contra o dado real antes de gravar.
 - **Foto apagada da biblioteca** vira ligação órfã: a tira mostra a lacuna e oferece
   desligar. Nunca some calada.
 - **Rajada (burst)** pode gerar assets com instantes muito próximos; a chave única é

@@ -199,27 +199,69 @@ Duas barreiras de arquitetura pegaram **defeito real**, não estilo:
 
 - [x] **T8.2** Confirmado por ele na tela: miniaturas aparecem, ligar funciona, o convite
       voltou, e a galeria abre com as seções por parada.
-- [ ] **T8.3** **Ainda sem veredito dele** (construído e instalado, não julgado): o
-      quadro-pôster de vídeo, arrastar para baixo no visor, deslizar da esquerda para
-      fechar a galeria, a seleção múltipla por toque longo, e a "parada não gravada" com
-      marcador pontilhado.
-- [ ] **T8.4** Medir o custo da varredura numa pedalada grande com iCloud otimizado. Ele
-      ligou 73 fotos numa e 60 noutra sem reclamar de lentidão, mas não foi cronometrado.
+- [x] **T8.4** Velocidade da varredura **aprovada por ele** em 07/09. Não foi
+      cronometrada, e não vai ser: 73 fotos numa pedalada e 60 noutra passaram sem que
+      ele notasse. Medir agora seria medir para confirmar o que o uso já respondeu.
+- [ ] **T8.3** Veredito parcial em 07/09: **"o thumbnail do vídeo e a execução não
+      funcionam"**. O resto (arrastar para baixo, deslizar da esquerda, seleção múltipla,
+      "parada não gravada") segue sem julgamento.
 
-### A lição da fase
+## Fase 9 — Vídeo, de verdade (07/09/2026)
+
+Um relato só — "o thumbnail do vídeo e a execução não funcionam" — abriu **três**
+defeitos, e um deles ele não tinha como ver.
+
+| # | O defeito | A causa | O conserto |
+|---|---|---|---|
+| 8 | O clipe não toca | **não havia player instalado** — nem `expo-video`, nem `expo-av`. O visor desenhava um `<Image>`, que não desenha vídeo. Nunca foi construído; eu fechei a Fase 7 sem dizer isso com todas as letras | `expo-video`: `useVideoPlayer` + `VideoView` com controles nativos, dentro do visor |
+| 9 | Crachá de duração absurdo (`1137:15` num clipe de 68 s) | a API **nova** do `expo-media-library` mapeia `Int(duration * 1000)` — **milissegundos**; a legada devolvia segundos. O valor cru ia para uma coluna chamada `duration_s` e nada reclamava: `numeric` aceita, a constraint só exige `> 0`, e o número errado *parece* um número | `meta.duration / 1000` na origem + migration `20260907080000` nos 37 vídeos em produção |
+| 10 | Pôster do vídeo em branco | **ainda em aberto.** Duas causas possíveis, com consertos opostos: o sandbox recusando o caminho do contêiner do Fotos, ou o `AVAssetImageGenerator`, que o `expo-video-thumbnails` roda com tolerância **zero** e por isso engasga em HEVC/Dolby Vision | o `catch {}` virou `console.warn` com a exceção; e o visor toca pelo **mesmo endereço**, o que separa as duas hipóteses sozinho |
+
+- [x] **T9.1** `expo-video` instalado e registrado em `app.base.json`, com
+      `supportsBackgroundPlayback` e `supportsPictureInPicture` **desligados**: som em
+      segundo plano e PiP pedem entitlement e modo de fundo que este app não tem motivo
+      para carregar.
+- [x] **T9.2** O player só existe na **página ativa**. O `ScrollView` monta todas de uma
+      vez, e a Tour de la Wallonie Picarde (21/07) tem 14 vídeos: 14 `AVPlayer`
+      simultâneos passam do que o iOS decodifica e garantiriam dois clipes falando junto.
+- [x] **T9.3** Não toca sozinho, de propósito — chega-se ao visor varrendo a grade, e um
+      vídeo que começa a falar no meio da curadoria é pior do que um toque a mais.
+- [x] **T9.4** A grade para de mentir: a lacuna pontilhada com "?" afirma "esta mídia
+      sumiu da biblioteca", e isso só se sabe da **foto**. Vídeo sem pôster vira quadro de
+      filme com o play — verdade em qualquer das duas hipóteses do achado 10.
+- [ ] **T9.5** **Falta o aparelho.** Se o clipe toca e só o pôster falha, o arquivo é
+      legível e a culpa é da extração de quadro exato — o conserto então é trocar o
+      gerador de pôster. Se **nem toca**, é o caminho, e aí a saída é a URI `ph://`, que
+      o `expo-video` aceita e que não passa pelo sistema de arquivos.
+- [ ] **T9.6** Conferir também os gestos **sobre o vídeo**: a barra de tempo dos controles
+      nativos é horizontal, e o carrossel de páginas também. O `UIScrollView` não cancela
+      toque em `UIControl`, então a barra deve ganhar — mas isso é teoria até alguém
+      arrastar.
+
+### A lição das fases 8 e 9
 
 O núcleo puro fez o que devia: quando as fotos finalmente renderizaram, **os números
 estavam certos** — as paradas, os quilômetros, a janela. Nada disso precisou de conserto.
 O que quebrou foi a **borda**, onde o app encosta no iOS, no GPS e no banco — e ali
 nenhum teste ajuda, porque nenhum deles toca uma tela de verdade.
 
-Dois erros de processo meus, registrados para não repetir:
+Erros de processo meus, registrados para não repetir:
 
 - **`comando | tail` devolve o status do `tail`.** Mascarou um build quebrado e um merge
   que não aconteceu — duas vezes buildei a versão errada. O cabeçalho do próprio
   `ios-device.sh` documenta essa armadilha.
 - **`catch {}` com comentário otimista.** O "nada se perde" era falso e transformou um
-  erro diagnosticável numa hora de investigação às cegas.
+  erro diagnosticável numa hora de investigação às cegas. Repeti o mesmo padrão no
+  `resolvePosterUri`, e ele custou a Fase 9 inteira: o pôster falhava sem dizer de quê.
+- **"Não construído" saiu do relatório como se fosse "construído".** A reprodução do
+  vídeo nunca existiu, e a Fase 7 fechou sem registrar isso. Um relatório que só conta o
+  que foi feito faz o buraco parecer defeito — e ele descobriu tocando na tela.
+
+E uma unidade que ninguém confere: **`duration_s` recebeu milissegundos por dias.** Não
+havia como o teste pegar (o valor é plausível), nem a constraint (`> 0` aceita), nem a
+revisão (a variável se chama `duration`). Só a tela mostrou — e mostrou disfarçado de
+outra coisa. Quando um número atravessa uma fronteira de biblioteca, a unidade é a
+primeira coisa a conferir contra o dado real, não a última.
 
 ## Diferido
 
