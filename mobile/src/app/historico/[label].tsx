@@ -28,6 +28,7 @@ import {
 const EFFORT_KEYS = new Set(BEST_EFFORT_DISTANCES.map((d) => d.key));
 import { useActivitiesStore } from '../../store/activities.store';
 import { useGearStore } from '../../store/gear.store';
+import { useMediaCounts } from '../../hooks/useMediaCounts';
 import { getActivityMeta, getActivityColor } from '../../lib/workout-types';
 import {
   applyFilters,
@@ -102,15 +103,51 @@ function numOr(s: string): number | undefined {
   return Number.isFinite(v) ? v : undefined;
 }
 
+/**
+ * O selo de mídia (ADR 0037).
+ *
+ * Fica no **cabeçalho**, ao lado de `editado`, e não na régua de números. A
+ * régua é a linguagem do esforço — tempo, calorias, distância descrevem o que o
+ * corpo fez, e foto não é isso. Aqui ela é o que de fato é: propriedade do
+ * registro.
+ *
+ * Foto e vídeo cabem no **mesmo** selo, separados por um fio, para não esticar
+ * o cabeçalho em dois objetos quando a pedalada tem os dois — e para o conjunto
+ * sumir inteiro quando não tem nenhum. Em 9 de cada 10 cartões não há mídia, e
+ * um vão reservado ali desalinharia a lista toda.
+ */
+function MediaBadge({ photos, videos }: { photos: number; videos: number }) {
+  if (photos === 0 && videos === 0) return null;
+  return (
+    <View style={styles.mediaBadge}>
+      {photos > 0 && (
+        <>
+          <Ionicons name="images-outline" size={12} color={colors.ink2} />
+          <Text style={styles.mediaCount}>{photos}</Text>
+        </>
+      )}
+      {photos > 0 && videos > 0 && <View style={styles.mediaSep} />}
+      {videos > 0 && (
+        <>
+          <Ionicons name="videocam-outline" size={12} color={colors.ink2} />
+          <Text style={styles.mediaCount}>{videos}</Text>
+        </>
+      )}
+    </View>
+  );
+}
+
 function ActivityCard({
   item,
   color,
   icon,
+  media,
   onPress,
 }: {
   item: Activity;
   color: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  media?: { photos: number; videos: number };
   onPress: () => void;
 }) {
   const distance = formatDistance(item.distanceM);
@@ -129,6 +166,7 @@ function ActivityCard({
             {formatTime(item.startAt)} – {formatTime(item.endAt)}
           </Text>
         </View>
+        {media && <MediaBadge photos={media.photos} videos={media.videos} />}
         {item.locallyEdited && (
           <View style={styles.editBadge}>
             <Ionicons name="create-outline" size={11} color={colors.ink2} />
@@ -264,6 +302,9 @@ export default function TipoListScreen() {
     load();
     loadGear();
   }, [load, loadGear]);
+
+  /** O selo de mídia do cartão (ADR 0037) — uma consulta para a lista inteira. */
+  const { counts: mediaCounts } = useMediaCounts();
 
   /** Tudo do tipo, sem a lente de bicicleta — é o universo do seletor. */
   const typedAll = useMemo(
@@ -472,6 +513,7 @@ export default function TipoListScreen() {
         item={item}
         color={meta.color}
         icon={meta.icon}
+        media={mediaCounts.get(item.id)}
         onPress={() =>
           router.push({
             pathname: '/historico/[label]/[id]',
@@ -480,7 +522,7 @@ export default function TipoListScreen() {
         }
       />
     ),
-    [router, label, meta],
+    [router, label, meta, mediaCounts],
   );
 
   return (
@@ -998,6 +1040,25 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: colors.surfaceMute,
   },
   editBadgeText: { fontSize: 10.5, fontFamily: fonts.sans, color: colors.ink2 },
+
+  /** Mesma régua do `editBadge`: os dois dividem o canto e têm de casar. */
+  mediaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMute,
+  },
+  /** Mono, como todo número do app: 73 e 7 alinham na coluna da lista. */
+  mediaCount: {
+    fontSize: 11.5,
+    fontFamily: fonts.mono,
+    color: colors.ink2,
+    fontVariant: ['tabular-nums'],
+  },
+  mediaSep: { width: 1, height: 11, marginHorizontal: 1, backgroundColor: colors.lineDeep },
 
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, paddingLeft: 52 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 5 },

@@ -111,6 +111,36 @@ export async function fetchPhotosForActivities(
   return rows.map(toActivityPhoto);
 }
 
+/** Quantas fotos e quantos vídeos uma atividade tem. */
+export interface ActivityMediaCount {
+  photos: number;
+  videos: number;
+}
+
+/**
+ * A contagem de mídia por atividade — o que o selo do cartão do Histórico lê.
+ *
+ * Vem agrupada do banco, pela função `activity_media_counts()` (migration
+ * `20260907120000`), e não de `fetchPhotosForActivities`. As duas saídas
+ * óbvias não servem: contar no cliente transportaria todas as fotos para
+ * desenhar um número de dois dígitos, e filtrar por `in (<ids>)` estoura a URL
+ * — o Histórico de Ciclismo tem 338 atividades de id textual.
+ *
+ * **Atividade sem mídia não volta.** O mapa devolvido responde `undefined` para
+ * ela, e é o que o cartão quer: sem selo, sem vão.
+ */
+export async function fetchMediaCounts(
+  db: SupabaseClient,
+): Promise<Map<string, ActivityMediaCount>> {
+  const out = new Map<string, ActivityMediaCount>();
+  const { data, error } = await db.rpc('activity_media_counts');
+  if (error) throw error;
+  for (const r of (data ?? []) as { activity_id: string; photos: number; videos: number }[]) {
+    out.set(r.activity_id, { photos: r.photos, videos: r.videos });
+  }
+  return out;
+}
+
 /* ─────────────────────── Escrita ───────────────────────
  * Toda query da tabela mora aqui, e não no serviço do mobile: é a AD-4, e o
  * `architecture.test.ts` a cobra. O serviço decide *o quê* gravar; este módulo
