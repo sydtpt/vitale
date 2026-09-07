@@ -30,7 +30,7 @@ import { PHOTO_CORRIDOR_M, classifyCandidate, matchToRoute } from './match';
 import { groupByStop } from './group';
 import { gapAt, trackGaps } from './gaps';
 import { indexAtTimeFraction, timeRail } from '../fitness/time-rail';
-import { photoRetro, photoRetroLabel } from './retro';
+import { coverOf, photoRetro, photoRetroLabel } from './retro';
 import type { ActivityPhoto } from '../models';
 
 let passed = 0;
@@ -386,20 +386,65 @@ check('o período conta fotos e atividades, e a web tem o que escrever', () => {
   assert.equal(r.total, 3);
   assert.equal(r.activities, 2);
   assert.equal(photoRetroLabel(r), '3 fotos em 2 atividades');
-  assert.deepEqual(r.sample.map((p) => p.id), ['b', 'c', 'a'], 'em ordem cronológica');
+  // Uma por pedalada: a ACT1 tem duas fotos e manda só a capa dela. A contagem
+  // do texto continua sendo o total — é a tira que mostra dias, não fotos.
+  assert.deepEqual(r.sample.map((p) => p.id), ['c', 'a'], 'uma por atividade, em ordem cronológica');
+  assert.equal(r.rest, 1);
 });
 
-check('a amostra é espalhada, não os cinco primeiros', () => {
-  // 20 fotos: os cinco primeiros seriam a mesma parada. A tira precisa do
-  // período inteiro em cinco quadros.
-  const many = Array.from({ length: 20 }, (_, i) => retroPhoto(String(i), 'ACT', i * 1000));
-  const r = photoRetro(many);
+check('a amostra é UMA por pedalada, e as pedaladas maiores primeiro', () => {
+  /**
+   * REGRESSÃO (07/09/2026). A regra anterior pegava uma foto a cada N na ordem
+   * do tempo, e por isso seguia o RELÓGIO, não a importância: em julho, sobre
+   * 372 fotos em 12 atividades, duas das cinco vagas iam para dias de 8 e 9
+   * fotos e a travessia até Tournai, com 59, não aparecia.
+   *
+   * Aqui: um dia grande e três minúsculos. O dia grande tem de estar na tira, e
+   * com UMA foto só — não com quatro.
+   */
+  const D = 24 * 3600_000;
+  const grande = Array.from({ length: 20 }, (_, i) => retroPhoto('g' + i, 'GRANDE', i * 60_000));
+  const r = photoRetro([
+    ...grande,
+    retroPhoto('p1', 'P1', D),
+    retroPhoto('p2', 'P2', 2 * D),
+    retroPhoto('p3', 'P3', 3 * D),
+  ]);
   assert.ok(r);
-  assert.equal(r.sample.length, 5);
-  assert.equal(r.rest, 15);
-  assert.equal(r.sample[0].id, '0', 'começa no começo');
-  assert.equal(r.sample[4].id, '19', 'e termina no fim');
-  assert.ok(Number(r.sample[2].id) > 5, `o meio é do meio: ${r.sample[2].id}`);
+  assert.equal(r.total, 23);
+  assert.equal(r.activities, 4);
+  assert.equal(r.sample.length, 4, 'quatro pedaladas, quatro quadros');
+  assert.equal(
+    r.sample.filter((p) => p.activityId === 'GRANDE').length,
+    1,
+    'o dia de 20 fotos entra com UMA, não com o bloco inteiro',
+  );
+  assert.deepEqual(
+    r.sample.map((p) => p.activityId),
+    ['GRANDE', 'P1', 'P2', 'P3'],
+    'e a tira volta em ordem cronológica',
+  );
+});
+
+check('a capa é a foto do meio da maior rajada', () => {
+  // Duas rajadas: uma de duas fotos, outra de cinco. A capa sai da segunda, e
+  // do meio dela — a primeira de uma parada costuma ser a de enquadrar.
+  const fotos = [
+    retroPhoto('a', 'ACT', 0),
+    retroPhoto('b', 'ACT', 30_000),
+    // buraco de uma hora: começa outra rajada
+    ...Array.from({ length: 5 }, (_, i) => retroPhoto('r' + i, 'ACT', 3600_000 + i * 20_000)),
+  ];
+  assert.equal(coverOf(fotos)?.id, 'r2');
+});
+
+check('a estrela do dono vence a rajada — a capa marcada manda', () => {
+  const fotos = [
+    retroPhoto('a', 'ACT', 0),
+    ...Array.from({ length: 5 }, (_, i) => retroPhoto('r' + i, 'ACT', 3600_000 + i * 20_000)),
+  ];
+  const comEstrela = fotos.map((p) => (p.id === 'a' ? { ...p, isCover: true } : p));
+  assert.equal(coverOf(comEstrela)?.id, 'a', 'a marcação é correção, e correção manda');
 });
 
 check('período sem foto some do jornal', () => {

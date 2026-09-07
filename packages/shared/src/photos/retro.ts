@@ -16,6 +16,53 @@
  */
 
 import type { ActivityPhoto } from '../models';
+import { SILENT_CLUSTER_S } from './group';
+
+/**
+ * A capa de uma pedalada — a foto que a representa quando ela é citada.
+ *
+ * ## Por que existe uma capa automática
+ *
+ * A marcação sozinha não sustentava uso nenhum: em 07/09/2026 havia **uma capa
+ * marcada em 94 pedaladas com foto**. É um ciclo fechado — o dono não marca
+ * porque não serve, e não serve porque ele não marca.
+ *
+ * Invertendo quem escolhe, o ciclo abre: o app escolhe sempre, e a estrela vira
+ * uma **correção** ("não, essa não; essa aqui"), que é uma decisão muito mais
+ * fácil de tomar do que uma marcação no vazio.
+ *
+ * ## A regra
+ *
+ * A foto do meio da maior rajada. Rajada é o que a `groupByStop` chama de
+ * cluster silencioso — fotos a menos de dez minutos uma da outra —, e aqui ela
+ * é medida só por instante, porque o período não carrega traçado.
+ *
+ * O sinal é o comportamento dele: fotografa-se mais onde valeu a pena parar. A
+ * do meio, e não a primeira, porque a primeira de uma parada costuma ser a de
+ * enquadrar — a boa vem depois.
+ */
+export function coverOf(photos: readonly ActivityPhoto[]): ActivityPhoto | null {
+  const linked = photos.filter((p) => p.state === 'linked');
+  if (linked.length === 0) return null;
+
+  const marked = linked.find((p) => p.isCover);
+  if (marked) return marked;
+
+  const sorted = [...linked].sort((a, b) => a.takenAt - b.takenAt);
+  let best: ActivityPhoto[] = [];
+  let run: ActivityPhoto[] = [sorted[0]];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const gapS = (sorted[i].takenAt - sorted[i - 1].takenAt) / 1000;
+    if (gapS <= SILENT_CLUSTER_S) {
+      run.push(sorted[i]);
+    } else {
+      if (run.length > best.length) best = run;
+      run = [sorted[i]];
+    }
+  }
+  if (run.length > best.length) best = run;
+  return best[Math.floor(best.length / 2)] ?? sorted[0];
+}
 
 export interface PhotoRetro {
   /** Quantas fotos ligadas no período. */
@@ -46,20 +93,39 @@ export function photoRetro(
   if (linked.length === 0) return null;
 
   const sorted = [...linked].sort((a, b) => a.takenAt - b.takenAt);
-  const activities = new Set(sorted.map((p) => p.activityId)).size;
+  const byActivity = new Map<string, ActivityPhoto[]>();
+  for (const p of sorted) {
+    const list = byActivity.get(p.activityId);
+    if (list) list.push(p);
+    else byActivity.set(p.activityId, [p]);
+  }
+  const activities = byActivity.size;
 
   /**
-   * A amostra é **espalhada**, não os primeiros da lista: cinco fotos seguidas
-   * costumam ser a mesma parada, e a tira mostraria o mesmo café cinco vezes.
-   * Pegar em passo constante dá o período inteiro em cinco quadros.
+   * A amostra é **uma foto por pedalada**, não uma a cada N fotos.
+   *
+   * A regra anterior pegava em passo constante sobre a lista ordenada por
+   * instante, para não repetir o mesmo café cinco vezes. Ela resolvia isso e
+   * criava outro problema, medido em julho de 2026 sobre 372 fotos em 12
+   * atividades: um dia com 73 fotos ocupa 73 posições da fila e um dia com 2
+   * ocupa duas, então a escolha seguia o **relógio**, não a importância. Duas
+   * das cinco vagas iam para dias de 8 e 9 fotos, uma ia para um treino de
+   * academia — e a travessia até Tournai, com 59, não aparecia.
+   *
+   * Agora as pedaladas são ordenadas por quantidade de fotos (o sinal do
+   * próprio dono: fotografa-se mais no dia que valeu), as `sampleSize`
+   * primeiras entram, e cada uma manda a sua **capa**. A tira volta em ordem
+   * cronológica, que é como um período se lê.
    */
-  const sample: ActivityPhoto[] = [];
-  if (sorted.length <= sampleSize) {
-    sample.push(...sorted);
-  } else {
-    const step = (sorted.length - 1) / (sampleSize - 1);
-    for (let i = 0; i < sampleSize; i += 1) sample.push(sorted[Math.round(i * step)]);
-  }
+  const ranked = [...byActivity.values()].sort((a, b) => {
+    if (b.length !== a.length) return b.length - a.length;
+    return b[0].takenAt - a[0].takenAt;
+  });
+  const sample = ranked
+    .slice(0, sampleSize)
+    .map((list) => coverOf(list))
+    .filter((p): p is ActivityPhoto => p !== null)
+    .sort((a, b) => a.takenAt - b.takenAt);
 
   return {
     total: sorted.length,

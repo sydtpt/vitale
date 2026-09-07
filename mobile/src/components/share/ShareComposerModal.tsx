@@ -889,6 +889,14 @@ export function ShareComposerModal({
                       isVideo={p.mediaType === 'video'}
                       durationS={p.durationS}
                     />
+                    {/* A capa é a foto que este compositor já abria por padrão
+                        — estava numa linha de código e em lugar nenhum da tela.
+                        A estrela é a única mudança visível desta frente. */}
+                    {p.isCover && (
+                      <View style={styles.photoOptStar}>
+                        <Ionicons name="star" size={9} color={colors.onPrimary} />
+                      </View>
+                    )}
                   </Pressable>
                 ))}
               </ScrollView>
@@ -1229,6 +1237,18 @@ const styles = themed(() =>
     borderColor: 'transparent',
   },
   photoOptOn: { borderColor: colors.primary },
+  /** A estrela da capa — a escolha padrão deixa de ser invisível. */
+  photoOptStar: {
+    position: 'absolute',
+    right: 2,
+    top: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   photoOptImg: { width: '100%', height: '100%' },
   exportStage: { position: 'absolute', top: 0, left: 0 },
     exportOverlay: {

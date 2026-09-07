@@ -292,7 +292,7 @@ function Viewer({
                     color={onMedia}
                   />
                   <Text style={styles.actText}>
-                    {photos[current]?.isCover ? 'É a capa' : 'Tornar a capa'}
+                    {photos[current]?.isCover ? 'É a capa' : 'Usar como capa'}
                   </Text>
                 </Pressable>
               )}
