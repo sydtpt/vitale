@@ -147,8 +147,33 @@ varreduras.
 | Corrida | entra junto |
 | Vídeo | entra |
 
-**Ficou sem resposta:** "a web fica cega mesmo?". Segue valendo a escolha original
-(sem imagem na web); a saída documentada é subir só a capa (ADR 0037, alternativas).
+**Respondido em 07/09:** a web fica cega **por enquanto** — decisão dele. O
+`fetchMediaCounts` já mora no shared e serve quando a hora chegar; a saída para imagem
+continua sendo subir só a capa (ADR 0037, alternativas).
+
+### O vínculo automático (decidido em 07/09/2026)
+
+A pergunta "ligar sozinho?" só teve resposta quando houve o que medir. Sobre as **707
+decisões que ele já tinha tomado à mão**:
+
+| Grupo | Ligou | Recusou | Aceita |
+|---|---|---|---|
+| No corredor (até 40 m) | 549 | 69 | **89%** |
+| 40 a 250 m | 15 | 7 | 68% |
+| Antes da largada | 1 | 1 | 50% (sem sinal) |
+| Depois da chegada | 10 | 26 | **28%** |
+
+**Liga sozinho só o corredor.** As três regras que sustentam isso valem mais que o
+limiar: nada é recusado pela máquina (o que sobra fica indeciso e volta); nenhuma folha
+abre sozinha (o resto vira linha quieta); e a varredura roda uma vez por pedalada,
+guardada pelo `photos_checked_at`.
+
+A faixa de 40 a 250 m fica de fora por um motivo que só o dono sabia: **é onde caem as
+fotos que ele edita no Lightroom.** A exportação mexe na precisão da coordenada o
+bastante para sair do corredor e não o bastante para ir longe — e são justamente as
+fotos que ele tratou com carinho. Somam-se às que o GPS não soube colocar, porque o
+traçado tem buracos (§5.3). 68% é bom demais para descartar e ruim demais para
+automatizar.
 
 ## 7. Riscos e limites conhecidos
 

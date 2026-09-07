@@ -220,7 +220,13 @@ São **10** módulos, não 7:
   `expo-video`, com o player só na página ativa; a duração, que a API nova entrega em
   **milissegundos**, foi corrigida na origem e nos 37 registros em produção. O **pôster do
   vídeo segue em branco** — o próximo build separa as duas causas possíveis (T9.5).
-  **Falta o veredito dele** sobre gestos e a "parada não gravada".
+  **Vínculo automático** (Fase 10, 07/09): a pedalada aberta pela primeira vez liga
+  sozinha o que está no **corredor de 40 m** — 89% de acerto medido nas 707 decisões
+  manuais dele; "depois da chegada" ficou de fora porque erraria em 3 de 4. Nada é
+  recusado pela máquina, nenhuma folha abre sozinha, e a varredura roda uma vez por
+  pedalada. O **cartão do Histórico** ganhou o selo de mídia no cabeçalho, com a
+  contagem agrupada no banco (`activity_media_counts()`). A web ficou de fora por
+  decisão dele. **Falta o veredito dele** sobre gestos e a "parada não gravada".
   Tarefas: `_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md`
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no

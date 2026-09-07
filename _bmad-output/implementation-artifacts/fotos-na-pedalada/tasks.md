@@ -238,6 +238,55 @@ defeitos, e um deles ele não tinha como ver.
       toque em `UIControl`, então a barra deve ganhar — mas isso é teoria até alguém
       arrastar.
 
+## Fase 10 — O vínculo automático e o selo no Histórico (07/09/2026)
+
+Duas decisões dele, ambas tomadas contra dados e não contra intuição. As 707
+decisões que ele já tinha tomado à mão viraram a base de medida:
+
+| Grupo | Ligou | Recusou | Aceita |
+|---|---|---|---|
+| No corredor (até 40 m) | 549 | 69 | **89%** |
+| 40 a 250 m | 15 | 7 | 68% |
+| Antes da largada | 1 | 1 | 50% (sem sinal) |
+| Depois da chegada | 10 | 26 | **28%** |
+
+- [x] **T10.1** **Liga sozinho só o corredor.** Ligar o "depois" erraria em quase
+      3 de 4 — é a janela de uma hora onde moram a foto em casa e a do café. A
+      faixa de 40 a 250 m fica de fora por outro motivo: 68% é bom demais para
+      descartar e ruim demais para automatizar. É onde caem as fotos que ele
+      **edita no Lightroom** (a exportação mexe na precisão da coordenada o
+      bastante para sair do corredor) e as que o GPS não soube colocar, porque o
+      traçado tem buracos.
+- [x] **T10.2** **Nada é recusado pela máquina.** O que não entra fica indeciso e
+      volta na próxima varredura. Gravar `dismissed` é dizer "esta não", e só o
+      dono pode dizer isso.
+- [x] **T10.3** **Nenhuma folha abre sozinha.** O que sobrou vira uma linha quieta
+      — sem moldura, sem preenchimento: lembrete, não tarefa. Um modal saltando a
+      cada pedalada antiga aberta só para ver o mapa seria pior que o problema.
+- [x] **T10.4** **Uma vez por pedalada**, guardada pelo `photos_checked_at`. E
+      falhar deixa a pedalada sem a marca, então ela tenta de novo — por isso o
+      erro **não** vira alerta, ao contrário do erro de gravação da folha.
+- [x] **T10.5** **O selo de mídia no cartão do Histórico** — proposta B de um
+      estudo de quatro (`claude.ai/code/artifact/b4065110-2a43-464f-bcb8-2fe744dd16b7`).
+      Vai no **cabeçalho**, ao lado de `editado`, e não na régua de números: a
+      régua é a linguagem do esforço, e ele disse desde o começo que foto não é
+      destaque. Foto e vídeo no mesmo selo — há uma pedalada com 31 fotos e 35
+      vídeos —, e o conjunto some inteiro quando não há mídia, porque em 9 de
+      cada 10 cartões não há e um vão reservado desalinharia a lista.
+- [x] **T10.6** A contagem vem **agrupada do banco** (`activity_media_counts()`,
+      migration `20260907120000`). Contar no cliente transportaria as 700+ fotos
+      para desenhar um número de dois dígitos; filtrar por `in (<ids>)` estoura a
+      URL, porque o Histórico de Ciclismo tem 338 atividades de id textual.
+      `security invoker` com `user_id = auth.uid()` explícito: função que só se
+      protege pela RLS vira vazamento silencioso no dia em que alguém mexer na
+      política.
+- [ ] **T10.7** **Falta o aparelho.** Conferir que abrir uma pedalada antiga
+      liga as fotos sozinha e não trava a tela; que a linha de pendência aparece
+      e some depois de julgada; e que o selo cabe ao lado de `editado` sem
+      espremer a data.
+- [ ] **T10.8** A **web** ficou de fora por decisão dele (07/09). O
+      `fetchMediaCounts` já é do shared e serve quando a hora chegar.
+
 ### A lição das fases 8 e 9
 
 O núcleo puro fez o que devia: quando as fotos finalmente renderizaram, **os números
