@@ -343,9 +343,28 @@ fora jogava os três fora.
       Tournai (59 fotos) de fora.
 - [x] **T11.6 · A sequência** (proposta D). Seis Stories em ordem, um por parada.
       Barata porque a T11.2 já existia: é o mesmo cartão com fotos diferentes.
-- [ ] **T11.7 · Falta o veredito dele** sobre a sequência (a mais arriscada: seis
-      WebViews em série), a tira da Retrospectiva, o lote de varredura e o
-      enquadramento no PNG exportado.
+- [x] **T11.7 · O álbum do período.** A tira levava direto à pedalada, e ele recusou
+      o caminho: *"estou na retrospectiva, gostaria de poder ver TODAS as fotos, e
+      com ela maximizada, poderia ter um botão de ir para a pedalada"*. A tira
+      abre a **mesma galeria** da pedalada, com todas as fotos do período,
+      agrupadas **por pedalada** (um dia pode ter dois treinos, e é a pedalada que
+      a ação seguinte promete abrir). No visor, uma ação só — as outras três são
+      decisões que se toma dentro do dia, não folheando o mês.
+- [x] **T11.8 · O "+N" saía do cartão.** Não era enquadramento: eram cinco quadros
+      **mais** o contador, 378 pt numa faixa de 329. Agora são cinco lugares e o
+      contador ocupa um deles, com a contagem corrigida para o que aparece.
+- [x] **T11.9 · O gancho no sync** (o que a Fase 10 deixou em T10.11). A pedalada
+      nova chega com o corredor ligado, sem abrir o detalhe. **Zero download**: o
+      `syncDelta` já carrega o traçado em memória para calcular tempo em
+      movimento. Guardado pela mesma âncora do vínculo de tarefas — sem ela, o
+      primeiro sync varreria a biblioteca contra três anos de histórico. E o erro
+      é **engolido**: o sync roda em segundo plano, onde o iOS restringe a leitura
+      da biblioteca; falhando ali a pedalada fica sem a marca e tenta de novo com
+      o app na frente. Não há nada que o dono possa fazer com esse aviso.
+- [x] **T11.10** Conferidos por ele: o lote de varredura (rodado) e o enquadramento
+      no PNG exportado.
+- [ ] **T11.11 · Falta só o veredito da sequência** — a mais arriscada de tudo,
+      porque monta seis WebViews em série e resolve seis fotos antes.
 
 ### A lição da fase
 
