@@ -226,9 +226,28 @@ function Viewer({
             setCurrent(Math.round(e.nativeEvent.contentOffset.x / width))
           }
         >
-          {photos.map((p, i) => (
-            <ViewerPage key={p.id} photo={p} width={width} active={i === current} />
-          ))}
+          {/**
+           * **Só as páginas por perto são montadas.**
+           *
+           * O carrossel monta todas as páginas de uma vez, e cada uma resolve um
+           * arquivo da biblioteca e desenha uma imagem de tela cheia. Numa
+           * pedalada são dezenas e ninguém notou; na galeria do período de julho
+           * são **372**, e abrir uma foto lá embaixo derrubava o app (conferido
+           * no aparelho em 07/09/2026) — a lista já estava virtualizada, o visor
+           * não estava.
+           *
+           * A janela de ±2 mantém a geometria do `ScrollView` intacta (cada
+           * página ocupa sua largura, montada ou não), então o `contentOffset` e
+           * o paginado continuam exatos. E as vizinhas já estão prontas quando o
+           * dedo chega nelas — o `current` só avança no fim do gesto.
+           */}
+          {photos.map((p, i) =>
+            Math.abs(i - current) <= 2 ? (
+              <ViewerPage key={p.id} photo={p} width={width} active={i === current} />
+            ) : (
+              <View key={p.id} style={{ width }} />
+            ),
+          )}
         </ScrollView>
 
         <Pressable
