@@ -495,7 +495,11 @@ export default function AtividadeDetalheScreen() {
             photosCheckedAt: activity.photosCheckedAt ?? null,
             cities: activity.cities ?? null,
           }}
-          points={routePoints ?? []}
+          points={
+            // Cru, sem `?? []`: o cartão precisa distinguir a rota **em voo** da
+            // atividade **sem rota** — ver o comentário da prop.
+            routePoints
+          }
         />
 
         {/* Fora do bloco do percurso de propósito: `bestEfforts` vem do sync e

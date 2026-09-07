@@ -10,7 +10,8 @@
  * que é o caso de 9 em cada 10 linhas.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { type ActivityMediaCount, fetchMediaCounts } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth.store';
@@ -35,9 +36,22 @@ export function useMediaCounts(): {
     }
   }, [userId]);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  /**
+   * Recarrega **a cada volta para a tela**, e não só na montagem.
+   *
+   * A lista fica viva atrás do detalhe: abrir uma pedalada liga fotos sozinha
+   * (o vínculo automático) ou ele mesmo liga e desliga na galeria, e ao voltar
+   * o selo mostrava a contagem de antes. Conferido no iPhone em 07/09/2026 —
+   * "os cards não atualizaram a quantidade de fotos".
+   *
+   * É uma consulta agregada, de algumas centenas de linhas no limite; repeti-la
+   * a cada foco é barato perto de mostrar um número errado.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload]),
+  );
 
   return { counts, reload };
 }

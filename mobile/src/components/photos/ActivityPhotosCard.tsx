@@ -101,10 +101,24 @@ interface Props {
     photosCheckedAt: string | null;
     cities?: { name: string; lat: number; lng: number }[] | null;
   };
-  points: readonly ActivityRoutePoint[];
+  /**
+   * O traçado — **`undefined` enquanto carrega**, e essa distinção é o dado.
+   *
+   * A tela buscava a rota de forma assíncrona e passava `routePoints ?? []`,
+   * o que apagava a diferença entre "ainda não sei" e "não tem". O vínculo
+   * automático rodava no primeiro quadro, com traçado vazio, classificava tudo
+   * como fora da rota, não ligava nada — e ainda assim gravava
+   * `photos_checked_at`, então nunca mais tentava. Conferido no iPhone em
+   * 07/09/2026: era preciso adicionar à mão as fotos que deviam entrar sozinhas.
+   *
+   * É a mesma armadilha da ADR 0037 §5.3 sobre os buracos do GPS: **não saber
+   * não é saber que não.**
+   */
+  points: readonly ActivityRoutePoint[] | undefined;
 }
 
-export function ActivityPhotosCard({ activity, points, view }: Props) {
+export function ActivityPhotosCard({ activity, points: rawPoints, view }: Props) {
+  const points = rawPoints ?? [];
   const styles = useThemedStyles(createStyles);
   const userId = useAuthStore((s) => s.user?.id);
   const { photos, grouped, reload } = view;
@@ -131,10 +145,15 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
    */
   useEffect(() => {
     if (checked || !userId) return;
+    // Sem traçado carregado não há corredor, e sem corredor a partilha diria
+    // "fora da rota" para tudo. Esperar é o certo: `undefined` é a rota em voo,
+    // e `[]` é a atividade que não tem rota nenhuma — nessa, o corredor não
+    // existe e quem decide é ele, na folha.
+    if (!rawPoints || rawPoints.length === 0) return;
     let alive = true;
     void (async () => {
       try {
-        const r = await autoLinkCorridor({ ...activity }, points, userId);
+        const r = await autoLinkCorridor({ ...activity }, rawPoints, userId);
         if (!alive || !r) return;
         setChecked(true);
         setRest(r.rest);
@@ -148,10 +167,10 @@ export function ActivityPhotosCard({ activity, points, view }: Props) {
     return () => {
       alive = false;
     };
-    // `activity` e `points` mudam de identidade a cada render da tela; o que
-    // governa esta varredura é a pedalada e o dono, não a referência do objeto.
+    // `activity` muda de identidade a cada render da tela; o que governa esta
+    // varredura é a pedalada, o dono, e **se a rota já chegou**.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activity.id, userId, checked]);
+  }, [activity.id, userId, checked, rawPoints]);
 
   /**
    * A folha, aberta com o que sobrou — sem varrer de novo.

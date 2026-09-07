@@ -215,6 +215,29 @@ describe('splitAutoLink', () => {
     expect(pending).toHaveLength(1);
   });
 
+  /**
+   * REGRESSÃO (07/09/2026). O cartão passava `routePoints ?? []` e a rota chega
+   * de forma assíncrona: no primeiro quadro o traçado era vazio, TUDO virava
+   * "fora da rota", nada era ligado sozinho — e o `photos_checked_at` era
+   * gravado assim mesmo, então nunca mais se tentava.
+   *
+   * A partilha está certa: sem traçado não há corredor. Quem tinha de esperar
+   * era o cartão, e é ele quem agora distingue a rota em voo (`undefined`) da
+   * atividade sem rota (`[]`).
+   */
+  it('sem traçado nada é do corredor — o cartão é que precisa esperar a rota', () => {
+    const p = points[20];
+    const cands = classifyMedia(
+      [media({ takenAtMs: T0 + 100_000, lat: p.lat, lng: p.lng + 8 * MLNG })],
+      [],
+      activity,
+      new Set(),
+    );
+    const { auto, pending } = splitAutoLink(cands);
+    expect(auto).toHaveLength(0);
+    expect(pending).toHaveLength(1);
+  });
+
   it('pedalada sem candidato não quebra a partilha', () => {
     expect(splitAutoLink([])).toEqual({ auto: [], pending: [] });
   });
