@@ -470,8 +470,10 @@ export interface CityMark {
    * resposta de Bruxelas traz 188 variantes, e guardar todas encheria as 1.376
    * marcas do acervo de texto que ninguém digita.
    *
-   * Ausente nas marcas gravadas antes do passe passar a colhê-las — a busca
-   * por cidade funciona sem elas, só não alcança as outras grafias.
+   * `[]` é resposta, não lacuna: a cidade foi consultada e se escreve igual em
+   * todas as línguas da lista (Etterbeek, por exemplo). **Ausente** é que
+   * significa "marca gravada antes de o passe colher apelidos" — a busca por
+   * cidade funciona sem elas, só não alcança as outras grafias.
    */
   aliases?: string[];
 }

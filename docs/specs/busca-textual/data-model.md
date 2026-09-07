@@ -26,7 +26,9 @@ export interface CityMark {
   countryCode?: string;  // ISO 3166-1 alpha-2
   lat: number;           // centro do município
   lng: number;
-  /** Variantes de nome vindas do OSM. Nunca repete `name`. Ausente = ainda não colhido. */
+  /** Variantes do nome vindas do OSM. Nunca repete `name`.
+   *  `[]` = colhido, esta cidade não tem outra grafia (Etterbeek).
+   *  Ausente = marca gravada antes de o passe colher apelidos. */
   aliases?: string[];
 }
 ```
@@ -219,7 +221,9 @@ Re-geocodificar as 138 atividades inteiras custaria ~3.700 chamadas (~68 min) pa
 -- deve devolver 0 depois de B
 select count(*) from activities where has_route and cities is null;
 
--- deve devolver 0 depois de A
+-- deve devolver 0 depois de A. A chave existe SEMPRE que o passe visitou a
+-- marca, mesmo quando a cidade não tem outra grafia — senão "não tem apelido" e
+-- "ainda não colhi" viram o mesmo estado e a cidade volta à fila para sempre.
 select count(*) from activities a
 cross join lateral jsonb_array_elements(a.cities) c
 where a.cities is not null and not (c ? 'aliases');

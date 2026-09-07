@@ -28,7 +28,11 @@ export interface CityMark {
   countryCode?: string;
   lat: number;
   lng: number;
-  /** Outras grafias do nome (ver `colherApelidos`). Nunca repete `name`. */
+  /**
+   * Outras grafias do nome (ver `colherApelidos`). Nunca repete `name`.
+   * `[]` = colhido e esta cidade não tem outra grafia; **ausente** = marca
+   * gravada antes de o passe colher apelidos.
+   */
   aliases?: string[];
 }
 
@@ -152,10 +156,14 @@ export async function reverseGeocode(lat: number, lng: number): Promise<CityMark
   const centerLat = Number(body?.lat);
   const centerLng = Number(body?.lon);
   const hasCenter = Number.isFinite(centerLat) && Number.isFinite(centerLng);
-  const aliases = colherApelidos(nd, String(name));
   return {
     name: String(name),
-    ...(aliases.length > 0 ? { aliases } : {}),
+    // SEMPRE presente, mesmo vazio. Omitir quando não há apelido faria "esta
+    // cidade não tem outra grafia" e "esta marca é anterior ao passe" virarem o
+    // mesmo estado — e aí Etterbeek, que se escreve igual em francês e em
+    // neerlandês, voltaria à fila do backfill para sempre. É a mesma distinção
+    // que `cities` faz entre `null` (pendente) e `[]` (resolvido e vazio).
+    aliases: colherApelidos(nd, String(name)),
     state: a.state ? String(a.state) : undefined,
     country: a.country ? String(a.country) : undefined,
     countryCode: a.country_code ? String(a.country_code).toUpperCase() : undefined,
