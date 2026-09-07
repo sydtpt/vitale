@@ -42,6 +42,7 @@ import {
   type ActivityPhotoWrite,
   type ActivityRoutePoint,
   fetchDecidedInstants,
+  fetchRoutePoints,
   markPhotosChecked,
   photoWindow,
   setPhotoAssetId,
@@ -201,6 +202,95 @@ export async function autoLinkCorridor(
   // O resto sai na forma que a folha consome — a janela junto, porque é ela que
   // a folha mostra quando não sobrou nada ("Nada entre 10:43 e 20:48").
   return { linked: auto.length, rest: { ...scan, candidates: pending } };
+}
+
+/** O andamento do lote, para a tela contar a verdade enquanto ele roda. */
+export interface BackfillProgress {
+  /** Quantas já foram processadas — inclui as puladas. */
+  done: number;
+  total: number;
+  /** Fotos ligadas até aqui. */
+  linked: number;
+  /** Pedaladas em que sobrou algo fora do corredor. */
+  withRest: number;
+  /** Fotos que ficaram fora do corredor, somadas. */
+  rest: number;
+  /** Sem traçado no banco, apesar da marca — não dá para decidir corredor. */
+  skipped: number;
+}
+
+/**
+ * Liga o corredor em **todas** as pedaladas ainda não varridas.
+ *
+ * ## As decisões que a forma carrega
+ *
+ * **Uma rota por vez, e descartada em seguida.** São 31 MB de traçado nas 222
+ * pedaladas pendentes com rota (medido em 07/09/2026); carregá-las no cache do
+ * store deixaria isso tudo na memória para nada. Por isso `fetchRoutePoints`
+ * direto, e não o `loadRoute` do store.
+ *
+ * **Nada de `route_overview`.** Ele guarda 1 ponto a cada 40 — segmentos de uns
+ * 445 m. A corda reta que atravessa uma curva desse tamanho se afasta muito
+ * mais que os 40 m do corredor, e a foto de qualquer curva cairia fora. Seria
+ * trocar precisão por velocidade exatamente onde a precisão é a regra.
+ *
+ * **Retomável sem estado próprio.** Cada pedalada que termina grava
+ * `photos_checked_at` (dentro do `saveDecisions`), então cancelar, perder rede
+ * ou fechar o app não perde nada: rodar de novo continua de onde parou.
+ *
+ * **A mesma regra do automático — só o corredor.** Aproveitar o lote para ser
+ * mais ousado produziria um histórico onde parte das ligações seguiu um
+ * critério e parte seguiu outro, sem marca de qual foi qual.
+ *
+ * O que sobra fora do corredor **não** é gravado: continua indeciso, e o
+ * caminho de volta é o "Procurar fotos de novo" de cada pedalada. O `rest` do
+ * progresso existe para o relatório final dizer isso em números, em vez de
+ * deixar a perda invisível.
+ */
+export async function backfillCorridor(
+  activities: readonly { id: string; startAtMs: number; endAtMs: number; distanceM?: number }[],
+  userId: string,
+  onProgress: (p: BackfillProgress) => void,
+  shouldStop: () => boolean,
+): Promise<BackfillProgress> {
+  const p: BackfillProgress = {
+    done: 0,
+    total: activities.length,
+    linked: 0,
+    withRest: 0,
+    rest: 0,
+    skipped: 0,
+  };
+  if ((await currentPhotoAccess()) !== 'full') return p;
+
+  for (const a of activities) {
+    if (shouldStop()) break;
+    try {
+      const points = (await fetchRoutePoints(supabase, userId, a.id)) ?? [];
+      if (points.length === 0) {
+        // Sem traçado não há corredor. Não marca como varrida: quem decide uma
+        // pedalada sem rota é o dono, na folha.
+        p.skipped += 1;
+      } else {
+        const scan = await scanActivity(a, points, userId);
+        if (scan) {
+          const { auto, pending } = splitAutoLink(scan.candidates);
+          await saveDecisions(userId, a.id, auto, []);
+          p.linked += auto.length;
+          if (pending.length > 0) {
+            p.withRest += 1;
+            p.rest += pending.length;
+          }
+        }
+      }
+    } catch {
+      // Uma pedalada que falha não derruba o lote: ela fica sem
+      // `photos_checked_at` e entra de novo na próxima rodada.
+    }
+    p.done += 1;
+    onProgress({ ...p });
+  }
+  return p;
 }
 
 /** Os instantes já decididos nesta atividade — ligados **e** desligados. */
