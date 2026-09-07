@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, ou
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import type { CounterHabit, HabitDirection } from '@vitale/shared';
-import { MOD, HABIT_ICONS, DEFAULT_HABIT_ICON } from '@vitale/shared';
+import { MOD, HABIT_ICONS, DEFAULT_HABIT_ICON, CURRENCY } from '@vitale/shared';
 import { HabitsStore } from '../data/habits.store';
 import { IconComponent } from '@core/services/icon.component';
 
@@ -26,6 +26,7 @@ interface EditorState {
   target: string;
   unit: string;
   step: string;
+  price: string;
   icon: string;
   color: string;
 }
@@ -180,6 +181,22 @@ function fmt(n: number): string {
           <p class="error" *ngIf="stepNum() !== null && stepNum()! <= 0">
             O incremento deve ser maior que 0.
           </p>
+        </div>
+
+        <!-- Preço médio: o gasto do período sai daqui, multiplicado pelo total -->
+        <div class="form-group">
+          <label>Preço médio (opcional)</label>
+          <div class="price-row">
+            <input
+              type="text"
+              [(ngModel)]="form().price"
+              placeholder="Ex.: 11"
+              class="input"
+              [class.error]="priceNum() !== null && priceNum()! < 0"
+            />
+            <span class="price-unit">{{ priceUnit() }}</span>
+          </div>
+          <p class="hint">Vira gasto estimado nos períodos e na análise. Vazio = sem estimativa.</p>
         </div>
 
         <!-- Icon -->
@@ -409,6 +426,26 @@ function fmt(n: number): string {
       color: var(--ink-3);
     }
 
+    .price-row {
+      display: flex;
+      align-items: stretch;
+      gap: var(--spacing-sm);
+
+      .input { flex: 1; }
+    }
+
+    .price-unit {
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      border-radius: var(--radii-lg);
+      background: var(--surface-mute);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--ink-2);
+      white-space: nowrap;
+    }
+
     .error {
       margin: 4px 0 0 0;
       font-size: 12px;
@@ -592,6 +629,7 @@ export class HabitEditorComponent {
     target: '',
     unit: 'un',
     step: '1',
+    price: '',
     icon: DEFAULT_HABIT_ICON,
     color: 'agua',
   });
@@ -600,6 +638,9 @@ export class HabitEditorComponent {
 
   readonly stepNum = computed(() => parseNum(this.form().step));
   readonly targetNum = computed(() => parseNum(this.form().target));
+  readonly priceNum = computed(() => parseNum(this.form().price));
+  /** Sufixo do campo de preço: a moeda sobre a unidade que o hábito já usa. */
+  readonly priceUnit = computed(() => `${CURRENCY} / ${this.form().unit.trim() || 'un'}`);
   readonly isValid = computed(() => {
     const f = this.form();
     const step = this.stepNum();
@@ -618,6 +659,7 @@ export class HabitEditorComponent {
           target: habit.target == null ? '' : fmt(habit.target),
           unit: habit.unit,
           step: fmt(habit.step),
+          price: habit.unitPrice == null ? '' : fmt(habit.unitPrice),
           icon: habit.icon,
           color: habit.color,
         });
@@ -655,6 +697,7 @@ export class HabitEditorComponent {
         bad: f.bad,
         showOnHome: f.showOnHome,
         target: target ?? undefined,
+        unitPrice: this.priceNum(),
       };
 
       if (this.existing()) {

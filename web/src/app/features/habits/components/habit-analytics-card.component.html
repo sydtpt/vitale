@@ -28,7 +28,17 @@
     </div>
   }
 
-  <div class="meta">média 30d: <strong>{{ fmt(avg30()) }} {{ habit().unit }}</strong></div>
+  <div class="meta">
+    <span>média 30d: <strong>{{ fmt(avg30()) }} {{ habit().unit }}</strong></span>
+    <span>{{ rangeDays }}d: <strong>{{ fmt(totalRange()) }} {{ habit().unit }}</strong></span>
+  </div>
+
+  @if (spend30() !== null) {
+    <div class="meta spend">
+      <span>gasto 30d: <strong>≈{{ money(spend30()!) }}</strong></span>
+      <span>{{ rangeDays }}d: <strong>≈{{ money(spendRange()!) }}</strong></span>
+    </div>
+  }
 
   <rt-habit-heatmap [cells]="cells()" />
 </div>

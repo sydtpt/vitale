@@ -149,6 +149,8 @@ export class HabitsStore {
     direction: HabitDirection;
     bad?: boolean;
     showOnHome?: boolean;
+    /** Preço médio de uma unidade (€); `null` = sem estimativa de gasto. */
+    unitPrice?: number | null;
   }): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
@@ -164,6 +166,7 @@ export class HabitsStore {
       direction: data.direction,
       bad: data.bad,
       showOnHome: data.showOnHome,
+      unitPrice: data.unitPrice ?? null,
       sort: maxSort + 1,
     });
     const habits = await fetchHabits(supabase, userId);
@@ -181,6 +184,8 @@ export class HabitsStore {
     direction: HabitDirection;
     bad?: boolean;
     showOnHome?: boolean;
+    /** `null` limpa o preço, como `target: null` limpa a meta. */
+    unitPrice?: number | null;
   }): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
@@ -195,6 +200,7 @@ export class HabitsStore {
       direction: data.direction,
       bad: data.bad ?? false,
       show_on_home: data.showOnHome ?? true,
+      unit_price: data.unitPrice ?? null,
     });
     this._habits.set(await fetchHabits(supabase, userId));
   }

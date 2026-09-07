@@ -91,6 +91,7 @@ export * from './todo/format';
 export * from './todo/reminders';
 export * from './habits/logic';
 export * from './habits/calories';
+export * from './habits/cell';
 export * from './habits/cost';
 export * from './habits/detail';
 export * from './registros/detail';

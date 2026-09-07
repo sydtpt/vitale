@@ -128,5 +128,44 @@ Como usuário, quero editar a configuração de um hábito ou arquivá-lo sem pe
 - **Lembretes/push** por hábito (Expo Notifications).
 - **Metas semanais/mensais** e tendência ("menos é melhor" com queda esperada).
 - **Editar logs passados** no web; anotações por dia.
+- ~~Detalhe por hábito no celular~~ — entregue (CAP-2).
+- ~~Custo estimado por hábito~~ — entregue (CAP-1).
 - **HealthKit**: importar água/registros de unidades já capturados pelo Apple Health.
 - Virada do dia configurável (ex.: dia começa às 04:00).
+
+## 11. Capabilities pós-MVP
+
+> O corpo acima é o spec do MVP (US1–US5, FR-001–FR-012). O que vem depois entra
+> como capability, no formato dos specs mais novos do repo.
+
+- **CAP-1** — Preço médio por hábito *(07/09/2026, entregue)*
+  - **intent:** O usuário põe o preço de **uma unidade** do hábito (11 €/L de cerveja) e passa a
+    ver quanto o hábito custou em qualquer período, sem registrar gasto nenhum.
+  - **success:** `habits.unit_price` opcional; o gasto é `Σ valores × unit_price` derivado na
+    leitura (`habitCost`), nunca gravado — pôr o preço hoje descreve todo o histórico, e mudá-lo
+    reescreve a estimativa inteira. Aparece na linha do hábito na Retrospectiva (antes da kcal),
+    no card de Gráficos da web (gasto 30 d e da janela) e na tela de detalhe. Hábito sem preço
+    fica exatamente como estava: a linha não é desenhada.
+  - **limite declarado:** é **um preço só**, aplicado a toda a história — não acompanha variação
+    no tempo nem separa o copo do bar da lata de casa. Ordem de grandeza, como a kcal. Se um dia
+    precisar de mais, o caminho é preço com vigência (`habit_prices`), não um segundo campo.
+
+- **CAP-2** — View de detalhe por hábito *(07/09/2026, entregue)*
+  - **intent:** Tocar num hábito abre as métricas daquele hábito (não mais o editor), no molde do
+    detalhe de Registros — o histórico deixa de ser write-only no celular.
+  - **success:** `/habitos/detalhe` no mobile; tap na lista abre o detalhe e o lápis do cabeçalho
+    abre o editor. Os 5 períodos (7d · 4s · 12m · Ano · Sempre) redesenham barras e métricas, e a
+    escolha persiste por aparelho. Correção retroativa continua no calendário `/habitos/dia`, que
+    é o destino do toque no heatmap.
+  - **o que difere de Registros, e por quê:** um registro conta marcas, um hábito **soma valores**.
+    Daí o delta ser na unidade (`+11,5 L`) e não em contagem; a média ser **por dia com registro**
+    (diluir hábito esparso em 30 dias descreve um dia que não aconteceu); existir **maior dia**,
+    que em marca binária seria sempre 1; e o heatmap anual ter **intensidade** em vez de
+    marcado/vazio. Eixo de tempo e navegação de ano são os mesmos (`period/bucket-plan.ts`).
+
+- **CAP-3** — Estimativas separadas do medido *(07/09/2026, entregue)*
+  - **intent:** Gasto e caloria são estimativas, e a tela precisa dizer isso sem nota de rodapé.
+  - **success:** No detalhe, os dois ficam numa faixa **abaixo de uma linha**, separados dos tiles
+    medidos, com a premissa por extenso ("estimado a 11 €/L e pela densidade da bebida · ±15%").
+    Cada um só aparece quando há de onde tirá-lo: sem preço não há gasto, sem densidade conhecida
+    não há kcal.

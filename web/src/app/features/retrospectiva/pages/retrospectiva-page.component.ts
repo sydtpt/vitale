@@ -9,6 +9,8 @@ import {
   type YearSerieKey,
   latestAvailableOffset,
   habitCalories,
+  habitCost,
+  fmtMoneyAuto,
   type PeriodKind,
   type RecapValue,
   type HighlightIcon,
@@ -323,11 +325,18 @@ export class RetrospectivaPageComponent {
     return h.unit ? `${this.qty(h.total.current)} ${h.unit}` : this.qty(h.total.current);
   }
 
-  /** Linha de apoio: média diária + dias com registro (+ kcal estimadas). */
+  /**
+   * Linha de apoio: média diária + dias com registro, e as estimativas que
+   * existirem. Gasto antes de kcal, como no celular — e cada uma só aparece
+   * quando há de onde tirá-la.
+   */
   protected habitSub(h: RetroHabitRow): string {
     const dias = `${h.recap.current} ${h.recap.current === 1 ? 'dia' : 'dias'}`;
+    const cost = habitCost(h.unitPrice, h.total.current);
     const kcal = habitCalories(h.name, h.unit, h.total.current);
-    const extra = kcal == null ? '' : ` · ≈${this.num(kcal)} kcal`;
+    const extra =
+      (cost == null ? '' : ` · ≈${fmtMoneyAuto(cost)}`) +
+      (kcal == null ? '' : ` · ≈${this.num(kcal)} kcal`);
     if (h.perDayDays === 0) return `${dias}${extra}`;
     const media = h.unit ? `${this.qty(h.perDay)} ${h.unit}` : this.qty(h.perDay);
     return `${media}/dia · ${dias}${extra}`;

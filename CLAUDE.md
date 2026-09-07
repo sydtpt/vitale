@@ -233,6 +233,13 @@ São **10** módulos, não 7:
   contagem agrupada no banco (`activity_media_counts()`). A web ficou de fora por
   decisão dele. **Falta o veredito dele** sobre gestos e a "parada não gravada".
   Tarefas: `_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md`
+- Hábitos — **preço médio e tela de detalhe** (07/09): `habits.unit_price` (€ por unidade do
+  hábito) e o gasto derivado na leitura, nunca gravado — o preço vale retroativo sem backfill.
+  Cerveja em 11 €/L: os 60 L gravados desde 23/05 viram **≈€660**. Aparece na linha do hábito na
+  Retrospectiva, no card de Gráficos da web e na nova tela `/habitos/detalhe` do celular, no molde
+  do detalhe de Registros (períodos, barras por valor, dia da semana, heatmap anual com
+  intensidade). No mesmo passo, `R$` virou `€` onde há dado real (retro, Semana, Compras) — o
+  símbolo agora sai de `format/money.ts`. **Falta a conferência dele** no iPhone e no navegador.
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco
