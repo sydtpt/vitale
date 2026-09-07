@@ -1,0 +1,122 @@
+[
+  {
+    "dia": "2026-08-15", "km": 75,
+    "preenchido": { "regiao": "Pajottenland", "artigo": "le",
+      "justificativa": ["Sint-Martens-Lennik", "Strijtem", "Pamel"] },
+    "esperado": "Tour du Pajottenland"
+  },
+  {
+    "dia": "2026-07-25", "km": 106,
+    "preenchido": { "destino": "Anvers", "via": "Rupel", "viaArtigo": "le",
+      "justificativa": ["Antwerpen", "Boom", "Niel", "Schelle"] },
+    "esperado": "Boucle d'Anvers par le Rupel"
+  },
+  {
+    "dia": "2026-08-23", "km": 103,
+    "preenchido": { "regiao": "Petit-Brabant", "artigo": "le",
+      "justificativa": ["Bornem", "Dendermonde", "Hamme"] },
+    "esperado": "Tour du Petit-Brabant"
+  },
+  {
+    "dia": "2026-07-21", "km": 151,
+    "preenchido": { "regiao": "Wallonie picarde", "artigo": "la",
+      "justificativa": ["Tournai", "Antoing", "Hollain", "Maulde"] },
+    "esperado": "Tour de la Wallonie picarde",
+    "nota": "calibração — o dono já havia escrito este nome à mão"
+  },
+  {
+    "dia": "2026-07-18", "km": 114,
+    "preenchido": { "regiao": "Meuse-Rhin", "artigo": "la",
+      "justificativa": ["Aachen", "Maastricht", "Gemmenich", "Vaals"] },
+    "esperado": "Tour de la Meuse-Rhin",
+    "nota": "calibração — o dono já havia escrito este nome à mão"
+  },
+  {
+    "dia": "2025-08-24", "km": 55,
+    "preenchido": { "regiao": "Hageland", "artigo": "le",
+      "justificativa": ["Lubbeek", "Houwaart", "Holsbeek", "Pellenberg"] },
+    "esperado": "Tour du Hageland"
+  },
+  {
+    "dia": "2026-07-27", "km": 50,
+    "preenchido": { "destino": "Hal", "justificativa": ["Halle"] },
+    "esperado": "Aller à Hal",
+    "nota": "sem região forte — Alsemberg/Beersel não têm nome histórico; o trajeto assume"
+  },
+  {
+    "dia": "2026-07-29", "km": 33,
+    "preenchido": { "regiao": "forêt de Soignes", "artigo": "la",
+      "justificativa": ["Watermael-Boitsfort", "Auderghem"] },
+    "esperado": "Boucle de la forêt de Soignes"
+  },
+  {
+    "dia": "2026-07-02", "km": 41,
+    "preenchido": { "regiao": "grande ceinture de Bruxelles", "artigo": "la",
+      "justificativa": ["Woluwe-Saint-Lambert", "Uccle", "Forest", "Saint-Gilles"] },
+    "esperado": "Boucle de la grande ceinture de Bruxelles",
+    "nota": "O nome escrito à mão era \"La grande ceinture de Bruxelles\" — prosa livre, que o molde não escreve. O dono decidiu em 07/09/2026 aceitar a forma do molde em vez de abrir um molde de nome próprio: consistência com as outras 19 vale mais que a economia de uma palavra."
+  },
+  {
+    "dia": "2026-01-21", "km": 27,
+    "preenchido": { "regiao": "canal de Charleroi", "artigo": "le",
+      "justificativa": ["Drogenbos", "Lot", "Sint-Pieters-Leeuw"] },
+    "esperado": "Boucle du canal de Charleroi"
+  },
+  {
+    "dia": "2026-05-25", "km": 29,
+    "preenchido": { "origem": "Namur", "destino": "Dinant", "via": "Meuse", "viaArtigo": "la",
+      "justificativa": ["Namur", "Dinant", "Profondeville", "Anhée"] },
+    "esperado": "De Namur à Dinant par la Meuse"
+  },
+  {
+    "dia": "2025-12-28", "km": 58,
+    "preenchido": { "origem": "Mortsel", "via": "Malines",
+      "justificativa": ["Mortsel", "Mechelen", "Lier"] },
+    "esperado": "Retour de Mortsel par Malines"
+  },
+  {
+    "dia": "2026-06-21", "km": 27,
+    "preenchido": { "origem": "Malines", "justificativa": ["Mechelen", "Zemst"] },
+    "esperado": "Retour de Malines"
+  },
+  {
+    "dia": "2026-08-12", "km": 15,
+    "preenchido": { "origem": "Zaventem", "justificativa": ["Zaventem", "Kraainem"] },
+    "esperado": "Retour de Zaventem"
+  },
+  {
+    "dia": "2026-08-12", "km": 14,
+    "preenchido": { "destino": "Zaventem", "justificativa": ["Zaventem", "Steenokkerzeel"] },
+    "esperado": "Aller à Zaventem",
+    "nota": "a última cidade é Steenokkerzeel; a reconhecível é Zaventem — por isso o modelo pode sobrepor o destino"
+  },
+  {
+    "dia": "2026-08-29", "km": 57,
+    "preenchido": { "origem": "Rotterdam", "destino": "Amsterdam", "via": "Groene Hart", "viaArtigo": "het",
+      "justificativa": ["Alphen aan den Rijn", "Ter Aar", "Nieuwveen"] },
+    "esperado": "Van Rotterdam naar Amsterdam door het Groene Hart"
+  },
+  {
+    "dia": "2026-02-23", "km": 24,
+    "preenchido": { "destino": "São Paulo", "justificativa": ["São Paulo"] },
+    "esperado": "Volta por São Paulo"
+  },
+  {
+    "dia": "2026-07-02", "km": 0,
+    "preenchido": { "justificativa": [] },
+    "esperado": null,
+    "nota": "rota degenerada — 0 km"
+  },
+  {
+    "dia": "2025-06-21", "km": 0,
+    "preenchido": { "justificativa": [] },
+    "esperado": null,
+    "nota": "rota degenerada — 0 km"
+  },
+  {
+    "dia": "2026-08-31", "km": 5,
+    "preenchido": { "justificativa": [] },
+    "esperado": null,
+    "nota": "5 km numa cidade só — não há o que nomear"
+  }
+]

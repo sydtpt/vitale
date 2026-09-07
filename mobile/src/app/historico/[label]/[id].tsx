@@ -19,6 +19,7 @@ import {
   gearForActivity,
   hrZoneRange,
   movingTimeFromRoutePoints,
+  nomeProprio,
   routeCursorAt,
   routeDistances,
   speedSeries,
@@ -27,6 +28,8 @@ import {
   type RouteCursor,
 } from '@vitale/shared';
 import { useActivitiesStore } from '../../../store/activities.store';
+import { useAuthStore } from '../../../store/auth.store';
+import { nomearPedaladaSePreciso, precisaDeNome } from '../../../services/route-name';
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
@@ -109,6 +112,7 @@ export default function AtividadeDetalheScreen() {
   const updateActivity = useActivitiesStore((s) => s.updateActivity);
   const setHidden = useActivitiesStore((s) => s.setHidden);
   const routePoints = useActivitiesStore((s) => s.routes[id]);
+  const userId = useAuthStore((s) => s.user?.id);
   const gears = useGearStore((s) => s.gears);
   const loadGear = useGearStore((s) => s.load);
   const setActivityGearId = useActivitiesStore((s) => s.setGear);
@@ -119,6 +123,7 @@ export default function AtividadeDetalheScreen() {
   const activity = useMemo(() => _all.find((a) => a.id === id), [_all, id]);
   // A bike desta pedalada: override explícito ou herança pela data (ADR 0034).
   const gear = useMemo(() => (activity ? gearForActivity(gears, activity) : undefined), [gears, activity]);
+  const nomeDaRota = activity ? nomeProprio(activity) : undefined;
 
   useEffect(() => {
     load();
@@ -126,6 +131,30 @@ export default function AtividadeDetalheScreen() {
   }, [load, loadGear]);
 
   const hasGps = !!activity && (activity.hasRoute || (activity.distanceM ?? 0) > 0);
+
+  /**
+   * O nome da rota, uma vez por pedalada (ADR 0042).
+   *
+   * Mesmo gatilho e mesmo contrato da varredura de fotos: espera o traçado
+   * chegar, roda uma vez, e falha em silêncio. A pedalada que não ganhou nome
+   * fica sem `route_name_meta` e volta a tentar na próxima abertura — não há
+   * nada que o dono possa fazer com um aviso de cota do provedor.
+   */
+  useEffect(() => {
+    if (!activity || !userId) return;
+    if (!precisaDeNome(activity)) return;
+    if (!routePoints || routePoints.length < 2) return;
+    let alive = true;
+    void (async () => {
+      const nome = await nomearPedaladaSePreciso(activity, routePoints, userId);
+      if (alive && nome) await load();
+    })();
+    return () => {
+      alive = false;
+    };
+    // Governam esta passagem a pedalada, o dono e **se a rota já chegou**.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity?.id, activity?.routeName, activity?.routeNameChecked, userId, routePoints]);
 
   useEffect(() => {
     if (activity?.hasRoute) loadRoute(activity.id);
@@ -370,7 +399,19 @@ export default function AtividadeDetalheScreen() {
         >
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
-        <Text style={styles.headerTitle}>{meta.label}</Text>
+        {/*
+          O tipo continua sendo a manchete e o nome entra ABAIXO dele — a mesma
+          regra do cartão: nunca com mais peso que a âncora genérica. Sem nome
+          próprio, o cabeçalho fica exatamente como sempre foi.
+        */}
+        <View style={styles.headerTitleBox}>
+          <Text style={styles.headerTitle}>{meta.label}</Text>
+          {nomeDaRota && (
+            <Text style={styles.headerName} numberOfLines={1}>
+              {nomeDaRota}
+            </Text>
+          )}
+        </View>
         {dirty ? (
           <Pressable
             onPress={onSave}
@@ -693,12 +734,20 @@ const styles = themed(() => StyleSheet.create({
     backgroundColor: colors.surface,
     ...shadows.card,
   },
+  headerTitleBox: { flex: 1, alignItems: 'center' },
   headerTitle: {
-    flex: 1,
     textAlign: 'center',
     fontSize: 20,
     fontFamily: fonts.serif,
     color: colors.ink,
+  },
+  // Abaixo do tipo em tamanho e em tinta — a mesma subordinação do cartão.
+  headerName: {
+    textAlign: 'center',
+    fontSize: 12.5,
+    fontFamily: fonts.sans,
+    color: colors.ink2,
+    marginTop: 1,
   },
   saveBtn: {
     height: 36,

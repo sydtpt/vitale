@@ -14,13 +14,16 @@ import {
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 const SELECT =
-  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,source_name,tracked,has_route,best_efforts,hr_zones,calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden';
+  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,source_name,tracked,has_route,best_efforts,hr_zones,calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,route_name,route_name_meta,name_edited';
 
 interface DbActivityRow {
   id: string;
   user_id: string;
   activity_id: number;
   activity_name: string | null;
+  route_name?: string | null;
+  route_name_meta?: unknown;
+  name_edited?: boolean | null;
   calories: number | null;
   start_at: string;
   end_at: string;
@@ -194,6 +197,9 @@ function mapRow(r: DbActivityRow): Activity {
     userId: r.user_id,
     activityId: r.activity_id,
     activityName: r.activity_name ?? undefined,
+    routeName: r.route_name ?? undefined,
+    routeNameChecked: r.route_name_meta != null,
+    nameEdited: r.name_edited ?? undefined,
     calories: r.calories ?? 0,
     startAt: r.start_at,
     endAt: r.end_at,

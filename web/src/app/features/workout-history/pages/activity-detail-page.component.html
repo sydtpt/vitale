@@ -30,7 +30,7 @@
           >
             <rt-icon name="trend" [size]="16" color="currentColor" [strokeWidth]="2" />
           </button>
-          <h1 class="title">{{ a.activityName || meta()?.label }}</h1>
+          <h1 class="title">{{ nome() }}</h1>
         </div>
         <div class="when">{{ fmtDate(a.startAt) }} · {{ fmtTime(a.startAt) }}</div>
       </div>

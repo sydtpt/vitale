@@ -5,7 +5,7 @@
     </span>
     <div class="info">
       <div class="name">
-        {{ activity().activityName || meta().label }}
+        {{ nome() }}
         @if (activity().locallyEdited) { <span class="badge">editado</span> }
       </div>
       <div class="when">{{ fmtDate(activity().startAt) }} · {{ fmtTime(activity().startAt) }}</div>
@@ -25,7 +25,7 @@
       </span>
       @if (activity().locallyEdited) { <span class="badge">editado</span> }
     </div>
-    <div class="name">{{ activity().activityName || meta().label }}</div>
+    <div class="name">{{ nome() }}</div>
     <div class="when">{{ fmtDate(activity().startAt) }} · {{ fmtTime(activity().startAt) }}</div>
     <div class="grid mono">
       @if (hasDistance()) {

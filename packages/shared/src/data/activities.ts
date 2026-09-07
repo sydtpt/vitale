@@ -25,13 +25,17 @@ import { fetchAllPages } from './paginate';
 const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
   'distance_m,elevation_m,source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,' +
-  'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix,photos_checked_at';
+  'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix,photos_checked_at,' +
+  'route_name,route_name_meta,name_edited';
 
 export interface ActivityRow {
   id: string;
   user_id: string;
   activity_id: number;
   activity_name: string | null;
+  route_name?: string | null;
+  route_name_meta?: unknown;
+  name_edited?: boolean | null;
   calories: number | string | null;
   start_at: string;
   end_at: string | null;
@@ -67,6 +71,9 @@ export function toActivity(r: ActivityRow): Activity {
     userId: r.user_id,
     activityId: r.activity_id,
     activityName: r.activity_name ?? '',
+    routeName: r.route_name ?? undefined,
+    routeNameChecked: r.route_name_meta != null,
+    nameEdited: r.name_edited ?? undefined,
     calories: num(r.calories) ?? 0,
     startAt: r.start_at,
     endAt: r.end_at ?? '',
@@ -144,6 +151,33 @@ export async function updateActivityFields(
     row['duration_edited'] = true;
   }
   const { error } = await db.from('activities').update(row).eq('id', id).eq('user_id', userId);
+  if (error) throw error;
+}
+
+/**
+ * Grava o nome derivado da rota (ADR 0041/0042).
+ *
+ * **Não** marca `locally_edited` nem `name_edited` — e essa ausência é a
+ * decisão inteira. Aquelas flags dizem "o dono corrigiu isto à mão"; usá-las
+ * aqui seria mentir para o sync e, pior, passaria a **bloquear atualizações
+ * legítimas da fonte** (distância, zonas, best efforts) numa linha que ninguém
+ * editou.
+ *
+ * Grava também quando não houve nome: a meta guarda a recusa, e é ela que
+ * distingue "ainda não passou" de "passou e decidiu não nomear".
+ */
+export async function saveRouteName(
+  db: SupabaseClient,
+  userId: string,
+  id: string,
+  nome: string | null,
+  meta: unknown,
+): Promise<void> {
+  const { error } = await db
+    .from('activities')
+    .update({ route_name: nome, route_name_meta: meta })
+    .eq('id', id)
+    .eq('user_id', userId);
   if (error) throw error;
 }
 

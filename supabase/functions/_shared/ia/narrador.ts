@@ -15,6 +15,16 @@
 export interface Prompt {
   sistema: string;
   usuario: string;
+  /**
+   * Pede que a resposta seja um objeto JSON (ADR 0042).
+   *
+   * É **intenção, não formato de fio**: quem sabe que isso vira `responseMimeType`
+   * no provedor atual é o adaptador, e é justamente por isso que o campo pode
+   * existir aqui sem quebrar a ADR 0040. O nome de rota precisa dele — sem a
+   * garantia da API, o objeto chega embrulhado em prosa ou em cerca de código, e a
+   * leitura passa a depender de heurística de texto.
+   */
+  json?: boolean;
 }
 
 export interface Narracao {
@@ -78,6 +88,8 @@ const googleNarrador: Narrador = {
           generationConfig: {
             temperature: TEMPERATURA,
             maxOutputTokens: MAX_TOKENS_SAIDA,
+            // Onde a intenção `json` vira formato de fio. Só aqui.
+            ...(prompt.json ? { responseMimeType: 'application/json' } : {}),
           },
         }),
       });
