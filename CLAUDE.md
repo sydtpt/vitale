@@ -220,6 +220,11 @@ São **10** módulos, não 7:
   `expo-video`, com o player só na página ativa; a duração, que a API nova entrega em
   **milissegundos**, foi corrigida na origem e nos 37 registros em produção. O **pôster do
   vídeo segue em branco** — o próximo build separa as duas causas possíveis (T9.5).
+  **A foto sai para fora** (Fase 11, 07/09, quatro estudos de UX): enquadramento por
+  pinça no compositor, a parada no cartão (`Ittre · km 31,1 · 12:38`), ações no visor
+  com um caminho novo até o compartilhar, **pino de cabeça quadrada** no mapa no lugar
+  do círculo, a **capa** acordada (o app escolhe, a estrela corrige) alimentando a tira
+  da Retrospectiva, e a **sequência** de um cartão por parada para Stories.
   **Vínculo automático** (Fase 10, 07/09): a pedalada aberta pela primeira vez liga
   sozinha o que está no **corredor de 40 m** — 89% de acerto medido nas 707 decisões
   manuais dele; "depois da chegada" ficou de fora porque erraria em 3 de 4. Nada é

@@ -310,6 +310,70 @@ decisões que ele já tinha tomado à mão viraram a base de medida:
       pedalada nova poderia ligar as fotos sem nenhum download extra. Ressalva: se
       o sync rodar em segundo plano, o iOS pode barrar a leitura da biblioteca.
 
+## Fase 11 — A foto sai para fora (07/09/2026)
+
+Quatro estudos de UX num dia, e o achado que ordenou tudo veio do primeiro: **o
+compositor era o único lugar do app que descartava a tese da feature.** O app
+sabe a cidade, o quilômetro e a hora de cada foto — e o único lugar que sai para
+fora jogava os três fora.
+
+- [x] **T11.1 · Enquadramento.** Pinça e arrasto sobre a foto do cartão. Nasceram
+      cinco proporções (preencher, 1:1, 4:5, 9:16, 16:9) e sobrou **uma**: ele
+      julgou no aparelho e ficou com Preencher. O motivo é geométrico e fica
+      escrito para não voltarem — um bloco 9:16 num cartão 9:16 só é "tela cheia"
+      sem margem, e aí é o Preencher; os demais só encolhiam a foto para mostrar
+      papel. O que importava era **qual parte da foto**, e isso é a pinça.
+- [x] **T11.2 · A parada no cartão** (proposta A do estudo). "Ittre · km 31,1 ·
+      12:38" acima do título, opcional. Nenhum dado novo — `activities.cities` e a
+      mesma conta de cidade-mais-próxima do cartão de fotos.
+- [x] **T11.3 · Ações no visor.** Compartilhar, usar como capa, desligar. As duas
+      últimas já existiam num toque longo que o visor não alcançava: para desligar
+      uma foto que se está **olhando** era preciso fechar o visor e caçar a
+      miniatura. E o compositor abre com aquela foto, montado **dentro** da
+      galeria — o iOS não apresenta três `Modal` empilhados.
+- [x] **T11.4 · O pino de foto no mapa.** O círculo não dizia "foto" (é a forma do
+      ponto) e ainda **cobria a rota** no lugar da parada. O pino de cabeça
+      quadrada resolve os dois, e o desenho passou a existir uma vez só, injetado
+      nos dois renderizadores.
+- [x] **T11.5 · A capa acorda.** Havia **1 capa marcada em 94 pedaladas** — um
+      ciclo fechado. Invertido: o app escolhe (a foto do meio da maior rajada) e a
+      estrela vira **correção**. A tira da Retrospectiva passa a mostrar dias, não
+      fotos: medido em julho de 2026, a regra antiga dava duas das cinco vagas a
+      dias de 8 e 9 fotos, uma a um treino de academia, e deixava a travessia até
+      Tournai (59 fotos) de fora.
+- [x] **T11.6 · A sequência** (proposta D). Seis Stories em ordem, um por parada.
+      Barata porque a T11.2 já existia: é o mesmo cartão com fotos diferentes.
+- [ ] **T11.7 · Falta o veredito dele** sobre a sequência (a mais arriscada: seis
+      WebViews em série), a tira da Retrospectiva, o lote de varredura e o
+      enquadramento no PNG exportado.
+
+### A lição da fase
+
+**19 correções para 15 funcionalidades.** Mais da metade dos commits do dia
+consertou trabalho do próprio dia — a assinatura de um ciclo curto, que foi a
+escolha dele.
+
+Mas os defeitos tinham um padrão, e ele não é aleatório: **três vezes quebrei
+algo que funcionava, ao construir outra coisa.** O `?? []` que apagou a
+diferença entre "a rota não chegou" e "não há rota". A camada que envolvi no
+Preencher para dar simetria a um modo que não precisava dela. O teto que a
+regra "uma foto por pedalada" virou sem querer, encolhendo a tira.
+
+Nos três, os 688 testes passaram. Eles testam a função nova; ninguém testa a
+consequência dela no que já existia.
+
+E dois defeitos foram de **ligação, não de lógica**: o `healPointers` escrito na
+Fase 2 e nunca chamado por ninguém — a defesa central da feature desarmada desde
+o primeiro dia —, e o `showRoute` fora da lista de dependências. Escrever a
+função é a parte que o teste cobre. Ligá-la é a parte que ninguém cobre.
+
+**Uma nota sobre diagnóstico.** Duas vezes gastei ciclos consertando o sintoma
+errado: o xadrez de transparência estava numa linha que eu nunca tinha lido, e
+eu mexia no código que acabara de escrever. E abandonei um diagnóstico **certo**
+(três modais empilhados) porque a explicação alternativa era mais confortável de
+consertar. Quando o conserto óbvio não conserta, parar de mexer no próprio
+código e ir ler o que já estava lá.
+
 ### A lição das fases 8 e 9
 
 O núcleo puro fez o que devia: quando as fotos finalmente renderizaram, **os números
