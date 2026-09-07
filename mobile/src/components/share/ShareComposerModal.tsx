@@ -64,12 +64,12 @@ import { useAssetUri } from '../../hooks/useAssetUri';
  * vê e o que se exporta viraria um PNG deslocado que só aparece depois de
  * compartilhado.
  *
- * A ordem na pilha muda com o modo, e é deliberada:
- *
- * - **Preencher** — a foto vai ATRÁS do WebView, para o véu e o texto caírem
- *   sobre ela, como sempre foi.
- * - **Bloco** — a foto vai POR CIMA, porque o cartão pinta papel escuro e
- *   reserva o retângulo. Fosse atrás, o papel a cobriria.
+ * **A foto fica sempre no fundo.** A primeira versão punha o bloco por cima do
+ * WebView, porque o cartão pintava o papel — e aí a imagem cobria o texto, com
+ * a marca d'água sumindo atrás dela (conferido no iPhone em 07/09/2026). Agora
+ * o papel é uma view nativa aqui, atrás de tudo: o texto volta a ser a camada
+ * de cima em qualquer enquadramento, e o cartão deixou de precisar saber que
+ * enquadramento existe.
  */
 function PhotoLayer({
   uri,
@@ -116,13 +116,19 @@ function PhotoLayer({
     height: r.height * box.height,
   };
   return (
-    <View style={[styles.photoWindow, win, styles.photoBlockChrome]}>
-      <Image
-        source={{ uri }}
-        resizeMode="cover"
-        style={{ width: '100%', height: '100%', transform: move(win.width, win.height) }}
-      />
-    </View>
+    <>
+      {/* O papel do bloco. Escuro nos dois esquemas, e **não** a foto desfocada
+          atrás dela: aquele truque de app de story suja o contraste dos números
+          justamente onde eles precisam ser lidos. */}
+      <View style={[styles.photoBehind, styles.photoPaper]} />
+      <View style={[styles.photoWindow, win, styles.photoBlockChrome]}>
+        <Image
+          source={{ uri }}
+          resizeMode="cover"
+          style={{ width: '100%', height: '100%', transform: move(win.width, win.height) }}
+        />
+      </View>
+    </>
   );
 }
 
@@ -381,6 +387,13 @@ export function ShareComposerModal({
   );
   // Cidades da rota (bike enriquecida): toggle "Mostrar cidades" + quais exibir.
   const [showCities, setShowCities] = useState(false);
+  /**
+   * A arte da rota sobre a foto.
+   *
+   * Ligada por padrão, que é como sempre foi — mas opcional a pedido dele: numa
+   * foto boa o traçado por cima é ruído, e quem decide isso é quem olha a foto.
+   */
+  const [showRoute, setShowRoute] = useState(true);
   const [enabledCities, setEnabledCities] = useState<Set<string>>(
     () => new Set((context.cities ?? []).map((c) => c.name)),
   );
@@ -442,6 +455,7 @@ export function ShareComposerModal({
         background,
         artStyle,
         photoFit: frame.fit,
+        showRoute,
         mapEffect,
         textColor: textColor ?? undefined,
         title: debouncedTitle || defaultTitle,
@@ -457,7 +471,11 @@ export function ShareComposerModal({
         mapView: adaptView(mapViewRef.current, mapTile.kind),
         // Fundos com alpha (arte e dados) precisam do xadrez para o usuário ver
         // que o PNG sai sem fundo.
-        previewChecker: background !== 'map',
+        // Só os fundos que REALMENTE saem com alpha. A condição era
+        // `!== 'map'`, que pegava a foto junto: o xadrez é opaco e cobria a
+        // `<Image>` nativa que fica atrás do WebView — a foto simplesmente não
+        // aparecia no preview, e no bloco o xadrez saía no lugar do papel.
+        previewChecker: background === 'art' || background === 'data',
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [points, format, background, artStyle, mapEffect, textColor, debouncedTitle, defaultTitle, showTitle, context.activityId, selectedTiles, showCities, selectedCities, watermark, mapTile],
@@ -578,6 +596,7 @@ export function ShareComposerModal({
         background,
         artStyle,
         photoFit: frame.fit,
+        showRoute,
         mapEffect,
         textColor: textColor ?? undefined,
         title: title || defaultTitle,
@@ -694,7 +713,7 @@ export function ShareComposerModal({
                 { width: box.width, height: box.height },
               ]}
             >
-              {showPhoto && frame.fit === 'fill' && (
+              {showPhoto && (
                 <PhotoLayer uri={photoUri!} frame={frame} format={format} box={box} />
               )}
               <WebView
@@ -732,9 +751,6 @@ export function ShareComposerModal({
                   }
                 }}
               />
-              {showPhoto && frame.fit !== 'fill' && (
-                <PhotoLayer uri={photoUri!} frame={frame} format={format} box={box} />
-              )}
               {/* A rede de gestos cobre o preview inteiro nos dois modos: no
                   bloco o dedo raramente cai exatamente sobre ele, e exigir
                   precisão para enquadrar seria o contrário do que se quer.
@@ -897,6 +913,18 @@ export function ShareComposerModal({
                   ? `Pinça para aproximar, dedo para mover · ${frame.scale.toFixed(1)}×`
                   : 'Pinça para aproximar, dedo para mover'}
               </Text>
+              <Pressable
+                  style={styles.switchRow}
+                  onPress={() => {
+                    tap();
+                    setShowRoute((s) => !s);
+                  }}
+                >
+                  <Text style={styles.switchLabel}>Desenhar a rota sobre a foto</Text>
+                <View style={[styles.switchTrack, showRoute && styles.switchTrackOn]}>
+                  <View style={[styles.switchThumb, showRoute && styles.switchThumbOn]} />
+                </View>
+              </Pressable>
             </>
           )}
 
@@ -1031,7 +1059,7 @@ export function ShareComposerModal({
               {/* A foto entra como view NATIVA atrás do cartão: o WKWebView não
                   carrega `ph://`, e o `captureRef` fotografa esta View inteira,
                   então o snapshot compõe foto + cartão sem base64 nenhum. */}
-              {showPhoto && frame.fit === 'fill' && (
+              {showPhoto && (
                 <PhotoLayer uri={photoUri!} frame={frame} format={format} box={exportBox} />
               )}
               <WebView
@@ -1046,9 +1074,6 @@ export function ShareComposerModal({
                 androidLayerType="hardware"
                 onLoadEnd={onExportLoaded}
               />
-              {showPhoto && frame.fit !== 'fill' && (
-                <PhotoLayer uri={photoUri!} frame={frame} format={format} box={exportBox} />
-              )}
             </View>
             <View style={styles.exportOverlay}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -1194,6 +1219,7 @@ const styles = themed(() =>
 
     /** A janela do enquadramento — recorta a foto ampliada dentro dela. */
     photoWindow: { position: 'absolute', overflow: 'hidden' },
+    photoPaper: { backgroundColor: 'rgb(20,17,14)' },
     /**
      * O bloco parece uma fotografia impressa sobre o papel: canto levemente
      * arredondado e uma sombra contida, que é o que separa os dois planos sem

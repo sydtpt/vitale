@@ -151,6 +151,12 @@ export interface ShareCardOptions {
    * cima, porque o WebView não carrega o caminho do contêiner do Fotos.
    */
   photoFit?: PhotoFit;
+  /**
+   * Desenha a arte da rota sobre o fundo. Default: `true`, que é como sempre
+   * foi. Sobre uma foto boa o traçado costuma ser ruído — e quem julga isso é
+   * quem olha a foto, não o app.
+   */
+  showRoute?: boolean;
   /** Efeito sobre os tiles quando `background === 'map'`. Default: 'none'. */
   mapEffect?: ShareMapEffect;
   /** Obrigatório quando `background === 'map'`. */
@@ -527,6 +533,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
     textColor,
     artStyle = 'speed',
     photoFit = 'fill',
+    showRoute = true,
     mapEffect = 'none',
     mapTile,
     mapInteractive = false,
@@ -594,15 +601,24 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
    * branco sobre uma foto clara, e no bloco o texto está sobre papel escuro.
    * Mantê-lo só escureceria o papel à toa.
    */
-  const blockRect = isPhoto ? photoBlockRect(format, photoFit) : null;
-  if (blockRect) {
-    bgLayer = '<div class="bg paper"></div>';
-    routeLayer = `<div class="photoSlot" style="height:${round(blockRect.height * 100)}%"></div>`;
-  }
+  /**
+   * **O cartão não sabe do enquadramento, e é de propósito.**
+   *
+   * A primeira versão pintava papel aqui e reservava o retângulo do bloco, o
+   * que empurrava a foto para CIMA do WebView — e aí ela cobria o texto.
+   * Conferido no iPhone em 07/09/2026, com a marca d'água sumindo atrás da
+   * imagem.
+   *
+   * A foto pertence ao fundo, sempre. Então o papel e o retângulo viraram views
+   * nativas ATRÁS do WebView, e aqui o cartão continua sendo o que sempre foi:
+   * texto sobre transparência, com o véu para salvar o branco. Menos código, e
+   * uma regra a menos para lembrar.
+   */
+  if (!showRoute) routeLayer = '';
 
   // O véu vale para mapa e foto pela mesma razão: o que está atrás é
   // imprevisível, e sem ele o texto branco some numa foto clara.
-  const scrim = (isMap || isPhoto) && !blockRect ? '<div class="scrim"></div>' : '';
+  const scrim = isMap || isPhoto ? '<div class="scrim"></div>' : '';
 
   const tiles = metrics
     .map((m) => {
@@ -672,21 +688,6 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
       justify-content: flex-end; padding: 7vw 6vw; font-family: ${SANS}; color: ${fg};
       pointer-events: none; ${shadow} }
     .routeArea { flex: 1; position: relative; min-height: 0; margin: 4vw 0; }
-    /**
-     * Papel do modo bloco. Escuro de propósito, e **não** a foto desfocada
-     * atrás dela: aquele truque de app de story suja o contraste dos números
-     * justamente onde eles precisam ser lidos. O papel também faz o bloco
-     * parecer uma fotografia impressa, que é o que ele é.
-     */
-    .bg.paper { background: linear-gradient(165deg, rgb(36,28,22), rgb(16,14,12)); }
-    /**
-     * O espaço reservado para a foto. Vazio: a imagem é nativa e fica POR CIMA
-     * do WebView. O space-between prende o bloco no topo e o rodapé embaixo —
-     * é o que torna o retângulo previsível dos dois lados (ver photoBlockRect),
-     * já que a altura do rodapé varia com as métricas ligadas.
-     */
-    .cardBlock { justify-content: space-between; }
-    .photoSlot { width: 100%; margin: 4vw 0 0; flex: none; }
     .routeArea svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
     /* Legenda da arte 'speed' (rampa lento → rápido). */
     .speedLegend { position: absolute; left: 0; right: 0; bottom: 0; display: flex;
@@ -721,7 +722,7 @@ export function buildShareCardHtml(opts: ShareCardOptions): string {
 <body>
   ${bgLayer}
   ${scrim}
-  <div class="card${blockRect ? ' cardBlock' : ''}">
+  <div class="card">
     ${routeLayer}
     <div class="footer">
       ${titleBlock}
