@@ -121,11 +121,40 @@ export function photoRetro(
     if (b.length !== a.length) return b.length - a.length;
     return b[0].takenAt - a[0].takenAt;
   });
-  const sample = ranked
-    .slice(0, sampleSize)
-    .map((list) => coverOf(list))
-    .filter((p): p is ActivityPhoto => p !== null)
-    .sort((a, b) => a.takenAt - b.takenAt);
+
+  const chosen: ActivityPhoto[] = [];
+  const taken = new Set<string>();
+  for (const list of ranked.slice(0, sampleSize)) {
+    const cover = coverOf(list);
+    if (cover && !taken.has(cover.id)) {
+      chosen.push(cover);
+      taken.add(cover.id);
+    }
+  }
+
+  /**
+   * **A tira não pode encolher.** Uma pedalada por vaga é a regra de escolha,
+   * não um teto: num período com duas pedaladas fotografadas, a tira mostrava
+   * dois quadros onde cabiam cinco — conferido no aparelho em 07/09/2026, logo
+   * depois de a regra entrar.
+   *
+   * Então as vagas que sobram são preenchidas com mais fotos das mesmas
+   * pedaladas, das maiores para as menores e espalhadas dentro de cada uma —
+   * que era a virtude da regra antiga, e continua valendo para o resto.
+   */
+  for (const list of ranked) {
+    if (chosen.length >= sampleSize) break;
+    const step = Math.max(1, Math.floor(list.length / (sampleSize + 1)));
+    for (let i = 0; i < list.length && chosen.length < sampleSize; i += step) {
+      const p = list[i];
+      if (!taken.has(p.id)) {
+        chosen.push(p);
+        taken.add(p.id);
+      }
+    }
+  }
+
+  const sample = chosen.sort((a, b) => a.takenAt - b.takenAt);
 
   return {
     total: sorted.length,

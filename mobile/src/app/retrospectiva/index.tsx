@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { getActivityMeta } from '../../lib/workout-types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   type ActivityPhoto,
@@ -202,6 +203,26 @@ export default function RetrospectivaScreen() {
   }, [periodActIds]);
 
   const photoBlock = useMemo(() => photoRetro(periodPhotos), [periodPhotos]);
+
+  /**
+   * A foto da tira leva à pedalada dela.
+   *
+   * A rota do detalhe pede o rótulo do tipo além do id — o mesmo que o
+   * Histórico usa —, então ele sai do `activityId` numérico da atividade. Se a
+   * atividade não estiver carregada, o toque não faz nada: melhor não navegar
+   * do que abrir uma tela vazia.
+   */
+  const abrirPedalada = useCallback(
+    (id: string) => {
+      const act = allActs.find((a) => a.id === id);
+      if (!act) return;
+      router.push({
+        pathname: '/historico/[label]/[id]',
+        params: { label: getActivityMeta(act.activityId).label, id },
+      });
+    },
+    [allActs, router],
+  );
   // A manchete sai da lista **completa** de destaques; a lista exibida é a fatiada.
   // Derivar aqui evita recalcular buildRetrospective só para o lede.
   const allHighlights = useMemo(() => highlightsFn(now, kind, offset), [highlightsFn, now, kind, offset, loaded, allActs]);
@@ -430,7 +451,13 @@ export default function RetrospectivaScreen() {
                 <Text style={styles.eyebrow}>{photoRetroLabel(photoBlock)}</Text>
                 <View style={styles.photoStrip}>
                   {photoBlock.sample.map((p) => (
-                    <RetroThumb key={p.id} assetId={p.assetId} style={styles.photoThumb} isVideo={p.mediaType === 'video'} />
+                    <RetroThumb
+                      key={p.id}
+                      assetId={p.assetId}
+                      style={styles.photoThumb}
+                      isVideo={p.mediaType === 'video'}
+                      onPress={() => abrirPedalada(p.activityId)}
+                    />
                   ))}
                   {photoBlock.rest > 0 && (
                     <View style={[styles.photoThumb, styles.photoRest]}>
@@ -754,18 +781,33 @@ function Row({ l, r }: { l: string; r: string }) {
 }
 
 /** Miniatura da tira do jornal — resolve o endereço da foto sozinha. */
+/**
+ * Uma foto da tira do período.
+ *
+ * **Toca e vai para a pedalada.** A tira nasceu decorativa — dava para ver
+ * cinco quadros e nada mais, e ele reparou ("não tenho acesso às fotos"). O
+ * destino é a pedalada, e não um visor aqui: a foto no jornal é um anzol, e o
+ * que ela promete é o dia inteiro — o mapa, os números, e a galeria a um toque.
+ */
 function RetroThumb({
   assetId,
   style,
   isVideo,
+  onPress,
 }: {
   assetId: string | null;
   style: object;
   isVideo: boolean;
+  onPress?: () => void;
 }) {
   const uri = useAssetUri(assetId, isVideo);
-  if (typeof uri !== 'string') return <View style={style} />;
-  return <Image source={{ uri }} style={style} />;
+  const img =
+    typeof uri === 'string' ? (
+      <Image source={{ uri }} style={style} />
+    ) : (
+      <View style={style} />
+    );
+  return onPress ? <Pressable onPress={onPress}>{img}</Pressable> : img;
 }
 
 const createStyles = () => StyleSheet.create({

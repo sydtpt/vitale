@@ -386,10 +386,28 @@ check('o período conta fotos e atividades, e a web tem o que escrever', () => {
   assert.equal(r.total, 3);
   assert.equal(r.activities, 2);
   assert.equal(photoRetroLabel(r), '3 fotos em 2 atividades');
-  // Uma por pedalada: a ACT1 tem duas fotos e manda só a capa dela. A contagem
-  // do texto continua sendo o total — é a tira que mostra dias, não fotos.
-  assert.deepEqual(r.sample.map((p) => p.id), ['c', 'a'], 'uma por atividade, em ordem cronológica');
-  assert.equal(r.rest, 1);
+  // Uma por pedalada é a regra de ESCOLHA, não um teto: com três fotos e cinco
+  // vagas, as três entram — primeiro as capas, depois o resto para não deixar
+  // vaga vazia.
+  assert.equal(r.sample.length, 3);
+  assert.deepEqual(r.sample.map((p) => p.id), ['b', 'c', 'a'], 'em ordem cronológica');
+  assert.equal(r.rest, 0);
+});
+
+check('a tira não encolhe quando há menos pedaladas que vagas', () => {
+  /**
+   * REGRESSÃO (07/09/2026). Ele viu dois quadros onde cabiam cinco: a regra de
+   * uma por pedalada tinha virado teto, e um período com duas pedaladas
+   * fotografadas mostrava duas fotos.
+   */
+  const r = photoRetro([
+    ...Array.from({ length: 9 }, (_, i) => retroPhoto('a' + i, 'ACT1', i * 60_000)),
+    ...Array.from({ length: 4 }, (_, i) => retroPhoto('b' + i, 'ACT2', 86_400_000 + i * 60_000)),
+  ]);
+  assert.ok(r);
+  assert.equal(r.activities, 2);
+  assert.equal(r.sample.length, 5, 'cinco vagas, cinco quadros');
+  assert.equal(new Set(r.sample.map((p) => p.id)).size, 5, 'e nenhuma repetida');
 });
 
 check('a amostra é UMA por pedalada, e as pedaladas maiores primeiro', () => {
@@ -413,16 +431,19 @@ check('a amostra é UMA por pedalada, e as pedaladas maiores primeiro', () => {
   assert.ok(r);
   assert.equal(r.total, 23);
   assert.equal(r.activities, 4);
-  assert.equal(r.sample.length, 4, 'quatro pedaladas, quatro quadros');
-  assert.equal(
-    r.sample.filter((p) => p.activityId === 'GRANDE').length,
-    1,
-    'o dia de 20 fotos entra com UMA, não com o bloco inteiro',
+  assert.equal(r.sample.length, 5, 'cinco vagas, cinco quadros');
+  assert.ok(
+    ['P1', 'P2', 'P3'].every((id) => r.sample.some((p) => p.activityId === id)),
+    'os três dias pequenos entram — nenhum é engolido pelo grande',
+  );
+  assert.ok(
+    r.sample.filter((p) => p.activityId === 'GRANDE').length <= 2,
+    'e o dia de 20 fotos não monopoliza a tira',
   );
   assert.deepEqual(
-    r.sample.map((p) => p.activityId),
-    ['GRANDE', 'P1', 'P2', 'P3'],
-    'e a tira volta em ordem cronológica',
+    r.sample.map((p) => p.takenAt),
+    [...r.sample.map((p) => p.takenAt)].sort((a, b) => a - b),
+    'a tira volta em ordem cronológica',
   );
 });
 
