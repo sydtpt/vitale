@@ -51,9 +51,62 @@ export interface PresenceEvent {
    * que o iOS relançou o app sozinho — que é a premissa inteira da feature.
    */
   appState: string;
+  /**
+   * `true` quando o evento **não mudou o estado** da região: o iOS disse
+   * "dentro" e nós já achávamos que estávamos dentro.
+   *
+   * Isso não é travessia, é relatório. O iOS reavalia o estado das regiões a
+   * cada lançamento do app e a cada `startGeofencingAsync`, e o `expo-location`
+   * traduz a reavaliação como entrada. Sem esta marca, cada abertura do app
+   * virava uma "chegada em casa" — o log de 07/09 tinha doze delas numa noite
+   * parada, uma por build instalado.
+   *
+   * O evento é guardado assim mesmo (ele prova que a task rodou), mas fica fora
+   * de toda medida: contá-lo inflaria eventos/dia e inventaria bordas a inferir.
+   */
+  redundant?: boolean;
 }
 
 const KEY = 'vitale:presence-log';
+const STATE_KEY = 'vitale:presence-state';
+
+/**
+ * Último estado conhecido de cada região — `'in'` ou `'out'`.
+ *
+ * Persistido porque o caso que ele resolve é justamente o relançamento: o iOS
+ * sobe o app, reavalia a região e diz "dentro". Em memória, a comparação sempre
+ * começaria vazia e todo lançamento passaria por travessia.
+ */
+export type RegionState = 'in' | 'out';
+
+export async function readRegionStates(
+  store: KVStore = asyncStore,
+): Promise<Record<string, RegionState>> {
+  return (await getJSON<Record<string, RegionState>>(STATE_KEY, store)) ?? {};
+}
+
+/**
+ * Aplica o estado que o evento afirma e diz se ele foi **travessia**.
+ *
+ * Primeira notícia de um lugar conta como travessia: sem estado anterior não há
+ * como saber, e errar para "é travessia" é coerente com "errar a mais".
+ */
+export async function applyRegionState(
+  placeId: string,
+  kind: PresenceEventKind,
+  store: KVStore = asyncStore,
+): Promise<boolean> {
+  const estados = await readRegionStates(store);
+  const novo: RegionState = kind === 'enter' ? 'in' : 'out';
+  const anterior = estados[placeId];
+  estados[placeId] = novo;
+  await setJSON(STATE_KEY, estados, store);
+  return anterior !== novo;
+}
+
+export async function clearRegionStates(store: KVStore = asyncStore): Promise<void> {
+  await setJSON<Record<string, RegionState>>(STATE_KEY, {}, store);
+}
 
 /**
  * Teto do log. O evento é minúsculo, mas a fase 0 roda por semanas sem ninguém
@@ -139,6 +192,11 @@ export interface PresenceSummary {
    * média e faria o raio parecer inviável.
    */
   medianAccuracyM: number | null;
+  /**
+   * Relatórios de estado descartados das medidas. Não é ruído a esconder: é a
+   * contagem de vezes que o app foi lançado ou o monitoramento rearmado.
+   */
+  redundant: number;
 }
 
 /** Dia local do evento, derivado do fuso que ele mesmo carrega. */
@@ -166,7 +224,12 @@ const STALE_FIX_S = 300;
  * e um par enter/exit invertido contaria como permanência negativa.
  */
 export function summarizePresence(events: PresenceEvent[]): PresenceSummary {
-  const sorted = [...events].sort((a, b) => a.at.localeCompare(b.at));
+  // Relatórios de estado ficam de fora de TODA medida. Eles não são travessia:
+  // contá-los inflaria eventos/dia e inventaria bordas a inferir — foi o que
+  // aconteceu no log de 07/09, com uma "chegada" por build instalado.
+  const sorted = [...events]
+    .filter((e) => !e.redundant)
+    .sort((a, b) => a.at.localeCompare(b.at));
 
   const byDay = new Map<string, number>();
   const precisoes: number[] = [];
@@ -234,6 +297,7 @@ export function summarizePresence(events: PresenceEvent[]): PresenceSummary {
     openEnters,
     staleFixes,
     medianAccuracyM: mediana(precisoes),
+    redundant: events.length - sorted.length,
   };
 }
 
@@ -263,6 +327,7 @@ export interface PlaceVitals {
 export function vitalsByPlace(events: readonly PresenceEvent[]): Map<string, PlaceVitals> {
   const out = new Map<string, PlaceVitals>();
   for (const e of events) {
+    if (e.redundant) continue;
     const atual = out.get(e.placeId);
     if (!atual) {
       out.set(e.placeId, { count: 1, lastAt: e.at });

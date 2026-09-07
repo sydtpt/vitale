@@ -392,6 +392,14 @@ export default function PresencaScreen() {
             </View>
           </View>
 
+          {resumo.redundant > 0 ? (
+            <Text style={styles.nota}>
+              {resumo.redundant} relatório{resumo.redundant > 1 ? 's' : ''} de estado fora da conta.
+              O iOS reavalia a região a cada lançamento do app e diz “dentro”; isso não é chegada,
+              e contá-lo inventaria bordas que nunca existiram.
+            </Text>
+          ) : null}
+
           {resumo.staleFixes > 0 ? (
             <Text style={styles.nota}>
               {resumo.staleFixes} evento{resumo.staleFixes > 1 ? 's' : ''} com coordenada de mais de 5 min —
@@ -416,11 +424,13 @@ export default function PresencaScreen() {
             <Text style={styles.vazio}>Nenhum evento ainda.</Text>
           ) : (
             recentes.map((e) => (
-              <View key={e.id} style={styles.evento}>
+              <View key={e.id} style={[styles.evento, e.redundant && styles.eventoRedundante]}>
                 <Text style={styles.eventoHora}>{formatarMomento(e.at)}</Text>
                 <View style={styles.rowContent}>
                   <Text style={styles.rowLabel}>
-                    {e.kind === 'enter' ? 'chegou' : 'saiu'} · {placeName(lugares, e.placeId)}
+                    {e.redundant
+                      ? `relatório de estado · ${placeName(lugares, e.placeId)}`
+                      : `${e.kind === 'enter' ? 'chegou' : 'saiu'} · ${placeName(lugares, e.placeId)}`}
                   </Text>
                   <Text style={styles.mono}>
                     {e.appState}
@@ -429,9 +439,15 @@ export default function PresencaScreen() {
                   </Text>
                 </View>
                 <Ionicons
-                  name={e.kind === 'enter' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'}
+                  name={
+                    e.redundant
+                      ? 'ellipse-outline'
+                      : e.kind === 'enter'
+                        ? 'arrow-down-circle-outline'
+                        : 'arrow-up-circle-outline'
+                  }
                   size={17}
-                  color={e.kind === 'enter' ? ok.text : colors.ink3}
+                  color={e.redundant ? colors.ink3 : e.kind === 'enter' ? ok.text : colors.ink3}
                 />
               </View>
             ))
@@ -440,7 +456,8 @@ export default function PresencaScreen() {
         <Text style={styles.nota}>
           Um evento com estado <Text style={styles.mono}>background</Text> é a prova de que o iOS
           relançou o app sozinho para entregá-lo. Sem nenhum deles, a feature não funciona fechada —
-          e é melhor descobrir agora.
+          e é melhor descobrir agora. Só vale a partir de uma saída de casa de verdade: sem
+          travessia, não há o que o iOS entregue.
         </Text>
       </ScrollView>
     </View>
@@ -519,6 +536,9 @@ function createStyles() {
 
     logHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
     evento: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    /** Relatório de estado: fica visível como prova de que a task rodou, e
+        apagado porque não é travessia. */
+    eventoRedundante: { opacity: 0.45 },
     eventoHora: { fontFamily: fonts.mono, fontSize: 11.5, color: colors.ink3, width: 76 },
   });
 }

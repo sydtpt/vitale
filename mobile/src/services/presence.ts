@@ -27,6 +27,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import {
   appendPresenceEvent,
+  applyRegionState,
   presenceEventId,
   type PresenceEvent,
   type PresenceEventKind,
@@ -60,9 +61,19 @@ if (!TaskManager.isTaskDefined(PRESENCE_TASK)) {
     const placeId = data.region.identifier ?? 'desconhecido';
     const appState = AppState.currentState ?? 'unknown';
 
-    // A migalha primeiro: se a gravação do evento falhar, ainda restará a prova
-    // de que o iOS acordou o app. As duas coisas falham por motivos diferentes.
-    void recordBreadcrumb('geofence', `${placeId} ${kind} state=${appState}`);
+    // Travessia ou relatório? O iOS reavalia o estado das regiões a cada
+    // lançamento do app e a cada `startGeofencingAsync`, e o expo-location
+    // entrega a reavaliação como entrada. Comparar com o último estado
+    // conhecido é o que separa "cruzei a porta" de "o app subiu".
+    const travessia = await applyRegionState(placeId, kind);
+
+    // A migalha antes de gravar o evento: se a gravação falhar, ainda restará a
+    // prova de que o iOS acordou o app. As duas coisas falham por motivos
+    // diferentes, e a migalha é a mais barata de manter viva.
+    void recordBreadcrumb(
+      'geofence',
+      `${placeId} ${kind} state=${appState}${travessia ? '' : ' (relatório)'}`,
+    );
 
     const at = new Date().toISOString();
     const event: PresenceEvent = {
@@ -72,6 +83,7 @@ if (!TaskManager.isTaskDefined(PRESENCE_TASK)) {
       at,
       tz: currentTimeZone(),
       appState,
+      redundant: !travessia,
     };
 
     try {

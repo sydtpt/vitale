@@ -4,7 +4,10 @@ import {
   SHORT_GAP_MIN,
   SHORT_STAY_MIN,
   appendPresenceEvent,
+  applyRegionState,
   clearPresenceLog,
+  clearRegionStates,
+  readRegionStates,
   presenceDay,
   presenceEventId,
   readPresenceLog,
@@ -76,6 +79,44 @@ describe('presence-events · log', () => {
     await appendPresenceEvent(ev('casa', 'enter', '2026-09-06T08:00:00.000Z'), s);
     await clearPresenceLog(s);
     expect(await readPresenceLog(s)).toEqual([]);
+  });
+});
+
+describe('presence-events · travessia vs relatório de estado', () => {
+  it('a primeira notícia de um lugar conta como travessia', async () => {
+    const s = memStore();
+    expect(await applyRegionState('casa', 'enter', s)).toBe(true);
+  });
+
+  it('entrar de novo sem ter saído é relatório, não chegada', async () => {
+    const s = memStore();
+    await applyRegionState('casa', 'enter', s);
+    // O iOS reavalia a região a cada lançamento e diz "dentro". Isso não é
+    // travessia — foi o que encheu o log de 07/09 com uma chegada por build.
+    expect(await applyRegionState('casa', 'enter', s)).toBe(false);
+    expect(await applyRegionState('casa', 'enter', s)).toBe(false);
+  });
+
+  it('sair depois de entrar é travessia', async () => {
+    const s = memStore();
+    await applyRegionState('casa', 'enter', s);
+    expect(await applyRegionState('casa', 'exit', s)).toBe(true);
+    expect(await applyRegionState('casa', 'exit', s)).toBe(false);
+  });
+
+  it('o estado é por lugar, não global', async () => {
+    const s = memStore();
+    await applyRegionState('casa', 'enter', s);
+    expect(await applyRegionState('escritorio', 'enter', s)).toBe(true);
+    expect(await readRegionStates(s)).toEqual({ casa: 'in', escritorio: 'in' });
+  });
+
+  it('o estado sobrevive à leitura e some ao limpar', async () => {
+    const s = memStore();
+    await applyRegionState('casa', 'enter', s);
+    await clearRegionStates(s);
+    // Sem estado anterior, a próxima notícia volta a valer como travessia.
+    expect(await applyRegionState('casa', 'enter', s)).toBe(true);
   });
 });
 
@@ -217,6 +258,25 @@ describe('presence-events · resumo', () => {
   it('sem nenhum fix a mediana é null, não zero', () => {
     const r = summarizePresence([ev('casa', 'enter', '2026-09-06T08:00:00.000Z')]);
     expect(r.medianAccuracyM).toBeNull();
+  });
+
+  it('relatório de estado fica fora de TODA medida, e é contado à parte', () => {
+    const r = summarizePresence([
+      ev('casa', 'enter', '2026-09-07T01:03:00.000Z', { redundant: true }),
+      ev('casa', 'enter', '2026-09-07T01:16:00.000Z', { redundant: true }),
+      ev('casa', 'enter', '2026-09-07T01:18:00.000Z', { redundant: true }),
+      ev('casa', 'enter', '2026-09-07T09:17:00.000Z'), // a única travessia
+    ]);
+    expect(r.total).toBe(1);
+    expect(r.redundant).toBe(3);
+    // O bug real do log de 07/09: 15 "bordas a inferir" que nunca existiram.
+    expect(r.openEnters).toBe(0);
+    expect(r.busiestDay).toEqual({ day: '2026-09-07', count: 1 });
+  });
+
+  it('relatório não conta como sinal de vida do lugar', () => {
+    const v = vitalsByPlace([ev('casa', 'enter', '2026-09-07T01:03:00.000Z', { redundant: true })]);
+    expect(v.get('casa')).toBeUndefined();
   });
 
   it('os limiares são os que a proposta assumiu', () => {
