@@ -137,6 +137,24 @@ export function textOf(accent: string, surface: string): string {
   return ensureContrast(accent, surface, TEXT_FLOOR);
 }
 
+/**
+ * Cor de primeiro plano sobre o acento **sólido** — o nome dentro da faixa
+ * sangrada na cor do módulo.
+ *
+ * No molde do `onPrimary`, e pela mesma razão: contra um preenchimento cheio não
+ * existe "escurecer o próprio papel", existe escolher entre os dois extremos que
+ * o tema já tem. A escolha é **argmax de contraste medido** entre a tinta do
+ * tema e o neutro absoluto do esquema (`bgPure`) — nunca um hex autorado, nunca
+ * um `#FFF` cravado, que no amarelo do Orbe claro mediria 1,76.
+ *
+ * Não confundir com o `on`, que é primeiro plano do `soft` (o tint). Sobre o
+ * acento cheio o `on` mede de 1,00 a 1,94 nas 36 combinações, e isso não é
+ * defeito dele: são dois contextos, dois tokens.
+ */
+function onAccentOf(accent: string, ink: string, bgPure: string): string {
+  return contrast(ink, accent) >= contrast(bgPure, accent) ? ink : bgPure;
+}
+
 /* ─────────────── Rampa ordinal, traço e lavagem ─────────────── */
 
 /** Move a luminosidade e escala o chroma, mantendo o matiz. */
@@ -268,6 +286,12 @@ export interface RoleTokens {
   accent: string;
   soft: string;
   on: string;
+  /**
+   * Primeiro plano sobre o `accent` **sólido** — a faixa cheia na cor do módulo,
+   * com o nome dentro. O `on` acima é o outro contexto: o primeiro plano do
+   * `soft`, o ícone dentro da caixa clara. Ver `onAccentOf`.
+   */
+  onAccent: string;
   /** Texto do papel sobre a superfície do tema. Ver a tabela no topo. */
   text: string;
   /**
@@ -401,6 +425,7 @@ export function resolveTokens(
       accent,
       soft,
       on: onTintOf(accent, soft),
+      onAccent: onAccentOf(accent, neutrals.ink, neutrals.bgPure),
       text: textOf(accent, neutrals.surface),
       graphic,
       wash: washOf(graphic, neutrals.surface),
@@ -469,6 +494,13 @@ export interface ModuleTokens {
   accent: string;
   /** Use este — e não `accent` — para ícone ou texto **dentro** do `tint`. */
   onTint: string;
+  /**
+   * Use este — e não `onTint` — para o que é desenhado **sobre o `accent`
+   * cheio**: a faixa sangrada que abre um caderno da revista, com o nome dentro.
+   * O `onTint` é do tint; sobre o sólido ele não passa, e não é bug. Ver
+   * `onAccentOf`.
+   */
+  onAccent: string;
 }
 
 export function moduleOf(
@@ -483,7 +515,7 @@ export function moduleOf(
   const map = MODULE_ROLE as Record<string, RoleKey>;
   const role = map[key] ?? map[fallback];
   const r = tokens.roles[role];
-  return { tint: r.soft, accent: r.accent, onTint: r.on };
+  return { tint: r.soft, accent: r.accent, onTint: r.on, onAccent: r.onAccent };
 }
 
 /**

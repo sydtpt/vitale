@@ -32,7 +32,7 @@ const SCHEMES: ColorScheme[] = ['light', 'dark'];
 const THEME_IDS = THEMES.map((t) => t.id) as ThemeId[];
 const PALETTE_IDS = PALETTES.map((p) => p.id) as PaletteId[];
 
-/** As 24 combinações, materializadas uma vez. */
+/** As 36 combinações, materializadas uma vez. */
 const COMBOS = THEME_IDS.flatMap((t) =>
   SCHEMES.flatMap((s) => PALETTE_IDS.map((p) => ({ t, s, p, tokens: resolveTokens(t, s, p) }))),
 );
@@ -175,6 +175,61 @@ check('acento de papel passa o piso gráfico sobre a superfície', () => {
 });
 
 /**
+ * Primeiro plano sobre o acento **sólido**, nas 36 combinações — o primeiro dos
+ * **dois** laços que cobram o `onAccent`. O outro está lá embaixo, sobre
+ * `moduleOf`, e a razão de serem dois está escrita lá.
+ *
+ * O buraco que o `onAccent` fecha: o `on` que os papéis já tinham é primeiro
+ * plano do **tint**, e medido sobre o acento cheio ele dá de **1,00 a 1,94** nas
+ * 36 — o 1,00 é o `purple` do Orbe claro. Não é defeito do `on`: são dois
+ * contextos, dois tokens. A faixa sangrada que abre um caderno da revista pinta
+ * o acento cheio e escreve o nome dentro, e para isso não havia token nenhum.
+ *
+ * **Piso de 3,0, não 4,5** — e é a mesma lição que a docstring do `onPrimary`
+ * mais abaixo registra ter aprendido caro. O nome do caderno é 22 px peso 700, e
+ * isso é *texto grande* na WCAG (1.4.3), cuja faixa começa em 18,66 px negrito:
+ * o piso é 3,0, o mesmo do objeto gráfico (1.4.11). O mínimo medido nas 36 é
+ * **4,246** (`orbe/light/terra`, papel `orange`), então cobrar 4,5 derrubaria o
+ * build por rigor no critério errado.
+ *
+ * Esses 4,246 ficam registrados aqui **como folga, nunca como piso**: virar
+ * catraca é decisão separada, deliberadamente adiada. Quem vier "consertar" o 3
+ * para 4,5 está mudando o critério, não apertando o mesmo.
+ */
+const ON_ACCENT_FLOOR = 3;
+
+check('primeiro plano sobre o acento sólido passa nas 36 combinações', () => {
+  const bad: string[] = [];
+  for (const c of COMBOS) {
+    const { ink, bgPure } = c.tokens;
+    for (const [role, r] of Object.entries(c.tokens.roles) as [RoleKey, { accent: string; onAccent: string }][]) {
+      // Argmax medido: é um dos dois candidatos, e é o melhor dos dois.
+      if (r.onAccent !== ink && r.onAccent !== bgPure) {
+        bad.push(`${label(c)} ${role} onAccent ${r.onAccent} não é ink nem bgPure`);
+        continue;
+      }
+      const outro = r.onAccent === ink ? bgPure : ink;
+      const escolhido = contrast(r.onAccent, r.accent);
+      const rejeitado = contrast(outro, r.accent);
+      if (escolhido < rejeitado) {
+        bad.push(
+          `${label(c)} ${role} escolheu o pior: ${escolhido.toFixed(2)} < ${rejeitado.toFixed(2)}`,
+        );
+      }
+      if (escolhido < ON_ACCENT_FLOOR) {
+        bad.push(`${label(c)} ${role} onAccent/accent ${escolhido.toFixed(2)}`);
+      }
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    `primeiro plano ilegível sobre o acento cheio — é o que o token \`onAccent\` ` +
+      `existe para impedir. O \`on\` é do tint e mede 1,00–1,94 aqui:\n    ${bad.join('\n    ')}`,
+  );
+});
+
+/**
  * O traço gráfico e a rampa ordinal de cada papel, nas 36 combinações.
  *
  * Nasceu do gráfico de estágios do Sono, que usava `soft` e `text` como degraus:
@@ -235,6 +290,53 @@ check('todo módulo tem ícone legível na sua caixa', () => {
     }
   }
   assert.deepEqual(bad, [], `módulo com ícone ilegível:\n    ${bad.join('\n    ')}`);
+});
+
+/**
+ * O segundo laço do `onAccent`, e a razão de ele existir separado do primeiro.
+ *
+ * `RoleTokens` e `ModuleTokens` são objetos diferentes: `moduleOf` **recompõe**
+ * um a partir do outro (`{ tint: r.soft, accent: r.accent, onTint: r.on, … }`).
+ * Um laço que só percorre `tokens.roles` prova que o token foi **derivado** —
+ * nunca que ele **chegou** a quem desenha. E quem desenha a faixa do caderno
+ * chama `moduleOf`, não `resolveTokens`.
+ *
+ * A prova de que os dois laços não são redundantes é mecânica: trocar
+ * `onAccent: r.onAccent` por `r.on` no `moduleOf` deixa o laço de papéis verde e
+ * derruba este. Uma garantia que cobre um caminho garante um caminho, não a
+ * intenção.
+ *
+ * Mesmo piso e mesma folga do laço de cima — a razão do 3,0 está escrita lá.
+ */
+check('todo módulo tem nome legível na sua faixa cheia', () => {
+  const bad: string[] = [];
+  for (const c of COMBOS) {
+    const { ink, bgPure } = c.tokens;
+    for (const key of MODULE_KEYS) {
+      const m = moduleOf(key, c.t, c.s, c.p);
+      if (m.onAccent !== ink && m.onAccent !== bgPure) {
+        bad.push(`${label(c)} ${key} onAccent ${m.onAccent} não é ink nem bgPure`);
+        continue;
+      }
+      const outro = m.onAccent === ink ? bgPure : ink;
+      const escolhido = contrast(m.onAccent, m.accent);
+      const rejeitado = contrast(outro, m.accent);
+      if (escolhido < rejeitado) {
+        bad.push(
+          `${label(c)} ${key} escolheu o pior: ${escolhido.toFixed(2)} < ${rejeitado.toFixed(2)}`,
+        );
+      }
+      if (escolhido < ON_ACCENT_FLOOR) {
+        bad.push(`${label(c)} ${key} onAccent/accent ${escolhido.toFixed(2)}`);
+      }
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    `faixa de caderno com o nome ilegível — o \`onTint\` é do tint e não serve ` +
+      `aqui:\n    ${bad.join('\n    ')}`,
+  );
 });
 
 /**

@@ -482,6 +482,73 @@ check('BARREIRA — nenhuma variável CSS da web fora do sistema de temas', () =
 });
 
 /**
+ * ARAME — `onAccent` não chega à web, e isso é escolha, não esquecimento.
+ *
+ * Uma terceira natureza, ao lado da barreira e da catraca do topo: as duas
+ * guardam o que deve valer para sempre; esta guarda uma **ausência deliberada
+ * com validade conhecida**. A revista é mobile-first e web é não-objetivo
+ * declarado da frente, então o token existe em `RoleTokens` e `ModuleTokens` e
+ * **não** ganha alias plano nem variável CSS. Sem isto, a linha "web continua
+ * fora" da matriz da story era a única coberta por inspeção — e inspeção não
+ * roda no CI.
+ *
+ * A barreira logo acima olha na direção contrária, e por isso não substitui
+ * esta: ela cobra que toda `var(--x)` **usada** em `web/src` esteja no conjunto
+ * que o `cssVars()` produz. Nada nela impede o conjunto de **crescer**.
+ *
+ * Os dois caminhos por onde `onAccent` vazaria, ambos cobrados aqui:
+ *
+ * 1. O laço de papéis do `cssVars()` ganhar `--role-<papel>-on-accent`.
+ * 2. Um alias plano (`yellowOnAccent`) entrar em `ResolvedTokens` — e este é o
+ *    caminho traiçoeiro, porque o primeiro laço do `cssVars()` é **genérico**
+ *    sobre as chaves de valor string: um alias plano vira variável CSS sozinho,
+ *    sem ninguém escrever uma linha em `css-vars.ts`.
+ *
+ * **Quando a web entrar, apague este teste.** Não afrouxe o regex, não
+ * acrescente exceção: a espinha diz que `onAccent` ganha exatamente essas duas
+ * coisas quando web/PDF/e-mail existirem, e nesse dia apagar isto é o movimento
+ * certo. Um arame que sobrevive ao próprio motivo vira superstição.
+ */
+check('ARAME — onAccent não vaza para a web (não-objetivo declarado da revista)', () => {
+  const NA_WEB = /on-?accent/i;
+  const vazou: string[] = [];
+
+  for (const t of THEMES) {
+    for (const s of ['light', 'dark'] as const) {
+      for (const p of PALETTES) {
+        const tokens = resolveTokens(t.id, s, p.id, 'laranja');
+
+        // 1. Nenhuma variável CSS — nem `--role-x-on-accent`, nem a que um
+        //    alias plano produziria (`--yellow-on-accent`).
+        for (const nome of Object.keys(cssVars(tokens))) {
+          if (NA_WEB.test(nome)) vazou.push(`${t.id}/${s}/${p.id} variável CSS ${nome}`);
+        }
+
+        // 2. Nenhum alias plano na raiz dos tokens — a família `yellowOn`,
+        //    `greenOn`… existe para `on`, `soft` e `text`, e é justamente o
+        //    molde que `onAccent` não segue.
+        for (const [chave, valor] of Object.entries(tokens)) {
+          if (typeof valor !== 'string') continue;
+          if (NA_WEB.test(chave)) vazou.push(`${t.id}/${s}/${p.id} alias plano ${chave}`);
+        }
+      }
+    }
+  }
+
+  assert.deepEqual(
+    vazou,
+    [],
+    '`onAccent` chegou à web, que é não-objetivo declarado desta frente:\n    ' +
+      vazou.join('\n    ') +
+      '\n  Se isto NÃO é intencional: o token é lido por moduleOf() no mobile e ' +
+      'não precisa de alias plano nem de var CSS — tire o que o acrescentou.\n' +
+      '  Se você ESTÁ trazendo a revista para a web: então este teste cumpriu o ' +
+      'prazo dele. Apague-o inteiro (não afrouxe o regex, não abra exceção) e ' +
+      'deixe o alias e a variável nascerem — é exatamente o que a espinha prevê.',
+  );
+});
+
+/**
  * CATRACA — hex escrito à mão fora do sistema de temas.
  *
  * Uma cor literal não responde a tema nem a paleta: ela fica igual nas 24
