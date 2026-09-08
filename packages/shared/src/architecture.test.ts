@@ -209,6 +209,71 @@ check('BARREIRA — a edge function lê a cadeia de provedores do núcleo', () =
 });
 
 /**
+ * BARREIRA — `AGG_VERSION` tem um dono só, e ele mora no núcleo.
+ *
+ * A constante tem dois consumidores em pontas opostas do app: o sync do mobile,
+ * que a compara com o cursor para decidir o re-backfill, e o carimbo da edição
+ * da Retrospectiva, que a grava na linha para que `precisaErrata` possa comparar
+ * depois. Enquanto ela era `const` privada dentro do sync, o segundo consumidor
+ * recebia `undefined` e gravava nulo — e nulo não é elegível a errata, então
+ * **nenhuma** edição em produção era.
+ *
+ * Um segundo dono reabre exatamente esse buraco sem erro nenhum para acusar: os
+ * dois números convivem, cada ponta lê o seu, e a divergência só aparece meses
+ * depois numa errata que não veio. O tipo não alcança isto — só a barreira.
+ *
+ * Varre também `supabase/functions` e `scripts/`: a edge function é hospedeiro
+ * como qualquer outro, e é pela mesma razão que a barreira irmã da cadeia de
+ * provedores existe. `scripts/` entra hoje vazio de TypeScript de propósito — é
+ * onde o backfill da Story 2.2 vai morar, e a garantia que `upsertEdicao`
+ * promete a ele só vale se a barreira chegar lá antes dele.
+ */
+const DONO_AGG_VERSION = 'packages/shared/src/constants/agg-version.ts';
+
+check('BARREIRA — AGG_VERSION tem um dono só no núcleo', () => {
+  // O `\s+` é de propósito e não é frescura: escrito assim, o regex **não casa
+  // com a própria linha que o declara** — no fonte deste arquivo há uma barra,
+  // um `s` e um `+`, não um espaço —, então a barreira não se acusa e não
+  // precisa de exceção para si mesma. O lookbehind evita casar um sufixo tipo
+  // `HEALTH_AGG_VERSION`.
+  const DECLARA = /(?<![\w.])const\s+AGG_VERSION\b/;
+
+  // `walk` devolve lista vazia para diretório inexistente ou sem TypeScript (o
+  // `readdirSync` está em try/catch), então `scripts/` pode entrar antes de ter
+  // um único `.ts` — e é exatamente esse o ponto.
+  const alvos = [
+    ...walk(join(ROOT, 'packages', 'shared', 'src')),
+    ...webFiles,
+    ...mobileFiles,
+    ...walk(join(ROOT, 'supabase', 'functions')),
+    ...walk(join(ROOT, 'scripts')),
+  ];
+
+  // Não-vacuidade primeiro: sem isto a barreira passa em silêncio no dia em que
+  // o alvo sumir, e "nenhum dono" engana mais do que dois.
+  const abs = join(ROOT, DONO_AGG_VERSION);
+  assert.ok(
+    existsSync(abs) && DECLARA.test(readFileSync(abs, 'utf8')),
+    `a barreira ficou sem alvo: ${DONO_AGG_VERSION} não declara mais AGG_VERSION. ` +
+      `Se a constante mudou de arquivo, aponte DONO_AGG_VERSION para o caminho novo — ` +
+      `apagar a checagem é o único desfecho errado, porque é ela que impede um segundo ` +
+      `dono de nascer.`,
+  );
+
+  const donos = alvos
+    .filter((f) => DECLARA.test(readFileSync(f, 'utf8')))
+    .map((f) => f.replace(ROOT + '/', ''))
+    .sort();
+  assert.deepEqual(
+    donos,
+    [DONO_AGG_VERSION],
+    `AGG_VERSION declarado em mais de um lugar: ${donos.join(', ')}. ` +
+      `Importe do núcleo (\`@vitale/shared\` nos apps, caminho relativo dentro dele); ` +
+      `duas declarações divergem calado e a errata deixa de disparar.`,
+  );
+});
+
+/**
  * Toda coluna de `user_preferences` que guarda um id do app precisa de um CHECK
  * que aceite exatamente os ids que o app grava. A tabela é escrita por inteiro
  * num upsert só, então **um id fora do CHECK derruba a linha toda** — theme,

@@ -11,7 +11,9 @@
  *
  * Espelha a infra de `activity-sync.ts`: lotes, fila offline e cursor local.
  */
-import { bucketSeriesByMinute, SERIES_METRICS } from '@vitale/shared';
+// `AGG_VERSION` mora no núcleo (dono único): packages/shared/src/constants/agg-version.ts,
+// onde vive também a história v1→v9 que este arquivo guardava.
+import { AGG_VERSION, bucketSeriesByMinute, SERIES_METRICS } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { METRICS, chunkRange, sleepRawFetch, type MetricDef, type Range } from '../config/health-metrics';
 import { toHealthDailyRows, localDay, type HealthDailyRow } from '../lib/health-aggregate';
@@ -19,7 +21,7 @@ import { aggregateSleepPeriods, type Sample } from '../lib/health-buckets';
 import { toSleepDailyRows, toSleepPeriodRows, type SleepPeriodRow } from '../lib/sleep-rows';
 import { toHealthSeriesRows, type HealthSeriesRow } from '../lib/health-series-rows';
 import { enqueue, drainQueue, type QueueItem } from '../lib/sync-queue';
-import { readHealthCursor, writeHealthCursor } from '../lib/health-sync-cursor';
+import { precisaBackfill, readHealthCursor, writeHealthCursor } from '../lib/health-sync-cursor';
 
 export interface HealthSyncResult {
   pushed: number;
@@ -52,42 +54,6 @@ const HEAVY_MAX_DAYS = 200;
 const HEAVY_CHUNK_DAYS = 30;
 /** Lote da série: cada linha carrega até 1440 pares, então o lote é menor. */
 const SERIES_BATCH = 50;
-/**
- * Versão da lógica de agregação. Incrementar força um re-backfill único em todos
- * os dispositivos (recorrige o histórico já gravado). v1 = correção do sono
- * (união de fontes + priorização de estágios + atribuição ao dia de despertar).
- * v2 = dedupe por fonte nas cumulativas (passos/distância/andares/energia vinham
- * somando iPhone + relógio, dobrando a contagem).
- * v3 = detalhamento do sono por estágio (deep/rem/core/unspecified/awake) no
- * `extra`; o backfill recupera o hipnograma do histórico já gravado, porque as
- * amostras cruas seguem no HealthKit do aparelho.
- * v4 = tempo na cama e latência para pegar no sono (`inbed`/`onset`), que o
- * INBED do HealthKit permitia calcular mas era descartado na agregação.
- * v5 = piso de 1 min para aceitar a latência (`MIN_ONSET_MS`). O Garmin abre o
- * `INBED` 1 s antes do sono, gerando `onset` ≈ 0 que se disfarçava de "apagou na
- * hora"; o backfill reescreve essas linhas sem a chave falsa (o upsert troca o
- * `extra` inteiro, não faz merge).
- * v6 = sono passa a gravar `sleep_periods` (instantes, vigílias individuais,
- * janela na cama crua) e a linha diária vira DERIVADA dos períodos — uma fonte,
- * duas formas. Três correções entram no mesmo backfill: o AWAKE em segmentos
- * encostados (Garmin) deixa de ser descartado (36 de 38 noites vinham zeradas);
- * a janela na cama vira a união das INBED, nunca menor que o sono (14 noites do
- * histórico tinham eficiência > 100%); e `value` fica idêntico ao de antes,
- * por teste de paridade. Ver docs/specs/sono/.
- * v7 = onset truncado ao minuto NO CLIENTE, antes de derivar a janela na cama.
- * No v6 só a RPC truncava, e um INBED começando no mesmo minuto ficava até 57 s
- * DEPOIS do onset — 57 noites violando `in_bed_at <= onset_at`. Mesma chave,
- * mesmas linhas: o backfill só corrige o `in_bed_at`.
- * v8 = `stage_segments`: os intervalos por estágio na posição real, que o
- * agregador já fatiava e não emitia. É o dado da Opção 2 da CAP-7 (estágios na
- * barra do timing chart) e do detalhe da noite. Mesma chave, mesmas linhas; só a
- * coluna nova se preenche.
- * v9 = série intradiária da FC em `health_series` (minuto → bpm), a partir das
- * mesmas amostras que já produziam a linha diária; o teto das pesadas sobe de 60
- * para 200 dias, fatiado. A linha diária de `fc` não muda de valor — só ganha
- * dias anteriores a fev/2026 que o teto de 60 nunca alcançou. Ver docs/specs/fc-serie/.
- */
-const AGG_VERSION = 9;
 
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
@@ -212,7 +178,7 @@ export async function syncHealth(daysBack?: number): Promise<HealthSyncResult> {
     // Backfill quando: nunca sincronizou OU a versão da agregação avançou
     // (recorrige o histórico já gravado, ex.: correção do sono).
     const cursor = await readHealthCursor(userId);
-    const needsBackfill = cursor.lastDay == null || cursor.version < AGG_VERSION;
+    const needsBackfill = precisaBackfill(cursor);
     const baseWindow = daysBack ?? (needsBackfill ? BACKFILL_DAYS : SYNC_DAYS);
 
     // Para agregados diários sempre queremos granularidade de dia (period 1440),

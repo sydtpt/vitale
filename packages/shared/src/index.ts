@@ -6,6 +6,7 @@ export * from './theme/palettes';
 export * from './theme/derive';
 export * from './theme/css-vars';
 export * from './constants/tokens';
+export * from './constants/agg-version';
 export * from './constants/habit-icons';
 export * from './constants/map';
 export * from './constants/country-bboxes';

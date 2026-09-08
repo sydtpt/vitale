@@ -29,7 +29,7 @@ interface EdicaoState {
   /** Lê a edição já impressa. Não chama o modelo, não gasta. */
   carregar: (entrada: EntradaPacote) => Promise<void>;
   /** Imprime a edição. Só a pedido — esta é a chamada que custa. */
-  gerar: (entrada: EntradaPacote, aggVersion?: number) => Promise<void>;
+  gerar: (entrada: EntradaPacote) => Promise<void>;
   estado: (entrada: EntradaPacote) => EstadoEdicao;
 }
 
@@ -75,14 +75,14 @@ export const useEdicaoStore = create<EdicaoState>((set, get) => ({
     }
   },
 
-  gerar: async (entrada, aggVersion) => {
+  gerar: async (entrada) => {
     const uid = userId();
     if (!uid) return;
     const chave = chaveDe(entrada);
     if (get().porPeriodo[chave]?.fase === 'gerando') return;
 
     set((s) => ({ porPeriodo: { ...s.porPeriodo, [chave]: { fase: 'gerando' } } }));
-    const r = await gerarEdicao(uid, entrada, aggVersion);
+    const r = await gerarEdicao(uid, entrada);
     const proximo: EstadoEdicao =
       r.estado === 'ok' ? { fase: 'pronta', edicao: r.edicao }
         : r.estado === 'aberto' ? { fase: 'aberto' }

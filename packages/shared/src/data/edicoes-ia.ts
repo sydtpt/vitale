@@ -11,6 +11,7 @@
  * 4 estações), muito abaixo do teto de 1000 do PostgREST.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AGG_VERSION } from '../constants/agg-version';
 
 /** Linha como o PostgREST a devolve (snake_case). */
 export interface EdicaoRow {
@@ -94,7 +95,8 @@ export interface EdicaoInput {
   motivoDeParada: string;
   tokensEntrada: number;
   tokensSaida: number;
-  aggVersionNoMomento?: number | null;
+  // A versão da agregação **não** entra aqui de propósito: quem grava a lê da
+  // constante, logo abaixo. Ver a nota em `upsertEdicao`.
 }
 
 /**
@@ -104,6 +106,19 @@ export interface EdicaoInput {
  * O que **não** acontece aqui é reescrita silenciosa por dado novo: período
  * fechado não recebe dado novo, e mudança de agregação vira errata pela
  * comparação de `agg_version_no_momento`, não por regravação.
+ *
+ * **A versão da agregação é lida aqui, nunca recebida.** Ela chegava por quatro
+ * passagens opcionais em fila (tela → store → adaptador → este campo) e o que
+ * chegava era `undefined`: as 7 edições em produção têm nulo na coluna, e
+ * `precisaErrata` devolve `false` para nulo — nenhuma delas era elegível a
+ * errata. Tornar a passagem obrigatória fecharia a *omissão* e deixaria aberto o
+ * *valor errado*: `PACOTE_VERSAO` é `number`, sai do mesmo barril e compilaria no
+ * lugar dela. Como `AGG_VERSION` e este módulo moram no mesmo pacote, ler no
+ * ponto de gravação mata a classe inteira — e o script de backfill herda a
+ * garantia sem ter que lembrar de nada. Para que essa última frase seja verdade
+ * e não promessa, a barreira de dono único (`architecture.test.ts`) varre
+ * `scripts/` junto com os apps e as edge functions: um hospedeiro futuro que
+ * redeclarasse a constante lá reprovaria antes de existir.
  */
 export async function upsertEdicao(
   db: SupabaseClient,
@@ -125,7 +140,7 @@ export async function upsertEdicao(
       motivo_de_parada: e.motivoDeParada,
       tokens_entrada: e.tokensEntrada,
       tokens_saida: e.tokensSaida,
-      agg_version_no_momento: e.aggVersionNoMomento ?? null,
+      agg_version_no_momento: AGG_VERSION,
       gerado_em: new Date().toISOString(),
     }, { onConflict: 'user_id,tipo_periodo,inicio,fim' })
     .select(COLUMNS)

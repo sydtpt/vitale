@@ -4,6 +4,7 @@
  * — bump da versão força um re-backfill único (ex.: correção do sono), sem
  * intervenção manual.
  */
+import { AGG_VERSION } from '@vitale/shared';
 import { asyncStore, getJSON, setJSON, type KVStore } from './local-store';
 
 const keyFor = (userId: string) => `vitale:health-cursor:${userId}`;
@@ -13,6 +14,22 @@ export interface HealthCursor {
   lastDay: string | null;
   /** Versão da agregação já gravada para este dispositivo. */
   version: number;
+}
+
+/**
+ * O ciclo tem que varrer o histórico, ou basta a janela recente?
+ *
+ * Extraída de `syncHealth` para poder ser medida sem HealthKit: a decisão é
+ * pura, o resto do ciclo não é. Duas portas para o backfill — dispositivo que
+ * nunca sincronizou, e agregação que avançou desde a última vez.
+ *
+ * A segunda porta é cara e dispara sozinha, em todos os dispositivos, no
+ * primeiro ciclo depois de um bump de `AGG_VERSION`. Desde que a constante subiu
+ * para o núcleo, quem a edita não está mais lendo este arquivo — por isso a
+ * conta está escrita no teste que cobre esta função.
+ */
+export function precisaBackfill(cursor: HealthCursor): boolean {
+  return cursor.lastDay == null || cursor.version < AGG_VERSION;
 }
 
 export async function readHealthCursor(userId: string, store: KVStore = asyncStore): Promise<HealthCursor> {

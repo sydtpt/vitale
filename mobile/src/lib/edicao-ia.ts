@@ -71,7 +71,6 @@ export async function buscarEdicao(
 export async function gerarEdicao(
   userId: string,
   entrada: EntradaPacote,
-  aggVersion?: number,
 ): Promise<ResultadoEdicao> {
   const pacote = montarPacote(entrada);
   if (!pacote.periodo.fechado) return { estado: 'aberto' };
@@ -93,7 +92,8 @@ export async function gerarEdicao(
       motivoDeParada: n.motivoDeParada,
       tokensEntrada: n.tokens.entrada,
       tokensSaida: n.tokens.saida,
-      aggVersionNoMomento: aggVersion ?? null,
+      // A versão da agregação não aparece aqui: o núcleo a carimba no ponto de
+      // gravação. O telefone não escolhe — não tem como escolher.
     });
     return { estado: 'ok', edicao };
   } catch (e) {
