@@ -180,7 +180,7 @@ São **10** módulos, não 7:
 - Mobile: componentes UI (`DayRingCard`, `CheckButton`, `QuickAddSheet`) e fontes
   embarcadas via plugin `expo-font`
 - Backend: Supabase — Postgres com RLS, 55 migrations, 4 edge functions Deno
-  (`connections-ingest`, `strava-oauth`, `intervals-link`, `cultura-search`)
+  (`connections-ingest`, `ia-narrar`, `intervals-link`, `cultura-search`)
 - Autenticação: `/login`, `/register`, `/setup`, com `profileGuard` em toda rota
 - Notificações **locais** (client-side, `scheduleNotificationAsync`): eventos de sync e
   tarefas, retros agendadas; prefs em `user_preferences.notification_prefs`
@@ -217,7 +217,8 @@ São **10** módulos, não 7:
 
 ### Em andamento / Próximo 🔧
 - Piso das rotas: o chão de cada pedalada medido contra o OpenStreetMap no ingest
-  ([ADR 0035](docs/decisions/0035-piso-das-rotas-vem-do-osm-no-ingest.md)), com a bicicleta
+  ([ADR 0043](docs/decisions/0043-piso-das-rotas-vem-do-osm-no-ingest.md), com o passe rodando
+  no aparelho pela [ADR 0035](docs/decisions/0035-o-piso-e-calculado-no-aparelho.md)), com a bicicleta
   como entidade que a pedalada herda pela data ([ADR 0034](docs/decisions/0034-bicicleta-e-entidade-com-heranca-por-data.md)).
   Migrations aplicadas e 137 rotas backfilladas em prod (06/09); cartão de piso no Ciclismo e
   no detalhe da pedalada. Faltam o smoke test do passe deployado, o golden set e a web.
@@ -252,6 +253,23 @@ São **10** módulos, não 7:
   do detalhe de Registros (períodos, barras por valor, dia da semana, heatmap anual com
   intensidade). No mesmo passo, `R$` virou `€` onde há dado real (retro, Semana, Compras) — o
   símbolo agora sai de `format/money.ts`. **Falta a conferência dele** no iPhone e no navegador.
+- Presença — **Fase 0 medindo no iPhone desde 07/09; NÃO escrever a Fase 1 antes do veredito.**
+  Captura automática de onde o usuário está e por quanto tempo, para responder "quanto tempo
+  fiquei em casa" sem digitar. Dois motores na **mesma tabela** `visits`, separados por `source`:
+  geofence do iOS (bordas nítidas, só lugares cadastrados) agora, `CLVisit` (descobre a cauda
+  longa, mas atrasa a saída) na fase 3. Lugar **não é módulo**, é dimensão — carimba os outros,
+  sem cor própria (ADR 0031 como precedente).
+  **A fase 0 não escreve nada no banco**: ela existe para responder uma pergunta só — o iOS
+  relança o app fechado para entregar um evento de região? A prova é um evento com
+  `appState=background` na tela `/configuracoes/presenca`. Sem ele, a fase 1 não se escreve e as
+  fases 2–4 caem junto. Ele não tinha saído de casa até 07/09, então **a pergunta segue sem dado**.
+  Três armadilhas já pagas, que a fase 1 herda: o iOS entrega **reavaliação de estado como
+  entrada** (cada lançamento do app virava uma "chegada" — daí `redundant` e o estado por região
+  persistido); a precisão real medida é **±6 a 15 m**, não os ~100 m de folclore; e o teto do log
+  sacrifica relatório antes de travessia, senão o volume de relatórios come o dado real.
+  **Ainda sem `docs/specs/presenca/`, sem ADR e sem `tasks.md`** — o raciocínio (veredito dos dois
+  motores, esquecer = lápide, alerta como propriedade do lugar, as 5 fases) vive só em dois
+  artifacts e na memória da sessão. Escrever isso é o próximo passo enquanto a medição roda.
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco

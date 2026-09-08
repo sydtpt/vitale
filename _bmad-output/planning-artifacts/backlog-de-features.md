@@ -168,3 +168,29 @@ no jornal, quando houver amostra.
   ciclistas superestimam a espera em semáforo em ~5×.
 - **Km depois do pôr do sol:** a efeméride solar já existe no núcleo (esquema solar).
 - Zero demanda medida nas duas rodadas da pesquisa; custo perto de zero.
+
+## F7 — Presença por cômodo (iBeacon)
+
+**Pedido do usuário em 2026-09-07**, durante a Fase 0 da Presença: "e se eu quiser 0 m?
+poderia colocar partes da minha casa? como quarto, escritório, cozinha?". Adiado no mesmo
+dia — "cômodos fica para depois".
+
+- **Por que o geofence não serve, e nenhum ajuste resolve.** O raio mínimo de 100 m não é
+  recomendação: é o piso do sensor. O monitoramento de região do iOS se apoia em torre de
+  celular e Wi-Fi (é isso que o faz barato de bateria), com erro da ordem de 100 m — e pior
+  sob telhado, onde o GPS morre e o Wi-Fi localiza o prédio, não o cômodo. Quarto e cozinha
+  distam 5–10 m: uma ordem de grandeza abaixo do ruído. Um raio de 30 m não dá 30 m de
+  precisão, dá entradas e saídas produzidas por flutuação com o usuário parado. Raio 0 é
+  região sem área — nunca se entra.
+- **O caminho real:** `CLBeaconRegion` com um transmissor BLE por cômodo (~€15–25 cada).
+  É a via sancionada pela Apple para micro-localização e funciona em escala de cômodo —
+  nunca de mesa.
+- **Custos:** hardware com pilha para trocar · módulo Swift próprio (`expo-location` não
+  faz beacon) · e os beacons consomem do **mesmo teto de 20 regiões** do iOS, então cada
+  cômodo é uma vaga a menos para lugar de verdade.
+- **Alternativa sem hardware, para o caso que mais importa (escritório de casa):** inferir
+  em vez de sensorear. `sleep_periods` já sabe quando ele está no quarto dormindo, a série
+  de FC é minuto a minuto, e atividade do Mac diria "na mesa". Presença deduzida, não
+  medida — mais barata e talvez suficiente.
+- **Gatilho para reabrir:** a Fase 0 confirmar que o motor barato funciona. Comprar hardware
+  para o caro antes disso é a ordem errada.
