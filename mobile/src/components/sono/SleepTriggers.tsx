@@ -42,7 +42,7 @@ const signed = (v: number, dec = 0) =>
  * Juntar 2 e 3 seria o erro: *"não tem efeito"* e *"não tem dado"* são coisas
  * opostas, e uma tela muda não as separa. A Retrospectiva é jornal — informa,
  * não aconselha —, então nada aqui vira recomendação, e o `n` anda junto do
- * número. Ver ADR 0040.
+ * número. Ver ADR 0044.
  */
 export function SleepTriggers({ board, palette }: Props) {
   const styles = useThemedStyles(createStyles);

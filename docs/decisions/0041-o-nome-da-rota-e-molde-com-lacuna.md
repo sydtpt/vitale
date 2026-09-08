@@ -2,10 +2,9 @@
 
 **Data:** 2026-09-07 · **Status:** aceita
 
-> **Numeração:** 0040 está tomado duas vezes na árvore — `0040-o-cruzamento-so-fala-quando-as-duas-colunas-concordam.md`
-> (frente de sono) e `0040-o-provedor-de-modelo-e-configuracao-nao-arquitetura.md` (frente de IA),
-> colisão entre branches já conhecida. Vale a regra da casa: quem mescla por último renumera.
-> Esta nasce 0041 na main.
+> **Numeração:** quando esta foi escrita, 0040 estava tomado duas vezes — a frente de sono e a
+> de IA. **Resolvido em 07/09/2026:** a de sono virou [0044](0044-o-cruzamento-so-fala-quando-as-duas-colunas-concordam.md)
+> e a de IA ficou com o 0040, que é o número que quatorze referências usam. Esta nasceu 0041 na main.
 
 **Complementa:** [0038](0038-a-chamada-ao-modelo-sai-da-edge-function.md) — de onde sai a
 chamada · [0040](0040-o-provedor-de-modelo-e-configuracao-nao-arquitetura.md) — para quem, e

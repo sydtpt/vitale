@@ -51,7 +51,7 @@ passaria trivialmente.
 
 Ler o sinal em vez da procedência é o que faz o critério acertar um caso que a procedência
 erraria: 20 rotas antigas cujo `activities.source_name` diz "Apple Watch" foram importadas
-do export em massa da Strava ([ADR 0007](0007-backfill-de-rotas-e-mapas.md)) — o GPS estava
+do export em massa da Strava ([ADR 0007](0007-backfill-de-rotas-por-ausencia-de-linha.md)) — o GPS estava
 no ciclocomputador e o Watch só gravou FC. O track delas é barométrico e recebe 0,7 m,
 enquanto um pedal gravado de fato pelo Watch, no mesmo `source_name`, recebe 3 m.
 
@@ -98,7 +98,7 @@ até menor que o do FIT (0,80 m). Ruído não separa as classes; quantização s
   stream, não no parâmetro: a rota veio do export já reamostrada, enquanto o número da
   Strava sai do dado original do ciclocomputador. Quem quiser fechar esses 15% não deve
   mexer no algoritmo — deve importar o ganho do próprio export, one-off, no formato do
-  [ADR 0007](0007-backfill-de-rotas-e-mapas.md).
+  [ADR 0007](0007-backfill-de-rotas-por-ausencia-de-linha.md).
 - O argumento a favor de destravar o `HKElevationAscended` (0019) perde força: ele foi
   dimensionado contra a referência inflada do intervals. Com a referência certa, o cálculo
   já acerta as duas classes de sinal, e o valor de ter o número do altímetro do Apple Watch

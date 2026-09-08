@@ -295,7 +295,7 @@ dano, não é o que falta ao Orbe.**
   acordando", "analise de sono por tipo de esporte" e "por habitos, cerveja, cafe e cigarro,
   nao ler fixo, analizer o que tem add no app". Proposta com dados reais no artifact
   `claude.ai/code/artifact/58b884cf-b5bb-4285-83f3-c2f6199d2dd0`, com as quatro decisões
-  respondidas. Ver [ADR 0040](../../decisions/0040-o-cruzamento-so-fala-quando-as-duas-colunas-concordam.md))*
+  respondidas. Ver [ADR 0044](../../decisions/0044-o-cruzamento-so-fala-quando-as-duas-colunas-concordam.md))*
   - **intent (a):** O usuário sabe **quanto dura** um despertar seu, sem que a distribuição
     torta o engane.
   - **success (a):** Três números — **típico** (mediana dos de 5 min para cima), **o longo**
@@ -318,7 +318,7 @@ dano, não é o que falta ao Orbe.**
     teste precisa de centenas. Decisão do usuário em 06/09/2026. Só na subview Despertares.
   - **intent (c):** O usuário vê **o que precedeu a noite** — esporte, hábito, registro — sem
     que o cruzamento lhe minta.
-  - **success (c):** A regra das duas colunas (ADR 0040): noite presa × noite livre, mesmo
+  - **success (c):** A regra das duas colunas (ADR 0044): noite presa × noite livre, mesmo
     sinal, 5 noites de cada lado em cada coluna, e um piso de tamanho por métrica. Os gatilhos
     são **lidos do app**, não de uma lista fixa: cada esporte praticado, cada hábito e cada
     registro do usuário. O que não passa **não some** — vira "o que ainda não dá para dizer"

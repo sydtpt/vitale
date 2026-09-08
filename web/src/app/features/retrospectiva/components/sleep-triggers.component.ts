@@ -44,7 +44,7 @@ const signed = (v: number, dec: number) =>
  * 3. **O que já tem noites e mesmo assim não diz nada.**
  *
  * Juntar 2 e 3 seria o erro: *"não tem efeito"* e *"não tem dado"* são coisas
- * opostas, e uma tela muda não as separa. Ver ADR 0040.
+ * opostas, e uma tela muda não as separa. Ver ADR 0044.
  */
 @Component({
   selector: 'rt-sleep-triggers',

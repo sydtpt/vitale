@@ -1,12 +1,14 @@
-# ADR 0040 — O cruzamento só fala quando as duas colunas concordam
+# ADR 0044 — O cruzamento só fala quando as duas colunas concordam
 
 - **Status:** aceita
 - **Data:** 06/09/2026
 - **Contexto:** Sono · Retrospectiva · CAP-12
 - **Relacionada:** [0036](0036-saude-do-sono-e-contagem-nao-placar.md) (a contagem que
   substituiu o placar), [0031](0031-sono-e-categoria-nao-modulo.md)
-- **Numeração:** 0037, 0038 e 0039 já estavam tomados na árvore de trabalho por outras
-  frentes quando esta foi escrita. Ver `adr-numero-colide-entre-branches`.
+- **Numeração:** nasceu **0040** na frente de sono, e a frente de IA gravou outro 0040 na
+  mesma janela. Renumerada para 0044 em 07/09/2026 — a de IA ficou com o número porque é
+  citada em quatorze lugares, incluindo código, teste e migration. A data acima é a da
+  decisão, não a da renumeração. Ver `adr-numero-colide-entre-branches`.
 
 ## Contexto
 

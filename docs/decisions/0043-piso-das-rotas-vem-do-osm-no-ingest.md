@@ -1,6 +1,16 @@
-# ADR 0035 — O piso das rotas vem do OpenStreetMap, no ingest, com procedência e "não sei" visível
+# ADR 0043 — O piso das rotas vem do OpenStreetMap, no ingest, com procedência e "não sei" visível
 
-**Data:** 2026-09-06 · **Status:** aceita
+**Data:** 2026-09-06 ·
+**Status:** a decisão 1 (onde o passe roda) foi **superada** por
+[0035 — O piso é calculado no aparelho](0035-o-piso-e-calculado-no-aparelho.md);
+o resto — a fonte, a classificação, a procedência e o "não sei" visível — continua vigente.
+
+> **Numeração fora de ordem, de propósito.** Esta nasceu 0034, virou 0035 ao mesclar, e
+> colidiu com a 0035 da frente seguinte — que é a que superou a decisão 1 desta. Em
+> 07/09/2026 a colisão foi desfeita movendo **esta** para 0043, porque o número 0035 é o
+> que dez comentários de código, duas ADRs e o `tasks.md` usam para dizer "o passe roda no
+> aparelho". O efeito colateral é que a superada tem número maior que a que a superou.
+> Mover a outra teria custado a precisão de dez referências vivas; este custa uma nota.
 
 ## Contexto
 

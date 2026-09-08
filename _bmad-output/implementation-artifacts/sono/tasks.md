@@ -399,7 +399,7 @@
     meia hora. **O guarda de 1 h é o que impede o falso positivo**: sem ele o pico de início de
     noite vaza para o eixo do relógio e o teste acusa 23h (44 contra 19,6, p < 0,001).
   - **O que precedeu a noite** — a regra das duas colunas
-    ([ADR 0040](../../../docs/decisions/0040-o-cruzamento-so-fala-quando-as-duas-colunas-concordam.md))
+    ([ADR 0044](../../../docs/decisions/0044-o-cruzamento-so-fala-quando-as-duas-colunas-concordam.md))
     mata oito cruzamentos falsos, entre eles "fumar te faz dormir 2h39 a mais". Sobrevivem
     oito leituras; a cerveja é uma delas (−33 min, com −30 e −36 nas duas colunas).
   - **Validação:** shared `tsc` 0 · 653 asserts com as 13 barreiras · web build 0 e 141 testes ·

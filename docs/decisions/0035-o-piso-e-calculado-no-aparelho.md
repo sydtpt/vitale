@@ -1,9 +1,12 @@
 # ADR 0035 — O piso das rotas é calculado no aparelho, não no ingest
 
 **Data:** 2026-09-06 · **Status:** aceita ·
-**Supersede:** a decisão 1 da [ADR 0034](0034-piso-das-rotas-vem-do-osm-no-ingest.md)
-("o piso é calculado no ingest"). O resto da 0034 — as classes, a procedência,
+**Supersede:** a decisão 1 da [ADR 0043](0043-piso-das-rotas-vem-do-osm-no-ingest.md)
+("o piso é calculado no ingest"). O resto da 0043 — as classes, a procedência,
 o "não especificado" visível, a forma das colunas — continua valendo inteiro.
+
+> A 0043 apareceu como 0034 e depois como 0035 antes de assentar; o número maior é
+> posterior à renumeração de 07/09/2026, não à decisão. Ver a nota no cabeçalho dela.
 
 ## Contexto
 
