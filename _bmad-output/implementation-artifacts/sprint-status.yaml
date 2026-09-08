@@ -1,0 +1,114 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+
+# PORTÃO DE PRONTIDÃO — 08/09/2026: CONCERNS (não PASS), e mesmo assim seguiu.
+# ============================================================================
+# 26 das 27 stories são implementáveis como estão. A exceção é a 3.3, e ela é
+# declarada, não descoberta. Ver as anotações nas linhas das stories.
+#
+# ORDEM DE ATAQUE decidida em 08/09, contra a ordem numérica:
+#   1º  1.1  — sozinha, antes de qualquer outra. Defeito VIVO em produção e
+#              precede o backfill por contrato: fazer depois vira backfill do
+#              backfill, em ~1.744 linhas.
+#   2º  preparar o ensaio da migração (banco local) — pré-requisito da 1.9, e
+#              trabalho independente que roda em paralelo.
+#   3º  1.9  — só com o ensaio de pé.
+#
+# O test design por risco vive em skills/test-artifacts/test-design-epic-1.md:
+# 42 riscos pontuados, 19 altos, 3 no teto. É ele que sustenta a ordem acima.
+generated: 09-08-2026 23:20
+last_updated: 09-08-2026 23:20
+project: Orbe
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-1: backlog
+  # ▲ COMEÇA AQUI. Risco 9 — defeito vivo em produção hoje: a edição grava null,
+  # precisaErrata devolve false para nulo, e NENHUMA edição é elegível a errata.
+  # Precede o backfill. Cuidado do R-02: tornar a coluna not null SEM tornar o
+  # campo TS obrigatório troca o defeito silencioso por 436 falhas de escrita.
+  1-1-agg_version-vira-vocabulário-do-núcleo: backlog
+  1-2-onaccent-no-sistema-de-tema: backlog
+  1-3-o-pacote-fala-por-caderno-com-bases-nomeadas: backlog
+  1-4-o-texto-é-obrigado-a-nomear-a-base: backlog
+  1-5-o-prompt-aprende-as-regras-novas: backlog
+  1-6-a-camada-de-luz-entra-nos-quatro-pacotes: backlog
+  1-7-o-ranqueamento-do-miolo-e-a-lápide: backlog
+  1-8-a-chamada-sai-de-uma-função-só: backlog
+  # Risco 9, o mais alto da frente. ENTREGA ÚNICA: a migração e o build que a lê
+  # não podem sair em momentos diferentes (AD-15) — instância única, sem OTA.
+  # NÃO começar sem o ensaio fora de produção de pé. E o raio é o DOBRO do que a
+  # story descreve: upsertEdicao quebra junto com fetchEdicao (achado do test
+  # design), então um build antigo falha ao GRAVAR, não só ao abrir.
+  1-9-a-migração-e-a-leitura-da-forma-nova: backlog
+  1-10-a-sequência-da-impressão-sobe-para-o-núcleo: backlog
+  1-11-a-rota-da-revista-e-os-estados-da-edição: backlog
+  1-12-os-cadernos-desenhados: backlog
+  1-13-a-capa-na-edição-com-o-véu-medido: backlog
+  1-14-o-sumário-e-a-rolagem-ancorada: backlog
+  # ⚠ PORTÃO HUMANO — NENHUM AGENTE FECHA ESTA STORY.
+  # A entrega de dev é imprimir três períodos nomeados (agosto/2026, julho/2026 e
+  # um mês de 2023) e pô-los na frente do dono. O julgamento é dele, lendo. Um
+  # loop autônomo que marcar isto como 'done' está errado por construção.
+  # O que ela bloqueia: o Épico 2 imprime 53 períodos sobre esta aposta, e o
+  # Épico 3 constrói o anuário sobre a metrica_lider que ela valida.
+  1-15-o-piloto-de-três-edições: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-o-quarto-workspace-e-a-barreira-que-o-enxerga: backlog
+  2-2-o-script-imprime-uma-edição-e-ela-é-idêntica-à-do-telefone: backlog
+  2-3-a-impressão-em-massa-dos-períodos-fechados: backlog
+  2-4-a-parede-de-capas: backlog
+  2-5-silenciar-um-caderno: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-o-postal-da-semana: backlog
+  3-2-o-anuário-do-ano: backlog
+  # ⚠ NÃO PRONTA PARA DESENVOLVIMENTO — a única das 27, e de propósito.
+  # Metade dos critérios de aceite não existe: forma, posição e tratamento visual
+  # dependem de uma passagem de bmad-ux ADIADA deliberadamente para depois das
+  # três edições-piloto (desenhar o destaque de um fato que ninguém viu
+  # renderizado é projetar a partir do documento).
+  # A story PODE MORRER: se a luz na prosa já bastar, ela some e o FR6 fica
+  # coberto só pelo Épico 1. A evidência que ela exige antes de fechar não é um
+  # teste — é a decisão entre rodar a UX ou matá-la.
+  3-3-o-destaque-de-luz-no-trimestre: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-o-instante-da-lua-cheia-entra-na-efeméride: backlog
+  4-2-o-teste-lunar-sob-protocolo-e-lua_execucoes: backlog
+  4-3-a-barreira-do-hash-incondicional-e-offline: backlog
+  4-4-a-página-da-lua: backlog
+  epic-4-retrospective: optional
