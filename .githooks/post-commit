@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Espelha a sprint no GitHub quando o commit mexeu no tracking.
+#
+# Por que pós-commit e não pré: o sync é efeito colateral externo, e efeito
+# externo não pode ter poder de veto sobre o commit. GitHub fora do ar, token
+# vencido, avião — o commit acontece do mesmo jeito, e o espelho reconcilia na
+# próxima vez, porque os dois scripts são idempotentes.
+#
+# Ativar (uma vez):  git config core.hooksPath .githooks
+# Desligar:          git config --unset core.hooksPath
+# Pular num commit:  ORBE_SEM_SYNC=1 git commit ...
+set -uo pipefail
+
+[ "${ORBE_SEM_SYNC:-}" = "1" ] && exit 0
+
+ALVO="_bmad-output/implementation-artifacts/sprint-status.yaml"
+git diff-tree --no-commit-id --name-only -r HEAD | grep -qxF "$ALVO" || exit 0
+
+RAIZ="$(git rev-parse --show-toplevel)"
+[ -f "$RAIZ/scripts/github/sincronizar_sprint.py" ] || exit 0
+
+echo "→ sprint-status.yaml mudou; espelhando no GitHub…"
+# `|| true` nos dois: falhar aqui não pode sujar um commit que já aconteceu.
+python3 "$RAIZ/scripts/github/sincronizar_sprint.py" --aplicar 2>&1 | sed 's/^/  /' || true
+# O quadro precisa do escopo `project`; se o token não estiver no keychain ele
+# reclama numa linha e o resto segue.
+python3 "$RAIZ/scripts/github/quadro.py" --aplicar 2>&1 | grep -vE '^\s*$|projects/' | sed 's/^/  /' || true

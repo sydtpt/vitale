@@ -51,3 +51,4 @@ yarn-error.log*
 # refaz a partir deles.
 _bmad-output/design/**/*.html
 !_bmad-output/design/**/*.dc.html
+__pycache__/
