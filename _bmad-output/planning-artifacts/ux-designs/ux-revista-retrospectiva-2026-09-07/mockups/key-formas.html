@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAP-9 — o postal e o anuário</title>
+<style>
+/* ============================================================================
+   KEY SCREENS — CAP-9: as OUTRAS DUAS formas da revista da Retrospectiva.
+   (a terceira, a edição de mês, tem mockup próprio e não é refeita aqui.)
+
+   O que estas telas ilustram:
+
+   QUADRO 1 · POSTAL (semana) — uma tela de 844 px sem rolagem: capa pequena,
+   três fatos e SÓ trajetória como comparação. Sem sumário, sem faixa de
+   caderno, sem botão de compartilhar, sem edição gravada. Ele não tem cor de
+   módulo porque não tem cadernos — a ausência de cor é o que se vê primeiro.
+
+   QUADRO 2 · ANUÁRIO (ano) — abre SERIAL: quatro tiras de doze meses
+   empilhadas, uma por caderno, na cor do caderno, antes de qualquer texto.
+   Só depois vem o primeiro caderno, com faixa saturada e extremos DATADOS.
+   O quadro passa dos 844 px; a dobra está marcada.
+
+   A tese: semana, mês e ano são objetos DIFERENTES. O postal não é a edição
+   encolhida (falta-lhe estrutura, não profundidade); o anuário não é a edição
+   inflada (ele abre por uma forma que a edição não tem).
+
+   Tokens: recorte medido Orbe · paleta orbe · claro (BRIEFING.md). Hex existe
+   aqui só porque HTML não roda resolveTokens()/moduleOf(); no código real
+   nenhuma tela escreve hex.
+   Números: todos saem da lista de fatos do BRIEFING.md. A silhueta das tiras é
+   plausível — nenhum valor dela está escrito na tela.
+   ========================================================================== */
+
+:root{
+  /* neutros — medidos */
+  --bg:#FFF7EE; --surface:#FFFFFF; --ink:#1F1B16; --ink2:#5C534A;
+  --ink3:#9C928A; --line:#EFE6D8;
+  /* cadernos — accent / soft */
+  --sono:#6E8CC9;  --sono-soft:#DDE4F2;
+  --mov:#F25C2B;   --mov-soft:#FFE3D2;
+  --cor:#E05C5C;   --cor-soft:#FDDEDE;
+  --rot:#6FA86A;   --rot-soft:#E2EFD9;
+  --on-accent:#1F1B16;              /* token novo: melhor entre ink e bgPure */
+  /* tipografia real do app, sem rede */
+  --sans:'Manrope',-apple-system,'Segoe UI',system-ui,sans-serif;
+  --mono:'Geist Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --serif:'Instrument Serif','Iowan Old Style',Georgia,serif;
+  /* cromo do mockup (fora do app) */
+  --studio:#E7E2DA; --studio-ink:#5C534A; --bezel:#16120F;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--studio);font-family:var(--sans);color:var(--studio-ink);
+     padding:40px 32px 64px;-webkit-font-smoothing:antialiased}
+
+/* ---------- cromo da folha ---------- */
+.sheet-head{max-width:1180px;margin:0 auto 28px}
+.sheet-kicker{font:600 11px/1 var(--sans);letter-spacing:1.1px;text-transform:uppercase;color:#8C8378}
+.sheet-title{font:400 30px/1.15 var(--serif);color:#231E19;margin-top:8px}
+.sheet-sub{font:400 13px/1.55 var(--sans);color:#6E655B;margin-top:8px;max-width:66ch}
+
+.rail{display:flex;gap:34px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+.col{width:390px}
+.cap{font:600 11px/1 var(--sans);letter-spacing:1.1px;text-transform:uppercase;
+     color:#6E655B;margin-bottom:12px}
+.legend{font:400 12px/1.5 var(--sans);color:#6E655B;margin-top:14px}
+.legend b{font-weight:600;color:#463F38}
+
+/* nota do meio — cromo, não é app */
+.note{width:280px;padding-top:34px}
+.note h3{font:400 19px/1.25 var(--serif);color:#231E19;margin-bottom:12px}
+.note p{font:400 12.5px/1.65 var(--sans);color:#5E564D;margin-bottom:11px}
+.note p b{font-weight:600;color:#3A342E}
+.note .rule{height:1px;background:#D3CCC1;margin:16px 0}
+.note .small{font:400 11px/1.55 var(--mono);color:#8C8378}
+
+/* ---------- aparelho ---------- */
+.device{width:390px;background:var(--bg);position:relative;overflow:hidden;
+        border-radius:40px;box-shadow:0 0 0 11px var(--bezel),0 26px 60px rgba(0,0,0,.26);
+        color:var(--ink);font-family:var(--sans)}
+.device--exact{height:844px;display:flex;flex-direction:column}   /* cabe inteiro: sem rolagem */
+.device--tall{height:auto}                                        /* passa da dobra */
+.notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);
+       width:112px;height:26px;border-radius:14px;background:var(--bezel);z-index:5}
+
+.nav{height:52px;flex:0 0 52px;display:flex;align-items:flex-end;
+     padding:0 14px 6px;gap:10px}
+.nav svg{width:22px;height:22px;color:var(--ink2)}
+/* sem botão de compartilhar aqui — nem no postal, nem no anuário, nem na edição */
+
+.eyebrow{font:600 11px/1 var(--sans);letter-spacing:1.1px;text-transform:uppercase;color:var(--ink3)}
+.mono{font-family:var(--mono)}
+.serif{font-family:var(--serif)}
+
+/* ============================ QUADRO 1 — POSTAL ============================ */
+.postal-card{margin:6px 14px 0;background:var(--surface);
+             border:1px solid var(--line);border-bottom:0;
+             border-radius:16px 16px 0 0;overflow:hidden;
+             flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.postal-mast{padding:16px 18px 12px}
+.postal-week{font:400 27px/1.1 var(--serif);color:var(--ink);margin-top:7px}
+
+/* capa PEQUENA — outra coisa que a capa de meia tela da edição */
+.cover-sm{height:146px;position:relative;
+          background:linear-gradient(168deg,#EADFCE 0%,#D8C8B2 34%,#B9A78F 62%,#8E8474 100%)}
+.cover-sm::after{content:"";position:absolute;inset:0;
+                 background:linear-gradient(200deg,rgba(255,255,255,.22),rgba(31,27,22,.10))}
+.cover-note{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;
+            font:400 11px/1 var(--mono);color:#FFF7EE;background:rgba(31,27,22,.36);
+            padding:6px 10px;border-radius:6px;letter-spacing:.2px}
+.cover-cap{padding:9px 18px 0;font:400 11px/1.3 var(--mono);color:var(--ink3)}
+
+.facts{padding:6px 18px 4px}
+.fact{padding:17px 0;border-top:1px solid var(--line)}
+.fact:first-child{border-top:0;padding-top:14px}
+.fact-n{font:400 33px/1.06 var(--mono);color:var(--ink);letter-spacing:-.5px}
+.fact-d{font:500 13px/1.4 var(--sans);color:var(--ink2);margin-top:5px}
+.fact-traj{font:400 15px/23px var(--serif);color:var(--ink);margin-top:9px}
+.fact-meta{font:400 11px/1.3 var(--mono);color:var(--ink3);margin-top:9px}
+.spacer{flex:1 1 auto;min-height:8px}
+
+/* a picotagem: folha arrancada do bloco, não caderno costurado na edição */
+.tear{height:12px;
+      background:radial-gradient(circle at 6px 12px,var(--bg) 0 6px,var(--surface) 6px) repeat-x;
+      background-size:12px 12px}
+.postal-foot{padding:12px 18px 22px;font:400 10.5px/1.5 var(--mono);color:var(--ink3)}
+
+/* ============================ QUADRO 2 — ANUÁRIO =========================== */
+.anu-mast{padding:14px 24px 20px}
+.anu-year{font:400 46px/1 var(--serif);color:var(--ink);margin-top:6px;letter-spacing:-.5px}
+
+.serial{padding:0 24px 22px}
+.strip{margin-bottom:15px}
+.strip-name{font:600 11px/1 var(--sans);letter-spacing:1.1px;text-transform:uppercase;
+            color:var(--ink2);margin-bottom:6px}
+.strip svg{display:block;width:342px;height:40px}
+.months{display:flex;margin-top:2px}
+.months span{flex:1;text-align:center;font:400 9px/1.2 var(--mono);color:var(--ink3)}
+
+/* CAP-7 — faixa saturada sangrando de borda a borda */
+.band{display:flex;align-items:center;gap:12px;padding:20px 24px;color:var(--on-accent)}
+.band--mov{background:var(--mov)}
+.band--sono{background:var(--sono)}
+.band svg{width:26px;height:26px;flex:0 0 26px}
+.band-name{font:400 31px/1 var(--serif);letter-spacing:.2px}
+.band-crop{height:54px;overflow:hidden}      /* o segundo caderno começa e é cortado */
+
+/* extremos DATADOS — o anuário traz, a edição de mês não */
+.extremes{margin:18px 20px 0;background:var(--surface);border:1px solid var(--line);
+          border-radius:14px;padding:14px 16px 4px}
+.ext-row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+         padding:12px 0;border-top:1px solid var(--line)}
+.ext-row:first-of-type{border-top:0}
+.ext-l{font:500 13px/1.35 var(--sans);color:var(--ink)}
+.ext-when{font:400 11px/1.3 var(--mono);color:var(--ink3);margin-top:3px}
+.ext-v{font:400 16px/1.2 var(--mono);color:var(--ink);white-space:nowrap}
+.ext-v.word{font:500 13.5px/1.3 var(--sans);color:var(--ink)}
+
+.caderno-body{padding:18px 24px 4px}
+.body-text{font:400 15px/23px var(--serif);color:var(--ink)}
+.body-text b{font-weight:400}
+.sign{font:400 11px/1.4 var(--mono);color:var(--ink3);padding:14px 24px 22px}
+
+/* a dobra dos 844 px */
+.fold{position:absolute;left:0;right:0;top:844px;border-top:1px dashed rgba(31,27,22,.30);z-index:6}
+.fold span{position:absolute;right:10px;top:-8px;font:400 9px/1 var(--mono);
+           color:#6E655B;background:rgba(255,247,238,.92);padding:3px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<div class="sheet-head">
+  <p class="sheet-kicker">bmad-ux · a revista da Retrospectiva · CAP-9</p>
+  <h1 class="sheet-title">As outras duas formas: o postal e o anuário</h1>
+  <p class="sheet-sub">iPhone 390 × 844, recorte Orbe · paleta orbe · claro. A edição de mês tem mockup próprio e não aparece aqui. Todos os números vêm da lista de fatos do briefing.</p>
+</div>
+
+<div class="rail">
+
+  <!-- ====================== QUADRO 1 — O POSTAL (semana) ====================== -->
+  <div class="col">
+    <p class="cap">Quadro 1 — o postal · semana</p>
+
+    <div class="device device--exact">
+      <div class="notch"></div>
+
+      <div class="nav">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <!-- nada à direita: SEM botão de compartilhar, aqui e em lugar nenhum da revista -->
+      </div>
+
+      <div class="postal-card">
+        <div class="postal-mast">
+          <!-- a manchete da edição vem do caderno em posicao=1; o postal não tem cadernos,
+               então o mastro carrega só o período. -->
+          <p class="eyebrow">Nota da semana</p>
+          <h2 class="postal-week">31 ago – 6 set 2026</h2>
+        </div>
+
+        <!-- CAPA PEQUENA: 146 px (17% da tela), não os ~45% da edição. -->
+        <div class="cover-sm">
+          <span class="cover-note">[foto — coverOf()]</span>
+        </div>
+        <!-- LACUNA: o briefing decide a SOBREPOSIÇÃO (nome do período + manchete sobre a
+             imagem) só para a capa de meia tela da edição. Para a capa pequena do postal a
+             posição da legenda não está decidida; aqui ela desce para baixo da imagem, como
+             legenda de jornal, e o nome do período sobe para o mastro. -->
+        <p class="cover-cap">Ittre · km 31,1 · 12:38</p>
+
+        <!-- TRÊS FATOS, e só três. Sem faixa de caderno e sem cor de módulo: o postal não
+             tem cadernos, então não tem o que colorir. -->
+        <!-- LACUNA: a lista de fatos do briefing não traz nenhum valor em escala de SEMANA —
+             os números disponíveis são de mês (435 km), de acervo (555 atividades) ou de
+             gatilho sobre todo o histórico (33 min). Os três fatos abaixo usam os números da
+             lista como estão; a escala real do postal depende de fatos de semana que o
+             briefing ainda não tem. -->
+        <div class="facts">
+
+          <div class="fact">
+            <p class="fact-n">435 km</p>
+            <p class="fact-d">de bicicleta</p>
+            <!-- só TRAJETÓRIA como comparação: direção ao longo de vários períodos,
+                 nenhum valor bruto de base, nenhum "contra a semana passada". -->
+            <p class="fact-traj">Cai pela terceira semana seguida.</p>
+          </div>
+
+          <div class="fact">
+            <p class="fact-n">33 min</p>
+            <p class="fact-d">mais tarde para adormecer nas noites com cerveja</p>
+            <p class="fact-meta">sob a regra das duas colunas</p>
+          </div>
+
+          <div class="fact">
+            <p class="fact-n">05/09</p>
+            <p class="fact-d">a frequência cardíaca por minuto passou a existir</p>
+          </div>
+
+        </div>
+
+        <div class="spacer"></div>
+
+        <!-- picotagem: a folha foi arrancada, não encadernada. É o primeiro dos dois sinais
+             de que aqui não se grava edição. -->
+        <div class="tear"></div>
+      </div>
+
+      <!-- segundo sinal: o colofão. A edição assina modelo e data porque foi impressa e
+           arquivada; o postal declara que não foi. -->
+      <p class="postal-foot">nota não arquivada · recalculada a cada leitura · 07 set 2026</p>
+      <!-- LACUNA: o briefing não diz se o postal tem prosa gerada (e portanto assinatura de
+           modelo). Aqui ele traz só fatos — sem texto de caderno, logo sem
+           `gemini-3.6-flash · 07 set 2026`. -->
+    </div>
+
+    <p class="legend"><b>O postal.</b> Uma tela inteira, sem rolagem: capa pequena, três fatos, trajetória como única comparação. Sem sumário, sem faixa de caderno, sem cor de módulo, sem compartilhar e sem arquivo.</p>
+  </div>
+
+  <!-- ============================== A NOTA DO MEIO ============================== -->
+  <div class="note">
+    <h3>Por que não são a mesma coisa</h3>
+    <p><b>O postal não é a edição encolhida.</b> Falta-lhe estrutura, não profundidade: não há sumário porque não há quatro cadernos para sumariar, e sem cadernos não há faixa saturada nem cor de módulo — por isso ele é a única superfície cinza da revista. Compara só por trajetória, e some quando você fecha: não vira linha em <span class="mono">edicoes_ia</span>.</p>
+    <p><b>O anuário não é a edição inflada.</b> Ele abre por uma forma que a edição não tem — quatro tiras de doze meses, lidas antes de qualquer palavra — e a leitura é de silhueta, não de frase: dá para ver Movimento cair no fim do ano enquanto Sono se mantém. O texto vem depois, e traz extremos com data, que o mês não tem como ter.</p>
+    <div class="rule"></div>
+    <p class="small">uma tela lê a semana pelo que aconteceu<br>doze marcas por caderno leem o ano pelo formato</p>
+  </div>
+
+  <!-- ======================= QUADRO 2 — O ANUÁRIO (ano) ======================= -->
+  <div class="col">
+    <p class="cap">Quadro 2 — o anuário · ano</p>
+
+    <div class="device device--tall">
+      <div class="notch"></div>
+
+      <div class="fold"><span>dobra · 844 px</span></div>
+
+      <div class="nav">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <!-- sem botão de compartilhar -->
+      </div>
+
+      <div class="anu-mast">
+        <p class="eyebrow">Anuário</p>
+        <h2 class="anu-year">2026</h2>
+      </div>
+      <!-- LACUNA: o briefing decide a capa (CAP-10) para a edição. Não diz se o anuário tem
+           capa; como CAP-9 manda abrir SERIAL, "antes de qualquer texto", aqui ele abre pela
+           série e nenhuma capa é desenhada. -->
+
+      <!-- QUATRO TIRAS de 12 meses, uma por caderno, na cor do caderno, antes de qualquer
+           texto. O nome fica acima de cada tira: é ele que separa Movimento de Coração, que
+           colidem em ΔE 4,1–9,9 em cinco das seis paletas.
+           Silhueta plausível; nenhum valor dela está escrito na tela. -->
+      <div class="serial">
+
+        <div class="strip">
+          <p class="strip-name">Movimento</p>
+          <svg viewBox="0 0 342 40" aria-hidden="true">
+            <rect x="5.75"   y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="34.25"  y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="62.75"  y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="91.25"  y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="119.75" y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="148.25" y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="176.75" y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="205.25" y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="233.75" y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="262.25" y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="290.75" y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="319.25" y="6" width="17" height="32" rx="2.5" fill="#FFE3D2"/>
+            <rect x="5.75"   y="27.1" width="17" height="10.9" rx="2.5" fill="#F25C2B"/>
+            <rect x="34.25"  y="25.2" width="17" height="12.8" rx="2.5" fill="#F25C2B"/>
+            <rect x="62.75"  y="19.4" width="17" height="18.6" rx="2.5" fill="#F25C2B"/>
+            <rect x="91.25"  y="12.4" width="17" height="25.6" rx="2.5" fill="#F25C2B"/>
+            <rect x="119.75" y="7.6"  width="17" height="30.4" rx="2.5" fill="#F25C2B"/>
+            <rect x="148.25" y="9.8"  width="17" height="28.2" rx="2.5" fill="#F25C2B"/>
+            <rect x="176.75" y="15.6" width="17" height="22.4" rx="2.5" fill="#F25C2B"/>
+            <rect x="205.25" y="26.8" width="17" height="11.2" rx="2.5" fill="#F25C2B"/>
+            <rect x="233.75" y="25.2" width="17" height="12.8" rx="2.5" fill="#F25C2B"/>
+            <rect x="262.25" y="25.8" width="17" height="12.2" rx="2.5" fill="#F25C2B"/>
+            <rect x="290.75" y="26.5" width="17" height="11.5" rx="2.5" fill="#F25C2B"/>
+            <rect x="319.25" y="26.2" width="17" height="11.8" rx="2.5" fill="#F25C2B"/>
+          </svg>
+        </div>
+
+        <div class="strip">
+          <p class="strip-name">Sono</p>
+          <svg viewBox="0 0 342 40" aria-hidden="true">
+            <rect x="5.75"   y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="34.25"  y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="62.75"  y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="91.25"  y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="119.75" y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="148.25" y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="176.75" y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="205.25" y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="233.75" y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="262.25" y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="290.75" y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="319.25" y="6" width="17" height="32" rx="2.5" fill="#DDE4F2"/>
+            <rect x="5.75"   y="15.0" width="17" height="23.0" rx="2.5" fill="#6E8CC9"/>
+            <rect x="34.25"  y="15.6" width="17" height="22.4" rx="2.5" fill="#6E8CC9"/>
+            <rect x="62.75"  y="14.3" width="17" height="23.7" rx="2.5" fill="#6E8CC9"/>
+            <rect x="91.25"  y="15.3" width="17" height="22.7" rx="2.5" fill="#6E8CC9"/>
+            <rect x="119.75" y="15.9" width="17" height="22.1" rx="2.5" fill="#6E8CC9"/>
+            <rect x="148.25" y="14.6" width="17" height="23.4" rx="2.5" fill="#6E8CC9"/>
+            <rect x="176.75" y="15.6" width="17" height="22.4" rx="2.5" fill="#6E8CC9"/>
+            <rect x="205.25" y="15.0" width="17" height="23.0" rx="2.5" fill="#6E8CC9"/>
+            <rect x="233.75" y="15.3" width="17" height="22.7" rx="2.5" fill="#6E8CC9"/>
+            <rect x="262.25" y="14.3" width="17" height="23.7" rx="2.5" fill="#6E8CC9"/>
+            <rect x="290.75" y="15.6" width="17" height="22.4" rx="2.5" fill="#6E8CC9"/>
+            <rect x="319.25" y="15.0" width="17" height="23.0" rx="2.5" fill="#6E8CC9"/>
+          </svg>
+        </div>
+
+        <div class="strip">
+          <p class="strip-name">Coração</p>
+          <svg viewBox="0 0 342 40" aria-hidden="true">
+            <rect x="5.75"   y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="34.25"  y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="62.75"  y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="91.25"  y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="119.75" y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="148.25" y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="176.75" y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="205.25" y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="233.75" y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="262.25" y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="290.75" y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="319.25" y="6" width="17" height="32" rx="2.5" fill="#FDDEDE"/>
+            <rect x="5.75"   y="19.4" width="17" height="18.6" rx="2.5" fill="#E05C5C"/>
+            <rect x="34.25"  y="18.8" width="17" height="19.2" rx="2.5" fill="#E05C5C"/>
+            <rect x="62.75"  y="19.8" width="17" height="18.2" rx="2.5" fill="#E05C5C"/>
+            <rect x="91.25"  y="18.5" width="17" height="19.5" rx="2.5" fill="#E05C5C"/>
+            <rect x="119.75" y="19.1" width="17" height="18.9" rx="2.5" fill="#E05C5C"/>
+            <rect x="148.25" y="19.4" width="17" height="18.6" rx="2.5" fill="#E05C5C"/>
+            <rect x="176.75" y="25.2" width="17" height="12.8" rx="2.5" fill="#E05C5C"/>
+            <rect x="205.25" y="29.0" width="17" height="9.0"  rx="2.5" fill="#E05C5C"/>
+            <rect x="233.75" y="18.2" width="17" height="19.8" rx="2.5" fill="#E05C5C"/>
+            <rect x="262.25" y="16.9" width="17" height="21.1" rx="2.5" fill="#E05C5C"/>
+            <rect x="290.75" y="17.5" width="17" height="20.5" rx="2.5" fill="#E05C5C"/>
+            <rect x="319.25" y="17.2" width="17" height="20.8" rx="2.5" fill="#E05C5C"/>
+          </svg>
+        </div>
+
+        <div class="strip">
+          <p class="strip-name">Rotina</p>
+          <svg viewBox="0 0 342 40" aria-hidden="true">
+            <rect x="5.75"   y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="34.25"  y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="62.75"  y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="91.25"  y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="119.75" y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="148.25" y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="176.75" y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="205.25" y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="233.75" y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="262.25" y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="290.75" y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="319.25" y="6" width="17" height="32" rx="2.5" fill="#E2EFD9"/>
+            <rect x="5.75"   y="28.4" width="17" height="9.6"  rx="2.5" fill="#6FA86A"/>
+            <rect x="34.25"  y="27.1" width="17" height="10.9" rx="2.5" fill="#6FA86A"/>
+            <rect x="62.75"  y="25.8" width="17" height="12.2" rx="2.5" fill="#6FA86A"/>
+            <rect x="91.25"  y="24.6" width="17" height="13.4" rx="2.5" fill="#6FA86A"/>
+            <rect x="119.75" y="16.9" width="17" height="21.1" rx="2.5" fill="#6FA86A"/>
+            <rect x="148.25" y="15.0" width="17" height="23.0" rx="2.5" fill="#6FA86A"/>
+            <rect x="176.75" y="15.6" width="17" height="22.4" rx="2.5" fill="#6FA86A"/>
+            <rect x="205.25" y="14.3" width="17" height="23.7" rx="2.5" fill="#6FA86A"/>
+            <rect x="233.75" y="15.3" width="17" height="22.7" rx="2.5" fill="#6FA86A"/>
+            <rect x="262.25" y="14.6" width="17" height="23.4" rx="2.5" fill="#6FA86A"/>
+            <rect x="290.75" y="15.6" width="17" height="22.4" rx="2.5" fill="#6FA86A"/>
+            <rect x="319.25" y="15.0" width="17" height="23.0" rx="2.5" fill="#6FA86A"/>
+          </svg>
+          <!-- meses rotulados UMA vez só, embaixo da última tira -->
+          <div class="months">
+            <span>jan</span><span>fev</span><span>mar</span><span>abr</span>
+            <span>mai</span><span>jun</span><span>jul</span><span>ago</span>
+            <span>set</span><span>out</span><span>nov</span><span>dez</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SÓ DEPOIS DAS TIRAS vêm os cadernos. Começo do primeiro. -->
+      <!-- LACUNA: o briefing fixa a ordem ranqueada para AGOSTO/2026 (Movimento em posição 1
+           por causa da lápide dos anéis, 17/08). Para o ano de 2026, que contém as quatro
+           mortes, a ordem não está decidida; aqui Movimento abre, por continuidade com o mês
+           canônico. -->
+      <div class="band band--mov">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="5.5" cy="16.5" r="4"/>
+          <circle cx="18.5" cy="16.5" r="4"/>
+          <path d="M5.5 16.5 L11.5 16.5 L10 8.5 Z"/>
+          <path d="M10 8.5 L16 8.5 L18.5 16.5"/>
+          <path d="M9 7 L11.4 7"/>
+          <path d="M16 8.5 L16 6.9 M14.9 6.9 L17.4 6.9"/>
+        </svg>
+        <span class="band-name">Movimento</span>
+      </div>
+
+      <!-- EXTREMOS DATADOS — a marca do anuário; a edição de mês não os traz.
+           LACUNA: a lista de fatos só sustenta estas três linhas com data. Um "mês mais alto"
+           exigiria o valor de maio, que não está na lista. -->
+      <div class="extremes">
+        <p class="eyebrow" style="padding-bottom:4px">Extremos do ano</p>
+        <div class="ext-row">
+          <div><p class="ext-l">mês mais baixo</p><p class="ext-when">ago 2026</p></div>
+          <p class="ext-v">435 km</p>
+        </div>
+        <div class="ext-row">
+          <div><p class="ext-l">maior queda entre dois meses</p><p class="ext-when">jul → ago 2026</p></div>
+          <p class="ext-v word">metade de julho</p>
+        </div>
+        <div class="ext-row">
+          <div><p class="ext-l">queda mais longa</p><p class="ext-when">jun – ago 2026</p></div>
+          <p class="ext-v word">três meses seguidos</p>
+        </div>
+      </div>
+
+      <div class="caderno-body">
+        <p class="body-text">O acervo fecha o ano com <b>555 atividades</b>, <b>275</b> com elevação e <b>138</b> com o piso medido — <b>87% pavimentado</b>, <b>12,5% de cascalho leve</b> e <b>8% de pavé</b>. As <b>174 cidades</b> do acervo passam por Ittre, Leuven e Bruxelles, e <b>1.210 fotos</b> guardam hora e parada.</p>
+      </div>
+      <p class="sign">gemini-3.6-flash · 07 set 2026</p>
+      <!-- LACUNA: o briefing decide que a lápide SOBE ao topo do caderno na edição do período
+           em que a métrica morreu. As quatro mortes (respiração 10/07, VO₂max 14/07,
+           SpO₂ 16/07, anéis 17/08) caem todas dentro de 2026 — se a regra vale também para o
+           anuário, e se vale para duas lápides no mesmo caderno, não está decidido. Nenhuma
+           lápide desenhada aqui. -->
+
+      <!-- o segundo caderno começa e é cortado pela borda: a revista continua -->
+      <div class="band-crop">
+        <div class="band band--sono">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.2 14.9 A8.6 8.6 0 1 1 9.4 4.2 A6.9 6.9 0 0 0 20.2 14.9 Z"/>
+          </svg>
+          <span class="band-name">Sono</span>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="legend"><b>O anuário.</b> Abre serial: quatro tiras de doze meses, uma por caderno, antes de qualquer palavra — Movimento cai no fim do ano, Sono se mantém. Só depois o primeiro caderno, com faixa saturada e extremos datados. Passa da dobra.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

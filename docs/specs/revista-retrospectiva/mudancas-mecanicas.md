@@ -17,6 +17,12 @@ unique (user_id, tipo_periodo, inicio, fim, posicao)
 `PACOTE_VERSAO`, `prompt_versao`, provedor, modelo e `agg_version_no_momento` seguem
 **por linha** — o caderno de Sono ganha errata sem tocar no de Movimento.
 
+**Mas `AGG_VERSION` é global**, e já se moveu nove vezes: um bump marca errata em todas
+as edições de uma vez — hoje, ~1.744 linhas. Isto **fica assim**, decidido em 08/09/2026:
+se a agregação mudou, toda edição anterior é potencialmente velha, e dizer isso é honesto.
+O custo é declarado — uma errata que aparece em tudo ao mesmo tempo é indistinguível de
+ruído, e vale aqui o mesmo argumento que a lápide já usou sobre repetição.
+
 **A ordem é coluna, não array.** Com a chave por caderno, cada caderno é uma linha; um
 array com a ordem do conjunto guardado em cada parte é uma chance de divergir por
 linha. O `unique` faz o banco cobrar a invariante em vez da revisão de código.
@@ -27,9 +33,38 @@ reescrita silenciosa de período fechado. Isto preserva a **prova de gráfica** 
 `retro_prefs` inventou: ela deixa de congelar por usuário depois de 60 dias e passa a
 congelar **por edição, na impressão**.
 
-**A capa não ganha coluna.** A manchete é a do caderno em `posicao = 1`; a foto sai de
-`coverOf`, que já é pura, com a correção manual já em `activity_photos`. A edição
-inteira são quatro linhas.
+**A capa ganha coluna** — decidido em 08/09/2026, **supersedendo** a decisão de que não
+ganharia. A manchete continua derivada (é a primeira frase do caderno em `posicao = 1`),
+mas **a foto é carimbada na impressão**: `coverOf` lê `isCover` e `state === 'linked'`,
+os dois mutáveis depois dela — a estrela, o vínculo automático de 40 m, o `ph://` que
+some da biblioteca. Sem carimbo, a foto de agosto vira outra em outubro, contra *período
+fechado congela* e contra o próprio sinal de sucesso deste spec.
+
+### A ordem sobrevive à reimpressão parcial
+
+Reimprimir **um** caderno — a edição em que Rotina reprova e os outros três ficam —
+chocaria com `unique (user_id, tipo_periodo, inicio, fim, posicao)` se a posição do
+reprovado voltasse diferente. **Cada impressão, mesmo parcial, recalcula e regrava as
+quatro posições em transação.** Nenhuma linha órfã, nenhuma posição reservada sem texto.
+
+A restrição *a ordem congela na impressão* passa a ler-se **na última impressão**:
+reabrir nunca reordena, e só um ato explícito de reimprimir reordena.
+
+### A lua não cabe aqui — `lua_execucoes`
+
+O `caderno='lua'` que o [pré-registro](pre-registro-lua.md) §7.2 manda gravar bate no
+CHECK acima; a chave primária torna o *acumula, nunca substitui* impossível; e o teste
+roda sobre **todo o histórico**, que não é `week`, `month`, `season` nem `year` — e `all`
+o CHECK também recusa. Três impedimentos independentes, e nenhum deles se conserta sem
+descaracterizar `edicoes_ia`.
+
+As execuções passam a viver em **`lua_execucoes`**: uma linha por execução, com o hash do
+pré-registro que a autorizou, o veredito, as contagens e a data. Acumular vira natural.
+
+> **Pré-requisito de construção.** Isto contraria o §7.2, e o pré-registro é **imutável**.
+> O arquivo não se edita: ele próprio prescreve a saída — *"correção só por documento
+> novo, que cita este e diz o que mudou e por quê"*. Esse documento é obrigatório antes de
+> a lua ser construída.
 
 ### As 7 edições hoje em produção
 

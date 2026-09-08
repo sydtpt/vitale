@@ -1,0 +1,690 @@
+<meta charset="utf-8">
+<title>Página da lua — CAP-12</title>
+<style>
+/* ===========================================================================
+   KEY SCREEN — CAP-12 · A PÁGINA DA LUA
+   Revista da Retrospectiva · ux-revista-retrospectiva-2026-09-07
+
+   O que esta folha ilustra
+   ------------------------
+   A sub-página em tela própria, aberta pela linha no pé do caderno Sono, que
+   publica o resultado do teste lunar pré-registrado.
+
+   A tese da ADR 0045 é que A MOLDURA É FIXA E SÓ O VEREDITO MUDA — o resultado
+   negativo publica com o mesmo destaque tipográfico, a mesma posição e o mesmo
+   espaço do positivo. Por isso a folha renderiza TRÊS quadros de iPhone
+   390 × 844 lado a lado, um por veredito (achado · nenhum padrão ·
+   inconclusivo), com tudo idêntico entre eles exceto o bloco do veredito.
+   O bloco do veredito é a linha 6 de uma grade de alturas fixas
+   (40 / 52 / 72 / 176 / 188 / 200 / resto): começa sempre em y = 528 px e mede
+   sempre 200 px. A régua à esquerda e os traços nas calhas entre os quadros
+   medem isso de fora — nenhuma anotação de revisão entra dentro do quadro.
+
+   Acima dos quadros, as três variantes da LINHA DE ENTRADA como ela aparece no
+   pé do caderno Sono: é ela que carrega o veredito por extenso e impede que a
+   página atrás de um toque vire gaveta.
+
+   Cor e tipografia
+   ----------------
+   Recorte Orbe · paleta orbe · claro, medido com resolveTokens('orbe','light',
+   'orbe'). Os hexes existem aqui só porque HTML não roda moduleOf(); no código
+   real nenhuma tela escreve hex. A página herda a identidade do caderno Sono
+   (papel blue, accent #6E8CC9, onAccent #1F1B16, soft #DDE4F2).
+
+   A fase sinódica é DADO, não símbolo: os discos são desenhados com o
+   terminador real (rx = r·|1−2·iluminação|), a iluminação vem de
+   (1 − cos(2πd/29,53))/2, e a grade noturna está ancorada de modo que os cinco
+   discos marcados SEJAM as cinco noites testadas (fase −5 a −1). A lua cheia
+   cai no disco seguinte, fora da marcação — que é exatamente o ponto do
+   pré-registro: a exposição é "antes da cheia", não "na cheia".
+
+   Sem JS, sem rede, sem imagem externa. Abre offline.
+   =========================================================================== */
+
+/* --- tokens do app (recorte medido) ------------------------------------- */
+:root{
+  --bg:#FFF7EE; --surface:#FFFFFF;
+  --ink:#1F1B16; --ink2:#5C534A; --ink3:#9C928A; --line:#EFE6D8;
+  --accent:#6E8CC9; --on-accent:#1F1B16; --soft:#DDE4F2;
+
+  --sans:'Manrope',-apple-system,'Segoe UI',system-ui,sans-serif;
+  --mono:'Geist Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --serif:'Instrument Serif','Iowan Old Style',Georgia,serif;
+
+  /* cromo da folha de revisão — NÃO é interface do app */
+  --canvas:#E9E6E1; --canvas-ink:#55504A; --canvas-ink2:#8A837A; --edge:#C9C2B8;
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--canvas-ink);
+     font-family:var(--sans);padding:32px 40px 64px;min-width:1520px}
+
+/* --- cabeçalho da folha -------------------------------------------------- */
+.sheet-title{font-family:var(--serif);font-size:30px;line-height:1.15;
+             color:#2B2620;margin:0 0 6px}
+.sheet-sub{font-family:var(--mono);font-size:11.5px;line-height:1.6;
+           color:var(--canvas-ink2);margin:0 0 4px;max-width:900px}
+.sheet-claim{font-size:13px;line-height:1.55;max-width:900px;margin:14px 0 0;
+             padding-left:12px;border-left:3px solid var(--accent)}
+
+h2.sec{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;
+       text-transform:uppercase;color:var(--canvas-ink2);
+       margin:46px 0 4px;font-weight:400}
+.sec-note{font-size:12.5px;line-height:1.55;max-width:900px;margin:0 0 18px;
+          color:var(--canvas-ink)}
+
+/* --- linhas de entrada (fragmento do pé do caderno Sono) ----------------- */
+.entries{display:flex;gap:56px;align-items:flex-start}
+.entry-col{width:390px}
+.entry-slice{width:390px;height:124px;background:var(--surface);
+             border-top:1px solid var(--line);outline:1px solid var(--edge);
+             padding:16px 24px 18px;display:flex;gap:14px;align-items:flex-start}
+.entry-body{flex:1}
+.eyebrow{font-family:var(--sans);font-size:11px;line-height:14px;font-weight:600;
+         letter-spacing:1.1px;text-transform:uppercase;color:var(--ink3)}
+.entry-text{font-family:var(--serif);font-size:15px;line-height:23px;
+            color:var(--ink);height:69px;margin-top:6px;overflow:hidden}
+.entry-chev{font-family:var(--sans);font-size:20px;color:var(--ink3);
+            line-height:1;align-self:center}
+.caplabel{font-family:var(--mono);font-size:11px;color:var(--canvas-ink2);
+          margin-top:10px}
+.caplabel b{color:var(--canvas-ink);font-weight:600}
+
+/* --- fileira dos três aparelhos ----------------------------------------- */
+.frames{position:relative;display:flex;gap:56px;align-items:flex-start;
+        padding-left:148px}
+.frame-col{width:390px}
+.device{width:390px;height:844px;background:var(--bg);color:var(--ink);
+        outline:1px solid var(--edge);overflow:hidden;
+        display:grid;grid-template-rows:40px 52px 72px 176px 188px 200px 1fr}
+
+/* linha 1 — barra de status */
+.statusbar{display:flex;align-items:center;justify-content:space-between;
+           padding:0 24px}
+.statusbar .t{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.sig{display:flex;gap:4px;align-items:center}
+.sig i{display:block;width:3px;background:var(--ink2);border-radius:1px}
+.sig i:nth-child(1){height:4px}.sig i:nth-child(2){height:6px}
+.sig i:nth-child(3){height:8px}.sig i:nth-child(4){height:10px}
+.batt{width:22px;height:11px;border:1px solid var(--ink2);border-radius:3px;
+      margin-left:6px;position:relative}
+.batt::after{content:"";position:absolute;inset:2px;right:7px;
+             background:var(--ink2);border-radius:1px}
+
+/* linha 2 — faixa do caderno Sono, sangrando de borda a borda (CAP-7) */
+.cadband{background:var(--accent);color:var(--on-accent);
+         display:flex;align-items:center;gap:10px;padding:0 20px}
+.cadband .back{font-size:24px;line-height:1;margin-top:-3px}
+.cadband .nm{font-size:17px;font-weight:700;letter-spacing:.2px}
+.cadband .sub{margin-left:auto;font-family:var(--mono);font-size:11px;
+              opacity:.72}
+
+/* linha 3 — título da sub-página */
+.titlerow{padding:18px 24px 0}
+.pagetitle{font-family:var(--serif);font-size:26px;line-height:30px;
+           color:var(--ink);margin-top:5px}
+
+/* linha 4 — a fase sinódica desenhada */
+.phase{padding:10px 24px 0;overflow:hidden}
+.phase-top{display:flex;gap:14px;height:96px;overflow:hidden}
+.phase-legend{flex:1;font-size:12px;line-height:16.5px;color:var(--ink2)}
+.phase-legend p{margin:5px 0 0}
+.strip{display:block;margin-top:8px}
+/* texto dentro do SVG: var() em atributo de apresentação não é confiável */
+.strip text{font-family:var(--mono)}
+.strip text.lab{fill:var(--ink3)}
+.strip text.win{fill:var(--ink2)}
+
+/* linha 5 — a moldura fixa (ficha técnica) */
+.ficha{padding:0 24px;display:flex;flex-direction:column}
+.f-row{flex:1;display:flex;align-items:center;gap:12px;
+       border-top:1px solid var(--line)}
+.f-lab{width:112px;flex:none;font-size:10.5px;line-height:13px;font-weight:600;
+       letter-spacing:1.1px;text-transform:uppercase;color:var(--ink3)}
+.f-val{flex:1;font-family:var(--mono);font-size:12.5px;line-height:16px;
+       color:var(--ink)}
+.f-sub{font-family:var(--mono);font-size:10.5px;line-height:14px;
+       color:var(--ink3)}
+
+/* linha 6 — O BLOCO DO VEREDITO: o único que muda entre os três quadros.
+   Altura da linha da grade = 200 px, idêntica nos três. Sem cinza, sem
+   itálico, sem corpo menor, sem ícone de aviso (ADR 0045, consequência 3). */
+.verdict{padding:14px 24px 0;border-top:2px solid var(--ink);
+         border-bottom:1px solid var(--line)}
+.v-word{font-family:var(--serif);font-size:27px;line-height:32px;
+        color:var(--ink);margin-top:6px}
+.v-num{font-family:var(--mono);font-size:30px;line-height:34px;
+       letter-spacing:-.5px;color:var(--ink);margin-top:8px}
+.v-cap{font-family:var(--mono);font-size:10.5px;line-height:14px;
+       color:var(--ink3);margin-top:4px}
+.v-text{font-family:var(--serif);font-size:15px;line-height:23px;
+        color:var(--ink2);height:46px;margin-top:8px;overflow:hidden}
+
+/* linha 7 — rodapé do método */
+.method{padding:14px 24px 0}
+.method p{font-family:var(--serif);font-size:13px;line-height:19px;
+          color:var(--ink2);margin:6px 0 0}
+
+/* --- régua de revisão: FORA dos quadros, nunca dentro -------------------- */
+.ruler{position:absolute;left:0;top:528px;height:200px;width:132px;
+       border-right:1px solid var(--accent)}
+.ruler::before,.ruler::after{content:"";position:absolute;right:0;width:16px;
+       border-top:1px solid var(--accent)}
+.ruler::before{top:0}.ruler::after{bottom:-1px}
+.ruler-txt{position:absolute;right:24px;top:50%;transform:translateY(-50%);
+           text-align:right;font-family:var(--mono);font-size:10px;
+           line-height:15px;color:var(--canvas-ink2);width:104px}
+.ruler-txt b{display:block;color:var(--accent);font-weight:600;
+             letter-spacing:.6px;margin-bottom:4px}
+.tick{position:absolute;height:0;border-top:1px dashed var(--accent);width:56px}
+.tick.a{left:538px}.tick.b{left:984px}
+.tick.t{top:528px}.tick.z{top:728px}
+
+.frame-cap{margin-top:12px;width:390px}
+.frame-cap .k{font-family:var(--mono);font-size:12px;letter-spacing:.4px;
+              color:var(--canvas-ink);font-weight:600}
+.frame-cap .d{font-family:var(--mono);font-size:10.5px;line-height:15px;
+              color:var(--canvas-ink2);margin-top:3px}
+
+.foot{margin-top:52px;border-top:1px solid var(--edge);padding-top:18px;
+      max-width:1100px;font-size:12.5px;line-height:1.6}
+.foot h3{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;
+         text-transform:uppercase;font-weight:400;color:var(--canvas-ink2);
+         margin:0 0 8px}
+.foot ul{margin:0;padding-left:18px}
+.foot li{margin-bottom:5px}
+</style>
+
+<h1 class="sheet-title">A página da lua — CAP-12</h1>
+<p class="sheet-sub">key screen · revista da Retrospectiva · iPhone 390 × 844 · Orbe · paleta orbe · claro · caderno Sono (papel blue)</p>
+<p class="sheet-claim">
+  A moldura é fixa e só o veredito muda. Os três quadros abaixo são o mesmo layout,
+  a mesma grade e o mesmo corpo de letra — a única diferença entre eles é o conteúdo
+  do bloco do veredito, que começa em <b>y = 528&nbsp;px</b> e mede <b>200&nbsp;px</b> nos três.
+</p>
+
+<!-- =====================================================================
+     1 · A LINHA DE ENTRADA
+     ===================================================================== -->
+<h2 class="sec">1 · A linha de entrada, no pé do caderno Sono</h2>
+<p class="sec-note">
+  A sub-página fica atrás de um toque, então é esta linha que carrega o veredito por
+  extenso. As três variantes têm a mesma tipografia e a mesma extensão: quem nunca
+  tocar lê o resultado assim mesmo.
+</p>
+
+<div class="entries">
+
+  <!-- LACUNA: o briefing não fixa a afordância de abertura da sub-página. Aqui a
+       linha usa o chevron do padrão de lista já instalado; falta o veredito do dono
+       sobre se a linha é uma linha de lista ou um bloco tocável sem chevron. -->
+  <div class="entry-col">
+    <div class="entry-slice">
+      <div class="entry-body">
+        <div class="eyebrow">A página da lua</div>
+        <div class="entry-text">Achado: nas noites que antecedem a cheia, a hora de apagar ficou 18 minutos mais tarde na mediana que nas demais noites.</div>
+      </div>
+      <div class="entry-chev">&#8250;</div>
+    </div>
+    <div class="caplabel"><b>achado</b> · 124 px · serifada 15/23, três linhas</div>
+  </div>
+
+  <div class="entry-col">
+    <div class="entry-slice">
+      <div class="entry-body">
+        <div class="eyebrow">A página da lua</div>
+        <div class="entry-text">Nenhum padrão: entre as noites que antecedem a cheia e as demais, nenhum efeito de 15 minutos ou mais na hora de apagar.</div>
+      </div>
+      <div class="entry-chev">&#8250;</div>
+    </div>
+    <div class="caplabel"><b>nenhum padrão</b> · 124 px · serifada 15/23, três linhas</div>
+  </div>
+
+  <div class="entry-col">
+    <div class="entry-slice">
+      <div class="entry-body">
+        <div class="eyebrow">A página da lua</div>
+        <div class="entry-text">Inconclusivo: o teste não teve poder para decidir entre as duas colunas. Faltam cerca de 106 noites para decidir.</div>
+      </div>
+      <div class="entry-chev">&#8250;</div>
+    </div>
+    <div class="caplabel"><b>inconclusivo</b> · 124 px · serifada 15/23, três linhas</div>
+  </div>
+
+</div>
+
+<!-- =====================================================================
+     2 · A PÁGINA — TRÊS VEREDITOS, UMA SÓ MOLDURA
+     ===================================================================== -->
+<h2 class="sec">2 · A página da lua — a moldura é fixa, só o veredito muda</h2>
+<p class="sec-note">
+  Os três quadros são estados alternativos da mesma página: uma execução imprime um
+  veredito só. Tudo fora do bloco medido pela régua é idêntico, byte a byte.
+</p>
+
+<div class="frames">
+
+  <!-- régua de revisão — FORA dos quadros -->
+  <div class="ruler">
+    <div class="ruler-txt">
+      <b>BLOCO DO VEREDITO</b>
+      y 528 → 728<br>altura 200 px<br>veredito serifada 27<br>número mono 30<br>sentença serifada 15/23<br>idênticos nos três
+    </div>
+  </div>
+  <div class="tick a t"></div><div class="tick a z"></div>
+  <div class="tick b t"></div><div class="tick b z"></div>
+
+  <!-- ============================ QUADRO 1 · ACHADO ==================== -->
+  <div class="frame-col">
+    <div class="device">
+
+      <div class="statusbar">
+        <span class="t">9:41</span>
+        <span class="sig"><i></i><i></i><i></i><i></i><span class="batt"></span></span>
+      </div>
+
+      <!-- LACUNA: a faixa da sub-página repete o ícone do caderno (moon-outline)
+           ao lado do nome, como manda CAP-7 para o cabeçalho de caderno? Aqui foi
+           omitido porque a página abre com a fase desenhada e o memlog diz que a
+           página da lua não usa ícone. Falta o veredito do dono.
+           LACUNA: a string do título em tela não foi fixada; usado o nome do
+           contrato, "A página da lua". -->
+      <div class="cadband">
+        <span class="back">&#8249;</span>
+        <span class="nm">Sono</span>
+        <span class="sub">agosto 2026</span>
+      </div>
+
+      <div class="titlerow">
+        <div class="eyebrow">Pré-registro · 07 set 2026</div>
+        <div class="pagetitle">A página da lua</div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-top">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-label="disco lunar com a região das cinco noites testadas destacada">
+            <circle cx="48" cy="48" r="46" fill="var(--ink)"/>
+            <g transform="translate(48 48)">
+              <path d="M 0 -46 A 46 46 0 0 1 0 46 A 44.96 46 0 0 1 0 -46 Z" fill="var(--accent)"/>
+              <path d="M 0 -46 A 46 46 0 0 1 0 46 A 22.33 46 0 0 1 0 -46 Z" fill="var(--bg)"/>
+            </g>
+            <circle cx="48" cy="48" r="46" fill="none" stroke="var(--ink2)" stroke-width="1"/>
+          </svg>
+          <div class="phase-legend">
+            <div class="eyebrow">Fase sinódica</div>
+            <p>Em azul, a luz que a lua ganha nas cinco noites testadas. A cheia vem depois delas, fora da janela.</p>
+          </div>
+        </div>
+
+        <svg class="strip" width="342" height="60" viewBox="0 0 342 60" aria-label="o ciclo sinódico noite a noite, com as cinco noites testadas marcadas">
+          <text class="lab" x="33.97" y="9" text-anchor="middle" font-size="9">nova</text>
+          <text class="lab" x="198.93" y="9" text-anchor="middle" font-size="9">cheia</text>
+          <line x1="33.97" y1="13" x2="33.97" y2="22" stroke="var(--ink3)" stroke-width=".7"/>
+          <line x1="198.93" y1="13" x2="198.93" y2="22" stroke="var(--ink3)" stroke-width=".7"/>
+          <rect x="137.48" y="24" width="55.86" height="20" rx="3" fill="var(--soft)"/>
+          <g transform="translate(9 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.09 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(20.17 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.44 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(31.34 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.59 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(42.52 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.54 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(53.69 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.28 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(64.86 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.83 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(76.03 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.2 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(87.21 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.43 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(98.38 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.55 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(109.55 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.6 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(120.72 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.37 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(131.9 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.33 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(143.07 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.23 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(154.24 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.03 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(165.41 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.69 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(176.59 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.19 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(187.76 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.5 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(198.93 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.6 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(210.1 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.5 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(221.28 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.19 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(232.45 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.69 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(243.62 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.03 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(254.79 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.23 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(265.97 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.33 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(277.14 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.37 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(288.31 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.6 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(299.48 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.55 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(310.66 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.43 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(321.83 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.2 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(333 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.83 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <path d="M 137.48 43 L 137.48 48 L 193.34 48 L 193.34 43" fill="none" stroke="var(--ink2)" stroke-width=".8"/>
+          <text class="win" x="165.41" y="57" text-anchor="middle" font-size="9">as 5 noites testadas</text>
+        </svg>
+      </div>
+
+      <!-- A MOLDURA FIXA — cinco campos, sempre na mesma ordem.
+           LACUNA: a covariável obrigatória (horas de luz do dia na latitude do
+           sujeito) é pré-requisito do teste no spec e no pré-registro §3, mas não
+           está entre os cinco campos que o briefing lista. Imprimir na moldura ou
+           deixar só no rodapé do método? Não decidido aqui. -->
+      <div class="ficha">
+        <div class="f-row">
+          <div class="f-lab">Janela testada</div>
+          <div class="f-val">5 noites antes da cheia
+            <div class="f-sub">fase −5 a −1 · contra as demais</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Desfecho</div>
+          <div class="f-val">hora de apagar
+            <div class="f-sub">minutos desde a meia-noite</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Noites e ciclos</div>
+          <div class="f-val">~49 dentro · ~241 fora
+            <div class="f-sub">17 ciclos sinódicos</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Próxima leitura</div>
+          <div class="f-val">a cada +100 noites</div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Execuções</div>
+          <div class="f-val">1ª execução</div>
+        </div>
+      </div>
+
+      <!-- LACUNA: o "18 minutos" deste quadro veio do encargo desta renderização,
+           não da lista de fatos do briefing (que traz 106 noites, 15 min, ~49 × ~241
+           e 17 ciclos). Serve de exemplo do veredito "achado"; o número real só
+           existe depois da execução. -->
+      <div class="verdict">
+        <div class="eyebrow">Veredito</div>
+        <div class="v-word">achado</div>
+        <div class="v-num">+18 min</div>
+        <div class="v-cap">atraso mediano · hora de apagar</div>
+        <div class="v-text">Na janela, a hora de apagar ficou mais tarde que nas demais noites.</div>
+      </div>
+
+      <!-- LACUNA: os cadernos assinam a coluna (mono 11 px, "gemini-3.6-flash ·
+           07 set 2026"). A página da lua imprime veredito calculado, não texto
+           narrado — leva assinatura ou não? Não decidido. -->
+      <div class="method">
+        <div class="eyebrow">Método</div>
+        <p>Desfecho, janela, direção e limiar de 15 minutos foram fixados em 07 set 2026, antes de qualquer consulta ao dado. Esta página não afirma causa.</p>
+      </div>
+
+    </div>
+    <div class="frame-cap">
+      <div class="k">VEREDITO · achado</div>
+      <div class="d">≥ 15 min · p &lt; 0,05 unilateral · poder ≥ 80%<br>o efeito medido, sem mecanismo e sem causa</div>
+    </div>
+  </div>
+
+  <!-- ====================== QUADRO 2 · NENHUM PADRÃO =================== -->
+  <div class="frame-col">
+    <div class="device">
+
+      <div class="statusbar">
+        <span class="t">9:41</span>
+        <span class="sig"><i></i><i></i><i></i><i></i><span class="batt"></span></span>
+      </div>
+
+      <div class="cadband">
+        <span class="back">&#8249;</span>
+        <span class="nm">Sono</span>
+        <span class="sub">agosto 2026</span>
+      </div>
+
+      <div class="titlerow">
+        <div class="eyebrow">Pré-registro · 07 set 2026</div>
+        <div class="pagetitle">A página da lua</div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-top">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-label="disco lunar com a região das cinco noites testadas destacada">
+            <circle cx="48" cy="48" r="46" fill="var(--ink)"/>
+            <g transform="translate(48 48)">
+              <path d="M 0 -46 A 46 46 0 0 1 0 46 A 44.96 46 0 0 1 0 -46 Z" fill="var(--accent)"/>
+              <path d="M 0 -46 A 46 46 0 0 1 0 46 A 22.33 46 0 0 1 0 -46 Z" fill="var(--bg)"/>
+            </g>
+            <circle cx="48" cy="48" r="46" fill="none" stroke="var(--ink2)" stroke-width="1"/>
+          </svg>
+          <div class="phase-legend">
+            <div class="eyebrow">Fase sinódica</div>
+            <p>Em azul, a luz que a lua ganha nas cinco noites testadas. A cheia vem depois delas, fora da janela.</p>
+          </div>
+        </div>
+
+        <svg class="strip" width="342" height="60" viewBox="0 0 342 60" aria-label="o ciclo sinódico noite a noite, com as cinco noites testadas marcadas">
+          <text class="lab" x="33.97" y="9" text-anchor="middle" font-size="9">nova</text>
+          <text class="lab" x="198.93" y="9" text-anchor="middle" font-size="9">cheia</text>
+          <line x1="33.97" y1="13" x2="33.97" y2="22" stroke="var(--ink3)" stroke-width=".7"/>
+          <line x1="198.93" y1="13" x2="198.93" y2="22" stroke="var(--ink3)" stroke-width=".7"/>
+          <rect x="137.48" y="24" width="55.86" height="20" rx="3" fill="var(--soft)"/>
+          <g transform="translate(9 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.09 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(20.17 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.44 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(31.34 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.59 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(42.52 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.54 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(53.69 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.28 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(64.86 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.83 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(76.03 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.2 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(87.21 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.43 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(98.38 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.55 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(109.55 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.6 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(120.72 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.37 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(131.9 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.33 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(143.07 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.23 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(154.24 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.03 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(165.41 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.69 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(176.59 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.19 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(187.76 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.5 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(198.93 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.6 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(210.1 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.5 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(221.28 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.19 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(232.45 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.69 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(243.62 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.03 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(254.79 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.23 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(265.97 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.33 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(277.14 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.37 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(288.31 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.6 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(299.48 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.55 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(310.66 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.43 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(321.83 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.2 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(333 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.83 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <path d="M 137.48 43 L 137.48 48 L 193.34 48 L 193.34 43" fill="none" stroke="var(--ink2)" stroke-width=".8"/>
+          <text class="win" x="165.41" y="57" text-anchor="middle" font-size="9">as 5 noites testadas</text>
+        </svg>
+      </div>
+
+      <div class="ficha">
+        <div class="f-row">
+          <div class="f-lab">Janela testada</div>
+          <div class="f-val">5 noites antes da cheia
+            <div class="f-sub">fase −5 a −1 · contra as demais</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Desfecho</div>
+          <div class="f-val">hora de apagar
+            <div class="f-sub">minutos desde a meia-noite</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Noites e ciclos</div>
+          <div class="f-val">~49 dentro · ~241 fora
+            <div class="f-sub">17 ciclos sinódicos</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Próxima leitura</div>
+          <div class="f-val">a cada +100 noites</div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Execuções</div>
+          <div class="f-val">1ª execução</div>
+        </div>
+      </div>
+
+      <div class="verdict">
+        <div class="eyebrow">Veredito</div>
+        <div class="v-word">nenhum padrão</div>
+        <div class="v-num">&lt; 15 min</div>
+        <div class="v-cap">abaixo do limiar prático de 15 min</div>
+        <div class="v-text">Entre a janela e as demais noites, nenhum efeito desse tamanho na hora de apagar.</div>
+      </div>
+
+      <div class="method">
+        <div class="eyebrow">Método</div>
+        <p>Desfecho, janela, direção e limiar de 15 minutos foram fixados em 07 set 2026, antes de qualquer consulta ao dado. Esta página não afirma causa.</p>
+      </div>
+
+    </div>
+    <div class="frame-cap">
+      <div class="k">VEREDITO · nenhum padrão</div>
+      <div class="d">não significante, com poder ≥ 80%<br>um teste com poder que não acha nada é informação</div>
+    </div>
+  </div>
+
+  <!-- ======================= QUADRO 3 · INCONCLUSIVO =================== -->
+  <div class="frame-col">
+    <div class="device">
+
+      <div class="statusbar">
+        <span class="t">9:41</span>
+        <span class="sig"><i></i><i></i><i></i><i></i><span class="batt"></span></span>
+      </div>
+
+      <div class="cadband">
+        <span class="back">&#8249;</span>
+        <span class="nm">Sono</span>
+        <span class="sub">agosto 2026</span>
+      </div>
+
+      <div class="titlerow">
+        <div class="eyebrow">Pré-registro · 07 set 2026</div>
+        <div class="pagetitle">A página da lua</div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-top">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-label="disco lunar com a região das cinco noites testadas destacada">
+            <circle cx="48" cy="48" r="46" fill="var(--ink)"/>
+            <g transform="translate(48 48)">
+              <path d="M 0 -46 A 46 46 0 0 1 0 46 A 44.96 46 0 0 1 0 -46 Z" fill="var(--accent)"/>
+              <path d="M 0 -46 A 46 46 0 0 1 0 46 A 22.33 46 0 0 1 0 -46 Z" fill="var(--bg)"/>
+            </g>
+            <circle cx="48" cy="48" r="46" fill="none" stroke="var(--ink2)" stroke-width="1"/>
+          </svg>
+          <div class="phase-legend">
+            <div class="eyebrow">Fase sinódica</div>
+            <p>Em azul, a luz que a lua ganha nas cinco noites testadas. A cheia vem depois delas, fora da janela.</p>
+          </div>
+        </div>
+
+        <svg class="strip" width="342" height="60" viewBox="0 0 342 60" aria-label="o ciclo sinódico noite a noite, com as cinco noites testadas marcadas">
+          <text class="lab" x="33.97" y="9" text-anchor="middle" font-size="9">nova</text>
+          <text class="lab" x="198.93" y="9" text-anchor="middle" font-size="9">cheia</text>
+          <line x1="33.97" y1="13" x2="33.97" y2="22" stroke="var(--ink3)" stroke-width=".7"/>
+          <line x1="198.93" y1="13" x2="198.93" y2="22" stroke="var(--ink3)" stroke-width=".7"/>
+          <rect x="137.48" y="24" width="55.86" height="20" rx="3" fill="var(--soft)"/>
+          <g transform="translate(9 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.09 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(20.17 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.44 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(31.34 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.59 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(42.52 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.54 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(53.69 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.28 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(64.86 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.83 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(76.03 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.2 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(87.21 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.43 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(98.38 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.55 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(109.55 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.6 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(120.72 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.37 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(131.9 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.33 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(143.07 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.23 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(154.24 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.03 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(165.41 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.69 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(176.59 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.19 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(187.76 34)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.5 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(198.93 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.6 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(210.1 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.5 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(221.28 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.19 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(232.45 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.69 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(243.62 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.03 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(254.79 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.23 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(265.97 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.33 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(277.14 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.37 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(288.31 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.6 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(299.48 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.55 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(310.66 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.43 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(321.83 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.2 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(333 34) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.83 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <path d="M 137.48 43 L 137.48 48 L 193.34 48 L 193.34 43" fill="none" stroke="var(--ink2)" stroke-width=".8"/>
+          <text class="win" x="165.41" y="57" text-anchor="middle" font-size="9">as 5 noites testadas</text>
+        </svg>
+      </div>
+
+      <div class="ficha">
+        <div class="f-row">
+          <div class="f-lab">Janela testada</div>
+          <div class="f-val">5 noites antes da cheia
+            <div class="f-sub">fase −5 a −1 · contra as demais</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Desfecho</div>
+          <div class="f-val">hora de apagar
+            <div class="f-sub">minutos desde a meia-noite</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Noites e ciclos</div>
+          <div class="f-val">~49 dentro · ~241 fora
+            <div class="f-sub">17 ciclos sinódicos</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Próxima leitura</div>
+          <div class="f-val">a cada +100 noites</div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Execuções</div>
+          <div class="f-val">1ª execução</div>
+        </div>
+      </div>
+
+      <!-- "faltam cerca de 106 noites" sai no MESMO corpo de letra do achado:
+           mono 30 px, mesma posição, mesma linha da grade. -->
+      <div class="verdict">
+        <div class="eyebrow">Veredito</div>
+        <div class="v-word">inconclusivo</div>
+        <div class="v-num">106 noites</div>
+        <div class="v-cap">faltam para 80% de poder</div>
+        <div class="v-text">O teste não teve poder para decidir entre a janela e as demais noites.</div>
+      </div>
+
+      <div class="method">
+        <div class="eyebrow">Método</div>
+        <p>Desfecho, janela, direção e limiar de 15 minutos foram fixados em 07 set 2026, antes de qualquer consulta ao dado. Esta página não afirma causa.</p>
+      </div>
+
+    </div>
+    <div class="frame-cap">
+      <div class="k">VEREDITO · inconclusivo</div>
+      <div class="d">poder &lt; 80% ou portão reprovado<br>um teste sem poder que não acha nada é silêncio</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="foot">
+  <h3>Decisões que esta folha ilustra</h3>
+  <ul>
+    <li><b>ADR 0045 · consequência 1</b> — a moldura é fixa e o veredito é variável: os cinco campos (janela testada, desfecho, contagem de noites e ciclos, próxima leitura, contador de execuções) aparecem sempre, na mesma ordem. Não há variante curta da página.</li>
+    <li><b>ADR 0045 · consequência 2</b> — são três vereditos, não dois. "Nenhum padrão" e "inconclusivo" ocupam quadros distintos porque não são a mesma coisa.</li>
+    <li><b>ADR 0045 · consequência 3</b> — sem atenuação visual: o negativo não vai em cinza, em itálico, em corpo menor nem com ícone de aviso. Mesma cor de tinta, mesma altura de bloco, mesma posição.</li>
+    <li><b>ADR 0045 · consequência 4</b> — o contador de execuções é campo da moldura, não nota de rodapé.</li>
+    <li><b>CAP-12 · memlog 07–08/09</b> — sub-página em tela própria, aberta pela linha no pé do caderno Sono; a linha carrega o veredito por extenso, idêntica em tipografia e extensão nos três casos.</li>
+    <li><b>CAP-12 · memlog</b> — a página não usa ícone: abre com a fase sinódica desenhada, que é dado e não símbolo.</li>
+    <li><b>CAP-7</b> — a página herda a identidade do caderno Sono pela faixa saturada sangrando de borda a borda (accent sobre onAccent, contraste medido 5,10).</li>
+    <li><b>Pré-registro §2</b> — a exposição é "antes da cheia", não "na cheia": a lua cheia é desenhada fora da marcação.</li>
+    <li><b>Voz</b> — informa, não aconselha: nenhum conselho, nenhuma exclamação, nenhum emoji, nenhuma causa afirmada, e toda base comparada é nomeada ("contra as demais noites").</li>
+  </ul>
+</div>

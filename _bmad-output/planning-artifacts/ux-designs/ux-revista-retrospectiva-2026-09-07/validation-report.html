@@ -1,0 +1,393 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validação — A revista da Retrospectiva</title><style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --text: #1c1917;
+    --muted: #78716c;
+
+    --verdict-strong: #16a34a;
+    --verdict-adequate: #65a30d;
+    --verdict-thin: #d97706;
+    --verdict-broken: #dc2626;
+
+    --sev-low: #64748b;
+    --sev-medium: #ca8a04;
+    --sev-high: #ea580c;
+    --sev-critical: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  header.report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .title h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .title .subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .synthesis {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--muted);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 15.5px;
+  }
+  .synthesis p { margin: 0 0 10px; }
+  .synthesis p:last-child { margin-bottom: 0; }
+
+  .dimension-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .dim-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .dim-card .dim-name { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .dim-card .dim-verdict { font-size: 14px; font-weight: 600; }
+
+  section.dimension, section.reviewer-section { margin-bottom: 14px; }
+  section.dimension details, section.reviewer-section details {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  section summary {
+    padding: 14px 20px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section summary::-webkit-details-marker { display: none; }
+  section summary::before {
+    content: "▸";
+    display: inline-block;
+    color: var(--muted);
+    transition: transform 0.15s ease;
+  }
+  section details[open] summary::before { transform: rotate(90deg); }
+  section summary h2 {
+    display: inline;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    flex: 1;
+  }
+  .verdict-pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: white;
+  }
+  .verdict-strong { background: var(--verdict-strong); }
+  .verdict-adequate { background: var(--verdict-adequate); }
+  .verdict-thin { background: var(--verdict-thin); }
+  .verdict-broken { background: var(--verdict-broken); }
+
+  .dim-body { padding: 4px 20px 18px; }
+  .dim-judgment { color: var(--text); font-size: 14.5px; }
+  .dim-judgment p { margin: 0 0 10px; }
+
+  .findings-list { padding: 0 20px 4px; }
+  article.finding {
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  article.finding:first-child { border-top: none; }
+  article.finding header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .badge {
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+  }
+  .badge-sev-low { background: rgba(100, 116, 139, 0.12); color: var(--sev-low); }
+  .badge-sev-medium { background: rgba(202, 138, 4, 0.14); color: var(--sev-medium); }
+  .badge-sev-high { background: rgba(234, 88, 12, 0.14); color: var(--sev-high); }
+  .badge-sev-critical { background: rgba(220, 38, 38, 0.14); color: var(--sev-critical); }
+  .finding-title { margin: 0; font-size: 15px; font-weight: 500; flex: 1; min-width: 200px; }
+  .finding-location { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; color: var(--muted); }
+  .finding-note, .finding-fix { margin-top: 6px; font-size: 14px; }
+  .finding-fix strong { color: var(--muted); font-weight: 500; }
+
+  .reviewer-source {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .mechanical {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: 24px;
+    font-size: 14px;
+  }
+  .mechanical h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .mechanical ul { margin: 0; padding-left: 20px; }
+  .mechanical li { margin-bottom: 4px; color: var(--text); }
+
+  footer.report-footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  footer .meta { display: flex; gap: 24px; flex-wrap: wrap; }
+</style></head><body>
+<div class="container">
+<header class="report-header"><div class="title">
+<h1>A revista da Retrospectiva — Relatório de validação de UX</h1>
+<div class="subtitle">DESIGN.md · EXPERIENCE.md — 08/09/2026 01:37 — lentes: contrato + rubric · acessibilidade · adversarial</div>
+</div></header>
+
+<div class="synthesis">
+<p>As espinhas <strong>respeitam a lei</strong>: das 17 restrições do contrato — não 16, a contagem do enunciado estava errada — nenhuma é contrariada de frente, e os 11 não-objetivos estão limpos. CAP-7 e CAP-11 saíram fortes; CAP-8, CAP-9 e CAP-10 parciais; <strong>CAP-6 foi contrariada por omissão</strong>, porque a camada de luz não ganhou superfície nenhuma.</p>
+<p>O que os três revisores mostram juntos é mais importante que o placar: <strong>o desenho é sólido onde foi medido e frágil onde não foi renderizado.</strong> Ele descreve bem uma edição — agosto/2026, quatro cadernos, foto na capa — e essa é a minoria do arquivo, porque 22 dos 39 meses do backfill têm um caderno só. E a passagem de UX abriu <strong>sete defeitos dentro do próprio contrato</strong>, que declarava zero perguntas abertas quando a sessão começou.</p>
+</div>
+
+<div class="dimension-summary"><div class="dim-card"><div class="dim-name">Cobertura contra o contrato</div>
+<div class="dim-verdict" style="color: var(--verdict-adequate)">adequada</div></div><div class="dim-card"><div class="dim-name">Cobertura de jornadas</div>
+<div class="dim-verdict" style="color: var(--verdict-adequate)">adequada</div></div><div class="dim-card"><div class="dim-name">Completude de tokens</div>
+<div class="dim-verdict" style="color: var(--verdict-adequate)">adequada</div></div><div class="dim-card"><div class="dim-name">Cobertura de componentes</div>
+<div class="dim-verdict" style="color: var(--verdict-thin)">fraca</div></div><div class="dim-card"><div class="dim-name">Cobertura de estados</div>
+<div class="dim-verdict" style="color: var(--verdict-thin)">fraca</div></div><div class="dim-card"><div class="dim-name">Referências visuais</div>
+<div class="dim-verdict" style="color: var(--verdict-strong)">forte</div></div><div class="dim-card"><div class="dim-name">Inchaço e superespecificação</div>
+<div class="dim-verdict" style="color: var(--verdict-adequate)">adequada</div></div><div class="dim-card"><div class="dim-name">Forma dos documentos</div>
+<div class="dim-verdict" style="color: var(--verdict-strong)">forte</div></div></div>
+<section class="dimension"><div class="dim-head">
+<h2>Cobertura contra o contrato</h2><span class="verdict-pill verdict-adequate">adequada</span></div>
+<div class="dim-body"><div class="dim-judgment">17 restrições varridas: nenhuma contrariada de frente, 12 respeitadas, 5 silenciosas. Os 11 não-objetivos limpos — disciplina real. CAP-7 e CAP-11 fortes; CAP-8, CAP-9 e CAP-10 parciais; CAP-6 contrariada por omissão.</div></div></section><section class="dimension"><div class="dim-head">
+<h2>Cobertura de jornadas</h2><span class="verdict-pill verdict-adequate">adequada</span></div>
+<div class="dim-body"><div class="dim-judgment">Quatro jornadas com protagonista nomeado, passos numerados e clímax. A jornada 2 ganhou ressalva de legalidade; a jornada 4 leva ao caso que não estava desenhado.</div></div></section><section class="dimension"><div class="dim-head">
+<h2>Completude de tokens</h2><span class="verdict-pill verdict-adequate">adequada</span></div>
+<div class="dim-body"><div class="dim-judgment">Frontmatter completo e referências resolvem. O contraste foi medido para onAccent e, depois da revisão, para a rampa de tinta.</div></div></section><section class="dimension"><div class="dim-head">
+<h2>Cobertura de componentes</h2><span class="verdict-pill verdict-thin">fraca</span></div>
+<div class="dim-body"><div class="dim-judgment">Botão de imprimir, errata e fase sinódica não tinham especificação. Corrigidos no frontmatter; a categoria continua sendo a mais rasa das oito.</div></div></section><section class="dimension"><div class="dim-head">
+<h2>Cobertura de estados</h2><span class="verdict-pill verdict-thin">fraca</span></div>
+<div class="dim-body"><div class="dim-judgment">Faltava o estado &#x27;o teste lunar ainda não rodou&#x27; — o modo de falha que a ADR 0045 existe para impedir. O Arquivo segue sem estado nenhum, com 436 capas apontando para a biblioteca de fotos.</div></div></section><section class="dimension"><div class="dim-head">
+<h2>Referências visuais</h2><span class="verdict-pill verdict-strong">forte</span></div>
+<div class="dim-body"><div class="dim-judgment">Cinco mockups, todos ligados inline na seção que governam, com a precedência declarada uma vez. Nenhum órfão.</div></div></section><section class="dimension"><div class="dim-head">
+<h2>Inchaço e superespecificação</h2><span class="verdict-pill verdict-adequate">adequada</span></div>
+<div class="dim-body"><div class="dim-judgment">A prosa carrega decisão, não enfeite. As medições ocupam espaço porque são o argumento.</div></div></section><section class="dimension"><div class="dim-head">
+<h2>Forma dos documentos</h2><span class="verdict-pill verdict-strong">forte</span></div>
+<div class="dim-body"><div class="dim-judgment">DESIGN.md nas oito seções canônicas, na ordem travada. EXPERIENCE.md com as oito obrigatórias mais quatro inventadas que ganham o lugar.</div></div></section>
+
+<section class="dimension"><div class="dim-head"><h2>Críticos</h2>
+<span class="verdict-pill verdict-broken">4</span></div>
+<div class="findings-list"><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-critical">critical</span>
+    <h3 class="finding-title">A rolagem ancorada não move o foco do VoiceOver</h3>
+    <span class="finding-location">Acessibilidade · §Interaction Primitives</span>
+  </div>
+  <div class="finding-note">A única navegação da revista é inerte para quem não enxerga. setAccessibilityFocus e announceForAccessibility não aparecem uma vez em mobile/src/.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Corrigido: o piso de acessibilidade agora exige o foco e declara que é código novo.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-critical">critical</span>
+    <h3 class="finding-title">Tipo dinâmico corta a moldura da lua</h3>
+    <span class="finding-location">Acessibilidade · §CAP-12</span>
+  </div>
+  <div class="finding-note">Altura fixa em px mais overflow:hidden cortam o veredito em AX3+. Uma configuração de acessibilidade anula em silêncio a garantia da ADR 0045 — para quem tem baixa visão.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Corrigido: a paridade passou a ser de tratamento, não de caixa. Altura fixa proibida ali.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-critical">critical</span>
+    <h3 class="finding-title">ink3 carrega informação obrigatória a 2,87–3,05</h3>
+    <span class="finding-location">Acessibilidade · §Typography</span>
+  </div>
+  <div class="finding-note">Assinatura, os cinco rótulos da ficha da lua e o período de cada capa. Sobre bg fica abaixo até do piso de 3,0 de objeto gráfico.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Corrigido: os três passam a ink2 (7,52 / 7,09), no mesmo corpo.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-critical">critical</span>
+    <h3 class="finding-title">O véu da capa não tem piso</h3>
+    <span class="finding-location">Acessibilidade · §Elevation</span>
+  </div>
+  <div class="finding-note">Cerca de 1,8 sobre céu branco de foto real — e as fotos vêm da biblioteca do iPhone, que o app não escolhe.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Corrigido: o véu se aprofunda até 4,5 contra o pixel mais claro sob o texto.</div>
+</article></div></section>
+
+<section class="dimension"><div class="dim-head"><h2>Altos</h2>
+<span class="verdict-pill verdict-thin">16</span></div>
+<div class="findings-list"><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">A edição de um caderno é 56% do arquivo</h3>
+    <span class="finding-location">Adversarial</span>
+  </div>
+  <div class="finding-note">22 dos 39 meses do backfill têm um caderno só. Não estava desenhada, e a jornada 4 leva exatamente para lá.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Decidido: o sumário existe sempre, com o custo declarado.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">CAP-14 não tem superfície</h3>
+    <span class="finding-location">Adversarial · DEFEITO DE CONTRATO</span>
+  </div>
+  <div class="finding-note">hidden é Partial&lt;Record&lt;RetroBlockId,string&gt;&gt; e RetroBlockId não contém caderno nenhum. CAP-14 e 'sem migration' não podem ser verdade juntos.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Aberto — não é decisão de UX.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">A execução da lua não tem chave legal</h3>
+    <span class="finding-location">Adversarial · DEFEITO DE CONTRATO</span>
+  </div>
+  <div class="finding-note">caderno='lua' bate no CHECK, e a chave primária torna o 'acumula, nunca substitui' impossível.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Aberto — não é decisão de UX.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">A capa não congela</h3>
+    <span class="finding-location">Adversarial · DEFEITO DE CONTRATO</span>
+  </div>
+  <div class="finding-note">coverOf lê isCover e state==='linked', mutáveis depois da impressão. A foto de agosto pode ser outra seis semanas depois.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Aberto — contra &#x27;período fechado congela&#x27;.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">Lápide × caderno vazio se contradizem</h3>
+    <span class="finding-location">Adversarial · DEFEITO DE CONTRATO</span>
+  </div>
+  <div class="finding-note">Passo 5 força posição 1; passo 6 tira o vazio da lista. O mês em que o relógio para é o mês sem dado.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Aberto — ordenarCadernos é declarada determinística.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">posicao congelada × reimpressão por caderno</h3>
+    <span class="finding-location">Adversarial</span>
+  </div>
+  <div class="finding-note">Reimprimir um caderno só pode bater no unique (…, posicao).</div>
+  <div class="finding-fix"><strong>Situação:</strong> Ressalva escrita na jornada 2; decisão de arquitetura.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">A revista não diz onde mora</h3>
+    <span class="finding-location">Adversarial</span>
+  </div>
+  <div class="finding-note">Os doze blocos da Retrospectiva de hoje e o seletor de período expulso pela capa.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Seção nova §Onde a revista mora, com o buraco declarado.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">A chamada não tem origem declarada</h3>
+    <span class="finding-location">Rubric</span>
+  </div>
+  <div class="finding-note">cadernos.md diz que é a manchete que o caderno já escreveu, mas não como se extrai. Sem isso nem a capa nem o sumário são construíveis.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Aberto — bloqueia CAP-8 e CAP-10.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">A tira do anuário não diz o que mede</h3>
+    <span class="finding-location">Rubric</span>
+  </div>
+  <div class="finding-note">12 marcas na cor do caderno, e nenhum documento diz de qual valor. Substitui o yearSeries sem citá-lo.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Aberto — bloqueia CAP-9.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">ADR 0045 §3 proíbe o negativo atrás de um toque</h3>
+    <span class="finding-location">Rubric</span>
+  </div>
+  <div class="finding-note">Cláusula literal: 'nem atrás de um toque'. A lua ficou atrás de um toque.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Decidido: mantém a sub-página e emenda a ADR. Pré-requisito de construção, não feito.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">Falta o estado &#x27;o teste lunar ainda não rodou&#x27;</h3>
+    <span class="finding-location">Rubric</span>
+  </div>
+  <div class="finding-note">É o estado em que a página passa a maior parte do tempo.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Corrigido na espinha, com o histórico de execuções junto.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">CAP-6 sem superfície</h3>
+    <span class="finding-location">Rubric</span>
+  </div>
+  <div class="finding-note">A camada de luz aparece só no contexto da lua; o trimestre com luz em destaque não existe.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Aberto — omissão desta sessão.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">O Do&#x27;s contradizia o próprio texto</h3>
+    <span class="finding-location">Rubric</span>
+  </div>
+  <div class="finding-note">Mandava número em mono, e o texto de caderno é serifado com números embutidos.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Corrigido: a fronteira é tabela × frase, não algarismo.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">Botão de imprimir e fase sinódica sem especificação</h3>
+    <span class="finding-location">Rubric</span>
+  </div>
+  <div class="finding-note">Dois componentes citados e nunca especificados.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Corrigido no frontmatter.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">O Arquivo não tem estado nenhum</h3>
+    <span class="finding-location">Rubric</span>
+  </div>
+  <div class="finding-note">436 capas, muitas apontando para a biblioteca de fotos.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Aberto.</div>
+</article><article class="finding">
+  <div class="finding-head">
+    <span class="badge badge-sev-high">high</span>
+    <h3 class="finding-title">Os ícones não vinham do ICON_MAP intacto</h3>
+    <span class="finding-location">Verificado no código</span>
+  </div>
+  <div class="finding-note">Não há bicicleta em retrospectiva/index.tsx:72 — há barbell-outline e walk-outline.</div>
+  <div class="finding-fix"><strong>Situação:</strong> Corrigido: bicycle-outline declarado como novo, com o viés assumido.</div>
+</article></div></section>
+
+<section class="reviewer-section"><div class="dim-head"><h2>Relatórios individuais</h2></div>
+<div class="dim-body"><div class="dim-judgment">
+<p><code>review-rubric.md</code> — contrato + rubric mecânico · 0 críticos, 11 altos, 19 médios, 10 baixos</p>
+<p><code>review-acessibilidade.md</code> — 18 achados: 4 críticos, 5 altos, 6 médios, 3 baixos</p>
+<p><code>review-adversarial.md</code> — 16 ataques: 2 sobrevive, 6 omisso, 8 quebra</p>
+<p>Os 25 médios e 13 baixos ficam nos relatórios individuais. Predominam falta de especificação de componente e de estado — as duas categorias que saíram fracas.</p>
+</div></div></section>
+</div></body></html>

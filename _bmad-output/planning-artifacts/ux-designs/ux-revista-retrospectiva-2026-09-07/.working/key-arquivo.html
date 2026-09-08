@@ -1,0 +1,466 @@
+<meta charset="utf-8">
+<title>Arquivo — parede de capas</title>
+<style>
+/* =============================================================================
+   O QUE ESTA TELA ILUSTRA
+
+   CAP-10 (segunda metade) — O ARQUIVO COMO PAREDE DE CAPAS.
+   A navegacao pelas edicoes ja impressas: grade de DUAS COLUNAS, rotulo
+   (periodo + manchete curta) EMBAIXO da capa, ~6 capas por tela, descendo no
+   tempo do mais recente para o mais antigo.
+
+   A tese: o arquivo e navegavel como PAREDE DE CAPAS, nao como seletor de data.
+   Nenhum calendario, nenhuma roda de mes, nenhum campo de intervalo.
+
+   O assunto da tela e a MUDANCA DE TEXTURA na fronteira dos anos:
+     - 2026 -> capa COM FOTO (aqui: retangulo com gradiente quente + [foto — coverOf()])
+     - 2023-2025 -> capa COM TRACADO, desenhado de verdade em SVG inline,
+       um tracado DIFERENTE por mes, porque sao rotas diferentes.
+   Duas fileiras de cada natureza, para a transicao ficar visivel na mesma tela.
+
+   Quadro do device: iPhone 390 x 844. O quadro segue ALEM de 844 px para
+   mostrar a rolagem; a dobra esta marcada por linha tracejada discreta.
+
+   Tokens: recorte Orbe · paleta orbe · claro, medidos com
+   resolveTokens('orbe','light','orbe'). No codigo real NENHUMA tela escreve
+   hex — cor nasce em packages/shared/src/theme e chega por resolveTokens() /
+   moduleOf(). Os hexes existem aqui so porque HTML nao roda moduleOf().
+
+   Zero JS, zero rede, zero imagem externa. Abre offline.
+   ============================================================================= */
+
+:root{
+  /* neutros */
+  --bg:      #FFF7EE;
+  --surface: #FFFFFF;
+  --ink:     #1F1B16;
+  --ink2:    #5C534A;
+  --ink3:    #9C928A;
+  --line:    #EFE6D8;
+
+  /* caderno Movimento (papel orange) — a rota e dado de Movimento */
+  --mov-accent: #F25C2B;
+  --mov-soft:   #FFE3D2;
+
+  --sans:  'Manrope', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --mono:  'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --serif: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin: 0;
+  background: #EDEAE4;
+  font-family: var(--sans);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.page{
+  display: flex;
+  align-items: flex-start;
+  gap: 44px;
+  padding: 44px 40px 64px;
+  flex-wrap: wrap;
+}
+
+/* ---------- quadro do device ---------- */
+
+.frame-wrap{ flex: 0 0 auto; }
+
+.frame{
+  width: 390px;
+  border: 1px solid #D8D2C8;
+  border-radius: 26px;
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow: 0 18px 44px rgba(31,27,22,.10);
+}
+
+.screen{
+  position: relative;
+  width: 390px;
+  min-height: 1178px;
+  background: var(--bg);
+}
+
+/* a dobra dos 844 px */
+.fold{
+  position: absolute;
+  left: 0; right: 0; top: 844px;
+  border-top: 1px dashed rgba(31,27,22,.28);
+  pointer-events: none;
+}
+.fold span{
+  position: absolute;
+  right: 10px; top: 5px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .4px;
+  color: var(--ink3);
+}
+
+.framecap{
+  width: 390px;
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 16px;
+  color: #8A8078;
+}
+
+/* ---------- cabeçalho de tela ---------- */
+
+.head{
+  padding: 20px 16px 24px;
+}
+.eyebrow{
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  color: var(--ink3);
+  margin: 0 0 6px;
+}
+.title{
+  font-family: var(--serif);
+  font-size: 32px;
+  line-height: 32px;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+.sub{
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 19px;
+  color: var(--ink2);
+  margin: 0;
+}
+
+/* ---------- marca de ano: régua sóbria, não seletor ---------- */
+
+.year{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 16px;
+}
+.year b{
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.2px;
+  color: var(--ink3);
+}
+.year i{
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
+}
+
+/* ---------- grade de duas colunas ---------- */
+
+.grid{
+  display: grid;
+  grid-template-columns: 173px 173px;
+  gap: 18px 12px;
+  padding: 0 16px;
+}
+
+.tile{ width: 173px; }
+
+.cover{
+  position: relative;
+  width: 173px;
+  height: 168px;          /* mesma proporção da capa real: 390 x ~380 (45% de 844) */
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* capa COM FOTO — 2026 */
+.cover.foto .note{
+  position: absolute;
+  left: 8px; top: 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .2px;
+  color: rgba(31,27,22,.52);
+}
+.cover.foto .legend{
+  position: absolute;
+  left: 8px; bottom: 8px; right: 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .2px;
+  color: var(--ink);
+}
+
+.g1{ background: linear-gradient(158deg, #FFF3E6 0%, #FFE3D2 46%, #F6C6A6 100%); }
+.g2{ background: linear-gradient(196deg, #FFEFE0 0%, #FFDCC6 52%, #EFB393 100%); }
+.g3{ background: linear-gradient(140deg, #FFF7EE 0%, #FFE7D8 40%, #F3C4A2 100%); }
+.g4{ background: linear-gradient(172deg, #FFEDDC 0%, #FFDBC4 58%, #E9AE8D 100%); }
+
+/* capa COM TRAÇADO — 2023-2025 */
+.cover.tracado{
+  background: var(--surface);
+}
+.cover.tracado svg{ display: block; }
+
+/* ---------- rótulo embaixo da capa ---------- */
+
+.label{ padding: 8px 1px 0; }
+.period{
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .9px;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin: 0 0 4px;
+}
+.headline{
+  font-family: var(--serif);
+  font-size: 14px;
+  line-height: 17px;
+  color: var(--ink);
+  margin: 0;
+}
+.num{ font-family: var(--mono); font-size: 12.5px; letter-spacing: -.1px; }
+
+/* ---------- nota lateral ---------- */
+
+.note-col{
+  flex: 1 1 300px;
+  max-width: 420px;
+  padding-top: 6px;
+}
+.note-col h2{
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 21px;
+  line-height: 26px;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+.note-col p{
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 23px;
+  color: #3D362F;
+  margin: 0 0 14px;
+}
+.note-col .kicker{
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  color: var(--ink3);
+  margin: 0 0 8px;
+}
+.note-col hr{
+  border: 0;
+  border-top: 1px solid #DCD5C9;
+  margin: 24px 0 20px;
+}
+</style>
+
+<div class="page">
+
+  <div class="frame-wrap">
+    <div class="frame">
+      <div class="screen">
+
+        <!-- LACUNA: o briefing não define a chrome desta sub-página — nem a
+             barra de status do iOS, nem o controle de voltar, nem por onde o
+             arquivo é aberto. Nada disso foi desenhado aqui. -->
+
+        <div class="head">
+          <p class="eyebrow">Edições</p>
+          <h1 class="title">Arquivo</h1>
+          <p class="sub">As edições já impressas.</p>
+        </div>
+
+        <!-- ================= 2026 — capas COM FOTO ================= -->
+        <div class="year"><b>2026</b><i></i></div>
+
+        <div class="grid">
+
+          <!-- ago/2026: mês canônico. Os anéis pararam em 17/08, a lápide leva
+               Movimento para posição 1, e a capa mostra a manchete do caderno
+               em posição 1 — por isso a manchete curta daqui é a lápide. -->
+          <div class="tile">
+            <div class="cover foto g1">
+              <span class="note">[foto — coverOf()]</span>
+              <span class="legend">Ittre &middot; km 31,1 &middot; 12:38</span>
+            </div>
+            <div class="label">
+              <p class="period">Ago 2026</p>
+              <p class="headline">Os anéis pararam em <span class="num">17/08</span>.</p>
+            </div>
+          </div>
+
+          <!-- LACUNA: em jul/2026 morreram TRÊS métricas em dois cadernos
+               (VO₂max 14/07 em Movimento; respiração 10/07 e SpO₂ 16/07 em
+               Coração). O briefing não diz qual caderno vai para posição 1
+               quando há lápide em mais de um — e portanto qual manchete sobe
+               para a capa. A linha abaixo nomeia as três sem escolher caderno. -->
+          <div class="tile">
+            <div class="cover foto g2">
+              <span class="note">[foto — coverOf()]</span>
+              <!-- LACUNA: a legenda de três campos só existe na lista de fatos
+                   para uma parada (Ittre · km 31,1 · 12:38). As demais capas de
+                   2026 ficam sem legenda em vez de receber número inventado. -->
+            </div>
+            <div class="label">
+              <p class="period">Jul 2026</p>
+              <p class="headline">Respiração, VO₂max e SpO₂ pararam.</p>
+            </div>
+          </div>
+
+          <!-- LACUNA: jun/2026 não tem fato de período na lista do briefing.
+               A manchete é um fato da lista com o número retirado
+               (cerveja atrasa o adormecer em 33 min). -->
+          <div class="tile">
+            <div class="cover foto g3">
+              <span class="note">[foto — coverOf()]</span>
+            </div>
+            <div class="label">
+              <p class="period">Jun 2026</p>
+              <p class="headline">A cerveja atrasa o adormecer.</p>
+            </div>
+          </div>
+
+          <div class="tile">
+            <div class="cover foto g4">
+              <span class="note">[foto — coverOf()]</span>
+            </div>
+            <div class="label">
+              <p class="period">Mai 2026</p>
+              <p class="headline">O registro da cerveja começa em <span class="num">23/05</span>.</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ================= 2025 — capas COM TRAÇADO =================
+             O traçado é o desenho da rota do próprio período. Não é remendo:
+             cada mês tem um traçado diferente porque são rotas diferentes.
+
+             LACUNA: nenhum dos quatro meses de 2025 tem fato de período na
+             lista do briefing. As manchetes abaixo não carregam número nenhum
+             e usam apenas substantivos que estão na lista (cidades Ittre,
+             Leuven, Bruxelles; pisos cascalho leve e pavé).
+
+             LACUNA: a era do traçado vai de 2023 a 2025, mas a parede só foi
+             pedida até set/2025. 2024 e 2023 continuam abaixo, não desenhados.
+        -->
+        <div class="year"><b>2025</b><i></i></div>
+
+        <div class="grid">
+
+          <!-- dez/2025 — volta grande com retorno no fim -->
+          <div class="tile">
+            <div class="cover tracado">
+              <svg width="171" height="166" viewBox="0 0 173 168" fill="none"
+                   stroke="#F25C2B" stroke-width="2.4"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M28 140 C24 122 36 110 52 108 C70 106 76 94 70 82 C63 68 72 52 90 49 C108 46 124 56 127 71 C130 84 142 88 149 79"/>
+                <path d="M149 84 C141 93 128 88 124 75"/>
+              </svg>
+            </div>
+            <div class="label">
+              <p class="period">Dez 2025</p>
+              <p class="headline">Ittre, ida e volta.</p>
+            </div>
+          </div>
+
+          <!-- nov/2025 — ponto a ponto com cotovelos -->
+          <div class="tile">
+            <div class="cover tracado">
+              <svg width="171" height="166" viewBox="0 0 173 168" fill="none"
+                   stroke="#F25C2B" stroke-width="2.4"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M24 146 C44 144 60 136 64 122 C68 108 58 98 44 96 C32 94 28 82 38 74 C50 64 70 68 80 58 C92 46 86 32 99 26 C114 19 134 29 141 45 C146 57 143 68 149 76"/>
+              </svg>
+            </div>
+            <div class="label">
+              <p class="period">Nov 2025</p>
+              <p class="headline">Leuven pelo cascalho leve.</p>
+            </div>
+          </div>
+
+          <!-- out/2025 — ida, lobo no fim, e a volta pela mesma linha -->
+          <div class="tile">
+            <div class="cover tracado">
+              <svg width="171" height="166" viewBox="0 0 173 168" fill="none"
+                   stroke="#F25C2B" stroke-width="2.4"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 132 C38 126 52 114 68 108"/>
+                <path d="M68 108 C86 101 105 106 112 121 C119 136 137 139 146 126 C155 112 146 94 130 90 C113 86 96 95 68 108"/>
+                <path d="M24 138 C40 132 54 120 70 114"/>
+              </svg>
+            </div>
+            <div class="label">
+              <p class="period">Out 2025</p>
+              <p class="headline">Bruxelles no pavé.</p>
+            </div>
+          </div>
+
+          <!-- set/2025 — dois lobos encadeados -->
+          <div class="tile">
+            <div class="cover tracado">
+              <svg width="171" height="166" viewBox="0 0 173 168" fill="none"
+                   stroke="#F25C2B" stroke-width="2.4"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M34 58 C21 70 24 90 40 98 C57 106 76 98 80 83 C84 68 98 59 113 65 C130 72 137 92 128 108 C119 124 98 127 88 116 C80 107 82 96 90 92"/>
+              </svg>
+            </div>
+            <div class="label">
+              <p class="period">Set 2025</p>
+              <p class="headline">Ittre e Leuven no mesmo traçado.</p>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="fold"><span>dobra &middot; 844 px</span></div>
+
+      </div>
+    </div>
+
+    <p class="framecap">
+      iPhone &middot; 390 &times; 844. O quadro segue além da dobra para mostrar a rolagem.<br>
+      Tokens do recorte Orbe &middot; paleta orbe &middot; claro. Sem JS, sem rede, sem imagem externa.
+    </p>
+  </div>
+
+  <aside class="note-col">
+    <p class="kicker">Nota</p>
+    <h2>A capa desenhada não é remendo.</h2>
+
+    <p>O traçado não entra porque falta foto. Ele entra porque é o que aquele mês
+    tem: a rota daquele período, dado do próprio mês, e não um enfeite de
+    reposição. A biblioteca do iPhone só passa a alimentar a capa em 2026 — antes
+    disso, o registro visual do período é o desenho da rota.</p>
+
+    <p>Por isso a parede muda de textura ao descer, e a mudança é o assunto da
+    tela. Sem escrever uma linha a respeito, ela data quando o dono passou a
+    fotografar. Uma capa genérica em 2023 apagaria esse fato e faria 2023 parecer
+    2026 com a foto faltando. <b>2023 tem que parecer 2023.</b></p>
+
+    <hr>
+
+    <p class="kicker">A tese da tela</p>
+    <p>A grade é uma parede de capas, não um seletor de data. Não há calendário,
+    roda de mês nem campo de intervalo: o que se reconhece é a capa, e o ano só
+    aparece como régua fina entre as fileiras — agrupa sem virar controle. Cada
+    traçado é diferente do vizinho porque as rotas são diferentes; capas iguais
+    fariam a parede voltar a ser uma lista de meses.</p>
+  </aside>
+
+</div>

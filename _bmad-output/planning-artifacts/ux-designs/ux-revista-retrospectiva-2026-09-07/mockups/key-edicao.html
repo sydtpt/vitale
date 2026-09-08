@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edição de agosto — a revista</title>
+<style>
+/* ==========================================================================
+   key-edicao.html — A edição de mês (agosto/2026), a forma central da revista.
+   Mockup 1:1, iPhone 390 × 844. Sem JS, sem rede, sem imagem externa.
+
+   CAPACIDADES ILUSTRADAS E ONDE CADA UMA APARECE
+
+   CAP-7  · ordem ranqueada + cabeçalho de caderno
+            → a faixa saturada sangrando de borda a borda (.faixa), com ícone
+              ao lado do nome; e a ordem do miolo de agosto:
+              Movimento (1) · Sono (2) · Coração (3) · Rotina (4).
+
+   CAP-8  · o sumário é a lista de chamadas
+            → bloco .sumario, quatro linhas tocáveis, cada uma com a manchete
+              do caderno e o nome dele subordinado como rótulo.
+
+   CAP-9  · três formas — aqui, a EDIÇÃO (mês e trimestre)
+            → a página inteira: capa · sumário · quatro cadernos, uma página
+              longa e rolável. O quadro do telefone está estendido para caber
+              tudo; a linha tracejada .dobra marca os 844 px.
+
+   CAP-10 · a capa, com foto
+            → bloco .capa, ~380 px (≈45% de 844), imagem sangrando de borda a
+              borda, nome do período + manchete do caderno em posição 1
+              sobrepostos, legenda de três campos.
+
+   CAP-11 · a lápide (dois estados no mesmo caderno)
+            → Movimento: anéis (17/08) no TOPO, um degrau acima no corpo de
+              letra (.lapide.mes-da-morte), porque agosto é o mês da morte;
+              VO₂max (14/07) no PÉ, no corpo normal (.lapide).
+            → Coração: respiração (10/07) e SpO₂ (16/07), no pé, corpo normal.
+
+   CAP-12 · a página da lua
+            → a linha de entrada no pé do caderno Sono (.linha-lua), com o
+              veredito por extenso; leva a uma tela própria.
+   ========================================================================== */
+
+:root{
+  /* Tokens medidos com resolveTokens('orbe','light','orbe').
+     Existem aqui só porque HTML não roda moduleOf(). No código real,
+     nenhuma tela escreve hex. */
+  --bg:      #FFF7EE;
+  --surface: #FFFFFF;
+  --ink:     #1F1B16;
+  --ink2:    #5C534A;
+  --ink3:    #9C928A;
+  --line:    #EFE6D8;
+
+  --sono:       #6E8CC9;
+  --movimento:  #F25C2B;
+  --coracao:    #E05C5C;
+  --rotina:     #6FA86A;
+  --onAccent:   #1F1B16;
+
+  --sono-soft:      #DDE4F2;
+  --movimento-soft: #FFE3D2;
+  --coracao-soft:   #FDDEDE;
+  --rotina-soft:    #E2EFD9;
+
+  --sans:  'Manrope', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --mono:  'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --serif: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin:0;
+  background:#E9E2D6;
+  font-family:var(--sans);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+}
+
+.palco{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  gap:56px;
+  padding:44px 40px 72px 132px;   /* folga à esquerda para o rótulo da dobra */
+}
+
+/* ---------- quadro do aparelho ------------------------------------------ */
+
+.device-wrap{ position:relative; flex:0 0 auto; }
+
+.device{
+  width:410px;                 /* 390 de tela + 2 × 10 de moldura */
+  border:10px solid #24211D;
+  border-radius:46px;
+  overflow:hidden;
+  box-shadow:0 22px 60px rgba(31,27,22,.26);
+  background:#24211D;
+}
+
+.tela{
+  position:relative;
+  width:390px;
+  background:var(--bg);
+}
+
+/* a dobra dos 844 px — onde termina a primeira tela.
+   Duas linhas tracejadas sobrepostas (escura + clara) para a marca continuar
+   legível tanto sobre o papel creme quanto sobre a faixa saturada. */
+.dobra{
+  position:absolute; left:0; right:0; top:844px;
+  border-top:1px dashed rgba(31,27,22,.55);
+  z-index:60; pointer-events:none;
+}
+.dobra::after{
+  content:''; position:absolute; left:0; right:0; top:0;
+  border-top:1px dashed rgba(255,255,255,.78);
+}
+.dobra-label{
+  position:absolute;
+  right:calc(100% + 20px);       /* fora do aparelho, do lado esquerdo */
+  top:854px;                     /* 844 + os 10 px da moldura */
+  transform:translateY(-50%);
+  font-family:var(--mono); font-size:10px; color:#6B635A;
+  white-space:nowrap;
+}
+.dobra-label::after{
+  content:''; position:absolute; left:calc(100% + 6px); top:50%;
+  width:14px; border-top:1px dashed rgba(31,27,22,.45);
+}
+
+/* ---------- barra de status (cromo do aparelho, não da revista) ---------- */
+
+.statusbar{
+  position:absolute; top:0; left:0; right:0; height:47px; z-index:30;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 26px 0;
+  color:#FFF7EE;
+  font-family:var(--mono); font-size:12px; letter-spacing:.2px;
+}
+.sb-dir{ display:flex; align-items:center; gap:5px; opacity:.9; }
+.sb-bat{ width:20px; height:10px; border:1px solid currentColor; border-radius:2.5px; position:relative; }
+.sb-bat::after{ content:''; position:absolute; left:1.5px; top:1.5px; bottom:1.5px; width:12px; background:currentColor; border-radius:1px; }
+.sb-bat::before{ content:''; position:absolute; left:100%; top:3px; bottom:3px; width:1.5px; background:currentColor; border-radius:0 1px 1px 0; }
+
+/* ---------- CAP-10 · a capa --------------------------------------------- */
+
+.capa{
+  position:relative;
+  height:380px;                /* ≈45% de 844 */
+  overflow:hidden;
+}
+
+.capa-foto{
+  position:absolute; inset:0;
+  background:
+    radial-gradient(120% 90% at 22% 16%, rgba(255,232,198,.85) 0%, rgba(255,232,198,0) 55%),
+    linear-gradient(152deg, #E9B478 0%, #D98A57 34%, #B4653F 62%, #6E4630 100%);
+}
+/* textura discreta, só para o retângulo não parecer um bloco chapado */
+.capa-foto::after{
+  content:''; position:absolute; inset:0;
+  background:repeating-linear-gradient(112deg, rgba(255,255,255,.05) 0 2px, rgba(0,0,0,.03) 2px 5px);
+}
+
+.capa-nota{
+  position:absolute; left:0; right:0; top:150px;
+  text-align:center;
+  font-family:var(--mono); font-size:11px; letter-spacing:.3px;
+  color:rgba(255,247,238,.62);
+  z-index:2;
+}
+
+/* véu sob o texto — não sobre a imagem inteira */
+.capa-veu-baixo{
+  position:absolute; left:0; right:0; bottom:0; height:230px; z-index:3;
+  background:linear-gradient(to top,
+    rgba(24,18,13,.86) 0%,
+    rgba(24,18,13,.66) 26%,
+    rgba(24,18,13,.30) 58%,
+    rgba(24,18,13,0) 100%);
+}
+.capa-veu-topo{
+  position:absolute; left:0; right:0; top:0; height:110px; z-index:3;
+  background:linear-gradient(to bottom, rgba(24,18,13,.46) 0%, rgba(24,18,13,0) 100%);
+}
+
+.voltar{
+  position:absolute; top:56px; left:16px; z-index:20;
+  width:34px; height:34px; border-radius:17px;
+  background:rgba(24,18,13,.34);
+  display:flex; align-items:center; justify-content:center;
+  color:#FFF7EE;
+}
+
+.capa-texto{
+  position:absolute; left:0; right:0; bottom:0; z-index:10;
+  padding:0 20px 22px;
+  color:#FFF7EE;
+}
+.capa-periodo{
+  font-family:var(--sans); font-size:11px; font-weight:600;
+  text-transform:uppercase; letter-spacing:1.1px;
+  color:rgba(255,247,238,.82);
+  margin:0 0 10px;
+}
+.capa-manchete{
+  font-family:var(--serif); font-weight:400;
+  font-size:27px; line-height:32px;
+  margin:0 0 14px;
+  text-shadow:0 1px 12px rgba(24,18,13,.45);
+}
+.capa-legenda{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.2px;
+  color:rgba(255,247,238,.80);
+  margin:0;
+}
+
+/* ---------- CAP-8 · o sumário ------------------------------------------- */
+
+.sumario{
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.eyebrow{
+  font-family:var(--sans); font-size:11px; font-weight:600;
+  text-transform:uppercase; letter-spacing:1.1px;
+  color:var(--ink3);
+  margin:0;
+}
+.sumario-topo{ padding:16px 20px 10px; }
+
+.sum-linha{
+  display:flex; align-items:center; gap:12px;
+  min-height:62px;
+  padding:13px 20px 15px;
+  border-top:1px solid var(--line);
+  text-decoration:none; color:inherit;
+}
+.sum-corpo{ flex:1 1 auto; }
+.sum-rotulo{
+  font-family:var(--sans); font-size:10.5px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.1px;
+  color:var(--ink3);
+  margin:0 0 3px;
+}
+.sum-chamada{
+  font-family:var(--serif); font-weight:400;
+  font-size:17px; line-height:23px;
+  color:var(--ink);
+  margin:0;
+}
+.sum-seta{ flex:0 0 auto; color:var(--ink3); }
+
+/* ---------- CAP-7 · cabeçalho de caderno -------------------------------- */
+
+.caderno{ scroll-margin-top:0; }
+
+.faixa{
+  display:flex; align-items:center; gap:10px;
+  padding:13px 20px;
+  color:var(--onAccent);
+}
+.faixa-nome{
+  font-family:var(--sans); font-size:19px; font-weight:700;
+  letter-spacing:.2px;
+  margin:0;
+}
+.faixa.sono      { background:var(--sono); }
+.faixa.movimento { background:var(--movimento); }
+.faixa.coracao   { background:var(--coracao); }
+.faixa.rotina    { background:var(--rotina); }
+
+.corpo{ padding:18px 20px 26px; }
+
+.edicao-texto{
+  font-family:var(--serif); font-weight:400;
+  font-size:15px; line-height:23px;
+  color:var(--ink);
+  margin:0 0 12px;
+}
+.edicao-texto:last-of-type{ margin-bottom:0; }
+
+.assinatura{
+  font-family:var(--mono); font-size:11px; letter-spacing:.2px;
+  color:var(--ink3);
+  margin:16px 0 0;
+}
+
+/* números soltos e datas: mono, como manda a folha */
+.num{ font-family:var(--mono); font-size:.92em; letter-spacing:0; }
+
+/* ---------- CAP-11 · a lápide ------------------------------------------- */
+
+/* régua à esquerda, sem preenchimento — o precedente do projeto.
+   A diferença entre os dois estados é SÓ tipográfica. */
+.lapide{
+  border-left:2px solid var(--line);
+  padding:1px 0 1px 12px;
+  margin:16px 0 0;
+  font-family:var(--serif); font-weight:400;
+  font-size:14px; line-height:21px;
+  color:var(--ink2);
+}
+.lapide + .lapide{ margin-top:8px; }
+
+.lapide.mes-da-morte{           /* um degrau acima, e só na edição do mês da morte */
+  font-size:17px; line-height:24px;
+  color:var(--ink);
+  margin:0 0 16px;
+  padding-left:13px;
+  border-left-width:2px;
+}
+
+/* ---------- CAP-12 · linha de entrada da página da lua ------------------ */
+
+.linha-lua{
+  display:flex; align-items:center; gap:12px;
+  margin-top:18px; padding-top:14px;
+  border-top:1px solid var(--line);
+  text-decoration:none; color:inherit;
+  min-height:44px;
+}
+.linha-lua p{
+  flex:1 1 auto; margin:0;
+  font-family:var(--serif); font-weight:400;
+  font-size:15px; line-height:22px;
+  color:var(--ink);
+}
+.linha-lua .sum-seta{ color:var(--ink3); }
+
+/* ---------- rodapé ------------------------------------------------------ */
+
+.rodape{
+  padding:20px 20px 34px;
+  border-top:1px solid var(--line);
+}
+.rodape p{
+  margin:0;
+  font-family:var(--sans); font-size:11.5px; line-height:18px;
+  color:var(--ink3);
+}
+.rodape .carimbo{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.2px;
+  color:var(--ink3);
+  margin-top:8px;
+}
+
+/* ---------- legenda de leitura (fora do aparelho) ----------------------- */
+
+.legenda{
+  flex:0 1 350px;
+  padding-top:6px;
+  font-family:var(--sans);
+  color:#3F3931;
+}
+.legenda h1{
+  font-family:var(--serif); font-weight:400;
+  font-size:23px; line-height:29px;
+  margin:0 0 4px; color:var(--ink);
+}
+.legenda .sub{
+  font-size:12px; line-height:18px; color:#6B635A;
+  margin:0 0 22px;
+}
+.legenda h2{
+  font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:1.1px;
+  color:#8A8177; margin:22px 0 8px;
+}
+.legenda ul{ margin:0; padding:0; list-style:none; }
+.legenda li{
+  font-size:12.5px; line-height:19px;
+  padding:0 0 10px 15px; position:relative;
+}
+.legenda li::before{
+  content:''; position:absolute; left:0; top:8px;
+  width:5px; height:5px; border-radius:3px; background:#B9AF9F;
+}
+.legenda b{ font-weight:700; color:var(--ink); }
+.legenda code{ font-family:var(--mono); font-size:11px; }
+.legenda .nota{
+  margin-top:22px; padding-top:14px; border-top:1px solid #D6CDBE;
+  font-size:11.5px; line-height:18px; color:#6B635A;
+}
+</style>
+</head>
+<body>
+
+<div class="palco">
+
+  <div class="device-wrap">
+    <div class="device">
+      <div class="tela">
+
+        <!-- a dobra: o que cabe na primeira tela de 844 px -->
+        <div class="dobra"></div>
+
+        <!-- ============ CAP-10 · A CAPA ================================ -->
+        <div class="capa">
+          <div class="capa-foto"></div>
+          <div class="capa-veu-topo"></div>
+          <div class="capa-nota">[foto — coverOf()]</div>
+          <div class="capa-veu-baixo"></div>
+
+          <!-- cromo do aparelho -->
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="sb-dir">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true">
+                <rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/>
+                <rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/>
+              </svg>
+              <span class="sb-bat"></span>
+            </span>
+          </div>
+
+          <!-- voltar sai da edição inteira -->
+          <div class="voltar">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14.5 5.5 L8 12 l6.5 6.5"/>
+            </svg>
+          </div>
+
+          <div class="capa-texto">
+            <p class="capa-periodo">Agosto de 2026</p>
+            <!-- a manchete da capa é a do caderno em posicao = 1.
+                 Em agosto isso é Movimento, porque a lápide dos anéis (17/08)
+                 o leva à posição 1. -->
+            <p class="capa-manchete">435 km, metade de julho — e o terceiro mês seguido caindo</p>
+            <p class="capa-legenda">Ittre · km 31,1 · 12:38</p>
+          </div>
+        </div>
+
+        <!-- ============ CAP-8 · O SUMÁRIO =============================== -->
+        <div class="sumario">
+          <div class="sumario-topo">
+            <p class="eyebrow">Nesta edição</p>
+          </div>
+
+          <a class="sum-linha" href="#caderno-movimento">
+            <span class="sum-corpo">
+              <span class="sum-rotulo" style="display:block">Movimento</span>
+              <span class="sum-chamada" style="display:block">435 km, metade de julho — e o terceiro mês seguido caindo</span>
+            </span>
+            <span class="sum-seta">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 9.5 L12 15.5 L18 9.5"/>
+              </svg>
+            </span>
+          </a>
+
+          <a class="sum-linha" href="#caderno-sono">
+            <span class="sum-corpo">
+              <span class="sum-rotulo" style="display:block">Sono</span>
+              <span class="sum-chamada" style="display:block">você dormiu 12 minutos a mais que em agosto do ano passado</span>
+            </span>
+            <span class="sum-seta">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 9.5 L12 15.5 L18 9.5"/>
+              </svg>
+            </span>
+          </a>
+
+          <!-- LACUNA: o briefing fixa por extenso só as chamadas de Sono e de
+               Movimento (o molde de cadernos.md). As duas linhas abaixo foram
+               montadas apenas com números da lista de fatos autorizada e com a
+               base nomeada, mas o texto exato de Coração e de Rotina não está
+               decidido no contrato — quem escrever o prompt v3 fecha isso. -->
+          <a class="sum-linha" href="#caderno-coracao">
+            <span class="sum-corpo">
+              <span class="sum-rotulo" style="display:block">Coração</span>
+              <span class="sum-chamada" style="display:block">179 dias de frequência cardíaca por minuto — e duas medidas que pararam em julho</span>
+            </span>
+            <span class="sum-seta">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 9.5 L12 15.5 L18 9.5"/>
+              </svg>
+            </span>
+          </a>
+
+          <a class="sum-linha" href="#caderno-rotina">
+            <span class="sum-corpo">
+              <span class="sum-rotulo" style="display:block">Rotina</span>
+              <span class="sum-chamada" style="display:block">60 litros de cerveja desde 23 de maio, cerca de €660</span>
+            </span>
+            <span class="sum-seta">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 9.5 L12 15.5 L18 9.5"/>
+              </svg>
+            </span>
+          </a>
+        </div>
+
+        <!-- ============ CADERNO 1 · MOVIMENTO ========================== -->
+        <div class="caderno" id="caderno-movimento">
+          <div class="faixa movimento">
+            <!-- bicycle-outline -->
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="5.6" cy="16.9" r="3.7"/>
+              <circle cx="18.4" cy="16.9" r="3.7"/>
+              <path d="M5.6 16.9 L10.3 9.2 L15.6 16.9"/>
+              <path d="M10.3 9.2 H16.1 L18.4 16.9"/>
+              <path d="M8.5 11.8 H11.1"/>
+            </svg>
+            <p class="faixa-nome">Movimento</p>
+          </div>
+
+          <div class="corpo">
+            <!-- CAP-11 · estado 1: MÊS DA MORTE.
+                 Agosto é o mês em que os anéis pararam (17/08/2026): a lápide
+                 sobe ao topo do caderno, antes do texto, e ganha um degrau de
+                 corpo de letra. Nas edições de setembro em diante ela volta ao
+                 pé, no corpo normal, e nunca mais sobe. -->
+            <p class="lapide mes-da-morte">Anéis. Última medida em <span class="num">17/08/2026</span>.</p>
+
+            <p class="edicao-texto">Agosto somou 435 km — metade de julho, e o terceiro mês seguido em queda. O período aconteceu em Ittre, Leuven e Bruxelles.</p>
+            <p class="edicao-texto">Das 138 rotas com piso medido no acervo, 87% é pavimento, 12,5% cascalho leve e 8% pavé. O piso ainda não cobre as 555 atividades.</p>
+
+            <!-- CAP-11 · estado 2: MESES SEGUINTES.
+                 O VO₂max morreu em julho, não em agosto: fica no pé, no corpo
+                 normal. Os dois estados convivem no mesmo caderno. -->
+            <p class="lapide">VO₂max. Última medida em <span class="num">14/07/2026</span>.</p>
+
+            <p class="assinatura">gemini-3.6-flash · 07 set 2026</p>
+          </div>
+        </div>
+
+        <!-- ============ CADERNO 2 · SONO =============================== -->
+        <div class="caderno" id="caderno-sono">
+          <div class="faixa sono">
+            <!-- moon-outline -->
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.8 13.1 A9 9 0 1 1 10.9 3.2 7 7 0 0 0 20.8 13.1 z"/>
+            </svg>
+            <p class="faixa-nome">Sono</p>
+          </div>
+
+          <div class="corpo">
+            <p class="edicao-texto">Você dormiu 12 minutos a mais que em agosto do ano passado. São 290 noites medidas entre 23 de abril de 2025 e 7 de setembro de 2026 — 58% dos dias do intervalo.</p>
+            <p class="edicao-texto">Sobre todo o histórico, e não sobre agosto, a cerveja aparece junto de um adormecer 33 minutos mais tarde, sob a regra das duas colunas.</p>
+
+            <p class="assinatura">gemini-3.6-flash · 07 set 2026</p>
+
+            <!-- CAP-12 · a linha de entrada da página da lua.
+                 Carrega o veredito por extenso: quem nunca tocar lê o resultado
+                 assim mesmo. Tipografia e extensão idênticas nos três casos —
+                 as outras duas variantes ocupariam esta mesma linha, no mesmo
+                 corpo de letra:
+                   "A página da lua · nenhum padrão — nada de 15 minutos ou mais."
+                   "A página da lua · achado — <o efeito medido>."
+                 (não há efeito a citar: o veredito de agosto é inconclusivo).
+                 A seta é para a DIREITA porque a lua é tela própria; as setas
+                 do sumário apontam para baixo porque rolam na mesma página. -->
+            <a class="linha-lua" href="#pagina-da-lua">
+              <p>A página da lua · inconclusivo — faltam cerca de <span class="num">106</span> noites.</p>
+              <span class="sum-seta">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9.5 6 L15.5 12 L9.5 18"/>
+                </svg>
+              </span>
+            </a>
+          </div>
+        </div>
+
+        <!-- ============ CADERNO 3 · CORAÇÃO ============================ -->
+        <div class="caderno" id="caderno-coracao">
+          <div class="faixa coracao">
+            <!-- heart-outline -->
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20.6 l-1.2-1.1C6 15.2 3 12.4 3 9.1 3 6.3 5.2 4.1 8 4.1 c1.6 0 3.1.7 4 1.9 .9-1.2 2.4-1.9 4-1.9 2.8 0 5 2.2 5 5 0 3.3-3 6.1-7.8 10.4 z"/>
+            </svg>
+            <p class="faixa-nome">Coração</p>
+          </div>
+
+          <div class="corpo">
+            <p class="edicao-texto">São 179 dias de frequência cardíaca minuto a minuto no acervo; a série intradiária existe desde 5 de setembro.</p>
+            <p class="edicao-texto">Duas das medidas deste caderno pararam em julho e não voltaram em agosto.</p>
+
+            <!-- CAP-11 · as duas no corpo normal: julho não é agosto. -->
+            <p class="lapide">Respiração. Última medida em <span class="num">10/07/2026</span>.</p>
+            <p class="lapide">SpO₂. Última medida em <span class="num">16/07/2026</span>.</p>
+
+            <p class="assinatura">gemini-3.6-flash · 07 set 2026</p>
+          </div>
+        </div>
+
+        <!-- ============ CADERNO 4 · ROTINA ============================= -->
+        <div class="caderno" id="caderno-rotina">
+          <div class="faixa rotina">
+            <!-- checkmark-circle-outline -->
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M7.9 12.3 L10.7 15.1 L16.2 9.4"/>
+            </svg>
+            <p class="faixa-nome">Rotina</p>
+          </div>
+
+          <div class="corpo">
+            <p class="edicao-texto">O acervo tem 551 ocorrências de tarefa sobre 102 modelos, 336 registros de 4 hábitos, 96 registros avulsos e 80 dias com nota.</p>
+            <p class="edicao-texto">Até maio de 2027 este caderno compara só com a própria trajetória: não existe agosto do ano passado nem normal de agosto para ele.</p>
+            <p class="edicao-texto">A cerveja está cotada a 11 € por litro; os 60 litros registrados desde 23 de maio somam cerca de €660.</p>
+
+            <!-- sem lápide: nenhuma métrica deste caderno morreu. -->
+
+            <p class="assinatura">gemini-3.6-flash · 07 set 2026</p>
+          </div>
+        </div>
+
+        <!-- ============ RODAPÉ ========================================= -->
+        <div class="rodape">
+          <p>Edição de mês, de período fechado. O texto e a ordem dos cadernos foram gravados na impressão e não se reordenam ao reabrir. Dado que mudar vira errata, não reescrita.</p>
+          <p class="carimbo">impressa em 07 set 2026 · prompt v3 · pacote v2</p>
+        </div>
+
+      </div>
+    </div>
+    <div class="dobra-label">dobra · 844 px</div>
+  </div>
+
+  <!-- ============ LEGENDA DE LEITURA (fora do aparelho) ================= -->
+  <div class="legenda">
+    <h1>A edição de agosto de 2026</h1>
+    <p class="sub">A forma central da revista (CAP-9): uma página longa, rolável, num quadro de 390 × 844. O quadro está esticado para caber a página inteira; a linha tracejada marca onde termina a primeira tela.</p>
+
+    <h2>O que o mockup materializa</h2>
+    <ul>
+      <li><b>A capa ocupa ~45% da tela</b> (380 px) e sangra de borda a borda. O nome do período e a manchete ficam <b>sobre</b> a imagem, com véu só sob o texto — não sobre a foto inteira.</li>
+      <li><b>O que cabe na primeira tela</b>, medido no quadro: a capa (0–380) e o sumário inteiro (380–803). A dobra corta a faixa de Movimento 41 px depois de ela começar — o leitor vê a manchete, as quatro chamadas e a cor do primeiro caderno começando, e rola a partir daí.</li>
+      <li><b>A manchete da capa é a do caderno em posição 1.</b> Em agosto isso é Movimento, e não por gosto: os anéis pararam em 17/08, e a lápide o leva à primeira posição.</li>
+      <li><b>A legenda é um fato de três campos</b> — <code>Ittre · km 31,1 · 12:38</code>. Sem parada, sem quilômetro e sem hora seria decoração.</li>
+      <li><b>O sumário mostra a chamada, não o nome.</b> O nome do caderno existe como rótulo subordinado. Cada linha é o alvo de toque inteiro; a seta aponta <b>para baixo</b> porque rola com âncora na mesma página.</li>
+      <li><b>A faixa do caderno é saturada e sangra</b> de borda a borda, com o ícone ao lado do nome. A ordem é ranqueada, então o reconhecimento é pela cara, não pela posição — e o ícone é o segundo portador da identidade, o que resolve a colisão laranja × vermelho e o daltonismo no mesmo gesto.</li>
+      <li><b>Os dois estados da lápide convivem em Movimento.</b> Anéis (17/08) sobe ao topo, antes do texto, um degrau acima no corpo de letra: agosto é o mês da morte. VO₂max (14/07) fica no pé, no corpo normal. A diferença é só tipográfica; a régua à esquerda é a mesma nos dois.</li>
+      <li><b>A lápide declara e para por aí</b> — nome, última data, ponto. Nada de "verifique suas conexões": conselho não entra na revista.</li>
+      <li><b>A linha da lua carrega o veredito por extenso.</b> Quem nunca tocar lê "inconclusivo — faltam cerca de 106 noites" assim mesmo. A seta aponta para a direita: a lua é tela própria.</li>
+      <li><b>Cada caderno assina.</b> Mono, 11 px, embaixo do texto — jornal assina coluna.</li>
+      <li><b>Nenhum botão de compartilhar</b>, em lugar nenhum. A revista é para reler.</li>
+    </ul>
+
+    <h2>Tipografia e cor</h2>
+    <ul>
+      <li>Texto da edição em serifada 15/23: é texto para ler, não dado para conferir. Por isso os números da prosa correm na serifada; mono fica para o que é dado solto — legenda, assinatura, datas de lápide, a contagem da lua.</li>
+      <li>Os quatro acentos e o <code>onAccent</code> saem de <code>resolveTokens('orbe','light','orbe')</code>. Estão em hex aqui porque HTML não roda <code>moduleOf()</code>; no código, nenhuma tela escreve hex.</li>
+    </ul>
+
+    <h2>Consequência que o desenho expõe</h2>
+    <ul>
+      <li>A capa imprime a manchete do caderno em posição 1, e o sumário imprime a chamada de cada caderno. São a mesma frase: <b>a chamada do primeiro caderno aparece duas vezes</b> a menos de uma tela de distância — aqui, a de Movimento. Vale em toda edição, não só em agosto. Não é decisão a tomar no mockup; fica registrado para quem decidir.</li>
+    </ul>
+
+    <p class="nota">Uma lacuna registrada no HTML: o contrato fixa por extenso só as chamadas de Sono e de Movimento. As de Coração e Rotina foram montadas apenas com números da lista autorizada e com a base nomeada, mas o texto exato ainda não é decisão tomada.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

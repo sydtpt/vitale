@@ -89,6 +89,12 @@ ordenarCadernos(pacotes) → CadernoId[]      // pura, determinística
    deste período.
 6. **Vazio** — fora da lista.
 
+**O passo 5 vence o passo 6.** Os dois se contradiziam no caso mais provável de todos: o
+mês em que o relógio para é justamente o mês sem dado, e sem precedência a lápide seria
+apagada exatamente quando importa. Um caderno cujo **único** conteúdo é a lápide existe,
+aparece e lidera — a alternativa é a revista ficar cega sobre a própria cegueira, que é o
+que CAP-11 existe para impedir. Decidido em 08/09/2026.
+
 O passo 2 existe porque **amostra pequena varia mais**: sem ele, Rotina lideraria
 todo mês por ser o caderno mais novo e mais volátil. Efeito grande com amostra pequena
 é ruído com aparência de manchete — o mesmo raciocínio do pré-registro da lua.
@@ -102,7 +108,7 @@ O teste é a **função**, não o layout: dada uma entrada, a ordem é determin�
 
 | Caso | Comportamento |
 |---|---|
-| **Caderno vazio** — não aconteceu nada | **some**. Sem espaço reservado, sem "nenhuma atividade registrada" |
+| **Caderno vazio** — não aconteceu nada | **some**. Sem espaço reservado, sem "nenhuma atividade registrada" — **exceto** quando ele carrega a lápide do período em que a métrica morreu |
 | **Caderno cego** — o sensor morreu e o app não sabe | **lápide** no pé do caderno que possuía a métrica: nome, última data, ponto |
 | **Base inexistente** | declarada **no pacote**, como fato |
 

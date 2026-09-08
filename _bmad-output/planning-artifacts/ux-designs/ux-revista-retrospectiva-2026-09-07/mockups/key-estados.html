@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Os estados da edição, por caderno</title>
+<style>
+/* =============================================================================
+   key-estados.html — OS ESTADOS DA EDIÇÃO, AGORA POR CADERNO.
+
+   O que esta tela ilustra, e por que ela existe:
+
+   Hoje o EdicaoCard.tsx (em produção) tem UM estado por edição — a edição
+   inteira está pronta, ou escrevendo, ou reprovada. Na revista são QUATRO
+   PEÇAS INDEPENDENTES, porque a chave do banco passa a incluir o caderno:
+
+       primary key (user_id, tipo_periodo, inicio, fim, caderno)
+
+   Quatro linhas, quatro estados, quatro assinaturas. Três podem estar prontas
+   e uma reprovada na mesma tela, e a errata de Sono não toca a linha de
+   Movimento. É isso que os dois quadros existem para tornar óbvio.
+
+   QUADRO 1 · a edição de agosto/2026 em estado misto
+     Movimento  — pronta (faixa laranja, serifada, assinatura mono)
+     Sono       — escrevendo (só ele; os outros três não piscam)
+     Coração    — reprovada na conferência (texto descartado, problemas listados)
+     Rotina     — pronta, com errata (a errata NÃO reescreve o texto)
+
+   QUADRO 2 · os dois estados que são ausência
+     período em curso     — a edição NÃO EXISTE. Sem botão, sem aviso, sem
+                            espaço reservado. É o nada, desenhado com honestidade.
+     fechado e não escrito — a ação de escrever, explícita (imprimir é ato do
+                            usuário: a chamada custa dinheiro), e a edição que
+                            sai dela tem TRÊS cadernos, não quatro — sem buraco
+                            onde o quarto estaria.
+
+   ORIGEM DOS ESTADOS: mobile/src/components/EdicaoCard.tsx (em produção). Todas
+   as frases de interface aqui são as dele, palavra por palavra:
+     "O texto não passou na conferência e foi descartado."
+     "Este período fechou e ainda não foi escrito."
+     "Os números abaixo foram reprocessados depois desta edição."
+     "Escrever a edição" · "Tentar de novo" · "Escrevendo…"
+
+   CONVENÇÕES DO MOCKUP, e não da interface — todas em faixa da cor da mesa
+   (#E9E2D6), para nunca se confundirem com tela:
+     .anota    elisão declarada (o que o recorte não desenha, e por quê)
+     .divisor  a régua + versalete que separa os dois estados do quadro 2
+     [ ... ]   marcador de conteúdo que o mockup não pode produzir sem inventar
+               — mesma convenção do "[foto — coverOf()]" do key-edicao.html
+
+   Tokens: recorte Orbe · paleta orbe · claro, medidos com
+   resolveTokens('orbe','light','orbe'). No código real NENHUMA tela escreve
+   hex — cor nasce em packages/shared/src/theme e chega por resolveTokens() /
+   moduleOf(). Os hexes existem aqui só porque HTML não roda moduleOf().
+
+   Zero JS, zero rede, zero imagem externa. Abre offline.
+   (Há UMA animação CSS: o anel de "Escrevendo…", que no app é o
+   ActivityIndicator. Parada, ela imprime como arco parcial — e continua legível.)
+   ============================================================================= */
+
+:root{
+  --bg:      #FFF7EE;
+  --surface: #FFFFFF;
+  --ink:     #1F1B16;
+  --ink2:    #5C534A;
+  --ink3:    #9C928A;
+  --ink4:    #B9AF9F;
+  --line:    #EFE6D8;
+  --surfaceMute: #F7F1E7;
+
+  --sono:       #6E8CC9;
+  --movimento:  #F25C2B;
+  --coracao:    #E05C5C;
+  --rotina:     #6FA86A;
+  --onAccent:   #1F1B16;
+
+  --sono-soft:      #DDE4F2;
+  --movimento-soft: #FFE3D2;
+  --coracao-soft:   #FDDEDE;
+  --rotina-soft:    #E2EFD9;
+
+  /* cromo da marca. primary é o laranja do Orbe; o primeiro plano dele deriva
+     como o onAccent — o melhor entre ink e bgPure por contraste medido —, e no
+     claro dá ink (5,17 sobre #F25C2B). Não é decisão nova: é a mesma regra. */
+  --primary:    #F25C2B;
+  --primaryOn:  #1F1B16;
+
+  --mesa:    #E9E2D6;
+  --mesa-lin:#D6CDBE;
+
+  --sans:  'Manrope', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --mono:  'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --serif: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin:0;
+  background:var(--mesa);
+  font-family:var(--sans);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+}
+
+.palco{ padding:40px 40px 64px; }
+
+.folha{ max-width:1080px; margin:0 0 30px; }
+.folha h1{
+  font-family:var(--serif); font-weight:400;
+  font-size:27px; line-height:33px; margin:0 0 6px; color:var(--ink);
+}
+.folha p{
+  margin:0; max-width:760px;
+  font-size:13px; line-height:20px; color:#5F574E;
+}
+.folha code{ font-family:var(--mono); font-size:11.5px; }
+
+.colunas{ display:flex; flex-wrap:wrap; align-items:flex-start; gap:52px; }
+.coluna{ flex:0 0 auto; width:410px; }
+
+.coluna h2{
+  font-family:var(--sans); font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.1px;
+  color:#8A8177; margin:0 0 6px;
+}
+.coluna .titulo{
+  font-family:var(--serif); font-weight:400;
+  font-size:20px; line-height:26px; margin:0 0 6px; color:var(--ink);
+}
+.coluna .sub{
+  font-size:12.5px; line-height:19px; color:#5F574E; margin:0 0 16px;
+}
+
+/* ---------- quadro do aparelho — 390 × 844, 1:1 ------------------------- */
+
+.device{
+  width:410px;                 /* 390 de tela + 2 × 10 de moldura */
+  border:10px solid #24211D;
+  border-radius:46px;
+  overflow:hidden;
+  box-shadow:0 22px 60px rgba(31,27,22,.26);
+  background:#24211D;
+}
+.tela{
+  position:relative;
+  width:390px;
+  height:844px;                /* a tela inteira, sem esticar o quadro */
+  overflow:hidden;
+  background:var(--bg);
+}
+
+/* ---------- barra de status (cromo do aparelho, não da revista) --------- */
+
+.statusbar{
+  position:absolute; top:0; left:0; right:0; height:47px; z-index:30;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 26px 0;
+  font-family:var(--mono); font-size:12px; letter-spacing:.2px;
+}
+.statusbar.claro{ color:#FFF7EE; }     /* sobre capa */
+.statusbar.escuro{ color:var(--ink); } /* sobre papel, e sobre faixa (onAccent) */
+.sb-dir{ display:flex; align-items:center; gap:5px; opacity:.9; }
+.sb-bat{ width:20px; height:10px; border:1px solid currentColor; border-radius:2.5px; position:relative; }
+.sb-bat::after{ content:''; position:absolute; left:1.5px; top:1.5px; bottom:1.5px; width:12px; background:currentColor; border-radius:1px; }
+.sb-bat::before{ content:''; position:absolute; left:100%; top:3px; bottom:3px; width:1.5px; background:currentColor; border-radius:0 1px 1px 0; }
+
+/* posicionada dentro do segundo estado do quadro 2 */
+.statusbar.interna{ position:absolute; top:0; }
+
+/* ---------- convenções do mockup (faixa da cor da mesa) ----------------- */
+
+.anota{
+  background:var(--mesa);
+  border-top:1px solid var(--mesa-lin);
+  border-bottom:1px solid var(--mesa-lin);
+  padding:5px 16px;
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.3px; line-height:14px;
+  color:#6B635A;
+  text-align:center;
+}
+.anota.fina{ padding:3px 16px; }
+.divisor{
+  background:var(--mesa);
+  border-top:1px solid var(--mesa-lin);
+  border-bottom:1px solid var(--mesa-lin);
+  padding:7px 16px 8px;
+  text-align:center;
+}
+.divisor span{
+  font-family:var(--sans); font-size:10.5px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.4px; color:#7C7368;
+}
+
+/* marcador de conteúdo que o mockup não produz sem inventar */
+.marcador{
+  font-family:var(--mono); font-size:11px; letter-spacing:.2px;
+  color:var(--ink4);
+}
+
+/* ---------- capa (recorte) ---------------------------------------------- */
+
+.capa{ position:relative; overflow:hidden; }
+
+.capa.foto{ height:88px; }
+.capa.foto .fundo{
+  /* a capa inteira (380 px), deslocada para cima: o quadro mostra o pé dela */
+  position:absolute; left:0; right:0; top:-292px; height:380px;
+  background:
+    radial-gradient(120% 90% at 22% 16%, rgba(255,232,198,.85) 0%, rgba(255,232,198,0) 55%),
+    linear-gradient(152deg, #E9B478 0%, #D98A57 34%, #B4653F 62%, #6E4630 100%);
+}
+.capa.foto .veu{
+  position:absolute; inset:0; z-index:2;
+  background:linear-gradient(to top, rgba(24,18,13,.86) 0%, rgba(24,18,13,.58) 55%, rgba(24,18,13,.34) 100%);
+}
+.capa-texto{ position:absolute; left:0; right:0; bottom:0; z-index:10; padding:0 20px 12px; color:#FFF7EE; }
+.capa-manchete{
+  font-family:var(--serif); font-weight:400; font-size:27px; line-height:32px;
+  margin:0 0 8px; text-shadow:0 1px 12px rgba(24,18,13,.45);
+}
+.capa-legenda{ font-family:var(--mono); font-size:11.5px; letter-spacing:.2px; color:rgba(255,247,238,.80); margin:0; }
+
+/* capa com traçado — a outra natureza (2023–2025 e qualquer período sem foto) */
+.capa.tracado{ height:68px; background:var(--surface); border-bottom:1px solid var(--line); }
+.capa.tracado .rota{ position:absolute; right:14px; top:-8px; }
+.capa.tracado .capa-periodo{
+  position:absolute; left:20px; bottom:6px;
+  font-family:var(--sans); font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.1px; color:var(--ink3); margin:0;
+}
+
+/* ---------- faixa de caderno (CAP-7) ------------------------------------ */
+
+.faixa{
+  display:flex; align-items:center; gap:10px;
+  height:56px; padding:0 20px;
+  color:var(--onAccent);
+}
+.faixa-nome{ font-family:var(--sans); font-size:22px; font-weight:700; letter-spacing:.2px; margin:0; }
+.faixa.sono      { background:var(--sono); }
+.faixa.movimento { background:var(--movimento); }
+.faixa.coracao   { background:var(--coracao); }
+.faixa.rotina    { background:var(--rotina); }
+
+.corpo{ padding:14px 20px 16px; }
+.corpo.curto{ padding:6px 20px 6px; }
+.corpo.medio{ padding:12px 20px 12px; }
+
+/* ---------- estado: PRONTA ---------------------------------------------- */
+
+.edicao-texto{
+  font-family:var(--serif); font-weight:400; font-size:15px; line-height:23px;
+  color:var(--ink); margin:0;
+}
+.assinatura{
+  font-family:var(--mono); font-size:11px; letter-spacing:.2px;
+  color:var(--ink3); margin:12px 0 0;
+}
+.num{ font-family:var(--mono); font-size:.92em; }
+
+/* ---------- estado: ESCREVENDO ------------------------------------------ */
+
+.linha{ display:flex; align-items:center; gap:8px; }
+.lab{ font-family:var(--sans); font-size:12.5px; line-height:18px; color:var(--ink3); margin:0; }
+
+/* o ActivityIndicator do app. Sem JS: anel + animação CSS. */
+.girando{
+  width:15px; height:15px; flex:0 0 auto;
+  border:2px solid var(--line);
+  border-top-color:var(--ink3);
+  border-radius:50%;
+  animation:gira 1s linear infinite;
+}
+@keyframes gira{ to{ transform:rotate(360deg); } }
+
+/* ---------- estado: REPROVADA NA CONFERÊNCIA ---------------------------- */
+
+.problema{
+  font-family:var(--mono); font-size:11.5px; line-height:17px;
+  color:var(--ink4); margin:0;
+}
+.problemas{ margin-top:8px; display:flex; flex-direction:column; gap:0; }
+.botao{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  height:38px; margin-top:10px;
+  background:var(--primary); border-radius:16px;
+  color:var(--primaryOn);
+  font-family:var(--sans); font-size:13.5px; font-weight:600;
+}
+
+/* ---------- estado: ERRATA ---------------------------------------------- */
+
+.errata{
+  display:flex; align-items:flex-start; gap:6px;
+  padding:6px 8px; margin-bottom:6px;
+  background:var(--surfaceMute); border-radius:12px;
+}
+.errata p{
+  flex:1 1 auto; margin:0;
+  font-family:var(--sans); font-size:11.5px; line-height:16px; color:var(--ink3);
+}
+.errata svg{ flex:0 0 auto; margin-top:1px; color:var(--ink3); }
+
+/* ---------- estado: FECHADO E NÃO ESCRITO ------------------------------- */
+
+.card{
+  background:var(--surface); border-radius:20px;
+  margin:10px 20px; padding:14px;
+  box-shadow:0 1px 2px rgba(31,27,22,.05), 0 6px 18px rgba(31,27,22,.05);
+}
+.eyebrow{
+  font-family:var(--sans); font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.1px; color:var(--ink3); margin:0 0 6px;
+}
+
+/* ---------- cromo da Retrospectiva (o resto do conteúdo) ---------------- */
+
+.rt-header{
+  display:flex; align-items:center; gap:8px;
+  padding:8px 16px;
+}
+.rt-header .ico{ width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--ink); }
+.rt-titulo{ flex:1 1 auto; font-family:var(--sans); font-size:17px; font-weight:700; color:var(--ink); margin:0; }
+
+.rt-conteudo{ padding:12px 16px 8px; display:flex; flex-direction:column; gap:10px; }
+
+.seg{
+  display:flex; gap:2px; padding:3px;
+  background:var(--surfaceMute); border-radius:12px;
+}
+.seg span{
+  flex:1 1 0; text-align:center; padding:7px 0; border-radius:9px;
+  font-family:var(--sans); font-size:12px; font-weight:600; color:var(--ink3);
+}
+.seg span.on{ background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(31,27,22,.08); }
+
+.nav{ display:flex; align-items:center; justify-content:center; gap:14px; }
+.nav .navBtn{ width:26px; height:26px; display:flex; align-items:center; justify-content:center; color:var(--ink); }
+.nav .navBtn.off{ color:var(--ink3); }
+.nav .navLabel{ font-family:var(--sans); font-size:15px; font-weight:600; color:var(--ink); min-width:150px; text-align:center; }
+
+.cardplano{
+  background:var(--surface); border-radius:20px; padding:13px;
+  box-shadow:0 1px 2px rgba(31,27,22,.05), 0 6px 18px rgba(31,27,22,.05);
+}
+
+.kpis{ display:flex; gap:8px; }
+.kpi{
+  flex:1 1 0; background:var(--surface); border-radius:16px; padding:6px 6px 7px;
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  box-shadow:0 1px 2px rgba(31,27,22,.05), 0 6px 18px rgba(31,27,22,.05);
+}
+.kpi .kv{ font-family:var(--mono); font-size:11px; color:var(--ink4); margin-top:2px; }
+.kpi .kl{ font-family:var(--sans); font-size:10.5px; color:var(--ink3); }
+.kpi svg{ color:var(--primary); }
+
+/* ---------- notas fora do quadro ---------------------------------------- */
+
+.notas{ padding-top:18px; }
+.notas h3{
+  font-family:var(--sans); font-size:10.5px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.1px; color:#8A8177; margin:18px 0 8px;
+}
+.notas h3:first-child{ margin-top:0; }
+.notas ul{ margin:0; padding:0; list-style:none; }
+.notas li{
+  font-size:12.5px; line-height:19px; color:#3F3931;
+  padding:0 0 9px 15px; position:relative;
+}
+.notas li::before{
+  content:''; position:absolute; left:0; top:8px;
+  width:5px; height:5px; border-radius:3px; background:#B9AF9F;
+}
+.notas b{ font-weight:700; color:var(--ink); }
+.notas code{ font-family:var(--mono); font-size:11px; }
+.notas .chave{
+  margin:0 0 14px; padding:10px 12px;
+  border-left:2px solid var(--mesa-lin);
+  font-family:var(--mono); font-size:11px; line-height:17px; color:#5F574E;
+}
+
+.rodape{
+  max-width:1080px; margin:44px 0 0; padding-top:18px;
+  border-top:1px solid var(--mesa-lin);
+}
+.rodape h3{
+  font-family:var(--sans); font-size:10.5px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.1px; color:#8A8177; margin:0 0 10px;
+}
+.rodape ol{ margin:0; padding-left:20px; max-width:900px; }
+.rodape li{ font-size:12.5px; line-height:20px; color:#3F3931; padding-bottom:7px; }
+.rodape b{ color:var(--ink); }
+.rodape code{ font-family:var(--mono); font-size:11px; }
+</style>
+</head>
+<body>
+
+<div class="palco">
+
+  <div class="folha">
+    <h1>Os estados da edição, por caderno</h1>
+    <p>O <code>EdicaoCard.tsx</code> em produção tem um estado por edição. Na revista são
+       quatro peças independentes, porque a chave passa a incluir o caderno — e três podem
+       estar prontas com uma reprovada na mesma tela. Dois quadros de 390 × 844, 1:1.</p>
+  </div>
+
+  <div class="colunas">
+
+    <!-- ==================================================================
+         QUADRO 1 — A EDIÇÃO EM ESTADO MISTO
+         ================================================================== -->
+    <section class="coluna">
+      <h2>Quadro 1</h2>
+      <p class="titulo">Agosto de 2026, com os quatro cadernos em quatro estados</p>
+      <p class="sub">Uma página só, rolável. Movimento impressa, Sono sendo escrito,
+         Coração reprovado na conferência, Rotina impressa com errata.</p>
+
+      <div class="device">
+        <div class="tela">
+
+          <!-- CAPA — recortada no topo. Vemos o pé dela: o fim da manchete e a
+               legenda de três campos. A manchete é a chamada do caderno em
+               posicao = 1, que em agosto é Movimento (a lápide dos anéis, 17/08,
+               o leva à primeira posição) — e Movimento está PRONTA, então a capa
+               tem o que imprimir.
+
+               LACUNA: e quando o caderno em posicao = 1 ainda está sendo escrito,
+               ou foi reprovado? A manchete da capa é derivada dele, e o contrato
+               não diz o que a capa mostra nesse intervalo. Mesma família da
+               lacuna do sumário, logo abaixo. -->
+          <div class="capa foto">
+            <div class="fundo"></div>
+            <div class="veu"></div>
+            <div class="statusbar claro">
+              <span>9:41</span>
+              <span class="sb-dir">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true">
+                  <rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/>
+                  <rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/>
+                </svg>
+                <span class="sb-bat"></span>
+              </span>
+            </div>
+            <div class="capa-texto">
+              <p class="capa-manchete">— e o terceiro mês seguido caindo</p>
+              <p class="capa-legenda">Ittre · km 31,1 · 12:38</p>
+            </div>
+          </div>
+
+          <!-- ELISÃO DECLARADA — não é interface.
+               O sumário (CAP-8) mostra a CHAMADA de cada caderno. Em estado
+               misto, duas dessas chamadas não existem: a de Sono ainda está
+               sendo escrita e a de Coração foi descartada.
+
+               LACUNA: o contrato não diz o que o sumário mostra enquanto um
+               caderno é escrito nem depois de um ser reprovado — se a linha
+               some, se fica sem chamada, ou se o sumário só aparece completo.
+               O mockup não decide: recorta e declara. -->
+          <div class="anota">
+            recorte do mockup · a capa segue acima (380 px) e o sumário fica aqui —
+            ver a lacuna nas notas
+          </div>
+
+          <!-- ============ CADERNO 1 · MOVIMENTO — PRONTA ================ -->
+          <div class="faixa movimento">
+            <!-- bicycle-outline -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="5.6" cy="16.9" r="3.7"/><circle cx="18.4" cy="16.9" r="3.7"/>
+              <path d="M5.6 16.9 L10.3 9.2 L15.6 16.9"/><path d="M10.3 9.2 H16.1 L18.4 16.9"/>
+              <path d="M8.5 11.8 H11.1"/>
+            </svg>
+            <p class="faixa-nome">Movimento</p>
+          </div>
+          <div class="corpo">
+            <p class="edicao-texto">Agosto somou 435 km — metade de julho, e o terceiro mês seguido em queda.</p>
+            <!-- A assinatura é obrigatória e visível: jornal assina coluna. -->
+            <p class="assinatura">gemini-3.6-flash · 07 set 2026</p>
+          </div>
+
+          <!-- ============ CADERNO 2 · SONO — ESCREVENDO ================= -->
+          <!-- O indicador é DESTE caderno. Movimento acima e Rotina abaixo estão
+               impressos e parados: a edição chega em quatro peças, e cada uma
+               aparece quando fica pronta. -->
+          <div class="faixa sono">
+            <!-- moon-outline -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.8 13.1 A9 9 0 1 1 10.9 3.2 7 7 0 0 0 20.8 13.1 z"/>
+            </svg>
+            <p class="faixa-nome">Sono</p>
+          </div>
+          <div class="corpo medio">
+            <div class="linha">
+              <span class="girando"></span>
+              <p class="lab">Escrevendo…</p>
+            </div>
+          </div>
+
+          <!-- ============ CADERNO 3 · CORAÇÃO — REPROVADA =============== -->
+          <!-- Não é erro do app: é a conferência funcionando. O texto foi
+               descartado DE PROPÓSITO, e dizer por quê é mais honesto que
+               "tente de novo". Sem assinatura: não há texto a assinar.
+
+               Os dois problemas são as duas primeiras das cinco regras de
+               verificar.ts. O "186" é deliberadamente um número que NÃO está na
+               lista de fatos autorizada — é exatamente o que a primeira regra
+               existe para pegar.
+
+               LACUNA: a quinta regra (base citada sem nome) ainda não está
+               escrita em verificar.ts, então o texto do `detalhe` dela não
+               existe. A linha abaixo segue a forma das quatro que existem
+               (`"X" não está no pacote`); quem escrever a regra fecha a frase.
+
+               LACUNA: o botão traz a frase de produção, "Tentar de novo". A
+               jornada 2 do EXPERIENCE.md diz que ele "manda escrever de novo só
+               o que falhou" — se a frase muda quando a ação é de um caderno só,
+               o contrato não diz. -->
+          <div class="faixa coracao">
+            <!-- heart-outline -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20.6 l-1.2-1.1C6 15.2 3 12.4 3 9.1 3 6.3 5.2 4.1 8 4.1 c1.6 0 3.1.7 4 1.9 .9-1.2 2.4-1.9 4-1.9 2.8 0 5 2.2 5 5 0 3.3-3 6.1-7.8 10.4 z"/>
+            </svg>
+            <p class="faixa-nome">Coração</p>
+          </div>
+          <div class="corpo">
+            <p class="lab">O texto não passou na conferência e foi descartado.</p>
+            <div class="problemas">
+              <p class="problema">· "186" não está no pacote</p>
+              <p class="problema">· base citada sem nome: "contra o ano passado"</p>
+            </div>
+            <div class="botao">
+              <!-- create-outline -->
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M13.5 5.5 L18.5 10.5 L9 20 H4 v-5 z"/><path d="M12 19.5 H20.5"/>
+              </svg>
+              <span>Tentar de novo</span>
+            </div>
+          </div>
+
+          <!-- ============ CADERNO 4 · ROTINA — PRONTA, COM ERRATA ======= -->
+          <!-- A ERRATA NÃO REESCREVE. O texto continua exatamente como estava,
+               a assinatura continua a mesma, e a marca diz só que os números
+               abaixo dele foram reprocessados depois desta edição.
+               Ela está NESTE caderno e em nenhum outro: Movimento, acima, não
+               tem marca nenhuma. É a razão de a chave incluir o caderno. -->
+          <div class="faixa rotina">
+            <!-- checkmark-circle-outline -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/><path d="M7.9 12.3 L10.7 15.1 L16.2 9.4"/>
+            </svg>
+            <p class="faixa-nome">Rotina</p>
+          </div>
+          <div class="corpo">
+            <div class="errata">
+              <!-- alert-circle-outline -->
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"/><path d="M12 7.5 V13"/><path d="M12 16.3 v.1"/>
+              </svg>
+              <p>Os números abaixo foram reprocessados depois desta edição.</p>
+            </div>
+            <p class="edicao-texto">Os 60 litros de cerveja registrados desde 23 de maio somam cerca de €660.</p>
+            <p class="assinatura">gemini-3.6-flash · 07 set 2026</p>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="notas">
+        <p class="chave">primary key (user_id, tipo_periodo, inicio, fim, <b>caderno</b>)<br>
+           quatro linhas · quatro estados · quatro assinaturas</p>
+
+        <h3>Por que os quatro estados coexistem</h3>
+        <ul>
+          <li>Porque a chave do banco inclui o caderno. Cada caderno é <b>uma linha</b>, com
+              seu <code>PACOTE_VERSAO</code>, seu <code>prompt_versao</code>, seu modelo e sua
+              data. A errata de Rotina não encosta na linha de Movimento — e não há como ela
+              encostar.</li>
+          <li><b>O indicador é de um caderno só.</b> Sono pisca; Movimento e Rotina, impressos,
+              ficam parados. A edição chega em quatro peças e cada uma aparece quando fica pronta.</li>
+          <li><b>Reprovada não é erro.</b> A frase é a de produção, palavra por palavra, e o que
+              a segue são os problemas — não um pedido de desculpas e não um conselho. A revista
+              prefere não dizer a dizer errado.</li>
+          <li><b>A errata não reescreve.</b> Texto íntegro, assinatura íntegra, e a marca só
+              declara que o dado embaixo mudou depois. Período fechado congela.</li>
+        </ul>
+
+        <h3>O que este recorte não desenha</h3>
+        <ul>
+          <li><b>O sumário</b>, e não por espaço: em estado misto duas das quatro chamadas não
+              existem — a de Sono está sendo escrita, a de Coração foi descartada. O contrato não
+              diz o que o sumário mostra aí. <b>Lacuna registrada no HTML.</b></li>
+          <li><b>A capa inteira</b> (380 px). Aparece o pé dela porque a manchete sai do caderno
+              em posição 1, que aqui está pronto — e a mesma lacuna vale para quando ele não estiver.</li>
+          <li><b>As lápides de agosto</b> (anéis 17/08, VO₂max 14/07): são assunto do
+              <code>key-edicao.html</code>. Aqui cada caderno mostra só o seu estado.</li>
+          <li><b>O sétimo estado, <i>erro</i></b> — a mensagem e a ação de tentar de novo. Ele
+              existe na tabela do <code>EXPERIENCE.md</code> e no componente em produção, mas não
+              é estado da revista: é falha de rede ou de provedor, e a forma dele já está
+              desenhada aqui pela reprovada, que é a mesma moldura com outro texto.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         QUADRO 2 — OS DOIS ESTADOS QUE SÃO AUSÊNCIA
+         ================================================================== -->
+    <section class="coluna">
+      <h2>Quadro 2</h2>
+      <p class="titulo">Os dois estados que são ausência</p>
+      <p class="sub">Em cima, o período em curso: a edição não existe, e a tela não a menciona.
+         Embaixo, o período fechado e não escrito: a ação, explícita — e a edição que sai dela
+         tem três cadernos.</p>
+
+      <div class="device">
+        <div class="tela">
+
+          <!-- ============ ESTADO A · PERÍODO EM CURSO ==================
+               A edição NÃO EXISTE. Não é botão desabilitado, não é aviso, não é
+               esqueleto, não é espaço reservado: é ausência. Um jornal não
+               anuncia a edição que ainda não fechou.
+
+               Em produção o EdicaoCard devolve `null` para as fases 'aberto' e
+               'carregando'. Isto aqui é o que sobra: a Retrospectiva com o resto
+               do conteúdo, e nenhum vestígio.
+
+               ONDE A EDIÇÃO ESTARIA: entre o cartão da manchete apurada e a
+               fileira de KPIs. Repare que não há folga extra ali — é o mesmo
+               gap de qualquer par de cartões. Não sobrou lugar de ninguém. -->
+          <div class="statusbar escuro">
+            <span>9:41</span>
+            <span class="sb-dir">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true">
+                <rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/>
+                <rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/>
+              </svg>
+              <span class="sb-bat"></span>
+            </span>
+          </div>
+          <div style="height:47px"></div>
+
+          <div class="rt-header">
+            <span class="ico">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14.5 5.5 L8 12 l6.5 6.5"/>
+              </svg>
+            </span>
+            <p class="rt-titulo">Retrospectiva</p>
+            <span class="ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+                <path d="M4 8 H20"/><path d="M4 16 H20"/>
+                <circle cx="9" cy="8" r="2.2" fill="#FFF7EE"/><circle cx="15" cy="16" r="2.2" fill="#FFF7EE"/>
+              </svg>
+            </span>
+          </div>
+
+          <div class="rt-conteudo">
+            <div class="seg">
+              <span>Semana</span><span class="on">Mês</span><span>Estação</span><span>Ano</span><span>Total</span>
+            </div>
+
+            <div class="nav">
+              <span class="navBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M14.5 5.5 L8 12 l6.5 6.5"/>
+                </svg>
+              </span>
+              <span class="navLabel">Setembro de 2026</span>
+              <!-- ‹ › : não há próximo, porque setembro é o período em curso -->
+              <span class="navBtn off">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9.5 5.5 L16 12 l-6.5 6.5"/>
+                </svg>
+              </span>
+            </div>
+
+            <!-- a manchete APURADA — o que a retro já fazia antes da revista.
+                 O texto dela é calculado (lede()) e não está na lista de fatos
+                 autorizada: o mockup marca em vez de inventar. -->
+            <div class="cardplano">
+              <p class="eyebrow">O mês em poucas frases</p>
+              <p class="marcador">[manchete apurada — lede()]</p>
+            </div>
+
+            <!-- ↑↑ AQUI ficaria a edição. Não há nada: nem cartão, nem botão,
+                 nem aviso, nem espaço. O gap abaixo é o mesmo de qualquer par
+                 de cartões. ↓↓ -->
+
+            <div class="kpis">
+              <div class="kpi">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+                  <path d="M4 9.5 v5"/><path d="M20 9.5 v5"/><path d="M7 7.5 v9"/><path d="M17 7.5 v9"/><path d="M7 12 H17"/>
+                </svg>
+                <span class="kv">[apurado]</span><span class="kl">Treinos</span>
+              </div>
+              <div class="kpi">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 12.5 L7 16.5 L14 8.5"/><path d="M12.5 15.5 L14.5 17.5 L21 9.5"/>
+                </svg>
+                <span class="kv">[apurado]</span><span class="kl">Tarefas</span>
+              </div>
+              <div class="kpi">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <ellipse cx="8" cy="7" rx="2.6" ry="3.4"/><ellipse cx="16" cy="12.5" rx="2.6" ry="3.4"/>
+                  <path d="M5.6 10.6 c-.6 2.6 .5 3.6 2.4 3.6 1.9 0 2.6-1.2 2.2-3.4"/>
+                  <path d="M13.6 16.1 c-.6 2.6 .5 3.6 2.4 3.6 1.9 0 2.6-1.2 2.2-3.4"/>
+                </svg>
+                <span class="kv">[apurado]</span><span class="kl">Passos</span>
+              </div>
+              <div class="kpi">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3.5 8 h14 a3 3 0 0 1 3 3 v5 a3 3 0 0 1-3 3 h-11 a3 3 0 0 1-3-3 z"/>
+                  <path d="M3.5 8 V7 a2 2 0 0 1 2-2 h10"/><path d="M17 13.5 v.1"/>
+                </svg>
+                <span class="kv">[apurado]</span><span class="kl">Compras</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============ A RÉGUA E O VERSALETE ========================
+               Convenção do mockup, não da interface: separa dois estados que
+               nunca aparecem na mesma tela. -->
+          <div class="divisor"><span>Fechado e não escrito</span></div>
+
+          <!-- ============ ESTADO B · FECHADO E NÃO ESCRITO =============
+               Imprimir é ATO DO USUÁRIO: a chamada custa dinheiro, e folhear
+               seis meses não pode disparar seis chamadas pagas. Por isso a
+               ação existe, e é explícita.
+
+               Abril de 2026 — o último mês fechado sem caderno de Rotina:
+               `habit_logs`/`todo_occurrences` só começam em 01/05/2026 (tabela
+               de backfill de mudancas-mecanicas.md). O caderno vazio não some
+               por escolha de tela: ele nunca chega a existir.
+
+               A capa é TRAÇADO, não foto: a lista de fatos autorizada tem uma
+               legenda de três campos só, e ela é de agosto (Ittre · km 31,1 ·
+               12:38). O mockup desenha a outra natureza de capa em vez de
+               inventar uma parada.
+
+               LACUNA: a manchete da capa é a chamada do caderno em posicao = 1
+               — e antes de a edição ser escrita não há posicao = 1. O contrato
+               não diz o que a capa de um período fechado e não escrito imprime
+               no lugar dela. Aqui a linha fica vazia, marcada. -->
+          <div class="capa tracado">
+            <div class="statusbar interna escuro">
+              <span>9:41</span>
+              <span class="sb-dir">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true">
+                  <rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/>
+                  <rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/>
+                </svg>
+                <span class="sb-bat"></span>
+              </span>
+            </div>
+            <span class="rota">
+              <svg width="150" height="86" viewBox="0 0 150 86" fill="none"
+                   stroke="#F25C2B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10 74 C16 58 32 54 44 58 C58 62 64 52 58 42 C51 30 62 18 78 18 C96 18 108 28 112 40 C115 50 128 52 138 44"/>
+                <path d="M138 49 C128 57 116 51 112 40"/>
+              </svg>
+            </span>
+            <!-- Sem manchete: ela é a chamada do caderno em posicao = 1, e antes
+                 da impressão não há posicao = 1. Ver a lacuna nas notas. -->
+            <p class="capa-periodo">Abril de 2026</p>
+          </div>
+
+          <div class="card">
+            <p class="eyebrow">A edição</p>
+            <p class="lab">Este período fechou e ainda não foi escrito.</p>
+            <div class="botao">
+              <!-- create-outline -->
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M13.5 5.5 L18.5 10.5 L9 20 H4 v-5 z"/><path d="M12 19.5 H20.5"/>
+              </svg>
+              <span>Escrever a edição</span>
+            </div>
+          </div>
+
+          <!-- ELISÃO DECLARADA — não é interface.
+               O que vem abaixo é a MESMA edição depois do toque: três cadernos,
+               e nada onde o quarto estaria. Sem cabeçalho apagado, sem "nenhuma
+               atividade registrada", sem lugar guardado.
+
+               A ordem impressa é ranqueada e só existe depois do toque; aqui
+               vale a ordem do catálogo (Sono · Movimento · Coração · Rotina),
+               que é o desempate do passo 4 do ranqueamento.
+
+               O texto de cada caderno é narrado pelo modelo a partir do pacote
+               de abril, e a lista de fatos autorizada não tem número de abril de
+               2026: o mockup marca em vez de inventar. A assinatura, obrigatória
+               e visível, aparece por extenso no quadro 1. -->
+          <div class="anota fina">
+            recorte · abaixo, a mesma edição depois do toque
+          </div>
+
+          <div class="faixa sono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.8 13.1 A9 9 0 1 1 10.9 3.2 7 7 0 0 0 20.8 13.1 z"/>
+            </svg>
+            <p class="faixa-nome">Sono</p>
+          </div>
+          <div class="corpo curto"><p class="marcador">[texto narrado do pacote de abril]</p></div>
+
+          <div class="faixa movimento">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="5.6" cy="16.9" r="3.7"/><circle cx="18.4" cy="16.9" r="3.7"/>
+              <path d="M5.6 16.9 L10.3 9.2 L15.6 16.9"/><path d="M10.3 9.2 H16.1 L18.4 16.9"/>
+              <path d="M8.5 11.8 H11.1"/>
+            </svg>
+            <p class="faixa-nome">Movimento</p>
+          </div>
+          <div class="corpo curto"><p class="marcador">[texto narrado do pacote de abril]</p></div>
+
+          <div class="faixa coracao">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20.6 l-1.2-1.1C6 15.2 3 12.4 3 9.1 3 6.3 5.2 4.1 8 4.1 c1.6 0 3.1.7 4 1.9 .9-1.2 2.4-1.9 4-1.9 2.8 0 5 2.2 5 5 0 3.3-3 6.1-7.8 10.4 z"/>
+            </svg>
+            <p class="faixa-nome">Coração</p>
+          </div>
+          <div class="corpo curto"><p class="marcador">[texto narrado do pacote de abril]</p></div>
+
+          <!-- E acaba aqui. Não existe quarta faixa apagada, não existe linha
+               dizendo que Rotina não tem nada: a página termina no terceiro
+               caderno. -->
+
+        </div>
+      </div>
+
+      <div class="notas">
+        <h3>O que foi deliberadamente omitido no período em curso</h3>
+        <ul>
+          <li><b>Tudo o que anunciaria a edição.</b> Não há botão desabilitado, não há
+              "disponível quando o mês fechar", não há esqueleto de carregamento, não há moldura
+              vazia e não há cartão com reticências. Em produção o componente devolve
+              <code>null</code>, e o que se vê é a página sem ele.</li>
+          <li><b>Nem folga.</b> Entre a manchete apurada e a fileira de KPIs há o mesmo respiro
+              de qualquer par de cartões. Um vão maior seria um lugar guardado, e lugar guardado
+              é anúncio.</li>
+          <li><b>Nem capa.</b> A capa imprime a manchete do caderno em posição 1; sem edição não
+              há posição 1, e o período em curso não tem capa nenhuma.</li>
+          <li>O que aparece marcado com <code>[ ]</code> é conteúdo apurado que o mockup não pode
+              produzir sem inventar número — a lista de fatos autorizada não cobre setembro de
+              2026. A fileira e o cartão estão no lugar deles; só os valores estão marcados.</li>
+        </ul>
+
+        <h3>E no fechado e não escrito</h3>
+        <ul>
+          <li><b>A ação é explícita porque a chamada custa dinheiro.</b> A revista nunca gera
+              sozinha: abrir só lê. Sem essa regra, folhear seis meses dispara seis chamadas pagas.</li>
+          <li><b>Três cadernos, não quatro.</b> Abril de 2026 é o último mês fechado sem Rotina —
+              os hábitos e as tarefas só começam em 01/05/2026. O caderno vazio não é escondido:
+              ele nunca chega a existir, e a página termina no terceiro.</li>
+          <li><b>Lacuna:</b> a manchete da capa vem do caderno em posição 1, que só existe depois
+              da impressão. O que a capa de um período fechado e não escrito mostra no lugar dela
+              não está decidido.</li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ==================================================================== -->
+  <div class="rodape">
+    <h3>As decisões que estes dois quadros ilustram</h3>
+    <ol>
+      <li><b>O estado é por caderno, não por edição.</b> A chave
+          <code>(user_id, tipo_periodo, inicio, fim, caderno)</code> faz de cada caderno uma
+          linha, com versão de pacote, prompt, modelo e data próprios.</li>
+      <li><b>Escrevendo é por caderno.</b> A edição chega em quatro peças e cada uma aparece
+          quando fica pronta — o indicador é de um caderno só.</li>
+      <li><b>Reprovada na conferência é a conferência funcionando</b>, não erro do app: o texto
+          foi descartado de propósito e a tela diz por quê, listando os problemas. Verifica antes
+          de gravar, sempre: texto reprovado nunca chega ao banco.</li>
+      <li><b>A errata não reescreve.</b> Texto e assinatura íntegros; a marca declara só que os
+          números abaixo foram reprocessados depois desta edição. Período fechado congela: dado
+          que muda vira errata.</li>
+      <li><b>A errata é por caderno.</b> Marcar Rotina não toca Movimento — é a razão de a chave
+          incluir o caderno.</li>
+      <li><b>Período em curso é ausência</b>, não botão desabilitado nem aviso. Um jornal não
+          anuncia a edição que ainda não fechou.</li>
+      <li><b>Imprimir é ato do usuário.</b> A ação existe, e é explícita, porque a chamada custa
+          dinheiro e folhear não pode gastar.</li>
+      <li><b>Caderno vazio some.</b> Sem espaço reservado, sem cabeçalho apagado, sem "nenhuma
+          atividade registrada" — a edição pode ter três cadernos, ou dois, ou um.</li>
+      <li><b>A assinatura é obrigatória e visível</b> sob o texto de cada caderno pronto, e
+          inexistente onde não há texto: Sono escrevendo e Coração reprovado não assinam nada.</li>
+      <li><b>A voz é a mesma nos seis estados desenhados.</b> Nenhuma exclamação, nenhum "ops",
+          nenhum "verifique suas conexões", nenhum conselho. Todas as frases de interface são as
+          que já estão em produção, palavra por palavra.</li>
+    </ol>
+  </div>
+
+</div>
+
+</body>
+</html>

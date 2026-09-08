@@ -69,7 +69,8 @@ corpo dele; foi mantido por essa razão, contra o corte do PM.
 
 ## A capa
 
-Não é caderno e não ganha coluna no banco.
+Não é caderno. **Onde** o carimbo dela mora é decisão de arquitetura, não deste
+companion — ver a espinha do épico.
 
 | Elemento | De onde |
 |---|---|
@@ -77,6 +78,18 @@ Não é caderno e não ganha coluna no banco.
 | imagem — **quando não há foto**, o traçado do próprio período | `activity_routes` (275), ou a grade diária |
 | legenda | a parada da foto: `Ittre · km 31,1 · 12:38` |
 | manchete | a do caderno em `posicao = 1` — derivada, não armazenada |
+
+**A capa é carimbada na impressão.** `coverOf` lê `isCover` e `state === 'linked'`, os
+dois mutáveis depois da impressão — a estrela, o vínculo automático de 40 m, o `ph://`
+que some da biblioteca. Sem carimbar, a foto de agosto vira outra em outubro, contra
+*período fechado congela*. Decidido em 08/09/2026, e **supersede** a decisão de 07/09 de
+que nada seria gravado.
+
+**O que o carimbo congela, exatamente.** A **escolha** — qual foto — e a **legenda já
+formatada**. Não a imagem: se a foto sair da biblioteca do iPhone, ela some com carimbo
+ou sem, porque o app nunca teve o arquivo. É justamente por isso que a legenda é gravada
+como valor e não re-derivada — ela continua imprimindo, e continua servindo de descrição
+textual, depois que o `ph://` morre.
 
 **A foto informa, não ilustra.** A legenda é um fato de três campos; sem parada, sem
 quilômetro e sem hora seria decoração. É a única entrada da revista que diz **onde** o
@@ -102,6 +115,12 @@ MOVIMENTO     435 km, metade de julho — e o
 
 Não diz o que tem dentro; diz **por que entrar**. Como a ordem é variável (CAP-7),
 cada linha é **tocável** e o sumário é também a navegação.
+
+**A chamada é a primeira frase do texto do caderno**, cortada no primeiro ponto final.
+Extração mecânica, decidida em 08/09/2026 porque sem ela nem a capa nem o sumário eram
+construíveis: não há campo novo, não há valor novo a verificar pelas cinco regras, e a
+manchete é literalmente o que o caderno diz primeiro. A contrapartida é uma regra a mais
+no prompt — o modelo escreve a primeira frase sabendo que ela vira capa e sumário.
 
 ## As três formas
 
@@ -131,6 +150,13 @@ Forma diferente, não a edição inflada. Um ano não tem uma manchete; tem doze
 Abre **serial**: o ano desenhado mês a mês antes de qualquer texto. O bloco
 `yearSeries` já existe e já é exclusivo de `year` — ele é um **formato**, não um
 gráfico. Depois da série vêm os cadernos, cada um com os **extremos datados**.
+
+São **quatro tiras de doze meses**, uma por caderno, na cor do caderno. Cada tira mede
+**o fato que liderou o ranqueamento daquele caderno naquele mês** — a tira e a ordem
+falam do mesmo número, e o ano se lê como quatro batimentos paralelos. O custo é
+declarado: quando a métrica líder muda de mês para mês, a tira mistura unidades.
+
+**O anuário não tem capa.** As quatro tiras são a capa do ano.
 
 ## Apresentação
 
