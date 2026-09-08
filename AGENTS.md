@@ -79,5 +79,12 @@ do BMAD, em `_bmad-output/`.
 - **Mexeu em dependência? Valide os TRÊS workspaces**, não só o que motivou a mudança —
   é o que o CI faz. Antes do isolamento, subir o mobile para o TypeScript 6 derrubou o
   build do web sem que nada no mobile acusasse.
+- **Apagar uma edge function do repositório não apaga o deploy.** O diretório sai, o
+  `config.toml` sai, e a função continua `ACTIVE` em produção rodando um código que já
+  não existe aqui — impossível de auditar e impossível de redeployar. Aconteceu com a
+  `strava-oauth`: a ADR 0029 tirou o diretório em 04/09/2026 e o deploy sobreviveu,
+  com `verify_jwt = false`, até 08/09. A remoção completa é `supabase functions delete
+  <fn> --project-ref <ref>` **antes** de o bloco sair do `config.toml`; tirar a
+  configuração primeiro só apaga o rastro de que a função existe lá fora.
 
 <!-- /bmad:context -->

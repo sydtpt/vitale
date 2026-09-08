@@ -4,16 +4,17 @@
 # verify_jwt = false onde o chamador não carrega JWT de usuário:
 #  - connections-ingest: chamado pelo pg_cron (autentica via header x-cron-secret;
 #    chamadas de usuário passam JWT no Authorization e são validadas na função).
-#  - strava-oauth: o GET /callback é um redirect do navegador vindo da Strava
-#    (autentica via `state` assinado com HMAC).
 # intervals-link mantém o default (verify_jwt = true): só usuários logados.
+#
+# `strava-oauth` saiu daqui em 08/09/2026. A ADR 0029 (04/09) removeu o diretório do
+# repositório, mas o deploy sobreviveu quatro dias — uma função ACTIVE com
+# verify_jwt = false rodando código que não existia mais aqui. Removida em produção
+# antes deste bloco sair: apagar a configuração primeiro só apagaria o rastro.
+# Lição registrada em AGENTS.md — tirar a função do repo não tira o deploy.
 
 project_id = "vitale"
 
 [functions.connections-ingest]
-verify_jwt = false
-
-[functions.strava-oauth]
 verify_jwt = false
 
 [functions.intervals-link]

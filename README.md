@@ -121,8 +121,8 @@ Postgres with row-level security, plus Deno edge functions:
 
 | Function | Purpose |
 |---|---|
-| `connections-ingest` | Pulls activities from Strava, intervals.icu and Apple Health, deduping across sources ([ADR 0004](docs/decisions/0004-dedupe-multi-fonte-do-healthkit.md)) |
-| `strava-oauth` | Strava OAuth handshake |
+| `connections-ingest` | Pulls activities from intervals.icu and Apple Health, deduping across sources ([ADR 0004](docs/decisions/0004-dedupe-multi-fonte-do-healthkit.md)). The Strava API integration was removed in [ADR 0029](docs/decisions/0029-strava-e-app-de-origem-nao-integracao.md) — the Strava app still writes to Apple Health, which is how those rides arrive |
+| `ia-narrar` | Holds the model key for the Retrospectiva's written edition ([ADR 0038](docs/decisions/0038-a-chamada-ao-modelo-sai-da-edge-function.md), [ADR 0040](docs/decisions/0040-o-provedor-de-modelo-e-configuracao-nao-arquitetura.md)) |
 | `intervals-link` | intervals.icu linking |
 | `cultura-search` | Lookup for books, films, podcasts and albums |
 
