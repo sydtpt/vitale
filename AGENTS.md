@@ -88,3 +88,29 @@ do BMAD, em `_bmad-output/`.
   configuração primeiro só apaga o rastro de que a função existe lá fora.
 
 <!-- /bmad:context -->
+
+<!-- Fora do bloco gerido: preservado entre refreshes do bmad-project-context. -->
+
+## Revisão: quando reverter e quando remendar
+
+Decidido em 09/09/2026, durante a Story 1.5 da revista, depois de duas rodadas de revisão
+que acharam defeito grave cada uma.
+
+O `bmad-build` manda **reverter e re-derivar** sempre que a revisão classifica um achado
+como `bad_spec`. A regra abaixo diz quando isso é a resposta certa e quando não é:
+
+- **Reverta quando a *intenção* foi mal lida.** O código está coerente com uma leitura
+  errada da spec; remendo em cima produz código incoerente, e re-derivar é mais barato que
+  desembaraçar.
+- **Remende quando a correção é generalização estrita ou redação.** Se a emenda *aperta*
+  uma regra que a spec já dizia — ou reescreve texto —, re-derivar produz as mesmas
+  centenas de linhas com outra semente aleatória. Cada re-derivação tem taxa de defeito
+  própria: nesta frente, a rodada 1 e a rodada 2 acharam um defeito grave cada.
+- **Todo remendo puxa uma revisão nova.** É o preço de não reverter: o remendo é aplicado
+  pelo mesmo agente que errou, e o ponto cego dele pode sobreviver. Sem a rodada extra, a
+  economia é falsa.
+- **Defeito da mesma classe pela terceira vez significa que a spec está errada, não o
+  código** — aí o revert volta a ser a resposta.
+
+Registre o desvio no `Spec Change Log` da story, com o motivo. O rastro de auditoria é o
+que torna a exceção legítima em vez de esquecimento.
