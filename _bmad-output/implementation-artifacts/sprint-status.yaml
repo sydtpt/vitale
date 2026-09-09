@@ -91,6 +91,14 @@ development_status:
   # loop autônomo que marcar isto como 'done' está errado por construção.
   # O que ela bloqueia: o Épico 2 imprime 53 períodos sobre esta aposta, e o
   # Épico 3 constrói o anuário sobre a metrica_lider que ela valida.
+  # GATILHO ACRESCENTADO EM 09/09 — a 1.15 responde uma pergunta a mais, e ela é
+  # medição, não julgamento de gosto: ALGUMA DAS TRÊS EDIÇÕES FOI RECUSADA POR
+  # INVERSÃO SOBRE UMA MENÇÃO NEGADA DE BASE ("sem a normal do período" perto de
+  # um valor de outra base)? Se sim ao menos uma vez, constrói-se o terceiro
+  # veredito da quinta regra; se nunca acontecer, a entrada correspondente do
+  # deferred-work.md morre. A frequência observada hoje é ZERO — as 7 edições do
+  # prompt v2 não contêm um único negador —, e foi por isso que o conserto foi
+  # adiado em vez de construído no escuro. Ver deferred-work.md.
   1-15-o-piloto-de-três-edições: backlog
   epic-1-retrospective: optional
 
