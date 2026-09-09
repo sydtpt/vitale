@@ -7,7 +7,7 @@ paradigm: 'Pipeline puro com portão de verificação, publicando registro imut�
 scope: 'A Retrospectiva como revista — épico 1 (dado já gravado, sol e lua). CAP-1 a CAP-14 de SPEC-revista-retrospectiva'
 status: final
 created: '2026-09-08'
-updated: '2026-09-08'
+updated: '2026-09-09'
 binds:
   - 'CAP-1..CAP-14 (docs/specs/revista-retrospectiva/spec.md)'
   - 'AD-1..AD-18 de architecture-Orbe-2026-08-17 (herdadas, read-only)'
@@ -255,9 +255,20 @@ Ids originais, read-only, não renumerados. Nenhuma decisão abaixo as contradiz
 
 - **Binds:** todo papel de paleta — vaza do épico de propósito
 - **Prevents:** duas regressões opostas. Alguém usar `on` sobre `accent`, que mede
-  **1,00 a 1,94** nas 36 combinações — o pior caso é o amarelo do Orbe claro, que é a
-  combinação padrão — e é invisível em qualquer piso; e alguém cobrar `TEXT_FLOOR` na
-  barreira e derrubar o build, porque o mínimo medido é **4,246**, abaixo de 4,5
+  **1,00 a 1,94** nas 36 combinações — o piso, 1,00, é de `purple`, `deep` e `ink`; o
+  amarelo do Orbe claro mede 1,94 e continua ilegível, e é o caso que mais se vê, por
+  ser a combinação padrão — e é invisível em qualquer piso; e alguém cobrar
+  `TEXT_FLOOR` na barreira e derrubar o build, porque o mínimo medido é **4,246**,
+  abaixo de 4,5
+
+  > **Correção de 09/09/2026, contra medição.** Este parágrafo atribuía o pior caso
+  > (1,00) ao amarelo. Medido na implementação da Story 1.2: o amarelo é **1,943** — o
+  > melhor dos ruins —, e 1,00 é de `purple`, `deep` e `ink`. O intervalo, o mínimo de
+  > 4,246 e a decisão inteira estavam e seguem corretos; só a atribuição do papel não
+  > estava. Fica declarada em vez de editada em silêncio porque o número agora é
+  > **produzido pela suíte** — `theme.test.ts` mede as 36 combinações a cada commit —, e
+  > um documento que discorde de uma medição que qualquer um pode rodar é armadilha
+  > para quem chegar depois.
 - **Rule:** `onAccent` entra em `RoleTokens` (no laço dos papéis de `resolveTokens`)
   **e** em `ModuleTokens`, porque quem lê a faixa é `moduleOf()`. Deriva no molde do
   `onPrimary`: o melhor entre `ink` e `bgPure` por contraste medido. **Não** ganha

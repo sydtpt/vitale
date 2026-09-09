@@ -127,6 +127,14 @@ exatamente o erro que a docstring do `onPrimary` já documenta ter cometido uma 
 ficam registrados **como folga, nunca como piso**: virar catraca é decisão separada, e a
 espinha a deixou explicitamente adiada.
 
+**Correção de fato, 09/09/2026 — a matriz acima atribui o pior caso ao papel errado.**
+A linha "Pior caso conhecido" diz *amarelo, orbe, claro, 1,00*. Medido na implementação:
+o amarelo é **1,943** — o melhor dos ruins —, e **1,00 é de `purple`, `deep` e `ink`**. O
+intervalo 1,00–1,94, o mínimo de 4,246 e o comportamento esperado da linha (passa o piso)
+estão corretos; só a atribuição do papel não está. A matriz fica como está por ser registro
+do que foi aprovado; a fonte do erro era a AD-8 da espinha, **corrigida lá** contra medição.
+Os docstrings do código registram o valor medido, nunca o da matriz.
+
 **O `on` que já existe não serve, e não é bug.** Ele é o primeiro plano do `soft` — o ícone
 dentro da caixa clara do módulo. Sobre o `accent` cheio ele não tem por que passar, e não
 passa. São dois contextos, dois tokens.
