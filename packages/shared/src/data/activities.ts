@@ -19,7 +19,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Activity, ActivityRoutePoint } from '../models';
-import type { SurfaceMix } from '../surface/classify';
+import type { SurfaceMix, SurfaceSegment } from '../surface/classify';
 import { fetchAllPages } from './paginate';
 
 const ACTIVITY_COLUMNS =
@@ -283,6 +283,38 @@ export async function fetchRoutePoints(
   if (error) throw error;
   const points = (data as { points?: ActivityRoutePoint[] } | null)?.points;
   return points ?? null;
+}
+
+/**
+ * O overview e os trechos de piso de UMA rota, para pintar o mapa (T3.2).
+ *
+ * Vêm juntos de propósito: o `surface_segments` é medido em metros **ao longo
+ * do `route_overview`**, então ler um sem o outro dá uma régua sem a fita. Duas
+ * consultas separadas também abririam a chance de pegar um overview recalculado
+ * com segmentos velhos, e a cor sairia deslocada sem nada reclamar.
+ *
+ * Devolve `null` quando não há rota; `segments` vazio quando o passe de piso
+ * ainda não rodou — que é o caso de toda pedalada nova até o primeiro sync com
+ * rede (ADR 0035). Quem desenha trata os dois como "linha lisa de sempre".
+ */
+export async function fetchRouteSurface(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+): Promise<{ overview: [number, number][]; segments: SurfaceSegment[] } | null> {
+  const { data, error } = await db
+    .from('activity_routes')
+    .select('route_overview, surface_segments')
+    .eq('user_id', userId)
+    .eq('activity_id', activityId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as {
+    route_overview?: [number, number][] | null;
+    surface_segments?: SurfaceSegment[] | null;
+  } | null;
+  if (!row?.route_overview?.length) return null;
+  return { overview: row.route_overview, segments: row.surface_segments ?? [] };
 }
 
 /**

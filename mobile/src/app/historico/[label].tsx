@@ -27,6 +27,7 @@ import {
   searchActivities,
   type SearchHit,
   summarizeSurface,
+  surfaceBySeason,
   surfaceWindow,
   type SurfaceRange,
 } from '@vitale/shared';
@@ -268,6 +269,13 @@ export default function TipoListScreen() {
     () => (hasSurface ? summarizeSurface(typed, surfaceWindow(surfaceRange)) : null),
     [typed, surfaceRange, hasSurface],
   );
+  // As estações que a janela contém — é isto que decide se o cartão desenha uma
+  // barra ou colunas, sem nenhum controle novo. As janelas curtas contêm uma
+  // estação só e caem na barra de sempre; Ano e Tudo contêm quatro.
+  const surfaceSeasons = useMemo(
+    () => (hasSurface ? surfaceBySeason(typed, surfaceWindow(surfaceRange)) : []),
+    [typed, surfaceRange, hasSurface],
+  );
 
   // ── estado dos filtros (inputs crus) ──────────────────────────
   const [showFilters, setShowFilters] = useState(false);
@@ -466,6 +474,7 @@ export default function TipoListScreen() {
             <SurfaceCard
               title=""
               mix={surface.mix}
+              seasons={surfaceSeasons}
               caption={surfaceCaption(
                 surface.count,
                 surface.withSurface,

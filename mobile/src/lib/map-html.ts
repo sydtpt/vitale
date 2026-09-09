@@ -54,6 +54,18 @@ export interface MapScriptOptions {
     ink: string;
     fill: string;
   };
+  /**
+   * A rota pintada por trecho de piso (T3.2), já fatiada por `paintRoute` e já
+   * colorida pela rampa — este arquivo não lê tema, pela mesma razão que o
+   * marcador de foto recebe `ink`/`fill` de fora.
+   *
+   * Nasce **desligada**: a cor da rota é laranja de módulo em todo lugar do app,
+   * e trocá-la sem o dono pedir mudaria o significado de um traço que ele já
+   * sabe ler. `window.setSurfacePaint(true)` liga.
+   */
+  surface?: {
+    runs: readonly { coords: readonly [number, number][]; color: string }[];
+  };
 }
 
 /**
@@ -71,6 +83,7 @@ export function buildMapHtml(
   interactive: boolean,
   tile: MapStyleConfig,
   photos?: MapScriptOptions['photos'],
+  surface?: MapScriptOptions['surface'],
 ): string {
   return `<!DOCTYPE html>
 <html>
@@ -84,7 +97,7 @@ export function buildMapHtml(
 </head>
 <body>
   <div id="map"></div>
-  ${mapScript(points, tile, { interactive, photos })}
+  ${mapScript(points, tile, { interactive, photos, surface })}
 </body>
 </html>`;
 }
@@ -166,7 +179,7 @@ export function mapScript(
 function leafletScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'raster' }>,
-  { interactive, padding = 24, view, reportView, cities, photos }: MapScriptOptions,
+  { interactive, padding = 24, view, reportView, cities, photos, surface }: MapScriptOptions,
 ): string {
   const coords = points.map((p) => [p.latitude, p.longitude]);
   const data = JSON.stringify(coords);
@@ -198,6 +211,25 @@ function leafletScript(
     L.polyline(coords, { color: '#FFFFFF', weight: 6.75, opacity: 0.95, lineJoin: 'round', lineCap: 'round' }).addTo(map);
     var line = L.polyline(coords, { color: '${MOD.treino.accent}', weight: 3.75, opacity: 1, lineJoin: 'round', lineCap: 'round' }).addTo(map);
     function fit() { if (coords.length) map.fitBounds(line.getBounds(), { padding: [${padding}, ${padding}] }); }
+    ${
+      surface && surface.runs.length
+        ? `
+    // A pintura de piso: um traço por trecho, POR CIMA da linha de módulo e do
+    // mesmo peso — trocar a espessura junto com a cor faria a rota parecer
+    // mudar de importância, e o que muda é só o que ela está dizendo.
+    var paintRuns = ${JSON.stringify(surface.runs.map((r) => ({ c: r.coords, k: r.color })))};
+    var paintLayer = L.layerGroup();
+    paintRuns.forEach(function (r) {
+      L.polyline(r.c, { color: r.k, weight: 3.75, opacity: 1, lineJoin: 'round', lineCap: 'round' }).addTo(paintLayer);
+    });
+    // Ligar esconde a linha de módulo em vez de desenhar por cima dela: duas
+    // camadas opacas empilhadas deixam o laranja aparecer nas juntas.
+    window.setSurfacePaint = function (on) {
+      if (on) { map.removeLayer(line); paintLayer.addTo(map); }
+      else { map.removeLayer(paintLayer); line.addTo(map); }
+    };`
+        : `window.setSurfacePaint = function () {};`
+    }
     ${view ? `map.setView(${JSON.stringify(view.center)}, ${view.zoom});` : 'fit();'}
     window.recenter = fit;
     ${
@@ -477,7 +509,7 @@ function countryMaplibreScript(
 function maplibreScript(
   points: readonly MapPoint[],
   tile: Extract<MapStyleConfig, { kind: 'vector' }>,
-  { interactive, padding, view, reportView, cities, photos }: MapScriptOptions,
+  { interactive, padding, view, reportView, cities, photos, surface }: MapScriptOptions,
 ): string {
   // MapLibre usa ordem [lng, lat].
   const coords = points.map((p) => [p.longitude, p.latitude]);
@@ -563,6 +595,32 @@ ${buildings}
       map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } } });
       map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FFFFFF', 'line-width': 6.75, 'line-opacity': 0.95 } });
       map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '${MOD.treino.accent}', 'line-width': 3.75 } });
+      ${
+        surface && surface.runs.length
+          ? `
+      // A pintura de piso (T3.2). Uma fonte só, com a cor vindo do próprio dado
+      // (\`['get','color']\`) — um layer por trecho daria ~30 layers numa rota
+      // típica, e o MapLibre recompila o estilo a cada um.
+      // O MapLibre fala [lng, lat]; \`paintRoute\` devolve [lat, lng] porque é a
+      // forma do \`route_overview\`. A inversão acontece aqui, uma vez.
+      map.addSource('surface', { type: 'geojson', data: { type: 'FeatureCollection', features: ${JSON.stringify(
+        surface.runs.map((r) => ({
+          type: 'Feature',
+          properties: { color: r.color },
+          geometry: { type: 'LineString', coordinates: r.coords.map(([la, ln]) => [ln, la]) },
+        })),
+      )} } });
+      map.addLayer({ id: 'surface-line', type: 'line', source: 'surface',
+        layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': 3.75 } });
+      // Esconde a linha de módulo em vez de empilhar: duas camadas opacas
+      // deixariam o laranja aparecer nas juntas dos trechos.
+      window.setSurfacePaint = function (on) {
+        map.setLayoutProperty('surface-line', 'visibility', on ? 'visible' : 'none');
+        map.setLayoutProperty('route-line', 'visibility', on ? 'none' : 'visible');
+      };`
+          : ''
+      }
       map.addSource('endpoints', { type: 'geojson', data: { type: 'FeatureCollection', features: [
         { type: 'Feature', properties: { role: 'start' }, geometry: { type: 'Point', coordinates: coords[0] } },
         { type: 'Feature', properties: { role: 'end' }, geometry: { type: 'Point', coordinates: coords[coords.length - 1] } }
