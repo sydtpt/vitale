@@ -45,6 +45,7 @@ export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bucket-plan';
 export * from './period/bounds';
+export * from './period/cadernos';
 export * from './period/retro';
 export * from './period/retro-blocks';
 export * from './period/task-grid';

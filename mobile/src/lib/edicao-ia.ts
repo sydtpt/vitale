@@ -12,7 +12,7 @@
  * edição ruim — não é uma edição.
  */
 import {
-  montarPacote, montarPrompt, verificarTexto, PACOTE_VERSAO, PROMPT_VERSAO,
+  montarPacotes, montarPrompt, verificarTexto, PACOTE_VERSAO, PROMPT_VERSAO,
   upsertEdicao, fetchEdicao,
   type EntradaPacote, type PacoteDeFatos, type Edicao, type Problema,
 } from '@vitale/shared';
@@ -34,9 +34,9 @@ export type ResultadoEdicao =
   | { estado: 'reprovado'; problemas: Problema[]; texto: string }
   | { estado: 'erro'; mensagem: string };
 
-async function narrar(pacote: PacoteDeFatos): Promise<Narracao> {
+async function narrar(pacotes: readonly PacoteDeFatos[]): Promise<Narracao> {
   const { data, error } = await supabase.functions.invoke('ia-narrar', {
-    body: montarPrompt(pacote),
+    body: montarPrompt(pacotes),
   });
   if (error) throw error;
   const d = data as Partial<Narracao> & { error?: string; detalhe?: string };
@@ -56,34 +56,47 @@ async function narrar(pacote: PacoteDeFatos): Promise<Narracao> {
   };
 }
 
-/** A edição já impressa deste período, ou `null`. */
+/**
+ * A edição já impressa deste período, ou `null`.
+ *
+ * Todos os cadernos de uma edição falam do mesmo período, então o primeiro
+ * pacote basta para achar a linha.
+ */
 export async function buscarEdicao(
   userId: string, entrada: EntradaPacote,
 ): Promise<Edicao | null> {
-  const p = montarPacote(entrada);
-  return fetchEdicao(supabase, userId, p.periodo.tipo, p.periodo.inicioISO, p.periodo.fimISO);
+  const { periodo } = montarPacotes(entrada)[0];
+  return fetchEdicao(supabase, userId, periodo.tipo, periodo.inicioISO, periodo.fimISO);
 }
 
 /**
  * Imprime a edição de um período fechado: monta, narra, confere, grava.
  * Não faz nada se o período está em curso — a decisão é do núcleo, não da tela.
+ *
+ * **Ainda uma chamada e um texto só.** O pacote passou a ser um por caderno
+ * (`PACOTE_VERSAO` 2), mas a tabela ainda guarda uma linha por período e a
+ * sequência da impressão por caderno é a Story 1.10 — narrar quatro vezes aqui
+ * seria quadruplicar a chamada paga antes de haver onde gravar as quatro
+ * linhas. Até lá a edição é narrada e conferida contra **o conjunto**, que é
+ * exatamente o alfabeto que a versão 1 já usava: nada afrouxou.
  */
 export async function gerarEdicao(
   userId: string,
   entrada: EntradaPacote,
 ): Promise<ResultadoEdicao> {
-  const pacote = montarPacote(entrada);
-  if (!pacote.periodo.fechado) return { estado: 'aberto' };
+  const pacotes = montarPacotes(entrada);
+  const { periodo } = pacotes[0];
+  if (!periodo.fechado) return { estado: 'aberto' };
 
   try {
-    const n = await narrar(pacote);
-    const v = verificarTexto(n.texto, pacote);
+    const n = await narrar(pacotes);
+    const v = verificarTexto(n.texto, pacotes);
     if (!v.ok) return { estado: 'reprovado', problemas: v.problemas, texto: n.texto };
 
     const edicao = await upsertEdicao(supabase, userId, {
-      tipoPeriodo: pacote.periodo.tipo,
-      inicio: pacote.periodo.inicioISO,
-      fim: pacote.periodo.fimISO,
+      tipoPeriodo: periodo.tipo,
+      inicio: periodo.inicioISO,
+      fim: periodo.fimISO,
       texto: n.texto,
       provedor: n.provedor,
       modelo: n.modelo,

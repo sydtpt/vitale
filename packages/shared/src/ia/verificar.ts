@@ -15,7 +15,7 @@
  * Puro, sem rede, sem provedor — roda igual sobre a saída de qualquer modelo, o
  * que é justamente o que faz trocar de fornecedor custar uma tarde (ADR 0040).
  */
-import type { PacoteDeFatos } from './pacote';
+import type { PacoteDeFatos, UmOuMaisPacotes } from './pacote';
 import { ressalvasObrigatorias, valoresDoPacote } from './pacote';
 
 export interface Problema {
@@ -71,10 +71,18 @@ function ignoravel(bruto: string, texto: string, pos: number): boolean {
 /**
  * Confere um texto contra o pacote que o gerou.
  * `ok: false` significa **não gravar a edição** — não "avisar o usuário".
+ *
+ * Aceita **um caderno ou o conjunto**, e o grão importa: conferir o texto de um
+ * caderno contra o alfabeto dos quatro é justamente a frouxidão que o pacote por
+ * caderno existe para acabar. Passe a união só enquanto o texto for um só —
+ * até a sequência da impressão por caderno (Story 1.10).
  */
-export function verificarTexto(texto: string, pacote: PacoteDeFatos): Veredito {
+export function verificarTexto(texto: string, pacote: UmOuMaisPacotes): Veredito {
   const problemas: Problema[] = [];
-  const autorizados = valoresDoPacote(pacote);
+  const pacotes: readonly PacoteDeFatos[] = Array.isArray(pacote)
+    ? pacote
+    : [pacote as PacoteDeFatos];
+  const autorizados = valoresDoPacote(pacotes);
   const baixo = texto.toLowerCase();
 
   // Datas ISO saem de cena antes da varredura. `2026-08-01` vira "2026", "08" e
@@ -107,7 +115,7 @@ export function verificarTexto(texto: string, pacote: PacoteDeFatos): Veredito {
   }
 
   // 3 — correlação fora do portão
-  for (const c of pacote.correlacoes) {
+  for (const c of pacotes.flatMap((p) => p.correlacoes)) {
     if (c.dentroDoPortao) continue;
     const rotulo = c.rotulo.toLowerCase();
     const citada = rotulo.length > 3 && baixo.includes(rotulo);
@@ -121,7 +129,7 @@ export function verificarTexto(texto: string, pacote: PacoteDeFatos): Veredito {
   }
 
   // 4 — ressalva obrigatória
-  for (const r of ressalvasObrigatorias(pacote)) {
+  for (const r of ressalvasObrigatorias(pacotes)) {
     const declarou = /cobertura|dias com dado|noites registradas|registrad|apenas \d|só \d/.test(baixo);
     if (!declarou) {
       problemas.push({

@@ -133,7 +133,8 @@ Retrospectiva atual não perde nada e vira a porta de entrada.
 reconhece pela cara. Cada caderno abre com faixa sangrada na cor do módulo, e **a cor não é o
 único portador da identidade**: dois dos quatro cadernos medem separação insuficiente em cinco
 das seis paletas, e é o ícone que os separa — resolvendo daltonismo no mesmo gesto. Isso exige
-um primeiro plano legível sobre cor saturada, que o sistema de tema ainda não tem.
+um primeiro plano legível sobre cor saturada — `onAccent`, entregue pela Story 1.2, presente
+tanto no papel de paleta quanto no módulo, porque é o módulo que a faixa lê.
 
 **Sete estados por caderno**, não por edição: período em curso (mostra **nada** — não é botão
 desabilitado nem aviso, é ausência), fechado e não escrito, escrevendo, pronta, reprovada na

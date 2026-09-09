@@ -20,7 +20,7 @@
  * e escreve "40,1 h", a conferência casa; se um lado usasse ponto e o outro
  * vírgula, toda frase correta seria reprovada.
  */
-import type { PacoteDeFatos, ModuloFatos, FatoNumero } from './pacote';
+import type { PacoteDeFatos, FatoNumero, UmOuMaisPacotes } from './pacote';
 import { ressalvasObrigatorias } from './pacote';
 
 /** Número em pt-BR: vírgula decimal, ponto de milhar. */
@@ -32,24 +32,54 @@ export function formatarNumero(v: number, casas: number): string {
   return v < 0 ? `−${corpo}` : corpo;
 }
 
+/**
+ * Só a base B1 é renderizada, e sem o nome dela.
+ *
+ * É de propósito, e é temporário: a **gramática das bases** — nomear B1/B2/B3 no
+ * texto, e declarar as que não existem — é a Story 1.5, e vem junto com o bump
+ * de {@link PROMPT_VERSAO}. Enquanto ela não chega, este renderizador entrega
+ * exatamente o mesmo texto que a versão 1 do pacote entregava, para que a
+ * mudança de forma não se misture com mudança de prosa.
+ *
+ * Pela mesma razão, `tendencias` e `textos` ainda não aparecem aqui.
+ */
 function linhaDeFato(f: FatoNumero): string | null {
   if (f.atual == null) return null;
   const u = f.unidade ? ` ${f.unidade}` : '';
   let s = `- ${f.rotulo}: ${formatarNumero(f.atual, f.casas)}${u}`;
-  if (f.anterior != null) {
-    s += ` (anterior: ${formatarNumero(f.anterior, f.casas)}${u}`;
-    if (f.deltaPct != null) s += `, ${formatarNumero(f.deltaPct, 1)}%`;
+  const b1 = f.bases.find((b) => b.id === 'B1');
+  if (b1?.existe && b1.valor != null) {
+    s += ` (anterior: ${formatarNumero(b1.valor, f.casas)}${u}`;
+    if (b1.deltaPct != null) s += `, ${formatarNumero(b1.deltaPct, 1)}%`;
     s += ')';
   }
   return s;
 }
 
-function blocoDeModulo(m: ModuloFatos): string {
-  const linhas = m.metricas.map(linhaDeFato).filter((l): l is string => l != null);
-  if (linhas.length === 0) return '';
-  let s = `\n### ${m.rotulo}\n${linhas.join('\n')}`;
-  if (m.cobertura) {
-    const c = m.cobertura;
+function blocoDeCaderno(p: PacoteDeFatos): string {
+  // Os fatos sem grupo abrem o caderno; os agrupados vêm sob o próprio nome.
+  // O caderno Movimento tem três "Distância" — sem o subtítulo, a lista mente.
+  const grupos: string[] = [];
+  const vistos = new Set<string>();
+  for (const f of p.metricas) {
+    const g = f.grupo ?? '';
+    if (!vistos.has(g)) { vistos.add(g); grupos.push(g); }
+  }
+
+  const partes: string[] = [];
+  for (const g of grupos) {
+    const linhas = p.metricas
+      .filter((f) => (f.grupo ?? '') === g)
+      .map(linhaDeFato)
+      .filter((l): l is string => l != null);
+    if (linhas.length === 0) continue;
+    partes.push(g ? `#### ${g}\n${linhas.join('\n')}` : linhas.join('\n'));
+  }
+  if (partes.length === 0) return '';
+
+  let s = `\n### ${p.rotulo}\n${partes.join('\n')}`;
+  if (p.cobertura) {
+    const c = p.cobertura;
     s += `\n- Cobertura: ${c.diasComDado} de ${c.diasNoPeriodo} dias`
       + ` (período anterior: ${c.diasComDadoAnterior} de ${c.diasNoPeriodoAnterior})`;
     if (!c.comparavel) {
@@ -118,27 +148,38 @@ export interface Prompt {
 }
 
 /**
- * `PacoteDeFatos` → `{ sistema, usuario }`.
+ * Pacote(s) → `{ sistema, usuario }`.
  * O `usuario` é o pacote em texto; o `sistema` é a lei. Nenhum dos dois conhece
  * o provedor que vai recebê-los.
+ *
+ * Aceita **um caderno ou o conjunto**: a sequência da impressão por caderno é a
+ * Story 1.10, e até lá o chamador do celular narra a edição inteira de uma vez,
+ * como sempre narrou. Todos os pacotes de uma edição falam do mesmo período —
+ * o cabeçalho sai do primeiro.
  */
-export function montarPrompt(p: PacoteDeFatos): Prompt {
+export function montarPrompt(p: UmOuMaisPacotes): Prompt {
+  const pacotes: readonly PacoteDeFatos[] = Array.isArray(p) ? p : [p as PacoteDeFatos];
+  if (pacotes.length === 0) return { sistema: SISTEMA, usuario: '' };
+  const periodo = pacotes[0].periodo;
+
   const partes: string[] = [
-    `# ${p.periodo.rotulo}`,
-    `Período: ${p.periodo.inicioISO} a ${p.periodo.fimISO} (${p.periodo.diasNoPeriodo} dias).`,
+    `# ${periodo.rotulo}`,
+    `Período: ${periodo.inicioISO} a ${periodo.fimISO} (${periodo.diasNoPeriodo} dias).`,
   ];
 
-  for (const m of p.modulos) {
-    const bloco = blocoDeModulo(m);
+  for (const pacote of pacotes) {
+    const bloco = blocoDeCaderno(pacote);
     if (bloco) partes.push(bloco);
   }
 
-  if (p.eventos.length > 0) {
-    partes.push(`\n### Eventos\n${p.eventos.map((e) => `- ${e.dia}: ${e.rotulo}`).join('\n')}`);
+  const eventos = pacotes.flatMap((x) => x.eventos);
+  if (eventos.length > 0) {
+    partes.push(`\n### Eventos\n${eventos.map((e) => `- ${e.dia}: ${e.rotulo}`).join('\n')}`);
   }
 
-  if (p.correlacoes.length > 0) {
-    const linhas = p.correlacoes.map((c) => {
+  const correlacoes = pacotes.flatMap((x) => x.correlacoes);
+  if (correlacoes.length > 0) {
+    const linhas = correlacoes.map((c) => {
       const base = `- ${c.rotulo}`;
       if (!c.dentroDoPortao) {
         return `${base}: AMOSTRA INSUFICIENTE (${c.nCom} com, ${c.nSem} sem) — não use como afirmação.`;
@@ -149,14 +190,15 @@ export function montarPrompt(p: PacoteDeFatos): Prompt {
     partes.push(`\n### Associações observadas (NUNCA são causa)\n${linhas.join('\n')}`);
   }
 
-  if (p.lacunas.length > 0) {
-    const linhas = p.lacunas.map(
-      (l) => `- ${l.modulo}: ${l.diasSemDado} dias sem dado${l.motivo ? ` (${l.motivo})` : ''}`,
+  const lacunas = pacotes.flatMap((x) => x.lacunas.map((l) => ({ l, rotulo: x.rotulo })));
+  if (lacunas.length > 0) {
+    const linhas = lacunas.map(
+      ({ l, rotulo }) => `- ${rotulo}: ${l.diasSemDado} dias sem dado${l.motivo ? ` (${l.motivo})` : ''}`,
     );
     partes.push(`\n### Lacunas\n${linhas.join('\n')}`);
   }
 
-  const ressalvas = ressalvasObrigatorias(p);
+  const ressalvas = ressalvasObrigatorias(pacotes);
   if (ressalvas.length > 0) {
     partes.push(
       `\n### Ressalvas obrigatórias\nO texto TEM que declarar a cobertura desigual de: `
