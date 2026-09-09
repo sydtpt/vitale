@@ -12,6 +12,7 @@ import {
   montarPacotes,
   numerosDoPacote,
   periodoFechado,
+  procedenciaDoPacote,
   ressalvasObrigatorias,
   valoresDoPacote,
 } from './pacote';
@@ -636,6 +637,88 @@ describe('numerosDoPacote', () => {
   it('o alfabeto de um caderno é subconjunto do da união', () => {
     const so = numerosDoPacote(montarPacote(ENTRADA_AGOSTO, 'sono'));
     for (const n of so) assert.ok(nums.has(n), `"${n}" está no Sono e não na união`);
+  });
+});
+
+/* ── o nome real do período anterior ── */
+
+describe('periodo.rotuloAnterior', () => {
+  const comPeriodo = (kind: RetroSummary['kind'], startISO: string, endISO: string) =>
+    montarPacote(
+      { resumo: { ...agosto(), kind, startISO, endISO } as RetroSummary, agora: AGORA },
+      'movimento',
+    ).periodo.rotuloAnterior;
+
+  it('é o nome PRÓPRIO do anterior, não "período anterior"', () => {
+    // O campo que a v1 tinha dizia sempre "período anterior" — a Story 1.3 o
+    // removeu por não ter leitor. A quinta regra é o leitor, e o que ela precisa
+    // é justamente o que aquele campo não dava: o nome.
+    assert.equal(comPeriodo('month', '2026-08-01', '2026-08-31'), 'Julho 2026');
+  });
+
+  it('atravessa a virada de ano', () => {
+    assert.equal(comPeriodo('month', '2026-01-01', '2026-01-31'), 'Dezembro 2025');
+  });
+
+  it('cada tipo de período tem a forma dele', () => {
+    assert.equal(comPeriodo('week', '2026-08-03', '2026-08-09'), '27/07 – 02/08');
+    assert.equal(comPeriodo('season', '2026-04-01', '2026-06-30'), 'Q1 2026');
+    assert.equal(comPeriodo('year', '2025-01-01', '2025-12-31'), '2024');
+  });
+
+  it('`all` não tem anterior — sempre cabe mais um dia', () => {
+    assert.equal(comPeriodo('all', '2000-01-01', '2026-09-06'), null);
+  });
+
+  it('é TEXTO: não põe número nenhum no alfabeto', () => {
+    // A regra do alfabeto vale para qualquer campo novo. O 71/16 medido logo
+    // abaixo é a mesma cobrança; esta asserção diz por que ele não se mexeu.
+    const ano = montarPacotes({
+      resumo: { ...agosto(), kind: 'year', startISO: '2025-01-01', endISO: '2025-12-31' } as RetroSummary,
+      agora: AGORA,
+    });
+    assert.equal(ano[0].periodo.rotuloAnterior, '2024');
+    assert.equal(valoresDoPacote(ano).has(2024), false, '2024 é rótulo, não medida');
+  });
+});
+
+/* ── procedência: o alfabeto com a etiqueta de onde cada valor nasceu ── */
+
+describe('procedenciaDoPacote', () => {
+  const pacotes = montarPacotes(ENTRADA_AGOSTO);
+  const proc = procedenciaDoPacote(pacotes);
+
+  it('não acrescenta NEM tira número do alfabeto', () => {
+    // A quinta regra da conferência precisa de origem, não de mais números. Se
+    // os dois conjuntos divergirem, um dos dois lados da conferência passou a
+    // ver um alfabeto que o outro não vê — e isso é calado.
+    const daProcedencia = new Set(proc.map((x) => x.valor));
+    const alfabeto = valoresDoPacote(pacotes);
+    assert.equal(daProcedencia.size, alfabeto.size);
+    for (const v of alfabeto) assert.ok(daProcedencia.has(v), `${v} sumiu da procedência`);
+  });
+
+  it('o valor da base sai etiquetado com a base; o `atual` sai sem etiqueta', () => {
+    const dist = montarPacote(ENTRADA_AGOSTO, 'movimento').metricas
+      .find((f) => f.chave === 'distancia');
+    assert.ok(dist, 'o fixture perdeu a distância');
+    const b1 = dist.bases.find((b) => b.id === 'B1');
+    assert.ok(b1?.valor != null);
+    const doValor = (v: number) => proc.filter((x) => x.valor === v && x.chave === 'distancia');
+    assert.deepEqual(doValor(b1.valor).map((x) => x.base), ['B1']);
+    assert.deepEqual(doValor(dist.atual as number).map((x) => x.base), [null]);
+  });
+
+  it('delta e deltaPct NÃO são valor de base — são a relação com ela', () => {
+    // Cobrar nomeação de "caiu 49,5%" reprovaria uma frase bem-formada, e falso
+    // positivo na conferência custa uma edição inteira.
+    const dist = montarPacote(ENTRADA_AGOSTO, 'movimento').metricas
+      .find((f) => f.chave === 'distancia');
+    const b1 = dist?.bases.find((b) => b.id === 'B1');
+    assert.ok(b1?.deltaPct != null);
+    for (const x of proc.filter((y) => y.valor === Math.abs(b1.deltaPct as number))) {
+      assert.equal(x.base, null);
+    }
   });
 });
 

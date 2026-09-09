@@ -31,7 +31,15 @@ export interface PeriodBounds {
   label: string;
 }
 
-const MONTHS_PT = [
+/**
+ * Os doze meses em português, na ordem de `Date.getMonth()`.
+ *
+ * Exportado porque a quinta regra da conferência (`ia/verificar.ts`) precisa
+ * reconhecer o **nome próprio errado** — "contra 17 em junho", com o anterior
+ * sendo julho — e um léxico de meses com dois donos é como as duas listas
+ * divergem sem ninguém notar.
+ */
+export const MONTHS_PT = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
@@ -112,6 +120,26 @@ export function periodBounds(now: Date, kind: PeriodKind, offset = 0): PeriodBou
   const end = nextStart(start, kind);
   end.setHours(0, 0, 0, 0);
   return { start, end, label: periodLabel(kind, start) };
+}
+
+/**
+ * O rótulo **real** do período anterior a um que começa em `startISO` —
+ * `"Julho 2026"`, `"27/07 – 02/08"`, `"2024"`.
+ *
+ * Não é `"período anterior"`: é o nome que o leitor escreveria. Existe porque a
+ * quinta regra da conferência aceita o nome próprio como nomeação de B1 — *"21
+ * atividades contra 17 em julho"* —, e para isso o pacote precisa saber que o
+ * anterior de agosto se chama julho. Derivado andando um período para trás pelo
+ * mesmo caminho que produz o rótulo do período corrente; um segundo caminho
+ * daria dois nomes para o mesmo mês no dia em que um deles mudasse.
+ *
+ * `null` para `all`, que não tem período anterior — sempre cabe mais um dia.
+ */
+export function previousPeriodLabel(kind: PeriodKind, startISO: string): string | null {
+  if (kind === 'all') return null;
+  const inicio = new Date(`${startISO}T00:00:00`);
+  if (Number.isNaN(inicio.getTime())) return null;
+  return periodBounds(inicio, kind, -1).label;
 }
 
 /**

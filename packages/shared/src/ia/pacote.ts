@@ -43,6 +43,7 @@
  * ano anterior — ele tem que ser informado de que não há.
  */
 import type { PeriodKind } from '../period/bounds';
+import { previousPeriodLabel } from '../period/bounds';
 import type { CadernoId } from '../period/cadernos';
 import { CADERNO_IDS, cadernoDaMetricaDeSaude, rotuloDoCaderno } from '../period/cadernos';
 import type {
@@ -227,6 +228,18 @@ export interface PacoteDeFatos {
   periodo: {
     tipo: PeriodKind;
     rotulo: string;
+    /**
+     * O nome **real** do período anterior — `"Julho 2026"`, `"2024"` —, não o
+     * genérico `"período anterior"`.
+     *
+     * É **campo de texto**: zero números novos, zero custo de alfabeto. A versão
+     * 1 tinha um `anterior: { rotulo: 'período anterior' }` que a Story 1.3
+     * removeu por não ter leitor; a quinta regra da conferência é o leitor, e o
+     * que ela precisa é do nome próprio, que aquele campo não tinha.
+     *
+     * `null` quando não há período anterior (`all`).
+     */
+    rotuloAnterior: string | null;
     inicioISO: string;
     /** Último dia INCLUSIVO, `YYYY-MM-DD` — mesma convenção do `RetroSummary`. */
     fimISO: string;
@@ -617,6 +630,9 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
   const periodo = {
     tipo: resumo.kind,
     rotulo: resumo.label,
+    // Texto, não número: o alfabeto da verificação não muda de tamanho por causa
+    // dele. É a condição que a regra do alfabeto impõe a qualquer campo novo.
+    rotuloAnterior: previousPeriodLabel(resumo.kind, resumo.startISO),
     inicioISO: resumo.startISO,
     fimISO: resumo.endISO,
     fechado: periodoFechado(resumo.kind, resumo.endISO, agora),
@@ -701,6 +717,74 @@ export function numerosDoPacote(p: UmOuMaisPacotes): ReadonlySet<string> {
 }
 
 /**
+ * De onde um valor autorizado veio — a **procedência**.
+ *
+ * `valoresDoPacote` responde *"esse número existe?"* e não consegue responder
+ * *"existe como quê?"*. A quinta regra da conferência (Story 1.4) faz a segunda
+ * pergunta: um número que é valor de **base** obriga o texto a nomear a base
+ * certa; um que é `atual` não obriga nada. Por isso a origem viaja junto.
+ *
+ * **Não acrescenta número nenhum ao alfabeto** — é exatamente o mesmo conjunto
+ * de valores, com a etiqueta de onde cada um nasceu. `valoresDoPacote` é
+ * derivado daqui justamente para que as duas leituras não possam divergir.
+ */
+export interface Procedencia {
+  valor: number;
+  /** A chave do fato de onde veio. `''` para o que não é fato: cobertura, período. */
+  chave: string;
+  /**
+   * A base de que ele é o **valor**, ou `null` quando não é valor de base.
+   *
+   * `delta` e `deltaPct` saem com `null` de propósito: eles são a *relação* com
+   * a base, não a base. Cobrar nomeação de "caiu 49,5%" reprovaria uma frase
+   * bem-formada, e falso positivo na conferência custa uma edição inteira.
+   */
+  base: BaseId | null;
+}
+
+/**
+ * Todo valor autorizado, com a procedência de cada um.
+ *
+ * O mesmo valor aparece mais de uma vez quando mais de um fato o produz — e é
+ * essa multiplicidade que a quinta regra lê: um número que é base de um fato
+ * **e** o `atual` de outro não é decidível, e a regra cala em vez de adivinhar.
+ */
+export function procedenciaDoPacote(p: UmOuMaisPacotes): readonly Procedencia[] {
+  const out: Procedencia[] = [];
+  const add = (v: number | null, chave: string, base: BaseId | null) => {
+    if (v == null || !Number.isFinite(v)) return;
+    out.push({ valor: v, chave, base });
+    // O mesmo valor sem o sinal: deltas são citados sem o menos.
+    if (Math.abs(v) !== v) out.push({ valor: Math.abs(v), chave, base });
+  };
+  for (const pacote of comoLista(p)) {
+    for (const f of pacote.metricas) {
+      add(f.atual, f.chave, null);
+      for (const b of f.bases) {
+        add(b.valor, f.chave, b.id);
+        add(b.delta, f.chave, null);
+        add(b.deltaPct, f.chave, null);
+      }
+    }
+    for (const t of pacote.tendencias) add(t.periodos, t.chave, null);
+    const c = pacote.cobertura;
+    if (c) {
+      add(c.diasComDado, '', null);
+      add(c.diasNoPeriodo, '', null);
+      add(c.diasComDadoAnterior, '', null);
+      add(c.diasNoPeriodoAnterior, '', null);
+    }
+    for (const co of pacote.correlacoes) {
+      add(co.deltaPct, co.metrica, null);
+      add(co.nCom, co.metrica, null);
+      add(co.nSem, co.metrica, null);
+    }
+    add(pacote.periodo.diasNoPeriodo, '', null);
+  }
+  return out;
+}
+
+/**
  * Os mesmos valores como números, para conferência exata.
  *
  * Existe separado do `numerosDoPacote` porque comparar por texto é armadilha:
@@ -714,27 +798,7 @@ export function numerosDoPacote(p: UmOuMaisPacotes): ReadonlySet<string> {
  */
 export function valoresDoPacote(p: UmOuMaisPacotes): ReadonlySet<number> {
   const out = new Set<number>();
-  const add = (v: number | null) => {
-    if (v == null || !Number.isFinite(v)) return;
-    out.add(v);
-    out.add(Math.abs(v));
-  };
-  for (const pacote of comoLista(p)) {
-    for (const f of pacote.metricas) {
-      add(f.atual);
-      for (const b of f.bases) { add(b.valor); add(b.delta); add(b.deltaPct); }
-    }
-    for (const t of pacote.tendencias) add(t.periodos);
-    const c = pacote.cobertura;
-    if (c) {
-      add(c.diasComDado);
-      add(c.diasNoPeriodo);
-      add(c.diasComDadoAnterior);
-      add(c.diasNoPeriodoAnterior);
-    }
-    for (const co of pacote.correlacoes) { add(co.deltaPct); add(co.nCom); add(co.nSem); }
-    add(pacote.periodo.diasNoPeriodo);
-  }
+  for (const x of procedenciaDoPacote(p)) out.add(x.valor);
   return out;
 }
 
