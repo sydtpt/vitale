@@ -143,6 +143,29 @@ export function previousPeriodLabel(kind: PeriodKind, startISO: string): string 
 }
 
 /**
+ * O rótulo de um período em forma de **prosa** — minúsculo, com acento.
+ *
+ * `"Março 2026"` → `"março"`, porque ninguém escreve o ano junto do mês. Ano
+ * (`"2025"`) já é a forma. Semana (`"27/07 – 02/08"`) e trimestre (`"Q1 2026"`)
+ * saem só em minúsculas: são rótulos de tela, não formas de prosa, e quem os
+ * consome sabe disso.
+ *
+ * **Dono único da redução**, e é por isso que ela mora aqui e não em quem a usa.
+ * Dois consumidores, com necessidades opostas: o prompt (`ia/prompt.ts`) precisa
+ * da forma **com acento**, que é a que o texto vai escrever; a conferência
+ * (`ia/verificar.ts`) precisa dela **normalizada**, e normaliza a saída daqui em
+ * vez de guardar uma segunda cópia da redução. Duas cópias divergem no dia em
+ * que o formato do rótulo mudar — e aí o prompt prescreveria um nome que a
+ * conferência não reconhece, que é exatamente a falha que a Story 1.5 fecha.
+ */
+export function periodProseLabel(kind: PeriodKind, label: string | null): string | null {
+  if (label == null) return null;
+  const s = label.trim().toLowerCase();
+  if (s === '') return null;
+  return kind === 'month' ? (s.split(' ')[0] ?? null) : s;
+}
+
+/**
  * Maior `offset` que o usuário pode visualizar agora (o período mais recente
  * "disponível"). É o teto de navegação para frente; para trás é livre.
  */

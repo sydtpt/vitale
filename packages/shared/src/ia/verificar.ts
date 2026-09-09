@@ -23,7 +23,7 @@
  * que é justamente o que faz trocar de fornecedor custar uma tarde (ADR 0040).
  */
 import type { PeriodKind } from '../period/bounds';
-import { MONTHS_PT } from '../period/bounds';
+import { MONTHS_PT, periodProseLabel } from '../period/bounds';
 import type { BaseId, PacoteDeFatos, UmOuMaisPacotes } from './pacote';
 import {
   BASE_ROTULO, procedenciaDoPacote, ressalvasObrigatorias, valoresDoPacote,
@@ -115,9 +115,23 @@ const B2_VOCAB = [
   'ano anterior', 'ano passado', 'mesmo periodo do ano', 'um ano antes', 'ha um ano',
 ] as const;
 
+/**
+ * `'costuma fazer'` é a perífrase que o prompt v3 **prescreve** para B3 — e ela
+ * entrou aqui em 09/09/2026 porque não estava.
+ *
+ * É o defeito de encaixe entre a Story 1.4 e a 1.5: a 1.4 registrou que as três
+ * formas prescritas passavam, e o teste que se chamava *"a forma de B3 — 'o que
+ * você costuma fazer em agosto'"* asseria **outra** frase. Com a forma do épico,
+ * todo texto que citasse B3 reprovaria — a mesma janela que a 1.5 existe para
+ * fechar, com o sinal invertido.
+ *
+ * O conserto é **vocabulário, não severidade**: a inversão continua sendo pega,
+ * porque a regra compara a base nomeada com a base do valor. Escrever a
+ * perífrase de B3 ao lado de um valor de B1 reprova igual.
+ */
 const B3_VOCAB = [
   'normal do periodo', 'a normal', 'normal historica', 'media historica',
-  'media dos anos',
+  'media dos anos', 'costuma fazer',
 ] as const;
 
 type Vocabulario = ReadonlyArray<readonly [BaseId, readonly string[]]>;
@@ -138,18 +152,19 @@ interface Nomes {
 }
 
 /**
- * O rótulo do período em forma de prosa.
+ * O rótulo do período em forma de prosa, **normalizado** para a busca.
  *
- * Mês: `"Julho 2026"` → `"julho"`, porque ninguém escreve o ano junto. Ano:
- * `"2025"` já é a forma. Semana (`"27/07 – 02/08"`) e trimestre (`"Q1 2026"`)
- * saem como estão — são rótulos de tela, não formas de prosa, e a regra os
- * aceita literalmente sem esperar que apareçam.
+ * A redução em si (`"Julho 2026"` → `"julho"`) não mora aqui: ela é de
+ * `periodProseLabel`, em `period/bounds.ts`, que é o dono único do rótulo de
+ * período. Aqui só se tira o acento, porque a varredura opera sobre texto
+ * normalizado — o prompt precisa da mesma frase **com** acento, e duas cópias da
+ * redução divergiriam calado.
  */
 function nomeEmProsa(tipo: PeriodKind, rotulo: string | null): string | null {
-  if (rotulo == null) return null;
-  const n = normalizar(rotulo).trim();
-  if (n === '') return null;
-  return tipo === 'month' ? (n.split(' ')[0] ?? null) : n;
+  const prosa = periodProseLabel(tipo, rotulo);
+  if (prosa == null) return null;
+  const n = normalizar(prosa);
+  return n === '' ? null : n;
 }
 
 function nomesDoPeriodo(p: PacoteDeFatos | undefined): Nomes {

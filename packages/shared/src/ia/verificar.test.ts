@@ -1,10 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { PeriodKind } from '../period/bounds';
-import { MONTHS_PT, periodLabel, previousPeriodLabel } from '../period/bounds';
-import type { Base, FatoNumero, PacoteDeFatos } from './pacote';
+import {
+  MONTHS_PT, periodLabel, periodProseLabel, previousPeriodLabel,
+} from '../period/bounds';
+import type { Base, BaseId, FatoNumero, PacoteDeFatos } from './pacote';
 import { BASE_ROTULO } from './pacote';
-import { formatarNumero, montarPrompt } from './prompt';
+import {
+  formatarNumero, montarPrompt, montarPromptDaEdicao, PROMPT_VERSAO,
+} from './prompt';
 import { verificarTexto } from './verificar';
 
 /**
@@ -445,23 +449,51 @@ describe('verificarTexto — a base tem que ser nomeada', () => {
     assert.match(ps[0].detalhe, /a frase nomeia "2019"/);
   });
 
+  /*
+   * O DEFEITO DE ENCAIXE ENTRE A 1.4 E A 1.5, consertado aqui.
+   *
+   * Este teste existia e asseria OUTRA frase — "da normal do período para
+   * agosto" —, enquanto a forma que o épico prescreve é a perífrase. `B3_VOCAB`
+   * não conhecia "costuma", então o prompt v3, ao prescrever a forma do épico,
+   * faria todo texto que citasse B3 reprovar: a mesma janela que a Story 1.5
+   * existe para fechar, com o sinal invertido. Nenhuma revisão isolada de 1.4 ou
+   * de 1.5 pegaria — é quebra ENTRE stories.
+   *
+   * O conserto é VOCABULÁRIO, não severidade: a perífrase entrou em `B3_VOCAB`,
+   * e a inversão continua sendo pega (o teste logo abaixo).
+   */
+  const comB3 = pacoteDeBase([{
+    ...fato('distancia', 'Distância', 435, 380, 'km'),
+    bases: [
+      ...fato('distancia', 'Distância', 435, 380, 'km').bases.slice(0, 2),
+      {
+        id: 'B3' as const, rotulo: BASE_ROTULO.B3, existe: true, valor: 410,
+        delta: 25, deltaPct: 6.1,
+      },
+    ],
+  }]);
+
   it('a forma de B3 — "o que você costuma fazer em agosto" — nomeia B3', () => {
     // A terceira forma prescrita. O nome que aparece nela é o do período
     // corrente; quem nomeia a base é a perífrase.
-    const comB3 = pacoteDeBase([{
-      ...fato('distancia', 'Distância', 435, 380, 'km'),
-      bases: [
-        ...fato('distancia', 'Distância', 435, 380, 'km').bases.slice(0, 2),
-        {
-          id: 'B3' as const, rotulo: BASE_ROTULO.B3, existe: true, valor: 410,
-          delta: 25, deltaPct: 6.1,
-        },
-      ],
-    }]);
+    assert.deepEqual(
+      daBase('Foram 435 km, contra o que você costuma fazer em agosto: 410.', comB3),
+      [],
+      'é a frase que o prompt v3 prescreve — se ela reprova, o prompt é insatisfazível',
+    );
+    // E o rótulo genérico continua valendo: acrescentar vocabulário não tira.
     assert.deepEqual(
       daBase('Foram 435 km, contra os 410 da normal do período para agosto.', comB3),
       [],
     );
+  });
+
+  it('a perífrase de B3 ao lado de um valor de B1 continua sendo INVERSÃO', () => {
+    // A prova de que o conserto foi vocabulário e não severidade: 380 é o
+    // período anterior, e a frase o entrega à normal do período.
+    const ps = daBase('Foram 435 km, contra o que você costuma fazer em agosto: 380.', comB3);
+    assert.equal(ps.length, 1);
+    assert.match(ps[0].detalhe, /"380" é valor de B1 .*mas a frase nomeia B3/);
   });
 
   /* ── a ordem: acusar antes de absolver ── */
@@ -968,9 +1000,9 @@ describe('a quinta regra sobre as sete primeiras edições', () => {
 
 /* ── o prompt carrega o que a verificação vai cobrar ── */
 
-describe('montarPrompt', () => {
+describe('montarPromptDaEdicao — a união, que o celular ainda manda', () => {
   const p = pacoteAgosto({ correlacaoFraca: true });
-  const { sistema, usuario } = montarPrompt(p);
+  const { sistema, usuario } = montarPromptDaEdicao(p);
 
   it('não nomeia fornecedor nenhum — ADR 0040', () => {
     const tudo = `${sistema} ${usuario}`.toLowerCase();
@@ -1010,19 +1042,22 @@ describe('montarPrompt', () => {
   });
 
   /*
-   * A B1 renderizada é a ÚNICA comparação que chega ao modelo. Se ela sumisse —
-   * trocar `'B1'` por `'B2'` na busca dentro de `bases[]`, ou apagar o bloco —
-   * o prompt listaria só valores atuais, a chamada paga sairia igual, e nenhuma
-   * outra asserção reprovaria: as que existiam conferiam só o `atual`, e
-   * `verificarTexto` lê o pacote, não o prompt.
+   * A B1 renderizada é a ÚNICA comparação que chega ao modelo neste fixture. Se
+   * ela sumisse — trocar `'B1'` por `'B2'` na busca dentro de `bases[]`, ou
+   * apagar o bloco — o prompt listaria só valores atuais, a chamada paga sairia
+   * igual, e nenhuma outra asserção reprovaria: as que existiam conferiam só o
+   * `atual`, e `verificarTexto` lê o pacote, não o prompt.
+   *
+   * Na v3 ela chega COM NOME — `(contra julho: …)` —, que é a frase que a
+   * conferência aceita. Era `(anterior: …)`, que ela não aceita.
    */
-  it('a comparação com a base anterior CHEGA ao modelo, com valor e percentual', () => {
+  it('a comparação com a base anterior CHEGA ao modelo, NOMEADA, com valor e percentual', () => {
     assert.ok(
-      usuario.includes('(anterior: 862 km, −49,5%)'),
+      usuario.includes('(contra julho: 862 km, −49,5%)'),
       'sem a B1 renderizada o modelo recebe um período sem nenhuma comparação',
     );
-    assert.ok(usuario.includes('(anterior: 68,2 h'), 'e vale para todo fato, não só um');
-    assert.ok(usuario.includes('(anterior: 3,39'));
+    assert.ok(usuario.includes('(contra julho: 68,2 h'), 'e vale para todo fato, não só um');
+    assert.ok(usuario.includes('(contra julho: 3,39'));
   });
 });
 
@@ -1058,7 +1093,7 @@ describe('montarPrompt — os subtítulos de grupo', () => {
 
 describe('montarPrompt — lacunas', () => {
   it('a lacuna sai com o nome do CADERNO, não com um campo `modulo` que morreu', () => {
-    const { usuario } = montarPrompt(pacoteAgosto({ lacuna: true }));
+    const { usuario } = montarPromptDaEdicao(pacoteAgosto({ lacuna: true }));
     assert.ok(usuario.includes('### Lacunas'));
     assert.ok(
       usuario.includes('- Sono: 4 dias sem dado (relógio sem carga)'),
@@ -1067,6 +1102,896 @@ describe('montarPrompt — lacunas', () => {
   });
 
   it('sem lacuna, a seção não aparece', () => {
-    assert.equal(montarPrompt(pacoteAgosto()).usuario.includes('### Lacunas'), false);
+    assert.equal(montarPromptDaEdicao(pacoteAgosto()).usuario.includes('### Lacunas'), false);
+  });
+});
+
+/* ── o prompt v3: a frase que ele prescreve é a que a conferência aceita ── */
+
+/**
+ * **A ida e volta lê o PROMPT RENDERIZADO**, extraindo a frase da linha do fato.
+ *
+ * Nunca chamando a função que rotula: isso faria os dois lados do teste
+ * concordarem sobre uma frase que o texto renderizado não contém, que é a forma
+ * exata do defeito que a Story 1.4 deixou — um teste verde sobre uma frase que a
+ * produção não emite.
+ */
+function linhaDoFato(usuario: string, rotulo: string): string {
+  const linha = usuario.split('\n').find((l) => l.startsWith(`- ${rotulo}: `));
+  assert.ok(linha, `a linha de "${rotulo}" não saiu no prompt`);
+  return linha;
+}
+
+/** As cláusulas de comparação da linha renderizada: a frase e a cauda dela. */
+interface Clausula { frase: string; cauda: string | null }
+
+function clausulas(usuario: string, rotulo: string): Clausula[] {
+  const m = /\(([^)]*)\)$/.exec(linhaDoFato(usuario, rotulo));
+  if (!m) return [];
+  return m[1].split('; ').map((c) => {
+    const i = c.indexOf(': ');
+    return i < 0 ? { frase: c, cauda: null } : { frase: c.slice(0, i), cauda: c.slice(i + 2) };
+  });
+}
+
+/**
+ * A cauda da cláusula **é** um número pt-BR? Existir não basta.
+ *
+ * A guarda da iteração 1 perguntava `cauda != null`, e por isso era **inerte**:
+ * `contra …: não foi medida` volta com cauda não-nula e passava. Ela só disparava
+ * em cláusula sem dois-pontos — forma que `linhaDeFato` não produz. O mesmo
+ * regex de número do `verificar.ts`, ancorado no começo.
+ */
+function comecaComNumero(cauda: string | null): boolean {
+  return cauda != null && /^−?(?:\d{1,3}(?:\.\d{3})+|\d+,\d+|\d+)/.test(cauda);
+}
+
+function quantas(texto: string, agulha: string): number {
+  return texto.split(agulha).length - 1;
+}
+
+/**
+ * A ida e volta: cada frase que o prompt rotulou, escrita com o número que ela
+ * rotula, tem que passar em `verificarTexto`.
+ *
+ * A primeira asserção é a regra GERAL da iteração 2: uma linha de fato só nomeia
+ * uma base quando o número daquela base vem logo em seguida. Nome de base sem
+ * número atrás fica a poucos caracteres do valor de OUTRA base — dentro da
+ * janela de decisão de 64 —, e é o convite para o modelo escrever a inversão.
+ *
+ * Roda sobre o `usuario` já renderizado, e por isso serve aos dois grãos: o
+ * caderno (o alvo da frente) e a união (o que a produção manda hoje).
+ */
+function idaEVolta(
+  usuario: string, contra: PacoteDeFatos | readonly PacoteDeFatos[], f: FatoNumero,
+): void {
+  assert.ok(f.atual != null, `o fixture não tem "${f.rotulo}" com valor`);
+  const atual = `${formatarNumero(f.atual, f.casas)}${f.unidade ? ` ${f.unidade}` : ''}`;
+  const cs = clausulas(usuario, f.rotulo);
+  assert.ok(cs.length > 0, 'a linha do fato não trouxe comparação nenhuma');
+
+  for (const c of cs) {
+    assert.ok(
+      comecaComNumero(c.cauda),
+      `a cláusula "${c.frase}" nomeia uma base e o que vem depois dela NÃO é um número `
+      + `("${c.cauda}"). Declaração sem número — inexistente ou sem medida — desce para o `
+      + 'bloco do caderno: aqui ela põe vocabulário de base dentro da janela de decisão do '
+      + 'valor de outra.',
+    );
+    const texto = `Foram ${atual}, ${c.frase}: ${c.cauda}.`;
+    const v = verificarTexto(texto, contra);
+    assert.deepEqual(
+      v.problemas.filter((x) => x.regra === 'base'), [],
+      `a frase que o prompt prescreve reprovou na quinta regra: "${texto}"`,
+    );
+    assert.deepEqual(
+      v.problemas.filter((x) => x.regra === 'numero'), [],
+      `a frase que o prompt prescreve citou número fora do alfabeto: "${texto}"`,
+    );
+  }
+}
+
+/**
+ * A vizinhança que a emenda evita: a ÚLTIMA cláusula da linha com o único número
+ * dela.
+ *
+ * Com uma declaração sem número de volta inline, a última cláusula passa a ser
+ * o nome de uma base e o único número da linha continua sendo o de outra —
+ * exatamente o par que reprova, e a frase que a iteração 1 reproduziu à mão:
+ * *"Sem a normal do período, o único contraste é 862."*
+ */
+function ultimaClausulaComOUnicoNumero(
+  usuario: string, contra: PacoteDeFatos | readonly PacoteDeFatos[], rotulo: string,
+): void {
+  const cs = clausulas(usuario, rotulo);
+  const ultima = cs[cs.length - 1];
+  const comNumero = cs.find((c) => comecaComNumero(c.cauda));
+  assert.ok(ultima && comNumero?.cauda, 'a linha do fato não tem cláusula com número');
+  const texto = `${ultima.frase}, e o único contraste é ${comNumero.cauda}.`;
+  assert.deepEqual(
+    verificarTexto(texto, contra).problemas.filter((x) => x.regra === 'base'), [],
+    `a linha do fato termina numa frase que reprova ao lado do próprio número: "${texto}"`,
+  );
+}
+
+const LIMITES: Readonly<Record<string, { inicio: string; fim: string; dias: number }>> = {
+  month: { inicio: '2026-08-01', fim: '2026-08-31', dias: 31 },
+  year: { inicio: '2025-01-01', fim: '2025-12-31', dias: 365 },
+  week: { inicio: '2026-08-03', fim: '2026-08-09', dias: 7 },
+  season: { inicio: '2026-04-01', fim: '2026-06-30', dias: 91 },
+  all: { inicio: '2000-01-01', fim: '2026-08-31', dias: 9740 },
+};
+
+const B2_VALORADA: Base = {
+  id: 'B2', rotulo: BASE_ROTULO.B2, existe: true, valor: 300, delta: 135, deltaPct: 45,
+};
+const B3_VALORADA: Base = {
+  id: 'B3', rotulo: BASE_ROTULO.B3, existe: true, valor: 410, delta: 25, deltaPct: 6.1,
+};
+
+/**
+ * Um fato com as bases valoradas — a linha da matriz da story.
+ *
+ * Em `all` a B1 **não existe**, por definição: o histórico completo não tem
+ * período anterior. É o único tipo assim, e o único que emite a redação de B3
+ * *"contra o que você costuma fazer neste período"* — daí ele estar aqui.
+ */
+function pacoteTresBases(tipo: PeriodKind): PacoteDeFatos {
+  const { inicio, fim, dias } = LIMITES[tipo];
+  const f = fato('distancia', 'Distância', 435, 862, 'km');
+  const b1: Base = tipo === 'all'
+    ? {
+      id: 'B1', rotulo: BASE_ROTULO.B1, existe: false, valor: null,
+      delta: null, deltaPct: null, motivo: 'o histórico completo não tem período anterior',
+    }
+    : f.bases[0];
+  return {
+    versao: 2, caderno: 'movimento', rotulo: 'Movimento',
+    periodo: {
+      tipo,
+      rotulo: periodLabel(tipo, new Date(`${inicio}T00:00:00`)),
+      rotuloAnterior: previousPeriodLabel(tipo, inicio),
+      inicioISO: inicio, fimISO: fim, fechado: true, diasNoPeriodo: dias,
+    },
+    metricas: [{ ...f, bases: [b1, B2_VALORADA, B3_VALORADA] }],
+    tendencias: [], textos: [], cobertura: null,
+    correlacoes: [], eventos: [], lacunas: [], semDado: false,
+  };
+}
+
+describe('o rótulo do período em prosa — dono único em period/bounds.ts', () => {
+  it('mês vira o nome do mês, minúsculo e COM ACENTO', () => {
+    // Com acento porque quem escreve é o prompt; quem normaliza é a conferência.
+    assert.equal(periodProseLabel('month', 'Março 2026'), 'março');
+    assert.equal(periodProseLabel('month', 'Julho 2026'), 'julho');
+  });
+
+  it('os outros tipos saem inteiros, só em minúsculas', () => {
+    assert.equal(periodProseLabel('year', '2025'), '2025');
+    assert.equal(periodProseLabel('season', 'Q1 2026'), 'q1 2026');
+    assert.equal(periodProseLabel('week', '27/07 – 02/08'), '27/07 – 02/08');
+  });
+
+  it('sem rótulo não há prosa', () => {
+    assert.equal(periodProseLabel('month', null), null);
+    assert.equal(periodProseLabel('month', '   '), null);
+  });
+});
+
+describe('montarPrompt — as três bases nomeadas na linha do fato', () => {
+  const { usuario } = montarPrompt(pacoteTresBases('month'));
+
+  it('a linha mostra as três, cada uma com a frase prescrita e o percentual', () => {
+    assert.equal(
+      linhaDoFato(usuario, 'Distância'),
+      '- Distância: 435 km (contra julho: 862 km, −49,5%;'
+      + ' contra agosto do ano passado: 300 km, 45,0%;'
+      + ' contra o que você costuma fazer em agosto: 410 km, 6,1%)',
+    );
+  });
+
+  it('as três frases são as que o épico prescreve', () => {
+    assert.deepEqual(clausulas(usuario, 'Distância').map((c) => c.frase), [
+      'contra julho',
+      'contra agosto do ano passado',
+      'contra o que você costuma fazer em agosto',
+    ]);
+  });
+
+  /*
+   * O TESTE QUE FECHA A JANELA 1.4 → 1.5.
+   *
+   * A story existe porque o verificador cobra uma nomeação que o prompt não
+   * mandava fazer. A prova de que ela fechou não é leitura: é escrever a frase
+   * que o prompt rotulou, com o valor que ela rotula, e a conferência aprovar —
+   * nos CINCO tipos de período. `all` entrou na iteração 2: é o único em que B1
+   * nunca existe, e o único que emite a redação genérica de B3.
+   */
+  for (const tipo of ['month', 'year', 'week', 'season', 'all'] as const) {
+    it(`a ida e volta das formas prescritas, em ${tipo}`, () => {
+      const p = pacoteTresBases(tipo);
+      idaEVolta(montarPrompt(p).usuario, p, p.metricas[0]);
+    });
+  }
+
+  it('em `all` a B1 não existe: ela desce para o bloco, e B3 sai na forma genérica', () => {
+    const p = pacoteTresBases('all');
+    const { usuario } = montarPrompt(p);
+    assert.deepEqual(clausulas(usuario, 'Distância').map((c) => c.frase), [
+      'contra o mesmo período do ano anterior',
+      'contra o que você costuma fazer neste período',
+    ]);
+    assert.ok(usuario.includes(`sem ${BASE_ROTULO.B1}: não existe`));
+  });
+
+  it('semana e trimestre caem no rótulo genérico, que a conferência aceita', () => {
+    // "contra 27/07 – 02/08" poria dígitos que o pacote não autoriza, e a frase
+    // reprovaria na PRIMEIRA regra, não na quinta.
+    for (const tipo of ['week', 'season'] as const) {
+      const cs = clausulas(montarPrompt(pacoteTresBases(tipo)).usuario, 'Distância');
+      assert.equal(cs[0].frase, 'contra o período anterior', `${tipo} inventou nome próprio`);
+      assert.equal(/\d/.test(cs[0].frase), false, `${tipo} pôs dígito na frase da base`);
+    }
+  });
+
+  it('num ANO o nome próprio é o do ano anterior, e ele nomeia B1 e B2 juntas', () => {
+    const cs = clausulas(montarPrompt(pacoteTresBases('year')).usuario, 'Distância');
+    assert.equal(cs[0].frase, 'contra 2024');
+  });
+
+  /*
+   * O MÊS ACENTUADO — a metade da redução que ficou no verificador.
+   *
+   * `periodProseLabel` devolve o rótulo COM acento, porque quem o escreve é o
+   * prompt; `nomeEmProsa` normaliza essa saída antes de procurá-la no texto do
+   * modelo. As duas metades vivem em arquivos diferentes, e só uma estava presa:
+   * o teste de `periodProseLabel` cobra o acento, e nenhuma ida e volta passava
+   * por um mês acentuado — `Março` é o único em `MONTHS_PT`, e nenhum fixture o
+   * usava como período anterior.
+   *
+   * Sem esta asserção, apagar a normalização de `nomeEmProsa` deixa a suíte
+   * inteira verde e reprova TODA edição de abril: o prompt prescreve "contra
+   * março", a agulha fica com acento, o texto normalizado não a contém, e
+   * `nomesProprios` ainda acha "marco" e o denuncia como nome próprio ERRADO —
+   * silêncio virando acusação.
+   */
+  it('a ida e volta sobrevive ao mês acentuado — abril, cujo anterior é março', () => {
+    const base = pacoteTresBases('month');
+    const abril: PacoteDeFatos = {
+      ...base,
+      periodo: {
+        ...base.periodo,
+        rotulo: periodLabel('month', new Date('2026-04-01T00:00:00')),
+        rotuloAnterior: previousPeriodLabel('month', '2026-04-01'),
+        inicioISO: '2026-04-01', fimISO: '2026-04-30', diasNoPeriodo: 30,
+      },
+    };
+    assert.equal(abril.periodo.rotuloAnterior, 'Março 2026', 'o fixture perdeu o acento');
+    const { usuario } = montarPrompt(abril);
+    assert.equal(clausulas(usuario, 'Distância')[0].frase, 'contra março');
+    idaEVolta(usuario, abril, abril.metricas[0]);
+  });
+});
+
+/*
+ * AS DUAS FORMAS SEM NÚMERO, nos dois grãos.
+ *
+ * `producao` é o que o celular monta hoje — B1 com valor, B2 e B3 inexistentes,
+ * porque `EntradaPacote` vai sem `bases`. `semMedida` é o que ele passa a montar
+ * no dia em que alguém popular `bases` sem ter a medida: B3 existe e vale nulo.
+ * A iteração 1 tirou da linha só a primeira; a segunda ficou inline sob a frase
+ * prescrita, com o nome de B3 a 30 caracteres do valor de B1. A regra é UMA:
+ * nomear base na linha exige o número dela em seguida.
+ */
+function comB3SemMedida(): PacoteDeFatos {
+  const f = fato('distancia', 'Distância', 435, 862, 'km');
+  return pacoteDeBase([{
+    ...f,
+    bases: [
+      f.bases[0],
+      f.bases[1],
+      { id: 'B3', rotulo: BASE_ROTULO.B3, existe: true, valor: null, delta: null, deltaPct: null },
+    ],
+  }]);
+}
+
+const SEM_NUMERO: ReadonlyArray<readonly [string, () => PacoteDeFatos]> = [
+  ['inexistente (o que a produção emite hoje)',
+    () => pacoteDeBase([fato('distancia', 'Distância', 435, 862, 'km')])],
+  ['existe e não foi medida', comB3SemMedida],
+];
+
+for (const [caso, montarPacote] of SEM_NUMERO) {
+  describe(`montarPrompt — declaração sem número: ${caso}`, () => {
+    const p = montarPacote();
+    const { usuario } = montarPrompt(p);
+
+    it('a linha do fato NÃO carrega nome de base sem o número dela', () => {
+      const linha = linhaDoFato(usuario, 'Distância');
+      for (const c of clausulas(usuario, 'Distância')) {
+        assert.ok(
+          comecaComNumero(c.cauda),
+          `"${c.frase}" na linha do fato nomeia uma base sem o número dela atrás — põe `
+          + `vocabulário de base dentro da janela de decisão do valor de outra: ${linha}`,
+        );
+      }
+      for (const id of ['B1', 'B2', 'B3'] as BaseId[]) {
+        assert.equal(linha.includes(BASE_ROTULO[id]), false, 'rótulo genérico na linha do fato');
+      }
+      assert.equal(linha.includes('não foi medida'), false);
+    });
+
+    it('a declaração desce para a seção própria, no pé do caderno', () => {
+      assert.ok(usuario.includes('#### Comparações sem número neste caderno'));
+      assert.ok(
+        usuario.indexOf('#### Comparações sem número neste caderno')
+        > usuario.indexOf('- Distância: 435 km'),
+        'a declaração vem depois da lista, não antes nem dentro',
+      );
+    });
+
+    it('a ida e volta, sobre esta forma', () => {
+      idaEVolta(usuario, p, p.metricas[0]);
+    });
+
+    it('a última cláusula da linha, com o único número dela, não pode reprovar', () => {
+      ultimaClausulaComOUnicoNumero(usuario, p, 'Distância');
+    });
+  });
+}
+
+describe('montarPrompt — as duas formas sem número continuam DISTINTAS', () => {
+  const inexistente = montarPrompt(
+    pacoteDeBase([fato('distancia', 'Distância', 435, 862, 'km')]),
+  ).usuario;
+  const semMedida = montarPrompt(comB3SemMedida()).usuario;
+
+  it('base que não existe sai como "sem <rótulo>"', () => {
+    assert.ok(inexistente.includes(`sem ${BASE_ROTULO.B2}: não existe`));
+    assert.ok(inexistente.includes(`sem ${BASE_ROTULO.B3}: não existe`));
+  });
+
+  it('base que existe e não foi medida sai como não medida — NÃO como inexistente', () => {
+    // Os dois casos da matriz não podem colidir: existir sem medida é outra
+    // coisa que não existir, e a revista narraria o silêncio como estabilidade.
+    assert.ok(semMedida.includes(`${BASE_ROTULO.B3} existe, mas não foi medida`));
+    assert.equal(
+      semMedida.includes(`sem ${BASE_ROTULO.B3}`), false,
+      'a base que existe foi declarada inexistente — os dois casos colidiram',
+    );
+    // E a B2, essa sim inexistente no mesmo pacote, continua saindo como tal.
+    assert.ok(semMedida.includes(`sem ${BASE_ROTULO.B2}: não existe`));
+  });
+
+  it('o bloco usa o rótulo genérico; a linha do fato usa a frase prescrita', () => {
+    // Uma base tem um nome POR REGISTRO: a frase prescrita rotula NÚMERO e é o
+    // que o modelo copia colado ao valor; o rótulo genérico nomeia a base onde
+    // não há número. Os dois registros nunca se misturam.
+    for (const u of [inexistente, semMedida]) {
+      assert.equal(
+        u.includes('contra o que você costuma fazer em agosto: não foi medida'), false,
+        'a frase prescrita foi usada onde não há número para copiar',
+      );
+    }
+  });
+});
+
+describe('montarPromptDaEdicao — a mesma ida e volta no grão que a PRODUÇÃO usa', () => {
+  /*
+   * O celular chama `montarPromptDaEdicao` e confere contra a UNIÃO. Um teste que
+   * só exercitasse `montarPrompt` mediria o grão que ainda ninguém usa — e é a
+   * união que hoje decide se uma edição é gravada ou jogada fora.
+   */
+  const pacotes = pacoteAgosto();
+  const { usuario } = montarPromptDaEdicao(pacotes);
+
+  it('a ida e volta, sobre o prompt da edição inteira', () => {
+    idaEVolta(usuario, pacotes, pacotes[0].metricas[1]);   // Distância, do Movimento
+  });
+
+  it('a última cláusula da linha, com o único número dela, não pode reprovar', () => {
+    ultimaClausulaComOUnicoNumero(usuario, pacotes, 'Distância');
+  });
+
+  it('a declaração é uma POR CADERNO — na edição ela aparece uma vez por caderno', () => {
+    // "uma vez" é verdade no caderno e falso na edição: cada caderno declara a
+    // ausência dele. Afirmar "uma vez" aqui esconderia o grão de que se fala.
+    const cadernosQueDeclaram = pacotes.filter(
+      (x) => x.metricas.some((m) => m.atual != null
+        && m.bases.some((b) => b.id === 'B2' && !b.existe)),
+    ).length;
+    assert.equal(cadernosQueDeclaram, 2, 'o fixture tem dois cadernos declarando');
+    assert.equal(
+      quantas(usuario, `sem ${BASE_ROTULO.B2}: não existe`), cadernosQueDeclaram,
+    );
+    assert.equal(quantas(usuario, '#### Comparações sem número neste caderno'), 2);
+  });
+});
+
+describe('o bloco de declarações — alcance, nomes e fecho', () => {
+  const semB3 = (f: FatoNumero): FatoNumero => ({
+    ...f,
+    bases: [f.bases[0], f.bases[1], {
+      id: 'B3', rotulo: BASE_ROTULO.B3, existe: false, valor: null,
+      delta: null, deltaPct: null, motivo: 'sem dois anos',
+    }],
+  });
+  const comB3 = (f: FatoNumero): FatoNumero => ({ ...f, bases: [f.bases[0], f.bases[1], B3_VALORADA] });
+
+  it('quando a ausência é de PARTE dos fatos, ela nomeia quais', () => {
+    // Sem isto, trocar `nomeDoFato` por `f.rotulo` — ou o ramo inteiro por uma
+    // constante — mantinha a suíte verde.
+    const p = pacoteDeBase([
+      semB3(fato('distancia', 'Distância', 435, 862, 'km')),
+      comB3(fato('tempo', 'Tempo', 40.1, 68.2, 'h', 1)),
+    ]);
+    const { usuario } = montarPrompt(p);
+    assert.ok(usuario.includes(`sem ${BASE_ROTULO.B3}: não existe em Distância.`));
+    assert.equal(usuario.includes('em Tempo'), false, 'nomeou um fato que TEM a base');
+  });
+
+  it('o grupo desambigua as três "Distância" do caderno Movimento', () => {
+    const p = pacoteDeBase([
+      comB3(fato('distancia', 'Distância', 435, 862, 'km')),
+      semB3(fato('cic.distancia', 'Distância', 333, 820, 'km', 0, 'Ciclismo')),
+    ]);
+    assert.ok(
+      montarPrompt(p).usuario.includes(`sem ${BASE_ROTULO.B3}: não existe em Ciclismo · Distância.`),
+      'sem o grupo, a declaração aponta para uma das três "Distância" e não se sabe qual',
+    );
+  });
+
+  it('nome de fato com DÍGITO não entra — é a mesma guarda do `desde`', () => {
+    // "Hábitos ruins · Cerveja 500 ml" poria o 500, fora do alfabeto, a poucos
+    // caracteres do vocabulário de B3 — dentro da seção criada para separá-los.
+    const p = pacoteDeBase([
+      semB3(fato('habito.cerveja', 'Cerveja 500 ml', 12, 9, 'dias', 0, 'Hábitos ruins')),
+      comB3(fato('tempo', 'Tempo', 40.1, 68.2, 'h', 1)),
+    ]);
+    const { usuario } = montarPrompt(p);
+    const bloco = usuario.slice(usuario.indexOf('#### Comparações sem número'));
+    assert.equal(/\d/.test(bloco), false, 'dígito no bloco de declarações');
+    assert.ok(bloco.includes(`sem ${BASE_ROTULO.B3}: não existe em parte dos fatos deste caderno.`));
+  });
+
+  it('fato sem `atual` não é declarado — ele não está na lista que o modelo vê', () => {
+    // O fato vivo tem as três bases; o morto não tem B3. Sem o filtro `atual !=
+    // null`, a seção nasceria para falar de uma linha que o modelo não vê.
+    const vivo: FatoNumero = {
+      ...fato('distancia', 'Distância', 435, 862, 'km'),
+      bases: [fato('distancia', 'Distância', 435, 862, 'km').bases[0], B2_VALORADA, B3_VALORADA],
+    };
+    const morto: FatoNumero = { ...semB3(fato('vfc', 'VFC', 54, 71)), atual: null };
+    const { usuario } = montarPrompt(pacoteDeBase([vivo, morto]));
+    assert.equal(usuario.includes('VFC'), false, 'declarou a base de uma linha que não é impressa');
+    assert.equal(usuario.includes('#### Comparações sem número neste caderno'), false);
+  });
+
+  it('o fecho é regra da SEÇÃO, separado do último item por linha em branco', () => {
+    // Emendado ao item por um `\n` só, o Markdown o lê como continuação
+    // preguiçosa daquele item — vira texto de uma das bases, não da seção.
+    const { usuario } = montarPrompt(pacoteDeBase([fato('distancia', 'Distância', 435, 862, 'km')]));
+    assert.ok(usuario.includes(
+      `sem ${BASE_ROTULO.B3}: não existe em todos os fatos deste caderno.\n\n`
+      + 'As comparações desta seção não têm número neste caderno. Ao escrever, não\n'
+      + 'ponha o nome de nenhuma delas junto de um número de outra comparação.',
+    ));
+  });
+
+  /*
+   * O FECHO NOMEIA A SEÇÃO, NÃO UMA POSIÇÃO.
+   *
+   * "As linhas acima" não é fronteira: acima desta seção estão a lista de fatos
+   * e a Cobertura, que TÊM número. E num período sem nome próprio — semana,
+   * trimestre, `all` — a frase prescrita É o rótulo genérico, então a mesma base
+   * aparece nas duas, uma vez rotulando o valor dela. Dizer "nenhuma das linhas
+   * acima tem número" era falso nos dois casos.
+   */
+  it('o fecho não se refere a "as linhas acima" — isso era falso em três tipos', () => {
+    const { usuario } = montarPrompt(pacoteTresBases('week'));
+    assert.equal(usuario.includes('linhas acima'), false);
+    // A prova de que era falso: na semana a linha do fato usa o rótulo genérico,
+    // com o número dela junto — o registro coincide, e o par continua correto.
+    assert.equal(clausulas(usuario, 'Distância')[0].frase, `contra ${BASE_ROTULO.B1}`);
+  });
+});
+
+describe('montarPrompt — caderno sem dado não vira prompt', () => {
+  /*
+   * A Story 1.10 chama `montarPrompt` QUATRO vezes por edição. Sem contrato,
+   * quatro cadernos vazios seriam quatro cabeçalhos, oito leis e zero fatos —
+   * quatro chamadas pagas que só podem ser respondidas inventando.
+   */
+  const vazio: PacoteDeFatos = {
+    ...pacoteDeBase([]), caderno: 'rotina', rotulo: 'Rotina', semDado: true,
+  };
+
+  it('`usuario` vazio é o sinal de NÃO GASTE CHAMADA', () => {
+    assert.equal(montarPrompt(vazio).usuario, '');
+    assert.equal(montarPromptDaEdicao([]).usuario, '', 'o mesmo contrato no outro grão');
+  });
+
+  it('a lei continua saindo — o vazio é do pacote, não do sistema', () => {
+    assert.ok(montarPrompt(vazio).sistema.includes('informa, não aconselha'));
+  });
+
+  it('mas um caderno cuja única linha é a lápide É narrado — a lápide vence o vazio', () => {
+    const comLapide: PacoteDeFatos = {
+      ...vazio,
+      textos: [{ chave: 'lapide.spo2', rotulo: 'SpO2', valor: 'sem medida desde o dia 16' }],
+      semDado: false,
+    };
+    const { usuario } = montarPrompt(comLapide);
+    assert.ok(usuario.includes('#### Fatos sem número'));
+    assert.ok(usuario.includes('SpO2'));
+  });
+
+  /*
+   * `semDado` NÃO é o vazio inteiro: ele olha `metricas`, `tendencias` e
+   * `textos`, e ignora cobertura, lacunas, eventos e correlações. Um caderno de
+   * Sono sem uma única métrica pode ter 31 dias de lacuna e cobertura desigual —
+   * e a regra 8 obriga a declarar a segunda. Devolver vazio ali calaria uma
+   * ressalva obrigatória, e na Story 1.10, onde cada caderno é conferido
+   * sozinho, não haveria outro caderno para carregá-la.
+   */
+  it('mudo não é o mesmo que `semDado`: cobertura e lacuna ainda são narradas', () => {
+    const cego: PacoteDeFatos = {
+      ...vazio,
+      caderno: 'sono',
+      rotulo: 'Sono',
+      cobertura: {
+        diasComDado: 0, diasNoPeriodo: 31,
+        diasComDadoAnterior: 22, diasNoPeriodoAnterior: 31,
+        comparavel: false,
+      },
+      lacunas: [{ caderno: 'sono', diasSemDado: 31, motivo: 'relógio sem carga' }],
+    };
+    const { usuario } = montarPrompt(cego);
+    assert.notEqual(usuario, '', 'um caderno com ressalva obrigatória não é mudo');
+    assert.ok(usuario.includes('COBERTURA DESIGUAL'), 'a regra 8 precisa do aviso');
+    assert.ok(usuario.includes('Ressalvas obrigatórias'));
+    assert.ok(usuario.includes('relógio sem carga'), 'a lacuna também some junto');
+  });
+});
+
+describe('montarPrompt — trajetória, fatos sem número e cobertura', () => {
+  const base = pacoteDeBase([fato('distancia', 'Distância', 435, 862, 'km')]);
+  const comTendencia: PacoteDeFatos = {
+    ...base,
+    tendencias: [{
+      chave: 'distancia', rotulo: 'Distância', direcao: 'cai', periodos: 3, desde: 'junho',
+    }],
+  };
+
+  it('a trajetória sai como DIREÇÃO, e o único número dela é a contagem', () => {
+    const { usuario } = montarPrompt(comTendencia);
+    assert.ok(usuario.includes('#### Trajetória'));
+    const linha = usuario.split('\n').find((l) => l.startsWith('- Distância: cai'));
+    assert.ok(linha, 'a trajetória não saiu no prompt');
+    assert.ok(linha.includes('desde junho'));
+    assert.deepEqual(
+      linha.match(/\d+/g), ['3'],
+      'valor bruto na trajetória: ela põe UM inteiro no alfabeto e mais nada',
+    );
+  });
+
+  it('`desde` com dígito NÃO vai ao prompt — reprovaria na primeira regra', () => {
+    const comDigito: PacoteDeFatos = {
+      ...comTendencia,
+      tendencias: [{ ...comTendencia.tendencias[0], desde: '27/07 – 02/08' }],
+    };
+    const { usuario } = montarPrompt(comDigito);
+    assert.equal(usuario.includes('27/07'), false);
+    assert.ok(usuario.includes('- Distância: cai — 3 períodos seguidos'));
+  });
+
+  const comTexto: PacoteDeFatos = {
+    ...base,
+    textos: [{ chave: 'piso', rotulo: 'Piso', valor: '72% pavimentado' }],
+    cobertura: {
+      diasComDado: 27, diasNoPeriodo: 31,
+      diasComDadoAnterior: 14, diasNoPeriodoAnterior: 31,
+      comparavel: false,
+    },
+  };
+
+  it('os fatos sem número saem por extenso, em seção própria', () => {
+    const { usuario } = montarPrompt(comTexto);
+    assert.ok(usuario.includes('#### Fatos sem número'));
+    assert.ok(usuario.includes('- Piso: 72% pavimentado'));
+  });
+
+  it('e o 72 de "72% pavimentado" NÃO está no alfabeto — citá-lo solto reprova', () => {
+    // A armadilha da forma: `FatoTexto` não entra no alfabeto numérico, e é
+    // justamente por isso que ele existe como forma própria. Ninguém produz
+    // `FatoTexto` hoje; quem for produzir precisa saber disto.
+    const v = verificarTexto('O piso foi 72% pavimentado, e foram 435 km.', comTexto);
+    assert.ok(v.problemas.some((x) => x.regra === 'numero' && x.detalhe.includes('72')));
+  });
+
+  it('a Cobertura tem seção PRÓPRIA, e não cai sob o último subtítulo', () => {
+    // Sob "Fatos sem número", a regra 5 do SISTEMA proibiria exatamente os dois
+    // números que a regra 8 obriga a escrever na ressalva.
+    const { usuario } = montarPrompt(comTexto);
+    const iTextos = usuario.indexOf('#### Fatos sem número');
+    const iCobertura = usuario.indexOf('#### Cobertura');
+    const iNumeros = usuario.indexOf('Neste período: 27 de 31 dias');
+    assert.ok(iTextos >= 0 && iCobertura > iTextos, 'a Cobertura perdeu a seção própria');
+    assert.ok(iNumeros > iCobertura, 'os números da cobertura têm que vir sob o subtítulo dela');
+    assert.ok(usuario.includes('COBERTURA DESIGUAL'));
+  });
+
+  it('a linha de Cobertura evita o vocabulário de B1 — a redação é escolhida', () => {
+    // Estes números não são valor de base nenhuma. Chamá-los de "período
+    // anterior" poria a preposição que a quinta regra lê colada a um número que
+    // ela não julga — e voltar a `No período anterior:` deixava tudo verde.
+    const { usuario } = montarPrompt(comTexto);
+    assert.ok(usuario.includes(
+      '- Neste período: 27 de 31 dias. No período comparado: 14 de 31 dias.',
+    ));
+    for (const vocab of ['período anterior', 'período passado', 'ciclo anterior']) {
+      assert.equal(
+        usuario.slice(usuario.indexOf('#### Cobertura')).includes(vocab), false,
+        `a seção Cobertura escreveu "${vocab}", que é vocabulário de B1`,
+      );
+    }
+  });
+});
+
+describe('montarPrompt — um caderno, e a união é outra função', () => {
+  const [movimento, sono] = pacoteAgosto();
+
+  it('o prompt de um caderno não conhece número nem rótulo do outro', () => {
+    const { usuario } = montarPrompt(sono);
+    assert.ok(usuario.includes('### Sono'));
+    assert.equal(usuario.includes('Movimento'), false);
+    for (const n of ['435', '862', '40,1', '68,2']) {
+      assert.equal(usuario.includes(n), false, `${n} é de Movimento e vazou para o caderno de Sono`);
+    }
+    assert.equal(usuario.includes('Meia maratona'), false, 'o evento é de Movimento');
+  });
+
+  it('o escopo sai do CABEÇALHO, e os dois grãos o escrevem diferente', () => {
+    assert.match(montarPrompt(sono).usuario, /^Escreva o caderno Sono\./m);
+    assert.match(
+      montarPromptDaEdicao([movimento, sono]).usuario,
+      /^Escreva a edição inteira: os cadernos abaixo, num texto só\./m,
+    );
+  });
+
+  it('a união segue montando os quatro cadernos num texto só — até a Story 1.10', () => {
+    const { usuario } = montarPromptDaEdicao([movimento, sono]);
+    assert.ok(usuario.includes('### Movimento'));
+    assert.ok(usuario.includes('### Sono'));
+  });
+
+  it('a edição vazia não vira prompt', () => {
+    assert.equal(montarPromptDaEdicao([]).usuario, '');
+  });
+});
+
+describe('SISTEMA — as leis do jornal na versão 3', () => {
+  const { sistema } = montarPrompt(pacoteTresBases('month'));
+
+  it('a lei serve aos DOIS grãos — não descreve só o caderno nem só a edição', () => {
+    // O celular manda os quatro cadernos num texto só até a Story 1.10. Um
+    // SISTEMA no singular descreveria errado a chamada que está em produção.
+    assert.doesNotMatch(sistema, /você escreve o caderno/i);
+    assert.doesNotMatch(sistema, /você escreve a edição/i);
+    assert.ok(sistema.includes('O CABEÇALHO da mensagem diz o'));
+    assert.ok(sistema.includes('um caderno da revista ou a edição inteira'));
+  });
+
+  /*
+   * A LEI 2 NÃO PODE SER MAIS ESTRITA QUE O VERIFICADOR.
+   *
+   * Ela dizia *"uma frase que traz o número de uma comparação não traz o nome de
+   * outra"*, e isso proibia prosa que a conferência aprova — inclusive a forma
+   * que a própria linha do fato exibe, com três nomes e três números colados aos
+   * seus. Lei estrita demais não reprova nada; ela joga fora escrita boa, e o
+   * modelo que a obedecesse ao pé da letra não conseguiria comparar duas bases
+   * na mesma frase. O perigo real é outro, e agora é ele que está escrito: nome
+   * de comparação **sem o número dela** ao lado do número de outra.
+   */
+  it('manda NOMEAR a comparação, e proíbe só o que é perigoso de verdade', () => {
+    assert.ok(sistema.includes('2. NOMEAR A COMPARAÇÃO'));
+    assert.ok(sistema.includes('COPIE junto dele a'));
+    assert.match(sistema, /PODE pôr mais de uma comparação na mesma frase/);
+    assert.match(sistema, /nome de uma comparação\s+SEM o número dela/);
+  });
+
+  it('e a prosa que a lei 2 permite é a mesma que a conferência aprova', () => {
+    // A prova de que a lei parou de ser mais estrita que a regra que a cobra.
+    const p = pacoteTresBases('month');
+    const duas = 'Foram 435 km, contra julho: 862 km, e contra agosto do ano passado: 300 km.';
+    assert.deepEqual(verificarTexto(duas, p).problemas, [], duas);
+  });
+
+  /*
+   * AS LEIS FALAM DO TEXTO, NÃO DA LISTA.
+   *
+   * A linha de fato canônica tem três nomes de comparação e três números numa
+   * frase só, e a conferência a aceita — cada nome está colado ao número dele.
+   * Uma lei escrita como "nome de comparação não fica perto de número"
+   * proibiria o que o próprio prompt exibe, e o modelo que a lesse ao pé da
+   * letra não teria como escrever nada.
+   */
+  it('as leis dizem de quem falam, e distinguem o texto da lista de fatos', () => {
+    assert.ok(sistema.includes('As oito regras abaixo falam do TEXTO QUE VOCÊ ESCREVE.'));
+    assert.match(sistema, /a lista põe vários rótulos e vários números na mesma linha de\s+propósito/);
+    assert.ok(sistema.includes('VOCABULÁRIO.'), 'sem definir "número de comparação" as leis 2-4 são vagas');
+    assert.equal(quantas(sistema, 'NÚMERO DE COMPARAÇÃO') >= 3, true);
+  });
+
+  it('a regra 3 não é mais estrita que o verificador', () => {
+    // `"Sem a normal do período, foram 435 km."` PASSA na conferência — 435 é o
+    // `atual`, não valor de base. Uma lei que a proibisse gastaria a permissão
+    // que ela concede: numa retro quase toda frase carrega número.
+    const p = pacoteDeBase([fato('distancia', 'Distância', 435, 862, 'km')]);
+    const v = verificarTexto('Sem a normal do período, foram 435 km.', p);
+    assert.deepEqual(v.problemas.filter((x) => x.regra === 'base'), []);
+    assert.match(sistema, /Junto dos outros números,\s+pode:/);
+  });
+
+  it('a regra 4 fala do texto, e não proíbe o que a própria trajetória renderiza', () => {
+    // `- Distância: cai — 3 períodos seguidos, desde junho` põe o `3` a 26
+    // caracteres de `junho`. A lei fala do NÚMERO DE COMPARAÇÃO, que o `3` não é.
+    assert.match(sistema, /no seu\s+texto, não o ponha na mesma frase que um NÚMERO DE COMPARAÇÃO/);
+  });
+
+  it('a regra 5 é satisfazível — cita a ideia, não o número de dentro', () => {
+    // "cite por extenso, como está escrito" + "nunca extraia o número de dentro"
+    // era insatisfazível para uma linha cujo conteúdo É um percentual.
+    assert.ok(sistema.includes('você cita pela IDEIA'));
+    assert.doesNotMatch(sistema, /por extenso,\s*\n?\s*como está escrito/);
+  });
+
+  /*
+   * NENHUM NÚMERO SOLTO NA LEI.
+   *
+   * Um valor escrito no SISTEMA é um número que o modelo pode copiar e que o
+   * pacote não autoriza — reprova na regra 1 e joga fora a edição. Sobram os
+   * ordinais das regras e os dois exemplos de data da FORMA, ambos ignoráveis
+   * por construção: `ignoravel()` deixa passar dia-do-mês seguido de "de", e a
+   * data ISO é mascarada antes da varredura.
+   */
+  it('a lei não escreve número que o pacote não autoriza', () => {
+    const permitidos = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '30', '08', '2026']);
+    const soltos = [...new Set(sistema.match(/\d+/g) ?? [])].filter((n) => !permitidos.has(n));
+    assert.deepEqual(soltos, [], 'número solto no SISTEMA é número que o modelo pode citar');
+  });
+
+  /*
+   * PRESCREVER PELA RENDERIZAÇÃO, NÃO PELO EXEMPLO.
+   *
+   * Um exemplo fixo de base no SISTEMA — "contra julho" — envelheceria em
+   * silêncio no dia em que o período mudasse de tipo, ensinando ao modelo uma
+   * frase que a conferência recusa. O nome de mês continua sendo cobrado só no
+   * parágrafo da regra 2, porque a seção FORMA PRECISA do "30 de agosto".
+   */
+  it('a regra 2 não dá exemplo de base, e a varredura não condena o "30 de agosto"', () => {
+    const i = sistema.indexOf('\n2. NOMEAR');
+    const j = sistema.indexOf('\n\n3. ');
+    assert.ok(i >= 0 && j > i, 'a regra 2 mudou de forma e a varredura ficou sem alvo');
+    const regra2 = sistema.slice(i, j).toLowerCase();
+    assert.deepEqual(
+      MONTHS_PT.filter((m) => new RegExp(`\\b${m.toLowerCase()}\\b`).test(regra2)), [],
+      'nome de mês na regra 2 é exemplo fixo de base — ele envelhece calado',
+    );
+    assert.ok(sistema.includes('"30 de agosto"'), 'a FORMA precisa do exemplo de data');
+  });
+
+  /*
+   * E O VOCABULÁRIO DE BASE É COBRADO NO SISTEMA INTEIRO, não num parágrafo.
+   *
+   * A varredura por nome de mês olhava só a regra 2, e a lei escapava por três
+   * seções abaixo: a FORMA proibia planilha com o exemplo "em comparação com o
+   * ciclo passado", e `'ciclo passado'` é literalmente `B1_GENERICO` —
+   * vocabulário de base dentro da lei que jura não ter nenhum. Quebrado em duas
+   * linhas pelo formatador, nem um grep pela frase o achava.
+   *
+   * O alvo é o texto do `SISTEMA` **normalizado**, do mesmo jeito que a quinta
+   * regra lê o texto do modelo: é o único jeito de a varredura enxergar o que a
+   * conferência enxergaria.
+   */
+  it('nenhum vocabulário de base em lugar nenhum do SISTEMA', () => {
+    const alvo = sistema
+      .toLowerCase()
+      .replace(/[áàâã]/g, 'a').replace(/[éê]/g, 'e').replace(/[íì]/g, 'i')
+      .replace(/[óôõ]/g, 'o').replace(/[úü]/g, 'u').replace(/ç/g, 'c')
+      // A lei é quebrada em linhas; o vocabulário não conhece quebra.
+      .replace(/\s+/g, ' ');
+    const VOCAB = [
+      'periodo anterior', 'periodo passado', 'ciclo anterior', 'ciclo passado',
+      'etapa anterior', 'etapa passada', 'semana anterior', 'semana passada',
+      'mes anterior', 'mes passado', 'trimestre anterior', 'trimestre passado',
+      'estacao anterior', 'ano anterior', 'ano passado', 'mesmo periodo do ano',
+      'um ano antes', 'ha um ano', 'normal do periodo', 'normal historica',
+      'media historica', 'media dos anos', 'costuma fazer',
+    ];
+    assert.deepEqual(
+      VOCAB.filter((v) => alvo.includes(v)), [],
+      'a lei carrega uma frase que a quinta regra lê como nomeação de base',
+    );
+  });
+
+  it('a PRIMEIRA FRASE é declarada capa e sumário', () => {
+    // A chamada de cada caderno é a primeira frase do texto dele, cortada no
+    // primeiro ponto. Sem esta lei, o modelo não sabe que ela sai sozinha.
+    assert.ok(sistema.includes('A PRIMEIRA FRASE é a manchete'));
+    assert.match(sistema, /ela vira a capa e o sumário, lida sozinha e\s+fora de contexto/);
+  });
+
+  it('declara a ausência, a trajetória e os fatos sem número', () => {
+    assert.ok(sistema.includes('3. COMPARAÇÃO QUE NÃO EXISTE'));
+    assert.ok(sistema.includes('4. TRAJETÓRIA'));
+    assert.ok(sistema.includes('5. FATOS SEM NÚMERO'));
+  });
+
+  it('informa e não aconselha, com os exemplos proibidos por extenso', () => {
+    assert.ok(sistema.includes('informa, não aconselha'));
+    for (const proibido of ['continue assim', 'tente dormir mais', 'parabéns pelo mês']) {
+      assert.ok(sistema.includes(proibido), `o exemplo proibido "${proibido}" sumiu`);
+    }
+  });
+
+  it('nunca calcula, nunca afirma causa, e a ressalva de cobertura continua obrigatória', () => {
+    assert.ok(sistema.includes('Nunca calcule, some, divida ou derive um número novo'));
+    assert.ok(sistema.includes('6. CAUSA'));
+    assert.ok(sistema.includes('8. RESSALVAS'));
+    assert.ok(sistema.includes('COBERTURA DESIGUAL'));
+  });
+
+  it('a versão do prompt é 3', () => {
+    assert.equal(PROMPT_VERSAO, 3);
+  });
+});
+
+/*
+ * QUANTO DE CADA LEI A CONFERÊNCIA REALMENTE COBRA.
+ *
+ * O comentário do `SISTEMA` afirmava que "cada uma tem um teste correspondente em
+ * verificar.ts". É falso para as leis 3, 4 e 8, e afirmação falsa aqui é pior que
+ * ausência: faz quem lê acreditar que o prompt está atrás de uma rede que não
+ * existe. Estes testes medem a afirmação corrigida, em vez de a deixarem de pé.
+ */
+describe('o que a conferência NÃO cobra — a rede que o SISTEMA não tem', () => {
+  const p = pacoteDeBase([fato('distancia', 'Distância', 435, 862, 'km')]);
+  const semRegra = (t: string) => verificarTexto(t, p).problemas.map((x) => x.regra);
+
+  it('lei 4 (trajetória): a conferência não olha direção nem `desde` — zero cobertura', () => {
+    const comTendencia: PacoteDeFatos = {
+      ...p,
+      tendencias: [{ chave: 'distancia', rotulo: 'Distância', direcao: 'cai', periodos: 3, desde: 'junho' }],
+    };
+    // Direção invertida e `desde` de outro período: nada disso é conferível.
+    const v = verificarTexto('A distância sobe há 3 períodos, desde março.', comTendencia);
+    assert.deepEqual(v.problemas.filter((x) => x.regra !== 'base'), [], 'só a base opina aqui');
+  });
+
+  it('lei 8 (ressalva): a conferência procura PALAVRA-CHAVE e nunca compara os números', () => {
+    const comCobertura: PacoteDeFatos = {
+      ...p,
+      cobertura: {
+        diasComDado: 27, diasNoPeriodo: 31,
+        diasComDadoAnterior: 14, diasNoPeriodoAnterior: 31, comparavel: false,
+      },
+    };
+    // A palavra "cobertura" basta; os dois números que a lei 8 exige podem faltar.
+    const v = verificarTexto('A cobertura foi desigual. Foram 435 km.', comCobertura);
+    assert.deepEqual(
+      v.problemas.filter((x) => x.regra === 'ressalva'), [],
+      'se isto passar a reprovar, a lei 8 ganhou rede e a tabela do SISTEMA envelheceu',
+    );
+  });
+
+  it('lei 3 (ausência): declarar longe de número de base passa — a cobertura é parcial', () => {
+    assert.deepEqual(semRegra('Sem a normal do período, foram 435 km.'), []);
+  });
+
+  it('as leis 1, 2, 6 e 7 têm rede, e ela morde', () => {
+    assert.ok(semRegra('Foram 999 km.').includes('numero'));
+    assert.ok(semRegra('Foram 435 km, contra 862 no ano passado.').includes('base'));
+    assert.ok(semRegra('Dormiu melhor porque correu.').includes('causa'));
   });
 });

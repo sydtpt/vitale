@@ -12,7 +12,7 @@
  * edição ruim — não é uma edição.
  */
 import {
-  montarPacotes, montarPrompt, verificarTexto, PACOTE_VERSAO, PROMPT_VERSAO,
+  montarPacotes, montarPromptDaEdicao, verificarTexto, PACOTE_VERSAO, PROMPT_VERSAO,
   upsertEdicao, fetchEdicao,
   type EntradaPacote, type PacoteDeFatos, type Edicao, type Problema,
 } from '@vitale/shared';
@@ -36,7 +36,9 @@ export type ResultadoEdicao =
 
 async function narrar(pacotes: readonly PacoteDeFatos[]): Promise<Narracao> {
   const { data, error } = await supabase.functions.invoke('ia-narrar', {
-    body: montarPrompt(pacotes),
+    // A função da EDIÇÃO, não a do caderno: até a Story 1.10 o celular narra os
+    // quatro cadernos num texto só, e `montarPrompt` passou a ser por caderno.
+    body: montarPromptDaEdicao(pacotes),
   });
   if (error) throw error;
   const d = data as Partial<Narracao> & { error?: string; detalhe?: string };
