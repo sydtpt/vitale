@@ -280,9 +280,12 @@ São **10** módulos, não 7:
   (escolha por aparelho, lista da nuvem no servidor) e
   [0049](docs/decisions/0049-o-motor-escreve-palavras-e-o-codigo-escreve-numeros.md) (o motor
   escreve palavras, o código escreve números). Primeira leitura: a **Saúde do sono em uma frase**
-  (CAP-13 do spec de Sono), gerada por botão, só no iPhone. A fase F0 (núcleo, sem modelo) tem de
-  entrar **antes da story 1.10 da revista**, que passa a ser cliente do orquestrador (AD-13). A
-  bancada de medição roda no Mac, com Mac e iPhone no 27.
+  (CAP-13 do spec de Sono), gerada por botão, só no iPhone. Entrou na sprint da revista como
+  **Épico 5** pelo correct-course de 10/09
+  ([proposta](_bmad-output/planning-artifacts/sprint-change-proposal-2026-09-10.md)): a F0
+  (5.1–5.3) e o marco A da bancada (5.4) vêm **antes da story 1.10**, que passa a ser cliente do
+  orquestrador (AD-13); a F2 (5.5) vem depois da 1.9, em build próprio; F3–F5 ficam para a próxima
+  sprint. A bancada mede no Mac, com Mac e iPhone no 27.
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco

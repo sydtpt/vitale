@@ -372,6 +372,15 @@ Ids originais, read-only, não renumerados. Nenhuma decisão abaixo as contradiz
   `texto: string` e nada impede gravar sem conferir. `architecture.test.ts` passa a
   cobrar que `upsertEdicao` seja importado **só** pela sequência — o mesmo argumento
   que a AD-12 aplica à barreira menor, aplicado aqui à restrição maior.
+- **Apertada em 10/09/2026** pela AD-13 da
+  [espinha dos motores](../architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md),
+  no correct-course do mesmo dia
+  ([proposta](../../sprint-change-proposal-2026-09-10.md)). A sequência não recebe mais
+  a porta `narrar`: chama o orquestrador de `ia/orquestrar.ts` uma vez por caderno,
+  com o descritor da retrospectiva, e o modelo chega pelo `motorPara` do hospedeiro.
+  A porta `ler` passa a se chamar **`buscar`** — "Ler" é o botão da Saúde do sono. As
+  portas injetadas passam a ser duas, `buscar` e `gravar`, e a barreira do
+  `upsertEdicao` fica como está.
 
 ### AD-14 — O backfill autentica como o usuário, nunca com chave de serviço
 
@@ -393,12 +402,20 @@ Ids originais, read-only, não renumerados. Nenhuma decisão abaixo as contradiz
 - **Prevents:** a janela em que o app instalado quebra sozinho. `fetchEdicao` filtra
   quatro colunas e termina em `.maybeSingle()`; quando a chave primária ganhar
   `caderno`, o mesmo filtro passa a casar até quatro linhas e o `maybeSingle` falha.
-  A instância do Supabase é única (AD-8 herdada) e não há OTA: aplicar a migração e
-  ir dormir deixa a Retrospectiva do iPhone quebrada até o próximo build
-- **Rule:** a migração que muda a forma de leitura e o build que lê a forma nova
-  entram **na mesma sessão de trabalho**, nessa ordem, com o build já compilado e
-  pronto para instalar antes de a migração rodar. A janela é medida em minutos e
-  declarada, não descoberta.
+  A instância do Supabase é única (AD-8 herdada): aplicar a migração e ir dormir deixa
+  a Retrospectiva do iPhone quebrada até o JS novo chegar. **Há OTA** — `expo-updates`
+  ligado, `runtimeVersion` 1.0.5 fixo, canal `preview`
+  ([`app.base.json`](../../../../mobile/app.base.json)); a premissa contrária, escrita em
+  08/09, foi corrigida em 10/09 —, mas ele encurta a janela, não a elimina: com
+  `fallbackToCacheTimeout` no padrão (0), o update baixa num lançamento e só vale no seguinte
+- **Rule:** a migração que muda a forma de leitura e o JS que lê a forma nova entram
+  **na mesma sessão de trabalho**, nessa ordem. O JS chega por um de dois caminhos: o
+  **build**, já compilado e pronto para instalar antes de a migração rodar, ou o
+  **`eas update`** para o runtime instalado, publicado **só depois** de a migração
+  rodar — JS novo contra forma velha quebra do outro lado — e seguido de dois
+  lançamentos do app. A janela é medida em minutos e declarada, não descoberta.
+  Update que leva código da ponte dos motores nunca vai para runtime anterior
+  (AD-3 dos motores).
   **Dentro da migração a ordem também é fixa:** as sete edições em produção **saem
   antes** de as colunas `caderno` e `posicao` nascerem `not null` — sete linhas sem
   valor para uma coluna obrigatória fazem a migração falhar no meio. É o que
@@ -481,7 +498,7 @@ O que nasce e onde. O resto o código passa a ser dono.
 packages/shared/src/
   period/retro-blocks.ts   # + cadernosOcultos (AD-2); as remoções são as de `mudancas-mecanicas.md` §"O que sai do código" — lista lá, não aqui
   period/cadernos.ts       # CadernoId, catálogo, ordenarCadernos, a chamada (AD-2, AD-11)
-  ia/imprimir.ts           # a sequência, com três portas injetadas (AD-13)
+  ia/imprimir.ts           # a sequência, cliente do orquestrador; buscar e gravar injetados (AD-13)
   ia/prompt.ts             # + a regra da primeira frase e a nomeação da base; PROMPT_VERSAO 2→3
   sleep/lua.ts             # o teste lunar sob protocolo (AD-6)
   astro/moon.ts            # + instante verdadeiro das fases, Meeus 49 (AD-6)
@@ -495,7 +512,7 @@ mobile/src/
   app/revista/[tipo]/[inicio].tsx   # postal, edição e anuário — a forma sai do tipo (AD-1)
   app/revista/lua.tsx               # a única tela filha
   app/revista/arquivo.tsx           # a parede de capas
-  lib/edicao-ia.ts                  # emagrece: só as portas de plataforma (AD-13)
+  lib/edicao-ia.ts                  # emagrece: buscar e gravar; o invocar vai para lib/motores/ (AD-13)
   hooks/                            # + o hook de rolagem ancorada com foco (AD-9)
 
 scripts/                 # quarto workspace, declarado em pnpm-workspace.yaml (AD-12, AD-14)

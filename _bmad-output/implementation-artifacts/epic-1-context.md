@@ -30,7 +30,7 @@ constante que a frente promete.
 - Story 1.7: O ranqueamento do miolo e a lápide
 - Story 1.8: A chamada sai de uma função só
 - Story 1.9: A migração e a leitura da forma nova
-- Story 1.10: A sequência da impressão sobe para o núcleo
+- Story 1.10: A sequência da impressão sobe para o núcleo, como cliente do orquestrador
 - Story 1.11: A rota da revista, e os estados da edição
 - Story 1.12: Os cadernos desenhados
 - Story 1.13: A capa na edição, com o véu medido
@@ -99,15 +99,19 @@ está dito.
 legenda já formatada) e para a chave da métrica que liderou o ranqueamento. Um ponteiro
 re-derivado depois lê um estado que já andou.
 
-**A sequência da impressão é do núcleo, com três portas injetadas** — narrar, ler e gravar —,
-nunca um cliente de banco. Cada hospedeiro liga as portas ao que tem. `upsertEdicao` passa a
-ser importável só pela sequência, por barreira: "verifica antes de gravar" deixa de ser
-promessa em comentário.
+**A sequência da impressão é do núcleo e é cliente do orquestrador dos motores**
+(correct-course de 10/09; AD-13 dos motores). Ela chama o orquestrador uma vez por caderno, com o
+descritor da retrospectiva, e recebe só duas portas — `buscar` e `gravar` —, nunca um cliente de
+banco; o modelo chega pelo `motorPara` do hospedeiro. Só resposta de motor grava, e piso é
+ausência. `upsertEdicao` passa a ser importável só pela sequência, por barreira: "verifica antes
+de gravar" deixa de ser promessa em comentário.
 
-**A migração e o build que a lê são uma operação só.** Instância de banco única, sem OTA: o
-caminho de leitura atual casa uma linha por período, e quando o caderno entrar na chave ele
-passa a casar até quatro. Dentro da migração, as sete edições em produção saem **antes** de as
-colunas obrigatórias nascerem.
+**A migração e o JS que a lê são uma operação só.** Instância de banco única: o caminho de
+leitura atual casa uma linha por período, e quando o caderno entrar na chave ele passa a casar
+até quatro. **Há OTA** — a premissa contrária foi corrigida em 10/09: o JS novo pode ir por
+`eas update` para o runtime 1.0.5, mas só vale a partir do segundo lançamento, e publicado antes
+da migração quebra do outro lado. Dentro da migração, as sete edições em produção saem **antes**
+de as colunas obrigatórias nascerem.
 
 **`AGG_VERSION` sobe para o núcleo com dono único.** Hoje é const privada de um módulo do
 mobile, a gravação recebe nulo, e a comparação de errata devolve falso para nulo — nenhuma
@@ -159,6 +163,10 @@ da frase. Informação obrigatória nunca usa a tinta mais fraca. Nenhum hex esc
 - **1.7 → 1.9**: a ordem precisa ser calculável antes de a coluna que a congela nascer.
 - **1.9 → 1.10, 1.11, 1.13**: a forma nova no banco precede a sequência que grava nela, a tela
   que a lê e a capa carimbada.
+- **5.1, 5.2 e a 5.4 no marco A → 1.10** (Épico 5, correct-course de 10/09): a porta, o
+  orquestrador e o descritor da retrospectiva existem antes de a impressão depender deles, e o
+  caminho foi provado com dado real na bancada.
+- **1.10 ↔ 5.5**: ordem livre; quem chegar primeiro cria `mobile/src/lib/motores/`.
 - **1.2 → 1.12**: o primeiro plano sobre cor saturada precede a faixa que o usa.
 - **1.8 → 1.14**: a extração da chamada precede o sumário que a consome.
 - **1.15 depende de todas** e é **portão humano** — nenhum agente a conclui.

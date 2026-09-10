@@ -44,8 +44,23 @@
 #
 # O test design por risco vive em skills/test-artifacts/test-design-epic-1.md:
 # 42 riscos pontuados, 19 altos, 3 no teto. É ele que sustenta a ordem acima.
+#
+# CORRECT-COURSE — 10/09/2026: os motores de IA entram nesta sprint (Épico 5).
+# ============================================================================
+# Proposta: _bmad-output/planning-artifacts/sprint-change-proposal-2026-09-10.md
+# A ordem passa a ser:
+#   · 1.7, 1.8 e o ensaio da migração seguem como estavam. 5.1 → 5.2 → 5.3 (F0,
+#     núcleo sem modelo) correm EM PARALELO: sem deploy, sem tela, sem banco.
+#   · 5.4 (F1, bancada) depois de 5.1 e 5.3. O MARCO A dela — orquestrador em
+#     modo medição, colunas sem modelo e nuvem — é portão da 1.10. O MARCO B —
+#     a coluna do aparelho, macOS 27 a partir de 14/09 — NÃO segura a revista.
+#   · 1.9 como estava. A 1.10 só depois de 1.9, 5.1, 5.2 e a 5.4 no marco A.
+#   · 5.5 (F2, ponte + botão) depois da 1.9, em BUILD PRÓPRIO — nunca no da
+#     migração. Entre 5.5 e 1.10 a ordem é livre: quem chegar primeiro cria
+#     mobile/src/lib/motores/.
+#   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 10-09-2026 15:19
+last_updated: 10-09-2026 17:24
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -74,12 +89,19 @@ development_status:
   1-6-a-camada-de-luz-entra-nos-quatro-pacotes: review
   1-7-o-ranqueamento-do-miolo-e-a-lápide: backlog
   1-8-a-chamada-sai-de-uma-função-só: backlog
-  # Risco 9, o mais alto da frente. ENTREGA ÚNICA: a migração e o build que a lê
-  # não podem sair em momentos diferentes (AD-15) — instância única, sem OTA.
+  # Risco 9, o mais alto da frente. ENTREGA ÚNICA: a migração e o JS que a lê
+  # não podem sair em momentos diferentes (AD-15) — instância única. HÁ OTA
+  # (corrigido em 10/09: runtime 1.0.5, canal preview), mas o update só vale no
+  # SEGUNDO lançamento e, publicado antes da migração, quebra do outro lado.
+  # É a ÚNICA migração do Épico 1: coluna que a AD-12 dos motores pedir entra
+  # aqui, e o CHECK de motivo_de_parada só muda junto com a guarda (6) da 5.1.
   # NÃO começar sem o ensaio fora de produção de pé. E o raio é o DOBRO do que a
   # story descreve: upsertEdicao quebra junto com fetchEdicao (achado do test
   # design), então um build antigo falha ao GRAVAR, não só ao abrir.
   1-9-a-migração-e-a-leitura-da-forma-nova: backlog
+  # MUDOU DE ESCOPO em 10/09 (AD-13 dos motores): cliente do orquestrador, duas
+  # portas (buscar e gravar), só origem 'motor' grava. Só depois de 1.9, 5.1, 5.2
+  # e a 5.4 no marco A. A chave fica a mesma — é ela que liga a story à issue.
   1-10-a-sequência-da-impressão-sobe-para-o-núcleo: backlog
   1-11-a-rota-da-revista-e-os-estados-da-edição: backlog
   1-12-os-cadernos-desenhados: backlog
@@ -103,7 +125,9 @@ development_status:
   epic-1-retrospective: optional
 
   epic-2: backlog
+  # Encolhe se a 5.4 chegar antes: quem chegar primeiro cria o workspace scripts/.
   2-1-o-quarto-workspace-e-a-barreira-que-o-enxerga: backlog
+  # Do lado do modelo, só injeta `invocar` (AD-14 dos motores).
   2-2-o-script-imprime-uma-edição-e-ela-é-idêntica-à-do-telefone: backlog
   2-3-a-impressão-em-massa-dos-períodos-fechados: backlog
   2-4-a-parede-de-capas: backlog
@@ -130,3 +154,23 @@ development_status:
   4-3-a-barreira-do-hash-incondicional-e-offline: backlog
   4-4-a-página-da-lua: backlog
   epic-4-retrospective: optional
+
+  # ── Épico 5: os motores — entrou em 10/09 por correct-course ──────────────
+  # A ordem real está no cabeçalho; aqui fica em ordem numérica.
+  epic-5: backlog
+  # F0 — núcleo sem modelo. Sem deploy e sem tela. Em paralelo com 1.7–1.9.
+  5-1-a-porta-o-fio-e-o-orquestrador: backlog
+  5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono: backlog
+  5-3-a-leitura-da-saúde-do-sono-sem-modelo: backlog
+  # F1 — dois marcos. O A é portão da 1.10. O B espera o macOS 27 (14/09) e o
+  # risco aberto do Xcode 26.6: se ele não abrir no 27, a story para e volta ao
+  # dono. ⚠ PORTÃO HUMANO no fim — o relatório é lido por ele, e o limiar é dele.
+  5-4-a-bancada-no-mac: backlog
+  # F2 — depois da 1.9, build próprio, sobe runtimeVersion. PRÉ-REQUISITO:
+  # proposta visual com mockups e dados reais, aprovada (regra de 04/09).
+  5-5-a-ponte-o-botão-ler-e-a-escolha-do-motor: backlog
+  # ▼ PRÓXIMA SPRINT (F3–F5). Estão aqui para aparecer no quadro, não para começar.
+  5-6-vários-motores-de-nuvem: backlog
+  5-7-o-nome-de-rota-pela-porta: backlog
+  5-8-core-ai: backlog
+  epic-5-retrospective: optional

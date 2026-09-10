@@ -14,6 +14,13 @@ inputDocuments:
   - _bmad-output/planning-artifacts/architecture/architecture-Orbe-revista-2026-09-08/ARCHITECTURE-SPINE.md
   - _bmad-output/planning-artifacts/ux-designs/ux-revista-retrospectiva-2026-09-07/DESIGN.md
   - _bmad-output/planning-artifacts/ux-designs/ux-revista-retrospectiva-2026-09-07/EXPERIENCE.md
+  - _bmad-output/planning-artifacts/architecture/architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md
+  - docs/decisions/0047-a-porta-do-motor-e-uma-so-e-a-ponte-do-aparelho-e-nossa.md
+  - docs/decisions/0048-o-motor-e-escolhido-por-aparelho-e-a-lista-da-nuvem-e-do-servidor.md
+  - docs/decisions/0049-o-motor-escreve-palavras-e-o-codigo-escreve-numeros.md
+  - docs/specs/sono/spec.md
+  - docs/specs/ia-analitica/spec.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-09-10.md
 ---
 
 # Orbe — Epic Breakdown
@@ -29,6 +36,16 @@ capacidades com `success` testável, restrições que vinculam decisões, e não
 explícitos. Por isso os **FRs derivam das 14 capacidades** (`CAP-N` → `FR-N`, um a um,
 para que a rastreabilidade contra o contrato seja exata) e os **NFRs das 19 restrições**.
 `FR15` é a única exceção: não vem de capacidade nenhuma.
+
+**Desde 10/09/2026 este arquivo carrega uma segunda frente.** O correct-course daquele dia
+([proposta](sprint-change-proposal-2026-09-10.md)) pôs **os motores de IA** na sprint da revista
+como **Épico 5**, porque a story 1.10 passou a depender deles: a impressão da revista virou cliente
+do orquestrador (AD-13 da
+[espinha dos motores](architecture/architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md)).
+O contrato do Épico 5 não é o `spec.md` da revista — é a CAP-13 do spec de Sono, o §4c do spec
+`ia-analitica` e as ADRs 0047–0049. Por isso os requisitos dele têm inventário próprio, com IDs
+prefixados (`M-`), e ficam fora da convenção `FR-N = CAP-N` da revista: a CAP-13 de lá não é a
+CAP-13 daqui.
 
 ## Requirements Inventory
 
@@ -141,8 +158,9 @@ substituir. Cada item cita o `AD` que o governa.
   `indexOf('.')` (milhar em pt-BR usa ponto). Sem texto, a chamada não existe.
 - **AD-12** — O backfill é quarto workspace declarado em `pnpm-workspace.yaml`, e a
   barreira do `.from()` é estendida para cobri-lo no mesmo commit.
-- **AD-13** — A sequência da impressão sobe para o núcleo com três portas injetadas;
-  `upsertEdicao` passa a ser importável só pela sequência, por barreira.
+- **AD-13** — A sequência da impressão sobe para o núcleo; `upsertEdicao` passa a ser
+  importável só pela sequência, por barreira. *Apertada em 10/09* pela AD-13 dos motores: a
+  sequência é cliente do orquestrador, e as portas injetadas são duas, `buscar` e `gravar`.
 - **AD-14** — O backfill autentica como o usuário; chave de serviço é proibida.
 - **AD-15** — A migração e o build que a lê são uma operação só. Dentro da migração, as 7
   edições saem antes das colunas `not null` nascerem.
@@ -192,6 +210,52 @@ substituir. Cada item cita o `AD` que o governa.
   nenhum da revista. Postal é acromático.
 - **UX-DR16**: Botão de imprimir só aparece em período fechado e ainda não escrito.
 
+### Requisitos do Épico 5 — os motores
+
+> Inventário próprio, nascido no correct-course de 10/09/2026. O contrato é a
+> [CAP-13 do spec de Sono](../../docs/specs/sono/spec.md), o §4c do spec
+> [`ia-analitica`](../../docs/specs/ia-analitica/spec.md) e as ADRs 0047, 0048 e 0049. A espinha é
+> [architecture-Orbe-ia-no-aparelho-2026-09-10](architecture/architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md),
+> e o `.memlog.md` dela é a autoridade. Os `AD-n` citados nas stories do Épico 5 são **os dela**;
+> quando houver risco de confusão com os da revista, vêm marcados *dos motores*.
+
+**Funcionais**
+
+- **M-FR1** *(Sono CAP-13)*: O usuário lê, numa frase, o que a contagem da CAP-11 diz sobre o
+  período ou a noite. A frase nasce de **um caso** classificado pelo código, entre sete, em
+  precedência fixa; é gerada só quando ele aperta "Ler", e nunca gravada.
+- **M-FR2** *(Sono CAP-13)*: Três motores — sem modelo, aparelho e nuvem —, e a tela diz quem
+  escreveu e, quando for o caso, por que o escolhido não escreveu.
+- **M-FR3** *(ADR 0048)*: Cada aparelho escolhe o motor de cada recurso; a nuvem são vários motores,
+  numa lista que é do servidor.
+- **M-FR4** *(ADR 0047)*: A narração da revista e o nome de rota passam pela mesma porta e pelo mesmo
+  orquestrador que a Saúde do sono.
+- **M-FR5** *(AD-11)*: A bancada no Mac mede template × aparelho × nuvem sobre as leituras reais e é
+  o portão para um recurso ganhar motor de modelo como padrão.
+- **M-FR6** *(ADR 0047)*: Pesos abertos entram pelo Core AI, na linha `model:` da ponte.
+
+**Não funcionais** — as invariantes das três ADRs
+
+- **M-NFR1**: O motor nunca calcula: recebe o caso pronto e só redige (AD-7).
+- **M-NFR2**: O motor escreve palavras, o código escreve números — no regime interpolado, nenhum
+  algarismo na saída do motor (AD-6, ADR 0049).
+- **M-NFR3**: O recuo nunca aumenta a exposição nem troca de destinatário; aparelho não recua para
+  nuvem (AD-5).
+- **M-NFR4**: Só resposta de motor grava. Piso causado por indisponibilidade, capacidade, janela ou
+  falha passageira nunca grava nada (AD-12).
+- **M-NFR5**: Uma porta por hospedeiro; o núcleo não conhece rede, SDK nem fornecedor, e as barreiras
+  acham o inquilino pelo import (AD-1, AD-10).
+- **M-NFR6**: Nenhum dado de saúde de produção é versionado; a bancada versiona só o manifesto
+  (AD-11).
+- **M-NFR7**: As seis regras da ADR 0036 continuam inteiras — sem placar, sem conselho, sem
+  "melhorou" ou "piorou".
+- **M-NFR8**: Mobile-first. A web fica fora da primeira versão.
+
+**Adicionais da espinha:** as catorze ADs dos motores, citadas por número em cada story. As três que
+tocam a revista são a **AD-13** (a 1.10 é cliente do orquestrador; `ler` vira `buscar`), a **AD-14**
+(o fio da nuvem é do núcleo; cada hospedeiro só injeta `invocar`) e a **AD-11** (a bancada pode
+criar o workspace `scripts/` antes da 2.1).
+
 ### FR Coverage Map
 
 > **Convenção deste mapa**, decidida em 08/09/2026. O **ID é o do contrato** — `FR-N` é
@@ -226,10 +290,23 @@ FR15 (AD-16)  → Épico 1
 Os 15 estão cobertos. `FR6`, `FR9` e `FR10` são as três capacidades que atravessam épico, e
 é para elas que a granularidade deste mapa existe.
 
+O Épico 5 tem mapa próprio, na mesma convenção:
+
+```
+M-FR1 (Sono CAP-13) → 5.3 (caso e template) · 5.5 (o botão e a frase no iPhone)
+M-FR2 (Sono CAP-13) → 5.1 (porta, orquestrador, trilha) · 5.5 (quem escreveu, na tela)
+M-FR3 (ADR 0048)    → 5.5 (escolha por aparelho) · 5.6 (a lista da nuvem)
+M-FR4 (ADR 0047)    → 5.2 + 1.10 (a revista) · 5.7 (o nome de rota)
+M-FR5 (AD-11)       → 5.4
+M-FR6 (ADR 0047)    → 5.8
+```
+
 ## Epic List
 
-> Quatro épicos, na ordem de entrega. A estrutura passou por uma mesa de party mode em
-> 08/09/2026 e mudou três vezes; o que está abaixo é o que sobreviveu.
+> Cinco épicos. Os quatro primeiros são a revista, na ordem de entrega — a estrutura passou por
+> uma mesa de party mode em 08/09/2026 e mudou três vezes; o que está abaixo é o que sobreviveu. O
+> quinto, os motores, entrou em 10/09 por correct-course e **intercala** com o primeiro (ver a nota
+> dele).
 
 ### Épico 1: A edição
 
@@ -248,9 +325,9 @@ FR9 *(a forma edição)*, FR10 *(o carimbo e a capa na edição)*, FR11, FR15
   que só o anuário do Épico 3 a leia (`AD-17`). Cada acoplamento migração × build custa uma
   janela em que o app instalado quebra (`AD-15`); pagar duas quando dá para pagar uma é
   escolha ruim.
-- A sequência *montar → narrar → verificar → gravar* no núcleo, com três portas injetadas
-  (`AD-13`). O teste dos dois hospedeiros é exigência do contrato, não flexibilidade
-  especulativa.
+- A sequência *montar → narrar → verificar → gravar* no núcleo (`AD-13`) — desde 10/09 como
+  cliente do orquestrador dos motores, com `buscar` e `gravar` injetados. O teste dos dois
+  hospedeiros é exigência do contrato, não flexibilidade especulativa.
 - As fixtures puras do pacote e do verificador — custo zero, e nascem no mesmo commit da
   mudança de forma que as torna necessárias.
 - O conserto do `AGG_VERSION` (`FR15`, `AD-16`), que **precede** o backfill.
@@ -310,6 +387,28 @@ com o mesmo corpo de letra de um achado.
 ADR 0046 —, então o épico está liberado. A janela é `[cheia − 5 dias, cheia)`, aberta à
 direita, e a noite é representada por instante fixo do entardecer, nunca pelo desfecho
 medido (`AD-6`).
+
+### Épico 5: Os motores
+
+Ele aperta **"Ler"** na Saúde do sono e lê uma frase sobre o período — escrita pelo modelo do
+iPhone, pela nuvem ou pelo template —, e a tela diz quem escreveu. E a revista passa a narrar pela
+mesma porta.
+
+**Requisitos cobertos:** M-FR1 a M-FR6
+
+**Entrou na sprint da revista por correct-course, em 10/09/2026**, porque a story 1.10 passou a
+depender dele (AD-13 dos motores). A ordem não é a numérica:
+
+- **F0 — 5.1, 5.2, 5.3** antes da 1.10. Núcleo puro, sem deploy e sem tela, em paralelo com 1.7–1.9.
+- **F1 — 5.4** antes da 1.10, **só no marco A**: o orquestrador em modo medição com as colunas sem
+  modelo e nuvem, que é o caminho que a 1.10 usa. O **marco B** — a coluna do aparelho, com o Mac no
+  macOS 27 — não segura a revista.
+- **F2 — 5.5** depois da 1.9, em build próprio.
+- **F3, F4 e F5 — 5.6, 5.7, 5.8** na próxima sprint.
+
+**Critério de aceite do épico nesta sprint (F0–F2):** ele leu o primeiro relatório da bancada e fixou
+o limiar; e aperta "Ler" no iPhone sobre as janelas de hoje e lê, na tela de desenvolvimento, a frase
+de cada motor disponível ao lado da do template. As duas coisas são veredito dele, não de dev.
 
 ## Decisões de superfície tomadas fora das espinhas de UX
 
@@ -579,11 +678,18 @@ As a dono do Orbe,
 I want que a edição passe a ser uma linha por caderno,
 So that marcar errata no caderno de Sono não toque a linha do de Movimento.
 
-> **Entrega única, dois commits.** A migração e o build que lê a forma nova **não podem ser
+> **Entrega única, dois commits.** A migração e o JS que lê a forma nova **não podem ser
 > entregues em momentos diferentes** (AD-15): `fetchEdicao` termina em `.maybeSingle()`
 > sobre quatro colunas, e no instante em que `caderno` entra na chave ele passa a casar até
-> quatro linhas e quebra o app instalado. Instância Supabase única, sem OTA. Se o trabalho
-> não couber numa sessão, parta em commits — nunca em entregas.
+> quatro linhas e quebra o app instalado. Instância Supabase única. **Há OTA** — a premissa
+> contrária foi corrigida em 10/09: `expo-updates` ligado, `runtimeVersion` 1.0.5, canal `preview`.
+> O JS novo pode ir por `eas update` em vez de build, mas o update só vale a partir do **segundo**
+> lançamento do app, e publicado antes da migração quebra do outro lado. Se o trabalho não couber
+> numa sessão, parta em commits — nunca em entregas.
+>
+> **É a única migração do Épico 1.** Se a assinatura da AD-12 dos motores pedir coluna em
+> `edicoes_ia`, ela entra aqui, nunca numa segunda migração. E o `CHECK` de `motivo_de_parada`
+> continua igual a `CONCLUSAO` — se mudar, a guarda (6) da 5.1 muda no mesmo commit.
 
 **Acceptance Criteria:**
 
@@ -611,8 +717,10 @@ resolvido**
 do caderno que saiu do conjunto
 **And** as posições ficam contíguas de 1 a N sobre os cadernos que a edição tem
 
-**Given** a migração aplicada em produção — instância única, sem OTA
-**When** o build novo é instalado e a Retrospectiva é aberta no aparelho
+**Given** a migração aplicada em produção — instância única, com o JS novo entregue por build ou
+por `eas update`
+**When** o JS novo está ativo no aparelho — o build instalado, ou o update no segundo lançamento —
+e a Retrospectiva é aberta
 **Then** ela **não quebra**: nenhum `.maybeSingle()` recebe mais de uma linha
 **And** este é o critério conferível; *"na mesma sessão de trabalho"* é instrução
 operacional e vive na nota acima, não aqui — nenhum teste confere em quantos commits o
@@ -632,33 +740,57 @@ não de render
 peso da confiança mudar e uma edição fechada se reordenar sozinha — reescrita silenciosa
 pela porta do render
 
-### Story 1.10: A sequência da impressão sobe para o núcleo
+### Story 1.10: A sequência da impressão sobe para o núcleo, como cliente do orquestrador
 
 As a dono do Orbe,
 I want que "verifica antes de gravar" seja a única forma que o código consegue executar,
 So that um texto reprovado nunca chegue ao banco por nenhum caminho.
 
+> **Mudou de escopo em 10/09/2026** (correct-course; AD-13 e AD-14 dos motores). A sequência não
+> chama mais o modelo por conta própria: chama o **orquestrador** do Épico 5 uma vez por caderno, com
+> o descritor da retrospectiva. A porta `narrar` deixou de existir, e a `ler` passou a se chamar
+> **`buscar`** — "Ler" é o botão da Saúde do sono, e a leitura da resposta é "interpretar".
+> **Depende de** 1.9, 5.1, 5.2 e da 5.4 no marco A.
+
 **Acceptance Criteria:**
 
 **Given** a sequência mora hoje inteira em `mobile/src/lib/edicao-ia.ts`, arquivo misto
-**When** ela sobe para `ia/imprimir.ts` (AD-2 herdada, AD-13)
-**Then** recebe **três portas como funções** — narrar, ler e gravar
-**And** nunca recebe um `SupabaseClient`, porque a barreira do núcleo de IA proíbe import
-não-relativo
+**When** ela sobe para `ia/imprimir.ts` (AD-2 herdada; AD-13 da revista, apertada pela dos motores)
+**Then** ela chama `ler(descritorDaRetrospectiva, fatos, { modo: 'produto', cadeia, motorPara, registrar, agora })`
+uma vez por caderno
+**And** recebe **duas portas como funções** — `buscar` e `gravar` —, mais o `motorPara` e o
+`registrar` do hospedeiro
+**And** nunca recebe um `SupabaseClient` nem chama um `Motor` direto
+
+**Given** um caderno mudo
+**When** `montarPedido` devolve nulo
+**Then** nenhuma chamada é gasta, e o caderno não entra no conjunto
+
+**Given** o resultado do orquestrador é discriminado (AD-12 dos motores)
+**When** a sequência grava
+**Then** só resultado de `origem: 'motor'` chega a `gravar` — o tipo da porta não aceita outro
+**And** piso é ausência e recusa não é resultado: o caderno que caiu no piso não grava nada
+**And** o motivo de parada gravado é a constante `CONCLUSAO`, nunca o que o provedor devolveu
 
 **Given** cada hospedeiro liga as portas ao que tem
 **When** o iPhone imprime
-**Then** `mobile/src/lib/edicao-ia.ts` emagrece para só as portas de plataforma
+**Then** `mobile/src/lib/edicao-ia.ts` emagrece para `buscar` e `gravar` ligados ao client dele
+**And** o transporte até a `ia-narrar` sai dele e vai para `mobile/src/lib/motores/` como `invocar`,
+injetado em `criarMotorDeNuvem` — quem chegar primeiro entre a 1.10 e a 5.5 cria o diretório, com
+`motorPara`, `invocar` e o anel
+**And** a catraca do literal `'ia-narrar'` desce de 2 para 1, e a do `'STOP'` perde o `edicao-ia.ts`
 
 **Given** "verifica antes de gravar" é hoje promessa em comentário
 **When** a barreira nasce
-**Then** `architecture.test.ts` falha se `upsertEdicao` for importado por qualquer módulo
-que não seja a sequência ou `data/`
+**Then** `architecture.test.ts` falha se `upsertEdicao` for importado por qualquer módulo que não
+seja a sequência ou `data/`
+**And** a guarda (7) dos motores vira barreira: fora de `packages/shared`, do núcleo de IA só se
+importam descritores e o orquestrador
 
 **Given** a sequência é pura
-**When** os testes rodam com portas falsas
-**Then** o caminho inteiro — montar, narrar, verificar, gravar — é exercitado sem rede e
-sem script
+**When** os testes rodam com motores falsos entregues pelo `motorPara` e com `buscar` e `gravar` falsos
+**Then** o caminho inteiro — montar, orquestrar, conferir, gravar — é exercitado sem rede e sem script
+**And** existe caso em que um caderno cai no piso e os outros gravam
 
 **Given** a edição chega em peças e cada caderno aparece quando fica pronto
 **When** a sequência grava
@@ -666,7 +798,7 @@ sem script
 numa chamada só
 **And** gravar de um caderno por vez é proibido — daria posição 1, depois 1 e 2, recalculando
 a ordem de um conjunto que ainda está crescendo, e quebraria a contiguidade que a AD-4 exige
-**And** isto está escrito porque o caminho natural de quem implementa é narrar-e-gravar em
+**And** isto está escrito porque o caminho natural de quem implementa é orquestrar-e-gravar em
 laço
 
 ### Story 1.11: A rota da revista, e os estados da edição
@@ -702,6 +834,18 @@ So that a capa tenha a página inteira e o seletor de período não brigue com e
 **And** *errata* mantém a edição como está, com a marca de que os números foram
 reprocessados depois dela — **errata não reescreve**
 **And** *erro* mostra a mensagem e a ação de tentar de novo
+
+**Given** o estado de cada caderno vem do resultado do orquestrador, não de exceção (AD-12 dos motores)
+**When** um caderno não imprime
+**Then** *reprovada* são as quatro causas permanentes — `reprovada`, `recusa-do-modelo`, `guarda` e
+`saida-invalida` —, cada uma dizendo o seu motivo; na conferência, os problemas listados são os que
+a trilha carrega
+**And** reimprimir o caderno reprovado é ato do leitor, nunca "tentar de novo": a AD-4 diz que o
+mesmo pedido não se resolve repetindo
+**And** *erro* são as quatro passageiras — `indisponivel`, `capacidade`, `janela` e `transitoria` —,
+ditas pela classe em palavras, com a ação de tentar de novo
+**And** nenhum dos dois estados mostra o texto cru do fornecedor, que só a tela de desenvolvimento
+dos motores mostra
 
 **Given** a errata é por caderno
 **When** o caderno de Sono recebe errata
@@ -892,11 +1036,17 @@ As a dono do Orbe,
 I want que o hospedeiro novo entre no repositório declarando o que usa,
 So that ele não seja o único lugar onde se escreve query sem nada acusar.
 
+> **Quem chegar primeiro cria** (correct-course de 10/09; AD-11 dos motores). Se a 5.4 — a bancada —
+> chegar antes, é ela que cria este workspace, sob exatamente os critérios abaixo, e a 2.1 encolhe
+> para **conferir**: o backfill entra nele sem dependência nova não declarada, e as guardas já o
+> enxergam. O diretório `scripts/` já existe com as ferramentas em Python do GitHub; o workspace as
+> envolve, e elas não entram no `tsc`.
+
 **Acceptance Criteria:**
 
 **Given** a raiz do monorepo declara zero dependências e `pnpm-workspace.yaml` tem três
 pacotes
-**When** o hospedeiro do backfill nasce
+**When** o hospedeiro de scripts nasce — pela bancada ou pelo backfill, quem chegar primeiro
 **Then** ele entra como **workspace declarado**, com `@supabase/supabase-js` e `tsx` nas
 dependências dele
 **And** dependência usada sem ser declarada é defeito, não conveniência (AD-14 herdada)
@@ -924,9 +1074,13 @@ So that não existam duas implementações da mesma conta.
 
 **Acceptance Criteria:**
 
-**Given** a sequência do núcleo recebe três portas (Story 1.10)
-**When** o script as liga ao que ele tem
-**Then** ele imprime uma edição sem duplicar uma linha da sequência
+**Given** a impressão é cliente do orquestrador, e o motor de nuvem é um só no núcleo,
+`criarMotorDeNuvem(invocar)` (Story 1.10; AD-14 dos motores)
+**When** o script imprime
+**Then** do lado do modelo ele **só injeta `invocar`** — o transporte até a `ia-narrar`, com o JWT
+da sessão dele —, e liga `buscar` e `gravar` ao client dele
+**And** não escreve cliente da `ia-narrar`, não lê corpo de erro e não traduz classe: isso é do núcleo
+**And** imprime uma edição sem duplicar uma linha da sequência
 
 **Given** `ia-narrar` é `verify_jwt = true` para proteger o crédito Prepay
 **When** o script se autentica
@@ -934,6 +1088,8 @@ So that não existam duas implementações da mesma conta.
 **And** **chave de serviço é proibida** — ela desligaria a RLS que é a única proteção das
 linhas (AD-14)
 **And** a credencial vem do ambiente de quem roda e **não é versionada**
+**And** a sessão é a mesma que a bancada usa — quem chegar primeiro entre a 5.4 e a 2.2 a escreve
+no workspace
 
 **Given** o teste obrigatório do contrato
 **When** o mesmo pacote é impresso pelos dois hospedeiros
@@ -1326,3 +1482,445 @@ original da 0045 volta inteira
 **Then** eles usam `ink2`, no mesmo corpo
 **And** nenhum secundário — duração, latência, despertares — vira manchete ou entra na capa
 da edição sob qualquer condição
+
+## Epic 5: Os motores
+
+Ele aperta "Ler" na Saúde do sono e lê uma frase sobre o período — escrita pelo modelo do iPhone,
+pela nuvem ou pelo template —, e a tela diz quem escreveu. E a revista passa a narrar pela mesma porta.
+
+As stories 5.1 a 5.4 não produzem tela: o núcleo é puro, a bancada roda no Mac, e a primeira coisa
+visível é o botão da 5.5. A ordem de entrega intercala com o Épico 1 — ver a nota do épico na lista.
+
+### Story 5.1: A porta, o fio e o orquestrador (F0)
+
+As a dono do Orbe,
+I want que todo recurso fale com qualquer motor por uma porta só, e que um só caminho percorra a cadeia,
+So that a Saúde do sono não vire a terceira cópia do cliente da `ia-narrar`, e a revista não escreva
+uma segunda sequência em `ia/`.
+
+> **Antes da 1.10, e sem deploy nem tela.** A AD-13 diz que quem chegar primeiro entre a F0 e a 1.10
+> cria `ia/motor.ts`, `ia/orquestrar.ts` e `ia/fio.ts` exatamente como a espinha fixa — pelo
+> correct-course, é esta story. A `ia-narrar` de hoje continua servindo os dois inquilinos.
+
+**Acceptance Criteria:**
+
+**Given** a única costura hoje é o `ChamadorDeModelo` de `routes/nomear.ts`
+**When** `ia/motor.ts` nasce
+**Then** `Motor` é uma função de `Pedido` para `Promise<Resposta | Falha>` que **nunca rejeita** —
+falha é valor, com classe (AD-1)
+**And** `ChamadorDeModelo` vira apelido declarado ali, até morrer na 5.7
+**And** `Motor` só se importa de `ia/motor`; reexportá-lo com outro nome é proibido
+**And** `CONCLUSAO` nasce ali, com valor `'STOP'` e sem migration (AD-12)
+
+**Given** o contrato da nuvem precisa ser lido pelo Deno
+**When** `ia/fio.ts` nasce
+**Then** ele **não importa nada** e é dono de `CLASSES_DE_FALHA` (as sete, cada uma com o critério da
+AD-4), de `lerMotorId` e `formatarMotorId` com `aparelho:sistema` e `nuvem:padrao` reservados, do
+corpo do pedido e da resposta, do envelope de falha e do subconjunto `Esquema` com validador (AD-4,
+AD-8, AD-14)
+**And** a barreira "módulo do núcleo importado pelo Deno continua sem imports" passa a cobri-lo
+
+**Given** o orquestrador é o único que percorre cadeia (AD-2)
+**When** `ia/orquestrar.ts` nasce
+**Then** a assinatura é `ler(descritor, fatos, { modo, cadeia, motorPara, registrar, agora })`, e
+`sem-modelo` é o passo terminal, não um `Motor`
+**And** em `produto`, `indisponivel` e `capacidade` recuam; `janela` repete uma vez com o pedido curto
+do recurso; `guarda`, `recusa-do-modelo`, `saida-invalida` e a conferência reprovada nunca se
+repetem; `transitoria` cai no piso sem repetir (AD-4)
+**And** em `medicao` roda exatamente um motor, sem recuo e sem piso, e devolve a tentativa com a classe
+**And** exceção que escape de um motor é defeito: vai ao anel com a pilha e cai no piso, nunca vira
+`transitoria`
+
+**Given** a 1.11 precisa dizer por que um caderno reprovou
+**When** o orquestrador devolve em modo `produto`
+**Then** o resultado é discriminado: `origem: 'motor'` (a `Resposta` inteira, a trilha e os problemas
+da conferência) ou `origem: 'piso'` (frase ou ausência, `causa` e a trilha) (AD-12)
+**And** a trilha de uma tentativa reprovada carrega os problemas da conferência
+**And** `causa` é a classe que derrubou o último motor, `reprovada`, `mudo` ou `preferencia`
+
+**Given** a cadeia vazaria dado de saúde se recuasse para cima
+**When** a resolução roda sobre preferência × padrão × catálogo
+**Then** `Cadeia` é tipo marcado que só o núcleo constrói, e um teste de propriedade cobra que a
+exposição não cresce, o provedor não muda e `sem-modelo` fecha a cadeia (AD-5)
+**And** preferência ilegível degrada dentro do próprio regime, nunca para um padrão mais exposto
+
+**Given** "pedido idêntico" precisa ser verificável entre o Mac e o iPhone (AD-11)
+**When** um pedido é montado
+**Then** `serializarPedido` — JSON canônico, chaves ordenadas, sem campo indefinido, com a versão do
+descritor — e `hashDoPedido` têm dono no núcleo
+
+**Given** hoje há duas cópias do cliente da `ia-narrar`, e o ramo que lê o corpo de erro é código
+morto nas duas
+**When** `criarMotorDeNuvem(invocar)` nasce
+**Then** é o **único** motor de nuvem, e recebe o transporte normalizado — status e corpo, ou falta de
+rede (AD-14)
+**And** a tradução para classe é uma tabela ao lado dele, com teste, que lê também a `ia-narrar`
+**de hoje** — status mais `{ error, detalhe }` —, porque a function só aprende o fio na 5.6
+**And** motivo de parada diferente de `CONCLUSAO` vira `saida-invalida`, com o motivo cru no detalhe
+
+**Given** o seletor nunca pode listar recurso à mão
+**When** o catálogo de recursos nasce em `ia/`
+**Then** `RecursoId` tem dono ali, e todo descritor se registra nele (AD-2)
+
+**Given** as barreiras entram com o código que cobram (AD-7 herdada)
+**When** a story fecha
+**Then** entram, offline, as guardas da AD-10 que já têm alvo:
+(2) o alvo da barreira do núcleo de IA passa a ser derivado — o fecho transitivo de quem importa
+`ia/motor`, além de `ia/` e `routes/` —, e a lista de fornecedores ganha `coreai`, `qwen`, `llama`,
+`mlx`, `gemma`, `foundationmodels` e `privatecloudcompute`;
+(5) o teste de propriedade da AD-5;
+(6) `CONCLUSAO` igual ao `CHECK` de `edicoes_ia.motivo_de_parada`, lido da última migration que o
+define, e o literal `'STOP'` como **catraca** em 2 (`routes/nomear.ts`, `lib/edicao-ia.ts`), fora a
+definição de `CONCLUSAO`;
+(7) catraca no número atual (`lib/edicao-ia.ts`);
+(1) o literal `'ia-narrar'` e o import de `on-device-engine` só no ponto de injeção de cada
+hospedeiro, catraca em 2 (`lib/edicao-ia.ts`, `services/route-name.ts`), varrendo `mobile/src`,
+`web/src` e `scripts/`
+**And** a (3) e a (4), que olham `Engine.swift`, nascem com ele — na 5.4 ou na 5.5
+
+### Story 5.2: O descritor da retrospectiva, e as listas com dono (F0)
+
+As a dono do Orbe,
+I want que a revista declare o seu caminho como descritor, com as regras que ela já cobra,
+So that a 1.10 só precise chamar o orquestrador, sem mudar nada do que a conferência aprova.
+
+> Depende da 5.1. Antes da 1.10.
+
+**Acceptance Criteria:**
+
+**Given** a AD-13 fixa o descritor da retrospectiva
+**When** ele nasce em `ia/`
+**Then** declara regime **copiado e conferido**, que grava, piso = ausência, recusa não é resultado, e
+`montarPedido` nulo para caderno mudo
+**And** a montagem é o `montarPacotes`/`montarPrompt` por caderno que já existem, e a conferência é o
+`verificarTexto` que já existe
+**And** admite só motor de nuvem, com cadeia padrão `nuvem:padrao` → `sem-modelo` — é o único
+aprovado para ela hoje (AD-9), e nenhum motor de aparelho passou pela bancada para ela
+**And** nenhuma regra muda: os testes de `pacote.ts`, `prompt.ts` e `verificar.ts` passam sem edição,
+e `PROMPT_VERSAO` e `PACOTE_VERSAO` não sobem
+
+**Given** a assinatura carrega a versão do descritor (AD-12)
+**When** a retrospectiva a declara
+**Then** a versão é o par `prompt_versao`/`pacote_versao` que `edicoes_ia` já grava — nenhuma coluna
+nova, e a 1.9 continua sendo a única migração do Épico 1
+
+**Given** a lista de termos proibidos tem hoje um pedaço privado, `CAUSA`, em `ia/verificar.ts`
+**When** `VOCABULARIO_PROIBIDO` nasce ali, exportado (AD-6)
+**Then** tem subconjuntos nomeados: causa (a `CAUSA` de hoje), conselho, elogio, placar, tendência e
+meta, comparação com outras pessoas
+**And** a retrospectiva compõe só `causa`, como hoje — a conferência dela reprova exatamente o que
+reprovava
+**And** nenhum outro arquivo declara lista de termo proibido, por guarda
+
+**Given** `formatarNumero` mora em `ia/prompt.ts`
+**When** ele se muda para `format/numero.ts` (AD-6)
+**Then** `ia/prompt.ts` passa a importá-lo de lá, e nenhum número formatado muda
+
+### Story 5.3: A leitura da Saúde do sono, sem modelo (F0)
+
+As a dono do Orbe,
+I want a frase da Saúde do sono escrita pelo template sobre as minhas noites de verdade,
+So that exista o piso contra o qual cada motor vai ser julgado, antes de existir motor.
+
+> Depende de 5.1 e 5.2 (a lista de termos e o formatador). Sem tela: as frases do template se leem
+> pelo teste e pela bancada.
+
+**Acceptance Criteria:**
+
+**Given** a frase pedida nomeia "a dimensão que puxa o conjunto para baixo", e só 15% das semanas
+têm uma
+**When** `casoDaSaude` nasce em `sleep/`, pura (AD-7)
+**Then** cada `SleepScore` cai em exatamente um caso, nesta precedência: `sem-contagem` →
+`medidas-insuficientes` → `tudo-no-maximo` → `todas-iguais` → `uma` → `duas` → `fora-do-empate`
+**And** o caso carrega quantas dimensões foram medidas, e dimensão não medida sai dele (regra 4 da
+ADR 0036)
+**And** um teste enumera todas as combinações de nota × presença nas cinco dimensões e confere que
+cada uma cai em exatamente um caso
+
+**Given** a tela e a bancada precisam montar o mesmo pedido (AD-11)
+**When** `entradaDaSaude(noites, notas, { range, offset, hoje })` nasce
+**Then** é pura, com as janelas de noite e de nota explícitas, e é a única entrada das duas
+
+**Given** o regime interpolado é obrigatório na Saúde do sono (AD-6, ADR 0049)
+**When** `ia/interpolar.ts` nasce
+**Then** a sintaxe e a substituição de marcador têm dono ali
+**And** a conferência da Saúde reprova algarismo, marcador fora do caso e dimensão a mais, e **exige
+a presença** das dimensões do caso — a ausência é `recusa-do-modelo`
+**And** compõe de `VOCABULARIO_PROIBIDO` os subconjuntos que valem para ela: conselho, causa, elogio,
+placar, tendência e meta, comparação com outras pessoas
+
+**Given** o descritor da Saúde do sono
+**When** ele se registra no catálogo
+**Then** declara regime interpolado, amostragem gulosa, saída `texto`, que não grava, `regimeMaximo`
+nuvem — a CAP-13 admite os três motores, a nuvem só por escolha explícita —, e a cadeia padrão
+**só `sem-modelo`** até a bancada aprovar um motor (AD-11)
+
+**Given** `semModelo(fatos)` é obrigatório pelo tipo (AD-2)
+**When** o template escreve
+**Then** há frase para os sete casos, com a contagem real de dimensões medidas — nunca "cinco" fixo
+**And** `tudo-no-maximo` diz isso sem elogio; `sem-contagem` diz a cobertura quando houver e nunca
+fala em conjunto
+
+**Given** o fato da percepção sai com ponto (`toFixed` em `sleep/score.ts`), e o núcleo de IA
+escreve vírgula
+**When** a leitura interpola
+**Then** todo fato sai em pt-BR por `format/numero.ts`, e o conserto é na origem
+**And** a tela `/sono/saude` passa a mostrar `3,3/5` — conserto de formatação, não mudança de desenho
+
+**Given** a medição de 10/09 sobre as noites de produção
+**When** a leitura roda sobre o mesmo recorte, a partir de export fora do git (AD-11)
+**Then** a distribuição dos casos é conferida contra ela — 7 dias: 11 com uma, 17 empates, 45 sem
+contagem; 4 semanas: 2, 4 e 13; 12 meses: as duas sem contagem; noites: 136, 139 e 18 com tudo no
+máximo
+**And** toda diferença é explicada — a borda `medidas-insuficientes`, aprovada depois da medição, é
+a única que pode mover número
+
+### Story 5.4: A bancada no Mac (F1)
+
+As a dono do Orbe,
+I want medir template × aparelho × nuvem sobre as minhas leituras reais antes de existir botão,
+So that o limiar do portão saia de um relatório, não de impressão.
+
+> **Dois marcos, e só o primeiro é portão da 1.10** (correct-course de 10/09).
+> **Marco A — o caminho da 1.10:** o orquestrador em modo `medicao` sobre as leituras reais, com as
+> colunas sem modelo e nuvem. É o mesmo caminho que a 1.10 vai usar — orquestrador,
+> `criarMotorDeNuvem`, `invocar`, `ia-narrar` com JWT —, provado com dado real antes de a revista
+> depender dele.
+> **Marco B — a coluna do aparelho:** exige o Mac no macOS 27 (público em 14/09) e o mesmo Xcode maior
+> do build de entrega. **Se o Xcode 26.6 não abrir no macOS 27, a story para e volta ao dono**, e a
+> revista segue, porque o marco B não a segura.
+> **Portão humano no fim:** o relatório é lido por ele, e o limiar é dele. Nenhum agente o fixa.
+> Depende de 5.1 e 5.3.
+
+**Acceptance Criteria — marco A:**
+
+**Given** o TS da bancada vive no hospedeiro de scripts da AD-12 da revista (AD-11)
+**When** a bancada chega antes da 2.1
+**Then** é ela que cria o workspace `scripts/`, sob os critérios da 2.1 — declarado em
+`pnpm-workspace.yaml` com as dependências que usa, coberto pela barreira do `.from()` no mesmo commit,
+no portão do CI, e com o client construído no próprio workspace
+**And** as ferramentas em Python de `scripts/github/` ficam como estão
+
+**Given** a nuvem entra com JWT de usuário, nunca chave de serviço (AD-14 da revista)
+**When** a bancada autentica
+**Then** usa sessão de usuário, com a credencial vinda do ambiente de quem roda e nunca versionada
+**And** quem chegar primeiro entre a 5.4 e a 2.2 escreve esse caminho no workspace
+
+**Given** nenhum dado de saúde de produção é versionado (AD-11; AD-8 herdada)
+**When** a bancada lê produção
+**Then** exporta sob demanda para diretório ignorado pelo git, não importa escritor de `data/`, e
+versiona só o manifesto — as janelas e o hash do export
+**And** a leitura pagina por `fetchAllPages`, com ordenação total — o PostgREST corta em 1000 linhas
+sem erro
+
+**Given** a bancada acrescenta só a sonda e o relatório (AD-11)
+**When** ela mede
+**Then** chama `entradaDaSaude` e o orquestrador em modo `medicao` com o motor injetado — os mesmos
+pedidos, pelo mesmo hash, que a tela vai montar
+**And** mede todas as janelas que a tela navega: 7 dias, 4 semanas, 12 meses e as noites
+**And** a nuvem entra por `criarMotorDeNuvem` com o `invocar` do script, e o literal `'ia-narrar'`
+fica só no ponto de injeção dele (guarda 1)
+
+**Given** o relatório tem de ser comparável
+**When** ele é escrito
+**Then** é chaveado por recurso, `MotorId` e build do sistema, com as conferências mecânicas por
+pedido e a classe de cada falha
+**And** um relatório só se compara com outro do mesmo manifesto
+**And** com o marco A de pé, a 1.10 está liberada
+
+**Acceptance Criteria — marco B:**
+
+**Given** a F1 chega antes da F2 (AD-11)
+**When** a coluna do aparelho entra
+**Then** é a bancada que cria `Engine.swift` em `mobile/modules/on-device-engine/ios/`, só com
+`Foundation` e `FoundationModels` e sem `ExpoModulesCore` (AD-3)
+**And** a CLI Swift o compila **sem cópia**
+**And** as guardas (3) e (4) nascem com ele: o `enum ClasseDeFalha: String`, com valores brutos
+explícitos, é igual a `CLASSES_DE_FALHA` — e a guarda falha se não o achar —, e `Engine.swift` só
+importa módulos da lista permitida
+
+**Given** a linha de base é o macOS 27 (decisão de 10/09)
+**When** a coluna do aparelho mede
+**Then** o Mac está no macOS 27, com Apple Intelligence ativo, e a CLI usa o mesmo Xcode maior do
+build de entrega
+**And** se o Xcode 26.6 não abrir no macOS 27, a story para e volta ao dono — as saídas estão no
+Deferred da espinha
+
+**Given** pedir ao motor que escolha a dimensão só existe em modo `medicao` (AD-7)
+**When** a sonda de fidelidade roda
+**Then** o motor escolhe entre opções fechadas, por esquema, e a bancada confere contra o caso do código
+
+**Given** o relatório completo
+**When** ele termina de ler
+**Then** o limiar do portão é fixado **por ele** e registrado — é o que decide se a Saúde ganha motor
+de modelo como padrão
+
+### Story 5.5: A ponte, o botão Ler e a escolha do motor (F2)
+
+As a dono do Orbe,
+I want apertar "Ler" na Saúde do sono e ver quem escreveu a frase,
+So that eu julgue no aparelho o que a bancada mediu no Mac.
+
+> **Pré-requisito:** proposta visual com mockups e dados reais, aprovada por ele — o botão e a frase
+> em `/sono/saude`, `/configuracoes/motores` e a tela de desenvolvimento (regra permanente de 04/09).
+> **Depois da 1.9, em build próprio** — nunca no build da migração, que é o de maior risco da sprint.
+> Depende de 5.1, 5.3 e do `Engine.swift` (da 5.4 ou desta).
+
+**Acceptance Criteria:**
+
+**Given** a ponte é Swift nosso, sem estado, sem domínio e só com pesos locais (AD-3)
+**When** o módulo `on-device-engine` nasce em `mobile/modules/`
+**Then** tem dois arquivos em `ios/`: `Engine.swift` (se a 5.4 ainda não o criou) e a cola do Expo,
+sem `catch`, literal de classe nem lógica
+**And** a porta o carrega com `requireOptionalNativeModule`: ausência é `indisponivel`, nunca exceção
+no import
+**And** uma sessão nova por pedido, e a janela é lida de `contextSize` em execução
+**And** as guardas são `#available(iOS 26, macOS 26, *)`, `#available(iOS 26.4, macOS 26.4, *)` para
+`tokenCount`, `#if compiler(>=6.4)` para símbolo novo dentro de `FoundationModels`, e `@unknown
+default` em todo `switch` sobre enum da Apple
+**And** a tabela erro → classe mora no `Engine.swift`, com teste
+
+**Given** há OTA no runtime 1.0.5
+**When** o build que embarca a ponte é feito
+**Then** `runtimeVersion` sobe, e nenhum update com código da porta vai para o runtime anterior
+**And** `expo-doctor` continua 21/21
+
+**Given** o ponto de injeção do app (AD-10)
+**When** `mobile/src/lib/motores/` recebe o aparelho
+**Then** ali ficam `motorPara`, `invocar`, o catálogo, a preferência e o anel — quem chegar primeiro
+entre a 1.10 e esta cria o diretório, e esta acrescenta o resto
+**And** o catálogo lista todo motor conhecido, disponível ou indisponível com motivo, e declara a
+concorrência (aparelho: um); o ponto de injeção serializa por motor
+**And** a preferência é um mapa `RecursoId` → `MotorId` em AsyncStorage, com um módulo só dono da
+chave e fila no molde de `sync-breadcrumbs`; `user_preferences` não é tocada (AD-8)
+**And** o anel guarda a trilha de toda execução e o pedido completo só nas falhas permanentes,
+defeitos e erros não mapeados — nunca sai do aparelho
+**And** o import de `on-device-engine` só aparece ali (guarda 1)
+
+**Given** leitura efêmera é só por ação explícita
+**When** ele aperta "Ler" em `/sono/saude`
+**Then** a frase sai do motor escolhido para a Saúde do sono **neste** aparelho, pela cadeia
+resolvida — nunca ao abrir a tela
+**And** a tela diz quem escreveu e, quando for o caso, por que o escolhido não escreveu
+**And** um segundo toque com o mesmo hash se junta ao primeiro, e resultado cujo hash não é o do
+pedido corrente é descartado
+**And** nada é gravado
+
+**Given** a escolha é por recurso e por aparelho (AD-5, AD-8)
+**When** `/configuracoes/motores` abre
+**Then** lista os recursos do catálogo do núcleo — nunca à mão — e, para cada um, os motores até o
+`regimeMaximo` dele
+**And** motor indisponível aparece com o motivo, e a preferência gravada nunca é descartada
+
+**Given** a tela de desenvolvimento com os motores lado a lado
+**When** ele a abre
+**Then** cada motor roda em modo `medicao` sobre o mesmo pedido, com a classe e o detalhe da falha —
+é o único lugar onde o texto cru do fornecedor aparece
+
+**Given** Mac e iPhone precisam concordar (AD-11)
+**When** o iPhone está no iOS 27 (a partir de 15/09)
+**Then** a amostra de 20 pedidos compara por hash com a bancada, no mesmo major.minor
+**And** roda de novo sempre que um dos dois muda de versão maior
+
+**Given** um recurso só ganha motor de modelo como padrão depois da bancada (AD-11)
+**When** o build sai
+**Then** a cadeia padrão da Saúde continua `sem-modelo` até o limiar da 5.4 ser atingido; o aparelho
+entra por escolha dele
+
+**Given** o device é fronteira nomeada (AD-17 herdada)
+**When** a story fecha
+**Then** o veredito é dele, no iPhone — verde no CI nunca quer dizer motor funcionando
+
+### Story 5.6: Vários motores de nuvem (F3)
+
+As a dono do Orbe,
+I want escolher, por recurso, entre motores de nuvem que o servidor autorizou,
+So that eu teste outro provedor sem trocar o modelo do app inteiro.
+
+> **Próxima sprint.** ADR 0048.
+
+**Acceptance Criteria:**
+
+**Given** a `ia-narrar` ainda não conhece o fio
+**When** ela passa a importar `ia/fio.ts` por caminho relativo
+**Then** nunca devolve falha sem classe, e o status é o fixado por classe (AD-14)
+**And** `supabase/functions/` não declara literal de classe fora do que importa (guarda 3)
+**And** a leitura da resposta antiga, na tabela da 5.1, morre
+
+**Given** a lista de motores de nuvem é do servidor (AD-9)
+**When** ela entra em `secrets`
+**Then** é escrita em `MotorId` completo, cada entrada com os recursos para os quais passou na
+bancada — os dois recursos que existem entram aprovados para o modelo em produção hoje
+**And** `AI_PROVIDER` e `AI_MODEL` continuam sendo `nuvem:padrao`, que só resolve para um recurso se
+o padrão estiver aprovado para ele
+
+**Given** o corpo pode pedir um motor
+**When** o `motor` pedido está na lista, é usado; ausente, vale o padrão; fora, falha com `indisponivel`
+**Then** corpo sem `motor` se comporta como hoje
+
+**Given** o app lê a lista do servidor
+**When** a function a expõe
+**Then** o deploy que a expõe vem **antes** do build que a lê
+**And** o catálogo guarda a última lista lida, com instante, e falhar ao lê-la remove só as
+variantes nomeadas — `nuvem:padrao` fica sempre que há rede
+
+**Given** provedor novo entra com regime (AD-9)
+**When** um provedor entra na lista
+**Then** a tabela de regime dele já está versionada em `docs/` — tier, o que pode ser enviado,
+retenção, DPA, uso para treino, o que faz com `guardrails`
+**And** a function nunca registra `sistema` nem `usuario` em log; registra motor, classe, status e tokens
+
+### Story 5.7: O nome de rota pela porta (F4)
+
+As a dono do Orbe,
+I want que o nome de rota passe pela mesma porta que a revista e a Saúde,
+So that a escolha de motor valha no app todo e a última cópia do cliente da `ia-narrar` morra.
+
+> **Próxima sprint.** Ratifica a ADR 0041 como regime molde e a 0042 como gatilho por entidade.
+
+**Acceptance Criteria:**
+
+**Given** o nome de rota é o regime **molde** (AD-6, ADR 0041)
+**When** `routes/` vira descritor
+**Then** o motor devolve campos pelo subconjunto `Esquema`, a frase sai do molde, e a conferência é
+de pertinência — todo lugar citado foi enviado
+**And** recusa é resultado: as causas permanentes gravam como hoje
+
+**Given** um piso por indisponibilidade marcaria a pedalada como nomeada para sempre
+**When** a causa é `indisponivel`, `capacidade`, `transitoria` ou `janela`
+**Then** nada é gravado — nem recusa, nem marca de visitado (AD-12)
+**And** o gatilho continua "ao abrir o detalhe, uma vez por pedalada", e o "próximo tick" é o
+próprio gatilho, não retry da porta
+
+**Given** `services/route-name.ts` é a última cópia do cliente
+**When** ele passa pelo ponto de injeção
+**Then** `ChamadorDeModelo` morre, e as catracas do `'ia-narrar'` (guarda 1) e do `'STOP'` (guarda 6)
+chegam a zero e viram barreira
+
+### Story 5.8: Core AI (F5)
+
+As a dono do Orbe,
+I want rodar pesos abertos no iPhone pela mesma ponte,
+So that eu compare um modelo aberto com o da Apple sem mexer em nenhum recurso.
+
+> **Próxima sprint, e exige Xcode 27**, que não está na imagem EAS da SDK 57: o build é local.
+
+**Acceptance Criteria:**
+
+**Given** o `CoreAILanguageModel` exige iOS e macOS 27 como alvo mínimo no pacote da Apple
+**When** a story começa
+**Then** a primeira entrega é a decisão dele entre subir o alvo do app, vendorizar
+`apple/coreai-models` (BSD-3) ou escrever conformidade própria de `LanguageModel`, com o custo de
+cada uma na mesa (Deferred da espinha)
+
+**Given** a linha `model:` é a costura dos pesos (AD-1, AD-3)
+**When** a variante entra
+**Then** ela é `aparelho:<pesos>` pela gramática de `ia/fio.ts`, só com pesos que rodam no aparelho,
+e nenhum recurso muda
+**And** o módulo do Core AI entra atrás de `#if canImport`, e os erros novos do Xcode 27 entram na
+tabela erro → classe
+
+**Given** pesos abertos não têm o guardrail da Apple, e a memória é o portão real
+**When** eles chegam ao aparelho
+**Then** a variante passa pela bancada antes de virar padrão de qualquer recurso
+**And** recurso sensível só a admite depois de a bancada medir a taxa de guardrail

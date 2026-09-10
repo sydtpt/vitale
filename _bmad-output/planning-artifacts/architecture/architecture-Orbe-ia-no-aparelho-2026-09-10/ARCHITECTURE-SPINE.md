@@ -105,8 +105,8 @@ recuo aumentar a exposição ou trocar de destinatário.
 | ADR 0040 | docs/decisions | inv. 1 lida como a ADR 0042 a leu: o núcleo conhece a porta e as classes, não o fornecedor. Inv. 2 e 3 intactas. Inv. 4: o período (a), "provedor e modelo vêm de configuração", é superado pela AD-9; o período (b), a assinatura de toda edição gravada, fica intacto |
 | ADR 0041 | docs/decisions | ratificada: o nome de rota é o regime **molde** da AD-6; recusar é resultado válido (AD-12); "tenta no próximo tick" é o gatilho do recurso, não retry da porta |
 | ADR 0042 | docs/decisions | ratificada: orquestração no aparelho e chamador injetado (AD-1, AD-2); o gatilho "ao abrir o detalhe, uma vez por pedalada" (§4) é o gatilho por entidade da Convenção |
-| AD-12, AD-14 e AD-15 da revista | architecture-Orbe-revista-2026-09-08 | o TS da bancada vive no hospedeiro de scripts; a nuvem entra com JWT de usuário, nunca chave de serviço; a premissa "não há OTA" da AD-15 dela é desmentida por `app.base.json` (`updates.enabled`, `runtimeVersion` fixo) — vai ao correct-course |
-| AD-13 da revista | architecture-Orbe-revista-2026-09-08 | apertada pela AD-13 local: a sequência da impressão é cliente do orquestrador. Muda o escopo da story 1.10 e vai ao correct-course |
+| AD-12, AD-14 e AD-15 da revista | architecture-Orbe-revista-2026-09-08 | o TS da bancada vive no hospedeiro de scripts; a nuvem entra com JWT de usuário, nunca chave de serviço; a premissa "não há OTA" da AD-15 dela é desmentida por `app.base.json` (`updates.enabled`, `runtimeVersion` fixo) — corrigida no correct-course de 10/09 ([proposta](../../sprint-change-proposal-2026-09-10.md)) |
+| AD-13 da revista | architecture-Orbe-revista-2026-09-08 | apertada pela AD-13 local: a sequência da impressão é cliente do orquestrador. Mudou o escopo da story 1.10 no correct-course de 10/09 |
 
 ## Invariants & Rules
 
