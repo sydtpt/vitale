@@ -332,6 +332,45 @@ dano, não é o que falta ao Orbe.**
     `typical-awake.component.ts`, `awake-alignment.component.ts` e
     `sleep-triggers.component.ts` na web.
 
+- **CAP-13** — A leitura da Saúde do sono, em uma frase *(pedida em 10/09/2026 — "uma frase que
+  nomeia a dimensão que está puxando o conjunto para baixo", como primeira prova de modelo de
+  linguagem no aparelho. Arquitetura em [ADR 0047](../../decisions/0047-a-porta-do-motor-e-uma-so-e-a-ponte-do-aparelho-e-nossa.md),
+  [0048](../../decisions/0048-o-motor-e-escolhido-por-aparelho-e-a-lista-da-nuvem-e-do-servidor.md) e
+  [0049](../../decisions/0049-o-motor-escreve-palavras-e-o-codigo-escreve-numeros.md))*
+  - **intent:** O usuário lê, numa frase, o que a contagem da CAP-11 diz sobre o período ou a
+    noite — sem placar, sem conselho, sem número que não tenha saído do código.
+  - **success:** A frase nasce de **um caso**, classificado pelo código nesta precedência:
+    - `sem-contagem` — `scored` falso: diz a cobertura quando houver ("os últimos 12 meses têm
+      53% das noites gravadas — poucas para contar") e nunca fala em conjunto;
+    - `medidas-insuficientes` — menos de duas dimensões medidas: diz que não há o que comparar;
+    - `tudo-no-maximo` — diz isso, **sem elogio**;
+    - `todas-iguais` — todas as medidas no mesmo ponto abaixo de 2: "as quatro dimensões medidas
+      estão no mesmo ponto", com a contagem real, nunca "cinco" fixo;
+    - `uma` — nomeia a dimensão mais baixa, com o fato cru dela;
+    - `duas` — nomeia as duas empatadas;
+    - `fora-do-empate` — três ou mais empatadas no mínimo: nomeia as que ficaram de fora ("só o
+      horário está no máximo").
+  - **medido (10/09/2026, 293 noites):** nas 73 semanas navegáveis, só 11 caem em `uma`; 17 são
+    empate e 45 não têm contagem. Nas 19 janelas de 4 semanas, 2, 4 e 13. Nas duas de 12 meses,
+    nenhuma tem contagem. Nas noites, 136 `uma`, 139 empate, 18 `tudo-no-maximo`.
+  - **como:** gerada **só quando o usuário aperta "Ler"**, nunca ao abrir a tela, e **nunca
+    gravada**. Por ser leitura efêmera, lê o período em curso (a §3 do spec `ia-analitica` vale
+    para recurso que grava). Três motores: sem modelo (o template, que é também o piso contra o
+    qual os outros são julgados), o modelo do aparelho e a nuvem — o escolhido para este recurso
+    neste aparelho. A tela diz quem escreveu, e por que o escolhido não escreveu quando for o caso.
+    O motor escreve palavras; valores entram por marcador, trocados pelo fato já formatado em
+    pt-BR. A conferência reprova dígito, marcador fora do caso, dimensão a mais ou a menos, e o
+    vocabulário proibido (conselho, elogio, placar, tendência e meta, comparação com outras
+    pessoas, causa).
+  - **success (negativo):** A frase nunca soma as dimensões, nunca vira nota, nunca aconselha e
+    nunca diz "melhorou" ou "piorou" — as seis regras da ADR 0036 continuam valendo inteiras.
+  - **onde:** `packages/shared/src/sleep/` (entrada, caso, fatos, descritor da leitura, template)
+    sobre `ia/` (porta, orquestrador, conferência); `mobile/modules/on-device-engine/` (a ponte);
+    `mobile/src/lib/motores/`; o botão em `app/sono/saude.tsx`. **Web fora da primeira versão.**
+  - **antes de ir a produção:** a bancada no Mac mede template × aparelho × nuvem sobre as leituras
+    reais, com iPhone e Mac no mesmo sistema (iOS/macOS 27, a partir de 15/09/2026), e o dono fixa
+    o limiar depois do primeiro relatório.
+
 ## 4. Constraints
 
 - **Mobile primeiro.** A web não pauta nenhuma decisão desta entrega e entra numa segunda

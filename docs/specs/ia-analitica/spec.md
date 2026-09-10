@@ -29,7 +29,7 @@ qual dos N merece o topo.
 | # | Consumidor | Entrada | Frequência | Cacheável |
 |---|---|---|---|---|
 | 1 | Parágrafo da Retrospectiva | período fechado | ~68/ano (52 semanas + 12 meses + 4 estações) | **sim** |
-| 2 | Leitura de sono | noite ou período | diária | período sim, noite não |
+| 2 | Leitura de sono | noite ou período | por botão (CAP-13 do spec de Sono) | **não** — efêmera, nunca gravada |
 | 3 | Leitura de saúde/FC/esporte | período | por consulta | sim |
 | 4 | **Chat** | pergunta livre sobre 10 módulos | imprevisível | **não** |
 
@@ -117,6 +117,26 @@ contratualmente proibido para quem serve usuário na EEA) vai se repetir diferen
 **E o golden set é o que qualifica o candidato:** mesmo pacote de fatos, provedor novo, e as
 três verificações da §5 continuam passando ou não. Trocar de provedor vira uma tarde, não uma
 refatoração.
+
+## 4c. Os motores (10/09/2026)
+
+A costura de provedor desta seção ganhou dois vizinhos: o **modelo do aparelho** (Foundation
+Models agora, Core AI no iOS 27) e o **sem modelo** (o template de cada recurso, que é também o
+piso). O desenho está na [espinha dos motores](../../../_bmad-output/planning-artifacts/architecture/architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md)
+e em três ADRs:
+
+- [0047](../../decisions/0047-a-porta-do-motor-e-uma-so-e-a-ponte-do-aparelho-e-nossa.md) — uma porta
+  (`Motor`), um orquestrador que percorre a sequência, classes de falha do Orbe, recuo que nunca
+  aumenta a exposição, a ponte Swift do projeto e o contrato da nuvem em `ia/fio.ts`;
+- [0048](../../decisions/0048-o-motor-e-escolhido-por-aparelho-e-a-lista-da-nuvem-e-do-servidor.md) —
+  o motor é escolhido por aparelho e por recurso, e a lista de motores de nuvem é do servidor
+  (supera o período "provedor e modelo vêm de configuração" da ADR 0040);
+- [0049](../../decisions/0049-o-motor-escreve-palavras-e-o-codigo-escreve-numeros.md) — o motor
+  escreve palavras e o código escreve números, com três regimes (interpolado, copiado e conferido,
+  molde).
+
+A §3 deste spec ("período em curso: sem parágrafo de máquina") vale para recurso que **grava**. A
+leitura de sono do consumidor 2 é efêmera, sob pedido, e lê período em curso.
 
 ## 5. Golden set
 

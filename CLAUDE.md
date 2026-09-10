@@ -270,6 +270,19 @@ São **10** módulos, não 7:
   **Ainda sem `docs/specs/presenca/`, sem ADR e sem `tasks.md`** — o raciocínio (veredito dos dois
   motores, esquecer = lápide, alerta como propriedade do lugar, as 5 fases) vive só em dois
   artifacts e na memória da sessão. Escrever isso é o próximo passo enquanto a medição roda.
+- **Motores de IA** — modelo no aparelho (Foundation Models, depois Core AI), nuvem (`ia-narrar`)
+  e sem modelo, escolhidos **por recurso e por aparelho**. **Arquitetura aprovada em 10/09**, nada
+  construído: [espinha](_bmad-output/planning-artifacts/architecture/architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md)
+  com 14 ADs, passada por portão de revisão, e as ADRs
+  [0047](docs/decisions/0047-a-porta-do-motor-e-uma-so-e-a-ponte-do-aparelho-e-nossa.md) (uma porta,
+  um orquestrador, a ponte Swift `on-device-engine`),
+  [0048](docs/decisions/0048-o-motor-e-escolhido-por-aparelho-e-a-lista-da-nuvem-e-do-servidor.md)
+  (escolha por aparelho, lista da nuvem no servidor) e
+  [0049](docs/decisions/0049-o-motor-escreve-palavras-e-o-codigo-escreve-numeros.md) (o motor
+  escreve palavras, o código escreve números). Primeira leitura: a **Saúde do sono em uma frase**
+  (CAP-13 do spec de Sono), gerada por botão, só no iPhone. A fase F0 (núcleo, sem modelo) tem de
+  entrar **antes da story 1.10 da revista**, que passa a ser cliente do orquestrador (AD-13). A
+  bancada de medição roda no Mac, com Mac e iPhone no 27.
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco
