@@ -27,6 +27,13 @@ export * from './health/series-derive';
 export * from './ia/pacote';
 export * from './ia/prompt';
 export * from './ia/verificar';
+// Os motores (ADRs 0047–0049): a porta, o fio, o orquestrador, a nuvem e o
+// catálogo. O `ia/sha256` fica de fora de propósito — é interno ao núcleo.
+export * from './ia/fio';
+export * from './ia/motor';
+export * from './ia/orquestrar';
+export * from './ia/nuvem';
+export * from './ia/recursos';
 export * from './sleep/timing';
 export * from './sleep/derive';
 export * from './sleep/awakenings';

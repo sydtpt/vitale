@@ -16,7 +16,7 @@
  */
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { WALLPAPERS } from './constants/wallpaper';
 import { APP_THEMES } from './models';
 import { THEMES } from './theme/themes';
@@ -25,6 +25,7 @@ import { BRANDS } from './theme/brands';
 import { cssVars } from './theme/css-vars';
 import { sleepColorsOf, sleepCssVars } from './sleep/colors';
 import { resolveTokens } from './theme/derive';
+import { CONCLUSAO } from './ia/motor';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -53,6 +54,30 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const webFiles = walk(join(ROOT, 'web', 'src')).filter((f) => !f.endsWith('.spec.ts'));
 const mobileFiles = walk(join(ROOT, 'mobile', 'src')).filter((f) => !/__tests__/.test(f));
+
+// Comentário fora; código e LITERAL DE STRING dentro. Comentário citando o que
+// a guarda procura não é uso — e uma barreira que tropeça no comentário que
+// explica a própria regra é um convite a desligá-la. O primeiro autor a
+// tropeçar foi o do `prompt.ts`, que dizia "nenhuma linha daqui conhece Google,
+// Anthropic ou qualquer outro" — a frase que afirma a propriedade cobrada.
+//
+// Sai o bloco (inclusive o de documentação) e a linha inteira de `//`. O `//`
+// no FIM de uma linha de código fica: sem saber onde começa um literal, cortar
+// dali tiraria da guarda o resto de um `'https://…'`, e o literal é justamente
+// o que ela tem de ver — nomear um fornecedor no texto do prompt vaza para o
+// contexto do modelo.
+//
+// Morava duplicada em duas barreiras, cada uma tratando o `//` de um jeito;
+// subiu para cá na 5.1, quando as guardas dos motores precisaram dela. Medido
+// nesse dia: a barreira de variáveis CSS da web dá zero órfã com as duas versões.
+function semComentario(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
+}
+
+/** Arquivo de teste, em qualquer das três convenções do repositório. */
+function ehTeste(f: string): boolean {
+  return /\.(test|spec)\.tsx?$/.test(f) || /[\\/]__tests__[\\/]/.test(f);
+}
 
 /**
  * Stores duplicam por razão arquitetural legítima: a máquina de estado é
@@ -454,13 +479,9 @@ check('BARREIRA — nenhuma variável CSS da web fora do sistema de temas', () =
     for (const m of src.matchAll(/\[style\.(--[a-z0-9-]+)\]/g)) locais.add(m[1]);
   }
 
-  // Comentário citando uma variável não é uso — e uma barreira que tropeça no
-  // comentário que explica a própria correção seria um convite a desligá-la.
-  // Vale para as duas formas: a versão que só limpava `//` reprovava um bloco
-  // `/** */` que documentava justamente por que aquele `var()` não devia existir.
-  const semComentario = (src: string): string =>
-    src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-
+  // Comentário citando uma variável não é uso (`semComentario`, no topo). Vale
+  // para as duas formas: a versão que só limpava `//` reprovava um bloco `/** */`
+  // que documentava justamente por que aquele `var()` não devia existir.
   const usadas = new Map<string, string[]>();
   for (const f of arquivos) {
     for (const m of semComentario(readFileSync(f, 'utf8')).matchAll(/var\((--[a-z0-9-]+)/g)) {
@@ -755,53 +776,507 @@ check('CATRACA — hex fora do sistema de temas não cresce', () => {
  *
  * Os adaptadores vivem na edge function, não no núcleo; por isso a guarda é
  * barreira, não catraca: hoje está em zero e não há passivo a migrar.
+ *
+ * **O alvo sai do código, não de uma lista** (AD-10 (2), story 5.1). Eram dois
+ * diretórios escritos à mão, `ia/` e `routes/` — invariante que vale só para
+ * quem chegou primeiro não é invariante, é coincidência, e a Saúde do sono
+ * (`sleep/`) seria o terceiro inquilino fora da lista. Agora é o fecho
+ * transitivo, por import relativo, de todo arquivo do núcleo (fora de teste)
+ * que importa `ia/motor`, mais `ia/` e `routes/`: um recurso novo entra na
+ * guarda no dia em que falar com a porta. O fecho inclui o que eles importam —
+ * um `fetch` dois arquivos abaixo é o mesmo `fetch`. Medido no planejamento:
+ * 55 arquivos em 17 diretórios, zero ofensor com a lista ampliada; com os seis
+ * módulos da porta que a 5.1 criou, 61 arquivos nos mesmos 17 (o teste loga).
+ *
+ * A lista de fornecedores ganhou os nomes do aparelho (Core AI e os pesos
+ * abertos). `apple` fica de fora de propósito: é vocabulário de domínio no
+ * sono ("Apple Watch"), e a guarda que proíbe o domínio de falar dele seria
+ * desligada no primeiro dia.
  */
-check('BARREIRA — o núcleo que fala com modelo não conhece rede, SDK nem fornecedor', () => {
-  /*
-   * Dois inquilinos desde 07/09/2026: `ia/` monta o pacote da narração e
-   * `routes/` monta o prompt do nome de rota (ADR 0041). A guarda passou a
-   * cobrir os dois no mesmo dia em que o segundo nasceu — invariante que vale
-   * só para quem chegou primeiro não é invariante, é coincidência.
-   */
-  const dirs = ['ia', 'routes']
-    .map((d) => join(ROOT, 'packages', 'shared', 'src', d))
-    .filter((d) => existsSync(d));
-  if (dirs.length === 0) return;                  // a fase 1 ainda não chegou
-  const files = dirs.flatMap((d) => walk(d)).filter((f) => !f.endsWith('.test.ts'));
-  assert.ok(files.length > 0, 'os diretórios existem e estão vazios — a guarda ficou sem alvo');
+const SHARED_SRC = join(ROOT, 'packages', 'shared', 'src');
+const IA_MOTOR = join(SHARED_SRC, 'ia', 'motor.ts');
+/**
+ * Os módulos da porta. Quem importa qualquer um deles fala com a porta — um
+ * descritor tipado só por `Descritor` (de `ia/orquestrar`) não precisa importar
+ * `ia/motor`, e ainda assim é inquilino.
+ */
+const MODULOS_DA_PORTA = new Set(
+  ['fio', 'motor', 'orquestrar', 'nuvem', 'recursos'].map((m) => join(SHARED_SRC, 'ia', `${m}.ts`)),
+);
 
+/**
+ * As importações de um arquivo: `import` (de valor ou de tipo), `export … from`
+ * e `import()`. Comentário não conta. A cláusula não atravessa aspas nem `;`,
+ * então um `import './x'` sem `from` não rouba o `from` da linha seguinte.
+ */
+function importacoes(src: string): { reexporta: boolean; spec: string }[] {
+  const out: { reexporta: boolean; spec: string }[] = [];
+  const re = /^[ \t]*(import|export)\b[^;'"]*?\bfrom\s*(['"])([^'"]+)\2|^[ \t]*import\s*(['"])([^'"]+)\4|\bimport\s*\(\s*(['"])([^'"]+)\6/gm;
+  for (const m of semComentario(src).matchAll(re)) {
+    out.push({ reexporta: m[1] === 'export', spec: m[3] ?? m[5] ?? m[7] });
+  }
+  return out;
+}
+
+/** O arquivo para onde um specifier relativo aponta, como o `tsc` o resolve. */
+function resolverRelativo(de: string, spec: string): string | null {
+  if (!spec.startsWith('.')) return null;
+  const base = join(dirname(de), spec);
+  for (const c of [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts')]) {
+    if (existsSync(c) && statSync(c).isFile()) return c;
+  }
+  return null;
+}
+
+check('BARREIRA — o núcleo que fala com modelo não conhece rede, SDK nem fornecedor', () => {
+  const nucleo = walk(SHARED_SRC).filter((f) => !ehTeste(f));
+  // "Quem importa" é quem usa a porta. Reexportar não é usar: sem esta
+  // distinção o barril (`index.ts`, que reexporta tudo) entraria como semente,
+  // e o fecho viraria o núcleo inteiro — `data/` e o SDK do banco inclusive.
+  const importaAPorta = (f: string) =>
+    importacoes(readFileSync(f, 'utf8')).some((i) => {
+      if (i.reexporta) return false;
+      const dep = resolverRelativo(f, i.spec);
+      return dep !== null && MODULOS_DA_PORTA.has(dep);
+    });
+  const sementes = [
+    ...['ia', 'routes'].flatMap((d) => walk(join(SHARED_SRC, d))).filter((f) => !ehTeste(f)),
+    ...nucleo.filter(importaAPorta),
+  ];
+  const alvo = new Set<string>();
+  const fila = [...sementes];
+  while (fila.length > 0) {
+    const f = fila.pop()!;
+    if (alvo.has(f)) continue;
+    alvo.add(f);
+    for (const { spec } of importacoes(readFileSync(f, 'utf8'))) {
+      const dep = resolverRelativo(f, spec);
+      if (dep && !ehTeste(dep) && dep.startsWith(SHARED_SRC + '/')) fila.push(dep);
+    }
+  }
+  // Não-vácua: se a porta sumir do alvo, a guarda passa em silêncio sobre nada.
+  assert.ok(
+    alvo.has(IA_MOTOR),
+    'ia/motor.ts ficou fora do alvo — a guarda ficou vácua. Se a porta mudou de arquivo, aponte IA_MOTOR para ele.',
+  );
+  // Não-vácua também no mecanismo: o fecho tem de passar das sementes. Se o
+  // resolvedor de import quebrar, o alvo volta em silêncio à lista de pastas que
+  // esta guarda substituiu — e um `fetch` em `period/` passaria no CI.
+  const semente = new Set(sementes);
+  const soPorImport = [...alvo].filter((f) => !semente.has(f));
+  assert.ok(
+    soPorImport.length > 0,
+    'o fecho não passou das sementes (ia/, routes/ e quem importa a porta) — o resolvedor de import ' +
+      'quebrou, e a guarda voltou a ser a lista de pastas. Confira importacoes() e resolverRelativo().',
+  );
+
+  const FORNECEDORES =
+    'google|gemini|anthropic|claude|openai|mistral|vertex|firebase|coreai|qwen|llama|mlx|gemma|foundationmodels|privatecloudcompute';
   const PROIBIDO = [
     { re: /\bfetch\s*\(/, o: 'fetch(' },
     { re: /\bXMLHttpRequest\b/, o: 'XMLHttpRequest' },
     { re: /\bWebSocket\b/, o: 'WebSocket' },
     { re: /from\s*['"](?!\.)/, o: "import de pacote externo (só relativo é permitido)" },
-    { re: /\b(google|gemini|anthropic|claude|openai|mistral|vertex|firebase)\b/i, o: 'nome de fornecedor' },
+    { re: /^[ \t]*import\s*['"](?!\.)/m, o: 'import de efeito de pacote externo' },
+    { re: /\bimport\s*\(\s*['"](?!\.)/, o: 'import() de pacote externo' },
+    { re: /\brequire\s*\(/, o: 'require()' },
+    {
+      // Com número de versão colado (`qwen2`, `qwen3.5`, `gemini2`), mas sem
+      // abrir o fim da palavra para sufixo de letra — `vertexes` é geometria.
+      re: new RegExp(`\\b(?:${FORNECEDORES})(?:\\d[\\w.]*)?\\b`, 'i'),
+      o: 'nome de fornecedor',
+    },
+    {
+      // A grafia de prosa, que é a que vazaria no texto de um prompt.
+      re: /\bcore\s+ai\b|\bfoundation\s+models\b|\bprivate\s+cloud\s+compute\b/i,
+      o: 'nome de fornecedor (por extenso)',
+    },
+    {
+      // Nome de classe de SDK: `OpenAIClient`, `GeminiModel`, `QwenTokenizer`.
+      re: /\b(?:Google|Gemini|Anthropic|Claude|OpenAI|Mistral|Vertex|Firebase|CoreAI|Qwen|Llama|Gemma|FoundationModels)(?=[A-Z0-9])/,
+      o: 'nome de fornecedor (em nome de classe)',
+    },
     { re: /\bprocess\.env\b|\bDeno\.env\b/, o: 'leitura de ambiente' },
   ];
 
-  // Comentário fora, código e LITERAL DE STRING dentro. A distinção não é
-  // frouxidão: o primeiro autor a tropeçar nesta guarda foi o comentário do
-  // `prompt.ts` que dizia "nenhuma linha daqui conhece Google, Anthropic ou
-  // qualquer outro" — a frase que afirma a propriedade cobrada. Já o texto do
-  // prompt é literal de string e continua sob a guarda, porque nomear um
-  // fornecedor ali vaza para o contexto do modelo.
-  const semComentario = (s: string) =>
-    s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
-
   const offenders: string[] = [];
-  for (const f of files) {
+  for (const f of [...alvo].sort()) {
     const src = semComentario(readFileSync(f, 'utf8'));
     for (const { re, o } of PROIBIDO) {
-      if (re.test(src)) offenders.push(`${basename(f)}: ${o}`);
+      if (re.test(src)) offenders.push(`${f.replace(SHARED_SRC + '/', '')}: ${o}`);
     }
   }
   assert.deepEqual(
     offenders,
     [],
     `o núcleo de IA sujou: ${offenders.join(', ')}. ` +
-      `Pacote de fatos é derivação pura — rede, chave e nome de fornecedor moram no ` +
-      `adaptador da edge function (ADR 0040). Trocar de provedor tem que continuar sendo ` +
-      `escrever um arquivo novo.`,
+      `Pacote de fatos, descritor, orquestrador e porta são derivação pura — rede, chave e ` +
+      `nome de fornecedor moram no adaptador da edge function (ADR 0040) ou na ponte do ` +
+      `aparelho (ADR 0047). Trocar de provedor tem que continuar sendo escrever um arquivo novo.`,
+  );
+  console.log(`     · alvo: ${alvo.size} arquivos em ${new Set([...alvo].map((f) => dirname(f))).size} diretórios`);
+});
+
+/**
+ * BARREIRA — o fio e o hash não importam nada (AD-14, story 5.1).
+ *
+ * `ia/fio.ts` é o contrato da `ia-narrar`, e a function vai lê-lo por caminho
+ * relativo na 5.6 — quando a barreira do Deno, lá em cima, passa a achá-lo
+ * sozinha. Até lá ninguém no Deno o importa, e aquela barreira não o vê: esta
+ * cobre o intervalo, e fica depois dele, porque o fio é declarado sem imports
+ * para sempre. `ia/sha256.ts` existe para o hash do pedido sair igual em todo
+ * hospedeiro sem `node:crypto` (que a barreira do núcleo de IA recusa) — um
+ * import ali seria a dependência que ele foi escrito para não ter.
+ */
+check('BARREIRA — ia/fio.ts e ia/sha256.ts não importam nada', () => {
+  const IMPORTA = [
+    { re: /^[ \t]*import\b/m, o: 'import' },
+    { re: /^[ \t]*export\b[^;'"]*\bfrom\s*['"]/m, o: 'export … from' },
+    { re: /\bimport\s*\(/, o: 'import()' },
+    { re: /\brequire\s*\(/, o: 'require()' },
+  ];
+  const offenders: string[] = [];
+  for (const rel of ['ia/fio.ts', 'ia/sha256.ts']) {
+    const abs = join(SHARED_SRC, rel);
+    if (!existsSync(abs)) {
+      offenders.push(`${rel} (sumiu — a guarda ficou sem alvo)`);
+      continue;
+    }
+    const src = semComentario(readFileSync(abs, 'utf8'));
+    for (const { re, o } of IMPORTA) if (re.test(src)) offenders.push(`${rel}: ${o}`);
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `módulo sem imports ganhou dependência: ${offenders.join(', ')}. O fio é lido pelo Deno por ` +
+      `caminho relativo, e o Deno não resolve specifier sem extensão — o deploy da function quebra ` +
+      `longe daqui. Se precisa do tipo, declare-o no próprio fio.`,
+  );
+});
+
+/**
+ * BARREIRA — `Motor` não se reexporta com outro nome (AD-1).
+ *
+ * A porta é uma só, e o nome dela também. Um `export { Motor as Narrador }` é a
+ * segunda porta nascendo com cara de apelido: quem a importa não sabe que é a
+ * mesma, e a próxima mudança da porta passa a ter dois lugares a conferir.
+ * Reexportar com o MESMO nome é legítimo (é o mesmo símbolo — é o que
+ * `routes/nomear.ts` faz com `ChamadorDeModelo` até a 5.7).
+ */
+check('BARREIRA — Motor não se reexporta com outro nome', () => {
+  assert.ok(
+    /^export type Motor\s*=/m.test(readFileSync(IA_MOTOR, 'utf8')),
+    'ia/motor.ts não declara mais `export type Motor` — a guarda ficou sem alvo.',
+  );
+  const RENOMEIA = /\bexport\s+(?:type\s+)?\{[^}]*\bMotor\s+as\s+(?!Motor\b)[\w$]+/;
+  // Apelido em dois passos: importa renomeado, e reexporta o nome novo depois.
+  const IMPORTA_RENOMEADO = /\bimport\s+(?:type\s+)?\{[^}]*\b(?:type\s+)?Motor\s+as\s+(?!Motor\b)[\w$]+/;
+  const APELIDA = /\b(?:export\s+)?(?:declare\s+)?type\s+[\w$]+\s*(?:<[^>]*>)?\s*=\s*Motor\s*(?=[;\n]|$|\/\/)/;
+  const ESTENDE = /\bextends\s+Motor\b/;
+  const alvos = [
+    ...walk(SHARED_SRC), ...mobileFiles, ...webFiles,
+    ...walk(join(ROOT, 'scripts')), ...walk(join(ROOT, 'supabase', 'functions')),
+  ].filter((f) => f !== IA_MOTOR);
+  const offenders = alvos
+    .filter((f) => {
+      const src = semComentario(readFileSync(f, 'utf8'));
+      return RENOMEIA.test(src) || IMPORTA_RENOMEADO.test(src) || APELIDA.test(src) || ESTENDE.test(src);
+    })
+    .map((f) => f.replace(ROOT + '/', ''));
+  assert.deepEqual(
+    offenders,
+    [],
+    `Motor reexportado com outro nome: ${offenders.join(', ')}. Importe \`Motor\` de ia/motor ` +
+      `(ou de @vitale/shared) com o nome dele — a porta é uma só (AD-1).`,
+  );
+});
+
+/**
+ * BARREIRA — a conclusão tem uma grafia, e o banco concorda com ela (AD-10 (6)).
+ *
+ * O `CHECK` de `edicoes_ia.motivo_de_parada` recusa qualquer grafia que não seja
+ * a de `CONCLUSAO` (`ia/motor.ts`). Se os dois divergirem, a primeira edição boa
+ * depois da mudança morre no banco como erro de constraint — o texto aprovado, a
+ * conferência verde, e nada gravado. No molde de `ID_COLUMNS`: vale a última
+ * migration que mexe no CHECK.
+ *
+ * Lê as formas que um humano escreve (`= '…'`, `in (…)`) e as que o Postgres e o
+ * `supabase db diff` geram (`((motivo_de_parada = 'STOP'::text))`, `= any
+ * (array[…])`). E **nunca compara contra uma definição velha**: migration que
+ * mexe no CHECK — inclusive só derrubando a constraint — e que a guarda não sabe
+ * ler faz a guarda falhar dizendo qual é, em vez de seguir verde com a de antes.
+ * A 1.9 é a próxima migration desta tabela, e é ela que mais provavelmente
+ * escreve o CHECK de outro jeito.
+ */
+check('BARREIRA — CONCLUSAO é o que o CHECK de edicoes_ia.motivo_de_parada aceita', () => {
+  const dir = join(ROOT, 'supabase', 'migrations');
+  // Cast fora (`'STOP'::text`, `(coluna)::character varying`): não muda o valor aceito.
+  const semCast = (sql: string) => sql.replace(/::\s*[a-z_]+(?:\s+varying)?(?:\s*\[\])?/gi, '');
+  const FORMAS = [
+    /check\s*\(+\s*motivo_de_parada\s*\)*\s*=\s*'([^']*)'/gi,
+    /check\s*\(+\s*motivo_de_parada\s*\)*\s*=\s*any\s*\(+\s*array\s*\[([^\]]*)\]/gi,
+    /check\s*\(+\s*motivo_de_parada\s*\)*\s*in\s*\(([^)]*)\)/gi,
+  ];
+  /** Os valores aceitos pela última definição do CHECK no arquivo, ou `null` se não há uma legível. */
+  const ler = (sql: string): string[] | null => {
+    let melhor: { pos: number; aceitos: string[] } | null = null;
+    for (const re of FORMAS) {
+      for (const m of sql.matchAll(re)) {
+        const aceitos = [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]);
+        const valores = aceitos.length > 0 ? aceitos : [m[1]];
+        if (!melhor || m.index! > melhor.pos) melhor = { pos: m.index!, aceitos: valores };
+      }
+    }
+    return melhor?.aceitos ?? null;
+  };
+  // "Mexe no CHECK": um `check` e a coluna no mesmo statement, ou o nome da
+  // constraint. Sem `\b` antes do nome: o Postgres o prefixa com a tabela
+  // (`edicoes_ia_motivo_de_parada_check`), e `_` conta como letra para a regex.
+  const mexe = (sql: string) => /\bcheck\b[^;]*\bmotivo_de_parada\b|motivo_de_parada_check\b/i.test(sql);
+
+  let vigente: { f: string; aceitos: string[] } | null = null;
+  const ilegiveis: string[] = [];
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.sql')).sort()) {
+    // Comentário de SQL fora, das duas formas: a migration original cita 'STOP' num `--`.
+    const sql = semCast(readFileSync(join(dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--.*$/gm, ''));
+    if (!mexe(sql)) continue;
+    const aceitos = ler(sql);
+    if (aceitos) vigente = { f, aceitos };
+    else ilegiveis.push(f);
+  }
+  const depois = ilegiveis.filter((f) => !vigente || f > vigente.f);
+  assert.deepEqual(
+    depois,
+    [],
+    `migration que mexe no CHECK de edicoes_ia.motivo_de_parada e a guarda não sabe ler: ` +
+      `${depois.join(', ')}. Ou ela derruba a constraint sem recriar, ou escreve o CHECK numa forma ` +
+      `nova — ensine a forma a esta guarda. Ela não pode comparar contra a definição de antes.`,
+  );
+  assert.ok(vigente, 'nenhuma migration define o CHECK de motivo_de_parada — a guarda ficou sem alvo');
+  assert.deepEqual(
+    vigente.aceitos,
+    [CONCLUSAO],
+    `o CHECK de edicoes_ia.motivo_de_parada (${vigente.f}) aceita ${JSON.stringify(vigente.aceitos)}, ` +
+      `e CONCLUSAO é ${JSON.stringify(CONCLUSAO)}. Atenção antes de "mudar os dois juntos": até a ` +
+      `story 1.10, quem grava a edição ainda passa o motivo cru que a function repassa ` +
+      `(mobile/src/lib/edicao-ia.ts), não CONCLUSAO — mudar a constante e o CHECK sem a 1.10 ` +
+      `quebra a escrita em produção.`,
+  );
+});
+
+/**
+ * CATRACA — o literal `'STOP'` só na `CONCLUSAO` (AD-10 (6), AD-12).
+ *
+ * `'STOP'` é a grafia de conclusão de UM fornecedor. Fora do adaptador dele, o
+ * núcleo compara com `CONCLUSAO`; quem compara com o literal prende o Orbe à
+ * grafia de quem responde hoje, e o próximo motor — que conclui com outra
+ * palavra — cai como "truncado" sem nada acusar. A borda traduz: conclusão vira
+ * `Resposta`, o resto vira `Falha`, e nenhum consumidor compara motivo de parada.
+ *
+ * Contam arquivos, fora de teste; ficam de fora a definição da constante e o
+ * adaptador do provedor (`_shared/ia/narrador.ts`), que é onde a espinha manda o
+ * literal morar. Varre o núcleo, os dois apps, `scripts/` e as functions.
+ *
+ * Teto e histórico:
+ *   2 (5.1) — `routes/nomear.ts` (morre na 5.7, quando o nome de rota passar
+ *             pela porta) e `mobile/src/lib/edicao-ia.ts` (morre na 1.10, quando
+ *             a impressão virar cliente do orquestrador). Vira barreira em zero.
+ */
+const DONO_CONCLUSAO = 'packages/shared/src/ia/motor.ts';
+const ADAPTADOR_DO_PROVEDOR = 'supabase/functions/_shared/ia/narrador.ts';
+const TETO_STOP = 2;
+
+check(`CATRACA — o literal 'STOP' só na CONCLUSAO (teto ${TETO_STOP})`, () => {
+  const DEFINE = /\bconst\s+CONCLUSAO\s*=\s*(['"`])STOP\1/;
+  assert.ok(
+    DEFINE.test(readFileSync(join(ROOT, DONO_CONCLUSAO), 'utf8')),
+    `a catraca ficou sem dono: ${DONO_CONCLUSAO} não declara mais CONCLUSAO = 'STOP'.`,
+  );
+  const LITERAL = /(['"`])STOP\1/;
+  const alvos = [
+    ...walk(SHARED_SRC), ...mobileFiles, ...webFiles,
+    ...walk(join(ROOT, 'supabase', 'functions')), ...walk(join(ROOT, 'scripts')),
+  ].filter((f) => !ehTeste(f));
+  const fora: string[] = [];
+  for (const f of alvos) {
+    const rel = f.replace(ROOT + '/', '');
+    if (rel === ADAPTADOR_DO_PROVEDOR) continue;
+    let src = semComentario(readFileSync(f, 'utf8'));
+    if (rel === DONO_CONCLUSAO) src = src.replace(DEFINE, '');
+    if (LITERAL.test(src)) fora.push(rel);
+  }
+  fora.sort();
+  if (fora.length < TETO_STOP) {
+    console.log(`     ↓ 'STOP' fora da CONCLUSAO caiu para ${fora.length} (teto ${TETO_STOP}) — baixe o teto`);
+  }
+  assert.ok(
+    fora.length <= TETO_STOP,
+    `'STOP' literal em ${fora.length} arquivos (teto ${TETO_STOP}): ${fora.join(', ')}.\n` +
+      `  Compare com CONCLUSAO (ia/motor) — ou, melhor, não compare: quem traduz o motivo de ` +
+      `parada é a borda, e a Resposta já chega concluída.`,
+  );
+});
+
+/**
+ * CATRACA — uma porta por hospedeiro (AD-10 (1), ADR 0047).
+ *
+ * O literal `'ia-narrar'` e o import da ponte `on-device-engine` só aparecem no
+ * ponto de injeção declarado de cada hospedeiro: `mobile/src/lib/motores/`,
+ * `web/src/app/core/motores/` e, em `scripts/`, um `motores.ts` por script. É o
+ * que impede a terceira cópia do cliente da function — o app já tem duas, cada
+ * uma lendo o erro do seu jeito, e nas duas o ramo que lia o corpo de erro era
+ * código morto. Varre `mobile/src`, `web/src` e `scripts/`, fora de teste, e
+ * conta arquivos.
+ *
+ * Teto e histórico:
+ *   2 (5.1) — `mobile/src/lib/edicao-ia.ts` (a narração, sai na 1.10) e
+ *             `mobile/src/services/route-name.ts` (o nome de rota, sai na 5.7).
+ *             Vira barreira em zero, na F4.
+ */
+const PONTOS_DE_INJECAO = [
+  /^mobile\/src\/lib\/motores\//,
+  /^web\/src\/app\/core\/motores\//,
+  /^scripts\/[^/]+\/motores\.ts$/,
+];
+const TETO_PORTA_POR_HOSPEDEIRO = 2;
+
+check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospedeiro (teto ${TETO_PORTA_POR_HOSPEDEIRO})`, () => {
+  assert.ok(mobileFiles.length > 0 && webFiles.length > 0, 'mobile/src ou web/src sumiu — a catraca ficou sem alvo');
+  // O nome da function em qualquer lugar do código — não só o literal solto: uma
+  // chamada por URL (`…/functions/v1/ia-narrar`) é o mesmo cliente, e é a forma
+  // mais provável para um script com JWT de usuário.
+  const CHAMA_A_FUNCTION = /\bia-narrar\b/;
+  const IMPORTA_A_PONTE = new RegExp(
+    [
+      /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|^[ \t]*import\s*)(['"`])[^'"`]*on-device-engine[^'"`]*\1/.source,
+      // A ADR 0047 carrega a ponte pelo nome nativo — é o mesmo import, por outra porta.
+      /\brequire(?:Optional)?NativeModule\s*(?:<[^>]*>)?\s*\(\s*['"`](?:OnDeviceEngine|on-device-engine)['"`]/.source,
+      /\bNativeModules\s*\.\s*OnDeviceEngine\b/.source,
+    ].join('|'),
+    'm',
+  );
+  const alvos = [...mobileFiles, ...webFiles, ...walk(join(ROOT, 'scripts'))].filter((f) => !ehTeste(f));
+  const fora: string[] = [];
+  for (const f of alvos) {
+    const rel = f.replace(ROOT + '/', '');
+    if (PONTOS_DE_INJECAO.some((re) => re.test(rel))) continue;
+    const src = semComentario(readFileSync(f, 'utf8'));
+    const o = [
+      CHAMA_A_FUNCTION.test(src) ? "'ia-narrar'" : null,
+      IMPORTA_A_PONTE.test(src) ? 'on-device-engine' : null,
+    ].filter((x): x is string => x !== null);
+    if (o.length > 0) fora.push(`${rel} (${o.join(', ')})`);
+  }
+  fora.sort();
+  if (fora.length < TETO_PORTA_POR_HOSPEDEIRO) {
+    console.log(`     ↓ porta fora do ponto de injeção caiu para ${fora.length} (teto ${TETO_PORTA_POR_HOSPEDEIRO}) — baixe o teto`);
+  }
+  assert.ok(
+    fora.length <= TETO_PORTA_POR_HOSPEDEIRO,
+    `a function ou a ponte chamadas fora do ponto de injeção em ${fora.length} arquivos ` +
+      `(teto ${TETO_PORTA_POR_HOSPEDEIRO}):\n    ${fora.join('\n    ')}\n` +
+      `  Quem fala com motor pede um ao ponto de injeção do hospedeiro (mobile/src/lib/motores/) e ` +
+      `passa pelo orquestrador — criarMotorDeNuvem(invocar) já sabe ler a function.`,
+  );
+});
+
+/**
+ * CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritores (AD-10 (7), AD-2).
+ *
+ * Um hospedeiro que importa `montarPrompt` e `verificarTexto` está percorrendo
+ * a sequência pedido → modelo → conferência por conta própria — exatamente a
+ * segunda sequência que o orquestrador existe para não haver. Fora de
+ * `packages/shared`, do núcleo de IA se importam a porta (`fio`, `motor`,
+ * `orquestrar`, `nuvem`, `recursos`) e os descritores (nomes `descritor*`).
+ *
+ * Conta só import **de valor**: `import type` e `type X` ficam de fora, porque
+ * tipo não sequencia nada — e contá-los faria a catraca nascer em 3 (o cartão e
+ * a store da edição importam `Problema` e `EntradaPacote`) e não virar barreira
+ * na 1.10. `routes/` fica fora até a 5.7: `nomeDaAtividade` e `nomeProprio` são
+ * exibição, usados em seis telas. Varre `mobile/src` e `web/src`, fora de
+ * teste; os nomes vêm do que as peças de `ia/` exportam, e conta arquivos.
+ *
+ * Teto e histórico:
+ *   1 (5.1) — `mobile/src/lib/edicao-ia.ts`, a sequência da narração que a 1.10
+ *             passa para o orquestrador. Vira barreira em zero, na 1.10.
+ */
+const PORTA_DE_IA = new Set(['fio', 'motor', 'orquestrar', 'nuvem', 'recursos']);
+const TETO_PECAS_DE_IA = 1;
+
+check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritores (teto ${TETO_PECAS_DE_IA})`, () => {
+  const iaDir = join(SHARED_SRC, 'ia');
+  const moduloDe = (f: string) => f.slice(iaDir.length + 1).replace(/\.tsx?$/, '');
+  const pecas = walk(iaDir).filter((f) => !ehTeste(f) && !PORTA_DE_IA.has(moduloDe(f)));
+
+  // Os nomes de VALOR que as peças exportam — pelo barril, é assim que os apps
+  // os alcançam. Interface e `type` não entram: importá-los não sequencia nada.
+  const nomes = new Set<string>();
+  for (const f of pecas) {
+    const src = semComentario(readFileSync(f, 'utf8'));
+    const DECLARA =
+      /^[ \t]*export\s+(?:declare\s+)?(?:async\s+)?(?:function\*?\s*|const\s+enum\s+|enum\s+|const\s+|let\s+|var\s+|(?:abstract\s+)?class\s+)([A-Za-z_$][\w$]*)/gm;
+    for (const m of src.matchAll(DECLARA)) nomes.add(m[1]);
+    for (const m of src.matchAll(/^[ \t]*export\s*\{([^}]*)\}/gm)) {
+      for (const s of m[1].split(',').map((x) => x.trim())) {
+        if (s && !/^type\s/.test(s)) nomes.add(s.split(/\s+as\s+/).pop()!.trim());
+      }
+    }
+  }
+  assert.ok(pecas.length > 0 && nomes.size > 0, 'as peças de ia/ não exportam valor nenhum — a catraca ficou sem alvo');
+
+  const ehDescritor = (nome: string) => /^descritor/i.test(nome);
+  const PECA_PROFUNDA = /(?:^|\/)(?:@vitale\/shared|packages\/shared)(?:\/src)?\/ia\/(.+?)(?:\.tsx?)?$/;
+  const IMPORTACAO = /^[ \t]*(import|export)\s+(type\s+)?([^;'"]*?)\s*\bfrom\s*(['"])([^'"]+)\4/gm;
+  const DINAMICA = /\b(?:import|require)\s*\(\s*(['"])([^'"]+)\1/g;
+
+  /** Os nomes de valor de uma cláusula de import: sem `type X`, sem os descritores. */
+  const deValor = (clausula: string): string[] => {
+    const out: string[] = [];
+    const chaves = /\{([^}]*)\}/.exec(clausula);
+    if (chaves) {
+      for (const s of chaves[1].split(',').map((x) => x.trim())) {
+        if (s && !/^type\s/.test(s)) out.push(s.split(/\s+as\s+/)[0].trim());
+      }
+    }
+    if (/\*/.test(clausula)) out.push('* (o módulo inteiro)');
+    const padrao = clausula.replace(/\{[^}]*\}/, '').replace(/\*\s*as\s+[\w$]+/, '').replace(/,/g, ' ').trim();
+    if (padrao) out.push(`${padrao} (default)`);
+    return out.filter((n) => !ehDescritor(n));
+  };
+
+  const fora: string[] = [];
+  for (const f of [...mobileFiles, ...webFiles].filter((x) => !ehTeste(x))) {
+    const src = semComentario(readFileSync(f, 'utf8'));
+    const achados = new Set<string>();
+    for (const m of src.matchAll(IMPORTACAO)) {
+      if (m[2]) continue;                                   // import type / export type
+      const spec = m[5];
+      const valor = deValor(m[3]);
+      if (spec === '@vitale/shared') {
+        // Pelo barril: só conta o que é peça de ia/. `* as X` do barril inteiro
+        // alcança as peças todas — conta também.
+        for (const n of valor) if (nomes.has(n) || n.startsWith('*')) achados.add(n);
+        continue;
+      }
+      const peca = PECA_PROFUNDA.exec(spec);
+      if (peca && !PORTA_DE_IA.has(peca[1])) for (const n of valor) achados.add(`${n} de ia/${peca[1]}`);
+    }
+    for (const m of src.matchAll(DINAMICA)) {
+      const peca = PECA_PROFUNDA.exec(m[2]);
+      if (peca && !PORTA_DE_IA.has(peca[1])) achados.add(`import() de ia/${peca[1]}`);
+    }
+    if (achados.size > 0) fora.push(`${f.replace(ROOT + '/', '')} (${[...achados].join(', ')})`);
+  }
+  fora.sort();
+  if (fora.length < TETO_PECAS_DE_IA) {
+    console.log(`     ↓ peças de IA fora do núcleo caíram para ${fora.length} (teto ${TETO_PECAS_DE_IA}) — baixe o teto`);
+  }
+  assert.ok(
+    fora.length <= TETO_PECAS_DE_IA,
+    `peça do núcleo de IA importada fora dele em ${fora.length} arquivos (teto ${TETO_PECAS_DE_IA}):\n    ` +
+      `${fora.join('\n    ')}\n` +
+      `  O hospedeiro chama o orquestrador (ler) com o descritor do recurso; montar o pedido, ` +
+      `interpretar e conferir são do descritor, dentro do núcleo (AD-2).`,
   );
 });
 
@@ -823,9 +1298,7 @@ check('BARREIRA — o núcleo que fala com modelo não conhece rede, SDK nem for
 check('BARREIRA — a luz da revista não lê aparelho, fuso nem ambiente', () => {
   const arquivo = join(ROOT, 'packages', 'shared', 'src', 'astro', 'casa.ts');
   assert.ok(existsSync(arquivo), 'casa.ts sumiu — a guarda ficou sem alvo');
-  const src = readFileSync(arquivo, 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/^[ \t]*\/\/.*$/gm, ' ');
+  const src = semComentario(readFileSync(arquivo, 'utf8'));
   const PROIBIDO = [
     { re: /from\s*['"][^'"]*timezone-coords['"]/, o: "import de 'timezone-coords'" },
     { re: /\b(deviceCoords|coordsForTimeZone|deviceTimeZone)\s*\(/, o: 'leitura do aparelho ou do fuso' },

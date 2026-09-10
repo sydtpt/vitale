@@ -17,23 +17,17 @@
  * gravar recusa num caso desses queimaria a rota para sempre por causa de um
  * timeout.
  */
+import type { ChamadorDeModelo } from '../ia/motor';
 import { montarNome } from './molde';
-import { lerRespostaDoModelo, montarPromptDeNome, PROMPT_NOME_VERSAO, type PromptDeNome } from './prompt';
+import { lerRespostaDoModelo, montarPromptDeNome, PROMPT_NOME_VERSAO } from './prompt';
 import { lerRota } from './shape';
 import { verificarNome } from './verificar';
 import type { HomeAnchor, Lingua, RouteFacts, RouteShape } from './types';
 
-/** O que o chamador devolve. Espelha a `Narracao` da edge function, sem conhecê-la. */
-export interface RespostaDoModelo {
-  texto: string;
-  provedor?: string;
-  modelo?: string;
-  /** `STOP` é conclusão. Qualquer outra coisa significa truncado — e JSON truncado não é JSON. */
-  motivoDeParada?: string;
-  tokens?: { entrada: number; saida: number };
-}
-
-export type ChamadorDeModelo = (prompt: PromptDeNome) => Promise<RespostaDoModelo>;
+// A costura antiga mudou-se para `ia/motor.ts`, onde morre na 5.7. Reexportada
+// com o MESMO nome — o mesmo símbolo, então o `export *` do barril não a vê
+// duas vezes —, para quem já a importava daqui continuar compilando.
+export type { ChamadorDeModelo, RespostaDoModelo } from '../ia/motor';
 
 export type MotivoDaRecusa =
   | 'degenerada'
