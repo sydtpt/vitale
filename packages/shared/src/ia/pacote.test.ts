@@ -14,8 +14,11 @@ import {
   periodoFechado,
   procedenciaDoPacote,
   ressalvasObrigatorias,
+  TEXTO_DA_ESTACAO,
   valoresDoPacote,
 } from './pacote';
+import { montarPromptDaEdicao } from './prompt';
+import { estacaoDaLuz } from '../astro/casa';
 
 /* ── fábricas ── */
 
@@ -730,6 +733,284 @@ describe('período em curso', () => {
     for (const p of ps) {
       assert.equal(p.periodo.fechado, false, 'quem decide não gerar parágrafo é o chamador');
       assert.equal(p.periodo.diasNoPeriodo, 30);
+    }
+  });
+});
+
+/*
+ * ── A LUZ DO PERÍODO: TEXTO, NUNCA NÚMERO (Story 1.6) ──
+ *
+ * Duas tentativas puseram as horas de luz no pacote como número, e as duas
+ * passaram verdes com asserções ancoradas no agosto de 14,5 h — o caso sortudo.
+ * Julho dá 16, dezembro dá 8, todo ano, e um inteiro desses entrava no alfabeto
+ * de cadernos que não o tinham. Por isso TODA asserção daqui varre os 60 meses
+ * de 2023 a 2027, e nenhuma olha um mês só.
+ */
+describe('a luz do período — texto em `periodo`, custo zero no alfabeto', () => {
+  const ANOS = [2023, 2024, 2025, 2026, 2027];
+  const NOMES = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ];
+
+  /** O mesmo resumo de agosto, mudado para outro mês — só as datas andam. */
+  function entradaDoMes(ano: number, m: number, resumo: RetroSummary = agosto()) {
+    const mm = String(m).padStart(2, '0');
+    const ultimo = new Date(Date.UTC(ano, m, 0)).getUTCDate();
+    return {
+      resumo: {
+        ...resumo, label: `${NOMES[m - 1]} ${ano}`,
+        startISO: `${ano}-${mm}-01`, endISO: `${ano}-${mm}-${ultimo}`,
+      } as RetroSummary,
+      agora: AGORA,
+      coberturaSono: { noites: 27, noitesAnterior: 14 },
+    };
+  }
+
+  const MESES = ANOS.flatMap((ano) => NOMES.map((_, i) => [ano, i + 1] as const));
+
+  /** Um intervalo qualquer, com o mesmo resumo de agosto — só as datas andam. */
+  function entradaDe(kind: RetroSummary['kind'], startISO: string, endISO: string, label: string) {
+    return {
+      resumo: { ...agosto(), kind, label, startISO, endISO } as RetroSummary,
+      agora: AGORA,
+      coberturaSono: { noites: 27, noitesAnterior: 14 },
+    };
+  }
+
+  /** O alfabeto de cada caderno, como texto comparável. */
+  const alfabetos = (ps: readonly PacoteDeFatos[]) =>
+    Object.fromEntries(ps.map((p) => [p.caderno, [...valoresDoPacote(p)].sort((a, b) => a - b).join(' ')]));
+
+  it('existe em todo mês, e é o texto da estação daquele mês', () => {
+    // Não basta existir: uma troca de "curtos" por "longos", ou uma luz presa em
+    // "transição", produziria um texto sem dígito e igual nos quatro cadernos —
+    // tudo o que as outras asserções pedem — dizendo ao modelo que dezembro é claro.
+    for (const [ano, m] of MESES) {
+      const ultimo = new Date(Date.UTC(ano, m, 0)).getUTCDate();
+      const mm = String(m).padStart(2, '0');
+      const esperado = TEXTO_DA_ESTACAO[estacaoDaLuz(`${ano}-${mm}-01`, `${ano}-${mm}-${ultimo}`)!];
+      for (const p of montarPacotes(entradaDoMes(ano, m))) {
+        assert.equal(p.periodo.luz, esperado, `${ano}-${m} ${p.caderno}`);
+      }
+    }
+  });
+
+  it('os doze meses com o texto LITERAL, nos cinco anos — não derivado da função', () => {
+    // O teste acima confere a fiação (o pacote usa a estação calculada); este
+    // confere a estação. Os dois juntos são o que o primeiro sozinho fingia ser.
+    const ESPERADO = [
+      'dias curtos', 'dias curtos', 'dias em transição', 'dias longos', 'dias longos', 'dias longos',
+      'dias longos', 'dias longos', 'dias em transição', 'dias curtos', 'dias curtos', 'dias curtos',
+    ];
+    for (const ano of ANOS) {
+      for (let m = 1; m <= 12; m += 1) {
+        assert.equal(montarPacotes(entradaDoMes(ano, m))[0].periodo.luz, ESPERADO[m - 1], `${NOMES[m - 1]} de ${ano}`);
+      }
+    }
+  });
+
+  /*
+   * O ALFABETO NÃO CONHECE A ESTAÇÃO — e esta é a guarda que não depende de chave.
+   *
+   * Uma versão anterior deste teste comparava cada pacote com ele mesmo "sem a
+   * luz", tirando `periodo.luz` e os fatos de chave `luz`. A revisão devolveu as
+   * horas de luz sob a chave `sol` e os 240 pacotes passaram: o teste só pegava
+   * a luz voltando pelo nome que as tentativas revertidas usaram.
+   *
+   * Esta não pergunta o nome. Com o MESMO resumo, dois períodos do mesmo
+   * comprimento e de estações diferentes têm que ter alfabetos idênticos —
+   * janeiro (curtos) e julho (longos) têm 31 dias; o terceiro e o quarto
+   * trimestres, 92. Se qualquer número sazonal entrar no pacote, sob qualquer
+   * chave ou campo, os dois divergem.
+   */
+  it('meses do mesmo comprimento têm alfabetos IDÊNTICOS, qualquer que seja a estação', () => {
+    for (const ano of ANOS) {
+      const porComprimento = new Map<number, Array<[number, Record<string, string>]>>();
+      for (let m = 1; m <= 12; m += 1) {
+        const dias = new Date(Date.UTC(ano, m, 0)).getUTCDate();
+        const lista = porComprimento.get(dias) ?? [];
+        lista.push([m, alfabetos(montarPacotes(entradaDoMes(ano, m)))]);
+        porComprimento.set(dias, lista);
+      }
+      for (const [dias, lista] of porComprimento) {
+        const [m0, a0] = lista[0];
+        for (const [m, a] of lista.slice(1)) {
+          assert.deepEqual(a, a0, `${ano}: meses ${m0} e ${m} (${dias} dias) divergem — algo sazonal virou número`);
+        }
+      }
+      // O teste só prova algo se o mesmo comprimento cobrir estações diferentes.
+      const estacoesDe31 = new Set(
+        (porComprimento.get(31) ?? []).map(([m]) => montarPacotes(entradaDoMes(ano, m))[0].periodo.luz),
+      );
+      assert.equal(estacoesDe31.size, 3, `${ano}: os meses de 31 dias deviam cobrir as três estações`);
+    }
+  });
+
+  it('SEMANA: toda semana de 2023 a 2027 tem estação certa, e o alfabeto não a conhece', () => {
+    // A tela abre na semana por padrão, e a matriz da spec tem uma linha para ela.
+    let referencia: Record<string, string> | null = null;
+    const vistas = new Set<string>();
+    for (let t = Date.UTC(2023, 0, 2); t <= Date.UTC(2027, 11, 27); t += 7 * 86_400_000) {
+      const ini = new Date(t).toISOString().slice(0, 10);
+      const fim = new Date(t + 6 * 86_400_000).toISOString().slice(0, 10);
+      const ps = montarPacotes(entradaDe('week', ini, fim, `${ini.slice(8)}/${ini.slice(5, 7)}`));
+      const esperado = TEXTO_DA_ESTACAO[estacaoDaLuz(ini, fim)!];
+      for (const p of ps) assert.equal(p.periodo.luz, esperado, `semana de ${ini}`);
+      vistas.add(esperado);
+      const a = alfabetos(ps);
+      referencia ??= a;
+      assert.deepEqual(a, referencia, `semana de ${ini}: o alfabeto mudou com a estação`);
+    }
+    assert.equal(vistas.size, 3, 'as semanas deviam cobrir as três estações');
+  });
+
+  it('TRIMESTRE: estação certa em todos, e o 3º e o 4º — 92 dias cada — têm o mesmo alfabeto', () => {
+    const tri = (ano: number, q: number): readonly [string, string] => {
+      const ini = `${ano}-${String(q * 3 - 2).padStart(2, '0')}-01`;
+      const ultimo = new Date(Date.UTC(ano, q * 3, 0)).getUTCDate();
+      return [ini, `${ano}-${String(q * 3).padStart(2, '0')}-${ultimo}`];
+    };
+    for (const ano of ANOS) {
+      const porQ: Array<Record<string, string>> = [];
+      for (let q = 1; q <= 4; q += 1) {
+        const [ini, fim] = tri(ano, q);
+        const ps = montarPacotes(entradaDe('season', ini, fim, `Q${q} ${ano}`));
+        const esperado = TEXTO_DA_ESTACAO[estacaoDaLuz(ini, fim)!];
+        for (const p of ps) assert.equal(p.periodo.luz, esperado, `Q${q} de ${ano}`);
+        porQ.push(alfabetos(ps));
+      }
+      // Q3 (julho–setembro) é de dias longos, Q4 (outubro–dezembro) de curtos.
+      assert.deepEqual(porQ[3], porQ[2], `${ano}: Q3 e Q4 têm 92 dias e alfabetos diferentes`);
+    }
+  });
+
+  /*
+   * A ASSINATURA DA PROCEDÊNCIA — a guarda que nem a isomorfia tinha.
+   *
+   * A isomorfia compara CONJUNTOS de valores entre estações, e por construção
+   * não vê um número que não varie com a estação, nem um que coincida com um
+   * valor que o caderno já tem. A revisão pôs uma luz constante de 11 no
+   * Movimento — 11 é o valor de B1 das sessões de ciclismo — e tudo passou,
+   * enquanto a quinta regra ficava desarmada para o 11 pela guarda de
+   * ambiguidade.
+   *
+   * Esta conta ENTRADAS da procedência, não valores distintos, e lista as chaves.
+   * Com o mesmo resumo, nenhuma das duas coisas depende do período — então elas
+   * são literais, e qualquer número novo, sob qualquer chave, constante ou não,
+   * colidindo ou não, muda a contagem.
+   */
+  const ASSINATURA: Record<string, readonly [number, readonly string[]]> = {
+    sono: [13, ['', 'nota_sono', 'sono']],
+    movimento: [61, [
+      '', 'andares', 'atividades', 'ciclismo.distancia', 'ciclismo.elevacao', 'ciclismo.sessoes',
+      'ciclismo.tempo', 'corrida.distancia', 'corrida.elevacao', 'corrida.sessoes', 'corrida.tempo',
+      'distancia', 'passos_dia', 'tempo',
+    ]],
+    coracao: [11, ['', 'fcRepouso']],
+    rotina: [14, ['', 'compras', 'gasto', 'nota_dia', 'tarefas']],
+  };
+
+  const confereAssinatura = (ps: readonly PacoteDeFatos[], onde: string) => {
+    for (const p of ps) {
+      const pr = procedenciaDoPacote(p);
+      const [n, chaves] = ASSINATURA[p.caderno];
+      assert.equal(pr.length, n, `${onde} ${p.caderno}: ${pr.length} entradas na procedência, eram ${n}`);
+      assert.deepEqual([...new Set(pr.map((x) => x.chave))].sort(), [...chaves], `${onde} ${p.caderno}: chave nova`);
+    }
+  };
+
+  it('a assinatura da procedência não muda — nos 60 meses, em toda semana e em todo trimestre', () => {
+    for (const [ano, m] of MESES) confereAssinatura(montarPacotes(entradaDoMes(ano, m)), `${ano}-${m}`);
+    for (let t = Date.UTC(2023, 0, 2); t <= Date.UTC(2027, 11, 27); t += 7 * 86_400_000) {
+      const ini = new Date(t).toISOString().slice(0, 10);
+      const fim = new Date(t + 6 * 86_400_000).toISOString().slice(0, 10);
+      confereAssinatura(montarPacotes(entradaDe('week', ini, fim, ini)), `semana ${ini}`);
+    }
+    for (const ano of ANOS) {
+      for (let q = 1; q <= 4; q += 1) {
+        const ini = `${ano}-${String(q * 3 - 2).padStart(2, '0')}-01`;
+        const ultimo = new Date(Date.UTC(ano, q * 3, 0)).getUTCDate();
+        const fim = `${ano}-${String(q * 3).padStart(2, '0')}-${ultimo}`;
+        confereAssinatura(montarPacotes(entradaDe('season', ini, fim, `Q${q} ${ano}`)), `Q${q} ${ano}`);
+      }
+    }
+  });
+
+  it('a luz não é fato de caderno: nem em `metricas`, nem em `textos`, nem em `tendencias`', () => {
+    for (const [ano, m] of MESES) {
+      for (const p of montarPacotes(entradaDoMes(ano, m))) {
+        const chaves = [...p.metricas, ...p.textos, ...p.tendencias].map((x) => x.chave);
+        assert.deepEqual(chaves.filter((c) => /luz/i.test(c)), [], `${ano}-${m} ${p.caderno}`);
+      }
+    }
+  });
+
+  it('está nos QUATRO pacotes, e é o mesmo texto', () => {
+    for (const [ano, m] of MESES) {
+      const luzes = montarPacotes(entradaDoMes(ano, m)).map((p) => p.periodo.luz);
+      assert.equal(luzes.length, 4);
+      assert.equal(new Set(luzes).size, 1, `${ano}-${m}: cadernos discordam da luz`);
+    }
+  });
+
+  it('nem o campo nem o CABEÇALHO INTEIRO têm número de luz — em nenhum mês', () => {
+    // O cabeçalho é por onde a luz chega ao modelo. Cobrar só a linha "Luz do
+    // dia:" deixava passar uma segunda linha "Sol: 14,5 h" ou as horas coladas
+    // no fim da linha do Período — a revisão fez as duas coisas e passou.
+    // Do cabeçalho saem só o rótulo, as datas ISO e a contagem de dias, que são
+    // do período e não da luz; o que sobra não pode ter dígito nenhum.
+    for (const [ano, m] of MESES) {
+      const ps = montarPacotes(entradaDoMes(ano, m));
+      assert.equal(/\d/.test(ps[0].periodo.luz!), false, `${ano}-${m}: "${ps[0].periodo.luz}"`);
+      const { usuario } = montarPromptDaEdicao(ps);
+      // A primeira linha é o título, e ele tem o ano — por isso sai da varredura.
+      // Mas sai porque é EXATAMENTE o título: pulá-la sem conferir deixava passar
+      // `# Julho 2026 · 16,0 h de luz`, e a revisão fez isso com a suíte verde.
+      const [titulo, ...demais] = usuario.split('\n###')[0].split('\n');
+      assert.equal(titulo, `# ${ps[0].periodo.rotulo}`, `${ano}-${m}: o título ganhou algo além do rótulo`);
+      const cabecalho = demais.join('\n');
+      assert.ok(cabecalho.includes('Luz do dia:'), `${ano}-${m}: a linha da luz não saiu`);
+      const resto = cabecalho.replace(/\d{4}-\d{2}-\d{2}/g, '').replace(/\(\d+ dias\)/g, '');
+      assert.equal(/\d/.test(resto), false, `${ano}-${m}: número no cabeçalho:\n${cabecalho}`);
+    }
+  });
+
+  it('ano e histórico completo não têm estação — `null`, declarado', () => {
+    for (const ano of ANOS) {
+      const r = { ...agosto(), kind: 'year' as const, label: String(ano), startISO: `${ano}-01-01`, endISO: `${ano}-12-31` };
+      for (const p of montarPacotes({ resumo: r as RetroSummary, agora: AGORA })) {
+        assert.equal(p.periodo.luz, null, `${ano}: um ano cobre todas as estações`);
+      }
+    }
+    const tudo = { ...agosto(), kind: 'all' as const, label: 'Tudo', startISO: '2023-05-22', endISO: '2026-09-06' };
+    for (const p of montarPacotes({ resumo: tudo as RetroSummary, agora: AGORA })) {
+      assert.equal(p.periodo.luz, null);
+    }
+  });
+
+  it('no prompt que a PRODUÇÃO manda, caderno vazio não aparece e a luz sai uma vez', () => {
+    // `montarPromptDaEdicao` é o grão que o celular usa até a Story 1.10. A
+    // tentativa anterior só protegia `montarPrompt`, e na edição real cada
+    // caderno vazio voltava à vida carregando a luz — quatro vezes.
+    const vazio = { ...agosto(), health: [], ratings: { sleep: null, day: metrica(4.0, 3.82, 30) } };
+    for (const [ano, m] of MESES) {
+      const pacotes = montarPacotes({ ...entradaDoMes(ano, m, vazio as RetroSummary), coberturaSono: undefined });
+      const { usuario } = montarPromptDaEdicao(pacotes);
+      assert.equal(usuario.includes('### Sono'), false, `${ano}-${m}: Sono vazio apareceu`);
+      assert.equal(usuario.includes('### Coração'), false, `${ano}-${m}: Coração vazio apareceu`);
+      assert.equal(usuario.split('Luz do dia:').length - 1, 1, `${ano}-${m}: a luz não saiu exatamente uma vez`);
+    }
+  });
+
+  it('`semDado` não muda por causa da luz — caderno vazio segue vazio', () => {
+    // Um mês sem nenhuma métrica de saúde nem nota: Sono e Coração ficam vazios.
+    const vazio = { ...agosto(), health: [], ratings: { sleep: null, day: metrica(4.0, 3.82, 30) } };
+    for (const [ano, m] of MESES) {
+      const c = porCaderno(montarPacotes({ ...entradaDoMes(ano, m, vazio as RetroSummary), coberturaSono: undefined }));
+      assert.equal(c.sono.semDado, true, `${ano}-${m}: a luz encheu o Sono`);
+      assert.equal(c.coracao.semDado, true, `${ano}-${m}: a luz encheu o Coração`);
+      assert.ok(c.sono.periodo.luz, 'e a luz continua lá — só não conta como conteúdo');
     }
   });
 });

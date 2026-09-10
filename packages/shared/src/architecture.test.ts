@@ -805,4 +805,40 @@ check('BARREIRA — o núcleo que fala com modelo não conhece rede, SDK nem for
   );
 });
 
+/**
+ * AD-10: a coordenada da luz é constante do núcleo, nunca do aparelho.
+ *
+ * O script de backfill e o iPhone podem estar em fusos diferentes e têm que
+ * produzir a MESMA edição — uma estação de luz que dependesse de quem apertou o
+ * botão faria o mesmo período ter dois pacotes. `astro/timezone-coords.ts` já
+ * oferece `deviceCoords()`, e usá-lo em `casa.ts` seria o caminho natural.
+ *
+ * Os testes de valor não bastam: um `COORDENADA_DA_LUZ = deviceCoords()` é
+ * avaliado uma vez no import e passa num teste que só troca o fuso depois; e uma
+ * leitura de ambiente fica invisível num processo de teste onde a variável não
+ * está definida. A barreira de pureza do núcleo de IA varre `ia/` e `routes/`,
+ * e a luz entra por `astro/` — por isso esta existe, e entra no mesmo commit da
+ * regra que cobra.
+ */
+check('BARREIRA — a luz da revista não lê aparelho, fuso nem ambiente', () => {
+  const arquivo = join(ROOT, 'packages', 'shared', 'src', 'astro', 'casa.ts');
+  assert.ok(existsSync(arquivo), 'casa.ts sumiu — a guarda ficou sem alvo');
+  const src = readFileSync(arquivo, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^[ \t]*\/\/.*$/gm, ' ');
+  const PROIBIDO = [
+    { re: /from\s*['"][^'"]*timezone-coords['"]/, o: "import de 'timezone-coords'" },
+    { re: /\b(deviceCoords|coordsForTimeZone|deviceTimeZone)\s*\(/, o: 'leitura do aparelho ou do fuso' },
+    { re: /\bprocess\.env\b|\bDeno\.env\b/, o: 'leitura de ambiente' },
+    { re: /\bIntl\.DateTimeFormat\b|\.getTimezoneOffset\s*\(/, o: 'leitura do fuso do processo' },
+  ];
+  const achados = PROIBIDO.filter(({ re }) => re.test(src)).map(({ o }) => o);
+  assert.deepEqual(
+    achados,
+    [],
+    `casa.ts lê ${achados.join(', ')}. A coordenada da luz é constante do núcleo (AD-10): `
+      + 'dois hospedeiros em fusos diferentes têm que produzir a mesma edição.',
+  );
+});
+
 console.log(`\n${passed} testes passaram.`);

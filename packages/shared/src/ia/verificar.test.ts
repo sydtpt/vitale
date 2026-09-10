@@ -5,7 +5,7 @@ import {
   MONTHS_PT, periodLabel, periodProseLabel, previousPeriodLabel,
 } from '../period/bounds';
 import type { Base, BaseId, FatoNumero, PacoteDeFatos } from './pacote';
-import { BASE_ROTULO } from './pacote';
+import { BASE_ROTULO, TEXTO_DA_ESTACAO } from './pacote';
 import {
   formatarNumero, montarPrompt, montarPromptDaEdicao, PROMPT_VERSAO,
 } from './prompt';
@@ -51,6 +51,9 @@ const PERIODO = {
   rotuloAnterior: 'Julho 2026' as string | null,
   inicioISO: '2026-08-01', fimISO: '2026-08-31',
   fechado: true, diasNoPeriodo: 31,
+  // Estes pacotes medem a CONFERÊNCIA, não a luz — `null` é "sem estação a
+  // relatar", e é o que mantém cada teste daqui sobre o que ele sempre mediu.
+  luz: null,
 };
 
 function pacoteAgosto(opts: { correlacaoFraca?: boolean; lacuna?: boolean } = {}): PacoteDeFatos[] {
@@ -844,6 +847,8 @@ function pacoteDaEdicao(e: EdicaoReal): PacoteDeFatos {
       rotuloAnterior: previousPeriodLabel(e.tipo, e.inicio),
       inicioISO: e.inicio, fimISO: e.fim,
       fechado: true, diasNoPeriodo: e.dias,
+      // As edições reais foram escritas pelo prompt v2, que não tinha luz.
+      luz: null,
     },
     metricas: e.fatos.map(fatoRotulado),
     tendencias: [], textos: [],
@@ -1252,6 +1257,7 @@ function pacoteTresBases(tipo: PeriodKind): PacoteDeFatos {
       rotulo: periodLabel(tipo, new Date(`${inicio}T00:00:00`)),
       rotuloAnterior: previousPeriodLabel(tipo, inicio),
       inicioISO: inicio, fimISO: fim, fechado: true, diasNoPeriodo: dias,
+      luz: null,
     },
     metricas: [{ ...f, bases: [b1, B2_VALORADA, B3_VALORADA] }],
     tendencias: [], textos: [], cobertura: null,
@@ -1770,7 +1776,7 @@ describe('montarPrompt — um caderno, e a união é outra função', () => {
   });
 });
 
-describe('SISTEMA — as leis do jornal na versão 3', () => {
+describe('SISTEMA — as leis do jornal', () => {
   const { sistema } = montarPrompt(pacoteTresBases('month'));
 
   it('a lei serve aos DOIS grãos — não descreve só o caderno nem só a edição', () => {
@@ -1942,8 +1948,37 @@ describe('SISTEMA — as leis do jornal na versão 3', () => {
     assert.ok(sistema.includes('COBERTURA DESIGUAL'));
   });
 
-  it('a versão do prompt é 3', () => {
-    assert.equal(PROMPT_VERSAO, 3);
+  it('a versão do prompt é 4 — a luz entrou no cabeçalho', () => {
+    assert.equal(PROMPT_VERSAO, 4);
+  });
+
+  /*
+   * A LINHA DA LUZ TEM LEI. Sem ela, o modelo que usasse a luz para o que ela
+   * serve — situar a estação — escreveria "a corrida subiu graças aos dias
+   * longos", e a regra de causa recusaria a edição. Medido na revisão.
+   */
+  it('a lei diz o que fazer com a linha da luz: contexto, nunca explicação, nunca horas', () => {
+    assert.match(sistema, /"Luz do dia" é CONTEXTO DE ESTAÇÃO/);
+    assert.match(sistema, /Nunca a use como\s+explicação/);
+    // Outro período também, e não só outro ano: "os dias já encurtam desde
+    // julho" põe o nome do mês anterior perto de números, e a quinta regra o lê
+    // como nomeação de B1.
+    assert.match(sistema, /nunca a compare com outro período ou outro ano/);
+    assert.match(sistema, /nunca diga que os\s+dias estão crescendo ou encurtando/);
+    assert.match(sistema, /nunca a escreva em horas/);
+    // A redação anterior dizia que "qualquer número delas invalida o texto" — e é
+    // falso: "16h de sol" passa pela isenção de hora de relógio. Lei que promete
+    // o que a conferência não cobra é pior que ausência.
+    assert.doesNotMatch(sistema, /qualquer número delas invalida/);
+  });
+
+  it('e é por isso que a luz não pode ser explicação: a regra de causa a recusa', () => {
+    const p = pacoteTresBases('month');
+    const obediente = 'Agosto foi de dias longos. Foram 435 km, contra julho: 862 km.';
+    assert.deepEqual(verificarTexto(obediente, p).problemas, [], 'situar a estação passa');
+    const explicando = 'Foram 435 km graças aos dias longos, contra julho: 862 km.';
+    const regras = verificarTexto(explicando, p).problemas.map((x) => x.regra);
+    assert.ok(regras.includes('causa'), 'usar a luz como explicação é causa, e a edição cai');
   });
 });
 
@@ -1993,5 +2028,127 @@ describe('o que a conferência NÃO cobra — a rede que o SISTEMA não tem', ()
     assert.ok(semRegra('Foram 999 km.').includes('numero'));
     assert.ok(semRegra('Foram 435 km, contra 862 no ano passado.').includes('base'));
     assert.ok(semRegra('Dormiu melhor porque correu.').includes('causa'));
+  });
+});
+
+/*
+ * ── A LUZ DO PERÍODO É INVISÍVEL PARA A CONFERÊNCIA (Story 1.6) ──
+ *
+ * A segunda tentativa da camada de luz escrevia *"a mesma luz de agosto do ano
+ * passado"* — que é literalmente a frase prescrita de B2 — e a quinta regra
+ * capturava números de B1 com ela, mesmo com "julho" na frase: *"Sob a mesma
+ * luz de agosto do ano passado, 820 km em julho viraram 333"* era recusado.
+ * Os testes daquela tentativa conferiam a STRING do prompt e nunca passavam o
+ * texto pelo verificador. Estes passam.
+ */
+describe('a luz do período — invisível para a quinta regra', () => {
+  /** Como a quinta regra lê: minúsculas, sem acento, sem quebra de linha. */
+  const normalizado = (s: string) => s.toLowerCase()
+    .replace(/[áàâã]/g, 'a').replace(/[éê]/g, 'e').replace(/[íì]/g, 'i')
+    .replace(/[óôõ]/g, 'o').replace(/[úü]/g, 'u').replace(/ç/g, 'c')
+    .replace(/\s+/g, ' ');
+
+  // O mesmo vocabulário que a quinta regra usa para nomear B1, B2 e B3.
+  const VOCAB_DE_BASE = [
+    'periodo anterior', 'periodo passado', 'ciclo anterior', 'ciclo passado',
+    'etapa anterior', 'etapa passada', 'semana anterior', 'semana passada',
+    'mes anterior', 'mes passado', 'trimestre anterior', 'trimestre passado',
+    'estacao anterior', 'ano anterior', 'ano passado', 'mesmo periodo do ano',
+    'um ano antes', 'ha um ano', 'normal do periodo', 'a normal', 'normal historica',
+    'media historica', 'media dos anos', 'costuma fazer',
+  ];
+
+  const TEXTOS = Object.values(TEXTO_DA_ESTACAO);
+
+  it('cada texto de estação: sem dígito, sem vocabulário de base, sem nome de mês', () => {
+    assert.equal(TEXTOS.length, 3);
+    // Congelado: o barril o exporta, e `Readonly` é só de tipo — sem o freeze,
+    // um consumidor poria dígito ou "ano passado" no cabeçalho de toda edição.
+    assert.ok(Object.isFrozen(TEXTO_DA_ESTACAO));
+    for (const t of TEXTOS) {
+      const n = normalizado(t);
+      assert.equal(/\d/.test(n), false, `"${t}" tem dígito`);
+      assert.deepEqual(VOCAB_DE_BASE.filter((v) => n.includes(v)), [], `"${t}" nomeia base`);
+      assert.deepEqual(
+        MONTHS_PT.filter((m) => new RegExp(`\\b${normalizado(m)}\\b`).test(n)), [],
+        `"${t}" tem nome de mês`,
+      );
+    }
+  });
+
+  /*
+   * IDA E VOLTA, e é ela que importa: o mesmo texto, com e sem a frase da luz,
+   * tem que ter o MESMO veredito — nas frases que passam, nas que reprovam por
+   * ausência e nas que reprovam por inversão. A frase é posta no começo, colada
+   * ANTES do número de base e colada DEPOIS dele, que é a vizinhança onde a
+   * tentativa anterior capturava.
+   */
+  it('copiar a frase da luz não muda o veredito de frase nenhuma, em nenhum tipo de período', () => {
+    const casos: Array<[string, PacoteDeFatos, string[]]> = [
+      ['mês', pacoteTresBases('month'), [
+        'Foram 435 km, contra julho: 862 km.',
+        'Foram 435 km, contra 862.',
+        'Foram 435 km, contra 862 em agosto do ano passado.',
+        'Foram 435 km, contra agosto do ano passado: 300 km.',
+        'Foram 435 km, contra o que você costuma fazer em agosto: 410 km.',
+        'Em julho foram 862 km; em agosto, 435.',
+      ]],
+      ['ano', pacoteTresBases('year'), [
+        'Foram 435 km, contra 2024: 862 km.',
+        'Foram 435 km, contra 862.',
+      ]],
+      ['semana', pacoteTresBases('week'), [
+        'Foram 435 km, contra o período anterior: 862 km.',
+        'Foram 435 km, contra 862.',
+        'Foram 435 km, contra 862 no ano passado.',
+      ]],
+      ['trimestre', pacoteTresBases('season'), [
+        'Foram 435 km, contra o período anterior: 862 km.',
+        'Foram 435 km, contra 862.',
+      ]],
+    ];
+    let conferidos = 0;
+    for (const [tipo, p, frases] of casos) {
+      for (const frase of frases) {
+        const antes = verificarTexto(frase, p).problemas;
+        for (const luz of TEXTOS) {
+          // Colada antes e depois de CADA número — não só do primeiro, que é o
+          // `atual` em quase toda frase: a vizinhança que a tentativa anterior
+          // capturava é a dos valores de BASE, e B2 e B3 vêm por último.
+          const variantes = [`Em ${luz}, ${frase.charAt(0).toLowerCase()}${frase.slice(1)}`];
+          for (const m of frase.matchAll(/\d[\d.,]*\d|\d/g)) {
+            const a = m.index ?? 0;
+            const b = a + m[0].length;
+            variantes.push(`${frase.slice(0, a)}${luz}, ${frase.slice(a)}`);
+            variantes.push(`${frase.slice(0, b)}, com ${luz},${frase.slice(b)}`);
+          }
+          for (const v of variantes) {
+            assert.deepEqual(
+              verificarTexto(v, p).problemas, antes,
+              `${tipo}: a luz mudou o veredito\n  sem: ${frase}\n  com: ${v}`,
+            );
+            conferidos += 1;
+          }
+        }
+      }
+    }
+    assert.ok(conferidos >= 200, `só ${conferidos} variantes conferidas`);
+  });
+
+  it('o prompt escreve a luz UMA vez, no cabeçalho — nos dois grãos', () => {
+    const p = pacoteTresBases('month');
+    const comLuz: PacoteDeFatos = { ...p, periodo: { ...p.periodo, luz: TEXTO_DA_ESTACAO.longos } };
+    const outro: PacoteDeFatos = { ...comLuz, caderno: 'sono', rotulo: 'Sono' };
+    const vezes = (s: string) => s.split(TEXTO_DA_ESTACAO.longos).length - 1;
+    assert.equal(vezes(montarPrompt(comLuz).usuario), 1, 'no caderno');
+    assert.equal(vezes(montarPromptDaEdicao([comLuz, outro]).usuario), 1, 'na edição, com dois cadernos');
+    const cabecalho = montarPromptDaEdicao([comLuz, outro]).usuario.split('\n###')[0];
+    assert.ok(cabecalho.includes(`Luz do dia: ${TEXTO_DA_ESTACAO.longos}.`), 'mora no cabeçalho, não num caderno');
+  });
+
+  it('sem estação, o prompt não escreve linha de luz nenhuma', () => {
+    const p = pacoteTresBases('year');
+    assert.equal(p.periodo.luz, null);
+    assert.equal(montarPrompt(p).usuario.includes('Luz do dia'), false);
   });
 });

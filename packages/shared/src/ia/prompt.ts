@@ -405,6 +405,11 @@ FORMA:
   que se esperaria, a medida que discorda da outra.
 - Datas por extenso ("30 de agosto"), nunca no formato 2026-08-30. Não repita o
   intervalo do período: o leitor sabe que período está lendo.
+- A linha "Luz do dia" é CONTEXTO DE ESTAÇÃO: diz se o período teve dias
+  curtos ou longos, e serve só para situar o que aconteceu. Nunca a use como
+  explicação, nunca a compare com outro período ou outro ano, nunca diga que os
+  dias estão crescendo ou encurtando, e nunca a escreva em horas — as horas de
+  luz não estão nos FATOS.
 - Nada de "registrou", "marcou", "ficou em", "ante", "apresentou variação de".
   Isso é registro de planilha. Escreva como um jornal escreve.`;
 
@@ -424,8 +429,22 @@ FORMA:
  *     direção, os fatos sem número ganham seção, a Cobertura sai de baixo do
  *     último subtítulo, e a primeira frase vira capa e sumário. O prompt passa
  *     a ser montado por caderno.
+ * 4 — a luz do período entra no cabeçalho, uma vez, em palavras (*"dias
+ *     curtos"*), sem número e sem vocabulário de base.
  */
-export const PROMPT_VERSAO = 3;
+export const PROMPT_VERSAO = 4;
+
+/**
+ * A linha da luz no cabeçalho — ou nada, quando o período não tem estação.
+ *
+ * Uma vez por prompt, e não por caderno: a luz é propriedade do período, e
+ * repeti-la em cada bloco a faria aparecer quatro vezes na edição e ressuscitar
+ * caderno vazio. Em palavras, porque o pacote não carrega as horas — ver
+ * `PacoteDeFatos.periodo.luz`.
+ */
+function linhaDaLuz(periodo: PacoteDeFatos['periodo']): string[] {
+  return periodo.luz ? [`Luz do dia: ${periodo.luz}.`] : [];
+}
 
 export interface Prompt {
   sistema: string;
@@ -516,6 +535,7 @@ export function montarPrompt(p: PacoteDeFatos): Prompt {
     `# ${periodo.rotulo}`,
     `Escreva o caderno ${p.rotulo}. Período: ${periodo.inicioISO} a ${periodo.fimISO}`
     + ` (${periodo.diasNoPeriodo} dias).`,
+    ...linhaDaLuz(periodo),
   ], [p]);
 }
 
@@ -534,5 +554,6 @@ export function montarPromptDaEdicao(pacotes: readonly PacoteDeFatos[]): Prompt 
     `# ${periodo.rotulo}`,
     `Escreva a edição inteira: os cadernos abaixo, num texto só.`
     + ` Período: ${periodo.inicioISO} a ${periodo.fimISO} (${periodo.diasNoPeriodo} dias).`,
+    ...linhaDaLuz(periodo),
   ], pacotes);
 }

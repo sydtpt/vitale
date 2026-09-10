@@ -44,6 +44,8 @@
  */
 import type { PeriodKind } from '../period/bounds';
 import { previousPeriodLabel } from '../period/bounds';
+import type { EstacaoDaLuz } from '../astro/casa';
+import { estacaoDaLuz } from '../astro/casa';
 import type { CadernoId } from '../period/cadernos';
 import { CADERNO_IDS, cadernoDaMetricaDeSaude, rotuloDoCaderno } from '../period/cadernos';
 import type {
@@ -246,6 +248,26 @@ export interface PacoteDeFatos {
     /** Ver `periodoFechado`. Período aberto não ganha parágrafo de máquina. */
     fechado: boolean;
     diasNoPeriodo: number;
+    /**
+     * A estação de luz do período, em palavras — `"dias curtos"`, `"dias longos"`,
+     * `"dias em transição"`. Ver {@link textoDaLuz}.
+     *
+     * **Texto, e de propósito sem número.** Duas tentativas puseram as horas de
+     * luz no pacote como número e as duas foram revertidas: horas de luz são
+     * redondas por natureza (julho dá 16, dezembro dá 8, todo ano), então a casa
+     * decimal que devia compensar o custo no alfabeto não compensava, e o número
+     * acrescentava inteiros pequenos a cadernos que não os tinham. Em palavras, a
+     * luz custa zero no alfabeto e o modelo sabe a estação sem poder citar horas.
+     *
+     * Mora em `periodo`, e não em `textos` de caderno, porque é propriedade do
+     * **período**: agosto é claro em Sono e em Movimento pelo mesmo motivo. Aqui
+     * ela está nos quatro pacotes por construção — é o mesmo objeto —, o prompt
+     * a escreve uma vez, e caderno vazio continua vazio.
+     *
+     * `null` para `year` e `all`: um período que cobre todas as estações não tem
+     * estação a relatar.
+     */
+    luz: TextoDaLuz | null;
   };
   metricas: FatoNumero[];
   tendencias: FatoTendencia[];
@@ -297,6 +319,46 @@ function diaLocal(d: Date): string {
 export function periodoFechado(tipo: PeriodKind, fimISO: string, agora: Date): boolean {
   if (tipo === 'all') return false;
   return diaLocal(agora) > fimISO;
+}
+
+/**
+ * O texto de cada estação de luz — **sem dígito, sem vocabulário de base, sem
+ * nome de mês**.
+ *
+ * As três restrições são da quinta regra da conferência, e cada uma já cobrou o
+ * seu preço numa tentativa anterior: dígito vira número fora do alfabeto;
+ * *"ano passado"*, *"período anterior"* ou *"normal"* são o que a regra procura
+ * para decidir de que base é o número mais próximo, e capturavam números de
+ * outra base mesmo com a nomeação certa na frase; nome de mês que não é o do
+ * período nem o do anterior é acusado como nome errado. `verificar.test.ts`
+ * varre estes textos contra o vocabulário inteiro.
+ */
+/**
+ * Os três textos possíveis da luz, como TIPO — e não `string`.
+ *
+ * É a guarda mais barata que existe contra a luz voltar a ter número: com o
+ * campo tipado assim, `periodo.luz = '14,5 h de luz'` é erro de compilação, e não
+ * uma asserção de teste que alguém pode esquecer de rodar.
+ */
+export type TextoDaLuz = 'dias curtos' | 'dias em transição' | 'dias longos';
+
+export const TEXTO_DA_ESTACAO: Readonly<Record<EstacaoDaLuz, TextoDaLuz>> = Object.freeze({
+  curtos: 'dias curtos',
+  transicao: 'dias em transição',
+  longos: 'dias longos',
+});
+
+/**
+ * A luz de um período, em palavras — ou `null` quando ele não tem estação.
+ *
+ * `year` e `all` cobrem todas as estações: a média de um ano cai sempre no meio,
+ * e dizer *"dias em transição"* sobre 2025 inteiro seria falso. A ausência é
+ * declarada, não esquecida.
+ */
+export function textoDaLuz(tipo: PeriodKind, inicioISO: string, fimISO: string): TextoDaLuz | null {
+  if (tipo === 'year' || tipo === 'all') return null;
+  const e = estacaoDaLuz(inicioISO, fimISO);
+  return e == null ? null : TEXTO_DA_ESTACAO[e];
 }
 
 /** Dias entre `inicioISO` e `fimISO`, ambos inclusivos. */
@@ -637,6 +699,8 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
     fimISO: resumo.endISO,
     fechado: periodoFechado(resumo.kind, resumo.endISO, agora),
     diasNoPeriodo,
+    // Texto também — e pelo mesmo motivo. Ver `PacoteDeFatos.periodo.luz`.
+    luz: textoDaLuz(resumo.kind, resumo.startISO, resumo.endISO),
   };
 
   return CADERNO_IDS.map((id) => {

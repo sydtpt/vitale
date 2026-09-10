@@ -53,6 +53,7 @@ export * from './goals/evaluate';
 export * from './goals/format';
 export * from './astro/moon';
 export * from './astro/sun';
+export * from './astro/casa';
 export * from './astro/timezone-coords';
 export * from './astro/solar-scheme';
 export * from './chart/smooth-path';

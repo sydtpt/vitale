@@ -366,3 +366,127 @@ export function nextSolarCrossing(
   }
   return null;
 }
+
+// ── Horas de luz ───────────────────────────────────────────
+
+/**
+ * Quantas horas o sol passa acima do horizonte num dia do calendário.
+ *
+ * ## O limiar é `SUNRISE_DEG`, e não o crepúsculo
+ *
+ * "Horas de luz" é a medida de almanaque: do disco tangenciando o horizonte na
+ * subida ao disco tangenciando na descida. `CIVIL_TWILIGHT_DEG` responde outra
+ * pergunta — *quando dá para ler lá fora* — e daria **~93 min a mais por dia**
+ * no verão de Bruxelas. Por isso o limiar não é parâmetro: quem quiser o
+ * crepúsculo chama `solarEvents` direto e sabe o que está pedindo.
+ *
+ * ## A entrada é `YYYY-MM-DD`, e isso é estrutural
+ *
+ * Um `Date` traria o fuso de quem chamou junto: `new Date('2026-08-15')` e
+ * `new Date(2026, 7, 15)` são instantes diferentes, e num hospedeiro a leste do
+ * meridiano eles caem em dias solares diferentes. A data como texto não tem
+ * fuso para carregar — o dia é ancorado no meio-dia UTC e `solarEvents` acha o
+ * ciclo solar dele a partir da longitude. A invariância de fuso vira
+ * propriedade da assinatura, não disciplina de quem chama.
+ *
+ * ## Dia e noite polares têm resposta, não exceção
+ *
+ * Onde o sol não cruza o limiar, `solarEvents` devolve `polar: true` e nenhum
+ * evento. A resposta certa é **24** quando o sol passa o dia inteiro acima e
+ * **0** quando passa o dia inteiro abaixo. Sem isso a média de um período que
+ * inclua o Ártico ficaria `NaN`, calada.
+ *
+ * `NaN` para data que não é data e para coordenada fora do globo — e **antes**
+ * do memo, para que uma chamada torta não grave lixo sob uma chave válida.
+ */
+export function daylightHours(diaISO: string, coords: Coords): number {
+  if (!Number.isFinite(coords.lat) || !Number.isFinite(coords.lon)
+    || Math.abs(coords.lat) > 90 || Math.abs(coords.lon) > 180) {
+    return Number.NaN;
+  }
+  // A data é validada ANTES do memo: uma chave torta não ocupa lugar nele.
+  const meioDiaUTC = instanteDoDia(diaISO);
+  if (meioDiaUTC == null) return Number.NaN;
+  const chave = `${coords.lat}|${coords.lon}|${diaISO}`;
+  const memo = MEMO_LUZ.get(chave);
+  if (memo !== undefined) return memo;
+  const h = calcularLuz(meioDiaUTC, coords);
+  // O memo é cache puro: esvaziá-lo muda a velocidade e nunca a resposta.
+  if (MEMO_LUZ.size >= TETO_MEMO) MEMO_LUZ.clear();
+  MEMO_LUZ.set(chave, h);
+  return h;
+}
+
+function calcularLuz(meioDiaUTC: Date, coords: Coords): number {
+  const e = solarEvents(meioDiaUTC, coords, SUNRISE_DEG);
+  if (e.polar || !e.rise || !e.set) {
+    return solarAltitude(e.transit, coords) > SUNRISE_DEG ? 24 : 0;
+  }
+  // Junto do círculo polar o refinamento pode prender o nascer e o pôr em
+  // cruzamentos de ciclos vizinhos e devolver um dia de mais de 24 h ou de menos
+  // de zero — medido: 24,19 h a 66,5° N em julho. Dia não cabe fora de [0, 24].
+  return Math.min(24, Math.max(0, (e.set.getTime() - e.rise.getTime()) / 3_600_000));
+}
+
+/**
+ * `YYYY-MM-DD` → meio-dia UTC daquele dia. `null` se a data não for uma data.
+ *
+ * A ida e volta pelo texto não é zelo: `Date.UTC(2025, 1, 29)` **rola** para 1º
+ * de março sem reclamar, e um `'2025-02-29'` guardaria no memo a resposta de
+ * outro dia sob a chave errada.
+ */
+function instanteDoDia(diaISO: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(diaISO)) return null;
+  const t = Date.UTC(
+    Number(diaISO.slice(0, 4)), Number(diaISO.slice(5, 7)) - 1, Number(diaISO.slice(8, 10)), 12,
+  );
+  if (!Number.isFinite(t)) return null;
+  const d = new Date(t);
+  return d.toISOString().slice(0, 10) === diaISO ? d : null;
+}
+
+/**
+ * Média das horas de luz por dia de um intervalo, extremos inclusivos.
+ *
+ * A varredura é **dia a dia**, sempre: a média de um mês não é a luz do dia 15.
+ * Uma versão anterior tinha um atalho para intervalos de vários anos, e ele foi
+ * retirado — servia só ao histórico completo, que a revista não narra, e
+ * trocava exatidão por uma velocidade que ninguém ia usar.
+ *
+ * `NaN` se as datas não forem datas ou se o fim vier antes do início.
+ */
+export function meanDaylightHours(inicioISO: string, fimISO: string, coords: Coords): number {
+  const a = instanteDoDia(inicioISO);
+  const b = instanteDoDia(fimISO);
+  if (!a || !b || b.getTime() < a.getTime()) return Number.NaN;
+  let soma = 0;
+  let dias = 0;
+  for (let t = a.getTime(); t <= b.getTime(); t += DAY_MS) {
+    soma += daylightHours(new Date(t).toISOString().slice(0, 10), coords);
+    dias += 1;
+  }
+  return soma / dias;
+}
+
+/**
+ * O memo das horas de luz — **exatidão antes de velocidade**.
+ *
+ * A chave é a identidade do dia inteira: **latitude, longitude e a data com
+ * ano**. As duas que faltaram numa derivação anterior custaram caro:
+ *
+ * - **sem longitude**, dois lugares no mesmo paralelo compartilham resposta —
+ *   ~209 s de erro entre meridianos opostos a 65° N;
+ * - **sem o ano**, um dia perto do equinócio devolve a resposta do ano que
+ *   tiver sido calculado primeiro — e o mesmo período passa a render números
+ *   diferentes conforme a ordem em que os períodos foram abertos.
+ *
+ * O teto é folgado: o maior período com luz é um trimestre (~92 dias), e
+ * `montarPacotes` monta os quatro cadernos sobre o mesmo `periodo`.
+ */
+const MEMO_LUZ = new Map<string, number>();
+const TETO_MEMO = 16_384;
+
+/** Esvazia o memo. Para teste — em produção seria inútil, não perigoso. */
+export function resetDaylightMemo(): void {
+  MEMO_LUZ.clear();
+}
