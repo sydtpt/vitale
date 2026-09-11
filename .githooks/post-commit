@@ -20,8 +20,17 @@ RAIZ="$(git rev-parse --show-toplevel)"
 [ -f "$RAIZ/scripts/github/sincronizar_sprint.py" ] || exit 0
 
 echo "→ sprint-status.yaml mudou; espelhando no GitHub…"
+# Só as linhas que ESTE commit mudou (`--commit HEAD`), nunca a yaml inteira: a
+# árvore que commita pode ser uma worktree criada antes de outra frente avançar,
+# e a yaml dela fala por essa frente com linhas velhas. Em 11/09/2026 o commit
+# da 1.7 rebaixou assim a 5.1 e a 5.2 para `backlog`. A reconciliação completa é
+# o script sem `--commit`, rodado da main.
+#
+# Não é "só na main": a main avança por `git fetch . <branch>:main`, sem commit,
+# e um hook que só rodasse nela nunca rodaria.
+#
 # `|| true` nos dois: falhar aqui não pode sujar um commit que já aconteceu.
-python3 "$RAIZ/scripts/github/sincronizar_sprint.py" --aplicar 2>&1 | sed 's/^/  /' || true
+python3 "$RAIZ/scripts/github/sincronizar_sprint.py" --aplicar --commit HEAD 2>&1 | sed 's/^/  /' || true
 # O quadro precisa do escopo `project`; se o token não estiver no keychain ele
 # reclama numa linha e o resto segue.
 python3 "$RAIZ/scripts/github/quadro.py" --aplicar 2>&1 | grep -vE '^\s*$|projects/' | sed 's/^/  /' || true

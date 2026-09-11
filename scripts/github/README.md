@@ -106,6 +106,21 @@ git config core.hooksPath .githooks
 Roda o sync **quando o commit tocou a `sprint-status.yaml`**, e só então.
 Pular uma vez: `ORBE_SEM_SYNC=1 git commit ...`. Desligar: `git config --unset core.hooksPath`.
 
+O hook espelha **só as linhas que o commit mudou** (`--commit HEAD`), não a yaml
+inteira. Com várias worktrees, cada uma tem uma cópia da yaml, e a de uma frente
+fica velha nas linhas das outras. Espelhar a cópia inteira fazia o último commit
+falar por todas: em 11/09/2026 o commit da 1.7 devolveu a 5.1 e a 5.2 a `backlog`,
+e na main elas já estavam em `review`. Rótulo mexido à mão, ou uma issue fechada
+fora de hora, só volta ao lugar na reconciliação completa (o script sem `--commit`,
+rodado da main).
+
+O hook não roda "só na main" porque a main avança por `git fetch . <branch>:main`,
+sem commit. Nesse fluxo, um hook que só rodasse na main nunca rodaria.
+
+O hook é lido da branch que está em cada worktree (`core.hooksPath` é relativo).
+Uma worktree só passa a usar a versão nova depois de rebasear sobre a main que
+a tem.
+
 ## Os dois tokens
 
 - **Issues e milestones** — o token que o `git push` já usa, tirado do keychain por
