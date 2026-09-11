@@ -34,6 +34,10 @@ export * from './ia/motor';
 export * from './ia/orquestrar';
 export * from './ia/nuvem';
 export * from './ia/recursos';
+// Os descritores de cada recurso. `format/numero` não entra: o barril já alcança
+// `formatarNumero` por `ia/prompt`, que o reexporta para os testes da conferência
+// seguirem sem edição — e um caminho público basta.
+export * from './ia/retrospectiva';
 export * from './sleep/timing';
 export * from './sleep/derive';
 export * from './sleep/awakenings';

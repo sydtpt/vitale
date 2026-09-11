@@ -604,6 +604,126 @@ describe('modo produto — a matriz', () => {
   });
 });
 
+/**
+ * A `Cadeia` marcada diz que a resolução a construiu, não para qual recurso
+ * (story 5.2). Uma cadeia resolvida para outro regime — sem `grava`, ou com teto
+ * maior — que chegue ao `ler` de um recurso é conferida por ele: o que ele não
+ * aceita vira tentativa sintética, sem chamada, e recua.
+ */
+describe('modo produto — o recurso confere a própria cadeia', () => {
+  const soNuvem = descritor({ grava: { admite: ['nuvem'], recusaEResultado: false } });
+  const soAparelho = descritor({ grava: { admite: ['aparelho'], recusaEResultado: false } });
+
+  it('elo acima do regimeMaximo: sintética indisponivel, ninguém é chamado, e recua', async () => {
+    const r = relogio();
+    const nuvem = motorFalso(r, [resposta('nunca')]);
+    const aparelho = motorFalso(r, [resposta('Escrita no aparelho.')]);
+    const h = hospedeiro({ [NUVEM_PADRAO]: nuvem.motor, [APARELHO_SISTEMA]: aparelho.motor }, r);
+    // DOIS() foi resolvida com regimeMaximo nuvem; o recurso só vai até o aparelho.
+    const l = doMotor(await ler(descritor({ regimeMaximo: 'aparelho' }), FATOS, h.produto(DOIS())));
+
+    assert.equal(l.motor, APARELHO_SISTEMA);
+    assert.equal(l.trilha.length, 2);
+    assert.deepEqual(
+      [l.trilha[0].motor, l.trilha[0].desfecho, l.trilha[0].sintetica, l.trilha[0].ms],
+      [NUVEM_PADRAO, 'indisponivel', true, 0],
+    );
+    assert.match(l.trilha[0].detalhe ?? '', /acima do regimeMaximo do recurso \(aparelho\)/);
+    assert.deepEqual(l.trilha[1], { motor: APARELHO_SISTEMA, desfecho: 'ok', ms: 100 });
+    // Sem chamada: nem o ponto de injeção foi consultado pela nuvem.
+    assert.deepEqual(nuvem.pedidos, []);
+    assert.deepEqual(h.pedidosA, [APARELHO_SISTEMA]);
+  });
+
+  it('elo fora do admite: sintética indisponivel, ninguém é chamado, e recua', async () => {
+    const r = relogio();
+    const nuvem = motorFalso(r, [resposta('nunca')]);
+    const aparelho = motorFalso(r, [resposta('Escrita no aparelho.')]);
+    const h = hospedeiro({ [NUVEM_PADRAO]: nuvem.motor, [APARELHO_SISTEMA]: aparelho.motor }, r);
+    const l = doMotor(await ler(soAparelho, FATOS, h.produto(DOIS())));
+
+    assert.equal(l.motor, APARELHO_SISTEMA);
+    assert.deepEqual(l.trilha.map((t) => [t.motor, t.desfecho, t.sintetica]), [
+      [NUVEM_PADRAO, 'indisponivel', true],
+      [APARELHO_SISTEMA, 'ok', undefined],
+    ]);
+    assert.match(l.trilha[0].detalhe ?? '', /fora do que o recurso admite gravar \(aparelho\)/);
+    assert.deepEqual(nuvem.pedidos, []);
+    assert.deepEqual(h.pedidosA, [APARELHO_SISTEMA]);
+  });
+
+  it('a nuvem recua para um aparelho que o recurso não admite: piso indisponivel, sem chamar o aparelho', async () => {
+    const r = relogio();
+    const nuvem = motorFalso(r, [{ classe: 'indisponivel', detalhe: 'sem crédito' }]);
+    const aparelho = motorFalso(r, [resposta('nunca')]);
+    const h = hospedeiro({ [NUVEM_PADRAO]: nuvem.motor, [APARELHO_SISTEMA]: aparelho.motor }, r);
+    const l = doPiso(await ler(soNuvem, FATOS, h.produto(DOIS())));
+
+    assert.equal(l.causa, 'indisponivel');
+    assert.deepEqual(l.trilha.map((t) => [t.motor, t.desfecho, t.sintetica]), [
+      [NUVEM_PADRAO, 'indisponivel', undefined],
+      [APARELHO_SISTEMA, 'indisponivel', true],
+    ]);
+    assert.deepEqual(nuvem.pedidos, [PEDIDO]);
+    assert.deepEqual(aparelho.pedidos, []);
+    assert.deepEqual(h.pedidosA, [NUVEM_PADRAO]);
+    // Indisponível não é o que se investiga: o anel fica sem o pedido.
+    assert.equal(h.eventos[0].causa, 'indisponivel');
+    assert.equal(h.eventos[0].pedido, undefined);
+  });
+
+  it('capacidade no primeiro, e o segundo fora do admite: a causa é a de quem recuou por último', async () => {
+    const r = relogio();
+    const nuvem = motorFalso(r, [{ classe: 'capacidade' }]);
+    const aparelho = motorFalso(r, [resposta('nunca')]);
+    const h = hospedeiro({ [NUVEM_PADRAO]: nuvem.motor, [APARELHO_SISTEMA]: aparelho.motor }, r);
+    const l = doPiso(await ler(soNuvem, FATOS, h.produto(DOIS())));
+
+    assert.deepEqual(l.trilha.map((t) => [t.desfecho, t.sintetica]), [['capacidade', undefined], ['indisponivel', true]]);
+    assert.equal(l.causa, 'indisponivel');
+    assert.equal(h.eventos[0].causa, 'indisponivel');
+    assert.deepEqual(aparelho.pedidos, []);
+  });
+
+  it('dentro do regime e do admite, nada muda', async () => {
+    const r = relogio();
+    const nuvem = motorFalso(r, [resposta('Uma frase sobre o sono.')]);
+    const h = hospedeiro({ [NUVEM_PADRAO]: nuvem.motor }, r);
+    const l = doMotor(await ler(soNuvem, FATOS, h.produto(DOIS())));
+    assert.deepEqual(l.trilha, [{ motor: NUVEM_PADRAO, desfecho: 'ok', ms: 100 }]);
+  });
+
+  it('um elo que nem se lê, numa cadeia forjada, também não é chamado', async () => {
+    const r = relogio();
+    const qualquer = motorFalso(r, [resposta('nunca')]);
+    const o: OpcoesDeProduto = {
+      ...hospedeiro({}, r).produto(DOIS()),
+      cadeia: ['lixo', SEM_MODELO] as unknown as Cadeia,
+      motorPara: () => qualquer.motor,
+    };
+    const l = doPiso(await ler(descritor(), FATOS, o));
+    assert.equal(l.causa, 'indisponivel');
+    assert.equal(l.trilha[0].sintetica, true);
+    assert.match(l.trilha[0].detalhe ?? '', /não se lê/);
+    assert.deepEqual(qualquer.pedidos, []);
+  });
+
+  it('a medição não lê o admite: mede o aparelho de quem só admite nuvem', async () => {
+    const r = relogio();
+    const aparelho = motorFalso(r, [resposta('Escrita no aparelho.')]);
+    const h = hospedeiro({ [APARELHO_SISTEMA]: aparelho.motor }, r);
+    const m = tentativa(await ler(soNuvem, FATOS, h.medicao(APARELHO_SISTEMA)));
+    assert.equal(m.desfecho, 'ok');
+    assert.equal(m.frase, 'Escrita no aparelho. (a noite)');
+    assert.deepEqual(aparelho.pedidos, [PEDIDO]);
+    // O regimeMaximo continua valendo para medir.
+    const soAte = descritor({ regimeMaximo: 'aparelho', grava: { admite: ['aparelho'], recusaEResultado: false } });
+    const m2 = tentativa(await ler(soAte, FATOS, hospedeiro({}, r).medicao(NUVEM_PADRAO)));
+    assert.equal(m2.desfecho, 'indisponivel');
+    assert.match(m2.trilha[0].detalhe ?? '', /regimeMaximo/);
+  });
+});
+
 describe('o anel', () => {
   it('recebe uma chamada por execução, com a trilha, o hash e o início', async () => {
     const r = relogio();
@@ -777,6 +897,18 @@ describe('modo medicao', () => {
     // Dentro do teto, mede normalmente.
     const h2 = hospedeiro({ [APARELHO_SISTEMA]: motorFalso(r, [resposta('No aparelho.')]).motor }, r);
     assert.equal(tentativa(await ler(soAparelho, FATOS, h2.medicao(APARELHO_SISTEMA))).desfecho, 'ok');
+  });
+
+  it('motor que não se lê: sintética indisponivel, sem motorPara e sem chamada', async () => {
+    const r = relogio();
+    const qualquer = motorFalso(r, [resposta('nunca')]);
+    const h = hospedeiro({ lixo: qualquer.motor }, r);
+    const m = tentativa(await ler(descritor(), FATOS, h.medicao('lixo' as MotorId)));
+    assert.equal(m.desfecho, 'indisponivel');
+    assert.deepEqual(m.trilha, [{ motor: 'lixo', desfecho: 'indisponivel', ms: 0, sintetica: true, detalhe: 'o motor não se lê' }]);
+    assert.equal(m.hash, hashDoPedido(PEDIDO, 3));
+    assert.deepEqual(h.pedidosA, []);
+    assert.deepEqual(qualquer.pedidos, []);
   });
 
   it('pedido mudo: nenhuma chamada', async () => {

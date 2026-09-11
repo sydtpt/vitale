@@ -17,9 +17,10 @@
  * ## A simetria que sustenta a verificação
  *
  * Os números são renderizados aqui em **pt-BR** — vírgula decimal, ponto de
- * milhar. O `verificar.ts` lê de volta no mesmo formato. Se o modelo lê "40,1 h"
- * e escreve "40,1 h", a conferência casa; se um lado usasse ponto e o outro
- * vírgula, toda frase correta seria reprovada.
+ * milhar —, por `formatarNumero`, que mora em `format/numero.ts` desde a story
+ * 5.2 e é reexportado daqui com o mesmo nome. O `verificar.ts` lê de volta no
+ * mesmo formato. Se o modelo lê "40,1 h" e escreve "40,1 h", a conferência casa;
+ * se um lado usasse ponto e o outro vírgula, toda frase correta seria reprovada.
  *
  * ## A gramática das bases (versão 3)
  *
@@ -28,20 +29,19 @@
  * exemplo fixo no `SISTEMA`: exemplo envelhece em silêncio quando o período
  * muda de tipo, e o rótulo renderizado não.
  */
+import { formatarNumero } from '../format/numero';
 import { periodProseLabel } from '../period/bounds';
 import type {
   BaseId, PacoteDeFatos, FatoNumero, FatoTendencia, FatoTexto,
 } from './pacote';
 import { BASE_ROTULO, ressalvasObrigatorias } from './pacote';
 
-/** Número em pt-BR: vírgula decimal, ponto de milhar. */
-export function formatarNumero(v: number, casas: number): string {
-  const fixo = Math.abs(v).toFixed(casas);
-  const [inteira, decimal] = fixo.split('.');
-  const comMilhar = inteira.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  const corpo = decimal ? `${comMilhar},${decimal}` : comMilhar;
-  return v < 0 ? `−${corpo}` : corpo;
-}
+/**
+ * O mesmo símbolo de `format/numero.ts`, reexportado com o mesmo nome para os
+ * testes da conferência (`verificar.test.ts`) seguirem pelo caminho de sempre,
+ * sem edição. É também por aqui que o barril o alcança — um caminho público basta.
+ */
+export { formatarNumero };
 
 // ── A frase de cada base ───────────────────────────────────
 

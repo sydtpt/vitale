@@ -6,28 +6,55 @@
  * seu descritor no catálogo; o descritor mora junto do domínio dele (`sleep/`,
  * `routes/`, `ia/`).
  *
- * **Nasce vazio.** A retrospectiva entra na 5.2 e a Saúde do sono na 5.3; o
- * nome de rota, na 5.7. Até lá, `validarDescritor` é provado com descritores
- * falsos, e o teste que percorre o catálogo passa a morder no dia em que o
- * primeiro entrar.
+ * **Nasceu vazio na 5.1.** A retrospectiva entrou na 5.2; a Saúde do sono entra
+ * na 5.3 e o nome de rota, na 5.7. O teste que percorre o catálogo morde desde
+ * o primeiro.
  */
 import { SEM_MODELO, TIPOS_DE_MOTOR, lerMotorId } from './fio';
-import { exposicao } from './motor';
+import { TIPOS_QUE_GRAVAM, exposicao, type TipoQueGrava } from './motor';
 import { ELOS_DE_PADRAO, REGIMES_DE_NUMEROS, type Descritor } from './orquestrar';
+import { descritorDaRetrospectiva } from './retrospectiva';
 
 export const RECURSOS = ['retrospectiva', 'saude-do-sono', 'nome-de-rota'] as const;
 
 export type RecursoId = (typeof RECURSOS)[number];
 
 /** Os descritores registrados. Um por recurso. */
-export const CATALOGO_DE_RECURSOS: readonly Descritor<unknown, unknown>[] = [];
+export const CATALOGO_DE_RECURSOS: readonly Descritor<unknown, unknown>[] = [descritorDaRetrospectiva];
 
 const FUNCOES = ['montarPedido', 'interpretar', 'conferir', 'montarFrase', 'semModelo'] as const;
 
 /**
+ * Os problemas do `admite` de um recurso que grava (AD-12): lista não vazia, sem
+ * repetição, só de tipos que gravam, nenhum acima do `regimeMaximo` — e todo elo
+ * do padrão, fora `sem-modelo`, admitido. Um padrão que nomeia um tipo que o
+ * recurso não admite é um padrão que a resolução corta calada.
+ */
+function problemasDoAdmite(admite: unknown, d: Descritor<unknown, unknown>, regimeConhecido: boolean): string[] {
+  if (!Array.isArray(admite) || admite.length === 0) return ['grava.admite não é lista não vazia'];
+  const problemas: string[] = [];
+  if (new Set(admite).size !== admite.length) problemas.push('grava.admite repete um tipo');
+  for (const tipo of admite) {
+    if (!(TIPOS_QUE_GRAVAM as readonly unknown[]).includes(tipo)) {
+      problemas.push(`grava.admite tem ${String(tipo)} — só aparelho e nuvem gravam`);
+    } else if (regimeConhecido && exposicao(tipo as TipoQueGrava) > exposicao(d.regimeMaximo)) {
+      problemas.push(`grava.admite passa do regimeMaximo em ${String(tipo)}`);
+    }
+  }
+  if (Array.isArray(d.cadeiaPadrao)) {
+    for (const id of d.cadeiaPadrao) {
+      const lido = lerMotorId(id);
+      if (!lido || lido.tipo === 'sem-modelo') continue;
+      if (!admite.includes(lido.tipo)) problemas.push(`cadeiaPadrao tem ${id}, de tipo que grava.admite não admite`);
+    }
+  }
+  return problemas;
+}
+
+/**
  * Os problemas de um descritor; lista vazia é descritor válido. Cobra em tempo
  * de execução o que o tipo não alcança: a cadeia padrão, a versão e a forma de
- * `grava`.
+ * `grava`, com o `admite` de quem grava.
  */
 export function validarDescritor(d: Descritor<unknown, unknown>): string[] {
   const problemas: string[] = [];
@@ -68,10 +95,13 @@ export function validarDescritor(d: Descritor<unknown, unknown>): string[] {
 
   const grava: unknown = d.grava;
   if (grava !== false) {
-    const recusa = typeof grava === 'object' && grava !== null
-      ? (grava as { recusaEResultado?: unknown }).recusaEResultado
-      : undefined;
-    if (typeof recusa !== 'boolean') problemas.push('grava não é false nem { recusaEResultado: boolean }');
+    const g = typeof grava === 'object' && grava !== null
+      ? (grava as { admite?: unknown; recusaEResultado?: unknown })
+      : null;
+    if (typeof g?.recusaEResultado !== 'boolean') {
+      problemas.push('grava não é false nem { admite, recusaEResultado: boolean }');
+    }
+    if (g) problemas.push(...problemasDoAdmite(g.admite, d, regimeConhecido));
   }
 
   for (const nome of FUNCOES) {

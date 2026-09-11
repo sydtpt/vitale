@@ -17,6 +17,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
+import ts from 'typescript';
 import { WALLPAPERS } from './constants/wallpaper';
 import { APP_THEMES } from './models';
 import { THEMES } from './theme/themes';
@@ -26,6 +27,7 @@ import { cssVars } from './theme/css-vars';
 import { sleepColorsOf, sleepCssVars } from './sleep/colors';
 import { resolveTokens } from './theme/derive';
 import { CONCLUSAO } from './ia/motor';
+import { VOCABULARIO_PROIBIDO } from './ia/verificar';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -786,7 +788,8 @@ check('CATRACA — hex fora do sistema de temas não cresce', () => {
  * guarda no dia em que falar com a porta. O fecho inclui o que eles importam —
  * um `fetch` dois arquivos abaixo é o mesmo `fetch`. Medido no planejamento:
  * 55 arquivos em 17 diretórios, zero ofensor com a lista ampliada; com os seis
- * módulos da porta que a 5.1 criou, 61 arquivos nos mesmos 17 (o teste loga).
+ * módulos da porta que a 5.1 criou, 61 arquivos nos mesmos 17 (o teste loga);
+ * 63 com a 5.2, que trouxe o descritor da retrospectiva e `format/numero.ts`.
  *
  * A lista de fornecedores ganhou os nomes do aparelho (Core AI e os pesos
  * abertos). `apple` fica de fora de propósito: é vocabulário de domínio no
@@ -1277,6 +1280,149 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
       `${fora.join('\n    ')}\n` +
       `  O hospedeiro chama o orquestrador (ler) com o descritor do recurso; montar o pedido, ` +
       `interpretar e conferir são do descritor, dentro do núcleo (AD-2).`,
+  );
+});
+
+/**
+ * BARREIRA — a lista de termos proibidos tem um dono: `ia/verificar.ts` (AD-6, story 5.2).
+ *
+ * `VOCABULARIO_PROIBIDO` é a lista, com subconjuntos nomeados; cada recurso os
+ * **compõe**. Uma segunda lista é o que a AD-6 existe para impedir: duas
+ * conferências com duas ideias do que é conselho, divergindo calado no dia em
+ * que uma ganhar um termo e a outra não. Fora do dono (e de teste), nenhum
+ * arquivo declara lista com um termo dela — comparado em minúsculas, sem acento e
+ * sem espaço nas pontas.
+ *
+ * **Onde ela olha: o núcleo, `supabase/functions/` e `scripts/`** — os
+ * hospedeiros que podem conferir prosa (a function, o backfill e a bancada).
+ * `mobile/src` e `web/src` ficam fora de propósito: app não confere texto — quem
+ * confere é o descritor, dentro do núcleo, e a guarda (7) cobra que os apps não
+ * importem as peças (AD-2) —, e lá os termos de uma palavra são vocabulário de
+ * domínio: `saldo` em Finanças, `meta` em Metas, `streak` em hábitos. Medido na
+ * revisão da 5.2: zero ocorrência exata nos cinco lugares.
+ *
+ * **Lista é array literal ou alternância de regex.** O elemento vale
+ * desembrulhado de `as`, `satisfies`, parênteses e type assertion (`['porque' as
+ * const]`); a regex vale alternativa a alternativa, com `\s` lido como espaço e
+ * sem `\b`, `(?:`, parênteses, `^` e `$` (`/\b(porque|devido\s+a)\b/`) — é a
+ * outra forma natural de escrever uma conferência de termos.
+ *
+ * **Lista, não texto.** O `SISTEMA` de `ia/prompt.ts` escreve *"continue
+ * assim", "tente dormir mais"* — aspas e vírgula, a cara de uma lista — dentro de
+ * um template literal, e é prosa que o modelo lê, não conferência. Só quem sabe
+ * onde um literal começa e termina separa as duas coisas, e por isso a barreira
+ * lê a árvore do compilador em vez de uma regex: o `typescript` já é dependência
+ * do núcleo, e roda offline.
+ */
+const DONO_DO_VOCABULARIO = join(SHARED_SRC, 'ia', 'verificar.ts');
+
+/** A forma em que um termo é comparado: minúsculas, sem acento, espaço colapsado. */
+function formaDoTermo(s: string): string {
+  return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/** O elemento sem o que só o embrulha: `'x' as const`, `('x')`, `'x' satisfies T`, `<T>'x'`. */
+function desembrulhar(no: ts.Expression): ts.Expression {
+  let x = no;
+  while (
+    ts.isAsExpression(x) || ts.isSatisfiesExpression(x) || ts.isParenthesizedExpression(x) || ts.isTypeAssertionExpression(x)
+  ) {
+    x = x.expression;
+  }
+  return x;
+}
+
+/**
+ * As alternativas de um literal de regex, na forma em que um termo se compara.
+ * Sai o que só delimita — `\b`, `(?:`, parênteses, `^`, `$` — e o resto se parte
+ * em `|`. O `(?:` sai antes do parêntese solto, senão sobra o `?:`.
+ */
+function alternativasDaRegex(literal: string): string[] {
+  const corpo = literal.slice(1, literal.lastIndexOf('/'));
+  return corpo.replace(/\\s[+*?]?/g, ' ').replace(/\\b|\(\?:|[()^$]/g, '').split('|').map(formaDoTermo);
+}
+
+/** Os termos de `termos` que um fonte declara em lista: array literal ou alternância de regex. */
+function termosEmLista(src: string, arquivo: string, termos: ReadonlySet<string>): string[] {
+  const achados: string[] = [];
+  const visitar = (no: ts.Node): void => {
+    if (ts.isArrayLiteralExpression(no)) {
+      for (const el of no.elements) {
+        const x = desembrulhar(el);
+        const literal = ts.isStringLiteral(x) || ts.isNoSubstitutionTemplateLiteral(x);
+        if (literal && termos.has(formaDoTermo(x.text))) achados.push(x.text);
+      }
+    }
+    if (ts.isRegularExpressionLiteral(no)) {
+      for (const alternativa of alternativasDaRegex(no.text)) {
+        if (termos.has(alternativa)) achados.push(alternativa);
+      }
+    }
+    ts.forEachChild(no, visitar);
+  };
+  visitar(ts.createSourceFile(arquivo, src, ts.ScriptTarget.Latest, false));
+  return achados;
+}
+
+check('BARREIRA — a lista de termos proibidos só em ia/verificar.ts', () => {
+  const termos = new Set(Object.values(VOCABULARIO_PROIBIDO).flat().map(formaDoTermo));
+  assert.ok(termos.size > 0, 'VOCABULARIO_PROIBIDO está vazio — a barreira ficou sem alvo');
+
+  // Não-vácua no mecanismo: o detector acha, no dono, cada termo que ele declara.
+  // Se a lista mudar de arquivo ou deixar de ser literal, isto quebra antes de a
+  // barreira passar em silêncio sobre nada.
+  assert.ok(existsSync(DONO_DO_VOCABULARIO), 'ia/verificar.ts sumiu — a barreira ficou sem alvo');
+  const noDono = new Set(
+    termosEmLista(readFileSync(DONO_DO_VOCABULARIO, 'utf8'), DONO_DO_VOCABULARIO, termos).map(formaDoTermo),
+  );
+  const naoAchados = [...termos].filter((t) => !noDono.has(t));
+  assert.deepEqual(
+    naoAchados,
+    [],
+    `o detector não acha em ia/verificar.ts os termos ${naoAchados.join(', ')} — ou a lista deixou de ` +
+      `ser array literal ali, ou o detector quebrou. Se ela mudou de arquivo, aponte DONO_DO_VOCABULARIO para ele.`,
+  );
+
+  // A fronteira, provada dos dois lados: lista reprova, com qualquer caixa e
+  // acento, embrulhada ou em regex; texto com aspas e vírgula — a forma do
+  // `SISTEMA` — não conta, nem regex sem termo.
+  const lista = (src: string) => termosEmLista(src, 'lista.ts', termos);
+  assert.deepEqual(lista("export const DICAS = ['Continue assim', 42];"), ['Continue assim']);
+  assert.deepEqual(lista('const X = new Set([`Parabens`]);'), ['Parabens']);
+  assert.deepEqual(lista("const X = ['porque' as const];"), ['porque']);
+  assert.deepEqual(lista("const X = [('devido a')];"), ['devido a']);
+  assert.deepEqual(lista("const X = ['meta' satisfies string];"), ['meta']);
+  assert.deepEqual(lista("const X = [<const>'saldo'];"), ['saldo']);
+  assert.deepEqual(lista("const X = [(('graças a' as const))];"), ['graças a']);
+  assert.deepEqual(lista('const R = /\\b(porque|devido a)\\b/i;'), ['porque', 'devido a']);
+  assert.deepEqual(lista('const R = /^(?:por conta de|fez com que)$/;'), ['por conta de', 'fez com que']);
+  assert.deepEqual(lista('const R = /devido\\s+a|fez\\scom\\s*que/;'), ['devido a', 'fez com que']);
+  assert.deepEqual(lista('const R = /amostra|poucos dias|insuficiente/;'), []);
+  assert.deepEqual(
+    termosEmLista('const S = `Nada de\n"continue assim", "tente dormir mais", "parabéns pelo mês".`;', 'texto.ts', termos),
+    [],
+  );
+
+  const alvos = [
+    ...walk(SHARED_SRC),
+    ...walk(join(ROOT, 'supabase', 'functions')),
+    // `walk` devolve lista vazia se `scripts/` não existe ou não tem TypeScript.
+    ...walk(join(ROOT, 'scripts')),
+  ];
+  const fora = alvos
+    .filter((f) => !ehTeste(f) && f !== DONO_DO_VOCABULARIO)
+    .flatMap((f) => {
+      const achados = termosEmLista(readFileSync(f, 'utf8'), f, termos);
+      return achados.length > 0 ? [`${f.replace(ROOT + '/', '')} (${achados.join(', ')})`] : [];
+    });
+  assert.deepEqual(
+    fora,
+    [],
+    `lista de termo proibido fora do dono: ${fora.join('; ')}.\n` +
+      `  Componha VOCABULARIO_PROIBIDO (ia/verificar.ts) pelo subconjunto — VOCABULARIO_PROIBIDO.conselho, ` +
+      `não uma lista nova. Termo que falta entra lá, com a fonte ao lado (AD-6).\n` +
+      `  Se o achado é identificador de domínio (uma chave, uma coluna) e não termo de conferência, ` +
+      `traga o caso ao dono — não afrouxe a barreira.`,
   );
 });
 

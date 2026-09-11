@@ -11,8 +11,9 @@
  * `architecture.test.ts` cobra.
  *
  * Também mora aqui o que decide **para onde o dado pode ir**: a exposição de cada
- * tipo, a `Cadeia` que só {@link resolverCadeia} constrói, e a identidade do
- * pedido (`serializarPedido`, `hashDoPedido`) que a tela e a bancada comparam.
+ * tipo, os tipos que um recurso que grava admite, a `Cadeia` que só
+ * {@link resolverCadeia} constrói, e a identidade do pedido (`serializarPedido`,
+ * `hashDoPedido`) que a tela e a bancada comparam.
  */
 import {
   SEM_MODELO,
@@ -153,26 +154,59 @@ declare const marcaDaCadeia: unique symbol;
  */
 export type Cadeia = readonly MotorId[] & { readonly [marcaDaCadeia]: true };
 
+/**
+ * Os tipos de motor cuja resposta um recurso pode gravar (AD-12). `sem-modelo`
+ * não está aqui: é o piso, e o piso nunca grava.
+ *
+ * Nasce aqui, e não em `ia/orquestrar.ts`, porque a resolução da cadeia o lê e
+ * este arquivo não importa o orquestrador (o contrário, sim).
+ */
+export const TIPOS_QUE_GRAVAM = ['aparelho', 'nuvem'] as const satisfies readonly TipoDeMotor[];
+
+export type TipoQueGrava = (typeof TIPOS_QUE_GRAVAM)[number];
+
 /** O que a resolução precisa saber do recurso. Um `Descritor` cabe aqui. */
 export interface RegimeDoRecurso {
   readonly cadeiaPadrao: readonly MotorId[];
   readonly regimeMaximo: TipoDeMotor;
+  /**
+   * Se o recurso grava, os tipos de motor que ele admite que gravem. Ausente ou
+   * `false`: não grava, e a cadeia é resolvida como sempre foi.
+   */
+  readonly grava?: false | { readonly admite: readonly TipoQueGrava[] };
 }
 
 /**
- * Os elos do padrão que sobrevivem a um teto de exposição e a um destinatário.
+ * O recurso admite este tipo de motor? Recurso que não grava admite todos, e
+ * `sem-modelo` é sempre admitido — é o piso.
+ *
+ * Um `admite` que não é lista não admite nada: um descritor montado fora do tipo
+ * cai no piso, nunca na nuvem. Quem aponta o defeito é `validarDescritor`.
+ */
+export function admiteTipo(recurso: Pick<RegimeDoRecurso, 'grava'>, tipo: TipoDeMotor): boolean {
+  const grava: unknown = recurso.grava;
+  if (grava === undefined || grava === false || tipo === 'sem-modelo') return true;
+  const admite = typeof grava === 'object' && grava !== null ? (grava as { admite?: unknown }).admite : undefined;
+  return Array.isArray(admite) && admite.includes(tipo);
+}
+
+/**
+ * Os elos do padrão que sobrevivem a um teto de exposição, a um destinatário e
+ * ao que o recurso admite gravar.
  *
  * Lê a lista **na ordem declarada** e descarta — nunca reordena — o que a
- * violaria: ilegível, acima do teto, acima do elo anterior (a exposição não
- * cresce ao longo da cadeia) ou com um segundo destinatário de nuvem.
- * Reordenar por exposição poria a nuvem na frente de um padrão que declarou o
- * aparelho primeiro.
+ * violaria: ilegível, de tipo que o recurso não admite, acima do teto, acima do
+ * elo anterior (a exposição não cresce ao longo da cadeia) ou com um segundo
+ * destinatário de nuvem. Reordenar por exposição poria a nuvem na frente de um
+ * padrão que declarou o aparelho primeiro. O elo não admitido sai antes de
+ * contar como anterior: o padrão é filtrado por `admite`, e só então resolvido.
  */
 function elosDoPadrao(
   padrao: readonly MotorId[],
   teto: number,
   destinatarioFixo: string | null,
   inicio: readonly MotorId[],
+  admitido: (tipo: TipoDeMotor) => boolean,
 ): MotorId[] {
   const out = [...inicio];
   let anterior = teto;
@@ -180,6 +214,7 @@ function elosDoPadrao(
   for (const bruto of padrao) {
     const lido = lerMotorId(bruto);
     if (!lido || lido.tipo === 'sem-modelo') continue;
+    if (!admitido(lido.tipo)) continue;
     const grau = exposicao(lido.tipo);
     if (grau > anterior) continue;
     const d = destinatario(lido);
@@ -208,16 +243,22 @@ function marcar(elos: readonly MotorId[]): Cadeia {
  *   a oferecer.
  * - **Legível, conhecida e dentro do regime:** ela é o primeiro elo; o recuo é o
  *   padrão filtrado à exposição dela e, na nuvem, ao destinatário dela.
- * - **Legível, mas desconhecida do catálogo ou acima do `regimeMaximo`:** o
- *   padrão filtrado à exposição dela (e ao regime), sem ela.
+ * - **Legível, mas desconhecida do catálogo, acima do `regimeMaximo` ou de um
+ *   tipo que o recurso não admite gravar:** o padrão filtrado à exposição dela
+ *   (e ao regime e ao `admite`), sem ela. Quem pede o aparelho para um recurso
+ *   que só admite nuvem fica em `sem-modelo` — nunca sobe para a nuvem.
  *
  * `catalogo` são os ids que o hospedeiro **conhece** — disponíveis ou não.
  * Disponibilidade não é daqui: motor conhecido e indisponível continua na cadeia
  * e entra na trilha como tentativa sintética (AD-8), para a tela poder dizer por
  * que ele não escreveu.
  *
+ * Recurso que não grava (`grava` ausente ou `false`) resolve exatamente como
+ * antes do `admite` existir.
+ *
  * Em toda saída: termina em `sem-modelo` uma vez; a exposição não cresce ao longo
- * dela; a nuvem tem um destinatário só.
+ * dela; a nuvem tem um destinatário só; nenhum elo além de `sem-modelo` é de tipo
+ * que o recurso não admite (AD-12).
  */
 export function resolverCadeia(
   recurso: RegimeDoRecurso,
@@ -225,7 +266,8 @@ export function resolverCadeia(
   catalogo: readonly string[],
 ): Cadeia {
   const teto = exposicao(recurso.regimeMaximo);
-  if (preferencia == null) return marcar(elosDoPadrao(recurso.cadeiaPadrao, teto, null, []));
+  const admitido = (tipo: TipoDeMotor): boolean => admiteTipo(recurso, tipo);
+  if (preferencia == null) return marcar(elosDoPadrao(recurso.cadeiaPadrao, teto, null, [], admitido));
 
   const lida = lerMotorId(preferencia);
   if (!lida || lida.tipo === 'sem-modelo') return marcar([]);
@@ -234,8 +276,10 @@ export function resolverCadeia(
   const limite = Math.min(grau, teto);
   const destino = destinatario(lida);
   const id = formatarMotorId(lida);
-  const primeiro = catalogo.includes(id) && grau <= teto ? [id] : [];
-  return marcar(elosDoPadrao(recurso.cadeiaPadrao, limite, destino, primeiro));
+  // Fora do `admite` é recusada como a que passa do regime: não é o primeiro elo,
+  // e o recuo continua limitado à exposição dela.
+  const primeiro = catalogo.includes(id) && grau <= teto && admitido(lida.tipo) ? [id] : [];
+  return marcar(elosDoPadrao(recurso.cadeiaPadrao, limite, destino, primeiro, admitido));
 }
 
 /* ── a identidade do pedido ──────────────────────────────────────────────── */

@@ -40,14 +40,117 @@ export interface Veredito {
 }
 
 /**
- * Termos que afirmam causa. "Depois de" e "quando" ficam de fora de propósito:
- * são temporais, e o texto precisa poder dizer que duas coisas coincidiram.
+ * Os termos proibidos, com um dono só (AD-6, story 5.2).
+ *
+ * Nenhum outro arquivo do núcleo declara lista de termo proibido — o
+ * `architecture.test.ts` cobra. Cada recurso **compõe** os subconjuntos que
+ * valem para ele: a revista compõe só `causa`, na regra 2 de
+ * {@link verificarTexto}; a Saúde do sono compõe os seis, na 5.3. Cada termo
+ * traz a fonte ao lado.
+ *
+ * ## Dois casamentos, e o subconjunto diz qual
+ *
+ * - **`causa` casa por trecho**, em minúsculas, como sempre casou. Mudar o
+ *   casamento dela mudaria o que a revista reprova.
+ * - **Os outros cinco têm de casar por palavra inteira**, com o acento dobrado.
+ *   Por trecho, "tente" casa com "consistente", "meta" com "metade" e "piora"
+ *   com "pioram" — falso positivo dentro de palavra legítima. O casamento deles
+ *   é da 5.3, que os compõe; até lá nenhuma conferência os lê.
+ *
+ * ## O que ficou de fora de propósito
+ *
+ * Colidem com texto que a Saúde do sono já escreve (`docs/specs/sono/spec.md`,
+ * CAP-13, e `sleep/score.ts`): "nota" (a percepção sai como `3.3/5 · 12
+ * notas`), "ponto" no singular ("as quatro dimensões medidas estão no mesmo
+ * ponto"), "seguidas" (`SRI 64 · 9 seguidas`), "máximo" ("só o horário está no
+ * máximo") e "comparar" ("não há o que comparar"). Termo que casasse com a frase
+ * do próprio template reprovaria o piso.
+ *
+ * ## Congelado
+ *
+ * O objeto e cada subconjunto, em tempo de execução: a lista sai pelo barril, e
+ * um importador que fizesse `causa.length = 0` afrouxaria a conferência da
+ * revista sem erro nenhum. Os arrays continuam literais — é neles que a barreira
+ * do `architecture.test.ts` acha o dono.
  */
-const CAUSA = [
-  'porque', 'por causa', 'devido a', 'devido à', 'graças a', 'graças à',
-  'resultou em', 'levou a', 'levou à', 'provocou', 'causou', 'causa disso',
-  'em função de', 'em razão de', 'fez com que', 'por conta de',
-];
+export const VOCABULARIO_PROIBIDO = Object.freeze({
+  /**
+   * Termos que afirmam causa. "Depois de" e "quando" ficam de fora de propósito:
+   * são temporais, e o texto precisa poder dizer que duas coisas coincidiram.
+   *
+   * Fonte de todos: a `CAUSA` que morava privada neste arquivo até a 5.2 — termo
+   * a termo e na mesma ordem. Os marcados com "regra 6" são também citados na
+   * regra 6 do `SISTEMA` (`ia/prompt.ts`).
+   */
+  causa: Object.freeze([
+    'porque',           // regra 6
+    'por causa',        // regra 6 ("por causa de")
+    'devido a',         // regra 6
+    'devido à',
+    'graças a',         // regra 6
+    'graças à',
+    'resultou em',      // regra 6
+    'levou a',          // regra 6
+    'levou à',
+    'provocou',
+    'causou',
+    'causa disso',
+    'em função de',
+    'em razão de',
+    'fez com que',
+    'por conta de',
+  ] as const),
+  /** O jornal informa, não aconselha. */
+  conselho: Object.freeze([
+    'continue assim',                   // SISTEMA de ia/prompt.ts, "nada de"
+    'tente dormir mais',                // SISTEMA de ia/prompt.ts, "nada de"
+    'vale a pena acompanhar de perto',  // SISTEMA de ia/prompt.ts, "nada de"
+    'que tal',                          // story 1.5 (epics.md), "informa e não aconselha"
+    'experimente',                      // story 1.5 (epics.md), "informa e não aconselha"
+    'verifique suas conexões',          // story 1.5 (epics.md); revista-retrospectiva/bases-e-ranqueamento.md, "Ausência declarada"
+    'recomendo',                        // SISTEMA de ia/prompt.ts, "você não recomenda"
+    'sugiro',                           // SISTEMA de ia/prompt.ts, "não sugere"
+  ] as const),
+  /** Nem parabeniza, nem celebra — `tudo-no-maximo` diz isso sem elogio (CAP-13). */
+  elogio: Object.freeze([
+    'parabéns',         // SISTEMA de ia/prompt.ts ("parabéns pelo mês"); review-rubrica.md, A4
+    'continue assim',   // SISTEMA de ia/prompt.ts; review-rubrica.md, A4
+    'conquista',        // retrospectiva/v2-jornal.md §3 ("narrar um gap de firmware como conquista")
+  ] as const),
+  /** A Saúde do sono é contagem, não placar (ADR 0036). */
+  placar: Object.freeze([
+    'placar',           // sono/spec.md §2; ADR 0036, "Risco real"; v2-jornal.md §9
+    'score',            // sono/spec.md CAP-5 e §5 ("score / nota de sono de qualquer tipo")
+    'pontuação',        // ADR 0036 — o composto normalizado que ela proíbe
+    'pontos',           // ADR 0036 — idem; "ponto" no singular fica de fora (ver acima)
+    'de 0 a 100',       // sono/spec.md §2 ("nem nota de 0 a 100")
+    'saldo',            // v2-jornal.md §9 ("saldo contra 7 h — tem cara de placar")
+  ] as const),
+  /** Nem direção, nem alvo: a regra 6 da ADR 0036. */
+  'tendencia-e-meta': Object.freeze([
+    'melhorou',         // sono/spec.md CAP-3 e CAP-13
+    'piorou',           // sono/spec.md CAP-13
+    'melhora',          // revista-retrospectiva/bases-e-ranqueamento.md, "Ausência declarada"
+    'piora',            // o par de "melhora"
+    'streak',           // sono/spec.md §2; ADR 0036, regra 6
+    'meta',             // sono/spec.md §2; ADR 0036, regra 6
+    'seta',             // sono/spec.md §2 e CAP-3; ADR 0036, regra 6 e "Risco real"
+  ] as const),
+  /**
+   * Você contra você mesmo, nunca contra os outros. Só "outras pessoas" e "norma
+   * clínica" têm fonte literal; os outros três são derivados do princípio.
+   */
+  comparacao: Object.freeze([
+    'outras pessoas',          // ADR 0036, regra 6
+    'a maioria das pessoas',   // derivado do princípio (sono/spec.md CAP-4) — sem fonte literal
+    'média da população',      // derivado do princípio (sono/spec.md CAP-4) — sem fonte literal
+    'norma clínica',           // sono/spec.md CAP-4; sleep/retro.ts, "nunca os compara com norma clínica"
+    'para a sua idade',        // derivado do princípio (sono/spec.md CAP-4) — sem fonte literal
+  ] as const),
+});
+
+/** O nome de um subconjunto — é o que cada recurso compõe. */
+export type SubconjuntoProibido = keyof typeof VOCABULARIO_PROIBIDO;
 
 /**
  * Números pt-BR: ponto de milhar, vírgula decimal. `17.350` é dezessete mil e
@@ -486,8 +589,8 @@ export function verificarTexto(texto: string, pacote: UmOuMaisPacotes): Veredito
     }
   }
 
-  // 2 — causa
-  for (const termo of CAUSA) {
+  // 2 — causa. A revista compõe só este subconjunto, e por trecho.
+  for (const termo of VOCABULARIO_PROIBIDO.causa) {
     if (baixo.includes(termo)) {
       problemas.push({ regra: 'causa', detalhe: `afirma causa: "${termo}"` });
     }

@@ -6,8 +6,10 @@ import {
   type MotorId, type TipoDeMotor,
 } from './fio';
 import {
-  CONCLUSAO, destinatario, ehFalha, exposicao, hashDoPedido, resolverCadeia, serializarPedido,
-  type Cadeia, type ChamadorDeModelo, type Falha, type Pedido, type PromptLegado, type Resposta,
+  CONCLUSAO, TIPOS_QUE_GRAVAM, admiteTipo, destinatario, ehFalha, exposicao, hashDoPedido, resolverCadeia,
+  serializarPedido,
+  type Cadeia, type ChamadorDeModelo, type Falha, type Pedido, type PromptLegado, type RegimeDoRecurso,
+  type Resposta,
 } from './motor';
 import type { PromptDeNome } from '../routes/prompt';
 
@@ -126,11 +128,75 @@ describe('resolverCadeia — os casos que a espinha nomeia', () => {
   });
 });
 
+/* ── o que um recurso que grava admite (AD-12, story 5.2) ── */
+
+describe('resolverCadeia — o admite de quem grava', () => {
+  const catalogo: MotorId[] = [APARELHO_SISTEMA, NUVEM_PADRAO, 'nuvem:prov-a/modelo-1', 'aparelho:local/pesos-a'];
+  const grava = (admite: RegimeDoRecurso['grava']) => (cadeiaPadrao: readonly MotorId[]): RegimeDoRecurso => ({
+    cadeiaPadrao, regimeMaximo: 'nuvem', grava: admite,
+  });
+  const soNuvem = grava({ admite: ['nuvem'] });
+  const soAparelho = grava({ admite: ['aparelho'] });
+
+  it('os tipos que gravam são aparelho e nuvem — sem-modelo é o piso', () => {
+    assert.deepEqual([...TIPOS_QUE_GRAVAM], ['aparelho', 'nuvem']);
+  });
+
+  it('os tipos que gravam, mais sem-modelo, são exatamente os tipos de motor', () => {
+    const unidos = new Set<string>([...TIPOS_QUE_GRAVAM, SEM_MODELO]);
+    assert.deepEqual([...unidos].sort(), [...TIPOS_DE_MOTOR].sort());
+    assert.equal(unidos.size, TIPOS_DE_MOTOR.length);
+  });
+
+  it('o padrão é filtrado pelo admite, antes de a exposição ser conferida', () => {
+    // Filtrar depois pegaria o aparelho como elo anterior, cortaria a nuvem por
+    // subir a exposição, e só então tiraria o aparelho: sobraria [sem-modelo].
+    const padrao = [APARELHO_SISTEMA, NUVEM_PADRAO, SEM_MODELO] as const;
+    assert.deepEqual([...resolverCadeia(soNuvem(padrao), undefined, catalogo)], [NUVEM_PADRAO, SEM_MODELO]);
+  });
+
+  it('a revista com o aparelho fica em sem-modelo — nunca sobe para a nuvem', () => {
+    // A forma da retrospectiva: só nuvem, padrão [nuvem:padrao, sem-modelo].
+    for (const p of [APARELHO_SISTEMA, 'aparelho:local/pesos-a', 'aparelho:outro/pesos-z']) {
+      assert.deepEqual([...resolverCadeia(soNuvem([NUVEM_PADRAO, SEM_MODELO]), p, catalogo)], [SEM_MODELO], p);
+    }
+  });
+
+  it('a nuvem pedida a quem só admite o aparelho é recusada como a que passa do regime', () => {
+    const c = resolverCadeia(soAparelho([APARELHO_SISTEMA, SEM_MODELO]), 'nuvem:prov-a/modelo-1', catalogo);
+    assert.deepEqual([...c], [APARELHO_SISTEMA, SEM_MODELO]);
+  });
+
+  it('dentro do admite, a preferência conhecida continua sendo o primeiro elo', () => {
+    const c = resolverCadeia(soNuvem([NUVEM_PADRAO, SEM_MODELO]), 'nuvem:prov-a/modelo-1', catalogo);
+    assert.deepEqual([...c], ['nuvem:prov-a/modelo-1', SEM_MODELO]);
+  });
+
+  it('admite vazio, ou que não é lista, não admite nada: só sem-modelo', () => {
+    for (const admite of [[], 'nuvem,aparelho', undefined, null]) {
+      const r = { cadeiaPadrao: [NUVEM_PADRAO, APARELHO_SISTEMA, SEM_MODELO], regimeMaximo: 'nuvem', grava: { admite } } as unknown as RegimeDoRecurso;
+      assert.deepEqual([...resolverCadeia(r, undefined, catalogo)], [SEM_MODELO], JSON.stringify(admite));
+      assert.deepEqual([...resolverCadeia(r, NUVEM_PADRAO, catalogo)], [SEM_MODELO], JSON.stringify(admite));
+    }
+  });
+
+  it('admiteTipo: quem não grava admite tudo, e sem-modelo é sempre admitido', () => {
+    for (const tipo of TIPOS_DE_MOTOR) {
+      assert.equal(admiteTipo({}, tipo), true, tipo);
+      assert.equal(admiteTipo({ grava: false }, tipo), true, tipo);
+    }
+    assert.equal(admiteTipo({ grava: { admite: ['nuvem'] } }, 'sem-modelo'), true);
+    assert.equal(admiteTipo({ grava: { admite: ['nuvem'] } }, 'nuvem'), true);
+    assert.equal(admiteTipo({ grava: { admite: ['nuvem'] } }, 'aparelho'), false);
+  });
+});
+
 /**
  * A propriedade da AD-5, exaustiva sobre um universo pequeno: toda preferência
  * (ausente, ilegível, desconhecida, conhecida, acima do regime) × todo padrão
  * ordenado sobre os elos permitidos, mais padrões fora da regra × todo catálogo ×
- * todo regime máximo.
+ * todo regime máximo × todo `grava` (ausente, `false`, só nuvem, só aparelho, os
+ * dois — story 5.2).
  */
 describe('resolverCadeia — a propriedade da AD-5', () => {
   const UNIVERSO: MotorId[] = [
@@ -176,6 +242,13 @@ describe('resolverCadeia — a propriedade da AD-5', () => {
 
   const grau = (id: string) => exposicao(lerMotorId(id)!.tipo);
 
+  // Ausente e `false` são "não grava"; os dois com os dois tipos é "grava tudo".
+  const GRAVAS: RegimeDoRecurso['grava'][] = [
+    undefined, false, { admite: ['nuvem'] }, { admite: ['aparelho'] }, { admite: ['aparelho', 'nuvem'] },
+  ];
+  const admitidos = (grava: RegimeDoRecurso['grava']): readonly string[] =>
+    grava ? grava.admite : TIPOS_QUE_GRAVAM;
+
   it('vale em toda combinação', () => {
     let combinacoes = 0;
     for (const preferencia of PREFERENCIAS) {
@@ -183,51 +256,70 @@ describe('resolverCadeia — a propriedade da AD-5', () => {
       for (const padrao of PADROES) {
         for (const catalogo of CATALOGOS) {
           for (const regimeMaximo of TIPOS_DE_MOTOR) {
-            combinacoes += 1;
-            const c = [...resolverCadeia({ cadeiaPadrao: padrao, regimeMaximo }, preferencia, catalogo)];
-            const caso = JSON.stringify({ preferencia, padrao, catalogo, regimeMaximo, c });
+            // A cadeia de quem não grava — a da 5.1 —, contra a qual as outras se medem.
+            const semGravar = [...resolverCadeia({ cadeiaPadrao: padrao, regimeMaximo }, preferencia, catalogo)];
+            for (const grava of GRAVAS) {
+              combinacoes += 1;
+              const regime: RegimeDoRecurso = grava === undefined
+                ? { cadeiaPadrao: padrao, regimeMaximo }
+                : { cadeiaPadrao: padrao, regimeMaximo, grava };
+              const c = [...resolverCadeia(regime, preferencia, catalogo)];
+              const caso = JSON.stringify({ preferencia, padrao, catalogo, regimeMaximo, grava, c });
+              const admite = admitidos(grava);
 
-            // Termina em sem-modelo, uma vez só.
-            assert.equal(c[c.length - 1], SEM_MODELO, caso);
-            assert.equal(c.filter((id) => id === SEM_MODELO).length, 1, caso);
-            // Sem repetição, e todo elo se lê.
-            assert.equal(new Set(c).size, c.length, caso);
-            for (const id of c) assert.ok(lerMotorId(id), caso);
+              // Termina em sem-modelo, uma vez só.
+              assert.equal(c[c.length - 1], SEM_MODELO, caso);
+              assert.equal(c.filter((id) => id === SEM_MODELO).length, 1, caso);
+              // Sem repetição, e todo elo se lê.
+              assert.equal(new Set(c).size, c.length, caso);
+              for (const id of c) assert.ok(lerMotorId(id), caso);
 
-            // A exposição não cresce ao longo da cadeia…
-            for (let i = 1; i < c.length; i += 1) assert.ok(grau(c[i]) <= grau(c[i - 1]), caso);
-            // …não passa do regime…
-            for (const id of c) assert.ok(grau(id) <= exposicao(regimeMaximo), caso);
-            // …nem da preferência gravada.
-            if (lida) for (const id of c) assert.ok(grau(id) <= exposicao(lida.tipo), caso);
+              // A exposição não cresce ao longo da cadeia…
+              for (let i = 1; i < c.length; i += 1) assert.ok(grau(c[i]) <= grau(c[i - 1]), caso);
+              // …não passa do regime…
+              for (const id of c) assert.ok(grau(id) <= exposicao(regimeMaximo), caso);
+              // …nem da preferência gravada.
+              if (lida) for (const id of c) assert.ok(grau(id) <= exposicao(lida.tipo), caso);
 
-            // A nuvem tem um destinatário só — e, se a preferência é de nuvem, é o dela.
-            const destinos = new Set(c.map((id) => destinatario(lerMotorId(id)!)).filter((d) => d !== null));
-            assert.ok(destinos.size <= 1, caso);
-            if (lida?.tipo === 'nuvem') {
-              for (const d of destinos) assert.equal(d, destinatario(lida), caso);
-            }
+              // Nenhum elo além de sem-modelo é de tipo que o recurso não admite (AD-12).
+              for (const id of c) {
+                if (id !== SEM_MODELO) assert.ok(admite.includes(lerMotorId(id)!.tipo), caso);
+              }
 
-            // Ilegível dá só sem-modelo.
-            if (preferencia != null && !lida) assert.deepEqual(c, [SEM_MODELO], caso);
+              // A nuvem tem um destinatário só — e, se a preferência é de nuvem, é o dela.
+              const destinos = new Set(c.map((id) => destinatario(lerMotorId(id)!)).filter((d) => d !== null));
+              assert.ok(destinos.size <= 1, caso);
+              if (lida?.tipo === 'nuvem') {
+                for (const d of destinos) assert.equal(d, destinatario(lida), caso);
+              }
 
-            // Legível, conhecida e dentro do regime é o primeiro elo.
-            if (lida && lida.tipo !== 'sem-modelo' && catalogo.includes(preferencia as MotorId)
-              && exposicao(lida.tipo) <= exposicao(regimeMaximo)) {
-              assert.equal(c[0], preferencia, caso);
-            }
+              // Ilegível dá só sem-modelo.
+              if (preferencia != null && !lida) assert.deepEqual(c, [SEM_MODELO], caso);
 
-            // Nenhum elo entra de fora: ou é a preferência, ou veio do padrão.
-            for (const id of c) {
-              if (id === SEM_MODELO || id === preferencia) continue;
-              assert.ok(padrao.includes(id), caso);
+              // Legível, conhecida, dentro do regime e admitida é o primeiro elo.
+              if (lida && lida.tipo !== 'sem-modelo' && catalogo.includes(preferencia as MotorId)
+                && exposicao(lida.tipo) <= exposicao(regimeMaximo) && admite.includes(lida.tipo)) {
+                assert.equal(c[0], preferencia, caso);
+              }
+
+              // Nenhum elo entra de fora: ou é a preferência, ou veio do padrão.
+              for (const id of c) {
+                if (id === SEM_MODELO || id === preferencia) continue;
+                assert.ok(padrao.includes(id), caso);
+              }
+
+              // Quem não grava, ou admite os dois tipos, resolve como na 5.1.
+              if (grava === false || admite.length === TIPOS_QUE_GRAVAM.length) {
+                assert.deepEqual(c, semGravar, caso);
+              }
             }
           }
         }
       }
     }
-    // A enumeração não ficou vazia por engano: 18 preferências × 20 padrões × 32 catálogos × 3 regimes.
-    assert.equal(combinacoes, 34_560);
+    // A enumeração não ficou vazia por engano:
+    // 18 preferências × 20 padrões × 32 catálogos × 3 regimes × 5 formas de gravar.
+    assert.equal(combinacoes, 172_800);
   });
 });
 

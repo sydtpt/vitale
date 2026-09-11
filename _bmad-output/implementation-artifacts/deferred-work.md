@@ -226,3 +226,33 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-1-a-porta-o-fio-e-o-orquestrador.md`
   summary: O `semComentario` de `architecture.test.ts` apaga comentário por regex e não conhece literal — uma string com `/*` (um glob como `'**/*.ts'`, uma regex) come o código até o próximo `*/` —, e desde a 5.1 ele é compartilhado por mais guardas; trocar por um varredor que respeite literais.
   evidence: PRÉ-EXISTENTE (as duas cópias já tinham a regex); a 5.1 só a subiu para o topo. Nenhum arquivo alvo tem esse literal hoje, então não há falso verde medido, só o risco.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: O modo de casamento de cada subconjunto de `VOCABULARIO_PROIBIDO` vive só num comentário — `causa` por trecho na revista, os cinco novos por palavra inteira —, e a 5.3 precisa decidir como a Saúde do sono casa `causa` quando o compuser; avaliar pôr o modo no dado ou uma função de violações no dono, antes de nascer o terceiro casador.
+  evidence: Achado da revisão da 5.2. Já há dois casadores (`baixo.includes` em `verificarTexto` e `casaPorPalavra` no teste do vocabulário); a spec deixou o casamento dos subconjuntos novos para a 5.3 de propósito.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: Casando por palavra inteira, os termos no singular deixam passar as flexões — "metas", "setas", "conquistas", "pontuações", "melhoraram", "melhorando", "recomenda", "sugere", "sugestão", "experimentar", "tente dormir" —; o casador da 5.3 ou a lista precisam cobri-las, com teste de violação flexionada.
+  evidence: Achado da revisão da 5.2, conferido contra a lista aprovada: nenhuma forma flexionada está nela, e nenhum teste usa uma.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: "continue assim" está em `conselho` e em `elogio`; o recurso que compuser os dois (a Saúde, na 5.3) conta dois problemas para uma ocorrência — deduplicar ao compor.
+  evidence: Achado da revisão da 5.2. As duas fontes são a mesma linha do `SISTEMA`; o teste só proíbe repetição dentro de um subconjunto.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: O casamento por trecho de `causa` tem falso positivo real na revista — "levou a" casa com "O sono levou algumas noites para voltar ao horário." —, e texto correto reprovado é edição que não imprime.
+  evidence: PRÉ-EXISTENTE: `CAUSA` e o casamento são os de antes, e a spec da 5.2 os congelou ("reprova exatamente o que reprovava"). Mexer muda a conferência da revista — decisão para a 1.10/1.11 ou para quando a 5.3 fixar o casador por palavra.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: A causa `preferencia` ganhou uma quinta situação — a preferência gravada que o recurso não admite (a revista com o aparelho) —, com trilha vazia, igual a quem escolheu o template; a tela da 5.5 continua sem saber dizer por que o escolhido não escreveu.
+  evidence: Achado da revisão da 5.2; soma-se ao item da 5.1 sobre as quatro situações de `preferencia`. Preferência não admitida só nasce se o `admite` encolher, mas aí some sem rastro.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: `format/` tem dois formatadores de número em pt-BR — o `fmtNum` privado de `format/money.ts`, sobre `toLocaleString('pt-BR')`, e o `formatarNumero` de `format/numero.ts`, escrito à mão —, que podem divergir (Intl × manual, o Intl do Hermes no mobile); decidir se um passa a usar o outro.
+  evidence: PRÉ-EXISTENTE: os dois já existiam antes da 5.2, que só mudou `formatarNumero` de arquivo; o comentário novo de `numero.ts` diz "com um dono só", o que só vale para a prosa da IA.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: `formatarNumero` escreve "−0,0" para negativo que arredonda a zero (`-0.04`, 1 casa) e "NaN"/"Infinity" literais para valor não finito; a 5.3 vai interpolar por ele em texto que o usuário lê — tratar o zero negativo e recusar não finito, com teste.
+  evidence: PRÉ-EXISTENTE: é o corpo de antes, e a spec da 5.2 exigiu "toda saída formatada é a mesma de antes". Conferido pelo revisor com as entradas citadas.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: A AD-12 manda o recurso que grava declarar "como a assinatura vira colunas", e nenhuma story tem isso; a 1.10 grava `prompt_versao`/`pacote_versao` a partir de `versaoDoDescritor` — decodificar no núcleo (`ia/imprimir.ts`), nunca reescrevendo as constantes de hoje no hospedeiro, que a guarda (7) vai proibir de importá-las.
+  evidence: Achado da revisão da 5.2. A codificação (`PROMPT_VERSAO × 1000 + PACOTE_VERSAO`) mora em `ia/retrospectiva.ts` e a decodificação só existe no teste; a espinha lista a declaração no descritor, e o `epics.md` não a dá a nenhuma story.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: A `Cadeia` marcada não carrega o recurso para o qual foi resolvida; a conferência por elo da 5.2 pega regime e `admite`, mas não o destinatário — a cadeia da Saúde, com a nuvem que o usuário escolheu para ela, passa no `ler` da revista e manda a edição para aquele provedor.
+  evidence: Achado da revisão da 5.2. Exige erro de ligação no hospedeiro; fechar pede carimbar o recurso na cadeia em `resolverCadeia` e conferir no `ler`, o que muda a assinatura das duas — decisão para a 5.5, quando nasce o primeiro hospedeiro com duas cadeias.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono.md`
+  summary: Texto de recusa sem número nem termo de causa ("Não posso ajudar com isso.") passa em `verificarTexto` e seria impresso como edição permanente — a revista declara recusa como não-resultado, mas nada detecta recusa em texto.
+  evidence: PRÉ-EXISTENTE: a conferência de hoje também não detecta, e a spec da 5.2 registrou "Não detecta recusa". Relevante para a 1.10/1.11, que imprimem e gravam.

@@ -23,6 +23,13 @@
  * defeito com causa; descritor é código puro, e o que ele lança é bug — tem de
  * aparecer no teste, não virar piso. O anel recebe o evento antes, porque em
  * produção ele é o único diagnóstico.
+ *
+ * **O recurso confere a própria cadeia** (story 5.2). A `Cadeia` marcada diz que
+ * foi a resolução que a construiu, não para qual recurso. No modo produto, o elo
+ * acima do `regimeMaximo` do descritor, ou de tipo fora do que ele admite gravar,
+ * vira tentativa sintética `indisponivel` — nenhuma chamada sai — e a cadeia
+ * recua. A medição confere só o `regimeMaximo`. Nos dois modos, id que não se lê
+ * vira a mesma sintética: sem tipo, não há exposição a conferir.
  */
 import {
   APARELHO_SISTEMA,
@@ -35,6 +42,7 @@ import {
   type TipoDeMotor,
 } from './fio';
 import {
+  admiteTipo,
   exposicao,
   hashDoPedido,
   type Cadeia,
@@ -43,6 +51,7 @@ import {
   type Pedido,
   type Resposta,
   type RespostaAssinada,
+  type TipoQueGrava,
 } from './motor';
 import type { RecursoId } from './recursos';
 
@@ -92,10 +101,18 @@ export type Conferencia =
 export type Piso = { readonly frase: string } | { readonly ausencia: string };
 
 /**
- * Se o recurso grava o que o motor escreve, e se recusa é resultado (AD-12).
- * Recurso que não grava não tem o que declarar sobre recusa.
+ * Se o recurso grava o que o motor escreve, os tipos de motor que ele admite que
+ * gravem, e se recusa é resultado (AD-12). Recurso que não grava não tem o que
+ * declarar sobre nenhum dos dois.
+ *
+ * `admite` corta nas duas pontas: a resolução nunca põe na cadeia um tipo fora
+ * dele (`resolverCadeia`), e o modo produto recusa o elo que vier de uma cadeia
+ * resolvida para outro recurso. A medição não o lê — medir não grava, e é pela
+ * bancada que um tipo novo entra aqui (AD-9).
  */
-export type Grava = false | { readonly recusaEResultado: boolean };
+export type Grava =
+  | false
+  | { readonly admite: readonly TipoQueGrava[]; readonly recusaEResultado: boolean };
 
 /**
  * O caminho de um recurso, declarado como dado e funções puras.
@@ -441,6 +458,26 @@ function daFalha(f: Falha): { desfecho: ClasseDeFalha; detalhe?: string; naoMape
   };
 }
 
+/**
+ * Por que este recurso não aceita o elo — ou `null`, se aceita.
+ *
+ * Elo que nem se lê não tem exposição a conferir, e fica de fora pelo mesmo
+ * caminho: na dúvida sobre para onde o dado iria, ele não vai. A resolução nunca
+ * produz um; só uma cadeia forjada o traria.
+ */
+function foraDoRecurso<F, V>(d: Descritor<F, V>, id: MotorId): string | null {
+  const lido = lerMotorId(id);
+  if (!lido) return 'o elo não se lê';
+  if (exposicao(lido.tipo) > exposicao(d.regimeMaximo)) {
+    return `acima do regimeMaximo do recurso (${d.regimeMaximo})`;
+  }
+  if (!admiteTipo(d, lido.tipo)) {
+    const admite: unknown = d.grava ? d.grava.admite : undefined;
+    return `fora do que o recurso admite gravar (${Array.isArray(admite) && admite.length > 0 ? admite.join(', ') : 'nada'})`;
+  }
+  return null;
+}
+
 /** Um motor inteiro: a tentativa e, se foi `janela`, a repetição com o pedido curto. */
 async function tentarMotor<F, V>(
   d: Descritor<F, V>,
@@ -549,6 +586,18 @@ async function produto<F, V>(d: Descritor<F, V>, fatos: F, o: OpcoesDeProduto): 
     // `elos` não é vazio, então o laço roda ao menos uma vez e sobrescreve isto.
     let recuou: Causa = 'indisponivel';
     for (const id of elos) {
+      // Antes do `motorPara`: o elo que o recurso não aceita não é pedido a ninguém.
+      const fora = foraDoRecurso(d, id);
+      if (fora !== null) {
+        passos.push({
+          ok: false,
+          tentativa: { motor: id, desfecho: 'indisponivel', ms: 0, sintetica: true, detalhe: fora },
+          pedido,
+        });
+        recuou = 'indisponivel';
+        continue;
+      }
+
       const doMotor = await tentarMotor(d, fatos, id, pedido, o);
       passos.push(...doMotor);
       const ultimo = doMotor[doMotor.length - 1];
@@ -603,15 +652,23 @@ async function medicao<F, V>(d: Descritor<F, V>, fatos: F, o: OpcoesDeMedicao): 
     const hash = hashDoPedido(pedido, d.versao);
 
     // O teto do recurso vale também para medir: o dado de um recurso só-aparelho
-    // não vai à nuvem nem na bancada nem na tela de desenvolvimento (AD-5).
+    // não vai à nuvem nem na bancada nem na tela de desenvolvimento (AD-5). O
+    // `admite` não: medir não grava, e é a bancada que abre o `admite` (AD-9).
+    // Motor que não se lê não tem exposição a conferir — e, como no produto, na
+    // dúvida sobre para onde o dado iria, ele não vai.
     const lido = lerMotorId(o.motor);
-    if (lido && exposicao(lido.tipo) > exposicao(d.regimeMaximo)) {
+    const recusa = !lido
+      ? 'o motor não se lê'
+      : exposicao(lido.tipo) > exposicao(d.regimeMaximo)
+        ? `acima do regimeMaximo do recurso (${d.regimeMaximo})`
+        : null;
+    if (recusa !== null) {
       const tentativa: Tentativa = {
         motor: o.motor,
         desfecho: 'indisponivel',
         ms: 0,
         sintetica: true,
-        detalhe: `acima do regimeMaximo do recurso (${d.regimeMaximo})`,
+        detalhe: recusa,
       };
       passos = [{ ok: false, tentativa: { ...tentativa, desfecho: 'indisponivel' }, pedido }];
       aviso(evento(d, 'medicao', instante, passos, { pedido }));
@@ -651,8 +708,10 @@ async function medicao<F, V>(d: Descritor<F, V>, fatos: F, o: OpcoesDeMedicao): 
  * Lê um recurso.
  *
  * Em `produto`, percorre a cadeia com recuo e piso, e devolve de onde o texto
- * veio. Em `medicao`, roda exatamente o motor pedido, sem recuo e sem piso, e
- * devolve a tentativa — é o modo da bancada e da tela de desenvolvimento.
+ * veio; o elo que o recurso não aceita (acima do `regimeMaximo`, ou fora do que
+ * ele admite gravar) vira tentativa sintética, sem chamada. Em `medicao`, roda
+ * exatamente o motor pedido, sem recuo e sem piso, e devolve a tentativa — é o
+ * modo da bancada e da tela de desenvolvimento.
  *
  * Nunca rejeita por causa de um motor. Rejeita, sim, se uma função do descritor
  * lançar: isso é bug de código puro.
