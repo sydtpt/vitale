@@ -147,10 +147,11 @@ export function metricRecapRange(
 ): MetricRecap {
   const c = metricAvgInRange(valuesByDay, cur.start, cur.end);
   const p = metricAvgInRange(valuesByDay, prev.start, prev.end);
-  if (c.avg == null) return { current: null, prior: p.avg, delta: null, deltaPct: null, n: c.n };
-  if (p.avg == null) return { current: c.avg, prior: null, delta: null, deltaPct: null, n: c.n };
+  const n = { n: c.n, nAnterior: p.n };
+  if (c.avg == null) return { current: null, prior: p.avg, delta: null, deltaPct: null, ...n };
+  if (p.avg == null) return { current: c.avg, prior: null, delta: null, deltaPct: null, ...n };
   const delta = c.avg - p.avg;
-  return { current: c.avg, prior: p.avg, delta, deltaPct: p.avg !== 0 ? (delta / p.avg) * 100 : null, n: c.n };
+  return { current: c.avg, prior: p.avg, delta, deltaPct: p.avg !== 0 ? (delta / p.avg) * 100 : null, ...n };
 }
 
 /** Recap de uma métrica de saúde: média da semana vs anterior. */
@@ -159,7 +160,20 @@ export interface MetricRecap {
   prior: number | null;
   delta: number | null;
   deltaPct: number | null;
+  /** Dias com valor no período corrente. */
   n: number;
+  /**
+   * Dias com valor no período **anterior** — o outro lado da comparação.
+   *
+   * Existe porque uma média sobre 3 dias contra outra sobre 28 não é a mesma
+   * comparação que 28 contra 28, e `n` só conta um lado. Quem lê é o
+   * ranqueamento da revista (`ia/ranqueamento.ts`), pela `amostra` do fato: o
+   * **menor** dos dois lados.
+   *
+   * Opcional porque há quem monte `MetricRecap` à mão; ausente ⇒ não se sabe, e
+   * o ranqueamento trata "não se sabe" como amostra insuficiente.
+   */
+  nAnterior?: number;
 }
 
 export function metricRecap(
@@ -168,15 +182,16 @@ export function metricRecap(
 ): MetricRecap {
   const cur = metricAvg(valuesByDay, now, 0);
   const prev = metricAvg(valuesByDay, now, 1);
-  if (cur.avg == null) return { current: null, prior: prev.avg, delta: null, deltaPct: null, n: cur.n };
-  if (prev.avg == null) return { current: cur.avg, prior: null, delta: null, deltaPct: null, n: cur.n };
+  const n = { n: cur.n, nAnterior: prev.n };
+  if (cur.avg == null) return { current: null, prior: prev.avg, delta: null, deltaPct: null, ...n };
+  if (prev.avg == null) return { current: cur.avg, prior: null, delta: null, deltaPct: null, ...n };
   const delta = cur.avg - prev.avg;
   return {
     current: cur.avg,
     prior: prev.avg,
     delta,
     deltaPct: prev.avg !== 0 ? (delta / prev.avg) * 100 : null,
-    n: cur.n,
+    ...n,
   };
 }
 

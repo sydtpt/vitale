@@ -7,12 +7,16 @@ import type { PacoteDeFatos } from '../ia/pacote';
 import {
   CADERNOS,
   CADERNO_IDS,
+  LAPIDES,
+  METRICAS_COM_LAPIDE,
   cadernoDaMetricaDeSaude,
   cadernoDef,
   isCadernoId,
+  isMetricaComLapide,
   rotuloDoCaderno,
 } from './cadernos';
-import type { CadernoId } from './cadernos';
+import type { CadernoId, MetricaComLapide } from './cadernos';
+import { MONTHS_PT } from './bounds';
 
 /**
  * O catálogo é lei — e lei que ninguém cobra é prosa.
@@ -110,7 +114,21 @@ function periodoCheio(): RetroSummary {
   } as RetroSummary;
 }
 
-const PACOTES = montarPacotes({ resumo: periodoCheio(), agora: new Date('2026-09-06T19:00:00') });
+/**
+ * As quatro mortes reais de 2026 (respiração 10/07, VO₂max 14/07, SpO₂ 16/07,
+ * anéis 17/08). Todas até o fim de agosto, então todas entram no pacote do
+ * período cheio — três como antigas, a dos anéis como do período.
+ */
+const LAPIDES_DE_2026 = [
+  { metrica: 'respiracao', ultimaMedidaISO: '2026-07-10' },
+  { metrica: 'vo2max', ultimaMedidaISO: '2026-07-14' },
+  { metrica: 'spo2', ultimaMedidaISO: '2026-07-16' },
+  { metrica: 'aneis', ultimaMedidaISO: '2026-08-17' },
+] as const;
+
+const PACOTES = montarPacotes({
+  resumo: periodoCheio(), agora: new Date('2026-09-06T19:00:00'), lapides: LAPIDES_DE_2026,
+});
 
 function pacote(id: CadernoId): PacoteDeFatos {
   return PACOTES.find((p) => p.caderno === id)!;
@@ -121,6 +139,10 @@ const temChave = (id: CadernoId, chave: string) => () =>
 
 const temPrefixo = (id: CadernoId, prefixo: string) => () =>
   pacote(id).metricas.some((f) => f.chave.startsWith(prefixo));
+
+/** As lápides de um caderno são EXATAMENTE estas — nem a mais, nem no vizinho. */
+const lapidesSao = (id: CadernoId, esperadas: readonly MetricaComLapide[]) => () =>
+  JSON.stringify(pacote(id).lapides.map((l) => l.metrica).sort()) === JSON.stringify([...esperadas].sort());
 
 /**
  * Um predicado por linha marcada `noPacote: true`. A chave é o `campo` do
@@ -133,9 +155,13 @@ const ENTREGUE: Readonly<Record<string, () => boolean>> = {
   'km · tempo': () => temChave('movimento', 'distancia')() && temChave('movimento', 'tempo')(),
   'elevação': temPrefixo('movimento', 'ciclismo.elevacao'),
   'passos e andares': () => temChave('movimento', 'passos_dia')() && temChave('movimento', 'andares')(),
+  // As duas lápides do Movimento — pela rota única da métrica. Se VO₂max ou
+  // anéis caíssem no padrão do mapa de saúde (Coração), este predicado reprova.
+  'lápides de VO₂max e anéis': lapidesSao('movimento', ['vo2max', 'aneis']),
   // Coração
   'FC de repouso': temChave('coracao', 'fcRepouso'),
   'VFC': temChave('coracao', 'vfc'),
+  'lápides de respiração e SpO₂': lapidesSao('coracao', ['respiracao', 'spo2']),
   // Rotina
   'hábitos — dias com registro': temPrefixo('rotina', 'habito.'),
   'registros': temPrefixo('rotina', 'registro.'),
@@ -191,8 +217,93 @@ describe('CadernoId — o vocabulário com dono único', () => {
     assert.equal(cadernoDaMetricaDeSaude('sono'), 'sono');
     assert.equal(cadernoDaMetricaDeSaude('fcRepouso'), 'coracao');
     assert.equal(cadernoDaMetricaDeSaude('vfc'), 'coracao');
+    // A exceção nomeada: `cadernos.md` põe VO₂max e anéis em Movimento.
+    assert.equal(cadernoDaMetricaDeSaude('vo2max'), 'movimento');
+    assert.equal(cadernoDaMetricaDeSaude('aneis'), 'movimento');
     // O que resta de health_daily depois que o sono sai é assunto do Coração.
     assert.equal(cadernoDaMetricaDeSaude('metrica-que-ainda-nao-existe'), 'coracao');
+  });
+});
+
+/* ── a lápide: mapa próprio, nome sem dígito ── */
+
+describe('LAPIDES — as quatro do catálogo, cada uma no seu caderno', () => {
+  it('são exatamente quatro, com os ids do catálogo de métricas', () => {
+    assert.deepEqual([...METRICAS_COM_LAPIDE].sort(), ['aneis', 'respiracao', 'spo2', 'vo2max']);
+    for (const m of METRICAS_COM_LAPIDE) assert.equal(isMetricaComLapide(m), true);
+    // Outra métrica de saúde não vira lápide só por ser de saúde.
+    for (const mau of ['vfc', 'fcRepouso', 'sono', 'VO2max', '', null, 7]) {
+      assert.equal(isMetricaComLapide(mau), false, `"${String(mau)}" não tem lápide`);
+    }
+    assert.ok(Object.isFrozen(LAPIDES), 'o barril exporta o mapa — sem freeze, um consumidor o reescreve');
+  });
+
+  it('VO₂max e anéis são de MOVIMENTO; respiração e SpO₂, de Coração', () => {
+    assert.equal(LAPIDES.vo2max.caderno, 'movimento');
+    assert.equal(LAPIDES.aneis.caderno, 'movimento');
+    assert.equal(LAPIDES.respiracao.caderno, 'coracao');
+    assert.equal(LAPIDES.spo2.caderno, 'coracao');
+  });
+
+  it('UMA rota só: para toda métrica com lápide, o mapa dela e o de saúde dão o mesmo caderno', () => {
+    // Duas rotas para a mesma métrica é o dia em que a lápide do VO₂max mora
+    // num caderno e a linha de VO₂max, no outro — e em julho/2026 o Coração
+    // lideraria por uma morte que é do Movimento.
+    for (const m of METRICAS_COM_LAPIDE) {
+      assert.equal(LAPIDES[m].caderno, cadernoDaMetricaDeSaude(m), `${m}: as duas rotas se separaram`);
+    }
+  });
+
+  it('o verbo concorda com o nome — "anéis de atividade pararam", os outros "parou"', () => {
+    // A FORMA manda COPIAR a frase da linha: um verbo fixo no singular seria o
+    // prompt ensinando o erro de concordância.
+    assert.deepEqual(
+      METRICAS_COM_LAPIDE.map((m) => [m, LAPIDES[m].verbo]),
+      [['vo2max', 'parou'], ['aneis', 'pararam'], ['respiracao', 'parou'], ['spo2', 'parou']],
+    );
+    for (const m of METRICAS_COM_LAPIDE) {
+      const plural = LAPIDES[m].nome.split(' ')[0].endsWith('s');
+      assert.equal(LAPIDES[m].verbo, plural ? 'pararam' : 'parou', `${m}: verbo não concorda com "${LAPIDES[m].nome}"`);
+    }
+  });
+
+  it('o nome é prosa SEM DÍGITO — nem ASCII nem subscrito', () => {
+    // O `NUM` da conferência lê o "2" de "VO2" como número fora do alfabeto. O
+    // subscrito é inerte para o regex, mas o modelo o normaliza ao copiar.
+    for (const m of METRICAS_COM_LAPIDE) {
+      const nome = LAPIDES[m].nome;
+      assert.equal(/\d/.test(nome), false, `"${nome}" tem dígito`);
+      assert.equal(/\p{N}/u.test(nome), false, `"${nome}" tem dígito subscrito ou sobrescrito`);
+      assert.equal(nome, nome.toLowerCase(), `"${nome}" não é prosa minúscula`);
+    }
+    assert.deepEqual(
+      METRICAS_COM_LAPIDE.map((m) => LAPIDES[m].nome),
+      ['consumo máximo de oxigênio', 'anéis de atividade', 'frequência respiratória', 'saturação de oxigênio'],
+    );
+  });
+
+  it('a frase inteira — nome e verbo, singular e plural — não carrega mês, dígito nem vocabulário de base', () => {
+    // A lápide vai ao texto em parágrafo próprio, e o parágrafo é o alcance da
+    // quinta regra: nome de mês ou "ano passado" dentro dele nomeariam base. A
+    // varredura é da frase que o texto escreve, com o verbo de cada uma.
+    const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+    const VOCAB = ['anterior', 'passad', 'normal', 'costuma', 'media', 'ha um ano', 'um ano antes'];
+    for (const m of METRICAS_COM_LAPIDE) {
+      const frase = norm(`${LAPIDES[m].nome} ${LAPIDES[m].verbo} de chegar em`);
+      assert.deepEqual(MONTHS_PT.map(norm).filter((mes) => new RegExp(`\\b${mes}\\b`).test(frase)), [], frase);
+      assert.deepEqual(VOCAB.filter((v) => frase.includes(v)), [], frase);
+      assert.equal(/\p{N}/u.test(frase), false, frase);
+    }
+  });
+
+  it('as duas linhas de lápide do catálogo dizem que ninguém produz a lápide ainda', () => {
+    for (const c of CADERNOS) {
+      for (const f of c.fontes.filter((x) => x.campo.startsWith('lápides'))) {
+        assert.equal(f.noPacote, true, f.campo);
+        assert.match(f.nota ?? '', /ninguém a produz ainda/, `${f.campo}: entregue sem dizer que a entrada ainda vem vazia`);
+        assert.match(f.nota ?? '', /deferred-work/);
+      }
+    }
   });
 });
 

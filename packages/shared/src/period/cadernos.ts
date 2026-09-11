@@ -101,7 +101,12 @@ export const CADERNOS: readonly CadernoDef[] = [
       { campo: 'elevação', fonte: 'activity_routes · SportStats.elevationM', noPacote: true },
       { campo: 'cidades como fato de texto', fonte: 'CityMark', noPacote: false },
       { campo: 'piso das rotas como fato de texto', fonte: 'ADR 0043', noPacote: false },
-      { campo: 'lápides de VO₂max e anéis', fonte: 'CAP-11', noPacote: false },
+      {
+        campo: 'lápides de VO₂max e anéis',
+        fonte: 'CAP-11 · EntradaPacote.lapides · LAPIDES',
+        noPacote: true,
+        nota: 'o pacote carrega a lápide que CHEGA na entrada — ninguém a produz ainda. Detectar a métrica morta é consulta ao banco com limiar de silêncio, fora do núcleo; o detector está no deferred-work (Story 1.7)',
+      },
       {
         campo: 'passos e andares',
         fonte: 'RetroFitness.steps, RetroFitness.floors',
@@ -117,7 +122,12 @@ export const CADERNOS: readonly CadernoDef[] = [
       { campo: 'FC de repouso', fonte: 'health_daily', noPacote: true },
       { campo: 'VFC', fonte: 'health_daily (ponte intervals.icu)', noPacote: true },
       { campo: 'a série intradiária — curva do dia, Noites, dia × hora', fonte: 'health_series · ADR 0033', noPacote: false },
-      { campo: 'lápides de respiração e SpO₂', fonte: 'CAP-11', noPacote: false },
+      {
+        campo: 'lápides de respiração e SpO₂',
+        fonte: 'CAP-11 · EntradaPacote.lapides · LAPIDES',
+        noPacote: true,
+        nota: 'o pacote carrega a lápide que CHEGA na entrada — ninguém a produz ainda. Detectar a métrica morta é consulta ao banco com limiar de silêncio, fora do núcleo; o detector está no deferred-work (Story 1.7)',
+      },
     ],
   },
   {
@@ -182,6 +192,12 @@ export function rotuloDoCaderno(id: CadernoId): string {
  * O padrão é `coracao` porque, nas palavras de `cadernos.md`, ele é o que
  * **resta** de `health_daily` depois que o sono sai e passos/andares viram
  * subproduto de Movimento.
+ *
+ * **VO₂max e anéis são exceção nomeada**: `cadernos.md` os põe em Movimento, e o
+ * padrão os jogaria no Coração. Estão aqui para que a métrica tenha **uma rota
+ * só** — a mesma de {@link LAPIDES}, que `cadernos.test.ts` confere métrica a
+ * métrica. Duas rotas para a mesma métrica é o dia em que a lápide do VO₂max
+ * mora num caderno e a linha de VO₂max, no outro.
  */
 const SAUDE_POR_METRICA: Readonly<Record<string, CadernoId>> = {
   sono: 'sono',
@@ -191,8 +207,68 @@ const SAUDE_POR_METRICA: Readonly<Record<string, CadernoId>> = {
   vfc: 'coracao',
   respiracao: 'coracao',
   spo2: 'coracao',
+  vo2max: 'movimento',
+  aneis: 'movimento',
 };
 
 export function cadernoDaMetricaDeSaude(metric: string): CadernoId {
   return SAUDE_POR_METRICA[metric] ?? 'coracao';
+}
+
+// ── A lápide ───────────────────────────────────────────────
+
+/**
+ * As métricas que a revista sabe declarar mortas — **só as quatro do catálogo**,
+ * com os ids de `health/metric-catalog.ts`.
+ *
+ * São as quatro que pararam em 2026 (respiração 10/07, VO₂max 14/07, SpO₂ 16/07,
+ * anéis 17/08) e que nenhuma tela avisou. Quem **decide** que uma delas morreu
+ * não é o núcleo: a lápide chega pronta em `EntradaPacote.lapides`, com a data
+ * da última medida. Detectar a morte é consulta ao banco com limiar de silêncio,
+ * e isso está fora do núcleo por construção.
+ */
+export type MetricaComLapide = 'vo2max' | 'aneis' | 'respiracao' | 'spo2';
+
+export interface DefDaLapide {
+  /** O caderno da métrica — o mesmo de {@link cadernoDaMetricaDeSaude}. */
+  caderno: CadernoId;
+  /**
+   * Como o texto a nomeia — em prosa, minúsculo, **sem dígito**.
+   *
+   * Sem dígito porque o `NUM` da conferência (`ia/verificar.ts`) lê o "2" de
+   * "VO2" como número fora do alfabeto e reprova a edição inteira. "VO₂" copiado
+   * com o subscrito é inerte para o regex; normalizado para "VO2" por quem o
+   * copia, reprova. O nome por extenso não tem essa porta.
+   */
+  nome: string;
+  /**
+   * O verbo que concorda com o nome — *"anéis de atividade **pararam**"*, e não
+   * *"parou"*. Vai junto porque a FORMA manda **copiar** a frase da linha: um
+   * verbo fixo no singular seria o prompt ensinando o erro de concordância.
+   */
+  verbo: 'parou' | 'pararam';
+}
+
+/**
+ * O mapa da lápide: caderno, nome e verbo de cada uma.
+ *
+ * O caderno é o mesmo que {@link cadernoDaMetricaDeSaude} devolve — VO₂max e
+ * anéis em **Movimento** (`cadernos.md`), pelas duas rotas. `cadernos.test.ts`
+ * confere, métrica a métrica, que elas não se separem: se se separassem, a
+ * lápide do consumo máximo de oxigênio moraria num caderno e a linha dele, no
+ * outro — e em julho/2026 o Coração lideraria por uma morte que não é dele.
+ */
+export const LAPIDES: Readonly<Record<MetricaComLapide, Readonly<DefDaLapide>>> = Object.freeze({
+  vo2max: Object.freeze({ caderno: 'movimento', nome: 'consumo máximo de oxigênio', verbo: 'parou' }),
+  aneis: Object.freeze({ caderno: 'movimento', nome: 'anéis de atividade', verbo: 'pararam' }),
+  respiracao: Object.freeze({ caderno: 'coracao', nome: 'frequência respiratória', verbo: 'parou' }),
+  spo2: Object.freeze({ caderno: 'coracao', nome: 'saturação de oxigênio', verbo: 'parou' }),
+});
+
+/** As quatro, na ordem do mapa — o desempate entre lápides do mesmo dia. */
+export const METRICAS_COM_LAPIDE: readonly MetricaComLapide[] =
+  Object.freeze(Object.keys(LAPIDES) as MetricaComLapide[]);
+
+export function isMetricaComLapide(v: unknown): v is MetricaComLapide {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(LAPIDES, v);
 }

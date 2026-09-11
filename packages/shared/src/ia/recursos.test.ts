@@ -74,6 +74,7 @@ const CADERNO_FIXO: PacoteDeFatos = {
   metricas: [
     {
       chave: 'atividades', rotulo: 'Atividades', atual: 21, unidade: '', casas: 0,
+      amostra: null, comparavel: true,
       bases: [
         { id: 'B1', rotulo: BASE_ROTULO.B1, existe: true, valor: 17, delta: 4, deltaPct: 23.5 },
         { id: 'B2', rotulo: BASE_ROTULO.B2, existe: false, valor: null, delta: null, deltaPct: null, motivo: 'sem ano anterior' },
@@ -82,6 +83,7 @@ const CADERNO_FIXO: PacoteDeFatos = {
     },
     {
       chave: 'ciclismo.distancia', rotulo: 'Distância', grupo: 'Ciclismo', atual: 333, unidade: 'km', casas: 0,
+      amostra: null, comparavel: true,
       bases: [
         { id: 'B1', rotulo: BASE_ROTULO.B1, existe: true, valor: 820, delta: -487, deltaPct: -59.4 },
         { id: 'B2', rotulo: BASE_ROTULO.B2, existe: false, valor: null, delta: null, deltaPct: null, motivo: 'sem ano anterior' },
@@ -91,6 +93,7 @@ const CADERNO_FIXO: PacoteDeFatos = {
   ],
   tendencias: [{ chave: 'atividades', rotulo: 'Atividades', direcao: 'sobe', periodos: 3, desde: 'junho' }],
   textos: [{ chave: 'piso', rotulo: 'Piso', valor: 'a maior parte do percurso era pavimentada' }],
+  lapides: [],
   cobertura: { diasComDado: 27, diasNoPeriodo: 31, diasComDadoAnterior: 14, diasNoPeriodoAnterior: 31, comparavel: false },
   correlacoes: [],
   eventos: [{ dia: '2026-08-30', tipo: 'marco', rotulo: 'Meia maratona' }],
@@ -106,8 +109,8 @@ const CADERNO_FIXO: PacoteDeFatos = {
 const GOLDENS: Readonly<Partial<Record<RecursoId, { fatos: unknown; versao: number; hash: string }>>> = {
   retrospectiva: {
     fatos: CADERNO_FIXO,
-    versao: 4002,
-    hash: '805456ebf9eb8d6acea511fd2801fec4ea8bdde8d24b5a4d372edde6e7271be4',
+    versao: 5003,
+    hash: 'ea7d1812ac5a16da508e99c232cf7744ea73226ed1b26db51a46a872f4c31534',
   },
 };
 

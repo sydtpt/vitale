@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 2026-09-11
+last_updated: 11-09-2026 16:10
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -87,7 +87,7 @@ development_status:
   1-4-o-texto-é-obrigado-a-nomear-a-base: review
   1-5-o-prompt-aprende-as-regras-novas: review
   1-6-a-camada-de-luz-entra-nos-quatro-pacotes: review
-  1-7-o-ranqueamento-do-miolo-e-a-lápide: backlog
+  1-7-o-ranqueamento-do-miolo-e-a-lápide: review
   1-8-a-chamada-sai-de-uma-função-só: backlog
   # Risco 9, o mais alto da frente. ENTREGA ÚNICA: a migração e o JS que a lê
   # não podem sair em momentos diferentes (AD-15) — instância única. HÁ OTA

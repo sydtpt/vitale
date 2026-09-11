@@ -2,13 +2,18 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { PeriodKind } from '../period/bounds';
 import {
-  MONTHS_PT, periodLabel, periodProseLabel, previousPeriodLabel,
+  MONTHS_PT, periodLabel, periodProseLabel, previousPeriodLabel, previousPeriodStartISO,
 } from '../period/bounds';
-import type { Base, BaseId, FatoNumero, PacoteDeFatos } from './pacote';
-import { BASE_ROTULO, TEXTO_DA_ESTACAO } from './pacote';
+import { LAPIDES, rotuloDoCaderno } from '../period/cadernos';
+import type { Base, BaseId, FatoLapide, FatoNumero, PacoteDeFatos } from './pacote';
+import {
+  BASE_ROTULO, PACOTE_VERSAO, TEXTO_DA_ESTACAO, montarPacotes, valoresDoPacote,
+} from './pacote';
+import type { RetroSummary } from '../period/retro';
 import {
   formatarNumero, montarPrompt, montarPromptDaEdicao, PROMPT_VERSAO,
 } from './prompt';
+import { ordenarCadernos } from './ranqueamento';
 import { verificarTexto } from './verificar';
 
 /**
@@ -41,6 +46,9 @@ function fato(
     ],
     unidade,
     casas,
+    // Só o ranqueamento lê estes dois; a conferência nunca os vê.
+    amostra: null,
+    comparavel: true,
   };
 }
 
@@ -61,21 +69,21 @@ function pacoteAgosto(opts: { correlacaoFraca?: boolean; lacuna?: boolean } = {}
   const periodo = PERIODO;
   return [
     {
-      versao: 2, caderno: 'movimento', rotulo: 'Movimento', periodo,
+      versao: PACOTE_VERSAO, caderno: 'movimento', rotulo: 'Movimento', periodo,
       metricas: [
         f('atividades', 'Atividades', 21, 17),
         f('distancia', 'Distância', 435, 862, 'km'),
         f('tempo', 'Tempo', 40.1, 68.2, 'h', 1),
       ],
-      tendencias: [], textos: [], cobertura: null,
+      tendencias: [], textos: [], lapides: [], cobertura: null,
       correlacoes: [],
       eventos: [{ dia: '2026-08-30', tipo: 'marco', rotulo: 'Meia maratona' }],
       lacunas: [], semDado: false,
     },
     {
-      versao: 2, caderno: 'sono', rotulo: 'Sono', periodo,
+      versao: PACOTE_VERSAO, caderno: 'sono', rotulo: 'Sono', periodo,
       metricas: [f('nota_sono', 'Nota de sono', 3.72, 3.39, '', 2)],
-      tendencias: [], textos: [],
+      tendencias: [], textos: [], lapides: [],
       cobertura: {
         diasComDado: 27, diasNoPeriodo: 31,
         diasComDadoAnterior: 14, diasNoPeriodoAnterior: 31,
@@ -108,13 +116,13 @@ function pacoteAgosto(opts: { correlacaoFraca?: boolean; lacuna?: boolean } = {}
  */
 function pacoteMovimentoAgrupado(): PacoteDeFatos {
   return {
-    versao: 2, caderno: 'movimento', rotulo: 'Movimento', periodo: PERIODO,
+    versao: PACOTE_VERSAO, caderno: 'movimento', rotulo: 'Movimento', periodo: PERIODO,
     metricas: [
       fato('distancia', 'Distância', 435, 862, 'km'),
       fato('ciclismo.distancia', 'Distância', 333, 820, 'km', 0, 'Ciclismo'),
       fato('corrida.distancia', 'Distância', 101, 21, 'km', 0, 'Corrida'),
     ],
-    tendencias: [], textos: [], cobertura: null,
+    tendencias: [], textos: [], lapides: [], cobertura: null,
     correlacoes: [], eventos: [], lacunas: [], semDado: false,
   };
 }
@@ -273,10 +281,10 @@ function pacoteDeBase(
   metricas: FatoNumero[], tipo: PeriodKind = 'month', rotuloAnterior: string | null = 'Julho 2026',
 ): PacoteDeFatos {
   return {
-    versao: 2, caderno: 'movimento', rotulo: 'Movimento',
+    versao: PACOTE_VERSAO, caderno: 'movimento', rotulo: 'Movimento',
     periodo: { ...PERIODO, tipo, rotuloAnterior },
     metricas,
-    tendencias: [], textos: [], cobertura: null,
+    tendencias: [], textos: [], lapides: [], cobertura: null,
     correlacoes: [], eventos: [], lacunas: [], semDado: false,
   };
 }
@@ -672,6 +680,7 @@ function fatoRotulado([chave, atual, b1]: Rotulado): FatoNumero {
     chave, rotulo: chave, atual,
     bases: [b1Base, baseAusente('B2'), baseAusente('B3')],
     unidade: '', casas,
+    amostra: null, comparavel: true,
   };
 }
 
@@ -836,7 +845,7 @@ const EDICOES: readonly EdicaoReal[] = [
 
 function pacoteDaEdicao(e: EdicaoReal): PacoteDeFatos {
   return {
-    versao: 2, caderno: 'movimento', rotulo: 'Movimento',
+    versao: PACOTE_VERSAO, caderno: 'movimento', rotulo: 'Movimento',
     periodo: {
       tipo: e.tipo,
       // Os DOIS rótulos derivados, não escritos à mão: é o caminho que a
@@ -851,7 +860,7 @@ function pacoteDaEdicao(e: EdicaoReal): PacoteDeFatos {
       luz: null,
     },
     metricas: e.fatos.map(fatoRotulado),
-    tendencias: [], textos: [],
+    tendencias: [], textos: [], lapides: [],
     cobertura: e.cobertura
       ? {
         diasComDado: e.cobertura.comDado, diasNoPeriodo: e.cobertura.dias,
@@ -1251,7 +1260,7 @@ function pacoteTresBases(tipo: PeriodKind): PacoteDeFatos {
     }
     : f.bases[0];
   return {
-    versao: 2, caderno: 'movimento', rotulo: 'Movimento',
+    versao: PACOTE_VERSAO, caderno: 'movimento', rotulo: 'Movimento',
     periodo: {
       tipo,
       rotulo: periodLabel(tipo, new Date(`${inicio}T00:00:00`)),
@@ -1260,7 +1269,7 @@ function pacoteTresBases(tipo: PeriodKind): PacoteDeFatos {
       luz: null,
     },
     metricas: [{ ...f, bases: [b1, B2_VALORADA, B3_VALORADA] }],
-    tendencias: [], textos: [], cobertura: null,
+    tendencias: [], textos: [], lapides: [], cobertura: null,
     correlacoes: [], eventos: [], lacunas: [], semDado: false,
   };
 }
@@ -1621,15 +1630,34 @@ describe('montarPrompt — caderno sem dado não vira prompt', () => {
     assert.ok(montarPrompt(vazio).sistema.includes('informa, não aconselha'));
   });
 
-  it('mas um caderno cuja única linha é a lápide É narrado — a lápide vence o vazio', () => {
+  it('mas um caderno cuja única linha é a lápide DO PERÍODO é narrado — a lápide vence o vazio', () => {
+    // A lápide morava em `textos` na intenção, como "SpO2: sem medida desde o
+    // dia 16" — com dígito no nome e sem data. Agora é fato próprio.
     const comLapide: PacoteDeFatos = {
       ...vazio,
-      textos: [{ chave: 'lapide.spo2', rotulo: 'SpO2', valor: 'sem medida desde o dia 16' }],
+      caderno: 'coracao', rotulo: 'Coração',
+      lapides: [{ metrica: 'spo2', ultimaMedidaISO: '2026-08-16' }],
       semDado: false,
     };
     const { usuario } = montarPrompt(comLapide);
-    assert.ok(usuario.includes('#### Fatos sem número'));
-    assert.ok(usuario.includes('SpO2'));
+    assert.ok(usuario.includes('#### Métricas que pararam de chegar'));
+    assert.ok(usuario.includes('- saturação de oxigênio parou de chegar em 16 de agosto de 2026 — neste período.'));
+    assert.equal(/SpO|spo/i.test(usuario), false, 'o nome vai por extenso, nunca pela sigla com dígito');
+  });
+
+  it('e o caderno cuja única linha é uma lápide ANTIGA continua mudo — nos dois grãos', () => {
+    const soAntiga: PacoteDeFatos = {
+      ...vazio,
+      caderno: 'coracao', rotulo: 'Coração',
+      lapides: [{ metrica: 'spo2', ultimaMedidaISO: '2026-07-16' }],
+      semDado: true,
+    };
+    assert.equal(montarPrompt(soAntiga).usuario, '');
+    assert.equal(montarPromptDaEdicao([soAntiga]).usuario, '', 'a edição só de vazios é muda');
+    const [movimento] = pacoteAgosto();
+    const edicao = montarPromptDaEdicao([movimento, soAntiga]).usuario;
+    assert.equal(edicao.includes('### Coração'), false, 'a lápide antiga ressuscitou o caderno na edição');
+    assert.equal(edicao.includes('saturação de oxigênio'), false);
   });
 
   /*
@@ -1948,8 +1976,30 @@ describe('SISTEMA — as leis do jornal', () => {
     assert.ok(sistema.includes('COBERTURA DESIGUAL'));
   });
 
-  it('a versão do prompt é 4 — a luz entrou no cabeçalho', () => {
-    assert.equal(PROMPT_VERSAO, 4);
+  it('a versão do prompt é 5 — a lápide entrou, e o vazio é decidido nos dois grãos', () => {
+    assert.equal(PROMPT_VERSAO, 5);
+  });
+
+  /*
+   * A LINHA DA FORMA QUE A LÁPIDE LÊ.
+   *
+   * O parágrafo próprio não é estética: o parágrafo é o alcance da absolvição da
+   * quinta regra, e a data da lápide tem nome de mês. Ver "o parágrafo próprio é
+   * o que protege", adiante.
+   */
+  it('a FORMA põe a lápide em parágrafo próprio, só com nome, verbo e data, e diz onde ela vai', () => {
+    assert.match(sistema, /"Métricas que pararam de chegar"/);
+    assert.match(sistema, /Cada linha\s+vira um PARÁGRAFO PRÓPRIO/);
+    // O nome vai como está na linha, por extenso: a sigla com dígito ("o 2 de
+    // VO2") é número fora do alfabeto. E a lei o diz SEM escrever sigla nenhuma —
+    // um exemplo de sigla aqui seria um dígito que o modelo pode copiar.
+    assert.match(sistema, /o nome da métrica exatamente como está na\s+linha — por extenso, nunca por sigla —/);
+    assert.equal(/vo\s?2|spo\s?2|sp\s?o2/i.test(sistema), false, 'o SISTEMA escreveu uma sigla');
+    // As duas formas do verbo: "anéis de atividade" é plural, e a FORMA manda
+    // copiar a linha — um verbo fixo no singular ensinaria o erro.
+    assert.match(sistema, /o verbo como está na linha\s+\("parou de chegar em" ou "pararam de chegar em"\) e a data por extenso — e\s+nada mais/);
+    assert.match(sistema, /nenhum outro número, nenhuma explicação, nenhum conselho/);
+    assert.match(sistema, /A que\s+parou neste período abre o que você escreve sobre o caderno dela; as que\s+pararam antes o fecham/);
   });
 
   /*
@@ -2150,5 +2200,393 @@ describe('a luz do período — invisível para a quinta regra', () => {
     const p = pacoteTresBases('year');
     assert.equal(p.periodo.luz, null);
     assert.equal(montarPrompt(p).usuario.includes('Luz do dia'), false);
+  });
+});
+
+/*
+ * ── A LÁPIDE NO PROMPT, E INVISÍVEL PARA A CONFERÊNCIA (Story 1.7) ──
+ *
+ * A lápide chega ao modelo com uma data por extenso — "14 de julho de 2026" —, e
+ * data tem dígito e nome de mês. Os dígitos a conferência já dispensa (dia de
+ * mês seguido de "de", ano de quatro dígitos). O nome de mês é outra história:
+ * numa edição de agosto, "julho" é o nome próprio do período anterior, e nomeia
+ * B1. É por isso que a FORMA manda a lápide para um parágrafo próprio — o
+ * parágrafo é o alcance da absolvição —, e é isso que se prova aqui, sem mudar
+ * uma linha de severidade em `verificar.ts`.
+ */
+
+/** As quatro mortes reais de 2026. */
+const MORTES: readonly FatoLapide[] = [
+  { metrica: 'respiracao', ultimaMedidaISO: '2026-07-10' },
+  { metrica: 'vo2max', ultimaMedidaISO: '2026-07-14' },
+  { metrica: 'spo2', ultimaMedidaISO: '2026-07-16' },
+  { metrica: 'aneis', ultimaMedidaISO: '2026-08-17' },
+];
+
+type Periodo = readonly [tipo: PeriodKind, inicio: string, fim: string];
+const AGOSTO: Periodo = ['month', '2026-08-01', '2026-08-31'];
+
+/**
+ * A edição de um período **como a montagem a produz**, com as lápides dadas —
+ * cada uma no caderno dela, pelo mapa. É daqui que os testes da lápide tiram a
+ * frase: nunca de um pacote montado à mão com o rótulo trocado.
+ *
+ * A versão anterior pegava o pacote de Movimento deste arquivo e o reetiquetava
+ * como Coração para pôr a lápide de SpO₂ — fatos de Movimento sob "Coração" —,
+ * e injetava a morte de 17/08 numa semana que acaba em 09/08. É um prompt que a
+ * produção nunca emite, e `validarLapides` agora recusa as duas coisas.
+ */
+function edicaoComLapides([tipo, inicio, fim]: Periodo, lapides: readonly FatoLapide[]): PacoteDeFatos[] {
+  const r = (current: number, prior: number) => ({
+    current, prior, delta: current - prior, deltaPct: prior !== 0 ? ((current - prior) / prior) * 100 : null,
+  });
+  const nada = r(0, 0);
+  // A FC medida em todo dia do período, dos dois lados: a cobertura do Coração
+  // é comparável em qualquer comprimento — senão este pacote poria uma ressalva
+  // obrigatória num trimestre ou num ano que a edição conferida não tem.
+  const dias = Math.round((Date.parse(`${fim}T00:00:00Z`) - Date.parse(`${inicio}T00:00:00Z`)) / 86_400_000) + 1;
+  return montarPacotes({
+    resumo: {
+      kind: tipo, offset: -1, label: periodLabel(tipo, new Date(`${inicio}T00:00:00`)),
+      startISO: inicio, endISO: fim,
+      tasks: { total: nada, byModule: [] }, habits: { good: [], bad: [] }, registros: [],
+      fitness: {
+        count: r(21, 17), distanceM: r(435_000, 862_000), durationS: r(144_360, 245_520),
+        calories: nada, hardMin: nada, floors: nada, steps: nada, byType: [],
+      },
+      sports: { cycling: null, running: null },
+      health: [{
+        metric: 'fcRepouso', label: 'FC de repouso', higherIsWorse: true, icon: 'heart' as never,
+        decimals: 1, unit: 'bpm', trend: 'flat',
+        recap: { current: 48.1, prior: 49, delta: -0.9, deltaPct: -1.8, n: dias, nAnterior: dias },
+      }],
+      ratings: { sleep: null, day: null },
+      purchases: { count: nada, spend: nada, byCat: [] },
+      adherence: null, sleep: null, sleepTriggers: null,
+    } as RetroSummary,
+    agora: new Date('2027-06-01T12:00:00'),
+    lapides,
+  });
+}
+
+function doCaderno(ps: readonly PacoteDeFatos[], caderno: string): PacoteDeFatos {
+  const p = ps.find((x) => x.caderno === caderno);
+  assert.ok(p, `o caderno ${caderno} sumiu da edição`);
+  return p;
+}
+
+/** O pacote que carrega a lápide: o do caderno dela, montado para o período. */
+function pacoteDaLapide(periodo: Periodo, l: FatoLapide): PacoteDeFatos {
+  return doCaderno(edicaoComLapides(periodo, [l]), LAPIDES[l.metrica].caderno);
+}
+
+/**
+ * As linhas de lápide **como o prompt as renderizou** — nunca chamando a função
+ * que as escreve, pelo mesmo motivo da ida e volta das bases: um teste que lê a
+ * frase da função concorda consigo mesmo sobre uma frase que a produção talvez
+ * não emita.
+ *
+ * Lê **todas** as seções: a do período abre o bloco do caderno, as antigas o
+ * fecham, e as duas se chamam igual. Na ordem em que aparecem.
+ */
+function linhasDeLapide(usuario: string): Array<{ frase: string; quando: string }> {
+  const out: Array<{ frase: string; quando: string }> = [];
+  const linhas = usuario.split('\n');
+  linhas.forEach((cabeca, i) => {
+    if (cabeca !== '#### Métricas que pararam de chegar') return;
+    for (const l of linhas.slice(i + 1)) {
+      const m = /^- (.+) — (neste período|antes deste período)\.$/.exec(l);
+      if (!m) break;
+      out.push({ frase: m[1], quando: m[2] });
+    }
+  });
+  return out;
+}
+
+/** A frase que a FORMA prescreve, pronta para virar parágrafo: maiúscula e ponto. */
+function paragrafoDaLapide(frase: string): string {
+  return `${frase.charAt(0).toUpperCase()}${frase.slice(1)}.`;
+}
+
+/**
+ * As duas formas que o modelo pode escrever: a que a FORMA prescreve, e a linha
+ * inteira com a marca copiada — "— neste período" ou "— antes deste período".
+ * A marca é para a FORMA ler; um modelo que a copie para o texto não pode mudar
+ * o veredito.
+ */
+function formasDaLapide(linha: { frase: string; quando: string }): readonly string[] {
+  const frase = paragrafoDaLapide(linha.frase);
+  return [frase, `${frase.slice(0, -1)} — ${linha.quando}.`];
+}
+
+describe('montarPrompt — a lápide', () => {
+  const agosto = (lapides: readonly FatoLapide[]) => edicaoComLapides(AGOSTO, lapides);
+  const soDoCaderno = (c: string) => MORTES.filter((l) => LAPIDES[l.metrica].caderno === c);
+
+  it('a antiga sai no pé do caderno dela, depois de tudo o que ele mediu, com nome e data por extenso', () => {
+    const { usuario } = montarPrompt(doCaderno(agosto(soDoCaderno('coracao')), 'coracao'));
+    assert.deepEqual(linhasDeLapide(usuario), [
+      { frase: 'frequência respiratória parou de chegar em 10 de julho de 2026', quando: 'antes deste período' },
+      { frase: 'saturação de oxigênio parou de chegar em 16 de julho de 2026', quando: 'antes deste período' },
+    ]);
+    assert.ok(
+      usuario.indexOf('#### Métricas que pararam de chegar') > usuario.indexOf('#### Comparações sem número'),
+      'a lápide antiga mora no pé do caderno',
+    );
+    assert.equal(usuario.includes('#### Geral'), false, 'sem lápide do período, os fatos gerais não ganham subtítulo');
+  });
+
+  it('a do período ABRE o bloco, antes dos fatos — como a FORMA manda o texto abrir', () => {
+    const { usuario } = montarPrompt(doCaderno(agosto([{ metrica: 'aneis', ultimaMedidaISO: '2026-08-17' }]), 'movimento'));
+    const iBloco = usuario.indexOf('### Movimento');
+    const iLapide = usuario.indexOf('#### Métricas que pararam de chegar');
+    const iFato = usuario.indexOf('- Distância: 435 km');
+    assert.ok(iBloco >= 0 && iBloco < iLapide && iLapide < iFato, 'a lápide do período não abriu o bloco');
+    assert.equal(usuario.slice(iBloco).split('\n')[1], '#### Métricas que pararam de chegar');
+  });
+
+  it('e os fatos gerais ganham subtítulo — senão cairiam sob a lápide e virariam medida morta', () => {
+    const { usuario } = montarPrompt(doCaderno(agosto([{ metrica: 'aneis', ultimaMedidaISO: '2026-08-17' }]), 'movimento'));
+    const linhas = usuario.split('\n');
+    const iLapide = linhas.indexOf('#### Métricas que pararam de chegar');
+    const iFato = linhas.findIndex((l) => l.startsWith('- Atividades: 21'));
+    const entre = linhas.slice(iLapide + 1, iFato);
+    assert.ok(entre.some((l) => l.startsWith('#### ')), `as Atividades ficaram sob a seção da lápide:\n${entre.join('\n')}`);
+    assert.ok(entre.includes('#### Geral'));
+  });
+
+  it('com as duas, a do período abre e a antiga fecha — e a marca diz qual é qual', () => {
+    const { usuario } = montarPrompt(doCaderno(agosto(soDoCaderno('movimento')), 'movimento'));
+    assert.deepEqual(linhasDeLapide(usuario), [
+      { frase: 'anéis de atividade pararam de chegar em 17 de agosto de 2026', quando: 'neste período' },
+      { frase: 'consumo máximo de oxigênio parou de chegar em 14 de julho de 2026', quando: 'antes deste período' },
+    ]);
+    const secoes = [...usuario.matchAll(/^#### Métricas que pararam de chegar$/gm)].map((m) => m.index ?? 0);
+    assert.equal(secoes.length, 2);
+    assert.ok(secoes[0] < usuario.indexOf('- Distância: 435 km') && secoes[1] > usuario.indexOf('#### Comparações sem número'));
+  });
+
+  it('o verbo concorda: "anéis de atividade pararam", e não "parou"', () => {
+    const { usuario } = montarPrompt(doCaderno(agosto([{ metrica: 'aneis', ultimaMedidaISO: '2026-07-20' }]), 'movimento'));
+    assert.ok(usuario.includes('anéis de atividade pararam de chegar em 20 de julho de 2026'));
+    assert.equal(usuario.includes('anéis de atividade parou'), false);
+  });
+
+  it('nenhuma data ISO e nenhum dígito além do dia e do ano — e nada de vocabulário de base', () => {
+    const frases = linhasDeLapide(montarPrompt(doCaderno(agosto(soDoCaderno('movimento')), 'movimento')).usuario)
+      .map((x) => x.frase);
+    const juntas = frases.join('\n');
+    assert.equal(/\d{4}-\d{2}-\d{2}/.test(juntas), false, 'data ISO no prompt');
+    assert.deepEqual(juntas.match(/\d+/g), ['17', '2026', '14', '2026']);
+    for (const vocab of ['período anterior', 'ano passado', 'ano anterior', 'a normal', 'costuma']) {
+      assert.equal(juntas.includes(vocab), false, `"${vocab}" na frase da lápide`);
+    }
+  });
+
+  it('o dia sai sem zero e sem ordinal — "1º de" tiraria a data da dispensa', () => {
+    const p = doCaderno(agosto([{ metrica: 'aneis', ultimaMedidaISO: '2026-08-01' }]), 'movimento');
+    const [linha] = linhasDeLapide(montarPrompt(p).usuario);
+    assert.equal(linha.frase, 'anéis de atividade pararam de chegar em 1 de agosto de 2026');
+    for (const forma of formasDaLapide(linha)) assert.deepEqual(verificarTexto(forma, p).problemas, [], forma);
+    // A prova de que o ordinal não é detalhe: o mesmo dia com "º" reprova.
+    const ordinal = verificarTexto('Os anéis de atividade pararam de chegar em 1º de agosto de 2026.', p);
+    assert.ok(ordinal.problemas.some((x) => x.regra === 'numero'));
+  });
+
+  it('data impossível num pacote montado à mão explode com a mensagem certa, e não com erro de tipo', () => {
+    const coracao = doCaderno(agosto([]), 'coracao');
+    for (const d of ['2026-13-01', '2026-02-30']) {
+      const p: PacoteDeFatos = { ...coracao, lapides: [{ metrica: 'spo2', ultimaMedidaISO: d }] };
+      assert.throws(() => montarPrompt(p), (e: unknown) => e instanceof Error && !(e instanceof TypeError)
+        && /data impossível/.test(e.message), d);
+    }
+  });
+
+  it('a lápide não põe número nenhum no alfabeto — nem o dia, nem o ano', () => {
+    const com = agosto(MORTES);
+    const sem = agosto([]);
+    assert.ok(com.some((p) => p.lapides.length > 0), 'as lápides não chegaram ao pacote');
+    for (const [i, p] of com.entries()) {
+      assert.deepEqual([...valoresDoPacote(p)].sort(), [...valoresDoPacote(sem[i])].sort(), p.caderno);
+    }
+  });
+});
+
+describe('a lápide é invisível para a quinta regra — como parágrafo próprio', () => {
+  /*
+   * A ACEITAÇÃO DA STORY: a frase que a FORMA prescreve, lida do prompt
+   * renderizado, como parágrafo próprio ANTES e DEPOIS de cada parágrafo das
+   * sete edições reais, e o veredito tem que ser o mesmo sem ela.
+   *
+   * - A lápide sai do pacote do caderno DELA, montado por `montarPacotes` para o
+   *   mesmo período da edição, e só com morte até o fim dela — uma morte de
+   *   17/08 não existe numa semana que acaba em 09/08.
+   * - As quatro métricas (o singular e o plural do verbo), com datas nos meses
+   *   que mais podem morder: o do período, o do anterior, o das mortes reais e
+   *   março, o único acentuado — todas até o fim da edição.
+   * - As duas formas: a prescrita, e a linha com a marca copiada.
+   * - O veredito INTEIRO, contra o MESMO conjunto de pacotes dos dois lados: o
+   *   da edição (a reconstrução, que traz os números e as bases do texto) e o que
+   *   carrega a lápide. Medido: seis das sete passam inteiras, e a de 03–09/08
+   *   reprova na regra 5, três vezes; a lápide não pode tirar nem pôr nada disso.
+   */
+  it('o veredito das sete edições reais é o mesmo com e sem a lápide, em qualquer posição e forma', () => {
+    let conferidos = 0;
+    let plurais = 0;
+    let comMarca = 0;
+    const reprovasDoAntes = new Map<string, string>();
+    for (const e of EDICOES) {
+      const p = pacoteDaEdicao(e);
+      const periodo: Periodo = [e.tipo, e.inicio, e.fim];
+      const paragrafos = e.texto.split('\n\n');
+      const anterior = previousPeriodStartISO(e.tipo, e.inicio);
+      assert.ok(anterior, `${e.titulo}: sem início do anterior`);
+      const datas = [...new Set([e.inicio, e.fim, anterior, '2026-03-09', ...MORTES.map((l) => l.ultimaMedidaISO)])]
+        .filter((d) => d <= e.fim);
+      for (const l of MORTES) {
+        for (const d of datas) {
+          const pl = pacoteDaLapide(periodo, { metrica: l.metrica, ultimaMedidaISO: d });
+          const conferir = [p, pl];
+          const antes = verificarTexto(e.texto, conferir).problemas;
+          reprovasDoAntes.set(e.titulo, antes.map((x) => x.regra).join(','));
+          const [linha] = linhasDeLapide(montarPrompt(pl).usuario);
+          assert.ok(linha, `${e.titulo}: a lápide de ${l.metrica} em ${d} não saiu no prompt`);
+          for (const lapide of formasDaLapide(linha)) {
+            if (lapide.includes(' pararam de chegar em ')) plurais += 1;
+            if (lapide.includes(' — ')) comMarca += 1;
+            for (let i = 0; i <= paragrafos.length; i += 1) {
+              const texto = [...paragrafos.slice(0, i), lapide, ...paragrafos.slice(i)].join('\n\n');
+              assert.deepEqual(
+                verificarTexto(texto, conferir).problemas, antes,
+                `${e.titulo}: a lápide "${lapide}" na posição ${i} mudou o veredito`,
+              );
+              conferidos += 1;
+            }
+          }
+        }
+      }
+    }
+    assert.ok(conferidos >= 600, `só ${conferidos} variantes conferidas`);
+    assert.ok(plurais > 0, 'a forma plural ("pararam") nunca foi conferida');
+    assert.ok(comMarca > 0, 'a marca copiada nunca foi conferida');
+    // Sem veredito reprovado de antes, "o mesmo veredito" seria só "continua
+    // aprovado" — a metade fácil. A de 03–09/08 reprova na regra 5, que é a que
+    // o nome de mês da data poderia mexer; e o pacote da lápide não pôs ressalva
+    // nem número em edição nenhuma.
+    assert.equal(reprovasDoAntes.get('Semana 03–09/08'), 'base,base,base');
+    for (const [titulo, regras] of reprovasDoAntes) {
+      if (titulo !== 'Semana 03–09/08') assert.equal(regras, '', `${titulo}: o pacote da lápide mudou o veredito de antes`);
+    }
+  });
+
+  it('e o mesmo nas frases sintéticas de mês, as que acusam inversão e nome errado', () => {
+    // Cada lápide sai do pacote do caderno dela; a frase é conferida contra o
+    // Movimento de três bases (que traz os números dela) mais esse pacote.
+    const casos = MORTES.map((l) => {
+      const pl = pacoteDaLapide(AGOSTO, l);
+      const [linha] = linhasDeLapide(montarPrompt(pl).usuario);
+      return { pl, formas: formasDaLapide(linha) };
+    });
+    assert.ok(casos.some((c) => c.formas.some((f) => f.includes(' pararam de chegar em '))), 'o plural ficou de fora');
+    for (const frase of [
+      'Foram 435 km, contra julho: 862 km.',
+      'Foram 435 km, contra 862.',
+      'Foram 435 km, contra 862 em agosto do ano passado.',
+      'Foram 435 km, contra 862 em junho.',
+      'Foram 435 km, contra o que você costuma fazer em agosto: 410 km.',
+    ]) {
+      for (const { pl, formas } of casos) {
+        const conferir = [pacoteTresBases('month'), pl];
+        const antes = verificarTexto(frase, conferir).problemas;
+        for (const lapide of formas) {
+          assert.deepEqual(verificarTexto(`${lapide}\n\n${frase}`, conferir).problemas, antes, `${lapide} / ${frase}`);
+          assert.deepEqual(verificarTexto(`${frase}\n\n${lapide}`, conferir).problemas, antes, `${frase} / ${lapide}`);
+        }
+      }
+    }
+  });
+
+  /*
+   * POR QUE O PARÁGRAFO PRÓPRIO É LEI, E NÃO GOSTO.
+   *
+   * Numa edição de agosto, "14 de julho" traz o nome do período anterior. Colada
+   * no parágrafo de um valor de B1 citado SEM nome, ela o absolveria — a quinta
+   * regra lê o parágrafo, acha "julho" e dá o 862 por nomeado. A mesma frase em
+   * parágrafo próprio não absolve nada.
+   */
+  it('o parágrafo próprio é o que protege: no mesmo parágrafo, "julho" absolveria o 862', () => {
+    // O Movimento de três bases com a lápide DELE — VO₂max é de Movimento.
+    const p: PacoteDeFatos = { ...pacoteTresBases('month'), lapides: [{ metrica: 'vo2max', ultimaMedidaISO: '2026-07-14' }] };
+    const [linha] = linhasDeLapide(montarPrompt(p).usuario);
+    const lapide = paragrafoDaLapide(linha.frase);
+    const sozinha = verificarTexto('Foram 435 km, contra 862.', p).problemas.map((x) => x.regra);
+    assert.deepEqual(sozinha, ['base'], 'o fixture perdeu a premissa: 862 citado sem nome');
+    assert.deepEqual(
+      verificarTexto(`Foram 435 km, contra 862. ${lapide}`, p).problemas, [],
+      'se isto passar a reprovar, a lei do parágrafo próprio perdeu o motivo — reveja a FORMA',
+    );
+    assert.deepEqual(
+      verificarTexto(`Foram 435 km, contra 862.\n\n${lapide}`, p).problemas.map((x) => x.regra), ['base'],
+    );
+  });
+});
+
+/*
+ * A COSTURA COM O RANQUEAMENTO, sobre os pacotes montados à mão deste arquivo
+ * (Story 1.7). Eles não passam pela montagem — `semDado` é escrito à mão —, e é
+ * justamente por isso que valem: a ordem e os dois prompts têm que concordar
+ * sobre quem está na edição mesmo quando o pacote não veio de `montarPacotes`.
+ */
+describe('a costura com o ranqueamento — sobre os pacotes montados à mão', () => {
+  const vazio: PacoteDeFatos = { ...pacoteDeBase([]), caderno: 'rotina', rotulo: 'Rotina', semDado: true };
+  const cego: PacoteDeFatos = {
+    ...vazio, caderno: 'sono', rotulo: 'Sono',
+    cobertura: {
+      diasComDado: 0, diasNoPeriodo: 31, diasComDadoAnterior: 22, diasNoPeriodoAnterior: 31, comparavel: false,
+    },
+  };
+  const soLacuna: PacoteDeFatos = { ...vazio, caderno: 'sono', rotulo: 'Sono', lacunas: [{ caderno: 'sono', diasSemDado: 31 }] };
+  // Coração sem fato nenhum — só a lápide de SpO₂, que é dele. Montado à mão,
+  // e por isso passa pela mesma `validarLapides` que o de `montarPacotes`.
+  const coracaoVazio: PacoteDeFatos = { ...vazio, caderno: 'coracao', rotulo: 'Coração' };
+  const soAntiga: PacoteDeFatos = {
+    ...coracaoVazio, lapides: [{ metrica: 'spo2', ultimaMedidaISO: '2026-07-16' }], semDado: true,
+  };
+  const soDoPeriodo: PacoteDeFatos = {
+    ...coracaoVazio, lapides: [{ metrica: 'spo2', ultimaMedidaISO: '2026-08-16' }], semDado: false,
+  };
+  const [movimento] = pacoteAgosto();
+
+  const EDICOES_A_MAO: ReadonlyArray<readonly [string, readonly PacoteDeFatos[]]> = [
+    ['agosto', pacoteAgosto()],
+    ['agosto com lacuna', pacoteAgosto({ lacuna: true })],
+    ['agosto com correlação fraca', pacoteAgosto({ correlacaoFraca: true })],
+    ['movimento agrupado', [pacoteMovimentoAgrupado()]],
+    ['B3 sem medida', [comB3SemMedida()]],
+    ...(['month', 'year', 'week', 'season', 'all'] as const).map((t) => [`três bases, ${t}`, [pacoteTresBases(t)]] as const),
+    ...EDICOES.map((e) => [e.titulo, [pacoteDaEdicao(e)]] as const),
+    ['só vazio', [vazio]],
+    ['cego', [cego]],
+    ['só lacuna', [soLacuna]],
+    ['movimento + lápide antiga', [movimento, soAntiga]],
+    ['movimento + lápide do período', [movimento, soDoPeriodo]],
+  ];
+
+  for (const [nome, ps] of EDICOES_A_MAO) {
+    it(`${nome}: quem está na ordem é exatamente quem tem prompt e bloco`, () => {
+      const ordem = ordenarCadernos(ps);
+      const edicao = montarPromptDaEdicao(ps).usuario;
+      for (const p of ps) {
+        const dentro = ordem.includes(p.caderno);
+        assert.equal(montarPrompt(p).usuario !== '', dentro, `${p.caderno}: ordem × prompt`);
+        assert.equal(new RegExp(`^### ${p.rotulo}$`, 'm').test(edicao), dentro, `${p.caderno}: ordem × bloco`);
+      }
+      assert.equal(edicao === '', ordem.length === 0);
+    });
+  }
+
+  it('a lápide do período abre a edição à mão também; a antiga some dela', () => {
+    assert.deepEqual(ordenarCadernos([movimento, soDoPeriodo]), ['coracao', 'movimento']);
+    assert.deepEqual(ordenarCadernos([movimento, soAntiga]), ['movimento']);
   });
 });

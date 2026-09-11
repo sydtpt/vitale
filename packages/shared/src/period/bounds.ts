@@ -136,10 +136,35 @@ export function periodBounds(now: Date, kind: PeriodKind, offset = 0): PeriodBou
  * `null` para `all`, que não tem período anterior — sempre cabe mais um dia.
  */
 export function previousPeriodLabel(kind: PeriodKind, startISO: string): string | null {
+  return anteriorDe(kind, startISO)?.label ?? null;
+}
+
+/**
+ * O primeiro dia (`YYYY-MM-DD`, local) do período anterior a um que começa em
+ * `startISO` — `"2026-07-01"` para agosto de 2026.
+ *
+ * Existe para o portão de nascimento do ranqueamento da revista: um hábito ou
+ * registro criado **depois** deste dia tem o lado anterior da comparação
+ * amputado. Sai pelo **mesmo** caminho que {@link previousPeriodLabel} — o
+ * rótulo e o início do anterior são duas leituras do mesmo `periodBounds(…, -1)`,
+ * e dois caminhos dariam, no dia em que um deles mudasse, um período anterior
+ * com um nome e outro começo.
+ *
+ * `null` para `all`, pelo mesmo motivo.
+ */
+export function previousPeriodStartISO(kind: PeriodKind, startISO: string): string | null {
+  const b = anteriorDe(kind, startISO);
+  if (b == null) return null;
+  const d = b.start;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** O período anterior ao que começa em `startISO` — o caminho único dos dois acima. */
+function anteriorDe(kind: PeriodKind, startISO: string): PeriodBounds | null {
   if (kind === 'all') return null;
   const inicio = new Date(`${startISO}T00:00:00`);
   if (Number.isNaN(inicio.getTime())) return null;
-  return periodBounds(inicio, kind, -1).label;
+  return periodBounds(inicio, kind, -1);
 }
 
 /**

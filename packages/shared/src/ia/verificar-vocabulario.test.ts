@@ -86,7 +86,7 @@ const SEM_NUMERO: PacoteDeFatos = {
     tipo: 'month', rotulo: 'Agosto 2026', rotuloAnterior: 'Julho 2026',
     inicioISO: '2026-08-01', fimISO: '2026-08-31', fechado: true, diasNoPeriodo: 31, luz: null,
   },
-  metricas: [], tendencias: [], textos: [], cobertura: null, correlacoes: [], eventos: [], lacunas: [], semDado: true,
+  metricas: [], tendencias: [], textos: [], lapides: [], cobertura: null, correlacoes: [], eventos: [], lacunas: [], semDado: true,
 };
 
 const daCausa = (texto: string) => verificarTexto(texto, SEM_NUMERO).problemas.filter((p) => p.regra === 'causa');

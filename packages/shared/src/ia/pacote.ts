@@ -43,16 +43,22 @@
  * ano anterior — ele tem que ser informado de que não há.
  */
 import type { PeriodKind } from '../period/bounds';
-import { previousPeriodLabel } from '../period/bounds';
+import { previousPeriodLabel, previousPeriodStartISO } from '../period/bounds';
 import type { EstacaoDaLuz } from '../astro/casa';
 import { estacaoDaLuz } from '../astro/casa';
-import type { CadernoId } from '../period/cadernos';
-import { CADERNO_IDS, cadernoDaMetricaDeSaude, rotuloDoCaderno } from '../period/cadernos';
+import type { CadernoId, MetricaComLapide } from '../period/cadernos';
+import {
+  CADERNO_IDS, LAPIDES, METRICAS_COM_LAPIDE, cadernoDaMetricaDeSaude, isMetricaComLapide,
+  rotuloDoCaderno,
+} from '../period/cadernos';
 import type {
   RetroSummary, RetroHabitRow, RetroRegistroRow, SportStats,
 } from '../period/retro';
 import type { RecapValue, MetricRecap } from '../week/recap';
 import type { MetricImpact } from '../health/trigger-impact';
+// O dono de "isto é um dia de calendário" é o das datas locais. Uma segunda
+// regex aqui aceitaria o que aquele recusa no dia em que uma mudasse.
+import { isValidDate } from '../date/local';
 
 /**
  * Sobe quando a forma do pacote muda de um jeito que invalida edição gravada.
@@ -60,8 +66,14 @@ import type { MetricImpact } from '../health/trigger-impact';
  * 1 — o pacote único do período, com `anterior`/`delta` anônimos.
  * 2 — um pacote por caderno; `FatoNumero` com `bases[]` identificadas;
  *     `FatoTendencia` e `FatoTexto`.
+ * 3 — `FatoNumero` ganha `amostra` e `comparavel`, que só o ranqueamento lê; a
+ *     lápide vira `FatoLapide`, fato próprio do pacote, com a data da última
+ *     medida; `semDado` passa a contar a lápide do período. E VO₂max e anéis
+ *     passam a ir para Movimento também como NÚMERO, e não só como lápide: o
+ *     mapa de saúde e o da lápide viraram uma rota só (hoje nenhuma linha de
+ *     saúde da retro é VO₂max nem anéis, então nenhum pacote em produção muda).
  */
-export const PACOTE_VERSAO = 2;
+export const PACOTE_VERSAO = 3;
 
 // ── As bases nomeadas ──────────────────────────────────────
 
@@ -125,6 +137,34 @@ export interface FatoNumero {
   bases: Base[];
   unidade: string;
   casas: number;
+  /**
+   * O **menor lado** da comparação com B1, em observações **que carregam a
+   * medida**: a própria contagem (atividades, sessões, tarefas, compras, dias de
+   * hábito e de registro); as atividades **com distância** para a distância, no
+   * total e em cada esporte; as sessões do grupo para o tempo; as compras **com
+   * preço** para o gasto; os dias com valor para saúde e notas. `null` quando não
+   * se sabe — passos, andares, elevação, distância ou gasto sem a contagem de quem
+   * os carrega, métrica de saúde sem `nAnterior`, período sem anterior.
+   *
+   * **Só o ranqueamento lê** (`ia/ranqueamento.ts`, o portão do passo 2): efeito
+   * grande com amostra pequena é ruído com aparência de manchete. Fica **fora do
+   * alfabeto e fora do prompt** — `procedenciaDoPacote` não o conhece, e um
+   * número que o modelo não vê não pode ser citado nem pesar na conferência.
+   *
+   * Obrigatório de propósito: quem produz o fato é o único que sabe de onde o
+   * número veio, e é ali que se decide quantas observações o sustentam.
+   */
+  amostra: number | null;
+  /**
+   * `false` quando o lado anterior da comparação está amputado por nascimento:
+   * hábito ou registro criado **depois** do início do período anterior. Nenhum N
+   * pega esse caso — junho/2026 teria 26 dias de café contra 11 de um maio em
+   * que o hábito só existia desde o dia 20: não é amostra pequena, é caderno
+   * novo. Também `false` quando a data de criação não é dia de calendário: não
+   * se sabe, e não se sabe não passa. Mesma regra de leitura de {@link amostra}:
+   * só o ranqueamento, fora do alfabeto e do prompt.
+   */
+  comparavel: boolean;
 }
 
 /**
@@ -148,16 +188,44 @@ export interface FatoTendencia {
 }
 
 /**
- * Um fato que não é número: cidades, piso das rotas, lápides.
+ * Um fato que não é número: cidades, piso das rotas.
  *
  * *"o período aconteceu em Ittre, Leuven e Bruxelles"*, *"72% pavimentado"*.
  * **Não entra no alfabeto numérico** — é justamente por isso que ele existe
  * como forma própria em vez de virar mais um `FatoNumero`.
+ *
+ * A lápide morou aqui na intenção e nunca na montagem; ela tem forma própria,
+ * {@link FatoLapide}, porque o que a define é uma **data**, e `FatoTexto` não
+ * tem data.
  */
 export interface FatoTexto {
   chave: string;
   rotulo: string;
   valor: string;
+}
+
+/**
+ * Uma métrica que parou de chegar — a **lápide** (CAP-11).
+ *
+ * Sem ela, a revista narra o silêncio como melhora: *"sua respiração está
+ * estável"* quando não há respiração há dois meses. O modelo não pode descobrir
+ * sozinho que o sensor morreu; tem que ser informado.
+ *
+ * **Métrica e data, nada mais.** O nome em prosa, o verbo que concorda com ele
+ * e o caderno moram no mapa do catálogo (`LAPIDES`, em `period/cadernos.ts`). A
+ * data fica **fora do alfabeto**: ela vai ao prompt por extenso (*"14 de julho
+ * de 2026"*), e a conferência já dispensa dia de mês seguido de "de" e ano de
+ * quatro dígitos.
+ *
+ * Entra no pacote se a última medida é **até o fim** do período (uma morte
+ * posterior ainda não aconteceu nele); é **do período** se também é **desde o
+ * início** — ver {@link lapideDoPeriodo}. Só a do período lidera, e só ela vence
+ * o vazio.
+ */
+export interface FatoLapide {
+  metrica: MetricaComLapide;
+  /** O dia da última medida, `YYYY-MM-DD`. */
+  ultimaMedidaISO: string;
 }
 
 // ── Cobertura, correlação, evento, lacuna ──────────────────
@@ -272,14 +340,27 @@ export interface PacoteDeFatos {
   metricas: FatoNumero[];
   tendencias: FatoTendencia[];
   textos: FatoTexto[];
+  /**
+   * As métricas deste caderno que pararam de chegar até o fim do período —
+   * as do período e as antigas. Ordenadas pela data da última medida.
+   */
+  lapides: FatoLapide[];
   cobertura: Cobertura | null;
   correlacoes: CorrelacaoFato[];
   eventos: EventoFato[];
   lacunas: LacunaFato[];
   /**
    * O caderno não teve nada no período. **Declarado, não omitido**: o pacote
-   * existe e diz que está vazio; quem decide se ele vira seção é o ranqueamento
-   * (Story 1.7), não a montagem.
+   * existe e diz que está vazio.
+   *
+   * Conta como conteúdo a **lápide do período** — o mês em que o relógio para é
+   * justamente o mês sem dado, e sem isso a lápide seria apagada exatamente
+   * quando importa. A lápide **antiga** não conta: sensor morto não ressuscita
+   * sozinho, e ela encheria o caderno para sempre.
+   *
+   * `semDado` não é o vazio inteiro — quem decide se o caderno vira seção é
+   * {@link cadernoVazio}, que também olha cobertura, lacunas, eventos e
+   * correlações.
    */
   semDado: boolean;
 }
@@ -405,6 +486,8 @@ interface Ctx {
   /** Há período anterior? `all` não tem — sempre cabe mais um dia. */
   temB1: boolean;
   externas: BasesExternas;
+  /** Primeiro dia do período anterior — a fronteira do portão de nascimento. */
+  inicioAnterior: string | null;
 }
 
 const SEM_B1 = 'o histórico completo não tem período anterior';
@@ -456,6 +539,65 @@ interface OpcoesFato {
   /** O que converte metros em km e segundos em horas. */
   escala?: number;
   grupo?: string;
+  /**
+   * O menor lado da comparação com B1, em observações — ver
+   * {@link FatoNumero.amostra}. **Obrigatório**: sem default, cada chamada tem
+   * que dizer de onde o seu número veio.
+   */
+  amostra: number | null;
+  /** `false` só para o que nasceu depois do início do anterior. Padrão: `true`. */
+  comparavel?: boolean;
+}
+
+/**
+ * O menor lado de uma contagem — *"a própria contagem"*: 7 saídas contra 11 dão
+ * amostra 7. Os valores são contagens cruas, antes de qualquer escala.
+ */
+function menorLado(r: RecapValue | undefined): number | null {
+  return r == null ? null : Math.min(r.current, r.prior);
+}
+
+/**
+ * O menor lado de uma média de saúde ou de nota: os dias com valor de cada lado.
+ * Sem `nAnterior` o outro lado é desconhecido, e desconhecido não é pequeno nem
+ * grande — é `null`, que o portão recusa.
+ */
+function diasDe(m: MetricRecap | null): number | null {
+  return m == null || m.nAnterior == null ? null : Math.min(m.n, m.nAnterior);
+}
+
+/**
+ * O portão de nascimento: nasceu até o primeiro dia do período anterior?
+ *
+ * Criado **no** primeiro dia ainda cobre o anterior inteiro; criado no dia
+ * seguinte já não cobre. Sem data de criação, ou sem período anterior (`all`),
+ * não há o que amputar.
+ *
+ * **Só `YYYY-MM-DD` de calendário é data de nascimento.** Qualquer outra forma é
+ * "não se sabe", e não se sabe não passa. Cair em comparável seria o silêncio
+ * decidindo a favor da manchete: `"20/05/2026"` comparado como texto contra
+ * `"2026-05-01"` sai sempre maior ou sempre menor, nunca certo. E carimbo com
+ * hora também não serve, nem cortado: `…T22:30:00Z` cortado é o dia **UTC**, e a
+ * fronteira do anterior é o dia **local** — em Bruxelas, um hábito criado às
+ * 00h30 de 1º de maio carimba 30 de abril.
+ *
+ * Pelo mesmo motivo, período com anterior cujo início não se conseguiu calcular
+ * também não passa: há um lado a amputar, e não se sabe onde ele começa.
+ */
+function nascidoAntes(createdOn: string | undefined, ctx: Ctx): boolean {
+  if (!createdOn) return true;
+  if (!isValidDate(createdOn)) return false;
+  if (!ctx.temB1) return true;
+  if (ctx.inicioAnterior == null) return false;
+  return createdOn <= ctx.inicioAnterior;
+}
+
+/**
+ * Os dois campos que só o ranqueamento lê. Sem período anterior (`all`) não há
+ * comparação com B1, e portanto não há lado menor: a amostra é `null`.
+ */
+function portaoDo(o: OpcoesFato, ctx: Ctx): Pick<FatoNumero, 'amostra' | 'comparavel'> {
+  return { amostra: ctx.temB1 ? o.amostra : null, comparavel: o.comparavel ?? true };
 }
 
 /**
@@ -463,7 +605,7 @@ interface OpcoesFato {
  * A conversão de unidade mora aqui, não no prompt.
  */
 function deRecap(
-  chave: string, rotulo: string, r: RecapValue | undefined, ctx: Ctx, o: OpcoesFato = {},
+  chave: string, rotulo: string, r: RecapValue | undefined, ctx: Ctx, o: OpcoesFato,
 ): FatoNumero {
   const casas = o.casas ?? 0;
   const escala = o.escala ?? 1;
@@ -477,12 +619,13 @@ function deRecap(
     bases: basesDe(chave, atual, anterior, casas, ctx),
     unidade: o.unidade ?? '',
     casas,
+    ...portaoDo(o, ctx),
   };
 }
 
 /** `MetricRecap` → `FatoNumero`. Preserva `null` — ausência não vira zero. */
 function deMetrica(
-  chave: string, rotulo: string, m: MetricRecap | null, ctx: Ctx, o: OpcoesFato = {},
+  chave: string, rotulo: string, m: MetricRecap | null, ctx: Ctx, o: OpcoesFato,
 ): FatoNumero {
   const casas = o.casas ?? 0;
   const atual = arredondar(m?.current ?? null, casas);
@@ -495,6 +638,7 @@ function deMetrica(
     bases: basesDe(chave, atual, anterior, casas, ctx),
     unidade: o.unidade ?? '',
     casas,
+    ...portaoDo(o, ctx),
   };
 }
 
@@ -529,22 +673,37 @@ function esporte(
   grupo: string, prefixo: string, s: SportStats | null, ctx: Ctx,
 ): FatoNumero[] {
   if (!s) return [];
+  // A amostra conta observações QUE CARREGAM A MEDIDA. O tempo é soma de sessões
+  // — toda sessão tem tempo. A distância é soma das sessões COM distância: 333 km
+  // em 7 saídas é um fato sobre 7 observações, mas um rolo sem sensor é sessão
+  // sem quilômetro. A elevação não se sabe: uma rota que não sincronizou vira
+  // "−100%" com as sessões inteiras de amostra, e falha de sincronização não é
+  // notícia — `null`, que não disputa.
+  const sessoes = menorLado(s.sessions);
   return [
-    deRecap(`${prefixo}.sessoes`, 'Sessões', s.sessions, ctx, { grupo }),
-    deRecap(`${prefixo}.distancia`, 'Distância', s.distanceM, ctx, { unidade: 'km', escala: 1 / 1000, grupo }),
-    deRecap(`${prefixo}.tempo`, 'Tempo em movimento', s.movingS, ctx, { unidade: 'h', casas: 1, escala: 1 / 3600, grupo }),
-    deRecap(`${prefixo}.elevacao`, 'Elevação', s.elevationM, ctx, { unidade: 'm', grupo }),
+    deRecap(`${prefixo}.sessoes`, 'Sessões', s.sessions, ctx, { grupo, amostra: sessoes }),
+    deRecap(`${prefixo}.distancia`, 'Distância', s.distanceM, ctx, {
+      unidade: 'km', escala: 1 / 1000, grupo, amostra: menorLado(s.sessionsWithDistance),
+    }),
+    deRecap(`${prefixo}.tempo`, 'Tempo em movimento', s.movingS, ctx, {
+      unidade: 'h', casas: 1, escala: 1 / 3600, grupo, amostra: sessoes,
+    }),
+    deRecap(`${prefixo}.elevacao`, 'Elevação', s.elevationM, ctx, { unidade: 'm', grupo, amostra: null }),
   ];
 }
 
 function habitos(
   grupo: string, linhas: readonly RetroHabitRow[], ctx: Ctx,
 ): FatoNumero[] {
-  return linhas.map((h) => deRecap(`habito.${h.id}`, h.name, h.recap, ctx, { unidade: 'dias', grupo }));
+  return linhas.map((h) => deRecap(`habito.${h.id}`, h.name, h.recap, ctx, {
+    unidade: 'dias', grupo, amostra: menorLado(h.recap), comparavel: nascidoAntes(h.createdOn, ctx),
+  }));
 }
 
 function registros(linhas: readonly RetroRegistroRow[], ctx: Ctx): FatoNumero[] {
-  return linhas.map((r) => deRecap(`registro.${r.id}`, r.name, r.recap, ctx, { unidade: 'dias', grupo: 'Registros' }));
+  return linhas.map((r) => deRecap(`registro.${r.id}`, r.name, r.recap, ctx, {
+    unidade: 'dias', grupo: 'Registros', amostra: menorLado(r.recap), comparavel: nascidoAntes(r.createdOn, ctx),
+  }));
 }
 
 export interface EntradaPacote {
@@ -566,8 +725,24 @@ export interface EntradaPacote {
   bases?: BasesExternas;
   /** Trajetórias já calculadas, por caderno. O pacote não deriva direção. */
   tendencias?: Partial<Record<CadernoId, readonly FatoTendencia[]>>;
-  /** Cidades, piso, lápides — por caderno. */
+  /** Cidades, piso — por caderno. */
   textos?: Partial<Record<CadernoId, readonly FatoTexto[]>>;
+  /**
+   * As métricas que pararam de chegar, **prontas**: métrica e data da última
+   * medida. Quem morreu não é decidido aqui — o pacote não consulta banco nem
+   * fixa limiar de silêncio. Não vem por caderno: o caderno de cada uma é do
+   * mapa do catálogo (`LAPIDES`), e não de quem chama.
+   *
+   * Ausente — o que o celular manda hoje — é nenhuma lápide. O que fica
+   * **invariante** sem lápide é o `usuario` da edição de agosto, byte a byte (o
+   * golden de `pacote.test.ts`, capturado antes da Story 1.7). O que mudou para
+   * **todos**, com ou sem lápide: o `sistema` ganhou a linha da FORMA sobre a
+   * lápide (`PROMPT_VERSAO` 5), e o caderno de borda — só lacuna, evento ou
+   * correlação, sem seção própria — passou a ter o cabeçalho `### Nome` na
+   * edição. O pacote em si também não é o mesmo: todo fato ganhou `amostra` e
+   * `comparavel`, que o prompt não lê.
+   */
+  lapides?: readonly FatoLapide[];
 }
 
 type PorCaderno<T> = Record<CadernoId, T[]>;
@@ -599,12 +774,17 @@ function vazioPorCaderno<T>(): PorCaderno<T> {
  *
  * Devolve **sempre os quatro**, na ordem do catálogo. Caderno sem dado vem com
  * `semDado: true`: a ausência é declarada, não omitida — quem decide se ele vira
- * seção é o ranqueamento, não a montagem.
+ * seção é {@link cadernoVazio}, que o ranqueamento e o prompt leem, não a
+ * montagem.
  */
 export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
   const { resumo, agora } = entrada;
   const diasNoPeriodo = diasEntre(resumo.startISO, resumo.endISO);
-  const ctx: Ctx = { temB1: resumo.kind !== 'all', externas: entrada.bases ?? {} };
+  const ctx: Ctx = {
+    temB1: resumo.kind !== 'all',
+    externas: entrada.bases ?? {},
+    inicioAnterior: previousPeriodStartISO(resumo.kind, resumo.startISO),
+  };
 
   const metricas = vazioPorCaderno<FatoNumero>();
   const cobertura: Record<CadernoId, Cobertura | null> = {
@@ -612,14 +792,25 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
   };
 
   // ── Movimento ──
+  // O tempo do caderno é soma de ATIVIDADES — toda atividade tem tempo, e a
+  // amostra dele é a contagem. A distância é soma só das atividades COM
+  // distância: ioga e força não têm, e fevereiro/2026 teve 8 atividades e 2 com
+  // distância — o "+971%" de março se apoiava em 2, não em 8. Passos e andares
+  // são somas diárias do relógio, e ninguém sabe quantos dias de cada lado os
+  // produziram: `null`, que não disputa.
+  const atividades = menorLado(resumo.fitness.count);
   metricas.movimento.push(
-    deRecap('atividades', 'Atividades', resumo.fitness.count, ctx),
-    deRecap('distancia', 'Distância', resumo.fitness.distanceM, ctx, { unidade: 'km', escala: 1 / 1000 }),
-    deRecap('tempo', 'Tempo', resumo.fitness.durationS, ctx, { unidade: 'h', casas: 1, escala: 1 / 3600 }),
-    deRecap('passos_dia', 'Passos por dia', resumo.fitness.steps, ctx, {
-      escala: diasNoPeriodo > 0 ? 1 / diasNoPeriodo : 1,
+    deRecap('atividades', 'Atividades', resumo.fitness.count, ctx, { amostra: atividades }),
+    deRecap('distancia', 'Distância', resumo.fitness.distanceM, ctx, {
+      unidade: 'km', escala: 1 / 1000, amostra: menorLado(resumo.fitness.countWithDistance),
     }),
-    deRecap('andares', 'Andares', resumo.fitness.floors, ctx),
+    deRecap('tempo', 'Tempo', resumo.fitness.durationS, ctx, {
+      unidade: 'h', casas: 1, escala: 1 / 3600, amostra: atividades,
+    }),
+    deRecap('passos_dia', 'Passos por dia', resumo.fitness.steps, ctx, {
+      escala: diasNoPeriodo > 0 ? 1 / diasNoPeriodo : 1, amostra: null,
+    }),
+    deRecap('andares', 'Andares', resumo.fitness.floors, ctx, { amostra: null }),
     ...esporte('Ciclismo', 'ciclismo', resumo.sports.cycling, ctx),
     ...esporte('Corrida', 'corrida', resumo.sports.running, ctx),
   );
@@ -628,7 +819,9 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
   for (const l of resumo.health) {
     const alvo = cadernoDaMetricaDeSaude(l.metric);
     metricas[alvo].push(
-      deMetrica(l.metric, l.label, l.recap, ctx, { unidade: l.unit, casas: l.decimals }),
+      deMetrica(l.metric, l.label, l.recap, ctx, {
+        unidade: l.unit, casas: l.decimals, amostra: diasDe(l.recap),
+      }),
     );
   }
   // `recap.n` é o nº de dias com valor no período — a cobertura real da métrica.
@@ -643,10 +836,14 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
 
   // ── Percepção se parte: a nota do sono para Sono, a do dia para Rotina ──
   if (resumo.ratings.sleep) {
-    metricas.sono.push(deMetrica('nota_sono', 'Nota de sono', resumo.ratings.sleep, ctx, { casas: 2 }));
+    metricas.sono.push(deMetrica('nota_sono', 'Nota de sono', resumo.ratings.sleep, ctx, {
+      casas: 2, amostra: diasDe(resumo.ratings.sleep),
+    }));
   }
   if (resumo.ratings.day) {
-    metricas.rotina.push(deMetrica('nota_dia', 'Nota do dia', resumo.ratings.day, ctx, { casas: 2 }));
+    metricas.rotina.push(deMetrica('nota_dia', 'Nota do dia', resumo.ratings.day, ctx, {
+      casas: 2, amostra: diasDe(resumo.ratings.day),
+    }));
   }
 
   // A cobertura de noites é do caderno Sono, não da "percepção": é ela que diz
@@ -660,13 +857,22 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
   if (cs) cobertura.sono = coberturaDe(cs.noites, diasNoPeriodo, cs.noitesAnterior, diasNoPeriodo);
 
   // ── Rotina ──
+  // As compras têm a amostra da própria contagem. O gasto é soma só das compras
+  // COM PREÇO — a mesma regra da distância: compra sem preço não carrega gasto,
+  // e 8 compras com 1 preço não sustentam "gasto +1780%" com amostra 8.
   metricas.rotina.push(
     ...habitos('Hábitos bons', resumo.habits.good, ctx),
     ...habitos('Hábitos ruins', resumo.habits.bad, ctx),
     ...registros(resumo.registros, ctx),
-    deRecap('tarefas', 'Tarefas concluídas', resumo.tasks.total, ctx, { grupo: 'Dia a dia' }),
-    deRecap('compras', 'Compras', resumo.purchases.count, ctx, { grupo: 'Dia a dia' }),
-    deRecap('gasto', 'Gasto', resumo.purchases.spend, ctx, { casas: 2, grupo: 'Dia a dia' }),
+    deRecap('tarefas', 'Tarefas concluídas', resumo.tasks.total, ctx, {
+      grupo: 'Dia a dia', amostra: menorLado(resumo.tasks.total),
+    }),
+    deRecap('compras', 'Compras', resumo.purchases.count, ctx, {
+      grupo: 'Dia a dia', amostra: menorLado(resumo.purchases.count),
+    }),
+    deRecap('gasto', 'Gasto', resumo.purchases.spend, ctx, {
+      casas: 2, grupo: 'Dia a dia', amostra: menorLado(resumo.purchases.countWithPrice),
+    }),
   );
 
   // ── O que vem de fora, repartido pelo mesmo critério ──
@@ -688,6 +894,8 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
 
   const lacunas = vazioPorCaderno<LacunaFato>();
   for (const l of entrada.lacunas ?? []) lacunas[l.caderno].push({ ...l });
+
+  const lapides = lapidesPorCaderno(entrada.lapides ?? [], resumo.endISO);
 
   const periodo = {
     tipo: resumo.kind,
@@ -715,6 +923,7 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
       metricas: m,
       tendencias,
       textos,
+      lapides: lapides[id],
       cobertura: cobertura[id],
       correlacoes: correlacoes[id],
       eventos: eventos[id],
@@ -722,9 +931,153 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
       // `atual == null` é "não foi medido", e um caderno só de nulos não tem
       // dado — mas o fato fica no pacote, porque a base dele ainda é história
       // ("no mês passado eram 48 bpm") e some-la seria o silêncio de novo.
-      semDado: m.every((f) => f.atual == null) && tendencias.length === 0 && textos.length === 0,
+      //
+      // A lápide DO PERÍODO é conteúdo; a antiga não é. Ver `semDado`.
+      semDado: m.every((f) => f.atual == null) && tendencias.length === 0 && textos.length === 0
+        && !temLapideDoPeriodo(lapides[id], periodo),
     };
   });
+}
+
+/**
+ * As lápides da entrada, cada uma no caderno do mapa (`LAPIDES`) — que é também o
+ * de `cadernoDaMetricaDeSaude`: VO₂max e anéis são de Movimento pelas duas
+ * rotas, e `cadernos.test.ts` cobra que elas não se separem.
+ *
+ * Fica de fora a morte **posterior** ao fim do período: em julho, os anéis de
+ * 17/08 ainda estavam vivos. A do último dia fica. Ordena pela data e, no mesmo
+ * dia, pela ordem do mapa — o pacote é função do conjunto de lápides, não da
+ * ordem em que o chamador as listou.
+ *
+ * Entrada malformada **explode**: uma data que não é dia de calendário viraria
+ * texto sem sentido no prompt ("30 de fevereiro", ou um erro de tipo no décimo
+ * terceiro mês), e uma métrica repetida poria duas lápides da mesma morte no
+ * mesmo caderno. Nenhuma das duas é coisa para calar.
+ */
+function lapidesPorCaderno(entrada: readonly FatoLapide[], fimISO: string): PorCaderno<FatoLapide> {
+  const out = vazioPorCaderno<FatoLapide>();
+  const vistas = new Set<MetricaComLapide>();
+  for (const l of entrada) {
+    conferirLapide(l);
+    if (vistas.has(l.metrica)) throw new Error(`lápide repetida: ${l.metrica}`);
+    vistas.add(l.metrica);
+    if (l.ultimaMedidaISO > fimISO) continue;
+    out[LAPIDES[l.metrica].caderno].push({ metrica: l.metrica, ultimaMedidaISO: l.ultimaMedidaISO });
+  }
+  const ordem = (m: MetricaComLapide) => METRICAS_COM_LAPIDE.indexOf(m);
+  for (const id of CADERNO_IDS) {
+    out[id].sort((a, b) => a.ultimaMedidaISO.localeCompare(b.ultimaMedidaISO) || ordem(a.metrica) - ordem(b.metrica));
+  }
+  return out;
+}
+
+/**
+ * A lápide em si: métrica do catálogo e data de calendário — o que vale para
+ * toda lápide, esteja ela na entrada ou num pacote.
+ */
+function conferirLapide(l: FatoLapide): void {
+  if (!isMetricaComLapide(l.metrica)) throw new Error(`lápide de métrica fora do catálogo: ${String(l.metrica)}`);
+  if (!isValidDate(l.ultimaMedidaISO)) {
+    throw new Error(`lápide de ${l.metrica} com data impossível: "${l.ultimaMedidaISO}" não é um dia YYYY-MM-DD do calendário`);
+  }
+}
+
+/**
+ * As lápides de um pacote estão certas — **dono único** da validação, para todo
+ * pacote, montado aqui ou à mão.
+ *
+ * `montarPacotes` só produz lápide válida, mas o prompt e o ranqueamento recebem
+ * pacote de qualquer origem, e cada defeito aqui falhava longe da causa: métrica
+ * fora do catálogo virava erro de tipo opaco no prompt; lápide posterior ao fim
+ * saía como "antes deste período" — uma morte que ainda não aconteceu, narrada
+ * como antiga —; lápide de outro caderno punha na frente da edição o caderno
+ * errado. Confere, lápide a lápide: métrica do catálogo, data de calendário,
+ * última medida até o fim do período, e o caderno dela. Explode com mensagem que
+ * diz qual e por quê.
+ *
+ * Chamada em `montar()` (a porta dos dois grãos do prompt) e no `validar` de
+ * `ordenarCadernos`; `lapidesPorCaderno` reusa a parte que cabe à entrada.
+ */
+export function validarLapides(p: PacoteDeFatos): void {
+  const vistas = new Set<MetricaComLapide>();
+  for (const l of p.lapides) {
+    conferirLapide(l);
+    if (l.ultimaMedidaISO > p.periodo.fimISO) {
+      throw new Error(
+        `lápide de ${l.metrica} posterior ao fim do período: ${l.ultimaMedidaISO} é depois de ${p.periodo.fimISO} `
+        + '— a métrica ainda não tinha parado neste período',
+      );
+    }
+    const dono = LAPIDES[l.metrica].caderno;
+    if (dono !== p.caderno) {
+      throw new Error(`lápide de ${l.metrica} no caderno ${p.caderno}, mas ela é do caderno ${dono}`);
+    }
+    if (vistas.has(l.metrica)) throw new Error(`lápide repetida no caderno ${p.caderno}: ${l.metrica}`);
+    vistas.add(l.metrica);
+  }
+}
+
+/**
+ * A lápide é **do período**: a última medida cai dentro dele, com os dois
+ * extremos inclusivos.
+ *
+ * É a condição testável de quando a lápide lidera: nas edições do período em
+ * que a métrica parou — o mês, e o trimestre e o ano que o contêm — e nunca
+ * mais. Agosto/2026 é o mês em que os anéis pararam, setembro não é. Sem ela a
+ * lápide lideraria toda edição para sempre — e depois da terceira o leitor para
+ * de ver.
+ */
+export function lapideDoPeriodo(
+  l: FatoLapide, periodo: Pick<PacoteDeFatos['periodo'], 'inicioISO' | 'fimISO'>,
+): boolean {
+  return l.ultimaMedidaISO >= periodo.inicioISO && l.ultimaMedidaISO <= periodo.fimISO;
+}
+
+/**
+ * Alguma destas lápides é do período? — o passo 5, com **dono único**.
+ *
+ * Três leitores fazem esta pergunta: `semDado` na montagem, {@link cadernoVazio}
+ * (a lápide vence o vazio) e o ranqueamento (a lápide vai para a frente). Três
+ * cópias do mesmo `some(…)` são três chances de um deles passar a contar a
+ * lápide antiga.
+ */
+export function temLapideDoPeriodo(
+  lapides: readonly FatoLapide[], periodo: Pick<PacoteDeFatos['periodo'], 'inicioISO' | 'fimISO'>,
+): boolean {
+  return lapides.some((l) => lapideDoPeriodo(l, periodo));
+}
+
+/**
+ * O caderno não tem nada a dizer — e por isso **não entra na edição**.
+ *
+ * ## Dono único do vazio
+ *
+ * A mesma função decide o passo 6 do ranqueamento (`ia/ranqueamento.ts`, o
+ * caderno sai da lista) e o prompt mudo (`ia/prompt.ts`, nos dois grãos). Duas
+ * definições de vazio produziriam o pior dos casos: um caderno na ordem da
+ * edição sem texto para ocupar a posição, ou um texto pago para um caderno que a
+ * edição não mostra.
+ *
+ * ## O que é vazio
+ *
+ * `semDado`, e também nada que a regra obrigue a dizer: cobertura (a regra 8
+ * pode exigir ressalva de um caderno sem uma métrica), lacunas, eventos e
+ * correlações. Um caderno de Sono com 31 dias de lacuna não é vazio — é cego, e
+ * cego se diz.
+ *
+ * ## A lápide vence o vazio (passo 5 sobre o passo 6)
+ *
+ * A lápide **do período** faz o caderno existir, mesmo sendo o único conteúdo
+ * dele: a alternativa é a revista ficar cega sobre a própria cegueira. A
+ * condição está em `semDado` e é repetida aqui de propósito — é a regra que esta
+ * função possui, e um pacote montado à mão com `semDado` errado não pode calar a
+ * lápide do mês em que ela morreu. A lápide **antiga** não ressuscita nada.
+ */
+export function cadernoVazio(p: PacoteDeFatos): boolean {
+  return p.semDado
+    && !temLapideDoPeriodo(p.lapides, p.periodo)
+    && p.cobertura == null
+    && p.lacunas.length === 0 && p.eventos.length === 0 && p.correlacoes.length === 0;
 }
 
 /** O pacote de **um** caderno. Atalho sobre {@link montarPacotes}. */
