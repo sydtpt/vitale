@@ -15,6 +15,7 @@ noutro script.
 Uso:
   python3 scripts/github/sincronizar_sprint.py            # ensaio
   python3 scripts/github/sincronizar_sprint.py --aplicar
+  python3 scripts/github/sincronizar_sprint.py --aplicar --commit HEAD   # o hook
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -60,6 +62,35 @@ def titulos_epicos() -> dict[str, str]:
         for linha in EPICOS_MD.read_text(encoding="utf-8").splitlines()
         if (m := TITULO_EPICO.match(linha))
     }
+
+
+def estados_do_commit(rev: str) -> dict[str, str]:
+    """Só as linhas de `development_status` que `rev` mudou — a yaml em `rev` contra a do pai.
+
+    É o modo do hook. Espelhar a yaml inteira a cada commit fazia a árvore que
+    commitou falar por todas as frentes: uma worktree criada antes de outra frente
+    avançar tem as linhas dela velhas, e o espelho as rebaixava. Em 11/09/2026 o
+    commit da 1.7 devolveu a 5.1 e a 5.2 a `backlog`, e na main elas já estavam
+    em `review`. O commit responde só pelo que ele mesmo mudou; a reconciliação
+    completa segue sendo a execução sem `--commit`, a partir da main.
+    """
+    caminho = YAML_SPRINT.relative_to(RAIZ).as_posix()
+
+    def ler(ref: str) -> dict | None:
+        r = subprocess.run(
+            ["git", "-C", str(RAIZ), "show", f"{ref}:{caminho}"],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        if r.returncode != 0:
+            return None
+        return (yaml.safe_load(r.stdout) or {}).get("development_status") or {}
+
+    depois = ler(rev)
+    if depois is None:
+        raise SystemExit(f"a yaml não existe em {rev}")
+    # Sem pai (primeiro commit) ou sem a yaml nele: toda linha conta como mudança.
+    antes = ler(f"{rev}^") or {}
+    return {k: v for k, v in depois.items() if antes.get(k) != v}
 
 
 def humanizar(chave: str) -> str:
@@ -114,13 +145,19 @@ class Sprint(GitHub):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--aplicar", action="store_true", help="escreve no GitHub (padrão: ensaio)")
+    ap.add_argument("--commit", metavar="REV",
+                    help="espelha só as linhas que REV mudou na yaml (o modo do hook)")
     args = ap.parse_args()
 
     gh = Sprint(token(), args.aplicar)
     if not args.aplicar:
         print("MODO ENSAIO — nada será escrito.\n")
 
-    estado = yaml.safe_load(YAML_SPRINT.read_text(encoding="utf-8")).get("development_status", {})
+    if args.commit:
+        estado = estados_do_commit(args.commit)
+        print(f"só o que {args.commit} mudou na yaml: {len(estado)} linha(s)")
+    else:
+        estado = yaml.safe_load(YAML_SPRINT.read_text(encoding="utf-8")).get("development_status", {})
     titulos = titulos_epicos()
     mapa = json.loads(MAPA.read_text()) if MAPA.exists() else {}
     marcos = gh.marcos() if args.aplicar else {}
