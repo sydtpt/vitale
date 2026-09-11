@@ -191,6 +191,16 @@ export interface RetroFitness {
    */
   steps: RecapValue;
   byType: CountByKey[];
+  /**
+   * Quantas das atividades de `count` **têm distância** (`distanceM > 0`), dos
+   * dois lados. É a amostra honesta de `distanceM`: ioga e força não têm
+   * distância, e fevereiro/2026 teve 8 atividades e só 2 com ela — "+971% de
+   * distância" em março era uma soma sobre 2 observações, não sobre 8.
+   *
+   * Opcional porque há quem monte `RetroFitness` à mão; ausente ⇒ o ranqueamento
+   * não sabe a amostra da distância, e a distância não disputa.
+   */
+  countWithDistance?: RecapValue;
 }
 
 // ── Esportes (Ciclismo / Corrida) ──────────────────────────
@@ -246,6 +256,12 @@ export interface SportStats {
   longest: SportLongest | null;
   /** Só corrida; `[]` no ciclismo. */
   bestEfforts: SportBestEffort[];
+  /**
+   * Quantas das `sessions` **têm distância**, dos dois lados — a amostra de
+   * `distanceM` (um rolo sem sensor é sessão de ciclismo sem quilômetro). Ver
+   * `RetroFitness.countWithDistance`; ausente ⇒ a distância não disputa.
+   */
+  sessionsWithDistance?: RecapValue;
 }
 
 /** Cards de esporte da Retrospectiva; null quando não há atividades no período. */
@@ -275,6 +291,17 @@ export interface RetroHabitRow {
   perDay: number;
   /** Dias que entraram na média (ver `avgDays`); 0 quando não houve registro. */
   perDayDays: number;
+  /**
+   * Dia de criação ('YYYY-MM-DD'), copiado de `RetroHabit.createdOn`. Ausente
+   * quando a entrada não o trouxe.
+   *
+   * Existe para o portão de nascimento do ranqueamento da revista: um hábito
+   * criado depois do início do período anterior tem um lado da comparação
+   * **amputado** — junho/2026 compararia 26 dias de café com os 11 que maio teve
+   * dele (o hábito só existia desde o dia 20), e "+136%" seria o calendário, não
+   * o dono.
+   */
+  createdOn?: string;
 }
 
 /** Registro avulso agregado no período. Marca binária ⇒ quantidade = dias marcados. */
@@ -285,6 +312,8 @@ export interface RetroRegistroRow {
   recap: RecapValue;
   /** Intervalo médio entre marcações, em dias; 0 quando não houve marcação. */
   everyDays: number;
+  /** Dia de criação, copiado de `RetroRegistro.createdOn`. Ver `RetroHabitRow.createdOn`. */
+  createdOn?: string;
 }
 
 export interface RetroHealthRow {
@@ -311,7 +340,18 @@ export interface RetroSummary {
   sports: RetroSports;
   health: RetroHealthRow[];
   ratings: { sleep: MetricRecap | null; day: MetricRecap | null };
-  purchases: { count: RecapValue; spend: RecapValue; byCat: CountByKey[] };
+  purchases: {
+    count: RecapValue;
+    spend: RecapValue;
+    byCat: CountByKey[];
+    /**
+     * Quantas das compras de `count` **têm preço** (`price > 0`), dos dois lados
+     * — a amostra honesta de `spend`. Compra sem preço não carrega gasto: 8
+     * compras com 1 preço dariam "gasto +1780%" sobre 1 observação, e não sobre
+     * 8. Opcional para quem monta à mão; ausente ⇒ o gasto não disputa.
+     */
+    countWithPrice?: RecapValue;
+  };
   adherence: { done: number; total: number } | null;
   /** A noite típica do período contra a do anterior. `null` sem noites ou sem `sleepPeriods`. */
   sleep: SleepRetro | null;
@@ -464,7 +504,16 @@ function sportStats(
     speedMps: { current: speed(dCur, mCur), prior: speed(dPrev, mPrev) },
     longest,
     bestEfforts,
+    sessionsWithDistance: recapValue(curActs.filter(temDistancia).length, prevActs.filter(temDistancia).length),
   };
+}
+
+/**
+ * A atividade carrega a medida de distância? É o critério das duas contagens
+ * "com distância" — a do total e a de cada esporte —, e por isso tem um dono só.
+ */
+function temDistancia(a: Activity): boolean {
+  return (a.distanceM ?? 0) > 0;
 }
 
 /** Constrói o resumo completo do período + período anterior para deltas. */
@@ -483,6 +532,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     const ts = new Date(a.startAt).getTime();
     return !a.hidden && ts >= cur.start.getTime() && ts < cur.end.getTime();
   });
+  const comDistancia = input.activities.filter(temDistancia);
   const fitness: RetroFitness = {
     count: recapValue(tCur.count, tPrev.count),
     distanceM: recapValue(tCur.distanceM, tPrev.distanceM),
@@ -509,6 +559,13 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
         label: activityTypeLabel(a.activityId),
         sum: a.distanceM ?? 0,
       })),
+    ),
+    // O MESMO conjunto que `totalsInRange` soma em `distanceM` — mesma janela,
+    // mesmo (não) filtro de ocultas —, contando só quem carrega distância. Uma
+    // janela diferente daria à distância uma amostra de outras atividades.
+    countWithDistance: recapValue(
+      totalsInRange(comDistancia, cur.start, cur.end).count,
+      totalsInRange(comDistancia, prev.start, prev.end).count,
     ),
   };
 
@@ -550,6 +607,9 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
       total: recapValue(total, sumInRange(h.logsByDay, prev.start, prev.end)),
       perDay: denom > 0 ? total / denom : 0,
       perDayDays: denom,
+      // Espalhado, e não `createdOn: h.createdOn`: a chave com `undefined`
+      // mudaria a forma da linha para quem a compara inteira.
+      ...(h.createdOn ? { createdOn: h.createdOn } : {}),
     };
   };
   const habitRows = input.habits.map(habitRow);
@@ -571,6 +631,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
         name: r.name,
         recap: recapValue(count, countInRange(days, prev.start, prev.end)),
         everyDays: count > 0 && denom > 0 ? denom / count : 0,
+        ...(r.createdOn ? { createdOn: r.createdOn } : {}),
       };
     })
     .filter((r) => r.recap.current > 0 || r.recap.prior > 0)
@@ -613,12 +674,16 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
   const purchCur = input.purchases.filter((p) => inRange(p.doneDay, cur.start.getTime(), cur.end.getTime()));
   const purchPrev = input.purchases.filter((p) => inRange(p.doneDay, prev.start.getTime(), prev.end.getTime()));
   const spend = (rows: RetroPurchase[]) => rows.reduce((s, p) => s + (p.price ?? 0), 0);
+  // As que carregam a medida do gasto — o mesmo conjunto que `spend` soma, só
+  // com quem soma alguma coisa.
+  const comPreco = (rows: RetroPurchase[]) => rows.filter((p) => (p.price ?? 0) > 0).length;
   const purchases = {
     count: recapValue(purchCur.length, purchPrev.length),
     spend: recapValue(spend(purchCur), spend(purchPrev)),
     byCat: tallyByKey(
       purchCur.map((p) => ({ key: p.cat ?? 'Outros', label: p.cat ?? 'Outros', sum: p.price ?? 0 })),
     ),
+    countWithPrice: recapValue(comPreco(purchCur), comPreco(purchPrev)),
   };
 
   const adherence = input.plannedTotal && input.plannedTotal > 0

@@ -35,6 +35,8 @@ function fato(chave: string, rotulo: string, atual: number, anterior: number, un
     ],
     unidade,
     casas,
+    amostra: null,
+    comparavel: true,
   };
 }
 
@@ -47,7 +49,7 @@ function caderno(extra: Partial<PacoteDeFatos> = {}): PacoteDeFatos {
   return {
     versao: PACOTE_VERSAO, caderno: 'movimento', rotulo: 'Movimento', periodo: PERIODO,
     metricas: [fato('atividades', 'Atividades', 21, 17), fato('distancia', 'Distância', 435, 862, 'km')],
-    tendencias: [], textos: [], cobertura: null, correlacoes: [], eventos: [], lacunas: [], semDado: false,
+    tendencias: [], textos: [], lapides: [], cobertura: null, correlacoes: [], eventos: [], lacunas: [], semDado: false,
     ...extra,
   };
 }

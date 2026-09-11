@@ -30,11 +30,14 @@
  * muda de tipo, e o rótulo renderizado não.
  */
 import { formatarNumero } from '../format/numero';
-import { periodProseLabel } from '../period/bounds';
+import { MONTHS_PT, periodProseLabel } from '../period/bounds';
+import { LAPIDES } from '../period/cadernos';
 import type {
-  BaseId, PacoteDeFatos, FatoNumero, FatoTendencia, FatoTexto,
+  BaseId, PacoteDeFatos, FatoLapide, FatoNumero, FatoTendencia, FatoTexto,
 } from './pacote';
-import { BASE_ROTULO, ressalvasObrigatorias } from './pacote';
+import {
+  BASE_ROTULO, cadernoVazio, lapideDoPeriodo, ressalvasObrigatorias, validarLapides,
+} from './pacote';
 
 /**
  * O mesmo símbolo de `format/numero.ts`, reexportado com o mesmo nome para os
@@ -227,6 +230,43 @@ function linhaDeTexto(x: FatoTexto): string {
   return `- ${x.rotulo}: ${x.valor}`;
 }
 
+/**
+ * `2026-07-14` → *"14 de julho de 2026"* — a data como o texto a escreve.
+ *
+ * O formato é o que a conferência já dispensa **sem mudança nenhuma de
+ * severidade** (`ignoravel()` em `verificar.ts`): dia de mês seguido de "de", e
+ * ano de quatro dígitos. Por isso o dia sai sem zero e sem ordinal — *"1º de
+ * agosto"* poria o "º" entre o número e o "de", e o dia passaria a ser um número
+ * fora do alfabeto.
+ */
+function dataPorExtenso(iso: string): string {
+  // A data chega conferida: `montar()` passa todo pacote por `validarLapides`
+  // antes de renderizar qualquer bloco — o dono único que também recusa o mês 13
+  // e o "30 de fevereiro".
+  const [ano, mes, dia] = iso.split('-');
+  return `${Number(dia)} de ${MONTHS_PT[Number(mes) - 1].toLowerCase()} de ${ano}`;
+}
+
+/**
+ * A lápide como a frase que o texto vai escrever — nome, o verbo dela ("parou"
+ * ou "pararam" de chegar em), data por extenso —, com a marca de quando parou.
+ *
+ * A marca é o que a FORMA lê: a do período abre o caderno, as antigas o fecham.
+ * Nenhuma das duas marcas carrega vocabulário de base: *"antes deste período"*
+ * não é *"o período anterior"*, e é de propósito — a lápide não é valor de
+ * comparação de ninguém.
+ */
+function linhaDeLapide(l: FatoLapide, periodo: Periodo): string {
+  const { nome, verbo } = LAPIDES[l.metrica];
+  const quando = lapideDoPeriodo(l, periodo) ? 'neste período' : 'antes deste período';
+  return `- ${nome} ${verbo} de chegar em ${dataPorExtenso(l.ultimaMedidaISO)} — ${quando}.`;
+}
+
+/** A seção das lápides — a mesma para as do período e para as antigas. */
+function secaoDeLapides(lapides: readonly FatoLapide[], periodo: Periodo): string {
+  return `#### Métricas que pararam de chegar\n${lapides.map((l) => linhaDeLapide(l, periodo)).join('\n')}`;
+}
+
 function blocoDeCaderno(p: PacoteDeFatos): string {
   const frases = frasesDasBases(p.periodo);
 
@@ -239,14 +279,30 @@ function blocoDeCaderno(p: PacoteDeFatos): string {
     if (!vistos.has(g)) { vistos.add(g); grupos.push(g); }
   }
 
+  // A lápide ANTIGA vai no pé do caderno que possuía a métrica; a DO PERÍODO, no
+  // topo, antes dos fatos — a mesma ordem que a FORMA manda o texto seguir, para
+  // a lista não dizer uma coisa e a lei outra. Seção própria nos dois lugares,
+  // pelo mesmo motivo da Cobertura: sob "Fatos sem número", a regra 5 do SISTEMA
+  // mandaria citar pela ideia e sem o número, e a data é o que ela tem que
+  // escrever.
+  const doPeriodo = p.lapides.filter((l) => lapideDoPeriodo(l, p.periodo));
+  const antigas = p.lapides.filter((l) => !lapideDoPeriodo(l, p.periodo));
+
   const partes: string[] = [];
+  if (doPeriodo.length > 0) partes.push(secaoDeLapides(doPeriodo, p.periodo));
   for (const g of grupos) {
     const linhas = p.metricas
       .filter((f) => (f.grupo ?? '') === g)
       .map((f) => linhaDeFato(f, frases))
       .filter((l): l is string => l != null);
     if (linhas.length === 0) continue;
-    partes.push(g ? `#### ${g}\n${linhas.join('\n')}` : linhas.join('\n'));
+    // Os fatos sem grupo não têm subtítulo — até a lápide do período abrir o
+    // bloco. Aí eles precisam de um: sem ele, "- Atividades: 21 …" cairia sob
+    // "Métricas que pararam de chegar" e o modelo leria o total do caderno como
+    // mais uma medida morta. Só nesse caso, para o prompt sem lápide não mudar
+    // um byte.
+    const titulo = g || (doPeriodo.length > 0 ? 'Geral' : '');
+    partes.push(titulo ? `#### ${titulo}\n${linhas.join('\n')}` : linhas.join('\n'));
   }
 
   if (p.tendencias.length > 0) {
@@ -276,8 +332,13 @@ function blocoDeCaderno(p: PacoteDeFatos): string {
   const ausencias = blocoDeAusencias(p);
   if (ausencias) partes.push(ausencias);
 
-  if (partes.length === 0) return '';
-  return `\n### ${p.rotulo}\n${partes.join('\n')}`;
+  if (antigas.length > 0) partes.push(secaoDeLapides(antigas, p.periodo));
+
+  // Quem chega aqui NÃO é vazio — `montar()` já pulou os vazios. Um caderno que
+  // só tem lacuna, evento ou correlação não tem seção própria (essas moram nas
+  // seções da edição), mas tem o cabeçalho: ele está na edição, e o bloco é a
+  // prova disso nos dois grãos.
+  return partes.length === 0 ? `\n### ${p.rotulo}` : `\n### ${p.rotulo}\n${partes.join('\n')}`;
 }
 
 /**
@@ -410,6 +471,13 @@ FORMA:
   explicação, nunca a compare com outro período ou outro ano, nunca diga que os
   dias estão crescendo ou encurtando, e nunca a escreva em horas — as horas de
   luz não estão nos FATOS.
+- "Métricas que pararam de chegar" são medidas que deixaram de vir. Cada linha
+  vira um PARÁGRAFO PRÓPRIO, com o nome da métrica exatamente como está na
+  linha — por extenso, nunca por sigla —, o verbo como está na linha
+  ("parou de chegar em" ou "pararam de chegar em") e a data por extenso — e
+  nada mais: nenhum outro número, nenhuma explicação, nenhum conselho. A que
+  parou neste período abre o que você escreve sobre o caderno dela; as que
+  pararam antes o fecham.
 - Nada de "registrou", "marcou", "ficou em", "ante", "apresentou variação de".
   Isso é registro de planilha. Escreva como um jornal escreve.`;
 
@@ -431,8 +499,13 @@ FORMA:
  *     a ser montado por caderno.
  * 4 — a luz do período entra no cabeçalho, uma vez, em palavras (*"dias
  *     curtos"*), sem número e sem vocabulário de base.
+ * 5 — a lápide: a seção "Métricas que pararam de chegar" — no topo do caderno
+ *     para a do período, no pé para as antigas —, com o verbo que concorda com
+ *     o nome, a data por extenso e a marca de quando parou, e a linha da FORMA
+ *     que a põe em parágrafo próprio. O caderno vazio sai dos dois grãos pela
+ *     mesma função (`cadernoVazio`) que o tira da ordem da edição.
  */
-export const PROMPT_VERSAO = 4;
+export const PROMPT_VERSAO = 5;
 
 /**
  * A linha da luz no cabeçalho — ou nada, quando o período não tem estação.
@@ -451,13 +524,28 @@ export interface Prompt {
   usuario: string;
 }
 
-function montar(cabecalho: readonly string[], pacotes: readonly PacoteDeFatos[]): Prompt {
+/**
+ * O `usuario` sobre os cadernos que **não são vazios** — e só eles. Nenhum que
+ * sobre ⇒ `usuario` vazio, que é o sinal de NÃO GASTE CHAMADA nos dois grãos.
+ *
+ * O filtro mora aqui, e não em `blocoDeCaderno`, porque é aqui que os dois grãos
+ * se encontram: um caderno vazio carregando só uma lápide antiga renderizaria a
+ * seção dela e voltaria à vida — no prompt do caderno e na edição inteira que a
+ * produção manda —, contra a ordem que o tirou da lista. Quem decide é
+ * {@link cadernoVazio}, a mesma função do passo 6 do ranqueamento.
+ *
+ * Antes de tudo, as lápides de **todo** pacote passam por `validarLapides` — o
+ * mesmo dono que o ranqueamento chama. Aqui, e não dentro de `blocoDeCaderno`:
+ * o bloco nunca vê o caderno vazio, e um pacote inválido tem que explodir nos
+ * dois grãos igual, e igual ao ranqueamento, seja ou não vazio.
+ */
+function montar(cabecalho: readonly string[], todos: readonly PacoteDeFatos[]): Prompt {
+  for (const p of todos) validarLapides(p);
+  const pacotes = todos.filter((p) => !cadernoVazio(p));
+  if (pacotes.length === 0) return { sistema: SISTEMA, usuario: '' };
   const partes: string[] = [...cabecalho];
 
-  for (const pacote of pacotes) {
-    const bloco = blocoDeCaderno(pacote);
-    if (bloco) partes.push(bloco);
-  }
+  for (const pacote of pacotes) partes.push(blocoDeCaderno(pacote));
 
   const eventos = pacotes.flatMap((x) => x.eventos);
   if (eventos.length > 0) {
@@ -507,29 +595,22 @@ function montar(cabecalho: readonly string[], pacotes: readonly PacoteDeFatos[])
  *
  * ## `usuario` vazio significa NÃO GASTE CHAMADA
  *
- * Caderno com `semDado` devolve `usuario: ''`, do mesmo jeito que a edição sem
- * pacote nenhum. É contrato, não descuido: montar cabeçalho e oito leis sobre
- * zero fatos produziria um prompt que só pode ser respondido inventando, e a
- * Story 1.10 chama isto **quatro vezes por edição** — em quatro cadernos vazios
- * seriam quatro chamadas pagas por nada. Quem chama confere o vazio antes de
- * gastar; o núcleo não decide sozinho o que a revista imprime.
+ * Caderno vazio devolve `usuario: ''`, do mesmo jeito que a edição sem pacote
+ * nenhum. É contrato, não descuido: montar cabeçalho e oito leis sobre zero
+ * fatos produziria um prompt que só pode ser respondido inventando, e a Story
+ * 1.10 chama isto **quatro vezes por edição** — em quatro cadernos vazios seriam
+ * quatro chamadas pagas por nada. Quem chama confere o vazio antes de gastar; o
+ * núcleo não decide sozinho o que a revista imprime.
  *
- * `semDado` é o vocabulário do próprio pacote, e cobre o caso que importa: um
- * caderno cuja única linha é a lápide tem `textos`, logo `semDado` é falso, logo
- * ele é narrado — a lápide vence o vazio.
- *
- * **Mas `semDado` não é o vazio inteiro**, e por isso ele não decide sozinho.
- * Ele olha `metricas`, `tendencias` e `textos`, e ignora `cobertura`, `lacunas`,
- * `eventos` e `correlacoes` — um caderno de Sono sem uma única métrica pode ter
- * 31 dias de lacuna e uma cobertura **desigual**, que a regra 8 obriga a
- * declarar. Devolver vazio ali calaria uma ressalva obrigatória, e na Story 1.10,
- * onde cada caderno é conferido sozinho, não haveria outro para carregá-la.
- * Mudo é quem não tem nada disso.
+ * **O vazio é o de {@link cadernoVazio}**, e não um critério deste arquivo: é a
+ * mesma função que tira o caderno da ordem da edição. Um caderno cuja única linha
+ * é a lápide do período é narrado — a lápide vence o vazio —; um cuja única
+ * linha é uma lápide antiga, não. E `semDado` sozinho não basta: um caderno de
+ * Sono sem uma métrica pode ter 31 dias de lacuna e uma cobertura **desigual**,
+ * que a regra 8 obriga a declarar, e na Story 1.10, onde cada caderno é
+ * conferido sozinho, não haveria outro para carregá-la.
  */
 export function montarPrompt(p: PacoteDeFatos): Prompt {
-  const mudo = p.semDado && p.cobertura == null
-    && p.lacunas.length === 0 && p.eventos.length === 0 && p.correlacoes.length === 0;
-  if (mudo) return { sistema: SISTEMA, usuario: '' };
   const { periodo } = p;
   return montar([
     `# ${periodo.rotulo}`,
@@ -546,6 +627,9 @@ export function montarPrompt(p: PacoteDeFatos): Prompt {
  * 1.10: narrar quatro vezes hoje quadruplicaria a chamada paga sem haver onde
  * gravar as quatro linhas. Todos os pacotes de uma edição falam do mesmo período
  * — o cabeçalho sai do primeiro.
+ *
+ * Caderno vazio fica de fora, pelo mesmo {@link cadernoVazio} do prompt do
+ * caderno; se todos são vazios, a edição é muda.
  */
 export function montarPromptDaEdicao(pacotes: readonly PacoteDeFatos[]): Prompt {
   if (pacotes.length === 0) return { sistema: SISTEMA, usuario: '' };

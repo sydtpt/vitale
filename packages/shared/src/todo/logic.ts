@@ -56,12 +56,12 @@ export function isValidTime(s: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 }
 
-/** Valida 'YYYY-MM-DD' (calendário real, não só formato). */
-export function isValidDate(s: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = parse(s);
-  return !Number.isNaN(d.getTime()) && localDateStr(d) === s;
-}
+/**
+ * Valida 'YYYY-MM-DD' (calendário real, não só formato). Mora em `date/local.ts`,
+ * a fonte única de data local; reexportada daqui para quem já a importava das
+ * tarefas.
+ */
+export { isValidDate } from '../date/local';
 
 function parse(date: string): Date {
   return new Date(`${date}T00:00:00`);
