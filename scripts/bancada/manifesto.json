@@ -9,19 +9,19 @@
   ],
   "recurso": "saude-do-sono",
   "versaoDoDescritor": 1,
-  "hoje": "2026-09-10",
+  "hoje": "2026-09-12",
   "acervo": {
     "noites": {
       "arquivo": "sleep_periods.json",
-      "linhas": 293,
-      "sha256": "c6e404987829753cbd6b0b93dc5874f8c956a74cfe540ee2b13ad3948c228a19"
+      "linhas": 295,
+      "sha256": "cc1a5ce428c6d46b611fae3865eef9c4b7326ce1fc25f1aae0db2f8e3811f5c6"
     },
     "notas": {
       "arquivo": "daily_ratings.json",
-      "linhas": 89,
-      "sha256": "80328cf905ef1519d9dc24a97dec59b8d8a35ecb8dbc02d011c50355cd609898"
+      "linhas": 91,
+      "sha256": "4a13ca794a76aecd4d7555e213474f397ce08466626511dee71c2779169b85ce"
     },
-    "sha256": "7819e989eb1c5de8c2ba0d36f3e22008a47ed715987c71fb5286583801d59233"
+    "sha256": "03e9a3c67c230d2b8a51e6576cc5108387490101143bb90bf9614d5f98443aaa"
   },
   "janelas": [
     {
@@ -38,7 +38,7 @@
     },
     {
       "range": "ultima",
-      "passos": 293
+      "passos": 295
     }
   ],
   "amostra": {
@@ -50,5 +50,5 @@
   "motores": [
     "sem-modelo"
   ],
-  "hash": "fdb59ad234489fc0e85b65df3fbe271ddf51ce3ef46d4db48f2b8ff66542bbd8"
+  "hash": "f29da0d3bd159c84cedd6ea819ebdaa73e0354f5cc2159bb548788be32586df4"
 }
