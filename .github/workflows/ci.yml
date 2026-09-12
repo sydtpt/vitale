@@ -52,6 +52,25 @@ jobs:
       - name: Testes + barreiras de arquitetura
         run: pnpm --filter @vitale/shared test
 
+  # O quarto workspace (AD-17: não sobra workspace que nada valida). Os testes da
+  # bancada são puros e não abrem rede — a coluna da nuvem exige o JWT do dono e
+  # por isso nunca roda aqui. Verde neste job não significa motor medido.
+  scripts:
+    name: scripts (bancada)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm --filter @vitale/scripts lint
+      - name: Testes
+        run: pnpm --filter @vitale/scripts test
+
   web:
     name: web (Angular)
     runs-on: ubuntu-latest

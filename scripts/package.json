@@ -1,0 +1,23 @@
+{
+  "name": "@vitale/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hospedeiro de scripts do Orbe — a bancada dos motores (story 5.4)",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "test": "F=$(find . -path ./node_modules -prune -o \\( -name '*.test.ts' -o -name '*.spec.ts' \\) -print); [ -n \"$F\" ] || { echo 'nenhum arquivo de teste em scripts/ — o portão ficou sem alvo' >&2; exit 1; }; printf '%s\\n' \"$F\" | xargs -r -n1 tsx",
+    "bancada": "tsx bancada/bancada.ts"
+  },
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.0",
+    "@vitale/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "tsx": "^4.23.0",
+    "typescript": "~5.8.0"
+  }
+}

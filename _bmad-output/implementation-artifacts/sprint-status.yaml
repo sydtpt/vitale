@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 12-09-2026 11:59
+last_updated: 12-09-2026 16:50
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -165,7 +165,7 @@ development_status:
   # F1 — dois marcos. O A é portão da 1.10. O B espera o macOS 27 (14/09) e o
   # risco aberto do Xcode 26.6: se ele não abrir no 27, a story para e volta ao
   # dono. ⚠ PORTÃO HUMANO no fim — o relatório é lido por ele, e o limiar é dele.
-  5-4-a-bancada-no-mac: backlog
+  5-4-a-bancada-no-mac: review
   # F2 — depois da 1.9, build próprio, sobe runtimeVersion. PRÉ-REQUISITO:
   # proposta visual com mockups e dados reais, aprovada (regra de 04/09).
   5-5-a-ponte-o-botão-ler-e-a-escolha-do-motor: backlog

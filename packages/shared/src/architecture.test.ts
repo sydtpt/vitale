@@ -56,6 +56,16 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const webFiles = walk(join(ROOT, 'web', 'src')).filter((f) => !f.endsWith('.spec.ts'));
 const mobileFiles = walk(join(ROOT, 'mobile', 'src')).filter((f) => !/__tests__/.test(f));
+/**
+ * O quarto hospedeiro (story 5.4 / 2.1): `scripts/`, onde vive a bancada dos
+ * motores e, depois, o backfill da revista. `walk` devolve lista vazia se o
+ * diretório não existe ou não tem TypeScript, e `ehTeste` (declaração de função,
+ * içada) tira os testes — a mesma convenção das duas listas acima.
+ *
+ * Ele entra nas barreiras **no mesmo commit que o criou**: invariante que vale só
+ * para quem chegou primeiro não é invariante.
+ */
+const scriptFiles = walk(join(ROOT, 'scripts')).filter((f) => !ehTeste(f));
 
 // Comentário fora; código e LITERAL DE STRING dentro. Comentário citando o que
 // a guarda procura não é uso — e uma barreira que tropeça no comentário que
@@ -128,9 +138,18 @@ check('BARREIRA — nenhum módulo com o mesmo nome nos dois apps', () => {
  * Foi CATRACA enquanto as 139 chamadas originais eram migradas: falhava só
  * quando o número crescia, e o teto descia a cada tabela. Chegou a zero e
  * virou barreira, como estava previsto desde que foi escrita.
+ *
+ * **Varre `scripts/` desde a 5.4** (critério 2 da 2.1). O hospedeiro novo é o
+ * lugar mais tentador para escrever query solta — ele não tem tela nem revisão de
+ * UI, e um `.from('sleep_periods')` ali seria a segunda implementação da consulta
+ * que `data/sleep.ts` já faz, sem a paginação que o teto de 1000 linhas do
+ * PostgREST exige. Entrou no mesmo commit que criou o workspace.
  */
 check('BARREIRA — nenhuma chamada .from() fora do núcleo', () => {
-  const offenders = [...webFiles, ...mobileFiles]
+  // Sem alvo, a barreira passa verde sobre nada: se `scripts/` for renomeado, é aqui
+  // que se descobre — e não num relatório escrito por uma query que ninguém viu.
+  assert.ok(scriptFiles.length > 0, 'scripts/ sumiu ou ficou sem TypeScript — a barreira ficou sem alvo');
+  const offenders = [...webFiles, ...mobileFiles, ...scriptFiles]
     .map((f) => ({ f, n: (readFileSync(f, 'utf8').match(/\.from\('[a-z_]+'/g) ?? []).length }))
     .filter((x) => x.n > 0)
     .map((x) => `${x.f.replace(ROOT + '/', '')} (${x.n})`);
@@ -1215,14 +1234,34 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
  * apps). Uma lista escrita à mão deixaria uma terceira peça nascer importável com o
  * teto ainda em 1.
  *
+ * **Varre `scripts/` desde a 5.4**, com o teto no mesmo lugar: a bancada fala com
+ * motor pelo `ler` do orquestrador, como qualquer hospedeiro, e não monta pedido
+ * nem confere nada por conta própria.
+ *
  * Teto e histórico:
  *   1 (5.1) — `mobile/src/lib/edicao-ia.ts`, a sequência da narração que a 1.10
  *             passa para o orquestrador. Vira barreira em zero, na 1.10.
  *   1 (5.3) — as peças de `sleep/` entram sem ofensor: nenhum app as importa.
+ *   1 (5.4) — `scripts/` entra sem ofensor: a bancada só nomeia o caso (abaixo).
  */
 const PORTA_DE_IA = new Set(['fio', 'motor', 'orquestrar', 'nuvem', 'recursos']);
 /** O que a tela chama das peças de `sleep/`: a entrada, não a leitura. */
 const LIVRES_DE_SONO = new Set(['entradaDaSaude']);
+/**
+ * O que a **bancada** (`scripts/`) lê das peças, e os apps não.
+ *
+ * `casoDaSaude` é a coluna pela qual o relatório agrega ("reprovou 4 vezes em
+ * `duas`") e o critério da amostra da nuvem ("duas janelas por caso × alcance").
+ * Sem ele a bancada teria de classificar o caso por conta própria — que é
+ * exatamente a segunda implementação que esta catraca existe para impedir — ou
+ * entregar ao dono um relatório sem a coluna que ele precisa ler.
+ *
+ * **É a bancada que nomeia, não que decide:** ela não monta pedido, não interpreta
+ * e não confere — quem faz isso é o descritor, pelo `ler`. E a liberação é só
+ * daqui: nas telas `casoDaSaude` continua barrado, porque o orquestrador já lhes
+ * devolve a frase pronta e um caso lido na tela poderia discordar dela.
+ */
+const LIVRES_NA_BANCADA = new Set(['casoDaSaude']);
 /**
  * O que `sleep/` empresta às telas desde antes da leitura, e por isso não é peça
  * dela: a contagem e os períodos do seletor. Cada um é conferido contra os apps —
@@ -1299,6 +1338,23 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
     nomes.has('casoDaSaude') && nomes.has('templateDaSaude'),
     'os nomes de sleep/caso e sleep/leitura não entraram no conjunto de peças — a catraca não vê a Saúde do sono',
   );
+  // A liberação da bancada não pode ser desculpa guardada: cada nome dela é usado
+  // mesmo em `scripts/`. Nome que ninguém usa sai da lista — senão ela vira porta
+  // aberta para o próximo que passar por aqui. Sem guarda de `length`: o alvo já é
+  // cobrado na barreira do `.from()`, e uma conferência que se pula a si mesma
+  // quando o diretório muda de nome não é invariante.
+  const fontesDaBancada = scriptFiles.map((f) => semComentario(readFileSync(f, 'utf8')));
+  assert.ok(fontesDaBancada.length > 0, 'scripts/ sumiu — a liberação da bancada ficou sem alvo');
+  for (const n of LIVRES_NA_BANCADA) {
+    assert.ok(
+      nomes.has(n),
+      `LIVRES_NA_BANCADA libera ${n}, que não é peça — ou ele saiu de sleep/ e ia/, ou o nome está errado.`,
+    );
+    assert.ok(
+      fontesDaBancada.some((src) => new RegExp(`\\b${n}\\b`).test(src)),
+      `LIVRES_NA_BANCADA libera ${n} e nenhum arquivo de scripts/ o usa — tire-o da lista.`,
+    );
+  }
 
   const ehDescritor = (nome: string) => /^descritor/i.test(nome);
   // O import profundo, com ou sem extensão: `.ts`, `.tsx`, e as que o bundler
@@ -1336,9 +1392,12 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
   };
 
   const fora: string[] = [];
-  for (const f of [...mobileFiles, ...webFiles].filter((x) => !ehTeste(x))) {
+  const daBancada = new Set(scriptFiles);
+  for (const f of [...mobileFiles, ...webFiles, ...scriptFiles].filter((x) => !ehTeste(x))) {
     const src = semComentario(readFileSync(f, 'utf8'));
     const achados = new Set<string>();
+    // A bancada nomeia o caso; as telas, não. Fora disso, as regras são as mesmas.
+    const livre = (n: string): boolean => LIVRES_DE_SONO.has(n) || (daBancada.has(f) && LIVRES_NA_BANCADA.has(n));
     for (const m of src.matchAll(IMPORTACAO)) {
       if (m[2]) continue;                                   // import type / export type
       const spec = m[5];
@@ -1346,13 +1405,16 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
       if (spec === '@vitale/shared') {
         // Pelo barril: só conta o que é peça de ia/. `* as X` do barril inteiro
         // alcança as peças todas — conta também.
-        for (const n of valor) if (nomes.has(n) || n.startsWith('*')) achados.add(n);
+        // O `&& !livre(n)` não afrouxa nada para web/mobile: os nomes de
+        // `LIVRES_DE_SONO` já saíram de `nomes` acima, e `LIVRES_NA_BANCADA` só vale
+        // para arquivo de `scripts/` (ver `livre`). Para um app, a condição é a mesma.
+        for (const n of valor) if ((nomes.has(n) && !livre(n)) || n.startsWith('*')) achados.add(n);
         continue;
       }
       const peca = PECA_PROFUNDA.exec(spec);
       if (peca && !PORTA_DE_IA.has(peca[1])) for (const n of valor) achados.add(`${n} de ia/${peca[1]}`);
       const sono = pecaDeSono(spec);
-      if (sono) for (const n of valor) if (!LIVRES_DE_SONO.has(n)) achados.add(`${n} de sleep/${sono}`);
+      if (sono) for (const n of valor) if (!livre(n)) achados.add(`${n} de sleep/${sono}`);
     }
     for (const m of src.matchAll(DINAMICA)) {
       const peca = PECA_PROFUNDA.exec(m[2]);

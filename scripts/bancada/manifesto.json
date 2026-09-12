@@ -1,0 +1,54 @@
+{
+  "_leia": [
+    "Linha de base da EXECUÇÃO PADRÃO da bancada: a coluna sem-modelo sobre todas as janelas,",
+    "sem nuvem. Só a execução padrão atualiza este arquivo — --so-exportar, --limite fora do",
+    "padrão e --export de outro acervo não o tocam, para não apagar a linha de base.",
+    "Uma corrida com --motor tem outro hash de propósito (motores e amostra entram no corpo),",
+    "e dois relatórios só se comparam com o mesmo hash. Este arquivo não tem dado de saúde:",
+    "só contagens, datas e hashes."
+  ],
+  "recurso": "saude-do-sono",
+  "versaoDoDescritor": 1,
+  "hoje": "2026-09-12",
+  "acervo": {
+    "noites": {
+      "arquivo": "sleep_periods.json",
+      "linhas": 295,
+      "sha256": "cc1a5ce428c6d46b611fae3865eef9c4b7326ce1fc25f1aae0db2f8e3811f5c6"
+    },
+    "notas": {
+      "arquivo": "daily_ratings.json",
+      "linhas": 91,
+      "sha256": "4a13ca794a76aecd4d7555e213474f397ce08466626511dee71c2779169b85ce"
+    },
+    "sha256": "03e9a3c67c230d2b8a51e6576cc5108387490101143bb90bf9614d5f98443aaa"
+  },
+  "janelas": [
+    {
+      "range": "7d",
+      "passos": 73
+    },
+    {
+      "range": "4s",
+      "passos": 19
+    },
+    {
+      "range": "12m",
+      "passos": 2
+    },
+    {
+      "range": "ultima",
+      "passos": 295
+    }
+  ],
+  "amostra": {
+    "regra": "recentes-por-caso-e-alcance",
+    "versaoDaRegra": 1,
+    "limite": 2,
+    "janelas": 0
+  },
+  "motores": [
+    "sem-modelo"
+  ],
+  "hash": "f29da0d3bd159c84cedd6ea819ebdaa73e0354f5cc2159bb548788be32586df4"
+}
