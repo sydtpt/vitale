@@ -314,8 +314,36 @@ check('no período o fato de duração traz a mediana e a fração acima de 7h',
   ];
   const s = periodScore(mista, 7, { '2026-08-30': 4, '2026-08-29': 3 }, h);
   assert.match(dim(s, 'duracao').fact, /57% ≥ 7h/);
-  assert.equal(dim(s, 'percepcao').fact, '3.5/5 · 2 notas');
+  assert.equal(dim(s, 'percepcao').fact, '3,5/5 · 2 notas', 'pt-BR, com vírgula — o conserto da story 5.3');
   assert.equal(dim(s, 'percepcao').points, 1, 'média 3,5 fica no degrau do meio');
+});
+
+check('nenhum fato escreve número com ponto decimal — é pt-BR, e a conferência da leitura não o veria', () => {
+  // A regra `algarismo` da leitura lê o texto do **motor**; o fato vem do código e
+  // entra por marcador, então um "3.3/5" iria para a frase sem ninguém reprovar.
+  const h = run('2026-07-31', 30, 23.5, 7.5, 5);
+  const semana = [...run('2026-08-27', 4, 23.5, 8, 5), ...run('2026-08-30', 3, 23.5, 6, 37)];
+  const notas: Record<string, number>[] = [
+    { '2026-08-30': 4, '2026-08-29': 3 },                               // média 3,5
+    { '2026-08-30': 4, '2026-08-29': 3, '2026-08-28': 3, '2026-08-27': 3 }, // média 3,25 → 3,3
+    { '2026-08-30': 5, '2026-08-29': 4, '2026-08-28': 4 },               // média 4,33 → 4,3
+    {},                                                                  // sem nota
+  ];
+  const scores: SleepScore[] = [
+    ...notas.map((r) => periodScore(semana, 7, r, h)),
+    periodScore([], 7),
+    periodScore(run('2026-08-07', 3), 7),
+    nightScore(night('2026-08-20', 23.5, 7.9, 15), h, 4),
+    nightScore(night('2026-08-20', 23.5, 6.2, null), [], null),
+  ];
+  const textos = [
+    ...scores.flatMap((s) => s.dimensions.flatMap((d) => [d.fact, d.absent ?? ''])),
+    ...scores.map((s) => coverageNote(s) ?? ''),
+  ].filter((t) => t !== '');
+  const comPonto = textos.filter((t) => /\d\.\d/.test(t));
+  assert.deepEqual(comPonto, [], 'fato com ponto decimal — em pt-BR é vírgula');
+  // Não-vácuo: há decimal de verdade no lote, e ele sai com vírgula.
+  assert.ok(textos.some((t) => /\d,\d/.test(t)), `nenhum decimal no lote: ${textos.join(' | ')}`);
 });
 
 console.log(`\n${passed} testes passaram.`);

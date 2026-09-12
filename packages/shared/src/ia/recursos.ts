@@ -6,10 +6,11 @@
  * seu descritor no catálogo; o descritor mora junto do domínio dele (`sleep/`,
  * `routes/`, `ia/`).
  *
- * **Nasceu vazio na 5.1.** A retrospectiva entrou na 5.2; a Saúde do sono entra
- * na 5.3 e o nome de rota, na 5.7. O teste que percorre o catálogo morde desde
- * o primeiro.
+ * **Nasceu vazio na 5.1.** A retrospectiva entrou na 5.2, a Saúde do sono na
+ * 5.3 (o descritor mora em `sleep/leitura.ts`, junto do domínio), e o nome de
+ * rota entra na 5.7. O teste que percorre o catálogo morde desde o primeiro.
  */
+import { descritorDaSaudeDoSono } from '../sleep/leitura';
 import { SEM_MODELO, TIPOS_DE_MOTOR, lerMotorId } from './fio';
 import { TIPOS_QUE_GRAVAM, exposicao, type TipoQueGrava } from './motor';
 import { ELOS_DE_PADRAO, REGIMES_DE_NUMEROS, type Descritor } from './orquestrar';
@@ -20,7 +21,10 @@ export const RECURSOS = ['retrospectiva', 'saude-do-sono', 'nome-de-rota'] as co
 export type RecursoId = (typeof RECURSOS)[number];
 
 /** Os descritores registrados. Um por recurso. */
-export const CATALOGO_DE_RECURSOS: readonly Descritor<unknown, unknown>[] = [descritorDaRetrospectiva];
+export const CATALOGO_DE_RECURSOS: readonly Descritor<unknown, unknown>[] = [
+  descritorDaRetrospectiva,
+  descritorDaSaudeDoSono,
+];
 
 const FUNCOES = ['montarPedido', 'interpretar', 'conferir', 'montarFrase', 'semModelo'] as const;
 

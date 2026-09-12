@@ -12,6 +12,9 @@
  * casa; se um lado usasse ponto e o outro vírgula, toda frase correta seria
  * reprovada.
  *
+ * Na 5.3 ganhou {@link porExtenso}, a contagem pequena por extenso — o marcador
+ * `{medidas}` da Saúde do sono vira "quatro", nunca "4".
+ *
  * `ia/prompt.ts` a reexporta com o mesmo nome, para os testes da conferência
  * seguirem sem edição, e é por lá que o barril a alcança — um caminho público
  * basta. Por isso, fora do núcleo, a guarda (7) do `architecture.test.ts` ainda a
@@ -27,4 +30,28 @@ export function formatarNumero(v: number, casas: number): string {
   const comMilhar = inteira.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   const corpo = decimal ? `${comMilhar},${decimal}` : comMilhar;
   return v < 0 ? `−${corpo}` : corpo;
+}
+
+/** O gênero do substantivo que a contagem acompanha: "duas dimensões", "dois dias". */
+export type GeneroDaContagem = 'feminino' | 'masculino';
+
+const POR_EXTENSO: Readonly<Record<GeneroDaContagem, readonly string[]>> = {
+  masculino: ['um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez'],
+  feminino: ['uma', 'duas', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez'],
+};
+
+/**
+ * Uma contagem pequena por extenso, de 1 a 10 — "as quatro dimensões medidas".
+ *
+ * Existe porque a frase da Saúde do sono nunca escreve algarismo (story 5.3,
+ * ADR 0049): a contagem de dimensões entra por marcador, e o marcador é trocado
+ * pela palavra. Só vai até dez de propósito — é contagem de coisa que se enumera
+ * numa frase, não formatador geral. Fora disso (zero, fração, onze) é defeito de
+ * quem chamou, e lança: uma frase com "zero dimensões" não deveria existir.
+ */
+export function porExtenso(n: number, genero: GeneroDaContagem): string {
+  if (!Number.isInteger(n) || n < 1 || n > 10) {
+    throw new RangeError(`porExtenso cobre de 1 a 10, e recebeu ${String(n)}`);
+  }
+  return POR_EXTENSO[genero][n - 1];
 }
