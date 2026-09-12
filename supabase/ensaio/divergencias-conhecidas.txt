@@ -1,0 +1,87 @@
+# Divergências conhecidas entre o catálogo de produção e o do banco local do ensaio.
+#
+# O preparar.sh compara as duas saídas de paridade.sql linha a linha e REPROVA qualquer
+# divergência que não esteja aqui. '<' é o que só existe em produção, '>' o que só existe no
+# local, e o motivo vem depois de ' ## '. Uma linha que termine em '*' vale como prefixo.
+#
+# São seis grupos: CINCO divergências reais de produção — coisa que migration nenhuma cria —
+# e uma que é da imagem local (o grupo 6). Nenhuma toca a Story 1.9.
+#
+# COMO ACRESCENTAR UMA LINHA (a lista é o que decide o que passa, então o procedimento importa):
+#   1. Rode o preparar.sh e copie a linha EXATA que ele acusou.
+#   2. Descubra a origem: quem criou o objeto, quando e por quê. "Não sei de onde veio" é
+#      motivo para investigar, não para conhecer.
+#   3. Diga por que ela não afeta a migração que vai ser ensaiada. Se afetar, ela não é
+#      conhecida — é um problema.
+#   4. Escreva `< linha ## motivo curto` no grupo certo, ou abra um grupo novo com a
+#      explicação longa no cabeçalho.
+#   5. Use '*' só para o que muda sozinho — versão de patch de extensão, corpo de função da
+#      plataforma. NUNCA para encurtar o que identifica o objeto: o schema de uma extensão, o
+#      dono de uma função e o nome de uma tabela ficam fora do curinga. O preparar.sh recusa
+#      padrão com menos de 12 caracteres, e isso é piso, não permissão.
+#
+# NÃO entra aqui divergência de ACL causada pelo privilegios.sql. Ele existe para reproduzir o
+# modelo de produção, e os REVOKE dele saem do ACL que o preparar.sh acabou de ler de lá: se um
+# GRANT ou REVOKE sair diferente, o conserto é no privilegios.sql (ou na derivação), nunca uma
+# linha nesta lista. Listar aqui seria congelar o privilégio errado.
+#
+# Quando uma linha daqui deixar de casar, o preparar.sh avisa: a lista encolhe.
+
+# ── 1. backup de VFC feito à mão (04/09/2026) ─────────────────────────────────────
+# Sobra da limpeza de VFC: tabela criada pelo dashboard, que migration nenhuma cria. É o desvio
+# que a ADR 0011 chama de defeito, já registrado no deferred-work.md. Some do ensaio porque o
+# ensaio nasce só das migrations.
+< acl health_daily_vfc_backup_20260904 anon=arwdDxtm/postgres authenticated=arwdDxtm/postgres postgres=arwdDxtm/postgres service_role=arwdDxtm/postgres ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.count #7 integer null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.created_at #9 timestamp with time zone null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.day #2 date null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.extra #8 jsonb null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.max_value #6 numeric null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.metric #3 text null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.min_value #5 numeric null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.updated_at #10 timestamp with time zone null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.user_id #1 uuid null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< col health_daily_vfc_backup_20260904.value #4 numeric null=YES def=- ident=- gen=- ## backup de VFC à mão, fora das migrations
+< rls health_daily_vfc_backup_20260904 enabled=true forced=false dono=postgres ## backup de VFC à mão, fora das migrations
+
+# ── 2. o default de user_preferences.blur_intensity ───────────────────────────────
+# Produção diz 100 e a migration 20260604120000 diz 50: alguém trocou à mão lá. Desvio real,
+# registrado em docs/specs/temas/spec.md — quem nunca mexeu no slider vê um valor diferente
+# conforme a linha exista.
+< col user_preferences.blur_intensity #15 integer null=NO def=100 ident=- gen=- ## default trocado à mão em produção (100) contra os 50 da migration
+> col user_preferences.blur_intensity #15 integer null=NO def=50 ident=- gen=- ## default trocado à mão em produção (100) contra os 50 da migration
+
+# ── 3. pg_cron ────────────────────────────────────────────────────────────────────
+# Extensão habilitada pelo dashboard em produção para agendar a connections-ingest
+# (supabase/scripts/schedule_connections_ingest.sql). Fora das migrations, e o ensaio não
+# precisa dela: nada da 1.9 agenda nada. O curinga come só a versão — o schema fica pinado.
+< ext pg_cron @ pg_catalog * ## extensão habilitada pelo dashboard em produção, fora das migrations
+< defacl supabase_admin cron S postgres=r*w*U*/supabase_admin ## privilégio padrão que veio junto com o pg_cron
+< defacl supabase_admin cron f postgres=X*/supabase_admin ## privilégio padrão que veio junto com o pg_cron
+< defacl supabase_admin cron r postgres=a*r*w*d*D*x*t*m*/supabase_admin ## privilégio padrão que veio junto com o pg_cron
+
+# ── 4. o schema do pg_net ─────────────────────────────────────────────────────────
+# Mesma extensão, mesma versão, lugar diferente: em produção ela mora no `public` (é de onde a
+# linha some do search_path de uma migration), e a imagem local a instala em `extensions`.
+# Herança de quando ela foi habilitada; nada da 1.9 chama net.*. Só apareceu quando a linha de
+# extensão passou a levar o schema — por isso o schema fica FORA do curinga.
+< ext pg_net @ public * ## o pg_net mora em schemas diferentes nos dois lados
+> ext pg_net @ extensions * ## o pg_net mora em schemas diferentes nos dois lados
+
+# ── 5. ensure_rls / rls_auto_enable ───────────────────────────────────────────────
+# Produção liga RLS sozinha em tabela nova do `public`, por um gatilho de evento da plataforma.
+# O ensaio NÃO replica, de propósito: é rede a mais lá, não a menos — tabela que a candidata
+# criar sem `enable row level security` aparece sem RLS aqui e com RLS lá. O ensaiar.sh avisa
+# quando a candidata cria tabela sem ligar RLS no mesmo arquivo.
+# O corpo e os gatilhos são da Supabase, que os muda sem avisar: daí o curinga. O que fica
+# pinado é a identidade (o nome da função e do gatilho) e, na função, o dono.
+< fn rls_auto_enable() dono=postgres * ## função do gatilho ensure_rls, criada pela plataforma em produção
+< fnacl rls_auto_enable() * ## privilégio da função do gatilho ensure_rls
+< evt ensure_rls ddl_command_end * ## gatilho da plataforma que só produção tem
+
+# ── 6. o schema supabase_functions ────────────────────────────────────────────────
+# Webhooks de banco: a imagem local do CLI cria o schema e seus privilégios padrão, e produção
+# nunca habilitou webhook nenhum. Existe a mais aqui, não a menos lá.
+> defacl supabase_admin supabase_functions S anon=rwU/supabase_admin authenticated=rwU/supabase_admin postgres=rwU/supabase_admin service_role=rwU/supabase_admin ## schema de webhooks que só a imagem local cria
+> defacl supabase_admin supabase_functions f anon=X/supabase_admin authenticated=X/supabase_admin postgres=X/supabase_admin service_role=X/supabase_admin ## schema de webhooks que só a imagem local cria
+> defacl supabase_admin supabase_functions r anon=arwdDxtm/supabase_admin authenticated=arwdDxtm/supabase_admin postgres=arwdDxtm/supabase_admin service_role=arwdDxtm/supabase_admin ## schema de webhooks que só a imagem local cria

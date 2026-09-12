@@ -36,6 +36,12 @@ android/
 .DS_Store
 Thumbs.db
 
+# Supabase
+# O CLI cria .branches/ quando roda a partir da raiz do repositório (estado local dele, não
+# do projeto). O ensaio da migração roda numa pasta de trabalho fora daqui — ver
+# supabase/ensaio/README.md — mas um `supabase start` dado à mão na raiz ainda cria esta.
+supabase/.branches/
+
 # Testing
 coverage/
 
