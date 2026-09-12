@@ -110,6 +110,8 @@ export function transporteDaNuvem(
   chaveAnonima: string,
   buscar: Buscar = fetch,
   prazoMs: number = PRAZO_MS,
+  /** Os outros segredos a redigir — o refresh token, sobretudo, que não expira em uma hora. */
+  segredosExtra: readonly string[] = [],
 ): Transporte {
   const alvo = enderecoDaFunction(url);
   return async (corpo): Promise<RespostaDoTransporte> => {
@@ -119,12 +121,12 @@ export function transporteDaNuvem(
     } catch (e) {
       // A sessão venceu e não renovou: nenhuma chamada sai, e isto não é falha do
       // modelo. `indisponivel` recua sem subir exposição e sem gravar.
-      return { semRede: true, detalhe: semSegredo(mensagem(e), [chaveAnonima]) };
+      return { semRede: true, detalhe: semSegredo(mensagem(e), [chaveAnonima, ...segredosExtra]) };
     }
     // Os dois segredos saem de TODO diagnóstico deste transporte — inclusive do
     // corpo que a function devolveu: se o gateway ecoar o `Authorization` num erro,
     // o JWT desceria até `Falha.detalhe` e até o arquivo que o dono abre.
-    const segredos = [token, chaveAnonima];
+    const segredos = [token, chaveAnonima, ...segredosExtra];
     const diagnostico = (e: unknown): string => semSegredo(mensagem(e), segredos);
 
     let r: RespostaHttp;
@@ -174,11 +176,15 @@ export function motoresDaBancada(
     readonly url: string;
     readonly tokenAtual: () => Promise<string>;
     readonly chaveAnonima: string;
+    /** Todo segredo da credencial, para nenhum deles chegar a `detalhe` (a `Sessao` os traz). */
+    readonly segredos?: readonly string[];
   },
   buscar?: Buscar,
   prazoMs?: number,
 ): (id: MotorId) => Motor | undefined {
-  const nuvem = criarMotorDeNuvem(transporteDaNuvem(s.url, s.tokenAtual, s.chaveAnonima, buscar, prazoMs));
+  const nuvem = criarMotorDeNuvem(
+    transporteDaNuvem(s.url, s.tokenAtual, s.chaveAnonima, buscar, prazoMs, s.segredos ?? []),
+  );
   return (id) => (lerMotorId(id)?.tipo === 'nuvem' ? nuvem : undefined);
 }
 

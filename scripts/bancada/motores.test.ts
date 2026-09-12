@@ -196,6 +196,24 @@ describe('o motorPara da bancada', () => {
     assert.equal(motorPara('nuvem:' as never), undefined);
   });
 
+  it('o segredo extra da credencial (o refresh token) é redigido pelo transporte', async () => {
+    // Não basta `segredosDe` conhecer o refresh token: ele tem de CHEGAR ao transporte,
+    // que é quem escreve `detalhe`. Um refresh vazado dura muito mais que uma hora.
+    const REFRESH = 'o-refresh-que-nao-expira';
+    const { buscar: queLanca } = chamada({ lanca: new Error(`falhou com ${TOKEN} e ${REFRESH}`) });
+    const para = motoresDaBancada(
+      { url: URL_DO_PROJETO, tokenAtual: async () => TOKEN, chaveAnonima: ANON, segredos: [ANON, TOKEN, REFRESH] },
+      queLanca,
+    );
+    const motor = para(NUVEM_PADRAO);
+    assert.ok(motor);
+    const saida = await motor(PEDIDO);
+    const texto = JSON.stringify(saida);
+    assert.equal(texto.includes(REFRESH), false, texto);
+    assert.equal(texto.includes(TOKEN), false, texto);
+    assert.ok(texto.includes(OMITIDO));
+  });
+
   it('sem sessão, nenhum motor — é o caminho de --export', () => {
     for (const id of [NUVEM_PADRAO, SEM_MODELO, 'aparelho:sistema'] as const) {
       assert.equal(SEM_NENHUM_MOTOR(id), undefined);

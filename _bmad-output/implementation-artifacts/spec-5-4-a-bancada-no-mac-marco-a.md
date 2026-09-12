@@ -118,7 +118,8 @@ cada conferência. O relatório é para o dono ler; o limiar é dele.
   e `test` no molde do núcleo; o `tsconfig` cobre só `.ts` e deixa `github/` (Python) de fora -- critérios
   1 e 4 da 2.1
 - [ ] `scripts/bancada/supabase.ts` -- o client construído **aqui**, com URL e chave anônima do ambiente,
-  e a sessão por `signInWithPassword` com a credencial do ambiente -- critério 4; AD-14 da revista
+  e a sessão pela credencial do ambiente, em dois caminhos: token do navegador (preferido) ou
+  `signInWithPassword` -- critério 4; AD-14 da revista (ver o Spec Change Log de 12/09)
 - [ ] `scripts/bancada/motores.ts` -- o único arquivo que nomeia `ia-narrar`: o transporte (POST com
   `Authorization: Bearer`), `criarMotorDeNuvem` e o `motorPara` da bancada -- guarda (1)
 - [ ] `scripts/bancada/exportar.ts` -- export sob demanda pelos módulos donos das tabelas, para
@@ -163,6 +164,36 @@ cada conferência. O relatório é para o dono ler; o limiar é dele.
   subiu, e uma asserção nova obriga cada nome liberado a ser usado de fato em `scripts/` — liberação que
   ninguém usa sai da lista.
 
+## Spec Change Log
+
+- **2026-09-12 — a credencial passou a ter dois caminhos, porque a conta do dono é OAuth.**
+  A 5.4 nasceu com `ORBE_EMAIL` + `ORBE_SENHA` e `signInWithPassword`. Na hora de rodar a coluna da
+  nuvem, o dono apontou o que a spec não sabia: **a conta dele entra pelo Google**, e conta criada por
+  OAuth **não tem senha** — `signInWithPassword` responde "Invalid login credentials" nela para sempre,
+  por mais correta que seja a senha que se tente. Não é bug da bancada nem configuração faltando: é um
+  caminho que não existe naquela conta.
+
+  Ele escolheu o caminho do **token do navegador**, e é o preferido agora:
+  - `ORBE_ACCESS_TOKEN` (obrigatório neste caminho) e `ORBE_REFRESH_TOKEN` (opcional). Os dois saem do
+    armazenamento local da web depois do login pelo Google — os passos exatos estão em
+    `scripts/README.md`.
+  - **Com** refresh: `setSession`, e o `autoRefreshToken` segue valendo — `tokenAtual()` lê o token
+    vivo da sessão, não o do ambiente, para corrida longa não começar a tomar 401 no meio.
+  - **Sem** refresh: o client nasce com `global.headers.Authorization`, para as leituras do núcleo
+    carregarem o JWT, e `tokenAtual()` devolve o token fixo. A bancada **avisa quantos minutos faltam**
+    e, se a corrida (chamadas × `PRAZO_MS`, pior caso) não couber no que resta, diz antes de começar que
+    provavelmente não termina e que o caminho é exportar também o refresh.
+  - O `userId` e o `exp` saem de `auth.getClaims(<token>)`, que **valida no servidor** — nada de
+    decodificar o JWT à mão. Token vencido ou inválido tem mensagem própria ("pegue um novo no
+    navegador"), não "credencial inválida" genérica.
+  - O caminho da senha **continua existindo**, para conta que tenha uma. Com as duas vias definidas, o
+    token ganha e a senha é ignorada, com aviso no `stderr`.
+
+  **A parte congelada não muda**, e a invariante da AD-14 vale à letra: JWT de **usuário**, credencial
+  vinda do ambiente de quem roda, nunca chave de serviço, nunca versionada, nunca impressa. O token do
+  navegador é exatamente esse JWT, um passo antes — e o `semSegredo` passou a redigir **os dois** tokens
+  de todo diagnóstico, porque o refresh não expira em uma hora e vazá-lo é pior.
+
 ## Design Notes
 
 **O desenho em uma frase:** a bancada é um hospedeiro, não uma biblioteca — ela injeta motor e lê o que
@@ -170,8 +201,10 @@ o núcleo já decide. Todo arquivo dela é puro, menos três: `supabase.ts` (red
 `motores.ts` (rede) e `exportar.ts` (rede e disco).
 
 **A credencial, e o que acontece sem ela:** `ORBE_SUPABASE_URL` e `ORBE_SUPABASE_ANON_KEY` (caindo para
-os `EXPO_PUBLIC_*` quando existirem), mais `ORBE_EMAIL` e `ORBE_SENHA`. A sessão sai de
-`signInWithPassword`; o `access_token` vai no `Authorization` do transporte e some com o processo.
+os `EXPO_PUBLIC_*` quando existirem) são obrigatórias nos dois caminhos. Depois, **um** deles:
+`ORBE_ACCESS_TOKEN` (o token do navegador, preferido, com `ORBE_REFRESH_TOKEN` opcional) ou
+`ORBE_EMAIL` + `ORBE_SENHA`. Com os dois preenchidos, o token ganha e a senha é ignorada, com aviso.
+O `access_token` vai no `Authorization` do transporte e some com o processo.
 Faltando qualquer uma, a bancada para antes de abrir rede e **nomeia as que faltam**. Nada é gravado em
 disco, nada é impresso — nem em log de erro.
 

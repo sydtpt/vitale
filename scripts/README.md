@@ -35,21 +35,75 @@ sem modelo fecha, em qualquer máquina:
 pnpm --filter @vitale/scripts exec tsx bancada/bancada.ts --export ~/Orbe-dados/sono-2026-09-12
 ```
 
-**2. Puxando o acervo de produção e medindo.** Precisa das variáveis abaixo:
+**2. Puxando o acervo de produção e medindo.** O projeto é sempre obrigatório:
 
 ```bash
 export ORBE_SUPABASE_URL=https://<projeto>.supabase.co   # ou EXPO_PUBLIC_SUPABASE_URL
 export ORBE_SUPABASE_ANON_KEY=<chave anônima>            # ou EXPO_PUBLIC_SUPABASE_ANON_KEY
-export ORBE_EMAIL=<o e-mail da conta>
-export ORBE_SENHA=<a senha>
+```
 
+E depois **um dos dois caminhos** de autenticação, abaixo.
+
+```bash
 pnpm --filter @vitale/scripts exec tsx bancada/bancada.ts                      # só o template
 pnpm --filter @vitale/scripts exec tsx bancada/bancada.ts --motor nuvem:padrao # + a nuvem
 ```
 
-Faltando qualquer variável, a bancada **para antes de abrir rede** e diz quais
-faltam. A nuvem entra com **JWT de usuário** (`signInWithPassword`), nunca com chave
-de serviço; nada de credencial vai para disco nem para log.
+Faltando qualquer coisa, a bancada **para antes de abrir rede**, diz o que falta e
+ensina os dois caminhos. A nuvem entra com **JWT de usuário**, nunca com chave de
+serviço; nada de credencial vai para disco nem para log.
+
+### O caminho do token (preferido)
+
+**A conta do dono entra pelo Google, e conta criada por OAuth não tem senha** —
+`signInWithPassword` devolve "Invalid login credentials" nela para sempre. O caminho é
+pegar o JWT que o navegador já tem depois do login.
+
+1. Suba a web e entre pelo Google:
+
+   ```bash
+   pnpm web:dev     # http://localhost:4200
+   ```
+
+2. Com a sessão aberta, abra o **console do navegador** (⌥⌘I no Chrome/Safari) e rode:
+
+   ```js
+   // A chave do Supabase no armazenamento local termina em "-auth-token";
+   // o valor é JSON com access_token e refresh_token.
+   (() => {
+     const k = Object.keys(localStorage).find((x) => x.endsWith('-auth-token'));
+     if (!k) return 'não achei a sessão — entre primeiro';
+     const s = JSON.parse(localStorage.getItem(k));
+     return [
+       `export ORBE_ACCESS_TOKEN='${s.access_token}'`,
+       `export ORBE_REFRESH_TOKEN='${s.refresh_token}'`,
+     ].join('\n');
+   })()
+   ```
+
+3. Copie as duas linhas e cole **no terminal** onde a bancada vai rodar. Em nenhum
+   outro lugar: não num arquivo, não numa anotação, não num chat. Os dois são a sua
+   sessão inteira.
+
+O **token de acesso dura cerca de uma hora**. O `ORBE_REFRESH_TOKEN` é opcional, mas é
+ele que resolve corrida longa: com ele a bancada renova sozinha no meio da medição; sem
+ele, ela avisa quantos minutos faltam e — se a corrida não couber no tempo que resta —
+diz antes de começar que provavelmente não termina.
+
+Token vencido ou inválido não vira "credencial inválida" genérica: a bancada diz que é
+para pegar um novo no navegador.
+
+### O caminho da senha
+
+Só serve em conta que de fato tem senha:
+
+```bash
+export ORBE_EMAIL=<o e-mail da conta>
+export ORBE_SENHA=<a senha>
+```
+
+Se as duas vias estiverem definidas, **o token ganha** e a bancada avisa no `stderr`
+que a senha foi ignorada.
 
 ### As bandeiras
 

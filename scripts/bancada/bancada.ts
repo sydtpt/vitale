@@ -44,7 +44,7 @@ import {
   type JanelaClassificada,
 } from './janelas.ts';
 import { RECURSO, VERSAO_DO_DESCRITOR, medir } from './medir.ts';
-import { SEM_NENHUM_MOTOR, motoresDaBancada } from './motores.ts';
+import { PRAZO_MS, SEM_NENHUM_MOTOR, motoresDaBancada } from './motores.ts';
 import {
   compararRelatorios,
   hashCurto,
@@ -55,7 +55,7 @@ import {
   type Relatorio,
   type SistemaDaMedicao,
 } from './relatorio.ts';
-import { abrirSessao, lerCredenciais, type Sessao } from './supabase.ts';
+import { abrirSessao, avisoDeValidade, comoSeAutenticar, lerCredenciais, type Sessao } from './supabase.ts';
 
 /* ── as bandeiras ────────────────────────────────────────────────────────── */
 
@@ -366,10 +366,14 @@ async function principal(argv: readonly string[]): Promise<number> {
         'a bancada não abriu rede:\n' +
           c.faltam.map((v) => `  - falta ${v}\n`).join('') +
           c.problemas.map((p) => `  - ${p}\n`).join('') +
+          // Sem nenhum caminho de autenticação, listar variável não basta: quem tem
+          // conta do Google precisa saber que a senha não existe para ela.
+          (c.semCaminho ? `\n${comoSeAutenticar()}\n\n` : '') +
           comoSair,
       );
       return 1;
     }
+    for (const aviso of c.avisos) process.stderr.write(`aviso: ${aviso}\n`);
     sessao = await abrirSessao(c.credenciais);
   }
 
@@ -478,6 +482,19 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
       return 1;
     }
   }
+  // A validade do token, contra o tamanho da corrida. Só tem o que dizer quando não
+  // há como renovar — com refresh token (ou senha), `avisoDeValidade` devolve `null`.
+  if (sessao !== null) {
+    const aviso = avisoDeValidade({
+      expiraEm: sessao.expiraEm,
+      podeRenovar: sessao.podeRenovar,
+      chamadas,
+      prazoMs: PRAZO_MS,
+      agora: new Date(),
+    });
+    if (aviso !== null) process.stderr.write(`aviso: ${aviso}\n`);
+  }
+
   // Pedir o aparelho neste hospedeiro não mede modelo nenhum: não há ponte aqui.
   for (const m of deModelo.filter((x) => lerMotorId(x)?.tipo === 'aparelho')) {
     process.stderr.write(
