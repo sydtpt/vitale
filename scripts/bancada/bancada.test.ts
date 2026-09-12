@@ -11,7 +11,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NUVEM_PADRAO, SEM_MODELO } from '@vitale/shared';
-import { conferirDestino, ehExecucaoPadrao, lerBandeiras, precisaDeRede } from './bancada.ts';
+import { conferirDestino, ehExecucaoPadrao, lerBandeiras, passoDoProgresso, precisaDeRede } from './bancada.ts';
 import { LIMITE_DA_AMOSTRA } from './janelas.ts';
 
 const AQUI = __dirname;
@@ -189,5 +189,32 @@ describe('conferirDestino', () => {
       return; // sem permissão de symlink: o caso não se exercita aqui
     }
     assert.throws(() => conferirDestino(link), /está dentro do repositório git/);
+  });
+});
+
+describe('passoDoProgresso', () => {
+  it('coluna de modelo dá sinal de vida em cada janela — cada uma é uma chamada paga', () => {
+    // O caso real que motivou isto: 22 janelas de nuvem, cinco minutos sem uma linha.
+    assert.equal(passoDoProgresso(22), 1);
+    assert.equal(passoDoProgresso(1), 1);
+    assert.equal(passoDoProgresso(30), 1);
+  });
+
+  it('coluna grande não vira ruído', () => {
+    assert.equal(passoDoProgresso(31), 10);
+    assert.equal(passoDoProgresso(100), 10);
+    assert.equal(passoDoProgresso(389), 100);
+  });
+
+  it('o passo divide a contagem, então a linha do fim nunca é a única', () => {
+    for (const total of [22, 31, 100, 101, 389]) {
+      const passo = passoDoProgresso(total);
+      const anuncios = [...Array(total).keys()].map((i) => i + 1).filter((f) => f === total || f % passo === 0);
+      assert.ok(anuncios.length >= 1, `${total} não anuncia nada`);
+      assert.equal(anuncios[anuncios.length - 1], total, `${total} não anuncia o fim`);
+      // Nenhuma coluna fica mais de 100 janelas calada.
+      const maiorSilencio = anuncios.reduce((max, f, i) => Math.max(max, f - (i === 0 ? 0 : anuncios[i - 1]!)), 0);
+      assert.ok(maiorSilencio <= 100, `${total} fica ${maiorSilencio} janelas sem dizer nada`);
+    }
   });
 });

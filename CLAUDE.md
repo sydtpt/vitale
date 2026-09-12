@@ -279,8 +279,17 @@ São **10** módulos, não 7:
   motores, esquecer = lápide, alerta como propriedade do lugar, as 5 fases) vive só em dois
   artifacts e na memória da sessão. Escrever isso é o próximo passo enquanto a medição roda.
 - **Motores de IA** — modelo no aparelho (Foundation Models, depois Core AI), nuvem (`ia-narrar`)
-  e sem modelo, escolhidos **por recurso e por aparelho**. **Arquitetura aprovada em 10/09**, nada
-  construído: [espinha](_bmad-output/planning-artifacts/architecture/architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md)
+  e sem modelo, escolhidos **por recurso e por aparelho**. **F0 e o marco A da bancada estão na
+  `main` (12/09)**: a porta, o fio e o orquestrador (5.1), o descritor da retrospectiva e as listas
+  de termos proibidos (5.2), a leitura da Saúde do sono sem modelo (5.3) e a bancada no quarto
+  workspace (5.4 marco A). **A primeira medição rodou em 12/09**, sobre 295 noites de produção: a
+  nuvem aprovou em **22 de 22** janelas, com zero frase igual à do template e mediana de 13,6 s por
+  chamada. O dono fixou o limiar lendo isso —
+  [ADR 0050](docs/decisions/0050-o-limiar-do-portao-sai-de-medicao-e-tem-quatro-condicoes.md):
+  aprovação ≥ 90%, os sete casos nos dois alcances, nada idêntico ao template, mediana ≤ 20 s. Falta
+  o **marco B** (a coluna do aparelho, que depende do macOS 27) e a **5.5**, que leva o botão à tela.
+  Arquitetura aprovada em 10/09:
+  [espinha](_bmad-output/planning-artifacts/architecture/architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md)
   com 14 ADs, passada por portão de revisão, e as ADRs
   [0047](docs/decisions/0047-a-porta-do-motor-e-uma-so-e-a-ponte-do-aparelho-e-nossa.md) (uma porta,
   um orquestrador, a ponte Swift `on-device-engine`),
@@ -291,9 +300,10 @@ São **10** módulos, não 7:
   (CAP-13 do spec de Sono), gerada por botão, só no iPhone. Entrou na sprint da revista como
   **Épico 5** pelo correct-course de 10/09
   ([proposta](_bmad-output/planning-artifacts/sprint-change-proposal-2026-09-10.md)): a F0
-  (5.1–5.3) e o marco A da bancada (5.4) vêm **antes da story 1.10**, que passa a ser cliente do
-  orquestrador (AD-13); a F2 (5.5) vem depois da 1.9, em build próprio; F3–F5 ficam para a próxima
-  sprint. A bancada mede no Mac, com Mac e iPhone no 27.
+  (5.1–5.3) e o marco A da bancada (5.4) vinham **antes da story 1.10**, que passa a ser cliente do
+  orquestrador (AD-13) — e agora está liberada; a F2 (5.5) vem depois da 1.9, em build próprio; F3–F5
+  ficam para a próxima sprint. A bancada mede no Mac, com Mac e iPhone no 27, e vive em
+  [scripts/](scripts/README.md).
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco

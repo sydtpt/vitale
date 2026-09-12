@@ -304,6 +304,24 @@ const LEIA_ME_DO_MANIFESTO = Object.freeze([
   'só contagens, datas e hashes.',
 ]);
 
+/**
+ * De quantas em quantas janelas a corrida dá sinal de vida.
+ *
+ * A coluna do template tem centenas de linhas e corre em milissegundos: anunciar
+ * cada uma seria ruído. A de um modelo tem dezenas e **cada linha é uma chamada de
+ * rede que o dono está pagando** — com o passo fixo em 100, uma coluna de 22 não
+ * imprimia nada entre o início e o fim, e a medição parecia travada. Foi o que
+ * aconteceu na primeira corrida real (12/09/2026): cinco minutos sem uma linha.
+ *
+ * Daí o passo sair do tamanho: até 30, uma linha por janela; até 100, de dez em
+ * dez; acima disso, de cem em cem. O fim sempre imprime, em qualquer tamanho.
+ */
+export function passoDoProgresso(total: number): number {
+  if (total <= 30) return 1;
+  if (total <= 100) return 10;
+  return 100;
+}
+
 /** A execução é a padrão — a única que pode reescrever a linha de base versionada? */
 export function ehExecucaoPadrao(b: Pick<Bandeiras, 'soExportar' | 'limite' | 'motores' | 'export'>): boolean {
   return !b.soExportar && b.limite === LIMITE_DA_AMOSTRA && b.motores.every((m) => m === SEM_MODELO);
@@ -512,7 +530,8 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
       motorPara: sessao ? motoresDaBancada(sessao) : SEM_NENHUM_MOTOR,
     },
     aoAndar: ({ motor, feito, total }) => {
-      if (feito === total || feito % 100 === 0) process.stdout.write(`  ${motor}: ${feito}/${total}\n`);
+      const passo = passoDoProgresso(total);
+      if (feito === total || feito % passo === 0) process.stdout.write(`  ${motor}: ${feito}/${total}\n`);
     },
   });
 
