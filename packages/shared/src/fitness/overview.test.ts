@@ -35,6 +35,29 @@ import {
 } from './overview';
 import type { Activity } from '../models';
 
+/**
+ * O fuso do congelamento, fixado de propósito.
+ *
+ * `currentTargetS` é a meta prorrateada pelo que já passou do bucket em curso, e
+ * a fração depende do fuso de quem lê: a semana do usuário começa na meia-noite
+ * **dele**. Isso é de propósito, e é o que a tela precisa — mas um fixture
+ * congelado em `Europe/Brussels` não é comparável em outro fuso. Em `TZ=UTC`, o
+ * fuso do CI, a semana de `NOW` começa 2 h depois e a meta cai 67,86 s
+ * (5.700 s × 7.200 / 604.800), o que deixou o CI vermelho de 07/09 a 12/09/2026
+ * em toda branch, sem nenhum defeito de produção por trás.
+ *
+ * Fixar aqui é o que torna o congelamento comparável em qualquer máquina. A
+ * asserção abaixo existe porque a troca de `process.env.TZ` em tempo de execução
+ * é um detalhe do Node: se um dia ela parar de valer, o teste diz isso em vez de
+ * comparar número errado em silêncio.
+ */
+process.env.TZ = 'Europe/Brussels';
+assert.equal(
+  new Date('2026-08-20T14:30:00.000Z').getTimezoneOffset(),
+  -120,
+  'o fuso não foi fixado em Europe/Brussels, e o fixture desta barreira só vale nele — rode com TZ=Europe/Brussels',
+);
+
 let passed = 0;
 function check(name: string, fn: () => void): void {
   fn();
