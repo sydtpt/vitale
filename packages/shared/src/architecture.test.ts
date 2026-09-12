@@ -789,7 +789,10 @@ check('CATRACA — hex fora do sistema de temas não cresce', () => {
  * um `fetch` dois arquivos abaixo é o mesmo `fetch`. Medido no planejamento:
  * 55 arquivos em 17 diretórios, zero ofensor com a lista ampliada; com os seis
  * módulos da porta que a 5.1 criou, 61 arquivos nos mesmos 17 (o teste loga);
- * 63 com a 5.2, que trouxe o descritor da retrospectiva e `format/numero.ts`.
+ * 63 com a 5.2, que trouxe o descritor da retrospectiva e `format/numero.ts`;
+ * 67 com a 5.3 — `ia/interpolar.ts`, e `sleep/leitura.ts` entrando como
+ * semente (é o descritor da Saúde, tipado por `Descritor`), com `sleep/caso.ts`
+ * e `sleep/ranges.ts` pelo fecho. É a Saúde do sono sendo achada sozinha.
  *
  * A lista de fornecedores ganhou os nomes do aparelho (Core AI e os pesos
  * abertos). `apple` fica de fora de propósito: é vocabulário de domínio no
@@ -1197,19 +1200,83 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
  * a store da edição importam `Problema` e `EntradaPacote`) e não virar barreira
  * na 1.10. `routes/` fica fora até a 5.7: `nomeDaAtividade` e `nomeProprio` são
  * exibição, usados em seis telas. Varre `mobile/src` e `web/src`, fora de
- * teste; os nomes vêm do que as peças de `ia/` exportam, e conta arquivos.
+ * teste; os nomes vêm do que as peças exportam, e conta arquivos.
+ *
+ * **As peças da Saúde do sono moram em `sleep/`** (story 5.3): `sleep/caso` e
+ * `sleep/leitura` são o caso, o template e o pedido — um app que importasse
+ * `casoDaSaude` ou `templateDaSaude` estaria escrevendo a leitura por conta
+ * própria. Entram no conjunto, fora `entradaDaSaude` — a entrada pura que a tela
+ * chama e passa ao `ler` (AD-11) — e os descritores. O import profundo conta com
+ * ou sem extensão: `sleep/leitura.js` é o mesmo fonte que `sleep/leitura`.
+ *
+ * **As peças de `sleep/` são achadas, não listadas** (revisão 3): a semente é o
+ * arquivo de `sleep/` que importa a porta de IA, e o fecho dela dentro de `sleep/`
+ * entra junto, menos o que as telas já usavam (`SONO_DAS_TELAS`, conferido contra os
+ * apps). Uma lista escrita à mão deixaria uma terceira peça nascer importável com o
+ * teto ainda em 1.
  *
  * Teto e histórico:
  *   1 (5.1) — `mobile/src/lib/edicao-ia.ts`, a sequência da narração que a 1.10
  *             passa para o orquestrador. Vira barreira em zero, na 1.10.
+ *   1 (5.3) — as peças de `sleep/` entram sem ofensor: nenhum app as importa.
  */
 const PORTA_DE_IA = new Set(['fio', 'motor', 'orquestrar', 'nuvem', 'recursos']);
+/** O que a tela chama das peças de `sleep/`: a entrada, não a leitura. */
+const LIVRES_DE_SONO = new Set(['entradaDaSaude']);
+/**
+ * O que `sleep/` empresta às telas desde antes da leitura, e por isso não é peça
+ * dela: a contagem e os períodos do seletor. Cada um é conferido contra os apps —
+ * se nenhuma tela o importa, ele é peça, e a lista mente.
+ */
+const SONO_DAS_TELAS = new Set(['score', 'ranges']);
 const TETO_PECAS_DE_IA = 1;
 
 check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritores (teto ${TETO_PECAS_DE_IA})`, () => {
   const iaDir = join(SHARED_SRC, 'ia');
-  const moduloDe = (f: string) => f.slice(iaDir.length + 1).replace(/\.tsx?$/, '');
-  const pecas = walk(iaDir).filter((f) => !ehTeste(f) && !PORTA_DE_IA.has(moduloDe(f)));
+  const sonoDir = join(SHARED_SRC, 'sleep');
+  const moduloDe = (dir: string) => (f: string) => f.slice(dir.length + 1).replace(/\.tsx?$/, '');
+  const moduloDeIa = moduloDe(iaDir);
+  const moduloDeSono = moduloDe(sonoDir);
+
+  // As peças de `sleep/` são **achadas**, não listadas: a semente é o arquivo que
+  // importa a porta de IA (é leitura de modelo), e o fecho dela dentro de `sleep/`
+  // vem junto — menos o que as telas já usavam. Uma terceira peça nasce contada.
+  const arquivosDeSono = walk(sonoDir).filter((f) => !ehTeste(f));
+  const IMPORTA_SONO = /from\s*['"]\.\/([\w.-]+)['"]/g;
+  const importaDeIa = (src: string) => /from\s*['"]\.\.\/ia\//.test(src);
+  const fonteDe = new Map(arquivosDeSono.map((f) => [moduloDeSono(f), semComentario(readFileSync(f, 'utf8'))]));
+  const pecasDeSono = new Set<string>();
+  const porVer = [...fonteDe].filter(([, src]) => importaDeIa(src)).map(([m]) => m);
+  while (porVer.length > 0) {
+    const m = porVer.pop()!;
+    if (pecasDeSono.has(m) || SONO_DAS_TELAS.has(m)) continue;
+    pecasDeSono.add(m);
+    for (const i of (fonteDe.get(m) ?? '').matchAll(IMPORTA_SONO)) {
+      const vizinho = i[1].replace(/\.tsx?$/, '');
+      if (fonteDe.has(vizinho)) porVer.push(vizinho);
+    }
+  }
+  const pecas = [
+    ...walk(iaDir).filter((f) => !ehTeste(f) && !PORTA_DE_IA.has(moduloDeIa(f))),
+    ...[...pecasDeSono].map((m) => join(sonoDir, `${m}.ts`)),
+  ];
+  assert.ok(
+    pecas.every((f) => existsSync(f)),
+    `peça de sleep/ sumiu: ${pecas.filter((f) => !existsSync(f)).join(', ')} — a varredura achou módulo sem arquivo .ts.`,
+  );
+  // A lista do que "é das telas" não pode ser desculpa: algum nome de cada módulo
+  // dela aparece mesmo num app.
+  const fontesDosApps = [...mobileFiles, ...webFiles].filter((f) => !ehTeste(f)).map((f) => readFileSync(f, 'utf8'));
+  const DECLARA_VALOR =
+    /^[ \t]*export\s+(?:declare\s+)?(?:async\s+)?(?:function\*?\s*|const\s+enum\s+|enum\s+|const\s+|let\s+|var\s+|(?:abstract\s+)?class\s+)([A-Za-z_$][\w$]*)/gm;
+  for (const m of SONO_DAS_TELAS) {
+    const nomes = [...(fonteDe.get(m) ?? '').matchAll(DECLARA_VALOR)].map((x) => x[1]);
+    assert.ok(nomes.length > 0, `sleep/${m} não existe ou não exporta valor — SONO_DAS_TELAS aponta para o vazio.`);
+    assert.ok(
+      nomes.some((n) => fontesDosApps.some((src) => new RegExp(`\\b${n}\\b`).test(src))),
+      `sleep/${m} está em SONO_DAS_TELAS e nenhuma tela usa nome nenhum dele — ou ele é peça, ou a lista mente.`,
+    );
+  }
 
   // Os nomes de VALOR que as peças exportam — pelo barril, é assim que os apps
   // os alcançam. Interface e `type` não entram: importá-los não sequencia nada.
@@ -1225,10 +1292,31 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
       }
     }
   }
+  for (const livre of LIVRES_DE_SONO) nomes.delete(livre);
   assert.ok(pecas.length > 0 && nomes.size > 0, 'as peças de ia/ não exportam valor nenhum — a catraca ficou sem alvo');
+  // Não-vácua em sleep/: as peças da Saúde estão no conjunto, e a entrada não.
+  assert.ok(
+    nomes.has('casoDaSaude') && nomes.has('templateDaSaude'),
+    'os nomes de sleep/caso e sleep/leitura não entraram no conjunto de peças — a catraca não vê a Saúde do sono',
+  );
 
   const ehDescritor = (nome: string) => /^descritor/i.test(nome);
-  const PECA_PROFUNDA = /(?:^|\/)(?:@vitale\/shared|packages\/shared)(?:\/src)?\/ia\/(.+?)(?:\.tsx?)?$/;
+  // O import profundo, com ou sem extensão: `.ts`, `.tsx`, e as que o bundler
+  // resolve para o mesmo fonte (`.js`, `.mjs`, `.cjs`, `.jsx`, `.mts`, `.cts`).
+  const PECA_PROFUNDA = /(?:^|\/)(?:@vitale\/shared|packages\/shared)(?:\/src)?\/ia\/(.+?)(?:\.[mc]?[jt]sx?)?$/;
+  const PECA_PROFUNDA_DE_SONO = /(?:^|\/)(?:@vitale\/shared|packages\/shared)(?:\/src)?\/sleep\/(.+?)(?:\.[mc]?[jt]sx?)?$/;
+  /** A peça de `sleep/` que um specifier profundo alcança, ou null. */
+  const pecaDeSono = (spec: string): string | null => {
+    const m = PECA_PROFUNDA_DE_SONO.exec(spec);
+    return m && pecasDeSono.has(m[1]) ? m[1] : null;
+  };
+  // Não-vácua nos casadores: a extensão não esconde a peça, e a porta segue livre.
+  for (const ext of ['', '.ts', '.tsx', '.js', '.mjs', '.cjs']) {
+    assert.equal(pecaDeSono(`@vitale/shared/src/sleep/leitura${ext}`), 'leitura', `sleep/leitura${ext}`);
+    assert.equal(pecaDeSono(`../../packages/shared/src/sleep/caso${ext}`), 'caso', `sleep/caso${ext}`);
+    assert.equal(PECA_PROFUNDA.exec(`@vitale/shared/src/ia/interpolar${ext}`)?.[1], 'interpolar', `ia/interpolar${ext}`);
+  }
+  assert.equal(pecaDeSono('@vitale/shared/src/sleep/ranges.js'), null, 'sleep/ranges não é peça');
   const IMPORTACAO = /^[ \t]*(import|export)\s+(type\s+)?([^;'"]*?)\s*\bfrom\s*(['"])([^'"]+)\4/gm;
   const DINAMICA = /\b(?:import|require)\s*\(\s*(['"])([^'"]+)\1/g;
 
@@ -1263,10 +1351,14 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
       }
       const peca = PECA_PROFUNDA.exec(spec);
       if (peca && !PORTA_DE_IA.has(peca[1])) for (const n of valor) achados.add(`${n} de ia/${peca[1]}`);
+      const sono = pecaDeSono(spec);
+      if (sono) for (const n of valor) if (!LIVRES_DE_SONO.has(n)) achados.add(`${n} de sleep/${sono}`);
     }
     for (const m of src.matchAll(DINAMICA)) {
       const peca = PECA_PROFUNDA.exec(m[2]);
       if (peca && !PORTA_DE_IA.has(peca[1])) achados.add(`import() de ia/${peca[1]}`);
+      const sono = pecaDeSono(m[2]);
+      if (sono) achados.add(`import() de sleep/${sono}`);
     }
     if (achados.size > 0) fora.push(`${f.replace(ROOT + '/', '')} (${[...achados].join(', ')})`);
   }
@@ -1280,6 +1372,44 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
       `${fora.join('\n    ')}\n` +
       `  O hospedeiro chama o orquestrador (ler) com o descritor do recurso; montar o pedido, ` +
       `interpretar e conferir são do descritor, dentro do núcleo (AD-2).`,
+  );
+});
+
+/**
+ * CATRACA — a fórmula do período da Saúde do sono tem um dono: `entradaDaSaude` (AD-11, story 5.3).
+ *
+ * `entradaDaSaude` é a entrada pura que a tela e a bancada compartilham: a mesma
+ * janela, as mesmas noites esperadas, o mesmo histórico. Enquanto uma tela monta
+ * essa fórmula à mão — `rangeBounds` + `rangeNights` + `periodScore`, na ordem
+ * certa, com o histórico cortado antes da janela —, ela **pode** divergir da
+ * bancada sem ninguém ver: é a mesma contagem escrita duas vezes.
+ *
+ * Teto 2: as duas telas de `/sono/saude`, que nasceram antes da entrada. A 5.5
+ * troca o cálculo delas por `entradaDaSaude` e leva o teto a **0**; esta story não
+ * toca em tela.
+ */
+const TETO_DA_FORMULA_DO_PERIODO = 2;
+
+check(`CATRACA — a fórmula do período da Saúde só em entradaDaSaude (teto ${TETO_DA_FORMULA_DO_PERIODO})`, () => {
+  const CHAMADAS = /\b(periodScore|rangeNights|rangeBounds)\s*\(/g;
+  const fora: string[] = [];
+  for (const f of [...mobileFiles, ...webFiles].filter((x) => !ehTeste(x))) {
+    const chamadas = new Set([...semComentario(readFileSync(f, 'utf8')).matchAll(CHAMADAS)].map((m) => m[1]));
+    if (chamadas.size > 0) fora.push(`${f.replace(ROOT + '/', '')} (${[...chamadas].sort().join(', ')})`);
+  }
+  fora.sort();
+  // Não-vácua: o detector acha a fórmula onde ela está. Se ninguém mais a montar,
+  // o teto desce — e é isso que a 5.5 faz.
+  assert.ok(fora.length > 0, 'ninguém fora do núcleo monta a fórmula do período — baixe o teto para zero (a 5.5)');
+  if (fora.length < TETO_DA_FORMULA_DO_PERIODO) {
+    console.log(`     ↓ a fórmula do período fora do núcleo caiu para ${fora.length} (teto ${TETO_DA_FORMULA_DO_PERIODO}) — baixe o teto`);
+  }
+  assert.ok(
+    fora.length <= TETO_DA_FORMULA_DO_PERIODO,
+    `a fórmula do período montada fora do núcleo em ${fora.length} arquivos (teto ${TETO_DA_FORMULA_DO_PERIODO}):\n    ` +
+      `${fora.join('\n    ')}\n` +
+      `  Quem precisa da contagem de um período chama entradaDaSaude(noites, notas, { range, offset, hoje }) — ` +
+      `uma fórmula só para a tela e para a bancada (AD-11).`,
   );
 });
 

@@ -45,22 +45,35 @@ export interface Veredito {
  * Nenhum outro arquivo do núcleo declara lista de termo proibido — o
  * `architecture.test.ts` cobra. Cada recurso **compõe** os subconjuntos que
  * valem para ele: a revista compõe só `causa`, na regra 2 de
- * {@link verificarTexto}; a Saúde do sono compõe os seis, na 5.3. Cada termo
- * traz a fonte ao lado.
+ * {@link verificarTexto}; a Saúde do sono compõe os seis, por
+ * {@link termosProibidosEm} (story 5.3). Cada termo traz a fonte ao lado.
  *
- * ## Dois casamentos, e o subconjunto diz qual
+ * ## Dois casamentos, e quem compõe diz qual
  *
- * - **`causa` casa por trecho**, em minúsculas, como sempre casou. Mudar o
- *   casamento dela mudaria o que a revista reprova.
- * - **Os outros cinco têm de casar por palavra inteira**, com o acento dobrado.
- *   Por trecho, "tente" casa com "consistente", "meta" com "metade" e "piora"
- *   com "pioram" — falso positivo dentro de palavra legítima. O casamento deles
- *   é da 5.3, que os compõe; até lá nenhuma conferência os lê.
+ * - **A revista casa `causa` por trecho**, em minúsculas, como sempre casou.
+ *   Mudar o casamento dela mudaria o que a revista reprova.
+ * - **{@link termosProibidosEm} casa por palavra inteira**, com o acento dobrado,
+ *   o plural em -s/-es do termo de uma palavra ("metas", "placares") e a
+ *   contração da preposição com que termina o termo de várias palavras ("devido
+ *   ao", "graças aos", "por conta disso", "resultou na", "resultou nele"). Por trecho, "tente"
+ *   casa com "consistente" e "meta" com "metade" — falso positivo dentro de
+ *   palavra legítima. É o casamento de todo recurso novo, `causa` inclusive
+ *   quando ele a compõe.
+ *
+ * ## As flexões são termo, não regra
+ *
+ * O casador só sabe o plural nominal e a contração da preposição final. A flexão
+ * verbal ("recomenda", "pioram") e o plural irregular ("pontuações",
+ * "sugestões") entram na lista como termo próprio (story 5.3): um casador que
+ * conjugasse verbo seria uma segunda gramática, e erraria calado. "Melhore" e
+ * "piore" casam sem o plural, porque o plural deles é o comparativo ("as piores
+ * noites"). "Deve", "precisa", "melhor" e "pior" ficam de fora: "precisa de 5
+ * noites seguidas" é fato que a Saúde escreve.
  *
  * ## O que ficou de fora de propósito
  *
  * Colidem com texto que a Saúde do sono já escreve (`docs/specs/sono/spec.md`,
- * CAP-13, e `sleep/score.ts`): "nota" (a percepção sai como `3.3/5 · 12
+ * CAP-13, e `sleep/score.ts`): "nota" (a percepção sai como `3,3/5 · 12
  * notas`), "ponto" no singular ("as quatro dimensões medidas estão no mesmo
  * ponto"), "seguidas" (`SRI 64 · 9 seguidas`), "máximo" ("só o horário está no
  * máximo") e "comparar" ("não há o que comparar"). Termo que casasse com a frase
@@ -110,12 +123,46 @@ export const VOCABULARIO_PROIBIDO = Object.freeze({
     'verifique suas conexões',          // story 1.5 (epics.md); revista-retrospectiva/bases-e-ranqueamento.md, "Ausência declarada"
     'recomendo',                        // SISTEMA de ia/prompt.ts, "você não recomenda"
     'sugiro',                           // SISTEMA de ia/prompt.ts, "não sugere"
+    'recomenda',                        // flexão de "recomendo" — story 5.3, Design Notes
+    'recomendamos',                     // flexão de "recomendo" — story 5.3
+    'recomendam',                       // flexão de "recomendo" — story 5.3
+    'recomendar',                       // flexão de "recomendo" — story 5.3
+    'recomendado',                      // flexão de "recomendo" — story 5.3
+    'recomendável',                     // flexão de "recomendo" — story 5.3
+    'recomendação',                     // flexão de "recomendo" — story 5.3
+    'recomendações',                    // plural irregular de "recomendação" — story 5.3
+    'sugere',                           // flexão de "sugiro"; SISTEMA de ia/prompt.ts, "não sugere"
+    'sugerimos',                        // flexão de "sugiro" — story 5.3
+    'sugerir',                          // flexão de "sugiro" — story 5.3
+    'sugerido',                         // flexão de "sugiro" — story 5.3
+    'sugestão',                         // flexão de "sugiro" — story 5.3
+    'sugestões',                        // plural irregular de "sugestão" — story 5.3
+    'experimentar',                     // flexão de "experimente" — story 5.3
+    'deveria',                          // conselho no condicional — story 5.3; "deve" fica de fora
+    'deveriam',                         // idem — story 5.3
+    'evite',                            // o imperativo do conselho — story 5.3, Design Notes
+    'evitar',                           // story 5.3
+    'tente',                            // story 5.3 — "tente dormir mais" sem o resto
+    'tentar',                           // story 5.3
+    'procure',                          // story 5.3
+    'procurar',                         // story 5.3
+    'considere',                        // story 5.3
+    'considerar',                       // story 5.3
+    'mantenha',                         // story 5.3
+    'o ideal',                          // story 5.3 — "o ideal seria deitar mais cedo"
+    'vale a pena',                      // revisão 3 da 5.3 — a frase longa não pega "vale a pena deitar mais cedo"
   ] as const),
   /** Nem parabeniza, nem celebra — `tudo-no-maximo` diz isso sem elogio (CAP-13). */
   elogio: Object.freeze([
     'parabéns',         // SISTEMA de ia/prompt.ts ("parabéns pelo mês"); review-rubrica.md, A4
     'continue assim',   // SISTEMA de ia/prompt.ts; review-rubrica.md, A4
     'conquista',        // retrospectiva/v2-jornal.md §3 ("narrar um gap de firmware como conquista")
+    'ótimo',            // story 5.3, Design Notes — o elogio que a frase de tudo-no-maximo convida
+    'ótima',            // story 5.3 — o feminino: "uma semana ótima"
+    'excelente',        // story 5.3
+    'perfeito',         // story 5.3
+    'perfeita',         // story 5.3 — o feminino
+    'muito bem',        // story 5.3
   ] as const),
   /** A Saúde do sono é contagem, não placar (ADR 0036). */
   placar: Object.freeze([
@@ -125,6 +172,7 @@ export const VOCABULARIO_PROIBIDO = Object.freeze({
     'pontos',           // ADR 0036 — idem; "ponto" no singular fica de fora (ver acima)
     'de 0 a 100',       // sono/spec.md §2 ("nem nota de 0 a 100")
     'saldo',            // v2-jornal.md §9 ("saldo contra 7 h — tem cara de placar")
+    'pontuações',       // plural irregular de "pontuação" — story 5.3, Design Notes
   ] as const),
   /** Nem direção, nem alvo: a regra 6 da ADR 0036. */
   'tendencia-e-meta': Object.freeze([
@@ -135,6 +183,36 @@ export const VOCABULARIO_PROIBIDO = Object.freeze({
     'streak',           // sono/spec.md §2; ADR 0036, regra 6
     'meta',             // sono/spec.md §2; ADR 0036, regra 6
     'seta',             // sono/spec.md §2 e CAP-3; ADR 0036, regra 6 e "Risco real"
+    'melhorar',         // flexão de "melhorou" — story 5.3, Design Notes
+    'melhoram',         // flexão de "melhorou" — story 5.3
+    'melhoraram',       // flexão de "melhorou" — story 5.3
+    'melhorando',       // flexão de "melhorou" — story 5.3
+    'melhorado',        // flexão de "melhorou" — story 5.3
+    'melhore',          // flexão de "melhorou" — story 5.3; casa sem o plural ("as melhores noites" passa)
+    'melhoria',         // o nome de "melhorou" — story 5.3; o plural do casador pega "melhorias"
+    'piorar',           // flexão de "piorou" — story 5.3
+    'pioram',           // flexão de "piorou" — story 5.3
+    'pioraram',         // flexão de "piorou" — story 5.3
+    'piorando',         // flexão de "piorou" — story 5.3
+    'piorado',          // flexão de "piorou" — story 5.3
+    'piore',            // flexão de "piorou" — story 5.3; casa sem o plural ("as piores noites" passa)
+    'subiu',            // direção — story 5.3, Design Notes
+    'subiram',          // story 5.3
+    'subir',            // story 5.3
+    'caiu',             // story 5.3
+    'caíram',           // story 5.3
+    'cair',             // story 5.3
+    'aumentou',         // story 5.3
+    'aumentaram',       // story 5.3
+    'aumentar',         // story 5.3
+    'diminuiu',         // story 5.3
+    'diminuíram',       // story 5.3
+    'diminuir',         // story 5.3
+    'evoluiu',          // story 5.3
+    'evoluir',          // story 5.3
+    'em alta',          // story 5.3
+    'em queda',         // story 5.3
+    'tendência',        // revisão 3 da 5.3 — o subconjunto tem o nome e não proibia a palavra
   ] as const),
   /**
    * Você contra você mesmo, nunca contra os outros. Só "outras pessoas" e "norma
@@ -151,6 +229,161 @@ export const VOCABULARIO_PROIBIDO = Object.freeze({
 
 /** O nome de um subconjunto — é o que cada recurso compõe. */
 export type SubconjuntoProibido = keyof typeof VOCABULARIO_PROIBIDO;
+
+/** Um termo proibido que apareceu num texto, e o subconjunto que o proíbe. */
+export interface TermoAchado {
+  readonly subconjunto: SubconjuntoProibido;
+  readonly termo: string;
+}
+
+/**
+ * Minúsculas e sem acento, para o casamento por palavra. Diferente de
+ * `normalizar`, lá embaixo, esta pode mudar o comprimento: ninguém recorta
+ * janela por posição sobre ela.
+ */
+function dobrar(s: string): string {
+  return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
+/** O termo na forma em que se compara: dobrado, com o espaço colapsado. "Devido à" e "devido a" são um só. */
+function formaDobrada(termo: string): string {
+  return dobrar(termo).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Letra ou algarismo de qualquer escrita — o que continua uma palavra.
+ *
+ * **Sem lookbehind de propósito.** O `index.ts` reexporta este módulo, então
+ * `PADROES_DO_VOCABULARIO` compila no boot do app, e não há precedente de
+ * lookbehind em código que roda no Hermes (nem binário dele aqui para medir). Um
+ * grupo que casa o começo ou um caractere que não é de palavra é equivalente para
+ * um teste booleano: o que ele consome a mais não é palavra, e ocorrências
+ * adjacentes continuam sem casar ("aa" não casa "a").
+ */
+const FORA_DA_PALAVRA_ANTES = '(?:^|[^\\p{L}\\p{N}])';
+const FORA_DA_PALAVRA_DEPOIS = '(?![\\p{L}\\p{N}])';
+
+/**
+ * As formas da preposição com que termina um termo de várias palavras, já
+ * dobradas — "à", "às" e "àquele" viram "a", "as" e "aquele". "Devido a" casa
+ * também "devido ao", "graças aos", "levou àquilo"; "por conta de", "por conta
+ * do", "por conta disso"; "resultou em", "resultou na", "resultou num".
+ *
+ * Lida por `Object.hasOwn`: a última palavra de um termo não pode achar forma no
+ * protótipo ("constructor", "toString").
+ */
+const CONTRACOES: Readonly<Record<string, readonly string[]>> = {
+  a: ['a', 'ao', 'aos', 'as', 'aquele', 'aqueles', 'aquela', 'aquelas', 'aquilo'],
+  de: [
+    'de', 'do', 'da', 'dos', 'das', 'dum', 'duma', 'disso', 'disto', 'daquilo', 'desse', 'desses',
+    'dessa', 'dessas', 'deste', 'destes', 'desta', 'destas', 'daquele', 'daqueles', 'daquela',
+    'daquelas', 'dele', 'deles', 'dela', 'delas',
+  ],
+  em: [
+    'em', 'no', 'na', 'nos', 'nas', 'num', 'numa', 'nisso', 'nisto', 'naquilo', 'nesse', 'nesses',
+    'nessa', 'nessas', 'neste', 'nestes', 'nesta', 'nestas', 'naquele', 'naqueles', 'naquela',
+    'naquelas', 'nele', 'neles', 'nela', 'nelas',
+  ],
+};
+
+/**
+ * Os termos de uma palavra que casam **sem** o plural: o plural de "melhore" e
+ * "piore" é o comparativo — "as melhores noites", "as piores noites" —, que a
+ * Saúde pode escrever. Já dobrados.
+ */
+const SEM_PLURAL: ReadonlySet<string> = new Set(['melhore', 'piore']);
+
+/** As formas além da palavra exata que o casador sabe. Nenhuma, se não pedidas. */
+export interface FormasDoTermo {
+  /** O plural em -s/-es — só para termo de uma palavra: "metas", "placares". */
+  readonly plural?: boolean;
+  /** A contração da preposição final — só para termo de várias palavras terminado em a/à, de ou em. */
+  readonly contracao?: boolean;
+}
+
+function escapar(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * O padrão de um termo já dobrado. O plural nominal só vale para a palavra
+ * sozinha — "outras pessoass" não é forma de nada — e fora de {@link SEM_PLURAL};
+ * a contração só para a preposição que fecha um termo de várias palavras: "a"
+ * sozinho é artigo.
+ */
+function compilar(dobrado: string, formas: FormasDoTermo): RegExp {
+  const palavras = dobrado.split(' ');
+  const partes = palavras.map(escapar);
+  const ultima = palavras[palavras.length - 1];
+  if (palavras.length === 1 && formas.plural && !SEM_PLURAL.has(dobrado)) {
+    partes[0] = `${partes[0]}(?:s|es)?`;
+  } else if (palavras.length > 1 && formas.contracao && Object.hasOwn(CONTRACOES, ultima)) {
+    partes[partes.length - 1] = `(?:${CONTRACOES[ultima].join('|')})`;
+  }
+  return new RegExp(`${FORA_DA_PALAVRA_ANTES}${partes.join('\\s+')}${FORA_DA_PALAVRA_DEPOIS}`, 'u');
+}
+
+/**
+ * O termo aparece no texto **como palavra inteira**, com o acento dobrado dos
+ * dois lados? "meta" não casa com "metade", nem "piora" com "pioram"; "PARABENS"
+ * casa com "parabéns". As {@link FormasDoTermo} acrescentam o plural e a
+ * contração — só quando pedidas.
+ *
+ * É o casador de {@link termosProibidosEm}, da presença de um item e dos
+ * numerais no regime interpolado (`ia/interpolar.ts`) — um casador só. Não
+ * guarda nada entre chamadas: quem o chama com termos que não são do vocabulário
+ * (o rótulo de uma dimensão, uma palavra do alcance) não faz memória crescer.
+ */
+export function casaPorPalavra(texto: string, termo: string, formas: FormasDoTermo = {}): boolean {
+  const dobrado = formaDobrada(termo);
+  if (dobrado === '') return false;
+  return compilar(dobrado, formas).test(dobrar(texto));
+}
+
+/**
+ * Os padrões do vocabulário, compilados uma vez, pela forma dobrada. A lista é
+ * congelada, então o mapa tem o tamanho dela e não cresce; "devido a" e "devido
+ * à" caem na mesma chave.
+ */
+const PADROES_DO_VOCABULARIO: ReadonlyMap<string, RegExp> = new Map(
+  Object.values(VOCABULARIO_PROIBIDO)
+    .flat()
+    .map((termo) => formaDobrada(termo))
+    .map((dobrado) => [dobrado, compilar(dobrado, { plural: true, contracao: true })] as const),
+);
+
+/**
+ * Os termos proibidos que um texto usa, dos subconjuntos que o recurso compõe.
+ *
+ * Casa por palavra inteira, com o acento dobrado, o plural em -s/-es do termo de
+ * uma palavra e a contração da preposição final do termo de várias
+ * ({@link casaPorPalavra}). Um achado por termo **dobrado**: o termo repetido no
+ * texto, o par que só difere no acento ("devido a", "devido à") e o que mora em
+ * dois subconjuntos compostos juntos ("continue assim" é conselho e elogio)
+ * aparecem uma vez, com a primeira grafia e o primeiro subconjunto da ordem
+ * pedida.
+ *
+ * Não é o casamento da revista: {@link verificarTexto} segue casando `causa` por
+ * trecho, como sempre casou.
+ */
+export function termosProibidosEm(
+  texto: string,
+  subconjuntos: readonly SubconjuntoProibido[],
+): TermoAchado[] {
+  const alvo = dobrar(texto);
+  const achados: TermoAchado[] = [];
+  const vistos = new Set<string>();
+  for (const subconjunto of subconjuntos) {
+    for (const termo of VOCABULARIO_PROIBIDO[subconjunto]) {
+      const dobrado = formaDobrada(termo);
+      // A mesma forma dobrada tem o mesmo padrão: se não casou antes, não casa agora.
+      if (vistos.has(dobrado)) continue;
+      vistos.add(dobrado);
+      if (PADROES_DO_VOCABULARIO.get(dobrado)!.test(alvo)) achados.push({ subconjunto, termo });
+    }
+  }
+  return achados;
+}
 
 /**
  * Números pt-BR: ponto de milhar, vírgula decimal. `17.350` é dezessete mil e

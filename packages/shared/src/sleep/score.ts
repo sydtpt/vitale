@@ -88,6 +88,7 @@ import { midpointHour, SLEEP_AXIS_ORIGIN_H } from './timing';
 import { median, quantile } from './buckets';
 import { formatHm } from './facts';
 import { sleepRegularityIndex } from './regularity';
+import { formatarNumero } from '../format/numero';
 
 // ─────────────────────────── limiares ───────────────────────────
 
@@ -493,9 +494,14 @@ export function periodScore(
       // 40 min do habitual, mas coerente consigo, não é desordem de horário.
       spreadDim(spreadMin),
       regularityDim(periods),
+      // A média sai em pt-BR, com vírgula, por `formatarNumero` (story 5.3): é o
+      // texto que a leitura da Saúde interpola na frase. É a única casa decimal
+      // da contagem — os outros fatos são inteiros.
       ratingDim(
         noteAvg === null ? null : Math.round(noteAvg * 10) / 10,
-        noteAvg === null ? '—' : `${noteAvg.toFixed(1)}/5 · ${notes.length} ${notes.length === 1 ? 'nota' : 'notas'}`,
+        noteAvg === null
+          ? '—'
+          : `${formatarNumero(noteAvg, 1)}/5 · ${notes.length} ${notes.length === 1 ? 'nota' : 'notas'}`,
       ),
     ],
     coverage,

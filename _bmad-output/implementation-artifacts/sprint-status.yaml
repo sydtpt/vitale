@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 11-09-2026 16:10
+last_updated: 12-09-2026 11:59
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -161,7 +161,7 @@ development_status:
   # F0 — núcleo sem modelo. Sem deploy e sem tela. Em paralelo com 1.7–1.9.
   5-1-a-porta-o-fio-e-o-orquestrador: review
   5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono: review
-  5-3-a-leitura-da-saúde-do-sono-sem-modelo: backlog
+  5-3-a-leitura-da-saúde-do-sono-sem-modelo: review
   # F1 — dois marcos. O A é portão da 1.10. O B espera o macOS 27 (14/09) e o
   # risco aberto do Xcode 26.6: se ele não abrir no 27, a story para e volta ao
   # dono. ⚠ PORTÃO HUMANO no fim — o relatório é lido por ele, e o limiar é dele.

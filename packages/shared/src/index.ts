@@ -34,9 +34,12 @@ export * from './ia/motor';
 export * from './ia/orquestrar';
 export * from './ia/nuvem';
 export * from './ia/recursos';
+// O regime interpolado (story 5.3): a sintaxe do marcador e a conferência de presença.
+export * from './ia/interpolar';
 // Os descritores de cada recurso. `format/numero` não entra: o barril já alcança
 // `formatarNumero` por `ia/prompt`, que o reexporta para os testes da conferência
-// seguirem sem edição — e um caminho público basta.
+// seguirem sem edição — e um caminho público basta. O da Saúde do sono mora em
+// `sleep/leitura`, junto da entrada e do caso.
 export * from './ia/retrospectiva';
 export * from './sleep/timing';
 export * from './sleep/derive';
@@ -52,6 +55,8 @@ export * from './sleep/colors';
 export * from './sleep/markers';
 export * from './sleep/retro';
 export * from './sleep/score';
+export * from './sleep/caso';
+export * from './sleep/leitura';
 export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bucket-plan';
