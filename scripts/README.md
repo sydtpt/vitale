@@ -20,7 +20,12 @@ leituras reais do dono?** Para isso roda o orquestrador em modo `medicao` — um
 por janela e por motor — e escreve um relatório com a frase do template, o texto cru
 do motor e a frase final, lado a lado.
 
-**O limiar é do dono.** Nada na bancada aprova motor nem fixa nota de corte.
+**O limiar é do dono.** Nada na bancada aprova motor nem fixa nota de corte — ela mede, e ele
+decide. As quatro condições que ele fixou em 12/09/2026, lendo a primeira medição, estão na
+[ADR 0050](../docs/decisions/0050-o-limiar-do-portao-sai-de-medicao-e-tem-quatro-condicoes.md):
+aprovação ≥ 90% das janelas medidas, os sete casos da CAP-13 presentes nos dois alcances, nenhuma
+frase idêntica à do template, e mediana de tempo por chamada ≤ 20 s. Valem juntas, para o par
+recurso × `MotorId` que foi medido: trocar modelo, provedor ou pedido pede medição nova.
 
 ```bash
 pnpm --filter @vitale/scripts exec tsx bancada/bancada.ts --ajuda
