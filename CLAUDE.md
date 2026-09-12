@@ -6,14 +6,20 @@
 
 ## Arquitetura
 
-Monorepo pnpm workspaces (resolução isolada — ADR 0016) com 3 pacotes:
+Monorepo pnpm workspaces (resolução isolada — ADR 0016) com 4 pacotes:
 
 ```
 life-organizer/
 ├── packages/shared/      @vitale/shared  — tokens de design e modelos de domínio
 ├── web/                  @vitale/web     — Angular 21 dashboard analítico
-└── mobile/               @vitale/mobile  — React Native / Expo (captura rápida)
+├── mobile/               @vitale/mobile  — React Native / Expo (captura rápida)
+└── scripts/              @vitale/scripts — hospedeiro de scripts: a bancada dos motores
 ```
+
+O `scripts/` nasceu na story 5.4 (a bancada). Ele roda no Node, não tem bundler, e é
+o único workspace que fala com o banco e com a nuvem de fora dos apps — ver
+[scripts/README.md](scripts/README.md). As ferramentas em Python de `scripts/github/`
+ficam fora do `tsc` dele.
 
 ## Comandos essenciais
 
@@ -33,11 +39,13 @@ pnpm mobile:start       # QR code / Expo DevTools
 pnpm mobile:ios         # Simulador iOS
 pnpm mobile:android     # Emulador Android
 
-# Validação — o CI roda exatamente isto nos três workspaces (AD-17)
+# Validação — o CI roda exatamente isto nos quatro workspaces (AD-17)
 pnpm --filter @vitale/shared lint     # tsc do núcleo + é onde vivem as barreiras
 pnpm --filter @vitale/shared test     # testes + barreiras de arquitetura (AD-7)
 pnpm --filter @vitale/web build       # compila templates e TS
 pnpm --filter @vitale/web test        # Vitest
+pnpm --filter @vitale/scripts lint    # tsc da bancada (nodenext: o formato do módulo é real)
+pnpm --filter @vitale/scripts test    # testes da bancada — puros, nenhum abre rede
 cd mobile && pnpm exec tsc --noEmit && pnpm exec jest
 cd mobile && pnpm dlx expo-doctor     # 21/21; falha nova dele é sinal, não ruído
 ```

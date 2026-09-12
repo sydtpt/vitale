@@ -52,6 +52,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# A bancada dos motores (story 5.4). O export do acervo de sono e os relatórios
+# carregam dado de saúde de produção e ficam FORA do git (AD-8/AD-11). O único
+# arquivo versionado da bancada é `scripts/bancada/manifesto.json`, que está fora
+# deste diretório de propósito: ele só tem janelas, o dia da leitura, contagens e
+# hashes — é o que torna dois relatórios comparáveis sem o dado na mão.
+scripts/bancada/saida/
+
 # Canvas do Claude Design: os .dc.html e os scripts ao lado são a fonte; o
 # .html montado pelo editor é saída (2,6 MB no caso da curva de forma) e se
 # refaz a partir deles.

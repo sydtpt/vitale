@@ -14,6 +14,11 @@ packages:
   - packages/*
   - web
   - mobile
+  # O quarto workspace (story 2.1 da revista; criado pela 5.4, que chegou
+  # primeiro). Hospeda a bancada dos motores e, depois, o backfill da revista:
+  # código que fala com o banco e com a nuvem de fora dos apps. As ferramentas em
+  # Python de `scripts/github/` ficam como estão — o `tsconfig` as deixa fora.
+  - scripts
 
 # O pnpm 11 bloqueia scripts de build por padrão (defesa de supply chain): um
 # pacote comprometido não roda código na instalação sem aprovação explícita. Os

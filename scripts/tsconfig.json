@@ -1,0 +1,60 @@
+{
+  // O quarto workspace (story 2.1 da revista / marco A da 5.4). Só TypeScript
+  // entra aqui: `github/` são as ferramentas em Python do quadro e ficam como
+  // estão — `include` cobre `.ts`, e `exclude` nomeia o diretório para que um
+  // `.ts` escrito lá dentro por engano não entre no `tsc` sem aviso.
+  //
+  // ## Por que `nodenext`, e por que SEM `"type": "module"`
+  //
+  // Aqui não há bundler: quem roda é o Node (pelo `tsx`). Com `moduleResolution:
+  // "bundler"`, o `tsc` não tem opinião sobre o formato do módulo e aprova
+  // `import.meta` num arquivo que vai virar CommonJS — o erro apareceria só em
+  // execução. Com `nodenext`, o formato passa a ser o que o runner vê de verdade, e
+  // `import.meta` num arquivo CJS **não compila** (TS1470). Por isso este workspace
+  // usa `__dirname` e `require.main`, que é o que ele de fato é.
+  //
+  // `"type": "module"` foi medido e **não serve**: ele deixa o `tsc` em zero erro,
+  // mas o workspace para de rodar. `@vitale/shared` é um pacote **CommonJS** (não
+  // declara `type`), e um import ESM nomeado de um barril CJS falha em execução
+  // ("does not provide an export named 'casoDaSaude'"). Ligá-lo exigiria tornar o
+  // núcleo ESM, que é outra story (Ask First da 5.4).
+  //
+  //     type:module + nodenext   tsc 0 erros · NÃO roda
+  //     nodenext (este)          tsc 0 erros · roda
+  //     bundler                  tsc 0 erros · roda · silencioso sobre o formato
+  //
+  // `lib` inclui `dom` porque o núcleo é compartilhado com a web e usa tipos de DOM;
+  // sem ele são 43 erros em `packages/shared`, nenhum deles nosso.
+  //
+  // ## Os quatro flags que estão DESLIGADOS, e por quê
+  //
+  // Medido nesta branch (erros em `packages/shared/src`, que esta story não pode
+  // tocar — Ask First da spec):
+  //
+  //     verbatimModuleSyntax + isolatedModules   1208
+  //     noUncheckedIndexedAccess                  529
+  //     exactOptionalPropertyTypes                 38
+  //
+  // Ligá-los aqui derruba o `lint` deste workspace por causa de código de outro, e
+  // o portão do CI fica vermelho sem nada para consertar do lado de cá. **O código
+  // de `bancada/` foi escrito e conferido com os quatro ligados** e está limpo sob
+  // eles. Quando o núcleo adotar os flags, é só apagar este bloco e ligá-los.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["ES2023", "dom"],
+    "types": ["node"],
+    "strict": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "github"]
+}
