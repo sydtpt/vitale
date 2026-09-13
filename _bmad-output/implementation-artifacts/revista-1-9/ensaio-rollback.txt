@@ -1,0 +1,56 @@
+# ensaio-rollback.txt  -  Story 1.9 da revista  -  corrida de 13/09/2026
+#
+# O QUE E ESTE ARQUIVO
+#   A mesma migracao, com `--falhar-no-fim`: o ensaio acrescenta um erro no fim do
+#   arquivo e aplica de novo.
+#
+# O QUE ELE PROVA
+#   O R-25 do test design: a migracao **falha limpo**. As instrucoes chegaram a rodar
+#   (a contagem de marcas de comando o diz), a aplicacao inteira falhou, e o retrato
+#   do banco ficou IDENTICO ao de antes — catalogo, ACLs, contagens e hash de
+#   conteudo. Nao ha estado pela metade.
+#
+# A saida da corrida comeca abaixo.
+# --------------------------------------------------------------------------
+
+== guarda de portas
+  portas só em 127.0.0.1: 54321 54322
+== o banco local é o de produção?
+  Postgres 17.6 · imagem 17.6.1.121 · papel postgres — os três iguais aos de produção (lido agora)
+== a base
+  carimbo: base fiel a produção · em=2026-09-13T11:47:32+0200 · edicoes=7 · divergencias=26 · versoes=67 · versoes_hash=27c6e9dee01a · pendentes=20260912120000_edicao_por_caderno.sql
+  produção continua com 67 versões registradas (conferido agora, não pelo carimbo)
+== varredura de supabase/migrations/20260912120000_edicao_por_caderno.sql
+  17 instruções, todas transacionais
+  objetos que ela cria no public:
+    tabela edicoes_capa
+== retrato antes
+  779 linhas · candidata sha256 f870f5e405d7…
+== aplicação (uma consulta simples, 25026 bytes de arquivo + a falha provocada no fim)
+    DO
+    ALTER TABLE
+    COMMENT
+    COMMENT
+    COMMENT
+    COMMENT
+    ALTER TABLE
+    ALTER TABLE
+    ALTER TABLE
+    ALTER TABLE
+    CREATE TABLE
+    COMMENT
+    ALTER TABLE
+    CREATE POLICY
+    CREATE FUNCTION
+    COMMENT
+    REVOKE
+    ERROR:  falha provocada pelo ensaio [ensaio_falha_94452]
+  psql saiu 1 · 17 marca(s) de comando
+  (marca não é instrução: SELECT devolve a tabela e '(N rows)', e uma instrução que falha não deixa marca)
+== retrato depois
+  nada mudou: catálogo, contagens, conteúdo e edições idênticos ao antes
+  AVISO: supabase/.branches existe no repositório — alguém já rodou o CLI da raiz.
+         Ele é ignorado pelo git, mas não nasceu desta corrida (o retrato acima prova).
+  git status idêntico ao do começo da corrida (inclusive o que o .gitignore esconde em supabase/)
+
+VEREDITO: rollback limpo — 17 marca(s) de comando antes do erro, e o banco ficou idêntico (R-25).

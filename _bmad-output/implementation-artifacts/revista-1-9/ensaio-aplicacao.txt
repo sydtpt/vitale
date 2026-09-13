@@ -1,0 +1,115 @@
+# ensaio-aplicacao.txt  -  Story 1.9 da revista  -  corrida de 13/09/2026
+#
+# O QUE E ESTE ARQUIVO
+#   A saida de `supabase/ensaio/ensaiar.sh` aplicando a migracao da Story 1.9 —
+#   `supabase/migrations/20260912120000_edicao_por_caderno.sql`, o arquivo EXATO que
+#   vai a producao — num Postgres local posto na base de producao pelo `preparar.sh`.
+#
+# O QUE ELE PROVA
+#   Que a migracao aplica **numa consulta so**, que e como a Management API a executa
+#   e portanto como producao a recebe; que as 7 edicoes saem antes de as colunas
+#   obrigatorias nascerem; que a chave nova, a `unique` deferida e `edicoes_capa`
+#   existem depois; e que o dono le pela REST o que o banco tem, enquanto o anonimo
+#   le zero — nas duas tabelas.
+#
+# O QUE ELE NAO PROVA
+#   Que a migracao esta CERTA: isso continua sendo julgamento. E nada sobre migracao
+#   de dados — as outras tabelas do banco do ensaio estao vazias.
+#
+# A saida da corrida comeca abaixo.
+# --------------------------------------------------------------------------
+
+== guarda de portas
+  portas só em 127.0.0.1: 54321 54322
+== o banco local é o de produção?
+  Postgres 17.6 · imagem 17.6.1.121 · papel postgres — os três iguais aos de produção (lido agora)
+== a base
+  carimbo: base fiel a produção · em=2026-09-13T11:47:32+0200 · edicoes=7 · divergencias=26 · versoes=67 · versoes_hash=27c6e9dee01a · pendentes=20260912120000_edicao_por_caderno.sql
+  produção continua com 67 versões registradas (conferido agora, não pelo carimbo)
+== varredura de supabase/migrations/20260912120000_edicao_por_caderno.sql
+  17 instruções, todas transacionais
+  objetos que ela cria no public:
+    tabela edicoes_capa
+== retrato antes
+  779 linhas · candidata sha256 f870f5e405d7…
+== aplicação (uma consulta simples, 25026 bytes de arquivo)
+    DO
+    ALTER TABLE
+    COMMENT
+    COMMENT
+    COMMENT
+    COMMENT
+    ALTER TABLE
+    ALTER TABLE
+    ALTER TABLE
+    ALTER TABLE
+    CREATE TABLE
+    COMMENT
+    ALTER TABLE
+    CREATE POLICY
+    CREATE FUNCTION
+    COMMENT
+    REVOKE
+  psql saiu 0 · 17 marca(s) de comando
+  (marca não é instrução: SELECT devolve a tabela e '(N rows)', e uma instrução que falha não deixa marca)
+== retrato depois
+  49 linhas mudaram (- antes · + depois):
+  - col edicoes_ia.agg_version_no_momento #13 integer null=YES def=- ident=- gen=-
+  - con edicoes_ia edicoes_ia_pkey PRIMARY KEY (user_id, tipo_periodo, inicio, fim)
+  - dados edicoes_ia ba99cc4dfa572b90c85c220e84ec0ab1
+  - edicao month 2026-07-01 2026-07-31 bfcca4c0356d162315828cf7c49a099c
+  - edicao month 2026-08-01 2026-08-31 c816c7be291388375618d8474054a8b7
+  - edicao season 2026-04-01 2026-06-30 225ed472f83ca2cca713298851723fe2
+  - edicao week 2026-08-03 2026-08-09 bfa11d08160b25588181a96791dd35a0
+  - edicao week 2026-08-24 2026-08-30 d6cab075f56f12ac924271bdcfc210ef
+  - edicao week 2026-08-31 2026-09-06 1c1ba644f79d159828a60ca4224e722b
+  - edicao year 2025-01-01 2025-12-31 2a59b854bc2d0c32569a562770883654
+  - idx CREATE UNIQUE INDEX edicoes_ia_pkey ON public.edicoes_ia USING btree (user_id, tipo_periodo, inicio, fim) valido=true
+  - linhas edicoes_ia 7
+  + acl edicoes_capa anon=arwdDxtm/postgres authenticated=arwdDxtm/postgres postgres=arwdDxtm/postgres service_role=arwdDxtm/postgres
+  + col edicoes_capa.carimbada_em #10 timestamp with time zone null=NO def=now() ident=- gen=-
+  + col edicoes_capa.fim #4 date null=NO def=- ident=- gen=-
+  + col edicoes_capa.foto_id #6 uuid null=YES def=- ident=- gen=-
+  + col edicoes_capa.foto_taken_at #7 timestamp with time zone null=YES def=- ident=- gen=-
+  + col edicoes_capa.inicio #3 date null=NO def=- ident=- gen=-
+  + col edicoes_capa.legenda #9 text null=NO def=- ident=- gen=-
+  + col edicoes_capa.natureza #5 text null=NO def=- ident=- gen=-
+  + col edicoes_capa.rota_activity_id #8 text null=YES def=- ident=- gen=-
+  + col edicoes_capa.tipo_periodo #2 text null=NO def=- ident=- gen=-
+  + col edicoes_capa.user_id #1 uuid null=NO def=- ident=- gen=-
+  + col edicoes_ia.agg_version_no_momento #13 integer null=NO def=- ident=- gen=-
+  + col edicoes_ia.caderno #15 text null=NO def=- ident=- gen=-
+  + col edicoes_ia.metrica_lider #17 text null=YES def=- ident=- gen=-
+  + col edicoes_ia.posicao #16 smallint null=NO def=- ident=- gen=-
+  + con edicoes_capa capa_identidade_bate_com_natureza CHECK ((((natureza = 'foto'::text) AND (foto_id IS NOT NULL) AND (foto_taken_at IS NOT NULL) AND (rota_activity_id IS NULL)) OR ((natureza = 'tracado'::text) AND (rota_activity_id IS NOT NULL) AN …(cortado pelo ensaio)
+  + con edicoes_capa capa_intervalo_valido CHECK ((fim >= inicio))
+  + con edicoes_capa edicoes_capa_legenda_check CHECK ((length(TRIM(BOTH FROM legenda)) > 0))
+  + con edicoes_capa edicoes_capa_natureza_check CHECK ((natureza = ANY (ARRAY['foto'::text, 'tracado'::text, 'grade'::text])))
+  + con edicoes_capa edicoes_capa_pkey PRIMARY KEY (user_id, tipo_periodo, inicio, fim)
+  + con edicoes_capa edicoes_capa_tipo_periodo_check CHECK ((tipo_periodo = ANY (ARRAY['week'::text, 'month'::text, 'season'::text, 'year'::text])))
+  + con edicoes_capa edicoes_capa_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  + con edicoes_ia edicoes_ia_caderno_check CHECK ((caderno = ANY (ARRAY['sono'::text, 'movimento'::text, 'coracao'::text, 'rotina'::text])))
+  + con edicoes_ia edicoes_ia_pkey PRIMARY KEY (user_id, tipo_periodo, inicio, fim, caderno)
+  + con edicoes_ia edicoes_ia_posicao_check CHECK ((posicao >= 1))
+  + con edicoes_ia edicoes_ia_posicao_unica UNIQUE (user_id, tipo_periodo, inicio, fim, posicao) DEFERRABLE INITIALLY DEFERRED
+  + dados edicoes_capa (vazia)
+  + dados edicoes_ia (vazia)
+  + fn edicao_imprimir(p_tipo_periodo text, p_inicio date, p_fim date, p_ordem text[], p_linhas jsonb) dono=postgres a1b9ef929a5e3e3249c32a3a51c46eba
+  + fnacl edicao_imprimir(p_tipo_periodo text, p_inicio date, p_fim date, p_ordem text[], p_linhas jsonb) authenticated=X/postgres postgres=X/postgres service_role=X/postgres
+  + idx CREATE UNIQUE INDEX edicoes_capa_pkey ON public.edicoes_capa USING btree (user_id, tipo_periodo, inicio, fim) valido=true
+  + idx CREATE UNIQUE INDEX edicoes_ia_pkey ON public.edicoes_ia USING btree (user_id, tipo_periodo, inicio, fim, caderno) valido=true
+  + idx CREATE UNIQUE INDEX edicoes_ia_posicao_unica ON public.edicoes_ia USING btree (user_id, tipo_periodo, inicio, fim, posicao) valido=true
+  + linhas edicoes_capa 0
+  + linhas edicoes_ia 0
+  + pol edicoes_capa own edicoes_capa ALL perm=PERMISSIVE public q=(auth.uid() = user_id) c=(auth.uid() = user_id)
+  + rls edicoes_capa enabled=true forced=false dono=postgres
+== o caminho do app, com a candidata aplicada
+  edicoes_ia — dono: 0 · anônimo: 0 · no banco: 0
+    (o objeto está vazio: o zero do anônimo aqui prova que a leitura chegou, não que a RLS esconde)
+  edicoes_capa — dono: 0 · anônimo: 0 · no banco: 0
+    (o objeto está vazio: o zero do anônimo aqui prova que a leitura chegou, não que a RLS esconde)
+  AVISO: supabase/.branches existe no repositório — alguém já rodou o CLI da raiz.
+         Ele é ignorado pelo git, mas não nasceu desta corrida (o retrato acima prova).
+  git status idêntico ao do começo da corrida (inclusive o que o .gitignore esconde em supabase/)
+
+VEREDITO: aplicada numa consulta só, como produção a receberia.

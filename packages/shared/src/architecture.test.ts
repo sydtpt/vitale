@@ -29,6 +29,9 @@ import { sleepColorsOf, sleepCssVars } from './sleep/colors';
 import { resolveTokens } from './theme/derive';
 import { CONCLUSAO } from './ia/motor';
 import { VOCABULARIO_PROIBIDO } from './ia/verificar';
+import { CADERNO_IDS } from './period/cadernos';
+import { CAPA_COLUMNS, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
+import { EDICAO_COLUMNS, TIPOS_COM_EDICAO } from './data/edicoes-ia';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -339,26 +342,242 @@ const ID_COLUMNS: { coluna: string; ids: () => string[] }[] = [
   { coluna: 'brand_id', ids: () => BRANDS.map((b) => b.id) },
 ];
 
-check('BARREIRA — os CHECKs de user_preferences cobrem todos os ids do app', () => {
+/** As migrations, em ordem de aplicação, sem comentário de SQL. */
+function migrations(): { f: string; sql: string }[] {
   const dir = join(ROOT, 'supabase', 'migrations');
-  const sqls = readdirSync(dir)
+  return readdirSync(dir)
     .filter((f) => f.endsWith('.sql'))
     .sort()
-    .map((f) => ({ f, sql: readFileSync(join(dir, f), 'utf8') }));
+    .map((f) => ({
+      f,
+      sql: readFileSync(join(dir, f), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/--.*$/gm, ' '),
+    }));
+}
 
+/**
+ * Os trechos de SQL que falam de UMA tabela: o corpo do `create table` dela e
+ * cada `alter table` dela.
+ *
+ * **Existe porque ler por coluna sozinha lê a tabela errada.** Medido na rodada
+ * 2: `check (tipo_periodo in (…))` aparece em `edicoes_ia` e em `edicoes_capa`, e
+ * uma busca por coluna pegava a última ocorrência do arquivo mais recente — o
+ * CHECK da capa — e deixava o da edição sem nada comparando com ele, na story
+ * cujo assunto é a chave de `edicoes_ia`. Uma coluna homônima numa migration
+ * futura sequestraria a comparação do mesmo jeito.
+ *
+ * O corpo do `create table` sai por contagem de parênteses, não por regex: um
+ * `check (x in (…))` dentro dele tem parêntese aninhado.
+ */
+/**
+ * O SQL **fora** de corpo de função (`$tag$ … $tag$`).
+ *
+ * Sem isto, um `alter table … ` escrito dentro de um `create function` — SQL que
+ * só roda quando alguém chama a função, se é que roda — é lido como se fosse
+ * DDL da migration. A `edicao_imprimir` da 1.9 já tem `set constraints` e três
+ * comandos sobre `edicoes_ia` no corpo; basta alguém escrever um `alter` lá para
+ * o leitor de migration passar a mentir. É o mesmo recorte que a varredura do
+ * `supabase/ensaio/` faz, pelo mesmo motivo.
+ */
+function semCorposDeFuncao(sql: string): string {
+  return sql.replace(/\$([A-Za-z_]\w*)?\$[\s\S]*?\$\1?\$/g, ' ');
+}
+
+/**
+ * Onde termina o parêntese aberto em `de`, **pulando literais**.
+ *
+ * Contar `(` e `)` cru trata um `default '(vazio)'` como estrutura. Não é
+ * hipótese: o repositório tem `check (length(trim(legenda)) > 0)` e defaults de
+ * texto na mesma tabela.
+ */
+function fechaParenteses(sql: string, de: number): number {
+  let i = de;
+  let nivel = 1;
+  while (i < sql.length && nivel > 0) {
+    const c = sql[i];
+    if (c === "'") {
+      i += 1;
+      while (i < sql.length && !(sql[i] === "'" && sql[i + 1] !== "'")) {
+        i += sql[i] === "'" ? 2 : 1;
+      }
+    } else if (c === '(') nivel += 1;
+    else if (c === ')') nivel -= 1;
+    i += 1;
+  }
+  return i;
+}
+
+function trechosDaTabela(sql: string, tabela: string): string[] {
+  const out: string[] = [];
+  const limpo = semCorposDeFuncao(sql);
+  const criar = new RegExp(
+    `create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(?:public\\.)?${tabela}\\s*\\(`, 'gi');
+  for (const m of limpo.matchAll(criar)) {
+    out.push(limpo.slice(m.index!, fechaParenteses(limpo, m.index! + m[0].length)));
+  }
+  const alterar = new RegExp(
+    `alter\\s+table\\s+(?:only\\s+)?(?:if\\s+exists\\s+)?(?:public\\.)?${tabela}\\b[^;]*;`, 'gi');
+  for (const m of limpo.matchAll(alterar)) out.push(m[0]);
+  const derrubar = new RegExp(
+    `drop\\s+table\\s+(?:if\\s+exists\\s+)?(?:public\\.)?${tabela}\\b[^;]*;`, 'gi');
+  for (const m of limpo.matchAll(derrubar)) out.push(m[0]);
+  return out;
+}
+
+/**
+ * Os valores que o CHECK **vigente** de `<tabela>.<coluna>` aceita, ou `null` se
+ * nenhuma migration o define — ou se a última coisa que aconteceu com ele foi
+ * ser **derrubado**.
+ *
+ * Duas formas são lidas, porque as duas são a mesma coisa para o Postgres e a
+ * segunda é como ele a devolve normalizada num dump:
+ *
+ *     check (coluna in ('a', 'b'))
+ *     check (coluna = any (array['a', 'b']))
+ *
+ * E o `drop constraint` conta: sem ele, esta função continuava citando a lista
+ * velha — a barreira ficava verde afirmando uma garantia que o banco tinha
+ * deixado de dar, que é a pior coisa que uma barreira pode fazer. Constraint sem
+ * nome no `create table` recebe do Postgres `<tabela>_<coluna>_check`, e é por
+ * esse nome que ela é derrubada.
+ */
+function idsAceitosPeloCheck(tabela: string, coluna: string): { f: string; ids: Set<string> } | null {
+  const formas = [
+    new RegExp(`check\\s*\\(\\s*${coluna}\\s+in\\s*\\(([^)]*)\\)`, 'i'),
+    new RegExp(`check\\s*\\(\\s*${coluna}\\s*=\\s*any\\s*\\(\\s*array\\s*\\[([^\\]]*)\\]`, 'i'),
+  ];
+  // O nome com que a constraint foi declarada, se ela tiver um.
+  const nomeDeclarado = new RegExp(
+    `constraint\\s+([a-z_][a-z0-9_]*)\\s+check\\s*\\(\\s*${coluna}\\b`, 'i');
+  let achado: { f: string; ids: Set<string>; nomes: string[] } | null = null;
+
+  for (const { f, sql } of migrations()) {
+    for (const trecho of trechosDaTabela(sql, tabela)) {
+      if (/^\s*drop\s+table/i.test(trecho)) { achado = null; continue; }
+      // Um `drop constraint` do nome que carrega este CHECK apaga o que se sabia.
+      if (achado) {
+        for (const m of trecho.matchAll(/drop\s+constraint\s+(?:if\s+exists\s+)?([a-z_][a-z0-9_]*)/gi)) {
+          if (achado.nomes.includes(m[1].toLowerCase())) { achado = null; break; }
+        }
+      }
+      for (const re of formas) {
+        const m = re.exec(trecho);
+        if (!m) continue;
+        const ids = new Set([...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]));
+        const declarado = nomeDeclarado.exec(trecho)?.[1]?.toLowerCase();
+        achado = {
+          f,
+          ids,
+          // O implícito do Postgres e, se houver, o explícito da declaração.
+          nomes: [`${tabela}_${coluna}_check`, ...(declarado ? [declarado] : [])],
+        };
+      }
+    }
+  }
+  return achado ? { f: achado.f, ids: achado.ids } : null;
+}
+
+/**
+ * As colunas que a tabela TEM no banco, segundo as migrations: as do `create
+ * table`, mais `add column`, menos `drop column`, com `rename column` aplicado —
+ * e zerada por `drop table`.
+ *
+ * O corpo do `create table` é partido por vírgula de primeiro nível, e entra o
+ * que começa por identificador — cláusula de tabela (`primary key`, `constraint`,
+ * `check`, `unique`, `foreign key`, `exclude`, `like`) fica de fora.
+ *
+ * **Limitações conhecidas, e declaradas de propósito.** Isto é um leitor léxico
+ * de migration, não um Postgres: ele existe para pegar a divergência que nasce de
+ * alguém editar um lado e esquecer o outro, e cada caso abaixo custaria mais do
+ * que esse ganho:
+ *
+ * - **Identificador entre aspas duplas** (`"tipo de período"`) não é
+ *   normalizado; as migrations deste repositório não usam nenhum.
+ * - **`alter table … rename to`** (a tabela inteira mudando de nome) não é
+ *   seguido: a leitura continuaria no nome velho e a barreira reprovaria por
+ *   "nenhuma migration cria <tabela>", que é falha barulhenta, não silenciosa.
+ * - **DDL dentro de `DO $$…$$` ou `execute format(...)`** é invisível: os corpos
+ *   saem antes da análise, o que é a escolha certa para não ler comando de
+ *   função como DDL, e o preço é não ver DDL dinâmico. O ensaio em
+ *   `supabase/ensaio/` tem a mesma limitação, escrita no README dele.
+ * - **`like` e herança** trazem colunas de outra tabela sem as nomear aqui.
+ * - **Comentário de bloco aninhado** engana o `migrations()`, que os tira por
+ *   regex não-gulosa.
+ *
+ * A rede de verdade contra tudo isso é o ensaio, que aplica a migration num
+ * Postgres e compara o catálogo com produção.
+ */
+const CLAUSULA_DE_TABELA = new Set([
+  'primary', 'constraint', 'check', 'unique', 'foreign', 'exclude', 'like',
+]);
+
+function colunasDaTabela(tabela: string): { f: string; colunas: Set<string> } | null {
+  let nasceu: string | null = null;
+  const colunas = new Set<string>();
+  for (const { f, sql } of migrations()) {
+    for (const trecho of trechosDaTabela(sql, tabela)) {
+      if (/^\s*drop\s+table/i.test(trecho)) {
+        // A tabela deixou de existir. O que vier depois recomeça do zero — e se
+        // nada vier, a barreira reprova por não achar `create table`, que é a
+        // resposta certa para uma leitura que pede colunas de tabela morta.
+        nasceu = null;
+        colunas.clear();
+      } else if (/^\s*create\s+table/i.test(trecho)) {
+        nasceu = f;
+        colunas.clear();
+        const corpo = trecho.slice(trecho.indexOf('(') + 1, trecho.lastIndexOf(')'));
+        let nivel = 0;
+        let atual = '';
+        let emLiteral = false;
+        const partes: string[] = [];
+        for (let i = 0; i < corpo.length; i += 1) {
+          const ch = corpo[i];
+          // Literais não são estrutura: `default '(a,b)'` tem vírgula e parêntese.
+          if (ch === "'") emLiteral = !emLiteral;
+          if (!emLiteral) {
+            if (ch === '(') nivel += 1;
+            else if (ch === ')') nivel -= 1;
+            if (ch === ',' && nivel === 0) { partes.push(atual); atual = ''; continue; }
+          }
+          atual += ch;
+        }
+        partes.push(atual);
+        for (const p of partes) {
+          const nome = p.trim().match(/^([a-z_][a-z0-9_]*)\b/i)?.[1];
+          if (nome && !CLAUSULA_DE_TABELA.has(nome.toLowerCase())) colunas.add(nome.toLowerCase());
+        }
+      } else {
+        for (const m of trecho.matchAll(/\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)/gi)) {
+          colunas.add(m[1].toLowerCase());
+        }
+        for (const m of trecho.matchAll(/\bdrop\s+column\s+(?:if\s+exists\s+)?([a-z_][a-z0-9_]*)/gi)) {
+          colunas.delete(m[1].toLowerCase());
+        }
+        // `rename column a to b` — sem isto a lista fica com o nome velho, que é
+        // pior que não saber: ela afirma uma coluna que o PostgREST recusa.
+        for (const m of trecho.matchAll(
+          /\brename\s+column\s+([a-z_][a-z0-9_]*)\s+to\s+([a-z_][a-z0-9_]*)/gi)) {
+          colunas.delete(m[1].toLowerCase());
+          colunas.add(m[2].toLowerCase());
+        }
+      }
+    }
+  }
+  return nasceu ? { f: nasceu, colunas } : null;
+}
+
+check('BARREIRA — os CHECKs de user_preferences cobrem todos os ids do app', () => {
   const problemas: string[] = [];
   for (const { coluna, ids } of ID_COLUMNS) {
-    // Vale a ÚLTIMA migration que mexe na constraint — é ela que está valendo.
-    const re = new RegExp(`check\\s*\\(\\s*${coluna}\\s+in\\s*\\(([^)]*)\\)`, 'i');
-    const ultima = sqls.filter(({ sql }) => re.test(sql)).pop();
-    if (!ultima) {
+    const check = idsAceitosPeloCheck('user_preferences', coluna);
+    if (!check) {
       problemas.push(`${coluna}: nenhuma migration define o CHECK`);
       continue;
     }
-    const permitidos = new Set([...re.exec(ultima.sql)![1].matchAll(/'([^']+)'/g)].map((m) => m[1]));
-    const faltando = ids().filter((id) => !permitidos.has(id));
+    const faltando = ids().filter((id) => !check.ids.has(id));
     if (faltando.length) {
-      problemas.push(`${coluna}: o banco recusa ${faltando.join(', ')} (${ultima.f})`);
+      problemas.push(`${coluna}: o banco recusa ${faltando.join(', ')} (${check.f})`);
     }
   }
   assert.deepEqual(
@@ -367,6 +586,210 @@ check('BARREIRA — os CHECKs de user_preferences cobrem todos os ids do app', (
     `id que o app grava e o banco recusa:\n    ${problemas.join('\n    ')}\n` +
       `  Escreva uma migration com \`drop constraint\` + \`add constraint\` — nunca \`add column ` +
       `if not exists\` com o check colado, que o Postgres pula inteiro quando a coluna já existe.`,
+  );
+});
+
+/**
+ * BARREIRA — os ids da edição são a MESMA lista dos dois lados (Story 1.9).
+ *
+ * `edicoes_ia.caderno` repete `CADERNO_IDS` e `edicoes_capa.natureza` repete
+ * `NATUREZAS_DA_CAPA`, e as duas migrations dizem em comentário que é "a mesma
+ * lista, letra por letra". Comentário não é guarda: o id nasce minúsculo e sem
+ * acento justamente para não precisar de tradução entre camadas, e o dia em que
+ * precisar ninguém vai notar por leitura.
+ *
+ * **Igualdade exata, e não cobertura**, que é onde esta barreira difere da de
+ * `user_preferences`. Lá o banco pode aceitar id legado que o app não escreve
+ * mais; aqui os dois lados são o mesmo vocabulário fechado — um quinto caderno
+ * só no SQL seria uma linha que o `CadernoId` não sabe ler, e uma natureza só no
+ * TS seria uma capa que o banco recusa na hora de carimbar.
+ */
+const ID_COLUMNS_DA_EDICAO: {
+  tabela: string; coluna: string; ids: () => readonly string[]; dono: string;
+}[] = [
+  { tabela: 'edicoes_ia', coluna: 'caderno', ids: () => CADERNO_IDS, dono: 'period/cadernos.ts (CADERNO_IDS)' },
+  { tabela: 'edicoes_capa', coluna: 'natureza', ids: () => NATUREZAS_DA_CAPA, dono: 'data/edicoes-capa.ts (NATUREZAS_DA_CAPA)' },
+  // **Duas linhas, uma por tabela**, e não uma valendo pelas duas: as duas
+  // declaram `tipo_periodo` e cada uma tem o próprio CHECK. Com uma linha só, a
+  // busca pegava o CHECK da capa e deixava o da edição sem conferência — na
+  // story cujo assunto é exatamente a chave de `edicoes_ia`.
+  { tabela: 'edicoes_ia', coluna: 'tipo_periodo', ids: () => TIPOS_COM_EDICAO, dono: 'data/edicoes-ia.ts (TIPOS_COM_EDICAO)' },
+  { tabela: 'edicoes_capa', coluna: 'tipo_periodo', ids: () => TIPOS_COM_EDICAO, dono: 'data/edicoes-ia.ts (TIPOS_COM_EDICAO)' },
+];
+
+check('BARREIRA — caderno, natureza e tipo de período são a mesma lista no TS e no banco', () => {
+  const problemas: string[] = [];
+  for (const { tabela, coluna, ids, dono } of ID_COLUMNS_DA_EDICAO) {
+    const noTs = [...ids()].sort();
+    assert.ok(noTs.length > 0, `${dono} ficou vazio — a barreira perdeu o alvo do lado do TS.`);
+    const check = idsAceitosPeloCheck(tabela, coluna);
+    if (!check) {
+      problemas.push(`${tabela}.${coluna}: nenhuma migration define o CHECK (o dono no TS é ${dono})`);
+      continue;
+    }
+    const noBanco = [...check.ids].sort();
+    if (noTs.join(',') !== noBanco.join(',')) {
+      problemas.push(
+        `${tabela}.${coluna} (${check.f}): o banco aceita [${noBanco.join(', ')}] e ${dono} declara `
+        + `[${noTs.join(', ')}]`,
+      );
+    }
+  }
+  assert.deepEqual(
+    problemas,
+    [],
+    `a lista divergiu entre o TS e o banco:\n    ${problemas.join('\n    ')}\n` +
+      `  Os dois lados mudam na mesma entrega — e a do banco é migration com \`drop constraint\` + ` +
+      `\`add constraint\`, nunca \`add column if not exists\` com o check colado.`,
+  );
+});
+
+/**
+ * BARREIRA — `TIPOS_COM_EDICAO` é `PeriodKind` menos `'all'` (Story 1.9).
+ *
+ * A lista existe para separar "período que ainda não foi escrito" de "período que
+ * nunca terá edição". Se `PeriodKind` ganhar um valor novo — um `quarter`, um
+ * `decade` — e ninguém tocar aqui, a tela passa a tratá-lo como **ausência
+ * permanente**: a edição nunca aparece, e nada acusa. O contrário, um valor só
+ * nesta lista, é a leitura procurando por um tipo que o CHECK recusa.
+ *
+ * `PeriodKind` é união de tipo e não existe em runtime, então a barreira lê a
+ * declaração no fonte. `'all'` é a única exclusão, e é nomeada: período que nunca
+ * fecha não tem edição, por definição.
+ */
+check("BARREIRA — TIPOS_COM_EDICAO é PeriodKind menos 'all'", () => {
+  // Caminho literal, e não `SHARED_SRC`: os `check` rodam na ordem do arquivo, e
+  // a constante é declarada bem depois daqui.
+  const fonte = readFileSync(join(ROOT, 'packages', 'shared', 'src', 'period', 'bounds.ts'), 'utf8');
+  const m = /export\s+type\s+PeriodKind\s*=\s*([^;]+);/.exec(semComentario(fonte));
+  assert.ok(m, 'period/bounds.ts não declara mais `export type PeriodKind` — a barreira ficou sem alvo.');
+  const daUniao = [...m![1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  assert.ok(daUniao.length > 1, `PeriodKind foi lido como ${JSON.stringify(daUniao)} — a leitura da união falhou.`);
+  assert.ok(daUniao.includes('all'), "PeriodKind deixou de ter 'all'; reveja a exclusão nomeada desta barreira.");
+  assert.deepEqual(
+    [...TIPOS_COM_EDICAO].sort(),
+    daUniao.filter((k) => k !== 'all').sort(),
+    `TIPOS_COM_EDICAO e PeriodKind divergiram. Tipo novo na união que não entrar na lista vira ` +
+      `ausência permanente na tela — a edição dele nunca aparece, e nada acusa.`,
+  );
+});
+
+/**
+ * BARREIRA — o que a leitura PEDE existe no banco (Story 1.9, rodada 2).
+ *
+ * `EDICAO_COLUMNS` e `CAPA_COLUMNS` são as listas que vão ao PostgREST. O teste
+ * de unidade as compara com `EdicaoRow`/`CapaRow` — mas a string e a interface
+ * são **as duas escritas à mão, no mesmo vocabulário e no mesmo commit**: um
+ * nome errado nos dois (que é o que o compilador obriga a fazer junto) passa
+ * verde e devolve 400 em toda leitura de produção.
+ *
+ * Esta barreira fecha o triângulo comparando com o **banco** — as colunas que as
+ * migrations criam, menos as que elas derrubam.
+ *
+ * **A invariante é dupla, e não igualdade com o banco.** Igualdade obrigaria a
+ * pedir para sempre toda coluna que a tabela tiver, inclusive a que a tela
+ * descarta, e quebraria no dia em que nascesse uma coluna de uso só do servidor
+ * (um `processado_em`, um contador de custo) — a barreira mandaria pedi-la à toa.
+ * O que de fato tem de valer são duas continências:
+ *
+ * - **pedidas ⊆ colunas do banco** — pedir o que não existe é 400 do PostgREST
+ *   em toda leitura de produção;
+ * - **pedidas ⊇ chaves da interface da linha** — a interface é o que o código
+ *   lê; coluna nela que não foi pedida chega `undefined` na tela, calada.
+ *
+ * A segunda é o que amarra a string à interface do lado de fora do compilador: o
+ * teste de unidade compara as duas entre si, e as duas são escritas à mão no
+ * mesmo commit.
+ */
+/**
+ * As chaves de uma `export interface` — **lidas do fonte**, porque interface de
+ * TypeScript não existe em runtime.
+ *
+ * Podia ser uma lista à mão aqui; seria a terceira cópia do mesmo vocabulário, e
+ * a barreira passaria a comparar duas coisas que a mesma pessoa escreveu na
+ * mesma hora. O fonte é a única fonte que ninguém atualiza "para o teste passar".
+ */
+function chavesDaInterface(arquivoRel: string, nome: string): string[] {
+  const src = semComentario(readFileSync(join(ROOT, arquivoRel), 'utf8'));
+  const i = src.search(new RegExp(`export\\s+interface\\s+${nome}\\s*\\{`));
+  assert.ok(i >= 0, `${arquivoRel} não declara mais \`export interface ${nome}\` — a barreira ficou sem alvo.`);
+  const abre = src.indexOf('{', i);
+  const corpo = src.slice(abre + 1, fechaChaves(src, abre + 1));
+  return [...corpo.matchAll(/^\s*([a-z_][a-z0-9_]*)\s*\??\s*:/gim)].map((m) => m[1].toLowerCase());
+}
+
+function fechaChaves(src: string, de: number): number {
+  let i = de;
+  let nivel = 1;
+  while (i < src.length && nivel > 0) {
+    if (src[i] === '{') nivel += 1;
+    else if (src[i] === '}') nivel -= 1;
+    i += 1;
+  }
+  return i - 1;
+}
+
+const CHAVES_DE_EDICAO_ROW = chavesDaInterface('packages/shared/src/data/edicoes-ia.ts', 'EdicaoRow');
+const CHAVES_DE_CAPA_ROW = chavesDaInterface('packages/shared/src/data/edicoes-capa.ts', 'CapaRow');
+
+const COLUNAS_PEDIDAS: {
+  tabela: string; colunas: string; daInterface: readonly string[]; dono: string;
+}[] = [
+  {
+    tabela: 'edicoes_ia',
+    colunas: EDICAO_COLUMNS,
+    daInterface: CHAVES_DE_EDICAO_ROW,
+    dono: 'data/edicoes-ia.ts (EDICAO_COLUMNS)',
+  },
+  {
+    tabela: 'edicoes_capa',
+    colunas: CAPA_COLUMNS,
+    daInterface: CHAVES_DE_CAPA_ROW,
+    dono: 'data/edicoes-capa.ts (CAPA_COLUMNS)',
+  },
+];
+
+check('BARREIRA — as colunas pedidas existem no banco e cobrem a linha lida', () => {
+  const problemas: string[] = [];
+  for (const { tabela, colunas, daInterface, dono } of COLUNAS_PEDIDAS) {
+    const pedidas = colunas.split(',').map((c) => c.trim().toLowerCase()).sort();
+    assert.ok(pedidas.length > 0, `${dono} está vazio — a barreira perdeu o alvo.`);
+    assert.ok(
+      daInterface.length > 0,
+      `a lista de chaves da linha de ${tabela} está vazia — a barreira passaria por vacuidade do lado do TS.`,
+    );
+    const noBanco = colunasDaTabela(tabela);
+    assert.ok(noBanco, `nenhuma migration cria ${tabela} — a barreira ficou sem alvo.`);
+    const doBanco = [...noBanco!.colunas].sort();
+    assert.ok(
+      doBanco.length > 0,
+      `a leitura das colunas de ${tabela} (${noBanco!.f}) devolveu vazio — o parser de \`create table\` ` +
+        `perdeu a forma do arquivo, e a barreira passaria por vacuidade.`,
+    );
+    const naoExistem = pedidas.filter((c) => !doBanco.includes(c));
+    if (naoExistem.length) {
+      problemas.push(`${dono} pede coluna que ${tabela} não tem: ${naoExistem.join(', ')} (400 no PostgREST)`);
+    }
+    const naoPedidas = [...daInterface].map((c) => c.toLowerCase()).filter((c) => !pedidas.includes(c));
+    if (naoPedidas.length) {
+      problemas.push(
+        `${dono} não pede coluna que a interface da linha lê: ${naoPedidas.join(', ')} (chega undefined na tela)`,
+      );
+    }
+    // Não é erro, mas é dívida: coluna do banco que ninguém lê. Fica como aviso
+    // para não obrigar a pedir o que a tela descarta.
+    const semLeitor = doBanco.filter((c) => !pedidas.includes(c));
+    if (semLeitor.length) {
+      // eslint-disable-next-line no-console
+      console.log(`    (nota: ${tabela} tem coluna que ninguém lê: ${semLeitor.join(', ')})`);
+    }
+  }
+  assert.deepEqual(
+    problemas,
+    [],
+    `a lista de colunas divergiu do banco:\n    ${problemas.join('\n    ')}\n` +
+      `  Coluna nova entra na migration, na interface da linha E na string de COLUMNS — as três, ou a ` +
+      `leitura mente.`,
   );
 });
 
@@ -1083,10 +1506,96 @@ check('BARREIRA — CONCLUSAO é o que o CHECK de edicoes_ia.motivo_de_parada ac
     vigente.aceitos,
     [CONCLUSAO],
     `o CHECK de edicoes_ia.motivo_de_parada (${vigente.f}) aceita ${JSON.stringify(vigente.aceitos)}, ` +
-      `e CONCLUSAO é ${JSON.stringify(CONCLUSAO)}. Atenção antes de "mudar os dois juntos": até a ` +
-      `story 1.10, quem grava a edição ainda passa o motivo cru que a function repassa ` +
-      `(mobile/src/lib/edicao-ia.ts), não CONCLUSAO — mudar a constante e o CHECK sem a 1.10 ` +
-      `quebra a escrita em produção.`,
+      `e CONCLUSAO é ${JSON.stringify(CONCLUSAO)}. Atenção antes de "mudar os dois juntos": quem grava ` +
+      `a edição é a função edicao_imprimir, que recebe o motivo de parada pronto — e o CHECK é a ` +
+      `última rede antes de um texto truncado virar edição.`,
+  );
+});
+
+/**
+ * BARREIRA — a tela não alcança o ranqueamento do miolo (Story 1.9, AD-4).
+ *
+ * A ordem dos cadernos **congela na impressão**, na coluna `posicao`. Quem a
+ * calcula é `ordenarCadernos` (`ia/ranqueamento.ts`), e ela é função de
+ * impressão, nunca de render: uma tela que a chamasse reordenaria agosto/2026
+ * em silêncio no dia em que um peso da confiança mudasse — reescrita de período
+ * fechado, que é exatamente o que a coluna existe para impedir.
+ *
+ * O `index.ts` já não a exporta, e `ranqueamento.test.ts` cobra essa ausência.
+ * Não é o mesmo que o app não a alcançar: um import **profundo**
+ * (`@vitale/shared/src/ia/ranqueamento`, ou o caminho relativo até
+ * `packages/shared/src/ia/ranqueamento`) compila igual. Esta barreira fecha
+ * isso, pelos dois lados:
+ *
+ * - o **caminho**, em qualquer literal de string — `import`, `import()`,
+ *   `require`, com ou sem extensão;
+ * - o **nome**, porque um reexport futuro pelo barril traria `ordenarCadernos`
+ *   por uma porta que nenhuma regex de caminho vê.
+ *
+ * **E a lista de nomes é LIDA do módulo, não escrita aqui.** Uma lista à mão
+ * fecha a porta dos nomes que existiam no dia em que ela foi escrita: um quinto
+ * export nasceria alcançável com a barreira verde. Os nomes saem do próprio
+ * fonte de `ia/ranqueamento.ts`, e a barreira exige achar alguns — se a leitura
+ * falhar, ela reprova em vez de varrer o vazio.
+ */
+check('BARREIRA — nem mobile nem web alcançam ia/ranqueamento', () => {
+  const alvos = [...mobileFiles, ...webFiles].filter((f) => !ehTeste(f));
+  assert.ok(
+    alvos.length > 0,
+    'mobile/src ou web/src sumiu da varredura — a barreira do ranqueamento ficou sem alvo.',
+  );
+  // Qualquer specifier que termine em `ia/ranqueamento`, com ou sem extensão.
+  const PELO_CAMINHO = /(['"`])[^'"`]*\bia\/ranqueamento(?:\.[jt]sx?)?\1/;
+
+  // Tudo o que o módulo exporta — valor e tipo. `AMOSTRA_MINIMA` e `PESO_DA_BASE`
+  // entram junto de propósito: são o ranqueamento vazando por constante, e uma
+  // tela não tem o que fazer com eles.
+  const fonteDoRanqueamento = semComentario(
+    readFileSync(join(ROOT, 'packages', 'shared', 'src', 'ia', 'ranqueamento.ts'), 'utf8'),
+  );
+  const EXPORTA = new RegExp(
+    '^[ \\t]*export\\s+(?:declare\\s+)?(?:async\\s+)?'
+    + '(?:function\\*?\\s*|const\\s+enum\\s+|enum\\s+|const\\s+|let\\s+|var\\s+|'
+    + '(?:abstract\\s+)?class\\s+|interface\\s+|type\\s+)([A-Za-z_$][\\w$]*)',
+    'gm',
+  );
+  const nomesDoModulo = [...fonteDoRanqueamento.matchAll(EXPORTA)].map((m) => m[1]);
+  assert.ok(
+    nomesDoModulo.length >= 3,
+    `a leitura dos exports de ia/ranqueamento.ts achou ${JSON.stringify(nomesDoModulo)} — poucos para ` +
+      `ser verdade. A barreira estaria varrendo por um punhado de nomes, e o resto passaria por baixo.`,
+  );
+  assert.ok(
+    nomesDoModulo.includes('ordenarCadernos'),
+    'ia/ranqueamento.ts não exporta mais `ordenarCadernos` — a barreira ficou sem o nome que a motiva.',
+  );
+  // **O nome só conta em contexto de IMPORT**, e não solto no arquivo.
+  //
+  // A varredura por palavra solta tratava qualquer ocorrência como violação, e o
+  // módulo exporta nomes que não são dele sozinho: `AMOSTRA_MINIMA` ou um
+  // `ordenar` futuro viram alarme espalhado por telas que nunca ouviram falar do
+  // ranqueamento — e barreira que grita sem motivo é barreira que se aprende a
+  // silenciar. O que se quer pegar é o nome ENTRANDO no arquivo: pela lista de
+  // um `import { … }`, por `require(…)` desestruturado, ou qualificado por um
+  // namespace importado (`ranqueamento.ordenarCadernos`).
+  const nomes = nomesDoModulo.join('|');
+  const IMPORTADO = new RegExp(
+    // import { ordenarCadernos, … } from '…'   /   const { ordenarCadernos } = require('…')
+    `(?:import|require|from)[\\s\\S]{0,400}?\\{[^}]*\\b(?:${nomes})\\b[^}]*\\}`,
+  );
+  const QUALIFICADO = new RegExp(`\\b[A-Za-z_$][\\w$]*\\.(?:${nomes})\\b`);
+  const offenders = alvos
+    .filter((f) => {
+      const src = semComentario(readFileSync(f, 'utf8'));
+      return PELO_CAMINHO.test(src) || IMPORTADO.test(src) || QUALIFICADO.test(src);
+    })
+    .map((f) => f.replace(ROOT + '/', ''));
+  assert.deepEqual(
+    offenders,
+    [],
+    `a tela alcançou o ranqueamento do miolo: ${offenders.join(', ')}. A ordem dos cadernos vem ` +
+      `da coluna \`posicao\`, gravada na impressão — a leitura nunca a recalcula. Quem precisa ` +
+      `ordenar é a sequência da impressão, dentro do núcleo (Story 1.10).`,
   );
 });
 
@@ -1107,10 +1616,13 @@ check('BARREIRA — CONCLUSAO é o que o CHECK de edicoes_ia.motivo_de_parada ac
  *   2 (5.1) — `routes/nomear.ts` (morre na 5.7, quando o nome de rota passar
  *             pela porta) e `mobile/src/lib/edicao-ia.ts` (morre na 1.10, quando
  *             a impressão virar cliente do orquestrador). Vira barreira em zero.
+ *   1 (1.9) — o celular parou de narrar antes da 1.10: a escrita saiu de
+ *             `mobile/src/lib/edicao-ia.ts` junto com a migração, e o arquivo
+ *             ficou só com a leitura. Sobra `routes/nomear.ts`.
  */
 const DONO_CONCLUSAO = 'packages/shared/src/ia/motor.ts';
 const ADAPTADOR_DO_PROVEDOR = 'supabase/functions/_shared/ia/narrador.ts';
-const TETO_STOP = 2;
+const TETO_STOP = 1;
 
 check(`CATRACA — o literal 'STOP' só na CONCLUSAO (teto ${TETO_STOP})`, () => {
   const DEFINE = /\bconst\s+CONCLUSAO\s*=\s*(['"`])STOP\1/;
@@ -1158,13 +1670,15 @@ check(`CATRACA — o literal 'STOP' só na CONCLUSAO (teto ${TETO_STOP})`, () =>
  *   2 (5.1) — `mobile/src/lib/edicao-ia.ts` (a narração, sai na 1.10) e
  *             `mobile/src/services/route-name.ts` (o nome de rota, sai na 5.7).
  *             Vira barreira em zero, na F4.
+ *   1 (1.9) — a narração saiu do celular antes da 1.10, junto com a migração:
+ *             `edicao-ia.ts` ficou só com a leitura. Sobra o nome de rota.
  */
 const PONTOS_DE_INJECAO = [
   /^mobile\/src\/lib\/motores\//,
   /^web\/src\/app\/core\/motores\//,
   /^scripts\/[^/]+\/motores\.ts$/,
 ];
-const TETO_PORTA_POR_HOSPEDEIRO = 2;
+const TETO_PORTA_POR_HOSPEDEIRO = 1;
 
 check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospedeiro (teto ${TETO_PORTA_POR_HOSPEDEIRO})`, () => {
   assert.ok(mobileFiles.length > 0 && webFiles.length > 0, 'mobile/src ou web/src sumiu — a catraca ficou sem alvo');
@@ -1244,6 +1758,13 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
  *             passa para o orquestrador. Vira barreira em zero, na 1.10.
  *   1 (5.3) — as peças de `sleep/` entram sem ofensor: nenhum app as importa.
  *   1 (5.4) — `scripts/` entra sem ofensor: a bancada só nomeia o caso (abaixo).
+ *   1 (1.9) — o mesmo arquivo, por outra razão. A narração saiu dele; sobrou
+ *             `periodoFechado`, que não sequencia nada — é o predicado que
+ *             separa "não tem edição" de "não tem edição AINDA", e sem ele a
+ *             tela anunciaria o mês em curso como não escrito. Registrado aqui
+ *             porque a promessa "vira barreira em zero na 1.10" depende deste
+ *             import sair, e ele não sai pela 1.10: quem quiser zerar move o
+ *             predicado para fora de `ia/`.
  */
 const PORTA_DE_IA = new Set(['fio', 'motor', 'orquestrar', 'nuvem', 'recursos']);
 /** O que a tela chama das peças de `sleep/`: a entrada, não a leitura. */
