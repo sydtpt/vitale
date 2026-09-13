@@ -14,14 +14,18 @@
  *
  * **Status não-2xx não é exceção**: é dado, e volta como `{ status, corpo }`. Só a
  * ausência de rede volta como `{ semRede: true }` — o que o núcleo traduz em
- * `indisponivel`, que recua sem aumentar exposição.
+ * `indisponivel`, que recua sem aumentar exposição. **Estouro de prazo não é
+ * ausência de rede**: ele volta como corpo de classe `transitoria`, igual ao app —
+ * ver `prazoEstourado`.
  *
  * O token nunca aparece em `detalhe`: o que sobe para diagnóstico é o nome e a
  * mensagem do erro de rede, e o corpo que a function devolveu.
  */
 import {
+  STATUS_POR_CLASSE,
   criarMotorDeNuvem,
   lerMotorId,
+  type CorpoDaFalha,
   type Motor,
   type MotorId,
   type RespostaDoTransporte,
@@ -45,9 +49,11 @@ interface ChamadaHttp {
  *
  * Uma narração de uma frase leva segundos; um minuto é folga larga. O que este teto
  * compra não é velocidade — é **relatório**: sem ele, uma function pendurada para a
- * corrida de 28 chamadas para sempre e nada é escrito no disco. Estourar o prazo
- * chega ao núcleo como ausência de rede, que vira `indisponivel`: a janela aparece
- * no relatório com a causa, e as outras seguem sendo medidas.
+ * corrida de 28 chamadas para sempre e nada é escrito no disco. A janela aparece no
+ * relatório com a causa, e as outras seguem sendo medidas.
+ *
+ * O mesmo valor do app (`mobile/src/lib/motores/index.ts`), de propósito: as duas
+ * colunas da bancada só comparam motor se o prazo for o mesmo dos dois lados.
  */
 export const PRAZO_MS = 60_000;
 
@@ -92,6 +98,31 @@ export function semSegredo(texto: string, segredos: readonly string[]): string {
 }
 
 /**
+ * O estouro do prazo, no vocabulário do núcleo.
+ *
+ * Cópia deliberada de `prazoEstourado` do app (`mobile/src/lib/motores/index.ts`),
+ * e a razão de ela existir dos dois lados é a mesma: `CorpoDaFalha` é a forma
+ * declarada de "falha com classe", e a tabela de `traduzirDaNuvem` diz que a classe
+ * do corpo decide qualquer que seja o status — então o hospedeiro dizer
+ * `transitoria` aqui é **usar** o contrato, não falsificar uma resposta HTTP.
+ *
+ * `transitoria`, e não `indisponivel`: timeout está na definição de `transitoria`
+ * no núcleo ("o mesmo pedido no mesmo motor pode dar certo depois"). A diferença
+ * não é de rótulo, é de caminho — `transitoria` cai no piso sem repetir, e
+ * `indisponivel` recua para o próximo elo da cadeia. Enquanto a bancada dizia
+ * `indisponivel` e o app dizia `transitoria`, a mesma chamada travada produzia
+ * caminhos diferentes no Mac e no iPhone, e a comparação entre as duas colunas
+ * deixava de ser sobre o motor.
+ */
+function prazoEstourado(prazoMs: number): RespostaDoTransporte {
+  const corpo: CorpoDaFalha = {
+    classe: 'transitoria',
+    detalhe: `o prazo de ${Math.round(prazoMs / 1000)} s estourou`,
+  };
+  return { status: STATUS_POR_CLASSE.transitoria, corpo };
+}
+
+/**
  * O transporte da nuvem: POST com o JWT do usuário no `Authorization`.
  *
  * O `apikey` vai junto porque é o que o gateway do Supabase exige antes de olhar
@@ -129,6 +160,18 @@ export function transporteDaNuvem(
     const segredos = [token, chaveAnonima, ...segredosExtra];
     const diagnostico = (e: unknown): string => semSegredo(mensagem(e), segredos);
 
+    // O prazo vai por um controle NOSSO, e não por `AbortSignal.timeout`: abortando
+    // nós mesmos, sabemos que o aborto foi nosso e classificamos o estouro como
+    // `transitoria`. Deixar o runtime abortar devolve um `TimeoutError` que aqui
+    // seria indistinguível de "a rede caiu", e viraria `indisponivel` — a classe
+    // errada, e a que o app não usa.
+    const controle = new AbortController();
+    let estourou = false;
+    const relogio = setTimeout(() => {
+      estourou = true;
+      controle.abort();
+    }, prazoMs);
+
     let r: RespostaHttp;
     try {
       r = await buscar(alvo, {
@@ -139,11 +182,14 @@ export function transporteDaNuvem(
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(corpo),
-        signal: AbortSignal.timeout(prazoMs),
+        signal: controle.signal,
       });
     } catch (e) {
-      // Sem rede — ou prazo estourado, que chega aqui como `TimeoutError`.
+      if (estourou) return prazoEstourado(prazoMs);
+      // Sem rede de verdade: a chamada nem chegou a ter status.
       return { semRede: true, detalhe: diagnostico(e) };
+    } finally {
+      clearTimeout(relogio);
     }
     let cru = '';
     try {
