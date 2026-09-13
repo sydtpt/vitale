@@ -147,7 +147,9 @@ def main() -> int:
     campos = g(
         "query($p:ID!){node(id:$p){... on ProjectV2{fields(first:30){nodes{"
         "... on ProjectV2FieldCommon{id name}"
-        "... on ProjectV2SingleSelectField{id name options{id name}}}}}}}",
+        "... on ProjectV2SingleSelectField{id name options{id name}}"
+        "... on ProjectV2IterationField{id name configuration{"
+        "iterations{id title startDate}}}}}}}}",
         p=quadro["id"],
     )["node"]["fields"]["nodes"]
     status = next((c for c in campos if c.get("name") == "Status"), None)
@@ -245,6 +247,35 @@ def main() -> int:
 
     print(f"\n{add} adicionadas, {movidos} movidas de coluna"
           + ("" if args.aplicar else "  (ensaio)"))
+
+    # ── a sprint de agora ──────────────────────────────────────────────────
+    # Regra: entram as stories da Revista que a yaml diz estarem vivas (em
+    # andamento ou aguardando veredito). O acervo fica fora — pendência antiga
+    # não é trabalho planejado, e enfiá-la aqui faria a sprint mentir.
+    # Ampliar o recorte é ato de Product Owner: arrastar no navegador.
+    sprint = next((c for c in campos if c.get("name") == "Sprint"), None)
+    if args.aplicar and sprint and sprint.get("configuration"):
+        agora = (sprint["configuration"].get("iterations") or [None])[0]
+        if agora:
+            postos = 0
+            for issue in abertas:
+                rotulos = [l["name"] for l in issue["labels"]["nodes"]]
+                if "revista" not in rotulos:
+                    continue
+                coluna = next((DE_ROTULO[r] for r in rotulos if r in DE_ROTULO), "Backlog")
+                if coluna not in ("Em andamento", "Aguardando veredito"):
+                    continue
+                item, _ = ja.get(issue["number"], (None, None))
+                if not item:
+                    continue
+                g(
+                    "mutation($p:ID!,$i:ID!,$f:ID!,$v:String!){updateProjectV2ItemFieldValue("
+                    "input:{projectId:$p,itemId:$i,fieldId:$f,value:{iterationId:$v}})"
+                    "{projectV2Item{id}}}",
+                    p=quadro["id"], i=item, f=sprint["id"], v=agora["id"],
+                )
+                postos += 1
+            print(f"sprint '{agora['title']}': {postos} stories da Revista")
     if args.aplicar:
         print(f"\nhttps://github.com/users/{eu['login']}/projects/{quadro['number']}")
     return 0
