@@ -13,7 +13,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { NUVEM_PADRAO, SEM_MODELO, criarMotorDeNuvem, type Falha, type Pedido, type Resposta } from '@vitale/shared';
-import { OMITIDO, SEM_NENHUM_MOTOR, enderecoDaFunction, motoresDaBancada, transporteDaNuvem, type Buscar } from './motores.ts';
+import { OMITIDO, PRAZO_MS, SEM_NENHUM_MOTOR, enderecoDaFunction, motoresDaBancada, transporteDaNuvem, type Buscar } from './motores.ts';
 
 const URL_DO_PROJETO = 'https://projeto.supabase.co';
 const TOKEN = 'jwt-do-usuario-que-nunca-aparece-em-detalhe';
@@ -156,6 +156,30 @@ describe('status e corpo viram classe', () => {
     const { saida } = await pelaNuvem({ lanca: new TypeError('fetch failed') });
     assert.equal((saida as Falha).classe, 'indisponivel');
     assert.ok((saida as Falha).detalhe?.includes('TypeError'));
+  });
+
+  // A diferença não é de rótulo: `transitoria` cai no piso sem repetir, e
+  // `indisponivel` recua para o próximo elo da cadeia. Enquanto a bancada dizia
+  // uma coisa e o app dizia outra, a mesma chamada travada seguia caminhos
+  // diferentes no Mac e no iPhone, e a comparação entre as colunas deixava de
+  // ser sobre o motor.
+  it('prazo estourado é transitoria — a mesma classe que o app usa, não indisponivel', async () => {
+    // Uma chamada que nunca responde: só o nosso próprio abort a termina.
+    const pendurada: Buscar = (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(new Error('AbortError: o sinal abortou')));
+      });
+    const motor = criarMotorDeNuvem(
+      transporteDaNuvem(URL_DO_PROJETO, async () => TOKEN, ANON, pendurada, 5),
+    );
+    const saida = await motor(PEDIDO);
+    assert.ok(ehFalha(saida), 'o prazo estourado tem de ser falha');
+    assert.equal(saida.classe, 'transitoria');
+    assert.match(saida.detalhe ?? '', /prazo/);
+  });
+
+  it('o prazo da bancada é o mesmo do app — colunas com prazos diferentes não comparam motor', () => {
+    assert.equal(PRAZO_MS, 60_000);
   });
 
   it('o JWT e a chave anônima não aparecem em detalhe nenhum, nem quando o erro de rede os carrega', async () => {
