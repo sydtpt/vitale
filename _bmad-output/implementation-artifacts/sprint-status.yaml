@@ -173,15 +173,25 @@ development_status:
   # A ordem real está no cabeçalho; aqui fica em ordem numérica.
   epic-5: in-progress
   # F0 — núcleo sem modelo. Sem deploy e sem tela. Em paralelo com 1.7–1.9.
-  5-1-a-porta-o-fio-e-o-orquestrador: review
-  5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono: review
-  5-3-a-leitura-da-saúde-do-sono-sem-modelo: review
-  # F1 — dois marcos. O A é portão da 1.10. O B espera o macOS 27 (14/09) e o
-  # risco aberto do Xcode 26.6: se ele não abrir no 27, a story para e volta ao
-  # dono. ⚠ PORTÃO HUMANO no fim — o relatório é lido por ele, e o limiar é dele.
-  5-4-a-bancada-no-mac: review
-  # F2 — depois da 1.9, build próprio, sobe runtimeVersion. PRÉ-REQUISITO:
-  # proposta visual com mockups e dados reais, aprovada (regra de 04/09).
+  # FECHADAS em 13/09: na main desde 11–12/09, e agora exercitadas no aparelho —
+  # o marco A da 5.5 levou este núcleo à tela da /sono/saude, e o dono conferiu
+  # no build da janela da 1.9. A cadeia padrão da Saúde continua [sem-modelo]:
+  # a nuvem está habilitada, não imposta, e entra por escolha no seletor.
+  5-1-a-porta-o-fio-e-o-orquestrador: done
+  5-2-o-descritor-da-retrospectiva-e-as-listas-com-dono: done
+  5-3-a-leitura-da-saúde-do-sono-sem-modelo: done
+  # F1 — dois marcos. O A era portão da 1.10, e FECHOU: a bancada rodou no Mac
+  # em 12/09 sobre 295 noites de produção (nuvem aprovada em 22 de 22, zero
+  # frase igual à do template, mediana de 13,6 s). O PORTÃO HUMANO foi cumprido
+  # — o dono leu o relatório e fixou o limiar na ADR 0050 (aprovação ≥ 90%, os
+  # sete casos nos dois alcances, nada idêntico ao template, mediana ≤ 20 s).
+  # O marco B — a coluna do aparelho — espera o macOS 27 e vive na 5.5.
+  5-4-a-bancada-no-mac: done
+  # F2 — dois marcos. O A está na main desde 12/09 (a4ddf33) e no iPhone: o
+  # botão Ler no cabeçalho da /sono/saude e o seletor de motor, SEM a ponte.
+  # A story só fecha com o marco B — a ponte Swift on-device-engine —, que
+  # espera o macOS 27 (14/09) e o risco aberto do Xcode 26.6, e exige BUILD
+  # PRÓPRIO: nunca o mesmo de uma migração.
   5-5-a-ponte-o-botão-ler-e-a-escolha-do-motor: review
   # ▼ PRÓXIMA SPRINT (F3–F5). Estão aqui para aparecer no quadro, não para começar.
   5-6-vários-motores-de-nuvem: backlog
