@@ -1,0 +1,42 @@
+# ensaio-concorrencia.txt  -  Story 1.9 da revista  -  corrida de 13/09/2026
+#
+# O QUE E ESTE ARQUIVO
+#   A saida de `supabase/ensaio/cenarios/concorrencia.sh`, rodado sobre o banco que
+#   ficou depois do `ensaiar.sh` da migracao. E o unico caso do conjunto que abre
+#   **duas sessoes psql** — os outros sao SQL dentro de uma transacao.
+#
+# O QUE ELE PROVA
+#   Que a trava de `edicao_imprimir` serializa duas impressoes do MESMO periodo, que e
+#   a razao declarada de a funcao existir. A medicao nao e o relogio: e o `pg_locks` —
+#   com a sessao A dentro da funcao e a transacao aberta, a sessao B aparece esperando
+#   um lock `advisory` com `granted = false`, nao grava nada enquanto espera, e so anda
+#   depois do commit de A; a edicao final e a segunda impressao INTEIRA (`m2:1,m2:2`),
+#   sem mistura com a primeira.
+#
+#   E prova que a espera e da trava, nao do banco: a sessao C, num periodo diferente e
+#   com A ainda aberta, passa na hora.
+#
+# POR QUE ELE EXISTE
+#   Porque o cenario SQL nao pegava isto. Medido: apagar a linha do
+#   `pg_advisory_xact_lock` da funcao mantem `edicao-imprimir.sql` verde de A a H, e
+#   faz ESTE caso falhar em "B NAO esperou". Uma guarda que some sem reprovar nada e
+#   uma guarda que nao guarda.
+#
+# A saida da corrida comeca abaixo.
+# --------------------------------------------------------------------------
+
+== a sessão A abre a transação, imprime e NÃO comita
+  A está dentro da transação, segurando a trava do período 2999-02-01
+== a sessão C imprime OUTRO período — o controle
+  C passou na hora, em outro período — a trava é por EDIÇÃO, não por tabela
+== a sessão B tenta o MESMO período, com A ainda aberta
+  B está bloqueado em pg_locks (advisory, granted = false) — a trava serializa
+  e não gravou nada enquanto esperava (linhas visíveis fora da transação de A: 0)
+== A comita; B deve andar
+  edição final: m2:1,m2:2 — a segunda impressão inteira, sem entrelaçar com a primeira
+  AVISO: supabase/.branches existe no repositório — alguém já rodou o CLI da raiz.
+         Ele é ignorado pelo git, mas não nasceu desta corrida (o retrato acima prova).
+  git status idêntico ao do começo da corrida (inclusive o que o .gitignore esconde em supabase/)
+
+VEREDITO: a trava serializa duas impressões do mesmo período (B esperou em pg_locks),
+          e não serializa períodos diferentes (C passou na hora).

@@ -105,6 +105,7 @@ export * from './data/activity-photos';
 export * from './data/gear';
 export * from './data/places';
 export * from './data/edicoes-ia';
+export * from './data/edicoes-capa';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
 export * from './todo/format';

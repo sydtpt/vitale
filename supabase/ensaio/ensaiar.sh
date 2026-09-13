@@ -84,8 +84,26 @@ idade=$(( $(date '+%s') - base_epoch ))
 if [ "$idade" -gt 7200 ]; then
   diga "  AVISO: o carimbo da base tem $((idade / 3600)) h. O catálogo de produção pode ter mudado sem passar por migration (é o que as divergências conhecidas contam) — considere rodar preparar.sh de novo."
 fi
+# **A própria candidata não conta como pendente.**
+#
+# O aviso existe para dizer "produção pode aplicar OUTRA coisa antes desta". A candidata é
+# pendente por definição — é para isso que ela está sendo ensaiada —, então incluí-la fazia o
+# aviso disparar em toda corrida normal. Aviso que sempre dispara é aviso que ensina a ignorar
+# avisos, e o dia em que houver uma pendente de verdade ele estará indistinguível do ruído.
+outras_pendentes="(nenhuma)"
 if [ "$base_pendentes" != "(nenhuma)" ]; then
-  diga "  AVISO: o repositório tem migration pendente que produção ainda não aplicou ($base_pendentes)."
+  candidata_nome=$(basename "$arquivo")
+  # Os `|| true` não são decoração: quando a candidata é a ÚNICA pendente — o caso normal —
+  # o `grep` não casa nada e sai 1, e sob `set -e` + `pipefail` isso derrubaria o ensaio
+  # inteiro antes de ele aplicar coisa nenhuma.
+  outras_pendentes=$({ printf '%s\n' "$base_pendentes" | tr ' ,' '\n\n' |
+    { grep -v '^[[:space:]]*$' || true; } | { grep -Fxv "$candidata_nome" || true; } |
+    tr '\n' ' ' | sed -E 's/[[:space:]]+$//'; })
+  [ -n "$outras_pendentes" ] || outras_pendentes="(nenhuma)"
+fi
+if [ "$outras_pendentes" != "(nenhuma)" ]; then
+  diga "  AVISO: o repositório tem migration pendente, ALÉM desta candidata, que produção ainda"
+  diga "         não aplicou ($outras_pendentes)."
   diga "         Se ela for aplicada antes da candidata, a base que a candidata vai encontrar lá"
   diga "         não é esta. Ensaie as duas na ordem em que produção vai recebê-las."
 fi

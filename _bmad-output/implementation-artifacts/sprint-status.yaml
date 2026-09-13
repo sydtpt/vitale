@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 13-09-2026 12:06
+last_updated: 13-09-2026 12:11
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -95,10 +95,18 @@ development_status:
   # SEGUNDO lançamento e, publicado antes da migração, quebra do outro lado.
   # É a ÚNICA migração do Épico 1: coluna que a AD-12 dos motores pedir entra
   # aqui, e o CHECK de motivo_de_parada só muda junto com a guarda (6) da 5.1.
-  # NÃO começar sem o ensaio fora de produção de pé. E o raio é o DOBRO do que a
-  # story descreve: upsertEdicao quebra junto com fetchEdicao (achado do test
-  # design), então um build antigo falha ao GRAVAR, não só ao abrir.
-  1-9-a-migração-e-a-leitura-da-forma-nova: backlog
+  # O raio é o DOBRO do que a story descreve: upsertEdicao quebra junto com
+  # fetchEdicao (achado do test design), então um build antigo falha ao GRAVAR,
+  # não só ao abrir.
+  # ESTADO em 12/09, depois da rodada 1 de revisão: código escrito e as quatro
+  # suítes verdes; migração ensaiada fora de produção (aplicação, --falhar-no-fim
+  # e o cenário de edicao_imprimir), com os logs em
+  # implementation-artifacts/revista-1-9/. Falta o que é só do dono: APLICAR em
+  # produção (é a janela da AD-15, na ordem build → migração → JS ativo) e
+  # conferir no iPhone. Duas dívidas nomeadas ficam para a 1.10 e já estão no
+  # deferred-work: a conferência antes de gravar e a leitura de AGG_VERSION no
+  # ponto de montagem da carga do RPC.
+  1-9-a-migração-e-a-leitura-da-forma-nova: review
   # MUDOU DE ESCOPO em 10/09 (AD-13 dos motores): cliente do orquestrador, duas
   # portas (buscar e gravar), só origem 'motor' grava. Só depois de 1.9, 5.1, 5.2
   # e a 5.4 no marco A. A chave fica a mesma — é ela que liga a story à issue.

@@ -52,7 +52,7 @@ import { HeatmapGrid } from '../../components/HeatmapGrid';
 import { TaskGridStrip } from '../../components/TaskGridStrip';
 import { SleepRetroCard } from '../../components/SleepRetroCard';
 import { EdicaoCard } from '../../components/EdicaoCard';
-import { useEdicaoStore } from '../../store/edicao.store';
+import { chaveDe, estadoDe, useEdicaoStore } from '../../store/edicao.store';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
 const KIND_LABEL: Record<PeriodKind, string> = {
@@ -284,15 +284,44 @@ export default function RetrospectivaScreen() {
   // — o mesmo `summary` que a tela já usa, sem recalcular nada.
   const entradaPacote = useMemo(() => ({ resumo: summary, agora: now }), [summary, now]);
   const carregarEdicao = useEdicaoStore((s) => s.carregar);
-  const gerarEdicaoFn = useEdicaoStore((s) => s.gerar);
+  const recarregarEdicaoFn = useEdicaoStore((s) => s.recarregar);
   const edicoes = useEdicaoStore((s) => s.porPeriodo);
-  const chaveEdicao = `${summary.kind}|${summary.startISO}|${summary.endISO}`;
-  const edicaoEstado = edicoes[chaveEdicao] ?? { fase: 'vazio' as const };
-  // Ler é grátis; escrever custa e só acontece a pedido (ver EdicaoCard).
-  useEffect(() => { void carregarEdicao(entradaPacote); }, [carregarEdicao, entradaPacote]);
-  const gerarEdicao = useCallback(
-    () => { void gerarEdicaoFn(entradaPacote); },
-    [gerarEdicaoFn, entradaPacote],
+  // O dono entra na chave: o mapa é do usuário, não do app. Sem ele, quem
+  // trocasse de conta encontraria o texto da anterior desenhado — `pronta` não
+  // relê, e não deve mesmo: período fechado congela.
+  const uidEdicao = useAuthStore((s) => s.user?.id);
+  // A sessão vem do disco: no arranque a frio ela não está pronta no primeiro
+  // quadro. Sem distinguir isso, quem está logado lê "Entre na sua conta" antes
+  // de a sessão chegar.
+  const sessaoHidratando = useAuthStore((s) => s.isLoading);
+  // **Os dois seletores acima devolvem referência estável** (o mapa e uma
+  // string): chamar função dentro deles produziria objeto novo a cada quadro.
+  // A derivação é aqui fora, pela MESMA função que a store usa no `estado()`.
+  const chaveEdicao = useMemo(
+    () => (uidEdicao ? chaveDe(uidEdicao, entradaPacote) : null),
+    [uidEdicao, entradaPacote],
+  );
+  // Antes da primeira resposta, a fase é `carregando` — que não desenha nada. O
+  // cartão só aparece quando há o que dizer; sem sessão, ele diz isso.
+  const edicaoEstado = useMemo(
+    () => estadoDe(edicoes, chaveEdicao, sessaoHidratando),
+    [edicoes, chaveEdicao, sessaoHidratando],
+  );
+  // Só leitura, e ler é de graça. A escrita saiu do celular na Story 1.9 e volta
+  // na 1.10, atrás da sequência da impressão (ver EdicaoCard).
+  //
+  // **`uidEdicao` está nas deps porque `carregar` desiste sem sessão.** A sessão
+  // chega do disco depois do primeiro render; sem reagendar quando ela chega,
+  // ninguém lê a edição pelo resto da montagem e o cartão fica invisível — o
+  // mesmo modo de falha que o estado `sem-sessao` fechou do lado da store,
+  // reaberto aqui pelo efeito.
+  useEffect(
+    () => { void carregarEdicao(entradaPacote); },
+    [carregarEdicao, entradaPacote, uidEdicao],
+  );
+  const recarregarEdicao = useCallback(
+    () => { void recarregarEdicaoFn(entradaPacote); },
+    [recarregarEdicaoFn, entradaPacote],
   );
   const buckets = useMemo(() => kind === 'year' ? yearFn(now, offset) : [], [yearFn, now, kind, offset, loaded, allActs]);
 
@@ -381,7 +410,7 @@ export default function RetrospectivaScreen() {
             )}
             {/* A edição escrita por modelo, logo abaixo da manchete apurada.
                 Some sozinha em período em curso (ADRs 0038/0040). */}
-            <EdicaoCard estado={edicaoEstado} onGerar={gerarEdicao} />
+            <EdicaoCard estado={edicaoEstado} onRecarregar={recarregarEdicao} />
       </>
     ),
     kpis: (

@@ -63,11 +63,23 @@ edicoes=$(prod_ler "select (select count(distinct user_id) from public.edicoes_i
 donos=$(jq -r '.[0].donos' <<< "$edicoes")
 linhas=$(jq -c '.[0].linhas' <<< "$edicoes")
 n_prod=$(jq 'length' <<< "$linhas")
-[ "$n_prod" -gt 0 ] ||
-  falha "produção não tem edição nenhuma — sem as linhas reais, a conferência dos textos passaria por vacuidade"
-[ "$donos" = "1" ] ||
-  falha "produção tem $donos donos de edição — remapear todas para um usuário só colidiria na chave"
-diga "  $n_prod edições, de 1 dono"
+# **Produção sem edição é AVISO, não aborto — e a razão tem data marcada.**
+#
+# Isto abortava, para a conferência dos textos não passar por vacuidade. Só que
+# a migração da 1.9 APAGA as sete edições: no dia em que ela chegar a produção,
+# o aborto tornaria o ensaio irrodável, e com ele a única prova que existe da
+# `edicao_imprimir` — justamente quando a função passa a ser a que escreve. A
+# vacuidade que o aborto evitava continua evitada, mas dita em voz alta: a
+# conferência dos textos, mais abaixo, declara que não teve o que comparar.
+if [ "$n_prod" -gt 0 ]; then
+  [ "$donos" = "1" ] ||
+    falha "produção tem $donos donos de edição — remapear todas para um usuário só colidiria na chave"
+  diga "  $n_prod edições, de 1 dono"
+else
+  diga "  AVISO: produção não tem edição nenhuma — a base local nasce com a tabela vazia."
+  diga "         Esperado depois da migração da 1.9, que apaga as sete. A conferência dos"
+  diga "         textos abaixo não tem o que comparar, e diz isso: ela não prova nada hoje."
+fi
 
 prod_ler "$(cat "$ENSAIO_AQUI/paridade.sql")" | jq -r '.[].l' | LC_ALL=C sort > "$ENSAIO_DIR/paridade-prod.txt"
 n_catalogo=$(wc -l < "$ENSAIO_DIR/paridade-prod.txt" | tr -d ' ')
@@ -199,7 +211,16 @@ diga "  usuário $ENSAIO_EMAIL de pé"
 # jsonb_populate_record ignora em silêncio a chave que a tabela local não tem. Antes de
 # carregar, os dois conjuntos de coluna são comparados: coluna que só existe em produção viraria
 # dado perdido sem nenhuma mensagem.
-cols_prod=$(jq -r '.[0] | keys_unsorted[]' <<< "$linhas" | LC_ALL=C sort)
+#
+# **As colunas de produção saem do `information_schema`, não das linhas.** Lê-las das chaves do
+# JSON amarrava esta conferência a haver linha — e depois da 1.9 não há: a comparação ficaria
+# desligada para sempre, exatamente no estado permanente da tabela, e é ela que pega a coluna
+# que só existe lá.
+cols_prod=$(prod_ler "select column_name as c from information_schema.columns
+  where table_schema = 'public' and table_name = 'edicoes_ia' order by column_name" |
+  jq -r '.[].c' | grep -v '^user_id$' | LC_ALL=C sort)
+[ -n "$cols_prod" ] ||
+  falha "produção não tem a tabela edicoes_ia, ou o information_schema veio vazio — a comparação de colunas passaria por vacuidade"
 cols_local=$(local_psql -c "select a.attname from pg_attribute a
   join pg_class c on c.oid = a.attrelid
   join pg_namespace n on n.oid = c.relnamespace
@@ -211,6 +232,14 @@ so_local=$(LC_ALL=C comm -13 <(printf '%s\n' "$cols_prod") <(printf '%s\n' "$col
   falha "edicoes_ia tem em produção coluna que a base local não tem — a carga a jogaria fora calada: $(echo $so_prod)"
 [ -z "$so_local" ] ||
   falha "edicoes_ia tem na base local coluna que produção não tem: $(echo $so_local) — a base não é a de produção"
+diga "  $(printf '%s\n' "$cols_prod" | wc -l | tr -d ' ') colunas de edicoes_ia, as mesmas dos dois lados (sem depender de haver linha)"
+
+# Só a CARGA depende de haver linha. O ensaio segue com a tabela vazia, que é o estado que
+# produção terá depois da 1.9.
+if [ "$n_prod" -eq 0 ]; then
+  n_local=0
+  diga "  nenhuma edição a carregar (produção está vazia)"
+else
 
 # O JSON entra por dollar quote, num rótulo que não aparece nele — e por stdin, não por
 # argumento: o texto das edições não passa pela linha de comando.
@@ -236,6 +265,8 @@ fi
 n_local=$(local_psql -c "select count(*) from public.edicoes_ia")
 [ "$n_local" = "$n_prod" ] || problema "produção tem $n_prod edições e o local ficou com $n_local"
 diga "  $n_local edições carregadas ($(printf '%s\n' "$cols_prod" | wc -l | tr -d ' ') colunas, as mesmas de produção)"
+
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────────
 diga "== paridade de catálogo e de ACL"
@@ -335,10 +366,19 @@ veredito=$(jq -r --rawfile md "$MD" '
     end
 ' <<< "$locais")
 ok_textos=$(printf '%s\n' "$veredito" | grep -c '^ok|' || true)
-diga "  $ok_textos de $n_local textos estão inteiros em $(basename "$MD")"
-if [ "$ok_textos" != "$n_local" ]; then
-  problema "edição sem registro no .md — a migração da 1.9 apagaria texto que o git não guarda:"
-  printf '%s\n' "$veredito" | grep -v '^ok|' | sed 's/^[^|]*|/    /' >&2
+# **Zero de zero não é aprovação.** É o caso que o aborto de antes existia para
+# impedir, e que agora é dito em vez de abortado: sem linha no banco, o `jq`
+# acima não tem sobre o que rodar e `0 = 0` passaria como "todos conferidos".
+if [ "$n_local" -eq 0 ]; then
+  diga "  NADA A COMPARAR: a tabela está vazia, então esta conferência não prova nada"
+  diga "  nesta corrida. O que ela garante — que o texto que a 1.9 apaga está no git —"
+  diga "  já foi garantido na corrida em que as sete ainda existiam."
+else
+  diga "  $ok_textos de $n_local textos estão inteiros em $(basename "$MD")"
+  if [ "$ok_textos" != "$n_local" ]; then
+    problema "edição sem registro no .md — a migração da 1.9 apagaria texto que o git não guarda:"
+    printf '%s\n' "$veredito" | grep -v '^ok|' | sed 's/^[^|]*|/    /' >&2
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────────

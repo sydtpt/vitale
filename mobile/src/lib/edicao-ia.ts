@@ -1,117 +1,62 @@
 /**
- * A chamada à camada de narração — o único pedaço do caminho que sai do aparelho.
- * Spec: docs/specs/ia-analitica/spec.md · ADRs 0038 e 0040.
+ * A leitura da edição impressa — e, por ora, **só** a leitura.
+ * Spec: docs/specs/ia-analitica/spec.md · ADRs 0038 e 0040 · Story 1.9.
  *
- * Tudo que decide alguma coisa acontece **aqui no telefone**: o pacote de fatos
- * é montado do `RetroSummary` que a tela já calculou, o prompt sai do núcleo, e
- * a conferência das quatro regras roda sobre a resposta antes de qualquer
- * gravação. A edge function só guarda a chave.
+ * ## Por que o celular parou de escrever
  *
- * Por isso a ordem importa e não é negociável: **verifica antes de gravar**. Um
- * texto que cita número inventado, afirma causa ou esconde ressalva não é uma
- * edição ruim — não é uma edição.
+ * A edição virou uma linha por caderno, e a ordem é a coluna `posicao`. Quem
+ * decide essa ordem é `ordenarCadernos`, que a tela **não pode importar** — há
+ * barreira no `architecture.test.ts` — porque a ordem congela na impressão e
+ * recalculá-la na leitura reordenaria período fechado em silêncio.
+ *
+ * Gravar uma linha só, rotulada com um caderno qualquer para contornar isso,
+ * poria mentira num arquivo que o Épico 2 vai imprimir 53 vezes e o anuário do
+ * Épico 3 vai ler. A sequência da impressão — as chamadas ao orquestrador, a
+ * conferência de cada texto e a gravação atômica pela função `edicao_imprimir` —
+ * é a Story 1.10. O intervalo custa pouco: a migração já apagou as 7 edições de
+ * produção, então o arquivo nasce vazio de qualquer jeito.
+ *
+ * Nada aqui chama modelo, nada aqui grava.
  */
 import {
-  montarPacotes, montarPromptDaEdicao, verificarTexto, PACOTE_VERSAO, PROMPT_VERSAO,
-  upsertEdicao, fetchEdicao,
-  type EntradaPacote, type PacoteDeFatos, type Edicao, type Problema,
+  periodoFechado, temEdicao, fetchEdicao,
+  type EntradaPacote, type Edicao,
 } from '@vitale/shared';
 import { supabase } from './supabase';
 
-interface Narracao {
-  texto: string;
-  provedor: string;
-  modelo: string;
-  motivoDeParada: string;
-  tokens: { entrada: number; saida: number };
-}
-
-export type ResultadoEdicao =
-  | { estado: 'ok'; edicao: Edicao }
-  /** Período em curso: por desenho não ganha parágrafo (§3 do spec). */
-  | { estado: 'aberto' }
-  /** O texto voltou, mas reprovou. Não grava, e diz por quê. */
-  | { estado: 'reprovado'; problemas: Problema[]; texto: string }
-  | { estado: 'erro'; mensagem: string };
-
-async function narrar(pacotes: readonly PacoteDeFatos[]): Promise<Narracao> {
-  const { data, error } = await supabase.functions.invoke('ia-narrar', {
-    // A função da EDIÇÃO, não a do caderno: até a Story 1.10 o celular narra os
-    // quatro cadernos num texto só, e `montarPrompt` passou a ser por caderno.
-    body: montarPromptDaEdicao(pacotes),
-  });
-  if (error) throw error;
-  const d = data as Partial<Narracao> & { error?: string; detalhe?: string };
-  if (d.error) throw new Error(d.detalhe ?? d.error);
-  if (!d.texto) throw new Error('resposta sem texto');
-  // Truncado não é edição — o banco também recusa, mas falhar aqui dá a
-  // mensagem certa em vez de um erro de constraint.
-  if (d.motivoDeParada && d.motivoDeParada !== 'STOP') {
-    throw new Error(`texto truncado (${d.motivoDeParada})`);
-  }
-  return {
-    texto: d.texto,
-    provedor: d.provedor ?? 'desconhecido',
-    modelo: d.modelo ?? 'desconhecido',
-    motivoDeParada: d.motivoDeParada ?? 'STOP',
-    tokens: d.tokens ?? { entrada: 0, saida: 0 },
-  };
-}
+export type LeituraDaEdicao =
+  /**
+   * Não há edição a mostrar, e não haverá agora — **é ausência, não pendência**.
+   *
+   * Duas razões caem aqui de propósito, porque a tela faz a mesma coisa com as
+   * duas (nada):
+   *
+   * - **período em curso**: um jornal não anuncia a edição que ainda não fechou;
+   * - **período que nunca tem edição**: o Total não fecha nunca, e o CHECK de
+   *   `tipo_periodo` o recusa. Dizer "fechou e não foi escrito" nele seria
+   *   prometer uma edição que o banco não aceita.
+   */
+  | { estado: 'ausente' }
+  /** A edição do período — vazia quando ele fechou e ainda não foi escrito. */
+  | { estado: 'ok'; edicao: Edicao };
 
 /**
- * A edição já impressa deste período, ou `null`.
+ * Os cadernos já impressos deste período, na ordem gravada.
  *
- * Todos os cadernos de uma edição falam do mesmo período, então o primeiro
- * pacote basta para achar a linha.
+ * A ausência é resolvida **antes** da consulta: não há linha para achar, e gastar
+ * uma ida ao banco para descobrir isso seria uma consulta por folheada.
+ *
+ * A chave sai de `resumo.{kind,startISO,endISO}` — os mesmos três campos que
+ * `montarPacotes` copia para `periodo`, sem normalizar nada. A equivalência está
+ * fixada em `ia/pacote.test.ts`: se um dia a montagem normalizar, é lá que
+ * reprova, e não aqui, calado, com a edição sumindo da tela.
  */
 export async function buscarEdicao(
   userId: string, entrada: EntradaPacote,
-): Promise<Edicao | null> {
-  const { periodo } = montarPacotes(entrada)[0];
-  return fetchEdicao(supabase, userId, periodo.tipo, periodo.inicioISO, periodo.fimISO);
-}
-
-/**
- * Imprime a edição de um período fechado: monta, narra, confere, grava.
- * Não faz nada se o período está em curso — a decisão é do núcleo, não da tela.
- *
- * **Ainda uma chamada e um texto só.** O pacote passou a ser um por caderno
- * (`PACOTE_VERSAO` 2), mas a tabela ainda guarda uma linha por período e a
- * sequência da impressão por caderno é a Story 1.10 — narrar quatro vezes aqui
- * seria quadruplicar a chamada paga antes de haver onde gravar as quatro
- * linhas. Até lá a edição é narrada e conferida contra **o conjunto**, que é
- * exatamente o alfabeto que a versão 1 já usava: nada afrouxou.
- */
-export async function gerarEdicao(
-  userId: string,
-  entrada: EntradaPacote,
-): Promise<ResultadoEdicao> {
-  const pacotes = montarPacotes(entrada);
-  const { periodo } = pacotes[0];
-  if (!periodo.fechado) return { estado: 'aberto' };
-
-  try {
-    const n = await narrar(pacotes);
-    const v = verificarTexto(n.texto, pacotes);
-    if (!v.ok) return { estado: 'reprovado', problemas: v.problemas, texto: n.texto };
-
-    const edicao = await upsertEdicao(supabase, userId, {
-      tipoPeriodo: periodo.tipo,
-      inicio: periodo.inicioISO,
-      fim: periodo.fimISO,
-      texto: n.texto,
-      provedor: n.provedor,
-      modelo: n.modelo,
-      promptVersao: PROMPT_VERSAO,
-      pacoteVersao: PACOTE_VERSAO,
-      motivoDeParada: n.motivoDeParada,
-      tokensEntrada: n.tokens.entrada,
-      tokensSaida: n.tokens.saida,
-      // A versão da agregação não aparece aqui: o núcleo a carimba no ponto de
-      // gravação. O telefone não escolhe — não tem como escolher.
-    });
-    return { estado: 'ok', edicao };
-  } catch (e) {
-    return { estado: 'erro', mensagem: e instanceof Error ? e.message : String(e) };
-  }
+): Promise<LeituraDaEdicao> {
+  const { kind, startISO, endISO } = entrada.resumo;
+  if (!temEdicao(kind)) return { estado: 'ausente' };
+  if (!periodoFechado(kind, endISO, entrada.agora)) return { estado: 'ausente' };
+  const edicao = await fetchEdicao(supabase, userId, kind, startISO, endISO);
+  return { estado: 'ok', edicao };
 }

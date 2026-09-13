@@ -221,6 +221,47 @@ describe('periodoFechado', () => {
   });
 });
 
+/**
+ * A CHAVE DA EDIÇÃO É A MESMA, venha do pacote ou do resumo (Story 1.9).
+ *
+ * `buscarEdicao` (mobile) deixou de montar os quatro pacotes só para ler
+ * `periodo.{tipo,inicioISO,fimISO}` e passou a ler `resumo.{kind,startISO,endISO}`
+ * direto — montar um pacote inteiro para extrair três strings é caro, e a leitura
+ * não usa mais nada dele. A troca só é segura enquanto `montarPacotes` copiar
+ * esses três campos **sem normalizar nada**.
+ *
+ * Se um dia ela normalizar — recortar o fim ao último dia com dado, alinhar o
+ * início à segunda-feira —, a leitura passaria a procurar numa chave diferente
+ * daquela que a impressão grava, e o sintoma seria silencioso: a edição existe no
+ * banco e a tela diz que o período não foi escrito. Este teste é o que faz essa
+ * mudança reprovar aqui, do lado de quem normalizou.
+ */
+describe('a chave do período no pacote é a do resumo, sem normalização', () => {
+  it('tipo, início e fim atravessam idênticos, nos quatro cadernos', () => {
+    const resumo = agosto();
+    for (const p of montarPacotes({ resumo, agora: AGORA })) {
+      assert.equal(p.periodo.tipo, resumo.kind, `caderno ${p.caderno}: tipo`);
+      assert.equal(p.periodo.inicioISO, resumo.startISO, `caderno ${p.caderno}: início`);
+      assert.equal(p.periodo.fimISO, resumo.endISO, `caderno ${p.caderno}: fim`);
+    }
+  });
+
+  it('e `fechado` é exatamente o que `periodoFechado` responde sobre o resumo', () => {
+    const resumo = agosto();
+    const esperado = periodoFechado(resumo.kind, resumo.endISO, AGORA);
+    for (const p of montarPacotes({ resumo, agora: AGORA })) {
+      assert.equal(p.periodo.fechado, esperado, `caderno ${p.caderno}`);
+    }
+    // E com o relógio dentro do período, o mesmo par continua casando.
+    const emCurso = new Date('2026-08-15T10:00:00');
+    const esperadoAberto = periodoFechado(resumo.kind, resumo.endISO, emCurso);
+    assert.equal(esperadoAberto, false);
+    for (const p of montarPacotes({ resumo, agora: emCurso })) {
+      assert.equal(p.periodo.fechado, esperadoAberto, `caderno ${p.caderno}`);
+    }
+  });
+});
+
 /* ── cobertura ── */
 
 describe('coberturaDe', () => {
