@@ -3,6 +3,10 @@
 Escrito em 13/09/2026, com produção medida no mesmo dia: **7 edições**, todas com
 `agg_version_no_momento` **nulo**, e **67 migrations** registradas.
 
+**A janela foi executada em 13/09/2026 e deu certo.** O que está escrito abaixo é o que
+foi seguido; a seção 6, no fim, registra o que só se aprendeu fazendo — inclusive um
+pré-requisito que faltava aqui e custou dois builds.
+
 Este arquivo é para ser seguido **na hora**, com o telefone na mão.
 
 Os passos 4, 5 e 6 estão automatizados em [`aplicar.sh`](aplicar.sh), ao lado deste
@@ -29,6 +33,9 @@ Por quê, em detalhe:
 - **Ao abrir**, o app velho faz `.maybeSingle()` sobre quatro colunas. Com `caderno` na
   chave, a mesma consulta passa a casar até quatro linhas e o PostgREST devolve erro
   (`PGRST116`) em vez de linha. O cartão mostra a mensagem de erro.
+  > **Não confirmado na prática.** Na janela de 13/09 o app fechou ao abrir, mas o log do
+  > aparelho mostrou outra causa (ver seção 6), e o app velho nunca foi lançado de novo
+  > contra o schema novo. O comportamento acima segue sendo dedução, não medição.
 - **Ao gravar**, o `onConflict` do app velho nomeia uma chave que deixou de existir
   (`42P10`), e o payload não tem as colunas novas obrigatórias (`23502`). O raio é o
   dobro do que a story original dizia: não é só leitura.
@@ -75,6 +82,21 @@ abrir a Retrospectiva nesse intervalo.
      intervalo quebrado fica sendo os minutos entre a migração e o toque em "instalar".
    - **`eas update`**: publique **só depois** da migração. O update baixa num lançamento
      e **só vale no seguinte**, então o app fica quebrado por dois lançamentos.
+
+   **De qual árvore** (custou dois builds em 13/09): o `.app` tem de sair de uma árvore
+   que contenha a 1.9, e o nome da branch não prova isso. Confira **dentro do bundle**:
+   ```bash
+   python3 conferir-bundle.py <caminho>/Orbe.app/main.jsbundle
+   ```
+   Ele procura as marcas da 1.9 em ASCII **e** em UTF-16 — o Hermes guarda string com
+   acento em UTF-16, então `grep` simples devolve zero para frase acentuada que **está**
+   lá.
+
+   **O `.env` é pré-requisito.** `mobile/.env` está no `.gitignore`, então worktree nova
+   nasce sem ele, e o `xcodebuild` local não lê o `eas.json`. Sem
+   `EXPO_PUBLIC_SUPABASE_URL`/`ANON_KEY` o app compila e **morre no lançamento**, antes de
+   qualquer tela (`Error: supabaseUrl is required.`). Copie da árvore principal antes de
+   compilar.
 3. **Confirmar que produção ainda tem sete edições** (só leitura):
    ```sql
    select count(*) from public.edicoes_ia;
@@ -139,5 +161,32 @@ abrir a Retrospectiva nesse intervalo.
 | Passo 4 | erro na aplicação | Nada mudou — a transação é única. Leia a mensagem; se for a guarda das sete, exporte a edição nova e ajuste o número. |
 | Passo 4 | a chamada não responde | Confira o passo 6 antes de repetir: se a forma nova já estiver lá, **não repita** (a guarda das sete abortaria, mas o registro do passo 5 pode ter ficado para trás). |
 | Passo 7 | o app abre com erro | O JS ativo ainda é o velho. Instale o build, ou abra o app mais uma vez se foi por `eas update`. |
+| Passo 7 | **o app fecha sozinho ao abrir** | **Não conclua que é o schema.** Leia o log do aparelho antes: `xcrun devicectl device process launch --device <id> --console --terminate-existing com.sydtpt.vitale`. Em 13/09 o sintoma parecia o intervalo quebrado e era `.env` faltando. |
 | Passo 9 | a função recusa a chamada | Quase sempre é `set local role authenticated` esquecido, ou `metrica_lider` ausente no objeto — a função diz qual, com nome. |
 | Depois | quer voltar atrás | Não há caminho de volta com o dado. O caminho é para a frente: consertar o JS, ou escrever a migração seguinte. |
+
+## 6. O que só se aprendeu fazendo (13/09/2026)
+
+A janela levou cerca de uma hora, e o banco nunca esteve em risco: a migração aplicou de
+primeira e as nove conferências passaram. O tempo foi todo do lado do **aparelho**.
+
+1. **O build saiu da árvore errada.** O `.app` de 12:27 vinha de
+   `~/Projects/life-organizer`, que estava na frente `feat/revista-luz-do-dia` — sem a
+   1.9. Descoberto lendo o bundle, não o nome da branch. Daí o `conferir-bundle.py`.
+2. **O Hermes guarda acento em UTF-16.** `grep` no `main.jsbundle` achava
+   `metrica_lider` e não achava "A impressão está parada" — as duas estavam lá. Conferir
+   nas duas codificações, ou o veredito sai errado.
+3. **`mobile/.env` não acompanha worktree**, e sem ele o app morre no lançamento com
+   `Error: supabaseUrl is required.` — antes de qualquer tela, e sem relação nenhuma com
+   o schema.
+4. **Sintoma lido pela expectativa.** O app fechou no minuto exato em que o intervalo
+   quebrado era esperado, e a causa foi atribuída à migração sem prova. O log estava a um
+   comando de distância. **Ler o log antes de nomear a causa.**
+5. **Existe `eas update` publicado no canal `preview` de 07/09**, anterior à 1.9. Não
+   atrapalhou (o bundle embutido é mais novo e tem precedência), mas **publicar um update
+   de branch sem a 1.9 quebra o app sem ninguém tocar em nada**.
+
+**O que a semeadura provou**, e nenhum teste provava: a `edicao_imprimir` chamada em
+produção como `authenticated` com o JWT real gravou os três cadernos em `posicao` 1, 2 e
+3, com `metrica_lider` **nulo** no de Coração — o caso da lápide, aceito por decisão do
+dono. Desfeita em seguida: `edicoes_ia` e `edicoes_capa` voltaram a zero.
