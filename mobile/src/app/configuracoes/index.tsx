@@ -53,6 +53,7 @@ export default function ConfiguracoesScreen() {
         { icon: 'notifications-outline', label: 'Notificações', sub: notifSub, route: '/configuracoes/notificacoes' },
         { icon: 'color-filter-outline', label: 'Gráficos', sub: 'Linhas de referência', route: '/configuracoes/paleta' },
         { icon: 'trophy-outline', label: 'Objetivos', sub: 'Macros e treino', route: '/configuracoes/objetivos' },
+        { icon: 'sparkles-outline', label: 'Motores', sub: 'Quem escreve cada leitura', route: '/configuracoes/motores' },
       ],
     },
     {

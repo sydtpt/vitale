@@ -2,7 +2,7 @@
 title: 'Story 5.5 — O botão Ler e a escolha do motor, marco A (F2)'
 type: 'feature'
 created: '2026-09-12'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'ca7724d3354f12bf926944e82cbebe3a6e8bf99f'
 context:
@@ -148,41 +148,41 @@ escolher quem escreve; e uma tela de desenvolvimento roda os motores lado a lado
 
 **Execution:**
 
-- [ ] `mobile/src/lib/motores/catalogo.ts` — declarar os `MotorId` que o app conhece, cada um com
+- [x] `mobile/src/lib/motores/catalogo.ts` — declarar os `MotorId` que o app conhece, cada um com
   `disponivel: boolean` e `motivo?: string`. No marco A: `sem-modelo` e `nuvem:padrao` disponíveis;
   `aparelho:sistema` **listado e indisponível**, motivo "a ponte para o modelo do sistema ainda não
   existe neste build". Exportar `idsConhecidos` para alimentar `resolverCadeia`. Puro, testado.
-- [ ] `mobile/src/lib/motores/index.ts` — o ponto de injeção: `invocar` sobre
+- [x] `mobile/src/lib/motores/index.ts` — o ponto de injeção: `invocar` sobre
   `supabase.functions.invoke('ia-narrar', …)` traduzindo para `{status, corpo} | {semRede}` **sem
   lançar**, `motorPara(id)` devolvendo `criarMotorDeNuvem(invocar)` para `nuvem:*` e `undefined` para
   o resto, e a serialização por motor (uma chamada de nuvem por vez). É o **único** arquivo do app
   que cita `'ia-narrar'`.
-- [ ] `mobile/src/lib/motores/preferencia.ts` — mapa `RecursoId` → `MotorId` em AsyncStorage sob
+- [x] `mobile/src/lib/motores/preferencia.ts` — mapa `RecursoId` → `MotorId` em AsyncStorage sob
   `vitale:motores-preferencia`, com `KVStore` injetável e fila encadeada no molde de
   `sync-breadcrumbs`. Ler nunca lança; valor ilegível devolve `null`.
-- [ ] `mobile/src/lib/motores/anel.ts` — buffer em memória com teto, alimentado por `registrar`;
+- [x] `mobile/src/lib/motores/anel.ts` — buffer em memória com teto, alimentado por `registrar`;
   expõe leitura para a tela de desenvolvimento. Não persiste, não sai do aparelho.
-- [ ] `mobile/src/lib/assinatura.ts` — funções **puras**: `textoDaAssinatura(estado)` e
+- [x] `mobile/src/lib/assinatura.ts` — funções **puras**: `textoDaAssinatura(estado)` e
   `motivoDaFalha(classe)`, cobrindo as sete classes por `switch` exaustivo. É o texto da pergunta 3
   e da pergunta 5 do dono.
-- [ ] `mobile/src/lib/leitura-da-saude.ts` — o hook `useLeituraDaSaude(entrada)`: máquina de quatro
+- [x] `mobile/src/lib/leitura-da-saude.ts` — o hook `useLeituraDaSaude(entrada)`: máquina de quatro
   estados (repouso, escrevendo, lida, piso), `resolverCadeia` com a preferência, `ler` em modo
   produto, dedupe por `hashDoPedido` e descarte de resposta fora do hash corrente.
-- [ ] `mobile/src/store/sono.store.ts` — acrescentar `carregarNotasDesde(dia)` que estende o mapa de
+- [x] `mobile/src/store/sono.store.ts` — acrescentar `carregarNotasDesde(dia)` que estende o mapa de
   notas sem mexer em `SONO_WINDOW_DAYS`; a tela a chama quando a janela pede mais de 90 dias.
-- [ ] `mobile/src/app/sono/saude.tsx` — trocar a fórmula à mão por `entradaDaSaude` (com `hoje` como
+- [x] `mobile/src/app/sono/saude.tsx` — trocar a fórmula à mão por `entradaDaSaude` (com `hoje` como
   **dia local**), pôr o botão de ícone no slot do `HeaderSpacer` e a vaga da frase entre o `PeriodNav`
   e o `SleepScoreDims`.
-- [ ] `mobile/src/app/configuracoes/motores/index.tsx` + a linha no hub
+- [x] `mobile/src/app/configuracoes/motores/index.tsx` + a linha no hub
   (`mobile/src/app/configuracoes/index.tsx`) — os recursos vindos de `CATALOGO_DE_RECURSOS`, os
   motores do catálogo do app, indisponível apagado com motivo, escolha gravada na preferência.
-- [ ] `mobile/src/app/configuracoes/motores/bancada.tsx` — a tela de desenvolvimento: `PeriodNav`
+- [x] `mobile/src/app/configuracoes/motores/bancada.tsx` — a tela de desenvolvimento: `PeriodNav`
   para escolher a janela e, por motor conhecido, uma linha com a frase do template à esquerda e a do
   motor à direita, mais `desfecho`, `ms`, tokens e o **texto cru** — modo `medicao`, um motor por vez.
-- [ ] `packages/shared/src/architecture.test.ts` — baixar `TETO_DA_FORMULA_DO_PERIODO` de 2 para 1 e
+- [x] `packages/shared/src/architecture.test.ts` — baixar `TETO_DA_FORMULA_DO_PERIODO` de 2 para 1 e
   acrescentar a **barreira nova**: nenhum arquivo de `mobile/src`, `web/src` ou `scripts/` chama
   `.montarPedido(`, `.interpretar(`, `.conferir(`, `.montarFrase(`, `.semModelo(` ou `.pedidoCurto(`.
-- [ ] `mobile/src/lib/__tests__/` — testes puros da matriz de I/O: catálogo, preferência (incluindo a
+- [x] `mobile/src/lib/__tests__/` — testes puros da matriz de I/O: catálogo, preferência (incluindo a
   corrida de duas escritas), assinatura nas sete classes, e a máquina de estados com motores falsos.
 
 **Acceptance Criteria:**
@@ -200,6 +200,102 @@ escolher quem escreve; e uma tela de desenvolvimento roda os motores lado a lado
   `expo-doctor` 21/21 — e o veredito final é do dono, no iPhone.
 
 ## Spec Change Log
+
+- **2026-09-13 — a barreira nova nasceu partida em duas, porque uma das seis tem passivo.** A spec pede
+  uma barreira de teto zero sobre `.montarPedido(`, `.interpretar(`, `.conferir(`, `.montarFrase(`,
+  `.semModelo(` e `.pedidoCurto(`. Cinco delas estão mesmo em zero e entraram como **barreira**. A
+  sexta não: `scripts/bancada/medir.ts:186` chama `D.montarPedido(e)` desde a 5.4, e por um motivo que
+  ainda vale — ela precisa do **corpo** do pedido para o relatório (o `sistema` e o `usuario` que o dono
+  lê) e do hash da coluna do template, que o `Medicao` do modo `medicao` não devolve. Seguindo a regra
+  do épico ("as guardas que têm passivo nascem catraca"), `montarPedido` entrou como **catraca com teto
+  1**, com o histórico escrito e o caminho para zerá-la: fazer o `Medicao` do template carregar o
+  pedido. Nenhum teto subiu, e a bancada não ficou com liberação implícita — ela aparece nomeada na
+  falha da catraca no dia em que um segundo arquivo a acompanhar.
+
+- **2026-09-13 — o descarte compara a janela, não o `hashDoPedido`: o app não pode calcular o hash.**
+  A spec descreve o dedupe e o descarte por `hashDoPedido`. O hash sai de `montarPedido`, que é do
+  descritor — e chamá-lo do app é exatamente o que a barreira acima passa a proibir. O que o app tem é
+  a **pré-imagem**: a entrada. `chaveDaJanela(entrada)` carrega o `range`, o dia local, as bordas
+  apuradas **e a contagem** (ponto e fato de cada dimensão, cobertura, se pontuou) — e o pedido é função
+  só disso, porque o caso sai do `score`. Mesma chave, mesmo pedido, mesmo hash.
+
+  A diferença aparece num caso, e ela **corrige** em vez de afrouxar: duas janelas no mesmo caso têm o
+  mesmo hash de propósito, e comparar por hash as trataria como intercambiáveis. Não são — `montarFrase`
+  já interpolou `{janela}` e `{quando}` com as datas da janela em que a frase nasceu, então a frase da
+  janela anterior afirmaria datas erradas sob a janela nova. A chave descarta o que o hash aprovaria, e
+  faz bem. O hash continua existindo na tela: ele vem **do anel** (`EventoDoAnel.hash`), e vai até a
+  tela de desenvolvimento.
+
+  Medido na prática ao escrever isto: a contagem tinha de entrar na chave. A tela carrega 90 dias de
+  nota e só depois estende a janela para `12m`, então a percepção muda **depois** de a frase já estar na
+  tela — sem a contagem na chave, a manchete ficaria afirmando um caso que as cinco linhas abaixo dela
+  já não mostram.
+
+- **2026-09-13 — PERGUNTA ABERTA (linha 10 da matriz): "a cobertura cai" nomeia um campo que notas não
+  movem.** A coluna de falha da linha "janela maior que 90 dias" diz: "se a busca falhar, conta com o
+  que há e a cobertura cai". A primeira metade é inequívoca e está coberta por teste. A segunda tem
+  duas leituras, e **uma delas é falsa no código**:
+  - `score.coverage` (o que `coverageNote` imprime, e o único campo que se chama cobertura) é
+    `noites gravadas / noites esperadas` — `periodScore` o calcula antes de olhar qualquer nota. Nota
+    que falta **não o move**, e medimos isso: com 200 noites, a cobertura é idêntica com 365 notas e
+    com 89.
+  - O que cai de fato é o **alcance da contagem**: `percepcao` fica `absent` ("você não deu nota"), o
+    denominador encolhe (`max` 10 → 8) e o fato da linha mostra o `n` menor de notas.
+
+  Implementei e testei a segunda leitura, que é a verdadeira — mas **não escolhi** por ninguém: o
+  teste afirma só o que é observável (o fato muda, `max` encolhe, a cobertura de noites **não** muda)
+  e diz por escrito que este é o ponto em que a matriz e o código não falam da mesma grandeza. Se o
+  dono quis dizer o campo `coverage`, a linha é falsa como escrita e a decisão é dele — nota não é
+  noite, e fazer a cobertura de noites reagir a nota seria mentir em outra direção.
+
+- **2026-09-13 (revisão) — a assinatura do piso por falha ganhou o tempo, e o texto da matriz virou o
+  começo dela.** A matriz cita três assinaturas de falha sem tempo ("a nuvem recusou · escrito sem
+  modelo"), enquanto as duas linhas de sucesso o trazem. O tempo entrou também nas de falha, porque a
+  razão escrita para **não** haver um "Reler" no cabeçalho é que "quem diz que o botão foi apertado
+  outra vez é a assinatura trocando o tempo" — e sem ele duas tentativas seguidas davam texto
+  idêntico, justamente no caso em que o dono mais tenta de novo. O texto que a matriz cita é
+  preservado **à letra** como começo da assinatura, e há teste que afirma isso como prefixo. **Se o
+  dono quis as três linhas sem tempo, é reverter uma linha** — a decisão é dele.
+
+- **2026-09-13 (revisão) — o estouro do prazo é `transitoria`, declarado pelo hospedeiro.** Não havia
+  prazo em camada nenhuma: uma chamada pendurada deixava a vaga em `escrevendo` para sempre. Agora o
+  transporte do app aborta em 60 s (o mesmo `PRAZO_MS` da bancada) pelo **seu próprio `AbortSignal`**,
+  e não pela opção `timeout` do cliente: abortando nós mesmos, sabemos que o aborto foi nosso e o
+  classificamos como `transitoria` (que é a definição do núcleo para timeout, e cai no piso sem
+  recuar). Deixar o cliente abortar devolveria um erro indistinguível de "o wi-fi caiu", que vira
+  `indisponivel` e **recua para o próximo elo**. A classe sobe num `CorpoDaFalha` com o status que a
+  5.6 vai emitir para ela — usar o contrato, não falsificar uma resposta HTTP.
+  **Divergência conhecida:** `scripts/bancada/motores.ts` ainda mapeia o próprio timeout para
+  `semRede`/`indisponivel`. Não foi tocado (é código da 5.4, fora deste diff), mas a bancada e a tela
+  classificam o mesmo evento de formas diferentes.
+
+- **2026-09-13 (revisão) — a camada de motores passou a declarar quais recursos ela hospeda.** O
+  seletor oferecia escolha para a Retrospectiva, cujo caminho (`lib/edicao-ia.ts`) nunca consulta a
+  preferência: um controle inerte, que mente tanto quanto uma opção escondida. Em vez de esconder, a
+  camada declara (`HOSPEDAGEM`, fechada sobre `RecursoId`, então recurso novo não compila até alguém
+  responder) e o seletor bloqueia com "ainda não usado nesta versão", no mesmo idioma do motor
+  indisponível. Sai junto a razão por `grava.admite` e a gramática de id, que agora vem de
+  `lerMotorId` e não de `startsWith`.
+
+- **2026-09-13 (revisão) — a guarda nova do `montarPedido` nomeia o ofensor, e detecta por AST.** O
+  teto sozinho ficaria verde com a ofensa mudando de lugar (a bancada para, uma tela começa, o número
+  continua 1), então a asserção é a lista **exata**. E o detector virou AST: um casador com ponto
+  deixava passar `d['montarFrase'](…)` e `const { conferir } = d`. A não-vacuidade passa pelo caminho
+  real — arquivos de fixture num diretório temporário, pelo mesmo `chamamMetodo` que as guardas
+  chamam —, não por um `RegExp` irmão que poderia divergir do de verdade. `supabase/functions/` entrou
+  no alcance, porque é onde a 5.6 vai morar.
+
+- **2026-09-13 (revisão) — o toque numa janela nova durante a espera custa duas chamadas em série.**
+  `emCurso` passou a ser chaveado pela janela, então o toque na janela nova dispara leitura própria em
+  vez de ser engolido. Mas a fila do motor (uma chamada de nuvem por vez) faz a segunda esperar a
+  primeira, que já está condenada ao descarte: o dono pode esperar ~28 s. Cancelar a primeira exigiria
+  levar o aborto da máquina até o transporte, que é mudança maior do que esta correção — fica
+  anotado, não feito.
+
+- **2026-09-13 — a bancada põe o template junto do motor, empilhado, não "à esquerda".** A spec pede a
+  frase do template à esquerda e a do motor à direita, na mesma linha. Num telefone não cabem duas
+  colunas de prosa: cada bloco de motor repete a frase do template rotulada logo acima da dele. O que
+  faz a comparação é a adjacência na mesma janela, que está preservada; a geometria não.
 
 ## Design Notes
 
@@ -253,3 +349,88 @@ Quem zera é quem trocar a tela da web.
   devolve vazio.
 - O portão do dono fica aberto: ele aperta o ícone no iPhone, lê a frase, troca o motor no seletor e
   compara na tela de desenvolvimento. Verde no CI nunca quer dizer motor funcionando.
+
+## Suggested Review Order
+
+**O caminho da leitura**
+
+- O ponto de partida: a máquina de quatro estados, e quem pode pedir uma leitura.
+  [`leitura-da-saude.ts:143`](../../mobile/src/lib/leitura-da-saude.ts#L143)
+
+- A decisão que substituiu o `hashDoPedido`: o app não pode calcular o hash, então usa a pré-imagem.
+  [`leitura-da-saude.ts:82`](../../mobile/src/lib/leitura-da-saude.ts#L82)
+
+- O dedupe é por chave, não global — o toque numa janela nova abre a sua própria leitura.
+  [`leitura-da-saude.ts:271`](../../mobile/src/lib/leitura-da-saude.ts#L271)
+
+**A porta da nuvem, no aparelho**
+
+- O único arquivo do app que pode nomear a function; tudo o mais entra pela porta do núcleo.
+  [`motores/index.ts:42`](../../mobile/src/lib/motores/index.ts#L42)
+
+- O prazo é nosso, com `AbortController` próprio: só assim o estouro é `transitoria` e não recua.
+  [`motores/index.ts:130`](../../mobile/src/lib/motores/index.ts#L130)
+
+- Status não-2xx é dado, não exceção — o desembrulho depende de um contrato de versão do cliente.
+  [`motores/index.ts:125`](../../mobile/src/lib/motores/index.ts#L125)
+
+**O que a tela diz, e como diz**
+
+- O gatilho de ícone puro: o rótulo de acessibilidade é o único texto que ele tem.
+  [`saude.tsx:124`](../../mobile/src/app/sono/saude.tsx#L124)
+
+- A contagem passou a sair da entrada pura — é o conserto do "± 0 min" na noite única.
+  [`saude.tsx:90`](../../mobile/src/app/sono/saude.tsx#L90)
+
+- O ícone não aceita toque enquanto as notas da janela não chegaram: chamada paga não se descarta.
+  [`saude.tsx:107`](../../mobile/src/app/sono/saude.tsx#L107)
+
+- O motivo da queda ao piso, em palavras — nenhuma classe do núcleo vira jargão na tela.
+  [`assinatura.ts:143`](../../mobile/src/lib/assinatura.ts#L143)
+
+- A assinatura por estado, com o tempo também no piso: é ele que prova a chamada nova.
+  [`assinatura.ts:189`](../../mobile/src/lib/assinatura.ts#L189)
+
+- A legenda muda com o alcance: quatro dimensões na noite, e o horário mede outra coisa.
+  [`saude.tsx:169`](../../mobile/src/app/sono/saude.tsx#L169)
+
+**A escolha do motor**
+
+- Que recursos o app de fato hospeda — fechado sobre `RecursoId`, então um recurso novo não compila.
+  [`motores/catalogo.ts:136`](../../mobile/src/lib/motores/catalogo.ts#L136)
+
+- Um só lugar decide por que um motor está bloqueado: indisponível, não admitido ou não usado ainda.
+  [`motores/catalogo.ts:173`](../../mobile/src/lib/motores/catalogo.ts#L173)
+
+- Os recursos vêm do catálogo do núcleo, nunca de lista à mão.
+  [`motores/index.tsx:112`](../../mobile/src/app/configuracoes/motores/index.tsx#L112)
+
+- Uma chave, um dono, e fila encadeada porque AsyncStorage não tem read-modify-write atômico.
+  [`motores/preferencia.ts:87`](../../mobile/src/lib/motores/preferencia.ts#L87)
+
+**As barreiras que a story fecha**
+
+- A barreira que faltava: só o orquestrador percorre a sequência do descritor (AD-2).
+  [`architecture.test.ts:1616`](../../packages/shared/src/architecture.test.ts#L1616)
+
+- A catraca irmã nomeia o ofensor, para a ofensa não mudar de lugar em silêncio.
+  [`architecture.test.ts:1631`](../../packages/shared/src/architecture.test.ts#L1631)
+
+- A fórmula do período caiu de 2 para 1: sobra a tela da web, congelada nesta story.
+  [`architecture.test.ts:1460`](../../packages/shared/src/architecture.test.ts#L1460)
+
+**A contagem e as notas**
+
+- `load()` mescla em vez de substituir — sem isso, `12m` contava 90 dias de nota em silêncio.
+  [`sono.store.ts:98`](../../mobile/src/store/sono.store.ts#L98)
+
+- A falha da busca de notas ganhou nome próprio: "quebrou" e "você não deu nota" não são a mesma coisa.
+  [`sono.store.ts:145`](../../mobile/src/store/sono.store.ts#L145)
+
+**Periféricos**
+
+- A bancada abandona o que for de outra janela — medir e repintar sob outro cabeçalho é o erro dela.
+  [`bancada.tsx:106`](../../mobile/src/app/configuracoes/motores/bancada.tsx#L106)
+
+- A regra escrita onde o próximo agente vai procurar, antes de criar um quarto cliente da function.
+  [`mobile/AGENTS.md`](../../mobile/AGENTS.md)

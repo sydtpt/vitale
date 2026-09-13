@@ -15,7 +15,8 @@
  * na primeira hora.
  */
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import ts from 'typescript';
 import { WALLPAPERS } from './constants/wallpaper';
@@ -1446,11 +1447,17 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
  * certa, com o histórico cortado antes da janela —, ela **pode** divergir da
  * bancada sem ninguém ver: é a mesma contagem escrita duas vezes.
  *
- * Teto 2: as duas telas de `/sono/saude`, que nasceram antes da entrada. A 5.5
- * troca o cálculo delas por `entradaDaSaude` e leva o teto a **0**; esta story não
- * toca em tela.
+ * E a divergência não era hipotética: a fórmula do período rodando no alcance
+ * `ultima` contava **cinco** dimensões sobre uma noite só, e dispersão de um ponto
+ * é sempre zero — a tela mostrava "horário ± 0 min" com os dois traços cheios. A
+ * entrada usa `nightScore` nesse alcance, com quatro dimensões.
+ *
+ * Teto e histórico:
+ *   2 (5.3) — as duas telas de `/sono/saude`, que nasceram antes da entrada.
+ *   1 (5.5) — a tela do **mobile** passou a chamar `entradaDaSaude`. Sobra a da
+ *             web, congelada nesta story; quem zera é quem trocá-la.
  */
-const TETO_DA_FORMULA_DO_PERIODO = 2;
+const TETO_DA_FORMULA_DO_PERIODO = 1;
 
 check(`CATRACA — a fórmula do período da Saúde só em entradaDaSaude (teto ${TETO_DA_FORMULA_DO_PERIODO})`, () => {
   const CHAMADAS = /\b(periodScore|rangeNights|rangeBounds)\s*\(/g;
@@ -1461,8 +1468,8 @@ check(`CATRACA — a fórmula do período da Saúde só em entradaDaSaude (teto 
   }
   fora.sort();
   // Não-vácua: o detector acha a fórmula onde ela está. Se ninguém mais a montar,
-  // o teto desce — e é isso que a 5.5 faz.
-  assert.ok(fora.length > 0, 'ninguém fora do núcleo monta a fórmula do período — baixe o teto para zero (a 5.5)');
+  // o teto desce — e quem o leva a zero é quem trocar a tela da web.
+  assert.ok(fora.length > 0, 'ninguém fora do núcleo monta a fórmula do período — baixe o teto para zero');
   if (fora.length < TETO_DA_FORMULA_DO_PERIODO) {
     console.log(`     ↓ a fórmula do período fora do núcleo caiu para ${fora.length} (teto ${TETO_DA_FORMULA_DO_PERIODO}) — baixe o teto`);
   }
@@ -1472,6 +1479,168 @@ check(`CATRACA — a fórmula do período da Saúde só em entradaDaSaude (teto 
       `${fora.join('\n    ')}\n` +
       `  Quem precisa da contagem de um período chama entradaDaSaude(noites, notas, { range, offset, hoje }) — ` +
       `uma fórmula só para a tela e para a bancada (AD-11).`,
+  );
+});
+
+/**
+ * A sequência do descritor, chamada por hospedeiro — o que as duas guardas abaixo
+ * medem (AD-2, story 5.5).
+ *
+ * O descritor de um recurso declara seis funções puras, e **só o orquestrador as
+ * percorre**: pedido → motor → interpretação → conferência → frase, com o piso
+ * quando ninguém escreve. Um hospedeiro que chama qualquer uma delas está abrindo
+ * a segunda sequência — e a segunda sequência não erra no dia em que é escrita,
+ * erra seis meses depois, quando uma das duas ganha uma regra e a outra não.
+ *
+ * A guarda (7) acima já barra **importar** as peças do núcleo de IA. Esta é a
+ * outra metade: o descritor é legitimamente importável (todo nome `descritor*` é
+ * livre, porque é o primeiro argumento do `ler`), então o que sobra para trancar é
+ * chamar os métodos dele.
+ *
+ * Duas guardas e não uma, porque o passivo é de um método só:
+ *
+ *  - **barreira (zero)** para as cinco que sequenciam — `interpretar`, `conferir`,
+ *    `montarFrase`, `semModelo` e `pedidoCurto`. Nenhum hospedeiro as chama hoje, e
+ *    nenhum pode passar a chamar: é aqui que a conferência e a frase moram.
+ *  - **catraca (teto 1)** para `montarPedido`, que tem um ofensor herdado: a
+ *    bancada (`scripts/bancada/medir.ts`) o chama para ter o **corpo** do pedido no
+ *    relatório — o `sistema` e o `usuario` que o dono lê, e o hash da coluna do
+ *    template, que o `Medicao` do modo `medicao` não devolve. Ele não sequencia
+ *    nada: não interpreta, não confere e não escreve frase. Quem fizer o `Medicao`
+ *    carregar o pedido do template baixa o teto a zero e esta guarda vira barreira.
+ */
+const METODOS_QUE_SEQUENCIAM = ['interpretar', 'conferir', 'montarFrase', 'semModelo', 'pedidoCurto'];
+
+/**
+ * O único ofensor herdado, **nomeado**. Afirmar só o teto deixaria a catraca verde
+ * com a ofensa mudando de lugar: a bancada deixa de chamar, uma tela começa, e o
+ * número continua 1. Quando o `Medicao` do template passar a carregar o pedido, esta
+ * linha some e a guarda vira barreira.
+ */
+const OFENSOR_DO_MONTAR_PEDIDO = 'scripts/bancada/medir.ts (montarPedido)';
+
+/**
+ * Os hospedeiros: os dois apps, os scripts e **a edge function**, fora de teste.
+ *
+ * A function entra porque ela é hospedeiro — o mesmo arquivo já a varre em outras
+ * guardas — e porque é onde a 5.6 vai morar: o dia em que ela aprender o fio é o dia
+ * em que alguém pode ser tentado a conferir a resposta lá dentro.
+ */
+function hospedeiros(): string[] {
+  return [...mobileFiles, ...webFiles, ...scriptFiles, ...walk(join(ROOT, 'supabase', 'functions'))].filter(
+    (f) => !ehTeste(f),
+  );
+}
+
+/**
+ * Os arquivos que alcançam algum destes membros, com os nomes achados.
+ *
+ * **Pela AST, não por regex**, e é o que fecha as duas rotas de evasão que um
+ * casador com ponto deixava passar: `d['montarFrase'](…)` (acesso por colchete) e
+ * `const { conferir } = d` (desestruturação, que tira o método do objeto e o chama
+ * depois sem ponto nenhum). De graça, a AST também ignora comentário — então o texto
+ * que *explica* a regra não a viola, sem precisar de `semComentario`.
+ *
+ * Qualquer **leitura** do membro conta, não só a chamada: `const f = d.montarFrase`
+ * seguido de `f(v, e)` é a mesma sequência com um passo a mais. `import { … }` não
+ * conta, porque na AST ele não é desestruturação — e nenhum destes nomes é exportado
+ * por módulo nenhum.
+ */
+function chamamMetodo(metodos: readonly string[], arquivos: readonly string[] = hospedeiros()): string[] {
+  const alvo = new Set(metodos);
+  const fora: string[] = [];
+  for (const f of arquivos) {
+    const src = readFileSync(f, 'utf8');
+    // Pré-filtro textual: a maioria dos arquivos não cita nome nenhum, e parsear
+    // todos custaria segundos por guarda.
+    if (!metodos.some((m) => src.includes(m))) continue;
+
+    const achados = new Set<string>();
+    const visitar = (no: ts.Node): void => {
+      if (ts.isPropertyAccessExpression(no) && alvo.has(no.name.text)) achados.add(no.name.text);
+      if (ts.isElementAccessExpression(no)) {
+        const arg = no.argumentExpression;
+        if ((ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) && alvo.has(arg.text)) {
+          achados.add(arg.text);
+        }
+      }
+      if (ts.isObjectBindingPattern(no)) {
+        for (const elemento of no.elements) {
+          const nome = elemento.propertyName ?? elemento.name;
+          if ((ts.isIdentifier(nome) || ts.isStringLiteral(nome)) && alvo.has(nome.text)) achados.add(nome.text);
+        }
+      }
+      ts.forEachChild(no, visitar);
+    };
+    visitar(ts.createSourceFile(f, src, ts.ScriptTarget.Latest, false));
+    if (achados.size > 0) fora.push(`${f.replace(ROOT + '/', '')} (${[...achados].sort().join(', ')})`);
+  }
+  return fora.sort();
+}
+
+/**
+ * A prova de que o detector vê — **pelo caminho real**, não por um casador irmão.
+ *
+ * Um auto-teste que compilasse o seu próprio `RegExp` passaria verde enquanto o
+ * detector de verdade estivesse quebrado. Aqui o fixture vai para um arquivo de
+ * verdade, fora do repositório, e passa pelo mesmo `chamamMetodo` que as duas guardas
+ * chamam — inclusive pelas duas rotas de evasão e pelo comentário que não conta.
+ */
+function provarODetector(): void {
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-descritor-'));
+  try {
+    const casos: readonly (readonly [string, string, readonly string[]])[] = [
+      ['ponto.ts', 'const x = d.montarFrase(v, f);', ['montarFrase']],
+      ['colchete.ts', "const x = d['montarFrase'](v, f);", ['montarFrase']],
+      ['desestrutura.ts', 'const { conferir } = d; conferir(x, f);', ['conferir']],
+      ['renomeia.ts', 'const { semModelo: piso } = d; piso(f);', ['semModelo']],
+      ['chamada-guardada.ts', 'const f = d.pedidoCurto; if (f) f(fatos);', ['pedidoCurto']],
+      ['comentario.ts', '// d.conferir(x) só no comentário\n/** e d.interpretar(r) também */\nexport const x = 1;', []],
+      ['import.ts', "import { interpretar } from './nada';\nexport { interpretar };", []],
+    ];
+    for (const [nome, fonte, esperado] of casos) {
+      const arquivo = join(dir, nome);
+      writeFileSync(arquivo, `${fonte}\n`);
+      const achado = chamamMetodo([...METODOS_QUE_SEQUENCIAM, 'montarPedido'], [arquivo]);
+      if (esperado.length === 0) {
+        assert.deepEqual(achado, [], `o detector acusou ${nome}, que não é ofensa`);
+      } else {
+        assert.deepEqual(achado, [`${arquivo} (${[...esperado].sort().join(', ')})`], `o detector não viu ${nome}`);
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+check('BARREIRA — interpretar, conferir, montarFrase, semModelo e pedidoCurto só no orquestrador', () => {
+  assert.ok(hospedeiros().length > 0, 'os hospedeiros sumiram — a barreira ficou sem alvo');
+  // Não-vácua no detector, não no passivo: esta guarda nasce em zero, então não há
+  // ofensor para provar que ela vê.
+  provarODetector();
+  const fora = chamamMetodo(METODOS_QUE_SEQUENCIAM);
+  assert.deepEqual(
+    fora,
+    [],
+    `função do descritor alcançada fora do orquestrador em ${fora.length} arquivos:\n    ${fora.join('\n    ')}\n` +
+      `  O hospedeiro chama ler(descritor, fatos, …) e desenha o resultado. Interpretar, conferir, ` +
+      `escrever a frase e cair no piso são do descritor, percorridos só pelo orquestrador (AD-2).`,
+  );
+});
+
+check('CATRACA — montarPedido fora do orquestrador (só a bancada)', () => {
+  const fora = chamamMetodo(['montarPedido']);
+  if (fora.length === 0) {
+    console.log('     ↓ ninguém mais monta o pedido fora do orquestrador — apague OFENSOR_DO_MONTAR_PEDIDO');
+  }
+  assert.deepEqual(
+    fora,
+    [OFENSOR_DO_MONTAR_PEDIDO],
+    `montarPedido alcançado fora do orquestrador por quem não é a bancada:\n    ${fora.join('\n    ')}\n` +
+      `  O único ofensor permitido é ${OFENSOR_DO_MONTAR_PEDIDO}, que precisa do CORPO do pedido ` +
+      `para o relatório do dono. Quem precisa só da identidade do pedido tem o hash no anel ` +
+      `(EventoDoAnel.hash) e no Medicao. Montá-lo por conta própria é a segunda sequência que a AD-2 ` +
+      `proíbe. Se a lista ficou vazia, a guarda virou barreira: apague a constante e o deepEqual.`,
   );
 });
 
