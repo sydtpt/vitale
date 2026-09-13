@@ -26,6 +26,23 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
   publica; resolver por conta própria quebra o peer do `expo-modules-core`.
 - Não declare `react-native-worklets/plugin` no `babel.config.js`: o
   `babel-preset-expo` já o adiciona sozinho quando o pacote está instalado.
+- **`mobile/src/lib/motores/` é o único lugar do app que pode nomear a
+  `ia-narrar`** — e o único que constrói transporte para ela. Quem precisa falar
+  com modelo pede um motor ao `motorPara` de lá e passa pelo `ler` do orquestrador
+  (`@vitale/shared`), que já sabe montar o pedido, recuar, conferir e cair no
+  piso. É o que impede o quarto cliente da function: o app já teve dois
+  (`lib/edicao-ia.ts`, que sai na 1.10, e `services/route-name.ts`, na 5.7), cada
+  um lendo o erro do seu jeito — e nos dois o ramo que lia o corpo de erro era
+  código morto, porque o cliente da function **lança** em todo não-2xx. A catraca
+  "uma porta por hospedeiro" do `architecture.test.ts` cobra, com teto 2.
+  Na mesma pasta: o prazo de 60 s da chamada, o catálogo de motores conhecidos, a
+  preferência por recurso (`vitale:motores-preferencia`) e o anel de diagnóstico,
+  que é memória e nunca sai do aparelho.
+- **Não chame as funções de um descritor** (`montarPedido`, `interpretar`,
+  `conferir`, `montarFrase`, `semModelo`, `pedidoCurto`) de dentro de uma tela ou
+  de um serviço: essa sequência existe uma vez só, no orquestrador. Uma barreira
+  do `architecture.test.ts` cobra por AST, então nem colchete nem desestruturação
+  passam.
 
 <!-- /bmad:context -->
 

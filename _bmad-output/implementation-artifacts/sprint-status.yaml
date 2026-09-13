@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 12-09-2026 16:50
+last_updated: 13-09-2026 12:06
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -168,7 +168,7 @@ development_status:
   5-4-a-bancada-no-mac: review
   # F2 — depois da 1.9, build próprio, sobe runtimeVersion. PRÉ-REQUISITO:
   # proposta visual com mockups e dados reais, aprovada (regra de 04/09).
-  5-5-a-ponte-o-botão-ler-e-a-escolha-do-motor: backlog
+  5-5-a-ponte-o-botão-ler-e-a-escolha-do-motor: review
   # ▼ PRÓXIMA SPRINT (F3–F5). Estão aqui para aparecer no quadro, não para começar.
   5-6-vários-motores-de-nuvem: backlog
   5-7-o-nome-de-rota-pela-porta: backlog
