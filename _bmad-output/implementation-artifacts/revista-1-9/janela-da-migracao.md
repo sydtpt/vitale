@@ -5,6 +5,12 @@ Escrito em 13/09/2026, com produção medida no mesmo dia: **7 edições**, toda
 
 Este arquivo é para ser seguido **na hora**, com o telefone na mão.
 
+Os passos 4, 5 e 6 estão automatizados em [`aplicar.sh`](aplicar.sh), ao lado deste
+arquivo — ele confere o estado antes, pede confirmação por extenso, aplica, registra a
+versão e confere depois. `bash aplicar.sh --ensaio` roda só as conferências, sem
+escrever nada. O texto abaixo continua valendo como o que o script faz, e é o que você
+lê se ele parar no meio.
+
 ---
 
 ## 1. O que quebra, e quando
