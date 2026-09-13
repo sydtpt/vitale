@@ -98,15 +98,21 @@ development_status:
   # O raio é o DOBRO do que a story descreve: upsertEdicao quebra junto com
   # fetchEdicao (achado do test design), então um build antigo falha ao GRAVAR,
   # não só ao abrir.
-  # ESTADO em 12/09, depois da rodada 1 de revisão: código escrito e as quatro
-  # suítes verdes; migração ensaiada fora de produção (aplicação, --falhar-no-fim
-  # e o cenário de edicao_imprimir), com os logs em
-  # implementation-artifacts/revista-1-9/. Falta o que é só do dono: APLICAR em
-  # produção (é a janela da AD-15, na ordem build → migração → JS ativo) e
-  # conferir no iPhone. Duas dívidas nomeadas ficam para a 1.10 e já estão no
-  # deferred-work: a conferência antes de gravar e a leitura de AGG_VERSION no
-  # ponto de montagem da carga do RPC.
-  1-9-a-migração-e-a-leitura-da-forma-nova: review
+  # FECHADA em 13/09/2026 — a janela da AD-15 foi executada e o dono conferiu no
+  # iPhone. Produção: 68 migrations, a versão 20260912120000 registrada, e as
+  # nove conferências da forma nova verdes. A semeadura pela própria
+  # edicao_imprimir gravou os três cadernos em posicao 1, 2 e 3 — com
+  # metrica_lider NULO no de Coração, o caso da lápide — e foi desfeita depois de
+  # o dono olhar a tela. É a evidência humana que o test design exigia (T-2), e o
+  # único exercício em produção do caminho de escrita que a 1.10 vai usar.
+  # O roteiro da janela, o aplicar.sh e o conferir-bundle.py ficaram em
+  # implementation-artifacts/revista-1-9/; a seção 6 de lá é leitura obrigatória
+  # antes da próxima janela (três armadilhas de BUILD custaram uma hora, e o
+  # banco não teve parte nenhuma nisso).
+  # Duas dívidas nomeadas ficam para a 1.10 e já estão no deferred-work: a
+  # conferência antes de gravar e a leitura de AGG_VERSION no ponto de montagem
+  # da carga do RPC. A terceira é a frase provisória da tela.
+  1-9-a-migração-e-a-leitura-da-forma-nova: done
   # MUDOU DE ESCOPO em 10/09 (AD-13 dos motores): cliente do orquestrador, duas
   # portas (buscar e gravar), só origem 'motor' grava. Só depois de 1.9, 5.1, 5.2
   # e a 5.4 no marco A. A chave fica a mesma — é ela que liga a story à issue.
