@@ -187,7 +187,8 @@ São **10** módulos, não 7:
   retrospectiva…)
 - Mobile: componentes UI (`DayRingCard`, `CheckButton`, `QuickAddSheet`) e fontes
   embarcadas via plugin `expo-font`
-- Backend: Supabase — Postgres com RLS, 55 migrations, 4 edge functions Deno
+- Backend: Supabase — Postgres com RLS, **68 migrations** (todas registradas em
+  `supabase_migrations.schema_migrations`, conferido em 13/09), 4 edge functions Deno
   (`connections-ingest`, `ia-narrar`, `intervals-link`, `cultura-search`)
 - Autenticação: `/login`, `/register`, `/setup`, com `profileGuard` em toda rota
 - Notificações **locais** (client-side, `scheduleNotificationAsync`): eventos de sync e
@@ -279,15 +280,20 @@ São **10** módulos, não 7:
   motores, esquecer = lápide, alerta como propriedade do lugar, as 5 fases) vive só em dois
   artifacts e na memória da sessão. Escrever isso é o próximo passo enquanto a medição roda.
 - **Motores de IA** — modelo no aparelho (Foundation Models, depois Core AI), nuvem (`ia-narrar`)
-  e sem modelo, escolhidos **por recurso e por aparelho**. **F0 e o marco A da bancada estão na
-  `main` (12/09)**: a porta, o fio e o orquestrador (5.1), o descritor da retrospectiva e as listas
-  de termos proibidos (5.2), a leitura da Saúde do sono sem modelo (5.3) e a bancada no quarto
-  workspace (5.4 marco A). **A primeira medição rodou em 12/09**, sobre 295 noites de produção: a
+  e sem modelo, escolhidos **por recurso e por aparelho**. **F0, o marco A da bancada e o marco A
+  da 5.5 estão na `main`**: a porta, o fio e o orquestrador (5.1), o descritor da retrospectiva e as
+  listas de termos proibidos (5.2), a leitura da Saúde do sono sem modelo (5.3), a bancada no quarto
+  workspace (5.4 marco A) e — **desde 12/09 (`a4ddf33`)** — o **botão Ler no cabeçalho da
+  `/sono/saude`** e o seletor de motor em `/configuracoes/motores` (5.5 marco A, **sem a ponte**).
+  Tudo isso foi instalado no iPhone e **conferido pelo dono em 13/09**, no mesmo build da janela da
+  1.9. A cadeia padrão da Saúde continua `[sem-modelo]`: a nuvem está habilitada, não imposta, e
+  entra por escolha no seletor. **A primeira medição rodou em 12/09**, sobre 295 noites de produção: a
   nuvem aprovou em **22 de 22** janelas, com zero frase igual à do template e mediana de 13,6 s por
   chamada. O dono fixou o limiar lendo isso —
   [ADR 0050](docs/decisions/0050-o-limiar-do-portao-sai-de-medicao-e-tem-quatro-condicoes.md):
   aprovação ≥ 90%, os sete casos nos dois alcances, nada idêntico ao template, mediana ≤ 20 s. Falta
-  o **marco B** (a coluna do aparelho, que depende do macOS 27) e a **5.5**, que leva o botão à tela.
+  só o **marco B** — a ponte Swift `on-device-engine` e a coluna do aparelho na bancada, que
+  dependem do macOS 27. Ele exige **build próprio**: nunca compartilha build com migração.
   Arquitetura aprovada em 10/09:
   [espinha](_bmad-output/planning-artifacts/architecture/architecture-Orbe-ia-no-aparelho-2026-09-10/ARCHITECTURE-SPINE.md)
   com 14 ADs, passada por portão de revisão, e as ADRs
@@ -301,9 +307,23 @@ São **10** módulos, não 7:
   **Épico 5** pelo correct-course de 10/09
   ([proposta](_bmad-output/planning-artifacts/sprint-change-proposal-2026-09-10.md)): a F0
   (5.1–5.3) e o marco A da bancada (5.4) vinham **antes da story 1.10**, que passa a ser cliente do
-  orquestrador (AD-13) — e agora está liberada; a F2 (5.5) vem depois da 1.9, em build próprio; F3–F5
-  ficam para a próxima sprint. A bancada mede no Mac, com Mac e iPhone no 27, e vive em
-  [scripts/](scripts/README.md).
+  orquestrador (AD-13) — e agora está liberada; F3–F5 ficam para a próxima sprint. A bancada mede no
+  Mac, com Mac e iPhone no 27, e vive em [scripts/](scripts/README.md).
+- **Revista da Retrospectiva — a story 1.9 está EM PRODUÇÃO desde 13/09.** A edição virou **uma
+  linha por caderno**: `caderno` na chave primária, a ordem como coluna (`posicao`), a métrica que
+  deu a posição carimbada (`metrica_lider`, **nullable** — nulo é "nenhuma métrica liderou"), a
+  `unique` de posição `deferrable initially deferred`, a tabela `edicoes_capa` (grão de edição) e a
+  função `edicao_imprimir` como **porta única** da impressão (AD-4), serializada por
+  `pg_advisory_xact_lock`. A janela da AD-15 foi executada e conferida item por item; a semeadura
+  pela própria função gravou os três cadernos em `posicao` 1, 2 e 3 e foi desfeita. As 7 edições
+  antigas foram apagadas — o texto delas está em
+  `docs/specs/revista-retrospectiva/primeiras-edicoes-prompt-v2.md`.
+  **Entre a 1.9 e a 1.10 o celular não escreve edição** (decisão do dono): a tela diz *"Este período
+  fechou e ainda não foi escrito."* com a nota *"A impressão está parada…"*, e **não há botão de
+  imprimir**. A 1.10 devolve a escrita e tira a frase. O roteiro da janela, o `aplicar.sh` e o
+  `conferir-bundle.py` estão em
+  [`_bmad-output/implementation-artifacts/revista-1-9/`](_bmad-output/implementation-artifacts/revista-1-9/janela-da-migracao.md)
+  — a seção 6 de lá é leitura obrigatória antes da próxima janela de migração.
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco
@@ -318,7 +338,11 @@ São **10** módulos, não 7:
   288 noites reais, mas **sem conferência no iPhone nem no navegador**
 - Push **remoto** (servidor): hoje só há notificação local agendada no device — não há
   registro de token nem envio server-side
-- Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc
+- Distribuição: EAS e deploy das edge functions não estão versionados em nenhum doc.
+  **O canal `preview` está em `rollBackToEmbedded` desde 13/09**: havia um `eas update` de 07/09
+  vivo lá, anterior à 1.9, que quebraria o app contra o schema novo sem ninguém tocar em nada. O
+  servidor agora manda todo aparelho usar o **bundle embutido**. Ao voltar a publicar update,
+  publique **da `main`** — e nunca de uma branch que não contenha a migração já aplicada.
 
 ## Specs detalhados
 
