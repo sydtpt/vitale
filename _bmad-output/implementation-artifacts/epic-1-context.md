@@ -166,9 +166,17 @@ da frase. Informação obrigatória nunca usa a tinta mais fraca. Nenhum hex esc
 - **5.1, 5.2 e a 5.4 no marco A → 1.10** (Épico 5, correct-course de 10/09): a porta, o
   orquestrador e o descritor da retrospectiva existem antes de a impressão depender deles, e o
   caminho foi provado com dado real na bancada.
-- **1.10 ↔ 5.5**: ordem livre; quem chegar primeiro cria `mobile/src/lib/motores/`.
+- **5.5 → 1.10** (resolvido em 13/09): a ordem era livre e **a 5.5 chegou primeiro**.
+  `mobile/src/lib/motores/` já existe, com `motorPara`, o transporte da `ia-narrar`, o catálogo, a
+  preferência e o anel — a 1.10 **acrescenta ali, não recria**. Nasceram junto a barreira da AD-2
+  (só o orquestrador percorre a sequência do descritor) e o interruptor `HOSPEDAGEM`, que a 1.10 tem
+  de virar. Tudo em
+  [contrato-motores-para-1-10.md](contrato-motores-para-1-10.md) — **leitura obrigatória antes de
+  escrever a 1.10**.
 - **1.2 → 1.12**: o primeiro plano sobre cor saturada precede a faixa que o usa.
-- **1.8 → 1.14**: a extração da chamada precede o sumário que a consome.
+- **1.8 → 1.11, 1.14**: a extração da chamada precede o sumário que a consome — e também a
+  **1.11**, cujo `EdicaoCard` no bloco `lede` mostra "capa em miniatura e chamada". A 1.11 é a
+  primeira story com tela, então a 1.8 tem de estar fechada antes dela, não só antes do sumário.
 - **1.15 depende de todas** e é **portão humano** — nenhum agente a conclui.
 - **Para fora:** a chave da métrica líder é gravada aqui desde a primeira impressão, mas só o
   anuário do Épico 3 a lê; o Épico 2 imprime o arquivo inteiro sobre o que a 1.15 validar.
