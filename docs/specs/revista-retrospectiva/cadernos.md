@@ -127,9 +127,12 @@ no prompt — o modelo escreve a primeira frase sabendo que ela vira capa e sum�
 16/09/2026. Ela corta **onde a conferência corta** — ponto que não esteja entre dois dígitos,
 `?`, `!` e quebra de linha —, porque a conferência usa os mesmos limites para decidir que
 base está colada a um número, e uma chamada que cortasse antes levaria o número à capa sem
-a base. Pula só as abreviações que nunca terminam frase (`aprox.`, `p.ex.`, `vs.`, `i.e.`,
-`cf.`) e os fragmentos sem letra (`"1. O sono caiu."` é `"O sono caiu."`, nunca `"1."`).
-Texto sem terminador devolve o texto inteiro, e sem texto a chamada não existe.
+a base. Na dúvida, fica mais longa, nunca mais curta. Pula as abreviações que em regra
+precedem o complemento (`aprox.`, `p.ex.`, `p. ex.`, `vs.`, `i.e.`, `cf.`, `p.p.`), o ponto
+colado a letra (`intervals.icu`, `1.º`), o marcador de lista no começo (`1.`, `a.`, `II.`,
+`2)`, `-`) e o fragmento sem letra — `"1. O sono caiu."` é `"O sono caiu."`, nunca `"1."`.
+Inclui os terminadores colados (`...`, `?!`) e as aspas, parênteses e colchetes que fecham
+logo depois. Texto sem terminador devolve o texto inteiro, e sem texto a chamada não existe.
 
 ## As três formas
 

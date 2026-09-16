@@ -182,6 +182,11 @@ da frase. Informação obrigatória nunca usa a tinta mais fraca. Nenhum hex esc
   aprovado pode pôr na capa um número sem a base contra a qual compara. O conserto é a conferência
   reprovar mais, e está no `deferred-work.md` (entrada da 1.8). A 1.11 é quando isso vira texto na
   tela: decidir antes dela, consertando ou aceitando por escrito.
+  **E três limites da chamada que chegam às telas da 1.11, da 1.13 e da 1.14**, todos no
+  `deferred-work.md`: ela **não tem teto de tamanho** (texto sem ponto devolve o texto inteiro, e
+  quem apresenta decide como uma manchete longa aparece — a proposta visual com dado real é o lugar);
+  **reticência não tem resposta** (`…` junta duas frases, `...` seguido de minúscula corta uma no meio);
+  e **Markdown sai cru**, porque nenhuma tela da revista o interpreta.
 - **1.15 depende de todas** e é **portão humano** — nenhum agente a conclui.
 - **Para fora:** a chave da métrica líder é gravada aqui desde a primeira impressão, mas só o
   anuário do Épico 3 a lê; o Épico 2 imprime o arquivo inteiro sobre o que a 1.15 validar.
