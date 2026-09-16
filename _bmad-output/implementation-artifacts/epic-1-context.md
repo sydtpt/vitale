@@ -143,7 +143,11 @@ tanto no papel de paleta quanto no módulo, porque é o módulo que a faixa lê.
 **Sete estados por caderno**, não por edição: período em curso (mostra **nada** — não é botão
 desabilitado nem aviso, é ausência), fechado e não escrito, escrevendo, pronta, reprovada na
 conferência (que diz **por quê** — não é erro do app, é a conferência funcionando), errata
-(que declara e não reescreve), erro.
+(que declara e não reescreve), erro. **Desde 16/09, reprovada e erro se separam pela causa:** seis
+causas permanentes (`reprovada`, `recusa-do-modelo`, `guarda`, `saida-invalida`, `capacidade`,
+`janela`) oferecem **"Escrever este caderno de novo"**, e só as duas passageiras (`indisponivel`,
+`transitoria`) oferecem "Tentar de novo". A reprovação vive uma sessão: ao reabrir o app, o caderno
+volta a pedir para ser escrito.
 
 **O sumário é a única navegação**, e mostra a chamada de cada caderno, não o nome. Alvo de
 toque de linha inteira; a rolagem é ancorada e **move o foco do leitor de tela junto**.
@@ -177,16 +181,27 @@ da frase. Informação obrigatória nunca usa a tinta mais fraca. Nenhum hex esc
 - **1.8 → 1.11, 1.14**: a extração da chamada precede o sumário que a consome — e também a
   **1.11**, cujo `EdicaoCard` no bloco `lede` mostra "capa em miniatura e chamada". A 1.11 é a
   primeira story com tela, então a 1.8 tem de estar fechada antes dela, não só antes do sumário.
-  **E há uma decisão pendente antes da 1.11:** a conferência deixa o parágrafo absolver a base de
-  um número de comparação da primeira frase, e a chamada é essa frase lida **sozinha** — um texto
-  aprovado pode pôr na capa um número sem a base contra a qual compara. O conserto é a conferência
-  reprovar mais, e está no `deferred-work.md` (entrada da 1.8). A 1.11 é quando isso vira texto na
-  tela: decidir antes dela, consertando ou aceitando por escrito.
+  **Decidido em 16/09, pelo dono — aceito, e medido no piloto:** a conferência deixa o parágrafo
+  absolver a base de um número de comparação da primeira frase, e a chamada é essa frase lida
+  **sozinha** — um texto aprovado pode pôr na capa um número sem a base contra a qual compara. O dono
+  **aceitou por escrito** em vez de consertar às cegas, porque não existe ainda nenhuma edição no
+  formato novo para saber com que frequência isso acontece, e o prompt já pede a primeira frase
+  "inteira em si mesma". A 1.11 **não espera** esta decisão: ela está tomada. O que ficou é a medida
+  na 1.15 (abaixo).
   **E três limites da chamada que chegam às telas da 1.11, da 1.13 e da 1.14**, todos no
   `deferred-work.md`: ela **não tem teto de tamanho** (texto sem ponto devolve o texto inteiro, e
   quem apresenta decide como uma manchete longa aparece — a proposta visual com dado real é o lugar);
   **reticência não tem resposta** (`…` junta duas frases, `...` seguido de minúscula corta uma no meio);
   e **Markdown sai cru**, porque nenhuma tela da revista o interpreta.
-- **1.15 depende de todas** e é **portão humano** — nenhum agente a conclui.
+  **A proposta visual da 1.11 está aprovada** (16/09, artifact "A rota da revista"), com seis
+  decisões registradas no `epics.md`, em "Decisões de superfície": a porta é miniatura ao lado da
+  chamada; "Escrever a edição" só na rota; capa de período não escrito em papel, sem foto; e a
+  chamada **inteira, sempre**, sem corte — cortar esconderia a base que a 1.8 existe para proteger.
+- **1.15 depende de todas** e é **portão humano** — nenhum agente a conclui. **E carrega uma medida
+  decidida em 16/09:** nas três edições do piloto (agosto/2026, julho/2026 e o mês de 2023), olhar a
+  chamada de cada caderno e anotar toda chamada com número de comparação **sem a base dentro dela**.
+  Zero em todas: a aceitação fica, e a entrada adiada é fechada por escrito. Uma ou mais: o conserto
+  entra antes de o Épico 2 imprimir o arquivo inteiro, escolhendo entre as duas formas de medir que o
+  `deferred-work.md` descreve, agora com o caso real na mão.
 - **Para fora:** a chave da métrica líder é gravada aqui desde a primeira impressão, mas só o
   anuário do Épico 3 a lê; o Épico 2 imprime o arquivo inteiro sobre o que a 1.15 validar.

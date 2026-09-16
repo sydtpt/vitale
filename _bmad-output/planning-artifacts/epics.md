@@ -426,6 +426,32 @@ Registradas aqui porque nasceram na mesa de 08/09 e não estão em `DESIGN.md` n
   chamada**. Sumir seria mentir por omissão; esperar o sumário ficar completo esconderia os
   cadernos que deram certo por causa de um que falhou.
 
+**Da proposta visual da 1.11, decididas pelo dono em 16/09/2026** (artifact "A rota da revista",
+resposta `1-a 2-a 3-b 4-a 5-a 6-a`):
+
+- **A porta** no bloco `lede` é a **miniatura da capa ao lado da chamada**, num cartão só, tocável
+  inteiro. Não a capa em cima: ela empurraria a Retrospectiva para baixo da dobra.
+- **O caderno reprovado oferece "Escrever este caderno de novo"** — nunca "Tentar de novo", que o
+  mockup `key-estados.html` de 07/09 ainda mostra e que esta decisão substitui.
+- **`capacidade` e `janela` são causas permanentes**, não passageiras: seis causas levam a "Escrever
+  este caderno de novo" e só `indisponivel` e `transitoria` levam a "Tentar de novo". Repetir o mesmo
+  pedido não resolve nenhuma das duas, e é assim que o núcleo dos motores as classifica. Muda o
+  critério da 1.11 (ver lá).
+- **"Escrever a edição" só existe na rota.** A porta de um período fechado e não escrito diz *"Este
+  período fechou e ainda não foi escrito."* e leva até a rota; o ato pago acontece na página que o
+  explica, nunca no meio da lista de cartões.
+- **A capa de um período não escrito é em papel, sem foto:** o período e o convite. A foto é escolhida
+  e carimbada na impressão (1.13); mostrá-la antes seria mostrar uma escolha que ainda não aconteceu.
+- **A chamada aparece inteira, sempre**, na porta e no sumário — sem corte e sem "…". As primeiras
+  frases reais medem 104 a 148 caracteres (até cinco linhas no sumário), e cortar esconde o fim da
+  frase, onde costuma estar a base contra a qual o número compara: exatamente o que a 1.8 existe para
+  proteger. Se o piloto mostrar chamadas longas demais, o conserto é o prompt pedir mais curto, não a
+  tela esconder.
+
+**Três limites da chamada que as telas herdam** (1.8, no trabalho adiado): sem teto de tamanho (a
+decisão acima o assume); a reticência `…` junta duas frases e `...` seguido de minúscula corta uma no
+meio; e Markdown sai cru, porque nenhuma tela da revista o interpreta.
+
 ## Epic 1: A edição
 
 Ele abre um mês fechado no iPhone e lê a revista — capa, sumário e os cadernos na ordem que
@@ -751,6 +777,12 @@ So that um texto reprovado nunca chegue ao banco por nenhum caminho.
 > o descritor da retrospectiva. A porta `narrar` deixou de existir, e a `ler` passou a se chamar
 > **`buscar`** — "Ler" é o botão da Saúde do sono, e a leitura da resposta é "interpretar".
 > **Depende de** 1.9, 5.1, 5.2 e da 5.4 no marco A.
+>
+> **Leitura obrigatória antes de escrever esta story:**
+> `_bmad-output/implementation-artifacts/contrato-motores-para-1-10.md` (16/09/2026). A 5.5 chegou
+> primeiro e já criou `mobile/src/lib/motores/`: a 1.10 **acrescenta ali, não recria**, vira o
+> interruptor `HOSPEDAGEM` da retrospectiva e respeita a barreira da AD-2. A catraca do `'ia-narrar'`
+> já desceu de 2 para 1 na 1.9, não nesta.
 
 **Acceptance Criteria:**
 
@@ -807,6 +839,11 @@ As a leitor da revista,
 I want abrir a edição de um mês fechado numa tela própria,
 So that a capa tenha a página inteira e o seletor de período não brigue com ela.
 
+> **Depende de** 1.10 (a escrita religada) e 1.8 (`chamadaDoTexto`, que a porta e o sumário
+> consomem). **A proposta visual está aprovada** (16/09/2026, artifact "A rota da revista"), e as seis
+> decisões dela estão em "Decisões de superfície" acima — inclusive uma que muda o critério das
+> causas, abaixo.
+
 **Acceptance Criteria:**
 
 **Given** `/retrospectiva` tem hoje seletor, treze blocos e o painel Diagramação
@@ -837,13 +874,14 @@ reprocessados depois dela — **errata não reescreve**
 
 **Given** o estado de cada caderno vem do resultado do orquestrador, não de exceção (AD-12 dos motores)
 **When** um caderno não imprime
-**Then** *reprovada* são as quatro causas permanentes — `reprovada`, `recusa-do-modelo`, `guarda` e
-`saida-invalida` —, cada uma dizendo o seu motivo; na conferência, os problemas listados são os que
-a trilha carrega
+**Then** *reprovada* são as **seis** causas permanentes — `reprovada`, `recusa-do-modelo`, `guarda`,
+`saida-invalida`, `capacidade` e `janela` —, cada uma dizendo o seu motivo; na conferência, os
+problemas listados são os que a trilha carrega
 **And** reimprimir o caderno reprovado é ato do leitor, nunca "tentar de novo": a AD-4 diz que o
-mesmo pedido não se resolve repetindo
-**And** *erro* são as quatro passageiras — `indisponivel`, `capacidade`, `janela` e `transitoria` —,
-ditas pela classe em palavras, com a ação de tentar de novo
+mesmo pedido não se resolve repetindo — a ação é **"Escrever este caderno de novo"**
+**And** *erro* são as **duas** passageiras — `indisponivel` e `transitoria` —, ditas pela classe em
+palavras, com a ação de tentar de novo. *(Até 16/09 eram quatro: `capacidade` e `janela` passaram a
+reprovada por decisão do dono, porque repetir o mesmo pedido não resolve nenhuma das duas.)*
 **And** nenhum dos dois estados mostra o texto cru do fornecedor, que só a tela de desenvolvimento
 dos motores mostra
 
@@ -996,6 +1034,13 @@ So that eu julgue se o miolo ranqueado funciona — que foi a aposta que eu fiz 
 > na frente dele. O **julgamento não é de dev e nenhum agente a conclui sozinho** — quem
 > fecha esta story é o dono, lendo. Não confundir com as demais: aqui "pronto" é um veredito
 > humano, e é de propósito.
+>
+> **Carrega uma medida decidida em 16/09/2026.** A conferência deixa o parágrafo absolver a base de
+> um número de comparação da primeira frase, e a chamada (1.8) é essa frase lida sozinha. O dono
+> aceitou por escrito em vez de consertar às cegas. Nas três edições deste piloto, anotar toda
+> chamada com número de comparação **sem a base dentro dela**: zero, a aceitação fica; uma ou mais, o
+> conserto entra antes de o Épico 2 imprimir o arquivo inteiro. As duas formas de consertar, e o custo
+> de cada uma, estão no `deferred-work.md`.
 
 **Acceptance Criteria:**
 
