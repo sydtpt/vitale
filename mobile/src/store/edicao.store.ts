@@ -1,18 +1,18 @@
 import { create } from 'zustand';
-import type { EntradaPacote, Edicao } from '@vitale/shared';
+import type { CadernoId, EntradaPacote, Edicao } from '@vitale/shared';
 import { useAuthStore } from './auth.store';
-import { buscarEdicao } from '../lib/edicao-ia';
+import { buscarEdicao, imprimirEdicao, naoImpressoDe } from '../lib/edicao-ia';
 
 /**
- * As edições impressas da Retrospectiva (ADRs 0038 e 0040 · Story 1.9).
+ * As edições impressas da Retrospectiva (ADRs 0038 e 0040 · Stories 1.9 e 1.10).
  *
  * Uma edição é o **conjunto dos cadernos** de um período fechado, guardado aqui
  * por `tipo|inicio|fim`. Três regras de comportamento que a tela herda sem ter
  * que saber:
  *
- * - **Nunca gera.** Nem sozinha, nem a pedido: a escrita saiu do celular na
- *   Story 1.9 e volta na 1.10, atrás da sequência da impressão. Abrir a
- *   Retrospectiva lê o que já existe, e ler é de graça.
+ * - **Nunca gera sozinha.** Abrir a Retrospectiva lê o que já existe, e ler é de
+ *   graça. Escrever é o toque do dono em "Escrever a edição" (`imprimir`), só a
+ *   partir de um período fechado e não escrito — a reimpressão é da 1.11.
  * - **Nunca reordena.** A ordem dos cadernos vem da coluna `posicao`, congelada
  *   na última impressão. A store não ordena nada.
  * - **Nunca anuncia o que não pode existir.** Quem decide é o núcleo
@@ -23,15 +23,46 @@ import { buscarEdicao } from '../lib/edicao-ia';
  * caderno, e esta é a do período — mais o **dono**, que a tabela tem e a tela
  * não mostra.
  */
+/** Um caderno que não saiu na última impressão, e por quê — em palavras. */
+export interface NaoImpresso {
+  caderno: CadernoId;
+  motivo: string;
+}
+
+/**
+ * Um caderno durante a impressão. A tela os desenha um a um, na ordem em que o
+ * núcleo os lê: **mostrar é progressivo**, mesmo que gravar seja atômico.
+ */
+export type CadernoNaImpressao =
+  | { caderno: CadernoId; fase: 'na-fila' }
+  | { caderno: CadernoId; fase: 'escrevendo' }
+  | { caderno: CadernoId; fase: 'escrito'; texto: string }
+  | { caderno: CadernoId; fase: 'nao-escrito'; motivo: string };
+
+/** O aviso do período fechado em que nenhum caderno tem o que dizer. Sem botão: tocar não mudaria nada. */
+export const AVISO_SEM_CADERNO = 'Nenhum caderno deste período tem o que dizer.';
+
 export type EstadoEdicao =
   /** Primeira leitura, em voo. Não desenha nada: um cartão que pisca a cada foco. */
   | { fase: 'carregando' }
   /** Releitura **pedida pelo leitor**. Desenha, porque toque sem resposta é toque perdido. */
   | { fase: 'relendo' }
-  /** O período fechou e tem cadernos impressos, na ordem gravada. */
-  | { fase: 'pronta'; edicao: Edicao }
-  /** O período fechou e nenhum caderno foi escrito ainda. */
-  | { fase: 'nao-escrita' }
+  /**
+   * O período fechou e tem cadernos impressos, na ordem gravada. `naoImpressos`
+   * vem da impressão que acabou de acontecer: os cadernos que não saíram, com o
+   * motivo. Uma leitura do banco não os traz.
+   */
+  | { fase: 'pronta'; edicao: Edicao; naoImpressos?: readonly NaoImpresso[] }
+  /**
+   * O período fechou e nenhum caderno foi escrito ainda. `motivos` são os da
+   * última tentativa; `semCaderno` diz que tentar não adianta — e aí não há botão.
+   */
+  | { fase: 'nao-escrita'; motivos?: readonly NaoImpresso[]; semCaderno?: true }
+  /**
+   * A impressão está em curso. `cadernos` chega vazio no toque (a preferência
+   * ainda está sendo lida) e ganha a fila quando o primeiro caderno começa.
+   */
+  | { fase: 'imprimindo'; cadernos: readonly CadernoNaImpressao[] }
   /** Período em curso, ou período que nunca terá edição. A tela não mostra nada. */
   | { fase: 'ausente' }
   /**
@@ -49,7 +80,13 @@ export type EstadoEdicao =
    * separa os dois é `estadoDe`, pelo `isLoading` do auth.
    */
   | { fase: 'sem-sessao' }
-  | { fase: 'erro'; mensagem: string };
+  /**
+   * Uma porta falhou. `aposImpressao` marca o erro que veio de uma impressão já
+   * começada: o `gravar` pode ter feito commit antes de a conexão cair, então a
+   * tela não promete escrita — diz que a impressão não terminou e oferece ver o
+   * que ficou gravado (a releitura). O erro de leitura não tem a marca.
+   */
+  | { fase: 'erro'; mensagem: string; aposImpressao?: true };
 
 interface EdicaoState {
   porPeriodo: Record<string, EstadoEdicao>;
@@ -57,6 +94,14 @@ interface EdicaoState {
   carregar: (entrada: EntradaPacote) => Promise<void>;
   /** Relê depois de um erro de leitura. Continua sem escrever nada. */
   recarregar: (entrada: EntradaPacote) => Promise<void>;
+  /**
+   * O toque em "Escrever a edição". **Só age quando `podeEscrever`** — período
+   * fechado e não escrito, com o que dizer, e os dados da Retrospectiva prontos —,
+   * e o segundo toque durante a impressão é ignorado: uma impressão por período,
+   * paga uma vez. Antes de chamar modelo, relê o banco: a edição pode ter sido
+   * impressa depois da última leitura.
+   */
+  imprimir: (entrada: EntradaPacote, dadosProntos: boolean) => Promise<void>;
   estado: (entrada: EntradaPacote) => EstadoEdicao;
 }
 
@@ -101,6 +146,44 @@ export function estadoDe(
   return porPeriodo[chave] ?? { fase: 'carregando' };
 }
 
+/**
+ * Os dados que a edição narra já chegaram? — a prontidão que a tela calcula.
+ *
+ * O `summary` da Retrospectiva é recalculado da memória a cada render, e a memória
+ * pode estar pela metade: a busca da retro em voo, a janela carregada cobrindo
+ * outro intervalo (o `loadedSince` começa **depois** do que este período precisa),
+ * ou as atividades — que a retro carrega sem esperar — ainda chegando. Uma
+ * impressão nesse intervalo congelaria para sempre uma edição com fatos
+ * incompletos: período fechado não se reescreve.
+ */
+export function dadosProntosParaImprimir(
+  retro: { readonly loaded: boolean; readonly loading: boolean; readonly loadedSince: string | null },
+  atividades: { readonly loaded: boolean; readonly loading: boolean },
+  since: string,
+): boolean {
+  return retro.loaded && !retro.loading && retro.loadedSince !== null && retro.loadedSince <= since
+    && atividades.loaded && !atividades.loading;
+}
+
+/**
+ * O botão "Escrever a edição" aparece? — a decisão, fora do JSX, com teste.
+ *
+ * Três condições, e as três são necessárias: o período fechou e não foi escrito;
+ * há caderno com o que dizer (`semCaderno` é a resposta de que tocar não mudaria
+ * nada); e os dados estão prontos. Sem a terceira, o botão não aparece — nem
+ * desabilitado: um botão cinza sem razão visível é um convite a tocar de novo.
+ * A ação `imprimir` confere a mesma função.
+ */
+export function podeEscrever(estado: EstadoEdicao, dadosProntos: boolean): boolean {
+  return estado.fase === 'nao-escrita' && !estado.semCaderno && dadosProntos;
+}
+
+/** O ramo que não existe: o compilador reprova um estado novo da sequência sem tratamento. */
+function estadoNaoTratado(nunca: never): string {
+  console.warn('[edicao] a impressão devolveu um estado sem tratamento:', nunca);
+  return 'A impressão devolveu uma resposta que o app não sabe ler.';
+}
+
 function userId(): string | undefined {
   return useAuthStore.getState().user?.id;
 }
@@ -120,23 +203,45 @@ function mensagemDeLeitura(e: unknown): string {
 }
 
 /**
+ * A impressão que falhou numa porta depois de começar. **Não promete escrita**: o
+ * `gravar` pode ter feito commit antes de a conexão cair, e o que ficou no banco só
+ * a releitura diz. O detalhe vai para o log.
+ */
+function mensagemDeImpressao(e: unknown): string {
+  console.warn('[edicao] falha ao imprimir a edição:', e);
+  return 'A impressão não terminou. Parte dela pode ter ficado gravada.';
+}
+
+type Set = (fn: (s: EdicaoState) => Partial<EdicaoState>) => void;
+
+/**
  * Uma leitura, e o estado que ela produz. `emCurso` é a fase enquanto ela corre:
  * silenciosa na primeira vez, visível quando o leitor pediu.
+ *
+ * **Os motivos da última tentativa sobrevivem à releitura.** Um período que
+ * continua não escrito depois de uma impressão sem sucesso tem de continuar
+ * dizendo por quê — senão o próximo foco da tela apagava a explicação que o dono
+ * acabou de receber. O `semCaderno` não sobrevive: ele é uma previsão sobre o
+ * dado, e o dado pode ter chegado.
  */
 async function ler(
-  set: (fn: (s: EdicaoState) => Partial<EdicaoState>) => void,
+  set: Set,
+  get: () => EdicaoState,
   entrada: EntradaPacote,
   uid: string,
   emCurso: 'carregando' | 'relendo',
 ): Promise<void> {
   const chave = chaveDe(uid, entrada);
+  const antes = get().porPeriodo[chave];
+  const motivos = antes?.fase === 'nao-escrita' && antes.motivos && antes.motivos.length > 0 ? antes.motivos : null;
   set((s) => ({ porPeriodo: { ...s.porPeriodo, [chave]: { fase: emCurso } } }));
   try {
     const r = await buscarEdicao(uid, entrada);
     const proximo: EstadoEdicao =
       r.estado === 'ausente' ? { fase: 'ausente' }
         : r.edicao.length > 0 ? { fase: 'pronta', edicao: r.edicao }
-          : { fase: 'nao-escrita' };
+          : motivos ? { fase: 'nao-escrita', motivos }
+            : { fase: 'nao-escrita' };
     set((s) => ({ porPeriodo: { ...s.porPeriodo, [chave]: proximo } }));
   } catch (e) {
     set((s) => ({
@@ -173,18 +278,109 @@ export const useEdicaoStore = create<EdicaoState>((set, get) => ({
     // uma linha por folheada, e o botão "Tentar de novo" fica sem conteúdo —
     // quando o dedo chega nele, a releitura automática já aconteceu. Releitura
     // de erro é ato do leitor, e tem porta própria (`recarregar`).
+    //
+    // **`imprimindo` também fica**: um foco da tela no meio da impressão relia o
+    // banco, punha `carregando` por cima da fila e apagava os cadernos já
+    // mostrados — que só estão na memória até a gravação terminar.
     if (atual && (atual.fase === 'pronta' || atual.fase === 'erro'
-      || atual.fase === 'carregando' || atual.fase === 'relendo')) {
+      || atual.fase === 'carregando' || atual.fase === 'relendo' || atual.fase === 'imprimindo')) {
       return;
     }
-    await ler(set, entrada, uid, 'carregando');
+    await ler(set, get, entrada, uid, 'carregando');
   },
 
   recarregar: async (entrada) => {
     const uid = userId();
     if (!uid) return;
     const atual = get().porPeriodo[chaveDe(uid, entrada)]?.fase;
-    if (atual === 'carregando' || atual === 'relendo') return;
-    await ler(set, entrada, uid, 'relendo');
+    if (atual === 'carregando' || atual === 'relendo' || atual === 'imprimindo') return;
+    await ler(set, get, entrada, uid, 'relendo');
+  },
+
+  imprimir: async (entrada, dadosProntos) => {
+    const uid = userId();
+    if (!uid) return;
+    const chave = chaveDe(uid, entrada);
+    const atual = get().porPeriodo[chave];
+    // A mesma decisão que desenha o botão. O segundo toque encontra `imprimindo` —
+    // o `set` abaixo roda antes de qualquer `await`.
+    if (!atual || !podeEscrever(atual, dadosProntos)) return;
+
+    const por = (estado: EstadoEdicao): void =>
+      set((s) => ({ porPeriodo: { ...s.porPeriodo, [chave]: estado } }));
+    /** Muda um caderno da fila — só se a impressão desta chave ainda estiver em curso. */
+    const naFila = (mudar: (cadernos: readonly CadernoNaImpressao[]) => readonly CadernoNaImpressao[]): void => {
+      const e = get().porPeriodo[chave];
+      if (e?.fase === 'imprimindo') por({ fase: 'imprimindo', cadernos: mudar(e.cadernos) });
+    };
+
+    por({ fase: 'imprimindo', cadernos: [] });
+
+    // **Relê antes de pagar.** O `nao-escrita` da memória pode ser velho: a edição
+    // pode ter sido impressa depois da última leitura (outro aparelho, o backfill).
+    // Imprimir por cima dela seria reimpressão — regenerar e pagar tudo de novo,
+    // sobrescrevendo texto publicado. Falha aqui é erro de leitura: nada começou.
+    try {
+      const lida = await buscarEdicao(uid, entrada);
+      if (lida.estado === 'ausente') {
+        por({ fase: 'ausente' });
+        return;
+      }
+      if (lida.edicao.length > 0) {
+        por({ fase: 'pronta', edicao: lida.edicao });
+        return;
+      }
+    } catch (e) {
+      por({ fase: 'erro', mensagem: mensagemDeLeitura(e) });
+      return;
+    }
+
+    try {
+      const r = await imprimirEdicao(uid, entrada, {
+        aoComecar: (caderno, fila) => naFila((cadernos) => {
+          const base: readonly CadernoNaImpressao[] = cadernos.length > 0
+            ? cadernos
+            : fila.map((c) => ({ caderno: c, fase: 'na-fila' as const }));
+          return base.map((c) => (c.caderno === caderno ? { caderno, fase: 'escrevendo' as const } : c));
+        }),
+        aoLer: (caderno, desfecho) => naFila((cadernos) => {
+          const lido: CadernoNaImpressao = desfecho.tipo === 'escrito'
+            ? { caderno, fase: 'escrito', texto: desfecho.leitura.frase }
+            : { caderno, fase: 'nao-escrito', motivo: naoImpressoDe(desfecho) ?? 'não saiu' };
+          return cadernos.map((c) => (c.caderno === caderno ? lido : c));
+        }),
+      });
+
+      const naoImpressos: NaoImpresso[] = [];
+      if (r.estado === 'gravada' || r.estado === 'nada-gravado') {
+        for (const { caderno, desfecho } of r.desfechos) {
+          const motivo = naoImpressoDe(desfecho);
+          if (motivo !== null) naoImpressos.push({ caderno, motivo });
+        }
+      }
+      switch (r.estado) {
+        case 'gravada':
+          por(r.edicao.length > 0
+            ? { fase: 'pronta', edicao: r.edicao, ...(naoImpressos.length > 0 ? { naoImpressos } : {}) }
+            : { fase: 'nao-escrita', motivos: naoImpressos });
+          return;
+        case 'nada-gravado':
+          por({ fase: 'nao-escrita', motivos: naoImpressos });
+          return;
+        case 'sem-caderno':
+          por({ fase: 'nao-escrita', semCaderno: true });
+          return;
+        case 'aberto':
+          por({ fase: 'ausente' });
+          return;
+        default:
+          // Sem este ramo, um estado inesperado deixaria a chave presa em
+          // `imprimindo` — e `carregar`/`recarregar` a recusam até o app reiniciar.
+          por({ fase: 'erro', mensagem: estadoNaoTratado(r), aposImpressao: true });
+          return;
+      }
+    } catch (e) {
+      por({ fase: 'erro', mensagem: mensagemDeImpressao(e), aposImpressao: true });
+    }
   },
 }));

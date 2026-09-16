@@ -54,7 +54,7 @@ import {
   type MotorId,
   type Tentativa,
 } from '@vitale/shared';
-import { AUSENCIA_POR_DEFEITO, REPOUSO, type EstadoDaLeitura } from './assinatura';
+import { AUSENCIA_POR_DEFEITO, REPOUSO, quemNaoEscreveu, type EstadoDaLeitura } from './assinatura';
 import { anel } from './motores/anel';
 import { idsConhecidos } from './motores/catalogo';
 import { motorPara } from './motores';
@@ -123,19 +123,6 @@ export interface Leitor {
 /** A soma do tempo da trilha. Sem `pedidoCurto` no descritor, é sempre uma tentativa. */
 function msDa(trilha: readonly Tentativa[]): number {
   return trilha.reduce((s, t) => s + t.ms, 0);
-}
-
-/**
- * Quem era o motor de que o piso fala: o último da trilha que não é o template.
- *
- * A trilha vazia (piso por preferência) cai no escolhido, que nesse caso é o
- * próprio `sem-modelo` — e `motivoDaFalha` sabe que aí não há o que explicar.
- */
-function quemNaoEscreveu(trilha: readonly Tentativa[], escolhido: MotorId): MotorId {
-  for (let i = trilha.length - 1; i >= 0; i -= 1) {
-    if (trilha[i].motor !== SEM_MODELO) return trilha[i].motor;
-  }
-  return escolhido;
 }
 
 /* ── a máquina ───────────────────────────────────────────────────────────── */

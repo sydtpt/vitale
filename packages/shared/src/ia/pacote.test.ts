@@ -11,6 +11,8 @@ import {
   periodLabel, previousPeriodLabel, previousPeriodStartISO,
 } from '../period/bounds';
 import type { PeriodKind } from '../period/bounds';
+// A regra de edição mudou de pasta na Story 1.10 — sem reexporte por `./pacote`.
+import { periodoFechado } from '../period/fechado';
 import type { FatoLapide, FatoNumero, PacoteDeFatos } from './pacote';
 import {
   PACOTE_VERSAO,
@@ -22,7 +24,6 @@ import {
   montarPacote,
   montarPacotes,
   numerosDoPacote,
-  periodoFechado,
   procedenciaDoPacote,
   ressalvasObrigatorias,
   TEXTO_DA_ESTACAO,

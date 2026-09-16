@@ -41,6 +41,10 @@ export * from './ia/interpolar';
 // seguirem sem edição — e um caminho público basta. O da Saúde do sono mora em
 // `sleep/leitura`, junto da entrada e do caso.
 export * from './ia/retrospectiva';
+// A sequência da impressão (story 1.10): cliente do orquestrador, com as portas
+// `buscar` e `gravar` que o hospedeiro injeta. É porta, não peça — a guarda (7)
+// a libera para os apps.
+export * from './ia/imprimir';
 export * from './sleep/timing';
 export * from './sleep/derive';
 export * from './sleep/awakenings';
@@ -62,6 +66,7 @@ export * from './week/highlights';
 export * from './period/bucket-plan';
 export * from './period/bounds';
 export * from './period/cadernos';
+export * from './period/fechado';
 export * from './period/retro';
 export * from './period/retro-blocks';
 export * from './period/task-grid';

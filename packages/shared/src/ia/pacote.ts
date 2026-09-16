@@ -44,6 +44,7 @@
  */
 import type { PeriodKind } from '../period/bounds';
 import { previousPeriodLabel, previousPeriodStartISO } from '../period/bounds';
+import { periodoFechado } from '../period/fechado';
 import type { EstacaoDaLuz } from '../astro/casa';
 import { estacaoDaLuz } from '../astro/casa';
 import type { CadernoId, MetricaComLapide } from '../period/cadernos';
@@ -313,7 +314,7 @@ export interface PacoteDeFatos {
     inicioISO: string;
     /** Último dia INCLUSIVO, `YYYY-MM-DD` — mesma convenção do `RetroSummary`. */
     fimISO: string;
-    /** Ver `periodoFechado`. Período aberto não ganha parágrafo de máquina. */
+    /** Ver `periodoFechado` (`period/fechado.ts`). Período aberto não ganha parágrafo de máquina. */
     fechado: boolean;
     diasNoPeriodo: number;
     /**
@@ -380,27 +381,10 @@ function comoLista(p: UmOuMaisPacotes): readonly PacoteDeFatos[] {
 }
 
 // ── Regra de edição ────────────────────────────────────────
-
-/** `YYYY-MM-DD` local — mesma convenção do `retro.ts`. */
-function diaLocal(d: Date): string {
-  const p = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-/**
- * Um período está **fechado** quando o último dia dele já passou.
- *
- * É a regra de edição da §3 do spec, e não é otimização: um jornal não reescreve
- * a edição de terça. Período fechado congela; período em curso não ganha
- * parágrafo, porque consultar "setembro" no dia 6 guardaria uma análise de seis
- * dias sob um rótulo de trinta.
- *
- * `all` nunca fecha, por definição — sempre cabe mais um dia.
- */
-export function periodoFechado(tipo: PeriodKind, fimISO: string, agora: Date): boolean {
-  if (tipo === 'all') return false;
-  return diaLocal(agora) > fimISO;
-}
+//
+// `periodoFechado` mora em `period/fechado.ts` desde a Story 1.10: é pergunta
+// sobre o relógio, não peça de IA, e a leitura da edição no celular a usa sem
+// montar pacote. Aqui ela só é chamada — sem reexporte.
 
 /**
  * O texto de cada estação de luz — **sem dígito, sem vocabulário de base, sem

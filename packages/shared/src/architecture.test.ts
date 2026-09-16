@@ -279,8 +279,12 @@ check('BARREIRA — a edge function lê a cadeia de provedores do núcleo', () =
  * Varre também `supabase/functions` e `scripts/`: a edge function é hospedeiro
  * como qualquer outro, e é pela mesma razão que a barreira irmã da cadeia de
  * provedores existe. `scripts/` entra hoje vazio de TypeScript de propósito — é
- * onde o backfill da Story 2.2 vai morar, e a garantia que `upsertEdicao`
- * promete a ele só vale se a barreira chegar lá antes dele.
+ * onde o backfill da Story 2.2 vai morar, e a garantia que a porta de gravação
+ * (`portasDaEdicao`, em `data/edicoes-ia.ts`) promete a ele só vale se a barreira
+ * chegar lá antes dele. Desde a 1.10 há uma segunda metade, mais abaixo: o
+ * literal da coluna `agg_version_no_momento` não aparece em código fora de
+ * `packages/shared/src/data/` — esta cobra o dono da constante, aquela, quem a
+ * escreve na carga.
  */
 const DONO_AGG_VERSION = 'packages/shared/src/constants/agg-version.ts';
 
@@ -1623,6 +1627,9 @@ check('BARREIRA — nem mobile nem web alcançam ia/ranqueamento', () => {
  *   1 (1.9) — o celular parou de narrar antes da 1.10: a escrita saiu de
  *             `mobile/src/lib/edicao-ia.ts` junto com a migração, e o arquivo
  *             ficou só com a leitura. Sobra `routes/nomear.ts`.
+ *   1 (1.10) — fica. A impressão voltou pelo orquestrador, e o motivo de parada
+ *             gravado é `CONCLUSAO`, nomeada em `ia/imprimir.ts` — nenhum literal
+ *             novo. Quem zera é a 5.7, com o nome de rota.
  */
 const DONO_CONCLUSAO = 'packages/shared/src/ia/motor.ts';
 const ADAPTADOR_DO_PROVEDOR = 'supabase/functions/_shared/ia/narrador.ts';
@@ -1676,6 +1683,9 @@ check(`CATRACA — o literal 'STOP' só na CONCLUSAO (teto ${TETO_STOP})`, () =>
  *             Vira barreira em zero, na F4.
  *   1 (1.9) — a narração saiu do celular antes da 1.10, junto com a migração:
  *             `edicao-ia.ts` ficou só com a leitura. Sobra o nome de rota.
+ *   1 (1.10) — fica. A impressão voltou ao celular pelo `motorPara` de
+ *             `mobile/src/lib/motores/` — `edicao-ia.ts` não nomeia a function.
+ *             Sobra `services/route-name.ts`, que sai na 5.7.
  */
 const PONTOS_DE_INJECAO = [
   /^mobile\/src\/lib\/motores\//,
@@ -1725,16 +1735,17 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
 });
 
 /**
- * CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritores (AD-10 (7), AD-2).
+ * BARREIRA — fora do núcleo, do núcleo de IA só a porta e os descritores (AD-10 (7), AD-2).
  *
  * Um hospedeiro que importa `montarPrompt` e `verificarTexto` está percorrendo
  * a sequência pedido → modelo → conferência por conta própria — exatamente a
  * segunda sequência que o orquestrador existe para não haver. Fora de
  * `packages/shared`, do núcleo de IA se importam a porta (`fio`, `motor`,
- * `orquestrar`, `nuvem`, `recursos`) e os descritores (nomes `descritor*`).
+ * `orquestrar`, `nuvem`, `recursos`, e desde a 1.10 `imprimir`, a sequência da
+ * impressão) e os descritores (nomes `descritor*`).
  *
  * Conta só import **de valor**: `import type` e `type X` ficam de fora, porque
- * tipo não sequencia nada — e contá-los faria a catraca nascer em 3 (o cartão e
+ * tipo não sequencia nada — e contá-los faria a guarda nascer em 3 (o cartão e
  * a store da edição importam `Problema` e `EntradaPacote`) e não virar barreira
  * na 1.10. `routes/` fica fora até a 5.7: `nomeDaAtividade` e `nomeProprio` são
  * exibição, usados em seis telas. Varre `mobile/src` e `web/src`, fora de
@@ -1769,8 +1780,19 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
  *             porque a promessa "vira barreira em zero na 1.10" depende deste
  *             import sair, e ele não sai pela 1.10: quem quiser zerar move o
  *             predicado para fora de `ia/`.
+ *   0 (1.10) — **vira barreira.** `periodoFechado` mudou para `period/fechado.ts`
+ *             (sem reexporte por `ia/pacote`), e a impressão voltou ao celular
+ *             pela porta: `imprimir` (`ia/imprimir.ts`) entrou em `PORTA_DE_IA`,
+ *             porque é o cliente do orquestrador que o hospedeiro chama com as
+ *             portas dele — não monta pedido nem confere nada, e o descritor é
+ *             fixo nele. A sequência com descritor injetável (`imprimirCom`, em
+ *             `ia/imprimir-sequencia.ts`) fica **fora** da porta e do barril: um
+ *             app que a importasse por caminho profundo poderia passar um
+ *             descritor com a conferência trocada, e é esta guarda que reprova. A barreira tem
+ *             caso-espelho: fixtures num diretório temporário, pelo mesmo
+ *             detector, provam que um `montarPacotes` importado num app reprova.
  */
-const PORTA_DE_IA = new Set(['fio', 'motor', 'orquestrar', 'nuvem', 'recursos']);
+const PORTA_DE_IA = new Set(['fio', 'motor', 'orquestrar', 'nuvem', 'recursos', 'imprimir']);
 /** O que a tela chama das peças de `sleep/`: a entrada, não a leitura. */
 const LIVRES_DE_SONO = new Set(['entradaDaSaude']);
 /**
@@ -1794,9 +1816,18 @@ const LIVRES_NA_BANCADA = new Set(['casoDaSaude']);
  * se nenhuma tela o importa, ele é peça, e a lista mente.
  */
 const SONO_DAS_TELAS = new Set(['score', 'ranges']);
-const TETO_PECAS_DE_IA = 1;
 
-check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritores (teto ${TETO_PECAS_DE_IA})`, () => {
+/**
+ * O caminho de um arquivo relativo à raiz, com `/` — ou o absoluto, quando ele
+ * está fora dela (a autoprova num diretório temporário). `f.replace(ROOT + '/',
+ * '')` erra quando o `TMPDIR` fica dentro do repositório; este não. `raiz` é a do
+ * repositório, ou a de uma autoprova que monta a árvore dela.
+ */
+function relativoARaiz(f: string, raiz: string = ROOT): string {
+  return f.startsWith(raiz + sep) ? relative(raiz, f).split(sep).join('/') : f;
+}
+
+check('BARREIRA — fora do núcleo, do núcleo de IA só a porta e os descritores', () => {
   const iaDir = join(SHARED_SRC, 'ia');
   const sonoDir = join(SHARED_SRC, 'sleep');
   const moduloDe = (dir: string) => (f: string) => f.slice(dir.length + 1).replace(/\.tsx?$/, '');
@@ -1917,13 +1948,12 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
     return out.filter((n) => !ehDescritor(n));
   };
 
-  const fora: string[] = [];
-  const daBancada = new Set(scriptFiles);
-  for (const f of [...mobileFiles, ...webFiles, ...scriptFiles].filter((x) => !ehTeste(x))) {
+  /** As peças de IA que um arquivo importa — vazio quando só alcança a porta, os descritores e o que é livre. */
+  const pecasImportadas = (f: string, daBancada: boolean): string[] => {
     const src = semComentario(readFileSync(f, 'utf8'));
     const achados = new Set<string>();
     // A bancada nomeia o caso; as telas, não. Fora disso, as regras são as mesmas.
-    const livre = (n: string): boolean => LIVRES_DE_SONO.has(n) || (daBancada.has(f) && LIVRES_NA_BANCADA.has(n));
+    const livre = (n: string): boolean => LIVRES_DE_SONO.has(n) || (daBancada && LIVRES_NA_BANCADA.has(n));
     for (const m of src.matchAll(IMPORTACAO)) {
       if (m[2]) continue;                                   // import type / export type
       const spec = m[5];
@@ -1948,19 +1978,85 @@ check(`CATRACA — fora do núcleo, do núcleo de IA só a porta e os descritore
       const sono = pecaDeSono(m[2]);
       if (sono) achados.add(`import() de sleep/${sono}`);
     }
-    if (achados.size > 0) fora.push(`${f.replace(ROOT + '/', '')} (${[...achados].join(', ')})`);
-  }
-  fora.sort();
-  if (fora.length < TETO_PECAS_DE_IA) {
-    console.log(`     ↓ peças de IA fora do núcleo caíram para ${fora.length} (teto ${TETO_PECAS_DE_IA}) — baixe o teto`);
-  }
+    return [...achados];
+  };
+
+  /** Os arquivos, fora de teste, que importam peça — com o que importam. */
+  const varrer = (arquivos: readonly string[], daBancada: ReadonlySet<string>): string[] =>
+    arquivos
+      .filter((f) => !ehTeste(f))
+      .flatMap((f) => {
+        const achados = pecasImportadas(f, daBancada.has(f));
+        return achados.length > 0 ? [`${relativoARaiz(f)} (${achados.join(', ')})`] : [];
+      })
+      .sort();
+
+  const exigirNenhuma = (fora: readonly string[]): void => {
+    assert.deepEqual(
+      fora,
+      [],
+      `peça do núcleo de IA importada fora dele em ${fora.length} arquivos:\n    ${fora.join('\n    ')}\n` +
+        `  O hospedeiro chama o orquestrador (ler) — ou a sequência da impressão (imprimir) — com o descritor ` +
+        `do recurso; montar o pedido, interpretar e conferir são do descritor, dentro do núcleo (AD-2).`,
+    );
+  };
+
+  // Não-vácua nos nomes: a sequência da impressão é porta, a regra de edição saiu
+  // de ia/, e as peças que a 1.10 tirou do app continuam no conjunto.
+  assert.ok(nomes.has('montarPacotes') && nomes.has('verificarTexto'), 'as peças de ia/pacote e ia/verificar sumiram do conjunto');
+  assert.ok(!nomes.has('imprimir'), '`imprimir` contou como peça — ia/imprimir tem de estar em PORTA_DE_IA');
+  assert.ok(!nomes.has('periodoFechado'), '`periodoFechado` voltou para ia/ — ele mora em period/fechado.ts');
   assert.ok(
-    fora.length <= TETO_PECAS_DE_IA,
-    `peça do núcleo de IA importada fora dele em ${fora.length} arquivos (teto ${TETO_PECAS_DE_IA}):\n    ` +
-      `${fora.join('\n    ')}\n` +
-      `  O hospedeiro chama o orquestrador (ler) com o descritor do recurso; montar o pedido, ` +
-      `interpretar e conferir são do descritor, dentro do núcleo (AD-2).`,
+    nomes.has('imprimirCom'),
+    '`imprimirCom` não contou como peça — ia/imprimir-sequencia não pode estar em PORTA_DE_IA: ela aceita descritor',
   );
+
+  // O caso-espelho: arquivos de verdade num diretório temporário, pelo mesmo
+  // `varrer` e pelo mesmo veredito que a barreira usa sobre o repositório.
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-pecas-'));
+  try {
+    const casos: readonly (readonly [string, string, boolean, readonly string[]])[] = [
+      ['barril.ts', "import { montarPacotes, imprimir } from '@vitale/shared';", false, ['montarPacotes']],
+      ['profundo.ts', "import { montarPrompt } from '@vitale/shared/src/ia/prompt';", false, ['montarPrompt de ia/prompt']],
+      ['dinamico.ts', "export const p = import('../../packages/shared/src/ia/verificar.ts');", false, ['import() de ia/verificar']],
+      ['namespace.ts', "import * as nucleo from '@vitale/shared';", false, ['* (o módulo inteiro)']],
+      ['caso-na-tela.ts', "import { casoDaSaude } from '@vitale/shared';", false, ['casoDaSaude']],
+      ['caso-na-bancada.ts', "import { casoDaSaude } from '@vitale/shared';", true, []],
+      [
+        'sequencia-profunda.ts',
+        "import { imprimirCom } from '@vitale/shared/src/ia/imprimir-sequencia';",
+        false,
+        ['imprimirCom de ia/imprimir-sequencia'],
+      ],
+      [
+        'porta.ts',
+        "import { imprimir, ler, resolverCadeia, descritorDaRetrospectiva, entradaDaSaude, periodoFechado } from '@vitale/shared';\n"
+          + "import { imprimir as i } from '@vitale/shared/src/ia/imprimir';",
+        false,
+        [],
+      ],
+      ['tipo.ts', "import type { PacoteDeFatos } from '@vitale/shared';\nimport { type Problema } from '@vitale/shared';", false, []],
+      ['comentario.ts', "// import { montarPacotes } from '@vitale/shared';\nexport const x = 1;", false, []],
+    ];
+    const ofensores: string[] = [];
+    for (const [nome, fonte, bancada, esperado] of casos) {
+      const arquivo = join(dir, nome);
+      writeFileSync(arquivo, `${fonte}\n`);
+      const achado = varrer([arquivo], new Set(bancada ? [arquivo] : []));
+      assert.deepEqual(
+        achado,
+        esperado.length > 0 ? [`${relativoARaiz(arquivo)} (${esperado.join(', ')})`] : [],
+        `a guarda (7) leu errado o caso-espelho ${nome}`,
+      );
+      if (esperado.length > 0) ofensores.push(arquivo);
+    }
+    // E o veredito reprova o que o detector achou — a barreira vê.
+    assert.throws(() => exigirNenhuma(varrer(ofensores, new Set())), /peça do núcleo de IA importada fora dele/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  exigirNenhuma(varrer([...mobileFiles, ...webFiles, ...scriptFiles], new Set(scriptFiles)));
 });
 
 /**
@@ -2093,12 +2189,17 @@ function chamamMetodo(metodos: readonly string[], arquivos: readonly string[] = 
         for (const elemento of no.elements) {
           const nome = elemento.propertyName ?? elemento.name;
           if ((ts.isIdentifier(nome) || ts.isStringLiteral(nome)) && alvo.has(nome.text)) achados.add(nome.text);
+          // `const { ['conferir']: c } = d` — a chave computada de literal é o mesmo membro.
+          if (ts.isComputedPropertyName(nome)) {
+            const chave = desembrulhar(nome.expression);
+            if (ts.isStringLiteralLike(chave) && alvo.has(chave.text)) achados.add(chave.text);
+          }
         }
       }
       ts.forEachChild(no, visitar);
     };
     visitar(ts.createSourceFile(f, src, ts.ScriptTarget.Latest, false));
-    if (achados.size > 0) fora.push(`${f.replace(ROOT + '/', '')} (${[...achados].sort().join(', ')})`);
+    if (achados.size > 0) fora.push(`${relativoARaiz(f)} (${[...achados].sort().join(', ')})`);
   }
   return fora.sort();
 }
@@ -2120,6 +2221,8 @@ function provarODetector(): void {
       ['desestrutura.ts', 'const { conferir } = d; conferir(x, f);', ['conferir']],
       ['renomeia.ts', 'const { semModelo: piso } = d; piso(f);', ['semModelo']],
       ['chamada-guardada.ts', 'const f = d.pedidoCurto; if (f) f(fatos);', ['pedidoCurto']],
+      ['computada.ts', "const { ['conferir']: c } = d; c(x, f);", ['conferir']],
+      ['computada-template.ts', 'const { [`montarFrase`]: m } = d; m(v, f);', ['montarFrase']],
       ['comentario.ts', '// d.conferir(x) só no comentário\n/** e d.interpretar(r) também */\nexport const x = 1;', []],
       ['import.ts', "import { interpretar } from './nada';\nexport { interpretar };", []],
     ];
@@ -2130,7 +2233,7 @@ function provarODetector(): void {
       if (esperado.length === 0) {
         assert.deepEqual(achado, [], `o detector acusou ${nome}, que não é ofensa`);
       } else {
-        assert.deepEqual(achado, [`${arquivo} (${[...esperado].sort().join(', ')})`], `o detector não viu ${nome}`);
+        assert.deepEqual(achado, [`${relativoARaiz(arquivo)} (${[...esperado].sort().join(', ')})`], `o detector não viu ${nome}`);
       }
     }
   } finally {
@@ -2166,6 +2269,292 @@ check('CATRACA — montarPedido fora do orquestrador (só a bancada)', () => {
       `para o relatório do dono. Quem precisa só da identidade do pedido tem o hash no anel ` +
       `(EventoDoAnel.hash) e no Medicao. Montá-lo por conta própria é a segunda sequência que a AD-2 ` +
       `proíbe. Se a lista ficou vazia, a guarda virou barreira: apague a constante e o deepEqual.`,
+  );
+});
+
+/**
+ * BARREIRA — só a sequência grava a edição (Story 1.10, AD-4, AD-13).
+ *
+ * "Verifica antes de gravar" deixou de ser comentário quando a escrita virou
+ * porta: a única linha que chega a `gravar` é a leitura de um motor aprovada pela
+ * conferência, e quem monta essa carga é a sequência (`imprimirCom`, em
+ * `ia/imprimir-sequencia.ts`, que `imprimir` chama com o descritor fixo). A
+ * barreira tranca os três atalhos que contornariam isso:
+ *
+ *  1. **`edicao_imprimir` só em `data/edicoes-ia.ts`.** É a porta de gravação
+ *     (`portasDaEdicao`), e mais ninguém nomeia a função — nem hospedeiro, nem
+ *     outro módulo do núcleo.
+ *  2. **Nenhuma escrita direta em `edicoes_ia`.** `.upsert`, `.insert`, `.update`
+ *     ou `.delete` encadeados num `.from('edicoes_ia')`, em qualquer lugar. Era o
+ *     `upsertEdicao` da 1.9: gravava um caderno por vez, contornando a função e a
+ *     contiguidade das posições.
+ *  3. **`.gravar` só é lido em `ia/imprimir-sequencia.ts`.** A AC do épico mandava restringir
+ *     quem importa `upsertEdicao`; a sequência não pode importar `data/` (o fecho
+ *     do núcleo de IA recusa o SDK), e a escrita virou porta devolvida por
+ *     `portasDaEdicao`. Quem lê `.gravar` é quem grava — por AST, então colchete e
+ *     desestruturação — inclusive com chave computada — não escapam (o mesmo
+ *     `chamamMetodo` da AD-2).
+ *
+ * Varre o núcleo e os hospedeiros (`mobile/src`, `web/src`, `scripts/` e
+ * `supabase/functions`), fora de teste. O código é lido pela árvore do
+ * TypeScript: comentário que cita a função não conta.
+ *
+ * **O que ela não vê:** o nome montado em partes (`'edicao_' + 'imprimir'`, um
+ * template com interpolação); a tabela guardada numa variável antes do `.from`
+ * (`const t = 'edicoes_ia'; db.from(t).upsert()`), e a cadeia partida por uma
+ * variável (`const q = db.from('edicoes_ia'); q.upsert()`); o SQL cru fora de
+ * TypeScript. A rede contra os dois últimos é a outra barreira: fora do núcleo
+ * não há `.from()` nenhum, e dentro dele a tabela tem um dono só.
+ */
+const DONO_DA_GRAVACAO = 'packages/shared/src/data/edicoes-ia.ts';
+const DONO_DA_SEQUENCIA = 'packages/shared/src/ia/imprimir-sequencia.ts';
+const ESCRITAS_DIRETAS = new Set(['upsert', 'insert', 'update', 'delete']);
+
+/** O núcleo e os hospedeiros, fora de teste. */
+function nucleoEHospedeiros(): string[] {
+  return [...walk(SHARED_SRC).filter((f) => !ehTeste(f)), ...hospedeiros()];
+}
+
+/**
+ * Os arquivos cujo **código** cita `texto` — num identificador, numa string ou
+ * num pedaço de template. Comentário não é código, e a árvore sintática já o
+ * deixa de fora.
+ */
+function citamNoCodigo(texto: string, arquivos: readonly string[], raiz: string = ROOT): string[] {
+  const fora: string[] = [];
+  for (const f of arquivos) {
+    const src = readFileSync(f, 'utf8');
+    if (!src.includes(texto)) continue;
+    let achou = false;
+    const visitar = (no: ts.Node): void => {
+      if (achou) return;
+      const temTexto = ts.isIdentifier(no) || ts.isPrivateIdentifier(no) || ts.isStringLiteralLike(no)
+        || ts.isTemplateHead(no) || ts.isTemplateMiddle(no) || ts.isTemplateTail(no);
+      if (temTexto && no.text.includes(texto)) {
+        achou = true;
+        return;
+      }
+      ts.forEachChild(no, visitar);
+    };
+    visitar(ts.createSourceFile(f, src, ts.ScriptTarget.Latest, false));
+    if (achou) fora.push(relativoARaiz(f, raiz));
+  }
+  return fora.sort();
+}
+
+/** Os arquivos que encadeiam uma escrita direta num `.from('<tabela>')`, com os métodos achados. */
+function escrevemNaTabela(tabela: string, arquivos: readonly string[]): string[] {
+  const membro = (n: ts.Node): string | null => {
+    if (ts.isPropertyAccessExpression(n)) return n.name.text;
+    if (ts.isElementAccessExpression(n) && ts.isStringLiteralLike(n.argumentExpression)) return n.argumentExpression.text;
+    return null;
+  };
+  // O que só embrulha a expressão sem sair da cadeia: `(x as T)`, `x!`, `x satisfies T`.
+  const embrulho = (n: ts.Node): boolean =>
+    ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isNonNullExpression(n)
+    || ts.isSatisfiesExpression(n) || ts.isTypeAssertionExpression(n);
+  const fora: string[] = [];
+  for (const f of arquivos) {
+    const src = readFileSync(f, 'utf8');
+    if (!src.includes(tabela)) continue;
+    const achados = new Set<string>();
+    const visitar = (no: ts.Node): void => {
+      if (ts.isCallExpression(no) && membro(no.expression) === 'from' && no.arguments.length > 0) {
+        const arg = desembrulhar(no.arguments[0]);
+        if (ts.isStringLiteralLike(arg) && arg.text === tabela) {
+          let elo: ts.Node = no;
+          while (elo.parent) {
+            const pai: ts.Node = elo.parent;
+            const noMembro = (ts.isPropertyAccessExpression(pai) || ts.isElementAccessExpression(pai)) && pai.expression === elo;
+            const naChamada = ts.isCallExpression(pai) && pai.expression === elo;
+            if (!noMembro && !naChamada && !embrulho(pai)) break;
+            const nome = noMembro ? membro(pai) : null;
+            if (nome !== null && ESCRITAS_DIRETAS.has(nome)) achados.add(nome);
+            elo = pai;
+          }
+        }
+      }
+      ts.forEachChild(no, visitar);
+    };
+    visitar(ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true));
+    if (achados.size > 0) fora.push(`${relativoARaiz(f)} (${[...achados].sort().join(', ')})`);
+  }
+  return fora.sort();
+}
+
+/**
+ * O caso-espelho das três metades — arquivos de verdade num diretório
+ * temporário, pelos mesmos detectores que a barreira chama sobre o repositório.
+ */
+function provarAGravacaoUnica(): void {
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-gravacao-'));
+  try {
+    const escrever = (nome: string, fonte: string): string => {
+      const arquivo = join(dir, nome);
+      writeFileSync(arquivo, `${fonte}\n`);
+      return arquivo;
+    };
+    const rel = (arquivo: string) => relativoARaiz(arquivo);
+
+    // 1. a função nomeada
+    const rpc = escrever('rpc.ts', "export const f = (db: any) => db.rpc('edicao_imprimir', {});");
+    const template = escrever('template.ts', 'export const f = (db: any) => db.rpc(`edicao_imprimir`, {});');
+    const nomeComentado = escrever('comentario.ts', "// db.rpc('edicao_imprimir')\n/** edicao_imprimir */\nexport const x = 1;");
+    assert.deepEqual(citamNoCodigo('edicao_imprimir', [rpc, template, nomeComentado]), [rel(rpc), rel(template)].sort());
+
+    // 2. a escrita direta
+    const casos: readonly (readonly [string, string, readonly string[]])[] = [
+      ['upsert.ts', "export const f = (db: any) => db.from('edicoes_ia').upsert({}).select();", ['upsert']],
+      ['delete.ts', "export const f = async (db: any) => { await db.from(\"edicoes_ia\").delete().eq('a', 1); };", ['delete']],
+      ['colchete.ts', "export const f = (db: any) => (db.from('edicoes_ia') as any)['insert']({});", ['insert']],
+      ['opcional.ts', "export const f = (db: any) => db?.from('edicoes_ia')?.update({})!.eq('x', 1);", ['update']],
+      ['leitura.ts', "export const f = (db: any) => db.from('edicoes_ia').select('*').eq('a', 1).order('posicao');", []],
+      ['outra-tabela.ts', "export const f = (db: any) => db.from('edicoes_capa').upsert({});", []],
+      ['so-comentario.ts', "// db.from('edicoes_ia').upsert({})\nexport const x = 1;", []],
+    ];
+    for (const [nome, fonte, esperado] of casos) {
+      const arquivo = escrever(nome, fonte);
+      assert.deepEqual(
+        escrevemNaTabela('edicoes_ia', [arquivo]),
+        esperado.length > 0 ? [`${rel(arquivo)} (${esperado.join(', ')})`] : [],
+        `a barreira da escrita direta leu errado ${nome}`,
+      );
+    }
+
+    // 3. `.gravar` lido
+    const leituras: readonly (readonly [string, string, boolean])[] = [
+      ['gravar-ponto.ts', 'export const f = (p: any, i: any) => p.gravar(i);', true],
+      ['gravar-colchete.ts', "export const f = (p: any, i: any) => p['gravar'](i);", true],
+      ['gravar-desestrutura.ts', 'export const f = (p: any, i: any) => { const { gravar } = p; return gravar(i); };', true],
+      ['gravar-computada.ts', "export const f = (p: any, i: any) => { const { ['gravar']: g } = p; return g(i); };", true],
+      ['gravar-define.ts', 'export const portas = { gravar: async () => 1 };\nexport const g = (x: any) => x.gravarPreferencia();', false],
+    ];
+    for (const [nome, fonte, ofende] of leituras) {
+      const arquivo = escrever(nome, fonte);
+      assert.deepEqual(chamamMetodo(['gravar'], [arquivo]), ofende ? [`${rel(arquivo)} (gravar)`] : [], nome);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+check('BARREIRA — só a sequência grava a edição: edicao_imprimir no dono, nenhuma escrita direta, .gravar só em ia/imprimir-sequencia', () => {
+  provarAGravacaoUnica();
+  const alvos = nucleoEHospedeiros();
+  assert.ok(mobileFiles.length > 0 && scriptFiles.length > 0, 'os hospedeiros sumiram — a barreira ficou sem alvo');
+
+  // 1. Não-vácua: o dono é achado nomeando a função.
+  const nomeiam = citamNoCodigo('edicao_imprimir', alvos);
+  assert.ok(
+    nomeiam.includes(DONO_DA_GRAVACAO),
+    `${DONO_DA_GRAVACAO} não nomeia mais edicao_imprimir — a barreira ficou sem o dono. Se a gravação mudou de ` +
+      'arquivo, aponte DONO_DA_GRAVACAO para ele.',
+  );
+  const foraDoDono = nomeiam.filter((f) => f !== DONO_DA_GRAVACAO);
+  assert.deepEqual(
+    foraDoDono,
+    [],
+    `edicao_imprimir nomeada fora da porta de gravação: ${foraDoDono.join(', ')}. Quem grava a edição chama ` +
+      'imprimir (@vitale/shared) com portasDaEdicao(db, uid) — a função do banco tem um chamador só.',
+  );
+
+  // 2. Nenhuma escrita direta.
+  const diretas = escrevemNaTabela('edicoes_ia', alvos);
+  assert.deepEqual(
+    diretas,
+    [],
+    `escrita direta em edicoes_ia: ${diretas.join(', ')}. A edição se grava pela função edicao_imprimir, com o ` +
+      'conjunto inteiro — caderno a caderno, a posição sai de um conjunto ainda em crescimento (AD-4).',
+  );
+
+  // 3. Não-vácua: a sequência é achada lendo `.gravar`.
+  const leem = chamamMetodo(['gravar'], alvos);
+  const daSequencia = `${DONO_DA_SEQUENCIA} (gravar)`;
+  assert.ok(
+    leem.includes(daSequencia),
+    `${DONO_DA_SEQUENCIA} não lê mais .gravar — a barreira ficou sem o dono. Se a sequência mudou de arquivo, ` +
+      'aponte DONO_DA_SEQUENCIA para ele.',
+  );
+  const foraDaSequencia = leem.filter((x) => x !== daSequencia);
+  assert.deepEqual(
+    foraDaSequencia,
+    [],
+    `.gravar lido fora da sequência da impressão: ${foraDaSequencia.join(', ')}. Só imprimir chama a porta de ` +
+      'gravação, e no máximo uma vez: é ela que garante que só leitura de motor, conferida, vira linha.',
+  );
+});
+
+/**
+ * BARREIRA — a coluna `agg_version_no_momento` só é nomeada, em código, na porta de gravação (Story 1.10, AD-16).
+ *
+ * A barreira do dono único de `AGG_VERSION`, lá em cima, olha quem **declara** a
+ * constante e não olha chamador nenhum: um hospedeiro que montasse a carga do RPC
+ * com `PACOTE_VERSAO` (mesmo tipo, mesmo barril) na coluna passava por ela intacto.
+ * Esta fecha o outro lado — o nome da coluna só aparece em código de **um**
+ * arquivo, `data/edicoes-ia.ts`, onde a porta de gravação a carimba da constante e
+ * a linha lida a mapeia. A linha que a sequência entrega não tem o campo, então o
+ * valor não tem por onde vir de fora. E a liberação é o arquivo, não a pasta: outro
+ * módulo de `data/` que nomeasse a coluna poderia carimbar outro valor.
+ *
+ * Mede **menção**, não escrita: qualquer identificador, string ou pedaço de
+ * template com o nome, fora de teste, no núcleo e nos hospedeiros, pela árvore
+ * sintática (o comentário que explica a regra não conta). **Não vê** o nome
+ * montado em partes.
+ */
+function foraDaPortaDeGravacao(citam: readonly string[]): string[] {
+  return citam.filter((f) => f !== DONO_DA_GRAVACAO);
+}
+
+function provarACarimbagem(): void {
+  const raiz = mkdtempSync(join(tmpdir(), 'orbe-guarda-agg-'));
+  try {
+    const escrever = (rel: string, fonte: string): string => {
+      const arquivo = join(raiz, ...rel.split('/'));
+      mkdirSync(dirname(arquivo), { recursive: true });
+      writeFileSync(arquivo, `${fonte}\n`);
+      return arquivo;
+    };
+    // As formas que o detector vê, e as que não são menção.
+    const casos: readonly (readonly [string, string, boolean])[] = [
+      ['mobile/src/carga.ts', 'export const carga = { agg_version_no_momento: 3 };', true],
+      ['mobile/src/chave.ts', "export const k = 'agg_version_no_momento';", true],
+      ['mobile/src/colchete.ts', "export const f = (l: any) => { l['agg_version_no_momento'] = 7; };", true],
+      ['mobile/src/comentario.ts', '// agg_version_no_momento vem do núcleo\nexport const x = 1;', false],
+      ['mobile/src/camelo.ts', 'export const x = { aggVersionNoMomento: 1 };', false],
+    ];
+    const arquivos: string[] = [];
+    for (const [rel, fonte, ofende] of casos) {
+      const arquivo = escrever(rel, fonte);
+      arquivos.push(arquivo);
+      assert.deepEqual(citamNoCodigo('agg_version_no_momento', [arquivo], raiz), ofende ? [rel] : [], rel);
+    }
+    // O dono passa; outro arquivo de `data/` reprova — a liberação é o arquivo, não a pasta.
+    arquivos.push(escrever(DONO_DA_GRAVACAO, 'export const carga = { agg_version_no_momento: 9 };'));
+    arquivos.push(escrever('packages/shared/src/data/outro.ts', 'export const carga = { agg_version_no_momento: 1 };'));
+    assert.deepEqual(
+      foraDaPortaDeGravacao(citamNoCodigo('agg_version_no_momento', arquivos, raiz)),
+      ['mobile/src/carga.ts', 'mobile/src/chave.ts', 'mobile/src/colchete.ts', 'packages/shared/src/data/outro.ts'],
+      'o caso-espelho da carimbagem leu errado o dono ou os ofensores',
+    );
+  } finally {
+    rmSync(raiz, { recursive: true, force: true });
+  }
+}
+
+check('BARREIRA — agg_version_no_momento só nomeada em código de data/edicoes-ia.ts', () => {
+  provarACarimbagem();
+  const citam = citamNoCodigo('agg_version_no_momento', nucleoEHospedeiros());
+  assert.ok(
+    citam.includes(DONO_DA_GRAVACAO),
+    `${DONO_DA_GRAVACAO} não nomeia mais a coluna agg_version_no_momento — a barreira ficou sem alvo.`,
+  );
+  const fora = foraDaPortaDeGravacao(citam);
+  assert.deepEqual(
+    fora,
+    [],
+    `agg_version_no_momento nomeada em código fora de ${DONO_DA_GRAVACAO}: ${fora.join(', ')}. A versão da ` +
+      'agregação é carimbada pela porta de gravação a partir de AGG_VERSION — quem imprime não a informa, a linha ' +
+      'da impressão não tem o campo, e nenhum outro módulo, nem de data/, monta a carga.',
   );
 });
 
