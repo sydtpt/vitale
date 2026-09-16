@@ -7,12 +7,13 @@
  * impressão (story 1.10) chamá-lo uma vez por caderno em vez de percorrer
  * pedido → modelo → conferência por conta própria.
  *
- * **O recorte é o da 1.10, não o de hoje.** A impressão em produção narra uma
- * vez por edição (`montarPromptDaEdicao`) e confere o texto contra os quatro
- * pacotes juntos. Este descritor narra e confere **por caderno** — e por isso é
- * mais estrito: um número que só existe em outro caderno passa na conferência de
- * hoje e reprova aqui, pela regra dos números. É a frouxidão que o pacote por
- * caderno existe para acabar (`ia/pacote.ts`, versão 2).
+ * **O recorte é por caderno.** A impressão de antes da 1.9 narrava uma vez por
+ * edição (`montarPromptDaEdicao`) e conferia o texto contra os quatro pacotes
+ * juntos. Este descritor narra e confere **por caderno** — e por isso é mais
+ * estrito: um número que só existe em outro caderno passava na conferência da
+ * edição inteira e reprova aqui, pela regra dos números. É a frouxidão que o
+ * pacote por caderno existe para acabar (`ia/pacote.ts`, versão 2). Desde a 1.10
+ * é `imprimir` (`ia/imprimir.ts`) quem o chama, uma vez por caderno.
  *
  * - **Regime copiado e conferido** (AD-6): o motor escreve números, e a
  *   conferência exige que cada um exista no pacote do caderno.
@@ -42,6 +43,27 @@ import { verificarTexto } from './verificar';
  * nenhuma das duas versões gravadas muda quando `verificar.ts` muda.
  */
 const VERSAO = PROMPT_VERSAO * 1000 + PACOTE_VERSAO;
+
+/**
+ * A assinatura virando colunas (AD-12): o par que `edicoes_ia` grava, lido de
+ * volta da `versaoDoDescritor` que o orquestrador carimbou na resposta.
+ *
+ * **Decodifica a versão que escreveu, não as constantes de hoje.** Quem grava é a
+ * sequência da impressão (`ia/imprimir.ts`), e ela lê daqui — nunca de
+ * `PROMPT_VERSAO`/`PACOTE_VERSAO` direto. A diferença é pequena e real: a versão
+ * carimbada é a do descritor que montou o pedido, e é ela que a coluna tem de
+ * dizer. Um hospedeiro que reescrevesse a conta lá fora teria de importar as
+ * duas constantes, que a guarda (7) não lhe deixa alcançar.
+ *
+ * Recusa o que não é inteiro não negativo: uma versão que não se decodifica não
+ * vira coluna — quebra alto aqui, em vez de gravar `NaN` longe daqui.
+ */
+export function versoesDaRetrospectiva(versao: number): { prompt: number; pacote: number } {
+  if (!Number.isInteger(versao) || versao < 0) {
+    throw new RangeError(`versão do descritor da retrospectiva que não se decodifica: ${String(versao)}`);
+  }
+  return { prompt: Math.floor(versao / 1000), pacote: versao % 1000 };
+}
 
 export const descritorDaRetrospectiva: Descritor<PacoteDeFatos, string> = {
   recurso: 'retrospectiva',

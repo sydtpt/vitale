@@ -74,11 +74,15 @@ describe('o catálogo de motores do app', () => {
     expect(motorConhecido(undefined)).toBeUndefined();
   });
 
-  it('a hospedagem cobre todo recurso do núcleo, e só a Saúde do sono está ligada', () => {
+  it('a hospedagem cobre todo recurso do núcleo: a Saúde do sono e a Retrospectiva ligadas, o nome de rota não', () => {
     // Fechada sobre `RecursoId`: o teste falha se um recurso novo entrar no núcleo
     // sem alguém dizer se esta camada o consome.
     expect(Object.keys(HOSPEDAGEM).sort()).toEqual([...RECURSOS].sort());
     expect(HOSPEDAGEM['saude-do-sono'].hospedado).toBe(true);
+    // A 1.10 ligou a impressão da revista pelo orquestrador: a escolha passou a ser
+    // consultada, e a tela de motores não pode continuar dizendo que não é.
+    expect(HOSPEDAGEM.retrospectiva).toEqual({ hospedado: true });
+    expect(HOSPEDAGEM['nome-de-rota'].hospedado).toBe(false);
     for (const [id, h] of Object.entries(HOSPEDAGEM)) {
       if (h.hospedado) expect(h.motivo).toBeUndefined();
       else expect(h.motivo).toContain('ainda não usado nesta versão');
@@ -96,6 +100,9 @@ describe('o catálogo de motores do app', () => {
 describe('por que um motor não pode ser escolhido', () => {
   const saude = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'saude-do-sono')!;
   const retro = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'retrospectiva')!;
+  // O nome de rota ainda não está no catálogo do núcleo (entra na 5.7); a forma que o
+  // bloqueio lê basta para medir o recurso que esta camada não hospeda.
+  const nomeDeRota = { recurso: 'nome-de-rota', regimeMaximo: 'nuvem', grava: false } as const;
 
   it('na Saúde do sono: sem modelo e nuvem liberados, aparelho com o motivo do build', () => {
     expect(motivoDeBloqueio(saude, SEM_MODELO)).toBeNull();
@@ -109,8 +116,16 @@ describe('por que um motor não pode ser escolhido', () => {
     // Um controle que grava uma preferência que ninguém consulta mente tanto quanto
     // uma opção escondida: o dono trocaria o motor e nada mudaria.
     for (const m of MOTORES_CONHECIDOS) {
-      expect(motivoDeBloqueio(retro, m.id)).toContain('ainda não usado nesta versão');
+      expect(motivoDeBloqueio(nomeDeRota, m.id)).toContain('ainda não usado nesta versão');
     }
+  });
+
+  it('na Retrospectiva: sem modelo e nuvem liberados, e o aparelho barrado pelo que a revista admite gravar', () => {
+    // Hospedada desde a 1.10. O aparelho não é barrado pelo build aqui, e sim pela
+    // AD-12: a revista só grava o que a nuvem escreve, e a razão tem de dizer isso.
+    expect(motivoDeBloqueio(retro, SEM_MODELO)).toBeNull();
+    expect(motivoDeBloqueio(retro, NUVEM_PADRAO)).toBeNull();
+    expect(motivoDeBloqueio(retro, APARELHO_SISTEMA)).toBe('este recurso não guarda o que o modelo do aparelho escreve');
   });
 
   it('motor acima do regimeMaximo do recurso é bloqueado com o motivo da exposição', () => {

@@ -20,7 +20,7 @@
  * o estado entra, o texto sai. É o que deixa as sete classes serem cobertas por
  * teste sem nenhum motor.
  */
-import type { Causa, MotorId } from '@vitale/shared';
+import { SEM_MODELO, type Causa, type MotorId, type Tentativa } from '@vitale/shared';
 import { nomeDoMotor } from './motores/catalogo';
 
 /* ── o estado da vaga ────────────────────────────────────────────────────── */
@@ -166,6 +166,21 @@ export function motivoDaFalha(causa: Causa, motor: MotorId): string | null {
     case 'preferencia':
       return null;
   }
+}
+
+/**
+ * Quem era o motor de que o piso fala: o último da trilha que não é o template.
+ *
+ * A trilha vazia (piso por preferência, ou pedido mudo) cai em `escolhido` — e
+ * `motivoDaFalha` sabe que aí não há o que explicar. Mora aqui, e não num dos
+ * dois hospedeiros que o usam (a leitura da Saúde e a impressão da revista),
+ * porque é leitura da trilha, pura, e os dois têm de concordar.
+ */
+export function quemNaoEscreveu(trilha: readonly Tentativa[], escolhido: MotorId): MotorId {
+  for (let i = trilha.length - 1; i >= 0; i -= 1) {
+    if (trilha[i].motor !== SEM_MODELO) return trilha[i].motor;
+  }
+  return escolhido;
 }
 
 /* ── a assinatura ────────────────────────────────────────────────────────── */

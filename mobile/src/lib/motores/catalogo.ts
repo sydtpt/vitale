@@ -124,21 +124,19 @@ export interface Hospedagem {
  * O que a camada de motores do app de fato consome, recurso por recurso.
  *
  * Existe porque um controle inerte mente tanto quanto uma omissão. O seletor lista
- * os recursos do catálogo do núcleo (e tem de continuar listando), mas hoje só a
- * Saúde do sono lê a preferência: a narração da revista ainda chama a function pelo
- * caminho antigo (`lib/edicao-ia.ts`, que vira cliente do orquestrador na 1.10) e o
- * nome de rota entra na 5.7. Oferecer escolha para eles gravaria uma preferência que
- * ninguém consulta — o dono trocaria o motor e nada mudaria, sem nenhuma explicação.
+ * os recursos do catálogo do núcleo (e tem de continuar listando), mas só oferece
+ * escolha para quem lê a preferência. Leem hoje a Saúde do sono (5.5) e a
+ * Retrospectiva — desde a 1.10, a impressão da revista resolve a cadeia pela
+ * preferência e passa pelo orquestrador (`lib/edicao-ia.ts`). O nome de rota entra
+ * na 5.7. Oferecer escolha para quem não a lê gravaria uma preferência que ninguém
+ * consulta — o dono trocaria o motor e nada mudaria, sem nenhuma explicação.
  *
  * Fechado sobre `RecursoId`: recurso novo no núcleo **não compila** até alguém dizer
  * se esta camada o hospeda. É o que impede a lista de envelhecer calada.
  */
 export const HOSPEDAGEM: Readonly<Record<RecursoId, Hospedagem>> = {
   'saude-do-sono': { hospedado: true },
-  retrospectiva: {
-    hospedado: false,
-    motivo: 'ainda não usado nesta versão: a narração da revista não passa pelo orquestrador',
-  },
+  retrospectiva: { hospedado: true },
   'nome-de-rota': {
     hospedado: false,
     motivo: 'ainda não usado nesta versão: o nome de rota não passa pelo orquestrador',

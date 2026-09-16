@@ -43,7 +43,26 @@ jest.mock('../supabase', () => ({
   },
 }));
 
-import { buscarEdicao } from '../edicao-ia';
+// O ponto de injeção constrói o motor de nuvem na carga; aqui ninguém chama nuvem.
+jest.mock('../motores', () => ({ motorPara: () => undefined }));
+
+import {
+  APARELHO_SISTEMA,
+  NUVEM_PADRAO,
+  SEM_MODELO,
+  type Edicao,
+  type EntradaPacote,
+  type Impressao,
+  type Motor,
+  type MotorId,
+  type PeriodoDaEdicao,
+  type Resposta,
+  type RetroSummary,
+} from '@vitale/shared';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { buscarEdicao, imprimirEdicao, naoImpressoDe, PROBLEMAS_NA_TELA } from '../edicao-ia';
+import { idsConhecidos } from '../motores/catalogo';
+import { gravarPreferencia } from '../motores/preferencia';
 
 /**
  * O relógio: 6 de setembro, 19h. Agosto fechou; setembro, não.
@@ -151,5 +170,218 @@ describe('buscarEdicao — o que o banco responde', () => {
   it('propaga o erro do banco', async () => {
     mockBanco.erro = new Error('PGRST116');
     await expect(buscarEdicao('u-1', entrada())).rejects.toThrow('PGRST116');
+  });
+});
+
+
+/* ── a impressão ─────────────────────────────────────────────────────────── */
+
+/**
+ * Um agosto sintético com Movimento e Rotina — o bastante para a sequência do
+ * núcleo ter dois cadernos a ler. O que se mede aqui é a LIGAÇÃO: a cadeia saindo
+ * da preferência, as portas injetadas chegando à sequência, e o motivo em palavras.
+ * A matriz da sequência mora em `packages/shared/src/ia/imprimir.test.ts`.
+ */
+function recap(current: number, prior: number) {
+  const delta = current - prior;
+  return { current, prior, delta, deltaPct: prior !== 0 ? (delta / prior) * 100 : null };
+}
+
+function agostoSintetico(): EntradaPacote {
+  const vazio = recap(0, 0);
+  const resumo = {
+    kind: 'month', offset: -1, label: 'Agosto 2026', startISO: '2026-08-01', endISO: '2026-08-31',
+    tasks: { total: recap(40, 30), byModule: [] },
+    habits: { good: [], bad: [] },
+    registros: [],
+    fitness: {
+      count: recap(21, 17), countWithDistance: recap(18, 15),
+      distanceM: recap(400_000, 300_000), durationS: recap(144_000, 108_000),
+      calories: vazio, hardMin: vazio, floors: vazio, steps: vazio, byType: [],
+    },
+    sports: { cycling: null, running: null },
+    health: [],
+    ratings: { sleep: null, day: null },
+    purchases: { count: vazio, spend: vazio, countWithPrice: vazio, byCat: [] },
+    adherence: null, sleep: null, sleepTriggers: null,
+  } as unknown as RetroSummary;
+  return { resumo, agora: AGORA };
+}
+
+const TEXTOS: Record<string, string> = {
+  Movimento: 'Foram 21 atividades, contra 17 em julho.',
+  Rotina: 'Foram 40 tarefas concluídas, contra 30 em julho.',
+};
+
+function nuvemFalsa(textos: Record<string, string> = TEXTOS) {
+  const pedidos: string[] = [];
+  const motor: Motor = async (p) => {
+    const rotulo = /Escreva o caderno (\S+)\./.exec(p.usuario)?.[1] ?? '?';
+    pedidos.push(rotulo);
+    const r: Resposta = {
+      texto: textos[rotulo] ?? 'Foram 99 coisas.',
+      assinatura: { tipo: 'nuvem', provedor: 'prov-a', modelo: 'modelo-1' },
+      tokens: { entrada: 10, saida: 5 },
+    };
+    return r;
+  };
+  return { motor, pedidos };
+}
+
+function depsFalsas(o: { preferencia?: MotorId | null; nuvem?: ReturnType<typeof nuvemFalsa> } = {}) {
+  const gravacoes: Impressao[] = [];
+  const buscas: PeriodoDaEdicao[] = [];
+  const nuvem = o.nuvem ?? nuvemFalsa();
+  const pedidosA: MotorId[] = [];
+  const deps = {
+    portas: {
+      buscar: async (p: PeriodoDaEdicao) => {
+        buscas.push(p);
+        return [];
+      },
+      gravar: async (i: Impressao): Promise<Edicao> => {
+        gravacoes.push(i);
+        return [];
+      },
+    },
+    motorPara: (id: MotorId) => {
+      pedidosA.push(id);
+      return id.startsWith('nuvem') ? nuvem.motor : undefined;
+    },
+    registrar: () => undefined,
+    agora: () => new Date(Date.UTC(2026, 8, 16, 9, 0, 0)),
+    lerPreferencia: async () => o.preferencia ?? null,
+    catalogo: idsConhecidos,
+  };
+  return { deps, gravacoes, buscas, nuvem, pedidosA };
+}
+
+describe('imprimirEdicao — a ligação do app à sequência do núcleo', () => {
+  it('sem preferência: a cadeia padrão da revista (nuvem), as portas injetadas, uma gravação', async () => {
+    const f = depsFalsas();
+    const r = await imprimirEdicao('u-1', agostoSintetico(), {}, f.deps);
+    expect(r.estado).toBe('gravada');
+    expect(f.buscas).toEqual([{ tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31' }]);
+    expect(f.nuvem.pedidos).toEqual(['Movimento', 'Rotina']);
+    expect(f.gravacoes).toHaveLength(1);
+    expect(f.gravacoes[0].ordem).toEqual(['movimento', 'rotina']);
+    // A impressão não passa pelo banco do mock: nada de `.from` nesta ligação.
+    expect(mockBanco.pedidos).toHaveLength(0);
+  });
+
+  it('preferência "Sem modelo": nenhum motor é pedido, nada é gravado', async () => {
+    const f = depsFalsas({ preferencia: SEM_MODELO });
+    const r = await imprimirEdicao('u-1', agostoSintetico(), {}, f.deps);
+    expect(r.estado).toBe('nada-gravado');
+    expect(f.pedidosA).toEqual([]);
+    expect(f.gravacoes).toEqual([]);
+    if (r.estado !== 'nada-gravado') return;
+    for (const { desfecho } of r.desfechos) {
+      expect(naoImpressoDe(desfecho)).toBe('a escolha de motor deste aparelho para a Retrospectiva não escreve a revista');
+    }
+  });
+
+  it('preferência pelo aparelho: a revista não o admite, e nunca sobe para a nuvem', async () => {
+    const f = depsFalsas({ preferencia: APARELHO_SISTEMA });
+    const r = await imprimirEdicao('u-1', agostoSintetico(), {}, f.deps);
+    expect(r.estado).toBe('nada-gravado');
+    expect(f.nuvem.pedidos).toEqual([]);
+  });
+
+  it('os avisos chegam à sequência: aoComecar e aoLer por caderno', async () => {
+    const f = depsFalsas();
+    const avisos: string[] = [];
+    await imprimirEdicao('u-1', agostoSintetico(), {
+      aoComecar: (c, fila) => avisos.push(`comecar:${c}:${fila.join(',')}`),
+      aoLer: (c, d) => avisos.push(`ler:${c}:${d.tipo}`),
+    }, f.deps);
+    expect(avisos).toEqual([
+      'comecar:movimento:movimento,rotina', 'ler:movimento:escrito',
+      'comecar:rotina:movimento,rotina', 'ler:rotina:escrito',
+    ]);
+  });
+
+  it('período em curso: aberto, sem buscar e sem motor', async () => {
+    const f = depsFalsas();
+    const r = await imprimirEdicao('u-1', { ...agostoSintetico(), agora: new Date(2026, 7, 20, 12, 0, 0) }, {}, f.deps);
+    expect(r).toEqual({ estado: 'aberto' });
+    expect(f.buscas).toEqual([]);
+    expect(f.pedidosA).toEqual([]);
+  });
+});
+
+/**
+ * **A preferência de verdade**, e não uma injetada. Todos os testes acima passam
+ * `lerPreferencia` pronto, então a linha de `depsDoApp` que diz QUAL recurso é
+ * lido nunca rodava — trocá-la pela da Saúde do sono ficava verde. Aqui só as
+ * portas e o motor são falsos; a preferência sai do armazenamento (o mock do
+ * AsyncStorage do `jest.setup.js`), com os dois recursos gravados em sentidos
+ * opostos: se a impressão ler o recurso errado, a nuvem é pedida e o teste reprova.
+ */
+describe('imprimirEdicao — a preferência lida é a da Retrospectiva', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  it('Retrospectiva em sem-modelo e Saúde do sono na nuvem: nada-gravado, nenhum motor pedido', async () => {
+    await gravarPreferencia('retrospectiva', SEM_MODELO);
+    await gravarPreferencia('saude-do-sono', NUVEM_PADRAO);
+    const f = depsFalsas();
+    const r = await imprimirEdicao('u-1', agostoSintetico(), {}, { portas: f.deps.portas, motorPara: f.deps.motorPara });
+    expect(r.estado).toBe('nada-gravado');
+    expect(f.pedidosA).toEqual([]);
+    expect(f.gravacoes).toEqual([]);
+  });
+
+  it('e o espelho: Retrospectiva na nuvem e Saúde do sono em sem-modelo — a nuvem é pedida', async () => {
+    await gravarPreferencia('retrospectiva', NUVEM_PADRAO);
+    await gravarPreferencia('saude-do-sono', SEM_MODELO);
+    const f = depsFalsas();
+    const r = await imprimirEdicao('u-1', agostoSintetico(), {}, { portas: f.deps.portas, motorPara: f.deps.motorPara });
+    expect(r.estado).toBe('gravada');
+    expect(f.nuvem.pedidos).toEqual(['Movimento', 'Rotina']);
+  });
+});
+
+describe('naoImpressoDe — por que um caderno não saiu, em palavras', () => {
+  it('reprovada: o motivo e os problemas da conferência, no máximo três', async () => {
+    const f = depsFalsas({ nuvem: nuvemFalsa({ Movimento: 'Foram 23 atividades, porque 7 dias e 9 treinos e 11 voltas.', Rotina: TEXTOS.Rotina }) });
+    const r = await imprimirEdicao('u-1', agostoSintetico(), {}, f.deps);
+    expect(r.estado).toBe('gravada');
+    if (r.estado !== 'gravada') return;
+    const mov = r.desfechos.find((d) => d.caderno === 'movimento')!.desfecho;
+    const motivo = naoImpressoDe(mov)!;
+    expect(motivo.startsWith('a nuvem escreveu fora das regras: ')).toBe(true);
+    const problemas = motivo.slice('a nuvem escreveu fora das regras: '.length).split('; ');
+    expect(problemas.length).toBe(PROBLEMAS_NA_TELA);
+    expect(problemas[0]).toBe('"23" não está no pacote');
+    // O que saiu fica sem motivo.
+    expect(naoImpressoDe(r.desfechos.find((d) => d.caderno === 'rotina')!.desfecho)).toBeNull();
+  });
+
+  it('falha de motor: o motivo da assinatura, com o motor da trilha', () => {
+    const motivo = naoImpressoDe({
+      tipo: 'nao-escrito',
+      leitura: {
+        origem: 'piso', causa: 'transitoria', ausencia: 'a revista não imprime sem modelo',
+        trilha: [{ motor: NUVEM_PADRAO, desfecho: 'transitoria', ms: 60_000 }],
+      },
+    });
+    expect(motivo).toBe('a nuvem falhou por agora');
+  });
+
+  it('incompleto: frase própria — o texto não foi guardado', () => {
+    const motivo = naoImpressoDe({
+      tipo: 'incompleto',
+      falta: 'tokens',
+      leitura: {
+        origem: 'motor', frase: 'x', valor: 'x', motor: NUVEM_PADRAO, trilha: [],
+        resposta: {
+          texto: 'x',
+          assinatura: { tipo: 'nuvem', provedor: 'p', modelo: 'm', versaoDoDescritor: 5003, instante: '2026-09-16T09:00:00.000Z' },
+        },
+      },
+    });
+    expect(motivo).toBe('a nuvem escreveu, mas a resposta não disse quanto gastou, e o texto não foi guardado');
   });
 });

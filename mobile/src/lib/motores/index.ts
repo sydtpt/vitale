@@ -3,9 +3,10 @@
  *
  * **Este é o único arquivo do app que nomeia a function.** A catraca "uma porta
  * por hospedeiro" reconhece `mobile/src/lib/motores/`, e é ela que impede a
- * terceira cópia do cliente da `ia-narrar`: o app já tem duas — `edicao-ia.ts`
- * (sai na 1.10) e `services/route-name.ts` (sai na 5.7) —, cada uma lendo o erro
- * do seu jeito, e nas duas o ramo que lia o corpo de erro era código morto.
+ * terceira cópia do cliente da `ia-narrar`: o app teve duas — `edicao-ia.ts`
+ * (saiu na 1.9; desde a 1.10 a impressão usa o `motorPara` daqui) e
+ * `services/route-name.ts` (sai na 5.7) —, cada uma lendo o erro do seu jeito, e
+ * nas duas o ramo que lia o corpo de erro era código morto.
  *
  * O que mora aqui é só **a chamada**: o nome da function, o corpo e a leitura do
  * status. Quem traduz status, corpo, conclusão e assinatura em `Resposta` ou

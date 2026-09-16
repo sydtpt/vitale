@@ -8,10 +8,10 @@
  * guardado em cada parte é uma chance de divergir por linha.
  *
  * Este módulo só lê e grava linhas: quem decide *se* um período merece edição é
- * o `periodoFechado` (`ia/pacote.ts`), quem decide se um texto pode virar edição
- * é o `verificarTexto` (`ia/verificar.ts`), e quem decide a ORDEM é o
- * `ordenarCadernos` (`ia/ranqueamento.ts`) — na impressão, uma vez, e nunca no
- * caminho de leitura. A leitura tira a ordem de `posicao` e pronto; se ela
+ * o `periodoFechado` (`period/fechado.ts`), quem decide se um texto pode virar
+ * edição é a conferência do descritor, percorrida pelo orquestrador, e quem
+ * decide a ORDEM é o `ordenarCadernos` (`ia/ranqueamento.ts`) — na impressão
+ * (`ia/imprimir.ts`), uma vez, e nunca no caminho de leitura. A leitura tira a ordem de `posicao` e pronto; se ela
  * recalculasse, ajustar um peso do ranqueamento em novembro reordenaria agosto
  * sozinho, que é reescrita silenciosa de período fechado.
  *
@@ -21,6 +21,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGG_VERSION } from '../constants/agg-version';
+import type { LinhaDaImpressao, PortasDaImpressao } from '../ia/imprimir';
 import { CADERNO_IDS, isCadernoId, type CadernoId } from '../period/cadernos';
 import type { PeriodKind } from '../period/bounds';
 
@@ -54,7 +55,7 @@ export function isTipoComEdicao(v: unknown): v is TipoComEdicao {
  * para a união seria afirmar, no sistema de tipos, uma garantia que o transporte
  * não dá — e, pior, tornaria desnecessária a conferência que `toCadernoImpresso`
  * faz. É a mesma escolha de `CapaRow.natureza`, pelo mesmo motivo. O aperto vive
- * do outro lado da fronteira: em {@link CadernoImpresso}, em {@link EdicaoInput}
+ * do outro lado da fronteira: em {@link CadernoImpresso}, na linha da impressão
  * e nos parâmetros, onde `'mounth'` deixa de compilar.
  */
 export interface EdicaoRow {
@@ -204,85 +205,110 @@ export async function fetchEdicao(
   return ((data ?? []) as unknown as EdicaoRow[]).map(toCadernoImpresso);
 }
 
-export interface EdicaoInput {
-  tipoPeriodo: TipoComEdicao;
-  inicio: string;
-  fim: string;
+/**
+ * Uma linha da carga de `edicao_imprimir` — as colunas do `jsonb_to_recordset`
+ * da função, na grafia do banco.
+ *
+ * `edicoes-ia.test.ts` compara estas chaves com o recordset **lido da
+ * migração**: uma coluna que a função passe a exigir e que falte aqui reprova lá,
+ * e não em produção com "linha recusada".
+ */
+export interface LinhaDaCarga {
   caderno: CadernoId;
-  posicao: number;
   texto: string;
   provedor: string;
   modelo: string;
-  promptVersao: number;
-  pacoteVersao: number;
-  motivoDeParada: string;
-  tokensEntrada: number;
-  tokensSaida: number;
-  /**
-   * A chave da métrica líder, ou `null` — **obrigatório passar**, inclusive o
-   * nulo. Campo opcional deixaria "nenhuma métrica liderou" indistinguível de
-   * "esqueci de passar", e foi exatamente assim que `agg_version_no_momento`
-   * chegou a produção com nulo em todas as linhas.
-   */
-  metricaLider: string | null;
-  // A versão da agregação **não** entra aqui de propósito: quem grava a lê da
-  // constante, logo abaixo. Ver a nota em `upsertEdicao`.
+  prompt_versao: number;
+  pacote_versao: number;
+  motivo_de_parada: string;
+  tokens_entrada: number;
+  tokens_saida: number;
+  agg_version_no_momento: number;
+  metrica_lider: string | null;
+}
+
+/** A linha que a sequência entregou, virada carga — com a versão da agregação carimbada aqui. */
+function paraCarga(l: LinhaDaImpressao): LinhaDaCarga {
+  return {
+    caderno: l.caderno,
+    texto: l.texto,
+    provedor: l.provedor,
+    modelo: l.modelo,
+    prompt_versao: l.promptVersao,
+    pacote_versao: l.pacoteVersao,
+    motivo_de_parada: l.motivoDeParada,
+    tokens_entrada: l.tokensEntrada,
+    tokens_saida: l.tokensSaida,
+    agg_version_no_momento: AGG_VERSION,
+    // Escrito mesmo quando nulo: a função recusa a linha sem a chave.
+    metrica_lider: l.metricaLider,
+  };
 }
 
 /**
- * Grava **um caderno** da edição. `upsert` na chave nova — que inclui o caderno
- * —, e não `insert`, porque regerar é operação legítima: trocou o modelo, subiu
- * a versão do prompt.
+ * As duas portas da impressão, ligadas a um cliente — é o que o hospedeiro passa
+ * a `imprimir` (`ia/imprimir.ts`).
  *
- * **Isto não é a impressão.** A impressão do conjunto é atômica e passa pela
- * função `edicao_imprimir` no banco (AD-4), que recalcula as posições e apaga o
- * caderno que saiu; gravar caderno a caderno em laço daria posição 1, depois 1 e
- * 2, recalculando a ordem de um conjunto ainda em crescimento. Esta porta existe
- * para o caderno avulso e para o teste, e a Story 1.10 a fecha atrás da sequência.
+ * - **`buscar`** é `fetchEdicao`: os cadernos já impressos do período, na ordem
+ *   gravada. É por ele que a sequência não apaga o texto de um caderno cuja
+ *   regeneração caiu no piso.
+ * - **`gravar`** é a função `edicao_imprimir`, numa chamada, com o conjunto
+ *   inteiro. Ela grava o texto dos regenerados, ajusta a posição de todos e apaga
+ *   o caderno que saiu (AD-4) — a única escrita em `edicoes_ia` que existe. A
+ *   linha devolvida é a edição relida, mapeada por `toCadernoImpresso`.
+ *
+ * **Não há mais porta de escrita direta.** O `upsertEdicao` da 1.9 gravava um
+ * caderno por vez, contornando a função e a contiguidade das posições, e saiu na
+ * 1.10. Uma barreira do `architecture.test.ts` cobra que `edicao_imprimir` só
+ * seja nomeada aqui, que nenhum `.upsert/.insert/.update/.delete` alcance
+ * `edicoes_ia`, e que `.gravar` só seja lido pela sequência.
  *
  * **A versão da agregação é lida aqui, nunca recebida.** Ela chegava por quatro
- * passagens opcionais em fila (tela → store → adaptador → este campo) e o que
- * chegava era `undefined`: as 7 edições em produção tinham nulo na coluna, e
- * `precisaErrata` devolve `false` para nulo — nenhuma delas era elegível a
- * errata. Tornar a passagem obrigatória fecharia a *omissão* e deixaria aberto o
- * *valor errado*: `PACOTE_VERSAO` é `number`, sai do mesmo barril e compilaria no
- * lugar dela. Como `AGG_VERSION` e este módulo moram no mesmo pacote, ler no
- * ponto de gravação mata a classe inteira — e o script de backfill herda a
- * garantia sem ter que lembrar de nada. Para que essa última frase seja verdade
- * e não promessa, a barreira de dono único (`architecture.test.ts`) varre
- * `scripts/` junto com os apps e as edge functions: um hospedeiro futuro que
- * redeclarasse a constante lá reprovaria antes de existir.
+ * passagens opcionais em fila (tela → store → adaptador → campo) e o que chegava
+ * era `undefined`: as 7 edições antigas tinham nulo na coluna, e nenhuma era
+ * elegível a errata. Tornar a passagem obrigatória fecharia a *omissão* e deixaria
+ * aberto o *valor errado* — `PACOTE_VERSAO` é `number`, sai do mesmo barril e
+ * compilaria no lugar dela. A linha da sequência não tem o campo, e a carga o
+ * carimba de `AGG_VERSION` no ponto de gravação; uma barreira cobra que o literal
+ * da coluna não apareça em código fora de `data/`.
+ *
+ * **O dono é conferido antes de gravar.** `buscar` lê com o `userId` passado, e a
+ * função grava para `auth.uid()` — a sessão do cliente no instante do `rpc`. Uma
+ * impressão leva um minuto ou mais, e se a conta trocar nesse meio o texto
+ * escrito sobre os dados de um dono cairia na edição do outro. `gravar` relê a
+ * sessão e, se ela não é mais de `userId`, lança {@link ContaTrocadaNaImpressao}
+ * sem chamar a função.
  */
-export async function upsertEdicao(
-  db: SupabaseClient,
-  userId: string,
-  e: EdicaoInput,
-): Promise<CadernoImpresso> {
-  const { data, error } = await db
-    .from('edicoes_ia')
-    .upsert({
-      user_id: userId,
-      tipo_periodo: e.tipoPeriodo,
-      inicio: e.inicio,
-      fim: e.fim,
-      caderno: e.caderno,
-      posicao: e.posicao,
-      texto: e.texto,
-      provedor: e.provedor,
-      modelo: e.modelo,
-      prompt_versao: e.promptVersao,
-      pacote_versao: e.pacoteVersao,
-      motivo_de_parada: e.motivoDeParada,
-      tokens_entrada: e.tokensEntrada,
-      tokens_saida: e.tokensSaida,
-      agg_version_no_momento: AGG_VERSION,
-      metrica_lider: e.metricaLider,
-      gerado_em: new Date().toISOString(),
-    }, { onConflict: 'user_id,tipo_periodo,inicio,fim,caderno' })
-    .select(COLUMNS)
-    .single();
-  if (error) throw error;
-  return toCadernoImpresso(data as unknown as EdicaoRow);
+export class ContaTrocadaNaImpressao extends Error {
+  constructor(esperado: string, naSessao: string | null) {
+    super(
+      `a impressão começou para ${esperado} e a sessão agora é de ${naSessao ?? 'ninguém'} — `
+      + 'nada foi gravado, para o texto de um dono não cair na edição de outro',
+    );
+    this.name = 'ContaTrocadaNaImpressao';
+  }
+}
+
+export function portasDaEdicao(db: SupabaseClient, userId: string): PortasDaImpressao<CadernoImpresso[]> {
+  return {
+    buscar: (p) => fetchEdicao(db, userId, p.tipoPeriodo, p.inicio, p.fim),
+    gravar: async (i) => {
+      const sessao = await db.auth.getSession();
+      if (sessao.error) throw sessao.error;
+      const naSessao = sessao.data.session?.user?.id ?? null;
+      if (naSessao !== userId) throw new ContaTrocadaNaImpressao(userId, naSessao);
+
+      const { data, error } = await db.rpc('edicao_imprimir', {
+        p_tipo_periodo: i.tipoPeriodo,
+        p_inicio: i.inicio,
+        p_fim: i.fim,
+        p_ordem: [...i.ordem],
+        p_linhas: i.linhas.map(paraCarga),
+      });
+      if (error) throw error;
+      return ((data ?? []) as unknown as EdicaoRow[]).map(toCadernoImpresso);
+    },
+  };
 }
 
 /**

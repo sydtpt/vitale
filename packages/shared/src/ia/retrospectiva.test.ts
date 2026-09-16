@@ -11,7 +11,7 @@ import {
 import { BASE_ROTULO, PACOTE_VERSAO, type FatoNumero, type PacoteDeFatos } from './pacote';
 import { montarPrompt, PROMPT_VERSAO } from './prompt';
 import { CATALOGO_DE_RECURSOS, validarDescritor } from './recursos';
-import { descritorDaRetrospectiva as revista } from './retrospectiva';
+import { descritorDaRetrospectiva as revista, versoesDaRetrospectiva } from './retrospectiva';
 import { verificarTexto } from './verificar';
 
 /**
@@ -135,6 +135,20 @@ describe('o descritor', () => {
     assert.ok(PACOTE_VERSAO < 1000, `PACOTE_VERSAO ${PACOTE_VERSAO} não cabe em três dígitos`);
     assert.equal(Math.floor(revista.versao / 1000), PROMPT_VERSAO);
     assert.equal(revista.versao % 1000, PACOTE_VERSAO);
+  });
+
+  it('versoesDaRetrospectiva: ida e volta — a versão carimbada devolve o par que edicoes_ia grava', () => {
+    assert.deepEqual(versoesDaRetrospectiva(revista.versao), { prompt: PROMPT_VERSAO, pacote: PACOTE_VERSAO });
+    // A ida e volta vale para qualquer par que caiba, e não só para o de hoje.
+    for (const [prompt, pacote] of [[0, 0], [1, 999], [7, 3], [42, 0], [5, 12]] as const) {
+      assert.deepEqual(versoesDaRetrospectiva(prompt * 1000 + pacote), { prompt, pacote });
+    }
+  });
+
+  it('versoesDaRetrospectiva recusa o que não se decodifica, em vez de gravar NaN', () => {
+    for (const v of [Number.NaN, -1, 4002.5, Number.POSITIVE_INFINITY]) {
+      assert.throws(() => versoesDaRetrospectiva(v), RangeError, String(v));
+    }
   });
 
   it('sem preferência, a cadeia é o padrão dela', () => {

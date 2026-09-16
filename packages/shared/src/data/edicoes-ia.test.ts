@@ -1,10 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGG_VERSION } from '../constants/agg-version';
+import type { Impressao, LinhaDaImpressao } from '../ia/imprimir';
 import {
-  EDICAO_COLUMNS, fetchEdicao, precisaErrata, toCadernoImpresso, upsertEdicao,
-  type CadernoImpresso, type EdicaoInput, type EdicaoRow,
+  ContaTrocadaNaImpressao, EDICAO_COLUMNS, fetchEdicao, portasDaEdicao, precisaErrata, toCadernoImpresso,
+  type CadernoImpresso, type EdicaoRow,
 } from './edicoes-ia';
 
 /**
@@ -27,32 +30,27 @@ function projetar(linha: EdicaoRow, cols: string): Record<string, unknown> {
 }
 
 /**
- * Banco de mentira que **devolve linha diferente da enviada**, de propósito.
+ * Banco de mentira da GRAVAÇÃO: só `rpc`. Tocar a tabela direto explode — a
+ * gravação passa pela função `edicao_imprimir`, e mais nada.
  *
- * Se o fake ecoasse o que recebeu, o teste do mapeamento seria uma tautologia:
- * passaria igual com `toCadernoImpresso` devolvendo o próprio payload.
- * Devolvendo outra linha, a asserção mede o que interessa — que o caderno sai do
- * que o banco respondeu, não do que o cliente mandou.
+ * **Devolve linhas diferentes das enviadas**, de propósito. Se o fake ecoasse a
+ * carga, o teste do mapeamento seria uma tautologia: passaria igual com a porta
+ * devolvendo o próprio payload. Devolvendo outras linhas, a asserção mede o que
+ * interessa — que a edição sai do que o banco respondeu.
  */
-function fakeDb(devolve: EdicaoRow) {
-  const capturado: {
-    tabela?: string; linha?: Record<string, unknown>; opcoes?: unknown; colunas?: string;
-  } = {};
+function fakeRpc(devolve: EdicaoRow[] | null, erro: Error | null = null, dono: string | null = 'u-1') {
+  const capturado: { chamadas: { fn: string; args: Record<string, unknown> }[] } = { chamadas: [] };
   const db = {
-    from(tabela: string) {
-      capturado.tabela = tabela;
-      return {
-        upsert(linha: Record<string, unknown>, opcoes: unknown) {
-          capturado.linha = linha;
-          capturado.opcoes = opcoes;
-          return {
-            select: (cols: string) => {
-              capturado.colunas = cols;
-              return { single: async () => ({ data: projetar(devolve, cols), error: null }) };
-            },
-          };
-        },
-      };
+    // A sessão do cliente — de quem a função gravaria, via `auth.uid()`.
+    auth: {
+      getSession: async () => ({ data: { session: dono === null ? null : { user: { id: dono } } }, error: null }),
+    },
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      capturado.chamadas.push({ fn, args });
+      return { data: devolve, error: erro };
+    },
+    from: () => {
+      throw new Error('a gravação tocou a tabela direto — ela passa por edicao_imprimir');
     },
   };
   return { db: db as unknown as SupabaseClient, capturado };
@@ -120,12 +118,8 @@ function linhaDoBanco(over: Partial<EdicaoRow> = {}): EdicaoRow {
   };
 }
 
-const ENTRADA: EdicaoInput = {
-  tipoPeriodo: 'month',
-  inicio: '2026-08-01',
-  fim: '2026-08-31',
+const LINHA: LinhaDaImpressao = {
   caderno: 'movimento',
-  posicao: 1,
   texto: 'Agosto teve 21 atividades.',
   provedor: 'provedor-do-cliente',
   modelo: 'modelo-do-cliente',
@@ -135,6 +129,14 @@ const ENTRADA: EdicaoInput = {
   tokensEntrada: 100,
   tokensSaida: 200,
   metricaLider: 'distancia',
+};
+
+const IMPRESSAO: Impressao = {
+  tipoPeriodo: 'month',
+  inicio: '2026-08-01',
+  fim: '2026-08-31',
+  ordem: ['movimento', 'sono'],
+  linhas: [LINHA, { ...LINHA, caderno: 'sono', metricaLider: null }],
 };
 
 function caderno(over: Partial<CadernoImpresso> = {}): CadernoImpresso {
@@ -162,12 +164,9 @@ describe('COLUMNS — o que se pede ao PostgREST', () => {
     }
   });
 
-  it('a leitura e a gravação pedem a mesma lista', async () => {
+  it('a leitura pede exatamente EDICAO_COLUMNS', async () => {
     const leitura = fakeLeitura([linhaDoBanco({ posicao: 1 })]);
     await fetchEdicao(leitura.db, 'u-1', 'month', '2026-08-01', '2026-08-31');
-    const escrita = fakeDb(linhaDoBanco());
-    await upsertEdicao(escrita.db, 'u-1', ENTRADA);
-    assert.equal(leitura.capturado.colunas, escrita.capturado.colunas);
     assert.equal(leitura.capturado.colunas, EDICAO_COLUMNS);
   });
 });
@@ -271,84 +270,264 @@ describe('fetchEdicao — a edição é o conjunto dos cadernos', () => {
   });
 });
 
-describe('upsertEdicao — a chave nova e o carimbo da agregação', () => {
+/**
+ * A função `edicao_imprimir` como a migração a declara: os parâmetros e as colunas
+ * do `jsonb_to_recordset` que lê a carga.
+ *
+ * **Lido do SQL, e não escrito aqui.** Uma lista à mão seria a terceira cópia do
+ * mesmo vocabulário — a migração, a porta e o teste —, e a comparação passaria a
+ * ser entre duas coisas que a mesma pessoa escreveu na mesma hora. Vale a última
+ * migração que define a função.
+ *
+ * **E nunca compara contra uma definição velha**, no molde da barreira do CHECK de
+ * `motivo_de_parada`. Toda migração que (re)define, altera ou derruba a função
+ * "mexe nela"; se o leitor não a entende — tipo com parênteses na assinatura,
+ * `p_linhas` renomeado, recordset que ele não acha, `drop` sem recriar —, e ela
+ * vem depois da última que ele entendeu, o teste falha dizendo qual. Seguir verde
+ * com a definição de antes é o único desfecho errado.
+ */
+interface FuncaoLida {
+  arquivo: string;
+  parametros: string[];
+  colunas: string[];
+}
+
+const MEXE_NA_FUNCAO =
+  /\b(?:create(?:\s+or\s+replace)?|alter|drop)\s+function\s+(?:if\s+exists\s+)?(?:public\.)?"?edicao_imprimir"?\b/i;
+
+function lerFuncaoDasMigracoes(migracoes: readonly { arquivo: string; sql: string }[]): FuncaoLida {
+  let vigente: FuncaoLida | null = null;
+  const ilegiveis: string[] = [];
+  for (const { arquivo, sql: bruto } of [...migracoes].sort((a, b) => a.arquivo.localeCompare(b.arquivo))) {
+    const sql = bruto.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--.*$/gm, ' ');
+    if (!MEXE_NA_FUNCAO.test(sql)) continue;
+    const assinatura =
+      /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?edicao_imprimir\s*\(([^)]*)\)\s*returns/i.exec(sql);
+    const parametros = assinatura
+      ? assinatura[1].split(',').map((x) => x.trim().split(/\s+/)[0]).filter(Boolean)
+      : [];
+    const recordsets = [...sql.matchAll(/jsonb_to_recordset\s*\(\s*p_linhas\s*\)\s*as\s+\w+\s*\(([^)]*)\)/gi)]
+      .map((m) => m[1].split(',').map((c) => c.trim().split(/\s+/)[0]).filter(Boolean).sort());
+    const largura = recordsets.length > 0 ? Math.max(...recordsets.map((r) => r.length)) : 0;
+    if (!assinatura || !parametros.includes('p_linhas') || largura < 2) {
+      ilegiveis.push(arquivo);
+      continue;
+    }
+    const largos = recordsets.filter((r) => r.length === largura);
+    // O corpo lê a carga mais de uma vez (a guarda e o insert): todas as leituras
+    // largas têm de concordar, senão a guarda confere um formato e o insert grava outro.
+    for (const r of largos) assert.deepEqual(r, largos[0], `${arquivo}: dois recordsets largos divergem`);
+    vigente = { arquivo, parametros, colunas: largos[0] };
+  }
+  const depois = ilegiveis.filter((f) => vigente === null || f > vigente.arquivo);
+  assert.deepEqual(
+    depois,
+    [],
+    `migração que mexe em edicao_imprimir e que o leitor do teste não entende: ${depois.join(', ')}. ` +
+      'Ensine a forma nova a lerFuncaoDasMigracoes — o teste não pode comparar a carga com a definição de antes.',
+  );
+  assert.ok(vigente, 'nenhuma migração define edicao_imprimir — o teste da carga ficou sem alvo');
+  return vigente;
+}
+
+function funcaoDaMigracao(): FuncaoLida {
+  const dir = join(import.meta.dirname, '..', '..', '..', '..', 'supabase', 'migrations');
+  return lerFuncaoDasMigracoes(
+    readdirSync(dir).filter((f) => f.endsWith('.sql')).map((arquivo) => ({
+      arquivo, sql: readFileSync(join(dir, arquivo), 'utf8'),
+    })),
+  );
+}
+
+describe('o leitor da função nas migrações — nunca contra a definição velha', () => {
+  const corpo = `
+    begin
+      select 1 from jsonb_to_recordset(p_linhas) as l(caderno text);
+      insert into t select * from jsonb_to_recordset(p_linhas) as l(caderno text, texto text, metrica_lider text);
+    end`;
+  const legivel = (params = 'p_tipo_periodo text, p_ordem text[], p_linhas jsonb') =>
+    `create or replace function public.edicao_imprimir(${params}) returns setof public.edicoes_ia as $fn$ ${corpo} $fn$;`;
+
+  it('lê a definição legível', () => {
+    const f = lerFuncaoDasMigracoes([{ arquivo: '1.sql', sql: legivel() }]);
+    assert.deepEqual(f, { arquivo: '1.sql', parametros: ['p_tipo_periodo', 'p_ordem', 'p_linhas'], colunas: ['caderno', 'metrica_lider', 'texto'] });
+  });
+
+  it('a mais nova legível vence; grant e comment não são definição', () => {
+    const f = lerFuncaoDasMigracoes([
+      { arquivo: '1.sql', sql: legivel() },
+      { arquivo: '2.sql', sql: legivel('p_inicio date, p_linhas jsonb') },
+      { arquivo: '3.sql', sql: 'grant execute on function public.edicao_imprimir(text, jsonb) to authenticated;' },
+    ]);
+    assert.equal(f.arquivo, '2.sql');
+  });
+
+  it('a ilegível ANTES da legível não atrapalha', () => {
+    const f = lerFuncaoDasMigracoes([
+      { arquivo: '1.sql', sql: 'create function public.edicao_imprimir(p numeric(10,2)) returns void as $$ $$;' },
+      { arquivo: '2.sql', sql: legivel() },
+    ]);
+    assert.equal(f.arquivo, '2.sql');
+  });
+
+  const depoisIlegivel: readonly (readonly [string, string])[] = [
+    ['tipo com parênteses', legivel('p_valor numeric(10,2), p_linhas jsonb')],
+    ['p_linhas renomeado', legivel('p_tipo_periodo text, p_cadernos jsonb').replace(/p_linhas/g, 'p_cadernos')],
+    ['drop sem recriar', 'drop function if exists public.edicao_imprimir(text, date, date, text[], jsonb);'],
+    ['alter', 'alter function public.edicao_imprimir(text, date, date, text[], jsonb) rename to imprimir_edicao;'],
+  ];
+  for (const [nome, sql] of depoisIlegivel) {
+    it(`reprova, dizendo qual, a posterior que não entende: ${nome}`, () => {
+      assert.throws(
+        () => lerFuncaoDasMigracoes([{ arquivo: '1.sql', sql: legivel() }, { arquivo: '2.sql', sql }]),
+        /não entende: 2\.sql/,
+      );
+    });
+  }
+});
+
+describe('portasDaEdicao — a gravação é a função do banco, numa chamada', () => {
+  it('a leitura do SQL acha o que procura (não-vacuidade)', () => {
+    const f = funcaoDaMigracao();
+    assert.ok(f.parametros.length >= 5, `parâmetros lidos: ${JSON.stringify(f.parametros)}`);
+    assert.ok(f.colunas.length >= 10, `colunas lidas: ${JSON.stringify(f.colunas)}`);
+    assert.ok(f.colunas.includes('metrica_lider') && f.colunas.includes('agg_version_no_momento'));
+  });
+
   /**
-   * A chave velha (`user_id,tipo_periodo,inicio,fim`) vira 42P10 depois da
-   * migração: não existe mais constraint única com esses quatro. O erro chega
-   * como "there is no unique or exclusion constraint matching the ON CONFLICT
-   * specification", que não aponta para lugar nenhum.
+   * O ponto do teste: a chave que a função lê e a porta não manda chega nula e é
+   * recusada em produção ("linha recusada — sem …"); a que a porta manda e a
+   * função não lê é descartada calada. As duas direções, contra a migração.
    */
-  it('casa o conflito pela chave que inclui o caderno', async () => {
-    const { db, capturado } = fakeDb(linhaDoBanco());
-    await upsertEdicao(db, 'u-1', ENTRADA);
-    assert.deepEqual(capturado.opcoes, { onConflict: 'user_id,tipo_periodo,inicio,fim,caderno' });
+  it('as chaves da carga são exatamente as colunas do recordset da migração', async () => {
+    const { db, capturado } = fakeRpc([]);
+    await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    const { arquivo, parametros, colunas } = funcaoDaMigracao();
+
+    assert.equal(capturado.chamadas.length, 1);
+    const { fn, args } = capturado.chamadas[0];
+    assert.equal(fn, 'edicao_imprimir');
+    assert.deepEqual(Object.keys(args).sort(), [...parametros].sort(), `parâmetros de ${arquivo}`);
+    const linhas = args.p_linhas as Record<string, unknown>[];
+    assert.equal(linhas.length, 2);
+    for (const l of linhas) assert.deepEqual(Object.keys(l).sort(), colunas, `recordset de ${arquivo}`);
   });
 
-  it('grava caderno, posição e a métrica líder', async () => {
-    const { db, capturado } = fakeDb(linhaDoBanco());
-    await upsertEdicao(db, 'u-1', ENTRADA);
-    assert.equal(capturado.tabela, 'edicoes_ia');
-    assert.equal(capturado.linha!.caderno, 'movimento');
-    assert.equal(capturado.linha!.posicao, 1);
-    assert.equal(capturado.linha!.metrica_lider, 'distancia');
-  });
-
-  it('nulo da métrica líder é gravado como nulo, não omitido', async () => {
-    const { db, capturado } = fakeDb(linhaDoBanco({ metrica_lider: null }));
-    await upsertEdicao(db, 'u-1', { ...ENTRADA, metricaLider: null });
-    assert.ok('metrica_lider' in capturado.linha!);
-    assert.equal(capturado.linha!.metrica_lider, null);
-  });
-
-  it('grava a versão vigente da agregação sem que ninguém a informe', async () => {
-    const { db, capturado } = fakeDb(linhaDoBanco());
-    await upsertEdicao(db, 'u-1', ENTRADA);
-
-    // O ponto inteiro da 1.1: a linha nasce com a versão, não com nulo — e desde
-    // a 1.9 a coluna é `not null`, então nulo aqui morreria no banco.
-    assert.equal(capturado.linha!.agg_version_no_momento, AGG_VERSION);
-    assert.notEqual(capturado.linha!.agg_version_no_momento, null);
-  });
-
-  it('ignora a versão que um hospedeiro tente empurrar', async () => {
-    const { db, capturado } = fakeDb(linhaDoBanco());
-    // `tsc` já recusa este objeto — `EdicaoInput` não tem o campo, e é assim que
-    // a garantia é dada. O cast força o caso mesmo assim, para provar que a
-    // gravação não tem uma segunda porta por onde o valor errado entre em JS.
-    await upsertEdicao(db, 'u-1', { ...ENTRADA, aggVersionNoMomento: 1 } as EdicaoInput);
-    assert.equal(capturado.linha!.agg_version_no_momento, AGG_VERSION);
-  });
-
-  it('devolve a linha do banco, não o que foi enviado', async () => {
-    const { db } = fakeDb(linhaDoBanco());
-    const c = await upsertEdicao(db, 'u-1', ENTRADA);
-
-    assert.deepEqual(c, {
-      tipoPeriodo: 'season',
-      inicio: '2026-06-01',
-      fim: '2026-08-31',
-      caderno: 'coracao',
-      posicao: 3,
-      texto: 'o que o banco tinha',
-      provedor: 'provedor-do-banco',
-      modelo: 'modelo-do-banco',
-      promptVersao: 42,
-      pacoteVersao: 43,
-      aggVersionNoMomento: 7,
-      metricaLider: 'fc_repouso',
-      geradoEm: '2026-09-01T00:00:00.000Z',
+  it('manda o período, a ordem e as linhas — a ordem inteira, não só a dos regenerados', async () => {
+    const { db, capturado } = fakeRpc([]);
+    await portasDaEdicao(db, 'u-1').gravar({ ...IMPRESSAO, ordem: ['coracao', 'movimento', 'sono'] });
+    const { args } = capturado.chamadas[0];
+    assert.equal(args.p_tipo_periodo, 'month');
+    assert.equal(args.p_inicio, '2026-08-01');
+    assert.equal(args.p_fim, '2026-08-31');
+    assert.deepEqual(args.p_ordem, ['coracao', 'movimento', 'sono']);
+    assert.ok(Array.isArray(args.p_ordem));
+    const [primeira] = args.p_linhas as Record<string, unknown>[];
+    assert.deepEqual(primeira, {
+      caderno: 'movimento',
+      texto: 'Agosto teve 21 atividades.',
+      provedor: 'provedor-do-cliente',
+      modelo: 'modelo-do-cliente',
+      prompt_versao: 2,
+      pacote_versao: 1,
+      motivo_de_parada: 'STOP',
+      tokens_entrada: 100,
+      tokens_saida: 200,
+      agg_version_no_momento: AGG_VERSION,
+      metrica_lider: 'distancia',
     });
   });
 
+  it('carimba a versão vigente da agregação sem que ninguém a informe', async () => {
+    const { db, capturado } = fakeRpc([]);
+    await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    for (const l of capturado.chamadas[0].args.p_linhas as Record<string, unknown>[]) {
+      assert.equal(l.agg_version_no_momento, AGG_VERSION);
+    }
+  });
+
+  it('ignora a versão que um hospedeiro tente empurrar', async () => {
+    const { db, capturado } = fakeRpc([]);
+    // `tsc` já recusa este objeto — a linha da impressão não tem o campo, e é assim
+    // que a garantia é dada. O cast força o caso mesmo assim, para provar que a
+    // porta não tem uma segunda entrada por onde o valor errado passe em JS.
+    const empurrada = { ...LINHA, aggVersionNoMomento: 1, agg_version_no_momento: 1 } as LinhaDaImpressao;
+    await portasDaEdicao(db, 'u-1').gravar({ ...IMPRESSAO, ordem: ['movimento'], linhas: [empurrada] });
+    const [l] = capturado.chamadas[0].args.p_linhas as Record<string, unknown>[];
+    assert.equal(l.agg_version_no_momento, AGG_VERSION);
+    assert.ok(!('aggVersionNoMomento' in l));
+  });
+
+  it('nulo da métrica líder é escrito como nulo, não omitido — a função recusa a chave ausente', async () => {
+    const { db, capturado } = fakeRpc([]);
+    await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    const [, sono] = capturado.chamadas[0].args.p_linhas as Record<string, unknown>[];
+    assert.ok('metrica_lider' in sono);
+    assert.equal(sono.metrica_lider, null);
+  });
+
+  it('devolve a edição que o banco respondeu, não o que foi enviado', async () => {
+    const { db } = fakeRpc([
+      linhaDoBanco({ caderno: 'coracao', posicao: 1 }),
+      linhaDoBanco({ caderno: 'rotina', posicao: 2, metrica_lider: null }),
+    ]);
+    const e = await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    assert.deepEqual(e.map((c) => [c.caderno, c.posicao, c.metricaLider]), [
+      ['coracao', 1, 'fc_repouso'],
+      ['rotina', 2, null],
+    ]);
+    assert.deepEqual(e[0], toCadernoImpresso(linhaDoBanco({ caderno: 'coracao', posicao: 1 })));
+  });
+
+  it('a linha devolvida passa pela conferência de toCadernoImpresso', async () => {
+    const { db } = fakeRpc([linhaDoBanco({ caderno: 'lua' })]);
+    await assert.rejects(() => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO), /caderno desconhecido/);
+  });
+
   it('propaga o erro do banco em vez de devolver edição vazia', async () => {
-    const db = {
-      from: () => ({
-        upsert: () => ({
-          select: () => ({ single: async () => ({ data: null, error: new Error('rls') }) }),
-        }),
-      }),
-    } as unknown as SupabaseClient;
-    await assert.rejects(() => upsertEdicao(db, 'u-1', ENTRADA), /rls/);
+    const { db } = fakeRpc(null, new Error('linha recusada'));
+    await assert.rejects(() => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO), /linha recusada/);
+  });
+
+  it('a sessão é do dono: grava', async () => {
+    const { db, capturado } = fakeRpc([], null, 'u-1');
+    await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    assert.equal(capturado.chamadas.length, 1);
+  });
+
+  /**
+   * A conta trocou durante a impressão: a função gravaria para `auth.uid()`, que já
+   * é outro dono. O texto escrito sobre os dados de `u-1` não pode cair na edição de
+   * `u-2` — e nem na de ninguém, se a sessão caiu.
+   */
+  it('a sessão é de outra conta, ou de ninguém: lança nomeado, e a função não é chamada', async () => {
+    for (const dono of ['u-2', null]) {
+      const { db, capturado } = fakeRpc([], null, dono);
+      await assert.rejects(
+        () => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO),
+        (e: unknown) => e instanceof ContaTrocadaNaImpressao && e.name === 'ContaTrocadaNaImpressao',
+      );
+      assert.equal(capturado.chamadas.length, 0, `dono ${String(dono)}: o rpc foi chamado`);
+    }
+  });
+
+  it('erro ao ler a sessão também não grava', async () => {
+    const { db, capturado } = fakeRpc([]);
+    (db as unknown as { auth: { getSession: () => Promise<unknown> } }).auth.getSession = async () => ({
+      data: { session: null }, error: new Error('sessão ilegível'),
+    });
+    await assert.rejects(() => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO), /sessão ilegível/);
+    assert.equal(capturado.chamadas.length, 0);
+  });
+
+  it('buscar é fetchEdicao: o período inteiro, do dono, na ordem gravada', async () => {
+    const { db, capturado } = fakeLeitura([
+      linhaDoBanco({ caderno: 'sono', posicao: 2 }),
+      linhaDoBanco({ caderno: 'movimento', posicao: 1 }),
+    ]);
+    const e = await portasDaEdicao(db, 'u-1').buscar({ tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31' });
+    assert.deepEqual(e.map((c) => c.caderno), ['movimento', 'sono']);
+    assert.deepEqual(capturado.filtros, { user_id: 'u-1', tipo_periodo: 'month', inicio: '2026-08-01', fim: '2026-08-31' });
   });
 });
 
