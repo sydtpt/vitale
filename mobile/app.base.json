@@ -110,7 +110,8 @@
       "./plugins/withHealthKitObjcxxBridge.js",
       "./plugins/withHealthKitBackgroundObservers.js",
       "./plugins/withDisableExplicitModules.js",
-      "./plugins/withCppModulemapFix.js"
+      "./plugins/withCppModulemapFix.js",
+      "./plugins/withUISceneLifecycle.js"
     ],
     "experiments": {
       "typedRoutes": true
