@@ -3,7 +3,7 @@ title: 'Story 1.8 — A chamada sai de uma função só'
 type: 'feature'
 created: '2026-09-16'
 status: 'in-progress'
-review_loop_iteration: 0
+review_loop_iteration: 1
 baseline_commit: '6bcb3fc738d63d4fa5ff8348cdb0f910d8e8e271'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-1-context.md'
@@ -105,16 +105,29 @@ onde uma frase acaba.
 - [ ] `packages/shared/src/ia/verificar.ts` — `limitesDaFrase` passa a chamar `terminaFrase`. Nada
   mais muda no arquivo, e ele não reexporta a função.
 - [ ] `packages/shared/src/revista/chamada.ts` — criar `chamadaDoTexto(texto: string | null |
-  undefined): string | null` pela matriz, sobre `terminaFrase`, mais a lista fechada de abreviações
-  que **precedem** o complemento (Design Notes).
+  undefined): string | null` pela matriz, sobre `terminaFrase`, com a lista fechada de abreviações,
+  a regra do fragmento sem letra e os fechamentos colados (as três nas Design Notes).
 - [ ] `packages/shared/src/index.ts` — reexportar `chamadaDoTexto`, e só ela.
-- [ ] `packages/shared/src/format/frase.test.ts` e `packages/shared/src/revista/chamada.test.ts` —
-  a matriz inteira, mais a propriedade "nunca corta antes de `terminaFrase`" sobre uma bateria de
-  textos sintéticos, e o teste de barril (`chamadaDoTexto` sai; `terminaFrase` não).
-- [ ] `packages/shared/src/architecture.test.ts` — **barreira**: nenhum arquivo de `mobile/src` ou
-  `web/src`, fora de teste, corta frase à mão (`indexOf('.')`, `split('.')`, `split(/[.!?]`), com
-  lista de exceção nomeada e vazia. A não-vacuidade prova o casador **pelo caminho real** da
-  barreira, não por um literal paralelo.
+- [ ] `packages/shared/src/format/frase.test.ts` — a regra, e **a concordância com a conferência
+  pelo comportamento**, não pelo texto do arquivo: rodar `verificarTexto` (fixture no molde de
+  `pacoteDeBase`) com a base nomeada na frase seguinte depois de `!`, de `?` e de `\n` → zero
+  problemas de `base`; a mesma frase sem terminador → um problema. Cada caso vira vermelho se
+  `limitesDaFrase` deixar de cortar naquele terminador.
+- [ ] `packages/shared/src/revista/chamada.test.ts` — a matriz inteira; as bordas das Design Notes;
+  a propriedade **nos dois sentidos** sobre uma bateria sintética — a chamada nunca corta antes de
+  `terminaFrase`, **e** todo corte de `terminaFrase` que ela pula é ponto de abreviação da lista;
+  o teste de barril (`chamadaDoTexto` sai, `terminaFrase` não); e nenhum arquivo de `ia/`,
+  **varrido recursivamente**, reexporta a chamada ou a regra, em qualquer forma de `export`.
+- [ ] `packages/shared/src/architecture.test.ts` — **barreira**: nenhum arquivo, fora de teste, corta
+  frase à mão. **Alvos:** `mobile/src`, `web/src` **incluindo os templates `.html`** (pelo
+  `walkExt` que as barreiras irmãs já usam, e com asserção de que ao menos um `.html` entrou) e
+  `scripts/` (a regra da linha 69: hospedeiro novo entra nas barreiras no mesmo commit). **Formas:**
+  `indexOf('.')`, `split('.')`, `split` com regex que tenha ponto como separador (`/\./`, `/[.]/`,
+  `/[.!?]/` em qualquer ordem), `search`/`match` com ponto numa classe de caracteres, e
+  `Intl.Segmenter` com `granularity: 'sentence'`. O que a barreira não vê fica **escrito no docblock**.
+  A lista de exceção é **por ocorrência** (arquivo + forma), não por arquivo, e nasce com as
+  ocorrências legítimas de hoje, cada uma com o motivo — **não estreite a barreira para não pegá-las**.
+  A não-vacuidade prova o casador **e a leitura da lista de exceção** pelo caminho real da barreira.
 
 **Acceptance Criteria:**
 - Given a matriz de I/O, when os testes rodam, then cada linha tem um teste que rodou e passou.
@@ -127,6 +140,59 @@ onde uma frase acaba.
 
 ## Spec Change Log
 
+### Iteração 1 — 16/09/2026: a lista de abreviações violava o critério congelado, e a spec não definia fragmento sem letra
+
+**O que disparou (três revisores, `bad_spec`).**
+- A lista das Design Notes incluía `Sr.`, `Sra.`, `Dr.` e `Dra.` sob a afirmação de que "sempre
+  precedem o complemento". É falso — `"Consulta com a Dra. Depois o sono caiu."` fundia as duas
+  frases. A própria spec punha isso no Ask First ("pôr na lista uma que possa terminar frase").
+- Faltavam `vs.`, `i.e.` e `cf.`: `"7,2 h vs. 6,8 h em agosto. Depois."` devolvia `"7,2 h vs."`, o
+  número na capa cortado antes da base — a falha que as Design Notes diziam prevenir.
+- A spec não dizia o que fazer com fragmento sem letra, e o implementador escolheu `null` para
+  "nenhuma letra **ou dígito** antes do corte". Resultado: `"1. O sono caiu."` devolvia `"1."` — o
+  bug da manchete da story, por outra porta — e `"... e o sono caiu 40 min."` devolvia `null`,
+  fazendo caderno impresso parecer não impresso, contra o Always congelado.
+
+**O que mudou.** Design Notes: a lista (entram `vs.`, `i.e.`, `cf.`; saem os quatro tratamentos; o
+teste do critério ficou escrito), a regra do fragmento sem letra, e os fechamentos colados (aspas,
+parêntese, colchete). Tasks: a concordância com a conferência passa a ser provada **pelo
+comportamento** de `verificarTexto`, não pelo texto de `verificar.ts`; a propriedade vale nos dois
+sentidos; a barreira ganha templates `.html`, `scripts/`, as formas equivalentes (`split(/[.]/)`,
+`search`/`match` com ponto em classe, `Intl.Segmenter`) e exceção por ocorrência; a verificação de
+reexportação por `ia/` fica recursiva. O bloco congelado não mudou.
+
+**Estado ruim evitado.** Uma capa com `"7,2 h vs."`; uma capa com `"1."`; um caderno impresso que o
+sumário mostra como não escrito; duas frases fundidas numa manchete; e — o mais grave — uma
+conferência que pode parar de cortar num terminador sem teste nenhum ficar vermelho. Um revisor
+provou isso: com `limitesDaFrase` mudado para não cortar em `\n`, ou em `!` e `?`, os 172 testes da
+conferência, os 18 da regra e os 23 da chamada **continuaram verdes**, porque a concordância só era
+checada pelo texto do arquivo e a propriedade comparava a chamada com `terminaFrase`, nunca com a
+conferência. A entrada adiada desta mesma story manda a 1.10 mexer justamente ali.
+
+**KEEP — o que a primeira implementação fez certo e tem de sobreviver.**
+- **A extração de `verificar.ts` estava exata:** `terminaFrase` é cópia literal de `corta`, sem
+  imports, e o diff em `verificar.ts` foi só o import, um comentário de três linhas apontando o dono,
+  e a troca `corta(i)` → `terminaFrase(texto, i)` nos dois laços. `verificar.test.ts` não foi tocado.
+  Refaça igual.
+- **O barril pelo nome:** `export { chamadaDoTexto } from './revista/chamada';`, com um comentário
+  dizendo que `format/frase` fica interno. Nunca `export *`.
+- **A bateria sintética semeada** (5.555 textos) para a propriedade, **com asserções de que ela
+  passa por cada caminho** — sem isso a propriedade pode ficar verde sem exercitar nada.
+- **Mutação antes de relatar:** quebrar a função de propósito (ponto sempre corta, vírgula corta,
+  abreviação que termina frase na lista) e confirmar que os testes ficam vermelhos. Faça também
+  com `limitesDaFrase`, que é o que faltou.
+- **A autoprova da barreira** grava arquivos de exemplo num diretório temporário e os passa pela
+  **mesma função** que a barreira usa; e a entrada de exceção que para de casar tem de ser apagada.
+- **A borda do Windows:** `\r\n` corta no `\n` e o `\r` não entra.
+- **Abreviação no fim do texto** não engole nada: a chamada é o texto.
+- O idioma dos testes: `node:test` (`describe`/`it`) + `node:assert/strict`.
+
+**Um fato para a barreira.** `mobile/src/app/(tabs)/index.tsx:55` faz
+`String(raw).trim().split(/[\s.]+/)[0]` — tira o primeiro nome de um nome de exibição, não corta
+frase. A primeira implementação o usou como exemplo de "não deve casar", estreitando as formas.
+Com as formas desta iteração ele **casa**, e é a ocorrência legítima que entra na lista de exceção,
+com esse motivo.
+
 ## Design Notes
 
 **Por que a regra sai de `verificar.ts`.** A conferência usa os limites da frase para decidir qual
@@ -135,20 +201,37 @@ corta, um número poderia chegar à capa separado da base que a conferência ach
 Com uma regra só, a chamada corta onde a conferência corta — e só pula os pontos de abreviação, o
 que a deixa mais longa, nunca mais curta.
 
-**As abreviações: lista fechada, pelo critério de preceder.** Só entra abreviação que **sempre
-precede o complemento** e por isso nunca termina frase: `aprox.`, `p.ex.`, `p. ex.`, `Sr.`, `Sra.`,
-`Dr.`, `Dra.`. Ficam de fora de propósito `etc.`, `máx.` e `mín.`, que podem terminar frase
-("chegou ao máx."). As abreviações ficam **só na chamada** — pô-las na regra compartilhada mudaria o
-que a conferência reprova. Na amostra das sete edições antigas não há nenhuma abreviação com ponto
-(as unidades vêm sem ponto: `km`, `h`, `bpm`), e o prompt pede frase curta que termina com ponto: a
-lista cobre o critério de aceite sem inventar vocabulário.
+**As abreviações: lista fechada, pelo critério de preceder.** Só entra abreviação que **nunca
+termina frase, porque o complemento vem sempre depois dela**: `aprox.`, `p.ex.`, `p. ex.`, `vs.`,
+`i.e.` e `cf.`. O teste do critério é tentar pôr a abreviação no fim de uma frase — se couber, ela
+fica de fora. Por isso **não entram** `Sr.`, `Sra.`, `Dr.` e `Dra.` ("consulta com a Dra." termina
+frase), `etc.` ("corrida, natação etc."), `máx.`, `mín.` ("chegou ao máx.") e `p.p.` ("subiu 3
+p.p."). A revista não nomeia pessoas, então tratamento não compraria nada e custaria a chance de
+colar duas frases. `vs.`, `i.e.` e `cf.` entram porque são vocabulário de comparação, que é a prosa
+da revista — e, sem elas, `"7,2 h vs. 6,8 h em agosto."` vira `"7,2 h vs."` na capa, com o número
+cortado antes da base contra a qual compara. A casa da letra não decide; a palavra começa em
+fronteira (letra, dígito ou marca combinante antes dela não vale), e o espaço dentro de `p. ex.` é
+qualquer espaço, inclusive o não separável. As abreviações ficam **só na chamada** — pô-las na regra
+compartilhada mudaria o que a conferência reprova.
 
-**Reticências e "?!" entram inteiros.** A chamada inclui a sequência de terminadores colados, para não
-devolver `"Dormiu pouco."` de `"Dormiu pouco..."`. A posição do corte é a mesma da conferência.
+**Fragmento sem letra não é frase.** Um trecho até o corte que não tem nenhuma letra é pulado, e a
+busca continua depois dele: `"1. O sono caiu."` devolve `"O sono caiu."`, e não `"1."` — que é
+exatamente a falha que esta story existe para impedir, entrando por um marcador de lista em vez de
+um milhar. `"... e o sono caiu 40 min."` devolve `"e o sono caiu 40 min."`. Só é `null` o texto que
+não tem letra **nenhuma**: caderno impresso sempre tem chamada, e `null` quer dizer só "não há
+caderno". Pular um fragmento sem letra não fere o invariante — todo ponto em que a chamada corta
+continua sendo corte da conferência; o que muda é onde ela **começa**. Espaço de largura zero à
+frente sai junto com o espaço comum.
+
+**Terminadores e fechamentos colados entram inteiros.** A chamada inclui a sequência de terminadores
+colados (`...`, `?!`) e os fechamentos que vêm logo depois (aspas, parêntese, colchete), para não
+devolver `"Dormiu pouco."` de `"Dormiu pouco..."` nem `'Ele disse "caiu.'` com a aspa aberta. A
+posição do corte é a mesma da conferência; só entra o que está colado a ela.
 
 **Limitação conhecida, fora do alcance desta story.** A conferência aceita um número de comparação na
 primeira frase cuja base só é nomeada na segunda, porque o segundo passe da regra da base deixa o
-parágrafo absolver (`verificar.ts:919`). A chamada, que é essa primeira frase lida **sozinha**,
+parágrafo absolver (`verificar.ts`, no bloco "2º: nada colado. Aí sim o parágrafo pode absolver").
+A chamada, que é essa primeira frase lida **sozinha**,
 levaria o número sem a base para a capa. O conserto é uma regra nova na conferência — reprovar mais —,
 o que esta story não pode fazer. Vai para o trabalho adiado.
 

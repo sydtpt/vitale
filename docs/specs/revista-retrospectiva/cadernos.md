@@ -122,6 +122,15 @@ construíveis: não há campo novo, não há valor novo a verificar pelas cinco 
 manchete é literalmente o que o caderno diz primeiro. A contrapartida é uma regra a mais
 no prompt — o modelo escreve a primeira frase sabendo que ela vira capa e sumário.
 
+"Primeiro ponto final" é a regra em uma frase; a regra inteira tem dono único em
+`packages/shared/src/revista/chamada.ts` (story 1.8), e foi refinada com o dono em
+16/09/2026. Ela corta **onde a conferência corta** — ponto que não esteja entre dois dígitos,
+`?`, `!` e quebra de linha —, porque a conferência usa os mesmos limites para decidir que
+base está colada a um número, e uma chamada que cortasse antes levaria o número à capa sem
+a base. Pula só as abreviações que nunca terminam frase (`aprox.`, `p.ex.`, `vs.`, `i.e.`,
+`cf.`) e os fragmentos sem letra (`"1. O sono caiu."` é `"O sono caiu."`, nunca `"1."`).
+Texto sem terminador devolve o texto inteiro, e sem texto a chamada não existe.
+
 ## As três formas
 
 Não uma por `PeriodKind`. Três objetos distintos.
