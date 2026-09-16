@@ -79,6 +79,10 @@ export * from './date/local';
 export * from './date/ptbr';
 export * from './format/workout';
 export * from './format/money';
+// A chamada da revista (story 1.8) sai pelo nome, e só ela. `format/frase` — a
+// regra de fim de frase que ela divide com a conferência — fica interno ao
+// núcleo: nunca `export *` aqui.
+export { chamadaDoTexto } from './revista/chamada';
 export * from './data/paginate';
 export * from './data/profiles';
 export * from './data/todo-templates';

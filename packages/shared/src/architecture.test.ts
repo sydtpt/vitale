@@ -15,9 +15,9 @@
  * na primeira hora.
  */
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import ts from 'typescript';
 import { WALLPAPERS } from './constants/wallpaper';
 import { APP_THEMES } from './models';
@@ -90,9 +90,13 @@ function semComentario(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
 }
 
-/** Arquivo de teste, em qualquer das três convenções do repositório. */
+/**
+ * Arquivo de teste, em qualquer das três convenções do repositório — em
+ * TypeScript ou JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`), porque a barreira da
+ * chamada (story 1.8) varre os dois.
+ */
 function ehTeste(f: string): boolean {
-  return /\.(test|spec)\.tsx?$/.test(f) || /[\\/]__tests__[\\/]/.test(f);
+  return /\.(test|spec)\.[mc]?[jt]sx?$/.test(f) || /[\\/]__tests__[\\/]/.test(f);
 }
 
 /**
@@ -2339,6 +2343,768 @@ check('BARREIRA — a luz da revista não lê aparelho, fuso nem ambiente', () =
     [],
     `casa.ts lê ${achados.join(', ')}. A coordenada da luz é constante do núcleo (AD-10): `
       + 'dois hospedeiros em fusos diferentes têm que produzir a mesma edição.',
+  );
+});
+
+/**
+ * BARREIRA — nenhum arquivo, fora de teste, corta frase à mão (story 1.8).
+ *
+ * A capa, o sumário e a parede da revista mostram a **chamada** de cada caderno,
+ * e ela tem um dono: `chamadaDoTexto` (`revista/chamada.ts`), sobre a regra de
+ * fim de frase que ela divide com a conferência (`format/frase.ts`). Um corte
+ * escrito à mão é a segunda chamada — e o corte óbvio, `indexOf('.')`, quebra na
+ * primeira frase com milhar ("1.210 fotos" vira "1."), além de discordar da
+ * conferência sobre onde a frase acaba. A 1.11, a 1.13 e a 1.14 são as telas que
+ * vão querer a chamada; a próxima escrita à mão tem mais chance ainda de nascer
+ * num view-model do núcleo.
+ *
+ * **Alvos.** `mobile/src`; `web/src`, com os templates `.html` **e** os
+ * `template:` em linha dos `@Component` (o texto do literal passa pelo mesmo
+ * leitor do `.html`); `scripts/`, que entra nas barreiras desde que nasceu; e
+ * `packages/shared` inteiro, fora os dois donos. Fora de teste — `ehTeste`, em
+ * TypeScript e JavaScript.
+ *
+ * **Formas.**
+ * - `indexOf` com string de terminador (`'.'`, `'?'`, `'!'`, `'...'`, com ou sem
+ *   espaço depois);
+ * - `split` com essa string;
+ * - `split`, `search`, `match`, `matchAll`, `replace` e `replaceAll` com regex
+ *   que tenha **ponto em classe** de caracteres (`/[.]/`, `/[.!?]/`, em qualquer
+ *   ordem) ou **ponto escapado** (`/\./`, `/\.\s/`, `/^(.+?)\.(?!\d)/`) — exceto o
+ *   ponto escapado **entre padrões de dígito** (`\d\.\d`, `\d+\.\d+`,
+ *   `[0-9]\.[0-9]`, `\d{1,3}(?:\.\d{3})`), que é número e não frase. A regex vale
+ *   por literal, por `new RegExp('\u2026')` com literal, e — em `search`, `match` e
+ *   `matchAll`, que a compilam — por string;
+ * - `granularity: 'sentence'` num objeto literal — o `Intl.Segmenter` por frase;
+ * - import profundo de `format/frase` **fora de `packages/shared`** (`import`,
+ *   `export \u2026 from`, `import()`, `require`): a regra fica interna ao núcleo por
+ *   barreira, não só pelo barril.
+ *
+ * O `.ts`/`.tsx`/`.js` é lido pela **árvore sintática** do TypeScript — que ignora
+ * comentário e literal de texto sem precisar de `semComentario` (e sem herdar o
+ * defeito dele com `//` dentro de string) —; o template, por regex, com o
+ * comentário HTML tirado antes.
+ *
+ * **O que ela não vê**, nominalmente:
+ * - o ponto por escape numérico (`/\x2E/`, `'\u002E'`);
+ * - o método emprestado (`String.prototype.split.call(t, '.')`);
+ * - o padrão guardado em variável (`const FIM = /[.!?]/; t.split(FIM)`) e o
+ *   `new RegExp` de variável;
+ * - a regex que corta só em `!` ou `?` (`/[!?]/`, `/\?/`), e o corte na quebra de
+ *   linha (`split('\n')[0]`, `split(/\n/)`);
+ * - o corte por lookaround sem ponto (`split(/(?<=[a-z])\s+(?=[A-Z])/)`);
+ * - o `Intl['Segmenter']` — ou qualquer segmentador — com a granularidade que não
+ *   chega como literal (`{ granularity: g }`);
+ * - o laço com `slice`/`charAt` procurando o ponto; `lastIndexOf`, `exec` e `test`;
+ *   o nome do método montado (`t[\`spl${'it'}\`]`);
+ * - o `template:` de um `@Component` guardado numa constante, e, em qualquer
+ *   template, a chamada que o leitor por regex não reconhece como tal;
+ * - quem importa `format/frase` **dentro** do núcleo, fora os donos — um terceiro
+ *   módulo de `packages/shared` pode escrever um corte sobre a regra;
+ * - os alvos que ela não varre: `supabase/functions`, `mobile/plugins`, os `.js`
+ *   da raiz de `mobile/`, e o arquivo emitido em `dist/`, que ela não distingue de
+ *   fonte se ele estiver dentro de um alvo.
+ *
+ * **O que ela acusa a mais**, e vai para a lista de exceção: a classe negada
+ * (`[^\d.]` guarda o ponto, não corta nele) e a classe de escape de metacaractere
+ * de regex (`[.*+?^${}()|[\]\\]`).
+ *
+ * **Exceção é por ocorrência** — arquivo, forma e trecho —, nasce com as
+ * legítimas de hoje, cada uma com o motivo, e **absorve uma ocorrência só**. A
+ * entrada que para de casar falha: exceção guardada para código que já saiu é
+ * porta aberta para o próximo que passar por aqui. Não estreite a barreira para
+ * não pegar uma legítima; ponha-a aqui.
+ */
+const DONOS_DA_FRASE = new Set(['packages/shared/src/revista/chamada.ts', 'packages/shared/src/format/frase.ts']);
+
+interface CorteAMao {
+  /** Relativo à raiz varrida, com `/`. */
+  arquivo: string;
+  forma: string;
+  /** O texto da chamada, com o espaço colapsado. */
+  trecho: string;
+}
+
+interface ExcecaoDeCorte extends CorteAMao {
+  motivo: string;
+}
+
+const EXCECOES_DE_CORTE: readonly ExcecaoDeCorte[] = [
+  {
+    arquivo: 'mobile/src/app/(tabs)/index.tsx',
+    forma: 'split com regex de ponto',
+    trecho: 'String(raw).trim().split(/[\\s.]+/)',
+    motivo: 'tira o primeiro nome de um nome de exibição ("ana.souza" vira "ana") — corta nome, não frase',
+  },
+  {
+    arquivo: 'packages/shared/src/format/numero.ts',
+    forma: 'split com string de terminador',
+    trecho: "fixo.split('.')",
+    motivo: 'separa a parte inteira da decimal na saída de toFixed — o ponto é o decimal do JavaScript',
+  },
+  {
+    arquivo: 'packages/shared/src/ia/verificar.ts',
+    forma: 'replace com ponto em classe',
+    trecho: "s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')",
+    motivo: 'escapar(): escapa os metacaracteres de regex de um termo — o ponto está na classe como caractere a escapar',
+  },
+  {
+    arquivo: 'packages/shared/src/ia/verificar.ts',
+    forma: 'replace com ponto em classe',
+    trecho: "termo.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')",
+    motivo: 'ocorrencias(): o mesmo escape de metacaracteres, para achar um termo como palavra',
+  },
+  {
+    arquivo: 'mobile/src/components/sheets/QuickAddSheet.tsx',
+    forma: 'replace com ponto em classe',
+    trecho: "raw.replace(',', '.').replace(/[^\\d.]/g, '')",
+    motivo: 'limpa o valor digitado deixando só dígitos e o ponto decimal — classe negada, o ponto é o que fica',
+  },
+  {
+    arquivo: 'scripts/bancada/bancada.ts',
+    forma: 'replace com ponto em classe',
+    trecho: "geradoEm.replace(/[:.]/g, '-')",
+    motivo: 'troca os dois-pontos e o ponto do carimbo ISO por hífen, no nome do arquivo do relatório',
+  },
+  {
+    arquivo: "mobile/src/app/(tabs)/index.tsx",
+    forma: "replace com ponto escapado",
+    trecho: "d .toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' }) .replace(/\\./g, '')",
+    motivo: "tira os pontos de abreviação que o toLocaleDateString põe no dia da semana (\"seg.\") — rótulo de data, não frase",
+  },
+  {
+    arquivo: "mobile/src/app/habitos/detalhe.tsx",
+    forma: "replace com ponto escapado",
+    trecho: "r.toFixed(2).replace(/\\.?0+$/, '')",
+    motivo: "apara os zeros finais de um toFixed(2) (\"1.50\" vira \"1.5\", \"2.00\" vira \"2\") — o ponto é o decimal do JavaScript, não fim de frase",
+  },
+  {
+    arquivo: "mobile/src/app/habitos/index.tsx",
+    forma: "replace com ponto escapado",
+    trecho: "r.toFixed(2).replace(/\\.?0+$/, '')",
+    motivo: "apara os zeros finais de um toFixed(2) (\"1.50\" vira \"1.5\", \"2.00\" vira \"2\") — o ponto é o decimal do JavaScript, não fim de frase",
+  },
+  {
+    arquivo: "mobile/src/components/cards/HabitStepper.tsx",
+    forma: "replace com ponto escapado",
+    trecho: "r.toFixed(2).replace(/\\.?0+$/, '')",
+    motivo: "apara os zeros finais de um toFixed(2) (\"1.50\" vira \"1.5\", \"2.00\" vira \"2\") — o ponto é o decimal do JavaScript, não fim de frase",
+  },
+  {
+    arquivo: "web/src/app/features/habits/components/habit-analytics-card.component.ts",
+    forma: "replace com ponto escapado",
+    trecho: "r.toFixed(2).replace(/\\.?0+$/, '')",
+    motivo: "apara os zeros finais de um toFixed(2) (\"1.50\" vira \"1.5\", \"2.00\" vira \"2\") — o ponto é o decimal do JavaScript, não fim de frase",
+  },
+  {
+    arquivo: "web/src/app/features/habits/components/habit-list.component.ts",
+    forma: "replace com ponto escapado",
+    trecho: "r.toFixed(2).replace(/\\.?0+$/, '')",
+    motivo: "apara os zeros finais de um toFixed(2) (\"1.50\" vira \"1.5\", \"2.00\" vira \"2\") — o ponto é o decimal do JavaScript, não fim de frase",
+  },
+  {
+    arquivo: "web/src/app/features/habits/components/habit-stepper.component.ts",
+    forma: "replace com ponto escapado",
+    trecho: "r.toFixed(2).replace(/\\.?0+$/, '')",
+    motivo: "apara os zeros finais de um toFixed(2) (\"1.50\" vira \"1.5\", \"2.00\" vira \"2\") — o ponto é o decimal do JavaScript, não fim de frase",
+  },
+  {
+    arquivo: "web/src/app/features/semana/components/habits-week-card.component.ts",
+    forma: "replace com ponto escapado",
+    trecho: "value.toFixed(2).replace(/\\.?0+$/, '')",
+    motivo: "apara os zeros finais de um toFixed(2) (\"1.50\" vira \"1.5\", \"2.00\" vira \"2\") — o ponto é o decimal do JavaScript, não fim de frase",
+  },
+  {
+    arquivo: "packages/shared/src/chart/axis.ts",
+    forma: "replace com ponto escapado",
+    trecho: "(value / scale).toFixed(digits).replace(/\\.0$/, '')",
+    motivo: "tira o \".0\" de um toFixed no rótulo do eixo (\"3.0k\" vira \"3k\") — o ponto é o decimal",
+  },
+  {
+    arquivo: "packages/shared/src/ia/verificar.ts",
+    forma: "replace com ponto escapado",
+    trecho: "bruto.replace(/\\./g, '')",
+    motivo: "paraNumero(): tira o ponto de milhar de um número citado (\"12.345\" vira \"12345\") antes de convertê-lo — o ponto é milhar",
+  },
+];
+
+const METODOS_DE_CORTE = new Set(['indexOf', 'split', 'search', 'match', 'matchAll', 'replace', 'replaceAll']);
+/** Pré-filtro textual: arquivo sem nenhuma destas palavras não tem como ofender, e não é parseado. */
+const PODE_CORTAR = /\b(?:indexOf|split|search|match|matchAll|replace|replaceAll|granularity|template)\b|format\/frase/;
+/** String que é só terminador: `'.'`, `'?'`, `'!'`, `'...'`, `'. '`. */
+const STRING_DE_TERMINADOR = /^(?:[.!?]+|\u2026)\s*$/;
+/** Specifier que alcança a regra de fim de frase, com ou sem extensão. */
+const FRASE_PROFUNDA = /(?:^|\/)format\/frase(?:\.[mc]?[jt]sx?)?$/;
+
+type ArgumentoDeCorte = { tipo: 'regex'; corpo: string } | { tipo: 'string'; texto: string };
+
+/** Um padrão de dígito logo antes do ponto escapado — `\d`, `[0-9]`, com quantificador, fechando ou abrindo grupo. */
+const DIGITO_ANTES_DO_PONTO = /(?:\\d|\[0-9\]|\[\\d\])(?:[*+?]|\{\d*,?\d*\})?\??\)*(?:\((?:\?:)?)*$/;
+/** Um padrão de dígito logo depois do ponto escapado — com o quantificador do próprio ponto (`\.?`) antes. */
+const DIGITO_DEPOIS_DO_PONTO = /^(?:[*+?]|\{\d*,?\d*\})?\??\)*(?:\((?:\?:)?)*(?:\\d|\[0-9\]|\[\\d\])/;
+
+/**
+ * O que um padrão de regex (o corpo, sem as barras) faz com o ponto literal: se
+ * ele está numa classe, e se aparece **escapado fora dela sem ser entre dígitos**.
+ *
+ * Todo ponto escapado é corte — `/\./`, o gêmeo de `indexOf('.')`, e
+ * `/^(.+?)\.(?!\d)/`, a "primeira frase que respeita milhar" — exceto quando os
+ * dois lados são padrão de dígito (`\d\.\d`, `\d+\.\d+`, `[0-9]\.[0-9]`,
+ * `\d{1,3}(?:\.\d{3})`, `\d+\.?\d*`): aí é número.
+ */
+function pontoNoPadrao(corpo: string): { emClasse: boolean; escapado: boolean } {
+  let emClasse = false;
+  let escapado = false;
+  let dentro = false;
+  for (let i = 0; i < corpo.length; i += 1) {
+    const c = corpo[i];
+    if (c === '\\') {
+      if (corpo[i + 1] === '.') {
+        if (dentro) emClasse = true;
+        else if (!(DIGITO_ANTES_DO_PONTO.test(corpo.slice(0, i)) && DIGITO_DEPOIS_DO_PONTO.test(corpo.slice(i + 2)))) {
+          escapado = true;
+        }
+      }
+      i += 1;
+      continue;
+    }
+    if (dentro) {
+      if (c === ']') dentro = false;
+      else if (c === '.') emClasse = true;
+    } else if (c === '[') {
+      dentro = true;
+    }
+  }
+  return { emClasse, escapado };
+}
+
+/** A forma de corte que `metodo(arg)` é, ou `null`. Um classificador só, para o código e para o template. */
+function formaDoCorte(metodo: string, arg: ArgumentoDeCorte): string | null {
+  if (metodo === 'indexOf') {
+    return arg.tipo === 'string' && STRING_DE_TERMINADOR.test(arg.texto) ? 'indexOf com terminador' : null;
+  }
+  if (metodo === 'split') {
+    if (arg.tipo === 'string') return STRING_DE_TERMINADOR.test(arg.texto) ? 'split com string de terminador' : null;
+    const p = pontoNoPadrao(arg.corpo);
+    return p.emClasse || p.escapado ? 'split com regex de ponto' : null;
+  }
+  if (!METODOS_DE_CORTE.has(metodo)) return null;
+  // `search`, `match` e `matchAll` transformam a string em regex; `replace` a lê
+  // literal, mas a string com cara de padrão é a mesma intenção.
+  const p = pontoNoPadrao(arg.tipo === 'regex' ? arg.corpo : arg.texto);
+  if (p.emClasse) return `${metodo} com ponto em classe`;
+  if (p.escapado) return `${metodo} com ponto escapado`;
+  return null;
+}
+
+const corpoDaRegex = (literal: string) => literal.slice(1, literal.lastIndexOf('/'));
+const colapsar = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+/** O argumento literal de uma chamada de corte — regex, string ou `new RegExp('…')` —, ou `null`. */
+function argumentoDeCorte(no: ts.Expression): ArgumentoDeCorte | null {
+  const x = desembrulhar(no);
+  if (ts.isRegularExpressionLiteral(x)) return { tipo: 'regex', corpo: corpoDaRegex(x.text) };
+  if (ts.isStringLiteralLike(x)) return { tipo: 'string', texto: x.text };
+  if ((ts.isNewExpression(x) || ts.isCallExpression(x)) && ts.isIdentifier(x.expression) && x.expression.text === 'RegExp') {
+    const a = x.arguments?.[0] && desembrulhar(x.arguments[0]);
+    if (a && ts.isStringLiteralLike(a)) return { tipo: 'regex', corpo: a.text };
+    if (a && ts.isRegularExpressionLiteral(a)) return { tipo: 'regex', corpo: corpoDaRegex(a.text) };
+  }
+  return null;
+}
+
+const CHAMADA_NO_TEMPLATE =
+  /\.\s*(indexOf|split|search|matchAll|match|replaceAll|replace)\s*\(\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\/(?:[^/\\\n[]|\\.|\[(?:[^\]\\]|\\.)*\])+\/[a-z]*)/g;
+const SEGMENTADOR_NO_TEMPLATE = /\bgranularity\s*:\s*(['"])sentence\1/g;
+
+/** Os cortes num template Angular — de um `.html` ou do texto de um `template:` em linha. */
+function cortesNoTemplate(template: string): Omit<CorteAMao, 'arquivo'>[] {
+  const out: Omit<CorteAMao, 'arquivo'>[] = [];
+  const semComentarioHtml = template.replace(/<!--[\s\S]*?-->/g, ' ');
+  for (const m of semComentarioHtml.matchAll(CHAMADA_NO_TEMPLATE)) {
+    const bruto = m[2];
+    const arg: ArgumentoDeCorte = bruto.startsWith('/')
+      ? { tipo: 'regex', corpo: corpoDaRegex(bruto) }
+      : { tipo: 'string', texto: bruto.slice(1, -1).replace(/\\(.)/g, '$1') };
+    const forma = formaDoCorte(m[1], arg);
+    if (forma) out.push({ forma, trecho: colapsar(`${m[0]})`) });
+  }
+  for (const m of semComentarioHtml.matchAll(SEGMENTADOR_NO_TEMPLATE)) {
+    out.push({ forma: 'Intl.Segmenter por frase', trecho: colapsar(m[0]) });
+  }
+  return out;
+}
+
+/** O texto de um `template:` em linha; a interpolação vira espaço. */
+function textoDoTemplate(no: ts.Expression): string | null {
+  const x = desembrulhar(no);
+  if (ts.isStringLiteralLike(x)) return x.text;
+  if (ts.isTemplateExpression(x)) return [x.head.text, ...x.templateSpans.map((s) => s.literal.text)].join(' ');
+  return null;
+}
+
+/** Os cortes de um fonte TypeScript ou JavaScript, e os `template:` em linha dos `@Component` dele. */
+function cortesNoCodigo(arquivo: string, src: string, foraDoNucleo: boolean): {
+  cortes: Omit<CorteAMao, 'arquivo'>[];
+  templates: string[];
+} {
+  const sf = ts.createSourceFile(arquivo, src, ts.ScriptTarget.Latest, false);
+  const cortes: Omit<CorteAMao, 'arquivo'>[] = [];
+  const templates: string[] = [];
+  const nomeDe = (n: ts.PropertyName) => (ts.isIdentifier(n) || ts.isStringLiteralLike(n) ? n.text : null);
+  const importaAFrase = (spec: ts.Expression | undefined, no: ts.Node) => {
+    if (foraDoNucleo && spec && ts.isStringLiteralLike(spec) && FRASE_PROFUNDA.test(spec.text)) {
+      cortes.push({ forma: 'import profundo de format/frase', trecho: colapsar(no.getText(sf)) });
+    }
+  };
+  const visitar = (no: ts.Node): void => {
+    if (ts.isCallExpression(no)) {
+      const callee = no.expression;
+      const metodo = ts.isPropertyAccessExpression(callee)
+        ? callee.name.text
+        : ts.isElementAccessExpression(callee) && ts.isStringLiteralLike(callee.argumentExpression)
+          ? callee.argumentExpression.text
+          : null;
+      if (metodo && METODOS_DE_CORTE.has(metodo) && no.arguments.length > 0) {
+        const arg = argumentoDeCorte(no.arguments[0]);
+        const forma = arg && formaDoCorte(metodo, arg);
+        if (forma) cortes.push({ forma, trecho: colapsar(no.getText(sf)) });
+      }
+      if (callee.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(callee) && callee.text === 'require')) {
+        importaAFrase(no.arguments[0], no);
+      }
+    }
+    if (ts.isImportDeclaration(no) || ts.isExportDeclaration(no)) importaAFrase(no.moduleSpecifier, no);
+    if (ts.isImportEqualsDeclaration(no) && ts.isExternalModuleReference(no.moduleReference)) {
+      importaAFrase(no.moduleReference.expression, no);
+    }
+    if (ts.isPropertyAssignment(no) && nomeDe(no.name) === 'granularity') {
+      const v = desembrulhar(no.initializer);
+      if (ts.isStringLiteralLike(v) && v.text === 'sentence') {
+        cortes.push({ forma: 'Intl.Segmenter por frase', trecho: colapsar(no.getText(sf)) });
+      }
+    }
+    if (
+      ts.isDecorator(no) && ts.isCallExpression(no.expression) && ts.isIdentifier(no.expression.expression)
+      && no.expression.expression.text === 'Component'
+    ) {
+      const opcoes = no.expression.arguments[0];
+      if (opcoes && ts.isObjectLiteralExpression(opcoes)) {
+        for (const p of opcoes.properties) {
+          if (!ts.isPropertyAssignment(p) || nomeDe(p.name) !== 'template') continue;
+          const t = textoDoTemplate(p.initializer);
+          if (t !== null) templates.push(t);
+        }
+      }
+    }
+    ts.forEachChild(no, visitar);
+  };
+  visitar(sf);
+  return { cortes, templates };
+}
+
+/**
+ * A barreira inteira sobre uma lista de arquivos: acha os cortes, desconta as
+ * exceções — uma ocorrência por entrada — e devolve o que sobrou dos dois lados.
+ * `raiz` é de onde o caminho relativo é medido, e por isso a autoprova passa por
+ * aqui com um diretório temporário, esteja ele onde estiver.
+ */
+function varrerCortesDeFrase(
+  arquivos: readonly string[],
+  raiz: string,
+  excecoes: readonly ExcecaoDeCorte[],
+): { ofensas: CorteAMao[]; sobrando: ExcecaoDeCorte[]; html: number; emLinha: number } {
+  const achados: CorteAMao[] = [];
+  let html = 0;
+  let emLinha = 0;
+  for (const f of arquivos) {
+    const arquivo = relative(raiz, f).split(sep).join('/');
+    if (DONOS_DA_FRASE.has(arquivo) || ehTeste(f)) continue;
+    const src = readFileSync(f, 'utf8');
+    if (f.endsWith('.html')) {
+      html += 1;
+      for (const c of cortesNoTemplate(src)) achados.push({ arquivo, ...c });
+      continue;
+    }
+    if (!PODE_CORTAR.test(src)) continue;
+    const { cortes, templates } = cortesNoCodigo(f, src, !arquivo.startsWith('packages/shared/'));
+    for (const c of cortes) achados.push({ arquivo, ...c });
+    emLinha += templates.length;
+    for (const t of templates) {
+      for (const c of cortesNoTemplate(t)) achados.push({ arquivo, forma: `${c.forma} (template em linha)`, trecho: c.trecho });
+    }
+  }
+  const sobrando = [...excecoes];
+  const ofensas: CorteAMao[] = [];
+  for (const a of achados) {
+    const i = sobrando.findIndex((e) => e.arquivo === a.arquivo && e.forma === a.forma && e.trecho === a.trecho);
+    if (i >= 0) sobrando.splice(i, 1);
+    else ofensas.push(a);
+  }
+  return { ofensas, sobrando, html, emLinha };
+}
+
+const EXTENSOES_DE_CODIGO = /\.[mc]?[jt]sx?$/;
+const descreverCorte = (c: CorteAMao) => `${c.arquivo} — ${c.forma}: ${c.trecho}`;
+
+/** Os alvos da barreira sob uma raiz: a do repositório, ou a da autoprova. */
+function arquivosDaChamada(raiz: string): Record<'mobile' | 'web' | 'scripts' | 'nucleo', string[]> {
+  return {
+    mobile: walkExt(join(raiz, 'mobile', 'src'), EXTENSOES_DE_CODIGO),
+    web: walkExt(join(raiz, 'web', 'src'), /\.(?:[mc]?[jt]sx?|html)$/),
+    scripts: walkExt(join(raiz, 'scripts'), EXTENSOES_DE_CODIGO),
+    nucleo: walkExt(join(raiz, 'packages', 'shared'), EXTENSOES_DE_CODIGO),
+  };
+}
+
+/** O veredito sobre uma varredura: nenhuma exceção sobrando, nenhuma ofensa. */
+function exigirSemCorteAMao({ ofensas, sobrando }: { ofensas: readonly CorteAMao[]; sobrando: readonly ExcecaoDeCorte[] }): void {
+  assert.deepEqual(
+    sobrando.map(descreverCorte),
+    [],
+    'exceção da barreira da chamada que não casa mais com nada — apague a entrada (o código saiu, ou mudou de forma):\n    ' +
+      sobrando.map(descreverCorte).join('\n    '),
+  );
+  assert.deepEqual(
+    ofensas.map(descreverCorte),
+    [],
+    `frase cortada à mão em ${ofensas.length} lugar(es):\n    ${ofensas.map(descreverCorte).join('\n    ')}\n` +
+      '  A primeira frase de um texto é chamadaDoTexto (@vitale/shared) — ela corta onde a conferência corta, ' +
+      'pula abreviação e milhar, e devolve null quando não há caderno. Se o corte não é de frase (um número, um ' +
+      'nome de arquivo), ponha-o em EXCECOES_DE_CORTE com o motivo — não estreite a barreira.',
+  );
+}
+
+/**
+ * A prova de que a barreira vê — **pelo mesmo caminho**: os arquivos de verdade
+ * num diretório temporário são achados por `arquivosDaChamada`, lidos por
+ * `varrerCortesDeFrase` contra uma lista de exceção dela, e julgados por
+ * `exigirSemCorteAMao`.
+ */
+function provarABarreiraDaChamada(): void {
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-chamada-'));
+  try {
+    const escrever = (rel: string, fonte: string) => {
+      const abs = join(dir, ...rel.split('/'));
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, `${fonte}\n`);
+    };
+    /** Arquivo → as formas que a barreira tem de achar nele, em ordem. */
+    const esperado = new Map<string, string[]>();
+    const caso = (rel: string, fonte: string, formas: string[]) => {
+      escrever(rel, fonte);
+      esperado.set(rel, formas);
+    };
+
+    caso('mobile/src/indice.ts', "export const a = (t: string) => t.slice(0, t.indexOf('.'));", ['indexOf com terminador']);
+    caso(
+      'mobile/src/string.tsx',
+      "export const b = (t: string) => [t.split('.'), t.split('?'), t.split('!'), t.split('...'), t.split('. ')];",
+      Array(5).fill('split com string de terminador'),
+    );
+    caso(
+      'scripts/regex.mjs',
+      "export const c = (t) => [t.split(/\\./), t.split(/[.]/), t.split(/[!?.]/), t.split(new RegExp('[.!?]'))];",
+      Array(4).fill('split com regex de ponto'),
+    );
+    caso(
+      'web/src/classe.ts',
+      "export const d = (t: string) => [t.search(/[.!?]/), t.match(/[?.]/g), t.matchAll(/[.]/g), t.replace(/[.!?]\\s*/g, ''), t.replaceAll(/[.]/g, ''), t.search(/[\\.!?]/)];",
+      ['search com ponto em classe', 'match com ponto em classe', 'matchAll com ponto em classe', 'replace com ponto em classe', 'replaceAll com ponto em classe', 'search com ponto em classe'],
+    );
+    caso(
+      'packages/shared/src/revista/vitrine.ts',
+      [
+        'export const e = (t: string) => [',
+        '  t.match(/\\.\\s/), t.replace(/\\.$/, \'\'), t.search(/\\.+\\s+[A-Z]/), t.match(/\\.(?=\\s)/),',
+        "  t.match(/\\.[\"')]*\\s/), t.search('[.!?]'), t.match('\\\\.\\\\s'),",
+        '];',
+      ].join('\n'),
+      [
+        'match com ponto escapado', 'replace com ponto escapado', 'search com ponto escapado', 'match com ponto escapado',
+        'match com ponto escapado', 'search com ponto em classe', 'match com ponto escapado',
+      ],
+    );
+    // As duas mais naturais: o gêmeo de indexOf('.') e a "primeira frase que respeita milhar".
+    caso(
+      'mobile/src/natural.ts',
+      [
+        'export const p = (t: string) => t.slice(0, t.search(/\\./) + 1);',
+        'export const q = (t: string) => t.match(/^(.+?)\\.(?!\\d)/)?.[1];',
+        "export const r = (t: string) => [t.replace(/\\./g, ''), t.split(/\\d\\./), t.matchAll(new RegExp('x\\\\.'))];",
+      ].join('\n'),
+      ['search com ponto escapado', 'match com ponto escapado', 'replace com ponto escapado', 'split com regex de ponto', 'matchAll com ponto escapado'],
+    );
+    caso(
+      'mobile/src/embrulho.ts',
+      "export const f = (t: string) => [t['split']('.'), t?.split('.'), (t as string).indexOf(('.' as const))];",
+      ['split com string de terminador', 'split com string de terminador', 'indexOf com terminador'],
+    );
+    caso('scripts/segmentador.cjs', "module.exports = new Intl.Segmenter('pt', { granularity: 'sentence' });", ['Intl.Segmenter por frase']);
+    caso(
+      'web/src/profundo.ts',
+      [
+        "import { terminaFrase } from '@vitale/shared/src/format/frase';",
+        "export { terminaFrase as t } from '../../packages/shared/src/format/frase.ts';",
+        "export const g = () => import('../format/frase');",
+        "export const h = require('packages/shared/src/format/frase.js');",
+      ].join('\n'),
+      Array(4).fill('import profundo de format/frase'),
+    );
+    caso(
+      'web/src/app/pagina.component.html',
+      "<p>{{ texto.split('.')[0] }}</p>\n<p [title]=\"t?.indexOf('.')\"></p>\n<!-- {{ texto.split('!') }} -->",
+      ['split com string de terminador', 'indexOf com terminador'],
+    );
+    caso(
+      'web/src/app/cartao.component.ts',
+      "@Component({ selector: 'x-cartao', template: `<p>{{ t.split('?')[0] }}</p><!-- {{ t.indexOf('.') }} -->` })\nexport class Cartao {}",
+      ['split com string de terminador (template em linha)'],
+    );
+    // O template sem palavra de corte nenhuma também é contado: a contagem é de template, não de suspeito.
+    caso('web/src/app/vazio.component.ts', "@Component({ selector: 'x-vazio', template: '<p>{{ t }}</p>' })\nexport class Vazio {}", []);
+    // A exceção absorve a ocorrência dela — e uma só: a segunda, idêntica, ofende.
+    caso(
+      'mobile/src/app/nome.tsx',
+      'export const n = (raw: string) => String(raw).trim().split(/[\\s.]+/);\nexport const m = (raw: string) => String(raw).trim().split(/[\\s.]+/);',
+      ['split com regex de ponto'],
+    );
+
+    // O que não é ofensa.
+    caso(
+      'mobile/src/legitimo.ts',
+      [
+        '// t.indexOf(\'.\') e t.split(\'.\') só no comentário',
+        '/* t.match(/[.!?]/) */',
+        "const doc = \"t.split('.')\";",
+        "import { formatarNumero } from '../format/numero';",
+        "export const k = (x: string) => [x.replace('.', ','), x.split(','), x.match(/\\d+\\.\\d+/),",
+        "  x.indexOf(','), x.indexOf('.5'), x.split(/\\\\./), new Intl.Segmenter('pt', { granularity: 'word' }), doc, formatarNumero,",
+        // O ponto escapado entre padrões de dígito é número, não frase.
+        "  x.replace(/\\d\\.\\d/, ''), x.match(/[0-9]\\.[0-9]/), x.search(/\\d{1,3}(?:\\.\\d{3})+/), x.split(/(\\d+)\\.?\\d*/)];",
+      ].join('\n'),
+      [],
+    );
+    caso('packages/shared/src/revista/chamada.ts', "export const dono = (t: string) => t.indexOf('.');", []);
+    caso('packages/shared/src/format/frase.ts', "export const dono = (t: string) => t.split('.');", []);
+    caso('packages/shared/src/revista/vizinho.ts', "import { terminaFrase } from '../format/frase';\nexport { terminaFrase };", []);
+    caso('mobile/src/corte.test.ts', "export const t = (x: string) => x.indexOf('.');", []);
+    caso('scripts/corte.test.mjs', "export const t = (x) => x.split('.');", []);
+    caso('web/src/corte.spec.js', "export const t = (x) => x.split('.');", []);
+    caso('mobile/src/__tests__/corte.jsx', "export const t = (x) => x.split('.');", []);
+    caso('web/src/app/comentario.component.html', "<!-- {{ t.split('.') }} -->\n<p>{{ t.replace('.', ',') }}</p>", []);
+
+    const excecoes: ExcecaoDeCorte[] = [
+      {
+        arquivo: 'mobile/src/app/nome.tsx',
+        forma: 'split com regex de ponto',
+        trecho: 'String(raw).trim().split(/[\\s.]+/)',
+        motivo: 'autoprova',
+      },
+      { arquivo: 'mobile/src/sumiu.ts', forma: 'indexOf com terminador', trecho: "t.indexOf('.')", motivo: 'autoprova' },
+      // Arquivo e forma certos, trecho errado: não absorve a ofensa de indice.ts.
+      { arquivo: 'mobile/src/indice.ts', forma: 'indexOf com terminador', trecho: "t.indexOf('?')", motivo: 'autoprova' },
+      // Arquivo e trecho certos, forma errada: também não absorve.
+      { arquivo: 'mobile/src/indice.ts', forma: 'split com string de terminador', trecho: "t.indexOf('.')", motivo: 'autoprova' },
+    ];
+
+    const resultado = varrerCortesDeFrase(Object.values(arquivosDaChamada(dir)).flat(), dir, excecoes);
+    const { ofensas, sobrando, html, emLinha } = resultado;
+    const achado = new Map<string, string[]>();
+    for (const o of ofensas) achado.set(o.arquivo, [...(achado.get(o.arquivo) ?? []), o.forma]);
+    for (const [rel, formas] of esperado) {
+      assert.deepEqual(achado.get(rel) ?? [], formas, `a barreira da chamada leu errado ${rel}`);
+    }
+    assert.deepEqual([...achado.keys()].filter((k) => !esperado.has(k)), [], 'a barreira acusou arquivo fora da autoprova');
+    assert.deepEqual(sobrando.map(descreverCorte), [
+      "mobile/src/sumiu.ts — indexOf com terminador: t.indexOf('.')",
+      "mobile/src/indice.ts — indexOf com terminador: t.indexOf('?')",
+      "mobile/src/indice.ts — split com string de terminador: t.indexOf('.')",
+    ]);
+    assert.equal(html, 2, 'os .html da autoprova não entraram');
+    assert.equal(emLinha, 2, 'os template: em linha da autoprova não entraram');
+    // O veredito reprova cada metade sozinha, e aprova o vazio.
+    assert.throws(() => exigirSemCorteAMao({ ofensas: [], sobrando }), /não casa mais com nada/);
+    assert.throws(() => exigirSemCorteAMao({ ofensas, sobrando: [] }), /frase cortada à mão/);
+    exigirSemCorteAMao({ ofensas: [], sobrando: [] });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+check('BARREIRA — nenhum arquivo, fora de teste, corta frase à mão (a chamada tem dono)', () => {
+  provarABarreiraDaChamada();
+
+  const raizes = arquivosDaChamada(ROOT);
+  for (const [nome, arquivos] of Object.entries(raizes)) {
+    assert.ok(arquivos.length > 0, `${nome} sumiu da varredura — a barreira da chamada ficou sem alvo`);
+  }
+  for (const dono of DONOS_DA_FRASE) {
+    assert.ok(existsSync(join(ROOT, dono)), `${dono} sumiu — a barreira isenta um dono que não existe`);
+  }
+
+  const resultado = varrerCortesDeFrase(Object.values(raizes).flat(), ROOT, EXCECOES_DE_CORTE);
+  const { html, emLinha } = resultado;
+  assert.ok(html > 0, 'nenhum template .html entrou na varredura');
+  assert.ok(emLinha > 0, 'nenhum template: em linha entrou na varredura');
+  exigirSemCorteAMao(resultado);
+  console.log(`     · ${Object.values(raizes).flat().length} arquivos, ${html} .html, ${emLinha} template: em linha`);
+});
+
+/**
+ * BARREIRA — nenhum arquivo de `ia/` reexporta a chamada ou a regra de fim de frase (story 1.8).
+ *
+ * A chamada mora **fora** de `ia/` por causa da guarda (7): toda peça de `ia/`
+ * fora da porta conta no teto, e as três telas que vão importar a chamada (1.11,
+ * 1.13, 1.14) levariam o teto junto. Um reexporte por `ia/` a traria de volta
+ * para dentro pela porta dos fundos; um reexporte de `terminaFrase` a poria no
+ * barril, onde ela não deve estar.
+ *
+ * Varre `ia/` **recursivamente** e acusa o reexporte por caminho relativo
+ * (`export { chamadaDoTexto } from '../revista/chamada'`), por `@vitale/shared`,
+ * por `export *` (do módulo da chamada, da regra ou do barril inteiro), e em dois
+ * passos — importado e depois exportado, com outro nome, embrulhado em `as` ou
+ * parênteses (`desembrulhar`, o mesmo da barreira do vocabulário), ou pelo
+ * namespace (`chamada.chamadaDoTexto`).
+ *
+ * **O que não vê:** o export dentro de objeto literal (`export const x = {
+ * chamadaDoTexto }`); o apelido local exportado depois (`const t = terminaFrase;
+ * export { t }`); a função que só a embrulha (`(t) => chamadaDoTexto(t)`); e o
+ * reexporte por um terceiro módulo fora de `ia/`. O teste de barril de
+ * `revista/chamada.test.ts` compara por identidade, e pega o apelido que chegar ao
+ * barril por qualquer um desses caminhos.
+ */
+const NOMES_DA_CHAMADA = new Set(['chamadaDoTexto', 'terminaFrase']);
+const MODULOS_DA_CHAMADA = new Set(['revista/chamada', 'format/frase']);
+
+/** O módulo do núcleo que um specifier alcança, relativo a `src/` e sem extensão — `''` é o barril. */
+function moduloDoNucleo(arquivo: string, spec: string, src: string): string | null {
+  let alvo: string;
+  if (spec.startsWith('.')) {
+    alvo = relative(src, resolve(dirname(arquivo), spec)).split(sep).join('/');
+  } else {
+    const m = /^@vitale\/shared(?:\/src)?(?:\/(.*))?$/.exec(spec);
+    if (!m) return null;
+    alvo = m[1] ?? '';
+  }
+  return alvo.replace(/\.[mc]?[jt]sx?$/, '').replace(/(?:^|\/)index$/, '');
+}
+
+/** Os arquivos de `ia/` sob um `src/` — o do núcleo, ou o da autoprova —, varridos recursivamente. */
+function reexportamAChamada(src: string): string[] {
+  const arquivos = walk(join(src, 'ia'));
+  assert.ok(arquivos.length > 0, `${join(src, 'ia')} sumiu ou está vazio — a barreira do reexporte ficou sem alvo`);
+  const fora: string[] = [];
+  for (const f of arquivos) {
+    const sf = ts.createSourceFile(f, readFileSync(f, 'utf8'), ts.ScriptTarget.Latest, false);
+    const traz = (spec: ts.Expression | undefined): boolean => {
+      if (!spec || !ts.isStringLiteralLike(spec)) return false;
+      const m = moduloDoNucleo(f, spec.text, src);
+      return m !== null && (m === '' || MODULOS_DA_CHAMADA.has(m));
+    };
+    const locais = new Set<string>();
+    const espacos = new Set<string>();
+    for (const st of sf.statements) {
+      if (ts.isImportDeclaration(st) && traz(st.moduleSpecifier) && st.importClause?.namedBindings) {
+        const nb = st.importClause.namedBindings;
+        if (ts.isNamespaceImport(nb)) espacos.add(nb.name.text);
+        else for (const el of nb.elements) if (NOMES_DA_CHAMADA.has((el.propertyName ?? el.name).text)) locais.add(el.name.text);
+      }
+      if (ts.isImportEqualsDeclaration(st) && ts.isExternalModuleReference(st.moduleReference) && traz(st.moduleReference.expression)) {
+        espacos.add(st.name.text);
+      }
+    }
+    const reexporta = (e: ts.Expression): boolean => {
+      const x = desembrulhar(e);
+      if (ts.isIdentifier(x)) return locais.has(x.text) || espacos.has(x.text);
+      if (ts.isPropertyAccessExpression(x) && ts.isIdentifier(x.expression)) {
+        return espacos.has(x.expression.text) && NOMES_DA_CHAMADA.has(x.name.text);
+      }
+      if (ts.isElementAccessExpression(x) && ts.isIdentifier(x.expression) && ts.isStringLiteralLike(x.argumentExpression)) {
+        return espacos.has(x.expression.text) && NOMES_DA_CHAMADA.has(x.argumentExpression.text);
+      }
+      return false;
+    };
+    const achados: string[] = [];
+    for (const st of sf.statements) {
+      if (ts.isExportDeclaration(st)) {
+        const clausula = st.exportClause;
+        if (st.moduleSpecifier) {
+          if (!traz(st.moduleSpecifier)) continue;
+          if (!clausula || ts.isNamespaceExport(clausula)) achados.push(colapsar(st.getText(sf)));
+          else if (clausula.elements.some((el) => NOMES_DA_CHAMADA.has((el.propertyName ?? el.name).text))) {
+            achados.push(colapsar(st.getText(sf)));
+          }
+        } else if (clausula && ts.isNamedExports(clausula)) {
+          if (clausula.elements.some((el) => reexporta(el.propertyName ?? el.name as ts.Identifier))) {
+            achados.push(colapsar(st.getText(sf)));
+          }
+        }
+      }
+      if (ts.isVariableStatement(st) && st.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) {
+        for (const d of st.declarationList.declarations) {
+          if (d.initializer && reexporta(d.initializer)) achados.push(colapsar(st.getText(sf)));
+        }
+      }
+      if (ts.isExportAssignment(st) && reexporta(st.expression)) achados.push(colapsar(st.getText(sf)));
+    }
+    if (achados.length > 0) fora.push(`${relative(src, f).split(sep).join('/')} (${achados.join(' | ')})`);
+  }
+  return fora.sort();
+}
+
+function provarOReexporteDaChamada(): void {
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-reexporte-'));
+  try {
+    const src = join(dir, 'packages', 'shared', 'src');
+    const escrever = (rel: string, fonte: string) => {
+      const abs = join(src, ...rel.split('/'));
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, `${fonte}\n`);
+    };
+    const ofensas: readonly (readonly [string, string])[] = [
+      ['ia/r01.ts', "export { chamadaDoTexto } from '../revista/chamada';"],
+      ['ia/r02.ts', "export { chamadaDoTexto as manchete } from '../revista/chamada.ts';"],
+      ['ia/r03.ts', "export * from '../revista/chamada';"],
+      ['ia/r04.ts', "export * from '../format/frase';"],
+      ['ia/r05.ts', "export { terminaFrase } from '../format/frase.js';"],
+      ['ia/r06.ts', "export { chamadaDoTexto } from '@vitale/shared';"],
+      ['ia/r07.ts', "export * from '@vitale/shared';"],
+      ['ia/r08.ts', "export * as nucleo from '..';"],
+      ['ia/r09.ts', "export * from '../index';"],
+      ['ia/r10.ts', "import { chamadaDoTexto as c } from '../revista/chamada';\nexport { c };"],
+      ['ia/r11.ts', "import { chamadaDoTexto } from '@vitale/shared';\nexport const manchete = (chamadaDoTexto as typeof chamadaDoTexto);"],
+      ['ia/r12.ts', "import * as chamada from '../revista/chamada';\nexport const manchete = chamada.chamadaDoTexto;"],
+      ['ia/r13.ts', "import { terminaFrase } from '../format/frase';\nexport default terminaFrase;"],
+      ['ia/r14.ts', "import * as regra from '@vitale/shared/src/format/frase';\nexport { regra };"],
+      ['ia/sub/r15.ts', "export { chamadaDoTexto } from '../../revista/chamada';"],
+    ];
+    const limpos: readonly (readonly [string, string])[] = [
+      ['ia/n01.ts', "import { chamadaDoTexto } from '../revista/chamada';\nexport const usa = chamadaDoTexto('Foi.');"],
+      ['ia/n02.ts', "// export * from '../revista/chamada'\nexport { formatarNumero } from '../format/numero';"],
+      ['ia/n03.ts', "export { verificarTexto } from '@vitale/shared';"],
+      ['ia/n04.ts', "import { terminaFrase } from '../format/frase';\nconst t = terminaFrase;\nexport const u = typeof t;"],
+      ['ia/n05.ts', "export * from './pacote';"],
+    ];
+    for (const [rel, fonte] of [...ofensas, ...limpos]) escrever(rel, fonte);
+    // Fora de ia/: não é alvo, mesmo reexportando.
+    escrever('revista/fora.ts', "export * from './chamada';");
+    const achados = reexportamAChamada(src).map((x) => x.split(' (')[0]);
+    assert.deepEqual(achados, ofensas.map(([rel]) => rel).sort(), 'a barreira do reexporte leu errado a autoprova');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+check('BARREIRA — nenhum arquivo de ia/ reexporta a chamada ou a regra de fim de frase', () => {
+  provarOReexporteDaChamada();
+  const fora = reexportamAChamada(SHARED_SRC);
+  assert.deepEqual(
+    fora,
+    [],
+    `ia/ reexporta a chamada ou a regra: ${fora.join(', ')}. A chamada mora fora de ia/ para não contar como ` +
+      'peça de IA na guarda (7), e a regra de fim de frase é interna ao núcleo. Quem precisa da chamada importa ' +
+      'de @vitale/shared (ou de ../revista/chamada, dentro do núcleo).',
   );
 });
 

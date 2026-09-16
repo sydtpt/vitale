@@ -2,7 +2,7 @@
 title: 'Story 1.8 — A chamada sai de uma função só'
 type: 'feature'
 created: '2026-09-16'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 2
 baseline_commit: '6bcb3fc738d63d4fa5ff8348cdb0f910d8e8e271'
 context:
@@ -100,15 +100,15 @@ onde uma frase acaba.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `packages/shared/src/format/frase.ts` — criar `terminaFrase(texto, i): boolean` com a regra de
+- [x] `packages/shared/src/format/frase.ts` — criar `terminaFrase(texto, i): boolean` com a regra de
   `corta`, **idêntica**. Sem imports. Doc de dono único.
-- [ ] `packages/shared/src/ia/verificar.ts` — `limitesDaFrase` passa a chamar `terminaFrase`. Nada
+- [x] `packages/shared/src/ia/verificar.ts` — `limitesDaFrase` passa a chamar `terminaFrase`. Nada
   mais muda no arquivo, e ele não reexporta a função.
-- [ ] `packages/shared/src/revista/chamada.ts` — criar `chamadaDoTexto(texto: string | null |
+- [x] `packages/shared/src/revista/chamada.ts` — criar `chamadaDoTexto(texto: string | null |
   undefined): string | null` pela matriz, sobre `terminaFrase`, com a lista fechada de abreviações,
   a regra do fragmento sem letra e os fechamentos colados (as três nas Design Notes).
-- [ ] `packages/shared/src/index.ts` — reexportar `chamadaDoTexto`, e só ela.
-- [ ] `packages/shared/src/format/frase.test.ts` — a regra, e **a concordância com a conferência
+- [x] `packages/shared/src/index.ts` — reexportar `chamadaDoTexto`, e só ela.
+- [x] `packages/shared/src/format/frase.test.ts` — a regra, e **a concordância com a conferência
   pelo comportamento**, não pelo texto do arquivo: rodar `verificarTexto` com a base nomeada na frase
   seguinte **e na anterior** depois de `!`, de `?`, de `\n` e de `.` → zero problemas de `base`; a
   mesma frase sem terminador → um problema. Cada caso vira vermelho se `limitesDaFrase` deixar de
@@ -116,16 +116,16 @@ onde uma frase acaba.
   mínimo, montado aqui** — não copie o `pacoteDeBase` de `verificar.test.ts`, que carrega números
   reais das edições do dono (`435`, `380`, `16.315`). Índices do helper que lista cortes são de
   UTF-16 (`Array.from({ length: texto.length }, …)`), nunca de `[...texto]`.
-- [ ] `packages/shared/src/revista/chamada.test.ts` — a matriz inteira; cada borda das Design Notes,
+- [x] `packages/shared/src/revista/chamada.test.ts` — a matriz inteira; cada borda das Design Notes,
   inclusive cada fechamento da lista e cada forma de marcador de lista; a propriedade **nos dois
   sentidos** sobre uma bateria sintética semeada — a chamada nunca corta antes de `terminaFrase`, **e**
   todo corte de `terminaFrase` que ela pula é ponto de abreviação da lista **ou** ponto colado a
   letra; e o teste de barril (`chamadaDoTexto` sai, `terminaFrase` não). Valores numéricos
   sintéticos, exceto os da matriz congelada.
-- [ ] `packages/shared/src/architecture.test.ts` — **barreira**: nenhum arquivo, fora de teste, corta
+- [x] `packages/shared/src/architecture.test.ts` — **barreira**: nenhum arquivo, fora de teste, corta
   frase à mão.
   - **Alvos:** `mobile/src`; `web/src` com os templates `.html` **e os `template:` em linha** dos
-    componentes Angular (43 hoje; o texto do literal passa pelo mesmo leitor do `.html`); `scripts/`
+    componentes Angular (47; o texto do literal passa pelo mesmo leitor do `.html`); `scripts/`
     (a regra da linha 69); e **`packages/shared`**, fora os dois donos (`revista/chamada.ts`,
     `format/frase.ts`) — a próxima chamada escrita à mão tem mais chance de nascer num view-model
     do núcleo do que numa tela. Asserção de que ao menos um `.html` e um `template:` em linha
@@ -139,9 +139,13 @@ onde uma frase acaba.
   - **O que não vê** fica escrito no docblock, nominalmente (ponto por escape `\x2E`,
     `String.prototype.split.call`, `Intl['Segmenter']`, laço com `slice`).
   - **Exceção por ocorrência** (arquivo + forma + trecho), nascendo com as legítimas de hoje e o
-    motivo de cada uma: `mobile/src/app/(tabs)/index.tsx` (`split(/[\s.]+/)`, primeiro nome) e
-    `packages/shared/src/format/numero.ts` (`fixo.split('.')`, parte inteira de um `toFixed`). **Não
-    estreite a barreira para não pegá-las.** Entrada que para de casar falha.
+    motivo de cada uma. São **16**, e nenhuma é corte de frase: o primeiro nome de um nome de exibição
+    (`index.tsx`), as partes de um `toFixed` (`numero.ts`), o escape de metacaractere de regex (duas em
+    `verificar.ts`), uma classe negada (`QuickAddSheet.tsx`), o carimbo de hora num nome de arquivo
+    (`bancada.ts`), os pontos de abreviação numa data (`index.tsx`), o ponto decimal no arredondamento
+    de hábito (sete arquivos, mobile e web) e no eixo de gráfico (`axis.ts`), e o ponto de milhar em
+    `paraNumero` (`verificar.ts`). **Não estreite a barreira para não pegá-las.** Entrada que para de
+    casar falha.
   - **A autoprova** passa exemplos gravados num diretório temporário pela mesma função da barreira,
     inclusive um `template:` em linha e a leitura da lista de exceção; o caminho relativo é calculado
     certo mesmo se o diretório temporário estiver dentro do repositório. `ehTeste` reconhece também
@@ -267,6 +271,45 @@ barreira não olhava.
 - **As 27 mutações antes de relatar**, e a lista dos mutantes que não morrem, com o motivo — o único
   foi `p. ex.` engolindo quebra de linha, que não muda saída porque o `\n` logo depois corta.
 
+### Rodada 3 — 16/09/2026: consertos direto no código, sem voltar à spec (decisão do dono)
+
+**O que a revisão achou, conferido rodando.** `"1. a. O sono caiu."` devolvia `"a."` (o marcador saía
+uma vez só) e `"a) "` devolvia `"a)"`, com um teste consagrando essa saída — o bug da manchete de novo.
+`"Subiu 3 p. p. em relação a julho."` devolvia `"Subiu 3 p."`, com o número cortado antes da base.
+`"Vi. Depois caiu."` perdia a palavra "Vi", lida como o romano VI, e `"É."` perdia o "É". `"a) 40"`
+devolvia `"40"`, mas `"40"` devolvia `null`. Faltavam testes de romano com V, do par substituto antes
+da abreviação e da lista de abreviações item a item, e os testes de concordância dependiam, sem dizer,
+do segundo passe da regra da base. A barreira não via `search(/\./)` nem `match(/^(.+?)\.(?!\d)/)`.
+
+**Por que não voltou à spec.** Pelo workflow era `bad_spec` — a regra do marcador escrita na spec
+estava incompleta — e a terceira volta reverteria e reescreveria cerca de 2 mil linhas. O dono decidiu
+consertar direto: com texto realista a chamada já estava certa e provada (128 mutações, e dez
+independentes na conferência, todas pegas), os achados eram bordas raras, e cada rodada ia achar mais
+uma borda numa função que lê português. O implementador foi retomado com o contexto intacto e recebeu
+os consertos por escrito. As Design Notes e as tasks acima foram atualizadas **depois**, para bater com
+o código.
+
+**O que mudou.** Marcadores tirados em sequência; romano maiúsculo com `.` ou `)`, minúsculo só com
+`)`; letra de lista só ASCII; letra dentro de marcador não conta como conteúdo, e a chamada aplicada à
+própria saída é estável; espaço entre as partes de toda abreviação de vários pontos; o par substituto
+antes da abreviação, no código e no oráculo; `ABREVIACOES_DA_CHAMADA` comparada item a item; os testes
+de concordância afirmam só sobre a regra `base` e declaram a dependência; o teste de "sendo escrito,
+reprovado e não impresso" sobre uma `Edicao` de verdade; ponto escapado em regex como forma de corte,
+com as duas formas na autoprova; e o barril conferido por identidade.
+
+**O que ficou adiado, por decisão do dono.** O resto da barreira: formas raras, falsos positivos de
+classe, alvos não varridos, importadores de `format/frase` dentro do núcleo, reexportação por alias e
+template guardado em constante — tudo no `deferred-work.md` e nomeado no "não vê" do docblock.
+
+**Uma consequência que o dono deve saber.** A regra do ponto escapado, pedida para pegar as duas formas
+naturais, também pega o ponto decimal de arredondamento (`toFixed(2).replace(/\.?0+$/, '')`), e levou a
+lista de exceção de seis para **dezesseis** entradas — nenhuma é corte de frase. Toda formatação de
+número nova com ponto escapado vai precisar de entrada. Estreitar a regra (ponto colado a dígito é
+número) está no trabalho adiado da barreira.
+
+**Mutação.** 152 mutantes. Um buraco real (ponto escapado dentro de classe) foi fechado; os seis que
+sobreviveram são equivalentes, cada um com o motivo no relato do implementador.
+
 ## Design Notes
 
 **Por que a regra sai de `verificar.ts`.** A conferência usa os limites da frase para decidir qual
@@ -289,10 +332,15 @@ frase seguinte, que é a direção segura: `aprox.` e `p.ex.` estão na matriz q
 julho."` vira `"A nota subiu 3 p.p."` — o número na capa sem a base. **Não entram** `Sr.`, `Sra.`,
 `Dr.`, `Dra.` (a revista não nomeia pessoas, então não comprariam nada), `etc.`, `máx.` e `mín.`,
 que terminam frase **mais do que precedem**. Uma abreviação de vários pontos é casada inteira: nenhum
-ponto de dentro dela corta. A casa da letra não decide; a palavra começa em fronteira (letra, dígito
-ou marca combinante antes dela não vale); e o espaço dentro de `p. ex.` é qualquer espaço **que não
-seja corte de `terminaFrase`** — pergunte à regra, não fixe `\n` no código, senão o dia em que ela
-aprender outro separador de linha a chamada passa a pular um corte da conferência. As abreviações
+ponto de dentro dela corta, e **entre as partes cabe espaço** — `p. p.`, `i. e.` e `p. ex.` são as
+mesmas abreviações que `p.p.`, `i.e.` e `p.ex.`. O espaço de dentro é qualquer espaço da mesma classe
+da borda (inclusive o de largura zero) **que não seja corte de `terminaFrase`** — pergunte à regra,
+não fixe `\n` no código, senão o dia em que ela aprender outro separador de linha a chamada passa a
+pular um corte da conferência. A casa da letra não decide, e a palavra começa em fronteira (letra,
+dígito ou marca combinante antes dela não vale, contando um caractere fora do plano básico como um
+só). A lista sai do módulo como `ABREVIACOES_DA_CHAMADA` — **não pelo barril** — para o teste
+compará-la item a item: acrescentar uma abreviação sem mudar o teste fica vermelho, e é esse o gatilho
+mecânico do Ask First. As abreviações
 ficam **só na chamada**: pô-las na regra compartilhada mudaria o que a conferência reprova.
 
 **Ponto colado a letra não termina frase.** Um ponto seguido **imediatamente** de letra, sem espaço,
@@ -300,14 +348,19 @@ não é fim de frase em prosa: `"Dados do intervals.icu mostram queda."` é uma 
 intervals.icu é integração real do app), `"Foi o 1.º lugar do ano."` também. Regra só da chamada,
 na direção segura.
 
-**Marcador de lista e fragmento sem letra não são frase.** No começo do texto, um marcador de lista
-sai antes do corte: um a três dígitos, **uma letra** ou um numeral romano, seguidos de `.` ou `)`, e
-os marcadores `-`, `•`, `–` e `—`, sempre seguidos de espaço. `"1. O sono caiu."`, `"a. O sono
-caiu."`, `"II. O sono caiu."`, `"2) O sono caiu."` e `"- O sono caiu."` devolvem todos `"O sono
-caiu."`. O espaço obrigatório é o que protege o milhar: `"1.210 fotos"` não tem espaço depois do ponto
-e não é marcador. Depois disso, um trecho até o corte que não tem nenhuma letra é pulado, e a busca
-continua: `"... e o sono caiu 40 min."` devolve `"e o sono caiu 40 min."`. Só é `null` o texto sem
-letra **nenhuma** — caderno impresso sempre tem chamada, e `null` quer dizer só "não há caderno".
+**Marcador de lista e fragmento sem letra não são frase.** No começo do texto, os marcadores de lista
+saem **um depois do outro**, antes do corte: um a três dígitos com `.` ou `)`; **uma letra ASCII** com
+`.` ou `)`; numeral romano **maiúsculo** com `.` ou `)`, ou **minúsculo só com `)`**; e `-`, `•`, `–` e
+`—` — todos seguidos de espaço. `"1. O sono caiu."`, `"a. O sono caiu."`, `"II. O sono caiu."`,
+`"XVI. O sono caiu."`, `"viii) O sono caiu."`, `"2) O sono caiu."`, `"- O sono caiu."` e `"1. a. O
+sono caiu."` devolvem todos `"O sono caiu."`. As restrições existem para não engolir palavra de
+verdade: `"Vi."` é palavra, não o romano VI, e `"É."` não é letra de lista — os dois ficam. O espaço
+obrigatório é o que protege o milhar: `"1.210 fotos"` não tem espaço depois do ponto e não é marcador.
+Depois disso, um trecho até o corte que não tem nenhuma letra é pulado, e a busca continua: `"... e o
+sono caiu 40 min."` devolve `"e o sono caiu 40 min."`. **Letra dentro de um marcador não conta como
+conteúdo**: se, tirados os marcadores e pulados os trechos sem letra, não sobra nenhum trecho com letra,
+a chamada é `null` — `"a) 40"`, `"a) "` e `"a. 2. 3."` são `null`, como `"40"`. A chamada aplicada à
+própria saída devolve a mesma coisa, e isso é propriedade testada.
 Pular o que vem antes não fere o invariante: todo ponto em que a chamada corta continua sendo corte
 da conferência; o que muda é onde ela **começa**. Espaço de largura zero à frente sai junto com o
 espaço comum.
@@ -342,3 +395,58 @@ o que esta story não pode fazer. Vai para o trabalho adiado.
 **Mutação antes de relatar:** quebrar `limitesDaFrase` (cada terminador, em cada laço), `chamadaDoTexto`
 (cada regra das Design Notes, cada item das listas) e a barreira (cada alvo, cada forma), um de cada
 vez, e ver o teste certo ficar vermelho. Restaurar do backup, nunca por `git checkout`.
+
+## Suggested Review Order
+
+**A chamada**
+
+- O ponto de partida: devolve a primeira frase ou nada, e nunca string vazia.
+  [`chamada.ts:218`](../../packages/shared/src/revista/chamada.ts#L218)
+
+- Sem letra fora dos marcadores não há chamada — é o que fecha o "1." pela terceira porta.
+  [`chamada.ts:224`](../../packages/shared/src/revista/chamada.ts#L224)
+
+- Marcadores em sequência, romano só maiúsculo com ponto, letra só ASCII: não engole "Vi." nem "É.".
+  [`chamada.ts:98`](../../packages/shared/src/revista/chamada.ts#L98)
+
+- A lista fechada, congelada e exportada fora do barril para o teste a comparar item a item.
+  [`chamada.ts:75`](../../packages/shared/src/revista/chamada.ts#L75)
+
+- A abreviação é casada inteira, com espaço entre as partes, em fronteira de palavra.
+  [`chamada.ts:130`](../../packages/shared/src/revista/chamada.ts#L130)
+
+**A regra que a conferência e a chamada dividem**
+
+- O dono único de onde uma frase termina — cópia literal do corte que vivia dentro da conferência.
+  [`frase.ts:32`](../../packages/shared/src/format/frase.ts#L32)
+
+- A conferência troca a cópia inline pela regra; nada mais muda no arquivo.
+  [`verificar.ts:685`](../../packages/shared/src/ia/verificar.ts#L685)
+
+- Só a chamada sai pelo barril, pelo nome.
+  [`index.ts:85`](../../packages/shared/src/index.ts#L85)
+
+**As provas**
+
+- A concordância pelo comportamento de `verificarTexto`, nos dois laços — o teste que faltou na rodada 1.
+  [`frase.test.ts:151`](../../packages/shared/src/format/frase.test.ts#L151)
+
+- A matriz congelada, como tabela: cada linha vira um teste.
+  [`chamada.test.ts:28`](../../packages/shared/src/revista/chamada.test.ts#L28)
+
+- O gatilho mecânico do Ask First: a lista do código igual à do teste, item a item.
+  [`chamada.test.ts:86`](../../packages/shared/src/revista/chamada.test.ts#L86)
+
+- A propriedade nos dois sentidos, e a chamada estável sobre a própria saída.
+  [`chamada.test.ts:506`](../../packages/shared/src/revista/chamada.test.ts#L506)
+
+**As barreiras**
+
+- Ninguém corta frase à mão: apps, templates, `scripts/` e o núcleo.
+  [`architecture.test.ts:2935`](../../packages/shared/src/architecture.test.ts#L2935)
+
+- As dezesseis exceções, cada uma com o motivo — nenhuma é corte de frase.
+  [`architecture.test.ts:2432`](../../packages/shared/src/architecture.test.ts#L2432)
+
+- Nenhum arquivo de `ia/` reexporta a chamada ou a regra, o que manteria a guarda (7) no teto 1.
+  [`architecture.test.ts:3099`](../../packages/shared/src/architecture.test.ts#L3099)

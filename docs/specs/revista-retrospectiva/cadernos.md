@@ -132,7 +132,14 @@ precedem o complemento (`aprox.`, `p.ex.`, `p. ex.`, `vs.`, `i.e.`, `cf.`, `p.p.
 colado a letra (`intervals.icu`, `1.º`), o marcador de lista no começo (`1.`, `a.`, `II.`,
 `2)`, `-`) e o fragmento sem letra — `"1. O sono caiu."` é `"O sono caiu."`, nunca `"1."`.
 Inclui os terminadores colados (`...`, `?!`) e as aspas, parênteses e colchetes que fecham
-logo depois. Texto sem terminador devolve o texto inteiro, e sem texto a chamada não existe.
+logo depois. Texto sem terminador devolve o texto inteiro. Sem texto — ou com texto sem
+nenhuma letra fora dos marcadores — a chamada não existe, e quem a desenha trata a ausência.
+
+**Três limites que as telas herdam** (capa, sumário e parede), registrados no trabalho
+adiado da 1.8: a chamada **não tem teto de tamanho**, e como uma manchete longa aparece é
+decisão de tela; a **reticência não tem resposta** — `…` junta duas frases, e `...` seguido
+de minúscula corta uma no meio; e **Markdown sai cru**, porque nenhuma tela da revista o
+interpreta.
 
 ## As três formas
 
