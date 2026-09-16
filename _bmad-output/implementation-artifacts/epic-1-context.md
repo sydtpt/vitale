@@ -143,7 +143,11 @@ tanto no papel de paleta quanto no módulo, porque é o módulo que a faixa lê.
 **Sete estados por caderno**, não por edição: período em curso (mostra **nada** — não é botão
 desabilitado nem aviso, é ausência), fechado e não escrito, escrevendo, pronta, reprovada na
 conferência (que diz **por quê** — não é erro do app, é a conferência funcionando), errata
-(que declara e não reescreve), erro.
+(que declara e não reescreve), erro. **Desde 16/09, reprovada e erro se separam pela causa:** seis
+causas permanentes (`reprovada`, `recusa-do-modelo`, `guarda`, `saida-invalida`, `capacidade`,
+`janela`) oferecem **"Escrever este caderno de novo"**, e só as duas passageiras (`indisponivel`,
+`transitoria`) oferecem "Tentar de novo". A reprovação vive uma sessão: ao reabrir o app, o caderno
+volta a pedir para ser escrito.
 
 **O sumário é a única navegação**, e mostra a chamada de cada caderno, não o nome. Alvo de
 toque de linha inteira; a rolagem é ancorada e **move o foco do leitor de tela junto**.
@@ -189,6 +193,10 @@ da frase. Informação obrigatória nunca usa a tinta mais fraca. Nenhum hex esc
   quem apresenta decide como uma manchete longa aparece — a proposta visual com dado real é o lugar);
   **reticência não tem resposta** (`…` junta duas frases, `...` seguido de minúscula corta uma no meio);
   e **Markdown sai cru**, porque nenhuma tela da revista o interpreta.
+  **A proposta visual da 1.11 está aprovada** (16/09, artifact "A rota da revista"), com seis
+  decisões registradas no `epics.md`, em "Decisões de superfície": a porta é miniatura ao lado da
+  chamada; "Escrever a edição" só na rota; capa de período não escrito em papel, sem foto; e a
+  chamada **inteira, sempre**, sem corte — cortar esconderia a base que a 1.8 existe para proteger.
 - **1.15 depende de todas** e é **portão humano** — nenhum agente a conclui. **E carrega uma medida
   decidida em 16/09:** nas três edições do piloto (agosto/2026, julho/2026 e o mês de 2023), olhar a
   chamada de cada caderno e anotar toda chamada com número de comparação **sem a base dentro dela**.
