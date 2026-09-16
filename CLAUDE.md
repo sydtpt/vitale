@@ -320,7 +320,8 @@ São **10** módulos, não 7:
   `docs/specs/revista-retrospectiva/primeiras-edicoes-prompt-v2.md`.
   **A 1.10 religou a escrita pelo núcleo**: a sequência da impressão (`ia/imprimir.ts`) chama o
   orquestrador por caderno e grava o conjunto numa chamada, e o cartão ganhou o botão mínimo
-  "Escrever a edição" — em revisão na branch `feat/revista-1-10-sequencia`. O roteiro da janela, o `aplicar.sh` e o
+  "Escrever a edição" — **conferida pelo dono no iPhone em 17/09**, num build do Xcode 27 que só abre
+  com o ciclo por UIScene (`mobile/plugins/withUISceneLifecycle.js`). O roteiro da janela, o `aplicar.sh` e o
   `conferir-bundle.py` estão em
   [`_bmad-output/implementation-artifacts/revista-1-9/`](_bmad-output/implementation-artifacts/revista-1-9/janela-da-migracao.md)
   — a seção 6 de lá é leitura obrigatória antes da próxima janela de migração.
