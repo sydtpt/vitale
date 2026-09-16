@@ -22,6 +22,7 @@
  * Puro, sem rede, sem provedor — roda igual sobre a saída de qualquer modelo, o
  * que é justamente o que faz trocar de fornecedor custar uma tarde (ADR 0040).
  */
+import { terminaFrase } from '../format/frase';
 import type { PeriodKind } from '../period/bounds';
 import { MONTHS_PT, periodProseLabel } from '../period/bounds';
 import type { BaseId, PacoteDeFatos, UmOuMaisPacotes } from './pacote';
@@ -676,22 +677,16 @@ function limitesDoParagrafo(texto: string, pos: number): readonly [number, numbe
  * nome dois períodos adiante do parágrafo é de outro número.
  */
 function limitesDaFrase(texto: string, pos: number): readonly [number, number] {
-  const corta = (i: number): boolean => {
-    const c = texto[i];
-    if (c === '\n' || c === '!' || c === '?') return true;
-    if (c !== '.') return false;
-    // Ponto de milhar não termina frase: "16.315" é um número, não duas frases.
-    const a = texto[i - 1] ?? '';
-    const b = texto[i + 1] ?? '';
-    return !(/\d/.test(a) && /\d/.test(b));
-  };
+  // O que termina uma frase tem dono único em `format/frase.ts` (story 1.8): a
+  // chamada da revista lê a mesma regra, e as duas nunca discordam sobre onde a
+  // frase acaba. Mudar a regra lá muda o que esta conferência reprova.
   let ini = 0;
   for (let i = pos - 1; i >= 0; i -= 1) {
-    if (corta(i)) { ini = i + 1; break; }
+    if (terminaFrase(texto, i)) { ini = i + 1; break; }
   }
   let fim = texto.length;
   for (let i = pos; i < texto.length; i += 1) {
-    if (corta(i)) { fim = i; break; }
+    if (terminaFrase(texto, i)) { fim = i; break; }
   }
   return [ini, fim];
 }

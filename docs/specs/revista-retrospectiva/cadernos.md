@@ -122,6 +122,25 @@ construíveis: não há campo novo, não há valor novo a verificar pelas cinco 
 manchete é literalmente o que o caderno diz primeiro. A contrapartida é uma regra a mais
 no prompt — o modelo escreve a primeira frase sabendo que ela vira capa e sumário.
 
+"Primeiro ponto final" é a regra em uma frase; a regra inteira tem dono único em
+`packages/shared/src/revista/chamada.ts` (story 1.8), e foi refinada com o dono em
+16/09/2026. Ela corta **onde a conferência corta** — ponto que não esteja entre dois dígitos,
+`?`, `!` e quebra de linha —, porque a conferência usa os mesmos limites para decidir que
+base está colada a um número, e uma chamada que cortasse antes levaria o número à capa sem
+a base. Na dúvida, fica mais longa, nunca mais curta. Pula as abreviações que em regra
+precedem o complemento (`aprox.`, `p.ex.`, `p. ex.`, `vs.`, `i.e.`, `cf.`, `p.p.`), o ponto
+colado a letra (`intervals.icu`, `1.º`), o marcador de lista no começo (`1.`, `a.`, `II.`,
+`2)`, `-`) e o fragmento sem letra — `"1. O sono caiu."` é `"O sono caiu."`, nunca `"1."`.
+Inclui os terminadores colados (`...`, `?!`) e as aspas, parênteses e colchetes que fecham
+logo depois. Texto sem terminador devolve o texto inteiro. Sem texto — ou com texto sem
+nenhuma letra fora dos marcadores — a chamada não existe, e quem a desenha trata a ausência.
+
+**Três limites que as telas herdam** (capa, sumário e parede), registrados no trabalho
+adiado da 1.8: a chamada **não tem teto de tamanho**, e como uma manchete longa aparece é
+decisão de tela; a **reticência não tem resposta** — `…` junta duas frases, e `...` seguido
+de minúscula corta uma no meio; e **Markdown sai cru**, porque nenhuma tela da revista o
+interpreta.
+
 ## As três formas
 
 Não uma por `PeriodKind`. Três objetos distintos.
