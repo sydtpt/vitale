@@ -13,8 +13,8 @@ import type { Descritor, EventoDoAnel } from './orquestrar';
 import { PACOTE_VERSAO, type EntradaPacote, type PacoteDeFatos } from './pacote';
 import { PROMPT_VERSAO } from './prompt';
 import {
-  cadernosComDado, imprimir, type DesfechoDoCaderno, type Impressao, type OpcoesDaImpressao, type PeriodoDaEdicao,
-  type ResultadoDaImpressao,
+  cadernosComDado, imprimir, lapidesDosCadernos, type DesfechoDoCaderno, type Impressao, type OpcoesDaImpressao,
+  type PeriodoDaEdicao, type ResultadoDaImpressao,
 } from './imprimir';
 // A sequência com descritor injetável fica fora do barril — só os testes do núcleo a
 // alcançam, por caminho relativo.
@@ -687,6 +687,143 @@ describe('cadernosComDado — quem tem o que dizer, pela régua da impressão', 
       cadernosComDado({ resumo: agosto(), agora: new Date(2026, 7, 20, 12, 0, 0) }),
       ['sono', 'movimento', 'rotina'],
     );
+  });
+});
+
+/**
+ * `lapidesDosCadernos` — a segunda pergunta da tela (Story 1.12): quem morreu, em
+ * que caderno, e em qual dos **dois** estados. A matriz da story, linha a linha.
+ *
+ * As quatro mortes são as reais de 2026 (respiração 10/07, VO₂max 14/07, SpO₂
+ * 16/07, anéis 17/08) — as mesmas de `period/cadernos.test.ts`.
+ */
+describe('lapidesDosCadernos — os dois estados, pela régua da impressão', () => {
+  const ANEIS = { metrica: 'aneis', ultimaMedidaISO: '2026-08-17' } as const;
+  const VO2MAX = { metrica: 'vo2max', ultimaMedidaISO: '2026-07-14' } as const;
+  const RESPIRACAO = { metrica: 'respiracao', ultimaMedidaISO: '2026-07-10' } as const;
+  const SPO2 = { metrica: 'spo2', ultimaMedidaISO: '2026-07-16' } as const;
+
+  /** O mesmo mês sintético, deslocado para julho: o que muda é a janela, não o dado. */
+  const julho = () =>
+    ({ ...agosto(), label: 'Julho 2026', startISO: '2026-07-01', endISO: '2026-07-31' }) as RetroSummary;
+
+  it('agosto/2026: os anéis do período, o VO₂max antigo, os outros três vazios', () => {
+    assert.deepEqual(lapidesDosCadernos(entrada(agosto(), { lapides: [ANEIS, VO2MAX] })), {
+      sono: [],
+      coracao: [],
+      rotina: [],
+      movimento: [
+        { metrica: 'vo2max', ultimaMedidaISO: '2026-07-14', doPeriodo: false },
+        { metrica: 'aneis', ultimaMedidaISO: '2026-08-17', doPeriodo: true },
+      ],
+    });
+  });
+
+  it('morte posterior ao fim fica de fora: em julho os anéis ainda estavam vivos', () => {
+    const r = lapidesDosCadernos(entrada(julho(), { lapides: [ANEIS, VO2MAX] }));
+    assert.deepEqual(r.movimento, [{ metrica: 'vo2max', ultimaMedidaISO: '2026-07-14', doPeriodo: true }]);
+    // Os anéis não caem no caderno errado por terem sido descartados: eles somem.
+    assert.deepEqual(r.coracao, []);
+    assert.deepEqual(r.sono, []);
+    assert.deepEqual(r.rotina, []);
+  });
+
+  /**
+   * **Duas lápides do período no mesmo caderno** — e não é hipótese: em
+   * julho/2026 a respiração parou em 10/07 e a SpO₂ em 16/07, as duas do Coração,
+   * as duas dentro do mês. A tela põe as duas no topo, e nenhuma delas vira a
+   * "segunda", que não existe.
+   */
+  it('duas mortes do mesmo período no mesmo caderno: as duas no topo, em ordem de data', () => {
+    const r = lapidesDosCadernos(entrada(julho(), { lapides: [SPO2, RESPIRACAO] }));
+    assert.deepEqual(r.coracao, [
+      { metrica: 'respiracao', ultimaMedidaISO: '2026-07-10', doPeriodo: true },
+      { metrica: 'spo2', ultimaMedidaISO: '2026-07-16', doPeriodo: true },
+    ]);
+    // E o VO₂max de 14/07 é do mesmo mês, mas de outro caderno: não se mistura.
+    assert.deepEqual(lapidesDosCadernos(entrada(julho(), { lapides: [SPO2, RESPIRACAO, VO2MAX] })).movimento, [
+      { metrica: 'vo2max', ultimaMedidaISO: '2026-07-14', doPeriodo: true },
+    ]);
+  });
+
+  /**
+   * **O desempate do mesmo dia é a ordem do catálogo** (`METRICAS_COM_LAPIDE`), e
+   * é o caso provável: quando um sync para, as métricas param juntas — as quatro
+   * mortes de 2026 vieram em julho e agosto do mesmo aparelho. Com datas iguais,
+   * a ordem da entrada não pode decidir nada: a resposta é função do conjunto.
+   */
+  it('mesmo dia: desempata pela ordem do catálogo, e não pela de quem chamou', () => {
+    for (const lapides of [
+      [{ metrica: 'spo2', ultimaMedidaISO: '2026-07-16' }, { metrica: 'respiracao', ultimaMedidaISO: '2026-07-16' }],
+      [{ metrica: 'respiracao', ultimaMedidaISO: '2026-07-16' }, { metrica: 'spo2', ultimaMedidaISO: '2026-07-16' }],
+    ] as const) {
+      const r = lapidesDosCadernos(entrada(julho(), { lapides }));
+      assert.deepEqual(r.coracao.map((l) => l.metrica), ['respiracao', 'spo2']);
+      assert.ok(r.coracao.every((l) => l.doPeriodo));
+    }
+    // Movimento tem a ordem inversa no catálogo (vo2max antes de aneis), e é
+    // isso que prova que o desempate é o do mapa, e não o alfabético.
+    for (const lapides of [
+      [{ metrica: 'aneis', ultimaMedidaISO: '2026-08-17' }, { metrica: 'vo2max', ultimaMedidaISO: '2026-08-17' }],
+      [{ metrica: 'vo2max', ultimaMedidaISO: '2026-08-17' }, { metrica: 'aneis', ultimaMedidaISO: '2026-08-17' }],
+    ] as const) {
+      const r = lapidesDosCadernos(entrada(agosto(), { lapides }));
+      assert.deepEqual(r.movimento.map((l) => l.metrica), ['vo2max', 'aneis']);
+      assert.ok(r.movimento.every((l) => l.doPeriodo));
+    }
+  });
+
+  it('os dois estados convivem no mesmo caderno, em ordem de data', () => {
+    const r = lapidesDosCadernos(entrada(agosto(), { lapides: [ANEIS, VO2MAX] }));
+    assert.deepEqual(r.movimento.map((l) => [l.metrica, l.doPeriodo]), [['vo2max', false], ['aneis', true]]);
+  });
+
+  it('duas lápides antigas no Coração, em ordem de data — e a ordem não é a de quem chamou', () => {
+    for (const lapides of [[RESPIRACAO, SPO2], [SPO2, RESPIRACAO]]) {
+      const r = lapidesDosCadernos(entrada(agosto(), { lapides }));
+      assert.deepEqual(r.coracao, [
+        { metrica: 'respiracao', ultimaMedidaISO: '2026-07-10', doPeriodo: false },
+        { metrica: 'spo2', ultimaMedidaISO: '2026-07-16', doPeriodo: false },
+      ]);
+      assert.deepEqual(r.movimento, []);
+    }
+  });
+
+  it('cada métrica no caderno do mapa — VO₂max e anéis em Movimento, respiração e SpO₂ no Coração', () => {
+    const r = lapidesDosCadernos(entrada(agosto(), { lapides: [ANEIS, VO2MAX, RESPIRACAO, SPO2] }));
+    assert.deepEqual(r.movimento.map((l) => l.metrica), ['vo2max', 'aneis']);
+    assert.deepEqual(r.coracao.map((l) => l.metrica), ['respiracao', 'spo2']);
+    assert.deepEqual(r.sono, []);
+    assert.deepEqual(r.rotina, []);
+  });
+
+  it('sem lápide na entrada: os quatro vazios, e nunca ausência', () => {
+    assert.deepEqual(lapidesDosCadernos(entrada()), { sono: [], movimento: [], coracao: [], rotina: [] });
+  });
+
+  /**
+   * A lápide é fato da **entrada**, não da edição: ela aparece num caderno que não
+   * tem mais nada a dizer, e a tela a desenha em qualquer estado do caderno.
+   */
+  it('não depende de o caderno ter dado — o Coração sem FC ainda tem as lápides dele', () => {
+    assert.equal(cadernosComDado(entrada()).includes('coracao'), false);
+    const r = lapidesDosCadernos(entrada(agosto(), { lapides: [RESPIRACAO, SPO2] }));
+    assert.equal(r.coracao.length, 2);
+  });
+
+  it('não olha o relógio: período em curso também responde', () => {
+    const r = lapidesDosCadernos({
+      resumo: agosto(), agora: new Date(2026, 7, 20, 12, 0, 0), lapides: [VO2MAX],
+    });
+    assert.deepEqual(r.movimento, [{ metrica: 'vo2max', ultimaMedidaISO: '2026-07-14', doPeriodo: false }]);
+  });
+
+  it('entrada recusada explode — e é a mesma recusa que a impressão daria', () => {
+    const comLapides = (lapides: unknown) =>
+      () => lapidesDosCadernos(entrada(agosto(), { lapides } as Partial<EntradaPacote>));
+    assert.throws(comLapides([{ metrica: 'passos', ultimaMedidaISO: '2026-08-01' }]), /fora do catálogo/);
+    assert.throws(comLapides([{ metrica: 'aneis', ultimaMedidaISO: '2026-02-30' }]), /data impossível/);
+    assert.throws(comLapides([ANEIS, ANEIS]), /repetida/);
   });
 });
 
