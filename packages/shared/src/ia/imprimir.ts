@@ -11,6 +11,10 @@
  * sequência com o descritor da retrospectiva **fixo**. A sequência em si mora em
  * `ia/imprimir-sequencia.ts` — e a razão da separação é o que ela protege.
  *
+ * Desde a 1.11 a porta responde também a pergunta da tela — **quais cadernos têm o
+ * que dizer** (`cadernosComDado`) —, porque quem decide isso na impressão é o
+ * núcleo, e a tela não pode ter uma segunda resposta.
+ *
  * **O descritor não é parâmetro de quem imprime.** Uma sequência que aceitasse
  * descritor pelo barril aceitaria `{ ...descritorDaRetrospectiva, conferir: () =>
  * ({ ok: true }) }` — e gravaria texto não conferido, sem nenhuma barreira ver,
@@ -24,12 +28,12 @@
  * daqui — está escrito em `ia/imprimir-sequencia.ts`, junto do código que o faz.
  */
 import type { PeriodKind } from '../period/bounds';
-import type { CadernoId } from '../period/cadernos';
+import { CADERNO_IDS, type CadernoId } from '../period/cadernos';
 import type { CONCLUSAO } from './motor';
 import type { LeituraDoMotor, LeituraDoPiso, OpcoesDeProduto } from './orquestrar';
-import type { EntradaPacote } from './pacote';
+import { cadernoVazio, montarPacotes, type EntradaPacote } from './pacote';
 import { descritorDaRetrospectiva } from './retrospectiva';
-import { imprimirCom } from './imprimir-sequencia';
+import { comCoberturaDoSono, imprimirCom } from './imprimir-sequencia';
 
 /* ── as portas ───────────────────────────────────────────────────────────── */
 
@@ -147,4 +151,30 @@ export function imprimir<E>(
   opcoes: OpcoesDaImpressao,
 ): Promise<ResultadoDaImpressao<E>> {
   return imprimirCom(descritorDaRetrospectiva, entrada, portas, opcoes);
+}
+
+/**
+ * Os cadernos deste período que têm o que dizer, **na ordem do catálogo** — a
+ * pergunta que a tela da revista faz para saber quais seções existem (Story 1.11).
+ *
+ * **Quem sabe é o núcleo, e pela mesma régua da impressão.** Os pacotes saem de
+ * `montarPacotes` com a cobertura de noites do Sono que a sequência deriva
+ * (`comCoberturaDoSono`), e o vazio é `cadernoVazio` — o dono único que também
+ * tira o caderno da fila da impressão. Uma tela que decidisse "tem dado" por conta
+ * própria mostraria o convite de escrever um caderno que a impressão pula, ou
+ * esconderia um que ela lê.
+ *
+ * **Sem ranqueamento.** A ordem é a do catálogo (`CADERNO_IDS`), que é a ordem
+ * dos cadernos sem linha no miolo. A ordem dos impressos é a coluna `posicao`,
+ * que congelou na impressão e que nenhuma tela recalcula — por isso esta função
+ * não chama `ordenarCadernos`, e a barreira do ranqueamento continua sem ofensor.
+ *
+ * Não olha o relógio: período em curso e Total também têm cadernos com dado. Quem
+ * decide se há edição é o estado lido (`buscarEdicao`), não esta pergunta.
+ */
+export function cadernosComDado(entrada: EntradaPacote): CadernoId[] {
+  const comDado = new Set(
+    montarPacotes(comCoberturaDoSono(entrada)).filter((p) => !cadernoVazio(p)).map((p) => p.caderno),
+  );
+  return CADERNO_IDS.filter((c) => comDado.has(c));
 }

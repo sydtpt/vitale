@@ -48,8 +48,12 @@ jest.mock('../motores', () => ({ motorPara: () => undefined }));
 
 import {
   APARELHO_SISTEMA,
+  CLASSES_DE_FALHA,
   NUVEM_PADRAO,
   SEM_MODELO,
+  type CadernoId,
+  type Causa,
+  type DesfechoDoCaderno,
   type Edicao,
   type EntradaPacote,
   type Impressao,
@@ -60,7 +64,24 @@ import {
   type RetroSummary,
 } from '@vitale/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { buscarEdicao, imprimirEdicao, naoImpressoDe, PROBLEMAS_NA_TELA } from '../edicao-ia';
+import {
+  assinaturaDoCaderno,
+  buscarEdicao,
+  classeDoDesfecho,
+  comDadoDaEntrada,
+  hrefDaRevista,
+  dataDaAssinatura,
+  fraseDoNaoImpresso,
+  imprimirEdicao,
+  naoImpressoDe,
+  problemasDoDesfecho,
+  PROBLEMAS_NA_TELA,
+  periodoDaRota,
+  rotuloCurtoDaEdicao,
+  rotuloDaEdicao,
+  slugDoTipo,
+  tipoDoSlug,
+} from '../edicao-ia';
 import { idsConhecidos } from '../motores/catalogo';
 import { gravarPreferencia } from '../motores/preferencia';
 
@@ -228,7 +249,9 @@ function nuvemFalsa(textos: Record<string, string> = TEXTOS) {
   return { motor, pedidos };
 }
 
-function depsFalsas(o: { preferencia?: MotorId | null; nuvem?: ReturnType<typeof nuvemFalsa> } = {}) {
+function depsFalsas(
+  o: { preferencia?: MotorId | null; nuvem?: ReturnType<typeof nuvemFalsa>; existentes?: CadernoId[] } = {},
+) {
   const gravacoes: Impressao[] = [];
   const buscas: PeriodoDaEdicao[] = [];
   const nuvem = o.nuvem ?? nuvemFalsa();
@@ -237,7 +260,7 @@ function depsFalsas(o: { preferencia?: MotorId | null; nuvem?: ReturnType<typeof
     portas: {
       buscar: async (p: PeriodoDaEdicao) => {
         buscas.push(p);
-        return [];
+        return (o.existentes ?? []).map((caderno) => ({ caderno }));
       },
       gravar: async (i: Impressao): Promise<Edicao> => {
         gravacoes.push(i);
@@ -343,20 +366,54 @@ describe('imprimirEdicao — a preferência lida é a da Retrospectiva', () => {
   });
 });
 
+describe('imprimirEdicao — um caderno só (Story 1.11)', () => {
+  it('`cadernos: [c]` chega à sequência: só aquele caderno é pedido', async () => {
+    const f = depsFalsas();
+    const r = await imprimirEdicao('u-1', agostoSintetico(), { cadernos: ['rotina'] }, f.deps);
+    expect(r.estado).toBe('gravada');
+    expect(f.nuvem.pedidos).toEqual(['Rotina']);
+    expect(f.gravacoes[0].linhas.map((l) => l.caderno)).toEqual(['rotina']);
+  });
+
+  /**
+   * Movimento já impresso, Rotina pedida: a ordem que vai ao banco tem os dois,
+   * mas a linha é só da Rotina — Movimento não é regenerado nem reassinado.
+   */
+  it('os outros impressos ficam na ordem e sem linha nova', async () => {
+    const f = depsFalsas({ existentes: ['movimento'] });
+    await imprimirEdicao('u-1', agostoSintetico(), { cadernos: ['rotina'] }, f.deps);
+    expect(f.nuvem.pedidos).toEqual(['Rotina']);
+    expect(f.gravacoes[0].ordem).toEqual(['movimento', 'rotina']);
+    expect(f.gravacoes[0].linhas.map((l) => l.caderno)).toEqual(['rotina']);
+  });
+
+  it('sem `cadernos`, a edição inteira', async () => {
+    const f = depsFalsas();
+    await imprimirEdicao('u-1', agostoSintetico(), {}, f.deps);
+    expect(f.nuvem.pedidos).toEqual(['Movimento', 'Rotina']);
+  });
+});
+
 describe('naoImpressoDe — por que um caderno não saiu, em palavras', () => {
-  it('reprovada: o motivo e os problemas da conferência, no máximo três', async () => {
+  it('reprovada: o motivo, sem os problemas; os problemas saem à parte, no máximo três', async () => {
     const f = depsFalsas({ nuvem: nuvemFalsa({ Movimento: 'Foram 23 atividades, porque 7 dias e 9 treinos e 11 voltas.', Rotina: TEXTOS.Rotina }) });
     const r = await imprimirEdicao('u-1', agostoSintetico(), {}, f.deps);
     expect(r.estado).toBe('gravada');
     if (r.estado !== 'gravada') return;
     const mov = r.desfechos.find((d) => d.caderno === 'movimento')!.desfecho;
-    const motivo = naoImpressoDe(mov)!;
-    expect(motivo.startsWith('a nuvem escreveu fora das regras: ')).toBe(true);
-    const problemas = motivo.slice('a nuvem escreveu fora das regras: '.length).split('; ');
+    expect(naoImpressoDe(mov)).toBe('a nuvem escreveu fora das regras');
+    const problemas = problemasDoDesfecho(mov);
     expect(problemas.length).toBe(PROBLEMAS_NA_TELA);
     expect(problemas[0]).toBe('"23" não está no pacote');
-    // O que saiu fica sem motivo.
-    expect(naoImpressoDe(r.desfechos.find((d) => d.caderno === 'rotina')!.desfecho)).toBeNull();
+    // A conferência de verdade, e a frase da rota.
+    expect(classeDoDesfecho(mov)).toBe('reprovada');
+    expect(fraseDoNaoImpresso(mov)).toBe('O texto não passou na conferência e foi descartado.');
+    // O que saiu fica sem motivo, sem problemas e sem classe.
+    const rotina = r.desfechos.find((d) => d.caderno === 'rotina')!.desfecho;
+    expect(naoImpressoDe(rotina)).toBeNull();
+    expect(problemasDoDesfecho(rotina)).toEqual([]);
+    expect(classeDoDesfecho(rotina)).toBeNull();
+    expect(fraseDoNaoImpresso(rotina)).toBeNull();
   });
 
   it('falha de motor: o motivo da assinatura, com o motor da trilha', () => {
@@ -383,5 +440,234 @@ describe('naoImpressoDe — por que um caderno não saiu, em palavras', () => {
       },
     });
     expect(motivo).toBe('a nuvem escreveu, mas a resposta não disse quanto gastou, e o texto não foi guardado');
+  });
+});
+
+/* ── a classe de cada causa, e a frase da rota (Story 1.11) ──────────────── */
+
+/** Um piso com a causa dada — com a trilha da nuvem, exceto onde nenhum motor foi chamado. */
+function piso(causa: Causa, problemas: string[] = []): DesfechoDoCaderno {
+  const semMotor = causa === 'mudo' || causa === 'preferencia';
+  return {
+    tipo: 'nao-escrito',
+    leitura: {
+      origem: 'piso', causa, ausencia: 'a revista não imprime sem modelo',
+      trilha: semMotor ? [] : [{
+        motor: NUVEM_PADRAO,
+        desfecho: causa,
+        ms: 1_000,
+        ...(problemas.length > 0 ? { problemas: problemas.map((detalhe) => ({ regra: 'numero', detalhe })) } : {}),
+      }],
+    },
+  } as unknown as DesfechoDoCaderno;
+}
+
+const INCOMPLETO = {
+  tipo: 'incompleto',
+  falta: 'tokens',
+  leitura: {
+    origem: 'motor', frase: 'x', valor: 'x', motor: NUVEM_PADRAO, trilha: [],
+    resposta: {
+      texto: 'x',
+      assinatura: { tipo: 'nuvem', provedor: 'p', modelo: 'm', versaoDoDescritor: 5003, instante: '2026-09-16T09:00:00.000Z' },
+    },
+  },
+} as DesfechoDoCaderno;
+
+describe('classeDoDesfecho — a tabela das causas (decisão 3-b, 16/09/2026)', () => {
+  /** As onze causas, uma a uma. Uma causa nova no núcleo tem de entrar aqui. */
+  const TABELA: Readonly<Record<Causa, 'reprovada' | 'erro' | null>> = {
+    reprovada: 'reprovada',
+    'recusa-do-modelo': 'reprovada',
+    guarda: 'reprovada',
+    'saida-invalida': 'reprovada',
+    capacidade: 'reprovada',
+    janela: 'reprovada',
+    indisponivel: 'erro',
+    transitoria: 'erro',
+    defeito: 'erro',
+    preferencia: 'erro',
+    mudo: null,
+  };
+
+  it('cada causa na sua classe', () => {
+    for (const [causa, classe] of Object.entries(TABELA) as [Causa, 'reprovada' | 'erro' | null][]) {
+      expect({ causa, classe: classeDoDesfecho(piso(causa)) }).toEqual({ causa, classe });
+    }
+  });
+
+  it('a tabela cobre todas as classes de falha do núcleo', () => {
+    for (const classe of CLASSES_DE_FALHA) expect(Object.keys(TABELA)).toContain(classe);
+  });
+
+  it('capacidade e janela são permanentes: reprovadas, não erro', () => {
+    expect(classeDoDesfecho(piso('capacidade'))).toBe('reprovada');
+    expect(classeDoDesfecho(piso('janela'))).toBe('reprovada');
+  });
+
+  it('o desfecho incompleto é erro — não é culpa do texto', () => {
+    expect(classeDoDesfecho(INCOMPLETO)).toBe('erro');
+  });
+});
+
+describe('fraseDoNaoImpresso — o que a rota diz no lugar do texto', () => {
+  it('a reprovação da conferência diz que o texto foi descartado; os problemas vêm à parte', () => {
+    const d = piso('reprovada', ['"186" não está no pacote', 'base citada sem nome: "contra o ano passado"']);
+    expect(fraseDoNaoImpresso(d)).toBe('O texto não passou na conferência e foi descartado.');
+    expect(problemasDoDesfecho(d)).toEqual(['"186" não está no pacote', 'base citada sem nome: "contra o ano passado"']);
+  });
+
+  it('as outras causas dizem que o caderno não foi escrito, e por quê — as frases da proposta', () => {
+    expect(fraseDoNaoImpresso(piso('transitoria'))).toBe('O caderno não foi escrito: a nuvem falhou por agora.');
+    expect(fraseDoNaoImpresso(piso('indisponivel'))).toBe('O caderno não foi escrito: a nuvem não atendeu.');
+    expect(fraseDoNaoImpresso(piso('recusa-do-modelo'))).toBe('O caderno não foi escrito: a nuvem recusou.');
+    expect(fraseDoNaoImpresso(piso('guarda'))).toBe('O caderno não foi escrito: a proteção da nuvem bloqueou o pedido.');
+    expect(fraseDoNaoImpresso(piso('saida-invalida'))).toBe('O caderno não foi escrito: a nuvem respondeu o que não se lê.');
+    expect(fraseDoNaoImpresso(piso('capacidade'))).toBe('O caderno não foi escrito: a nuvem não aceitou este pedido.');
+    expect(fraseDoNaoImpresso(piso('janela'))).toBe('O caderno não foi escrito: o pedido não cabe na janela da nuvem.');
+    expect(fraseDoNaoImpresso(piso('defeito'))).toBe('O caderno não foi escrito: houve um defeito ao chamar a nuvem.');
+    expect(fraseDoNaoImpresso(piso('preferencia'))).toBe(
+      'O caderno não foi escrito: a escolha de motor deste aparelho para a Retrospectiva não escreve a revista.',
+    );
+    expect(fraseDoNaoImpresso(INCOMPLETO)).toBe(
+      'O caderno não foi escrito: a nuvem escreveu, mas a resposta não disse quanto gastou, e o texto não foi guardado.',
+    );
+  });
+
+  it('o mudo não tem frase: o caderno some', () => {
+    expect(fraseDoNaoImpresso(piso('mudo'))).toBeNull();
+  });
+
+  /** O texto cru do fornecedor mora no `detalhe` da tentativa, e fica no anel. */
+  it('nenhuma frase carrega o detalhe cru da trilha', () => {
+    const cru = {
+      tipo: 'nao-escrito',
+      leitura: {
+        origem: 'piso', causa: 'transitoria', ausencia: 'x',
+        trilha: [{ motor: NUVEM_PADRAO, desfecho: 'transitoria', ms: 1, detalhe: 'HTTP 503 upstream_overloaded' }],
+      },
+    } as DesfechoDoCaderno;
+    expect(fraseDoNaoImpresso(cru)).not.toMatch(/503|upstream/);
+    expect(problemasDoDesfecho(cru)).toEqual([]);
+  });
+});
+
+describe('slugDoTipo / tipoDoSlug — o tipo na rota', () => {
+  it('ida e volta nos quatro tipos com edição', () => {
+    expect(slugDoTipo('week')).toBe('semana');
+    expect(slugDoTipo('month')).toBe('mes');
+    expect(slugDoTipo('season')).toBe('estacao');
+    expect(slugDoTipo('year')).toBe('ano');
+    for (const tipo of ['week', 'month', 'season', 'year'] as const) expect(tipoDoSlug(slugDoTipo(tipo))).toBe(tipo);
+  });
+
+  it('o que não é tipo com edição é nulo — nunca um palpite', () => {
+    for (const slug of ['total', 'all', 'month', 'Mes', 'mês', '', 'constructor', '__proto__', undefined, null]) {
+      expect({ slug, tipo: tipoDoSlug(slug) }).toEqual({ slug, tipo: null });
+    }
+  });
+});
+
+describe('periodoDaRota — o endereço da rota, e a rota inválida (matriz: "Rota inválida")', () => {
+  // Componentes locais: `periodoFechado` e `offsetDoInicio` leem o calendário de quem roda.
+  const HOJE = new Date(2026, 8, 17, 10, 0, 0); // 17/09/2026
+
+  it('agosto fechado: o período, o rótulo e fechado', () => {
+    const p = periodoDaRota('mes', '2026-08-01', HOJE);
+    expect(p).toEqual({ tipo: 'month', inicio: '2026-08-01', offset: -1, rotulo: 'Agosto de 2026', fechado: true });
+  });
+
+  it('tipo que não é da revista: nulo — o Total não tem rota', () => {
+    expect(periodoDaRota('total', '2026-08-01', HOJE)).toBeNull();
+    expect(periodoDaRota('all', '2026-08-01', HOJE)).toBeNull();
+    expect(periodoDaRota(undefined, '2026-08-01', HOJE)).toBeNull();
+  });
+
+  it('início que não é início de período, ou que não existe: nulo — nunca adivinha', () => {
+    expect(periodoDaRota('mes', '2026-08-02', HOJE)).toBeNull();
+    expect(periodoDaRota('mes', '2026-02-30', HOJE)).toBeNull();
+    expect(periodoDaRota('mes', 'agosto', HOJE)).toBeNull();
+    expect(periodoDaRota('mes', undefined, HOJE)).toBeNull();
+  });
+
+  it('período em curso: o cabeçalho sabe dizer qual é, e fechado é falso', () => {
+    const p = periodoDaRota('mes', '2026-09-01', HOJE);
+    expect(p?.rotulo).toBe('Setembro de 2026');
+    expect(p?.fechado).toBe(false);
+  });
+});
+
+describe('os rótulos da revista', () => {
+  it('o período por extenso: o mês com "de"; os outros, o rótulo da Retrospectiva', () => {
+    expect(rotuloDaEdicao('month', '2026-08-01')).toBe('Agosto de 2026');
+    expect(rotuloDaEdicao('month', '2026-03-01')).toBe('Março de 2026');
+    expect(rotuloDaEdicao('year', '2025-01-01')).toBe('2025');
+    expect(rotuloDaEdicao('season', '2026-04-01')).toBe('Q2 2026');
+    expect(rotuloDaEdicao('week', '2026-09-07')).toBe('07/09 – 13/09');
+  });
+
+  it('o período curto da miniatura', () => {
+    expect(rotuloCurtoDaEdicao('month', '2026-08-01')).toBe('ago 2026');
+    expect(rotuloCurtoDaEdicao('year', '2025-01-01')).toBe('2025');
+    expect(rotuloCurtoDaEdicao('season', '2026-04-01')).toBe('Q2 2026');
+  });
+
+  it('a data da assinatura, no formato da proposta', () => {
+    // Meio-dia UTC: o mesmo dia de parede de UTC−11 a UTC+11.
+    expect(dataDaAssinatura('2026-09-07T12:00:00.000Z')).toBe('07 set 2026');
+    expect(dataDaAssinatura('não é data')).toBe('');
+  });
+});
+
+/* ── os remendos da revisão da 1.11 ──────────────────────────────────────── */
+
+describe('hrefDaRevista — o endereço que a porta abre', () => {
+  it('o formato /revista/<slug>/<início>, nos quatro tipos com edição', () => {
+    expect(hrefDaRevista('month', '2026-08-01')).toBe('/revista/mes/2026-08-01');
+    expect(hrefDaRevista('week', '2026-09-07')).toBe('/revista/semana/2026-09-07');
+    expect(hrefDaRevista('season', '2026-04-01')).toBe('/revista/estacao/2026-04-01');
+    expect(hrefDaRevista('year', '2025-01-01')).toBe('/revista/ano/2025-01-01');
+  });
+
+  it('o Total não tem rota', () => {
+    expect(hrefDaRevista('all', '2000-01-01')).toBeNull();
+  });
+
+  it('ida e volta com periodoDaRota', () => {
+    const hoje = new Date(2026, 8, 17, 10, 0, 0);
+    const [, , slug, inicio] = hrefDaRevista('month', '2026-08-01')!.split('/');
+    expect(periodoDaRota(slug, inicio, hoje)).toMatchObject({ tipo: 'month', inicio: '2026-08-01', offset: -1, fechado: true });
+  });
+});
+
+describe('assinaturaDoCaderno', () => {
+  it('modelo · data', () => {
+    expect(assinaturaDoCaderno('modelo-1', '2026-09-07T12:00:00.000Z')).toBe('modelo-1 · 07 set 2026');
+  });
+
+  it('sem data que se leia, só o modelo — nunca o ponto pendurado', () => {
+    expect(assinaturaDoCaderno('modelo-1', 'não é data')).toBe('modelo-1');
+    expect(assinaturaDoCaderno('modelo-1', '')).toBe('modelo-1');
+  });
+});
+
+describe('comDadoDaEntrada — a resposta que a tela e as ações dividem', () => {
+  it('dados prontos: os cadernos com dado, na ordem do catálogo', () => {
+    expect(comDadoDaEntrada(agostoSintetico(), true)).toEqual(['movimento', 'rotina']);
+  });
+
+  it('dados não prontos: sem resposta', () => {
+    expect(comDadoDaEntrada(agostoSintetico(), false)).toBeNull();
+  });
+
+  it('entrada que o núcleo recusa: sem resposta, e o motivo no log', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const recusada = {
+      ...agostoSintetico(),
+      lapides: [{ metrica: 'nao-existe', ultimaMedidaISO: '2026-08-10' }],
+    } as unknown as EntradaPacote;
+    expect(comDadoDaEntrada(recusada, true)).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

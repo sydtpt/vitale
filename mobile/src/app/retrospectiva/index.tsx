@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { getActivityMeta } from '../../lib/workout-types';
 import { PhotoGalleryModal, type GallerySection } from '../../components/photos/PhotoGalleryModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,7 +42,7 @@ import {
 } from '@vitale/shared';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { formatClock, formatFullDate } from '../../lib/workout-format';
-import { useRetroStore, retroSince } from '../../store/retro.store';
+import { useRetroStore } from '../../store/retro.store';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useAuthStore } from '../../store/auth.store';
 import { supabase } from '../../lib/supabase';
@@ -52,9 +52,9 @@ import { HeatmapGrid } from '../../components/HeatmapGrid';
 import { TaskGridStrip } from '../../components/TaskGridStrip';
 import { SleepRetroCard } from '../../components/SleepRetroCard';
 import { EdicaoCard } from '../../components/EdicaoCard';
-import {
-  chaveDe, dadosProntosParaImprimir, estadoDe, podeEscrever, useEdicaoStore,
-} from '../../store/edicao.store';
+import { chaveDe, estadoDe, portaDe, useEdicaoStore } from '../../store/edicao.store';
+import { useEntradaDaEdicao } from '../../hooks/useEntradaDaEdicao';
+import { hrefDaRevista } from '../../lib/edicao-ia';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
 const KIND_LABEL: Record<PeriodKind, string> = {
@@ -168,26 +168,17 @@ export default function RetrospectivaScreen() {
   const [kind, setKind] = useState<PeriodKind>('week');
   const [offset, setOffset] = useState<number>(() => latestAvailableOffset(now, 'week'));
 
-  const ensure = useRetroStore((s) => s.ensure);
   const loaded = useRetroStore((s) => s.loaded);
-  // A prontidão dos dados que a edição narra (ver `dadosProntosParaImprimir`).
-  const retroLoading = useRetroStore((s) => s.loading);
-  const retroLoadedSince = useRetroStore((s) => s.loadedSince);
-  const atividadesLoaded = useActivitiesStore((s) => s.loaded);
-  const atividadesLoading = useActivitiesStore((s) => s.loading);
-  const summaryFn = useRetroStore((s) => s.summary);
   const highlightsFn = useRetroStore((s) => s.highlights);
   const yearFn = useRetroStore((s) => s.yearByMonth);
   const heatmapFn = useRetroStore((s) => s.heatmap);
   const taskGridFn = useRetroStore((s) => s.taskGrid);
   const allActs = useActivitiesStore((s) => s._all);
 
-  useFocusEffect(useCallback(() => {
-    void ensure(retroSince(now, kind, offset));
-  }, [ensure, now, kind, offset]));
-  useEffect(() => { void ensure(retroSince(now, kind, offset)); }, [ensure, now, kind, offset]);
-
-  const summary = useMemo(() => summaryFn(now, kind, offset), [summaryFn, now, kind, offset, loaded, allActs]);
+  // O resumo do período e a entrada da edição saem do mesmo hook que a rota da
+  // revista usa: uma entrada, um caminho. Ele também garante a janela carregada
+  // (ao montar e a cada foco), que antes morava aqui.
+  const { resumo: summary, entrada: entradaPacote } = useEntradaDaEdicao(kind, offset, now);
 
   /**
    * As fotos do período (ADR 0037) — versão 2 do bloco: tira discreta no fim de
@@ -287,71 +278,58 @@ export default function RetrospectivaScreen() {
   const highlights = useMemo(() => allHighlights.slice(0, 6), [allHighlights]);
   const lede = useMemo(() => buildRetroLede(allHighlights), [allHighlights]);
 
-  // A edição do período. `entrada` é o que o núcleo precisa para montar o pacote
-  // — o mesmo `summary` que a tela já usa, sem recalcular nada.
-  const entradaPacote = useMemo(() => ({ resumo: summary, agora: now }), [summary, now]);
+  // A porta da edição (Story 1.11). A edição mora na rota `/revista/[tipo]/[inicio]`;
+  // aqui fica só o cartão que leva até ela.
   const carregarEdicao = useEdicaoStore((s) => s.carregar);
-  const recarregarEdicaoFn = useEdicaoStore((s) => s.recarregar);
-  const imprimirEdicaoFn = useEdicaoStore((s) => s.imprimir);
   const edicoes = useEdicaoStore((s) => s.porPeriodo);
   // O dono entra na chave: o mapa é do usuário, não do app. Sem ele, quem
-  // trocasse de conta encontraria o texto da anterior desenhado — `pronta` não
-  // relê, e não deve mesmo: período fechado congela.
+  // trocasse de conta encontraria a edição da anterior desenhada.
   const uidEdicao = useAuthStore((s) => s.user?.id);
   // A sessão vem do disco: no arranque a frio ela não está pronta no primeiro
   // quadro. Sem distinguir isso, quem está logado lê "Entre na sua conta" antes
   // de a sessão chegar.
   const sessaoHidratando = useAuthStore((s) => s.isLoading);
-  // **Os dois seletores acima devolvem referência estável** (o mapa e uma
-  // string): chamar função dentro deles produziria objeto novo a cada quadro.
-  // A derivação é aqui fora, pela MESMA função que a store usa no `estado()`.
+  // **Os seletores acima devolvem referência estável** (o mapa e uma string):
+  // chamar função dentro deles produziria objeto novo a cada quadro. A derivação
+  // é aqui fora, pela MESMA função que a store usa no `estado()`.
   const chaveEdicao = useMemo(
     () => (uidEdicao ? chaveDe(uidEdicao, entradaPacote) : null),
     [uidEdicao, entradaPacote],
   );
-  // Antes da primeira resposta, a fase é `carregando` — que não desenha nada. O
-  // cartão só aparece quando há o que dizer; sem sessão, ele diz isso.
-  const edicaoEstado = useMemo(
-    () => estadoDe(edicoes, chaveEdicao, sessaoHidratando),
+  const portaEdicao = useMemo(
+    () => portaDe(estadoDe(edicoes, chaveEdicao, sessaoHidratando)),
     [edicoes, chaveEdicao, sessaoHidratando],
   );
-  // Abrir só lê, e ler é de graça. Escrever é o toque em "Escrever a edição"
-  // (`imprimirEdicao`), nunca um efeito — senão folhear seis meses gastaria seis
-  // chamadas pagas.
+  // Abrir só lê, e ler é de graça. Nada aqui escreve: "Escrever a edição" existe
+  // só na rota (decisão 4-a de 16/09).
   //
-  // **`uidEdicao` está nas deps porque `carregar` desiste sem sessão.** A sessão
-  // chega do disco depois do primeiro render; sem reagendar quando ela chega,
-  // ninguém lê a edição pelo resto da montagem e o cartão fica invisível — o
-  // mesmo modo de falha que o estado `sem-sessao` fechou do lado da store,
-  // reaberto aqui pelo efeito.
+  // **O efeito depende da CHAVE, não da entrada.** A entrada é um objeto novo a cada
+  // ciclo da busca da retro, e cada objeto novo relia o banco. A chave é string: muda
+  // quando muda o período ou o dono — inclusive quando a sessão chega do disco
+  // depois do primeiro render, que é o que tira a porta da invisibilidade. A leitura
+  // usa a entrada mais recente, por ref.
+  const entradaRef = useRef(entradaPacote);
+  entradaRef.current = entradaPacote;
   useEffect(
-    () => { void carregarEdicao(entradaPacote); },
-    [carregarEdicao, entradaPacote, uidEdicao],
+    () => { void carregarEdicao(entradaRef.current); },
+    [carregarEdicao, chaveEdicao],
   );
-  const recarregarEdicao = useCallback(
-    () => { void recarregarEdicaoFn(entradaPacote); },
-    [recarregarEdicaoFn, entradaPacote],
-  );
-  // **Os dados que a edição narra já chegaram?** O `summary` sai da memória a cada
-  // render, e a memória pode estar pela metade — a retro buscando, a janela
-  // carregada cobrindo outro intervalo, as atividades chegando sem espera. Imprimir
-  // nesse intervalo congelaria uma edição com fatos incompletos.
-  const dadosProntos = useMemo(
-    () => dadosProntosParaImprimir(
-      { loaded, loading: retroLoading, loadedSince: retroLoadedSince },
-      { loaded: atividadesLoaded, loading: atividadesLoading },
-      retroSince(now, kind, offset),
-    ),
-    [loaded, retroLoading, retroLoadedSince, atividadesLoaded, atividadesLoading, now, kind, offset],
-  );
-  const podeEscreverEdicao = useMemo(() => podeEscrever(edicaoEstado, dadosProntos), [edicaoEstado, dadosProntos]);
-  // O toque do dono. A store confere a mesma decisão, ignora o segundo toque e relê
-  // o banco antes de pagar; a sequência — pacotes, ordem, motor, conferência e
-  // gravação — é do núcleo.
-  const imprimirEdicao = useCallback(
-    () => { void imprimirEdicaoFn(entradaPacote, dadosProntos); },
-    [imprimirEdicaoFn, entradaPacote, dadosProntos],
-  );
+  // A porta leva à rota do período. Só tipos com edição chegam aqui: em período em
+  // curso e no Total a porta é ausência, e não há o que tocar.
+  //
+  // **Dois toques rápidos abririam duas rotas iguais**, uma sobre a outra. A guarda
+  // ignora o toque que chega enquanto a transição ainda corre; quando o leitor volta,
+  // ela já expirou. É tempo, e não um "já abri" que o foco limparia: se a navegação
+  // não acontecer, a porta não fica morta.
+  const ultimoToqueNaPorta = useRef(0);
+  const abrirRevista = useCallback(() => {
+    const href = hrefDaRevista(kind, summary.startISO);
+    if (href === null) return;
+    const agora = Date.now();
+    if (agora - ultimoToqueNaPorta.current < 1000) return;
+    ultimoToqueNaPorta.current = agora;
+    router.push(href);
+  }, [router, kind, summary.startISO]);
   const buckets = useMemo(() => kind === 'year' ? yearFn(now, offset) : [], [yearFn, now, kind, offset, loaded, allActs]);
 
   // Forma 02 — o heatmap. Só nos períodos em que uma célula por dia ainda é legível;
@@ -437,14 +415,10 @@ export default function RetrospectivaScreen() {
                 {lede.support ? <Text style={styles.ledeSupport}>{lede.support}</Text> : null}
               </View>
             )}
-            {/* A edição escrita por modelo, logo abaixo da manchete apurada.
-                Some sozinha em período em curso (ADRs 0038/0040). */}
-            <EdicaoCard
-              estado={edicaoEstado}
-              onRecarregar={recarregarEdicao}
-              onEscrever={imprimirEdicao}
-              podeEscrever={podeEscreverEdicao}
-            />
+            {/* A porta da edição escrita por modelo, logo abaixo da manchete
+                apurada. Leva à rota da revista; some sozinha em período em curso
+                e no Total (ADRs 0038/0040 · Story 1.11). */}
+            <EdicaoCard porta={portaEdicao} onAbrir={abrirRevista} />
       </>
     ),
     kpis: (

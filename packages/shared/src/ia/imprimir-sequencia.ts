@@ -77,8 +77,13 @@ function avisar(aviso: () => unknown): void {
  * ficam sem efeito. Quem monta a entrada da impressão é esta sequência, então ela
  * a deriva de `resumo.sleep` quando a entrada não a traz. Sem `resumo.sleep` não
  * há de onde contar noites, e a cobertura continua ausente — nunca inventada.
+ *
+ * Exportada só para `cadernosComDado` (`ia/imprimir.ts`), que precisa da **mesma**
+ * entrada para responder quais cadernos têm o que dizer: a cobertura é conteúdo
+ * para `cadernoVazio`, e sem ela a tela esconderia um Sono que a impressão lê.
+ * Não sai pelo barril — este arquivo inteiro fica fora dele.
  */
-function comCoberturaDoSono(entrada: EntradaPacote): EntradaPacote {
+export function comCoberturaDoSono(entrada: EntradaPacote): EntradaPacote {
   if (entrada.coberturaSono !== undefined) return entrada;
   const sono = entrada.resumo.sleep;
   if (sono == null) return entrada;

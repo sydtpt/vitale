@@ -217,6 +217,8 @@ function AppShell() {
         <Stack.Screen name="treinos/editor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="recuperacao/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="retrospectiva/index" options={{ animation: 'slide_from_right' }} />
+        {/* A edição de um período, aberta pela porta da Retrospectiva (Story 1.11). */}
+        <Stack.Screen name="revista/[tipo]/[inicio]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="compras/editor" options={{ animation: 'slide_from_right' }} />
