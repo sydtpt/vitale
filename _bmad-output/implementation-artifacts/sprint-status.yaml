@@ -212,5 +212,13 @@ development_status:
   # da SDK 57 — só build local; memória por tamanho; pesos sem guardrail da
   # Apple num recurso de saúde) e por isso NÃO foi reaberta junto.
   # Worktree life-organizer-wt-motores-5-9, branch feat/motores-5-9.
+  # GUARDA DE COLISÃO: checado em 17/09 — nenhum arquivo da 1.13 (em
+  # construção, worktree própria) toca ia/, motores/ nem
+  # mobile/modules/on-device-engine/. Dois pontos de contato reais: (1)
+  # packages/shared/src/ia/motor.ts e orquestrar.ts, que a 1.10 (já done) já
+  # importa pela porta única — só adicionar, nunca mudar a assinatura
+  # existente; (2) BUILD PRÓPRIO já exigido pela story original (nunca o
+  # mesmo de uma migração) — estende-se a nunca compartilhar build/instalação
+  # no iPhone com outra story rodando em paralelo, pelo mesmo motivo da AD-15.
   5-9-a-ponte-swift-on-device-engine: backlog
   epic-5-retrospective: optional
