@@ -197,8 +197,13 @@ development_status:
   # espera o macOS 27 (14/09) e o risco aberto do Xcode 26.6, e exige BUILD
   # PRÓPRIO: nunca o mesmo de uma migração.
   5-5-a-ponte-o-botão-ler-e-a-escolha-do-motor: done
-  # ▼ PRÓXIMA SPRINT (F3–F5). Estão aqui para aparecer no quadro, não para começar.
+  # 5.6 REABERTA em 17/09/2026 por decisão do dono: sem dependência de nenhuma
+  # outra frente (nem da Revista, nem de marco do próprio Épico 5) — corre em
+  # paralelo. Worktree própria em ../life-organizer-wt-motores-5-6, branch
+  # feat/motores-5-6. Falta o bmad-build/bmad-create-story numa sessão nova
+  # para virar story de fato; até lá o status segue backlog.
   5-6-vários-motores-de-nuvem: backlog
+  # ▼ PRÓXIMA SPRINT (F4–F5). Estão aqui para aparecer no quadro, não para começar.
   5-7-o-nome-de-rota-pela-porta: backlog
   5-8-core-ai: backlog
   epic-5-retrospective: optional
