@@ -325,6 +325,15 @@ São **10** módulos, não 7:
   `conferir-bundle.py` estão em
   [`_bmad-output/implementation-artifacts/revista-1-9/`](_bmad-output/implementation-artifacts/revista-1-9/janela-da-migracao.md)
   — a seção 6 de lá é leitura obrigatória antes da próxima janela de migração.
+  **A 1.11 está fechada (17/09)**: a edição saiu do cartão e ganhou a rota
+  `/revista/[tipo]/[inicio]`; o cartão da Retrospectiva virou a **porta**, e o estado passou a
+  ser **por caderno** — reimpressão de um caderno só pela sequência do núcleo, errata por linha,
+  e a reprovação vivendo só na sessão, em memória (decisão declarada). A **1.12** (os cadernos
+  desenhados: faixa sangrada no `accent` do módulo com ícone, e a lápide nos dois estados)
+  está **na main (PR #514) e aprovada em tela pelo dono** — falta só o veredito da lápide, que
+  ninguém consegue dar ainda. Ela fica
+  **invisível no aparelho** até existir detector de métrica morta — nada preenche
+  `entrada.lapides`, então a edição impressa também sai sem ela.
 - Tarefas: ponte real com Compras/Finanças
 - Sono: **falta conferir em tela** — CAP-7 (Tempos, Despertares, Estágios) foi conferida no
   iPhone em 05/09, mas o bloco
