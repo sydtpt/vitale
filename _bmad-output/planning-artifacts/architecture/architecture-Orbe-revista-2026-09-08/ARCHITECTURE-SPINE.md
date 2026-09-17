@@ -224,11 +224,48 @@ Ids originais, read-only, não renumerados. Nenhuma decisão abaixo as contradiz
   −1)"*, que **exclui a noite da cheia**. Fechar à direita incluiria justamente a
   noite de maior valor esperado sob a hipótese e excluiria a −5 — a coluna testada
   anda uma noite inteira, e isso é desvio de protocolo, não ganho de precisão.
-  **A noite é representada por um instante fixo do seu entardecer** — nunca pelo
-  `apagou` medido. Usar o desfecho para classificar a exposição seria endógeno: se a
+  **A noite é representada por um instante fixo do seu fim — 08:00 UTC do `wakeDay`** —
+  nunca pelo `apagou` medido. Usar o desfecho para classificar a exposição seria endógeno: se a
   lua atrasa o adormecer, uma noite na fronteira trocaria de coluna **por causa do
   efeito que está sendo medido**. O desfecho atravessa a meia-noite por desenho, e é
   exatamente por isso que ele não pode ser também o relógio da janela.
+
+  > **Mudou em 17/09/2026, por decisão do dono — duas vezes no mesmo dia.**
+  >
+  > **Do entardecer para o fim da noite.** O instante era o do **entardecer**, e o entardecer
+  > punha a noite da cheia na janela: com o entardecer às 20:00 e a cheia às 03:00, em hora
+  > local, o instante da noite que contém a cheia fica antes dela, e a noite entra como −1 — sempre que a cheia
+  > cai entre o entardecer e o fim da noite. Com o instante no **fim**, a noite só entra se
+  > terminou antes da cheia, que é o sentido literal de *"antecedem"* no §3.
+  >
+  > **De 11:00 para 08:00 UTC, na revisão da Story 4.1.** O fim foi fixado primeiro em 11:00
+  > UTC, longe do despertar real: quando a cheia caía entre o despertar e 11:00 UTC, a noite
+  > que tinha terminado antes dela saía da janela, a −1 ficava de fora e a −6 entrava. 08:00
+  > UTC é 9h no inverno e 10h no verão em Bruxelas.
+  >
+  > **Fixo em UTC**, e não em hora local, porque a troca de horário daria 4 ou 6 noites numa
+  > janela.
+  >
+  > **Os dois erros que sobram, declarados.** Nenhuma hora fixa coincide com o despertar de
+  > todo dia, e a cheia pode cair na faixa entre os dois:
+  >
+  > - se ele acorda **antes** das 08:00 UTC e a cheia cai entre o despertar e 08:00 UTC, a
+  >   noite que terminou antes dela fica **de fora** — erro **contra** o achado;
+  > - se ele acorda **depois** das 08:00 UTC e a cheia cai entre 08:00 UTC e o despertar, a
+  >   noite que a contém **entra como −1** — erro **a favor** do achado.
+  >
+  > A hora é fixa em UTC e o despertar é local: na troca de horário o despertar anda uma hora
+  > contra 08:00 UTC, e a faixa do erro contra o achado fica **uma hora mais larga no verão**.
+  >
+  > Quantas vezes cada um acontece depende da hora em que ele acorda, que é dado de sono, e o
+  > pré-registro proíbe olhar antes de rodar; por isso a nota não traz número. "A noite que
+  > contém a cheia fica de fora" vale para a noite medida até 08:00 UTC, não para o despertar
+  > real.
+  >
+  > Fica declarada em vez de editada em silêncio porque a Story 4.1 a cobra em
+  > `sleep/lua.test.ts`. **O pré-registro não muda**: ele fixa as noites que antecedem a
+  > cheia, e não o instante que representa cada uma. Esta é a nota completa; o `epics.md` e o
+  > `epic-4-context.md` apontam para cá.
 
 ### AD-7 — A barreira do hash é incondicional e offline
 

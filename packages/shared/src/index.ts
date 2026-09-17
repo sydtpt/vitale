@@ -61,6 +61,7 @@ export * from './sleep/retro';
 export * from './sleep/score';
 export * from './sleep/caso';
 export * from './sleep/leitura';
+export * from './sleep/lua';
 export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bucket-plan';
