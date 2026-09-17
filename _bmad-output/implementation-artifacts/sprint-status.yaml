@@ -202,6 +202,13 @@ development_status:
   # paralelo. Worktree própria em ../life-organizer-wt-motores-5-6, branch
   # feat/motores-5-6. Falta o bmad-build/bmad-create-story numa sessão nova
   # para virar story de fato; até lá o status segue backlog.
+  # GUARDA DE COLISÃO: checado em 17/09 — nenhum arquivo da 1.13 (em
+  # construção, worktree própria) toca ia/ nem motores/; sem sobreposição de
+  # arquivo. O único ponto de contato real é packages/shared/src/ia/motor.ts,
+  # que a 1.10 (já done) já importa pela porta única — mudar essa story para
+  # SÓ ADICIONAR implementação nova de Motor, nunca alterar a assinatura do
+  # tipo existente, ou quebra quem já mergeou. Rodar
+  # `pnpm --filter @vitale/shared lint && test` antes de mergear.
   5-6-vários-motores-de-nuvem: backlog
   # ▼ PRÓXIMA SPRINT (F4–F5). Estão aqui para aparecer no quadro, não para começar.
   5-7-o-nome-de-rota-pela-porta: backlog
