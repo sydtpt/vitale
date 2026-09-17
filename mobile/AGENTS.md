@@ -79,6 +79,19 @@ xcrun devicectl device install app --device <UDID> <caminho>/Orbe.app
   e um build quebrado passa por bem-sucedido.
 - **O iPhone precisa estar desbloqueado** no `install`, senão falha em
   `kAMDMobileImageMounterDeviceLocked`. O build em si não precisa do aparelho.
+- **Com o Xcode 27, o app só abre com o ciclo por cena.** Sem o plugin
+  `plugins/withUISceneLifecycle.js`, ele compila, instala e morre ao abrir, em
+  `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`
+  ([ADR 0051](../docs/decisions/0051-o-app-adota-o-ciclo-por-cena-porque-o-sdk-27-o-exige.md)).
+  O plugin não move a criação da janela para a cena: o lançamento em background
+  do HealthKit não tem cena, e é ele que precisa do JS de pé.
+- **`pnpm install` pode quebrar o build sem mudar config nenhuma.** O
+  `Podfile.lock` guarda o caminho de cada módulo nativo com a versão do pnpm no
+  nome; troca de versão apaga o diretório e o Xcode para em `CpResource … No such
+  file or directory`. O script regera sozinho quando um caminho sumiu; na mão,
+  é `--prebuild`.
+- **O `devicectl` do Xcode 27 lista os simuladores como pareados.** O script
+  filtra só aparelho físico; na receita crua, use o identificador do iPhone.
 - `DEVELOPMENT_TEAM` some a cada `prebuild` (o projeto Xcode é gerado). O plugin
   `plugins/withDevelopmentTeam.js` repõe; aceita override por `APPLE_TEAM_ID`.
 - O canal de OTA vinha da EAS. Sem ela, `updates.requestHeaders` no app config é

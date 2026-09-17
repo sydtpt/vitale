@@ -18,6 +18,18 @@
 #   - `-derivedDataPath` dentro de `~/Library/Developer/Xcode` acumula ~7 GB por
 #     build limpo e já estourou o disco aqui.
 #   - O túnel do `devicectl` cai sozinho; repetir o install resolve.
+#   - Com o Xcode 27 (SDK iOS 27), app sem ciclo de vida por cena compila,
+#     instala e **morre ao abrir**, antes de qualquer JS (ADR 0051). O script
+#     recusa compilar com o 27 se o plugin `withUISceneLifecycle` não estiver no
+#     app config.
+#   - O `pod install` grava no `Podfile.lock` o caminho de cada módulo nativo
+#     **com a versão** do pnpm (`.pnpm/expo-application@57.0.2_…`). Um
+#     `pnpm install` que troca a versão apaga aquele diretório, e o build morre
+#     em `CpResource … No such file or directory`, sem que nenhum arquivo de
+#     config tenha mudado. O script confere os caminhos e regera quando algum
+#     sumiu (17/09/2026).
+#   - O `devicectl` do Xcode 27 lista os **simuladores** junto com o iPhone;
+#     o script só considera aparelho físico.
 #
 # **Nunca use `expo run:ios` / `expo start` para entregar.** Aquilo é Debug: o JS
 # vem do Metro pela LAN e o app só funciona dentro de casa. Este script produz um
@@ -80,8 +92,31 @@ needs_prebuild() {
     [[ -e "$input" ]] || continue
     [[ "$input" -nt "$proj" ]] && return 0
   done
+  # Config igual não basta: o Pods aponta para diretórios com a versão no nome,
+  # e um `pnpm install` que troca a versão os apaga sem tocar em config nenhuma.
+  local lock="$IOS_DIR/Podfile.lock"
+  [[ -f "$lock" ]] || return 0
+  local caminho
+  while IFS= read -r caminho; do
+    if [[ ! -e "$IOS_DIR/$caminho" ]]; then
+      echo "  módulo nativo sumiu do node_modules: $caminho" >&2
+      return 0
+    fi
+  done < <(sed -n 's/^ *:path: "\(.*\)"$/\1/p' "$lock")
   return 1
 }
+
+# ── 0. o Xcode, e o que ele exige ────────────────────────────────────────────
+# Sem `| head -1`: com `pipefail`, o `head` fecha o pipe, o xcodebuild morre de
+# SIGPIPE e o script sai com 141 antes de dizer qualquer coisa.
+XCODE_VERSION="$(xcodebuild -version 2>/dev/null)" || die "xcodebuild não respondeu — o Xcode está instalado e selecionado?"
+XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+say "$XCODE_VERSION ($(xcode-select -p))"
+XCODE_MAJOR="$(sed -n 's/^Xcode \([0-9]*\).*/\1/p' <<<"$XCODE_VERSION")"
+if [[ "${XCODE_MAJOR:-0}" -ge 27 ]] \
+   && ! grep -q "withUISceneLifecycle" "$MOBILE_DIR/app.base.json" "$MOBILE_DIR/app.config.js" 2>/dev/null; then
+  die "o Xcode $XCODE_MAJOR exige o ciclo por cena, e o plugin withUISceneLifecycle não está no app config — o app compilaria e morreria ao abrir (ADR 0051)"
+fi
 
 if needs_prebuild; then
   say "prebuild (config nativa mudou ou ios/ não existe)"
@@ -122,7 +157,10 @@ DEVICE_ID="$(python3 -c "
 import json,sys
 want = sys.argv[1] if len(sys.argv) > 1 else ''
 devs = json.load(open('$DEV_JSON'))['result']['devices']
-ios = [d for d in devs if d['hardwareProperties'].get('platform') == 'iOS']
+# Só aparelho físico: o devicectl do Xcode 27 lista os simuladores como pareados,
+# e um .app de iphoneos não instala neles de qualquer jeito.
+ios = [d for d in devs if d['hardwareProperties'].get('platform') == 'iOS'
+       and d['hardwareProperties'].get('reality') != 'simulated']
 if want:
     for d in ios:
         if want in (d.get('identifier'), d['hardwareProperties'].get('udid'),
@@ -139,7 +177,8 @@ else:
   python3 -c "
 import json
 for d in json.load(open('$DEV_JSON'))['result']['devices']:
-    if d['hardwareProperties'].get('platform') == 'iOS':
+    h = d['hardwareProperties']
+    if h.get('platform') == 'iOS' and h.get('reality') != 'simulated':
         print('  {}  {}  ({})'.format(
             d['deviceProperties'].get('name'),
             d.get('identifier'),
