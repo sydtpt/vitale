@@ -123,6 +123,80 @@ export function periodBounds(now: Date, kind: PeriodKind, offset = 0): PeriodBou
 }
 
 /**
+ * O `offset` do período do tipo `kind` que **começa** em `startISO`, contado a
+ * partir de `now` — o inverso de {@link periodBounds}.
+ *
+ * Existe para a rota da revista (`/revista/[tipo]/[inicio]`, Story 1.11): o
+ * endereço guarda o início do período, que é o que não muda com o relógio, e a
+ * tela precisa do `offset` para montar a mesma entrada que a Retrospectiva monta.
+ * Com ele a rota passa pelo **mesmo** `periodBounds` que a Retrospectiva usa, e não
+ * por um segundo cálculo de período.
+ *
+ * `null` quando:
+ *
+ * - `kind` é `all` — o Total não tem início que o localize (e não tem edição);
+ * - `startISO` não é uma data `YYYY-MM-DD` que exista (`2026-02-30` não existe);
+ * - a data existe e **não é o primeiro dia** de um período do tipo: `2026-08-02`
+ *   num mês, `2026-05-01` numa estação, uma terça-feira numa semana.
+ *
+ * Não julga se o período já fechou nem se está à frente de `now`: isso é o
+ * `periodoFechado`, que a rota pergunta depois. Um início no futuro devolve o
+ * `offset` positivo dele.
+ *
+ * **A última palavra é do próprio `periodBounds`**: o `offset` calculado só é
+ * devolvido se o período dele começa exatamente em `startISO`. É o que impede
+ * as contas de semana e de estação de concordarem entre si e discordarem da
+ * função que a Retrospectiva usa.
+ */
+export function offsetDoInicio(now: Date, kind: PeriodKind, startISO: string): number | null {
+  if (kind === 'all') return null;
+  const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startISO);
+  if (!partes) return null;
+  const ano = Number(partes[1]);
+  const mes = Number(partes[2]) - 1;
+  const dia = Number(partes[3]);
+  const inicio = new Date(ano, mes, dia);
+  // `new Date(99, …)` é 1999: o ano entra pelo `setFullYear`, e a data que não
+  // existe (30 de fevereiro) não volta com os mesmos componentes.
+  inicio.setFullYear(ano);
+  if (inicio.getFullYear() !== ano || inicio.getMonth() !== mes || inicio.getDate() !== dia) return null;
+
+  let offset: number;
+  switch (kind) {
+    case 'week': {
+      // Dias de calendário, pela meia-noite UTC dos componentes: a troca de
+      // horário de verão encurta um dia local em uma hora, e dividir
+      // milissegundos locais por 24 h erraria o arredondamento na semana dela.
+      const segunda = periodBounds(now, 'week', 0).start;
+      const dias = Math.round(
+        (Date.UTC(ano, mes, dia) - Date.UTC(segunda.getFullYear(), segunda.getMonth(), segunda.getDate()))
+        / 86_400_000,
+      );
+      if (dias % 7 !== 0) return null;
+      offset = dias / 7;
+      break;
+    }
+    case 'month':
+      offset = (ano - now.getFullYear()) * 12 + (mes - now.getMonth());
+      break;
+    case 'season': {
+      const meses = (ano - now.getFullYear()) * 12 + (mes - Math.floor(now.getMonth() / 3) * 3);
+      if (meses % 3 !== 0) return null;
+      offset = meses / 3;
+      break;
+    }
+    case 'year':
+      offset = ano - now.getFullYear();
+      break;
+  }
+
+  const b = periodBounds(now, kind, offset).start;
+  if (b.getFullYear() !== ano || b.getMonth() !== mes || b.getDate() !== dia) return null;
+  // `-0` é zero para quem lê, e não para `Object.is`: a rota compara offsets.
+  return offset === 0 ? 0 : offset;
+}
+
+/**
  * O rótulo **real** do período anterior a um que começa em `startISO` —
  * `"Julho 2026"`, `"27/07 – 02/08"`, `"2024"`.
  *

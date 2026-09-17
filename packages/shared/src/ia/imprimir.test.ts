@@ -13,7 +13,7 @@ import type { Descritor, EventoDoAnel } from './orquestrar';
 import { PACOTE_VERSAO, type EntradaPacote, type PacoteDeFatos } from './pacote';
 import { PROMPT_VERSAO } from './prompt';
 import {
-  imprimir, type DesfechoDoCaderno, type Impressao, type OpcoesDaImpressao, type PeriodoDaEdicao,
+  cadernosComDado, imprimir, type DesfechoDoCaderno, type Impressao, type OpcoesDaImpressao, type PeriodoDaEdicao,
   type ResultadoDaImpressao,
 } from './imprimir';
 // A sequência com descritor injetável fica fora do barril — só os testes do núcleo a
@@ -638,6 +638,55 @@ describe('o aviso lança — a impressão segue', () => {
     } finally {
       process.off('unhandledRejection', ouvir);
     }
+  });
+});
+
+/**
+ * `cadernosComDado` — a pergunta da tela da revista (Story 1.11): quais seções
+ * existem. Tem de ser a mesma resposta da impressão, em outra ordem.
+ */
+describe('cadernosComDado — quem tem o que dizer, pela régua da impressão', () => {
+  it('em ordem de catálogo, e não na do ranqueamento', () => {
+    // O ranqueamento de agosto lê Movimento, Rotina, Sono (o primeiro teste da
+    // matriz); o catálogo é Sono, Movimento, Coração, Rotina.
+    assert.deepEqual(cadernosComDado(entrada()), ['sono', 'movimento', 'rotina']);
+    assert.deepEqual(cadernosComDado(entrada(agosto({ fc: true }))), ['sono', 'movimento', 'coracao', 'rotina']);
+  });
+
+  it('caderno sem dado não aparece — o Coração sem FC', () => {
+    assert.equal(cadernosComDado(entrada()).includes('coracao'), false);
+  });
+
+  it('o mesmo conjunto que a impressão lê', async () => {
+    for (const resumo of [agosto(), agosto({ fc: true }), agosto({ sono: null })]) {
+      const h = hospedeiro();
+      await imprimir(entrada(resumo), h.portas, h.opcoes());
+      const lidos = h.rotulosPedidos().map((r) => (Object.keys(ROTULO) as CadernoId[]).find((c) => ROTULO[c] === r));
+      assert.deepEqual([...lidos].sort(), [...cadernosComDado(entrada(resumo))].sort());
+    }
+  });
+
+  /**
+   * O Sono cuja única coisa a dizer é a cobertura de noites: sem métrica nenhuma,
+   * mas com `resumo.sleep`. A impressão deriva a cobertura e o lê; uma tela que
+   * montasse os pacotes sem ela o esconderia.
+   */
+  it('com a cobertura de noites do Sono que a impressão deriva', async () => {
+    const semMetricaDeSono = { ...agosto({ sono: { cur: 26, prev: 25 } }), health: [] } as RetroSummary;
+    assert.deepEqual(cadernosComDado(entrada(semMetricaDeSono)), ['sono', 'movimento', 'rotina']);
+    const h = hospedeiro();
+    await imprimir(entrada(semMetricaDeSono), h.portas, h.opcoes());
+    assert.ok(h.rotulosPedidos().includes('Sono'), 'a impressão não leu o Sono — a régua mudou');
+    // Sem `resumo.sleep`, não há cobertura a derivar, e o Sono sem métrica é vazio.
+    const semNoites = { ...agosto({ sono: null }), health: [] } as RetroSummary;
+    assert.deepEqual(cadernosComDado(entrada(semNoites)), ['movimento', 'rotina']);
+  });
+
+  it('não olha o relógio: período em curso também responde', () => {
+    assert.deepEqual(
+      cadernosComDado({ resumo: agosto(), agora: new Date(2026, 7, 20, 12, 0, 0) }),
+      ['sono', 'movimento', 'rotina'],
+    );
   });
 });
 
