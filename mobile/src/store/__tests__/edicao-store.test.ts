@@ -1049,6 +1049,21 @@ describe('precisaGarantirJanela — o efeito que pede a janela da Retrospectiva'
   it('nada carregado ainda: precisa', () => {
     expect(precisaGarantirJanela({ loaded: false, loading: false, loadedSince: null }, since)).toBe(true);
   });
+
+  /**
+   * O freio do laço quente: a busca falhou, `loading` voltou a falso e a janela
+   * segue descoberta — as duas condições que dariam "precisa". Se a resposta fosse
+   * sim, o efeito pediria de novo no mesmo quadro, e de novo, enquanto a rede
+   * estivesse fora. Quem tenta outra vez é o foco da tela, que chama `ensure` direto.
+   */
+  it('a janela que falhou não é pedida de novo sozinha', () => {
+    expect(precisaGarantirJanela({ loaded: false, loading: false, loadedSince: null, falhouEm: since }, since)).toBe(false);
+    expect(precisaGarantirJanela({ loaded: true, loading: false, loadedSince: '2026-08-01', falhouEm: since }, since)).toBe(false);
+  });
+
+  it('a falha é de uma janela, não da store: outro período segue pedindo', () => {
+    expect(precisaGarantirJanela({ loaded: false, loading: false, loadedSince: null, falhouEm: '2026-01-01' }, since)).toBe(true);
+  });
 });
 
 describe('dadosProntosParaImprimir', () => {

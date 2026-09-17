@@ -188,12 +188,23 @@ export function dadosProntosParaImprimir(
  * Quem chamou nesse instante perde a vez, e nada o chamaria de novo quando a busca
  * terminasse: os dados nunca ficariam prontos até o próximo foco. O efeito que
  * garante a janela reage a esta resposta, e ela muda quando `loading` volta a falso.
+ *
+ * **Falha não se repete sozinha.** `loading` voltando a falso é o que dispara o
+ * efeito de novo; se a busca falhou, pedi-la no mesmo quadro daria um laço quente
+ * enquanto a rede estivesse fora. Por isso a janela que falhou (`falhouEm`) responde
+ * não — quem tenta de novo é o foco da tela, que chama `ensure` direto.
  */
 export function precisaGarantirJanela(
-  retro: { readonly loaded: boolean; readonly loading: boolean; readonly loadedSince: string | null },
+  retro: {
+    readonly loaded: boolean;
+    readonly loading: boolean;
+    readonly loadedSince: string | null;
+    readonly falhouEm?: string | null;
+  },
   since: string,
 ): boolean {
   if (retro.loading) return false;
+  if (retro.falhouEm === since) return false;
   return !(retro.loaded && retro.loadedSince !== null && retro.loadedSince <= since);
 }
 

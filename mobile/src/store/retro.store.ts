@@ -48,6 +48,14 @@ interface RetroState {
   loading: boolean;
   loaded: boolean;
   loadedSince: string | null;
+  /**
+   * O `since` cuja busca **falhou**, ou nulo. Não é mensagem de erro: é o freio do
+   * pedido automático. Sem ele, soltar o `loading` numa falha faz o efeito que
+   * chama `ensure` disparar de novo no mesmo quadro (`loading` é dependência
+   * dele), e uma rede fora do ar vira laço quente. Quem tenta de novo é o foco da
+   * tela — e o acerto o limpa.
+   */
+  falhouEm: string | null;
 
   health: Array<{ day: string; metric: string; value: number | null }>;
   ratings: Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>;
@@ -130,6 +138,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
     loading: false,
     loaded: false,
     loadedSince: null,
+    falhouEm: null,
     health: [], ratings: [], habits: [], habitLogs: [], registros: [], registroLogs: [], tasks: [], dailyTasks: [], purchases: [],
     sleepPeriods: [],
 
@@ -143,61 +152,70 @@ export const useRetroStore = create<RetroState>((set, get) => {
       set({ loading: true });
       void useActivitiesStore.getState().load();
 
-      const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs, sleepPeriods] =
-        await Promise.all([
-          fetchHealthDailyValues(supabase, userId, since),
-          fetchDailyRatingScores(supabase, userId, since),
-          fetchHabitSummaries(supabase, userId),
-          fetchHabitLogsSince(supabase, userId, since),
-          fetchRegistroSummaries(supabase, userId),
-          fetchRegistroLogsSince(supabase, userId, since),
-          fetchTodoTemplateSummaries(supabase, userId),
-          fetchDoneTodoOccurrencesSince(supabase, userId, since),
-          // Por dia de acordar ≥ `since`: a mesma janela dos deltas e dos 90 dias.
-          fetchSleepPeriodsSince(supabase, userId, since),
-        ]);
+      // Uma busca que rejeita não pode deixar `loading` preso: a guarda de
+      // reentrada lá em cima recusaria **toda** tentativa seguinte, e a tela
+      // ficaria sem botão, sem explicação e sem fim de carregamento até o app
+      // reiniciar — o que a rota da revista mostra como "ainda não foi escrito".
+      // É a mesma forma do `health-daily.store`.
+      try {
+        const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs, sleepPeriods] =
+          await Promise.all([
+            fetchHealthDailyValues(supabase, userId, since),
+            fetchDailyRatingScores(supabase, userId, since),
+            fetchHabitSummaries(supabase, userId),
+            fetchHabitLogsSince(supabase, userId, since),
+            fetchRegistroSummaries(supabase, userId),
+            fetchRegistroLogsSince(supabase, userId, since),
+            fetchTodoTemplateSummaries(supabase, userId),
+            fetchDoneTodoOccurrencesSince(supabase, userId, since),
+            // Por dia de acordar ≥ `since`: a mesma janela dos deltas e dos 90 dias.
+            fetchSleepPeriodsSince(supabase, userId, since),
+          ]);
 
-      const tmplById = new Map(templates.map((t) => [t.id, t]));
-      const tasks: { doneDay: string; module: string }[] = [];
-      const purchases: { doneDay: string; cat?: string; price?: number; name: string }[] = [];
-      // Dias de conclusão por série diária — o gatilho nomeado do cruzamento.
-      const dailyDays = new Map<string, Set<string>>();
-      for (const o of occs) {
-        if (!o.doneAt) continue;
-        const tmpl = tmplById.get(o.templateId);
-        if (!tmpl) continue;
-        const doneDay = localDateStr(new Date(o.doneAt));
-        tasks.push({ doneDay, module: tmpl.module });
-        if (isDailyRecurrence(tmpl.recurrence)) {
-          let d = dailyDays.get(tmpl.id);
-          if (!d) { d = new Set(); dailyDays.set(tmpl.id, d); }
-          d.add(doneDay);
+        const tmplById = new Map(templates.map((t) => [t.id, t]));
+        const tasks: { doneDay: string; module: string }[] = [];
+        const purchases: { doneDay: string; cat?: string; price?: number; name: string }[] = [];
+        // Dias de conclusão por série diária — o gatilho nomeado do cruzamento.
+        const dailyDays = new Map<string, Set<string>>();
+        for (const o of occs) {
+          if (!o.doneAt) continue;
+          const tmpl = tmplById.get(o.templateId);
+          if (!tmpl) continue;
+          const doneDay = localDateStr(new Date(o.doneAt));
+          tasks.push({ doneDay, module: tmpl.module });
+          if (isDailyRecurrence(tmpl.recurrence)) {
+            let d = dailyDays.get(tmpl.id);
+            if (!d) { d = new Set(); dailyDays.set(tmpl.id, d); }
+            d.add(doneDay);
+          }
+          if (tmpl.module === 'compras') {
+            const meta = tmpl.meta ?? {};
+            purchases.push({
+              doneDay,
+              cat: typeof meta['cat'] === 'string' ? (meta['cat'] as string) : undefined,
+              price: typeof meta['price'] === 'number' ? (meta['price'] as number) : undefined,
+              name: tmpl.name,
+            });
+          }
         }
-        if (tmpl.module === 'compras') {
-          const meta = tmpl.meta ?? {};
-          purchases.push({
-            doneDay,
-            cat: typeof meta['cat'] === 'string' ? (meta['cat'] as string) : undefined,
-            price: typeof meta['price'] === 'number' ? (meta['price'] as number) : undefined,
-            name: tmpl.name,
-          });
-        }
+
+        set({
+          health,
+          ratings,
+          habits,
+          habitLogs,
+          registros,
+          registroLogs,
+          tasks, purchases,
+          sleepPeriods,
+          dailyTasks: templates
+            .filter((t) => t.active && isDailyRecurrence(t.recurrence))
+            .map((t) => ({ id: t.id, name: t.name, days: dailyDays.get(t.id) ?? new Set<string>(), createdOn: t.createdOn })),
+          loading: false, loaded: true, loadedSince: since, falhouEm: null,
+        });
+      } catch {
+        set({ loading: false, falhouEm: since });
       }
-
-      set({
-        health,
-        ratings,
-        habits,
-        habitLogs,
-        registros,
-        registroLogs,
-        tasks, purchases,
-        sleepPeriods,
-        dailyTasks: templates
-          .filter((t) => t.active && isDailyRecurrence(t.recurrence))
-          .map((t) => ({ id: t.id, name: t.name, days: dailyDays.get(t.id) ?? new Set<string>(), createdOn: t.createdOn })),
-        loading: false, loaded: true, loadedSince: since,
-      });
     },
 
     summary: (now, kind, offset) => buildRetrospective(buildInput(now, kind, offset)),
