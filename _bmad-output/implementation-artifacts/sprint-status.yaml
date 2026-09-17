@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 17-09-2026 21:10
+last_updated: 2026-09-17
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -209,7 +209,7 @@ development_status:
   # SÓ ADICIONAR implementação nova de Motor, nunca alterar a assinatura do
   # tipo existente, ou quebra quem já mergeou. Rodar
   # `pnpm --filter @vitale/shared lint && test` antes de mergear.
-  5-6-vários-motores-de-nuvem: backlog
+  5-6-vários-motores-de-nuvem: in-progress
   # ▼ PRÓXIMA SPRINT (F4–F5). Estão aqui para aparecer no quadro, não para começar.
   5-7-o-nome-de-rota-pela-porta: backlog
   5-8-core-ai: backlog
