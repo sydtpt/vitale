@@ -459,7 +459,28 @@ export async function syncType(
   }
 }
 
-export async function syncDelta(): Promise<SyncResult> {
+/** O que o delta avisa enquanto roda. */
+export interface OpcoesDoDelta {
+  /**
+   * As atividades acabaram de subir. Chamado logo depois do upsert, **antes** do
+   * resto do ciclo — rotas, tarefas, fotos, âncora, rotas faltantes e piso — e
+   * esperado antes de seguir.
+   *
+   * **Por que aqui, e não no fim.** Com o app fechado, o HealthKit acorda o
+   * processo e a lib chama o `completionHandler` do observer na hora; o iOS
+   * congela o app segundos depois. O delta leva 8–11 s mesmo em primeiro plano,
+   * e o aviso que ficava no fim só saía na próxima abertura: medido em
+   * 17/09/2026, um treino de yoga no banco às 08:21:21 e a notificação às 08:34
+   * (`delta 793227ms`, o mesmo ciclo congelado por 13 min). O aviso é o único
+   * passo que o dono vê com o app fechado, e é barato — por isso ele vai logo
+   * depois do que ele anuncia.
+   *
+   * Exceção aqui é engolida: o aviso não derruba o sync.
+   */
+  aoSubir?: (atividades: readonly SyncedActivity[]) => Promise<void> | void;
+}
+
+export async function syncDelta(opcoes: OpcoesDoDelta = {}): Promise<SyncResult> {
   const base: SyncResult = { pushed: 0, deleted: 0, routes: 0, queued: 0, ok: false };
 
   const userId = await currentUserId();
@@ -494,6 +515,16 @@ export async function syncDelta(): Promise<SyncResult> {
     );
 
     const a = await pushActivities(rows);
+    const subidas: SyncedActivity[] = a.pushedRows.map((row) => ({ id: row.id, activityId: row.activity_id }));
+    // O aviso vem ANTES de todo o resto: é o que precisa caber na janela de
+    // background (ver `OpcoesDoDelta.aoSubir`).
+    if (subidas.length > 0 && opcoes.aoSubir) {
+      try {
+        await opcoes.aoSubir(subidas);
+      } catch (e) {
+        console.warn('[sync] aviso de atividades falhou:', e instanceof Error ? e.message : e);
+      }
+    }
     const r = await pushRoutes(routes, userId);
     requestServerReconcile(a.pushed + drained);
 
@@ -570,7 +601,7 @@ export async function syncDelta(): Promise<SyncResult> {
       error: a.error ?? r.error,
       labels,
       tasksCreated,
-      syncedActivities: a.pushedRows.map((row) => ({ id: row.id, activityId: row.activity_id })),
+      syncedActivities: subidas,
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Erro no sync.';

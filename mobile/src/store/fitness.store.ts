@@ -295,7 +295,12 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
   },
 
   runDelta: async () => {
-    const result = await runSyncDelta();
+    // O aviso de atividade sincronizada sai de DENTRO do ciclo, logo depois do
+    // upsert — e não daqui, depois do `await`. Com o app fechado, o iOS congela
+    // o processo segundos depois de o HealthKit acordá-lo, e o fim do delta (8–11 s)
+    // só chegava na próxima abertura: a notificação de um treino gravado às
+    // 08:21:21 apareceu às 08:34 (17/09/2026). Ver `OpcoesDoDelta.aoSubir`.
+    const result = await runSyncDelta({ aoSubir: notifyActivitySync });
     const labels = result.labels ?? [];
     if (!result.ok || labels.length === 0) return;
     const now = new Date().toISOString();
@@ -309,8 +314,8 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
       return { typeStatus, lastSyncedAt };
     });
     refreshActivityList(result);
-    // Notificações de evento (separadas por tipo; cada uma respeita seu toggle).
-    void notifyActivitySync(result.syncedActivities ?? []);
+    // A de tarefas automáticas fica no fim: as tarefas só existem depois do
+    // vínculo, que roda depois do upsert. Ela ainda pode atrasar em background.
     if ((result.tasksCreated ?? 0) > 0) void notifyAutoTasks(result.tasksCreated ?? 0);
   },
 }));
