@@ -201,4 +201,16 @@ development_status:
   5-6-vários-motores-de-nuvem: backlog
   5-7-o-nome-de-rota-pela-porta: backlog
   5-8-core-ai: backlog
+  # 5.9 REABERTA em 17/09/2026: é o marco B que saiu da 5.5 "por desenho"
+  # quando ela fechou em 16/09 (commit 6bcb3fc) — ninguém tinha story própria
+  # pra ele. Os portões de SO que o bloqueavam (macOS 27, Xcode 27, iPhone no
+  # 27) estão confirmados nesta máquina: xcodebuild 27.0 (build 27A266a),
+  # Swift 6.4, macOS 27.0. Sem risco aberto na espinha da arquitetura — ao
+  # contrário da 5.8/Core AI, que segue com 4 riscos não resolvidos no
+  # Deferred (licença/abordagem indecisa entre alvo mínimo iOS 27, vendorizar
+  # apple/coreai-models ou conformidade própria; Xcode 27 fora da imagem EAS
+  # da SDK 57 — só build local; memória por tamanho; pesos sem guardrail da
+  # Apple num recurso de saúde) e por isso NÃO foi reaberta junto.
+  # Worktree life-organizer-wt-motores-5-9, branch feat/motores-5-9.
+  5-9-a-ponte-swift-on-device-engine: backlog
   epic-5-retrospective: optional
