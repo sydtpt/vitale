@@ -145,7 +145,9 @@ substituir. Cada item cita o `AD` que o governa.
   veredito, contagens, noites faltantes e portão reprovado. Nulo é "não medido".
 - **AD-6** — O teste lunar mora em `sleep/lua.ts`; `astro/moon.ts` ganha o instante das
   fases (Meeus 49). Janela `[cheia − 5 dias, cheia)`, aberta à direita. A noite é
-  representada por instante fixo do entardecer, nunca pelo desfecho medido.
+  representada por instante fixo do fim da noite (08:00 UTC do `wakeDay`), nunca pelo
+  desfecho medido. *(Era "do entardecer" até 17/09/2026; a nota datada, com os dois erros
+  residuais declarados, está na AD-6 da espinha.)*
 - **AD-7** — Barreira do hash incondicional e offline, pinando a cadeia inteira
   (pré-registro + cada documento de correção).
 - **AD-8** — `onAccent` entra em `RoleTokens` e `ModuleTokens`; barreira com duas
@@ -385,8 +387,9 @@ com o mesmo corpo de letra de um achado.
 
 **Notas:** os dois artefatos obrigatórios já existem — `correcao-pre-registro-lua.md` e a
 ADR 0046 —, então o épico está liberado. A janela é `[cheia − 5 dias, cheia)`, aberta à
-direita, e a noite é representada por instante fixo do entardecer, nunca pelo desfecho
-medido (`AD-6`).
+direita, e a noite é representada por instante fixo do fim da noite (08:00 UTC do
+`wakeDay`), nunca pelo desfecho medido (`AD-6`). *(Era "do entardecer" até 17/09/2026; a
+nota datada, com os dois erros residuais declarados, está na AD-6 da espinha.)*
 
 ### Épico 5: Os motores
 
@@ -1382,6 +1385,12 @@ sai da elongação com até ~0,8 dia de erro
 **Then** ele fica na casa dos **minutos**
 **And** 0,8 dia numa janela de cinco embaralharia a coluna testada com a de controle
 
+> **Decidido em 17/09/2026, pelo dono:** a efeméride entrega o instante das **quatro** fases
+> (nova, quarto crescente, cheia e quarto minguante), não só o da cheia. O teste cobra, contra
+> o USNO de 2023 a 2027, **2 min por fase** e, sobre os erros com sinal de todas as fases, o
+> **viés e a dispersão** (|média| ≤ 30 s e RMS ≤ 30 s) — só a tolerância por fase deixava
+> passar o ΔT zerado e os termos planetários removidos.
+
 **Given** o §3 pré-registrou *"as 5 noites que **antecedem** a cheia (fase −5 a −1)"*
 **When** a janela é calculada
 **Then** ela é **`[cheia − 5 dias, cheia)`** — aberta à direita
@@ -1390,16 +1399,29 @@ valor esperado sob a hipótese e excluiria a −5, deslocando a coluna testada
 
 **Given** o desfecho medido é a hora de apagar, que atravessa a meia-noite por desenho
 **When** uma noite é classificada dentro ou fora da janela
-**Then** ela é representada por um **instante fixo do entardecer**
+**Then** ela é representada por um **instante fixo do fim da noite (08:00 UTC do `wakeDay`)**
 **And** **nunca** pelo `apagou` medido — classificar a exposição pelo desfecho seria endógeno:
 se a lua atrasa o adormecer, uma noite na fronteira trocaria de coluna por causa do efeito
 que está sendo medido
+
+> **Mudou em 17/09/2026, por decisão do dono:** do entardecer para o fim da noite, e na
+> revisão da story de 11:00 para 08:00 UTC. Os dois erros que qualquer hora fixa carrega
+> ficam declarados — acordar antes das 08:00 UTC pode tirar da janela a noite que terminou
+> antes da cheia (contra o achado); acordar depois pode pôr nela, como −1, a noite que a
+> contém (a favor). A nota completa está na **AD-6** da espinha da revista
+> (`architecture-Orbe-revista-2026-09-08/ARCHITECTURE-SPINE.md`); o pré-registro não muda.
 
 ### Story 4.2: O teste lunar sob protocolo, e `lua_execucoes`
 
 As a dono do Orbe,
 I want que o teste rode exatamente como foi fixado antes de eu olhar o dado,
 So that um sistema que procura o que eu já acredito não encontre.
+
+> **Regra de ordem, decidida em 17/09/2026.** O pré-registro novo das outras fases (lua nova,
+> quarto crescente e quarto minguante) tem de ser **escrito e datado antes da primeira execução
+> desta story**. A coluna "fora" da cheia contém as noites das outras fases: rodar a 4.2 e ver a
+> mediana dela contamina em parte o pré-registro seguinte. Ver a entrada sobre as outras fases
+> em `_bmad-output/implementation-artifacts/deferred-work.md`.
 
 **Acceptance Criteria:**
 
