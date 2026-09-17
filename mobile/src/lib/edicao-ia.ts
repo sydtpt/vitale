@@ -20,7 +20,9 @@
  * ordena caderno ou nomeia a função do banco — há barreira no
  * `architecture.test.ts` para cada uma dessas coisas.
  */
+import type { Ionicons } from '@expo/vector-icons';
 import {
+  LAPIDES,
   MESES_ABREV,
   MESES_COMPLETOS,
   NUVEM_PADRAO,
@@ -28,6 +30,7 @@ import {
   descritorDaRetrospectiva,
   fetchEdicao,
   imprimir,
+  lapidesDosCadernos,
   localDateStr,
   offsetDoInicio,
   periodBounds,
@@ -42,6 +45,8 @@ import {
   type Edicao,
   type EntradaPacote,
   type EventoDoAnel,
+  type LapidesPorCaderno,
+  type MetricaComLapide,
   type Motor,
   type MotorId,
   type PeriodKind,
@@ -430,5 +435,108 @@ export function comDadoDaEntrada(entrada: EntradaPacote, dadosProntos: boolean):
   } catch (e) {
     console.warn('[revista] cadernosComDado recusou a entrada:', e);
     return null;
+  }
+}
+
+/* ── os cadernos desenhados (Story 1.12) ─────────────────────────────────── */
+
+/**
+ * O ícone de cada caderno, dentro da faixa — **o segundo portador da
+ * identidade**.
+ *
+ * A cor sozinha não basta: Movimento (laranja) e Coração (vermelho) medem ΔE 4,1
+ * a 9,9 em cinco das seis paletas, e só a acessível os separa. O ícone resolve
+ * essa colisão e resolve daltonismo no mesmo gesto — por isso ele não é
+ * decoração, e por isso a faixa nunca é só cor + nome.
+ *
+ * Três vêm do `ICON_MAP` da Retrospectiva (`sleep`, `heart`, `habit`), pelos
+ * mesmos glifos. O quarto é novo, e **com o viés declarado**: o mapa tem
+ * `barbell-outline` para treino e `walk-outline` para distância, e nenhum dos
+ * dois é o que Movimento majoritariamente é. A pedalada domina o acervo (555
+ * atividades, 138 rotas com piso, 1.210 fotos), então `bicycle-outline` diz a
+ * verdade sobre o caderno — e corrida e caminhada ficam sob ele. É uma escolha
+ * de maioria, não de cobertura: se um dia a corrida virar o grosso do acervo, o
+ * ícone muda com ela.
+ */
+export const ICONE_DO_CADERNO: Readonly<Record<CadernoId, keyof typeof Ionicons.glyphMap>> = Object.freeze({
+  sono: 'moon-outline',
+  movimento: 'bicycle-outline',
+  coracao: 'heart-outline',
+  rotina: 'checkmark-circle-outline',
+});
+
+/**
+ * A frase da lápide, partida onde a família de fonte muda.
+ *
+ * `{nome} — última medida em DD/MM/AAAA.` — e a **data sai em mono**, porque é
+ * carimbo de medida, do mesmo tipo da assinatura. A regra "número dentro de frase
+ * continua serifado" vale para a prosa narrada; a lápide é registro.
+ */
+export interface FraseDaLapide {
+  /** Tudo antes da data — `"anéis de atividade — última medida em "`. */
+  readonly antes: string;
+  /** A data, `DD/MM/AAAA`. Em mono na tela. */
+  readonly data: string;
+  /** O que fecha a frase: o ponto. */
+  readonly depois: string;
+  /** A frase inteira, numa linha — para teste e para quem não separa famílias. */
+  readonly texto: string;
+}
+
+/**
+ * `YYYY-MM-DD` → `DD/MM/AAAA`, **sem `Date`**.
+ *
+ * Um `new Date('2026-08-17')` é lido como meia-noite UTC e volta 16/08 em todo
+ * fuso a oeste — a data da morte andaria um dia para quem lê em Brasília. A
+ * lápide é um carimbo de calendário, não um instante: fatiar a string é a
+ * operação certa, não um atalho.
+ *
+ * O que não tem a forma de um dia volta como veio: o núcleo já recusa data
+ * impossível, e inventar aqui esconderia a recusa dele.
+ */
+function dataDaLapide(ultimaMedidaISO: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ultimaMedidaISO);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : ultimaMedidaISO;
+}
+
+/**
+ * A frase de uma lápide — o nome em prosa do catálogo (`LAPIDES`) e a data.
+ *
+ * **Nada de "verifique suas conexões".** Isso é conselho, e conselho está
+ * proibido na revista; o alerta operacional vive em Conexões, com o tempo do
+ * agora. A edição congela: em 2030 a de agosto/2026 ainda dirá que os anéis
+ * pararam — o que como história está certo e como alerta seria ruído.
+ */
+export function fraseDaLapide(metrica: MetricaComLapide, ultimaMedidaISO: string): FraseDaLapide {
+  const antes = `${LAPIDES[metrica].nome} — última medida em `;
+  const data = dataDaLapide(ultimaMedidaISO);
+  return { antes, data, depois: '.', texto: `${antes}${data}.` };
+}
+
+/** Nenhuma lápide, nos quatro cadernos — a resposta quando o núcleo recusa a entrada. */
+const SEM_LAPIDE: LapidesPorCaderno = Object.freeze({
+  sono: Object.freeze([]), movimento: Object.freeze([]),
+  coracao: Object.freeze([]), rotina: Object.freeze([]),
+});
+
+/**
+ * As lápides desta edição, por caderno — a resposta do núcleo
+ * (`lapidesDosCadernos`), ou **tudo vazio** quando ele recusa a entrada.
+ *
+ * Mesmo molde de {@link comDadoDaEntrada}: só uma lápide inválida faz o núcleo
+ * recusar (métrica fora do catálogo, data impossível, lápide repetida), a recusa
+ * vai para o log e a rota **nunca cai** — o caderno é desenhado sem lápide. A
+ * impressão recusaria a mesma entrada, e é lá que o erro tem de doer.
+ *
+ * Diferente do `comDadoDaEntrada`, não há estado "sem resposta": a lápide não
+ * habilita botão nenhum, então o vazio é uma resposta legítima e não um `null`
+ * que a tela tenha de tratar.
+ */
+export function lapidesDaEntrada(entrada: EntradaPacote): LapidesPorCaderno {
+  try {
+    return lapidesDosCadernos(entrada);
+  } catch (e) {
+    console.warn('[revista] lapidesDosCadernos recusou a entrada:', e);
+    return SEM_LAPIDE;
   }
 }

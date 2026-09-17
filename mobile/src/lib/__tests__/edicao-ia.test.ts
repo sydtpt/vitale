@@ -48,7 +48,10 @@ jest.mock('../motores', () => ({ motorPara: () => undefined }));
 
 import {
   APARELHO_SISTEMA,
+  CADERNO_IDS,
   CLASSES_DE_FALHA,
+  LAPIDES,
+  METRICAS_COM_LAPIDE,
   NUVEM_PADRAO,
   SEM_MODELO,
   type CadernoId,
@@ -65,14 +68,17 @@ import {
 } from '@vitale/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  ICONE_DO_CADERNO,
   assinaturaDoCaderno,
   buscarEdicao,
   classeDoDesfecho,
   comDadoDaEntrada,
   hrefDaRevista,
   dataDaAssinatura,
+  fraseDaLapide,
   fraseDoNaoImpresso,
   imprimirEdicao,
+  lapidesDaEntrada,
   naoImpressoDe,
   problemasDoDesfecho,
   PROBLEMAS_NA_TELA,
@@ -669,5 +675,126 @@ describe('comDadoDaEntrada — a resposta que a tela e as ações dividem', () =
     expect(comDadoDaEntrada(recusada, true)).toBeNull();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+/* ── os cadernos desenhados (Story 1.12) ─────────────────────────────────── */
+
+describe('ICONE_DO_CADERNO — o segundo portador da identidade', () => {
+  it('um ícone por caderno, e nenhum repetido', () => {
+    expect(Object.keys(ICONE_DO_CADERNO).sort()).toEqual([...CADERNO_IDS].sort());
+    const glifos = CADERNO_IDS.map((c) => ICONE_DO_CADERNO[c]);
+    // Dois cadernos com o mesmo ícone devolveriam a identidade à cor sozinha —
+    // e é justamente Movimento × Coração que a cor não separa em cinco paletas.
+    expect(new Set(glifos).size).toBe(CADERNO_IDS.length);
+  });
+
+  it('são os quatro glifos do DESIGN, com a bicicleta no Movimento', () => {
+    expect(ICONE_DO_CADERNO).toEqual({
+      sono: 'moon-outline',
+      movimento: 'bicycle-outline',
+      coracao: 'heart-outline',
+      rotina: 'checkmark-circle-outline',
+    });
+  });
+
+  it('todos são de traço — a faixa é saturada, e o preenchido viraria mancha', () => {
+    for (const c of CADERNO_IDS) expect(ICONE_DO_CADERNO[c]).toMatch(/-outline$/);
+  });
+});
+
+describe('fraseDaLapide — nome, data e ponto, com a data em mono', () => {
+  it('a forma da frase, com o nome em prosa do catálogo', () => {
+    expect(fraseDaLapide('aneis', '2026-08-17')).toEqual({
+      antes: 'anéis de atividade — última medida em ',
+      data: '17/08/2026',
+      depois: '.',
+      texto: 'anéis de atividade — última medida em 17/08/2026.',
+    });
+    expect(fraseDaLapide('respiracao', '2026-07-10').texto)
+      .toBe('frequência respiratória — última medida em 10/07/2026.');
+  });
+
+  it('as três partes remontam a frase inteira, para toda métrica do catálogo', () => {
+    for (const m of METRICAS_COM_LAPIDE) {
+      const f = fraseDaLapide(m, '2026-07-14');
+      expect(`${f.antes}${f.data}${f.depois}`).toBe(f.texto);
+      expect(f.antes.startsWith(LAPIDES[m].nome)).toBe(true);
+      // Sem conselho: a lápide não manda verificar conexão nenhuma.
+      expect(f.texto).not.toMatch(/conex|verifi|confira/i);
+    }
+  });
+
+  /**
+   * **A data não pode andar com o fuso.** `new Date('2026-08-17')` é meia-noite
+   * UTC e volta 16/08 em todo fuso a oeste — a morte mudaria de dia para quem lê
+   * em Brasília. A função fatia a string, e este teste prende isso: os três
+   * pedaços da data saem, byte a byte, dos três pedaços do ISO.
+   */
+  it('a data sai do ISO por fatia, e não de um Date — nenhum fuso a move', () => {
+    for (const iso of ['2026-01-01', '2026-08-17', '2026-12-31', '2026-03-01']) {
+      const [ano, mes, dia] = iso.split('-');
+      expect(fraseDaLapide('vo2max', iso).data).toBe(`${dia}/${mes}/${ano}`);
+    }
+  });
+
+  it('o que não tem forma de dia volta como veio — inventar esconderia a recusa do núcleo', () => {
+    expect(fraseDaLapide('spo2', '2026-08').data).toBe('2026-08');
+    expect(fraseDaLapide('spo2', '').data).toBe('');
+  });
+});
+
+describe('lapidesDaEntrada — a resposta do núcleo, e a recusa engolida', () => {
+  const comLapides = (lapides: unknown): EntradaPacote =>
+    ({ ...agostoSintetico(), lapides } as unknown as EntradaPacote);
+
+  it('agosto/2026: os anéis do período no Movimento, o VO₂max antigo junto', () => {
+    const r = lapidesDaEntrada(comLapides([
+      { metrica: 'aneis', ultimaMedidaISO: '2026-08-17' },
+      { metrica: 'vo2max', ultimaMedidaISO: '2026-07-14' },
+    ]));
+    expect(r.movimento).toEqual([
+      { metrica: 'vo2max', ultimaMedidaISO: '2026-07-14', doPeriodo: false },
+      { metrica: 'aneis', ultimaMedidaISO: '2026-08-17', doPeriodo: true },
+    ]);
+    expect(r.sono).toEqual([]);
+    expect(r.coracao).toEqual([]);
+    expect(r.rotina).toEqual([]);
+  });
+
+  it('sem lápide na entrada — o que o celular manda hoje — os quatro vazios', () => {
+    expect(lapidesDaEntrada(agostoSintetico())).toEqual({
+      sono: [], movimento: [], coracao: [], rotina: [],
+    });
+  });
+
+  it('entrada que o núcleo recusa: tudo vazio, o motivo no log, e a rota não cai', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const ruim of [
+      [{ metrica: 'nao-existe', ultimaMedidaISO: '2026-08-10' }],
+      [{ metrica: 'aneis', ultimaMedidaISO: '2026-02-30' }],
+      [{ metrica: 'aneis', ultimaMedidaISO: '2026-08-17' }, { metrica: 'aneis', ultimaMedidaISO: '2026-08-18' }],
+    ]) {
+      expect(lapidesDaEntrada(comLapides(ruim))).toEqual({
+        sono: [], movimento: [], coracao: [], rotina: [],
+      });
+    }
+    expect(warn).toHaveBeenCalledTimes(3);
+    warn.mockRestore();
+  });
+
+  /**
+   * A lápide é fato da **entrada**, não da edição: ela existe num caderno que a
+   * régua da impressão considera vazio, e a tela a desenha em qualquer estado.
+   */
+  it('não depende de o caderno ter dado — o Coração sem métrica ainda tem as dele', () => {
+    expect(comDadoDaEntrada(agostoSintetico(), true)).not.toContain('coracao');
+    const r = lapidesDaEntrada(comLapides([
+      { metrica: 'spo2', ultimaMedidaISO: '2026-07-16' },
+      { metrica: 'respiracao', ultimaMedidaISO: '2026-07-10' },
+    ]));
+    // Em ordem de data, e não na de quem chamou.
+    expect(r.coracao.map((l) => l.metrica)).toEqual(['respiracao', 'spo2']);
+    expect(r.coracao.every((l) => !l.doPeriodo)).toBe(true);
   });
 });

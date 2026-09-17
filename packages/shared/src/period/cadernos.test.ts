@@ -9,6 +9,7 @@ import {
   CADERNO_IDS,
   LAPIDES,
   METRICAS_COM_LAPIDE,
+  MODULO_DO_CADERNO,
   cadernoDaMetricaDeSaude,
   cadernoDef,
   isCadernoId,
@@ -16,6 +17,7 @@ import {
   rotuloDoCaderno,
 } from './cadernos';
 import type { CadernoId, MetricaComLapide } from './cadernos';
+import { MODULE_ROLE } from '../theme/palettes';
 import { MONTHS_PT } from './bounds';
 
 /**
@@ -222,6 +224,44 @@ describe('CadernoId — o vocabulário com dono único', () => {
     assert.equal(cadernoDaMetricaDeSaude('aneis'), 'movimento');
     // O que resta de health_daily depois que o sono sai é assunto do Coração.
     assert.equal(cadernoDaMetricaDeSaude('metrica-que-ainda-nao-existe'), 'coracao');
+  });
+});
+
+/* ── a ponte caderno → módulo → papel ── */
+
+describe('MODULO_DO_CADERNO — a ponte é uma só, e mora no núcleo', () => {
+  it('é a ponte do DESIGN: Sono→agua, Movimento→treino, Coração→saude, Rotina→habito', () => {
+    assert.deepEqual({ ...MODULO_DO_CADERNO }, {
+      sono: 'agua', movimento: 'treino', coracao: 'saude', rotina: 'habito',
+    });
+    assert.ok(Object.isFrozen(MODULO_DO_CADERNO), 'o barril exporta o mapa — sem freeze, um consumidor o reescreve');
+  });
+
+  it('responde por todos os quatro, e só por eles', () => {
+    assert.deepEqual(Object.keys(MODULO_DO_CADERNO).sort(), [...CADERNO_IDS].sort());
+  });
+
+  it('todo módulo apontado existe em MODULE_ROLE — a ponte não pode cair no vazio', () => {
+    // `moduleOf()` cai no `fallback` quando a chave é desconhecida: um módulo
+    // escrito errado aqui não explodiria, pintaria **outra** cor, calado.
+    for (const id of CADERNO_IDS) {
+      assert.ok(MODULO_DO_CADERNO[id] in MODULE_ROLE, `${id} aponta para módulo que não existe`);
+    }
+  });
+
+  /**
+   * O que sustenta CAP-7 **na origem**: a faixa existe para dizer *qual* seção
+   * começou, porque a ordem do miolo muda a cada edição. Dois cadernos no mesmo
+   * papel dariam duas faixas com a mesma cor em todas as 36 combinações — e
+   * nenhum teste de tela pegaria isso, porque cada tela estaria certa sozinha.
+   *
+   * Sono e Coração quase caíram nisso: os dois são saúde, e `saude` tem um papel
+   * `red` só. A gramática de sono (azul, por `agua`) resolveu sem inventar nada.
+   */
+  it('os quatro caem em QUATRO papéis distintos de MODULE_ROLE', () => {
+    const papeis = CADERNO_IDS.map((id) => MODULE_ROLE[MODULO_DO_CADERNO[id]]);
+    assert.deepEqual(papeis, ['blue', 'orange', 'red', 'green']);
+    assert.equal(new Set(papeis).size, CADERNO_IDS.length, `dois cadernos no mesmo papel: ${papeis.join(', ')}`);
   });
 });
 

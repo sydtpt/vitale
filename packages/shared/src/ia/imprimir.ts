@@ -31,7 +31,7 @@ import type { PeriodKind } from '../period/bounds';
 import { CADERNO_IDS, type CadernoId } from '../period/cadernos';
 import type { CONCLUSAO } from './motor';
 import type { LeituraDoMotor, LeituraDoPiso, OpcoesDeProduto } from './orquestrar';
-import { cadernoVazio, montarPacotes, type EntradaPacote } from './pacote';
+import { cadernoVazio, lapideDoPeriodo, montarPacotes, type EntradaPacote, type FatoLapide } from './pacote';
 import { descritorDaRetrospectiva } from './retrospectiva';
 import { comCoberturaDoSono, imprimirCom } from './imprimir-sequencia';
 
@@ -177,4 +177,57 @@ export function cadernosComDado(entrada: EntradaPacote): CadernoId[] {
     montarPacotes(comCoberturaDoSono(entrada)).filter((p) => !cadernoVazio(p)).map((p) => p.caderno),
   );
   return CADERNO_IDS.filter((c) => comDado.has(c));
+}
+
+/**
+ * Uma lápide como a edição a desenha: a métrica, a data da última medida e **em
+ * qual dos dois estados** ela aparece.
+ *
+ * `doPeriodo` é a diferença visual inteira (Story 1.12): a lápide do período em
+ * que a métrica morreu vai ao **topo** do caderno, num degrau de corpo de letra;
+ * as outras ficam no **pé**, no corpo normal. Não há terceiro estado.
+ */
+export interface LapideNaEdicao extends FatoLapide {
+  /** A morte aconteceu **neste** período — agosto/2026 para os anéis, e nunca mais. */
+  readonly doPeriodo: boolean;
+}
+
+/** As lápides de cada caderno. Sempre os quatro; sem lápide é lista vazia, não ausência. */
+export type LapidesPorCaderno = Readonly<Record<CadernoId, readonly LapideNaEdicao[]>>;
+
+/**
+ * As lápides desta edição, por caderno — a segunda pergunta que a tela da revista
+ * faz ao núcleo (Story 1.12).
+ *
+ * **Pela mesma régua da impressão, e por isso vem da porta.** `lapideDoPeriodo`,
+ * `montarPacotes` e `LAPIDES` decidem *juntos* quem morreu neste período: o mapa
+ * diz de que caderno é cada métrica, a montagem descarta a morte **posterior** ao
+ * fim (em julho os anéis de 17/08 ainda estavam vivos) e ordena por data, e o
+ * predicado separa a do período das antigas. Repetir essa régua na tela criaria
+ * uma segunda resposta — e a guarda (7) proíbe a tela de importar as peças.
+ *
+ * **Ordenadas por data**, e no mesmo dia pela ordem do catálogo: a resposta é
+ * função do conjunto de lápides, não da ordem em que o chamador as listou.
+ *
+ * **Entrada malformada explode** — métrica fora do catálogo, data que não é dia
+ * de calendário, lápide repetida. É a mesma recusa que a impressão daria, e quem
+ * chama da tela a engole (`lapidesDaEntrada`, no celular) e desenha o caderno sem
+ * lápide.
+ *
+ * Não olha o relógio, como `cadernosComDado`: o período em curso também tem
+ * lápide, e quem decide se há edição é o estado lido.
+ */
+export function lapidesDosCadernos(entrada: EntradaPacote): LapidesPorCaderno {
+  // **Anotação, e não `as`** — isto é barreira, não estilo. Com `as ...` um
+  // caderno novo em `CadernoId` compilaria com a chave faltando aqui, e o
+  // `out[p.caderno].push` abaixo estouraria em runtime, na tela, com um "cannot
+  // read properties of undefined". Anotado, a falta vira erro de compilação no
+  // mesmo commit que acrescenta o caderno.
+  const out: Record<CadernoId, LapideNaEdicao[]> = { sono: [], movimento: [], coracao: [], rotina: [] };
+  for (const p of montarPacotes(comCoberturaDoSono(entrada))) {
+    for (const l of p.lapides) {
+      out[p.caderno].push({ ...l, doPeriodo: lapideDoPeriodo(l, p.periodo) });
+    }
+  }
+  return out;
 }

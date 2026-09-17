@@ -28,6 +28,8 @@
  * tradução entre camadas seria um id a mais para manter em sincronia.
  */
 
+import type { ModuleKey } from '../theme/palettes';
+
 /** Os quatro. A ordem aqui é o desempate do ranqueamento (Story 1.7). */
 export type CadernoId = 'sono' | 'movimento' | 'coracao' | 'rotina';
 
@@ -180,6 +182,44 @@ export function cadernoDef(id: CadernoId): CadernoDef {
 export function rotuloDoCaderno(id: CadernoId): string {
   return cadernoDef(id).rotulo;
 }
+
+/**
+ * O módulo do app de cada caderno — **a ponte caderno → módulo → papel, e ela é
+ * uma só** (DESIGN.md §Os quatro cadernos, e por que cada um tem a cor que tem).
+ *
+ * É daqui que sai a cor da faixa sangrada que abre cada caderno (Story 1.12): a
+ * tela pergunta o módulo e entrega a `moduleOf()`, que responde à paleta e ao
+ * esquema ativos. **Nenhuma tela escolhe cor**, e por isso o mapa mora no núcleo:
+ * uma segunda ponte escrita no celular seria uma segunda resposta, e o dia em que
+ * `MODULE_ROLE` mudasse só uma delas mudaria junto.
+ *
+ * Por que cada um:
+ *
+ * - **Sono → `agua`** (`blue`). Obediência, não escolha: a gramática de sono já é
+ *   azul em toda tela (`sleep/colors.ts` fixa `asleep`/`light`/`deep` na rampa
+ *   azul), e um caderno de Sono vermelho contradiria as telas que ele resume.
+ * - **Movimento → `treino`** (`orange`). É o módulo do treino.
+ * - **Coração → `saude`** (`red`). É o assunto que o painel da web já chama assim.
+ * - **Rotina → `habito`** (`green`). Rotina é o único caderno que fala do que o
+ *   dono **decidiu**, e hábito é o módulo da decisão repetida.
+ *
+ * **Sono e Coração quase colidiram**: os dois são saúde, e `saude` tem um papel
+ * `red` só. Se ambos apontassem para lá, a faixa anunciaria que *há* uma seção e
+ * nunca *qual* — que é exatamente o que ela existe para dizer, porque a ordem do
+ * miolo muda a cada edição. Por isso `cadernos.test.ts` cobra que os quatro caiam
+ * em **quatro papéis distintos** de `MODULE_ROLE`: é a garantia na origem, antes
+ * de qualquer pixel.
+ *
+ * Isso **não** resolve tudo: Movimento (laranja) e Coração (vermelho) medem ΔE
+ * 4,1 a 9,9 em cinco das seis paletas, e só a acessível os separa. Quem resolve
+ * ali é o ícone dentro da faixa — a cor não é o único portador da identidade.
+ */
+export const MODULO_DO_CADERNO: Readonly<Record<CadernoId, ModuleKey>> = Object.freeze({
+  sono: 'agua',
+  movimento: 'treino',
+  coracao: 'saude',
+  rotina: 'habito',
+});
 
 /**
  * A que caderno pertence uma métrica de `health_daily`.
