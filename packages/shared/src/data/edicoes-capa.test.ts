@@ -2,9 +2,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  CAPA_COLUMNS, fetchCapa, isNaturezaDaCapa, toCapa, NATUREZAS_DA_CAPA,
-  type CapaRow,
+  CAPA_COLUMNS, fetchCapa, gravarCapa, isNaturezaDaCapa, toCapa, NATUREZAS_DA_CAPA,
+  type CapaACarimbar, type CapaRow,
 } from './edicoes-capa';
+import { ContaTrocadaNaImpressao } from './edicoes-ia';
 
 /** Projeta pelo que foi pedido, como o PostgREST — ver a nota em `edicoes-ia.test.ts`. */
 function projetar(linha: CapaRow, cols: string): Record<string, unknown> {
@@ -165,5 +166,124 @@ describe('fetchCapa', () => {
       }),
     } as unknown as SupabaseClient;
     await assert.rejects(() => fetchCapa(db, 'u-1', 'month', '2026-08-01', '2026-08-31'), /rls/);
+  });
+});
+
+/* ── o carimbo (Story 1.13) ──────────────────────────────────────────────── */
+
+const A_CARIMBAR: CapaACarimbar = {
+  tipoPeriodo: 'month',
+  inicio: '2026-08-01',
+  fim: '2026-08-31',
+  natureza: 'foto',
+  fotoId: 'f1e2d3c4-0000-4000-8000-000000000001',
+  fotoTakenAt: '2026-08-14T12:38:00.000Z',
+  rotaActivityId: null,
+  legenda: 'Ittre · km 31,1 · 12:38',
+};
+
+function fakeGravacao(opts: { naSessao?: string | null; erro?: Error } = {}) {
+  const capturado: {
+    tabela?: string;
+    linha?: Record<string, unknown>;
+    opcoes?: Record<string, unknown>;
+    colunas?: string;
+    sessoes: number;
+  } = { sessoes: 0 };
+  const db = {
+    auth: {
+      getSession: async () => {
+        capturado.sessoes += 1;
+        const id = opts.naSessao === undefined ? 'u-1' : opts.naSessao;
+        return { data: { session: id ? { user: { id } } : null }, error: null };
+      },
+    },
+    from(tabela: string) {
+      capturado.tabela = tabela;
+      return {
+        upsert(linha: Record<string, unknown>, opcoes: Record<string, unknown>) {
+          capturado.linha = linha;
+          capturado.opcoes = opcoes;
+          return {
+            select(cols: string) {
+              capturado.colunas = cols;
+              return {
+                single: async () => (opts.erro
+                  ? { data: null, error: opts.erro }
+                  : { data: projetar({ ...linhaDoBanco(), ...linha } as CapaRow, cols), error: null }),
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+  return { db: db as unknown as SupabaseClient, capturado };
+}
+
+describe('gravarCapa — a única escrita em edicoes_capa', () => {
+  it('faz upsert pela chave da edição, e devolve a capa relida', async () => {
+    const { db, capturado } = fakeGravacao();
+    const c = await gravarCapa(db, 'u-1', A_CARIMBAR);
+    assert.equal(capturado.tabela, 'edicoes_capa');
+    assert.deepEqual(capturado.opcoes, { onConflict: 'user_id,tipo_periodo,inicio,fim' });
+    assert.equal(capturado.colunas, CAPA_COLUMNS);
+    assert.equal(c.legenda, 'Ittre · km 31,1 · 12:38');
+    assert.equal(c.natureza, 'foto');
+  });
+
+  it('escreve o dono e a linha inteira, em snake_case', () => {
+    const { db, capturado } = fakeGravacao();
+    return gravarCapa(db, 'u-1', A_CARIMBAR).then(() => {
+      assert.equal(capturado.linha!.user_id, 'u-1');
+      assert.equal(capturado.linha!.tipo_periodo, 'month');
+      assert.equal(capturado.linha!.natureza, 'foto');
+      assert.equal(capturado.linha!.foto_id, A_CARIMBAR.fotoId);
+      assert.equal(capturado.linha!.foto_taken_at, A_CARIMBAR.fotoTakenAt);
+      assert.equal(capturado.linha!.rota_activity_id, null);
+      assert.equal(capturado.linha!.legenda, A_CARIMBAR.legenda);
+    });
+  });
+
+  /**
+   * O `default now()` da coluna só vale na INSERÇÃO. Sem escrever o carimbo à
+   * mão, recarimbar guardaria para sempre a hora da primeira impressão — e a capa
+   * diria que é de agosto quando foi reescrita em outubro.
+   */
+  it('carimba a hora à mão, porque o default da coluna não vale no upsert', async () => {
+    const antes = Date.now();
+    const { db, capturado } = fakeGravacao();
+    await gravarCapa(db, 'u-1', A_CARIMBAR);
+    const em = Date.parse(String(capturado.linha!.carimbada_em));
+    assert.ok(Number.isFinite(em), 'carimbada_em não é um instante');
+    assert.ok(em >= antes && em <= Date.now(), 'carimbada_em não é o agora da gravação');
+  });
+
+  /**
+   * A mesma guarda de `portasDaEdicao`, pelo mesmo motivo: a impressão leva um
+   * minuto ou mais, a linha vai para `auth.uid()` pela RLS, e se a conta trocar
+   * nesse meio a capa escolhida sobre as fotos de um dono cairia na edição do
+   * outro.
+   */
+  it('conta trocada no meio da impressão: erra alto e NÃO chama o banco', async () => {
+    const { db, capturado } = fakeGravacao({ naSessao: 'u-2' });
+    await assert.rejects(() => gravarCapa(db, 'u-1', A_CARIMBAR), ContaTrocadaNaImpressao);
+    assert.equal(capturado.tabela, undefined, 'chamou o banco mesmo com a conta trocada');
+  });
+
+  it('sem sessão nenhuma também erra alto', async () => {
+    const { db, capturado } = fakeGravacao({ naSessao: null });
+    await assert.rejects(() => gravarCapa(db, 'u-1', A_CARIMBAR), ContaTrocadaNaImpressao);
+    assert.equal(capturado.tabela, undefined);
+  });
+
+  /**
+   * Lança em vez de devolver nulo: quem decide que a falha do carimbo é tolerável
+   * é o chamador (a impressão, que a engole e loga), e um nulo calado aqui
+   * esconderia dele o motivo.
+   */
+  it('propaga o erro do banco', async () => {
+    const { db } = fakeGravacao({ erro: new Error('capa_identidade_bate_com_natureza') });
+    await assert.rejects(() => gravarCapa(db, 'u-1', A_CARIMBAR), /capa_identidade/);
   });
 });

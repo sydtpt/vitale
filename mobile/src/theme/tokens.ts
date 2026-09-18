@@ -210,6 +210,17 @@ export function themed<T extends object>(factory: () => T): T {
  */
 export const onMedia = '#FFFFFF';
 
+/**
+ * O **véu** que se põe entre uma foto e o texto por cima dela — a tinta mais
+ * escura do app, usada só com alfa.
+ *
+ * Mesma isenção de `onMedia`, e pela mesma razão: a foto não tem tema, então um
+ * véu que respondesse ao esquema clarearia justamente onde ele precisa escurecer.
+ * Declarado aqui, uma vez, para não virar `rgba(24,18,13,…)` espalhado pelas
+ * telas — e para a profundidade ser a única coisa que varia (ver `lib/veu.ts`).
+ */
+export const mediaVeil = '#18120D';
+
 export const spacing = {
   xs: 4,
   sm: 8,

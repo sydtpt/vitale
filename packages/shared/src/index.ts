@@ -89,6 +89,8 @@ export * from './format/money';
 // regra de fim de frase que ela divide com a conferência — fica interno ao
 // núcleo: nunca `export *` aqui.
 export { chamadaDoTexto } from './revista/chamada';
+// A escolha da capa (story 1.13) — natureza, identidade e as duas legendas.
+export * from './revista/capa';
 export * from './data/paginate';
 export * from './data/profiles';
 export * from './data/todo-templates';

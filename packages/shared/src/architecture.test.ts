@@ -2308,6 +2308,7 @@ check('CATRACA — montarPedido fora do orquestrador (só a bancada)', () => {
  */
 const DONO_DA_GRAVACAO = 'packages/shared/src/data/edicoes-ia.ts';
 const DONO_DA_SEQUENCIA = 'packages/shared/src/ia/imprimir-sequencia.ts';
+const DONO_DA_CAPA = 'packages/shared/src/data/edicoes-capa.ts';
 const ESCRITAS_DIRETAS = new Set(['upsert', 'insert', 'update', 'delete']);
 
 /** O núcleo e os hospedeiros, fora de teste. */
@@ -2481,6 +2482,45 @@ check('BARREIRA — só a sequência grava a edição: edicao_imprimir no dono, 
     [],
     `.gravar lido fora da sequência da impressão: ${foraDaSequencia.join(', ')}. Só imprimir chama a porta de ` +
       'gravação, e no máximo uma vez: é ela que garante que só leitura de motor, conferida, vira linha.',
+  );
+});
+
+/**
+ * BARREIRA — só `gravarCapa` escreve a capa (Story 1.13, AD-3, AD-4).
+ *
+ * A irmã da barreira acima, para a outra tabela da edição, e pelo mesmo motivo: a
+ * capa é o que **congela** o período — natureza, identidade e a legenda já
+ * formatada —, e um segundo escritor é um segundo jeito de a edição que ele leu em
+ * agosto ter outra cara em outubro.
+ *
+ * Aqui não há função de banco a proteger: `edicoes_capa` se grava por `upsert`
+ * direto, e a barreira é sobre **onde** esse upsert pode existir. `gravarCapa` é o
+ * que carrega a guarda de sessão (a conta não pode trocar no meio da impressão) e
+ * o `carimbada_em` escrito à mão (o `default now()` não vale no caminho de
+ * atualização). Um upsert escrito noutro arquivo perderia os dois, calado.
+ *
+ * Mesma leitura por AST de `escrevemNaTabela`: colchete, `as`, `!` e cadeia
+ * partida por parênteses não escapam; comentário não conta. **O que ela não vê** é
+ * o mesmo da barreira irmã, e a rede é a mesma: fora do núcleo não há `.from()`
+ * nenhum, e dentro dele a tabela tem um dono só.
+ */
+check('BARREIRA — só gravarCapa escreve edicoes_capa', () => {
+  const escrevem = escrevemNaTabela('edicoes_capa', nucleoEHospedeiros());
+  const doDono = `${DONO_DA_CAPA} (upsert)`;
+  // Não-vácua: o dono é achado escrevendo. Sem isto, apagar `gravarCapa` deixaria
+  // a barreira verde por não haver ninguém a acusar.
+  assert.ok(
+    escrevem.includes(doDono),
+    `${DONO_DA_CAPA} não escreve mais em edicoes_capa — a barreira ficou sem o dono. Se o carimbo mudou de `
+      + 'arquivo, aponte DONO_DA_CAPA para ele.',
+  );
+  const fora = escrevem.filter((x) => x !== doDono);
+  assert.deepEqual(
+    fora,
+    [],
+    `escrita em edicoes_capa fora do carimbo: ${fora.join(', ')}. A capa se grava por gravarCapa (data/`
+      + 'edicoes-capa.ts), que confere a sessão antes e carimba a hora à mão — um upsert escrito noutro lugar '
+      + 'perde os dois e congela a capa errada no período fechado.',
   );
 });
 

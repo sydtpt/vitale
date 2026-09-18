@@ -2,8 +2,9 @@
  * Acesso à tabela `edicoes_capa` — dono único (AD-4).
  * AD-3 da espinha da revista · Story 1.9 cria a forma, a Story 1.13 carimba.
  *
- * **Só leitura aqui, de propósito.** O carimbo é da 1.13, e escrever antes dela
- * poria capa em cima de uma edição que a 1.10 ainda não sabe imprimir.
+ * **A Story 1.13 abriu a escrita** ({@link gravarCapa}). Quem *decide* a capa é o
+ * núcleo (`revista/capa.ts`), quem a *grava* é esta porta, e quem a chama é a
+ * impressão **inteira** — a parcial não toca a capa.
  *
  * ## Por que tabela, e não coluna em `edicoes_ia`
  *
@@ -22,6 +23,7 @@
  * e servindo de descrição textual, mesmo quando a imagem não resolve mais.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ContaTrocadaNaImpressao, type TipoComEdicao } from './edicoes-ia';
 
 /**
  * As três naturezas de capa, e a terceira não é sobra.
@@ -140,4 +142,80 @@ export async function fetchCapa(
     .maybeSingle();
   if (error) throw error;
   return data ? toCapa(data as unknown as CapaRow) : null;
+}
+
+/**
+ * A capa **decidida**, à espera do carimbo — o que `escolherCapa`
+ * (`revista/capa.ts`) devolve e o que {@link gravarCapa} grava.
+ *
+ * É {@link Capa} menos o `carimbadaEm`, e a falta não é descuido: a hora do
+ * carimbo é do ato de gravar, não da escolha. Quem a escolhesse antes gravaria o
+ * instante em que o app montou a linha, que numa impressão de um minuto e meio
+ * não é o mesmo instante.
+ */
+export interface CapaACarimbar {
+  tipoPeriodo: TipoComEdicao;
+  inicio: string;
+  fim: string;
+  natureza: NaturezaDaCapa;
+  fotoId: string | null;
+  fotoTakenAt: string | null;
+  rotaActivityId: string | null;
+  legenda: string;
+}
+
+/**
+ * Carimba a capa de uma edição — a **única** escrita em `edicoes_capa`.
+ *
+ * `upsert` pela chave da edição, e não `insert`: reimprimir a edição inteira
+ * recarimba a mesma linha. O `carimbada_em` é escrito **à mão**, e não deixado ao
+ * `default now()` da coluna: o padrão só vale na inserção, então o caminho de
+ * atualização guardaria para sempre a hora da primeira impressão — e a capa
+ * diria que é de agosto quando foi reescrita em outubro.
+ *
+ * **O dono é conferido antes de gravar**, com a mesma guarda de `portasDaEdicao`
+ * e pelo mesmo motivo: a impressão leva um minuto ou mais, a linha vai para
+ * `auth.uid()` pela RLS, e se a conta trocar nesse meio a capa escolhida sobre as
+ * fotos de um dono cairia na edição do outro. Erra alto — {@link
+ * ContaTrocadaNaImpressao} —, sem chamar o banco.
+ *
+ * **Quem chama engole a falha.** Carimbar não é atômico com a impressão (decisão
+ * do dono, 17/09: ensinar `edicao_imprimir` a receber capa é migração em
+ * produção). Se esta função lançar, a edição fica sem capa, o motivo vai para o
+ * log do hospedeiro e a próxima impressão inteira recarimba — perda recuperável,
+ * ao contrário de uma janela mal executada. Por isso ela **lança**, em vez de
+ * devolver nulo: quem decide que a falha é tolerável é o chamador, e um nulo
+ * calado aqui esconderia dele o motivo.
+ */
+export async function gravarCapa(
+  db: SupabaseClient,
+  userId: string,
+  capa: CapaACarimbar,
+): Promise<Capa> {
+  const sessao = await db.auth.getSession();
+  if (sessao.error) throw sessao.error;
+  const naSessao = sessao.data.session?.user?.id ?? null;
+  if (naSessao !== userId) throw new ContaTrocadaNaImpressao(userId, naSessao);
+
+  const { data, error } = await db
+    .from('edicoes_capa')
+    .upsert(
+      {
+        user_id: userId,
+        tipo_periodo: capa.tipoPeriodo,
+        inicio: capa.inicio,
+        fim: capa.fim,
+        natureza: capa.natureza,
+        foto_id: capa.fotoId,
+        foto_taken_at: capa.fotoTakenAt,
+        rota_activity_id: capa.rotaActivityId,
+        legenda: capa.legenda,
+        carimbada_em: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,tipo_periodo,inicio,fim' },
+    )
+    .select(COLUMNS)
+    .single();
+  if (error) throw error;
+  return toCapa(data as unknown as CapaRow);
 }

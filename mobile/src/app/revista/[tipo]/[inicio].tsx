@@ -11,7 +11,9 @@ import {
   type LapideNaEdicao,
   type TipoComEdicao,
 } from '@vitale/shared';
+import { CapaComFoto } from '../../../components/revista/CapaComFoto';
 import { useEntradaDaEdicao } from '../../../hooks/useEntradaDaEdicao';
+import { useFotoDaCapa } from '../../../hooks/useFotoDaCapa';
 import {
   ICONE_DO_CADERNO,
   comDadoDaEntrada,
@@ -28,6 +30,7 @@ import {
   vistaDaEdicao,
   type AcaoDoCaderno,
   type CadernoNaVista,
+  type CapaNaVista,
 } from '../../../store/edicao.store';
 import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '../../../theme';
 
@@ -150,6 +153,15 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
 
   const vista = useMemo(() => vistaDaEdicao(estado, comDado, AGG_VERSION), [estado, comDado]);
 
+  /**
+   * A imagem da capa carimbada (Story 1.13), resolvida **fora** do `switch`:
+   * hooks não moram em ramos. `null` enquanto não há vista de edição, e o hook
+   * responde `sem-foto` — que é o mesmo que a capa `tracado`, a `grade` e a edição
+   * impressa antes da 1.13.
+   */
+  const carimbada = vista.tipo === 'edicao' ? vista.capa.carimbada : null;
+  const foto = useFotoDaCapa(carimbada);
+
   const escreverEdicao = useCallback(() => {
     void imprimir(entrada, dadosProntos);
   }, [imprimir, entrada, dadosProntos]);
@@ -203,33 +215,33 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
 
     case 'edicao': {
       const { capa, cadernos } = vista;
+      /**
+       * **Quem decide "foto ou papel" é a vista** (`capa.comFoto`), que é onde a
+       * matriz a testa. A tela só acrescenta o que a vista não pode saber: se o
+       * arquivo da biblioteca resolveu.
+       *
+       * `procurando` já desenha a capa com foto, sem a imagem — o quadro já tem a
+       * altura mínima da capa, e piscar papel antes da foto seria um salto na
+       * abertura. `sem-imagem` cai no papel **com a legenda carimbada**, que é o
+       * que continua dizendo onde o período aconteceu.
+       */
+      const desenhaFoto = capa.comFoto
+        && (foto.estado === 'pronta' || foto.estado === 'procurando');
       return (
         <ScrollView
           contentContainerStyle={{ paddingBottom: bottom + spacing['3xl'] }}
           showsVerticalScrollIndicator={false}
         >
-          {/* A capa em papel. Sem foto: ela é escolhida e carimbada na impressão (1.13). */}
-          <View style={styles.capa}>
-            <Text style={styles.eyebrow}>A edição</Text>
-            <Text style={styles.periodo} accessibilityRole="header">{capa.periodo}</Text>
-            {capa.impressa ? (
-              capa.manchete ? <Text style={styles.manchete}>{capa.manchete}</Text> : null
-            ) : capa.escrevendo ? (
-              // A mesma frase da porta: com a impressão correndo, o convite mentiria.
-              <View style={styles.linha}>
-                <ActivityIndicator size="small" color={colors.ink3} />
-                <Text style={styles.convite}>Escrevendo a edição…</Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.convite}>Este período fechou e ainda não foi escrito.</Text>
-                {capa.semCaderno ? <Text style={styles.convite}>{AVISO_SEM_CADERNO}</Text> : null}
-                {capa.escrever ? (
-                  <Botao rotulo="Escrever a edição" principal onPress={escreverEdicao} />
-                ) : null}
-              </>
-            )}
-          </View>
+          {desenhaFoto ? (
+            <CapaComFoto
+              periodo={capa.periodo}
+              manchete={capa.manchete}
+              legenda={capa.legenda ?? ''}
+              {...(foto.estado === 'pronta' ? { uri: foto.uri } : {})}
+            />
+          ) : (
+            <CapaEmPapel capa={capa} onEscrever={escreverEdicao} />
+          )}
 
           {cadernos.map((c) => (
             <Caderno key={c.caderno} c={c} lapides={lapides[c.caderno]} onAcao={escreverCaderno} />
@@ -246,6 +258,48 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
 function vistaNaoTratada(nunca: never): null {
   console.warn('[revista] vista sem desenho:', nunca);
   return null;
+}
+
+/**
+ * A capa **em papel** — a da 1.11, agora também o caminho de queda da 1.13.
+ *
+ * Ela desenha em quatro situações, e as quatro são a mesma coisa para o leitor:
+ * o período não foi escrito, a edição é anterior ao carimbo, a capa carimbada é
+ * `tracado` ou `grade` (que ninguém desenha ainda), ou a foto não resolve mais.
+ * **Nenhum espaço fica reservado** para a imagem que não veio.
+ */
+function CapaEmPapel({ capa, onEscrever }: {
+  capa: CapaNaVista;
+  onEscrever: () => void;
+}) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.capa}>
+      <Text style={styles.eyebrow}>A edição</Text>
+      <Text style={styles.periodo} accessibilityRole="header">{capa.periodo}</Text>
+      {capa.impressa ? (
+        <>
+          {capa.manchete ? <Text style={styles.manchete}>{capa.manchete}</Text> : null}
+          {/* A legenda da capa de foto cuja imagem faltou — a descrição no lugar dela. */}
+          {capa.legenda ? <Text style={styles.legenda}>{capa.legenda}</Text> : null}
+        </>
+      ) : capa.escrevendo ? (
+        // A mesma frase da porta: com a impressão correndo, o convite mentiria.
+        <View style={styles.linha}>
+          <ActivityIndicator size="small" color={colors.ink3} />
+          <Text style={styles.convite}>Escrevendo a edição…</Text>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.convite}>Este período fechou e ainda não foi escrito.</Text>
+          {capa.semCaderno ? <Text style={styles.convite}>{AVISO_SEM_CADERNO}</Text> : null}
+          {capa.escrever ? (
+            <Botao rotulo="Escrever a edição" principal onPress={onEscrever} />
+          ) : null}
+        </>
+      )}
+    </View>
+  );
 }
 
 const ROTULO_DA_ACAO: Record<AcaoDoCaderno, string> = {
@@ -445,6 +499,15 @@ const createStyles = () =>
     periodo: { fontSize: 38, lineHeight: 42, fontFamily: fonts.serif, color: colors.ink, marginBottom: 14 },
     // A manchete é a chamada inteira — sem `numberOfLines`: cortar esconderia a base.
     manchete: { fontSize: 24, lineHeight: 30, fontFamily: fonts.serif, color: colors.ink },
+    /**
+     * A legenda carimbada no papel — quando a foto que ela descreve não resolve
+     * mais. Mono porque é carimbo de medida (lugar, quilômetro e hora), e `ink2`
+     * porque é informação obrigatória: nunca a tinta mais fraca.
+     */
+    legenda: {
+      fontSize: 11.5, fontFamily: fonts.mono, letterSpacing: 0.2,
+      color: colors.ink2, marginTop: spacing.md,
+    },
     convite: { fontSize: 14, lineHeight: 21, fontFamily: fonts.sans, color: colors.ink2 },
 
     // O caderno não recua: quem recua é o corpo. A faixa sangra por dentro dele.
