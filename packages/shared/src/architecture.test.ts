@@ -902,6 +902,55 @@ check('BARREIRA — nenhuma lista rolável do mobile mostra barra', () => {
 });
 
 /**
+ * BARREIRA — o foco de acessibilidade do mobile vai por `sendAccessibilityEvent`.
+ *
+ * `AccessibilityInfo.sendAccessibilityEvent(nó, 'focus')` é **a** API para mover
+ * o foco do leitor de tela, e ela recebe o **ref do host** — o mesmo objeto que
+ * `ref={...}` numa `View` entrega. As duas alternativas que a internet ainda
+ * ensina estão trancadas aqui em zero:
+ *
+ * - `setAccessibilityFocus(handle)` — depreciado na doc atual;
+ * - `findNodeHandle(componente)` — a ponte para o handle numérico que a API nova
+ *   não quer, e que na New Architecture é justamente o que se deixou para trás.
+ *
+ * Teto **zero, desde o primeiro uso**: a rolagem ancorada da revista (Story 1.14)
+ * é o primeiro lugar do app a mover o foco, e no dia em que nasceu não havia
+ * ocorrência nenhuma dos dois nomes. Barreira que nasce junto com a regra nunca
+ * precisa de catraca — e esta é a única janela em que isso era de graça.
+ *
+ * **Comentário não é uso**: o hook explica por escrito por que não usa nenhum dos
+ * dois, e é assim que a regra continua se explicando de dentro do código que ela
+ * cobra. Mas aqui o comentário é apagado **sem perder linha** — o `semComentario`
+ * do topo troca o bloco inteiro por um espaço, e a mensagem apontaria para um
+ * número que no arquivo é outra coisa, mandando quem for conferir ao lugar errado.
+ *
+ * Varre `mobile/src` **inteiro**, testes incluídos (e não a `mobileFiles`, que os
+ * tira): um teste que monte o foco pela porta velha ensina a porta velha.
+ */
+check('BARREIRA — foco de acessibilidade sem API depreciada nem handle numérico', () => {
+  const PROIBIDAS = /\b(setAccessibilityFocus|findNodeHandle)\b/g;
+  const semComentarioNaLinha = (src: string): string =>
+    src.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
+      .replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+  const offenders: string[] = [];
+  for (const f of walk(join(ROOT, 'mobile', 'src'))) {
+    const src = semComentarioNaLinha(readFileSync(f, 'utf8'));
+    for (const m of src.matchAll(PROIBIDAS)) {
+      const linha = src.slice(0, m.index).split('\n').length;
+      offenders.push(`${f.replace(ROOT + '/', '')}:${linha} ${m[1]}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `foco de acessibilidade pela porta errada:\n    ${offenders.join('\n    ')}\n` +
+      `  Use AccessibilityInfo.sendAccessibilityEvent(ref, 'focus') — o ref do host, ` +
+      `não um handle. O hook useRolagemAncorada já faz isso.`,
+  );
+});
+
+/**
  * BARREIRA — toda `var(--x)` da web vem do sistema de temas ou de uma escala.
  *
  * A web pinta o `:root` em runtime a partir do `cssVars()`. Uma variável que o

@@ -864,6 +864,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     ]);
     expect(v.cadernos[1]).toEqual({
       caderno: 'movimento', estado: 'pronta', texto: impresso('movimento', 2).texto,
+      chamada: 'A chamada de movimento, inteira.',
       assinatura: 'modelo-1 · 07 set 2026', errata: false,
     });
     expect(v.cadernos[2]).toEqual({ caderno: 'sono', estado: 'nao-escrito', acao: 'escrever' });
@@ -878,8 +879,14 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     const correndo = vistaDaEdicao(estadoLido({ edicao, sessao, imprimindo: 'sono' }), TODOS, AGG_VERSION);
     if (correndo.tipo !== 'edicao') throw new Error(correndo.tipo);
     expect(correndo.cadernos).toEqual([
-      { caderno: 'movimento', estado: 'pronta', texto: edicao[0].texto, assinatura: 'modelo-1 · 07 set 2026', errata: false },
-      { caderno: 'rotina', estado: 'pronta', texto: edicao[1].texto, assinatura: 'modelo-1 · 07 set 2026', errata: true },
+      {
+        caderno: 'movimento', estado: 'pronta', texto: edicao[0].texto,
+        chamada: 'A chamada de movimento, inteira.', assinatura: 'modelo-1 · 07 set 2026', errata: false,
+      },
+      {
+        caderno: 'rotina', estado: 'pronta', texto: edicao[1].texto,
+        chamada: 'A chamada de rotina, inteira.', assinatura: 'modelo-1 · 07 set 2026', errata: true,
+      },
       { caderno: 'sono', estado: 'escrevendo' },
       // Durante a impressão, nenhum botão de escrever.
       { caderno: 'coracao', estado: 'reprovada', motivo: REPROVADA, problemas: ['"186" não está no pacote'] },
@@ -952,7 +959,10 @@ describe('vistaDaEdicao — a matriz da rota', () => {
       ['movimento'], AGG_VERSION,
     );
     if (v.tipo !== 'edicao') throw new Error(v.tipo);
-    expect(v.cadernos).toEqual([{ caderno: 'movimento', estado: 'pronta', texto: 'Foram 21.', assinatura: null, errata: false }]);
+    expect(v.cadernos).toEqual([{
+      caderno: 'movimento', estado: 'pronta', texto: 'Foram 21.',
+      chamada: 'Foram 21.', assinatura: null, errata: false,
+    }]);
   });
 
   it('nada impresso, mas algo aconteceu nesta sessão: o miolo mostra o que falhou e convida os outros', () => {
@@ -991,6 +1001,111 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     expect(vistaDaEdicao({ fase: 'erro', mensagem: 'm' }, TODOS, AGG_VERSION)).toEqual({ tipo: 'erro', mensagem: 'm', aposImpressao: false });
     expect(vistaDaEdicao({ fase: 'erro', mensagem: 'm', aposImpressao: true }, TODOS, AGG_VERSION))
       .toEqual({ tipo: 'erro', mensagem: 'm', aposImpressao: true });
+  });
+});
+
+/**
+ * A chamada de cada caderno — o que o **sumário** da rota desenha (Story 1.14).
+ *
+ * Ela nasce aqui e não no render pela mesma razão que "foto ou papel" da 1.13:
+ * regra tem teste, render não tem. E cai ao lado da manchete da capa, que sai da
+ * mesma `chamadaDoTexto` — se um dia o corte da frase mudar, muda num lugar só.
+ *
+ * O sumário em si é uma linha por caderno **do miolo**, na ordem deste vetor:
+ * quem não está `pronta` entra igual, só sem chamada. Por isso o que se mede aqui
+ * é a lista inteira, e não só as prontas.
+ */
+describe('a chamada no miolo — a linha do sumário', () => {
+  it('edição cheia: uma linha por caderno impresso, na ordem em que a leitura os entregou, com nome e chamada', () => {
+    // **A ordem aqui não é garantia desta função**: `vistaDaEdicao` não ordena —
+    // ela percorre `edicao` como recebeu, e é isso que este caso prende. Quem
+    // garante que a leitura chega em `posicao` é `fetchEdicao`
+    // (`packages/shared/src/data/edicoes-ia.ts`, `.order('posicao')`), com teste
+    // próprio em `edicoes-ia.test.ts`. Mexer na ordem da fixture abaixo não
+    // provaria nada sobre o banco.
+    const edicao = [
+      impresso('movimento', 1), impresso('sono', 2), impresso('coracao', 3), impresso('rotina', 4),
+    ];
+    const v = vistaDaEdicao(estadoLido({ edicao }), TODOS, AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos.map((c) => [c.caderno, c.estado === 'pronta' ? c.chamada : null])).toEqual([
+      ['movimento', 'A chamada de movimento, inteira.'],
+      ['sono', 'A chamada de sono, inteira.'],
+      ['coracao', 'A chamada de coracao, inteira.'],
+      ['rotina', 'A chamada de rotina, inteira.'],
+    ]);
+    // A repetição capa × linha 1 é forma, não defeito: as duas ficam.
+    expect(v.capa.manchete).toBe('A chamada de movimento, inteira.');
+  });
+
+  it('a chamada é a PRIMEIRA frase, não o texto inteiro nem um corte de tamanho', () => {
+    const texto = 'Você pedalou 435 km, metade de julho — e é o terceiro mês seguido caindo. '
+      + 'O resto do caderno continua depois disso, e não entra na linha do sumário.';
+    const v = vistaDaEdicao(estadoLido({ edicao: [impresso('movimento', 1, { texto })] }), TODOS, AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    const c = v.cadernos[0];
+    expect(c.estado === 'pronta' && c.chamada)
+      .toBe('Você pedalou 435 km, metade de julho — e é o terceiro mês seguido caindo.');
+    // O texto do caderno não é tocado: quem corta é só a linha do sumário.
+    expect(c.estado === 'pronta' && c.texto).toBe(texto);
+  });
+
+  it('estado misto: as linhas FICAM, com o nome e sem chamada', () => {
+    const sessao: SessaoDaEdicao = {
+      sono: { fase: 'escrevendo' },
+      coracao: { fase: 'reprovada', motivo: REPROVADA, problemas: [] },
+    };
+    const v = vistaDaEdicao(
+      estadoLido({ edicao: [impresso('movimento', 1)], sessao, imprimindo: 'sono' }), TODOS, AGG_VERSION,
+    );
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos.map((c) => [c.caderno, c.estado === 'pronta' ? c.chamada : null])).toEqual([
+      ['movimento', 'A chamada de movimento, inteira.'],
+      ['sono', null],
+      ['coracao', null],
+      ['rotina', null],
+    ]);
+  });
+
+  it('texto sem frase fechada: a linha fica com o nome e sem chamada — null, nunca string vazia', () => {
+    const v = vistaDaEdicao(
+      // Nenhuma letra: `chamadaDoTexto` não acha frase nenhuma. O CHECK do banco
+      // proíbe texto vazio, então este é o piso do que pode chegar impresso.
+      estadoLido({ edicao: [impresso('sono', 1, { texto: '7,1 · 52 · 71' })] }), TODOS, AGG_VERSION,
+    );
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    const c = v.cadernos[0];
+    expect(c.estado === 'pronta' && c.chamada).toBeNull();
+  });
+
+  it('edição rasa: um caderno só, e o sumário é de uma linha', () => {
+    const v = vistaDaEdicao(estadoLido({ edicao: [impresso('sono', 1)] }), ['sono'], AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos).toEqual([{
+      caderno: 'sono', estado: 'pronta', texto: impresso('sono', 1).texto,
+      chamada: 'A chamada de sono, inteira.', assinatura: 'modelo-1 · 07 set 2026', errata: false,
+    }]);
+  });
+
+  it('miolo vazio: a vista não devolve caderno nenhum — é o que apaga o sumário na rota', () => {
+    // O que se mede é a vista, não o render: quem decide desenhar o sumário é o
+    // `cadernos.length > 0` da rota, e nada aqui o exercita.
+    const v = vistaDaEdicao(estadoLido(), TODOS, AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos).toEqual([]);
+  });
+
+  it('o escrito que espera a gravação já tem chamada — mostrar é progressivo', () => {
+    const v = vistaDaEdicao(
+      estadoLido({
+        imprimindo: 'edicao',
+        sessao: { coracao: { fase: 'escrito', texto: 'A frequência em repouso caiu para 48 bpm. E o resto.' } },
+      }),
+      ['coracao'], AGG_VERSION,
+    );
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    const c = v.cadernos[0];
+    expect(c.estado === 'pronta' && c.chamada).toBe('A frequência em repouso caiu para 48 bpm.');
   });
 });
 
