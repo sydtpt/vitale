@@ -31,7 +31,7 @@ import { CLASSES_DE_FALHA } from './ia/fio';
 import { CONCLUSAO } from './ia/motor';
 import { VOCABULARIO_PROIBIDO } from './ia/verificar';
 import { CADERNO_IDS } from './period/cadernos';
-import { CAPA_COLUMNS, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
+import { CAPA_COLUMNS, MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
 import { EDICAO_COLUMNS, TIPOS_COM_EDICAO } from './data/edicoes-ia';
 
 let passed = 0;
@@ -602,7 +602,8 @@ check('BARREIRA — os CHECKs de user_preferences cobrem todos os ids do app', (
  * BARREIRA — os ids da edição são a MESMA lista dos dois lados (Story 1.9).
  *
  * `edicoes_ia.caderno` repete `CADERNO_IDS` e `edicoes_capa.natureza` repete
- * `NATUREZAS_DA_CAPA`, e as duas migrations dizem em comentário que é "a mesma
+ * `NATUREZAS_DA_CAPA` — e, desde a Story 1.16, `edicoes_capa.motivo` repete
+ * `MOTIVOS_DA_CAPA` —, e as migrations dizem em comentário que é "a mesma
  * lista, letra por letra". Comentário não é guarda: o id nasce minúsculo e sem
  * acento justamente para não precisar de tradução entre camadas, e o dia em que
  * precisar ninguém vai notar por leitura.
@@ -618,6 +619,11 @@ const ID_COLUMNS_DA_EDICAO: {
 }[] = [
   { tabela: 'edicoes_ia', coluna: 'caderno', ids: () => CADERNO_IDS, dono: 'period/cadernos.ts (CADERNO_IDS)' },
   { tabela: 'edicoes_capa', coluna: 'natureza', ids: () => NATUREZAS_DA_CAPA, dono: 'data/edicoes-capa.ts (NATUREZAS_DA_CAPA)' },
+  // O porquê da capa (Story 1.16), no mesmo molde da natureza. A coluna é nula de
+  // propósito (o build anterior grava sem ela), mas a LISTA é fechada dos dois
+  // lados: um motivo só no TS seria uma troca que o banco recusa na hora de
+  // carimbar, e um só no SQL, uma ficha que o `toCapa` explode ao ler.
+  { tabela: 'edicoes_capa', coluna: 'motivo', ids: () => MOTIVOS_DA_CAPA, dono: 'data/edicoes-capa.ts (MOTIVOS_DA_CAPA)' },
   // **Duas linhas, uma por tabela**, e não uma valendo pelas duas: as duas
   // declaram `tipo_periodo` e cada uma tem o próprio CHECK. Com uma linha só, a
   // busca pegava o CHECK da capa e deixava o da edição sem conferência — na
@@ -626,7 +632,7 @@ const ID_COLUMNS_DA_EDICAO: {
   { tabela: 'edicoes_capa', coluna: 'tipo_periodo', ids: () => TIPOS_COM_EDICAO, dono: 'data/edicoes-ia.ts (TIPOS_COM_EDICAO)' },
 ];
 
-check('BARREIRA — caderno, natureza e tipo de período são a mesma lista no TS e no banco', () => {
+check('BARREIRA — caderno, natureza, motivo da capa e tipo de período são a mesma lista no TS e no banco', () => {
   const problemas: string[] = [];
   for (const { tabela, coluna, ids, dono } of ID_COLUMNS_DA_EDICAO) {
     const noTs = [...ids()].sort();

@@ -67,11 +67,13 @@ import {
   APARELHO_SISTEMA,
   CADERNO_IDS,
   CLASSES_DE_FALHA,
+  FotoRecusadaNaTroca,
   LAPIDES,
   METRICAS_COM_LAPIDE,
   NUVEM_PADRAO,
   SEM_MODELO,
   type Activity,
+  type ActivityPhoto,
   type CadernoId,
   type Causa,
   type DesfechoDoCaderno,
@@ -92,6 +94,10 @@ import {
   buscarEdicao,
   carimbarCapa,
   cidadesDoPeriodo,
+  fotosParaCapa,
+  TrocaRecusada,
+  tituloDaCapa,
+  trocarCapa,
   classeDoDesfecho,
   comDadoDaEntrada,
   hrefDaRevista,
@@ -174,6 +180,8 @@ function linhaDeCapa(over: Record<string, unknown> = {}): Record<string, unknown
     rota_activity_id: null,
     legenda: 'Ittre \u00b7 km 31,1 \u00b7 12:38',
     carimbada_em: '2026-09-01T00:00:00.000Z',
+    motivo: 'rajada',
+    foto_activity_id: 'a-1',
     ...over,
   };
 }
@@ -237,7 +245,19 @@ describe('buscarEdicao — o que o banco responde', () => {
       fotoId: 'f1e2d3c4-0000-4000-8000-000000000001',
       fotoTakenAt: '2026-08-14T12:38:00.000Z',
       legenda: 'Ittre \u00b7 km 31,1 \u00b7 12:38',
+      // O porquê e a atividade da foto (1.16) atravessam a leitura.
+      motivo: 'rajada',
+      fotoActivityId: 'a-1',
     });
+  });
+
+  /** As duas capas de produção: carimbadas antes da 1.16, o motivo nulo passa. */
+  it('capa anterior à 1.16 — motivo nulo — é lida, e não recusada', async () => {
+    mockBanco.capa = linhaDeCapa({ motivo: null });
+    const r = await buscarEdicao('u-1', entrada());
+    if (r.estado !== 'ok') throw new Error(r.estado);
+    expect(r.capa?.motivo).toBeNull();
+    expect(r.capa?.natureza).toBe('foto');
   });
 
   /**
@@ -1043,6 +1063,9 @@ describe('carimbarCapa — a ligação, e a promessa de nunca rejeitar', () => {
       fotoTakenAt: new Date(2026, 7, 14, 12, 38, 0).toISOString(),
       rotaActivityId: null,
       legenda: 'Ittre · km 31,1 · 12:38',
+      // Uma foto só no período: o porquê é "única", e a atividade dela vai junto (1.16).
+      motivo: 'unica',
+      fotoActivityId: 'a-1',
     }]);
     expect(r?.carimbadaEm).toBe('2026-09-06T19:00:00.000Z');
   });
@@ -1098,5 +1121,168 @@ describe('carimbarCapa — a ligação, e a promessa de nunca rejeitar', () => {
     });
     expect(r).toBeNull();
     expect(gravou).toBe(false);
+  });
+});
+
+/* ── a troca da capa (Story 1.16) ────────────────────────────────────────── */
+
+/**
+ * As duas portas da troca. Quem decide o que é capa, agrupa e recalcula a
+ * legenda é o núcleo (`revista/capa.test.ts`); aqui se mede a LIGAÇÃO — as
+ * atividades do período, o acervo carregado, a foto fora do período — e a
+ * diferença para o carimbo: **a troca rejeita**, em voz alta.
+ */
+function fotoDaTroca(over: Partial<ActivityPhoto> = {}): ActivityPhoto {
+  return {
+    id: 'p-9', activityId: 'a-1', assetId: 'ph-9',
+    takenAt: new Date(2026, 7, 14, 15, 22, 0).getTime(),
+    lat: 50.641, lng: 4.262, mediaType: 'photo', durationS: null,
+    routeIndex: 1, routeDistanceM: 62_400, offsetM: 3, onRoute: true,
+    state: 'linked', isCover: false,
+    ...over,
+  };
+}
+
+/** As portas do carimbo, com o acervo carregado e a gravação capturada. */
+function depsDaTroca(over: Record<string, unknown> = {}) {
+  const gravadas: unknown[] = [];
+  const deps = {
+    acervoCarregado: () => true,
+    atividades: () => [atividade()],
+    buscarFotos: async () => [] as ActivityPhoto[],
+    carimbar: async (capa: Record<string, unknown>) => {
+      gravadas.push(capa);
+      return { ...capa, carimbadaEm: '2026-09-18T10:00:00.000Z' };
+    },
+    ...over,
+  };
+  return { deps: deps as never, gravadas };
+}
+
+describe('fotosParaCapa — a lista do seletor, pelas portas do carimbo', () => {
+  it('pede as fotos das atividades do período e devolve as seções do núcleo', async () => {
+    const pedidos: string[][] = [];
+    const { deps } = depsDaTroca({
+      atividades: () => [
+        atividade({ id: 'de-agosto' }),
+        atividade({ id: 'de-julho', startAt: '2026-07-20T09:00:00.000Z' }),
+      ],
+      buscarFotos: async (ids: readonly string[]) => {
+        pedidos.push([...ids]);
+        return [fotoDaTroca({ id: 'f', activityId: 'de-agosto' }), fotoDaTroca({ id: 'v', activityId: 'de-agosto', mediaType: 'video' })];
+      },
+    });
+    const s = await fotosParaCapa('u-1', entradaDeAgosto(), deps);
+    // A mesma definição de "do período" do carimbo: julho não é pedido.
+    expect(pedidos).toEqual([['de-agosto']]);
+    // E o vídeo não aparece — o que aparece é o que troca.
+    expect(s.map((x) => [x.atividade.id, x.fotos.map((f) => f.id)])).toEqual([['de-agosto', ['f']]]);
+  });
+
+  it('período sem atividade: lista vazia, sem consulta', async () => {
+    let consultou = false;
+    const { deps } = depsDaTroca({
+      atividades: () => [],
+      buscarFotos: async () => { consultou = true; return []; },
+    });
+    expect(await fotosParaCapa('u-1', entradaDeAgosto(), deps)).toEqual([]);
+    expect(consultou).toBe(false);
+  });
+
+  /** Store vazia não é período vazio: a lista vazia mentiria "não há foto". */
+  it('acervo que não chegou é recusa, e não lista vazia', async () => {
+    const { deps } = depsDaTroca({ acervoCarregado: () => false });
+    await expect(fotosParaCapa('u-1', entradaDeAgosto(), deps)).rejects.toBeInstanceOf(TrocaRecusada);
+  });
+
+  it('período que nunca tem edição é recusa — o Total não tem capa, e não consulta nada', async () => {
+    let consultou = false;
+    const { deps } = depsDaTroca({ buscarFotos: async () => { consultou = true; return []; } });
+    const total = { resumo: { kind: 'all', offset: 0, startISO: '2020-01-01', endISO: '2026-08-31' }, agora: AGORA };
+    await expect(fotosParaCapa('u-1', total as unknown as EntradaPacote, deps)).rejects.toBeInstanceOf(TrocaRecusada);
+    expect(consultou).toBe(false);
+  });
+
+  it('a falha da leitura das fotos sobe — o seletor mostra o erro', async () => {
+    const { deps } = depsDaTroca({ buscarFotos: async () => { throw new Error('rede'); } });
+    await expect(fotosParaCapa('u-1', entradaDeAgosto(), deps)).rejects.toThrow('rede');
+  });
+});
+
+describe('trocarCapa — recarimba a capa e só, em voz alta', () => {
+  it('grava pela porta do carimbo: identidade nova, legenda com as cidades do período, motivo trocada', async () => {
+    const { deps, gravadas } = depsDaTroca();
+    const c = await trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca(), deps);
+    expect(gravadas).toEqual([{
+      tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+      natureza: 'foto', fotoId: 'p-9',
+      fotoTakenAt: new Date(2026, 7, 14, 15, 22, 0).toISOString(),
+      rotaActivityId: null,
+      legenda: 'Ittre · km 62,4 · 15:22',
+      motivo: 'trocada',
+      fotoActivityId: 'a-1',
+    }]);
+    expect(c.carimbadaEm).toBe('2026-09-18T10:00:00.000Z');
+  });
+
+  /** A linha "Foto inválida na troca" da matriz — fora do período. Nada é gravado. */
+  it('foto de atividade fora do período é recusada antes do banco', async () => {
+    const { deps, gravadas } = depsDaTroca({
+      atividades: () => [atividade({ id: 'a-1' }), atividade({ id: 'de-julho', startAt: '2026-07-20T09:00:00.000Z' })],
+    });
+    await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca({ activityId: 'de-julho' }), deps))
+      .rejects.toBeInstanceOf(TrocaRecusada);
+    await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca({ activityId: 'nao-existe' }), deps))
+      .rejects.toBeInstanceOf(TrocaRecusada);
+    expect(gravadas).toEqual([]);
+  });
+
+  /** A mesma linha — vídeo e instante ilegível —, recusados pelo núcleo. */
+  it('vídeo e instante ilegível são recusados antes do banco', async () => {
+    const { deps, gravadas } = depsDaTroca();
+    for (const over of [{ mediaType: 'video' as const, durationS: 8 }, { takenAt: NaN }]) {
+      await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca(over), deps))
+        .rejects.toBeInstanceOf(FotoRecusadaNaTroca);
+    }
+    expect(gravadas).toEqual([]);
+  });
+
+  it('acervo que não chegou é recusa — ele recusaria a foto como "fora do período"', async () => {
+    const { deps, gravadas } = depsDaTroca({ acervoCarregado: () => false });
+    await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca(), deps)).rejects.toBeInstanceOf(TrocaRecusada);
+    expect(gravadas).toEqual([]);
+  });
+
+  it('período que nunca tem edição não tem capa a trocar', async () => {
+    const { deps, gravadas } = depsDaTroca();
+    const total = { resumo: { kind: 'all', offset: 0, startISO: '2020-01-01', endISO: '2026-08-31' }, agora: AGORA };
+    await expect(trocarCapa('u-1', total as unknown as EntradaPacote, fotoDaTroca(), deps))
+      .rejects.toBeInstanceOf(TrocaRecusada);
+    expect(gravadas).toEqual([]);
+  });
+
+  /**
+   * **Ao contrário do carimbo da impressão, a troca NÃO engole a falha**: é ato do
+   * dono, e a mensagem tem de chegar ao seletor.
+   */
+  it('a falha da gravação sobe como veio', async () => {
+    const { deps } = depsDaTroca({ carimbar: async () => { throw new Error('rls'); } });
+    await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca(), deps)).rejects.toThrow('rls');
+  });
+});
+
+describe('tituloDaCapa — o título da capa aberta', () => {
+  it('o mês em minúscula, como no meio da frase', () => {
+    expect(tituloDaCapa('month', '2026-07-01')).toBe('A capa de julho de 2026');
+  });
+
+  it('os outros tipos ficam com o rótulo da edição', () => {
+    expect(tituloDaCapa('year', '2026-01-01')).toBe('A capa de 2026');
+    expect(tituloDaCapa('season', '2026-07-01')).toBe('A capa de Q3 2026');
+  });
+
+  it('a semana: o intervalo de segunda a domingo, sem minúscula a dar', () => {
+    // 31/08/2026 é uma segunda-feira.
+    expect(tituloDaCapa('week', '2026-08-31')).toBe('A capa de 31/08 \u2013 06/09');
   });
 });

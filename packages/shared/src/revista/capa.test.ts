@@ -22,8 +22,12 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import type { Capa } from '../data/edicoes-capa';
 import type { Activity, ActivityPhoto, CityMark } from '../models';
-import { escolherCapa, legendaDaFoto, legendaDaRota, type PeriodoDaCapa } from './capa';
+import {
+  capaTrocada, escolherCapa, fichaDaCapa, FotoRecusadaNaTroca, legendaDaFoto, legendaDaRota,
+  nomeDaAtividadeNaCapa, podeSerCapaNaTroca, secoesDoSeletor, type PeriodoDaCapa,
+} from './capa';
 
 const PERIODO: PeriodoDaCapa = {
   tipoPeriodo: 'month',
@@ -164,6 +168,9 @@ describe('escolherCapa — foto, senão traçado, senão grade', () => {
     assert.equal(c.fotoTakenAt, new Date(AS_12_38).toISOString());
     assert.equal(c.rotaActivityId, null);
     assert.equal(c.legenda, 'Ittre · km 31,1 · 12:38');
+    // Uma foto só no período: não houve escolha, e o porquê diz isso (1.16).
+    assert.equal(c.motivo, 'unica');
+    assert.equal(c.fotoActivityId, 'a-1');
     assert.deepEqual(
       { tipoPeriodo: c.tipoPeriodo, inicio: c.inicio, fim: c.fim },
       { tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31' },
@@ -341,5 +348,366 @@ describe('escolherCapa — foto, senão traçado, senão grade', () => {
       fotos: [], atividades: [], periodo: { ...PERIODO, rotulo: '   ' }, cidades: [],
     });
     assert.equal(c.legenda, '2026-08-01');
+  });
+});
+
+/* ── o porquê carimbado (Story 1.16) ─────────────────────────────────────── */
+
+/**
+ * A matriz do porquê, linha a linha. O motivo sai **da escolha**, no instante
+ * dela — `coverOf` não muda, e o que se prende aqui é qual ramo dela decidiu.
+ */
+describe('escolherCapa — o motivo e a atividade da foto', () => {
+  it('escolha com estrela: motivo estrela, e a atividade da foto preenchida', () => {
+    const c = escolherCapa({
+      fotos: [
+        foto({ id: 'p-1', takenAt: AS_12_38 }),
+        foto({ id: 'p-2', takenAt: AS_12_38 + 60_000 }),
+        foto({ id: 'p-estrela', activityId: 'a-7', takenAt: AS_12_38 + 9_000_000, isCover: true }),
+      ],
+      atividades: [], periodo: PERIODO, cidades: [],
+    });
+    assert.equal(c.fotoId, 'p-estrela');
+    assert.equal(c.motivo, 'estrela');
+    assert.equal(c.fotoActivityId, 'a-7');
+  });
+
+  /** A estrela vence mesmo sendo a única: o porquê é o do primeiro ramo de `coverOf`. */
+  it('a única foto, com estrela, é estrela — e não única', () => {
+    const c = escolherCapa({
+      fotos: [foto({ isCover: true })], atividades: [], periodo: PERIODO, cidades: [],
+    });
+    assert.equal(c.motivo, 'estrela');
+  });
+
+  it('escolha de uma foto só: única', () => {
+    const c = escolherCapa({ fotos: [foto()], atividades: [], periodo: PERIODO, cidades: [] });
+    assert.equal(c.motivo, 'unica');
+  });
+
+  /**
+   * "Única" é entre as **elegíveis e vinculadas**: o vídeo, a foto sem instante e a
+   * desligada não concorreram, então não tiram a escolha da única que sobrou.
+   */
+  it('a única elegível e vinculada é única, mesmo com vídeo, desligada e sem instante ao lado', () => {
+    const c = escolherCapa({
+      fotos: [
+        foto({ id: 'quadro' }),
+        foto({ id: 'clipe', mediaType: 'video', durationS: 4, takenAt: AS_12_38 + 30_000 }),
+        foto({ id: 'desligada', state: 'dismissed', takenAt: AS_12_38 + 60_000 }),
+        foto({ id: 'sem-hora', takenAt: NaN }),
+      ],
+      atividades: [], periodo: PERIODO, cidades: [],
+    });
+    assert.equal(c.fotoId, 'quadro');
+    assert.equal(c.motivo, 'unica');
+  });
+
+  it('escolha por rajada: várias, nenhuma estrela', () => {
+    const c = escolherCapa({
+      fotos: [
+        foto({ id: 'p-1', takenAt: AS_12_38 }),
+        foto({ id: 'p-2', takenAt: AS_12_38 + 60_000 }),
+        foto({ id: 'p-3', takenAt: AS_12_38 + 120_000 }),
+      ],
+      atividades: [], periodo: PERIODO, cidades: [],
+    });
+    assert.equal(c.fotoId, 'p-2');
+    assert.equal(c.motivo, 'rajada');
+    assert.equal(c.fotoActivityId, 'a-1');
+  });
+
+  it('escolha sem foto — traçado: sem-foto, e nenhuma atividade de foto', () => {
+    const c = escolherCapa({ fotos: [], atividades: [atividade()], periodo: PERIODO, cidades: [] });
+    assert.equal(c.natureza, 'tracado');
+    assert.equal(c.motivo, 'sem-foto');
+    assert.equal(c.fotoActivityId, null);
+  });
+
+  it('escolha sem foto — grade: sem-foto, e nenhuma atividade de foto', () => {
+    const c = escolherCapa({ fotos: [], atividades: [], periodo: PERIODO, cidades: [] });
+    assert.equal(c.natureza, 'grade');
+    assert.equal(c.motivo, 'sem-foto');
+    assert.equal(c.fotoActivityId, null);
+  });
+});
+
+/* ── a troca (Story 1.16) ────────────────────────────────────────────────── */
+
+describe('capaTrocada — a foto que o dono escolheu, pronta para o carimbo', () => {
+  it('recarimba a capa: identidade nova, legenda recalculada com as cidades do período, motivo trocada', () => {
+    const c = capaTrocada(PERIODO, foto({ id: 'p-9', activityId: 'a-3', lat: 50.879, lng: 4.701 }), [ITTRE, LEUVEN]);
+    assert.deepEqual(c, {
+      tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+      natureza: 'foto',
+      fotoId: 'p-9',
+      fotoTakenAt: new Date(AS_12_38).toISOString(),
+      rotaActivityId: null,
+      // A legenda é a que a impressão carimbaria para esta foto — nunca a da velha.
+      legenda: 'Leuven · km 31,1 · 12:38',
+      motivo: 'trocada',
+      fotoActivityId: 'a-3',
+    });
+  });
+
+  it('é a mesma legenda que o carimbo da impressão faria', () => {
+    const f = foto({ id: 'p-9' });
+    assert.equal(capaTrocada(PERIODO, f, [ITTRE]).legenda, legendaDaFoto(f, [ITTRE]));
+  });
+
+  /** A linha "Foto inválida na troca" da matriz, na parte que é pura. Nada volta: lança. */
+  it('recusa vídeo, instante ilegível, foto desligada e foto sem arquivo — antes do banco', () => {
+    const casos: [Partial<ActivityPhoto>, string][] = [
+      [{ mediaType: 'video', durationS: 12 }, 'video'],
+      [{ takenAt: NaN }, 'instante'],
+      [{ state: 'dismissed' }, 'desligada'],
+      [{ assetId: null }, 'sem-arquivo'],
+      [{ assetId: '' }, 'sem-arquivo'],
+    ];
+    for (const [over, recusa] of casos) {
+      assert.throws(
+        () => capaTrocada(PERIODO, foto(over), [ITTRE]),
+        (e: unknown) => e instanceof FotoRecusadaNaTroca && e.recusa === recusa && e.message.length > 0,
+        `aceitou ${JSON.stringify(over)}`,
+      );
+    }
+  });
+
+  it('podeSerCapaNaTroca é a mesma régua da recusa', () => {
+    assert.equal(podeSerCapaNaTroca(foto()), true);
+    for (const over of [
+      { mediaType: 'video' as const }, { takenAt: NaN }, { state: 'dismissed' as const }, { assetId: null },
+    ]) {
+      assert.equal(podeSerCapaNaTroca(foto(over)), false, JSON.stringify(over));
+    }
+  });
+});
+
+describe('secoesDoSeletor — as fotos do período, agrupadas por atividade', () => {
+  const julho = (dia: number, h = 9) => new Date(2026, 6, dia, h, 0, 0).toISOString();
+  const tour = atividade({ id: 'tour', startAt: julho(18) });
+  const ronde = atividade({ id: 'ronde', startAt: julho(11) });
+  const corrida = atividade({ id: 'corrida', startAt: julho(6) });
+  const ts = (dia: number, min: number) => new Date(2026, 6, dia, 12, min, 0).getTime();
+
+  it('a atividade mais recente primeiro, e as fotos em ordem cronológica dentro dela', () => {
+    const s = secoesDoSeletor(
+      [
+        foto({ id: 'r2', activityId: 'ronde', takenAt: ts(11, 20) }),
+        foto({ id: 't2', activityId: 'tour', takenAt: ts(18, 40) }),
+        foto({ id: 'c1', activityId: 'corrida', takenAt: ts(6, 5) }),
+        foto({ id: 't1', activityId: 'tour', takenAt: ts(18, 10) }),
+        foto({ id: 'r1', activityId: 'ronde', takenAt: ts(11, 5) }),
+      ],
+      [corrida, ronde, tour],
+    );
+    assert.deepEqual(s.map((x) => x.atividade.id), ['tour', 'ronde', 'corrida']);
+    assert.deepEqual(s.map((x) => x.fotos.map((f) => f.id)), [['t1', 't2'], ['r1', 'r2'], ['c1']]);
+  });
+
+  /** O que aparece é o que troca: nada que a troca recusaria entra na lista. */
+  it('só o que pode ser capa: vídeo, desligada, sem arquivo e sem instante ficam de fora', () => {
+    const s = secoesDoSeletor(
+      [
+        foto({ id: 'ok', activityId: 'tour' }),
+        foto({ id: 'clipe', activityId: 'tour', mediaType: 'video', durationS: 3 }),
+        foto({ id: 'desligada', activityId: 'tour', state: 'dismissed' }),
+        foto({ id: 'sem-arquivo', activityId: 'tour', assetId: null }),
+        foto({ id: 'sem-hora', activityId: 'tour', takenAt: NaN }),
+      ],
+      [tour],
+    );
+    assert.deepEqual(s.map((x) => x.fotos.map((f) => f.id)), [['ok']]);
+  });
+
+  it('foto de atividade fora do período não aparece — a troca a recusaria', () => {
+    const s = secoesDoSeletor(
+      [foto({ id: 'de-junho', activityId: 'junho' }), foto({ id: 'ok', activityId: 'tour' })],
+      [tour],
+    );
+    assert.deepEqual(s.map((x) => x.atividade.id), ['tour']);
+  });
+
+  it('atividade sem foto que sirva não vira seção vazia', () => {
+    const s = secoesDoSeletor([foto({ activityId: 'tour', mediaType: 'video', durationS: 3 })], [tour, ronde]);
+    assert.deepEqual(s, []);
+  });
+
+  it('a ordem não depende da ordem em que o banco devolveu', () => {
+    const fotos = [
+      foto({ id: 'a', activityId: 'tour', takenAt: ts(18, 1) }),
+      foto({ id: 'b', activityId: 'ronde', takenAt: ts(11, 1) }),
+    ];
+    const ida = secoesDoSeletor(fotos, [tour, ronde]);
+    const volta = secoesDoSeletor([...fotos].reverse(), [ronde, tour]);
+    assert.deepEqual(ida.map((x) => x.atividade.id), volta.map((x) => x.atividade.id));
+  });
+});
+
+/* ── a ficha (Story 1.16) ────────────────────────────────────────────────── */
+
+describe('fichaDaCapa — por que, quando, em que atividade e por onde', () => {
+  /** 18/07/2026, 17:09 na hora de parede de quem roda o teste. */
+  const AS_17_09 = new Date(2026, 6, 18, 17, 9, 0);
+  const TOUR = atividade({
+    id: 'tour',
+    activityName: 'Cycling',
+    routeName: 'Tour de la Meuse-Rhin',
+    distanceM: 114_400,
+    cities: [
+      { name: 'Liège', lat: 50.63, lng: 5.57 },
+      { name: 'Herstal', lat: 50.66, lng: 5.62 },
+      { name: 'Liège', lat: 50.63, lng: 5.57 },
+      { name: 'Visé', lat: 50.73, lng: 5.69 },
+    ],
+  });
+
+  function capa(over: Partial<Capa> = {}): Capa {
+    return {
+      tipoPeriodo: 'month', inicio: '2026-07-01', fim: '2026-07-31',
+      natureza: 'foto', fotoId: 'p-1', fotoTakenAt: AS_17_09.toISOString(), rotaActivityId: null,
+      legenda: 'Vijlen · km 80,7 · 17:09',
+      // Meio-dia local de 18/09: o mesmo dia de parede em qualquer fuso.
+      carimbadaEm: new Date(2026, 8, 18, 12, 0, 0).toISOString(),
+      motivo: 'rajada', fotoActivityId: 'tour',
+      ...over,
+    };
+  }
+
+  it('a ficha inteira: o porquê da rajada, a nota, o quando, a atividade e a rota', () => {
+    assert.deepEqual(fichaDaCapa(capa(), TOUR, 'Ciclismo'), {
+      porque: 'A do meio da maior rajada do período — fotografa-se mais onde valeu a pena parar.',
+      nota: { texto: 'Nenhuma foto do período tinha estrela.', mono: false },
+      quando: '18/07/2026 · 17:09',
+      atividade: { nome: 'Tour de la Meuse-Rhin', distancia: '114,4 km' },
+      // Em ordem, sem repetir a cidade por onde a rota voltou.
+      rota: 'Liège · Herstal · Visé',
+    });
+  });
+
+  it('estrela: a frase e a nota da estrela', () => {
+    const f = fichaDaCapa(capa({ motivo: 'estrela' }), TOUR, 'Ciclismo');
+    assert.equal(f.porque, 'A que você marcou com a estrela.');
+    assert.deepEqual(f.nota, { texto: 'A estrela vence a escolha do app.', mono: false });
+  });
+
+  it('única: a frase, sem nota', () => {
+    const f = fichaDaCapa(capa({ motivo: 'unica' }), TOUR, 'Ciclismo');
+    assert.equal(f.porque, 'A única foto do período.');
+    assert.equal(f.nota, null);
+  });
+
+  /**
+   * "Você escolheu esta." — e não "…no lugar da que o app tinha escolhido", que
+   * seria falso na segunda troca. A nota é a data da troca, em mono: é medida.
+   */
+  it('trocada: "Você escolheu esta.", com a data da troca em mono', () => {
+    const f = fichaDaCapa(capa({ motivo: 'trocada' }), TOUR, 'Ciclismo');
+    assert.equal(f.porque, 'Você escolheu esta.');
+    assert.deepEqual(f.nota, { texto: 'trocada em 18/09/2026', mono: true });
+  });
+
+  it('trocada com a data do carimbo ilegível: a frase fica, a nota some', () => {
+    const f = fichaDaCapa(capa({ motivo: 'trocada', carimbadaEm: 'não é data' }), TOUR, 'Ciclismo');
+    assert.equal(f.porque, 'Você escolheu esta.');
+    assert.equal(f.nota, null);
+  });
+
+  /** A linha "Capa anterior à 1.16" da matriz: as duas capas de produção. */
+  it('capa anterior à 1.16 (motivo nulo): diz que foi impressa antes do porquê, e não inventa um', () => {
+    const f = fichaDaCapa(capa({ motivo: null }), TOUR, 'Ciclismo');
+    assert.equal(f.porque, 'Impressa antes de o app guardar o porquê.');
+    assert.equal(f.nota, null);
+    // O resto da ficha é lido ao vivo, e continua lá.
+    assert.equal(f.atividade?.nome, 'Tour de la Meuse-Rhin');
+  });
+
+  /** A linha "Atividade não achada" da matriz, nas três formas que ela chega. */
+  it('atividade não achada: porquê e quando, sem atividade e sem rota', () => {
+    const esperado = {
+      porque: 'A do meio da maior rajada do período — fotografa-se mais onde valeu a pena parar.',
+      quando: '18/07/2026 · 17:09',
+      atividade: null,
+      rota: null,
+    };
+    for (const [c, a] of [
+      [capa(), null],
+      [capa({ fotoActivityId: null }), TOUR],
+      // Outra atividade não é a da foto: a ficha não diz "na atividade X" sobre ela.
+      [capa({ fotoActivityId: 'outra' }), TOUR],
+    ] as const) {
+      const f = fichaDaCapa(c, a, 'Ciclismo');
+      assert.deepEqual(
+        { porque: f.porque, quando: f.quando, atividade: f.atividade, rota: f.rota },
+        esperado,
+      );
+    }
+  });
+
+  it('o nome segue a precedência de sempre, e cai no rótulo do tipo por último', () => {
+    const semNome = atividade({ id: 'tour', activityName: undefined, routeName: undefined });
+    assert.equal(fichaDaCapa(capa(), semNome, 'Ciclismo').atividade?.nome, 'Ciclismo');
+    const editado = atividade({ id: 'tour', activityName: 'Volta de sábado', nameEdited: true, routeName: 'Rota' });
+    assert.equal(fichaDaCapa(capa(), editado, 'Ciclismo').atividade?.nome, 'Volta de sábado');
+  });
+
+  it('atividade sem distância: o nome sem quilômetros; sem cidade: sem rota', () => {
+    const f = fichaDaCapa(capa(), atividade({ id: 'tour', distanceM: undefined, cities: [] }), 'Ciclismo');
+    assert.equal(f.atividade?.distancia, null);
+    assert.equal(f.rota, null);
+  });
+
+  /** Atividade sem GPS chega com distância zero — e "0,0 km" afirmaria uma medida que não houve. */
+  it('distância zero, negativa ou não finita: sem quilômetros', () => {
+    for (const distanceM of [0, -5, NaN, Infinity]) {
+      assert.equal(
+        fichaDaCapa(capa(), atividade({ id: 'tour', distanceM }), 'Ciclismo').atividade?.distancia,
+        null,
+        String(distanceM),
+      );
+    }
+  });
+
+  /**
+   * `nomeDaAtividade` cai no rótulo por `??`, e o `??` não pega string vazia: um
+   * nome da fonte que é só espaço sairia `''`, e a linha "Na atividade" ficaria em
+   * branco.
+   */
+  it('nome da fonte só com espaço: cai no rótulo do tipo, e não no vazio', () => {
+    const branco = atividade({ id: 'tour', activityName: '   ', routeName: undefined });
+    assert.equal(fichaDaCapa(capa(), branco, 'Ciclismo').atividade?.nome, 'Ciclismo');
+  });
+
+  it('a distância em pt-BR, com ponto de milhar', () => {
+    const f = fichaDaCapa(capa(), atividade({ id: 'tour', distanceM: 1_234_560 }), 'Ciclismo');
+    assert.equal(f.atividade?.distancia, '1.234,6 km');
+  });
+
+  it('instante da foto ilegível: sem quando — nunca "NaN/NaN"', () => {
+    assert.equal(fichaDaCapa(capa({ fotoTakenAt: 'não é data' }), TOUR, 'Ciclismo').quando, null);
+    assert.equal(fichaDaCapa(capa({ fotoTakenAt: null }), TOUR, 'Ciclismo').quando, null);
+  });
+
+  it('o Record é exaustivo: todo motivo tem frase, e nenhuma é vazia', () => {
+    for (const motivo of ['estrela', 'rajada', 'unica', 'trocada', 'sem-foto', null] as const) {
+      assert.ok(fichaDaCapa(capa({ motivo }), TOUR, 'Ciclismo').porque.trim().length > 0, String(motivo));
+    }
+  });
+});
+
+describe('nomeDaAtividadeNaCapa — o nome da ficha e do título da seção do seletor', () => {
+  it('a precedência de sempre: o nome da rota vence o genérico da fonte', () => {
+    assert.equal(
+      nomeDaAtividadeNaCapa(atividade({ activityName: 'Cycling', routeName: 'Tour de la Meuse-Rhin' }), 'Ciclismo'),
+      'Tour de la Meuse-Rhin',
+    );
+  });
+
+  it('sem nome nenhum, o rótulo do tipo', () => {
+    assert.equal(nomeDaAtividadeNaCapa(atividade({ activityName: undefined }), 'Ciclismo'), 'Ciclismo');
+  });
+
+  it('nome da fonte só com espaço — o que o `??` deixa passar — também cai no rótulo', () => {
+    assert.equal(nomeDaAtividadeNaCapa(atividade({ activityName: ' \t ' }), 'Ciclismo'), 'Ciclismo');
   });
 });

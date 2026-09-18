@@ -75,6 +75,20 @@ const mockCarimbo: { chamadas: number; erro: Error | null; capa: unknown } =
  */
 const mockFita: string[] = [];
 
+/**
+ * A troca da capa (Story 1.16) — a porta de `lib/edicao-ia`. O que se mede aqui é
+ * a AÇÃO da store: quando ela chama, o que ela faz com o estado no sucesso e o que
+ * ela NÃO faz na falha. A troca em si tem teste em `edicao-ia.test.ts`, e a capa
+ * trocada, no núcleo.
+ */
+const mockTroca: {
+  chamadas: number;
+  fotos: unknown[];
+  erro: Error | null;
+  capa: unknown;
+  pausa: Promise<void> | null;
+} = { chamadas: 0, fotos: [], erro: null, capa: null, pausa: null };
+
 // O ponto de injeção dos motores e o cliente do banco não carregam aqui.
 jest.mock('../../lib/supabase', () => ({ supabase: {} }));
 jest.mock('../../lib/motores', () => ({ motorPara: () => undefined }));
@@ -96,6 +110,13 @@ jest.mock('../../lib/edicao-ia', () => {
       // deixa uma falha de capa virar "a impressão não terminou".
       if (mockCarimbo.erro) throw mockCarimbo.erro;
       return mockCarimbo.capa;
+    },
+    trocarCapa: async (_uid: string, _entrada: unknown, foto: unknown) => {
+      mockTroca.chamadas += 1;
+      mockTroca.fotos.push(foto);
+      if (mockTroca.pausa) await mockTroca.pausa;
+      if (mockTroca.erro) throw mockTroca.erro;
+      return mockTroca.capa;
     },
     buscarEdicao: async () => {
       mockFita.push('leitura');
@@ -143,11 +164,13 @@ jest.mock('../auth.store', () => ({
   },
 }));
 
+import { TrocaRecusada } from '../../lib/edicao-ia';
 import {
   chaveDe,
   dadosProntosParaImprimir,
   estadoDe,
   podeImprimir,
+  podeTrocarCapa,
   precisaGarantirJanela,
   portaDe,
   useEdicaoStore,
@@ -246,6 +269,11 @@ beforeEach(() => {
   mockCarimbo.erro = null;
   mockCarimbo.capa = null;
   mockFita.length = 0;
+  mockTroca.chamadas = 0;
+  mockTroca.fotos = [];
+  mockTroca.erro = null;
+  mockTroca.capa = null;
+  mockTroca.pausa = null;
   useEdicaoStore.setState({ porPeriodo: {} });
 });
 
@@ -1473,6 +1501,8 @@ const CAPA_DE_AGOSTO = {
   fotoId: 'f-1', fotoTakenAt: '2026-08-14T12:38:00.000Z', rotaActivityId: null,
   legenda: 'Ittre \u00b7 km 31,1 \u00b7 12:38',
   carimbadaEm: '2026-09-01T00:00:00.000Z',
+  motivo: 'rajada' as const,
+  fotoActivityId: 'a-1',
 };
 
 describe('a capa carimbada chega à vista', () => {
@@ -1533,7 +1563,7 @@ describe('vistaDaEdicao — foto ou papel, e a legenda', () => {
   it('capa de traçado e de grade: papel, sem legenda e sem espaço reservado', () => {
     for (const natureza of ['tracado', 'grade'] as const) {
       expect(daCapa(comCapa({
-        ...CAPA_DE_AGOSTO, natureza, fotoId: null, fotoTakenAt: null,
+        ...CAPA_DE_AGOSTO, natureza, fotoId: null, fotoTakenAt: null, motivo: 'sem-foto', fotoActivityId: null,
         rotaActivityId: natureza === 'tracado' ? 'a-1' : null,
         legenda: natureza === 'tracado' ? 'Ittre \u00b7 km 62,4' : 'Agosto de 2026',
       }))).toEqual({ comFoto: false, legenda: null });
@@ -1692,5 +1722,272 @@ describe('o toque de reler com uma leitura silenciosa em voo', () => {
     await foco;
     expect(naTela()).toMatchObject({ fase: 'erro', mensagem: 'Não foi possível ler a edição agora.' });
     warn.mockRestore();
+  });
+});
+
+/* ── a troca da capa (Story 1.16) ────────────────────────────────────────── */
+
+/** A foto que o dono escolheu no seletor — a forma basta; quem a confere é a porta. */
+const FOTO_ESCOLHIDA = { id: 'p-9', activityId: 'a-1' } as unknown as Parameters<
+  ReturnType<typeof useEdicaoStore.getState>['trocarCapa']
+>[1];
+
+/** A capa que a porta devolve depois de recarimbar. */
+const CAPA_TROCADA = {
+  ...CAPA_DE_AGOSTO,
+  fotoId: 'p-9', fotoTakenAt: '2026-08-14T15:22:00.000Z',
+  legenda: 'Ittre · km 62,4 · 15:22',
+  carimbadaEm: '2026-09-18T10:00:00.000Z',
+  motivo: 'trocada' as const,
+};
+
+/** Agosto impresso, com a capa de foto (`CAPA_DE_AGOSTO`) — o estado em que a ficha abre. */
+async function impressaComCapaDeFoto(): Promise<void> {
+  mockLeitura.respostas = [{
+    estado: 'ok', edicao: [impresso('movimento', 1), impresso('sono', 2)], capa: CAPA_DE_AGOSTO,
+  }];
+  await useEdicaoStore.getState().carregar(ENTRADA);
+  expect(lida().capa).toEqual(CAPA_DE_AGOSTO);
+}
+
+describe('podeTrocarCapa — a regra que a ação confere', () => {
+  const comFoto = { edicao: [impresso('movimento', 1)], capa: CAPA_DE_AGOSTO as never };
+
+  it('edição impressa, capa de foto, nenhuma impressão correndo: pode', () => {
+    expect(podeTrocarCapa(estadoLido(comFoto))).toBe(true);
+  });
+
+  it('com uma impressão correndo, não', () => {
+    expect(podeTrocarCapa(estadoLido({ ...comFoto, imprimindo: 'sono' }))).toBe(false);
+  });
+
+  /** A linha "Capa tracado/grade" da matriz: não há foto a trocar. */
+  it('capa de traçado, de grade, ou nenhuma: não', () => {
+    for (const natureza of ['tracado', 'grade'] as const) {
+      expect(podeTrocarCapa(estadoLido({ ...comFoto, capa: { ...CAPA_DE_AGOSTO, natureza } as never }))).toBe(false);
+    }
+    expect(podeTrocarCapa(estadoLido({ ...comFoto, capa: null }))).toBe(false);
+  });
+
+  it('edição sem caderno impresso: não — a capa sobreviveu aos cadernos, e a ficha não abre', () => {
+    expect(podeTrocarCapa(estadoLido({ ...comFoto, edicao: [] }))).toBe(false);
+  });
+
+  it('fora da fase lida: não', () => {
+    for (const e of [{ fase: 'carregando' }, { fase: 'relendo' }, { fase: 'ausente' }, { fase: 'sem-sessao' }] as const) {
+      expect(podeTrocarCapa(e)).toBe(false);
+    }
+    expect(podeTrocarCapa(undefined)).toBe(false);
+  });
+});
+
+describe('trocarCapa — recarimba a capa e só', () => {
+  /**
+   * O critério de aceite: a capa passa a ser a nova, e o texto, a ordem e as
+   * assinaturas continuam **idênticos**. A comparação é da edição inteira, objeto
+   * a objeto — não do comprimento.
+   */
+  it('sucesso: a capa nova entra, e a edição e a sessão ficam idênticas', async () => {
+    await impressaComCapaDeFoto();
+    const antes = lida();
+    mockTroca.capa = CAPA_TROCADA;
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r).toEqual({ ok: true, capa: CAPA_TROCADA });
+    expect(mockTroca.fotos).toEqual([FOTO_ESCOLHIDA]);
+    const depois = lida();
+    expect(depois.capa).toEqual(CAPA_TROCADA);
+    expect(depois.edicao).toBe(antes.edicao);
+    expect(depois.sessao).toBe(antes.sessao);
+    expect(depois.imprimindo).toBeNull();
+    // Nada foi relido nem impresso: a troca não passa pela edição.
+    expect(mockLeitura.chamadas).toBe(1);
+    expect(mockImpressao.chamadas).toBe(0);
+  });
+
+  it('a vista refaz a capa com a legenda nova — e o sumário, a manchete e as assinaturas não mudam', async () => {
+    await impressaComCapaDeFoto();
+    const antes = vistaDaEdicao(naTela(), TODOS, AGG_VERSION);
+    mockTroca.capa = CAPA_TROCADA;
+    await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    const depois = vistaDaEdicao(naTela(), TODOS, AGG_VERSION);
+    if (antes.tipo !== 'edicao' || depois.tipo !== 'edicao') throw new Error('sem edição');
+    expect(depois.capa.legenda).toBe(CAPA_TROCADA.legenda);
+    expect(depois.capa.comFoto).toBe(true);
+    expect(depois.capa.manchete).toBe(antes.capa.manchete);
+    expect(depois.cadernos).toEqual(antes.cadernos);
+  });
+
+  /**
+   * A troca falha **em voz alta** — ao contrário do carimbo da impressão, que só
+   * loga. A mensagem volta para o seletor, e o estado não é tocado: a capa, a
+   * edição e a sessão ficam como estavam.
+   */
+  it('falha na gravação: a mensagem volta, e o estado fica intacto', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await impressaComCapaDeFoto();
+    const antes = naTela();
+    mockTroca.erro = new Error('PGRST204: coluna motivo não existe');
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r).toEqual({ ok: false, mensagem: 'Não foi possível trocar a capa agora. A capa continua a mesma.' });
+    expect(naTela()).toBe(antes);
+    // O motivo real vai para o log, não para a tela.
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('a recusa antes do banco chega à tela com a frase dela', async () => {
+    await impressaComCapaDeFoto();
+    const antes = naTela();
+    mockTroca.erro = new TrocaRecusada('Esta foto não é de uma atividade deste período, e não pode ser a capa dele.');
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r).toEqual({
+      ok: false, mensagem: 'Esta foto não é de uma atividade deste período, e não pode ser a capa dele.',
+    });
+    expect(naTela()).toBe(antes);
+  });
+
+  it('não troca com impressão em curso — e nem chama a porta', async () => {
+    await impressaComCapaDeFoto();
+    useEdicaoStore.setState((s) => ({
+      porPeriodo: { ...s.porPeriodo, [chaveDe('u-1', ENTRADA)]: { ...lida(), imprimindo: 'sono' } },
+    }));
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.mensagem).toMatch(/sendo impressa/);
+    expect(mockTroca.chamadas).toBe(0);
+  });
+
+  it('sem capa de foto não há o que trocar — e nem chama a porta', async () => {
+    await lidoCom([impresso('movimento', 1)]);
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r.ok).toBe(false);
+    expect(mockTroca.chamadas).toBe(0);
+  });
+
+  /**
+   * Trocar pela foto que já é a capa **não é troca**, e gravá-la apagaria o porquê
+   * para sempre: o motivo viraria `trocada` — e nas duas capas de produção, o nulo
+   * que declara "impressa antes do porquê" sumiria. A regra é da ação, não só do
+   * seletor.
+   */
+  it('a foto que já é a capa é recusada — e a porta nem é chamada', async () => {
+    await impressaComCapaDeFoto();
+    const antes = naTela();
+    const mesma = { ...FOTO_ESCOLHIDA, id: CAPA_DE_AGOSTO.fotoId };
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, mesma);
+    expect(r).toEqual({ ok: false, mensagem: 'Esta foto já é a capa.' });
+    expect(mockTroca.chamadas).toBe(0);
+    expect(naTela()).toBe(antes);
+  });
+
+  it('inclusive numa capa anterior à 1.16: o motivo nulo fica', async () => {
+    mockLeitura.respostas = [{
+      estado: 'ok', edicao: [impresso('movimento', 1)], capa: { ...CAPA_DE_AGOSTO, motivo: null },
+    }];
+    await useEdicaoStore.getState().carregar(ENTRADA);
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, { ...FOTO_ESCOLHIDA, id: CAPA_DE_AGOSTO.fotoId });
+    expect(r.ok).toBe(false);
+    expect(mockTroca.chamadas).toBe(0);
+    expect(lida().capa?.motivo).toBeNull();
+  });
+
+  /**
+   * Duas trocas no mesmo período, a segunda antes de a primeira voltar: a segunda
+   * é recusada sem chamar a porta. Sem a guarda, a capa que fica seria a da
+   * gravação que o banco recebeu por último — não a do último toque.
+   */
+  it('segunda troca na mesma chave, com a primeira em voo: recusada, sem chamar a porta', async () => {
+    await impressaComCapaDeFoto();
+    const presa = segurar();
+    mockTroca.pausa = presa.pausa;
+    mockTroca.capa = CAPA_TROCADA;
+    const primeira = useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    await drenar();
+    const segunda = await useEdicaoStore.getState().trocarCapa(ENTRADA, { ...FOTO_ESCOLHIDA, id: 'p-10' });
+    expect(segunda).toEqual({ ok: false, mensagem: 'A capa já está sendo trocada. Espere a troca terminar.' });
+    expect(mockTroca.chamadas).toBe(1);
+    presa.soltar();
+    expect((await primeira).ok).toBe(true);
+    expect(lida().capa).toEqual(CAPA_TROCADA);
+  });
+
+  it('a guarda solta a chave no fim — também quando a troca falha', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await impressaComCapaDeFoto();
+    mockTroca.erro = new Error('rede');
+    expect((await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA)).ok).toBe(false);
+    mockTroca.erro = null;
+    mockTroca.capa = CAPA_TROCADA;
+    expect((await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA)).ok).toBe(true);
+    expect(mockTroca.chamadas).toBe(2);
+    warn.mockRestore();
+  });
+
+  /**
+   * A geração sobe **só se a capa entra**. Se o leitor pediu uma releitura
+   * enquanto a troca gravava, a fase é `relendo` quando a troca volta: a capa não
+   * entra (não há edição lida onde pô-la) — e descartar a leitura em voo deixaria
+   * a tela presa em `relendo`. É essa leitura que traz do banco a capa já trocada.
+   */
+  it('a troca que volta com a fase fora de `lida` não descarta a releitura em voo', async () => {
+    await impressaComCapaDeFoto();
+    const gravando = segurar();
+    mockTroca.pausa = gravando.pausa;
+    mockTroca.capa = CAPA_TROCADA;
+    const troca = useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    await drenar();
+
+    // O leitor relê; o banco já tem a capa trocada, e a leitura fica presa no meio.
+    const lendo = segurar();
+    mockLeitura.pausas = [null, lendo.pausa];
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [impresso('movimento', 1), impresso('sono', 2)], capa: CAPA_TROCADA }];
+    const releitura = useEdicaoStore.getState().recarregar(ENTRADA);
+    await drenar();
+    expect(naTela()).toEqual({ fase: 'relendo' });
+
+    gravando.soltar();
+    expect((await troca).ok).toBe(true);
+    lendo.soltar();
+    await releitura;
+    expect(naTela().fase).toBe('lida');
+    expect(lida().capa).toEqual(CAPA_TROCADA);
+  });
+
+  it('sem sessão não troca', async () => {
+    await impressaComCapaDeFoto();
+    mockAuth.uid = undefined;
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r.ok).toBe(false);
+    expect(mockTroca.chamadas).toBe(0);
+  });
+
+  /**
+   * **Sucesso sobe a geração da chave.** Uma leitura que já estava em voo quando a
+   * troca gravou volta com a capa velha do banco; sem a geração nova, ela a
+   * reporia por cima da que o dono acabou de escolher, e a rota voltaria à foto
+   * antiga sem ninguém tocar em nada.
+   */
+  it('uma leitura em voo não repõe a capa velha depois da troca', async () => {
+    // Uma leitura silenciosa lenta, presa no meio, que vai voltar com a capa antiga.
+    await lidoCom([]);
+    const lenta = segurar();
+    mockLeitura.pausas = [null, lenta.pausa];
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [impresso('movimento', 1)], capa: CAPA_DE_AGOSTO }];
+    const foco = useEdicaoStore.getState().carregar(ENTRADA);
+    await drenar();
+    // Enquanto ela corre, a edição impressa com a capa de foto chega à tela…
+    useEdicaoStore.setState((s) => ({
+      porPeriodo: {
+        ...s.porPeriodo,
+        [chaveDe('u-1', ENTRADA)]: estadoLido({ edicao: [impresso('movimento', 1)], capa: CAPA_DE_AGOSTO as never }),
+      },
+    }));
+    // …e o dono troca a capa.
+    mockTroca.capa = CAPA_TROCADA;
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r.ok).toBe(true);
+    lenta.soltar();
+    await foco;
+    expect(lida().capa).toEqual(CAPA_TROCADA);
   });
 });
