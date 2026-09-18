@@ -1152,6 +1152,22 @@ const TEXT_ACCENT: { label: string; files: string[]; re: RegExp; max: number }[]
     max: 28,
   },
   {
+    /**
+     * `primaryOn` é a tinta sobre o **`primarySoft`** (o preenchimento pálido) —
+     * sobre o `primary` sólido ele mede **1,00** na marca Tinta e 1,11 na
+     * Laranja: texto preto em botão preto. O botão "Escrever a edição" da rota
+     * da revista nasceu assim na 1.11 e só apareceu no iPhone do dono em 18/09,
+     * porque a marca dele é a Tinta. Sobre o cheio o token é `onPrimary`, que o
+     * resto do app já usa e que a marca pode declarar (o laranja quer branco).
+     * Teto **zero**: não há uso legítimo hoje, e o dia em que houver pede um
+     * fundo `primarySoft` na mesma folha.
+     */
+    label: 'mobile — color: colors.primaryOn (é tinta de primarySoft, não do sólido)',
+    files: mobileFiles,
+    re: /color:\s*colors\.primaryOn\b/g,
+    max: 0,
+  },
+  {
     label: 'web — color: var(--acento)',
     files: walkExt(join(ROOT, 'web', 'src'), /\.(scss|html|ts)$/),
     re: /(?<![-\w])color:\s*var\(--(primary|primary-deep|role-[a-z]+)\)/g,
