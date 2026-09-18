@@ -1315,6 +1315,71 @@ indesejado lidera justamente no mês em que varia mais
 existir
 **And** silenciar caderno e esconder bloco continuam sendo dois atos independentes
 
+### Story 2.6: O que ainda não era registrado não vira zero
+
+As a leitor da revista,
+I want que uma edição antiga não diga "0" do que o app ainda não registrava,
+So that o arquivo de 2023 a 2025 não narre como falta o que era só ausência de medida.
+
+> **Ordem: antes da 2.3.** Achado no piloto (1.15) e decidido pelo dono em 18/09/2026: setembro/2023
+> imprimiu *"água, café, cerveja e smoke somaram 0 dias"* e *"passos por dia: 0"* — mas os hábitos
+> existem desde 20/05/2026 e o primeiro dia de saúde é 24/03/2025. A impressão em massa espalharia
+> esses zeros por quase todas as edições de 2023 a 2025, contra *ausência tem gramática*.
+
+**Acceptance Criteria:**
+
+**Given** uma métrica começou a ser registrada depois do fim do período
+**When** o pacote do caderno é montado
+**Then** ela entra como **não medida** — nunca como zero — e o texto não a cita como valor
+**And** zero continua sendo medida quando o registro já existia e o dia passou sem ocorrência
+
+**Given** o começo do registro varia por métrica
+**When** se decide "não medido" × "zero"
+**Then** o marco sai do **dado** — a criação do hábito ou do registro, o primeiro dia da métrica de
+saúde —, nunca de uma data escrita no código
+
+**Given** um caderno cujas métricas ficaram todas não medidas
+**When** a edição é impressa
+**Then** ele é caderno vazio e some, pela regra do vazio que já existe
+
+**Given** setembro e outubro de 2023 foram impressos no piloto com o defeito
+**When** a spec é escrita
+**Then** o dono decide o destino das duas — reimprimir na 2.3 ou manter —, antes do código
+
+### Story 2.7: O detector de métrica morta
+
+As a leitor da revista,
+I want que a métrica que parou de chegar apareça como lápide,
+So that o arquivo não narre como calmaria o que foi o relógio parando de medir.
+
+> **Ordem: antes da 2.3.** Decidido no piloto (1.15, 18/09/2026): ele rodou **sem lápides**, porque
+> nada preenche `entrada.lapides` — nem a tela, nem a impressão. O núcleo já ranqueia, narra e desenha
+> a lápide (1.7, 1.12); falta quem diga que a métrica morreu. SpO₂, respiração e VO₂max pararam em
+> julho/2026 e nenhuma tela avisou.
+
+**Acceptance Criteria:**
+
+**Given** o núcleo já sabe o que fazer com a lápide
+**When** o detector nasce
+**Then** ele preenche `entrada.lapides` na tela e na impressão, pelas mesmas portas
+**And** a edição impressa deixa de sair sem a lápide que a tela mostraria
+
+**Given** três perguntas abertas no `deferred-work.md` — o limiar de silêncio, a latência (a edição
+impressa logo no fechamento não vê a morte dos últimos dias) e por quanto tempo uma morte antiga
+continua sendo repassada
+**When** a spec é escrita
+**Then** o dono decide as três antes do código
+
+**Given** a métrica que parou numa fonte e voltou por outra — a VFC, parada no Apple Watch em 17/07
+e de volta pelo intervals.icu
+**When** o detector a avalia
+**Then** ela **não** é declarada morta
+
+**Given** a lápide nunca apareceu em aparelho nenhum
+**When** a story fecha
+**Then** o dono julga a lápide em tela — o veredito que a 1.12 deixou para cá — e o passo 5 do
+ranqueamento, que o piloto não pôde ver
+
 ## Epic 3: As outras duas formas
 
 Semana vira postal de uma tela que não custa nada; ano vira anuário que abre pelas quatro

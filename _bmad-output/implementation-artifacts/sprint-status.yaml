@@ -60,13 +60,13 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 18-09-2026 19:07
+last_updated: 19-09-2026 01:35
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-1: in-progress
+  epic-1: done
   # ▲ COMEÇA AQUI. Risco 9 — defeito vivo em produção hoje: a edição grava null,
   # precisaErrata devolve false para nulo, e NENHUMA edição é elegível a errata.
   # Precede o backfill. Cuidado do R-02: tornar a coluna not null SEM tornar o
@@ -162,7 +162,21 @@ development_status:
   # deferred-work.md morre. A frequência observada hoje é ZERO — as 7 edições do
   # prompt v2 não contêm um único negador —, e foi por isso que o conserto foi
   # adiado em vez de construído no escuro. Ver deferred-work.md.
-  1-15-o-piloto-de-três-edições: backlog
+  # FECHADA em 18/09/2026 PELO DONO, lendo agosto e julho/2026 no iPhone: "a ordem
+  # está ok". Impressos: agosto/2026 (o Sono apagado e reescrito para ganhar capa —
+  # opção A dele), julho/2026, setembro e outubro/2023. A MEDIDA de 16/09 deu ZERO
+  # chamadas com número de comparação sem a base — a aceitação fica. Os dois
+  # limítrofes ("subiu para 85", "subiu para 71 ms": número atual, direção sem
+  # base) NÃO contam, por decisão dele. Custo: ~7,3 mil tokens de entrada e ~0,8
+  # mil de saída por edição de quatro cadernos.
+  # O que o piloto NÃO viu, e virou story antes da 2.3: as lápides (nada as
+  # produz — a 2.7, o detector) e o zero no lugar da ausência em 2023 (a 2.6).
+  # A ordem mensal saiu IGUAL em junho, julho e agosto (Movimento, Rotina,
+  # Coração, Sono) — ele a achou certa; o ranqueamento varia nas semanas.
+  # GATILHO DO NEGADOR: os textos novos nomeiam a base NEGADA em quase todo
+  # caderno ("sem a normal do período"), então a frequência deixou de ser zero.
+  # Se algum caderno do piloto foi reprovado por inversão, é o dono quem viu.
+  1-15-o-piloto-de-três-edições: done
   epic-1-retrospective: optional
 
   epic-2: backlog
@@ -170,6 +184,12 @@ development_status:
   2-1-o-quarto-workspace-e-a-barreira-que-o-enxerga: backlog
   # Do lado do modelo, só injeta `invocar` (AD-14 dos motores).
   2-2-o-script-imprime-uma-edição-e-ela-é-idêntica-à-do-telefone: backlog
+  # 2.6 e 2.7 entram ANTES da 2.3 — nasceram no piloto (1.15, 18/09/2026): a
+  # impressão em massa espalharia o zero no lugar da ausência por 2023–2025, e
+  # sairia sem lápide nenhuma. A 2.7 tem três decisões do dono antes do código
+  # (limiar, latência e prazo da morte antiga — deferred-work).
+  2-6-o-que-ainda-não-era-registrado-não-vira-zero: backlog
+  2-7-o-detector-de-métrica-morta: backlog
   2-3-a-impressão-em-massa-dos-períodos-fechados: backlog
   2-4-a-parede-de-capas: backlog
   2-5-silenciar-um-caderno: backlog
