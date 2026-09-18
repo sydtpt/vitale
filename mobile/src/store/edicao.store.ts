@@ -296,8 +296,21 @@ function faseSemPorta(nunca: never): PortaDaEdicao {
 export type AcaoDoCaderno = 'escrever' | 'escrever-de-novo' | 'tentar-de-novo';
 
 export type CadernoNaVista =
-  /** Impresso — ou escrito e à espera da gravação, e aí sem `assinatura`. */
-  | { caderno: CadernoId; estado: 'pronta'; texto: string; assinatura: string | null; errata: boolean }
+  /**
+   * Impresso — ou escrito e à espera da gravação, e aí sem `assinatura`.
+   *
+   * `chamada` é a primeira frase do texto — a linha do sumário (Story 1.14). Ela
+   * é decidida **aqui, e não no render**: é a mesma `chamadaDoTexto` que dá a
+   * manchete da capa logo acima, e regra tem teste enquanto render não tem. Se um
+   * dia o corte da frase mudar, muda num lugar só.
+   *
+   * `null` é caderno cujo texto não fecha frase nenhuma — **nunca** string vazia.
+   * A linha do sumário fica assim mesmo, com o nome e sem chamada.
+   */
+  | {
+      caderno: CadernoId; estado: 'pronta'; texto: string;
+      chamada: string | null; assinatura: string | null; errata: boolean;
+    }
   | { caderno: CadernoId; estado: 'na-fila' }
   | { caderno: CadernoId; estado: 'escrevendo' }
   | { caderno: CadernoId; estado: 'reprovada'; motivo: string; problemas: readonly string[]; acao?: 'escrever-de-novo' }
@@ -394,6 +407,11 @@ function chamadaDaCapa(edicao: Edicao): string | null {
  *
  * **A errata** é por caderno: `precisaErrata(c, aggVersion)` marca só aquele, e o
  * texto fica como está.
+ *
+ * **A chamada de cada caderno pronto sai daqui** (Story 1.14), pela mesma
+ * `chamadaDoTexto` que dá a manchete da capa duas linhas acima. O sumário da rota
+ * é uma linha por caderno **do miolo** — na ordem que este vetor já tem —, então
+ * o caderno que não está pronto entra na lista do mesmo jeito, só sem chamada.
  */
 export function vistaDaEdicao(
   estado: EstadoEdicao,
@@ -448,6 +466,7 @@ export function vistaDaEdicao(
       caderno: c.caderno,
       estado: 'pronta',
       texto: c.texto,
+      chamada: chamadaDoTexto(c.texto),
       assinatura: assinaturaDoCaderno(c.modelo, c.geradoEm),
       errata: precisaErrata(c, aggVersion),
     });
@@ -474,7 +493,10 @@ export function vistaDaEdicao(
           cadernos.push({ caderno, estado: s.fase });
           break;
         case 'escrito':
-          cadernos.push({ caderno, estado: 'pronta', texto: s.texto, assinatura: null, errata: false });
+          cadernos.push({
+            caderno, estado: 'pronta', texto: s.texto, chamada: chamadaDoTexto(s.texto),
+            assinatura: null, errata: false,
+          });
           break;
         case 'reprovada':
           if (!temDado) break;

@@ -14,6 +14,7 @@ import {
 import { CapaComFoto } from '../../../components/revista/CapaComFoto';
 import { useEntradaDaEdicao } from '../../../hooks/useEntradaDaEdicao';
 import { useFotoDaCapa } from '../../../hooks/useFotoDaCapa';
+import { useRolagemAncorada, type Ancora } from '../../../hooks/useRolagemAncorada';
 import {
   ICONE_DO_CADERNO,
   comDadoDaEntrada,
@@ -60,8 +61,12 @@ import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '..
  *    imprime.
  *
  * A **1.12** desenhou os cadernos: a faixa sangrada na cor do módulo, com ícone e
- * nome, e a lápide nos dois estados. A capa com foto é da 1.13; o sumário, da
- * 1.14.
+ * nome, e a lápide nos dois estados. A capa com foto é da 1.13.
+ *
+ * A **1.14** pôs o sumário entre a capa e o miolo — a **única** navegação da
+ * revista. A ordem do miolo é variável de propósito, então a posição não ensina
+ * nada: sem o sumário, quem abre julho rola os quatro cadernos para descobrir
+ * qual importa.
  */
 export default function RevistaScreen() {
   const styles = useThemedStyles(createStyles);
@@ -162,6 +167,15 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
   const carimbada = vista.tipo === 'edicao' ? vista.capa.carimbada : null;
   const foto = useFotoDaCapa(carimbada);
 
+  /**
+   * O sumário e as faixas, ligados pela âncora (Story 1.14) — **fora** do
+   * `switch` pela mesma razão da foto: hooks não moram em ramos.
+   *
+   * O hook é genérico e mora em `hooks/`; a revista só o usa. Aqui o id da âncora
+   * é o `CadernoId`, que já é a chave do miolo.
+   */
+  const rolagem = useRolagemAncorada<CadernoId>();
+
   const escreverEdicao = useCallback(() => {
     void imprimir(entrada, dadosProntos);
   }, [imprimir, entrada, dadosProntos]);
@@ -229,6 +243,7 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
         && (foto.estado === 'pronta' || foto.estado === 'procurando');
       return (
         <ScrollView
+          ref={rolagem.scrollRef}
           contentContainerStyle={{ paddingBottom: bottom + spacing['3xl'] }}
           showsVerticalScrollIndicator={false}
         >
@@ -243,8 +258,26 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
             <CapaEmPapel capa={capa} onEscrever={escreverEdicao} />
           )}
 
+          {/* Capa → sumário → cadernos, nesta ordem: é a forma da revista.
+              Miolo vazio não tem sumário — ali o convite está na capa. */}
+          {cadernos.length > 0 ? <Sumario cadernos={cadernos} onIr={rolagem.irPara} /> : null}
+
+          {/* **Cada `Caderno` é filho DIRETO deste `ScrollView`, e a âncora
+              depende disso.** O `onLayout` dele entrega a posição dentro do pai
+              imediato, que só é o deslocamento do `scrollTo` enquanto o pai for o
+              `contentContainer`. Embrulhar este `map` numa `View` — para dar um
+              `gap`, um fundo, o que for — faz todas as linhas do sumário rolarem
+              para o mesmo lugar, sem erro nenhum e com a suíte verde. Se um dia
+              precisar do embrulho, a âncora tem que passar a medir contra o
+              rolável (`measureLayout`), não contra o pai. */}
           {cadernos.map((c) => (
-            <Caderno key={c.caderno} c={c} lapides={lapides[c.caderno]} onAcao={escreverCaderno} />
+            <Caderno
+              key={c.caderno}
+              c={c}
+              lapides={lapides[c.caderno]}
+              onAcao={escreverCaderno}
+              ancora={rolagem.ancora(c.caderno)}
+            />
           ))}
         </ScrollView>
       );
@@ -302,6 +335,101 @@ function CapaEmPapel({ capa, onEscrever }: {
   );
 }
 
+/**
+ * O sumário — a **única** navegação da revista (Story 1.14, CAP-8).
+ *
+ * Uma linha por caderno do miolo, **na ordem impressa**: o nome dele e a chamada,
+ * que é a mesma frase que a capa já usa como manchete quando o caderno lidera.
+ * Ela não diz o que tem dentro; diz **por que entrar**.
+ *
+ * Quatro coisas que ele faz de propósito, e que passam por defeito:
+ *
+ * - **A linha permanece em estado misto**, com o nome e sem chamada. Sumir seria
+ *   mentir por omissão, e esperar o sumário ficar completo esconderia os cadernos
+ *   que deram certo por causa de um que falhou.
+ * - **A primeira linha repete a manchete da capa**, e isso é **forma**: é o que
+ *   revista impressa faz. A capa é identidade do período; a linha é o alvo de
+ *   toque. As duas ficam, visíveis e audíveis.
+ * - **A chamada aparece inteira** — sem `numberOfLines`, sem "…". As primeiras
+ *   frases reais medem 104 a 148 caracteres, e o fim delas é onde costuma estar a
+ *   base contra a qual o número compara. Chamada longa demais se conserta no
+ *   prompt, não na tela.
+ * - **Tocar rola, não navega.** Nenhuma entrada na pilha, nenhuma rota, nenhuma
+ *   barra fixa — e a faixa do caderno continua não tocável: ela é âncora e
+ *   identidade.
+ */
+function Sumario({ cadernos, onIr }: {
+  cadernos: readonly CadernoNaVista[];
+  onIr: (caderno: CadernoId) => void;
+}) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.sumario}>
+      <View style={styles.sumarioTopo}>
+        {/* `header` porque cada faixa de caderno é um — e quem navega por
+            cabeçalhos no VoiceOver pularia a única navegação da revista inteira
+            se este fosse texto solto entre dois cabeçalhos de seção. */}
+        <Text style={styles.eyebrow} accessibilityRole="header">Nesta edição</Text>
+      </View>
+      {cadernos.map((c) => (
+        <LinhaDoSumario
+          key={c.caderno}
+          rotulo={rotuloDoCaderno(c.caderno)}
+          chamada={c.estado === 'pronta' ? c.chamada : null}
+          onPress={() => onIr(c.caderno)}
+        />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * A dica da linha do sumário — **a decisão mais incomum da story, dita em voz**.
+ *
+ * `button` anuncia que o alvo *ativa*; não anuncia que ele rola **na mesma
+ * página**. Sem a dica, quem usa VoiceOver espera sair daqui e não sai, e a
+ * ausência de transição lê como toque que não funcionou.
+ */
+const DICA_DA_LINHA = 'Rola até este caderno, na mesma página.';
+
+/**
+ * Uma linha do sumário. **O alvo de toque é a linha inteira** (mínimo 62, e a
+ * altura é mínima: no tipo dinâmico grande ela cresce com o texto).
+ *
+ * É `button`, não `link`: rolar na mesma página não é navegar. Um nó só para o
+ * leitor de tela, com nome e chamada na mesma frase — a seta é decorativa, e o
+ * nome sozinho já bastaria para escolher.
+ */
+function LinhaDoSumario({ rotulo, chamada, onPress }: {
+  rotulo: string;
+  chamada: string | null;
+  onPress: () => void;
+}) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={chamada ? `${rotulo}. ${chamada}` : rotulo}
+      accessibilityHint={DICA_DA_LINHA}
+      style={({ pressed }) => [styles.sumLinha, pressed && styles.pressed]}
+    >
+      <View style={styles.sumCorpo}>
+        <Text style={styles.sumRotulo}>{rotulo}</Text>
+        {chamada ? <Text style={styles.sumChamada}>{chamada}</Text> : null}
+      </View>
+      {/* A seta é **decorativa**: ela mora dentro do nó acessível da linha, então
+          o leitor de tela não a lê, e o rótulo não depende dela para dizer o
+          destino. Por isso ela pode ficar em `ink3` três linhas abaixo de um
+          rótulo que recusou o mesmo token: `ink3` mede 3,05 sobre `surface` — o
+          fundo do sumário —, que passa o piso de 3,0 de **objeto gráfico** e
+          reprova o de 4,5 de **texto**. O que muda não é a cor; é o que a coisa é. */}
+      <Ionicons name="chevron-down" size={18} color={colors.ink3} />
+    </Pressable>
+  );
+}
+
 const ROTULO_DA_ACAO: Record<AcaoDoCaderno, string> = {
   escrever: 'Escrever este caderno',
   'escrever-de-novo': 'Escrever este caderno de novo',
@@ -342,11 +470,19 @@ function Lapide({ l, accent }: { l: LapideNaEdicao; accent: string }) {
   );
 }
 
-/** Um caderno, no estado dele — a faixa, o corpo recuado e as lápides nos dois lugares. */
-function Caderno({ c, lapides, onAcao }: {
+/**
+ * Um caderno, no estado dele — a faixa, o corpo recuado e as lápides nos dois lugares.
+ *
+ * A **âncora** (1.14) entra em dois pontos, e são dois de propósito: o `onLayout`
+ * no container, porque é a posição *dele* dentro do rolável que o sumário quer; e
+ * o `ref` na **faixa**, porque é ela que o leitor de tela deve passar a ler — ela
+ * já é o cabeçalho da seção, com o nome do caderno como rótulo.
+ */
+function Caderno({ c, lapides, onAcao, ancora }: {
   c: CadernoNaVista;
   lapides: readonly LapideNaEdicao[];
   onAcao: (caderno: CadernoId) => void;
+  ancora: Ancora;
 }) {
   const styles = useThemedStyles(createStyles);
   // Cor no render, nunca na folha: `moduleColors` lê os eixos ativos no momento
@@ -364,14 +500,19 @@ function Caderno({ c, lapides, onAcao }: {
   const noPe = lapides.filter((l) => !l.doPeriodo);
 
   return (
-    <View style={styles.caderno}>
+    <View style={styles.caderno} onLayout={ancora.onLayout}>
       {/* A faixa sangra de borda a borda porque é a arquitetura da revista, não o
           que ela tem a dizer. **Não é tocável**, não colapsa e não vira barra
           fixa: é sinalização, e a ordem do miolo muda a cada edição. Para o
           leitor de tela é UM cabeçalho de seção — o nome é o rótulo, e o ícone
           é decorativo, por isso o nó é único. A altura é MÍNIMA: no tipo
-          dinâmico grande ela cresce com o nome, sem corte nem reticências. */}
+          dinâmico grande ela cresce com o nome, sem corte nem reticências.
+
+          O `ref` da âncora é o destino do FOCO, e não do desenho: o sumário rola
+          até aqui e manda o leitor de tela ler este cabeçalho. Continua não
+          tocável. */}
       <View
+        ref={ancora.ref}
         style={[styles.faixa, { backgroundColor: mod.accent }]}
         accessible
         accessibilityRole="header"
@@ -509,6 +650,69 @@ const createStyles = () =>
       color: colors.ink2, marginTop: spacing.md,
     },
     convite: { fontSize: 14, lineHeight: 21, fontFamily: fonts.sans, color: colors.ink2 },
+
+    /* ── o sumário (CAP-8) ───────────────────────────────────────────────────
+     *
+     * Os números soltos daqui — 13, 15, 10, 3 e o 62 — **são a geometria do
+     * mockup aprovado** (`mockups/key-edicao.html`: `.sum-linha`, `.sumario-topo`,
+     * `.sum-rotulo`), medidos em tela e julgados ali. Eles não viram `spacing.*`
+     * porque a escala não tem esses degraus, e arredondá-los para os que ela tem
+     * seria redesenhar o bloco por conveniência de token. O resto do arquivo usa
+     * a escala porque a escala serve; aqui ela não serve.
+     */
+
+    // Mesma superfície da capa, com o filete que o separa do primeiro caderno.
+    sumario: {
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
+    },
+    // `.sumario-topo { padding: 16px 20px 10px }` — os 10 embaixo apertam o
+    // versalete contra a primeira linha, que é de quem ele é o título.
+    sumarioTopo: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: 10 },
+    /**
+     * A linha inteira é o alvo — `minHeight` e nunca `height`: o alvo mínimo do
+     * desenho é 62 (bem acima dos 44 do piso), e com tipo dinâmico grande a
+     * chamada empurra a linha para baixo em vez de ser cortada.
+     *
+     * **13 em cima e 15 embaixo é compensação óptica, não descuido nem herança**:
+     * o versalete do rótulo tem o topo da caixa quase vazio (não há ascendente
+     * acima da maiúscula), então 13 reais leem como mais; embaixo, a serifada da
+     * chamada desce com descendentes e pede os 15 para não encostar no filete da
+     * linha seguinte. Medidas iguais leem tortas.
+     *
+     * O filete vai em CIMA: com ele embaixo, a última linha teria dois traços
+     * contra o filete do bloco.
+     */
+    sumLinha: {
+      flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+      minHeight: 62,
+      paddingHorizontal: spacing.xl, paddingTop: 13, paddingBottom: 15,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
+    },
+    sumCorpo: { flex: 1 },
+    /**
+     * O nome do caderno, em versalete — e em **`ink2`**, divergindo do `ink3` do
+     * mockup: é o nome do destino de um alvo de toque, informação obrigatória, e
+     * `ink3` mede 2,87 sobre `bg` (revisão de acessibilidade). Corpo e espaçamento
+     * são os do `eyebrow`, que é o token que o DESIGN dá a este rótulo.
+     *
+     * Os 3 de `marginBottom` são os do `.sum-rotulo`: rótulo e chamada são **um
+     * bloco**, e o respiro entre eles tem que ser menor que o que separa uma linha
+     * da outra, senão os dois leem como itens irmãos em vez de título e frase.
+     */
+    sumRotulo: {
+      fontSize: 11, fontFamily: fonts.sansBold, textTransform: 'uppercase',
+      letterSpacing: 1.1, color: colors.ink2, marginBottom: 3,
+    },
+    /**
+     * A chamada: serifada, porque é o que a máquina escreveu e passou pela
+     * conferência — a mesma família da manchete e do texto do caderno.
+     *
+     * 16/22 é a rampa normativa do DESIGN (`typography.chamada`); o mockup
+     * renderizou 17/23. **Sem `numberOfLines`**: cortar esconderia o fim da
+     * frase, que é onde mora a base comparada.
+     */
+    sumChamada: { fontSize: 16, lineHeight: 22, fontFamily: fonts.serif, color: colors.ink },
 
     // O caderno não recua: quem recua é o corpo. A faixa sangra por dentro dele.
     caderno: {
