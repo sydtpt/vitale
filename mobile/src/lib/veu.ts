@@ -144,11 +144,13 @@ export type RespostaDaMedicao =
  * lê a faixa de baixo e devolve o pixel de maior luminância. Tem que ser o mesmo
  * recorte: medir a foto inteira responderia sobre pixels que a capa nunca mostra.
  *
- * `getImageData` sobre uma imagem `file://` exige que a página tenha origem de
- * arquivo — daí o `baseUrl` e os dois `allow…FromFileURLs` do lado do React
- * Native. Quando isso não vale, o navegador lança `SecurityError` e a página
- * responde `ok:false`: o véu fica no mais profundo, que é a resposta certa para
- * "não sei o que tem embaixo".
+ * **O endereço que entra aqui é um `data:`**, não um `file://`: a capa rasteriza
+ * a própria `<Image>` e manda os bytes embutidos (`CapaComFoto.amostraDaFoto`).
+ * A primeira versão mandava o arquivo da biblioteca, e o WKWebView levou "não" do
+ * sandbox no aparelho — medido em 18/09/2026. Com `data:` a origem é a mesma, o
+ * canvas não fica *tainted* e não há permissão a pedir. Se ainda assim o
+ * `getImageData` lançar `SecurityError`, a página responde `ok:false`: o véu fica
+ * no mais profundo, que é a resposta certa para "não sei o que tem embaixo".
  *
  * `banda` é a fração da altura da capa que o bloco de texto ocupa, contada de
  * baixo para cima; `razao` é altura ÷ largura da capa. **Os dois entram já
