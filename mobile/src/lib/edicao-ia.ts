@@ -28,7 +28,11 @@ import {
   NUVEM_PADRAO,
   cadernosComDado,
   descritorDaRetrospectiva,
+  escolherCapa,
+  fetchCapa,
   fetchEdicao,
+  fetchPhotosForActivities,
+  gravarCapa,
   imprimir,
   lapidesDosCadernos,
   localDateStr,
@@ -39,8 +43,13 @@ import {
   portasDaEdicao,
   resolverCadeia,
   temEdicao,
+  type Activity,
+  type ActivityPhoto,
   type CadernoId,
+  type Capa,
+  type CapaACarimbar,
   type Causa,
+  type CityMark,
   type DesfechoDoCaderno,
   type Edicao,
   type EntradaPacote,
@@ -54,6 +63,7 @@ import {
   type ResultadoDaImpressao,
   type TipoComEdicao,
 } from '@vitale/shared';
+import { useActivitiesStore } from '../store/activities.store';
 import { motivoDaFalha, quemNaoEscreveu } from './assinatura';
 import { catalogoDoRecurso, motorPara } from './motores';
 import { anel } from './motores/anel';
@@ -74,11 +84,17 @@ export type LeituraDaEdicao =
    *   prometer uma edição que o banco não aceita.
    */
   | { estado: 'ausente' }
-  /** A edição do período — vazia quando ele fechou e ainda não foi escrito. */
-  | { estado: 'ok'; edicao: Edicao };
+  /**
+   * A edição do período — vazia quando ele fechou e ainda não foi escrito.
+   *
+   * `capa` é o que a impressão carimbou (Story 1.13), ou `null`: edição impressa
+   * antes da 1.13, carimbo que falhou, ou período ainda não escrito. A tela
+   * desenha a capa em papel da 1.11 em todos esses casos.
+   */
+  | { estado: 'ok'; edicao: Edicao; capa: Capa | null };
 
 /**
- * Os cadernos já impressos deste período, na ordem gravada.
+ * Os cadernos já impressos deste período, na ordem gravada — e a capa carimbada.
  *
  * A ausência é resolvida **antes** da consulta: não há linha para achar, e gastar
  * uma ida ao banco para descobrir isso seria uma consulta por folheada.
@@ -87,6 +103,12 @@ export type LeituraDaEdicao =
  * `montarPacotes` copia para `periodo`, sem normalizar nada. A equivalência está
  * fixada em `ia/pacote.test.ts`: se um dia a montagem normalizar, é lá que
  * reprova, e não aqui, calado, com a edição sumindo da tela.
+ *
+ * **As duas consultas correm juntas, e a da capa não pode derrubar a da edição.**
+ * A edição é o produto; a capa é como ele se apresenta. Uma falha ao ler
+ * `edicoes_capa` vira `capa: null` com o motivo no log — a rota desenha a capa em
+ * papel e o texto continua lá —, enquanto uma falha ao ler `edicoes_ia` continua
+ * subindo: sem ela não há o que mostrar.
  */
 export async function buscarEdicao(
   userId: string, entrada: EntradaPacote,
@@ -94,8 +116,159 @@ export async function buscarEdicao(
   const { kind, startISO, endISO } = entrada.resumo;
   if (!temEdicao(kind)) return { estado: 'ausente' };
   if (!periodoFechado(kind, endISO, entrada.agora)) return { estado: 'ausente' };
-  const edicao = await fetchEdicao(supabase, userId, kind, startISO, endISO);
-  return { estado: 'ok', edicao };
+  const [edicao, capa] = await Promise.all([
+    fetchEdicao(supabase, userId, kind, startISO, endISO),
+    fetchCapa(supabase, userId, kind, startISO, endISO).catch((e: unknown) => {
+      // **A mensagem vai para o log, não só o objeto.** As duas falhas possíveis
+      // aqui pedem trabalhos diferentes: uma rede que caiu se resolve sozinha, e
+      // uma `natureza` que o `toCapa` recusou é linha estragada no banco — algo
+      // que o `CHECK` afirma impossível. Engolir as duas como "falha ao ler"
+      // esconderia a segunda atrás da primeira.
+      console.warn(
+        '[revista] a capa não foi lida (a edição segue em papel):',
+        e instanceof Error ? e.message : String(e),
+      );
+      return null;
+    }),
+  ]);
+  return { estado: 'ok', edicao, capa };
+}
+
+/* ── o carimbo da capa (Story 1.13) ──────────────────────────────────────── */
+
+/**
+ * As atividades que caem no período — a **mesma** seleção que a Retrospectiva faz
+ * para carregar as fotos da tira (`retrospectiva/index.tsx`).
+ *
+ * Tem de ser a mesma: a capa é escolhida entre as fotos do período, e duas
+ * definições de "do período" dariam duas capas possíveis para a mesma edição.
+ */
+export function atividadesDoPeriodo(
+  todas: readonly Activity[], entrada: EntradaPacote,
+): Activity[] {
+  const { kind, offset } = entrada.resumo;
+  const b = periodBounds(entrada.agora, kind, offset);
+  return todas.filter((a) => {
+    const t = Date.parse(a.startAt);
+    return Number.isFinite(t) && t >= b.start.getTime() && t <= b.end.getTime();
+  });
+}
+
+/**
+ * As cidades que as rotas do período atravessaram, sem repetir — o acervo de onde
+ * a legenda da foto tira a parada.
+ *
+ * Não é geocodificação nova: `activities.cities` já veio enriquecida do ingest. A
+ * deduplicação é por nome porque é o nome que a legenda imprime; duas marcas do
+ * mesmo lugar em pedaladas diferentes escreveriam a mesma palavra.
+ */
+export function cidadesDoPeriodo(atividades: readonly Activity[]): CityMark[] {
+  const porNome = new Map<string, CityMark>();
+  for (const a of atividades) {
+    for (const c of a.cities ?? []) {
+      if (!porNome.has(c.name)) porNome.set(c.name, c);
+    }
+  }
+  return [...porNome.values()];
+}
+
+/**
+ * As portas do carimbo. Injetáveis, para a escolha ter teste sem rede.
+ *
+ * A gravação se chama `carimbar`, e **não `gravar`**: `.gravar` é a porta de
+ * escrita da EDIÇÃO, e uma barreira do `architecture.test.ts` cobra que só a
+ * sequência da impressão a leia. Reusar o nome aqui contaria como um segundo
+ * caminho até o texto do jornal, que é exatamente o que ela existe para impedir.
+ */
+export interface DepsDoCarimbo {
+  /**
+   * As atividades **visíveis** — `activities()`, não `_all`.
+   *
+   * O dono esconde atividade (`hidden`), e o que ele escondeu não escolhe a capa
+   * nem vira o traçado do período. Em toda outra tela o efeito de esconder é
+   * imediato e reversível; aqui ele ficaria **carimbado**, e desfazer exigiria
+   * reimprimir a edição inteira.
+   */
+  readonly atividades: () => readonly Activity[];
+  /**
+   * O acervo de atividades já chegou? Nada se carimba antes disso — ver
+   * {@link carimbarCapa}.
+   */
+  readonly acervoCarregado: () => boolean;
+  readonly buscarFotos: (ids: readonly string[]) => Promise<ActivityPhoto[]>;
+  readonly carimbar: (capa: CapaACarimbar) => Promise<Capa>;
+  /** O período por extenso — a legenda da natureza `grade`. */
+  readonly rotulo: (tipo: TipoComEdicao, inicio: string) => string;
+}
+
+function depsDoCarimbo(userId: string): DepsDoCarimbo {
+  return {
+    atividades: () => useActivitiesStore.getState().activities(),
+    acervoCarregado: () => useActivitiesStore.getState().loaded,
+    buscarFotos: (ids) => fetchPhotosForActivities(supabase, userId, ids),
+    carimbar: (capa) => gravarCapa(supabase, userId, capa),
+    rotulo: rotuloDaEdicao,
+  };
+}
+
+/**
+ * Escolhe e carimba a capa desta edição.
+ *
+ * Quem chama é a impressão **inteira**, sempre, e a **parcial quando a edição
+ * ainda não tem capa nenhuma** (renegociado com o dono em 17/09): uma edição
+ * montada caderno a caderno nunca volta a ver o alvo `edicao` — a 1.11 só o
+ * oferece com zero cadernos impressos —, e sem essa regra ela ficaria em papel
+ * para sempre, sem conserto. Uma parcial **nunca troca capa existente**: a foto e
+ * a legenda são do período, não do caderno, e o que uma parcial pode mover na capa
+ * é só a manchete, que continua derivada do caderno em `posicao` 1.
+ *
+ * **Nunca rejeita.** Carimbar não é atômico com a impressão (decisão do dono,
+ * 17/09: ensinar `edicao_imprimir` a receber capa seria migração em produção), e
+ * o preço está declarado — se falhar, a edição existe sem capa, o motivo vai para
+ * o log e a próxima impressão recarimba. O que não pode acontecer é uma falha de
+ * capa apagar o texto que o modelo acabou de escrever, ou anunciar ao dono uma
+ * impressão que não terminou quando ela terminou.
+ *
+ * **Não carimba sobre acervo que não chegou.** Uma store vazia não é um período
+ * vazio: pode ser a carga das atividades ainda em voo, ou uma que falhou. Carimbar
+ * ali gravaria `grade` — a capa do período em que nada aconteceu — num agosto
+ * cheio de pedaladas, e a natureza está congelada: só uma impressão nova a
+ * corrige. Não saber é motivo para não gravar, e a degradação (sem capa, log,
+ * recarimba depois) já está declarada no contrato.
+ *
+ * Devolve `null` quando não carimbou — por ausência de período com edição, por
+ * acervo não carregado, ou por falha já registrada.
+ */
+export async function carimbarCapa(
+  userId: string,
+  entrada: EntradaPacote,
+  deps: Partial<DepsDoCarimbo> = {},
+): Promise<Capa | null> {
+  const d: DepsDoCarimbo = { ...depsDoCarimbo(userId), ...deps };
+  const { kind, startISO, endISO } = entrada.resumo;
+  if (!temEdicao(kind)) return null;
+  if (!d.acervoCarregado()) {
+    console.warn(
+      '[revista] a capa não foi carimbada: o acervo de atividades ainda não chegou, '
+      + 'e uma store vazia não é um período vazio.',
+    );
+    return null;
+  }
+  try {
+    const atividades = atividadesDoPeriodo(d.atividades(), entrada);
+    const fotos = atividades.length > 0
+      ? await d.buscarFotos(atividades.map((a) => a.id))
+      : [];
+    return await d.carimbar(escolherCapa({
+      fotos,
+      atividades,
+      cidades: cidadesDoPeriodo(atividades),
+      periodo: { tipoPeriodo: kind, inicio: startISO, fim: endISO, rotulo: d.rotulo(kind, startISO) },
+    }));
+  } catch (e) {
+    console.warn('[revista] a capa não foi carimbada; a edição fica sem capa:', e);
+    return null;
+  }
 }
 
 /* ── a impressão ─────────────────────────────────────────────────────────── */

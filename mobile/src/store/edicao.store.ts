@@ -5,6 +5,7 @@ import {
   precisaErrata,
   temEdicao,
   type CadernoId,
+  type Capa,
   type DesfechoDoCaderno,
   type Edicao,
   type EntradaPacote,
@@ -14,6 +15,7 @@ import { useAuthStore } from './auth.store';
 import {
   assinaturaDoCaderno,
   buscarEdicao,
+  carimbarCapa,
   classeDoDesfecho,
   comDadoDaEntrada,
   fraseDoNaoImpresso,
@@ -107,12 +109,19 @@ export type EstadoEdicao =
    * O período fechou e o banco respondeu: `edicao` são os cadernos impressos, na
    * ordem gravada (vazia é "ainda não escrita"), e `sessao` o que acabou de
    * acontecer com os outros. `imprimindo` não é nulo enquanto uma impressão corre.
+   *
+   * `capa` é o que a impressão inteira carimbou (Story 1.13) — natureza,
+   * identidade e a legenda já formatada —, ou `null`: edição impressa antes da
+   * 1.13, carimbo que falhou, período ainda não escrito. **Nunca é recalculada
+   * aqui**: o que se desenha é o que está gravado, senão a capa de agosto viraria
+   * outra em outubro.
    */
   | {
       fase: 'lida';
       tipo: TipoComEdicao;
       inicio: string;
       edicao: Edicao;
+      capa: Capa | null;
       sessao: SessaoDaEdicao;
       imprimindo: ImpressaoEmCurso | null;
     };
@@ -188,12 +197,23 @@ export function dadosProntosParaImprimir(
  * Quem chamou nesse instante perde a vez, e nada o chamaria de novo quando a busca
  * terminasse: os dados nunca ficariam prontos até o próximo foco. O efeito que
  * garante a janela reage a esta resposta, e ela muda quando `loading` volta a falso.
+ *
+ * **Falha não se repete sozinha.** `loading` voltando a falso é o que dispara o
+ * efeito de novo; se a busca falhou, pedi-la no mesmo quadro daria um laço quente
+ * enquanto a rede estivesse fora. Por isso a janela que falhou (`falhouEm`) responde
+ * não — quem tenta de novo é o foco da tela, que chama `ensure` direto.
  */
 export function precisaGarantirJanela(
-  retro: { readonly loaded: boolean; readonly loading: boolean; readonly loadedSince: string | null },
+  retro: {
+    readonly loaded: boolean;
+    readonly loading: boolean;
+    readonly loadedSince: string | null;
+    readonly falhouEm?: string | null;
+  },
   since: string,
 ): boolean {
   if (retro.loading) return false;
+  if (retro.falhouEm === since) return false;
   return !(retro.loaded && retro.loadedSince !== null && retro.loadedSince <= since);
 }
 
@@ -292,6 +312,40 @@ export interface CapaNaVista {
   /** A chamada do caderno em `posicao` 1, **inteira** e sem corte — ou `null`. */
   manchete: string | null;
   /**
+   * O que a impressão carimbou — natureza, identidade da foto e a legenda já
+   * formatada —, ou `null`, e aí a capa é a em papel da 1.11.
+   *
+   * **Passa inteira, sem ser reinterpretada.** A manchete acima continua derivada
+   * do caderno em `posicao` 1 e não congela junto: uma reimpressão parcial que
+   * troque o líder troca a manchete sob a mesma imagem, e isso é desenho, não
+   * descuido.
+   */
+  carimbada: Capa | null;
+  /**
+   * A capa é a **de foto**? — a decisão, aqui e não na tela.
+   *
+   * Ela nasceu no componente e voltou para cá porque é regra, não desenho: são as
+   * mesmas duas condições da matriz, e fora da vista elas ficavam sem teste. O que
+   * continua na tela é só o que a vista não sabe — se o arquivo da biblioteca
+   * resolveu.
+   *
+   * **Exige edição impressa**, e isso não é zelo: `edicoes_capa` não tem chave
+   * estrangeira para `edicoes_ia` (o carimbo guarda valor, não ponteiro), então
+   * uma capa sobrevive aos cadernos que cobria. Desenhar a foto sobre uma edição
+   * sem caderno esconderia o convite e o botão — o dono ficaria sem caminho para
+   * escrever, olhando uma capa bonita.
+   */
+  comFoto: boolean;
+  /**
+   * A legenda carimbada, quando ela tem o que dizer na tela — ou `null`.
+   *
+   * Só na natureza `foto`: é ali que ela é a **descrição da imagem** (EXPERIENCE
+   * §Accessibility Floor), e é ali que continua servindo quando a imagem não
+   * resolve mais. Na `grade` ela É o período, que a capa já imprime logo acima; na
+   * `tracado`, o desenho que ela legenda ainda não existe.
+   */
+  legenda: string | null;
+  /**
    * Nada impresso e uma impressão correndo: a capa diz "Escrevendo a edição…" no
    * lugar do convite — a mesma frase da porta.
    */
@@ -369,10 +423,15 @@ export function vistaDaEdicao(
   const acaoPara = <A extends AcaoDoCaderno>(caderno: CadernoId, acao: A): { acao?: A } =>
     (podeImprimir(estado, comDado, caderno) ? { acao } : {});
 
+  const carimbada = estado.capa;
+  const deFoto = !nadaImpresso && carimbada?.natureza === 'foto';
   const capa: CapaNaVista = {
     periodo: rotuloDaEdicao(estado.tipo, estado.inicio),
     impressa: !nadaImpresso,
     manchete: chamadaDaCapa(edicao),
+    carimbada,
+    comFoto: deFoto,
+    legenda: deFoto ? carimbada.legenda : null,
     escrevendo: nadaImpresso && correndo,
     escrever: podeImprimir(estado, comDado, 'edicao'),
     semCaderno: nadaImpresso && !correndo && comDado !== null && comDado.length === 0,
@@ -518,11 +577,16 @@ function sessaoDe(estado: EstadoEdicao | undefined): SessaoDaEdicao | undefined 
 }
 
 /** O estado de um período lido — `ausente` se o tipo não tem edição (o que `buscarEdicao` já garante). */
-function lidaDe(entrada: EntradaPacote, edicao: Edicao, sessao: SessaoDaEdicao | undefined): EstadoEdicao {
+function lidaDe(
+  entrada: EntradaPacote,
+  edicao: Edicao,
+  capa: Capa | null | undefined,
+  sessao: SessaoDaEdicao | undefined,
+): EstadoEdicao {
   const { kind, startISO } = entrada.resumo;
   if (!temEdicao(kind)) return { fase: 'ausente' };
   return {
-    fase: 'lida', tipo: kind, inicio: startISO, edicao,
+    fase: 'lida', tipo: kind, inicio: startISO, edicao, capa: capa ?? null,
     sessao: sessaoQueFica(sessao ?? {}, edicao), imprimindo: null,
   };
 }
@@ -584,7 +648,9 @@ async function ler(
   try {
     const r = await buscarEdicao(uid, entrada);
     if (geracaoDe(chave) !== geracao) return;
-    por(r.estado === 'ausente' ? { fase: 'ausente' } : lidaDe(entrada, r.edicao, sessaoDe(get().porPeriodo[chave]) ?? sessao));
+    por(r.estado === 'ausente'
+      ? { fase: 'ausente' }
+      : lidaDe(entrada, r.edicao, r.capa, sessaoDe(get().porPeriodo[chave]) ?? sessao));
   } catch (e) {
     if (geracaoDe(chave) !== geracao) return;
     const mensagem = mensagemDeLeitura(e);
@@ -668,6 +734,17 @@ async function imprimirAlvo(
     });
   };
 
+  /**
+   * A capa que esta impressão acabou de carimbar, se carimbou.
+   *
+   * Fica guardada porque a releitura do fim pode falhar **só na capa** — a leitura
+   * dela degrada para `null` de propósito (`buscarEdicao`) — e aí a edição recém
+   * impressa apareceria em papel apesar de a capa estar gravada, até o próximo
+   * foco. O que acabou de ser escrito é melhor resposta que o nulo de uma consulta
+   * que não deu certo.
+   */
+  let nova: Capa | null = null;
+
   novaGeracao(chave);
   try {
     // A edição inteira recomeça a sessão: tudo que não está impresso vai para a fila.
@@ -688,11 +765,11 @@ async function imprimirAlvo(
         ? lida.edicao.length > 0
         : lida.edicao.some((c) => c.caderno === alvo);
       if (jaImpresso) {
-        por(lidaDe(entrada, lida.edicao, atual.sessao));
+        por(lidaDe(entrada, lida.edicao, lida.capa, atual.sessao));
         return;
       }
       const e = emCurso();
-      if (e) por({ ...e, edicao: lida.edicao });
+      if (e) por({ ...e, edicao: lida.edicao, capa: lida.capa });
     } catch (e) {
       const mensagem = mensagemDeLeitura(e);
       if (alvo === 'edicao') {
@@ -730,7 +807,37 @@ async function imprimirAlvo(
           return;
         case 'sem-caderno':
         case 'nada-gravado':
+          break;
         case 'gravada':
+          /**
+           * **A capa é carimbada aqui, e só aqui** (Story 1.13), quando a impressão
+           * gravou — impressão que não gravou nada não teria edição a que a capa
+           * pertencesse.
+           *
+           * A impressão **inteira** sempre recarimba. A **parcial** carimba só
+           * quando não há capa nenhuma (regra renegociada com o dono em 17/09): a
+           * edição montada caderno a caderno nunca volta a ver o alvo `edicao` — a
+           * 1.11 só o oferece com zero cadernos impressos —, e sem isto ela ficaria
+           * em papel para sempre. **Capa existente uma parcial nunca troca**: a foto
+           * e a legenda são do período, não do caderno.
+           *
+           * **Antes da releitura**, para a capa nova chegar à tela na mesma
+           * resposta do banco que traz a ordem e as assinaturas — senão a rota
+           * mostraria a edição impressa com a capa da impressão anterior até o
+           * próximo foco. `edicao-store.test.ts` prende essa ordem.
+           *
+           * O `try/catch` é rede sobre rede: `carimbarCapa` já promete não
+           * rejeitar. Se um dia deixar de prometer, o preço é a edição ficar sem
+           * capa — nunca o dono ver "a impressão não terminou" sobre um texto que
+           * ficou gravado.
+           */
+          if (alvo === 'edicao' || (emCurso()?.capa ?? atual.capa) === null) {
+            try {
+              nova = await carimbarCapa(uid, entrada);
+            } catch (e) {
+              console.warn('[edicao] a capa não foi carimbada:', e);
+            }
+          }
           break;
         default:
           // Sem este ramo, um estado inesperado deixaria a chave presa em `imprimindo`.
@@ -748,7 +855,9 @@ async function imprimirAlvo(
     const sessao = naSessaoAgora?.sessao ?? {};
     try {
       const relida = await buscarEdicao(uid, entrada);
-      por(relida.estado === 'ausente' ? { fase: 'ausente' } : lidaDe(entrada, relida.edicao, sessao));
+      por(relida.estado === 'ausente'
+        ? { fase: 'ausente' }
+        : lidaDe(entrada, relida.edicao, relida.capa ?? nova, sessao));
     } catch (e) {
       const mensagem = mensagemDeLeitura(e);
       if (alvo === 'edicao') {

@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 18-09-2026 08:00
+last_updated: 18-09-2026 09:20
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -123,8 +123,15 @@ development_status:
   1-10-a-sequência-da-impressão-sobe-para-o-núcleo: done
   1-11-a-rota-da-revista-e-os-estados-da-edição: done
   1-12-os-cadernos-desenhados: review
-  1-13-a-capa-na-edição-com-o-véu-medido: backlog
+  1-13-a-capa-na-edição-com-o-véu-medido: review
   1-14-o-sumário-e-a-rolagem-ancorada: backlog
+  # ORDEM: entra DEPOIS da 1.14 e ANTES da 1.15 — as duas mexem na mesma tela, e
+  # o piloto é onde três capas são lidas de verdade. Pedida pelo dono em 18/09,
+  # olhando a primeira capa impressa (julho/2026): ver a foto expandida, saber
+  # por que ela foi escolhida (com quando, em que atividade e a rota descrita) e
+  # poder trocá-la. CARREGA MIGRAÇÃO — a segunda do Épico 1: `motivo` e
+  # `foto_activity_id` em edicoes_capa, janela pela AD-15.
+  1-16-a-capa-aberta-e-a-troca: backlog
   # ⚠ PORTÃO HUMANO — NENHUM AGENTE FECHA ESTA STORY.
   # A entrega de dev é imprimir três períodos nomeados (agosto/2026, julho/2026 e
   # um mês de 2023) e pô-los na frente do dono. O julgamento é dele, lendo. Um

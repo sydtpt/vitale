@@ -111,6 +111,35 @@ export async function fetchPhotosForActivities(
   return rows.map(toActivityPhoto);
 }
 
+/**
+ * Uma foto pelo id — o que a **capa carimbada** da revista precisa para desenhar
+ * (Story 1.13).
+ *
+ * `edicoes_capa` guarda `foto_id` e o instante da captura, e não o `asset_id`:
+ * valor, nunca ponteiro, porque o `localIdentifier` do PhotoKit não é estável
+ * (ADR 0037). Mas desenhar exige o ponteiro de hoje, e é esta consulta que o
+ * traz — **uma linha**, contra as centenas que `fetchPhotosForActivities`
+ * carregaria para achar a mesma.
+ *
+ * `null` quando a linha não existe mais: a capa cai para o papel, com a legenda
+ * carimbada no lugar da imagem. `maybeSingle` é correto — `id` é a chave
+ * primária.
+ */
+export async function fetchPhotoById(
+  db: SupabaseClient,
+  userId: string,
+  id: string,
+): Promise<ActivityPhoto | null> {
+  const { data, error } = await db
+    .from('activity_photos')
+    .select(COLUMNS)
+    .eq('user_id', userId)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toActivityPhoto(data as unknown as ActivityPhotoRecord) : null;
+}
+
 /** Quantas fotos e quantos vídeos uma atividade tem. */
 export interface ActivityMediaCount {
   photos: number;

@@ -169,6 +169,13 @@ export default function RetrospectivaScreen() {
   const [offset, setOffset] = useState<number>(() => latestAvailableOffset(now, 'week'));
 
   const loaded = useRetroStore((s) => s.loaded);
+  // `loaded` sozinho não basta para as derivações abaixo: ele vira `true` uma vez
+  // e nunca mais muda. Quem muda quando uma janela **mais larga** chega (trocar
+  // Semana por Ano) é o par `loading`/`loadedSince` — o mesmo motivo que o
+  // `useEntradaDaEdicao` registra para o resumo. Sem eles aqui, a manchete e os
+  // destaques ficavam na janela estreita enquanto os números já falavam da larga.
+  const loading = useRetroStore((s) => s.loading);
+  const loadedSince = useRetroStore((s) => s.loadedSince);
   const highlightsFn = useRetroStore((s) => s.highlights);
   const yearFn = useRetroStore((s) => s.yearByMonth);
   const heatmapFn = useRetroStore((s) => s.heatmap);
@@ -274,7 +281,7 @@ export default function RetrospectivaScreen() {
   );
   // A manchete sai da lista **completa** de destaques; a lista exibida é a fatiada.
   // Derivar aqui evita recalcular buildRetrospective só para o lede.
-  const allHighlights = useMemo(() => highlightsFn(now, kind, offset), [highlightsFn, now, kind, offset, loaded, allActs]);
+  const allHighlights = useMemo(() => highlightsFn(now, kind, offset), [highlightsFn, now, kind, offset, loaded, loading, loadedSince, allActs]);
   const highlights = useMemo(() => allHighlights.slice(0, 6), [allHighlights]);
   const lede = useMemo(() => buildRetroLede(allHighlights), [allHighlights]);
 
@@ -330,7 +337,7 @@ export default function RetrospectivaScreen() {
     ultimoToqueNaPorta.current = agora;
     router.push(href);
   }, [router, kind, summary.startISO]);
-  const buckets = useMemo(() => kind === 'year' ? yearFn(now, offset) : [], [yearFn, now, kind, offset, loaded, allActs]);
+  const buckets = useMemo(() => kind === 'year' ? yearFn(now, offset) : [], [yearFn, now, kind, offset, loaded, loading, loadedSince, allActs]);
 
   // Forma 02 — o heatmap. Só nos períodos em que uma célula por dia ainda é legível;
   // um ano inteiro em células diárias vira ruído, e o modo Ano já tem as barras.
@@ -338,7 +345,7 @@ export default function RetrospectivaScreen() {
     () => (kind === 'week' || kind === 'month' || kind === 'season')
       ? heatmapFn(now, kind, offset, 'sono')
       : null,
-    [heatmapFn, now, kind, offset, loaded],
+    [heatmapFn, now, kind, offset, loaded, loading, loadedSince],
   );
 
   // Faixa das diárias. Semana e mês só: a faixa é UMA linha por tarefa, então N
@@ -347,7 +354,7 @@ export default function RetrospectivaScreen() {
   // dias por mês eu lembrei".
   const taskGrid = useMemo(
     () => (kind === 'week' || kind === 'month') ? taskGridFn(now, kind, offset) : null,
-    [taskGridFn, now, kind, offset, loaded],
+    [taskGridFn, now, kind, offset, loaded, loading, loadedSince],
   );
 
   // Forma 03 — qual das seis séries está desenhada, e qual mês está tocado.
