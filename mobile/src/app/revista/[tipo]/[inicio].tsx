@@ -584,7 +584,11 @@ const createStyles = () =>
     },
     // Escrever gasta uma chamada e é decisão do dono: o botão principal, na marca.
     botaoPrincipal: { backgroundColor: colors.primary },
-    botaoPrincipalTxt: { fontSize: 13.5, fontFamily: fonts.sansSemiBold, color: colors.primaryOn },
+    // `onPrimary`, nunca `primaryOn`: o segundo é a tinta sobre o `primarySoft`
+    // (o preenchimento pálido), e sobre o sólido ele mede 1,00 na marca Tinta —
+    // texto preto em botão preto, que foi o que o dono viu em 18/09. Barreira em
+    // `architecture.test.ts` para não voltar.
+    botaoPrincipalTxt: { fontSize: 13.5, fontFamily: fonts.sansSemiBold, color: colors.onPrimary },
     // Tentar de novo repete o que já se pediu: contorno, mais leve.
     botaoContorno: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.ink },
     botaoContornoTxt: { fontSize: 13.5, fontFamily: fonts.sansSemiBold, color: colors.ink },
