@@ -1027,6 +1027,52 @@ mostra a chamada do mesmo caderno
 **Then** a repetição acontece e é **forma, não defeito** — a capa é identidade do período, a
 linha é o alvo de toque
 
+### Story 1.16: A capa aberta, e a troca
+
+As a leitor da revista,
+I want abrir a foto da capa, saber de onde ela veio e trocá-la quando não for a certa,
+So that a capa seja a que eu escolheria — e eu saiba por que aquela está ali.
+
+> **Ordem: depois da 1.14, antes da 1.15.** As duas mexem na mesma tela, e fazer esta antes
+> do sumário custaria duas costuras no mesmo arquivo. O piloto (1.15) é onde três capas são
+> lidas de verdade: chegar nele sem poder trocar a ruim desperdiça o julgamento.
+>
+> **Carrega migração — a segunda do Épico 1.** `edicoes_capa` ganha `motivo` e
+> `foto_activity_id`. Janela pela AD-15, com a seção 6 do roteiro da 1.9 como leitura
+> obrigatória. Decidido pelo dono em 18/09/2026, olhando a primeira capa impressa (julho/2026).
+
+**Acceptance Criteria:**
+
+**Given** a capa não é tocável hoje, e a foto não tem para onde abrir
+**When** o leitor toca a capa de natureza `foto`
+**Then** a foto abre expandida, e voltar devolve a edição na posição em que estava
+**And** `tracado` e `grade` continuam **sem** alvo de toque — não há o que expandir
+
+**Given** a escolha é do app e a estrela é uma correção, não uma marcação no vazio
+**When** a foto expandida mostra a ficha
+**Then** ela imprime **por que** aquela foto (o motivo **carimbado**), **quando** foi tirada,
+**em que atividade** ela estava, e a rota dessa atividade descrita — nome, distância e cidades
+**And** o motivo é o que valia **na impressão**, nunca uma reconstrução feita agora: `coverOf`
+lê `isCover` e o vínculo, os dois mutáveis depois do carimbo
+
+**Given** o motivo só vira informação quando existe a distinção "o app escolheu" × "você trocou"
+**When** a migração entra
+**Then** `edicoes_capa` ganha `motivo` (`estrela`, `rajada`, `unica`, `trocada`, `sem-foto`) com
+CHECK, e `foto_activity_id`
+**And** a lista do CHECK tem dono único no núcleo e barreira no `architecture.test.ts`, no mesmo
+molde de `NATUREZAS_DA_CAPA`
+
+**Given** trocar a capa é ato do dono, e não reescrita silenciosa de período fechado
+**When** ele escolhe outra foto entre as do período
+**Then** a capa é recarimbada com a identidade nova, a legenda recalculada e o motivo `trocada`
+**And** o **texto da edição não muda** — nem a ordem, nem as assinaturas, nem a errata
+**And** a manchete continua derivada do caderno em `posicao` 1
+
+**Given** o período pode ter centenas de fotos
+**When** o seletor abre
+**Then** ele mostra as do período agrupadas por atividade, como a galeria da Retrospectiva já faz
+**And** vídeo não entra: o pôster segue em branco, e capa que não desenha é pior que nenhuma
+
 ### Story 1.15: O piloto de três edições
 
 As a dono do Orbe,
