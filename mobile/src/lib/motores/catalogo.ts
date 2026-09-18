@@ -20,8 +20,10 @@ import {
   SEM_MODELO,
   admiteTipo,
   exposicao,
+  formatarMotorId,
   lerMotorId,
   type Descritor,
+  type MotorDeNuvemAprovado,
   type MotorId,
   type RecursoId,
   type TipoDeMotor,
@@ -75,38 +77,205 @@ export const MOTORES_CONHECIDOS: readonly MotorConhecido[] = [
 ];
 
 /**
- * Os ids que o app conhece — é esta lista que vai ao `catalogo` de
- * `resolverCadeia`. Conhecidos, não disponíveis (ver o cabeçalho).
+ * Os ids que o app conhece **sem a lista do servidor** — é esta lista que vai ao
+ * `catalogo` de `resolverCadeia` quando a lista nunca foi lida. Conhecidos, não
+ * disponíveis (ver o cabeçalho). Para o catálogo já fundido por recurso, use
+ * {@link idsConhecidosDe}.
  */
 export const idsConhecidos: readonly MotorId[] = MOTORES_CONHECIDOS.map((m) => m.id);
 
-/** O motor do catálogo com este id, ou `undefined`. Aceita id cru, de onde ele venha. */
-export function motorConhecido(id: string | null | undefined): MotorConhecido | undefined {
-  return MOTORES_CONHECIDOS.find((m) => m.id === id);
+/* ── a lista do servidor (story 5.6, ADR 0048) ───────────────────────────── */
+
+/**
+ * A lista aprovada como este app a guarda: o que veio, e **quando**.
+ *
+ * O instante não é enfeite. Sem ele não há como distinguir "nunca perguntei" de
+ * "perguntei e o servidor disse que não há nenhum" — e as duas levariam a buscas
+ * repetidas a cada toque, ou a nenhuma. `null` é a primeira; uma lista vazia com
+ * instante é a segunda, e ela vale tanto quanto uma cheia.
+ */
+export interface ListaAprovada {
+  readonly motores: readonly MotorDeNuvemAprovado[];
+  /** O instante (ms) em que a leitura que produziu esta lista voltou. */
+  readonly lidaEm: number;
 }
 
 /**
- * Este motor está disponível neste build?
+ * Quanto tempo uma lista lida continua valendo.
+ *
+ * Curto o bastante para o dono ver um motor novo no mesmo dia em que o servidor
+ * o aprova, e longo o bastante para a leitura da Saúde (que espera a lista antes
+ * de resolver a cadeia) não pagar uma ida à rede por toque. A lista só muda por
+ * `supabase secrets set`, que é ação humana rara.
+ */
+export const VALIDADE_DA_LISTA_MS = 10 * 60_000;
+
+/** O que o app leu por último, ou `null` — nunca lida, ou esquecida. */
+let guardada: ListaAprovada | null = null;
+
+/** A lista em cache, sem buscar nada. `null` quando nunca foi lida com sucesso. */
+export function listaAprovada(): ListaAprovada | null {
+  return guardada;
+}
+
+/** Guarda o que o servidor devolveu, carimbando o instante. */
+export function guardarListaAprovada(
+  motores: readonly MotorDeNuvemAprovado[],
+  lidaEm: number,
+): ListaAprovada {
+  guardada = { motores, lidaEm };
+  return guardada;
+}
+
+/**
+ * Esquece o cache.
+ *
+ * Quem chama hoje é o arranque de um teste, e `esquecerLista` (em `./index.ts`),
+ * que esquece o cache **e** a busca em voo. Nada mais: a troca de sessão não
+ * passa por aqui — se um dia a lista tiver de virar por usuário, é ali que a
+ * ligação entra, e não neste comentário.
+ */
+export function esquecerListaAprovada(): void {
+  guardada = null;
+}
+
+/** Vale a pena buscar de novo? Lista ausente sempre vale; vencida, também. */
+export function listaVencida(agora: number, lista: ListaAprovada | null = guardada): boolean {
+  return lista === null || agora - lista.lidaEm >= VALIDADE_DA_LISTA_MS || agora < lista.lidaEm;
+}
+
+/**
+ * As variantes de nuvem **nomeadas** que o servidor aprovou para este recurso.
+ *
+ * Pura, e é ela que a fusão usa. A lista do servidor fala em `MotorId` e em
+ * recursos; o rótulo e a descrição são derivados do id, porque o app não pode ter
+ * texto autorado para um provedor que ele não conhecia quando foi compilado —
+ * e mostrar id cru na tela seria o que o catálogo existe para evitar.
+ *
+ * Um id que não se lê, ou que não é `nuvem:<provedor>/<modelo>`, não entra:
+ * `lerMotoresDeNuvemAprovados` já o descartou no núcleo, e aqui a checagem é a
+ * rede contra uma lista montada à mão num teste.
+ */
+export function variantesDaNuvem(
+  recurso: RecursoId,
+  lista: ListaAprovada | null,
+): readonly MotorConhecido[] {
+  if (lista === null) return [];
+  const out: MotorConhecido[] = [];
+  const vistos = new Set<string>(MOTORES_CONHECIDOS.map((m) => m.id));
+  for (const aprovado of lista.motores) {
+    if (!aprovado.recursos.includes(recurso)) continue;
+    const lido = lerMotorId(aprovado.motor);
+    if (!lido || lido.tipo !== 'nuvem' || lido.variante !== 'modelo') continue;
+    const id = formatarMotorId(lido);
+    if (vistos.has(id)) continue;
+    vistos.add(id);
+    out.push({
+      id,
+      // A mesma regra que a assinatura usa (`nomeDoMotor`): um nome só por motor.
+      nome: nomeDaVariante(lido.provedor, lido.modelo),
+      rotulo: `${lido.provedor} · ${lido.modelo}`,
+      descricao:
+        'Um modelo de nuvem que o servidor aprovou para esta leitura. O caso sai do aparelho para ser redigido.',
+      disponivel: true,
+    });
+  }
+  return out;
+}
+
+/**
+ * O catálogo deste recurso: o que o app já conhecia, mais o que o servidor
+ * aprovou para ele.
+ *
+ * **A lista do servidor só acrescenta.** Ela nunca tira `nuvem:padrao`, nunca
+ * tira `sem-modelo` e nunca tira o aparelho da lista — é por isso que a leitura
+ * falhar (`null`) custa exatamente as variantes nomeadas, e nada mais. Um app que
+ * perdesse `nuvem:padrao` por não conseguir falar com o servidor ficaria sem
+ * nuvem justamente quando a rede está ruim, que é quando o dono menos entende o
+ * porquê.
+ *
+ * A ordem põe as nomeadas **depois** de `nuvem:padrao`: o padrão é o que o
+ * servidor escolhe, e continua sendo a primeira opção de nuvem que o dono lê.
+ */
+export function motoresDoRecurso(
+  recurso: RecursoId,
+  lista: ListaAprovada | null = guardada,
+): readonly MotorConhecido[] {
+  return [...MOTORES_CONHECIDOS, ...variantesDaNuvem(recurso, lista)];
+}
+
+/** Os ids que o app conhece para este recurso — o que vai ao `resolverCadeia`. */
+export function idsConhecidosDe(
+  recurso: RecursoId,
+  lista: ListaAprovada | null = guardada,
+): readonly MotorId[] {
+  return motoresDoRecurso(recurso, lista).map((m) => m.id);
+}
+
+/**
+ * O motor com este id dentro de um catálogo, ou `undefined`. Aceita id cru, de
+ * onde ele venha.
+ *
+ * **`conhecidos` é obrigatório desde a 5.6.** Era `MOTORES_CONHECIDOS` por
+ * omissão, e o padrão fazia o caminho errado compilar calado: quem esquecesse de
+ * passar a lista fundida receberia "não existe neste build" para um motor que o
+ * servidor aprovou — a mentira exata que este módulo existe para não contar.
+ */
+export function motorConhecido(
+  id: string | null | undefined,
+  conhecidos: readonly MotorConhecido[],
+): MotorConhecido | undefined {
+  return conhecidos.find((m) => m.id === id);
+}
+
+/**
+ * Este motor está disponível, neste catálogo?
  *
  * Motor que o catálogo não conhece conta como indisponível: o app não tem como
- * entregar o que não declarou.
+ * entregar o que não declarou. É o catálogo **passado** que responde — com a
+ * lista fundida, uma variante aprovada está disponível; sem ela, o app nem sabe
+ * que ela existe.
  */
-export function motorDisponivel(id: string | null | undefined): boolean {
-  return motorConhecido(id)?.disponivel === true;
+export function motorDisponivel(
+  id: string | null | undefined,
+  conhecidos: readonly MotorConhecido[],
+): boolean {
+  return motorConhecido(id, conhecidos)?.disponivel === true;
+}
+
+/**
+ * O nome de uma variante de nuvem nomeada, com artigo.
+ *
+ * **Sai do próprio id**, e não de uma lista: `nuvem:acme/modelo-9` já carrega
+ * provedor e modelo, então não há motivo para depender de uma lista ter sido
+ * lida antes de saber como chamá-lo. Uma regra só, usada pelo catálogo e pela
+ * assinatura — duas divergiriam, e o dono leria um nome no seletor e outro sob a
+ * frase.
+ *
+ * O artigo é "o", porque o sujeito é o modelo: `por` e `de` o contraem em "pelo"
+ * e "do" (ver `assinatura.ts`), e a frase sai "escrito pelo modelo-9 da acme".
+ */
+export function nomeDaVariante(provedor: string, modelo: string): string {
+  return `o ${modelo} da ${provedor}`;
 }
 
 /**
  * O nome de um motor, com artigo — para a assinatura e para o seletor.
  *
- * Cai no tipo quando o id não está no catálogo: uma preferência gravada por uma
- * versão futura do app (ou um provedor nomeado) ainda tem de render um sujeito
- * legível, senão a assinatura viraria "escrito por undefined".
+ * **A variante nomeada tem nome próprio** (5.6). Antes toda ela caía em "a
+ * nuvem", e aí a assinatura da `/sono/saude` não dizia qual modelo escreveu e a
+ * bancada — a tela que existe para comparar motores — anunciava "medindo a
+ * nuvem…" para N motores diferentes. O nome vem do id, então funciona sem
+ * catálogo nenhum: uma preferência gravada por uma versão futura do app ainda
+ * rende um sujeito legível, em vez de "escrito por undefined".
  */
 export function nomeDoMotor(id: string | null | undefined): string {
-  const conhecido = motorConhecido(id);
+  const conhecido = motorConhecido(id, MOTORES_CONHECIDOS);
   if (conhecido) return conhecido.nome;
   const lido = lerMotorId(id);
-  if (lido?.tipo === 'nuvem') return 'a nuvem';
+  if (lido?.tipo === 'nuvem') {
+    return lido.variante === 'modelo' ? nomeDaVariante(lido.provedor, lido.modelo) : 'a nuvem';
+  }
   if (lido?.tipo === 'aparelho') return 'o modelo do aparelho';
   return 'o template';
 }
@@ -165,10 +334,21 @@ function nomeDoTipo(tipo: TipoDeMotor): string {
  *  4. o motor não existe neste build (o catálogo o conhece e não o tem).
  *
  * A gramática do id vem de `lerMotorId`, não de `startsWith`: o provedor nomeado que
- * a 5.6 vai gravar (`nuvem:acme/modelo-9`) tem de ser lido pelo mesmo leitor que o
- * núcleo usa, senão a tela e a resolução da cadeia discordam.
+ * a 5.6 grava (`nuvem:acme/modelo-9`) tem de ser lido pelo mesmo leitor que o núcleo
+ * usa, senão a tela e a resolução da cadeia discordam.
+ *
+ * `conhecidos` é o catálogo **já fundido** com a lista do servidor
+ * ({@link motoresDoRecurso}), e é **obrigatório**: com um padrão, quem esquecesse
+ * de passá-lo receberia "não existe neste build" para uma variante que o servidor
+ * aprovou — a razão certa para o aparelho, e uma mentira para ela, escrita na tela
+ * do dono sem nada quebrar. Um parâmetro obrigatório transforma esse esquecimento
+ * num erro de compilação.
  */
-export function motivoDeBloqueio(recurso: RecursoDoSeletor, id: MotorId): string | null {
+export function motivoDeBloqueio(
+  recurso: RecursoDoSeletor,
+  id: MotorId,
+  conhecidos: readonly MotorConhecido[],
+): string | null {
   const hospedagem = HOSPEDAGEM[recurso.recurso];
   if (!hospedagem.hospedado) return hospedagem.motivo ?? 'ainda não usado nesta versão';
 
@@ -181,5 +361,6 @@ export function motivoDeBloqueio(recurso: RecursoDoSeletor, id: MotorId): string
   if (!admiteTipo(recurso, lido.tipo)) {
     return `este recurso não guarda o que ${nomeDoTipo(lido.tipo)} escreve`;
   }
-  return motorDisponivel(id) ? null : (motorConhecido(id)?.motivo ?? 'indisponível neste build');
+  if (motorDisponivel(id, conhecidos)) return null;
+  return motorConhecido(id, conhecidos)?.motivo ?? 'indisponível neste build';
 }

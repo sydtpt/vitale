@@ -39,6 +39,13 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
   Na mesma pasta: o prazo de 60 s da chamada, o catálogo de motores conhecidos, a
   preferência por recurso (`vitale:motores-preferencia`) e o anel de diagnóstico,
   que é memória e nunca sai do aparelho.
+- **O catálogo de motores não é mais uma constante** (5.6). Parte dele vem do
+  servidor: a lista de motores de nuvem aprovados por recurso (ADR 0048), lida por
+  `GET ia-narrar` e cacheada com instante. Use `catalogoDoRecurso(recurso)` de
+  `lib/motores/` — nunca `idsConhecidos` direto — antes de chamar `resolverCadeia`:
+  o id que só a lista conhece seria descartado calado, e a escolha do dono viraria
+  o padrão sem nada explicando. Falha na leitura custa **só** as variantes
+  nomeadas: `sem-modelo`, `aparelho:sistema` e `nuvem:padrao` continuam de pé.
 - **Não chame as funções de um descritor** (`montarPedido`, `interpretar`,
   `conferir`, `montarFrase`, `semModelo`, `pedidoCurto`) de dentro de uma tela ou
   de um serviço: essa sequência existe uma vez só, no orquestrador. Uma barreira

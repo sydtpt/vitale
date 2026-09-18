@@ -138,6 +138,44 @@ e em três ADRs:
 A §3 deste spec ("período em curso: sem parágrafo de máquina") vale para recurso que **grava**. A
 leitura de sono do consumidor 2 é efêmera, sob pedido, e lê período em curso.
 
+### O contrato da `ia-narrar` depois da 5.6 (18/09/2026)
+
+A function passou a falar o vocabulário do fio. **É mudança de contrato**, e o deploy dela vem
+antes do build que a lê.
+
+```
+POST /ia-narrar   (JWT do usuário)
+  body { sistema, usuario, json?, motor?, esquema? }        ← CorpoDoPedido (ia/fio.ts)
+  → 2xx { texto, provedor, modelo, motivoDeParada, tokens?, uso? }   ← CorpoDaResposta
+  → falha { classe, detalhe? }                                       ← CorpoDaFalha
+
+GET  /ia-narrar   (JWT do usuário)
+  → 200 { motores: [{ motor, recursos }] }   ← a lista aprovada (ADR 0048)
+```
+
+**Toda falha tem `classe`**, uma das sete de `CLASSES_DE_FALHA`, e o status sai de
+`STATUS_POR_CLASSE` — não é escolha da function. O `{ error, detalhe }` de antes morreu, e o
+cliente não o lê mais. Onde isso mudou o status:
+
+| Situação | Antes | Agora | Classe |
+|---|---|---|---|
+| Corpo não é JSON, ou prompt vazio | 400 | **422** | `capacidade` |
+| Método não atendido | 405 | **422** | `capacidade` |
+| Prompt acima do teto | 413 | 413 | `janela` |
+| Provedor/segredo não configurado, motor fora da lista | 503 | 503 | `indisponivel` |
+| O provedor falhou | 502 | 502 ou o que a classe disser | pela tabela do provedor |
+
+O `motor` do corpo é opcional: **ausente ou `nuvem:padrao` se comporta como antes da 5.6** e
+resolve pelo padrão do servidor; um `nuvem:<provedor>/<modelo>` só é atendido se estiver na lista
+do secret `NUVEM_MOTORES_APROVADOS`, e fora dela é `indisponivel` — a classe que recua para o
+próximo elo sem nunca subir a exposição. O `esquema` é **aceito e não lido** (quem muda o formato
+de fio é o `json`); conta no teto de tamanho, e nada mais.
+
+A lista fala em motor **e** recursos, mas o corpo do POST não diz de que recurso é o pedido — a
+function é burra. Quem filtra por recurso é o cliente, ao montar o seletor; a function só pergunta
+se o motor está na lista. Ver `supabase/functions/_shared/ia/motores.ts` para o formato do secret e
+a regra de que provedor novo só entra com tabela de regime.
+
 ## 5. Golden set
 
 É aqui que a testabilidade mora, e é por isso que o contrato vem antes da chamada.

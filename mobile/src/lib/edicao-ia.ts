@@ -55,7 +55,7 @@ import {
   type TipoComEdicao,
 } from '@vitale/shared';
 import { motivoDaFalha, quemNaoEscreveu } from './assinatura';
-import { motorPara } from './motores';
+import { catalogoDoRecurso, motorPara } from './motores';
 import { anel } from './motores/anel';
 import { idsConhecidos, nomeDoMotor } from './motores/catalogo';
 import { lerPreferencia } from './motores/preferencia';
@@ -125,8 +125,15 @@ export interface DepsDaImpressao {
   readonly agora: () => Date;
   /** A escolha do dono para a Retrospectiva, neste aparelho, ou `null`. Nunca lança. */
   readonly lerPreferencia: () => Promise<MotorId | null>;
-  /** Os ids que o app conhece — disponíveis ou não. */
-  readonly catalogo: readonly string[];
+  /**
+   * Os ids que o app conhece — disponíveis ou não. **Nunca lança**, como
+   * `lerPreferencia`: quem não puder cumprir isso devolve o catálogo estático.
+   *
+   * Função assíncrona desde a 5.6: parte do catálogo é a lista de motores de
+   * nuvem aprovados, que vem do servidor (ADR 0048) e não existe antes de alguém
+   * perguntar.
+   */
+  readonly catalogo: () => Promise<readonly string[]>;
 }
 
 function depsDoApp(userId: string): DepsDaImpressao {
@@ -137,7 +144,7 @@ function depsDoApp(userId: string): DepsDaImpressao {
     registrar: anel.registrar,
     agora: () => new Date(),
     lerPreferencia: () => lerPreferencia(descritorDaRetrospectiva.recurso),
-    catalogo: idsConhecidos,
+    catalogo: () => catalogoDoRecurso(descritorDaRetrospectiva.recurso),
   };
 }
 
@@ -155,7 +162,15 @@ export async function imprimirEdicao(
   deps: Partial<DepsDaImpressao> = {},
 ): Promise<ResultadoDaImpressao<Edicao>> {
   const d: DepsDaImpressao = { ...depsDoApp(userId), ...deps };
-  const cadeia = resolverCadeia(descritorDaRetrospectiva, await d.lerPreferencia(), d.catalogo);
+  // A rede das duas leituras: o contrato diz "nunca lança", mas a impressão já
+  // avisou a tela que começou (`aoComecar`), e uma rejeição aqui a deixaria em
+  // "imprimindo" para sempre. O catálogo estático é sempre um desfecho seguro —
+  // `resolverCadeia` trata a preferência ausente como o padrão do recurso.
+  const [preferencia, catalogo] = await Promise.all([
+    d.lerPreferencia().catch(() => null),
+    d.catalogo().catch(() => idsConhecidos),
+  ]);
+  const cadeia = resolverCadeia(descritorDaRetrospectiva, preferencia, catalogo);
   return imprimir(entrada, d.portas, {
     cadeia,
     motorPara: d.motorPara,

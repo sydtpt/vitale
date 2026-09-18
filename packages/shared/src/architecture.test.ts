@@ -27,6 +27,7 @@ import { BRANDS } from './theme/brands';
 import { cssVars } from './theme/css-vars';
 import { sleepColorsOf, sleepCssVars } from './sleep/colors';
 import { resolveTokens } from './theme/derive';
+import { CLASSES_DE_FALHA } from './ia/fio';
 import { CONCLUSAO } from './ia/motor';
 import { VOCABULARIO_PROIBIDO } from './ia/verificar';
 import { CADERNO_IDS } from './period/cadernos';
@@ -1408,6 +1409,51 @@ check('BARREIRA — ia/fio.ts e ia/sha256.ts não importam nada', () => {
     `módulo sem imports ganhou dependência: ${offenders.join(', ')}. O fio é lido pelo Deno por ` +
       `caminho relativo, e o Deno não resolve specifier sem extensão — o deploy da function quebra ` +
       `longe daqui. Se precisa do tipo, declare-o no próprio fio.`,
+  );
+});
+
+/**
+ * BARREIRA — `supabase/functions/` só cita classe de falha do que importa de
+ * `ia/fio.ts` (story 5.6).
+ *
+ * As sete {@link CLASSES_DE_FALHA} são vocabulário do núcleo, não da function.
+ * Um arquivo que escreve `classe: 'indisponivel'` sem importar `ia/fio.ts` está
+ * repetindo a mesma palavra por conta própria — e no dia em que o núcleo ganhar
+ * uma oitava classe, ou renomear uma das sete, esse arquivo continuaria com a
+ * grafia velha e ninguém acusaria. Importar amarra a grafia à mesma fonte que o
+ * cliente (`ia/nuvem.ts`) já lê, e é o que a "guarda 3" do épico (AD-10) pedia —
+ * ela nasce aqui, na primeira story em que `supabase/functions/` de fato fala
+ * em classes, e não no marco do aparelho que ainda não existe.
+ *
+ * Pela AST, como `chamamMetodo` mais abaixo: só literal de string cujo texto é
+ * **exatamente** uma das sete classes conta — comentário não conta, e uma
+ * substring dentro de uma frase (ex.: um texto de UI que contenha a palavra
+ * "guarda") também não, porque o nó tem de ser o literal inteiro.
+ */
+check('BARREIRA — supabase/functions/ só cita classe do que importa de ia/fio.ts', () => {
+  const fnFiles = walk(join(ROOT, 'supabase', 'functions')).filter((f) => !ehTeste(f));
+  assert.ok(fnFiles.length > 0, 'supabase/functions/ sumiu — a barreira ficou sem alvo');
+  const IMPORTA_O_FIO = /from\s*['"][^'"]*ia\/fio(?:\.ts)?['"]/;
+  const alvo = new Set<string>(CLASSES_DE_FALHA as readonly string[]);
+  const offenders: string[] = [];
+  for (const f of fnFiles) {
+    const src = semComentario(readFileSync(f, 'utf8'));
+    const achados = new Set<string>();
+    const visitar = (no: ts.Node): void => {
+      if (ts.isStringLiteralLike(no) && alvo.has(no.text)) achados.add(no.text);
+      ts.forEachChild(no, visitar);
+    };
+    visitar(ts.createSourceFile(f, src, ts.ScriptTarget.Latest, false));
+    if (achados.size > 0 && !IMPORTA_O_FIO.test(src)) {
+      offenders.push(`${f.replace(ROOT + '/', '')} (${[...achados].sort().join(', ')})`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `classe de falha citada sem importar ia/fio.ts: ${offenders.join(', ')}. ` +
+      `Importe CLASSES_DE_FALHA/ClasseDeFalha/STATUS_POR_CLASSE de ia/fio.ts por caminho relativo ` +
+      `(o Deno exige a extensão .ts), em vez de repetir a grafia das classes à mão.`,
   );
 });
 

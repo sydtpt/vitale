@@ -184,16 +184,28 @@ describe('traduzirDaNuvem — o 2xx', () => {
   });
 });
 
-describe('a ia-narrar de hoje, corpo a corpo', () => {
+describe('a ia-narrar depois da 5.6, corpo a corpo', () => {
   it('lê cada saída da function e do gateway', () => {
     const casos: [RespostaDoTransporte, ClasseDeFalha | 'resposta'][] = [
       [{ status: 200, corpo: BOM }, 'resposta'],
-      [{ status: 400, corpo: { error: 'json_invalido' } }, 'capacidade'],
-      [{ status: 400, corpo: { error: 'prompt_vazio' } }, 'capacidade'],
-      [{ status: 413, corpo: { error: 'prompt_muito_longo', max: 60_000 } }, 'janela'],
-      [{ status: 503, corpo: { error: 'provedor_nao_configurado', detalhe: 'Error: AI_MODEL não configurado' } }, 'indisponivel'],
-      [{ status: 502, corpo: { error: 'narracao_falhou', detalhe: 'Error: HTTP 429: quota' } }, 'transitoria'],
+      [{ status: 422, corpo: { classe: 'capacidade', detalhe: 'json_invalido' } }, 'capacidade'],
+      [{ status: 422, corpo: { classe: 'capacidade', detalhe: 'prompt_vazio' } }, 'capacidade'],
+      [{ status: 413, corpo: { classe: 'janela', detalhe: 'prompt_muito_longo' } }, 'janela'],
+      [{ status: 503, corpo: { classe: 'indisponivel', detalhe: 'AI_MODEL não configurado' } }, 'indisponivel'],
+      [{ status: 503, corpo: { classe: 'indisponivel', detalhe: 'motor fora da lista aprovada' } }, 'indisponivel'],
+      [{ status: 502, corpo: { classe: 'transitoria', detalhe: 'HTTP 429: quota' } }, 'transitoria'],
+      // O 2xx do provedor sem texto utilizável: quem respondeu foi o fornecedor, e
+      // o que voltou não se lê. A function a classifica, e não o status sozinho.
+      [{ status: 502, corpo: { classe: 'saida-invalida', detalhe: 'texto vazio (SAFETY)' } }, 'saida-invalida'],
+      // Método não atendido — o app só manda POST e GET, então isto é defeito
+      // nosso: `capacidade` recua sem aumentar exposição e sem gravar.
+      [{ status: 422, corpo: { classe: 'capacidade', detalhe: 'método PUT não atendido' } }, 'capacidade'],
+      // A function ainda não deployada (janela entre build e deploy, AC 3): sem
+      // `classe` no corpo, o status por si só continua chegando a uma classe segura.
       [{ status: 401, corpo: { code: 401, message: 'Missing authorization header' } }, 'indisponivel'],
+      // E o 405 que a function **de antes** da 5.6 respondia: fora da tabela de
+      // status, cai em `transitoria` — piso, sem gravar. Degrada, não quebra.
+      [{ status: 405, corpo: { error: 'method_not_allowed' } }, 'transitoria'],
     ];
     for (const [r, esperado] of casos) {
       const t = traduzirDaNuvem(r);
@@ -202,22 +214,25 @@ describe('a ia-narrar de hoje, corpo a corpo', () => {
     }
   });
 
-  it('o detalhe carrega o erro da function, para a tela de desenvolvimento', () => {
-    const f = comoFalha(traduzirDaNuvem({
-      status: 503, corpo: { error: 'provedor_nao_configurado', detalhe: 'Error: AI_MODEL não configurado' },
-    }));
-    assert.equal(f.detalhe, 'HTTP 503 · provedor_nao_configurado: Error: AI_MODEL não configurado');
+  it('detalhe só de `detalhe` — não lê mais `error` (a leitura antiga morreu)', () => {
+    // O que a function de antes da 5.6 mandava: `error` sem `detalhe`. O detalhe
+    // fica ausente — é diagnóstico, nenhuma decisão o lê — e a classe continua
+    // vindo do status.
+    const f = comoFalha(traduzirDaNuvem({ status: 400, corpo: { error: 'prompt_vazio' } }));
+    assert.equal(f.classe, 'capacidade');
+    assert.equal(f.detalhe, 'HTTP 400');
   });
 });
 
 describe('criarMotorDeNuvem', () => {
   const texto: Pedido = { sistema: 's', usuario: 'u', amostragem: 'gulosa', saida: { tipo: 'texto' }, guardrails: 'permissivo' };
+  const ESQUEMA_OBJ = { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] } as const;
   const esquema: Pedido = {
     sistema: 's', usuario: 'u', amostragem: 'padrao', guardrails: 'padrao',
-    saida: { tipo: 'esquema', esquema: { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] } },
+    saida: { tipo: 'esquema', esquema: ESQUEMA_OBJ },
   };
 
-  it('manda o corpo que a function lê hoje, com json derivado da saída', async () => {
+  it('manda o corpo que a function lê, com json e esquema derivados da saída', async () => {
     const corpos: CorpoDoPedido[] = [];
     const motor = criarMotorDeNuvem(async (c) => {
       corpos.push(c);
@@ -227,9 +242,26 @@ describe('criarMotorDeNuvem', () => {
     comoResposta(await motor(esquema));
     assert.deepEqual(corpos, [
       { sistema: 's', usuario: 'u', json: false },
-      { sistema: 's', usuario: 'u', json: true },
+      { sistema: 's', usuario: 'u', json: true, esquema: ESQUEMA_OBJ },
     ]);
-    assert.deepEqual(corpoDoPedido(esquema), { sistema: 's', usuario: 'u', json: true });
+    assert.deepEqual(corpoDoPedido(esquema), { sistema: 's', usuario: 'u', json: true, esquema: ESQUEMA_OBJ });
+  });
+
+  it('manda o motor pedido, quando o hospedeiro o injeta — ausente, o corpo se comporta como sempre', async () => {
+    const corpos: CorpoDoPedido[] = [];
+    const nomeado = criarMotorDeNuvem(async (c) => {
+      corpos.push(c);
+      return { status: 200, corpo: BOM };
+    }, 'nuvem:acme/modelo-9');
+    comoResposta(await nomeado(texto));
+    assert.equal(corpos[0].motor, 'nuvem:acme/modelo-9');
+
+    const semMotor = criarMotorDeNuvem(async (c) => {
+      corpos.push(c);
+      return { status: 200, corpo: BOM };
+    });
+    comoResposta(await semMotor(texto));
+    assert.equal('motor' in corpos[1], false);
   });
 
   it('traduz pela tabela o que o transporte devolve', async () => {

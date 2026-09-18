@@ -220,6 +220,48 @@ describe('o motorPara da bancada', () => {
     assert.equal(motorPara('nuvem:' as never), undefined);
   });
 
+  it('o mesmo id dá o mesmo motor; ids diferentes, motores diferentes', () => {
+    assert.equal(motorPara(NUVEM_PADRAO), motorPara(NUVEM_PADRAO));
+    assert.notEqual(motorPara(NUVEM_PADRAO), motorPara('nuvem:prov-a/modelo-1'));
+  });
+
+  /**
+   * **O teste que faltava, e o defeito que ele pega.**
+   *
+   * Passa POR `motoresDaBancada` — não por `criarMotorDeNuvem` montado à mão — e
+   * lê o corpo que saiu no fio. Enquanto a bancada devolvia um motor só para todo
+   * id de nuvem, `--motor nuvem:prov-a/modelo-1` mandava corpo **sem** `motor`: a
+   * function caía no padrão do servidor e o relatório rotulava a coluna com o id
+   * nomeado. Medir um modelo e reportar outro corrompe o portão da ADR 0050, que
+   * lê exatamente esse relatório.
+   */
+  it('o id nomeado vai no corpo; NUVEM_PADRAO manda o corpo de sempre', async () => {
+    const { buscar: umaChamada, vistas } = chamada({ status: 200, corpo: CORPO_BOM });
+    const para = motoresDaBancada(
+      { url: URL_DO_PROJETO, tokenAtual: async () => TOKEN, chaveAnonima: ANON },
+      umaChamada,
+    );
+
+    const nomeado = para('nuvem:prov-a/modelo-1');
+    assert.ok(nomeado);
+    await nomeado(PEDIDO);
+    assert.deepEqual(JSON.parse(um(vistas).init.body), {
+      sistema: PEDIDO.sistema,
+      usuario: PEDIDO.usuario,
+      json: false,
+      motor: 'nuvem:prov-a/modelo-1',
+    });
+
+    const padrao = para(NUVEM_PADRAO);
+    assert.ok(padrao);
+    await padrao(PEDIDO);
+    // `nuvem:padrao` **é** "o servidor escolhe": mandá-lo no corpo seria pedir ao
+    // servidor que resolvesse para o padrão dele, que é o que a ausência já diz.
+    const segundo = JSON.parse(um(vistas, 1).init.body);
+    assert.equal('motor' in segundo, false, JSON.stringify(segundo));
+    assert.deepEqual(segundo, { sistema: PEDIDO.sistema, usuario: PEDIDO.usuario, json: false });
+  });
+
   it('o segredo extra da credencial (o refresh token) é redigido pelo transporte', async () => {
     // Não basta `segredosDe` conhecer o refresh token: ele tem de CHEGAR ao transporte,
     // que é quem escreve `detalhe`. Um refresh vazado dura muito mais que uma hora.
