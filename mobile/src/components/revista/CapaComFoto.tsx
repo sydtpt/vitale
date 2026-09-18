@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -8,6 +9,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { captureRef } from 'react-native-view-shot';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { hexToRgb } from '@vitale/shared';
 import { degrauDoVeu, htmlDaMedicao, lerMedicao, type PixelMedido } from '../../lib/veu';
@@ -66,6 +68,62 @@ const TEXTO_PRESUMIDO = 180;
  */
 const TETO_DA_MEDICAO_MS = 6_000;
 
+/**
+ * A largura, em pixels, da amostra que vai ao canvas.
+ *
+ * Pequena de propósito: é a **mediana visual** da faixa que interessa, não a
+ * imagem. Num raster grande, um brilho especular de um pixel — o reflexo no aro,
+ * o sol na nuvem — mandaria no véu inteiro; reduzido, ele vira média com os
+ * vizinhos. 72 px é o mesmo valor que a página já usava.
+ */
+const LARGURA_DA_AMOSTRA = 72;
+
+/**
+ * A foto rasterizada como `data:`, tirada do que a tela **já desenhou**.
+ *
+ * ## Por que não é mais o arquivo
+ *
+ * A primeira versão mandava o endereço `file://` da biblioteca ao WebView. Medido
+ * no iPhone em 18/09/2026, com A/B no console do aparelho: abrir a edição imprime
+ * `sandbox_extension_issue_file failed … Operation not permitted` (duas linhas),
+ * e a mesma sessão sem abrir a edição não imprime nenhuma. A foto mora na caixa do
+ * PhotoKit, fora do contêiner do app, e o processo de conteúdo do WKWebView não
+ * herda essa chave — nem com `allowFileAccessFromFileURLs`. A medição nunca rodava,
+ * e como a falha cai no véu **mais profundo**, o sintoma era só uma capa mais
+ * escura do que precisava: legível, e por isso quase invisível.
+ *
+ * `captureRef` resolve na origem: o pixel sai da própria `<Image>` já composta e
+ * dimensionada pelo `resizeMode="cover"`, vira base64 e entra no canvas como
+ * `data:` — mesma origem, sem `file://`, sem extensão de sandbox para pedir. E é
+ * mais fiel ao critério: mede-se o pixel que o leitor vê, não o do arquivo.
+ *
+ * O `useRenderInContext` do iOS é o mesmo remendo que o cartão de compartilhar já
+ * carrega (`lib/share-export.ts`), pela mesma razão: `drawViewHierarchyInRect`
+ * falha em alguns cenários e este caminho contorna.
+ */
+async function amostraDaFoto(
+  ref: React.RefObject<View | null>,
+  largura: number,
+  altura: number,
+): Promise<string> {
+  const opcoes = {
+    format: 'jpg' as const,
+    quality: 0.7,
+    result: 'base64' as const,
+    width: largura,
+    height: Math.max(1, altura),
+  };
+  const base64 = await (async () => {
+    try {
+      return await captureRef(ref as never, opcoes);
+    } catch (e) {
+      if (Platform.OS !== 'ios') throw e;
+      return captureRef(ref as never, { ...opcoes, useRenderInContext: true });
+    }
+  })();
+  return `data:image/jpeg;base64,${base64}`;
+}
+
 /** O que se sabe sobre a foto de baixo. `nunca` inclui "ainda medindo". */
 type Medicao =
   | { readonly estado: 'nunca' }
@@ -91,9 +149,16 @@ export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProp
   const [alturaDoTexto, setAlturaDoTexto] = useState(TEXTO_PRESUMIDO);
   const [alturaDaCapa, setAlturaDaCapa] = useState(minima);
   const [medicao, setMedicao] = useState<Medicao>({ estado: 'nunca' });
+  /** A amostra rasterizada que vai ao canvas — `null` até a imagem pintar. */
+  const [amostra, setAmostra] = useState<string | null>(null);
+  const fotoRef = useRef<View | null>(null);
 
-  // Foto nova, medida nova: o pixel da anterior não diz nada sobre esta.
-  useEffect(() => { setMedicao({ estado: 'nunca' }); }, [uri]);
+  // Foto nova, medida nova: o pixel da anterior não diz nada sobre esta — e a
+  // amostra velha mediria a imagem errada, que é pior que não medir.
+  useEffect(() => {
+    setMedicao({ estado: 'nunca' });
+    setAmostra(null);
+  }, [uri]);
 
   /**
    * A resposta da página. **Uma só por foto**: o medidor sai da árvore assim que
@@ -110,6 +175,23 @@ export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProp
     console.warn(`[revista] o véu NÃO foi medido; fica o mais profundo — ${motivo ?? 'sem motivo'}`);
     setMedicao({ estado: 'falhou' });
   }, []);
+
+  /**
+   * A imagem pintou: tira a amostra. Só aqui — antes disso `captureRef` devolveria
+   * o fundo do véu, e mediríamos a própria cor do véu em vez da foto.
+   *
+   * A falha não derruba nada: sem amostra não há medição, e sem medição vale o
+   * degrau mais profundo, com a razão escrita no log.
+   */
+  const aoPintar = useCallback(() => {
+    const alvo = Math.max(1, Math.round((LARGURA_DA_AMOSTRA * alturaDaCapa) / width));
+    amostraDaFoto(fotoRef, LARGURA_DA_AMOSTRA, alvo)
+      .then(setAmostra)
+      .catch((e: unknown) => {
+        console.warn('[revista] o véu NÃO foi medido; fica o mais profundo — a amostra da foto falhou:', e);
+        setMedicao({ estado: 'falhou' });
+      });
+  }, [alturaDaCapa, width]);
 
   const medirTexto = useCallback((e: LayoutChangeEvent) => {
     const h = Math.round(e.nativeEvent.layout.height);
@@ -135,12 +217,21 @@ export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProp
       {uri ? (
         // A imagem é o fundo, e o fundo não fala: a descrição dela é a legenda,
         // que está escrita por cima em texto de verdade.
-        <Image
-          source={{ uri }}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-          accessible={false}
-        />
+        //
+        // A View em volta não é enfeite: `captureRef` precisa de uma **view
+        // nativa** (a ref da `Image` não serve), e `collapsable={false}` impede o
+        // React Native de fundir essa view com a de cima — fundida, não há o que
+        // capturar. Ela fica **abaixo** do véu na árvore, então a amostra é a foto
+        // limpa, sem o escurecimento que estamos justamente tentando calibrar.
+        <View ref={fotoRef} collapsable={false} style={StyleSheet.absoluteFill}>
+          <Image
+            source={{ uri }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            accessible={false}
+            onLoad={aoPintar}
+          />
+        </View>
       ) : null}
 
       {/* O véu: some para cima, chapado sob todo o texto. */}
@@ -167,10 +258,11 @@ export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProp
         </View>
       </View>
 
-      {/* Só enquanto não há resposta: medida ou falha, o WebView vai embora. */}
-      {uri && medicao.estado === 'nunca' ? (
+      {/* Só enquanto não há resposta, e só com a amostra na mão: medida ou falha,
+          o WebView vai embora. */}
+      {amostra && medicao.estado === 'nunca' ? (
         <MedidorDoVeu
-          uri={uri}
+          uri={amostra}
           razao={alturaDaCapa / width}
           banda={alturaDoTexto / alturaDaCapa}
           aoMedir={aoMedir}
@@ -189,11 +281,11 @@ export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProp
  * `expo-image-manipulator` nem `expo-file-system` estão instalados, e acrescentar
  * dependência é pergunta ao dono.
  *
- * Os dois `allow…FromFileURLs` e o `baseUrl` de arquivo existem por uma razão só:
- * sem eles, o canvas com uma imagem `file://` fica *tainted* e o `getImageData`
- * lança `SecurityError`. Quando isso acontece mesmo assim, a página responde
- * `ok:false`, `lerMedicao` devolve `null` e o véu fica no mais profundo — a capa
- * continua legível, sem nada piscar.
+ * **A imagem chega como `data:`, nunca como `file://`** — ver `amostraDaFoto`, que
+ * conta a medição de 18/09 no iPhone. Sem origem de arquivo o canvas não fica
+ * *tainted* e não há permissão a pedir; se ainda assim a página não medir, ela
+ * responde `ok:false`, `lerMedicao` devolve `null` e o véu fica no mais profundo —
+ * a capa continua legível, sem nada piscar.
  *
  * **A geometria entra arredondada.** `banda` e `razao` mudam de fração de pixel a
  * cada passo de layout, e recalcular o HTML a cada uma delas recarregaria a página
@@ -241,11 +333,11 @@ function MedidorDoVeu({ uri, razao, banda, aoMedir }: {
     <View style={estilosDoMedidor.oculto} pointerEvents="none" accessible={false}>
       <WebView
         originWhitelist={['*']}
-        source={{ html, baseUrl: 'file:///' }}
-        // Sem isto o canvas com imagem `file://` fica tainted e getImageData lança.
-        allowFileAccess
-        allowFileAccessFromFileURLs
-        allowUniversalAccessFromFileURLs
+        // Sem `baseUrl` de arquivo e sem as permissões de `file://`: a imagem
+        // chega embutida como `data:`, que é mesma origem — o canvas não fica
+        // *tainted* e não há extensão de sandbox para o WebView pedir (e levar
+        // não, como levou em 18/09). Ver `amostraDaFoto`.
+        source={{ html }}
         javaScriptEnabled
         scrollEnabled={false}
         showsVerticalScrollIndicator={false}
