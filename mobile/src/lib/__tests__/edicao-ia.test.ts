@@ -53,7 +53,15 @@ jest.mock('../supabase', () => ({
 }));
 
 // O ponto de injeção constrói o motor de nuvem na carga; aqui ninguém chama nuvem.
-jest.mock('../motores', () => ({ motorPara: () => undefined }));
+// O ponto de injeção inteiro é falso aqui: o motor vem das deps de cada teste, e
+// o catálogo é o que o app conhece **sem** a lista do servidor. Sem o segundo, o
+// `depsDoApp` dos dois testes que passam só `portas` e `motorPara` iria à rede
+// atrás da lista aprovada — que é a única coisa que esta suíte não pode fazer.
+jest.mock('../motores', () => ({
+  motorPara: () => undefined,
+  catalogoDoRecurso: async () =>
+    (jest.requireActual('../motores/catalogo') as { idsConhecidos: readonly string[] }).idsConhecidos,
+}));
 
 import {
   APARELHO_SISTEMA,
@@ -363,7 +371,9 @@ function depsFalsas(
     registrar: () => undefined,
     agora: () => new Date(Date.UTC(2026, 8, 16, 9, 0, 0)),
     lerPreferencia: async () => o.preferencia ?? null,
-    catalogo: idsConhecidos,
+    // Assíncrono desde a 5.6: parte do catálogo vem do servidor. Aqui é o que o
+    // app conhece sozinho — nenhum teste desta suíte abre rede.
+    catalogo: async () => idsConhecidos,
   };
   return { deps, gravacoes, buscas, nuvem, pedidosA };
 }

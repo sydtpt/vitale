@@ -234,9 +234,58 @@ describe('o motorPara do app', () => {
     expect(motorPara('lixo' as never)).toBeUndefined();
   });
 
-  it('é o mesmo motor para todo id de nuvem — a fila é uma só', () => {
+  /**
+   * Era "o mesmo motor para todo id de nuvem" até a 5.6. Deixou de ser, e a
+   * mudança é o ponto da story: cada variante nomeada carrega **o seu** `motor`
+   * no corpo, então elas não podem ser o mesmo objeto. O que continua sendo um
+   * só é a **fila** (o teste abaixo), que é o que aquela asserção protegia.
+   */
+  it('o mesmo id dá o mesmo motor — a tela guarda o objeto entre renders', () => {
     const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar);
-    expect(motorPara(NUVEM_PADRAO)).toBe(motorPara('nuvem:acme/modelo-9'));
+    expect(motorPara(NUVEM_PADRAO)).toBe(motorPara(NUVEM_PADRAO));
+    expect(motorPara('nuvem:acme/modelo-9')).toBe(motorPara('nuvem:acme/modelo-9'));
+  });
+
+  it('ids diferentes dão motores diferentes — é o corpo que muda', () => {
+    const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar);
+    expect(motorPara(NUVEM_PADRAO)).not.toBe(motorPara('nuvem:acme/modelo-9'));
+  });
+
+  it('a variante nomeada vai no corpo; `nuvem:padrao` não vai — é o corpo de sempre', async () => {
+    // `nuvem:padrao` **é** "o servidor escolhe": mandá-lo no corpo seria pedir ao
+    // servidor que resolvesse para o padrão dele, que é o que a ausência já diz.
+    // Manter o corpo idêntico ao de antes da 5.6 é o que faz a janela entre o
+    // build novo e o deploy da function nova não custar nada.
+    const { chamar, vistas } = chamada({ ok: CORPO_BOM });
+    const motorPara = criarMotorPara(chamar);
+    await motorPara(NUVEM_PADRAO)!(PEDIDO);
+    await motorPara('nuvem:acme/modelo-9')!(PEDIDO);
+    expect(vistas[0].corpo).toEqual({ sistema: PEDIDO.sistema, usuario: PEDIDO.usuario, json: false });
+    expect(vistas[1].corpo).toEqual({
+      sistema: PEDIDO.sistema,
+      usuario: PEDIDO.usuario,
+      json: false,
+      motor: 'nuvem:acme/modelo-9',
+    });
+  });
+
+  it('a fila é uma só entre variantes — duas telas não pagam duas chamadas juntas', async () => {
+    let dentro = 0;
+    let maximo = 0;
+    const chamar: Chamar = async () => {
+      dentro += 1;
+      maximo = Math.max(maximo, dentro);
+      await new Promise((r) => setTimeout(r, 5));
+      dentro -= 1;
+      return { data: CORPO_BOM, error: null, response: { status: 200, json: async () => CORPO_BOM } };
+    };
+    const motorPara = criarMotorPara(chamar);
+    await Promise.all([
+      motorPara(NUVEM_PADRAO)!(PEDIDO),
+      motorPara('nuvem:acme/modelo-9')!(PEDIDO),
+      motorPara('nuvem:acme/outro')!(PEDIDO),
+    ]);
+    expect(maximo).toBe(1);
   });
 
   it('a fila não deixa duas chamadas se sobrepor', async () => {

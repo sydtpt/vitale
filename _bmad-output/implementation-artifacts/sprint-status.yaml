@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 18-09-2026 09:05
+last_updated: 18-09-2026 09:20
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -204,8 +204,31 @@ development_status:
   # espera o macOS 27 (14/09) e o risco aberto do Xcode 26.6, e exige BUILD
   # PRÓPRIO: nunca o mesmo de uma migração.
   5-5-a-ponte-o-botão-ler-e-a-escolha-do-motor: done
-  # ▼ PRÓXIMA SPRINT (F3–F5). Estão aqui para aparecer no quadro, não para começar.
-  5-6-vários-motores-de-nuvem: backlog
+  # 5.6 REABERTA em 17/09/2026 por decisão do dono: sem dependência de nenhuma
+  # outra frente (nem da Revista, nem de marco do próprio Épico 5) — corre em
+  # paralelo. Worktree própria em ../life-organizer-wt-motores-5-6, branch
+  # feat/motores-5-6. Falta o bmad-build/bmad-create-story numa sessão nova
+  # para virar story de fato; até lá o status segue backlog.
+  # GUARDA DE COLISÃO: checado em 17/09 — nenhum arquivo da 1.13 (em
+  # construção, worktree própria) toca ia/ nem motores/; sem sobreposição de
+  # arquivo. O único ponto de contato real é packages/shared/src/ia/motor.ts,
+  # que a 1.10 (já done) já importa pela porta única — mudar essa story para
+  # SÓ ADICIONAR implementação nova de Motor, nunca alterar a assinatura do
+  # tipo existente, ou quebra quem já mergeou. Rodar
+  # `pnpm --filter @vitale/shared lint && test` antes de mergear.
+  # IMPLEMENTADA em 18/09/2026, na worktree ../life-organizer-wt-motores-5-6.
+  # Oito gates verdes. A revisão adversarial (3 camadas) achou e consertou 11
+  # patches, sem loopback — nenhum achado tinha raiz no spec congelado. Os três
+  # graves: a BANCADA não tinha adotado a injeção do MotorId (media o modelo
+  # padrão e rotulava a coluna com o nomeado — corromperia o portão da ADR 0050);
+  # um 200 sem a chave `motores` virava lista vazia autoritativa em vez de null;
+  # e `catalogoDoRecurso`, o fio que leva a lista fundida às duas leituras reais,
+  # não tinha teste nenhum. 6 achados foram para o deferred-work.
+  # FALTA: o veredito do dono, o deploy (runbook em motores-5-6/deploy-da-lista.md
+  # — a function ANTES do build) e o merge. A lista fica VAZIA hoje, por decisão
+  # do `Never` do spec; o epics.md diz o contrário e a divergência está aberta.
+  5-6-vários-motores-de-nuvem: review
+  # ▼ PRÓXIMA SPRINT (F4–F5). Estão aqui para aparecer no quadro, não para começar.
   5-7-o-nome-de-rota-pela-porta: backlog
   5-8-core-ai: backlog
   epic-5-retrospective: optional

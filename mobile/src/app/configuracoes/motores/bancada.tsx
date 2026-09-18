@@ -19,9 +19,9 @@ import { useSonoStore } from '../../../store/sono.store';
 import { PeriodNav } from '../../../components/sono/PeriodNav';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { motivoDaFalha } from '../../../lib/assinatura';
-import { MOTORES_CONHECIDOS, nomeDoMotor } from '../../../lib/motores/catalogo';
+import { motoresDoRecurso, nomeDoMotor } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
-import { motorPara } from '../../../lib/motores';
+import { garantirListaAprovada, motorPara } from '../../../lib/motores';
 import { chaveDaJanela } from '../../../lib/leitura-da-saude';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../../theme';
 
@@ -97,7 +97,12 @@ export default function BancadaScreen() {
     setRodando(SEM_MODELO);
     const feitas: Linha[] = [];
     try {
-      for (const m of MOTORES_CONHECIDOS) {
+      // A lista do servidor antes do laço (5.6): uma variante nomeada que o dono
+      // pode **escolher** no seletor tem de ser mensurável aqui, senão a tela que
+      // existe para comparar motores esconde justamente o motor novo.
+      const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, await garantirListaAprovada());
+      if (chaveRef.current !== chaveDoLaco) return;
+      for (const m of conhecidos) {
         // **Abandona o que é de outra janela.** O efeito de limpeza apaga as linhas
         // quando o período muda, mas o laço já capturou `entrada` e continuaria
         // pintando medições da janela velha sob o cabeçalho novo — que é exatamente

@@ -16,6 +16,7 @@ import {
   ehClasseDeFalha,
   type ClasseDeFalha,
   type CorpoDoPedido,
+  type MotorId,
 } from './fio';
 import { CONCLUSAO, type Falha, type Motor, type Pedido, type Resposta, type UsoDeTokens } from './motor';
 
@@ -48,9 +49,22 @@ export const CLASSE_POR_STATUS: Readonly<Record<number, ClasseDeFalha>> = {
   504: 'transitoria',
 };
 
-/** O corpo que a function lê hoje. `json` é a intenção, derivada da saída pedida. */
-export function corpoDoPedido(pedido: Pedido): CorpoDoPedido {
-  return { sistema: pedido.sistema, usuario: pedido.usuario, json: pedido.saida.tipo === 'esquema' };
+/**
+ * O corpo que a function lê. `json` é a intenção, derivada da saída pedida; o
+ * `esquema` viaja junto quando ela é guiada (5.6 — hoje só para diagnóstico,
+ * nenhum adaptador o lê). `motor` só entra quando o hospedeiro o injeta — a
+ * escolha de qual motor de nuvem pedir não é deste arquivo (é de quem chama
+ * {@link criarMotorDeNuvem}); sem ele, o corpo se comporta como sempre se
+ * comportou.
+ */
+export function corpoDoPedido(pedido: Pedido, motor?: MotorId): CorpoDoPedido {
+  return {
+    sistema: pedido.sistema,
+    usuario: pedido.usuario,
+    json: pedido.saida.tipo === 'esquema',
+    ...(pedido.saida.tipo === 'esquema' ? { esquema: pedido.saida.esquema } : {}),
+    ...(motor !== undefined ? { motor } : {}),
+  };
 }
 
 function objeto(x: unknown): Record<string, unknown> | null {
@@ -61,11 +75,18 @@ function texto(x: unknown): string | null {
   return typeof x === 'string' && x.trim().length > 0 ? x : null;
 }
 
-/** O que o corpo de erro diz, para diagnóstico: o `error` de hoje e o `detalhe`. */
+/**
+ * O que o corpo de erro diz, para diagnóstico — só `detalhe`.
+ *
+ * Lia `error` também, porque a function de antes da 5.6 só tinha esse campo;
+ * a partir da 5.6 ela sempre traz `classe` (que decide) e `detalhe`
+ * (diagnóstico), nunca `error` solto. A leitura antiga morre aqui — não
+ * reintroduzir.
+ */
 function detalheDoCorpo(o: Record<string, unknown> | null): string | undefined {
   if (!o) return undefined;
-  const partes = [o['error'], o['detalhe']].filter((p): p is string => typeof p === 'string' && p.length > 0);
-  return partes.length > 0 ? partes.join(': ') : undefined;
+  const d = o['detalhe'];
+  return typeof d === 'string' && d.length > 0 ? d : undefined;
 }
 
 function tokensDe(x: unknown): UsoDeTokens | undefined {
@@ -145,11 +166,16 @@ export function traduzirDaNuvem(r: RespostaDoTransporte): Resposta | Falha {
  * O motor de nuvem. Recebe o transporte do hospedeiro e devolve a porta — que,
  * como toda porta, nunca rejeita: um transporte que lança, em vez de devolver
  * `semRede`, vira `transitoria` não mapeada.
+ *
+ * `motor`, quando o hospedeiro o passa, é o `MotorId` que o corpo leva — é
+ * assim que a function sabe **qual** motor de nuvem foi pedido, em vez de
+ * resolver sempre para o padrão do servidor. Ausente, o corpo não leva
+ * `motor` nenhum, e a function decide como sempre decidiu.
  */
-export function criarMotorDeNuvem(invocar: Transporte): Motor {
+export function criarMotorDeNuvem(invocar: Transporte, motor?: MotorId): Motor {
   return async (pedido) => {
     try {
-      return traduzirDaNuvem(await invocar(corpoDoPedido(pedido)));
+      return traduzirDaNuvem(await invocar(corpoDoPedido(pedido, motor)));
     } catch (e) {
       // O nome cru vai junto (AD-4): é ele que o anel precisa para mapear depois.
       const cru = e instanceof Error ? `${e.name}: ${e.message}` : String(e);

@@ -196,7 +196,10 @@ function hospedeiro(
       // Relógio injetado: o `ms` da assinatura é medido, não cronometrado.
       agora: () => new Date(relogio[Math.min(tique++, relogio.length - 1)]),
       lerPreferencia: async () => preferencia as MotorId | null,
-      catalogo: idsConhecidos,
+      // Assíncrono desde a 5.6: parte do catálogo vem do servidor (a lista de
+      // motores aprovados). Aqui é só o que o app conhece sozinho — nenhum teste
+      // desta suíte abre rede.
+      catalogo: async () => idsConhecidos,
     },
   };
 }
@@ -506,6 +509,54 @@ describe('a leitura da Saúde do sono, na tela', () => {
     ]);
     const horario = e.score.dimensions.find((d) => d.key === 'horario');
     expect(horario?.fact).not.toBe('± 0 min');
+  });
+
+  /**
+   * **A vaga nunca fica presa em "escrevendo".**
+   *
+   * `escrevendo` é publicado antes de a preferência e o catálogo serem lidos —
+   * é o toque do dono, e a espera começa nele. Uma rejeição nesses dois `await`
+   * sairia por fora do `try` da leitura e deixaria a tela girando para sempre,
+   * com uma rejeição não tratada de brinde. É a família de bug que já mordeu
+   * este repositório uma vez (a janela da retro que não destravava), e o
+   * contrato das deps ("nunca lança") é promessa, não garantia: quem injeta é
+   * outro código.
+   */
+  it('catálogo que rejeita: cai no estático e a leitura termina — nunca fica em "escrevendo"', async () => {
+    const e = entrada('7d');
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorQueEscreve(e) }, NUVEM_PADRAO);
+    const leitor = criarLeitor({
+      ...h.deps,
+      catalogo: () => Promise.reject(new Error('a lista quebrou')),
+    });
+    leitor.janela(chaveDaJanela(e));
+
+    await leitor.ler(e);
+
+    const s = leitor.estadoDe(chaveDaJanela(e));
+    expect(s.fase).not.toBe('escrevendo');
+    // E o catálogo estático ainda contém `nuvem:padrao`, então a escolha do dono
+    // sobrevive à queda: o que se perde é só a variante nomeada.
+    expect(s.fase).toBe('lida');
+  });
+
+  it('preferência que rejeita: cai no padrão do recurso, e a leitura termina', async () => {
+    const e = entrada('7d');
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorQueEscreve(e) }, NUVEM_PADRAO);
+    const leitor = criarLeitor({
+      ...h.deps,
+      lerPreferencia: () => Promise.reject(new Error('o disco quebrou')),
+    });
+    leitor.janela(chaveDaJanela(e));
+
+    await leitor.ler(e);
+
+    const s = leitor.estadoDe(chaveDaJanela(e));
+    expect(s.fase).not.toBe('escrevendo');
+    // Sem preferência legível, a cadeia padrão da Saúde é `[sem-modelo]`: o piso,
+    // que nunca sobe exposição. Nenhuma chamada de nuvem saiu.
+    expect(s.fase).toBe('piso');
+    expect(h.pedidos()).toBe(0);
   });
 });
 

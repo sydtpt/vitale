@@ -48,10 +48,10 @@ describe('o catálogo de motores do app', () => {
   });
 
   it('no marco A: sem modelo e nuvem disponíveis, aparelho listado e indisponível com motivo', () => {
-    expect(motorDisponivel(SEM_MODELO)).toBe(true);
-    expect(motorDisponivel(NUVEM_PADRAO)).toBe(true);
+    expect(motorDisponivel(SEM_MODELO, MOTORES_CONHECIDOS)).toBe(true);
+    expect(motorDisponivel(NUVEM_PADRAO, MOTORES_CONHECIDOS)).toBe(true);
 
-    const aparelho = motorConhecido(APARELHO_SISTEMA);
+    const aparelho = motorConhecido(APARELHO_SISTEMA, MOTORES_CONHECIDOS);
     // Listado: esconder faria o seletor mentir por omissão.
     expect(aparelho).toBeDefined();
     expect(aparelho?.disponivel).toBe(false);
@@ -68,10 +68,10 @@ describe('o catálogo de motores do app', () => {
   });
 
   it('motor fora do catálogo é indisponível, e não explode', () => {
-    expect(motorDisponivel('nuvem:acme/x')).toBe(false);
-    expect(motorDisponivel('lixo')).toBe(false);
-    expect(motorDisponivel(null)).toBe(false);
-    expect(motorConhecido(undefined)).toBeUndefined();
+    expect(motorDisponivel('nuvem:acme/x', MOTORES_CONHECIDOS)).toBe(false);
+    expect(motorDisponivel('lixo', MOTORES_CONHECIDOS)).toBe(false);
+    expect(motorDisponivel(null, MOTORES_CONHECIDOS)).toBe(false);
+    expect(motorConhecido(undefined, MOTORES_CONHECIDOS)).toBeUndefined();
   });
 
   it('a hospedagem cobre todo recurso do núcleo: a Saúde do sono e a Retrospectiva ligadas, o nome de rota não', () => {
@@ -105,9 +105,9 @@ describe('por que um motor não pode ser escolhido', () => {
   const nomeDeRota = { recurso: 'nome-de-rota', regimeMaximo: 'nuvem', grava: false } as const;
 
   it('na Saúde do sono: sem modelo e nuvem liberados, aparelho com o motivo do build', () => {
-    expect(motivoDeBloqueio(saude, SEM_MODELO)).toBeNull();
-    expect(motivoDeBloqueio(saude, NUVEM_PADRAO)).toBeNull();
-    expect(motivoDeBloqueio(saude, APARELHO_SISTEMA)).toBe(
+    expect(motivoDeBloqueio(saude, SEM_MODELO, MOTORES_CONHECIDOS)).toBeNull();
+    expect(motivoDeBloqueio(saude, NUVEM_PADRAO, MOTORES_CONHECIDOS)).toBeNull();
+    expect(motivoDeBloqueio(saude, APARELHO_SISTEMA, MOTORES_CONHECIDOS)).toBe(
       'a ponte para o modelo do sistema ainda não existe neste build',
     );
   });
@@ -116,26 +116,26 @@ describe('por que um motor não pode ser escolhido', () => {
     // Um controle que grava uma preferência que ninguém consulta mente tanto quanto
     // uma opção escondida: o dono trocaria o motor e nada mudaria.
     for (const m of MOTORES_CONHECIDOS) {
-      expect(motivoDeBloqueio(nomeDeRota, m.id)).toContain('ainda não usado nesta versão');
+      expect(motivoDeBloqueio(nomeDeRota, m.id, MOTORES_CONHECIDOS)).toContain('ainda não usado nesta versão');
     }
   });
 
   it('na Retrospectiva: sem modelo e nuvem liberados, e o aparelho barrado pelo que a revista admite gravar', () => {
     // Hospedada desde a 1.10. O aparelho não é barrado pelo build aqui, e sim pela
     // AD-12: a revista só grava o que a nuvem escreve, e a razão tem de dizer isso.
-    expect(motivoDeBloqueio(retro, SEM_MODELO)).toBeNull();
-    expect(motivoDeBloqueio(retro, NUVEM_PADRAO)).toBeNull();
-    expect(motivoDeBloqueio(retro, APARELHO_SISTEMA)).toBe('este recurso não guarda o que o modelo do aparelho escreve');
+    expect(motivoDeBloqueio(retro, SEM_MODELO, MOTORES_CONHECIDOS)).toBeNull();
+    expect(motivoDeBloqueio(retro, NUVEM_PADRAO, MOTORES_CONHECIDOS)).toBeNull();
+    expect(motivoDeBloqueio(retro, APARELHO_SISTEMA, MOTORES_CONHECIDOS)).toBe('este recurso não guarda o que o modelo do aparelho escreve');
   });
 
   it('motor acima do regimeMaximo do recurso é bloqueado com o motivo da exposição', () => {
     const soAparelho = { recurso: 'saude-do-sono', regimeMaximo: 'aparelho', grava: false } as const;
-    expect(motivoDeBloqueio(soAparelho, NUVEM_PADRAO)).toBe('este recurso não manda dado além do aparelho');
+    expect(motivoDeBloqueio(soAparelho, NUVEM_PADRAO, MOTORES_CONHECIDOS)).toBe('este recurso não manda dado além do aparelho');
     // E o que cabe no regime segue liberado (fora o build, que é outra razão).
-    expect(motivoDeBloqueio(soAparelho, SEM_MODELO)).toBeNull();
+    expect(motivoDeBloqueio(soAparelho, SEM_MODELO, MOTORES_CONHECIDOS)).toBeNull();
 
     const semModelo = { recurso: 'saude-do-sono', regimeMaximo: 'sem-modelo', grava: false } as const;
-    expect(motivoDeBloqueio(semModelo, NUVEM_PADRAO)).toBe('este recurso não manda dado além do código');
+    expect(motivoDeBloqueio(semModelo, NUVEM_PADRAO, MOTORES_CONHECIDOS)).toBe('este recurso não manda dado além do código');
   });
 
   it('tipo que o grava.admite do recurso recusa é bloqueado, com o motivo', () => {
@@ -146,22 +146,22 @@ describe('por que um motor não pode ser escolhido', () => {
       regimeMaximo: 'nuvem',
       grava: { admite: ['aparelho'], recusaEResultado: false },
     } as const;
-    expect(motivoDeBloqueio(soAparelhoGrava, NUVEM_PADRAO)).toBe(
+    expect(motivoDeBloqueio(soAparelhoGrava, NUVEM_PADRAO, MOTORES_CONHECIDOS)).toBe(
       'este recurso não guarda o que a nuvem escreve',
     );
     // `sem-modelo` é o piso, sempre admitido.
-    expect(motivoDeBloqueio(soAparelhoGrava, SEM_MODELO)).toBeNull();
+    expect(motivoDeBloqueio(soAparelhoGrava, SEM_MODELO, MOTORES_CONHECIDOS)).toBeNull();
   });
 
   it('a gramática do id vem do núcleo, não de startsWith', () => {
     // Um provedor nomeado — o que a 5.6 vai gravar — é nuvem, e tem de ser lido
     // pelo mesmo leitor que a resolução da cadeia usa.
     const soAparelho = { recurso: 'saude-do-sono', regimeMaximo: 'aparelho', grava: false } as const;
-    expect(motivoDeBloqueio(soAparelho, 'nuvem:acme/modelo-9')).toBe(
+    expect(motivoDeBloqueio(soAparelho, 'nuvem:acme/modelo-9', MOTORES_CONHECIDOS)).toBe(
       'este recurso não manda dado além do aparelho',
     );
     // E um id que não se lê não passa por legível.
-    expect(motivoDeBloqueio(saude, 'lixo' as never)).toBe('este motor não se lê');
+    expect(motivoDeBloqueio(saude, 'lixo' as never, MOTORES_CONHECIDOS)).toBe('este motor não se lê');
   });
 });
 
@@ -172,8 +172,11 @@ describe('o nome dos motores', () => {
       expect(m.nome).toMatch(/^(a|o) /);
     }
     expect(nomeDoMotor(NUVEM_PADRAO)).toBe('a nuvem');
-    // Um provedor nomeado — o que a 5.6 vai gravar — ainda rende um sujeito legível.
-    expect(nomeDoMotor('nuvem:acme/modelo-9')).toBe('a nuvem');
+    // Um provedor nomeado tem **nome próprio** desde a 5.6: "a nuvem" para todos
+    // fazia a assinatura não dizer qual modelo escreveu, e a bancada anunciar
+    // "medindo a nuvem…" para N motores diferentes. Cobertura completa em
+    // `motores-lista.test.ts`.
+    expect(nomeDoMotor('nuvem:acme/modelo-9')).toBe('o modelo-9 da acme');
     expect(nomeDoMotor('aparelho:acme/pesos')).toBe('o modelo do aparelho');
     expect(nomeDoMotor('lixo')).toBe('o template');
   });

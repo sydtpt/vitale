@@ -24,6 +24,7 @@
 import {
   STATUS_POR_CLASSE,
   criarMotorDeNuvem,
+  formatarMotorId,
   lerMotorId,
   type CorpoDaFalha,
   type Motor,
@@ -209,8 +210,20 @@ export function transporteDaNuvem(
 }
 
 /**
- * O `motorPara` da bancada: um motor de nuvem para todo `MotorId` de nuvem, e
- * nada para o resto.
+ * O `motorPara` da bancada: um motor de nuvem **por `MotorId`**, e nada para o
+ * resto.
+ *
+ * **Um motor por id, e o id vai no corpo** (5.6) — exatamente como o gêmeo do app
+ * (`mobile/src/lib/motores/index.ts`). Um motor só, compartilhado entre os ids,
+ * era o defeito que esta função tinha: `--motor nuvem:google/modelo-x` mandava
+ * corpo **sem** `motor`, a function caía no padrão do servidor, e o relatório
+ * rotulava a coluna com o id nomeado. Mediria um modelo e reportaria outro — e é
+ * de um relatório desta bancada que sai a aprovação de um motor (ADR 0050), então
+ * o portão inteiro herdaria o engano.
+ *
+ * `nuvem:padrao` é a exceção declarada: ele *é* "o servidor escolhe", então o
+ * corpo sai sem `motor` e a function resolve pelo padrão dela — o mesmo corpo de
+ * antes da 5.6, que é o que faz as medições já feitas continuarem comparáveis.
  *
  * O **aparelho** não tem motor aqui de propósito — é o marco B, que depende do
  * macOS 27 e da ponte Swift. Pedi-lo hoje dá tentativa sintética `indisponivel`,
@@ -228,10 +241,22 @@ export function motoresDaBancada(
   buscar?: Buscar,
   prazoMs?: number,
 ): (id: MotorId) => Motor | undefined {
-  const nuvem = criarMotorDeNuvem(
-    transporteDaNuvem(s.url, s.tokenAtual, s.chaveAnonima, buscar, prazoMs, s.segredos ?? []),
+  const transporte = transporteDaNuvem(
+    s.url, s.tokenAtual, s.chaveAnonima, buscar, prazoMs, s.segredos ?? [],
   );
-  return (id) => (lerMotorId(id)?.tipo === 'nuvem' ? nuvem : undefined);
+  // Memoizado por id: a corrida pede o mesmo motor a cada janela, e um objeto
+  // novo por chamada gastaria a identidade que o relatório usa para agrupar.
+  const porId = new Map<string, Motor>();
+  return (id) => {
+    const lido = lerMotorId(id);
+    if (lido?.tipo !== 'nuvem') return undefined;
+    const chave = formatarMotorId(lido);
+    const guardado = porId.get(chave);
+    if (guardado) return guardado;
+    const motor = criarMotorDeNuvem(transporte, lido.variante === 'padrao' ? undefined : chave);
+    porId.set(chave, motor);
+    return motor;
+  };
 }
 
 /**

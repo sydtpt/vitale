@@ -331,14 +331,21 @@ export function conformeAoEsquema(valor: unknown, esquema: Esquema): boolean {
 /* ── os corpos do fio ────────────────────────────────────────────────────── */
 
 /**
- * O que o hospedeiro manda à function. É o corpo que ela lê hoje: o par e a
- * intenção de JSON, derivada de `saida.tipo === 'esquema'`. O `motor` e o
- * `esquema` entram aqui na story 5.6, junto com a function que os lê.
+ * O que o hospedeiro manda à function. O par e a intenção de JSON, derivada de
+ * `saida.tipo === 'esquema'` — mais, desde a story 5.6:
+ *
+ *  - `motor`, quando a preferência do hospedeiro resolveu um nomeado. Ausente:
+ *    a function usa o padrão do recurso (`AI_PROVIDER`/`AI_MODEL`), exatamente
+ *    como hoje.
+ *  - `esquema`, o esquema da saída guiada — hoje só viaja para diagnóstico;
+ *    nenhum adaptador o lê ainda (é o `json` que muda o formato de fio).
  */
 export interface CorpoDoPedido {
   readonly sistema: string;
   readonly usuario: string;
   readonly json: boolean;
+  readonly motor?: MotorId;
+  readonly esquema?: Esquema;
 }
 
 /**
@@ -383,3 +390,182 @@ export const STATUS_POR_CLASSE: Readonly<Record<ClasseDeFalha, number>> = {
   'saida-invalida': 502,
   transitoria: 502,
 };
+
+/* ── a lista de motores de nuvem aprovados (story 5.6, ADR 0048) ────────────── */
+
+/**
+ * Uma entrada da lista de motores de nuvem aprovados: o motor e os recursos
+ * para os quais a bancada o aprovou. `nuvem:padrao` nunca aparece aqui — é
+ * elegível sozinho, sem depender de lista nenhuma (ver o hospedeiro). A lista
+ * fala só de nuvem: o aparelho não tem destinatário nem regime a versionar.
+ */
+export interface MotorDeNuvemAprovado {
+  readonly motor: MotorId;
+  readonly recursos: readonly string[];
+}
+
+/**
+ * O relator de entrada descartada. Diagnóstico puro: nenhuma decisão o lê, e o
+ * que passa por ele é só id de motor e motivo — nunca prompt.
+ */
+export type AoDescartar = (motivo: string, item: unknown) => void;
+
+/**
+ * Lê a lista bruta — do secret no servidor, ou do corpo que a function
+ * devolve ao app. **Nunca lança**, e descarta em silêncio a entrada que não
+ * se deixa ler: um secret mal formado não pode derrubar o catálogo inteiro, e
+ * a entrada solta não é motivo para recusar as demais.
+ *
+ * Só entra `nuvem:<provedor>/<modelo>` — `sem-modelo`, `aparelho:*` e o
+ * simbólico `nuvem:padrao` são rejeitados (o padrão não precisa de lista; os
+ * outros dois tipos não são desta lista).
+ *
+ * `aoDescartar` é o canal de diagnóstico: silencioso não quer dizer invisível.
+ * O secret é editado à mão, e uma entrada que some sem deixar rastro custa uma
+ * tarde. Quem passa o relator decide onde ele escreve — o `console.error` da
+ * function, o log do aparelho — e **nunca recebe `sistema` nem `usuario`**:
+ * aqui só circulam id de motor e nome de recurso.
+ */
+export function lerMotoresDeNuvemAprovados(
+  bruto: unknown,
+  aoDescartar?: AoDescartar,
+): readonly MotorDeNuvemAprovado[] {
+  // O relator nunca derruba a leitura: ele é diagnóstico, e um `console` que
+  // lança (um hospedeiro exótico, um espião de teste mal escrito) não pode
+  // esvaziar o catálogo de quem o passou.
+  const contar = (motivo: string, item: unknown): void => {
+    if (!aoDescartar) return;
+    try {
+      aoDescartar(motivo, item);
+    } catch {
+      /* diagnóstico não decide nada */
+    }
+  };
+
+  if (!Array.isArray(bruto)) {
+    contar('a lista não é um array', bruto);
+    return [];
+  }
+  const out: MotorDeNuvemAprovado[] = [];
+  for (const item of bruto) {
+    if (typeof item !== 'object' || item === null) {
+      contar('a entrada não é um objeto', item);
+      continue;
+    }
+    const o = item as Record<string, unknown>;
+    const lido = lerMotorId(o['motor']);
+    if (!lido || lido.tipo !== 'nuvem' || lido.variante !== 'modelo') {
+      contar('o motor não é nuvem:<provedor>/<modelo>', o['motor']);
+      continue;
+    }
+    const brutos = o['recursos'];
+    if (!Array.isArray(brutos)) {
+      contar('recursos ausente ou não é lista', o['motor']);
+      continue;
+    }
+    const recursos = brutos.filter((r): r is string => typeof r === 'string' && r.length > 0);
+    if (recursos.length === 0) {
+      contar('recursos vazio', o['motor']);
+      continue;
+    }
+    out.push({ motor: formatarMotorId(lido), recursos });
+  }
+  return out;
+}
+
+/**
+ * As entradas cujos `recursos` não nomeiam **nenhum** recurso conhecido.
+ *
+ * O secret é editado à mão, e este é o erro de operação mais provável: um
+ * `saude_do_sono` em vez de `saude-do-sono` produz uma entrada perfeitamente
+ * válida — motor legível, lista de recursos não vazia — que simplesmente nunca
+ * casa com recurso nenhum. O motor some do seletor sem erro, sem log e sem nada
+ * a que se agarrar.
+ *
+ * Fica aqui, e não no leitor, porque **o fio não conhece `RecursoId`**: este
+ * arquivo não importa nada, para sempre (o `architecture.test.ts` cobra), e a
+ * lista de recursos mora em `ia/recursos.ts`, que importa meio núcleo. Quem sabe
+ * os recursos passa a lista; quem não sabe — a edge function — não chama.
+ */
+export function motoresSemRecursoConhecido(
+  lista: readonly MotorDeNuvemAprovado[],
+  recursosConhecidos: readonly string[],
+): readonly MotorDeNuvemAprovado[] {
+  return lista.filter((a) => !a.recursos.some((r) => recursosConhecidos.includes(r)));
+}
+
+/* ── as duas decisões da borda da nuvem (story 5.6) ─────────────────────────── */
+
+/**
+ * Para quem narrar quando o corpo nomeia um motor. `undefined` é "o padrão do
+ * servidor" — o mesmo caminho de antes da 5.6.
+ */
+export type AlvoDoPedido = { readonly provedor: string; readonly modelo: string } | undefined;
+
+/**
+ * O `motor` do corpo vira um alvo — ou uma recusa.
+ *
+ * Mora aqui, e não na function, porque é **decisão**, e decisão de borda se
+ * testa (AD-4). A function é Deno e nenhuma suíte deste repositório a executa:
+ * deixar estas três linhas lá dentro seria deixar sem rede justamente o ponto
+ * em que um aparelho tenta se autoconceder um destinatário novo para dado de
+ * saúde. Pura de propósito — a lista aprovada entra por parâmetro, nunca do
+ * ambiente.
+ *
+ * Três caminhos, e o primeiro é o de sempre: **corpo sem `motor` se comporta
+ * como antes da 5.6** e resolve pelo padrão. O `nuvem:padrao` explícito é o
+ * mesmo caminho — ele *é* "o servidor escolhe", e por isso não passa pela
+ * lista. Um `nuvem:<provedor>/<modelo>` só é atendido se estiver aprovado;
+ * fora dela, de outro tipo ou ilegível, é recusa — e quem chama a traduz em
+ * `indisponivel`, a classe que **recua** para o próximo elo em vez de morrer,
+ * sem nunca subir a exposição.
+ */
+export function alvoDoMotorPedido(
+  bruto: unknown,
+  aprovados: readonly MotorDeNuvemAprovado[],
+): { readonly alvo: AlvoDoPedido } | { readonly recusa: string } {
+  if (bruto === undefined || bruto === null) return { alvo: undefined };
+  if (typeof bruto !== 'string') return { recusa: 'o motor pedido não é um motor de nuvem' };
+
+  const lido = lerMotorId(bruto);
+  if (!lido || lido.tipo !== 'nuvem') return { recusa: 'o motor pedido não é um motor de nuvem' };
+  if (lido.variante === 'padrao') return { alvo: undefined };
+
+  const normalizado = formatarMotorId(lido);
+  if (!aprovados.some((a) => a.motor === normalizado)) return { recusa: 'motor fora da lista aprovada' };
+  return { alvo: { provedor: lido.provedor, modelo: lido.modelo } };
+}
+
+/**
+ * O HTTP **do provedor** → a classe do Orbe.
+ *
+ * Não é {@link STATUS_POR_CLASSE}, nem a tabela do cliente: lá o status é o da
+ * function, aqui é o do fornecedor. Um 404 do provedor é "esse modelo não
+ * existe" — `indisponivel`, que recua para o próximo elo; um 404 da function
+ * seria outra coisa. Nome de fornecedor não entra: isto é status HTTP, que é
+ * vocabulário do fio.
+ */
+export const CLASSE_POR_STATUS_DO_PROVEDOR: Readonly<Record<number, ClasseDeFalha>> = {
+  400: 'capacidade',
+  401: 'indisponivel',
+  403: 'indisponivel',
+  404: 'indisponivel',
+  413: 'janela',
+  422: 'capacidade',
+  429: 'transitoria',
+};
+
+/**
+ * A classe de uma falha que subiu do adaptador do provedor.
+ *
+ * `status` ausente é o 2xx sem texto utilizável — o provedor respondeu, e o
+ * que voltou não se lê: `saida-invalida`. Status fora da tabela, e qualquer
+ * outra exceção (fetch que quebrou, timeout, um defeito nosso), é
+ * `transitoria`: cai no piso sem repetir e sem gravar, que é o desfecho
+ * seguro. **Nunca devolve indefinido** — é essa totalidade que garante que
+ * nenhuma resposta da function saia sem classe.
+ */
+export function classeDoStatusDoProvedor(status: number | undefined): ClasseDeFalha {
+  if (status === undefined) return 'saida-invalida';
+  return CLASSE_POR_STATUS_DO_PROVEDOR[status] ?? 'transitoria';
+}
