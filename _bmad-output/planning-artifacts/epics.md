@@ -1073,6 +1073,20 @@ molde de `NATUREZAS_DA_CAPA`
 **Then** ele mostra as do período agrupadas por atividade, como a galeria da Retrospectiva já faz
 **And** vídeo não entra: o pôster segue em branco, e capa que não desenha é pior que nenhuma
 
+**Decisões de UX do dono, olhando a proposta de 18/09** ([canvas](https://claude.ai/artifact/1ACfhm4dfgDMMrvm8SvKsc)):
+
+- **A marca do toque fica** — um disco translúcido no canto do véu. Sem ela a capa não anuncia
+  que abre; maior que isso, ela vira botão e deixa de ser capa.
+- **A ficha vai embaixo da foto**, em papel — nunca por cima em transparência. Texto sobre foto é
+  o problema que a 1.13 resolveu com medição; repeti-lo numa tela em que a foto é o conteúdo
+  seria refazê-lo por estética.
+- **A troca mora só dentro da ficha.** Sem toque longo na capa, sem segundo caminho.
+- **Sem histórico da escolha anterior.** A troca sobrescreve: a ficha diz que foi você quem
+  escolheu, e não qual era a foto de antes. Uma coluna a menos, decidida por ele em 18/09.
+- **A troca recarimba** identidade, legenda (recalculada pela mesma função do núcleo, não editada
+  à mão), motivo `trocada` e `carimbada_em`. **Nada mais muda** — texto, ordem, assinaturas,
+  errata e a manchete, que nunca foi da capa.
+
 ### Story 1.15: O piloto de três edições
 
 As a dono do Orbe,
