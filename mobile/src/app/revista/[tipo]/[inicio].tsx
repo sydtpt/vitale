@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,19 +8,25 @@ import {
   MODULO_DO_CADERNO,
   rotuloDoCaderno,
   type CadernoId,
+  type ActivityPhoto,
   type LapideNaEdicao,
   type TipoComEdicao,
 } from '@vitale/shared';
+import { CapaAberta } from '../../../components/revista/CapaAberta';
 import { CapaComFoto } from '../../../components/revista/CapaComFoto';
+import { MarcaDoToque } from '../../../components/revista/MarcaDoToque';
 import { useEntradaDaEdicao } from '../../../hooks/useEntradaDaEdicao';
 import { useFotoDaCapa } from '../../../hooks/useFotoDaCapa';
 import { useRolagemAncorada, type Ancora } from '../../../hooks/useRolagemAncorada';
 import {
   ICONE_DO_CADERNO,
+  TrocaRecusada,
   comDadoDaEntrada,
+  fotosParaCapa,
   fraseDaLapide,
   lapidesDaEntrada,
   periodoDaRota,
+  tituloDaCapa,
 } from '../../../lib/edicao-ia';
 import { useAuthStore } from '../../../store/auth.store';
 import {
@@ -67,6 +73,11 @@ import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '..
  * revista. A ordem do miolo é variável de propósito, então a posição não ensina
  * nada: sem o sumário, quem abre julho rola os quatro cadernos para descobrir
  * qual importa.
+ *
+ * A **1.16** fez a capa de foto abrir: tocá-la mostra a foto expandida com a
+ * ficha embaixo (por que esta foto, quando, em que atividade, por onde), e a
+ * ficha oferece a troca. O `Modal` da capa aberta mora **fora** do `ScrollView`,
+ * que continua montado por baixo — fechar devolve a edição na mesma posição.
  */
 export default function RevistaScreen() {
   const styles = useThemedStyles(createStyles);
@@ -120,6 +131,7 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
   const recarregar = useEdicaoStore((s) => s.recarregar);
   const imprimir = useEdicaoStore((s) => s.imprimir);
   const imprimirCaderno = useEdicaoStore((s) => s.imprimirCaderno);
+  const trocarCapa = useEdicaoStore((s) => s.trocarCapa);
   const porPeriodo = useEdicaoStore((s) => s.porPeriodo);
   const uid = useAuthStore((s) => s.user?.id);
   const sessaoHidratando = useAuthStore((s) => s.isLoading);
@@ -186,6 +198,31 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
     void recarregar(entrada);
   }, [recarregar, entrada]);
 
+  /**
+   * A capa aberta (Story 1.16) — o estado e as portas, **fora** do `switch` pela
+   * mesma razão dos outros hooks.
+   *
+   * **Tocável ⇔ `capa.comFoto`**, a decisão da vista: edição impressa e capa de
+   * foto. Inclui a capa que caiu no papel porque a imagem não resolveu — a ficha
+   * sabe o que a foto era. Se a capa deixa de ser de foto com o modal aberto, ele
+   * fecha, em vez de reabrir sozinho no dia em que ela voltar a ser.
+   */
+  const [capaAberta, setCapaAberta] = useState(false);
+  const comFoto = vista.tipo === 'edicao' && vista.capa.comFoto;
+  useEffect(() => {
+    if (!comFoto) setCapaAberta(false);
+  }, [comFoto]);
+  const abrirCapa = useCallback(() => setCapaAberta(true), []);
+  const fecharCapa = useCallback(() => setCapaAberta(false), []);
+  const tituloDaCapaAberta = useMemo(() => tituloDaCapa(tipo, entrada.resumo.startISO), [tipo, entrada.resumo.startISO]);
+  // Estável por dono: o seletor recarrega quando esta função muda, e a entrada muda
+  // a cada ciclo da busca da retro. Lê a entrada mais recente pela ref.
+  const carregarFotos = useCallback(async () => {
+    if (!uid) throw new TrocaRecusada('Entre na sua conta para trocar a capa.');
+    return fotosParaCapa(uid, entradaRef.current);
+  }, [uid]);
+  const trocar = useCallback((f: ActivityPhoto) => trocarCapa(entradaRef.current, f), [trocarCapa]);
+
   switch (vista.tipo) {
     case 'nada':
       return null;
@@ -241,45 +278,64 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
        */
       const desenhaFoto = capa.comFoto
         && (foto.estado === 'pronta' || foto.estado === 'procurando');
+      /** A capa abre só quando é de foto — na foto e no papel em que ela caiu. */
+      const onAbrir = capa.comFoto ? abrirCapa : undefined;
       return (
-        <ScrollView
-          ref={rolagem.scrollRef}
-          contentContainerStyle={{ paddingBottom: bottom + spacing['3xl'] }}
-          showsVerticalScrollIndicator={false}
-        >
-          {desenhaFoto ? (
-            <CapaComFoto
-              periodo={capa.periodo}
-              manchete={capa.manchete}
-              legenda={capa.legenda ?? ''}
-              {...(foto.estado === 'pronta' ? { uri: foto.uri } : {})}
-            />
-          ) : (
-            <CapaEmPapel capa={capa} onEscrever={escreverEdicao} />
-          )}
+        <>
+          <ScrollView
+            ref={rolagem.scrollRef}
+            contentContainerStyle={{ paddingBottom: bottom + spacing['3xl'] }}
+            showsVerticalScrollIndicator={false}
+          >
+            {desenhaFoto ? (
+              <CapaComFoto
+                periodo={capa.periodo}
+                manchete={capa.manchete}
+                legenda={capa.legenda ?? ''}
+                {...(foto.estado === 'pronta' ? { uri: foto.uri } : {})}
+                {...(onAbrir ? { onAbrir } : {})}
+              />
+            ) : (
+              <CapaEmPapel capa={capa} onEscrever={escreverEdicao} {...(onAbrir ? { onAbrir } : {})} />
+            )}
 
-          {/* Capa → sumário → cadernos, nesta ordem: é a forma da revista.
-              Miolo vazio não tem sumário — ali o convite está na capa. */}
-          {cadernos.length > 0 ? <Sumario cadernos={cadernos} onIr={rolagem.irPara} /> : null}
+            {/* Capa → sumário → cadernos, nesta ordem: é a forma da revista.
+                Miolo vazio não tem sumário — ali o convite está na capa. */}
+            {cadernos.length > 0 ? <Sumario cadernos={cadernos} onIr={rolagem.irPara} /> : null}
 
-          {/* **Cada `Caderno` é filho DIRETO deste `ScrollView`, e a âncora
-              depende disso.** O `onLayout` dele entrega a posição dentro do pai
-              imediato, que só é o deslocamento do `scrollTo` enquanto o pai for o
-              `contentContainer`. Embrulhar este `map` numa `View` — para dar um
-              `gap`, um fundo, o que for — faz todas as linhas do sumário rolarem
-              para o mesmo lugar, sem erro nenhum e com a suíte verde. Se um dia
-              precisar do embrulho, a âncora tem que passar a medir contra o
-              rolável (`measureLayout`), não contra o pai. */}
-          {cadernos.map((c) => (
-            <Caderno
-              key={c.caderno}
-              c={c}
-              lapides={lapides[c.caderno]}
-              onAcao={escreverCaderno}
-              ancora={rolagem.ancora(c.caderno)}
+            {/* **Cada `Caderno` é filho DIRETO deste `ScrollView`, e a âncora
+                depende disso.** O `onLayout` dele entrega a posição dentro do pai
+                imediato, que só é o deslocamento do `scrollTo` enquanto o pai for o
+                `contentContainer`. Embrulhar este `map` numa `View` — para dar um
+                `gap`, um fundo, o que for — faz todas as linhas do sumário rolarem
+                para o mesmo lugar, sem erro nenhum e com a suíte verde. Se um dia
+                precisar do embrulho, a âncora tem que passar a medir contra o
+                rolável (`measureLayout`), não contra o pai. */}
+            {cadernos.map((c) => (
+              <Caderno
+                key={c.caderno}
+                c={c}
+                lapides={lapides[c.caderno]}
+                onAcao={escreverCaderno}
+                ancora={rolagem.ancora(c.caderno)}
+              />
+            ))}
+          </ScrollView>
+
+          {/* **Fora** do `ScrollView`, e não dentro: o rolável continua montado
+              por baixo do modal, então fechar devolve a edição na mesma posição. */}
+          {capa.comFoto && capa.carimbada ? (
+            <CapaAberta
+              visivel={capaAberta}
+              onFechar={fecharCapa}
+              titulo={tituloDaCapaAberta}
+              capa={capa.carimbada}
+              foto={foto}
+              carregarFotos={carregarFotos}
+              trocar={trocar}
             />
-          ))}
-        </ScrollView>
+          ) : null}
+        </>
       );
     }
 
@@ -301,20 +357,31 @@ function vistaNaoTratada(nunca: never): null {
  * `tracado` ou `grade` (que ninguém desenha ainda), ou a foto não resolve mais.
  * **Nenhum espaço fica reservado** para a imagem que não veio.
  */
-function CapaEmPapel({ capa, onEscrever }: {
+function CapaEmPapel({ capa, onEscrever, onAbrir }: {
   capa: CapaNaVista;
   onEscrever: () => void;
+  /**
+   * A capa de foto cuja imagem não resolveu continua abrindo (1.16): a ficha sabe
+   * o que a foto era. Ausente nas outras três situações — não há foto a abrir.
+   */
+  onAbrir?: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
-  return (
-    <View style={styles.capa}>
+  const conteudo = (
+    <>
       <Text style={styles.eyebrow}>A edição</Text>
       <Text style={styles.periodo} accessibilityRole="header">{capa.periodo}</Text>
       {capa.impressa ? (
         <>
           {capa.manchete ? <Text style={styles.manchete}>{capa.manchete}</Text> : null}
-          {/* A legenda da capa de foto cuja imagem faltou — a descrição no lugar dela. */}
-          {capa.legenda ? <Text style={styles.legenda}>{capa.legenda}</Text> : null}
+          {/* A legenda da capa de foto cuja imagem faltou — a descrição no lugar
+              dela —, e a marca do toque no canto, na mesma linha. */}
+          {capa.legenda || onAbrir ? (
+            <View style={styles.capaPe}>
+              {capa.legenda ? <Text style={styles.legenda}>{capa.legenda}</Text> : <View style={styles.legendaVazia} />}
+              {onAbrir ? <MarcaDoToque sobre="papel" onPress={onAbrir} /> : null}
+            </View>
+          ) : null}
         </>
       ) : capa.escrevendo ? (
         // A mesma frase da porta: com a impressão correndo, o convite mentiria.
@@ -331,7 +398,16 @@ function CapaEmPapel({ capa, onEscrever }: {
           ) : null}
         </>
       )}
-    </View>
+    </>
+  );
+  // Tocável só quando abre — nas outras três situações a capa em papel continua
+  // sendo a `View` de sempre. E `accessible={false}` pelo mesmo motivo da capa com
+  // foto: o botão do leitor de tela é o disco, e o período e a manchete seguem
+  // sendo lidos como texto.
+  return onAbrir ? (
+    <Pressable style={styles.capa} onPress={onAbrir} accessible={false}>{conteudo}</Pressable>
+  ) : (
+    <View style={styles.capa}>{conteudo}</View>
   );
 }
 
@@ -646,9 +722,12 @@ const createStyles = () =>
      * porque é informação obrigatória: nunca a tinta mais fraca.
      */
     legenda: {
-      fontSize: 11.5, fontFamily: fonts.mono, letterSpacing: 0.2,
-      color: colors.ink2, marginTop: spacing.md,
+      flex: 1, fontSize: 11.5, fontFamily: fonts.mono, letterSpacing: 0.2, color: colors.ink2,
     },
+    // A linha da legenda e da marca do toque (1.16). O respiro que a legenda tinha
+    // em cima passou para a linha, que é quem agora encosta na manchete.
+    capaPe: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
+    legendaVazia: { flex: 1 },
     convite: { fontSize: 14, lineHeight: 21, fontFamily: fonts.sans, color: colors.ink2 },
 
     /* ── o sumário (CAP-8) ───────────────────────────────────────────────────

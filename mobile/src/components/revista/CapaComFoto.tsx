@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Image,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -11,9 +12,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { captureRef } from 'react-native-view-shot';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-import { hexToRgb } from '@vitale/shared';
-import { degrauDoVeu, htmlDaMedicao, lerMedicao, type PixelMedido } from '../../lib/veu';
+import { corComAlfa, degrauDoVeu, htmlDaMedicao, lerMedicao, type PixelMedido } from '../../lib/veu';
 import { fonts, mediaVeil, onMedia, spacing, useThemedStyles } from '../../theme';
+import { MarcaDoToque } from './MarcaDoToque';
 
 /**
  * A capa da edição **com foto** (Story 1.13).
@@ -42,6 +43,14 @@ import { fonts, mediaVeil, onMedia, spacing, useThemedStyles } from '../../theme
  * continuasse clareando por baixo da manchete faria a medida valer para a legenda
  * e não para ela; assim, todo pixel de texto senta sobre a mesma profundidade que
  * foi medida.
+ *
+ * ## A capa abre (Story 1.16)
+ *
+ * Com `onAbrir`, **a capa inteira é o alvo do toque** e a marca do toque
+ * (`MarcaDoToque`) senta no canto do véu, na linha da legenda — dentro do bloco
+ * medido, então o véu sob ela é o mesmo que foi calibrado para o texto. Para o
+ * VoiceOver o alvo é só o disco: a capa em volta é tocável mas **não é nó**, e o
+ * período, a manchete e a legenda continuam sendo lidos como texto.
  */
 
 /**
@@ -139,9 +148,11 @@ export interface CapaComFotoProps {
   legenda: string;
   /** O endereço já resolvido pela biblioteca. Nunca um `ph://` montado à mão. */
   uri?: string;
+  /** Abre a foto com a ficha (Story 1.16). Ausente, a capa não é tocável e não tem disco. */
+  onAbrir?: () => void;
 }
 
-export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProps) {
+export function CapaComFoto({ periodo, manchete, legenda, uri, onAbrir }: CapaComFotoProps) {
   const styles = useThemedStyles(createStyles);
   const { width, height } = useWindowDimensions();
   const minima = Math.round(height * FRACAO_DA_ALTURA);
@@ -213,7 +224,17 @@ export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProp
     // `minHeight` e `justifyContent: flex-end`: com texto curto a capa tem a
     // altura do desenho e o texto encosta embaixo; com texto longo ela cresce, em
     // vez de cortar. A imagem preenche o que a capa acabar sendo.
-    <View style={[styles.capa, { minHeight: minima }]} onLayout={medirCapa}>
+    //
+    // Tocável quando abre (1.16), e `accessible={false}` de propósito: um nó só
+    // juntaria período, manchete e legenda num rótulo de botão. O botão do leitor
+    // de tela é o disco, lá embaixo.
+    <Pressable
+      style={[styles.capa, { minHeight: minima }]}
+      onLayout={medirCapa}
+      onPress={onAbrir}
+      disabled={!onAbrir}
+      accessible={false}
+    >
       {uri ? (
         // A imagem é o fundo, e o fundo não fala: a descrição dela é a legenda,
         // que está escrita por cima em texto de verdade.
@@ -253,8 +274,15 @@ export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProp
           {manchete ? <Text style={styles.manchete}>{manchete}</Text> : null}
           {/* Mono porque é carimbo de medida — lugar, quilômetro e hora. O
               `CHECK` do banco proíbe legenda vazia, e a guarda existe para o vazio
-              nunca virar uma linha em branco embaixo da manchete. */}
-          {legenda ? <Text style={styles.legenda}>{legenda}</Text> : null}
+              nunca virar uma linha em branco embaixo da manchete.
+
+              A marca do toque divide a linha com ela, e não flutua por cima: uma
+              legenda longa ("Hermalle-sous-Argenteau · km 101,2 · 17:09") passaria
+              por baixo de um disco absoluto. */}
+          <View style={styles.pe}>
+            {legenda ? <Text style={styles.legenda}>{legenda}</Text> : <View style={styles.legendaVazia} />}
+            {onAbrir ? <MarcaDoToque sobre="foto" onPress={onAbrir} /> : null}
+          </View>
         </View>
       </View>
 
@@ -268,7 +296,7 @@ export function CapaComFoto({ periodo, manchete, legenda, uri }: CapaComFotoProp
           aoMedir={aoMedir}
         />
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -350,17 +378,6 @@ function MedidorDoVeu({ uri, razao, banda, aoMedir }: {
 }
 
 /**
- * A cor do véu + alfa → a string `rgba(...)` que o degradê usa. O hex vem do tema
- * (`mediaVeil`), nunca de um literal aqui; só o alfa varia, e ele é o que a
- * medição decide.
- */
-function corComAlfa(hex: string, alfa: number): string {
-  const { r, g, b } = hexToRgb(hex);
-  const canal = (v: number): number => Math.round(v * 255);
-  return `rgba(${canal(r)}, ${canal(g)}, ${canal(b)}, ${Math.round(alfa * 1000) / 1000})`;
-}
-
-/**
  * O medidor não pode ocupar espaço nem ser visto, e **não pode ter tamanho zero**:
  * um WebView de 0×0 não é montado em alguns caminhos do iOS, e aí ele nunca
  * carregaria a imagem. Um pixel fora da tela resolve os dois.
@@ -397,5 +414,8 @@ const createStyles = () => StyleSheet.create({
   periodo: { fontSize: 28, lineHeight: 33, fontFamily: fonts.serif, color: onMedia, marginBottom: 10 },
   // A manchete é a chamada inteira — sem `numberOfLines`: cortar esconderia a base.
   manchete: { fontSize: 24, lineHeight: 30, fontFamily: fonts.serif, color: onMedia, marginBottom: 12 },
-  legenda: { fontSize: 11.5, fontFamily: fonts.mono, letterSpacing: 0.2, color: onMedia },
+  // A linha de baixo: a legenda e, quando a capa abre, a marca do toque no canto.
+  pe: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  legenda: { flex: 1, fontSize: 11.5, fontFamily: fonts.mono, letterSpacing: 0.2, color: onMedia },
+  legendaVazia: { flex: 1 },
 });

@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import {
   CADERNO_IDS,
+  FotoRecusadaNaTroca,
   chamadaDoTexto,
   precisaErrata,
   temEdicao,
+  type ActivityPhoto,
   type CadernoId,
   type Capa,
   type DesfechoDoCaderno,
@@ -13,6 +15,7 @@ import {
 } from '@vitale/shared';
 import { useAuthStore } from './auth.store';
 import {
+  TrocaRecusada,
   assinaturaDoCaderno,
   buscarEdicao,
   carimbarCapa,
@@ -23,6 +26,7 @@ import {
   problemasDoDesfecho,
   rotuloCurtoDaEdicao,
   rotuloDaEdicao,
+  trocarCapa as trocarCapaDaEdicao,
 } from '../lib/edicao-ia';
 
 /**
@@ -136,8 +140,23 @@ interface EdicaoState {
   imprimir: (entrada: EntradaPacote, dadosProntos: boolean) => Promise<void>;
   /** "Escrever este caderno", "…de novo" ou "Tentar de novo": só aquele caderno, sem linha e com dado. */
   imprimirCaderno: (entrada: EntradaPacote, dadosProntos: boolean, caderno: CadernoId) => Promise<void>;
+  /**
+   * "Trocar a capa" (Story 1.16): recarimba a capa com a foto que o dono escolheu,
+   * e só a capa. **Nunca rejeita** — a falha volta como mensagem, para o seletor a
+   * mostrar com a seleção intacta.
+   */
+  trocarCapa: (entrada: EntradaPacote, foto: ActivityPhoto) => Promise<ResultadoDaTroca>;
   estado: (entrada: EntradaPacote) => EstadoEdicao;
 }
+
+/**
+ * O que a troca da capa respondeu. `ok: false` traz **a frase da tela**: a troca é
+ * ato do dono e falha em voz alta, ao contrário do carimbo da impressão, que só
+ * loga.
+ */
+export type ResultadoDaTroca =
+  | { readonly ok: true; readonly capa: Capa }
+  | { readonly ok: false; readonly mensagem: string };
 
 /**
  * `<uid>|month|2026-08-01|2026-08-31` — o dono e o período.
@@ -240,6 +259,22 @@ export function podeImprimir(
   return comDado.includes(alvo)
     && !estado.edicao.some((c) => c.caderno === alvo)
     && estado.sessao[alvo]?.fase !== 'mudo';
+}
+
+/**
+ * A capa pode ser trocada agora? — a regra que a ação `trocarCapa` confere (Story 1.16).
+ *
+ * As mesmas duas condições de `comFoto` — **edição impressa** e **capa de foto**
+ * —, porque a troca mora só na ficha, e a ficha só abre na capa de foto. E mais
+ * uma: **nenhuma impressão correndo** no período. Uma reimpressão que termina
+ * relê a capa do banco; trocar no meio dela é disputar a mesma linha com quem a
+ * vai reler.
+ */
+export function podeTrocarCapa(estado: EstadoEdicao | undefined): boolean {
+  return estado?.fase === 'lida'
+    && estado.imprimindo === null
+    && estado.edicao.length > 0
+    && estado.capa?.natureza === 'foto';
 }
 
 /* ── o que as telas desenham ─────────────────────────────────────────────── */
@@ -901,6 +936,99 @@ async function imprimirAlvo(
   }
 }
 
+/* ── a troca da capa (Story 1.16) ────────────────────────────────────────── */
+
+const TROCA_SEM_SESSAO = 'Entre na sua conta para trocar a capa.';
+const TROCA_COM_IMPRESSAO = 'A edição está sendo impressa. Troque a capa quando a impressão terminar.';
+const TROCA_SEM_CAPA_DE_FOTO = 'Esta edição não tem capa de foto para trocar.';
+const TROCA_PELA_MESMA = 'Esta foto já é a capa.';
+const TROCA_EM_CURSO = 'A capa já está sendo trocada. Espere a troca terminar.';
+const TROCA_FALHOU = 'Não foi possível trocar a capa agora. A capa continua a mesma.';
+
+/**
+ * As chaves com uma troca em voo — a segunda troca no mesmo período, antes de a
+ * primeira voltar, é recusada sem chamar a porta.
+ *
+ * Sem isto, dois toques rápidos gravariam duas capas em sequência, e a que fica
+ * seria a da gravação que o banco recebeu por último — não necessariamente a do
+ * último toque. O seletor já trava o botão durante a troca; esta é a regra, e o
+ * botão é só a cara dela.
+ */
+const trocando = new Set<string>();
+
+/**
+ * A frase da tela para uma troca que falhou.
+ *
+ * As **recusas** (do núcleo sobre a foto, do app sobre o período e o acervo) já
+ * nascem frase, e passam como vieram. O resto — rede, RLS, a conta que trocou no
+ * meio — é transporte: o leitor não lê `PGRST`, e o motivo real vai para o log.
+ */
+function mensagemDaTroca(e: unknown): string {
+  if (e instanceof TrocaRecusada || e instanceof FotoRecusadaNaTroca) return e.message;
+  console.warn('[edicao] a capa não foi trocada:', e);
+  return TROCA_FALHOU;
+}
+
+/**
+ * Troca a capa de uma edição lida — **só a capa**.
+ *
+ * 1. **Confere** antes de qualquer `await`, e a resposta diz por quê quando não
+ *    começa: sem sessão, sem capa de foto, com uma impressão correndo, com outra
+ *    troca em voo nesta chave, ou **pela foto que já é a capa**. Esta última não é
+ *    zelo: trocar pela mesma foto recarimbaria o motivo como `trocada` para
+ *    sempre — e apagaria o nulo das capas anteriores à 1.16, que é a declaração de
+ *    que o porquê não foi guardado. A regra mora aqui, e não só no seletor.
+ * 2. **Grava** pela porta do carimbo (`trocarCapa` de `lib/edicao-ia`), que recusa
+ *    antes do banco o que não pode ser capa.
+ * 3. **Sucesso** põe a capa nova no estado e **sobe a geração da chave**: uma
+ *    leitura silenciosa que estivesse em voo voltaria com a capa velha e a
+ *    reporia — a mesma defesa que a impressão já usa. A geração sobe **só se a
+ *    capa entra**: se a fase saiu de `lida` durante a gravação (uma releitura do
+ *    leitor, por exemplo), descartar a leitura em voo deixaria a tela presa nela,
+ *    e é essa leitura que vai trazer do banco a capa já trocada.
+ * 4. **Falha** devolve a mensagem e **não toca o estado**: a capa, a edição e a
+ *    sessão ficam como estavam, e o seletor mantém a seleção.
+ *
+ * O texto, a ordem, as assinaturas e a errata não passam por aqui: o que muda no
+ * estado é o campo `capa`, e nenhum outro.
+ */
+async function trocar(
+  set: Definir,
+  get: () => EdicaoState,
+  entrada: EntradaPacote,
+  foto: ActivityPhoto,
+): Promise<ResultadoDaTroca> {
+  const uid = userId();
+  if (!uid) return { ok: false, mensagem: TROCA_SEM_SESSAO };
+  const chave = chaveDe(uid, entrada);
+  const atual = get().porPeriodo[chave];
+  if (atual?.fase === 'lida' && atual.imprimindo !== null) return { ok: false, mensagem: TROCA_COM_IMPRESSAO };
+  if (!podeTrocarCapa(atual) || atual?.fase !== 'lida') return { ok: false, mensagem: TROCA_SEM_CAPA_DE_FOTO };
+  if (atual.capa?.fotoId === foto.id) return { ok: false, mensagem: TROCA_PELA_MESMA };
+  if (trocando.has(chave)) return { ok: false, mensagem: TROCA_EM_CURSO };
+
+  trocando.add(chave);
+  try {
+    let nova: Capa;
+    try {
+      nova = await trocarCapaDaEdicao(uid, entrada, foto);
+    } catch (e) {
+      return { ok: false, mensagem: mensagemDaTroca(e) };
+    }
+
+    // O estado de AGORA, e não o de antes do `await`: a edição pode ter sido relida
+    // no meio, e só a capa é desta ação.
+    const agora = get().porPeriodo[chave];
+    if (agora?.fase === 'lida') {
+      novaGeracao(chave);
+      set((s) => ({ porPeriodo: { ...s.porPeriodo, [chave]: { ...agora, capa: nova } } }));
+    }
+    return { ok: true, capa: nova };
+  } finally {
+    trocando.delete(chave);
+  }
+}
+
 export const useEdicaoStore = create<EdicaoState>((set, get) => ({
   porPeriodo: {},
 
@@ -951,4 +1079,6 @@ export const useEdicaoStore = create<EdicaoState>((set, get) => ({
   imprimir: (entrada, dadosProntos) => imprimirAlvo(set, get, entrada, dadosProntos, 'edicao'),
 
   imprimirCaderno: (entrada, dadosProntos, caderno) => imprimirAlvo(set, get, entrada, dadosProntos, caderno),
+
+  trocarCapa: (entrada, foto) => trocar(set, get, entrada, foto),
 }));

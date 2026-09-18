@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  CAPA_COLUMNS, fetchCapa, gravarCapa, isNaturezaDaCapa, toCapa, NATUREZAS_DA_CAPA,
+  CAPA_COLUMNS, fetchCapa, gravarCapa, isMotivoDaCapa, isNaturezaDaCapa, toCapa,
+  MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA,
   type CapaACarimbar, type CapaRow,
 } from './edicoes-capa';
 import { ContaTrocadaNaImpressao } from './edicoes-ia';
@@ -29,6 +30,8 @@ function linhaDoBanco(over: Partial<CapaRow> = {}): CapaRow {
     rota_activity_id: null,
     legenda: 'Ittre · km 31,1 · 12:38',
     carimbada_em: '2026-09-01T00:00:00.000Z',
+    motivo: 'rajada',
+    foto_activity_id: 'a-1',
     ...over,
   };
 }
@@ -86,6 +89,25 @@ describe('isNaturezaDaCapa — o vocabulário fechado', () => {
   });
 });
 
+/* ── o porquê (Story 1.16) ───────────────────────────────────────────────── */
+
+describe('isMotivoDaCapa — o vocabulário fechado do porquê', () => {
+  it('aceita os cinco, e só os cinco — a lista que o CHECK repete', () => {
+    assert.deepEqual([...MOTIVOS_DA_CAPA], ['estrela', 'rajada', 'unica', 'trocada', 'sem-foto']);
+    for (const m of MOTIVOS_DA_CAPA) assert.equal(isMotivoDaCapa(m), true);
+  });
+
+  it('recusa o que não é motivo — inclusive o nulo, que é outra coisa', () => {
+    for (const v of ['única', 'ESTRELA', 'sem_foto', '', null, undefined, 1, {}]) {
+      assert.equal(isMotivoDaCapa(v), false, `aceitou ${JSON.stringify(v)}`);
+    }
+  });
+
+  it('a lista é congelada: ninguém a alarga em runtime', () => {
+    assert.ok(Object.isFrozen(MOTIVOS_DA_CAPA));
+  });
+});
+
 describe('toCapa — a linha vira capa', () => {
   it('mapeia snake para camel, com a identidade da foto', () => {
     assert.deepEqual(toCapa(linhaDoBanco()), {
@@ -100,7 +122,33 @@ describe('toCapa — a linha vira capa', () => {
       rotaActivityId: null,
       legenda: 'Ittre · km 31,1 · 12:38',
       carimbadaEm: '2026-09-01T00:00:00.000Z',
+      motivo: 'rajada',
+      fotoActivityId: 'a-1',
     });
+  });
+
+  /**
+   * A linha "Capa anterior à 1.16" da matriz: as duas capas de produção ficam com
+   * o motivo nulo, e isso não é defeito — é a declaração de que o app ainda não
+   * guardava o porquê. A ficha lê o nulo e diz exatamente isso.
+   */
+  it('motivo nulo passa: é a capa carimbada antes da 1.16', () => {
+    const c = toCapa(linhaDoBanco({ motivo: null }));
+    assert.equal(c.motivo, null);
+    assert.equal(c.fotoActivityId, 'a-1');
+  });
+
+  it('a atividade da foto pode faltar — a foto que saiu do acervo antes do backfill', () => {
+    assert.equal(toCapa(linhaDoBanco({ foto_activity_id: null })).fotoActivityId, null);
+  });
+
+  it('cada um dos cinco motivos atravessa', () => {
+    for (const m of MOTIVOS_DA_CAPA) assert.equal(toCapa(linhaDoBanco({ motivo: m })).motivo, m);
+  });
+
+  /** O mesmo molde da natureza: o CHECK afirma impossível, e a fronteira explode. */
+  it('motivo desconhecido explode na fronteira, em vez de virar uma ficha com a frase errada', () => {
+    assert.throws(() => toCapa(linhaDoBanco({ motivo: 'palpite' })), /motivo de capa desconhecido/);
   });
 
   it('a capa de traçado não tem foto, e a de grade não tem nenhuma das duas', () => {
@@ -180,6 +228,8 @@ const A_CARIMBAR: CapaACarimbar = {
   fotoTakenAt: '2026-08-14T12:38:00.000Z',
   rotaActivityId: null,
   legenda: 'Ittre · km 31,1 · 12:38',
+  motivo: 'estrela',
+  fotoActivityId: 'a-1',
 };
 
 function fakeGravacao(opts: { naSessao?: string | null; erro?: Error } = {}) {
@@ -242,7 +292,33 @@ describe('gravarCapa — a única escrita em edicoes_capa', () => {
       assert.equal(capturado.linha!.foto_taken_at, A_CARIMBAR.fotoTakenAt);
       assert.equal(capturado.linha!.rota_activity_id, null);
       assert.equal(capturado.linha!.legenda, A_CARIMBAR.legenda);
+      assert.equal(capturado.linha!.motivo, 'estrela');
+      assert.equal(capturado.linha!.foto_activity_id, 'a-1');
     });
+  });
+
+  /**
+   * A troca (1.16) passa por aqui e recarimba a linha inteira. Um upsert que
+   * omitisse o motivo deixaria na linha o porquê da capa anterior — a ficha diria
+   * "a que você marcou com a estrela" sobre a foto que ele acabou de trocar.
+   */
+  it('a troca grava o motivo dela e devolve a capa relida com ele', async () => {
+    const { db, capturado } = fakeGravacao();
+    const c = await gravarCapa(db, 'u-1', { ...A_CARIMBAR, motivo: 'trocada', fotoActivityId: 'a-9' });
+    assert.equal(capturado.linha!.motivo, 'trocada');
+    assert.equal(capturado.linha!.foto_activity_id, 'a-9');
+    assert.equal(c.motivo, 'trocada');
+    assert.equal(c.fotoActivityId, 'a-9');
+  });
+
+  it('a capa sem foto grava o motivo sem-foto e nenhuma atividade', async () => {
+    const { db, capturado } = fakeGravacao();
+    await gravarCapa(db, 'u-1', {
+      ...A_CARIMBAR, natureza: 'grade', fotoId: null, fotoTakenAt: null,
+      legenda: 'Agosto de 2026', motivo: 'sem-foto', fotoActivityId: null,
+    });
+    assert.equal(capturado.linha!.motivo, 'sem-foto');
+    assert.equal(capturado.linha!.foto_activity_id, null);
   });
 
   /**

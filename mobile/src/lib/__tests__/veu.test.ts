@@ -12,6 +12,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { contrast } from '@vitale/shared';
 import {
+  corComAlfa,
   DEGRAUS_DO_VEU,
   LARGURA_DA_MEDICAO,
   PISO_DO_VEU,
@@ -306,5 +307,17 @@ describe('htmlDaMedicao — a página que mede', () => {
     const pixel = lerMedicao(JSON.stringify(r.respostas[0]));
     expect(pixel).toEqual({ r: 255, g: 255, b: 255 });
     expect(contrast(onMedia, comVeu(pixel!, degrauDoVeu(pixel)))).toBeGreaterThanOrEqual(PISO_DO_VEU);
+  });
+});
+
+describe('corComAlfa — a cor do tema com alfa, sem literal na tela', () => {
+  it('o véu e o disco da marca do toque saem dos tokens', () => {
+    expect(corComAlfa(mediaVeil, 0.88)).toBe('rgba(24, 18, 13, 0.88)');
+    // O disco da capa (Story 1.16): `onMedia` translúcido sobre a foto.
+    expect(corComAlfa(onMedia, 0.16)).toBe('rgba(255, 255, 255, 0.16)');
+  });
+
+  it('o alfa sai com três casas no máximo', () => {
+    expect(corComAlfa(onMedia, 1 / 3)).toBe('rgba(255, 255, 255, 0.333)');
   });
 });

@@ -82,6 +82,19 @@ export function comVeu(pixel: PixelMedido, alfa: number, veu: string = mediaVeil
 }
 
 /**
+ * Uma cor do tema + alfa → a string `rgba(...)` que o React Native desenha.
+ *
+ * O hex vem sempre de um token (`mediaVeil`, `onMedia`), nunca de um literal na
+ * tela; só o alfa varia. É o que o degradê do véu usa, e o disco da marca do toque
+ * da capa (Story 1.16) — `onMedia` translúcido sobre a foto.
+ */
+export function corComAlfa(hex: string, alfa: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  const canal = (v: number): number => Math.round(v * 255);
+  return `rgba(${canal(r)}, ${canal(g)}, ${canal(b)}, ${Math.round(alfa * 1000) / 1000})`;
+}
+
+/**
  * O degrau de véu para um pixel medido: **o mais raso que ainda alcança o piso**.
  *
  * `null` é "não mediu" — enquanto a medição não voltou, ou porque ela falhou — e

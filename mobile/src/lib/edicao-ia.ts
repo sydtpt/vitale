@@ -1,8 +1,8 @@
 /**
  * A edição da Retrospectiva no celular: a leitura do que está impresso, a
- * impressão pelo núcleo, e o vocabulário que a rota da revista usa para dizer por
- * que um caderno não saiu.
- * Spec: docs/specs/ia-analitica/spec.md · ADRs 0038 e 0040 · Stories 1.9, 1.10 e 1.11.
+ * impressão pelo núcleo, o carimbo e a troca da capa, e o vocabulário que a rota
+ * da revista usa para dizer por que um caderno não saiu.
+ * Spec: docs/specs/ia-analitica/spec.md · ADRs 0038 e 0040 · Stories 1.9, 1.10, 1.11, 1.13 e 1.16.
  *
  * ## Ler é de graça; imprimir é ato do dono
  *
@@ -27,6 +27,7 @@ import {
   MESES_COMPLETOS,
   NUVEM_PADRAO,
   cadernosComDado,
+  capaTrocada,
   descritorDaRetrospectiva,
   escolherCapa,
   fetchCapa,
@@ -42,6 +43,7 @@ import {
   periodoFechado,
   portasDaEdicao,
   resolverCadeia,
+  secoesDoSeletor,
   temEdicao,
   type Activity,
   type ActivityPhoto,
@@ -61,6 +63,7 @@ import {
   type PeriodKind,
   type PortasDaImpressao,
   type ResultadoDaImpressao,
+  type SecaoDoSeletor,
   type TipoComEdicao,
 } from '@vitale/shared';
 import { useActivitiesStore } from '../store/activities.store';
@@ -269,6 +272,107 @@ export async function carimbarCapa(
     console.warn('[revista] a capa não foi carimbada; a edição fica sem capa:', e);
     return null;
   }
+}
+
+/* ── a troca da capa (Story 1.16) ────────────────────────────────────────── */
+
+/**
+ * A troca (ou a lista dela) foi recusada **antes do banco** — nada foi gravado.
+ *
+ * A mensagem é a frase da tela: a troca é ato do dono e falha em voz alta, então
+ * o seletor a mostra como veio. As recusas da própria foto (vídeo, instante,
+ * desligada, sem arquivo) são do núcleo (`FotoRecusadaNaTroca`); estas são as que
+ * só o app sabe dizer — o período e o acervo.
+ */
+export class TrocaRecusada extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = 'TrocaRecusada';
+  }
+}
+
+const SEM_EDICAO = 'Este período não tem edição, e por isso não tem capa.';
+/**
+ * Mesma guarda do carimbo, pelo mesmo motivo: uma store vazia não é um período
+ * vazio. Aqui ela não grava `grade` — mas recusaria, como "fora do período", a
+ * foto que o dono acabou de escolher.
+ */
+const SEM_ACERVO = 'As atividades ainda não chegaram. Tente de novo em instantes.';
+const FORA_DO_PERIODO = 'Esta foto não é de uma atividade deste período, e não pode ser a capa dele.';
+
+/**
+ * As fotos que podem ir para a capa desta edição, **agrupadas por atividade** —
+ * a lista do seletor.
+ *
+ * Reusa as portas do carimbo, e com elas a **mesma** definição de "do período"
+ * (`atividadesDoPeriodo` sobre as atividades visíveis): o seletor mostra o que a
+ * troca aceita, e a troca aceita o que a impressão teria considerado. Quem agrupa,
+ * ordena e recusa vídeo é o núcleo (`secoesDoSeletor`).
+ *
+ * **Só lê.** Rejeita quando o período não tem edição, quando o acervo de
+ * atividades ainda não chegou (`TrocaRecusada`) ou quando a leitura das fotos
+ * falha — o seletor mostra o erro, e não uma lista vazia que mentiria "não há
+ * foto".
+ */
+export async function fotosParaCapa(
+  userId: string,
+  entrada: EntradaPacote,
+  deps: Partial<DepsDoCarimbo> = {},
+): Promise<SecaoDoSeletor[]> {
+  const d: DepsDoCarimbo = { ...depsDoCarimbo(userId), ...deps };
+  if (!temEdicao(entrada.resumo.kind)) throw new TrocaRecusada(SEM_EDICAO);
+  if (!d.acervoCarregado()) throw new TrocaRecusada(SEM_ACERVO);
+  const atividades = atividadesDoPeriodo(d.atividades(), entrada);
+  if (atividades.length === 0) return [];
+  const fotos = await d.buscarFotos(atividades.map((a) => a.id));
+  return secoesDoSeletor(fotos, atividades);
+}
+
+/**
+ * Troca a capa desta edição pela foto que o dono escolheu — e **só a capa**.
+ *
+ * Pela **mesma porta** do carimbo (`carimbar` → `gravarCapa`, upsert pela chave da
+ * edição): identidade nova, legenda recalculada com as cidades do período, motivo
+ * `trocada` e `carimbada_em` novo. O texto, a ordem, as assinaturas, a errata e a
+ * manchete são de `edicoes_ia`, e nada aqui os toca.
+ *
+ * **Ao contrário de {@link carimbarCapa}, rejeita** — a troca é ato do dono e
+ * falha em voz alta. Recusa antes do banco o período sem edição, o acervo que não
+ * chegou e a foto de atividade fora do período (`TrocaRecusada`), e a foto que o
+ * núcleo não aceita como capa (`FotoRecusadaNaTroca`); e propaga a falha da
+ * gravação como veio.
+ */
+export async function trocarCapa(
+  userId: string,
+  entrada: EntradaPacote,
+  foto: ActivityPhoto,
+  deps: Partial<DepsDoCarimbo> = {},
+): Promise<Capa> {
+  const d: DepsDoCarimbo = { ...depsDoCarimbo(userId), ...deps };
+  const { kind, startISO, endISO } = entrada.resumo;
+  if (!temEdicao(kind)) throw new TrocaRecusada(SEM_EDICAO);
+  if (!d.acervoCarregado()) throw new TrocaRecusada(SEM_ACERVO);
+  const atividades = atividadesDoPeriodo(d.atividades(), entrada);
+  if (!atividades.some((a) => a.id === foto.activityId)) throw new TrocaRecusada(FORA_DO_PERIODO);
+  const capa = capaTrocada(
+    { tipoPeriodo: kind, inicio: startISO, fim: endISO, rotulo: d.rotulo(kind, startISO) },
+    foto,
+    cidadesDoPeriodo(atividades),
+  );
+  return d.carimbar(capa);
+}
+
+/**
+ * O título da capa aberta e do seletor — `"A capa de julho de 2026"`.
+ *
+ * O mês entra em minúscula, como se escreve no meio da frase; semana, estação e ano
+ * ficam com o rótulo da edição (`"A capa de Q3 2026"`), que não tem minúscula
+ * a dar.
+ */
+export function tituloDaCapa(tipo: TipoComEdicao, inicio: string): string {
+  const d = diaLocal(inicio);
+  if (tipo === 'month') return `A capa de ${MESES_COMPLETOS[d.getMonth()].toLowerCase()} de ${d.getFullYear()}`;
+  return `A capa de ${rotuloDaEdicao(tipo, inicio)}`;
 }
 
 /* ── a impressão ─────────────────────────────────────────────────────────── */
