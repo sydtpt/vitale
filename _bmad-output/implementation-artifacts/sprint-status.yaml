@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 18-09-2026 18:18
+last_updated: 18-09-2026 19:07
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -81,14 +81,20 @@ development_status:
   # agg-version.ts, upsertEdicao carimba, as três passagens do mobile sumiram,
   # barreira de dono único + edicoes-ia.test.ts. As cinco suítes verdes e as três
   # provas negativas rodadas e revertidas. Falta a linha real em produção.
-  1-1-agg_version-vira-vocabulário-do-núcleo: review
-  1-2-onaccent-no-sistema-de-tema: review
-  1-3-o-pacote-fala-por-caderno-com-bases-nomeadas: review
-  1-4-o-texto-é-obrigado-a-nomear-a-base: review
-  1-5-o-prompt-aprende-as-regras-novas: review
-  1-6-a-camada-de-luz-entra-nos-quatro-pacotes: review
-  1-7-o-ranqueamento-do-miolo-e-a-lápide: review
-  1-8-a-chamada-sai-de-uma-função-só: review
+  # FECHADA em 18/09/2026 — a linha real existe: os 20 cadernos impressos desde
+  # 16/09 (agosto, julho, junho e as semanas de 24/08 e 07/09) têm
+  # agg_version_no_momento = 9, nenhum nulo. Conferido em produção.
+  1-1-agg_version-vira-vocabulário-do-núcleo: done
+  # 1.2 a 1.8 FECHADAS em 18/09/2026, por decisão do dono: são núcleo, sem tela
+  # própria, e toda edição impressa desde 16/09 passou por elas (a sequência da
+  # 1.10 monta o pacote, cobra a base, ranqueia e extrai a chamada).
+  1-2-onaccent-no-sistema-de-tema: done
+  1-3-o-pacote-fala-por-caderno-com-bases-nomeadas: done
+  1-4-o-texto-é-obrigado-a-nomear-a-base: done
+  1-5-o-prompt-aprende-as-regras-novas: done
+  1-6-a-camada-de-luz-entra-nos-quatro-pacotes: done
+  1-7-o-ranqueamento-do-miolo-e-a-lápide: done
+  1-8-a-chamada-sai-de-uma-função-só: done
   # Risco 9, o mais alto da frente. ENTREGA ÚNICA: a migração e o JS que a lê
   # não podem sair em momentos diferentes (AD-15) — instância única. HÁ OTA
   # (corrigido em 10/09: runtime 1.0.5, canal preview), mas o update só vale no
@@ -122,16 +128,26 @@ development_status:
   # com o ciclo por UIScene (fix/uiscene-xcode-27, PR própria, entra antes).
   1-10-a-sequência-da-impressão-sobe-para-o-núcleo: done
   1-11-a-rota-da-revista-e-os-estados-da-edição: done
-  1-12-os-cadernos-desenhados: review
-  1-13-a-capa-na-edição-com-o-véu-medido: review
-  1-14-o-sumário-e-a-rolagem-ancorada: review
+  # FECHADA em 18/09/2026: as faixas foram aprovadas em tela. O veredito da
+  # lápide NÃO é desta story — ela é invisível até existir detector de métrica
+  # morta, e o julgamento vai junto com ele (deferred-work).
+  1-12-os-cadernos-desenhados: done
+  # FECHADA em 18/09/2026 — a capa com foto e o véu consertado (PR #519) vistos
+  # pelo dono no iPhone.
+  1-13-a-capa-na-edição-com-o-véu-medido: done
+  # FECHADA em 18/09/2026 — aprovada em tela e na main (PR #522).
+  1-14-o-sumário-e-a-rolagem-ancorada: done
   # ORDEM: entra DEPOIS da 1.14 e ANTES da 1.15 — as duas mexem na mesma tela, e
   # o piloto é onde três capas são lidas de verdade. Pedida pelo dono em 18/09,
   # olhando a primeira capa impressa (julho/2026): ver a foto expandida, saber
   # por que ela foi escolhida (com quando, em que atividade e a rota descrita) e
   # poder trocá-la. CARREGA MIGRAÇÃO — a segunda do Épico 1: `motivo` e
   # `foto_activity_id` em edicoes_capa, janela pela AD-15.
-  1-16-a-capa-aberta-e-a-troca: review
+  # FECHADA em 18/09/2026 — na main (PR #524), a migração aplicada pelo dono na
+  # janela (69 migrations, versão registrada) e "tudo ok" no iPhone; julho já foi
+  # trocada por ele. AGOSTO NÃO TEM CAPA (impresso em 16/09, antes da 1.13), e o
+  # app não oferece reimpressão de caderno já impresso — resolver antes da 1.15.
+  1-16-a-capa-aberta-e-a-troca: done
   # ⚠ PORTÃO HUMANO — NENHUM AGENTE FECHA ESTA STORY.
   # A entrega de dev é imprimir três períodos nomeados (agosto/2026, julho/2026 e
   # um mês de 2023) e pô-los na frente do dono. O julgamento é dele, lendo. Um
