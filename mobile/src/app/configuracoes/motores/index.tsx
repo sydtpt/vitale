@@ -5,10 +5,12 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOGO_DE_RECURSOS, resolverCadeia, type MotorId, type RecursoId } from '@vitale/shared';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { garantirListaAprovada } from '../../../lib/motores';
 import {
-  MOTORES_CONHECIDOS,
-  idsConhecidos,
+  listaAprovada,
+  motoresDoRecurso,
   motivoDeBloqueio,
+  type ListaAprovada,
   type MotorConhecido,
   type RecursoDoSeletor,
 } from '../../../lib/motores/catalogo';
@@ -58,6 +60,28 @@ export default function MotoresScreen() {
   const router = useRouter();
 
   const [preferencias, setPreferencias] = useState<PreferenciaDeMotores>({});
+  // A lista do servidor (ADR 0048). Buscada ao abrir a tela, e **nunca** um
+  // obstáculo: enquanto ela não volta (ou se não voltar), a tela mostra o que o
+  // app conhece por conta própria, que já inclui `nuvem:padrao`. É o seletor, não
+  // a leitura, que pode esperar — aqui o dono só está olhando a lista.
+  // Começa no que já está em cache: voltar a esta tela não pode fazer um motor
+  // já conhecido piscar fora da lista.
+  const [lista, setLista] = useState<ListaAprovada | null>(listaAprovada);
+  useEffect(() => {
+    let vivo = true;
+    void garantirListaAprovada()
+      .then((l) => {
+        if (vivo) setLista(l);
+      })
+      .catch(() => {
+        // `garantirListaAprovada` já engole a falha e devolve o cache (ou nulo).
+        // O `.catch` é rede contra alguém afrouxar isso, não conserto.
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
   useEffect(() => {
     let vivo = true;
     // O `.catch` é rede, não conserto: `lerPreferencias` já engole falha de
@@ -112,19 +136,22 @@ export default function MotoresScreen() {
         {CATALOGO_DE_RECURSOS.map((d) => {
           const recurso: RecursoDoSeletor = d;
           const escolhido = preferencias[recurso.recurso] ?? null;
+          // O catálogo é **por recurso** desde a 5.6: a lista do servidor aprova um
+          // motor de nuvem para recursos nomeados, não para todos.
+          const conhecidos = motoresDoRecurso(recurso.recurso, lista);
           // Quem de fato escreveria agora: a cadeia resolvida decide, não a tela.
           // Sem preferência, é o padrão do recurso; com uma que o regime recusa, é o
           // recuo — e a tela mostra o que o orquestrador faria, não o que foi tocado.
-          const efetivo = resolverCadeia(d, escolhido, idsConhecidos)[0];
+          const efetivo = resolverCadeia(d, escolhido, conhecidos.map((m) => m.id))[0];
           return (
             <View key={recurso.recurso} style={s.section}>
               <Text style={s.sectionTitle}>{NOME_DO_RECURSO[recurso.recurso]}</Text>
-              {MOTORES_CONHECIDOS.map((m) => (
+              {conhecidos.map((m) => (
                 <LinhaDoMotor
                   key={m.id}
                   motor={m}
                   selecionado={m.id === efetivo}
-                  motivo={motivoDeBloqueio(recurso, m.id)}
+                  motivo={motivoDeBloqueio(recurso, m.id, conhecidos)}
                   onPress={() => escolher(recurso.recurso, m.id)}
                   s={s}
                 />

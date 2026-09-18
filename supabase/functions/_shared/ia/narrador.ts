@@ -49,6 +49,23 @@ export interface Narrador {
 }
 
 /**
+ * O que um adaptador lança quando o **provedor** respondeu (não é falta de
+ * rede nem timeout) mas não com o que a narração precisa — HTTP não-2xx, ou
+ * 2xx sem texto utilizável. `status` é o HTTP do provedor, quando existe: é
+ * dele que `ia-narrar/index.ts` tira a classe da falha (5.6), sem que este
+ * arquivo precise importar `ia/fio.ts` — continua Deno puro, sem imports, para
+ * ser deployado sozinho.
+ */
+export class ErroDoProvedor extends Error {
+  readonly status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'ErroDoProvedor';
+    this.status = status;
+  }
+}
+
+/**
  * Teto de saída. Folgado de propósito: nos modelos que raciocinam antes de
  * escrever, este teto cobre o raciocínio **e** o texto — 800 rendeu 27 tokens de
  * parágrafo e uma frase cortada no meio. O parágrafo em si custa ~400.
@@ -97,9 +114,10 @@ const googleNarrador: Narrador = {
       if (!r.ok) {
         // O corpo do erro nomeia a causa (cota, chave, modelo inexistente). Sem
         // ele, a mensagem que chega no aparelho é "falhou" — a lição do Overpass
-        // em 06/09: erro que não se nomeia custa um dia de investigação.
+        // em 06/09: erro que não se nomeia custa um dia de investigação. O status
+        // vai junto (ErroDoProvedor) — é dele que a 5.6 tira a classe da falha.
         const corpo = (await r.text()).slice(0, 400);
-        throw new Error(`provedor google HTTP ${r.status}: ${corpo}`);
+        throw new ErroDoProvedor(`provedor google HTTP ${r.status}: ${corpo}`, r.status);
       }
 
       const j = await r.json();
@@ -111,7 +129,9 @@ const googleNarrador: Narrador = {
         .map((p: { text?: string }) => p?.text ?? '')
         .join('');
       if (!texto.trim()) {
-        throw new Error(`provedor google devolveu texto vazio (${motivoDeParada})`);
+        // Sem status: não é o HTTP do provedor que está errado, é o conteúdo —
+        // a 5.6 lê isto como `saida-invalida`.
+        throw new ErroDoProvedor(`provedor google devolveu texto vazio (${motivoDeParada})`);
       }
 
       return {
@@ -144,18 +164,35 @@ const SEGREDO: Record<string, string> = {
 };
 
 /**
- * Resolve provedor, modelo e chave a partir do ambiente.
- * Trocar de fornecedor é `supabase secrets set` — não é deploy (ADR 0040).
+ * Quem narrar, quando o pedido nomeia um motor (story 5.6). Vem do `MotorId`
+ * `nuvem:<provedor>/<modelo>` já lido e **já conferido contra a lista aprovada**
+ * — este arquivo não decide quem está aprovado, só sabe fornecer.
  */
-export function resolverNarrador(): { narrador: Narrador; provedor: string; modelo: string; chave: string } {
-  const provedor = Deno.env.get('AI_PROVIDER') ?? 'google';
+export interface EscolhaDeNarrador {
+  provedor: string;
+  modelo: string;
+}
+
+/**
+ * Resolve provedor, modelo e chave — do ambiente, ou da escolha que o pedido
+ * nomeou. Trocar de fornecedor é `supabase secrets set` — não é deploy (ADR 0040).
+ *
+ * A chave **nunca** vem da escolha: ela sai sempre do segredo do provedor
+ * resolvido. Um motor nomeado escolhe *quem* narra, jamais *com que credencial* —
+ * senão o corpo do pedido viraria um caminho para o cliente injetar destinatário
+ * com credencial própria.
+ */
+export function resolverNarrador(
+  escolha?: EscolhaDeNarrador,
+): { narrador: Narrador; provedor: string; modelo: string; chave: string } {
+  const provedor = escolha?.provedor ?? Deno.env.get('AI_PROVIDER') ?? 'google';
   const narrador = NARRADORES[provedor];
   if (!narrador) {
     throw new Error(
-      `AI_PROVIDER='${provedor}' não tem adaptador. Conhecidos: ${Object.keys(NARRADORES).join(', ')}`,
+      `provedor='${provedor}' não tem adaptador. Conhecidos: ${Object.keys(NARRADORES).join(', ')}`,
     );
   }
-  const modelo = Deno.env.get('AI_MODEL');
+  const modelo = escolha?.modelo ?? Deno.env.get('AI_MODEL');
   if (!modelo) throw new Error('AI_MODEL não configurado');
   const chave = Deno.env.get(SEGREDO[provedor]);
   if (!chave) throw new Error(`${SEGREDO[provedor]} não configurado`);

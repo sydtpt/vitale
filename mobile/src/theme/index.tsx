@@ -43,6 +43,7 @@ export {
   themed,
   themedCacheKey,
   onMedia,
+  mediaVeil,
   spacing,
   radii,
   fonts,

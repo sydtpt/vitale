@@ -31,7 +31,10 @@ import {
  * das chamadas (e a última fica valendo); `pausas` segura uma chamada no meio, pela
  * ordem.
  */
-type RespostaFalsa = { estado: 'ausente' } | { estado: 'ok'; edicao: unknown[] } | Error;
+type RespostaFalsa =
+  | { estado: 'ausente' }
+  | { estado: 'ok'; edicao: unknown[]; capa?: unknown }
+  | Error;
 const mockLeitura: {
   respostas: RespostaFalsa[];
   chamadas: number;
@@ -54,6 +57,38 @@ const mockImpressao: {
  */
 const mockComDado: { valor: readonly string[] } = { valor: ['sono', 'movimento', 'coracao', 'rotina'] };
 
+/**
+ * O carimbo da capa (Story 1.13). O que se mede aqui é **quem** o chama: a
+ * impressão inteira sim, a de um caderno não. A escolha em si tem teste no núcleo
+ * (`revista/capa.test.ts`) e a ligação com as fotos em `edicao-ia.test.ts`.
+ */
+const mockCarimbo: { chamadas: number; erro: Error | null; capa: unknown } =
+  { chamadas: 0, erro: null, capa: null };
+
+/**
+ * A fita do que aconteceu, na ordem — **e ela é o teste, não decoração**.
+ *
+ * O carimbo tem de acontecer ANTES da releitura do fim, senão a rota mostra a
+ * edição recém-impressa com a capa da impressão anterior até o próximo foco. Sem
+ * esta fita, mover a chamada para depois — ou soltar o `await` — mantinha os
+ * quatro testes do carimbo verdes.
+ */
+const mockFita: string[] = [];
+
+/**
+ * A troca da capa (Story 1.16) — a porta de `lib/edicao-ia`. O que se mede aqui é
+ * a AÇÃO da store: quando ela chama, o que ela faz com o estado no sucesso e o que
+ * ela NÃO faz na falha. A troca em si tem teste em `edicao-ia.test.ts`, e a capa
+ * trocada, no núcleo.
+ */
+const mockTroca: {
+  chamadas: number;
+  fotos: unknown[];
+  erro: Error | null;
+  capa: unknown;
+  pausa: Promise<void> | null;
+} = { chamadas: 0, fotos: [], erro: null, capa: null, pausa: null };
+
 // O ponto de injeção dos motores e o cliente do banco não carregam aqui.
 jest.mock('../../lib/supabase', () => ({ supabase: {} }));
 jest.mock('../../lib/motores', () => ({ motorPara: () => undefined }));
@@ -63,7 +98,28 @@ jest.mock('../../lib/edicao-ia', () => {
   return {
     ...real,
     comDadoDaEntrada: (_entrada: unknown, dadosProntos: boolean) => (dadosProntos ? mockComDado.valor : null),
+    carimbarCapa: async () => {
+      // **Uma volta antes de marcar a fita, e isso é o teste.** Marcando na
+      // entrada, um `void carimbarCapa(...)` — sem o `await` — ainda escreveria
+      // 'carimbo' antes de a releitura começar, e a ordem passaria verde com a
+      // capa chegando depois da tela. Suspenso aqui, quem não espera é flagrado.
+      await Promise.resolve();
+      mockFita.push('carimbo');
+      mockCarimbo.chamadas += 1;
+      // O de verdade nunca rejeita; este rejeita para provar que a store não
+      // deixa uma falha de capa virar "a impressão não terminou".
+      if (mockCarimbo.erro) throw mockCarimbo.erro;
+      return mockCarimbo.capa;
+    },
+    trocarCapa: async (_uid: string, _entrada: unknown, foto: unknown) => {
+      mockTroca.chamadas += 1;
+      mockTroca.fotos.push(foto);
+      if (mockTroca.pausa) await mockTroca.pausa;
+      if (mockTroca.erro) throw mockTroca.erro;
+      return mockTroca.capa;
+    },
     buscarEdicao: async () => {
+      mockFita.push('leitura');
       const i = mockLeitura.chamadas;
       mockLeitura.chamadas += 1;
       // A resposta é a da ordem da CHAMADA, não a da ordem em que ela resolve: uma
@@ -108,11 +164,13 @@ jest.mock('../auth.store', () => ({
   },
 }));
 
+import { TrocaRecusada } from '../../lib/edicao-ia';
 import {
   chaveDe,
   dadosProntosParaImprimir,
   estadoDe,
   podeImprimir,
+  podeTrocarCapa,
   precisaGarantirJanela,
   portaDe,
   useEdicaoStore,
@@ -207,6 +265,15 @@ beforeEach(() => {
   mockAuth.uid = 'u-1';
   mockAuth.isLoading = false;
   mockComDado.valor = ['sono', 'movimento', 'coracao', 'rotina'];
+  mockCarimbo.chamadas = 0;
+  mockCarimbo.erro = null;
+  mockCarimbo.capa = null;
+  mockFita.length = 0;
+  mockTroca.chamadas = 0;
+  mockTroca.fotos = [];
+  mockTroca.erro = null;
+  mockTroca.capa = null;
+  mockTroca.pausa = null;
   useEdicaoStore.setState({ porPeriodo: {} });
 });
 
@@ -232,7 +299,7 @@ describe('as fases que a leitura produz', () => {
   it('lista VAZIA é o período lido e não escrito, com a sessão vazia', async () => {
     await lidoCom([]);
     expect(naTela()).toEqual({
-      fase: 'lida', tipo: 'month', inicio: '2026-08-01', edicao: [], sessao: {}, imprimindo: null,
+      fase: 'lida', tipo: 'month', inicio: '2026-08-01', edicao: [], capa: null, sessao: {}, imprimindo: null,
     });
   });
 
@@ -775,7 +842,10 @@ describe('relançamento — a reprovação vive uma sessão (decisão declarada)
 
 /** Um estado lido, montado à mão. */
 function estadoLido(o: Partial<Lida> = {}): Lida {
-  return { fase: 'lida', tipo: 'month', inicio: '2026-08-01', edicao: [], sessao: {}, imprimindo: null, ...o };
+  return {
+    fase: 'lida', tipo: 'month', inicio: '2026-08-01', edicao: [], capa: null,
+    sessao: {}, imprimindo: null, ...o,
+  };
 }
 
 const TODOS: readonly CadernoId[] = ['sono', 'movimento', 'coracao', 'rotina'];
@@ -784,7 +854,11 @@ describe('vistaDaEdicao — a matriz da rota', () => {
   it('rota, não escrito, dados prontos: capa em papel, o convite e o botão; miolo vazio', () => {
     expect(vistaDaEdicao(estadoLido(), ['sono', 'movimento', 'coracao'], AGG_VERSION)).toEqual({
       tipo: 'edicao',
-      capa: { periodo: 'Agosto de 2026', impressa: false, manchete: null, escrevendo: false, escrever: true, semCaderno: false },
+      capa: {
+        periodo: 'Agosto de 2026', impressa: false, manchete: null,
+        carimbada: null, comFoto: false, legenda: null,
+        escrevendo: false, escrever: true, semCaderno: false,
+      },
       cadernos: [],
     });
   });
@@ -807,7 +881,9 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     );
     if (v.tipo !== 'edicao') throw new Error(v.tipo);
     expect(v.capa).toEqual({
-      periodo: 'Agosto de 2026', impressa: true, escrevendo: false, escrever: false, semCaderno: false,
+      periodo: 'Agosto de 2026', impressa: true,
+      carimbada: null, comFoto: false, legenda: null,
+      escrevendo: false, escrever: false, semCaderno: false,
       manchete: 'O tempo de sono subiu para 7,1 h e a variabilidade da frequência cardíaca alcançou 71 ms, '
         + 'enquanto a frequência cardíaca em repouso chegou a 52 bpm.',
     });
@@ -816,6 +892,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     ]);
     expect(v.cadernos[1]).toEqual({
       caderno: 'movimento', estado: 'pronta', texto: impresso('movimento', 2).texto,
+      chamada: 'A chamada de movimento, inteira.',
       assinatura: 'modelo-1 · 07 set 2026', errata: false,
     });
     expect(v.cadernos[2]).toEqual({ caderno: 'sono', estado: 'nao-escrito', acao: 'escrever' });
@@ -830,8 +907,14 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     const correndo = vistaDaEdicao(estadoLido({ edicao, sessao, imprimindo: 'sono' }), TODOS, AGG_VERSION);
     if (correndo.tipo !== 'edicao') throw new Error(correndo.tipo);
     expect(correndo.cadernos).toEqual([
-      { caderno: 'movimento', estado: 'pronta', texto: edicao[0].texto, assinatura: 'modelo-1 · 07 set 2026', errata: false },
-      { caderno: 'rotina', estado: 'pronta', texto: edicao[1].texto, assinatura: 'modelo-1 · 07 set 2026', errata: true },
+      {
+        caderno: 'movimento', estado: 'pronta', texto: edicao[0].texto,
+        chamada: 'A chamada de movimento, inteira.', assinatura: 'modelo-1 · 07 set 2026', errata: false,
+      },
+      {
+        caderno: 'rotina', estado: 'pronta', texto: edicao[1].texto,
+        chamada: 'A chamada de rotina, inteira.', assinatura: 'modelo-1 · 07 set 2026', errata: true,
+      },
       { caderno: 'sono', estado: 'escrevendo' },
       // Durante a impressão, nenhum botão de escrever.
       { caderno: 'coracao', estado: 'reprovada', motivo: REPROVADA, problemas: ['"186" não está no pacote'] },
@@ -885,7 +968,11 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     );
     expect(v).toEqual({
       tipo: 'edicao',
-      capa: { periodo: 'Agosto de 2026', impressa: false, manchete: null, escrevendo: true, escrever: false, semCaderno: false },
+      capa: {
+        periodo: 'Agosto de 2026', impressa: false, manchete: null,
+        carimbada: null, comFoto: false, legenda: null,
+        escrevendo: true, escrever: false, semCaderno: false,
+      },
       cadernos: [
         { caderno: 'sono', estado: 'na-fila' },
         { caderno: 'movimento', estado: 'escrevendo' },
@@ -900,7 +987,10 @@ describe('vistaDaEdicao — a matriz da rota', () => {
       ['movimento'], AGG_VERSION,
     );
     if (v.tipo !== 'edicao') throw new Error(v.tipo);
-    expect(v.cadernos).toEqual([{ caderno: 'movimento', estado: 'pronta', texto: 'Foram 21.', assinatura: null, errata: false }]);
+    expect(v.cadernos).toEqual([{
+      caderno: 'movimento', estado: 'pronta', texto: 'Foram 21.',
+      chamada: 'Foram 21.', assinatura: null, errata: false,
+    }]);
   });
 
   it('nada impresso, mas algo aconteceu nesta sessão: o miolo mostra o que falhou e convida os outros', () => {
@@ -910,7 +1000,11 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     );
     expect(v).toEqual({
       tipo: 'edicao',
-      capa: { periodo: 'Agosto de 2026', impressa: false, manchete: null, escrevendo: false, escrever: true, semCaderno: false },
+      capa: {
+        periodo: 'Agosto de 2026', impressa: false, manchete: null,
+        carimbada: null, comFoto: false, legenda: null,
+        escrevendo: false, escrever: true, semCaderno: false,
+      },
       cadernos: [
         { caderno: 'sono', estado: 'erro', motivo: TRANSITORIA, acao: 'tentar-de-novo' },
         { caderno: 'movimento', estado: 'nao-escrito', acao: 'escrever' },
@@ -935,6 +1029,111 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     expect(vistaDaEdicao({ fase: 'erro', mensagem: 'm' }, TODOS, AGG_VERSION)).toEqual({ tipo: 'erro', mensagem: 'm', aposImpressao: false });
     expect(vistaDaEdicao({ fase: 'erro', mensagem: 'm', aposImpressao: true }, TODOS, AGG_VERSION))
       .toEqual({ tipo: 'erro', mensagem: 'm', aposImpressao: true });
+  });
+});
+
+/**
+ * A chamada de cada caderno — o que o **sumário** da rota desenha (Story 1.14).
+ *
+ * Ela nasce aqui e não no render pela mesma razão que "foto ou papel" da 1.13:
+ * regra tem teste, render não tem. E cai ao lado da manchete da capa, que sai da
+ * mesma `chamadaDoTexto` — se um dia o corte da frase mudar, muda num lugar só.
+ *
+ * O sumário em si é uma linha por caderno **do miolo**, na ordem deste vetor:
+ * quem não está `pronta` entra igual, só sem chamada. Por isso o que se mede aqui
+ * é a lista inteira, e não só as prontas.
+ */
+describe('a chamada no miolo — a linha do sumário', () => {
+  it('edição cheia: uma linha por caderno impresso, na ordem em que a leitura os entregou, com nome e chamada', () => {
+    // **A ordem aqui não é garantia desta função**: `vistaDaEdicao` não ordena —
+    // ela percorre `edicao` como recebeu, e é isso que este caso prende. Quem
+    // garante que a leitura chega em `posicao` é `fetchEdicao`
+    // (`packages/shared/src/data/edicoes-ia.ts`, `.order('posicao')`), com teste
+    // próprio em `edicoes-ia.test.ts`. Mexer na ordem da fixture abaixo não
+    // provaria nada sobre o banco.
+    const edicao = [
+      impresso('movimento', 1), impresso('sono', 2), impresso('coracao', 3), impresso('rotina', 4),
+    ];
+    const v = vistaDaEdicao(estadoLido({ edicao }), TODOS, AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos.map((c) => [c.caderno, c.estado === 'pronta' ? c.chamada : null])).toEqual([
+      ['movimento', 'A chamada de movimento, inteira.'],
+      ['sono', 'A chamada de sono, inteira.'],
+      ['coracao', 'A chamada de coracao, inteira.'],
+      ['rotina', 'A chamada de rotina, inteira.'],
+    ]);
+    // A repetição capa × linha 1 é forma, não defeito: as duas ficam.
+    expect(v.capa.manchete).toBe('A chamada de movimento, inteira.');
+  });
+
+  it('a chamada é a PRIMEIRA frase, não o texto inteiro nem um corte de tamanho', () => {
+    const texto = 'Você pedalou 435 km, metade de julho — e é o terceiro mês seguido caindo. '
+      + 'O resto do caderno continua depois disso, e não entra na linha do sumário.';
+    const v = vistaDaEdicao(estadoLido({ edicao: [impresso('movimento', 1, { texto })] }), TODOS, AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    const c = v.cadernos[0];
+    expect(c.estado === 'pronta' && c.chamada)
+      .toBe('Você pedalou 435 km, metade de julho — e é o terceiro mês seguido caindo.');
+    // O texto do caderno não é tocado: quem corta é só a linha do sumário.
+    expect(c.estado === 'pronta' && c.texto).toBe(texto);
+  });
+
+  it('estado misto: as linhas FICAM, com o nome e sem chamada', () => {
+    const sessao: SessaoDaEdicao = {
+      sono: { fase: 'escrevendo' },
+      coracao: { fase: 'reprovada', motivo: REPROVADA, problemas: [] },
+    };
+    const v = vistaDaEdicao(
+      estadoLido({ edicao: [impresso('movimento', 1)], sessao, imprimindo: 'sono' }), TODOS, AGG_VERSION,
+    );
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos.map((c) => [c.caderno, c.estado === 'pronta' ? c.chamada : null])).toEqual([
+      ['movimento', 'A chamada de movimento, inteira.'],
+      ['sono', null],
+      ['coracao', null],
+      ['rotina', null],
+    ]);
+  });
+
+  it('texto sem frase fechada: a linha fica com o nome e sem chamada — null, nunca string vazia', () => {
+    const v = vistaDaEdicao(
+      // Nenhuma letra: `chamadaDoTexto` não acha frase nenhuma. O CHECK do banco
+      // proíbe texto vazio, então este é o piso do que pode chegar impresso.
+      estadoLido({ edicao: [impresso('sono', 1, { texto: '7,1 · 52 · 71' })] }), TODOS, AGG_VERSION,
+    );
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    const c = v.cadernos[0];
+    expect(c.estado === 'pronta' && c.chamada).toBeNull();
+  });
+
+  it('edição rasa: um caderno só, e o sumário é de uma linha', () => {
+    const v = vistaDaEdicao(estadoLido({ edicao: [impresso('sono', 1)] }), ['sono'], AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos).toEqual([{
+      caderno: 'sono', estado: 'pronta', texto: impresso('sono', 1).texto,
+      chamada: 'A chamada de sono, inteira.', assinatura: 'modelo-1 · 07 set 2026', errata: false,
+    }]);
+  });
+
+  it('miolo vazio: a vista não devolve caderno nenhum — é o que apaga o sumário na rota', () => {
+    // O que se mede é a vista, não o render: quem decide desenhar o sumário é o
+    // `cadernos.length > 0` da rota, e nada aqui o exercita.
+    const v = vistaDaEdicao(estadoLido(), TODOS, AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos).toEqual([]);
+  });
+
+  it('o escrito que espera a gravação já tem chamada — mostrar é progressivo', () => {
+    const v = vistaDaEdicao(
+      estadoLido({
+        imprimindo: 'edicao',
+        sessao: { coracao: { fase: 'escrito', texto: 'A frequência em repouso caiu para 48 bpm. E o resto.' } },
+      }),
+      ['coracao'], AGG_VERSION,
+    );
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    const c = v.cadernos[0];
+    expect(c.estado === 'pronta' && c.chamada).toBe('A frequência em repouso caiu para 48 bpm.');
   });
 });
 
@@ -1048,6 +1247,21 @@ describe('precisaGarantirJanela — o efeito que pede a janela da Retrospectiva'
 
   it('nada carregado ainda: precisa', () => {
     expect(precisaGarantirJanela({ loaded: false, loading: false, loadedSince: null }, since)).toBe(true);
+  });
+
+  /**
+   * O freio do laço quente: a busca falhou, `loading` voltou a falso e a janela
+   * segue descoberta — as duas condições que dariam "precisa". Se a resposta fosse
+   * sim, o efeito pediria de novo no mesmo quadro, e de novo, enquanto a rede
+   * estivesse fora. Quem tenta outra vez é o foco da tela, que chama `ensure` direto.
+   */
+  it('a janela que falhou não é pedida de novo sozinha', () => {
+    expect(precisaGarantirJanela({ loaded: false, loading: false, loadedSince: null, falhouEm: since }, since)).toBe(false);
+    expect(precisaGarantirJanela({ loaded: true, loading: false, loadedSince: '2026-08-01', falhouEm: since }, since)).toBe(false);
+  });
+
+  it('a falha é de uma janela, não da store: outro período segue pedindo', () => {
+    expect(precisaGarantirJanela({ loaded: false, loading: false, loadedSince: null, falhouEm: '2026-01-01' }, since)).toBe(true);
   });
 });
 
@@ -1278,6 +1492,197 @@ describe('a capa com a impressão correndo', () => {
   });
 });
 
+/* ── a capa carimbada (Story 1.13) ───────────────────────────────────────── */
+
+/** A capa como o banco a devolve, já mapeada por `toCapa`. */
+const CAPA_DE_AGOSTO = {
+  tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+  natureza: 'foto' as const,
+  fotoId: 'f-1', fotoTakenAt: '2026-08-14T12:38:00.000Z', rotaActivityId: null,
+  legenda: 'Ittre \u00b7 km 31,1 \u00b7 12:38',
+  carimbadaEm: '2026-09-01T00:00:00.000Z',
+  motivo: 'rajada' as const,
+  fotoActivityId: 'a-1',
+};
+
+describe('a capa carimbada chega à vista', () => {
+  it('a leitura traz a capa do banco, e a vista a passa inteira', async () => {
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [impresso('movimento', 1)], capa: CAPA_DE_AGOSTO }];
+    await useEdicaoStore.getState().carregar(ENTRADA);
+    const v = vistaDaEdicao(naTela(), TODOS, AGG_VERSION);
+    expect(v.tipo === 'edicao' && v.capa.carimbada).toEqual(CAPA_DE_AGOSTO);
+  });
+
+  /** Edição impressa antes da 1.13, ou carimbo que falhou: a rota cai no papel. */
+  it('sem capa gravada, a vista diz nulo — e não inventa uma', async () => {
+    await lidoCom([impresso('movimento', 1)]);
+    const v = vistaDaEdicao(naTela(), TODOS, AGG_VERSION);
+    expect(v.tipo === 'edicao' && v.capa.carimbada).toBeNull();
+  });
+});
+
+/**
+ * **A decisão "foto ou papel" mora aqui, e não na tela.** Ela nasceu no componente
+ * e voltou para a vista porque é regra: são as mesmas condições da matriz, e fora
+ * daqui ficavam sem teste. O que a tela ainda decide é só o que a vista não pode
+ * saber — se o arquivo da biblioteca resolveu.
+ */
+describe('vistaDaEdicao — foto ou papel, e a legenda', () => {
+  const comCapa = (capa: unknown, edicao = [impresso('movimento', 1)]) =>
+    vistaDaEdicao(estadoLido({ edicao, capa: capa as never }), TODOS, AGG_VERSION);
+
+  const daCapa = (v: ReturnType<typeof vistaDaEdicao>) => {
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    return { comFoto: v.capa.comFoto, legenda: v.capa.legenda };
+  };
+
+  it('capa de foto sobre edição impressa: desenha foto, com a legenda carimbada', () => {
+    expect(daCapa(comCapa(CAPA_DE_AGOSTO))).toEqual({
+      comFoto: true, legenda: CAPA_DE_AGOSTO.legenda,
+    });
+  });
+
+  /**
+   * `edicoes_capa` não tem chave estrangeira para `edicoes_ia` — o carimbo guarda
+   * valor, não ponteiro —, então uma capa sobrevive aos cadernos que cobria (é
+   * assim que a edição se reimprime por inteiro: apagando as linhas). Desenhar a
+   * foto ali esconderia o convite e o botão: o dono ficaria sem caminho para
+   * escrever, olhando uma capa bonita.
+   */
+  it('capa carimbada sobre edição SEM caderno impresso: papel, e o botão continua lá', () => {
+    const v = comCapa(CAPA_DE_AGOSTO, []);
+    expect(daCapa(v)).toEqual({ comFoto: false, legenda: null });
+    expect(v.tipo === 'edicao' && v.capa.escrever).toBe(true);
+  });
+
+  /**
+   * Carimbadas, não desenhadas (recorte do dono, 17/09). E a legenda delas não vai
+   * ao papel: na `grade` ela É o período, que a capa já imprime logo acima; na
+   * `tracado`, o desenho que ela legenda ainda não existe.
+   */
+  it('capa de traçado e de grade: papel, sem legenda e sem espaço reservado', () => {
+    for (const natureza of ['tracado', 'grade'] as const) {
+      expect(daCapa(comCapa({
+        ...CAPA_DE_AGOSTO, natureza, fotoId: null, fotoTakenAt: null, motivo: 'sem-foto', fotoActivityId: null,
+        rotaActivityId: natureza === 'tracado' ? 'a-1' : null,
+        legenda: natureza === 'tracado' ? 'Ittre \u00b7 km 62,4' : 'Agosto de 2026',
+      }))).toEqual({ comFoto: false, legenda: null });
+    }
+  });
+
+  it('edição impressa antes da 1.13, sem capa nenhuma: papel', () => {
+    expect(daCapa(comCapa(null))).toEqual({ comFoto: false, legenda: null });
+  });
+});
+
+describe('quem carimba a capa', () => {
+  it('a impressão INTEIRA que gravou carimba, uma vez', async () => {
+    await lidoCom([]);
+    mockImpressao.resultado = { estado: 'gravada', edicao: [impresso('movimento', 1)], desfechos: [] };
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(mockCarimbo.chamadas).toBe(1);
+  });
+
+  /**
+   * **Antes da releitura do fim**, e é a fita que prende isso: com o carimbo
+   * depois — ou sem o `await` —, a rota mostraria a edição recém-impressa com a
+   * capa da impressão anterior até o próximo foco, e todo o resto continuaria verde.
+   */
+  it('carimba ANTES de reler o banco', async () => {
+    await lidoCom([]);
+    mockImpressao.resultado = { estado: 'gravada', edicao: [impresso('movimento', 1)], desfechos: [] };
+    mockFita.length = 0;
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    // A impressão relê antes de pagar, carimba, e só então relê o fim.
+    expect(mockFita).toEqual(['leitura', 'carimbo', 'leitura']);
+  });
+
+  /**
+   * A foto e a legenda são do PERÍODO, não do caderno: reimprimir um caderno não
+   * pode trocar a capa que o dono já viu. O que uma parcial move é só a manchete,
+   * que continua derivada do caderno em `posicao` 1.
+   */
+  it('a reimpressão de UM caderno NÃO toca capa existente', async () => {
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [impresso('movimento', 1)], capa: CAPA_DE_AGOSTO }];
+    await useEdicaoStore.getState().carregar(ENTRADA);
+    mockImpressao.resultado = { estado: 'gravada', edicao: [], desfechos: [] };
+    await useEdicaoStore.getState().imprimirCaderno(ENTRADA, true, 'sono');
+    expect(mockImpressao.chamadas).toBe(1);
+    expect(mockCarimbo.chamadas).toBe(0);
+  });
+
+  /**
+   * Regra renegociada com o dono em 17/09, depois da revisão: quem monta a edição
+   * caderno a caderno **nunca volta a ver** o alvo `edicao` — a 1.11 só o oferece
+   * com zero cadernos impressos —, então sem isto a edição ficaria em papel para
+   * sempre, sem conserto possível pela tela.
+   */
+  it('a reimpressão de um caderno SEM capa nenhuma carimba', async () => {
+    await lidoCom([impresso('movimento', 1)]);
+    expect(lida().capa).toBeNull();
+    mockImpressao.resultado = { estado: 'gravada', edicao: [], desfechos: [] };
+    await useEdicaoStore.getState().imprimirCaderno(ENTRADA, true, 'sono');
+    expect(mockCarimbo.chamadas).toBe(1);
+  });
+
+  it('impressão que não gravou nada não carimba: não há edição a que a capa pertença', async () => {
+    await lidoCom([]);
+    mockImpressao.resultado = { estado: 'nada-gravado', desfechos: [] };
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(mockCarimbo.chamadas).toBe(0);
+  });
+
+  /**
+   * O preço declarado da escolha de 17/09: o carimbo não é atômico com a
+   * impressão. Se ele falha, a edição fica sem capa — nunca sem texto, e nunca
+   * com o dono lendo "a impressão não terminou" sobre um texto que ficou gravado.
+   */
+  it('carimbo que falha não derruba a impressão nem apaga texto', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await lidoCom([]);
+    mockCarimbo.erro = new Error('rls');
+    const depois = [impresso('movimento', 1)];
+    mockImpressao.resultado = { estado: 'gravada', edicao: depois, desfechos: [] };
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [] }, { estado: 'ok', edicao: depois }];
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(naTela().fase).toBe('lida');
+    expect(lida().edicao.map((c) => c.caderno)).toEqual(['movimento']);
+    expect(lida().capa).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  /**
+   * A leitura da capa degrada para `null` de propósito (`buscarEdicao`), e a
+   * releitura do fim é a mais provável de pegar uma rede ruim — logo depois de uma
+   * impressão que durou um minuto. Sem a reserva, a edição recém-impressa
+   * apareceria em papel apesar de a capa estar gravada.
+   */
+  it('releitura que não trouxe a capa usa a recém-carimbada como reserva', async () => {
+    await lidoCom([]);
+    mockCarimbo.capa = CAPA_DE_AGOSTO;
+    const depois = [impresso('movimento', 1)];
+    mockImpressao.resultado = { estado: 'gravada', edicao: depois, desfechos: [] };
+    // A releitura do fim volta com a edição e SEM a capa.
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [] }, { estado: 'ok', edicao: depois, capa: null }];
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(lida().capa).toEqual(CAPA_DE_AGOSTO);
+  });
+
+  it('a capa que a releitura trouxe vence a recém-carimbada', async () => {
+    await lidoCom([]);
+    mockCarimbo.capa = { ...CAPA_DE_AGOSTO, legenda: 'a do carimbo' };
+    const depois = [impresso('movimento', 1)];
+    mockImpressao.resultado = { estado: 'gravada', edicao: depois, desfechos: [] };
+    mockLeitura.respostas = [
+      { estado: 'ok', edicao: [] },
+      { estado: 'ok', edicao: depois, capa: { ...CAPA_DE_AGOSTO, legenda: 'a do banco' } },
+    ];
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(lida().capa?.legenda).toBe('a do banco');
+  });
+});
+
 describe('a assinatura sem data', () => {
   it('só o modelo, sem o ponto pendurado', () => {
     const v = vistaDaEdicao(estadoLido({ edicao: [impresso('movimento', 1, { geradoEm: 'não é data' })] }), TODOS, AGG_VERSION);
@@ -1317,5 +1722,272 @@ describe('o toque de reler com uma leitura silenciosa em voo', () => {
     await foco;
     expect(naTela()).toMatchObject({ fase: 'erro', mensagem: 'Não foi possível ler a edição agora.' });
     warn.mockRestore();
+  });
+});
+
+/* ── a troca da capa (Story 1.16) ────────────────────────────────────────── */
+
+/** A foto que o dono escolheu no seletor — a forma basta; quem a confere é a porta. */
+const FOTO_ESCOLHIDA = { id: 'p-9', activityId: 'a-1' } as unknown as Parameters<
+  ReturnType<typeof useEdicaoStore.getState>['trocarCapa']
+>[1];
+
+/** A capa que a porta devolve depois de recarimbar. */
+const CAPA_TROCADA = {
+  ...CAPA_DE_AGOSTO,
+  fotoId: 'p-9', fotoTakenAt: '2026-08-14T15:22:00.000Z',
+  legenda: 'Ittre · km 62,4 · 15:22',
+  carimbadaEm: '2026-09-18T10:00:00.000Z',
+  motivo: 'trocada' as const,
+};
+
+/** Agosto impresso, com a capa de foto (`CAPA_DE_AGOSTO`) — o estado em que a ficha abre. */
+async function impressaComCapaDeFoto(): Promise<void> {
+  mockLeitura.respostas = [{
+    estado: 'ok', edicao: [impresso('movimento', 1), impresso('sono', 2)], capa: CAPA_DE_AGOSTO,
+  }];
+  await useEdicaoStore.getState().carregar(ENTRADA);
+  expect(lida().capa).toEqual(CAPA_DE_AGOSTO);
+}
+
+describe('podeTrocarCapa — a regra que a ação confere', () => {
+  const comFoto = { edicao: [impresso('movimento', 1)], capa: CAPA_DE_AGOSTO as never };
+
+  it('edição impressa, capa de foto, nenhuma impressão correndo: pode', () => {
+    expect(podeTrocarCapa(estadoLido(comFoto))).toBe(true);
+  });
+
+  it('com uma impressão correndo, não', () => {
+    expect(podeTrocarCapa(estadoLido({ ...comFoto, imprimindo: 'sono' }))).toBe(false);
+  });
+
+  /** A linha "Capa tracado/grade" da matriz: não há foto a trocar. */
+  it('capa de traçado, de grade, ou nenhuma: não', () => {
+    for (const natureza of ['tracado', 'grade'] as const) {
+      expect(podeTrocarCapa(estadoLido({ ...comFoto, capa: { ...CAPA_DE_AGOSTO, natureza } as never }))).toBe(false);
+    }
+    expect(podeTrocarCapa(estadoLido({ ...comFoto, capa: null }))).toBe(false);
+  });
+
+  it('edição sem caderno impresso: não — a capa sobreviveu aos cadernos, e a ficha não abre', () => {
+    expect(podeTrocarCapa(estadoLido({ ...comFoto, edicao: [] }))).toBe(false);
+  });
+
+  it('fora da fase lida: não', () => {
+    for (const e of [{ fase: 'carregando' }, { fase: 'relendo' }, { fase: 'ausente' }, { fase: 'sem-sessao' }] as const) {
+      expect(podeTrocarCapa(e)).toBe(false);
+    }
+    expect(podeTrocarCapa(undefined)).toBe(false);
+  });
+});
+
+describe('trocarCapa — recarimba a capa e só', () => {
+  /**
+   * O critério de aceite: a capa passa a ser a nova, e o texto, a ordem e as
+   * assinaturas continuam **idênticos**. A comparação é da edição inteira, objeto
+   * a objeto — não do comprimento.
+   */
+  it('sucesso: a capa nova entra, e a edição e a sessão ficam idênticas', async () => {
+    await impressaComCapaDeFoto();
+    const antes = lida();
+    mockTroca.capa = CAPA_TROCADA;
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r).toEqual({ ok: true, capa: CAPA_TROCADA });
+    expect(mockTroca.fotos).toEqual([FOTO_ESCOLHIDA]);
+    const depois = lida();
+    expect(depois.capa).toEqual(CAPA_TROCADA);
+    expect(depois.edicao).toBe(antes.edicao);
+    expect(depois.sessao).toBe(antes.sessao);
+    expect(depois.imprimindo).toBeNull();
+    // Nada foi relido nem impresso: a troca não passa pela edição.
+    expect(mockLeitura.chamadas).toBe(1);
+    expect(mockImpressao.chamadas).toBe(0);
+  });
+
+  it('a vista refaz a capa com a legenda nova — e o sumário, a manchete e as assinaturas não mudam', async () => {
+    await impressaComCapaDeFoto();
+    const antes = vistaDaEdicao(naTela(), TODOS, AGG_VERSION);
+    mockTroca.capa = CAPA_TROCADA;
+    await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    const depois = vistaDaEdicao(naTela(), TODOS, AGG_VERSION);
+    if (antes.tipo !== 'edicao' || depois.tipo !== 'edicao') throw new Error('sem edição');
+    expect(depois.capa.legenda).toBe(CAPA_TROCADA.legenda);
+    expect(depois.capa.comFoto).toBe(true);
+    expect(depois.capa.manchete).toBe(antes.capa.manchete);
+    expect(depois.cadernos).toEqual(antes.cadernos);
+  });
+
+  /**
+   * A troca falha **em voz alta** — ao contrário do carimbo da impressão, que só
+   * loga. A mensagem volta para o seletor, e o estado não é tocado: a capa, a
+   * edição e a sessão ficam como estavam.
+   */
+  it('falha na gravação: a mensagem volta, e o estado fica intacto', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await impressaComCapaDeFoto();
+    const antes = naTela();
+    mockTroca.erro = new Error('PGRST204: coluna motivo não existe');
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r).toEqual({ ok: false, mensagem: 'Não foi possível trocar a capa agora. A capa continua a mesma.' });
+    expect(naTela()).toBe(antes);
+    // O motivo real vai para o log, não para a tela.
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('a recusa antes do banco chega à tela com a frase dela', async () => {
+    await impressaComCapaDeFoto();
+    const antes = naTela();
+    mockTroca.erro = new TrocaRecusada('Esta foto não é de uma atividade deste período, e não pode ser a capa dele.');
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r).toEqual({
+      ok: false, mensagem: 'Esta foto não é de uma atividade deste período, e não pode ser a capa dele.',
+    });
+    expect(naTela()).toBe(antes);
+  });
+
+  it('não troca com impressão em curso — e nem chama a porta', async () => {
+    await impressaComCapaDeFoto();
+    useEdicaoStore.setState((s) => ({
+      porPeriodo: { ...s.porPeriodo, [chaveDe('u-1', ENTRADA)]: { ...lida(), imprimindo: 'sono' } },
+    }));
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.mensagem).toMatch(/sendo impressa/);
+    expect(mockTroca.chamadas).toBe(0);
+  });
+
+  it('sem capa de foto não há o que trocar — e nem chama a porta', async () => {
+    await lidoCom([impresso('movimento', 1)]);
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r.ok).toBe(false);
+    expect(mockTroca.chamadas).toBe(0);
+  });
+
+  /**
+   * Trocar pela foto que já é a capa **não é troca**, e gravá-la apagaria o porquê
+   * para sempre: o motivo viraria `trocada` — e nas duas capas de produção, o nulo
+   * que declara "impressa antes do porquê" sumiria. A regra é da ação, não só do
+   * seletor.
+   */
+  it('a foto que já é a capa é recusada — e a porta nem é chamada', async () => {
+    await impressaComCapaDeFoto();
+    const antes = naTela();
+    const mesma = { ...FOTO_ESCOLHIDA, id: CAPA_DE_AGOSTO.fotoId };
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, mesma);
+    expect(r).toEqual({ ok: false, mensagem: 'Esta foto já é a capa.' });
+    expect(mockTroca.chamadas).toBe(0);
+    expect(naTela()).toBe(antes);
+  });
+
+  it('inclusive numa capa anterior à 1.16: o motivo nulo fica', async () => {
+    mockLeitura.respostas = [{
+      estado: 'ok', edicao: [impresso('movimento', 1)], capa: { ...CAPA_DE_AGOSTO, motivo: null },
+    }];
+    await useEdicaoStore.getState().carregar(ENTRADA);
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, { ...FOTO_ESCOLHIDA, id: CAPA_DE_AGOSTO.fotoId });
+    expect(r.ok).toBe(false);
+    expect(mockTroca.chamadas).toBe(0);
+    expect(lida().capa?.motivo).toBeNull();
+  });
+
+  /**
+   * Duas trocas no mesmo período, a segunda antes de a primeira voltar: a segunda
+   * é recusada sem chamar a porta. Sem a guarda, a capa que fica seria a da
+   * gravação que o banco recebeu por último — não a do último toque.
+   */
+  it('segunda troca na mesma chave, com a primeira em voo: recusada, sem chamar a porta', async () => {
+    await impressaComCapaDeFoto();
+    const presa = segurar();
+    mockTroca.pausa = presa.pausa;
+    mockTroca.capa = CAPA_TROCADA;
+    const primeira = useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    await drenar();
+    const segunda = await useEdicaoStore.getState().trocarCapa(ENTRADA, { ...FOTO_ESCOLHIDA, id: 'p-10' });
+    expect(segunda).toEqual({ ok: false, mensagem: 'A capa já está sendo trocada. Espere a troca terminar.' });
+    expect(mockTroca.chamadas).toBe(1);
+    presa.soltar();
+    expect((await primeira).ok).toBe(true);
+    expect(lida().capa).toEqual(CAPA_TROCADA);
+  });
+
+  it('a guarda solta a chave no fim — também quando a troca falha', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await impressaComCapaDeFoto();
+    mockTroca.erro = new Error('rede');
+    expect((await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA)).ok).toBe(false);
+    mockTroca.erro = null;
+    mockTroca.capa = CAPA_TROCADA;
+    expect((await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA)).ok).toBe(true);
+    expect(mockTroca.chamadas).toBe(2);
+    warn.mockRestore();
+  });
+
+  /**
+   * A geração sobe **só se a capa entra**. Se o leitor pediu uma releitura
+   * enquanto a troca gravava, a fase é `relendo` quando a troca volta: a capa não
+   * entra (não há edição lida onde pô-la) — e descartar a leitura em voo deixaria
+   * a tela presa em `relendo`. É essa leitura que traz do banco a capa já trocada.
+   */
+  it('a troca que volta com a fase fora de `lida` não descarta a releitura em voo', async () => {
+    await impressaComCapaDeFoto();
+    const gravando = segurar();
+    mockTroca.pausa = gravando.pausa;
+    mockTroca.capa = CAPA_TROCADA;
+    const troca = useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    await drenar();
+
+    // O leitor relê; o banco já tem a capa trocada, e a leitura fica presa no meio.
+    const lendo = segurar();
+    mockLeitura.pausas = [null, lendo.pausa];
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [impresso('movimento', 1), impresso('sono', 2)], capa: CAPA_TROCADA }];
+    const releitura = useEdicaoStore.getState().recarregar(ENTRADA);
+    await drenar();
+    expect(naTela()).toEqual({ fase: 'relendo' });
+
+    gravando.soltar();
+    expect((await troca).ok).toBe(true);
+    lendo.soltar();
+    await releitura;
+    expect(naTela().fase).toBe('lida');
+    expect(lida().capa).toEqual(CAPA_TROCADA);
+  });
+
+  it('sem sessão não troca', async () => {
+    await impressaComCapaDeFoto();
+    mockAuth.uid = undefined;
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r.ok).toBe(false);
+    expect(mockTroca.chamadas).toBe(0);
+  });
+
+  /**
+   * **Sucesso sobe a geração da chave.** Uma leitura que já estava em voo quando a
+   * troca gravou volta com a capa velha do banco; sem a geração nova, ela a
+   * reporia por cima da que o dono acabou de escolher, e a rota voltaria à foto
+   * antiga sem ninguém tocar em nada.
+   */
+  it('uma leitura em voo não repõe a capa velha depois da troca', async () => {
+    // Uma leitura silenciosa lenta, presa no meio, que vai voltar com a capa antiga.
+    await lidoCom([]);
+    const lenta = segurar();
+    mockLeitura.pausas = [null, lenta.pausa];
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [impresso('movimento', 1)], capa: CAPA_DE_AGOSTO }];
+    const foco = useEdicaoStore.getState().carregar(ENTRADA);
+    await drenar();
+    // Enquanto ela corre, a edição impressa com a capa de foto chega à tela…
+    useEdicaoStore.setState((s) => ({
+      porPeriodo: {
+        ...s.porPeriodo,
+        [chaveDe('u-1', ENTRADA)]: estadoLido({ edicao: [impresso('movimento', 1)], capa: CAPA_DE_AGOSTO as never }),
+      },
+    }));
+    // …e o dono troca a capa.
+    mockTroca.capa = CAPA_TROCADA;
+    const r = await useEdicaoStore.getState().trocarCapa(ENTRADA, FOTO_ESCOLHIDA);
+    expect(r.ok).toBe(true);
+    lenta.soltar();
+    await foco;
+    expect(lida().capa).toEqual(CAPA_TROCADA);
   });
 });

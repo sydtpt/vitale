@@ -32,7 +32,8 @@ export interface EntradaDaEdicao {
  *    que `precisaGarantirJanela` diz que falta — a rota pode abrir sem a
  *    Retrospectiva ter carregado aquele período, ou enquanto ela busca uma janela
  *    mais estreita; nesse caso `ensure` sai cedo, e é o fim da busca em voo
- *    (`loading` voltando a falso) que chama de novo;
+ *    (`loading` voltando a falso) que chama de novo. Se a busca **falhou**, o
+ *    pedido automático para — quem tenta de novo é o foco;
  * 2. **monta o resumo** pela store da retro, e o recalcula quando a janela
  *    carregada muda. `loaded` sozinho não bastava: ele só vira `true` uma vez, e
  *    a busca de uma janela mais larga (trocar Semana por Ano) terminava sem o
@@ -49,6 +50,9 @@ export function useEntradaDaEdicao(kind: PeriodKind, offset: number, now: Date):
   const loaded = useRetroStore((s) => s.loaded);
   const loading = useRetroStore((s) => s.loading);
   const loadedSince = useRetroStore((s) => s.loadedSince);
+  // A janela que falhou: sem ela, soltar `loading` na falha faria este efeito
+  // pedir de novo no mesmo quadro, e uma rede fora do ar viraria laço quente.
+  const falhouEm = useRetroStore((s) => s.falhouEm);
   const atividadesLoaded = useActivitiesStore((s) => s.loaded);
   const atividadesLoading = useActivitiesStore((s) => s.loading);
   const allActs = useActivitiesStore((s) => s._all);
@@ -62,8 +66,8 @@ export function useEntradaDaEdicao(kind: PeriodKind, offset: number, now: Date):
     void ensure(since);
   }, [ensure, since]));
   useEffect(() => {
-    if (precisaGarantirJanela({ loaded, loading, loadedSince }, since)) void ensure(since);
-  }, [ensure, since, loaded, loading, loadedSince, uid]);
+    if (precisaGarantirJanela({ loaded, loading, loadedSince, falhouEm }, since)) void ensure(since);
+  }, [ensure, since, loaded, loading, loadedSince, falhouEm, uid]);
 
   const resumo = useMemo(
     () => summaryFn(now, kind, offset),

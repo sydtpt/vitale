@@ -1027,6 +1027,66 @@ mostra a chamada do mesmo caderno
 **Then** a repetição acontece e é **forma, não defeito** — a capa é identidade do período, a
 linha é o alvo de toque
 
+### Story 1.16: A capa aberta, e a troca
+
+As a leitor da revista,
+I want abrir a foto da capa, saber de onde ela veio e trocá-la quando não for a certa,
+So that a capa seja a que eu escolheria — e eu saiba por que aquela está ali.
+
+> **Ordem: depois da 1.14, antes da 1.15.** As duas mexem na mesma tela, e fazer esta antes
+> do sumário custaria duas costuras no mesmo arquivo. O piloto (1.15) é onde três capas são
+> lidas de verdade: chegar nele sem poder trocar a ruim desperdiça o julgamento.
+>
+> **Carrega migração — a segunda do Épico 1.** `edicoes_capa` ganha `motivo` e
+> `foto_activity_id`. Janela pela AD-15, com a seção 6 do roteiro da 1.9 como leitura
+> obrigatória. Decidido pelo dono em 18/09/2026, olhando a primeira capa impressa (julho/2026).
+
+**Acceptance Criteria:**
+
+**Given** a capa não é tocável hoje, e a foto não tem para onde abrir
+**When** o leitor toca a capa de natureza `foto`
+**Then** a foto abre expandida, e voltar devolve a edição na posição em que estava
+**And** `tracado` e `grade` continuam **sem** alvo de toque — não há o que expandir
+
+**Given** a escolha é do app e a estrela é uma correção, não uma marcação no vazio
+**When** a foto expandida mostra a ficha
+**Then** ela imprime **por que** aquela foto (o motivo **carimbado**), **quando** foi tirada,
+**em que atividade** ela estava, e a rota dessa atividade descrita — nome, distância e cidades
+**And** o motivo é o que valia **na impressão**, nunca uma reconstrução feita agora: `coverOf`
+lê `isCover` e o vínculo, os dois mutáveis depois do carimbo
+
+**Given** o motivo só vira informação quando existe a distinção "o app escolheu" × "você trocou"
+**When** a migração entra
+**Then** `edicoes_capa` ganha `motivo` (`estrela`, `rajada`, `unica`, `trocada`, `sem-foto`) com
+CHECK, e `foto_activity_id`
+**And** a lista do CHECK tem dono único no núcleo e barreira no `architecture.test.ts`, no mesmo
+molde de `NATUREZAS_DA_CAPA`
+
+**Given** trocar a capa é ato do dono, e não reescrita silenciosa de período fechado
+**When** ele escolhe outra foto entre as do período
+**Then** a capa é recarimbada com a identidade nova, a legenda recalculada e o motivo `trocada`
+**And** o **texto da edição não muda** — nem a ordem, nem as assinaturas, nem a errata
+**And** a manchete continua derivada do caderno em `posicao` 1
+
+**Given** o período pode ter centenas de fotos
+**When** o seletor abre
+**Then** ele mostra as do período agrupadas por atividade, como a galeria da Retrospectiva já faz
+**And** vídeo não entra: o pôster segue em branco, e capa que não desenha é pior que nenhuma
+
+**Decisões de UX do dono, olhando a proposta de 18/09** ([canvas](https://claude.ai/artifact/1ACfhm4dfgDMMrvm8SvKsc)):
+
+- **A marca do toque fica** — um disco translúcido no canto do véu. Sem ela a capa não anuncia
+  que abre; maior que isso, ela vira botão e deixa de ser capa.
+- **A ficha vai embaixo da foto**, em papel — nunca por cima em transparência. Texto sobre foto é
+  o problema que a 1.13 resolveu com medição; repeti-lo numa tela em que a foto é o conteúdo
+  seria refazê-lo por estética.
+- **A troca mora só dentro da ficha.** Sem toque longo na capa, sem segundo caminho.
+- **Sem histórico da escolha anterior.** A troca sobrescreve: a ficha diz que foi você quem
+  escolheu, e não qual era a foto de antes. Uma coluna a menos, decidida por ele em 18/09.
+- **A troca recarimba** identidade, legenda (recalculada pela mesma função do núcleo, não editada
+  à mão), motivo `trocada` e `carimbada_em`. **Nada mais muda** — texto, ordem, assinaturas,
+  errata e a manchete, que nunca foi da capa.
+
 ### Story 1.15: O piloto de três edições
 
 As a dono do Orbe,
@@ -1254,6 +1314,71 @@ indesejado lidera justamente no mês em que varia mais
 **And** a legenda muda, porque a segunda frase falava da regra dos 60 dias, que deixou de
 existir
 **And** silenciar caderno e esconder bloco continuam sendo dois atos independentes
+
+### Story 2.6: O que ainda não era registrado não vira zero
+
+As a leitor da revista,
+I want que uma edição antiga não diga "0" do que o app ainda não registrava,
+So that o arquivo de 2023 a 2025 não narre como falta o que era só ausência de medida.
+
+> **Ordem: antes da 2.3.** Achado no piloto (1.15) e decidido pelo dono em 18/09/2026: setembro/2023
+> imprimiu *"água, café, cerveja e smoke somaram 0 dias"* e *"passos por dia: 0"* — mas os hábitos
+> existem desde 20/05/2026 e o primeiro dia de saúde é 24/03/2025. A impressão em massa espalharia
+> esses zeros por quase todas as edições de 2023 a 2025, contra *ausência tem gramática*.
+
+**Acceptance Criteria:**
+
+**Given** uma métrica começou a ser registrada depois do fim do período
+**When** o pacote do caderno é montado
+**Then** ela entra como **não medida** — nunca como zero — e o texto não a cita como valor
+**And** zero continua sendo medida quando o registro já existia e o dia passou sem ocorrência
+
+**Given** o começo do registro varia por métrica
+**When** se decide "não medido" × "zero"
+**Then** o marco sai do **dado** — a criação do hábito ou do registro, o primeiro dia da métrica de
+saúde —, nunca de uma data escrita no código
+
+**Given** um caderno cujas métricas ficaram todas não medidas
+**When** a edição é impressa
+**Then** ele é caderno vazio e some, pela regra do vazio que já existe
+
+**Given** setembro e outubro de 2023 foram impressos no piloto com o defeito
+**When** a spec é escrita
+**Then** o dono decide o destino das duas — reimprimir na 2.3 ou manter —, antes do código
+
+### Story 2.7: O detector de métrica morta
+
+As a leitor da revista,
+I want que a métrica que parou de chegar apareça como lápide,
+So that o arquivo não narre como calmaria o que foi o relógio parando de medir.
+
+> **Ordem: antes da 2.3.** Decidido no piloto (1.15, 18/09/2026): ele rodou **sem lápides**, porque
+> nada preenche `entrada.lapides` — nem a tela, nem a impressão. O núcleo já ranqueia, narra e desenha
+> a lápide (1.7, 1.12); falta quem diga que a métrica morreu. SpO₂, respiração e VO₂max pararam em
+> julho/2026 e nenhuma tela avisou.
+
+**Acceptance Criteria:**
+
+**Given** o núcleo já sabe o que fazer com a lápide
+**When** o detector nasce
+**Then** ele preenche `entrada.lapides` na tela e na impressão, pelas mesmas portas
+**And** a edição impressa deixa de sair sem a lápide que a tela mostraria
+
+**Given** três perguntas abertas no `deferred-work.md` — o limiar de silêncio, a latência (a edição
+impressa logo no fechamento não vê a morte dos últimos dias) e por quanto tempo uma morte antiga
+continua sendo repassada
+**When** a spec é escrita
+**Then** o dono decide as três antes do código
+
+**Given** a métrica que parou numa fonte e voltou por outra — a VFC, parada no Apple Watch em 17/07
+e de volta pelo intervals.icu
+**When** o detector a avalia
+**Then** ela **não** é declarada morta
+
+**Given** a lápide nunca apareceu em aparelho nenhum
+**When** a story fecha
+**Then** o dono julga a lápide em tela — o veredito que a 1.12 deixou para cá — e o passo 5 do
+ranqueamento, que o piloto não pôde ver
 
 ## Epic 3: As outras duas formas
 

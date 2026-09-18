@@ -1,8 +1,8 @@
 /**
  * A edição da Retrospectiva no celular: a leitura do que está impresso, a
- * impressão pelo núcleo, e o vocabulário que a rota da revista usa para dizer por
- * que um caderno não saiu.
- * Spec: docs/specs/ia-analitica/spec.md · ADRs 0038 e 0040 · Stories 1.9, 1.10 e 1.11.
+ * impressão pelo núcleo, o carimbo e a troca da capa, e o vocabulário que a rota
+ * da revista usa para dizer por que um caderno não saiu.
+ * Spec: docs/specs/ia-analitica/spec.md · ADRs 0038 e 0040 · Stories 1.9, 1.10, 1.11, 1.13 e 1.16.
  *
  * ## Ler é de graça; imprimir é ato do dono
  *
@@ -27,8 +27,13 @@ import {
   MESES_COMPLETOS,
   NUVEM_PADRAO,
   cadernosComDado,
+  capaTrocada,
   descritorDaRetrospectiva,
+  escolherCapa,
+  fetchCapa,
   fetchEdicao,
+  fetchPhotosForActivities,
+  gravarCapa,
   imprimir,
   lapidesDosCadernos,
   localDateStr,
@@ -38,9 +43,15 @@ import {
   periodoFechado,
   portasDaEdicao,
   resolverCadeia,
+  secoesDoSeletor,
   temEdicao,
+  type Activity,
+  type ActivityPhoto,
   type CadernoId,
+  type Capa,
+  type CapaACarimbar,
   type Causa,
+  type CityMark,
   type DesfechoDoCaderno,
   type Edicao,
   type EntradaPacote,
@@ -52,10 +63,12 @@ import {
   type PeriodKind,
   type PortasDaImpressao,
   type ResultadoDaImpressao,
+  type SecaoDoSeletor,
   type TipoComEdicao,
 } from '@vitale/shared';
+import { useActivitiesStore } from '../store/activities.store';
 import { motivoDaFalha, quemNaoEscreveu } from './assinatura';
-import { motorPara } from './motores';
+import { catalogoDoRecurso, motorPara } from './motores';
 import { anel } from './motores/anel';
 import { idsConhecidos, nomeDoMotor } from './motores/catalogo';
 import { lerPreferencia } from './motores/preferencia';
@@ -74,11 +87,17 @@ export type LeituraDaEdicao =
    *   prometer uma edição que o banco não aceita.
    */
   | { estado: 'ausente' }
-  /** A edição do período — vazia quando ele fechou e ainda não foi escrito. */
-  | { estado: 'ok'; edicao: Edicao };
+  /**
+   * A edição do período — vazia quando ele fechou e ainda não foi escrito.
+   *
+   * `capa` é o que a impressão carimbou (Story 1.13), ou `null`: edição impressa
+   * antes da 1.13, carimbo que falhou, ou período ainda não escrito. A tela
+   * desenha a capa em papel da 1.11 em todos esses casos.
+   */
+  | { estado: 'ok'; edicao: Edicao; capa: Capa | null };
 
 /**
- * Os cadernos já impressos deste período, na ordem gravada.
+ * Os cadernos já impressos deste período, na ordem gravada — e a capa carimbada.
  *
  * A ausência é resolvida **antes** da consulta: não há linha para achar, e gastar
  * uma ida ao banco para descobrir isso seria uma consulta por folheada.
@@ -87,6 +106,12 @@ export type LeituraDaEdicao =
  * `montarPacotes` copia para `periodo`, sem normalizar nada. A equivalência está
  * fixada em `ia/pacote.test.ts`: se um dia a montagem normalizar, é lá que
  * reprova, e não aqui, calado, com a edição sumindo da tela.
+ *
+ * **As duas consultas correm juntas, e a da capa não pode derrubar a da edição.**
+ * A edição é o produto; a capa é como ele se apresenta. Uma falha ao ler
+ * `edicoes_capa` vira `capa: null` com o motivo no log — a rota desenha a capa em
+ * papel e o texto continua lá —, enquanto uma falha ao ler `edicoes_ia` continua
+ * subindo: sem ela não há o que mostrar.
  */
 export async function buscarEdicao(
   userId: string, entrada: EntradaPacote,
@@ -94,8 +119,260 @@ export async function buscarEdicao(
   const { kind, startISO, endISO } = entrada.resumo;
   if (!temEdicao(kind)) return { estado: 'ausente' };
   if (!periodoFechado(kind, endISO, entrada.agora)) return { estado: 'ausente' };
-  const edicao = await fetchEdicao(supabase, userId, kind, startISO, endISO);
-  return { estado: 'ok', edicao };
+  const [edicao, capa] = await Promise.all([
+    fetchEdicao(supabase, userId, kind, startISO, endISO),
+    fetchCapa(supabase, userId, kind, startISO, endISO).catch((e: unknown) => {
+      // **A mensagem vai para o log, não só o objeto.** As duas falhas possíveis
+      // aqui pedem trabalhos diferentes: uma rede que caiu se resolve sozinha, e
+      // uma `natureza` que o `toCapa` recusou é linha estragada no banco — algo
+      // que o `CHECK` afirma impossível. Engolir as duas como "falha ao ler"
+      // esconderia a segunda atrás da primeira.
+      console.warn(
+        '[revista] a capa não foi lida (a edição segue em papel):',
+        e instanceof Error ? e.message : String(e),
+      );
+      return null;
+    }),
+  ]);
+  return { estado: 'ok', edicao, capa };
+}
+
+/* ── o carimbo da capa (Story 1.13) ──────────────────────────────────────── */
+
+/**
+ * As atividades que caem no período — a **mesma** seleção que a Retrospectiva faz
+ * para carregar as fotos da tira (`retrospectiva/index.tsx`).
+ *
+ * Tem de ser a mesma: a capa é escolhida entre as fotos do período, e duas
+ * definições de "do período" dariam duas capas possíveis para a mesma edição.
+ */
+export function atividadesDoPeriodo(
+  todas: readonly Activity[], entrada: EntradaPacote,
+): Activity[] {
+  const { kind, offset } = entrada.resumo;
+  const b = periodBounds(entrada.agora, kind, offset);
+  return todas.filter((a) => {
+    const t = Date.parse(a.startAt);
+    return Number.isFinite(t) && t >= b.start.getTime() && t <= b.end.getTime();
+  });
+}
+
+/**
+ * As cidades que as rotas do período atravessaram, sem repetir — o acervo de onde
+ * a legenda da foto tira a parada.
+ *
+ * Não é geocodificação nova: `activities.cities` já veio enriquecida do ingest. A
+ * deduplicação é por nome porque é o nome que a legenda imprime; duas marcas do
+ * mesmo lugar em pedaladas diferentes escreveriam a mesma palavra.
+ */
+export function cidadesDoPeriodo(atividades: readonly Activity[]): CityMark[] {
+  const porNome = new Map<string, CityMark>();
+  for (const a of atividades) {
+    for (const c of a.cities ?? []) {
+      if (!porNome.has(c.name)) porNome.set(c.name, c);
+    }
+  }
+  return [...porNome.values()];
+}
+
+/**
+ * As portas do carimbo. Injetáveis, para a escolha ter teste sem rede.
+ *
+ * A gravação se chama `carimbar`, e **não `gravar`**: `.gravar` é a porta de
+ * escrita da EDIÇÃO, e uma barreira do `architecture.test.ts` cobra que só a
+ * sequência da impressão a leia. Reusar o nome aqui contaria como um segundo
+ * caminho até o texto do jornal, que é exatamente o que ela existe para impedir.
+ */
+export interface DepsDoCarimbo {
+  /**
+   * As atividades **visíveis** — `activities()`, não `_all`.
+   *
+   * O dono esconde atividade (`hidden`), e o que ele escondeu não escolhe a capa
+   * nem vira o traçado do período. Em toda outra tela o efeito de esconder é
+   * imediato e reversível; aqui ele ficaria **carimbado**, e desfazer exigiria
+   * reimprimir a edição inteira.
+   */
+  readonly atividades: () => readonly Activity[];
+  /**
+   * O acervo de atividades já chegou? Nada se carimba antes disso — ver
+   * {@link carimbarCapa}.
+   */
+  readonly acervoCarregado: () => boolean;
+  readonly buscarFotos: (ids: readonly string[]) => Promise<ActivityPhoto[]>;
+  readonly carimbar: (capa: CapaACarimbar) => Promise<Capa>;
+  /** O período por extenso — a legenda da natureza `grade`. */
+  readonly rotulo: (tipo: TipoComEdicao, inicio: string) => string;
+}
+
+function depsDoCarimbo(userId: string): DepsDoCarimbo {
+  return {
+    atividades: () => useActivitiesStore.getState().activities(),
+    acervoCarregado: () => useActivitiesStore.getState().loaded,
+    buscarFotos: (ids) => fetchPhotosForActivities(supabase, userId, ids),
+    carimbar: (capa) => gravarCapa(supabase, userId, capa),
+    rotulo: rotuloDaEdicao,
+  };
+}
+
+/**
+ * Escolhe e carimba a capa desta edição.
+ *
+ * Quem chama é a impressão **inteira**, sempre, e a **parcial quando a edição
+ * ainda não tem capa nenhuma** (renegociado com o dono em 17/09): uma edição
+ * montada caderno a caderno nunca volta a ver o alvo `edicao` — a 1.11 só o
+ * oferece com zero cadernos impressos —, e sem essa regra ela ficaria em papel
+ * para sempre, sem conserto. Uma parcial **nunca troca capa existente**: a foto e
+ * a legenda são do período, não do caderno, e o que uma parcial pode mover na capa
+ * é só a manchete, que continua derivada do caderno em `posicao` 1.
+ *
+ * **Nunca rejeita.** Carimbar não é atômico com a impressão (decisão do dono,
+ * 17/09: ensinar `edicao_imprimir` a receber capa seria migração em produção), e
+ * o preço está declarado — se falhar, a edição existe sem capa, o motivo vai para
+ * o log e a próxima impressão recarimba. O que não pode acontecer é uma falha de
+ * capa apagar o texto que o modelo acabou de escrever, ou anunciar ao dono uma
+ * impressão que não terminou quando ela terminou.
+ *
+ * **Não carimba sobre acervo que não chegou.** Uma store vazia não é um período
+ * vazio: pode ser a carga das atividades ainda em voo, ou uma que falhou. Carimbar
+ * ali gravaria `grade` — a capa do período em que nada aconteceu — num agosto
+ * cheio de pedaladas, e a natureza está congelada: só uma impressão nova a
+ * corrige. Não saber é motivo para não gravar, e a degradação (sem capa, log,
+ * recarimba depois) já está declarada no contrato.
+ *
+ * Devolve `null` quando não carimbou — por ausência de período com edição, por
+ * acervo não carregado, ou por falha já registrada.
+ */
+export async function carimbarCapa(
+  userId: string,
+  entrada: EntradaPacote,
+  deps: Partial<DepsDoCarimbo> = {},
+): Promise<Capa | null> {
+  const d: DepsDoCarimbo = { ...depsDoCarimbo(userId), ...deps };
+  const { kind, startISO, endISO } = entrada.resumo;
+  if (!temEdicao(kind)) return null;
+  if (!d.acervoCarregado()) {
+    console.warn(
+      '[revista] a capa não foi carimbada: o acervo de atividades ainda não chegou, '
+      + 'e uma store vazia não é um período vazio.',
+    );
+    return null;
+  }
+  try {
+    const atividades = atividadesDoPeriodo(d.atividades(), entrada);
+    const fotos = atividades.length > 0
+      ? await d.buscarFotos(atividades.map((a) => a.id))
+      : [];
+    return await d.carimbar(escolherCapa({
+      fotos,
+      atividades,
+      cidades: cidadesDoPeriodo(atividades),
+      periodo: { tipoPeriodo: kind, inicio: startISO, fim: endISO, rotulo: d.rotulo(kind, startISO) },
+    }));
+  } catch (e) {
+    console.warn('[revista] a capa não foi carimbada; a edição fica sem capa:', e);
+    return null;
+  }
+}
+
+/* ── a troca da capa (Story 1.16) ────────────────────────────────────────── */
+
+/**
+ * A troca (ou a lista dela) foi recusada **antes do banco** — nada foi gravado.
+ *
+ * A mensagem é a frase da tela: a troca é ato do dono e falha em voz alta, então
+ * o seletor a mostra como veio. As recusas da própria foto (vídeo, instante,
+ * desligada, sem arquivo) são do núcleo (`FotoRecusadaNaTroca`); estas são as que
+ * só o app sabe dizer — o período e o acervo.
+ */
+export class TrocaRecusada extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = 'TrocaRecusada';
+  }
+}
+
+const SEM_EDICAO = 'Este período não tem edição, e por isso não tem capa.';
+/**
+ * Mesma guarda do carimbo, pelo mesmo motivo: uma store vazia não é um período
+ * vazio. Aqui ela não grava `grade` — mas recusaria, como "fora do período", a
+ * foto que o dono acabou de escolher.
+ */
+const SEM_ACERVO = 'As atividades ainda não chegaram. Tente de novo em instantes.';
+const FORA_DO_PERIODO = 'Esta foto não é de uma atividade deste período, e não pode ser a capa dele.';
+
+/**
+ * As fotos que podem ir para a capa desta edição, **agrupadas por atividade** —
+ * a lista do seletor.
+ *
+ * Reusa as portas do carimbo, e com elas a **mesma** definição de "do período"
+ * (`atividadesDoPeriodo` sobre as atividades visíveis): o seletor mostra o que a
+ * troca aceita, e a troca aceita o que a impressão teria considerado. Quem agrupa,
+ * ordena e recusa vídeo é o núcleo (`secoesDoSeletor`).
+ *
+ * **Só lê.** Rejeita quando o período não tem edição, quando o acervo de
+ * atividades ainda não chegou (`TrocaRecusada`) ou quando a leitura das fotos
+ * falha — o seletor mostra o erro, e não uma lista vazia que mentiria "não há
+ * foto".
+ */
+export async function fotosParaCapa(
+  userId: string,
+  entrada: EntradaPacote,
+  deps: Partial<DepsDoCarimbo> = {},
+): Promise<SecaoDoSeletor[]> {
+  const d: DepsDoCarimbo = { ...depsDoCarimbo(userId), ...deps };
+  if (!temEdicao(entrada.resumo.kind)) throw new TrocaRecusada(SEM_EDICAO);
+  if (!d.acervoCarregado()) throw new TrocaRecusada(SEM_ACERVO);
+  const atividades = atividadesDoPeriodo(d.atividades(), entrada);
+  if (atividades.length === 0) return [];
+  const fotos = await d.buscarFotos(atividades.map((a) => a.id));
+  return secoesDoSeletor(fotos, atividades);
+}
+
+/**
+ * Troca a capa desta edição pela foto que o dono escolheu — e **só a capa**.
+ *
+ * Pela **mesma porta** do carimbo (`carimbar` → `gravarCapa`, upsert pela chave da
+ * edição): identidade nova, legenda recalculada com as cidades do período, motivo
+ * `trocada` e `carimbada_em` novo. O texto, a ordem, as assinaturas, a errata e a
+ * manchete são de `edicoes_ia`, e nada aqui os toca.
+ *
+ * **Ao contrário de {@link carimbarCapa}, rejeita** — a troca é ato do dono e
+ * falha em voz alta. Recusa antes do banco o período sem edição, o acervo que não
+ * chegou e a foto de atividade fora do período (`TrocaRecusada`), e a foto que o
+ * núcleo não aceita como capa (`FotoRecusadaNaTroca`); e propaga a falha da
+ * gravação como veio.
+ */
+export async function trocarCapa(
+  userId: string,
+  entrada: EntradaPacote,
+  foto: ActivityPhoto,
+  deps: Partial<DepsDoCarimbo> = {},
+): Promise<Capa> {
+  const d: DepsDoCarimbo = { ...depsDoCarimbo(userId), ...deps };
+  const { kind, startISO, endISO } = entrada.resumo;
+  if (!temEdicao(kind)) throw new TrocaRecusada(SEM_EDICAO);
+  if (!d.acervoCarregado()) throw new TrocaRecusada(SEM_ACERVO);
+  const atividades = atividadesDoPeriodo(d.atividades(), entrada);
+  if (!atividades.some((a) => a.id === foto.activityId)) throw new TrocaRecusada(FORA_DO_PERIODO);
+  const capa = capaTrocada(
+    { tipoPeriodo: kind, inicio: startISO, fim: endISO, rotulo: d.rotulo(kind, startISO) },
+    foto,
+    cidadesDoPeriodo(atividades),
+  );
+  return d.carimbar(capa);
+}
+
+/**
+ * O título da capa aberta e do seletor — `"A capa de julho de 2026"`.
+ *
+ * O mês entra em minúscula, como se escreve no meio da frase; semana, estação e ano
+ * ficam com o rótulo da edição (`"A capa de Q3 2026"`), que não tem minúscula
+ * a dar.
+ */
+export function tituloDaCapa(tipo: TipoComEdicao, inicio: string): string {
+  const d = diaLocal(inicio);
+  if (tipo === 'month') return `A capa de ${MESES_COMPLETOS[d.getMonth()].toLowerCase()} de ${d.getFullYear()}`;
+  return `A capa de ${rotuloDaEdicao(tipo, inicio)}`;
 }
 
 /* ── a impressão ─────────────────────────────────────────────────────────── */
@@ -125,8 +402,15 @@ export interface DepsDaImpressao {
   readonly agora: () => Date;
   /** A escolha do dono para a Retrospectiva, neste aparelho, ou `null`. Nunca lança. */
   readonly lerPreferencia: () => Promise<MotorId | null>;
-  /** Os ids que o app conhece — disponíveis ou não. */
-  readonly catalogo: readonly string[];
+  /**
+   * Os ids que o app conhece — disponíveis ou não. **Nunca lança**, como
+   * `lerPreferencia`: quem não puder cumprir isso devolve o catálogo estático.
+   *
+   * Função assíncrona desde a 5.6: parte do catálogo é a lista de motores de
+   * nuvem aprovados, que vem do servidor (ADR 0048) e não existe antes de alguém
+   * perguntar.
+   */
+  readonly catalogo: () => Promise<readonly string[]>;
 }
 
 function depsDoApp(userId: string): DepsDaImpressao {
@@ -137,7 +421,7 @@ function depsDoApp(userId: string): DepsDaImpressao {
     registrar: anel.registrar,
     agora: () => new Date(),
     lerPreferencia: () => lerPreferencia(descritorDaRetrospectiva.recurso),
-    catalogo: idsConhecidos,
+    catalogo: () => catalogoDoRecurso(descritorDaRetrospectiva.recurso),
   };
 }
 
@@ -155,7 +439,15 @@ export async function imprimirEdicao(
   deps: Partial<DepsDaImpressao> = {},
 ): Promise<ResultadoDaImpressao<Edicao>> {
   const d: DepsDaImpressao = { ...depsDoApp(userId), ...deps };
-  const cadeia = resolverCadeia(descritorDaRetrospectiva, await d.lerPreferencia(), d.catalogo);
+  // A rede das duas leituras: o contrato diz "nunca lança", mas a impressão já
+  // avisou a tela que começou (`aoComecar`), e uma rejeição aqui a deixaria em
+  // "imprimindo" para sempre. O catálogo estático é sempre um desfecho seguro —
+  // `resolverCadeia` trata a preferência ausente como o padrão do recurso.
+  const [preferencia, catalogo] = await Promise.all([
+    d.lerPreferencia().catch(() => null),
+    d.catalogo().catch(() => idsConhecidos),
+  ]);
+  const cadeia = resolverCadeia(descritorDaRetrospectiva, preferencia, catalogo);
   return imprimir(entrada, d.portas, {
     cadeia,
     motorPara: d.motorPara,

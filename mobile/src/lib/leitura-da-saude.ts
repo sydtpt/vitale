@@ -56,8 +56,8 @@ import {
 } from '@vitale/shared';
 import { AUSENCIA_POR_DEFEITO, REPOUSO, quemNaoEscreveu, type EstadoDaLeitura } from './assinatura';
 import { anel } from './motores/anel';
+import { catalogoDoRecurso, motorPara } from './motores';
 import { idsConhecidos } from './motores/catalogo';
-import { motorPara } from './motores';
 import { lerPreferencia } from './motores/preferencia';
 
 /* ── a identidade da janela ──────────────────────────────────────────────── */
@@ -93,8 +93,19 @@ export interface DepsDoLeitor {
   readonly agora: () => Date;
   /** A escolha do dono para este recurso, ou `null`. Nunca lança. */
   readonly lerPreferencia: () => Promise<MotorId | null>;
-  /** Os ids que o hospedeiro conhece — disponíveis ou não. */
-  readonly catalogo: readonly string[];
+  /**
+   * Os ids que o hospedeiro conhece — disponíveis ou não. **Nunca lança**, como
+   * `lerPreferencia`: uma rejeição aqui prenderia a vaga em "escrevendo" para
+   * sempre, porque ela já foi publicada antes desta espera (é o toque do dono).
+   * Quem não puder cumprir isso devolve o catálogo estático.
+   *
+   * É uma função, e assíncrona, desde a 5.6: parte do catálogo vem do servidor
+   * (a lista de motores de nuvem aprovados, ADR 0048) e não existe no momento em
+   * que o leitor é construído. Resolver a cadeia antes de perguntar descartaria
+   * calada a preferência que só a lista conhece — o dono escolheria um motor e
+   * leria a frase do padrão, sem nada explicando.
+   */
+  readonly catalogo: () => Promise<readonly string[]>;
   /**
    * O recurso lido. O app não passa nada: é sempre a Saúde do sono.
    *
@@ -148,8 +159,22 @@ export function criarLeitor(deps: DepsDoLeitor): Leitor {
     // armazenamento. A vaga já entra em espera: é o toque do dono.
     publicar(chave, { fase: 'escrevendo' });
 
-    const preferencia = await deps.lerPreferencia();
-    const cadeia = resolverCadeia(descritor, preferencia, deps.catalogo);
+    // A preferência (do disco) e o catálogo (do disco mais o servidor) em
+    // paralelo: são independentes, e a espera do dono já começou.
+    //
+    // **A rede está aqui, e não é redundante com a invariante das deps.** A vaga
+    // já foi publicada em `escrevendo` na linha acima: uma rejeição neste `await`
+    // sairia por fora do `try` de baixo, deixaria a tela em "escrevendo" para
+    // sempre e viraria uma rejeição não tratada. É a família de bug que já mordeu
+    // este repositório uma vez ("a janela da retro que não destrava"). Cair no
+    // catálogo estático é sempre seguro: `resolverCadeia` trata a preferência que
+    // ele não contém como ausente e usa o padrão do recurso, que nunca sobe
+    // exposição.
+    const [preferencia, catalogo] = await Promise.all([
+      deps.lerPreferencia().catch(() => null),
+      deps.catalogo().catch(() => idsConhecidos),
+    ]);
+    const cadeia = resolverCadeia(descritor, preferencia, catalogo);
     // Quem o dono escolheu (ou o padrão do recurso). `sem-modelo` quando a cadeia
     // só tem o piso — e aí a assinatura diz "escrito sem modelo", sem motivo.
     const escolhido: MotorId = cadeia.find((id) => id !== SEM_MODELO) ?? SEM_MODELO;
@@ -277,7 +302,7 @@ function depsDoApp(): DepsDoLeitor {
     registrar: anel.registrar,
     agora: () => new Date(),
     lerPreferencia: () => lerPreferencia(descritorDaSaudeDoSono.recurso),
-    catalogo: idsConhecidos,
+    catalogo: () => catalogoDoRecurso(descritorDaSaudeDoSono.recurso),
   };
 }
 

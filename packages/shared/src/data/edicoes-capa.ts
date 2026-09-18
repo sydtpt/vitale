@@ -2,8 +2,14 @@
  * Acesso à tabela `edicoes_capa` — dono único (AD-4).
  * AD-3 da espinha da revista · Story 1.9 cria a forma, a Story 1.13 carimba.
  *
- * **Só leitura aqui, de propósito.** O carimbo é da 1.13, e escrever antes dela
- * poria capa em cima de uma edição que a 1.10 ainda não sabe imprimir.
+ * **A Story 1.13 abriu a escrita** ({@link gravarCapa}). Quem *decide* a capa é o
+ * núcleo (`revista/capa.ts`), quem a *grava* é esta porta, e quem a chama é a
+ * impressão **inteira** — a parcial não toca capa existente.
+ *
+ * **A Story 1.16 acrescentou o porquê** ({@link MotivoDaCapa}) e a atividade da
+ * foto, e um segundo chamador: a **troca** que o dono faz na ficha da capa. Ela
+ * passa pela mesma porta — mesma guarda de sessão, mesmo carimbo de hora —, e
+ * recarimba a capa e só: o texto, a ordem e as assinaturas da edição não mudam.
  *
  * ## Por que tabela, e não coluna em `edicoes_ia`
  *
@@ -22,6 +28,7 @@
  * e servindo de descrição textual, mesmo quando a imagem não resolve mais.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ContaTrocadaNaImpressao, type TipoComEdicao } from './edicoes-ia';
 
 /**
  * As três naturezas de capa, e a terceira não é sobra.
@@ -46,6 +53,34 @@ export function isNaturezaDaCapa(v: unknown): v is NaturezaDaCapa {
   return typeof v === 'string' && (NATUREZAS_DA_CAPA as readonly string[]).includes(v);
 }
 
+/**
+ * **Por que** esta capa (Story 1.16) — carimbado junto com ela, nunca re-derivado.
+ *
+ * O porquê não pode ser reconstruído depois: `coverOf` lê `isCover` e o vínculo,
+ * e os dois mudam depois da impressão. Perguntar em outubro "a foto tinha
+ * estrela?" responderia sobre outubro. Por isso ele sai **da escolha**, no instante
+ * em que ela acontece, e fica gravado como valor.
+ *
+ * - `estrela` — a foto escolhida tinha a estrela do dono (ela vence a regra do app);
+ * - `rajada` — o meio da maior rajada do período, sem estrela nenhuma;
+ * - `unica` — era a única foto elegível e vinculada do período;
+ * - `trocada` — o dono trocou a capa na ficha: ato dele, não escolha do app;
+ * - `sem-foto` — natureza `tracado` ou `grade`: não havia foto que fosse capa.
+ */
+export type MotivoDaCapa = 'estrela' | 'rajada' | 'unica' | 'trocada' | 'sem-foto';
+
+/**
+ * Os cinco, como valor — é esta lista que o CHECK de `edicoes_capa.motivo` repete,
+ * e é contra ela que a barreira do `architecture.test.ts` cobra o banco, no molde
+ * de {@link NATUREZAS_DA_CAPA}.
+ */
+export const MOTIVOS_DA_CAPA: readonly MotivoDaCapa[] =
+  Object.freeze(['estrela', 'rajada', 'unica', 'trocada', 'sem-foto']);
+
+export function isMotivoDaCapa(v: unknown): v is MotivoDaCapa {
+  return typeof v === 'string' && (MOTIVOS_DA_CAPA as readonly string[]).includes(v);
+}
+
 /** Linha como o PostgREST a devolve (snake_case). */
 export interface CapaRow {
   user_id: string;
@@ -58,6 +93,9 @@ export interface CapaRow {
   rota_activity_id: string | null;
   legenda: string;
   carimbada_em: string;
+  /** Nulo nas capas carimbadas antes da Story 1.16 — e só nelas. */
+  motivo: string | null;
+  foto_activity_id: string | null;
 }
 
 export interface Capa {
@@ -79,11 +117,27 @@ export interface Capa {
   /** Já formatada — "Ittre · km 31,1 · 12:38". Não são três campos. */
   legenda: string;
   carimbadaEm: string;
+  /**
+   * Por que esta capa — ver {@link MotivoDaCapa}.
+   *
+   * **`null` é declaração, não esquecimento**: a capa foi carimbada antes da Story
+   * 1.16, quando o app ainda não guardava o porquê. Ele não é reconstruído — a
+   * ficha diz exatamente isso.
+   */
+  motivo: MotivoDaCapa | null;
+  /**
+   * A atividade da foto da capa (`activities.id`) — só na natureza `foto`.
+   *
+   * É o que a ficha usa para dizer em que atividade a foto foi tirada e por onde a
+   * rota passou. Nulo quando a foto já tinha saído do acervo no backfill da
+   * migração, ou nas naturezas sem foto.
+   */
+  fotoActivityId: string | null;
 }
 
 /** Ver a nota de `EDICAO_COLUMNS`: coluna esquecida aqui vira `undefined` na tela. */
 export const CAPA_COLUMNS = 'user_id,tipo_periodo,inicio,fim,natureza,foto_id,foto_taken_at,'
-  + 'rota_activity_id,legenda,carimbada_em';
+  + 'rota_activity_id,legenda,carimbada_em,motivo,foto_activity_id';
 
 const COLUMNS = CAPA_COLUMNS;
 
@@ -103,6 +157,15 @@ export function toCapa(r: CapaRow): Capa {
       + `${NATUREZAS_DA_CAPA.join(', ')}, e o CHECK de edicoes_capa.natureza deveria ter recusado esta.`,
     );
   }
+  // O motivo, pela mesma régua: nulo é a capa anterior à 1.16 e passa; um valor
+  // fora da lista é um estado que o CHECK afirma impossível, e explode aqui em vez
+  // de virar uma ficha que diz a frase errada.
+  if (r.motivo !== null && !isMotivoDaCapa(r.motivo)) {
+    throw new Error(
+      `motivo de capa desconhecido: ${JSON.stringify(r.motivo)} — os cinco são `
+      + `${MOTIVOS_DA_CAPA.join(', ')}, e o CHECK de edicoes_capa.motivo deveria ter recusado este.`,
+    );
+  }
   return {
     tipoPeriodo: r.tipo_periodo,
     inicio: r.inicio,
@@ -113,6 +176,8 @@ export function toCapa(r: CapaRow): Capa {
     rotaActivityId: r.rota_activity_id,
     legenda: r.legenda,
     carimbadaEm: r.carimbada_em,
+    motivo: r.motivo,
+    fotoActivityId: r.foto_activity_id,
   };
 }
 
@@ -140,4 +205,91 @@ export async function fetchCapa(
     .maybeSingle();
   if (error) throw error;
   return data ? toCapa(data as unknown as CapaRow) : null;
+}
+
+/**
+ * A capa **decidida**, à espera do carimbo — o que `escolherCapa`
+ * (`revista/capa.ts`) devolve e o que {@link gravarCapa} grava.
+ *
+ * É {@link Capa} menos o `carimbadaEm`, e a falta não é descuido: a hora do
+ * carimbo é do ato de gravar, não da escolha. Quem a escolhesse antes gravaria o
+ * instante em que o app montou a linha, que numa impressão de um minuto e meio
+ * não é o mesmo instante.
+ */
+export interface CapaACarimbar {
+  tipoPeriodo: TipoComEdicao;
+  inicio: string;
+  fim: string;
+  natureza: NaturezaDaCapa;
+  fotoId: string | null;
+  fotoTakenAt: string | null;
+  rotaActivityId: string | null;
+  legenda: string;
+  /**
+   * **Nunca nulo aqui**, ao contrário de {@link Capa.motivo}: toda capa carimbada
+   * a partir da 1.16 sabe por que foi escolhida. O nulo da coluna é só das duas
+   * capas anteriores, e do build antigo, que grava sem a coluna.
+   */
+  motivo: MotivoDaCapa;
+  fotoActivityId: string | null;
+}
+
+/**
+ * Carimba a capa de uma edição — a **única** escrita em `edicoes_capa`.
+ *
+ * `upsert` pela chave da edição, e não `insert`: reimprimir a edição inteira
+ * recarimba a mesma linha. O `carimbada_em` é escrito **à mão**, e não deixado ao
+ * `default now()` da coluna: o padrão só vale na inserção, então o caminho de
+ * atualização guardaria para sempre a hora da primeira impressão — e a capa
+ * diria que é de agosto quando foi reescrita em outubro.
+ *
+ * **O dono é conferido antes de gravar**, com a mesma guarda de `portasDaEdicao`
+ * e pelo mesmo motivo: a impressão leva um minuto ou mais, a linha vai para
+ * `auth.uid()` pela RLS, e se a conta trocar nesse meio a capa escolhida sobre as
+ * fotos de um dono cairia na edição do outro. Erra alto — {@link
+ * ContaTrocadaNaImpressao} —, sem chamar o banco.
+ *
+ * **Quem decide se a falha é tolerável é o chamador.** A impressão a engole:
+ * carimbar não é atômico com ela (decisão do dono, 17/09: ensinar
+ * `edicao_imprimir` a receber capa é migração em produção), então se esta função
+ * lançar a edição fica sem capa, o motivo vai para o log do hospedeiro e a
+ * próxima impressão inteira recarimba — perda recuperável. A **troca** (1.16), ao
+ * contrário, é ato do dono e falha em voz alta. Por isso esta função **lança**, em
+ * vez de devolver nulo: um nulo calado aqui esconderia o motivo dos dois.
+ */
+export async function gravarCapa(
+  db: SupabaseClient,
+  userId: string,
+  capa: CapaACarimbar,
+): Promise<Capa> {
+  const sessao = await db.auth.getSession();
+  if (sessao.error) throw sessao.error;
+  const naSessao = sessao.data.session?.user?.id ?? null;
+  if (naSessao !== userId) throw new ContaTrocadaNaImpressao(userId, naSessao);
+
+  const { data, error } = await db
+    .from('edicoes_capa')
+    .upsert(
+      {
+        user_id: userId,
+        tipo_periodo: capa.tipoPeriodo,
+        inicio: capa.inicio,
+        fim: capa.fim,
+        natureza: capa.natureza,
+        foto_id: capa.fotoId,
+        foto_taken_at: capa.fotoTakenAt,
+        rota_activity_id: capa.rotaActivityId,
+        legenda: capa.legenda,
+        carimbada_em: new Date().toISOString(),
+        // As duas da 1.16. Escritas SEMPRE, também na troca: um upsert que as
+        // omitisse deixaria o motivo da capa anterior na linha nova.
+        motivo: capa.motivo,
+        foto_activity_id: capa.fotoActivityId,
+      },
+      { onConflict: 'user_id,tipo_periodo,inicio,fim' },
+    )
+    .select(COLUMNS)
+    .single();
+  if (error) throw error;
+  return toCapa(data as unknown as CapaRow);
 }

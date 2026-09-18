@@ -23,7 +23,10 @@ const mockBanco: {
   pedidos: { tabela: string; filtros: Record<string, unknown> }[];
   linhas: Record<string, unknown>[];
   erro: Error | null;
-} = { pedidos: [], linhas: [], erro: null };
+  /** A linha de `edicoes_capa`, lida por `maybeSingle`. */
+  capa: Record<string, unknown> | null;
+  erroDaCapa: Error | null;
+} = { pedidos: [], linhas: [], erro: null, capa: null, erroDaCapa: null };
 
 jest.mock('../supabase', () => ({
   supabase: {
@@ -37,6 +40,12 @@ jest.mock('../supabase', () => ({
           data: mockBanco.erro ? null : mockBanco.linhas,
           error: mockBanco.erro,
         }),
+        // A capa é a única leitura por `maybeSingle`: a chave dela é a edição
+        // inteira, então uma linha é o máximo que existe.
+        maybeSingle: async () => ({
+          data: mockBanco.erroDaCapa ? null : mockBanco.capa,
+          error: mockBanco.erroDaCapa,
+        }),
       };
       return alvo;
     },
@@ -44,16 +53,27 @@ jest.mock('../supabase', () => ({
 }));
 
 // O ponto de injeção constrói o motor de nuvem na carga; aqui ninguém chama nuvem.
-jest.mock('../motores', () => ({ motorPara: () => undefined }));
+// O ponto de injeção inteiro é falso aqui: o motor vem das deps de cada teste, e
+// o catálogo é o que o app conhece **sem** a lista do servidor. Sem o segundo, o
+// `depsDoApp` dos dois testes que passam só `portas` e `motorPara` iria à rede
+// atrás da lista aprovada — que é a única coisa que esta suíte não pode fazer.
+jest.mock('../motores', () => ({
+  motorPara: () => undefined,
+  catalogoDoRecurso: async () =>
+    (jest.requireActual('../motores/catalogo') as { idsConhecidos: readonly string[] }).idsConhecidos,
+}));
 
 import {
   APARELHO_SISTEMA,
   CADERNO_IDS,
   CLASSES_DE_FALHA,
+  FotoRecusadaNaTroca,
   LAPIDES,
   METRICAS_COM_LAPIDE,
   NUVEM_PADRAO,
   SEM_MODELO,
+  type Activity,
+  type ActivityPhoto,
   type CadernoId,
   type Causa,
   type DesfechoDoCaderno,
@@ -70,7 +90,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ICONE_DO_CADERNO,
   assinaturaDoCaderno,
+  atividadesDoPeriodo,
   buscarEdicao,
+  carimbarCapa,
+  cidadesDoPeriodo,
+  fotosParaCapa,
+  TrocaRecusada,
+  tituloDaCapa,
+  trocarCapa,
   classeDoDesfecho,
   comDadoDaEntrada,
   hrefDaRevista,
@@ -90,6 +117,7 @@ import {
 } from '../edicao-ia';
 import { idsConhecidos } from '../motores/catalogo';
 import { gravarPreferencia } from '../motores/preferencia';
+import { useActivitiesStore } from '../../store/activities.store';
 
 /**
  * O relógio: 6 de setembro, 19h. Agosto fechou; setembro, não.
@@ -139,10 +167,31 @@ function linha(caderno: string, posicao: number): Record<string, unknown> {
   };
 }
 
+/** Uma linha de `edicoes_capa` como o PostgREST a devolve. */
+function linhaDeCapa(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    user_id: 'u-1',
+    tipo_periodo: 'month',
+    inicio: '2026-08-01',
+    fim: '2026-08-31',
+    natureza: 'foto',
+    foto_id: 'f1e2d3c4-0000-4000-8000-000000000001',
+    foto_taken_at: '2026-08-14T12:38:00.000Z',
+    rota_activity_id: null,
+    legenda: 'Ittre \u00b7 km 31,1 \u00b7 12:38',
+    carimbada_em: '2026-09-01T00:00:00.000Z',
+    motivo: 'rajada',
+    foto_activity_id: 'a-1',
+    ...over,
+  };
+}
+
 beforeEach(() => {
   mockBanco.pedidos.length = 0;
   mockBanco.linhas = [];
   mockBanco.erro = null;
+  mockBanco.capa = null;
+  mockBanco.erroDaCapa = null;
 });
 
 describe('buscarEdicao — ausência antes da consulta', () => {
@@ -172,17 +221,79 @@ describe('buscarEdicao — ausência antes da consulta', () => {
 });
 
 describe('buscarEdicao — o que o banco responde', () => {
-  it('período fechado e sem linha devolve edição vazia', async () => {
+  it('período fechado e sem linha devolve edição vazia, e capa nula', async () => {
     const r = await buscarEdicao('u-1', entrada());
-    expect(r).toEqual({ estado: 'ok', edicao: [] });
-    expect(mockBanco.pedidos).toHaveLength(1);
-    expect(mockBanco.pedidos[0].tabela).toBe('edicoes_ia');
-    expect(mockBanco.pedidos[0].filtros).toEqual({
-      user_id: 'u-1',
-      tipo_periodo: 'month',
-      inicio: '2026-08-01',
-      fim: '2026-08-31',
+    expect(r).toEqual({ estado: 'ok', edicao: [], capa: null });
+    // Duas consultas: a edição e a capa — a chave é a mesma nas duas tabelas.
+    expect(mockBanco.pedidos.map((p) => p.tabela).sort()).toEqual(['edicoes_capa', 'edicoes_ia']);
+    for (const p of mockBanco.pedidos) {
+      expect(p.filtros).toEqual({
+        user_id: 'u-1',
+        tipo_periodo: 'month',
+        inicio: '2026-08-01',
+        fim: '2026-08-31',
+      });
+    }
+  });
+
+  it('a capa carimbada vem junto, já mapeada', async () => {
+    mockBanco.capa = linhaDeCapa();
+    const r = await buscarEdicao('u-1', entrada());
+    if (r.estado !== 'ok') throw new Error(r.estado);
+    expect(r.capa).toMatchObject({
+      natureza: 'foto',
+      fotoId: 'f1e2d3c4-0000-4000-8000-000000000001',
+      fotoTakenAt: '2026-08-14T12:38:00.000Z',
+      legenda: 'Ittre \u00b7 km 31,1 \u00b7 12:38',
+      // O porquê e a atividade da foto (1.16) atravessam a leitura.
+      motivo: 'rajada',
+      fotoActivityId: 'a-1',
     });
+  });
+
+  /** As duas capas de produção: carimbadas antes da 1.16, o motivo nulo passa. */
+  it('capa anterior à 1.16 — motivo nulo — é lida, e não recusada', async () => {
+    mockBanco.capa = linhaDeCapa({ motivo: null });
+    const r = await buscarEdicao('u-1', entrada());
+    if (r.estado !== 'ok') throw new Error(r.estado);
+    expect(r.capa?.motivo).toBeNull();
+    expect(r.capa?.natureza).toBe('foto');
+  });
+
+  /**
+   * A edição é o produto; a capa é como ele se apresenta. Uma falha ao ler a capa
+   * não pode esconder o texto — a rota cai para a capa em papel e segue.
+   */
+  it('falha ao ler a capa vira capa nula, e NÃO derruba a edição', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockBanco.erroDaCapa = new Error('rls na capa');
+    mockBanco.linhas = [linha('movimento', 1)];
+    const r = await buscarEdicao('u-1', entrada());
+    if (r.estado !== 'ok') throw new Error(r.estado);
+    expect(r.capa).toBeNull();
+    expect(r.edicao.map((c) => c.caderno)).toEqual(['movimento']);
+    // A MENSAGEM vai para o log, não só o objeto: é o que separa os dois motivos.
+    expect(warn).toHaveBeenCalledWith(expect.any(String), 'rls na capa');
+    warn.mockRestore();
+  });
+
+  /**
+   * Uma `natureza` que o `toCapa` recusa é **linha estragada no banco** — algo que
+   * o `CHECK` afirma impossível —, e pede trabalho diferente de uma rede que caiu.
+   * Registrada como "falha ao ler" e mais nada, ela ficaria escondida atrás da
+   * outra para sempre; a degradação para papel continua a mesma.
+   */
+  it('linha de capa que o núcleo recusa vira capa nula, com o motivo no log', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockBanco.capa = linhaDeCapa({ natureza: 'mapa' });
+    const r = await buscarEdicao('u-1', entrada());
+    if (r.estado !== 'ok') throw new Error(r.estado);
+    expect(r.capa).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('natureza de capa desconhecida'),
+    );
+    warn.mockRestore();
   });
 
   it('devolve os cadernos na ordem que o banco entregou', async () => {
@@ -280,7 +391,9 @@ function depsFalsas(
     registrar: () => undefined,
     agora: () => new Date(Date.UTC(2026, 8, 16, 9, 0, 0)),
     lerPreferencia: async () => o.preferencia ?? null,
-    catalogo: idsConhecidos,
+    // Assíncrono desde a 5.6: parte do catálogo vem do servidor. Aqui é o que o
+    // app conhece sozinho — nenhum teste desta suíte abre rede.
+    catalogo: async () => idsConhecidos,
   };
   return { deps, gravacoes, buscas, nuvem, pedidosA };
 }
@@ -796,5 +909,380 @@ describe('lapidesDaEntrada — a resposta do núcleo, e a recusa engolida', () =
     // Em ordem de data, e não na de quem chamou.
     expect(r.coracao.map((l) => l.metrica)).toEqual(['respiracao', 'spo2']);
     expect(r.coracao.every((l) => !l.doPeriodo)).toBe(true);
+  });
+});
+
+/* ── o carimbo da capa (Story 1.13) ──────────────────────────────────────── */
+
+/**
+ * A LIGAÇÃO: quem escolhe é o núcleo (`revista/capa.test.ts` cobre a escolha), e
+ * o que se mede aqui é o que o app entrega a ela — as atividades do período, as
+ * cidades delas, o rótulo — e a promessa que a impressão depende: **nunca
+ * rejeitar**.
+ */
+function entradaDeAgosto(): EntradaPacote {
+  return {
+    resumo: { kind: 'month', offset: -1, startISO: '2026-08-01', endISO: '2026-08-31' },
+    agora: AGORA,
+  } as unknown as EntradaPacote;
+}
+
+function atividade(over: Partial<Activity> = {}): Activity {
+  return {
+    id: 'a-1',
+    userId: 'u-1',
+    activityId: 13,
+    calories: 900,
+    startAt: '2026-08-14T09:00:00.000Z',
+    endAt: '2026-08-14T12:00:00.000Z',
+    durationS: 10_800,
+    distanceM: 62_400,
+    hasRoute: true,
+    cities: [{ name: 'Ittre', lat: 50.64, lng: 4.26 }],
+    ...over,
+  };
+}
+
+describe('atividadesDoPeriodo — a MESMA lista que a tira da Retrospectiva usa', () => {
+  it('fica com o que caiu no período, e descarta o resto', () => {
+    const dentro = atividade({ id: 'dentro', startAt: '2026-08-14T09:00:00.000Z' });
+    const antes = atividade({ id: 'antes', startAt: '2026-07-31T09:00:00.000Z' });
+    const depois = atividade({ id: 'depois', startAt: '2026-09-02T09:00:00.000Z' });
+    const r = atividadesDoPeriodo([antes, dentro, depois], entradaDeAgosto());
+    expect(r.map((a) => a.id)).toEqual(['dentro']);
+  });
+
+  it('data impossível não vira atividade do período', () => {
+    expect(atividadesDoPeriodo([atividade({ startAt: 'não é data' })], entradaDeAgosto())).toEqual([]);
+  });
+});
+
+describe('cidadesDoPeriodo — o acervo da legenda', () => {
+  it('junta as cidades de todas as rotas, sem repetir nome', () => {
+    const r = cidadesDoPeriodo([
+      atividade({ id: 'a', cities: [{ name: 'Ittre', lat: 50.64, lng: 4.26 }] }),
+      atividade({ id: 'b', cities: [{ name: 'Ittre', lat: 50.64, lng: 4.26 }, { name: 'Leuven', lat: 50.88, lng: 4.7 }] }),
+      atividade({ id: 'c', cities: undefined }),
+    ]);
+    expect(r.map((c) => c.name)).toEqual(['Ittre', 'Leuven']);
+  });
+});
+
+/** O acervo como a store o entrega — carregado, com o que se pedir dentro. */
+function semearAcervo(atividades: Activity[]): void {
+  useActivitiesStore.setState({ _all: atividades, loaded: true, loading: false });
+}
+
+describe('carimbarCapa — o acervo de atividades', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState({ _all: [], loaded: false, loading: false });
+  });
+
+  /**
+   * **Store vazia não é período vazio.** Sem a guarda, uma carga em voo (ou uma que
+   * falhou) faria o agosto cheio de pedaladas ser carimbado como `grade` — a capa
+   * do período em que nada aconteceu —, e a natureza congela: só uma impressão
+   * nova corrige. Não saber é motivo para não gravar.
+   */
+  it('acervo que não carregou NÃO carimba — nem como grade', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    let gravou = false;
+    const r = await carimbarCapa('u-1', entradaDeAgosto(), {
+      buscarFotos: async () => [],
+      carimbar: async (capa) => { gravou = true; return { ...capa, carimbadaEm: 'x' }; },
+    });
+    expect(r).toBeNull();
+    expect(gravou).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('com o acervo carregado, carimba pelas atividades da store', async () => {
+    semearAcervo([atividade({ id: 'de-agosto' })]);
+    const pedidos: string[][] = [];
+    const r = await carimbarCapa('u-1', entradaDeAgosto(), {
+      buscarFotos: async (ids) => { pedidos.push([...ids]); return []; },
+      carimbar: async (capa) => ({ ...capa, carimbadaEm: 'x' }),
+    });
+    expect(pedidos).toEqual([['de-agosto']]);
+    expect(r?.natureza).toBe('tracado');
+    expect(r?.rotaActivityId).toBe('de-agosto');
+  });
+
+  /**
+   * O que o dono escondeu não escolhe a capa nem vira o traçado. Em toda outra tela
+   * esconder é imediato e reversível; aqui o efeito ficaria **carimbado**, e
+   * desfazer exigiria reimprimir a edição inteira.
+   */
+  it('atividade escondida não escolhe a capa', async () => {
+    semearAcervo([
+      atividade({ id: 'escondida', hidden: true, distanceM: 200_000 }),
+      atividade({ id: 'visivel', distanceM: 40_000 }),
+    ]);
+    const r = await carimbarCapa('u-1', entradaDeAgosto(), {
+      buscarFotos: async () => [],
+      carimbar: async (capa) => ({ ...capa, carimbadaEm: 'x' }),
+    });
+    expect(r?.rotaActivityId).toBe('visivel');
+  });
+
+  it('acervo carregado e vazio É um período vazio: carimba a grade', async () => {
+    semearAcervo([]);
+    const r = await carimbarCapa('u-1', entradaDeAgosto(), {
+      buscarFotos: async () => [],
+      carimbar: async (capa) => ({ ...capa, carimbadaEm: 'x' }),
+    });
+    expect(r?.natureza).toBe('grade');
+  });
+});
+
+describe('carimbarCapa — a ligação, e a promessa de nunca rejeitar', () => {
+  it('escolhe sobre as fotos do período e grava a capa', async () => {
+    const gravadas: unknown[] = [];
+    const r = await carimbarCapa('u-1', entradaDeAgosto(), {
+      acervoCarregado: () => true,
+      atividades: () => [atividade()],
+      buscarFotos: async (ids) => {
+        expect([...ids]).toEqual(['a-1']);
+        return [{
+          id: 'p-1', activityId: 'a-1', assetId: 'ph-1',
+          takenAt: new Date(2026, 7, 14, 12, 38, 0).getTime(),
+          lat: 50.641, lng: 4.262, mediaType: 'photo', durationS: null,
+          routeIndex: 1, routeDistanceM: 31_100, offsetM: 4, onRoute: true,
+          state: 'linked', isCover: false,
+        }];
+      },
+      carimbar: async (capa) => {
+        gravadas.push(capa);
+        return { ...capa, carimbadaEm: '2026-09-06T19:00:00.000Z' };
+      },
+    });
+    expect(gravadas).toEqual([{
+      tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+      natureza: 'foto', fotoId: 'p-1',
+      fotoTakenAt: new Date(2026, 7, 14, 12, 38, 0).toISOString(),
+      rotaActivityId: null,
+      legenda: 'Ittre · km 31,1 · 12:38',
+      // Uma foto só no período: o porquê é "única", e a atividade dela vai junto (1.16).
+      motivo: 'unica',
+      fotoActivityId: 'a-1',
+    }]);
+    expect(r?.carimbadaEm).toBe('2026-09-06T19:00:00.000Z');
+  });
+
+  it('sem atividade no período não consulta fotos, e a capa é a grade', async () => {
+    let consultou = false;
+    const r = await carimbarCapa('u-1', entradaDeAgosto(), {
+      acervoCarregado: () => true,
+      atividades: () => [],
+      buscarFotos: async () => { consultou = true; return []; },
+      carimbar: async (capa) => ({ ...capa, carimbadaEm: 'x' }),
+    });
+    expect(consultou).toBe(false);
+    expect(r?.natureza).toBe('grade');
+    // A legenda da grade é o período por extenso — o rótulo da própria rota.
+    expect(r?.legenda).toBe('Agosto de 2026');
+  });
+
+  /**
+   * A promessa de que a impressão depende: uma falha de capa não pode virar
+   * "a impressão não terminou" sobre um texto que ficou gravado.
+   */
+  it('NUNCA rejeita — a falha vira null e vai para o log', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const deps of [
+      { atividades: () => { throw new Error('store'); } },
+      { buscarFotos: async () => { throw new Error('rede'); } },
+      { carimbar: async () => { throw new Error('rls'); } },
+    ]) {
+      const r = await carimbarCapa('u-1', entradaDeAgosto(), {
+        acervoCarregado: () => true,
+        atividades: () => [atividade()],
+        buscarFotos: async () => [],
+        carimbar: async (capa) => ({ ...capa, carimbadaEm: 'x' }),
+        ...deps,
+      });
+      expect(r).toBeNull();
+    }
+    expect(warn).toHaveBeenCalledTimes(3);
+    warn.mockRestore();
+  });
+
+  it("período que nunca tem edição não carimba — o Total não tem capa", async () => {
+    let gravou = false;
+    const r = await carimbarCapa('u-1', {
+      resumo: { kind: 'all', offset: 0, startISO: '2020-01-01', endISO: '2026-08-31' },
+      agora: AGORA,
+    } as unknown as EntradaPacote, {
+      acervoCarregado: () => true,
+      atividades: () => [atividade()],
+      buscarFotos: async () => [],
+      carimbar: async (capa) => { gravou = true; return { ...capa, carimbadaEm: 'x' }; },
+    });
+    expect(r).toBeNull();
+    expect(gravou).toBe(false);
+  });
+});
+
+/* ── a troca da capa (Story 1.16) ────────────────────────────────────────── */
+
+/**
+ * As duas portas da troca. Quem decide o que é capa, agrupa e recalcula a
+ * legenda é o núcleo (`revista/capa.test.ts`); aqui se mede a LIGAÇÃO — as
+ * atividades do período, o acervo carregado, a foto fora do período — e a
+ * diferença para o carimbo: **a troca rejeita**, em voz alta.
+ */
+function fotoDaTroca(over: Partial<ActivityPhoto> = {}): ActivityPhoto {
+  return {
+    id: 'p-9', activityId: 'a-1', assetId: 'ph-9',
+    takenAt: new Date(2026, 7, 14, 15, 22, 0).getTime(),
+    lat: 50.641, lng: 4.262, mediaType: 'photo', durationS: null,
+    routeIndex: 1, routeDistanceM: 62_400, offsetM: 3, onRoute: true,
+    state: 'linked', isCover: false,
+    ...over,
+  };
+}
+
+/** As portas do carimbo, com o acervo carregado e a gravação capturada. */
+function depsDaTroca(over: Record<string, unknown> = {}) {
+  const gravadas: unknown[] = [];
+  const deps = {
+    acervoCarregado: () => true,
+    atividades: () => [atividade()],
+    buscarFotos: async () => [] as ActivityPhoto[],
+    carimbar: async (capa: Record<string, unknown>) => {
+      gravadas.push(capa);
+      return { ...capa, carimbadaEm: '2026-09-18T10:00:00.000Z' };
+    },
+    ...over,
+  };
+  return { deps: deps as never, gravadas };
+}
+
+describe('fotosParaCapa — a lista do seletor, pelas portas do carimbo', () => {
+  it('pede as fotos das atividades do período e devolve as seções do núcleo', async () => {
+    const pedidos: string[][] = [];
+    const { deps } = depsDaTroca({
+      atividades: () => [
+        atividade({ id: 'de-agosto' }),
+        atividade({ id: 'de-julho', startAt: '2026-07-20T09:00:00.000Z' }),
+      ],
+      buscarFotos: async (ids: readonly string[]) => {
+        pedidos.push([...ids]);
+        return [fotoDaTroca({ id: 'f', activityId: 'de-agosto' }), fotoDaTroca({ id: 'v', activityId: 'de-agosto', mediaType: 'video' })];
+      },
+    });
+    const s = await fotosParaCapa('u-1', entradaDeAgosto(), deps);
+    // A mesma definição de "do período" do carimbo: julho não é pedido.
+    expect(pedidos).toEqual([['de-agosto']]);
+    // E o vídeo não aparece — o que aparece é o que troca.
+    expect(s.map((x) => [x.atividade.id, x.fotos.map((f) => f.id)])).toEqual([['de-agosto', ['f']]]);
+  });
+
+  it('período sem atividade: lista vazia, sem consulta', async () => {
+    let consultou = false;
+    const { deps } = depsDaTroca({
+      atividades: () => [],
+      buscarFotos: async () => { consultou = true; return []; },
+    });
+    expect(await fotosParaCapa('u-1', entradaDeAgosto(), deps)).toEqual([]);
+    expect(consultou).toBe(false);
+  });
+
+  /** Store vazia não é período vazio: a lista vazia mentiria "não há foto". */
+  it('acervo que não chegou é recusa, e não lista vazia', async () => {
+    const { deps } = depsDaTroca({ acervoCarregado: () => false });
+    await expect(fotosParaCapa('u-1', entradaDeAgosto(), deps)).rejects.toBeInstanceOf(TrocaRecusada);
+  });
+
+  it('período que nunca tem edição é recusa — o Total não tem capa, e não consulta nada', async () => {
+    let consultou = false;
+    const { deps } = depsDaTroca({ buscarFotos: async () => { consultou = true; return []; } });
+    const total = { resumo: { kind: 'all', offset: 0, startISO: '2020-01-01', endISO: '2026-08-31' }, agora: AGORA };
+    await expect(fotosParaCapa('u-1', total as unknown as EntradaPacote, deps)).rejects.toBeInstanceOf(TrocaRecusada);
+    expect(consultou).toBe(false);
+  });
+
+  it('a falha da leitura das fotos sobe — o seletor mostra o erro', async () => {
+    const { deps } = depsDaTroca({ buscarFotos: async () => { throw new Error('rede'); } });
+    await expect(fotosParaCapa('u-1', entradaDeAgosto(), deps)).rejects.toThrow('rede');
+  });
+});
+
+describe('trocarCapa — recarimba a capa e só, em voz alta', () => {
+  it('grava pela porta do carimbo: identidade nova, legenda com as cidades do período, motivo trocada', async () => {
+    const { deps, gravadas } = depsDaTroca();
+    const c = await trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca(), deps);
+    expect(gravadas).toEqual([{
+      tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+      natureza: 'foto', fotoId: 'p-9',
+      fotoTakenAt: new Date(2026, 7, 14, 15, 22, 0).toISOString(),
+      rotaActivityId: null,
+      legenda: 'Ittre · km 62,4 · 15:22',
+      motivo: 'trocada',
+      fotoActivityId: 'a-1',
+    }]);
+    expect(c.carimbadaEm).toBe('2026-09-18T10:00:00.000Z');
+  });
+
+  /** A linha "Foto inválida na troca" da matriz — fora do período. Nada é gravado. */
+  it('foto de atividade fora do período é recusada antes do banco', async () => {
+    const { deps, gravadas } = depsDaTroca({
+      atividades: () => [atividade({ id: 'a-1' }), atividade({ id: 'de-julho', startAt: '2026-07-20T09:00:00.000Z' })],
+    });
+    await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca({ activityId: 'de-julho' }), deps))
+      .rejects.toBeInstanceOf(TrocaRecusada);
+    await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca({ activityId: 'nao-existe' }), deps))
+      .rejects.toBeInstanceOf(TrocaRecusada);
+    expect(gravadas).toEqual([]);
+  });
+
+  /** A mesma linha — vídeo e instante ilegível —, recusados pelo núcleo. */
+  it('vídeo e instante ilegível são recusados antes do banco', async () => {
+    const { deps, gravadas } = depsDaTroca();
+    for (const over of [{ mediaType: 'video' as const, durationS: 8 }, { takenAt: NaN }]) {
+      await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca(over), deps))
+        .rejects.toBeInstanceOf(FotoRecusadaNaTroca);
+    }
+    expect(gravadas).toEqual([]);
+  });
+
+  it('acervo que não chegou é recusa — ele recusaria a foto como "fora do período"', async () => {
+    const { deps, gravadas } = depsDaTroca({ acervoCarregado: () => false });
+    await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca(), deps)).rejects.toBeInstanceOf(TrocaRecusada);
+    expect(gravadas).toEqual([]);
+  });
+
+  it('período que nunca tem edição não tem capa a trocar', async () => {
+    const { deps, gravadas } = depsDaTroca();
+    const total = { resumo: { kind: 'all', offset: 0, startISO: '2020-01-01', endISO: '2026-08-31' }, agora: AGORA };
+    await expect(trocarCapa('u-1', total as unknown as EntradaPacote, fotoDaTroca(), deps))
+      .rejects.toBeInstanceOf(TrocaRecusada);
+    expect(gravadas).toEqual([]);
+  });
+
+  /**
+   * **Ao contrário do carimbo da impressão, a troca NÃO engole a falha**: é ato do
+   * dono, e a mensagem tem de chegar ao seletor.
+   */
+  it('a falha da gravação sobe como veio', async () => {
+    const { deps } = depsDaTroca({ carimbar: async () => { throw new Error('rls'); } });
+    await expect(trocarCapa('u-1', entradaDeAgosto(), fotoDaTroca(), deps)).rejects.toThrow('rls');
+  });
+});
+
+describe('tituloDaCapa — o título da capa aberta', () => {
+  it('o mês em minúscula, como no meio da frase', () => {
+    expect(tituloDaCapa('month', '2026-07-01')).toBe('A capa de julho de 2026');
+  });
+
+  it('os outros tipos ficam com o rótulo da edição', () => {
+    expect(tituloDaCapa('year', '2026-01-01')).toBe('A capa de 2026');
+    expect(tituloDaCapa('season', '2026-07-01')).toBe('A capa de Q3 2026');
+  });
+
+  it('a semana: o intervalo de segunda a domingo, sem minúscula a dar', () => {
+    // 31/08/2026 é uma segunda-feira.
+    expect(tituloDaCapa('week', '2026-08-31')).toBe('A capa de 31/08 \u2013 06/09');
   });
 });

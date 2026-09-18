@@ -31,6 +31,7 @@ import {
   coverOf,
   detectStops,
   groupByStop,
+  legendaDaFoto,
   type ActivityRoutePoint,
   type MapStyle,
 } from '@vitale/shared';
@@ -344,43 +345,21 @@ export function ShareComposerModal({
   /**
    * A parada da foto escolhida — "Ittre · km 31,1 · 12:38".
    *
-   * A cidade sai da mesma conta que o cartão de fotos faz: a mais próxima da
-   * coordenada, entre as que a rota atravessou. Não é geocodificação nova — é
-   * `activities.cities`, que o ingest já enriqueceu.
+   * **A frase tem dono único desde a Story 1.13**, e o dono é o núcleo
+   * (`legendaDaFoto`, em `revista/capa.ts`): é a mesma linha que a capa da edição
+   * carimba, e duas cópias dela divergiriam no dia em que uma das duas ganhasse
+   * um campo. Este componente é agora um **chamador** — as condições de *quando*
+   * mostrá-la continuam sendo dele.
    *
-   * Cada pedaço é opcional e some sozinho: foto sem coordenada não tem cidade,
-   * foto fora do traçado não tem quilômetro. O que sempre existe é a hora, que
-   * é a chave da própria feature (ADR 0037 §2).
+   * A regra da frase, para quem passa por aqui: a cidade é a mais próxima da
+   * coordenada entre as que a rota atravessou (`activities.cities`, que o ingest
+   * já enriqueceu — não é geocodificação nova); cada pedaço some sozinho quando o
+   * dado não existe; e a hora sempre fica, porque é a chave da própria feature
+   * (ADR 0037 §2).
    */
   const placeLine = useMemo(() => {
     if (background !== 'photo' || !showPlace || !chosenPhoto) return undefined;
-    const parts: string[] = [];
-
-    const cs = context.cities ?? [];
-    if (chosenPhoto.lat !== null && chosenPhoto.lng !== null && cs.length > 0) {
-      let best = cs[0];
-      let bestD = Infinity;
-      for (const c of cs) {
-        const d = (c.lat - chosenPhoto.lat) ** 2 + (c.lng - chosenPhoto.lng) ** 2;
-        if (d < bestD) {
-          bestD = d;
-          best = c;
-        }
-      }
-      parts.push(best.name);
-    }
-
-    if (chosenPhoto.routeDistanceM !== null) {
-      parts.push(`km ${(chosenPhoto.routeDistanceM / 1000).toFixed(1).replace('.', ',')}`);
-    }
-
-    parts.push(
-      new Date(chosenPhoto.takenAt).toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    );
-    return parts.join(' · ');
+    return legendaDaFoto(chosenPhoto, context.cities ?? []);
   }, [background, showPlace, chosenPhoto, context.cities]);
 
   const [artStyle, setArtStyle] = useState<ShareArtStyle>('speed');

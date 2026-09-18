@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import {
   CADERNO_IDS,
+  FotoRecusadaNaTroca,
   chamadaDoTexto,
   precisaErrata,
   temEdicao,
+  type ActivityPhoto,
   type CadernoId,
+  type Capa,
   type DesfechoDoCaderno,
   type Edicao,
   type EntradaPacote,
@@ -12,8 +15,10 @@ import {
 } from '@vitale/shared';
 import { useAuthStore } from './auth.store';
 import {
+  TrocaRecusada,
   assinaturaDoCaderno,
   buscarEdicao,
+  carimbarCapa,
   classeDoDesfecho,
   comDadoDaEntrada,
   fraseDoNaoImpresso,
@@ -21,6 +26,7 @@ import {
   problemasDoDesfecho,
   rotuloCurtoDaEdicao,
   rotuloDaEdicao,
+  trocarCapa as trocarCapaDaEdicao,
 } from '../lib/edicao-ia';
 
 /**
@@ -107,12 +113,19 @@ export type EstadoEdicao =
    * O período fechou e o banco respondeu: `edicao` são os cadernos impressos, na
    * ordem gravada (vazia é "ainda não escrita"), e `sessao` o que acabou de
    * acontecer com os outros. `imprimindo` não é nulo enquanto uma impressão corre.
+   *
+   * `capa` é o que a impressão inteira carimbou (Story 1.13) — natureza,
+   * identidade e a legenda já formatada —, ou `null`: edição impressa antes da
+   * 1.13, carimbo que falhou, período ainda não escrito. **Nunca é recalculada
+   * aqui**: o que se desenha é o que está gravado, senão a capa de agosto viraria
+   * outra em outubro.
    */
   | {
       fase: 'lida';
       tipo: TipoComEdicao;
       inicio: string;
       edicao: Edicao;
+      capa: Capa | null;
       sessao: SessaoDaEdicao;
       imprimindo: ImpressaoEmCurso | null;
     };
@@ -127,8 +140,23 @@ interface EdicaoState {
   imprimir: (entrada: EntradaPacote, dadosProntos: boolean) => Promise<void>;
   /** "Escrever este caderno", "…de novo" ou "Tentar de novo": só aquele caderno, sem linha e com dado. */
   imprimirCaderno: (entrada: EntradaPacote, dadosProntos: boolean, caderno: CadernoId) => Promise<void>;
+  /**
+   * "Trocar a capa" (Story 1.16): recarimba a capa com a foto que o dono escolheu,
+   * e só a capa. **Nunca rejeita** — a falha volta como mensagem, para o seletor a
+   * mostrar com a seleção intacta.
+   */
+  trocarCapa: (entrada: EntradaPacote, foto: ActivityPhoto) => Promise<ResultadoDaTroca>;
   estado: (entrada: EntradaPacote) => EstadoEdicao;
 }
+
+/**
+ * O que a troca da capa respondeu. `ok: false` traz **a frase da tela**: a troca é
+ * ato do dono e falha em voz alta, ao contrário do carimbo da impressão, que só
+ * loga.
+ */
+export type ResultadoDaTroca =
+  | { readonly ok: true; readonly capa: Capa }
+  | { readonly ok: false; readonly mensagem: string };
 
 /**
  * `<uid>|month|2026-08-01|2026-08-31` — o dono e o período.
@@ -188,12 +216,23 @@ export function dadosProntosParaImprimir(
  * Quem chamou nesse instante perde a vez, e nada o chamaria de novo quando a busca
  * terminasse: os dados nunca ficariam prontos até o próximo foco. O efeito que
  * garante a janela reage a esta resposta, e ela muda quando `loading` volta a falso.
+ *
+ * **Falha não se repete sozinha.** `loading` voltando a falso é o que dispara o
+ * efeito de novo; se a busca falhou, pedi-la no mesmo quadro daria um laço quente
+ * enquanto a rede estivesse fora. Por isso a janela que falhou (`falhouEm`) responde
+ * não — quem tenta de novo é o foco da tela, que chama `ensure` direto.
  */
 export function precisaGarantirJanela(
-  retro: { readonly loaded: boolean; readonly loading: boolean; readonly loadedSince: string | null },
+  retro: {
+    readonly loaded: boolean;
+    readonly loading: boolean;
+    readonly loadedSince: string | null;
+    readonly falhouEm?: string | null;
+  },
   since: string,
 ): boolean {
   if (retro.loading) return false;
+  if (retro.falhouEm === since) return false;
   return !(retro.loaded && retro.loadedSince !== null && retro.loadedSince <= since);
 }
 
@@ -220,6 +259,22 @@ export function podeImprimir(
   return comDado.includes(alvo)
     && !estado.edicao.some((c) => c.caderno === alvo)
     && estado.sessao[alvo]?.fase !== 'mudo';
+}
+
+/**
+ * A capa pode ser trocada agora? — a regra que a ação `trocarCapa` confere (Story 1.16).
+ *
+ * As mesmas duas condições de `comFoto` — **edição impressa** e **capa de foto**
+ * —, porque a troca mora só na ficha, e a ficha só abre na capa de foto. E mais
+ * uma: **nenhuma impressão correndo** no período. Uma reimpressão que termina
+ * relê a capa do banco; trocar no meio dela é disputar a mesma linha com quem a
+ * vai reler.
+ */
+export function podeTrocarCapa(estado: EstadoEdicao | undefined): boolean {
+  return estado?.fase === 'lida'
+    && estado.imprimindo === null
+    && estado.edicao.length > 0
+    && estado.capa?.natureza === 'foto';
 }
 
 /* ── o que as telas desenham ─────────────────────────────────────────────── */
@@ -276,8 +331,21 @@ function faseSemPorta(nunca: never): PortaDaEdicao {
 export type AcaoDoCaderno = 'escrever' | 'escrever-de-novo' | 'tentar-de-novo';
 
 export type CadernoNaVista =
-  /** Impresso — ou escrito e à espera da gravação, e aí sem `assinatura`. */
-  | { caderno: CadernoId; estado: 'pronta'; texto: string; assinatura: string | null; errata: boolean }
+  /**
+   * Impresso — ou escrito e à espera da gravação, e aí sem `assinatura`.
+   *
+   * `chamada` é a primeira frase do texto — a linha do sumário (Story 1.14). Ela
+   * é decidida **aqui, e não no render**: é a mesma `chamadaDoTexto` que dá a
+   * manchete da capa logo acima, e regra tem teste enquanto render não tem. Se um
+   * dia o corte da frase mudar, muda num lugar só.
+   *
+   * `null` é caderno cujo texto não fecha frase nenhuma — **nunca** string vazia.
+   * A linha do sumário fica assim mesmo, com o nome e sem chamada.
+   */
+  | {
+      caderno: CadernoId; estado: 'pronta'; texto: string;
+      chamada: string | null; assinatura: string | null; errata: boolean;
+    }
   | { caderno: CadernoId; estado: 'na-fila' }
   | { caderno: CadernoId; estado: 'escrevendo' }
   | { caderno: CadernoId; estado: 'reprovada'; motivo: string; problemas: readonly string[]; acao?: 'escrever-de-novo' }
@@ -291,6 +359,40 @@ export interface CapaNaVista {
   impressa: boolean;
   /** A chamada do caderno em `posicao` 1, **inteira** e sem corte — ou `null`. */
   manchete: string | null;
+  /**
+   * O que a impressão carimbou — natureza, identidade da foto e a legenda já
+   * formatada —, ou `null`, e aí a capa é a em papel da 1.11.
+   *
+   * **Passa inteira, sem ser reinterpretada.** A manchete acima continua derivada
+   * do caderno em `posicao` 1 e não congela junto: uma reimpressão parcial que
+   * troque o líder troca a manchete sob a mesma imagem, e isso é desenho, não
+   * descuido.
+   */
+  carimbada: Capa | null;
+  /**
+   * A capa é a **de foto**? — a decisão, aqui e não na tela.
+   *
+   * Ela nasceu no componente e voltou para cá porque é regra, não desenho: são as
+   * mesmas duas condições da matriz, e fora da vista elas ficavam sem teste. O que
+   * continua na tela é só o que a vista não sabe — se o arquivo da biblioteca
+   * resolveu.
+   *
+   * **Exige edição impressa**, e isso não é zelo: `edicoes_capa` não tem chave
+   * estrangeira para `edicoes_ia` (o carimbo guarda valor, não ponteiro), então
+   * uma capa sobrevive aos cadernos que cobria. Desenhar a foto sobre uma edição
+   * sem caderno esconderia o convite e o botão — o dono ficaria sem caminho para
+   * escrever, olhando uma capa bonita.
+   */
+  comFoto: boolean;
+  /**
+   * A legenda carimbada, quando ela tem o que dizer na tela — ou `null`.
+   *
+   * Só na natureza `foto`: é ali que ela é a **descrição da imagem** (EXPERIENCE
+   * §Accessibility Floor), e é ali que continua servindo quando a imagem não
+   * resolve mais. Na `grade` ela É o período, que a capa já imprime logo acima; na
+   * `tracado`, o desenho que ela legenda ainda não existe.
+   */
+  legenda: string | null;
   /**
    * Nada impresso e uma impressão correndo: a capa diz "Escrevendo a edição…" no
    * lugar do convite — a mesma frase da porta.
@@ -340,6 +442,11 @@ function chamadaDaCapa(edicao: Edicao): string | null {
  *
  * **A errata** é por caderno: `precisaErrata(c, aggVersion)` marca só aquele, e o
  * texto fica como está.
+ *
+ * **A chamada de cada caderno pronto sai daqui** (Story 1.14), pela mesma
+ * `chamadaDoTexto` que dá a manchete da capa duas linhas acima. O sumário da rota
+ * é uma linha por caderno **do miolo** — na ordem que este vetor já tem —, então
+ * o caderno que não está pronto entra na lista do mesmo jeito, só sem chamada.
  */
 export function vistaDaEdicao(
   estado: EstadoEdicao,
@@ -369,10 +476,15 @@ export function vistaDaEdicao(
   const acaoPara = <A extends AcaoDoCaderno>(caderno: CadernoId, acao: A): { acao?: A } =>
     (podeImprimir(estado, comDado, caderno) ? { acao } : {});
 
+  const carimbada = estado.capa;
+  const deFoto = !nadaImpresso && carimbada?.natureza === 'foto';
   const capa: CapaNaVista = {
     periodo: rotuloDaEdicao(estado.tipo, estado.inicio),
     impressa: !nadaImpresso,
     manchete: chamadaDaCapa(edicao),
+    carimbada,
+    comFoto: deFoto,
+    legenda: deFoto ? carimbada.legenda : null,
     escrevendo: nadaImpresso && correndo,
     escrever: podeImprimir(estado, comDado, 'edicao'),
     semCaderno: nadaImpresso && !correndo && comDado !== null && comDado.length === 0,
@@ -389,6 +501,7 @@ export function vistaDaEdicao(
       caderno: c.caderno,
       estado: 'pronta',
       texto: c.texto,
+      chamada: chamadaDoTexto(c.texto),
       assinatura: assinaturaDoCaderno(c.modelo, c.geradoEm),
       errata: precisaErrata(c, aggVersion),
     });
@@ -415,7 +528,10 @@ export function vistaDaEdicao(
           cadernos.push({ caderno, estado: s.fase });
           break;
         case 'escrito':
-          cadernos.push({ caderno, estado: 'pronta', texto: s.texto, assinatura: null, errata: false });
+          cadernos.push({
+            caderno, estado: 'pronta', texto: s.texto, chamada: chamadaDoTexto(s.texto),
+            assinatura: null, errata: false,
+          });
           break;
         case 'reprovada':
           if (!temDado) break;
@@ -518,11 +634,16 @@ function sessaoDe(estado: EstadoEdicao | undefined): SessaoDaEdicao | undefined 
 }
 
 /** O estado de um período lido — `ausente` se o tipo não tem edição (o que `buscarEdicao` já garante). */
-function lidaDe(entrada: EntradaPacote, edicao: Edicao, sessao: SessaoDaEdicao | undefined): EstadoEdicao {
+function lidaDe(
+  entrada: EntradaPacote,
+  edicao: Edicao,
+  capa: Capa | null | undefined,
+  sessao: SessaoDaEdicao | undefined,
+): EstadoEdicao {
   const { kind, startISO } = entrada.resumo;
   if (!temEdicao(kind)) return { fase: 'ausente' };
   return {
-    fase: 'lida', tipo: kind, inicio: startISO, edicao,
+    fase: 'lida', tipo: kind, inicio: startISO, edicao, capa: capa ?? null,
     sessao: sessaoQueFica(sessao ?? {}, edicao), imprimindo: null,
   };
 }
@@ -584,7 +705,9 @@ async function ler(
   try {
     const r = await buscarEdicao(uid, entrada);
     if (geracaoDe(chave) !== geracao) return;
-    por(r.estado === 'ausente' ? { fase: 'ausente' } : lidaDe(entrada, r.edicao, sessaoDe(get().porPeriodo[chave]) ?? sessao));
+    por(r.estado === 'ausente'
+      ? { fase: 'ausente' }
+      : lidaDe(entrada, r.edicao, r.capa, sessaoDe(get().porPeriodo[chave]) ?? sessao));
   } catch (e) {
     if (geracaoDe(chave) !== geracao) return;
     const mensagem = mensagemDeLeitura(e);
@@ -668,6 +791,17 @@ async function imprimirAlvo(
     });
   };
 
+  /**
+   * A capa que esta impressão acabou de carimbar, se carimbou.
+   *
+   * Fica guardada porque a releitura do fim pode falhar **só na capa** — a leitura
+   * dela degrada para `null` de propósito (`buscarEdicao`) — e aí a edição recém
+   * impressa apareceria em papel apesar de a capa estar gravada, até o próximo
+   * foco. O que acabou de ser escrito é melhor resposta que o nulo de uma consulta
+   * que não deu certo.
+   */
+  let nova: Capa | null = null;
+
   novaGeracao(chave);
   try {
     // A edição inteira recomeça a sessão: tudo que não está impresso vai para a fila.
@@ -688,11 +822,11 @@ async function imprimirAlvo(
         ? lida.edicao.length > 0
         : lida.edicao.some((c) => c.caderno === alvo);
       if (jaImpresso) {
-        por(lidaDe(entrada, lida.edicao, atual.sessao));
+        por(lidaDe(entrada, lida.edicao, lida.capa, atual.sessao));
         return;
       }
       const e = emCurso();
-      if (e) por({ ...e, edicao: lida.edicao });
+      if (e) por({ ...e, edicao: lida.edicao, capa: lida.capa });
     } catch (e) {
       const mensagem = mensagemDeLeitura(e);
       if (alvo === 'edicao') {
@@ -730,7 +864,37 @@ async function imprimirAlvo(
           return;
         case 'sem-caderno':
         case 'nada-gravado':
+          break;
         case 'gravada':
+          /**
+           * **A capa é carimbada aqui, e só aqui** (Story 1.13), quando a impressão
+           * gravou — impressão que não gravou nada não teria edição a que a capa
+           * pertencesse.
+           *
+           * A impressão **inteira** sempre recarimba. A **parcial** carimba só
+           * quando não há capa nenhuma (regra renegociada com o dono em 17/09): a
+           * edição montada caderno a caderno nunca volta a ver o alvo `edicao` — a
+           * 1.11 só o oferece com zero cadernos impressos —, e sem isto ela ficaria
+           * em papel para sempre. **Capa existente uma parcial nunca troca**: a foto
+           * e a legenda são do período, não do caderno.
+           *
+           * **Antes da releitura**, para a capa nova chegar à tela na mesma
+           * resposta do banco que traz a ordem e as assinaturas — senão a rota
+           * mostraria a edição impressa com a capa da impressão anterior até o
+           * próximo foco. `edicao-store.test.ts` prende essa ordem.
+           *
+           * O `try/catch` é rede sobre rede: `carimbarCapa` já promete não
+           * rejeitar. Se um dia deixar de prometer, o preço é a edição ficar sem
+           * capa — nunca o dono ver "a impressão não terminou" sobre um texto que
+           * ficou gravado.
+           */
+          if (alvo === 'edicao' || (emCurso()?.capa ?? atual.capa) === null) {
+            try {
+              nova = await carimbarCapa(uid, entrada);
+            } catch (e) {
+              console.warn('[edicao] a capa não foi carimbada:', e);
+            }
+          }
           break;
         default:
           // Sem este ramo, um estado inesperado deixaria a chave presa em `imprimindo`.
@@ -748,7 +912,9 @@ async function imprimirAlvo(
     const sessao = naSessaoAgora?.sessao ?? {};
     try {
       const relida = await buscarEdicao(uid, entrada);
-      por(relida.estado === 'ausente' ? { fase: 'ausente' } : lidaDe(entrada, relida.edicao, sessao));
+      por(relida.estado === 'ausente'
+        ? { fase: 'ausente' }
+        : lidaDe(entrada, relida.edicao, relida.capa ?? nova, sessao));
     } catch (e) {
       const mensagem = mensagemDeLeitura(e);
       if (alvo === 'edicao') {
@@ -767,6 +933,99 @@ async function imprimirAlvo(
     }
   } finally {
     novaGeracao(chave);
+  }
+}
+
+/* ── a troca da capa (Story 1.16) ────────────────────────────────────────── */
+
+const TROCA_SEM_SESSAO = 'Entre na sua conta para trocar a capa.';
+const TROCA_COM_IMPRESSAO = 'A edição está sendo impressa. Troque a capa quando a impressão terminar.';
+const TROCA_SEM_CAPA_DE_FOTO = 'Esta edição não tem capa de foto para trocar.';
+const TROCA_PELA_MESMA = 'Esta foto já é a capa.';
+const TROCA_EM_CURSO = 'A capa já está sendo trocada. Espere a troca terminar.';
+const TROCA_FALHOU = 'Não foi possível trocar a capa agora. A capa continua a mesma.';
+
+/**
+ * As chaves com uma troca em voo — a segunda troca no mesmo período, antes de a
+ * primeira voltar, é recusada sem chamar a porta.
+ *
+ * Sem isto, dois toques rápidos gravariam duas capas em sequência, e a que fica
+ * seria a da gravação que o banco recebeu por último — não necessariamente a do
+ * último toque. O seletor já trava o botão durante a troca; esta é a regra, e o
+ * botão é só a cara dela.
+ */
+const trocando = new Set<string>();
+
+/**
+ * A frase da tela para uma troca que falhou.
+ *
+ * As **recusas** (do núcleo sobre a foto, do app sobre o período e o acervo) já
+ * nascem frase, e passam como vieram. O resto — rede, RLS, a conta que trocou no
+ * meio — é transporte: o leitor não lê `PGRST`, e o motivo real vai para o log.
+ */
+function mensagemDaTroca(e: unknown): string {
+  if (e instanceof TrocaRecusada || e instanceof FotoRecusadaNaTroca) return e.message;
+  console.warn('[edicao] a capa não foi trocada:', e);
+  return TROCA_FALHOU;
+}
+
+/**
+ * Troca a capa de uma edição lida — **só a capa**.
+ *
+ * 1. **Confere** antes de qualquer `await`, e a resposta diz por quê quando não
+ *    começa: sem sessão, sem capa de foto, com uma impressão correndo, com outra
+ *    troca em voo nesta chave, ou **pela foto que já é a capa**. Esta última não é
+ *    zelo: trocar pela mesma foto recarimbaria o motivo como `trocada` para
+ *    sempre — e apagaria o nulo das capas anteriores à 1.16, que é a declaração de
+ *    que o porquê não foi guardado. A regra mora aqui, e não só no seletor.
+ * 2. **Grava** pela porta do carimbo (`trocarCapa` de `lib/edicao-ia`), que recusa
+ *    antes do banco o que não pode ser capa.
+ * 3. **Sucesso** põe a capa nova no estado e **sobe a geração da chave**: uma
+ *    leitura silenciosa que estivesse em voo voltaria com a capa velha e a
+ *    reporia — a mesma defesa que a impressão já usa. A geração sobe **só se a
+ *    capa entra**: se a fase saiu de `lida` durante a gravação (uma releitura do
+ *    leitor, por exemplo), descartar a leitura em voo deixaria a tela presa nela,
+ *    e é essa leitura que vai trazer do banco a capa já trocada.
+ * 4. **Falha** devolve a mensagem e **não toca o estado**: a capa, a edição e a
+ *    sessão ficam como estavam, e o seletor mantém a seleção.
+ *
+ * O texto, a ordem, as assinaturas e a errata não passam por aqui: o que muda no
+ * estado é o campo `capa`, e nenhum outro.
+ */
+async function trocar(
+  set: Definir,
+  get: () => EdicaoState,
+  entrada: EntradaPacote,
+  foto: ActivityPhoto,
+): Promise<ResultadoDaTroca> {
+  const uid = userId();
+  if (!uid) return { ok: false, mensagem: TROCA_SEM_SESSAO };
+  const chave = chaveDe(uid, entrada);
+  const atual = get().porPeriodo[chave];
+  if (atual?.fase === 'lida' && atual.imprimindo !== null) return { ok: false, mensagem: TROCA_COM_IMPRESSAO };
+  if (!podeTrocarCapa(atual) || atual?.fase !== 'lida') return { ok: false, mensagem: TROCA_SEM_CAPA_DE_FOTO };
+  if (atual.capa?.fotoId === foto.id) return { ok: false, mensagem: TROCA_PELA_MESMA };
+  if (trocando.has(chave)) return { ok: false, mensagem: TROCA_EM_CURSO };
+
+  trocando.add(chave);
+  try {
+    let nova: Capa;
+    try {
+      nova = await trocarCapaDaEdicao(uid, entrada, foto);
+    } catch (e) {
+      return { ok: false, mensagem: mensagemDaTroca(e) };
+    }
+
+    // O estado de AGORA, e não o de antes do `await`: a edição pode ter sido relida
+    // no meio, e só a capa é desta ação.
+    const agora = get().porPeriodo[chave];
+    if (agora?.fase === 'lida') {
+      novaGeracao(chave);
+      set((s) => ({ porPeriodo: { ...s.porPeriodo, [chave]: { ...agora, capa: nova } } }));
+    }
+    return { ok: true, capa: nova };
+  } finally {
+    trocando.delete(chave);
   }
 }
 
@@ -820,4 +1079,6 @@ export const useEdicaoStore = create<EdicaoState>((set, get) => ({
   imprimir: (entrada, dadosProntos) => imprimirAlvo(set, get, entrada, dadosProntos, 'edicao'),
 
   imprimirCaderno: (entrada, dadosProntos, caderno) => imprimirAlvo(set, get, entrada, dadosProntos, caderno),
+
+  trocarCapa: (entrada, foto) => trocar(set, get, entrada, foto),
 }));

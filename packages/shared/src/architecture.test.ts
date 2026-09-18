@@ -27,10 +27,11 @@ import { BRANDS } from './theme/brands';
 import { cssVars } from './theme/css-vars';
 import { sleepColorsOf, sleepCssVars } from './sleep/colors';
 import { resolveTokens } from './theme/derive';
+import { CLASSES_DE_FALHA } from './ia/fio';
 import { CONCLUSAO } from './ia/motor';
 import { VOCABULARIO_PROIBIDO } from './ia/verificar';
 import { CADERNO_IDS } from './period/cadernos';
-import { CAPA_COLUMNS, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
+import { CAPA_COLUMNS, MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
 import { EDICAO_COLUMNS, TIPOS_COM_EDICAO } from './data/edicoes-ia';
 
 let passed = 0;
@@ -601,7 +602,8 @@ check('BARREIRA — os CHECKs de user_preferences cobrem todos os ids do app', (
  * BARREIRA — os ids da edição são a MESMA lista dos dois lados (Story 1.9).
  *
  * `edicoes_ia.caderno` repete `CADERNO_IDS` e `edicoes_capa.natureza` repete
- * `NATUREZAS_DA_CAPA`, e as duas migrations dizem em comentário que é "a mesma
+ * `NATUREZAS_DA_CAPA` — e, desde a Story 1.16, `edicoes_capa.motivo` repete
+ * `MOTIVOS_DA_CAPA` —, e as migrations dizem em comentário que é "a mesma
  * lista, letra por letra". Comentário não é guarda: o id nasce minúsculo e sem
  * acento justamente para não precisar de tradução entre camadas, e o dia em que
  * precisar ninguém vai notar por leitura.
@@ -617,6 +619,11 @@ const ID_COLUMNS_DA_EDICAO: {
 }[] = [
   { tabela: 'edicoes_ia', coluna: 'caderno', ids: () => CADERNO_IDS, dono: 'period/cadernos.ts (CADERNO_IDS)' },
   { tabela: 'edicoes_capa', coluna: 'natureza', ids: () => NATUREZAS_DA_CAPA, dono: 'data/edicoes-capa.ts (NATUREZAS_DA_CAPA)' },
+  // O porquê da capa (Story 1.16), no mesmo molde da natureza. A coluna é nula de
+  // propósito (o build anterior grava sem ela), mas a LISTA é fechada dos dois
+  // lados: um motivo só no TS seria uma troca que o banco recusa na hora de
+  // carimbar, e um só no SQL, uma ficha que o `toCapa` explode ao ler.
+  { tabela: 'edicoes_capa', coluna: 'motivo', ids: () => MOTIVOS_DA_CAPA, dono: 'data/edicoes-capa.ts (MOTIVOS_DA_CAPA)' },
   // **Duas linhas, uma por tabela**, e não uma valendo pelas duas: as duas
   // declaram `tipo_periodo` e cada uma tem o próprio CHECK. Com uma linha só, a
   // busca pegava o CHECK da capa e deixava o da edição sem conferência — na
@@ -625,7 +632,7 @@ const ID_COLUMNS_DA_EDICAO: {
   { tabela: 'edicoes_capa', coluna: 'tipo_periodo', ids: () => TIPOS_COM_EDICAO, dono: 'data/edicoes-ia.ts (TIPOS_COM_EDICAO)' },
 ];
 
-check('BARREIRA — caderno, natureza e tipo de período são a mesma lista no TS e no banco', () => {
+check('BARREIRA — caderno, natureza, motivo da capa e tipo de período são a mesma lista no TS e no banco', () => {
   const problemas: string[] = [];
   for (const { tabela, coluna, ids, dono } of ID_COLUMNS_DA_EDICAO) {
     const noTs = [...ids()].sort();
@@ -901,6 +908,55 @@ check('BARREIRA — nenhuma lista rolável do mobile mostra barra', () => {
 });
 
 /**
+ * BARREIRA — o foco de acessibilidade do mobile vai por `sendAccessibilityEvent`.
+ *
+ * `AccessibilityInfo.sendAccessibilityEvent(nó, 'focus')` é **a** API para mover
+ * o foco do leitor de tela, e ela recebe o **ref do host** — o mesmo objeto que
+ * `ref={...}` numa `View` entrega. As duas alternativas que a internet ainda
+ * ensina estão trancadas aqui em zero:
+ *
+ * - `setAccessibilityFocus(handle)` — depreciado na doc atual;
+ * - `findNodeHandle(componente)` — a ponte para o handle numérico que a API nova
+ *   não quer, e que na New Architecture é justamente o que se deixou para trás.
+ *
+ * Teto **zero, desde o primeiro uso**: a rolagem ancorada da revista (Story 1.14)
+ * é o primeiro lugar do app a mover o foco, e no dia em que nasceu não havia
+ * ocorrência nenhuma dos dois nomes. Barreira que nasce junto com a regra nunca
+ * precisa de catraca — e esta é a única janela em que isso era de graça.
+ *
+ * **Comentário não é uso**: o hook explica por escrito por que não usa nenhum dos
+ * dois, e é assim que a regra continua se explicando de dentro do código que ela
+ * cobra. Mas aqui o comentário é apagado **sem perder linha** — o `semComentario`
+ * do topo troca o bloco inteiro por um espaço, e a mensagem apontaria para um
+ * número que no arquivo é outra coisa, mandando quem for conferir ao lugar errado.
+ *
+ * Varre `mobile/src` **inteiro**, testes incluídos (e não a `mobileFiles`, que os
+ * tira): um teste que monte o foco pela porta velha ensina a porta velha.
+ */
+check('BARREIRA — foco de acessibilidade sem API depreciada nem handle numérico', () => {
+  const PROIBIDAS = /\b(setAccessibilityFocus|findNodeHandle)\b/g;
+  const semComentarioNaLinha = (src: string): string =>
+    src.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
+      .replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+  const offenders: string[] = [];
+  for (const f of walk(join(ROOT, 'mobile', 'src'))) {
+    const src = semComentarioNaLinha(readFileSync(f, 'utf8'));
+    for (const m of src.matchAll(PROIBIDAS)) {
+      const linha = src.slice(0, m.index).split('\n').length;
+      offenders.push(`${f.replace(ROOT + '/', '')}:${linha} ${m[1]}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `foco de acessibilidade pela porta errada:\n    ${offenders.join('\n    ')}\n` +
+      `  Use AccessibilityInfo.sendAccessibilityEvent(ref, 'focus') — o ref do host, ` +
+      `não um handle. O hook useRolagemAncorada já faz isso.`,
+  );
+});
+
+/**
  * BARREIRA — toda `var(--x)` da web vem do sistema de temas ou de uma escala.
  *
  * A web pinta o `:root` em runtime a partir do `cssVars()`. Uma variável que o
@@ -1150,6 +1206,22 @@ const TEXT_ACCENT: { label: string; files: string[]; re: RegExp; max: number }[]
     // da tela de um tipo: o rótulo em marca saiu junto, e quem sinaliza a saída
     // agora é o ícone, na cor do esporte.
     max: 28,
+  },
+  {
+    /**
+     * `primaryOn` é a tinta sobre o **`primarySoft`** (o preenchimento pálido) —
+     * sobre o `primary` sólido ele mede **1,00** na marca Tinta e 1,11 na
+     * Laranja: texto preto em botão preto. O botão "Escrever a edição" da rota
+     * da revista nasceu assim na 1.11 e só apareceu no iPhone do dono em 18/09,
+     * porque a marca dele é a Tinta. Sobre o cheio o token é `onPrimary`, que o
+     * resto do app já usa e que a marca pode declarar (o laranja quer branco).
+     * Teto **zero**: não há uso legítimo hoje, e o dia em que houver pede um
+     * fundo `primarySoft` na mesma folha.
+     */
+    label: 'mobile — color: colors.primaryOn (é tinta de primarySoft, não do sólido)',
+    files: mobileFiles,
+    re: /color:\s*colors\.primaryOn\b/g,
+    max: 0,
   },
   {
     label: 'web — color: var(--acento)',
@@ -1408,6 +1480,51 @@ check('BARREIRA — ia/fio.ts e ia/sha256.ts não importam nada', () => {
     `módulo sem imports ganhou dependência: ${offenders.join(', ')}. O fio é lido pelo Deno por ` +
       `caminho relativo, e o Deno não resolve specifier sem extensão — o deploy da function quebra ` +
       `longe daqui. Se precisa do tipo, declare-o no próprio fio.`,
+  );
+});
+
+/**
+ * BARREIRA — `supabase/functions/` só cita classe de falha do que importa de
+ * `ia/fio.ts` (story 5.6).
+ *
+ * As sete {@link CLASSES_DE_FALHA} são vocabulário do núcleo, não da function.
+ * Um arquivo que escreve `classe: 'indisponivel'` sem importar `ia/fio.ts` está
+ * repetindo a mesma palavra por conta própria — e no dia em que o núcleo ganhar
+ * uma oitava classe, ou renomear uma das sete, esse arquivo continuaria com a
+ * grafia velha e ninguém acusaria. Importar amarra a grafia à mesma fonte que o
+ * cliente (`ia/nuvem.ts`) já lê, e é o que a "guarda 3" do épico (AD-10) pedia —
+ * ela nasce aqui, na primeira story em que `supabase/functions/` de fato fala
+ * em classes, e não no marco do aparelho que ainda não existe.
+ *
+ * Pela AST, como `chamamMetodo` mais abaixo: só literal de string cujo texto é
+ * **exatamente** uma das sete classes conta — comentário não conta, e uma
+ * substring dentro de uma frase (ex.: um texto de UI que contenha a palavra
+ * "guarda") também não, porque o nó tem de ser o literal inteiro.
+ */
+check('BARREIRA — supabase/functions/ só cita classe do que importa de ia/fio.ts', () => {
+  const fnFiles = walk(join(ROOT, 'supabase', 'functions')).filter((f) => !ehTeste(f));
+  assert.ok(fnFiles.length > 0, 'supabase/functions/ sumiu — a barreira ficou sem alvo');
+  const IMPORTA_O_FIO = /from\s*['"][^'"]*ia\/fio(?:\.ts)?['"]/;
+  const alvo = new Set<string>(CLASSES_DE_FALHA as readonly string[]);
+  const offenders: string[] = [];
+  for (const f of fnFiles) {
+    const src = semComentario(readFileSync(f, 'utf8'));
+    const achados = new Set<string>();
+    const visitar = (no: ts.Node): void => {
+      if (ts.isStringLiteralLike(no) && alvo.has(no.text)) achados.add(no.text);
+      ts.forEachChild(no, visitar);
+    };
+    visitar(ts.createSourceFile(f, src, ts.ScriptTarget.Latest, false));
+    if (achados.size > 0 && !IMPORTA_O_FIO.test(src)) {
+      offenders.push(`${f.replace(ROOT + '/', '')} (${[...achados].sort().join(', ')})`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `classe de falha citada sem importar ia/fio.ts: ${offenders.join(', ')}. ` +
+      `Importe CLASSES_DE_FALHA/ClasseDeFalha/STATUS_POR_CLASSE de ia/fio.ts por caminho relativo ` +
+      `(o Deno exige a extensão .ts), em vez de repetir a grafia das classes à mão.`,
   );
 });
 
@@ -2308,6 +2425,7 @@ check('CATRACA — montarPedido fora do orquestrador (só a bancada)', () => {
  */
 const DONO_DA_GRAVACAO = 'packages/shared/src/data/edicoes-ia.ts';
 const DONO_DA_SEQUENCIA = 'packages/shared/src/ia/imprimir-sequencia.ts';
+const DONO_DA_CAPA = 'packages/shared/src/data/edicoes-capa.ts';
 const ESCRITAS_DIRETAS = new Set(['upsert', 'insert', 'update', 'delete']);
 
 /** O núcleo e os hospedeiros, fora de teste. */
@@ -2481,6 +2599,45 @@ check('BARREIRA — só a sequência grava a edição: edicao_imprimir no dono, 
     [],
     `.gravar lido fora da sequência da impressão: ${foraDaSequencia.join(', ')}. Só imprimir chama a porta de ` +
       'gravação, e no máximo uma vez: é ela que garante que só leitura de motor, conferida, vira linha.',
+  );
+});
+
+/**
+ * BARREIRA — só `gravarCapa` escreve a capa (Story 1.13, AD-3, AD-4).
+ *
+ * A irmã da barreira acima, para a outra tabela da edição, e pelo mesmo motivo: a
+ * capa é o que **congela** o período — natureza, identidade e a legenda já
+ * formatada —, e um segundo escritor é um segundo jeito de a edição que ele leu em
+ * agosto ter outra cara em outubro.
+ *
+ * Aqui não há função de banco a proteger: `edicoes_capa` se grava por `upsert`
+ * direto, e a barreira é sobre **onde** esse upsert pode existir. `gravarCapa` é o
+ * que carrega a guarda de sessão (a conta não pode trocar no meio da impressão) e
+ * o `carimbada_em` escrito à mão (o `default now()` não vale no caminho de
+ * atualização). Um upsert escrito noutro arquivo perderia os dois, calado.
+ *
+ * Mesma leitura por AST de `escrevemNaTabela`: colchete, `as`, `!` e cadeia
+ * partida por parênteses não escapam; comentário não conta. **O que ela não vê** é
+ * o mesmo da barreira irmã, e a rede é a mesma: fora do núcleo não há `.from()`
+ * nenhum, e dentro dele a tabela tem um dono só.
+ */
+check('BARREIRA — só gravarCapa escreve edicoes_capa', () => {
+  const escrevem = escrevemNaTabela('edicoes_capa', nucleoEHospedeiros());
+  const doDono = `${DONO_DA_CAPA} (upsert)`;
+  // Não-vácua: o dono é achado escrevendo. Sem isto, apagar `gravarCapa` deixaria
+  // a barreira verde por não haver ninguém a acusar.
+  assert.ok(
+    escrevem.includes(doDono),
+    `${DONO_DA_CAPA} não escreve mais em edicoes_capa — a barreira ficou sem o dono. Se o carimbo mudou de `
+      + 'arquivo, aponte DONO_DA_CAPA para ele.',
+  );
+  const fora = escrevem.filter((x) => x !== doDono);
+  assert.deepEqual(
+    fora,
+    [],
+    `escrita em edicoes_capa fora do carimbo: ${fora.join(', ')}. A capa se grava por gravarCapa (data/`
+      + 'edicoes-capa.ts), que confere a sessão antes e carimba a hora à mão — um upsert escrito noutro lugar '
+      + 'perde os dois e congela a capa errada no período fechado.',
   );
 });
 
