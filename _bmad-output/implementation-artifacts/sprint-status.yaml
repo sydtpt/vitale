@@ -216,7 +216,9 @@ development_status:
   # SÓ ADICIONAR implementação nova de Motor, nunca alterar a assinatura do
   # tipo existente, ou quebra quem já mergeou. Rodar
   # `pnpm --filter @vitale/shared lint && test` antes de mergear.
-  # IMPLEMENTADA em 18/09/2026, na worktree ../life-organizer-wt-motores-5-6.
+  # FECHADA em 18/09/2026 — mergeada na main (PR #521, 4906ff3). O veredito do
+  # dono foi o merge: com a lista vazia não há nada a conferir em tela, e o
+  # código novo do app vai junto no próximo build, sem build próprio.
   # Oito gates verdes. A revisão adversarial (3 camadas) achou e consertou 11
   # patches, sem loopback — nenhum achado tinha raiz no spec congelado. Os três
   # graves: a BANCADA não tinha adotado a injeção do MotorId (media o modelo
@@ -224,10 +226,14 @@ development_status:
   # um 200 sem a chave `motores` virava lista vazia autoritativa em vez de null;
   # e `catalogoDoRecurso`, o fio que leva a lista fundida às duas leituras reais,
   # não tinha teste nenhum. 6 achados foram para o deferred-work.
-  # FALTA: o veredito do dono, o deploy (runbook em motores-5-6/deploy-da-lista.md
-  # — a function ANTES do build) e o merge. A lista fica VAZIA hoje, por decisão
-  # do `Never` do spec; o epics.md diz o contrário e a divergência está aberta.
-  5-6-vários-motores-de-nuvem: review
+  # FICA COM O DONO, fora da story: o deploy da function (runbook em
+  # motores-5-6/deploy-da-lista.md — `supabase functions deploy ia-narrar`, SEM
+  # definir o secret). Até lá a produção roda a ia-narrar antiga, e nada quebra
+  # em nenhum sentido. A lista fica VAZIA, por decisão do `Never` do spec; o
+  # epics.md dizia o contrário. Um 2º modelo na lista é decisão futura dele e
+  # pede, nesta ordem, a tabela de regime do provedor, uma rodada da bancada e
+  # só então o secret.
+  5-6-vários-motores-de-nuvem: done
   # ▼ PRÓXIMA SPRINT (F4–F5). Estão aqui para aparecer no quadro, não para começar.
   5-7-o-nome-de-rota-pela-porta: backlog
   5-8-core-ai: backlog
