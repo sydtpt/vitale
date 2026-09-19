@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 10:02
+last_updated: 19-09-2026 10:14
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -308,5 +308,10 @@ development_status:
   # aparelho, a sonda (descritor) e as quatro medidas da ADR 0050 sem veredito.
   # Revisão em 3 camadas: 24 patches, sem loopback. Falta o dono ler o relatório
   # da medição real (acervo de 12/09) — é ele que decide se a 5.9 vale o build.
-  5-10-a-coluna-do-aparelho-na-bancada: review
+  # FECHADA em 19/09/2026 com a decisão do dono sobre o relatório: aparelho 3 de
+  # 22 (13,6%), mediana 1,6 s, reprovando pela FORMA (rótulo e dois-pontos, mais
+  # de uma frase, número por extenso, marcador ausente); sonda 12 de 12. A 5.9
+  # não vale o build ainda — antes, uma story curta ajusta o pedido da Saúde
+  # para modelo pequeno e mede de novo as duas colunas (opção A dele).
+  5-10-a-coluna-do-aparelho-na-bancada: done
   epic-5-retrospective: optional
