@@ -48,3 +48,18 @@ describe('o anel', () => {
     expect(anel.ler()).toHaveLength(1);
   });
 });
+
+describe('as notas do hospedeiro (story 5.9)', () => {
+  it('guarda da mais recente para a mais antiga, com o teto, e limpar leva as notas junto', () => {
+    const anel = criarAnel(2, () => new Date(Date.UTC(2026, 8, 19, 12, 0, 0)));
+    anel.anotar('uma');
+    anel.anotar('duas');
+    anel.anotar('três');
+    expect(anel.notas().map((n) => n.texto)).toEqual(['três', 'duas']);
+    expect(anel.notas()[0].instante).toBe('2026-09-19T12:00:00.000Z');
+    anel.registrar(evento(1));
+    anel.limpar();
+    expect(anel.notas()).toEqual([]);
+    expect(anel.ler()).toEqual([]);
+  });
+});

@@ -6,23 +6,31 @@
  * entre na trilha como tentativa sintética — é assim que a tela consegue dizer
  * **por que** o escolhido não escreveu, em vez de cair no template em silêncio.
  *
- * Por isso o catálogo lista o `aparelho:sistema` hoje, no marco A, com o motivo
- * escrito: a ponte Swift é o marco B. Um catálogo que o omitisse faria o seletor
- * mentir por omissão — o dono veria duas opções e não saberia que existe uma
- * terceira esperando um build.
+ * Por isso o catálogo lista o `aparelho:sistema` sempre, disponível ou não, e com o
+ * motivo escrito quando não. Desde a 5.9 a disponibilidade dele é **a do
+ * diagnóstico da ponte** — se o modelo do sistema atende, qual variante e que
+ * janela, ou por quê não —, que `./index.ts` lê uma vez por sessão e passa para cá
+ * como {@link EstadoDaPonte}. Sem o módulo nativo (um build anterior à 5.9, o jest), o
+ * aparelho continua listado, apagado, dizendo que a ponte não está neste build; fora
+ * do iOS, dizendo que ele só existe no iPhone. Um catálogo que o omitisse faria o
+ * seletor mentir por omissão. (O simulador **tem** o módulo quando é build desta
+ * branch — o autolinking é o mesmo —, e o diagnóstico diz o que o simulador disser.)
  *
- * Puro, sem rede e sem armazenamento: quem injeta motor é `./index.ts`, e quem
- * guarda a escolha é `./preferencia.ts`.
+ * Puro, sem rede e sem armazenamento: quem injeta motor e lê a ponte é `./index.ts`,
+ * e quem guarda a escolha é `./preferencia.ts`.
  */
 import {
   APARELHO_SISTEMA,
   NUVEM_PADRAO,
   SEM_MODELO,
   admiteTipo,
+  ehMotivoDoAparelho,
   exposicao,
   formatarMotorId,
   lerMotorId,
   type Descritor,
+  type DiagnosticoDoAparelho,
+  type MotivoDoAparelho,
   type MotorDeNuvemAprovado,
   type MotorId,
   type RecursoId,
@@ -45,11 +53,32 @@ export interface MotorConhecido {
   readonly disponivel: boolean;
   /** Por que não dá, **em palavras**. Obrigatório quando `disponivel` é falso. */
   readonly motivo?: string;
+  /**
+   * Uma linha simples que diz **qual** motor é, quando há o que dizer. Hoje só o
+   * aparelho a tem, vinda do diagnóstico: `AFM 3 Core Advanced · janela de 8.192
+   * tokens` — é a resposta a "que modelo eu tenho".
+   */
+  readonly detalhe?: string;
+  /**
+   * O estado ainda está sendo perguntado (o diagnóstico da ponte a caminho). Não é
+   * "indisponível": a tela o anuncia como ocupado, não como um motor que não existe.
+   */
+  readonly consultando?: true;
 }
+
+/**
+ * O motivo do aparelho num build sem a ponte — o módulo nativo `OnDeviceEngine` não
+ * está no binário (um build anterior à 5.9, o jest).
+ */
+export const MOTIVO_SEM_PONTE = 'a ponte para o modelo do sistema não está neste build';
 
 /**
  * A lista, na ordem em que o seletor a mostra: do que não sai do código ao que
  * sai do aparelho.
+ *
+ * O aparelho aqui é o de **um build sem a ponte**. O estado de verdade dele entra
+ * por {@link motoresDoRecurso}, com o diagnóstico: esta lista é a identidade (ids,
+ * nomes, rótulos) e o ponto de partida, não a disponibilidade do aparelho.
  */
 export const MOTORES_CONHECIDOS: readonly MotorConhecido[] = [
   {
@@ -65,7 +94,7 @@ export const MOTORES_CONHECIDOS: readonly MotorConhecido[] = [
     rotulo: 'Modelo do aparelho',
     descricao: 'O modelo que o próprio sistema do iPhone fornece. Nada sai do aparelho.',
     disponivel: false,
-    motivo: 'a ponte para o modelo do sistema ainda não existe neste build',
+    motivo: MOTIVO_SEM_PONTE,
   },
   {
     id: NUVEM_PADRAO,
@@ -83,6 +112,106 @@ export const MOTORES_CONHECIDOS: readonly MotorConhecido[] = [
  * {@link idsConhecidosDe}.
  */
 export const idsConhecidos: readonly MotorId[] = MOTORES_CONHECIDOS.map((m) => m.id);
+
+/* ── a ponte do aparelho (story 5.9) ─────────────────────────────────────── */
+
+/**
+ * O que o app sabe da ponte do aparelho. Quem o lê é `./index.ts` — o único lugar
+ * que carrega o módulo nativo —, **uma vez por sessão**; aqui ele só entra por
+ * parâmetro.
+ */
+export type EstadoDaPonte =
+  /** O módulo nativo não está neste build. */
+  | { readonly tipo: 'ausente' }
+  /**
+   * Não é iOS: o modelo do sistema só existe no iPhone, e o módulo é só `apple`
+   * (`expo-module.config.json`). Motivo próprio, porque "a ponte não está neste
+   * build" seria falso — lá ela nunca vai estar.
+   */
+  | { readonly tipo: 'fora-do-ios' }
+  /** O módulo está, e o diagnóstico ainda não voltou. */
+  | { readonly tipo: 'consultando' }
+  /**
+   * O diagnóstico voltou — legível ou não —, com a linha **crua** que a ponte
+   * escreveu, quando houve uma (a tela de desenvolvimento a mostra).
+   */
+  | { readonly tipo: 'lido'; readonly diagnostico: DiagnosticoDoAparelho; readonly cru?: string };
+
+export const PONTE_AUSENTE: EstadoDaPonte = { tipo: 'ausente' };
+export const PONTE_FORA_DO_IOS: EstadoDaPonte = { tipo: 'fora-do-ios' };
+export const PONTE_CONSULTANDO: EstadoDaPonte = { tipo: 'consultando' };
+
+/**
+ * Os motivos que a ponte conhece, em palavras. **Exaustivo sobre
+ * `MOTIVOS_DO_APARELHO`** (o núcleo), que a guarda do contrato amarra aos literais
+ * que o `Engine.swift` devolve: um motivo novo na lista não compila aqui até ganhar
+ * palavras. É aqui, e não no núcleo, que o nome da Apple Intelligence aparece: é
+ * texto de tela.
+ */
+export const MOTIVO_EM_PALAVRAS: Readonly<Record<MotivoDoAparelho, string>> = {
+  deviceNotEligible: 'este aparelho não é elegível ao modelo do sistema',
+  appleIntelligenceNotEnabled: 'a Apple Intelligence está desligada nos Ajustes',
+  modelNotReady: 'o modelo do sistema ainda não está pronto — ele pode estar sendo baixado',
+  sistemaAntigo: 'o modelo do sistema pede iOS 26 ou mais novo',
+};
+
+/** O aparelho fora do iOS: não é falta de build, é plataforma. */
+export const MOTIVO_FORA_DO_IOS = 'o modelo do aparelho só existe no iPhone';
+
+/** Um motivo que a ponte disse e esta versão do app não conhece. */
+export const MOTIVO_DESCONHECIDO = 'o modelo do sistema está indisponível por um motivo que esta versão não conhece';
+/** O diagnóstico voltou fora do contrato, ou não voltou (matriz da 5.9). */
+export const MOTIVO_ILEGIVEL = 'o aparelho não respondeu como esperado';
+/** O diagnóstico ainda está a caminho: apagado por um instante, sem inventar motivo. */
+export const MOTIVO_CONSULTANDO = 'consultando o modelo do aparelho…';
+
+/** Por que o aparelho não atende, em palavras — ou `null`, se atende. */
+export function motivoDoAparelho(ponte: EstadoDaPonte): string | null {
+  switch (ponte.tipo) {
+    case 'ausente':
+      return MOTIVO_SEM_PONTE;
+    case 'fora-do-ios':
+      return MOTIVO_FORA_DO_IOS;
+    case 'consultando':
+      return MOTIVO_CONSULTANDO;
+    case 'lido': {
+      const d = ponte.diagnostico;
+      if (d.estado === 'disponivel') return null;
+      if (d.estado === 'ilegivel') return MOTIVO_ILEGIVEL;
+      return ehMotivoDoAparelho(d.motivo) ? MOTIVO_EM_PALAVRAS[d.motivo] : MOTIVO_DESCONHECIDO;
+    }
+  }
+}
+
+/** 8192 → "8.192": o separador de milhar da tela, sem depender do `Intl` do motor JS. */
+function milhar(n: number): string {
+  return String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/**
+ * A linha de detalhe do aparelho: `AFM 3 Core Advanced · janela de 8.192 tokens`.
+ * Só quando ele atende, e só com o que o diagnóstico trouxe — antes do 27 não há
+ * variante, e a linha fica só com a janela.
+ */
+export function detalheDoAparelho(ponte: EstadoDaPonte): string | undefined {
+  if (ponte.tipo !== 'lido' || ponte.diagnostico.estado !== 'disponivel') return undefined;
+  const { variante, janela } = ponte.diagnostico;
+  const partes = [variante, janela !== undefined ? `janela de ${milhar(janela)} tokens` : undefined].filter(
+    (p): p is string => p !== undefined,
+  );
+  return partes.length > 0 ? partes.join(' · ') : undefined;
+}
+
+/** O aparelho no estado da ponte: disponível com o detalhe, ou apagado com o motivo. */
+function aparelhoNaPonte(base: MotorConhecido, ponte: EstadoDaPonte): MotorConhecido {
+  const motivo = motivoDoAparelho(ponte);
+  if (motivo !== null) {
+    return { ...base, disponivel: false, motivo, ...(ponte.tipo === 'consultando' ? { consultando: true as const } : {}) };
+  }
+  const detalhe = detalheDoAparelho(ponte);
+  const { motivo: _semMotivo, ...semMotivo } = base;
+  return { ...semMotivo, disponivel: true, ...(detalhe !== undefined ? { detalhe } : {}) };
+}
 
 /* ── a lista do servidor (story 5.6, ADR 0048) ───────────────────────────── */
 
@@ -196,20 +325,35 @@ export function variantesDaNuvem(
  *
  * A ordem põe as nomeadas **depois** de `nuvem:padrao`: o padrão é o que o
  * servidor escolhe, e continua sendo a primeira opção de nuvem que o dono lê.
+ *
+ * **`ponte` é obrigatória** (5.9), pela mesma razão que `conhecidos` virou
+ * obrigatório na 5.6: com um padrão, quem esquecesse de passá-la mostraria "a ponte
+ * não está neste build" num iPhone com o modelo de pé — a mentira, sem nada quebrar.
+ * `lista` fica com o padrão de sempre (o cache), e o mesmo de {@link idsConhecidosDe}:
+ * o cache é o que o app sabe de verdade, não uma suposição.
  */
 export function motoresDoRecurso(
   recurso: RecursoId,
+  ponte: EstadoDaPonte,
   lista: ListaAprovada | null = guardada,
 ): readonly MotorConhecido[] {
-  return [...MOTORES_CONHECIDOS, ...variantesDaNuvem(recurso, lista)];
+  const locais = MOTORES_CONHECIDOS.map((m) => (m.id === APARELHO_SISTEMA ? aparelhoNaPonte(m, ponte) : m));
+  return [...locais, ...variantesDaNuvem(recurso, lista)];
 }
 
-/** Os ids que o app conhece para este recurso — o que vai ao `resolverCadeia`. */
+/**
+ * Os ids que o app conhece para este recurso — o que vai ao `resolverCadeia`.
+ *
+ * **Derivados de {@link motoresDoRecurso}**, com o mesmo padrão de `lista`, para as
+ * duas listas nunca divergirem. A ponte não muda id nenhum — conhecer não é ter, e o
+ * aparelho entra na cadeia mesmo indisponível (é assim que a trilha diz por que ele
+ * não escreveu) —, então qualquer estado serve; vai o do build sem ponte.
+ */
 export function idsConhecidosDe(
   recurso: RecursoId,
   lista: ListaAprovada | null = guardada,
 ): readonly MotorId[] {
-  return motoresDoRecurso(recurso, lista).map((m) => m.id);
+  return motoresDoRecurso(recurso, PONTE_AUSENTE, lista).map((m) => m.id);
 }
 
 /**

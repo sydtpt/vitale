@@ -19,9 +19,9 @@ import { useSonoStore } from '../../../store/sono.store';
 import { PeriodNav } from '../../../components/sono/PeriodNav';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { motivoDaFalha } from '../../../lib/assinatura';
-import { motoresDoRecurso, nomeDoMotor } from '../../../lib/motores/catalogo';
+import { motoresDoRecurso, nomeDoMotor, type EstadoDaPonte } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
-import { garantirListaAprovada, motorPara } from '../../../lib/motores';
+import { garantirListaAprovada, motorPara, ponteDoAparelho } from '../../../lib/motores';
 import { chaveDaJanela } from '../../../lib/leitura-da-saude';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../../theme';
 
@@ -65,6 +65,17 @@ export default function BancadaScreen() {
   const [offset, setOffset] = useState(0);
   const [rodando, setRodando] = useState<MotorId | null>(null);
   const [linhas, setLinhas] = useState<readonly Linha[]>([]);
+  // O diagnóstico da ponte, cru (5.9): relido ao abrir enquanto não for "disponível".
+  const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
+  useEffect(() => {
+    let vivo = true;
+    void ponteDoAparelho.reconsultar().then((p) => {
+      if (vivo) setPonte(p);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   const hoje = useMemo(() => localDateStr(), []);
   const today = useMemo(() => new Date(), []);
@@ -100,7 +111,11 @@ export default function BancadaScreen() {
       // A lista do servidor antes do laço (5.6): uma variante nomeada que o dono
       // pode **escolher** no seletor tem de ser mensurável aqui, senão a tela que
       // existe para comparar motores esconde justamente o motor novo.
-      const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, await garantirListaAprovada());
+      // E a ponte do aparelho (5.9): com o módulo no build, o aparelho é medido aqui
+      // ao lado da nuvem, com o texto cru dele — é a comparação que o dono pediu.
+      const [lista, estadoDaPonte] = await Promise.all([garantirListaAprovada(), ponteDoAparelho.reconsultar()]);
+      setPonte(estadoDaPonte);
+      const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, estadoDaPonte, lista);
       if (chaveRef.current !== chaveDoLaco) return;
       for (const m of conhecidos) {
         // **Abandona o que é de outra janela.** O efeito de limpeza apaga as linhas
@@ -158,6 +173,8 @@ export default function BancadaScreen() {
             Modo medição: um motor por vez, sem recuo e sem piso. A frase do template é a régua. O
             texto cru só aparece aqui, e nada disto sai do aparelho.
           </Text>
+          <Text style={s.rotulo}>diagnóstico da ponte</Text>
+          <Text style={s.meta}>{diagnosticoCru(ponte)}</Text>
         </View>
 
         {linhas.map((l) => (
@@ -188,7 +205,10 @@ interface Linha {
   /** O texto como o motor o escreveu, antes da interpolação. */
   readonly cru?: string;
   readonly tokens?: { readonly entrada: number; readonly saida: number };
-  readonly assinatura?: string;
+  /** Quem forneceu os pesos, como a resposta assinou. */
+  readonly provedor?: string;
+  /** O modelo que assinou esta medição — no aparelho, a variante ("AFM 3 Core"). */
+  readonly modelo?: string;
   readonly problemas?: readonly ProblemaDaConferencia[];
   readonly detalhe?: string;
   /** O motivo em palavras, pela mesma função que a `/sono/saude` usa. */
@@ -247,7 +267,7 @@ async function medirUm(entrada: EntradaDaSaude, motor: MotorId): Promise<Linha> 
     ...(m.frase !== undefined ? { frase: m.frase } : {}),
     ...(cru !== undefined ? { cru } : {}),
     ...(m.resposta?.tokens ? { tokens: m.resposta.tokens } : {}),
-    ...(assinatura ? { assinatura: `${assinatura.provedor} · ${assinatura.modelo}` } : {}),
+    ...(assinatura ? { provedor: assinatura.provedor, modelo: assinatura.modelo } : {}),
     ...(problemas.length > 0 ? { problemas } : {}),
     ...(ultima?.detalhe !== undefined ? { detalhe: ultima.detalhe } : {}),
     // A mesma tradução que a `/sono/saude` mostra — a tela de desenvolvimento não
@@ -292,9 +312,9 @@ function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string;
         </>
       ) : null}
 
-      {linha.assinatura !== undefined ? (
+      {linha.modelo !== undefined ? (
         <Text style={s.meta}>
-          {linha.assinatura}
+          assinado por {linha.provedor} · modelo {linha.modelo}
           {linha.tokens ? ` · ${linha.tokens.entrada}→${linha.tokens.saida} tokens` : ''}
         </Text>
       ) : null}
@@ -308,6 +328,20 @@ function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string;
       ))}
     </View>
   );
+}
+
+/** O diagnóstico como a ponte o escreveu — ou o estado, quando não houve linha. */
+function diagnosticoCru(p: EstadoDaPonte): string {
+  switch (p.tipo) {
+    case 'ausente':
+      return 'ausente — o módulo OnDeviceEngine não está neste build';
+    case 'fora-do-ios':
+      return 'fora do iOS — o modelo do sistema só existe no iPhone';
+    case 'consultando':
+      return 'consultando…';
+    case 'lido':
+      return p.cru ?? (p.diagnostico.estado === 'ilegivel' ? `ilegível: ${p.diagnostico.detalhe}` : JSON.stringify(p.diagnostico));
+  }
 }
 
 /**
@@ -327,6 +361,9 @@ function Anel({ s }: { s: Styles }) {
   // rodar não aparecia. O `setGeracao` existe só para o `limpar` repintar.
   const todos = anel.ler();
   const eventos = mostrarTudo ? todos : todos.slice(0, 8);
+  // As notas do hospedeiro (5.9): o que aconteceu fora de uma leitura — hoje, a vez
+  // do aparelho solta à força por uma chamada nativa que não voltou.
+  const notas = anel.notas();
 
   return (
     <View style={s.card}>
@@ -336,6 +373,12 @@ function Anel({ s }: { s: Styles }) {
           {todos.length}/{TETO_DO_ANEL}
         </Text>
       </View>
+
+      {notas.map((n, i) => (
+        <Text key={`nota-${n.instante}-${i}`} style={s.problema}>
+          {n.instante.slice(11, 19)} · hospedeiro · {n.texto}
+        </Text>
+      ))}
 
       {eventos.length === 0 ? (
         <Text style={s.meta}>nenhuma leitura nesta sessão</Text>
@@ -358,7 +401,7 @@ function Anel({ s }: { s: Styles }) {
             <Text style={s.acaoTexto}>{mostrarTudo ? 'mostrar só as 8 últimas' : `ver todas as ${todos.length}`}</Text>
           </Pressable>
         ) : null}
-        {todos.length > 0 ? (
+        {todos.length > 0 || notas.length > 0 ? (
           <Pressable
             onPress={() => {
               anel.limpar();

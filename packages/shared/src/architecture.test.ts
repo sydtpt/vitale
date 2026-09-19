@@ -15,6 +15,7 @@
  * na primeira hora.
  */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
@@ -28,7 +29,17 @@ import { cssVars } from './theme/css-vars';
 import { sleepColorsOf, sleepCssVars } from './sleep/colors';
 import { resolveTokens } from './theme/derive';
 import { CLASSES_DE_FALHA } from './ia/fio';
-import { CHAVE_DA_VERSAO, CHAVES_DA_FALHA, CHAVES_DA_RESPOSTA, CHAVES_DO_PEDIDO, CHAVES_DOS_TOKENS } from './ia/aparelho';
+import {
+  CHAVE_DA_VERSAO,
+  CHAVES_DA_FALHA,
+  CHAVES_DA_RESPOSTA,
+  CHAVES_DO_DIAGNOSTICO,
+  CHAVES_DO_PEDIDO,
+  CHAVES_DOS_TOKENS,
+  MODELO_SEM_VARIANTE,
+  MOTIVOS_DO_APARELHO,
+  lerDiagnosticoDoAparelho,
+} from './ia/aparelho';
 import { CONCLUSAO } from './ia/motor';
 import { VOCABULARIO_PROIBIDO } from './ia/verificar';
 import { CADERNO_IDS } from './period/cadernos';
@@ -1797,6 +1808,10 @@ check('BARREIRA — Engine.swift só importa Foundation e FoundationModels (AD-1
  * mesmas que `traduzirDoAparelho` usa para ler (o compilador não a deixa ler outra chave).
  * No pedido, as chaves do `Pedido` mais a versão do descritor; e a lista de chaves que a
  * ponte aceita (a `static let chaves`, que recusa a desconhecida) tem de ser a mesma.
+ *
+ * Desde a 5.9 o contrato cobre também o **diagnóstico** (`DiagnosticoDoFio` ↔
+ * `CHAVES_DO_DIAGNOSTICO`): um campo renomeado ali faria o seletor dizer "o aparelho não
+ * respondeu como esperado" num iPhone com o modelo de pé.
  */
 function camposDaStruct(src: string, nome: string): string[] | null {
   const codigo = codigoSwift(src);
@@ -1828,6 +1843,7 @@ function problemasDoContrato(src: string): string[] {
     ['FalhaDoFio', CHAVES_DA_FALHA],
     ['TokensDoFio', CHAVES_DOS_TOKENS],
     ['PedidoDoFio', [...CHAVES_DO_PEDIDO, CHAVE_DA_VERSAO]],
+    ['DiagnosticoDoFio', CHAVES_DO_DIAGNOSTICO],
   ];
   const problemas: string[] = [];
   for (const [struct, chaves] of esperado) {
@@ -1851,6 +1867,10 @@ function problemasDoContrato(src: string): string[] {
 }
 
 function provarODetectorDoContrato(): void {
+  const diagnostico =
+    'struct DiagnosticoDoFio: Encodable {\n' +
+    ['disponivel', 'motivo', 'variante', 'janela', 'plataforma', 'buildDoSistema'].map((k) => `  let ${k}: String?`).join('\n') +
+    '\n}';
   const fonte = (resposta: string, pedidoCampos: string, aceitas: string) =>
     [
       'struct TokensDoFio: Encodable { let entrada: Int\n let saida: Int }',
@@ -1859,6 +1879,7 @@ function provarODetectorDoContrato(): void {
       `struct PedidoDoFio: Decodable {\n${pedidoCampos}\n  static let chaves: Set<String> = [${aceitas}]\n` +
         '  struct SaidaDoFio: Decodable { let tipo: String\n let esquema: Int? }\n' +
         '  init(from d: any Decoder) throws { let c = 1; self.sistema = "" }\n}',
+      diagnostico,
     ].join('\n');
   const resposta = ['texto', 'provedor', 'modelo', 'plataforma', 'buildDoSistema', 'tokens'].map((k) => `  let ${k}: String`).join('\n');
   const pedido = ['sistema', 'usuario', 'amostragem', 'guardrails', 'saida', 'versaoDoDescritor'].map((k) => `  let ${k}: String`).join('\n');
@@ -1873,6 +1894,16 @@ function provarODetectorDoContrato(): void {
     ['aceitas divergentes', semCalculado(fonte(resposta, pedido, '"sistema", "usuario"')), /PedidoDoFio aceita/],
     ['struct sumida', semCalculado(fonte(resposta, pedido, aceitas)).replace('struct FalhaDoFio', 'struct OutraCoisa'), /não achei `struct FalhaDoFio`/],
     ['campo calculado a mais', fonte(resposta, pedido, aceitas), /RespostaDoFio tem calculado/],
+    [
+      'diagnóstico renomeado',
+      semCalculado(fonte(resposta, pedido, aceitas)).replace('let variante:', 'let modelo:'),
+      /DiagnosticoDoFio não tem variante/,
+    ],
+    [
+      'diagnóstico sumido',
+      semCalculado(fonte(resposta, pedido, aceitas)).replace('struct DiagnosticoDoFio', 'struct Outro'),
+      /não achei `struct DiagnosticoDoFio`/,
+    ],
   ];
   for (const [nome, src, esperado] of casos) {
     const achado = problemasDoContrato(src);
@@ -1890,6 +1921,525 @@ check('BARREIRA — os campos do fio no Engine.swift são as chaves que o núcle
     `o contrato entre ${relativoARaiz(ENGINE_SWIFT)} e ia/aparelho.ts divergiu: ${problemas.join('; ')}.\n` +
       '  Renomear um campo de um lado só não quebra build nenhum — a resposta chega sem ele, e a coluna ' +
       'inteira do aparelho sai transitoria. Mude os dois lados juntos.',
+  );
+});
+
+/**
+ * BARREIRA — o vocabulário do diagnóstico cruza as duas línguas amarrado (story 5.9).
+ *
+ * O contrato de campos (acima) não vê **valores**. Três deles cruzam de Swift para TS sem
+ * compilador nenhum no meio, e cada divergência seria calada:
+ *
+ *  - os **motivos** que `motivoDoDiagnostico` e `motivoSistemaAntigo` devolvem têm de ser
+ *    `MOTIVOS_DO_APARELHO` — um motivo novo de um lado só vira "motivo desconhecido" na tela
+ *    (o mapa em palavras do catálogo é exaustivo sobre a lista do núcleo);
+ *  - o `Engine.modelo` (o nome genérico, sem variante) tem de ser `MODELO_SEM_VARIANTE` — é o
+ *    que a assinatura omite; divergindo, a tela mostraria "(system-language-model)";
+ *  - a `diagnosticoDeReserva` (a linha do codificador que falhou) tem de ser **ilegível** para
+ *    `lerDiagnosticoDoAparelho` — lida como indisponível com motivo, ela diria "motivo
+ *    desconhecido" em vez de "o aparelho não respondeu como esperado".
+ *
+ * Lidos no fonte pelo mesmo varredor de Swift, no molde do enum das classes.
+ */
+
+/** O corpo inteiro entre a chave que abre em `abre` e a que a fecha — com o aninhado. */
+function corpoInteiro(codigo: string, abre: number): string | null {
+  let profundidade = 0;
+  for (let i = abre; i < codigo.length; i += 1) {
+    const c = codigo[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < codigo.length && codigo[j] !== '"' && codigo[j] !== '\n') j += codigo[j] === '\\' ? 2 : 1;
+      i = j;
+      continue;
+    }
+    if (c === '{') profundidade += 1;
+    else if (c === '}') {
+      profundidade -= 1;
+      if (profundidade === 0) return codigo.slice(abre + 1, i);
+    }
+  }
+  return null;
+}
+
+/** O literal de uma linha de um `static let NOME = "…"`, como está no fonte (escapado). */
+function literalDeStaticLet(codigo: string, nome: string): string | null {
+  const achados = [...codigo.matchAll(new RegExp(`\\bstatic[ \\t]+let[ \\t]+${nome}\\b[^=\\n]*=[ \\t]*"((?:[^"\\\\\\n]|\\\\.)*)"`, 'g'))];
+  return achados.length === 1 ? achados[0][1] : null;
+}
+
+/** O valor de um literal Swift de uma linha sem interpolação — as escapas são as do JSON. */
+function valorDoLiteralSwift(literal: string): string | null {
+  try {
+    return JSON.parse(`"${literal}"`) as string;
+  } catch {
+    return null;
+  }
+}
+
+function problemasDoVocabulario(src: string): string[] {
+  const codigo = codigoSwift(src);
+  const problemas: string[] = [];
+
+  const funcoes = [...codigo.matchAll(/\bfunc[ \t]+motivoDoDiagnostico\b[^{]*\{/g)];
+  const antigo = literalDeStaticLet(codigo, 'motivoSistemaAntigo');
+  if (funcoes.length !== 1) problemas.push(`declara \`func motivoDoDiagnostico\` ${funcoes.length} vezes`);
+  if (antigo === null) problemas.push('não declara `static let motivoSistemaAntigo = "…"` (uma vez)');
+  if (funcoes.length === 1) {
+    const f = funcoes[0];
+    const corpo = corpoInteiro(codigo, f.index! + f[0].length - 1);
+    const retornos = corpo === null ? [] : [...corpo.matchAll(/\breturn[ \t]+"((?:[^"\\\n]|\\.)*)"/g)].map((m) => m[1]);
+    if (retornos.length === 0) problemas.push('motivoDoDiagnostico não devolve literal nenhum — o detector ficou cego');
+    const doSwift = [...retornos, ...(antigo !== null ? [antigo] : [])];
+    const repetidos = doSwift.filter((v, i) => doSwift.indexOf(v) !== i);
+    if (repetidos.length > 0) problemas.push(`motivo repetido no Swift: ${[...new Set(repetidos)].join(', ')}`);
+    const doNucleo = new Set<string>(MOTIVOS_DO_APARELHO);
+    const faltam = [...doNucleo].filter((m) => !doSwift.includes(m));
+    const sobram = doSwift.filter((m) => !doNucleo.has(m));
+    if (faltam.length > 0) problemas.push(`o Swift não devolve o motivo ${faltam.join(', ')}, que o núcleo lista`);
+    if (sobram.length > 0) problemas.push(`o Swift devolve o motivo ${[...new Set(sobram)].join(', ')}, que o núcleo não lista`);
+  }
+
+  const modelo = literalDeStaticLet(codigo, 'modelo');
+  if (modelo === null) problemas.push('não declara `static let modelo = "…"` (uma vez)');
+  else if (valorDoLiteralSwift(modelo) !== MODELO_SEM_VARIANTE) {
+    problemas.push(`Engine.modelo é "${modelo}", e MODELO_SEM_VARIANTE é "${MODELO_SEM_VARIANTE}"`);
+  }
+
+  const reserva = literalDeStaticLet(codigo, 'diagnosticoDeReserva');
+  const linha = reserva === null ? null : valorDoLiteralSwift(reserva);
+  if (linha === null) problemas.push('não declara `static let diagnosticoDeReserva = "…"` legível (uma vez)');
+  else if (lerDiagnosticoDoAparelho(linha).estado !== 'ilegivel') {
+    problemas.push(`a diagnosticoDeReserva (${linha}) não é ilegível para o núcleo — o app a mostraria como um motivo`);
+  }
+  return problemas;
+}
+
+function provarODetectorDoVocabulario(): void {
+  const fonte = (retornos: readonly string[], extra = '') =>
+    'enum Engine {\n  static let modelo = "system-language-model"\n  static let motivoSistemaAntigo = "sistemaAntigo"\n' +
+    '  static let diagnosticoDeReserva = "{\\"erro\\":\\"x\\"}"\n' +
+    `${extra}  static func motivoDoDiagnostico(_ m: R) -> String {\n    switch m {\n` +
+    retornos.map((r, i) => `    case .c${i}: return "${r}"\n`).join('') +
+    '    @unknown default: return nomeCru(m)\n    }\n  }\n}\n';
+  const TRES = ['deviceNotEligible', 'appleIntelligenceNotEnabled', 'modelNotReady'];
+  assert.deepEqual(problemasDoVocabulario(fonte(TRES)), [], 'o detector do vocabulário reprovou o vocabulário certo');
+  const casos: readonly (readonly [string, string, RegExp])[] = [
+    ['motivo a menos', fonte(TRES.slice(1)), /não devolve o motivo deviceNotEligible/],
+    ['motivo a mais', fonte([...TRES, 'novoMotivo']), /devolve o motivo novoMotivo, que o núcleo não lista/],
+    ['antigo renomeado', fonte(TRES).replace('"sistemaAntigo"', '"antigo"'), /não devolve o motivo sistemaAntigo/],
+    ['modelo divergente', fonte(TRES).replace('"system-language-model"', '"sistema"'), /Engine\.modelo é "sistema"/],
+    [
+      'reserva legível como motivo',
+      fonte(TRES).replace('"{\\"erro\\":\\"x\\"}"', '"{\\"disponivel\\":false,\\"motivo\\":\\"x\\"}"'),
+      /não é ilegível/,
+    ],
+    ['só no comentário', `// static func motivoDoDiagnostico() { return "x" }\n`, /0 vezes/],
+  ];
+  for (const [nome, src, esperado] of casos) {
+    const achado = problemasDoVocabulario(src);
+    assert.ok(achado.some((p) => esperado.test(p)), `o detector do vocabulário não viu "${nome}": ${JSON.stringify(achado)}`);
+  }
+}
+
+check('BARREIRA — os motivos, o modelo genérico e a linha de reserva do diagnóstico são os do núcleo (story 5.9)', () => {
+  provarODetectorDoVocabulario();
+  assert.ok(existsSync(ENGINE_SWIFT), `${relativoARaiz(ENGINE_SWIFT)} sumiu — a guarda do vocabulário ficou sem alvo.`);
+  const problemas = problemasDoVocabulario(readFileSync(ENGINE_SWIFT, 'utf8'));
+  assert.deepEqual(
+    problemas,
+    [],
+    `o vocabulário do diagnóstico divergiu entre ${relativoARaiz(ENGINE_SWIFT)} e ia/aparelho.ts: ${problemas.join('; ')}.\n` +
+      '  Os motivos, o nome genérico e a linha de reserva cruzam as duas línguas sem compilador: mude os dois lados juntos.',
+  );
+});
+
+/**
+ * BARREIRA — o módulo tem dois `.swift`, e modelo de servidor em nenhum (story 5.9, AD-3, ADR 0047).
+ *
+ * O pod `OnDeviceEngine` tem **dois** arquivos em `ios/`, numa lista fechada: o
+ * `Engine.swift` (a ponte, que as guardas (3), (4), a do contrato e a do vocabulário cobrem)
+ * e a cola `OnDeviceEngineModule.swift`. Arquivo `.swift` novo reprova — é decisão de
+ * arquitetura, e muda esta lista junto, com a razão.
+ *
+ * E `PrivateCloudComputeLanguageModel` não aparece em **lugar nenhum** do Swift do módulo
+ * nem da bancada. Ele passou por aqui como experimento descartável (19/09/2026, emenda da ADR
+ * 0047) e saiu no mesmo dia, com a causa provada no iPhone: sem o entitlement gerenciado
+ * `com.apple.developer.private-cloud-compute`, o framework **derruba o processo**
+ * (`Fatal error: Missing entitlement`) em vez de devolver erro — tocar o botão fechava o app,
+ * e nada em Swift captura isso. Se um dia o PCC voltar, é `nuvem:` (AD-3, AD-9), nunca a ponte.
+ */
+const DIR_DA_PONTE = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios');
+const COLA_SWIFT = join(DIR_DA_PONTE, 'OnDeviceEngineModule.swift');
+const SWIFT_DO_MODULO = ['Engine.swift', 'OnDeviceEngineModule.swift'].map((f) => relativoARaiz(join(DIR_DA_PONTE, f)));
+const INJECAO_DA_PONTE = join(ROOT, 'mobile', 'src', 'lib', 'motores', 'index.ts');
+const NOME_DA_PONTE = 'OnDeviceEngine';
+
+/**
+ * Os problemas do Swift: a lista fechada de arquivos do módulo (`doModulo`) e o modelo de
+ * servidor em arquivo nenhum (`doModulo` e `outros`, o Swift da bancada).
+ */
+function problemasDoSwiftDoModulo(doModulo: ReadonlyMap<string, string>, outros: ReadonlyMap<string, string> = new Map()): string[] {
+  const problemas: string[] = [];
+  const presentes = [...doModulo.keys()].sort();
+  const faltam = SWIFT_DO_MODULO.filter((f) => !doModulo.has(f));
+  const sobram = presentes.filter((f) => !SWIFT_DO_MODULO.includes(f));
+  if (faltam.length > 0) problemas.push(`faltam ${faltam.join(', ')}`);
+  if (sobram.length > 0) problemas.push(`sobram ${sobram.join(', ')} — a lista de .swift do módulo é fechada`);
+  for (const [f, src] of [...doModulo, ...outros]) {
+    if (/\bPrivateCloudComputeLanguageModel\b/.test(codigoSwift(src))) {
+      problemas.push(`${f} nomeia PrivateCloudComputeLanguageModel — modelo de servidor não entra na ponte`);
+    }
+  }
+  return problemas;
+}
+
+function provarODetectorDoModulo(): void {
+  const [engine, cola] = SWIFT_DO_MODULO;
+  const modulo = (extra: Record<string, string> = {}) =>
+    new Map<string, string>(Object.entries({ [engine]: 'import Foundation\nenum Engine {}', [cola]: 'import ExpoModulesCore', ...extra }));
+  assert.deepEqual(problemasDoSwiftDoModulo(modulo()), [], 'o detector do módulo reprovou o módulo certo');
+  const casos: readonly (readonly [string, readonly string[], RegExp])[] = [
+    ['arquivo novo', problemasDoSwiftDoModulo(modulo({ 'mobile/modules/on-device-engine/ios/ExperimentoDoPCC.swift': '' })), /sobram .*ExperimentoDoPCC\.swift/],
+    ['arquivo a menos', problemasDoSwiftDoModulo(new Map([[engine, '']])), /faltam .*OnDeviceEngineModule\.swift/],
+    ['PCC no Engine', problemasDoSwiftDoModulo(modulo({ [engine]: 'let m = PrivateCloudComputeLanguageModel()' })), /Engine\.swift nomeia PrivateCloudComputeLanguageModel/],
+    ['PCC na cola', problemasDoSwiftDoModulo(modulo({ [cola]: 'let m = PrivateCloudComputeLanguageModel()' })), /OnDeviceEngineModule\.swift nomeia/],
+    [
+      'PCC na bancada',
+      problemasDoSwiftDoModulo(modulo(), new Map([['scripts/bancada/aparelho/testes.swift', 'let m = PrivateCloudComputeLanguageModel()']])),
+      /testes\.swift nomeia/,
+    ],
+  ];
+  for (const [nome, achado, esperado] of casos) {
+    assert.ok(achado.some((p) => esperado.test(p)), `o detector do módulo não viu "${nome}": ${JSON.stringify(achado)}`);
+  }
+  // Comentário não conta.
+  assert.deepEqual(problemasDoSwiftDoModulo(modulo({ [engine]: '// PrivateCloudComputeLanguageModel saiu em 19/09' })), [], 'o detector do módulo contou um comentário');
+}
+
+check('BARREIRA — o módulo da ponte tem dois .swift, e PrivateCloudComputeLanguageModel em nenhum lugar (story 5.9)', () => {
+  provarODetectorDoModulo();
+  const doModulo = new Map(walkExt(join(ROOT, 'mobile', 'modules'), /\.swift$/).map((f) => [relativoARaiz(f), readFileSync(f, 'utf8')] as const));
+  const daBancada = new Map(walkExt(join(ROOT, 'scripts', 'bancada', 'aparelho'), /\.swift$/).map((f) => [relativoARaiz(f), readFileSync(f, 'utf8')] as const));
+  assert.ok(doModulo.size > 0 && daBancada.size > 0, 'não achei o Swift do módulo ou da bancada — a barreira ficou sem alvo');
+  const problemas = problemasDoSwiftDoModulo(doModulo, daBancada);
+  assert.deepEqual(
+    problemas,
+    [],
+    `o Swift da ponte saiu da lista: ${problemas.join('; ')}.\n` +
+      '  O pod tem dois arquivos — Engine e cola —, e modelo de servidor não entra nele: sem o entitlement gerenciado, ' +
+      'o PCC derruba o app no iPhone (19/09). Se ele voltar, é nuvem:, com regime e lista do servidor.',
+  );
+});
+
+/**
+ * BARREIRA — a cola do Expo só repassa, com os nomes que o app chama (story 5.9, AD-3, ADR 0047).
+ *
+ * **Uma cola que pensasse seria uma segunda tabela** — fora do teste e fora da CLI, que
+ * compila só o `Engine.swift`: a bancada mediria uma coisa e o iPhone faria outra. Então ela é
+ * lida aqui, pelo mesmo varredor de Swift, e reprova se tiver:
+ *
+ *  - import além de `ExpoModulesCore`;
+ *  - outro `Name(…)` que não um só, `NOME_DA_PONTE` — o que o ponto de injeção carrega e a
+ *    guarda (1) reconhece;
+ *  - funções com nomes que não são **exatamente** os de `FUNCOES_DA_PONTE`
+ *    (`mobile/src/lib/motores/index.ts`), ou peça do DSL além de `Name` e `AsyncFunction`;
+ *  - `catch`, `try`, `do { }`: a ponte nunca lança, e quem converte exceção em falha é o núcleo;
+ *  - decisão (`if`, `guard`, `switch`, laço, `??`, `&&`, `||`, ternário) — o `for:` de um
+ *    rótulo de argumento não é laço;
+ *  - literal de classe de falha — ou a palavra `classe` num literal;
+ *  - string de várias linhas, onde tudo isso se esconderia.
+ */
+
+/** O conteúdo de cada string de uma linha num código Swift já sem comentário. */
+function literaisSwift(codigo: string): string[] {
+  return [...codigo.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)].map((m) => m[1]);
+}
+
+/** Os nomes das funções da ponte como o app os chama: `FUNCOES_DA_PONTE`, lido do fonte. `null` se não achar. */
+function funcoesDoApp(src: string): string[] | null {
+  const lista = /\bexport[ \t]+const[ \t]+FUNCOES_DA_PONTE\s*=\s*\[([^\]]*)\]/.exec(semComentario(src));
+  if (!lista) return null;
+  return lista[1]
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => x !== '')
+    .map((x) => /^'(\w+)'$/.exec(x)?.[1] ?? `?${x}`);
+}
+
+function problemasDaCola(src: string, funcoesDoAppLidas: readonly string[]): string[] {
+  const codigo = codigoSwift(src);
+  const problemas: string[] = [];
+  const imports = importsSwift(src);
+  if (!imports.includes('ExpoModulesCore')) problemas.push('não importa ExpoModulesCore');
+  const fora = imports.filter((m) => m !== 'ExpoModulesCore');
+  if (fora.length > 0) problemas.push(`importa ${fora.join(', ')} — a cola importa só ExpoModulesCore`);
+
+  const nomes = [...codigo.matchAll(/\bName\s*\(\s*"((?:[^"\\\n]|\\.)*)"\s*\)/g)].map((m) => m[1]);
+  if (nomes.length !== 1 || nomes[0] !== NOME_DA_PONTE) {
+    problemas.push(`declara Name ${JSON.stringify(nomes)} — tem de ser um só, "${NOME_DA_PONTE}"`);
+  }
+
+  const outrasPecas = [
+    ...codigo.matchAll(/\b(Function|StaticFunction|StaticAsyncFunction|Property|Constant|Events|View|Prop|Class|OnCreate|OnDestroy|OnStartObserving|OnStopObserving)\s*\(/g),
+  ].map((m) => m[1]);
+  if (outrasPecas.length > 0) problemas.push(`declara ${[...new Set(outrasPecas)].join(', ')} — a cola só tem Name e AsyncFunction`);
+
+  const daCola = [...codigo.matchAll(/\bAsyncFunction\s*\(\s*"((?:[^"\\\n]|\\.)*)"\s*\)/g)].map((m) => m[1]);
+  const repetidas = daCola.filter((n, i) => daCola.indexOf(n) !== i);
+  if (repetidas.length > 0) problemas.push(`declara a função ${[...new Set(repetidas)].join(', ')} mais de uma vez`);
+  const faltam = funcoesDoAppLidas.filter((n) => !daCola.includes(n));
+  const sobram = daCola.filter((n) => !funcoesDoAppLidas.includes(n));
+  if (faltam.length > 0) problemas.push(`não declara ${faltam.join(', ')}, que o app chama (FUNCOES_DA_PONTE)`);
+  if (sobram.length > 0) problemas.push(`declara ${[...new Set(sobram)].join(', ')}, que o app não chama (FUNCOES_DA_PONTE)`);
+
+  if (/"""/.test(src.replace(/\/\/.*$/gm, ''))) problemas.push('tem string de várias linhas');
+  const semTexto = codigo.replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
+  const PROIBIDO: readonly (readonly [RegExp, string])[] = [
+    [/\bcatch\b/, 'catch'],
+    [/\btry\b/, 'try'],
+    [/\bdo\s*\{/, 'do { }'],
+    // Seguido de `:` é rótulo de argumento (`f(for: x)`), não laço nem decisão.
+    [/\b(?:if|guard|switch|while|for|repeat)\b(?!\s*:)/, 'decisão (if/guard/switch/laço)'],
+    [/\?\?/, 'decisão (??)'],
+    [/&&|\|\|/, 'decisão (&& / ||)'],
+    // O ternário do Swift exige espaço dos dois lados do `?`; o `?` do opcional, não.
+    [/\s\?\s/, 'decisão (ternário)'],
+  ];
+  for (const [re, o] of PROIBIDO) if (re.test(semTexto)) problemas.push(`tem ${o}`);
+
+  const escapar = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const DE_CLASSE = new RegExp(`(?:^|[^\\w-])(?:classe|${CLASSES_DE_FALHA.map(escapar).join('|')})(?![\\w-])`);
+  for (const literal of literaisSwift(codigo)) {
+    if (DE_CLASSE.test(literal)) problemas.push(`tem literal de classe: "${literal}"`);
+  }
+  return problemas;
+}
+
+/**
+ * A prova de que o detector da cola vê — pelas mesmas funções que a guarda chama, sobre
+ * fontes de mentira: a cola que só repassa passa; cada pecado reprova com o seu nome, e o
+ * que só aparece em comentário, ou o `for:` de rótulo, não conta.
+ */
+function provarODetectorDaCola(): void {
+  const APP = ['responder', 'diagnostico'];
+  const cola = (corpo: string, cabeca = 'import ExpoModulesCore') =>
+    `${cabeca}\n\n// catch, if, "transitoria" — só no comentário\npublic class M: Module {\n  public func definition() -> ModuleDefinition {\n` +
+    `    Name("${NOME_DA_PONTE}")\n${corpo}\n  }\n}\n`;
+  const repassa =
+    '    AsyncFunction("responder") { (pedido: String) async -> String in\n      await Engine.responder(pedido)\n    }\n' +
+    '    AsyncFunction("diagnostico") { () -> String in\n      Engine.diagnostico()\n    }';
+  const com = (trecho: string) => cola(`${repassa}\n${trecho}`);
+  const funcaoCom = (corpo: string) => cola(repassa.replace('Engine.diagnostico()', corpo));
+  assert.deepEqual(problemasDaCola(cola(repassa), APP), [], 'o detector da cola reprovou a cola que só repassa');
+  // `for:` de rótulo e o `?` do opcional não são decisão.
+  assert.deepEqual(problemasDaCola(funcaoCom('Engine.eco(for: x?.count)'), APP), [], 'o detector da cola viu decisão num rótulo `for:` ou num opcional');
+  const casos: readonly (readonly [string, string, RegExp])[] = [
+    ['import a mais', cola(repassa, 'import ExpoModulesCore\nimport FoundationModels'), /importa FoundationModels/],
+    ['sem ExpoModulesCore', cola(repassa, 'import Foundation'), /não importa ExpoModulesCore/],
+    ['outro nome', cola(repassa).replace(`Name("${NOME_DA_PONTE}")`, 'Name("Ponte")'), /tem de ser um só/],
+    ['dois nomes', com('    Name("Outra")'), /tem de ser um só/],
+    ['função que o app não chama', com('    AsyncFunction("experimentoDoPCC") { () async -> String in\n      Engine.diagnostico()\n    }'), /declara experimentoDoPCC, que o app não chama/],
+    ['função renomeada', cola(repassa.replace('"diagnostico"', '"diagnosticar"')), /não declara diagnostico/],
+    ['função repetida', com('    AsyncFunction("responder") { (p: String) async -> String in\n      await Engine.responder(p)\n    }'), /mais de uma vez/],
+    ['peça do DSL a mais', com('    Function("x") { () -> String in\n      Engine.diagnostico()\n    }'), /declara Function/],
+    ['catch', funcaoCom('do { return try x() } catch { return "" }'), /tem catch/],
+    ['if', funcaoCom('if a { return b }'), /decisão \(if/],
+    ['switch', funcaoCom('switch a { default: return b }'), /decisão \(if/],
+    ['for de laço', funcaoCom('for x in y { f(x) }'), /decisão \(if/],
+    ['??', funcaoCom('a ?? b'), /decisão \(\?\?\)/],
+    ['&&', funcaoCom('f(a && b)'), /decisão \(&& \/ \|\|\)/],
+    ['||', funcaoCom('f(a || b)'), /decisão \(&& \/ \|\|\)/],
+    ['ternário', funcaoCom('a ? b : c'), /ternário/],
+    ['literal de classe', funcaoCom('"transitoria"'), /literal de classe/],
+    ['classe hifenizada', funcaoCom('"recusa-do-modelo"'), /literal de classe/],
+    ['linha de falha montada à mão', funcaoCom('"{\\"classe\\":\\"x\\"}"'), /literal de classe/],
+    ['string de várias linhas', funcaoCom('"""\n      x\n      """'), /várias linhas/],
+  ];
+  for (const [nome, fonte, esperado] of casos) {
+    const achado = problemasDaCola(fonte, APP);
+    assert.ok(achado.some((p) => esperado.test(p)), `o detector da cola não viu "${nome}": ${JSON.stringify(achado)}`);
+  }
+}
+
+check('BARREIRA — a cola do Expo só repassa, com os nomes que o app chama (story 5.9)', () => {
+  provarODetectorDaCola();
+  assert.ok(
+    existsSync(COLA_SWIFT),
+    `${relativoARaiz(COLA_SWIFT)} sumiu — a barreira da cola ficou sem alvo. Se a cola mudou de lugar, aponte COLA_SWIFT para ela.`,
+  );
+  assert.ok(existsSync(INJECAO_DA_PONTE), `${relativoARaiz(INJECAO_DA_PONTE)} sumiu — a barreira não acha os nomes que o app chama.`);
+  const app = funcoesDoApp(readFileSync(INJECAO_DA_PONTE, 'utf8'));
+  assert.ok(
+    app !== null && app.length > 0 && app.every((f) => !f.startsWith('?')),
+    `não li FUNCOES_DA_PONTE em ${relativoARaiz(INJECAO_DA_PONTE)} (${JSON.stringify(app)}) — ` +
+      'a barreira compararia a cola com nada.',
+  );
+  const problemas = problemasDaCola(readFileSync(COLA_SWIFT, 'utf8'), app!);
+  assert.deepEqual(
+    problemas,
+    [],
+    `a cola ${relativoARaiz(COLA_SWIFT)} pensa ou diverge do app: ${problemas.join('; ')}.\n` +
+      '  Ela só declara o nome e repassa ao Engine. A tradução, a tabela erro → classe e o diagnóstico moram no ' +
+      'Engine.swift, que a bancada compila e testa; os nomes são os de FUNCOES_DA_PONTE.',
+  );
+});
+
+/**
+ * BARREIRA — o carregador da ponte (story 5.9).
+ *
+ * O ponto de injeção carrega a ponte por `requireOptionalNativeModule(NOME_DA_PONTE)` —
+ * **uma chamada**, em `mobile/src/lib/motores/`, contada por chamada e não por arquivo. E
+ * `requireNativeModule(NOME_DA_PONTE)` (ou `NativeModules.<nome>`) não aparece em lugar
+ * nenhum de `mobile/src`, testes inclusive: ele **lança** num build sem o módulo (o jest, um
+ * build antigo), onde o aparelho tem de ser só `indisponivel`.
+ */
+check('BARREIRA — a ponte é carregada uma vez, pelo carregador que não lança (story 5.9)', () => {
+  const nome = NOME_DA_PONTE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const OPCIONAL = new RegExp(`\\brequireOptionalNativeModule\\s*(?:<[^>]*>)?\\s*\\(\\s*['"\`]${nome}['"\`]`, 'g');
+  const LANCA = new RegExp(
+    `\\brequireNativeModule\\s*(?:<[^>]*>)?\\s*\\(\\s*['"\`]${nome}['"\`]|\\bNativeModules\\s*(?:\\.\\s*${nome}\\b|\\[\\s*['"\`]${nome}['"\`]\\s*\\])`,
+    'g',
+  );
+  // Não-vácua: os dois detectores veem o que têm de ver, e não veem o comentário.
+  assert.equal([...`const p = requireOptionalNativeModule<P>('${NOME_DA_PONTE}');`.matchAll(OPCIONAL)].length, 1);
+  assert.equal([...`requireNativeModule('${NOME_DA_PONTE}'); NativeModules.${NOME_DA_PONTE}; NativeModules['${NOME_DA_PONTE}']`.matchAll(LANCA)].length, 3);
+  assert.equal([...semComentario(`// requireNativeModule('${NOME_DA_PONTE}')\nconst x = 1;`).matchAll(LANCA)].length, 0);
+
+  const todos = walk(join(ROOT, 'mobile', 'src'));
+  assert.ok(todos.length > 0, 'mobile/src sumiu — a barreira do carregador ficou sem alvo');
+  const carregam: string[] = [];
+  const lancam: string[] = [];
+  for (const f of todos) {
+    const src = semComentario(readFileSync(f, 'utf8'));
+    carregam.push(...[...src.matchAll(OPCIONAL)].map(() => relativoARaiz(f)));
+    lancam.push(...[...src.matchAll(LANCA)].map(() => relativoARaiz(f)));
+  }
+  assert.deepEqual(
+    carregam,
+    ['mobile/src/lib/motores/index.ts'],
+    `a ponte "${NOME_DA_PONTE}" é carregada por requireOptionalNativeModule em ${carregam.length} chamadas ` +
+      `(${carregam.join(', ') || 'nenhuma'}) — tem de ser uma, no ponto de injeção. Com zero, o nome da cola e o do ` +
+      'app divergiram e o aparelho ficaria "ausente" em todo build.',
+  );
+  assert.deepEqual(
+    lancam,
+    [],
+    `o carregador que lança aparece em ${lancam.join(', ')}: sem o módulo (jest, build antigo) ele derruba o app ` +
+      'onde o aparelho tem de ser só indisponível. Use requireOptionalNativeModule, no ponto de injeção.',
+  );
+});
+
+/**
+ * BARREIRA — nenhum JavaScript nem TypeScript em `mobile/modules/` (story 5.9).
+ *
+ * As guardas do app varrem `mobile/src`. Um `index.ts` dentro do módulo local seria uma porta
+ * para a ponte fora da vista delas — o app importaria o módulo por ali e a catraca (1) não
+ * saberia. O módulo local tem Swift, o `.podspec` e o `expo-module.config.json`; quem o carrega
+ * é o ponto de injeção, `mobile/src/lib/motores/`.
+ */
+check('BARREIRA — mobile/modules/ não tem JavaScript nem TypeScript (story 5.9)', () => {
+  const dir = join(ROOT, 'mobile', 'modules');
+  assert.ok(existsSync(dir), 'mobile/modules/ sumiu — a barreira ficou sem alvo');
+  // Não-vácua: o varredor acha o Swift que está lá.
+  assert.ok(walkExt(dir, /\.swift$/).length > 0, 'o varredor não achou Swift em mobile/modules/ — a barreira passaria sobre nada');
+  const js = walkExt(dir, /\.[mc]?[jt]sx?$/).map((f) => relativoARaiz(f));
+  assert.deepEqual(
+    js,
+    [],
+    `mobile/modules/ tem ${js.join(', ')}. O módulo local é Swift, podspec e config; o app o carrega por ` +
+      'requireOptionalNativeModule em mobile/src/lib/motores/, onde as guardas veem.',
+  );
+});
+
+/**
+ * BARREIRA — mudar o código nativo sobe o `runtimeVersion` (story 5.9).
+ *
+ * Um `eas update` só entrega JS, e o entrega a todo aparelho do mesmo `runtimeVersion`. Se o
+ * código de `mobile/modules/` muda sem o runtime mudar, um update feito com o JS novo chega a
+ * binários com a ponte velha — e o JS chamaria uma função que a cola dele não tem. Nada disso
+ * quebra build: é o iPhone do dono que descobre.
+ *
+ * Então `mobile/modules/runtime.json` guarda, por `runtimeVersion`, o sha256 dos fontes do
+ * módulo (todo arquivo de `mobile/modules/`, fora ele mesmo, em ordem de caminho: caminho,
+ * `\0`, conteúdo, `\0`). A barreira reprova se o hash de hoje não for o da última entrada, se a
+ * última entrada não for o `runtimeVersion` do `app.base.json`, ou se o histórico repetir um
+ * runtime ou um hash — é isso que obriga fonte nova a vir com runtime novo.
+ */
+const RUNTIME_JSON = join(ROOT, 'mobile', 'modules', 'runtime.json');
+const APP_BASE_JSON = join(ROOT, 'mobile', 'app.base.json');
+
+/** O sha256 dos fontes de um diretório, como a barreira do runtime o calcula. */
+function hashDosFontes(dir: string, ignorar: readonly string[]): string {
+  const arquivos: string[] = [];
+  const andar = (d: string) => {
+    for (const e of readdirSync(d)) {
+      if (e.startsWith('.') || e === 'node_modules') continue;
+      const p = join(d, e);
+      if (statSync(p).isDirectory()) andar(p);
+      else if (!ignorar.includes(p)) arquivos.push(p);
+    }
+  };
+  andar(dir);
+  const h = createHash('sha256');
+  for (const f of arquivos.map((x) => relative(dir, x).split(sep).join('/')).sort()) {
+    h.update(f);
+    h.update('\0');
+    h.update(readFileSync(join(dir, f)));
+    h.update('\0');
+  }
+  return h.digest('hex');
+}
+
+interface EntradaDoRuntime {
+  readonly runtimeVersion: string;
+  readonly fontes: string;
+}
+
+function problemasDoRuntime(historico: readonly EntradaDoRuntime[], runtimeDoApp: string, hashDeHoje: string): string[] {
+  const problemas: string[] = [];
+  if (historico.length === 0) return ['o histórico de runtime.json está vazio'];
+  const runtimes = historico.map((e) => e.runtimeVersion);
+  const hashes = historico.map((e) => e.fontes);
+  const repetidos = (xs: readonly string[]) => [...new Set(xs.filter((x, i) => xs.indexOf(x) !== i))];
+  if (repetidos(runtimes).length > 0) problemas.push(`o histórico repete o runtime ${repetidos(runtimes).join(', ')}`);
+  if (repetidos(hashes).length > 0) problemas.push('o histórico repete um hash — fonte nova exige runtime novo');
+  const ultima = historico[historico.length - 1];
+  if (ultima.runtimeVersion !== runtimeDoApp) {
+    problemas.push(`a última entrada é o runtime ${ultima.runtimeVersion}, e o app.base.json está em ${runtimeDoApp}`);
+  }
+  if (ultima.fontes !== hashDeHoje) {
+    problemas.push(`os fontes de mobile/modules/ mudaram (hash de hoje ${hashDeHoje}) e o runtime ${ultima.runtimeVersion} não`);
+  }
+  return problemas;
+}
+
+check('BARREIRA — mudar mobile/modules/ exige subir o runtimeVersion junto (story 5.9)', () => {
+  const A = { runtimeVersion: '1.0.6', fontes: 'aaa' };
+  assert.deepEqual(problemasDoRuntime([A], '1.0.6', 'aaa'), [], 'o detector do runtime reprovou o estado certo');
+  const provas: readonly (readonly [string, string[], RegExp])[] = [
+    ['fonte mudou, runtime não', problemasDoRuntime([A], '1.0.6', 'bbb'), /mudaram .* e o runtime 1\.0\.6 não/],
+    ['entrada nova com o mesmo runtime', problemasDoRuntime([A, { runtimeVersion: '1.0.6', fontes: 'bbb' }], '1.0.6', 'bbb'), /repete o runtime 1\.0\.6/],
+    ['runtime novo sem o app subir', problemasDoRuntime([A, { runtimeVersion: '1.0.7', fontes: 'bbb' }], '1.0.6', 'bbb'), /o app\.base\.json está em 1\.0\.6/],
+    ['app subiu sem entrada', problemasDoRuntime([A], '1.0.7', 'aaa'), /a última entrada é o runtime 1\.0\.6/],
+    ['hash repetido', problemasDoRuntime([A, { runtimeVersion: '1.0.7', fontes: 'aaa' }], '1.0.7', 'aaa'), /repete um hash/],
+  ];
+  for (const [nome, achado, esperado] of provas) {
+    assert.ok(achado.some((p) => esperado.test(p)), `o detector do runtime não viu "${nome}": ${JSON.stringify(achado)}`);
+  }
+
+  const hoje = hashDosFontes(join(ROOT, 'mobile', 'modules'), [RUNTIME_JSON]);
+  assert.ok(existsSync(RUNTIME_JSON), `${relativoARaiz(RUNTIME_JSON)} sumiu. Recrie-o com o runtime do app.base.json e o hash ${hoje}.`);
+  const lido = JSON.parse(readFileSync(RUNTIME_JSON, 'utf8')) as { historico?: EntradaDoRuntime[] };
+  const runtimeDoApp = (JSON.parse(readFileSync(APP_BASE_JSON, 'utf8')) as { expo: { runtimeVersion: string } }).expo.runtimeVersion;
+  const problemas = problemasDoRuntime(lido.historico ?? [], runtimeDoApp, hoje);
+  assert.deepEqual(
+    problemas,
+    [],
+    `o runtime e os fontes nativos divergiram: ${problemas.join('; ')}.\n` +
+      `  Mudou o código de mobile/modules/? Suba o runtimeVersion do mobile/app.base.json e acrescente ao fim do ` +
+      `histórico de ${relativoARaiz(RUNTIME_JSON)} { "runtimeVersion": "<o novo>", "fontes": "${hoje}" }. ` +
+      'Build próprio, e nenhum eas update com este código vai ao runtime anterior (mobile/AGENTS.md).',
   );
 });
 
@@ -2219,6 +2769,13 @@ check(`CATRACA — o literal 'STOP' só na CONCLUSAO (teto ${TETO_STOP})`, () =>
  *   1 (1.10) — fica. A impressão voltou ao celular pelo `motorPara` de
  *             `mobile/src/lib/motores/` — `edicao-ia.ts` não nomeia a function.
  *             Sobra `services/route-name.ts`, que sai na 5.7.
+ *   1 (5.9)  — fica. A ponte passou a ser carregada — por
+ *             `requireOptionalNativeModule('OnDeviceEngine')`, em
+ *             `mobile/src/lib/motores/index.ts`, dentro do ponto de injeção. A
+ *             barreira da cola, acima, confere que é esse o nome da cola; a do
+ *             carregador, que é uma chamada só e que o que lança não aparece em
+ *             `mobile/src`; a de `mobile/modules/`, que o módulo não tem TS por
+ *             onde a ponte escaparia desta catraca.
  */
 const PONTOS_DE_INJECAO = [
   /^mobile\/src\/lib\/motores\//,

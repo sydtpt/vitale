@@ -21,24 +21,47 @@ import type { EventoDoAnel } from '@vitale/shared';
 /** Quantos eventos o anel guarda. */
 export const TETO_DO_ANEL = 40;
 
+/**
+ * Uma nota do **hospedeiro**: o que aconteceu fora de uma leitura e que o dono
+ * precisa ver no diagnóstico — hoje, a vez do aparelho solta à força porque uma
+ * chamada nativa não voltou (story 5.9). Fica à parte dos eventos porque não é uma
+ * execução do orquestrador: não tem recurso, trilha nem pedido — e não carrega
+ * dado nenhum do dono.
+ */
+export interface NotaDoHospedeiro {
+  readonly instante: string;
+  readonly texto: string;
+}
+
 export interface Anel {
   /** O que o orquestrador chama. Nunca lança: o anel não derruba uma leitura. */
   readonly registrar: (evento: EventoDoAnel) => void;
   /** Do mais recente para o mais antigo — a ordem em que se lê um log de falha. */
   readonly ler: () => readonly EventoDoAnel[];
+  /** Uma nota do hospedeiro, com o mesmo teto. Nunca lança. */
+  readonly anotar: (texto: string) => void;
+  /** As notas, da mais recente para a mais antiga. */
+  readonly notas: () => readonly NotaDoHospedeiro[];
+  /** Esvazia os eventos **e** as notas. */
   readonly limpar: () => void;
 }
 
 /** Um anel novo, com o seu próprio teto — é o que o teste usa. */
-export function criarAnel(teto: number = TETO_DO_ANEL): Anel {
+export function criarAnel(teto: number = TETO_DO_ANEL, agora: () => Date = () => new Date()): Anel {
   let eventos: EventoDoAnel[] = [];
+  let notas: NotaDoHospedeiro[] = [];
   return {
     registrar: (evento) => {
       eventos = [...eventos, evento].slice(-teto);
     },
     ler: () => [...eventos].reverse(),
+    anotar: (texto) => {
+      notas = [...notas, { instante: agora().toISOString(), texto }].slice(-teto);
+    },
+    notas: () => [...notas].reverse(),
     limpar: () => {
       eventos = [];
+      notas = [];
     },
   };
 }

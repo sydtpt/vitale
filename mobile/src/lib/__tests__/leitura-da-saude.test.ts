@@ -110,6 +110,7 @@ function entrada(range: SonoRange, offset = 0): EntradaDaSaude {
 function motorQueEscreve(
   entradas: EntradaDaSaude | readonly EntradaDaSaude[],
   tipo: 'aparelho' | 'nuvem' = 'nuvem',
+  modelo = 'modelo-1',
 ): Motor {
   const lista = Array.isArray(entradas) ? entradas : [entradas as EntradaDaSaude];
   const porPedido = new Map<string, string>();
@@ -122,7 +123,7 @@ function motorQueEscreve(
     if (texto === undefined) throw new Error('o teste não preparou resposta para este pedido');
     const resposta: Resposta = {
       texto,
-      assinatura: { tipo, provedor: 'prov-a', modelo: 'modelo-1' },
+      assinatura: { tipo, provedor: 'prov-a', modelo },
       tokens: { entrada: 120, saida: 30 },
     };
     return resposta;
@@ -234,6 +235,31 @@ describe('a leitura da Saúde do sono, na tela', () => {
     expect(textoDaAssinatura(estado)).toBe('escrito pela nuvem · 17 s');
     // O hash do pedido veio do anel — o app não o calcula.
     expect(estado.hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('o aparelho escreve: a assinatura diz qual modelo, pela variante que a resposta assinou (story 5.9)', async () => {
+    const e = entrada('7d');
+    const h = hospedeiro({ [APARELHO_SISTEMA]: motorQueEscreve(e, 'aparelho', 'AFM 3 Core Advanced') }, APARELHO_SISTEMA);
+    const leitor = criarLeitor(h.deps);
+
+    await leitor.ler(e);
+    const estado = leitor.estadoDe(chaveDaJanela(e));
+    expect(estado.fase).toBe('lida');
+    if (estado.fase !== 'lida') throw new Error('não leu');
+    expect(estado.motor).toBe(APARELHO_SISTEMA);
+    expect(estado.modelo).toBe('AFM 3 Core Advanced');
+    expect(textoDaAssinatura(estado)).toBe('escrito pelo modelo do aparelho (AFM 3 Core Advanced) · 17 s');
+  });
+
+  it('o aparelho sem variante assina o nome genérico, e a tela não o mostra (story 5.9)', async () => {
+    const e = entrada('7d');
+    const h = hospedeiro({ [APARELHO_SISTEMA]: motorQueEscreve(e, 'aparelho', 'system-language-model') }, APARELHO_SISTEMA);
+    const leitor = criarLeitor(h.deps);
+
+    await leitor.ler(e);
+    const estado = leitor.estadoDe(chaveDaJanela(e));
+    if (estado.fase !== 'lida') throw new Error('não leu');
+    expect(textoDaAssinatura(estado)).toBe('escrito pelo modelo do aparelho · 17 s');
   });
 
   it('a nuvem recusa: template, e o motivo em palavras', async () => {

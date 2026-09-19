@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 10:14
+last_updated: 19-09-2026 17:24
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -295,7 +295,28 @@ development_status:
   # existente; (2) BUILD PRÓPRIO já exigido pela story original (nunca o
   # mesmo de uma migração) — estende-se a nunca compartilhar build/instalação
   # no iPhone com outra story rodando em paralelo, pelo mesmo motivo da AD-15.
-  5-9-a-ponte-swift-on-device-engine: backlog
+  # 19/09/2026 — o DONO redefiniu o foco: o Épico 5 é a PONTE e a escolha do
+  # modelo em Configurações; a Saúde do sono é só o recurso de teste. A 5.9
+  # começa agora, com o pedido v1 (a v2 da 5.11 fica parada na branch dela até o
+  # resultado no iPhone). Escopo desta: o modelo do sistema (disponível, variante
+  # AFM 3 Core / Core Advanced, janela), listado de forma simples — o dono revisa
+  # a tela com UX depois.
+  # CONSTRUÍDA em 19/09/2026: o Engine.swift virou módulo Expo (cola sem lógica,
+  # nome OnDeviceEngine), o seletor mostra a variante e a janela do modelo do
+  # sistema, o aparelho escreve a Saúde do sono, e a tela de desenvolvimento tem o
+  # teste descartável do PCC (emenda na ADR 0047). Revisão em 3 camadas: 21
+  # patches, sem loopback. NO IPHONE (1.0.6, 19/09): o aparelho dele tem AFM 3
+  # Core Advanced com janela de 8.192; a ponte escreve e a conferência reprova
+  # por posição de marcador. O botão do PCC FECHAVA o app — "Missing entitlement:
+  # com.apple.developer.private-cloud-compute" (entitlement gerenciado da Apple) —
+  # e o experimento foi APAGADO, com o veredito na ADR 0047. Runtime 1.0.7.
+  5-9-a-ponte-swift-on-device-engine: review
+  # O ÉPICO TEM DE DISPONIBILIZAR TODOS os modelos que o dono PODE usar
+  # (decisão dele, 19/09): o do sistema (5.9) e os abertos do Core AI (5.8, que
+  # por isso fica no épico). O Private Cloud Compute ficou FORA no mesmo dia: do
+  # Mac ele diz `available`, mas o pedido falha com ModelManagerError 1046 — é o
+  # acesso que a Apple dá só a app publicado no Small Business Program. O dono
+  # decidiu deixá-lo de fora se não puder usar; ver deferred-work.
   # 5.10 SEPARADA DA 5.9 em 19/09/2026, por decisão do dono, e ENTRA ANTES DELA
   # (a ordem do épico: F1 mede antes de F2 ligar). É a metade do Mac do marco B:
   # nasce o Engine.swift, a CLI Swift o compila sem cópia, as guardas (3) e (4)

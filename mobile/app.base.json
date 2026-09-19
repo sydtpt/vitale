@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "vitale",
     "userInterfaceStyle": "automatic",
-    "runtimeVersion": "1.0.5",
+    "runtimeVersion": "1.0.7",
     "updates": {
       "url": "https://u.expo.dev/127be066-b0bb-4469-bd58-d7e5c6c9cd22",
       "enabled": true,

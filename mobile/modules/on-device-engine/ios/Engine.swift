@@ -15,12 +15,17 @@
 // é lida de `contextSize` em execução, nunca de constante.
 //
 // **Só dois imports**, e a guarda (4) do `architecture.test.ts` cobra: nada de
-// `ExpoModulesCore` (a cola do Expo é outro arquivo, da 5.9) e nada de modelo de servidor —
-// a ponte só instancia pesos que rodam no aparelho.
+// `ExpoModulesCore` (a cola do Expo é outro arquivo, `OnDeviceEngineModule.swift`, e só
+// repassa) e nada de modelo de servidor — a ponte só instancia pesos que rodam no aparelho.
 //
 // **Compilado sem cópia** por dois hospedeiros: a CLI da bancada (`scripts/bancada/aparelho/`,
-// `swiftc` direto sobre este caminho) e, na 5.9, o módulo Expo do app. Este arquivo não sabe
-// qual dos dois o chamou.
+// `swiftc` direto sobre este caminho) e o módulo Expo do app (story 5.9, o pod
+// `OnDeviceEngine`, com a cola no mesmo pod — é por isso que `Engine` pode ser `internal`).
+// Este arquivo não sabe qual dos dois o chamou.
+//
+// **Duas portas, as duas sem lançar:** `responder(pedido)` (a geração) e `diagnostico()` (o
+// que o seletor mostra antes de pedir qualquer coisa: se o modelo atende, qual variante e que
+// janela — ou por que não).
 
 import Foundation
 import FoundationModels
@@ -255,6 +260,27 @@ enum SaidaDaPonte: Sendable {
   case falha(FalhaDoFio)
 }
 
+// MARK: - O diagnóstico, como o fio o lê
+
+/// O que o app precisa saber do modelo do sistema **antes** de pedir qualquer coisa: se ele
+/// atende — e, se atende, qual variante e que janela; se não, por quê. Uma linha JSON, lida
+/// por `lerDiagnosticoDoAparelho` (`ia/aparelho.ts`); a guarda do contrato no
+/// `architecture.test.ts` cobra que os campos daqui são as chaves que o núcleo lê.
+///
+/// Os opcionais saem do JSON quando nulos (o `Encodable` sintetizado os pula).
+struct DiagnosticoDoFio: Encodable, Equatable, Sendable {
+  let disponivel: Bool
+  /// Só quando indisponível: o nome de um dos três casos de `UnavailableReason`,
+  /// `sistemaAntigo` abaixo do 26, ou o nome cru do caso que este build não conhece.
+  let motivo: String?
+  /// Só quando disponível, e só no 27: o `displayName` da variante ("AFM 3 Core").
+  let variante: String?
+  /// Só quando disponível: a janela, em tokens, lida de `contextSize`.
+  let janela: Int?
+  let plataforma: String
+  let buildDoSistema: String
+}
+
 // MARK: - O pedido preparado
 
 /// O pedido traduzido para as opções do SDK, **antes** de tocar o modelo. Separado de
@@ -273,8 +299,19 @@ struct PedidoPreparado {
 enum Engine {
   /// Quem forneceu os pesos, na assinatura. É o único lugar do aparelho que nomeia a Apple.
   static let provedor = "apple"
-  /// O modelo do sistema, na variante de uso geral — o que `aparelho:sistema` escolhe.
+  /// O modelo do sistema, na variante de uso geral — o que `aparelho:sistema` escolhe. É o
+  /// `modelo` da assinatura só quando a variante não se lê (antes do 27); no 27 a assinatura
+  /// leva o `displayName` dela, para a tela e a bancada dizerem **qual** modelo escreveu.
   static let modelo = "system-language-model"
+
+  /// O motivo do diagnóstico abaixo do 26: não há modelo do sistema para perguntar.
+  static let motivoSistemaAntigo = "sistemaAntigo"
+
+  /// A linha que o diagnóstico devolve se o codificador falhar (inalcançável com os tipos de
+  /// `DiagnosticoDoFio`). **Fora do contrato de propósito** — sem `disponivel` —, para o núcleo
+  /// a ler como ilegível ("o aparelho não respondeu como esperado") e não como um motivo que
+  /// ninguém conhece. A barreira do contrato passa esta string pelo leitor do núcleo e exige isso.
+  static let diagnosticoDeReserva = "{\"erro\":\"a ponte não codificou o diagnóstico\"}"
 
   /// O limite de um `detalhe`. O texto do SDK é diagnóstico, não relatório: cortado, ele
   /// ainda diz o que foi; inteiro, um erro verborrágico empurraria o relatório para o lado.
@@ -283,6 +320,75 @@ enum Engine {
   /// A porta da ponte: a string do pedido entra, uma linha JSON sai. Nunca lança.
   static func responder(_ pedido: String) async -> String {
     codificar(await executar(pedido))
+  }
+
+  /// A outra porta: o diagnóstico do modelo do sistema, numa linha JSON. Nunca lança, e não
+  /// abre sessão — só pergunta ao SDK o que ele já sabe.
+  static func diagnostico() -> String {
+    codificar(diagnosticar())
+  }
+
+  // MARK: o diagnóstico
+
+  static func diagnosticar() -> DiagnosticoDoFio {
+    guard #available(iOS 26, macOS 26, *) else {
+      return DiagnosticoDoFio(
+        disponivel: false, motivo: motivoSistemaAntigo, variante: nil, janela: nil,
+        plataforma: plataforma(), buildDoSistema: buildDoSistema()
+      )
+    }
+    // O mesmo modelo que `gerar` instancia para um pedido de guardrail padrão.
+    let modelo = modeloDoSistema(permissivo: false)
+    if case .unavailable(let motivo) = modelo.availability {
+      return DiagnosticoDoFio(
+        disponivel: false, motivo: motivoDoDiagnostico(motivo), variante: nil, janela: nil,
+        plataforma: plataforma(), buildDoSistema: buildDoSistema()
+      )
+    }
+    // Variante e janela só com o modelo de pé: perguntar a um modelo que não atende é
+    // perguntar a quem não sabe responder.
+    return DiagnosticoDoFio(
+      disponivel: true, motivo: nil, variante: variante(de: modelo), janela: modelo.contextSize,
+      plataforma: plataforma(), buildDoSistema: buildDoSistema()
+    )
+  }
+
+  /// O motivo de indisponibilidade, no diagnóstico: o nome do caso, escrito à mão (o
+  /// `String(describing:)` de um enum não é contrato), ou o nome cru do caso que este build
+  /// não conhece. Quem o põe em palavras é o app (`mobile/src/lib/motores/catalogo.ts`).
+  @available(iOS 26, macOS 26, *)
+  static func motivoDoDiagnostico(_ motivo: SystemLanguageModel.Availability.UnavailableReason) -> String {
+    switch motivo {
+    case .deviceNotEligible: return "deviceNotEligible"
+    case .appleIntelligenceNotEnabled: return "appleIntelligenceNotEnabled"
+    case .modelNotReady: return "modelNotReady"
+    @unknown default: return nomeCru(motivo)
+    }
+  }
+
+  /// A variante do modelo do sistema — "AFM 3 Core", "AFM 3 Core Advanced" —, ou `nil`
+  /// antes do 27, que não a expõe. Símbolo novo dentro de `FoundationModels`: atrás do
+  /// compilador **e** da disponibilidade.
+  @available(iOS 26, macOS 26, *)
+  static func variante(de modelo: SystemLanguageModel) -> String? {
+    #if compiler(>=6.4)
+    if #available(iOS 27, macOS 27, *) {
+      // Aparado aqui, como o núcleo apara na leitura: a assinatura e o diagnóstico dizem o
+      // mesmo nome, e um espaço ou uma quebra de linha do SDK não vira outro modelo.
+      let nome = modelo.variant.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+      return nome.isEmpty ? nil : nome
+    }
+    #endif
+    return nil
+  }
+
+  /// O modelo do sistema, na variante de uso geral, com o guardrail do pedido (AD-3).
+  @available(iOS 26, macOS 26, *)
+  static func modeloDoSistema(permissivo: Bool) -> SystemLanguageModel {
+    SystemLanguageModel(
+      useCase: .general,
+      guardrails: permissivo ? .permissiveContentTransformations : .default
+    )
   }
 
   static func executar(_ linha: String) async -> SaidaDaPonte {
@@ -449,15 +555,14 @@ enum Engine {
     }
 
     // O guardrail é intenção do pedido (AD-3).
-    let modelo = SystemLanguageModel(
-      useCase: .general,
-      guardrails: p.permissivo ? .permissiveContentTransformations : .default
-    )
+    let modelo = modeloDoSistema(permissivo: p.permissivo)
     // `Availability` é `@frozen`: sem `switch`, e o motivo — que não é — passa pelo
     // `@unknown default` de `identificador(de:)`.
     if case .unavailable(let motivo) = modelo.availability {
       return falha(identificador(de: motivo), detalhe: "modelo do sistema indisponível: \(motivo)")
     }
+    // Quem vai escrever, na assinatura: a variante quando ela se lê, o nome genérico antes.
+    let nomeDoModelo = variante(de: modelo) ?? Engine.modelo
 
     // A janela, lida em execução. Sem contagem (antes do 26.4, ou se ela falhar), quem diz
     // que não coube é o erro do próprio SDK — a mesma classe, um passo depois. A contagem
@@ -481,10 +586,10 @@ enum Engine {
     do {
       if let esquema {
         let r = try await sessao.respond(to: p.usuario, schema: esquema, includeSchemaInPrompt: true, options: opcoes)
-        return resposta(r.content.jsonString, tokens: tokensDe(r), rastro: rastro)
+        return resposta(r.content.jsonString, tokens: tokensDe(r), rastro: rastro, modelo: nomeDoModelo)
       }
       let r = try await sessao.respond(to: p.usuario, options: opcoes)
-      return resposta(r.content, tokens: tokensDe(r), rastro: rastro)
+      return resposta(r.content, tokens: tokensDe(r), rastro: rastro, modelo: nomeDoModelo)
     } catch {
       return .falha(falhaDe(identificar(error), lancado: error, rastro: rastro))
     }
@@ -509,7 +614,9 @@ enum Engine {
     return nil
   }
 
-  static func resposta(_ texto: String, tokens: TokensDoFio?, rastro: String? = nil) -> SaidaDaPonte {
+  /// `modelo` é o que a assinatura leva: a variante, quando `gerar` a leu; o nome genérico,
+  /// quando não.
+  static func resposta(_ texto: String, tokens: TokensDoFio?, rastro: String? = nil, modelo: String = Engine.modelo) -> SaidaDaPonte {
     // Texto vazio não é resposta: a porta do núcleo exige texto, e o que volta sem ele não se lê.
     if texto.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       return falha(.respostaVazia, detalhe: ["o modelo devolveu texto vazio", rastro].compactMap { $0 }.joined(separator: " · "))
@@ -714,6 +821,18 @@ enum Engine {
     } catch {}
     // Inalcançável com strings e inteiros; se acontecer, a linha ainda é do contrato.
     return "{\"classe\":\"\(ClasseDeFalha.transitoria.rawValue)\",\"detalhe\":\"a ponte não codificou a saída\",\"naoMapeado\":true}"
+  }
+
+  /// O diagnóstico numa linha, com o mesmo codificador da saída.
+  static func codificar(_ diagnostico: DiagnosticoDoFio) -> String {
+    let codificador = JSONEncoder()
+    codificador.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    if let dados = try? codificador.encode(diagnostico), let texto = String(data: dados, encoding: .utf8) {
+      return texto
+    }
+    // Inalcançável com strings, inteiros e booleanos. Se acontecer, a linha fica fora do
+    // contrato, e o núcleo a lê como ilegível.
+    return diagnosticoDeReserva
   }
 
   // MARK: a assinatura do sistema

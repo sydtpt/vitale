@@ -1,0 +1,13 @@
+{
+  "//": "Um runtimeVersion por versão dos fontes nativos de mobile/modules/ (story 5.9). A barreira do runtime em packages/shared/src/architecture.test.ts calcula o sha256 dos fontes (todo arquivo daqui, fora este, em ordem de caminho: caminho, \\0, conteúdo, \\0) e exige que ele seja o 'fontes' da última entrada, que a última entrada seja o runtimeVersion do mobile/app.base.json, e que o histórico não repita runtime nem hash. Mudou o código nativo? Suba o runtimeVersion do app.base.json e acrescente uma entrada ao fim, com o hash que a barreira imprime. Ver mobile/AGENTS.md.",
+  "historico": [
+    {
+      "runtimeVersion": "1.0.6",
+      "fontes": "1e31278c50b829c90baeb39fc39f90a79bf44163e68c49c98466904ea26ed83c"
+    },
+    {
+      "runtimeVersion": "1.0.7",
+      "fontes": "6a23911bf97577a619a31853b11bad656d28b1432417869816e8b9be08676e7d"
+    }
+  ]
+}

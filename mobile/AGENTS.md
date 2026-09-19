@@ -46,6 +46,36 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
   o id que só a lista conhece seria descartado calado, e a escolha do dono viraria
   o padrão sem nada explicando. Falha na leitura custa **só** as variantes
   nomeadas: `sem-modelo`, `aparelho:sistema` e `nuvem:padrao` continuam de pé.
+- **A ponte do aparelho é um módulo Expo local, `mobile/modules/on-device-engine/`**
+  (5.9, ADR 0047), e o nome nativo dele é **`OnDeviceEngine`** — o `Name(…)` da cola, o
+  que `mobile/src/lib/motores/index.ts` carrega e o que a guarda (1) reconhece. Só
+  aquela pasta o carrega, numa chamada, e **sempre por `requireOptionalNativeModule`**:
+  sem o módulo (o jest, um build anterior à 5.9) ele devolve `null` e o aparelho é
+  `indisponivel`; `requireNativeModule` lançaria, e é barrado em todo `mobile/src`. O
+  simulador de um build desta branch **tem** o módulo (o autolinking é o mesmo); fora do
+  iOS o aparelho aparece com motivo próprio ("só existe no iPhone").
+  A cola `OnDeviceEngineModule.swift` **só repassa** ao `Engine.swift` (`responder`,
+  `diagnostico`) — sem `catch`, sem literal de classe, sem decisão, só
+  `import ExpoModulesCore`, e com os nomes exatos de `FUNCOES_DA_PONTE`. A tradução e a
+  tabela erro → classe moram no `Engine.swift`, que a bancada compila e testa no Mac. O
+  módulo tem **dois `.swift`, numa lista fechada** (Engine e cola), e
+  `PrivateCloudComputeLanguageModel` em **lugar nenhum** dele: no iPhone, sem o
+  entitlement gerenciado `com.apple.developer.private-cloud-compute`, o framework derruba
+  o app em vez de devolver erro — foi provado e o experimento saiu em 19/09 (emenda da ADR
+  0047). Se o PCC voltar um dia, é `nuvem:`, nunca a ponte. E **nenhum `.ts`/`.js` dentro
+  de `mobile/modules/`**: seria uma porta para a ponte fora da vista das guardas. Tudo isso são barreiras do `architecture.test.ts`. O
+  seletor lê a disponibilidade do diagnóstico da ponte (`ponteDoAparelho`), relido ao
+  focar a tela e ao voltar ao primeiro plano enquanto não disser "disponível".
+- **Mexer em `mobile/modules/` muda o binário — sobe o `runtimeVersion` junto.** A
+  barreira do runtime calcula o sha256 dos fontes do módulo e o compara com a última
+  entrada de `mobile/modules/runtime.json`, que tem de ser o `runtimeVersion` do
+  `mobile/app.base.json`. Para atualizar: suba o `runtimeVersion` do `app.base.json`,
+  rode `pnpm --filter @vitale/shared test` — a falha imprime o hash de hoje — e
+  **acrescente** ao fim do `historico` `{ "runtimeVersion": "<o novo>", "fontes":
+  "<o hash>" }`. O histórico não aceita runtime nem hash repetido. Só enquanto um runtime
+  nunca foi entregue (nenhum build instalado, nenhum `eas update`) vale trocar o hash da
+  última entrada no lugar em vez de acrescentar — e isso é decisão sua, visível no diff.
+  Build próprio, e nenhum `eas update` com código da ponte vai ao runtime anterior.
 - **Não chame as funções de um descritor** (`montarPedido`, `interpretar`,
   `conferir`, `montarFrase`, `semModelo`, `pedidoCurto`) de dentro de uma tela ou
   de um serviço: essa sequência existe uma vez só, no orquestrador. Uma barreira

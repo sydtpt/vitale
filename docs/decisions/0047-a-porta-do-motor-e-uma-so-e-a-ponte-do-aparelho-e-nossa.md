@@ -123,3 +123,40 @@ Swift é um módulo isolado: removê-lo devolve o app ao modelo de nuvem e ao pi
 **O que fica em aberto.** O Core AI exige iOS 27 como alvo mínimo no pacote da Apple, e o Xcode 27
 não está na imagem EAS da SDK 57; a F5 decide entre subir o alvo do app, vendorizar o pacote ou
 escrever uma conformidade própria. Não verificado ainda: se o Xcode 26.6 abre no macOS 27.
+
+## Emenda — 19/09/2026: o experimento do Private Cloud Compute, e o veredito
+
+**Uma exceção temporária à regra "só pesos que rodam no aparelho entram na ponte" (item 6,
+AD-3), decidida pelo dono em 19/09/2026, na story 5.9 — e encerrada no mesmo dia.** Do Mac, o
+Private Cloud Compute se anunciou disponível e recusou o pedido (`ModelManagerError 1046`). O
+build da 5.9 ia acontecer de qualquer jeito, então o próprio iPhone responderia se o dono tem
+acesso, com prova em vez de suposição.
+
+**O que o experimento podia:** morar no pod `OnDeviceEngine` num arquivo próprio
+(`ExperimentoDoPCC.swift`), exposto pela cola como uma terceira função sem argumento, chamado só
+por um botão da tela de desenvolvimento, mandando um texto **fixo e neutro** ("Diga olá.") e
+mostrando cru o que voltasse. **O que não podia:** mandar dado do dono, virar motor, entrar no
+catálogo, no seletor ou em cadeia nenhuma, ou aparecer no `Engine.swift`.
+
+**O veredito (19/09/2026, no iPhone do dono, runtime 1.0.6).** Tocar "Testar Private Cloud
+Compute" **fechava o app**. O console do aparelho (`devicectl --console`) mostrou a causa:
+
+> `FoundationModels/ErrorConversion.swift:140: Fatal error: Missing entitlement: com.apple.developer.private-cloud-compute`
+> — "To develop with PCC you must meet certain eligibility requirements… request access to the
+> managed entitlement."
+
+O acesso é um **entitlement gerenciado**, `com.apple.developer.private-cloud-compute`, pedido
+pelo formulário da Apple: <https://developer.apple.com/contact/request/private-cloud-compute/>.
+No iOS o framework **derruba o processo** em vez de devolver erro (no Mac vinha o 1046), e não
+há como capturar isso em Swift — nenhum `catch` alcança um `fatalError`.
+
+**O fim do experimento.** Sem o entitlement, o dono já tinha decidido: o PCC fica fora. O
+experimento era descartável por desenho e foi **apagado** no mesmo dia: o arquivo, a terceira
+função da cola, a função da interface do app e o botão. O binário mudou, então o runtime subiu
+para **1.0.7**. A exceção desta emenda deixou de existir: a ponte volta a ter dois arquivos, e a
+barreira do módulo no `architecture.test.ts` passa a exigir `PrivateCloudComputeLanguageModel`
+em **lugar nenhum** de `mobile/modules/` nem do Swift da bancada.
+
+**Se um dia voltar.** O caminho é pedir o entitlement pelo formulário acima (e ter o app
+elegível). E o PCC entra como `nuvem:` — ele sai do aparelho —, com tabela de regime e lista do
+servidor (AD-3, AD-9), numa ADR própria. Nunca pela ponte do aparelho.

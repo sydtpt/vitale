@@ -11,7 +11,7 @@
  * entra no teste sozinha.
  */
 import { describe, it, expect } from '@jest/globals';
-import { CLASSES_DE_FALHA, NUVEM_PADRAO, SEM_MODELO, type Causa } from '@vitale/shared';
+import { APARELHO_SISTEMA, CLASSES_DE_FALHA, NUVEM_PADRAO, SEM_MODELO, type Causa } from '@vitale/shared';
 import { motivoDaFalha, tempoDaLeitura, textoDaAssinatura } from '../assinatura';
 
 /** As quatro causas além das classes. Separadas porque só uma delas devolve `null`. */
@@ -89,6 +89,23 @@ describe('a assinatura', () => {
   it('quando a nuvem escreve, a assinatura nomeia a nuvem e o tempo', () => {
     expect(
       textoDaAssinatura({ fase: 'lida', frase: 'x', motor: NUVEM_PADRAO, ms: 17_200 }),
+    ).toBe('escrito pela nuvem · 17 s');
+  });
+
+  it('quando o aparelho escreve, a assinatura diz qual modelo (story 5.9)', () => {
+    expect(
+      textoDaAssinatura({ fase: 'lida', frase: 'x', motor: APARELHO_SISTEMA, modelo: 'AFM 3 Core Advanced', ms: 3_400 }),
+    ).toBe('escrito pelo modelo do aparelho (AFM 3 Core Advanced) · 3 s');
+    // Sem variante (iOS 26, ou nome vazio), a ponte assina o nome genérico — e ele não
+    // aparece entre parênteses: não diz nada ao dono. É o caso real, não a ausência de `modelo`.
+    expect(
+      textoDaAssinatura({ fase: 'lida', frase: 'x', motor: APARELHO_SISTEMA, modelo: 'system-language-model', ms: 3_400 }),
+    ).toBe('escrito pelo modelo do aparelho · 3 s');
+  });
+
+  it('a nuvem não muda com o modelo da resposta: a do padrão continua "pela nuvem"', () => {
+    expect(
+      textoDaAssinatura({ fase: 'lida', frase: 'x', motor: NUVEM_PADRAO, modelo: 'modelo-1', ms: 17_200 }),
     ).toBe('escrito pela nuvem · 17 s');
   });
 

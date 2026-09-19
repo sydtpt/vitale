@@ -257,6 +257,64 @@ struct Testes {
       return false
     }())
 
+    print("o modelo da assinatura (story 5.9)")
+    if case .resposta(let r) = Engine.resposta("x", tokens: nil) {
+      p.igual("sem variante, o nome genérico", r.modelo, Engine.modelo)
+    } else {
+      p.conferir("a resposta com texto é resposta", false)
+    }
+    if case .resposta(let r) = Engine.resposta("x", tokens: nil, modelo: "AFM 3 Core Advanced") {
+      p.igual("com variante, a variante", r.modelo, "AFM 3 Core Advanced")
+    } else {
+      p.conferir("a resposta com variante é resposta", false)
+    }
+
+    print("o diagnóstico (story 5.9)")
+    if #available(macOS 26, iOS 26, *) {
+      p.igual("não elegível", Engine.motivoDoDiagnostico(.deviceNotEligible), "deviceNotEligible")
+      p.igual("Apple Intelligence desligada", Engine.motivoDoDiagnostico(.appleIntelligenceNotEnabled), "appleIntelligenceNotEnabled")
+      p.igual("modelo não pronto", Engine.motivoDoDiagnostico(.modelNotReady), "modelNotReady")
+    }
+    let d = Engine.diagnosticar()
+    // O que esta máquina diz — é a mesma pergunta que o iPhone vai responder no seletor.
+    let linhaDoDiagnostico = Engine.diagnostico()
+    print("    (este Mac: \(linhaDoDiagnostico))")
+    if d.disponivel {
+      p.conferir("disponível não traz motivo", d.motivo == nil, d.motivo ?? "")
+      p.conferir("disponível traz a janela, positiva", (d.janela ?? 0) > 0, "\(String(describing: d.janela))")
+      #if compiler(>=6.4)
+      if #available(macOS 27, iOS 27, *) {
+        p.conferir("no 27, disponível traz a variante", !(d.variante ?? "").isEmpty, "\(String(describing: d.variante))")
+      }
+      #endif
+    } else {
+      p.conferir("indisponível traz o motivo", !(d.motivo ?? "").isEmpty)
+      p.conferir("indisponível não traz variante nem janela", d.variante == nil && d.janela == nil)
+    }
+    p.conferir("o diagnóstico numa linha só", !linhaDoDiagnostico.contains("\n"), linhaDoDiagnostico)
+    let lidoDiagnostico = objeto(linhaDoDiagnostico)
+    p.conferir("o diagnóstico é JSON", lidoDiagnostico != nil, linhaDoDiagnostico)
+    p.conferir("disponivel é booleano", lidoDiagnostico?["disponivel"] is Bool, linhaDoDiagnostico)
+    p.conferir(
+      "as chaves do diagnóstico são as do contrato",
+      Set(lidoDiagnostico?.keys.map { $0 } ?? []).isSubset(of: ["disponivel", "motivo", "variante", "janela", "plataforma", "buildDoSistema"]),
+      linhaDoDiagnostico
+    )
+    let cheio = objeto(Engine.codificar(DiagnosticoDoFio(
+      disponivel: true, motivo: nil, variante: "AFM 3 Core", janela: 8_192, plataforma: "iOS 27.0", buildDoSistema: "27A1"
+    )))
+    p.igual("o disponível codifica variante e janela", [cheio?["variante"] as? String, (cheio?["janela"] as? Int).map(String.init)], ["AFM 3 Core", "8192"])
+    p.conferir("o disponível não codifica motivo", cheio?["motivo"] == nil)
+    let fora = objeto(Engine.codificar(DiagnosticoDoFio(
+      disponivel: false, motivo: "modelNotReady", variante: nil, janela: nil, plataforma: "iOS 27.0", buildDoSistema: "27A1"
+    )))
+    p.igual("o indisponível codifica o motivo", fora?["motivo"] as? String, "modelNotReady")
+    p.conferir("o indisponível não codifica variante nem janela", fora?["variante"] == nil && fora?["janela"] == nil)
+
+    let reserva = objeto(Engine.diagnosticoDeReserva)
+    p.conferir("a linha de reserva do diagnóstico é JSON", reserva != nil, Engine.diagnosticoDeReserva)
+    p.conferir("e fica fora do contrato — sem disponivel, o núcleo a lê como ilegível", reserva?["disponivel"] == nil)
+
     print("a assinatura do sistema")
     p.conferir("plataforma diz o sistema e a versão", Engine.plataforma().contains(" "), Engine.plataforma())
     p.conferir("build do sistema não é vazio", !Engine.buildDoSistema().isEmpty)

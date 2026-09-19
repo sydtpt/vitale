@@ -234,6 +234,8 @@ export function criarLeitor(deps: DepsDoLeitor): Leitor {
         fase: 'lida',
         frase: leitura.frase,
         motor: leitura.motor,
+        // Quem de fato atendeu, como a resposta assinou — é a variante, no aparelho.
+        modelo: leitura.resposta.assinatura.modelo,
         ms,
         ...(hash !== undefined ? { hash } : {}),
       });
@@ -295,7 +297,7 @@ export function criarLeitor(deps: DepsDoLeitor): Leitor {
 
 /* ── o hook ──────────────────────────────────────────────────────────────── */
 
-/** As dependências do app: o motor de nuvem, o anel em memória e o relógio real. */
+/** As dependências do app: os motores (nuvem e aparelho), o anel em memória e o relógio real. */
 function depsDoApp(): DepsDoLeitor {
   return {
     motorPara,
