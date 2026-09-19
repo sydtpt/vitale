@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 10:14
+last_updated: 19-09-2026 12:14
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -295,7 +295,19 @@ development_status:
   # existente; (2) BUILD PRÓPRIO já exigido pela story original (nunca o
   # mesmo de uma migração) — estende-se a nunca compartilhar build/instalação
   # no iPhone com outra story rodando em paralelo, pelo mesmo motivo da AD-15.
-  5-9-a-ponte-swift-on-device-engine: backlog
+  # 19/09/2026 — o DONO redefiniu o foco: o Épico 5 é a PONTE e a escolha do
+  # modelo em Configurações; a Saúde do sono é só o recurso de teste. A 5.9
+  # começa agora, com o pedido v1 (a v2 da 5.11 fica parada na branch dela até o
+  # resultado no iPhone). Escopo desta: o modelo do sistema (disponível, variante
+  # AFM 3 Core / Core Advanced, janela), listado de forma simples — o dono revisa
+  # a tela com UX depois.
+  5-9-a-ponte-swift-on-device-engine: in-progress
+  # O ÉPICO TEM DE DISPONIBILIZAR TODOS os modelos (decisão do dono, 19/09): o
+  # do sistema (5.9), os abertos do Core AI (5.8, que por isso fica no épico) e o
+  # Private Cloud Compute (5.12). A 5.12 muda uma regra da arquitetura: hoje a
+  # AD-3 proíbe a ponte de tocar modelo de servidor, e a AD-9 manda que ele entre
+  # como `nuvem:`, com tabela de regime e lista do servidor.
+  5-12-o-private-cloud-compute-como-motor: backlog
   # 5.10 SEPARADA DA 5.9 em 19/09/2026, por decisão do dono, e ENTRA ANTES DELA
   # (a ordem do épico: F1 mede antes de F2 ligar). É a metade do Mac do marco B:
   # nasce o Engine.swift, a CLI Swift o compila sem cópia, as guardas (3) e (4)
