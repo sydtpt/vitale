@@ -26,7 +26,7 @@ import {
   type Resposta,
   type SleepPeriod,
 } from '@vitale/shared';
-import { chaveDaJanela, enumerarJanelas, type JanelaClassificada } from './janelas.ts';
+import { chaveDoPasso, enumerarJanelas, type JanelaClassificada } from './janelas.ts';
 import { SEM_PEDIDO, medir, type Dados } from './medir.ts';
 import type { LinhaDoRelatorio } from './relatorio.ts';
 
@@ -188,7 +188,7 @@ describe('a coluna sem modelo', () => {
 
     for (const [k, l] of coluna.linhas.entries()) {
       const j = um(JANELAS, k);
-      assert.equal(chaveDaJanela(l), chaveDaJanela(j));
+      assert.equal(chaveDoPasso(l), chaveDoPasso(j));
       assert.equal(l.caso, j.caso);
       assert.equal(l.alcance, j.alcance);
       assert.equal(l.desfecho, 'template');
@@ -197,7 +197,7 @@ describe('a coluna sem modelo', () => {
       // por isso que o hash é sempre um digest aqui. O caminho do sentinela é
       // exercitado no teste de `SEM_PEDIDO`, abaixo.
       assert.match(l.hashDoPedido, /^[0-9a-f]{64}$/);
-      assert.ok(l.frase && l.frase.length > 0, chaveDaJanela(j));
+      assert.ok(l.frase && l.frase.length > 0, chaveDoPasso(j));
       assert.equal(l.frase, l.template);
       assert.ok(SEM_MARCADOR(l.frase), `a frase do piso saiu com marcador: ${l.frase}`);
       assert.equal(l.problemas, undefined);
@@ -215,7 +215,7 @@ describe('a coluna sem modelo', () => {
     const uma = async () => {
       const h = hospedeiro({});
       const m = await medir({ dados: DADOS, hoje: HOJE, janelas: JANELAS, colunas: [], hospedeiro: h.hospedeiro, avisar });
-      return m.colunas[0].linhas.map((l) => `${chaveDaJanela(l)} ${l.hashDoPedido} ${l.frase}`);
+      return m.colunas[0].linhas.map((l) => `${chaveDoPasso(l)} ${l.hashDoPedido} ${l.frase}`);
     };
     assert.deepEqual(await uma(), await uma());
   });

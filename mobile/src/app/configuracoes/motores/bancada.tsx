@@ -1,27 +1,58 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeepAwake } from 'expo-keep-awake';
 import {
+  APARELHO_SISTEMA,
+  LIMITE_DA_AMOSTRA,
+  REGRA_DA_AMOSTRA,
+  REGRA_DA_JANELA_MEDIDA,
   SEM_MODELO,
+  SEM_PEDIDO,
+  agregar,
+  amostraDaNuvem,
+  chaveDoPasso,
+  defeitoDe,
   descritorDaSaudeDoSono,
   entradaDaSaude,
+  enumerarJanelas,
   filterByRange,
+  hashDaMedicao,
   ler,
+  linhaDaMedicao,
+  linhaDoDefeito,
   localDateStr,
+  marcasDoHospedeiro,
+  medidasDoPortao,
+  noiteMaisAntiga,
+  passosPorAlcance,
+  resumoDaCobertura,
+  templateDaMedicao,
   type Desfecho,
   type EntradaDaSaude,
+  type EventoDoAnel,
+  type JanelaClassificada,
+  type LinhaDoRelatorio,
   type Medicao,
   type MotorId,
   type ProblemaDaConferencia,
+  type SleepPeriod,
   type SonoRange,
 } from '@vitale/shared';
 import { useSonoStore } from '../../../store/sono.store';
 import { PeriodNav } from '../../../components/sono/PeriodNav';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { motivoDaFalha } from '../../../lib/assinatura';
-import { motoresDoRecurso, nomeDoMotor, type EstadoDaPonte } from '../../../lib/motores/catalogo';
+import { motivoDoAparelho, motoresDoRecurso, nomeDoMotor, type EstadoDaPonte } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
-import { garantirListaAprovada, motorPara, ponteDoAparelho } from '../../../lib/motores';
+import { PRAZO_MS, garantirListaAprovada, motorPara, ponteDoAparelho, registroDoAparelho } from '../../../lib/motores';
+import {
+  foraEmTexto,
+  medirEmSequencia,
+  porcento,
+  prontidaoDasNotas,
+  segundos,
+} from '../../../lib/motores/amostra';
 import { chaveDaJanela } from '../../../lib/leitura-da-saude';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../../theme';
 
@@ -47,6 +78,16 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../.
  * não grava.
  *
  * Nada é gravado, e nada do que esta tela mostra sai do aparelho.
+ *
+ * **A amostra** (story 5.13). O iPhone tem um modelo maior que o do Mac da bancada, e só
+ * ele pode dizer quanto o próprio modelo aprova. "Medir a amostra" roda o modelo do
+ * aparelho, em `medicao`, sobre **a mesma amostra de janelas** da bancada do Mac e com a
+ * **mesma régua** — a amostra, a tradução em linha e as medidas são do núcleo
+ * (`packages/shared/src/bancada/`), e este é o único arquivo do app que as usa: a amostra
+ * carrega caso, e caso não entra em tela de produto (barreira do `architecture.test.ts`).
+ * O laço fica aqui: uma janela por vez, pela fila da ponte, com as notas inteiras antes
+ * de enumerar e a tela acesa enquanto mede. O resultado são os números da ADR 0050 **sem
+ * limiar e sem veredito**, e o hash de cada pedido para comparar com o relatório do Mac.
  */
 export default function BancadaScreen() {
   const s = useThemedStyles(createStyles);
@@ -139,6 +180,84 @@ export default function BancadaScreen() {
 
   const template = linhas.find((l) => l.motor === SEM_MODELO)?.frase;
 
+  /* ── a amostra (story 5.13) ── */
+
+  const [limite, setLimite] = useState<number>(LIMITE_DA_AMOSTRA);
+  const [amostra, setAmostra] = useState<EstadoDaAmostra>({ fase: 'parada' });
+  const pararRef = useRef(false);
+  const amostraEmCurso = amostra.fase === 'preparando' || amostra.fase === 'medindo';
+  // Sair da tela para a medição: a janela em voo termina sozinha, e a próxima não abre.
+  useEffect(
+    () => () => {
+      pararRef.current = true;
+    },
+    [],
+  );
+
+  const medirAmostra = useCallback(async () => {
+    pararRef.current = false;
+    setAmostra({ fase: 'preparando' });
+    const recusar = (motivo: string): void => setAmostra({ fase: 'recusada', motivo });
+    try {
+      // O motor é só o aparelho: sem ele disponível, não há o que medir — e o motivo é o
+      // do diagnóstico, nas mesmas palavras do seletor.
+      const estadoDaPonte = await ponteDoAparelho.reconsultar();
+      setPonte(estadoDaPonte);
+      const semAparelho = motivoDoAparelho(estadoDaPonte);
+      if (semAparelho !== null) return recusar(`o modelo do aparelho não mede: ${semAparelho}`);
+
+      const sono = useSonoStore.getState();
+      if (!sono.loaded) return recusar(sono.error ? `o sono não carregou: ${sono.error}` : 'o sono ainda está carregando');
+      const hojeDaAmostra = localDateStr();
+      const maisAntiga = noiteMaisAntiga(sono.periods, hojeDaAmostra);
+      if (maisAntiga === null) return recusar('não há noite gravada até hoje');
+
+      // **As notas inteiras antes de enumerar.** A store traz 90 dias; a percepção muda o
+      // caso, e com as notas pela metade a amostra seria outra que a do Mac.
+      await sono.carregarNotasDesde(maisAntiga);
+      const depois = useSonoStore.getState();
+      const notas = prontidaoDasNotas(depois, maisAntiga);
+      if (!notas.pronta) return recusar(`${notas.motivo} — sem elas a percepção muda o caso, e a amostra não seria a do Mac`);
+
+      // A enumeração é síncrona (~390 entradas): um respiro para o "preparando" aparecer.
+      await new Promise((r) => setTimeout(r, 16));
+      if (pararRef.current) return setAmostra({ fase: 'parada' });
+      const dados: DadosDaAmostra = { noites: depois.periods, notas: depois.sleepRatings };
+      const todas = enumerarJanelas(dados.noites, dados.notas, hojeDaAmostra);
+      const janelas = amostraDaNuvem(todas, limite);
+      const contexto: ContextoDaAmostra = {
+        hoje: hojeDaAmostra,
+        limite,
+        noites: dados.noites.filter((p) => p.wakeDay <= hojeDaAmostra).length,
+        notasDesde: depois.ratingsSince ?? maisAntiga,
+        maisAntiga,
+        passos: passosPorAlcance(todas),
+        enumeradas: todas.length,
+        janelas: janelas.length,
+      };
+
+      setAmostra({ fase: 'medindo', contexto, linhas: [], emVoo: null, parando: false });
+      // Uma janela por vez; a medição de cada uma nunca rejeita (o defeito vira linha).
+      const { linhas: medidas, parcial } = await medirEmSequencia({
+        janelas,
+        medir: (j) => medirJanelaNoAparelho(j, dados, hojeDaAmostra),
+        parar: () => pararRef.current,
+        aoAbrir: (j) => setAmostra((a) => (a.fase === 'medindo' ? { ...a, emVoo: j } : a)),
+        aoMedir: (l) => setAmostra((a) => (a.fase === 'medindo' ? { ...a, linhas: l } : a)),
+      });
+      setAmostra({ fase: 'pronta', contexto, linhas: medidas, parcial });
+    } catch (e) {
+      // Só um defeito nosso chega aqui, antes da primeira janela (a enumeração que bate no
+      // teto, por exemplo): a tela diz o porquê em vez de fingir resultado.
+      recusar(`a medição não começou por um defeito: ${defeitoDe(e).detalhe}`);
+    }
+  }, [limite]);
+
+  const pedirParada = useCallback(() => {
+    pararRef.current = true;
+    setAmostra((a) => (a.fase === 'medindo' ? { ...a, parando: true } : a));
+  }, []);
+
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
       <ScreenHeader titulo="Bancada" />
@@ -158,11 +277,11 @@ export default function BancadaScreen() {
           />
           <Pressable
             onPress={() => void medir()}
-            disabled={rodando !== null}
+            disabled={rodando !== null || amostraEmCurso}
             accessibilityRole="button"
             accessibilityLabel="Medir todos os motores nesta janela"
-            accessibilityState={rodando !== null ? { disabled: true, busy: true } : {}}
-            style={({ pressed }) => [s.botao, rodando !== null && s.botaoOff, pressed && s.pressed]}
+            accessibilityState={rodando !== null || amostraEmCurso ? { disabled: true, busy: rodando !== null } : {}}
+            style={({ pressed }) => [s.botao, (rodando !== null || amostraEmCurso) && s.botaoOff, pressed && s.pressed]}
           >
             {rodando !== null ? <ActivityIndicator size="small" color={colors.onPrimary} /> : null}
             <Text style={s.botaoTexto}>
@@ -180,6 +299,18 @@ export default function BancadaScreen() {
         {linhas.map((l) => (
           <BlocoDoMotor key={l.motor} linha={l} template={template} s={s} />
         ))}
+
+        <CartaoDaAmostra
+          estado={amostra}
+          limite={limite}
+          aoEscolherLimite={setLimite}
+          motivoDoAparelho={motivoDoAparelho(ponte)}
+          ocupado={rodando !== null}
+          aoMedir={() => void medirAmostra()}
+          aoParar={pedirParada}
+          s={s}
+        />
+        {amostraEmCurso ? <TelaAcesa /> : null}
 
         <Anel s={s} />
       </ScrollView>
@@ -326,6 +457,344 @@ function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string;
           {p.regra}: {p.detalhe}
         </Text>
       ))}
+    </View>
+  );
+}
+
+/* ── a amostra (story 5.13) ──────────────────────────────────────────────── */
+
+/** O acervo que a amostra lê — as noites e as notas da store, já inteiras. */
+interface DadosDaAmostra {
+  readonly noites: readonly SleepPeriod[];
+  readonly notas: Readonly<Record<string, number>>;
+}
+
+/** O que a medição usou — o topo do resultado, para comparar com o manifesto do Mac. */
+interface ContextoDaAmostra {
+  readonly hoje: string;
+  readonly limite: number;
+  readonly noites: number;
+  readonly notasDesde: string;
+  readonly maisAntiga: string;
+  readonly passos: readonly { readonly range: SonoRange; readonly passos: number }[];
+  readonly enumeradas: number;
+  readonly janelas: number;
+}
+
+type EstadoDaAmostra =
+  | { readonly fase: 'parada' }
+  | { readonly fase: 'preparando' }
+  | { readonly fase: 'recusada'; readonly motivo: string }
+  | {
+      readonly fase: 'medindo';
+      readonly contexto: ContextoDaAmostra;
+      readonly linhas: readonly LinhaDoRelatorio[];
+      /** A janela que está no aparelho agora. */
+      readonly emVoo: JanelaClassificada | null;
+      /** "Parar" foi tocado: a janela em voo termina, e a próxima não abre. */
+      readonly parando: boolean;
+    }
+  | {
+      readonly fase: 'pronta';
+      readonly contexto: ContextoDaAmostra;
+      readonly linhas: readonly LinhaDoRelatorio[];
+      readonly parcial: boolean;
+    };
+
+/** As escolhas do `--limite` do Mac: a amostra dele (padrão) e a validação. */
+const LIMITES = [
+  { limite: LIMITE_DA_AMOSTRA, rotulo: 'a do Mac (~22 janelas)' },
+  { limite: 6, rotulo: 'a validação (~61)' },
+] as const;
+
+/**
+ * Uma janela da amostra, medida como a bancada do Mac a mede: a régua pelo piso, e o
+ * modelo do aparelho em `medicao` — e a linha traduzida pela mesma função do Mac.
+ *
+ * O hash vem da própria medição (`hashDaMedicao`): é o `hashDoPedido` do pedido que o Mac
+ * monta para o relatório, sem o app montá-lo (a catraca do `montarPedido` nomeia só a
+ * bancada). O anel do app tem teto: a amostra registra com `registrar` próprio, só para
+ * guardar a pilha de um defeito. `frio` e `doHospedeiro` saem da contagem do transporte do
+ * aparelho, lida antes e depois.
+ *
+ * Nunca rejeita: uma exceção de função pura vira a linha de defeito, e a amostra segue.
+ */
+async function medirJanelaNoAparelho(j: JanelaClassificada, dados: DadosDaAmostra, hoje: string): Promise<LinhaDoRelatorio> {
+  const antes = { frias: registroDoAparelho.frias, doHospedeiro: registroDoAparelho.doHospedeiro };
+  const agora = (): Date => new Date();
+  let evento: EventoDoAnel | null = null;
+  let hash = SEM_PEDIDO;
+  let template = '(defeito)';
+  try {
+    const e = entradaDaSaude(dados.noites, dados.notas, { range: j.range, offset: j.offset, hoje });
+    const regua = await ler(descritorDaSaudeDoSono, e, {
+      modo: 'medicao',
+      motor: SEM_MODELO,
+      motorPara,
+      registrar: () => undefined,
+      agora,
+    });
+    template = templateDaMedicao(regua);
+    const m = await ler(descritorDaSaudeDoSono, e, {
+      modo: 'medicao',
+      motor: APARELHO_SISTEMA,
+      motorPara,
+      registrar: (ev) => {
+        evento = ev;
+      },
+      agora,
+    });
+    hash = hashDaMedicao(m);
+    return { ...linhaDaMedicao(j, hash, template, m, evento), ...marcasDoHospedeiro(registroDoAparelho, antes) };
+  } catch (x) {
+    return linhaDoDefeito(j, hash, template, defeitoDe(x));
+  }
+}
+
+/**
+ * A tela acesa enquanto mede: com ela apagada, o iOS suspende o app e o modelo em segundo
+ * plano cai por taxa. Montado só durante a medição — desmontar solta a trava.
+ */
+function TelaAcesa() {
+  useKeepAwake('orbe-bancada-amostra');
+  return null;
+}
+
+/** O hash como o relatório do Mac o escreve: os 12 primeiros, ou o sentinela inteiro. */
+function hashCurto(hash: string): string {
+  return /^[0-9a-f]{64}$/.test(hash) ? hash.slice(0, 12) : hash;
+}
+
+function CartaoDaAmostra({
+  estado,
+  limite,
+  aoEscolherLimite,
+  motivoDoAparelho: semAparelho,
+  ocupado,
+  aoMedir,
+  aoParar,
+  s,
+}: {
+  estado: EstadoDaAmostra;
+  limite: number;
+  aoEscolherLimite: (n: number) => void;
+  /** Por que o modelo do aparelho não atende agora — ou `null`. */
+  motivoDoAparelho: string | null;
+  /** A comparação por janela está rodando: as duas medições não dividem a fila. */
+  ocupado: boolean;
+  aoMedir: () => void;
+  aoParar: () => void;
+  s: Styles;
+}) {
+  const emCurso = estado.fase === 'preparando' || estado.fase === 'medindo';
+  const desligado = emCurso || ocupado;
+  return (
+    <>
+      <View style={s.card}>
+        <Text style={s.motor}>A amostra no aparelho</Text>
+        <Text style={s.aviso}>
+          O modelo do aparelho, em modo medição, sobre a mesma amostra de janelas da bancada do Mac e com a mesma
+          régua. Uma janela por vez; a tela fica acesa enquanto mede. Nada sai do aparelho.
+        </Text>
+
+        <Text style={s.rotulo}>janelas por caso × alcance</Text>
+        <View style={s.acoesDoAnel}>
+          {LIMITES.map((l) => {
+            const escolhido = l.limite === limite;
+            return (
+              <Pressable
+                key={l.limite}
+                onPress={() => aoEscolherLimite(l.limite)}
+                disabled={emCurso}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: escolhido, disabled: emCurso }}
+                style={({ pressed }) => [s.acao, pressed && s.pressed]}
+              >
+                <Text style={s.acaoTexto}>
+                  {escolhido ? '● ' : '○ '}
+                  {l.limite} · {l.rotulo}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {estado.fase === 'medindo' ? (
+          <Pressable
+            onPress={aoParar}
+            disabled={estado.parando}
+            accessibilityRole="button"
+            accessibilityLabel="Parar a medição da amostra"
+            style={({ pressed }) => [s.botao, estado.parando && s.botaoOff, pressed && s.pressed]}
+          >
+            <ActivityIndicator size="small" color={colors.onPrimary} />
+            <Text style={s.botaoTexto}>
+              {estado.parando
+                ? 'parando — a janela em voo termina sozinha'
+                : `parar · ${estado.linhas.length} de ${estado.contexto.janelas}`}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={aoMedir}
+            disabled={desligado}
+            accessibilityRole="button"
+            accessibilityLabel="Medir a amostra no modelo do aparelho"
+            accessibilityState={desligado ? { disabled: true, busy: emCurso } : {}}
+            style={({ pressed }) => [s.botao, desligado && s.botaoOff, pressed && s.pressed]}
+          >
+            {estado.fase === 'preparando' ? <ActivityIndicator size="small" color={colors.onPrimary} /> : null}
+            <Text style={s.botaoTexto}>
+              {estado.fase === 'preparando' ? 'carregando as notas e enumerando…' : 'Medir a amostra'}
+            </Text>
+          </Pressable>
+        )}
+
+        {semAparelho !== null && !emCurso ? <Text style={s.motivo}>o aparelho não mede agora: {semAparelho}</Text> : null}
+        {estado.fase === 'recusada' ? <Text style={s.motivo}>{estado.motivo}</Text> : null}
+        {estado.fase === 'medindo' && estado.emVoo !== null ? (
+          <Text style={s.meta}>
+            no aparelho: {chaveDoPasso(estado.emVoo)} · {estado.emVoo.caso} · {estado.emVoo.alcance}
+          </Text>
+        ) : null}
+      </View>
+
+      {estado.fase === 'medindo' || estado.fase === 'pronta' ? (
+        <ResultadoDaAmostra
+          contexto={estado.contexto}
+          linhas={estado.linhas}
+          situacao={
+            estado.fase === 'medindo'
+              ? `medindo — ${estado.linhas.length} de ${estado.contexto.janelas}; as medidas abaixo são parciais`
+              : estado.parcial
+                ? `PARCIAL — parada em ${estado.linhas.length} de ${estado.contexto.janelas} janelas; as medidas são só destas`
+                : `completa — ${estado.linhas.length} de ${estado.contexto.janelas} janelas`
+          }
+          s={s}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * O resultado: o que foi usado, as quatro medidas da ADR 0050 **sem limiar e sem
+ * veredito** com a regra da janela medida ao lado, as regras que reprovaram e a lista por
+ * janela com o hash do pedido. A comparação com a régua da ADR é do dono.
+ */
+function ResultadoDaAmostra({
+  contexto: c,
+  linhas,
+  situacao,
+  s,
+}: {
+  contexto: ContextoDaAmostra;
+  linhas: readonly LinhaDoRelatorio[];
+  situacao: string;
+  s: Styles;
+}) {
+  const m = medidasDoPortao(linhas);
+  const cobertura = resumoDaCobertura(m);
+  const fecho = agregar(linhas);
+  // Quem assinou: mais de uma assinatura é o modelo ou o sistema mudando no meio, e as
+  // linhas não se somam.
+  const assinaturas = [
+    ...new Set(
+      linhas.flatMap((l) =>
+        l.assinatura ? [[l.assinatura.modelo, l.assinatura.plataforma, l.assinatura.buildDoSistema].filter(Boolean).join(' · ')] : [],
+      ),
+    ),
+  ];
+  return (
+    <View style={s.card}>
+      <View style={s.linhaTopo}>
+        <Text style={s.motor}>{APARELHO_SISTEMA}</Text>
+        <Text style={s.desfecho}>{situacao}</Text>
+      </View>
+
+      <Text style={s.rotulo}>o que foi usado</Text>
+      <Text style={s.meta} selectable>
+        hoje {c.hoje} · limite {c.limite} por caso × alcance · prazo {Math.round(PRAZO_MS / 1000)} s por janela
+      </Text>
+      <Text style={s.meta} selectable>
+        amostra: {REGRA_DA_AMOSTRA.descricao} ({REGRA_DA_AMOSTRA.id} v{REGRA_DA_AMOSTRA.versao})
+      </Text>
+      <Text style={s.meta} selectable>
+        acervo: {c.noites} noites desde {c.maisAntiga} · notas carregadas desde {c.notasDesde}
+      </Text>
+      <Text style={s.meta} selectable>
+        janelas: {c.passos.map((p) => `${p.range} ${p.passos}`).join(' · ')} ({c.enumeradas}) → {c.janelas} na amostra
+      </Text>
+      <Text style={s.meta} selectable>
+        assinado por: {assinaturas.length > 0 ? assinaturas.join(' | ') : '— (nenhuma resposta ainda)'}
+      </Text>
+      {assinaturas.length > 1 ? (
+        <Text style={s.problema}>mais de uma assinatura: o modelo ou o sistema mudou no meio, e as linhas não se somam</Text>
+      ) : null}
+
+      <Text style={s.rotulo}>as quatro medidas da ADR 0050 — sem limiar e sem veredito</Text>
+      <Text style={s.meta} selectable>
+        aprovação (ok ÷ medidas): {m.aprovadas} de {m.medidas} ({porcento(m.aprovadas, m.medidas)})
+      </Text>
+      <Text style={s.meta} selectable>
+        medidas: {m.medidas} de {m.janelas} — fora da medida: {foraEmTexto(m.foraDaMedida)}
+      </Text>
+      <Text style={s.meta} selectable>
+        cobertura: {cobertura.presentes} de {cobertura.combinacoes} combinações na amostra, {cobertura.comAprovada} com
+        aprovada{cobertura.semJanela.length > 0 ? ` — sem janela: ${cobertura.semJanela.join(', ')}` : ''}
+      </Text>
+      <Text style={s.meta} selectable>
+        aprovadas idênticas ao template: {m.identicasAoTemplate} de {m.aprovadas}
+      </Text>
+      <Text style={s.meta} selectable>
+        mediana por chamada: {segundos(m.medianaMs)} ({m.naMediana} medidas; {m.frias}{' '}
+        {m.frias === 1 ? 'fria ficou' : 'frias ficaram'} de fora)
+      </Text>
+      <Text style={s.aviso}>{REGRA_DA_JANELA_MEDIDA.replace(/`/g, '')}</Text>
+
+      <Text style={s.rotulo}>cobertura por caso (na amostra / aprovadas)</Text>
+      {m.cobertura.map((k) => (
+        <Text key={k.caso} style={s.meta}>
+          {k.caso} · noite {k.noite.amostra}/{k.noite.aprovadas} · período {k.periodo.amostra}/{k.periodo.aprovadas}
+        </Text>
+      ))}
+
+      <Text style={s.rotulo}>por regra da conferência (só o que reprovou)</Text>
+      {fecho.porRegra.length === 0 ? (
+        <Text style={s.meta}>nenhuma reprovação</Text>
+      ) : (
+        fecho.porRegra.map((r) => (
+          <Text key={r.regra} style={s.meta}>
+            {r.regra} · {r.vezes}
+          </Text>
+        ))
+      )}
+      {fecho.porClasse.length > 0 ? (
+        <>
+          <Text style={s.rotulo}>por classe de falha</Text>
+          {fecho.porClasse.map((r) => (
+            <Text key={r.classe} style={s.meta}>
+              {r.classe} · {r.vezes}
+            </Text>
+          ))}
+        </>
+      ) : null}
+
+      <Text style={s.rotulo}>por janela · range@offset · caso · alcance · desfecho · ms · pedido</Text>
+      {linhas.map((l) => {
+        const marcas = [l.sintetica ? 'sintética' : null, l.frio ? 'fria' : null, l.doHospedeiro ? 'do hospedeiro' : null].filter(
+          (x): x is string => x !== null,
+        );
+        const porque =
+          l.problemas && l.problemas.length > 0 ? l.problemas.map((p) => p.regra).join(', ') : l.desfecho === 'ok' ? null : l.detalhe;
+        return (
+          <Text key={chaveDoPasso(l)} style={s.meta} selectable>
+            {chaveDoPasso(l)} · {l.caso} · {l.alcance} · {l.desfecho}
+            {marcas.length > 0 ? ` (${marcas.join(', ')})` : ''} · {l.ms} ms · {hashCurto(l.hashDoPedido)}
+            {porque ? ` — ${porque}` : ''}
+          </Text>
+        );
+      })}
     </View>
   );
 }

@@ -65,6 +65,12 @@ export * from './sleep/caso';
 export * from './sleep/leitura';
 // A sonda de fidelidade (story 5.10): um descritor só de medição, fora do catálogo.
 export * from './sleep/sonda';
+// A régua da bancada (story 5.13): a amostra, a linha e as medidas da ADR 0050 — um dono
+// só para a bancada do Mac e para a tela de desenvolvimento do iPhone. Nos apps, uma
+// barreira do `architecture.test.ts` a restringe àquela tela: ela carrega caso.
+export * from './bancada/amostra';
+export * from './bancada/linha';
+export * from './bancada/medidas';
 export * from './sleep/lua';
 export * from './week/recap';
 export * from './week/highlights';

@@ -2495,6 +2495,146 @@ check('BARREIRA — a sonda de fidelidade só em scripts/, nunca nos apps (AD-7)
 });
 
 /**
+ * BARREIRA — a régua da bancada, nos apps, só na tela de desenvolvimento (story 5.13).
+ *
+ * A amostra, a tradução da medição em linha e as medidas da ADR 0050 subiram para o
+ * núcleo (`packages/shared/src/bancada/`) para o iPhone medir o modelo dele com a mesma
+ * régua do Mac. Só que a amostra **carrega o caso de cada janela** — e a guarda (7) mantém
+ * caso fora das telas de produto: um caso lido na tela poderia discordar da frase que o
+ * orquestrador devolve. O módulo fica fora de `ia/` e de `sleep/` justamente para a (7) não
+ * o barrar inteiro; esta o prende à tela que existe para medir,
+ * `mobile/src/app/configuracoes/motores/bancada.tsx`. Na web, a nenhuma.
+ *
+ * No molde da barreira da sonda, com uma diferença: o nome **só conta em import**. Os
+ * nomes deste módulo são palavras comuns (`mediana`, `agregar`), e uma varredura por
+ * palavra solta gritaria em toda tela que tem uma mediana própria. Conta o que entra pelo
+ * barril (`import`/`export … from '@vitale/shared'`, o `* as` inteiro), e qualquer
+ * caminho profundo até `bancada/` (`import`, `export … from`, `import()`, `require`).
+ *
+ * Conta só **valor**, como a (7): `import type` é apagado na compilação e não lê caso
+ * nenhum. Os nomes são LIDOS do módulo, não escritos aqui — um export novo nasce barrado.
+ */
+const DIR_DA_REGUA = join(SHARED_SRC, 'bancada');
+const TELA_DA_BANCADA = 'mobile/src/app/configuracoes/motores/bancada.tsx';
+const CAMINHO_DA_REGUA = /(?:^|\/)(?:@vitale\/shared|packages\/shared)(?:\/src)?\/bancada(?:\/|$)/;
+
+/** Os nomes de valor que o módulo da régua exporta, lidos do fonte. */
+function nomesDaRegua(): Set<string> {
+  const DECLARA =
+    /^[ \t]*export\s+(?:declare\s+)?(?:async\s+)?(?:function\*?\s*|const\s+enum\s+|enum\s+|const\s+|let\s+|var\s+|(?:abstract\s+)?class\s+)([A-Za-z_$][\w$]*)/gm;
+  const nomes = new Set<string>();
+  for (const f of walk(DIR_DA_REGUA).filter((x) => !ehTeste(x))) {
+    for (const m of semComentario(readFileSync(f, 'utf8')).matchAll(DECLARA)) nomes.add(m[1]);
+  }
+  return nomes;
+}
+
+/** Os arquivos que alcançam a régua por valor, com o que alcançam — pela AST. */
+function usamARegua(arquivos: readonly string[], nomes: ReadonlySet<string>, raiz: string = ROOT): string[] {
+  const out: string[] = [];
+  for (const f of arquivos) {
+    const src = readFileSync(f, 'utf8');
+    const achados = new Set<string>();
+    /** O que uma cláusula nomeada traz do barril, fora os `type X`. */
+    const peloBarril = (elementos: readonly (ts.ImportSpecifier | ts.ExportSpecifier)[]): void => {
+      for (const e of elementos) {
+        if (e.isTypeOnly) continue;
+        const nome = (e.propertyName ?? e.name).text;
+        if (nomes.has(nome)) achados.add(nome);
+      }
+    };
+    const visitar = (no: ts.Node): void => {
+      if (ts.isImportDeclaration(no) && ts.isStringLiteral(no.moduleSpecifier)) {
+        const spec = no.moduleSpecifier.text;
+        const clausula = no.importClause;
+        const soTipo = clausula?.isTypeOnly === true;
+        if (CAMINHO_DA_REGUA.test(spec)) {
+          const nomeadas = clausula?.namedBindings && ts.isNamedImports(clausula.namedBindings) ? clausula.namedBindings.elements : [];
+          const deValor = !soTipo && (!clausula || clausula.name !== undefined || nomeadas.length === 0 || nomeadas.some((e) => !e.isTypeOnly));
+          if (deValor) achados.add(`import de ${spec}`);
+        } else if (spec === '@vitale/shared' && clausula && !soTipo) {
+          const b = clausula.namedBindings;
+          if (b && ts.isNamespaceImport(b)) achados.add('* (o barril inteiro)');
+          if (b && ts.isNamedImports(b)) peloBarril(b.elements);
+        }
+      }
+      if (ts.isExportDeclaration(no) && no.moduleSpecifier && ts.isStringLiteral(no.moduleSpecifier) && !no.isTypeOnly) {
+        const spec = no.moduleSpecifier.text;
+        const clausula = no.exportClause;
+        if (CAMINHO_DA_REGUA.test(spec)) achados.add(`export de ${spec}`);
+        else if (spec === '@vitale/shared') {
+          if (!clausula || !ts.isNamedExports(clausula)) achados.add('export * do barril');
+          else peloBarril(clausula.elements);
+        }
+      }
+      if (ts.isCallExpression(no) && no.arguments.length > 0) {
+        const alvo = no.arguments[0]!;
+        const ehCarga = no.expression.kind === ts.SyntaxKind.ImportKeyword
+          || (ts.isIdentifier(no.expression) && no.expression.text === 'require');
+        if (ehCarga && ts.isStringLiteralLike(alvo) && CAMINHO_DA_REGUA.test(alvo.text)) achados.add(`import() de ${alvo.text}`);
+      }
+      ts.forEachChild(no, visitar);
+    };
+    visitar(ts.createSourceFile(f, src, ts.ScriptTarget.Latest, false));
+    if (achados.size > 0) out.push(`${relativoARaiz(f, raiz)} (${[...achados].sort().join(', ')})`);
+  }
+  return out.sort();
+}
+
+check('BARREIRA — a régua da bancada (amostra, linha, medidas), nos apps, só na tela de desenvolvimento (story 5.13)', () => {
+  const nomes = nomesDaRegua();
+  // Não-vácua no alvo: os nomes que motivam a barreira saíram mesmo do módulo.
+  for (const n of ['enumerarJanelas', 'amostraDaNuvem', 'linhaDaMedicao', 'medidasDoPortao']) {
+    assert.ok(nomes.has(n), `packages/shared/src/bancada/ não exporta mais ${n} — a barreira da régua leu o módulo errado`);
+  }
+  const apps = [...mobileFiles, ...webFiles].filter((f) => !ehTeste(f));
+  assert.ok(apps.length > 0, 'mobile/src ou web/src sumiu — a barreira da régua ficou sem alvo');
+
+  // O caso-espelho: arquivos de verdade num diretório temporário, pelo mesmo detector.
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-regua-'));
+  try {
+    const casos: readonly (readonly [string, string, boolean])[] = [
+      ['pelo-barril.ts', "import { enumerarJanelas, ler } from '@vitale/shared';\nexport const f = enumerarJanelas;", true],
+      ['renomeado.ts', "import { medidasDoPortao as m } from '@vitale/shared';\nexport { m };", true],
+      ['profundo.ts', "import { agregar } from '@vitale/shared/src/bancada/medidas';\nexport { agregar };", true],
+      ['dinamico.ts', "export const p = import('../../packages/shared/src/bancada/linha.ts');", true],
+      ['require.ts', "export const p = require('@vitale/shared/src/bancada/amostra');", true],
+      ['reexporta.ts', "export { mediana } from '@vitale/shared';", true],
+      ['namespace.ts', "import * as nucleo from '@vitale/shared';\nexport const x = nucleo;", true],
+      ['tela.tsx', "import { amostraDaNuvem } from '@vitale/shared';\nexport const T = () => <View>{String(amostraDaNuvem)}</View>;", true],
+      ['tipo.ts', "import type { LinhaDoRelatorio } from '@vitale/shared';\nimport { type MedidasDoPortao, ler } from '@vitale/shared';\nexport type X = [LinhaDoRelatorio, MedidasDoPortao, typeof ler];", false],
+      ['comentario.ts', "// import { enumerarJanelas } from '@vitale/shared';\nexport const x = 1;", false],
+      ['outro-modulo.ts', "import { mediana, agregar } from './estatistica';\nexport { mediana, agregar };", false],
+      ['porta.ts', "import { ler, entradaDaSaude, descritorDaSaudeDoSono } from '@vitale/shared';\nexport { ler, entradaDaSaude, descritorDaSaudeDoSono };", false],
+    ];
+    for (const [nome, fonte, deveAchar] of casos) {
+      const arquivo = join(dir, nome);
+      writeFileSync(arquivo, `${fonte}\n`);
+      assert.equal(usamARegua([arquivo], nomes, dir).length > 0, deveAchar, `o detector da régua leu errado ${nome}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  const usam = usamARegua(apps, nomes);
+  // Não-vácua na liberação: a tela de desenvolvimento usa mesmo a régua — senão ela
+  // mudou de lugar, e esta lista libera um arquivo que não precisa.
+  assert.ok(
+    usam.some((u) => u.startsWith(`${TELA_DA_BANCADA} (`)),
+    `${TELA_DA_BANCADA} não usa a régua da bancada — ela mudou de lugar? Aponte TELA_DA_BANCADA para ela.`,
+  );
+  const fora = usam.filter((u) => !u.startsWith(`${TELA_DA_BANCADA} (`));
+  assert.deepEqual(
+    fora,
+    [],
+    `a régua da bancada apareceu fora da tela de desenvolvimento:\n    ${fora.join('\n    ')}\n` +
+      '  A amostra carrega o caso de cada janela, e caso não entra em tela de produto (guarda (7)): a tela ' +
+      'recebe do orquestrador a frase pronta. Quem mede é a bancada — no app, só ' +
+      `${TELA_DA_BANCADA}. Um tipo (\`import type\`) é livre.`,
+  );
+});
+
+/**
  * BARREIRA — `Motor` não se reexporta com outro nome (AD-1).
  *
  * A porta é uma só, e o nome dela também. Um `export { Motor as Narrador }` é a

@@ -29,10 +29,55 @@
  * Duas saídas: o JSON é a fonte, o Markdown é a leitura.
  */
 import { createHash } from 'node:crypto';
-import type { AlcanceDaSaude, Desfecho, MotorId, ProblemaDaConferencia, RecursoId, SonoRange } from '@vitale/shared';
-import { CLASSES_DE_FALHA, SEM_MODELO } from '@vitale/shared';
-import type { CasoDaSaude, MotivoSemContagem } from '@vitale/shared';
+import type { AlcanceDaSaude, MotorId, ProblemaDaConferencia, RecursoId, SonoRange } from '@vitale/shared';
+import {
+  CLASSES_DE_FALHA,
+  MOTIVOS_FORA_DA_MEDIDA,
+  REGRA_DA_AMOSTRA,
+  REGRA_DA_JANELA_MEDIDA,
+  SEM_MODELO,
+  VEREDITOS,
+  agregar,
+  foraDaMedida,
+  medidasDoPortao,
+  resumoDaCobertura,
+  type Agregados,
+  type AssinaturaDaLinha,
+  type DesfechoDaLinha,
+  type ForaDaMedida,
+  type LinhaDoRelatorio,
+  type MedidasDoPortao,
+} from '@vitale/shared';
+import type { CasoDaSaude } from '@vitale/shared';
 import { ALCANCES_MEDIDOS, type Janela } from './janelas.ts';
+
+/*
+ * A linha, o fecho e as quatro medidas são do núcleo (story 5.13,
+ * `packages/shared/src/bancada/`): a tela de desenvolvimento do iPhone conta a amostra
+ * dela pela mesma régua, e dada a mesma lista de linhas os dois dão o mesmo número. Este
+ * relatório continua dono do manifesto, da sonda, da comparação e do Markdown — e
+ * reexporta a régua pelos nomes com que a bancada sempre a leu.
+ */
+export {
+  MOTIVOS_FORA_DA_MEDIDA,
+  ORDEM_DOS_CASOS,
+  REGRA_DA_JANELA_MEDIDA,
+  VEREDITOS,
+  agregar,
+  foraDaMedida,
+  mediana,
+  medidasDoPortao,
+  vereditoDe,
+  type Agregados,
+  type AssinaturaDaLinha,
+  type ContagemPorCaso,
+  type DesfechoDaLinha,
+  type ForaDaMedida,
+  type LinhaDoRelatorio,
+  type MedidasDoPortao,
+  type NaAmostra,
+  type VereditoDaLinha,
+} from '@vitale/shared';
 
 /* ── o manifesto ─────────────────────────────────────────────────────────── */
 
@@ -58,7 +103,8 @@ export interface AcervoDoManifesto {
  * de invalidar, o que é o papel da `versaoDaRegra`.
  */
 export const REGRAS_DE_AMOSTRA = Object.freeze({
-  'recentes-por-caso-e-alcance': 'as mais recentes, por caso × alcance',
+  // A regra das colunas de modelo é do núcleo, com a versão ao lado do critério.
+  [REGRA_DA_AMOSTRA.id]: REGRA_DA_AMOSTRA.descricao,
   todas: 'todas as janelas do acervo',
 } as const);
 
@@ -137,58 +183,7 @@ export function hashCurto(hash: string): string {
   return hash.slice(0, 12);
 }
 
-/* ── as linhas ───────────────────────────────────────────────────────────── */
-
-/**
- * Como uma linha terminou. `template` é a coluna sem modelo (o piso, que não é
- * tentativa); `mudo` é o pedido nulo, em que nenhuma chamada sai. O resto é o
- * `Desfecho` do orquestrador.
- */
-export type DesfechoDaLinha = Desfecho | 'template' | 'mudo';
-
-/**
- * Quem respondeu, como a resposta assinou — sem o instante, que muda a cada linha. No
- * aparelho é aqui que ficam a plataforma e o build do sistema, porque o modelo muda com
- * eles (e medições de versões diferentes nunca se somam).
- */
-export interface AssinaturaDaLinha {
-  readonly tipo: 'aparelho' | 'nuvem';
-  readonly provedor: string;
-  readonly modelo: string;
-  readonly plataforma?: string;
-  readonly buildDoSistema?: string;
-}
-
-export interface LinhaDoRelatorio {
-  readonly range: SonoRange;
-  readonly offset: number;
-  readonly alcance: AlcanceDaSaude;
-  readonly caso: CasoDaSaude['caso'];
-  readonly motivo?: MotivoSemContagem;
-  /** O hash do pedido pleno, ou o sentinela `SEM_PEDIDO` quando nenhum foi montado. */
-  readonly hashDoPedido: string;
-  readonly desfecho: DesfechoDaLinha;
-  readonly ms: number;
-  readonly tokens?: { readonly entrada: number; readonly saida: number };
-  /** A frase pronta — só quando a conferência aprovou (ou é o template). */
-  readonly frase?: string;
-  /** A frase do piso, sempre: é contra ela que o dono julga a do motor. */
-  readonly template: string;
-  /** O texto que o motor escreveu, com os marcadores, como a conferência o leu. */
-  readonly textoDoMotor?: string;
-  readonly problemas?: readonly ProblemaDaConferencia[];
-  /** Nenhuma chamada saiu: o hospedeiro não entregou o motor, ou o recurso o recusou. */
-  readonly sintetica?: true;
-  readonly detalhe?: string;
-  /** A pilha que o anel recolheu, quando houve defeito. */
-  readonly pilha?: string;
-  /** Quem de fato respondeu — só quando uma resposta chegou. */
-  readonly assinatura?: AssinaturaDaLinha;
-  /** Servida por um processo recém-aberto: o modelo subiu nela. Conta como medida, fora da mediana. */
-  readonly frio?: true;
-  /** A falha foi fabricada pelo hospedeiro (prazo, processo que caiu, protocolo, rede), não pelo motor. */
-  readonly doHospedeiro?: true;
-}
+/* ── a linha da sonda ─────────────────────────────────────────────────────── */
 
 /**
  * Uma linha da sonda de fidelidade (story 5.10): o motor escolheu uma dimensão entre as
@@ -227,249 +222,9 @@ export interface LinhaDaSonda {
   readonly doHospedeiro?: true;
 }
 
-/* ── os agregados ────────────────────────────────────────────────────────── */
-
-/**
- * O que uma linha virou, no vocabulário em que o dono vai ler o fecho. `falha`
- * junta toda classe de falha e o defeito: a classe exata está em `porClasse`.
- */
-export const VEREDITOS = Object.freeze(['aprovada', 'reprovada', 'recusa', 'falha', 'template', 'mudo'] as const);
-
-export type Veredito = (typeof VEREDITOS)[number];
-
-/**
- * O veredito de um desfecho, com `switch` **exaustivo**: um desfecho novo no núcleo
- * não compila aqui até ser classificado. Com `default`, ele entraria como `falha` em
- * silêncio e o fecho do relatório mentiria sobre uma categoria que ninguém leu.
- */
-export function vereditoDe(d: DesfechoDaLinha): Veredito {
-  switch (d) {
-    case 'ok':
-      return 'aprovada';
-    case 'reprovada':
-      return 'reprovada';
-    case 'recusa-do-modelo':
-      return 'recusa';
-    case 'template':
-      return 'template';
-    case 'mudo':
-      return 'mudo';
-    case 'indisponivel':
-    case 'capacidade':
-    case 'janela':
-    case 'guarda':
-    case 'saida-invalida':
-    case 'transitoria':
-    case 'defeito':
-      return 'falha';
-    default: {
-      const nunca: never = d;
-      throw new TypeError(`desfecho sem veredito: ${String(nunca)}`);
-    }
-  }
-}
+/* ── o resumo da sonda ───────────────────────────────────────────────────── */
 
 const EH_CLASSE_DE_FALHA = (d: DesfechoDaLinha): boolean => (CLASSES_DE_FALHA as readonly string[]).includes(d);
-
-/**
- * A ordem em que os casos aparecem no fecho — do mais específico ao mais vazio.
- *
- * É uma cópia declarada de `CASOS_DA_SAUDE` (`sleep/caso.ts`), e **não um import**:
- * aquele módulo é peça do núcleo de IA, e a bancada só tem liberação para
- * `casoDaSaude` (guarda (7)). O acoplamento não fica solto — `relatorio.test.ts`
- * compara esta lista com a do núcleo, então um caso novo lá derruba o teste aqui.
- */
-export const ORDEM_DOS_CASOS: readonly CasoDaSaude['caso'][] = Object.freeze([
-  'sem-contagem',
-  'medidas-insuficientes',
-  'tudo-no-maximo',
-  'todas-iguais',
-  'uma',
-  'duas',
-  'fora-do-empate',
-]);
-
-export interface ContagemPorCaso {
-  readonly caso: CasoDaSaude['caso'];
-  readonly total: number;
-  readonly porVeredito: Readonly<Record<Veredito, number>>;
-}
-
-export interface Agregados {
-  readonly total: number;
-  readonly porVeredito: Readonly<Record<Veredito, number>>;
-  /** Por caso, na ordem canônica de {@link ORDEM_DOS_CASOS} — o fecho que o AC pede. */
-  readonly porCaso: readonly ContagemPorCaso[];
-  /** Quantas vezes cada regra da conferência **reprovou**. Da mais frequente para a menos. */
-  readonly porRegra: readonly { readonly regra: string; readonly vezes: number }[];
-  /** Quantas vezes cada classe de falha (e o defeito) apareceu. */
-  readonly porClasse: readonly { readonly classe: string; readonly vezes: number }[];
-}
-
-function zerado(): Record<Veredito, number> {
-  const out = {} as Record<Veredito, number>;
-  for (const v of VEREDITOS) out[v] = 0;
-  return out;
-}
-
-/** O que `agregar` lê de uma linha — a da coluna e a da sonda têm os três. */
-type LinhaAgregavel = Pick<LinhaDoRelatorio, 'desfecho' | 'caso' | 'problemas'>;
-
-export function agregar(linhas: readonly LinhaAgregavel[]): Agregados {
-  const porVeredito = zerado();
-  const porCaso = new Map<string, { total: number; porVeredito: Record<Veredito, number> }>();
-  const porRegra = new Map<string, number>();
-  const porClasse = new Map<string, number>();
-
-  for (const l of linhas) {
-    const v = vereditoDe(l.desfecho);
-    porVeredito[v] += 1;
-    const caso = porCaso.get(l.caso) ?? { total: 0, porVeredito: zerado() };
-    caso.total += 1;
-    caso.porVeredito[v] += 1;
-    porCaso.set(l.caso, caso);
-    // Só reprovação conta como reprovação. Uma ressalva numa linha aprovada (ou na
-    // recusa, que tem problema próprio) entraria como se a regra tivesse barrado algo.
-    if (v === 'reprovada') {
-      for (const p of l.problemas ?? []) porRegra.set(p.regra, (porRegra.get(p.regra) ?? 0) + 1);
-    }
-    if (EH_CLASSE_DE_FALHA(l.desfecho) || l.desfecho === 'defeito') {
-      porClasse.set(l.desfecho, (porClasse.get(l.desfecho) ?? 0) + 1);
-    }
-  }
-
-  const ordenar = (m: Map<string, number>): { chave: string; vezes: number }[] =>
-    [...m].map(([chave, vezes]) => ({ chave, vezes })).sort((a, b) => (b.vezes - a.vezes) || a.chave.localeCompare(b.chave));
-
-  // Ordem canônica, e o caso fora da lista no fim — um caso novo aparece, não some.
-  const conhecidos = ORDEM_DOS_CASOS.filter((c) => porCaso.has(c));
-  const estranhos = [...porCaso.keys()].filter((c) => !(ORDEM_DOS_CASOS as readonly string[]).includes(c)).sort();
-
-  return {
-    total: linhas.length,
-    porVeredito,
-    porCaso: [...conhecidos, ...estranhos].map((caso) => {
-      const c = porCaso.get(caso)!;
-      return { caso: caso as CasoDaSaude['caso'], total: c.total, porVeredito: c.porVeredito };
-    }),
-    porRegra: ordenar(porRegra).map(({ chave, vezes }) => ({ regra: chave, vezes })),
-    porClasse: ordenar(porClasse).map(({ chave, vezes }) => ({ classe: chave, vezes })),
-  };
-}
-
-/* ── a janela medida, e as quatro medidas da ADR 0050 ────────────────────── */
-
-/**
- * A regra **única** de "janela medida", a mesma na coluna e na sonda, escrita também no
- * relatório ao lado dos números: entra a tentativa que **chegou ao modelo**. Ficam fora —
- * e contadas à parte — a que nem chamou (template, muda), a sintética (o hospedeiro não
- * entregou o motor), o `defeito` (bug nosso), o `indisponivel` (o motor não atendia) e a
- * falha que o próprio hospedeiro fabricou (prazo, processo que caiu, protocolo, rede).
- */
-export const REGRA_DA_JANELA_MEDIDA =
-  'Janela medida é a tentativa que chegou ao modelo. Ficam fora, contadas à parte: a sintética ' +
-  '(o hospedeiro não entregou o motor), o defeito (bug da bancada), o `indisponivel` (o motor não ' +
-  'atendia) e a falha que o próprio hospedeiro fabricou (prazo, processo que caiu, protocolo, rede). ' +
-  'A aprovação é `ok` ÷ medidas; a mediana é das medidas não frias — a fria é a primeira de um ' +
-  'processo novo, em que o modelo sobe.';
-
-/** Por que uma linha ficou fora da medida — ou `null`, se ela é medida. Nesta ordem de precedência. */
-export type ForaDaMedida = 'semChamada' | 'sintetica' | 'defeito' | 'indisponivel' | 'doHospedeiro';
-
-export const MOTIVOS_FORA_DA_MEDIDA: readonly ForaDaMedida[] = Object.freeze([
-  'semChamada', 'sintetica', 'defeito', 'indisponivel', 'doHospedeiro',
-]);
-
-export function foraDaMedida(l: {
-  readonly desfecho: DesfechoDaLinha;
-  readonly sintetica?: true;
-  readonly doHospedeiro?: true;
-}): ForaDaMedida | null {
-  if (l.desfecho === 'template' || l.desfecho === 'mudo') return 'semChamada';
-  if (l.sintetica) return 'sintetica';
-  if (l.desfecho === 'defeito') return 'defeito';
-  if (l.desfecho === 'indisponivel') return 'indisponivel';
-  if (l.doHospedeiro) return 'doHospedeiro';
-  return null;
-}
-
-function contagemFora(linhas: readonly Parameters<typeof foraDaMedida>[0][]): Record<ForaDaMedida, number> {
-  const out = { semChamada: 0, sintetica: 0, defeito: 0, indisponivel: 0, doHospedeiro: 0 };
-  for (const l of linhas) {
-    const f = foraDaMedida(l);
-    if (f) out[f] += 1;
-  }
-  return out;
-}
-
-/** Presença na amostra e aprovadas, num alcance. */
-export interface NaAmostra {
-  readonly amostra: number;
-  readonly aprovadas: number;
-}
-
-/**
- * Os números que as quatro condições da ADR 0050 leem, numa coluna de modelo —
- * **sem limiar e sem veredito**. Nenhum campo aqui diz "passa": a régua é do dono, e
- * nenhum código a lê para decidir (ADR 0050, "nenhum código o lê").
- *
- *  1. aprovação — `ok` sobre as janelas **medidas** ({@link REGRA_DA_JANELA_MEDIDA});
- *  2. cobertura — por caso × alcance, a presença na amostra **e** as aprovadas, noite e
- *     período separados;
- *  3. idênticas — as aprovadas cuja frase final é igual à do template;
- *  4. mediana — do tempo por chamada, sobre as medidas não frias.
- */
-export interface MedidasDoPortao {
-  /** As linhas da coluna — a amostra inteira. */
-  readonly janelas: number;
-  readonly medidas: number;
-  /** As que ficaram fora da medida, por motivo — a soma com `medidas` fecha em `janelas`. */
-  readonly foraDaMedida: Readonly<Record<ForaDaMedida, number>>;
-  readonly aprovadas: number;
-  readonly cobertura: readonly {
-    readonly caso: CasoDaSaude['caso'];
-    readonly noite: NaAmostra;
-    readonly periodo: NaAmostra;
-  }[];
-  readonly identicasAoTemplate: number;
-  /** Em ms, das medidas não frias. `null` quando não sobrou nenhuma. */
-  readonly medianaMs: number | null;
-  /** Quantas medidas entraram na mediana. */
-  readonly naMediana: number;
-  /** As medidas frias — fora da mediana, e ditas. */
-  readonly frias: number;
-}
-
-/** A mediana — a média dos dois do meio, numa lista par. `null` na vazia. */
-export function mediana(xs: readonly number[]): number | null {
-  if (xs.length === 0) return null;
-  const o = [...xs].sort((a, b) => a - b);
-  const meio = Math.floor(o.length / 2);
-  return o.length % 2 === 1 ? o[meio]! : (o[meio - 1]! + o[meio]!) / 2;
-}
-
-export function medidasDoPortao(linhas: readonly LinhaDoRelatorio[]): MedidasDoPortao {
-  const medidas = linhas.filter((l) => foraDaMedida(l) === null);
-  const aprovadas = medidas.filter((l) => l.desfecho === 'ok');
-  const naAmostra = (caso: CasoDaSaude['caso'], alcance: AlcanceDaSaude): NaAmostra => ({
-    amostra: linhas.filter((l) => l.caso === caso && l.alcance === alcance).length,
-    aprovadas: aprovadas.filter((l) => l.caso === caso && l.alcance === alcance).length,
-  });
-  const quentes = medidas.filter((l) => !l.frio);
-  return {
-    janelas: linhas.length,
-    medidas: medidas.length,
-    foraDaMedida: contagemFora(linhas),
-    aprovadas: aprovadas.length,
-    cobertura: ORDEM_DOS_CASOS.map((caso) => ({ caso, noite: naAmostra(caso, 'noite'), periodo: naAmostra(caso, 'periodo') })),
-    identicasAoTemplate: aprovadas.filter((l) => l.frase !== undefined && l.frase.trim() === l.template.trim()).length,
-    medianaMs: mediana(quentes.map((l) => l.ms)),
-    naMediana: quentes.length,
-    frias: medidas.length - quentes.length,
-  };
-}
-
-/* ── o resumo da sonda ───────────────────────────────────────────────────── */
 
 /**
  * O fecho da sonda, que **soma**: acertos + escolha errada + fora das opções + outra
@@ -802,13 +557,8 @@ function foraEmTexto(f: Readonly<Record<ForaDaMedida, number>>): string {
  * de corte**. A régua está na ADR; a comparação é do dono.
  */
 function medidasEmMarkdown(m: MedidasDoPortao): string[] {
-  const combinacoes = m.cobertura.length * 2;
-  const presentes = m.cobertura.reduce((n, c) => n + (c.noite.amostra > 0 ? 1 : 0) + (c.periodo.amostra > 0 ? 1 : 0), 0);
-  const aprovadas = m.cobertura.reduce((n, c) => n + (c.noite.aprovadas > 0 ? 1 : 0) + (c.periodo.aprovadas > 0 ? 1 : 0), 0);
-  const vazias = m.cobertura.flatMap((c) => [
-    ...(c.noite.amostra === 0 ? [`${c.caso}/noite`] : []),
-    ...(c.periodo.amostra === 0 ? [`${c.caso}/período`] : []),
-  ]);
+  // A mesma conta que a tela do iPhone escreve — do núcleo, uma só.
+  const { combinacoes, presentes, comAprovada: aprovadas, semJanela: vazias } = resumoDaCobertura(m);
   return [
     '### As quatro medidas da ADR 0050',
     '',

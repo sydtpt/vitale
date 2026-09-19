@@ -43,6 +43,7 @@ import {
 } from './exportar.ts';
 import {
   LIMITE_DA_AMOSTRA,
+  REGRA_DA_AMOSTRA,
   amostraDaNuvem,
   enumerarJanelas,
   passosPorAlcance,
@@ -70,9 +71,6 @@ import {
 import { abrirSessao, avisoDeValidade, comoSeAutenticar, lerCredenciais, type Sessao } from './supabase.ts';
 
 /* ── as bandeiras ────────────────────────────────────────────────────────── */
-
-/** A versão do critério da amostra — entra no hash do manifesto (ver `relatorio.ts`). */
-const VERSAO_DA_REGRA_DE_AMOSTRA = 1;
 
 /**
  * Acima deste número de chamadas de nuvem, a execução exige um "sim" explícito.
@@ -600,8 +598,9 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
     acervo: acervo.acervo,
     janelas: passosPorAlcance(janelas),
     amostra: {
-      regra: 'recentes-por-caso-e-alcance',
-      versaoDaRegra: VERSAO_DA_REGRA_DE_AMOSTRA,
+      // A regra e a versão do critério são do núcleo, ao lado de `amostraDaNuvem` (5.13).
+      regra: REGRA_DA_AMOSTRA.id,
+      versaoDaRegra: REGRA_DA_AMOSTRA.versao,
       limite: b.limite,
       janelas: plano.amostra,
     },

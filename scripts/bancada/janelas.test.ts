@@ -12,7 +12,7 @@ import {
   ALCANCES_MEDIDOS,
   LIMITE_DA_AMOSTRA,
   amostraDaNuvem,
-  chaveDaJanela,
+  chaveDoPasso,
   enumerarJanelas,
   passosPorAlcance,
 } from './janelas.ts';
@@ -124,7 +124,7 @@ describe('enumerarJanelas', () => {
     assert.ok(casos.size > 1, `o acervo sintético caiu num caso só (${[...casos].join(', ')}) — o teste ficou cego`);
     for (const j of janelas) {
       assert.ok(j.caso.length > 0);
-      if (j.caso === 'sem-contagem') assert.ok(j.motivo !== undefined, `${chaveDaJanela(j)} sem motivo`);
+      if (j.caso === 'sem-contagem') assert.ok(j.motivo !== undefined, `${chaveDoPasso(j)} sem motivo`);
       else assert.equal(j.motivo, undefined);
     }
   });
@@ -213,7 +213,7 @@ describe('amostraDaNuvem', () => {
     for (const j of amostraDaNuvem(janelas, 1)) {
       const doGrupo = janelas.filter((x) => grupo(x) === grupo(j));
       const menor = Math.min(...doGrupo.map((x) => x.offset));
-      assert.equal(j.offset, menor, `${chaveDaJanela(j)} não é o passo mais recente de ${grupo(j)}`);
+      assert.equal(j.offset, menor, `${chaveDoPasso(j)} não é o passo mais recente de ${grupo(j)}`);
       const empatados = doGrupo.filter((x) => x.offset === menor);
       const maisCurto = empatados.sort((a, b) => ALCANCES_MEDIDOS.indexOf(a.range) - ALCANCES_MEDIDOS.indexOf(b.range))[0];
       assert.ok(maisCurto);
@@ -239,7 +239,7 @@ describe('amostraDaNuvem', () => {
   });
 
   it('toda janela da amostra é uma das enumeradas', () => {
-    const chaves = new Set(janelas.map(chaveDaJanela));
-    for (const j of amostraDaNuvem(janelas, 3)) assert.ok(chaves.has(chaveDaJanela(j)));
+    const chaves = new Set(janelas.map(chaveDoPasso));
+    for (const j of amostraDaNuvem(janelas, 3)) assert.ok(chaves.has(chaveDoPasso(j)));
   });
 });

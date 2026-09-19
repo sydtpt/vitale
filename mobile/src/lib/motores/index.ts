@@ -290,11 +290,38 @@ function linhaDoPrazo(prazoMs: number): string {
 /** Quantos prazos a vez espera uma chamada nativa que não volta, antes de passar adiante. */
 export const PRAZOS_ATE_SOLTAR_A_VEZ = 3;
 
+/**
+ * O que só o hospedeiro sabe das chamadas ao aparelho (story 5.13) — o gêmeo do
+ * `RegistroDoHospedeiro` da bancada do Mac (`scripts/bancada/motores.ts`), com o mesmo
+ * sentido, para a amostra do iPhone contar pela mesma régua:
+ *
+ *  - **frias**: a primeira chamada que chega ao aparelho neste processo do app — é nela
+ *    que o modelo sobe. Conta como medida, e fica fora da mediana.
+ *  - **doHospedeiro**: a falha que o app fabricou, e não o modelo — o prazo estourado
+ *    (no aparelho ou ainda esperando a vez) e a chamada nativa que rejeitou (o
+ *    `Engine.swift` nunca lança: uma rejeição é a cola ou a ponte do Expo, não o modelo).
+ *    Fica fora da medida, contada à parte.
+ *
+ * São contadores, e a medição lê a diferença antes e depois de cada janela — é assim que
+ * a informação chega à linha sem a porta (`Motor`) ganhar campo nenhum. Memória, e só
+ * memória: nada disto sai do aparelho.
+ */
+export interface RegistroDoAparelho {
+  frias: number;
+  doHospedeiro: number;
+}
+
+export function novoRegistroDoAparelho(): RegistroDoAparelho {
+  return { frias: 0, doHospedeiro: 0 };
+}
+
 export interface OpcoesDoTransporteDoAparelho {
   /** Quanto a vez espera uma chamada que não volta. Padrão: {@link PRAZOS_ATE_SOLTAR_A_VEZ} prazos. */
   readonly tetoMs?: number;
   /** Onde fica o rastro de uma vez solta à força — o anel, no app. */
   readonly anotar?: (texto: string) => void;
+  /** Onde contar as chamadas frias e as falhas que o transporte fabricou. */
+  readonly registro?: RegistroDoAparelho;
 }
 
 /**
@@ -322,6 +349,11 @@ export interface OpcoesDoTransporteDoAparelho {
  *
  * Nunca rejeita por conta própria: a exceção da ponte sobe como veio, e
  * `criarMotorDoAparelho` a converte em `transitoria` não mapeada, com o nome cru.
+ *
+ * **E conta** (story 5.13), em `opcoes.registro`: a primeira chamada que chega ao aparelho
+ * é fria, e o prazo estourado e a rejeição da ponte são do hospedeiro
+ * ({@link RegistroDoAparelho}). A conta sobe **antes** de a promessa resolver, para quem
+ * mede ler a diferença logo depois do `await`.
  */
 export function criarTransporteDoAparelho(
   responder: (pedido: string) => Promise<string>,
@@ -330,17 +362,23 @@ export function criarTransporteDoAparelho(
 ): TransporteDoAparelho {
   const tetoMs = opcoes.tetoMs ?? PRAZOS_ATE_SOLTAR_A_VEZ * prazoMs;
   const anotar = opcoes.anotar ?? (() => undefined);
+  const registro = opcoes.registro ?? novoRegistroDoAparelho();
+  /** Quantas chamadas já chegaram ao aparelho — zero quer dizer que a próxima é fria. */
+  let servidas = 0;
   let fila: Promise<void> = Promise.resolve();
   return (pedido) =>
     new Promise<string>((resolver, rejeitar) => {
       let encerrado = false;
       const relogio = setTimeout(() => {
         encerrado = true;
+        registro.doHospedeiro += 1;
         resolver(linhaDoPrazo(prazoMs));
       }, prazoMs);
       fila = fila.then(async () => {
         // O prazo estourou antes de a vez chegar: o pedido não vai ao aparelho.
         if (encerrado) return;
+        if (servidas === 0) registro.frias += 1;
+        servidas += 1;
         let soltar: () => void = () => undefined;
         const aVezPassa = new Promise<void>((r) => {
           soltar = r;
@@ -364,6 +402,7 @@ export function criarTransporteDoAparelho(
             if (!encerrado) {
               encerrado = true;
               clearTimeout(relogio);
+              registro.doHospedeiro += 1;
               rejeitar(e);
             }
           }
@@ -373,6 +412,16 @@ export function criarTransporteDoAparelho(
       });
     });
 }
+
+/** A contagem do transporte do aparelho deste processo — uma só, como o motor. */
+const REGISTRO_DO_APARELHO: RegistroDoAparelho = novoRegistroDoAparelho();
+
+/**
+ * A contagem do aparelho, só para ler: quantas chamadas foram frias e quantas falhas o app
+ * fabricou nesta sessão. É o que a amostra da tela de desenvolvimento lê antes e depois de
+ * cada janela para marcar a linha (story 5.13).
+ */
+export const registroDoAparelho: Readonly<RegistroDoAparelho> = REGISTRO_DO_APARELHO;
 
 /**
  * O `motorPara` do app: um motor de nuvem para todo `MotorId` de nuvem, o motor do
@@ -399,12 +448,15 @@ export function criarMotorPara(
   chamar: Chamar = chamarAFunction,
   prazoMs: number = PRAZO_MS,
   ponte: PonteDoAparelho | null = PONTE,
+  registro: RegistroDoAparelho = REGISTRO_DO_APARELHO,
 ): (id: MotorId) => Motor | undefined {
   const transporte = serializar(criarTransporte(chamar, prazoMs));
   const doAparelho =
     ponte === null
       ? undefined
-      : criarMotorDoAparelho(criarTransporteDoAparelho((p) => ponte.responder(p), prazoMs, { anotar: anel.anotar }));
+      : criarMotorDoAparelho(
+          criarTransporteDoAparelho((p) => ponte.responder(p), prazoMs, { anotar: anel.anotar, registro }),
+        );
   const porId = new Map<string, Motor>();
   return (id) => {
     const lido = lerMotorId(id);
