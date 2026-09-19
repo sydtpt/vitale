@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 01:40
+last_updated: 19-09-2026 08:17
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -296,4 +296,12 @@ development_status:
   # mesmo de uma migração) — estende-se a nunca compartilhar build/instalação
   # no iPhone com outra story rodando em paralelo, pelo mesmo motivo da AD-15.
   5-9-a-ponte-swift-on-device-engine: backlog
+  # 5.10 SEPARADA DA 5.9 em 19/09/2026, por decisão do dono, e ENTRA ANTES DELA
+  # (a ordem do épico: F1 mede antes de F2 ligar). É a metade do Mac do marco B:
+  # nasce o Engine.swift, a CLI Swift o compila sem cópia, as guardas (3) e (4)
+  # nascem com ele, e a bancada ganha a coluna do aparelho e a sonda de
+  # fidelidade — o relatório que o dono lê antes de a 5.9 gastar build. A 5.9
+  # fica com a ponte no app (cola do Expo, motorPara, runtimeVersion, a amostra
+  # de 20 pedidos por hash no iPhone). Número novo para não renomear a #515.
+  5-10-a-coluna-do-aparelho-na-bancada: in-progress
   epic-5-retrospective: optional
