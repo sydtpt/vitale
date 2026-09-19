@@ -54,15 +54,16 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
   `indisponivel`; `requireNativeModule` lançaria, e é barrado em todo `mobile/src`. O
   simulador de um build desta branch **tem** o módulo (o autolinking é o mesmo); fora do
   iOS o aparelho aparece com motivo próprio ("só existe no iPhone").
-  A cola `OnDeviceEngineModule.swift` **só repassa** — ao `Engine.swift` (`responder`,
-  `diagnostico`) e ao experimento (`experimentoDoPCC`, sem argumento) — sem `catch`, sem
-  literal de classe, sem decisão, só `import ExpoModulesCore`, e com os nomes exatos de
-  `FUNCOES_DA_PONTE`. A tradução e a tabela erro → classe moram no `Engine.swift`, que a
-  bancada compila e testa no Mac. O módulo tem **três `.swift`, numa lista fechada**
-  (Engine, cola, `ExperimentoDoPCC.swift`); `PrivateCloudComputeLanguageModel` só no
-  experimento, que é descartável (emenda da ADR 0047) e só a tela de desenvolvimento
-  chama. E **nenhum `.ts`/`.js` dentro de `mobile/modules/`**: seria uma porta para a
-  ponte fora da vista das guardas. Tudo isso são barreiras do `architecture.test.ts`. O
+  A cola `OnDeviceEngineModule.swift` **só repassa** ao `Engine.swift` (`responder`,
+  `diagnostico`) — sem `catch`, sem literal de classe, sem decisão, só
+  `import ExpoModulesCore`, e com os nomes exatos de `FUNCOES_DA_PONTE`. A tradução e a
+  tabela erro → classe moram no `Engine.swift`, que a bancada compila e testa no Mac. O
+  módulo tem **dois `.swift`, numa lista fechada** (Engine e cola), e
+  `PrivateCloudComputeLanguageModel` em **lugar nenhum** dele: no iPhone, sem o
+  entitlement gerenciado `com.apple.developer.private-cloud-compute`, o framework derruba
+  o app em vez de devolver erro — foi provado e o experimento saiu em 19/09 (emenda da ADR
+  0047). Se o PCC voltar um dia, é `nuvem:`, nunca a ponte. E **nenhum `.ts`/`.js` dentro
+  de `mobile/modules/`**: seria uma porta para a ponte fora da vista das guardas. Tudo isso são barreiras do `architecture.test.ts`. O
   seletor lê a disponibilidade do diagnóstico da ponte (`ponteDoAparelho`), relido ao
   focar a tela e ao voltar ao primeiro plano enquanto não disser "disponível".
 - **Mexer em `mobile/modules/` muda o binário — sobe o `runtimeVersion` junto.** A

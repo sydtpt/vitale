@@ -304,9 +304,12 @@ development_status:
   # CONSTRUÍDA em 19/09/2026: o Engine.swift virou módulo Expo (cola sem lógica,
   # nome OnDeviceEngine), o seletor mostra a variante e a janela do modelo do
   # sistema, o aparelho escreve a Saúde do sono, e a tela de desenvolvimento tem o
-  # teste descartável do PCC (emenda na ADR 0047). runtimeVersion 1.0.6, build
-  # Release próprio feito. Revisão em 3 camadas: 21 patches, sem loopback. Falta
-  # o dono instalar e conferir no iPhone.
+  # teste descartável do PCC (emenda na ADR 0047). Revisão em 3 camadas: 21
+  # patches, sem loopback. NO IPHONE (1.0.6, 19/09): o aparelho dele tem AFM 3
+  # Core Advanced com janela de 8.192; a ponte escreve e a conferência reprova
+  # por posição de marcador. O botão do PCC FECHAVA o app — "Missing entitlement:
+  # com.apple.developer.private-cloud-compute" (entitlement gerenciado da Apple) —
+  # e o experimento foi APAGADO, com o veredito na ADR 0047. Runtime 1.0.7.
   5-9-a-ponte-swift-on-device-engine: review
   # O ÉPICO TEM DE DISPONIBILIZAR TODOS os modelos que o dono PODE usar
   # (decisão dele, 19/09): o do sistema (5.9) e os abertos do Core AI (5.8, que

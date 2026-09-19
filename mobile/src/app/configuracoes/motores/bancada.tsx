@@ -21,7 +21,7 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { motivoDaFalha } from '../../../lib/assinatura';
 import { motoresDoRecurso, nomeDoMotor, type EstadoDaPonte } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
-import { garantirListaAprovada, motorPara, ponteDoAparelho, testeDoPCC } from '../../../lib/motores';
+import { garantirListaAprovada, motorPara, ponteDoAparelho } from '../../../lib/motores';
 import { chaveDaJanela } from '../../../lib/leitura-da-saude';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../../theme';
 
@@ -181,8 +181,6 @@ export default function BancadaScreen() {
           <BlocoDoMotor key={l.motor} linha={l} template={template} s={s} />
         ))}
 
-        <TesteDoPCC s={s} />
-
         <Anel s={s} />
       </ScrollView>
     </View>
@@ -332,63 +330,6 @@ function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string;
   );
 }
 
-/**
- * EXPERIMENTO DESCARTÁVEL — o teste do Private Cloud Compute (story 5.9). **Apagar
- * ou promover depois do veredito do dono**, junto com `ExperimentoDoPCC.swift` e a
- * terceira função da cola (exceção à AD-3 decidida por ele em 19/09/2026).
- *
- * Um botão, e o que voltou **cru**: disponibilidade, cota, a resposta a "Diga olá."
- * ou o erro com o código. Nenhum dado do dono vai — o texto é fixo, e mora no Swift.
- * Não é motor: não entra no seletor, no catálogo nem na medição acima. Só responde se
- * o iPhone tem acesso ao PCC, que é o que decide se a 5.12 volta.
- */
-function TesteDoPCC({ s }: { s: Styles }) {
-  // Aberto só quando não há chamada nativa viva: o prazo estourado **não** reabre o
-  // botão — a chamada segue na ponte, e um segundo toque não abre outra.
-  const [emCurso, setEmCurso] = useState(() => testeDoPCC.emCurso());
-  const [cru, setCru] = useState<string | null>(null);
-  const vivo = useRef(true);
-  useEffect(() => {
-    vivo.current = true;
-    return () => {
-      vivo.current = false;
-    };
-  }, []);
-
-  const testar = useCallback(async () => {
-    setEmCurso(true);
-    // `rodar` nunca rejeita: erro é resultado, e vira o texto abaixo. Com um teste
-    // anterior ainda vivo, ele não chama a ponte — só diz isso.
-    const r = await testeDoPCC.rodar();
-    if (vivo.current) setCru(legivel(r.texto));
-    if (r.tarde) {
-      const tarde = await r.tarde;
-      if (vivo.current) setCru(`${legivel(tarde)}\n\n(chegou depois do prazo)`);
-    }
-    if (vivo.current) setEmCurso(testeDoPCC.emCurso());
-  }, []);
-
-  return (
-    <View style={s.card}>
-      <Text style={s.rotulo}>experimento · private cloud compute</Text>
-      <Text style={s.meta}>Manda só "Diga olá." e mostra cru o que voltou. Nenhum dado seu vai.</Text>
-      <View style={s.acoesDoAnel}>
-        <Pressable
-          onPress={() => void testar()}
-          disabled={emCurso}
-          accessibilityRole="button"
-          accessibilityLabel="Testar Private Cloud Compute"
-          accessibilityState={emCurso ? { disabled: true, busy: true } : {}}
-          style={({ pressed }) => [s.acao, emCurso && s.botaoOff, pressed && s.pressed]}
-        >
-          <Text style={s.acaoTexto}>{emCurso ? 'testando… (a chamada segue na ponte)' : 'Testar Private Cloud Compute'}</Text>
-        </Pressable>
-      </View>
-      {cru !== null ? <Text style={s.cru}>{cru}</Text> : null}
-    </View>
-  );
-}
-
 /** O diagnóstico como a ponte o escreveu — ou o estado, quando não houve linha. */
 function diagnosticoCru(p: EstadoDaPonte): string {
   switch (p.tipo) {
@@ -400,15 +341,6 @@ function diagnosticoCru(p: EstadoDaPonte): string {
       return 'consultando…';
     case 'lido':
       return p.cru ?? (p.diagnostico.estado === 'ilegivel' ? `ilegível: ${p.diagnostico.detalhe}` : JSON.stringify(p.diagnostico));
-  }
-}
-
-/** O JSON da ponte em linhas, para caber no telefone; o que não é JSON, como veio. */
-function legivel(cru: string): string {
-  try {
-    return JSON.stringify(JSON.parse(cru), null, 2);
-  } catch {
-    return cru;
   }
 }
 

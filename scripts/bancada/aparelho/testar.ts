@@ -1,16 +1,15 @@
 /**
  * `pnpm --filter @vitale/scripts aparelho:testar` — os testes da ponte Swift, sem modelo.
  *
- * Compila `Engine.swift` + `ExperimentoDoPCC.swift` + `testes.swift` com **os mesmos argumentos** da CLI
+ * Compila `Engine.swift` + `testes.swift` com **os mesmos argumentos** da CLI
  * (`argumentosDoSwiftc`: o `-O`, o alvo, o modo de linguagem) — um teste compilado de outro
  * jeito provaria outro binário —, e roda. Local, fora do CI: lá não há Swift.
  */
 import { spawnSync } from 'node:child_process';
-import { BINARIO_DOS_TESTES, ENGINE_SWIFT, EXPERIMENTO_DO_PCC, TESTES_DA_CLI, prepararBinario } from '../motores.ts';
+import { BINARIO_DOS_TESTES, ENGINE_SWIFT, TESTES_DA_CLI, prepararBinario } from '../motores.ts';
 
 function principal(): number {
-  // O experimento do PCC entra junto (story 5.9): compilado e conferido no que é puro, nunca chamado.
-  const preparo = prepararBinario(BINARIO_DOS_TESTES, [ENGINE_SWIFT, EXPERIMENTO_DO_PCC, TESTES_DA_CLI]);
+  const preparo = prepararBinario(BINARIO_DOS_TESTES, [ENGINE_SWIFT, TESTES_DA_CLI]);
   if (!preparo.ok) {
     process.stderr.write(`os testes da ponte não compilaram: ${preparo.motivo}\n`);
     return 1;

@@ -2055,63 +2055,119 @@ check('BARREIRA — os motivos, o modelo genérico e a linha de reserva do diagn
 });
 
 /**
+ * BARREIRA — o módulo tem dois `.swift`, e modelo de servidor em nenhum (story 5.9, AD-3, ADR 0047).
+ *
+ * O pod `OnDeviceEngine` tem **dois** arquivos em `ios/`, numa lista fechada: o
+ * `Engine.swift` (a ponte, que as guardas (3), (4), a do contrato e a do vocabulário cobrem)
+ * e a cola `OnDeviceEngineModule.swift`. Arquivo `.swift` novo reprova — é decisão de
+ * arquitetura, e muda esta lista junto, com a razão.
+ *
+ * E `PrivateCloudComputeLanguageModel` não aparece em **lugar nenhum** do Swift do módulo
+ * nem da bancada. Ele passou por aqui como experimento descartável (19/09/2026, emenda da ADR
+ * 0047) e saiu no mesmo dia, com a causa provada no iPhone: sem o entitlement gerenciado
+ * `com.apple.developer.private-cloud-compute`, o framework **derruba o processo**
+ * (`Fatal error: Missing entitlement`) em vez de devolver erro — tocar o botão fechava o app,
+ * e nada em Swift captura isso. Se um dia o PCC voltar, é `nuvem:` (AD-3, AD-9), nunca a ponte.
+ */
+const DIR_DA_PONTE = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios');
+const COLA_SWIFT = join(DIR_DA_PONTE, 'OnDeviceEngineModule.swift');
+const SWIFT_DO_MODULO = ['Engine.swift', 'OnDeviceEngineModule.swift'].map((f) => relativoARaiz(join(DIR_DA_PONTE, f)));
+const INJECAO_DA_PONTE = join(ROOT, 'mobile', 'src', 'lib', 'motores', 'index.ts');
+const NOME_DA_PONTE = 'OnDeviceEngine';
+
+/**
+ * Os problemas do Swift: a lista fechada de arquivos do módulo (`doModulo`) e o modelo de
+ * servidor em arquivo nenhum (`doModulo` e `outros`, o Swift da bancada).
+ */
+function problemasDoSwiftDoModulo(doModulo: ReadonlyMap<string, string>, outros: ReadonlyMap<string, string> = new Map()): string[] {
+  const problemas: string[] = [];
+  const presentes = [...doModulo.keys()].sort();
+  const faltam = SWIFT_DO_MODULO.filter((f) => !doModulo.has(f));
+  const sobram = presentes.filter((f) => !SWIFT_DO_MODULO.includes(f));
+  if (faltam.length > 0) problemas.push(`faltam ${faltam.join(', ')}`);
+  if (sobram.length > 0) problemas.push(`sobram ${sobram.join(', ')} — a lista de .swift do módulo é fechada`);
+  for (const [f, src] of [...doModulo, ...outros]) {
+    if (/\bPrivateCloudComputeLanguageModel\b/.test(codigoSwift(src))) {
+      problemas.push(`${f} nomeia PrivateCloudComputeLanguageModel — modelo de servidor não entra na ponte`);
+    }
+  }
+  return problemas;
+}
+
+function provarODetectorDoModulo(): void {
+  const [engine, cola] = SWIFT_DO_MODULO;
+  const modulo = (extra: Record<string, string> = {}) =>
+    new Map<string, string>(Object.entries({ [engine]: 'import Foundation\nenum Engine {}', [cola]: 'import ExpoModulesCore', ...extra }));
+  assert.deepEqual(problemasDoSwiftDoModulo(modulo()), [], 'o detector do módulo reprovou o módulo certo');
+  const casos: readonly (readonly [string, readonly string[], RegExp])[] = [
+    ['arquivo novo', problemasDoSwiftDoModulo(modulo({ 'mobile/modules/on-device-engine/ios/ExperimentoDoPCC.swift': '' })), /sobram .*ExperimentoDoPCC\.swift/],
+    ['arquivo a menos', problemasDoSwiftDoModulo(new Map([[engine, '']])), /faltam .*OnDeviceEngineModule\.swift/],
+    ['PCC no Engine', problemasDoSwiftDoModulo(modulo({ [engine]: 'let m = PrivateCloudComputeLanguageModel()' })), /Engine\.swift nomeia PrivateCloudComputeLanguageModel/],
+    ['PCC na cola', problemasDoSwiftDoModulo(modulo({ [cola]: 'let m = PrivateCloudComputeLanguageModel()' })), /OnDeviceEngineModule\.swift nomeia/],
+    [
+      'PCC na bancada',
+      problemasDoSwiftDoModulo(modulo(), new Map([['scripts/bancada/aparelho/testes.swift', 'let m = PrivateCloudComputeLanguageModel()']])),
+      /testes\.swift nomeia/,
+    ],
+  ];
+  for (const [nome, achado, esperado] of casos) {
+    assert.ok(achado.some((p) => esperado.test(p)), `o detector do módulo não viu "${nome}": ${JSON.stringify(achado)}`);
+  }
+  // Comentário não conta.
+  assert.deepEqual(problemasDoSwiftDoModulo(modulo({ [engine]: '// PrivateCloudComputeLanguageModel saiu em 19/09' })), [], 'o detector do módulo contou um comentário');
+}
+
+check('BARREIRA — o módulo da ponte tem dois .swift, e PrivateCloudComputeLanguageModel em nenhum lugar (story 5.9)', () => {
+  provarODetectorDoModulo();
+  const doModulo = new Map(walkExt(join(ROOT, 'mobile', 'modules'), /\.swift$/).map((f) => [relativoARaiz(f), readFileSync(f, 'utf8')] as const));
+  const daBancada = new Map(walkExt(join(ROOT, 'scripts', 'bancada', 'aparelho'), /\.swift$/).map((f) => [relativoARaiz(f), readFileSync(f, 'utf8')] as const));
+  assert.ok(doModulo.size > 0 && daBancada.size > 0, 'não achei o Swift do módulo ou da bancada — a barreira ficou sem alvo');
+  const problemas = problemasDoSwiftDoModulo(doModulo, daBancada);
+  assert.deepEqual(
+    problemas,
+    [],
+    `o Swift da ponte saiu da lista: ${problemas.join('; ')}.\n` +
+      '  O pod tem dois arquivos — Engine e cola —, e modelo de servidor não entra nele: sem o entitlement gerenciado, ' +
+      'o PCC derruba o app no iPhone (19/09). Se ele voltar, é nuvem:, com regime e lista do servidor.',
+  );
+});
+
+/**
  * BARREIRA — a cola do Expo só repassa, com os nomes que o app chama (story 5.9, AD-3, ADR 0047).
  *
- * O pod `OnDeviceEngine` tem **três** arquivos em `ios/`, numa lista fechada: o
- * `Engine.swift` (a ponte, que as guardas (3), (4), a do contrato e a do vocabulário cobrem),
- * a cola `OnDeviceEngineModule.swift` e o `ExperimentoDoPCC.swift` — o teste descartável do
- * Private Cloud Compute, exceção à AD-3 registrada na emenda da ADR 0047. **Uma cola que
- * pensasse seria uma segunda tabela** — fora do teste e fora da CLI, que compila só o
- * `Engine.swift`: a bancada mediria uma coisa e o iPhone faria outra. Então ela é lida aqui,
- * pelo mesmo varredor de Swift, e reprova se tiver:
+ * **Uma cola que pensasse seria uma segunda tabela** — fora do teste e fora da CLI, que
+ * compila só o `Engine.swift`: a bancada mediria uma coisa e o iPhone faria outra. Então ela é
+ * lida aqui, pelo mesmo varredor de Swift, e reprova se tiver:
  *
  *  - import além de `ExpoModulesCore`;
  *  - outro `Name(…)` que não um só, `NOME_DA_PONTE` — o que o ponto de injeção carrega e a
  *    guarda (1) reconhece;
  *  - funções com nomes que não são **exatamente** os de `FUNCOES_DA_PONTE`
  *    (`mobile/src/lib/motores/index.ts`), ou peça do DSL além de `Name` e `AsyncFunction`;
- *  - a função do experimento recebendo parâmetro — o texto é fixo lá dentro;
  *  - `catch`, `try`, `do { }`: a ponte nunca lança, e quem converte exceção em falha é o núcleo;
  *  - decisão (`if`, `guard`, `switch`, laço, `??`, `&&`, `||`, ternário) — o `for:` de um
  *    rótulo de argumento não é laço;
  *  - literal de classe de falha — ou a palavra `classe` num literal;
  *  - string de várias linhas, onde tudo isso se esconderia.
- *
- * E, fora da cola: arquivo `.swift` novo no módulo reprova; `PrivateCloudComputeLanguageModel`
- * só no experimento; e o experimento só é **chamado** pela cola.
  */
-const DIR_DA_PONTE = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios');
-const COLA_SWIFT = join(DIR_DA_PONTE, 'OnDeviceEngineModule.swift');
-const EXPERIMENTO_SWIFT = join(DIR_DA_PONTE, 'ExperimentoDoPCC.swift');
-const SWIFT_DO_MODULO = ['Engine.swift', 'ExperimentoDoPCC.swift', 'OnDeviceEngineModule.swift'].map((f) =>
-  relativoARaiz(join(DIR_DA_PONTE, f)),
-);
-const INJECAO_DA_PONTE = join(ROOT, 'mobile', 'src', 'lib', 'motores', 'index.ts');
-const NOME_DA_PONTE = 'OnDeviceEngine';
 
 /** O conteúdo de cada string de uma linha num código Swift já sem comentário. */
 function literaisSwift(codigo: string): string[] {
   return [...codigo.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)].map((m) => m[1]);
 }
 
-/**
- * Os nomes das funções da ponte como o app os chama: `FUNCOES_DA_PONTE` e
- * `FUNCAO_DO_EXPERIMENTO`, lidos do fonte do ponto de injeção. `null` se não achar.
- */
-function funcoesDoApp(src: string): { funcoes: string[]; experimento: string } | null {
-  const codigo = semComentario(src);
-  const exp = /\bexport[ \t]+const[ \t]+FUNCAO_DO_EXPERIMENTO\s*=\s*'(\w+)'/.exec(codigo);
-  const lista = /\bexport[ \t]+const[ \t]+FUNCOES_DA_PONTE\s*=\s*\[([^\]]*)\]/.exec(codigo);
-  if (!exp || !lista) return null;
-  const funcoes = lista[1]
+/** Os nomes das funções da ponte como o app os chama: `FUNCOES_DA_PONTE`, lido do fonte. `null` se não achar. */
+function funcoesDoApp(src: string): string[] | null {
+  const lista = /\bexport[ \t]+const[ \t]+FUNCOES_DA_PONTE\s*=\s*\[([^\]]*)\]/.exec(semComentario(src));
+  if (!lista) return null;
+  return lista[1]
     .split(',')
     .map((x) => x.trim())
     .filter((x) => x !== '')
-    .map((x) => (x === 'FUNCAO_DO_EXPERIMENTO' ? exp[1] : /^'(\w+)'$/.exec(x)?.[1] ?? `?${x}`));
-  return { funcoes, experimento: exp[1] };
+    .map((x) => /^'(\w+)'$/.exec(x)?.[1] ?? `?${x}`);
 }
 
-function problemasDaCola(src: string, app: { funcoes: readonly string[]; experimento: string }): string[] {
+function problemasDaCola(src: string, funcoesDoAppLidas: readonly string[]): string[] {
   const codigo = codigoSwift(src);
   const problemas: string[] = [];
   const imports = importsSwift(src);
@@ -2129,23 +2185,13 @@ function problemasDaCola(src: string, app: { funcoes: readonly string[]; experim
   ].map((m) => m[1]);
   if (outrasPecas.length > 0) problemas.push(`declara ${[...new Set(outrasPecas)].join(', ')} — a cola só tem Name e AsyncFunction`);
 
-  const funcoes = [...codigo.matchAll(/\bAsyncFunction\s*\(\s*"((?:[^"\\\n]|\\.)*)"\s*\)/g)];
-  const daCola = funcoes.map((m) => m[1]);
+  const daCola = [...codigo.matchAll(/\bAsyncFunction\s*\(\s*"((?:[^"\\\n]|\\.)*)"\s*\)/g)].map((m) => m[1]);
   const repetidas = daCola.filter((n, i) => daCola.indexOf(n) !== i);
   if (repetidas.length > 0) problemas.push(`declara a função ${[...new Set(repetidas)].join(', ')} mais de uma vez`);
-  const faltam = app.funcoes.filter((n) => !daCola.includes(n));
-  const sobram = daCola.filter((n) => !app.funcoes.includes(n));
+  const faltam = funcoesDoAppLidas.filter((n) => !daCola.includes(n));
+  const sobram = daCola.filter((n) => !funcoesDoAppLidas.includes(n));
   if (faltam.length > 0) problemas.push(`não declara ${faltam.join(', ')}, que o app chama (FUNCOES_DA_PONTE)`);
   if (sobram.length > 0) problemas.push(`declara ${[...new Set(sobram)].join(', ')}, que o app não chama (FUNCOES_DA_PONTE)`);
-
-  const doExperimento = funcoes.find((m) => m[1] === app.experimento);
-  if (doExperimento) {
-    const abre = codigo.indexOf('{', doExperimento.index! + doExperimento[0].length);
-    const corpo = abre < 0 ? null : corpoInteiro(codigo, abre);
-    if (corpo === null || !/^\s*\(\s*\)/.test(corpo)) {
-      problemas.push(`a função ${app.experimento} recebe parâmetro — o texto do experimento é fixo, lá dentro`);
-    }
-  }
 
   if (/"""/.test(src.replace(/\/\/.*$/gm, ''))) problemas.push('tem string de várias linhas');
   const semTexto = codigo.replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
@@ -2171,42 +2217,18 @@ function problemasDaCola(src: string, app: { funcoes: readonly string[]; experim
 }
 
 /**
- * Os problemas do Swift do módulo como um todo: a lista fechada de arquivos, o modelo de
- * servidor só no experimento, e o experimento chamado só pela cola.
- */
-function problemasDoSwiftDoModulo(arquivos: ReadonlyMap<string, string>, cola: string, experimento: string): string[] {
-  const problemas: string[] = [];
-  const presentes = [...arquivos.keys()].sort();
-  const faltam = SWIFT_DO_MODULO.filter((f) => !arquivos.has(f));
-  const sobram = presentes.filter((f) => !SWIFT_DO_MODULO.includes(f));
-  if (faltam.length > 0) problemas.push(`faltam ${faltam.join(', ')}`);
-  if (sobram.length > 0) problemas.push(`sobram ${sobram.join(', ')} — a lista de .swift do módulo é fechada`);
-  for (const [f, src] of arquivos) {
-    const codigo = codigoSwift(src);
-    if (f !== experimento && /\bPrivateCloudComputeLanguageModel\b/.test(codigo)) {
-      problemas.push(`${f} nomeia PrivateCloudComputeLanguageModel — só o experimento pode`);
-    }
-    if (f !== cola && f !== experimento && /\bExperimentoDoPCC\s*\.\s*(?:rodar|medir)\b/.test(codigo)) {
-      problemas.push(`${f} chama o experimento do PCC — só a cola o chama`);
-    }
-  }
-  return problemas;
-}
-
-/**
- * A prova de que os detectores veem — pelas mesmas funções que as guardas chamam, sobre
+ * A prova de que o detector da cola vê — pelas mesmas funções que a guarda chama, sobre
  * fontes de mentira: a cola que só repassa passa; cada pecado reprova com o seu nome, e o
  * que só aparece em comentário, ou o `for:` de rótulo, não conta.
  */
-function provarOsDetectoresDaCola(): void {
-  const APP = { funcoes: ['responder', 'diagnostico', 'experimentoDoPCC'], experimento: 'experimentoDoPCC' };
+function provarODetectorDaCola(): void {
+  const APP = ['responder', 'diagnostico'];
   const cola = (corpo: string, cabeca = 'import ExpoModulesCore') =>
     `${cabeca}\n\n// catch, if, "transitoria" — só no comentário\npublic class M: Module {\n  public func definition() -> ModuleDefinition {\n` +
     `    Name("${NOME_DA_PONTE}")\n${corpo}\n  }\n}\n`;
   const repassa =
     '    AsyncFunction("responder") { (pedido: String) async -> String in\n      await Engine.responder(pedido)\n    }\n' +
-    '    AsyncFunction("diagnostico") { () -> String in\n      Engine.diagnostico()\n    }\n' +
-    '    AsyncFunction("experimentoDoPCC") { () async -> String in\n      await ExperimentoDoPCC.rodar()\n    }';
+    '    AsyncFunction("diagnostico") { () -> String in\n      Engine.diagnostico()\n    }';
   const com = (trecho: string) => cola(`${repassa}\n${trecho}`);
   const funcaoCom = (corpo: string) => cola(repassa.replace('Engine.diagnostico()', corpo));
   assert.deepEqual(problemasDaCola(cola(repassa), APP), [], 'o detector da cola reprovou a cola que só repassa');
@@ -2217,15 +2239,10 @@ function provarOsDetectoresDaCola(): void {
     ['sem ExpoModulesCore', cola(repassa, 'import Foundation'), /não importa ExpoModulesCore/],
     ['outro nome', cola(repassa).replace(`Name("${NOME_DA_PONTE}")`, 'Name("Ponte")'), /tem de ser um só/],
     ['dois nomes', com('    Name("Outra")'), /tem de ser um só/],
-    ['função que o app não chama', com('    AsyncFunction("outra") { () -> String in\n      Engine.diagnostico()\n    }'), /declara outra, que o app não chama/],
+    ['função que o app não chama', com('    AsyncFunction("experimentoDoPCC") { () async -> String in\n      Engine.diagnostico()\n    }'), /declara experimentoDoPCC, que o app não chama/],
     ['função renomeada', cola(repassa.replace('"diagnostico"', '"diagnosticar"')), /não declara diagnostico/],
     ['função repetida', com('    AsyncFunction("responder") { (p: String) async -> String in\n      await Engine.responder(p)\n    }'), /mais de uma vez/],
     ['peça do DSL a mais', com('    Function("x") { () -> String in\n      Engine.diagnostico()\n    }'), /declara Function/],
-    [
-      'experimento com parâmetro',
-      cola(repassa.replace('AsyncFunction("experimentoDoPCC") { () async', 'AsyncFunction("experimentoDoPCC") { (texto: String) async')),
-      /recebe parâmetro/,
-    ],
     ['catch', funcaoCom('do { return try x() } catch { return "" }'), /tem catch/],
     ['if', funcaoCom('if a { return b }'), /decisão \(if/],
     ['switch', funcaoCom('switch a { default: return b }'), /decisão \(if/],
@@ -2243,38 +2260,10 @@ function provarOsDetectoresDaCola(): void {
     const achado = problemasDaCola(fonte, APP);
     assert.ok(achado.some((p) => esperado.test(p)), `o detector da cola não viu "${nome}": ${JSON.stringify(achado)}`);
   }
-
-  const [engine, experimento, colaRel] = SWIFT_DO_MODULO;
-  const modulo = (extra: Record<string, string> = {}) =>
-    new Map<string, string>(
-      Object.entries({
-        [engine]: 'import Foundation\nenum Engine {}',
-        [experimento]: 'import FoundationModels\nlet m = PrivateCloudComputeLanguageModel()',
-        [colaRel]: 'import ExpoModulesCore\nlet x = ExperimentoDoPCC.rodar()',
-        ...extra,
-      }),
-    );
-  assert.deepEqual(problemasDoSwiftDoModulo(modulo(), colaRel, experimento), [], 'o detector do módulo reprovou o módulo certo');
-  const doModulo: readonly (readonly [string, Map<string, string>, RegExp])[] = [
-    ['arquivo novo', modulo({ 'mobile/modules/on-device-engine/ios/Outro.swift': '' }), /sobram .*Outro\.swift/],
-    ['PCC no Engine', modulo({ [engine]: 'let m = PrivateCloudComputeLanguageModel()' }), /Engine\.swift nomeia PrivateCloudComputeLanguageModel/],
-    ['PCC na cola', modulo({ [colaRel]: 'let m = PrivateCloudComputeLanguageModel()' }), /OnDeviceEngineModule\.swift nomeia/],
-    ['o Engine chamando o experimento', modulo({ [engine]: 'let r = ExperimentoDoPCC.rodar()' }), /Engine\.swift chama o experimento/],
-  ];
-  for (const [nome, mapa, esperado] of doModulo) {
-    const achado = problemasDoSwiftDoModulo(mapa, colaRel, experimento);
-    assert.ok(achado.some((p) => esperado.test(p)), `o detector do módulo não viu "${nome}": ${JSON.stringify(achado)}`);
-  }
-  // Comentário não conta.
-  assert.deepEqual(
-    problemasDoSwiftDoModulo(modulo({ [engine]: '// PrivateCloudComputeLanguageModel e ExperimentoDoPCC.rodar() só aqui' }), colaRel, experimento),
-    [],
-    'o detector do módulo contou um comentário',
-  );
 }
 
-check('BARREIRA — a cola do Expo só repassa, com os nomes que o app chama; o módulo tem três .swift (story 5.9)', () => {
-  provarOsDetectoresDaCola();
+check('BARREIRA — a cola do Expo só repassa, com os nomes que o app chama (story 5.9)', () => {
+  provarODetectorDaCola();
   assert.ok(
     existsSync(COLA_SWIFT),
     `${relativoARaiz(COLA_SWIFT)} sumiu — a barreira da cola ficou sem alvo. Se a cola mudou de lugar, aponte COLA_SWIFT para ela.`,
@@ -2282,8 +2271,8 @@ check('BARREIRA — a cola do Expo só repassa, com os nomes que o app chama; o 
   assert.ok(existsSync(INJECAO_DA_PONTE), `${relativoARaiz(INJECAO_DA_PONTE)} sumiu — a barreira não acha os nomes que o app chama.`);
   const app = funcoesDoApp(readFileSync(INJECAO_DA_PONTE, 'utf8'));
   assert.ok(
-    app !== null && app.funcoes.length > 0 && app.funcoes.every((f) => !f.startsWith('?')),
-    `não li FUNCOES_DA_PONTE e FUNCAO_DO_EXPERIMENTO em ${relativoARaiz(INJECAO_DA_PONTE)} (${JSON.stringify(app)}) — ` +
+    app !== null && app.length > 0 && app.every((f) => !f.startsWith('?')),
+    `não li FUNCOES_DA_PONTE em ${relativoARaiz(INJECAO_DA_PONTE)} (${JSON.stringify(app)}) — ` +
       'a barreira compararia a cola com nada.',
   );
   const problemas = problemasDaCola(readFileSync(COLA_SWIFT, 'utf8'), app!);
@@ -2291,28 +2280,8 @@ check('BARREIRA — a cola do Expo só repassa, com os nomes que o app chama; o 
     problemas,
     [],
     `a cola ${relativoARaiz(COLA_SWIFT)} pensa ou diverge do app: ${problemas.join('; ')}.\n` +
-      '  Ela só declara o nome e repassa — ao Engine e ao experimento. A tradução, a tabela erro → classe e o ' +
-      'diagnóstico moram no Engine.swift, que a bancada compila e testa; os nomes são os de FUNCOES_DA_PONTE.',
-  );
-
-  const swift = walkExt(join(ROOT, 'mobile', 'modules'), /\.swift$/);
-  const daBancada = walkExt(join(ROOT, 'scripts', 'bancada', 'aparelho'), /\.swift$/);
-  const doModulo = new Map(swift.map((f) => [relativoARaiz(f), readFileSync(f, 'utf8')] as const));
-  const problemasDoModulo = problemasDoSwiftDoModulo(doModulo, relativoARaiz(COLA_SWIFT), relativoARaiz(EXPERIMENTO_SWIFT));
-  // A bancada compila o experimento nos testes: pode nomeá-lo, não chamá-lo nem usar o PCC.
-  const daBancadaMapa = new Map(daBancada.map((f) => [relativoARaiz(f), readFileSync(f, 'utf8')] as const));
-  const naBancada = problemasDoSwiftDoModulo(
-    new Map([...doModulo, ...daBancadaMapa]),
-    relativoARaiz(COLA_SWIFT),
-    relativoARaiz(EXPERIMENTO_SWIFT),
-  ).filter((p) => !/sobram|faltam/.test(p));
-  assert.ok(daBancada.length > 0, 'não achei o Swift da bancada — a checagem dela ficou sem alvo');
-  assert.deepEqual(
-    [...problemasDoModulo, ...naBancada.filter((p) => !problemasDoModulo.includes(p))],
-    [],
-    `o Swift do módulo saiu da lista: ${[...problemasDoModulo, ...naBancada].join('; ')}.\n` +
-      '  O pod tem três arquivos — Engine, cola e o experimento do PCC —, o PCC só aparece no experimento, e só ' +
-      'a cola o chama. Arquivo novo aqui é decisão de arquitetura: mude esta lista junto, com a razão.',
+      '  Ela só declara o nome e repassa ao Engine. A tradução, a tabela erro → classe e o diagnóstico moram no ' +
+      'Engine.swift, que a bancada compila e testa; os nomes são os de FUNCOES_DA_PONTE.',
   );
 });
 

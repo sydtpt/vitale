@@ -39,11 +39,9 @@ import {
   criarLeitorDaPonte,
   criarMotorPara,
   criarTransporte,
-  criarTesteDoPCC,
   criarTransporteDoAparelho,
   motorPara as motorParaDoApp,
   ponteDoAparelho,
-  testeDoPCC,
   type Chamar,
   type PonteDoAparelho,
 } from '../motores';
@@ -118,7 +116,6 @@ const LINHA_BOA = {
 function ponteFalsa(
   responder: (pedido: string) => Promise<string>,
   diagnostico: () => Promise<string> = async () => '{"disponivel":true}',
-  experimentoDoPCC: () => Promise<string> = async () => '{}',
 ): PonteDoAparelho & { vistos: string[] } {
   const vistos: string[] = [];
   return {
@@ -128,7 +125,6 @@ function ponteFalsa(
       return responder(p);
     },
     diagnostico,
-    experimentoDoPCC,
   };
 }
 
@@ -273,8 +269,6 @@ describe('o motorPara do app', () => {
     expect(motorParaDoApp(APARELHO_SISTEMA)).toBeUndefined();
     expect(ponteDoAparelho.agora()).toEqual({ tipo: 'ausente' });
     expect(await ponteDoAparelho.garantir()).toEqual({ tipo: 'ausente' });
-    expect((await testeDoPCC.rodar()).texto).toContain('a ponte não está neste build');
-    expect(testeDoPCC.emCurso()).toBe(false);
   });
 
   it('com a ponte, entrega o motor do aparelho — só para aparelho:sistema, e sempre o mesmo', async () => {
@@ -621,56 +615,5 @@ describe('o diagnóstico da ponte, uma vez por sessão (story 5.9)', () => {
       expect(e.diagnostico.estado).toBe('ilegivel');
       if (e.diagnostico.estado === 'ilegivel') expect(e.diagnostico.detalhe).toMatch(onde);
     }
-  });
-});
-
-describe('o teste descartável do PCC (story 5.9)', () => {
-  it('devolve cru o que a ponte disse, e a vez fica livre', async () => {
-    const cru = '{"disponibilidade":"available","erro":"x","codigo":-1}';
-    const teste = criarTesteDoPCC(ponteFalsa(async () => '', undefined, async () => cru));
-    expect(await teste.rodar()).toEqual({ texto: cru });
-    expect(teste.emCurso()).toBe(false);
-  });
-
-  it('o erro é resultado: a ponte que lança — na hora ou depois — vira texto, e não prende o teste', async () => {
-    const depois = criarTesteDoPCC(ponteFalsa(async () => '', undefined, async () => {
-      throw new Error('sem acesso');
-    }));
-    expect((await depois.rodar()).texto).toBe('a ponte lançou — Error: sem acesso');
-    expect(depois.emCurso()).toBe(false);
-    const naHora = criarTesteDoPCC(ponteFalsa(async () => '', undefined, () => {
-      throw new TypeError('ponte.experimentoDoPCC is not a function');
-    }));
-    expect((await naHora.rodar()).texto).toContain('TypeError');
-    expect(naHora.emCurso()).toBe(false);
-  });
-
-  it('prazo estourado: a tela é avisada, mas a chamada segue viva — e um segundo toque não chama a ponte de novo', async () => {
-    let chamadas = 0;
-    let soltar: (x: string) => void = () => undefined;
-    const teste = criarTesteDoPCC(
-      ponteFalsa(async () => '', undefined, () => {
-        chamadas += 1;
-        return new Promise<string>((r) => (soltar = r));
-      }),
-      10,
-    );
-    const primeiro = await teste.rodar();
-    expect(primeiro.texto).toContain('não voltou em');
-    expect(primeiro.tarde).toBeDefined();
-    expect(teste.emCurso()).toBe(true);
-
-    const segundo = await teste.rodar();
-    expect(segundo.texto).toContain('ainda está em curso');
-    expect(chamadas).toBe(1);
-
-    soltar('{"resposta":"Olá."}');
-    expect(await primeiro.tarde).toBe('{"resposta":"Olá."}');
-    expect(await segundo.tarde).toBe('{"resposta":"Olá."}');
-    await Promise.resolve();
-    expect(teste.emCurso()).toBe(false);
-    // Livre de novo, o próximo toque chama a ponte.
-    expect((await teste.rodar()).texto).toContain('não voltou em');
-    expect(chamadas).toBe(2);
   });
 });

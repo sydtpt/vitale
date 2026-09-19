@@ -4,6 +4,10 @@
     {
       "runtimeVersion": "1.0.6",
       "fontes": "1e31278c50b829c90baeb39fc39f90a79bf44163e68c49c98466904ea26ed83c"
+    },
+    {
+      "runtimeVersion": "1.0.7",
+      "fontes": "6a23911bf97577a619a31853b11bad656d28b1432417869816e8b9be08676e7d"
     }
   ]
 }

@@ -21,10 +21,7 @@
 // **Compilado sem cópia** por dois hospedeiros: a CLI da bancada (`scripts/bancada/aparelho/`,
 // `swiftc` direto sobre este caminho) e o módulo Expo do app (story 5.9, o pod
 // `OnDeviceEngine`, com a cola no mesmo pod — é por isso que `Engine` pode ser `internal`).
-// Este arquivo não sabe qual dos dois o chamou. O que vale para ele não muda com o pod: o
-// pod também leva, **em outro arquivo**, o experimento descartável do Private Cloud Compute
-// (`ExperimentoDoPCC.swift`, exceção à AD-3 registrada na ADR 0047) — e nada daqui o chama
-// nem o conhece; as guardas (3), (4) e a do contrato continuam olhando só este arquivo.
+// Este arquivo não sabe qual dos dois o chamou.
 //
 // **Duas portas, as duas sem lançar:** `responder(pedido)` (a geração) e `diagnostico()` (o
 // que o seletor mostra antes de pedir qualquer coisa: se o modelo atende, qual variante e que

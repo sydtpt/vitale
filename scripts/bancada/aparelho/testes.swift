@@ -3,8 +3,7 @@
 //     pnpm --filter @vitale/scripts aparelho:testar
 //
 // Compilado junto com `mobile/modules/on-device-engine/ios/Engine.swift` (o mesmo arquivo
-// que a CLI e o app compilam, sem cópia) e com o `ExperimentoDoPCC.swift` (story 5.9, só para
-// ninguém quebrá-lo sem ver — ele nunca é chamado aqui) num executável próprio. Nenhum teste aqui chama o
+// que a CLI e o app compilam, sem cópia) num executável próprio. Nenhum teste aqui chama o
 // modelo: a tabela erro → classe é testável sem ele porque tem duas metades — o `switch`
 // sobre o erro da Apple produz um identificador, e o identificador vira classe por uma função
 // pura. As duas metades são percorridas aqui; a segunda, inteira.
@@ -315,18 +314,6 @@ struct Testes {
     let reserva = objeto(Engine.diagnosticoDeReserva)
     p.conferir("a linha de reserva do diagnóstico é JSON", reserva != nil, Engine.diagnosticoDeReserva)
     p.conferir("e fica fora do contrato — sem disponivel, o núcleo a lê como ilegível", reserva?["disponivel"] == nil)
-
-    print("o experimento do PCC, só o que é puro (story 5.9) — nunca chamado aqui")
-    p.igual("o texto é fixo e neutro", ExperimentoDoPCC.texto, "Diga olá.")
-    let fundo = NSError(domain: "ModelManagerServices.ModelManagerError", code: 1046)
-    let meio = NSError(domain: "FoundationModels.LanguageModelError", code: -1, userInfo: [NSUnderlyingErrorKey: fundo])
-    let topo = NSError(domain: "Topo", code: 1, userInfo: [NSUnderlyingErrorKey: meio])
-    let cadeia = ExperimentoDoPCC.subjacentes(de: topo)
-    p.igual("a cadeia de erros de baixo, na ordem", cadeia.map { $0.components(separatedBy: ":").first ?? "" }, [
-      "FoundationModels.LanguageModelError -1",
-      "ModelManagerServices.ModelManagerError 1046",
-    ])
-    p.igual("sem erro de baixo, cadeia vazia", ExperimentoDoPCC.subjacentes(de: fundo), [])
 
     print("a assinatura do sistema")
     p.conferir("plataforma diz o sistema e a versão", Engine.plataforma().contains(" "), Engine.plataforma())

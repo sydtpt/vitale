@@ -4,11 +4,10 @@
 # do módulo e **um `.podspec` num subdiretório** — sem este arquivo o módulo não linka, e
 # nada avisa: o app só acharia `requireOptionalNativeModule('OnDeviceEngine')` nulo.
 #
-# Os três `.swift` desta pasta entram no mesmo pod: o `Engine.swift` (a ponte, que a CLI da
-# bancada também compila, sem cópia), a cola `OnDeviceEngineModule.swift` e o experimento
-# descartável do PCC — o único arquivo do pod que toca modelo de servidor, com texto fixo, e
-# para apagar ou promover depois do veredito do dono (emenda da ADR 0047). Mesmo pod é o que
-# deixa o `Engine` continuar `internal`. Mudar qualquer arquivo de `mobile/modules/` muda o
+# Os dois `.swift` desta pasta entram no mesmo pod: o `Engine.swift` (a ponte, que a CLI da
+# bancada também compila, sem cópia) e a cola `OnDeviceEngineModule.swift`. Mesmo pod é o que
+# deixa o `Engine` continuar `internal`. Nenhum modelo de servidor entra aqui (AD-3, e a
+# emenda da ADR 0047) — a barreira do módulo no `architecture.test.ts` cobra. Mudar qualquer arquivo de `mobile/modules/` muda o
 # binário: a barreira do runtime exige subir o `runtimeVersion` junto (`mobile/modules/runtime.json`).
 #
 # O `FoundationModels` é ligado **de forma fraca**: o alvo do app é o iOS 16.4, e sem isto o
@@ -19,8 +18,8 @@
 Pod::Spec.new do |s|
   s.name           = 'OnDeviceEngine'
   s.version        = '1.0.0'
-  s.summary        = 'A ponte do Orbe para o modelo de linguagem do sistema, e o teste descartável do PCC.'
-  s.description    = 'Módulo Expo local: o Engine.swift (só pesos que rodam no aparelho), a cola sem lógica e, por ora, o ExperimentoDoPCC.swift — teste descartável do Private Cloud Compute, com texto fixo e sem dado do dono (exceção à AD-3, ADR 0047).'
+  s.summary        = 'A ponte do Orbe para o modelo de linguagem do sistema, no aparelho.'
+  s.description    = 'Módulo Expo local: o Engine.swift, que só instancia pesos que rodam no aparelho, e a cola sem lógica que o expõe ao app.'
   s.license        = 'UNLICENSED'
   s.author         = 'Orbe'
   s.homepage       = 'https://github.com/sydtpt/life-organizer'

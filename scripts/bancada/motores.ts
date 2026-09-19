@@ -273,12 +273,6 @@ export const ENGINE_SWIFT = join(__dirname, '..', '..', 'mobile', 'modules', 'on
 export const MAIN_DA_CLI = join(__dirname, 'aparelho', 'main.swift');
 /** Os testes da ponte, sem modelo (`aparelho:testar`). */
 export const TESTES_DA_CLI = join(__dirname, 'aparelho', 'testes.swift');
-/**
- * O experimento descartável do PCC (story 5.9), que mora no pod do app ao lado da ponte. Ele
- * entra **só** na compilação dos testes — nunca na CLI de medição —, para ninguém quebrá-lo sem
- * ver: os testes não o chamam (ele iria à rede da Apple), só o compilam e conferem o que é puro.
- */
-export const EXPERIMENTO_DO_PCC = join(__dirname, '..', '..', 'mobile', 'modules', 'on-device-engine', 'ios', 'ExperimentoDoPCC.swift');
 /** Onde o `swiftc` escreve — fora do git (`.gitignore`): saída de build local, nunca fonte. */
 export const DIR_DA_BUILD = join(__dirname, 'aparelho', '.build');
 export const BINARIO_DA_CLI = join(DIR_DA_BUILD, 'aparelho');

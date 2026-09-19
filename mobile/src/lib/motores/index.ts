@@ -244,12 +244,7 @@ export interface PonteDoAparelho {
   responder(pedido: string): Promise<string>;
   /** Se o modelo do sistema atende, qual variante e que janela — ou por quê não. */
   diagnostico(): Promise<string>;
-  /** EXPERIMENTO DESCARTÁVEL: o teste do Private Cloud Compute (ver {@link criarTesteDoPCC}). Sem argumento: o texto é fixo no Swift. */
-  experimentoDoPCC(): Promise<string>;
 }
-
-/** A função da cola que é o experimento descartável — a barreira confere que ela não recebe nada. */
-export const FUNCAO_DO_EXPERIMENTO = 'experimentoDoPCC' satisfies keyof PonteDoAparelho;
 
 /**
  * Os nomes das funções da cola, como este arquivo as chama. A barreira da cola no
@@ -261,7 +256,7 @@ export const FUNCAO_DO_EXPERIMENTO = 'experimentoDoPCC' satisfies keyof PonteDoA
  * nome que a interface não tem não entra, e um membro novo da interface não compila
  * até entrar aqui.
  */
-export const FUNCOES_DA_PONTE = ['responder', 'diagnostico', FUNCAO_DO_EXPERIMENTO] as const satisfies readonly (keyof PonteDoAparelho)[];
+export const FUNCOES_DA_PONTE = ['responder', 'diagnostico'] as const satisfies readonly (keyof PonteDoAparelho)[];
 type SobraDaPonte = Exclude<keyof PonteDoAparelho, (typeof FUNCOES_DA_PONTE)[number]>;
 const _ponteInteira: [SobraDaPonte] extends [never] ? true : SobraDaPonte = true;
 void _ponteInteira;
@@ -529,82 +524,6 @@ export function criarLeitorDaPonte(
 
 /** O diagnóstico da ponte deste build — o que o seletor e a bancada leem. */
 export const ponteDoAparelho: LeitorDaPonte = criarLeitorDaPonte(PONTE);
-
-/* ── EXPERIMENTO DESCARTÁVEL: o Private Cloud Compute (story 5.9) ─────────── */
-
-/** O que o teste do PCC tem a mostrar. */
-export interface ResultadoDoPCC {
-  /** O que a tela mostra agora — cru. */
-  readonly texto: string;
-  /**
-   * A chamada nativa que continua viva: o prazo estourou, ou um teste anterior ainda
-   * está em curso. Resolve com o que a ponte disser quando disser — e, até lá, o
-   * botão não reabre.
-   */
-  readonly tarde?: Promise<string>;
-}
-
-export interface TesteDoPCC {
-  /** Há uma chamada nativa do teste em voo? */
-  readonly emCurso: () => boolean;
-  /** Roda o teste — ou, com um em voo, **não chama a ponte de novo**. Nunca rejeita. */
-  readonly rodar: () => Promise<ResultadoDoPCC>;
-}
-
-/**
- * O teste do Private Cloud Compute — **para apagar ou promover depois do veredito
- * do dono** (exceção à AD-3 decidida por ele em 19/09/2026, emenda na ADR 0047).
- *
- * Não é motor: não entra no catálogo nem no seletor, e só o botão da tela de
- * desenvolvimento o chama. A ponte manda um texto fixo e neutro ("Diga olá.") —
- * nunca dado de saúde — e devolve **cru** o que voltou: disponibilidade, cota, a
- * resposta ou o erro com o código. A pergunta é uma só: o iPhone do dono tem acesso
- * ao PCC? (Do Mac, em 19/09, ele se anunciou e recusou com 1046.)
- *
- * **Uma chamada nativa por vez.** Ela não se cancela: se o prazo estoura, a tela
- * recebe o aviso, mas a chamada segue viva — e um segundo toque não abre outra, só
- * diz que a anterior ainda está em curso. O erro é resultado, nunca exceção na tela.
- */
-export function criarTesteDoPCC(ponte: PonteDoAparelho | null, prazoMs: number = PRAZO_MS): TesteDoPCC {
-  let viva: Promise<string> | null = null;
-  return {
-    emCurso: () => viva !== null,
-    rodar: async () => {
-      if (ponte === null) {
-        return { texto: 'a ponte não está neste build — o teste precisa do build com o módulo OnDeviceEngine' };
-      }
-      if (viva !== null) {
-        return { texto: 'o teste anterior ainda está em curso na ponte — nada foi chamado de novo', tarde: viva };
-      }
-      // A chamada começa num passo seguinte, e nunca rejeita: assim `viva` já está
-      // marcada quando ela termina — mesmo que a ponte lance na hora, sem prometer nada.
-      const chamada: Promise<string> = Promise.resolve()
-        .then(() => ponte.experimentoDoPCC())
-        .then(
-          (cru) => String(cru),
-          (e: unknown) => `a ponte lançou — ${mensagem(e)}`,
-        );
-      viva = chamada;
-      void chamada.then(() => {
-        if (viva === chamada) viva = null;
-      });
-      let relogio: ReturnType<typeof setTimeout> | undefined;
-      const noPrazo = new Promise<null>((r) => {
-        relogio = setTimeout(() => r(null), prazoMs);
-      });
-      const cru = await Promise.race([chamada, noPrazo]);
-      clearTimeout(relogio);
-      if (cru !== null) return { texto: cru };
-      return {
-        texto: `o teste não voltou em ${Math.round(prazoMs / 1000)} s — a chamada segue viva na ponte`,
-        tarde: chamada,
-      };
-    },
-  };
-}
-
-/** O teste do PCC deste build — o botão da tela de desenvolvimento. */
-export const testeDoPCC: TesteDoPCC = criarTesteDoPCC(PONTE);
 
 /* ── a lista de motores aprovados, do servidor (ADR 0048, story 5.6) ─────── */
 
