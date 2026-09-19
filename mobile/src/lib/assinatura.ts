@@ -20,7 +20,7 @@
  * o estado entra, o texto sai. É o que deixa as sete classes serem cobertas por
  * teste sem nenhum motor.
  */
-import { SEM_MODELO, type Causa, type MotorId, type Tentativa } from '@vitale/shared';
+import { MODELO_SEM_VARIANTE, SEM_MODELO, lerMotorId, type Causa, type MotorId, type Tentativa } from '@vitale/shared';
 import { nomeDoMotor } from './motores/catalogo';
 
 /* ── o estado da vaga ────────────────────────────────────────────────────── */
@@ -45,6 +45,11 @@ export type EstadoDaLeitura =
       readonly fase: 'lida';
       readonly frase: string;
       readonly motor: MotorId;
+      /**
+       * O modelo que a resposta assinou — no aparelho, a variante que a ponte leu
+       * ("AFM 3 Core Advanced", story 5.9). A assinatura só o mostra para o aparelho.
+       */
+      readonly modelo?: string;
       /** Do pedido à resposta, somando a trilha. */
       readonly ms: number;
       /** O hash do pedido, do anel. Só a tela de desenvolvimento o usa. */
@@ -211,8 +216,21 @@ export function textoDaAssinatura(estado: EstadoDaLeitura): string | null {
       return estado.motor === undefined
         ? 'está escrevendo…'
         : `${nomeDoMotor(estado.motor)} está escrevendo…`;
-    case 'lida':
-      return `escrito ${por(nomeDoMotor(estado.motor))} · ${tempoDaLeitura(estado.ms)}`;
+    case 'lida': {
+      // O aparelho diz **qual** modelo escreveu (5.9): "o modelo do aparelho" é o mesmo
+      // sujeito para variantes diferentes, e a pergunta do dono é justamente qual ele tem.
+      // Só quando há variante: o nome genérico (`system-language-model`, antes do 27 ou
+      // sem nome) não diz nada ao dono — o mesmo critério do seletor, que o omite.
+      // A nuvem não muda: a variante nomeada já tem nome próprio, e a do padrão fica
+      // como estava.
+      const qual =
+        estado.modelo !== undefined &&
+        estado.modelo !== MODELO_SEM_VARIANTE &&
+        lerMotorId(estado.motor)?.tipo === 'aparelho'
+          ? ` (${estado.modelo})`
+          : '';
+      return `escrito ${por(nomeDoMotor(estado.motor))}${qual} · ${tempoDaLeitura(estado.ms)}`;
+    }
     case 'piso': {
       const motivo = motivoDaFalha(estado.causa, estado.motor);
       const tempo = tempoDaLeitura(estado.ms);

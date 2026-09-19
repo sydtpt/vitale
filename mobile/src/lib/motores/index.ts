@@ -25,31 +25,49 @@
  * duas chamadas pagas para uma tela que mostra uma frase. O dedupe por toque
  * mora no hook; a serialização mora aqui, porque é propriedade do motor, não da
  * tela — a tela de desenvolvimento usa o mesmo motor.
+ *
+ * **E é o único lugar do app que carrega a ponte do aparelho** (story 5.9, ADR
+ * 0047): o módulo nativo `OnDeviceEngine`, por `requireOptionalNativeModule`, uma
+ * vez. Sem ele — um build anterior à 5.9, o jest — o aparelho é `indisponivel`,
+ * nunca exceção; fora do iOS, ele nem existe. Com ele (o iPhone, e também o
+ * simulador de um build desta branch), o aparelho ganha motor, com fila própria e
+ * prazo, e o seletor ganha o diagnóstico — relido enquanto não disser "disponível".
  */
+import { Platform } from 'react-native';
+import { requireOptionalNativeModule } from 'expo';
 import {
   RECURSOS,
   STATUS_POR_CLASSE,
   criarMotorDeNuvem,
+  criarMotorDoAparelho,
   formatarMotorId,
+  lerDiagnosticoDoAparelho,
   lerMotorId,
   lerMotoresDeNuvemAprovados,
   motoresSemRecursoConhecido,
   type CorpoDaFalha,
   type CorpoDoPedido,
+  type Falha,
   type Motor,
   type MotorDeNuvemAprovado,
   type MotorId,
   type RecursoId,
   type RespostaDoTransporte,
   type Transporte,
+  type TransporteDoAparelho,
 } from '@vitale/shared';
 import { supabase } from '../supabase';
+import { anel } from './anel';
 import {
+  PONTE_AUSENTE,
+  PONTE_CONSULTANDO,
+  PONTE_FORA_DO_IOS,
   esquecerListaAprovada,
   guardarListaAprovada,
   idsConhecidosDe,
   listaAprovada,
   listaVencida,
+  type EstadoDaPonte,
   type ListaAprovada,
 } from './catalogo';
 
@@ -214,9 +232,156 @@ function serializar(transporte: Transporte): Transporte {
   };
 }
 
+/* ── a ponte do aparelho (story 5.9) ─────────────────────────────────────── */
+
 /**
- * O `motorPara` do app: um motor de nuvem para todo `MotorId` de nuvem, e nada
- * para o resto.
+ * O que a cola do Expo expõe (`OnDeviceEngineModule.swift`). Cada função só
+ * repassa ao Swift — a tradução da linha é do núcleo (`ia/aparelho.ts`), e a tabela
+ * erro → classe é do `Engine.swift`.
+ */
+export interface PonteDoAparelho {
+  /** A string de `serializarPedido` entra; a linha de resposta ou de falha sai. */
+  responder(pedido: string): Promise<string>;
+  /** Se o modelo do sistema atende, qual variante e que janela — ou por quê não. */
+  diagnostico(): Promise<string>;
+  /** EXPERIMENTO DESCARTÁVEL: o teste do Private Cloud Compute (ver {@link criarTesteDoPCC}). Sem argumento: o texto é fixo no Swift. */
+  experimentoDoPCC(): Promise<string>;
+}
+
+/** A função da cola que é o experimento descartável — a barreira confere que ela não recebe nada. */
+export const FUNCAO_DO_EXPERIMENTO = 'experimentoDoPCC' satisfies keyof PonteDoAparelho;
+
+/**
+ * Os nomes das funções da cola, como este arquivo as chama. A barreira da cola no
+ * `architecture.test.ts` lê esta lista e exige que sejam exatamente os
+ * `AsyncFunction("…")` do Swift: um nome trocado de um lado só daria `undefined is
+ * not a function` no iPhone — uma `transitoria` não mapeada a cada toque.
+ *
+ * A tupla é conferida pelo compilador nos dois sentidos, como `CHAVES_DO_PEDIDO`: um
+ * nome que a interface não tem não entra, e um membro novo da interface não compila
+ * até entrar aqui.
+ */
+export const FUNCOES_DA_PONTE = ['responder', 'diagnostico', FUNCAO_DO_EXPERIMENTO] as const satisfies readonly (keyof PonteDoAparelho)[];
+type SobraDaPonte = Exclude<keyof PonteDoAparelho, (typeof FUNCOES_DA_PONTE)[number]>;
+const _ponteInteira: [SobraDaPonte] extends [never] ? true : SobraDaPonte = true;
+void _ponteInteira;
+
+/**
+ * O módulo nativo, carregado **uma vez**. `null` quando o build não o tem: o
+ * `requireOptionalNativeModule` não lança nesse caso, e o `try` é a rede contra um
+ * carregador que um dia lance — o aparelho ausente é `indisponivel`, nunca exceção.
+ * O nome é o `Name(…)` da cola; a barreira da cola no `architecture.test.ts` exige
+ * que os dois lados digam o mesmo.
+ */
+function carregarAPonte(): PonteDoAparelho | null {
+  try {
+    return requireOptionalNativeModule<PonteDoAparelho>('OnDeviceEngine');
+  } catch {
+    return null;
+  }
+}
+
+const PONTE: PonteDoAparelho | null = carregarAPonte();
+
+/** A linha de falha que o transporte do aparelho escreve quando o prazo estoura. */
+function linhaDoPrazo(prazoMs: number): string {
+  const f: Falha = {
+    classe: 'transitoria',
+    detalhe: `o prazo de ${Math.round(prazoMs / 1000)} s estourou; o aparelho termina o pedido antes de atender o próximo`,
+  };
+  return JSON.stringify(f);
+}
+
+/** Quantos prazos a vez espera uma chamada nativa que não volta, antes de passar adiante. */
+export const PRAZOS_ATE_SOLTAR_A_VEZ = 3;
+
+export interface OpcoesDoTransporteDoAparelho {
+  /** Quanto a vez espera uma chamada que não volta. Padrão: {@link PRAZOS_ATE_SOLTAR_A_VEZ} prazos. */
+  readonly tetoMs?: number;
+  /** Onde fica o rastro de uma vez solta à força — o anel, no app. */
+  readonly anotar?: (texto: string) => void;
+}
+
+/**
+ * O transporte do aparelho: **um pedido por vez**, e com prazo.
+ *
+ * Um por vez porque o modelo do sistema é um só, e duas telas pedindo juntas (a
+ * `/sono/saude` e a bancada, ou dois toques em janelas diferentes) fariam o segundo
+ * pedido disputar o primeiro: o segundo **espera**. O prazo é o mesmo da nuvem
+ * ({@link PRAZO_MS}), e estourar é `transitoria` — o mesmo contrato: cai no piso sem
+ * recuar.
+ *
+ * **O prazo conta do toque, e a vez só passa quando o aparelho termina.** Uma
+ * chamada nativa não se cancela: se a vez passasse no estouro, o pedido seguinte
+ * iria ao modelo enquanto ele ainda escreve o anterior. Então quem estourou recebe
+ * a falha na hora, mas a fila espera o aparelho de verdade; e **quem estourar ainda
+ * esperando a vez nem chega a ir ao aparelho**. Assim nenhum toque espera mais que o
+ * prazo, e o modelo não atende dois.
+ *
+ * **Com um teto.** Uma chamada que nunca volta trancaria a fila pela sessão inteira.
+ * Depois de `tetoMs` (três prazos, por padrão) a vez passa adiante mesmo com a
+ * chamada viva, e fica o rastro no anel. O preço é conhecido e aceito: o pedido
+ * seguinte pode encontrar o modelo ainda ocupado e receber `concorrência` da ponte —
+ * que ela traduz em `transitoria`, o mesmo piso sem recuo. Um pedido que falha por
+ * agora é melhor que um aparelho mudo até o app fechar.
+ *
+ * Nunca rejeita por conta própria: a exceção da ponte sobe como veio, e
+ * `criarMotorDoAparelho` a converte em `transitoria` não mapeada, com o nome cru.
+ */
+export function criarTransporteDoAparelho(
+  responder: (pedido: string) => Promise<string>,
+  prazoMs: number = PRAZO_MS,
+  opcoes: OpcoesDoTransporteDoAparelho = {},
+): TransporteDoAparelho {
+  const tetoMs = opcoes.tetoMs ?? PRAZOS_ATE_SOLTAR_A_VEZ * prazoMs;
+  const anotar = opcoes.anotar ?? (() => undefined);
+  let fila: Promise<void> = Promise.resolve();
+  return (pedido) =>
+    new Promise<string>((resolver, rejeitar) => {
+      let encerrado = false;
+      const relogio = setTimeout(() => {
+        encerrado = true;
+        resolver(linhaDoPrazo(prazoMs));
+      }, prazoMs);
+      fila = fila.then(async () => {
+        // O prazo estourou antes de a vez chegar: o pedido não vai ao aparelho.
+        if (encerrado) return;
+        let soltar: () => void = () => undefined;
+        const aVezPassa = new Promise<void>((r) => {
+          soltar = r;
+        });
+        const teto = setTimeout(() => {
+          anotar(
+            `o aparelho não devolveu um pedido em ${Math.round(tetoMs / 1000)} s; a vez passou adiante com a ` +
+              'chamada ainda viva — o próximo pedido pode receber concorrência (transitoria)',
+          );
+          soltar();
+        }, tetoMs);
+        const chamada = (async () => {
+          try {
+            const linha = await responder(pedido);
+            if (!encerrado) {
+              encerrado = true;
+              clearTimeout(relogio);
+              resolver(linha);
+            }
+          } catch (e) {
+            if (!encerrado) {
+              encerrado = true;
+              clearTimeout(relogio);
+              rejeitar(e);
+            }
+          }
+        })();
+        await Promise.race([chamada, aVezPassa]);
+        clearTimeout(teto);
+      });
+    });
+}
+
+/**
+ * O `motorPara` do app: um motor de nuvem para todo `MotorId` de nuvem, o motor do
+ * aparelho para `aparelho:sistema` quando a ponte está no build, e nada para o resto.
  *
  * **Um motor por id, e o id vai no corpo** (5.6). `nuvem:padrao` é a exceção
  * declarada: ele *é* "o servidor escolhe", então o corpo sai sem `motor` e a
@@ -228,19 +393,27 @@ function serializar(transporte: Transporte): Transporte {
  * tela de desenvolvimento guarda o motor entre renders, e um objeto novo a cada
  * chamada faria um efeito seu disparar sem nada ter mudado.
  *
- * O **aparelho** não tem motor aqui de propósito — é o marco B, que depende do
- * macOS 27 e da ponte Swift. Pedi-lo hoje dá tentativa sintética `indisponivel`,
- * sem nenhuma chamada de rede: o orquestrador a marca como "o hospedeiro não
- * entregou este motor", e a assinatura da tela diz isso em palavras.
+ * O **aparelho** (5.9) tem motor quando o módulo nativo está no build, com a sua
+ * fila e o seu prazo. Sem o módulo, não há motor: pedi-lo dá tentativa sintética
+ * `indisponivel`, sem chamada nenhuma, e a assinatura da tela diz isso em palavras.
+ * Com o módulo e o modelo fora (Apple Intelligence desligada, modelo não pronto),
+ * há motor — e quem responde `indisponivel`, com o motivo, é a própria ponte. Os
+ * pesos abertos (`aparelho:<provedor>/<pesos>`, a 5.8) não têm motor ainda.
  */
 export function criarMotorPara(
   chamar: Chamar = chamarAFunction,
   prazoMs: number = PRAZO_MS,
+  ponte: PonteDoAparelho | null = PONTE,
 ): (id: MotorId) => Motor | undefined {
   const transporte = serializar(criarTransporte(chamar, prazoMs));
+  const doAparelho =
+    ponte === null
+      ? undefined
+      : criarMotorDoAparelho(criarTransporteDoAparelho((p) => ponte.responder(p), prazoMs, { anotar: anel.anotar }));
   const porId = new Map<string, Motor>();
   return (id) => {
     const lido = lerMotorId(id);
+    if (lido?.tipo === 'aparelho') return lido.variante === 'sistema' ? doAparelho : undefined;
     if (lido?.tipo !== 'nuvem') return undefined;
     const chave = formatarMotorId(lido);
     const guardado = porId.get(chave);
@@ -256,6 +429,182 @@ export function criarMotorPara(
  * e a tela de desenvolvimento dividirem a mesma fila de chamadas.
  */
 export const motorPara: (id: MotorId) => Motor | undefined = criarMotorPara();
+
+/* ── o diagnóstico do aparelho (story 5.9) ────────────────────────────────── */
+
+/**
+ * O prazo do diagnóstico. Ele não abre sessão nem gera nada — só pergunta ao SDK o
+ * que ele já sabe —, então volta em milissegundos; o prazo existe para o seletor
+ * nunca ficar em "consultando…" para sempre.
+ */
+export const PRAZO_DO_DIAGNOSTICO_MS = 10_000;
+
+/** O diagnóstico da ponte, visto pelas telas. */
+export interface LeitorDaPonte {
+  /** O que já se sabe, sem esperar: ausente, fora do iOS, consultando ou o último lido. */
+  agora(): EstadoDaPonte;
+  /** O diagnóstico: o último lido, ou a primeira leitura. Nunca rejeita. */
+  garantir(): Promise<EstadoDaPonte>;
+  /**
+   * Lê de novo **se o último não disse "disponível"** — é o que a tela de motores chama
+   * ao ganhar foco e quando o app volta ao primeiro plano. Disponível não é relido na
+   * sessão; leitura em voo é compartilhada. Nunca rejeita.
+   */
+  reconsultar(): Promise<EstadoDaPonte>;
+}
+
+/**
+ * O leitor do diagnóstico.
+ *
+ * **Uma vez por sessão, enquanto disser "disponível".** O que não é disponível pode
+ * ser passageiro — `modelNotReady` enquanto o sistema baixa o modelo, a Apple
+ * Intelligence desligada que o dono liga nos Ajustes, um prazo estourado —, então
+ * esse resultado fica em cache só até alguém pedir para reconsultar: a tela de
+ * motores ao ganhar foco, e o app ao voltar ao primeiro plano. Durante a releitura,
+ * `agora()` continua mostrando o último lido, sem piscar em "consultando".
+ *
+ * Fora do contrato, rejeitado ou sem resposta no prazo, o diagnóstico é
+ * **ilegível** — o seletor o mostra como indisponível, com "o aparelho não
+ * respondeu como esperado". A linha crua vai junto, para a tela de desenvolvimento.
+ *
+ * Fora da fila do motor, de propósito: a fila é das gerações, e o diagnóstico não
+ * pode esperar um pedido de 15 s para dizer se o modelo existe.
+ *
+ * Fora do iOS não há o que perguntar: o modelo só existe no iPhone.
+ */
+export function criarLeitorDaPonte(
+  ponte: PonteDoAparelho | null,
+  prazoMs: number = PRAZO_DO_DIAGNOSTICO_MS,
+  plataforma: string = Platform.OS,
+): LeitorDaPonte {
+  const fixo = plataforma !== 'ios' ? PONTE_FORA_DO_IOS : ponte === null ? PONTE_AUSENTE : null;
+  if (fixo !== null || ponte === null) {
+    const estado = fixo ?? PONTE_AUSENTE;
+    return { agora: () => estado, garantir: () => Promise.resolve(estado), reconsultar: () => Promise.resolve(estado) };
+  }
+  let lido: EstadoDaPonte | null = null;
+  let emVoo: Promise<EstadoDaPonte> | null = null;
+
+  const ler = async (): Promise<EstadoDaPonte> => {
+    let relogio: ReturnType<typeof setTimeout> | undefined;
+    const noPrazo = new Promise<null>((r) => {
+      relogio = setTimeout(() => r(null), prazoMs);
+    });
+    try {
+      const linha = await Promise.race([ponte.diagnostico(), noPrazo]);
+      if (linha === null) {
+        return {
+          tipo: 'lido',
+          diagnostico: { estado: 'ilegivel', detalhe: `o diagnóstico não voltou em ${Math.round(prazoMs / 1000)} s` },
+        };
+      }
+      return { tipo: 'lido', diagnostico: lerDiagnosticoDoAparelho(linha), cru: String(linha) };
+    } catch (e) {
+      return { tipo: 'lido', diagnostico: { estado: 'ilegivel', detalhe: `a ponte lançou — ${mensagem(e)}` } };
+    } finally {
+      clearTimeout(relogio);
+    }
+  };
+
+  const disponivel = (e: EstadoDaPonte | null): boolean => e?.tipo === 'lido' && e.diagnostico.estado === 'disponivel';
+
+  const reconsultar = (): Promise<EstadoDaPonte> => {
+    if (emVoo) return emVoo;
+    if (lido !== null && disponivel(lido)) return Promise.resolve(lido);
+    const voo = ler().then((e) => {
+      lido = e;
+      if (emVoo === voo) emVoo = null;
+      return e;
+    });
+    emVoo = voo;
+    return voo;
+  };
+
+  return {
+    agora: () => lido ?? PONTE_CONSULTANDO,
+    garantir: () => (lido !== null ? Promise.resolve(lido) : reconsultar()),
+    reconsultar,
+  };
+}
+
+/** O diagnóstico da ponte deste build — o que o seletor e a bancada leem. */
+export const ponteDoAparelho: LeitorDaPonte = criarLeitorDaPonte(PONTE);
+
+/* ── EXPERIMENTO DESCARTÁVEL: o Private Cloud Compute (story 5.9) ─────────── */
+
+/** O que o teste do PCC tem a mostrar. */
+export interface ResultadoDoPCC {
+  /** O que a tela mostra agora — cru. */
+  readonly texto: string;
+  /**
+   * A chamada nativa que continua viva: o prazo estourou, ou um teste anterior ainda
+   * está em curso. Resolve com o que a ponte disser quando disser — e, até lá, o
+   * botão não reabre.
+   */
+  readonly tarde?: Promise<string>;
+}
+
+export interface TesteDoPCC {
+  /** Há uma chamada nativa do teste em voo? */
+  readonly emCurso: () => boolean;
+  /** Roda o teste — ou, com um em voo, **não chama a ponte de novo**. Nunca rejeita. */
+  readonly rodar: () => Promise<ResultadoDoPCC>;
+}
+
+/**
+ * O teste do Private Cloud Compute — **para apagar ou promover depois do veredito
+ * do dono** (exceção à AD-3 decidida por ele em 19/09/2026, emenda na ADR 0047).
+ *
+ * Não é motor: não entra no catálogo nem no seletor, e só o botão da tela de
+ * desenvolvimento o chama. A ponte manda um texto fixo e neutro ("Diga olá.") —
+ * nunca dado de saúde — e devolve **cru** o que voltou: disponibilidade, cota, a
+ * resposta ou o erro com o código. A pergunta é uma só: o iPhone do dono tem acesso
+ * ao PCC? (Do Mac, em 19/09, ele se anunciou e recusou com 1046.)
+ *
+ * **Uma chamada nativa por vez.** Ela não se cancela: se o prazo estoura, a tela
+ * recebe o aviso, mas a chamada segue viva — e um segundo toque não abre outra, só
+ * diz que a anterior ainda está em curso. O erro é resultado, nunca exceção na tela.
+ */
+export function criarTesteDoPCC(ponte: PonteDoAparelho | null, prazoMs: number = PRAZO_MS): TesteDoPCC {
+  let viva: Promise<string> | null = null;
+  return {
+    emCurso: () => viva !== null,
+    rodar: async () => {
+      if (ponte === null) {
+        return { texto: 'a ponte não está neste build — o teste precisa do build com o módulo OnDeviceEngine' };
+      }
+      if (viva !== null) {
+        return { texto: 'o teste anterior ainda está em curso na ponte — nada foi chamado de novo', tarde: viva };
+      }
+      // A chamada começa num passo seguinte, e nunca rejeita: assim `viva` já está
+      // marcada quando ela termina — mesmo que a ponte lance na hora, sem prometer nada.
+      const chamada: Promise<string> = Promise.resolve()
+        .then(() => ponte.experimentoDoPCC())
+        .then(
+          (cru) => String(cru),
+          (e: unknown) => `a ponte lançou — ${mensagem(e)}`,
+        );
+      viva = chamada;
+      void chamada.then(() => {
+        if (viva === chamada) viva = null;
+      });
+      let relogio: ReturnType<typeof setTimeout> | undefined;
+      const noPrazo = new Promise<null>((r) => {
+        relogio = setTimeout(() => r(null), prazoMs);
+      });
+      const cru = await Promise.race([chamada, noPrazo]);
+      clearTimeout(relogio);
+      if (cru !== null) return { texto: cru };
+      return {
+        texto: `o teste não voltou em ${Math.round(prazoMs / 1000)} s — a chamada segue viva na ponte`,
+        tarde: chamada,
+      };
+    },
+  };
+}
+
+/** O teste do PCC deste build — o botão da tela de desenvolvimento. */
+export const testeDoPCC: TesteDoPCC = criarTesteDoPCC(PONTE);
 
 /* ── a lista de motores aprovados, do servidor (ADR 0048, story 5.6) ─────── */
 

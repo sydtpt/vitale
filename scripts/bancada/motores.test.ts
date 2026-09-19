@@ -35,6 +35,7 @@ import {
   PRAZO_MS,
   SEM_NENHUM_MOTOR,
   TESTES_DA_CLI,
+  EXPERIMENTO_DO_PCC,
   abrirProcesso,
   argumentosDoSwiftc,
   carimboDaCompilacao,
@@ -802,6 +803,19 @@ describe('a compilação da CLI (sem compilar nada)', () => {
     assert.equal(/swiftc/.test(testar), false, testar);
     assert.match(testar, /bancada\/aparelho\/testar\.ts/);
     assert.match(readFileSync(join(__dirname, 'aparelho', 'testar.ts'), 'utf8'), /prepararBinario\(BINARIO_DOS_TESTES/);
+  });
+
+  it('o experimento do PCC compila com os testes, e nunca com a CLI de medição (story 5.9)', () => {
+    const raiz = join(__dirname, '..', '..');
+    assert.equal(
+      relative(raiz, EXPERIMENTO_DO_PCC).split(sep).join('/'),
+      'mobile/modules/on-device-engine/ios/ExperimentoDoPCC.swift',
+    );
+    assert.ok(existsSync(EXPERIMENTO_DO_PCC), 'o ExperimentoDoPCC.swift sumiu');
+    const testar = readFileSync(join(__dirname, 'aparelho', 'testar.ts'), 'utf8');
+    assert.match(testar, /prepararBinario\(BINARIO_DOS_TESTES, \[ENGINE_SWIFT, EXPERIMENTO_DO_PCC, TESTES_DA_CLI\]\)/);
+    // A CLI mede o motor do aparelho; o experimento iria à rede da Apple.
+    assert.equal(/EXPERIMENTO_DO_PCC/.test(readFileSync(join(__dirname, 'motores.ts'), 'utf8').split('export function prepararCli')[1] ?? ''), false);
   });
 
   it('o Engine.swift é o do módulo do app — o mesmo arquivo, não uma cópia', () => {

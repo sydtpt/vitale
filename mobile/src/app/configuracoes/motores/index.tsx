@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOGO_DE_RECURSOS, resolverCadeia, type MotorId, type RecursoId } from '@vitale/shared';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { garantirListaAprovada } from '../../../lib/motores';
+import { garantirListaAprovada, ponteDoAparelho } from '../../../lib/motores';
 import {
   listaAprovada,
   motoresDoRecurso,
   motivoDeBloqueio,
+  type EstadoDaPonte,
   type ListaAprovada,
   type MotorConhecido,
   type RecursoDoSeletor,
@@ -31,9 +32,13 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../.
  * vez de aparecer na tela como `saude-do-sono`.
  *
  * **Os motores vêm do catálogo do app**, e o que não dá aparece: apagado, não
- * selecionável, com o motivo escrito. Esconder o `aparelho:sistema` faria a tela
- * mentir por omissão — o dono veria duas opções e não saberia que há uma terceira
- * esperando um build (é o marco B, que depende do macOS 27).
+ * selecionável, com o motivo escrito. O `aparelho:sistema` segue o **diagnóstico
+ * da ponte** (story 5.9) — relido ao focar a tela e quando o app volta ao primeiro
+ * plano, enquanto não disser "disponível": disponível com a variante e a
+ * janela numa linha simples (`AFM 3 Core Advanced · janela de 8.192 tokens` — é a
+ * resposta a "que modelo eu tenho"), ou apagado com o motivo em palavras (Apple
+ * Intelligence desligada, modelo não pronto, aparelho não elegível, ponte ausente
+ * neste build). Esconder o aparelho faria a tela mentir por omissão.
  *
  * **E um controle inerte é a mentira espelhada.** Hoje só a Saúde do sono lê a
  * preferência; a Retrospectiva ainda chama a function pelo caminho antigo. Oferecer
@@ -67,6 +72,29 @@ export default function MotoresScreen() {
   // Começa no que já está em cache: voltar a esta tela não pode fazer um motor
   // já conhecido piscar fora da lista.
   const [lista, setLista] = useState<ListaAprovada | null>(listaAprovada);
+  // A ponte do aparelho (5.9): começa no que já se sabe — ausente, consultando ou o
+  // último diagnóstico — e **relê enquanto ele não disser "disponível"**: ao focar
+  // a tela, e quando o app volta ao primeiro plano (o dono ligou a Apple
+  // Intelligence nos Ajustes e voltou). Disponível não é relido. Nunca rejeita.
+  const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
+  useFocusEffect(
+    useCallback(() => {
+      let vivo = true;
+      const reler = () => {
+        void ponteDoAparelho.reconsultar().then((p) => {
+          if (vivo) setPonte(p);
+        });
+      };
+      reler();
+      const assinatura = AppState.addEventListener('change', (estado) => {
+        if (estado === 'active') reler();
+      });
+      return () => {
+        vivo = false;
+        assinatura.remove();
+      };
+    }, []),
+  );
   useEffect(() => {
     let vivo = true;
     void garantirListaAprovada()
@@ -138,7 +166,7 @@ export default function MotoresScreen() {
           const escolhido = preferencias[recurso.recurso] ?? null;
           // O catálogo é **por recurso** desde a 5.6: a lista do servidor aprova um
           // motor de nuvem para recursos nomeados, não para todos.
-          const conhecidos = motoresDoRecurso(recurso.recurso, lista);
+          const conhecidos = motoresDoRecurso(recurso.recurso, ponte, lista);
           // Quem de fato escreveria agora: a cadeia resolvida decide, não a tela.
           // Sem preferência, é o padrão do recurso; com uma que o regime recusa, é o
           // recuo — e a tela mostra o que o orquestrador faria, não o que foi tocado.
@@ -204,18 +232,30 @@ function LinhaDoMotor({
   s: Styles;
 }) {
   const bloqueado = motivo !== null;
+  // "Consultando" não é "indisponível": o leitor de tela o anuncia ocupado, com o
+  // próprio rótulo, e não como um motor que não existe.
+  const consultando = motor.consultando === true;
+  // O detalhe (variante · janela) só quando a linha está livre: bloqueado pelo
+  // recurso (a Retrospectiva), ele empilharia com o motivo, e a pergunta ali não é
+  // "qual modelo" — é "por que não".
+  const detalhe = bloqueado ? undefined : motor.detalhe;
+  const rotuloAcessivel = consultando
+    ? `${motor.rotulo} — consultando o aparelho`
+    : `${motor.rotulo}${detalhe !== undefined ? ` — ${detalhe}` : ''}${bloqueado ? ` — indisponível: ${motivo}` : ''}`;
   return (
     <Pressable
       onPress={bloqueado ? undefined : onPress}
       disabled={bloqueado}
       accessibilityRole="button"
-      accessibilityState={{ selected: selecionado, disabled: bloqueado }}
-      accessibilityLabel={`${motor.rotulo}${bloqueado ? ` — indisponível: ${motivo}` : ''}`}
+      accessibilityState={{ selected: selecionado, disabled: bloqueado, busy: consultando }}
+      accessibilityLabel={rotuloAcessivel}
       style={({ pressed }) => [s.card, selecionado && s.cardSelected, pressed && s.pressed]}
     >
       <View style={s.meta}>
         <Text style={[s.name, bloqueado && s.faded]}>{motor.rotulo}</Text>
         <Text style={[s.sub, bloqueado && s.faded]}>{motor.descricao}</Text>
+        {/* Qual modelo é, quando há o que dizer — no estilo da linha do motivo. */}
+        {detalhe !== undefined ? <Text style={s.motivo}>{detalhe}</Text> : null}
         {motivo !== null ? <Text style={s.motivo}>{motivo}</Text> : null}
       </View>
       <View style={[s.check, selecionado && s.checkOn]}>

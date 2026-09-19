@@ -34,7 +34,19 @@ import {
   type Pedido,
   type Resposta,
 } from '@vitale/shared';
-import { PRAZO_MS, criarMotorPara, criarTransporte, type Chamar } from '../motores';
+import {
+  PRAZO_MS,
+  criarLeitorDaPonte,
+  criarMotorPara,
+  criarTransporte,
+  criarTesteDoPCC,
+  criarTransporteDoAparelho,
+  motorPara as motorParaDoApp,
+  ponteDoAparelho,
+  testeDoPCC,
+  type Chamar,
+  type PonteDoAparelho,
+} from '../motores';
 
 const PEDIDO: Pedido = {
   sistema: 'as regras',
@@ -92,6 +104,33 @@ function chamada(resultado: Resultado) {
 }
 
 const ehFalha = (x: Resposta | Falha): x is Falha => 'classe' in x;
+
+/** O que o Engine.swift escreve numa resposta boa, no iPhone com o 27. */
+const LINHA_BOA = {
+  texto: 'Uma frase do aparelho.',
+  provedor: 'prov-a',
+  modelo: 'AFM 3 Core',
+  plataforma: 'iOS 27.0',
+  buildDoSistema: '27A1',
+};
+
+/** Uma ponte falsa: o `responder` que o teste mandar, e o que ela recebeu. */
+function ponteFalsa(
+  responder: (pedido: string) => Promise<string>,
+  diagnostico: () => Promise<string> = async () => '{"disponivel":true}',
+  experimentoDoPCC: () => Promise<string> = async () => '{}',
+): PonteDoAparelho & { vistos: string[] } {
+  const vistos: string[] = [];
+  return {
+    vistos,
+    responder: (p) => {
+      vistos.push(p);
+      return responder(p);
+    },
+    diagnostico,
+    experimentoDoPCC,
+  };
+}
 
 /** A composição inteira: o transporte do app mais a tradução do núcleo. */
 async function pelaNuvem(resultado: Resultado, prazoMs = PRAZO_MS) {
@@ -223,9 +262,58 @@ describe('o motorPara do app', () => {
     expect(motorPara('nuvem:acme/modelo-9')).toBeDefined();
   });
 
-  it('não entrega motor para o aparelho — é o marco B, e não há ponte neste build', () => {
-    const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar);
+  it('sem a ponte no build, não há motor do aparelho — e nada lança', () => {
+    const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, PRAZO_MS, null);
     expect(motorPara(APARELHO_SISTEMA)).toBeUndefined();
+  });
+
+  it('no jest o módulo nativo não existe: o motorPara do app não entrega o aparelho, e a ponte é ausente', async () => {
+    // É o "app compilando no jest sem o módulo nativo" da story 5.9: o
+    // `requireOptionalNativeModule` devolveu `null` no import, sem lançar.
+    expect(motorParaDoApp(APARELHO_SISTEMA)).toBeUndefined();
+    expect(ponteDoAparelho.agora()).toEqual({ tipo: 'ausente' });
+    expect(await ponteDoAparelho.garantir()).toEqual({ tipo: 'ausente' });
+    expect((await testeDoPCC.rodar()).texto).toContain('a ponte não está neste build');
+    expect(testeDoPCC.emCurso()).toBe(false);
+  });
+
+  it('com a ponte, entrega o motor do aparelho — só para aparelho:sistema, e sempre o mesmo', async () => {
+    const ponte = ponteFalsa(async () => JSON.stringify(LINHA_BOA));
+    const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, PRAZO_MS, ponte);
+    const aparelho = motorPara(APARELHO_SISTEMA);
+    expect(aparelho).toBeDefined();
+    expect(motorPara(APARELHO_SISTEMA)).toBe(aparelho);
+    // Os pesos abertos (5.8) ainda não têm motor.
+    expect(motorPara('aparelho:acme/pesos')).toBeUndefined();
+    const r = (await aparelho!(PEDIDO)) as Resposta;
+    expect(r.texto).toBe(LINHA_BOA.texto);
+    expect(r.assinatura).toEqual({
+      tipo: 'aparelho',
+      provedor: 'prov-a',
+      modelo: 'AFM 3 Core',
+      plataforma: 'iOS 27.0',
+      buildDoSistema: '27A1',
+    });
+    // O que foi à ponte é a string canônica do pedido — nada da nuvem.
+    expect(ponte.vistos).toHaveLength(1);
+    expect(JSON.parse(ponte.vistos[0])).toMatchObject({ sistema: PEDIDO.sistema, usuario: PEDIDO.usuario });
+  });
+
+  it('a falha da ponte chega com a classe dela; a exceção vira transitoria não mapeada', async () => {
+    const fora = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, PRAZO_MS, ponteFalsa(async () =>
+      JSON.stringify({ classe: 'indisponivel', detalhe: 'modelo do sistema indisponível: appleIntelligenceNotEnabled' }),
+    ))(APARELHO_SISTEMA)!;
+    expect((await fora(PEDIDO)) as Falha).toEqual({
+      classe: 'indisponivel',
+      detalhe: 'modelo do sistema indisponível: appleIntelligenceNotEnabled',
+    });
+    const lanca = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, PRAZO_MS, ponteFalsa(async () => {
+      throw new Error('a ponte caiu');
+    }))(APARELHO_SISTEMA)!;
+    const f = (await lanca(PEDIDO)) as Falha;
+    expect(f.classe).toBe('transitoria');
+    expect(f.naoMapeado).toBe(true);
+    expect(f.detalhe).toContain('a ponte caiu');
   });
 
   it('não entrega motor para sem-modelo nem para id ilegível', () => {
@@ -319,5 +407,270 @@ describe('o motorPara do app', () => {
     const [primeira, segunda] = await Promise.all([motor(PEDIDO), motor(PEDIDO)]);
     expect((primeira as Falha).classe).toBe('indisponivel');
     expect(ehFalha(segunda)).toBe(false);
+  });
+});
+
+describe('o transporte do aparelho (story 5.9)', () => {
+  it('um pedido por vez: o segundo espera o primeiro terminar no aparelho', async () => {
+    let dentro = 0;
+    let maximo = 0;
+    const ordem: string[] = [];
+    const transporte = criarTransporteDoAparelho(async (p) => {
+      dentro += 1;
+      maximo = Math.max(maximo, dentro);
+      ordem.push(`começa ${p}`);
+      await new Promise((r) => setTimeout(r, 5));
+      ordem.push(`termina ${p}`);
+      dentro -= 1;
+      return `linha ${p}`;
+    }, 1_000);
+    const r = await Promise.all([transporte('a'), transporte('b'), transporte('c')]);
+    expect(r).toEqual(['linha a', 'linha b', 'linha c']);
+    expect(maximo).toBe(1);
+    expect(ordem).toEqual(['começa a', 'termina a', 'começa b', 'termina b', 'começa c', 'termina c']);
+  });
+
+  it('o prazo estoura em transitoria, e a vez só passa quando o aparelho termina de verdade', async () => {
+    let soltar: (linha: string) => void = () => undefined;
+    const chamados: string[] = [];
+    const transporte = criarTransporteDoAparelho((p) => {
+      chamados.push(p);
+      if (p === 'lento') return new Promise<string>((r) => (soltar = r));
+      return Promise.resolve(`linha ${p}`);
+    }, 20);
+
+    const lento = await transporte('lento');
+    const f = JSON.parse(lento) as Falha;
+    expect(f.classe).toBe('transitoria');
+    expect(f.detalhe).toContain('prazo');
+    expect(f.naoMapeado).toBeUndefined();
+
+    // O seguinte não vai ao aparelho enquanto o lento escreve — e estoura na espera.
+    const esperando = await transporte('seguinte');
+    expect((JSON.parse(esperando) as Falha).classe).toBe('transitoria');
+    expect(chamados).toEqual(['lento']);
+
+    // O aparelho termina o lento; a vez passa, e o próximo pedido é atendido.
+    soltar('tarde demais');
+    expect(await transporte('depois')).toBe('linha depois');
+    expect(chamados).toEqual(['lento', 'depois']);
+  });
+
+  it('pedido cujo prazo estourou antes de a vez chegar não vai ao aparelho', async () => {
+    const chamados: string[] = [];
+    let soltar: (l: string) => void = () => undefined;
+    const transporte = criarTransporteDoAparelho(
+      (p) => {
+        chamados.push(p);
+        return p === 'primeiro' ? new Promise<string>((r) => (soltar = r)) : Promise.resolve(`linha ${p}`);
+      },
+      15,
+      { tetoMs: 10_000 },
+    );
+    const primeiro = transporte('primeiro');
+    const segundo = transporte('segundo');
+    // Os dois estouram: o primeiro no aparelho, o segundo esperando a vez.
+    expect((JSON.parse(await primeiro) as Falha).classe).toBe('transitoria');
+    expect((JSON.parse(await segundo) as Falha).classe).toBe('transitoria');
+    soltar('tarde');
+    await new Promise((r) => setTimeout(r, 5));
+    expect(chamados).toEqual(['primeiro']);
+  });
+
+  it('chamada que nunca volta: a vez passa adiante depois do teto, com rastro — e o seguinte é atendido', async () => {
+    const notas: string[] = [];
+    const chamados: string[] = [];
+    const transporte = criarTransporteDoAparelho(
+      (p) => {
+        chamados.push(p);
+        return p === 'trava' ? new Promise<string>(() => undefined) : Promise.resolve(`linha ${p}`);
+      },
+      10,
+      { tetoMs: 30, anotar: (t) => notas.push(t) },
+    );
+    expect((JSON.parse(await transporte('trava')) as Falha).classe).toBe('transitoria');
+    expect(notas).toEqual([]);
+    await new Promise((r) => setTimeout(r, 40));
+    expect(notas).toHaveLength(1);
+    expect(notas[0]).toContain('concorrência');
+    expect(await transporte('depois')).toBe('linha depois');
+    expect(chamados).toEqual(['trava', 'depois']);
+  });
+
+  it('o teto padrão é três prazos', async () => {
+    const notas: string[] = [];
+    const transporte = criarTransporteDoAparelho(() => new Promise<string>(() => undefined), 10, { anotar: (t) => notas.push(t) });
+    await transporte('trava');
+    await new Promise((r) => setTimeout(r, 12));
+    expect(notas).toEqual([]);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(notas).toHaveLength(1);
+  });
+
+  it('uma ponte que rejeita não tranca a fila', async () => {
+    let n = 0;
+    const transporte = criarTransporteDoAparelho(async (p) => {
+      n += 1;
+      if (n === 1) throw new Error('quebrou');
+      return `linha ${p}`;
+    }, 1_000);
+    const [primeira, segunda] = await Promise.allSettled([transporte('a'), transporte('b')]);
+    expect(primeira.status).toBe('rejected');
+    expect(segunda).toEqual({ status: 'fulfilled', value: 'linha b' });
+  });
+
+  it('pelo motor, o prazo do aparelho é transitoria — cai no piso sem recuar', async () => {
+    const motor = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, 10, ponteFalsa(() => new Promise<string>(() => undefined)))(
+      APARELHO_SISTEMA,
+    )!;
+    const f = (await motor(PEDIDO)) as Falha;
+    expect(f.classe).toBe('transitoria');
+    expect(f.detalhe).toContain('prazo');
+  });
+});
+
+describe('o diagnóstico da ponte, uma vez por sessão (story 5.9)', () => {
+  it('sem a ponte: ausente, sem esperar nada', async () => {
+    const leitor = criarLeitorDaPonte(null);
+    expect(leitor.agora()).toEqual({ tipo: 'ausente' });
+    expect(await leitor.garantir()).toEqual({ tipo: 'ausente' });
+  });
+
+  it('com a ponte: consultando até voltar; lido uma vez, e as próximas devolvem o mesmo', async () => {
+    let idas = 0;
+    const leitor = criarLeitorDaPonte(
+      ponteFalsa(async () => '', async () => {
+        idas += 1;
+        return '{"disponivel":true,"janela":8192,"variante":"AFM 3 Core Advanced","plataforma":"iOS 27.0","buildDoSistema":"27A1"}';
+      }),
+    );
+    expect(leitor.agora()).toEqual({ tipo: 'consultando' });
+    const [um, dois] = await Promise.all([leitor.garantir(), leitor.garantir()]);
+    expect(um).toBe(dois);
+    expect(await leitor.garantir()).toBe(um);
+    expect(leitor.agora()).toBe(um);
+    expect(idas).toBe(1);
+    expect(um).toMatchObject({
+      tipo: 'lido',
+      diagnostico: { estado: 'disponivel', variante: 'AFM 3 Core Advanced', janela: 8192, plataforma: 'iOS 27.0', buildDoSistema: '27A1' },
+    });
+  });
+
+  it('fora do iOS não pergunta nada: o aparelho é da plataforma, com ou sem módulo', async () => {
+    let idas = 0;
+    const leitor = criarLeitorDaPonte(ponteFalsa(async () => '', async () => {
+      idas += 1;
+      return '{"disponivel":true}';
+    }), 10, 'android');
+    expect(leitor.agora()).toEqual({ tipo: 'fora-do-ios' });
+    expect(await leitor.reconsultar()).toEqual({ tipo: 'fora-do-ios' });
+    expect(await criarLeitorDaPonte(null, 10, 'android').garantir()).toEqual({ tipo: 'fora-do-ios' });
+    expect(idas).toBe(0);
+  });
+
+  it('o que não é disponível é relido ao reconsultar; o disponível não, e a linha crua vem junto', async () => {
+    const respostas = ['{"disponivel":false,"motivo":"modelNotReady"}', '{"disponivel":true,"janela":8192}'];
+    let idas = 0;
+    const leitor = criarLeitorDaPonte(ponteFalsa(async () => '', async () => respostas[Math.min(idas++, 1)]), 1_000, 'ios');
+    const primeiro = await leitor.garantir();
+    expect(primeiro).toEqual({ tipo: 'lido', diagnostico: { estado: 'indisponivel', motivo: 'modelNotReady' }, cru: respostas[0] });
+    // `garantir` não relê; `reconsultar` sim, porque o último não foi disponível.
+    expect(await leitor.garantir()).toBe(primeiro);
+    expect(idas).toBe(1);
+    const segundo = await leitor.reconsultar();
+    expect(idas).toBe(2);
+    expect(segundo.tipo === 'lido' && segundo.diagnostico.estado).toBe('disponivel');
+    // Durante e depois, `agora()` mostra o último lido, sem voltar a "consultando".
+    expect(leitor.agora()).toBe(segundo);
+    // Disponível não é relido na sessão.
+    expect(await leitor.reconsultar()).toBe(segundo);
+    expect(idas).toBe(2);
+  });
+
+  it('reconsultas simultâneas dividem uma leitura só', async () => {
+    let idas = 0;
+    const leitor = criarLeitorDaPonte(ponteFalsa(async () => '', async () => {
+      idas += 1;
+      return '{"disponivel":false,"motivo":"appleIntelligenceNotEnabled"}';
+    }), 1_000, 'ios');
+    await Promise.all([leitor.reconsultar(), leitor.reconsultar(), leitor.garantir()]);
+    expect(idas).toBe(1);
+  });
+
+  it('Apple Intelligence desligada: indisponível com o motivo cru — as palavras são do catálogo', async () => {
+    const leitor = criarLeitorDaPonte(ponteFalsa(async () => '', async () => '{"disponivel":false,"motivo":"appleIntelligenceNotEnabled"}'));
+    expect(await leitor.garantir()).toMatchObject({
+      tipo: 'lido',
+      diagnostico: { estado: 'indisponivel', motivo: 'appleIntelligenceNotEnabled' },
+    });
+  });
+
+  it('fora do contrato, rejeitado ou sem resposta no prazo: ilegível, nunca exceção', async () => {
+    const casos: readonly (readonly [() => Promise<string>, RegExp])[] = [
+      [async () => 'Illegal instruction: 4', /não é JSON/],
+      [async () => '{"disponivel":"sim"}', /não diz se o modelo atende/],
+      [async () => {
+        throw new TypeError('ponte.diagnostico is not a function');
+      }, /a ponte lançou — TypeError/],
+      [() => new Promise<string>(() => undefined), /não voltou em/],
+    ];
+    for (const [diagnostico, onde] of casos) {
+      const e = await criarLeitorDaPonte(ponteFalsa(async () => '', diagnostico), 10).garantir();
+      expect(e.tipo).toBe('lido');
+      if (e.tipo !== 'lido') continue;
+      expect(e.diagnostico.estado).toBe('ilegivel');
+      if (e.diagnostico.estado === 'ilegivel') expect(e.diagnostico.detalhe).toMatch(onde);
+    }
+  });
+});
+
+describe('o teste descartável do PCC (story 5.9)', () => {
+  it('devolve cru o que a ponte disse, e a vez fica livre', async () => {
+    const cru = '{"disponibilidade":"available","erro":"x","codigo":-1}';
+    const teste = criarTesteDoPCC(ponteFalsa(async () => '', undefined, async () => cru));
+    expect(await teste.rodar()).toEqual({ texto: cru });
+    expect(teste.emCurso()).toBe(false);
+  });
+
+  it('o erro é resultado: a ponte que lança — na hora ou depois — vira texto, e não prende o teste', async () => {
+    const depois = criarTesteDoPCC(ponteFalsa(async () => '', undefined, async () => {
+      throw new Error('sem acesso');
+    }));
+    expect((await depois.rodar()).texto).toBe('a ponte lançou — Error: sem acesso');
+    expect(depois.emCurso()).toBe(false);
+    const naHora = criarTesteDoPCC(ponteFalsa(async () => '', undefined, () => {
+      throw new TypeError('ponte.experimentoDoPCC is not a function');
+    }));
+    expect((await naHora.rodar()).texto).toContain('TypeError');
+    expect(naHora.emCurso()).toBe(false);
+  });
+
+  it('prazo estourado: a tela é avisada, mas a chamada segue viva — e um segundo toque não chama a ponte de novo', async () => {
+    let chamadas = 0;
+    let soltar: (x: string) => void = () => undefined;
+    const teste = criarTesteDoPCC(
+      ponteFalsa(async () => '', undefined, () => {
+        chamadas += 1;
+        return new Promise<string>((r) => (soltar = r));
+      }),
+      10,
+    );
+    const primeiro = await teste.rodar();
+    expect(primeiro.texto).toContain('não voltou em');
+    expect(primeiro.tarde).toBeDefined();
+    expect(teste.emCurso()).toBe(true);
+
+    const segundo = await teste.rodar();
+    expect(segundo.texto).toContain('ainda está em curso');
+    expect(chamadas).toBe(1);
+
+    soltar('{"resposta":"Olá."}');
+    expect(await primeiro.tarde).toBe('{"resposta":"Olá."}');
+    expect(await segundo.tarde).toBe('{"resposta":"Olá."}');
+    await Promise.resolve();
+    expect(teste.emCurso()).toBe(false);
+    // Livre de novo, o próximo toque chama a ponte.
+    expect((await teste.rodar()).texto).toContain('não voltou em');
+    expect(chamadas).toBe(2);
   });
 });

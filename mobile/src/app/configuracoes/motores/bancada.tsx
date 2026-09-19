@@ -19,9 +19,9 @@ import { useSonoStore } from '../../../store/sono.store';
 import { PeriodNav } from '../../../components/sono/PeriodNav';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { motivoDaFalha } from '../../../lib/assinatura';
-import { motoresDoRecurso, nomeDoMotor } from '../../../lib/motores/catalogo';
+import { motoresDoRecurso, nomeDoMotor, type EstadoDaPonte } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
-import { garantirListaAprovada, motorPara } from '../../../lib/motores';
+import { garantirListaAprovada, motorPara, ponteDoAparelho, testeDoPCC } from '../../../lib/motores';
 import { chaveDaJanela } from '../../../lib/leitura-da-saude';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../../theme';
 
@@ -65,6 +65,17 @@ export default function BancadaScreen() {
   const [offset, setOffset] = useState(0);
   const [rodando, setRodando] = useState<MotorId | null>(null);
   const [linhas, setLinhas] = useState<readonly Linha[]>([]);
+  // O diagnóstico da ponte, cru (5.9): relido ao abrir enquanto não for "disponível".
+  const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
+  useEffect(() => {
+    let vivo = true;
+    void ponteDoAparelho.reconsultar().then((p) => {
+      if (vivo) setPonte(p);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   const hoje = useMemo(() => localDateStr(), []);
   const today = useMemo(() => new Date(), []);
@@ -100,7 +111,11 @@ export default function BancadaScreen() {
       // A lista do servidor antes do laço (5.6): uma variante nomeada que o dono
       // pode **escolher** no seletor tem de ser mensurável aqui, senão a tela que
       // existe para comparar motores esconde justamente o motor novo.
-      const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, await garantirListaAprovada());
+      // E a ponte do aparelho (5.9): com o módulo no build, o aparelho é medido aqui
+      // ao lado da nuvem, com o texto cru dele — é a comparação que o dono pediu.
+      const [lista, estadoDaPonte] = await Promise.all([garantirListaAprovada(), ponteDoAparelho.reconsultar()]);
+      setPonte(estadoDaPonte);
+      const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, estadoDaPonte, lista);
       if (chaveRef.current !== chaveDoLaco) return;
       for (const m of conhecidos) {
         // **Abandona o que é de outra janela.** O efeito de limpeza apaga as linhas
@@ -158,11 +173,15 @@ export default function BancadaScreen() {
             Modo medição: um motor por vez, sem recuo e sem piso. A frase do template é a régua. O
             texto cru só aparece aqui, e nada disto sai do aparelho.
           </Text>
+          <Text style={s.rotulo}>diagnóstico da ponte</Text>
+          <Text style={s.meta}>{diagnosticoCru(ponte)}</Text>
         </View>
 
         {linhas.map((l) => (
           <BlocoDoMotor key={l.motor} linha={l} template={template} s={s} />
         ))}
+
+        <TesteDoPCC s={s} />
 
         <Anel s={s} />
       </ScrollView>
@@ -188,7 +207,10 @@ interface Linha {
   /** O texto como o motor o escreveu, antes da interpolação. */
   readonly cru?: string;
   readonly tokens?: { readonly entrada: number; readonly saida: number };
-  readonly assinatura?: string;
+  /** Quem forneceu os pesos, como a resposta assinou. */
+  readonly provedor?: string;
+  /** O modelo que assinou esta medição — no aparelho, a variante ("AFM 3 Core"). */
+  readonly modelo?: string;
   readonly problemas?: readonly ProblemaDaConferencia[];
   readonly detalhe?: string;
   /** O motivo em palavras, pela mesma função que a `/sono/saude` usa. */
@@ -247,7 +269,7 @@ async function medirUm(entrada: EntradaDaSaude, motor: MotorId): Promise<Linha> 
     ...(m.frase !== undefined ? { frase: m.frase } : {}),
     ...(cru !== undefined ? { cru } : {}),
     ...(m.resposta?.tokens ? { tokens: m.resposta.tokens } : {}),
-    ...(assinatura ? { assinatura: `${assinatura.provedor} · ${assinatura.modelo}` } : {}),
+    ...(assinatura ? { provedor: assinatura.provedor, modelo: assinatura.modelo } : {}),
     ...(problemas.length > 0 ? { problemas } : {}),
     ...(ultima?.detalhe !== undefined ? { detalhe: ultima.detalhe } : {}),
     // A mesma tradução que a `/sono/saude` mostra — a tela de desenvolvimento não
@@ -292,9 +314,9 @@ function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string;
         </>
       ) : null}
 
-      {linha.assinatura !== undefined ? (
+      {linha.modelo !== undefined ? (
         <Text style={s.meta}>
-          {linha.assinatura}
+          assinado por {linha.provedor} · modelo {linha.modelo}
           {linha.tokens ? ` · ${linha.tokens.entrada}→${linha.tokens.saida} tokens` : ''}
         </Text>
       ) : null}
@@ -308,6 +330,86 @@ function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string;
       ))}
     </View>
   );
+}
+
+/**
+ * EXPERIMENTO DESCARTÁVEL — o teste do Private Cloud Compute (story 5.9). **Apagar
+ * ou promover depois do veredito do dono**, junto com `ExperimentoDoPCC.swift` e a
+ * terceira função da cola (exceção à AD-3 decidida por ele em 19/09/2026).
+ *
+ * Um botão, e o que voltou **cru**: disponibilidade, cota, a resposta a "Diga olá."
+ * ou o erro com o código. Nenhum dado do dono vai — o texto é fixo, e mora no Swift.
+ * Não é motor: não entra no seletor, no catálogo nem na medição acima. Só responde se
+ * o iPhone tem acesso ao PCC, que é o que decide se a 5.12 volta.
+ */
+function TesteDoPCC({ s }: { s: Styles }) {
+  // Aberto só quando não há chamada nativa viva: o prazo estourado **não** reabre o
+  // botão — a chamada segue na ponte, e um segundo toque não abre outra.
+  const [emCurso, setEmCurso] = useState(() => testeDoPCC.emCurso());
+  const [cru, setCru] = useState<string | null>(null);
+  const vivo = useRef(true);
+  useEffect(() => {
+    vivo.current = true;
+    return () => {
+      vivo.current = false;
+    };
+  }, []);
+
+  const testar = useCallback(async () => {
+    setEmCurso(true);
+    // `rodar` nunca rejeita: erro é resultado, e vira o texto abaixo. Com um teste
+    // anterior ainda vivo, ele não chama a ponte — só diz isso.
+    const r = await testeDoPCC.rodar();
+    if (vivo.current) setCru(legivel(r.texto));
+    if (r.tarde) {
+      const tarde = await r.tarde;
+      if (vivo.current) setCru(`${legivel(tarde)}\n\n(chegou depois do prazo)`);
+    }
+    if (vivo.current) setEmCurso(testeDoPCC.emCurso());
+  }, []);
+
+  return (
+    <View style={s.card}>
+      <Text style={s.rotulo}>experimento · private cloud compute</Text>
+      <Text style={s.meta}>Manda só "Diga olá." e mostra cru o que voltou. Nenhum dado seu vai.</Text>
+      <View style={s.acoesDoAnel}>
+        <Pressable
+          onPress={() => void testar()}
+          disabled={emCurso}
+          accessibilityRole="button"
+          accessibilityLabel="Testar Private Cloud Compute"
+          accessibilityState={emCurso ? { disabled: true, busy: true } : {}}
+          style={({ pressed }) => [s.acao, emCurso && s.botaoOff, pressed && s.pressed]}
+        >
+          <Text style={s.acaoTexto}>{emCurso ? 'testando… (a chamada segue na ponte)' : 'Testar Private Cloud Compute'}</Text>
+        </Pressable>
+      </View>
+      {cru !== null ? <Text style={s.cru}>{cru}</Text> : null}
+    </View>
+  );
+}
+
+/** O diagnóstico como a ponte o escreveu — ou o estado, quando não houve linha. */
+function diagnosticoCru(p: EstadoDaPonte): string {
+  switch (p.tipo) {
+    case 'ausente':
+      return 'ausente — o módulo OnDeviceEngine não está neste build';
+    case 'fora-do-ios':
+      return 'fora do iOS — o modelo do sistema só existe no iPhone';
+    case 'consultando':
+      return 'consultando…';
+    case 'lido':
+      return p.cru ?? (p.diagnostico.estado === 'ilegivel' ? `ilegível: ${p.diagnostico.detalhe}` : JSON.stringify(p.diagnostico));
+  }
+}
+
+/** O JSON da ponte em linhas, para caber no telefone; o que não é JSON, como veio. */
+function legivel(cru: string): string {
+  try {
+    return JSON.stringify(JSON.parse(cru), null, 2);
+  } catch {
+    return cru;
+  }
 }
 
 /**
@@ -327,6 +429,9 @@ function Anel({ s }: { s: Styles }) {
   // rodar não aparecia. O `setGeracao` existe só para o `limpar` repintar.
   const todos = anel.ler();
   const eventos = mostrarTudo ? todos : todos.slice(0, 8);
+  // As notas do hospedeiro (5.9): o que aconteceu fora de uma leitura — hoje, a vez
+  // do aparelho solta à força por uma chamada nativa que não voltou.
+  const notas = anel.notas();
 
   return (
     <View style={s.card}>
@@ -336,6 +441,12 @@ function Anel({ s }: { s: Styles }) {
           {todos.length}/{TETO_DO_ANEL}
         </Text>
       </View>
+
+      {notas.map((n, i) => (
+        <Text key={`nota-${n.instante}-${i}`} style={s.problema}>
+          {n.instante.slice(11, 19)} · hospedeiro · {n.texto}
+        </Text>
+      ))}
 
       {eventos.length === 0 ? (
         <Text style={s.meta}>nenhuma leitura nesta sessão</Text>
@@ -358,7 +469,7 @@ function Anel({ s }: { s: Styles }) {
             <Text style={s.acaoTexto}>{mostrarTudo ? 'mostrar só as 8 últimas' : `ver todas as ${todos.length}`}</Text>
           </Pressable>
         ) : null}
-        {todos.length > 0 ? (
+        {todos.length > 0 || notas.length > 0 ? (
           <Pressable
             onPress={() => {
               anel.limpar();

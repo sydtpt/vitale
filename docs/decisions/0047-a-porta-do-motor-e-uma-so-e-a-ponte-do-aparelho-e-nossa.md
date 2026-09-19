@@ -123,3 +123,31 @@ Swift é um módulo isolado: removê-lo devolve o app ao modelo de nuvem e ao pi
 **O que fica em aberto.** O Core AI exige iOS 27 como alvo mínimo no pacote da Apple, e o Xcode 27
 não está na imagem EAS da SDK 57; a F5 decide entre subir o alvo do app, vendorizar o pacote ou
 escrever uma conformidade própria. Não verificado ainda: se o Xcode 26.6 abre no macOS 27.
+
+## Emenda — 19/09/2026: o experimento descartável do Private Cloud Compute
+
+**Uma exceção à regra "só pesos que rodam no aparelho entram na ponte" (item 6, AD-3),
+decidida pelo dono em 19/09/2026, na story 5.9.** Do Mac, o Private Cloud Compute se anunciou
+disponível e recusou o pedido (`ModelManagerError 1046`) — o acesso que a Apple dá a app
+publicado no Small Business Program. O build da 5.9 ia acontecer de qualquer jeito, então o
+próprio iPhone responde se o dono tem acesso, com prova em vez de suposição. É isso que decide
+se a 5.12 (o PCC como motor) volta.
+
+**O que o experimento pode:** mora no pod `OnDeviceEngine`, num arquivo próprio
+(`mobile/modules/on-device-engine/ios/ExperimentoDoPCC.swift`), exposto pela cola como uma
+terceira função sem argumento, e é chamado só por um botão da tela de desenvolvimento
+(`/configuracoes/motores/bancada`). Manda um texto **fixo e neutro** ("Diga olá.") e mostra
+cru o que voltou: disponibilidade, cota, a resposta ou o erro com domínio e código.
+
+**O que ele não pode:** mandar dado do dono (nenhum pedido, nenhum caso, nada de saúde); virar
+motor, entrar no catálogo, no seletor ou em cadeia nenhuma; aparecer no `Engine.swift` — que
+continua importando só `Foundation` e `FoundationModels` e instanciando só pesos do aparelho,
+com as guardas (3), (4) e a do contrato olhando só para ele. A barreira da cola no
+`architecture.test.ts` cobra que `PrivateCloudComputeLanguageModel` só aparece no experimento,
+que só a cola o chama e que a função dele não recebe nada.
+
+**Para apagar ou promover depois do veredito do dono.** Apagar é remover o arquivo, a
+terceira função da cola, `FUNCAO_DO_EXPERIMENTO` e o botão — e subir o `runtimeVersion`, porque
+o binário muda. Promover não é manter este arquivo: se o PCC virar motor, ele é `nuvem:`
+(sai do aparelho), com tabela de regime e lista do servidor (AD-3, AD-9), e esta emenda é
+substituída por uma ADR própria.

@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 12:25
+last_updated: 19-09-2026 17:24
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -301,7 +301,13 @@ development_status:
   # resultado no iPhone). Escopo desta: o modelo do sistema (disponível, variante
   # AFM 3 Core / Core Advanced, janela), listado de forma simples — o dono revisa
   # a tela com UX depois.
-  5-9-a-ponte-swift-on-device-engine: in-progress
+  # CONSTRUÍDA em 19/09/2026: o Engine.swift virou módulo Expo (cola sem lógica,
+  # nome OnDeviceEngine), o seletor mostra a variante e a janela do modelo do
+  # sistema, o aparelho escreve a Saúde do sono, e a tela de desenvolvimento tem o
+  # teste descartável do PCC (emenda na ADR 0047). runtimeVersion 1.0.6, build
+  # Release próprio feito. Revisão em 3 camadas: 21 patches, sem loopback. Falta
+  # o dono instalar e conferir no iPhone.
+  5-9-a-ponte-swift-on-device-engine: review
   # O ÉPICO TEM DE DISPONIBILIZAR TODOS os modelos que o dono PODE usar
   # (decisão dele, 19/09): o do sistema (5.9) e os abertos do Core AI (5.8, que
   # por isso fica no épico). O Private Cloud Compute ficou FORA no mesmo dia: do

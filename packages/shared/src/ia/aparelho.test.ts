@@ -1,7 +1,16 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { APARELHO_SISTEMA, CLASSES_DE_FALHA } from './fio';
-import { criarMotorDoAparelho, pedidoParaAPonte, traduzirDoAparelho, type TransporteDoAparelho } from './aparelho';
+import {
+  CHAVES_DO_DIAGNOSTICO,
+  MOTIVOS_DO_APARELHO,
+  criarMotorDoAparelho,
+  ehMotivoDoAparelho,
+  lerDiagnosticoDoAparelho,
+  pedidoParaAPonte,
+  traduzirDoAparelho,
+  type TransporteDoAparelho,
+} from './aparelho';
 import { ehFalha, serializarPedido, type Falha, type Motor, type Pedido, type Resposta } from './motor';
 import { ler, type Descritor } from './orquestrar';
 
@@ -144,6 +153,97 @@ describe('traduzirDoAparelho — a linha fora do contrato', () => {
     foraDoContrato(linha({ texto: 'x' }), /sem assinatura/);
     foraDoContrato(linha({ ...BOA, provedor: '' }), /sem assinatura/);
     foraDoContrato(linha({ ...BOA, modelo: 3 }), /sem assinatura/);
+  });
+});
+
+describe('lerDiagnosticoDoAparelho (story 5.9)', () => {
+  /** O que a ponte escreveu no Mac em 19/09 (`aparelho:testar`). */
+  const PRONTO = { buildDoSistema: '26A428', disponivel: true, janela: 4096, plataforma: 'macOS 27.0', variante: 'AFM 3 Core' };
+
+  it('disponível: variante, janela e a assinatura do sistema', () => {
+    assert.deepEqual(lerDiagnosticoDoAparelho(linha(PRONTO)), {
+      estado: 'disponivel',
+      variante: 'AFM 3 Core',
+      janela: 4096,
+      plataforma: 'macOS 27.0',
+      buildDoSistema: '26A428',
+    });
+  });
+
+  it('disponível antes do 27: sem variante, e continua disponível', () => {
+    const { variante: _v, ...semVariante } = PRONTO;
+    const d = lerDiagnosticoDoAparelho(linha(semVariante));
+    assert.equal(d.estado, 'disponivel');
+    assert.equal('variante' in d, false);
+  });
+
+  it('os opcionais malformados ficam de fora — "o modelo atende" não se perde por eles', () => {
+    for (const [campo, valor] of [
+      ['variante', '   '],
+      ['variante', 3],
+      ['janela', 0],
+      ['janela', -1],
+      ['janela', 4096.5],
+      ['janela', '4096'],
+    ] as const) {
+      const d = lerDiagnosticoDoAparelho(linha({ ...PRONTO, [campo]: valor }));
+      assert.equal(d.estado, 'disponivel', `${campo}=${String(valor)}`);
+      assert.equal(campo in d, false, `${campo}=${String(valor)} entrou`);
+    }
+  });
+
+  it('cada motivo de indisponibilidade chega como a ponte o disse — as palavras são do app', () => {
+    for (const motivo of ['deviceNotEligible', 'appleIntelligenceNotEnabled', 'modelNotReady', 'sistemaAntigo', 'Mod.Motivo: .novo']) {
+      assert.deepEqual(lerDiagnosticoDoAparelho(linha({ disponivel: false, motivo, plataforma: 'iOS 27.0', buildDoSistema: '27A1' })), {
+        estado: 'indisponivel',
+        motivo,
+        plataforma: 'iOS 27.0',
+        buildDoSistema: '27A1',
+      });
+    }
+  });
+
+  it('indisponível ignora variante e janela que tenham vindo junto', () => {
+    const d = lerDiagnosticoDoAparelho(linha({ disponivel: false, motivo: 'modelNotReady', variante: 'x', janela: 9 }));
+    assert.deepEqual(d, { estado: 'indisponivel', motivo: 'modelNotReady' });
+  });
+
+  it('fora do contrato é ilegível, nunca exceção', () => {
+    const casos: readonly (readonly [unknown, RegExp])[] = [
+      [undefined, /não é texto/],
+      [{ disponivel: true }, /não é texto/],
+      ['Illegal instruction: 4', /não é JSON/],
+      ['', /não é JSON/],
+      ['[true]', /não é um objeto/],
+      ['null', /não é um objeto/],
+      [linha({ variante: 'x' }), /não diz se o modelo atende/],
+      [linha({ disponivel: 'true' }), /não diz se o modelo atende/],
+      [linha({ disponivel: false }), /não diz por quê/],
+      [linha({ disponivel: false, motivo: '' }), /não diz por quê/],
+      [linha({ disponivel: false, motivo: 7 }), /não diz por quê/],
+    ];
+    for (const [entrada, onde] of casos) {
+      const d = lerDiagnosticoDoAparelho(entrada);
+      assert.equal(d.estado, 'ilegivel', JSON.stringify(entrada));
+      if (d.estado === 'ilegivel') assert.match(d.detalhe, onde, JSON.stringify(entrada));
+    }
+  });
+
+  it('a linha de reserva do Engine (o codificador falhou) é ilegível, não um motivo desconhecido', () => {
+    // O literal de `Engine.diagnosticoDeReserva`; a guarda do contrato passa o do Swift por aqui também.
+    const d = lerDiagnosticoDoAparelho('{"erro":"a ponte não codificou o diagnóstico"}');
+    assert.equal(d.estado, 'ilegivel');
+    if (d.estado === 'ilegivel') assert.match(d.detalhe, /não codificou/);
+  });
+
+  it('os motivos que a ponte conhece são os quatro, e só eles', () => {
+    assert.deepEqual([...MOTIVOS_DO_APARELHO].sort(), ['appleIntelligenceNotEnabled', 'deviceNotEligible', 'modelNotReady', 'sistemaAntigo']);
+    for (const m of MOTIVOS_DO_APARELHO) assert.equal(ehMotivoDoAparelho(m), true, m);
+    for (const m of ['', 'constructor', 'toString', 'Mod.Motivo: .novo', 'modelnotready']) assert.equal(ehMotivoDoAparelho(m), false, m);
+  });
+
+  it('as chaves lidas são as do contrato — a guarda as compara com o Swift', () => {
+    assert.deepEqual([...CHAVES_DO_DIAGNOSTICO].sort(), ['buildDoSistema', 'disponivel', 'janela', 'motivo', 'plataforma', 'variante']);
   });
 });
 
