@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 17:24
+last_updated: 19-09-2026 18:09
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -311,6 +311,11 @@ development_status:
   # com.apple.developer.private-cloud-compute" (entitlement gerenciado da Apple) —
   # e o experimento foi APAGADO, com o veredito na ADR 0047. Runtime 1.0.7.
   5-9-a-ponte-swift-on-device-engine: review
+  # 5.13 NASCEU em 19/09/2026 do teste da 5.9 no iPhone: o aparelho do dono tem
+  # AFM 3 Core Advanced (janela 8.192) e o Mac só AFM 3 Core — a bancada do Mac
+  # não mede o modelo dele. A tela de desenvolvimento passa a medir a mesma
+  # amostra no próprio iPhone, com a mesma régua e o hash de cada pedido.
+  5-13-a-amostra-no-iphone: in-progress
   # O ÉPICO TEM DE DISPONIBILIZAR TODOS os modelos que o dono PODE usar
   # (decisão dele, 19/09): o do sistema (5.9) e os abertos do Core AI (5.8, que
   # por isso fica no épico). O Private Cloud Compute ficou FORA no mesmo dia: do
