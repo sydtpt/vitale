@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 12:14
+last_updated: 19-09-2026 12:25
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -302,12 +302,12 @@ development_status:
   # AFM 3 Core / Core Advanced, janela), listado de forma simples — o dono revisa
   # a tela com UX depois.
   5-9-a-ponte-swift-on-device-engine: in-progress
-  # O ÉPICO TEM DE DISPONIBILIZAR TODOS os modelos (decisão do dono, 19/09): o
-  # do sistema (5.9), os abertos do Core AI (5.8, que por isso fica no épico) e o
-  # Private Cloud Compute (5.12). A 5.12 muda uma regra da arquitetura: hoje a
-  # AD-3 proíbe a ponte de tocar modelo de servidor, e a AD-9 manda que ele entre
-  # como `nuvem:`, com tabela de regime e lista do servidor.
-  5-12-o-private-cloud-compute-como-motor: backlog
+  # O ÉPICO TEM DE DISPONIBILIZAR TODOS os modelos que o dono PODE usar
+  # (decisão dele, 19/09): o do sistema (5.9) e os abertos do Core AI (5.8, que
+  # por isso fica no épico). O Private Cloud Compute ficou FORA no mesmo dia: do
+  # Mac ele diz `available`, mas o pedido falha com ModelManagerError 1046 — é o
+  # acesso que a Apple dá só a app publicado no Small Business Program. O dono
+  # decidiu deixá-lo de fora se não puder usar; ver deferred-work.
   # 5.10 SEPARADA DA 5.9 em 19/09/2026, por decisão do dono, e ENTRA ANTES DELA
   # (a ordem do épico: F1 mede antes de F2 ligar). É a metade do Mac do marco B:
   # nasce o Engine.swift, a CLI Swift o compila sem cópia, as guardas (3) e (4)
