@@ -13,8 +13,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  APARELHO_SISTEMA,
   NUVEM_PADRAO,
   SEM_MODELO,
+  casoDaSaude,
   entradaDaSaude,
   templateDaSaude,
   type Falha,
@@ -410,6 +412,190 @@ describe('todo caso que o acervo tem passa pela medição', () => {
   });
 });
 
+/* ── a coluna do aparelho e a sonda (story 5.10) ── */
+
+/** Uma resposta do aparelho como a ponte a assina: com a plataforma e o build do sistema. */
+const doAparelho = (texto: string): Resposta => ({
+  texto,
+  assinatura: { tipo: 'aparelho', provedor: 'prov-a', modelo: 'modelo-do-sistema', plataforma: 'macOS 27.0', buildDoSistema: '26A428' },
+  tokens: { entrada: 71, saida: 5 },
+});
+
+/** As dimensões que o código nomeia numa janela — a resposta certa da sonda. */
+const nomeadas = (j: JanelaClassificada): readonly string[] => casoDaSaude(entrada(j).score).nomear;
+
+/**
+ * Um motor que responde aos dois pedidos: à leitura, com um texto qualquer (o que a
+ * conferência diz dele não importa aqui); à sonda, com a escolha que `escolher` der
+ * para as opções do esquema.
+ */
+function motorDasDuas(escolher: (opcoes: readonly string[]) => string) {
+  return motorFalso((p) => {
+    if (p.saida.tipo !== 'esquema') return doAparelho('Uma frase qualquer.');
+    const dim = p.saida.esquema.type === 'object' ? p.saida.esquema.properties['dimensao'] : undefined;
+    const opcoes = dim && dim.type === 'string' ? dim.enum ?? [] : [];
+    return doAparelho(JSON.stringify({ dimensao: escolher(opcoes) }));
+  });
+}
+
+describe('a coluna do aparelho', () => {
+  it('a linha carrega quem assinou — a plataforma e o build do sistema que a ponte leu', async () => {
+    const j = doCaso('duas');
+    const { linhas } = await medirMotor([j], APARELHO_SISTEMA, doAparelho(comoOTemplate(j)));
+    const l = um(linhas);
+    assert.equal(l.desfecho, 'ok', JSON.stringify(l.problemas));
+    assert.deepEqual(l.assinatura, {
+      tipo: 'aparelho',
+      provedor: 'prov-a',
+      modelo: 'modelo-do-sistema',
+      plataforma: 'macOS 27.0',
+      buildDoSistema: '26A428',
+    });
+    assert.deepEqual(l.tokens, { entrada: 71, saida: 5 });
+  });
+
+  it('o aparelho fora é indisponivel com o motivo na linha — e a medição continua', async () => {
+    const janelas = JANELAS.filter((j) => j.range === 'ultima').slice(0, 3);
+    const { linhas } = await medirMotor(janelas, APARELHO_SISTEMA, { classe: 'indisponivel', detalhe: 'modelo do sistema indisponível: appleIntelligenceNotEnabled' });
+    assert.equal(linhas.length, janelas.length);
+    for (const l of linhas) {
+      assert.equal(l.desfecho, 'indisponivel');
+      assert.match(l.detalhe ?? '', /appleIntelligenceNotEnabled/);
+      assert.equal(l.sintetica, undefined, 'a falha veio da ponte: não é sintética');
+    }
+  });
+});
+
+describe('o que só o hospedeiro sabe chega à linha', () => {
+  it('frio e doHospedeiro saem da diferença do registro antes e depois da linha', async () => {
+    const janelas = JANELAS.filter((j) => j.range === '7d').slice(0, 3);
+    const registro = { frias: 0, doHospedeiro: 0 };
+    let n = 0;
+    const falso = motorFalso(() => {
+      n += 1;
+      // A primeira é fria (processo novo); a segunda, o hospedeiro fabricou (prazo).
+      if (n === 1) registro.frias += 1;
+      if (n === 2) {
+        registro.doHospedeiro += 1;
+        return { classe: 'transitoria', detalhe: 'o prazo de 60 s estourou' };
+      }
+      return doAparelho('Uma frase.');
+    });
+    const h = hospedeiro({ [APARELHO_SISTEMA]: falso.motor });
+    const medido = await medir({
+      dados: DADOS,
+      hoje: HOJE,
+      janelas,
+      colunas: [{ motor: APARELHO_SISTEMA, janelas }],
+      hospedeiro: { ...h.hospedeiro, registro },
+      avisar,
+    });
+    const linhas = medido.colunas.find((c) => c.motor === APARELHO_SISTEMA)?.linhas ?? [];
+    assert.deepEqual(linhas.map((l) => [l.frio ?? false, l.doHospedeiro ?? false]), [[true, false], [false, true], [false, false]]);
+  });
+});
+
+describe('a sonda de fidelidade', () => {
+  /** Uma janela de cada combinação de caso × alcance do acervo. */
+  const UMA_DE_CADA = [...new Map(JANELAS.map((j) => [`${j.caso}|${j.alcance}`, j] as const)).values()];
+
+  async function comSonda(janelas: readonly JanelaClassificada[], escolher: Parameters<typeof motorDasDuas>[0], sonda = true) {
+    const falso = motorDasDuas(escolher);
+    const h = hospedeiro({ [APARELHO_SISTEMA]: falso.motor });
+    const medido = await medir({
+      dados: DADOS,
+      hoje: HOJE,
+      janelas,
+      colunas: [{ motor: APARELHO_SISTEMA, janelas }],
+      hospedeiro: h.hospedeiro,
+      sonda,
+      avisar,
+    });
+    return { medido, pedidos: falso.pedidos };
+  }
+
+  it('sem --sonda, nenhuma coluna tem sonda e nenhum pedido guiado sai', async () => {
+    const { medido, pedidos } = await comSonda(UMA_DE_CADA, (o) => o[0] ?? '', false);
+    for (const c of medido.colunas) assert.equal(c.sonda, undefined, c.motor);
+    assert.equal(pedidos.some((p) => p.saida.tipo === 'esquema'), false);
+  });
+
+  it('pergunta só onde o caso nomeia; o resto é mudo, sem chamada', async () => {
+    const { medido, pedidos } = await comSonda(UMA_DE_CADA, (o) => o[0] ?? '');
+    const coluna = medido.colunas.find((c) => c.motor === APARELHO_SISTEMA);
+    assert.ok(coluna?.sonda, 'a coluna do aparelho não teve sonda');
+    assert.equal(coluna.sonda.length, UMA_DE_CADA.length, 'a sonda não rodou sobre as mesmas janelas da coluna');
+    // A régua não é motor: a coluna sem modelo nunca tem sonda.
+    assert.equal(medido.colunas.find((c) => c.motor === SEM_MODELO)?.sonda, undefined);
+    const perguntadas = coluna.sonda.filter((l) => l.desfecho !== 'mudo');
+    for (const l of coluna.sonda) {
+      const nomeia = ['uma', 'duas', 'fora-do-empate'].includes(l.caso);
+      assert.equal(l.desfecho !== 'mudo', nomeia, `${l.caso}/${l.alcance}: ${l.desfecho}`);
+      if (!nomeia) {
+        assert.equal(l.hashDoPedido, SEM_PEDIDO);
+        assert.deepEqual(l.esperado, []);
+      }
+    }
+    assert.equal(pedidos.filter((p) => p.saida.tipo === 'esquema').length, perguntadas.length);
+  });
+
+  it('a escolha no que o código nomeia é ok; fora dele é reprovada, com a escolha e o esperado', async () => {
+    const perguntaveis = UMA_DE_CADA.filter((j) => nomeadas(j).length > 0);
+    assert.ok(perguntaveis.length >= 4, `o acervo tem ${perguntaveis.length} janelas que nomeiam`);
+
+    // A sonda pergunta na ordem das janelas, e toda janela perguntável gera um pedido:
+    // a i-ésima pergunta é a da i-ésima janela.
+    let i = 0;
+    const certa = await comSonda(perguntaveis, () => nomeadas(um(perguntaveis, i++))[0] ?? '');
+    const linhasCertas = certa.medido.colunas.find((c) => c.motor === APARELHO_SISTEMA)?.sonda ?? [];
+    for (const l of linhasCertas) {
+      assert.equal(l.desfecho, 'ok', `${l.caso}/${l.alcance}: ${JSON.stringify(l.problemas)}`);
+      assert.ok(l.escolha && l.esperado.includes(l.escolha), `${l.escolha} não está em ${l.esperado.join(', ')}`);
+      assert.match(l.hashDoPedido, /^[0-9a-f]{64}$/);
+      assert.equal(l.assinatura?.buildDoSistema, '26A428');
+    }
+
+    // Uma opção medida que o código não nomeia: todo caso que nomeia tem uma.
+    let k = 0;
+    const errada = await comSonda(perguntaveis, (opcoes) => {
+      const certas = nomeadas(um(perguntaveis, k++));
+      return opcoes.find((o) => !certas.includes(o)) ?? '';
+    });
+    const linhasErradas = (errada.medido.colunas.find((c) => c.motor === APARELHO_SISTEMA)?.sonda ?? []).filter(
+      (l) => l.desfecho !== 'mudo',
+    );
+    assert.equal(linhasErradas.length, perguntaveis.length);
+    for (const l of linhasErradas) {
+      assert.equal(l.desfecho, 'reprovada');
+      const p = l.problemas?.[0];
+      assert.equal(p?.regra, 'escolha');
+      assert.ok(p?.detalhe.includes(`escolheu ${l.escolha}`), p?.detalhe);
+    }
+  });
+
+  it('a linha da sonda leva as opções que o motor recebeu — as dimensões medidas', async () => {
+    const j = UMA_DE_CADA.find((x) => x.caso === 'duas');
+    assert.ok(j);
+    const { medido } = await comSonda([j], (o) => o[0] ?? '');
+    const l = medido.colunas.find((c) => c.motor === APARELHO_SISTEMA)?.sonda?.[0];
+    assert.ok(l);
+    assert.deepEqual([...l.opcoes].sort(), [...casoDaSaude(entrada(j).score).dimensoes].sort());
+    assert.ok(l.esperado.every((k) => l.opcoes.includes(k)));
+  });
+
+  it('o pedido da sonda entra nos pedidos do relatório, com hash próprio', async () => {
+    const j = UMA_DE_CADA.find((x) => x.caso === 'uma');
+    assert.ok(j);
+    const { medido } = await comSonda([j], (o) => o[0] ?? '');
+    const coluna = medido.colunas.find((c) => c.motor === APARELHO_SISTEMA);
+    const hashDaSonda = coluna?.sonda?.[0]?.hashDoPedido ?? '';
+    const hashDaLeitura = coluna?.linhas[0]?.hashDoPedido ?? '';
+    assert.notEqual(hashDaSonda, hashDaLeitura);
+    assert.ok(medido.pedidos[hashDaSonda], 'o corpo do pedido da sonda não chegou ao relatório');
+    assert.match(medido.pedidos[hashDaSonda]?.usuario ?? '', /Pergunta:/);
+  });
+});
+
 /* ── o defeito, e o sentinela de "nenhum pedido" ── */
 
 describe('o defeito de uma janela não derruba a corrida', () => {
@@ -450,6 +636,34 @@ describe('o defeito de uma janela não derruba a corrida', () => {
     // O aviso é o que aparece no `stderr` de quem está rodando.
     assert.equal(recolhidos.length, comDefeito.length, JSON.stringify(recolhidos));
     for (const m of recolhidos) assert.match(m, /^defeito em /);
+  });
+
+  it('a sonda sobre o acervo envenenado: defeito com a pilha na janela podre, e as outras seguem', async () => {
+    const recolhidos: string[] = [];
+    const tres = JANELAS.filter((j) => j.range === 'ultima').slice(0, 3);
+    const falso = motorFalso(resposta('{"dimensao":"duracao"}', 'aparelho'));
+    const h = hospedeiro({ [APARELHO_SISTEMA]: falso.motor });
+    const medido = await medir({
+      dados: comNoiteEnvenenada(),
+      hoje: HOJE,
+      janelas: tres,
+      colunas: [{ motor: APARELHO_SISTEMA, janelas: tres }],
+      hospedeiro: h.hospedeiro,
+      sonda: true,
+      avisar: (m) => recolhidos.push(m),
+    });
+    const sonda = medido.colunas.find((c) => c.motor === APARELHO_SISTEMA)?.sonda ?? [];
+    assert.equal(sonda.length, tres.length, 'o defeito interrompeu a sonda');
+    const comDefeito = sonda.filter((l) => l.desfecho === 'defeito');
+    assert.ok(comDefeito.length > 0, 'o acervo sabotado não produziu defeito na sonda — o teste ficou vácuo');
+    for (const l of comDefeito) {
+      assert.ok(l.pilha?.includes('o acervo está podre'), 'a pilha não chegou à linha da sonda');
+      assert.equal(l.hashDoPedido, SEM_PEDIDO);
+    }
+    // Toda janela virou linha — o defeito de uma não parou o laço —, e cada defeito foi avisado.
+    assert.deepEqual(sonda.map((l) => `${l.range}@${l.offset}`), tres.map((j) => `${j.range}@${j.offset}`));
+    const daSonda = recolhidos.filter((m) => /^defeito na sonda de aparelho:sistema /.test(m));
+    assert.equal(daSonda.length, comDefeito.length, JSON.stringify(recolhidos));
   });
 
   it('o sentinela de "nenhum pedido" não se confunde com um digest', () => {

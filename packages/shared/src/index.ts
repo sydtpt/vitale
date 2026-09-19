@@ -33,6 +33,8 @@ export * from './ia/fio';
 export * from './ia/motor';
 export * from './ia/orquestrar';
 export * from './ia/nuvem';
+// O motor do aparelho (story 5.10): a tradução da linha da ponte, no molde da nuvem.
+export * from './ia/aparelho';
 export * from './ia/recursos';
 // O regime interpolado (story 5.3): a sintaxe do marcador e a conferência de presença.
 export * from './ia/interpolar';
@@ -61,6 +63,8 @@ export * from './sleep/retro';
 export * from './sleep/score';
 export * from './sleep/caso';
 export * from './sleep/leitura';
+// A sonda de fidelidade (story 5.10): um descritor só de medição, fora do catálogo.
+export * from './sleep/sonda';
 export * from './sleep/lua';
 export * from './week/recap';
 export * from './week/highlights';

@@ -10,9 +10,18 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { NUVEM_PADRAO, SEM_MODELO } from '@vitale/shared';
-import { conferirDestino, ehExecucaoPadrao, lerBandeiras, passoDoProgresso, precisaDeRede } from './bancada.ts';
-import { LIMITE_DA_AMOSTRA } from './janelas.ts';
+import { APARELHO_SISTEMA, NUVEM_PADRAO, SEM_MODELO, type SleepPeriod } from '@vitale/shared';
+import {
+  conferirDestino,
+  ehExecucaoPadrao,
+  lerBandeiras,
+  medirOPlano,
+  passoDoProgresso,
+  planoDaCorrida,
+  precisaDeRede,
+} from './bancada.ts';
+import { LIMITE_DA_AMOSTRA, enumerarJanelas, type JanelaClassificada } from './janelas.ts';
+import { cliDoAparelho, novoRegistro, type AbrirCanal } from './motores.ts';
 
 const AQUI = __dirname;
 const RAIZ_DO_REPO = join(AQUI, '..', '..');
@@ -27,6 +36,7 @@ describe('lerBandeiras', () => {
       export: null,
       comparar: [],
       simGastar: false,
+      sonda: false,
       ajuda: false,
     });
   });
@@ -110,6 +120,16 @@ describe('lerBandeiras', () => {
     assert.throws(() => lerBandeiras(['/fora/do/git']), /bandeira desconhecida/);
   });
 
+  it('--sonda vale com uma coluna de modelo, e só com ela', () => {
+    assert.equal(lerBandeiras(['--motor', APARELHO_SISTEMA, '--sonda']).sonda, true);
+    assert.equal(lerBandeiras(['--sonda', '--motor', NUVEM_PADRAO]).sonda, true);
+    // Sem coluna de modelo, o manifesto registraria uma sonda que não rodou.
+    assert.throws(() => lerBandeiras(['--sonda']), /nenhum --motor de modelo/);
+    assert.throws(() => lerBandeiras(['--sonda', '--motor', SEM_MODELO]), /nenhum --motor de modelo/);
+    assert.throws(() => lerBandeiras(['--so-exportar', '--sonda']), /--so-exportar não mede nada/);
+    assert.throws(() => lerBandeiras(['--motor', APARELHO_SISTEMA, '--sonda', '--sonda']), /aparece mais de uma vez/);
+  });
+
   it('--ajuda e --help entram na leitura, e não são bandeira desconhecida', () => {
     assert.equal(lerBandeiras(['--ajuda']).ajuda, true);
     assert.equal(lerBandeiras(['--help']).ajuda, true);
@@ -127,8 +147,10 @@ describe('precisaDeRede', () => {
     assert.equal(precisaDeRede({ export: '/fora', motores: [SEM_MODELO] }), false);
   });
 
-  it('o aparelho não precisa de rede nesta bancada — não há ponte aqui', () => {
-    assert.equal(precisaDeRede({ export: '/fora', motores: ['aparelho:sistema'] }), false);
+  it('o aparelho não precisa de rede: a ponte roda nesta máquina, pela CLI local', () => {
+    assert.equal(precisaDeRede({ export: '/fora', motores: [APARELHO_SISTEMA] }), false);
+    // Junto com a nuvem, quem pede o JWT é a nuvem — não o aparelho.
+    assert.equal(precisaDeRede({ export: '/fora', motores: [APARELHO_SISTEMA, NUVEM_PADRAO] }), true);
   });
 
   it('um motor de nuvem nomeado também precisa', () => {
@@ -138,12 +160,189 @@ describe('precisaDeRede', () => {
 
 describe('ehExecucaoPadrao', () => {
   it('só a padrão atualiza a linha de base versionada', () => {
-    const padrao = { soExportar: false, limite: LIMITE_DA_AMOSTRA, motores: [], export: null };
+    const padrao = { soExportar: false, limite: LIMITE_DA_AMOSTRA, motores: [], export: null, sonda: false };
     assert.equal(ehExecucaoPadrao(padrao), true);
+    assert.equal(ehExecucaoPadrao({ ...padrao, sonda: true }), false);
+    assert.equal(ehExecucaoPadrao({ ...padrao, motores: [APARELHO_SISTEMA] }), false);
     assert.equal(ehExecucaoPadrao({ ...padrao, motores: [SEM_MODELO] }), true);
     assert.equal(ehExecucaoPadrao({ ...padrao, soExportar: true }), false);
     assert.equal(ehExecucaoPadrao({ ...padrao, limite: 4 }), false);
     assert.equal(ehExecucaoPadrao({ ...padrao, motores: [NUVEM_PADRAO] }), false);
+  });
+});
+
+/* ── o plano da corrida ── */
+
+/** Janelas classificadas de mentira: `n` por caso × alcance. */
+function janelasDeMentira(n: number): JanelaClassificada[] {
+  const out: JanelaClassificada[] = [];
+  for (const caso of ['uma', 'duas', 'tudo-no-maximo'] as const) {
+    for (const alcance of ['noite', 'periodo'] as const) {
+      for (let i = 0; i < n; i += 1) out.push({ range: alcance === 'noite' ? 'ultima' : '7d', offset: out.length, alcance, caso });
+    }
+  }
+  return out;
+}
+
+const BANDEIRAS_DO_PLANO = { motores: [] as const, limite: LIMITE_DA_AMOSTRA, sonda: false, simGastar: false };
+
+describe('planoDaCorrida', () => {
+  const JANELAS = janelasDeMentira(5); // 6 grupos × 5 → amostra de 12 com limite 2
+
+  it('só a nuvem é paga; o aparelho conta à parte, e só o do sistema', () => {
+    const p = planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [APARELHO_SISTEMA, NUVEM_PADRAO, 'aparelho:prov-a/pesos'] }, JANELAS);
+    assert.equal(p.amostra, 12);
+    assert.deepEqual(p.colunas.map((c) => c.motor), [APARELHO_SISTEMA, NUVEM_PADRAO, 'aparelho:prov-a/pesos']);
+    assert.ok(p.colunas.every((c) => c.janelas.length === 12), 'as colunas não mediram a mesma amostra');
+    assert.equal(p.pagas, 12);
+    assert.equal(p.locais, 12, 'os pesos nomeados contaram como chamada local — eles saem sintéticos');
+    assert.equal(p.precisaDaCli, true);
+  });
+
+  it('a sonda dobra o teto das duas contas — e o plano a leva para a medição', () => {
+    const p = planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [APARELHO_SISTEMA, NUVEM_PADRAO], sonda: true }, JANELAS);
+    assert.equal(p.sonda, true);
+    assert.equal(p.pagas, 24);
+    assert.equal(p.locais, 24);
+  });
+
+  it('o --limite recorta o aparelho também: a amostra é uma só para as colunas de modelo', () => {
+    const p = planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [APARELHO_SISTEMA], limite: 1 }, JANELAS);
+    assert.equal(p.amostra, 6);
+    assert.equal(p.locais, 6);
+  });
+
+  it('acima do teto, a nuvem exige o sim explícito; o aparelho, nunca', () => {
+    const muitas = janelasDeMentira(20);
+    assert.equal(planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [NUVEM_PADRAO], limite: 20 }, muitas).exigeConfirmacao, true);
+    assert.equal(planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [NUVEM_PADRAO], limite: 20, simGastar: true }, muitas).exigeConfirmacao, false);
+    assert.equal(planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [APARELHO_SISTEMA], limite: 20, sonda: true }, muitas).exigeConfirmacao, false);
+  });
+
+  it('avisa que os pesos nomeados saem sintéticos, e que a sonda sem coluna que rode não mede nada', () => {
+    const p = planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: ['aparelho:prov-a/pesos'], sonda: true }, JANELAS);
+    assert.equal(p.precisaDaCli, false);
+    assert.equal(p.locais, 0);
+    assert.ok(p.avisos.some((a) => /aparelho:prov-a\/pesos.*sintética/.test(a)), JSON.stringify(p.avisos));
+    assert.ok(p.avisos.some((a) => /--sonda.*nenhuma coluna/.test(a)), JSON.stringify(p.avisos));
+    assert.deepEqual(planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [APARELHO_SISTEMA], sonda: true }, JANELAS).avisos, []);
+  });
+
+  it('sem coluna de modelo, nada: nem amostra, nem CLI', () => {
+    const p = planoDaCorrida(BANDEIRAS_DO_PLANO, JANELAS);
+    assert.deepEqual(p.colunas, []);
+    assert.equal(p.amostra, 0);
+    assert.equal(p.precisaDaCli, false);
+  });
+});
+
+/* ── a medição do plano, com a CLI de mentira ── */
+
+function noite(wakeDay: string, onsetH: number, durH: number): SleepPeriod {
+  const ancora = new Date(`${wakeDay}T00:00:00Z`);
+  if (onsetH >= 12) ancora.setUTCDate(ancora.getUTCDate() - 1);
+  const onsetMs = ancora.getTime() + onsetH * 3_600_000 - 120 * 60_000;
+  return {
+    userId: 'u',
+    onsetAt: new Date(onsetMs).toISOString(),
+    wakeAt: new Date(onsetMs + durH * 3_600_000).toISOString(),
+    inBedAt: null,
+    inBedEnd: null,
+    tzOffset: 120,
+    wakeDay,
+    asleepH: durH,
+    awakenings: [],
+    stages: null,
+    stageSegments: null,
+  };
+}
+
+function acervo(): { noites: SleepPeriod[]; notas: Record<string, number> } {
+  const noites: SleepPeriod[] = [];
+  const notas: Record<string, number> = {};
+  for (let i = 0; i < 40; i += 1) {
+    const d = new Date(Date.UTC(2026, 7, 1 + i, 12));
+    const dia = d.toISOString().slice(0, 10);
+    noites.push(noite(dia, 22.5 + (i % 5) * 0.4, 5.5 + (i % 4) * 0.8));
+    if (i % 3 !== 0) notas[dia] = 1 + (i % 5);
+  }
+  return { noites, notas };
+}
+
+/** Um processo que fala o protocolo e responde tudo com a mesma falha — o que importa aqui é o encanamento. */
+function canalQueResponde(encerrados: number[]): AbrirCanal {
+  let n = 0;
+  return (eventos) => {
+    n += 1;
+    const este = n;
+    return {
+      pronto: Promise.resolve({ ok: true }),
+      escrever: (linha) => {
+        const { id } = JSON.parse(linha) as { id: number };
+        setImmediate(() => eventos.aoLinha(JSON.stringify({ id, linha: { classe: 'guarda', detalhe: 'bloqueou' } })));
+      },
+      encerrar: () => {
+        encerrados.push(este);
+      },
+    };
+  };
+}
+
+describe('medirOPlano', () => {
+  const DADOS = acervo();
+  const HOJE = '2026-09-09';
+  const JANELAS = enumerarJanelas(DADOS.noites, DADOS.notas, HOJE);
+
+  async function medirCom(sonda: boolean) {
+    const encerrados: number[] = [];
+    const registro = novoRegistro();
+    const cli = cliDoAparelho({ preparar: () => ({ ok: true, compilador: 'Apple Swift version 6.4' }), abrir: canalQueResponde(encerrados), registro });
+    const plano = planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [APARELHO_SISTEMA], limite: 1, sonda }, JANELAS);
+    const r = await medirOPlano({
+      plano, dados: DADOS, hoje: HOJE, janelas: JANELAS, sessao: null, cli, registro, avisar: () => undefined,
+    });
+    return { r, encerrados, plano };
+  }
+
+  it('mede a coluna do aparelho, com a sonda que o plano pediu, e devolve o compilador', async () => {
+    const { r, encerrados, plano } = await medirCom(true);
+    const coluna = r.medido.colunas.find((c) => c.motor === APARELHO_SISTEMA);
+    assert.ok(coluna);
+    assert.equal(coluna.linhas.length, plano.amostra);
+    assert.ok(coluna.sonda, 'a sonda do plano não chegou à medição');
+    assert.equal(coluna.sonda.length, plano.amostra);
+    assert.equal(r.compilador, 'Apple Swift version 6.4');
+    assert.deepEqual(encerrados, [1], 'a CLI não foi encerrada no fim');
+  });
+
+  it('sem sonda no plano, nenhuma linha de sonda', async () => {
+    const { r } = await medirCom(false);
+    assert.equal(r.medido.colunas.find((c) => c.motor === APARELHO_SISTEMA)?.sonda, undefined);
+  });
+
+  it('a primeira linha do processo sai fria; as outras, não', async () => {
+    const { r } = await medirCom(false);
+    const linhas = r.medido.colunas.find((c) => c.motor === APARELHO_SISTEMA)?.linhas ?? [];
+    assert.ok(linhas.length > 2);
+    assert.equal(linhas[0]?.frio, true);
+    assert.ok(linhas.slice(1).every((l) => l.frio === undefined), 'uma linha do processo já quente saiu fria');
+  });
+
+  it('a CLI é encerrada mesmo quando a medição lança', async () => {
+    const encerrados: number[] = [];
+    const registro = novoRegistro();
+    const cli = cliDoAparelho({ preparar: () => ({ ok: true }), abrir: canalQueResponde(encerrados), registro });
+    const plano = planoDaCorrida({ ...BANDEIRAS_DO_PLANO, motores: [APARELHO_SISTEMA], limite: 1 }, JANELAS);
+    await assert.rejects(
+      medirOPlano({
+        plano, dados: DADOS, hoje: HOJE, janelas: JANELAS, sessao: null, cli, registro, avisar: () => undefined,
+        aoAndar: () => {
+          throw new Error('o progresso quebrou');
+        },
+      }),
+      /o progresso quebrou/,
+    );
+    assert.deepEqual(encerrados, [1], 'o finally não encerrou o processo vivo');
   });
 });
 

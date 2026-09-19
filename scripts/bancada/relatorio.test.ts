@@ -10,12 +10,16 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CASOS_DA_SAUDE, NUVEM_PADRAO, SEM_MODELO, type MotorId } from '@vitale/shared';
+import { APARELHO_SISTEMA, CASOS_DA_SAUDE, NUVEM_PADRAO, SEM_MODELO, type MotorId } from '@vitale/shared';
 import {
   ORDEM_DOS_CASOS,
   REGRAS_DE_AMOSTRA,
   VEREDITOS,
   agregar,
+  foraDaMedida,
+  mediana,
+  medidasDoPortao,
+  resumoDaSonda,
   corpoDoManifesto,
   hashDoCorpo,
   chaveDaColuna,
@@ -27,6 +31,7 @@ import {
   sha256De,
   vereditoDe,
   type CorpoDoManifesto,
+  type LinhaDaSonda,
   type LinhaDoRelatorio,
   type Manifesto,
 } from './relatorio.ts';
@@ -547,5 +552,303 @@ describe('o `sistema` do pedido não é afirmado sem conferir', () => {
     assert.match(md, /Os 2 `sistema` distintos/);
     assert.ok(md.includes('as regras') && md.includes('OUTRAS regras'));
     assert.equal(md.includes('um só, conferido'), false);
+  });
+});
+
+/* ── a coluna do aparelho, as quatro medidas e a sonda (story 5.10) ── */
+
+const ASSINATURA_DO_APARELHO = {
+  tipo: 'aparelho',
+  provedor: 'prov-a',
+  modelo: 'modelo-do-sistema',
+  plataforma: 'macOS 27.0',
+  buildDoSistema: '26A428',
+} as const;
+
+function linhaDaSonda(p: Partial<LinhaDaSonda> = {}): LinhaDaSonda {
+  return {
+    range: '7d',
+    offset: 0,
+    alcance: 'periodo',
+    caso: 'uma',
+    hashDoPedido: sha256De('o pedido da sonda'),
+    desfecho: 'ok',
+    ms: 900,
+    esperado: ['horario'],
+    opcoes: ['duracao', 'horario', 'percepcao'],
+    escolha: 'horario',
+    ...p,
+  };
+}
+
+/** A linha sem a escolha — a muda não tem resposta a ler. */
+function semEscolha(l: LinhaDaSonda): LinhaDaSonda {
+  const { escolha: _escolha, ...resto } = l;
+  return resto;
+}
+
+describe('mediana', () => {
+  it('ímpar é o do meio; par, a média dos dois do meio; vazia, nula', () => {
+    assert.equal(mediana([3, 1, 2]), 2);
+    assert.equal(mediana([4, 1, 3, 2]), 2.5);
+    assert.equal(mediana([]), null);
+    assert.equal(mediana([7]), 7);
+  });
+});
+
+describe('a janela medida — uma regra só', () => {
+  it('entra a que chegou ao modelo; fica fora, por motivo e nesta ordem, a que não chegou ou foi do hospedeiro', () => {
+    assert.equal(foraDaMedida(linha({ desfecho: 'ok' })), null);
+    assert.equal(foraDaMedida(linha({ desfecho: 'reprovada' })), null);
+    assert.equal(foraDaMedida(linha({ desfecho: 'transitoria' })), null, 'a transitória do motor é medida');
+    assert.equal(foraDaMedida(linha({ desfecho: 'ok', frio: true })), null, 'a fria é medida — só sai da mediana');
+    assert.equal(foraDaMedida(linha({ desfecho: 'template' })), 'semChamada');
+    assert.equal(foraDaMedida(linha({ desfecho: 'mudo' })), 'semChamada');
+    assert.equal(foraDaMedida(linha({ desfecho: 'indisponivel', sintetica: true })), 'sintetica');
+    assert.equal(foraDaMedida(linha({ desfecho: 'defeito' })), 'defeito');
+    assert.equal(foraDaMedida(linha({ desfecho: 'indisponivel' })), 'indisponivel');
+    assert.equal(foraDaMedida(linha({ desfecho: 'transitoria', doHospedeiro: true })), 'doHospedeiro');
+  });
+});
+
+describe('as quatro medidas da ADR 0050', () => {
+  const linhas = [
+    linha({ caso: 'uma', alcance: 'noite', range: 'ultima', desfecho: 'ok', ms: 9000, frio: true, frase: 'Uma frase nova.' }),
+    linha({ caso: 'uma', alcance: 'periodo', desfecho: 'ok', ms: 3000, frase: 'A duração e a regularidade empatam no ponto mais baixo.' }),
+    linha({ caso: 'duas', alcance: 'periodo', desfecho: 'reprovada', ms: 5000 }),
+    linha({ caso: 'duas', alcance: 'periodo', desfecho: 'indisponivel', ms: 0, sintetica: true }),
+    linha({ caso: 'duas', alcance: 'periodo', desfecho: 'defeito', ms: 0 }),
+    linha({ caso: 'duas', alcance: 'periodo', desfecho: 'indisponivel', ms: 40, detalhe: 'modelNotReady' }),
+    linha({ caso: 'duas', alcance: 'periodo', desfecho: 'transitoria', ms: 60_000, doHospedeiro: true }),
+    linha({ caso: 'duas', alcance: 'noite', range: 'ultima', desfecho: 'transitoria', ms: 7000 }),
+  ];
+  const m = medidasDoPortao(linhas);
+
+  it('aprovação: ok sobre as MEDIDAS — e o que ficou fora, contado à parte', () => {
+    assert.equal(m.janelas, 8);
+    assert.equal(m.medidas, 4);
+    assert.equal(m.aprovadas, 2);
+    assert.deepEqual(m.foraDaMedida, { semChamada: 0, sintetica: 1, defeito: 1, indisponivel: 1, doHospedeiro: 1 });
+    // A soma fecha: nada some da conta.
+    assert.equal(m.medidas + Object.values(m.foraDaMedida).reduce((a, b) => a + b, 0), m.janelas);
+  });
+
+  it('cobertura: a presença na amostra e as aprovadas, noite e período separados', () => {
+    assert.deepEqual(m.cobertura.map((c) => c.caso), [...ORDEM_DOS_CASOS]);
+    assert.deepEqual(m.cobertura.find((c) => c.caso === 'uma'), {
+      caso: 'uma',
+      noite: { amostra: 1, aprovadas: 1 },
+      periodo: { amostra: 1, aprovadas: 1 },
+    });
+    assert.deepEqual(m.cobertura.find((c) => c.caso === 'duas'), {
+      caso: 'duas',
+      noite: { amostra: 1, aprovadas: 0 },
+      periodo: { amostra: 5, aprovadas: 0 },
+    });
+  });
+
+  it('idênticas: a aprovada cuja frase é a do template', () => {
+    assert.equal(m.identicasAoTemplate, 1);
+  });
+
+  it('mediana: das medidas não frias — e a fria é contada, não escondida', () => {
+    assert.equal(m.frias, 1);
+    assert.equal(m.naMediana, 3);
+    assert.equal(m.medianaMs, 5000, 'a mediana leu a fria, o defeito, a sintética ou a falha do hospedeiro');
+  });
+
+  it('não carrega limiar nem veredito — só números', () => {
+    assert.deepEqual(Object.keys(m).sort(), [
+      'aprovadas', 'cobertura', 'foraDaMedida', 'frias', 'identicasAoTemplate', 'janelas', 'medianaMs', 'medidas', 'naMediana',
+    ]);
+  });
+});
+
+describe('o resumo da sonda', () => {
+  const linhas = [
+    linhaDaSonda({ desfecho: 'ok' }),
+    linhaDaSonda({ desfecho: 'reprovada', escolha: 'duracao', problemas: [{ regra: 'escolha', detalhe: 'x' }] }),
+    linhaDaSonda({ desfecho: 'reprovada', escolha: 'regularidade', problemas: [{ regra: 'fora-das-opcoes', detalhe: 'x' }] }),
+    linhaDaSonda({ desfecho: 'saida-invalida', escolha: undefined as never }),
+    linhaDaSonda({ desfecho: 'indisponivel', sintetica: true }),
+    linhaDaSonda({ desfecho: 'defeito', pilha: 'Error: x' }),
+    linhaDaSonda({ desfecho: 'recusa-do-modelo' }),
+    semEscolha(linhaDaSonda({ caso: 'tudo-no-maximo', desfecho: 'mudo', ms: 0, esperado: [], opcoes: [] })),
+    linhaDaSonda({ desfecho: 'ok', esperado: ['duracao', 'horario'], opcoes: ['duracao', 'horario', 'percepcao', 'continuidade'] }),
+  ];
+  const r = resumoDaSonda(linhas);
+
+  it('fecha a soma — nada some, nem o defeito', () => {
+    const falhas = r.falhas.reduce((n, f) => n + f.vezes, 0);
+    assert.equal(r.acertos + r.escolhaErrada + r.foraDasOpcoes + r.outraReprovacao + r.recusas + falhas + r.defeitos, r.perguntadas);
+    assert.equal(r.perguntadas + r.mudas, r.janelas);
+    assert.equal(r.defeitos, 1);
+  });
+
+  it('separa a escolha errada da escolha fora das opções', () => {
+    assert.equal(r.escolhaErrada, 1);
+    assert.equal(r.foraDasOpcoes, 1);
+    assert.equal(r.outraReprovacao, 0);
+  });
+
+  it('o acerto ao acaso: |nomeadas| ÷ |opções|, somado sobre as perguntas medidas', () => {
+    // Medidas: ok (1/3), escolha (1/3), fora (1/3), saída inválida (1/3), recusa (1/3), ok (2/4).
+    // Fora: a sintética e o defeito.
+    assert.equal(r.medidas, 6);
+    assert.ok(Math.abs(r.acertoAoAcaso - (5 / 3 + 2 / 4)) < 1e-9, String(r.acertoAoAcaso));
+  });
+});
+
+describe('o relatório da coluna de modelo', () => {
+  const doAparelho = [
+    linha({ desfecho: 'ok', frase: 'Nos últimos 7 dias, a duração fica abaixo.', assinatura: ASSINATURA_DO_APARELHO, ms: 3900, frio: true }),
+    linha({ range: '7d', offset: 1, desfecho: 'reprovada', ms: 1500, assinatura: ASSINATURA_DO_APARELHO }),
+    linha({ range: '7d', offset: 2, desfecho: 'reprovada', ms: 2500, assinatura: ASSINATURA_DO_APARELHO }),
+    // O aparelho fora não é medida: o motor não atendia.
+    linha({ range: '4s', offset: 0, desfecho: 'indisponivel', ms: 100, detalhe: 'modelo do sistema indisponível: modelNotReady' }),
+  ];
+  const sonda = [
+    linhaDaSonda({ assinatura: ASSINATURA_DO_APARELHO }),
+    linhaDaSonda({
+      range: '4s',
+      desfecho: 'reprovada',
+      escolha: 'duracao',
+      esperado: ['horario'],
+      problemas: [{ regra: 'escolha', detalhe: 'escolheu duracao; o código nomeia horario (uma)' }],
+    }),
+    semEscolha(linhaDaSonda({ range: '12m', caso: 'tudo-no-maximo', desfecho: 'mudo', ms: 0, esperado: [], hashDoPedido: '(sem pedido)' })),
+  ];
+  const comSonda = montarManifesto({ ...CORPO, motores: [SEM_MODELO, APARELHO_SISTEMA], sonda: { versaoDoDescritor: 1 } });
+  const r = montarRelatorio({
+    recurso: 'saude-do-sono',
+    sistema: { plataforma: 'darwin', versao: '27.0.0' },
+    manifesto: comSonda,
+    geradoEm: '2026-09-19T10:00:00.000Z',
+    pedidos: {
+      [sha256De('um pedido')]: { sistema: 'as regras', usuario: 'o caso' },
+      [sha256De('o pedido da sonda')]: { sistema: 'escolha', usuario: 'Pergunta: …' },
+    },
+    colunas: [
+      { motor: SEM_MODELO, linhas: [linha({ desfecho: 'template', frase: 'x' })] },
+      { motor: APARELHO_SISTEMA, linhas: doAparelho, sonda, compilador: 'Apple Swift version 6.4 (swiftlang-6.4.0.34.1)' },
+    ],
+  });
+  const md = relatorioEmMarkdown(r);
+
+  it('a régua não tem medidas nem sonda; a coluna de modelo tem as duas', () => {
+    const [regua, aparelho] = r.colunas;
+    assert.equal(regua?.medidas, undefined);
+    assert.equal(regua?.sonda, undefined);
+    assert.ok(aparelho?.medidas);
+    assert.equal(aparelho?.sonda?.linhas.length, 3);
+    assert.equal(aparelho?.sonda?.agregados.porVeredito.mudo, 1);
+  });
+
+  it('diz quem assinou, com a plataforma e o build do sistema', () => {
+    assert.deepEqual(r.colunas[1]?.assinaturas, [{ ...ASSINATURA_DO_APARELHO, leitura: 3, sonda: 1 }]);
+    assert.ok(md.includes('### Quem respondeu'));
+    assert.ok(md.includes('| aparelho | prov-a | modelo-do-sistema | macOS 27.0 | 26A428 | 3 | 1 |'), md);
+  });
+
+  it('a coluna do aparelho diz qual swiftc compilou a CLI', () => {
+    assert.equal(r.colunas[1]?.compilador, 'Apple Swift version 6.4 (swiftlang-6.4.0.34.1)');
+    assert.ok(md.includes('compilada por: `Apple Swift version 6.4 (swiftlang-6.4.0.34.1)`'), md);
+  });
+
+  it('mais de uma assinatura na coluna é dita — versões diferentes não se somam', () => {
+    const outra = montarRelatorio({
+      recurso: 'saude-do-sono',
+      sistema: { plataforma: 'darwin', versao: '27.0.0' },
+      manifesto: MANIFESTO,
+      geradoEm: '2026-09-19T10:00:00.000Z',
+      pedidos: {},
+      colunas: [
+        {
+          motor: APARELHO_SISTEMA,
+          linhas: [
+            linha({ assinatura: ASSINATURA_DO_APARELHO }),
+            linha({ offset: 1, assinatura: { ...ASSINATURA_DO_APARELHO, buildDoSistema: '26A500' } }),
+          ],
+        },
+      ],
+    });
+    assert.equal(outra.colunas[0]?.assinaturas?.length, 2);
+    assert.match(relatorioEmMarkdown(outra), /Mais de uma assinatura/);
+  });
+
+  it('as quatro medidas saem com os números e sem régua', () => {
+    const inicio = md.indexOf('### As quatro medidas da ADR 0050');
+    assert.ok(inicio >= 0, 'a seção das medidas não saiu');
+    const secao = md.slice(inicio, md.indexOf('### O fecho, por caso', inicio));
+    assert.match(secao, /sem limiar e sem veredito/);
+    // A regra da janela medida, escrita ao lado dos números.
+    assert.ok(secao.includes('Janela medida é a tentativa que chegou ao modelo'), secao);
+    assert.ok(secao.includes('| medidas (chegaram ao modelo) | 3 — fora da medida: 1 indisponíveis |'), secao);
+    assert.ok(secao.includes('| aprovação (`ok` ÷ medidas) | 1 de 3 (33,3%) |'), secao);
+    assert.ok(secao.includes('| aprovadas idênticas ao template | 0 de 1 |'), secao);
+    assert.ok(secao.includes('| mediana do tempo por chamada | 2,0 s (2 medidas; 1 fria ficou de fora) |'), secao);
+    assert.match(secao, /sem janela: sem-contagem\/noite/);
+    assert.ok(secao.includes('| duas | 0 | 0 | 4 | 1 |'), secao);
+    assert.ok(secao.includes('| caso | noite: na amostra | noite: aprovadas | período: na amostra | período: aprovadas |'), secao);
+    // Nenhum número de corte, nenhuma comparação com ele.
+    assert.equal(/[≥≤]|\bpassou\b|\breprovou no portão\b|limiar (de|é) \d/i.test(secao), false, secao);
+  });
+
+  it('a sonda sai com a escolha e o que o código nomeia, lado a lado — e a muda fica fora da tabela', () => {
+    const inicio = md.indexOf('### A sonda de fidelidade');
+    assert.ok(inicio >= 0, 'a seção da sonda não saiu');
+    const secao = md.slice(inicio);
+    assert.match(secao, /Janelas: 3 = 2 perguntadas \+ 1 mudas\./);
+    assert.match(secao, /no que o código nomeia 1 · escolha errada 1 · fora das opções 0 · outra reprovação 0 · recusa 0 · falha 0 · defeito 0\./);
+    assert.match(secao, /Acertos entre as medidas: 1 de 2; ao acaso, o esperado seria 0,7/);
+    assert.ok(
+      secao.includes('| 4s | uma | periodo | reprovada | 900 | duracao, horario, percepcao | duracao | horario | escolha: escolheu duracao; o código nomeia horario (uma) |'),
+      secao,
+    );
+    assert.equal(secao.includes('| 12m | tudo-no-maximo'), false, 'a linha muda entrou na tabela');
+  });
+
+  it('o cabeçalho diz que a sonda rodou, e os pedidos dela aparecem marcados', () => {
+    assert.ok(md.includes('| sonda de fidelidade | descritor v1, em cada coluna de modelo |'));
+    assert.match(md, /### `[0-9a-f]{12}` — 2 linhas · uma\/periodo \(sonda\)/);
+  });
+});
+
+describe('o manifesto com a sonda', () => {
+  it('sem sonda, o hash de antes — a chave nem aparece no corpo', () => {
+    assert.equal('sonda' in corpoDoManifesto(MANIFESTO), false);
+    assert.equal(montarManifesto({ ...CORPO }).hash, MANIFESTO.hash);
+  });
+
+  it('com sonda, outro hash — e a versão do descritor dela conta', () => {
+    const v1 = montarManifesto({ ...CORPO, sonda: { versaoDoDescritor: 1 } });
+    const v2 = montarManifesto({ ...CORPO, sonda: { versaoDoDescritor: 2 } });
+    assert.notEqual(v1.hash, MANIFESTO.hash);
+    assert.notEqual(v1.hash, v2.hash);
+    assert.equal(hashDoCorpo(corpoDoManifesto(v1)), v1.hash);
+  });
+});
+
+describe('compararRelatorios com a sonda', () => {
+  const comSonda = montarManifesto({ ...CORPO, sonda: { versaoDoDescritor: 1 } });
+  const rel = (hashDaSonda: string) =>
+    montarRelatorio({
+      recurso: 'saude-do-sono',
+      sistema: { plataforma: 'darwin', versao: '27.0.0' },
+      manifesto: comSonda,
+      geradoEm: '2026-09-19T10:00:00.000Z',
+      pedidos: {},
+      colunas: [{ motor: APARELHO_SISTEMA, linhas: [linha()], sonda: [linhaDaSonda({ hashDoPedido: hashDaSonda })] }],
+    });
+
+  it('o pedido da sonda também tem de repetir o hash', () => {
+    const iguais = compararRelatorios(rel(sha256De('s')), rel(sha256De('s')));
+    assert.ok(iguais.ok && iguais.iguais);
+    const diferentes = compararRelatorios(rel(sha256De('s')), rel(sha256De('outro')));
+    assert.ok(diferentes.ok);
+    assert.deepEqual(
+      diferentes.diferencas.map((d) => d.split(':').slice(0, 2).join(':')),
+      [`${APARELHO_SISTEMA} sonda 7d@0`],
+    );
   });
 });
