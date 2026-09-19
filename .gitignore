@@ -59,6 +59,11 @@ yarn-error.log*
 # hashes — é o que torna dois relatórios comparáveis sem o dado na mão.
 scripts/bancada/saida/
 
+# A CLI do motor do aparelho (story 5.10): o `swiftc` compila, na máquina de quem mede,
+# `mobile/modules/on-device-engine/ios/Engine.swift` + `scripts/bancada/aparelho/*.swift`
+# aqui dentro. É saída de build local — nunca vai ao git nem ao CI.
+scripts/bancada/aparelho/.build/
+
 # Canvas do Claude Design: os .dc.html e os scripts ao lado são a fonte; o
 # .html montado pelo editor é saída (2,6 MB no caso da curva de forma) e se
 # refaz a partir deles.

@@ -28,6 +28,7 @@ import { cssVars } from './theme/css-vars';
 import { sleepColorsOf, sleepCssVars } from './sleep/colors';
 import { resolveTokens } from './theme/derive';
 import { CLASSES_DE_FALHA } from './ia/fio';
+import { CHAVE_DA_VERSAO, CHAVES_DA_FALHA, CHAVES_DA_RESPOSTA, CHAVES_DO_PEDIDO, CHAVES_DOS_TOKENS } from './ia/aparelho';
 import { CONCLUSAO } from './ia/motor';
 import { VOCABULARIO_PROIBIDO } from './ia/verificar';
 import { CADERNO_IDS } from './period/cadernos';
@@ -1529,6 +1530,421 @@ check('BARREIRA — supabase/functions/ só cita classe do que importa de ia/fio
 });
 
 /**
+ * As guardas da ponte do aparelho — (3), a metade Swift, e (4) — nascem com o
+ * `Engine.swift` (AD-10, story 5.10).
+ *
+ * O Swift não importa `ia/fio.ts`: a ponte é outra língua, e o vocabulário das classes
+ * chega lá como um `enum ClasseDeFalha: String` escrito à mão. Então quem amarra a
+ * grafia é esta guarda — ela lê o enum no fonte e exige a **igualdade de conjunto** com
+ * `CLASSES_DE_FALHA`, cada caso com o valor bruto explícito (o implícito seria o nome
+ * Swift, `recusaDoModelo`, que não é a grafia do fio). E os imports do arquivo ficam na
+ * lista permitida: nem `ExpoModulesCore` (a cola do Expo é outro arquivo), nem modelo de
+ * servidor.
+ *
+ * O arquivo sumir **reprova**: uma guarda que passa quando o alvo não existe é a guarda
+ * que ninguém percebe desligada.
+ *
+ * O Swift é lido por um varredor próprio, não por `semComentario`: o Swift aninha
+ * comentário de bloco e tem string de várias linhas (`"""`), e um `import` citado dentro
+ * de uma delas não é import.
+ */
+const ENGINE_SWIFT = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios', 'Engine.swift');
+const IMPORTS_PERMITIDOS_NA_PONTE = new Set(['Foundation', 'FoundationModels']);
+
+/**
+ * O código Swift sem comentário e sem o miolo das strings de várias linhas. Comentário
+ * de bloco aninha (um segundo abre-bloco dentro do primeiro pede dois fecha-blocos); a
+ * string de uma linha fica inteira — é nela que mora o valor bruto do enum —, e o `//`
+ * dentro dela não corta nada.
+ */
+function codigoSwift(src: string): string {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    if (src.startsWith('//', i)) {
+      const fim = src.indexOf('\n', i);
+      i = fim < 0 ? src.length : fim;
+      continue;
+    }
+    if (src.startsWith('/*', i)) {
+      let profundidade = 0;
+      do {
+        if (src.startsWith('/*', i)) {
+          profundidade += 1;
+          i += 2;
+        } else if (src.startsWith('*/', i)) {
+          profundidade -= 1;
+          i += 2;
+        } else {
+          i += 1;
+        }
+      } while (profundidade > 0 && i < src.length);
+      out += ' ';
+      continue;
+    }
+    if (src.startsWith('"""', i)) {
+      const fim = src.indexOf('"""', i + 3);
+      i = fim < 0 ? src.length : fim + 3;
+      out += '""';
+      continue;
+    }
+    if (src[i] === '"') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== '"' && src[j] !== '\n') j += src[j] === '\\' ? 2 : 1;
+      out += src.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    out += src[i];
+    i += 1;
+  }
+  return out;
+}
+
+/** O trecho entre a chave que abre em `abre` e a que a fecha, sem o que está aninhado. */
+function corpoRaso(codigo: string, abre: number): string | null {
+  let profundidade = 0;
+  let raso = '';
+  for (let i = abre; i < codigo.length; i += 1) {
+    const c = codigo[i];
+    if (c === '"') {
+      // A string de uma linha passa inteira — uma chave dentro dela não conta.
+      let j = i + 1;
+      while (j < codigo.length && codigo[j] !== '"' && codigo[j] !== '\n') j += codigo[j] === '\\' ? 2 : 1;
+      if (profundidade === 1) raso += codigo.slice(i, j + 1);
+      i = j;
+      continue;
+    }
+    if (c === '{') {
+      profundidade += 1;
+      if (profundidade === 1) continue;
+    } else if (c === '}') {
+      profundidade -= 1;
+      if (profundidade === 0) return raso;
+    }
+    if (profundidade === 1) raso += c;
+  }
+  return null;
+}
+
+/**
+ * Os problemas do `enum ClasseDeFalha` de um fonte Swift, contra `CLASSES_DE_FALHA`.
+ * Lista vazia: o enum existe uma vez, tem `String` como tipo bruto, todo caso tem valor
+ * bruto explícito, e os valores são exatamente as sete classes.
+ */
+function problemasDoEnumDeClasses(src: string): string[] {
+  const codigo = codigoSwift(src);
+  const cabecalhos = [...codigo.matchAll(/\benum[ \t]+ClasseDeFalha\b([^{]*)\{/g)];
+  if (cabecalhos.length === 0) return ['não declara `enum ClasseDeFalha`'];
+  if (cabecalhos.length > 1) return [`declara \`enum ClasseDeFalha\` ${cabecalhos.length} vezes`];
+  const [cabecalho] = cabecalhos;
+  const heranca = cabecalho[1].trim();
+  if (!/^:\s*String\b/.test(heranca)) return [`o enum não tem String como tipo bruto (${heranca || 'sem herança'})`];
+  const corpo = corpoRaso(codigo, cabecalho.index! + cabecalho[0].length - 1);
+  if (corpo === null) return ['o enum não fecha'];
+
+  const problemas: string[] = [];
+  const valores: string[] = [];
+  for (const m of corpo.matchAll(/(?:^|[;\n])[ \t]*(?:@\w+[ \t]+)*(?:indirect[ \t]+)?case[ \t]+([^;\n]+)/g)) {
+    for (const parte of m[1].split(',').map((x) => x.trim()).filter((x) => x !== '')) {
+      const explicito = /^(`?[A-Za-z_][\w]*`?)\s*=\s*"((?:[^"\\]|\\.)*)"$/.exec(parte);
+      if (!explicito) {
+        problemas.push(`o caso \`${parte}\` não tem valor bruto explícito em string`);
+        continue;
+      }
+      valores.push(explicito[2]);
+    }
+  }
+  const repetidos = valores.filter((v, i) => valores.indexOf(v) !== i);
+  if (repetidos.length > 0) problemas.push(`valor bruto repetido: ${[...new Set(repetidos)].join(', ')}`);
+  const doFio = new Set<string>(CLASSES_DE_FALHA);
+  const faltam = [...doFio].filter((c) => !valores.includes(c));
+  const sobram = valores.filter((v) => !doFio.has(v));
+  if (faltam.length > 0) problemas.push(`falta(m) no enum: ${faltam.join(', ')}`);
+  if (sobram.length > 0) problemas.push(`o enum tem o que o fio não tem: ${[...new Set(sobram)].join(', ')}`);
+  return problemas;
+}
+
+/**
+ * Os módulos que um fonte Swift importa — o primeiro componente, com qualquer atributo
+ * (`@preconcurrency`, `@_exported`, `@testable`), modificador de acesso (`public
+ * import`) ou tipo (`import struct X.Y`) na frente, e também depois de `;`.
+ */
+function importsSwift(src: string): string[] {
+  const codigo = codigoSwift(src);
+  const re = new RegExp(
+    '(?:^|;)[ \\t]*(?:(?:@\\w+(?:\\([^)]*\\))?|public|package|internal|fileprivate|private)[ \\t]+)*' +
+      // O nome pode vir entre crases (`import \`Foo\``): é o mesmo módulo.
+      'import[ \\t]+(?:(?:typealias|struct|class|enum|protocol|let|var|func)[ \\t]+)?`?([A-Za-z_]\\w*)`?',
+    'gm',
+  );
+  return [...codigo.matchAll(re)].map((m) => m[1]);
+}
+
+/** Os imports fora da lista permitida. */
+function importsProibidosNaPonte(src: string): string[] {
+  return importsSwift(src).filter((m) => !IMPORTS_PERMITIDOS_NA_PONTE.has(m));
+}
+
+/**
+ * A prova de que os dois detectores veem — pelas mesmas funções que as guardas chamam,
+ * sobre fontes de mentira: o enum inteiro passa; o que perde um valor, ganha um, repete
+ * um, esquece o valor explícito ou só existe num comentário reprova; o import proibido
+ * é achado com atributo, modificador e depois de `;`, e não é achado em comentário nem
+ * em string de várias linhas.
+ */
+function provarOsDetectoresDaPonte(): void {
+  const enumDe = (casos: string) => `import Foundation\n\nenum ClasseDeFalha: String, Encodable {\n${casos}\n}\n`;
+  const SETE = [
+    'case indisponivel = "indisponivel"',
+    'case capacidade = "capacidade"',
+    'case janela = "janela"',
+    'case guarda = "guarda"',
+    'case recusaDoModelo = "recusa-do-modelo"',
+    'case saidaInvalida = "saida-invalida"',
+    'case transitoria = "transitoria"',
+  ];
+  const bom = enumDe(SETE.map((c) => `  ${c}`).join('\n'));
+  assert.deepEqual(problemasDoEnumDeClasses(bom), [], 'o detector do enum reprovou o enum certo');
+  // Vários casos numa linha, com método aninhado que tem `case` próprio: continua certo.
+  const numaLinha = enumDe(
+    '  case indisponivel = "indisponivel", capacidade = "capacidade", janela = "janela"\n' +
+      '  case guarda = "guarda"; case recusaDoModelo = "recusa-do-modelo"\n' +
+      '  case saidaInvalida = "saida-invalida"\n  case transitoria = "transitoria"\n' +
+      '  var recua: Bool { switch self { case .indisponivel, .capacidade: return true\n default: return false } }',
+  );
+  assert.deepEqual(problemasDoEnumDeClasses(numaLinha), [], 'o detector do enum reprovou casos numa linha');
+
+  const reprova: readonly (readonly [string, string, RegExp])[] = [
+    ['perde um valor', enumDe(SETE.slice(1).join('\n')), /falta\(m\) no enum: indisponivel/],
+    ['ganha um valor', enumDe([...SETE, 'case outra = "outra"'].join('\n')), /o fio não tem: outra/],
+    ['grafia errada', enumDe(SETE.map((c) => c.replace('"recusa-do-modelo"', '"recusaDoModelo"')).join('\n')), /falta/],
+    ['sem valor explícito', enumDe([...SETE.slice(0, 6), 'case transitoria'].join('\n')), /não tem valor bruto explícito/],
+    ['repete', enumDe([...SETE, 'case outraJanela = "janela"'].join('\n')), /repetido: janela/],
+    ['sem String', bom.replace(': String, Encodable', ': Encodable'), /não tem String como tipo bruto/],
+    ['só no comentário', `// enum ClasseDeFalha: String { case a = "a" }\n/* enum ClasseDeFalha: String {} */\n`, /não declara/],
+    ['duas vezes', `${bom}\n${bom}`, /2 vezes/],
+  ];
+  for (const [nome, fonte, esperado] of reprova) {
+    const achado = problemasDoEnumDeClasses(fonte);
+    assert.ok(achado.some((p) => esperado.test(p)), `o detector do enum não viu "${nome}": ${JSON.stringify(achado)}`);
+  }
+
+  const importa: readonly (readonly [string, string, readonly string[]])[] = [
+    ['os dois permitidos', 'import Foundation\nimport FoundationModels\n', []],
+    ['a cola do Expo', 'import Foundation\nimport ExpoModulesCore\n', ['ExpoModulesCore']],
+    ['com atributo', '@preconcurrency import Combine\n', ['Combine']],
+    ['com acesso', 'public import UIKit\n', ['UIKit']],
+    ['de um tipo', 'import struct Network.NWPath\n', ['Network']],
+    ['depois de ;', 'import Foundation; import UIKit\n', ['UIKit']],
+    ['entre crases', 'import `Foundation`\nimport `ExpoModulesCore`\n', ['ExpoModulesCore']],
+    ['no comentário', '// import ExpoModulesCore\n/* import UIKit /* aninhado */ import Combine */\nimport Foundation\n', []],
+    ['na string de várias linhas', 'let s = """\nimport ExpoModulesCore\n"""\nimport Foundation\n', []],
+  ];
+  for (const [nome, fonte, esperado] of importa) {
+    assert.deepEqual(importsProibidosNaPonte(fonte), esperado, `o detector de import leu errado "${nome}"`);
+  }
+}
+
+check('BARREIRA — Engine.swift declara as sete classes do fio, com valor bruto explícito (AD-10 (3))', () => {
+  provarOsDetectoresDaPonte();
+  assert.ok(
+    existsSync(ENGINE_SWIFT),
+    `${relativoARaiz(ENGINE_SWIFT)} sumiu — a guarda (3) ficou sem alvo. A ponte do aparelho é esse arquivo ` +
+      '(AD-3); se ele mudou de lugar, aponte ENGINE_SWIFT para o novo.',
+  );
+  const problemas = problemasDoEnumDeClasses(readFileSync(ENGINE_SWIFT, 'utf8'));
+  assert.deepEqual(
+    problemas,
+    [],
+    `o enum ClasseDeFalha de ${relativoARaiz(ENGINE_SWIFT)} não é CLASSES_DE_FALHA: ${problemas.join('; ')}.\n` +
+      '  A ponte e o núcleo têm de falar as mesmas sete classes, com a grafia do fio (ia/fio.ts): uma classe ' +
+      'que o núcleo não conhece vira transitoria não mapeada, e uma que a ponte não tem nunca é dita.',
+  );
+});
+
+check('BARREIRA — Engine.swift só importa Foundation e FoundationModels (AD-10 (4))', () => {
+  assert.ok(existsSync(ENGINE_SWIFT), `${relativoARaiz(ENGINE_SWIFT)} sumiu — a guarda (4) ficou sem alvo.`);
+  const src = readFileSync(ENGINE_SWIFT, 'utf8');
+  // Não-vácua: o detector acha os dois imports que o arquivo tem de ter.
+  const todos = importsSwift(src);
+  assert.ok(
+    todos.includes('Foundation') && todos.includes('FoundationModels'),
+    `o detector não achou os imports de ${relativoARaiz(ENGINE_SWIFT)} (${JSON.stringify(todos)}) — ou o arquivo ` +
+      'deixou de importá-los, ou a leitura quebrou e a guarda passaria sobre nada.',
+  );
+  const proibidos = importsProibidosNaPonte(src);
+  assert.deepEqual(
+    proibidos,
+    [],
+    `${relativoARaiz(ENGINE_SWIFT)} importa ${proibidos.join(', ')}. A ponte importa só ` +
+      `${[...IMPORTS_PERMITIDOS_NA_PONTE].join(' e ')} (AD-3): a cola do Expo mora em outro arquivo, e modelo ` +
+      'de servidor não entra pela porta do aparelho — se vier, é nuvem:, com regime e lista do servidor.',
+  );
+});
+
+/**
+ * BARREIRA — o contrato entre as duas línguas (story 5.10).
+ *
+ * A ponte escreve `RespostaDoFio`/`FalhaDoFio` em Swift e o núcleo as lê em TypeScript
+ * (`ia/aparelho.ts`); o núcleo escreve o `Pedido` e a ponte o lê em `PedidoDoFio`. Nenhum
+ * compilador vê os dois lados. Um campo renomeado de um lado só não quebra build nenhum:
+ * a resposta chega sem o campo, e o núcleo a trata como fora do contrato — uma coluna
+ * inteira de `transitoria` sem ninguém entender por quê.
+ *
+ * Então a guarda lê os campos armazenados (`let`/`var`, sem `static`) de cada struct no
+ * `Engine.swift` e exige a **igualdade** com as listas que `ia/aparelho.ts` exporta — as
+ * mesmas que `traduzirDoAparelho` usa para ler (o compilador não a deixa ler outra chave).
+ * No pedido, as chaves do `Pedido` mais a versão do descritor; e a lista de chaves que a
+ * ponte aceita (a `static let chaves`, que recusa a desconhecida) tem de ser a mesma.
+ */
+function camposDaStruct(src: string, nome: string): string[] | null {
+  const codigo = codigoSwift(src);
+  const achados = [...codigo.matchAll(new RegExp(`\\bstruct[ \\t]+${nome}\\b[^{]*\\{`, 'g'))];
+  if (achados.length !== 1) return null;
+  const [m] = achados;
+  const corpo = corpoRaso(codigo, m.index! + m[0].length - 1);
+  if (corpo === null) return null;
+  const CAMPO = /(?:^|[;\n])[ \t]*(?:@\w+(?:\([^)]*\))?[ \t]+)*(?:(?:public|package|internal|fileprivate|private)(?:\(set\))?[ \t]+)*(?:let|var)[ \t]+`?([A-Za-z_]\w*)`?/g;
+  return [...corpo.matchAll(CAMPO)].map((x) => x[1]);
+}
+
+/** As strings do `static let chaves` de uma struct — a lista que a ponte aceita no JSON. */
+function chavesAceitas(src: string, nome: string): string[] | null {
+  const codigo = codigoSwift(src);
+  const achados = [...codigo.matchAll(new RegExp(`\\bstruct[ \\t]+${nome}\\b[^{]*\\{`, 'g'))];
+  if (achados.length !== 1) return null;
+  const [m] = achados;
+  const corpo = corpoRaso(codigo, m.index! + m[0].length - 1);
+  const lista = corpo === null ? null : /\bstatic[ \t]+let[ \t]+chaves\b[^=]*=[ \t]*\[([^\]]*)\]/.exec(corpo);
+  return lista ? [...lista[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => x[1]) : null;
+}
+
+/** Os problemas do contrato num fonte Swift, contra as listas do núcleo. */
+function problemasDoContrato(src: string): string[] {
+  const ordenado = (xs: readonly string[]) => [...xs].sort();
+  const esperado: readonly (readonly [string, readonly string[]])[] = [
+    ['RespostaDoFio', CHAVES_DA_RESPOSTA],
+    ['FalhaDoFio', CHAVES_DA_FALHA],
+    ['TokensDoFio', CHAVES_DOS_TOKENS],
+    ['PedidoDoFio', [...CHAVES_DO_PEDIDO, CHAVE_DA_VERSAO]],
+  ];
+  const problemas: string[] = [];
+  for (const [struct, chaves] of esperado) {
+    const campos = camposDaStruct(src, struct);
+    if (campos === null) {
+      problemas.push(`não achei \`struct ${struct}\` (uma vez só)`);
+      continue;
+    }
+    const faltam = chaves.filter((k) => !campos.includes(k));
+    const sobram = campos.filter((c) => !chaves.includes(c));
+    if (faltam.length > 0) problemas.push(`${struct} não tem ${faltam.join(', ')}`);
+    if (sobram.length > 0) problemas.push(`${struct} tem ${sobram.join(', ')}, que o núcleo não lê`);
+  }
+  const aceitas = chavesAceitas(src, 'PedidoDoFio');
+  const campos = camposDaStruct(src, 'PedidoDoFio');
+  if (aceitas === null) problemas.push('PedidoDoFio não declara `static let chaves` — a chave desconhecida não seria recusada');
+  else if (campos !== null && JSON.stringify(ordenado(aceitas)) !== JSON.stringify(ordenado(campos))) {
+    problemas.push(`PedidoDoFio aceita ${JSON.stringify(ordenado(aceitas))} e declara ${JSON.stringify(ordenado(campos))}`);
+  }
+  return problemas;
+}
+
+function provarODetectorDoContrato(): void {
+  const fonte = (resposta: string, pedidoCampos: string, aceitas: string) =>
+    [
+      'struct TokensDoFio: Encodable { let entrada: Int\n let saida: Int }',
+      `struct RespostaDoFio: Encodable {\n${resposta}\n  static let exemplo = 1\n  var calculado: Int { 0 }\n}`,
+      'struct FalhaDoFio: Encodable {\n  let classe: ClasseDeFalha\n  let detalhe: String?\n  let naoMapeado: Bool?\n}',
+      `struct PedidoDoFio: Decodable {\n${pedidoCampos}\n  static let chaves: Set<String> = [${aceitas}]\n` +
+        '  struct SaidaDoFio: Decodable { let tipo: String\n let esquema: Int? }\n' +
+        '  init(from d: any Decoder) throws { let c = 1; self.sistema = "" }\n}',
+    ].join('\n');
+  const resposta = ['texto', 'provedor', 'modelo', 'plataforma', 'buildDoSistema', 'tokens'].map((k) => `  let ${k}: String`).join('\n');
+  const pedido = ['sistema', 'usuario', 'amostragem', 'guardrails', 'saida', 'versaoDoDescritor'].map((k) => `  let ${k}: String`).join('\n');
+  const aceitas = '"sistema", "usuario", "amostragem", "guardrails", "saida", "versaoDoDescritor"';
+  // `var calculado { … }` conta como campo — e reprova, de propósito: a resposta não tem campo que o núcleo não lê.
+  const semCalculado = (x: string) => x.replace('  var calculado: Int { 0 }\n', '');
+  assert.deepEqual(problemasDoContrato(semCalculado(fonte(resposta, pedido, aceitas))), [], 'o detector do contrato reprovou o contrato certo');
+  const casos: readonly (readonly [string, string, RegExp])[] = [
+    ['campo a menos', semCalculado(fonte(resposta.replace('  let tokens: String', ''), pedido, aceitas)), /RespostaDoFio não tem tokens/],
+    ['campo renomeado', semCalculado(fonte(resposta.replace('buildDoSistema', 'build'), pedido, aceitas)), /não tem buildDoSistema.*|tem build,/],
+    ['campo a mais no pedido', semCalculado(fonte(resposta, `${pedido}\n  let temperatura: Double`, aceitas)), /PedidoDoFio tem temperatura/],
+    ['aceitas divergentes', semCalculado(fonte(resposta, pedido, '"sistema", "usuario"')), /PedidoDoFio aceita/],
+    ['struct sumida', semCalculado(fonte(resposta, pedido, aceitas)).replace('struct FalhaDoFio', 'struct OutraCoisa'), /não achei `struct FalhaDoFio`/],
+    ['campo calculado a mais', fonte(resposta, pedido, aceitas), /RespostaDoFio tem calculado/],
+  ];
+  for (const [nome, src, esperado] of casos) {
+    const achado = problemasDoContrato(src);
+    assert.ok(achado.some((p) => esperado.test(p)), `o detector do contrato não viu "${nome}": ${JSON.stringify(achado)}`);
+  }
+}
+
+check('BARREIRA — os campos do fio no Engine.swift são as chaves que o núcleo lê e escreve (story 5.10)', () => {
+  provarODetectorDoContrato();
+  assert.ok(existsSync(ENGINE_SWIFT), `${relativoARaiz(ENGINE_SWIFT)} sumiu — a guarda do contrato ficou sem alvo.`);
+  const problemas = problemasDoContrato(readFileSync(ENGINE_SWIFT, 'utf8'));
+  assert.deepEqual(
+    problemas,
+    [],
+    `o contrato entre ${relativoARaiz(ENGINE_SWIFT)} e ia/aparelho.ts divergiu: ${problemas.join('; ')}.\n` +
+      '  Renomear um campo de um lado só não quebra build nenhum — a resposta chega sem ele, e a coluna ' +
+      'inteira do aparelho sai transitoria. Mude os dois lados juntos.',
+  );
+});
+
+/**
+ * BARREIRA — a sonda de fidelidade só em `scripts/` (AD-7, story 5.10).
+ *
+ * A sonda pede ao motor que **escolha** a dimensão — exatamente o que a AD-7 proíbe em
+ * produto (o motor nunca decide). Ela é descritor, então a guarda (7) a deixa passar por
+ * nome; esta fecha o que falta: `descritorDaSondaDaSaude` nunca aparece no código de
+ * `mobile/src` nem de `web/src` — nem pelo nome, nem por import profundo de `sleep/sonda`.
+ * É da bancada, que mede, e de mais ninguém.
+ */
+const NOME_DA_SONDA = 'descritorDaSondaDaSaude';
+const CAMINHO_DA_SONDA = /(['"`])[^'"`]*\bsleep\/sonda(?:\.[mc]?[jt]sx?)?\1/;
+
+function tocamASonda(arquivos: readonly string[], raiz: string = ROOT): string[] {
+  const peloNome = new Set(citamNoCodigo(NOME_DA_SONDA, arquivos, raiz));
+  for (const f of arquivos) {
+    if (CAMINHO_DA_SONDA.test(semComentario(readFileSync(f, 'utf8')))) peloNome.add(relativoARaiz(f, raiz));
+  }
+  return [...peloNome].sort();
+}
+
+check('BARREIRA — a sonda de fidelidade só em scripts/, nunca nos apps (AD-7)', () => {
+  const apps = [...mobileFiles, ...webFiles].filter((f) => !ehTeste(f));
+  assert.ok(apps.length > 0, 'mobile/src ou web/src sumiu — a barreira da sonda ficou sem alvo');
+  // Não-vácua: a bancada a usa — senão o nome mudou e esta guarda procura o que não existe.
+  assert.ok(tocamASonda(scriptFiles).length > 0, `nenhum arquivo de scripts/ usa ${NOME_DA_SONDA} — o nome mudou?`);
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-sonda-'));
+  try {
+    const casos: readonly (readonly [string, string, boolean])[] = [
+      ['pelo-barril.ts', `import { ${NOME_DA_SONDA} } from '@vitale/shared';\nexport const d = ${NOME_DA_SONDA};`, true],
+      ['profundo.ts', "import { descritorDaSonda as d } from '@vitale/shared/src/sleep/sonda';\nexport { d };", true],
+      ['dinamico.ts', "export const p = import('../../packages/shared/src/sleep/sonda.ts');", true],
+      ['comentario.ts', `// ${NOME_DA_SONDA} só no comentário\nexport const x = 1;`, false],
+      ['leitura.ts', "import { descritorDaSaudeDoSono } from '@vitale/shared';\nexport const d = descritorDaSaudeDoSono;", false],
+    ];
+    for (const [nome, fonte, deveAchar] of casos) {
+      const arquivo = join(dir, nome);
+      writeFileSync(arquivo, `${fonte}\n`);
+      assert.equal(tocamASonda([arquivo], dir).length > 0, deveAchar, `o detector da sonda leu errado ${nome}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  const fora = tocamASonda(apps);
+  assert.deepEqual(
+    fora,
+    [],
+    `a sonda de fidelidade apareceu num app: ${fora.join(', ')}. Ela pede ao motor que escolha a ` +
+      'dimensão — o que a AD-7 proíbe em produto. É ferramenta de medição da bancada (scripts/).',
+  );
+});
+
+/**
  * BARREIRA — `Motor` não se reexporta com outro nome (AD-1).
  *
  * A porta é uma só, e o nome dela também. Um `export { Motor as Narrador }` é a
@@ -1858,8 +2274,9 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
  * a sequência pedido → modelo → conferência por conta própria — exatamente a
  * segunda sequência que o orquestrador existe para não haver. Fora de
  * `packages/shared`, do núcleo de IA se importam a porta (`fio`, `motor`,
- * `orquestrar`, `nuvem`, `recursos`, e desde a 1.10 `imprimir`, a sequência da
- * impressão) e os descritores (nomes `descritor*`).
+ * `orquestrar`, `nuvem`, `recursos`, desde a 1.10 `imprimir`, a sequência da
+ * impressão, e desde a 5.10 `aparelho`, o motor do aparelho) e os descritores (nomes
+ * `descritor*`).
  *
  * Conta só import **de valor**: `import type` e `type X` ficam de fora, porque
  * tipo não sequencia nada — e contá-los faria a guarda nascer em 3 (o cartão e
@@ -1908,8 +2325,13 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
  *             descritor com a conferência trocada, e é esta guarda que reprova. A barreira tem
  *             caso-espelho: fixtures num diretório temporário, pelo mesmo
  *             detector, provam que um `montarPacotes` importado num app reprova.
+ *   0 (5.10) — `aparelho` (`ia/aparelho.ts`) entra em `PORTA_DE_IA`: é o motor do
+ *             aparelho, no molde de `nuvem` — o hospedeiro injeta o transporte e
+ *             recebe a porta. Não monta pedido nem confere nada. A sonda de fidelidade
+ *             (`sleep/sonda.ts`) não pede lista nenhuma: é descritor, e todo nome com
+ *             prefixo `descritor` já é livre.
  */
-const PORTA_DE_IA = new Set(['fio', 'motor', 'orquestrar', 'nuvem', 'recursos', 'imprimir']);
+const PORTA_DE_IA = new Set(['fio', 'motor', 'orquestrar', 'nuvem', 'aparelho', 'recursos', 'imprimir']);
 /** O que a tela chama das peças de `sleep/`: a entrada, não a leitura. */
 const LIVRES_DE_SONO = new Set(['entradaDaSaude']);
 /**
@@ -2122,6 +2544,10 @@ check('BARREIRA — fora do núcleo, do núcleo de IA só a porta e os descritor
   // de ia/, e as peças que a 1.10 tirou do app continuam no conjunto.
   assert.ok(nomes.has('montarPacotes') && nomes.has('verificarTexto'), 'as peças de ia/pacote e ia/verificar sumiram do conjunto');
   assert.ok(!nomes.has('imprimir'), '`imprimir` contou como peça — ia/imprimir tem de estar em PORTA_DE_IA');
+  assert.ok(
+    !nomes.has('criarMotorDoAparelho'),
+    '`criarMotorDoAparelho` contou como peça — ia/aparelho tem de estar em PORTA_DE_IA, como ia/nuvem',
+  );
   assert.ok(!nomes.has('periodoFechado'), '`periodoFechado` voltou para ia/ — ele mora em period/fechado.ts');
   assert.ok(
     nomes.has('imprimirCom'),

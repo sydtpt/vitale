@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 01:40
+last_updated: 19-09-2026 10:14
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -274,4 +274,44 @@ development_status:
   # ▼ PRÓXIMA SPRINT (F4–F5). Estão aqui para aparecer no quadro, não para começar.
   5-7-o-nome-de-rota-pela-porta: backlog
   5-8-core-ai: backlog
+  # 5.9 REABERTA em 17/09/2026: é o marco B que saiu da 5.5 "por desenho"
+  # quando ela fechou em 16/09 (commit 6bcb3fc) — ninguém tinha story própria
+  # pra ele. Os portões de SO que o bloqueavam (macOS 27, Xcode 27, iPhone no
+  # 27) estão confirmados nesta máquina: xcodebuild 27.0 (build 27A266a),
+  # Swift 6.4, macOS 27.0. Sem risco aberto na espinha da arquitetura — ao
+  # contrário da 5.8/Core AI, que segue com 4 riscos não resolvidos no
+  # Deferred (licença/abordagem indecisa entre alvo mínimo iOS 27, vendorizar
+  # apple/coreai-models ou conformidade própria; Xcode 27 fora da imagem EAS
+  # da SDK 57 — só build local; memória por tamanho; pesos sem guardrail da
+  # Apple num recurso de saúde) e por isso NÃO foi reaberta junto.
+  # Worktree life-organizer-wt-revista-1-13 (a de node_modules e iOS já
+  # instalados; a wt-motores-5-9 vazia foi removida em 19/09), branch
+  # feat/motores-5-9.
+  # GUARDA DE COLISÃO: checado em 17/09 — nenhum arquivo da 1.13 (em
+  # construção, worktree própria) toca ia/, motores/ nem
+  # mobile/modules/on-device-engine/. Dois pontos de contato reais: (1)
+  # packages/shared/src/ia/motor.ts e orquestrar.ts, que a 1.10 (já done) já
+  # importa pela porta única — só adicionar, nunca mudar a assinatura
+  # existente; (2) BUILD PRÓPRIO já exigido pela story original (nunca o
+  # mesmo de uma migração) — estende-se a nunca compartilhar build/instalação
+  # no iPhone com outra story rodando em paralelo, pelo mesmo motivo da AD-15.
+  5-9-a-ponte-swift-on-device-engine: backlog
+  # 5.10 SEPARADA DA 5.9 em 19/09/2026, por decisão do dono, e ENTRA ANTES DELA
+  # (a ordem do épico: F1 mede antes de F2 ligar). É a metade do Mac do marco B:
+  # nasce o Engine.swift, a CLI Swift o compila sem cópia, as guardas (3) e (4)
+  # nascem com ele, e a bancada ganha a coluna do aparelho e a sonda de
+  # fidelidade — o relatório que o dono lê antes de a 5.9 gastar build. A 5.9
+  # fica com a ponte no app (cola do Expo, motorPara, runtimeVersion, a amostra
+  # de 20 pedidos por hash no iPhone). Número novo para não renomear a #515.
+  # CONSTRUÍDA em 19/09/2026 — Engine.swift nasceu (fora do app, sem ser
+  # linkado), a CLI local o compila sem cópia, a bancada ganhou a coluna do
+  # aparelho, a sonda (descritor) e as quatro medidas da ADR 0050 sem veredito.
+  # Revisão em 3 camadas: 24 patches, sem loopback. Falta o dono ler o relatório
+  # da medição real (acervo de 12/09) — é ele que decide se a 5.9 vale o build.
+  # FECHADA em 19/09/2026 com a decisão do dono sobre o relatório: aparelho 3 de
+  # 22 (13,6%), mediana 1,6 s, reprovando pela FORMA (rótulo e dois-pontos, mais
+  # de uma frase, número por extenso, marcador ausente); sonda 12 de 12. A 5.9
+  # não vale o build ainda — antes, uma story curta ajusta o pedido da Saúde
+  # para modelo pequeno e mede de novo as duas colunas (opção A dele).
+  5-10-a-coluna-do-aparelho-na-bancada: done
   epic-5-retrospective: optional

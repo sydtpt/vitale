@@ -10,4 +10,10 @@ expo-env.d.ts
 
 # Native iOS — CNG (config plugin, ADR 0012): gerado por `expo prebuild`, não versionado.
 ios/
+# …menos o `ios/` da ponte do aparelho (story 5.10): `modules/on-device-engine` é Swift
+# nosso, escrito à mão — é fonte, não saída do prebuild. Sem esta linha o `Engine.swift`
+# some do git em silêncio: a guarda (3) passa na máquina de quem o escreveu e reprova em
+# qualquer clone. Só este módulo: outro `ios/` que aparecer em `modules/` continua ignorado
+# até alguém decidir que ele também é fonte.
+!/modules/on-device-engine/ios/
 *.xcuserstate

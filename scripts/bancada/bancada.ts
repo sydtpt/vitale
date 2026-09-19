@@ -1,5 +1,5 @@
 /**
- * A bancada — o executável (story 5.4, marco A).
+ * A bancada — o executável (story 5.4, marco A; a coluna do aparelho e a sonda, story 5.10).
  *
  *     pnpm --filter @vitale/scripts exec tsx bancada/bancada.ts --ajuda
  *
@@ -23,11 +23,16 @@
  *
  * **O limiar do portão não está aqui.** Nenhum número deste arquivo aprova motor,
  * fixa nota de corte ou recomenda padrão: isso é do dono, lendo o relatório.
+ *
+ * **O aparelho não é pago e não abre rede** (5.10). `--motor aparelho:sistema` compila
+ * (se precisar) e roda a CLI Swift local sobre `Engine.swift` — com ou sem credencial,
+ * inclusive pelo caminho de `--export`. Ele não entra na conta do gasto nem no teto de
+ * chamadas, que são da nuvem.
  */
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { platform, release } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
-import { SEM_MODELO, isValidDate, lerMotorId, localDateStr, type MotorId } from '@vitale/shared';
+import { APARELHO_SISTEMA, SEM_MODELO, isValidDate, lerMotorId, localDateStr, type MotorId } from '@vitale/shared';
 import {
   ARQUIVO_DO_MANIFESTO,
   conferirAcervoContraManifesto,
@@ -43,8 +48,15 @@ import {
   passosPorAlcance,
   type JanelaClassificada,
 } from './janelas.ts';
-import { RECURSO, VERSAO_DO_DESCRITOR, medir } from './medir.ts';
-import { PRAZO_MS, SEM_NENHUM_MOTOR, motoresDaBancada } from './motores.ts';
+import { RECURSO, VERSAO_DA_SONDA, VERSAO_DO_DESCRITOR, medir, type ColunaPedida, type Dados, type Medido } from './medir.ts';
+import {
+  PRAZO_MS,
+  cliDaBancada,
+  motoresDaBancada,
+  novoRegistro,
+  type CliDoAparelho,
+  type RegistroDoHospedeiro,
+} from './motores.ts';
 import {
   compararRelatorios,
   hashCurto,
@@ -81,6 +93,7 @@ interface Bandeiras {
   readonly export: string | null;
   readonly comparar: readonly string[];
   readonly simGastar: boolean;
+  readonly sonda: boolean;
   readonly ajuda: boolean;
 }
 
@@ -88,9 +101,10 @@ interface Bandeiras {
 const BANDEIRAS = [
   { nome: '--hoje', arg: 'AAAA-MM-DD', ajuda: 'o dia local da leitura (padrão: hoje; com --export, o do manifesto)' },
   { nome: '--motor', arg: '<MotorId>', ajuda: 'uma coluna de modelo a mais (repetível, ou por vírgula)' },
-  { nome: '--limite', arg: '<n>', ajuda: `janelas por caso × alcance na amostra da nuvem (padrão ${LIMITE_DA_AMOSTRA})` },
+  { nome: '--limite', arg: '<n>', ajuda: `janelas por caso × alcance na amostra das colunas de modelo — nuvem e aparelho (padrão ${LIMITE_DA_AMOSTRA})` },
   { nome: '--so-exportar', arg: null, ajuda: 'exporta o acervo e o manifesto, e não mede' },
   { nome: '--export', arg: '<dir>', ajuda: 'mede sobre um export já em disco, sem abrir rede' },
+  { nome: '--sonda', arg: null, ajuda: 'roda também a sonda de fidelidade (o motor escolhe a dimensão) em cada coluna de modelo' },
   { nome: '--comparar', arg: '<a.json> <b.json>', ajuda: 'compara dois relatórios do mesmo manifesto e sai' },
   { nome: SIM, arg: null, ajuda: `confirma uma corrida acima de ${TETO_DE_CHAMADAS} chamadas de nuvem` },
   { nome: '--ajuda', arg: null, ajuda: 'mostra isto (também --help)' },
@@ -105,7 +119,8 @@ function ajuda(): string {
     ...BANDEIRAS.map((b) => `  ${rotulo(b).padEnd(largura)}  ${b.ajuda}`),
     '',
     'A coluna sem-modelo roda sempre e mede todas as janelas. Sem --motor, nenhuma',
-    'chamada de nuvem sai. O relatório carrega dado de saúde e fica fora do git.',
+    'chamada de nuvem sai. --motor aparelho:sistema compila e roda a CLI Swift local',
+    '(só no macOS): sem rede e sem custo. O relatório carrega dado de saúde e fica fora do git.',
   ].join('\n');
 }
 
@@ -127,6 +142,7 @@ export function lerBandeiras(argv: readonly string[]): Bandeiras {
   let soExportar = false;
   let doDisco: string | null = null;
   let simGastar = false;
+  let sonda = false;
   let pedeAjuda = false;
   const motores: MotorId[] = [];
   const comparar: string[] = [];
@@ -187,6 +203,10 @@ export function lerBandeiras(argv: readonly string[]): Bandeiras {
         umaVez(a);
         simGastar = true;
         break;
+      case '--sonda':
+        umaVez(a);
+        sonda = true;
+        break;
       case '--ajuda':
       case '--help':
         pedeAjuda = true;
@@ -200,7 +220,12 @@ export function lerBandeiras(argv: readonly string[]): Bandeiras {
   if (soExportar && motores.some((m) => m !== SEM_MODELO)) {
     throw new Error('--so-exportar não mede nada, então --motor não pode vir com ele');
   }
-  return { hoje, motores, limite, soExportar, export: doDisco, comparar, simGastar, ajuda: pedeAjuda };
+  if (sonda && soExportar) throw new Error('--so-exportar não mede nada, então --sonda não pode vir com ele');
+  // A sonda roda em cada coluna de modelo: sem nenhuma, o manifesto registraria uma sonda que não rodou.
+  if (sonda && !motores.some((m) => m !== SEM_MODELO)) {
+    throw new Error('--sonda roda em cada coluna de modelo, e nenhum --motor de modelo foi pedido');
+  }
+  return { hoje, motores, limite, soExportar, export: doDisco, comparar, simGastar, sonda, ajuda: pedeAjuda };
 }
 
 /* ── o destino ───────────────────────────────────────────────────────────── */
@@ -323,8 +348,116 @@ export function passoDoProgresso(total: number): number {
 }
 
 /** A execução é a padrão — a única que pode reescrever a linha de base versionada? */
-export function ehExecucaoPadrao(b: Pick<Bandeiras, 'soExportar' | 'limite' | 'motores' | 'export'>): boolean {
-  return !b.soExportar && b.limite === LIMITE_DA_AMOSTRA && b.motores.every((m) => m === SEM_MODELO);
+export function ehExecucaoPadrao(b: Pick<Bandeiras, 'soExportar' | 'limite' | 'motores' | 'export' | 'sonda'>): boolean {
+  return !b.soExportar && !b.sonda && b.limite === LIMITE_DA_AMOSTRA && b.motores.every((m) => m === SEM_MODELO);
+}
+
+/**
+ * O plano de uma corrida, a partir das bandeiras e das janelas — puro, e é o que a
+ * execução segue à risca: as colunas de modelo e a amostra de cada uma, se a sonda roda,
+ * o que custa, se exige o "sim" explícito, e o que avisar antes de começar.
+ *
+ * **Só a nuvem é paga**: é ela que entra na conta do gasto e no teto. O aparelho roda
+ * nesta máquina, sem rede e sem custo — conta só para o tempo, e só o `aparelho:sistema`,
+ * que é o único com motor aqui. Com a sonda, cada coluna pergunta de novo sobre as mesmas
+ * janelas; como ela só pergunta onde o caso nomeia, o número é **teto**.
+ *
+ * **A amostra é a mesma para todas as colunas de modelo**, aparelho inclusive: as colunas
+ * se comparam janela a janela, e a cobertura que a ADR 0050 lê é a da amostra. Por isso o
+ * `--limite` recorta o aparelho também, mesmo ele sendo de graça.
+ */
+export interface PlanoDaCorrida {
+  readonly colunas: readonly ColunaPedida[];
+  /** Janelas por coluna de modelo. */
+  readonly amostra: number;
+  readonly sonda: boolean;
+  readonly pagas: number;
+  readonly locais: number;
+  readonly exigeConfirmacao: boolean;
+  /** Há coluna `aparelho:sistema`: a CLI Swift tem de ser preparada. */
+  readonly precisaDaCli: boolean;
+  readonly avisos: readonly string[];
+}
+
+/** O id tem motor nesta bancada? A nuvem sempre (a credencial é exigida antes), o aparelho só o do sistema. */
+function temMotorAqui(m: MotorId): boolean {
+  const lido = lerMotorId(m);
+  return lido?.tipo === 'nuvem' || m === APARELHO_SISTEMA;
+}
+
+export function planoDaCorrida(
+  b: Pick<Bandeiras, 'motores' | 'limite' | 'sonda' | 'simGastar'>,
+  janelas: readonly JanelaClassificada[],
+): PlanoDaCorrida {
+  const deModelo = b.motores.filter((m) => m !== SEM_MODELO);
+  const amostra: readonly JanelaClassificada[] = deModelo.length > 0 ? amostraDaNuvem(janelas, b.limite) : [];
+  const porColuna = amostra.length * (b.sonda ? 2 : 1);
+  const pagas = deModelo.filter((m) => lerMotorId(m)?.tipo === 'nuvem').length * porColuna;
+  const locais = deModelo.filter((m) => m === APARELHO_SISTEMA).length * porColuna;
+  const avisos: string[] = [];
+  for (const m of deModelo.filter((x) => lerMotorId(x)?.tipo === 'aparelho' && x !== APARELHO_SISTEMA)) {
+    avisos.push(
+      `${m} não tem motor nesta bancada — a coluna sai inteira como tentativa sintética \`indisponivel\`, ` +
+        'sem chamada nenhuma (pesos nomeados entram pela linha `model:` da ponte, na F5).',
+    );
+  }
+  if (b.sonda && !deModelo.some(temMotorAqui)) {
+    avisos.push('--sonda foi pedida, mas nenhuma coluna de modelo tem motor nesta bancada — a sonda sai inteira sintética.');
+  }
+  return {
+    colunas: deModelo.map((motor) => ({ motor, janelas: amostra })),
+    amostra: amostra.length,
+    sonda: b.sonda,
+    pagas,
+    locais,
+    exigeConfirmacao: pagas > TETO_DE_CHAMADAS && !b.simGastar,
+    precisaDaCli: deModelo.includes(APARELHO_SISTEMA),
+    avisos,
+  };
+}
+
+/**
+ * A medição de um plano: prepara a CLI do aparelho (se houver) **fora do relógio**, mede,
+ * e encerra o processo vivo **sempre** — no `finally`, senão ele segura o Node e a corrida
+ * não termina nem com erro.
+ *
+ * Devolve também o compilador que fez a CLI, para o relatório da coluna do aparelho.
+ */
+export async function medirOPlano(a: {
+  readonly plano: PlanoDaCorrida;
+  readonly dados: Dados;
+  readonly hoje: string;
+  readonly janelas: readonly JanelaClassificada[];
+  readonly sessao: Parameters<typeof motoresDaBancada>[0];
+  readonly cli: CliDoAparelho | null;
+  readonly registro: RegistroDoHospedeiro;
+  readonly aoAndar?: Parameters<typeof medir>[0]['aoAndar'];
+  readonly avisar?: (m: string) => void;
+}): Promise<{ readonly medido: Medido; readonly compilador?: string }> {
+  const avisar = a.avisar ?? ((m: string) => process.stderr.write(`${m}\n`));
+  try {
+    // Compilar e abrir o processo fora do relógio da medição. Se não der, a coluna sai
+    // inteira `indisponivel`, com o motivo em cada linha — e as outras colunas seguem.
+    const preparo = a.cli ? await a.cli.preparar() : null;
+    if (preparo && !preparo.ok) avisar(`aviso: a coluna ${APARELHO_SISTEMA} vai sair indisponivel — ${preparo.motivo}`);
+    const medido = await medir({
+      dados: a.dados,
+      hoje: a.hoje,
+      janelas: a.janelas,
+      colunas: a.plano.colunas,
+      sonda: a.plano.sonda,
+      hospedeiro: {
+        // Sem sessão (o caminho de --export), a nuvem não tem motor; o aparelho, sim.
+        motorPara: motoresDaBancada(a.sessao, undefined, undefined, a.cli?.transporte, a.registro),
+        registro: a.registro,
+      },
+      ...(a.aoAndar ? { aoAndar: a.aoAndar } : {}),
+      avisar,
+    });
+    return { medido, ...(preparo?.ok && preparo.compilador !== undefined ? { compilador: preparo.compilador } : {}) };
+  } finally {
+    a.cli?.encerrar();
+  }
 }
 
 function gravarManifesto(dir: string, m: Manifesto, padrao: boolean): void {
@@ -456,9 +589,8 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
     process.stderr.write('o acervo não tem noite nenhuma até este dia — não há janela para medir.\n');
     return 1;
   }
-  const deModelo = b.motores.filter((m) => m !== SEM_MODELO);
-  const amostra: readonly JanelaClassificada[] = deModelo.length > 0 ? amostraDaNuvem(janelas, b.limite) : [];
-  const motores: readonly MotorId[] = [SEM_MODELO, ...deModelo];
+  const plano = planoDaCorrida(b, janelas);
+  const motores: readonly MotorId[] = [SEM_MODELO, ...plano.colunas.map((c) => c.motor)];
   const padrao = ehExecucaoPadrao(b);
 
   const manifesto = montarManifesto({
@@ -471,9 +603,10 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
       regra: 'recentes-por-caso-e-alcance',
       versaoDaRegra: VERSAO_DA_REGRA_DE_AMOSTRA,
       limite: b.limite,
-      janelas: amostra.length,
+      janelas: plano.amostra,
     },
     motores,
+    ...(b.sonda ? { sonda: { versaoDoDescritor: VERSAO_DA_SONDA } } : {}),
   });
   process.stdout.write(
     `janelas: ${manifesto.janelas.map((j) => `${j.range} ${j.passos}`).join(' · ')} (${janelas.length}) · ` +
@@ -486,15 +619,20 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
     return 0;
   }
 
-  /* O gasto, declarado antes da primeira chamada. */
-  const chamadas = deModelo.length * amostra.length;
-  if (deModelo.length > 0) {
+  /* O gasto, declarado antes da primeira chamada — e só a nuvem gasta. */
+  const { pagas, locais } = plano;
+  const ate = plano.sonda ? 'até ' : '';
+  if (plano.colunas.length > 0) {
     process.stdout.write(
-      `colunas de modelo: ${deModelo.join(', ')} · ${amostra.length} janelas cada (${chamadas} chamadas no total)\n`,
+      `colunas de modelo: ${plano.colunas.map((c) => c.motor).join(', ')} · ${plano.amostra} janelas cada` +
+        `${plano.sonda ? ', e a sonda sobre as mesmas' : ''}\n`,
     );
-    if (chamadas > TETO_DE_CHAMADAS && !b.simGastar) {
+    if (pagas > 0) process.stdout.write(`chamadas de nuvem, pagas: ${ate}${pagas}\n`);
+    if (locais > 0) process.stdout.write(`chamadas no aparelho, locais e sem custo: ${ate}${locais}\n`);
+    for (const aviso of plano.avisos) process.stderr.write(`aviso: ${aviso}\n`);
+    if (plano.exigeConfirmacao) {
       process.stderr.write(
-        `${chamadas} chamadas de nuvem passam do teto de ${TETO_DE_CHAMADAS}, e cada uma é paga.\n` +
+        `${pagas} chamadas de nuvem passam do teto de ${TETO_DE_CHAMADAS}, e cada uma é paga.\n` +
           `  Se é isso que você quer, repita com ${SIM}. Para medir menos, baixe o --limite.\n`,
       );
       return 1;
@@ -506,32 +644,30 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
     const aviso = avisoDeValidade({
       expiraEm: sessao.expiraEm,
       podeRenovar: sessao.podeRenovar,
-      chamadas,
+      // O tempo, não o gasto: a chamada local também passa no relógio do token.
+      chamadas: pagas + locais,
       prazoMs: PRAZO_MS,
       agora: new Date(),
     });
     if (aviso !== null) process.stderr.write(`aviso: ${aviso}\n`);
   }
 
-  // Pedir o aparelho neste hospedeiro não mede modelo nenhum: não há ponte aqui.
-  for (const m of deModelo.filter((x) => lerMotorId(x)?.tipo === 'aparelho')) {
-    process.stderr.write(
-      `aviso: ${m} não tem motor nesta bancada — a coluna inteira vai sair como tentativa sintética\n` +
-        '  `indisponivel`, sem chamada nenhuma. A coluna do aparelho é o marco B (macOS 27 + a ponte Swift).\n',
-    );
-  }
-
-  const medido = await medir({
+  // A CLI do aparelho só existe se a coluna foi pedida. Ela é compilada (se precisar) e
+  // aberta por `medirOPlano`, antes da primeira janela — e encerrada no fim, sempre.
+  const registro = novoRegistro();
+  const cli = plano.precisaDaCli ? cliDaBancada(registro, (m) => process.stderr.write(`${m}\n`)) : null;
+  const { medido, compilador } = await medirOPlano({
+    plano,
     dados: acervo.dados,
     hoje,
     janelas,
-    colunas: deModelo.map((motor) => ({ motor, janelas: amostra })),
-    hospedeiro: {
-      motorPara: sessao ? motoresDaBancada(sessao) : SEM_NENHUM_MOTOR,
-    },
-    aoAndar: ({ motor, feito, total }) => {
+    sessao,
+    cli,
+    registro,
+    aoAndar: ({ motor, feito, total, sonda }) => {
       const passo = passoDoProgresso(total);
-      if (feito === total || feito % passo === 0) process.stdout.write(`  ${motor}: ${feito}/${total}\n`);
+      const rotulo = sonda ? `${motor} (sonda)` : motor;
+      if (feito === total || feito % passo === 0) process.stdout.write(`  ${rotulo}: ${feito}/${total}\n`);
     },
   });
 
@@ -542,7 +678,9 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
     manifesto,
     geradoEm,
     pedidos: medido.pedidos,
-    colunas: medido.colunas,
+    colunas: medido.colunas.map((c) =>
+      c.motor === APARELHO_SISTEMA && compilador !== undefined ? { ...c, compilador } : c,
+    ),
   });
 
   // O instante entra no nome: duas rodadas do MESMO manifesto são exatamente o par
@@ -557,6 +695,11 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
     const a = c.agregados;
     const partes = Object.entries(a.porVeredito).filter(([, n]) => n > 0).map(([v, n]) => `${n} ${v}`);
     process.stdout.write(`  ${c.motor}: ${a.total} linhas — ${partes.join(' · ')}\n`);
+    if (c.sonda) {
+      const s = c.sonda.agregados;
+      const daSonda = Object.entries(s.porVeredito).filter(([, n]) => n > 0).map(([v, n]) => `${n} ${v}`);
+      process.stdout.write(`  ${c.motor} (sonda): ${s.total} linhas — ${daSonda.join(' · ')}\n`);
+    }
   }
   process.stdout.write(`pedidos distintos: ${relatorio.pedidos.length}\n`);
   process.stdout.write(`relatório: ${md}\n           ${json}\n`);

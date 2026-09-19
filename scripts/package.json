@@ -6,7 +6,8 @@
   "scripts": {
     "lint": "tsc --noEmit",
     "test": "F=$(find . -path ./node_modules -prune -o \\( -name '*.test.ts' -o -name '*.spec.ts' \\) -print); [ -n \"$F\" ] || { echo 'nenhum arquivo de teste em scripts/ — o portão ficou sem alvo' >&2; exit 1; }; printf '%s\\n' \"$F\" | xargs -r -n1 tsx",
-    "bancada": "tsx bancada/bancada.ts"
+    "bancada": "tsx bancada/bancada.ts",
+    "aparelho:testar": "tsx bancada/aparelho/testar.ts"
   },
   "engines": {
     "node": ">=22.0.0 <23"

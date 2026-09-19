@@ -5,12 +5,13 @@ O quarto workspace (`@vitale/scripts`). Roda no **Node**, não tem bundler, e é
 
 | Pasta | O que é |
 |---|---|
-| `bancada/` | A bancada dos motores (story 5.4): mede a leitura da Saúde do sono, motor por motor, sobre o acervo real |
+| `bancada/` | A bancada dos motores (story 5.4): mede a leitura da Saúde do sono, motor por motor, sobre o acervo real — e, desde a 5.10, o modelo do aparelho, por uma CLI Swift local (`bancada/aparelho/`) |
 | `github/` | As ferramentas em **Python** do quadro e da sprint. Ficam como estão — fora do `tsc` e do `pnpm test` |
 
 ```bash
-pnpm --filter @vitale/scripts lint   # tsc
-pnpm --filter @vitale/scripts test   # os testes, todos puros e sem rede
+pnpm --filter @vitale/scripts lint              # tsc
+pnpm --filter @vitale/scripts test              # os testes, todos puros e sem rede — nenhum chama swift
+pnpm --filter @vitale/scripts aparelho:testar   # a ponte Swift, sem modelo — local, fora do CI
 ```
 
 ## A bancada
@@ -57,6 +58,94 @@ pnpm --filter @vitale/scripts exec tsx bancada/bancada.ts --motor nuvem:padrao #
 Faltando qualquer coisa, a bancada **para antes de abrir rede**, diz o que falta e
 ensina os dois caminhos. A nuvem entra com **JWT de usuário**, nunca com chave de
 serviço; nada de credencial vai para disco nem para log.
+
+### A coluna do aparelho (story 5.10)
+
+`--motor aparelho:sistema` mede o modelo do próprio sistema — o que o iPhone vai usar na 5.9 —,
+**nesta máquina, sem rede e sem custo**. Funciona pelos dois caminhos de entrada, inclusive com
+`--export` e sem credencial nenhuma:
+
+```bash
+pnpm --filter @vitale/scripts exec tsx bancada/bancada.ts \
+  --export ~/Orbe-dados/sono-2026-09-12 --motor aparelho:sistema --sonda
+```
+
+**O que precisa estar de pé.** macOS 27 com Apple Intelligence ligado (abaixo do 26 a bancada nem
+compila: a coluna sai `indisponivel` com o motivo), e o Xcode do mesmo major do build de entrega
+(hoje, o 27 — `xcodebuild -version`). Mac e iPhone medem no mesmo major.minor; relatórios de
+versões diferentes não se somam. A coluna do aparelho diz no relatório qual `swiftc` compilou a CLI.
+
+**Como ela roda.** A ponte é um arquivo só, `mobile/modules/on-device-engine/ios/Engine.swift` —
+o mesmo que o app vai compilar. A bancada o compila **sem cópia**, com `swiftc` direto sobre ele e
+sobre `bancada/aparelho/main.swift` (sem `Package.swift`, sem symlink), para
+`bancada/aparelho/.build/aparelho`, que o git ignora. Compila antes da primeira janela, e de novo
+sempre que um dos fontes for mais novo que o binário **ou** o carimbo ao lado dele mudar — a versão
+do `swiftc` e os argumentos: trocar de Xcode recompila. Depois abre **um processo vivo** para a
+corrida inteira, espera ele dizer que nasceu (`{"pronto":true}`) e troca com ele uma linha por
+pedido, pareada por `id` (`{"id":n,"pedido":…}` → `{"id":n,"linha":…}`): a sessão do modelo é nova a
+cada pedido, mas o processo não — subir um por pedido mediria a carga, não o motor.
+
+**A primeira linha de cada processo é fria** — o modelo sobe nela. Ela conta como medida, mas fica
+fora da mediana, e o relatório diz quantas frias ficaram de fora. O mesmo vale para a primeira
+depois de um reinício por prazo.
+
+**O que pode dar errado, e como aparece.** Nada disso para a medição; vira a classe da linha:
+
+| O que houve | A linha diz |
+|---|---|
+| Apple Intelligence desligado, aparelho não elegível, modelo não pronto | `indisponivel`, com o motivo no detalhe |
+| a CLI não compila, o binário não abre ou morre ao nascer (`dyld`) | `indisponivel`, com a saída do `swiftc` ou do processo — a coluna inteira, sem tentar de novo |
+| o pedido não cabe na janela do modelo | `janela` |
+| o guardrail bloqueou, ou o modelo recusou | `guarda` / `recusa-do-modelo` |
+| a CLI não responde em 60 s | `transitoria`; o processo é morto e o próximo pedido abre outro |
+| a CLI cai no meio, ou responde com outro `id` | `transitoria`, com `naoMapeado`; o processo é encerrado |
+| um erro que a ponte não conhece (caso novo da Apple) | `transitoria`, com `naoMapeado` e o nome cru do erro |
+
+As falhas que a própria bancada fabrica — prazo, processo que caiu, protocolo, e na nuvem a falta de
+rede — são marcadas **do hospedeiro** e ficam fora da medida (abaixo).
+
+**A tabela erro → classe tem teste próprio**, que roda sem modelo:
+`pnpm --filter @vitale/scripts aparelho:testar`. Ele compila o `Engine.swift` junto com
+`bancada/aparelho/testes.swift` **com os mesmos argumentos da CLI** (`argumentosDoSwiftc`) e confere a
+tabela inteira, a conversão de esquema, o pedido estrito e o formato da linha. Não entra no
+`pnpm test` nem no CI — lá não há Swift. O processo da CLI é testado no `pnpm test` sem Swift: o
+Node faz o papel dela.
+
+**Não é pago.** O aparelho não entra na conta do gasto nem no teto de chamadas; a bancada declara
+as chamadas locais à parte.
+
+### A sonda de fidelidade (`--sonda`)
+
+Com `--sonda`, cada coluna de modelo roda também a sonda da AD-7, sobre as mesmas janelas: o motor
+recebe os **pontos** de cada dimensão medida e escolhe **uma**, por esquema de opções fechadas; a
+conferência aprova se a escolha está entre as que o código nomeia (`nomear` do caso). Ela só
+pergunta nos casos que nomeiam — `uma`, `duas` e `fora-do-empate`; nos outros a linha sai `mudo`,
+sem chamada, e não conta. As opções vêm numa ordem embaralhada por janela (a semente é o hash da
+janela, então o mesmo acervo dá o mesmo pedido): a posição não decide a escolha.
+
+A sonda é um **descritor** (`descritorDaSondaDaSaude`, em `sleep/sonda.ts`) e passa pelo mesmo
+orquestrador em modo `medicao`. Nunca entra no catálogo nem vira produto: ela existe para dizer se o
+motor **poderia** escolher a dimensão — hoje quem escolhe é sempre o código.
+
+Com a nuvem, a sonda também é paga: o gasto declarado conta o teto (todas as janelas da amostra), e
+os pontos das dimensões vão ao provedor junto com o pedido.
+
+### Como ler a coluna de um modelo
+
+Cada coluna de modelo abre com três blocos, antes do fecho por caso:
+
+- **Quem respondeu** — provedor, modelo, **plataforma e build do sistema**, como a resposta
+  assinou. Mais de uma assinatura na mesma coluna é aviso: o modelo mudou no meio, e as linhas não
+  se somam.
+- **As quatro medidas da ADR 0050** — com a regra da **janela medida** escrita ao lado: entra a
+  tentativa que chegou ao modelo; ficam fora, contadas à parte, a sintética, o defeito, o
+  `indisponivel` e a falha do hospedeiro. Aprovação = `ok` ÷ medidas; cobertura por caso × alcance,
+  com a presença na amostra **e** as aprovadas, noite e período separados; aprovadas idênticas ao
+  template; mediana das medidas não frias. **Sem limiar e sem veredito**: os números saem, a régua
+  está na ADR, e a comparação é sua.
+- **A sonda** (com `--sonda`) — um fecho que soma (acertos, escolha errada, fora das opções,
+  recusas, falhas, defeitos, mudas), os acertos ao lado do **acerto esperado ao acaso** (a soma de
+  nomeadas ÷ opções por pergunta medida), e a tabela com as opções, a escolha e a resposta certa.
 
 ### O caminho do token (preferido)
 
@@ -116,9 +205,10 @@ que a senha foi ignorada.
 |---|---|
 | `--hoje AAAA-MM-DD` | o dia local da leitura (padrão: hoje; com `--export`, o do manifesto) |
 | `--motor <MotorId>` | uma coluna de modelo a mais (repetível, ou por vírgula) |
-| `--limite <n>` | janelas por caso × alcance na amostra da nuvem (padrão 2 → até 28 chamadas) |
+| `--limite <n>` | janelas por caso × alcance na amostra das colunas de modelo — nuvem **e** aparelho (padrão 2 → até 28 por coluna). O aparelho é de graça e ainda assim é recortado: as colunas se comparam janela a janela, e a cobertura que a ADR 0050 lê é a da amostra |
 | `--so-exportar` | exporta o acervo e o manifesto, e não mede |
 | `--export <dir>` | mede sobre um export já em disco, sem abrir rede |
+| `--sonda` | roda também a sonda de fidelidade em cada coluna de modelo (exige um `--motor` de modelo) |
 | `--comparar a.json b.json` | compara dois relatórios do mesmo manifesto e sai |
 | `--sim-gastar-chamadas` | confirma uma corrida acima de 60 chamadas de nuvem |
 | `--ajuda` / `--help` | a lista acima, gerada do código |
@@ -136,6 +226,7 @@ não saem da máquina e não vão para lugar nenhum (AD-8/AD-11):
 | `sleep_periods.json`, `daily_ratings.json` | `bancada/saida/sono-<dia>/` (ignorado) ou o `--export <dir>` | **não** |
 | `relatorio-<hash>-<instante>.{json,md}` | o mesmo diretório | **não** |
 | `bancada/manifesto.json` | ao lado do código | **sim** — só contagens, datas e hashes |
+| `bancada/aparelho/.build/` | o binário da CLI do aparelho e o dos testes | **não** — saída do `swiftc`, refeita sob demanda |
 
 A bancada **recusa** gravar em qualquer diretório dentro de um repositório git (em
 qualquer clone ou worktree), menos `bancada/saida/`. Se você apontar `--export` para
@@ -169,9 +260,12 @@ próprio arquivo diz isso na primeira chave.
 - **Não reimplementa nada do núcleo**: ela chama `entradaDaSaude` e `ler`, e é o
   orquestrador que monta o pedido, confere e escreve a frase. O pedido da bancada é,
   pelo mesmo hash, o pedido que a tela vai montar.
-- **Não tem a coluna do aparelho.** `--motor aparelho:…` sai inteiro como tentativa
-  sintética `indisponivel`, sem chamada — a ponte Swift é o marco B (macOS 27), e a
-  bancada avisa antes de começar.
+- **Não mede pesos nomeados no aparelho.** Só `aparelho:sistema` tem motor; um
+  `aparelho:<provedor>/<pesos>` sai inteiro como tentativa sintética `indisponivel`, sem
+  chamada — a linha `model:` da ponte é a F5 (Core AI). A bancada avisa antes de começar,
+  e avisa também quando `--sonda` não tem coluna de modelo que rode.
+- **Não decide o portão.** As quatro medidas da ADR 0050 saem como números; nenhum código
+  as compara com a régua.
 - **Não mede o alcance `ano`.** O acervo cobre dois anos parciais, ambos
   `sem-contagem`; as outras quatro janelas do seletor cobrem o que há para ler. O
   rodapé do relatório registra isso.

@@ -7,8 +7,14 @@
  * cru que a paráfrase e o sinônimo que a conferência não pega se esconderiam.
  *
  * **A chave é `{ recurso, motor, sistema, manifesto }`.** A `versao` do sistema sai
- * de `os.release()`; no marco B é ela que vai distinguir a coluna do aparelho, cujo
- * modelo muda com o build do sistema.
+ * de `os.release()`. A coluna do aparelho, cujo modelo muda com o build do sistema,
+ * carrega além disso **quem assinou** cada resposta — a plataforma e o build que a
+ * ponte leu em execução (story 5.10) —, e o relatório mostra cada assinatura distinta:
+ * versões diferentes nunca se somam.
+ *
+ * **As quatro medidas da ADR 0050**, por coluna de modelo, e **sem limiar**: aprovação,
+ * cobertura por caso × alcance, aprovadas idênticas ao template e mediana por chamada.
+ * O número sai; a régua fica na ADR, e a comparação é do dono.
  *
  * **O manifesto é o que torna dois relatórios comparáveis**, e é o único arquivo
  * versionado da bancada: `hoje`, as janelas, o hash do export, a regra da amostra,
@@ -24,7 +30,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { AlcanceDaSaude, Desfecho, MotorId, ProblemaDaConferencia, RecursoId, SonoRange } from '@vitale/shared';
-import { CLASSES_DE_FALHA } from '@vitale/shared';
+import { CLASSES_DE_FALHA, SEM_MODELO } from '@vitale/shared';
 import type { CasoDaSaude, MotivoSemContagem } from '@vitale/shared';
 import { ALCANCES_MEDIDOS, type Janela } from './janelas.ts';
 
@@ -77,6 +83,12 @@ export interface CorpoDoManifesto {
   readonly janelas: readonly { readonly range: SonoRange; readonly passos: number }[];
   readonly amostra: AmostraDoManifesto;
   readonly motores: readonly MotorId[];
+  /**
+   * A sonda de fidelidade, quando pedida (`--sonda`, story 5.10). Ausente é "sem sonda" —
+   * e ausente não entra no hash (o JSON canônico omite `undefined`), então todo manifesto
+   * anterior à sonda continua com o mesmo hash.
+   */
+  readonly sonda?: { readonly versaoDoDescritor: number };
 }
 
 export interface Manifesto extends CorpoDoManifesto {
@@ -134,6 +146,19 @@ export function hashCurto(hash: string): string {
  */
 export type DesfechoDaLinha = Desfecho | 'template' | 'mudo';
 
+/**
+ * Quem respondeu, como a resposta assinou — sem o instante, que muda a cada linha. No
+ * aparelho é aqui que ficam a plataforma e o build do sistema, porque o modelo muda com
+ * eles (e medições de versões diferentes nunca se somam).
+ */
+export interface AssinaturaDaLinha {
+  readonly tipo: 'aparelho' | 'nuvem';
+  readonly provedor: string;
+  readonly modelo: string;
+  readonly plataforma?: string;
+  readonly buildDoSistema?: string;
+}
+
 export interface LinhaDoRelatorio {
   readonly range: SonoRange;
   readonly offset: number;
@@ -157,6 +182,49 @@ export interface LinhaDoRelatorio {
   readonly detalhe?: string;
   /** A pilha que o anel recolheu, quando houve defeito. */
   readonly pilha?: string;
+  /** Quem de fato respondeu — só quando uma resposta chegou. */
+  readonly assinatura?: AssinaturaDaLinha;
+  /** Servida por um processo recém-aberto: o modelo subiu nela. Conta como medida, fora da mediana. */
+  readonly frio?: true;
+  /** A falha foi fabricada pelo hospedeiro (prazo, processo que caiu, protocolo, rede), não pelo motor. */
+  readonly doHospedeiro?: true;
+}
+
+/**
+ * Uma linha da sonda de fidelidade (story 5.10): o motor escolheu uma dimensão entre as
+ * medidas, e a conferência a comparou com o que o código nomeia.
+ *
+ * `mudo` é a janela cujo caso não nomeia dimensão nenhuma — não houve pergunta, e a
+ * linha não conta. `esperado` é o `nomear` do caso: está na linha para o dono ler a
+ * escolha e a resposta certa lado a lado, e **não** decide nada — quem aprova é o
+ * `conferir` do descritor.
+ */
+export interface LinhaDaSonda {
+  readonly range: SonoRange;
+  readonly offset: number;
+  readonly alcance: AlcanceDaSaude;
+  readonly caso: CasoDaSaude['caso'];
+  readonly hashDoPedido: string;
+  readonly desfecho: DesfechoDaLinha;
+  readonly ms: number;
+  readonly tokens?: { readonly entrada: number; readonly saida: number };
+  readonly esperado: readonly string[];
+  /**
+   * As opções que o motor recebeu — as dimensões medidas. Aqui na ordem da contagem; a ordem
+   * embaralhada em que o pedido as deu está no próprio pedido, na seção dos pedidos.
+   */
+  readonly opcoes: readonly string[];
+  /** A dimensão que o motor escolheu, quando a resposta se leu. */
+  readonly escolha?: string;
+  /** O que o motor devolveu, cru — é o que se lê quando a resposta não se leu. */
+  readonly textoDoMotor?: string;
+  readonly problemas?: readonly ProblemaDaConferencia[];
+  readonly sintetica?: true;
+  readonly detalhe?: string;
+  readonly pilha?: string;
+  readonly assinatura?: AssinaturaDaLinha;
+  readonly frio?: true;
+  readonly doHospedeiro?: true;
 }
 
 /* ── os agregados ────────────────────────────────────────────────────────── */
@@ -244,7 +312,10 @@ function zerado(): Record<Veredito, number> {
   return out;
 }
 
-export function agregar(linhas: readonly LinhaDoRelatorio[]): Agregados {
+/** O que `agregar` lê de uma linha — a da coluna e a da sonda têm os três. */
+type LinhaAgregavel = Pick<LinhaDoRelatorio, 'desfecho' | 'caso' | 'problemas'>;
+
+export function agregar(linhas: readonly LinhaAgregavel[]): Agregados {
   const porVeredito = zerado();
   const porCaso = new Map<string, { total: number; porVeredito: Record<Veredito, number> }>();
   const porRegra = new Map<string, number>();
@@ -286,6 +357,201 @@ export function agregar(linhas: readonly LinhaDoRelatorio[]): Agregados {
   };
 }
 
+/* ── a janela medida, e as quatro medidas da ADR 0050 ────────────────────── */
+
+/**
+ * A regra **única** de "janela medida", a mesma na coluna e na sonda, escrita também no
+ * relatório ao lado dos números: entra a tentativa que **chegou ao modelo**. Ficam fora —
+ * e contadas à parte — a que nem chamou (template, muda), a sintética (o hospedeiro não
+ * entregou o motor), o `defeito` (bug nosso), o `indisponivel` (o motor não atendia) e a
+ * falha que o próprio hospedeiro fabricou (prazo, processo que caiu, protocolo, rede).
+ */
+export const REGRA_DA_JANELA_MEDIDA =
+  'Janela medida é a tentativa que chegou ao modelo. Ficam fora, contadas à parte: a sintética ' +
+  '(o hospedeiro não entregou o motor), o defeito (bug da bancada), o `indisponivel` (o motor não ' +
+  'atendia) e a falha que o próprio hospedeiro fabricou (prazo, processo que caiu, protocolo, rede). ' +
+  'A aprovação é `ok` ÷ medidas; a mediana é das medidas não frias — a fria é a primeira de um ' +
+  'processo novo, em que o modelo sobe.';
+
+/** Por que uma linha ficou fora da medida — ou `null`, se ela é medida. Nesta ordem de precedência. */
+export type ForaDaMedida = 'semChamada' | 'sintetica' | 'defeito' | 'indisponivel' | 'doHospedeiro';
+
+export const MOTIVOS_FORA_DA_MEDIDA: readonly ForaDaMedida[] = Object.freeze([
+  'semChamada', 'sintetica', 'defeito', 'indisponivel', 'doHospedeiro',
+]);
+
+export function foraDaMedida(l: {
+  readonly desfecho: DesfechoDaLinha;
+  readonly sintetica?: true;
+  readonly doHospedeiro?: true;
+}): ForaDaMedida | null {
+  if (l.desfecho === 'template' || l.desfecho === 'mudo') return 'semChamada';
+  if (l.sintetica) return 'sintetica';
+  if (l.desfecho === 'defeito') return 'defeito';
+  if (l.desfecho === 'indisponivel') return 'indisponivel';
+  if (l.doHospedeiro) return 'doHospedeiro';
+  return null;
+}
+
+function contagemFora(linhas: readonly Parameters<typeof foraDaMedida>[0][]): Record<ForaDaMedida, number> {
+  const out = { semChamada: 0, sintetica: 0, defeito: 0, indisponivel: 0, doHospedeiro: 0 };
+  for (const l of linhas) {
+    const f = foraDaMedida(l);
+    if (f) out[f] += 1;
+  }
+  return out;
+}
+
+/** Presença na amostra e aprovadas, num alcance. */
+export interface NaAmostra {
+  readonly amostra: number;
+  readonly aprovadas: number;
+}
+
+/**
+ * Os números que as quatro condições da ADR 0050 leem, numa coluna de modelo —
+ * **sem limiar e sem veredito**. Nenhum campo aqui diz "passa": a régua é do dono, e
+ * nenhum código a lê para decidir (ADR 0050, "nenhum código o lê").
+ *
+ *  1. aprovação — `ok` sobre as janelas **medidas** ({@link REGRA_DA_JANELA_MEDIDA});
+ *  2. cobertura — por caso × alcance, a presença na amostra **e** as aprovadas, noite e
+ *     período separados;
+ *  3. idênticas — as aprovadas cuja frase final é igual à do template;
+ *  4. mediana — do tempo por chamada, sobre as medidas não frias.
+ */
+export interface MedidasDoPortao {
+  /** As linhas da coluna — a amostra inteira. */
+  readonly janelas: number;
+  readonly medidas: number;
+  /** As que ficaram fora da medida, por motivo — a soma com `medidas` fecha em `janelas`. */
+  readonly foraDaMedida: Readonly<Record<ForaDaMedida, number>>;
+  readonly aprovadas: number;
+  readonly cobertura: readonly {
+    readonly caso: CasoDaSaude['caso'];
+    readonly noite: NaAmostra;
+    readonly periodo: NaAmostra;
+  }[];
+  readonly identicasAoTemplate: number;
+  /** Em ms, das medidas não frias. `null` quando não sobrou nenhuma. */
+  readonly medianaMs: number | null;
+  /** Quantas medidas entraram na mediana. */
+  readonly naMediana: number;
+  /** As medidas frias — fora da mediana, e ditas. */
+  readonly frias: number;
+}
+
+/** A mediana — a média dos dois do meio, numa lista par. `null` na vazia. */
+export function mediana(xs: readonly number[]): number | null {
+  if (xs.length === 0) return null;
+  const o = [...xs].sort((a, b) => a - b);
+  const meio = Math.floor(o.length / 2);
+  return o.length % 2 === 1 ? o[meio]! : (o[meio - 1]! + o[meio]!) / 2;
+}
+
+export function medidasDoPortao(linhas: readonly LinhaDoRelatorio[]): MedidasDoPortao {
+  const medidas = linhas.filter((l) => foraDaMedida(l) === null);
+  const aprovadas = medidas.filter((l) => l.desfecho === 'ok');
+  const naAmostra = (caso: CasoDaSaude['caso'], alcance: AlcanceDaSaude): NaAmostra => ({
+    amostra: linhas.filter((l) => l.caso === caso && l.alcance === alcance).length,
+    aprovadas: aprovadas.filter((l) => l.caso === caso && l.alcance === alcance).length,
+  });
+  const quentes = medidas.filter((l) => !l.frio);
+  return {
+    janelas: linhas.length,
+    medidas: medidas.length,
+    foraDaMedida: contagemFora(linhas),
+    aprovadas: aprovadas.length,
+    cobertura: ORDEM_DOS_CASOS.map((caso) => ({ caso, noite: naAmostra(caso, 'noite'), periodo: naAmostra(caso, 'periodo') })),
+    identicasAoTemplate: aprovadas.filter((l) => l.frase !== undefined && l.frase.trim() === l.template.trim()).length,
+    medianaMs: mediana(quentes.map((l) => l.ms)),
+    naMediana: quentes.length,
+    frias: medidas.length - quentes.length,
+  };
+}
+
+/* ── o resumo da sonda ───────────────────────────────────────────────────── */
+
+/**
+ * O fecho da sonda, que **soma**: acertos + escolha errada + fora das opções + outra
+ * reprovação + recusas + falhas + defeitos = perguntadas; perguntadas + mudas = janelas.
+ *
+ * E o acerto que o acaso daria, para ler os acertos contra ele: por pergunta medida,
+ * |nomeadas| ÷ |opções| — quem chuta entre três opções com uma certa acerta um terço.
+ */
+export interface ResumoDaSonda {
+  readonly janelas: number;
+  readonly mudas: number;
+  readonly perguntadas: number;
+  readonly acertos: number;
+  readonly escolhaErrada: number;
+  readonly foraDasOpcoes: number;
+  readonly outraReprovacao: number;
+  readonly recusas: number;
+  readonly falhas: readonly { readonly classe: string; readonly vezes: number }[];
+  readonly defeitos: number;
+  /** As perguntas que chegaram ao modelo, pela mesma regra da coluna. */
+  readonly medidas: number;
+  readonly acertoAoAcaso: number;
+}
+
+export function resumoDaSonda(linhas: readonly LinhaDaSonda[]): ResumoDaSonda {
+  const perguntadas = linhas.filter((l) => l.desfecho !== 'mudo');
+  const reprovadasPor = (regra: string): number =>
+    perguntadas.filter((l) => l.desfecho === 'reprovada' && l.problemas?.[0]?.regra === regra).length;
+  const falhas = new Map<string, number>();
+  for (const l of perguntadas) {
+    if (EH_CLASSE_DE_FALHA(l.desfecho) && l.desfecho !== 'recusa-do-modelo') falhas.set(l.desfecho, (falhas.get(l.desfecho) ?? 0) + 1);
+  }
+  const escolhaErrada = reprovadasPor('escolha');
+  const foraDasOpcoes = reprovadasPor('fora-das-opcoes');
+  const medidas = perguntadas.filter((l) => foraDaMedida(l) === null);
+  return {
+    janelas: linhas.length,
+    mudas: linhas.length - perguntadas.length,
+    perguntadas: perguntadas.length,
+    acertos: perguntadas.filter((l) => l.desfecho === 'ok').length,
+    escolhaErrada,
+    foraDasOpcoes,
+    outraReprovacao: perguntadas.filter((l) => l.desfecho === 'reprovada').length - escolhaErrada - foraDasOpcoes,
+    recusas: perguntadas.filter((l) => l.desfecho === 'recusa-do-modelo').length,
+    falhas: [...falhas].map(([classe, vezes]) => ({ classe, vezes })).sort((a, b) => b.vezes - a.vezes || a.classe.localeCompare(b.classe)),
+    defeitos: perguntadas.filter((l) => l.desfecho === 'defeito').length,
+    medidas: medidas.length,
+    acertoAoAcaso: medidas.reduce((soma, l) => soma + (l.opcoes.length > 0 ? l.esperado.length / l.opcoes.length : 0), 0),
+  };
+}
+
+/** Uma assinatura vista numa coluna, com quantas linhas ela assinou — da leitura e da sonda. */
+export interface AssinaturaObservada extends AssinaturaDaLinha {
+  readonly leitura: number;
+  readonly sonda: number;
+}
+
+type ComAssinatura = { readonly assinatura?: AssinaturaDaLinha };
+
+/**
+ * As assinaturas distintas de uma coluna. Mais de uma é sinal para o dono: o modelo
+ * (ou o build do sistema) mudou no meio da medição, e as linhas não se somam.
+ */
+export function assinaturasDe(
+  leitura: readonly ComAssinatura[],
+  sonda: readonly ComAssinatura[] = [],
+): AssinaturaObservada[] {
+  const porChave = new Map<string, { a: AssinaturaDaLinha; leitura: number; sonda: number }>();
+  const contar = (linhas: readonly ComAssinatura[], onde: 'leitura' | 'sonda'): void => {
+    for (const { assinatura: a } of linhas) {
+      if (!a) continue;
+      const chave = JSON.stringify([a.tipo, a.provedor, a.modelo, a.plataforma ?? null, a.buildDoSistema ?? null]);
+      const visto = porChave.get(chave) ?? { a, leitura: 0, sonda: 0 };
+      visto[onde] += 1;
+      porChave.set(chave, visto);
+    }
+  };
+  contar(leitura, 'leitura');
+  contar(sonda, 'sonda');
+  return [...porChave.values()].map(({ a, leitura: l, sonda: s }) => ({ ...a, leitura: l, sonda: s }));
+}
+
 /* ── o relatório ─────────────────────────────────────────────────────────── */
 
 export interface PedidoDoRelatorio {
@@ -293,10 +559,25 @@ export interface PedidoDoRelatorio {
   readonly usuario: string;
 }
 
+/** A sonda de uma coluna: as linhas, o fecho delas no vocabulário da coluna, e o resumo que soma. */
+export interface SondaDaColuna {
+  readonly linhas: readonly LinhaDaSonda[];
+  readonly agregados: Agregados;
+  readonly resumo: ResumoDaSonda;
+}
+
 export interface ColunaDoRelatorio {
   readonly motor: MotorId;
   readonly linhas: readonly LinhaDoRelatorio[];
   readonly agregados: Agregados;
+  /** Só em coluna de modelo: os números das quatro condições da ADR 0050, sem limiar. */
+  readonly medidas?: MedidasDoPortao;
+  /** Só em coluna de modelo: quem assinou as respostas, com a plataforma e o build. */
+  readonly assinaturas?: readonly AssinaturaObservada[];
+  /** Só com `--sonda`, e só em coluna de modelo. */
+  readonly sonda?: SondaDaColuna;
+  /** Só na coluna do aparelho: a versão do `swiftc` que compilou a CLI. */
+  readonly compilador?: string;
 }
 
 /** Onde a medição rodou. `versao` é o build do sistema — `os.release()` no Mac. */
@@ -336,7 +617,12 @@ export function montarRelatorio(args: {
   readonly manifesto: Manifesto;
   readonly geradoEm: string;
   readonly pedidos: Readonly<Record<string, PedidoDoRelatorio>>;
-  readonly colunas: readonly { readonly motor: MotorId; readonly linhas: readonly LinhaDoRelatorio[] }[];
+  readonly colunas: readonly {
+    readonly motor: MotorId;
+    readonly linhas: readonly LinhaDoRelatorio[];
+    readonly sonda?: readonly LinhaDaSonda[];
+    readonly compilador?: string;
+  }[];
 }): Relatorio {
   const pedidos: { hash: string; pedido: PedidoDoRelatorio }[] = [];
   for (const hash of Object.keys(args.pedidos).sort()) {
@@ -349,7 +635,18 @@ export function montarRelatorio(args: {
     manifesto: args.manifesto,
     geradoEm: args.geradoEm,
     pedidos,
-    colunas: args.colunas.map((c) => ({ motor: c.motor, linhas: c.linhas, agregados: agregar(c.linhas) })),
+    colunas: args.colunas.map((c): ColunaDoRelatorio => {
+      const base = { motor: c.motor, linhas: c.linhas, agregados: agregar(c.linhas) };
+      // A régua não é motor: as medidas do portão e a assinatura são só das colunas de modelo.
+      if (c.motor === SEM_MODELO) return base;
+      return {
+        ...base,
+        medidas: medidasDoPortao(c.linhas),
+        assinaturas: assinaturasDe(c.linhas, c.sonda ?? []),
+        ...(c.sonda ? { sonda: { linhas: c.sonda, agregados: agregar(c.sonda), resumo: resumoDaSonda(c.sonda) } } : {}),
+        ...(c.compilador !== undefined ? { compilador: c.compilador } : {}),
+      };
+    }),
   };
 }
 
@@ -378,7 +675,11 @@ export function compararRelatorios(a: Relatorio, b: Relatorio): Comparacao {
   }
   const hashes = (r: Relatorio): Map<string, string> => {
     const m = new Map<string, string>();
-    for (const c of r.colunas) for (const l of c.linhas) m.set(chaveDaLinha(c.motor, l), l.hashDoPedido);
+    for (const c of r.colunas) {
+      for (const l of c.linhas) m.set(chaveDaLinha(c.motor, l), l.hashDoPedido);
+      // A sonda tem pedido próprio por janela, e a repetibilidade vale para ele também.
+      for (const l of c.sonda?.linhas ?? []) m.set(`${c.motor} sonda ${l.range}@${l.offset}`, l.hashDoPedido);
+    }
     return m;
   };
   const ma = hashes(a);
@@ -438,8 +739,164 @@ function fecho(a: Agregados): string[] {
   ]);
 }
 
+/** Número com vírgula decimal, como o dono lê. */
+function decimal(n: number, casas = 1): string {
+  return n.toFixed(casas).replace('.', ',');
+}
+
+function porcento(parte: number, todo: number): string {
+  return todo === 0 ? '—' : `${decimal((parte / todo) * 100)}%`;
+}
+
+function segundos(ms: number | null): string {
+  return ms === null ? '—' : `${decimal(ms / 1000)} s`;
+}
+
+function assinaturasEmMarkdown(assinaturas: readonly AssinaturaObservada[], compilador: string | undefined): string[] {
+  const out = ['### Quem respondeu', ''];
+  if (compilador !== undefined) out.push(`A CLI desta coluna foi compilada por: \`${compilador}\`.`, '');
+  if (assinaturas.length === 0) {
+    return [...out, 'Nenhuma resposta assinada — nenhuma chamada desta coluna chegou a responder.', ''];
+  }
+  out.push(
+    ...tabela(
+      ['tipo', 'provedor', 'modelo', 'plataforma', 'build do sistema', 'linhas da leitura', 'da sonda'],
+      assinaturas.map((a) => [
+        a.tipo,
+        celula(a.provedor),
+        celula(a.modelo),
+        celula(a.plataforma),
+        celula(a.buildDoSistema),
+        String(a.leitura),
+        String(a.sonda),
+      ]),
+    ),
+    '',
+  );
+  if (assinaturas.length > 1) {
+    out.push(
+      '> Mais de uma assinatura nesta coluna: o modelo ou o sistema mudou no meio da medição, e as ' +
+        'linhas de assinaturas diferentes não se somam.',
+      '',
+    );
+  }
+  return out;
+}
+
+/** Os motivos de ficar fora da medida, como o dono os lê. */
+const ROTULO_FORA: Readonly<Record<ForaDaMedida, string>> = {
+  semChamada: 'sem chamada',
+  sintetica: 'sintéticas',
+  defeito: 'defeitos',
+  indisponivel: 'indisponíveis',
+  doHospedeiro: 'do hospedeiro',
+};
+
+function foraEmTexto(f: Readonly<Record<ForaDaMedida, number>>): string {
+  const partes = MOTIVOS_FORA_DA_MEDIDA.filter((m) => f[m] > 0).map((m) => `${f[m]} ${ROTULO_FORA[m]}`);
+  return partes.length > 0 ? partes.join(' · ') : 'nenhuma';
+}
+
+/**
+ * As quatro medidas, com a regra da janela medida ao lado dos números — e **nenhum número
+ * de corte**. A régua está na ADR; a comparação é do dono.
+ */
+function medidasEmMarkdown(m: MedidasDoPortao): string[] {
+  const combinacoes = m.cobertura.length * 2;
+  const presentes = m.cobertura.reduce((n, c) => n + (c.noite.amostra > 0 ? 1 : 0) + (c.periodo.amostra > 0 ? 1 : 0), 0);
+  const aprovadas = m.cobertura.reduce((n, c) => n + (c.noite.aprovadas > 0 ? 1 : 0) + (c.periodo.aprovadas > 0 ? 1 : 0), 0);
+  const vazias = m.cobertura.flatMap((c) => [
+    ...(c.noite.amostra === 0 ? [`${c.caso}/noite`] : []),
+    ...(c.periodo.amostra === 0 ? [`${c.caso}/período`] : []),
+  ]);
+  return [
+    '### As quatro medidas da ADR 0050',
+    '',
+    'Os números que as quatro condições leem, nesta coluna — **sem limiar e sem veredito**: a ' +
+      'comparação com a régua da ADR é do dono.',
+    '',
+    `> ${REGRA_DA_JANELA_MEDIDA}`,
+    '',
+    ...tabela(
+      ['medida', 'nesta coluna'],
+      [
+        ['janelas na amostra', String(m.janelas)],
+        ['medidas (chegaram ao modelo)', `${m.medidas} — fora da medida: ${foraEmTexto(m.foraDaMedida)}`],
+        ['aprovação (`ok` ÷ medidas)', `${m.aprovadas} de ${m.medidas} (${porcento(m.aprovadas, m.medidas)})`],
+        [
+          'cobertura (caso × alcance)',
+          `${presentes} de ${combinacoes} combinações na amostra, ${aprovadas} com aprovada` +
+            (vazias.length > 0 ? ` — sem janela: ${vazias.join(', ')}` : ''),
+        ],
+        ['aprovadas idênticas ao template', `${m.identicasAoTemplate} de ${m.aprovadas}`],
+        [
+          'mediana do tempo por chamada',
+          `${segundos(m.medianaMs)} (${m.naMediana} medidas; ${m.frias} ${m.frias === 1 ? 'fria ficou' : 'frias ficaram'} de fora)`,
+        ],
+      ],
+    ),
+    '',
+    ...tabela(
+      ['caso', 'noite: na amostra', 'noite: aprovadas', 'período: na amostra', 'período: aprovadas'],
+      m.cobertura.map((c) => [c.caso, String(c.noite.amostra), String(c.noite.aprovadas), String(c.periodo.amostra), String(c.periodo.aprovadas)]),
+    ),
+    '',
+  ];
+}
+
+function sondaEmMarkdown(s: SondaDaColuna): string[] {
+  const r = s.resumo;
+  const falhas = r.falhas.reduce((n, f) => n + f.vezes, 0);
+  const out = [
+    '### A sonda de fidelidade',
+    '',
+    'O motor recebeu os pontos de cada dimensão medida — numa ordem embaralhada por janela, para a ' +
+      'posição não decidir — e escolheu uma, por esquema fechado; a conferência aprova quando a ' +
+      'escolha está entre as que o código nomeia. `mudo` é a janela cujo caso não nomeia dimensão — ' +
+      'não houve pergunta, e ela não conta.',
+    '',
+    `Janelas: ${r.janelas} = ${r.perguntadas} perguntadas + ${r.mudas} mudas.`,
+    '',
+    `Das perguntadas: no que o código nomeia ${r.acertos} · escolha errada ${r.escolhaErrada} · fora das opções ` +
+      `${r.foraDasOpcoes} · outra reprovação ${r.outraReprovacao} · recusa ${r.recusas} · falha ${falhas}` +
+      `${r.falhas.length > 0 ? ` (${r.falhas.map((f) => `${f.vezes} ${f.classe}`).join(', ')})` : ''} · defeito ${r.defeitos}.`,
+    '',
+    `Acertos entre as medidas: ${r.acertos} de ${r.medidas}; ao acaso, o esperado seria ${decimal(r.acertoAoAcaso)} ` +
+      '(a soma de nomeadas ÷ opções, por pergunta medida).',
+    '',
+  ];
+  const comPergunta = s.linhas.filter((l) => l.desfecho !== 'mudo');
+  if (comPergunta.length > 0) {
+    out.push(
+      ...tabela(
+        ['janela', 'caso', 'alcance', 'desfecho', 'ms', 'opções', 'escolha', 'o código nomeia', 'detalhe'],
+        comPergunta.map((l) => [
+          rotuloDaJanela(l),
+          l.caso,
+          l.alcance,
+          [l.sintetica ? `${l.desfecho} (sintética)` : l.desfecho, ...(l.frio ? ['fria'] : [])].join(' · '),
+          String(l.ms),
+          celula(l.opcoes.join(', ')),
+          celula(l.escolha ?? l.textoDoMotor),
+          celula(l.esperado.join(', ')),
+          celula(l.problemas && l.problemas.length > 0 ? l.problemas.map((p) => `${p.regra}: ${p.detalhe}`).join(' · ') : l.detalhe),
+        ]),
+      ),
+      '',
+    );
+  }
+  const defeitos = s.linhas.filter((l) => l.desfecho === 'defeito');
+  for (const l of defeitos) {
+    out.push(`**${rotuloDaJanela(l)}** (sonda) · ${l.caso} · ${l.detalhe ?? 'sem detalhe'}`, '');
+    if (l.pilha !== undefined) out.push(...blocoDeCodigo(l.pilha), '');
+  }
+  return out;
+}
+
 function coluna(c: ColunaDoRelatorio): string[] {
   const out: string[] = ['', `## Coluna \`${c.motor}\` — ${c.linhas.length} janelas`, ''];
+  if (c.assinaturas) out.push(...assinaturasEmMarkdown(c.assinaturas, c.compilador));
+  if (c.medidas) out.push(...medidasEmMarkdown(c.medidas));
   out.push('### O fecho, por caso', '', ...fecho(c.agregados), '');
 
   if (c.agregados.porRegra.length > 0) {
@@ -469,7 +926,11 @@ function coluna(c: ColunaDoRelatorio): string[] {
         l.motivo ? `${l.caso} (${l.motivo})` : l.caso,
         l.alcance,
         // "nenhuma chamada saiu" não pode parecer um `indisponivel` de rede.
-        l.sintetica ? `${l.desfecho} (sintética)` : l.desfecho,
+        [
+          l.sintetica ? `${l.desfecho} (sintética)` : l.desfecho,
+          ...(l.frio ? ['fria'] : []),
+          ...(l.doHospedeiro ? ['do hospedeiro'] : []),
+        ].join(' · '),
         String(l.ms),
         l.tokens ? `${l.tokens.entrada}/${l.tokens.saida}` : '—',
         l.hashDoPedido.length === 64 ? `\`${hashCurto(l.hashDoPedido)}\`` : celula(l.hashDoPedido),
@@ -504,6 +965,7 @@ function coluna(c: ColunaDoRelatorio): string[] {
       if (l.pilha !== undefined) out.push(...blocoDeCodigo(l.pilha), '');
     }
   }
+  if (c.sonda) out.push(...sondaEmMarkdown(c.sonda));
   return out;
 }
 
@@ -539,6 +1001,7 @@ export function relatorioEmMarkdown(r: Relatorio): string {
             `limite ${m.amostra.limite} · ${m.amostra.janelas} janelas`,
         ],
         ['motores medidos', m.motores.map((x) => `\`${x}\``).join(', ')],
+        ...(m.sonda ? [['sonda de fidelidade', `descritor v${m.sonda.versaoDoDescritor}, em cada coluna de modelo`]] : []),
         ['gerado em', r.geradoEm],
       ],
     ),
@@ -548,13 +1011,17 @@ export function relatorioEmMarkdown(r: Relatorio): string {
   out.push('', '## Os pedidos, por hash', '');
   out.push(
     'Um pedido por caso × alcance × dimensões nomeadas — o `range` e o passo não entram nele, ' +
-      'então janelas no mesmo caso compartilham o hash.',
+      'então janelas no mesmo caso compartilham o hash. O pedido da sonda leva os pontos, e por ' +
+      'isso se repete menos.',
     '',
   );
-  const todasAsLinhas = r.colunas.flatMap((c) => c.linhas);
+  const todasAsLinhas: readonly { readonly hashDoPedido: string; readonly rotulo: string }[] = r.colunas.flatMap((c) => [
+    ...c.linhas.map((l) => ({ hashDoPedido: l.hashDoPedido, rotulo: `${l.caso}/${l.alcance}` })),
+    ...(c.sonda?.linhas ?? []).map((l) => ({ hashDoPedido: l.hashDoPedido, rotulo: `${l.caso}/${l.alcance} (sonda)` })),
+  ]);
   for (const { hash, pedido } of r.pedidos) {
     const onde = todasAsLinhas.filter((l) => l.hashDoPedido === hash);
-    const casos = [...new Set(onde.map((l) => `${l.caso}/${l.alcance}`))].join(', ');
+    const casos = [...new Set(onde.map((l) => l.rotulo))].join(', ');
     out.push(`### \`${hashCurto(hash)}\` — ${onde.length} linhas · ${casos}`, '', ...blocoDeCodigo(pedido.usuario), '');
   }
 

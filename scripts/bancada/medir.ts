@@ -22,10 +22,18 @@
  * *derrubaria* — e numa execução de 387 janelas isso significaria nenhum relatório
  * —, então ela é recolhida como `defeito`, com a pilha na linha e um aviso no
  * `stderr`. É medição: o defeito tem de aparecer no relatório, não apagá-lo.
+ *
+ * **A sonda de fidelidade é outro descritor pela mesma porta** (story 5.10). Com ela
+ * pedida, cada coluna de modelo roda também `descritorDaSondaDaSaude`, sobre as mesmas
+ * janelas: o motor recebe os pontos e escolhe uma dimensão entre opções fechadas, e o
+ * `conferir` dela diz se a escolha está no que o código nomeia. A bancada não confere
+ * nada — só guarda, ao lado, o `nomear` do caso para o dono ler.
  */
 import {
   SEM_MODELO,
+  casoDaSaude,
   descritorDaSaudeDoSono,
+  descritorDaSondaDaSaude,
   entradaDaSaude,
   hashDoPedido,
   ler,
@@ -35,11 +43,12 @@ import {
   type MotorId,
   type Pedido,
   type ProblemaDaConferencia,
+  type RespostaAssinada,
   type SleepPeriod,
   type Tentativa,
 } from '@vitale/shared';
 import { chaveDaJanela, type JanelaClassificada } from './janelas.ts';
-import type { LinhaDoRelatorio, PedidoDoRelatorio } from './relatorio.ts';
+import type { AssinaturaDaLinha, LinhaDaSonda, LinhaDoRelatorio, PedidoDoRelatorio } from './relatorio.ts';
 
 /** O acervo lido: as noites e as notas por dia de acordar, como a store as guarda. */
 export interface Dados {
@@ -51,6 +60,24 @@ export interface Hospedeiro {
   readonly motorPara: (id: MotorId) => Motor | undefined;
   /** O relógio, injetado — é dele que sai o `ms` de cada tentativa. */
   readonly agora?: () => Date;
+  /**
+   * O que só o hospedeiro sabe (`motores.ts`): quantas chamadas foram frias e quantas
+   * falhas ele mesmo fabricou. A medição lê a diferença antes e depois de cada linha, e a
+   * marca — é assim que `frio` e `doHospedeiro` chegam ao relatório.
+   */
+  readonly registro?: { readonly frias: number; readonly doHospedeiro: number };
+}
+
+/** As marcas do hospedeiro numa linha: o que mudou no registro enquanto ela era medida. */
+function marcasDoHospedeiro(
+  registro: Hospedeiro['registro'],
+  antes: { readonly frias: number; readonly doHospedeiro: number },
+): { frio?: true; doHospedeiro?: true } {
+  if (!registro) return {};
+  return {
+    ...(registro.frias > antes.frias ? { frio: true as const } : {}),
+    ...(registro.doHospedeiro > antes.doHospedeiro ? { doHospedeiro: true as const } : {}),
+  };
 }
 
 /** Uma coluna pedida: o motor e as janelas em que ele é medido (a amostra). */
@@ -60,15 +87,36 @@ export interface ColunaPedida {
 }
 
 export interface Medido {
-  readonly colunas: readonly { readonly motor: MotorId; readonly linhas: readonly LinhaDoRelatorio[] }[];
+  readonly colunas: readonly {
+    readonly motor: MotorId;
+    readonly linhas: readonly LinhaDoRelatorio[];
+    /** Só com a sonda pedida, e só nas colunas de modelo. */
+    readonly sonda?: readonly LinhaDaSonda[];
+  }[];
   readonly pedidos: Readonly<Record<string, PedidoDoRelatorio>>;
 }
 
 const D = descritorDaSaudeDoSono;
+/** A sonda de fidelidade (story 5.10): um descritor só de medição, pela mesma porta. */
+const S = descritorDaSondaDaSaude;
 
 /** O recurso e a versão que o manifesto registra — saem do descritor, nunca de literal. */
 export const RECURSO = D.recurso;
 export const VERSAO_DO_DESCRITOR = D.versao;
+export const VERSAO_DA_SONDA = S.versao;
+
+/** Quem assinou a resposta, sem o instante — é o que o relatório agrupa por coluna. */
+function assinaturaDe(r: RespostaAssinada | undefined): AssinaturaDaLinha | undefined {
+  if (!r) return undefined;
+  const a = r.assinatura;
+  return {
+    tipo: a.tipo,
+    provedor: a.provedor,
+    modelo: a.modelo,
+    ...(a.plataforma !== undefined ? { plataforma: a.plataforma } : {}),
+    ...(a.buildDoSistema !== undefined ? { buildDoSistema: a.buildDoSistema } : {}),
+  };
+}
 
 /** A soma do tempo das tentativas da trilha. Sem `pedidoCurto`, é sempre uma. */
 function msDa(trilha: readonly Tentativa[]): number {
@@ -136,6 +184,7 @@ function linhaDaMedicao(
   const ultima = m.trilha[m.trilha.length - 1];
   const problemas = problemasDa(m.trilha);
   const texto = typeof m.valor === 'string' ? m.valor : m.resposta?.texto;
+  const assinatura = assinaturaDe(m.resposta);
   return {
     ...comum,
     desfecho: m.desfecho,
@@ -147,6 +196,41 @@ function linhaDaMedicao(
     ...(ultima?.sintetica ? { sintetica: true as const } : {}),
     ...(ultima?.detalhe !== undefined ? { detalhe: ultima.detalhe } : {}),
     ...(anel?.pilha !== undefined ? { pilha: anel.pilha } : {}),
+    ...(assinatura ? { assinatura } : {}),
+  };
+}
+
+/**
+ * Uma linha da sonda. O `esperado` é o `nomear` do caso — para o dono ler a escolha e
+ * a resposta certa lado a lado; quem aprovou ou reprovou foi o `conferir` do descritor.
+ */
+function linhaDaSondaMedida(
+  j: JanelaClassificada,
+  hash: string,
+  esperado: readonly string[],
+  opcoes: readonly string[],
+  m: Medicao<string>,
+  anel: EventoDoAnel | null,
+): LinhaDaSonda {
+  const base = { range: j.range, offset: j.offset, alcance: j.alcance, caso: j.caso, esperado, opcoes };
+  if (m.tipo === 'template') return { ...base, hashDoPedido: hash, desfecho: 'template', ms: 0 };
+  if (m.tipo === 'mudo') return { ...base, hashDoPedido: SEM_PEDIDO, desfecho: 'mudo', ms: 0 };
+  const ultima = m.trilha[m.trilha.length - 1];
+  const problemas = problemasDa(m.trilha);
+  const assinatura = assinaturaDe(m.resposta);
+  return {
+    ...base,
+    hashDoPedido: hash,
+    desfecho: m.desfecho,
+    ms: msDa(m.trilha),
+    ...(m.resposta?.tokens ? { tokens: m.resposta.tokens } : {}),
+    ...(typeof m.valor === 'string' ? { escolha: m.valor } : {}),
+    ...(m.resposta?.texto !== undefined ? { textoDoMotor: m.resposta.texto } : {}),
+    ...(problemas.length > 0 ? { problemas } : {}),
+    ...(ultima?.sintetica ? { sintetica: true as const } : {}),
+    ...(ultima?.detalhe !== undefined ? { detalhe: ultima.detalhe } : {}),
+    ...(anel?.pilha !== undefined ? { pilha: anel.pilha } : {}),
+    ...(assinatura ? { assinatura } : {}),
   };
 }
 
@@ -163,7 +247,17 @@ export async function medir(args: {
   readonly janelas: readonly JanelaClassificada[];
   readonly colunas: readonly ColunaPedida[];
   readonly hospedeiro: Hospedeiro;
-  readonly aoAndar?: (p: { readonly motor: MotorId; readonly feito: number; readonly total: number }) => void;
+  /**
+   * Roda também a sonda de fidelidade em cada coluna de modelo, sobre as mesmas janelas
+   * dela (story 5.10). Só pergunta onde o caso nomeia; o resto é `mudo`, sem chamada.
+   */
+  readonly sonda?: boolean;
+  readonly aoAndar?: (p: {
+    readonly motor: MotorId;
+    readonly feito: number;
+    readonly total: number;
+    readonly sonda?: true;
+  }) => void;
   readonly avisar?: (mensagem: string) => void;
 }): Promise<Medido> {
   const { dados, hoje, janelas, hospedeiro, aoAndar } = args;
@@ -176,7 +270,14 @@ export async function medir(args: {
   const medirUma = async (
     j: JanelaClassificada,
     motor: MotorId,
-  ): Promise<{ readonly m: Medicao<string> | null; readonly anel: EventoDoAnel | null; readonly hash: string; readonly erro?: ReturnType<typeof erro> }> => {
+  ): Promise<{
+    readonly m: Medicao<string> | null;
+    readonly anel: EventoDoAnel | null;
+    readonly hash: string;
+    readonly erro?: ReturnType<typeof erro>;
+    readonly marcas: ReturnType<typeof marcasDoHospedeiro>;
+  }> => {
+    const antes = { frias: hospedeiro.registro?.frias ?? 0, doHospedeiro: hospedeiro.registro?.doHospedeiro ?? 0 };
     let anel: EventoDoAnel | null = null;
     const registrar = (e: EventoDoAnel): void => {
       anel = e;
@@ -187,9 +288,9 @@ export async function medir(args: {
       const hash = pedido ? hashDoPedido(pedido, D.versao) : SEM_PEDIDO;
       if (pedido) pedidos[hash] ??= { sistema: pedido.sistema, usuario: pedido.usuario };
       const m = await ler(D, e, { modo: 'medicao', motor, motorPara: hospedeiro.motorPara, registrar, agora });
-      return { m, anel, hash };
+      return { m, anel, hash, marcas: marcasDoHospedeiro(hospedeiro.registro, antes) };
     } catch (x) {
-      return { m: null, anel, hash: SEM_PEDIDO, erro: erro(x) };
+      return { m: null, anel, hash: SEM_PEDIDO, erro: erro(x), marcas: marcasDoHospedeiro(hospedeiro.registro, antes) };
     }
   };
 
@@ -234,7 +335,48 @@ export async function medir(args: {
     }
   }
 
-  const colunas: { motor: MotorId; linhas: LinhaDoRelatorio[] }[] = [
+  /**
+   * Uma janela da sonda. Mesma regra do laço de cima: nenhuma exceção sai daqui — o
+   * defeito vira linha, com a pilha, e as outras janelas seguem.
+   */
+  const medirSonda = async (j: JanelaClassificada, motor: MotorId): Promise<LinhaDaSonda> => {
+    let anel: EventoDoAnel | null = null;
+    const registrar = (e: EventoDoAnel): void => {
+      anel = e;
+    };
+    let esperado: readonly string[] = [];
+    let opcoes: readonly string[] = [];
+    let hash = SEM_PEDIDO;
+    const antes = { frias: hospedeiro.registro?.frias ?? 0, doHospedeiro: hospedeiro.registro?.doHospedeiro ?? 0 };
+    try {
+      const e = entradaDaSaude(dados.noites, dados.notas, { range: j.range, offset: j.offset, hoje });
+      const caso = casoDaSaude(e.score);
+      esperado = caso.nomear;
+      opcoes = caso.dimensoes;
+      const pedido: Pedido | null = S.montarPedido(e);
+      hash = pedido ? hashDoPedido(pedido, S.versao) : SEM_PEDIDO;
+      if (pedido) pedidos[hash] ??= { sistema: pedido.sistema, usuario: pedido.usuario };
+      const m = await ler(S, e, { modo: 'medicao', motor, motorPara: hospedeiro.motorPara, registrar, agora });
+      return { ...linhaDaSondaMedida(j, hash, esperado, opcoes, m, anel), ...marcasDoHospedeiro(hospedeiro.registro, antes) };
+    } catch (x) {
+      const falhou = erro(x);
+      avisar(`defeito na sonda de ${motor} ${chaveDaJanela(j)}: ${falhou.detalhe}`);
+      return {
+        range: j.range,
+        offset: j.offset,
+        alcance: j.alcance,
+        caso: j.caso,
+        esperado,
+        opcoes,
+        hashDoPedido: hash,
+        desfecho: 'defeito',
+        ms: 0,
+        ...falhou,
+      };
+    }
+  };
+
+  const colunas: { motor: MotorId; linhas: LinhaDoRelatorio[]; sonda?: LinhaDaSonda[] }[] = [
     { motor: SEM_MODELO, linhas: linhasDoTemplate },
   ];
 
@@ -245,7 +387,7 @@ export async function medir(args: {
     let n = 0;
     for (const j of pedida.janelas) {
       const regua = templates.get(chaveDaJanela(j));
-      const { m, anel, hash, erro: falhou } = await medirUma(j, pedida.motor);
+      const { m, anel, hash, erro: falhou, marcas } = await medirUma(j, pedida.motor);
       n += 1;
       aoAndar?.({ motor: pedida.motor, feito: n, total: pedida.janelas.length });
       const template = regua?.template ?? '(fora da passada do template)';
@@ -254,12 +396,25 @@ export async function medir(args: {
         continue;
       }
       try {
-        linhas.push(linhaDaMedicao(j, hash, template, m, anel));
+        linhas.push({ ...linhaDaMedicao(j, hash, template, m, anel), ...marcas });
       } catch (x) {
         linhas.push(linhaDeDefeito(j, hash, template, erro(x), pedida.motor));
       }
     }
-    colunas.push({ motor: pedida.motor, linhas });
+
+    /* A sonda, sobre as mesmas janelas da coluna. */
+    if (!args.sonda) {
+      colunas.push({ motor: pedida.motor, linhas });
+      continue;
+    }
+    const sonda: LinhaDaSonda[] = [];
+    let k = 0;
+    for (const j of pedida.janelas) {
+      sonda.push(await medirSonda(j, pedida.motor));
+      k += 1;
+      aoAndar?.({ motor: pedida.motor, feito: k, total: pedida.janelas.length, sonda: true });
+    }
+    colunas.push({ motor: pedida.motor, linhas, sonda });
   }
 
   return { colunas, pedidos };
