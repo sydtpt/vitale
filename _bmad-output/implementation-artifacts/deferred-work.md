@@ -499,3 +499,9 @@
 - source_spec: none
   summary: A ponte no app (story 5.9) — o `Engine.swift` entra no iPhone como módulo Expo local com a cola sem lógica, `motorPara('aparelho:sistema')` passa a devolver motor, o seletor deixa de mostrar o aparelho como indisponível, o `runtimeVersion` sobe, e a amostra de 20 pedidos compara por hash o iPhone com a bancada.
   evidence: Separada da 5.10 em 19/09/2026 pelo multi-goal check, com aceite do dono ("se for recomendado separar, pode separar"). As duas metades do marco B são entregáveis sozinhas; a 5.10 (a coluna do aparelho na bancada, no Mac) vem antes, na ordem do épico, e cria o `Engine.swift` que a 5.9 reaproveita sem cópia. A 5.9 continua no sprint-status com a issue #515.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-11-o-pedido-da-saude-para-o-modelo-pequeno.md`
+  summary: A regra de contradição do caso `fora-do-empate` (`contradizDe` em `sleep/leitura.ts`) não reprova a frase que põe a dimensão de fora do empate "no ponto mais baixo" — o contrário do caso — e a conferência aprova.
+  evidence: Visto na validação da 5.11 no aparelho (janela `ultima@4`, uma janela de ajuste) e apontado pela revisão de casos-limite. Consertar é mexer na conferência, que a 5.11 tem em "Ask First" e que a 5.10 usou como régua fixa: a mudança pede medição nova das colunas, porque altera o que conta como aprovada.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-11-o-pedido-da-saude-para-o-modelo-pequeno.md`
+  summary: O `scripts/bancada/manifesto.json` versionado — a linha de base da bancada — ainda descreve o descritor da Saúde na versão 1; o código passou à 2 na 5.11.
+  evidence: Apontado pela revisão de casos-limite da 5.11. O arquivo só é regravado na execução padrão da bancada (`ehExecucaoPadrao`), que as rodadas da 5.11 não fizeram (rodaram com `--export` e `--motor`). Atualizar junto com a medição da nuvem v2 que o dono vai rodar, ou na primeira execução padrão depois dela.

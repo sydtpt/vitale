@@ -14,8 +14,11 @@ import { APARELHO_SISTEMA, CASOS_DA_SAUDE, NUVEM_PADRAO, SEM_MODELO, type MotorI
 import {
   ORDEM_DOS_CASOS,
   REGRAS_DE_AMOSTRA,
+  REGRA_DA_COPIA,
   VEREDITOS,
   agregar,
+  copiaDoExemplo,
+  formaDaAprovada,
   foraDaMedida,
   mediana,
   medidasDoPortao,
@@ -850,5 +853,89 @@ describe('compararRelatorios com a sonda', () => {
       diferentes.diferencas.map((d) => d.split(':').slice(0, 2).join(':')),
       [`${APARELHO_SISTEMA} sonda 7d@0`],
     );
+  });
+});
+
+/* ── a cópia do exemplo (story 5.11) ── */
+
+const EXEMPLO = '{quando}, a regularidade ficou abaixo das outras dimensões: {regularidade}.';
+
+describe('a cópia do exemplo do pedido', () => {
+  it('a forma de uma aprovada, pela regra escrita no relatório', () => {
+    const casos: readonly (readonly [string, ReturnType<typeof formaDaAprovada>])[] = [
+      [EXEMPLO, 'identica'],
+      [`  ${EXEMPLO}\n`, 'identica'],
+      // A pontuação não conta.
+      ['{quando} a regularidade ficou abaixo das outras dimensões {regularidade}.', 'quase'],
+      // Uma palavra trocada, tirada ou posta.
+      ['{quando}, a regularidade está abaixo das outras dimensões: {regularidade}.', 'quase'],
+      ['{quando}, a regularidade ficou abaixo das dimensões: {regularidade}.', 'quase'],
+      ['{quando}, a regularidade ficou bem abaixo das outras dimensões: {regularidade}.', 'quase'],
+      // O exemplo cortado no fim.
+      ['{quando}, a regularidade ficou abaixo das outras dimensões.', 'quase'],
+      // Duas palavras de diferença já é texto próprio.
+      ['{quando}, a regularidade segue abaixo das demais dimensões: {regularidade}.', 'propria'],
+      ['A regularidade ficou abaixo das outras dimensões {quando}: {regularidade}.', 'propria'],
+      // Maiúscula conta como diferença: uma palavra só, então quase.
+      ['{quando}, A regularidade ficou abaixo das outras dimensões: {regularidade}.', 'quase'],
+    ];
+    for (const [texto, esperado] of casos) assert.equal(formaDaAprovada(texto, EXEMPLO), esperado, texto);
+    // Sem exemplo, ou sem texto: nunca um palpite.
+    assert.equal(formaDaAprovada(EXEMPLO, undefined), 'semExemplo');
+    assert.equal(formaDaAprovada(undefined, EXEMPLO), 'semExemplo');
+    assert.equal(formaDaAprovada(EXEMPLO, '   '), 'semExemplo');
+    // O texto vazio não é "o exemplo cortado".
+    assert.equal(formaDaAprovada('', EXEMPLO), 'propria');
+  });
+
+  it('conta só as aprovadas medidas, e a soma fecha', () => {
+    const linhas = [
+      linha({ desfecho: 'ok', textoDoMotor: EXEMPLO, exemplo: EXEMPLO }),
+      linha({ offset: 1, desfecho: 'ok', textoDoMotor: '{quando} a regularidade ficou abaixo das outras dimensões {regularidade}.', exemplo: EXEMPLO }),
+      linha({ offset: 2, desfecho: 'ok', textoDoMotor: 'A regularidade ficou abaixo das outras {quando}.', exemplo: EXEMPLO }),
+      linha({ offset: 3, desfecho: 'ok', textoDoMotor: EXEMPLO }), // relatório de antes da 5.11
+      // Não contam: reprovada com o exemplo, e a aprovada fora da medida.
+      linha({ offset: 4, desfecho: 'reprovada', textoDoMotor: EXEMPLO, exemplo: EXEMPLO }),
+      linha({ offset: 5, desfecho: 'ok', textoDoMotor: EXEMPLO, exemplo: EXEMPLO, doHospedeiro: true }),
+    ];
+    const c = copiaDoExemplo(linhas);
+    assert.deepEqual(c, { aprovadas: 4, identicas: 1, quase: 1, proprias: 1, semExemplo: 1 });
+    assert.equal(c.identicas + c.quase + c.proprias + c.semExemplo, c.aprovadas);
+    assert.equal(c.aprovadas, medidasDoPortao(linhas).aprovadas, 'a cópia conta outras aprovadas que as da aprovação');
+  });
+
+  it('sai na coluna de modelo, com a regra ao lado e sem régua — e na tabela das linhas', () => {
+    const r = montarRelatorio({
+      recurso: 'saude-do-sono',
+      sistema: { plataforma: 'darwin', versao: '27.0.0' },
+      manifesto: MANIFESTO,
+      geradoEm: '2026-09-19T10:00:00.000Z',
+      pedidos: { [sha256De('um pedido')]: { sistema: 'as regras', usuario: 'o caso' } },
+      colunas: [
+        { motor: SEM_MODELO, linhas: [linha({ desfecho: 'template', frase: 'x' })] },
+        {
+          motor: NUVEM_PADRAO,
+          linhas: [
+            linha({ desfecho: 'ok', textoDoMotor: EXEMPLO, exemplo: EXEMPLO, frase: 'a frase' }),
+            linha({ offset: 1, desfecho: 'ok', textoDoMotor: 'A regularidade, sozinha, ficou abaixo {quando}.', exemplo: EXEMPLO, frase: 'outra' }),
+          ],
+        },
+      ],
+    });
+    assert.equal(r.colunas[0]?.copia, undefined, 'a régua não copia exemplo nenhum');
+    assert.deepEqual(r.colunas[1]?.copia, { aprovadas: 2, identicas: 1, quase: 0, proprias: 1, semExemplo: 0 });
+    const md = relatorioEmMarkdown(r);
+    const inicio = md.indexOf('### A cópia do exemplo do pedido');
+    assert.ok(inicio >= 0, 'a seção da cópia não saiu');
+    const secao = md.slice(inicio, md.indexOf('### O fecho, por caso', inicio));
+    assert.ok(secao.includes(REGRA_DA_COPIA), secao);
+    assert.match(secao, /sem limiar e sem veredito/);
+    assert.ok(secao.includes('| idênticas ao exemplo | 1 de 2 (50,0%) |'), secao);
+    assert.ok(secao.includes('| quase o exemplo | 0 de 2 (0,0%) |'), secao);
+    assert.ok(secao.includes('| texto próprio | 1 de 2 (50,0%) |'), secao);
+    assert.ok(!secao.includes('sem exemplo para comparar'), secao);
+    assert.equal(/[≥≤]|\bpassou\b|limiar (de|é) \d/i.test(secao), false, secao);
+    // A linha que a conta contou aparece marcada na tabela.
+    assert.ok(md.includes('| ok · idêntica ao exemplo |'), md);
   });
 });

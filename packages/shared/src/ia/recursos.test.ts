@@ -182,6 +182,8 @@ const VARIANTES_DA_SAUDE: Readonly<Record<string, EntradaDaSaude>> = {
   'sem-contagem sem noite, noite': fixa('ultima', [null, null, null, null], { nights: 0, expected: 1, ratio: 0 }, { since: null, until: null }),
   'sem-contagem sem medida, noite': fixa('ultima', [null, null, null, null]),
   'sem-contagem sem medida, período': fixa('4s', [null, null, null, null, null], { nights: 28, expected: 28, ratio: 1 }),
+  // `uma` com duas medidas: o pedido diz "a outra", no singular (5.11) — um ramo próprio do texto.
+  'uma com duas medidas, noite': fixa('ultima', [2, null, null, 0]),
 };
 
 /**
@@ -208,9 +210,12 @@ const GOLDENS: Readonly<Partial<Record<RecursoId, Golden>>> = {
   },
   'saude-do-sono': {
     variantes: VARIANTES_DA_SAUDE,
-    quantas: 18,
-    versao: 1,
-    hash: '383022d18e14861afe1439bc93257108b0d8907c75bd6d8b209dd784fe921986',
+    quantas: 19,
+    // 2: o pedido em prosa, com o exemplo do caso (story 5.11). O hash é o da v2 depois
+    // da revisão da 5.11 — a versão não subiu porque a v2 da rodada 1 nunca saiu desta
+    // branch: ver `motores-5-11/rodadas.md`, "A remedição".
+    versao: 2,
+    hash: 'bba52757442a92c07990368aa7b019680186b71d60e128ee5a3b302c96710788',
   },
 };
 

@@ -16,6 +16,12 @@
  * cobertura por caso × alcance, aprovadas idênticas ao template e mediana por chamada.
  * O número sai; a régua fica na ADR, e a comparação é do dono.
  *
+ * **E a cópia do exemplo** (story 5.11): o pedido da Saúde traz um exemplo de frase
+ * aprovada, e a condição 3 da ADR só compara com o template — um motor que devolve o
+ * exemplo marcaria zero idênticas. Por coluna de modelo, as aprovadas saem contadas
+ * contra o exemplo do próprio pedido: idênticas, quase, e texto próprio. Também sem
+ * limiar.
+ *
  * **O manifesto é o que torna dois relatórios comparáveis**, e é o único arquivo
  * versionado da bancada: `hoje`, as janelas, o hash do export, a regra da amostra,
  * os `MotorId` medidos e a versão do descritor — nenhum dado de saúde. Relatórios
@@ -176,6 +182,12 @@ export interface LinhaDoRelatorio {
   readonly template: string;
   /** O texto que o motor escreveu, com os marcadores, como a conferência o leu. */
   readonly textoDoMotor?: string;
+  /**
+   * O exemplo de frase aprovada que o pedido desta janela trazia, com os marcadores
+   * (`exemploDaSaude`, story 5.11) — só nas colunas de modelo. É contra ele que
+   * {@link formaDaAprovada} conta a cópia. Relatório de antes da 5.11 não o tem.
+   */
+  readonly exemplo?: string;
   readonly problemas?: readonly ProblemaDaConferencia[];
   /** Nenhuma chamada saiu: o hospedeiro não entregou o motor, ou o recurso o recusou. */
   readonly sintetica?: true;
@@ -469,6 +481,78 @@ export function medidasDoPortao(linhas: readonly LinhaDoRelatorio[]): MedidasDoP
   };
 }
 
+/* ── a cópia do exemplo ──────────────────────────────────────────────────── */
+
+/**
+ * A regra mecânica da cópia, escrita no relatório ao lado dos números — a mesma que
+ * `motores-5-11/rodadas.md` usou à mão.
+ */
+export const REGRA_DA_COPIA =
+  'Cada aprovada é comparada com o exemplo do próprio pedido, com os marcadores, antes da troca. ' +
+  '**Idêntica**: o texto do motor é o exemplo, a menos do espaço nas pontas. **Quase**: as palavras são as ' +
+  'do exemplo a menos da pontuação (`.` `,` `;` `:` `—` `–`), de uma palavra trocada, tirada ou posta, ou o ' +
+  'exemplo cortado no fim. **Texto próprio**: o resto. Maiúscula e minúscula contam como diferença.';
+
+/** Como uma aprovada se relaciona com o exemplo do pedido. */
+export type FormaDaAprovada = 'identica' | 'quase' | 'propria' | 'semExemplo';
+
+/** As palavras de um texto, sem a pontuação que a regra da cópia ignora. */
+function palavrasDaCopia(s: string): string[] {
+  return s.replace(/[.,;:—–]/gu, ' ').split(/\s+/u).filter((w) => w !== '');
+}
+
+/** A distância de edição, em palavras. */
+function distanciaEmPalavras(a: readonly string[], b: readonly string[]): number {
+  let anterior = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    const atual = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      atual[j] = Math.min(anterior[j]! + 1, atual[j - 1]! + 1, anterior[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    anterior = atual;
+  }
+  return anterior[b.length]!;
+}
+
+/**
+ * A forma de uma aprovada contra o exemplo do pedido, pela {@link REGRA_DA_COPIA}.
+ * Sem texto ou sem exemplo (relatório de antes da 5.11), `semExemplo` — nunca um
+ * palpite.
+ */
+export function formaDaAprovada(texto: string | undefined, exemplo: string | undefined): FormaDaAprovada {
+  if (texto === undefined || exemplo === undefined || exemplo.trim() === '') return 'semExemplo';
+  const t = texto.trim();
+  const x = exemplo.trim();
+  if (t === x) return 'identica';
+  const a = palavrasDaCopia(t);
+  const b = palavrasDaCopia(x);
+  const cortado = a.length > 0 && a.length < b.length && a.every((w, i) => w === b[i]);
+  return cortado || distanciaEmPalavras(a, b) <= 1 ? 'quase' : 'propria';
+}
+
+/** As aprovadas de uma coluna, contadas contra o exemplo — a soma fecha em `aprovadas`. */
+export interface CopiaDoExemplo {
+  readonly aprovadas: number;
+  readonly identicas: number;
+  readonly quase: number;
+  readonly proprias: number;
+  readonly semExemplo: number;
+}
+
+/** A cópia numa coluna de modelo: só as aprovadas **medidas**, pela mesma regra da aprovação. */
+export function copiaDoExemplo(linhas: readonly LinhaDoRelatorio[]): CopiaDoExemplo {
+  const aprovadas = linhas.filter((l) => foraDaMedida(l) === null && l.desfecho === 'ok');
+  const conta = { identica: 0, quase: 0, propria: 0, semExemplo: 0 };
+  for (const l of aprovadas) conta[formaDaAprovada(l.textoDoMotor, l.exemplo)] += 1;
+  return {
+    aprovadas: aprovadas.length,
+    identicas: conta.identica,
+    quase: conta.quase,
+    proprias: conta.propria,
+    semExemplo: conta.semExemplo,
+  };
+}
+
 /* ── o resumo da sonda ───────────────────────────────────────────────────── */
 
 /**
@@ -572,6 +656,8 @@ export interface ColunaDoRelatorio {
   readonly agregados: Agregados;
   /** Só em coluna de modelo: os números das quatro condições da ADR 0050, sem limiar. */
   readonly medidas?: MedidasDoPortao;
+  /** Só em coluna de modelo: as aprovadas contadas contra o exemplo do pedido (5.11). */
+  readonly copia?: CopiaDoExemplo;
   /** Só em coluna de modelo: quem assinou as respostas, com a plataforma e o build. */
   readonly assinaturas?: readonly AssinaturaObservada[];
   /** Só com `--sonda`, e só em coluna de modelo. */
@@ -642,6 +728,7 @@ export function montarRelatorio(args: {
       return {
         ...base,
         medidas: medidasDoPortao(c.linhas),
+        copia: copiaDoExemplo(c.linhas),
         assinaturas: assinaturasDe(c.linhas, c.sonda ?? []),
         ...(c.sonda ? { sonda: { linhas: c.sonda, agregados: agregar(c.sonda), resumo: resumoDaSonda(c.sonda) } } : {}),
         ...(c.compilador !== undefined ? { compilador: c.compilador } : {}),
@@ -844,6 +931,39 @@ function medidasEmMarkdown(m: MedidasDoPortao): string[] {
   ];
 }
 
+/** A cópia do exemplo, com a regra ao lado — e sem régua: quanto copiar é demais é do dono. */
+function copiaEmMarkdown(c: CopiaDoExemplo): string[] {
+  const linha = (rotulo: string, n: number): string[] => [rotulo, `${n} de ${c.aprovadas} (${porcento(n, c.aprovadas)})`];
+  return [
+    '### A cópia do exemplo do pedido',
+    '',
+    'A condição 3 da ADR 0050 compara a aprovada com o **template**. O pedido traz também um exemplo de ' +
+      'frase aprovada, e um motor que o devolve marca zero idênticas ao template. Esta conta é a que ' +
+      'falta — **sem limiar e sem veredito**.',
+    '',
+    `> ${REGRA_DA_COPIA}`,
+    '',
+    ...tabela(
+      ['aprovadas', 'nesta coluna'],
+      [
+        linha('idênticas ao exemplo', c.identicas),
+        linha('quase o exemplo', c.quase),
+        linha('texto próprio', c.proprias),
+        ...(c.semExemplo > 0 ? [linha('sem exemplo para comparar', c.semExemplo)] : []),
+      ],
+    ),
+    '',
+  ];
+}
+
+/** O rótulo da forma de uma aprovada na tabela das linhas. */
+const ROTULO_DA_FORMA: Readonly<Record<FormaDaAprovada, string | null>> = {
+  identica: 'idêntica ao exemplo',
+  quase: 'quase o exemplo',
+  propria: null,
+  semExemplo: null,
+};
+
 function sondaEmMarkdown(s: SondaDaColuna): string[] {
   const r = s.resumo;
   const falhas = r.falhas.reduce((n, f) => n + f.vezes, 0);
@@ -897,6 +1017,7 @@ function coluna(c: ColunaDoRelatorio): string[] {
   const out: string[] = ['', `## Coluna \`${c.motor}\` — ${c.linhas.length} janelas`, ''];
   if (c.assinaturas) out.push(...assinaturasEmMarkdown(c.assinaturas, c.compilador));
   if (c.medidas) out.push(...medidasEmMarkdown(c.medidas));
+  if (c.copia) out.push(...copiaEmMarkdown(c.copia));
   out.push('### O fecho, por caso', '', ...fecho(c.agregados), '');
 
   if (c.agregados.porRegra.length > 0) {
@@ -930,6 +1051,8 @@ function coluna(c: ColunaDoRelatorio): string[] {
           l.sintetica ? `${l.desfecho} (sintética)` : l.desfecho,
           ...(l.frio ? ['fria'] : []),
           ...(l.doHospedeiro ? ['do hospedeiro'] : []),
+          // Na aprovada, se ela é o exemplo do pedido — para achar a linha que a conta contou.
+          ...(c.copia && l.desfecho === 'ok' ? [ROTULO_DA_FORMA[formaDaAprovada(l.textoDoMotor, l.exemplo)]].filter((x): x is string => x !== null) : []),
         ].join(' · '),
         String(l.ms),
         l.tokens ? `${l.tokens.entrada}/${l.tokens.saida}` : '—',

@@ -143,6 +143,11 @@ Cada coluna de modelo abre com três blocos, antes do fecho por caso:
   com a presença na amostra **e** as aprovadas, noite e período separados; aprovadas idênticas ao
   template; mediana das medidas não frias. **Sem limiar e sem veredito**: os números saem, a régua
   está na ADR, e a comparação é sua.
+- **A cópia do exemplo do pedido** (story 5.11) — o pedido da Saúde traz um exemplo de frase aprovada,
+  e a condição 3 da ADR só compara com o template. Por isso as aprovadas saem contadas contra o exemplo
+  do próprio pedido: **idênticas**, **quase** (a menos da pontuação, de uma palavra, ou o exemplo cortado
+  no fim) e **texto próprio**, com a regra escrita ao lado. Na tabela das linhas, a aprovada que é o
+  exemplo aparece marcada. Também sem limiar.
 - **A sonda** (com `--sonda`) — um fecho que soma (acertos, escolha errada, fora das opções,
   recusas, falhas, defeitos, mudas), os acertos ao lado do **acerto esperado ao acaso** (a soma de
   nomeadas ÷ opções por pergunta medida), e a tabela com as opções, a escolha e a resposta certa.

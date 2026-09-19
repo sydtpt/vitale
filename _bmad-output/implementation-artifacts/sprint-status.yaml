@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 10:21
+last_updated: 19-09-2026 12:02
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -301,7 +301,13 @@ development_status:
   # mede o aparelho de graça em até 3 rodadas, valida numa amostra maior, e a
   # nuvem é medida UMA vez com o pedido final (~22 chamadas pagas, pelo dono,
   # com o token dele). O número decide se a 5.9 passa a valer o build.
-  5-11-o-pedido-da-saude-para-o-modelo-pequeno: in-progress
+  # CONSTRUÍDA em 19/09/2026 (sem push, de propósito): o pedido v2 faz o aparelho
+  # passar de 3/22 para 15/24 nos pedidos que o ajuste não viu — mas das
+  # aprovadas fora do ajuste, 15 são o EXEMPLO idêntico, 10 quase o exemplo e 4
+  # texto próprio, nenhum dos 4 dizendo o caso. A bancada passou a contar a cópia.
+  # A v2 NÃO vai para a main antes de o dono decidir: descartá-la ou medir a nuvem
+  # com ela (a aprovação da ADR 0050 é da v1).
+  5-11-o-pedido-da-saude-para-o-modelo-pequeno: review
   5-9-a-ponte-swift-on-device-engine: backlog
   # 5.10 SEPARADA DA 5.9 em 19/09/2026, por decisão do dono, e ENTRA ANTES DELA
   # (a ordem do épico: F1 mede antes de F2 ligar). É a metade do Mac do marco B:
