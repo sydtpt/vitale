@@ -25,6 +25,7 @@ e os da coluna do aparelho e da sonda de fidelidade (marco B da 5.4).
 - Story 5.7: O nome de rota pela porta (F4)
 - Story 5.8: Core AI (F5)
 - Story 5.10: A coluna do aparelho na bancada (metade do Mac do marco B — entra **antes** da 5.9)
+- Story 5.11: O pedido da Saúde para o modelo pequeno (nasceu da medição da 5.10 — entra **antes** da 5.9)
 - Story 5.9: A ponte Swift `on-device-engine` no app (a outra metade do marco B)
 
 ## Requirements & Constraints

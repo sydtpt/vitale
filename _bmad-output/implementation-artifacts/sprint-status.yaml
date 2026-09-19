@@ -60,7 +60,7 @@
 #     mobile/src/lib/motores/.
 #   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
 generated: 09-08-2026 23:20
-last_updated: 19-09-2026 10:14
+last_updated: 19-09-2026 10:21
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -295,6 +295,13 @@ development_status:
   # existente; (2) BUILD PRÓPRIO já exigido pela story original (nunca o
   # mesmo de uma migração) — estende-se a nunca compartilhar build/instalação
   # no iPhone com outra story rodando em paralelo, pelo mesmo motivo da AD-15.
+  # 5.11 NASCEU em 19/09/2026 da medição da 5.10 (opção A do dono) e ENTRA ANTES
+  # DA 5.9: o aparelho aprovou 3 de 22 reprovando pela FORMA do texto, não pelo
+  # conteúdo. Ajusta só a forma do pedido da Saúde (a conferência não muda),
+  # mede o aparelho de graça em até 3 rodadas, valida numa amostra maior, e a
+  # nuvem é medida UMA vez com o pedido final (~22 chamadas pagas, pelo dono,
+  # com o token dele). O número decide se a 5.9 passa a valer o build.
+  5-11-o-pedido-da-saude-para-o-modelo-pequeno: in-progress
   5-9-a-ponte-swift-on-device-engine: backlog
   # 5.10 SEPARADA DA 5.9 em 19/09/2026, por decisão do dono, e ENTRA ANTES DELA
   # (a ordem do épico: F1 mede antes de F2 ligar). É a metade do Mac do marco B:
