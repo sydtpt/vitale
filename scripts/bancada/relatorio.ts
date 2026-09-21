@@ -32,15 +32,19 @@ import { createHash } from 'node:crypto';
 import type { AlcanceDaSaude, MotorId, ProblemaDaConferencia, RecursoId, SonoRange } from '@vitale/shared';
 import {
   CLASSES_DE_FALHA,
-  MOTIVOS_FORA_DA_MEDIDA,
   REGRA_DA_AMOSTRA,
   REGRA_DA_JANELA_MEDIDA,
   SEM_MODELO,
   VEREDITOS,
   agregar,
+  decimal,
   foraDaMedida,
+  foraEmTexto,
+  hashCurto,
   medidasDoPortao,
+  porcento,
   resumoDaCobertura,
+  segundos,
   type Agregados,
   type AssinaturaDaLinha,
   type DesfechoDaLinha,
@@ -61,6 +65,7 @@ import { ALCANCES_MEDIDOS, type Janela } from './janelas.ts';
 export {
   MOTIVOS_FORA_DA_MEDIDA,
   ORDEM_DOS_CASOS,
+  hashCurto,
   REGRA_DA_JANELA_MEDIDA,
   VEREDITOS,
   agregar,
@@ -176,11 +181,6 @@ export function corpoDoManifesto(m: Manifesto): CorpoDoManifesto {
 /** O digest de um manifesto já montado, recalculado a partir do corpo dele. */
 export function hashDoCorpo(corpo: CorpoDoManifesto): string {
   return sha256De(canonico({ ...corpo, motores: [...corpo.motores].sort() }));
-}
-
-/** O hash curto, para nome de arquivo e para o cabeçalho do Markdown. */
-export function hashCurto(hash: string): string {
-  return hash.slice(0, 12);
 }
 
 /* ── a linha da sonda ─────────────────────────────────────────────────────── */
@@ -494,19 +494,6 @@ function fecho(a: Agregados): string[] {
   ]);
 }
 
-/** Número com vírgula decimal, como o dono lê. */
-function decimal(n: number, casas = 1): string {
-  return n.toFixed(casas).replace('.', ',');
-}
-
-function porcento(parte: number, todo: number): string {
-  return todo === 0 ? '—' : `${decimal((parte / todo) * 100)}%`;
-}
-
-function segundos(ms: number | null): string {
-  return ms === null ? '—' : `${decimal(ms / 1000)} s`;
-}
-
 function assinaturasEmMarkdown(assinaturas: readonly AssinaturaObservada[], compilador: string | undefined): string[] {
   const out = ['### Quem respondeu', ''];
   if (compilador !== undefined) out.push(`A CLI desta coluna foi compilada por: \`${compilador}\`.`, '');
@@ -536,20 +523,6 @@ function assinaturasEmMarkdown(assinaturas: readonly AssinaturaObservada[], comp
     );
   }
   return out;
-}
-
-/** Os motivos de ficar fora da medida, como o dono os lê. */
-const ROTULO_FORA: Readonly<Record<ForaDaMedida, string>> = {
-  semChamada: 'sem chamada',
-  sintetica: 'sintéticas',
-  defeito: 'defeitos',
-  indisponivel: 'indisponíveis',
-  doHospedeiro: 'do hospedeiro',
-};
-
-function foraEmTexto(f: Readonly<Record<ForaDaMedida, number>>): string {
-  const partes = MOTIVOS_FORA_DA_MEDIDA.filter((m) => f[m] > 0).map((m) => `${f[m]} ${ROTULO_FORA[m]}`);
-  return partes.length > 0 ? partes.join(' · ') : 'nenhuma';
 }
 
 /**

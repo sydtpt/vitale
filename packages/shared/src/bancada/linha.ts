@@ -216,9 +216,15 @@ export interface ContagemDoHospedeiro {
 }
 
 /**
- * As marcas do hospedeiro numa linha: o que mudou na contagem enquanto ela era medida.
- * Quem mede lê a contagem antes de chamar o `ler` e passa as duas pontas — é assim que
- * `frio` e `doHospedeiro` chegam à linha sem a porta (`Motor`) ganhar campo nenhum.
+ * As marcas do hospedeiro numa linha, pela **diferença de contadores**: o que mudou
+ * enquanto ela era medida. Quem mede lê a contagem antes de chamar o `ler` e passa as duas
+ * pontas — é assim que `frio` e `doHospedeiro` chegam à linha sem a porta (`Motor`) ganhar
+ * campo nenhum.
+ *
+ * A diferença só é confiável quando **uma** chamada aconteceu na janela: é o caso da
+ * bancada do Mac, cujo processo é o único a falar com a CLI. Um hospedeiro em que outra
+ * tela pode chamar o motor no meio da janela usa {@link marcasDaChamada}, que carimba a
+ * chamada em vez de subtrair contadores.
  */
 export function marcasDoHospedeiro(
   depois: ContagemDoHospedeiro | undefined,
@@ -228,5 +234,25 @@ export function marcasDoHospedeiro(
   return {
     ...(depois.frias > antes.frias ? { frio: true as const } : {}),
     ...(depois.doHospedeiro > antes.doHospedeiro ? { doHospedeiro: true as const } : {}),
+  };
+}
+
+/**
+ * A marca de **uma** chamada, como o transporte a observou ao encerrá-la: ela subiu o
+ * modelo (fria) e/ou a falha foi fabricada pelo hospedeiro.
+ *
+ * É o que um transporte capaz de carimbar cada chamada empilha, em ordem, para quem mede
+ * consumir — sem subtrair contadores globais, que numa concorrência caem na janela errada.
+ */
+export interface MarcaDaChamada {
+  readonly frio: boolean;
+  readonly doHospedeiro: boolean;
+}
+
+/** A marca de uma chamada nos campos da linha. */
+export function marcasDaChamada(m: MarcaDaChamada): { frio?: true; doHospedeiro?: true } {
+  return {
+    ...(m.frio ? { frio: true as const } : {}),
+    ...(m.doHospedeiro ? { doHospedeiro: true as const } : {}),
   };
 }

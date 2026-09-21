@@ -12,7 +12,6 @@
  * relatório do Mac e a tela do iPhone dão o mesmo número — e é isso que torna a aprovação
  * do modelo do iPhone comparável com a do Mac.
  */
-import { ehClasseDeFalha } from '../ia/fio';
 import { CASOS_DA_SAUDE, type CasoDaSaude } from '../sleep/caso';
 import type { AlcanceDaSaude } from '../sleep/leitura';
 import type { DesfechoDaLinha, LinhaDoRelatorio } from './linha';
@@ -60,9 +59,10 @@ export function vereditoDe(d: DesfechoDaLinha): VereditoDaLinha {
 }
 
 /**
- * A ordem em que os casos aparecem no fecho e na cobertura — a precedência da CAP-13, do
- * mais vazio ao mais específico. **É a lista do caso, não uma cópia dela**: um caso novo
- * em `sleep/caso.ts` aparece aqui sem ninguém lembrar.
+ * A ordem em que os casos aparecem no fecho e na cobertura: **a precedência da CAP-13**,
+ * como `sleep/caso.ts` a declara — `sem-contagem` primeiro, `fora-do-empate` por último.
+ * **É a lista do caso, não uma cópia dela**: um caso novo lá aparece aqui sem ninguém
+ * lembrar (e o teste do Mac guarda a lista literal, para a mudança ser vista).
  *
  * Exposta com nome próprio porque a bancada do Mac a lê e não pode importar
  * `CASOS_DA_SAUDE` (a guarda (7) o conta como peça da Saúde do sono).
@@ -92,6 +92,38 @@ function zerado(): Record<VereditoDaLinha, number> {
   return out;
 }
 
+/**
+ * A linha conta em `porClasse`? Toda classe de falha do fio, mais o defeito — o `switch`
+ * é **exaustivo** pelo mesmo motivo do de {@link vereditoDe}: uma classe nova no fio não
+ * compila aqui até alguém decidir se ela conta.
+ *
+ * Escrito à mão, e não com o `ehClasseDeFalha` do fio, de propósito: assim este módulo
+ * importa **só tipo** do núcleo de IA, e nada o aproxima do fecho da guarda (7) — a régua
+ * da bancada precisa continuar importável pela tela de desenvolvimento.
+ */
+function contaPorClasse(d: DesfechoDaLinha): boolean {
+  switch (d) {
+    case 'indisponivel':
+    case 'capacidade':
+    case 'janela':
+    case 'guarda':
+    case 'recusa-do-modelo':
+    case 'saida-invalida':
+    case 'transitoria':
+    case 'defeito':
+      return true;
+    case 'ok':
+    case 'reprovada':
+    case 'template':
+    case 'mudo':
+      return false;
+    default: {
+      const nunca: never = d;
+      throw new TypeError(`desfecho sem classe: ${String(nunca)}`);
+    }
+  }
+}
+
 /** O que {@link agregar} lê de uma linha — a da coluna e a da sonda têm os três. */
 export type LinhaAgregavel = Pick<LinhaDoRelatorio, 'desfecho' | 'caso' | 'problemas'>;
 
@@ -113,7 +145,7 @@ export function agregar(linhas: readonly LinhaAgregavel[]): Agregados {
     if (v === 'reprovada') {
       for (const p of l.problemas ?? []) porRegra.set(p.regra, (porRegra.get(p.regra) ?? 0) + 1);
     }
-    if (ehClasseDeFalha(l.desfecho) || l.desfecho === 'defeito') {
+    if (contaPorClasse(l.desfecho)) {
       porClasse.set(l.desfecho, (porClasse.get(l.desfecho) ?? 0) + 1);
     }
   }
@@ -190,6 +222,32 @@ export interface NaAmostra {
 }
 
 /**
+ * Os alcances que a cobertura percorre — a condição 2 da ADR 0050 é "os sete casos nos
+ * **dois** alcances", e é desta lista que o "dois" sai, nunca de aritmética.
+ *
+ * **Exaustiva por construção:** um alcance novo em `AlcanceDaSaude` deixa `SobraDeAlcance`
+ * diferente de `never`, e a linha abaixo não compila até ele entrar aqui — o mesmo
+ * mecanismo do `switch` de {@link vereditoDe}, e o motivo é o mesmo: uma combinação que
+ * ninguém conta é uma condição do portão medida pela metade, em silêncio.
+ */
+export const ALCANCES_DA_COBERTURA = ['noite', 'periodo'] as const satisfies readonly AlcanceDaSaude[];
+
+type SobraDeAlcance = Exclude<AlcanceDaSaude, (typeof ALCANCES_DA_COBERTURA)[number]>;
+const _coberturaCobreTodoAlcance: [SobraDeAlcance] extends [never] ? true : SobraDeAlcance = true;
+void _coberturaCobreTodoAlcance;
+
+/** O nome de cada alcance na leitura — exaustivo pelo `Record`. */
+export const ROTULO_DO_ALCANCE: Readonly<Record<AlcanceDaSaude, string>> = {
+  noite: 'noite',
+  periodo: 'período',
+};
+
+/** A cobertura de um caso: a presença na amostra e as aprovadas, **em cada alcance**. */
+export type CoberturaDoCaso = { readonly caso: CasoDaSaude['caso'] } & {
+  readonly [A in AlcanceDaSaude]: NaAmostra;
+};
+
+/**
  * Os números que as quatro condições da ADR 0050 leem, numa coluna de modelo — **sem
  * limiar e sem veredito**:
  *
@@ -206,11 +264,7 @@ export interface MedidasDoPortao {
   /** As que ficaram fora da medida, por motivo — a soma com `medidas` fecha em `janelas`. */
   readonly foraDaMedida: Readonly<Record<ForaDaMedida, number>>;
   readonly aprovadas: number;
-  readonly cobertura: readonly {
-    readonly caso: CasoDaSaude['caso'];
-    readonly noite: NaAmostra;
-    readonly periodo: NaAmostra;
-  }[];
+  readonly cobertura: readonly CoberturaDoCaso[];
   readonly identicasAoTemplate: number;
   /** Em ms, das medidas não frias. `null` quando não sobrou nenhuma. */
   readonly medianaMs: number | null;
@@ -241,7 +295,13 @@ export function medidasDoPortao(linhas: readonly LinhaDoRelatorio[]): MedidasDoP
     medidas: medidas.length,
     foraDaMedida: contagemFora(linhas),
     aprovadas: aprovadas.length,
-    cobertura: ORDEM_DOS_CASOS.map((caso) => ({ caso, noite: naAmostra(caso, 'noite'), periodo: naAmostra(caso, 'periodo') })),
+    // Caso × alcance percorrendo a LISTA de alcances: quem acrescentar um terceiro não
+    // precisa lembrar de nada aqui, e não compila sem declará-lo.
+    cobertura: ORDEM_DOS_CASOS.map((caso) => {
+      const porAlcance = {} as { [A in AlcanceDaSaude]: NaAmostra };
+      for (const alcance of ALCANCES_DA_COBERTURA) porAlcance[alcance] = naAmostra(caso, alcance);
+      return { caso, ...porAlcance };
+    }),
     identicasAoTemplate: aprovadas.filter((l) => l.frase !== undefined && l.frase.trim() === l.template.trim()).length,
     medianaMs: mediana(quentes.map((l) => l.ms)),
     naMediana: quentes.length,
@@ -261,13 +321,14 @@ export function resumoDaCobertura(m: Pick<MedidasDoPortao, 'cobertura'>): {
   /** `caso/noite` ou `caso/período`, na ordem dos casos. */
   readonly semJanela: readonly string[];
 } {
+  const contar = (leitura: (na: NaAmostra) => boolean): number =>
+    m.cobertura.reduce((n, c) => n + ALCANCES_DA_COBERTURA.filter((a) => leitura(c[a])).length, 0);
   return {
-    combinacoes: m.cobertura.length * 2,
-    presentes: m.cobertura.reduce((n, c) => n + (c.noite.amostra > 0 ? 1 : 0) + (c.periodo.amostra > 0 ? 1 : 0), 0),
-    comAprovada: m.cobertura.reduce((n, c) => n + (c.noite.aprovadas > 0 ? 1 : 0) + (c.periodo.aprovadas > 0 ? 1 : 0), 0),
-    semJanela: m.cobertura.flatMap((c) => [
-      ...(c.noite.amostra === 0 ? [`${c.caso}/noite`] : []),
-      ...(c.periodo.amostra === 0 ? [`${c.caso}/período`] : []),
-    ]),
+    combinacoes: m.cobertura.length * ALCANCES_DA_COBERTURA.length,
+    presentes: contar((na) => na.amostra > 0),
+    comAprovada: contar((na) => na.aprovadas > 0),
+    semJanela: m.cobertura.flatMap((c) =>
+      ALCANCES_DA_COBERTURA.filter((a) => c[a].amostra === 0).map((a) => `${c.caso}/${ROTULO_DO_ALCANCE[a]}`),
+    ),
   };
 }

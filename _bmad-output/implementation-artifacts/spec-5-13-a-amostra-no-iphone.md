@@ -2,7 +2,7 @@
 title: 'Story 5.13 — A amostra no iPhone: medir o modelo do aparelho no próprio aparelho'
 type: 'feature'
 created: '2026-09-19'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'b0e95ed6e58e48ae40365dc9ab2225b02cdbb06b'
 context:
@@ -100,3 +100,55 @@ context:
 
 **Manual checks:**
 - No iPhone: Bancada → "Medir a amostra", com a tela acesa — **portão do dono**, que lê os números.
+
+## Suggested Review Order
+
+**A régua, agora com um dono só**
+
+- A amostra: enumerar as janelas do acervo e recortar as recentes por caso × alcance.
+  [`amostra.ts:128`](../../packages/shared/src/bancada/amostra.ts#L128)
+
+- A tradução da medição em linha — o que os dois hospedeiros gravam igual.
+  [`linha.ts:155`](../../packages/shared/src/bancada/linha.ts#L155)
+
+- A regra da janela medida, e as quatro medidas da ADR 0050 sem veredito.
+  [`medidas.ts:196`](../../packages/shared/src/bancada/medidas.ts#L196)
+
+- A cobertura por caso × alcance, com exaustividade que um alcance novo quebra.
+  [`medidas.ts:317`](../../packages/shared/src/bancada/medidas.ts#L317)
+
+- As palavras do relatório, também com dono único.
+  [`texto.ts:55`](../../packages/shared/src/bancada/texto.ts#L55)
+
+**A medição no aparelho**
+
+- A preparação em quatro etapas, cada uma cancelável: diagnóstico, notas, enumerar, amostrar.
+  [`amostra.ts:141`](../../mobile/src/lib/motores/amostra.ts#L141)
+
+- A janela medida no aparelho — fora da tela, para o teste alcançá-la.
+  [`amostra.ts:274`](../../mobile/src/lib/motores/amostra.ts#L274)
+
+- O portão das notas: cobertura decide, o erro explica.
+  [`amostra.ts:95`](../../mobile/src/lib/motores/amostra.ts#L95)
+
+- O freio: três janelas seguidas do hospedeiro param a corrida.
+  [`amostra.ts:377`](../../mobile/src/lib/motores/amostra.ts#L377)
+
+- A marca por chamada, no instante em que ela se resolve — duas marcas na mesma janela não viram chute.
+  [`motores/index.ts:394`](../../mobile/src/lib/motores/index.ts#L394)
+
+**A tela**
+
+- Sair da tela para a medição e solta o aparelho aceso.
+  [`bancada.tsx:192`](../../mobile/src/app/configuracoes/motores/bancada.tsx#L192)
+
+- O cartão: o que foi usado, as quatro medidas, as regras e cada janela com hash e texto.
+  [`bancada.tsx:503`](../../mobile/src/app/configuracoes/motores/bancada.tsx#L503)
+
+**As barreiras e a prova**
+
+- A régua, nos apps, só onde se mede — com os quatro furos fechados.
+  [`architecture.test.ts:2649`](../../packages/shared/src/architecture.test.ts#L2649)
+
+- O comando que relê um relatório salvo e reconfere as medidas — a prova que era comentário.
+  [`reconferir.ts`](../../scripts/bancada/reconferir.ts)

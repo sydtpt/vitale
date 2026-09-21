@@ -435,8 +435,16 @@ describe('o manifesto versionado, no disco', () => {
 });
 
 describe('a ordem dos casos', () => {
-  it('é a do núcleo, caso a caso — um caso novo lá derruba isto', () => {
-    assert.deepEqual([...ORDEM_DOS_CASOS], [...CASOS_DA_SAUDE]);
+  it('é esta lista, caso a caso — um caso novo no núcleo derruba isto', () => {
+    // A lista **literal**, e não `CASOS_DA_SAUDE`: desde a 5.13 `ORDEM_DOS_CASOS` É a
+    // lista do núcleo, e compará-las seria comparar a coisa com ela mesma. O que este
+    // teste guarda é a ordem que o relatório do dono imprime — um caso novo, ou uma troca
+    // de precedência, tem de passar por aqui e ser visto.
+    assert.deepEqual(
+      [...ORDEM_DOS_CASOS],
+      ['sem-contagem', 'medidas-insuficientes', 'tudo-no-maximo', 'todas-iguais', 'uma', 'duas', 'fora-do-empate'],
+    );
+    assert.deepEqual([...ORDEM_DOS_CASOS], [...CASOS_DA_SAUDE], 'a ordem do relatório saiu da do núcleo');
   });
 
   it('o fecho sai nessa ordem, qualquer que seja a ordem das linhas', () => {
@@ -783,7 +791,9 @@ describe('o relatório da coluna de modelo', () => {
     assert.match(secao, /sem limiar e sem veredito/);
     // A regra da janela medida, escrita ao lado dos números.
     assert.ok(secao.includes('Janela medida é a tentativa que chegou ao modelo'), secao);
-    assert.ok(secao.includes('| medidas (chegaram ao modelo) | 3 — fora da medida: 1 indisponíveis |'), secao);
+    // A concordância é do núcleo (`foraEmTexto`), e vale nos dois hospedeiros: um só
+    // indisponível é "1 indisponível", não "1 indisponíveis" (story 5.13).
+    assert.ok(secao.includes('| medidas (chegaram ao modelo) | 3 — fora da medida: 1 indisponível |'), secao);
     assert.ok(secao.includes('| aprovação (`ok` ÷ medidas) | 1 de 3 (33,3%) |'), secao);
     assert.ok(secao.includes('| aprovadas idênticas ao template | 0 de 1 |'), secao);
     assert.ok(secao.includes('| mediana do tempo por chamada | 2,0 s (2 medidas; 1 fria ficou de fora) |'), secao);

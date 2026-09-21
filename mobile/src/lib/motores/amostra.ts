@@ -1,19 +1,66 @@
 /**
- * A amostra no iPhone (story 5.13) — o que o laço da tela de desenvolvimento precisa e
- * não é régua: o portão das notas, a sequência com "parar" e a escrita dos números.
+ * A amostra no iPhone (story 5.13) — o preparo, a medição de uma janela e a sequência que
+ * a tela de desenvolvimento desenha.
  *
- * **A régua não mora aqui.** A amostra, a tradução da medição em linha e as medidas da ADR
- * 0050 são do núcleo (`packages/shared/src/bancada/`), as mesmas da bancada do Mac, e uma
- * barreira do `architecture.test.ts` as prende, no app, à tela
- * `app/configuracoes/motores/bancada.tsx` — a amostra carrega caso, e caso não entra em
- * tela de produto. Este arquivo lê delas **só tipos**, que a compilação apaga: nenhum caso
- * passa por aqui.
+ * **A régua é do núcleo** (`packages/shared/src/bancada/`): a amostra, a tradução da
+ * medição em linha e as medidas da ADR 0050 são as mesmas da bancada do Mac. O que mora
+ * aqui é o que o app acrescenta — o portão das notas, o laço uma-janela-por-vez com
+ * "parar" e freio, e a composição que mede uma janela no modelo do aparelho.
  *
- * **O laço é do hospedeiro, e o motor é só o aparelho.** Uma janela por vez, pela fila da
- * ponte; a que o aparelho não atendeu (prazo, ponte) conta fora da medida, pela marca do
- * `registroDoAparelho`. Tudo fica na memória da sessão: nada disto sai do aparelho.
+ * **Fica aqui, e não na tela**, porque é isto que produz os números que o dono vai ler: na
+ * tela, o jest não o importa, e o que sobraria seria uma cópia à mão dizendo que está
+ * certo. A barreira do `architecture.test.ts` libera este arquivo junto com a tela e com o
+ * teste dele — e mais ninguém no app.
+ *
+ * Nada aqui grava, e nada sai do aparelho.
  */
-import type { MedidasDoPortao } from '@vitale/shared';
+import {
+  APARELHO_SISTEMA,
+  SEM_MODELO,
+  SEM_PEDIDO,
+  amostraDaNuvem,
+  defeitoDe,
+  descritorDaSaudeDoSono,
+  entradaDaSaude,
+  enumerarJanelas,
+  hashDaMedicao,
+  ler,
+  linhaDaMedicao,
+  linhaDoDefeito,
+  marcasDaChamada,
+  mediana,
+  noiteMaisAntiga,
+  passosPorAlcance,
+  templateDaMedicao,
+  type EventoDoAnel,
+  type JanelaClassificada,
+  type LinhaDoRelatorio,
+  type MotorId,
+  type Motor,
+  type SleepPeriod,
+  type SonoRange,
+} from '@vitale/shared';
+import { motorPara as motorParaDoApp, registroDoAparelho, type RegistroDoAparelho } from './index';
+
+/* ── o acervo e o que a medição usou ─────────────────────────────────────── */
+
+/** O acervo que a amostra lê — as noites e as notas da store, já inteiras. */
+export interface DadosDaAmostra {
+  readonly noites: readonly SleepPeriod[];
+  readonly notas: Readonly<Record<string, number>>;
+}
+
+/** O que a medição usou — o topo do resultado, para comparar com o manifesto do Mac. */
+export interface ContextoDaAmostra {
+  readonly hoje: string;
+  readonly limite: number;
+  readonly noites: number;
+  readonly notasDesde: string;
+  readonly maisAntiga: string;
+  readonly passos: readonly { readonly range: SonoRange; readonly passos: number }[];
+  readonly enumeradas: number;
+  readonly janelas: number;
+}
 
 /* ── o portão das notas ──────────────────────────────────────────────────── */
 
@@ -22,35 +69,249 @@ export interface EstadoDasNotas {
   /** O primeiro dia que o mapa de notas cobre, ou `null` antes de carregar. */
   readonly ratingsSince: string | null;
   /** A última falha ao estender a janela de notas. */
-  readonly notasError?: string;
+  readonly notasError?: string | null;
 }
 
-export type ProntidaoDasNotas = { readonly pronta: true } | { readonly pronta: false; readonly motivo: string };
+export type ProntidaoDasNotas =
+  /** `desde` é o primeiro dia coberto — quem prepara escreve **este** no contexto, e não um palpite. */
+  | { readonly pronta: true; readonly desde: string }
+  | { readonly pronta: false; readonly motivo: string };
 
 /**
- * As notas estão **inteiras** para enumerar? Cobrem desde a noite mais antiga, e a última
- * extensão não falhou.
+ * As notas estão **inteiras** para enumerar? Cobrem desde a noite mais antiga — e, quando
+ * não cobrem, o erro da última carga diz por quê.
  *
  * É o portão que faz a amostra do iPhone ser a do Mac: a percepção muda o caso, e com as
  * notas de 90 dias que a store carrega sozinha as janelas antigas cairiam em outros casos
  * — outra amostra, e números que não se comparam. Nota antes da noite mais antiga não
  * muda caso nenhum (a percepção só lê a nota do dia de acordar de uma noite), então cobrir
  * a partir dela basta.
+ *
+ * **A cobertura decide; o erro explica.** Um `notasError` que ficou de uma carga anterior
+ * — de outra janela, que já foi coberta por outra chamada — não pode travar a sessão
+ * inteira: se o mapa cobre a noite mais antiga, não há percepção faltando, e medir é
+ * correto. O erro só barra quando a cobertura de fato não chegou lá.
  */
 export function prontidaoDasNotas(estado: EstadoDasNotas, noiteMaisAntiga: string): ProntidaoDasNotas {
-  if (estado.notasError !== undefined) {
-    return { pronta: false, motivo: `as notas não chegaram: ${estado.notasError}` };
+  if (estado.ratingsSince !== null && estado.ratingsSince <= noiteMaisAntiga) return { pronta: true, desde: estado.ratingsSince };
+  const porque =
+    estado.notasError !== undefined && estado.notasError !== null
+      ? `as notas não chegaram: ${estado.notasError}`
+      : estado.ratingsSince === null
+        ? 'as notas ainda não chegaram'
+        : `as notas só chegaram desde ${estado.ratingsSince}, e a noite mais antiga é de ${noiteMaisAntiga}`;
+  return { pronta: false, motivo: porque };
+}
+
+/* ── o preparo ───────────────────────────────────────────────────────────── */
+
+/** O que a tela lê da store do sono para preparar a amostra. */
+export interface AcervoDaStore extends EstadoDasNotas {
+  readonly loaded: boolean;
+  readonly error?: string;
+  readonly periods: readonly SleepPeriod[];
+  readonly sleepRatings: Readonly<Record<string, number>>;
+}
+
+/** As etapas do preparo, na ordem — a tela diz qual está rodando. */
+export const ETAPAS_DO_PREPARO = ['aparelho', 'notas', 'enumerando', 'amostrando'] as const;
+export type EtapaDoPreparo = (typeof ETAPAS_DO_PREPARO)[number];
+
+export const ETAPA_EM_PALAVRAS: Readonly<Record<EtapaDoPreparo, string>> = {
+  aparelho: 'perguntando ao aparelho se o modelo atende…',
+  notas: 'carregando as notas até a noite mais antiga…',
+  enumerando: 'enumerando as janelas do acervo…',
+  amostrando: 'escolhendo a amostra…',
+};
+
+export type PreparoDaAmostra =
+  | { readonly ok: true; readonly janelas: readonly JanelaClassificada[]; readonly dados: DadosDaAmostra; readonly contexto: ContextoDaAmostra }
+  /** `motivo` nulo é "cancelado": ninguém pediu explicação. */
+  | { readonly ok: false; readonly motivo: string | null };
+
+/**
+ * O preparo da amostra, antes de qualquer chamada ao modelo: o diagnóstico do aparelho, as
+ * notas inteiras, a enumeração e a amostra.
+ *
+ * Tudo injetado — a store, o relógio e o diagnóstico — para o teste exercitar cada recusa
+ * sem React e sem rede. **Cancelável entre as etapas**: a enumeração é síncrona e longa
+ * (~390 entradas), e o que se pode prometer é não começar a próxima etapa depois do toque
+ * em cancelar.
+ */
+export async function prepararAmostra(o: {
+  readonly hoje: string;
+  readonly limite: number;
+  /** A store, lida **a cada vez** — o acervo pode mudar durante os `await`. */
+  readonly estado: () => AcervoDaStore;
+  readonly carregarNotasDesde: (dia: string) => Promise<void>;
+  /** Por que o modelo do aparelho não atende agora, ou `null` se atende. */
+  readonly motivoDoAparelho: () => Promise<string | null>;
+  readonly cancelado?: () => boolean;
+  readonly aoAndar?: (etapa: EtapaDoPreparo) => void;
+  /** Um respiro para a tela pintar entre as etapas. */
+  readonly respirar?: () => Promise<void>;
+}): Promise<PreparoDaAmostra> {
+  const cancelado = o.cancelado ?? ((): boolean => false);
+  const respirar = o.respirar ?? ((): Promise<void> => Promise.resolve());
+  const etapa = async (qual: EtapaDoPreparo): Promise<boolean> => {
+    if (cancelado()) return false;
+    o.aoAndar?.(qual);
+    await respirar();
+    return !cancelado();
+  };
+
+  if (!(await etapa('aparelho'))) return { ok: false, motivo: null };
+  // O motor é só o aparelho: sem ele, não há o que medir.
+  const semAparelho = await o.motivoDoAparelho();
+  if (semAparelho !== null) return { ok: false, motivo: `o modelo do aparelho não mede: ${semAparelho}` };
+
+  const antes = o.estado();
+  if (!antes.loaded) {
+    return { ok: false, motivo: antes.error ? `o sono não carregou: ${antes.error}` : 'o sono ainda está carregando' };
   }
-  if (estado.ratingsSince === null) {
-    return { pronta: false, motivo: 'as notas ainda não chegaram' };
-  }
-  if (estado.ratingsSince > noiteMaisAntiga) {
+  const maisAntiga = noiteMaisAntiga(antes.periods, o.hoje);
+  if (maisAntiga === null) return { ok: false, motivo: 'não há noite gravada até hoje' };
+
+  if (!(await etapa('notas'))) return { ok: false, motivo: null };
+  await o.carregarNotasDesde(maisAntiga);
+  const depois = o.estado();
+  // **O acervo pode ter mudado durante a carga** (um sync trouxe a noite de hoje, ou um
+  // `load()` terminou): medir com a noite mais antiga de antes daria uma amostra que não é
+  // a deste acervo. Recomeçar sozinho seria laço; o toque é do dono.
+  const agoraMaisAntiga = noiteMaisAntiga(depois.periods, o.hoje);
+  if (agoraMaisAntiga !== maisAntiga) {
     return {
-      pronta: false,
-      motivo: `as notas só chegaram desde ${estado.ratingsSince}, e a noite mais antiga é de ${noiteMaisAntiga}`,
+      ok: false,
+      motivo: `o acervo mudou enquanto as notas carregavam (a noite mais antiga era ${maisAntiga} e agora é ${
+        agoraMaisAntiga ?? 'nenhuma'
+      }) — toque de novo`,
     };
   }
-  return { pronta: true };
+  const notas = prontidaoDasNotas(depois, maisAntiga);
+  if (!notas.pronta) return { ok: false, motivo: `${notas.motivo} — sem elas a percepção muda o caso, e a amostra não seria a do Mac` };
+  // O dia que o portão conferiu, e não `ratingsSince ?? maisAntiga`: o segundo era um
+  // palpite que a tela mostraria como fato se o portão um dia deixasse passar nulo.
+  const notasDesde = notas.desde;
+
+  if (!(await etapa('enumerando'))) return { ok: false, motivo: null };
+  const dados: DadosDaAmostra = { noites: depois.periods, notas: depois.sleepRatings };
+  const todas = enumerarJanelas(dados.noites, dados.notas, o.hoje);
+
+  if (!(await etapa('amostrando'))) return { ok: false, motivo: null };
+  const janelas = amostraDaNuvem(todas, o.limite);
+  if (janelas.length === 0) {
+    return {
+      ok: false,
+      motivo:
+        todas.length === 0
+          ? 'nenhuma janela no acervo até hoje — não há o que medir'
+          : `a amostra ficou vazia com o limite ${o.limite}`,
+    };
+  }
+  return {
+    ok: true,
+    janelas,
+    dados,
+    contexto: {
+      hoje: o.hoje,
+      limite: o.limite,
+      noites: dados.noites.filter((p) => p.wakeDay <= o.hoje).length,
+      notasDesde,
+      maisAntiga,
+      passos: passosPorAlcance(todas),
+      enumeradas: todas.length,
+      janelas: janelas.length,
+    },
+  };
+}
+
+/* ── uma janela ──────────────────────────────────────────────────────────── */
+
+/** O relógio e as portas que a medição usa — injetáveis, para o teste não tocar no app. */
+export interface DepsDaMedicao {
+  readonly motorPara?: (id: MotorId) => Motor | undefined;
+  readonly registro?: RegistroDoAparelho;
+  readonly agora?: () => Date;
+}
+
+/**
+ * Um relógio **monotônico** vestido de `Date`, que é o que o orquestrador aceita.
+ *
+ * O `ms` de cada janela é a diferença entre duas leituras dele, e `new Date()` pode andar
+ * para trás (o iOS ajusta a hora por NTP) — uma correção de um segundo no meio de uma
+ * chamada de 14 s vira uma mediana errada, que é uma das quatro condições da ADR 0050.
+ * `performance.now()` não anda para trás; onde ele não existir, cai no relógio de parede.
+ */
+export function relogioMonotonico(): () => Date {
+  const base = Date.now();
+  const monotonico = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance : null;
+  if (monotonico === null) return () => new Date();
+  const zero = monotonico.now();
+  return () => new Date(base + (monotonico.now() - zero));
+}
+
+/** O texto que a linha ganha quando ninguém pode dizer de quem foi a falha. */
+export const MARCAS_INDEFINIDAS =
+  'marcas do hospedeiro indefinidas: outra chamada ao aparelho encerrou no meio desta janela';
+
+/**
+ * Uma janela da amostra, medida como a bancada do Mac a mede: a régua pelo piso, o modelo
+ * do aparelho em `medicao`, e a linha traduzida pela **mesma função** do Mac.
+ *
+ * O hash vem da própria medição (`hashDaMedicao`): é o `hashDoPedido` do pedido que o Mac
+ * monta para o relatório, sem o app montá-lo (a catraca do `montarPedido` nomeia só a
+ * bancada). O anel do app tem teto, então a medição registra com `registrar` próprio, só
+ * para guardar a pilha de um defeito.
+ *
+ * **`frio` e `doHospedeiro` saem da marca da chamada**, não de contadores: o transporte
+ * carimba cada chamada ao encerrá-la e a medição consome as marcas desta janela. Com uma
+ * janela por vez, é exatamente uma; se o transporte encerrar duas aqui dentro (outra tela
+ * pediu ao aparelho no meio), **não se chuta**: a linha fica sem marca e diz isso no
+ * detalhe, porque atribuir a fria ou o prazo à janela errada é pior que não atribuir.
+ *
+ * Nunca rejeita: uma exceção de função pura vira a linha de defeito, e a amostra segue.
+ */
+export async function medirJanelaNoAparelho(
+  j: JanelaClassificada,
+  dados: DadosDaAmostra,
+  hoje: string,
+  deps: DepsDaMedicao = {},
+): Promise<LinhaDoRelatorio> {
+  const motorPara = deps.motorPara ?? motorParaDoApp;
+  const registro = deps.registro ?? registroDoAparelho;
+  const agora = deps.agora ?? relogioMonotonico();
+  const antes = registro.marcas.length;
+  let evento: EventoDoAnel | null = null;
+  let hash = SEM_PEDIDO;
+  let template = '(defeito)';
+  try {
+    const e = entradaDaSaude(dados.noites, dados.notas, { range: j.range, offset: j.offset, hoje });
+    const regua = await ler(descritorDaSaudeDoSono, e, {
+      modo: 'medicao',
+      motor: SEM_MODELO,
+      motorPara,
+      registrar: () => undefined,
+      agora,
+    });
+    template = templateDaMedicao(regua);
+    const m = await ler(descritorDaSaudeDoSono, e, {
+      modo: 'medicao',
+      motor: APARELHO_SISTEMA,
+      motorPara,
+      registrar: (ev) => {
+        evento = ev;
+      },
+      agora,
+    });
+    hash = hashDaMedicao(m);
+    const linha = linhaDaMedicao(j, hash, template, m, evento);
+    const novas = registro.marcas.slice(antes);
+    if (novas.length === 1) return { ...linha, ...marcasDaChamada(novas[0]!) };
+    if (novas.length === 0) return linha;                       // nenhuma chamada saiu (sintética, muda)
+    return { ...linha, detalhe: [linha.detalhe, MARCAS_INDEFINIDAS].filter(Boolean).join(' · ') };
+  } catch (x) {
+    return linhaDoDefeito(j, hash, template, defeitoDe(x));
+  }
 }
 
 /* ── a sequência ─────────────────────────────────────────────────────────── */
@@ -59,6 +320,8 @@ export interface ResultadoDaSequencia<L> {
   readonly linhas: readonly L[];
   /** Parou antes da última janela: as medidas são só do que já foi medido. */
   readonly parcial: boolean;
+  /** Por que parou antes do fim, quando não foi o toque em "parar". */
+  readonly motivo?: string;
 }
 
 /**
@@ -68,13 +331,16 @@ export interface ResultadoDaSequencia<L> {
  * sozinha —: só não abre a próxima. A linha da janela em voo entra, porque ela foi medida;
  * o resultado sai marcado como parcial se sobrou janela sem medir.
  *
- * `medir` não rejeita: quem mede transforma o defeito em linha. Se rejeitar mesmo assim, a
- * rejeição sobe — a tela a trata como o fim da medição.
+ * **O que já foi medido nunca se perde**: uma exceção de `medir` encerra a corrida como
+ * parcial, com o motivo, em vez de subir e apagar as linhas anteriores. E `abortarSe` é o
+ * freio — o laço pergunta a cada janela se vale seguir (ver {@link freioDoHospedeiro}).
  */
 export async function medirEmSequencia<J, L>(o: {
   readonly janelas: readonly J[];
   readonly medir: (janela: J, indice: number) => Promise<L>;
   readonly parar: () => boolean;
+  /** Vale seguir? Devolve o motivo de parar, ou `null`. */
+  readonly abortarSe?: (linhas: readonly L[]) => string | null;
   /** Antes de cada janela: qual vai ao aparelho agora. */
   readonly aoAbrir?: (janela: J, indice: number) => void;
   /** Depois de cada janela: o que já foi medido. */
@@ -85,42 +351,65 @@ export async function medirEmSequencia<J, L>(o: {
     if (o.parar()) return { linhas, parcial: true };
     const janela = o.janelas[i] as J;
     o.aoAbrir?.(janela, i);
-    linhas.push(await o.medir(janela, i));
+    try {
+      linhas.push(await o.medir(janela, i));
+    } catch (e) {
+      return { linhas, parcial: true, motivo: `a medição parou por um defeito: ${defeitoDe(e).detalhe}` };
+    }
     o.aoMedir?.([...linhas]);
+    const freio = o.abortarSe?.(linhas) ?? null;
+    if (freio !== null && i < o.janelas.length - 1) return { linhas, parcial: true, motivo: freio };
   }
   return { linhas, parcial: false };
 }
 
-/* ── os números, como a tela os escreve ──────────────────────────────────── */
+/** Quantas janelas seguidas fabricadas pelo hospedeiro param a corrida. */
+export const SEGUIDAS_DO_HOSPEDEIRO_PARA_PARAR = 3;
 
-/** Número com vírgula decimal, como o relatório do Mac escreve. */
-export function decimal(n: number, casas = 1): string {
-  return n.toFixed(casas).replace('.', ',');
+/**
+ * O freio: N janelas **seguidas** em que a falha foi do hospedeiro (prazo, ponte) e nenhuma
+ * chegou ao modelo.
+ *
+ * Sem ele, um aparelho que parou de responder custa 60 s por janela — uma hora de tela
+ * acesa, com a amostra inteira fora da medida e nada medido. O freio não julga o modelo:
+ * ele diz que **esta corrida** não está medindo.
+ */
+export function freioDoHospedeiro(
+  teto: number = SEGUIDAS_DO_HOSPEDEIRO_PARA_PARAR,
+): (linhas: readonly Pick<LinhaDoRelatorio, 'doHospedeiro'>[]) => string | null {
+  return (linhas) => {
+    if (linhas.length < teto) return null;
+    const ultimas = linhas.slice(-teto);
+    if (!ultimas.every((l) => l.doHospedeiro)) return null;
+    return `${teto} janelas seguidas não chegaram ao modelo (prazo ou ponte) — a corrida parou; nada aqui mede o modelo`;
+  };
 }
 
-/** `parte ÷ todo` em por cento, com uma casa — ou `—` sem denominador. */
-export function porcento(parte: number, todo: number): string {
-  return todo === 0 ? '—' : `${decimal((parte / todo) * 100)}%`;
+/* ── o tempo da corrida ──────────────────────────────────────────────────── */
+
+/**
+ * O que a tela mostra enquanto mede: o decorrido e uma **previsão grosseira** do que falta
+ * — a mediana do que já foi medido vezes as janelas restantes.
+ *
+ * Grosseira de propósito, e dita como tal: com limite 6 a corrida passa de dez minutos, e
+ * o dono tem de poder decidir se espera antes de descobrir isso esperando.
+ */
+export function previsaoDaAmostra(
+  linhas: readonly Pick<LinhaDoRelatorio, 'ms' | 'frio'>[],
+  restantes: number,
+): { readonly medianaMs: number | null; readonly restanteMs: number | null } {
+  const quentes = linhas.filter((l) => !l.frio).map((l) => l.ms);
+  const m = mediana(quentes.length > 0 ? quentes : linhas.map((l) => l.ms));
+  return { medianaMs: m, restanteMs: m === null ? null : Math.round(m * restantes) };
 }
 
-/** Milissegundos em segundos, com uma casa — ou `—` quando não há. */
-export function segundos(ms: number | null): string {
-  return ms === null ? '—' : `${decimal(ms / 1000)} s`;
-}
-
-/** Os motivos de ficar fora da medida, nas palavras do relatório do Mac. */
-const ROTULO_FORA: Readonly<Record<keyof MedidasDoPortao['foraDaMedida'], string>> = {
-  semChamada: 'sem chamada',
-  sintetica: 'sintéticas',
-  defeito: 'defeitos',
-  indisponivel: 'indisponíveis',
-  doHospedeiro: 'do hospedeiro',
-};
-
-/** O que ficou fora da medida, por motivo, numa linha — `nenhuma` quando nada ficou. */
-export function foraEmTexto(fora: MedidasDoPortao['foraDaMedida']): string {
-  const partes = (Object.keys(ROTULO_FORA) as (keyof typeof ROTULO_FORA)[])
-    .filter((m) => fora[m] > 0)
-    .map((m) => `${fora[m]} ${ROTULO_FORA[m]}`);
-  return partes.length > 0 ? partes.join(' · ') : 'nenhuma';
+/** `3m12s`, `48s`, `1h02m` — o tempo como se lê de relance, sem biblioteca. */
+export function duracaoCurta(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const min = Math.floor((total % 3600) / 60);
+  const seg = total % 60;
+  if (h > 0) return `${h}h${String(min).padStart(2, '0')}m`;
+  if (min > 0) return `${min}m${String(seg).padStart(2, '0')}s`;
+  return `${seg}s`;
 }
