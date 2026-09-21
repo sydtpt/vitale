@@ -6,12 +6,11 @@ import {
   type MotorId, type TipoDeMotor,
 } from './fio';
 import {
-  CONCLUSAO, TIPOS_QUE_GRAVAM, admiteTipo, destinatario, ehFalha, exposicao, hashDoPedido, resolverCadeia,
-  serializarPedido,
-  type Cadeia, type ChamadorDeModelo, type Falha, type Pedido, type PromptLegado, type RegimeDoRecurso,
-  type Resposta,
+  CONCLUSAO, TIPOS_QUE_GRAVAM, admiteTipo, destinatario, ehFalha, exposicao, hashDoPedido,
+  interpretarPorEsquema, resolverCadeia, serializarPedido,
+  type Cadeia, type Falha, type Pedido, type RegimeDoRecurso, type Resposta,
 } from './motor';
-import type { PromptDeNome } from '../routes/prompt';
+import type { Esquema } from './fio';
 
 /* ── a porta ── */
 
@@ -45,11 +44,48 @@ describe('a porta', () => {
     assert.ok(texto && esquema && invalido);
   });
 
-  it('a costura antiga aceita o prompt do nome de rota sem conhecê-lo', () => {
-    const prompt: PromptDeNome = { sistema: 's', usuario: 'u', json: true };
-    const legado: PromptLegado = prompt;
-    const chamar: ChamadorDeModelo = async (p) => ({ texto: p.usuario });
-    assert.ok(legado && chamar);
+});
+
+/* ── a leitura por esquema (story 5.7) ── */
+
+describe('interpretarPorEsquema', () => {
+  const ESQUEMA: Esquema = {
+    type: 'object',
+    properties: { dimensao: { type: 'string', enum: ['duracao', 'horario'] } },
+    required: ['dimensao'],
+  };
+  const de = (texto: string): Resposta => ({ texto, assinatura: { tipo: 'nuvem', provedor: 'p', modelo: 'm' } });
+
+  it('devolve o valor embrulhado quando ele cabe no esquema', () => {
+    assert.deepEqual(interpretarPorEsquema(ESQUEMA, de('{"dimensao":"duracao"}')), { valor: { dimensao: 'duracao' } });
+  });
+
+  it('o que não é JSON é saida-invalida, com o começo da resposta no detalhe', () => {
+    const r = interpretarPorEsquema(ESQUEMA, de('não posso responder')) as Falha;
+    assert.equal(r.classe, 'saida-invalida');
+    assert.match(r.detalhe ?? '', /não é JSON: não posso responder/);
+  });
+
+  it('o que não cabe no esquema é saida-invalida — inclusive por uma chave a mais', () => {
+    for (const texto of ['{"dimensao":"outra"}', '{}', '{"dimensao":"duracao","extra":1}', '[1]']) {
+      const r = interpretarPorEsquema(ESQUEMA, de(texto)) as Falha;
+      assert.equal(r.classe, 'saida-invalida', texto);
+      assert.match(r.detalhe ?? '', /não cabe no esquema/, texto);
+    }
+  });
+
+  it('o detalhe não carrega a resposta inteira: 200 caracteres bastam para reconhecer a falha', () => {
+    const r = interpretarPorEsquema(ESQUEMA, de('x'.repeat(5000))) as Falha;
+    assert.ok((r.detalhe ?? '').length < 260);
+  });
+
+  it('o envelope discrimina mesmo quando o modelo devolve uma chave `classe`', () => {
+    // Sem o `{ valor }`, um `{"classe":"transitoria"}` lido do modelo seria
+    // confundido com uma falha do núcleo por quem checa `'classe' in x`.
+    const comClasse: Esquema = { type: 'object', properties: { classe: { type: 'string' } }, required: ['classe'] };
+    const r = interpretarPorEsquema(comClasse, de('{"classe":"transitoria"}'));
+    assert.ok(!('classe' in r), 'o resultado bom não pode ter a forma de uma falha');
+    assert.deepEqual(r, { valor: { classe: 'transitoria' } });
   });
 });
 

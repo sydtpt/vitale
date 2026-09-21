@@ -159,9 +159,9 @@ function doMotor<V>(l: Leitura<V>): LeituraDoMotor<V> {
   return l as LeituraDoMotor<V>;
 }
 
-function doPiso<V>(l: Leitura<V>): LeituraDoPiso {
+function doPiso<V>(l: Leitura<V>): LeituraDoPiso<V> {
   assert.equal(l.origem, 'piso', JSON.stringify(l));
-  return l as LeituraDoPiso;
+  return l as LeituraDoPiso<V>;
 }
 
 function tentativa<V>(m: Medicao<V>): Extract<Medicao<V>, { tipo: 'tentativa' }> {
@@ -601,6 +601,115 @@ describe('modo produto — a matriz', () => {
     assert.deepEqual(l.trilha.map((t) => t.ms), [40, 900, 1_250]);
     // O instante da resposta é o de quando ela chegou.
     assert.equal(l.resposta.assinatura.instante, new Date(INICIO + 40 + 900 + 1_250).toISOString());
+  });
+});
+
+/**
+ * A recusa que ainda é resultado (story 5.7, AD-12).
+ *
+ * `grava.recusaEResultado` era campo declarado e nunca lido. Quem o declara `true`
+ * recebe, no piso permanente, a assinatura do motor, os tokens e o que a
+ * interpretação chegou a entender — sem isso, gravar a recusa seria guardar "não
+ * deu" sem nada com que investigar. Quem o declara `false` não recebe nada: é o
+ * que faz o campo ser **lido**, e não preenchido sempre.
+ */
+describe('modo produto — a recusa como resultado', () => {
+  const grava = (recusaEResultado: boolean) =>
+    descritor({ grava: { admite: ['nuvem', 'aparelho'], recusaEResultado } });
+
+  it('a conferência que reprova entrega motor, assinatura, tokens, valor e problemas', async () => {
+    const r = relogio();
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(r, [resposta('Dormiu 7 horas.')]).motor }, r);
+    const l = doPiso(await ler(grava(true), FATOS, h.produto(cadeia([NUVEM_PADRAO, SEM_MODELO]))));
+
+    assert.equal(l.causa, 'reprovada');
+    assert.equal(l.recusado?.motor, NUVEM_PADRAO);
+    assert.equal(l.recusado?.resposta.assinatura.provedor, 'prov-a');
+    assert.equal(l.recusado?.resposta.assinatura.modelo, 'modelo-1');
+    assert.deepEqual(l.recusado?.resposta.tokens, { entrada: 10, saida: 5 });
+    // O que o motor escreveu, como a interpretação o entendeu.
+    assert.deepEqual(l.recusado?.valor, { texto: 'Dormiu 7 horas.' });
+    assert.deepEqual(l.recusado?.problemas, [{ regra: 'numero', detalhe: 'algarismo' }]);
+  });
+
+  it('a saída que não se interpreta vem com a resposta, e sem valor nem problemas', async () => {
+    const r = relogio();
+    const ilegivel = descritor({
+      grava: { admite: ['nuvem'], recusaEResultado: true },
+      interpretar: () => ({ classe: 'saida-invalida', detalhe: 'não é JSON' }),
+    });
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(r, [resposta('prosa')]).motor }, r);
+    const l = doPiso(await ler(ilegivel, FATOS, h.produto(cadeia([NUVEM_PADRAO, SEM_MODELO]))));
+
+    assert.equal(l.causa, 'saida-invalida');
+    assert.equal(l.recusado?.resposta.texto, 'prosa');
+    assert.equal(l.recusado?.valor, undefined);
+    assert.equal(l.recusado?.problemas, undefined);
+  });
+
+  it('recurso com recusaEResultado false não recebe recusado — o campo é lido, não preenchido sempre', async () => {
+    const r = relogio();
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(r, [resposta('Dormiu 7 horas.')]).motor }, r);
+    const l = doPiso(await ler(grava(false), FATOS, h.produto(cadeia([NUVEM_PADRAO, SEM_MODELO]))));
+    assert.equal(l.causa, 'reprovada');
+    assert.equal(l.recusado, undefined);
+  });
+
+  it('recurso que não grava também não recebe — e nem tem o que declarar', async () => {
+    const r = relogio();
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(r, [resposta('Dormiu 7 horas.')]).motor }, r);
+    const l = doPiso(await ler(descritor(), FATOS, h.produto(cadeia([NUVEM_PADRAO, SEM_MODELO]))));
+    assert.equal(l.recusado, undefined);
+  });
+
+  it('falha sem resposta — a transitória, que cai no piso sem repetir — não tem recusa a carregar', async () => {
+    const r = relogio();
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(r, [{ classe: 'transitoria' }]).motor }, r);
+    const l = doPiso(await ler(grava(true), FATOS, h.produto(cadeia([NUVEM_PADRAO, SEM_MODELO]))));
+    assert.equal(l.causa, 'transitoria');
+    assert.equal(l.recusado, undefined, 'sem resposta do motor não há assinatura nem valor a gravar');
+  });
+
+  it('classe que não é permanente, mesmo com resposta boa, não vira recusa a gravar', async () => {
+    // O call site só sabe que o desfecho não recua — e `transitoria` não recua e
+    // nem por isso é definitiva. Um descritor que a devolvesse da interpretação
+    // entregaria ao recurso uma recusa para gravar em cima de uma falha que só
+    // pede para ser repetida.
+    const r = relogio();
+    const instavel = descritor({
+      grava: { admite: ['nuvem'], recusaEResultado: true },
+      interpretar: () => ({ classe: 'transitoria', detalhe: 'o provedor engasgou depois de responder' }),
+    });
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(r, [resposta('Uma frase boa.')]).motor }, r);
+    const l = doPiso(await ler(instavel, FATOS, h.produto(cadeia([NUVEM_PADRAO, SEM_MODELO]))));
+    assert.equal(l.causa, 'transitoria');
+    assert.equal(l.recusado, undefined, 'transitória não é recusa definitiva, com ou sem resposta');
+  });
+
+  it('as permanentes com resposta carregam a recusa — as cinco, uma a uma', async () => {
+    // A lista executável: quem chega ao piso por uma destas e trouxe resposta
+    // assinada é recusa a gravar. `defeito` não entra (é bug, não veredito) e
+    // nunca traz resposta; `transitoria` está no caso acima.
+    for (const classe of ['guarda', 'recusa-do-modelo', 'saida-invalida', 'janela'] as const) {
+      const r = relogio();
+      const d = descritor({
+        grava: { admite: ['nuvem'], recusaEResultado: true },
+        interpretar: () => ({ classe }),
+      });
+      const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(r, [resposta('Uma frase boa.')]).motor }, r);
+      const l = doPiso(await ler(d, FATOS, h.produto(cadeia([NUVEM_PADRAO, SEM_MODELO]))));
+      assert.equal(l.causa, classe, classe);
+      assert.equal(l.recusado?.resposta.texto, 'Uma frase boa.', classe);
+    }
+    // E a quinta, `reprovada`, é o primeiro caso deste bloco.
+  });
+
+  it('o pedido nulo não tem recusa: nenhum motor foi chamado', async () => {
+    const r = relogio();
+    const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(r, [resposta('nunca')]).motor }, r);
+    const l = doPiso(await ler(grava(true), { assunto: 'a noite', mudo: true }, h.produto(cadeia([NUVEM_PADRAO, SEM_MODELO]))));
+    assert.equal(l.causa, 'mudo');
+    assert.equal(l.recusado, undefined);
   });
 });
 

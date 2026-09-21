@@ -222,6 +222,8 @@ export * from './routes/molde';
 export * from './routes/verificar';
 export * from './routes/prompt';
 export * from './routes/nomear';
+// O descritor (story 5.7): o nome de rota pela porta, lido pelo orquestrador.
+export * from './routes/descritor';
 
 // Busca textual sobre as atividades já carregadas (spec busca-textual).
 export * from './search/normalize';

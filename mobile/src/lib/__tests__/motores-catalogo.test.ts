@@ -97,15 +97,17 @@ describe('o catálogo de motores do app', () => {
     expect(motorConhecido(undefined, MOTORES_CONHECIDOS)).toBeUndefined();
   });
 
-  it('a hospedagem cobre todo recurso do núcleo: a Saúde do sono e a Retrospectiva ligadas, o nome de rota não', () => {
+  it('a hospedagem cobre todo recurso do núcleo, e os três estão ligados', () => {
     // Fechada sobre `RecursoId`: o teste falha se um recurso novo entrar no núcleo
     // sem alguém dizer se esta camada o consome.
     expect(Object.keys(HOSPEDAGEM).sort()).toEqual([...RECURSOS].sort());
-    expect(HOSPEDAGEM['saude-do-sono'].hospedado).toBe(true);
+    expect(HOSPEDAGEM['saude-do-sono']).toEqual({ hospedado: true });
     // A 1.10 ligou a impressão da revista pelo orquestrador: a escolha passou a ser
     // consultada, e a tela de motores não pode continuar dizendo que não é.
     expect(HOSPEDAGEM.retrospectiva).toEqual({ hospedado: true });
-    expect(HOSPEDAGEM['nome-de-rota'].hospedado).toBe(false);
+    // A 5.7 fez o mesmo com o nome de rota: `services/route-name.ts` lê a
+    // preferência e passa pelo orquestrador, então o seletor deixa de bloquear.
+    expect(HOSPEDAGEM['nome-de-rota']).toEqual({ hospedado: true });
     for (const [id, h] of Object.entries(HOSPEDAGEM)) {
       if (h.hospedado) expect(h.motivo).toBeUndefined();
       else expect(h.motivo).toContain('ainda não usado nesta versão');
@@ -123,9 +125,7 @@ describe('o catálogo de motores do app', () => {
 describe('por que um motor não pode ser escolhido', () => {
   const saude = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'saude-do-sono')!;
   const retro = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'retrospectiva')!;
-  // O nome de rota ainda não está no catálogo do núcleo (entra na 5.7); a forma que o
-  // bloqueio lê basta para medir o recurso que esta camada não hospeda.
-  const nomeDeRota = { recurso: 'nome-de-rota', regimeMaximo: 'nuvem', grava: false } as const;
+  const nomeDeRota = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'nome-de-rota')!;
 
   it('na Saúde do sono: sem modelo e nuvem liberados; o aparelho segue a ponte', () => {
     expect(motivoDeBloqueio(saude, SEM_MODELO, MOTORES_CONHECIDOS)).toBeNull();
@@ -142,12 +142,39 @@ describe('por que um motor não pode ser escolhido', () => {
     expect(motivoDeBloqueio(saude, APARELHO_SISTEMA, desligada)).toBe('a Apple Intelligence está desligada nos Ajustes');
   });
 
+  it('no nome de rota (5.7): nada é bloqueado pelo recurso; o aparelho segue a ponte', () => {
+    // A 5.7 ligou a hospedagem: `services/route-name.ts` lê a preferência e passa
+    // pelo orquestrador, então o seletor tem de oferecer escolha de verdade.
+    expect(motivoDeBloqueio(nomeDeRota, SEM_MODELO, MOTORES_CONHECIDOS)).toBeNull();
+    expect(motivoDeBloqueio(nomeDeRota, NUVEM_PADRAO, MOTORES_CONHECIDOS)).toBeNull();
+    // O aparelho está no `grava.admite` do recurso: o que sobra é o build.
+    expect(motivoDeBloqueio(nomeDeRota, APARELHO_SISTEMA, MOTORES_CONHECIDOS)).toBe(
+      'a ponte para o modelo do sistema não está neste build',
+    );
+    const pronto = motoresDoRecurso('nome-de-rota', lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 4096 }), null);
+    expect(motivoDeBloqueio(nomeDeRota, APARELHO_SISTEMA, pronto)).toBeNull();
+  });
+
   it('recurso que esta camada não hospeda bloqueia TODOS os motores, com o motivo', () => {
     // Um controle que grava uma preferência que ninguém consulta mente tanto quanto
     // uma opção escondida: o dono trocaria o motor e nada mudaria.
-    for (const m of MOTORES_CONHECIDOS) {
-      expect(motivoDeBloqueio(nomeDeRota, m.id, MOTORES_CONHECIDOS)).toContain('ainda não usado nesta versão');
+    //
+    // **Desde a 5.7 os três recursos do núcleo estão hospedados**, então o ramo não
+    // tem mais um recurso real que o exercite. Ele continua vivo — é a resposta que
+    // o próximo recurso vai herdar —, e por isso o teste o alcança desligando a
+    // hospedagem de um deles e devolvendo-a no fim. Sem isto, o ramo ficaria sem
+    // teste no dia em que o próximo recurso nascer precisando dele.
+    const mutavel = HOSPEDAGEM as Record<string, { hospedado: boolean; motivo?: string }>;
+    const antes = mutavel['nome-de-rota'];
+    mutavel['nome-de-rota'] = { hospedado: false, motivo: 'ainda não usado nesta versão: só para o teste' };
+    try {
+      for (const m of MOTORES_CONHECIDOS) {
+        expect(motivoDeBloqueio(nomeDeRota, m.id, MOTORES_CONHECIDOS)).toContain('ainda não usado nesta versão');
+      }
+    } finally {
+      mutavel['nome-de-rota'] = antes;
     }
+    expect(HOSPEDAGEM['nome-de-rota']).toEqual({ hospedado: true });
   });
 
   it('na Retrospectiva: sem modelo e nuvem liberados, e o aparelho barrado pelo que a revista admite gravar', () => {

@@ -1,5 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { derivarAncoras } from '../routes/anchor';
+import { descritorDoNomeDeRota, type FatosDoNome } from '../routes/descritor';
+import type { RouteFacts } from '../routes/types';
 import { casoDaSaude } from '../sleep/caso';
 import { descritorDaSaudeDoSono, type EntradaDaSaude } from '../sleep/leitura';
 import type { SonoRange } from '../sleep/ranges';
@@ -50,10 +55,15 @@ describe('os recursos', () => {
 });
 
 describe('o catálogo', () => {
-  it('não é vácuo: a retrospectiva está nele desde a 5.2, e a Saúde do sono desde a 5.3', () => {
+  it('não é vácuo: retrospectiva (5.2), Saúde do sono (5.3) e nome de rota (5.7)', () => {
     assert.ok(CATALOGO_DE_RECURSOS.length > 0, 'o catálogo está vazio — o teste abaixo percorreria nada');
     assert.ok(CATALOGO_DE_RECURSOS.includes(descritorDaRetrospectiva as Qualquer));
     assert.ok(CATALOGO_DE_RECURSOS.includes(descritorDaSaudeDoSono as Qualquer));
+    assert.ok(CATALOGO_DE_RECURSOS.includes(descritorDoNomeDeRota as Qualquer));
+  });
+
+  it('todo recurso do catálogo de ids tem descritor registrado — nenhum fica sem porta', () => {
+    assert.deepEqual(CATALOGO_DE_RECURSOS.map((d) => d.recurso).sort(), [...RECURSOS].sort());
   });
 
   it('todo descritor registrado é válido, e cada recurso aparece uma vez', () => {
@@ -185,6 +195,52 @@ const VARIANTES_DA_SAUDE: Readonly<Record<string, EntradaDaSaude>> = {
 };
 
 /**
+ * As variantes do nome de rota: **as 20 pedaladas do golden set**, as mesmas que
+ * o dono aprovou nome por nome (`routes/__fixtures__/golden.json`).
+ *
+ * São elas, e não uma rota inventada, porque o pedido deste recurso varia com o
+ * dado de verdade — a forma (as cinco que não são degeneradas), a língua do país
+ * dominante, a lista de cidades na ordem, a distância e a subida. Um golden de
+ * uma rota só seria cego na travessia de fronteira, na rota sem casa e na que
+ * atravessa dois países.
+ *
+ * As âncoras saem de `derivarAncoras` sobre as pontas das 138 pedaladas do
+ * fixture — puro e determinístico, e é o que faz a forma de cada rota ser a
+ * mesma em toda execução.
+ */
+const RIDES: RouteFacts[] = JSON.parse(
+  readFileSync(join(import.meta.dirname, '..', 'routes', '__fixtures__', 'rides.json'), 'utf8'),
+);
+
+const GOLDEN_SET: { dia: string; km: number; esperado: string | null }[] = JSON.parse(
+  readFileSync(join(import.meta.dirname, '..', 'routes', '__fixtures__', 'golden.json'), 'utf8'),
+);
+
+const ANCORAS = derivarAncoras(
+  RIDES.flatMap((r) => [
+    { startAt: r.startAt, lat: r.lat0, lng: r.lng0 },
+    { startAt: r.startAt, lat: r.lat1, lng: r.lng1 },
+  ]),
+);
+
+/**
+ * As três rotas degeneradas do golden (duas de 0 km e a de 5 km numa cidade só)
+ * ficam de fora: elas não produzem pedido nenhum — é o portão saindo antes da
+ * chamada —, e um golden que as incluísse mediria o vazio. São exatamente as que
+ * o golden marca com `esperado: null`. Quem prova que elas não gastam token é
+ * `routes/nomear.test.ts`, pelo `ler`.
+ */
+const VARIANTES_DO_NOME: Readonly<Record<string, FatosDoNome>> = Object.fromEntries(
+  GOLDEN_SET.filter((g) => g.esperado !== null).map((g) => [
+    `${g.dia} · ${g.km} km`,
+    {
+      rota: RIDES.find((r) => r.startAt.slice(0, 10) === g.dia && Math.round(r.distanceM / 1000) === g.km)!,
+      ancoras: ANCORAS,
+    } satisfies FatosDoNome,
+  ]),
+);
+
+/**
  * Por recurso: as entradas fixas, a versão do descritor em que o golden foi
  * tirado e o hash de então — do pedido, com uma entrada; do conjunto dos pedidos,
  * com várias. Pedido idêntico é mesmo hash (AD-11) — e é por ele que a
@@ -211,6 +267,12 @@ const GOLDENS: Readonly<Partial<Record<RecursoId, Golden>>> = {
     quantas: 18,
     versao: 1,
     hash: '383022d18e14861afe1439bc93257108b0d8907c75bd6d8b209dd784fe921986',
+  },
+  'nome-de-rota': {
+    variantes: VARIANTES_DO_NOME,
+    quantas: 17,
+    versao: 2,
+    hash: 'cd9d677b7609d549d27101800cd956ada974250b4ba045969862de54c85772b4',
   },
 };
 

@@ -181,14 +181,45 @@ export interface LeituraDoMotor<V> {
   readonly trilha: readonly Tentativa[];
 }
 
-/** Ninguém escreveu: é o piso do recurso, com a causa e a trilha. */
-export type LeituraDoPiso = {
+/**
+ * A tentativa **recusada** que ainda assim é resultado (AD-12, story 5.7).
+ *
+ * Um motor respondeu, a causa é permanente, e o recurso declarou
+ * `grava.recusaEResultado`: então a recusa vai ser gravada, e gravá-la sem
+ * provedor, modelo, tokens nem o que o modelo tentou escrever seria guardar
+ * "não deu" sem nada com que investigar. É o que a trilha sozinha não carrega —
+ * ela tem a classe e o tempo, nunca a assinatura.
+ *
+ * `valor` só existe quando a interpretação chegou a devolver algo (a conferência
+ * reprovou o que o motor escreveu); `problemas`, quando foi a conferência que
+ * recusou. Uma saída que nem se interpretou tem os dois ausentes.
+ */
+export interface RecusaComResultado<V> {
+  readonly motor: MotorId;
+  readonly resposta: RespostaAssinada;
+  readonly valor?: V;
+  readonly problemas?: readonly ProblemaDaConferencia[];
+}
+
+/**
+ * Ninguém escreveu: é o piso do recurso, com a causa e a trilha.
+ *
+ * `V` tem padrão `unknown` — "o piso de um recurso qualquer" —, que é o que deixa
+ * `LeituraDoPiso` continuar escrevível sem parâmetro em quem só olha causa e
+ * trilha, e continuar recebendo o piso de qualquer descritor.
+ */
+export type LeituraDoPiso<V = unknown> = {
   readonly origem: 'piso';
   readonly causa: Causa;
   readonly trilha: readonly Tentativa[];
+  /**
+   * Presente **só** quando o recurso declara `grava.recusaEResultado`, um motor
+   * respondeu e a causa é permanente. Recurso que não grava recusa nunca o vê.
+   */
+  readonly recusado?: RecusaComResultado<V>;
 } & Piso;
 
-export type Leitura<V> = LeituraDoMotor<V> | LeituraDoPiso;
+export type Leitura<V> = LeituraDoMotor<V> | LeituraDoPiso<V>;
 
 /**
  * O resultado do modo `medicao` — outro tipo, de propósito: nada que grava
@@ -493,6 +524,55 @@ async function tentarMotor<F, V>(
   return [primeiro, await tentar(d, fatos, id, curto, o, true)];
 }
 
+/**
+ * Os desfechos em que a recusa é **definitiva**: o mesmo pedido, no mesmo motor,
+ * dá o mesmo resultado, e repetir só gasta.
+ *
+ * Não é `!RECUA`: `transitoria` também cai no piso sem recuar, e não é
+ * permanente — ela é justamente a que tem de ser tentada de novo. `defeito`
+ * também fica de fora: é bug nosso ou do hospedeiro, não veredito do modelo. A
+ * `janela` entra porque, quando ela chega ao piso, já esgotou (o descritor não
+ * tem pedido curto, ou a repetição curta falhou também).
+ */
+const PERMANENTE: ReadonlySet<Desfecho> = new Set<Desfecho>([
+  'guarda', 'recusa-do-modelo', 'saida-invalida', 'reprovada', 'janela',
+]);
+
+/**
+ * A recusa que o recurso vai gravar — ou `undefined`, quando não há o que gravar
+ * (story 5.7, AD-12).
+ *
+ * Três condições, e **as três**: o recurso declarou `grava.recusaEResultado`, um
+ * motor de fato respondeu (há resposta assinada), e o desfecho é {@link PERMANENTE}.
+ *
+ * A terceira é conferida aqui, e não deixada por conta do call site. O call site
+ * só sabe que o desfecho não recua — e `transitoria` não recua e nem por isso é
+ * definitiva. Um descritor que devolva `{ classe: 'transitoria' }` da
+ * interpretação, depois de uma `Resposta` boa, entregaria ao recurso uma recusa
+ * para gravar em cima de uma falha que só pede para ser repetida: a pedalada
+ * ficaria sem nome para sempre por causa de um soluço.
+ *
+ * `grava.recusaEResultado` é lido aqui, e só aqui — pela união, para o compilador
+ * cobrar: era campo declarado e nunca consultado até esta story, e ler por
+ * `unknown` deixaria a próxima renomeação passar calada, que é a falha exata que
+ * esta story existe para corrigir. Quem diz `false` — a retrospectiva — continua
+ * recebendo o piso sem `recusado`.
+ */
+function recusaDe<F, V>(
+  d: Descritor<F, V>,
+  motor: MotorId,
+  passo: Passo<V>,
+): RecusaComResultado<V> | undefined {
+  if (d.grava === false || !d.grava.recusaEResultado) return undefined;
+  if (passo.ok || !passo.resposta || !PERMANENTE.has(passo.tentativa.desfecho)) return undefined;
+  return {
+    motor,
+    resposta: passo.resposta,
+    ...(passo.lido ? { valor: passo.lido.valor } : {}),
+    ...(passo.tentativa.problemas ? { problemas: passo.tentativa.problemas } : {}),
+  };
+}
+
 function avisar(registrar: OpcoesComuns['registrar'], evento: EventoDoAnel): void {
   try {
     const r = registrar(evento);
@@ -566,12 +646,17 @@ async function produto<F, V>(d: Descritor<F, V>, fatos: F, o: OpcoesDeProduto): 
   };
 
   try {
-    const piso = (causa: Causa, doPedido: Pedido | null): LeituraDoPiso => {
-      const r: LeituraDoPiso = {
+    const piso = (
+      causa: Causa,
+      doPedido: Pedido | null,
+      recusado?: RecusaComResultado<V>,
+    ): LeituraDoPiso<V> => {
+      const r: LeituraDoPiso<V> = {
         ...pisoDe(d.semModelo(fatos)),
         origem: 'piso',
         causa,
         trilha: passos.map((p) => p.tentativa),
+        ...(recusado !== undefined ? { recusado } : {}),
       };
       aviso(evento(d, 'produto', instante, passos, { causa, pedido: doPedido }));
       return r;
@@ -615,7 +700,7 @@ async function produto<F, V>(d: Descritor<F, V>, fatos: F, o: OpcoesDeProduto): 
         return r;
       }
       const { desfecho } = ultimo.tentativa;
-      if (!RECUA.has(desfecho)) return piso(desfecho, pedido);
+      if (!RECUA.has(desfecho)) return piso(desfecho, pedido, recusaDe(d, id, ultimo));
       recuou = desfecho;
     }
 

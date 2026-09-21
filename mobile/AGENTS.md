@@ -34,8 +34,9 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
   lendo o erro do seu jeito — e nos dois o ramo que lia o corpo de erro era
   código morto, porque o cliente da function **lança** em todo não-2xx.
   `lib/edicao-ia.ts` não fala mais com a `ia-narrar` (a impressão usa o
-  `motorPara` daqui); sobra `services/route-name.ts`, que sai na 5.7. A catraca
-  "uma porta por hospedeiro" do `architecture.test.ts` cobra, com teto 1.
+  `motorPara` daqui), e `services/route-name.ts` saiu na 5.7 — o nome de rota
+  virou descritor (`routes/descritor.ts`) e lê pelo orquestrador. A guarda "uma
+  porta por hospedeiro" do `architecture.test.ts` é **barreira, em zero**.
   Na mesma pasta: o prazo de 60 s da chamada, o catálogo de motores conhecidos, a
   preferência por recurso (`vitale:motores-preferencia`) e o anel de diagnóstico,
   que é memória e nunca sai do aparelho.
