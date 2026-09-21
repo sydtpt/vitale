@@ -133,6 +133,55 @@ check('o caminho inteiro fecha: resposta crua → peças → conferência → fr
   );
 });
 
+/* ──────── o artigo chega ao molde na forma que o molde sabe escrever ──────── */
+
+/*
+ * A costura da story 5.14. O molde compara o artigo com `===` cru
+ * (`frDe`: `artigo === 'le'`), então um `"Le"` com maiúscula, ou um `l’` com
+ * aspa curva, passa por toda conferência que normaliza e depois **some calado**
+ * na frase. Normalizar só na conferência faria a conferência mentir sobre o que
+ * sai. Por isso a normalização mora na leitura, e é aqui que ela é provada —
+ * ponta a ponta, do texto cru do modelo até a frase.
+ */
+const nomeDoCru = (bruto: string): string | null => {
+  const leitura = lerRota(pajottenland, ancoras);
+  const pecas = lerRespostaDoModelo(bruto)!;
+  assert.equal(verificarNome(pajottenland, leitura, pecas).ok, true, bruto);
+  return montarNome(leitura, pecas, pajottenland.distanceM);
+};
+
+check('artigo em maiúscula ainda contrai — "Le" → `Tour du Pajottenland`', () => {
+  const esperado = 'Tour du Pajottenland';
+  for (const artigo of ['Le', 'LE', ' le ', 'lE']) {
+    assert.equal(
+      nomeDoCru(`{"regiao":"Pajottenland","artigo":${JSON.stringify(artigo)},"justificativa":["Pamel"]}`),
+      esperado,
+      `artigo ${JSON.stringify(artigo)} tinha de contrair em "du"`,
+    );
+  }
+  // E a prova de que isto importa: sem a normalização, o artigo sumiria e a
+  // frase seria esta — que não é a que o dono aprovou.
+  assert.notEqual(esperado, 'Tour de Pajottenland');
+});
+
+check('aspa curva do modelo vira apóstrofo reto — nas duas línguas', () => {
+  // Modelo de texto emite `’` o tempo todo, e o molde só conhece `l'` e `'t`.
+  assert.equal(
+    lerRespostaDoModelo('{"regiao":"Escaut","artigo":"L’","justificativa":["Pamel"]}')?.artigo,
+    "l'",
+  );
+  assert.equal(
+    lerRespostaDoModelo('{"regiao":"Gooi","viaArtigo":"’t","via":"Vecht","justificativa":["Pamel"]}')
+      ?.viaArtigo,
+    "'t",
+  );
+  // A elisão francesa sobrevive à costura inteira.
+  assert.equal(
+    nomeDoCru('{"regiao":"Escaut","artigo":"L’","justificativa":["Pamel"]}'),
+    "Tour de l'Escaut",
+  );
+});
+
 check('região inventada é barrada antes de virar nome', () => {
   const leitura = lerRota(pajottenland, ancoras);
   const pecas = lerRespostaDoModelo(

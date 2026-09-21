@@ -11,7 +11,7 @@
  * justificativa que a conferência confere; os nomes vertidos ela não tem como
  * checar, e fingir que teria seria pior que não checar.
  */
-import type { Lingua, NomePreenchido, RouteFacts, RouteReading } from './types';
+import type { Artigo, Lingua, NomePreenchido, RouteFacts, RouteReading } from './types';
 
 /**
  * Sobe a cada mudança que altere o nome que sai. Vai gravado em
@@ -38,7 +38,18 @@ export interface PromptDeNome {
   json?: boolean;
 }
 
-const NOME_DA_LINGUA: Record<Lingua, string> = {
+/**
+ * O rótulo de cada língua, em português — o mesmo que o pedido usa e que a
+ * reprovação cita.
+ *
+ * É exportado para haver **uma** fonte: se o rótulo do pedido e o da mensagem de
+ * reprovação divergirem, a conferência passa a nomear uma língua que ninguém
+ * pediu, e quem for depurar procura no lugar errado.
+ *
+ * Exaustivo por tipo de propósito: acrescentar uma quarta `Lingua` quebra o
+ * build aqui, que é exatamente onde se quer ser interrompido.
+ */
+export const NOME_DA_LINGUA: Record<Lingua, string> = {
   fr: 'francês',
   nl: 'neerlandês',
   pt: 'português',
@@ -146,6 +157,30 @@ function texto(v: unknown): string | undefined {
 }
 
 /**
+ * O artigo, na **forma que o molde sabe escrever** — e por isso normalizado aqui,
+ * na leitura, e não na conferência.
+ *
+ * O molde compara com `===` na string crua (`frDe`: `artigo === 'le'`). Um `"La"`
+ * com maiúscula passava por toda conferência que normaliza e depois **sumia
+ * calado** no molde: `Tour de Wallonie picarde` em vez de `Tour de la Wallonie
+ * picarde` — o artigo aprovado desaparecendo da frase, que é o defeito que a
+ * regra do artigo existe para combater. Normalizar na conferência só faria a
+ * conferência mentir sobre o que vai sair.
+ *
+ * A aspa curva entra pelo mesmo motivo: modelo de texto emite `’` o tempo todo, e
+ * o molde só reconhece `l'` e `'t` com apóstrofo reto. Dobrar a curva para a reta
+ * é entregar ao molde a forma que ele escreve, não inventar conteúdo.
+ *
+ * Isto é **leitura**, não pedido: o texto do prompt e `PROMPT_NOME_VERSAO` não
+ * mudam, e nenhum nome já gravado muda de forma.
+ */
+function artigoLido(v: unknown): Artigo {
+  const t = texto(v);
+  if (t == null) return null;
+  return t.toLowerCase().replace(/[‘’ʼ]/g, "'");
+}
+
+/**
  * Resposta crua → `NomePreenchido`, ou `null` se não der para ler.
  *
  * `null` aqui não é exceção: é a recusa da invariante 7 chegando pelo caminho
@@ -173,9 +208,9 @@ export function lerRespostaDoModelo(bruto: string): NomePreenchido | null {
 
   return {
     regiao: texto(o['regiao']),
-    artigo: texto(o['artigo']) ?? null,
+    artigo: artigoLido(o['artigo']),
     via: texto(o['via']),
-    viaArtigo: texto(o['viaArtigo']) ?? null,
+    viaArtigo: artigoLido(o['viaArtigo']),
     origem: texto(o['origem']),
     destino: texto(o['destino']),
     justificativa,
