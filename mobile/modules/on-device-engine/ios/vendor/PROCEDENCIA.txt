@@ -1,0 +1,20 @@
+apple/coreai-models @ 3f109efd54273391f9fd9f5f5b3d8c6e99836d55
+alvo iOS 27.0 · fatia ios-arm64 (o CoreAI.framework nao existe no SDK do simulador)
+montado por scripts/coreai/montar.sh
+Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)
+Xcode 27.0 Build version 27A266a 
+
+libOrbeCoreAI.a leva, ligado estaticamente, o grafo do produto CoreAILM:
+
+  apple/coreai-models          BSD-3-Clause      https://github.com/apple/coreai-models
+  huggingface/swift-transformers  Apache-2.0     https://github.com/huggingface/swift-transformers
+  huggingface/swift-huggingface   Apache-2.0     https://github.com/huggingface/swift-huggingface
+  huggingface/swift-jinja         Apache-2.0     https://github.com/huggingface/swift-jinja
+  mlc-ai/xgrammar                 Apache-2.0     https://github.com/mlc-ai/xgrammar
+  apple/swift-crypto              Apache-2.0     https://github.com/apple/swift-crypto
+  apple/swift-nio + swift-collections/numerics/atomics/algorithms/log/system  Apache-2.0
+  ibireme/yyjson                  MIT            https://github.com/ibireme/yyjson
+  mattt/EventSource               MIT            https://github.com/mattt/EventSource
+
+Os .bundle ao lado (swift-crypto_Crypto, swift-transformers_Hub) sao recursos desses
+pacotes, copiados para o app pelo mesmo podspec.

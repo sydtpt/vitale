@@ -1560,7 +1560,57 @@ check('BARREIRA — supabase/functions/ só cita classe do que importa de ia/fio
  * de uma delas não é import.
  */
 const ENGINE_SWIFT = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios', 'Engine.swift');
-const IMPORTS_PERMITIDOS_NA_PONTE = new Set(['Foundation', 'FoundationModels']);
+const MOTOR_COREAI_SWIFT = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios', 'MotorCoreAI.swift');
+
+/**
+ * O módulo que a casca vendorizada do Core AI expõe (story 5.8).
+ *
+ * **Um módulo, e não o pacote da Apple.** `scripts/coreai/OrbeCoreAI.swift` importa
+ * `CoreAILanguageModels` com `internal import` e é compilado com library evolution: a
+ * `.swiftinterface` que o pod consome não cita o pacote, e é por isso que a vendorização cabe
+ * num `SWIFT_INCLUDE_PATHS` com um arquivo dentro. Se este nome aparecer em qualquer outro
+ * fonte Swift do módulo, a ponte deixou de ser o único ponto do app que alcança o Core AI.
+ */
+const CASCA_DO_COREAI = 'OrbeCoreAI';
+const PODSPEC_DA_PONTE = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios', 'OnDeviceEngine.podspec');
+
+/**
+ * Os módulos do pacote `apple/coreai-models` e do grafo dele que expõem tipo público — os que
+ * alguém poderia querer importar direto, saltando a casca. A lista é do que o `CoreAILM`
+ * arrasta; ela não precisa ser exaustiva para servir, porque o caminho natural é o primeiro.
+ */
+const MODULOS_DO_PACOTE_DA_APPLE: ReadonlySet<string> = new Set([
+  'CoreAILanguageModels',
+  'CoreAIShared',
+  'CXGrammar',
+  'XGrammar',
+  'Tokenizers',
+  'Hub',
+  'Jinja',
+  'HuggingFace',
+  'Generation',
+  'Models',
+]);
+
+/**
+ * Os imports permitidos, **por arquivo** — a barreira (4), que a 5.8 fez crescer de propósito.
+ *
+ * Era um conjunto só, quando a ponte era um arquivo só. Virou um mapa porque os dois motores
+ * do aparelho têm alcances diferentes, e misturá-los apagaria a diferença:
+ *
+ *  - `Engine.swift` continua em **dois** imports. Ele é o modelo do sistema, e é o arquivo
+ *    que a CLI da bancada compila para medir no Mac (`scripts/bancada/aparelho/`): um import
+ *    da casca vendorizada aqui quebraria a coluna do aparelho, que não tem `.a` nenhum.
+ *  - `MotorCoreAI.swift` ganha **um terceiro**, {@link CASCA_DO_COREAI}, e só ele. O pacote
+ *    `apple/coreai-models` nunca é importado direto: quem o alcança é a casca, fora do app.
+ *
+ * Em nenhum dos dois entra `ExpoModulesCore` (a cola do Expo é outro arquivo) nem modelo de
+ * servidor — se ele voltar, é `nuvem:`, com regime e lista do servidor (AD-3, AD-9).
+ */
+const IMPORTS_PERMITIDOS_NA_PONTE: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  [ENGINE_SWIFT, new Set(['Foundation', 'FoundationModels'])],
+  [MOTOR_COREAI_SWIFT, new Set(['Foundation', 'FoundationModels', CASCA_DO_COREAI])],
+]);
 
 /**
  * O código Swift sem comentário e sem o miolo das strings de várias linhas. Comentário
@@ -1692,9 +1742,12 @@ function importsSwift(src: string): string[] {
   return [...codigo.matchAll(re)].map((m) => m[1]);
 }
 
-/** Os imports fora da lista permitida. */
-function importsProibidosNaPonte(src: string): string[] {
-  return importsSwift(src).filter((m) => !IMPORTS_PERMITIDOS_NA_PONTE.has(m));
+/** Os imports fora da lista permitida para aquele arquivo. */
+function importsProibidosNaPonte(
+  src: string,
+  permitidos: ReadonlySet<string> = IMPORTS_PERMITIDOS_NA_PONTE.get(ENGINE_SWIFT)!,
+): string[] {
+  return importsSwift(src).filter((m) => !permitidos.has(m));
 }
 
 /**
@@ -1774,23 +1827,123 @@ check('BARREIRA — Engine.swift declara as sete classes do fio, com valor bruto
   );
 });
 
-check('BARREIRA — Engine.swift só importa Foundation e FoundationModels (AD-10 (4))', () => {
-  assert.ok(existsSync(ENGINE_SWIFT), `${relativoARaiz(ENGINE_SWIFT)} sumiu — a guarda (4) ficou sem alvo.`);
-  const src = readFileSync(ENGINE_SWIFT, 'utf8');
-  // Não-vácua: o detector acha os dois imports que o arquivo tem de ter.
-  const todos = importsSwift(src);
+check('BARREIRA — os dois motores do aparelho importam só o que a lista de cada um permite (AD-10 (4))', () => {
+  for (const [arquivo, permitidos] of IMPORTS_PERMITIDOS_NA_PONTE) {
+    assert.ok(existsSync(arquivo), `${relativoARaiz(arquivo)} sumiu — a guarda (4) ficou sem alvo.`);
+    const src = readFileSync(arquivo, 'utf8');
+    // Não-vácua: o detector acha os dois imports que todo motor tem de ter.
+    const todos = importsSwift(src);
+    assert.ok(
+      todos.includes('Foundation') && todos.includes('FoundationModels'),
+      `o detector não achou os imports de ${relativoARaiz(arquivo)} (${JSON.stringify(todos)}) — ou o arquivo ` +
+        'deixou de importá-los, ou a leitura quebrou e a guarda passaria sobre nada.',
+    );
+    const proibidos = importsProibidosNaPonte(src, permitidos);
+    assert.deepEqual(
+      proibidos,
+      [],
+      `${relativoARaiz(arquivo)} importa ${proibidos.join(', ')}. Ele importa só ` +
+        `${[...permitidos].join(', ')} (AD-3): a cola do Expo mora em outro arquivo, e modelo ` +
+        'de servidor não entra pela porta do aparelho — se vier, é nuvem:, com regime e lista do servidor.',
+    );
+  }
+
+  // O `Engine.swift` **não** alcança a casca vendorizada: é ele que a CLI da bancada compila
+  // sozinho no Mac (`scripts/bancada/aparelho/`), onde não há `.a` nenhum. Um import dele ali
+  // quebraria a coluna do aparelho, e o sintoma seria um `swiftc` vermelho no Mac do dono.
   assert.ok(
-    todos.includes('Foundation') && todos.includes('FoundationModels'),
-    `o detector não achou os imports de ${relativoARaiz(ENGINE_SWIFT)} (${JSON.stringify(todos)}) — ou o arquivo ` +
-      'deixou de importá-los, ou a leitura quebrou e a guarda passaria sobre nada.',
+    !importsSwift(readFileSync(ENGINE_SWIFT, 'utf8')).includes(CASCA_DO_COREAI),
+    `${relativoARaiz(ENGINE_SWIFT)} importa ${CASCA_DO_COREAI}. O modelo do sistema não depende da biblioteca ` +
+      'vendorizada do Core AI — e a CLI da bancada compila este arquivo sem ela.',
   );
-  const proibidos = importsProibidosNaPonte(src);
+  // E a casca é alcançada por **um** arquivo do app: se dois a importassem, a ponte deixaria
+  // de ser o único ponto que nomeia o Core AI (o que a 5.8 promete manter).
+  const alcancam = walkExt(join(ROOT, 'mobile'), /\.swift$/).filter((f) =>
+    importsSwift(readFileSync(f, 'utf8')).includes(CASCA_DO_COREAI),
+  );
   assert.deepEqual(
-    proibidos,
+    alcancam.map((f) => relativoARaiz(f)),
+    [relativoARaiz(MOTOR_COREAI_SWIFT)],
+    `${CASCA_DO_COREAI} é importado em ${alcancam.length} arquivos de mobile/. Tem de ser um: o motor de peso ` +
+      'aberto. Com zero, a vendorização saiu do caminho e o motor nunca escreveria; com dois, o Core AI deixou de ' +
+      'entrar por uma porta só.',
+  );
+
+  // **E os módulos do pacote da Apple não entram em `mobile/` de jeito nenhum.** Vigiar só o
+  // nome da casca deixaria passar um `import CoreAILanguageModels` direto — que compilaria se
+  // alguém acrescentasse os `.swiftmodule` do grafo ao `SWIFT_INCLUDE_PATHS`, e desfaria o
+  // isolamento que a casca existe para dar. Quem alcança o pacote é `scripts/coreai/`, fora
+  // do app.
+  const doPacoteEmMobile = walkExt(join(ROOT, 'mobile'), /\.swift$/).flatMap((f) =>
+    importsSwift(readFileSync(f, 'utf8'))
+      .filter((m) => MODULOS_DO_PACOTE_DA_APPLE.has(m))
+      .map((m) => `${relativoARaiz(f)}: ${m}`),
+  );
+  assert.deepEqual(
+    doPacoteEmMobile,
     [],
-    `${relativoARaiz(ENGINE_SWIFT)} importa ${proibidos.join(', ')}. A ponte importa só ` +
-      `${[...IMPORTS_PERMITIDOS_NA_PONTE].join(' e ')} (AD-3): a cola do Expo mora em outro arquivo, e modelo ` +
-      'de servidor não entra pela porta do aparelho — se vier, é nuvem:, com regime e lista do servidor.',
+    `mobile/ importa o pacote da Apple direto (${doPacoteEmMobile.join(', ')}). Ele é alcançado **fora do app**, ` +
+      `por scripts/coreai/OrbeCoreAI.swift, e chega aqui como ${CASCA_DO_COREAI} — um módulo e uma interface. ` +
+      'Importar o pacote direto traria os vinte e tantos .swiftmodule do grafo de volta para dentro do pod.',
+  );
+});
+
+/**
+ * BARREIRA — o alvo mínimo do iOS é um número só, em três lugares (story 5.8).
+ *
+ * `27.0` é escrito no config plugin (que o grava no projeto gerado e no
+ * `Podfile.properties.json`), no `s.platforms` do podspec e no `ALVO` do `montar.sh` (que é o
+ * alvo do `.a` e da `.swiftinterface`). Nenhum compilador vê os três.
+ *
+ * Divergir é calado e caro: um podspec em 26 com biblioteca em 27 dá "compiled for a newer
+ * version" no meio de um build de vinte minutos; um plugin em 26 com podspec em 27 dá um app
+ * que instala em aparelho onde o `CoreAI.framework` não existe. Num repositório que já tem
+ * barreira para hash, vocabulário e lista de `.swift`, três números soltos são a próxima
+ * divergência.
+ */
+const PLUGIN_DO_ALVO = join(ROOT, 'mobile', 'plugins', 'withAlvoMinimoIOS27.js');
+const MONTAR_DO_COREAI = join(ROOT, 'scripts', 'coreai', 'montar.sh');
+
+/** Os três números, cada um lido do seu arquivo. `null` onde a leitura falhou. */
+function alvosMinimos(plugin: string, podspec: string, montar: string): Record<string, string | null> {
+  return {
+    'mobile/plugins/withAlvoMinimoIOS27.js': /\bconst[ \t]+ALVO\s*=\s*'([\d.]+)'/.exec(semComentario(plugin))?.[1] ?? null,
+    'mobile/modules/on-device-engine/ios/OnDeviceEngine.podspec':
+      /\bs\.platforms\s*=\s*\{\s*:ios\s*=>\s*'([\d.]+)'/.exec(podspec)?.[1] ?? null,
+    'scripts/coreai/montar.sh': /^ALVO="([\d.]+)"/m.exec(montar)?.[1] ?? null,
+  };
+}
+
+check('BARREIRA — o alvo mínimo do iOS é o mesmo no plugin, no podspec e no montar.sh (story 5.8)', () => {
+  // Não-vácua: os três leitores acham o número num fonte de mentira.
+  assert.deepEqual(
+    alvosMinimos("const ALVO = '9.9';", "s.platforms = { :ios => '9.9' }", 'ALVO="9.9"\n'),
+    {
+      'mobile/plugins/withAlvoMinimoIOS27.js': '9.9',
+      'mobile/modules/on-device-engine/ios/OnDeviceEngine.podspec': '9.9',
+      'scripts/coreai/montar.sh': '9.9',
+    },
+    'os leitores do alvo mínimo não leem — a barreira passaria sobre nada',
+  );
+  assert.equal(alvosMinimos('', '', '')['scripts/coreai/montar.sh'], null);
+
+  for (const f of [PLUGIN_DO_ALVO, PODSPEC_DA_PONTE, MONTAR_DO_COREAI]) {
+    assert.ok(existsSync(f), `${relativoARaiz(f)} sumiu — a barreira do alvo mínimo ficou sem um dos três lados.`);
+  }
+  const lidos = alvosMinimos(
+    readFileSync(PLUGIN_DO_ALVO, 'utf8'),
+    readFileSync(PODSPEC_DA_PONTE, 'utf8'),
+    readFileSync(MONTAR_DO_COREAI, 'utf8'),
+  );
+  const semLeitura = Object.entries(lidos).filter(([, v]) => v === null).map(([k]) => k);
+  assert.deepEqual(semLeitura, [], `não li o alvo mínimo em ${semLeitura.join(', ')} — a barreira ficaria cega ali.`);
+  const distintos = [...new Set(Object.values(lidos))];
+  assert.equal(
+    distintos.length,
+    1,
+    `o alvo mínimo do iOS diverge: ${JSON.stringify(lidos)}.\n` +
+      '  O pacote apple/coreai-models exige 27.0 e não tem um único @available: o número tem de ser o mesmo nos ' +
+      'três, ou a biblioteca vendorizada, o pod e o app discordam sobre em que sistema o app roda.',
   );
 });
 
@@ -2055,12 +2208,145 @@ check('BARREIRA — os motivos, o modelo genérico e a linha de reserva do diagn
 });
 
 /**
- * BARREIRA — o módulo tem dois `.swift`, e modelo de servidor em nenhum (story 5.9, AD-3, ADR 0047).
+ * BARREIRA — os motivos do peso aberto cruzam as duas línguas amarrados (story 5.8).
  *
- * O pod `OnDeviceEngine` tem **dois** arquivos em `ios/`, numa lista fechada: o
- * `Engine.swift` (a ponte, que as guardas (3), (4), a do contrato e a do vocabulário cobrem)
- * e a cola `OnDeviceEngineModule.swift`. Arquivo `.swift` novo reprova — é decisão de
- * arquitetura, e muda esta lista junto, com a razão.
+ * O gêmeo da guarda acima, para o outro motor — e com uma diferença que é de propósito: **o
+ * núcleo não participa**. Ele não sabe que peso aberto existe (a gramática
+ * `aparelho:<provedor>/<pesos>` de `ia/fio.ts` já cabia sem mudança nenhuma), então o
+ * vocabulário vai direto do `MotorCoreAI.swift` para o catálogo do app, que é quem o põe em
+ * palavras na tela do dono.
+ *
+ * Sem esta guarda, um motivo novo no Swift — ou um renomeado — viraria "indisponível por um
+ * motivo que esta versão não conhece" no seletor, calado: a mentira exata que o catálogo
+ * existe para não contar.
+ */
+const CATALOGO_DO_APP = join(ROOT, 'mobile', 'src', 'lib', 'motores', 'catalogo.ts');
+const MAPA_DOS_MOTIVOS_DO_COREAI = 'MOTIVO_DO_COREAI_EM_PALAVRAS';
+
+/** Todo `static let motivo… = "…"` de um fonte Swift: nome do símbolo → literal. */
+function motivosDeclarados(codigo: string): Map<string, string> {
+  const achados = new Map<string, string>();
+  for (const m of codigo.matchAll(/\bstatic[ \t]+let[ \t]+(motivo\w*)\b[^=\n]*=[ \t]*"((?:[^"\\\n]|\\.)*)"/g)) {
+    achados.set(m[1], valorDoLiteralSwift(m[2]) ?? m[2]);
+  }
+  return achados;
+}
+
+/** Os símbolos que a função `motivos()` devolve — a lista que o app diz conhecer. */
+function motivosDevolvidos(codigo: string): string[] | null {
+  const cabecalho = [...codigo.matchAll(/\bstatic[ \t]+func[ \t]+motivos\s*\([^)]*\)[^{]*\{/g)];
+  if (cabecalho.length !== 1) return null;
+  const corpo = corpoInteiro(codigo, cabecalho[0].index! + cabecalho[0][0].length - 1);
+  if (corpo === null) return null;
+  const lista = /\[([^\]]*)\]/.exec(corpo);
+  if (!lista) return null;
+  return lista[1]
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => x !== '');
+}
+
+/** As chaves de um `Record` literal exportado de um fonte TS. `null` se não achar o bloco. */
+function chavesDoMapa(src: string, nome: string): string[] | null {
+  const bloco = new RegExp(`\\bexport[ \\t]+const[ \\t]+${nome}\\b[^=]*=\\s*\\{([\\s\\S]*?)\\n\\};`).exec(semComentario(src));
+  if (!bloco) return null;
+  return [...bloco[1].matchAll(/^\s*(\w+)\s*:/gm)].map((m) => m[1]);
+}
+
+function problemasDosMotivosDoCoreAI(swift: string, catalogo: string): string[] {
+  const problemas: string[] = [];
+  const codigo = codigoSwift(swift);
+  const declarados = motivosDeclarados(codigo);
+  const devolvidos = motivosDevolvidos(codigo);
+  if (declarados.size === 0) problemas.push('o Swift não declara nenhum `static let motivo… = "…"`');
+  if (devolvidos === null) {
+    problemas.push('não achei `static func motivos()` devolvendo uma lista (uma vez)');
+  } else {
+    // Um motivo declarado e não devolvido é um motivo que o app nunca vai reconhecer.
+    const fora = [...declarados.keys()].filter((s) => !devolvidos.includes(s));
+    const fantasma = devolvidos.filter((s) => !declarados.has(s));
+    if (fora.length > 0) problemas.push(`declarado e não devolvido por motivos(): ${fora.join(', ')}`);
+    if (fantasma.length > 0) problemas.push(`motivos() devolve o que não é um static let: ${fantasma.join(', ')}`);
+  }
+  const doSwift = [...declarados.values()];
+  const repetidos = doSwift.filter((v, i) => doSwift.indexOf(v) !== i);
+  if (repetidos.length > 0) problemas.push(`literal repetido no Swift: ${[...new Set(repetidos)].join(', ')}`);
+
+  const doApp = chavesDoMapa(catalogo, MAPA_DOS_MOTIVOS_DO_COREAI);
+  if (doApp === null) {
+    problemas.push(`não achei \`export const ${MAPA_DOS_MOTIVOS_DO_COREAI} = { … };\` no catálogo do app`);
+    return problemas;
+  }
+  const faltam = doSwift.filter((m) => !doApp.includes(m));
+  const sobram = doApp.filter((m) => !doSwift.includes(m));
+  if (faltam.length > 0) problemas.push(`o Swift diz o motivo ${faltam.join(', ')}, e o app não o põe em palavras`);
+  if (sobram.length > 0) problemas.push(`o app põe em palavras ${sobram.join(', ')}, que o Swift nunca diz`);
+  return problemas;
+}
+
+function provarODetectorDosMotivosDoCoreAI(): void {
+  const swift = (extra = '', devolve = '[motivoSemBiblioteca, motivoSimulador]') =>
+    'enum MotorCoreAI {\n  static let motivoSemBiblioteca = "semBiblioteca"\n' +
+    `  static let motivoSimulador = "simulador"\n${extra}` +
+    `  static func motivos() -> [String] {\n    ${devolve}\n  }\n}\n`;
+  const app = (chaves: readonly string[]) =>
+    `export const ${MAPA_DOS_MOTIVOS_DO_COREAI}: Readonly<Record<string, string>> = {\n` +
+    chaves.map((k) => `  ${k}: 'x',`).join('\n') +
+    '\n};\n';
+  const BONS = ['semBiblioteca', 'simulador'];
+  assert.deepEqual(problemasDosMotivosDoCoreAI(swift(), app(BONS)), [], 'o detector dos motivos reprovou o par certo');
+  const casos: readonly (readonly [string, string[], RegExp])[] = [
+    ['motivo só no Swift', problemasDosMotivosDoCoreAI(swift(), app(['semBiblioteca'])), /o Swift diz o motivo simulador/],
+    ['motivo só no app', problemasDosMotivosDoCoreAI(swift(), app([...BONS, 'inventado'])), /o app põe em palavras inventado/],
+    [
+      'declarado e não devolvido',
+      problemasDosMotivosDoCoreAI(swift('  static let motivoOrfao = "orfao"\n'), app([...BONS, 'orfao'])),
+      /declarado e não devolvido/,
+    ],
+    ['motivos() sumiu', problemasDosMotivosDoCoreAI(swift().replace('func motivos', 'func outra'), app(BONS)), /não achei `static func motivos/],
+    ['só no comentário', problemasDosMotivosDoCoreAI('// static let motivoX = "x"\n', app(BONS)), /não declara nenhum/],
+    ['o mapa do app sumiu', problemasDosMotivosDoCoreAI(swift(), 'export const OUTRA = {};'), /não achei/],
+    ['literal repetido', problemasDosMotivosDoCoreAI(swift().replace('"simulador"', '"semBiblioteca"'), app(BONS)), /literal repetido/],
+  ];
+  for (const [nome, achado, esperado] of casos) {
+    assert.ok(achado.some((p) => esperado.test(p)), `o detector dos motivos não viu "${nome}": ${JSON.stringify(achado)}`);
+  }
+}
+
+check('BARREIRA — os motivos do peso aberto são os que o app põe em palavras (story 5.8)', () => {
+  provarODetectorDosMotivosDoCoreAI();
+  assert.ok(existsSync(MOTOR_COREAI_SWIFT), `${relativoARaiz(MOTOR_COREAI_SWIFT)} sumiu — a guarda ficou sem alvo.`);
+  assert.ok(existsSync(CATALOGO_DO_APP), `${relativoARaiz(CATALOGO_DO_APP)} sumiu — a guarda ficou sem o outro lado.`);
+  const problemas = problemasDosMotivosDoCoreAI(
+    readFileSync(MOTOR_COREAI_SWIFT, 'utf8'),
+    readFileSync(CATALOGO_DO_APP, 'utf8'),
+  );
+  assert.deepEqual(
+    problemas,
+    [],
+    `o vocabulário do peso aberto divergiu entre ${relativoARaiz(MOTOR_COREAI_SWIFT)} e ${relativoARaiz(CATALOGO_DO_APP)}: ` +
+      `${problemas.join('; ')}.\n` +
+      '  Eles cruzam as duas línguas sem compilador no meio: um motivo novo de um lado só vira "indisponível por um ' +
+      'motivo que esta versão não conhece" no seletor, calado. Mude os dois lados juntos.',
+  );
+});
+
+/**
+ * BARREIRA — o módulo tem três `.swift`, e modelo de servidor em nenhum (story 5.9, AD-3, ADR 0047).
+ *
+ * O pod `OnDeviceEngine` tem **três** arquivos em `ios/`, numa lista fechada: o
+ * `Engine.swift` (o modelo do sistema, que as guardas (3), (4), a do contrato e a do
+ * vocabulário cobrem), o `MotorCoreAI.swift` (o peso aberto, que a 5.8 trouxe) e a cola
+ * `OnDeviceEngineModule.swift`. Arquivo `.swift` novo reprova — é decisão de arquitetura, e
+ * muda esta lista junto, com a razão.
+ *
+ * **A lista cresceu de dois para três em 21/09/2026, e a razão é esta:** o Core AI carrega
+ * pesos de uma pasta e tem uma falha que o modelo do sistema não tem (a **carga**), com
+ * classificação própria. Enfiá-la no `Engine.swift` misturaria os dois motores num arquivo
+ * que a CLI da bancada compila sozinho no Mac — e a CLI passaria a exigir uma biblioteca
+ * vendorizada que ela não tem. Separado, o `Engine` continua puro e a bancada continua
+ * medindo; o `MotorCoreAI` compila nos dois modos (com e sem `ORBE_COREAI`), e é o modo
+ * "sem" que torna a tabela dele testável no Mac.
  *
  * E `PrivateCloudComputeLanguageModel` não aparece em **lugar nenhum** do Swift do módulo
  * nem da bancada. Ele passou por aqui como experimento descartável (19/09/2026, emenda da ADR
@@ -2071,7 +2357,9 @@ check('BARREIRA — os motivos, o modelo genérico e a linha de reserva do diagn
  */
 const DIR_DA_PONTE = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios');
 const COLA_SWIFT = join(DIR_DA_PONTE, 'OnDeviceEngineModule.swift');
-const SWIFT_DO_MODULO = ['Engine.swift', 'OnDeviceEngineModule.swift'].map((f) => relativoARaiz(join(DIR_DA_PONTE, f)));
+const SWIFT_DO_MODULO = ['Engine.swift', 'MotorCoreAI.swift', 'OnDeviceEngineModule.swift'].map((f) =>
+  relativoARaiz(join(DIR_DA_PONTE, f)),
+);
 const INJECAO_DA_PONTE = join(ROOT, 'mobile', 'src', 'lib', 'motores', 'index.ts');
 const NOME_DA_PONTE = 'OnDeviceEngine';
 
@@ -2095,13 +2383,21 @@ function problemasDoSwiftDoModulo(doModulo: ReadonlyMap<string, string>, outros:
 }
 
 function provarODetectorDoModulo(): void {
-  const [engine, cola] = SWIFT_DO_MODULO;
+  const [engine, coreai, cola] = SWIFT_DO_MODULO;
   const modulo = (extra: Record<string, string> = {}) =>
-    new Map<string, string>(Object.entries({ [engine]: 'import Foundation\nenum Engine {}', [cola]: 'import ExpoModulesCore', ...extra }));
+    new Map<string, string>(
+      Object.entries({
+        [engine]: 'import Foundation\nenum Engine {}',
+        [coreai]: 'import Foundation\nenum MotorCoreAI {}',
+        [cola]: 'import ExpoModulesCore',
+        ...extra,
+      }),
+    );
   assert.deepEqual(problemasDoSwiftDoModulo(modulo()), [], 'o detector do módulo reprovou o módulo certo');
   const casos: readonly (readonly [string, readonly string[], RegExp])[] = [
     ['arquivo novo', problemasDoSwiftDoModulo(modulo({ 'mobile/modules/on-device-engine/ios/ExperimentoDoPCC.swift': '' })), /sobram .*ExperimentoDoPCC\.swift/],
     ['arquivo a menos', problemasDoSwiftDoModulo(new Map([[engine, '']])), /faltam .*OnDeviceEngineModule\.swift/],
+    ['o motor de peso aberto a menos', problemasDoSwiftDoModulo(new Map([[engine, ''], [cola, '']])), /faltam .*MotorCoreAI\.swift/],
     ['PCC no Engine', problemasDoSwiftDoModulo(modulo({ [engine]: 'let m = PrivateCloudComputeLanguageModel()' })), /Engine\.swift nomeia PrivateCloudComputeLanguageModel/],
     ['PCC na cola', problemasDoSwiftDoModulo(modulo({ [cola]: 'let m = PrivateCloudComputeLanguageModel()' })), /OnDeviceEngineModule\.swift nomeia/],
     [
@@ -2117,7 +2413,7 @@ function provarODetectorDoModulo(): void {
   assert.deepEqual(problemasDoSwiftDoModulo(modulo({ [engine]: '// PrivateCloudComputeLanguageModel saiu em 19/09' })), [], 'o detector do módulo contou um comentário');
 }
 
-check('BARREIRA — o módulo da ponte tem dois .swift, e PrivateCloudComputeLanguageModel em nenhum lugar (story 5.9)', () => {
+check('BARREIRA — o módulo da ponte tem três .swift, e PrivateCloudComputeLanguageModel em nenhum lugar (story 5.9, 5.8)', () => {
   provarODetectorDoModulo();
   const doModulo = new Map(walkExt(join(ROOT, 'mobile', 'modules'), /\.swift$/).map((f) => [relativoARaiz(f), readFileSync(f, 'utf8')] as const));
   const daBancada = new Map(walkExt(join(ROOT, 'scripts', 'bancada', 'aparelho'), /\.swift$/).map((f) => [relativoARaiz(f), readFileSync(f, 'utf8')] as const));
@@ -2127,7 +2423,7 @@ check('BARREIRA — o módulo da ponte tem dois .swift, e PrivateCloudComputeLan
     problemas,
     [],
     `o Swift da ponte saiu da lista: ${problemas.join('; ')}.\n` +
-      '  O pod tem dois arquivos — Engine e cola —, e modelo de servidor não entra nele: sem o entitlement gerenciado, ' +
+      '  O pod tem três arquivos — Engine, MotorCoreAI e cola —, e modelo de servidor não entra nele: sem o entitlement gerenciado, ' +
       'o PCC derruba o app no iPhone (19/09). Se ele voltar, é nuvem:, com regime e lista do servidor.',
   );
 });
@@ -2156,6 +2452,44 @@ function literaisSwift(codigo: string): string[] {
   return [...codigo.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)].map((m) => m[1]);
 }
 
+/**
+ * Os **argumentos** de cada função da ponte, como o app os declara em `PARAMETROS_DA_PONTE`.
+ * `null` se o bloco não for achado.
+ */
+function parametrosDoApp(src: string): Map<string, string[]> | null {
+  const bloco = /\bexport[ \t]+const[ \t]+PARAMETROS_DA_PONTE\s*=\s*\{([\s\S]*?)\n\}\s*as const/.exec(semComentario(src));
+  if (!bloco) return null;
+  const mapa = new Map<string, string[]>();
+  for (const m of bloco[1].matchAll(/^\s*(\w+)\s*:\s*\[([^\]]*)\]/gm)) {
+    mapa.set(
+      m[1],
+      m[2]
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => x !== '')
+        .map((x) => /^'(\w+)'$/.exec(x)?.[1] ?? `?${x}`),
+    );
+  }
+  return mapa;
+}
+
+/** Os nomes dos argumentos de cada `AsyncFunction` da cola, na ordem em que o Swift os declara. */
+function parametrosDaCola(codigo: string): Map<string, string[]> {
+  const mapa = new Map<string, string[]>();
+  for (const m of codigo.matchAll(/\bAsyncFunction\s*\(\s*"((?:[^"\\\n]|\\.)*)"\s*\)\s*\{\s*\(([^)]*)\)/g)) {
+    mapa.set(
+      m[1],
+      m[2]
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => x !== '')
+        // `pesos: String` → `pesos`; um `_ pesos: String` leva o rótulo interno.
+        .map((x) => /(?:^|\s)([A-Za-z_]\w*)\s*:/.exec(x)?.[1] ?? `?${x}`),
+    );
+  }
+  return mapa;
+}
+
 /** Os nomes das funções da ponte como o app os chama: `FUNCOES_DA_PONTE`, lido do fonte. `null` se não achar. */
 function funcoesDoApp(src: string): string[] | null {
   const lista = /\bexport[ \t]+const[ \t]+FUNCOES_DA_PONTE\s*=\s*\[([^\]]*)\]/.exec(semComentario(src));
@@ -2167,7 +2501,11 @@ function funcoesDoApp(src: string): string[] | null {
     .map((x) => /^'(\w+)'$/.exec(x)?.[1] ?? `?${x}`);
 }
 
-function problemasDaCola(src: string, funcoesDoAppLidas: readonly string[]): string[] {
+function problemasDaCola(
+  src: string,
+  funcoesDoAppLidas: readonly string[],
+  parametrosDoAppLidos: ReadonlyMap<string, readonly string[]>,
+): string[] {
   const codigo = codigoSwift(src);
   const problemas: string[] = [];
   const imports = importsSwift(src);
@@ -2192,6 +2530,29 @@ function problemasDaCola(src: string, funcoesDoAppLidas: readonly string[]): str
   const sobram = daCola.filter((n) => !funcoesDoAppLidas.includes(n));
   if (faltam.length > 0) problemas.push(`não declara ${faltam.join(', ')}, que o app chama (FUNCOES_DA_PONTE)`);
   if (sobram.length > 0) problemas.push(`declara ${[...new Set(sobram)].join(', ')}, que o app não chama (FUNCOES_DA_PONTE)`);
+
+  // **Os argumentos, na ordem.** Comparar só os nomes das funções bastava enquanto todas
+  // tinham zero ou um argumento. Com `responderComPesos(pesos, pedido)`, inverter os dois no
+  // closure compila, passa por tudo, e no aparelho toda geração volta como `capacidade`.
+  const daColaParams = parametrosDaCola(codigo);
+  for (const nome of daCola) {
+    const esperado = parametrosDoAppLidos.get(nome);
+    const obtido = daColaParams.get(nome);
+    if (esperado === undefined) continue; // já reportado como "que o app não chama"
+    if (obtido === undefined) {
+      problemas.push(`não consegui ler os argumentos de ${nome} — o detector ficaria cego nessa função`);
+      continue;
+    }
+    if (JSON.stringify(obtido) !== JSON.stringify([...esperado])) {
+      problemas.push(
+        `${nome} recebe ${JSON.stringify(obtido)} e o app manda ${JSON.stringify([...esperado])} — ordem ou nome divergiram`,
+      );
+    }
+  }
+  const semParametro = daCola.filter((n) => funcoesDoAppLidas.includes(n) && !parametrosDoAppLidos.has(n));
+  if (semParametro.length > 0) {
+    problemas.push(`o app não declara os argumentos de ${semParametro.join(', ')} em PARAMETROS_DA_PONTE`);
+  }
 
   if (/"""/.test(src.replace(/\/\/.*$/gm, ''))) problemas.push('tem string de várias linhas');
   const semTexto = codigo.replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
@@ -2222,18 +2583,50 @@ function problemasDaCola(src: string, funcoesDoAppLidas: readonly string[]): str
  * que só aparece em comentário, ou o `for:` de rótulo, não conta.
  */
 function provarODetectorDaCola(): void {
-  const APP = ['responder', 'diagnostico'];
+  const APP = ['responder', 'diagnostico', 'responderComPesos'];
+  const PARAMS = new Map<string, readonly string[]>([
+    ['responder', ['pedido']],
+    ['diagnostico', []],
+    ['responderComPesos', ['pesos', 'pedido']],
+  ]);
   const cola = (corpo: string, cabeca = 'import ExpoModulesCore') =>
     `${cabeca}\n\n// catch, if, "transitoria" — só no comentário\npublic class M: Module {\n  public func definition() -> ModuleDefinition {\n` +
     `    Name("${NOME_DA_PONTE}")\n${corpo}\n  }\n}\n`;
   const repassa =
     '    AsyncFunction("responder") { (pedido: String) async -> String in\n      await Engine.responder(pedido)\n    }\n' +
-    '    AsyncFunction("diagnostico") { () -> String in\n      Engine.diagnostico()\n    }';
+    '    AsyncFunction("diagnostico") { () -> String in\n      Engine.diagnostico()\n    }\n' +
+    '    AsyncFunction("responderComPesos") { (pesos: String, pedido: String) async -> String in\n' +
+    '      await MotorCoreAI.responder(pesos: pesos, pedido: pedido)\n    }';
   const com = (trecho: string) => cola(`${repassa}\n${trecho}`);
   const funcaoCom = (corpo: string) => cola(repassa.replace('Engine.diagnostico()', corpo));
-  assert.deepEqual(problemasDaCola(cola(repassa), APP), [], 'o detector da cola reprovou a cola que só repassa');
+  assert.deepEqual(problemasDaCola(cola(repassa), APP, PARAMS), [], 'o detector da cola reprovou a cola que só repassa');
   // `for:` de rótulo e o `?` do opcional não são decisão.
-  assert.deepEqual(problemasDaCola(funcaoCom('Engine.eco(for: x?.count)'), APP), [], 'o detector da cola viu decisão num rótulo `for:` ou num opcional');
+  assert.deepEqual(problemasDaCola(funcaoCom('Engine.eco(for: x?.count)'), APP, PARAMS), [], 'o detector da cola viu decisão num rótulo `for:` ou num opcional');
+
+  // **A inversão dos dois argumentos** — o caso que motivou a lista de parâmetros.
+  const invertida = cola(repassa.replace('(pesos: String, pedido: String)', '(pedido: String, pesos: String)'));
+  assert.ok(
+    problemasDaCola(invertida, APP, PARAMS).some((p) => /responderComPesos recebe .*ordem ou nome divergiram/.test(p)),
+    'o detector da cola não viu os argumentos invertidos',
+  );
+  const renomeada = cola(repassa.replace('(pesos: String, pedido: String)', '(nome: String, pedido: String)'));
+  assert.ok(
+    problemasDaCola(renomeada, APP, PARAMS).some((p) => /responderComPesos recebe/.test(p)),
+    'o detector da cola não viu um argumento renomeado',
+  );
+  const aMenos = cola(repassa.replace('(pesos: String, pedido: String)', '(pesos: String)'));
+  assert.ok(
+    problemasDaCola(aMenos, APP, PARAMS).some((p) => /responderComPesos recebe/.test(p)),
+    'o detector da cola não viu um argumento a menos',
+  );
+  assert.ok(
+    problemasDaCola(cola(repassa), APP, new Map([...PARAMS].filter(([k]) => k !== 'responderComPesos'))).some((p) =>
+      /não declara os argumentos de responderComPesos/.test(p),
+    ),
+    'o detector da cola não viu a função sem argumentos declarados no app',
+  );
+  assert.deepEqual(parametrosDoApp("export const PARAMETROS_DA_PONTE = {\n  a: ['x', 'y'],\n  b: [],\n} as const"), new Map([['a', ['x', 'y']], ['b', []]]));
+  assert.equal(parametrosDoApp('export const OUTRA = {} as const'), null);
   const casos: readonly (readonly [string, string, RegExp])[] = [
     ['import a mais', cola(repassa, 'import ExpoModulesCore\nimport FoundationModels'), /importa FoundationModels/],
     ['sem ExpoModulesCore', cola(repassa, 'import Foundation'), /não importa ExpoModulesCore/],
@@ -2257,7 +2650,7 @@ function provarODetectorDaCola(): void {
     ['string de várias linhas', funcaoCom('"""\n      x\n      """'), /várias linhas/],
   ];
   for (const [nome, fonte, esperado] of casos) {
-    const achado = problemasDaCola(fonte, APP);
+    const achado = problemasDaCola(fonte, APP, PARAMS);
     assert.ok(achado.some((p) => esperado.test(p)), `o detector da cola não viu "${nome}": ${JSON.stringify(achado)}`);
   }
 }
@@ -2275,7 +2668,12 @@ check('BARREIRA — a cola do Expo só repassa, com os nomes que o app chama (st
     `não li FUNCOES_DA_PONTE em ${relativoARaiz(INJECAO_DA_PONTE)} (${JSON.stringify(app)}) — ` +
       'a barreira compararia a cola com nada.',
   );
-  const problemas = problemasDaCola(readFileSync(COLA_SWIFT, 'utf8'), app!);
+  const params = parametrosDoApp(readFileSync(INJECAO_DA_PONTE, 'utf8'));
+  assert.ok(
+    params !== null && params.size > 0 && [...params.values()].every((ps) => ps.every((x) => !x.startsWith('?'))),
+    `não li PARAMETROS_DA_PONTE em ${relativoARaiz(INJECAO_DA_PONTE)} — a barreira compararia os argumentos com nada.`,
+  );
+  const problemas = problemasDaCola(readFileSync(COLA_SWIFT, 'utf8'), app!, params!);
   assert.deepEqual(
     problemas,
     [],
@@ -2369,10 +2767,49 @@ check('BARREIRA — mobile/modules/ não tem JavaScript nem TypeScript (story 5.
 const RUNTIME_JSON = join(ROOT, 'mobile', 'modules', 'runtime.json');
 const APP_BASE_JSON = join(ROOT, 'mobile', 'app.base.json');
 
+/**
+ * Os **pesos** do Core AI (story 5.8) — fora da conta, e por uma razão de operação.
+ *
+ * São 243,7 MiB por conjunto, e o `main.mlirb` sozinho tem 240,3 MiB — acima do teto de 100 MB
+ * por arquivo do GitHub. Eles não entram no
+ * repositório (`.gitignore`), e nascem de `scripts/coreai/` na máquina do dono. Se contassem
+ * no hash, a máquina que os tem e o CI que não os tem calculariam hashes diferentes, e a
+ * barreira reprovaria em um dos dois **sempre** — uma guarda que reprova por ausência de dado
+ * não guarda nada.
+ *
+ * **E eles não são o que esta barreira protege.** Ela existe para que um `eas update` só de
+ * JS não chegue a um binário com a ponte velha, chamando função que a cola dele não tem. Peso
+ * é dado, não interface: trocá-lo não muda uma assinatura de função nativa. O que muda o
+ * `runtimeVersion` é o `.swift`, o `.podspec` e a biblioteca vendorizada — e esses continuam
+ * dentro da conta.
+ */
+const PESOS_DO_COREAI_DIR = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios', 'pesos');
+
+/**
+ * A biblioteca vendorizada do Core AI — **dentro** da conta, e versionada (story 5.8).
+ *
+ * São duas saídas possíveis e uma decisão tomada. Deixá-la fora do hash, como os pesos,
+ * poria o **maior artefato nativo do repositório** fora de toda guarda que existe aqui: 21,3 MiB
+ * de código de terceiros que entram no binário e que ninguém compararia com nada. Então ela é
+ * versionada (cabe folgado no teto de 100 MB por arquivo do GitHub, ao contrário dos pesos) e
+ * conta no hash — trocar a revisão do pacote da Apple é mudança nativa, e mudança nativa sobe
+ * o `runtimeVersion`.
+ *
+ * O preço é conhecido: um `montar.sh` que refaz o `.a` sem mudar fonte nenhum ainda pede
+ * runtime novo. É um binário novo — está certo que peça.
+ *
+ * A checagem separada existe porque o sintoma, sem ela, é enganoso: num clone sem o `.a` o
+ * hash simplesmente diverge, e a mensagem mandaria "suba o runtimeVersion" para quem não
+ * mudou nada.
+ */
+const VENDOR_DO_COREAI = join(ROOT, 'mobile', 'modules', 'on-device-engine', 'ios', 'vendor', 'ios-arm64');
+const ARQUIVOS_VENDORIZADOS = ['libOrbeCoreAI.a', 'OrbeCoreAI.swiftinterface'];
+
 /** O sha256 dos fontes de um diretório, como a barreira do runtime o calcula. */
 function hashDosFontes(dir: string, ignorar: readonly string[]): string {
   const arquivos: string[] = [];
   const andar = (d: string) => {
+    if (ignorar.includes(d)) return;
     for (const e of readdirSync(d)) {
       if (e.startsWith('.') || e === 'node_modules') continue;
       const p = join(d, e);
@@ -2428,7 +2865,17 @@ check('BARREIRA — mudar mobile/modules/ exige subir o runtimeVersion junto (st
     assert.ok(achado.some((p) => esperado.test(p)), `o detector do runtime não viu "${nome}": ${JSON.stringify(achado)}`);
   }
 
-  const hoje = hashDosFontes(join(ROOT, 'mobile', 'modules'), [RUNTIME_JSON]);
+  for (const f of ARQUIVOS_VENDORIZADOS) {
+    const p = join(VENDOR_DO_COREAI, f);
+    assert.ok(
+      existsSync(p),
+      `${relativoARaiz(p)} não está aqui, e ele é **versionado** (21,3 MiB, dentro do hash do runtime).\n` +
+        '  Num clone que não o trouxe, o hash diverge e a mensagem abaixo culparia o runtimeVersion por engano.\n' +
+        '  Recrie-o com `./scripts/coreai/montar.sh` — e confira que ele entrou no commit (os pesos, esses sim, ficam fora).',
+    );
+  }
+
+  const hoje = hashDosFontes(join(ROOT, 'mobile', 'modules'), [RUNTIME_JSON, PESOS_DO_COREAI_DIR]);
   assert.ok(existsSync(RUNTIME_JSON), `${relativoARaiz(RUNTIME_JSON)} sumiu. Recrie-o com o runtime do app.base.json e o hash ${hoje}.`);
   const lido = JSON.parse(readFileSync(RUNTIME_JSON, 'utf8')) as { historico?: EntradaDoRuntime[] };
   const runtimeDoApp = (JSON.parse(readFileSync(APP_BASE_JSON, 'utf8')) as { expo: { runtimeVersion: string } }).expo.runtimeVersion;

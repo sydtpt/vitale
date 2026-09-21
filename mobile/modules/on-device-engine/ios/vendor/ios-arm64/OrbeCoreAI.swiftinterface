@@ -1,0 +1,32 @@
+// swift-interface-format-version: 1.0
+// swift-compiler-version: Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)
+// swift-module-flags: -target arm64-apple-ios27.0 -enable-objc-interop -enable-library-evolution -language-mode 6 -O -enable-upcoming-feature MemberImportVisibility -enable-experimental-feature Lifetimes -module-name OrbeCoreAI
+// swift-module-flags-ignorable:  -formal-cxx-interoperability-mode=off -interface-compiler-version 6.4
+import Foundation
+import FoundationModels
+import Swift
+import _Concurrency
+import _StringProcessing
+import _SwiftConcurrencyShims
+public enum OrbeCoreAIFase : Swift::String, Swift::Sendable {
+  case carga
+  public init?(rawValue: Swift::String)
+  public typealias RawValue = Swift::String
+  public var rawValue: Swift::String {
+    get
+  }
+}
+public struct OrbeCoreAIErro : Swift::Error, Swift::Sendable {
+  public let fase: OrbeCoreAI::OrbeCoreAIFase
+  public let nomeDoTipo: Swift::String
+  public let descricao: Swift::String
+  public let dominio: Swift::String
+  public let codigo: Swift::Int
+  public init(fase: OrbeCoreAI::OrbeCoreAIFase, nomeDoTipo: Swift::String, descricao: Swift::String, dominio: Swift::String, codigo: Swift::Int)
+}
+public enum OrbeCoreAI {
+  public static func sessao(pesosEm url: Foundation::URL, instrucoes: Swift::String?) async throws -> FoundationModels::LanguageModelSession
+}
+extension OrbeCoreAI::OrbeCoreAIFase : Swift::Equatable {}
+extension OrbeCoreAI::OrbeCoreAIFase : Swift::Hashable {}
+extension OrbeCoreAI::OrbeCoreAIFase : Swift::RawRepresentable {}

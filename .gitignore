@@ -70,3 +70,11 @@ scripts/bancada/aparelho/.build/
 _bmad-output/design/**/*.html
 !_bmad-output/design/**/*.dc.html
 __pycache__/
+
+# Os pesos abertos do Core AI (story 5.8). O conjunto embarcado tem **243,7 MiB** e o
+# `main.mlirb` sozinho tem **240,3 MiB** (252 MB decimais) — **acima do teto de 100 MB por arquivo do
+# GitHub**, que rejeita o push. Eles nascem de `scripts/coreai/` na máquina de quem
+# monta o build, e a barreira do runtime os deixa de fora do hash de propósito (ver
+# `packages/shared/src/architecture.test.ts`): peso é dado, não interface nativa.
+# A story seguinte tira o peso do binário e o baixa sob demanda — e então isto sai.
+mobile/modules/on-device-engine/ios/pesos/

@@ -29,6 +29,7 @@ import {
   type MotorDeNuvemAprovado,
 } from '@vitale/shared';
 import {
+  APARELHO_COREAI_SMOLLM2,
   MOTORES_CONHECIDOS,
   PONTE_AUSENTE,
   VALIDADE_DA_LISTA_MS,
@@ -222,7 +223,7 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
   it('sem lista (nunca lida): só o que o app conhece, com `nuvem:padrao`', () => {
     // AC 1: o app abre, a lista nunca foi lida, e nenhuma variante nomeada aparece.
     const ids = idsConhecidosDe('saude-do-sono', null);
-    expect(ids).toEqual([SEM_MODELO, APARELHO_SISTEMA, NUVEM_PADRAO]);
+    expect(ids).toEqual([SEM_MODELO, APARELHO_SISTEMA, APARELHO_COREAI_SMOLLM2, NUVEM_PADRAO]);
   });
 
   it('com lista: a variante aprovada para ESTE recurso entra, depois do padrão', () => {
@@ -231,6 +232,7 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
     expect(idsConhecidosDe('saude-do-sono', lista)).toEqual([
       SEM_MODELO,
       APARELHO_SISTEMA,
+      APARELHO_COREAI_SMOLLM2,
       NUVEM_PADRAO,
       ACME.motor,
       OUTRO.motor,
@@ -239,6 +241,7 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
     expect(idsConhecidosDe('retrospectiva', lista)).toEqual([
       SEM_MODELO,
       APARELHO_SISTEMA,
+      APARELHO_COREAI_SMOLLM2,
       NUVEM_PADRAO,
       OUTRO.motor,
     ]);
@@ -276,22 +279,22 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
       lidaEm: 1,
     };
     const ids = idsConhecidosDe('saude-do-sono', lista);
-    expect(ids).toEqual([SEM_MODELO, APARELHO_SISTEMA, NUVEM_PADRAO, ACME.motor]);
+    expect(ids).toEqual([SEM_MODELO, APARELHO_SISTEMA, APARELHO_COREAI_SMOLLM2, NUVEM_PADRAO, ACME.motor]);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('a variante aprovada é selecionável; sem a lista, ela nem existe', () => {
-    const conhecidos = motoresDoRecurso('saude-do-sono', PONTE_AUSENTE, { motores: [ACME], lidaEm: 1 });
+    const conhecidos = motoresDoRecurso('saude-do-sono', { sistema: PONTE_AUSENTE, coreai: PONTE_AUSENTE }, { motores: [ACME], lidaEm: 1 });
     expect(motivoDeBloqueio(SAUDE, ACME.motor, conhecidos)).toBeNull();
     // Sem a lista, o catálogo não a conhece — e o seletor nem a desenha.
-    expect(motoresDoRecurso('saude-do-sono', PONTE_AUSENTE, null).some((m) => m.id === ACME.motor)).toBe(false);
+    expect(motoresDoRecurso('saude-do-sono', { sistema: PONTE_AUSENTE, coreai: PONTE_AUSENTE }, null).some((m) => m.id === ACME.motor)).toBe(false);
   });
 
   it('a variante aprovada continua sujeita ao regime do recurso', () => {
     // A lista do servidor aprova um destinatário; ela não levanta o teto de
     // exposição de um recurso que não manda dado para fora.
     const soAparelho = { recurso: 'saude-do-sono', regimeMaximo: 'aparelho', grava: false } as const;
-    const conhecidos = motoresDoRecurso('saude-do-sono', PONTE_AUSENTE, { motores: [ACME], lidaEm: 1 });
+    const conhecidos = motoresDoRecurso('saude-do-sono', { sistema: PONTE_AUSENTE, coreai: PONTE_AUSENTE }, { motores: [ACME], lidaEm: 1 });
     expect(motivoDeBloqueio(soAparelho, ACME.motor, conhecidos)).toBe(
       'este recurso não manda dado além do aparelho',
     );
@@ -309,7 +312,7 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
     // passar a lista fundida leria "indisponível neste build" para um motor que o
     // servidor aprovou. Aqui os dois catálogos aparecem lado a lado.
     expect(motivoDeBloqueio(SAUDE, ACME.motor, MOTORES_CONHECIDOS)).toBe('indisponível neste build');
-    expect(motivoDeBloqueio(SAUDE, ACME.motor, motoresDoRecurso('saude-do-sono', PONTE_AUSENTE, { motores: [ACME], lidaEm: 1 }))).toBeNull();
+    expect(motivoDeBloqueio(SAUDE, ACME.motor, motoresDoRecurso('saude-do-sono', { sistema: PONTE_AUSENTE, coreai: PONTE_AUSENTE }, { motores: [ACME], lidaEm: 1 }))).toBeNull();
   });
 });
 

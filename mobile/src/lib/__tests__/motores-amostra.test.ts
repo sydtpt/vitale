@@ -111,22 +111,25 @@ function ponteQueCopiaOTemplate(o: { readonly trava?: () => boolean; readonly at
     const pedido = descritorDaSaudeDoSono.montarPedido(e);
     if (pedido) porPedido.set(pedido.usuario, templateDaSaude(e));
   }
+  const responder = (pedido: string): Promise<string> => {
+    chamadas.push(pedido);
+    const usuario = (JSON.parse(pedido) as { usuario: string }).usuario;
+    const linha = JSON.stringify({
+      texto: porPedido.get(usuario) ?? 'uma frase qualquer',
+      provedor: 'prov-a',
+      modelo: 'AFM 3 Core Advanced',
+      plataforma: 'iOS 27.0',
+      buildDoSistema: '27A1',
+    });
+    if (o.trava?.() === true) return new Promise<string>((r) => setTimeout(() => r(linha), o.atrasoMs ?? 70));
+    return Promise.resolve(linha);
+  };
   return {
     chamadas,
     diagnostico: async () => '{"disponivel":true}',
-    responder: (pedido) => {
-      chamadas.push(pedido);
-      const usuario = (JSON.parse(pedido) as { usuario: string }).usuario;
-      const linha = JSON.stringify({
-        texto: porPedido.get(usuario) ?? 'uma frase qualquer',
-        provedor: 'prov-a',
-        modelo: 'AFM 3 Core Advanced',
-        plataforma: 'iOS 27.0',
-        buildDoSistema: '27A1',
-      });
-      if (o.trava?.() === true) return new Promise<string>((r) => setTimeout(() => r(linha), o.atrasoMs ?? 70));
-      return Promise.resolve(linha);
-    },
+    diagnosticoDosPesos: async () => '{"disponivel":true}',
+    responderComPesos: (_pesos, pedido) => responder(pedido),
+    responder,
   };
 }
 
