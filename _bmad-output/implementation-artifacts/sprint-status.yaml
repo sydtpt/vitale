@@ -284,6 +284,13 @@ development_status:
   # (emenda da matriz congelada, registrada no Spec Change Log). Falta ele
   # instalar e conferir: pedalada sem nome ganha nome, e "Nome de rota" aparece
   # escolhível em Configurações → Motores.
+  # CONFERIDA NO IPHONE em 21/09/2026, 11:52: o seletor lista "Nome de rota", a
+  # escolha do dono é respeitada (o modelo do aparelho respondeu primeiro, e a
+  # conferência reprovou a proposta dele — "via repete a região" — gravando a
+  # recusa COM provedor, modelo, tokens e justificativa, que é a dívida que esta
+  # story pagou), e com a nuvem a mesma pedalada de 27/07 saiu "Aller à Hal",
+  # idêntica ao que o caminho antigo produzira 43 min antes, com os MESMOS 1.160
+  # tokens de entrada — a prova de que o pedido não mudou.
   5-7-o-nome-de-rota-pela-porta: review
   5-8-core-ai: backlog
   # 5.9 REABERTA em 17/09/2026: é o marco B que saiu da 5.5 "por desenho"
