@@ -3271,8 +3271,14 @@ const LIVRES_DE_SONO = new Set(['entradaDaSaude']);
  * e não confere — quem faz isso é o descritor, pelo `ler`. E a liberação é só
  * daqui: nas telas `casoDaSaude` continua barrado, porque o orquestrador já lhes
  * devolve a frase pronta e um caso lido na tela poderia discordar dela.
+ *
+ * `exemploDaSaude` (story 5.11) é o exemplo de frase aprovada que o pedido traz, com
+ * os marcadores. A bancada o lê para **contar** quantas aprovadas são o exemplo
+ * copiado — a condição 3 da ADR 0050 só compara com o template, e um motor que
+ * devolve o exemplo marcaria zero idênticas. Ela não o monta nem confere nada com
+ * ele: é a mesma função que o pedido usa, e a conta é só leitura. Nas telas, barrado.
  */
-const LIVRES_NA_BANCADA = new Set(['casoDaSaude']);
+const LIVRES_NA_BANCADA = new Set(['casoDaSaude', 'exemploDaSaude']);
 /**
  * O que `sleep/` empresta às telas desde antes da leitura, e por isso não é peça
  * dela: a contagem e os períodos do seletor. Cada um é conferido contra os apps —
@@ -4383,6 +4389,15 @@ const EXCECOES_DE_CORTE: readonly ExcecaoDeCorte[] = [
     forma: 'replace com ponto em classe',
     trecho: "geradoEm.replace(/[:.]/g, '-')",
     motivo: 'troca os dois-pontos e o ponto do carimbo ISO por hífen, no nome do arquivo do relatório',
+  },
+  {
+    arquivo: 'packages/shared/src/bancada/medidas.ts',
+    forma: 'replace com ponto em classe',
+    trecho: "s.replace(/[.,;:—–]/gu, ' ')",
+    motivo:
+      'palavrasDaCopia() (story 5.11, na régua da bancada desde a 5.13): tira a pontuação para comparar a resposta ' +
+      'com o exemplo do pedido palavra por palavra — não corta frase nenhuma, e a pontuação é justamente o que a ' +
+      'regra da cópia manda ignorar',
   },
   {
     arquivo: "mobile/src/app/(tabs)/index.tsx",

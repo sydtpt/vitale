@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 21-09-2026 16:05
+last_updated: 21-09-2026 16:41
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -330,6 +330,23 @@ development_status:
   # existente; (2) BUILD PRÓPRIO já exigido pela story original (nunca o
   # mesmo de uma migração) — estende-se a nunca compartilhar build/instalação
   # no iPhone com outra story rodando em paralelo, pelo mesmo motivo da AD-15.
+  # 5.11 NASCEU em 19/09/2026 da medição da 5.10 (opção A do dono) e trata só a
+  # FORMA do pedido da Saúde — a conferência não muda. CONSTRUÍDA em 19/09/2026
+  # e deixada sem push por decisão do dono (a aprovação da ADR 0050 era da v1).
+  # MEDIDA em 21/09/2026, nos dois motores, sobre a mesma amostra de 23 janelas:
+  #   · aparelho (AFM 3 Core Advanced, iPhone): v1 0 de 23 → v2 11 de 23 (47,8%),
+  #     com as reprovações por marcador caindo de 36 para 12;
+  #   · nuvem (nuvem:padrao): 23 de 23, mediana 10,1 s e pior caso 18,4 s
+  #     (a v1 tinha dado 22 de 22 e mediana 13,6 s em 12/09);
+  #   · idênticas ao template: 0 de 23 — a condição 3 da ADR 0050 segue limpa.
+  # RESSALVA da amostra: ela tem 12 das 14 combinações de caso × alcance. Faltam
+  # `sem-contagem/noite` e `medidas-insuficientes/período`, que NÃO TÊM NENHUMA
+  # JANELA no acervo — não é falha da amostra. As 12 presentes foram todas
+  # aprovadas pela nuvem.
+  # A v2 traz junto a MEDIDA DE CÓPIA DO EXEMPLO (`copiaDoExemplo`, na régua do
+  # núcleo desde a 5.13): no modelo pequeno do Mac boa parte das "aprovadas" era
+  # o exemplo do pedido devolvido, e a condição 3 só compara com o template.
+  5-11-o-pedido-da-saude-para-o-modelo-pequeno: review
   # 19/09/2026 — o DONO redefiniu o foco: o Épico 5 é a PONTE e a escolha do
   # modelo em Configurações; a Saúde do sono é só o recurso de teste. A 5.9
   # começa agora, com o pedido v1 (a v2 da 5.11 fica parada na branch dela até o

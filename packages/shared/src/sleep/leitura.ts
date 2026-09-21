@@ -30,10 +30,11 @@
  * ## O motor escreve palavras; o código escreve números
  *
  * O regime é o interpolado (ADR 0049): o pedido leva o caso em palavras, o
- * alcance, as dimensões a nomear e os marcadores do caso — **nunca os pontos**,
- * nem os fatos. O motor devolve uma frase sem número, com os marcadores; a
- * conferência de `ia/interpolar.ts` a julga contra a regra do caso; e só então
- * cada marcador vira o fato já formatado em pt-BR.
+ * alcance, as dimensões a nomear, os marcadores do caso e um exemplo de frase
+ * aprovada, também com marcadores — **nunca os pontos**, nem os fatos. O motor
+ * devolve uma frase sem número, com os marcadores; a conferência de
+ * `ia/interpolar.ts` a julga contra a regra do caso; e só então cada marcador
+ * vira o fato já formatado em pt-BR.
  *
  * O conjunto de cada caso: `{janela}` e `{quando}` sempre — o nome da janela, e o
  * mesmo nome com "em" contraído; `{medidas}` fora de `sem-contagem`, logo antes
@@ -382,8 +383,11 @@ function valoresDe(e: EntradaDaSaude, caso: CasoDaSaude): Record<string, string>
  * As dimensões que a frase **pode** nomear. Nos casos que nomeiam, só as
  * nomeadas; nos que falam das medidas como um todo, qualquer medida; sem
  * contagem, nenhuma.
+ *
+ * Exportada para o teste do pedido ler a mesma lista que a conferência lê, em vez
+ * de reimplementá-la. É peça: a guarda (7) a barra nos apps.
  */
-function citaveis(caso: CasoDaSaude): readonly SleepDimensionKey[] {
+export function citaveisDaSaude(caso: CasoDaSaude): readonly SleepDimensionKey[] {
   switch (caso.caso) {
     case 'uma':
     case 'duas':
@@ -543,7 +547,7 @@ function regraDe(e: EntradaDaSaude, caso: CasoDaSaude): RegraInterpolada {
     naoDepoisDe: { janela: NAO_DEPOIS_DA_JANELA, quando: NAO_DEPOIS_DA_JANELA },
     soPeloMarcador: { janela: A_JANELA_DE_OUTRO_JEITO },
     itens: ITENS,
-    citaveis: citaveis(caso),
+    citaveis: citaveisDaSaude(caso),
     exigidos: exigidos(e, caso),
     contradiz: contradizDe(caso),
     vocabulario: VOCABULARIO,
@@ -598,61 +602,151 @@ export function templateDaSaude(e: EntradaDaSaude): string {
 
 /* ── o pedido ────────────────────────────────────────────────────────────── */
 
+/*
+ * O pedido v2 (story 5.11). A v1 chegava em linhas `Rótulo: valor` — `Alcance:`,
+ * `Janela:`, `Caso:`, `Marcadores:` —, e o modelo do aparelho, na medição da 5.10,
+ * devolvia a própria ficha, rótulo por rótulo: aprovou 3 de 22 e reprovou pela
+ * **forma**, com a dimensão certa na mão. O modelo pequeno copia o formato do que
+ * recebe.
+ *
+ * Por isso a v2 diz **a mesma coisa em prosa corrida** — nenhuma linha abre com
+ * rótulo e dois-pontos — e fecha com um **exemplo de frase aprovada** do próprio
+ * caso: uma frase, marcador no lugar de todo valor, sem rótulo. O exemplo passa na
+ * conferência do caso, nunca é a frase do template e só nomeia o que o caso deixa
+ * citar. A régua não mudou: a conferência, o template, os marcadores e os casos
+ * são os da v1.
+ *
+ * Um pedido só para todos os motores (AD-11): a nuvem recebe este mesmo texto, e
+ * por isso a aprovação dela (ADR 0050, medida com a v1) tem de ser medida de novo.
+ */
+
 /**
- * As regras, iguais para todo caso. Sem algarismo, sem nome de dimensão e sem
- * nome de marcador: o que o motor pode nomear e usar vem só do pedido, e o que
- * cada marcador traz está dito ao lado dele.
+ * As regras, iguais para todo caso, em parágrafos — as mesmas da v1 ("curta", "sem
+ * marcação", "nada que o caso não diga"), em prosa. Sem algarismo, sem nome de
+ * dimensão e sem marcador: o que o motor pode nomear e usar vem só do pedido — o
+ * exemplo inclusive, que é do caso.
  */
 const SISTEMA = [
-  'Você escreve uma frase só, em português do Brasil, no registro de um jornal: ela informa, não opina.',
-  '',
-  'A frase lê a Saúde do sono de uma noite ou de um período. O caso que a contagem diz já foi decidido pelo código; você só o redige.',
-  '',
-  'Regras:',
-  '- Uma frase só, curta, sem quebra de linha e sem marcação. Responda só com ela.',
-  '- Nenhum número, nem em algarismo nem por extenso: a contagem, quando houver, vem por marcador.',
-  '- Onde a frase precisar de um valor, escreva o marcador exatamente como o pedido o dá, com as chaves e sem unidade acrescentada: o que cada marcador traz está dito ao lado dele.',
-  '- Use só os marcadores do pedido, cada um no máximo uma vez.',
-  '- Nomeie as dimensões que o pedido manda nomear, pelo nome, e nenhuma além das que ele deixa citar.',
-  '- Não diga nada que o caso não diga.',
-  '- Sem conselho, sem elogio, sem placar, sem tendência nem meta, sem comparação com outras pessoas e sem afirmar causa.',
-  '- Não some as dimensões nem transforme a contagem em nota.',
-].join('\n');
+  'Você escreve uma frase só, curta, em português do Brasil, sobre o sono de uma pessoa, no registro de um jornal: ela informa, não opina.',
+  'O código já contou as dimensões do sono e decidiu o caso. Você não calcula nada: só redige, com as suas palavras, o que o pedido diz.',
+  'Responda só com a frase, numa linha, começando direto por ela. Nada de título, rótulo, lista, aspas, explicação, segunda frase nem marcação de formatação, como negrito ou itálico.',
+  'A frase não tem número nenhum, nem em algarismo nem por extenso. Onde ela precisar de um valor, entra o marcador que o pedido dá, copiado exatamente como está, com as chaves e sem unidade acrescentada. Cada marcador entra no máximo uma vez, e só os do pedido.',
+  'Nomeie as dimensões que o pedido manda nomear, pelo nome, e nenhuma além das que ele deixa citar. Não diga nada que o caso não diga.',
+  'Sem conselho, sem elogio, sem placar ou nota, sem tendência nem meta, sem comparação com outras pessoas e sem afirmar causa. Não some as dimensões.',
+  'Perto do fim, o pedido traz um exemplo de frase aprovada: a sua segue a forma dele.',
+].join('\n\n');
 
-/** Sem contagem, em palavras: por quê, e o que a frase diz no lugar. */
+/** O que a leitura lê, como o pedido o chama. */
+function sobreQue(alcance: AlcanceDaSaude): string {
+  return alcance === 'noite' ? 'uma noite de sono' : 'um período de sono';
+}
+
+/**
+ * Sem contagem, em prosa: por quê, e o que a frase diz no lugar. Abre sempre
+ * pela falta de contagem, e não pelo motivo: "Não há noite gravada" é a frase do
+ * template, e o motor que copiasse a abertura do caso sairia idêntico ao piso. O
+ * motivo vem depois de dois-pontos, e não de "porque" — que é termo de causa, e o
+ * pedido não o escreve.
+ */
 function semContagemEmPalavras(motivo: MotivoSemContagem, alcance: AlcanceDaSaude): string {
   switch (motivo) {
     case 'cobertura':
-      return 'sem contagem — o período tem poucas noites gravadas. Diga a fração gravada, sem falar das dimensões.';
+      return 'A contagem não sai: o período tem poucas noites gravadas. A frase diz a fração das noites que foram gravadas, sem falar das dimensões.';
     case 'sem-noite':
       return alcance === 'noite'
-        ? 'sem contagem — não há noite gravada. Diga isso, sem falar das dimensões.'
-        : 'sem contagem — o período não tem noite gravada. Diga isso, sem falar das dimensões.';
+        ? 'A contagem não sai: não existe noite gravada. A frase diz isso, sem falar das dimensões.'
+        : 'A contagem não sai: nenhuma noite do período foi gravada. A frase diz isso, sem falar das dimensões.';
     case 'sem-medida':
-      return `sem contagem — não há medida para contar ${alcance === 'noite' ? 'nesta noite' : 'neste período'}. Diga isso, sem falar das dimensões.`;
+      return `A contagem não sai: não há medida para contar ${alcance === 'noite' ? 'nesta noite' : 'neste período'}. A frase diz isso, sem falar das dimensões.`;
   }
 }
 
-/** O caso em palavras — sem ponto, sem número (nem por extenso), sem fato. */
+/** O caso em prosa — sem ponto, sem número (nem por extenso), sem fato. */
 function casoEmPalavras(alcance: AlcanceDaSaude, caso: CasoDaSaude): string {
   const aqui = alcance === 'noite' ? 'nesta noite' : 'neste período';
   switch (caso.caso) {
     case 'sem-contagem':
       return semContagemEmPalavras(caso.motivo, alcance);
     case 'medidas-insuficientes':
-      return `A dimensão medida ${aqui} é a única: não há o que comparar.`;
+      return `A dimensão medida ${aqui} é a única, e não há o que comparar.`;
     case 'tudo-no-maximo':
-      return 'Todas as dimensões medidas estão no máximo. Diga isso sem elogiar.';
+      return 'Todas as dimensões medidas estão no máximo. A frase diz isso sem elogiar.';
     case 'todas-iguais':
       return 'Todas as dimensões medidas estão no mesmo ponto.';
     case 'uma':
-      return `Só ${lista(caso.nomear)} está abaixo de todas as outras dimensões; o caso não diz como as outras estão entre si.`;
+      // Com duas medidas há uma outra só: nem "todas as outras", nem "como as outras
+      // estão entre si".
+      return caso.medidas === 2
+        ? `Só ${lista(caso.nomear)} está abaixo da outra dimensão medida.`
+        : `Só ${lista(caso.nomear)} está abaixo de todas as outras dimensões. O caso não diz como as outras estão entre si.`;
     case 'duas':
-      return `Empatam no ponto mais baixo: ${lista(caso.nomear)}.`;
+      // Nunca a frase do template ("A duração e a regularidade empatam no ponto mais
+      // baixo."): o motor que copiasse o caso sairia idêntico a ela.
+      return `No ponto mais baixo empatam ${lista(caso.nomear)}.`;
     case 'fora-do-empate':
       return `As outras dimensões empatam no ponto mais baixo, e só ${lista(caso.nomear)} ${
         caso.nomear.length === 1 ? 'fica' : 'ficam'
       } fora do empate, ${caso.noMaximo ? 'no máximo' : 'acima das outras'}.`;
+  }
+}
+
+/**
+ * O exemplo sem contagem: a fração gravada, ou a falta dita com a palavra do
+ * alcance — que a conferência exige **na prosa**, fora do marcador. A janela vai
+ * por `{quando}`, como nos outros casos.
+ *
+ * A exceção é a noite sem noite: ali `{janela}` e `{quando}` valem "a última noite"
+ * — o nome da noite que não existe —, e a frase diria "noite" duas vezes para dizer
+ * que ela não existe. Sem marcador, então.
+ */
+function exemploSemContagem(motivo: MotivoSemContagem, alcance: AlcanceDaSaude): string {
+  const quando = marcador('quando');
+  const oAlcance = alcance === 'noite' ? 'a noite' : 'o período';
+  switch (motivo) {
+    case 'cobertura':
+      return `${quando}, só ${marcador('cobertura')} das noites foram gravadas, poucas para contar.`;
+    case 'sem-noite':
+      return alcance === 'noite' ? 'Nenhuma noite foi gravada.' : `Nenhuma noite foi gravada ${quando}, e o período fica sem contagem.`;
+    case 'sem-medida':
+      return `Não há medida para contar ${quando}, e ${oAlcance} fica sem contagem.`;
+  }
+}
+
+/**
+ * Um exemplo de frase aprovada no caso — **com marcadores, nunca valores**. É a
+ * forma que o modelo pequeno imita: uma frase, sem rótulo, com o marcador onde
+ * entraria o número, a data ou a janela.
+ *
+ * Três regras, e o teste cobra as três em toda variante: passa na conferência do
+ * próprio caso (então só nomeia o que o caso deixa citar e usa só os marcadores
+ * dele); nunca é a frase do template; e só depende do que o pedido depende —
+ * alcance e caso —, para o hash seguir estável por caso.
+ *
+ * Público por {@link exemploDaSaude}: é contra ele que a bancada conta a resposta
+ * que só copiou o exemplo.
+ */
+function exemploDe(alcance: AlcanceDaSaude, caso: CasoDaSaude): string {
+  const quando = marcador('quando');
+  switch (caso.caso) {
+    case 'sem-contagem':
+      return exemploSemContagem(caso.motivo, alcance);
+    case 'medidas-insuficientes':
+      return `${quando}, só ${marcador('medidas')} dimensão foi medida, e não há com o que comparar.`;
+    case 'tudo-no-maximo':
+      return `${quando}, as ${marcador('medidas')} dimensões medidas ficaram no máximo.`;
+    case 'todas-iguais':
+      return `${quando}, as ${marcador('medidas')} dimensões medidas ficaram no mesmo ponto.`;
+    case 'uma': {
+      const [k] = caso.nomear;
+      const dasOutras = caso.medidas === 2 ? 'da outra dimensão medida' : 'das outras dimensões';
+      return `${quando}, ${comArtigo(k)} ficou abaixo ${dasOutras}: ${marcador(k)}.`;
+    }
+    case 'duas':
+      return `${quando}, o ponto mais baixo fica com ${lista(caso.nomear)}.`;
+    case 'fora-do-empate':
+      return `${quando}, as outras dimensões empatam no ponto mais baixo, e só ${lista(caso.nomear)} ${
+        caso.nomear.length === 1 ? 'fica' : 'ficam'
+      } ${caso.noMaximo ? 'no máximo' : 'acima delas'}.`;
   }
 }
 
@@ -674,7 +768,13 @@ const COMECO_DO_QUANDO: Readonly<Record<SonoRange, string>> = {
   ano: 'começa por "neste" ou por "no"',
 };
 
-/** O que cada marcador vale, em palavras — o que ele traz e a forma dele, nunca o valor. */
+/**
+ * O que cada marcador vale, em palavras — o que ele traz e a forma dele, nunca o
+ * valor. No pedido, cada um vira uma linha `{marcador} é …`, a forma que a
+ * medição da 5.11 escolheu entre três (ver `motores-5-11/rodadas.md`): dizer a
+ * noite ou o período no lugar de "janela", ou reescrever cada linha como
+ * instrução ("para dizer quando, use …"), reprovou mais no aparelho, não menos.
+ */
 function sentidoDoMarcador(m: MarcadorDaSaude, caso: CasoDaSaude, range: SonoRange): string {
   switch (m) {
     case 'janela':
@@ -694,37 +794,80 @@ function sentidoDoMarcador(m: MarcadorDaSaude, caso: CasoDaSaude, range: SonoRan
   }
 }
 
+/** O que a frase tem de trazer e o que ela pode citar, em prosa. */
+function exigenciasEmPalavras(regra: RegraInterpolada, caso: CasoDaSaude): string {
+  // As nomeadas são as exigidas; as outras citáveis, o motor cita se quiser.
+  const exigidas: readonly SleepDimensionKey[] = caso.nomear;
+  const soCitaveis = citaveisDaSaude(caso).filter((k) => !exigidas.includes(k));
+  const frases: string[] = [];
+  // As citáveis entram sempre que houver, como na v1; "nenhuma outra" fecha a lista
+  // do que a frase pode nomear — as exigidas, e as citáveis quando houver.
+  const nomear = `A frase tem de nomear ${lista(exigidas)}, com ${exigidas.length === 1 ? 'esta palavra' : 'estas palavras'}`;
+  if (exigidas.length > 0 && soCitaveis.length === 0) {
+    frases.push(`${nomear}, e nenhuma outra dimensão.`);
+  } else if (exigidas.length > 0) {
+    frases.push(`${nomear}.`, `Se quiser, pode citar também ${lista(soCitaveis)}, e nenhuma outra dimensão.`);
+  } else if (soCitaveis.length > 0) {
+    frases.push('A frase não precisa nomear dimensão.', `Se quiser, pode citar ${lista(soCitaveis)}, e nenhuma outra.`);
+  } else {
+    frases.push('A frase não nomeia dimensão nenhuma.');
+  }
+  for (const x of regra.exigidos) {
+    if ('marcador' in x) frases.push(`Ela tem de usar o marcador ${marcador(x.marcador)}.`);
+    if ('palavra' in x) frases.push(`Ela tem de dizer a palavra "${x.palavra}".`);
+  }
+  return frases.join(' ');
+}
+
+/** A abertura do exemplo — uma linha só dela, e o exemplo na linha seguinte. */
+const ABRE_O_EXEMPLO = 'Um exemplo de frase aprovada neste caso, só para mostrar a forma:';
+
 /**
  * O pedido do motor: função só do alcance, do `range`, do caso e das dimensões —
  * nunca de fato, de ponto, do passo ou de `hoje`. Semanas no mesmo caso têm o
  * mesmo pedido, e o mesmo hash.
+ *
+ * Em parágrafos de prosa, na ordem em que se escreve uma frase: sobre o que ela é
+ * e o que o caso diz; o que ela tem de trazer; os marcadores, cada um na sua
+ * linha; o exemplo; e o pedido da resposta, por último.
  */
 function usuarioDe(e: EntradaDaSaude, caso: CasoDaSaude): string {
-  const regra = regraDe(e, caso);
-  // As nomeadas são as exigidas; as outras citáveis, o motor cita se quiser.
-  const exigidas: readonly SleepDimensionKey[] = caso.nomear;
-  const soCitaveis = citaveis(caso).filter((k) => !exigidas.includes(k));
-  const marcadoresExigidos = regra.exigidos.flatMap((x) => ('marcador' in x ? [x.marcador] : []));
-  const palavrasExigidas = regra.exigidos.flatMap((x) => ('palavra' in x ? [x.palavra] : []));
+  const marcadores = marcadoresDe(e, caso).map(([m]) => `${marcador(m)} é ${sentidoDoMarcador(m, caso, e.range)}.`);
+  return [
+    `Escreva a frase sobre ${sobreQue(e.alcance)}. ${casoEmPalavras(e.alcance, caso)}`,
+    exigenciasEmPalavras(regraDe(e, caso), caso),
+    [
+      'Onde a frase precisar de um valor, ela leva o marcador no lugar dele, com as chaves. ' +
+        'Os marcadores desta frase são estes, e cada um entra no máximo uma vez:',
+      ...marcadores,
+    ].join('\n'),
+    [ABRE_O_EXEMPLO, exemploDe(e.alcance, caso)].join('\n'),
+    'Escreva agora a sua frase, com as suas palavras e na mesma forma, e responda só com ela.',
+  ].join('\n\n');
+}
 
-  const linhas = [
-    `Alcance: ${e.alcance === 'noite' ? 'uma noite' : 'um período'}.`,
-    `Janela: ${marcador('janela')}.`,
-    `Caso: ${casoEmPalavras(e.alcance, caso)}`,
-    exigidas.length > 0 ? `Nomeie, pelo nome: ${lista(exigidas)}.` : 'Não é preciso nomear dimensão.',
-  ];
-  if (soCitaveis.length > 0) linhas.push(`Pode citar, se quiser: ${lista(soCitaveis)}.`);
-  for (const m of marcadoresExigidos) linhas.push(`A frase tem de usar ${marcador(m)}.`);
-  for (const p of palavrasExigidas) linhas.push(`A frase tem de dizer "${p}".`);
-  linhas.push('Marcadores:');
-  for (const [m] of marcadoresDe(e, caso)) linhas.push(`- ${marcador(m)}: ${sentidoDoMarcador(m, caso, e.range)}`);
-  return linhas.join('\n');
+/**
+ * O exemplo de frase aprovada que o pedido desta entrada traz, **com os
+ * marcadores** — antes de `interpolar`, como {@link templateDaSaude}.
+ *
+ * Sai daqui para dois lugares: o teste do pedido, que confere a forma dele sem
+ * repetir o texto, e a bancada, que conta quantas aprovadas são o exemplo copiado
+ * (a condição 3 da ADR 0050 só compara com o template, e um motor que devolve o
+ * exemplo marcaria zero idênticas).
+ */
+export function exemploDaSaude(e: EntradaDaSaude): string {
+  return exemploDe(e.alcance, casoDaSaude(e.score));
 }
 
 /* ── o descritor ─────────────────────────────────────────────────────────── */
 
-/** Sobe a cada mudança no pedido ou na leitura. Vai na assinatura e no hash. */
-const VERSAO = 1;
+/**
+ * Sobe a cada mudança no pedido ou na leitura. Vai na assinatura e no hash.
+ *
+ * - 1: o pedido em linhas `Rótulo: valor` (5.3).
+ * - 2: o pedido em prosa, com o exemplo de frase aprovada do caso (5.11).
+ */
+const VERSAO = 2;
 
 /**
  * A Saúde do sono como recurso (AD-2, AD-7).

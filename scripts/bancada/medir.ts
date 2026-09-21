@@ -33,6 +33,11 @@
  * defeito e as marcas do hospedeiro moram em `packages/shared/src/bancada/linha.ts`, e a
  * tela de desenvolvimento do iPhone traduz pela mesma função. O laço fica aqui — é ele que
  * precisa do corpo do pedido para o relatório (`montarPedido`), e o app não pode montá-lo.
+ *
+ * **O exemplo do pedido vai na linha** (story 5.11). O pedido da Saúde traz um exemplo de
+ * frase aprovada; cada linha de coluna de modelo leva `exemploDaSaude(e)`, a mesma função
+ * que o pedido usa, para o relatório contar as aprovadas que só o copiaram (`copiaDoExemplo`,
+ * na régua do núcleo). Quem mede é que carimba: a linha não deduz o exemplo.
  */
 import {
   SEM_MODELO,
@@ -43,6 +48,7 @@ import {
   descritorDaSaudeDoSono,
   descritorDaSondaDaSaude,
   entradaDaSaude,
+  exemploDaSaude,
   hashDoPedido,
   ler,
   linhaDaMedicao,
@@ -183,6 +189,8 @@ export async function medir(args: {
     readonly m: Medicao<string> | null;
     readonly anel: EventoDoAnel | null;
     readonly hash: string;
+    /** O exemplo que o pedido trazia — só quando houve pedido. */
+    readonly exemplo?: string;
     readonly erro?: ReturnType<typeof defeitoDe>;
     readonly marcas: ReturnType<typeof marcasDoHospedeiro>;
   }> => {
@@ -196,8 +204,9 @@ export async function medir(args: {
       const pedido: Pedido | null = D.montarPedido(e);
       const hash = pedido ? hashDoPedido(pedido, D.versao) : SEM_PEDIDO;
       if (pedido) pedidos[hash] ??= { sistema: pedido.sistema, usuario: pedido.usuario };
+      const exemplo = pedido ? exemploDaSaude(e) : undefined;
       const m = await ler(D, e, { modo: 'medicao', motor, motorPara: hospedeiro.motorPara, registrar, agora });
-      return { m, anel, hash, marcas: marcasDoHospedeiro(hospedeiro.registro, antes) };
+      return { m, anel, hash, ...(exemplo !== undefined ? { exemplo } : {}), marcas: marcasDoHospedeiro(hospedeiro.registro, antes) };
     } catch (x) {
       return { m: null, anel, hash: SEM_PEDIDO, erro: defeitoDe(x), marcas: marcasDoHospedeiro(hospedeiro.registro, antes) };
     }
@@ -296,7 +305,7 @@ export async function medir(args: {
     let n = 0;
     for (const j of pedida.janelas) {
       const regua = templates.get(chaveDoPasso(j));
-      const { m, anel, hash, erro: falhou, marcas } = await medirUma(j, pedida.motor);
+      const { m, anel, hash, exemplo, erro: falhou, marcas } = await medirUma(j, pedida.motor);
       n += 1;
       aoAndar?.({ motor: pedida.motor, feito: n, total: pedida.janelas.length });
       const template = regua?.template ?? '(fora da passada do template)';
@@ -305,7 +314,7 @@ export async function medir(args: {
         continue;
       }
       try {
-        linhas.push({ ...linhaDaMedicao(j, hash, template, m, anel), ...marcas });
+        linhas.push({ ...linhaDaMedicao(j, hash, template, m, anel), ...marcas, ...(exemplo !== undefined ? { exemplo } : {}) });
       } catch (x) {
         linhas.push(linhaDeDefeito(j, hash, template, defeitoDe(x), pedida.motor));
       }

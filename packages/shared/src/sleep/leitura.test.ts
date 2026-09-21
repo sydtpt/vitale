@@ -13,7 +13,8 @@ import { casaPorPalavra, termosProibidosEm, VOCABULARIO_PROIBIDO, type Subconjun
 import { porExtenso } from '../format/numero';
 import { casoDaSaude, type CasoDaSaude } from './caso';
 import {
-  descritorDaSaudeDoSono as saude, entradaDaSaude, templateDaSaude, type AlcanceDaSaude, type EntradaDaSaude,
+  citaveisDaSaude, descritorDaSaudeDoSono as saude, entradaDaSaude, exemploDaSaude, templateDaSaude, type AlcanceDaSaude,
+  type EntradaDaSaude,
 } from './leitura';
 import { filterByRange, rangeBounds, rangeNights, type SonoRange } from './ranges';
 import {
@@ -190,6 +191,9 @@ const VARIANTES: Readonly<Record<string, EntradaDaSaude>> = {
   'sem-contagem, noite sem medida': entrada('noite', [null, null, null, null]),
   'sem-contagem, noite sem noite': semNoiteNenhuma(),
   'sem-contagem, período sem medida': entrada('periodo', [null, null, null, null, null], { nights: 7, expected: 7, ratio: 1 }),
+  // `uma` com duas medidas: há uma outra só, e o pedido diz "a outra", no singular (5.11).
+  'uma, duas medidas (noite)': entrada('noite', [2, null, null, 0]),
+  'uma, duas medidas (período)': entrada('periodo', [null, 2, null, 0, null]),
 };
 
 /* ── o hospedeiro falso ── */
@@ -272,7 +276,8 @@ describe('o descritor', () => {
     assert.equal(saude.regimeMaximo, 'nuvem');
     assert.deepEqual([...saude.cadeiaPadrao], [SEM_MODELO]);
     assert.equal(saude.grava, false);
-    assert.equal(saude.versao, 1);
+    // 2: o pedido em prosa, com o exemplo do caso (5.11).
+    assert.equal(saude.versao, 2);
     for (const [nome, e] of Object.entries(VARIANTES)) {
       const p = saude.montarPedido(e);
       assert.ok(p, `${nome}: todo caso gera pedido`);
@@ -294,10 +299,14 @@ describe('o descritor', () => {
       assert.deepEqual(termosProibidosEm(usuario, TODOS), [], `${nome}: termo proibido no pedido`);
       // O sistema não cita marcador pelo nome: o que cada um traz vai no sentido dele.
       assert.ok(!/[{}]/.test(sistema), 'o sistema cita marcador');
-      assert.match(usuario, e.alcance === 'noite' ? /Alcance: uma noite\./ : /Alcance: um período\./);
+      assert.ok(
+        usuario.startsWith(`Escreva a frase sobre ${e.alcance === 'noite' ? 'uma noite de sono' : 'um período de sono'}.`),
+        `${nome}: o pedido abre pelo alcance`,
+      );
       assert.ok(usuario.includes('{janela}') && usuario.includes('{quando}'), `${nome}: a janela vai por marcador, sempre`);
       for (const k of c.nomear) assert.ok(usuario.includes(DIMENSION_LABEL[k].toLowerCase()), `${nome}: ${k}`);
-      assert.equal(usuario.includes('Não é preciso nomear dimensão.'), c.nomear.length === 0, nome);
+      assert.equal(usuario.includes('A frase tem de nomear '), c.nomear.length > 0, nome);
+      assert.equal(usuario.includes('A frase não nomeia dimensão nenhuma.'), c.caso === 'sem-contagem', nome);
       // O marcador de fato só em `uma`, e só o da dimensão nomeada.
       for (const k of CHAVES_DO_PERIODO) {
         assert.equal(usuario.includes(`{${k}}`), c.caso === 'uma' && c.nomear[0] === k, `${nome}: {${k}}`);
@@ -307,15 +316,15 @@ describe('o descritor', () => {
         usuario.includes('{cobertura}'), c.caso === 'sem-contagem' && c.motivo === 'cobertura', `${nome}: {cobertura}`,
       );
     }
-    // O empate de duas em palavras, sem o numeral.
-    assert.ok(saude.montarPedido(VARIANTES['duas (período)'])!.usuario.includes(
-      'Caso: Empatam no ponto mais baixo: a duração e a regularidade.',
-    ));
+    // O empate de duas em palavras, sem o numeral. Que ele não é a frase do template,
+    // o teste do texto do caso confere em toda variante.
+    const duas = saude.montarPedido(VARIANTES['duas (período)'])!.usuario;
+    assert.ok(duas.includes('No ponto mais baixo empatam a duração e a regularidade.'), duas);
   });
 
   it('o sentido de {janela} e {quando} diz a forma, que depende só do range', () => {
     const sentido = (e: EntradaDaSaude, m: string) =>
-      saude.montarPedido(e)!.usuario.split('\n').find((l) => l.startsWith(`- {${m}}:`))!;
+      saude.montarPedido(e)!.usuario.split('\n').find((l) => l.startsWith(`{${m}} é `))!;
     const noite = VARIANTES['uma (noite)'];
     const semana = VARIANTES['uma (período)'];
     assert.match(sentido(noite, 'janela'), /feminino singular/);
@@ -327,8 +336,8 @@ describe('o descritor', () => {
     assert.match(sentido({ ...semana, range: '4s' }, 'quando'), /"nas"/);
     assert.match(sentido({ ...semana, range: 'ano' }, 'quando'), /"neste" ou por "no"/);
     // {medidas} diz antes de que palavra vai: "dimensão" quando é uma.
-    assert.match(sentido(VARIANTES['medidas-insuficientes (período)'], 'medidas'), /logo antes de "dimensão"$/);
-    assert.match(sentido(VARIANTES['tudo-no-maximo (período)'], 'medidas'), /logo antes de "dimensões"$/);
+    assert.match(sentido(VARIANTES['medidas-insuficientes (período)'], 'medidas'), /logo antes de "dimensão"\.$/);
+    assert.match(sentido(VARIANTES['tudo-no-maximo (período)'], 'medidas'), /logo antes de "dimensões"\.$/);
   });
 
   it('o pedido depende só do alcance, do range, do caso e das dimensões — nunca do fato, do passo nem de hoje', () => {
@@ -375,6 +384,260 @@ describe('o descritor', () => {
     assert.deepEqual(saude.montarPedido(comCasoVelho), saude.montarPedido(e));
     assert.deepEqual(saude.conferir('A regularidade ficou em {regularidade}.', comCasoVelho), { ok: true });
   });
+});
+
+/**
+ * O exemplo no pedido de uma entrada: é `exemploDaSaude(e)`, e está no pedido como
+ * uma linha sozinha, logo depois da linha que o anuncia (que termina em ":").
+ */
+function exemploDoPedido(e: EntradaDaSaude): string {
+  const exemplo = exemploDaSaude(e);
+  const linhas = saude.montarPedido(e)!.usuario.split('\n');
+  const i = linhas.indexOf(exemplo);
+  assert.ok(i > 0, `o pedido não traz o exemplo numa linha dele: "${exemplo}"`);
+  assert.ok(linhas[i - 1].endsWith(':'), `a linha antes do exemplo não o anuncia: "${linhas[i - 1]}"`);
+  return exemplo;
+}
+
+/** Para comparar frases: minúsculas, sem pontuação, com o espaço colapsado. */
+const semPontuacao = (s: string): string =>
+  s.toLowerCase().replace(/[.,;:!?…—–"“”«»()]/gu, ' ').replace(/\s+/g, ' ').trim();
+
+/** O texto do caso no pedido: o primeiro parágrafo, sem a abertura "Escreva a frase sobre …". */
+function casoDoPedido(e: EntradaDaSaude): string {
+  const [primeiro] = saude.montarPedido(e)!.usuario.split('\n\n');
+  const abertura = /^Escreva a frase sobre [^.]*\.\s*/u;
+  assert.match(primeiro, abertura);
+  return primeiro.replace(abertura, '');
+}
+
+/**
+ * As orações do texto do caso que são a frase do piso — a primeira oração, e cada
+ * frase inteira —, comparadas sem pontuação contra o template com marcadores e
+ * contra a frase dele já trocada. Vazio é o certo.
+ */
+function oracoesQueSaoOTemplate(texto: string, e: EntradaDaSaude): string[] {
+  const piso = new Set([semPontuacao(templateDaSaude(e)), semPontuacao(frase(e))]);
+  const primeiraOracao = texto.split(/[.,;:!?—]/u)[0];
+  const frases = texto.split(/(?<=[.!?])\s+/u);
+  return [primeiraOracao, ...frases].filter((o) => piso.has(semPontuacao(o)));
+}
+
+/**
+ * As linhas que têm a forma da ficha da v1 — a forma que o modelo pequeno copiava:
+ * a linha que abre com rótulo e dois-pontos (pela régua de verdade, o detector de
+ * rótulo da conferência), a que abre com `{marcador}:`, a de lista, os rótulos da v1
+ * pelo nome, e a ficha partida em duas linhas — uma linha que é só um rótulo curto
+ * com dois-pontos, com o valor na seguinte.
+ */
+function linhasDeFicha(texto: string, e: EntradaDaSaude): string[] {
+  return texto.split('\n').filter((linha) => {
+    if (linha.trim() === '') return false;
+    const c = saude.conferir(linha, e);
+    if (!c.ok && c.problemas.some((p) => p.detalhe === 'abre com rótulo e dois-pontos')) return true;
+    if (/^\s*\{[a-z]+\}\s*:/u.test(linha)) return true;
+    if (/^\s*[-•*]\s/u.test(linha)) return true;
+    if (/^\s*(?:Alcance|Janela|Caso|Marcadores)\s*:|^\s*Nomeie, pelo nome:|^\s*Pode citar, se quiser:/u.test(linha)) return true;
+    return /^\s*[^:]{1,24}:\s*$/u.test(linha);
+  });
+}
+
+/**
+ * As dimensões que um texto nomeia — pelo nome, no singular ou no plural, ou pelo
+ * marcador — e que o caso não deixa citar. A lista do que ele deixa é a da fonte
+ * (`citaveisDaSaude`), a mesma que a conferência lê.
+ */
+function nomeiaForaDoCaso(texto: string, e: EntradaDaSaude): SleepDimensionKey[] {
+  const pode = citaveisDaSaude(casoDe(e));
+  return CHAVES_DO_PERIODO.filter(
+    (k) =>
+      !pode.includes(k) &&
+      (casaPorPalavra(texto.replace(/\{[a-z]+\}/g, ' '), DIMENSION_LABEL[k].toLowerCase(), { plural: true }) ||
+        texto.includes(`{${k}}`)),
+  );
+}
+
+describe('o pedido v2 — a forma que o modelo pequeno segue (5.11)', () => {
+  it('nenhuma linha do pedido tem a forma da ficha: rótulo, {marcador}:, lista, nem rótulo partido em duas linhas', () => {
+    for (const [nome, e] of Object.entries(VARIANTES)) {
+      const { sistema, usuario } = saude.montarPedido(e)!;
+      assert.deepEqual(linhasDeFicha(sistema, e), [], `${nome}: no sistema`);
+      assert.deepEqual(linhasDeFicha(usuario, e), [], `${nome}: no usuário`);
+    }
+    // Não-vácuo: cada forma da ficha é pega, inclusive partida em duas linhas.
+    const e = VARIANTES['uma (período)'];
+    for (const ficha of [
+      'Alcance: um período.',
+      'Resumo: a regularidade ficou abaixo.',
+      '{janela}: o nome da janela lida.',
+      '- {janela}: o nome da janela lida.',
+      'Nomeie, pelo nome: a regularidade.',
+      'Caso:\nSó a regularidade está abaixo.',
+      'Marcadores:\n{janela} é o nome da janela.',
+    ]) {
+      assert.ok(linhasDeFicha(ficha, e).length > 0, `a forma da ficha passou: ${JSON.stringify(ficha)}`);
+    }
+    // E a linha longa que termina em dois-pontos — o anúncio do exemplo — não é rótulo.
+    assert.deepEqual(linhasDeFicha('Os marcadores desta frase são estes, e cada um entra no máximo uma vez:', e), []);
+  });
+
+  it('o texto do caso nunca abre com a frase do template, nem a repete — em toda variante', () => {
+    for (const [nome, e] of Object.entries(VARIANTES)) {
+      const texto = casoDoPedido(e);
+      assert.deepEqual(oracoesQueSaoOTemplate(texto, e), [], `${nome}: "${texto}" × "${templateDaSaude(e)}"`);
+    }
+    // Não-vácuo: a abertura da v2 antes do conserto — "Não há noite gravada, e por isso
+    // não há contagem." — é a frase do template da noite sem noite, e a conferência a pega.
+    const semNoite = VARIANTES['sem-contagem, noite sem noite'];
+    assert.equal(templateDaSaude(semNoite), 'Não há noite gravada.');
+    assert.deepEqual(oracoesQueSaoOTemplate('Não há noite gravada, e por isso não há contagem.', semNoite), ['Não há noite gravada']);
+    assert.ok(oracoesQueSaoOTemplate('A duração e a regularidade empatam no ponto mais baixo.', VARIANTES['duas (período)']).length > 0);
+  });
+
+  it('as dimensões: o caso que manda nomear o diz; o que só deixa citar lista as citáveis; o sem contagem não nomeia nenhuma', () => {
+    const vistos = new Set<string>();
+    for (const [nome, e] of Object.entries(VARIANTES)) {
+      const c = casoDe(e);
+      const exigencias = saude.montarPedido(e)!.usuario.split('\n\n')[1];
+      const nomes = (ks: readonly SleepDimensionKey[]) => ks.map((k) => DIMENSION_LABEL[k].toLowerCase());
+      switch (c.caso) {
+        case 'uma':
+        case 'duas':
+        case 'fora-do-empate':
+          assert.ok(exigencias.startsWith('A frase tem de nomear '), `${nome}: ${exigencias}`);
+          for (const n of nomes(c.nomear)) assert.ok(exigencias.includes(n), `${nome}: ${n}`);
+          // Nestes casos as citáveis são as exigidas: não sobra nada para "pode citar".
+          assert.ok(!exigencias.includes('pode citar'), `${nome}: ${exigencias}`);
+          assert.ok(exigencias.includes('nenhuma outra dimensão'), `${nome}: ${exigencias}`);
+          break;
+        case 'medidas-insuficientes':
+        case 'tudo-no-maximo':
+        case 'todas-iguais': {
+          assert.ok(exigencias.startsWith('A frase não precisa nomear dimensão. Se quiser, pode citar '), `${nome}: ${exigencias}`);
+          const citaveis = citaveisDaSaude(c);
+          assert.ok(citaveis.length > 0 && citaveis.length === c.dimensoes.length, nome);
+          for (const n of nomes(citaveis)) assert.ok(exigencias.includes(n), `${nome}: ${n} — ${exigencias}`);
+          // E nenhuma que o caso não mediu.
+          for (const k of CHAVES_DO_PERIODO.filter((x) => !citaveis.includes(x))) {
+            assert.ok(!casaPorPalavra(exigencias, DIMENSION_LABEL[k].toLowerCase()), `${nome}: ${k} — ${exigencias}`);
+          }
+          vistos.add(c.caso);
+          break;
+        }
+        case 'sem-contagem':
+          assert.ok(exigencias.startsWith('A frase não nomeia dimensão nenhuma.'), `${nome}: ${exigencias}`);
+          break;
+      }
+    }
+    // Não-vácuo: o ramo "pode citar" rodou nos três casos que o têm.
+    assert.deepEqual([...vistos].sort(), ['medidas-insuficientes', 'todas-iguais', 'tudo-no-maximo']);
+  });
+
+  it('o exemplo de cada caso passa na conferência do próprio caso, e nunca é a frase do template', () => {
+    for (const [nome, e] of Object.entries(VARIANTES)) {
+      const exemplo = exemploDoPedido(e);
+      assert.deepEqual(saude.conferir(exemplo, e), { ok: true }, `${nome}: "${exemplo}"`);
+      assert.notEqual(semPontuacao(exemplo), semPontuacao(templateDaSaude(e)), `${nome}: o exemplo é o template`);
+      assert.notEqual(semPontuacao(saude.montarFrase(exemplo, e)), semPontuacao(frase(e)), `${nome}: o exemplo vira a frase do piso`);
+    }
+  });
+
+  it('o exemplo usa marcador, nunca valor — nem fato, nem algarismo, nem numeral', () => {
+    const fatos = [...Object.values(FATO_DO_PERIODO), ...Object.values(FATO_DA_NOITE)].filter((f) => f !== '—');
+    for (const [nome, e] of Object.entries(VARIANTES)) {
+      const exemplo = exemploDoPedido(e);
+      const c = casoDe(e);
+      assert.ok(!/\p{N}/u.test(exemplo), `${nome}: "${exemplo}"`);
+      for (const f of fatos) assert.ok(!exemplo.includes(f), `${nome}: o fato "${f}" no exemplo`);
+      for (const n of NUMERAIS_DO_PEDIDO) assert.ok(!casaPorPalavra(exemplo, n), `${nome}: "${n}" no exemplo`);
+      // Onde o caso tem valor a dizer, o exemplo o diz pelo marcador: a contagem, a cobertura, o fato de `uma`.
+      if (c.caso === 'uma') assert.ok(exemplo.includes(`{${c.nomear[0]}}`), `${nome}: "${exemplo}"`);
+      if (c.caso === 'medidas-insuficientes' || c.caso === 'tudo-no-maximo' || c.caso === 'todas-iguais') {
+        assert.ok(exemplo.includes('{medidas}'), `${nome}: "${exemplo}"`);
+      }
+      if (c.caso === 'sem-contagem' && c.motivo === 'cobertura') assert.ok(exemplo.includes('{cobertura}'), `${nome}: "${exemplo}"`);
+      // A janela vai por `{quando}` — menos na noite sem noite, em que ele nomearia a noite que não existe.
+      const semNoiteNaNoite = c.caso === 'sem-contagem' && c.motivo === 'sem-noite' && e.alcance === 'noite';
+      assert.equal(exemplo.includes('{quando}'), !semNoiteNaNoite, `${nome}: "${exemplo}"`);
+    }
+  });
+
+  it('o exemplo não nomeia dimensão fora do que o caso deixa citar — e nomeia a que ele manda', () => {
+    for (const [nome, e] of Object.entries(VARIANTES)) {
+      const exemplo = exemploDoPedido(e);
+      assert.deepEqual(nomeiaForaDoCaso(exemplo, e), [], `${nome}: "${exemplo}"`);
+      for (const k of casoDe(e).nomear) assert.ok(casaPorPalavra(exemplo, DIMENSION_LABEL[k].toLowerCase()), `${nome}: ${k}`);
+    }
+    // Não-vácuo: a asserção dispara com o exemplo que nomeia a dimensão errada — pelo
+    // nome, pelo plural e pelo marcador —, e não com o certo.
+    const e = VARIANTES['uma (período)'];
+    assert.deepEqual([...casoDe(e).nomear], ['regularidade']);
+    assert.deepEqual(nomeiaForaDoCaso('{quando}, a duração ficou abaixo das outras dimensões: {regularidade}.', e), ['duracao']);
+    assert.deepEqual(nomeiaForaDoCaso('{quando}, os horários ficaram soltos, e a regularidade abaixo.', e), ['horario']);
+    assert.deepEqual(nomeiaForaDoCaso('{quando}, a regularidade ficou em {percepcao}.', e), ['percepcao']);
+    assert.deepEqual(nomeiaForaDoCaso('{quando}, a regularidade ficou abaixo das outras dimensões: {regularidade}.', e), []);
+  });
+
+  it('o exemplo, trocado, é uma frase de jornal — o texto final de um de cada caso, fixado', () => {
+    const esperados: readonly (readonly [string, string])[] = [
+      ['uma (período)', 'Nos últimos 7 dias, a regularidade ficou abaixo das outras dimensões: SRI 50 · 7 seguidas.'],
+      ['uma (noite)', 'Na noite de 10/09, a percepção ficou abaixo das outras dimensões: 4/5.'],
+      ['uma, duas medidas (noite)', 'Na noite de 10/09, a percepção ficou abaixo da outra dimensão medida: 4/5.'],
+      ['duas (período)', 'Nos últimos 7 dias, o ponto mais baixo fica com a duração e a regularidade.'],
+      ['duas (noite)', 'Na noite de 10/09, o ponto mais baixo fica com a duração e o horário.'],
+      ['fora-do-empate, no máximo', 'Nos últimos 7 dias, as outras dimensões empatam no ponto mais baixo, e só o horário fica no máximo.'],
+      ['fora-do-empate, acima', 'Nos últimos 7 dias, as outras dimensões empatam no ponto mais baixo, e só o horário e a percepção ficam acima delas.'],
+      ['todas-iguais (noite)', 'Na noite de 10/09, as duas dimensões medidas ficaram no mesmo ponto.'],
+      ['tudo-no-maximo (período)', 'Nos últimos 7 dias, as cinco dimensões medidas ficaram no máximo.'],
+      ['medidas-insuficientes (noite)', 'Na noite de 10/09, só uma dimensão foi medida, e não há com o que comparar.'],
+      ['sem-contagem, cobertura', 'Nos últimos 7 dias, só 42% das noites foram gravadas, poucas para contar.'],
+      ['sem-contagem, sem noite', 'Nenhuma noite foi gravada nos últimos 7 dias, e o período fica sem contagem.'],
+      ['sem-contagem, noite sem noite', 'Nenhuma noite foi gravada.'],
+      ['sem-contagem, noite sem medida', 'Não há medida para contar na noite de 10/09, e a noite fica sem contagem.'],
+      ['sem-contagem, período sem medida', 'Não há medida para contar nos últimos 7 dias, e o período fica sem contagem.'],
+    ];
+    for (const [nome, esperado] of esperados) {
+      const e = VARIANTES[nome];
+      assert.ok(e, nome);
+      assert.equal(saude.montarFrase(exemploDoPedido(e), e), esperado, nome);
+    }
+    // Não-vácuo: os sete casos e os três motivos.
+    const casos = esperados.map(([nome]) => casoDe(VARIANTES[nome]));
+    assert.equal(new Set(casos.map((c) => c.caso)).size, 7);
+    assert.equal(new Set(casos.flatMap((c) => (c.caso === 'sem-contagem' ? [c.motivo] : []))).size, 3);
+  });
+
+  it('o exemplo depende só do caso e do alcance: semanas no mesmo caso têm o mesmo exemplo', () => {
+    const e = VARIANTES['uma (período)'];
+    const outraSemana: EntradaDaSaude = {
+      ...e,
+      janela: { since: '2026-08-28', until: '2026-09-03' },
+      score: { ...e.score, dimensions: e.score.dimensions.map((d) => (d.key === 'regularidade' ? { ...d, fact: 'SRI 41' } : d)) },
+    };
+    assert.equal(exemploDaSaude(outraSemana), exemploDaSaude(e));
+    assert.equal(hashDoPedido(saude.montarPedido(outraSemana)!, saude.versao), hashDoPedido(saude.montarPedido(e)!, saude.versao));
+  });
+
+  it('a resposta boa — o exemplo, e outra redação no mesmo caso — é aprovada e interpolada como antes', async () => {
+    const e = semanaDaPercepcao();
+    const m = await medir(e, exemploDoPedido(e));
+    assert.equal(m.desfecho, 'ok', JSON.stringify(m.trilha));
+    assert.equal(m.frase, 'Nos últimos 7 dias, a percepção ficou abaixo das outras dimensões: 3,3/5 · 4 notas.');
+    const outra = await medir(e, 'A percepção ficou abaixo das outras dimensões {quando}: {percepcao}.');
+    assert.equal(outra.desfecho, 'ok', JSON.stringify(outra.trilha));
+    assert.equal(outra.frase, 'A percepção ficou abaixo das outras dimensões nos últimos 7 dias: 3,3/5 · 4 notas.');
+  });
+
+  for (const [como, texto] of [
+    ['abre com um rótulo qualquer', 'Resumo: a percepção ficou abaixo das outras dimensões: {percepcao}.'],
+    ['devolve a ficha da v1', 'Alcance: um período. Janela: {janela}. Percepção: {percepcao}.'],
+  ] as const) {
+    it(`a resposta que ${como} continua reprovada pela forma — a conferência não mudou`, async () => {
+      const m = await medir(semanaDaPercepcao(), texto);
+      assert.equal(m.desfecho, 'reprovada', JSON.stringify(m.trilha));
+      assert.ok(m.trilha[0].problemas?.some((p) => p.regra === 'forma' && p.detalhe === 'abre com rótulo e dois-pontos'));
+    });
+  }
 });
 
 describe('a entrada', () => {

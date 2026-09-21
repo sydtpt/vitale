@@ -332,3 +332,83 @@ export function resumoDaCobertura(m: Pick<MedidasDoPortao, 'cobertura'>): {
     ),
   };
 }
+
+/* ── a cópia do exemplo (story 5.11) ─────────────────────────────────────── */
+
+/**
+ * A regra mecânica da cópia, escrita ao lado dos números — a mesma que
+ * `motores-5-11/rodadas.md` usou à mão.
+ */
+export const REGRA_DA_COPIA =
+  'Cada aprovada é comparada com o exemplo do próprio pedido, com os marcadores, antes da troca. ' +
+  '**Idêntica**: o texto do motor é o exemplo, a menos do espaço nas pontas. **Quase**: as palavras são as ' +
+  'do exemplo a menos da pontuação (`.` `,` `;` `:` `—` `–`), de uma palavra trocada, tirada ou posta, ou o ' +
+  'exemplo cortado no fim. **Texto próprio**: o resto. Maiúscula e minúscula contam como diferença.';
+
+/** Como uma aprovada se relaciona com o exemplo do pedido. */
+export type FormaDaAprovada = 'identica' | 'quase' | 'propria' | 'semExemplo';
+
+/** As palavras de um texto, sem a pontuação que a regra da cópia ignora. */
+function palavrasDaCopia(s: string): string[] {
+  return s.replace(/[.,;:—–]/gu, ' ').split(/\s+/u).filter((w) => w !== '');
+}
+
+/** A distância de edição, em palavras. */
+function distanciaEmPalavras(a: readonly string[], b: readonly string[]): number {
+  let anterior = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    const atual = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      atual[j] = Math.min(anterior[j]! + 1, atual[j - 1]! + 1, anterior[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    anterior = atual;
+  }
+  return anterior[b.length]!;
+}
+
+/**
+ * A forma de uma aprovada contra o exemplo do pedido, pela {@link REGRA_DA_COPIA}. Sem
+ * texto ou sem exemplo (linha de antes da 5.11), `semExemplo` — nunca um palpite.
+ */
+export function formaDaAprovada(texto: string | undefined, exemplo: string | undefined): FormaDaAprovada {
+  if (texto === undefined || exemplo === undefined || exemplo.trim() === '') return 'semExemplo';
+  const t = texto.trim();
+  const x = exemplo.trim();
+  if (t === x) return 'identica';
+  const a = palavrasDaCopia(t);
+  const b = palavrasDaCopia(x);
+  const cortado = a.length > 0 && a.length < b.length && a.every((w, i) => w === b[i]);
+  return cortado || distanciaEmPalavras(a, b) <= 1 ? 'quase' : 'propria';
+}
+
+/** As aprovadas de uma coluna, contadas contra o exemplo — a soma fecha em `aprovadas`. */
+export interface CopiaDoExemplo {
+  readonly aprovadas: number;
+  readonly identicas: number;
+  readonly quase: number;
+  readonly proprias: number;
+  readonly semExemplo: number;
+}
+
+/**
+ * A cópia numa coluna de modelo: só as aprovadas **medidas**, pela mesma regra da
+ * aprovação ({@link REGRA_DA_JANELA_MEDIDA}) — e por isso `aprovadas` aqui é o mesmo
+ * número que o de {@link medidasDoPortao}.
+ *
+ * **Sem limiar e sem veredito**, como o resto deste módulo: quanto copiar é demais é do
+ * dono. Ela existe porque a condição 3 da ADR 0050 compara a aprovada só com o template —
+ * no modelo pequeno do Mac, boa parte das "aprovadas" era o exemplo do pedido devolvido, e
+ * aquela condição marcava zero idênticas sem mentir.
+ */
+export function copiaDoExemplo(linhas: readonly LinhaDoRelatorio[]): CopiaDoExemplo {
+  const aprovadas = linhas.filter((l) => foraDaMedida(l) === null && l.desfecho === 'ok');
+  const conta = { identica: 0, quase: 0, propria: 0, semExemplo: 0 };
+  for (const l of aprovadas) conta[formaDaAprovada(l.textoDoMotor, l.exemplo)] += 1;
+  return {
+    aprovadas: aprovadas.length,
+    identicas: conta.identica,
+    quase: conta.quase,
+    proprias: conta.propria,
+    semExemplo: conta.semExemplo,
+  };
+}

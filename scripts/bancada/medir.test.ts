@@ -18,6 +18,7 @@ import {
   SEM_MODELO,
   casoDaSaude,
   entradaDaSaude,
+  exemploDaSaude,
   templateDaSaude,
   type Falha,
   type Motor,
@@ -322,7 +323,14 @@ describe('a coluna de um motor', () => {
 
   it('mede só a amostra da coluna, não todas as janelas', async () => {
     const amostra = JANELAS.slice(0, 3);
-    const falso = motorFalso((p) => resposta(p.usuario.includes('Caso:') ? 'Desculpe, não posso.' : 'x'));
+    // O motor recusa quando recebe o pedido da Saúde — reconhecido pelo exemplo que o
+    // pedido traz. Até a 5.11 ele decidia por `'Caso:'`, que a v2 não escreve: o ramo da
+    // recusa morreu calado, e o teste seguia verde. Agora a recusa é afirmada.
+    const exemplos = new Set(amostra.map((j) => exemploDaSaude(entrada(j))));
+    assert.ok(exemplos.size > 0);
+    const falso = motorFalso((p) =>
+      resposta([...exemplos].some((x) => p.usuario.includes(x)) ? 'Desculpe, não posso.' : 'x'),
+    );
     const h = hospedeiro({ [NUVEM_PADRAO]: falso.motor });
     const medido = await medir({
       dados: DADOS,
@@ -335,6 +343,30 @@ describe('a coluna de um motor', () => {
     assert.equal(um(medido.colunas, 0).linhas.length, JANELAS.length); // sem-modelo: todas
     assert.equal(um(medido.colunas, 1).linhas.length, amostra.length); // a nuvem: a amostra
     assert.equal(falso.pedidos.length, amostra.length);
+    for (const l of um(medido.colunas, 1).linhas) assert.equal(l.desfecho, 'recusa-do-modelo', `${l.range}@${l.offset}`);
+  });
+
+  it('a linha da coluna de modelo leva o exemplo do pedido; a régua, não', async () => {
+    const amostra = [doCaso('uma'), doCaso('duas', 'noite'), doCaso('sem-contagem')];
+    const falso = motorFalso((p) => resposta(p.usuario));
+    const h = hospedeiro({ [NUVEM_PADRAO]: falso.motor });
+    const medido = await medir({
+      dados: DADOS,
+      hoje: HOJE,
+      janelas: amostra,
+      colunas: [{ motor: NUVEM_PADRAO, janelas: amostra }],
+      hospedeiro: h.hospedeiro,
+      avisar,
+    });
+    for (const l of um(medido.colunas, 0).linhas) assert.equal(l.exemplo, undefined, 'a régua não tem pedido de modelo');
+    const daNuvem = um(medido.colunas, 1).linhas;
+    assert.equal(daNuvem.length, amostra.length);
+    for (const [i, l] of daNuvem.entries()) {
+      const exemplo = exemploDaSaude(entrada(amostra[i]!));
+      assert.equal(l.exemplo, exemplo, `${l.range}@${l.offset}`);
+      // E é o exemplo que o motor recebeu, dentro do pedido.
+      assert.ok(falso.pedidos[i]?.usuario.includes(exemplo), `${l.range}@${l.offset}`);
+    }
   });
 
   it('sem-modelo pedido como coluna de modelo não é medido duas vezes', async () => {
