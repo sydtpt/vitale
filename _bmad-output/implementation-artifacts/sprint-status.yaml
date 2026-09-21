@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 21-09-2026 10:05
+last_updated: 21-09-2026 16:05
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -292,7 +292,23 @@ development_status:
   # idêntica ao que o caminho antigo produzira 43 min antes, com os MESMOS 1.160
   # tokens de entrada — a prova de que o pedido não mudou.
   5-7-o-nome-de-rota-pela-porta: review
+  # 5.8 EM MEDIÇÃO desde 21/09: a sonda do Core AI rodou no Mac (fase 0, sem build).
+  # O caminho técnico funciona sem o Metal Toolchain, mas o qwen3-1.7b contra as
+  # 135 rotas aprovadas aprovou em 97% e ACERTOU em 10% — e copiou "Pajottenland"
+  # (o 1º exemplo do prompt) em 30 das 31 regiões que propôs. O dono pediu um
+  # modelo maior antes de encerrar; essa corrida está em andamento.
   5-8-core-ai: backlog
+  # NASCEU da medição da 5.8, em 21/09. Escopo cortado pelo dono no mesmo dia: só
+  # a regra do artigo, que tem prova de corpus (os 135 nomes aprovados usam só
+  # `le` e `la`, ambos franceses). A regra da grafia FICOU DE FORA — `Hal` é o
+  # nome francês de `Halle`, `Halle` não tem alias nenhum, e a regra reprovaria um
+  # nome que a nuvem produziu e ele aceitou. Está no deferred-work com os números.
+  # CONSTRUÍDA e revisada em 21/09/2026 (9 consertos, sem loopback). Os dois graves:
+  # a regra reprovava o artigo mesmo sem região — e sem região o molde nem o lê —,
+  # o que viraria ~98 recusas permanentes indevidas; e "La" com maiúscula passava
+  # na conferência mas sumia da frase, porque o molde compara exato. A normalização
+  # foi para a leitura (`lerRespostaDoModelo`), não para o pedido.
+  5-14-o-artigo-na-lingua-do-nome: review
   # 5.9 REABERTA em 17/09/2026: é o marco B que saiu da 5.5 "por desenho"
   # quando ela fechou em 16/09 (commit 6bcb3fc) — ninguém tinha story própria
   # pra ele. Os portões de SO que o bloqueavam (macOS 27, Xcode 27, iPhone no

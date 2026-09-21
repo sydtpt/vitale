@@ -1,0 +1,35 @@
+{
+  "fonte": "produção, projeto svyyuhxkblufhfvfvqte (Supabase Management API, só select)",
+  "query": "select route_name_meta->>'lingua' as lingua, route_name_meta->>'artigo' as artigo, count(*)::int as n from activities where activity_id = 13 and route_name is not null group by 1,2 order by 3 desc, 1, 2",
+  "medido_em": "2026-09-21",
+  "total": 135,
+  "manutencao": "Instantâneo transcrito à mão da saída da query acima — ele NÃO acompanha a produção. Quando o acervo crescer (hoje 135 pedaladas com nome), a soma aqui deixa de bater com o banco e o teste continua verde, porque ele confere o fixture contra si mesmo. Quem mexer na regra do artigo, ou quem notar que a produção passou de 135, roda a query de novo e regrava este arquivo com o novo `medido_em`. O valor dele é histórico: prova que, na data em que a regra entrou, nenhum nome aprovado era reprovado.",
+  "nota": "Só língua e artigo. Nenhum topônimo, nenhum dado de saúde, nenhum id — o fixture existe para provar que a regra do artigo não reprova nada que o dono já aprovou, e nada além disso lhe interessa. viaArtigo NÃO é persistido na meta: a prova dele é o golden de 20.",
+  "pares": [
+    {
+      "lingua": "fr",
+      "artigo": null,
+      "n": 117
+    },
+    {
+      "lingua": "fr",
+      "artigo": "le",
+      "n": 11
+    },
+    {
+      "lingua": "fr",
+      "artigo": "la",
+      "n": 4
+    },
+    {
+      "lingua": "nl",
+      "artigo": null,
+      "n": 2
+    },
+    {
+      "lingua": "pt",
+      "artigo": null,
+      "n": 1
+    }
+  ]
+}
