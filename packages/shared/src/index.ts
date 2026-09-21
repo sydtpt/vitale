@@ -65,6 +65,70 @@ export * from './sleep/caso';
 export * from './sleep/leitura';
 // A sonda de fidelidade (story 5.10): um descritor só de medição, fora do catálogo.
 export * from './sleep/sonda';
+// A régua da bancada (story 5.13): a amostra, a linha, as medidas da ADR 0050 e como
+// escrevê-las — um dono só para a bancada do Mac e para a tela de desenvolvimento do
+// iPhone. Nos apps, uma barreira do `architecture.test.ts` a restringe àquela tela: ela
+// carrega caso.
+//
+// **Nome por nome, e não `export *`**: entre dois `export *` um nome repetido some em
+// silêncio, e some justamente do lado que importa — o hospedeiro que o importa passa a ver
+// `undefined`. Aqui a colisão não compila. O teste `bancada/barril.test.ts` cobra que todo
+// nome do módulo esteja nesta lista.
+export {
+  ALCANCES_MEDIDOS,
+  LIMITE_DA_AMOSTRA,
+  REGRA_DA_AMOSTRA,
+  TETO_DE_PASSOS,
+  amostraDaNuvem,
+  chaveDoPasso,
+  enumerarJanelas,
+  noiteMaisAntiga,
+  passosPorAlcance,
+  type Janela,
+  type JanelaClassificada,
+} from './bancada/amostra';
+export {
+  SEM_PEDIDO,
+  assinaturaDaResposta,
+  defeitoDe,
+  hashDaMedicao,
+  linhaDaMedicao,
+  linhaDoDefeito,
+  marcasDaChamada,
+  marcasDoHospedeiro,
+  msDaTrilha,
+  problemasDaTrilha,
+  templateDaMedicao,
+  textoDoPiso,
+  type AssinaturaDaLinha,
+  type ContagemDoHospedeiro,
+  type DesfechoDaLinha,
+  type LinhaDoRelatorio,
+  type MarcaDaChamada,
+} from './bancada/linha';
+export {
+  ALCANCES_DA_COBERTURA,
+  MOTIVOS_FORA_DA_MEDIDA,
+  ORDEM_DOS_CASOS,
+  REGRA_DA_JANELA_MEDIDA,
+  ROTULO_DO_ALCANCE,
+  VEREDITOS,
+  agregar,
+  foraDaMedida,
+  mediana,
+  medidasDoPortao,
+  resumoDaCobertura,
+  vereditoDe,
+  type Agregados,
+  type CoberturaDoCaso,
+  type ContagemPorCaso,
+  type ForaDaMedida,
+  type LinhaAgregavel,
+  type MedidasDoPortao,
+  type NaAmostra,
+  type VereditoDaLinha,
+} from './bancada/medidas';
+export { decimal, foraEmTexto, hashCurto, porcento, segundos } from './bancada/texto';
 export * from './sleep/lua';
 export * from './week/recap';
 export * from './week/highlights';

@@ -2495,6 +2495,249 @@ check('BARREIRA — a sonda de fidelidade só em scripts/, nunca nos apps (AD-7)
 });
 
 /**
+ * BARREIRA — a régua da bancada, nos apps, só onde se mede (story 5.13).
+ *
+ * A amostra, a tradução da medição em linha e as medidas da ADR 0050 subiram para o
+ * núcleo (`packages/shared/src/bancada/`) para o iPhone medir o modelo dele com a mesma
+ * régua do Mac. Só que a amostra **carrega o caso de cada janela** — e a guarda (7) mantém
+ * caso fora das telas de produto: um caso lido na tela poderia discordar da frase que o
+ * orquestrador devolve. O módulo fica fora de `ia/` e de `sleep/` justamente para a (7) não
+ * o barrar inteiro; esta o prende aos arquivos da medição — a tela de desenvolvimento, a
+ * lib que faz o laço dela e o teste dessa lib. Na web, a nenhum.
+ *
+ * **O teste da lib entra na lista, e por isso os testes dos apps são varridos.** Deixá-los
+ * de fora seria abrir a porta pelo lado mais fácil: um `__tests__` que importa a régua e
+ * exporta o que quiser é um caminho até ela como outro qualquer.
+ *
+ * No molde da barreira da sonda, com uma diferença: o nome **só conta em import**. Os
+ * nomes deste módulo são palavras comuns (`mediana`, `agregar`), e uma varredura por
+ * palavra solta gritaria em toda tela que tem uma mediana própria. Conta o que entra pelo
+ * barril (`import`/`export … from`, o `* as` inteiro, o `import()`/`require()` dele) e
+ * qualquer caminho profundo até `bancada/` (inclusive `import x = require(…)`).
+ *
+ * Conta só **valor**, como a (7): `import type` é apagado na compilação e não lê caso
+ * nenhum. Os nomes são LIDOS do módulo — declaração, `export { … }` e `export default` —,
+ * não escritos aqui: um export novo nasce barrado.
+ */
+const DIR_DA_REGUA = join(SHARED_SRC, 'bancada');
+const TELA_DA_BANCADA = 'mobile/src/app/configuracoes/motores/bancada.tsx';
+/** Quem, no app, pode medir: a tela, a lib do laço dela e o teste dessa lib. */
+const QUEM_MEDE_NO_APP: readonly string[] = [
+  TELA_DA_BANCADA,
+  'mobile/src/lib/motores/amostra.ts',
+  'mobile/src/lib/__tests__/motores-amostra.test.ts',
+];
+const CAMINHO_DA_REGUA = /(?:^|\/)(?:@vitale\/shared|packages\/shared)(?:\/src)?\/bancada(?:\/|$)/;
+/** O barril, pelo nome do pacote ou por caminho até `packages/shared/src/index`. */
+const CAMINHO_DO_BARRIL = /^(?:@vitale\/shared|(?:\.\.?\/)+(?:packages\/shared\/src|shared\/src)\/index(?:\.[mc]?[jt]sx?)?)$/;
+
+/**
+ * Os nomes de valor que o módulo da régua exporta, lidos do fonte: a declaração
+ * (`export const/function/class/enum`), a lista (`export { a, b as c }`) e o
+ * `export default`. Sem a lista e o default, um export novo nasceria fora da barreira.
+ */
+function nomesDaRegua(): Set<string> {
+  const DECLARA =
+    /^[ \t]*export\s+(?:declare\s+)?(?:async\s+)?(?:function\*?\s*|const\s+enum\s+|enum\s+|const\s+|let\s+|var\s+|(?:abstract\s+)?class\s+)([A-Za-z_$][\w$]*)/gm;
+  const nomes = new Set<string>();
+  for (const f of walk(DIR_DA_REGUA).filter((x) => !ehTeste(x))) {
+    const src = semComentario(readFileSync(f, 'utf8'));
+    for (const m of src.matchAll(DECLARA)) nomes.add(m[1]);
+    // `export { a, b as c }` — com ou sem `from`; o nome que sai é o de depois do `as`.
+    for (const m of src.matchAll(/^[ \t]*export\s*\{([^}]*)\}/gm)) {
+      for (const bruto of m[1].split(',')) {
+        const item = bruto.trim();
+        if (!item || /^type\s/.test(item)) continue;
+        nomes.add(item.split(/\s+as\s+/).pop()!.trim());
+      }
+    }
+    if (/^[ \t]*export\s+default\b/m.test(src)) nomes.add('default');
+  }
+  return nomes;
+}
+
+/** Os arquivos que alcançam a régua por valor, com o que alcançam — pela AST. */
+function usamARegua(arquivos: readonly string[], nomes: ReadonlySet<string>, raiz: string = ROOT): string[] {
+  const out: string[] = [];
+  for (const f of arquivos) {
+    const src = readFileSync(f, 'utf8');
+    const achados = new Set<string>();
+    /** O que uma cláusula nomeada traz do barril, fora os `type X`. */
+    const peloBarril = (elementos: readonly (ts.ImportSpecifier | ts.ExportSpecifier)[]): void => {
+      for (const e of elementos) {
+        if (e.isTypeOnly) continue;
+        const nome = (e.propertyName ?? e.name).text;
+        if (nomes.has(nome)) achados.add(nome);
+      }
+    };
+    /**
+     * O barril carregado **inteiro** — `import * as n`, `import('…')`, `require('…')`,
+     * `jest.requireActual('…')`. Não é ofensa por si: ninguém lê caso por carregar o
+     * barril. Vira ofensa quando um nome da régua é lido dele, e é o que `lidosDoInteiro`
+     * procura depois — senão a barreira acusaria todo teste que usa `localDateStr`.
+     */
+    let carregaOBarrilInteiro = false;
+    /** Um caminho em literal de string: a régua direto, ou o barril inteiro. */
+    const porCaminho = (spec: string, como: string): void => {
+      if (CAMINHO_DA_REGUA.test(spec)) achados.add(`${como} de ${spec}`);
+      else if (CAMINHO_DO_BARRIL.test(spec)) carregaOBarrilInteiro = true;
+    };
+    /** Um nome da régua lido de um barril carregado inteiro: `n.agregar`, `const { agregar } = n`. */
+    const lidosDoInteiro = new Set<string>();
+    const visitar = (no: ts.Node): void => {
+      if (ts.isImportDeclaration(no) && ts.isStringLiteral(no.moduleSpecifier)) {
+        const spec = no.moduleSpecifier.text;
+        const clausula = no.importClause;
+        const soTipo = clausula?.isTypeOnly === true;
+        if (CAMINHO_DA_REGUA.test(spec)) {
+          const nomeadas = clausula?.namedBindings && ts.isNamedImports(clausula.namedBindings) ? clausula.namedBindings.elements : [];
+          const deValor = !soTipo && (!clausula || clausula.name !== undefined || nomeadas.length === 0 || nomeadas.some((e) => !e.isTypeOnly));
+          if (deValor) achados.add(`import de ${spec}`);
+        } else if (CAMINHO_DO_BARRIL.test(spec) && clausula && !soTipo) {
+          const b = clausula.namedBindings;
+          if (b && ts.isNamespaceImport(b)) carregaOBarrilInteiro = true;
+          if (b && ts.isNamedImports(b)) peloBarril(b.elements);
+        }
+      }
+      // `import x = require('…')`: nem import nem chamada — a AST o guarda à parte.
+      if (ts.isImportEqualsDeclaration(no) && ts.isExternalModuleReference(no.moduleReference)) {
+        const alvo = no.moduleReference.expression;
+        if (ts.isStringLiteralLike(alvo)) porCaminho(alvo.text, 'import =');
+      }
+      if (ts.isExportDeclaration(no) && no.moduleSpecifier && ts.isStringLiteral(no.moduleSpecifier) && !no.isTypeOnly) {
+        const spec = no.moduleSpecifier.text;
+        const clausula = no.exportClause;
+        if (CAMINHO_DA_REGUA.test(spec)) achados.add(`export de ${spec}`);
+        else if (CAMINHO_DO_BARRIL.test(spec)) {
+          // `export * from '@vitale/shared'` reexporta a régua inteira: é um caminho até
+          // ela para quem importar este arquivo, e não há nome para conferir.
+          if (!clausula || !ts.isNamedExports(clausula)) achados.add('export * do barril');
+          else peloBarril(clausula.elements);
+        }
+      }
+      if (ts.isCallExpression(no) && no.arguments.length > 0) {
+        const alvo = no.arguments[0]!;
+        // `import()`, `require()` e o `jest.requireActual()` dos testes.
+        const chamado = ts.isPropertyAccessExpression(no.expression) ? no.expression.name.text : null;
+        const ehCarga = no.expression.kind === ts.SyntaxKind.ImportKeyword
+          || (ts.isIdentifier(no.expression) && /^require(Actual)?$/.test(no.expression.text))
+          || (chamado !== null && /^require(Actual|Mock)?$/.test(chamado));
+        // A carga dinâmica do BARRIL também conta: `(await import('@vitale/shared')).agregar`
+        // alcança a régua inteira sem uma cláusula de import para a barreira ler.
+        if (ehCarga && ts.isStringLiteralLike(alvo)) porCaminho(alvo.text, no.expression.kind === ts.SyntaxKind.ImportKeyword ? 'import()' : 'require()');
+      }
+      // O nome lido de um objeto — `n.agregar` — e o desestruturado — `const { agregar } = n`.
+      if (ts.isPropertyAccessExpression(no) && nomes.has(no.name.text)) lidosDoInteiro.add(`${no.name.text} (do barril inteiro)`);
+      if (ts.isObjectBindingPattern(no)) {
+        for (const e of no.elements) {
+          const nome = e.propertyName ?? e.name;
+          if ((ts.isIdentifier(nome) || ts.isStringLiteral(nome)) && nomes.has(nome.text)) {
+            lidosDoInteiro.add(`${nome.text} (do barril inteiro)`);
+          }
+        }
+      }
+      ts.forEachChild(no, visitar);
+    };
+    visitar(ts.createSourceFile(f, src, ts.ScriptTarget.Latest, false));
+    // Carregar o barril inteiro só conta quando um nome da régua sai dele.
+    if (carregaOBarrilInteiro) for (const n of lidosDoInteiro) achados.add(n);
+    if (achados.size > 0) out.push(`${relativoARaiz(f, raiz)} (${[...achados].sort().join(', ')})`);
+  }
+  return out.sort();
+}
+
+check('BARREIRA — a régua da bancada (amostra, linha, medidas), nos apps, só onde se mede (story 5.13)', () => {
+  const nomes = nomesDaRegua();
+  // Não-vácua no alvo: os nomes que motivam a barreira saíram mesmo do módulo — inclusive
+  // um que só existe por `export { … }`, que é o furo que a leitura fechou.
+  for (const n of ['enumerarJanelas', 'amostraDaNuvem', 'linhaDaMedicao', 'medidasDoPortao', 'foraEmTexto']) {
+    assert.ok(nomes.has(n), `packages/shared/src/bancada/ não exporta mais ${n} — a barreira da régua leu o módulo errado`);
+  }
+
+  // **Do núcleo de IA, a régua importa só TIPO.** É o que a mantém fora do fecho da guarda
+  // (7) — e o que faz a tela de desenvolvimento poder importá-la. Um `import { … }` de
+  // valor de `../ia/` aqui reabriria a discussão inteira, calado.
+  const comValorDeIa: string[] = [];
+  for (const f of walk(DIR_DA_REGUA).filter((x) => !ehTeste(x))) {
+    for (const m of semComentario(readFileSync(f, 'utf8')).matchAll(/^[ \t]*import\s+(type\s+)?([^;'"]*?)\s*\bfrom\s*['"](\.\.\/ia\/[^'"]+)['"]/gm)) {
+      if (m[1]) continue;                                     // `import type { … }`
+      const valores = (/\{([^}]*)\}/.exec(m[2])?.[1] ?? '')
+        .split(',').map((x) => x.trim()).filter((x) => x && !/^type\s/.test(x));
+      const padrao = m[2].replace(/\{[^}]*\}/, '').replace(/,/g, ' ').trim();
+      if (valores.length > 0 || padrao) comValorDeIa.push(`${relativoARaiz(f)} (${[...valores, padrao].filter(Boolean).join(', ')} de ${m[3]})`);
+    }
+  }
+  assert.deepEqual(
+    comValorDeIa,
+    [],
+    `a régua da bancada importou VALOR do núcleo de IA: ${comValorDeIa.join(', ')}. Ela lê tipo de lá e ` +
+      'escreve o resto em casa (o `switch` exaustivo de `medidas.ts` é o molde) — é isso que a mantém ' +
+      'fora do fecho da guarda (7) e importável pela tela que mede.',
+  );
+
+  // O caso-espelho: arquivos de verdade num diretório temporário, pelo mesmo detector.
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-regua-'));
+  try {
+    const casos: readonly (readonly [string, string, boolean])[] = [
+      ['pelo-barril.ts', "import { enumerarJanelas, ler } from '@vitale/shared';\nexport const f = enumerarJanelas;", true],
+      ['renomeado.ts', "import { medidasDoPortao as m } from '@vitale/shared';\nexport { m };", true],
+      ['profundo.ts', "import { agregar } from '@vitale/shared/src/bancada/medidas';\nexport { agregar };", true],
+      ['dinamico.ts', "export const p = import('../../packages/shared/src/bancada/linha.ts');", true],
+      ['require.ts', "export const p = require('@vitale/shared/src/bancada/amostra');", true],
+      // Os quatro furos que a revisão da 5.13 achou.
+      ['barril-dinamico.ts', "export const p = import('@vitale/shared').then((n) => n.agregar);", true],
+      ['barril-require.ts', "const n = require('@vitale/shared');\nexport const f = n.medidasDoPortao;", true],
+      ['barril-desestrutura.ts', "const { agregar } = require('@vitale/shared');\nexport { agregar };", true],
+      ['barril-requireactual.ts', "const real = jest.requireActual('@vitale/shared');\nexport const f = real.enumerarJanelas;", true],
+      ['import-igual.ts', "import n = require('@vitale/shared/src/bancada/medidas');\nexport const f = n.agregar;", true],
+      ['barril-relativo.ts', "const n = require('../../packages/shared/src/index');\nexport const f = n.mediana;", true],
+      ['reexporta.ts', "export { mediana } from '@vitale/shared';", true],
+      ['reexporta-tudo.ts', "export * from '@vitale/shared';", true],
+      ['namespace.ts', "import * as nucleo from '@vitale/shared';\nexport const x = nucleo.foraEmTexto;", true],
+      // O barril inteiro SEM tocar na régua: é o que todo teste que usa `localDateStr`
+      // faz, e acusá-lo seria ensinar a desligar a barreira.
+      ['namespace-sem-regua.ts', "import * as shared from '@vitale/shared';\nexport const hoje = shared.localDateStr();", false],
+      ['requireactual-sem-regua.ts', "const real = jest.requireActual('@vitale/shared');\nexport const f = real.localDateStr;", false],
+      ['tela.tsx', "import { amostraDaNuvem } from '@vitale/shared';\nexport const T = () => <View>{String(amostraDaNuvem)}</View>;", true],
+      ['tipo.ts', "import type { LinhaDoRelatorio } from '@vitale/shared';\nimport { type MedidasDoPortao, ler } from '@vitale/shared';\nexport type X = [LinhaDoRelatorio, MedidasDoPortao, typeof ler];", false],
+      ['comentario.ts', "// import { enumerarJanelas } from '@vitale/shared';\nexport const x = 1;", false],
+      ['outro-modulo.ts', "import { mediana, agregar } from './estatistica';\nexport { mediana, agregar };", false],
+      ['outro-dinamico.ts', "export const p = import('./estatistica');", false],
+      ['porta.ts', "import { ler, entradaDaSaude, descritorDaSaudeDoSono } from '@vitale/shared';\nexport { ler, entradaDaSaude, descritorDaSaudeDoSono };", false],
+    ];
+    for (const [nome, fonte, deveAchar] of casos) {
+      const arquivo = join(dir, nome);
+      writeFileSync(arquivo, `${fonte}\n`);
+      assert.equal(usamARegua([arquivo], nomes, dir).length > 0, deveAchar, `o detector da régua leu errado ${nome}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  // **Com os testes dos apps**: eles alcançam a régua como qualquer outro arquivo.
+  const apps = [...walk(join(ROOT, 'mobile', 'src')), ...walk(join(ROOT, 'web', 'src'))].filter((f) => !f.endsWith('.spec.ts'));
+  assert.ok(apps.length > mobileFiles.length, 'a varredura não pegou os testes dos apps — a barreira da régua ficou com furo');
+  const usam = usamARegua(apps, nomes);
+  // Não-vácua na liberação: cada arquivo liberado usa mesmo a régua — senão a lista libera
+  // o que não precisa, e um deles mudou de lugar sem a barreira notar.
+  for (const permitido of QUEM_MEDE_NO_APP) {
+    assert.ok(
+      usam.some((u) => u.startsWith(`${permitido} (`)),
+      `${permitido} não usa a régua da bancada — ele mudou de lugar? Corrija QUEM_MEDE_NO_APP.`,
+    );
+  }
+  const fora = usam.filter((u) => !QUEM_MEDE_NO_APP.some((p) => u.startsWith(`${p} (`)));
+  assert.deepEqual(
+    fora,
+    [],
+    `a régua da bancada apareceu fora da medição:\n    ${fora.join('\n    ')}\n` +
+      '  A amostra carrega o caso de cada janela, e caso não entra em tela de produto (guarda (7)): a tela ' +
+      'recebe do orquestrador a frase pronta. Quem mede é a bancada — no app, só ' +
+      `${QUEM_MEDE_NO_APP.join(', ')}. Um tipo (\`import type\`) é livre.`,
+  );
+});
+
+/**
  * BARREIRA — `Motor` não se reexporta com outro nome (AD-1).
  *
  * A porta é uma só, e o nome dela também. Um `export { Motor as Narrador }` é a
@@ -2956,6 +3199,17 @@ check('BARREIRA — fora do núcleo, do núcleo de IA só a porta e os descritor
     pecas.every((f) => existsSync(f)),
     `peça de sleep/ sumiu: ${pecas.filter((f) => !existsSync(f)).join(', ')} — a varredura achou módulo sem arquivo .ts.`,
   );
+  /**
+   * **A régua da bancada fica fora deste fecho** (story 5.13). Ela é importável pela tela
+   * de desenvolvimento — quem a prende lá é a barreira da régua, logo acima —, e para isso
+   * ela não pode ser peça: mora fora de `ia/` e de `sleep/`, e importa do núcleo de IA
+   * **só tipo**. Um dia em que alguém a mudasse de lugar, ou lhe desse um import de valor
+   * que a trouxesse para cá, a (7) a barraria inteira e a tela pararia de medir — com o
+   * erro apontando para o lugar errado. Esta asserção é o aviso.
+   */
+  assert.ok(existsSync(DIR_DA_REGUA), 'packages/shared/src/bancada/ sumiu — a régua mudou de lugar?');
+  const daRegua = pecas.filter((f) => f.startsWith(DIR_DA_REGUA + sep)).map((f) => relativoARaiz(f));
+  assert.deepEqual(daRegua, [], 'um arquivo da régua da bancada entrou no fecho da guarda (7) — ver a nota acima.');
   // A lista do que "é das telas" não pode ser desculpa: algum nome de cada módulo
   // dela aparece mesmo num app.
   const fontesDosApps = [...mobileFiles, ...webFiles].filter((f) => !ehTeste(f)).map((f) => readFileSync(f, 'utf8'));
@@ -2985,6 +3239,17 @@ check('BARREIRA — fora do núcleo, do núcleo de IA só a porta e os descritor
     }
   }
   for (const livre of LIVRES_DE_SONO) nomes.delete(livre);
+  // **Nenhum nome da régua da bancada pode ser peça** (story 5.13): se `medidasDoPortao`
+  // ou `enumerarJanelas` fossem parar em `ia/` ou `sleep/`, esta guarda os barraria nos
+  // apps — e a tela de desenvolvimento, que é quem mede, pararia de compilar com um erro
+  // que aponta para o lugar errado. Quem prende a régua à medição é a barreira dela.
+  const reguaVirouPeca = [...nomesDaRegua()].filter((n) => nomes.has(n)).sort();
+  assert.deepEqual(
+    reguaVirouPeca,
+    [],
+    `nome da régua da bancada virou peça do núcleo de IA: ${reguaVirouPeca.join(', ')}. A régua mora em ` +
+      'packages/shared/src/bancada/, fora de ia/ e de sleep/, e importa de lá só TIPO.',
+  );
   assert.ok(pecas.length > 0 && nomes.size > 0, 'as peças de ia/ não exportam valor nenhum — a catraca ficou sem alvo');
   // Não-vácua em sleep/: as peças da Saúde estão no conjunto, e a entrada não.
   assert.ok(

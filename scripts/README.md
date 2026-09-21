@@ -243,6 +243,31 @@ também não o reconstrói.
 Apagar `bancada/manifesto.json` não perde dado, mas perde a linha de base com que
 relatórios futuros se comparam; ele volta na próxima execução padrão.
 
+## Reconferir um relatório salvo (`reconferir.ts`)
+
+Desde a story 5.13 a régua — o fecho, as quatro medidas da ADR 0050 e a tradução da
+medição em linha — mora no núcleo (`packages/shared/src/bancada/`), porque a tela de
+desenvolvimento do iPhone mede com ela também. Este comando torna **reprodutível** a
+pergunta que essa mudança levanta: os números gravados nos relatórios continuam sendo os
+que a régua de hoje dá?
+
+```bash
+pnpm --filter @vitale/scripts exec tsx bancada/reconferir.ts ~/Orbe-dados/<dir>/relatorio-*.json
+```
+
+Ele relê cada relatório, refaz as contas **a partir das mesmas linhas** e compara com o
+que está gravado — o fecho, as medidas e, quando houver, a sonda:
+
+```
+ok  relatorio-9c5838fc6e8f-2026-09-19T09-52-33-030Z.json — 2 colunas, 3 contas conferidas, nenhuma divergência
+```
+
+Divergiu, ele diz a coluna, a conta, o gravado e o recalculado, e sai com status 1.
+
+Não abre rede, não chama modelo, não escreve arquivo nenhum — e **não vai ao CI**: os
+relatórios carregam dado de saúde e moram fora do git, na máquina do dono. A comparação
+por *hash de pedido* entre duas execuções é outra coisa, e é a `--comparar` da bancada.
+
 ## O manifesto, e por que dois relatórios às vezes não se comparam
 
 O manifesto é a identidade de uma execução: `hoje`, as janelas, o hash do export, a

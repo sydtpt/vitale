@@ -47,6 +47,7 @@ import {
   motoresSemRecursoConhecido,
   type CorpoDaFalha,
   type CorpoDoPedido,
+  type MarcaDaChamada,
   type Falha,
   type Motor,
   type MotorDeNuvemAprovado,
@@ -290,11 +291,53 @@ function linhaDoPrazo(prazoMs: number): string {
 /** Quantos prazos a vez espera uma chamada nativa que não volta, antes de passar adiante. */
 export const PRAZOS_ATE_SOLTAR_A_VEZ = 3;
 
+/**
+ * O que só o hospedeiro sabe das chamadas ao aparelho (story 5.13) — o gêmeo do
+ * `RegistroDoHospedeiro` da bancada do Mac (`scripts/bancada/motores.ts`), com o mesmo
+ * sentido, para a amostra do iPhone contar pela mesma régua:
+ *
+ *  - **frio**: a chamada que subiu o modelo — a primeira que chega ao aparelho neste
+ *    processo do app. Conta como medida, e fica fora da mediana.
+ *  - **doHospedeiro**: a falha que o app fabricou, e não o modelo — o prazo estourado
+ *    (no aparelho ou ainda esperando a vez) e a chamada nativa que rejeitou (o
+ *    `Engine.swift` nunca lança: uma rejeição é a cola ou a ponte do Expo, não o modelo).
+ *    Fica fora da medida, contada à parte.
+ *
+ * **Uma marca por chamada, na ordem em que elas encerram** — e não dois contadores. Com
+ * contadores, quem mede tem de subtrair "antes" de "depois", e basta uma segunda chamada
+ * encerrar dentro da janela (o prazo de um pedido que ainda espera a vez, por exemplo)
+ * para a fria ou o prazo caírem na linha errada, sem ninguém ver. Carimbando a chamada,
+ * quem mede consome as marcas daquela janela: uma, e é dela; nenhuma, e não houve chamada;
+ * mais de uma, e a medição **diz que não sabe** em vez de escolher.
+ *
+ * Memória, e só memória: nada disto sai do aparelho.
+ */
+export interface RegistroDoAparelho {
+  /** As chamadas já encerradas, na ordem — quem mede lê por fatia. */
+  readonly marcas: readonly MarcaDaChamada[];
+  /** Carimba uma chamada encerrada. Só o transporte chama. */
+  registrar(marca: MarcaDaChamada): void;
+}
+
+export function novoRegistroDoAparelho(): RegistroDoAparelho {
+  const marcas: MarcaDaChamada[] = [];
+  return {
+    get marcas(): readonly MarcaDaChamada[] {
+      return marcas;
+    },
+    registrar: (marca) => {
+      marcas.push(marca);
+    },
+  };
+}
+
 export interface OpcoesDoTransporteDoAparelho {
   /** Quanto a vez espera uma chamada que não volta. Padrão: {@link PRAZOS_ATE_SOLTAR_A_VEZ} prazos. */
   readonly tetoMs?: number;
   /** Onde fica o rastro de uma vez solta à força — o anel, no app. */
   readonly anotar?: (texto: string) => void;
+  /** Onde contar as chamadas frias e as falhas que o transporte fabricou. */
+  readonly registro?: RegistroDoAparelho;
 }
 
 /**
@@ -322,6 +365,11 @@ export interface OpcoesDoTransporteDoAparelho {
  *
  * Nunca rejeita por conta própria: a exceção da ponte sobe como veio, e
  * `criarMotorDoAparelho` a converte em `transitoria` não mapeada, com o nome cru.
+ *
+ * **E carimba cada chamada** (story 5.13), em `opcoes.registro`: ao encerrar, ela vira uma
+ * marca — fria (subiu o modelo) e/ou do hospedeiro (prazo estourado, ponte que rejeitou).
+ * O carimbo sai **antes** de a promessa resolver, para a medição achar a marca desta
+ * janela assim que o `await` volta ({@link RegistroDoAparelho}).
  */
 export function criarTransporteDoAparelho(
   responder: (pedido: string) => Promise<string>,
@@ -330,17 +378,30 @@ export function criarTransporteDoAparelho(
 ): TransporteDoAparelho {
   const tetoMs = opcoes.tetoMs ?? PRAZOS_ATE_SOLTAR_A_VEZ * prazoMs;
   const anotar = opcoes.anotar ?? (() => undefined);
+  const registro = opcoes.registro ?? novoRegistroDoAparelho();
+  /** Quantas chamadas já chegaram ao aparelho — zero quer dizer que a próxima é fria. */
+  let servidas = 0;
   let fila: Promise<void> = Promise.resolve();
   return (pedido) =>
     new Promise<string>((resolver, rejeitar) => {
       let encerrado = false;
-      const relogio = setTimeout(() => {
+      // A marca desta chamada, carimbada **no instante em que ela encerra** — é o que faz
+      // a fria e o prazo caírem na janela certa mesmo com outra chamada no meio.
+      let frio = false;
+      const encerrar = (doHospedeiro: boolean, entregar: () => void): void => {
         encerrado = true;
-        resolver(linhaDoPrazo(prazoMs));
+        clearTimeout(relogio);
+        registro.registrar({ frio, doHospedeiro });
+        entregar();
+      };
+      const relogio = setTimeout(() => {
+        if (!encerrado) encerrar(true, () => resolver(linhaDoPrazo(prazoMs)));
       }, prazoMs);
       fila = fila.then(async () => {
         // O prazo estourou antes de a vez chegar: o pedido não vai ao aparelho.
         if (encerrado) return;
+        if (servidas === 0) frio = true;
+        servidas += 1;
         let soltar: () => void = () => undefined;
         const aVezPassa = new Promise<void>((r) => {
           soltar = r;
@@ -355,17 +416,11 @@ export function criarTransporteDoAparelho(
         const chamada = (async () => {
           try {
             const linha = await responder(pedido);
-            if (!encerrado) {
-              encerrado = true;
-              clearTimeout(relogio);
-              resolver(linha);
-            }
+            if (!encerrado) encerrar(false, () => resolver(linha));
           } catch (e) {
-            if (!encerrado) {
-              encerrado = true;
-              clearTimeout(relogio);
-              rejeitar(e);
-            }
+            // O `Engine.swift` nunca lança: quem rejeita é a cola ou a ponte do Expo — o
+            // hospedeiro, não o modelo.
+            if (!encerrado) encerrar(true, () => rejeitar(e));
           }
         })();
         await Promise.race([chamada, aVezPassa]);
@@ -373,6 +428,20 @@ export function criarTransporteDoAparelho(
       });
     });
 }
+
+/**
+ * O registro do transporte do aparelho deste processo — um só, como o motor, e é por isso
+ * que ele fica aqui: a amostra lê **as marcas das chamadas que o app de fato fez**, e não
+ * as de um transporte paralelo que ninguém usa.
+ */
+const REGISTRO_DO_APARELHO: RegistroDoAparelho = novoRegistroDoAparelho();
+
+/**
+ * As marcas das chamadas ao aparelho nesta sessão — a fria e as que o app fabricou. É o
+ * que a amostra da tela de desenvolvimento consome, por janela, para marcar a linha
+ * (story 5.13). Só leitura: quem carimba é o transporte.
+ */
+export const registroDoAparelho: RegistroDoAparelho = REGISTRO_DO_APARELHO;
 
 /**
  * O `motorPara` do app: um motor de nuvem para todo `MotorId` de nuvem, o motor do
@@ -399,12 +468,15 @@ export function criarMotorPara(
   chamar: Chamar = chamarAFunction,
   prazoMs: number = PRAZO_MS,
   ponte: PonteDoAparelho | null = PONTE,
+  registro: RegistroDoAparelho = REGISTRO_DO_APARELHO,
 ): (id: MotorId) => Motor | undefined {
   const transporte = serializar(criarTransporte(chamar, prazoMs));
   const doAparelho =
     ponte === null
       ? undefined
-      : criarMotorDoAparelho(criarTransporteDoAparelho((p) => ponte.responder(p), prazoMs, { anotar: anel.anotar }));
+      : criarMotorDoAparelho(
+          criarTransporteDoAparelho((p) => ponte.responder(p), prazoMs, { anotar: anel.anotar, registro }),
+        );
   const porId = new Map<string, Motor>();
   return (id) => {
     const lido = lerMotorId(id);
