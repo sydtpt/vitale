@@ -94,3 +94,39 @@ supersede esta, com a medição que a justifique — que é o ponto.
 **O que isto não decide.** Se a Saúde do sono *vai* ler pela nuvem por padrão no iPhone: isso é da 5.5,
 depois da proposta visual, e continua sendo escolha por aparelho. E nada sobre o motor do aparelho, que o
 marco B vai medir quando o macOS 27 permitir.
+
+---
+
+## Emenda de 2026-09-21 — o pedido v2, medido nos dois motores
+
+**O dono aprovou a nuvem no pedido v2.** A ADR 0050 diz que trocar o pedido exige medição nova; esta
+emenda registra essa medição e a aprovação, sem mexer nas quatro condições nem nos números delas.
+
+**Por que o pedido mudou.** Em 21/09 o modelo do aparelho foi medido pela primeira vez no próprio
+iPhone (AFM 3 Core Advanced, iOS 27.0), sobre a amostra do Mac: **0 de 23**, com a regra do **marcador**
+reprovando 36 vezes. O modelo *maior* fez pior que o menor do Mac (3 de 22, 12/09) — o que aponta para o
+pedido, não para o modelo. O pedido v2 da story 5.11, escrito justamente para o marcador, foi então
+medido nos dois motores, no mesmo dia e sobre o mesmo acervo (304 noites, manifesto `a9a66e37e443`):
+
+| | pedido v1 | **pedido v2** |
+|---|---|---|
+| Aparelho — AFM 3 Core Advanced | 0 de 23 (0%) | **11 de 23 (47,8%)** |
+| Aparelho — reprovações por marcador | 36 | **12** |
+| Aparelho — mediana por chamada | 1,0 s | **0,9 s** |
+| Nuvem — aprovação | 22 de 22 (12/09) | **23 de 23** |
+| Nuvem — idênticas ao template | 0 | **0 de 23** |
+| Nuvem — mediana · pior | 13,6 s · 25,8 s | **10,1 s · 18,4 s** |
+
+**A decisão.** O v2 ganha nos dois lados: leva o aparelho de zero a quase metade e deixa a nuvem **3,5 s
+mais rápida** sem perder aprovação. A aprovação da nuvem passa a valer para o par
+`saude-do-sono × nuvem:padrao` **com o pedido v2**; a do v1 fica como história. A cadeia padrão do
+recurso **não muda** — continua `[sem-modelo]`, e os motores de modelo entram por escolha no seletor.
+
+**O aparelho segue reprovado**, agora com um alvo em vez de um muro: as falhas se concentram em três
+combinações que nunca passam — `uma`, `tudo-no-maximo` e `fora-do-empate/noite` —, enquanto sete das doze
+presentes na amostra já têm frase aprovada.
+
+**Uma ressalva sobre a condição 2.** A amostra de 21/09 tem **12 das 14** combinações de caso × alcance:
+`sem-contagem/noite` e `medidas-insuficientes/período` **não têm nenhuma janela no acervo**, e aumentar a
+amostra não as cria. As 12 presentes foram todas aprovadas pela nuvem. A condição continua escrita como
+está — quando o acervo produzir os dois casos que faltam, eles entram na medição seguinte.

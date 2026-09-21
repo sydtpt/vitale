@@ -16,6 +16,12 @@
  * cobertura por caso × alcance, aprovadas idênticas ao template e mediana por chamada.
  * O número sai; a régua fica na ADR, e a comparação é do dono.
  *
+ * **E a cópia do exemplo** (story 5.11): o pedido da Saúde traz um exemplo de frase
+ * aprovada, e a condição 3 da ADR só compara com o template — um motor que devolve o
+ * exemplo marcaria zero idênticas. Por coluna de modelo, as aprovadas saem contadas
+ * contra o exemplo do próprio pedido: idênticas, quase, e texto próprio. Também sem
+ * limiar. A conta é da régua do núcleo (`copiaDoExemplo`); aqui fica só a leitura.
+ *
  * **O manifesto é o que torna dois relatórios comparáveis**, e é o único arquivo
  * versionado da bancada: `hoje`, as janelas, o hash do export, a regra da amostra,
  * os `MotorId` medidos e a versão do descritor — nenhum dado de saúde. Relatórios
@@ -33,13 +39,16 @@ import type { AlcanceDaSaude, MotorId, ProblemaDaConferencia, RecursoId, SonoRan
 import {
   CLASSES_DE_FALHA,
   REGRA_DA_AMOSTRA,
+  REGRA_DA_COPIA,
   REGRA_DA_JANELA_MEDIDA,
   SEM_MODELO,
   VEREDITOS,
   agregar,
+  copiaDoExemplo,
   decimal,
   foraDaMedida,
   foraEmTexto,
+  formaDaAprovada,
   hashCurto,
   medidasDoPortao,
   porcento,
@@ -47,8 +56,10 @@ import {
   segundos,
   type Agregados,
   type AssinaturaDaLinha,
+  type CopiaDoExemplo,
   type DesfechoDaLinha,
   type ForaDaMedida,
+  type FormaDaAprovada,
   type LinhaDoRelatorio,
   type MedidasDoPortao,
 } from '@vitale/shared';
@@ -66,18 +77,23 @@ export {
   MOTIVOS_FORA_DA_MEDIDA,
   ORDEM_DOS_CASOS,
   hashCurto,
+  REGRA_DA_COPIA,
   REGRA_DA_JANELA_MEDIDA,
   VEREDITOS,
   agregar,
+  copiaDoExemplo,
   foraDaMedida,
+  formaDaAprovada,
   mediana,
   medidasDoPortao,
   vereditoDe,
   type Agregados,
   type AssinaturaDaLinha,
   type ContagemPorCaso,
+  type CopiaDoExemplo,
   type DesfechoDaLinha,
   type ForaDaMedida,
+  type FormaDaAprovada,
   type LinhaDoRelatorio,
   type MedidasDoPortao,
   type NaAmostra,
@@ -327,6 +343,8 @@ export interface ColunaDoRelatorio {
   readonly agregados: Agregados;
   /** Só em coluna de modelo: os números das quatro condições da ADR 0050, sem limiar. */
   readonly medidas?: MedidasDoPortao;
+  /** Só em coluna de modelo: as aprovadas contadas contra o exemplo do pedido (5.11). */
+  readonly copia?: CopiaDoExemplo;
   /** Só em coluna de modelo: quem assinou as respostas, com a plataforma e o build. */
   readonly assinaturas?: readonly AssinaturaObservada[];
   /** Só com `--sonda`, e só em coluna de modelo. */
@@ -397,6 +415,7 @@ export function montarRelatorio(args: {
       return {
         ...base,
         medidas: medidasDoPortao(c.linhas),
+        copia: copiaDoExemplo(c.linhas),
         assinaturas: assinaturasDe(c.linhas, c.sonda ?? []),
         ...(c.sonda ? { sonda: { linhas: c.sonda, agregados: agregar(c.sonda), resumo: resumoDaSonda(c.sonda) } } : {}),
         ...(c.compilador !== undefined ? { compilador: c.compilador } : {}),
@@ -567,6 +586,39 @@ function medidasEmMarkdown(m: MedidasDoPortao): string[] {
   ];
 }
 
+/** A cópia do exemplo, com a regra ao lado — e sem régua: quanto copiar é demais é do dono. */
+function copiaEmMarkdown(c: CopiaDoExemplo): string[] {
+  const linha = (rotulo: string, n: number): string[] => [rotulo, `${n} de ${c.aprovadas} (${porcento(n, c.aprovadas)})`];
+  return [
+    '### A cópia do exemplo do pedido',
+    '',
+    'A condição 3 da ADR 0050 compara a aprovada com o **template**. O pedido traz também um exemplo de ' +
+      'frase aprovada, e um motor que o devolve marca zero idênticas ao template. Esta conta é a que ' +
+      'falta — **sem limiar e sem veredito**.',
+    '',
+    `> ${REGRA_DA_COPIA}`,
+    '',
+    ...tabela(
+      ['aprovadas', 'nesta coluna'],
+      [
+        linha('idênticas ao exemplo', c.identicas),
+        linha('quase o exemplo', c.quase),
+        linha('texto próprio', c.proprias),
+        ...(c.semExemplo > 0 ? [linha('sem exemplo para comparar', c.semExemplo)] : []),
+      ],
+    ),
+    '',
+  ];
+}
+
+/** O rótulo da forma de uma aprovada na tabela das linhas. */
+const ROTULO_DA_FORMA: Readonly<Record<FormaDaAprovada, string | null>> = {
+  identica: 'idêntica ao exemplo',
+  quase: 'quase o exemplo',
+  propria: null,
+  semExemplo: null,
+};
+
 function sondaEmMarkdown(s: SondaDaColuna): string[] {
   const r = s.resumo;
   const falhas = r.falhas.reduce((n, f) => n + f.vezes, 0);
@@ -620,6 +672,7 @@ function coluna(c: ColunaDoRelatorio): string[] {
   const out: string[] = ['', `## Coluna \`${c.motor}\` — ${c.linhas.length} janelas`, ''];
   if (c.assinaturas) out.push(...assinaturasEmMarkdown(c.assinaturas, c.compilador));
   if (c.medidas) out.push(...medidasEmMarkdown(c.medidas));
+  if (c.copia) out.push(...copiaEmMarkdown(c.copia));
   out.push('### O fecho, por caso', '', ...fecho(c.agregados), '');
 
   if (c.agregados.porRegra.length > 0) {
@@ -653,6 +706,8 @@ function coluna(c: ColunaDoRelatorio): string[] {
           l.sintetica ? `${l.desfecho} (sintética)` : l.desfecho,
           ...(l.frio ? ['fria'] : []),
           ...(l.doHospedeiro ? ['do hospedeiro'] : []),
+          // Na aprovada, se ela é o exemplo do pedido — para achar a linha que a conta contou.
+          ...(c.copia && l.desfecho === 'ok' ? [ROTULO_DA_FORMA[formaDaAprovada(l.textoDoMotor, l.exemplo)]].filter((x): x is string => x !== null) : []),
         ].join(' · '),
         String(l.ms),
         l.tokens ? `${l.tokens.entrada}/${l.tokens.saida}` : '—',

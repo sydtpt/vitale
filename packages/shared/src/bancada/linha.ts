@@ -60,6 +60,17 @@ export interface LinhaDoRelatorio {
   readonly template: string;
   /** O texto que o motor escreveu, com os marcadores, como a conferência o leu. */
   readonly textoDoMotor?: string;
+  /**
+   * O exemplo de frase aprovada que o pedido desta janela trazia, com os marcadores
+   * (`exemploDaSaude`, story 5.11) — só nas colunas de modelo, e só quando houve pedido.
+   *
+   * É contra ele que {@link formaDaAprovada} conta a cópia (`./medidas.ts`): a condição 3
+   * da ADR 0050 compara a aprovada com o **template**, e um motor que devolve o exemplo
+   * marcaria zero idênticas. Quem mede carimba o campo — a linha não o deduz. Linha de
+   * antes da 5.11, ou de um hospedeiro que não o carimba, não o tem, e a conta diz isso em
+   * vez de adivinhar.
+   */
+  readonly exemplo?: string;
   readonly problemas?: readonly ProblemaDaConferencia[];
   /** Nenhuma chamada saiu: o hospedeiro não entregou o motor, ou o recurso o recusou. */
   readonly sintetica?: true;

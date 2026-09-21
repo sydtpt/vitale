@@ -24,13 +24,19 @@ inquilino** — o nome de rota — para a mesma porta (5.7), e decidir o caminho
 - Story 5.10: A coluna do aparelho na bancada (metade do Mac do marco B) — fechada
 - Story 5.9: A ponte Swift `on-device-engine` no app (a outra metade do marco B) — na `main`, em `review`
 - Story 5.13: A amostra no iPhone — na `main`, em `review`
+- Story 5.11: O pedido da Saúde para o modelo pequeno (nasceu da medição da 5.10) — em `review`
 - Story 5.7: O nome de rota pela porta (F4) — **de pé**
 - Story 5.8: Core AI (F5) — **de pé**, com riscos abertos
 
 > As 5.9, 5.10, 5.11 e 5.13 nasceram depois do desdobramento e **não têm seção própria no
 > `epics.md`**; o `sprint-status.yaml` é a autoridade sobre elas. A 5.11 (pedido da Saúde para o
-> modelo pequeno) vive na branch `feat/motores-5-11`, **sem push e parada por decisão do dono** — não
-> vai à `main` sem decisão nova.
+> modelo pequeno) ficou parada na branch `feat/motores-5-11` desde 19/09, sem push, até o dono
+> decidir: **medida em 21/09 nos dois motores** e trazida para cá por cima da forma nova da bancada
+> (a régua da 5.13, em `packages/shared/src/bancada/`). O aparelho foi de 0 para 11 das 23 janelas
+> (47,8%) e a nuvem aprovou 23 de 23, com mediana de 10,1 s e pior caso de 18,4 s; nenhuma frase
+> idêntica à do template. A amostra tem **12 das 14** combinações de caso × alcance — faltam
+> `sem-contagem/noite` e `medidas-insuficientes/período`, que não têm nenhuma janela no acervo, e as
+> 12 presentes foram todas aprovadas pela nuvem.
 
 ## Requirements & Constraints
 
