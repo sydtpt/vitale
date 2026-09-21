@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 21-09-2026 20:20
+last_updated: 21-09-2026 21:30
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -222,7 +222,13 @@ development_status:
 
   # ── Épico 5: os motores — entrou em 10/09 por correct-course ──────────────
   # A ordem real está no cabeçalho; aqui fica em ordem numérica.
-  epic-5: in-progress
+  # FECHADO em 21/09/2026: o dono deu o veredito das seis em review. O épico
+  # entregou o que ele redefiniu como foco em 19/09 — a ponte e a escolha do
+  # modelo em Configurações. São quatro motores escolhíveis por recurso:
+  # template, modelo da Apple (AFM 3 Core Advanced), nuvem e peso aberto (Core
+  # AI). Nenhum modelo virou padrão: a cadeia da Saúde continua no template, e o
+  # nome de rota segue na nuvem por herança.
+  epic-5: done
   # F0 — núcleo sem modelo. Sem deploy e sem tela. Em paralelo com 1.7–1.9.
   # FECHADAS em 13/09: na main desde 11–12/09, e agora exercitadas no aparelho —
   # o marco A da 5.5 levou este núcleo à tela da /sono/saude, e o dono conferiu
@@ -291,7 +297,7 @@ development_status:
   # story pagou), e com a nuvem a mesma pedalada de 27/07 saiu "Aller à Hal",
   # idêntica ao que o caminho antigo produzira 43 min antes, com os MESMOS 1.160
   # tokens de entrada — a prova de que o pedido não mudou.
-  5-7-o-nome-de-rota-pela-porta: review
+  5-7-o-nome-de-rota-pela-porta: done
   # ESCOPO REDEFINIDO pelo dono em 21/09, depois da sonda no Mac: a 5.8 passa a ser
   # **a ponte do Core AI**, não o recurso. Ele autorizou subir o alvo mínimo para
   # iOS 27 ("o app é só meu") e NÃO quer peso embarcado por tamanho — mas escolheu
@@ -305,7 +311,7 @@ development_status:
   # preciso: como recurso de pod estático, os pesos são copiados por rsync. Build
   # do iPhone verde com o Core AI dentro. O peso aberto é bloqueado fora da Saúde
   # do sono, que não grava. Falta o portão do dono: instalar e ver texto sair.
-  5-8-core-ai: review
+  5-8-core-ai: done
   # NASCEU da medição da 5.8, em 21/09. Escopo cortado pelo dono no mesmo dia: só
   # a regra do artigo, que tem prova de corpus (os 135 nomes aprovados usam só
   # `le` e `la`, ambos franceses). A regra da grafia FICOU DE FORA — `Hal` é o
@@ -316,7 +322,7 @@ development_status:
   # o que viraria ~98 recusas permanentes indevidas; e "La" com maiúscula passava
   # na conferência mas sumia da frase, porque o molde compara exato. A normalização
   # foi para a leitura (`lerRespostaDoModelo`), não para o pedido.
-  5-14-o-artigo-na-lingua-do-nome: review
+  5-14-o-artigo-na-lingua-do-nome: done
   # 5.9 REABERTA em 17/09/2026: é o marco B que saiu da 5.5 "por desenho"
   # quando ela fechou em 16/09 (commit 6bcb3fc) — ninguém tinha story própria
   # pra ele. Os portões de SO que o bloqueavam (macOS 27, Xcode 27, iPhone no
@@ -354,7 +360,7 @@ development_status:
   # A v2 traz junto a MEDIDA DE CÓPIA DO EXEMPLO (`copiaDoExemplo`, na régua do
   # núcleo desde a 5.13): no modelo pequeno do Mac boa parte das "aprovadas" era
   # o exemplo do pedido devolvido, e a condição 3 só compara com o template.
-  5-11-o-pedido-da-saude-para-o-modelo-pequeno: review
+  5-11-o-pedido-da-saude-para-o-modelo-pequeno: done
   # 19/09/2026 — o DONO redefiniu o foco: o Épico 5 é a PONTE e a escolha do
   # modelo em Configurações; a Saúde do sono é só o recurso de teste. A 5.9
   # começa agora, com o pedido v1 (a v2 da 5.11 fica parada na branch dela até o
@@ -370,7 +376,7 @@ development_status:
   # por posição de marcador. O botão do PCC FECHAVA o app — "Missing entitlement:
   # com.apple.developer.private-cloud-compute" (entitlement gerenciado da Apple) —
   # e o experimento foi APAGADO, com o veredito na ADR 0047. Runtime 1.0.7.
-  5-9-a-ponte-swift-on-device-engine: review
+  5-9-a-ponte-swift-on-device-engine: done
   # 5.13 NASCEU em 19/09/2026 do teste da 5.9 no iPhone: o aparelho do dono tem
   # AFM 3 Core Advanced (janela 8.192) e o Mac só AFM 3 Core — a bancada do Mac
   # não mede o modelo dele. A tela de desenvolvimento passa a medir a mesma
@@ -382,7 +388,7 @@ development_status:
   # freio, previsão e o texto de cada janela. Revisão em 3 camadas: 20 patches,
   # sem loopback — o pior era a composição morar na tela, provada por uma cópia.
   # Falta o dono instalar e rodar "Medir a amostra" com a tela acesa.
-  5-13-a-amostra-no-iphone: review
+  5-13-a-amostra-no-iphone: done
   # O ÉPICO TEM DE DISPONIBILIZAR TODOS os modelos que o dono PODE usar
   # (decisão dele, 19/09): o do sistema (5.9) e os abertos do Core AI (5.8, que
   # por isso fica no épico). O Private Cloud Compute ficou FORA no mesmo dia: do
