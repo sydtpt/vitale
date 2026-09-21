@@ -13,11 +13,14 @@
  * Também mora aqui o que decide **para onde o dado pode ir**: a exposição de cada
  * tipo, os tipos que um recurso que grava admite, a `Cadeia` que só
  * {@link resolverCadeia} constrói, e a identidade do pedido (`serializarPedido`,
- * `hashDoPedido`) que a tela e a bancada comparam.
+ * `hashDoPedido`) que a tela e a bancada comparam. E, desde a 5.7,
+ * {@link interpretarPorEsquema} — a leitura que os descritores de saída guiada
+ * dividem, para a mesma falha ter um diagnóstico só.
  */
 import {
   SEM_MODELO,
   TIPOS_DE_MOTOR,
+  conformeAoEsquema,
   ehClasseDeFalha,
   formatarMotorId,
   lerMotorId,
@@ -307,38 +310,50 @@ export function hashDoPedido(pedido: Pedido, versaoDoDescritor: number): string 
   return sha256Hex(serializarPedido(pedido, versaoDoDescritor));
 }
 
-/* ── a costura antiga, até a 5.7 ─────────────────────────────────────────── */
+/* ── a leitura por esquema, compartilhada ────────────────────────────────── */
 
 /**
- * O par que o nome de rota manda hoje. Estrutural de propósito: o
- * `PromptDeNome` de `routes/prompt.ts` cabe aqui sem este arquivo conhecê-lo.
- *
- * @deprecated Morre na 5.7, quando o nome de rota passar pela porta.
+ * O valor que coube no esquema. Embrulhado de propósito: o resultado da leitura
+ * é `ValorConforme | Falha`, e um envelope com chave própria discrimina os dois
+ * sem depender de o valor lido **não** ter uma chave `classe` — que é
+ * exatamente o tipo de coincidência que um modelo produz.
  */
-export interface PromptLegado {
-  sistema: string;
-  usuario: string;
-  json?: boolean;
+export interface ValorConforme {
+  readonly valor: unknown;
 }
 
 /**
- * O que o chamador antigo devolve — o corpo da function, sem conhecê-la.
+ * Texto do motor → valor que cabe no {@link Esquema}, ou `saida-invalida`
+ * (story 5.7).
  *
- * @deprecated Morre na 5.7, com {@link ChamadorDeModelo}.
+ * **Um helper, não uma centralização.** Pôr esta conferência dentro do
+ * orquestrador mudaria o contrato de todo descritor — passaria a existir um
+ * `esquemaDaLeitura` obrigatório, e o descritor de saída em texto teria de
+ * declarar o que não tem. Aqui ela é uma peça que o descritor chama quando a
+ * saída dele é guiada, com o mesmo `detalhe` em todos: as duas frases abaixo são
+ * o que a tela de desenvolvimento mostra, e duas grafias delas seriam dois
+ * diagnósticos para a mesma falha.
+ *
+ * As duas causas são a mesma classe porque têm o mesmo destino: permanente, sem
+ * repetir. `detalhe` leva os primeiros 200 caracteres da resposta — é o bastante
+ * para reconhecer "o modelo escreveu prosa" ou "veio um campo a mais", e curto o
+ * bastante para caber num registro em memória.
+ *
+ * Propriedade que o esquema não declara **reprova** (é `conformeAoEsquema` quem
+ * diz): a saída guiada devolve só o que foi pedido, e o que vem a mais é sinal
+ * de que não foi ela que respondeu. `Esquema` não tem `null` — ausência é
+ * propriedade opcional —, então um descritor cujo modelo responda `null` para
+ * "não há" não pode usar este helper sem tratar isso antes.
  */
-export interface RespostaDoModelo {
-  texto: string;
-  provedor?: string;
-  modelo?: string;
-  /** A conclusão é {@link CONCLUSAO}. Qualquer outra coisa significa truncado. */
-  motivoDeParada?: string;
-  tokens?: { entrada: number; saida: number };
+export function interpretarPorEsquema(esquema: Esquema, resposta: Resposta): ValorConforme | Falha {
+  let lido: unknown;
+  try {
+    lido = JSON.parse(resposta.texto);
+  } catch {
+    return { classe: 'saida-invalida', detalhe: `a resposta não é JSON: ${resposta.texto.slice(0, 200)}` };
+  }
+  if (!conformeAoEsquema(lido, esquema)) {
+    return { classe: 'saida-invalida', detalhe: `a resposta não cabe no esquema: ${resposta.texto.slice(0, 200)}` };
+  }
+  return { valor: lido };
 }
-
-/**
- * A costura da ADR 0042, que a porta `Motor` substitui. Mora aqui, e não em
- * `routes/`, para existir um lugar só a apagar.
- *
- * @deprecated Morre na 5.7, quando o nome de rota passar pela porta.
- */
-export type ChamadorDeModelo = (prompt: PromptLegado) => Promise<RespostaDoModelo>;

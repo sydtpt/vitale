@@ -93,3 +93,40 @@ leitura, conferência, frase — roda nos testes com um chamador falso.
 **O que fica em aberto.** Se um dia o nome precisar existir sem o app ser aberto (uma
 notificação, um relatório por e-mail), a conta muda e esta ADR volta à mesa. Hoje não há esse
 requisito.
+
+## Emenda — 21/09/2026: o chamador injetado morreu; quem percorre é o orquestrador (story 5.7)
+
+**O que valia.** A decisão acima é sobre *onde* o passe roda — no aparelho, quando o dono abre o
+detalhe —, e isso **continua valendo**, palavra por palavra. O que envelheceu foi o **mecanismo**
+descrito nas Consequências: "a orquestração recebe a função que chama o modelo como argumento".
+
+Era a costura da época: `nomearRota(rota, ancoras, chamar)`, com `ChamadorDeModelo` — um par
+`{sistema, usuario, json}` entrando e um `{texto, provedor, modelo, motivoDeParada, tokens}`
+saindo —, e o hospedeiro (`mobile/src/services/route-name.ts`) escrevendo o nome da edge function
+à mão. O núcleo continuava puro e testável sem rede, que era o ponto; mas era uma **segunda
+porta**, paralela à que a ADR 0047 fixou depois.
+
+**O que mudou na 5.7 (21/09/2026).** O nome de rota passou a ser um **descritor**
+(`packages/shared/src/routes/descritor.ts`), e quem percorre a sequência — pedido, chamada,
+interpretação, conferência, frase, piso — é o **orquestrador único** (`ia/orquestrar.ts`), pela
+porta `Motor` da ADR 0047. Em concreto:
+
+- `ChamadorDeModelo`, `PromptLegado` e `RespostaDoModelo` foram **apagados** de `ia/motor.ts`;
+- `nomearRota` não existe mais. `routes/nomear.ts` ficou com a tradução — `metaDaLeitura`, que
+  transforma a `Leitura` do orquestrador na linha de `activities`, ou em nada;
+- o recurso entrou no `CATALOGO_DE_RECURSOS`, então ele **aparece no seletor de motores** e
+  respeita a preferência do dono por aparelho (ADR 0048), com cadeia, recuo e classes de falha;
+- o hospedeiro não conhece mais a function: pede um motor ao ponto de injeção
+  (`mobile/src/lib/motores/`). As duas guardas do `architecture.test.ts` que esperavam esta
+  story — o literal `'STOP'` e "uma porta por hospedeiro" — foram a zero e viraram barreira.
+
+**O que não mudou.** O prompt é byte a byte o mesmo, `PROMPT_NOME_VERSAO` continua em 2, e os 133
+nomes aprovados seguem comparáveis. O gatilho continua sendo um por pedalada, ao abrir o detalhe,
+protegido pela marca gravada. E o núcleo continua rodando nos testes sem rede — agora com um
+`Motor` falso no lugar do chamador falso.
+
+**O que a 5.7 mudou de comportamento, e precisa do veredito do dono.** A resposta **truncada**
+(motivo de parada que não é conclusão) deixou de gravar recusa: ela para na borda da nuvem sem
+resposta assinada, e desde a 5.7 só a saída que um motor de fato escreveu vira recusa permanente
+— senão um HTML de gateway num 2xx deixaria a pedalada sem nome para sempre. Na prática o
+truncado passou a ser tentado de novo. Está registrado no `Spec Change Log` da story.

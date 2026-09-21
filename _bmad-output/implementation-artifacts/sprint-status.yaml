@@ -58,9 +58,12 @@
 #   · 5.5 (F2, ponte + botão) depois da 1.9, em BUILD PRÓPRIO — nunca no da
 #     migração. Entre 5.5 e 1.10 a ordem é livre: quem chegar primeiro cria
 #     mobile/src/lib/motores/.
-#   · 5.6, 5.7 e 5.8 (F3–F5) são da PRÓXIMA sprint.
+#   · 5.6, 5.7 e 5.8 (F3–F5) ERAM da próxima sprint. O dono as trouxe para esta:
+#     a 5.6 foi reaberta em 17/09 e está `done`; a 5.7 começou em 21/09 (ver as
+#     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
+#     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 21-09-2026 07:39
+last_updated: 21-09-2026 10:05
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -271,8 +274,17 @@ development_status:
   # pede, nesta ordem, a tabela de regime do provedor, uma rodada da bancada e
   # só então o secret.
   5-6-vários-motores-de-nuvem: done
-  # ▼ PRÓXIMA SPRINT (F4–F5). Estão aqui para aparecer no quadro, não para começar.
-  5-7-o-nome-de-rota-pela-porta: backlog
+  # ▼ F4–F5. A 5.7 COMEÇOU em 21/09/2026, na worktree life-organizer-wt-motores-5-7
+  # (branch feat/motores-5-7, saída de dbb8df7). O dono decidiu no mesmo dia que a
+  # nuvem continua o padrão do nome de rota **por herança**, sem medição — a
+  # medição do recurso na bancada foi para deferred-work.md.
+  # CONSTRUÍDA em 21/09/2026, revisão de três camadas rodada (11 consertos, sem
+  # loopback). Dois vereditos do dono no mesmo dia: a nuvem segue padrão por
+  # herança, e a resposta cortada volta a ser tentada em vez de marcar a pedalada
+  # (emenda da matriz congelada, registrada no Spec Change Log). Falta ele
+  # instalar e conferir: pedalada sem nome ganha nome, e "Nome de rota" aparece
+  # escolhível em Configurações → Motores.
+  5-7-o-nome-de-rota-pela-porta: review
   5-8-core-ai: backlog
   # 5.9 REABERTA em 17/09/2026: é o marco B que saiu da 5.5 "por desenho"
   # quando ela fechou em 16/09 (commit 6bcb3fc) — ninguém tinha story própria

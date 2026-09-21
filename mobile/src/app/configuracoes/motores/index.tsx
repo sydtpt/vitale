@@ -40,11 +40,12 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../.
  * Intelligence desligada, modelo não pronto, aparelho não elegível, ponte ausente
  * neste build). Esconder o aparelho faria a tela mentir por omissão.
  *
- * **E um controle inerte é a mentira espelhada.** Hoje só a Saúde do sono lê a
- * preferência; a Retrospectiva ainda chama a function pelo caminho antigo. Oferecer
- * escolha para ela gravaria algo que ninguém consulta. Então ela aparece — com o
- * motivo, no mesmo idioma do motor indisponível. Quem diz quais recursos esta camada
- * hospeda é a própria camada (`HOSPEDAGEM`), não esta tela.
+ * **E um controle inerte é a mentira espelhada.** Oferecer escolha para um recurso
+ * que não lê a preferência gravaria algo que ninguém consulta — o dono trocaria o
+ * motor e nada mudaria. O recurso nesse estado aparece mesmo assim, com o motivo,
+ * no mesmo idioma do motor indisponível. Quem diz quais recursos esta camada
+ * hospeda é a própria camada (`HOSPEDAGEM`), não esta tela — e desde a 5.7 os três
+ * estão ligados: a Saúde do sono (5.5), a Retrospectiva (1.10) e o nome de rota.
  *
  * **A escolha é deste aparelho** (AD-8): vai para o AsyncStorage, não para
  * `user_preferences`. O que está disponível é propriedade do aparelho, e

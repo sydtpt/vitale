@@ -1,12 +1,13 @@
 /**
  * O ponto de injeção do app (guarda (1) do `architecture.test.ts`, ADR 0047).
  *
- * **Este é o único arquivo do app que nomeia a function.** A catraca "uma porta
+ * **Este é o único arquivo do app que nomeia a function.** A barreira "uma porta
  * por hospedeiro" reconhece `mobile/src/lib/motores/`, e é ela que impede a
  * terceira cópia do cliente da `ia-narrar`: o app teve duas — `edicao-ia.ts`
  * (saiu na 1.9; desde a 1.10 a impressão usa o `motorPara` daqui) e
- * `services/route-name.ts` (sai na 5.7) —, cada uma lendo o erro do seu jeito, e
- * nas duas o ramo que lia o corpo de erro era código morto.
+ * `services/route-name.ts` (saiu na 5.7, quando o nome de rota virou descritor)
+ * —, cada uma lendo o erro do seu jeito, e nas duas o ramo que lia o corpo de
+ * erro era código morto. **Desde a 5.7 a guarda é barreira, em zero.**
  *
  * O que mora aqui é só **a chamada**: o nome da function, o corpo e a leitura do
  * status. Quem traduz status, corpo, conclusão e assinatura em `Resposta` ou

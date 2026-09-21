@@ -2743,8 +2743,9 @@ check('BARREIRA — a régua da bancada (amostra, linha, medidas), nos apps, só
  * A porta é uma só, e o nome dela também. Um `export { Motor as Narrador }` é a
  * segunda porta nascendo com cara de apelido: quem a importa não sabe que é a
  * mesma, e a próxima mudança da porta passa a ter dois lugares a conferir.
- * Reexportar com o MESMO nome é legítimo (é o mesmo símbolo — é o que
- * `routes/nomear.ts` faz com `ChamadorDeModelo` até a 5.7).
+ * Reexportar com o MESMO nome é legítimo — é o mesmo símbolo, e o `export *` do
+ * barril não o vê duas vezes. Era o que `routes/nomear.ts` fazia com
+ * `ChamadorDeModelo`; a 5.7 apagou a costura inteira, e não sobrou reexporte.
  */
 check('BARREIRA — Motor não se reexporta com outro nome', () => {
   assert.ok(
@@ -2934,7 +2935,7 @@ check('BARREIRA — nem mobile nem web alcançam ia/ranqueamento', () => {
 });
 
 /**
- * CATRACA — o literal `'STOP'` só na `CONCLUSAO` (AD-10 (6), AD-12).
+ * BARREIRA — o literal `'STOP'` só na `CONCLUSAO` (AD-10 (6), AD-12).
  *
  * `'STOP'` é a grafia de conclusão de UM fornecedor. Fora do adaptador dele, o
  * núcleo compara com `CONCLUSAO`; quem compara com o literal prende o Orbe à
@@ -2956,44 +2957,101 @@ check('BARREIRA — nem mobile nem web alcançam ia/ranqueamento', () => {
  *   1 (1.10) — fica. A impressão voltou pelo orquestrador, e o motivo de parada
  *             gravado é `CONCLUSAO`, nomeada em `ia/imprimir.ts` — nenhum literal
  *             novo. Quem zera é a 5.7, com o nome de rota.
+ *   0 (5.7) — **vira barreira.** O nome de rota passou pela porta: a sequência de
+ *             `routes/nomear.ts` foi para o orquestrador, e o truncamento chega
+ *             como `saida-invalida` da borda da nuvem — ninguém mais compara
+ *             motivo de parada fora dela. Como a guarda nasce em zero, a
+ *             não-vacuidade é provada por **caso-espelho**: arquivos de verdade
+ *             num diretório temporário, pelo mesmo detector.
  */
 const DONO_CONCLUSAO = 'packages/shared/src/ia/motor.ts';
 const ADAPTADOR_DO_PROVEDOR = 'supabase/functions/_shared/ia/narrador.ts';
-const TETO_STOP = 1;
+const DEFINE_CONCLUSAO = /\bconst\s+CONCLUSAO\s*=\s*(['"`])STOP\1/;
 
-check(`CATRACA — o literal 'STOP' só na CONCLUSAO (teto ${TETO_STOP})`, () => {
-  const DEFINE = /\bconst\s+CONCLUSAO\s*=\s*(['"`])STOP\1/;
-  assert.ok(
-    DEFINE.test(readFileSync(join(ROOT, DONO_CONCLUSAO), 'utf8')),
-    `a catraca ficou sem dono: ${DONO_CONCLUSAO} não declara mais CONCLUSAO = 'STOP'.`,
-  );
+/**
+ * Os arquivos cujo código cita `'STOP'` fora do dono e do adaptador.
+ *
+ * Extraída para que o caso-espelho passe pelo **mesmo** detector: um auto-teste
+ * com o seu próprio casador passaria verde com o detector de verdade quebrado.
+ */
+function stopForaDaConclusao(arquivos: readonly string[], raiz: string = ROOT): string[] {
   const LITERAL = /(['"`])STOP\1/;
+  const fora: string[] = [];
+  for (const f of arquivos) {
+    const rel = relativoARaiz(f, raiz);
+    if (rel === ADAPTADOR_DO_PROVEDOR) continue;
+    let src = semComentario(readFileSync(f, 'utf8'));
+    if (rel === DONO_CONCLUSAO) src = src.replace(DEFINE_CONCLUSAO, '');
+    if (LITERAL.test(src)) fora.push(rel);
+  }
+  return fora.sort();
+}
+
+check("BARREIRA — o literal 'STOP' só na CONCLUSAO", () => {
+  assert.ok(
+    DEFINE_CONCLUSAO.test(readFileSync(join(ROOT, DONO_CONCLUSAO), 'utf8')),
+    `a barreira ficou sem dono: ${DONO_CONCLUSAO} não declara mais CONCLUSAO = 'STOP'.`,
+  );
+
+  // O caso-espelho: a guarda nasce em zero, então não há ofensor real que prove
+  // que ela vê. Estes arquivos são de verdade, e passam pelo mesmo detector.
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-stop-'));
+  try {
+    const casos: readonly (readonly [string, string, boolean])[] = [
+      ['compara.ts', "export const ok = (m: string) => m === 'STOP';", true],
+      ['aspas-duplas.ts', 'export const ok = (m: string) => m !== "STOP";', true],
+      ['template.ts', 'export const ok = (m: string) => m === `STOP`;', true],
+      ['comentario.ts', "// o motivo de parada é 'STOP'\nexport const x = 1;", false],
+      ['pela-constante.ts', "import { CONCLUSAO } from './motor';\nexport const ok = (m: string) => m === CONCLUSAO;", false],
+      // A palavra dentro de outra string não é a grafia — `STOPWORDS` é outra coisa.
+      ['outra-palavra.ts', "export const x = 'STOPWORDS';", false],
+    ];
+    for (const [nome, fonte, deveAchar] of casos) {
+      const arquivo = join(dir, nome);
+      writeFileSync(arquivo, `${fonte}\n`);
+      assert.equal(stopForaDaConclusao([arquivo], dir).length > 0, deveAchar, `o detector de 'STOP' leu errado ${nome}`);
+    }
+    // E o adaptador do provedor continua livre, pelo caminho dele.
+    const doAdaptador = join(dir, ADAPTADOR_DO_PROVEDOR);
+    mkdirSync(dirname(doAdaptador), { recursive: true });
+    writeFileSync(doAdaptador, "export const ok = (m: string) => m === 'STOP';\n");
+    assert.deepEqual(stopForaDaConclusao([doAdaptador], dir), [], 'o adaptador do provedor deixou de ser livre');
+
+    // **A isenção do dono é cirúrgica**: ela apaga a declaração, e só ela. Um
+    // segundo literal dentro de `ia/motor.ts` — a comparação que a barreira
+    // existe para impedir, escrita no arquivo mais fácil de justificar — tem de
+    // ser pego. Sem este caso, a isenção seria um passe livre para o dono.
+    const doDono = join(dir, DONO_CONCLUSAO);
+    mkdirSync(dirname(doDono), { recursive: true });
+    writeFileSync(doDono, "export const CONCLUSAO = 'STOP';\n");
+    assert.deepEqual(stopForaDaConclusao([doDono], dir), [], 'a declaração do dono deixou de ser isenta');
+    writeFileSync(doDono, "export const CONCLUSAO = 'STOP';\nexport const ok = (m: string) => m === 'STOP';\n");
+    assert.deepEqual(
+      stopForaDaConclusao([doDono], dir),
+      [DONO_CONCLUSAO],
+      'um SEGUNDO literal no dono passou — a isenção virou passe livre',
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
   const alvos = [
     ...walk(SHARED_SRC), ...mobileFiles, ...webFiles,
     ...walk(join(ROOT, 'supabase', 'functions')), ...walk(join(ROOT, 'scripts')),
   ].filter((f) => !ehTeste(f));
-  const fora: string[] = [];
-  for (const f of alvos) {
-    const rel = f.replace(ROOT + '/', '');
-    if (rel === ADAPTADOR_DO_PROVEDOR) continue;
-    let src = semComentario(readFileSync(f, 'utf8'));
-    if (rel === DONO_CONCLUSAO) src = src.replace(DEFINE, '');
-    if (LITERAL.test(src)) fora.push(rel);
-  }
-  fora.sort();
-  if (fora.length < TETO_STOP) {
-    console.log(`     ↓ 'STOP' fora da CONCLUSAO caiu para ${fora.length} (teto ${TETO_STOP}) — baixe o teto`);
-  }
-  assert.ok(
-    fora.length <= TETO_STOP,
-    `'STOP' literal em ${fora.length} arquivos (teto ${TETO_STOP}): ${fora.join(', ')}.\n` +
+  assert.ok(alvos.length > 0, 'a varredura ficou sem alvo — a barreira passaria por vacuidade');
+  const fora = stopForaDaConclusao(alvos);
+  assert.deepEqual(
+    fora,
+    [],
+    `'STOP' literal em ${fora.length} arquivos: ${fora.join(', ')}.\n` +
       `  Compare com CONCLUSAO (ia/motor) — ou, melhor, não compare: quem traduz o motivo de ` +
       `parada é a borda, e a Resposta já chega concluída.`,
   );
 });
 
 /**
- * CATRACA — uma porta por hospedeiro (AD-10 (1), ADR 0047).
+ * BARREIRA — uma porta por hospedeiro (AD-10 (1), ADR 0047).
  *
  * O literal `'ia-narrar'` e o import da ponte `on-device-engine` só aparecem no
  * ponto de injeção declarado de cada hospedeiro: `mobile/src/lib/motores/`,
@@ -3019,16 +3077,27 @@ check(`CATRACA — o literal 'STOP' só na CONCLUSAO (teto ${TETO_STOP})`, () =>
  *             carregador, que é uma chamada só e que o que lança não aparece em
  *             `mobile/src`; a de `mobile/modules/`, que o módulo não tem TS por
  *             onde a ponte escaparia desta catraca.
+ *   0 (5.7)  — **vira barreira.** `services/route-name.ts` deixou de nomear a
+ *             function: ele pede o motor ao `motorPara` do ponto de injeção e
+ *             passa pelo orquestrador. Nascendo em zero, a não-vacuidade é
+ *             provada por **caso-espelho** — arquivos de verdade num diretório
+ *             temporário, pelo mesmo detector, incluindo um dentro do ponto de
+ *             injeção, que tem de continuar livre.
  */
 const PONTOS_DE_INJECAO = [
   /^mobile\/src\/lib\/motores\//,
   /^web\/src\/app\/core\/motores\//,
   /^scripts\/[^/]+\/motores\.ts$/,
 ];
-const TETO_PORTA_POR_HOSPEDEIRO = 1;
 
-check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospedeiro (teto ${TETO_PORTA_POR_HOSPEDEIRO})`, () => {
-  assert.ok(mobileFiles.length > 0 && webFiles.length > 0, 'mobile/src ou web/src sumiu — a catraca ficou sem alvo');
+/**
+ * Os arquivos que nomeiam a function ou carregam a ponte fora do ponto de
+ * injeção do hospedeiro, com o que foi achado em cada um.
+ *
+ * Extraída para que o caso-espelho passe pelo **mesmo** detector: um auto-teste
+ * com o seu próprio casador passaria verde com o detector de verdade quebrado.
+ */
+function portaForaDoPontoDeInjecao(arquivos: readonly string[], raiz: string = ROOT): string[] {
   // O nome da function em qualquer lugar do código — não só o literal solto: uma
   // chamada por URL (`…/functions/v1/ia-narrar`) é o mesmo cliente, e é a forma
   // mais provável para um script com JWT de usuário.
@@ -3042,10 +3111,9 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
     ].join('|'),
     'm',
   );
-  const alvos = [...mobileFiles, ...webFiles, ...walk(join(ROOT, 'scripts'))].filter((f) => !ehTeste(f));
   const fora: string[] = [];
-  for (const f of alvos) {
-    const rel = f.replace(ROOT + '/', '');
+  for (const f of arquivos) {
+    const rel = relativoARaiz(f, raiz);
     if (PONTOS_DE_INJECAO.some((re) => re.test(rel))) continue;
     const src = semComentario(readFileSync(f, 'utf8'));
     const o = [
@@ -3054,14 +3122,70 @@ check(`CATRACA — a ia-narrar e a ponte só no ponto de injeção de cada hospe
     ].filter((x): x is string => x !== null);
     if (o.length > 0) fora.push(`${rel} (${o.join(', ')})`);
   }
-  fora.sort();
-  if (fora.length < TETO_PORTA_POR_HOSPEDEIRO) {
-    console.log(`     ↓ porta fora do ponto de injeção caiu para ${fora.length} (teto ${TETO_PORTA_POR_HOSPEDEIRO}) — baixe o teto`);
+  return fora.sort();
+}
+
+check('BARREIRA — a ia-narrar e a ponte só no ponto de injeção de cada hospedeiro', () => {
+  assert.ok(mobileFiles.length > 0 && webFiles.length > 0, 'mobile/src ou web/src sumiu — a barreira ficou sem alvo');
+
+  // O caso-espelho: a guarda nasce em zero, então nenhum arquivo do repositório
+  // prova que ela vê. Estes são de verdade, e passam pelo mesmo detector.
+  const dir = mkdtempSync(join(tmpdir(), 'orbe-guarda-porta-'));
+  try {
+    const casos: readonly (readonly [string, string, boolean])[] = [
+      ['invoca.ts', "export const r = supabase.functions.invoke('ia-narrar', { body });", true],
+      ['por-url.ts', "export const u = `${base}/functions/v1/ia-narrar`;", true],
+      ['ponte-por-caminho.ts', "import { responder } from '../../modules/on-device-engine';\nexport { responder };", true],
+      ['ponte-pelo-nome.ts', "export const p = requireOptionalNativeModule<X>('OnDeviceEngine');", true],
+      ['ponte-nativemodules.ts', 'export const p = NativeModules.OnDeviceEngine;', true],
+      ['comentario.ts', "// quem chama a ia-narrar é mobile/src/lib/motores/\nexport const x = 1;", false],
+      ['pelo-ponto.ts', "import { motorPara } from '../lib/motores';\nexport const m = motorPara('nuvem:padrao');", false],
+    ];
+    for (const [nome, fonte, deveAchar] of casos) {
+      const arquivo = join(dir, nome);
+      writeFileSync(arquivo, `${fonte}\n`);
+      assert.equal(portaForaDoPontoDeInjecao([arquivo], dir).length > 0, deveAchar, `o detector da porta leu errado ${nome}`);
+    }
+
+    /*
+     * **Os três pontos de injeção, um a um.** Provar só o do celular deixava os
+     * outros dois sem rede: uma regex errada em `^web/src/app/core/motores/` ou
+     * no frágil `^scripts/[^/]+/motores\.ts$` desligaria a barreira para aquele
+     * hospedeiro sem ninguém ver — a lista continuaria vazia, e por vacuidade.
+     *
+     * O caso do `scripts/` vem em par: o caminho que a regex aceita (um nível de
+     * pasta) e o que ela recusa (dois níveis), porque é aí que ela quebra.
+     */
+    const livres: readonly (readonly [string, boolean])[] = [
+      ['mobile/src/lib/motores/index.ts', true],
+      ['mobile/src/lib/motores/fundo/adaptador.ts', true],
+      ['web/src/app/core/motores/nuvem.ts', true],
+      ['scripts/bancada/motores.ts', true],
+      // Fora do padrão: um nível a mais, ou outro nome de arquivo.
+      ['scripts/bancada/ia/motores.ts', false],
+      ['scripts/bancada/cliente.ts', false],
+      ['web/src/app/core/ia/motores.ts', false],
+    ];
+    for (const [caminho, deveSerLivre] of livres) {
+      const arquivo = join(dir, caminho);
+      mkdirSync(dirname(arquivo), { recursive: true });
+      writeFileSync(arquivo, "export const F = 'ia-narrar';\nexport const p = requireOptionalNativeModule('OnDeviceEngine');\n");
+      assert.equal(
+        portaForaDoPontoDeInjecao([arquivo], dir).length === 0,
+        deveSerLivre,
+        `${caminho} ${deveSerLivre ? 'deixou de ser' : 'virou'} ponto de injeção — confira PONTOS_DE_INJECAO`,
+      );
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
-  assert.ok(
-    fora.length <= TETO_PORTA_POR_HOSPEDEIRO,
-    `a function ou a ponte chamadas fora do ponto de injeção em ${fora.length} arquivos ` +
-      `(teto ${TETO_PORTA_POR_HOSPEDEIRO}):\n    ${fora.join('\n    ')}\n` +
+
+  const alvos = [...mobileFiles, ...webFiles, ...walk(join(ROOT, 'scripts'))].filter((f) => !ehTeste(f));
+  const fora = portaForaDoPontoDeInjecao(alvos);
+  assert.deepEqual(
+    fora,
+    [],
+    `a function ou a ponte chamadas fora do ponto de injeção em ${fora.length} arquivos:\n    ${fora.join('\n    ')}\n` +
       `  Quem fala com motor pede um ao ponto de injeção do hospedeiro (mobile/src/lib/motores/) e ` +
       `passa pelo orquestrador — criarMotorDeNuvem(invocar) já sabe ler a function.`,
   );

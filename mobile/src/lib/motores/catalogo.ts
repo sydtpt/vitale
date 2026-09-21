@@ -438,11 +438,16 @@ export interface Hospedagem {
  *
  * Existe porque um controle inerte mente tanto quanto uma omissão. O seletor lista
  * os recursos do catálogo do núcleo (e tem de continuar listando), mas só oferece
- * escolha para quem lê a preferência. Leem hoje a Saúde do sono (5.5) e a
+ * escolha para quem lê a preferência. Leem hoje a Saúde do sono (5.5), a
  * Retrospectiva — desde a 1.10, a impressão da revista resolve a cadeia pela
- * preferência e passa pelo orquestrador (`lib/edicao-ia.ts`). O nome de rota entra
- * na 5.7. Oferecer escolha para quem não a lê gravaria uma preferência que ninguém
- * consulta — o dono trocaria o motor e nada mudaria, sem nenhuma explicação.
+ * preferência e passa pelo orquestrador (`lib/edicao-ia.ts`) — e o nome de rota,
+ * desde a 5.7 (`services/route-name.ts`). Oferecer escolha para quem não a lê
+ * gravaria uma preferência que ninguém consulta — o dono trocaria o motor e nada
+ * mudaria, sem nenhuma explicação.
+ *
+ * **Os três recursos do núcleo estão ligados.** O campo `motivo` fica, e o tipo
+ * `Hospedagem` também: é ele que faz um recurso novo nascer com a resposta escrita
+ * em vez de nascer mudo.
  *
  * Fechado sobre `RecursoId`: recurso novo no núcleo **não compila** até alguém dizer
  * se esta camada o hospeda. É o que impede a lista de envelhecer calada.
@@ -450,10 +455,7 @@ export interface Hospedagem {
 export const HOSPEDAGEM: Readonly<Record<RecursoId, Hospedagem>> = {
   'saude-do-sono': { hospedado: true },
   retrospectiva: { hospedado: true },
-  'nome-de-rota': {
-    hospedado: false,
-    motivo: 'ainda não usado nesta versão: o nome de rota não passa pelo orquestrador',
-  },
+  'nome-de-rota': { hospedado: true },
 };
 
 /** O que o bloqueio precisa saber do recurso. Um `Descritor` cabe aqui. */

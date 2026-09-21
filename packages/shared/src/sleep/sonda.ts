@@ -34,8 +34,8 @@
  * janela: alcance, `range` e limites), a mesma na lista do pedido e no `enum` do esquema:
  * o mesmo acervo dá o mesmo pedido, e a ordem muda de uma janela para outra.
  */
-import { SEM_MODELO, conformeAoEsquema, type Esquema } from '../ia/fio';
-import type { Pedido } from '../ia/motor';
+import { SEM_MODELO, type Esquema } from '../ia/fio';
+import { interpretarPorEsquema, type Pedido } from '../ia/motor';
 import { sha256Hex } from '../ia/sha256';
 import type { Conferencia, Descritor } from '../ia/orquestrar';
 import { casoDaSaude, type CasoDaSaude } from './caso';
@@ -171,17 +171,13 @@ export const descritorDaSondaDaSaude: Descritor<EntradaDaSaude, SleepDimensionKe
 
   montarPedido: pedidoDe,
 
+  // A leitura por esquema é do núcleo (`interpretarPorEsquema`, story 5.7): o
+  // `JSON.parse` e a conferência eram daqui e passaram a ser divididos, com o
+  // mesmo `detalhe`, para a saída guiada ter um diagnóstico só.
   interpretar: (resposta) => {
-    let lido: unknown;
-    try {
-      lido = JSON.parse(resposta.texto);
-    } catch {
-      return { classe: 'saida-invalida', detalhe: `a resposta não é JSON: ${resposta.texto.slice(0, 200)}` };
-    }
-    if (!conformeAoEsquema(lido, ESQUEMA_DA_LEITURA)) {
-      return { classe: 'saida-invalida', detalhe: `a resposta não cabe no esquema: ${resposta.texto.slice(0, 200)}` };
-    }
-    return (lido as { readonly dimensao: SleepDimensionKey }).dimensao;
+    const lido = interpretarPorEsquema(ESQUEMA_DA_LEITURA, resposta);
+    if ('classe' in lido) return lido;
+    return (lido.valor as { readonly dimensao: SleepDimensionKey }).dimensao;
   },
 
   conferir: (escolha, e) => {

@@ -193,3 +193,36 @@ passeio vai portanto mostrar `Mechelen` na lista de cidades do mapa e `Malines` 
 
 Não é bug. São dois campos com políticas diferentes, de propósito, e está escrito aqui para
 que ninguém "conserte" isso daqui a seis meses.
+
+## 11. Emenda — 21/09/2026: o nome passou pela porta (story 5.7)
+
+**O que este spec descreve acima é o desenho de 07/09/2026, e o julgamento dele continua
+valendo inteiro**: a região histórica é o assunto, o modelo devolve campos e nunca a frase, o
+molde contrai a gramática, a conferência cobra a justificativa contra as cidades enviadas, e o
+conflito de língua da §10 é de propósito. Nada disso mudou.
+
+**O que mudou é o caminho.** Duas coisas escritas acima já não descrevem o código:
+
+1. **O passe não roda no ingest.** A §"O fluxo" ainda mostra `enrichRouteNames()` em
+   `supabase/functions/_shared/ingest.ts`. Isso foi substituído pela
+   [ADR 0042](../../decisions/0042-o-passe-de-nome-roda-no-aparelho.md) ainda em 07/09: o passe
+   roda **no aparelho**, uma vez por pedalada, quando o dono abre o detalhe.
+
+2. **Desde a story 5.7 (21/09/2026), quem percorre a sequência é o orquestrador de motores.** O
+   nome de rota virou um **descritor** (`packages/shared/src/routes/descritor.ts`) e passa pela
+   porta única da [ADR 0047](../../decisions/0047-a-porta-do-motor-e-uma-so-e-a-ponte-do-aparelho-e-nossa.md).
+   O chamador injetado (`ChamadorDeModelo`) e a função `nomearRota` **não existem mais**. Em
+   troca, o recurso ganhou o que não tinha: aparece no seletor de
+   `/configuracoes/motores`, respeita a escolha de motor do dono por aparelho
+   ([ADR 0048](../../decisions/0048-o-motor-e-escolhido-por-aparelho-e-a-lista-da-nuvem-e-do-servidor.md)),
+   e tem cadeia, recuo e as sete classes de falha. O prompt é o mesmo, byte a byte, e
+   `PROMPT_NOME_VERSAO` continua em 2 — os 133 nomes aprovados seguem comparáveis.
+
+**As recusas gravadas mudaram de conjunto.** O `route_name_meta` continua sendo o desempate da
+§3 do data-model ("passou e decidiu não nomear"), mas o `truncado` **não é mais escrito**. Pela
+porta, o motivo de parada que não é conclusão para na borda da nuvem e chega sem resposta
+assinada — e desde a 5.7 só a saída que um motor de fato escreveu vira recusa permanente, senão
+um 2xx com HTML de gateway deixaria a pedalada sem nome para sempre. Na prática, o truncado
+passou a ser **tentado de novo** na próxima abertura. As recusas que gravam hoje são
+`degenerada`, `ilegivel`, `reprovado` e `sem-molde`; `truncado` segue no tipo só porque linhas
+antigas o têm.
