@@ -15,46 +15,6 @@
 import Foundation
 import FoundationModels
 
-final class Placar {
-  var passaram = 0
-  var falharam: [String] = []
-
-  func conferir(_ nome: String, _ condicao: Bool, _ detalhe: @autoclosure () -> String = "") {
-    if condicao {
-      passaram += 1
-      print("  ok \(nome)")
-    } else {
-      falharam.append(nome)
-      let d = detalhe()
-      print("  FALHOU \(nome)\(d.isEmpty ? "" : " — \(d)")")
-    }
-  }
-
-  func igual<T: Equatable>(_ nome: String, _ obtido: T, _ esperado: T) {
-    conferir(nome, obtido == esperado, "obtido \(obtido), esperado \(esperado)")
-  }
-}
-
-/// Uma linha de saída lida de volta como objeto JSON.
-func objeto(_ linha: String) -> [String: Any]? {
-  guard let dados = linha.data(using: .utf8) else { return nil }
-  return (try? JSONSerialization.jsonObject(with: dados)) as? [String: Any]
-}
-
-/// O pedido como `serializarPedido` o escreve: chaves ordenadas, com a versão do descritor.
-func pedidoCanonico(saida: String, guardrails: String = "padrao", amostragem: String = "gulosa") -> String {
-  "{\"amostragem\":\"\(amostragem)\",\"guardrails\":\"\(guardrails)\",\"saida\":\(saida),"
-    + "\"sistema\":\"as regras\",\"usuario\":\"o caso\",\"versaoDoDescritor\":1}"
-}
-
-let SAIDA_TEXTO = "{\"tipo\":\"texto\"}"
-/// O esquema da sonda de fidelidade, na forma canônica do fio.
-let SAIDA_DA_SONDA =
-  "{\"esquema\":{\"properties\":{\"dimensao\":{\"enum\":[\"duracao\",\"horario\",\"percepcao\"],\"type\":\"string\"}},"
-  + "\"required\":[\"dimensao\"],\"type\":\"object\"},\"tipo\":\"esquema\"}"
-
-struct ErroEstranho: Error {}
-
 @main
 struct Testes {
   static func main() async {
@@ -104,6 +64,8 @@ struct Testes {
       todas.map(\.rawValue),
       ["indisponivel", "capacidade", "janela", "guarda", "recusa-do-modelo", "saida-invalida", "transitoria"]
     )
+
+    await provarOMotorCoreAI(p)
 
     print("o erro → identificador (a metade do switch)")
     // Cancelamento não está na tabela da AD-4: é "o resto", e o anel precisa saber.
@@ -253,17 +215,17 @@ struct Testes {
       (Engine.falhaDe(.prazo, detalhe: String(repeating: "a", count: 5_000)).detalhe?.count ?? 0) <= Engine.limiteDoDetalhe + 1
     )
     p.conferir("resposta vazia é saida-invalida", {
-      if case .falha(let f) = Engine.resposta("  \n ", tokens: nil) { return f.classe == .saidaInvalida }
+      if case .falha(let f) = Engine.resposta("  \n ", tokens: nil, provedor: Engine.provedor) { return f.classe == .saidaInvalida }
       return false
     }())
 
     print("o modelo da assinatura (story 5.9)")
-    if case .resposta(let r) = Engine.resposta("x", tokens: nil) {
+    if case .resposta(let r) = Engine.resposta("x", tokens: nil, provedor: Engine.provedor) {
       p.igual("sem variante, o nome genérico", r.modelo, Engine.modelo)
     } else {
       p.conferir("a resposta com texto é resposta", false)
     }
-    if case .resposta(let r) = Engine.resposta("x", tokens: nil, modelo: "AFM 3 Core Advanced") {
+    if case .resposta(let r) = Engine.resposta("x", tokens: nil, provedor: Engine.provedor, modelo: "AFM 3 Core Advanced") {
       p.igual("com variante, a variante", r.modelo, "AFM 3 Core Advanced")
     } else {
       p.conferir("a resposta com variante é resposta", false)
@@ -421,4 +383,104 @@ struct Testes {
     LanguageModelSession.GenerationError.rateLimited(.init(debugDescription: "x"))
   }
   #endif
+
+  /// O motor de **peso aberto** (story 5.8), percorrido **sem biblioteca e sem modelo**.
+  ///
+  /// É o ponto do desenho: a tabela dele classifica uma `FalhaDaCarga` de tipos do
+  /// `Foundation` — não o erro do pacote da Apple, que este binário não enxerga. Aqui o
+  /// arquivo é compilado sem `ORBE_COREAI`, exatamente como no simulador e num build sem a
+  /// vendorização, e é por isso que o caminho "indisponível com motivo" também se prova.
+  @MainActor
+  static func provarOMotorCoreAI(_ p: Placar) async {
+    print("o motor de peso aberto: o nome dos pesos vira caminho (story 5.8)")
+    for bom in ["smollm2-135m", "qwen3_0_6b", "a", "MODELO.1"] {
+      p.conferir("aceita \(bom)", MotorCoreAI.nomeValido(bom))
+    }
+    // O nome vem do JS e vira caminho: sem a régua, um `..` sairia da pasta de recursos.
+    for ruim in ["", "..", "../pesos", "a/b", ".oculto", "com espaço", "a\u{0000}b", String(repeating: "x", count: 129)] {
+      p.conferir("recusa \(ruim.debugDescription)", !MotorCoreAI.nomeValido(ruim))
+    }
+
+    print("a falha de carga → identificador → classe")
+    let carga: [(MotorCoreAI.FalhaDaCarga, ErroDoModelo)] = [
+      (.init(nomeDoTipo: "CoreAI.Erro", descricao: "não abriu", dominio: "CoreAI", codigo: 3), .pesosAusentes),
+      (.init(nomeDoTipo: "CoreAI.Erro", descricao: "x", dominio: MotorCoreAI.dominioPosix, codigo: MotorCoreAI.codigoSemMemoria), .capacidadeNaoSuportada),
+      // A rede do sniffing, declarada como tal no fonte.
+      (.init(nomeDoTipo: "CoreAI.Erro", descricao: "Out of memory while specializing", dominio: "CoreAI", codigo: 1), .capacidadeNaoSuportada),
+      (.init(nomeDoTipo: "CoreAI.Erro", descricao: "Memory limit exceeded", dominio: "", codigo: 0), .capacidadeNaoSuportada),
+      // E a régua é estreita de propósito: um nome de tipo em camelCase não dispara o
+      // sniffing — só a prosa do erro dispara.
+      (.init(nomeDoTipo: "CoreAI.MemoryLimitError", descricao: "x", dominio: "", codigo: 0), .pesosAusentes),
+      (.init(nomeDoTipo: "CoreAI.Erro", descricao: "cannot allocate 4 GB", dominio: "", codigo: 0), .capacidadeNaoSuportada),
+      (.init(nomeDoTipo: "CoreAI.Erro", descricao: "o arquivo está corrompido", dominio: "NSCocoaErrorDomain", codigo: 260), .pesosAusentes),
+    ]
+    for (f, id) in carga {
+      p.igual("carga \(f.nomeDoTipo)/\(f.dominio) \(f.codigo) → \(id)", MotorCoreAI.identificar(f), id)
+    }
+    // Memória é `capacidade` (o aparelho atende, este peso não cabe); o resto recua.
+    p.igual("memória vira capacidade", Engine.classe(de: .capacidadeNaoSuportada), .capacidade)
+    p.igual("o resto da carga vira indisponivel", Engine.classe(de: .pesosAusentes), .indisponivel)
+    let linhaDaCarga = MotorCoreAI.falhaDaCarga(carga[0].0)
+    p.igual("a falha de carga é indisponivel", linhaDaCarga.classe, .indisponivel)
+    p.conferir("e o detalhe nomeia o tipo e o domínio", linhaDaCarga.detalhe?.contains("CoreAI.Erro · CoreAI 3") == true, linhaDaCarga.detalhe ?? "nil")
+
+    print("a pasta dos pesos, sobre o disco de verdade")
+    let raiz = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("orbe-coreai-\(UUID().uuidString)")
+    let gerente = FileManager.default
+    let pasta = raiz.appendingPathComponent(MotorCoreAI.pastaDosPesos).appendingPathComponent("smollm2-135m")
+    try? gerente.createDirectory(at: pasta, withIntermediateDirectories: true)
+    defer { try? gerente.removeItem(at: raiz) }
+
+    func motivoDe(_ e: MotorCoreAI.EstadoDosPesos) -> String? {
+      if case .falta(let motivo, _) = e { return motivo }
+      return nil
+    }
+
+    p.igual("sem raiz de recursos: semPesos", motivoDe(MotorCoreAI.estadoDaPasta("smollm2-135m", raiz: nil)), MotorCoreAI.motivoSemPesos)
+    p.igual("nome inválido: semPesos", motivoDe(MotorCoreAI.estadoDaPasta("../fuga", raiz: raiz)), MotorCoreAI.motivoSemPesos)
+    p.igual("pasta que não existe: semPesos", motivoDe(MotorCoreAI.estadoDaPasta("outro-modelo", raiz: raiz)), MotorCoreAI.motivoSemPesos)
+    // A pasta existe e não é um bundle de Core AI — a linha "corrompida" da matriz.
+    p.igual("sem ficha: pesosIlegiveis", motivoDe(MotorCoreAI.estadoDaPasta("smollm2-135m", raiz: raiz)), MotorCoreAI.motivoPesosIlegiveis)
+    let ficha = pasta.appendingPathComponent(MotorCoreAI.arquivoDaFicha)
+    try? Data("{ isto não é json".utf8).write(to: ficha)
+    p.igual("ficha ilegível: pesosIlegiveis", motivoDe(MotorCoreAI.estadoDaPasta("smollm2-135m", raiz: raiz)), MotorCoreAI.motivoPesosIlegiveis)
+
+    try? Data("{\"language\":{\"max_context_length\":4096}}".utf8).write(to: ficha)
+    if case .pronto(let url, let janela) = MotorCoreAI.estadoDaPasta("smollm2-135m", raiz: raiz) {
+      p.igual("com ficha: pronto, com a janela dela", janela, 4096)
+      p.conferir("e aponta para a pasta, não para o .aimodel", url.lastPathComponent == "smollm2-135m", url.path)
+    } else {
+      p.conferir("com ficha: pronto", false)
+    }
+    // Janela ausente não impede gerar — ela é detalhe de tela.
+    try? Data("{\"language\":{}}".utf8).write(to: ficha)
+    if case .pronto(_, let janela) = MotorCoreAI.estadoDaPasta("smollm2-135m", raiz: raiz) {
+      p.igual("ficha sem janela: pronto mesmo assim", janela, nil)
+    } else {
+      p.conferir("ficha sem janela: pronto mesmo assim", false)
+    }
+
+    print("as duas portas devolvem uma linha do contrato, sem biblioteca")
+    let diagnostico = MotorCoreAI.diagnostico(pesos: "smollm2-135m")
+    let lido = objeto(diagnostico)
+    p.conferir("o diagnóstico é uma linha JSON", lido != nil, diagnostico)
+    p.igual("e diz que não atende (sem biblioteca, aqui)", lido?["disponivel"] as? Bool, false)
+    let motivo = lido?["motivo"] as? String ?? ""
+    p.conferir("com um motivo que o app conhece", MotorCoreAI.motivos().contains(motivo), motivo)
+    p.conferir("o diagnóstico não atravessa duas linhas", !diagnostico.contains("\n"))
+
+    let resposta = await MotorCoreAI.responder(pesos: "smollm2-135m", pedido: pedidoCanonico(saida: SAIDA_TEXTO))
+    let falha = objeto(resposta)
+    p.igual("sem biblioteca, responder é indisponivel", falha?["classe"] as? String, ClasseDeFalha.indisponivel.rawValue)
+    p.conferir("e o detalhe diz por quê", (falha?["detalhe"] as? String)?.isEmpty == false, resposta)
+    p.conferir("e nunca lança", !resposta.isEmpty)
+
+    // O pedido ilegível é recusado **antes** dos pesos: a conversão é a mesma do Engine.
+    let ilegivel = await MotorCoreAI.responder(pesos: "smollm2-135m", pedido: "{\"sistema\":1}")
+    p.igual("pedido ilegível continua capacidade", objeto(ilegivel)?["classe"] as? String, ClasseDeFalha.capacidade.rawValue)
+
+    print("os quatro motivos são uma lista fechada e sem repetição")
+    p.igual("são quatro", MotorCoreAI.motivos().count, 4)
+    p.igual("sem repetição", Set(MotorCoreAI.motivos()).count, 4)
+  }
 }

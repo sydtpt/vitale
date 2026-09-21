@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 21-09-2026 16:41
+last_updated: 21-09-2026 20:20
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -292,12 +292,20 @@ development_status:
   # idêntica ao que o caminho antigo produzira 43 min antes, com os MESMOS 1.160
   # tokens de entrada — a prova de que o pedido não mudou.
   5-7-o-nome-de-rota-pela-porta: review
-  # 5.8 EM MEDIÇÃO desde 21/09: a sonda do Core AI rodou no Mac (fase 0, sem build).
-  # O caminho técnico funciona sem o Metal Toolchain, mas o qwen3-1.7b contra as
-  # 135 rotas aprovadas aprovou em 97% e ACERTOU em 10% — e copiou "Pajottenland"
-  # (o 1º exemplo do prompt) em 30 das 31 regiões que propôs. O dono pediu um
-  # modelo maior antes de encerrar; essa corrida está em andamento.
-  5-8-core-ai: backlog
+  # ESCOPO REDEFINIDO pelo dono em 21/09, depois da sonda no Mac: a 5.8 passa a ser
+  # **a ponte do Core AI**, não o recurso. Ele autorizou subir o alvo mínimo para
+  # iOS 27 ("o app é só meu") e NÃO quer peso embarcado por tamanho — mas escolheu
+  # embarcar o menor (SmolLM2-135M, 260 MB) só nesta story, como prova, com a
+  # dívida de tirá-lo na seguinte. O risco é o empacotamento: o CocoaPods não
+  # declara dependência de pacote Swift. Medições que sustentam o recorte:
+  # o qwen3-1.7b aprova 97% e acerta 10% nas 135 rotas; o 4b não coube no disco.
+  # CONSTRUÍDA e revisada em 21/09/2026 (21 consertos, sem loopback). O
+  # empacotamento venceu por uma QUARTA saída — casca fina com `internal import`,
+  # cuja .swiftinterface não cita o pacote da Apple —, e o Metal Toolchain não foi
+  # preciso: como recurso de pod estático, os pesos são copiados por rsync. Build
+  # do iPhone verde com o Core AI dentro. O peso aberto é bloqueado fora da Saúde
+  # do sono, que não grava. Falta o portão do dono: instalar e ver texto sair.
+  5-8-core-ai: review
   # NASCEU da medição da 5.8, em 21/09. Escopo cortado pelo dono no mesmo dia: só
   # a regra do artigo, que tem prova de corpus (os 135 nomes aprovados usam só
   # `le` e `la`, ambos franceses). A regra da grafia FICOU DE FORA — `Hal` é o

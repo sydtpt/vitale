@@ -19,7 +19,12 @@ import {
   lerMotorId,
 } from '@vitale/shared';
 import {
+  APARELHO_COREAI_SMOLLM2,
   HOSPEDAGEM,
+  MOTIVO_COREAI_DESCONHECIDO,
+  MOTIVO_COREAI_FORA_DO_IOS,
+  MOTIVO_COREAI_SEM_PONTE,
+  MOTIVO_DO_COREAI_EM_PALAVRAS,
   MOTIVO_CONSULTANDO,
   MOTIVO_DESCONHECIDO,
   MOTIVO_EM_PALAVRAS,
@@ -29,12 +34,14 @@ import {
   MOTORES_CONHECIDOS,
   PONTE_AUSENTE,
   PONTE_CONSULTANDO,
+  PESOS_DO_COREAI,
   PONTE_FORA_DO_IOS,
   detalheDoAparelho,
   idsConhecidos,
   idsConhecidosDe,
   motivoDeBloqueio,
   motivoDoAparelho,
+  motivoDoCoreAI,
   motorConhecido,
   motorDisponivel,
   motoresDoRecurso,
@@ -79,7 +86,7 @@ describe('o catálogo de motores do app', () => {
     expect(aparelho?.motivo).toBe('a ponte para o modelo do sistema não está neste build');
     expect(idsConhecidos).toContain(APARELHO_SISTEMA);
     // E é o mesmo que o catálogo diz com a ponte ausente.
-    expect(motorConhecido(APARELHO_SISTEMA, motoresDoRecurso('saude-do-sono', PONTE_AUSENTE, null))).toEqual(aparelho);
+    expect(motorConhecido(APARELHO_SISTEMA, motoresDoRecurso('saude-do-sono', { sistema: PONTE_AUSENTE, coreai: PONTE_AUSENTE }, null))).toEqual(aparelho);
   });
 
   it('todo motor tem rótulo e descrição — o seletor não mostra id cru', () => {
@@ -135,10 +142,10 @@ describe('por que um motor não pode ser escolhido', () => {
       'a ponte para o modelo do sistema não está neste build',
     );
     // Com a ponte e o modelo de pé: liberado (5.9).
-    const pronto = motoresDoRecurso('saude-do-sono', lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 4096 }), null);
+    const pronto = motoresDoRecurso('saude-do-sono', { sistema: lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 4096 }), coreai: PONTE_AUSENTE }, null);
     expect(motivoDeBloqueio(saude, APARELHO_SISTEMA, pronto)).toBeNull();
     // Com a ponte e a Apple Intelligence desligada: o motivo em palavras.
-    const desligada = motoresDoRecurso('saude-do-sono', lido({ estado: 'indisponivel', motivo: 'appleIntelligenceNotEnabled' }), null);
+    const desligada = motoresDoRecurso('saude-do-sono', { sistema: lido({ estado: 'indisponivel', motivo: 'appleIntelligenceNotEnabled' }), coreai: PONTE_AUSENTE }, null);
     expect(motivoDeBloqueio(saude, APARELHO_SISTEMA, desligada)).toBe('a Apple Intelligence está desligada nos Ajustes');
   });
 
@@ -151,7 +158,7 @@ describe('por que um motor não pode ser escolhido', () => {
     expect(motivoDeBloqueio(nomeDeRota, APARELHO_SISTEMA, MOTORES_CONHECIDOS)).toBe(
       'a ponte para o modelo do sistema não está neste build',
     );
-    const pronto = motoresDoRecurso('nome-de-rota', lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 4096 }), null);
+    const pronto = motoresDoRecurso('nome-de-rota', { sistema: lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 4096 }), coreai: PONTE_AUSENTE }, null);
     expect(motivoDeBloqueio(nomeDeRota, APARELHO_SISTEMA, pronto)).toBeNull();
   });
 
@@ -184,7 +191,7 @@ describe('por que um motor não pode ser escolhido', () => {
     expect(motivoDeBloqueio(retro, NUVEM_PADRAO, MOTORES_CONHECIDOS)).toBeNull();
     expect(motivoDeBloqueio(retro, APARELHO_SISTEMA, MOTORES_CONHECIDOS)).toBe('este recurso não guarda o que o modelo do aparelho escreve');
     // E continua barrado com a ponte de pé (5.9): nada muda para quem grava.
-    const pronto = motoresDoRecurso('retrospectiva', lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 4096 }), null);
+    const pronto = motoresDoRecurso('retrospectiva', { sistema: lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 4096 }), coreai: PONTE_AUSENTE }, null);
     expect(motivoDeBloqueio(retro, APARELHO_SISTEMA, pronto)).toBe('este recurso não guarda o que o modelo do aparelho escreve');
   });
 
@@ -243,7 +250,7 @@ describe('o nome dos motores', () => {
 });
 
 describe('o aparelho no diagnóstico da ponte (story 5.9)', () => {
-  const aparelhoEm = (ponte: EstadoDaPonte) => motorConhecido(APARELHO_SISTEMA, motoresDoRecurso('saude-do-sono', ponte, null));
+  const aparelhoEm = (ponte: EstadoDaPonte) => motorConhecido(APARELHO_SISTEMA, motoresDoRecurso('saude-do-sono', { sistema: ponte, coreai: PONTE_AUSENTE }, null));
 
   it('pronto: disponível, sem motivo, com a variante e a janela numa linha simples', () => {
     const a = aparelhoEm(lido({ estado: 'disponivel', variante: 'AFM 3 Core Advanced', janela: 8192 }));
@@ -302,7 +309,7 @@ describe('o aparelho no diagnóstico da ponte (story 5.9)', () => {
       lido({ estado: 'ilegivel', detalhe: 'x' }),
     ];
     for (const p of estados) {
-      for (const m of motoresDoRecurso('saude-do-sono', p, null)) {
+      for (const m of motoresDoRecurso('saude-do-sono', { sistema: p, coreai: PONTE_AUSENTE }, null)) {
         if (m.disponivel) expect(m.motivo).toBeUndefined();
         else expect(typeof m.motivo === 'string' && m.motivo.length > 0).toBe(true);
       }
@@ -311,13 +318,13 @@ describe('o aparelho no diagnóstico da ponte (story 5.9)', () => {
 
   it('a ponte não muda os ids: o aparelho entra na cadeia em todo estado', () => {
     for (const p of [PONTE_AUSENTE, lido({ estado: 'disponivel' })]) {
-      expect(motoresDoRecurso('saude-do-sono', p, null).map((m) => m.id)).toEqual([...idsConhecidos]);
+      expect(motoresDoRecurso('saude-do-sono', { sistema: p, coreai: PONTE_AUSENTE }, null).map((m) => m.id)).toEqual([...idsConhecidos]);
     }
   });
 });
 
 describe('a ponte fora do caminho feliz, e o que o seletor precisa (story 5.9, revisão)', () => {
-  const aparelhoEm = (ponte: EstadoDaPonte) => motorConhecido(APARELHO_SISTEMA, motoresDoRecurso('saude-do-sono', ponte, null));
+  const aparelhoEm = (ponte: EstadoDaPonte) => motorConhecido(APARELHO_SISTEMA, motoresDoRecurso('saude-do-sono', { sistema: ponte, coreai: PONTE_AUSENTE }, null));
 
   it('fora do iOS o motivo é da plataforma, não do build', () => {
     expect(motivoDoAparelho(PONTE_FORA_DO_IOS)).toBe(MOTIVO_FORA_DO_IOS);
@@ -345,10 +352,140 @@ describe('a ponte fora do caminho feliz, e o que o seletor precisa (story 5.9, r
     const lista: ListaAprovada = { motores: [{ motor: 'nuvem:acme/modelo-9', recursos: ['saude-do-sono'] }], lidaEm: 1 };
     for (const p of [PONTE_AUSENTE, PONTE_FORA_DO_IOS, PONTE_CONSULTANDO, lido({ estado: 'disponivel' })]) {
       for (const recurso of RECURSOS) {
-        expect(idsConhecidosDe(recurso, lista)).toEqual(motoresDoRecurso(recurso, p, lista).map((m) => m.id));
-        expect(idsConhecidosDe(recurso, null)).toEqual(motoresDoRecurso(recurso, p, null).map((m) => m.id));
+        expect(idsConhecidosDe(recurso, lista)).toEqual(motoresDoRecurso(recurso, { sistema: p, coreai: PONTE_AUSENTE }, lista).map((m) => m.id));
+        expect(idsConhecidosDe(recurso, null)).toEqual(motoresDoRecurso(recurso, { sistema: p, coreai: PONTE_AUSENTE }, null).map((m) => m.id));
       }
     }
     expect(idsConhecidosDe('saude-do-sono', lista)).toContain('nuvem:acme/modelo-9');
+  });
+});
+
+describe('o peso aberto no diagnóstico dele (story 5.8)', () => {
+  const coreaiEm = (coreai: EstadoDaPonte) =>
+    motorConhecido(APARELHO_COREAI_SMOLLM2, motoresDoRecurso('saude-do-sono', { sistema: PONTE_AUSENTE, coreai }, null));
+
+  it('está sempre na lista, disponível ou não — o seletor não mente por omissão', () => {
+    for (const c of [PONTE_AUSENTE, PONTE_CONSULTANDO, PONTE_FORA_DO_IOS, lido({ estado: 'disponivel' })]) {
+      expect(coreaiEm(c)).toBeDefined();
+      expect(idsConhecidosDe('saude-do-sono', null)).toContain(APARELHO_COREAI_SMOLLM2);
+    }
+  });
+
+  it('com os pesos no build: disponível, com o nome deles e a janela da ficha', () => {
+    const c = coreaiEm(lido({ estado: 'disponivel', variante: 'smollm2-135m', janela: 4096 }));
+    expect(c?.disponivel).toBe(true);
+    expect(c?.motivo).toBeUndefined();
+    expect(c?.detalhe).toBe('smollm2-135m · janela de 4.096 tokens');
+    expect(c?.rotulo).toBe('Peso aberto (SmolLM2 135M)');
+  });
+
+  it('sem os pesos: indisponível **com motivo em palavras**, nunca some da lista', () => {
+    // A linha "Sem modelo" da matriz da 5.8 — e é o futuro normal, quando o peso sair do
+    // binário na story seguinte.
+    const c = coreaiEm(lido({ estado: 'indisponivel', motivo: 'semPesos' }));
+    expect(c?.disponivel).toBe(false);
+    expect(c?.motivo).toBe(MOTIVO_DO_COREAI_EM_PALAVRAS.semPesos);
+    expect(c?.detalhe).toBeUndefined();
+  });
+
+  it('cada motivo do Core AI sai em palavras; um que esta versão não conhece não vira texto cru', () => {
+    for (const [motivo, palavras] of Object.entries(MOTIVO_DO_COREAI_EM_PALAVRAS)) {
+      expect(motivoDoCoreAI(lido({ estado: 'indisponivel', motivo }))).toBe(palavras);
+      expect(palavras.length).toBeGreaterThan(0);
+    }
+    expect(motivoDoCoreAI(lido({ estado: 'indisponivel', motivo: 'algoNovo' }))).toBe(MOTIVO_COREAI_DESCONHECIDO);
+    expect(motivoDoCoreAI(lido({ estado: 'ilegivel', detalhe: 'x' }))).toBe(MOTIVO_ILEGIVEL);
+    // E o desconhecido fala **deste** motor: o do modelo do sistema anunciaria a
+    // indisponibilidade do outro na linha errada.
+    expect(MOTIVO_COREAI_DESCONHECIDO).not.toBe(MOTIVO_DESCONHECIDO);
+    expect(MOTIVO_COREAI_DESCONHECIDO).toContain('peso aberto');
+  });
+
+  it('um motivo vindo do protótipo não vira função na tela', () => {
+    // O motivo vem da linha JSON da ponte. `MAPA[motivo]` com `constructor` acharia uma
+    // função no protótipo, o `??` não a pegaria, e o `<Text>` receberia uma função.
+    for (const veneno of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
+      const m = motivoDoCoreAI(lido({ estado: 'indisponivel', motivo: veneno }));
+      expect(typeof m).toBe('string');
+      expect(m).toBe(MOTIVO_COREAI_DESCONHECIDO);
+    }
+  });
+
+  it('o vocabulário é outro: a ausência da ponte e o fora-do-iOS falam do peso aberto', () => {
+    expect(motivoDoCoreAI(PONTE_AUSENTE)).toBe(MOTIVO_COREAI_SEM_PONTE);
+    expect(motivoDoCoreAI(PONTE_FORA_DO_IOS)).toBe(MOTIVO_COREAI_FORA_DO_IOS);
+    expect(motivoDoCoreAI(PONTE_CONSULTANDO)).toBe(MOTIVO_CONSULTANDO);
+    expect(motivoDoCoreAI(lido({ estado: 'disponivel' }))).toBeNull();
+    // E não é o do modelo do sistema: um estado só faria o seletor contar a razão de um
+    // motor como se fosse a do outro.
+    expect(MOTIVO_COREAI_SEM_PONTE).not.toBe(MOTIVO_SEM_PONTE);
+    expect(MOTIVO_COREAI_FORA_DO_IOS).not.toBe(MOTIVO_FORA_DO_IOS);
+  });
+
+  it('os dois diagnósticos são independentes: um de pé não põe o outro de pé', () => {
+    const conhecidos = motoresDoRecurso(
+      'saude-do-sono',
+      {
+        sistema: lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 8192 }),
+        coreai: lido({ estado: 'indisponivel', motivo: 'semBiblioteca' }),
+      },
+      null,
+    );
+    expect(motorConhecido(APARELHO_SISTEMA, conhecidos)?.disponivel).toBe(true);
+    expect(motorConhecido(APARELHO_COREAI_SMOLLM2, conhecidos)?.disponivel).toBe(false);
+    expect(motorConhecido(APARELHO_COREAI_SMOLLM2, conhecidos)?.motivo).toBe(
+      MOTIVO_DO_COREAI_EM_PALAVRAS.semBiblioteca,
+    );
+  });
+});
+
+describe('o peso aberto é prova, não ferramenta (story 5.8)', () => {
+  const saude = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'saude-do-sono')!;
+  const disponivel = motoresDoRecurso(
+    'saude-do-sono',
+    { sistema: PONTE_AUSENTE, coreai: lido({ estado: 'disponivel', variante: 'smollm2-135m', janela: 4096 }) },
+    null,
+  );
+
+  it('na Saúde do sono, com os pesos no build, ele é escolhível — é onde o dono vê o texto sair', () => {
+    expect(motivoDeBloqueio(saude, APARELHO_COREAI_SMOLLM2, disponivel)).toBeNull();
+  });
+
+  it('em todo recurso que GRAVA ele é bloqueado, com motivo — mesmo com os pesos de pé', () => {
+    // A spec diz, em Never, que ele "entra no seletor e para aí". O regime sozinho não
+    // garantia isso: `nome-de-rota` admite motor de aparelho e grava, e um nome errado
+    // gravado não se desfaz.
+    for (const d of CATALOGO_DE_RECURSOS) {
+      if (d.recurso === 'saude-do-sono') continue;
+      const conhecidos = motoresDoRecurso(
+        d.recurso,
+        { sistema: PONTE_AUSENTE, coreai: lido({ estado: 'disponivel', variante: 'smollm2-135m', janela: 4096 }) },
+        null,
+      );
+      const motivo = motivoDeBloqueio(d, APARELHO_COREAI_SMOLLM2, conhecidos);
+      expect(typeof motivo).toBe('string');
+      expect(motivo).toContain('prova de caminho');
+    }
+  });
+
+  it('o bloqueio não respinga no modelo do sistema nem na nuvem', () => {
+    const nomeDeRota = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'nome-de-rota')!;
+    const conhecidos = motoresDoRecurso(
+      'nome-de-rota',
+      { sistema: lido({ estado: 'disponivel', variante: 'AFM 3 Core', janela: 8192 }), coreai: PONTE_AUSENTE },
+      null,
+    );
+    expect(motivoDeBloqueio(nomeDeRota, APARELHO_SISTEMA, conhecidos)).toBeNull();
+    expect(motivoDeBloqueio(nomeDeRota, NUVEM_PADRAO, conhecidos)).toBeNull();
+  });
+
+  it('o id e o nome dos pesos são o mesmo nome — divergir deixaria o motor sempre semPesos', () => {
+    expect(APARELHO_COREAI_SMOLLM2).toBe(`aparelho:coreai/${PESOS_DO_COREAI}`);
+    expect(lerMotorId(APARELHO_COREAI_SMOLLM2)).toEqual({
+      tipo: 'aparelho',
+      variante: 'pesos',
+      provedor: 'coreai',
+      pesos: PESOS_DO_COREAI,
+    });
   });
 });

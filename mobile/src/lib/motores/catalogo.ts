@@ -64,6 +64,17 @@ export interface MotorConhecido {
    * "indisponível": a tela o anuncia como ocupado, não como um motor que não existe.
    */
   readonly consultando?: true;
+  /**
+   * Este motor é **prova de caminho**, não candidato (story 5.8).
+   *
+   * A bancada mede todos os motores em cada corrida, e o peso aberto é o mais lento e o mais
+   * pesado dos quatro: ele sobe 244 MiB do disco a cada chamada. Medi-lo sempre transformaria
+   * cada corrida — que existe para comparar a nuvem com o modelo do sistema — numa espera por
+   * um motor que ninguém vai escolher. Então o laço o pula, e quem quiser medi-lo liga.
+   *
+   * Não muda nada no seletor: lá ele continua listado e escolhível na Saúde do sono.
+   */
+  readonly prova?: true;
 }
 
 /**
@@ -71,6 +82,90 @@ export interface MotorConhecido {
  * está no binário (um build anterior à 5.9, o jest).
  */
 export const MOTIVO_SEM_PONTE = 'a ponte para o modelo do sistema não está neste build';
+
+/**
+ * O **peso aberto** que este build embarca (story 5.8).
+ *
+ * `aparelho:<provedor>/<pesos>` — a gramática de `ia/fio.ts`, que já cabia sem mudança
+ * nenhuma no núcleo. O provedor é `coreai` (quem carrega os pesos), e o nome é o da pasta
+ * que o podspec põe no bundle (`pesos/smollm2-135m/`).
+ *
+ * **Ele existe para provar o caminho, não para ser usado.** O SmolLM2-135M é o menor modelo
+ * com preset de iOS, e é ruim: medido em 21/09 no Mac, ele responde *"Diga olá em
+ * português"* com *"Diga olá em portuguéus"*. Fica no seletor, fora de toda cadeia padrão, e
+ * o peso sai do binário na story seguinte — que o baixa sob demanda.
+ */
+export const APARELHO_COREAI_SMOLLM2 = 'aparelho:coreai/smollm2-135m' satisfies MotorId;
+
+/**
+ * Os pesos que {@link APARELHO_COREAI_SMOLLM2} nomeia — o que viaja até a ponte nativa,
+ * **por argumento**, e nunca dentro do pedido.
+ *
+ * `CHAVES_DO_PEDIDO` (`ia/aparelho.ts`) é exaustiva sobre `keyof Pedido`, e um campo a mais
+ * ali mudaria o hash do pedido (AD-11) por uma razão que não é o pedido: qual peso usar é
+ * assunto do hospedeiro e da ponte, não do que se pede ao modelo.
+ */
+export const PESOS_DO_COREAI = 'smollm2-135m';
+
+/**
+ * O único recurso em que o peso aberto pode ser escolhido — a leitura que **não grava**.
+ *
+ * Fechado sobre `RecursoId`: se a Saúde do sono mudar de nome, isto não compila. Ver o
+ * porquê em {@link motivoDeBloqueio}.
+ */
+export const RECURSO_DO_PESO_ABERTO = 'saude-do-sono' satisfies RecursoId;
+
+/**
+ * Os dois acima são **o mesmo nome**, escrito duas vezes — e nada os amarrava.
+ *
+ * Mudar um só deixa o motor listado e **sempre** `semPesos`, num build que carrega os pesos:
+ * o seletor pede o diagnóstico de um nome e o transporte manda outro, e tudo fica verde. Uma
+ * linha resolve, no carregamento do módulo, antes de qualquer tela.
+ */
+if (APARELHO_COREAI_SMOLLM2 !== `aparelho:coreai/${PESOS_DO_COREAI}`) {
+  throw new Error(
+    `o id do peso aberto (${APARELHO_COREAI_SMOLLM2}) e o nome dos pesos (${PESOS_DO_COREAI}) divergiram — ` +
+      'o seletor pediria o diagnóstico de um e o transporte mandaria o outro',
+  );
+}
+
+/**
+ * Os motivos que o motor de peso aberto diz, **em palavras**.
+ *
+ * As chaves são os literais que o `MotorCoreAI.swift` devolve em `motivos()`, e a barreira do
+ * vocabulário no `architecture.test.ts` exige a igualdade de conjunto: um motivo novo de um
+ * lado só viraria {@link MOTIVO_DESCONHECIDO} na tela do dono, calado.
+ *
+ * Eles moram **aqui**, e não no núcleo, de propósito: o núcleo não sabe que peso aberto
+ * existe — para ele `aparelho:coreai/smollm2-135m` é só um id que a gramática lê. Quem sabe
+ * o que o app embarcou é o app.
+ */
+export const MOTIVO_DO_COREAI_EM_PALAVRAS: Readonly<Record<string, string>> = {
+  semBiblioteca: 'a biblioteca do Core AI não foi montada neste build',
+  simulador: 'o modelo de peso aberto só roda no iPhone — o simulador não tem o Core AI',
+  semPesos: 'este build não traz os pesos deste modelo',
+  pesosIlegiveis: 'a pasta dos pesos veio neste build e não se lê',
+};
+
+/**
+ * O motivo do peso aberto num build sem a ponte nativa.
+ *
+ * Diz **"o peso aberto"**, e não "o modelo do aparelho": este último é o guarda-chuva dos
+ * dois motores que rodam no telefone, e usá-lo aqui deixaria as duas linhas do seletor
+ * separadas por uma palavra — a de cima falando do modelo do sistema, a de baixo falando de
+ * "o modelo do aparelho", que é ela **e** a de cima.
+ */
+export const MOTIVO_COREAI_SEM_PONTE = 'a ponte para o peso aberto não está neste build';
+/** O peso aberto fora do iOS: não é falta de build, é plataforma. */
+export const MOTIVO_COREAI_FORA_DO_IOS = 'o peso aberto só existe no iPhone';
+/**
+ * Um motivo que a ponte disse e esta versão do app não conhece — **no peso aberto**.
+ *
+ * Separado de {@link MOTIVO_DESCONHECIDO}, que fala do modelo do sistema: mostrar aquele na
+ * linha do peso aberto anunciaria a indisponibilidade do motor errado.
+ */
+export const MOTIVO_COREAI_DESCONHECIDO =
+  'o peso aberto está indisponível por um motivo que esta versão não conhece';
 
 /**
  * A lista, na ordem em que o seletor a mostra: do que não sai do código ao que
@@ -95,6 +190,15 @@ export const MOTORES_CONHECIDOS: readonly MotorConhecido[] = [
     descricao: 'O modelo que o próprio sistema do iPhone fornece. Nada sai do aparelho.',
     disponivel: false,
     motivo: MOTIVO_SEM_PONTE,
+  },
+  {
+    id: APARELHO_COREAI_SMOLLM2,
+    nome: 'o SmolLM2 no aparelho',
+    rotulo: 'Peso aberto (SmolLM2 135M)',
+    descricao: 'Um modelo aberto que veio dentro do app, pelo Core AI. Nada sai do aparelho — e ele escreve mal.',
+    disponivel: false,
+    motivo: MOTIVO_COREAI_SEM_PONTE,
+    prova: true,
   },
   {
     id: NUVEM_PADRAO,
@@ -183,6 +287,39 @@ export function motivoDoAparelho(ponte: EstadoDaPonte): string | null {
   }
 }
 
+/**
+ * Por que o peso aberto não atende, em palavras — ou `null`, se atende (story 5.8).
+ *
+ * O gêmeo de {@link motivoDoAparelho}, e separado dele porque o **vocabulário é outro**: o
+ * modelo do sistema fala de elegibilidade e de Apple Intelligence; o peso aberto fala de
+ * biblioteca, de simulador e da pasta que veio (ou não) no binário. O estado é o mesmo tipo
+ * ({@link EstadoDaPonte}) porque a linha do diagnóstico é a mesma — quem a lê é o mesmo
+ * `lerDiagnosticoDoAparelho` do núcleo.
+ */
+export function motivoDoCoreAI(ponte: EstadoDaPonte): string | null {
+  switch (ponte.tipo) {
+    case 'ausente':
+      return MOTIVO_COREAI_SEM_PONTE;
+    case 'fora-do-ios':
+      return MOTIVO_COREAI_FORA_DO_IOS;
+    case 'consultando':
+      return MOTIVO_CONSULTANDO;
+    case 'lido': {
+      const d = ponte.diagnostico;
+      if (d.estado === 'disponivel') return null;
+      if (d.estado === 'ilegivel') return MOTIVO_ILEGIVEL;
+      // **Chave própria, e o resultado tem de ser texto.** O motivo vem da ponte, que o lê de
+      // uma linha JSON: um motivo chamado `constructor` ou `__proto__` acharia uma função no
+      // protótipo do objeto, o `??` não a pegaria, e o `<Text>` receberia uma função —
+      // quebrando a tela inteira por causa de uma string que veio de fora.
+      const proprio = Object.prototype.hasOwnProperty.call(MOTIVO_DO_COREAI_EM_PALAVRAS, d.motivo)
+        ? MOTIVO_DO_COREAI_EM_PALAVRAS[d.motivo]
+        : undefined;
+      return typeof proprio === 'string' ? proprio : MOTIVO_COREAI_DESCONHECIDO;
+    }
+  }
+}
+
 /** 8192 → "8.192": o separador de milhar da tela, sem depender do `Intl` do motor JS. */
 function milhar(n: number): string {
   return String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -202,9 +339,19 @@ export function detalheDoAparelho(ponte: EstadoDaPonte): string | undefined {
   return partes.length > 0 ? partes.join(' · ') : undefined;
 }
 
-/** O aparelho no estado da ponte: disponível com o detalhe, ou apagado com o motivo. */
-function aparelhoNaPonte(base: MotorConhecido, ponte: EstadoDaPonte): MotorConhecido {
-  const motivo = motivoDoAparelho(ponte);
+/**
+ * O aparelho no estado da ponte: disponível com o detalhe, ou apagado com o motivo.
+ *
+ * `emPalavras` é quem sabe o vocabulário daquele motor — {@link motivoDoAparelho} para o
+ * modelo do sistema, {@link motivoDoCoreAI} para o peso aberto. O resto (o detalhe, a limpeza
+ * do motivo, a marca de "consultando") é igual nos dois, e é por isso que não há duas cópias.
+ */
+function aparelhoNaPonte(
+  base: MotorConhecido,
+  ponte: EstadoDaPonte,
+  emPalavras: (p: EstadoDaPonte) => string | null = motivoDoAparelho,
+): MotorConhecido {
+  const motivo = emPalavras(ponte);
   if (motivo !== null) {
     return { ...base, disponivel: false, motivo, ...(ponte.tipo === 'consultando' ? { consultando: true as const } : {}) };
   }
@@ -326,18 +473,39 @@ export function variantesDaNuvem(
  * A ordem põe as nomeadas **depois** de `nuvem:padrao`: o padrão é o que o
  * servidor escolhe, e continua sendo a primeira opção de nuvem que o dono lê.
  *
- * **`ponte` é obrigatória** (5.9), pela mesma razão que `conhecidos` virou
+ * **`ponte` e `coreai` são obrigatórias** (5.9, 5.8), pela mesma razão que `conhecidos` virou
  * obrigatório na 5.6: com um padrão, quem esquecesse de passá-la mostraria "a ponte
  * não está neste build" num iPhone com o modelo de pé — a mentira, sem nada quebrar.
  * `lista` fica com o padrão de sempre (o cache), e o mesmo de {@link idsConhecidosDe}:
  * o cache é o que o app sabe de verdade, não uma suposição.
+ *
+ * **São dois diagnósticos, não um** (5.8): o modelo do sistema pode estar de pé com o peso
+ * aberto ausente, e o contrário também — a biblioteca vendorizada existe e a Apple
+ * Intelligence está desligada. Um estado só faria o seletor contar a razão de um como se
+ * fosse a do outro.
+ *
+ * **E eles vêm num objeto, não lado a lado.** Dois parâmetros posicionais do mesmo tipo
+ * podem ser trocados sem que nada reclame — `tsc` passa, os testes passam, e o seletor
+ * atribui a razão de um motor ao outro. Nomeados, a inversão é erro de compilação, que é o
+ * único lugar onde ela pode ser pega.
  */
+export interface EstadoDasPontes {
+  /** O modelo que o próprio sistema do iPhone fornece. */
+  readonly sistema: EstadoDaPonte;
+  /** O peso aberto que este build embarca, pelo Core AI. */
+  readonly coreai: EstadoDaPonte;
+}
+
 export function motoresDoRecurso(
   recurso: RecursoId,
-  ponte: EstadoDaPonte,
+  pontes: EstadoDasPontes,
   lista: ListaAprovada | null = guardada,
 ): readonly MotorConhecido[] {
-  const locais = MOTORES_CONHECIDOS.map((m) => (m.id === APARELHO_SISTEMA ? aparelhoNaPonte(m, ponte) : m));
+  const locais = MOTORES_CONHECIDOS.map((m) => {
+    if (m.id === APARELHO_SISTEMA) return aparelhoNaPonte(m, pontes.sistema);
+    if (m.id === APARELHO_COREAI_SMOLLM2) return aparelhoNaPonte(m, pontes.coreai, motivoDoCoreAI);
+    return m;
+  });
   return [...locais, ...variantesDaNuvem(recurso, lista)];
 }
 
@@ -353,8 +521,11 @@ export function idsConhecidosDe(
   recurso: RecursoId,
   lista: ListaAprovada | null = guardada,
 ): readonly MotorId[] {
-  return motoresDoRecurso(recurso, PONTE_AUSENTE, lista).map((m) => m.id);
+  return motoresDoRecurso(recurso, PONTES_AUSENTES, lista).map((m) => m.id);
 }
+
+/** As duas pontes ausentes — o ponto de partida, e o que {@link idsConhecidosDe} usa. */
+export const PONTES_AUSENTES: EstadoDasPontes = { sistema: PONTE_AUSENTE, coreai: PONTE_AUSENTE };
 
 /**
  * O motor com este id dentro de um catálogo, ou `undefined`. Aceita id cru, de
@@ -500,6 +671,18 @@ export function motivoDeBloqueio(
 
   const lido = lerMotorId(id);
   if (!lido) return 'este motor não se lê';
+
+  // **O peso aberto é prova, não ferramenta** (5.8). A spec diz, em Never, que ele "entra no
+  // seletor e para aí" — e o regime sozinho não garante isso: `nome-de-rota` admite motor de
+  // aparelho e **grava**, então sem esta linha o dono poderia escolher, para nomear rotas, um
+  // modelo que a medição de 21/09 mostra acertando ~10% e passando no portão em 97% dos
+  // casos. Um nome errado gravado não se desfaz.
+  //
+  // Sobra a Saúde do sono, que não grava nada: a frase morre na tela. É lá que o dono vê o
+  // texto sair e julga o caminho, que é o que a story existe para provar.
+  if (id === APARELHO_COREAI_SMOLLM2 && recurso.recurso !== RECURSO_DO_PESO_ABERTO) {
+    return 'o peso aberto é uma prova de caminho, e só a Saúde do sono a mostra — ela não guarda o que ele escreve';
+  }
 
   if (exposicao(lido.tipo) > exposicao(recurso.regimeMaximo)) {
     return `este recurso não manda dado além d${recurso.regimeMaximo === 'sem-modelo' ? 'o código' : 'o aparelho'}`;

@@ -35,6 +35,13 @@ import {
   type Resposta,
 } from '@vitale/shared';
 import {
+  APARELHO_COREAI_SMOLLM2,
+  MOTIVO_DO_COREAI_EM_PALAVRAS,
+  PESOS_DO_COREAI,
+  motorConhecido,
+  motoresDoRecurso,
+} from '../motores/catalogo';
+import {
   PRAZO_MS,
   criarLeitorDaPonte,
   criarMotorPara,
@@ -112,19 +119,36 @@ const LINHA_BOA = {
   buildDoSistema: '27A1',
 };
 
-/** Uma ponte falsa: o `responder` que o teste mandar, e o que ela recebeu. */
+/**
+ * Uma ponte falsa: o `responder` que o teste mandar, e o que ela recebeu.
+ *
+ * As duas portas do **peso aberto** (5.8) repassam para as mesmas funções, carimbando os
+ * pesos no que foi visto — é assim que o teste prova que o nome viaja por argumento, e não
+ * dentro do pedido.
+ */
 function ponteFalsa(
   responder: (pedido: string) => Promise<string>,
   diagnostico: () => Promise<string> = async () => '{"disponivel":true}',
-): PonteDoAparelho & { vistos: string[] } {
+): PonteDoAparelho & { vistos: string[]; comPesos: string[] } {
   const vistos: string[] = [];
+  const comPesos: string[] = [];
   return {
     vistos,
+    comPesos,
     responder: (p) => {
       vistos.push(p);
       return responder(p);
     },
     diagnostico,
+    responderComPesos: (pesos, p) => {
+      comPesos.push(pesos);
+      vistos.push(p);
+      return responder(p);
+    },
+    diagnosticoDosPesos: (pesos) => {
+      comPesos.push(pesos);
+      return diagnostico();
+    },
   };
 }
 
@@ -277,7 +301,8 @@ describe('o motorPara do app', () => {
     const aparelho = motorPara(APARELHO_SISTEMA);
     expect(aparelho).toBeDefined();
     expect(motorPara(APARELHO_SISTEMA)).toBe(aparelho);
-    // Os pesos abertos (5.8) ainda não têm motor.
+    // Um peso aberto que este build não embarcou não tem motor (5.8): um nome qualquer
+    // não pode virar caminho de arquivo do outro lado.
     expect(motorPara('aparelho:acme/pesos')).toBeUndefined();
     const r = (await aparelho!(PEDIDO)) as Resposta;
     expect(r.texto).toBe(LINHA_BOA.texto);
@@ -308,6 +333,55 @@ describe('o motorPara do app', () => {
     expect(f.classe).toBe('transitoria');
     expect(f.naoMapeado).toBe(true);
     expect(f.detalhe).toContain('a ponte caiu');
+  });
+
+  it('o peso aberto tem motor, e os pesos vão por argumento — nunca dentro do pedido (5.8)', async () => {
+    const ponte = ponteFalsa(async () => JSON.stringify({ ...LINHA_BOA, provedor: 'coreai', modelo: PESOS_DO_COREAI }));
+    const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, PRAZO_MS, ponte);
+    const coreai = motorPara(APARELHO_COREAI_SMOLLM2);
+    expect(coreai).toBeDefined();
+    // Memoizado como os outros, e **diferente** do motor do modelo do sistema.
+    expect(motorPara(APARELHO_COREAI_SMOLLM2)).toBe(coreai);
+    expect(coreai).not.toBe(motorPara(APARELHO_SISTEMA));
+
+    const r = (await coreai!(PEDIDO)) as Resposta;
+    expect(r.assinatura).toMatchObject({ tipo: 'aparelho', provedor: 'coreai', modelo: PESOS_DO_COREAI });
+    // O nome dos pesos foi por fora, e **o pedido não o carrega**: `CHAVES_DO_PEDIDO` é
+    // exaustiva sobre `keyof Pedido`, e um campo a mais ali mudaria o hash do pedido (AD-11).
+    expect(ponte.comPesos).toEqual([PESOS_DO_COREAI]);
+    expect(Object.keys(JSON.parse(ponte.vistos[0]) as object).sort()).toEqual([
+      'amostragem',
+      'guardrails',
+      'saida',
+      'sistema',
+      'usuario',
+      'versaoDoDescritor',
+    ]);
+  });
+
+  it('os dois motores do aparelho dividem a mesma vez: o segundo espera o primeiro (5.8)', async () => {
+    const emCurso: string[] = [];
+    let soltar: (() => void) | null = null;
+    const ponte = ponteFalsa(
+      (p) =>
+        new Promise<string>((r) => {
+          emCurso.push(p);
+          soltar = () => r(JSON.stringify(LINHA_BOA));
+        }),
+    );
+    const respirar = () => new Promise((r) => setTimeout(r, 0));
+    const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, PRAZO_MS, ponte);
+    const doSistema = motorPara(APARELHO_SISTEMA)!(PEDIDO);
+    const doPesoAberto = motorPara(APARELHO_COREAI_SMOLLM2)!(PEDIDO);
+    await respirar();
+    // Um só chegou ao aparelho: duas filas deixariam os dois subirem modelo ao mesmo tempo.
+    expect(emCurso).toHaveLength(1);
+    soltar!();
+    await doSistema;
+    await respirar();
+    expect(emCurso).toHaveLength(2);
+    soltar!();
+    await doPesoAberto;
   });
 
   it('não entrega motor para sem-modelo nem para id ilegível', () => {
@@ -555,17 +629,17 @@ describe('o diagnóstico da ponte, uma vez por sessão (story 5.9)', () => {
     const leitor = criarLeitorDaPonte(ponteFalsa(async () => '', async () => {
       idas += 1;
       return '{"disponivel":true}';
-    }), 10, 'android');
+    }), { prazoMs: 10, plataforma: 'android' });
     expect(leitor.agora()).toEqual({ tipo: 'fora-do-ios' });
     expect(await leitor.reconsultar()).toEqual({ tipo: 'fora-do-ios' });
-    expect(await criarLeitorDaPonte(null, 10, 'android').garantir()).toEqual({ tipo: 'fora-do-ios' });
+    expect(await criarLeitorDaPonte(null, { prazoMs: 10, plataforma: 'android' }).garantir()).toEqual({ tipo: 'fora-do-ios' });
     expect(idas).toBe(0);
   });
 
   it('o que não é disponível é relido ao reconsultar; o disponível não, e a linha crua vem junto', async () => {
     const respostas = ['{"disponivel":false,"motivo":"modelNotReady"}', '{"disponivel":true,"janela":8192}'];
     let idas = 0;
-    const leitor = criarLeitorDaPonte(ponteFalsa(async () => '', async () => respostas[Math.min(idas++, 1)]), 1_000, 'ios');
+    const leitor = criarLeitorDaPonte(ponteFalsa(async () => '', async () => respostas[Math.min(idas++, 1)]), { prazoMs: 1_000, plataforma: 'ios' });
     const primeiro = await leitor.garantir();
     expect(primeiro).toEqual({ tipo: 'lido', diagnostico: { estado: 'indisponivel', motivo: 'modelNotReady' }, cru: respostas[0] });
     // `garantir` não relê; `reconsultar` sim, porque o último não foi disponível.
@@ -586,7 +660,7 @@ describe('o diagnóstico da ponte, uma vez por sessão (story 5.9)', () => {
     const leitor = criarLeitorDaPonte(ponteFalsa(async () => '', async () => {
       idas += 1;
       return '{"disponivel":false,"motivo":"appleIntelligenceNotEnabled"}';
-    }), 1_000, 'ios');
+    }), { prazoMs: 1_000, plataforma: 'ios' });
     await Promise.all([leitor.reconsultar(), leitor.reconsultar(), leitor.garantir()]);
     expect(idas).toBe(1);
   });
@@ -609,11 +683,74 @@ describe('o diagnóstico da ponte, uma vez por sessão (story 5.9)', () => {
       [() => new Promise<string>(() => undefined), /não voltou em/],
     ];
     for (const [diagnostico, onde] of casos) {
-      const e = await criarLeitorDaPonte(ponteFalsa(async () => '', diagnostico), 10).garantir();
+      const e = await criarLeitorDaPonte(ponteFalsa(async () => '', diagnostico), { prazoMs: 10 }).garantir();
       expect(e.tipo).toBe('lido');
       if (e.tipo !== 'lido') continue;
       expect(e.diagnostico.estado).toBe('ilegivel');
       if (e.diagnostico.estado === 'ilegivel') expect(e.diagnostico.detalhe).toMatch(onde);
     }
+  });
+});
+
+describe('os dois leitores de diagnóstico não se confundem (story 5.8)', () => {
+  /** Uma ponte que registra **qual porta** foi perguntada, e com quê. */
+  function ponteQueAnotaAPorta(respostas: { sistema: string; pesos: string }) {
+    const perguntas: string[] = [];
+    const ponte: PonteDoAparelho = {
+      responder: async () => '',
+      responderComPesos: async () => '',
+      diagnostico: async () => {
+        perguntas.push('diagnostico');
+        return respostas.sistema;
+      },
+      diagnosticoDosPesos: async (pesos) => {
+        perguntas.push(`diagnosticoDosPesos:${pesos}`);
+        return respostas.pesos;
+      },
+    };
+    return { ponte, perguntas };
+  }
+
+  const SISTEMA_DE_PE = '{"disponivel":true,"variante":"AFM 3 Core Advanced","janela":8192}';
+  const SEM_PESOS = '{"disponivel":false,"motivo":"semPesos"}';
+
+  it('o leitor do peso aberto pergunta pela porta dos PESOS, com o nome deles', async () => {
+    // Sem isto, tirar o `perguntar` do leitor compila, passa em tudo, e a linha "Peso
+    // aberto" mostraria o estado do modelo do sistema — anunciando-se disponível.
+    const { ponte, perguntas } = ponteQueAnotaAPorta({ sistema: SISTEMA_DE_PE, pesos: SEM_PESOS });
+    const leitor = criarLeitorDaPonte(ponte, {
+      plataforma: 'ios',
+      perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
+    });
+    await leitor.garantir();
+    expect(perguntas).toEqual([`diagnosticoDosPesos:${PESOS_DO_COREAI}`]);
+  });
+
+  it('e o do modelo do sistema pergunta pela porta dele', async () => {
+    const { ponte, perguntas } = ponteQueAnotaAPorta({ sistema: SISTEMA_DE_PE, pesos: SEM_PESOS });
+    await criarLeitorDaPonte(ponte, { plataforma: 'ios' }).garantir();
+    expect(perguntas).toEqual(['diagnostico']);
+  });
+
+  it('os dois DISCORDAM sem se contaminar: sistema de pé, pesos ausentes', async () => {
+    const { ponte } = ponteQueAnotaAPorta({ sistema: SISTEMA_DE_PE, pesos: SEM_PESOS });
+    const doSistema = await criarLeitorDaPonte(ponte, { plataforma: 'ios' }).garantir();
+    const doPesoAberto = await criarLeitorDaPonte(ponte, {
+      plataforma: 'ios',
+      perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
+    }).garantir();
+
+    expect(doSistema.tipo === 'lido' && doSistema.diagnostico.estado).toBe('disponivel');
+    expect(doPesoAberto.tipo === 'lido' && doPesoAberto.diagnostico.estado).toBe('indisponivel');
+
+    // E o que o seletor mostra, que é onde a confusão apareceria.
+    const conhecidos = motoresDoRecurso('saude-do-sono', { sistema: doSistema, coreai: doPesoAberto }, null);
+    const sistema = motorConhecido(APARELHO_SISTEMA, conhecidos);
+    const coreai = motorConhecido(APARELHO_COREAI_SMOLLM2, conhecidos);
+    expect(sistema?.disponivel).toBe(true);
+    expect(sistema?.detalhe).toBe('AFM 3 Core Advanced · janela de 8.192 tokens');
+    expect(coreai?.disponivel).toBe(false);
+    expect(coreai?.detalhe).toBeUndefined();
+    expect(coreai?.motivo).toBe(MOTIVO_DO_COREAI_EM_PALAVRAS.semPesos);
   });
 });

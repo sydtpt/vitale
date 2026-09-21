@@ -10,10 +10,16 @@
 // (`mobile/src/lib/motores/`) carrega por `requireOptionalNativeModule`, e o que a guarda (1)
 // reconhece.
 //
-// Mora no mesmo pod que o `Engine.swift` (`OnDeviceEngine.podspec` pega todo `.swift` desta
-// pasta, e a barreira fecha a lista nesses dois), e é por isso que o `Engine` pode continuar
-// `internal`. Os nomes das funções são os de `FUNCOES_DA_PONTE`, em
+// Mora no mesmo pod que o `Engine.swift` e o `MotorCoreAI.swift` (`OnDeviceEngine.podspec`
+// pega todo `.swift` desta pasta, e a barreira fecha a lista nesses três), e é por isso que
+// os dois podem continuar `internal`. Os nomes das funções são os de `FUNCOES_DA_PONTE`, em
 // `mobile/src/lib/motores/index.ts` — a barreira compara.
+//
+// **Quatro portas, dois motores** (story 5.8). As duas primeiras são o modelo **do sistema**,
+// que não se escolhe; as duas últimas são o **peso aberto**, que se escolhe pelo nome — daí o
+// argumento. Qual peso usar viaja por fora do pedido de propósito: `CHAVES_DO_PEDIDO`
+// (`ia/aparelho.ts`) é exaustiva sobre `keyof Pedido`, e enfiar um campo ali mudaria o hash
+// do pedido (AD-11) por uma razão que não é o pedido.
 
 import ExpoModulesCore
 
@@ -29,6 +35,16 @@ public class OnDeviceEngineModule: Module {
     // A disponibilidade, a variante e a janela — o que o seletor mostra.
     AsyncFunction("diagnostico") { () -> String in
       Engine.diagnostico()
+    }
+
+    // O mesmo pedido canônico, contra os pesos abertos que o nome indica.
+    AsyncFunction("responderComPesos") { (pesos: String, pedido: String) async -> String in
+      await MotorCoreAI.responder(pesos: pesos, pedido: pedido)
+    }
+
+    // Se estes pesos estão neste build, e com que janela — ou por que não.
+    AsyncFunction("diagnosticoDosPesos") { (pesos: String) async -> String in
+      MotorCoreAI.diagnostico(pesos: pesos)
     }
   }
 }

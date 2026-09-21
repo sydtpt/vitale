@@ -61,6 +61,8 @@ import {
 import { supabase } from '../supabase';
 import { anel } from './anel';
 import {
+  APARELHO_COREAI_SMOLLM2,
+  PESOS_DO_COREAI,
   PONTE_AUSENTE,
   PONTE_CONSULTANDO,
   PONTE_FORA_DO_IOS,
@@ -246,6 +248,16 @@ export interface PonteDoAparelho {
   responder(pedido: string): Promise<string>;
   /** Se o modelo do sistema atende, qual variante e que janela — ou por quê não. */
   diagnostico(): Promise<string>;
+  /**
+   * O mesmo pedido, contra os **pesos abertos** que o nome indica (story 5.8).
+   *
+   * Qual peso usar viaja **por fora do pedido**, por argumento: `CHAVES_DO_PEDIDO`
+   * (`ia/aparelho.ts`) é exaustiva sobre `keyof Pedido`, e um campo a mais ali mudaria o
+   * hash do pedido (AD-11) por uma razão que não é o pedido.
+   */
+  responderComPesos(pesos: string, pedido: string): Promise<string>;
+  /** Se estes pesos estão neste build, e com que janela — ou por quê não. */
+  diagnosticoDosPesos(pesos: string): Promise<string>;
 }
 
 /**
@@ -258,7 +270,32 @@ export interface PonteDoAparelho {
  * nome que a interface não tem não entra, e um membro novo da interface não compila
  * até entrar aqui.
  */
-export const FUNCOES_DA_PONTE = ['responder', 'diagnostico'] as const satisfies readonly (keyof PonteDoAparelho)[];
+export const FUNCOES_DA_PONTE = [
+  'responder',
+  'diagnostico',
+  'responderComPesos',
+  'diagnosticoDosPesos',
+] as const satisfies readonly (keyof PonteDoAparelho)[];
+
+/**
+ * Os **argumentos** de cada função da ponte, na ordem, com o nome que o Swift lhes dá.
+ *
+ * A barreira da cola comparava só os nomes das funções, e isso bastava enquanto todas tinham
+ * zero ou um argumento. Com `responderComPesos(pesos, pedido)` passou a não bastar: declarar
+ * o closure como `(pedido: String, pesos: String)` compila, passa na barreira, passa nos
+ * testes Swift (que chamam `MotorCoreAI.responder` com rótulos, por fora da cola) — e no
+ * aparelho **toda geração volta como `capacidade`**, com cara de "pedido ilegível", porque o
+ * pedido canônico chegou no lugar do nome dos pesos.
+ *
+ * Os nomes são os do Swift porque é o Swift que a barreira lê; do lado do JS eles são
+ * posicionais, e a interface acima já os fixa pelo tipo.
+ */
+export const PARAMETROS_DA_PONTE = {
+  responder: ['pedido'],
+  diagnostico: [],
+  responderComPesos: ['pesos', 'pedido'],
+  diagnosticoDosPesos: ['pesos'],
+} as const satisfies Record<(typeof FUNCOES_DA_PONTE)[number], readonly string[]>;
 type SobraDaPonte = Exclude<keyof PonteDoAparelho, (typeof FUNCOES_DA_PONTE)[number]>;
 const _ponteInteira: [SobraDaPonte] extends [never] ? true : SobraDaPonte = true;
 void _ponteInteira;
@@ -332,6 +369,35 @@ export function novoRegistroDoAparelho(): RegistroDoAparelho {
   };
 }
 
+/**
+ * A vez, compartilhada entre os motores do aparelho (story 5.8).
+ *
+ * Era uma variável dentro de `criarTransporteDoAparelho` enquanto havia **um** motor no
+ * aparelho. Com o peso aberto são dois — e eles disputam a mesma memória e o mesmo Neural
+ * Engine, não dois modelos independentes. Duas filas deixariam a `/sono/saude` pedir ao
+ * modelo do sistema enquanto a tela de desenvolvimento sobe 244 MiB de pesos abertos: o
+ * segundo receberia falta de memória (`capacidade`) por uma razão que não é dele.
+ *
+ * Encadeia mesmo quando o passo anterior falha — uma corrente que quebrasse na primeira
+ * falha deixaria o aparelho mudo até o app fechar.
+ */
+export interface FilaDoAparelho {
+  encadear(passo: () => Promise<void>): void;
+}
+
+export function novaFilaDoAparelho(): FilaDoAparelho {
+  let atual: Promise<void> = Promise.resolve();
+  return {
+    encadear: (passo) => {
+      // **A cauda fica com dono.** `atual.then(passo, passo)` devolve uma promessa que
+      // ninguém aguarda: se o passo rejeitar e nenhum pedido novo chegar depois, ela vira
+      // unhandled rejection — no app, um aviso vermelho sem causa visível. O `catch` final
+      // engole só a rejeição da **cauda**; o pedido em si já recebeu a sua, dentro do passo.
+      atual = atual.then(passo, passo).catch(() => undefined);
+    },
+  };
+}
+
 export interface OpcoesDoTransporteDoAparelho {
   /** Quanto a vez espera uma chamada que não volta. Padrão: {@link PRAZOS_ATE_SOLTAR_A_VEZ} prazos. */
   readonly tetoMs?: number;
@@ -339,6 +405,11 @@ export interface OpcoesDoTransporteDoAparelho {
   readonly anotar?: (texto: string) => void;
   /** Onde contar as chamadas frias e as falhas que o transporte fabricou. */
   readonly registro?: RegistroDoAparelho;
+  /**
+   * A vez. Padrão: uma nova, só deste transporte. O app passa **a mesma** para os dois
+   * motores do aparelho — ver {@link FilaDoAparelho}.
+   */
+  readonly fila?: FilaDoAparelho;
 }
 
 /**
@@ -380,9 +451,9 @@ export function criarTransporteDoAparelho(
   const tetoMs = opcoes.tetoMs ?? PRAZOS_ATE_SOLTAR_A_VEZ * prazoMs;
   const anotar = opcoes.anotar ?? (() => undefined);
   const registro = opcoes.registro ?? novoRegistroDoAparelho();
+  const fila = opcoes.fila ?? novaFilaDoAparelho();
   /** Quantas chamadas já chegaram ao aparelho — zero quer dizer que a próxima é fria. */
   let servidas = 0;
-  let fila: Promise<void> = Promise.resolve();
   return (pedido) =>
     new Promise<string>((resolver, rejeitar) => {
       let encerrado = false;
@@ -398,7 +469,7 @@ export function criarTransporteDoAparelho(
       const relogio = setTimeout(() => {
         if (!encerrado) encerrar(true, () => resolver(linhaDoPrazo(prazoMs)));
       }, prazoMs);
-      fila = fila.then(async () => {
+      fila.encadear(async () => {
         // O prazo estourou antes de a vez chegar: o pedido não vai ao aparelho.
         if (encerrado) return;
         if (servidas === 0) frio = true;
@@ -462,8 +533,13 @@ export const registroDoAparelho: RegistroDoAparelho = REGISTRO_DO_APARELHO;
  * fila e o seu prazo. Sem o módulo, não há motor: pedi-lo dá tentativa sintética
  * `indisponivel`, sem chamada nenhuma, e a assinatura da tela diz isso em palavras.
  * Com o módulo e o modelo fora (Apple Intelligence desligada, modelo não pronto),
- * há motor — e quem responde `indisponivel`, com o motivo, é a própria ponte. Os
- * pesos abertos (`aparelho:<provedor>/<pesos>`, a 5.8) não têm motor ainda.
+ * há motor — e quem responde `indisponivel`, com o motivo, é a própria ponte.
+ *
+ * O **peso aberto** (`aparelho:coreai/<pesos>`, a 5.8) tem motor pelo mesmo caminho, com
+ * **a mesma vez**: os dois disputam a memória e o Neural Engine do mesmo aparelho, e duas
+ * filas deixariam um subir 244 MiB de pesos enquanto o outro escreve. Só o peso que este
+ * build embarca ({@link PESOS_DO_COREAI}) tem motor — um nome que o app não conhece não
+ * vira caminho de arquivo aqui, e a ponte o recusaria de novo do lado de lá.
  */
 export function criarMotorPara(
   chamar: Chamar = chamarAFunction,
@@ -472,16 +548,20 @@ export function criarMotorPara(
   registro: RegistroDoAparelho = REGISTRO_DO_APARELHO,
 ): (id: MotorId) => Motor | undefined {
   const transporte = serializar(criarTransporte(chamar, prazoMs));
-  const doAparelho =
-    ponte === null
-      ? undefined
-      : criarMotorDoAparelho(
-          criarTransporteDoAparelho((p) => ponte.responder(p), prazoMs, { anotar: anel.anotar, registro }),
-        );
+  const vez = novaFilaDoAparelho();
+  const noAparelho = (responder: (pedido: string) => Promise<string>): Motor =>
+    criarMotorDoAparelho(
+      criarTransporteDoAparelho(responder, prazoMs, { anotar: anel.anotar, registro, fila: vez }),
+    );
+  const doAparelho = ponte === null ? undefined : noAparelho((p) => ponte.responder(p));
+  const doCoreAI = ponte === null ? undefined : noAparelho((p) => ponte.responderComPesos(PESOS_DO_COREAI, p));
   const porId = new Map<string, Motor>();
   return (id) => {
     const lido = lerMotorId(id);
-    if (lido?.tipo === 'aparelho') return lido.variante === 'sistema' ? doAparelho : undefined;
+    if (lido?.tipo === 'aparelho') {
+      if (lido.variante === 'sistema') return doAparelho;
+      return formatarMotorId(lido) === APARELHO_COREAI_SMOLLM2 ? doCoreAI : undefined;
+    }
     if (lido?.tipo !== 'nuvem') return undefined;
     const chave = formatarMotorId(lido);
     const guardado = porId.get(chave);
@@ -540,11 +620,24 @@ export interface LeitorDaPonte {
  *
  * Fora do iOS não há o que perguntar: o modelo só existe no iPhone.
  */
-export function criarLeitorDaPonte(
-  ponte: PonteDoAparelho | null,
-  prazoMs: number = PRAZO_DO_DIAGNOSTICO_MS,
-  plataforma: string = Platform.OS,
-): LeitorDaPonte {
+/**
+ * O que muda de um leitor para o outro. **Nomeado, e não posicional** (5.8): `perguntar` é o
+ * que separa o leitor do modelo do sistema do leitor do peso aberto, e esquecê-lo num
+ * argumento posicional faria a linha "Peso aberto" mostrar o estado do **modelo do
+ * sistema** — anunciando-se disponível, com `AFM 3 Core Advanced · janela de 8.192` como
+ * detalhe dela. Compila, passa em tudo, e mente no aparelho.
+ */
+export interface OpcoesDoLeitor {
+  readonly prazoMs?: number;
+  readonly plataforma?: string;
+  /** Qual das portas de diagnóstico perguntar. Padrão: a do modelo do sistema. */
+  readonly perguntar?: (p: PonteDoAparelho) => Promise<string>;
+}
+
+export function criarLeitorDaPonte(ponte: PonteDoAparelho | null, opcoes: OpcoesDoLeitor = {}): LeitorDaPonte {
+  const prazoMs = opcoes.prazoMs ?? PRAZO_DO_DIAGNOSTICO_MS;
+  const plataforma = opcoes.plataforma ?? Platform.OS;
+  const perguntar = opcoes.perguntar ?? ((p: PonteDoAparelho) => p.diagnostico());
   const fixo = plataforma !== 'ios' ? PONTE_FORA_DO_IOS : ponte === null ? PONTE_AUSENTE : null;
   if (fixo !== null || ponte === null) {
     const estado = fixo ?? PONTE_AUSENTE;
@@ -559,7 +652,7 @@ export function criarLeitorDaPonte(
       relogio = setTimeout(() => r(null), prazoMs);
     });
     try {
-      const linha = await Promise.race([ponte.diagnostico(), noPrazo]);
+      const linha = await Promise.race([perguntar(ponte), noPrazo]);
       if (linha === null) {
         return {
           tipo: 'lido',
@@ -597,6 +690,20 @@ export function criarLeitorDaPonte(
 
 /** O diagnóstico da ponte deste build — o que o seletor e a bancada leem. */
 export const ponteDoAparelho: LeitorDaPonte = criarLeitorDaPonte(PONTE);
+
+/**
+ * O diagnóstico do **peso aberto** deste build (story 5.8) — a mesma linha, o mesmo leitor
+ * do núcleo, e um leitor separado porque as duas respostas são independentes: o modelo do
+ * sistema pode estar de pé com os pesos ausentes, e a biblioteca do Core AI pode estar no
+ * binário com a Apple Intelligence desligada.
+ *
+ * Ele também é relido enquanto não disser "disponível", pela mesma razão do outro — só que
+ * aqui a mudança possível não vem dos Ajustes, e sim de um build novo. Reler é barato e a
+ * regra ser uma só vale mais que a economia.
+ */
+export const coreaiDoAparelho: LeitorDaPonte = criarLeitorDaPonte(PONTE, {
+  perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
+});
 
 /* ── a lista de motores aprovados, do servidor (ADR 0048, story 5.6) ─────── */
 

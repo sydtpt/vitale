@@ -75,6 +75,10 @@ compila: a coluna sai `indisponivel` com o motivo), e o Xcode do mesmo major do 
 (hoje, o 27 — `xcodebuild -version`). Mac e iPhone medem no mesmo major.minor; relatórios de
 versões diferentes não se somam. A coluna do aparelho diz no relatório qual `swiftc` compilou a CLI.
 
+**O peso aberto (`aparelho:coreai/…`) também é medido aqui**, mas **sob demanda**: ele sobe
+243,7 MiB do disco por chamada e é o mais lento dos quatro, então o laço da tela de bancada do
+iPhone o pula por padrão (há um interruptor). No Mac ele não roda: a CLI chama só o `Engine`.
+
 **Como ela roda.** A ponte é um arquivo só, `mobile/modules/on-device-engine/ios/Engine.swift` —
 o mesmo que o app vai compilar. A bancada o compila **sem cópia**, com `swiftc` direto sobre ele e
 sobre `bancada/aparelho/main.swift` (sem `Package.swift`, sem symlink), para
@@ -105,11 +109,20 @@ As falhas que a própria bancada fabrica — prazo, processo que caiu, protocolo
 rede — são marcadas **do hospedeiro** e ficam fora da medida (abaixo).
 
 **A tabela erro → classe tem teste próprio**, que roda sem modelo:
-`pnpm --filter @vitale/scripts aparelho:testar`. Ele compila o `Engine.swift` junto com
-`bancada/aparelho/testes.swift` **com os mesmos argumentos da CLI** (`argumentosDoSwiftc`) e confere a
-tabela inteira, a conversão de esquema, o pedido estrito e o formato da linha. Não entra no
-`pnpm test` nem no CI — lá não há Swift. O processo da CLI é testado no `pnpm test` sem Swift: o
-Node faz o papel dela.
+`pnpm --filter @vitale/scripts aparelho:testar`. Não entra no `pnpm test` nem no CI — lá não há
+Swift. O processo da CLI é testado no `pnpm test` sem Swift: o Node faz o papel dela.
+
+Desde a 5.8 são **dois binários**, e os dois têm de passar:
+
+| binário | o que compila | o que prova |
+|---|---|---|
+| `testes` | `Engine.swift` + `MotorCoreAI.swift` + `apoio.swift` + `testes.swift`, **sem** `ORBE_COREAI` | a tabela inteira, a conversão de esquema, o pedido estrito, o formato da linha — e, do peso aberto, a régua do nome, a pasta sobre disco de verdade e as duas portas sem biblioteca |
+| `testes-coreai` | os mesmos, **com** `-D ORBE_COREAI` e contra `bancada/aparelho/casca-falsa.swift` | o ramo que o iPhone percorre: a **assinatura** (`provedor` do peso aberto, `modelo` = o nome dos pesos), a falha de carga pelo `catch` de verdade, e a regra de texto vazio |
+
+O segundo existe porque `ORBE_COREAI` só é definido no podspec: sem ele, aquele ramo só era
+compilado pelo build do app, que não afirma nada. A `casca-falsa.swift` espelha a **superfície
+pública** de `scripts/coreai/OrbeCoreAI.swift` e devolve uma sessão que escreve uma frase
+combinada — sem Core AI, sem pesos e sem rede. Quem prova que o modelo de verdade gera é o iPhone.
 
 **Não é pago.** O aparelho não entra na conta do gasto nem no teto de chamadas; a bancada declara
 as chamadas locais à parte.
@@ -299,3 +312,48 @@ próprio arquivo diz isso na primeira chave.
 - **Não mede o alcance `ano`.** O acervo cobre dois anos parciais, ambos
   `sem-contagem`; as outras quatro janelas do seletor cobrem o que há para ler. O
   rodapé do relatório registra isso.
+
+---
+
+## `coreai/` — a casca do Core AI, e como ela vira binário (story 5.8)
+
+O `CoreAILanguageModel`, que transforma **peso aberto** em frase, não vem no iOS: ele mora no
+pacote Swift `apple/coreai-models`, que arrasta tokenizador, amostragem, KV-cache e uma
+gramática em C++ — mais de vinte pacotes. E módulo Expo local só linka por `.podspec`: o
+**CocoaPods não tem atributo de dependência de Swift Package**.
+
+Então o grafo é compilado **aqui**, uma vez, fora do app:
+
+```bash
+./scripts/coreai/montar.sh        # ~10 min na primeira vez (clona o pacote e compila o grafo)
+```
+
+Saem dois arquivos, em `mobile/modules/on-device-engine/ios/vendor/ios-arm64/`:
+
+| arquivo | o que é |
+|---|---|
+| `libOrbeCoreAI.a` (21,3 MiB) | o grafo inteiro, ligado por módulo, mais a casca. **Versionado** |
+| `OrbeCoreAI.swiftinterface` | a interface da casca — e **só ela** |
+
+**A casca (`coreai/OrbeCoreAI.swift`) é o truque inteiro.** Ela importa o pacote com
+`internal import` e é compilada com `-enable-library-evolution`: a interface que sai **não
+cita** `CoreAILanguageModels`. É por isso que o pod precisa de um `SWIFT_INCLUDE_PATHS` com um
+arquivo dentro, em vez dos vinte e tantos `.swiftmodule` e dos mapas de módulo em C do grafo.
+O `montar.sh` confere essa invariante com um `grep` antes de juntar o `.a` — trocar o
+`internal import` por um `import` normal compila aqui e só quebraria no build do app.
+
+**A casca não decide nada.** Ela devolve o erro **descrito** (nome do tipo, descrição, domínio
+e código do `NSError`); quem o classifica é `MotorCoreAI.identificar`, que é fonte no
+repositório, que as barreiras leem e que `aparelho:testar` percorre sem a biblioteca.
+
+**Uma fatia só, `ios-arm64`, e não por economia:** o `CoreAI.framework` existe no
+`iPhoneOS27.0.sdk` e **não existe** no `iPhoneSimulator27.0.sdk` (medido em 21/09/2026). No
+simulador o pacote nem compila, e o motor aparece no seletor indisponível, com motivo.
+
+Os **pesos** são outra coisa e não saem daqui: eles vêm do export em Python do próprio
+`apple/coreai-models` (`uv run coreai.llm.export <id do HF> --platform iOS`), vão para
+`mobile/modules/on-device-engine/ios/pesos/<nome>/` e são **gitignored** — 243,7 MiB por
+conjunto, com um arquivo de 240,3 MiB dentro, acima do teto de 100 MB por arquivo do GitHub.
+
+Rode os dois **antes do `pod install`**: o podspec decide no instante dele, e o que faltar
+vira um app sem Core AI — com aviso no `pod install`, e o motor indisponível no seletor.

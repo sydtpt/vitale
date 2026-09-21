@@ -5,7 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOGO_DE_RECURSOS, resolverCadeia, type MotorId, type RecursoId } from '@vitale/shared';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { garantirListaAprovada, ponteDoAparelho } from '../../../lib/motores';
+import { coreaiDoAparelho, garantirListaAprovada, ponteDoAparelho } from '../../../lib/motores';
 import {
   listaAprovada,
   motoresDoRecurso,
@@ -78,12 +78,18 @@ export default function MotoresScreen() {
   // a tela, e quando o app volta ao primeiro plano (o dono ligou a Apple
   // Intelligence nos Ajustes e voltou). Disponível não é relido. Nunca rejeita.
   const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
+  // O peso aberto (5.8) tem diagnóstico próprio, e pelo mesmo motivo: o modelo do sistema
+  // pode estar de pé com os pesos ausentes, e o contrário também.
+  const [coreai, setCoreai] = useState<EstadoDaPonte>(() => coreaiDoAparelho.agora());
   useFocusEffect(
     useCallback(() => {
       let vivo = true;
       const reler = () => {
         void ponteDoAparelho.reconsultar().then((p) => {
           if (vivo) setPonte(p);
+        });
+        void coreaiDoAparelho.reconsultar().then((p) => {
+          if (vivo) setCoreai(p);
         });
       };
       reler();
@@ -167,7 +173,7 @@ export default function MotoresScreen() {
           const escolhido = preferencias[recurso.recurso] ?? null;
           // O catálogo é **por recurso** desde a 5.6: a lista do servidor aprova um
           // motor de nuvem para recursos nomeados, não para todos.
-          const conhecidos = motoresDoRecurso(recurso.recurso, ponte, lista);
+          const conhecidos = motoresDoRecurso(recurso.recurso, { sistema: ponte, coreai: coreai }, lista);
           // Quem de fato escreveria agora: a cadeia resolvida decide, não a tela.
           // Sem preferência, é o padrão do recurso; com uma que o regime recusa, é o
           // recuo — e a tela mostra o que o orquestrador faria, não o que foi tocado.

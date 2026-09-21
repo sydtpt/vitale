@@ -586,10 +586,10 @@ enum Engine {
     do {
       if let esquema {
         let r = try await sessao.respond(to: p.usuario, schema: esquema, includeSchemaInPrompt: true, options: opcoes)
-        return resposta(r.content.jsonString, tokens: tokensDe(r), rastro: rastro, modelo: nomeDoModelo)
+        return resposta(r.content.jsonString, tokens: tokensDe(r), rastro: rastro, provedor: Engine.provedor, modelo: nomeDoModelo)
       }
       let r = try await sessao.respond(to: p.usuario, options: opcoes)
-      return resposta(r.content, tokens: tokensDe(r), rastro: rastro, modelo: nomeDoModelo)
+      return resposta(r.content, tokens: tokensDe(r), rastro: rastro, provedor: Engine.provedor, modelo: nomeDoModelo)
     } catch {
       return .falha(falhaDe(identificar(error), lancado: error, rastro: rastro))
     }
@@ -616,7 +616,21 @@ enum Engine {
 
   /// `modelo` é o que a assinatura leva: a variante, quando `gerar` a leu; o nome genérico,
   /// quando não.
-  static func resposta(_ texto: String, tokens: TokensDoFio?, rastro: String? = nil, modelo: String = Engine.modelo) -> SaidaDaPonte {
+  ///
+  /// `provedor` é **obrigatório**, e é a única coisa desta assinatura que não tem padrão.
+  ///
+  /// Ele nasceu na 5.8, quando o `MotorCoreAI` passou a assinar como `coreai`. Com padrão
+  /// `Engine.provedor`, apagar o `provedor:` de uma chamada do peso aberto compilaria — e o
+  /// texto do SmolLM2 sairia assinado como `apple / system-language-model`, quebrando
+  /// exatamente a tela que existe para distinguir os motores. Sem padrão, esse apagão é erro
+  /// de compilação nos dois arquivos, e nenhum teste precisa vigiá-lo.
+  static func resposta(
+    _ texto: String,
+    tokens: TokensDoFio?,
+    rastro: String? = nil,
+    provedor: String,
+    modelo: String = Engine.modelo
+  ) -> SaidaDaPonte {
     // Texto vazio não é resposta: a porta do núcleo exige texto, e o que volta sem ele não se lê.
     if texto.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       return falha(.respostaVazia, detalhe: ["o modelo devolveu texto vazio", rastro].compactMap { $0 }.joined(separator: " · "))

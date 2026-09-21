@@ -55,20 +55,41 @@ App Expo / React Native. Rotas file-based (Expo Router) em `src/app/`, stores Zu
   `indisponivel`; `requireNativeModule` lançaria, e é barrado em todo `mobile/src`. O
   simulador de um build desta branch **tem** o módulo (o autolinking é o mesmo); fora do
   iOS o aparelho aparece com motivo próprio ("só existe no iPhone").
-  A cola `OnDeviceEngineModule.swift` **só repassa** ao `Engine.swift` (`responder`,
-  `diagnostico`) — sem `catch`, sem literal de classe, sem decisão, só
-  `import ExpoModulesCore`, e com os nomes exatos de `FUNCOES_DA_PONTE`. A tradução e a
-  tabela erro → classe moram no `Engine.swift`, que a bancada compila e testa no Mac. O
-  módulo tem **dois `.swift`, numa lista fechada** (Engine e cola), e
+  A cola `OnDeviceEngineModule.swift` **só repassa** — sem `catch`, sem literal de classe,
+  sem decisão, só `import ExpoModulesCore`. São **quatro** funções: `responder` e
+  `diagnostico` vão ao `Engine.swift` (o modelo do sistema), `responderComPesos` e
+  `diagnosticoDosPesos` vão ao `MotorCoreAI.swift` (o peso aberto, 5.8). Os nomes são os de
+  `FUNCOES_DA_PONTE` **e os argumentos são os de `PARAMETROS_DA_PONTE`**, na ordem: inverter
+  `(pesos, pedido)` compila e passa em tudo, e no aparelho toda geração volta como
+  `capacidade`. A tradução e a tabela erro → classe moram no `Engine.swift`, que a bancada
+  compila e testa no Mac. O
+  módulo tem **três `.swift`, numa lista fechada** (Engine, MotorCoreAI e cola), e
   `PrivateCloudComputeLanguageModel` em **lugar nenhum** dele: no iPhone, sem o
   entitlement gerenciado `com.apple.developer.private-cloud-compute`, o framework derruba
   o app em vez de devolver erro — foi provado e o experimento saiu em 19/09 (emenda da ADR
   0047). Se o PCC voltar um dia, é `nuvem:`, nunca a ponte. E **nenhum `.ts`/`.js` dentro
   de `mobile/modules/`**: seria uma porta para a ponte fora da vista das guardas. Tudo isso são barreiras do `architecture.test.ts`. O
-  seletor lê a disponibilidade do diagnóstico da ponte (`ponteDoAparelho`), relido ao
-  focar a tela e ao voltar ao primeiro plano enquanto não disser "disponível".
+  seletor lê a disponibilidade de **dois** diagnósticos — `ponteDoAparelho` (o modelo do
+  sistema) e `coreaiDoAparelho` (o peso aberto) —, relidos ao focar a tela e ao voltar ao
+  primeiro plano enquanto não disserem "disponível". Eles são independentes, e
+  `motoresDoRecurso` os recebe **num objeto** (`{ sistema, coreai }`) justamente para que
+  ninguém os troque de lugar.
+- **O alvo mínimo do iOS é 27** desde a 5.8 (`mobile/plugins/withAlvoMinimoIOS27.js`), e o
+  número tem de ser o mesmo em três lugares: o plugin, o `s.platforms` do podspec e o `ALVO`
+  de `scripts/coreai/montar.sh` — há barreira comparando os três. O motivo é o pacote
+  `apple/coreai-models`, que exige 27 e **não tem um único `@available`**: vendorizado, só o
+  alvo do app protege a versão. O app não instala abaixo disso.
+- **O peso aberto (Core AI) precisa de dois artefatos que não nascem do `pnpm`.** A
+  biblioteca vendorizada (`mobile/modules/on-device-engine/ios/vendor/ios-arm64/`, 21,3 MiB,
+  **versionada**) e os pesos (`ios/pesos/`, 243,7 MiB, **gitignored** — acima do teto do
+  GitHub). Os dois saem de `./scripts/coreai/montar.sh` e do export em Python; rode **antes**
+  do `pod install`, porque o podspec decide no instante dele. Sem a biblioteca o app compila
+  igual e o motor aparece no seletor indisponível, com motivo. O `CoreAI.framework` **não
+  existe no SDK do simulador**: lá o motor é sempre indisponível, e isso é do SDK, não nosso.
 - **Mexer em `mobile/modules/` muda o binário — sobe o `runtimeVersion` junto.** A
-  barreira do runtime calcula o sha256 dos fontes do módulo e o compara com a última
+  barreira do runtime calcula o sha256 dos fontes do módulo — **a biblioteca vendorizada
+  conta; os pesos de `ios/pesos/`, não** (eles são gitignored, e contá-los faria a máquina
+  que os tem e o CI que não os tem discordarem sempre) — e o compara com a última
   entrada de `mobile/modules/runtime.json`, que tem de ser o `runtimeVersion` do
   `mobile/app.base.json`. Para atualizar: suba o `runtimeVersion` do `app.base.json`,
   rode `pnpm --filter @vitale/shared test` — a falha imprime o hash de hoje — e

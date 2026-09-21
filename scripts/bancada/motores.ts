@@ -269,14 +269,47 @@ export function novoRegistro(): RegistroDoHospedeiro {
  * **sem cópia**: `swiftc` direto sobre este caminho e o `main.swift` dela.
  */
 export const ENGINE_SWIFT = join(__dirname, '..', '..', 'mobile', 'modules', 'on-device-engine', 'ios', 'Engine.swift');
+/**
+ * O motor de peso aberto (story 5.8) — compilado aqui **sem a macro `ORBE_COREAI`**, que é o
+ * modo em que ele não toca na biblioteca vendorizada do Core AI.
+ *
+ * É de propósito, e é o que torna a tabela dele testável no Mac: a classificação da falha de
+ * carga trabalha sobre uma `FalhaDaCarga` de tipos do `Foundation`, e não sobre o erro do
+ * pacote da Apple. Sem isto, a única forma de percorrer a tabela seria com 21,3 MiB de
+ * biblioteca vendorizada e um iPhone.
+ *
+ * **A coluna do aparelho não muda com isto.** O `main.swift` continua chamando só o
+ * `Engine`: quem roda aqui é o modelo do sistema, como antes. O peso aberto entra na CLI
+ * porque ele **compila junto** no pod, e um arquivo que o app compila e a bancada não
+ * compilaria divergiria calado.
+ */
+export const MOTOR_COREAI_SWIFT = join(__dirname, '..', '..', 'mobile', 'modules', 'on-device-engine', 'ios', 'MotorCoreAI.swift');
 /** O laço da CLI: o protocolo `pronto` / `{id, pedido}` / `{id, linha}`. */
 export const MAIN_DA_CLI = join(__dirname, 'aparelho', 'main.swift');
+/** O apoio dos dois binários de teste: o placar e os moldes de pedido, sem `@main`. */
+export const APOIO_DOS_TESTES = join(__dirname, 'aparelho', 'apoio.swift');
 /** Os testes da ponte, sem modelo (`aparelho:testar`). */
 export const TESTES_DA_CLI = join(__dirname, 'aparelho', 'testes.swift');
+/**
+ * A casca **falsa** do Core AI — um módulo `OrbeCoreAI` que espelha a superfície pública da
+ * casca de verdade (`scripts/coreai/OrbeCoreAI.swift`) e devolve uma frase combinada.
+ *
+ * Ela existe para que o ramo `#if ORBE_COREAI` do `MotorCoreAI.swift` seja **compilado e
+ * exercido** no caminho de verificação. Sem ela, esse ramo só era compilado pelo build do
+ * app — e apagar `provedor:` de uma chamada de `Engine.resposta` assinaria o texto do peso
+ * aberto como se fosse o do modelo do sistema, sem nada reclamar.
+ */
+export const CASCA_FALSA_SWIFT = join(__dirname, 'aparelho', 'casca-falsa.swift');
+/** Os testes do ramo **com** a biblioteca. */
+export const TESTES_DO_COREAI = join(__dirname, 'aparelho', 'testes-coreai.swift');
 /** Onde o `swiftc` escreve — fora do git (`.gitignore`): saída de build local, nunca fonte. */
 export const DIR_DA_BUILD = join(__dirname, 'aparelho', '.build');
 export const BINARIO_DA_CLI = join(DIR_DA_BUILD, 'aparelho');
 export const BINARIO_DOS_TESTES = join(DIR_DA_BUILD, 'testes');
+/** O segundo binário de teste: o ramo **com** `ORBE_COREAI`, contra a casca falsa. */
+export const BINARIO_DOS_TESTES_DO_COREAI = join(DIR_DA_BUILD, 'testes-coreai');
+/** Onde o módulo `OrbeCoreAI` de mentira é escrito, para o segundo binário o achar. */
+export const DIR_DA_CASCA_FALSA = join(DIR_DA_BUILD, 'casca-falsa');
 
 /**
  * O sistema mínimo para o qual a CLI é compilada: o 26, o primeiro que tem o modelo.
@@ -297,9 +330,21 @@ export const MACOS_MINIMO = 26;
  * mesmos para a CLI e para os testes (`aparelho:testar`): os dois têm `@main`, e é por
  * isso que vai `-parse-as-library`.
  */
-export function argumentosDoSwiftc(saida: string, fontes: readonly string[], cpu: string = arch()): string[] {
-  const alvo = `${cpu === 'x64' ? 'x86_64' : cpu}-apple-${ALVO_MINIMO_DA_CLI}`;
-  return ['-O', '-swift-version', '6', '-parse-as-library', '-target', alvo, '-o', saida, ...fontes];
+export interface OpcoesDoSwiftc {
+  /** O alvo mínimo, quando não é o da CLI. O binário do Core AI pede 27: o `LanguageModel` de terceiro é de lá. */
+  readonly alvoMinimo?: string;
+  /** Flags a mais, antes dos fontes — `-D ORBE_COREAI`, `-I <dir da casca falsa>`. */
+  readonly extras?: readonly string[];
+}
+
+export function argumentosDoSwiftc(
+  saida: string,
+  fontes: readonly string[],
+  cpu: string = arch(),
+  opcoes: OpcoesDoSwiftc = {},
+): string[] {
+  const alvo = `${cpu === 'x64' ? 'x86_64' : cpu}-apple-${opcoes.alvoMinimo ?? ALVO_MINIMO_DA_CLI}`;
+  return ['-O', '-swift-version', '6', '-parse-as-library', '-target', alvo, ...(opcoes.extras ?? []), '-o', saida, ...fontes];
 }
 
 /**
@@ -365,6 +410,7 @@ export function prepararBinario(
   binario: string,
   fontes: readonly string[],
   avisar: (m: string) => void = (m) => process.stderr.write(`${m}\n`),
+  opcoes: OpcoesDoSwiftc = {},
 ): Preparo {
   try {
     if (platform() !== 'darwin') {
@@ -385,7 +431,7 @@ export function prepararBinario(
     if (versao.error) return { ok: false, motivo: `o swiftc não rodou: ${versao.error.name}: ${versao.error.message}` };
     if (versao.status !== 0) return { ok: false, motivo: `o swiftc --version saiu com ${String(versao.status)}: ${cauda(versao.stderr ?? '')}` };
     const compilador = linhaDaVersao(versao.stdout ?? '');
-    const argumentos = argumentosDoSwiftc(binario, fontes);
+    const argumentos = argumentosDoSwiftc(binario, fontes, arch(), opcoes);
     const carimboAtual = carimboDaCompilacao(versao.stdout ?? '', argumentos);
     const arquivoDoCarimbo = `${binario}.carimbo`;
     const decisao = {
@@ -411,9 +457,61 @@ export function prepararBinario(
   }
 }
 
-/** A CLI da bancada: a ponte e o laço. */
+/** A CLI da bancada: a ponte, o motor de peso aberto e o laço. */
 export function prepararCli(avisar?: (m: string) => void): Preparo {
-  return prepararBinario(BINARIO_DA_CLI, [ENGINE_SWIFT, MAIN_DA_CLI], avisar);
+  return prepararBinario(BINARIO_DA_CLI, [ENGINE_SWIFT, MOTOR_COREAI_SWIFT, MAIN_DA_CLI], avisar);
+}
+
+/**
+ * O alvo do binário **com** a casca falsa: 27, e não 26 como o da CLI.
+ *
+ * Conformar `LanguageModel` de fora — que é como a casca falsa devolve uma sessão de verdade
+ * — é API de 27. E é o alvo certo por outro motivo: o pod do peso aberto também é 27.
+ */
+export const ALVO_DO_COREAI = 'macos27.0';
+
+/**
+ * O segundo binário de teste: o `MotorCoreAI.swift` compilado **com** `ORBE_COREAI`, contra o
+ * módulo `OrbeCoreAI` de mentira.
+ *
+ * Dois passos, porque o módulo tem de existir antes de alguém o importar: primeiro a casca
+ * falsa vira `.swiftmodule` + `.o`, depois o binário é compilado com `-I` nela.
+ */
+export function prepararTestesDoCoreAI(avisar: (m: string) => void = (m) => process.stderr.write(`${m}\n`)): Preparo {
+  const casca = prepararModuloDaCascaFalsa(avisar);
+  if (!casca.ok) return casca;
+  return prepararBinario(
+    BINARIO_DOS_TESTES_DO_COREAI,
+    [ENGINE_SWIFT, MOTOR_COREAI_SWIFT, APOIO_DOS_TESTES, TESTES_DO_COREAI, join(DIR_DA_CASCA_FALSA, 'casca-falsa.o')],
+    avisar,
+    { alvoMinimo: ALVO_DO_COREAI, extras: ['-D', 'ORBE_COREAI', '-I', DIR_DA_CASCA_FALSA] },
+  );
+}
+
+/** A casca falsa como módulo `OrbeCoreAI`: o `.swiftmodule` que o import acha e o `.o` que o link usa. */
+function prepararModuloDaCascaFalsa(avisar: (m: string) => void): Preparo {
+  try {
+    if (!existsSync(CASCA_FALSA_SWIFT)) return { ok: false, motivo: `falta ${CASCA_FALSA_SWIFT}` };
+    mkdirSync(DIR_DA_CASCA_FALSA, { recursive: true });
+    const alvo = `${arch() === 'x64' ? 'x86_64' : arch()}-apple-${ALVO_DO_COREAI}`;
+    const comuns = ['-swift-version', '6', '-parse-as-library', '-target', alvo, '-module-name', 'OrbeCoreAI'];
+    const modulo = join(DIR_DA_CASCA_FALSA, 'OrbeCoreAI.swiftmodule');
+    const objeto = join(DIR_DA_CASCA_FALSA, 'casca-falsa.o');
+    // Sempre refaz: são milissegundos, e um módulo velho contra um `MotorCoreAI` novo daria
+    // um erro de tipo que pareceria bug no motor.
+    for (const passo of [
+      [...comuns, '-emit-module', '-emit-module-path', modulo, CASCA_FALSA_SWIFT],
+      [...comuns, '-c', '-o', objeto, CASCA_FALSA_SWIFT],
+    ]) {
+      avisar(`compilando a casca falsa do Core AI (${passo.includes('-c') ? 'objeto' : 'módulo'})`);
+      const r = spawnSync('swiftc', passo, { encoding: 'utf8' });
+      if (r.error) return { ok: false, motivo: `o swiftc não rodou: ${r.error.name}: ${r.error.message}` };
+      if (r.status !== 0) return { ok: false, motivo: `a casca falsa não compilou: ${cauda(r.stderr ?? '')}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, motivo: `a casca falsa não ficou pronta: ${mensagem(e)}` };
+  }
 }
 
 /** O processo vivo, visto do transporte. */

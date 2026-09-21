@@ -37,7 +37,7 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { motivoDaFalha } from '../../../lib/assinatura';
 import { motivoDoAparelho, motoresDoRecurso, nomeDoMotor, type EstadoDaPonte } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
-import { PRAZO_MS, garantirListaAprovada, motorPara, ponteDoAparelho } from '../../../lib/motores';
+import { PRAZO_MS, coreaiDoAparelho, garantirListaAprovada, motorPara, ponteDoAparelho } from '../../../lib/motores';
 import {
   ETAPA_EM_PALAVRAS,
   duracaoCurta,
@@ -104,10 +104,20 @@ export default function BancadaScreen() {
   const [linhas, setLinhas] = useState<readonly Linha[]>([]);
   // O diagnóstico da ponte, cru (5.9): relido ao abrir enquanto não for "disponível".
   const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
+  // E o do peso aberto (5.8), que é outro fato.
+  const [coreai, setCoreai] = useState<EstadoDaPonte>(() => coreaiDoAparelho.agora());
+  // Medir o peso aberto é **escolha**, não padrão: ele é o mais lento dos quatro. O `ref`
+  // acompanha o estado porque o laço de medição captura o valor no início e roda por minutos.
+  const [medirProva, setMedirProva] = useState(false);
+  const medirProvaRef = useRef(medirProva);
+  medirProvaRef.current = medirProva;
   useEffect(() => {
     let vivo = true;
     void ponteDoAparelho.reconsultar().then((p) => {
       if (vivo) setPonte(p);
+    });
+    void coreaiDoAparelho.reconsultar().then((p) => {
+      if (vivo) setCoreai(p);
     });
     return () => {
       vivo = false;
@@ -150,9 +160,14 @@ export default function BancadaScreen() {
       // existe para comparar motores esconde justamente o motor novo.
       // E a ponte do aparelho (5.9): com o módulo no build, o aparelho é medido aqui
       // ao lado da nuvem, com o texto cru dele — é a comparação que o dono pediu.
-      const [lista, estadoDaPonte] = await Promise.all([garantirListaAprovada(), ponteDoAparelho.reconsultar()]);
+      const [lista, estadoDaPonte, estadoDoCoreAI] = await Promise.all([
+        garantirListaAprovada(),
+        ponteDoAparelho.reconsultar(),
+        coreaiDoAparelho.reconsultar(),
+      ]);
       setPonte(estadoDaPonte);
-      const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, estadoDaPonte, lista);
+      setCoreai(estadoDoCoreAI);
+      const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, { sistema: estadoDaPonte, coreai: estadoDoCoreAI }, lista);
       if (chaveRef.current !== chaveDoLaco) return;
       for (const m of conhecidos) {
         // **Abandona o que é de outra janela.** O efeito de limpeza apaga as linhas
@@ -161,6 +176,11 @@ export default function BancadaScreen() {
         // o erro que esta tela existe para não cometer (comparar a frase de um motor
         // numa janela com a de outro motor em outra).
         if (chaveRef.current !== chaveDoLaco) return;
+        // **O peso aberto é prova, e fica de fora por padrão** (5.8). Ele sobe 244 MiB do
+        // disco por chamada, e esta corrida existe para comparar a nuvem com o modelo do
+        // sistema — não para esperar um motor que ninguém vai escolher. Quem quiser medi-lo
+        // liga o interruptor ao lado do botão.
+        if (m.prova && !medirProvaRef.current) continue;
         setRodando(m.id);
         const linha = await medirUm(entrada, m.id);
         if (chaveRef.current !== chaveDoLaco) return;
@@ -284,12 +304,27 @@ export default function BancadaScreen() {
               {rodando === null ? 'Medir os motores' : `medindo ${nomeDoMotor(rodando)}…`}
             </Text>
           </Pressable>
+          <Pressable
+            onPress={() => setMedirProva((v) => !v)}
+            disabled={rodando !== null || amostraEmCurso}
+            accessibilityRole="switch"
+            accessibilityLabel="Medir também o peso aberto"
+            accessibilityState={{ checked: medirProva, disabled: rodando !== null || amostraEmCurso }}
+            style={({ pressed }) => [s.aviso, pressed && s.pressed]}
+          >
+            <Text style={s.aviso}>
+              {medirProva ? '☑' : '☐'} medir também o peso aberto (prova, sob demanda — ele sobe 244 MiB por
+              chamada e é o mais lento dos quatro)
+            </Text>
+          </Pressable>
           <Text style={s.aviso}>
             Modo medição: um motor por vez, sem recuo e sem piso. A frase do template é a régua. O
             texto cru só aparece aqui, e nada disto sai do aparelho.
           </Text>
           <Text style={s.rotulo}>diagnóstico da ponte</Text>
           <Text style={s.meta}>{diagnosticoCru(ponte)}</Text>
+          <Text style={s.rotulo}>diagnóstico do peso aberto</Text>
+          <Text style={s.meta}>{diagnosticoCru(coreai)}</Text>
         </View>
 
         {linhas.map((l) => (
@@ -825,13 +860,19 @@ function LinhaDaAmostra({ linha: l, s }: { linha: LinhaDoRelatorio; s: Styles })
   );
 }
 
-/** O diagnóstico como a ponte o escreveu — ou o estado, quando não houve linha. */
+/**
+ * O diagnóstico como a ponte o escreveu — ou o estado, quando não houve linha.
+ *
+ * Serve aos **dois** motores do aparelho (5.8): a linha é a mesma, e o texto dos estados sem
+ * linha fala do aparelho, não de um modelo em particular — quem nomeia o motor é o rótulo
+ * acima dele na tela.
+ */
 function diagnosticoCru(p: EstadoDaPonte): string {
   switch (p.tipo) {
     case 'ausente':
       return 'ausente — o módulo OnDeviceEngine não está neste build';
     case 'fora-do-ios':
-      return 'fora do iOS — o modelo do sistema só existe no iPhone';
+      return 'fora do iOS — o modelo do aparelho só existe no iPhone';
     case 'consultando':
       return 'consultando…';
     case 'lido':
