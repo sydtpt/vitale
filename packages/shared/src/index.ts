@@ -143,6 +143,8 @@ export * from './period/cadernos';
 export * from './period/fechado';
 export * from './period/retro';
 export * from './period/retro-blocks';
+// A entrada da Retrospectiva (story 2.2): o celular e o script a montam pela mesma conta.
+export * from './period/retro-dados';
 export * from './period/task-grid';
 export * from './goals/evaluate';
 export * from './goals/format';
@@ -191,6 +193,7 @@ export * from './data/gear';
 export * from './data/places';
 export * from './data/edicoes-ia';
 export * from './data/edicoes-capa';
+export * from './data/retro-dados';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
 export * from './todo/format';

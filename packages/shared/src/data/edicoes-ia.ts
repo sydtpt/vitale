@@ -21,7 +21,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGG_VERSION } from '../constants/agg-version';
-import type { LinhaDaImpressao, PortasDaImpressao } from '../ia/imprimir';
+import type { LinhaDaImpressao, PeriodoDaEdicao, PortasDaImpressao } from '../ia/imprimir';
 import { CADERNO_IDS, isCadernoId, type CadernoId } from '../period/cadernos';
 import type { PeriodKind } from '../period/bounds';
 
@@ -246,6 +246,89 @@ function paraCarga(l: LinhaDaImpressao): LinhaDaCarga {
 }
 
 /**
+ * A conta trocou entre o começo da impressão e a gravação: a sessão do client não é
+ * mais de quem a impressão leu. Nada foi gravado. Ver {@link portasDaEdicao}.
+ */
+export class ContaTrocadaNaImpressao extends Error {
+  constructor(esperado: string, naSessao: string | null) {
+    super(
+      `a impressão começou para ${esperado} e a sessão agora é de ${naSessao ?? 'ninguém'} — `
+      + 'nada foi gravado, para o texto de um dono não cair na edição de outro',
+    );
+    this.name = 'ContaTrocadaNaImpressao';
+  }
+}
+
+/** "month 2026-08-01 a 2026-08-31". */
+function periodoEmTexto(p: PeriodoDaEdicao): string {
+  return `${p.tipoPeriodo} ${p.inicio} a ${p.fim}`;
+}
+
+/**
+ * A porta não pode gravar sobre o que a impressão leu: os cadernos do período
+ * mudaram entre o `buscar` e o `gravar`, o `gravar` pediu outro período, ou não
+ * houve `buscar` para este `gravar` (nenhum, ou um que outra gravação já usou).
+ *
+ * **Não afirma a causa.** A edição que mudou pode ter sido impressa por outro
+ * hospedeiro, ou apagada, ou alterada pelo próprio telefone — a porta só vê que o
+ * conjunto de agora não é o que ela leu. Nada foi gravado, e nada foi apagado.
+ *
+ * - `vistos`: os cadernos que `buscar` devolveu — `null` quando não houve `buscar`.
+ * - `agora`: os que a releitura achou — `null` quando não chegou a reler.
+ * - `periodoLido`: o período do `buscar`, quando o `gravar` pediu outro; senão `null`.
+ */
+export class EdicaoMudouNaImpressao extends Error {
+  readonly vistos: readonly CadernoId[] | null;
+  readonly agora: readonly CadernoId[] | null;
+  readonly periodoLido: PeriodoDaEdicao | null;
+
+  constructor(
+    vistos: readonly CadernoId[] | null,
+    agora: readonly CadernoId[] | null,
+    periodoTrocado: { readonly lido: PeriodoDaEdicao; readonly pedido: PeriodoDaEdicao } | null = null,
+  ) {
+    const lista = (cs: readonly CadernoId[]) => (cs.length === 0 ? 'nenhum' : cs.join(', '));
+    super(
+      vistos === null
+        ? 'gravar veio sem buscar antes — a porta não sabe que cadernos a impressão viu, e nada foi gravado'
+        : periodoTrocado !== null
+          ? `gravar pediu ${periodoEmTexto(periodoTrocado.pedido)}, e o buscar leu ${periodoEmTexto(periodoTrocado.lido)} — `
+            + 'a porta só grava o período que a impressão leu, e nada foi gravado'
+          : `os cadernos deste período mudaram entre a leitura e a gravação (lidos: ${lista(vistos)}; agora: `
+            + `${lista(agora ?? [])}) — outro hospedeiro imprimiu ou apagou, e nada foi gravado`,
+    );
+    this.name = 'EdicaoMudouNaImpressao';
+    this.vistos = vistos;
+    this.agora = agora;
+    this.periodoLido = periodoTrocado?.lido ?? null;
+  }
+}
+
+/** O conjunto de cadernos, como lista ordenada pelo catálogo — comparável por igualdade. */
+function conjuntoDe(cadernos: readonly { readonly caderno: CadernoId }[]): CadernoId[] {
+  const presentes = new Set(cadernos.map((c) => c.caderno));
+  return CADERNO_IDS.filter((c) => presentes.has(c));
+}
+
+function mesmoConjunto(a: readonly CadernoId[], b: readonly CadernoId[]): boolean {
+  return a.length === b.length && a.every((c, i) => c === b[i]);
+}
+
+function mesmoPeriodo(a: PeriodoDaEdicao, b: PeriodoDaEdicao): boolean {
+  return a.tipoPeriodo === b.tipoPeriodo && a.inicio === b.inicio && a.fim === b.fim;
+}
+
+/**
+ * As portas da edição. O `buscar` daqui devolve os cadernos **inteiros** — o
+ * `PortasDaImpressao` só promete o `caderno` de cada um, porque é só isso que a
+ * sequência lê; o hospedeiro que quiser comparar assinaturas (o `--sem-gravar` do
+ * script) lê o resto daqui.
+ */
+export interface PortasDaEdicao extends PortasDaImpressao<CadernoImpresso[]> {
+  buscar(periodo: PeriodoDaEdicao): Promise<CadernoImpresso[]>;
+}
+
+/**
  * As duas portas da impressão, ligadas a um cliente — é o que o hospedeiro passa
  * a `imprimir` (`ia/imprimir.ts`).
  *
@@ -278,25 +361,55 @@ function paraCarga(l: LinhaDaImpressao): LinhaDaCarga {
  * escrito sobre os dados de um dono cairia na edição do outro. `gravar` relê a
  * sessão e, se ela não é mais de `userId`, lança {@link ContaTrocadaNaImpressao}
  * sem chamar a função.
+ *
+ * **O que a impressão leu também é conferido antes de gravar** (Story 2.2). A
+ * sequência monta a `ordem` a partir do que `buscar` viu, e a função apaga todo
+ * caderno fora da ordem. Entre o `buscar` e o `gravar` há uma chamada paga por
+ * caderno — minutos —, e se a edição do período mudar nesse intervalo (o iPhone e
+ * o script imprimem, desde a 2.2; o telefone também apaga), o caderno que apareceu
+ * não está na ordem desta impressão e seria apagado. Por isso `buscar` guarda o
+ * **período e o conjunto** que leu, e `gravar`, depois da conferência da conta,
+ * recusa com {@link EdicaoMudouNaImpressao}, sem chamar a função, quando:
+ *
+ * - não houve `buscar` para este `gravar` — nenhum, ou um que uma gravação anterior
+ *   já usou: **um `gravar` por `buscar`**, e o estado zera depois de um `rpc` que deu
+ *   certo;
+ * - o `gravar` pede outro período que não o lido — a ordem foi montada sobre outra
+ *   edição;
+ * - a releitura do período acha outro conjunto de cadernos.
+ *
+ * **Estreita a janela, não a fecha.** Ela vai de minutos para uma ida e volta ao
+ * banco; fechá-la pede que a própria função receba o conjunto visto e recuse, que
+ * é migração (deferred-work, a entrada da concorrência da 1.10). Só o conjunto
+ * conta: um caderno regravado pelo outro hospedeiro, com o conjunto igual, não é
+ * perdido — a função grava só o texto dos regenerados desta impressão.
+ *
+ * **Uma `portasDaEdicao` por impressão**, como os dois hospedeiros já fazem: o que
+ * foi lido é estado da impressão.
  */
-export class ContaTrocadaNaImpressao extends Error {
-  constructor(esperado: string, naSessao: string | null) {
-    super(
-      `a impressão começou para ${esperado} e a sessão agora é de ${naSessao ?? 'ninguém'} — `
-      + 'nada foi gravado, para o texto de um dono não cair na edição de outro',
-    );
-    this.name = 'ContaTrocadaNaImpressao';
-  }
-}
-
-export function portasDaEdicao(db: SupabaseClient, userId: string): PortasDaImpressao<CadernoImpresso[]> {
+export function portasDaEdicao(db: SupabaseClient, userId: string): PortasDaEdicao {
+  // O que a impressão leu — estado desta impressão, e por isso uma porta por impressão.
+  let lido: { readonly periodo: PeriodoDaEdicao; readonly cadernos: readonly CadernoId[] } | null = null;
   return {
-    buscar: (p) => fetchEdicao(db, userId, p.tipoPeriodo, p.inicio, p.fim),
+    buscar: async (p) => {
+      const edicao = await fetchEdicao(db, userId, p.tipoPeriodo, p.inicio, p.fim);
+      lido = { periodo: { tipoPeriodo: p.tipoPeriodo, inicio: p.inicio, fim: p.fim }, cadernos: conjuntoDe(edicao) };
+      return edicao;
+    },
     gravar: async (i) => {
       const sessao = await db.auth.getSession();
       if (sessao.error) throw sessao.error;
       const naSessao = sessao.data.session?.user?.id ?? null;
       if (naSessao !== userId) throw new ContaTrocadaNaImpressao(userId, naSessao);
+
+      const visto = lido;
+      if (visto === null) throw new EdicaoMudouNaImpressao(null, null);
+      const pedido: PeriodoDaEdicao = { tipoPeriodo: i.tipoPeriodo, inicio: i.inicio, fim: i.fim };
+      if (!mesmoPeriodo(visto.periodo, pedido)) {
+        throw new EdicaoMudouNaImpressao(visto.cadernos, null, { lido: visto.periodo, pedido });
+      }
+      const agora = conjuntoDe(await fetchEdicao(db, userId, i.tipoPeriodo, i.inicio, i.fim));
+      if (!mesmoConjunto(visto.cadernos, agora)) throw new EdicaoMudouNaImpressao(visto.cadernos, agora);
 
       const { data, error } = await db.rpc('edicao_imprimir', {
         p_tipo_periodo: i.tipoPeriodo,
@@ -306,6 +419,8 @@ export function portasDaEdicao(db: SupabaseClient, userId: string): PortasDaImpr
         p_linhas: i.linhas.map(paraCarga),
       });
       if (error) throw error;
+      // Um `gravar` por `buscar`: o que foi lido serviu a esta gravação, e só a ela.
+      lido = null;
       return ((data ?? []) as unknown as EdicaoRow[]).map(toCadernoImpresso);
     },
   };

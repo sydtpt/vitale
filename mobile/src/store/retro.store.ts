@@ -1,17 +1,7 @@
 import { create } from 'zustand';
-import type { HabitLog, RegistroLog, SleepPeriod } from '@vitale/shared';
 import {
-  fetchDailyRatingScores,
-  fetchDoneTodoOccurrencesSince,
-  fetchHabitLogsSince,
-  fetchHabitSummaries,
-  fetchHealthDailyValues,
-  fetchRegistroLogsSince,
-  fetchRegistroSummaries,
-  fetchSleepPeriodsSince,
-  fetchTodoTemplateSummaries,
-} from '@vitale/shared';
-import {
+  SEM_DADOS_DA_RETRO,
+  fetchDadosDaRetro,
   localDateStr,
   buildRetrospective,
   buildRetroHighlights,
@@ -19,30 +9,21 @@ import {
   buildHeatmap,
   buildTaskGrid,
   buildYearByMonth,
+  retroInputDe,
   retroSince as retroSinceDate,
-  isDailyRecurrence,
-  type RetroDailyTask,
+  type DadosDaRetro,
   type PeriodKind,
   type RetroLede,
   type Heatmap,
   type TaskGrid,
   type RetroInput,
   type RetroSummary,
-  type RetroHealthMetric,
   type WeekHighlight,
   type MonthBucket,
 } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './auth.store';
 import { useActivitiesStore } from './activities.store';
-
-/** Métricas de saúde no recap + polaridade e formatação. */
-const HEALTH_SPECS: Omit<RetroHealthMetric, 'valuesByDay'>[] = [
-  { metric: 'sono', label: 'Sono', higherIsWorse: false, icon: 'sleep', decimals: 1, unit: 'h' },
-  { metric: 'vfc', label: 'VFC', higherIsWorse: false, icon: 'hrv', decimals: 0, unit: ' ms' },
-  { metric: 'fcRepouso', label: 'FC repouso', higherIsWorse: true, icon: 'heart', decimals: 0, unit: ' bpm' },
-];
-
 
 interface RetroState {
   loading: boolean;
@@ -57,17 +38,16 @@ interface RetroState {
    */
   falhouEm: string | null;
 
-  health: Array<{ day: string; metric: string; value: number | null }>;
-  ratings: Array<{ day: string; sleepQuality: number | null; dayQuality: number | null }>;
-  habits: Array<{ id: string; name: string; bad: boolean; unit: string; createdOn?: string; unitPrice?: number }>;
-  habitLogs: HabitLog[];
-  registros: Array<{ id: string; name: string; createdOn?: string }>;
-  registroLogs: RegistroLog[];
-  tasks: { doneDay: string; module: string }[];
-  dailyTasks: RetroDailyTask[];
-  purchases: { doneDay: string; cat?: string; price?: number; name: string }[];
-  /** As noites da janela — o bloco Sono e as frases de sono da manchete (sleep/retro.ts). */
-  sleepPeriods: SleepPeriod[];
+  /**
+   * Os resultados crus das nove leituras, desde `loadedSince` (Story 2.2).
+   *
+   * **Ninguém os lê para desenhar.** A entrada de cada período sai de
+   * `retroInputDe` (`@vitale/shared`), que os corta na janela **daquele** período
+   * — então uma janela mais larga já carregada (o Ano, aberto antes do Mês) não
+   * muda o resumo do mês, que é o que ele era antes da 2.2. A mesma conta monta a
+   * entrada do script que imprime a edição fora do telefone.
+   */
+  dados: DadosDaRetro;
 
   ensure: (since: string) => Promise<void>;
   summary: (now: Date, kind: PeriodKind, offset: number) => RetroSummary;
@@ -86,61 +66,17 @@ function currentUserId(): string | undefined {
 }
 
 export const useRetroStore = create<RetroState>((set, get) => {
-  function buildInput(now: Date, kind: PeriodKind, offset: number): RetroInput {
-    const s = get();
-
-    const byMetric = new Map<string, Map<string, number>>();
-    for (const r of s.health) {
-      if (r.value == null) continue;
-      let m = byMetric.get(r.metric);
-      if (!m) { m = new Map(); byMetric.set(r.metric, m); }
-      m.set(r.day, Number(r.value));
-    }
-
-    const sleepMap = new Map<string, number>();
-    const dayMap = new Map<string, number>();
-    for (const r of s.ratings) {
-      if (r.sleepQuality != null) sleepMap.set(r.day, r.sleepQuality);
-      if (r.dayQuality != null) dayMap.set(r.day, r.dayQuality);
-    }
-
-    const logsByHabit = new Map<string, Map<string, number>>();
-    for (const l of s.habitLogs) {
-      let m = logsByHabit.get(l.habitId);
-      if (!m) { m = new Map(); logsByHabit.set(l.habitId, m); }
-      m.set(l.logDate, l.value);
-    }
-    const daysByRegistro = new Map<string, string[]>();
-    for (const l of s.registroLogs) {
-      const arr = daysByRegistro.get(l.registroId) ?? [];
-      arr.push(l.logDate);
-      daysByRegistro.set(l.registroId, arr);
-    }
-
-    return {
-      now, kind, offset,
-      activities: useActivitiesStore.getState().activities(),
-      health: HEALTH_SPECS.map((spec) => ({ ...spec, valuesByDay: byMetric.get(spec.metric) ?? new Map() })),
-      floorsByDay: byMetric.get('andares'),
-      stepsByDay: byMetric.get('passos'),
-      ratingsSleep: sleepMap,
-      ratingsDay: dayMap,
-      habits: s.habits.map((h) => ({ id: h.id, name: h.name, bad: h.bad, unit: h.unit, unitPrice: h.unitPrice, createdOn: h.createdOn, logsByDay: logsByHabit.get(h.id) ?? new Map() })),
-      registros: s.registros.map((r) => ({ id: r.id, name: r.name, createdOn: r.createdOn, days: daysByRegistro.get(r.id) ?? [] })),
-      tasks: s.tasks,
-      dailyTasks: s.dailyTasks,
-      purchases: s.purchases,
-      sleepPeriods: s.sleepPeriods,
-    };
-  }
+  // As atividades vêm da store delas, que carrega o histórico inteiro; as ocultas
+  // saem em `retroInputDe`.
+  const buildInput = (now: Date, kind: PeriodKind, offset: number): RetroInput =>
+    retroInputDe(get().dados, useActivitiesStore.getState().activities(), now, kind, offset);
 
   return {
     loading: false,
     loaded: false,
     loadedSince: null,
     falhouEm: null,
-    health: [], ratings: [], habits: [], habitLogs: [], registros: [], registroLogs: [], tasks: [], dailyTasks: [], purchases: [],
-    sleepPeriods: [],
+    dados: SEM_DADOS_DA_RETRO,
 
     ensure: async (since) => {
       const { loading, loaded, loadedSince } = get();
@@ -158,61 +94,8 @@ export const useRetroStore = create<RetroState>((set, get) => {
       // reiniciar — o que a rota da revista mostra como "ainda não foi escrito".
       // É a mesma forma do `health-daily.store`.
       try {
-        const [health, ratings, habits, habitLogs, registros, registroLogs, templates, occs, sleepPeriods] =
-          await Promise.all([
-            fetchHealthDailyValues(supabase, userId, since),
-            fetchDailyRatingScores(supabase, userId, since),
-            fetchHabitSummaries(supabase, userId),
-            fetchHabitLogsSince(supabase, userId, since),
-            fetchRegistroSummaries(supabase, userId),
-            fetchRegistroLogsSince(supabase, userId, since),
-            fetchTodoTemplateSummaries(supabase, userId),
-            fetchDoneTodoOccurrencesSince(supabase, userId, since),
-            // Por dia de acordar ≥ `since`: a mesma janela dos deltas e dos 90 dias.
-            fetchSleepPeriodsSince(supabase, userId, since),
-          ]);
-
-        const tmplById = new Map(templates.map((t) => [t.id, t]));
-        const tasks: { doneDay: string; module: string }[] = [];
-        const purchases: { doneDay: string; cat?: string; price?: number; name: string }[] = [];
-        // Dias de conclusão por série diária — o gatilho nomeado do cruzamento.
-        const dailyDays = new Map<string, Set<string>>();
-        for (const o of occs) {
-          if (!o.doneAt) continue;
-          const tmpl = tmplById.get(o.templateId);
-          if (!tmpl) continue;
-          const doneDay = localDateStr(new Date(o.doneAt));
-          tasks.push({ doneDay, module: tmpl.module });
-          if (isDailyRecurrence(tmpl.recurrence)) {
-            let d = dailyDays.get(tmpl.id);
-            if (!d) { d = new Set(); dailyDays.set(tmpl.id, d); }
-            d.add(doneDay);
-          }
-          if (tmpl.module === 'compras') {
-            const meta = tmpl.meta ?? {};
-            purchases.push({
-              doneDay,
-              cat: typeof meta['cat'] === 'string' ? (meta['cat'] as string) : undefined,
-              price: typeof meta['price'] === 'number' ? (meta['price'] as number) : undefined,
-              name: tmpl.name,
-            });
-          }
-        }
-
-        set({
-          health,
-          ratings,
-          habits,
-          habitLogs,
-          registros,
-          registroLogs,
-          tasks, purchases,
-          sleepPeriods,
-          dailyTasks: templates
-            .filter((t) => t.active && isDailyRecurrence(t.recurrence))
-            .map((t) => ({ id: t.id, name: t.name, days: dailyDays.get(t.id) ?? new Set<string>(), createdOn: t.createdOn })),
-          loading: false, loaded: true, loadedSince: since, falhouEm: null,
-        });
+        const dados = await fetchDadosDaRetro(supabase, userId, since);
+        set({ dados, loading: false, loaded: true, loadedSince: since, falhouEm: null });
       } catch {
         set({ loading: false, falhouEm: since });
       }
@@ -228,7 +111,8 @@ export const useRetroStore = create<RetroState>((set, get) => {
       return buildRetroLede(buildRetroHighlights(buildRetrospective(input), input));
     },
     heatmap: (now, kind, offset, metric) => buildHeatmap(buildInput(now, kind, offset), metric),
-    taskGrid: (now, kind, offset) => buildTaskGrid({ now, kind, offset, dailyTasks: get().dailyTasks }),
+    taskGrid: (now, kind, offset) =>
+      buildTaskGrid({ now, kind, offset, dailyTasks: buildInput(now, kind, offset).dailyTasks }),
     yearByMonth: (now, offset) => buildYearByMonth(buildInput(now, 'year', offset)),
   };
 });

@@ -17,8 +17,10 @@
  * a falso. Por isso `falhouEm` — e por isso a tentativa seguinte, a do foco da
  * tela, tem de funcionar.
  *
- * Nenhuma rede: os nove fetchers do `@vitale/shared` são falsos, e o acervo é vazio
- * de propósito — o que se mede aqui é o estado da store, não o conteúdo da janela.
+ * Nenhuma rede: a leitura das nove (`fetchDadosDaRetro`, do `@vitale/shared`, desde a
+ * 2.2) é falsa, e o acervo é vazio de propósito — o que se mede aqui é o estado da
+ * store, não o conteúdo da janela. O conteúdo, e o corte dele na janela do período, é
+ * de `contrato-da-edicao.test.ts`.
  */
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
@@ -37,28 +39,19 @@ jest.mock('../activities.store', () => ({
 jest.mock('@vitale/shared', () => {
   const real = jest.requireActual('@vitale/shared') as Record<string, unknown>;
   const estado = {
-    /** Qual busca falha na próxima chamada: nenhuma, ou a primeira da lista. */
+    /** Se a leitura da janela falha na próxima chamada. */
     falhar: false,
     /** Quantas vezes a janela foi pedida ao "banco". */
     pedidos: 0,
   };
-  const vazio = async () => {
-    estado.pedidos += 1;
-    if (estado.falhar) throw new Error('PostgREST caiu');
-    return [];
-  };
   return {
     ...real,
     __fake: estado,
-    fetchHealthDailyValues: vazio,
-    fetchDailyRatingScores: vazio,
-    fetchHabitSummaries: vazio,
-    fetchHabitLogsSince: vazio,
-    fetchRegistroSummaries: vazio,
-    fetchRegistroLogsSince: vazio,
-    fetchTodoTemplateSummaries: vazio,
-    fetchDoneTodoOccurrencesSince: vazio,
-    fetchSleepPeriodsSince: vazio,
+    fetchDadosDaRetro: async () => {
+      estado.pedidos += 1;
+      if (estado.falhar) throw new Error('PostgREST caiu');
+      return real.SEM_DADOS_DA_RETRO;
+    },
   };
 });
 

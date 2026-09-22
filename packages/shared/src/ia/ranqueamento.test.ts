@@ -568,16 +568,18 @@ describe('lápide no último dia do período — ainda é do período', () => {
 });
 
 /*
- * O CADERNO VAZIO COM A FORMA QUE O CELULAR MANDA.
+ * O CADERNO VAZIO COM A FORMA QUE OS HOSPEDEIROS MANDAM.
  *
- * As fixtures acima esvaziam Coração tirando a linha de FC do resumo. O celular
- * não faz isso: ele manda SEMPRE as três linhas de saúde da retro
- * (`mobile/src/store/retro.store.ts`, `HEALTH_SPECS`: sono, vfc, fcRepouso), e o
+ * As fixtures acima esvaziam Coração tirando a linha de FC do resumo. Os dois
+ * hospedeiros que imprimem — o celular e o script (`scripts/revista/`) — não fazem
+ * isso: desde a 2.2 os dois montam a entrada pela mesma conta do núcleo
+ * (`period/retro-dados.ts`), que manda SEMPRE as três linhas de saúde da
+ * `HEALTH_SPECS` (sono, vfc, fcRepouso), e o
  * mês sem medida chega com as linhas presentes e todo `atual` nulo. É essa a
  * forma que `semDado` tem que ler — um `semDado` que olhasse "não há linha" em
  * vez de "não há valor" passava em todas as outras fixtures.
  */
-describe('o caderno vazio com a forma que o celular manda — linhas presentes, sem valor', () => {
+describe('o caderno vazio com a forma que os hospedeiros mandam — linhas presentes, sem valor', () => {
   const HEALTH_SPECS_DO_CELULAR = [
     { metric: 'sono', label: 'Sono', higherIsWorse: false, icon: 'sleep' as never, decimals: 1, unit: 'h' },
     { metric: 'vfc', label: 'VFC', higherIsWorse: false, icon: 'hrv' as never, decimals: 0, unit: ' ms' },
