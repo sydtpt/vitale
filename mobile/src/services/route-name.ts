@@ -35,8 +35,14 @@ import { catalogoDoRecurso, motorPara } from '../lib/motores';
 import { anel } from '../lib/motores/anel';
 import { lerPreferencia } from '../lib/motores/preferencia';
 
-/** Ciclismo no HealthKit. Só ele tem `cities` preenchido pelo ingest. */
-const BIKE_ACTIVITY_ID = 13;
+/**
+ * Ciclismo no HealthKit. Só ele tem `cities` preenchido pelo ingest.
+ *
+ * Exportado desde o spike de 22/09: a bancada dos motores escolhe a amostra do
+ * nome de rota pelo mesmo crivo que o gatilho — repetir o `13` lá seria a
+ * bancada medir um conjunto que a produção não nomeia.
+ */
+export const BIKE_ACTIVITY_ID = 13;
 
 const RECURSO = descritorDoNomeDeRota.recurso;
 
@@ -105,6 +111,44 @@ function depsDoApp(userId: string): DepsDoNome {
 }
 
 /**
+ * Os fatos do nome de rota desta pedalada — a rota mais as casas do dono —, ou
+ * `null` quando o traçado não tem as duas pontas.
+ *
+ * **Extraída no spike de 22/09** porque a bancada dos motores precisa da mesma
+ * entrada para medir o recurso, e uma segunda montagem lá seria uma segunda
+ * definição de "os fatos desta pedalada": bastaria uma das duas esquecer a
+ * elevação, ou o `?? 0` da distância, para a bancada medir um pedido que a
+ * produção não manda — e é o pedido que o hash identifica (AD-11).
+ *
+ * Sem as pontas não há forma a derivar, e sem forma não há molde: devolver
+ * `null` deixa a rota pendente para quando o traçado já estiver carregado.
+ *
+ * **Pode rejeitar**: a consulta das âncoras abre rede. Quem chama trata — o
+ * gatilho engole e tenta de novo na próxima abertura.
+ */
+export async function fatosDaPedalada(
+  activity: Activity,
+  pontos: readonly PontaDaRota[] | undefined,
+  userId: string,
+): Promise<FatosDoNome | null> {
+  const primeiro = pontos?.[0];
+  const ultimo = pontos?.[pontos.length - 1];
+  if (!primeiro || !ultimo) return null;
+
+  const rota: RouteFacts = {
+    startAt: activity.startAt,
+    distanceM: activity.distanceM ?? 0,
+    elevationM: activity.elevationM ?? 0,
+    lat0: primeiro.lat,
+    lng0: primeiro.lng,
+    lat1: ultimo.lat,
+    lng1: ultimo.lng,
+    cities: (activity.cities ?? []) as readonly RouteCity[],
+  };
+  return { rota, ancoras: await ancoras(userId) };
+}
+
+/**
  * Nomeia uma pedalada, se ela precisar. Devolve o nome, ou `null` quando não
  * houve nome a dar — e `null` aqui não é falha.
  *
@@ -126,26 +170,12 @@ export async function nomearPedaladaSePreciso(
 ): Promise<string | null> {
   if (!precisaDeNome(activity)) return null;
 
-  const cities = (activity.cities ?? []) as readonly RouteCity[];
-  const primeiro = pontos?.[0];
-  const ultimo = pontos?.[pontos.length - 1];
-  // Sem as pontas não há forma a derivar, e sem forma não há molde. Sair agora
-  // deixa a rota pendente para quando o traçado já estiver carregado.
-  if (!primeiro || !ultimo) return null;
-
-  const rota: RouteFacts = {
-    startAt: activity.startAt,
-    distanceM: activity.distanceM ?? 0,
-    elevationM: activity.elevationM ?? 0,
-    lat0: primeiro.lat,
-    lng0: primeiro.lng,
-    lat1: ultimo.lat,
-    lng1: ultimo.lng,
-    cities,
-  };
-
   try {
-    const fatos: FatosDoNome = { rota, ancoras: await ancoras(userId) };
+    // Sem as pontas do traçado não há fatos, e a rota fica pendente para quando
+    // ele estiver carregado. Dentro do `try` porque a montagem consulta as
+    // âncoras, e rejeição ali termina como toda falha daqui: nada gravado.
+    const fatos = await fatosDaPedalada(activity, pontos, userId);
+    if (fatos === null) return null;
     /*
      * A preferência (do disco) e o catálogo (do disco mais o servidor) em
      * paralelo: são independentes. E **sem recuo**, que é a diferença entre este

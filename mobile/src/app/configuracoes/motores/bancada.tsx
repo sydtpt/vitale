@@ -16,25 +16,23 @@ import {
   filterByRange,
   foraEmTexto,
   hashCurto,
-  ler,
   localDateStr,
   medidasDoPortao,
   porcento,
   resumoDaCobertura,
   segundos,
-  type Desfecho,
-  type EntradaDaSaude,
   type JanelaClassificada,
   type LinhaDoRelatorio,
-  type Medicao,
   type MotorId,
-  type ProblemaDaConferencia,
+  type RecursoId,
   type SonoRange,
 } from '@vitale/shared';
+import { useActivitiesStore } from '../../../store/activities.store';
+import { useAuthStore } from '../../../store/auth.store';
 import { useSonoStore } from '../../../store/sono.store';
+import { useEntradaDaEdicao } from '../../../hooks/useEntradaDaEdicao';
 import { PeriodNav } from '../../../components/sono/PeriodNav';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { motivoDaFalha } from '../../../lib/assinatura';
 import {
   PESOS_ABERTOS,
   PONTE_AUSENTE,
@@ -50,7 +48,6 @@ import {
   PRAZO_MS,
   estadoDosPesosAbertos,
   garantirListaAprovada,
-  motorPara,
   ponteDoAparelho,
   reconsultarPesosAbertos,
 } from '../../../lib/motores';
@@ -65,12 +62,25 @@ import {
   type ContextoDaAmostra,
   type EtapaDoPreparo,
 } from '../../../lib/motores/amostra';
-import { chaveDaJanela } from '../../../lib/leitura-da-saude';
+import {
+  FONTES,
+  RECURSO_INICIAL,
+  fonteDe,
+  type CasosDaAmostra,
+  type ContextoDasAmostras,
+  type Linha,
+} from '../../../lib/motores/amostras';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../../theme';
 
 /**
- * /configuracoes/motores/bancada — os motores na mesma janela, lado a lado com o
+ * /configuracoes/motores/bancada — os motores no mesmo caso, lado a lado com o
  * template.
+ *
+ * **Todas as leituras, não só a Saúde do sono** (spike 22/09). A tela escolhe uma
+ * leitura e um caso dela; de onde vêm os casos, qual descritor percorrer e como
+ * virar texto a saída dele é da fonte de amostra (`lib/motores/amostras.ts`) — aqui
+ * não há um ramo por recurso, e não pode haver: era o que prendia a bancada à única
+ * amostra que alguém tinha escrito.
  *
  * É a tela de desenvolvimento do marco A, e o **único lugar do app onde o texto
  * cru do fornecedor aparece**: em produção o que se mostra é a frase montada, com
@@ -114,6 +124,11 @@ export default function BancadaScreen() {
     if (!loaded) void load();
   }, [loaded, load]);
 
+  // **Qual leitura está na bancada.** O catálogo é o das fontes de amostra, que é
+  // fechado sobre os recursos do núcleo: leitura nova aparece aqui sozinha.
+  const [recurso, setRecurso] = useState<RecursoId>(RECURSO_INICIAL);
+  const fonte = useMemo(() => fonteDe(recurso), [recurso]);
+
   const [range, setRange] = useState<SonoRange>('7d');
   const [offset, setOffset] = useState(0);
   const [rodando, setRodando] = useState<MotorId | null>(null);
@@ -136,10 +151,20 @@ export default function BancadaScreen() {
   // A lista do servidor, para os chips existirem antes de a corrida começar.
   const [listaDeMotores, setListaDeMotores] = useState<ListaAprovada | null>(listaAprovada());
 
-  /** Os motores que a corrida pode incluir agora — o mesmo catálogo fundido que ela usa. */
+  /**
+   * Os motores que a corrida pode incluir agora — o mesmo catálogo fundido que ela
+   * usa, **do recurso escolhido**: a lista de nuvem aprovada é por recurso (ADR
+   * 0048), e um catálogo fixo esconderia na Retrospectiva a variante que o servidor
+   * aprovou só para ela.
+   *
+   * **E nada aqui passa por `motivoDeBloqueio`.** Aquele motivo diz quem pode
+   * *escrever* num recurso — é por ele que o peso aberto só é escolhível na Saúde do
+   * sono, que não grava. Medir não grava: na bancada o peso aberto corre em qualquer
+   * leitura, e é justamente comparar o que ele escreveria que esta tela serve.
+   */
   const motoresDaCorrida = useMemo(
-    () => motoresDoRecurso(descritorDaSaudeDoSono.recurso, { sistema: ponte, coreai }, listaDeMotores),
-    [ponte, coreai, listaDeMotores],
+    () => motoresDoRecurso(recurso, { sistema: ponte, coreai }, listaDeMotores),
+    [recurso, ponte, coreai, listaDeMotores],
   );
   const nenhumMotorNaCorrida = motoresDaCorrida.every(
     (m) => m.id === SEM_MODELO || foraDaCorrida.has(m.id) || !m.disponivel,
@@ -178,21 +203,103 @@ export default function BancadaScreen() {
     if (desde !== null) void carregarNotasDesde(desde);
   }, [desde, carregarNotasDesde]);
 
-  // Trocar a janela apaga o que já foi medido: comparar a frase de um motor numa
-  // janela com a de outro motor em outra janela é exatamente o erro que a bancada
-  // existe para não cometer.
+  /* ── o mundo que as fontes recebem ── */
+
+  /**
+   * A edição da **semana fechada anterior** (offset 1), pelo mesmo hook da revista:
+   * é ele que garante a janela carregada e diz quando os dados chegaram. O relógio
+   * fica fixo enquanto a tela vive — um `new Date()` a cada render daria uma entrada
+   * nova por quadro, e com ela um caso novo, que apagaria as linhas medidas.
+   *
+   * Ele busca a janela da retro ao abrir a bancada, mesmo que o dono fique só na
+   * Saúde do sono: hook não é condicional. Numa tela de desenvolvimento, uma consulta
+   * a mais é mais barata que uma segunda máquina de carregamento escrita aqui.
+   */
+  const agora = useMemo(() => new Date(), []);
+  const { entrada: entradaDaEdicao, dadosProntos } = useEntradaDaEdicao('week', 1, agora);
+
+  const atividades = useActivitiesStore((st) => st._all);
+  const atividadesCarregadas = useActivitiesStore((st) => st.loaded);
+  const carregarAtividades = useActivitiesStore((st) => st.load);
+  const userId = useAuthStore((st) => st.user?.id ?? null);
+  useEffect(() => {
+    if (!atividadesCarregadas) void carregarAtividades();
+  }, [atividadesCarregadas, carregarAtividades]);
+
+  // O traçado é carregado sob demanda e cacheado pela store: `loadRoute` sai cedo
+  // quando já o tem, então a amostra do nome de rota custa uma consulta por pedalada
+  // nova e nenhuma nas voltas seguintes.
+  const pontosDe = useCallback(async (id: string) => {
+    await useActivitiesStore.getState().loadRoute(id);
+    return useActivitiesStore.getState().routes[id];
+  }, []);
+
+  const ctx = useMemo<ContextoDasAmostras>(
+    () => ({
+      saude: entrada,
+      edicao: dadosProntos ? entradaDaEdicao : null,
+      pedaladas: { userId, atividades, pontosDe },
+    }),
+    [entrada, dadosProntos, entradaDaEdicao, userId, atividades, pontosDe],
+  );
+
+  /* ── os casos da leitura escolhida ── */
+
+  const [casos, setCasos] = useState<CasosDaAmostra>({ casos: [] });
+  const [carregandoCasos, setCarregandoCasos] = useState(true);
+  const [chaveDoCaso, setChaveDoCaso] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    setCarregandoCasos(true);
+    void (async () => {
+      let achados: CasosDaAmostra;
+      try {
+        achados = await fonte.casos(ctx);
+      } catch (e) {
+        // A fonte promete não rejeitar; se rejeitar assim mesmo, a tela diz o motivo
+        // em vez de ficar para sempre em "procurando".
+        achados = { casos: [], motivo: `a amostra não se montou: ${e instanceof Error ? e.message : String(e)}` };
+      }
+      if (!vivo) return;
+      setCasos(achados);
+      setCarregandoCasos(false);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [fonte, ctx]);
+
+  /** O caso medido agora: o escolhido, ou o primeiro da lista. */
+  const casoAtual = useMemo(() => {
+    const lista = casos.casos;
+    if (lista.length === 0) return null;
+    return lista.find((c) => c.chave === chaveDoCaso) ?? lista[0]!;
+  }, [casos, chaveDoCaso]);
+
+  /**
+   * O que está medido, identificado: **a leitura mais o caso**.
+   *
+   * Trocar qualquer um dos dois apaga as linhas. A regra já valia para a janela do
+   * sono — comparar a frase de um motor numa janela com a de outro motor em outra é
+   * o erro que esta tela existe para não cometer —, e com três leituras ela vale
+   * inteira: comparar uma frase de sono com um caderno da revista é o mesmo erro,
+   * maior.
+   */
+  const identidade = `${recurso}|${casoAtual?.chave ?? ''}`;
   useEffect(() => {
     setLinhas([]);
-  }, [range, offset]);
+  }, [identidade]);
 
-  // A janela que o cabeçalho está mostrando agora. O laço a compara a cada volta:
-  // ele leva ~14 s por motor, e nesse tempo o dono troca o período.
-  const chaveCorrente = chaveDaJanela(entrada);
-  const chaveRef = useRef(chaveCorrente);
-  chaveRef.current = chaveCorrente;
+  // O laço compara a cada volta: ele leva ~14 s por motor, e nesse tempo o dono
+  // troca de leitura ou de caso.
+  const identidadeRef = useRef(identidade);
+  identidadeRef.current = identidade;
 
   const medir = useCallback(async () => {
-    const chaveDoLaco = chaveDaJanela(entrada);
+    const caso = casoAtual;
+    if (caso === null) return;
+    const doLaco = `${recurso}|${caso.chave}`;
     setRodando(SEM_MODELO);
     const feitas: Linha[] = [];
     try {
@@ -209,21 +316,20 @@ export default function BancadaScreen() {
       setPonte(estadoDaPonte);
       setCoreai(estadoDoCoreAI);
       setListaDeMotores(lista);
-      const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, { sistema: estadoDaPonte, coreai: estadoDoCoreAI }, lista);
-      if (chaveRef.current !== chaveDoLaco) return;
+      const conhecidos = motoresDoRecurso(recurso, { sistema: estadoDaPonte, coreai: estadoDoCoreAI }, lista);
+      if (identidadeRef.current !== doLaco) return;
       for (const m of conhecidos) {
-        // **Abandona o que é de outra janela.** O efeito de limpeza apaga as linhas
-        // quando o período muda, mas o laço já capturou `entrada` e continuaria
-        // pintando medições da janela velha sob o cabeçalho novo — que é exatamente
-        // o erro que esta tela existe para não cometer (comparar a frase de um motor
-        // numa janela com a de outro motor em outra).
-        if (chaveRef.current !== chaveDoLaco) return;
+        // **Abandona o que é de outro caso.** O efeito de limpeza apaga as linhas
+        // quando a leitura ou o caso mudam, mas o laço já capturou os dois e
+        // continuaria pintando medições do caso velho sob o cabeçalho novo — que é
+        // exatamente o erro que esta tela existe para não cometer.
+        if (identidadeRef.current !== doLaco) return;
         // Quem o dono deixou de fora não corre. O template nunca é desligável: ele é a
         // régua, e uma corrida sem régua não compara nada.
         if (m.id !== SEM_MODELO && foraRef.current.has(m.id)) continue;
         setRodando(m.id);
-        const linha = await medirUm(entrada, m.id);
-        if (chaveRef.current !== chaveDoLaco) return;
+        const linha = await fonte.medir(caso, m.id);
+        if (identidadeRef.current !== doLaco) return;
         feitas.push(linha);
         // Publica a cada motor: a nuvem leva ~14 s na mediana, e esperar todas as
         // colunas para mostrar a primeira deixaria a tela vazia por meio minuto.
@@ -232,7 +338,7 @@ export default function BancadaScreen() {
     } finally {
       setRodando(null);
     }
-  }, [entrada]);
+  }, [fonte, recurso, casoAtual]);
 
   const template = linhas.find((l) => l.motor === SEM_MODELO)?.frase;
 
@@ -320,30 +426,91 @@ export default function BancadaScreen() {
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <View style={s.card}>
-          <PeriodNav
-            range={range}
-            offset={offset}
-            periods={periods}
-            nights={nights}
-            onRange={(r) => {
-              setRange(r);
-              setOffset(0);
-            }}
-            onOffset={setOffset}
-          />
+          <Text style={s.rotulo}>leitura</Text>
+          <View style={s.chips}>
+            {FONTES.map((f) => {
+              const escolhida = f.recurso === recurso;
+              return (
+                <Pressable
+                  key={f.recurso}
+                  onPress={() => {
+                    setRecurso(f.recurso);
+                    // O caso escolhido é de outra leitura: sem isto, a chave sobreviveria
+                    // à troca e a primeira volta poderia cair num caso que não existe mais.
+                    setChaveDoCaso(null);
+                  }}
+                  disabled={rodando !== null || amostraEmCurso}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: escolhida, disabled: rodando !== null || amostraEmCurso }}
+                  style={({ pressed }) => [s.chip, escolhida ? s.chipDentro : s.chipFora, pressed && s.pressed]}
+                >
+                  <Text style={escolhida ? s.chipTextoDentro : s.chipTexto}>{f.rotulo}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {fonte.seletor === 'janela-de-sono' ? (
+            <PeriodNav
+              range={range}
+              offset={offset}
+              periods={periods}
+              nights={nights}
+              onRange={(r) => {
+                setRange(r);
+                setOffset(0);
+              }}
+              onOffset={setOffset}
+            />
+          ) : (
+            <>
+              <Text style={s.rotulo}>caso</Text>
+              <View style={s.chips}>
+                {casos.casos.map((c) => {
+                  const escolhido = c.chave === casoAtual?.chave;
+                  return (
+                    <Pressable
+                      key={c.chave}
+                      onPress={() => setChaveDoCaso(c.chave)}
+                      disabled={rodando !== null || amostraEmCurso}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: escolhido, disabled: rodando !== null || amostraEmCurso }}
+                      style={({ pressed }) => [s.chip, escolhido ? s.chipDentro : s.chipFora, pressed && s.pressed]}
+                    >
+                      <Text style={escolhido ? s.chipTextoDentro : s.chipTexto}>{c.rotulo}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          )}
+          {carregandoCasos ? <Text style={s.meta}>procurando os casos desta leitura…</Text> : null}
+          {!carregandoCasos && casoAtual === null ? (
+            <Text style={s.motivo}>{casos.motivo ?? 'nenhum caso a medir nesta leitura'}</Text>
+          ) : null}
+
           <Pressable
             onPress={() => void medir()}
-            disabled={rodando !== null || amostraEmCurso}
+            disabled={rodando !== null || amostraEmCurso || casoAtual === null}
             accessibilityRole="button"
-            accessibilityLabel="Medir todos os motores nesta janela"
-            accessibilityState={rodando !== null || amostraEmCurso ? { disabled: true, busy: rodando !== null } : {}}
-            style={({ pressed }) => [s.botao, (rodando !== null || amostraEmCurso) && s.botaoOff, pressed && s.pressed]}
+            accessibilityLabel="Medir todos os motores neste caso"
+            accessibilityState={
+              rodando !== null || amostraEmCurso || casoAtual === null
+                ? { disabled: true, busy: rodando !== null }
+                : {}
+            }
+            style={({ pressed }) => [
+              s.botao,
+              (rodando !== null || amostraEmCurso || casoAtual === null) && s.botaoOff,
+              pressed && s.pressed,
+            ]}
           >
             {rodando !== null ? <ActivityIndicator size="small" color={colors.onPrimary} /> : null}
             <Text style={s.botaoTexto}>
               {rodando === null ? 'Medir os motores' : `medindo ${nomeDoMotor(rodando)}…`}
             </Text>
           </Pressable>
+          {casoAtual !== null ? <Text style={s.meta}>caso: {casoAtual.rotulo}</Text> : null}
           <Text style={s.rotulo}>quem entra</Text>
           <View style={s.chips}>
             {motoresDaCorrida.map((m) => {
@@ -392,6 +559,10 @@ export default function BancadaScreen() {
             Modo medição: um motor por vez, sem recuo e sem piso. A frase do template é a régua. O
             texto cru só aparece aqui, e nada disto sai do aparelho.
           </Text>
+          <Text style={s.aviso}>
+            Medir não grava — por isso o peso aberto corre em qualquer leitura aqui, inclusive nas
+            que o seletor lhe fecha. Lá o bloqueio diz quem pode escrever; escrever é outra coisa.
+          </Text>
           <Text style={s.rotulo}>diagnóstico da ponte</Text>
           <Text style={s.meta}>{diagnosticoCru(ponte)}</Text>
           {PESOS_ABERTOS.map((p) => (
@@ -406,17 +577,25 @@ export default function BancadaScreen() {
           <BlocoDoMotor key={l.motor} linha={l} template={template} s={s} />
         ))}
 
-        <CartaoDaAmostra
-          estado={amostra}
-          limite={limite}
-          aoEscolherLimite={setLimite}
-          motivoDoAparelho={motivoDoAparelho(ponte)}
-          ocupado={rodando !== null}
-          aoMedir={() => void medirAmostra()}
-          aoParar={pedirParada}
-          s={s}
-        />
-        {amostraEmCurso && focada ? <TelaAcesa /> : null}
+        {/* A amostra da 5.13 é **da Saúde do sono**: a enumeração de janelas, a régua e as
+            quatro medidas da ADR 0050 são daquela leitura. Escondida nas outras em vez de
+            deixada à vista medindo outra coisa — um cartão que mentisse aqui mentiria sobre
+            o único número que fixou um limiar. */}
+        {recurso === descritorDaSaudeDoSono.recurso ? (
+          <>
+            <CartaoDaAmostra
+              estado={amostra}
+              limite={limite}
+              aoEscolherLimite={setLimite}
+              motivoDoAparelho={motivoDoAparelho(ponte)}
+              ocupado={rodando !== null}
+              aoMedir={() => void medirAmostra()}
+              aoParar={pedirParada}
+              s={s}
+            />
+            {amostraEmCurso && focada ? <TelaAcesa /> : null}
+          </>
+        ) : null}
 
         <Anel s={s} />
       </ScrollView>
@@ -425,93 +604,6 @@ export default function BancadaScreen() {
 }
 
 type Styles = ReturnType<typeof createStyles>;
-
-/** Uma medição, já reduzida ao que a tela mostra. */
-interface Linha {
-  readonly motor: MotorId;
-  /**
-   * O `Desfecho` do núcleo, mais os dois que só a medição produz. Tipado, e não
-   * `string`: é exatamente aqui que um desfecho novo no orquestrador tem de quebrar
-   * a compilação, em vez de aparecer como texto cru numa linha do relatório.
-   */
-  readonly desfecho: Desfecho | 'template' | 'mudo';
-  readonly ms: number;
-  readonly hash?: string;
-  /** A frase montada — do template, na régua; do motor, nas outras colunas. */
-  readonly frase?: string;
-  /** O texto como o motor o escreveu, antes da interpolação. */
-  readonly cru?: string;
-  readonly tokens?: { readonly entrada: number; readonly saida: number };
-  /** Quem forneceu os pesos, como a resposta assinou. */
-  readonly provedor?: string;
-  /** O modelo que assinou esta medição — no aparelho, a variante ("AFM 3 Core"). */
-  readonly modelo?: string;
-  readonly problemas?: readonly ProblemaDaConferencia[];
-  readonly detalhe?: string;
-  /** O motivo em palavras, pela mesma função que a `/sono/saude` usa. */
-  readonly motivo?: string | null;
-}
-
-/**
- * Mede um motor.
- *
- * Nenhuma falha derruba a varredura: a porta nunca rejeita, e a exceção que
- * sobraria vem de função pura do descritor — defeito, que tem de virar linha em
- * vez de apagar as outras colunas.
- */
-async function medirUm(entrada: EntradaDaSaude, motor: MotorId): Promise<Linha> {
-  let m: Medicao<string>;
-  try {
-    m = await ler(descritorDaSaudeDoSono, entrada, {
-      modo: 'medicao',
-      motor,
-      motorPara,
-      registrar: anel.registrar,
-      agora: () => new Date(),
-    });
-  } catch (e) {
-    return {
-      motor,
-      desfecho: 'defeito',
-      ms: 0,
-      detalhe: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
-    };
-  }
-
-  if (m.tipo === 'template') {
-    return {
-      motor,
-      desfecho: 'template',
-      ms: 0,
-      ...('frase' in m ? { frase: m.frase } : { detalhe: `sem frase: ${m.ausencia}` }),
-    };
-  }
-  if (m.tipo === 'mudo') return { motor, desfecho: 'mudo', ms: 0 };
-
-  const ms = m.trilha.reduce((soma, t) => soma + t.ms, 0);
-  const problemas = m.trilha.flatMap((t) => t.problemas ?? []);
-  const ultima = m.trilha[m.trilha.length - 1];
-  const assinatura = m.resposta?.assinatura;
-  const desfecho = m.desfecho;
-  // O texto cru é o que a interpretação leu (`valor`); o `resposta.texto` é o
-  // recuo para quando a conferência reprovou antes de haver valor.
-  const cru = m.valor ?? m.resposta?.texto;
-  return {
-    motor,
-    desfecho,
-    ms,
-    hash: m.hash,
-    ...(m.frase !== undefined ? { frase: m.frase } : {}),
-    ...(cru !== undefined ? { cru } : {}),
-    ...(m.resposta?.tokens ? { tokens: m.resposta.tokens } : {}),
-    ...(assinatura ? { provedor: assinatura.provedor, modelo: assinatura.modelo } : {}),
-    ...(problemas.length > 0 ? { problemas } : {}),
-    ...(ultima?.detalhe !== undefined ? { detalhe: ultima.detalhe } : {}),
-    // A mesma tradução que a `/sono/saude` mostra — a tela de desenvolvimento não
-    // tem um segundo vocabulário de falha.
-    ...(desfecho === 'ok' ? {} : { motivo: motivoDaFalha(desfecho, motor) }),
-  };
-}
 
 function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string; s: Styles }) {
   const daRegua = linha.motor === SEM_MODELO;
