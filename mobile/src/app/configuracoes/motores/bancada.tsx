@@ -64,6 +64,7 @@ import {
 } from '../../../lib/motores/amostra';
 import {
   FONTES,
+  OFFSET_DA_SEMANA_FECHADA,
   RECURSO_INICIAL,
   fonteDe,
   type CasosDaAmostra,
@@ -216,7 +217,11 @@ export default function BancadaScreen() {
    * a mais é mais barata que uma segunda máquina de carregamento escrita aqui.
    */
   const agora = useMemo(() => new Date(), []);
-  const { entrada: entradaDaEdicao, dadosProntos } = useEntradaDaEdicao('week', 1, agora);
+  // **Semana anterior é `-1`**, não `+1`: a convenção do `period/bounds.ts` é
+  // "0 = corrente, −1 = anterior, +1 = seguinte". Com `1` a bancada pedia a semana
+  // que VEM — que nunca está fechada, e `descritorDaRetrospectiva.montarPedido`
+  // devolve nulo para período aberto. O sintoma era todo motor voltando `mudo`.
+  const { entrada: entradaDaEdicao, dadosProntos } = useEntradaDaEdicao('week', OFFSET_DA_SEMANA_FECHADA, agora);
 
   const atividades = useActivitiesStore((st) => st._all);
   const atividadesCarregadas = useActivitiesStore((st) => st.loaded);

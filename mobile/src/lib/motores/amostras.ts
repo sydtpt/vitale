@@ -48,6 +48,7 @@ import {
   type RecursoId,
 } from '@vitale/shared';
 import { BIKE_ACTIVITY_ID, fatosDaPedalada, type PontaDaRota } from '../../services/route-name';
+import { OFFSET_DA_SEMANA_FECHADA, rotaMedivel } from './amostras-regras';
 import { motivoDaFalha } from '../assinatura';
 import { chaveDaJanela } from '../leitura-da-saude';
 import { anel } from './anel';
@@ -367,6 +368,7 @@ const nomeDeRota: Fonte<FatosDoNome, NomePreenchido> = {
 
     const casos: CasoDeAmostra<FatosDoNome>[] = [];
     let tentadas = 0;
+    let degeneradas = 0;
     let ultimaFalha: string | null = null;
     for (const a of candidatas) {
       if (casos.length >= PEDALADAS_NA_AMOSTRA || tentadas >= TETO_DE_TENTATIVAS) break;
@@ -374,6 +376,17 @@ const nomeDeRota: Fonte<FatosDoNome, NomePreenchido> = {
       try {
         const fatos = await fatosDaPedalada(a, await pontosDe(a.id), userId);
         if (fatos === null) continue;
+        // **A rota degenerada não entra na amostra** (22/09). O descritor recusa montar
+        // pedido para ela — uma rota de 0 km não custa um token —, e o orquestrador
+        // devolve `mudo` para TODOS os motores. Na bancada isso aparecia como cinco
+        // linhas mudas sem explicação, e foi o que o dono viu: a pedalada mais recente
+        // do acervo tem 4,3 km e uma cidade só, que é exatamente o caso recusado.
+        // A pergunta é pura e de graça, então é aqui que ela se faz — oferecer um caso
+        // que não se pode medir é a tela prometendo o que o núcleo já negou.
+        if (!rotaMedivel(fatos)) {
+          degeneradas += 1;
+          continue;
+        }
         casos.push({ chave: a.id, rotulo: rotuloDaPedalada(a), entrada: fatos });
       } catch (e) {
         // O traçado ou as âncoras não vieram. Uma pedalada a menos na amostra não é
@@ -387,9 +400,11 @@ const nomeDeRota: Fonte<FatosDoNome, NomePreenchido> = {
       motivo:
         candidatas.length === 0
           ? 'nenhuma pedalada com cidades e traçado no acervo carregado'
-          : `nenhuma das ${tentadas} pedaladas mais recentes tem as duas pontas do traçado${
-              ultimaFalha === null ? '' : ` (última falha: ${ultimaFalha})`
-            }`,
+          : degeneradas === tentadas
+            ? `as ${tentadas} pedaladas mais recentes são curtas demais para ganhar nome (o descritor recusa rota de uma cidade com menos de 8 km)`
+            : `nenhuma das ${tentadas} pedaladas mais recentes tem as duas pontas do traçado${
+                ultimaFalha === null ? '' : ` (última falha: ${ultimaFalha})`
+              }`,
     };
   },
 };
@@ -458,3 +473,6 @@ export function fonteDe(recurso: RecursoId): FonteDeAmostra {
 
 /** Com que leitura a bancada abre. */
 export const RECURSO_INICIAL: RecursoId = ORDEM[0];
+
+/** Reexportadas para quem já as importa daqui — a definição mora em `amostras-regras.ts`. */
+export { OFFSET_DA_SEMANA_FECHADA, rotaMedivel };
