@@ -91,6 +91,14 @@ const FUNCTION = 'ia-narrar';
  */
 export const PRAZO_MS = 60_000;
 
+/**
+ * Spike 22/09 (branch `spike/qwen3-4b-iphone`): o prazo **só do peso aberto**. A primeira
+ * carga do Qwen3-4B compila o modelo para o Neural Engine — no Mac M1 levou 2 h 48 min —, e
+ * com o prazo de 60 s a tela desistiria sem nunca mostrar quanto a carga custou no iPhone.
+ * Esperar é o que este build mede.
+ */
+export const PRAZO_DO_PESO_ABERTO_MS = 45 * 60_000;
+
 function mensagem(e: unknown): string {
   return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }
@@ -549,12 +557,15 @@ export function criarMotorPara(
 ): (id: MotorId) => Motor | undefined {
   const transporte = serializar(criarTransporte(chamar, prazoMs));
   const vez = novaFilaDoAparelho();
-  const noAparelho = (responder: (pedido: string) => Promise<string>): Motor =>
+  const noAparelho = (responder: (pedido: string) => Promise<string>, prazo: number = prazoMs): Motor =>
     criarMotorDoAparelho(
-      criarTransporteDoAparelho(responder, prazoMs, { anotar: anel.anotar, registro, fila: vez }),
+      criarTransporteDoAparelho(responder, prazo, { anotar: anel.anotar, registro, fila: vez }),
     );
   const doAparelho = ponte === null ? undefined : noAparelho((p) => ponte.responder(p));
-  const doCoreAI = ponte === null ? undefined : noAparelho((p) => ponte.responderComPesos(PESOS_DO_COREAI, p));
+  const doCoreAI =
+    ponte === null
+      ? undefined
+      : noAparelho((p) => ponte.responderComPesos(PESOS_DO_COREAI, p), Math.max(prazoMs, PRAZO_DO_PESO_ABERTO_MS));
   const porId = new Map<string, Motor>();
   return (id) => {
     const lido = lerMotorId(id);
