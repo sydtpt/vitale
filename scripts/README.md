@@ -182,21 +182,45 @@ pegar o JWT que o navegador já tem depois do login.
 
    ```js
    // A chave do Supabase no armazenamento local termina em "-auth-token";
-   // o valor é JSON com access_token e refresh_token.
+   // o valor é JSON com access_token e refresh_token. O arquivo desce para
+   // ~/Downloads e é apagado na mesma linha que o lê, no passo 3.
    (() => {
      const k = Object.keys(localStorage).find((x) => x.endsWith('-auth-token'));
      if (!k) return 'não achei a sessão — entre primeiro';
      const s = JSON.parse(localStorage.getItem(k));
-     return [
-       `export ORBE_ACCESS_TOKEN='${s.access_token}'`,
-       `export ORBE_REFRESH_TOKEN='${s.refresh_token}'`,
-     ].join('\n');
+     const txt = `export ORBE_ACCESS_TOKEN='${s.access_token}'\nexport ORBE_REFRESH_TOKEN='${s.refresh_token}'\n`;
+     const a = document.createElement('a');
+     a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
+     a.download = 'orbe-sessao.txt';
+     a.click();
+     return 'baixado: orbe-sessao.txt (na pasta Downloads)';
    })()
    ```
 
-3. Copie as duas linhas e cole **no terminal** onde a bancada vai rodar. Em nenhum
-   outro lugar: não num arquivo, não numa anotação, não num chat. Os dois são a sua
-   sessão inteira.
+3. No terminal onde a bancada vai rodar, leia e apague o arquivo **na mesma linha**:
+
+   ```bash
+   source ~/Downloads/orbe-sessao.txt && rm ~/Downloads/orbe-sessao.txt
+   echo "partes: $(awk -F. '{print NF}' <<<"$ORBE_ACCESS_TOKEN") · tamanho: ${#ORBE_ACCESS_TOKEN}"
+   ```
+
+   A conferência tem de dizer `partes: 3` e um tamanho perto de 1000. Ela mostra a
+   **forma** do token, nunca o conteúdo — é assim que se diagnostica isto sem expor
+   segredo, aqui e em qualquer conversa.
+
+> **Por que um arquivo, e não a área de transferência.** Esta receita já devolveu as duas
+> linhas `export` para copiar, e ela falha na prática, de três jeitos medidos (22/09/2026):
+> o console mostra a resposta **entre aspas e com `\n` literal**, que colado não cria
+> variável nenhuma; `Ctrl+V` no terminal não cola (é *quoted insert*, e engole o Enter
+> seguinte, deixando um `read` preso para sempre); e quem copia o **comando** de um chat ou
+> de um documento para colar no terminal **sobrescreve o token** na área de transferência,
+> então `pbpaste` devolve o comando — o script morre com "Invalid JWT structure", que não
+> diz nada sobre a causa. O arquivo tem uma cópia só e nenhuma ordem a acertar. O preço
+> declarado: o segredo passa alguns segundos em disco, e o `rm` do passo 3 é parte da
+> receita, não um cuidado opcional.
+>
+> **Nunca misture "copie este comando" com "copie este segredo"** ao ensinar isto a alguém
+> — inclusive a um agente. É a armadilha acima, e ela sempre aparece longe da causa.
 
 O **token de acesso dura cerca de uma hora**. O `ORBE_REFRESH_TOKEN` é opcional, mas é
 ele que resolve corrida longa: com ele a bancada renova sozinha no meio da medição; sem
@@ -329,9 +353,15 @@ mesmo período.
 **Rode antes com `--sem-gravar`**:
 
 ```bash
-TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --tipo month --inicio 2026-05-01 --sem-gravar
-TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --tipo month --inicio 2026-05-01
+# o ensaio: chama o modelo, confere, não grava, e compara com o que está no banco
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --tipo month --inicio 2026-08-01 --sem-gravar
+# a impressão, num período que ainda NÃO tem edição (se já tiver, ele recusa e diz como seguir)
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --tipo week --inicio 2026-08-17
 ```
+
+O ensaio é mais útil num período que o **telefone já imprimiu** — agosto/2026 é um deles —,
+porque aí a tabela do fim compara linha a linha o que sairia agora com o que está gravado.
+Foi assim que a story 2.2 foi aceita em 22/09/2026: zero diferenças nos quatro cadernos.
 
 A credencial é a da bancada ([o caminho do token](#o-caminho-do-token-preferido) ou o
 da senha), com uma diferença: **para gravar, o `ORBE_REFRESH_TOKEN` é obrigatório** junto
