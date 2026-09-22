@@ -313,7 +313,7 @@ export default function BancadaScreen() {
             style={({ pressed }) => [s.aviso, pressed && s.pressed]}
           >
             <Text style={s.aviso}>
-              {medirProva ? '☑' : '☐'} medir também o peso aberto (Qwen3 4B, 2,3 GiB — a primeira chamada
+              {medirProva ? '☑' : '☐'} medir também o peso aberto (Qwen3 1.7B — a primeira chamada
               compila o modelo e pode levar muitos minutos; prazo de 45 min só para ele)
             </Text>
           </Pressable>
