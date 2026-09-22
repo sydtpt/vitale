@@ -35,9 +35,23 @@ import { useSonoStore } from '../../../store/sono.store';
 import { PeriodNav } from '../../../components/sono/PeriodNav';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { motivoDaFalha } from '../../../lib/assinatura';
-import { motivoDoAparelho, motoresDoRecurso, nomeDoMotor, type EstadoDaPonte } from '../../../lib/motores/catalogo';
+import {
+  PESOS_ABERTOS,
+  PONTE_AUSENTE,
+  motivoDoAparelho,
+  motoresDoRecurso,
+  nomeDoMotor,
+  type EstadoDaPonte,
+} from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
-import { PRAZO_MS, coreaiDoAparelho, garantirListaAprovada, motorPara, ponteDoAparelho } from '../../../lib/motores';
+import {
+  PRAZO_MS,
+  estadoDosPesosAbertos,
+  garantirListaAprovada,
+  motorPara,
+  ponteDoAparelho,
+  reconsultarPesosAbertos,
+} from '../../../lib/motores';
 import {
   ETAPA_EM_PALAVRAS,
   duracaoCurta,
@@ -105,7 +119,7 @@ export default function BancadaScreen() {
   // O diagnóstico da ponte, cru (5.9): relido ao abrir enquanto não for "disponível".
   const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
   // E o do peso aberto (5.8), que é outro fato.
-  const [coreai, setCoreai] = useState<EstadoDaPonte>(() => coreaiDoAparelho.agora());
+  const [coreai, setCoreai] = useState<Readonly<Record<string, EstadoDaPonte>>>(() => estadoDosPesosAbertos());
   // Medir o peso aberto é **escolha**, não padrão: ele é o mais lento dos quatro. O `ref`
   // acompanha o estado porque o laço de medição captura o valor no início e roda por minutos.
   const [medirProva, setMedirProva] = useState(false);
@@ -116,7 +130,7 @@ export default function BancadaScreen() {
     void ponteDoAparelho.reconsultar().then((p) => {
       if (vivo) setPonte(p);
     });
-    void coreaiDoAparelho.reconsultar().then((p) => {
+    void reconsultarPesosAbertos().then((p) => {
       if (vivo) setCoreai(p);
     });
     return () => {
@@ -163,7 +177,7 @@ export default function BancadaScreen() {
       const [lista, estadoDaPonte, estadoDoCoreAI] = await Promise.all([
         garantirListaAprovada(),
         ponteDoAparelho.reconsultar(),
-        coreaiDoAparelho.reconsultar(),
+        reconsultarPesosAbertos(),
       ]);
       setPonte(estadoDaPonte);
       setCoreai(estadoDoCoreAI);
@@ -313,8 +327,8 @@ export default function BancadaScreen() {
             style={({ pressed }) => [s.aviso, pressed && s.pressed]}
           >
             <Text style={s.aviso}>
-              {medirProva ? '☑' : '☐'} medir também o peso aberto (Tucano2 1.5B — a primeira chamada
-              compila o modelo e pode levar muitos minutos; prazo de 45 min só para ele)
+              {medirProva ? '☑' : '☐'} medir também os pesos abertos ({PESOS_ABERTOS.length}) — a primeira
+              chamada de cada um compila o modelo e leva minutos; prazo de 45 min só para eles
             </Text>
           </Pressable>
           <Text style={s.aviso}>
@@ -323,8 +337,12 @@ export default function BancadaScreen() {
           </Text>
           <Text style={s.rotulo}>diagnóstico da ponte</Text>
           <Text style={s.meta}>{diagnosticoCru(ponte)}</Text>
-          <Text style={s.rotulo}>diagnóstico do peso aberto</Text>
-          <Text style={s.meta}>{diagnosticoCru(coreai)}</Text>
+          {PESOS_ABERTOS.map((p) => (
+            <View key={p.pesos}>
+              <Text style={s.rotulo}>diagnóstico de {p.pesos}</Text>
+              <Text style={s.meta}>{diagnosticoCru(coreai[p.pesos] ?? PONTE_AUSENTE)}</Text>
+            </View>
+          ))}
         </View>
 
         {linhas.map((l) => (

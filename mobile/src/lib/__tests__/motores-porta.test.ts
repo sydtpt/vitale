@@ -37,7 +37,7 @@ import {
 import {
   APARELHO_COREAI_SMOLLM2,
   MOTIVO_DO_COREAI_EM_PALAVRAS,
-  PESOS_DO_COREAI,
+  PESOS_ABERTOS,
   motorConhecido,
   motoresDoRecurso,
 } from '../motores/catalogo';
@@ -336,7 +336,7 @@ describe('o motorPara do app', () => {
   });
 
   it('o peso aberto tem motor, e os pesos vão por argumento — nunca dentro do pedido (5.8)', async () => {
-    const ponte = ponteFalsa(async () => JSON.stringify({ ...LINHA_BOA, provedor: 'coreai', modelo: PESOS_DO_COREAI }));
+    const ponte = ponteFalsa(async () => JSON.stringify({ ...LINHA_BOA, provedor: 'coreai', modelo: PESOS_ABERTOS[0]!.pesos }));
     const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, PRAZO_MS, ponte);
     const coreai = motorPara(APARELHO_COREAI_SMOLLM2);
     expect(coreai).toBeDefined();
@@ -345,10 +345,10 @@ describe('o motorPara do app', () => {
     expect(coreai).not.toBe(motorPara(APARELHO_SISTEMA));
 
     const r = (await coreai!(PEDIDO)) as Resposta;
-    expect(r.assinatura).toMatchObject({ tipo: 'aparelho', provedor: 'coreai', modelo: PESOS_DO_COREAI });
+    expect(r.assinatura).toMatchObject({ tipo: 'aparelho', provedor: 'coreai', modelo: PESOS_ABERTOS[0]!.pesos });
     // O nome dos pesos foi por fora, e **o pedido não o carrega**: `CHAVES_DO_PEDIDO` é
     // exaustiva sobre `keyof Pedido`, e um campo a mais ali mudaria o hash do pedido (AD-11).
-    expect(ponte.comPesos).toEqual([PESOS_DO_COREAI]);
+    expect(ponte.comPesos).toEqual([PESOS_ABERTOS[0]!.pesos]);
     expect(Object.keys(JSON.parse(ponte.vistos[0]) as object).sort()).toEqual([
       'amostragem',
       'guardrails',
@@ -720,10 +720,10 @@ describe('os dois leitores de diagnóstico não se confundem (story 5.8)', () =>
     const { ponte, perguntas } = ponteQueAnotaAPorta({ sistema: SISTEMA_DE_PE, pesos: SEM_PESOS });
     const leitor = criarLeitorDaPonte(ponte, {
       plataforma: 'ios',
-      perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
+      perguntar: (p) => p.diagnosticoDosPesos(PESOS_ABERTOS[0]!.pesos),
     });
     await leitor.garantir();
-    expect(perguntas).toEqual([`diagnosticoDosPesos:${PESOS_DO_COREAI}`]);
+    expect(perguntas).toEqual([`diagnosticoDosPesos:${PESOS_ABERTOS[0]!.pesos}`]);
   });
 
   it('e o do modelo do sistema pergunta pela porta dele', async () => {
@@ -737,7 +737,7 @@ describe('os dois leitores de diagnóstico não se confundem (story 5.8)', () =>
     const doSistema = await criarLeitorDaPonte(ponte, { plataforma: 'ios' }).garantir();
     const doPesoAberto = await criarLeitorDaPonte(ponte, {
       plataforma: 'ios',
-      perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
+      perguntar: (p) => p.diagnosticoDosPesos(PESOS_ABERTOS[0]!.pesos),
     }).garantir();
 
     expect(doSistema.tipo === 'lido' && doSistema.diagnostico.estado).toBe('disponivel');

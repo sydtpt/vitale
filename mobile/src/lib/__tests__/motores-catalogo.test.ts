@@ -34,7 +34,7 @@ import {
   MOTORES_CONHECIDOS,
   PONTE_AUSENTE,
   PONTE_CONSULTANDO,
-  PESOS_DO_COREAI,
+  PESOS_ABERTOS,
   PONTE_FORA_DO_IOS,
   detalheDoAparelho,
   idsConhecidos,
@@ -372,11 +372,12 @@ describe('o peso aberto no diagnóstico dele (story 5.8)', () => {
   });
 
   it('com os pesos no build: disponível, com o nome deles e a janela da ficha', () => {
-    const c = coreaiEm(lido({ estado: 'disponivel', variante: 'tucano2-1.5b', janela: 4096 }));
+    const primeiro = PESOS_ABERTOS[0]!;
+    const c = coreaiEm(lido({ estado: 'disponivel', variante: primeiro.pesos, janela: 4096 }));
     expect(c?.disponivel).toBe(true);
     expect(c?.motivo).toBeUndefined();
-    expect(c?.detalhe).toBe('tucano2-1.5b · janela de 4.096 tokens');
-    expect(c?.rotulo).toBe('Peso aberto (Tucano2 1.5B)');
+    expect(c?.detalhe).toBe(`${primeiro.pesos} · janela de 4.096 tokens`);
+    expect(c?.rotulo).toBe(primeiro.rotulo);
   });
 
   it('sem os pesos: indisponível **com motivo em palavras**, nunca some da lista', () => {
@@ -480,12 +481,12 @@ describe('o peso aberto é prova, não ferramenta (story 5.8)', () => {
   });
 
   it('o id e o nome dos pesos são o mesmo nome — divergir deixaria o motor sempre semPesos', () => {
-    expect(APARELHO_COREAI_SMOLLM2).toBe(`aparelho:coreai/${PESOS_DO_COREAI}`);
+    expect(APARELHO_COREAI_SMOLLM2).toBe(`aparelho:coreai/${PESOS_ABERTOS[0]!.pesos}`);
     expect(lerMotorId(APARELHO_COREAI_SMOLLM2)).toEqual({
       tipo: 'aparelho',
       variante: 'pesos',
       provedor: 'coreai',
-      pesos: PESOS_DO_COREAI,
+      pesos: PESOS_ABERTOS[0]!.pesos,
     });
   });
 });

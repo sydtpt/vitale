@@ -5,7 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOGO_DE_RECURSOS, resolverCadeia, type MotorId, type RecursoId } from '@vitale/shared';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { coreaiDoAparelho, garantirListaAprovada, ponteDoAparelho } from '../../../lib/motores';
+import { estadoDosPesosAbertos, garantirListaAprovada, ponteDoAparelho, reconsultarPesosAbertos } from '../../../lib/motores';
 import {
   listaAprovada,
   motoresDoRecurso,
@@ -80,7 +80,9 @@ export default function MotoresScreen() {
   const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
   // O peso aberto (5.8) tem diagnóstico próprio, e pelo mesmo motivo: o modelo do sistema
   // pode estar de pé com os pesos ausentes, e o contrário também.
-  const [coreai, setCoreai] = useState<EstadoDaPonte>(() => coreaiDoAparelho.agora());
+  // Um diagnóstico por peso aberto (spike 22/09): o build carrega vários, e cada um pode
+  // estar de pé ou não por conta própria — pesos presentes num, ausentes no outro.
+  const [coreai, setCoreai] = useState<Readonly<Record<string, EstadoDaPonte>>>(() => estadoDosPesosAbertos());
   useFocusEffect(
     useCallback(() => {
       let vivo = true;
@@ -88,7 +90,7 @@ export default function MotoresScreen() {
         void ponteDoAparelho.reconsultar().then((p) => {
           if (vivo) setPonte(p);
         });
-        void coreaiDoAparelho.reconsultar().then((p) => {
+        void reconsultarPesosAbertos().then((p) => {
           if (vivo) setCoreai(p);
         });
       };

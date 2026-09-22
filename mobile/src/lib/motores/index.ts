@@ -62,7 +62,7 @@ import { supabase } from '../supabase';
 import { anel } from './anel';
 import {
   APARELHO_COREAI_SMOLLM2,
-  PESOS_DO_COREAI,
+  PESOS_ABERTOS,
   PONTE_AUSENTE,
   PONTE_CONSULTANDO,
   PONTE_FORA_DO_IOS,
@@ -546,7 +546,7 @@ export const registroDoAparelho: RegistroDoAparelho = REGISTRO_DO_APARELHO;
  * O **peso aberto** (`aparelho:coreai/<pesos>`, a 5.8) tem motor pelo mesmo caminho, com
  * **a mesma vez**: os dois disputam a memória e o Neural Engine do mesmo aparelho, e duas
  * filas deixariam um subir 244 MiB de pesos enquanto o outro escreve. Só o peso que este
- * build embarca ({@link PESOS_DO_COREAI}) tem motor — um nome que o app não conhece não
+ * build embarca ({@link PESOS_ABERTOS}) tem motor — um nome que o app não conhece não
  * vira caminho de arquivo aqui, e a ponte o recusaria de novo do lado de lá.
  */
 export function criarMotorPara(
@@ -562,16 +562,24 @@ export function criarMotorPara(
       criarTransporteDoAparelho(responder, prazo, { anotar: anel.anotar, registro, fila: vez }),
     );
   const doAparelho = ponte === null ? undefined : noAparelho((p) => ponte.responder(p));
-  const doCoreAI =
-    ponte === null
-      ? undefined
-      : noAparelho((p) => ponte.responderComPesos(PESOS_DO_COREAI, p), Math.max(prazoMs, PRAZO_DO_PESO_ABERTO_MS));
+  // Um motor por peso aberto (spike 22/09). O lado Swift sempre recebeu **quais** pesos;
+  // o que era único morava no catálogo. Cada um leva o prazo longo, porque a primeira
+  // chamada de cada modelo paga a compilação dele — e ela é por modelo, não por app.
+  const abertos = new Map<string, Motor>();
+  if (ponte !== null) {
+    for (const p of PESOS_ABERTOS) {
+      abertos.set(
+        p.id,
+        noAparelho((pedido) => ponte.responderComPesos(p.pesos, pedido), Math.max(prazoMs, PRAZO_DO_PESO_ABERTO_MS)),
+      );
+    }
+  }
   const porId = new Map<string, Motor>();
   return (id) => {
     const lido = lerMotorId(id);
     if (lido?.tipo === 'aparelho') {
       if (lido.variante === 'sistema') return doAparelho;
-      return formatarMotorId(lido) === APARELHO_COREAI_SMOLLM2 ? doCoreAI : undefined;
+      return abertos.get(formatarMotorId(lido));
     }
     if (lido?.tipo !== 'nuvem') return undefined;
     const chave = formatarMotorId(lido);
@@ -712,9 +720,27 @@ export const ponteDoAparelho: LeitorDaPonte = criarLeitorDaPonte(PONTE);
  * aqui a mudança possível não vem dos Ajustes, e sim de um build novo. Reler é barato e a
  * regra ser uma só vale mais que a economia.
  */
-export const coreaiDoAparelho: LeitorDaPonte = criarLeitorDaPonte(PONTE, {
-  perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
-});
+export const coreaiDosPesos: Readonly<Record<string, LeitorDaPonte>> = Object.freeze(
+  Object.fromEntries(
+    PESOS_ABERTOS.map((p) => [p.pesos, criarLeitorDaPonte(PONTE, { perguntar: (x) => x.diagnosticoDosPesos(p.pesos) })]),
+  ),
+);
+
+/** O primeiro peso aberto — o leitor que o código de uma era de um modelo só ainda pede. */
+export const coreaiDoAparelho: LeitorDaPonte = coreaiDosPesos[PESOS_ABERTOS[0]!.pesos]!;
+
+/** O que cada peso aberto diz **agora**, sem perguntar de novo — o estado inicial das telas. */
+export function estadoDosPesosAbertos(): Readonly<Record<string, EstadoDaPonte>> {
+  return Object.fromEntries(PESOS_ABERTOS.map((p) => [p.pesos, coreaiDosPesos[p.pesos]!.agora()]));
+}
+
+/** Relê o diagnóstico de **todos** os pesos abertos, em paralelo. Nunca rejeita. */
+export async function reconsultarPesosAbertos(): Promise<Readonly<Record<string, EstadoDaPonte>>> {
+  const lidos = await Promise.all(
+    PESOS_ABERTOS.map(async (p) => [p.pesos, await coreaiDosPesos[p.pesos]!.reconsultar()] as const),
+  );
+  return Object.fromEntries(lidos);
+}
 
 /* ── a lista de motores aprovados, do servidor (ADR 0048, story 5.6) ─────── */
 

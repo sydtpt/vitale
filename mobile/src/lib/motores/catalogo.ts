@@ -95,20 +95,59 @@ export const MOTIVO_SEM_PONTE = 'a ponte para o modelo do sistema não está nes
  * português"* com *"Diga olá em portuguéus"*. Fica no seletor, fora de toda cadeia padrão, e
  * o peso sai do binário na story seguinte — que o baixa sob demanda.
  */
-// Spike 22/09 (branch `spike/qwen3-4b-iphone`, não vai à main): o build embarca um Qwen3 no
-// lugar do SmolLM2, para medir no iPhone se ele roda (o 4B não coube na memória; agora o 1.7B). O nome da constante ficou de propósito —
-// renomeá-la mexeria em dez arquivos por um build de medição.
-export const APARELHO_COREAI_SMOLLM2 = 'aparelho:coreai/tucano2-1.5b' satisfies MotorId;
+/**
+ * Um peso aberto que este build embarca (spike 22/09 — o build passou a carregar **vários**).
+ *
+ * O `pesos` é o nome da pasta que o podspec põe no bundle (`pesos/<pesos>/`) e o que viaja
+ * até a ponte nativa **por argumento**, nunca dentro do pedido: `CHAVES_DO_PEDIDO`
+ * (`ia/aparelho.ts`) é exaustiva sobre `keyof Pedido`, e um campo a mais ali mudaria o hash
+ * do pedido (AD-11) por uma razão que não é o pedido.
+ */
+export interface PesoAberto {
+  /** `aparelho:coreai/<pesos>` — a gramática de `ia/fio.ts`, sem mudança no núcleo. */
+  readonly id: MotorId;
+  /** A pasta dos pesos, e o argumento da ponte. */
+  readonly pesos: string;
+  readonly nome: string;
+  readonly rotulo: string;
+  readonly descricao: string;
+}
 
 /**
- * Os pesos que {@link APARELHO_COREAI_SMOLLM2} nomeia — o que viaja até a ponte nativa,
- * **por argumento**, e nunca dentro do pedido.
+ * Os pesos abertos deste build, na ordem em que o seletor os mostra.
  *
- * `CHAVES_DO_PEDIDO` (`ia/aparelho.ts`) é exaustiva sobre `keyof Pedido`, e um campo a mais
- * ali mudaria o hash do pedido (AD-11) por uma razão que não é o pedido: qual peso usar é
- * assunto do hospedeiro e da ponte, não do que se pede ao modelo.
+ * **Uma lista, não uma constante** (spike 22/09): o iPhone já provou dois modelos — o
+ * Qwen3-1.7B e o Tucano2 —, e a escolha entre eles só existe se os dois estiverem no mesmo
+ * build, medidos na mesma janela. O lado Swift sempre foi multi-modelo (`responderComPesos`
+ * recebe quais pesos); o que era único morava só aqui.
  */
-export const PESOS_DO_COREAI = 'tucano2-1.5b';
+export const PESOS_ABERTOS: readonly PesoAberto[] = Object.freeze([
+  Object.freeze({
+    id: 'aparelho:coreai/qwen3-1.7b' satisfies MotorId,
+    pesos: 'qwen3-1.7b',
+    nome: 'o Qwen3 1.7B no aparelho',
+    rotulo: 'Peso aberto (Qwen3 1.7B)',
+    descricao: 'Modelo aberto dentro do app, pelo Core AI, com o raciocínio longo desligado. Nada sai do aparelho.',
+  }),
+  Object.freeze({
+    id: 'aparelho:coreai/tucano2-1.5b' satisfies MotorId,
+    pesos: 'tucano2-1.5b',
+    nome: 'o Tucano2 1.5B no aparelho',
+    rotulo: 'Peso aberto (Tucano2 1.5B)',
+    descricao: 'Modelo aberto treinado a mais em português, dentro do app. Nada sai do aparelho.',
+  }),
+]);
+
+/** O peso aberto com este id, ou `undefined` — a pergunta que o catálogo faz o tempo todo. */
+export function pesoAbertoDe(id: MotorId | string | null | undefined): PesoAberto | undefined {
+  if (id === null || id === undefined) return undefined;
+  return PESOS_ABERTOS.find((p) => p.id === id);
+}
+
+/** Este id é de peso aberto? */
+export function ehPesoAberto(id: MotorId | string | null | undefined): boolean {
+  return pesoAbertoDe(id) !== undefined;
+}
 
 /**
  * O único recurso em que o peso aberto pode ser escolhido — a leitura que **não grava**.
@@ -119,17 +158,28 @@ export const PESOS_DO_COREAI = 'tucano2-1.5b';
 export const RECURSO_DO_PESO_ABERTO = 'saude-do-sono' satisfies RecursoId;
 
 /**
- * Os dois acima são **o mesmo nome**, escrito duas vezes — e nada os amarrava.
+ * O id e a pasta são **o mesmo nome**, escrito duas vezes em cada entrada — e nada os amarra.
  *
- * Mudar um só deixa o motor listado e **sempre** `semPesos`, num build que carrega os pesos:
- * o seletor pede o diagnóstico de um nome e o transporte manda outro, e tudo fica verde. Uma
- * linha resolve, no carregamento do módulo, antes de qualquer tela.
+ * Divergir deixa o motor listado e **sempre** `semPesos`, num build que carrega os pesos: o
+ * seletor pede o diagnóstico de um nome e o transporte manda outro, e tudo fica verde. Com uma
+ * lista entra a segunda armadilha — **dois modelos com o mesmo nome de pasta** —, que faria o
+ * seletor mostrar duas linhas para os mesmos pesos. As duas morrem no carregamento do módulo,
+ * antes de qualquer tela.
  */
-if (APARELHO_COREAI_SMOLLM2 !== `aparelho:coreai/${PESOS_DO_COREAI}`) {
-  throw new Error(
-    `o id do peso aberto (${APARELHO_COREAI_SMOLLM2}) e o nome dos pesos (${PESOS_DO_COREAI}) divergiram — ` +
-      'o seletor pediria o diagnóstico de um e o transporte mandaria o outro',
-  );
+{
+  const vistos = new Set<string>();
+  for (const p of PESOS_ABERTOS) {
+    if (p.id !== `aparelho:coreai/${p.pesos}`) {
+      throw new Error(
+        `o id do peso aberto (${p.id}) e o nome dos pesos (${p.pesos}) divergiram — ` +
+          'o seletor pediria o diagnóstico de um e o transporte mandaria o outro',
+      );
+    }
+    if (vistos.has(p.pesos)) {
+      throw new Error(`dois pesos abertos declaram a mesma pasta (${p.pesos})`);
+    }
+    vistos.add(p.pesos);
+  }
 }
 
 /**
@@ -194,15 +244,17 @@ export const MOTORES_CONHECIDOS: readonly MotorConhecido[] = [
     disponivel: false,
     motivo: MOTIVO_SEM_PONTE,
   },
-  {
-    id: APARELHO_COREAI_SMOLLM2,
-    nome: 'o Tucano2 no aparelho',
-    rotulo: 'Peso aberto (Tucano2 1.5B)',
-    descricao: 'Um modelo aberto que veio dentro do app, pelo Core AI, com o pensar desligado. Nada sai do aparelho — build de medição.',
-    disponivel: false,
-    motivo: MOTIVO_COREAI_SEM_PONTE,
-    prova: true,
-  },
+  ...PESOS_ABERTOS.map(
+    (p): MotorConhecido => ({
+      id: p.id,
+      nome: p.nome,
+      rotulo: p.rotulo,
+      descricao: p.descricao,
+      disponivel: false,
+      motivo: MOTIVO_COREAI_SEM_PONTE,
+      prova: true,
+    }),
+  ),
   {
     id: NUVEM_PADRAO,
     nome: 'a nuvem',
@@ -495,8 +547,27 @@ export function variantesDaNuvem(
 export interface EstadoDasPontes {
   /** O modelo que o próprio sistema do iPhone fornece. */
   readonly sistema: EstadoDaPonte;
-  /** O peso aberto que este build embarca, pelo Core AI. */
-  readonly coreai: EstadoDaPonte;
+  /**
+   * Os pesos abertos que este build embarca, pelo Core AI — **um diagnóstico por modelo**.
+   *
+   * Aceita as duas formas de propósito: um mapa `pesos → estado`, que é o que o app monta
+   * quando pergunta a cada modelo, e um estado **só**, que vale para todos — é o caso do
+   * build sem ponte, do simulador e dos testes, onde a resposta é a mesma para qualquer
+   * peso e repetí-la por nome seria cerimônia sem informação.
+   */
+  readonly coreai: EstadoDaPonte | Readonly<Record<string, EstadoDaPonte>>;
+}
+
+/** O estado do peso aberto `pesos`, seja qual for a forma que `coreai` tenha. */
+export function estadoDoPesoAberto(
+  coreai: EstadoDasPontes['coreai'],
+  pesos: string,
+): EstadoDaPonte {
+  // `'tipo' in coreai` não narra: um `Record<string, …>` também admite a chave `tipo`. O que
+  // separa as duas formas é o **valor** dela ser a etiqueta de um estado.
+  const etiqueta = (coreai as { readonly tipo?: unknown }).tipo;
+  if (typeof etiqueta === 'string') return coreai as EstadoDaPonte;
+  return (coreai as Readonly<Record<string, EstadoDaPonte>>)[pesos] ?? PONTE_AUSENTE;
 }
 
 export function motoresDoRecurso(
@@ -506,7 +577,10 @@ export function motoresDoRecurso(
 ): readonly MotorConhecido[] {
   const locais = MOTORES_CONHECIDOS.map((m) => {
     if (m.id === APARELHO_SISTEMA) return aparelhoNaPonte(m, pontes.sistema);
-    if (m.id === APARELHO_COREAI_SMOLLM2) return aparelhoNaPonte(m, pontes.coreai, motivoDoCoreAI);
+    const aberto = pesoAbertoDe(m.id);
+    if (aberto !== undefined) {
+      return aparelhoNaPonte(m, estadoDoPesoAberto(pontes.coreai, aberto.pesos), motivoDoCoreAI);
+    }
     return m;
   });
   return [...locais, ...variantesDaNuvem(recurso, lista)];
@@ -529,6 +603,9 @@ export function idsConhecidosDe(
 
 /** As duas pontes ausentes — o ponto de partida, e o que {@link idsConhecidosDe} usa. */
 export const PONTES_AUSENTES: EstadoDasPontes = { sistema: PONTE_AUSENTE, coreai: PONTE_AUSENTE };
+
+/** O id do primeiro peso aberto — o que a cadeia padrão e os testes usam quando só há um. */
+export const APARELHO_COREAI_SMOLLM2: MotorId = PESOS_ABERTOS[0]!.id;
 
 /**
  * O motor com este id dentro de um catálogo, ou `undefined`. Aceita id cru, de
@@ -683,7 +760,7 @@ export function motivoDeBloqueio(
   //
   // Sobra a Saúde do sono, que não grava nada: a frase morre na tela. É lá que o dono vê o
   // texto sair e julga o caminho, que é o que a story existe para provar.
-  if (id === APARELHO_COREAI_SMOLLM2 && recurso.recurso !== RECURSO_DO_PESO_ABERTO) {
+  if (ehPesoAberto(id) && recurso.recurso !== RECURSO_DO_PESO_ABERTO) {
     return 'o peso aberto é uma prova de caminho, e só a Saúde do sono a mostra — ela não guarda o que ele escreve';
   }
 

@@ -29,7 +29,7 @@ import {
   type MotorDeNuvemAprovado,
 } from '@vitale/shared';
 import {
-  APARELHO_COREAI_SMOLLM2,
+  PESOS_ABERTOS,
   MOTORES_CONHECIDOS,
   PONTE_AUSENTE,
   VALIDADE_DA_LISTA_MS,
@@ -223,7 +223,7 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
   it('sem lista (nunca lida): só o que o app conhece, com `nuvem:padrao`', () => {
     // AC 1: o app abre, a lista nunca foi lida, e nenhuma variante nomeada aparece.
     const ids = idsConhecidosDe('saude-do-sono', null);
-    expect(ids).toEqual([SEM_MODELO, APARELHO_SISTEMA, APARELHO_COREAI_SMOLLM2, NUVEM_PADRAO]);
+    expect(ids).toEqual([SEM_MODELO, APARELHO_SISTEMA, ...PESOS_ABERTOS.map((p) => p.id), NUVEM_PADRAO]);
   });
 
   it('com lista: a variante aprovada para ESTE recurso entra, depois do padrão', () => {
@@ -232,7 +232,7 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
     expect(idsConhecidosDe('saude-do-sono', lista)).toEqual([
       SEM_MODELO,
       APARELHO_SISTEMA,
-      APARELHO_COREAI_SMOLLM2,
+      ...PESOS_ABERTOS.map((p) => p.id),
       NUVEM_PADRAO,
       ACME.motor,
       OUTRO.motor,
@@ -241,7 +241,7 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
     expect(idsConhecidosDe('retrospectiva', lista)).toEqual([
       SEM_MODELO,
       APARELHO_SISTEMA,
-      APARELHO_COREAI_SMOLLM2,
+      ...PESOS_ABERTOS.map((p) => p.id),
       NUVEM_PADRAO,
       OUTRO.motor,
     ]);
@@ -279,7 +279,7 @@ describe('a fusão: o que o app conhece, mais o que o servidor aprovou', () => {
       lidaEm: 1,
     };
     const ids = idsConhecidosDe('saude-do-sono', lista);
-    expect(ids).toEqual([SEM_MODELO, APARELHO_SISTEMA, APARELHO_COREAI_SMOLLM2, NUVEM_PADRAO, ACME.motor]);
+    expect(ids).toEqual([SEM_MODELO, APARELHO_SISTEMA, ...PESOS_ABERTOS.map((p) => p.id), NUVEM_PADRAO, ACME.motor]);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
