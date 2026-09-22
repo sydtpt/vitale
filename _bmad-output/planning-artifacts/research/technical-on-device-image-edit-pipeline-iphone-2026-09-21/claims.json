@@ -7,5 +7,6 @@
  {"claim":"Gemma 4 E2B pico de memória","class":"memory","pub_date":"2026-07"},
  {"claim":"Flux2Pipeline no iPhone 17 Pro (PR 252)","class":"capability","pub_date":"2026-09"},
  {"claim":"GPU em segundo plano no iPhone","class":"capability","pub_date":"2026-02"},
- {"claim":"licenças dos pesos","class":"licence","pub_date":"2026-01"}
+ {"claim":"licenças dos pesos","class":"licence","pub_date":"2026-01"},
+ {"claim":"Vision ClassifyImageRequest: 1.303 rótulos, sem landscape/selfie (dump)","class":"capability","pub_date":"2022-01"}
 ]

@@ -195,7 +195,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
     <dl class="spec">
       <div><dt>Alvo</dt><dd>iPhone 17 Pro · A19 Pro · <span class="n">12 GB</span> · iOS 27</dd></div>
       <div><dt>Método</dt><dd><span class="n">6</span> frentes em até <span class="n">3</span> rodadas, <span class="n">3</span> verificadores, <span class="n">3</span> red-teams</dd></div>
-      <div><dt>Afirmações rastreadas</dt><dd><span class="n">21</span>: <span class="n">10</span> verificadas, <span class="n">5</span> sem segunda fonte, <span class="n">3</span> disputadas, <span class="n">3</span> do brief desmentidas</dd></div>
+      <div><dt>Afirmações rastreadas</dt><dd><span class="n">21</span>: <span class="n">10</span> verificadas, <span class="n">5</span> sem segunda fonte, <span class="n">4</span> disputadas, <span class="n">1</span> do brief desmentida, <span class="n">1</span> retirada</dd></div>
       <div><dt>Custo por foto</dt><dd>Dezenas de segundos com tudo quente. A frio, desconhecido.</dd></div>
     </dl>
   </header>
@@ -205,7 +205,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
     <ul class="plain">
       <li><strong>Cada estágio tem caminho on-device; a cadeia inteira não foi demonstrada.</strong> Ninguém publicou segmentar, difundir em modo edição, compor e exportar rodando juntos, nem edição por difusão medida por terceiros no iPhone. A difusão vai por último, atrás de um spike de aparelho.</li>
       <li><strong>&ldquo;Processo único&rdquo; significa orquestração sequencial.</strong> Um estágio pesado fica residente por vez. O que limita é a memória por processo, não o disco. O &ldquo;6,1 GB&rdquo; do brief não tem fonte: a Apple chama a própria documentação de &ldquo;deliberadamente vaga&rdquo;. Meça com <code>os_proc_available_memory()</code>.</li>
-      <li><strong>O brief estava defasado em pontos importantes.</strong> O klein 4B roda no iPhone a 512², em 4-bit. O Core AI cobre a cadeia toda com receitas oficiais, não só LLM. O Image Playground do iOS 27 saiu da jogada. E provavelmente você não precisa de um LLM aberto para escolher o preset.</li>
+      <li><strong>O brief estava defasado em pontos importantes.</strong> O &ldquo;klein 4B não cabe&rdquo; foi contestado, não desmentido: há um relato único do FLUX.2 klein 4B a 512², em 4-bit, no iPhone 17 Pro (só texto→imagem, no iOS 26), e nenhum número de edição nem de iOS 27. O Core AI tem receitas oficiais para todos os estágios, não só LLM, mas é candidato principal, não runtime único: ControlNet e inpainting ficam no Core ML, a difusão no iPhone via Core AI não tem número e está disputada, e o FP16 da especialização padrão deu saída errada em silêncio no iOS 27.0. E provavelmente você não precisa de um LLM aberto para escolher o preset. Fora do brief, o Image Playground do iOS 27 saiu da jogada.</li>
       <li><strong>Como suas fotos são gerais, o núcleo é um look na imagem inteira.</strong> Trocar o fundo vira um modo extra. A escada sem difusão (LUT, profundidade, máscara de céu, colorimetria) funciona sem máscara de sujeito e é o caminho de menor risco.</li>
     </ul>
     <div class="note">
@@ -216,7 +216,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
 
   <section id="brief">
     <h2>O brief, afirmação por afirmação</h2>
-    <p>O brief foi tratado como um conjunto de hipóteses. Cada linha abaixo foi checada contra fontes primárias, e as três últimas de &ldquo;desmentida&rdquo; ou &ldquo;fora&rdquo; mudam o desenho.</p>
+    <p>O brief foi tratado como um conjunto de hipóteses. Cada linha abaixo foi checada contra fontes primárias, e as linhas de &ldquo;contestada&rdquo;, &ldquo;desmentida&rdquo; ou &ldquo;fora&rdquo; mudam o desenho.</p>
     <div class="scroll">
       <table>
         <thead><tr><th>Afirmação do brief</th><th>Veredito</th><th>O que a evidência mostra</th></tr></thead>
@@ -224,8 +224,8 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
           <tr><td>Core AI com <code>.aimodel</code> e receitas oficiais</td><td><span class="pill ok">Confirmada</span></td><td>O repositório <a href="https://github.com/apple/coreai-models" target="_blank" rel="noopener">apple/coreai-models</a> (código BSD-3, exige iOS 27.0+ e Xcode 27) traz receitas para <code>sam3</code>, <code>flux2</code>, <code>stable-diffusion</code>, <code>efficient-sam</code>, <code>depth-anything</code>, <code>edsr</code>, <code>qwen3</code>, <code>gemma3/3n</code> e VLM.</td></tr>
           <tr><td>SAM 3 com export oficial</td><td><span class="pill warn">Com ressalvas</span></td><td>A variante para iOS é &ldquo;lite&rdquo; a 336 px, com prompt de texto, ~430 a 623 MB (as duas sessões da WWDC26 discordam) e pesos gated. Nenhuma fonte publica latência ou RAM em iPhone.</td></tr>
           <tr><td>SD ~0,9B com img2img e ControlNet</td><td><span class="pill warn">Parcial</span></td><td>img2img existe (SD 1.5 e 2.1 no Core AI). ControlNet e inpainting não existem no Core AI; existem no Core ML antigo (<code>ml-stable-diffusion</code>), cujo único número de iPhone é de 2023: SD 2.1 a 512² em 7,9 s no iPhone 14 Pro Max.</td></tr>
-          <tr><td>klein 4B não cabe (~6,1 GB por processo)</td><td><span class="pill bad">Desmentida</span></td><td>Um projeto em MLX 4-bit mediu 512² em 9,9 a 12,2 s e 2,6 a 3,5 GB no 17 Pro (fonte única). A receita <code>flux2</code> da Apple tem preset iOS, e o PR #252 diz &ldquo;validado no iPhone 17 Pro&rdquo;. Só um pacote de comunidade a 1024² estoura, com ~6,5 GB. O número 6,1 GB não tem fonte.</td></tr>
-          <tr><td>Qwen3.5-2B ou Gemma 4 E2B via Core AI</td><td><span class="pill bad">Sem receita</span></td><td>Qwen3 tem receita; Qwen3.5 não. Gemma 4 E2B existe (Apache-2.0) e roda no iPhone por LiteRT-LM, não por Core AI. E provavelmente nenhum dos dois é necessário (veja Preset).</td></tr>
+          <tr><td>klein 4B não cabe (~6,1 GB por processo)</td><td><span class="pill disp">Contestada</span></td><td>Um projeto em MLX 4-bit relatou 512² em 9,9 a 12,2 s e 2,6 a 3,5 GB no 17 Pro (fonte única e auto-relatada, iOS 26.6.1, só texto→imagem). A receita <code>flux2</code> da Apple tem preset iOS, e o PR #252 diz &ldquo;validado no iPhone 17 Pro&rdquo;, mas isso está disputado e sem números. Só um pacote de comunidade a 1024² estoura, com ~6,5 GB. Nenhum número de edição no iPhone, e o 6,1 GB segue sem fonte.</td></tr>
+          <tr><td>Qwen3.5-2B ou Gemma 4 E2B via Core AI</td><td><span class="pill bad">Desmentida</span></td><td>Sem receita no Core AI: Qwen3 tem receita; Qwen3.5 não. Gemma 4 E2B existe (Apache-2.0) e roda no iPhone por LiteRT-LM, não por Core AI. E provavelmente nenhum dos dois é necessário (veja Preset).</td></tr>
           <tr><td>Image Playground <span class="pill nd">não estava no brief</span></td><td><span class="pill bad">Fora</span></td><td>No iOS 27 roda na nuvem da Apple (Private Cloud Compute), a foto de origem é só &ldquo;inspiração&rdquo; e o <code>ImageCreator</code> deixa de funcionar. Duas páginas da própria Apple confirmam.</td></tr>
           <tr><td>Pesos por download sob demanda</td><td><span class="pill ok">Confirmada</span></td><td>Background Assets hospedado pela Apple: 200 GB e 200 packs, funciona no TestFlight. O teto por pack não foi encontrado.</td></tr>
         </tbody>
@@ -292,7 +292,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
     <h3>Composição, cor e exportação</h3>
     <ul class="plain">
       <li><strong>Ferramentas:</strong> <code>CIColorCubesMixedWithMask</code> (duas LUTs e uma máscara), colorimetria de forma fechada (Reinhard ou MKL, com uns 12 parâmetros), grão e vinheta. A profundidade vem do Depth Anything V2 Small: 49,8 MB e ~34 ms no iPhone 15 Pro Max, segundo o cartão da Apple.</li>
-      <li><strong>Resolução é a armadilha.</strong> Difusão a 512² a 1024² contra fotos de 12 a 48 MP dá uma razão de 61 a 244 vezes em pixels. Só mudanças de baixa frequência sobrevivem: cor, tom e fundo. Use o gerado como <em>guia</em> aplicado ao original em resolução cheia e proteja rostos por máscara. Looks de textura (ilustração, grão) precisam de fonte de detalhe própria.</li>
+      <li><strong>Resolução é a armadilha.</strong> Difusão a 512² a 1024² contra fotos de 12 a 48 MP dá uma razão de ~12 vezes (1024² sobre 12 MP) a ~186 vezes (512² sobre 48 MP) em pixels, ou de ~4 a ~16 vezes no lado maior. Só mudanças de baixa frequência sobrevivem: cor, tom e fundo. Use o gerado como <em>guia</em> aplicado ao original em resolução cheia e proteja rostos por máscara. Looks de textura (ilustração, grão) precisam de fonte de detalhe própria.</li>
       <li><strong>HDR:</strong> exporte o SDR e o HDR editados e deixe o Core Image calcular o gain map. Muitas operações reportam headroom 0. O fundo gerado é SDR (inferência). A fonte é de 2024; nada foi lido sobre iOS 26 ou 27.</li>
       <li><strong>Super-resolução:</strong> existe a receita <code>edsr</code> no Core AI, mas nenhum número de iPhone para 12 a 48 MP.</li>
     </ul>
@@ -360,7 +360,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
     </ul>
 
     <h3>O que resistiu</h3>
-    <p>O caminho oficial de SAM 3 no iOS, o decode de LLM pequeno no nível do MLX, e o Core AI mais rápido que o Core ML em detecção e classificação com YOLO26n.</p>
+    <p>O caminho oficial de SAM 3 no iOS, o decode de LLM pequeno no nível do MLX, e o Core AI mais rápido que o Core ML em detecção e classificação com YOLO26n. Nos mesmos números (17 Pro, iOS 27.0) ele perde em profundidade (7,87 contra 6,62 ms) e em segmentação semântica (8,55 contra 4,86 ms). São redes nano YOLO26n, não Depth Anything.</p>
   </section>
 
   <section id="fazer">
@@ -368,18 +368,32 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
     <h3>Reescreva o brief em camadas</h3>
     <p>T0, T1 e T2, como na tabela acima. O produto já vale algo antes do elo arriscado, e o E0 deixa de ser exportar modelos e vira medir.</p>
     <h3>Transforme o E0 em um único build de spike no iPhone 17 Pro</h3>
+    <p><strong>Antes da primeira execução, fixe por escrito o que aprova e o que reprova cada camada</strong>, como na ADR 0050: latência por foto a frio (o brief partia de menos de 60 s), pico de memória contra o <code>os_proc_available_memory()</code> do aparelho, quantas execuções seguidas sem <code>thermalState</code> em <code>.serious</code> ou pior, e o protocolo do bake-off (quantas fotos, julgamento cego ou não, quem decide). Item reprovado tira a camada do produto; não vira ajuste depois do fato. Um parâmetro vale para todos os itens: como a foto 4:3 entra num modelo quadrado (lado maior em 512, em múltiplos do VAE, ou recorte com máscara da área não gerada), para o guia alinhar com o original.</p>
     <ol class="checks">
       <li>Registrar <code>os_proc_available_memory()</code> por estágio, com e sem o entitlement. Isso mata ou confirma o &ldquo;6,1 GB&rdquo;.</li>
       <li>Máscara do Vision em umas 30 fotos suas (vazio, qualidade, latência) e o dump de <code>supportedIdentifiers</code>.</li>
       <li>SAM 3 lite com compilação AOT: latência, RAM e primeira carga.</li>
-      <li>klein 4B pela receita <code>flux2 --platform iOS</code> (512², modo edição) e pelo MLX: tempo, pico e 5 execuções seguidas para ver a térmica.</li>
-      <li>Bake-off de qualidade nas suas fotos: SDEdit com força 0,3 a 0,5, edição por referência e uma LUT ajustada por preset. Use prompts só de estilo.</li>
+      <li>klein 4B pela receita <code>flux2 --platform iOS</code> (512²) e pelo MLX: tempo a frio e quente (carga mais inferência), pico, e o <code>thermalState</code> em cada uma de 5 execuções seguidas. Antes, defina duas coisas. O modo: a receita <code>flux2</code> faz img2img por tokens de referência, não por mistura de ruído; o SDEdit por força é do caminho MLX. E a origem do código MLX: o único port para iPhone é o Imarello, sem licença, então o spike precisa de um port próprio sobre o <code>mlx-swift</code> oficial ou de licença pedida ao autor.</li>
+      <li>Bake-off de qualidade nas suas fotos: SDEdit, edição por referência e uma LUT ajustada por preset, com prompts só de estilo. A grade do SDEdit é em passos efetivos, não só em força: num modelo destilado de 4 passos, força 0,3 a 0,5 dá 1 a 2 passos (por exemplo, 4 passos com 0,5 e 0,75; 8 passos com 0,3 e 0,5, se o caminho permitir). Registre o scheduler.</li>
       <li>Teste de saída conhecida por modelo e por build do iOS: FP16 padrão contra CPU.</li>
+      <li><strong>A cadeia inteira em sequência</strong> (o S0.3 do brief): segmentar, difundir, compor e exportar 10 fotos, carregando e descarregando cada estágio. Meça o pico de <code>phys_footprint</code> entre estágios, a memória devolvida depois da descarga (limite e limpeza do cache do MLX), se o app sobrevive sem jetsam, e o tempo total.</li>
+      <li>O guia de 512² aplicado sobre um original de 48 MP e exportado em HEIF com gain map: pico, tempo e o que sobra do HDR.</li>
+      <li>Foundation Models no seu aparelho, com a região e o idioma reais: <code>SystemLanguageModel.default.availability</code>; e, com foto anexada e <code>@Generable enum</code>, latência e <code>tokenCount(for:)</code>.</li>
+      <li><code>BGTaskScheduler.shared.supportedResources</code> impresso no aparelho.</li>
     </ol>
     <h3>Arquitetura</h3>
     <p>Protocolos <code>Segmenter</code>, <code>Stylizer</code> e <code>PresetSelector</code>, como o brief já propõe. Um estágio residente por vez, com porta em <code>os_proc_available_memory()</code> e <code>thermalState</code>, checkpoint entre estágios e tela acesa. O gerado entra só como guia sobre o original, e rostos ficam protegidos por máscara.</p>
     <h3>Runtime</h3>
-    <p>Core AI para SAM 3, profundidade, EDSR e difusão, com Core ML (ControlNet, inpainting) e MLX (klein) de fallback. Foundation Models para o preset. Contexto de LLM no iOS de até 1.024 tokens e toolchain fixada.</p>
+    <p>Por estágio, até o E0 medir:</p>
+    <ul class="plain">
+      <li><strong>Segmentação:</strong> Core AI para o SAM 3 lite (caminho iOS oficial; foi o que resistiu ao red-team).</li>
+      <li><strong>Profundidade:</strong> Depth Anything V2 Small no Core ML (número publicado, Apache-2.0) até o <code>da3-small</code> da receita do Core AI ser medido e ter a licença dos pesos exportados confirmada. No 17 Pro, o Core AI não ganhou do Core ML em redes pequenas de visão.</li>
+      <li><strong>Difusão:</strong> MLX (o único caminho com número no iPhone) ou SD no Core ML (que tem ControlNet e inpainting). A receita <code>flux2</code> do Core AI só entra depois de medida no spike e aprovada no teste de saída conhecida: o red-team pediu para tirá-la como alvo no iPhone.</li>
+      <li><strong>Super-resolução:</strong> receita <code>edsr</code> do Core AI como candidata, sem número no iPhone.</li>
+      <li><strong>Preset:</strong> Vision como padrão; Foundation Models só se o spike o mostrar disponível no seu aparelho.</li>
+      <li><strong>Contexto:</strong> o teto de 1.024 tokens vale para LLM exportado pelo Core AI no iOS (limite do cache KV; a 2.048 o processo morre na carga). Não vale para o Foundation Models, que declara 8.192 no código de exemplo da Apple; quanto a foto anexada consome sai do spike.</li>
+      <li><strong>Toolchain fixada.</strong></li>
+    </ul>
     <h3>Uma ideia barata, ainda sem evidência</h3>
     <p>Rodar o klein poucas vezes por preset e ajustar uma LUT 3D a partir dos resultados. A rede original de LUT 3D adaptativa tem menos de 600 mil parâmetros, roda 4K em menos de 2 ms numa GPU de desktop, tem código Apache-2.0 e suporta treino pareado. Isso daria o look de difusão a custo de shader, reservando a difusão para fotos de destaque. Ninguém mediu isso no iPhone, e uma LUT muda só tom e cor, não conteúdo.</p>
   </section>
@@ -411,7 +425,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
       <li>A pesquisa achou o mesmo obstáculo de empacotamento que o repo já mediu em 21/09: <code>import CoreAI</code> não precisa de SwiftPM, e a &ldquo;casca fina&rdquo; resolveu o impasse com CocoaPods.</li>
       <li>A foto é ponteiro (ADR 0037): o pipeline lê do Fotos e nada sobe.</li>
       <li>O teste de 21/09 mostrou que o modelo do aparelho passa no portão de qualidade só em parte. Isso reforça validar o preset em código e cair para as regras.</li>
-      <li>A memória do projeto diz que a UE não bloqueia o Foundation Models. Confirme, porque a pesquisa lista região e Apple Intelligence como pré-requisito.</li>
+      <li>A memória do projeto diz que a UE não bloqueia o Foundation Models. Confirme no aparelho (é um item do spike), porque a pesquisa lista região e Apple Intelligence como pré-requisito.</li>
       <li>A lição de fotos na pedalada vale de novo: os achados de borda só o aparelho dá, e um build cedo vale mais que outra fase construída.</li>
     </ul>
   </section>
@@ -429,9 +443,9 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
 
   <section id="rigor">
     <h2>Como ler os números</h2>
-    <p>Toda página web passou por um resumidor, então os números são de segunda mão até você medir. Das 21 afirmações rastreadas, 10 foram verificadas, 5 ficaram sem segunda fonte, 3 são disputadas e 3 afirmações do brief foram desmentidas. Os números de difusão em iPhone são, quase todos, de um único autor ou do vendor.</p>
-    <p>O campo se move em semanas. Das nove afirmações principais de versão, desempenho e capacidade, cinco já estão fora da janela de frescor da pesquisa. As issues abertas do Core AI foram abertas em betas e podem já estar resolvidas.</p>
-    <p><strong>Reverificar:</strong> versão e compatibilidade (issues do Core AI, PR do Expo, Foundation Models no iOS 27 final) até 01/10/2026, e números de desempenho até 01/11/2026.</p>
+    <p>Toda página web passou por um resumidor, então os números são de segunda mão até você medir. Das 21 afirmações rastreadas, 10 foram verificadas, 5 ficaram sem segunda fonte, 4 são disputadas, 1 afirmação do brief foi desmentida (Qwen3.5 via Core AI) e 1 foi retirada. Na revisão de 21/09, o &ldquo;klein não cabe&rdquo; desceu de desmentida para disputada, porque a refutação se apoiava num relato sem segunda fonte e num PR disputado; e a do Image Playground saiu da conta do brief, que não a faz. Os números de difusão em iPhone são, quase todos, de um único autor ou do vendor.</p>
+    <p>O campo se move em semanas. Das dez afirmações principais, seis já estavam fora da janela de frescor no dia da pesquisa: Foundation Models aceita imagem, Bonsai, throttling de GPU contra ANE, GPU em segundo plano, licenças dos pesos e o dump do Vision. A mais antiga é o dump do Vision, de 2022, que sustenta o degrau 1 do preset. As issues abertas do Core AI foram abertas em betas e podem já estar resolvidas.</p>
+    <p><strong>Reverificar antes do spike:</strong> as seis vencidas. <strong>Depois:</strong> issues do Core AI e PR do Expo até 01/10/2026, memória do Gemma 4 E2B até 01/10/2026, números do klein no MLX até 01/11/2026 e o <code>Flux2Pipeline</code> no iPhone até 01/12/2026.</p>
   </section>
 
   <section id="fontes" class="sources">
@@ -475,7 +489,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);font-si
   </section>
 
   <footer>
-    Pesquisa de 21/09/2026, feita com fontes web e resumos automáticos. Nada foi salvo no repositório nem na memória do projeto.
+    Pesquisa de 21/09/2026, feita com fontes web e resumos automáticos. Revisada em 22/09: correções factuais, o spike e o runtime reescritos.
   </footer>
 </article>
 
