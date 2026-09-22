@@ -372,11 +372,11 @@ describe('o peso aberto no diagnóstico dele (story 5.8)', () => {
   });
 
   it('com os pesos no build: disponível, com o nome deles e a janela da ficha', () => {
-    const c = coreaiEm(lido({ estado: 'disponivel', variante: 'qwen3-1.7b', janela: 4096 }));
+    const c = coreaiEm(lido({ estado: 'disponivel', variante: 'tucano2-1.5b', janela: 4096 }));
     expect(c?.disponivel).toBe(true);
     expect(c?.motivo).toBeUndefined();
-    expect(c?.detalhe).toBe('qwen3-1.7b · janela de 4.096 tokens');
-    expect(c?.rotulo).toBe('Peso aberto (Qwen3 1.7B)');
+    expect(c?.detalhe).toBe('tucano2-1.5b · janela de 4.096 tokens');
+    expect(c?.rotulo).toBe('Peso aberto (Tucano2 1.5B)');
   });
 
   it('sem os pesos: indisponível **com motivo em palavras**, nunca some da lista', () => {

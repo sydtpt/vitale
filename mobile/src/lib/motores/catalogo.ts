@@ -98,7 +98,7 @@ export const MOTIVO_SEM_PONTE = 'a ponte para o modelo do sistema não está nes
 // Spike 22/09 (branch `spike/qwen3-4b-iphone`, não vai à main): o build embarca um Qwen3 no
 // lugar do SmolLM2, para medir no iPhone se ele roda (o 4B não coube na memória; agora o 1.7B). O nome da constante ficou de propósito —
 // renomeá-la mexeria em dez arquivos por um build de medição.
-export const APARELHO_COREAI_SMOLLM2 = 'aparelho:coreai/qwen3-1.7b' satisfies MotorId;
+export const APARELHO_COREAI_SMOLLM2 = 'aparelho:coreai/tucano2-1.5b' satisfies MotorId;
 
 /**
  * Os pesos que {@link APARELHO_COREAI_SMOLLM2} nomeia — o que viaja até a ponte nativa,
@@ -108,7 +108,7 @@ export const APARELHO_COREAI_SMOLLM2 = 'aparelho:coreai/qwen3-1.7b' satisfies Mo
  * ali mudaria o hash do pedido (AD-11) por uma razão que não é o pedido: qual peso usar é
  * assunto do hospedeiro e da ponte, não do que se pede ao modelo.
  */
-export const PESOS_DO_COREAI = 'qwen3-1.7b';
+export const PESOS_DO_COREAI = 'tucano2-1.5b';
 
 /**
  * O único recurso em que o peso aberto pode ser escolhido — a leitura que **não grava**.
@@ -196,8 +196,8 @@ export const MOTORES_CONHECIDOS: readonly MotorConhecido[] = [
   },
   {
     id: APARELHO_COREAI_SMOLLM2,
-    nome: 'o Qwen3 1.7B no aparelho',
-    rotulo: 'Peso aberto (Qwen3 1.7B)',
+    nome: 'o Tucano2 no aparelho',
+    rotulo: 'Peso aberto (Tucano2 1.5B)',
     descricao: 'Um modelo aberto que veio dentro do app, pelo Core AI, com o pensar desligado. Nada sai do aparelho — build de medição.',
     disponivel: false,
     motivo: MOTIVO_COREAI_SEM_PONTE,
