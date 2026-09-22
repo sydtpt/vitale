@@ -38,10 +38,12 @@ import { motivoDaFalha } from '../../../lib/assinatura';
 import {
   PESOS_ABERTOS,
   PONTE_AUSENTE,
+  listaAprovada,
   motivoDoAparelho,
   motoresDoRecurso,
   nomeDoMotor,
   type EstadoDaPonte,
+  type ListaAprovada,
 } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
 import {
@@ -120,11 +122,36 @@ export default function BancadaScreen() {
   const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
   // E o do peso aberto (5.8), que é outro fato.
   const [coreai, setCoreai] = useState<Readonly<Record<string, EstadoDaPonte>>>(() => estadoDosPesosAbertos());
-  // Medir o peso aberto é **escolha**, não padrão: ele é o mais lento dos quatro. O `ref`
-  // acompanha o estado porque o laço de medição captura o valor no início e roda por minutos.
-  const [medirProva, setMedirProva] = useState(false);
-  const medirProvaRef = useRef(medirProva);
-  medirProvaRef.current = medirProva;
+  // **Quem entra na corrida** (22/09). Era uma caixinha só, tudo-ou-nada para os pesos
+  // abertos; com N modelos isso deixou de servir — o dono quer escolher quais comparar.
+  // O conjunto guarda quem está **de fora**, e não quem está dentro, porque um motor que
+  // aparece depois (uma variante que o servidor aprovou no meio da sessão) tem de nascer
+  // ligado. Os pesos abertos nascem fora: cada um sobe mais de 1 GB e é o mais lento.
+  // O `ref` acompanha o estado porque o laço captura o valor no início e roda por minutos.
+  const [foraDaCorrida, setForaDaCorrida] = useState<ReadonlySet<string>>(
+    () => new Set(PESOS_ABERTOS.map((p) => p.id)),
+  );
+  const foraRef = useRef(foraDaCorrida);
+  foraRef.current = foraDaCorrida;
+  // A lista do servidor, para os chips existirem antes de a corrida começar.
+  const [listaDeMotores, setListaDeMotores] = useState<ListaAprovada | null>(listaAprovada());
+
+  /** Os motores que a corrida pode incluir agora — o mesmo catálogo fundido que ela usa. */
+  const motoresDaCorrida = useMemo(
+    () => motoresDoRecurso(descritorDaSaudeDoSono.recurso, { sistema: ponte, coreai }, listaDeMotores),
+    [ponte, coreai, listaDeMotores],
+  );
+  const nenhumMotorNaCorrida = motoresDaCorrida.every(
+    (m) => m.id === SEM_MODELO || foraDaCorrida.has(m.id) || !m.disponivel,
+  );
+  const alternarNaCorrida = useCallback((id: MotorId) => {
+    setForaDaCorrida((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(id)) proximo.delete(id);
+      else proximo.add(id);
+      return proximo;
+    });
+  }, []);
   useEffect(() => {
     let vivo = true;
     void ponteDoAparelho.reconsultar().then((p) => {
@@ -181,6 +208,7 @@ export default function BancadaScreen() {
       ]);
       setPonte(estadoDaPonte);
       setCoreai(estadoDoCoreAI);
+      setListaDeMotores(lista);
       const conhecidos = motoresDoRecurso(descritorDaSaudeDoSono.recurso, { sistema: estadoDaPonte, coreai: estadoDoCoreAI }, lista);
       if (chaveRef.current !== chaveDoLaco) return;
       for (const m of conhecidos) {
@@ -190,11 +218,9 @@ export default function BancadaScreen() {
         // o erro que esta tela existe para não cometer (comparar a frase de um motor
         // numa janela com a de outro motor em outra).
         if (chaveRef.current !== chaveDoLaco) return;
-        // **O peso aberto é prova, e fica de fora por padrão** (5.8). Ele sobe 244 MiB do
-        // disco por chamada, e esta corrida existe para comparar a nuvem com o modelo do
-        // sistema — não para esperar um motor que ninguém vai escolher. Quem quiser medi-lo
-        // liga o interruptor ao lado do botão.
-        if (m.prova && !medirProvaRef.current) continue;
+        // Quem o dono deixou de fora não corre. O template nunca é desligável: ele é a
+        // régua, e uma corrida sem régua não compara nada.
+        if (m.id !== SEM_MODELO && foraRef.current.has(m.id)) continue;
         setRodando(m.id);
         const linha = await medirUm(entrada, m.id);
         if (chaveRef.current !== chaveDoLaco) return;
@@ -318,19 +344,50 @@ export default function BancadaScreen() {
               {rodando === null ? 'Medir os motores' : `medindo ${nomeDoMotor(rodando)}…`}
             </Text>
           </Pressable>
-          <Pressable
-            onPress={() => setMedirProva((v) => !v)}
-            disabled={rodando !== null || amostraEmCurso}
-            accessibilityRole="switch"
-            accessibilityLabel="Medir também o peso aberto"
-            accessibilityState={{ checked: medirProva, disabled: rodando !== null || amostraEmCurso }}
-            style={({ pressed }) => [s.aviso, pressed && s.pressed]}
-          >
+          <Text style={s.rotulo}>quem entra</Text>
+          <View style={s.chips}>
+            {motoresDaCorrida.map((m) => {
+              if (m.id === SEM_MODELO) {
+                return (
+                  <View key={m.id} style={[s.chip, s.chipRegua]}>
+                    <Text style={s.chipTextoRegua}>{m.rotulo} · régua</Text>
+                  </View>
+                );
+              }
+              const dentro = !foraDaCorrida.has(m.id);
+              const travado = !m.disponivel;
+              return (
+                <Pressable
+                  key={m.id}
+                  onPress={() => alternarNaCorrida(m.id)}
+                  disabled={travado || rodando !== null || amostraEmCurso}
+                  accessibilityRole="switch"
+                  accessibilityLabel={`${m.rotulo} na corrida`}
+                  accessibilityState={{ checked: dentro && !travado, disabled: travado }}
+                  style={({ pressed }) => [
+                    s.chip,
+                    dentro && !travado ? s.chipDentro : s.chipFora,
+                    travado && s.chipTravado,
+                    pressed && s.pressed,
+                  ]}
+                >
+                  <Text style={dentro && !travado ? s.chipTextoDentro : s.chipTexto}>
+                    {m.rotulo}
+                    {travado ? ' · indisponível' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {nenhumMotorNaCorrida ? (
+            <Text style={s.aviso}>Só a régua está marcada — ligue ao menos um motor para a corrida medir algo.</Text>
+          ) : null}
+          {PESOS_ABERTOS.some((p) => !foraDaCorrida.has(p.id)) ? (
             <Text style={s.aviso}>
-              {medirProva ? '☑' : '☐'} medir também os pesos abertos ({PESOS_ABERTOS.length}) — a primeira
-              chamada de cada um compila o modelo e leva minutos; prazo de 45 min só para eles
+              Peso aberto na corrida: a primeira chamada de cada modelo compila e leva minutos; o prazo
+              dele é de 45 min, não de 1.
             </Text>
-          </Pressable>
+          ) : null}
           <Text style={s.aviso}>
             Modo medição: um motor por vez, sem recuo e sem piso. A frase do template é a régua. O
             texto cru só aparece aqui, e nada disto sai do aparelho.
@@ -1002,6 +1059,27 @@ const createStyles = () =>
     botaoOff: { opacity: 0.6 },
     botaoTexto: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.onPrimary },
     aviso: { marginTop: spacing.sm, fontSize: 11.5, lineHeight: 16, fontFamily: fonts.sans, color: colors.ink3 },
+
+    // Os chips de "quem entra": ligado é preenchido, desligado é contorno, indisponível é
+    // apagado e não responde ao toque. O alvo tem 36 pt de altura por causa do dedo.
+    chips: { marginTop: spacing.xs, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    chip: {
+      minHeight: 36,
+      paddingHorizontal: 12,
+      justifyContent: 'center',
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    chipDentro: { backgroundColor: colors.ink, borderColor: colors.ink },
+    chipFora: { backgroundColor: colors.surface, borderColor: colors.line },
+    chipTravado: { opacity: 0.45 },
+    chipRegua: { backgroundColor: colors.surfaceMute, borderColor: colors.line, borderStyle: 'dashed' },
+    chipTexto: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+    // Sobre o preenchimento de tinta, o texto é o fundo do app — e não `onPrimary`, que é a
+    // cor de cima da MARCA. No escuro a tinta clareia e o fundo escurece, e o par continua
+    // legível; `onPrimary` viraria laranja sobre tinta.
+    chipTextoDentro: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.bg },
+    chipTextoRegua: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink3 },
 
     linhaTopo: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
     motor: { fontSize: 13, fontFamily: fonts.monoSemiBold, color: colors.ink },
