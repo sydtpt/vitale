@@ -791,6 +791,29 @@ function citacoes(texto: string): Citacao[] {
  * caderno existe para acabar. Passe a união só enquanto o texto for um só —
  * até a sequência da impressão por caderno (Story 1.10).
  */
+/**
+ * As datas do período, em todas as grafias que o pedido usa — para saírem de
+ * cena antes da varredura de números.
+ *
+ * `inicioISO`/`fimISO` já vêm mascarados pelo regex ISO; o que falta é `14/09` e
+ * `14/09/2026`, que é como o cabeçalho do caderno imprime o intervalo. Só estas
+ * duas datas, e só destas formas: qualquer outro par de algarismos continua
+ * sendo número que o pacote tem de justificar.
+ */
+function datasDoPeriodo(pacotes: readonly PacoteDeFatos[]): readonly string[] {
+  const fora: string[] = [];
+  for (const p of pacotes) {
+    for (const iso of [p.periodo.inicioISO, p.periodo.fimISO]) {
+      const [ano, mes, dia] = iso.split('-');
+      if (ano === undefined || mes === undefined || dia === undefined) continue;
+      fora.push(`${dia}/${mes}/${ano}`, `${dia}/${mes}`);
+    }
+  }
+  // As mais longas primeiro: mascarar `14/09` antes de `14/09/2026` deixaria o
+  // ano solto no texto, e ele voltaria como número inventado.
+  return fora.sort((a, b) => b.length - a.length);
+}
+
 export function verificarTexto(texto: string, pacote: UmOuMaisPacotes): Veredito {
   const problemas: Problema[] = [];
   const pacotes: readonly PacoteDeFatos[] = Array.isArray(pacote)
@@ -803,7 +826,20 @@ export function verificarTexto(texto: string, pacote: UmOuMaisPacotes): Veredito
   // "01" para o regex de número, e o "01" é reprovado como métrica inventada —
   // sendo que a data veio do próprio pacote. Mascarar é mais honesto que
   // remendar o regex de número para entender datas.
-  const semDatas = texto.replace(/\d{4}-\d{2}-\d{2}/g, ' ');
+  //
+  // **E as datas do período, no formato em que o pedido as imprime** (22/09): o
+  // cabeçalho do caderno é `# 14/09 - 20/09`, e todo modelo que o repete era
+  // reprovado por quatro números — "14", "09", "20", "09" — que são o próprio
+  // período que o pacote deu. Medido com o Qwen3-1.7B e o Tucano2 no iPhone: os
+  // dois reprovaram por isso, e metade da reprovação era nossa.
+  //
+  // Mascara-se **só o que o pacote conhece**, nunca `\d{2}/\d{2}` genérico: um
+  // "7/7" escrito por engano continua sendo número a conferir, e o modelo não
+  // ganha um buraco por onde inventar par de algarismos.
+  const semDatas = datasDoPeriodo(pacotes).reduce(
+    (t, d) => t.split(d).join(' '),
+    texto.replace(/\d{4}-\d{2}-\d{2}/g, ' '),
+  );
   const citados = citacoes(semDatas);
 
   // 1 — números
