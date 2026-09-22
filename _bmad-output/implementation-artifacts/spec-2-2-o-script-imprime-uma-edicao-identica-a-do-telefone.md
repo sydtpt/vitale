@@ -104,6 +104,19 @@ A guarda mora no núcleo porque o script não pode embrulhar o `gravar`. Ela est
 - `--sem-gravar` num período que o telefone já imprimiu: provedor, modelo, versões e `agg_version` iguais; posição e métrica líder iguais, salvo dado novo no período.
 - Uma impressão de verdade num período de 2026 sem edição, e a edição aberta no iPhone.
 
+**Feitas pelo dono em 22/09/2026 — as duas passaram:**
+- Ensaio em agosto/2026 (o mês do piloto): zero `≠` na tabela. Posição, provedor `google`,
+  modelo `gemini-3.6-flash`, `prompt_versao` 5, `pacote_versao` 3, `agg_version` 9 e métrica
+  líder iguais nos quatro cadernos — inclusive o **nulo** do Sono —, e a ordem do
+  ranqueamento igual à congelada em 18/09. O caderno movimento caiu em `transitoria` nesse
+  ensaio e a linha antiga ficou de pé, como a sequência promete; na impressão seguinte ele
+  escreveu.
+- Impressão real da semana de 17/08: os quatro cadernos escritos, ordem contígua de 1 a 4,
+  gravados numa chamada, e a edição aberta no iPhone pelo dono ("funcionou"). É a primeira
+  edição gravada por um hospedeiro que não é o telefone. Sem capa, como a decisão 3a previu.
+- De quebra, a semana de 14/09 provou a recusa do já impresso em produção: parou depois da
+  leitura e antes de qualquer chamada paga.
+
 ## Suggested Review Order
 
 **A entrada da edição sobe para o núcleo**
