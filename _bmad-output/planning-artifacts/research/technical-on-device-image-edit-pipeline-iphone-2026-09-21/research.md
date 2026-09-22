@@ -45,6 +45,9 @@ como artifact privado). Entrada original: [imports/brief-edicao-imagem-pedal.md]
 2. "Processo único" só funciona como orquestração sequencial, com um estágio pesado residente por vez.
    O que limita é a memória por processo, não o disco. O "~6,1 GB por processo" do brief **não tem fonte**
    (a Apple chama a documentação de "deliberadamente vaga"); medir com `os_proc_available_memory()`.
+   **Medição do dono em 22/09, fora desta pesquisa:** um LLM com bundle de 2,3 GiB pelo Core AI foi morto
+   por jetsam no 17 Pro **mesmo com o entitlement de memória aumentada**. Por esse caminho (ANE, com KV
+   pré-alocado), o teto prático está bem abaixo dos 6,1 GB.
 3. O brief estava defasado em pontos centrais. O "klein 4B não cabe" foi **contestado**, não desmentido:
    há um relato único de FLUX.2 klein 4B a 512² em 4-bit no iPhone 17 Pro (só texto→imagem, no iOS 26), e
    nenhum número de edição nem de iOS 27. O Core AI tem receitas oficiais para todos os estágios (não só LLM),
@@ -64,7 +67,7 @@ o usuário percebe a escada sem difusão como "editada". Só o aparelho do dono 
 
 | Afirmação do brief | Veredito | O que a evidência mostra |
 |---|---|---|
-| Core AI com `.aimodel` e receitas oficiais | **Confirmada** | `apple/coreai-models` (código BSD-3, exige iOS 27.0+ e Xcode 27) tem receitas para `sam3`, `flux2`, `stable-diffusion`, `efficient-sam`, `depth-anything`, `edsr`, `qwen3`, `gemma3/3n` e VLM. |
+| Core AI com `.aimodel` e receitas oficiais | **Confirmada** | `apple/coreai-models` (código BSD-3, exige iOS 27.0+ e Xcode 27) tem receitas para `sam3`, `flux2`, `stable-diffusion`, `efficient-sam`, `depth-anything`, `edsr`, `qwen3`, `gemma3/3n` e VLM. Ressalva lida no código em 22/09 (fora desta pesquisa): no lado de LLM e VLM, o exportador só tem **classe iOS** para `qwen3`, `qwen2`, `olmo2` e `mistral`; `gemma3/3n`, Phi e VLM são macOS, e sem classe iOS o export aborta. |
 | SAM 3 com export oficial | **Com ressalvas** | Variante iOS "lite" a 336 px, prompt de texto, ~430–623 MB (as sessões 325 e 326 da WWDC26 discordam), pesos gated. Nenhuma fonte publica latência ou RAM em iPhone. |
 | SD ~0,9B com img2img e ControlNet | **Parcial** | img2img existe (SD 1.5 e 2.1 no Core AI). ControlNet e inpainting não existem no Core AI; existem no Core ML antigo (`ml-stable-diffusion`), cujo único número de iPhone é de 2023 (SD 2.1 a 512² em 7,9 s no iPhone 14 Pro Max). |
 | klein 4B não cabe (~6,1 GB) | **Contestada** | Relato único e auto-relatado (Imarello, iOS 26.6.1, só texto→imagem): MLX 4-bit a 512² em 9,9–12,2 s e 2,6–3,5 GB no 17 Pro. A receita `flux2` da Apple tem preset iOS, e o PR #252 diz "validado no iPhone 17 Pro" (disputado, sem números). Só um pacote de comunidade a 1024² estoura (~6,5 GB). Nenhum número de edição no iPhone. O "6,1 GB" segue sem fonte. |
@@ -119,6 +122,10 @@ Nenhum número abaixo é de terceiros independentes.
 - **Falhas documentadas do klein:** texto distorcido (a BFL admite); deriva de pose e de cor do cabelo em 2 relatos
   independentes com prompts de várias mudanças (nenhum só de estilo); edição por referência custa ~1,65–2,1× o texto→imagem
   por passo (Mac). Rosto: nenhuma evidência independente para o 4B.
+- **Contraponto medido no aparelho** (22/09, fora desta pesquisa): um bundle de 2,3 GiB pelo Core AI morreu por jetsam no
+  17 Pro, com o entitlement ligado. O pico de 2,6–3,5 GB que o klein relata em MLX fica perto de um limite já observado.
+  Não é o mesmo caminho — MLX roda na GPU, o Core AI estático no ANE com KV pré-alocado —, mas é o primeiro dado do
+  próprio aparelho, e ele empurra o risco do T2 para cima.
 - **Fora:** Image Playground, Bonsai (só T2I), klein 9B (não-comercial).
 - **Falta:** tempo/memória/térmica da edição no iPhone; SD de poucos passos no iPhone (nenhum número); qualidade em rostos.
 
@@ -163,7 +170,9 @@ Nenhum número abaixo é de terceiros independentes.
 - Difusão klein 4B, 512², 4 passos: ~10–12 s em texto→imagem; edição ~1,65–2,1× por passo (extrapolado do Mac) → ~16–26 s
   (estimativa), mais carga.
 - LUT, composição, overlay: sub-segundo esperado (não medido).
-- Primeira execução: a "specialization" do Core AI é lenta e não deve ocorrer em fluxo interativo; usar compilação AOT. Sem número.
+- Primeira execução: a "specialization" do Core AI é lenta e não deve ocorrer em fluxo interativo; usar compilação AOT. Sem
+  número na web, mas com número no aparelho (22/09, LLM, fora desta pesquisa): a primeira compilação de um bundle de 2,3 GiB
+  levou **~29 min**, mais um cache em disco do tamanho do bundle. É evento, não detalhe de fluxo.
 - **Leitura:** dezenas de segundos por foto com tudo quente e cabendo em memória; a frio, desconhecido.
 
 ## Contra-evidência (red-team)
@@ -192,7 +201,9 @@ Nenhum número abaixo é de terceiros independentes.
    reprovado tira a camada do produto; não vira ajuste depois do fato. Parâmetro fixo de todos os itens: a política de
    enquadramento das fotos 4:3 num modelo quadrado (ex.: lado maior em 512, em múltiplos do VAE, ou recorte + máscara da
    área não gerada), para o guia alinhar com o original.
-   a. `os_proc_available_memory()` por estágio, com e sem o entitlement;
+   Registrar sempre a primeira compilação de cada estágio: num LLM de 4B ela levou ~29 min no aparelho (22/09).
+   a. `os_proc_available_memory()` por estágio, com e sem o entitlement — que já se mostrou insuficiente num bundle de
+      2,3 GiB (22/09). Acompanhar por `devicectl --console`: sem isso, a morte por memória aparece só como o app sumindo;
    b. máscara do Vision em ~30 fotos do dono (vazio, qualidade, latência) + dump de `supportedIdentifiers`;
    c. SAM 3 lite com compilação AOT (latência, RAM, primeira carga);
    d. klein 4B pela receita `flux2 --platform iOS` (512²) e pelo MLX: tempo **a frio e quente** (carga + inferência), pico,
@@ -223,7 +234,11 @@ Nenhum número abaixo é de terceiros independentes.
      `flux2` do Core AI só entra depois de medida no E0 d e aprovada no teste de saída conhecida do E0 f: o red-team 3 pediu
      para tirá-la como alvo no iPhone.
    - **Super-resolução:** receita `edsr` do Core AI como candidata, sem número no iPhone.
-   - **Preset:** Vision (degrau 1) como padrão; Foundation Models só se o E0 i o mostrar disponível no aparelho do dono.
+   - **Preset:** Vision (degrau 1) como padrão; Foundation Models só se o E0 i o mostrar disponível no aparelho do dono. Se
+     não estiver, há plano B lido no código em 22/09 (fora desta pesquisa): o `CoreAILanguageModel` faz decodificação
+     restrita por schema no motor estático, então um LLM aberto pequeno devolve o `@Generable` igual. Só que o exportador
+     tem classe iOS para quatro arquiteturas — `qwen3`, `qwen2`, `olmo2` e `mistral` —, e **nenhuma delas é VLM**: escolher
+     o preset por um modelo de visão aberto no aparelho não é caminho.
    - **Contexto:** o teto de ≤ 1.024 tokens vale para LLM exportado pelo Core AI no iOS (limite do cache KV; a 2.048 o
      processo morre na carga). Não vale para o Foundation Models, que declara 8.192 no código de exemplo da Apple; quanto a
      foto anexada consome sai do E0 i.
@@ -251,6 +266,12 @@ Nenhum número abaixo é de terceiros independentes.
 - A pesquisa achou o mesmo obstáculo de empacotamento já medido em 21/09 (`import CoreAI` sem SwiftPM; "casca fina" resolveu o
   CocoaPods).
 - A foto é ponteiro (ADR 0037): o pipeline lê do Fotos e nada sobe.
+- **As medições do dono em 22/09** (spike de LLM aberto no iPhone, não é evidência desta pesquisa) valem para a imagem
+  porque medem o mesmo processo: bundle de 2,3 GiB morto por jetsam **com** o entitlement; primeira compilação de ~29 min,
+  com cache em disco do tamanho do bundle; jetsam só visível por `devicectl --console`; KV pré-alocado, com 4.096 tokens de
+  padrão no iOS e redutível por flag; decodificação restrita por schema funcionando no motor estático; e classe iOS no
+  exportador só para `qwen3`, `qwen2`, `olmo2` e `mistral` (Gemma, Phi e VLM são macOS). A pesquisa completa está em
+  `~/Orbe-dados/pesquisa-modelos-pequenos-2026-09-22.md`.
 - O teste de 21/09 do modelo do aparelho (Foundation Models) passou no portão de qualidade só em parte: reforça validar o preset em
   código e cair para as regras.
 - A memória do projeto diz que a UE não bloqueia o Foundation Models; a pesquisa lista região e Apple Intelligence como
@@ -271,7 +292,7 @@ Nenhum número abaixo é de terceiros independentes.
 
 | Pergunta | Como resolver |
 |---|---|
-| Teto real de memória por processo no 17 Pro (com e sem entitlement) | Sonda de 20 linhas com `os_proc_available_memory()` |
+| Teto real de memória por processo no 17 Pro (com e sem entitlement) — **parcialmente respondido em 22/09**: bundle de 2,3 GiB morre por jetsam com o entitlement ligado (Core AI/ANE, LLM). Falta o teto pelo caminho MLX/GPU e por estágio da difusão | Sonda com `os_proc_available_memory()` + `devicectl --console`; E0 (a, d, g) |
 | Latência e RAM do SAM 3 lite, do Vision e do classificador no iPhone | Spike E0 (b, c) |
 | Edição por difusão no iPhone: tempo, pico, térmica, qualidade em rosto | Spike E0 (d, e) |
 | A cadeia inteira em sequência sobrevive sem jetsam? | Spike E0 (g) |
@@ -302,6 +323,9 @@ Nenhum número abaixo é de terceiros independentes.
 - **Revisão:** `/bmad-review` de 21/09 (quatro lentes), aplicada em 22/09 em duas partes: as correções factuais (estado do
   commit, razão de pixels, placar de afirmações, klein contestado, Core AI no Sumário, frescor, teto de tokens) e as
   Recomendações 2 e 4 reescritas. Os achados de borda, de estrutura e de prosa ficaram de fora.
+- **Entrou depois (22/09):** as medições do dono no iPhone, marcadas como ponte e não como evidência da pesquisa — teto de
+  memória, primeira compilação, diagnóstico por `devicectl` e o que o exportador do Core AI aceita no iOS. Elas respondem
+  em parte a primeira pergunta em aberto; não vieram da web nem passaram pelos verificadores.
 
 ## Fontes principais
 
