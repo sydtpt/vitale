@@ -814,7 +814,7 @@ export interface Hospedagem {
  * gravaria uma preferência que ninguém consulta — o dono trocaria o motor e nada
  * mudaria, sem nenhuma explicação.
  *
- * **Os três recursos do núcleo estão ligados.** O campo `motivo` fica, e o tipo
+ * **Os quatro recursos do núcleo estão ligados.** O campo `motivo` fica, e o tipo
  * `Hospedagem` também: é ele que faz um recurso novo nascer com a resposta escrita
  * em vez de nascer mudo.
  *
@@ -825,6 +825,11 @@ export const HOSPEDAGEM: Readonly<Record<RecursoId, Hospedagem>> = {
   'saude-do-sono': { hospedado: true },
   retrospectiva: { hospedado: true },
   'nome-de-rota': { hospedado: true },
+  // O nome em português entra hospedado no mesmo passo em que nasce (23/09): o
+  // `services/route-name.ts` lê a preferência **dele**, separada da do nome local,
+  // porque é essa separação que o dono pediu — um motor para o nome, outro para a
+  // legenda. Nascer não hospedado faria o seletor mostrar a linha e negar a escolha.
+  'nome-de-rota-pt': { hospedado: true },
 };
 
 /** O que o bloqueio precisa saber do recurso. Um `Descritor` cabe aqui. */

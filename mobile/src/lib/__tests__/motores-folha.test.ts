@@ -15,6 +15,7 @@ import {
   descritorDaRetrospectiva,
   descritorDaSaudeDoSono,
   descritorDoNomeDeRota,
+  descritorDoNomeDeRotaPt,
   type Descritor,
   type MotorId,
 } from '@vitale/shared';
@@ -117,13 +118,19 @@ describe('o cabeçalho da folha', () => {
  * alternativa equivalente o que o código declara como ausência.
  */
 describe('o que "Sem modelo" diz em cada leitura', () => {
-  it('nas duas leituras sem template, a opção escreve a LÁPIDE do descritor, palavra por palavra', () => {
-    for (const d of [descritorDaRetrospectiva, descritorDoNomeDeRota]) {
+  it('nas três leituras sem template, a opção escreve a LÁPIDE do descritor, palavra por palavra', () => {
+    for (const d of [descritorDaRetrospectiva, descritorDoNomeDeRota, descritorDoNomeDeRotaPt]) {
       const piso = (d as Descritor<unknown, unknown>).semModelo({});
       expect('ausencia' in piso).toBe(true);
       expect(semModeloEhLapide(d.recurso)).toBe(true);
       expect(DETALHE_DO_SEM_MODELO[d.recurso]).toBe('ausencia' in piso ? piso.ausencia : null);
     }
+  });
+
+  it('as duas frentes do nome dizem a MESMA lápide — elas dividem o corpo do descritor', () => {
+    // Uma redação própria para o português faria a tabela afirmar algo que o
+    // `semModelo` não diz, e é a tabela que a folha mostra.
+    expect(DETALHE_DO_SEM_MODELO['nome-de-rota-pt']).toBe(DETALHE_DO_SEM_MODELO['nome-de-rota']);
   });
 
   it('na Saúde do sono ela é um caminho, e a linha é a neutra — não a frase do template', () => {

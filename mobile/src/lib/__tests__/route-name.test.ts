@@ -1,11 +1,21 @@
 /**
- * O hospedeiro do nome de rota, depois da porta (story 5.7).
+ * O hospedeiro do nome de rota, depois da porta (story 5.7; as duas frentes e todo
+ * GPS desde 23/09).
  *
  * O que este arquivo mede é **o que só o hospedeiro pode errar**: o corpo que sai
  * para a `ia-narrar`, o que ele grava e o que ele deixa de gravar, e se a
  * preferência do dono é respeitada. O juízo (prompt, conferência, molde) tem
  * teste no núcleo, sobre dado real — repeti-lo aqui seria medir duas vezes a
  * mesma coisa e nenhuma vez o hospedeiro.
+ *
+ * Desde 23/09 há duas coisas a mais que só o hospedeiro pode errar, e as duas têm
+ * bloco próprio no fim:
+ *
+ *  - **o gatilho por língua**: quem já tem o nome local e não tem o português paga
+ *    só a segunda chamada. Uma marca só faria as 135 pedaladas já nomeadas nunca
+ *    ganharem legenda, e o sintoma seria "o português não aparece nas antigas";
+ *  - **a queda do crivo de bicicleta**: caminhada e corrida com rota passam a
+ *    precisar de nome. São 138 atividades que hoje se chamam "Walking" e "Running".
  *
  * O motor entra pelas deps, e o `motorPara` real é mockado: nada aqui abre rede.
  */
@@ -54,7 +64,7 @@ jest.mock('../supabase', () => ({
 /**
  * O ponto de injeção carrega o módulo nativo e constrói o motor de nuvem na
  * carga; aqui ninguém fala com rede. O motor é configurável porque o bloco da
- * **fiação de produção** (no fim do arquivo) chama `nomearPedaladaSePreciso`
+ * **fiação de produção** (no fim do arquivo) chama `nomearRotaSePreciso`
  * *sem* deps, e aí quem entrega o motor é este mock, não o teste.
  */
 const mockMotores: { motor: unknown } = { motor: undefined };
@@ -81,10 +91,13 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gravarPreferencia } from '../motores/preferencia';
 import {
+  frentesQueFaltam,
   limparCacheDeAncoras,
-  nomearPedaladaSePreciso,
+  nomearRotaSePreciso,
+  precisaDeAlgumNome,
   precisaDeNome,
   type DepsDoNome,
+  type FrenteDoNome,
 } from '../../services/route-name';
 
 /* ── o cenário ───────────────────────────────────────────────────────────── */
@@ -109,6 +122,18 @@ const PEDALADA: Activity = {
     { name: 'Pamel', country: 'Belgique', lat: 50.85, lng: 4.13 },
   ],
 } as Activity;
+
+/**
+ * A mesma pedalada com a frente do **português já visitada**.
+ *
+ * É ela que os blocos abaixo usam quando o que está sob teste é **uma** frente: com
+ * as duas faltando, cada caso mediria duas chamadas e duas gravações, e as
+ * asserções sobre "o corpo que sai" passariam a contar corpos em vez de olhar o
+ * primeiro. As duas frentes juntas têm bloco próprio no fim.
+ *
+ * E o cenário é real: são as 135 pedaladas com nome francês no acervo, pelo avesso.
+ */
+const SO_O_LOCAL = { ...PEDALADA, routeNamePtChecked: true } as Activity;
 
 const PONTOS = [
   { lat: 50.8503, lng: 4.3517 },
@@ -150,37 +175,58 @@ function nuvemFalsa(...roteiro: readonly RespostaDoTransporte[]) {
   return { motor, corpos };
 }
 
+interface Gravacao {
+  frente: FrenteDoNome;
+  id: string;
+  nome: string | null;
+  meta: Record<string, unknown>;
+}
+
 interface Cenario {
   readonly deps: DepsDoNome;
   readonly corpos: readonly CorpoDoPedido[];
   readonly eventos: readonly EventoDoAnel[];
-  readonly gravou: { id: string; nome: string | null; meta: Record<string, unknown> }[];
+  readonly gravou: Gravacao[];
+  /** Quais frentes pediram a preferência, na ordem — o que prova a leitura por recurso. */
+  readonly preferenciasLidas: FrenteDoNome[];
 }
 
+/**
+ * `preferencia` aceita **um mapa por frente** além de um id só: é assim que o caso
+ * central da decisão do dono — dois motores diferentes para as duas línguas — se
+ * escreve sem um segundo montador de cenário.
+ */
 function cenario(
   roteiro: readonly RespostaDoTransporte[],
-  preferencia: MotorId | null = null,
+  preferencia: MotorId | null | Partial<Record<FrenteDoNome, MotorId | null>> = null,
   motores: readonly MotorId[] = [NUVEM_PADRAO],
 ): Cenario {
   const { motor, corpos } = nuvemFalsa(...roteiro);
   const eventos: EventoDoAnel[] = [];
-  const gravou: { id: string; nome: string | null; meta: Record<string, unknown> }[] = [];
+  const gravou: Gravacao[] = [];
+  const preferenciasLidas: FrenteDoNome[] = [];
   const porId: Partial<Record<MotorId, Motor>> = {};
   for (const id of motores) porId[id] = motor;
+  const escolha = (frente: FrenteDoNome): MotorId | null =>
+    typeof preferencia === 'string' || preferencia === null ? preferencia : preferencia[frente] ?? null;
   return {
     corpos,
     eventos,
     gravou,
+    preferenciasLidas,
     deps: {
       motorPara: (id) => porId[id],
       registrar: (e) => {
         eventos.push(e);
       },
       agora: () => new Date('2026-09-21T12:00:00Z'),
-      lerPreferencia: async () => preferencia,
+      lerPreferencia: async (frente) => {
+        preferenciasLidas.push(frente);
+        return escolha(frente);
+      },
       catalogo: async () => [SEM_MODELO, APARELHO_SISTEMA, NUVEM_PADRAO],
-      salvar: async (id, nome, meta) => {
-        gravou.push({ id, nome, meta: meta as Record<string, unknown> });
+      salvar: async (frente, id, nome, meta) => {
+        gravou.push({ frente, id, nome, meta: meta as Record<string, unknown> });
       },
     },
   };
@@ -197,18 +243,67 @@ beforeEach(() => {
 /* ── o gatilho ───────────────────────────────────────────────────────────── */
 
 describe('o gatilho', () => {
-  it('só pedalada com rota, sem nome e sem marca', () => {
-    expect(precisaDeNome(PEDALADA)).toBe(true);
-    expect(precisaDeNome({ ...PEDALADA, activityId: 37 } as Activity)).toBe(false);
-    expect(precisaDeNome({ ...PEDALADA, routeName: 'Tour du Pajottenland' } as Activity)).toBe(false);
-    expect(precisaDeNome({ ...PEDALADA, routeNameChecked: true } as Activity)).toBe(false);
-    expect(precisaDeNome({ ...PEDALADA, hasRoute: false } as Activity)).toBe(false);
+  it('atividade com rota, sem nome e sem marca — em cada frente a SUA coluna', () => {
+    expect(precisaDeNome(PEDALADA, 'nome-de-rota')).toBe(true);
+    expect(precisaDeNome(PEDALADA, 'nome-de-rota-pt')).toBe(true);
+    expect(precisaDeNome({ ...PEDALADA, routeName: 'Tour du Pajottenland' } as Activity, 'nome-de-rota')).toBe(false);
+    expect(precisaDeNome({ ...PEDALADA, routeNameChecked: true } as Activity, 'nome-de-rota')).toBe(false);
+    expect(precisaDeNome({ ...PEDALADA, routeNamePt: 'Tour do Pajottenland' } as Activity, 'nome-de-rota-pt')).toBe(false);
+    expect(precisaDeNome({ ...PEDALADA, routeNamePtChecked: true } as Activity, 'nome-de-rota-pt')).toBe(false);
+    // Sem rota não há forma a derivar: nenhuma frente entra.
+    expect(precisaDeAlgumNome({ ...PEDALADA, hasRoute: false } as Activity)).toBe(false);
+  });
+
+  /**
+   * **A marca é por língua**, e é a razão de haver duas colunas de meta.
+   *
+   * Com uma marca só, as 135 pedaladas que já têm nome francês ficariam fora do
+   * gatilho do português para sempre — e o sintoma seria "a legenda só aparece nas
+   * novas", que ninguém liga à marca.
+   */
+  it('quem tem o nome local e não tem o pt precisa SÓ do pt', () => {
+    const local = { ...PEDALADA, routeName: 'Tour du Pajottenland', routeNameChecked: true } as Activity;
+    expect(frentesQueFaltam(local)).toEqual(['nome-de-rota-pt']);
+    expect(precisaDeAlgumNome(local)).toBe(true);
+  });
+
+  it('quem tem o pt e não tem o local precisa SÓ do local', () => {
+    expect(frentesQueFaltam(SO_O_LOCAL)).toEqual(['nome-de-rota']);
+  });
+
+  it('quem tem as duas marcas não precisa de nada', () => {
+    const pronta = { ...PEDALADA, routeNameChecked: true, routeNamePtChecked: true } as Activity;
+    expect(frentesQueFaltam(pronta)).toEqual([]);
+    expect(precisaDeAlgumNome(pronta)).toBe(false);
+  });
+
+  /**
+   * **Caiu o crivo de bicicleta** (decisão 4 do plano, 23/09).
+   *
+   * O filtro de tipo era `activityId === 13`, e com ele as 80 caminhadas e as 58
+   * corridas com GPS nunca ganhariam nome: elas se chamam literalmente "Walking" e
+   * "Running". O que restou é `hasRoute` — e o portão da rota degenerada, que roda
+   * dentro do descritor, antes de qualquer chamada.
+   */
+  it('uma caminhada com rota passa a precisar de nome, e uma corrida também', () => {
+    for (const activityId of [52, 37]) {
+      const aPe = { ...PEDALADA, activityId } as Activity;
+      expect(frentesQueFaltam(aPe)).toEqual(['nome-de-rota', 'nome-de-rota-pt']);
+    }
+  });
+
+  it('a caminhada chega ao modelo de verdade — o crivo não sobreviveu em outro lugar', async () => {
+    const c = cenario([corpoBom(BOA)]);
+    const caminhada = { ...SO_O_LOCAL, activityId: 52 } as Activity;
+    const nomes = await nomearRotaSePreciso(caminhada, PONTOS, 'u1', c.deps);
+    expect(nomes).toEqual({ 'nome-de-rota': 'Tour du Pajottenland' });
+    expect(c.corpos).toHaveLength(1);
   });
 
   it('sem as pontas do traçado não sai chamada nenhuma', async () => {
     const c = cenario([corpoBom(BOA)]);
-    expect(await nomearPedaladaSePreciso(PEDALADA, undefined, 'u1', c.deps)).toBeNull();
-    expect(await nomearPedaladaSePreciso(PEDALADA, [], 'u1', c.deps)).toBeNull();
+    expect(await nomearRotaSePreciso(PEDALADA, undefined, 'u1', c.deps)).toEqual({});
+    expect(await nomearRotaSePreciso(PEDALADA, [], 'u1', c.deps)).toEqual({});
     expect(c.corpos).toHaveLength(0);
     expect(c.gravou).toHaveLength(0);
   });
@@ -219,7 +314,7 @@ describe('o gatilho', () => {
 describe('o corpo que chega à function', () => {
   it('é o par do prompt com json — e não nomeia motor, porque o padrão é o servidor', async () => {
     const c = cenario([corpoBom(BOA)]);
-    await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps);
+    await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps);
 
     expect(c.corpos).toHaveLength(1);
     const corpo = c.corpos[0];
@@ -230,6 +325,8 @@ describe('o corpo que chega à function', () => {
     expect(corpo.usuario).toContain('1. Sint-Martens-Lennik');
     expect(corpo.usuario).toContain('3. Pamel');
     expect(corpo.usuario).toContain('Distância: 75,0 km. Subida: 600 m.');
+    // A língua é a do país dominante (a Bélgica é francês, por decisão do dono).
+    expect(corpo.usuario).toMatch(/^Língua do nome: francês\./);
   });
 });
 
@@ -238,14 +335,16 @@ describe('o corpo que chega à function', () => {
 describe('as permanentes gravam', () => {
   it('o nome sai, e a meta leva provedor, modelo e tokens', async () => {
     const c = cenario([corpoBom(BOA)]);
-    const nome = await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps);
+    const nomes = await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps);
 
-    expect(nome).toBe('Tour du Pajottenland');
+    expect(nomes).toEqual({ 'nome-de-rota': 'Tour du Pajottenland' });
     expect(c.gravou).toHaveLength(1);
+    expect(c.gravou[0].frente).toBe('nome-de-rota');
     expect(c.gravou[0].id).toBe('act-1');
     expect(c.gravou[0].nome).toBe('Tour du Pajottenland');
     expect(c.gravou[0].meta).toMatchObject({
       forma: 'casa-b',
+      lingua: 'fr',
       regiao: 'Pajottenland',
       versaoPrompt: 2,
       provedor: 'fake',
@@ -255,9 +354,9 @@ describe('as permanentes gravam', () => {
     });
   });
 
-  it('a resposta ilegível grava a recusa — é o que impede a pedalada de voltar todo dia', async () => {
+  it('a resposta ilegível grava a recusa — é o que impede a rota de voltar todo dia', async () => {
     const c = cenario([corpoBom('não consigo nomear este percurso')]);
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps)).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps)).toEqual({});
     expect(c.gravou).toHaveLength(1);
     expect(c.gravou[0].nome).toBeNull();
     expect(c.gravou[0].meta).toMatchObject({ recusa: 'ilegivel', provedor: 'fake' });
@@ -265,14 +364,14 @@ describe('as permanentes gravam', () => {
 
   it('a conferência que reprova grava o que o modelo tentou', async () => {
     const c = cenario([corpoBom(JSON.stringify({ regiao: 'Toscana', justificativa: ['Siena'] }))]);
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps)).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps)).toEqual({});
     expect(c.gravou[0].meta).toMatchObject({ recusa: 'reprovado', regiao: 'Toscana', provedor: 'fake' });
   });
 
   it('a rota degenerada grava sem gastar chamada', async () => {
     const c = cenario([corpoBom(BOA)]);
-    const curta = { ...PEDALADA, distanceM: 900, cities: [PEDALADA.cities![0]] } as Activity;
-    expect(await nomearPedaladaSePreciso(curta, PONTOS, 'u1', c.deps)).toBeNull();
+    const curta = { ...SO_O_LOCAL, distanceM: 900, cities: [PEDALADA.cities![0]] } as Activity;
+    expect(await nomearRotaSePreciso(curta, PONTOS, 'u1', c.deps)).toEqual({});
     expect(c.corpos).toHaveLength(0);
     expect(c.gravou[0].meta).toMatchObject({ recusa: 'degenerada' });
   });
@@ -286,14 +385,14 @@ describe('as transitórias não gravam', () => {
   ];
 
   for (const [nome, resposta] of casos) {
-    it(`${nome}: nada gravado, e a pedalada volta ao gatilho`, async () => {
+    it(`${nome}: nada gravado, e a rota volta ao gatilho`, async () => {
       const c = cenario([resposta]);
-      expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps)).toBeNull();
+      expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps)).toEqual({});
       expect(c.gravou).toHaveLength(0);
     });
   }
 
-  it('a gravação que falha não derruba a tela — devolve null', async () => {
+  it('a gravação que falha não derruba a tela — devolve nada escrito', async () => {
     const c = cenario([corpoBom(BOA)]);
     const deps: DepsDoNome = {
       ...c.deps,
@@ -301,13 +400,13 @@ describe('as transitórias não gravam', () => {
         throw new Error('PostgREST 500');
       },
     };
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', deps)).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', deps)).toEqual({});
   });
 
   it('a consulta das âncoras que falha não derruba a tela, e não chama motor nenhum', async () => {
     const c = cenario([corpoBom(BOA)]);
     mockBanco.erroAoLerPlaces = new Error('PostgREST 500');
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps)).toBeNull();
+    expect(await nomearRotaSePreciso(PEDALADA, PONTOS, 'u1', c.deps)).toEqual({});
     expect(c.corpos).toHaveLength(0);
     expect(c.gravou).toHaveLength(0);
   });
@@ -320,7 +419,7 @@ describe('a preferência do dono', () => {
     // A nuvem tem motor; o aparelho não. A exposição não sobe: a cadeia resolvida
     // para o aparelho vai só até ele, e o piso é a ausência.
     const c = cenario([corpoBom(BOA)], APARELHO_SISTEMA, [NUVEM_PADRAO]);
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps)).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps)).toEqual({});
     expect(c.corpos).toHaveLength(0);
     expect(c.gravou).toHaveLength(0);
     expect(c.eventos[0].trilha.map((t) => [t.motor, t.desfecho])).toEqual([[APARELHO_SISTEMA, 'indisponivel']]);
@@ -328,7 +427,7 @@ describe('a preferência do dono', () => {
 
   it('sem-modelo escolhido não chama ninguém e não grava', async () => {
     const c = cenario([corpoBom(BOA)], SEM_MODELO);
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps)).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps)).toEqual({});
     expect(c.corpos).toHaveLength(0);
     expect(c.gravou).toHaveLength(0);
   });
@@ -338,7 +437,7 @@ describe('a preferência do dono', () => {
     // exposição a oferecer, e a cadeia fica só no piso. Cair no padrão aqui
     // mandaria dado para a nuvem por causa de um armazenamento corrompido.
     const c = cenario([corpoBom(BOA)], 'lixo' as MotorId);
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps)).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps)).toEqual({});
     expect(c.corpos).toHaveLength(0);
     expect(c.gravou).toHaveLength(0);
   });
@@ -352,7 +451,7 @@ describe('a preferência do dono', () => {
       ...c.deps,
       lerPreferencia: () => Promise.reject(new Error('AsyncStorage fora')),
     };
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', deps)).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', deps)).toEqual({});
     expect(c.corpos).toHaveLength(0);
     expect(c.gravou).toHaveLength(0);
   });
@@ -363,9 +462,71 @@ describe('a preferência do dono', () => {
       ...c.deps,
       catalogo: () => Promise.reject(new Error('sem rede')),
     };
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', deps)).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', deps)).toEqual({});
     expect(c.corpos).toHaveLength(0);
     expect(c.gravou).toHaveLength(0);
+  });
+});
+
+/* ── as duas frentes, com motores diferentes ──────────────────────────────── */
+
+/**
+ * O ponto central da decisão do dono: **os motores podem ser diferentes**.
+ *
+ * Os dois recursos resolvem a cadeia por conta própria, então cada um lê a
+ * preferência **dele**. Ler uma só faria a segunda frente herdar calada a escolha da
+ * primeira, e o dono só descobriria lendo a meta no banco.
+ */
+describe('as duas frentes', () => {
+  it('rodam uma vez cada, em sequência, e gravam em colunas diferentes', async () => {
+    const c = cenario([corpoBom(BOA), corpoBom(JSON.stringify({ ...JSON.parse(BOA), artigo: 'o' }))]);
+    const nomes = await nomearRotaSePreciso(PEDALADA, PONTOS, 'u1', c.deps);
+
+    expect(nomes).toEqual({
+      'nome-de-rota': 'Tour du Pajottenland',
+      'nome-de-rota-pt': 'Tour do Pajottenland',
+    });
+    // O local primeiro: é ele que manda, e o português é legenda.
+    expect(c.gravou.map((g) => g.frente)).toEqual(['nome-de-rota', 'nome-de-rota-pt']);
+    expect(c.corpos).toHaveLength(2);
+    expect(c.corpos[0].usuario).toMatch(/^Língua do nome: francês\./);
+    expect(c.corpos[1].usuario).toMatch(/^Língua do nome: português\./);
+    // A meta de cada coluna diz a língua que o pedido dela disse.
+    expect(c.gravou[0].meta).toMatchObject({ lingua: 'fr' });
+    expect(c.gravou[1].meta).toMatchObject({ lingua: 'pt' });
+    // Um evento no anel por frente, com o recurso de cada uma.
+    expect(c.eventos.map((e) => e.recurso)).toEqual(['nome-de-rota', 'nome-de-rota-pt']);
+  });
+
+  it('cada frente lê a preferência DELA — e uma pode calar sem calar a outra', async () => {
+    // Nome local em sem-modelo, legenda na nuvem: só a segunda chama alguém.
+    const c = cenario([corpoBom(JSON.stringify({ ...JSON.parse(BOA), artigo: 'o' }))], {
+      'nome-de-rota': SEM_MODELO,
+      'nome-de-rota-pt': NUVEM_PADRAO,
+    });
+    const nomes = await nomearRotaSePreciso(PEDALADA, PONTOS, 'u1', c.deps);
+
+    expect(c.preferenciasLidas).toEqual(['nome-de-rota', 'nome-de-rota-pt']);
+    expect(nomes).toEqual({ 'nome-de-rota-pt': 'Tour do Pajottenland' });
+    expect(c.corpos).toHaveLength(1);
+    expect(c.gravou.map((g) => g.frente)).toEqual(['nome-de-rota-pt']);
+  });
+
+  it('a falha de uma frente não cancela a outra', async () => {
+    // A gravação do nome local estoura; a legenda em português continua e grava.
+    const c = cenario([corpoBom(BOA), corpoBom(JSON.stringify({ ...JSON.parse(BOA), artigo: 'o' }))]);
+    const gravou: Gravacao[] = [];
+    const deps: DepsDoNome = {
+      ...c.deps,
+      salvar: async (frente, id, nome, meta) => {
+        if (frente === 'nome-de-rota') throw new Error('PostgREST 500');
+        gravou.push({ frente, id, nome, meta: meta as Record<string, unknown> });
+      },
+    };
+    const nomes = await nomearRotaSePreciso(PEDALADA, PONTOS, 'u1', deps);
+
+    expect(nomes).toEqual({ 'nome-de-rota-pt': 'Tour do Pajottenland' });
+    expect(gravou.map((g) => g.frente)).toEqual(['nome-de-rota-pt']);
   });
 });
 
@@ -374,7 +535,7 @@ describe('a preferência do dono', () => {
 describe('o anel', () => {
   it('recebe um evento por execução, com o recurso do núcleo', async () => {
     const c = cenario([corpoBom(BOA)]);
-    await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1', c.deps);
+    await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1', c.deps);
     expect(c.eventos).toHaveLength(1);
     expect(c.eventos[0].recurso).toBe('nome-de-rota');
     expect(c.eventos[0].modo).toBe('produto');
@@ -390,15 +551,19 @@ describe('o anel', () => {
  * avaliado — e as linhas que dizem **qual recurso** é lido e **em que ordem** os
  * argumentos vão ao banco ficavam sem teste. As duas erram calado:
  *
- *  - trocar `lerPreferencia(RECURSO)` por `lerPreferencia('saude-do-sono')` lê a
- *    escolha do recurso errado, e nada reclama;
+ *  - trocar `lerPreferencia(frente)` por `lerPreferencia('saude-do-sono')` lê a
+ *    escolha do recurso errado, e nada reclama. Desde 23/09 há uma terceira
+ *    variante disso: ler a escolha do **nome local** na frente do português faria as
+ *    duas línguas sempre saírem do mesmo motor, que é exatamente o que o dono pediu
+ *    para não acontecer;
  *  - trocar `saveRouteName(supabase, userId, id, …)` por `(supabase, id, userId, …)`
  *    faz o `update` casar **zero linhas**. O PostgREST devolve 204 sem erro, nada
  *    é gravado nunca, e o gatilho redispara a cada abertura — `tsc` limpo e a
- *    suíte inteira verde.
+ *    suíte inteira verde. E trocar `saveRouteName` por `saveRouteNamePt` gravaria a
+ *    legenda por cima do nome local, com o mesmo silêncio.
  *
  * Aqui só o transporte da nuvem e o banco são falsos. A preferência sai do
- * armazenamento (o mock do AsyncStorage do `jest.setup.js`), com os dois recursos
+ * armazenamento (o mock do AsyncStorage do `jest.setup.js`), com os recursos
  * gravados em sentidos opostos — o molde de `edicao-ia.test.ts`.
  */
 describe('a fiação de produção — sem deps injetadas', () => {
@@ -406,6 +571,9 @@ describe('a fiação de produção — sem deps injetadas', () => {
     await AsyncStorage.clear();
     mockMotores.motor = undefined;
   });
+
+  /** Os updates de `activities` que de fato escreveram alguma coluna. */
+  const escritas = () => mockBanco.updates.filter((u) => u.tabela === 'activities' && Object.keys(u.valores).length > 0);
 
   it('a preferência lida é a do nome de rota, e o update chega com as colunas e os filtros certos', async () => {
     // Nome de rota na nuvem, Saúde do sono em sem-modelo: ler o recurso errado
@@ -415,18 +583,41 @@ describe('a fiação de produção — sem deps injetadas', () => {
     const { motor, corpos } = nuvemFalsa(corpoBom(BOA));
     mockMotores.motor = motor;
 
-    const nome = await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1');
+    const nomes = await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1');
 
-    expect(nome).toBe('Tour du Pajottenland');
+    expect(nomes).toEqual({ 'nome-de-rota': 'Tour du Pajottenland' });
     expect(corpos).toHaveLength(1);
     // O `update` de verdade, pelo `saveRouteName` do núcleo.
-    const update = mockBanco.updates.find((u) => u.tabela === 'activities');
+    const update = escritas()[0];
     expect(update).toBeDefined();
     expect(Object.keys(update!.valores).sort()).toEqual(['route_name', 'route_name_meta']);
     expect(update!.valores.route_name).toBe('Tour du Pajottenland');
     expect(update!.valores.route_name_meta).toMatchObject({ regiao: 'Pajottenland', versaoPrompt: 2 });
-    // A ordem dos argumentos: `id` é da pedalada, `user_id` é do dono. Trocados,
+    // A ordem dos argumentos: `id` é da atividade, `user_id` é do dono. Trocados,
     // o update casaria zero linhas e ninguém reclamaria.
+    expect(update!.filtros).toEqual({ id: 'act-1', user_id: 'u1' });
+  });
+
+  /**
+   * A mesma prova para a frente do português — e ela é **duas** de uma vez: que a
+   * escolha lida é a do recurso `nome-de-rota-pt`, e que o par de colunas é o de lá.
+   */
+  it('a frente do pt lê a escolha dela e escreve no par de colunas em português', async () => {
+    // Só o pt tem motor: o nome local cai em sem-modelo e não chama ninguém.
+    await gravarPreferencia('nome-de-rota', SEM_MODELO);
+    await gravarPreferencia('nome-de-rota-pt', NUVEM_PADRAO);
+    const { motor, corpos } = nuvemFalsa(corpoBom(JSON.stringify({ ...JSON.parse(BOA), artigo: 'o' })));
+    mockMotores.motor = motor;
+
+    const nomes = await nomearRotaSePreciso(PEDALADA, PONTOS, 'u1');
+
+    expect(nomes).toEqual({ 'nome-de-rota-pt': 'Tour do Pajottenland' });
+    expect(corpos).toHaveLength(1);
+    expect(corpos[0].usuario).toMatch(/^Língua do nome: português\./);
+    const update = escritas()[0];
+    expect(Object.keys(update!.valores).sort()).toEqual(['route_name_pt', 'route_name_pt_meta']);
+    expect(update!.valores.route_name_pt).toBe('Tour do Pajottenland');
+    expect(update!.valores.route_name_pt_meta).toMatchObject({ lingua: 'pt', regiao: 'Pajottenland' });
     expect(update!.filtros).toEqual({ id: 'act-1', user_id: 'u1' });
   });
 
@@ -436,9 +627,9 @@ describe('a fiação de produção — sem deps injetadas', () => {
     const { motor, corpos } = nuvemFalsa(corpoBom(BOA));
     mockMotores.motor = motor;
 
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1')).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1')).toEqual({});
     expect(corpos).toHaveLength(0);
-    expect(mockBanco.updates.filter((u) => u.tabela === 'activities' && u.valores.route_name !== undefined)).toEqual([]);
+    expect(escritas()).toEqual([]);
   });
 
   it('o erro do banco na gravação não derruba a tela', async () => {
@@ -446,6 +637,6 @@ describe('a fiação de produção — sem deps injetadas', () => {
     const { motor } = nuvemFalsa(corpoBom(BOA));
     mockMotores.motor = motor;
     mockBanco.erroAoGravar = new Error('PostgREST 500');
-    expect(await nomearPedaladaSePreciso(PEDALADA, PONTOS, 'u1')).toBeNull();
+    expect(await nomearRotaSePreciso(SO_O_LOCAL, PONTOS, 'u1')).toEqual({});
   });
 });

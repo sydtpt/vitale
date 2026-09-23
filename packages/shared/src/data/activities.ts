@@ -26,7 +26,7 @@ const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
   'distance_m,elevation_m,source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,' +
   'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix,photos_checked_at,' +
-  'route_name,route_name_meta,name_edited';
+  'route_name,route_name_meta,route_name_pt,route_name_pt_meta,name_edited';
 
 export interface ActivityRow {
   id: string;
@@ -35,6 +35,8 @@ export interface ActivityRow {
   activity_name: string | null;
   route_name?: string | null;
   route_name_meta?: unknown;
+  route_name_pt?: string | null;
+  route_name_pt_meta?: unknown;
   name_edited?: boolean | null;
   calories: number | string | null;
   start_at: string;
@@ -73,6 +75,11 @@ export function toActivity(r: ActivityRow): Activity {
     activityName: r.activity_name ?? '',
     routeName: r.route_name ?? undefined,
     routeNameChecked: r.route_name_meta != null,
+    routeNamePt: r.route_name_pt ?? undefined,
+    // Cada língua tem a sua marca: a meta em português é o que diz que **aquela**
+    // frente já passou. Derivar as duas da mesma coluna deixaria as 135 já
+    // nomeadas em francês fora do gatilho do português para sempre.
+    routeNamePtChecked: r.route_name_pt_meta != null,
     nameEdited: r.name_edited ?? undefined,
     calories: num(r.calories) ?? 0,
     startAt: r.start_at,
@@ -155,7 +162,7 @@ export async function updateActivityFields(
 }
 
 /**
- * Grava o nome derivado da rota (ADR 0041/0042).
+ * Grava o nome derivado da rota, **na língua do país dominante** (ADR 0041/0042).
  *
  * **Não** marca `locally_edited` nem `name_edited` — e essa ausência é a
  * decisão inteira. Aquelas flags dizem "o dono corrigiu isto à mão"; usá-las
@@ -173,11 +180,35 @@ export async function saveRouteName(
   nome: string | null,
   meta: unknown,
 ): Promise<void> {
-  const { error } = await db
-    .from('activities')
-    .update({ route_name: nome, route_name_meta: meta })
-    .eq('id', id)
-    .eq('user_id', userId);
+  await gravarNomeDeRota(db, userId, id, { route_name: nome, route_name_meta: meta });
+}
+
+/**
+ * O mesmo, na coluna em português (23/09).
+ *
+ * Duas funções em vez de um parâmetro de coluna: o nome da coluna é o que decide
+ * qual marca de "já tentei" acende, e um argumento errado ali gravaria a legenda
+ * portuguesa por cima do nome local sem nada quebrar — `tsc` limpo, PostgREST 204.
+ * Com duas assinaturas o erro é de compilação, e o par nome/meta nunca se separa.
+ */
+export async function saveRouteNamePt(
+  db: SupabaseClient,
+  userId: string,
+  id: string,
+  nome: string | null,
+  meta: unknown,
+): Promise<void> {
+  await gravarNomeDeRota(db, userId, id, { route_name_pt: nome, route_name_pt_meta: meta });
+}
+
+/** O `update` que as duas frentes dividem — o filtro é o que não pode divergir. */
+async function gravarNomeDeRota(
+  db: SupabaseClient,
+  userId: string,
+  id: string,
+  colunas: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await db.from('activities').update(colunas).eq('id', id).eq('user_id', userId);
   if (error) throw error;
 }
 

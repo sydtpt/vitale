@@ -135,6 +135,12 @@ export const DETALHE_DO_SEM_MODELO: Readonly<Record<RecursoId, string>> = Object
   'saude-do-sono': 'instantâneo · sempre igual · nada sai daqui',
   retrospectiva: 'a revista não imprime sem modelo',
   'nome-de-rota': 'sem modelo não há região a nomear: o percurso fica com o nome da fonte',
+  // **A mesma lápide, palavra por palavra**, e não uma redação própria: as duas
+  // frentes do nome dividem o corpo do descritor (`routes/descritor.ts`), então
+  // dividem o `semModelo` — e é isso que o teste ao lado confere. Escrever aqui uma
+  // frase "mais adequada ao português" faria a tabela mentir sobre o que o código
+  // declara, que é o defeito que esta tabela existe para não ter.
+  'nome-de-rota-pt': 'sem modelo não há região a nomear: o percurso fica com o nome da fonte',
 });
 
 /** "Sem modelo" é lápide nesta leitura? O inverso de haver régua — uma definição só. */

@@ -34,7 +34,7 @@ import {
 import { useActivitiesStore } from '../../../store/activities.store';
 import { useAuthStore } from '../../../store/auth.store';
 import { supabase } from '../../../lib/supabase';
-import { nomearPedaladaSePreciso, precisaDeNome } from '../../../services/route-name';
+import { nomearRotaSePreciso, precisaDeAlgumNome } from '../../../services/route-name';
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
@@ -139,28 +139,41 @@ export default function AtividadeDetalheScreen() {
   const hasGps = !!activity && (activity.hasRoute || (activity.distanceM ?? 0) > 0);
 
   /**
-   * O nome da rota, uma vez por pedalada (ADR 0042).
+   * O nome da rota, uma vez por atividade **e por frente** (ADR 0042; as duas
+   * línguas desde 23/09).
    *
    * Mesmo gatilho e mesmo contrato da varredura de fotos: espera o traçado
-   * chegar, roda uma vez, e falha em silêncio. A pedalada que não ganhou nome
-   * fica sem `route_name_meta` e volta a tentar na próxima abertura — não há
+   * chegar, roda uma vez, e falha em silêncio. A atividade que não ganhou nome
+   * fica sem a meta daquela língua e volta a tentar na próxima abertura — não há
    * nada que o dono possa fazer com um aviso de cota do provedor.
+   *
+   * As quatro marcas nas dependências são as que o gatilho lê: com uma só, a
+   * atividade que acabou de ganhar o nome local não reavaliaria a frente do
+   * português no mesmo `load()`.
    */
   useEffect(() => {
     if (!activity || !userId) return;
-    if (!precisaDeNome(activity)) return;
+    if (!precisaDeAlgumNome(activity)) return;
     if (!routePoints || routePoints.length < 2) return;
     let alive = true;
     void (async () => {
-      const nome = await nomearPedaladaSePreciso(activity, routePoints, userId);
-      if (alive && nome) await load();
+      const nomes = await nomearRotaSePreciso(activity, routePoints, userId);
+      if (alive && Object.keys(nomes).length > 0) await load();
     })();
     return () => {
       alive = false;
     };
-    // Governam esta passagem a pedalada, o dono e **se a rota já chegou**.
+    // Governam esta passagem a atividade, o dono e **se a rota já chegou**.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activity?.id, activity?.routeName, activity?.routeNameChecked, userId, routePoints]);
+  }, [
+    activity?.id,
+    activity?.routeName,
+    activity?.routeNameChecked,
+    activity?.routeNamePt,
+    activity?.routeNamePtChecked,
+    userId,
+    routePoints,
+  ]);
 
   useEffect(() => {
     if (activity?.hasRoute) loadRoute(activity.id);

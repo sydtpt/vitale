@@ -10,15 +10,21 @@
  * 5.3 (o descritor mora em `sleep/leitura.ts`, junto do domínio) e o nome de
  * rota na 5.7 (`routes/descritor.ts`, idem). O teste que percorre o catálogo
  * morde desde o primeiro.
+ *
+ * **O quarto é o nome de rota em português** (23/09). Ele é recurso, e não uma
+ * segunda leitura do terceiro, porque é isso que lhe dá preferência de motor
+ * própria: o dono pediu para poder escolher um motor para o nome local e outro
+ * para a legenda em português. O corpo das cinco funções é literalmente o mesmo
+ * (ver `routes/descritor.ts`); o que difere é a língua da leitura derivada.
  */
-import { descritorDoNomeDeRota } from '../routes/descritor';
+import { descritorDoNomeDeRota, descritorDoNomeDeRotaPt } from '../routes/descritor';
 import { descritorDaSaudeDoSono } from '../sleep/leitura';
 import { SEM_MODELO, TIPOS_DE_MOTOR, lerMotorId } from './fio';
 import { TIPOS_QUE_GRAVAM, exposicao, type TipoQueGrava } from './motor';
 import { ELOS_DE_PADRAO, REGIMES_DE_NUMEROS, type Descritor } from './orquestrar';
 import { descritorDaRetrospectiva } from './retrospectiva';
 
-export const RECURSOS = ['retrospectiva', 'saude-do-sono', 'nome-de-rota'] as const;
+export const RECURSOS = ['retrospectiva', 'saude-do-sono', 'nome-de-rota', 'nome-de-rota-pt'] as const;
 
 export type RecursoId = (typeof RECURSOS)[number];
 
@@ -27,6 +33,7 @@ export const CATALOGO_DE_RECURSOS: readonly Descritor<unknown, unknown>[] = [
   descritorDaRetrospectiva,
   descritorDaSaudeDoSono,
   descritorDoNomeDeRota,
+  descritorDoNomeDeRotaPt,
 ];
 
 const FUNCOES = ['montarPedido', 'interpretar', 'conferir', 'montarFrase', 'semModelo'] as const;

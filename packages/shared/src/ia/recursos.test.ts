@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { derivarAncoras } from '../routes/anchor';
-import { descritorDoNomeDeRota, type FatosDoNome } from '../routes/descritor';
+import { descritorDoNomeDeRota, descritorDoNomeDeRotaPt, type FatosDoNome } from '../routes/descritor';
 import type { RouteFacts } from '../routes/types';
 import { casoDaSaude } from '../sleep/caso';
 import { descritorDaSaudeDoSono, type EntradaDaSaude } from '../sleep/leitura';
@@ -41,8 +41,8 @@ const valido = (extra: Record<string, unknown> = {}): Qualquer => ({
 }) as Qualquer;
 
 describe('os recursos', () => {
-  it('são os três da espinha, sem repetição', () => {
-    assert.deepEqual([...RECURSOS], ['retrospectiva', 'saude-do-sono', 'nome-de-rota']);
+  it('são os três da espinha mais o nome em português, sem repetição', () => {
+    assert.deepEqual([...RECURSOS], ['retrospectiva', 'saude-do-sono', 'nome-de-rota', 'nome-de-rota-pt']);
     const r: RecursoId = 'nome-de-rota';
     // @ts-expect-error — recurso fora do catálogo não é RecursoId.
     const fora: RecursoId = 'presenca';
@@ -55,11 +55,12 @@ describe('os recursos', () => {
 });
 
 describe('o catálogo', () => {
-  it('não é vácuo: retrospectiva (5.2), Saúde do sono (5.3) e nome de rota (5.7)', () => {
+  it('não é vácuo: retrospectiva (5.2), Saúde do sono (5.3), nome de rota (5.7) e o pt (23/09)', () => {
     assert.ok(CATALOGO_DE_RECURSOS.length > 0, 'o catálogo está vazio — o teste abaixo percorreria nada');
     assert.ok(CATALOGO_DE_RECURSOS.includes(descritorDaRetrospectiva as Qualquer));
     assert.ok(CATALOGO_DE_RECURSOS.includes(descritorDaSaudeDoSono as Qualquer));
     assert.ok(CATALOGO_DE_RECURSOS.includes(descritorDoNomeDeRota as Qualquer));
+    assert.ok(CATALOGO_DE_RECURSOS.includes(descritorDoNomeDeRotaPt as Qualquer));
   });
 
   it('todo recurso do catálogo de ids tem descritor registrado — nenhum fica sem porta', () => {
@@ -282,6 +283,21 @@ const GOLDENS: Readonly<Partial<Record<RecursoId, Golden>>> = {
     quantas: 17,
     versao: 2,
     hash: 'cd9d677b7609d549d27101800cd956ada974250b4ba045969862de54c85772b4',
+  },
+  /**
+   * As **mesmas 17 rotas**, pelo recurso em português (23/09).
+   *
+   * O conjunto é o mesmo e o hash é outro, e é exatamente isso que ele prende: a
+   * única diferença entre os dois pedidos é a linha `Língua do nome:` — se um dia
+   * a variante em português deixar de forçar `pt`, os dois hashes ficam iguais e
+   * este golden cai. A versão continua em 2 porque o **texto** do prompt não
+   * mudou: `PROMPT_NOME_VERSAO` é do prompt, e os dois recursos o dividem.
+   */
+  'nome-de-rota-pt': {
+    variantes: VARIANTES_DO_NOME,
+    quantas: 17,
+    versao: 2,
+    hash: 'bf053e0b238ceba1ad22b31c77e495fd5615e1742e98777db05d569139d431f5',
   },
 };
 

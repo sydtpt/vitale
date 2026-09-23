@@ -357,6 +357,23 @@ export interface Activity {
    * reprocessada a cada abertura. É o `photos_checked_at` desta frente.
    */
   routeNameChecked?: boolean;
+  /**
+   * O mesmo nome **em português**, escrito por um recurso próprio (23/09).
+   *
+   * Coluna ao lado, não troca de língua: os dois nomes coexistem, e o local
+   * manda — este é legenda. Não se deriva do `routeName`, porque as cidades estão
+   * gravadas com o nome local e verter topônimo é trabalho do modelo (`Mechelen`
+   * → `Malines` no francês, `Malinas` no português).
+   */
+  routeNamePt?: string;
+  /**
+   * A marca de "já tentei" da frente em português — `route_name_pt_meta`.
+   *
+   * **Separada de `routeNameChecked` de propósito**: quem já tem o nome local e
+   * não tem o português paga só a segunda chamada, e uma marca só faria as 135
+   * pedaladas já nomeadas nunca ganharem legenda.
+   */
+  routeNamePtChecked?: boolean;
   /** O dono renomeou esta atividade à mão. É o que faz o nome dele vencer o derivado. */
   nameEdited?: boolean;
   calories: number;

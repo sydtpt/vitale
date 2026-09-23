@@ -88,6 +88,10 @@ const NOME_DO_RECURSO: Readonly<Record<RecursoId, string>> = {
   retrospectiva: 'Retrospectiva',
   'saude-do-sono': 'Saúde do sono',
   'nome-de-rota': 'Nome de rota',
+  // "em português", e não "(pt)": as duas linhas ficam vizinhas no seletor, e a
+  // diferença entre elas é a única coisa que o dono precisa ler para escolher dois
+  // motores diferentes — que é o motivo de o recurso existir.
+  'nome-de-rota-pt': 'Nome de rota em português',
 };
 
 export default function MotoresScreen() {

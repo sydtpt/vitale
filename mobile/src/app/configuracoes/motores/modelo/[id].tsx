@@ -74,6 +74,9 @@ const NOME_DO_RECURSO: Readonly<Record<RecursoId, string>> = {
   retrospectiva: 'Retrospectiva',
   'saude-do-sono': 'Saúde do sono',
   'nome-de-rota': 'Nome de rota',
+  // O mesmo nome da tela raiz. Duas grafias fariam a ficha dizer que o modelo
+  // escreve uma leitura que o seletor chama de outro jeito.
+  'nome-de-rota-pt': 'Nome de rota em português',
 };
 
 export default function ModeloScreen() {
