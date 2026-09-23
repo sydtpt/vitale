@@ -20,6 +20,8 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import {
   AGG_VERSION,
   NUVEM_PADRAO,
+  cadernosVisiveis,
+  resolveRetroPrefs,
   type CadernoId,
   type CadernoImpresso,
   type Causa,
@@ -164,8 +166,42 @@ jest.mock('../auth.store', () => ({
   },
 }));
 
+/**
+ * Os cadernos que o dono silenciou (Story 2.5), como a `settings.store` os guarda.
+ *
+ * `null` é "não há preferência carregada ainda" — e a ação tem que tratar isso
+ * como os quatro, não como silêncio.
+ *
+ * **`cru` existe para a ação não ser poupada.** A `settings.store` de verdade tem
+ * DOIS caminhos até `preferences`: `loadSettings` resolve (`resolveRetroPrefs(pr.retro_prefs)`),
+ * mas a hidratação do boot **não** — ela põe no estado o que o `getJSON` devolveu do
+ * cache local, que pode ter sido gravado por uma versão anterior do app. Um mock que
+ * resolvesse sempre esconderia por construção o bug que a P1 achou: a ação lendo o
+ * valor cru enquanto as telas leem o resolvido. Com `cru: true`, o que chega à ação é
+ * o mesmo lixo que chegaria do disco.
+ */
+const mockPrefs: { retroPrefs: unknown; cru: boolean } = { retroPrefs: null, cru: false };
+
+jest.mock('../settings.store', () => ({
+  useSettingsStore: {
+    getState: () => {
+      if (mockPrefs.retroPrefs === null) return { preferences: null };
+      const { resolveRetroPrefs } = jest.requireActual('@vitale/shared') as {
+        resolveRetroPrefs: (raw: unknown) => unknown;
+      };
+      return {
+        preferences: {
+          retroPrefs: mockPrefs.cru ? mockPrefs.retroPrefs : resolveRetroPrefs(mockPrefs.retroPrefs),
+        },
+      };
+    },
+  },
+}));
+
 import { TrocaRecusada } from '../../lib/edicao-ia';
 import {
+  AVISO_SILENCIO_PARCIAL,
+  AVISO_TUDO_SILENCIADO,
   chaveDe,
   dadosProntosParaImprimir,
   estadoDe,
@@ -264,6 +300,8 @@ beforeEach(() => {
   mockImpressao.pausa = null;
   mockAuth.uid = 'u-1';
   mockAuth.isLoading = false;
+  mockPrefs.retroPrefs = null;
+  mockPrefs.cru = false;
   mockComDado.valor = ['sono', 'movimento', 'coracao', 'rotina'];
   mockCarimbo.chamadas = 0;
   mockCarimbo.erro = null;
@@ -860,6 +898,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
         escrevendo: false, escrever: true, semCaderno: false,
       },
       cadernos: [],
+      avisoDoSilencio: null,
     });
   });
 
@@ -978,6 +1017,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
         { caderno: 'movimento', estado: 'escrevendo' },
         { caderno: 'rotina', estado: 'na-fila' },
       ],
+      avisoDoSilencio: null,
     });
   });
 
@@ -1009,6 +1049,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
         { caderno: 'sono', estado: 'erro', motivo: TRANSITORIA, acao: 'tentar-de-novo' },
         { caderno: 'movimento', estado: 'nao-escrito', acao: 'escrever' },
       ],
+      avisoDoSilencio: null,
     });
   });
 
@@ -1167,6 +1208,256 @@ describe('portaDe — o cartão da Retrospectiva', () => {
     expect(portaDe({ fase: 'sem-sessao' })).toEqual({ tipo: 'sem-sessao' });
     expect(portaDe({ fase: 'erro', mensagem: 'Não foi possível ler a edição agora.' }))
       .toEqual({ tipo: 'erro', mensagem: 'Não foi possível ler a edição agora.' });
+  });
+});
+
+/**
+ * Silenciar um caderno (Story 2.5) — a matriz de I/O da spec, do lado do
+ * hospedeiro.
+ *
+ * O guarda do jsonb e o seletor estão em `retro.test.ts`; aqui mede-se o que a
+ * revista faz com a lista: a manchete, o miolo, o sumário, os botões e — o que
+ * custa dinheiro — **os candidatos que chegam à sequência**.
+ */
+describe('o caderno silenciado (Story 2.5)', () => {
+  /** A edição de um período em que sono lidera: a manchete é dele. */
+  const COM_SONO_NA_FRENTE = [impresso('sono', 1), impresso('movimento', 2), impresso('coracao', 3)];
+
+  it('some do miolo e do sumário, e os outros mantêm a ordem relativa', () => {
+    const v = vistaDaEdicao(estadoLido({ edicao: COM_SONO_NA_FRENTE }), TODOS, AGG_VERSION, ['movimento', 'coracao', 'rotina']);
+    if (v.tipo !== 'edicao') throw new Error('esperava edição');
+    // A ordem gravada (2 e 3) sobrevive: quem pula o buraco é a leitura.
+    expect(v.cadernos.filter((c) => c.estado === 'pronta').map((c) => c.caderno)).toEqual(['movimento', 'coracao']);
+    expect(v.cadernos.some((c) => c.caderno === 'sono')).toBe(false);
+  });
+
+  /**
+   * **A armadilha da manchete.** `find(c => c.posicao === 1)` devolve `undefined`
+   * com o líder silenciado, e a capa ficaria muda sobre uma edição que fala.
+   */
+  it('a manchete passa para o primeiro caderno visível, nunca nula nem a do silenciado', () => {
+    const v = vistaDaEdicao(estadoLido({ edicao: COM_SONO_NA_FRENTE }), TODOS, AGG_VERSION, ['movimento', 'coracao', 'rotina']);
+    if (v.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(v.capa.manchete).toBe('A chamada de movimento, inteira.');
+    // E o cartão da Retrospectiva conta a mesma história — é a mesma manchete.
+    expect(portaDe(estadoLido({ edicao: COM_SONO_NA_FRENTE }), ['movimento', 'coracao', 'rotina']))
+      .toMatchObject({ tipo: 'impressa', chamada: 'A chamada de movimento, inteira.' });
+  });
+
+  it('sem caderno visível impresso, a capa fica sem manchete — e continua impressa', () => {
+    const v = vistaDaEdicao(estadoLido({ edicao: [impresso('sono', 1)] }), TODOS, AGG_VERSION, ['movimento']);
+    if (v.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(v.capa.manchete).toBeNull();
+    // Impressa continua: o texto está gravado. Silenciar não devolve o período ao convite.
+    expect(v.capa.impressa).toBe(true);
+    // E o miolo não fica órfão: movimento entra como não escrito, com o botão dele.
+    expect(v.cadernos).toContainEqual({ caderno: 'movimento', estado: 'nao-escrito', acao: 'escrever' });
+  });
+
+  it('o silenciado não aparece nem por dado, nem pelo que a sessão diz dele', () => {
+    const v = vistaDaEdicao(
+      estadoLido({ sessao: { sono: { fase: 'reprovada', motivo: REPROVADA, problemas: ['x'] } }, imprimindo: null }),
+      TODOS, AGG_VERSION, ['movimento', 'coracao', 'rotina'],
+    );
+    if (v.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(v.cadernos.some((c) => c.caderno === 'sono')).toBe(false);
+    expect(v.cadernos.map((c) => c.caderno)).toEqual(['movimento', 'coracao', 'rotina']);
+  });
+
+  it('todos silenciados: nenhum botão de imprimir, e nenhum aviso falso', () => {
+    const v = vistaDaEdicao(estadoLido(), TODOS, AGG_VERSION, []);
+    if (v.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(v.capa.escrever).toBe(false);
+    expect(v.cadernos).toEqual([]);
+    // `semCaderno` fala do PERÍODO, e o núcleo diz que os quatro têm o que dizer.
+    expect(v.capa.semCaderno).toBe(false);
+  });
+
+  it('dessilenciar traz de volta o texto já impresso, sem reimprimir nada', () => {
+    const calado = vistaDaEdicao(estadoLido({ edicao: COM_SONO_NA_FRENTE }), TODOS, AGG_VERSION, ['movimento', 'coracao', 'rotina']);
+    const solto = vistaDaEdicao(estadoLido({ edicao: COM_SONO_NA_FRENTE }), TODOS, AGG_VERSION);
+    if (calado.tipo !== 'edicao' || solto.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(calado.cadernos).not.toContainEqual(expect.objectContaining({ caderno: 'sono' }));
+    expect(solto.cadernos[0]).toMatchObject({ caderno: 'sono', estado: 'pronta' });
+    expect(solto.capa.manchete).toBe('A chamada de sono, inteira.');
+  });
+
+  it('sem lista, a vista é EXATAMENTE a de antes da story — ausente é "os quatro"', () => {
+    const e = estadoLido({ edicao: COM_SONO_NA_FRENTE });
+    expect(vistaDaEdicao(e, TODOS, AGG_VERSION)).toEqual(vistaDaEdicao(e, TODOS, AGG_VERSION, TODOS));
+  });
+
+  /** O par do teste acima, para a outra derivação: o padrão de `portaDe` é o mesmo. */
+  it('sem lista, a porta é EXATAMENTE a de antes da story', () => {
+    for (const e of [
+      estadoLido({ edicao: COM_SONO_NA_FRENTE }),
+      estadoLido(),
+      estadoLido({ imprimindo: 'edicao' }),
+      { fase: 'erro', mensagem: 'm' } as EstadoEdicao,
+    ]) {
+      expect(portaDe(e)).toEqual(portaDe(e, TODOS));
+    }
+  });
+
+  /* ── o beco: miolo vazio por silêncio (P9) ─────────────────────────────── */
+
+  it('tudo silenciado e algo impresso: o aviso diz de quem é a decisão e onde se desfaz', () => {
+    const v = vistaDaEdicao(estadoLido({ edicao: COM_SONO_NA_FRENTE }), TODOS, AGG_VERSION, []);
+    if (v.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(v.cadernos).toEqual([]);
+    expect(v.capa.escrever).toBe(false);
+    expect(v.avisoDoSilencio).toBe(AVISO_TUDO_SILENCIADO);
+  });
+
+  it('parte silenciada, e o que sobrou não tem o que dizer: o aviso parcial', () => {
+    // Só sono tem dado, e sono está calado: movimento/coracao/rotina não aparecem.
+    const v = vistaDaEdicao(estadoLido(), ['sono'], AGG_VERSION, ['movimento', 'coracao', 'rotina']);
+    if (v.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(v.cadernos).toEqual([]);
+    expect(v.capa.escrever).toBe(false);
+    expect(v.avisoDoSilencio).toBe(AVISO_SILENCIO_PARCIAL);
+  });
+
+  it('sem silêncio, o miolo vazio NÃO ganha aviso — o convite está na capa', () => {
+    const v = vistaDaEdicao(estadoLido(), TODOS, AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(v.cadernos).toEqual([]);
+    expect(v.capa.escrever).toBe(true);
+    expect(v.avisoDoSilencio).toBeNull();
+  });
+
+  it('com convite ou impressão correndo, o aviso cala — a tela já responde', () => {
+    // Um silenciado, os outros com dado: a capa oferece "Escrever a edição".
+    const comConvite = vistaDaEdicao(estadoLido(), TODOS, AGG_VERSION, ['movimento', 'coracao', 'rotina']);
+    // Tudo calado, mas uma impressão corre: a capa já diz "Escrevendo a edição…".
+    const correndo = vistaDaEdicao(estadoLido({ imprimindo: 'edicao' }), TODOS, AGG_VERSION, []);
+    if (comConvite.tipo !== 'edicao' || correndo.tipo !== 'edicao') throw new Error('esperava edição');
+    expect(comConvite.avisoDoSilencio).toBeNull();
+    expect(correndo.avisoDoSilencio).toBeNull();
+  });
+
+  /* ── o que custa dinheiro ──────────────────────────────────────────────── */
+
+  it('a impressão da edição pede só os cadernos abertos — 3 candidatos, não 4', async () => {
+    mockPrefs.retroPrefs = { cadernosOcultos: { sono: '2026-09-23' } };
+    await lidoCom([]);
+    mockImpressao.resultado = { estado: 'nada-gravado', desfechos: [] };
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(mockImpressao.chamadas).toBe(1);
+    expect(mockImpressao.pedidos[0]).toEqual(['movimento', 'coracao', 'rotina']);
+  });
+
+  it('sem silêncio nenhum, a lista fica AUSENTE — ausente é "os quatro" (1.10)', async () => {
+    await lidoCom([]);
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(mockImpressao.pedidos[0]).toBeUndefined();
+  });
+
+  /**
+   * `imprimirCom` lança `TypeError` com a lista vazia — ausente é "os quatro",
+   * vazia é chamada errada. A guarda é `podeImprimir` com o `comDado` já filtrado:
+   * a sequência nunca chega a ser chamada.
+   */
+  it('com os quatro silenciados, a sequência NUNCA é chamada', async () => {
+    mockPrefs.retroPrefs = {
+      cadernosOcultos: { sono: '2026-09-23', movimento: '2026-09-23', coracao: '2026-09-23', rotina: '2026-09-23' },
+    };
+    await lidoCom([]);
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(mockImpressao.chamadas).toBe(0);
+  });
+
+  it('a preferência ainda não carregada não é silêncio: imprime os quatro', async () => {
+    mockPrefs.retroPrefs = null;
+    await lidoCom([]);
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    expect(mockImpressao.chamadas).toBe(1);
+    expect(mockImpressao.pedidos[0]).toBeUndefined();
+  });
+
+  /**
+   * Chamada direta da ação, sem passar por botão nenhum — que é o caminho que
+   * sobra quando alguém liga uma tela nova. Os dois alvos de `imprimirCaderno`:
+   * o caderno **sem linha** (primeira impressão) e o **já impresso**
+   * (reimpressão). Silenciado, nenhum dos dois paga.
+   */
+  it('um caderno silenciado não imprime nem reimprime por chamada direta da ação', async () => {
+    mockPrefs.retroPrefs = { cadernosOcultos: { sono: '2026-09-23' } };
+
+    // (a) primeira impressão: sono sem linha, movimento impresso.
+    await lidoCom([impresso('movimento', 1)]);
+    await useEdicaoStore.getState().imprimirCaderno(ENTRADA, true, 'sono');
+    expect({ caso: 'sem linha', chamadas: mockImpressao.chamadas }).toEqual({ caso: 'sem linha', chamadas: 0 });
+
+    // (b) reimpressão: sono JÁ impresso — a fixture que o nome promete.
+    useEdicaoStore.setState({ porPeriodo: {} });
+    mockLeitura.chamadas = 0;
+    await lidoCom([impresso('sono', 1), impresso('movimento', 2)]);
+    await useEdicaoStore.getState().imprimirCaderno(ENTRADA, true, 'sono');
+    expect({ caso: 'reimpressão', chamadas: mockImpressao.chamadas }).toEqual({ caso: 'reimpressão', chamadas: 0 });
+  });
+
+  /* ── a preferência crua, que só a ação vê (P1) ─────────────────────────── */
+
+  /**
+   * **O caminho que gasta dinheiro é o que não pode dispensar a resolução.**
+   *
+   * `settings.store` tem dois caminhos até `preferences`: `loadSettings` resolve, a
+   * hidratação do boot não — ela põe no estado o que o `getJSON` devolveu do cache
+   * local, gravado talvez por uma versão anterior do app. Com `{ sono: 42 }` cru, um
+   * `!ocultos[id]` sem resolver lê `42` como silêncio; as telas, que resolvem, leem
+   * como ruído e mostram Sono com o botão. A ação recusaria calada: botão morto.
+   */
+  it('jsonb cru do cache: a ação enxerga a MESMA lista que as telas', async () => {
+    mockPrefs.cru = true;
+    mockPrefs.retroPrefs = { cadernosOcultos: { sono: 42, movimento: '', coracao: '2026-09-23' } };
+    await lidoCom([]);
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+
+    // O que as telas veem, pela mesma porta que elas usam.
+    const daTela = cadernosVisiveis(resolveRetroPrefs(mockPrefs.retroPrefs));
+    expect(daTela).toEqual(['sono', 'movimento', 'rotina']);
+    expect(mockImpressao.pedidos[0]).toEqual(daTela);
+  });
+
+  /** String vazia é o outro lado da P4: o guarda e o leitor têm que concordar. */
+  it('carimbo vazio não silencia — nem para a ação, nem para as telas', async () => {
+    mockPrefs.cru = true;
+    mockPrefs.retroPrefs = { cadernosOcultos: { sono: '' } };
+    await lidoCom([]);
+    await useEdicaoStore.getState().imprimir(ENTRADA, true);
+    // Nada silenciado ⇒ a lista fica ausente, que é "os quatro".
+    expect(mockImpressao.pedidos[0]).toBeUndefined();
+  });
+
+  /* ── silenciar no meio de uma impressão (P11) ──────────────────────────── */
+
+  /**
+   * **Comportamento declarado, não acidente.** `visiveisAgora()` é um retrato
+   * tirado no topo de `imprimirAlvo`; silenciar depois dele não cancela a
+   * impressão em curso. O caderno continua sendo pago e gravado, e some da tela no
+   * mesmo quadro — mas nada se perde: dessilenciar devolve o texto.
+   *
+   * O painel não trava durante uma impressão, e é este teste que prende a escolha:
+   * se um dia ela virar travamento, ele reprova e a decisão volta à mesa.
+   */
+  it('silenciar no meio da impressão não tira o caderno da corrida já paga', async () => {
+    await lidoCom([]);
+    const { pausa, soltar } = segurar();
+    // A releitura "antes de pagar" fica presa; os candidatos saem depois dela.
+    mockLeitura.pausas[1] = pausa;
+    mockLeitura.respostas = [{ estado: 'ok', edicao: [] }];
+
+    const corrida = useEdicaoStore.getState().imprimir(ENTRADA, true);
+    await drenar();
+    // O dono silencia AGORA, com a impressão já marcada.
+    mockPrefs.retroPrefs = { cadernosOcultos: { sono: '2026-09-23' } };
+    soltar();
+    await corrida;
+
+    // O retrato valia: a lista ficou ausente (os quatro), sono incluído.
+    expect(mockImpressao.chamadas).toBe(1);
+    expect(mockImpressao.pedidos[0]).toBeUndefined();
   });
 });
 

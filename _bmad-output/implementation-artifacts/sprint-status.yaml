@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 23-09-2026 03:05
+last_updated: '2026-09-23'
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -282,7 +282,7 @@ development_status:
   # docs/specs/revista-retrospectiva/, como as 7 antigas na janela da 1.9.
   2-3-a-impressão-em-massa-dos-períodos-fechados: review
   2-4-a-parede-de-capas: backlog
-  2-5-silenciar-um-caderno: backlog
+  2-5-silenciar-um-caderno: review
   epic-2-retrospective: optional
 
   epic-3: backlog

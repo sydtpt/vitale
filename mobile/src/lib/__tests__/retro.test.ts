@@ -8,10 +8,10 @@ import {
   buildHeatmap,
   resolveRetroPrefs,
   visibleBlocks,
-  layoutEditable,
-  deadBlocks,
   toggleBlock,
-  moveBlock,
+  toggleCaderno,
+  cadernosVisiveis,
+  CADERNO_IDS,
   RETRO_BLOCKS,
   DEFAULT_RETRO_PREFS,
   type RetroPrefs,
@@ -871,28 +871,115 @@ describe('diagramação em blocos (§6)', () => {
     expect(toggleBlock(off, 'habits', '2026-09-01').hidden.habits).toBeUndefined();
   });
 
-  it('a regra dos 60 dias só marca o que passou do prazo', () => {
-    const p: RetroPrefs = {
-      ...DEFAULT_RETRO_PREFS,
-      hidden: { habits: '2026-06-01', purchases: '2026-08-20' },
-    };
-    const mortos = deadBlocks(p, HOJE);
-    expect(mortos).toContain('habits');     // 85 dias
-    expect(mortos).not.toContain('purchases'); // 5 dias
+  /**
+   * A `order` que o dono arrumou **fica e continua valendo** — ela só deixou de
+   * ser editável na tela (Story 2.5). O que morreu foi o editor, não o dado: um
+   * `resolveRetroPrefs` que "arrumasse" a ordem devolveria a Retrospectiva dele
+   * ao catálogo, com sleep de volta ao 11º lugar.
+   */
+  it('a ordem salva sobrevive ao fim da prova de gráfica', () => {
+    // A ordem real de produção: sleep em 3º, habits em 5º.
+    const salva = ['lede', 'kpis', 'sleep', 'highlights', 'habits'];
+    const p = resolveRetroPrefs({ order: salva, proofStartedOn: '2026-05-01' });
+    expect(p.order.slice(0, 5)).toEqual(salva);
+    expect(p.order).toHaveLength(RETRO_BLOCKS.length);
+    // A chave da prova cai em silêncio: o retorno é montado do zero.
+    expect(p).not.toHaveProperty('proofStartedOn');
+  });
+});
+
+/**
+ * Silenciar um caderno (Story 2.5) — o lado do NÚCLEO da matriz de I/O.
+ *
+ * O que a tela e a impressão fazem com a lista é medido em `edicao-store.test.ts`
+ * (manchete do líder silenciado, miolo, sumário, os candidatos que vão à
+ * sequência). Aqui mede-se a preferência: o que o jsonb aceita, o que ele
+ * descarta, e o que o seletor responde.
+ */
+describe('cadernos silenciados (Story 2.5)', () => {
+  const HOJE = '2026-09-23';
+
+  it('sem preferência nenhuma, os quatro cadernos falam', () => {
+    expect(cadernosVisiveis(resolveRetroPrefs(null))).toEqual([...CADERNO_IDS]);
+    expect(cadernosVisiveis(DEFAULT_RETRO_PREFS)).toEqual([...CADERNO_IDS]);
+    // Um jsonb de antes da 2.5 não tem a chave: `cadernosOcultos` ausente ⇒ os quatro.
+    const antigo: RetroPrefs = { order: [...DEFAULT_RETRO_PREFS.order], hidden: {} };
+    expect(cadernosVisiveis(antigo)).toEqual([...CADERNO_IDS]);
   });
 
-  it('a diagramação congela quando a prova de gráfica termina', () => {
-    expect(layoutEditable(DEFAULT_RETRO_PREFS, HOJE)).toBe(true); // prova nem começou
-    expect(layoutEditable({ ...DEFAULT_RETRO_PREFS, proofStartedOn: '2026-08-01' }, HOJE)).toBe(true);
-    // Jornal é igual toda edição: passados os 60 dias, para de ser reordenável.
-    expect(layoutEditable({ ...DEFAULT_RETRO_PREFS, proofStartedOn: '2026-05-01' }, HOJE)).toBe(false);
+  it('silenciar carimba o dia; dessilenciar apaga a entrada', () => {
+    const calado = toggleCaderno(DEFAULT_RETRO_PREFS, 'sono', HOJE);
+    expect(calado.cadernosOcultos?.sono).toBe(HOJE);
+    expect(cadernosVisiveis(calado)).toEqual(['movimento', 'coracao', 'rotina']);
+
+    // Dessilenciar: o caderno volta, e nada foi apagado pelo caminho.
+    const devolta = toggleCaderno(calado, 'sono', '2026-10-01');
+    expect(devolta.cadernosOcultos?.sono).toBeUndefined();
+    expect(cadernosVisiveis(devolta)).toEqual([...CADERNO_IDS]);
   });
 
-  it('moveBlock troca vizinhos e ignora movimento fora da lista', () => {
-    const p = moveBlock(DEFAULT_RETRO_PREFS, 'highlights', -1);
-    expect(p.order[1]).toBe('highlights');
-    expect(p.order[2]).toBe('kpis');
-    expect(moveBlock(DEFAULT_RETRO_PREFS, 'lede', -1).order).toEqual(DEFAULT_RETRO_PREFS.order);
+  /**
+   * **O caminho real de todo aparelho vindo do build anterior.** O cache local
+   * dele não tem a chave `cadernosOcultos`, e o primeiro toque no olho acontece
+   * sobre esse objeto. Um `toggleCaderno` que fizesse spread de `undefined` sem
+   * rede explodiria no primeiro uso da feature — no aparelho, não aqui.
+   */
+  it('silenciar funciona sobre um RetroPrefs legado, sem a chave', () => {
+    const legado: RetroPrefs = { order: [...DEFAULT_RETRO_PREFS.order], hidden: {} };
+    const calado = toggleCaderno(legado, 'movimento', HOJE);
+    expect(calado.cadernosOcultos).toEqual({ movimento: HOJE });
+    expect(cadernosVisiveis(calado)).toEqual(['sono', 'coracao', 'rotina']);
+    // E o caminho de volta, sobre o mesmo legado.
+    expect(cadernosVisiveis(toggleCaderno(calado, 'movimento', HOJE))).toEqual([...CADERNO_IDS]);
+  });
+
+  /**
+   * `''` sobrevive a `typeof v === 'string'` e lê como visível num `!ocultos[id]`.
+   * O guarda e o leitor têm que concordar — senão a discordância é calada.
+   */
+  it('carimbo vazio não atravessa a resolução, nos dois mapas', () => {
+    const p = resolveRetroPrefs({ cadernosOcultos: { sono: '' }, hidden: { kpis: '' } });
+    expect(p.cadernosOcultos).toEqual({});
+    expect(p.hidden).toEqual({});
+    expect(cadernosVisiveis(p)).toEqual([...CADERNO_IDS]);
+    expect(visibleBlocks(p, 'week').map((b) => b.id)).toContain('kpis');
+  });
+
+  it('silenciar caderno não mexe na ordem nem nos blocos escondidos', () => {
+    const base = toggleBlock(DEFAULT_RETRO_PREFS, 'kpis', HOJE);
+    const p = toggleCaderno(base, 'rotina', HOJE);
+    expect(p.order).toEqual(base.order);
+    expect(p.hidden).toEqual(base.hidden);
+  });
+
+  it('os quatro podem ser silenciados ao mesmo tempo — não há caderno fixo', () => {
+    const todos = CADERNO_IDS.reduce((p, id) => toggleCaderno(p, id, HOJE), DEFAULT_RETRO_PREFS);
+    expect(cadernosVisiveis(todos)).toEqual([]);
+  });
+
+  it('a lista sai na ordem do catálogo, não na de quem foi silenciado', () => {
+    const p = toggleCaderno(toggleCaderno(DEFAULT_RETRO_PREFS, 'coracao', HOJE), 'sono', HOJE);
+    expect(cadernosVisiveis(p)).toEqual(['movimento', 'rotina']);
+  });
+
+  it('jsonb podre cai no vazio ou descarta a entrada, sem quebrar', () => {
+    // A chave inteira estragada.
+    for (const podre of [7, 'x', null, true, []]) {
+      const p = resolveRetroPrefs({ cadernosOcultos: podre });
+      expect(p.cadernosOcultos).toEqual({});
+      expect(cadernosVisiveis(p)).toEqual([...CADERNO_IDS]);
+    }
+    // Entrada a entrada: id que não é caderno, valor que não é string.
+    const misto = resolveRetroPrefs({
+      cadernosOcultos: { inventado: HOJE, lede: HOJE, sono: 42, movimento: null, coracao: HOJE },
+    });
+    expect(misto.cadernosOcultos).toEqual({ coracao: HOJE });
+    expect(cadernosVisiveis(misto)).toEqual(['sono', 'movimento', 'rotina']);
+  });
+
+  it('o jsonb bom atravessa a resolução inteiro', () => {
+    const p = resolveRetroPrefs({ cadernosOcultos: { sono: '2026-09-23', rotina: '2026-09-20' } });
+    expect(cadernosVisiveis(p)).toEqual(['movimento', 'coracao']);
   });
 });
 

@@ -789,8 +789,8 @@ export interface UserPreferences {
    */
   weeklyActivityTargetMin?: number;
   /**
-   * Diagramação da Retrospectiva — ordem e visibilidade dos blocos + a data em
-   * que a prova de gráfica começou. Resolver sempre com `resolveRetroPrefs`.
+   * Diagramação da Retrospectiva — ordem e visibilidade dos blocos + os cadernos
+   * da revista que o leitor silenciou. Resolver sempre com `resolveRetroPrefs`.
    * Ver docs/specs/retrospectiva/v2-jornal.md §6.
    */
   retroPrefs?: RetroPrefs;
