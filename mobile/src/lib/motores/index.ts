@@ -42,6 +42,7 @@ import {
   criarMotorDeNuvem,
   criarMotorDoAparelho,
   formatarMotorId,
+  lerCompilacaoNoAparelho,
   lerDiagnosticoDoAparelho,
   lerMotorId,
   lerMotoresDeNuvemAprovados,
@@ -62,6 +63,9 @@ import { supabase } from '../supabase';
 import { anel } from './anel';
 import {
   APARELHO_COREAI_SMOLLM2,
+  COMPILACAO_AUSENTE,
+  COMPILACAO_CONSULTANDO,
+  COMPILACAO_FORA_DO_IOS,
   PESOS_ABERTOS,
   PONTE_AUSENTE,
   PONTE_CONSULTANDO,
@@ -71,6 +75,7 @@ import {
   idsConhecidosDe,
   listaAprovada,
   listaVencida,
+  type EstadoDaCompilacao,
   type EstadoDaPonte,
   type ListaAprovada,
 } from './catalogo';
@@ -266,6 +271,15 @@ export interface PonteDoAparelho {
   responderComPesos(pesos: string, pedido: string): Promise<string>;
   /** Se estes pesos estão neste build, e com que janela — ou por quê não. */
   diagnosticoDosPesos(pesos: string): Promise<string>;
+  /**
+   * Se estes pesos já estão **compilados para o chip** — sem disparar compilação nenhuma.
+   *
+   * Porta própria, e não um campo do diagnóstico, porque as duas perguntas têm prazos
+   * diferentes: "este build traz os pesos?" não muda enquanto o app vive, e "já está
+   * compilado?" muda sozinho (o iOS atualiza e recompila tudo, ou apaga o cache sob pressão
+   * de espaço). Juntá-las faria a resposta que muda herdar o cache da que não muda.
+   */
+  compilacaoDosPesos(pesos: string): Promise<string>;
 }
 
 /**
@@ -283,6 +297,7 @@ export const FUNCOES_DA_PONTE = [
   'diagnostico',
   'responderComPesos',
   'diagnosticoDosPesos',
+  'compilacaoDosPesos',
 ] as const satisfies readonly (keyof PonteDoAparelho)[];
 
 /**
@@ -303,6 +318,7 @@ export const PARAMETROS_DA_PONTE = {
   diagnostico: [],
   responderComPesos: ['pesos', 'pedido'],
   diagnosticoDosPesos: ['pesos'],
+  compilacaoDosPesos: ['pesos'],
 } as const satisfies Record<(typeof FUNCOES_DA_PONTE)[number], readonly string[]>;
 type SobraDaPonte = Exclude<keyof PonteDoAparelho, (typeof FUNCOES_DA_PONTE)[number]>;
 const _ponteInteira: [SobraDaPonte] extends [never] ? true : SobraDaPonte = true;
@@ -738,6 +754,98 @@ export function estadoDosPesosAbertos(): Readonly<Record<string, EstadoDaPonte>>
 export async function reconsultarPesosAbertos(): Promise<Readonly<Record<string, EstadoDaPonte>>> {
   const lidos = await Promise.all(
     PESOS_ABERTOS.map(async (p) => [p.pesos, await coreaiDosPesos[p.pesos]!.reconsultar()] as const),
+  );
+  return Object.fromEntries(lidos);
+}
+
+/* ── a compilação de cada peso aberto ─────────────────────────────────────── */
+
+/**
+ * O leitor da compilação — o irmão de {@link LeitorDaPonte}, com **uma diferença que é o
+ * ponto**: ele não guarda a resposta boa.
+ *
+ * O leitor do diagnóstico para de perguntar assim que ouve "disponível", porque o que muda
+ * é só o caminho do não. Aqui é o contrário: `compilado` volta a ser falso **sozinho** — o
+ * iOS atualiza e recompila tudo, ou purga o cache sob pressão de espaço —, e um cache de
+ * sessão faria a tela mostrar "compilado" depois de o sistema ter jogado o compilado fora.
+ * Reler é de graça (~0,5 ms, medido em 22/09); lembrar é que sai caro.
+ */
+export interface LeitorDaCompilacao {
+  /** O que já se sabe, sem esperar: ausente, fora do iOS, consultando ou o último lido. */
+  agora(): EstadoDaCompilacao;
+  /** Pergunta de novo. Leitura em voo é compartilhada; nunca rejeita. */
+  reler(): Promise<EstadoDaCompilacao>;
+}
+
+export interface OpcoesDoLeitorDaCompilacao {
+  readonly prazoMs?: number;
+  readonly plataforma?: string;
+}
+
+export function criarLeitorDaCompilacao(
+  ponte: PonteDoAparelho | null,
+  pesos: string,
+  opcoes: OpcoesDoLeitorDaCompilacao = {},
+): LeitorDaCompilacao {
+  const prazoMs = opcoes.prazoMs ?? PRAZO_DO_DIAGNOSTICO_MS;
+  const plataforma = opcoes.plataforma ?? Platform.OS;
+  const fixo = plataforma !== 'ios' ? COMPILACAO_FORA_DO_IOS : ponte === null ? COMPILACAO_AUSENTE : null;
+  if (fixo !== null || ponte === null) {
+    const estado = fixo ?? COMPILACAO_AUSENTE;
+    return { agora: () => estado, reler: () => Promise.resolve(estado) };
+  }
+  let lido: EstadoDaCompilacao | null = null;
+  let emVoo: Promise<EstadoDaCompilacao> | null = null;
+
+  const ler = async (): Promise<EstadoDaCompilacao> => {
+    let relogio: ReturnType<typeof setTimeout> | undefined;
+    const noPrazo = new Promise<null>((r) => {
+      relogio = setTimeout(() => r(null), prazoMs);
+    });
+    try {
+      const linha = await Promise.race([ponte.compilacaoDosPesos(pesos), noPrazo]);
+      if (linha === null) {
+        return {
+          tipo: 'lido',
+          compilacao: { estado: 'ilegivel', detalhe: `a compilação não voltou em ${Math.round(prazoMs / 1000)} s` },
+        };
+      }
+      return { tipo: 'lido', compilacao: lerCompilacaoNoAparelho(linha), cru: String(linha) };
+    } catch (e) {
+      return { tipo: 'lido', compilacao: { estado: 'ilegivel', detalhe: `a ponte lançou — ${mensagem(e)}` } };
+    } finally {
+      clearTimeout(relogio);
+    }
+  };
+
+  const reler = (): Promise<EstadoDaCompilacao> => {
+    if (emVoo) return emVoo;
+    const voo = ler().then((e) => {
+      lido = e;
+      if (emVoo === voo) emVoo = null;
+      return e;
+    });
+    emVoo = voo;
+    return voo;
+  };
+
+  return { agora: () => lido ?? COMPILACAO_CONSULTANDO, reler };
+}
+
+/** O leitor da compilação de cada peso aberto deste build — um por pasta de pesos. */
+export const compilacaoDosPesos: Readonly<Record<string, LeitorDaCompilacao>> = Object.freeze(
+  Object.fromEntries(PESOS_ABERTOS.map((p) => [p.pesos, criarLeitorDaCompilacao(PONTE, p.pesos)])),
+);
+
+/** O que cada peso aberto diz **agora**, sem perguntar de novo — o estado inicial das telas. */
+export function estadoDaCompilacaoDosPesos(): Readonly<Record<string, EstadoDaCompilacao>> {
+  return Object.fromEntries(PESOS_ABERTOS.map((p) => [p.pesos, compilacaoDosPesos[p.pesos]!.agora()]));
+}
+
+/** Relê a compilação de **todos** os pesos abertos, em paralelo. Nunca rejeita. */
+export async function relerCompilacaoDosPesos(): Promise<Readonly<Record<string, EstadoDaCompilacao>>> {
+  const lidos = await Promise.all(
+    PESOS_ABERTOS.map(async (p) => [p.pesos, await compilacaoDosPesos[p.pesos]!.reler()] as const),
   );
   return Object.fromEntries(lidos);
 }

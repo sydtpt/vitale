@@ -128,6 +128,7 @@ function ponteQueCopiaOTemplate(o: { readonly trava?: () => boolean; readonly at
     chamadas,
     diagnostico: async () => '{"disponivel":true}',
     diagnosticoDosPesos: async () => '{"disponivel":true}',
+    compilacaoDosPesos: async () => '{"compilado":true,"componentes":1,"compilados":1}',
     responderComPesos: (_pesos, pedido) => responder(pedido),
     responder,
   };

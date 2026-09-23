@@ -28,6 +28,7 @@ import {
   exposicao,
   formatarMotorId,
   lerMotorId,
+  type CompilacaoNoAparelho,
   type Descritor,
   type DiagnosticoDoAparelho,
   type MotivoDoAparelho,
@@ -363,15 +364,88 @@ export function motivoDoCoreAI(ponte: EstadoDaPonte): string | null {
       const d = ponte.diagnostico;
       if (d.estado === 'disponivel') return null;
       if (d.estado === 'ilegivel') return MOTIVO_ILEGIVEL;
-      // **Chave própria, e o resultado tem de ser texto.** O motivo vem da ponte, que o lê de
-      // uma linha JSON: um motivo chamado `constructor` ou `__proto__` acharia uma função no
-      // protótipo do objeto, o `??` não a pegaria, e o `<Text>` receberia uma função —
-      // quebrando a tela inteira por causa de uma string que veio de fora.
-      const proprio = Object.prototype.hasOwnProperty.call(MOTIVO_DO_COREAI_EM_PALAVRAS, d.motivo)
-        ? MOTIVO_DO_COREAI_EM_PALAVRAS[d.motivo]
-        : undefined;
-      return typeof proprio === 'string' ? proprio : MOTIVO_COREAI_DESCONHECIDO;
+      return palavrasDoMotivoDoCoreAI(d.motivo);
     }
+  }
+}
+
+/**
+ * Um motivo do Core AI, como a ponte o escreveu → as palavras da tela.
+ *
+ * **Chave própria, e o resultado tem de ser texto.** O motivo vem da ponte, que o lê de uma
+ * linha JSON: um motivo chamado `constructor` ou `__proto__` acharia uma função no protótipo
+ * do objeto, o `??` não a pegaria, e o `<Text>` receberia uma função — quebrando a tela
+ * inteira por causa de uma string que veio de fora.
+ */
+export function palavrasDoMotivoDoCoreAI(motivo: string): string {
+  const proprio = Object.prototype.hasOwnProperty.call(MOTIVO_DO_COREAI_EM_PALAVRAS, motivo)
+    ? MOTIVO_DO_COREAI_EM_PALAVRAS[motivo]
+    : undefined;
+  return typeof proprio === 'string' ? proprio : MOTIVO_COREAI_DESCONHECIDO;
+}
+
+/* ── a compilação de um peso aberto ──────────────────────────────────────── */
+
+/**
+ * O que o app sabe da **compilação** de uma pasta de pesos. O gêmeo de
+ * {@link EstadoDaPonte}, e pela mesma razão: quem carrega o módulo nativo é `./index.ts`, e
+ * aqui ele só entra por parâmetro.
+ *
+ * As três primeiras formas não chegam a perguntar — e nenhuma delas é "não compilado".
+ */
+export type EstadoDaCompilacao =
+  /** O módulo nativo não está neste build. */
+  | { readonly tipo: 'ausente' }
+  /** Não é iOS: não há Core AI nem cache a olhar. */
+  | { readonly tipo: 'fora-do-ios' }
+  /** O módulo está, e a resposta ainda não voltou. */
+  | { readonly tipo: 'consultando' }
+  /** A ponte respondeu — legível ou não —, com a linha crua quando houve uma. */
+  | { readonly tipo: 'lido'; readonly compilacao: CompilacaoNoAparelho; readonly cru?: string };
+
+export const COMPILACAO_AUSENTE: EstadoDaCompilacao = { tipo: 'ausente' };
+export const COMPILACAO_FORA_DO_IOS: EstadoDaCompilacao = { tipo: 'fora-do-ios' };
+export const COMPILACAO_CONSULTANDO: EstadoDaCompilacao = { tipo: 'consultando' };
+
+/**
+ * A compilação como a tela a lê: três respostas, e **"não" nunca é "não sei"**.
+ *
+ * É a distinção inteira desta fatia. Um booleano faria os quatro casos em que ninguém pôde
+ * perguntar — sem ponte, simulador, pasta fora do build, linha ilegível — caírem do lado do
+ * "não", e a tela ofereceria **Compilar** para um modelo que este build nem traz. `nao-sabido`
+ * carrega o motivo em palavras, porque uma tela que diz "não sei" sem dizer por que não sabe
+ * é pior do que uma que não diz nada.
+ */
+export type CompilacaoDoModelo =
+  | { readonly tipo: 'compilado' }
+  | { readonly tipo: 'nao-compilado' }
+  | { readonly tipo: 'nao-sabido'; readonly motivo: string };
+
+/** O motivo de a compilação não ter resposta enquanto a pergunta está a caminho. */
+export const MOTIVO_COMPILACAO_CONSULTANDO = 'consultando o cache do aparelho…';
+/** A ponte respondeu fora do contrato, ou não respondeu. */
+export const MOTIVO_COMPILACAO_ILEGIVEL = 'o aparelho não respondeu como esperado sobre a compilação';
+
+/** O estado da compilação → a resposta de três valores que a linha do modelo mostra. */
+export function compilacaoDoModelo(estado: EstadoDaCompilacao): CompilacaoDoModelo {
+  switch (estado.tipo) {
+    case 'ausente':
+      return { tipo: 'nao-sabido', motivo: MOTIVO_COREAI_SEM_PONTE };
+    case 'fora-do-ios':
+      return { tipo: 'nao-sabido', motivo: MOTIVO_COREAI_FORA_DO_IOS };
+    case 'consultando':
+      return { tipo: 'nao-sabido', motivo: MOTIVO_COMPILACAO_CONSULTANDO };
+    case 'lido':
+      switch (estado.compilacao.estado) {
+        case 'compilado':
+          return { tipo: 'compilado' };
+        case 'nao-compilado':
+          return { tipo: 'nao-compilado' };
+        case 'ilegivel':
+          return { tipo: 'nao-sabido', motivo: MOTIVO_COMPILACAO_ILEGIVEL };
+        case 'nao-sabido':
+          return { tipo: 'nao-sabido', motivo: palavrasDoMotivoDoCoreAI(estado.compilacao.motivo) };
+      }
   }
 }
 

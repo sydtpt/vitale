@@ -10,6 +10,7 @@ import _StringProcessing
 import _SwiftConcurrencyShims
 public enum OrbeCoreAIFase : Swift::String, Swift::Sendable {
   case carga
+  case inspecao
   public init?(rawValue: Swift::String)
   public typealias RawValue = Swift::String
   public var rawValue: Swift::String {
@@ -24,7 +25,14 @@ public struct OrbeCoreAIErro : Swift::Error, Swift::Sendable {
   public let codigo: Swift::Int
   public init(fase: OrbeCoreAI::OrbeCoreAIFase, nomeDoTipo: Swift::String, descricao: Swift::String, dominio: Swift::String, codigo: Swift::Int)
 }
+public struct OrbeCoreAICompilacao : Swift::Sendable, Swift::Equatable {
+  public let componentes: Swift::Int
+  public let compilados: Swift::Int
+  public init(componentes: Swift::Int, compilados: Swift::Int)
+  public static func == (a: OrbeCoreAI::OrbeCoreAICompilacao, b: OrbeCoreAI::OrbeCoreAICompilacao) -> Swift::Bool
+}
 public enum OrbeCoreAI {
+  public static func compilacao(dosPesosEm url: Foundation::URL) throws -> OrbeCoreAI::OrbeCoreAICompilacao
   public static func sessao(pesosEm url: Foundation::URL, instrucoes: Swift::String?) async throws -> FoundationModels::LanguageModelSession
 }
 extension OrbeCoreAI::OrbeCoreAIFase : Swift::Equatable {}

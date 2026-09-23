@@ -27,6 +27,18 @@ public import FoundationModels
 /// Espelha `OrbeCoreAIFase` da casca de verdade.
 public enum OrbeCoreAIFase: String, Sendable {
   case carga
+  case inspecao
+}
+
+/// Espelha `OrbeCoreAICompilacao` da casca de verdade, campo por campo.
+public struct OrbeCoreAICompilacao: Sendable, Equatable {
+  public let componentes: Int
+  public let compilados: Int
+
+  public init(componentes: Int, compilados: Int) {
+    self.componentes = componentes
+    self.compilados = compilados
+  }
 }
 
 /// Espelha `OrbeCoreAIErro` da casca de verdade, campo por campo.
@@ -86,8 +98,21 @@ public enum OrbeCoreAI {
   /// a falha de **carga** sem ter um `.aimodel` corrompido à mão.
   nonisolated(unsafe) public static var falhaNaCarga: OrbeCoreAIErro?
 
+  /// O que a próxima inspeção vai contar. `(1, 1)` é "compilado"; `(1, 0)`, "não compilado";
+  /// `(0, 0)`, a pasta sem componente — os três desfechos que o `MotorCoreAI` distingue.
+  nonisolated(unsafe) public static var contagemDeMentira = OrbeCoreAICompilacao(componentes: 1, compilados: 1)
+  /// Quando não for `nil`, `compilacao` lança isto — a pasta que não se deixa listar.
+  nonisolated(unsafe) public static var falhaNaInspecao: OrbeCoreAIErro?
+
   public static func sessao(pesosEm url: URL, instrucoes: String?) async throws -> LanguageModelSession {
     if let erro = falhaNaCarga { throw erro }
     return LanguageModelSession(model: ModeloDeMentira(texto: textoDeMentira), instructions: instrucoes.map { Instructions($0) })
+  }
+
+  /// Espelha `compilacao(dosPesosEm:)` da casca de verdade. Não olha o disco: a de verdade
+  /// pergunta ao cache do Core AI, e o que o Orbe decide é sobre os **números** que voltam.
+  public static func compilacao(dosPesosEm url: URL) throws -> OrbeCoreAICompilacao {
+    if let erro = falhaNaInspecao { throw erro }
+    return contagemDeMentira
   }
 }

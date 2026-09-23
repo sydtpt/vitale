@@ -89,6 +89,43 @@ struct TestesDoCoreAI {
     p.igual("pesos ausentes: indisponivel", semPasta?["classe"] as? String, ClasseDeFalha.indisponivel.rawValue)
     p.conferir("com o motivo dentro do detalhe", (semPasta?["detalhe"] as? String)?.contains(MotorCoreAI.motivoSemPesos) == true, String(describing: semPasta))
 
+    // A decisão inteira da terceira porta é uma igualdade — `compilados == componentes` —, e é
+    // ela que decide se a tela do dono oferece **Compilar**. Errar para o lado do "sim" some
+    // com o botão de um modelo que vai cobrar minutos na primeira leitura; errar para o lado do
+    // "não" oferece quinze minutos por nada.
+    print("a compilação: a contagem vira compilado / não compilado")
+    OrbeCoreAI.falhaNaInspecao = nil
+    OrbeCoreAI.contagemDeMentira = OrbeCoreAICompilacao(componentes: 1, compilados: 1)
+    let compilada = objeto(MotorCoreAI.compilacao(pesos: pesos, raiz: raiz))
+    p.igual("tudo compilado: compilado", compilada?["compilado"] as? Bool, true)
+    p.igual("com a contagem que a casca deu", compilada?["componentes"] as? Int, 1)
+    p.conferir("e sem motivo", compilada?["motivo"] == nil, String(describing: compilada))
+
+    OrbeCoreAI.contagemDeMentira = OrbeCoreAICompilacao(componentes: 3, compilados: 2)
+    let parcial = objeto(MotorCoreAI.compilacao(pesos: pesos, raiz: raiz))
+    p.igual("falta um componente: NÃO compilado", parcial?["compilado"] as? Bool, false)
+    p.igual("e a contagem diz quantos faltam", parcial?["compilados"] as? Int, 2)
+
+    print("a compilação: o que não dá para perguntar não vira 'não compilado'")
+    OrbeCoreAI.contagemDeMentira = OrbeCoreAICompilacao(componentes: 0, compilados: 0)
+    let semComponente = objeto(MotorCoreAI.compilacao(pesos: pesos, raiz: raiz))
+    p.conferir("pasta sem componente: sem `compilado`", semComponente?["compilado"] == nil, String(describing: semComponente))
+    p.igual("e com o motivo da pasta que não se lê", semComponente?["motivo"] as? String, MotorCoreAI.motivoPesosIlegiveis)
+
+    OrbeCoreAI.contagemDeMentira = OrbeCoreAICompilacao(componentes: 1, compilados: 1)
+    OrbeCoreAI.falhaNaInspecao = OrbeCoreAIErro(
+      fase: .inspecao, nomeDoTipo: "NSError", descricao: "a pasta não se lista", dominio: NSCocoaErrorDomain, codigo: 257
+    )
+    let naoListou = objeto(MotorCoreAI.compilacao(pesos: pesos, raiz: raiz))
+    p.conferir("inspeção que lançou: sem `compilado`", naoListou?["compilado"] == nil, String(describing: naoListou))
+    p.igual("com o motivo da pasta ilegível", naoListou?["motivo"] as? String, MotorCoreAI.motivoPesosIlegiveis)
+    p.conferir("e a descrição da casca no detalhe", (naoListou?["detalhe"] as? String)?.contains("não se lista") == true, String(describing: naoListou))
+    OrbeCoreAI.falhaNaInspecao = nil
+
+    let semPesosCompilacao = objeto(MotorCoreAI.compilacao(pesos: "nao-existe", raiz: raiz))
+    p.conferir("pesos ausentes: sem `compilado`", semPesosCompilacao?["compilado"] == nil, String(describing: semPesosCompilacao))
+    p.igual("com o motivo dos pesos ausentes", semPesosCompilacao?["motivo"] as? String, MotorCoreAI.motivoSemPesos)
+
     print(p.falharam.isEmpty
       ? "\n\(p.passaram) conferências passaram (com ORBE_COREAI)."
       : "\n\(p.falharam.count) de \(p.passaram + p.falharam.count) falharam:\n  - " + p.falharam.joined(separator: "\n  - "))

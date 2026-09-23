@@ -5,14 +5,27 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOGO_DE_RECURSOS, resolverCadeia, type MotorId, type RecursoId } from '@vitale/shared';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { estadoDosPesosAbertos, garantirListaAprovada, ponteDoAparelho, reconsultarPesosAbertos } from '../../../lib/motores';
 import {
+  estadoDaCompilacaoDosPesos,
+  estadoDosPesosAbertos,
+  garantirListaAprovada,
+  ponteDoAparelho,
+  reconsultarPesosAbertos,
+  relerCompilacaoDosPesos,
+} from '../../../lib/motores';
+import {
+  COMPILACAO_AUSENTE,
+  PESOS_ABERTOS,
+  compilacaoDoModelo,
   listaAprovada,
   motoresDoRecurso,
   motivoDeBloqueio,
+  type CompilacaoDoModelo,
+  type EstadoDaCompilacao,
   type EstadoDaPonte,
   type ListaAprovada,
   type MotorConhecido,
+  type PesoAberto,
   type RecursoDoSeletor,
 } from '../../../lib/motores/catalogo';
 import {
@@ -83,6 +96,12 @@ export default function MotoresScreen() {
   // Um diagnóstico por peso aberto (spike 22/09): o build carrega vários, e cada um pode
   // estar de pé ou não por conta própria — pesos presentes num, ausentes no outro.
   const [coreai, setCoreai] = useState<Readonly<Record<string, EstadoDaPonte>>>(() => estadoDosPesosAbertos());
+  // A compilação é relida **sempre**, e não só enquanto não disser "sim": um modelo compilado
+  // volta a não estar sozinho — o iOS atualiza e recompila tudo, ou purga o cache sob pressão
+  // de espaço. A pergunta custa ~0,5 ms; lembrar a resposta é que produziria a mentira.
+  const [compilacao, setCompilacao] = useState<Readonly<Record<string, EstadoDaCompilacao>>>(() =>
+    estadoDaCompilacaoDosPesos(),
+  );
   useFocusEffect(
     useCallback(() => {
       let vivo = true;
@@ -92,6 +111,9 @@ export default function MotoresScreen() {
         });
         void reconsultarPesosAbertos().then((p) => {
           if (vivo) setCoreai(p);
+        });
+        void relerCompilacaoDosPesos().then((c) => {
+          if (vivo) setCompilacao(c);
         });
       };
       reler();
@@ -170,6 +192,23 @@ export default function MotoresScreen() {
           sempre igual, e nada sai daqui.
         </Text>
 
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Modelos no aparelho</Text>
+          {PESOS_ABERTOS.length === 0 ? (
+            // Sem CTA: não há de onde instalar — o peso vem no binário.
+            <Text style={s.hint}>Este build não embarca nenhum modelo aberto.</Text>
+          ) : (
+            PESOS_ABERTOS.map((p) => (
+              <LinhaDoModelo
+                key={p.id}
+                peso={p}
+                estado={compilacaoDoModelo(compilacao[p.pesos] ?? COMPILACAO_AUSENTE)}
+                s={s}
+              />
+            ))
+          )}
+        </View>
+
         {CATALOGO_DE_RECURSOS.map((d) => {
           const recurso: RecursoDoSeletor = d;
           const escolhido = preferencias[recurso.recurso] ?? null;
@@ -225,6 +264,55 @@ export default function MotoresScreen() {
 }
 
 type Styles = ReturnType<typeof createStyles>;
+
+/**
+ * Um modelo aberto deste build, com o **estado real do cache** — lido de `isCached` na
+ * montagem e a cada foco, nunca suposto.
+ *
+ * **"Todo build nasce não compilado" é falso**, e é essa suposição que esta linha existe para
+ * não repetir: o cache do Core AI é particionado por build do **iOS**, não do app, então
+ * instalar um app novo sobre o mesmo sistema abre com os modelos já compilados. A espera só
+ * volta quando o iPhone atualiza — ou quando o sistema purga o cache por falta de espaço, e aí
+ * um modelo compilado deixa de estar sem ninguém ter tocado em nada.
+ *
+ * **Compilar só aparece onde há o que compilar.** Uma linha compilada não o carrega: um botão
+ * que recompilasse o já compilado cobraria minutos por um toque que não mudaria nada. E uma
+ * linha em "não dá para saber" também não — oferecer o ato para um modelo que este build nem
+ * traz é a confusão exata entre "não" e "não sei" que o estado de três valores evita.
+ */
+/** O preço do ato, dito antes dele — e a única coisa honesta a dizer enquanto a tela não existe. */
+const PRECO_DE_COMPILAR =
+  'A primeira leitura deste modelo compila para o chip, e leva minutos. A tela que faz isso ainda não existe.';
+
+function LinhaDoModelo({ peso, estado, s }: { peso: PesoAberto; estado: CompilacaoDoModelo; s: Styles }) {
+  const dizer =
+    estado.tipo === 'compilado'
+      ? 'compilado'
+      : estado.tipo === 'nao-compilado'
+        ? 'instalado, não compilado'
+        : estado.motivo;
+  // O rótulo acessível carrega **tudo o que está à vista**, porque o agrupamento cala o
+  // resto: sem ele, quem usa VoiceOver ouviria "não compilado" e perderia o preço.
+  const rotuloAcessivel =
+    estado.tipo === 'nao-compilado' ? `${peso.rotulo} — ${dizer}. ${PRECO_DE_COMPILAR}` : `${peso.rotulo} — ${dizer}`;
+  return (
+    <View style={s.card} accessible accessibilityLabel={rotuloAcessivel}>
+      <View style={s.meta}>
+        <Text style={s.name}>{peso.rotulo}</Text>
+        <Text style={[s.motivo, estado.tipo === 'compilado' && s.compilado]}>{dizer}</Text>
+        {estado.tipo === 'nao-compilado' ? <Text style={s.motivo}>{PRECO_DE_COMPILAR}</Text> : null}
+      </View>
+      {/* Tracejada e abafada de propósito: o tracejado diz "isto não é um controle" sem gastar
+          uma palavra, e ela não é mesmo — a tela de compilar é a fatia seguinte. Um botão com
+          cara de botão que não faz nada mente tanto quanto uma omissão. */}
+      {estado.tipo === 'nao-compilado' ? (
+        <View style={s.pilula}>
+          <Text style={s.pilulaTexto}>Compilar</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 function LinhaDoMotor({
   motor,
@@ -302,6 +390,19 @@ const createStyles = () =>
     sub: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 17 },
     faded: { color: colors.ink4 },
     motivo: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 17, marginTop: 3 },
+    // Papel `green` como **texto** (`greenText`), não como traço: o `green` do Orbe claro mede
+    // 2,81 sobre a superfície e não paga os 4,5 de letra.
+    compilado: { color: colors.greenText },
+    pilula: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: radii.pill,
+      backgroundColor: colors.surfaceMute,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.line,
+    },
+    pilulaTexto: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink3 },
     check: {
       width: 24,
       height: 24,

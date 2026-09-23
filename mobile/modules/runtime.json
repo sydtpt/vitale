@@ -13,6 +13,11 @@
       "//": "Story 5.8 — o motor de peso aberto (MotorCoreAI.swift), as duas funções novas na cola, o alvo mínimo em iOS 27 e a biblioteca do Core AI vendorizada em ios/vendor/. Mudança nativa de verdade: nenhum eas update com este JS pode ir ao 1.0.7. Os pesos (ios/pesos/) ficam FORA desta conta — ver a barreira do runtime.",
       "runtimeVersion": "1.0.8",
       "fontes": "9ae477f62961e09b06eadb1df5898bcdaf8525979881ec578645130d3128aedc"
+    },
+    {
+      "//": "Fatia 1 do redesenho de Motores — a ponte passa a responder se um peso aberto já está compilado para o Neural Engine: a função compilacao(dosPesosEm:) na casca, a CompilacaoDoFio e a terceira porta do MotorCoreAI.swift, e o AsyncFunction compilacaoDosPesos na cola. Entrada nova, e não hash trocado no lugar: o 1.0.8 foi entregue (o build do spike rodou no iPhone em 22/09), e um eas update com este JS chamaria uma função que a cola dele não tem.",
+      "runtimeVersion": "1.0.9",
+      "fontes": "585d9b7e5310daf41117f9497a66a7acf97afcbc44302c91237324fb9c1aba04"
     }
   ]
 }
