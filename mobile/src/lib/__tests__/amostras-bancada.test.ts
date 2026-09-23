@@ -29,7 +29,9 @@ import {
   RECURSOS_COM_REGUA,
   cabeNoRegime,
   chipsDaCorrida,
+  colunasPorVir,
   estadoDoMotorNaCorrida,
+  filaDaCorrida,
   janelaComNoite,
   motivoDoTeto,
   rotaMedivel,
@@ -312,6 +314,81 @@ describe('a fileira "quem entra"', () => {
     const variante = motor('nuvem:acme/modelo-9' as MotorId, { rotulo: 'acme · modelo-9' });
     const [chip] = chipsDaCorrida([variante], { regimeMaximo: 'nuvem', fora: new Set([PESO.id]), compilacao: {} });
     expect(chip).toMatchObject({ forma: 'dentro', marcado: true });
+  });
+});
+
+describe('a fila da corrida e o que "Parar" tem para impedir', () => {
+  const nuvem = motor(NUVEM_PADRAO, { rotulo: 'Nuvem' });
+  const aparelho = motor(APARELHO_SISTEMA, { rotulo: 'Modelo do aparelho' });
+  const peso = motor(PESO.id, { rotulo: PESO.rotulo });
+  const regua = motor(SEM_MODELO, { rotulo: 'Sem modelo' });
+  const catalogo = [regua, aparelho, peso, nuvem];
+  const semNinguemFora = new Set<string>();
+
+  it('a régua entra sem passar por filtro nenhum, e sempre na frente', () => {
+    // Ela não é motor: é determinística, de graça, e uma corrida sem ela não compara
+    // nada. Nem o `regimeMaximo` a toca.
+    const fila = filaDaCorrida(catalogo, { regimeMaximo: 'sem-modelo', fora: new Set([SEM_MODELO]), compilacao: {} });
+    expect(fila).toEqual([{ motor: SEM_MODELO }]);
+  });
+
+  it('quem o dono desligou e quem passa do teto de exposição não viram coluna nenhuma', () => {
+    const fila = filaDaCorrida(catalogo, {
+      regimeMaximo: 'aparelho',
+      fora: new Set([PESO.id]),
+      compilacao: COMPILADO,
+    });
+    expect(fila).toEqual([{ motor: SEM_MODELO }, { motor: APARELHO_SISTEMA }]);
+  });
+
+  it('quem perdeu o pé vira coluna COM recusa — ela existe, e não chama ninguém', () => {
+    const fila = filaDaCorrida([regua, peso], {
+      regimeMaximo: 'nuvem',
+      fora: semNinguemFora,
+      compilacao: NAO_COMPILADO,
+    });
+    expect(fila).toEqual([
+      { motor: SEM_MODELO },
+      { motor: PESO.id, recusa: 'o compilado deste modelo não está mais no aparelho' },
+    ]);
+  });
+
+  it('o motor que ainda não respondeu entra com a recusa dele, e não como apto', () => {
+    const consultando = motor(APARELHO_SISTEMA, { disponivel: false, motivo: 'consultando…', consultando: true });
+    const fila = filaDaCorrida([consultando], { regimeMaximo: 'nuvem', fora: semNinguemFora, compilacao: {} });
+    expect(fila).toEqual([{ motor: APARELHO_SISTEMA, recusa: 'o diagnóstico deste motor ainda não voltou' }]);
+  });
+
+  // **O defeito de 23/09, na medida em que ele é uma regra.** O dono marcou só a Nuvem,
+  // tocou Medir e, durante a contagem, tocou Parar: a medição foi até o fim e publicou.
+  // A fila dele é [régua, nuvem] — e sobre a nuvem em voo não há próxima coluna. Zero
+  // aqui é o que tira o botão da tela, em vez de deixá-lo prometendo.
+  it('com só a nuvem marcada, não há nada a impedir depois da coluna dela', () => {
+    const fila = filaDaCorrida(catalogo, {
+      regimeMaximo: 'nuvem',
+      fora: new Set([APARELHO_SISTEMA, PESO.id]),
+      compilacao: COMPILADO,
+    });
+    expect(fila).toEqual([{ motor: SEM_MODELO }, { motor: NUVEM_PADRAO }]);
+    expect(colunasPorVir(fila, 0)).toBe(1); // sobre a régua, Parar ainda impede a nuvem
+    expect(colunasPorVir(fila, 1)).toBe(0); // sobre a nuvem, não impede mais nada
+  });
+
+  it('a contagem ignora as colunas recusadas — elas são instantâneas e de graça', () => {
+    // Prometer que Parar impede o que não custa nada inflaria o número, e o número é o
+    // que decide se o botão se oferece.
+    const fila = filaDaCorrida(catalogo, {
+      regimeMaximo: 'nuvem',
+      fora: semNinguemFora,
+      compilacao: NAO_COMPILADO,
+    });
+    expect(fila.map((c) => c.motor)).toEqual([SEM_MODELO, APARELHO_SISTEMA, PESO.id, NUVEM_PADRAO]);
+    expect(fila[2]?.recusa).toBeDefined();
+    // Da régua ainda vêm o aparelho e a nuvem: duas chamadas, não três.
+    expect(colunasPorVir(fila, 0)).toBe(2);
+    // E do peso aberto recusado sobra só a nuvem.
+    expect(colunasPorVir(fila, 2)).toBe(1);
+    expect(colunasPorVir(fila, 3)).toBe(0);
   });
 });
 

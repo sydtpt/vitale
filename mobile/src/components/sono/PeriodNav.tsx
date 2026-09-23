@@ -53,6 +53,18 @@ export function PeriodNav({ range, offset, periods, nights, onRange, onOffset }:
 const createStyles = () =>
   StyleSheet.create({
     navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
-    navBtn: { width: 34, height: 30, alignItems: 'center', justifyContent: 'center' },
-    navLabel: { fontSize: 12.5, fontFamily: fonts.mono, color: colors.ink2 },
+    // As setas são ícone de tamanho fixo e alvo de toque: não encolhem.
+    navBtn: { width: 34, height: 30, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
+    /**
+     * **`flexShrink: 1` porque na React Native o padrão é 0**, ao contrário do CSS.
+     *
+     * A fileira mede cada filho contra ela **inteira** — os 336 pt úteis do cartão —,
+     * e não contra o que sobra das duas setas (268 pt). Sem `flexShrink` o rótulo
+     * ("set 2025 → set 2026") fica com a largura que mediu assim e nunca é medido de
+     * novo: medido com o Yoga em AX XXXL, o ▶ termina em 404 pt numa tela de 402.
+     * Com ele, o Yoga remede o texto no tamanho que cabe e tudo volta para dentro —
+     * o rótulo quebra em duas linhas e a fileira cresce em altura, que é o eixo que
+     * sobra.
+     */
+    navLabel: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.mono, color: colors.ink2, textAlign: 'center' },
   });

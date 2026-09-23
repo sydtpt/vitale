@@ -262,6 +262,76 @@ export function chipsDaCorrida(
   return out;
 }
 
+/* ── a fila da corrida, e o que "Parar" tem para impedir ─────────────────── */
+
+/** Uma coluna da corrida, na ordem em que o laço a abre. */
+export interface ColunaDaCorrida {
+  readonly motor: MotorId;
+  /**
+   * Por que esta coluna **não** chama ninguém — ausente quando ela chama. Uma
+   * coluna recusada ainda é uma coluna: ela vira linha com o motivo, porque uma
+   * medição que não aconteceu vale tanto quanto uma que aconteceu.
+   */
+  readonly recusa?: string;
+}
+
+/**
+ * A composição da corrida, decidida **antes** do laço.
+ *
+ * Ela existe por causa do defeito de 23/09: o dono marcou só a Nuvem, tocou
+ * Medir e, durante a contagem, tocou Parar — e a medição foi até o fim e
+ * publicou. O comportamento estava certo (uma chamada em andamento não se
+ * cancela, e a do aparelho muito menos); errada estava a **promessa**, porque
+ * "Parar" só impede as **próximas** colunas e ali não havia próxima.
+ *
+ * Um botão só pode dizer isso se alguém souber, antes de abrir a coluna, quantas
+ * ainda viriam. Saber disso é decidir a fila inteira de uma vez, e é o que esta
+ * função faz — com **as mesmas regras, na mesma ordem** que o laço aplicava uma
+ * a uma. Duas listas de filtros para a mesma corrida seria o modo de o botão
+ * prometer sobre uma fila que não é a que roda.
+ *
+ * A régua (`SEM_MODELO`) entra sem passar por filtro nenhum: ela não é motor, é
+ * determinística e de graça, e uma corrida sem ela não compara nada.
+ */
+export function filaDaCorrida(
+  motores: readonly MotorConhecido[],
+  { regimeMaximo, fora, compilacao }: OpcoesDosChips,
+): readonly ColunaDaCorrida[] {
+  const fila: ColunaDaCorrida[] = [];
+  for (const m of motores) {
+    if (m.id === SEM_MODELO) {
+      fila.push({ motor: m.id });
+      continue;
+    }
+    // O teto de exposição do recurso: quem passa dele não tem chip e não corre.
+    if (!cabeNoRegime(regimeMaximo, m.id)) continue;
+    // Quem o dono deixou de fora não corre.
+    if (fora.has(m.id)) continue;
+    const estado = estadoDoMotorNaCorrida(m, compilacao);
+    if (estado.tipo === 'apto') {
+      fila.push({ motor: m.id });
+      continue;
+    }
+    fila.push({
+      motor: m.id,
+      recusa: estado.tipo === 'fora' ? estado.naCorrida : 'o diagnóstico deste motor ainda não voltou',
+    });
+  }
+  return fila;
+}
+
+/**
+ * Quantas chamadas "Parar" ainda impede, estando a coluna `indice` em voo.
+ *
+ * Conta só as colunas que **abririam chamada**: uma recusada é instantânea e
+ * gratuita, e prometer que Parar a impede seria inflar o número com o que não
+ * custa nada. Zero é a resposta honesta de "não há o que impedir" — é ela que
+ * tira o botão da tela em vez de deixá-lo prometendo.
+ */
+export function colunasPorVir(fila: readonly ColunaDaCorrida[], indice: number): number {
+  return fila.slice(indice + 1).filter((c) => c.recusa === undefined).length;
+}
+
 /* ── o teto de espera de uma coluna ──────────────────────────────────────── */
 
 /** Os prazos que os transportes deste app já têm — injetados, para serem testáveis. */

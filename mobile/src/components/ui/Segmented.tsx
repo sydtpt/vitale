@@ -64,15 +64,35 @@ const createStyles = () =>
       borderRadius: radii.pill,
       padding: 3,
     },
+    /**
+     * **A fatia é quinta parte da faixa; o rótulo quebra dentro dela.**
+     *
+     * Medido com o Yoga (o mesmo motor da RN) nos 336 pt úteis de um iPhone 17 Pro:
+     * com o Texto grande no máximo (AX XXXL, ×3,571 — a tabela dos multiplicadores é
+     * a do `RCTAccessibilityManager`), "última" pede 150 pt numa fatia de 66, e a
+     * faixa passa de 39 para 203 pt de altura. **Crescer em altura é o certo** — é o
+     * eixo que sobra, e a fatia nunca teve `height`, só `paddingVertical`. Encurtar
+     * a fonte ou cortar com `numberOfLines` seria cortar mais bonito.
+     *
+     * O que estava errado era o **alinhamento**: `alignItems: 'center'` dá ao `Text`
+     * a largura que ele mediu, não a da fatia, e as linhas quebradas ficam alinhadas
+     * à esquerda dentro de um bloco centrado — a faixa vira a sopa de letras que o
+     * dono fotografou em 23/09. Esticado (o padrão, por isso sem `alignItems`) o
+     * `Text` recebe a largura da fatia, e `textAlign` centra **cada linha**. No
+     * tamanho normal, com uma linha só, nada muda de aparência.
+     *
+     * `minWidth: 0` é o par do `flex: 1`, escrito para quem vier depois: a fatia pode
+     * descer abaixo do conteúdo, e é por isso que a faixa nunca estica.
+     */
     segment: {
       flex: 1,
+      minWidth: 0,
       paddingVertical: spacing.sm,
       borderRadius: radii.pill,
-      alignItems: 'center',
     },
     segmentActive: { backgroundColor: colors.surface, ...shadows.sm },
     segmentBrand: { backgroundColor: colors.primary },
-    segmentText: { fontSize: 12.5, color: colors.ink3, fontFamily: fonts.sansSemiBold },
+    segmentText: { fontSize: 12.5, color: colors.ink3, fontFamily: fonts.sansSemiBold, textAlign: 'center' },
     segmentTextActive: { color: colors.ink },
     segmentTextBrand: { color: colors.onPrimary },
   });

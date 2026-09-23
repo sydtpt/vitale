@@ -55,9 +55,9 @@ import {
   relerCompilacaoDosPesos,
 } from '../../../lib/motores';
 import {
-  cabeNoRegime,
   chipsDaCorrida,
-  estadoDoMotorNaCorrida,
+  colunasPorVir,
+  filaDaCorrida,
   motivoDoTeto,
   tetoDaCorridaMs,
   type ChipDaCorrida,
@@ -129,6 +129,15 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../.
  * uma chamada que compila por minutos; cada coluna tem teto de espera; Medir tem três
  * formas e nunca larga duas corridas; sair da tela abandona a que estiver em voo. Todas as
  * decisões que dão para tomar sem tela moram em `lib/motores/amostras-regras.ts`, com teste.
+ *
+ * **O que o Parar promete** (23/09). Ele impede as **próximas** colunas — a que está em voo
+ * termina e publica, porque uma chamada em andamento não se cancela e a do aparelho muito
+ * menos. Isso está certo desde sempre; o que estava errado era a palavra. Com um motor só
+ * marcado, o dono tocou Parar sobre a única coluna em voo e a medição foi até o fim: o botão
+ * prometeu o que não tinha como cumprir. Agora a fila é decidida inteira antes da primeira
+ * coluna (`filaDaCorrida`), e o botão só se oferece enquanto `colunasPorVir` for maior que
+ * zero. Na última coluna não há botão, há a frase que diz por quê; depois do toque o botão
+ * fica, dizendo o que está mesmo acontecendo.
  */
 
 /**
@@ -387,6 +396,15 @@ export default function BancadaScreen() {
   const foraDeFocoRef = useRef(false);
   /** Só para a tela dizer "parando…" — quem para o laço é o `ref`. */
   const [parandoCorrida, setParandoCorrida] = useState(false);
+  /**
+   * **Quantas chamadas "Parar" ainda impede** — e `null` enquanto a corrida não
+   * abriu coluna nenhuma, que é quando ele impede tudo o que vier.
+   *
+   * É esta contagem, e não a existência da corrida, que decide se o botão aparece:
+   * na última coluna ele não tem o que impedir, e um botão ali seria a promessa
+   * que quebrou em 23/09.
+   */
+  const [porVir, setPorVir] = useState<number | null>(null);
 
   const medir = useCallback(async () => {
     const caso = casoAtual;
@@ -399,6 +417,8 @@ export default function BancadaScreen() {
     corridaEmVooRef.current = true;
     pararCorridaRef.current = false;
     setParandoCorrida(false);
+    // Nenhuma coluna aberta ainda: neste instante "Parar" impede a corrida inteira.
+    setPorVir(null);
     const doLaco = `${recurso}|${caso.chave}`;
     setRodando(SEM_MODELO);
     const feitas: Linha[] = [];
@@ -428,7 +448,19 @@ export default function BancadaScreen() {
       setListaDeMotores(lista);
       const conhecidos = motoresDoRecurso(recurso, { sistema: estadoDaPonte, coreai: estadoDoCoreAI }, lista);
       if (identidadeRef.current !== doLaco) return;
-      for (const m of conhecidos) {
+      // **A fila inteira antes da primeira coluna.** Os filtros eram aplicados um a
+      // um dentro do laço, e por isso ninguém — nem o laço — sabia quantas colunas
+      // ainda viriam. Sem esse número o "Parar" não tem como dizer a verdade: em
+      // 23/09 ele apareceu numa corrida cuja única coluna já estava em voo e
+      // prometeu uma interrupção que não existia. As regras são as mesmas e estão
+      // agora num lugar só, puro e testado.
+      const fila = filaDaCorrida(conhecidos, {
+        regimeMaximo: fonte.regimeMaximo,
+        fora: foraRef.current,
+        compilacao: estadoDaCompilacao,
+      });
+      for (let i = 0; i < fila.length; i++) {
+        const coluna = fila[i]!;
         // **Abandona o que é de outro caso.** O efeito de limpeza apaga as linhas
         // quando a leitura ou o caso mudam, mas o laço já capturou os dois e
         // continuaria pintando medições do caso velho sob o cabeçalho novo — que é
@@ -442,31 +474,24 @@ export default function BancadaScreen() {
         // descartar uma medição que aconteceu (e, na nuvem, que foi paga) seria jogar
         // fora justamente o que a corrida veio buscar.
         if (pararCorridaRef.current) break;
-        if (m.id !== SEM_MODELO) {
-          // O teto de exposição do recurso: quem passa dele não tem chip e não corre.
-          if (!cabeNoRegime(fonte.regimeMaximo, m.id)) continue;
-          // Quem o dono deixou de fora não corre. O template nunca é desligável: ele é a
-          // régua, e uma corrida sem régua não compara nada.
-          if (foraRef.current.has(m.id)) continue;
-          // A guarda da releitura, pela **mesma** regra que pintou o chip. Quem perdeu o
-          // pé vira uma linha com o motivo: não é um erro, é uma coluna que não
-          // aconteceu, e ela vale tanto quanto uma que aconteceu.
-          const noPe = estadoDoMotorNaCorrida(m, estadoDaCompilacao);
-          if (noPe.tipo !== 'apto') {
-            feitas.push({
-              motor: m.id,
-              desfecho: 'fora',
-              ms: 0,
-              motivo: noPe.tipo === 'fora' ? noPe.naCorrida : 'o diagnóstico deste motor ainda não voltou',
-            });
-            setLinhas([...feitas]);
-            continue;
-          }
+        // A coluna que não aconteceu: quem perdeu o pé entre o chip e o toque em
+        // Medir vira uma linha com o motivo. Não é um erro — é uma medição que não
+        // houve, e ela vale tanto quanto uma que houve.
+        if (coluna.recusa !== undefined) {
+          feitas.push({ motor: coluna.motor, desfecho: 'fora', ms: 0, motivo: coluna.recusa });
+          setLinhas([...feitas]);
+          continue;
         }
-        setRodando(m.id);
+        setRodando(coluna.motor);
+        // O que "Parar" ainda impediria, agora: é o que decide se ele se oferece.
+        setPorVir(colunasPorVir(fila, i));
         // O teto de espera: um motor que não devolve nem resposta nem erro deixaria o
         // botão `busy` para sempre, e a tela inteira refém de uma coluna.
-        const linha = await comTeto(() => fonte.medir(caso, m.id), tetoDaCorridaMs(m.id, PRAZOS_DA_CORRIDA), m.id);
+        const linha = await comTeto(
+          () => fonte.medir(caso, coluna.motor),
+          tetoDaCorridaMs(coluna.motor, PRAZOS_DA_CORRIDA),
+          coluna.motor,
+        );
         if (identidadeRef.current !== doLaco || foraDeFocoRef.current) return;
         feitas.push(linha);
         // Publica a cada motor: a nuvem leva ~14 s na mediana, e esperar todas as
@@ -476,15 +501,30 @@ export default function BancadaScreen() {
     } finally {
       setRodando(null);
       setParandoCorrida(false);
+      setPorVir(null);
       corridaEmVooRef.current = false;
     }
   }, [fonte, recurso, casoAtual]);
 
-  /** "Parar": a coluna em voo termina e publica; a próxima não abre. */
+  /**
+   * "Parar": a coluna em voo termina e publica; **a próxima não abre**.
+   *
+   * O que ele muda é o futuro da corrida, e só. Uma chamada em andamento não se
+   * cancela — a da nuvem já foi paga, a do aparelho não tem cancelamento nenhum —,
+   * e jogar fora uma medição que aconteceu seria descartar o que a corrida veio
+   * buscar. Por isso o botão só existe enquanto há próxima coluna, e por isso ele
+   * fica na tela depois do toque, dizendo o que está mesmo acontecendo.
+   */
   const pararCorrida = useCallback(() => {
     pararCorridaRef.current = true;
     setParandoCorrida(true);
   }, []);
+
+  /**
+   * **"Parar" tem o que impedir?** `null` é "a corrida ainda não abriu coluna", e aí
+   * ele impede tudo. Zero é a última coluna: ali o botão não pode se oferecer.
+   */
+  const pararImpedeAlgo = porVir === null || porVir > 0;
 
   const template = linhas.find((l) => l.motor === SEM_MODELO)?.frase;
 
@@ -713,28 +753,53 @@ export default function BancadaScreen() {
                 {rodando === null ? 'Medir os motores' : `medindo ${nomeDoMotor(rodando)}…`}
               </Text>
             </Pressable>
-            {/* Parar é o controle que existe para interromper: o próprio Medir fica inerte
-                enquanto corre, senão um segundo toque largaria uma segunda corrida sobre a
-                mesma lista. */}
-            {rodando !== null ? (
+            {/* Parar é o controle que existe para impedir as **próximas** colunas: o próprio
+                Medir fica inerte enquanto corre, senão um segundo toque largaria uma segunda
+                corrida sobre a mesma lista.
+
+                **Ele só aparece quando tem o que impedir** (23/09). Antes, bastava haver
+                corrida: com um motor marcado, o dono tocava Parar sobre a única coluna em voo
+                e a medição ia até o fim e publicava — o botão estava certo e a promessa,
+                errada. Na última coluna não há botão, há a frase que diz por quê.
+
+                **E ele não some depois do toque.** Quem tocou precisa ver o que está
+                acontecendo, não um vazio que parece "já parou": enquanto `parandoCorrida`, ele
+                fica na tela com o rótulo do que está de fato em curso, mesmo que a contagem já
+                tenha chegado a zero. O rótulo acessível diz a mesma coisa que o visível. */}
+            {rodando !== null && (pararImpedeAlgo || parandoCorrida) ? (
               <Pressable
                 onPress={pararCorrida}
                 disabled={parandoCorrida}
                 accessibilityRole="button"
-                accessibilityLabel="Parar a corrida — a coluna em voo termina sozinha"
+                accessibilityLabel={
+                  parandoCorrida
+                    ? 'Parando — a coluna em voo termina e publica'
+                    : 'Parar a corrida — impede as próximas colunas; a que está em voo termina e publica'
+                }
                 accessibilityState={parandoCorrida ? { disabled: true } : {}}
                 style={({ pressed }) => [s.botaoSuave, parandoCorrida && s.botaoOff, pressed && s.pressed]}
               >
-                <Text style={s.botaoSuaveTexto}>{parandoCorrida ? 'parando…' : 'Parar'}</Text>
+                <Text style={s.botaoSuaveTexto}>
+                  {parandoCorrida ? 'parando — a coluna em voo termina' : 'Parar'}
+                </Text>
               </Pressable>
             ) : null}
           </View>
+          {/* Onde o botão não está, o fato. Uma tela que só some com o controle deixa o dono
+              procurando o que não existe mais. */}
+          {rodando !== null && !pararImpedeAlgo && !parandoCorrida ? (
+            <Text style={s.meta}>última coluna — parar não teria o que impedir</Text>
+          ) : null}
+          <Text style={s.aviso}>
+            Parar impede as próximas colunas — a que está em voo termina e publica.
+          </Text>
           {/* A causa ao lado do botão, e não num alerta: ela é a resposta à única pergunta
               que um botão apagado levanta. */}
           {rodando === null && causaDoMedirInerte !== null ? (
             <Text style={s.motivo}>Medir está inerte: {causaDoMedirInerte}.</Text>
           ) : null}
-          {parandoCorrida ? <Text style={s.meta}>parando — a coluna em voo termina sozinha</Text> : null}
+          {/* O "parando…" que morava aqui foi para dentro do próprio botão: a mesma frase em
+              dois lugares da mesma tela é uma delas envelhecendo sozinha. */}
           <Text style={s.aviso}>
             Modo medição: um motor por vez, sem recuo e sem piso. A frase do template é a régua. O
             texto cru só aparece aqui, e nada disto sai do aparelho.
@@ -1399,11 +1464,23 @@ const createStyles = () =>
       backgroundColor: colors.primary,
     },
     botaoOff: { opacity: 0.6 },
-    botaoTexto: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.onPrimary },
-    // Medir e Parar lado a lado: o forte cresce, o suave fica do tamanho do dedo.
-    linhaDoBotao: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
-    botaoLargo: { flexGrow: 1, flexShrink: 1 },
+    botaoTexto: { flexShrink: 1, fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.onPrimary, textAlign: 'center' },
+    /**
+     * Medir e Parar lado a lado: o forte cresce, o suave fica do tamanho do dedo —
+     * **e a fileira quebra quando os dois não cabem**.
+     *
+     * O `flexWrap` é a saída de verdade para o Texto grande: dois alvos de toque
+     * numa linha só não encolhem sem virar um alvo pequeno demais, e o rótulo do
+     * Parar em curso ("parando — a coluna em voo termina") é longo de propósito.
+     * Quebrando, os dois botões empilham e nenhum sai da tela. No tamanho normal
+     * eles continuam cabendo numa linha, e nada muda.
+     */
+    linhaDoBotao: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', gap: 8 },
+    // `minWidth: 0` é o par do `flexShrink`: sem ele o botão não desce abaixo do
+    // conteúdo, e é o conteúdo que cresce com o Texto grande.
+    botaoLargo: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
     botaoSuave: {
+      flexShrink: 1,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: spacing.md,
@@ -1414,7 +1491,7 @@ const createStyles = () =>
       borderWidth: 1,
       borderColor: colors.line,
     },
-    botaoSuaveTexto: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+    botaoSuaveTexto: { flexShrink: 1, fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink2, textAlign: 'center' },
     aviso: { marginTop: spacing.sm, fontSize: 11.5, lineHeight: 16, fontFamily: fonts.sans, color: colors.ink3 },
 
     // Os chips de "quem entra": ligado é preenchido, desligado é contorno, indisponível é
@@ -1452,9 +1529,12 @@ const createStyles = () =>
     chipTextoDentro: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.bg },
     chipTextoRegua: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink3 },
 
-    linhaTopo: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-    motor: { fontSize: 13, fontFamily: fonts.monoSemiBold, color: colors.ink },
-    desfecho: { fontSize: 11.5, fontFamily: fonts.mono, color: colors.ink2 },
+    // O nome à esquerda e o desfecho à direita — e a fileira quebra, porque o
+    // desfecho às vezes é uma frase ("medindo — 3 de 22; as medidas abaixo são
+    // parciais") e não cabe ao lado de nada com o Texto grande.
+    linhaTopo: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+    motor: { flexShrink: 1, fontSize: 13, fontFamily: fonts.monoSemiBold, color: colors.ink },
+    desfecho: { flexShrink: 1, fontSize: 11.5, fontFamily: fonts.mono, color: colors.ink2 },
     frase: { fontSize: 15, lineHeight: 21, fontFamily: fonts.serif, color: colors.ink },
     fraseFraca: { fontSize: 14, lineHeight: 20, fontFamily: fonts.serif, color: colors.ink3 },
     motivo: { fontSize: 12, lineHeight: 17, fontFamily: fonts.sans, color: colors.ink2 },
@@ -1462,9 +1542,9 @@ const createStyles = () =>
     cru: { fontSize: 12, lineHeight: 17, fontFamily: fonts.mono, color: colors.ink2 },
     meta: { fontSize: 11, lineHeight: 15.5, fontFamily: fonts.mono, color: colors.ink3 },
     problema: { fontSize: 11.5, lineHeight: 16, fontFamily: fonts.sans, color: colors.ink2 },
-    acoesDoAnel: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+    acoesDoAnel: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.sm },
     // A dobra de uma janela da amostra: recuada, para a lista continuar legível aberta.
     dobra: { marginLeft: spacing.md, marginBottom: spacing.sm, gap: 2 },
-    acao: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: radii.sm, backgroundColor: colors.surfaceMute },
+    acao: { flexShrink: 1, paddingVertical: 6, paddingHorizontal: 10, borderRadius: radii.sm, backgroundColor: colors.surfaceMute },
     acaoTexto: { fontSize: 11.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
   });
