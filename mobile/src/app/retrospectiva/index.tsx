@@ -21,11 +21,13 @@ import {
   resolveRetroPrefs,
   type RetroBlockId,
   type RetroPrefs,
-  layoutEditable,
+  type CadernoId,
   toggleBlock,
-  moveBlock,
+  toggleCaderno,
+  cadernosVisiveis,
+  rotuloDoCaderno,
+  CADERNO_IDS,
   RETRO_BLOCKS,
-  DEATH_DAYS,
   localDateStr as localDayStr,
   YEAR_SERIES,
   MONTH_FULL_PT,
@@ -54,7 +56,7 @@ import { SleepRetroCard } from '../../components/SleepRetroCard';
 import { EdicaoCard } from '../../components/EdicaoCard';
 import { chaveDe, estadoDe, portaDe, useEdicaoStore } from '../../store/edicao.store';
 import { useEntradaDaEdicao } from '../../hooks/useEntradaDaEdicao';
-import { hrefDaRevista } from '../../lib/edicao-ia';
+import { ICONE_DO_CADERNO, hrefDaRevista } from '../../lib/edicao-ia';
 
 const KINDS: PeriodKind[] = ['week', 'month', 'season', 'year', 'all'];
 const KIND_LABEL: Record<PeriodKind, string> = {
@@ -285,6 +287,31 @@ export default function RetrospectivaScreen() {
   const highlights = useMemo(() => allHighlights.slice(0, 6), [allHighlights]);
   const lede = useMemo(() => buildRetroLede(allHighlights), [allHighlights]);
 
+  /**
+   * A diagramação: a ordem e a visibilidade dos blocos desta tela, e **o silêncio
+   * dos cadernos da revista** (Story 2.5).
+   *
+   * Fica acima da porta da edição de propósito: a chamada do cartão é a manchete
+   * da capa, e ela obedece ao silêncio — `portaDe` precisa da lista.
+   */
+  const retroPrefs = useSettingsStore((st) => st.preferences?.retroPrefs);
+  const updatePreferences = useSettingsStore((st) => st.updatePreferences);
+  const [editando, setEditando] = useState(false);
+  const hojeStr = useMemo(() => localDayStr(now), [now]);
+  const prefs = useMemo(() => resolveRetroPrefs(retroPrefs ?? null), [retroPrefs]);
+  const cadernosAbertos = useMemo(() => cadernosVisiveis(prefs), [prefs]);
+
+  /**
+   * Grava a diagramação.
+   *
+   * **Sem carimbo nenhum** desde a 2.5: a prova de gráfica acabou, e com ela o
+   * `proofStartedOn`. Um jsonb antigo que ainda o tenha perde a chave na primeira
+   * gravação — `resolveRetroPrefs` monta o objeto do zero.
+   */
+  const salvarPrefs = useCallback((next: RetroPrefs) => {
+    void updatePreferences({ retroPrefs: next });
+  }, [updatePreferences]);
+
   // A porta da edição (Story 1.11). A edição mora na rota `/revista/[tipo]/[inicio]`;
   // aqui fica só o cartão que leva até ela.
   const carregarEdicao = useEdicaoStore((s) => s.carregar);
@@ -304,8 +331,8 @@ export default function RetrospectivaScreen() {
     [uidEdicao, entradaPacote],
   );
   const portaEdicao = useMemo(
-    () => portaDe(estadoDe(edicoes, chaveEdicao, sessaoHidratando)),
-    [edicoes, chaveEdicao, sessaoHidratando],
+    () => portaDe(estadoDe(edicoes, chaveEdicao, sessaoHidratando), cadernosAbertos),
+    [edicoes, chaveEdicao, sessaoHidratando, cadernosAbertos],
   );
   // Abrir só lê, e ler é de graça. Nada aqui escreve: "Escrever a edição" existe
   // só na rota (decisão 4-a de 16/09).
@@ -387,20 +414,6 @@ export default function RetrospectivaScreen() {
 
   // Ordem e visibilidade vêm das preferências; `visibleBlocks` já filtra o que
   // não faz sentido no período (heatmap fora do ano, séries só no ano).
-  const retroPrefs = useSettingsStore((st) => st.preferences?.retroPrefs);
-  const updatePreferences = useSettingsStore((st) => st.updatePreferences);
-  const [editando, setEditando] = useState(false);
-  const hojeStr = useMemo(() => localDayStr(now), [now]);
-  const prefs = useMemo(() => resolveRetroPrefs(retroPrefs ?? null), [retroPrefs]);
-  const editavel = layoutEditable(prefs, hojeStr);
-
-  /** Grava e carimba o início da prova de gráfica na primeira edição. */
-  const salvarPrefs = useCallback((next: RetroPrefs) => {
-    void updatePreferences({
-      retroPrefs: next.proofStartedOn ? next : { ...next, proofStartedOn: hojeStr },
-    });
-  }, [updatePreferences, hojeStr]);
-
   const blocosVisiveis = useMemo(
     () => visibleBlocks(prefs, kind),
     [prefs, kind],
@@ -745,14 +758,15 @@ export default function RetrospectivaScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>Retrospectiva</Text>
-        {/* A prova de gráfica é reordenável; depois dela a diagramação congela e
-            este botão some — um jornal é igual toda edição (spec v2 §6.1). */}
-        {editavel ? (
-          <Pressable onPress={() => setEditando((v) => !v)} hitSlop={12}
-            style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
-            <Ionicons name={editando ? 'checkmark' : 'options-outline'} size={20} color={colors.ink} />
-          </Pressable>
-        ) : <View style={styles.iconBtn} />}
+        {/* O painel **não congela mais** (Story 2.5): a prova de gráfica acabou, e
+            com ela o botão que sumia em 24/10/2026. O que ele abre agora é uma
+            lista de olhos — o que aparece aqui, e o que a revista escreve. */}
+        <Pressable onPress={() => setEditando((v) => !v)} hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={editando ? 'Fechar a diagramação' : 'Abrir a diagramação'}
+          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+          <Ionicons name={editando ? 'checkmark' : 'options-outline'} size={20} color={colors.ink} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]} showsVerticalScrollIndicator={false}>
@@ -776,34 +790,82 @@ export default function RetrospectivaScreen() {
           </View>
         )}
 
-                {editando && (
+        {/**
+          * O painel Diagramação — **uma lista só de olhos** desde a 2.5.
+          *
+          * Em cima, os blocos desta tela; embaixo, os quatro cadernos da revista.
+          * Dois vocabulários, dois atos, e os rótulos existem para que o dedo não
+          * confunda esconder um gráfico com calar um caderno que a nuvem escreve.
+          *
+          * As setas de reordenar saíram: a `order` que ele arrumou fica e continua
+          * valendo — só deixou de ser editável.
+          */}
+        {editando && (
           <View style={styles.card}>
             <Text style={styles.eyebrow}>Diagramação</Text>
+
+            {/* **Uma legenda por lista, e não uma para as duas.** A de cima fala de
+                esconder seção; a de baixo precisa dizer o efeito que custa dinheiro
+                — a nuvem para de escrever aquele caderno —, e isso não pode viver
+                só num comentário que o dono não lê. O verbo é o mesmo dos rótulos:
+                "silenciar" e "voltar a escrever". */}
+            <Text style={styles.editGrupo}>Seções desta tela</Text>
             <Text style={styles.editNota}>
-              Esconda o que não usa e mova o que usa para cima. Bloco escondido por
-              {' '}{DEATH_DAYS} dias sai do app.
+              Esconda o que não usa. Nada é apagado: mostrar de novo traz tudo de volta.
             </Text>
-            {prefs.order.map((id, i) => {
+            {prefs.order.map((id) => {
               const def = RETRO_BLOCKS.find((b) => b.id === id)!;
               const oculto = !!prefs.hidden[id];
               return (
                 <View key={id} style={styles.editRow}>
                   <Pressable onPress={() => salvarPrefs(toggleBlock(prefs, id, hojeStr))}
-                    disabled={def.fixed} hitSlop={8}>
+                    disabled={def.fixed} hitSlop={8}
+                    // `switch` e não `button`: é um alternador com estado guardado,
+                    // e sem `checked` o VoiceOver anuncia o alvo sem dizer como ele
+                    // está. O rótulo é o nome da seção; o estado é do papel dele.
+                    accessibilityRole="switch"
+                    accessibilityState={{ disabled: def.fixed, checked: !oculto }}
+                    accessibilityLabel={def.fixed ? `${def.label} — sempre visível` : def.label}>
                     <Ionicons
                       name={def.fixed ? 'lock-closed-outline' : oculto ? 'eye-off-outline' : 'eye-outline'}
                       size={18} color={def.fixed ? colors.ink4 : oculto ? colors.ink3 : colors.primary} />
                   </Pressable>
                   <Text style={[styles.editLbl, oculto && styles.editLblOff]}>{def.label}</Text>
-                  <Pressable onPress={() => salvarPrefs(moveBlock(prefs, id, -1))}
-                    disabled={i === 0} hitSlop={8}>
-                    <Ionicons name="chevron-up" size={18} color={i === 0 ? colors.ink4 : colors.ink2} />
+                </View>
+              );
+            })}
+
+            {/* **"Cadernos da revista", e não "Na revista".** Silenciar muda as duas
+                telas: o caderno some da edição E a chamada do cartão aqui em cima
+                passa a ser de outro caderno, porque `portaDe` recebe a mesma lista.
+                O rótulo nomeia o QUE se silencia, não onde o efeito aparece. */}
+            <Text style={styles.editGrupo}>Cadernos da revista</Text>
+            <Text style={styles.editNota}>
+              O caderno silenciado some da edição e a nuvem deixa de escrevê-lo — ele não é
+              mais pedido nem pago. O que já foi escrito fica guardado: voltar a escrever
+              traz o texto de volta.
+            </Text>
+            {CADERNO_IDS.map((id: CadernoId) => {
+              const silenciado = !cadernosAbertos.includes(id);
+              const rotulo = rotuloDoCaderno(id);
+              return (
+                <View key={id} style={styles.editRow}>
+                  <Pressable onPress={() => salvarPrefs(toggleCaderno(prefs, id, hojeStr))} hitSlop={8}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: !silenciado }}
+                    accessibilityLabel={`Escrever ${rotulo}`}>
+                    <Ionicons
+                      name={silenciado ? 'eye-off-outline' : 'eye-outline'}
+                      size={18} color={silenciado ? colors.ink3 : colors.primary} />
                   </Pressable>
-                  <Pressable onPress={() => salvarPrefs(moveBlock(prefs, id, 1))}
-                    disabled={i === prefs.order.length - 1} hitSlop={8}>
-                    <Ionicons name="chevron-down" size={18}
-                      color={i === prefs.order.length - 1 ? colors.ink4 : colors.ink2} />
-                  </Pressable>
+                  {/* Decorativo: o nome vem no texto ao lado, e o glifo solto fora
+                      de um `Pressable` seria um nó a mais para o leitor de tela
+                      percorrer sem nada a dizer. */}
+                  <Ionicons
+                    name={ICONE_DO_CADERNO[id]} size={16}
+                    accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                    color={silenciado ? colors.ink4 : colors.ink3} />
+                  <Text style={[styles.editLbl, silenciado && styles.editLblOff]}>{rotulo}</Text>
                 </View>
               );
             })}
@@ -988,6 +1050,13 @@ const createStyles = () => StyleSheet.create({
   hl: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },
   hlIco: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   editNota: { fontSize: 11.5, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 16, marginBottom: 6 },
+  // O rótulo que separa as duas listas: as seções desta tela e os cadernos da
+  // revista. Sem ele, o olho ao lado de "Sono" parece um só ato — e são dois: um
+  // esconde um gráfico, o outro cala um caderno que a nuvem escreve.
+  editGrupo: {
+    fontSize: 11, fontFamily: fonts.sans, fontWeight: '700', color: colors.ink3,
+    letterSpacing: 0.6, textTransform: 'uppercase', marginTop: spacing.md, marginBottom: 2,
+  },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 7 },
   editLbl: { flex: 1, fontSize: 14, fontFamily: fonts.sans, color: colors.ink },
   editLblOff: { color: colors.ink3, textDecorationLine: 'line-through' },

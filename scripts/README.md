@@ -459,6 +459,15 @@ a carga inteira que chega à função, com a assinatura.
 mês, trimestre e ano, **nunca semana** (semana não grava edição: o postal da Retrospectiva a
 calcula na hora). São 53 períodos e até quatro cadernos cada.
 
+> **A massa NÃO respeita os cadernos silenciados, e isso é decisão declarada** (Story 2.5).
+> O dono pode silenciar um caderno no painel Diagramação do iPhone — Sono, por exemplo — e
+> a partir daí o telefone deixa de pedi-lo à nuvem. **A bancada ignora esse silêncio e
+> imprime os quatro.** Ela é ferramenta de backfill de períodos já fechados, rodada por ele,
+> com o JWT dele, sabendo o que quer; fazê-la ler `user_preferences` seria uma leitura nova
+> na bancada para economizar chamadas numa corrida que acontece uma vez. Quem toca a corrida
+> conta os quatro cadernos por período no orçamento, mesmo tendo silenciado algum no
+> telefone. Mudar isso é **`Ask First`**.
+
 **Nada acontece sem o plano na tela e sem um "sim" explícito.** Sem `--sim-gastar-chamadas`
 ele enumera, cruza com o arquivo, mostra o que faria e **para** — sem chamar modelo nenhum:
 

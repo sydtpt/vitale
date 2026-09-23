@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AGG_VERSION,
   MODULO_DO_CADERNO,
+  cadernosVisiveis,
+  resolveRetroPrefs,
   rotuloDoCaderno,
   type CadernoId,
   type ActivityPhoto,
@@ -29,6 +31,7 @@ import {
   tituloDaCapa,
 } from '../../../lib/edicao-ia';
 import { useAuthStore } from '../../../store/auth.store';
+import { useSettingsStore } from '../../../store/settings.store';
 import {
   AVISO_SEM_CADERNO,
   chaveDe,
@@ -168,7 +171,20 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
    */
   const lapides = useMemo(() => lapidesDaEntrada(entrada), [entrada]);
 
-  const vista = useMemo(() => vistaDaEdicao(estado, comDado, AGG_VERSION), [estado, comDado]);
+  /**
+   * Os cadernos que o dono não silenciou no painel Diagramação (Story 2.5).
+   *
+   * A preferência é resolvida de novo aqui — e não lida crua — porque o cache
+   * local pode ter sido gravado por uma versão anterior do app: `resolveRetroPrefs`
+   * monta o objeto do zero, com as chaves que esta versão conhece.
+   */
+  const retroPrefs = useSettingsStore((s) => s.preferences?.retroPrefs);
+  const visiveis = useMemo(() => cadernosVisiveis(resolveRetroPrefs(retroPrefs ?? null)), [retroPrefs]);
+
+  const vista = useMemo(
+    () => vistaDaEdicao(estado, comDado, AGG_VERSION, visiveis),
+    [estado, comDado, visiveis],
+  );
 
   /**
    * A imagem da capa carimbada (Story 1.13), resolvida **fora** do `switch`:
@@ -265,7 +281,7 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
       );
 
     case 'edicao': {
-      const { capa, cadernos } = vista;
+      const { capa, cadernos, avisoDoSilencio } = vista;
       /**
        * **Quem decide "foto ou papel" é a vista** (`capa.comFoto`), que é onde a
        * matriz a testa. A tela só acrescenta o que a vista não pode saber: se o
@@ -298,6 +314,16 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
             ) : (
               <CapaEmPapel capa={capa} onEscrever={escreverEdicao} {...(onAbrir ? { onAbrir } : {})} />
             )}
+
+            {/* O beco do silêncio (Story 2.5): miolo vazio porque o dono calou os
+                cadernos, e a Diagramação mora na outra tela. Sem esta linha a rota
+                é capa e nada — sem botão, sem aviso, sem caminho de volta. Quem
+                decide se ela aparece é a vista, que tem teste. */}
+            {avisoDoSilencio ? (
+              <View style={styles.aviso}>
+                <Text style={styles.lab}>{avisoDoSilencio}</Text>
+              </View>
+            ) : null}
 
             {/* Capa → sumário → cadernos, nesta ordem: é a forma da revista.
                 Miolo vazio não tem sumário — ali o convite está na capa. */}

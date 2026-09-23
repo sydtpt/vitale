@@ -167,11 +167,19 @@ Isso preserva a **prova de gráfica** que o `retro_prefs` inventou — ela deixa
 congelar por usuário depois de 60 dias e passa a congelar **por edição, na
 impressão**. Mesma ideia, mais forte.
 
-**Sai do código:** `RetroPrefs.order` · `moveBlock` · `layoutEditable` ·
-`proofStartedOn` · `PROOF_DAYS` · `DEATH_DAYS` · `deadBlocks`.
+**Sai do código:** `moveBlock` · `layoutEditable` · `proofStartedOn` · `PROOF_DAYS` ·
+`DEATH_DAYS` · `deadBlocks`.
 **Fica:** `hidden` — esconder é outro poder ("Rotina nunca"), e é a única forma de o
 leitor discordar da revista; o ranqueamento não substitui, porque um caderno
 indesejado lidera justamente no mês em que varia mais.
+
+> **Refinado em 23/09/2026 (Story 2.5).** Este parágrafo listava `RetroPrefs.order`
+> saindo junto. **Ela fica**, congelada e valendo: o que sai é o editor (as setas), não
+> o dado. `order` é a diagramação da *Retrospectiva*, não a ordem do miolo da revista —
+> essa vem da coluna `posicao` —, e o dono tem um arranjo próprio em produção (`sleep`
+> em 3º, `habits` em 5º) que apagá-la devolveria ao catálogo. A forma de discordar da
+> revista ganhou par próprio na mesma story: `cadernosOcultos`, que silencia o caderno
+> **e** o tira da lista de candidatos da impressão, antes da primeira chamada paga.
 **Sem migration:** `resolveRetroPrefs` é defensivo por desenho (chave ausente herda
 default), então a chave `order` passa a ser **ignorada na resolução** e o jsonb em
 produção fica como está.
