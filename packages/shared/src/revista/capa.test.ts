@@ -25,8 +25,9 @@ import assert from 'node:assert/strict';
 import type { Capa } from '../data/edicoes-capa';
 import type { Activity, ActivityPhoto, CityMark } from '../models';
 import {
-  capaTrocada, escolherCapa, fichaDaCapa, FotoRecusadaNaTroca, legendaDaFoto, legendaDaRota,
-  nomeDaAtividadeNaCapa, podeSerCapaNaTroca, secoesDoSeletor, type PeriodoDaCapa,
+  atividadesDoPeriodo, capaTrocada, cidadesDoPeriodo, escolherCapa, fichaDaCapa, FotoRecusadaNaTroca,
+  legendaDaFoto, legendaDaRota, nomeDaAtividadeNaCapa, podeSerCapaNaTroca, rotuloDaEdicao,
+  secoesDoSeletor, type PeriodoDaCapa,
 } from './capa';
 
 const PERIODO: PeriodoDaCapa = {
@@ -709,5 +710,89 @@ describe('nomeDaAtividadeNaCapa — o nome da ficha e do título da seção do s
 
   it('nome da fonte só com espaço — o que o `??` deixa passar — também cai no rótulo', () => {
     assert.equal(nomeDaAtividadeNaCapa(atividade({ activityName: ' \t ' }), 'Ciclismo'), 'Ciclismo');
+  });
+});
+
+/* ── o que entra na escolha (Story 2.3) ──────────────────────────────────── */
+
+/**
+ * As três peças que subiram do celular na Story 2.3. Elas decidem **sobre o que**
+ * a capa é escolhida, e por isso valem tanto quanto a escolha: uma atividade a
+ * mais ou a menos aqui muda a foto que fica carimbada para sempre.
+ *
+ * `agora` é dado em componentes locais — 10 de setembro de 2026, meio-dia —, para
+ * o mês que `periodBounds` resolve não depender do `TZ` de quem roda a suíte.
+ */
+const AGORA_EM_SETEMBRO = new Date(2026, 8, 10, 12, 0, 0);
+/** Agosto de 2026 visto de {@link AGORA_EM_SETEMBRO}. */
+const DE_AGOSTO = { resumo: { kind: 'month' as const, offset: -1 }, agora: AGORA_EM_SETEMBRO };
+
+/** Um instante local, na forma que o PostgREST devolve. */
+const emPonto = (a: number, m: number, d: number, h: number, min = 0): string =>
+  new Date(a, m - 1, d, h, min).toISOString();
+
+describe('atividadesDoPeriodo — a fronteira do período, que a capa congela', () => {
+  it('pega o que começa dentro, e deixa o que começa antes ou depois', () => {
+    const antes = atividade({ id: 'antes', startAt: emPonto(2026, 7, 31, 23, 59) });
+    const dentro = atividade({ id: 'dentro', startAt: emPonto(2026, 8, 14, 9) });
+    const depois = atividade({ id: 'depois', startAt: emPonto(2026, 9, 1, 9) });
+    assert.deepEqual(
+      atividadesDoPeriodo([antes, dentro, depois], DE_AGOSTO).map((a) => a.id),
+      ['dentro'],
+    );
+  });
+
+  it('o primeiro instante do mês entra, e o primeiro do mês SEGUINTE não', () => {
+    // A borda que a 2.3 consertou: `end` é a meia-noite do dia seguinte ao
+    // último, e uma pedalada às 00:00 de 1º de setembro virava a capa de agosto.
+    const primeiro = atividade({ id: 'primeiro', startAt: emPonto(2026, 8, 1, 0, 0) });
+    const daVirada = atividade({ id: 'virada', startAt: emPonto(2026, 9, 1, 0, 0) });
+    const ultimo = atividade({ id: 'ultimo', startAt: emPonto(2026, 8, 31, 23, 59) });
+    assert.deepEqual(
+      atividadesDoPeriodo([primeiro, daVirada, ultimo], DE_AGOSTO).map((a) => a.id),
+      ['primeiro', 'ultimo'],
+    );
+  });
+
+  it('a mesma régua de `periodosFechadosDesde`: o fim do período é exclusivo', () => {
+    // Setembro reclama a atividade que agosto recusou — nenhuma fica sem dono,
+    // e nenhuma fica com dois.
+    const daVirada = atividade({ id: 'virada', startAt: emPonto(2026, 9, 1, 0, 0) });
+    const deSetembro = { resumo: { kind: 'month' as const, offset: 0 }, agora: AGORA_EM_SETEMBRO };
+    assert.deepEqual(atividadesDoPeriodo([daVirada], deSetembro).map((a) => a.id), ['virada']);
+  });
+
+  it('instante que não se lê fica de fora — ele não tem dia onde cair', () => {
+    assert.deepEqual(atividadesDoPeriodo([atividade({ startAt: 'não é data' })], DE_AGOSTO), []);
+  });
+});
+
+describe('cidadesDoPeriodo — o acervo da legenda, sem repetir', () => {
+  it('junta as cidades das rotas e guarda a primeira marca de cada nome', () => {
+    const a = atividade({ id: 'a', cities: [ITTRE, LEUVEN] });
+    const b = atividade({ id: 'b', cities: [{ name: 'Ittre', lat: 1, lng: 2 }] });
+    const r = cidadesDoPeriodo([a, b]);
+    assert.deepEqual(r.map((c) => c.name), ['Ittre', 'Leuven']);
+    assert.equal(r[0]?.lat, ITTRE.lat, 'a segunda marca de Ittre sobrescreveu a primeira');
+  });
+
+  it('atividade sem cidade não contribui, e a lista pode ser vazia', () => {
+    assert.deepEqual(cidadesDoPeriodo([atividade({ cities: undefined })]), []);
+    assert.deepEqual(cidadesDoPeriodo([]), []);
+  });
+});
+
+describe('rotuloDaEdicao — a legenda da natureza `grade`', () => {
+  it('o mês ganha o "de"; os outros ficam com o rótulo da Retrospectiva', () => {
+    assert.equal(rotuloDaEdicao('month', '2026-08-01'), 'Agosto de 2026');
+    assert.equal(rotuloDaEdicao('month', '2026-03-01'), 'Março de 2026');
+    assert.equal(rotuloDaEdicao('year', '2025-01-01'), '2025');
+    assert.equal(rotuloDaEdicao('season', '2026-04-01'), 'Q2 2026');
+    assert.equal(rotuloDaEdicao('week', '2026-09-07'), '07/09 – 13/09');
+  });
+
+  it('o dia é lido no relógio LOCAL — `new Date(inicio)` daria o mês anterior a oeste', () => {
+    // 1º de janeiro é o caso que mais dói: em UTC−3 ele voltaria como 31 de dezembro.
+    assert.equal(rotuloDaEdicao('month', '2026-01-01'), 'Janeiro de 2026');
   });
 });

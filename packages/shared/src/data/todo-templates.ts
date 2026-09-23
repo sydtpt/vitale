@@ -19,6 +19,7 @@ import type {
   TodoSpawnRule,
   TodoTemplate,
 } from '../models';
+import { fetchAllPages } from './paginate';
 import { localDateStr } from '../date/local';
 
 export interface TodoTemplateRow {
@@ -70,18 +71,34 @@ export function toTodoTemplate(r: TodoTemplateRow): TodoTemplate {
   };
 }
 
-/** Todas as séries do usuário, ativas e arquivadas, ordenadas por `sort`. */
+/**
+ * Todas as séries do usuário, ativas e arquivadas, ordenadas por `sort`.
+ *
+ * **Paginada desde a Story 2.3**, junto com a irmã reduzida
+ * ({@link fetchTodoTemplateSummaries}): é a **mesma tabela**, e ela é a que mais
+ * cresce — tarefa avulsa também é série. Deixar as duas leituras da mesma tabela
+ * com formas diferentes é como uma delas volta a cortar em mil linhas sem
+ * ninguém ver.
+ *
+ * `sort` fica como primeiro critério porque é a ordem que as telas de tarefa
+ * esperam; `id` entra como **desempate total**, que é o que `fetchAllPages`
+ * exige — `sort` empata (várias séries com o mesmo número), e dentro de um bloco
+ * empatado a ordem é livre entre uma página e a seguinte.
+ */
 export async function fetchTodoTemplates(
   db: SupabaseClient,
   userId: string,
 ): Promise<TodoTemplate[]> {
-  const { data, error } = await db
-    .from('todo_templates')
-    .select('*')
-    .eq('user_id', userId)
-    .order('sort', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as TodoTemplateRow[]).map(toTodoTemplate);
+  const data = await fetchAllPages<TodoTemplateRow>((lo, hi) =>
+    db
+      .from('todo_templates')
+      .select('*')
+      .eq('user_id', userId)
+      .order('sort', { ascending: true })
+      .order('id', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map(toTodoTemplate);
 }
 
 /** Campos que uma série aceita na criação. `sort` é calculado pelo chamador. */
@@ -200,17 +217,18 @@ export interface TodoTemplateSummary {
   active: boolean;
 }
 
-/** Séries em forma reduzida — para agregados que só rotulam, como a retrospectiva. */
+/**
+ * Séries em forma reduzida — para agregados que só rotulam, como a retrospectiva.
+ *
+ * **Paginado desde a Story 2.3**, e esta é a que cresce mais rápido das três
+ * (ver `fetchHabitSummaries`): **tarefa avulsa também é série**, então a tabela
+ * acumula uma linha por tarefa criada à mão. Ordenado por `id`, a chave primária.
+ */
 export async function fetchTodoTemplateSummaries(
   db: SupabaseClient,
   userId: string,
 ): Promise<TodoTemplateSummary[]> {
-  const { data, error } = await db
-    .from('todo_templates')
-    .select('id,name,module,meta,recurrence,created_at,active')
-    .eq('user_id', userId);
-  if (error) throw error;
-  return ((data ?? []) as Array<{
+  const data = await fetchAllPages<{
     id: string;
     name: string;
     module: TodoModule;
@@ -218,7 +236,15 @@ export async function fetchTodoTemplateSummaries(
     recurrence: TodoRecurrence;
     created_at: string;
     active: boolean;
-  }>).map((r) => ({
+  }>((lo, hi) =>
+    db
+      .from('todo_templates')
+      .select('id,name,module,meta,recurrence,created_at,active')
+      .eq('user_id', userId)
+      .order('id', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map((r) => ({
     id: r.id,
     name: r.name,
     module: r.module,

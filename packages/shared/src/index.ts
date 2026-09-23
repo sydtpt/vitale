@@ -141,6 +141,10 @@ export * from './period/bucket-plan';
 export * from './period/bounds';
 export * from './period/cadernos';
 export * from './period/fechado';
+// A enumeração dos períodos fechados do arquivo (story 2.3): mês, trimestre e
+// ano desde uma data, nunca semana. Pura — é a lista que a impressão em massa
+// percorre.
+export * from './period/periodos';
 export * from './period/retro';
 export * from './period/retro-blocks';
 // O detector de métrica morta (story 2.7): as quatro regras sobre os fatos do

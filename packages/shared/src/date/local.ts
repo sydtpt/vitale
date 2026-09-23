@@ -21,6 +21,26 @@ export function localDateOf(iso: string): string {
 }
 
 /**
+ * A **meia-noite local** de um dia 'YYYY-MM-DD' — o inverso de
+ * {@link localDateStr}.
+ *
+ * Existe porque a forma errada é a curta: `new Date('2026-08-01')` é lido como
+ * meia-noite **UTC** e volta 31/07 em todo fuso a oeste. O `T00:00:00` sem fuso
+ * é o que faz o motor ler no relógio local, e essa distinção é fácil demais de
+ * perder ao copiar uma linha.
+ *
+ * Mora aqui, e não em quem a usa: a revista (rótulo da edição, título da capa),
+ * a rota e o `isValidDate` abaixo fazem a mesma conversão, e três cópias
+ * divergem no dia em que uma delas ganhar uma guarda.
+ *
+ * Devolve `Invalid Date` para o que não é um dia — quem precisa recusar usa
+ * {@link isValidDate} antes.
+ */
+export function localDateAt(dia: string): Date {
+  return new Date(`${dia}T00:00:00`);
+}
+
+/**
  * Valida 'YYYY-MM-DD' — calendário real, não só formato: `2026-02-30` e
  * `2026-13-01` têm a forma e não são dias.
  *
@@ -31,6 +51,6 @@ export function localDateOf(iso: string): string {
  */
 export function isValidDate(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T00:00:00`);
+  const d = localDateAt(s);
   return !Number.isNaN(d.getTime()) && localDateStr(d) === s;
 }
