@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useKeepAwake } from 'expo-keep-awake';
 import {
   APARELHO_SISTEMA,
   LIMITE_DA_AMOSTRA,
+  RECURSOS,
   REGRA_DA_AMOSTRA,
   REGRA_DA_JANELA_MEDIDA,
   SEM_MODELO,
@@ -83,6 +84,7 @@ import {
   type ContextoDasAmostras,
   type Linha,
 } from '../../../lib/motores/amostras';
+import { foraPorPadrao } from '../../../lib/motores/folha-regras';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../../theme';
 
 /**
@@ -178,7 +180,18 @@ export default function BancadaScreen() {
 
   // **Qual leitura está na bancada.** O catálogo é o das fontes de amostra, que é
   // fechado sobre os recursos do núcleo: leitura nova aparece aqui sozinha.
-  const [recurso, setRecurso] = useState<RecursoId>(RECURSO_INICIAL);
+  //
+  // O atalho do pé da folha de escolha (fatia 3) chega com a leitura no parâmetro, para o
+  // dono não ter de reencontrá-la aqui. Um valor que **não é** um recurso conhecido cai no
+  // inicial em silêncio: o parâmetro vem da URL, e um estado restaurado pelo Expo Router
+  // (ou um link de rascunho) pode trazer qualquer coisa — e travar a tela por isso seria
+  // pior do que abrir na leitura de sempre.
+  const { recurso: recursoDoAtalho } = useLocalSearchParams<{ recurso?: string }>();
+  const [recurso, setRecurso] = useState<RecursoId>(() =>
+    (RECURSOS as readonly string[]).includes(recursoDoAtalho ?? '')
+      ? (recursoDoAtalho as RecursoId)
+      : RECURSO_INICIAL,
+  );
   const fonte = useMemo(() => fonteDe(recurso), [recurso]);
 
   const [range, setRange] = useState<SonoRange>('7d');
@@ -203,9 +216,10 @@ export default function BancadaScreen() {
   // aparece depois (uma variante que o servidor aprovou no meio da sessão) tem de nascer
   // ligado. Os pesos abertos nascem fora: cada um sobe mais de 1 GB e é o mais lento.
   // O `ref` acompanha o estado porque o laço captura o valor no início e roda por minutos.
-  const [foraDaCorrida, setForaDaCorrida] = useState<ReadonlySet<string>>(
-    () => new Set(PESOS_ABERTOS.map((p) => p.id)),
-  );
+  // Uma definição só de "quem nasce fora" (`foraPorPadrao`), dividida com o atalho da folha
+  // de escolha: duas fariam o número do rótulo de lá prometer uma composição que esta tela
+  // não monta.
+  const [foraDaCorrida, setForaDaCorrida] = useState<ReadonlySet<string>>(foraPorPadrao);
   const foraRef = useRef(foraDaCorrida);
   foraRef.current = foraDaCorrida;
   // A lista do servidor, para os chips existirem antes de a corrida começar.

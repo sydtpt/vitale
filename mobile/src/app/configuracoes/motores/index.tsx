@@ -1,10 +1,17 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CATALOGO_DE_RECURSOS, resolverCadeia, type MotorId, type RecursoId } from '@vitale/shared';
+import {
+  CATALOGO_DE_RECURSOS,
+  resolverCadeia,
+  type Descritor,
+  type MotorId,
+  type RecursoId,
+} from '@vitale/shared';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { FolhaDeEscolha } from '../../../components/motores/FolhaDeEscolha';
 import {
   estadoDaCompilacaoDosPesos,
   estadoDosPesosAbertos,
@@ -15,19 +22,23 @@ import {
 } from '../../../lib/motores';
 import {
   COMPILACAO_AUSENTE,
+  HOSPEDAGEM,
   PESOS_ABERTOS,
   compilacaoDoModelo,
   listaAprovada,
+  motorConhecido,
   motoresDoRecurso,
-  motivoDeBloqueio,
   type CompilacaoDoModelo,
   type EstadoDaCompilacao,
   type EstadoDaPonte,
   type ListaAprovada,
-  type MotorConhecido,
   type PesoAberto,
-  type RecursoDoSeletor,
 } from '../../../lib/motores/catalogo';
+import {
+  AVISO_DE_GRAVACAO_FALHA,
+  PRECO_DE_COMPILAR,
+  estadoDaCompilacaoEmPalavras,
+} from '../../../lib/motores/folha-regras';
 import {
   gravarPreferencia,
   lerPreferencias,
@@ -38,27 +49,33 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../.
 /**
  * /configuracoes/motores — quem escreve cada leitura, neste aparelho.
  *
+ * **Três blocos, e o modelo vem antes da leitura.** A ordem contrária seria a mais
+ * óbvia — primeiro o que o app faz, depois com o quê —, mas a pergunta que traz o
+ * dono a esta tela é "o que eu tenho instalado e quanto está custando", não "quem
+ * escreve a Retrospectiva". O inventário é o assunto; a atribuição é a consequência.
+ *
+ * **Uma linha por leitura, não um bloco por leitura** (fatia 3). A tela repetia
+ * todos os motores dentro de cada recurso: 3 recursos × 5 motores eram 15 cartões
+ * empilhados, e as duas listas vão crescer. Agora a linha mostra **quem escreve** e
+ * o catálogo inteiro vive na {@link FolhaDeEscolha}, que abre ao toque. O produto
+ * virou soma.
+ *
  * **Os recursos vêm do catálogo do núcleo** (`CATALOGO_DE_RECURSOS`), nunca de uma
  * lista escrita aqui: um recurso novo no núcleo aparece nesta tela sem ninguém
  * lembrar de acrescentá-lo. Só o nome em português é local — e num
  * `Record<RecursoId, …>` fechado, para que um recurso sem nome **não compile** em
  * vez de aparecer na tela como `saude-do-sono`.
  *
- * **Os motores vêm do catálogo do app**, e o que não dá aparece: apagado, não
- * selecionável, com o motivo escrito. O `aparelho:sistema` segue o **diagnóstico
- * da ponte** (story 5.9) — relido ao focar a tela e quando o app volta ao primeiro
- * plano, enquanto não disser "disponível": disponível com a variante e a
- * janela numa linha simples (`AFM 3 Core Advanced · janela de 8.192 tokens` — é a
- * resposta a "que modelo eu tenho"), ou apagado com o motivo em palavras (Apple
- * Intelligence desligada, modelo não pronto, aparelho não elegível, ponte ausente
- * neste build). Esconder o aparelho faria a tela mentir por omissão.
+ * **O valor à direita é quem escreveria agora**, resolvido por `resolverCadeia`, e
+ * não o que foi tocado por último: se o dono escolheu a nuvem e o regime do recurso
+ * a recusa, a linha mostra o recuo, porque é isso que vai acontecer.
  *
- * **E um controle inerte é a mentira espelhada.** Oferecer escolha para um recurso
- * que não lê a preferência gravaria algo que ninguém consulta — o dono trocaria o
- * motor e nada mudaria. O recurso nesse estado aparece mesmo assim, com o motivo,
- * no mesmo idioma do motor indisponível. Quem diz quais recursos esta camada
- * hospeda é a própria camada (`HOSPEDAGEM`), não esta tela — e desde a 5.7 os três
- * estão ligados: a Saúde do sono (5.5), a Retrospectiva (1.10) e o nome de rota.
+ * **E a volta atrás de uma gravação que falhou é vista.** `preferencia.ts` rejeita
+ * de propósito quando o armazenamento falha, e a tela já voltava ao valor anterior —
+ * calada. Do ponto de vista do dono a escolha simplesmente não pegava: a folha já
+ * tinha fechado, e a linha mudava de valor sozinha atrás dele. Agora a linha diz por
+ * quê, no lugar do valor e até o toque seguinte. Não é alerta e não é modal — a
+ * folha já se foi, e um alerta perguntaria algo a quem não pediu nada.
  *
  * **A escolha é deste aparelho** (AD-8): vai para o AsyncStorage, não para
  * `user_preferences`. O que está disponível é propriedade do aparelho, e
@@ -79,6 +96,13 @@ export default function MotoresScreen() {
   const router = useRouter();
 
   const [preferencias, setPreferencias] = useState<PreferenciaDeMotores>({});
+  /**
+   * As leituras cuja gravação falhou — o que a linha diz no lugar do motor, até o
+   * toque seguinte. Um conjunto, e não um booleano: duas leituras tocadas em
+   * sequência com o armazenamento quebrado falham as duas, e a segunda não pode
+   * apagar o aviso da primeira.
+   */
+  const [falhouAoGravar, setFalhouAoGravar] = useState<ReadonlySet<string>>(() => new Set());
   // A lista do servidor (ADR 0048). Buscada ao abrir a tela, e **nunca** um
   // obstáculo: enquanto ela não volta (ou se não voltar), a tela mostra o que o
   // app conhece por conta própria, que já inclui `nuvem:padrao`. É o seletor, não
@@ -102,6 +126,9 @@ export default function MotoresScreen() {
   const [compilacao, setCompilacao] = useState<Readonly<Record<string, EstadoDaCompilacao>>>(() =>
     estadoDaCompilacaoDosPesos(),
   );
+  /** Qual leitura está com a folha aberta. `null` é a folha fechada. */
+  const [folhaAberta, setFolhaAberta] = useState<RecursoId | null>(null);
+
   useFocusEffect(
     useCallback(() => {
       let vivo = true;
@@ -171,6 +198,13 @@ export default function MotoresScreen() {
       anterior = p[recurso];
       return { ...p, [recurso]: motor };
     });
+    // Um toque novo limpa o aviso do toque anterior: ele fala desta tentativa.
+    setFalhouAoGravar((f) => {
+      if (!f.has(recurso)) return f;
+      const proximo = new Set(f);
+      proximo.delete(recurso);
+      return proximo;
+    });
     void gravarPreferencia(recurso, motor).catch(() => {
       setPreferencias((p) => {
         const volta = { ...p };
@@ -178,8 +212,38 @@ export default function MotoresScreen() {
         else volta[recurso] = anterior;
         return volta;
       });
+      // E a volta atrás passa a ser **vista**: sem isto ela é silenciosa, a folha já
+      // fechou, e a linha muda de valor sozinha atrás do dono.
+      setFalhouAoGravar((f) => new Set(f).add(recurso));
     });
   }, []);
+
+  /** O descritor da folha aberta — e a fonte do `grava` e do `regimeMaximo` dela. */
+  const descritorDaFolha = useMemo(
+    () => CATALOGO_DE_RECURSOS.find((d) => d.recurso === folhaAberta) ?? null,
+    [folhaAberta],
+  );
+  const motoresDaFolha = useMemo(
+    () =>
+      descritorDaFolha === null
+        ? []
+        : motoresDoRecurso(descritorDaFolha.recurso, { sistema: ponte, coreai }, lista),
+    [descritorDaFolha, ponte, coreai, lista],
+  );
+
+  /**
+   * O atalho do pé da folha, e a razão de ele fechar a folha **antes** de navegar: o
+   * iOS não empilha três camadas, e empurrar a rota com a folha de pé deixaria a tela
+   * nova atrás dela. É o achado pago na frente de fotos, e vale igual aqui.
+   */
+  const compararDaFolha = useCallback(() => {
+    const recurso = folhaAberta;
+    if (recurso === null) return;
+    setFolhaAberta(null);
+    requestAnimationFrame(() => {
+      router.push({ pathname: '/configuracoes/motores/bancada', params: { recurso } });
+    });
+  }, [folhaAberta, router]);
 
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
@@ -188,8 +252,7 @@ export default function MotoresScreen() {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <Text style={s.hint}>
           Quem escreve cada leitura, neste aparelho. A escolha não sincroniza: o que está
-          disponível depende do aparelho. Sem modelo é o template escrito no código — instantâneo,
-          sempre igual, e nada sai daqui.
+          disponível depende do aparelho.
         </Text>
 
         <View style={s.section}>
@@ -203,38 +266,31 @@ export default function MotoresScreen() {
                 key={p.id}
                 peso={p}
                 estado={compilacaoDoModelo(compilacao[p.pesos] ?? COMPILACAO_AUSENTE)}
+                onAbrir={() => router.push(`/configuracoes/motores/modelo/${p.pesos}`)}
                 s={s}
               />
             ))
           )}
         </View>
 
-        {CATALOGO_DE_RECURSOS.map((d) => {
-          const recurso: RecursoDoSeletor = d;
-          const escolhido = preferencias[recurso.recurso] ?? null;
-          // O catálogo é **por recurso** desde a 5.6: a lista do servidor aprova um
-          // motor de nuvem para recursos nomeados, não para todos.
-          const conhecidos = motoresDoRecurso(recurso.recurso, { sistema: ponte, coreai: coreai }, lista);
-          // Quem de fato escreveria agora: a cadeia resolvida decide, não a tela.
-          // Sem preferência, é o padrão do recurso; com uma que o regime recusa, é o
-          // recuo — e a tela mostra o que o orquestrador faria, não o que foi tocado.
-          const efetivo = resolverCadeia(d, escolhido, conhecidos.map((m) => m.id))[0];
-          return (
-            <View key={recurso.recurso} style={s.section}>
-              <Text style={s.sectionTitle}>{NOME_DO_RECURSO[recurso.recurso]}</Text>
-              {conhecidos.map((m) => (
-                <LinhaDoMotor
-                  key={m.id}
-                  motor={m}
-                  selecionado={m.id === efetivo}
-                  motivo={motivoDeBloqueio(recurso, m.id, conhecidos)}
-                  onPress={() => escolher(recurso.recurso, m.id)}
-                  s={s}
-                />
-              ))}
-            </View>
-          );
-        })}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Quem escreve o quê</Text>
+          {CATALOGO_DE_RECURSOS.map((d) => (
+            <LinhaDaLeitura
+              key={d.recurso}
+              descritor={d}
+              escolhido={preferencias[d.recurso] ?? null}
+              conhecidos={motoresDoRecurso(d.recurso, { sistema: ponte, coreai }, lista)}
+              falhou={falhouAoGravar.has(d.recurso)}
+              onAbrir={() => setFolhaAberta(d.recurso)}
+              s={s}
+            />
+          ))}
+          <Text style={s.hint}>
+            Cada leitura começa onde o código manda — o sono, no template; as outras, na nuvem —
+            até você escolher.
+          </Text>
+        </View>
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>Desenvolvimento</Text>
@@ -259,6 +315,23 @@ export default function MotoresScreen() {
           nenhum. Por isso ela pode ler um período em curso.
         </Text>
       </ScrollView>
+
+      <FolhaDeEscolha
+        recurso={descritorDaFolha}
+        nomeDaLeitura={folhaAberta === null ? '' : NOME_DO_RECURSO[folhaAberta]}
+        motores={motoresDaFolha}
+        escolhido={folhaAberta === null ? null : preferencias[folhaAberta] ?? null}
+        compilacao={compilacao}
+        onEscolher={(motor) => {
+          if (folhaAberta === null) return;
+          // Escolher fecha a folha na hora, e a linha da raiz já mostra o novo valor:
+          // a gravação é otimista e volta atrás — com aviso — se falhar.
+          escolher(folhaAberta, motor);
+          setFolhaAberta(null);
+        }}
+        onFechar={() => setFolhaAberta(null)}
+        onComparar={compararDaFolha}
+      />
     </View>
   );
 }
@@ -279,87 +352,108 @@ type Styles = ReturnType<typeof createStyles>;
  * que recompilasse o já compilado cobraria minutos por um toque que não mudaria nada. E uma
  * linha em "não dá para saber" também não — oferecer o ato para um modelo que este build nem
  * traz é a confusão exata entre "não" e "não sei" que o estado de três valores evita.
+ *
+ * **A linha inteira abre a ficha** (fatia 3): é lá que moram o que ele ocupa, o carimbo da
+ * compilação, a janela e onde ele escreve hoje.
  */
-/** O preço do ato, dito antes dele — e a única coisa honesta a dizer enquanto a tela não existe. */
-const PRECO_DE_COMPILAR =
-  'A primeira leitura deste modelo compila para o chip, e leva minutos. A tela que faz isso ainda não existe.';
-
-function LinhaDoModelo({ peso, estado, s }: { peso: PesoAberto; estado: CompilacaoDoModelo; s: Styles }) {
-  const dizer =
-    estado.tipo === 'compilado'
-      ? 'compilado'
-      : estado.tipo === 'nao-compilado'
-        ? 'instalado, não compilado'
-        : estado.motivo;
+function LinhaDoModelo({
+  peso,
+  estado,
+  onAbrir,
+  s,
+}: {
+  peso: PesoAberto;
+  estado: CompilacaoDoModelo;
+  onAbrir: () => void;
+  s: Styles;
+}) {
+  const dizer = estadoDaCompilacaoEmPalavras(estado, peso);
   // O rótulo acessível carrega **tudo o que está à vista**, porque o agrupamento cala o
   // resto: sem ele, quem usa VoiceOver ouviria "não compilado" e perderia o preço.
   const rotuloAcessivel =
     estado.tipo === 'nao-compilado' ? `${peso.rotulo} — ${dizer}. ${PRECO_DE_COMPILAR}` : `${peso.rotulo} — ${dizer}`;
   return (
-    <View style={s.card} accessible accessibilityLabel={rotuloAcessivel}>
+    <Pressable
+      onPress={onAbrir}
+      accessibilityRole="button"
+      accessibilityLabel={rotuloAcessivel}
+      style={({ pressed }) => [s.card, pressed && s.pressed]}
+    >
       <View style={s.meta}>
         <Text style={s.name}>{peso.rotulo}</Text>
         <Text style={[s.motivo, estado.tipo === 'compilado' && s.compilado]}>{dizer}</Text>
         {estado.tipo === 'nao-compilado' ? <Text style={s.motivo}>{PRECO_DE_COMPILAR}</Text> : null}
       </View>
       {/* Tracejada e abafada de propósito: o tracejado diz "isto não é um controle" sem gastar
-          uma palavra, e ela não é mesmo — a tela de compilar é a fatia seguinte. Um botão com
+          uma palavra, e ela não é mesmo — a tela de compilar é a fatia 2. Um botão com
           cara de botão que não faz nada mente tanto quanto uma omissão. */}
       {estado.tipo === 'nao-compilado' ? (
         <View style={s.pilula}>
           <Text style={s.pilulaTexto}>Compilar</Text>
         </View>
-      ) : null}
-    </View>
+      ) : (
+        <Ionicons name="chevron-forward" size={15} color={colors.ink3} style={s.chevron} />
+      )}
+    </Pressable>
   );
 }
 
-function LinhaDoMotor({
-  motor,
-  selecionado,
-  motivo,
-  onPress,
+/**
+ * Uma leitura, e **quem escreveria nela agora**.
+ *
+ * O valor à direita sai de `resolverCadeia`, não da preferência: a tela mostra o que o
+ * orquestrador faria. Um recurso que esta camada não hospeda aparece **com o motivo e sem
+ * chevron** — hoje os três estão ligados e o caso não ocorre; o ramo existe para o quarto
+ * recurso não nascer mudo.
+ */
+function LinhaDaLeitura({
+  descritor,
+  escolhido,
+  conhecidos,
+  falhou,
+  onAbrir,
   s,
 }: {
-  motor: MotorConhecido;
-  selecionado: boolean;
-  /** Por que não dá, em palavras — ou `null`, se dá. */
-  motivo: string | null;
-  onPress: () => void;
+  descritor: Descritor<unknown, unknown>;
+  escolhido: MotorId | null;
+  conhecidos: ReturnType<typeof motoresDoRecurso>;
+  /** A última gravação desta leitura falhou, e a linha voltou ao valor anterior. */
+  falhou: boolean;
+  onAbrir: () => void;
   s: Styles;
 }) {
-  const bloqueado = motivo !== null;
-  // "Consultando" não é "indisponível": o leitor de tela o anuncia ocupado, com o
-  // próprio rótulo, e não como um motor que não existe.
-  const consultando = motor.consultando === true;
-  // O detalhe (variante · janela) só quando a linha está livre: bloqueado pelo
-  // recurso (a Retrospectiva), ele empilharia com o motivo, e a pergunta ali não é
-  // "qual modelo" — é "por que não".
-  const detalhe = bloqueado ? undefined : motor.detalhe;
-  const rotuloAcessivel = consultando
-    ? `${motor.rotulo} — consultando o aparelho`
-    : `${motor.rotulo}${detalhe !== undefined ? ` — ${detalhe}` : ''}${bloqueado ? ` — indisponível: ${motivo}` : ''}`;
+  const hospedagem = HOSPEDAGEM[descritor.recurso];
+  const efetivo = resolverCadeia(descritor, escolhido, conhecidos.map((m) => m.id))[0];
+  const nomeDoEfetivo = motorConhecido(efetivo, conhecidos)?.rotulo ?? efetivo ?? '—';
+  const valor = falhou ? AVISO_DE_GRAVACAO_FALHA : nomeDoEfetivo;
+  const nome = NOME_DO_RECURSO[descritor.recurso];
+  const rotuloAcessivel = hospedagem.hospedado
+    ? `${nome} — escreve ${valor}`
+    : `${nome} — indisponível: ${hospedagem.motivo ?? 'ainda não usado nesta versão'}`;
   return (
     <Pressable
-      onPress={bloqueado ? undefined : onPress}
-      disabled={bloqueado}
+      onPress={hospedagem.hospedado ? onAbrir : undefined}
+      disabled={!hospedagem.hospedado}
       accessibilityRole="button"
-      accessibilityState={{ selected: selecionado, disabled: bloqueado, busy: consultando }}
+      accessibilityState={{ disabled: !hospedagem.hospedado }}
       accessibilityLabel={rotuloAcessivel}
-      style={({ pressed }) => [s.card, selecionado && s.cardSelected, pressed && s.pressed]}
+      style={({ pressed }) => [s.card, pressed && s.pressed]}
     >
       <View style={s.meta}>
-        <Text style={[s.name, bloqueado && s.faded]}>{motor.rotulo}</Text>
-        <Text style={[s.sub, bloqueado && s.faded]}>{motor.descricao}</Text>
-        {/* Qual modelo é, quando há o que dizer — no estilo da linha do motivo. */}
-        {detalhe !== undefined ? <Text style={s.motivo}>{detalhe}</Text> : null}
-        {motivo !== null ? <Text style={s.motivo}>{motivo}</Text> : null}
+        <Text style={s.name}>{nome}</Text>
+        {!hospedagem.hospedado ? (
+          <Text style={s.motivo}>{hospedagem.motivo ?? 'ainda não usado nesta versão'}</Text>
+        ) : null}
       </View>
-      <View style={[s.check, selecionado && s.checkOn]}>
-        {/* `onPrimary`, não um branco cravado: a marca `tinta` fica quase branca
-            no escuro, e aí o branco ficaria branco sobre branco. */}
-        {selecionado && <Ionicons name="checkmark" size={15} color={colors.onPrimary} />}
-      </View>
+      {hospedagem.hospedado ? (
+        <>
+          {/* O aviso ocupa o lugar do valor: é ele que responde "quem escreve" agora —
+              e a resposta honesta é que a escolha não pegou. `ink2`, não `ink3`: o que
+              muda a decisão do dono é texto e cobra 4,5. */}
+          <Text style={[s.valor, falhou && s.valorFalhou]}>{valor}</Text>
+          <Ionicons name="chevron-forward" size={15} color={colors.ink3} style={s.chevron} />
+        </>
+      ) : null}
     </Pressable>
   );
 }
@@ -377,6 +471,8 @@ const createStyles = () =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
+      // Mínimo, nunca altura: em Texto grande a linha cresce em vez de cortar o estado.
+      minHeight: 44,
       backgroundColor: colors.surface,
       borderRadius: radii.lg,
       borderWidth: 2,
@@ -384,16 +480,29 @@ const createStyles = () =>
       padding: 14,
       ...shadows.card,
     },
-    cardSelected: { borderColor: colors.primary },
-    meta: { flex: 1, gap: 2 },
+    // `flexShrink` com `minWidth: 0` nos dois lados da linha: uma fileira que não encolhe
+    // empurra os irmãos para fora da tela — a lição da fatia 4.
+    meta: { flex: 1, flexShrink: 1, minWidth: 0, gap: 2 },
     name: { fontSize: 15, fontFamily: fonts.sansSemiBold, color: colors.ink },
     sub: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 17 },
-    faded: { color: colors.ink4 },
     motivo: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, lineHeight: 17, marginTop: 3 },
+    valor: {
+      flexShrink: 1,
+      minWidth: 0,
+      textAlign: 'right',
+      fontSize: 12.5,
+      lineHeight: 17,
+      fontFamily: fonts.sans,
+      color: colors.ink3,
+    },
+    valorFalhou: { color: colors.ink2 },
+    chevron: { flexShrink: 0 },
     // Papel `green` como **texto** (`greenText`), não como traço: o `green` do Orbe claro mede
     // 2,81 sobre a superfície e não paga os 4,5 de letra.
     compilado: { color: colors.greenText },
     pilula: {
+      flexShrink: 1,
+      minWidth: 0,
       paddingHorizontal: 12,
       paddingVertical: 7,
       borderRadius: radii.pill,
@@ -403,14 +512,4 @@ const createStyles = () =>
       borderColor: colors.line,
     },
     pilulaTexto: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink3 },
-    check: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      borderWidth: 1.5,
-      borderColor: colors.line,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    checkOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   });

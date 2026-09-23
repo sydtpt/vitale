@@ -110,8 +110,31 @@ export interface PesoAberto {
   /** A pasta dos pesos, e o argumento da ponte. */
   readonly pesos: string;
   readonly nome: string;
+  /**
+   * O nome próprio do modelo — `Qwen3 1.7B`, e não `Peso aberto (Qwen3 1.7B)`.
+   *
+   * O prefixo era necessário enquanto o modelo não tinha página: ele era a única coisa
+   * que dizia o que aquela linha era. Com a ficha (`modelo/[id]`), "peso aberto" virou um
+   * selo de identidade lá dentro, e repeti-lo em cada linha de cada folha é ruído — a
+   * folha já agrupa por **onde roda**, que é a mesma informação dita uma vez por grupo.
+   */
   readonly rotulo: string;
   readonly descricao: string;
+  /**
+   * O que ele ocupa no telefone, em GB — **medido à mão em 22/09**, no iPhone 17 Pro, e
+   * por isso opcional: um modelo novo entra em {@link PESOS_ABERTOS} sem número, e a ficha
+   * diz *tamanho não medido* em vez de somar o que ninguém mediu.
+   *
+   * São dois números porque o modelo ocupa o aparelho **duas vezes**: o arquivo que veio
+   * no binário, e a especialização para o chip que a compilação produz. Só o segundo se
+   * apaga — o primeiro sai junto com o app.
+   */
+  readonly tamanho?: {
+    /** O arquivo instalado (veio dentro do app). */
+    readonly instaladoGB: number;
+    /** O que a compilação para o chip acrescenta. */
+    readonly compiladoGB?: number;
+  };
 }
 
 /**
@@ -127,15 +150,17 @@ export const PESOS_ABERTOS: readonly PesoAberto[] = Object.freeze([
     id: 'aparelho:coreai/qwen3-1.7b' satisfies MotorId,
     pesos: 'qwen3-1.7b',
     nome: 'o Qwen3 1.7B no aparelho',
-    rotulo: 'Peso aberto (Qwen3 1.7B)',
+    rotulo: 'Qwen3 1.7B',
     descricao: 'Modelo aberto dentro do app, pelo Core AI, com o raciocínio longo desligado. Nada sai do aparelho.',
+    tamanho: { instaladoGB: 1.3, compiladoGB: 1.34 },
   }),
   Object.freeze({
     id: 'aparelho:coreai/tucano2-1.5b' satisfies MotorId,
     pesos: 'tucano2-1.5b',
     nome: 'o Tucano2 1.5B no aparelho',
-    rotulo: 'Peso aberto (Tucano2 1.5B)',
+    rotulo: 'Tucano2 1.5B',
     descricao: 'Modelo aberto treinado a mais em português, dentro do app. Nada sai do aparelho.',
+    tamanho: { instaladoGB: 1.1, compiladoGB: 1.14 },
   }),
 ]);
 
@@ -148,6 +173,24 @@ export function pesoAbertoDe(id: MotorId | string | null | undefined): PesoAbert
 /** Este id é de peso aberto? */
 export function ehPesoAberto(id: MotorId | string | null | undefined): boolean {
   return pesoAbertoDe(id) !== undefined;
+}
+
+/**
+ * O peso aberto por **nome de pasta**, ou `undefined` — o que a ficha `modelo/[id]`
+ * recebe da rota.
+ *
+ * O `MotorId` não serve de parâmetro de rota: ele carrega `:` e `/`, que o caminho da URL
+ * come. A pasta é o nome próprio do modelo neste build (`qwen3-1.7b`) e o invariante logo
+ * abaixo garante que ela e o id dizem a mesma coisa — então resolver por ela é resolver
+ * pelo id, sem escapar nada.
+ *
+ * `undefined` é o caso **normal**, não o exótico: o dono chega por um estado restaurado
+ * pelo Expo Router depois de o iOS encerrar o app, ou por um build antigo que embarcava um
+ * peso que o novo não embarca.
+ */
+export function pesoAbertoDaPasta(pasta: string | null | undefined): PesoAberto | undefined {
+  if (pasta === null || pasta === undefined) return undefined;
+  return PESOS_ABERTOS.find((p) => p.pesos === pasta);
 }
 
 /**
@@ -450,7 +493,7 @@ export function compilacaoDoModelo(estado: EstadoDaCompilacao): CompilacaoDoMode
 }
 
 /** 8192 → "8.192": o separador de milhar da tela, sem depender do `Intl` do motor JS. */
-function milhar(n: number): string {
+export function milhar(n: number): string {
   return String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
