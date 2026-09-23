@@ -586,6 +586,7 @@ describe('o caderno vazio com a forma que os hospedeiros mandam — linhas prese
     { metric: 'fcRepouso', label: 'FC repouso', higherIsWorse: true, icon: 'heart' as never, decimals: 0, unit: ' bpm' },
   ];
   const agostoInteiro = Array.from({ length: 31 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`);
+  const setembroInteiro = Array.from({ length: 30 }, (_, i) => `2026-09-${String(i + 1).padStart(2, '0')}`);
   // Setembro/2026 sem uma medida; agosto com todas — o relógio parou na virada.
   const resumo = buildRetrospective({
     now: new Date('2026-10-06T12:00:00'),
@@ -593,6 +594,13 @@ describe('o caderno vazio com a forma que os hospedeiros mandam — linhas prese
     offset: -1,
     activities: [],
     health: HEALTH_SPECS_DO_CELULAR.map((h) => ({ ...h, valuesByDay: new Map(agostoInteiro.map((d) => [d, 50])) })),
+    // Os outros dois cadernos têm de continuar existindo, senão `ordem` sai vazia
+    // e o `includes` de Coração e Sono passa por tabela rasa. Desde a Story 2.6 o
+    // que os mantém é MEDIDA, não zero: os passos são medição passiva (dia com
+    // valor), e a série de tarefa nasceu muito antes — "0 tarefas em setembro" é
+    // zero de verdade, e continua citável.
+    stepsByDay: new Map(setembroInteiro.map((d) => [d, 8000])),
+    taskSeries: [{ createdOn: '2025-01-10', module: 'casa' }],
     habits: [], registros: [], tasks: [], purchases: [],
   });
   const ps = montarPacotes({ resumo, agora: AGORA });

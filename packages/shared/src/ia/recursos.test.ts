@@ -261,8 +261,12 @@ type Golden =
 const GOLDENS: Readonly<Partial<Record<RecursoId, Golden>>> = {
   retrospectiva: {
     fatos: CADERNO_FIXO,
-    versao: 5003,
-    hash: 'ea7d1812ac5a16da508e99c232cf7744ea73226ed1b26db51a46a872f4c31534',
+    // 5004: `PACOTE_VERSAO` foi a 4 na Story 2.6 (ausência de registro deixou de
+    // virar zero). O **texto** do pedido não mudou — o caderno fixo é montado à
+    // mão, sem marcos, e um pacote sem marcos se comporta como na versão 3. O que
+    // mudou foi a versão que entra no hash, e é isso que este golden registra.
+    versao: 5004,
+    hash: 'eab8d2c6c8038d248bbbd28c783a660fbbb3ac9f8471b65c407c97a6d552d8c2',
   },
   'saude-do-sono': {
     variantes: VARIANTES_DA_SAUDE,

@@ -6,6 +6,10 @@ import { fetchDadosDaRetro } from '../data/retro-dados';
 import { localDateStr } from '../date/local';
 import { imprimir, type ResultadoDaImpressao } from '../ia/imprimir';
 import { resolverCadeia } from '../ia/motor';
+import { montarPacote } from '../ia/pacote';
+import { montarPrompt } from '../ia/prompt';
+import { sha256Hex } from '../ia/sha256';
+import { CADERNO_IDS } from './cadernos';
 import { descritorDaRetrospectiva } from '../ia/retrospectiva';
 import type { Activity, TodoOccurrence } from '../models';
 import { isDailyRecurrence } from '../todo/logic';
@@ -26,6 +30,7 @@ import {
   INICIO,
   JANELA,
   JANELA_LARGA,
+  NASCEU_DEPOIS_DE_MAIO,
   OFFSET,
   TIPO,
   USUARIO,
@@ -135,6 +140,11 @@ function inputDaStoreAntiga(
     registros: s.registros.map((r) => ({ id: r.id, name: r.name, createdOn: r.createdOn, days: daysByRegistro.get(r.id) ?? [] })),
     tasks,
     dailyTasks,
+    // A Story 2.6 acrescentou o marco das séries. A store de antes não o tinha —
+    // ele entra no oráculo pela mesma conta, porque o que este teste mede é a
+    // CONVERSÃO dos dados, não o inventário de campos do `RetroInput`; sem ele, a
+    // paridade reprovaria a story em vez de reprovar uma divergência de conta.
+    taskSeries: s.templates.map((t) => ({ createdOn: t.createdOn, module: t.module })),
     purchases,
     sleepPeriods: s.sleepPeriods,
   };
@@ -182,6 +192,33 @@ describe('a fixture do contrato', () => {
     assert.ok(dados.health.some((r) => r.day < JANELA));
     assert.ok(dados.occurrences.some((o) => o.doneAt! < JANELA));
     assert.ok(atividades.some((a) => a.hidden && a.startAt.startsWith('2026-05')));
+  });
+
+  /**
+   * O não medido de ponta a ponta (Story 2.6): do banco falso ao prompt.
+   *
+   * `h-alongar` nasceu depois do fim de maio e é marcado desde então. A linha dele
+   * chega ao resumo como qualquer outra — hábito não é filtrado por contagem zero
+   * —, e é o **marco** que decide que ela não vira número. Os dois vizinhos, que
+   * nasceram em 2025, seguem com número.
+   */
+  it('o hábito que nasceu depois do fim do período entra no pacote sem número, e não chega ao prompt', async () => {
+    const { dados, atividades } = await acervo(JANELA);
+    const resumo = buildRetrospective(retroInputDe(dados, atividades, AGORA, TIPO, OFFSET));
+    assert.ok(NASCEU_DEPOIS_DE_MAIO > FIM, 'a fixture perdeu o hábito nascido depois de maio');
+    // O marco das séries saiu do banco, e é anterior a maio. O DIA exato não se
+    // afirma: `createdOn` é o dia local do `created_at`, e o fuso de quem roda o
+    // move — a fixture só garante o mesmo dia de UTC−11 a UTC+12 (ver o cabeçalho
+    // dela). O que importa aqui é o lado do marco, não o dígito.
+    assert.ok(resumo.marcos?.tarefas != null && resumo.marcos.tarefas < INICIO, 'o marco das séries não saiu do banco');
+
+    const rotina = montarPacote({ resumo, agora: AGORA }, 'rotina');
+    const fato = (chave: string) => rotina.metricas.find((f) => f.chave === chave);
+    assert.ok(fato('habito.h-alongar'), 'a linha do hábito novo não chegou ao pacote');
+    assert.equal(fato('habito.h-alongar')!.atual, null, 'maio não teve "0 dias de alongamento" — não tinha o hábito');
+    assert.equal(typeof fato('habito.h-cerveja')!.atual, 'number', 'o hábito de 2025 perdeu o número');
+    assert.equal(typeof fato('tarefas')!.atual, 'number', 'as tarefas nasceram em 2025 e têm número');
+    assert.equal(montarPrompt(rotina).usuario.includes('Alongar'), false, 'o hábito sem número foi ao prompt');
   });
 });
 
@@ -371,6 +408,31 @@ describe('o núcleo imprime a fixture — o gabarito que o celular e o script ta
     const { hashes } = await imprimirMaio(b, entradaDaRetrospectiva(dados, atividades, AGORA, TIPO, OFFSET));
     assert.deepEqual(hashes, GABARITO.hashes);
     assert.deepStrictEqual(b.rpcs[0].args, GABARITO.carga);
+  });
+
+  /**
+   * O TEXTO do pedido, preso sozinho (Story 2.6).
+   *
+   * `GABARITO.hashes` mistura o texto e a versão do descritor: quem subisse
+   * `PACOTE_VERSAO` e mudasse o prompt no mesmo commit acertaria o hash novo e
+   * nada acusaria a mudança de texto. Este golden é só o `usuario` de cada
+   * caderno, e por isso ele muda **só** quando o texto muda.
+   */
+  it('o TEXTO do pedido de cada caderno é o do gabarito — sem a versão do descritor no meio', async () => {
+    const { dados, atividades } = await acervo(JANELA);
+    const resumo = buildRetrospective(retroInputDe(dados, atividades, AGORA, TIPO, OFFSET));
+    for (const caderno of CADERNO_IDS) {
+      const usuario = montarPrompt(montarPacote({ resumo, agora: AGORA }, caderno)).usuario;
+      const hash = sha256Hex(usuario);
+      if (hash !== GABARITO.textos[caderno]) {
+        console.log(`\n── o texto do caderno ${caderno} mudou (sha256 ${hash}) ──\n${usuario}\n`);
+      }
+      assert.equal(
+        hash, GABARITO.textos[caderno],
+        `o texto do pedido de ${caderno} mudou. Confira o texto impresso acima, decida se era `
+        + `o pretendido, e só então atualize GABARITO.textos — com o motivo escrito no docblock dele.`,
+      );
+    }
   });
 
   it('o reprovado não chega ao banco: o Coração tem hash, e não tem linha nem posição', () => {

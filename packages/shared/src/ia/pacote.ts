@@ -53,7 +53,7 @@ import {
   rotuloDoCaderno,
 } from '../period/cadernos';
 import type {
-  RetroSummary, RetroHabitRow, RetroRegistroRow, SportStats,
+  DiasMedidos, RetroSummary, RetroHabitRow, RetroRegistroRow, SportStats,
 } from '../period/retro';
 import type { RecapValue, MetricRecap } from '../week/recap';
 import type { MetricImpact } from '../health/trigger-impact';
@@ -73,8 +73,15 @@ import { isValidDate } from '../date/local';
  *     passam a ir para Movimento também como NÚMERO, e não só como lápide: o
  *     mapa de saúde e o da lápide viraram uma rota só (hoje nenhuma linha de
  *     saúde da retro é VO₂max nem anéis, então nenhum pacote em produção muda).
+ * 4 — **ausência de registro deixa de ser zero.** `deRecap` parou de forçar
+ *     `?? 0`: cada contagem recebe o veredito "foi medido?" ({@link Medido}) e,
+ *     quando não foi, entra com `atual: null` e `Base.valor: null`. São dois
+ *     critérios — o marco de nascimento para contagem de ato (hábito, registro,
+ *     tarefa, compra, atividade) e os dias com valor para medição passiva (passos,
+ *     andares), que é a régua que a saúde já usava. Zero continua sendo medida
+ *     quando o registro já existia e o período passou sem ocorrência.
  */
-export const PACOTE_VERSAO = 3;
+export const PACOTE_VERSAO = 4;
 
 // ── As bases nomeadas ──────────────────────────────────────
 
@@ -426,6 +433,20 @@ export function textoDaLuz(tipo: PeriodKind, inicioISO: string, fimISO: string):
   return e == null ? null : TEXTO_DA_ESTACAO[e];
 }
 
+/**
+ * A véspera de um dia de calendário — o **último** dia do período anterior.
+ *
+ * Aritmética em UTC sobre os componentes, como o resto do arquivo: `Date.UTC` de
+ * `d − 1` normaliza virada de mês, de ano e ano bissexto sem passar pelo fuso do
+ * processo, que aqui não tem nada a dizer. `null` para o que não é dia de
+ * calendário.
+ */
+function vesperaDe(iso: string): string | null {
+  if (!isValidDate(iso)) return null;
+  const [a, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
 /** Dias entre `inicioISO` e `fimISO`, ambos inclusivos. */
 function diasEntre(inicioISO: string, fimISO: string): number {
   const a = new Date(`${inicioISO}T00:00:00`).getTime();
@@ -472,6 +493,10 @@ interface Ctx {
   externas: BasesExternas;
   /** Primeiro dia do período anterior — a fronteira do portão de nascimento. */
   inicioAnterior: string | null;
+  /** Último dia do período, `YYYY-MM-DD`; `null` quando o resumo não traz um dia de calendário. */
+  fim: string | null;
+  /** Último dia do período anterior — a véspera do início. `null` em `all`. */
+  fimAnterior: string | null;
 }
 
 const SEM_B1 = 'o histórico completo não tem período anterior';
@@ -517,6 +542,96 @@ function basesDe(
   ];
 }
 
+/**
+ * **Foi medido?** — o veredito de um fato e o da base anterior, separados.
+ *
+ * `false` não é "deu zero": é "não havia o que medir", e o fato entra no pacote
+ * com `atual: null` (ou `Base.valor: null`) — o canal que a doutrina já tem para
+ * ausência. O prompt não o lista, a conferência não o admite no alfabeto e o
+ * ranqueamento não o promove, tudo isso sem uma linha nova em cada um deles.
+ *
+ * Os dois lados vêm separados porque a resposta é diferente de cada lado: o
+ * hábito criado em 20/05 **foi** medido em maio (11 dias) e **não foi** medido em
+ * abril, e a edição de maio tem de dizer as duas coisas.
+ */
+interface Medido {
+  atual: boolean;
+  anterior: boolean;
+}
+
+/** O veredito de quem não informou critério nenhum: tudo medido, como na versão 3. */
+const MEDIDO: Medido = Object.freeze({ atual: true, anterior: true });
+
+/**
+ * O veredito de uma **contagem de ato** — hábito, registro, tarefa, compra,
+ * atividade —, pelo marco em que o registro dela passou a existir.
+ *
+ * Zero é medida quando o registro já existia e o período passou sem ocorrência: é
+ * o dado mais honesto que a retro tem sobre um hábito. Zero é **mentira** quando o
+ * registro ainda não existia — e é isso que o marco separa.
+ *
+ * Três estados na entrada, e cada um tem um motivo:
+ *
+ * - `undefined` — ninguém informou marco (resumo montado à mão, hábito cuja linha
+ *   não trouxe `createdOn`). Não se alega nada: medido, como antes. A linha do
+ *   hábito **é** a prova de que o hábito existe; o que falta é só a data.
+ * - `null` ou dia ilegível — o dado foi consultado e não tem marco legível:
+ *   nenhuma atividade no acervo, nenhuma série de compras, um `createdOn` que não
+ *   é `YYYY-MM-DD` de calendário. Não medido — "não se sabe" não vira alegação, o
+ *   mesmo critério de {@link nascidoAntes}.
+ * - um dia — compara-se com o **fim** de cada lado, inclusive: criado **até** o
+ *   último dia do período, o período o mediu; criado no dia seguinte, não.
+ *
+ * ## A válvula, e por que ela só corre para um lado
+ *
+ * **A própria contagem prova a medida.** Um lado com ocorrência é um lado que
+ * estava sendo registrado, qualquer coisa que o marco diga — sem isso, um marco
+ * ilegível apagaria dado que existe.
+ *
+ * E ela é **assimétrica de propósito**. Ocorrência no período anterior prova que
+ * o registro existia lá, e o que existia antes existe agora: o lado atual cede ao
+ * anterior. A recíproca é falsa — ocorrência agora não prova nada sobre antes, e é
+ * exatamente o caso que esta story conserta (o hábito de 2026 lido em 2023). Se o
+ * atual não cedesse ao anterior, o pacote produziria o estado torto que ninguém
+ * sabe ler: `atual: null` ao lado de uma base numerada, "não medido agora" contra
+ * "11 dias no mês passado".
+ *
+ * ## `ctx.fim` nulo: cala, e não explode
+ *
+ * Um `endISO` que não é dia de calendário faz todo fato **sem ocorrência nenhuma**
+ * cair em não medido. É degradação, e é deliberada: (a) a direção é a segura — a
+ * edição fica muda sobre o que não sabe localizar, em vez de imprimir zero; (b) a
+ * válvula segura o que tem dado dos dois lados, então não é a edição inteira que
+ * some; e (c) é a postura que `montarPacotes` já tem para esse mesmo `endISO`
+ * malformado — `diasEntre` devolve 0 e `textoDaLuz` devolve nulo, nenhum dos dois
+ * explode. Uma exceção só aqui seria meia guarda, e mudaria o comportamento de
+ * todo chamador por um defeito que o resto do arquivo já absorve. O comportamento
+ * está preso em `pacote.test.ts` ("`endISO` que não é dia de calendário").
+ */
+function desdeOMarco(marco: string | null | undefined, r: RecapValue | undefined, ctx: Ctx): Medido {
+  if (marco === undefined) return MEDIDO;
+  const desde = marco !== null && isValidDate(marco) ? marco : null;
+  const teveAntes = (r?.prior ?? 0) > 0;
+  return {
+    atual: (desde != null && ctx.fim != null && desde <= ctx.fim) || (r?.current ?? 0) > 0 || teveAntes,
+    anterior: (desde != null && ctx.fimAnterior != null && desde <= ctx.fimAnterior) || teveAntes,
+  };
+}
+
+/**
+ * O veredito de uma **medição passiva** — passos, andares —, pelos dias que
+ * carregaram valor.
+ *
+ * Passos não medidos não são zero passos: a medida é passiva, e dia sem linha é
+ * dia sem relógio. É a régua que a saúde já usa por outro caminho (`MetricRecap`
+ * devolve `null` quando nenhum dia do lado tem valor), aplicada ao que hoje chega
+ * como soma. `undefined` ⇒ ninguém contou os dias: medido, como antes.
+ */
+function pelosDiasComValor(d: DiasMedidos | undefined): Medido {
+  if (d == null) return MEDIDO;
+  return { atual: d.atual > 0, anterior: d.anterior > 0 };
+}
+
 interface OpcoesFato {
   unidade?: string;
   casas?: number;
@@ -531,6 +646,12 @@ interface OpcoesFato {
   amostra: number | null;
   /** `false` só para o que nasceu depois do início do anterior. Padrão: `true`. */
   comparavel?: boolean;
+  /**
+   * Foi medido? — ver {@link Medido}. Ausente ⇒ os dois lados medidos, que é o
+   * que a versão 3 fazia sempre. Só {@link deRecap} o lê: {@link deMetrica} já
+   * recebe o nulo pronto de quem o calculou.
+   */
+  medido?: Medido;
 }
 
 /**
@@ -587,14 +708,21 @@ function portaoDo(o: OpcoesFato, ctx: Ctx): Pick<FatoNumero, 'amostra' | 'compar
 /**
  * `RecapValue` → `FatoNumero`, aplicando `escala` antes de arredondar.
  * A conversão de unidade mora aqui, não no prompt.
+ *
+ * O `?? 0` que ficava aqui era o defeito que a Story 2.6 fechou: ele tornava
+ * hábito, registro, tarefa, compra, passos, andares, atividade, distância, tempo
+ * e esporte **incapazes** de dizer "não medido", e com isso uma edição de 2023
+ * afirmava "0 dias" do que o app só passou a registrar em 2026. Agora o zero só
+ * entra com o aval de quem produz o fato ({@link OpcoesFato.medido}).
  */
 function deRecap(
   chave: string, rotulo: string, r: RecapValue | undefined, ctx: Ctx, o: OpcoesFato,
 ): FatoNumero {
   const casas = o.casas ?? 0;
   const escala = o.escala ?? 1;
-  const atual = arredondar((r?.current ?? 0) * escala, casas);
-  const anterior = arredondar((r?.prior ?? 0) * escala, casas);
+  const medido = o.medido ?? MEDIDO;
+  const atual = medido.atual ? arredondar((r?.current ?? 0) * escala, casas) : null;
+  const anterior = medido.anterior ? arredondar((r?.prior ?? 0) * escala, casas) : null;
   return {
     chave,
     rotulo,
@@ -654,9 +782,15 @@ export function coberturaDe(
 // ── Montagem ───────────────────────────────────────────────
 
 function esporte(
-  grupo: string, prefixo: string, s: SportStats | null, ctx: Ctx,
+  grupo: string, prefixo: string, s: SportStats | null, ctx: Ctx, marco: string | null | undefined,
 ): FatoNumero[] {
   if (!s) return [];
+  // O esporte nasce com o acervo: as quatro grandezas dele são contagens de ato
+  // sobre as mesmas atividades, e o lado que ainda não tinha atividade nenhuma não
+  // mediu "0 km" — não mediu nada. O veredito sai das SESSÕES, que é a contagem
+  // que prova o registro; sem isso um mês de rolo (distância 0) se declararia não
+  // medido tendo saído de bicicleta.
+  const medido = desdeOMarco(marco, s.sessions, ctx);
   // A amostra conta observações QUE CARREGAM A MEDIDA. O tempo é soma de sessões
   // — toda sessão tem tempo. A distância é soma das sessões COM distância: 333 km
   // em 7 saídas é um fato sobre 7 observações, mas um rolo sem sensor é sessão
@@ -665,28 +799,32 @@ function esporte(
   // notícia — `null`, que não disputa.
   const sessoes = menorLado(s.sessions);
   return [
-    deRecap(`${prefixo}.sessoes`, 'Sessões', s.sessions, ctx, { grupo, amostra: sessoes }),
+    deRecap(`${prefixo}.sessoes`, 'Sessões', s.sessions, ctx, { grupo, amostra: sessoes, medido }),
     deRecap(`${prefixo}.distancia`, 'Distância', s.distanceM, ctx, {
-      unidade: 'km', escala: 1 / 1000, grupo, amostra: menorLado(s.sessionsWithDistance),
+      unidade: 'km', escala: 1 / 1000, grupo, amostra: menorLado(s.sessionsWithDistance), medido,
     }),
     deRecap(`${prefixo}.tempo`, 'Tempo em movimento', s.movingS, ctx, {
-      unidade: 'h', casas: 1, escala: 1 / 3600, grupo, amostra: sessoes,
+      unidade: 'h', casas: 1, escala: 1 / 3600, grupo, amostra: sessoes, medido,
     }),
-    deRecap(`${prefixo}.elevacao`, 'Elevação', s.elevationM, ctx, { unidade: 'm', grupo, amostra: null }),
+    deRecap(`${prefixo}.elevacao`, 'Elevação', s.elevationM, ctx, { unidade: 'm', grupo, amostra: null, medido }),
   ];
 }
 
 function habitos(
   grupo: string, linhas: readonly RetroHabitRow[], ctx: Ctx,
 ): FatoNumero[] {
+  // O marco do hábito é o dele: cada linha tem a própria data de criação. Um
+  // período inteiro antes dela não teve "0 dias de cerveja" — não tinha cerveja.
   return linhas.map((h) => deRecap(`habito.${h.id}`, h.name, h.recap, ctx, {
     unidade: 'dias', grupo, amostra: menorLado(h.recap), comparavel: nascidoAntes(h.createdOn, ctx),
+    medido: desdeOMarco(h.createdOn, h.recap, ctx),
   }));
 }
 
 function registros(linhas: readonly RetroRegistroRow[], ctx: Ctx): FatoNumero[] {
   return linhas.map((r) => deRecap(`registro.${r.id}`, r.name, r.recap, ctx, {
     unidade: 'dias', grupo: 'Registros', amostra: menorLado(r.recap), comparavel: nascidoAntes(r.createdOn, ctx),
+    medido: desdeOMarco(r.createdOn, r.recap, ctx),
   }));
 }
 
@@ -768,7 +906,15 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
     temB1: resumo.kind !== 'all',
     externas: entrada.bases ?? {},
     inicioAnterior: previousPeriodStartISO(resumo.kind, resumo.startISO),
+    fim: isValidDate(resumo.endISO) ? resumo.endISO : null,
+    // O fim do anterior é a véspera do início — e não `previousPeriodStartISO`,
+    // que é o começo dele. Em `all` não há anterior.
+    fimAnterior: resumo.kind === 'all' ? null : vesperaDe(resumo.startISO),
   };
+  // Os marcos de quem não tem data própria de nascimento. `undefined` (resumo
+  // montado à mão) é "não informado" e não alega nada; `null` é "o dado não tem
+  // marco" e vale como não medido. Ver `desdeOMarco`.
+  const marcos = resumo.marcos;
 
   const metricas = vazioPorCaderno<FatoNumero>();
   const cobertura: Record<CadernoId, Cobertura | null> = {
@@ -782,21 +928,31 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
   // distância — o "+971%" de março se apoiava em 2, não em 8. Passos e andares
   // são somas diárias do relógio, e ninguém sabe quantos dias de cada lado os
   // produziram: `null`, que não disputa.
+  //
+  // Os dois critérios convivem neste caderno, e é aqui que a diferença entre eles
+  // fica visível: atividades, distância e tempo são CONTAGEM DE ATO (o marco é a
+  // primeira atividade do acervo — antes dela não houve "0 treinos", houve app sem
+  // treino); passos e andares são MEDIÇÃO PASSIVA (o marco é o dia com valor —
+  // dia sem linha é dia sem relógio).
   const atividades = menorLado(resumo.fitness.count);
+  const noAcervo = desdeOMarco(marcos?.atividades, resumo.fitness.count, ctx);
   metricas.movimento.push(
-    deRecap('atividades', 'Atividades', resumo.fitness.count, ctx, { amostra: atividades }),
+    deRecap('atividades', 'Atividades', resumo.fitness.count, ctx, { amostra: atividades, medido: noAcervo }),
     deRecap('distancia', 'Distância', resumo.fitness.distanceM, ctx, {
-      unidade: 'km', escala: 1 / 1000, amostra: menorLado(resumo.fitness.countWithDistance),
+      unidade: 'km', escala: 1 / 1000, amostra: menorLado(resumo.fitness.countWithDistance), medido: noAcervo,
     }),
     deRecap('tempo', 'Tempo', resumo.fitness.durationS, ctx, {
-      unidade: 'h', casas: 1, escala: 1 / 3600, amostra: atividades,
+      unidade: 'h', casas: 1, escala: 1 / 3600, amostra: atividades, medido: noAcervo,
     }),
     deRecap('passos_dia', 'Passos por dia', resumo.fitness.steps, ctx, {
       escala: diasNoPeriodo > 0 ? 1 / diasNoPeriodo : 1, amostra: null,
+      medido: pelosDiasComValor(marcos?.passos),
     }),
-    deRecap('andares', 'Andares', resumo.fitness.floors, ctx, { amostra: null }),
-    ...esporte('Ciclismo', 'ciclismo', resumo.sports.cycling, ctx),
-    ...esporte('Corrida', 'corrida', resumo.sports.running, ctx),
+    deRecap('andares', 'Andares', resumo.fitness.floors, ctx, {
+      amostra: null, medido: pelosDiasComValor(marcos?.andares),
+    }),
+    ...esporte('Ciclismo', 'ciclismo', resumo.sports.cycling, ctx, marcos?.atividades),
+    ...esporte('Corrida', 'corrida', resumo.sports.running, ctx, marcos?.atividades),
   );
 
   // ── Saúde se parte: sono para Sono, o resto para Coração ──
@@ -844,18 +1000,23 @@ export function montarPacotes(entrada: EntradaPacote): PacoteDeFatos[] {
   // As compras têm a amostra da própria contagem. O gasto é soma só das compras
   // COM PREÇO — a mesma regra da distância: compra sem preço não carrega gasto,
   // e 8 compras com 1 preço não sustentam "gasto +1780%" com amostra 8.
+  const nasCompras = desdeOMarco(marcos?.compras, resumo.purchases.count, ctx);
   metricas.rotina.push(
     ...habitos('Hábitos bons', resumo.habits.good, ctx),
     ...habitos('Hábitos ruins', resumo.habits.bad, ctx),
     ...registros(resumo.registros, ctx),
     deRecap('tarefas', 'Tarefas concluídas', resumo.tasks.total, ctx, {
       grupo: 'Dia a dia', amostra: menorLado(resumo.tasks.total),
+      medido: desdeOMarco(marcos?.tarefas, resumo.tasks.total, ctx),
     }),
     deRecap('compras', 'Compras', resumo.purchases.count, ctx, {
-      grupo: 'Dia a dia', amostra: menorLado(resumo.purchases.count),
+      grupo: 'Dia a dia', amostra: menorLado(resumo.purchases.count), medido: nasCompras,
     }),
+    // O gasto herda o veredito das COMPRAS, e não o próprio: um mês de compras
+    // todas sem preço soma 0 e mediu sim — o que faltou foi o preço, não o
+    // registro. O que a amostra já dizia, o veredito não pode desdizer.
     deRecap('gasto', 'Gasto', resumo.purchases.spend, ctx, {
-      casas: 2, grupo: 'Dia a dia', amostra: menorLado(resumo.purchases.countWithPrice),
+      casas: 2, grupo: 'Dia a dia', amostra: menorLado(resumo.purchases.countWithPrice), medido: nasCompras,
     }),
   );
 
