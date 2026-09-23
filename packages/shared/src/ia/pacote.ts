@@ -79,7 +79,8 @@ import { isValidDate } from '../date/local';
  *     critérios — o marco de nascimento para contagem de ato (hábito, registro,
  *     tarefa, compra, atividade) e os dias com valor para medição passiva (passos,
  *     andares), que é a régua que a saúde já usava. Zero continua sendo medida
- *     quando o registro já existia e o período passou sem ocorrência.
+ *     quando o registro já existia e o período passou sem ocorrência. A regra, as
+ *     alternativas rejeitadas e o que ela não cobre estão na **ADR 0054**.
  */
 export const PACOTE_VERSAO = 4;
 
