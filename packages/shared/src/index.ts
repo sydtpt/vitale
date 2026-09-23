@@ -143,6 +143,10 @@ export * from './period/cadernos';
 export * from './period/fechado';
 export * from './period/retro';
 export * from './period/retro-blocks';
+// O detector de métrica morta (story 2.7): as quatro regras sobre os fatos do
+// silêncio. Mora em `period/` e não em `ia/` — a tela precisa dele, e a guarda
+// (7) barra peça de `ia/` fora do núcleo.
+export * from './period/lapides';
 // A entrada da Retrospectiva (story 2.2): o celular e o script a montam pela mesma conta.
 export * from './period/retro-dados';
 export * from './period/task-grid';

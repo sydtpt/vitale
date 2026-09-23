@@ -18,7 +18,8 @@
  *   `hidden` ter o que tirar;
  * - **um banco falso** que responde as leituras de `data/` (as nove da
  *   Retrospectiva, as atividades, a edição), a sessão, e captura a carga do `rpc`
- *   — simulando a função `edicao_imprimir` para a releitura sair do que foi gravado;
+ *   — simulando a função `edicao_imprimir` para a releitura sair do que foi gravado,
+ *   e a `metricas_silencio` da Story 2.7, que faz a lápide do VO₂max existir;
  * - **um transporte falso** da nuvem, que responde por caderno: três textos que a
  *   conferência aprova e um que cita um número que não existe no pacote;
  * - **o gabarito**: o hash do pedido de cada caderno e a carga do `rpc`.
@@ -37,6 +38,7 @@ import type { Motor } from '../../ia/motor';
 import { criarMotorDeNuvem, type RespostaDoTransporte, type Transporte } from '../../ia/nuvem';
 import type { EventoDoAnel } from '../../ia/orquestrar';
 import type { CadernoId } from '../cadernos';
+import { fatosDoSilencio } from './silencio-do-banco';
 
 /* ── o período ───────────────────────────────────────────────────────────── */
 
@@ -101,6 +103,22 @@ const DIAS = dias(PRIMEIRO_DIA, ULTIMO_DIA);
 const I = new Map(DIAS.map((d, i) => [d, i]));
 const i = (dia: string): number => I.get(dia)!;
 
+/**
+ * O dia em que o VO₂max parou de chegar na fixture — **dentro de maio**, para a
+ * lápide dele ser a do período da edição (Story 2.7).
+ *
+ * Ele é medido de dois em dois dias desde janeiro — 64 medidas, bem acima das
+ * dez que a regra exige — e cala a partir daqui. Visto de {@link AGORA}, são 30
+ * dias de silêncio contra um ritmo próprio que nunca passou de um dia, com o
+ * resto do acervo chegando todo dia: morte, pelas quatro regras.
+ *
+ * **Os 30 são exatamente o piso** (`PISO_DE_SILENCIO_DIAS`, que a medição de
+ * 23/09/2026 levou de 14 para 30), e isso é de propósito: a fixture fica no
+ * limite, então baixar o piso mantém a lápide e **subi-lo a apaga** — e o
+ * gabarito acusa na hora, em vez de a mudança passar calada.
+ */
+export const VO2MAX_PAROU_EM = '2026-05-11';
+
 function saudeDiaria(): Linha[] {
   const out: Linha[] = [];
   for (const d of DIAS) {
@@ -113,6 +131,10 @@ function saudeDiaria(): Linha[] {
       passos: 6000 + ((k * 733) % 5000),
       andares: 3 + (k % 11),
     };
+    // A métrica que morre em maio. Não entra nas `HEALTH_SPECS` — nenhuma das
+    // quatro com lápide entra —, então ela não muda número nenhum do resumo: o
+    // único caminho dela até a edição é o detector.
+    if (d <= VO2MAX_PAROU_EM && (k % 2 === 0 || d === VO2MAX_PAROU_EM)) valores['vo2max'] = 42 + (k % 5);
     for (const [metric, value] of Object.entries(valores)) {
       // O PostgREST devolve `numeric` como texto: a leitura tem de converter.
       out.push({ user_id: USUARIO, day: d, metric, value: String(value), min_value: null, max_value: null, count: 1, extra: null });
@@ -363,6 +385,44 @@ class Consulta implements PromiseLike<Resposta> {
   }
 }
 
+/* ── a função do silêncio (Story 2.7) ────────────────────────────────────── */
+
+/**
+ * O `hoje` da função `metricas_silencio` — o `current_date` do Postgres, aqui
+ * congelado no dia de {@link AGORA}.
+ *
+ * O silêncio corrente de uma métrica vai até hoje, e um gabarito que dependesse
+ * do relógio da máquina mudaria de valor amanhã. O fuso não importa: o dia de
+ * `AGORA` é o mesmo de UTC−11 a UTC+12 (ver o cabeçalho).
+ */
+const HOJE_NO_BANCO = '2026-06-10';
+
+/**
+ * A resposta de `metricas_silencio(p_piso_dias)` sobre a `health_daily` da
+ * fixture, **na forma do Postgres** (`outra_chegou`, e não `outraChegou`): é ela
+ * que `fetchSilencioDasMetricas` traduz, e um falso que já devolvesse a forma do
+ * domínio deixaria a tradução sem prova.
+ *
+ * Quem calcula é {@link fatosDoSilencio} — dono único da emulação do SQL, que a
+ * matriz do detector também usa.
+ */
+function silencioDasMetricas(linhas: readonly Linha[], dono: string | null, piso: number): Linha[] {
+  const porMetrica: Record<string, string[]> = {};
+  for (const l of linhas) {
+    if (l['user_id'] !== dono || l['value'] == null) continue;
+    (porMetrica[l['metric'] as string] ??= []).push(l['day'] as string);
+  }
+  return fatosDoSilencio(porMetrica, HOJE_NO_BANCO, piso).map((m) => ({
+    metrica: m.metrica,
+    // A função devolve `primeira`, e o cliente não a traz ao domínio — o falso a
+    // responde para a tradução ser a de verdade, com a coluna que existe.
+    primeira: (porMetrica[m.metrica] ?? []).slice().sort()[0],
+    ultima: m.ultimaISO,
+    medidas: m.medidas,
+    silencios: m.silencios.map((s) => ({ de: s.de, ate: s.ate, dias: s.dias, outra_chegou: s.outraChegou })),
+  }));
+}
+
 /** O que o `rpc('edicao_imprimir', …)` recebeu — a carga que o gabarito fixa. */
 export interface CargaDoRpc {
   readonly p_tipo_periodo: string;
@@ -372,7 +432,11 @@ export interface CargaDoRpc {
   readonly p_linhas: readonly Record<string, unknown>[];
 }
 
-/** As tabelas que a fixture tem — as nove leituras, as atividades e a edição. `edicoes_capa` não: o script não a toca. */
+/**
+ * As tabelas que a fixture tem — as nove leituras, as atividades e a edição.
+ * `edicoes_capa` não: o script não a toca. A décima leitura (`metricas_silencio`)
+ * não é tabela: ela é calculada sobre a `health_daily` daqui.
+ */
 export type TabelaDaFixture =
   | 'health_daily' | 'daily_ratings' | 'habits' | 'habit_logs' | 'registros' | 'registro_logs'
   | 'todo_templates' | 'todo_occurrences' | 'sleep_periods' | 'activities' | 'edicoes_ia';
@@ -382,9 +446,16 @@ export interface BancoFalso {
   readonly db: SupabaseClient;
   /** As tabelas, mutáveis — `edicoes_ia` é o que um teste mexe para simular outro hospedeiro. */
   readonly tabelas: Readonly<Record<TabelaDaFixture, Linha[]>>;
-  /** Cada chamada ao `rpc`, na ordem. */
+  /**
+   * Cada **gravação** da edição, na ordem — as chamadas a `edicao_imprimir`.
+   *
+   * A função de leitura do silêncio (`metricas_silencio`, Story 2.7) também é um
+   * `rpc` e **não entra aqui**: ela é leitura, e contá-la neste vetor faria
+   * `rpcs.length === 0` ("nada foi gravado") virar falso em toda impressão. Ela é
+   * contada em {@link leituras}, junto com as tabelas.
+   */
   readonly rpcs: { readonly fn: string; readonly args: CargaDoRpc }[];
-  /** Quantas vezes cada tabela foi lida. */
+  /** Quantas vezes cada tabela — e a função do silêncio — foi lida. */
   readonly leituras: Record<string, number>;
 }
 
@@ -396,6 +467,11 @@ export interface OpcoesDoBanco {
   readonly dono?: string | null;
   /** As tabelas cuja leitura falha — o `select` delas responde `{ data: null, error }`. */
   readonly falhar?: Partial<Record<TabelaDaFixture, Error>>;
+  /**
+   * A função do silêncio falha — o banco antigo, em que ela nem existe, responde
+   * assim. Não é tabela, por isso não cabe em `falhar`.
+   */
+  readonly falharSilencio?: Error;
   /**
    * Chamado a cada `select`, com a tabela e quantas vezes ela já foi lida (contando
    * esta). É por ele que um teste faz outro hospedeiro gravar **entre** duas leituras.
@@ -452,7 +528,12 @@ export function bancoFalso(o: OpcoesDoBanco = {}): BancoFalso {
         delete: escritaDireta(tabela),
       };
     },
-    async rpc(fn: string, args: CargaDoRpc) {
+    async rpc(fn: string, args: CargaDoRpc & { p_piso_dias?: number }) {
+      if (fn === 'metricas_silencio') {
+        leituras[fn] = (leituras[fn] ?? 0) + 1;
+        if (o.falharSilencio) return { data: null, error: o.falharSilencio };
+        return { data: silencioDasMetricas(tabelas.health_daily, dono, args.p_piso_dias ?? 0), error: null };
+      }
       rpcs.push({ fn, args: JSON.parse(JSON.stringify(args)) as CargaDoRpc });
       if (fn !== 'edicao_imprimir') throw new Error(`rpc que a fixture não conhece: ${fn}`);
       const doPeriodo = (l: Linha) =>
@@ -621,6 +702,26 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
  * **medidos no commit base** (`448c642`, com a fixture e o `pacote.ts` de antes
  * da 2.6) e são os mesmos de hoje, byte a byte.
  *
+ * **Por que mudou de novo em 23/09** (Story 2.7, o detector de métrica morta): o
+ * acervo da fixture ganhou o VO₂max, medido de dois em dois dias desde janeiro e
+ * calado desde {@link VO2MAX_PAROU_EM} — 30 dias de silêncio vistos de
+ * {@link AGORA}, com o resto do acervo chegando todo dia. O detector o declara
+ * morto, `entradaDaRetrospectiva` leva a lápide, e ela atravessa a edição
+ * inteira. Três coisas mudaram, e **só** elas:
+ *
+ * - o **texto** e o **hash** do Movimento, que ganharam a seção *"Métricas que
+ *   pararam de chegar"* com a frase do catálogo. Os outros três cadernos não
+ *   mudaram um byte — é o que prova que a lápide entrou pelo caderno do mapa
+ *   (`LAPIDES`) e não por todos;
+ * - a **`p_ordem`**, que passou de `rotina, movimento, sono` para `movimento,
+ *   rotina, sono`: a lápide é **do período** (15/05 cai em maio), e o passo 5 do
+ *   ranqueamento põe o caderno dela na frente. Esse passo era ramo morto desde a
+ *   1.7 — ninguém produzia lápide —, e este gabarito é a primeira coisa a
+ *   exercitá-lo de ponta a ponta;
+ * - a ordem das `p_linhas`, que acompanha a `p_ordem`. A assinatura de cada linha,
+ *   inclusive `metrica_lider`, ficou igual: a lápide não é fato numérico e não
+ *   disputa a liderança do caderno.
+ *
  * Os números são **consequência**: mudam quando o prompt (`PROMPT_VERSAO`), o
  * pacote (`PACOTE_VERSAO`), a agregação (`AGG_VERSION`) ou o ranqueamento mudam, e
  * então este gabarito muda junto, no mesmo commit, com o motivo escrito nele.
@@ -629,16 +730,37 @@ export const GABARITO: {
   readonly estado: 'gravada';
   readonly hashes: Readonly<Record<CadernoId, string>>;
   readonly textos: Readonly<Record<CadernoId, string>>;
+  /**
+   * O texto de cada caderno **sem lápide nenhuma** — o caminho da maioria dos
+   * períodos, e o que a frase *"com lista vazia o prompt não muda um byte"*
+   * afirma (ela está em três docblocks).
+   *
+   * Quem a provava era o próprio `textos`, enquanto a fixture não tinha morte.
+   * Desde a Story 2.7 ela **sempre** tem, e sem este golden uma regressão que
+   * injetasse a seção vazia — um cabeçalho "Métricas que pararam de chegar" sem
+   * linha, uma quebra a mais — passaria calada em todo período sem morte.
+   *
+   * Três dos quatro são **idênticos** aos de `textos`: a lápide entra pelo
+   * caderno do mapa (`LAPIDES`), e não por todos. Só o Movimento difere, e o
+   * valor dele aqui é o que a fixture dava **antes** da 2.7.
+   */
+  readonly textosSemLapide: Readonly<Record<CadernoId, string>>;
   readonly carga: CargaDoRpc;
 } = {
   estado: 'gravada',
   hashes: {
     rotina: '2f534e41d1043aa468c66a5dcb7d0a12e8b80ee7fd472dca95b67eac30e8334c',
-    movimento: 'eaae79309aae17fc51c2aa965df82480287ecd0d04ed05d08ca86b637e74b862',
+    movimento: '80c16d18c0770bd4fd953b2919445dc0aafb82c50f71eaa361e3482887b028e1',
     sono: '13682b176790ef5c2924dfd443522fc5dda3bb76d50f46d96c5eb41d63393ed1',
     coracao: '8b020f6f7218c3adcf9f39b96c3eb5b983e9d892a1b707f59d67d8314830023b',
   },
   textos: {
+    rotina: '4955d2b8836ce40c014a8f8473fd0ec46e0a4f504805da4a25eb4590d9963e79',
+    movimento: 'ea1b22a87883950f374d4a154967ebdcba9b1323cd1ba23f92273d13d9da1ec4',
+    sono: '78596e9ea3900f38401a9467455961b3e435cde6ff3268e8d3fc5ea7d651614c',
+    coracao: 'a00f5f9d3663f97c8a6202649f016785ce1532d094ed174d919908d574893e13',
+  },
+  textosSemLapide: {
     rotina: '4955d2b8836ce40c014a8f8473fd0ec46e0a4f504805da4a25eb4590d9963e79',
     movimento: 'cc47adbe687611fb8d8f53e4f34a22a6d795c01f3ed92e05e5c6052baf7b0354',
     sono: '78596e9ea3900f38401a9467455961b3e435cde6ff3268e8d3fc5ea7d651614c',
@@ -648,10 +770,12 @@ export const GABARITO: {
     p_tipo_periodo: TIPO,
     p_inicio: INICIO,
     p_fim: FIM,
-    p_ordem: ['rotina', 'movimento', 'sono'],
+    // O Movimento na frente pela lápide do período (Story 2.7), e não pelo
+    // afastamento: o passo 5 do ranqueamento vem antes do portão.
+    p_ordem: ['movimento', 'rotina', 'sono'],
     p_linhas: [
-      linhaDaCarga('rotina', 'tarefas'),
       linhaDaCarga('movimento', 'tempo'),
+      linhaDaCarga('rotina', 'tarefas'),
       linhaDaCarga('sono', 'sono'),
     ],
   },

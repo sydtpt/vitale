@@ -49,7 +49,7 @@
  * Puro: não conhece banco, rede nem relógio — o `agora` chega de quem chama.
  */
 import { localDateStr } from '../date/local';
-import type { EntradaPacote } from '../ia/pacote';
+import type { EntradaPacote, FatoLapide } from '../ia/pacote';
 import type {
   Activity,
   HabitLog,
@@ -61,12 +61,14 @@ import type {
 } from '../models';
 import { isDailyRecurrence } from '../todo/logic';
 import { retroSince, type PeriodKind } from './bounds';
+import { lapidesDoAcervo, type MetricaNoAcervo } from './lapides';
 import {
   buildRetrospective,
   type RetroDailyTask,
   type RetroHealthMetric,
   type RetroInput,
   type RetroPurchase,
+  type RetroSummary,
   type RetroTask,
 } from './retro';
 
@@ -115,8 +117,9 @@ export interface SerieDaRetro {
 }
 
 /**
- * Os resultados crus das nove leituras da Retrospectiva, como `data/` os devolve
- * (`fetchDadosDaRetro`, em `data/retro-dados.ts`).
+ * Os resultados crus das leituras da Retrospectiva — nove com janela, mais os
+ * fatos do silêncio (Story 2.7) —, como `data/` os devolve (`fetchDadosDaRetro`,
+ * em `data/retro-dados.ts`).
  *
  * É o que o hospedeiro guarda — o celular na store, o script na memória do
  * processo. Ninguém lê os campos crus para desenhar: quem os transforma em
@@ -134,6 +137,17 @@ export interface DadosDaRetro {
   readonly occurrences: readonly TodoOccurrence[];
   /** As noites cujo dia de acordar é `since` ou depois. */
   readonly sleepPeriods: readonly SleepPeriod[];
+  /**
+   * Os fatos do silêncio de cada métrica de saúde (Story 2.7) — a matéria da
+   * lápide, e o único campo **sem janela**: a pergunta "quando esta métrica
+   * calou" é sobre a vida inteira dela, não sobre o período.
+   *
+   * **Opcional de propósito**, no molde do `RetroMarcos` da 2.6: ausente é o que
+   * um hospedeiro que não a conhece manda, e o que a leitura devolve quando a
+   * função do banco ainda não foi aplicada. Ausente é lápide nenhuma — a edição
+   * exatamente como saía antes desta story.
+   */
+  readonly silencios?: readonly MetricaNoAcervo[];
 }
 
 /** Nada carregado ainda — o estado inicial de quem guarda os dados. */
@@ -147,6 +161,7 @@ export const SEM_DADOS_DA_RETRO: DadosDaRetro = Object.freeze({
   templates: Object.freeze([]),
   occurrences: Object.freeze([]),
   sleepPeriods: Object.freeze([]),
+  silencios: Object.freeze([]),
 });
 
 /* ── as métricas de saúde ────────────────────────────────────────────────── */
@@ -198,6 +213,11 @@ export function recortarNaJanela(dados: DadosDaRetro, since: string): DadosDaRet
     templates: dados.templates,
     occurrences: dados.occurrences.filter((o) => o.doneAt != null && Date.parse(o.doneAt) >= desde),
     sleepPeriods: dados.sleepPeriods.filter((p) => p.wakeDay >= since),
+    // **Não se corta** (Story 2.7), como `habits` e `templates`: o silêncio é a
+    // vida inteira da métrica, e cortá-lo na janela do período faria a lápide
+    // aparecer e sumir conforme o mês aberto — a mesma deriva que o corte existe
+    // para fechar.
+    silencios: dados.silencios,
   };
 }
 
@@ -336,9 +356,19 @@ export function retroInputDe(
 }
 
 /**
- * O que o núcleo recebe para imprimir a edição de um período: o resumo e o relógio
- * — a mesma entrada que o celular monta em `useEntradaDaEdicao` (`{ resumo, agora }`),
+ * O que o núcleo recebe para imprimir a edição de um período: o resumo, o relógio
+ * e as **lápides** — a mesma entrada que o celular monta em `useEntradaDaEdicao`,
  * e a que o script monta chamando esta função.
+ *
+ * As lápides entraram na Story 2.7 e **o script não mudou uma linha**: elas saem
+ * de {@link lapidesDoAcervo} sobre os fatos do silêncio que vieram com os dados,
+ * pela mesma conta dos dois hospedeiros. Sem esses fatos — banco antigo, leitura
+ * que falhou, `DadosDaRetro` montado à mão —, a lista é vazia e a edição sai como
+ * saía antes: o prompt não muda um byte com lista vazia.
+ *
+ * Não corta pelo período: quem descarta a morte **posterior** ao fim é
+ * `montarPacotes`, e quem separa a do período das antigas é `lapideDoPeriodo` —
+ * a mesma régua na tela e na impressão.
  */
 export function entradaDaRetrospectiva(
   dados: DadosDaRetro,
@@ -347,5 +377,47 @@ export function entradaDaRetrospectiva(
   tipo: PeriodKind,
   offset: number,
 ): EntradaPacote {
-  return { resumo: buildRetrospective(retroInputDe(dados, atividades, agora, tipo, offset)), agora };
+  return montarEntradaDaEdicao(
+    buildRetrospective(retroInputDe(dados, atividades, agora, tipo, offset)),
+    agora,
+    lapidesDaRetrospectiva(dados, agora),
+  );
+}
+
+/**
+ * As três peças viram a entrada — **dono único da composição**, para os dois
+ * hospedeiros (Story 2.7).
+ *
+ * Parece trivial demais para existir, e é exatamente por isso que existe. O
+ * celular não monta a entrada por {@link entradaDaRetrospectiva}: ele tem o
+ * resumo da store e o relógio da tela, e montava `{ resumo, agora, lapides }`
+ * num literal dentro do hook — que **nenhum teste executa**. Tirar `lapides`
+ * daquele literal apagaria a lápide do iPhone e mudaria a ordem dos cadernos com
+ * a suíte inteira verde, porque o teste do contrato recompunha a entrada à mão e
+ * não passava por ele. Com uma função só, chamada pelo hook e pelo teste, essa
+ * regressão fica vermelha.
+ *
+ * Pura: não lê relógio, não conhece período e não decide nada — quem decide o
+ * que é morte é `lapidesDoAcervo`, e quem decide o que é "do período" é o pacote.
+ */
+export function montarEntradaDaEdicao(
+  resumo: RetroSummary,
+  agora: Date,
+  lapides: readonly FatoLapide[],
+): EntradaPacote {
+  return { resumo, agora, lapides };
+}
+
+/**
+ * As lápides de uma leitura da Retrospectiva — a conta que o script faz dentro de
+ * {@link entradaDaRetrospectiva} e que o celular faz na store, para as duas
+ * entradas serem a mesma.
+ *
+ * Existe como função própria porque o celular não monta a entrada por aqui: ele
+ * tem o resumo da store e o relógio da tela. Sem ela, o telefone teria uma segunda
+ * conta da lápide — e a edição do iPhone divergiria da do Mac no dia em que uma
+ * das duas mudasse.
+ */
+export function lapidesDaRetrospectiva(dados: DadosDaRetro, agora: Date): FatoLapide[] {
+  return lapidesDoAcervo(dados.silencios, agora);
 }
