@@ -9,9 +9,11 @@ import {
   buildHeatmap,
   buildTaskGrid,
   buildYearByMonth,
+  lapidesDaRetrospectiva,
   retroInputDe,
   retroSince as retroSinceDate,
   type DadosDaRetro,
+  type FatoLapide,
   type PeriodKind,
   type RetroLede,
   type Heatmap,
@@ -39,7 +41,8 @@ interface RetroState {
   falhouEm: string | null;
 
   /**
-   * Os resultados crus das nove leituras, desde `loadedSince` (Story 2.2).
+   * Os resultados crus das leituras da Retrospectiva, desde `loadedSince`
+   * (Story 2.2) — mais os fatos do silêncio, que não têm janela (Story 2.7).
    *
    * **Ninguém os lê para desenhar.** A entrada de cada período sai de
    * `retroInputDe` (`@vitale/shared`), que os corta na janela **daquele** período
@@ -51,6 +54,16 @@ interface RetroState {
 
   ensure: (since: string) => Promise<void>;
   summary: (now: Date, kind: PeriodKind, offset: number) => RetroSummary;
+  /**
+   * As métricas que pararam de chegar (Story 2.7), **pela conta do núcleo** — a
+   * mesma que `entradaDaRetrospectiva` faz no script.
+   *
+   * Não depende do período: a lápide é a vida inteira da métrica, e quem decide
+   * se ela é do período aberto é o pacote. Sem os fatos do silêncio na memória
+   * (janela ainda não carregada, função do banco ainda não aplicada) devolve
+   * lista vazia, que é a edição de antes desta story.
+   */
+  lapides: (now: Date) => readonly FatoLapide[];
   highlights: (now: Date, kind: PeriodKind, offset: number) => WeekHighlight[];
   /** A manchete do período — o parágrafo de abertura (spec v2 §3). */
   lede: (now: Date, kind: PeriodKind, offset: number) => RetroLede;
@@ -102,6 +115,7 @@ export const useRetroStore = create<RetroState>((set, get) => {
     },
 
     summary: (now, kind, offset) => buildRetrospective(buildInput(now, kind, offset)),
+    lapides: (now) => lapidesDaRetrospectiva(get().dados, now),
     highlights: (now, kind, offset) => {
       const input = buildInput(now, kind, offset);
       return buildRetroHighlights(buildRetrospective(input), input);

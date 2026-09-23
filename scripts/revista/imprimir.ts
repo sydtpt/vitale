@@ -490,7 +490,7 @@ function linhaDosGrupos(g: GruposDaImpressao, gravou: boolean): string {
  *
  * Na ordem: lê a edição do banco (e recusa o período já impresso sem
  * `--reimprimir`/`--sem-gravar`, antes de ler o acervo e antes de chamar o modelo),
- * lê as nove leituras na janela `retroSince` e as atividades, monta a entrada pelo
+ * lê as leituras da Retrospectiva na janela `retroSince` e as atividades, monta a entrada pelo
  * núcleo e chama `imprimir` com as portas. Rejeita quando uma porta falha — inclusive
  * a guarda da impressão concorrente (`EdicaoMudouNaImpressao`) —, e nada foi gravado.
  *
@@ -530,7 +530,11 @@ export async function imprimirPeriodo(pedido: PedidoDeImpressao, deps: DepsDaImp
       `${contar(dados.registros.length, 'registro', 'registros')} (${contar(dados.registroLogs.length, 'marca', 'marcas')}) · ` +
       `${contar(dados.templates.length, 'série', 'séries')} (${contar(dados.occurrences.length, 'concluída', 'concluídas')}) · ` +
       `${contar(dados.sleepPeriods.length, 'noite', 'noites')} · ${contar(atividades.length, 'atividade', 'atividades')} ` +
-      `(${contar(ocultas, 'oculta', 'ocultas')}, fora)`,
+      `(${contar(ocultas, 'oculta', 'ocultas')}, fora) · ` +
+      // A décima leitura (story 2.7). Ela não recebe `userId` — filtra por
+      // `auth.uid()` —, então SEM SESSÃO devolve zero linhas sem erro nenhum.
+      // Um zero aqui é a única forma de o dono ver que os fatos não chegaram.
+      `${contar(dados.silencios?.length ?? 0, 'métrica no acervo', 'métricas no acervo')}`,
   );
 
   const entrada = entradaDaRetrospectiva(dados, atividades, agora, periodo.tipo, periodo.offset);

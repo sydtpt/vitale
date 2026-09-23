@@ -34,6 +34,7 @@ import {
   OFFSET,
   TIPO,
   USUARIO,
+  VO2MAX_PAROU_EM,
   bancoFalso,
   coletorDeHashes,
   motorParaDaFixture,
@@ -195,6 +196,26 @@ describe('a fixture do contrato', () => {
   });
 
   /**
+   * A via da lápide, de ponta a ponta (Story 2.7): o VO₂max da fixture cala em
+   * maio, o detector o declara morto, e `entradaDaRetrospectiva` leva a lápide
+   * — sem que o resumo mude número nenhum, porque nenhuma métrica com lápide
+   * entra nas `HEALTH_SPECS`.
+   */
+  it('a métrica que morreu em maio chega à entrada como lápide, e é do período', async () => {
+    const { dados, atividades } = await acervo(JANELA);
+    assert.ok(dados.silencios!.some((m) => m.metrica === 'vo2max'), 'a fixture perdeu a métrica que morre');
+    const entrada = entradaDaRetrospectiva(dados, atividades, AGORA, TIPO, OFFSET);
+    assert.deepEqual(entrada.lapides, [{ metrica: 'vo2max', ultimaMedidaISO: VO2MAX_PAROU_EM }]);
+    assert.ok(VO2MAX_PAROU_EM >= INICIO && VO2MAX_PAROU_EM <= FIM, 'a morte saiu de maio — a lápide deixaria de liderar');
+  });
+
+  it('a janela carregada não muda a lápide: o silêncio é a vida da métrica, e não se corta', async () => {
+    const [larga, exata] = await Promise.all([acervo(JANELA_LARGA), acervo(JANELA)]);
+    assert.deepEqual(larga.dados.silencios, exata.dados.silencios);
+    assert.deepEqual(recortarNaJanela(larga.dados, JANELA).silencios, larga.dados.silencios);
+  });
+
+  /**
    * O não medido de ponta a ponta (Story 2.6): do banco falso ao prompt.
    *
    * `h-alongar` nasceu depois do fim de maio e é marcado desde então. A linha dele
@@ -251,10 +272,22 @@ describe('fetchDadosDaRetro — rejeita quando uma das nove falha', () => {
     });
   }
 
-  it('sem falha, as nove são lidas uma vez cada', async () => {
+  it('sem falha, as nove são lidas uma vez cada — e a décima também', async () => {
     const b = bancoFalso();
     await fetchDadosDaRetro(b.db, USUARIO, JANELA);
     for (const [tabela] of nove) assert.equal(b.leituras[tabela], 1, tabela);
+    assert.equal(b.leituras['metricas_silencio'], 1, 'os fatos do silêncio (Story 2.7)');
+  });
+
+  /**
+   * A décima é a exceção, e é declarada: ela responde por uma função que pode não
+   * existir no banco ainda, e a edição sem ela é a edição de antes da 2.7. A prova
+   * de que a falha dela não derruba as nove está em `data/health-daily.test.ts`,
+   * junto com o envelope da leitura.
+   */
+  it('a décima não está na lista das que derrubam a leitura', () => {
+    assert.equal(nove.some(([t]) => String(t) === 'metricas_silencio'), false);
+    assert.equal(nove.length, 9);
   });
 });
 
@@ -420,9 +453,12 @@ describe('o núcleo imprime a fixture — o gabarito que o celular e o script ta
    */
   it('o TEXTO do pedido de cada caderno é o do gabarito — sem a versão do descritor no meio', async () => {
     const { dados, atividades } = await acervo(JANELA);
-    const resumo = buildRetrospective(retroInputDe(dados, atividades, AGORA, TIPO, OFFSET));
+    // A entrada **inteira**, e não `{ resumo, agora }`: desde a Story 2.7 ela leva
+    // as lápides, e é a lápide que muda o texto do Movimento. Montar o pacote sem
+    // elas mediria um prompt que hospedeiro nenhum manda.
+    const entrada = entradaDaRetrospectiva(dados, atividades, AGORA, TIPO, OFFSET);
     for (const caderno of CADERNO_IDS) {
-      const usuario = montarPrompt(montarPacote({ resumo, agora: AGORA }, caderno)).usuario;
+      const usuario = montarPrompt(montarPacote(entrada, caderno)).usuario;
       const hash = sha256Hex(usuario);
       if (hash !== GABARITO.textos[caderno]) {
         console.log(`\n── o texto do caderno ${caderno} mudou (sha256 ${hash}) ──\n${usuario}\n`);
@@ -432,6 +468,38 @@ describe('o núcleo imprime a fixture — o gabarito que o celular e o script ta
         `o texto do pedido de ${caderno} mudou. Confira o texto impresso acima, decida se era `
         + `o pretendido, e só então atualize GABARITO.textos — com o motivo escrito no docblock dele.`,
       );
+    }
+  });
+
+  /**
+   * **Com lista vazia o prompt não muda um byte** (Story 1.7, repetida em três
+   * docblocks) — e desde a 2.7 a fixture sempre tem lápide, então sem este
+   * golden a frase deixou de ter quem a prove.
+   *
+   * Duas coisas, e as duas mordem: a entrada **sem** `lapides` dá exatamente o
+   * mesmo texto que a entrada com `lapides: []` (ausente e vazia são a mesma
+   * coisa), e esse texto é o do gabarito — em três cadernos, byte a byte, o
+   * mesmo de quando há lápide.
+   */
+  it('sem lápide, o texto do pedido é o de antes da 2.7 — e lista vazia é o mesmo que ausente', async () => {
+    const { dados, atividades } = await acervo(JANELA);
+    const resumo = buildRetrospective(retroInputDe(dados, atividades, AGORA, TIPO, OFFSET));
+    for (const caderno of CADERNO_IDS) {
+      const semCampo = montarPrompt(montarPacote({ resumo, agora: AGORA }, caderno)).usuario;
+      const listaVazia = montarPrompt(montarPacote({ resumo, agora: AGORA, lapides: [] }, caderno)).usuario;
+      assert.equal(listaVazia, semCampo, `lista vazia mudou o prompt de ${caderno} — a seção entrou sem conteúdo`);
+      assert.equal(
+        sha256Hex(semCampo), GABARITO.textosSemLapide[caderno],
+        `o texto SEM lápide de ${caderno} mudou. É o caminho da maioria dos períodos: confira se era `
+        + 'o pretendido antes de atualizar GABARITO.textosSemLapide.',
+      );
+    }
+  });
+
+  it('a lápide entra só no caderno do mapa: os outros três têm o mesmo texto com e sem ela', () => {
+    for (const caderno of CADERNO_IDS) {
+      const igual = GABARITO.textos[caderno] === GABARITO.textosSemLapide[caderno];
+      assert.equal(igual, caderno !== 'movimento', `${caderno}: com e sem lápide deviam ${caderno === 'movimento' ? 'diferir' : 'coincidir'}`);
     }
   });
 
@@ -460,7 +528,8 @@ describe('o núcleo imprime a fixture — o gabarito que o celular e o script ta
     const { resultado } = await imprimirMaio(b, entradaDaRetrospectiva(dados, atividades, AGORA, TIPO, OFFSET));
     assert.equal(resultado.estado, 'gravada');
     const edicao = (resultado as Extract<typeof resultado, { estado: 'gravada' }>).edicao as { caderno: string; posicao: number }[];
-    assert.deepEqual(edicao.map((c) => [c.caderno, c.posicao]), [['rotina', 1], ['movimento', 2], ['sono', 3]]);
+    // O Movimento em 1º pela lápide do período (Story 2.7); ver o GABARITO.
+    assert.deepEqual(edicao.map((c) => [c.caderno, c.posicao]), [['movimento', 1], ['rotina', 2], ['sono', 3]]);
     assert.equal(b.tabelas.edicoes_ia.length, 3);
     assert.ok(b.tabelas.edicoes_ia.every((l) => l['inicio'] === INICIO && l['fim'] === FIM));
   });

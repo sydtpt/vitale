@@ -182,23 +182,23 @@ describe('a matriz da impressão', () => {
     assert.equal(relatorio.estado, 'gravada');
     assert.equal(banco.rpcs.length, 1);
     const carga = banco.rpcs[0]!.args;
-    assert.deepEqual(carga.p_linhas.map((l) => l['caderno']), ['rotina', 'movimento', 'sono']);
+    assert.deepEqual(carga.p_linhas.map((l) => l['caderno']), ['movimento', 'rotina', 'sono']);
     assert.ok(carga.p_ordem.includes('coracao'), 'o Coração impresso saiu da ordem por uma reprovação');
     const coracao = banco.tabelas.edicoes_ia.find((l) => l['caderno'] === 'coracao');
     assert.equal(coracao?.['texto'], 'texto antigo de coracao');
     // Os três grupos: o Coração é MANTIDO — texto e assinatura de antes, agg_version antiga.
-    assert.deepEqual(relatorio.grupos, { escritos: ['rotina', 'movimento', 'sono'], mantidos: ['coracao'], sairam: [] });
+    assert.deepEqual(relatorio.grupos, { escritos: ['movimento', 'rotina', 'sono'], mantidos: ['coracao'], sairam: [] });
     const linha = t.out.find((l) => l.includes('gravou:'));
     assert.ok(linha, 'sem a linha final dos grupos');
-    assert.match(linha, /gravou: rotina, movimento, sono \/ manteve: coracao \(com o texto e a assinatura de antes — a agg_version deles é a antiga\) \/ saíram: nenhum/);
+    assert.match(linha, /gravou: movimento, rotina, sono \/ manteve: coracao \(com o texto e a assinatura de antes — a agg_version deles é a antiga\) \/ saíram: nenhum/);
   });
 
   it('--sem-gravar com o Coração impresso que reprova: gravaria / manteria / sairiam, e nada gravado', async () => {
     const banco = bancoFalso({ edicao: [cadernoImpressoDeMaio('coracao', 1)] });
     const { relatorio, t } = await imprimirPeloScript({ banco, semGravar: true });
     assert.equal(relatorio.estado, 'ensaio');
-    assert.deepEqual(relatorio.grupos, { escritos: ['rotina', 'movimento', 'sono'], mantidos: ['coracao'], sairam: [] });
-    assert.ok(t.out.some((l) => /gravaria: rotina, movimento, sono \/ manteria: coracao \(.+agg_version.+\) \/ sairiam: nenhum — nada foi gravado/.test(l)));
+    assert.deepEqual(relatorio.grupos, { escritos: ['movimento', 'rotina', 'sono'], mantidos: ['coracao'], sairam: [] });
+    assert.ok(t.out.some((l) => /gravaria: movimento, rotina, sono \/ manteria: coracao \(.+agg_version.+\) \/ sairiam: nenhum — nada foi gravado/.test(l)));
     assert.equal(banco.rpcs.length, 0);
   });
 
@@ -239,8 +239,8 @@ describe('a matriz da impressão', () => {
     // O movimento não tem linha no banco: comparado com nada.
     assert.equal(de('movimento', 'posição')?.banco, '—');
     assert.ok(t.out.some((l) => l.includes('≠')), 'a diferença não foi marcada');
-    // Na ordem que a edição teria: rotina, movimento, sono.
-    assert.deepEqual([...new Set(c.map((l) => l.caderno))], ['rotina', 'movimento', 'sono']);
+    // Na ordem que a edição teria — o Movimento na frente pela lápide do período (Story 2.7).
+    assert.deepEqual([...new Set(c.map((l) => l.caderno))], ['movimento', 'rotina', 'sono']);
     semTexto(t);
   });
 
@@ -248,7 +248,7 @@ describe('a matriz da impressão', () => {
     const banco = bancoFalso({ edicao: [cadernoImpressoDeMaio('coracao', 1)] });
     const { relatorio } = await imprimirPeloScript({ banco, semGravar: true });
     assert.equal(relatorio.estado, 'ensaio');
-    assert.deepEqual(relatorio.ordem, ['rotina', 'movimento', 'sono', 'coracao']);
+    assert.deepEqual(relatorio.ordem, ['movimento', 'rotina', 'sono', 'coracao']);
     const doCoracao = (relatorio.comparacao ?? []).filter((l) => l.caderno === 'coracao');
     assert.deepEqual(doCoracao.find((l) => l.campo === 'posição'), { caderno: 'coracao', campo: 'posição', novo: '4', banco: '1', igual: false });
     for (const l of doCoracao.filter((x) => x.campo !== 'posição')) {

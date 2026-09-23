@@ -230,7 +230,29 @@ development_status:
   # não mudou — só a versão que entra no hash). Nenhuma consulta nova, nenhuma
   # migração, prompt e conferência intactos. Os quatro workspaces verdes.
   2-6-o-que-ainda-não-era-registrado-não-vira-zero: review
-  2-7-o-detector-de-métrica-morta: backlog
+  # EM ANDAMENTO desde 23/09/2026, com AS QUATRO DECISÕES DO DONO tomadas sobre
+  # medição do acervo dele: (1) morre quando o silêncio passa do maior silêncio
+  # próprio de que ela voltou (PISO 30 DIAS) E outra métrica chegou no intervalo;
+  # (2) a lápide é do período da ÚLTIMA MEDIDA; (3) morte antiga é repassada por
+  # 12 meses ou até voltar; (4) métrica com menos de 10 medidas nunca ganha lápide.
+  # A MEDIÇÃO (23/09, SQL de verdade contra o banco, alimentando o detector): ele
+  # declara exatamente as quatro — respiração 10/07, vo2max 14/07, spo2 16/07,
+  # anéis 17/08 — e nada mais; o peso fica fora pelas 10 medidas.
+  # ELA CORRIGIU DUAS COISAS que este comentário afirmava antes:
+  #  - NÃO foram sete métricas emudecendo juntas. No silêncio que começa em
+  #    11/07/2025 (a última medida é 10/07) só a FAMÍLIA DE ATIVIDADE calou:
+  #    VFC, spo2, respiração, sono e FC de repouso seguiram chegando. Logo
+  #    `outra_chegou` é VERDADEIRA em todos os silêncios do acervo, e ela NÃO
+  #    separa família parada de métrica morta — quem separa é o recorde próprio.
+  #    A testemunha protege o BLECAUTE (troca de telefone, permissão revogada).
+  #  - O PISO SUBIU DE 14 PARA 30. Sono, VFC, spo2 e respiração têm recorde de
+  #    15 a 17 dias: com 14, uma pausa de 20 dias mataria as quatro de uma vez.
+  #    Com 30 a pausa curta não vira lápide e as quatro mortes seguem declaradas
+  #    (a mais apertada é a dos anéis, 37 dias). Preço: ver a morte ~2 semanas
+  #    mais tarde, que a regra 2 acomoda (a lápide é do período da última medida).
+  # CARREGA MIGRAÇÃO: função aditiva `stable` que devolve fatos por métrica. Sem
+  # mudança de schema, sem janela acoplada a build; o dono aplica.
+  2-7-o-detector-de-métrica-morta: review
   # PRÉ-CONDIÇÃO, decidida pelo dono em 23/09/2026 (spec da 2.6): setembro e
   # outubro de 2023 já estão impressas e carregam o zero no lugar da ausência, e
   # serão REIMPRESSAS aqui. ANTES de reimprimir, o texto atual das duas tem de ir

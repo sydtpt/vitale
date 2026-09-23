@@ -40,6 +40,7 @@ jest.mock('../../lib/motores', () => ({
 import {
   EdicaoMudouNaImpressao,
   SEM_DADOS_DA_RETRO,
+  montarEntradaDaEdicao,
   portasDaEdicao,
   type EntradaPacote,
 } from '@vitale/shared';
@@ -51,6 +52,7 @@ import {
   OFFSET,
   TIPO,
   USUARIO,
+  VO2MAX_PAROU_EM,
   bancoFalso,
   cadernoImpressoDeMaio,
   coletorDeHashes,
@@ -66,11 +68,19 @@ beforeEach(() => {
   useRetroStore.setState({ loading: false, loaded: false, loadedSince: null, falhouEm: null, dados: SEM_DADOS_DA_RETRO });
 });
 
-/** A entrada da edição de maio como a tela a monta: a janela garantida, e o resumo da store. */
+/**
+ * A entrada da edição de maio como a tela a monta: a janela garantida, o resumo
+ * da store, e as lápides pela conta do núcleo (Story 2.7) — as três coisas que
+ * `useEntradaDaEdicao` junta.
+ */
 async function entradaDoCelular(janelasAbertas: readonly string[]): Promise<EntradaPacote> {
   await useActivitiesStore.getState().load();
   for (const since of janelasAbertas) await useRetroStore.getState().ensure(since);
-  return { resumo: useRetroStore.getState().summary(AGORA, TIPO, OFFSET), agora: AGORA };
+  const retro = useRetroStore.getState();
+  // **A mesma função que o hook chama** (`montarEntradaDaEdicao`), e não um
+  // literal recomposto aqui: é o que faz "esqueci as lápides no hook" ficar
+  // vermelho, já que o hook em si não é executado por teste nenhum.
+  return montarEntradaDaEdicao(retro.summary(AGORA, TIPO, OFFSET), AGORA, retro.lapides(AGORA));
 }
 
 /** Imprime como a rota da revista imprime, com as portas e o motor da fixture. */
@@ -91,6 +101,16 @@ async function imprimirNoCelular(entrada: EntradaPacote, banco = bancoFalso(), t
 describe('o celular imprime a fixture do contrato', () => {
   it('a janela que a tela pede para maio é a da fixture', () => {
     expect(retroSince(AGORA, TIPO, OFFSET)).toBe(JANELA);
+  });
+
+  /**
+   * A lápide existe no aparelho (Story 2.7): a mesma conta do núcleo, sobre os
+   * fatos do silêncio que vieram com a janela. Antes desta story `entrada.lapides`
+   * chegava vazia da tela, e a edição do iPhone saía sem lápide.
+   */
+  it('a entrada do celular leva a lápide da fixture, pela conta do núcleo', async () => {
+    const entrada = await entradaDoCelular([JANELA]);
+    expect(entrada.lapides).toEqual([{ metrica: 'vo2max', ultimaMedidaISO: VO2MAX_PAROU_EM }]);
   });
 
   it('bate o GABARITO: hash por caderno, ordem e as linhas com a assinatura inteira', async () => {
