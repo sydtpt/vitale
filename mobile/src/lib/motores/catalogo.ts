@@ -170,11 +170,6 @@ export function pesoAbertoDe(id: MotorId | string | null | undefined): PesoAbert
   return PESOS_ABERTOS.find((p) => p.id === id);
 }
 
-/** Este id é de peso aberto? */
-export function ehPesoAberto(id: MotorId | string | null | undefined): boolean {
-  return pesoAbertoDe(id) !== undefined;
-}
-
 /**
  * O peso aberto por **nome de pasta**, ou `undefined` — o que a ficha `modelo/[id]`
  * recebe da rota.
@@ -194,12 +189,18 @@ export function pesoAbertoDaPasta(pasta: string | null | undefined): PesoAberto 
 }
 
 /**
- * O único recurso em que o peso aberto pode ser escolhido — a leitura que **não grava**.
+ * Para onde a **ficha do modelo** manda comparar: a leitura com régua.
  *
- * Fechado sobre `RecursoId`: se a Saúde do sono mudar de nome, isto não compila. Ver o
- * porquê em {@link motivoDeBloqueio}.
+ * Só a Saúde do sono tem template, e é o template que serve de régua — por isso é a única
+ * leitura em que a bancada julga sozinha, sem o dono ler cada frase. Nas outras duas a
+ * bancada mede e mostra; quem aprova é ele.
+ *
+ * Isto **não** é mais um limite de escolha: até 23/09 esta constante também era o único
+ * recurso em que o peso aberto podia ser escolhido, e essa trava caiu (ADR 0056).
+ *
+ * Fechado sobre `RecursoId`: se a Saúde do sono mudar de nome, isto não compila.
  */
-export const RECURSO_DO_PESO_ABERTO = 'saude-do-sono' satisfies RecursoId;
+export const RECURSO_MEDIDO_DO_PESO_ABERTO = 'saude-do-sono' satisfies RecursoId;
 
 /**
  * O id e a pasta são **o mesmo nome**, escrito duas vezes em cada entrada — e nada os amarra.
@@ -869,17 +870,18 @@ export function motivoDeBloqueio(
   const lido = lerMotorId(id);
   if (!lido) return 'este motor não se lê';
 
-  // **O peso aberto é prova, não ferramenta** (5.8). A spec diz, em Never, que ele "entra no
-  // seletor e para aí" — e o regime sozinho não garante isso: `nome-de-rota` admite motor de
-  // aparelho e **grava**, então sem esta linha o dono poderia escolher, para nomear rotas, um
-  // modelo que a medição de 21/09 mostra acertando ~10% e passando no portão em 97% dos
-  // casos. Um nome errado gravado não se desfaz.
+  // **Não há linha para o peso aberto aqui, e é de propósito** (ADR 0056, 23/09).
   //
-  // Sobra a Saúde do sono, que não grava nada: a frase morre na tela. É lá que o dono vê o
-  // texto sair e julga o caminho, que é o que a story existe para provar.
-  if (ehPesoAberto(id) && recurso.recurso !== RECURSO_DO_PESO_ABERTO) {
-    return 'o peso aberto é uma prova de caminho, e só a Saúde do sono a mostra — ela não guarda o que ele escreve';
-  }
+  // Da 5.8 até 23/09 existia uma quinta razão, antes desta: o peso aberto era bloqueado em
+  // todo recurso que gravasse, porque a medição de 21/09 mostrava um modelo pequeno
+  // acertando ~10% dos nomes e passando no portão em 97% dos casos. Ela caiu por decisão do
+  // dono, depois de o Qwen3 1.7B fazer 22 de 22 na amostra da Saúde do sono.
+  //
+  // O que sobrou no lugar não é menos: `grava.admite` do descritor. A retrospectiva segue
+  // fechada ao aparelho porque ela declara `admite: ['nuvem']`, e a razão (3) abaixo a
+  // barra — e passaria a aceitar peso aberto no dia em que o descritor dissesse que aceita,
+  // que é onde essa decisão pertence. `nome-de-rota` declara `admite: ['nuvem','aparelho']`
+  // desde sempre, e agora a tela obedece ao que o descritor diz em vez de um "não" paralelo.
 
   if (exposicao(lido.tipo) > exposicao(recurso.regimeMaximo)) {
     return `este recurso não manda dado além d${recurso.regimeMaximo === 'sem-modelo' ? 'o código' : 'o aparelho'}`;

@@ -316,7 +316,8 @@ esconde, matando o link do app com `duplicate symbol` longe da causa.
 **21/09 — a revisão de três camadas trouxe 21 consertos, sem loopback.** Os que mudaram comportamento:
 o peso aberto passou a ser **bloqueado fora da Saúde do sono** (a Never da spec dizia "entra no seletor
 e para aí", mas `nome-de-rota` admite `aparelho` e **grava** — um modelo de 10% de acerto escreveria
-nome permanente); o ramo de geração passou a ser compilado e testado com `-D ORBE_COREAI`, porque nada
+nome permanente) — **esta trava caiu em 23/09** por decisão do dono, depois de o Qwen3-1.7B fazer 22 de
+22 na amostra da Saúde do sono; ver [ADR 0056](../../docs/decisions/0056-o-peso-aberto-deixa-de-ser-so-prova-e-o-descritor-decide.md); o ramo de geração passou a ser compilado e testado com `-D ORBE_COREAI`, porque nada
 o compilava e apagar a assinatura do provedor deixava o SmolLM2 assinando como modelo da Apple; e os
 dois estados de ponte viraram um objeto, porque dois parâmetros do mesmo tipo lado a lado tornavam a
 inversão invisível ao compilador.

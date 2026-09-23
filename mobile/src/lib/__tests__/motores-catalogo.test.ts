@@ -17,6 +17,7 @@ import {
   RECURSOS,
   SEM_MODELO,
   lerMotorId,
+  type RecursoId,
 } from '@vitale/shared';
 import {
   APARELHO_COREAI_SMOLLM2,
@@ -452,7 +453,7 @@ describe('o peso aberto no diagnóstico dele (story 5.8)', () => {
   });
 });
 
-describe('o peso aberto é prova, não ferramenta (story 5.8)', () => {
+describe('quem pode escolher o peso aberto é o descritor (ADR 0056)', () => {
   const saude = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'saude-do-sono')!;
   const disponivel = motoresDoRecurso(
     'saude-do-sono',
@@ -460,25 +461,36 @@ describe('o peso aberto é prova, não ferramenta (story 5.8)', () => {
     null,
   );
 
+  const conhecidosDe = (recurso: RecursoId) =>
+    motoresDoRecurso(
+      recurso,
+      { sistema: PONTE_AUSENTE, coreai: lido({ estado: 'disponivel', variante: 'smollm2-135m', janela: 4096 }) },
+      null,
+    );
+
   it('na Saúde do sono, com os pesos no build, ele é escolhível — é onde o dono vê o texto sair', () => {
     expect(motivoDeBloqueio(saude, APARELHO_COREAI_SMOLLM2, disponivel)).toBeNull();
   });
 
-  it('em todo recurso que GRAVA ele é bloqueado, com motivo — mesmo com os pesos de pé', () => {
-    // A spec diz, em Never, que ele "entra no seletor e para aí". O regime sozinho não
-    // garantia isso: `nome-de-rota` admite motor de aparelho e grava, e um nome errado
-    // gravado não se desfaz.
-    for (const d of CATALOGO_DE_RECURSOS) {
-      if (d.recurso === 'saude-do-sono') continue;
-      const conhecidos = motoresDoRecurso(
-        d.recurso,
-        { sistema: PONTE_AUSENTE, coreai: lido({ estado: 'disponivel', variante: 'smollm2-135m', janela: 4096 }) },
-        null,
-      );
-      const motivo = motivoDeBloqueio(d, APARELHO_COREAI_SMOLLM2, conhecidos);
-      expect(typeof motivo).toBe('string');
-      expect(motivo).toContain('prova de caminho');
-    }
+  it('em nome de rota ele passou a ser escolhível — o descritor admite `aparelho` e grava', () => {
+    // Até 23/09 uma linha em `motivoDeBloqueio` barrava o peso aberto em todo recurso que
+    // gravasse, com "prova de caminho". Caiu por decisão do dono (ADR 0056), depois de o
+    // Qwen3 1.7B fazer 22 de 22 na amostra da Saúde do sono. O "não" paralelo saiu; o
+    // `grava.admite` do descritor ficou.
+    const nomeDeRota = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'nome-de-rota')!;
+    expect(nomeDeRota.grava).toMatchObject({ admite: expect.arrayContaining(['aparelho']) });
+    expect(motivoDeBloqueio(nomeDeRota, APARELHO_COREAI_SMOLLM2, conhecidosDe('nome-de-rota'))).toBeNull();
+  });
+
+  it('na retrospectiva ele continua barrado — e por `grava.admite`, não por linha à parte', () => {
+    // O guarda que importa: derrubar a trava da rota não podia abrir a revista junto. Ela
+    // declara `admite: ['nuvem']`, e é essa declaração — não um caso especial na tela — que
+    // a mantém fechada. Trocar a declaração é o que abriria, que é onde a decisão pertence.
+    const retro = CATALOGO_DE_RECURSOS.find((d) => d.recurso === 'retrospectiva')!;
+    expect(retro.grava).toMatchObject({ admite: ['nuvem'] });
+    const motivo = motivoDeBloqueio(retro, APARELHO_COREAI_SMOLLM2, conhecidosDe('retrospectiva'));
+    expect(typeof motivo).toBe('string');
+    expect(motivo).toContain('não guarda o que o modelo do aparelho escreve');
   });
 
   it('o bloqueio não respinga no modelo do sistema nem na nuvem', () => {
