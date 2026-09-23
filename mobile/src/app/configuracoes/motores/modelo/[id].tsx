@@ -14,7 +14,7 @@ import {
 } from '../../../../lib/motores';
 import {
   COMPILACAO_AUSENTE,
-  RECURSO_DO_PESO_ABERTO,
+  RECURSO_MEDIDO_DO_PESO_ABERTO,
   compilacaoDoModelo,
   estadoDoPesoAberto,
   listaAprovada,
@@ -326,7 +326,7 @@ export default function ModeloScreen() {
             onPress={() =>
               router.push({
                 pathname: '/configuracoes/motores/bancada',
-                params: { recurso: RECURSO_DO_PESO_ABERTO },
+                params: { recurso: RECURSO_MEDIDO_DO_PESO_ABERTO },
               })
             }
             accessibilityRole="button"

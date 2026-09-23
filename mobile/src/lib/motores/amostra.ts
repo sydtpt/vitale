@@ -5,7 +5,14 @@
  * **A régua é do núcleo** (`packages/shared/src/bancada/`): a amostra, a tradução da
  * medição em linha e as medidas da ADR 0050 são as mesmas da bancada do Mac. O que mora
  * aqui é o que o app acrescenta — o portão das notas, o laço uma-janela-por-vez com
- * "parar" e freio, e a composição que mede uma janela no modelo do aparelho.
+ * "parar" e freio, e a composição que mede uma janela **no motor que o dono escolheu**.
+ *
+ * **O motor deixou de ser o modelo do sistema por definição** (fatia 5 do redesenho). A
+ * amostra media `APARELHO_SISTEMA`, cravado no laço, e por isso os dois pesos abertos só
+ * tinham sido provados numa janela cada — uma frase não é taxa. Agora a corrida recebe
+ * quem medir, uma por motor e em sequência, e o resultado carrega o nome de quem o
+ * produziu. A régua de cada janela continua sendo o template (`SEM_MODELO`), medida dentro
+ * dela: é contra ele que a frase do motor é julgada.
  *
  * **Fica aqui, e não na tela**, porque é isto que produz os números que o dono vai ler: na
  * tela, o jest não o importa, e o que sobraria seria uma cópia à mão dizendo que está
@@ -15,7 +22,6 @@
  * Nada aqui grava, e nada sai do aparelho.
  */
 import {
-  APARELHO_SISTEMA,
   SEM_MODELO,
   SEM_PEDIDO,
   amostraDaNuvem,
@@ -32,6 +38,7 @@ import {
   noiteMaisAntiga,
   passosPorAlcance,
   templateDaMedicao,
+  type CorridaDaAmostra,
   type EventoDoAnel,
   type JanelaClassificada,
   type LinhaDoRelatorio,
@@ -41,6 +48,8 @@ import {
   type SonoRange,
 } from '@vitale/shared';
 import { motorPara as motorParaDoApp, registroDoAparelho, type RegistroDoAparelho } from './index';
+import { nomeDoMotor } from './catalogo';
+import type { ColunaDaCorrida } from './amostras-regras';
 
 /* ── o acervo e o que a medição usou ─────────────────────────────────────── */
 
@@ -114,29 +123,56 @@ export interface AcervoDaStore extends EstadoDasNotas {
 }
 
 /** As etapas do preparo, na ordem — a tela diz qual está rodando. */
-export const ETAPAS_DO_PREPARO = ['aparelho', 'notas', 'enumerando', 'amostrando'] as const;
+export const ETAPAS_DO_PREPARO = ['motores', 'notas', 'enumerando', 'amostrando'] as const;
 export type EtapaDoPreparo = (typeof ETAPAS_DO_PREPARO)[number];
 
 export const ETAPA_EM_PALAVRAS: Readonly<Record<EtapaDoPreparo, string>> = {
-  aparelho: 'perguntando ao aparelho se o modelo atende…',
+  motores: 'relendo o diagnóstico e o compilado dos motores marcados…',
   notas: 'carregando as notas até a noite mais antiga…',
   enumerando: 'enumerando as janelas do acervo…',
   amostrando: 'escolhendo a amostra…',
 };
 
 export type PreparoDaAmostra =
-  | { readonly ok: true; readonly janelas: readonly JanelaClassificada[]; readonly dados: DadosDaAmostra; readonly contexto: ContextoDaAmostra }
+  | {
+      readonly ok: true;
+      readonly janelas: readonly JanelaClassificada[];
+      readonly dados: DadosDaAmostra;
+      readonly contexto: ContextoDaAmostra;
+      /** Uma corrida por motor, na ordem — a recusada inclusive (ela vira resultado com o motivo). */
+      readonly fila: readonly ColunaDaCorrida[];
+    }
   /** `motivo` nulo é "cancelado": ninguém pediu explicação. */
   | { readonly ok: false; readonly motivo: string | null };
 
 /**
- * O preparo da amostra, antes de qualquer chamada ao modelo: o diagnóstico do aparelho, as
+ * Por que nenhuma corrida sairia desta fila — ou `null`, quando ao menos um motor mede.
+ *
+ * A fila só de recusas é o caso que merece a frase: o dono marcou um modelo, e entre a
+ * marcação e o toque ele perdeu o pé. Enumerar 390 janelas para depois mostrar duas linhas
+ * de recusa seria gastar segundos de tela para dizer o que já se sabia no primeiro passo.
+ */
+function semQuemMedir(fila: readonly ColunaDaCorrida[]): string | null {
+  if (fila.some((c) => c.recusa === undefined)) return null;
+  if (fila.length === 0) return 'nenhum motor do aparelho marcado — marque um nos chips de "quem entra"';
+  return `nenhum motor marcado mede agora: ${fila.map((c) => `${nomeDoMotor(c.motor)} — ${c.recusa}`).join(' · ')}`;
+}
+
+/**
+ * O preparo da amostra, antes de qualquer chamada a modelo nenhum: a fila de motores, as
  * notas inteiras, a enumeração e a amostra.
  *
- * Tudo injetado — a store, o relógio e o diagnóstico — para o teste exercitar cada recusa
- * sem React e sem rede. **Cancelável entre as etapas**: a enumeração é síncrona e longa
+ * Tudo injetado — a store, o relógio e a fila — para o teste exercitar cada recusa sem
+ * React e sem rede. **Cancelável entre as etapas**: a enumeração é síncrona e longa
  * (~390 entradas), e o que se pode prometer é não começar a próxima etapa depois do toque
  * em cancelar.
+ *
+ * **A fila vem primeiro, e é relida aqui** (fatia 4, agora por motor): perguntar pelos
+ * motores antes de enumerar é o que evita gastar segundos de tela para descobrir no fim
+ * que ninguém ia medir — e é também a primeira metade da guarda que impede uma corrida de
+ * 22 janelas de começar disparando uma compilação de quinze minutos. A segunda metade é
+ * por corrida, em {@link medirCorridas}, porque entre o preparo e a vez do segundo motor
+ * passam minutos.
  */
 export async function prepararAmostra(o: {
   readonly hoje: string;
@@ -144,8 +180,8 @@ export async function prepararAmostra(o: {
   /** A store, lida **a cada vez** — o acervo pode mudar durante os `await`. */
   readonly estado: () => AcervoDaStore;
   readonly carregarNotasDesde: (dia: string) => Promise<void>;
-  /** Por que o modelo do aparelho não atende agora, ou `null` se atende. */
-  readonly motivoDoAparelho: () => Promise<string | null>;
+  /** Quem vai medir, com o diagnóstico e o compilado **relidos** agora. */
+  readonly motores: () => Promise<readonly ColunaDaCorrida[]>;
   readonly cancelado?: () => boolean;
   readonly aoAndar?: (etapa: EtapaDoPreparo) => void;
   /** Um respiro para a tela pintar entre as etapas. */
@@ -160,10 +196,10 @@ export async function prepararAmostra(o: {
     return !cancelado();
   };
 
-  if (!(await etapa('aparelho'))) return { ok: false, motivo: null };
-  // O motor é só o aparelho: sem ele, não há o que medir.
-  const semAparelho = await o.motivoDoAparelho();
-  if (semAparelho !== null) return { ok: false, motivo: `o modelo do aparelho não mede: ${semAparelho}` };
+  if (!(await etapa('motores'))) return { ok: false, motivo: null };
+  const fila = await o.motores();
+  const semMedir = semQuemMedir(fila);
+  if (semMedir !== null) return { ok: false, motivo: semMedir };
 
   const antes = o.estado();
   if (!antes.loaded) {
@@ -212,6 +248,7 @@ export async function prepararAmostra(o: {
     ok: true,
     janelas,
     dados,
+    fila,
     contexto: {
       hoje: o.hoje,
       limite: o.limite,
@@ -255,8 +292,14 @@ export const MARCAS_INDEFINIDAS =
   'marcas do hospedeiro indefinidas: outra chamada ao aparelho encerrou no meio desta janela';
 
 /**
- * Uma janela da amostra, medida como a bancada do Mac a mede: a régua pelo piso, o modelo
- * do aparelho em `medicao`, e a linha traduzida pela **mesma função** do Mac.
+ * Uma janela da amostra, medida como a bancada do Mac a mede: a régua pelo piso, **o motor
+ * pedido** em `medicao`, e a linha traduzida pela **mesma função** do Mac.
+ *
+ * O motor é parâmetro, e obrigatório (fatia 5): enquanto ele foi `APARELHO_SISTEMA` escrito
+ * aqui dentro, a amostra do iPhone só sabia medir o modelo da Apple, e um padrão neste
+ * lugar seria a maneira de uma corrida do Qwen voltar medindo outra coisa sem ninguém ver.
+ *
+ * Não se chama mais `medirJanelaNoAparelho`: o nome dizia onde, e o que importa é **quem**.
  *
  * O hash vem da própria medição (`hashDaMedicao`): é o `hashDoPedido` do pedido que o Mac
  * monta para o relatório, sem o app montá-lo (a catraca do `montarPedido` nomeia só a
@@ -269,12 +312,18 @@ export const MARCAS_INDEFINIDAS =
  * pediu ao aparelho no meio), **não se chuta**: a linha fica sem marca e diz isso no
  * detalhe, porque atribuir a fria ou o prazo à janela errada é pior que não atribuir.
  *
+ * **Quem carimba é o transporte do aparelho, e só ele** — daí a fila da amostra ser só de
+ * motores do aparelho (`SO_O_APARELHO_MEDE_A_AMOSTRA`). Um motor de outro transporte sairia
+ * daqui sem marca nenhuma, e o prazo que o próprio app fabricou entraria na conta como
+ * reprovação do modelo.
+ *
  * Nunca rejeita: uma exceção de função pura vira a linha de defeito, e a amostra segue.
  */
-export async function medirJanelaNoAparelho(
+export async function medirJanela(
   j: JanelaClassificada,
   dados: DadosDaAmostra,
   hoje: string,
+  motor: MotorId,
   deps: DepsDaMedicao = {},
 ): Promise<LinhaDoRelatorio> {
   const motorPara = deps.motorPara ?? motorParaDoApp;
@@ -296,7 +345,7 @@ export async function medirJanelaNoAparelho(
     template = templateDaMedicao(regua);
     const m = await ler(descritorDaSaudeDoSono, e, {
       modo: 'medicao',
-      motor: APARELHO_SISTEMA,
+      motor,
       motorPara,
       registrar: (ev) => {
         evento = ev;
@@ -383,6 +432,109 @@ export function freioDoHospedeiro(
     if (!ultimas.every((l) => l.doHospedeiro)) return null;
     return `${teto} janelas seguidas não chegaram ao modelo (prazo ou ponte) — a corrida parou; nada aqui mede o modelo`;
   };
+}
+
+/* ── uma corrida por motor, em sequência (fatia 5) ───────────────────────── */
+
+/** Uma corrida da amostra como o app a guarda: a do núcleo, mais como ela terminou. */
+export interface CorridaMedida extends CorridaDaAmostra {
+  /** Parou antes da última janela: as medidas são só do que já foi medido. */
+  readonly parcial: boolean;
+  /** Por que parou antes do fim, quando não foi o toque em "parar" (freio, defeito). */
+  readonly motivo?: string;
+  readonly inicio: number;
+  readonly fim: number;
+}
+
+/** O que a corrida seguinte diz quando o dono parou antes da vez dela. */
+export const PARADO_ANTES_DA_VEZ = 'a corrida foi parada antes da vez deste motor';
+
+/**
+ * A amostra inteira, **um motor por corrida e em sequência**.
+ *
+ * Nunca em paralelo: os motores do aparelho dividem a mesma vez (`FilaDoAparelho`) porque
+ * disputam a memória e o Neural Engine do mesmo telefone — duas corridas ao mesmo tempo só
+ * fariam uma esperar dentro do transporte, e a espera entraria no `ms` das duas, estragando
+ * a mediana de ambas. Sequencial é o que o aparelho já impõe; aqui isso fica dito.
+ *
+ * **Cada corrida relê antes de abrir a primeira janela** (`aindaDePe`). É a guarda da fatia
+ * 4 no lugar onde ela mais vale: a fila foi decidida antes da primeira janela, e a vez do
+ * segundo motor chega minutos depois — tempo de sobra para o iOS purgar o cache do Core AI.
+ * Sem esta releitura, a primeira chamada do segundo modelo **seria a compilação dele**, 11 a
+ * 15 min, pela porta que promete não compilar nada.
+ *
+ * **O freio do hospedeiro é por motor**: cada corrida tem o seu, contando as janelas
+ * seguidas dela. Um aparelho que parou de responder derruba a corrida em curso e a seguinte
+ * ainda tenta — o freio diz que *aquela* corrida não está medindo, nunca que o telefone
+ * morreu.
+ *
+ * **Nenhum motor some do resultado.** A corrida que não aconteceu — recusada no preparo,
+ * recusada na releitura ou parada antes da vez — entra com o motivo, porque um modelo que
+ * simplesmente sumisse da lista deixaria o dono comparando dois números e achando que pediu
+ * três.
+ */
+export async function medirCorridas(o: {
+  readonly fila: readonly ColunaDaCorrida[];
+  readonly janelas: readonly JanelaClassificada[];
+  /**
+   * O motor ainda está de pé? O motivo, ou `null` — relido na vez dele.
+   *
+   * **Não se chama `conferir`**, por mais que fosse o nome natural: `conferir` é uma das
+   * cinco funções do descritor, e a barreira do `architecture.test.ts` procura por
+   * `.conferir(` no texto de todo arquivo fora do orquestrador. Um parâmetro homônimo
+   * derruba o portão sem nenhum descritor ter sido tocado — foi o que aconteceu aqui.
+   */
+  readonly aindaDePe: (motor: MotorId) => Promise<string | null>;
+  readonly medir: (janela: JanelaClassificada, motor: MotorId) => Promise<LinhaDoRelatorio>;
+  readonly parar: () => boolean;
+  readonly agora?: () => number;
+  /** Antes da primeira janela de um motor. */
+  readonly aoAbrirCorrida?: (motor: MotorId, indice: number) => void;
+  readonly aoAbrirJanela?: (janela: JanelaClassificada) => void;
+  readonly aoMedir?: (linhas: readonly LinhaDoRelatorio[]) => void;
+  /** Depois de fechar uma corrida — inclusive a que não mediu nada. */
+  readonly aoFechar?: (corrida: CorridaMedida) => void;
+}): Promise<readonly CorridaMedida[]> {
+  const agora = o.agora ?? ((): number => Date.now());
+  const feitas: CorridaMedida[] = [];
+  const fechar = (c: CorridaMedida): void => {
+    feitas.push(c);
+    o.aoFechar?.(c);
+  };
+  const semMedir = (motor: MotorId, recusa: string, quando: number): void =>
+    fechar({ motor, linhas: [], recusa, parcial: false, inicio: quando, fim: quando });
+
+  for (let i = 0; i < o.fila.length; i += 1) {
+    const { motor, recusa } = o.fila[i]!;
+    const abriu = agora();
+    if (o.parar()) {
+      semMedir(motor, PARADO_ANTES_DA_VEZ, abriu);
+      continue;
+    }
+    if (recusa !== undefined) {
+      semMedir(motor, recusa, abriu);
+      continue;
+    }
+    // A releitura da vez dele — ver o cabeçalho.
+    const perdeuOPe = await o.aindaDePe(motor);
+    if (perdeuOPe !== null) {
+      semMedir(motor, perdeuOPe, agora());
+      continue;
+    }
+    o.aoAbrirCorrida?.(motor, i);
+    const inicio = agora();
+    const { linhas, parcial, motivo } = await medirEmSequencia({
+      janelas: o.janelas,
+      medir: (j) => o.medir(j, motor),
+      parar: o.parar,
+      // Um freio novo por corrida: ele conta as janelas seguidas **desta**.
+      abortarSe: freioDoHospedeiro(),
+      aoAbrir: (j) => o.aoAbrirJanela?.(j),
+      aoMedir: (l) => o.aoMedir?.(l),
+    });
+    fechar({ motor, linhas, parcial, ...(motivo !== undefined ? { motivo } : {}), inicio, fim: agora() });
+  }
+  return feitas;
 }
 
 /* ── o tempo da corrida ──────────────────────────────────────────────────── */

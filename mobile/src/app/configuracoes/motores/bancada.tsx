@@ -4,22 +4,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useKeepAwake } from 'expo-keep-awake';
 import {
-  APARELHO_SISTEMA,
   LIMITE_DA_AMOSTRA,
   RECURSOS,
   REGRA_DA_AMOSTRA,
   REGRA_DA_JANELA_MEDIDA,
   SEM_MODELO,
   agregar,
+  amostrasDivergentes,
   chaveDoPasso,
   entradaDaSaude,
   filterByRange,
   foraEmTexto,
   hashCurto,
+  linhaDoResumo,
   localDateStr,
   medidasDoPortao,
   porcento,
   resumoDaCobertura,
+  resumoDaCorrida,
   segundos,
   type JanelaClassificada,
   type LinhaDoRelatorio,
@@ -37,7 +39,6 @@ import {
   PESOS_ABERTOS,
   PONTE_AUSENTE,
   listaAprovada,
-  motivoDoAparelho,
   motoresDoRecurso,
   nomeDoMotor,
   type EstadoDaCompilacao,
@@ -56,23 +57,30 @@ import {
   relerCompilacaoDosPesos,
 } from '../../../lib/motores';
 import {
+  SO_O_APARELHO_MEDE_A_AMOSTRA,
   chipsDaCorrida,
   colunasPorVir,
+  filaDaAmostra,
   filaDaCorrida,
   motivoDoTeto,
+  planoDaAmostra,
+  prazoDoMotorMs,
+  prazoEmTexto,
+  recusaDoMotorAgora,
   tetoDaCorridaMs,
   type ChipDaCorrida,
+  type ColunaDaCorrida,
   type PrazosDaCorrida,
 } from '../../../lib/motores/amostras-regras';
 import {
   ETAPA_EM_PALAVRAS,
   duracaoCurta,
-  freioDoHospedeiro,
-  medirEmSequencia,
-  medirJanelaNoAparelho,
+  medirCorridas,
+  medirJanela,
   prepararAmostra,
   previsaoDaAmostra,
   type ContextoDaAmostra,
+  type CorridaMedida,
   type EtapaDoPreparo,
 } from '../../../lib/motores/amostra';
 import {
@@ -117,20 +125,35 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../.
  * Nada é gravado, e nada do que esta tela mostra sai do aparelho.
  *
  * **A amostra** (story 5.13). O iPhone tem um modelo maior que o do Mac da bancada, e só
- * ele pode dizer quanto o próprio modelo aprova. "Medir a amostra" roda o modelo do
- * aparelho, em `medicao`, sobre **a mesma amostra de janelas** da bancada do Mac e com a
- * **mesma régua** — a amostra, a tradução em linha e as medidas são do núcleo
- * (`packages/shared/src/bancada/`), e este é o único arquivo do app que as usa: a amostra
- * carrega caso, e caso não entra em tela de produto (barreira do `architecture.test.ts`).
- * O laço fica aqui: uma janela por vez, pela fila da ponte, com as notas inteiras antes
- * de enumerar e a tela acesa enquanto mede. O resultado são os números da ADR 0050 **sem
- * limiar e sem veredito**, e o hash de cada pedido para comparar com o relatório do Mac.
+ * ele pode dizer quanto o próprio modelo aprova. "Medir a amostra" roda, em `medicao`,
+ * sobre **a mesma amostra de janelas** da bancada do Mac e com a **mesma régua** — a
+ * amostra, a tradução em linha e as medidas são do núcleo (`packages/shared/src/bancada/`),
+ * e este é o único arquivo do app que as usa: a amostra carrega caso, e caso não entra em
+ * tela de produto (barreira do `architecture.test.ts`). O laço fica aqui: uma janela por
+ * vez, pela fila da ponte, com as notas inteiras antes de enumerar e a tela acesa enquanto
+ * mede. O resultado são os números da ADR 0050 **sem limiar e sem veredito**, e o hash de
+ * cada pedido para comparar com o relatório do Mac.
+ *
+ * **A amostra mede quem o dono marcar** (fatia 5 do redesenho). Ela era do modelo do
+ * sistema por definição, e por isso os dois pesos abertos só tinham sido provados numa
+ * frase cada — uma frase não é taxa. Agora os chips de "quem entra" valem para as duas
+ * corridas da tela, e a amostra vira **uma corrida por motor marcado, em sequência**, com
+ * o resultado nomeando quem o produziu e uma linha de comparação por motor. Só motor do
+ * aparelho: a nuvem não tem, neste app, as marcas de hospedeiro que a régua da ADR 0050
+ * exige, e ela se mede na bancada do Mac (`SO_O_APARELHO_MEDE_A_AMOSTRA`).
+ *
+ * **A amostra é preparada uma vez** e serve a todas as corridas da sessão. É isso que faz
+ * as taxas se compararem: medir o segundo motor num toque de minutos depois poderia
+ * enumerar outro acervo — um sync traz a noite de hoje — e as duas taxas pareceriam
+ * comparáveis sem serem.
  *
  * **As guardas de borda** (fatia 4 do redesenho). A corrida **relê** antes de correr —
  * diagnóstico e compilação —, e quem perdeu o pé vira uma linha que diz o motivo em vez de
  * uma chamada que compila por minutos; cada coluna tem teto de espera; Medir tem três
  * formas e nunca larga duas corridas; sair da tela abandona a que estiver em voo. Todas as
  * decisões que dão para tomar sem tela moram em `lib/motores/amostras-regras.ts`, com teste.
+ * Na amostra a releitura acontece **também na vez de cada motor**: entre o preparo e o
+ * segundo modelo passam minutos, que é tempo de sobra para o iOS purgar o cache do Core AI.
  *
  * **O que o Parar promete** (23/09). Ele impede as **próximas** colunas — a que está em voo
  * termina e publica, porque uma chamada em andamento não se cancela e a do aparelho muito
@@ -289,6 +312,24 @@ export default function BancadaScreen() {
   );
   /** Um motor consultando **não** conta: ele ainda não disse se existe. */
   const nenhumMotorNaCorrida = chips.every((c) => !c.marcado);
+
+  /**
+   * **Quem a amostra mediria se ele tocasse agora** — os mesmos chips, pelas mesmas regras.
+   *
+   * É uma prévia, e a corrida relê tudo antes de começar (e de novo na vez de cada motor):
+   * o que se pinta aqui é para o dono saber quantas corridas está pedindo, não para decidir
+   * a fila. Decidir por este valor traria de volta o defeito da fatia 4, com minutos no
+   * lugar de segundos entre a pintura e o toque.
+   */
+  const amostraDeAgora = useMemo(
+    () => filaDaAmostra(motoresDaCorrida, { regimeMaximo: fonte.regimeMaximo, fora: foraDaCorrida, compilacao }),
+    [motoresDaCorrida, fonte, foraDaCorrida, compilacao],
+  );
+  const prontosParaAmostra = useMemo(
+    () => amostraDeAgora.corridas.filter((c) => c.recusa === undefined).map((c) => c.motor),
+    [amostraDeAgora],
+  );
+  const foraDaAmostra = amostraDeAgora.foraDaAmostra;
   /** A régua, quando a leitura tem uma — o chip que não é controle. */
   const regua = fonte.temRegua ? motoresDaCorrida.find((m) => m.id === SEM_MODELO) : undefined;
 
@@ -420,6 +461,36 @@ export default function BancadaScreen() {
    */
   const [porVir, setPorVir] = useState<number | null>(null);
 
+  /**
+   * Os motores conhecidos agora, com os três diagnósticos e a lista do servidor **relidos**.
+   *
+   * Uma função para as duas corridas (fatia 5): a comparação de uma janela a chama uma vez,
+   * antes da fila; a amostra a chama no preparo **e na vez de cada motor**. É dela que sai a
+   * garantia central da tela — não compilar nada —, e duas cópias dela envelheceriam em
+   * separado. Numa corrida de 22 janelas a conta é outra: um peso aberto sem compilado
+   * dispara 11 a 15 min de compilação já no primeiro item.
+   *
+   * Os três estados da tela são atualizados junto, para os chips não contarem uma história
+   * diferente da que a corrida está seguindo.
+   */
+  const relerOsMotores = useCallback(async () => {
+    const [lista, estadoDaPonte, estadoDoCoreAI, estadoDaCompilacao] = await Promise.all([
+      garantirListaAprovada(),
+      ponteDoAparelho.reconsultar(),
+      reconsultarPesosAbertos(),
+      relerCompilacaoDosPesos(),
+    ]);
+    setPonte(estadoDaPonte);
+    setCoreai(estadoDoCoreAI);
+    setCompilacao(estadoDaCompilacao);
+    setListaDeMotores(lista);
+    const conhecidos = motoresDoRecurso(recurso, { sistema: estadoDaPonte, coreai: estadoDoCoreAI }, lista);
+    return {
+      conhecidos,
+      opcoes: { regimeMaximo: fonte.regimeMaximo, fora: foraRef.current, compilacao: estadoDaCompilacao },
+    };
+  }, [recurso, fonte]);
+
   const medir = useCallback(async () => {
     const caso = casoAtual;
     if (caso === null) return;
@@ -449,30 +520,19 @@ export default function BancadaScreen() {
       // AI. Sem esta releitura, o toque em Medir manda compilar — quinze minutos
       // disparados pela única porta desta família que diz, por escrito, que não compila
       // nada. É a primeira instrução do botão de propósito.
-      const [lista, estadoDaPonte, estadoDoCoreAI, estadoDaCompilacao] = await Promise.all([
-        garantirListaAprovada(),
-        ponteDoAparelho.reconsultar(),
-        reconsultarPesosAbertos(),
-        relerCompilacaoDosPesos(),
-      ]);
-      if (foraDeFocoRef.current) return;
-      setPonte(estadoDaPonte);
-      setCoreai(estadoDoCoreAI);
-      setCompilacao(estadoDaCompilacao);
-      setListaDeMotores(lista);
-      const conhecidos = motoresDoRecurso(recurso, { sistema: estadoDaPonte, coreai: estadoDoCoreAI }, lista);
-      if (identidadeRef.current !== doLaco) return;
+      //
+      // A releitura é a **mesma** das corridas da amostra (`relerOsMotores`): duas
+      // cópias dela envelheceriam em separado, e é dela que sai a garantia de não
+      // compilar.
+      const { conhecidos, opcoes } = await relerOsMotores();
+      if (foraDeFocoRef.current || identidadeRef.current !== doLaco) return;
       // **A fila inteira antes da primeira coluna.** Os filtros eram aplicados um a
       // um dentro do laço, e por isso ninguém — nem o laço — sabia quantas colunas
       // ainda viriam. Sem esse número o "Parar" não tem como dizer a verdade: em
       // 23/09 ele apareceu numa corrida cuja única coluna já estava em voo e
       // prometeu uma interrupção que não existia. As regras são as mesmas e estão
       // agora num lugar só, puro e testado.
-      const fila = filaDaCorrida(conhecidos, {
-        regimeMaximo: fonte.regimeMaximo,
-        fora: foraRef.current,
-        compilacao: estadoDaCompilacao,
-      });
+      const fila = filaDaCorrida(conhecidos, opcoes);
       for (let i = 0; i < fila.length; i++) {
         const coluna = fila[i]!;
         // **Abandona o que é de outro caso.** O efeito de limpeza apaga as linhas
@@ -582,16 +642,15 @@ export default function BancadaScreen() {
 
   const medirAmostra = useCallback(async () => {
     pararRef.current = false;
-    setAmostra({ fase: 'preparando', etapa: 'aparelho' });
+    setAmostra({ fase: 'preparando', etapa: 'motores' });
     const preparo = await prepararAmostra({
       hoje: localDateStr(),
       limite,
       estado: () => useSonoStore.getState(),
       carregarNotasDesde: (dia) => useSonoStore.getState().carregarNotasDesde(dia),
-      motivoDoAparelho: async () => {
-        const estadoDaPonte = await ponteDoAparelho.reconsultar();
-        setPonte(estadoDaPonte);
-        return motivoDoAparelho(estadoDaPonte);
+      motores: async () => {
+        const { conhecidos, opcoes } = await relerOsMotores();
+        return filaDaAmostra(conhecidos, opcoes).corridas;
       },
       cancelado: () => pararRef.current,
       aoAndar: (etapa) => setAmostra((a) => (a.fase === 'preparando' ? { ...a, etapa } : a)),
@@ -602,23 +661,36 @@ export default function BancadaScreen() {
       return setAmostra(preparo.motivo === null ? { fase: 'parada' } : { fase: 'recusada', motivo: preparo.motivo });
     }
 
-    const { janelas, dados, contexto } = preparo;
+    const { janelas, dados, contexto, fila } = preparo;
     const inicio = Date.now();
-    setAmostra({ fase: 'medindo', contexto, linhas: [], emVoo: null, parando: false, inicio });
-    // Uma janela por vez, com freio: três seguidas que não chegam ao modelo param a
-    // corrida — uma hora de tela acesa sem medir nada não é medição.
-    const { linhas: medidas, parcial, motivo } = await medirEmSequencia({
+    setAmostra({ fase: 'medindo', contexto, fila, feitas: [], emCurso: null, parando: false, inicio });
+    // Uma corrida por motor, em sequência; dentro de cada uma, uma janela por vez com
+    // freio próprio — três seguidas que não chegam ao modelo param **aquela** corrida, e a
+    // seguinte ainda tenta. Uma hora de tela acesa sem medir nada não é medição.
+    const feitas = await medirCorridas({
+      fila,
       janelas,
-      medir: (j) => medirJanelaNoAparelho(j, dados, contexto.hoje),
+      aindaDePe: async (motor) => {
+        const { conhecidos, opcoes } = await relerOsMotores();
+        return recusaDoMotorAgora(conhecidos, opcoes, motor);
+      },
+      medir: (j, motor) => medirJanela(j, dados, contexto.hoje, motor),
       parar: () => pararRef.current,
-      abortarSe: freioDoHospedeiro(),
-      aoAbrir: (j) => setAmostra((a) => (a.fase === 'medindo' ? { ...a, emVoo: j } : a)),
-      aoMedir: (l) => setAmostra((a) => (a.fase === 'medindo' ? { ...a, linhas: l } : a)),
+      aoAbrirCorrida: (motor) =>
+        setAmostra((a) => (a.fase === 'medindo' ? { ...a, emCurso: { motor, linhas: [], emVoo: null, inicio: Date.now() } } : a)),
+      aoAbrirJanela: (j) =>
+        setAmostra((a) => (a.fase === 'medindo' && a.emCurso !== null ? { ...a, emCurso: { ...a.emCurso, emVoo: j } } : a)),
+      aoMedir: (l) =>
+        setAmostra((a) => (a.fase === 'medindo' && a.emCurso !== null ? { ...a, emCurso: { ...a.emCurso, linhas: l } } : a)),
+      // Publica corrida a corrida: com dois modelos a segunda leva minutos, e esperar o
+      // fim de tudo deixaria a primeira medida escondida por todo esse tempo.
+      aoFechar: (c) =>
+        setAmostra((a) => (a.fase === 'medindo' ? { ...a, feitas: [...a.feitas, c], emCurso: null } : a)),
     });
-    // **O que já foi medido nunca vira recusa**: mesmo com defeito ou freio, a corrida
-    // termina como parcial, com as linhas e o motivo à vista.
-    setAmostra({ fase: 'pronta', contexto, linhas: medidas, parcial, inicio, fim: Date.now(), ...(motivo ? { motivo } : {}) });
-  }, [limite]);
+    // **O que já foi medido nunca vira recusa**: mesmo com defeito ou freio, cada corrida
+    // termina com as linhas e o motivo à vista.
+    setAmostra({ fase: 'pronta', contexto, corridas: feitas, inicio, fim: Date.now() });
+  }, [limite, relerOsMotores]);
 
   const pedirParada = useCallback(() => {
     pararRef.current = true;
@@ -746,6 +818,13 @@ export default function BancadaScreen() {
             entra. E ela relê o diagnóstico e o compilado antes de começar — quem perdeu o pé no
             meio sai com o motivo, em vez de virar uma chamada de minutos.
           </Text>
+          {/* Uma fileira para as duas corridas da tela (fatia 5): a de uma janela, logo
+              abaixo, e a da amostra inteira, no cartão do fim. Um segundo seletor lá seria a
+              maneira de os dois botões discordarem sobre quem está marcado. */}
+          <Text style={s.aviso}>
+            Estes chips valem para as duas medições: a comparação de uma janela e a amostra de N
+            janelas. Lá, cada motor marcado vira uma corrida própria, em sequência.
+          </Text>
 
           <View style={s.linhaDoBotao}>
             <Pressable
@@ -849,7 +928,8 @@ export default function BancadaScreen() {
               estado={amostra}
               limite={limite}
               aoEscolherLimite={setLimite}
-              motivoDoAparelho={motivoDoAparelho(ponte)}
+              prontos={prontosParaAmostra}
+              foraDaAmostra={foraDaAmostra}
               ocupado={rodando !== null}
               aoMedir={() => void medirAmostra()}
               aoParar={pedirParada}
@@ -988,6 +1068,15 @@ function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string;
 
 /* ── a amostra (story 5.13) ──────────────────────────────────────────────── */
 
+/** A corrida que está no aparelho agora — a única que publica por janela. */
+interface CorridaEmCurso {
+  readonly motor: MotorId;
+  readonly linhas: readonly LinhaDoRelatorio[];
+  /** A janela que está no motor agora. */
+  readonly emVoo: JanelaClassificada | null;
+  readonly inicio: number;
+}
+
 type EstadoDaAmostra =
   | { readonly fase: 'parada' }
   | { readonly fase: 'preparando'; readonly etapa: EtapaDoPreparo; readonly cancelando?: true }
@@ -995,22 +1084,20 @@ type EstadoDaAmostra =
   | {
       readonly fase: 'medindo';
       readonly contexto: ContextoDaAmostra;
-      readonly linhas: readonly LinhaDoRelatorio[];
-      /** A janela que está no aparelho agora. */
-      readonly emVoo: JanelaClassificada | null;
-      /** "Parar" foi tocado: a janela em voo termina, e a próxima não abre. */
+      /** A fila inteira, decidida antes da primeira corrida: é ela que diz "1 de 2". */
+      readonly fila: readonly ColunaDaCorrida[];
+      readonly feitas: readonly CorridaMedida[];
+      readonly emCurso: CorridaEmCurso | null;
+      /** "Parar" foi tocado: a janela em voo termina, e nem a próxima nem o próximo motor abrem. */
       readonly parando: boolean;
       readonly inicio: number;
     }
   | {
       readonly fase: 'pronta';
       readonly contexto: ContextoDaAmostra;
-      readonly linhas: readonly LinhaDoRelatorio[];
-      readonly parcial: boolean;
+      readonly corridas: readonly CorridaMedida[];
       readonly inicio: number;
       readonly fim: number;
-      /** Por que parou antes do fim, quando não foi o toque em "parar" (freio, defeito). */
-      readonly motivo?: string;
     };
 
 /** As escolhas do `--limite` do Mac: a amostra dele (padrão) e a validação. */
@@ -1033,7 +1120,8 @@ function CartaoDaAmostra({
   estado,
   limite,
   aoEscolherLimite,
-  motivoDoAparelho: semAparelho,
+  prontos,
+  foraDaAmostra,
   ocupado,
   aoMedir,
   aoParar,
@@ -1042,8 +1130,10 @@ function CartaoDaAmostra({
   estado: EstadoDaAmostra;
   limite: number;
   aoEscolherLimite: (n: number) => void;
-  /** Por que o modelo do aparelho não atende agora — ou `null`. */
-  motivoDoAparelho: string | null;
+  /** Quem correria se ele tocasse agora — pelos mesmos chips de "quem entra". */
+  prontos: readonly MotorId[];
+  /** Marcados que esta corrida não mede — ver `SO_O_APARELHO_MEDE_A_AMOSTRA`. */
+  foraDaAmostra: readonly MotorId[];
   /** A comparação por janela está rodando: as duas medições não dividem a fila. */
   ocupado: boolean;
   aoMedir: () => void;
@@ -1051,16 +1141,27 @@ function CartaoDaAmostra({
   s: Styles;
 }) {
   const emCurso = estado.fase === 'preparando' || estado.fase === 'medindo';
-  const desligado = emCurso || ocupado;
+  // Sem motor do aparelho marcado não há corrida: o botão fica inerte, e a linha de plano
+  // logo abaixo diz o porquê — um botão apagado sozinho não explica nada.
+  const desligado = emCurso || ocupado || prontos.length === 0;
+  const nomes = prontos.map(nomeDoMotor);
   const parando = estado.fase === 'medindo' ? estado.parando : estado.fase === 'preparando' ? estado.cancelando === true : false;
   return (
     <>
       <View style={s.card}>
-        <Text style={s.motor}>A amostra no aparelho</Text>
+        <Text style={s.motor}>A amostra, motor a motor</Text>
         <Text style={s.aviso}>
-          O modelo do aparelho, em modo medição, sobre a mesma amostra de janelas da bancada do Mac e com a mesma
-          régua. Uma janela por vez; a tela fica acesa enquanto mede. Nada sai do aparelho.
+          Os motores marcados acima, em modo medição, sobre a mesma amostra de janelas da bancada do Mac e com a
+          mesma régua — o template de cada janela. Uma corrida por motor, em sequência; dentro dela, uma janela por
+          vez. A tela fica acesa enquanto mede, e nada sai do aparelho.
         </Text>
+        <Text style={s.aviso}>{SO_O_APARELHO_MEDE_A_AMOSTRA}</Text>
+        {foraDaAmostra.length > 0 ? (
+          <Text style={s.motivo}>
+            fora desta corrida, marcado{foraDaAmostra.length > 1 ? 's' : ''} acima:{' '}
+            {foraDaAmostra.map(nomeDoMotor).join(', ')} — a comparação de uma janela continua medindo.
+          </Text>
+        ) : null}
 
         <Text style={s.rotulo}>janelas por caso × alcance</Text>
         <View style={s.acoesDoAnel}>
@@ -1091,7 +1192,11 @@ function CartaoDaAmostra({
             onPress={aoParar}
             disabled={parando}
             accessibilityRole="button"
-            accessibilityLabel={estado.fase === 'medindo' ? 'Parar a medição da amostra' : 'Cancelar o preparo da amostra'}
+            accessibilityLabel={
+              estado.fase === 'medindo'
+                ? 'Parar a amostra — a janela em voo termina, e nem a próxima nem os motores seguintes abrem'
+                : 'Cancelar o preparo da amostra'
+            }
             style={({ pressed }) => [s.botao, parando && s.botaoOff, pressed && s.pressed]}
           >
             <ActivityIndicator size="small" color={colors.onPrimary} />
@@ -1102,7 +1207,9 @@ function CartaoDaAmostra({
                   : 'cancelar'
                 : parando
                   ? 'parando — a janela em voo termina sozinha'
-                  : `parar · ${estado.linhas.length} de ${estado.contexto.janelas}`}
+                  : `parar · motor ${Math.min(estado.feitas.length + 1, estado.fila.length)} de ${estado.fila.length} · ${
+                      estado.emCurso?.linhas.length ?? 0
+                    } de ${estado.contexto.janelas}`}
             </Text>
           </Pressable>
         ) : (
@@ -1110,7 +1217,11 @@ function CartaoDaAmostra({
             onPress={aoMedir}
             disabled={desligado}
             accessibilityRole="button"
-            accessibilityLabel="Medir a amostra no modelo do aparelho"
+            accessibilityLabel={
+              prontos.length === 0
+                ? 'Medir a amostra — nenhum motor do aparelho pronto'
+                : `Medir a amostra em ${nomes.join(', ')}`
+            }
             accessibilityState={desligado ? { disabled: true, busy: false } : {}}
             style={({ pressed }) => [s.botao, desligado && s.botaoOff, pressed && s.pressed]}
           >
@@ -1118,35 +1229,28 @@ function CartaoDaAmostra({
           </Pressable>
         )}
 
+        {/* O que o toque vai fazer, **antes** dele: com dois modelos marcados são duas
+            corridas de minutos cada, e isso tem de aparecer antes da espera. */}
+        {!emCurso ? <Text style={s.meta}>{planoDaAmostra(nomes)}</Text> : null}
         {estado.fase === 'preparando' ? <Text style={s.meta}>{ETAPA_EM_PALAVRAS[estado.etapa]}</Text> : null}
-        {semAparelho !== null && !emCurso ? <Text style={s.motivo}>o aparelho não mede agora: {semAparelho}</Text> : null}
         {estado.fase === 'recusada' ? <Text style={s.motivo}>{estado.motivo}</Text> : null}
         {estado.fase === 'medindo' ? <Progresso estado={estado} s={s} /> : null}
       </View>
 
-      {estado.fase === 'medindo' || estado.fase === 'pronta' ? (
-        <ResultadoDaAmostra
-          contexto={estado.contexto}
-          linhas={estado.linhas}
-          situacao={
-            estado.fase === 'medindo'
-              ? `medindo — ${estado.linhas.length} de ${estado.contexto.janelas}; as medidas abaixo são parciais`
-              : estado.parcial
-                ? `PARCIAL — ${estado.linhas.length} de ${estado.contexto.janelas} janelas; as medidas são só destas`
-                : `completa — ${estado.linhas.length} de ${estado.contexto.janelas} janelas em ${duracaoCurta(estado.fim - estado.inicio)}`
-          }
-          motivo={estado.fase === 'pronta' ? estado.motivo : undefined}
-          s={s}
-        />
-      ) : null}
+      {estado.fase === 'medindo' || estado.fase === 'pronta' ? <ResultadoDaAmostra estado={estado} s={s} /> : null}
     </>
   );
 }
 
 /**
- * O andamento: qual janela está no aparelho, quanto já levou e uma **previsão grosseira**
- * do que falta — a mediana do que já foi medido vezes as janelas restantes. Com limite 6 a
- * corrida passa de dez minutos, e isso tem de aparecer antes da espera, não depois.
+ * O andamento: **qual motor** está correndo, qual janela está nele, quanto já levou e uma
+ * previsão grosseira do que falta — a mediana do que já foi medido vezes as janelas
+ * restantes. Com limite 6 a corrida passa de dez minutos, e isso tem de aparecer antes da
+ * espera, não depois.
+ *
+ * A previsão é **da corrida em curso**, não da sessão: os motores têm tempos por janela
+ * diferentes (medidos em 22/09: 9,8 s no Qwen3, 7,1 s no Tucano2), e somar os dois numa
+ * previsão só produziria um número que não vale para nenhum dos dois.
  */
 function Progresso({
   estado,
@@ -1155,19 +1259,27 @@ function Progresso({
   estado: Extract<EstadoDaAmostra, { fase: 'medindo' }>;
   s: Styles;
 }) {
-  const restantes = Math.max(0, estado.contexto.janelas - estado.linhas.length);
-  const { medianaMs, restanteMs } = previsaoDaAmostra(estado.linhas, restantes);
+  const linhas = estado.emCurso?.linhas ?? [];
+  const restantes = Math.max(0, estado.contexto.janelas - linhas.length);
+  const { medianaMs, restanteMs } = previsaoDaAmostra(linhas, restantes);
+  const emVoo = estado.emCurso?.emVoo ?? null;
   return (
     <>
-      {estado.emVoo !== null ? (
+      {estado.emCurso !== null ? (
         <Text style={s.meta}>
-          no aparelho: {chaveDoPasso(estado.emVoo)} · {estado.emVoo.caso} · {estado.emVoo.alcance}
+          medindo {nomeDoMotor(estado.emCurso.motor)} — motor {Math.min(estado.feitas.length + 1, estado.fila.length)} de{' '}
+          {estado.fila.length}
+        </Text>
+      ) : null}
+      {emVoo !== null ? (
+        <Text style={s.meta}>
+          no motor: {chaveDoPasso(emVoo)} · {emVoo.caso} · {emVoo.alcance}
         </Text>
       ) : null}
       <Text style={s.meta}>
         decorrido {duracaoCurta(Date.now() - estado.inicio)}
         {restanteMs !== null && restantes > 0
-          ? ` · faltam ~${duracaoCurta(restanteMs)} (mediana ${segundos(medianaMs)} × ${restantes})`
+          ? ` · faltam ~${duracaoCurta(restanteMs)} neste motor (mediana ${segundos(medianaMs)} × ${restantes})`
           : ''}
       </Text>
     </>
@@ -1175,24 +1287,148 @@ function Progresso({
 }
 
 /**
- * O resultado: o que foi usado, as quatro medidas da ADR 0050 **sem limiar e sem
- * veredito** com a regra da janela medida ao lado, as regras que reprovaram e a lista por
- * janela — cada uma abrindo o template, o cru do motor e a frase final, que é como a
- * condição 3 ("nada idêntico ao template") se confere de verdade.
+ * O resultado da sessão: **o que foi usado uma vez**, a comparação lado a lado e um cartão
+ * por corrida.
+ *
+ * O contexto sai do cartão de cada motor e sobe para cá de propósito: ele é o mesmo para
+ * todas as corridas — a amostra é preparada uma vez — e repeti-lo por motor sugeriria o
+ * contrário, que é exatamente a dúvida que a comparação por taxa não pode ter.
  */
 function ResultadoDaAmostra({
+  estado,
+  s,
+}: {
+  estado: Extract<EstadoDaAmostra, { fase: 'medindo' | 'pronta' }>;
+  s: Styles;
+}) {
+  const feitas = estado.fase === 'medindo' ? estado.feitas : estado.corridas;
+  const emCurso = estado.fase === 'medindo' ? estado.emCurso : null;
+  return (
+    <>
+      <OQueFoiUsado
+        contexto={estado.contexto}
+        situacao={
+          estado.fase === 'medindo'
+            ? `medindo — ${feitas.length} de ${estado.fila.length} motores`
+            : `${feitas.length} ${feitas.length === 1 ? 'corrida' : 'corridas'} em ${duracaoCurta(estado.fim - estado.inicio)}`
+        }
+        s={s}
+      />
+      {feitas.length > 1 ? <LadoALado corridas={feitas} emCurso={emCurso !== null} s={s} /> : null}
+      {feitas.map((c) => (
+        <ResultadoDaCorrida key={c.motor} corrida={c} contexto={estado.contexto} s={s} />
+      ))}
+      {emCurso !== null ? (
+        <ResultadoDaCorrida
+          corrida={{ motor: emCurso.motor, linhas: emCurso.linhas, parcial: true, inicio: emCurso.inicio, fim: Date.now() }}
+          contexto={estado.contexto}
+          emAndamento
+          s={s}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** O acervo, a regra da amostra e as janelas — o mesmo para todas as corridas da sessão. */
+function OQueFoiUsado({
   contexto: c,
-  linhas,
   situacao,
-  motivo,
   s,
 }: {
   contexto: ContextoDaAmostra;
-  linhas: readonly LinhaDoRelatorio[];
   situacao: string;
-  motivo?: string;
   s: Styles;
 }) {
+  return (
+    <View style={s.card}>
+      <View style={s.linhaTopo}>
+        <Text style={s.motor}>o que foi usado</Text>
+        <Text style={s.desfecho}>{situacao}</Text>
+      </View>
+      <Text style={s.meta} selectable>
+        hoje {c.hoje} · limite {c.limite} por caso × alcance
+      </Text>
+      <Text style={s.meta} selectable>
+        amostra: {REGRA_DA_AMOSTRA.descricao} ({REGRA_DA_AMOSTRA.id} v{REGRA_DA_AMOSTRA.versao})
+      </Text>
+      <Text style={s.meta} selectable>
+        acervo: {c.noites} noites desde {c.maisAntiga} · notas carregadas desde {c.notasDesde}
+      </Text>
+      <Text style={s.meta} selectable>
+        janelas: {c.passos.map((p) => `${p.range} ${p.passos}`).join(' · ')} ({c.enumeradas}) → {c.janelas} na amostra
+      </Text>
+      <Text style={s.aviso}>
+        A amostra é preparada uma vez e serve a todas as corridas desta sessão — é o que faz as taxas se compararem.
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * A comparação: **uma linha por motor**, com a taxa de aprovação, a mediana e as idênticas.
+ *
+ * É o que esta fatia existe para produzir — dois pesos abertos provados numa frase cada não
+ * comparavam nada. Continua **sem limiar e sem veredito**: as linhas saem na ordem em que
+ * correram, nunca ordenadas por taxa, porque ordenar já é dizer qual ganhou.
+ */
+function LadoALado({
+  corridas,
+  emCurso,
+  s,
+}: {
+  corridas: readonly CorridaMedida[];
+  /** Há corrida em voo: ela entra nesta lista quando terminar. */
+  emCurso: boolean;
+  s: Styles;
+}) {
+  const divergem = amostrasDivergentes(corridas, nomeDoMotor);
+  return (
+    <View style={s.card}>
+      <Text style={s.motor}>lado a lado</Text>
+      {corridas.map((c) => (
+        <Text key={c.motor} style={s.meta} selectable>
+          {linhaDoResumo(resumoDaCorrida(c), nomeDoMotor(c.motor))}
+        </Text>
+      ))}
+      {/* A armadilha desta tela: uma corrida parada no meio mediu menos janelas, e a taxa
+          dela não se compara com a de quem correu a amostra inteira. */}
+      {divergem !== null ? <Text style={s.problema}>{divergem}</Text> : null}
+      {emCurso ? <Text style={s.aviso}>a corrida em curso entra aqui quando terminar.</Text> : null}
+    </View>
+  );
+}
+
+/**
+ * Uma corrida: **de quem é a medida**, as quatro medidas da ADR 0050 sem limiar e sem
+ * veredito com a regra da janela medida ao lado, as regras que reprovaram e a lista por
+ * janela — cada uma abrindo o template, o cru do motor e a frase final, que é como a
+ * condição 3 ("nada idêntico ao template") se confere de verdade.
+ */
+function ResultadoDaCorrida({
+  corrida,
+  contexto,
+  emAndamento = false,
+  s,
+}: {
+  corrida: CorridaMedida;
+  contexto: ContextoDaAmostra;
+  /** Esta é a corrida em voo: as medidas são parciais por construção. */
+  emAndamento?: boolean;
+  s: Styles;
+}) {
+  const linhas = corrida.linhas;
+  const nome = nomeDoMotor(corrida.motor);
+  // A corrida que não aconteceu: cartão apagado, sem cabeçalho de medição — mostrar as
+  // quatro medidas zeradas sugeriria que houve chamada.
+  if (corrida.recusa !== undefined) {
+    return (
+      <View style={[s.card, s.cardFora]}>
+        <Text style={s.motor}>{nome}</Text>
+        <Text style={s.motivo}>não mediu: {corrida.recusa}</Text>
+      </View>
+    );
+  }
   const m = medidasDoPortao(linhas);
   const cobertura = resumoDaCobertura(m);
   const fecho = agregar(linhas);
@@ -1205,26 +1441,24 @@ function ResultadoDaAmostra({
       ),
     ),
   ];
+  const situacao = emAndamento
+    ? `medindo — ${linhas.length} de ${contexto.janelas}; as medidas abaixo são parciais`
+    : corrida.parcial
+      ? `PARCIAL — ${linhas.length} de ${contexto.janelas} janelas; as medidas são só destas`
+      : `completa — ${linhas.length} de ${contexto.janelas} janelas em ${duracaoCurta(corrida.fim - corrida.inicio)}`;
   return (
     <View style={s.card}>
       <View style={s.linhaTopo}>
-        <Text style={s.motor}>{nomeDoMotor(APARELHO_SISTEMA)}</Text>
+        <Text style={s.motor}>{nome}</Text>
         <Text style={s.desfecho}>{situacao}</Text>
       </View>
-      {motivo ? <Text style={s.motivo}>{motivo}</Text> : null}
+      {corrida.motivo !== undefined ? <Text style={s.motivo}>{corrida.motivo}</Text> : null}
 
-      <Text style={s.rotulo}>o que foi usado</Text>
+      {/* O prazo é **deste** motor: 60 s na nuvem e no modelo do sistema, 45 min no peso
+          aberto, que é o único que pode pagar uma carga de minutos. Misturá-los aqui
+          escreveria na tela um número que o transporte daquela corrida não promete. */}
       <Text style={s.meta} selectable>
-        hoje {c.hoje} · limite {c.limite} por caso × alcance · prazo {Math.round(PRAZO_MS / 1000)} s por janela
-      </Text>
-      <Text style={s.meta} selectable>
-        amostra: {REGRA_DA_AMOSTRA.descricao} ({REGRA_DA_AMOSTRA.id} v{REGRA_DA_AMOSTRA.versao})
-      </Text>
-      <Text style={s.meta} selectable>
-        acervo: {c.noites} noites desde {c.maisAntiga} · notas carregadas desde {c.notasDesde}
-      </Text>
-      <Text style={s.meta} selectable>
-        janelas: {c.passos.map((p) => `${p.range} ${p.passos}`).join(' · ')} ({c.enumeradas}) → {c.janelas} na amostra
+        prazo {prazoEmTexto(prazoDoMotorMs(corrida.motor, PRAZOS_DA_CORRIDA))} por janela
       </Text>
       <Text style={s.meta} selectable>
         assinado por: {assinaturas.length > 0 ? assinaturas.join(' | ') : '— (nenhuma resposta ainda)'}
@@ -1233,7 +1467,10 @@ function ResultadoDaAmostra({
         <Text style={s.problema}>mais de uma assinatura: o modelo ou o sistema mudou no meio, e as linhas não se somam</Text>
       ) : null}
 
-      <Text style={s.rotulo}>as quatro medidas da ADR 0050 — sem limiar e sem veredito</Text>
+      {/* O nome do motor **dentro** do rótulo, e não só no cabeçalho: estas linhas são
+          `selectable`, e um bloco de medidas copiado daqui sem dono é um número órfão —
+          duas corridas produzem listas com a mesma cara. */}
+      <Text style={s.rotulo}>as quatro medidas da ADR 0050 em {nome} — sem limiar e sem veredito</Text>
       <Text style={s.meta} selectable>
         aprovação (ok ÷ medidas): {m.aprovadas} de {m.medidas} ({porcento(m.aprovadas, m.medidas)})
       </Text>
