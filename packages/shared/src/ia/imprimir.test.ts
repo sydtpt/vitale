@@ -13,8 +13,8 @@ import type { Descritor, EventoDoAnel } from './orquestrar';
 import { PACOTE_VERSAO, type EntradaPacote, type PacoteDeFatos } from './pacote';
 import { PROMPT_VERSAO } from './prompt';
 import {
-  cadernosComDado, imprimir, lapidesDosCadernos, type DesfechoDoCaderno, type Impressao, type OpcoesDaImpressao,
-  type PeriodoDaEdicao, type ResultadoDaImpressao,
+  cadernosComDado, imprimir, lapidesDosCadernos, pacotesComDado, type DesfechoDoCaderno, type Impressao,
+  type OpcoesDaImpressao, type PeriodoDaEdicao, type ResultadoDaImpressao,
 } from './imprimir';
 // A sequência com descritor injetável fica fora do barril — só os testes do núcleo a
 // alcançam, por caminho relativo.
@@ -687,6 +687,31 @@ describe('cadernosComDado — quem tem o que dizer, pela régua da impressão', 
       cadernosComDado({ resumo: agosto(), agora: new Date(2026, 7, 20, 12, 0, 0) }),
       ['sono', 'movimento', 'rotina'],
     );
+  });
+});
+
+/**
+ * `pacotesComDado` — a mesma régua, com os **fatos** (spike 22/09).
+ *
+ * A bancada dos motores mede a Retrospectiva com um pacote por caderno, e o pacote
+ * é a entrada do descritor. O que este bloco prende é que ela e a tela nunca
+ * discordem: `cadernosComDado` é a projeção desta função, e o pacote entregue é o
+ * daquele caderno — não o de outro, na mesma posição.
+ */
+describe('pacotesComDado — os fatos dos cadernos que têm o que dizer', () => {
+  it('um pacote por caderno de cadernosComDado, na mesma ordem', () => {
+    for (const resumo of [agosto(), agosto({ fc: true }), agosto({ sono: null })]) {
+      const e = entrada(resumo);
+      assert.deepEqual(pacotesComDado(e).map((p) => p.caderno), cadernosComDado(e));
+    }
+  });
+
+  it('o pacote é o do caderno, e traz o rótulo e o período', () => {
+    const pacotes = pacotesComDado(entrada(agosto({ fc: true })));
+    const coracao = pacotes.find((p) => p.caderno === 'coracao');
+    assert.ok(coracao, 'o Coração com FC não veio');
+    assert.equal(coracao.rotulo, ROTULO.coracao);
+    assert.equal(coracao.periodo.fechado, true);
   });
 });
 

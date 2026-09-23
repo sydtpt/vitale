@@ -183,6 +183,32 @@ describe('verificarTexto — números', () => {
     assert.deepEqual(v.problemas.filter((x) => x.regra === 'numero'), []);
   });
 
+  it('deixa passar a data do período no formato do cabeçalho — `01/08 - 31/08`', () => {
+    // Defeito real, medido no iPhone em 22/09/2026: o cabeçalho do caderno é
+    // `# 14/09 - 20/09`, e os dois pesos abertos começaram o texto copiando-o.
+    // Cada data virava dois números inventados, e metade da reprovação deles era
+    // nossa — a data é do próprio pacote, só que noutra grafia.
+    const texto = 'Entre 01/08 e 31/08 houve 21 atividades. Cobertura 27 contra 14.';
+    const v = verificarTexto(texto, p);
+    assert.deepEqual(v.problemas.filter((x) => x.regra === 'numero'), []);
+  });
+
+  it('deixa passar a data do período com ano, e sem deixar o ano solto', () => {
+    const texto = 'De 01/08/2026 a 31/08/2026: 21 atividades. Cobertura 27 contra 14.';
+    const v = verificarTexto(texto, p);
+    assert.deepEqual(v.problemas.filter((x) => x.regra === 'numero'), []);
+  });
+
+  it('NÃO abre buraco: par de algarismos que não é a data do período continua número', () => {
+    // A máscara é dos dois dias do pacote, não de `\d{2}/\d{2}`. Um "7/7" de
+    // cobertura, ou uma data de outro mês, seguem sendo afirmação a conferir.
+    const texto = 'Cobertura de 7/7 dias, com a saída de 03/07. 21 atividades. Cobertura 27 contra 14.';
+    const v = verificarTexto(texto, p);
+    const numeros = v.problemas.filter((x) => x.regra === 'numero').map((x) => x.detalhe);
+    assert.ok(numeros.some((d) => d.includes('7')), 'o 7/7 tem de ser conferido');
+    assert.ok(numeros.some((d) => d.includes('03') || d.includes('3')), 'a data de outro mês também');
+  });
+
   it('deixa passar ano, hora de relógio e dia do mês', () => {
     const texto = 'Em 2026, dormindo às 22h e acordando 7h02, no dia 30 de agosto. '
       + '21 atividades. Cobertura 27 contra 14.';

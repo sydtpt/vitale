@@ -31,7 +31,14 @@ import type { PeriodKind } from '../period/bounds';
 import { CADERNO_IDS, type CadernoId } from '../period/cadernos';
 import type { CONCLUSAO } from './motor';
 import type { LeituraDoMotor, LeituraDoPiso, OpcoesDeProduto } from './orquestrar';
-import { cadernoVazio, lapideDoPeriodo, montarPacotes, type EntradaPacote, type FatoLapide } from './pacote';
+import {
+  cadernoVazio,
+  lapideDoPeriodo,
+  montarPacotes,
+  type EntradaPacote,
+  type FatoLapide,
+  type PacoteDeFatos,
+} from './pacote';
 import { descritorDaRetrospectiva } from './retrospectiva';
 import { comCoberturaDoSono, imprimirCom } from './imprimir-sequencia';
 
@@ -173,10 +180,34 @@ export function imprimir<E>(
  * decide se há edição é o estado lido (`buscarEdicao`), não esta pergunta.
  */
 export function cadernosComDado(entrada: EntradaPacote): CadernoId[] {
-  const comDado = new Set(
-    montarPacotes(comCoberturaDoSono(entrada)).filter((p) => !cadernoVazio(p)).map((p) => p.caderno),
+  return pacotesComDado(entrada).map((p) => p.caderno);
+}
+
+/**
+ * Os **pacotes** dos cadernos que têm o que dizer, na mesma ordem e pela mesma
+ * régua de {@link cadernosComDado} — os fatos que a impressão levaria a cada um.
+ *
+ * Existe porque há quem precise do *o quê*, e não só do *quais*: a bancada dos
+ * motores (spike 22/09) mede a Retrospectiva chamando o `ler` **um pacote por
+ * caderno**, e o pacote é a entrada do descritor. Sem esta porta o app teria de
+ * importar `montarPacotes`, que a guarda (7) do `architecture.test.ts` lhe fecha
+ * — e com razão: a cobertura de noites do Sono e a régua do vazio passariam a
+ * existir duas vezes, a segunda numa tela.
+ *
+ * `cadernosComDado` virou a projeção desta função para as duas nunca discordarem
+ * sobre quem tem dado: era o risco real de acrescentar uma segunda travessia dos
+ * pacotes ao lado da primeira.
+ */
+export function pacotesComDado(entrada: EntradaPacote): readonly PacoteDeFatos[] {
+  const comDado = new Map(
+    montarPacotes(comCoberturaDoSono(entrada))
+      .filter((p) => !cadernoVazio(p))
+      .map((p) => [p.caderno, p] as const),
   );
-  return CADERNO_IDS.filter((c) => comDado.has(c));
+  return CADERNO_IDS.flatMap((c) => {
+    const p = comDado.get(c);
+    return p === undefined ? [] : [p];
+  });
 }
 
 /**

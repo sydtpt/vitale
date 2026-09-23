@@ -32,6 +32,7 @@ import { CLASSES_DE_FALHA } from './ia/fio';
 import {
   CHAVE_DA_VERSAO,
   CHAVES_DA_FALHA,
+  CHAVES_DA_COMPILACAO,
   CHAVES_DA_RESPOSTA,
   CHAVES_DO_DIAGNOSTICO,
   CHAVES_DO_PEDIDO,
@@ -2074,6 +2075,48 @@ check('BARREIRA — os campos do fio no Engine.swift são as chaves que o núcle
     `o contrato entre ${relativoARaiz(ENGINE_SWIFT)} e ia/aparelho.ts divergiu: ${problemas.join('; ')}.\n` +
       '  Renomear um campo de um lado só não quebra build nenhum — a resposta chega sem ele, e a coluna ' +
       'inteira do aparelho sai transitoria. Mude os dois lados juntos.',
+  );
+});
+
+/**
+ * BARREIRA — os campos da compilação no `MotorCoreAI.swift` são as chaves que o núcleo lê.
+ *
+ * O gêmeo da guarda acima, para a terceira porta do peso aberto: a `CompilacaoDoFio` ↔
+ * `CHAVES_DA_COMPILACAO`. Ela mora no `MotorCoreAI.swift`, e não no `Engine.swift`, porque a
+ * pergunta é do Core AI — o modelo do sistema não se compila, a Apple já o especializou.
+ *
+ * O sintoma de divergir é pior que o do diagnóstico, e é por isso que ela existe: `compilado`
+ * é o campo que decide se a tela oferece **Compilar**. Renomeá-lo de um lado só faria o leitor
+ * cair no ramo do `motivo`, não achar nenhum, e devolver `ilegivel` — a tela diria "não dá para
+ * saber" para todo modelo, num aparelho que sabe perfeitamente.
+ */
+function problemasDaCompilacao(src: string): string[] {
+  const campos = camposDaStruct(src, 'CompilacaoDoFio');
+  if (campos === null) return ['não achei `struct CompilacaoDoFio` (uma vez só)'];
+  const problemas: string[] = [];
+  const faltam = (CHAVES_DA_COMPILACAO as readonly string[]).filter((k) => !campos.includes(k));
+  const sobram = campos.filter((c) => !(CHAVES_DA_COMPILACAO as readonly string[]).includes(c));
+  if (faltam.length > 0) problemas.push(`CompilacaoDoFio não tem ${faltam.join(', ')}`);
+  if (sobram.length > 0) problemas.push(`CompilacaoDoFio tem ${sobram.join(', ')}, que o núcleo não lê`);
+  return problemas;
+}
+
+check('BARREIRA — os campos da compilação no MotorCoreAI.swift são as chaves que o núcleo lê', () => {
+  // Não-vácua: o detector vê o certo, o campo a menos e o campo a mais.
+  const certa = `struct CompilacaoDoFio: Encodable {\n${CHAVES_DA_COMPILACAO.map((k) => `  let ${k}: String?`).join('\n')}\n}`;
+  assert.deepEqual(problemasDaCompilacao(certa), [], 'o detector da compilação reprovou o contrato certo');
+  assert.ok(problemasDaCompilacao(certa.replace('  let compilado: String?\n', '')).some((p) => /não tem compilado/.test(p)));
+  assert.ok(problemasDaCompilacao(certa.replace('let motivo:', 'let porque:')).some((p) => /tem porque, que o núcleo não lê/.test(p)));
+  assert.ok(problemasDaCompilacao('struct Outra {}').some((p) => /não achei `struct CompilacaoDoFio`/.test(p)));
+
+  assert.ok(existsSync(MOTOR_COREAI_SWIFT), `${relativoARaiz(MOTOR_COREAI_SWIFT)} sumiu — a guarda da compilação ficou sem alvo.`);
+  const problemas = problemasDaCompilacao(readFileSync(MOTOR_COREAI_SWIFT, 'utf8'));
+  assert.deepEqual(
+    problemas,
+    [],
+    `o contrato da compilação entre ${relativoARaiz(MOTOR_COREAI_SWIFT)} e ia/aparelho.ts divergiu: ${problemas.join('; ')}.\n` +
+      '  `compilado` é o campo que decide se a tela oferece Compilar: renomeado de um lado só, a linha vira ilegível ' +
+      'e todo modelo passa a dizer "não dá para saber". Mude os dois lados juntos.',
   );
 });
 

@@ -20,7 +20,12 @@ import {
 } from '@vitale/shared';
 import {
   APARELHO_COREAI_SMOLLM2,
+  COMPILACAO_AUSENTE,
+  COMPILACAO_CONSULTANDO,
+  COMPILACAO_FORA_DO_IOS,
   HOSPEDAGEM,
+  MOTIVO_COMPILACAO_CONSULTANDO,
+  MOTIVO_COMPILACAO_ILEGIVEL,
   MOTIVO_COREAI_DESCONHECIDO,
   MOTIVO_COREAI_FORA_DO_IOS,
   MOTIVO_COREAI_SEM_PONTE,
@@ -34,8 +39,9 @@ import {
   MOTORES_CONHECIDOS,
   PONTE_AUSENTE,
   PONTE_CONSULTANDO,
-  PESOS_DO_COREAI,
+  PESOS_ABERTOS,
   PONTE_FORA_DO_IOS,
+  compilacaoDoModelo,
   detalheDoAparelho,
   idsConhecidos,
   idsConhecidosDe,
@@ -46,6 +52,7 @@ import {
   motorDisponivel,
   motoresDoRecurso,
   nomeDoMotor,
+  type EstadoDaCompilacao,
   type EstadoDaPonte,
   type ListaAprovada,
 } from '../motores/catalogo';
@@ -53,6 +60,11 @@ import {
 /** A ponte lida, com o diagnóstico que o teste mandar. */
 function lido(diagnostico: Extract<EstadoDaPonte, { tipo: 'lido' }>['diagnostico']): EstadoDaPonte {
   return { tipo: 'lido', diagnostico };
+}
+
+/** A compilação lida, com a resposta que o teste mandar. */
+function compilacaoLida(compilacao: Extract<EstadoDaCompilacao, { tipo: 'lido' }>['compilacao']): EstadoDaCompilacao {
+  return { tipo: 'lido', compilacao };
 }
 
 describe('o catálogo de motores do app', () => {
@@ -372,11 +384,12 @@ describe('o peso aberto no diagnóstico dele (story 5.8)', () => {
   });
 
   it('com os pesos no build: disponível, com o nome deles e a janela da ficha', () => {
-    const c = coreaiEm(lido({ estado: 'disponivel', variante: 'smollm2-135m', janela: 4096 }));
+    const primeiro = PESOS_ABERTOS[0]!;
+    const c = coreaiEm(lido({ estado: 'disponivel', variante: primeiro.pesos, janela: 4096 }));
     expect(c?.disponivel).toBe(true);
     expect(c?.motivo).toBeUndefined();
-    expect(c?.detalhe).toBe('smollm2-135m · janela de 4.096 tokens');
-    expect(c?.rotulo).toBe('Peso aberto (SmolLM2 135M)');
+    expect(c?.detalhe).toBe(`${primeiro.pesos} · janela de 4.096 tokens`);
+    expect(c?.rotulo).toBe(primeiro.rotulo);
   });
 
   it('sem os pesos: indisponível **com motivo em palavras**, nunca some da lista', () => {
@@ -480,12 +493,55 @@ describe('o peso aberto é prova, não ferramenta (story 5.8)', () => {
   });
 
   it('o id e o nome dos pesos são o mesmo nome — divergir deixaria o motor sempre semPesos', () => {
-    expect(APARELHO_COREAI_SMOLLM2).toBe(`aparelho:coreai/${PESOS_DO_COREAI}`);
+    expect(APARELHO_COREAI_SMOLLM2).toBe(`aparelho:coreai/${PESOS_ABERTOS[0]!.pesos}`);
     expect(lerMotorId(APARELHO_COREAI_SMOLLM2)).toEqual({
       tipo: 'aparelho',
       variante: 'pesos',
       provedor: 'coreai',
-      pesos: PESOS_DO_COREAI,
+      pesos: PESOS_ABERTOS[0]!.pesos,
     });
+  });
+});
+
+/**
+ * A compilação de um peso aberto, como a linha do modelo a lê.
+ *
+ * O que precisa de cobertura aqui é **a distinção entre "não" e "não sei"**: é ela que decide
+ * se a tela oferece Compilar, e um booleano a perderia calado — oferecendo o ato de quinze
+ * minutos para um modelo que este build nem traz, ou num simulador que nunca vai ter Core AI.
+ */
+describe('a compilação de um peso aberto', () => {
+  it('compilado e não compilado são os dois únicos estados que a ponte afirma', () => {
+    expect(compilacaoDoModelo(compilacaoLida({ estado: 'compilado', componentes: 1, compilados: 1 }))).toEqual({
+      tipo: 'compilado',
+    });
+    expect(compilacaoDoModelo(compilacaoLida({ estado: 'nao-compilado', componentes: 1, compilados: 0 }))).toEqual({
+      tipo: 'nao-compilado',
+    });
+  });
+
+  it('tudo que não é resposta da ponte é "não sei", e nunca "não" — sempre com motivo em palavras', () => {
+    const casos: readonly (readonly [string, EstadoDaCompilacao, string])[] = [
+      ['sem a ponte no build', COMPILACAO_AUSENTE, MOTIVO_COREAI_SEM_PONTE],
+      ['fora do iOS', COMPILACAO_FORA_DO_IOS, MOTIVO_COREAI_FORA_DO_IOS],
+      ['ainda perguntando', COMPILACAO_CONSULTANDO, MOTIVO_COMPILACAO_CONSULTANDO],
+      ['linha fora do contrato', compilacaoLida({ estado: 'ilegivel', detalhe: 'não é JSON' }), MOTIVO_COMPILACAO_ILEGIVEL],
+      ['o simulador', compilacaoLida({ estado: 'nao-sabido', motivo: 'simulador' }), MOTIVO_DO_COREAI_EM_PALAVRAS.simulador!],
+      ['o build sem os pesos', compilacaoLida({ estado: 'nao-sabido', motivo: 'semPesos' }), MOTIVO_DO_COREAI_EM_PALAVRAS.semPesos!],
+    ];
+    for (const [nome, estado, motivo] of casos) {
+      const lidoAgora = compilacaoDoModelo(estado);
+      expect([nome, lidoAgora.tipo]).toEqual([nome, 'nao-sabido']);
+      if (lidoAgora.tipo === 'nao-sabido') expect([nome, lidoAgora.motivo]).toEqual([nome, motivo]);
+    }
+  });
+
+  it('um motivo que esta versão não conhece continua sendo texto — nunca uma função do protótipo', () => {
+    // O motivo vem de uma linha JSON: `constructor` acharia uma função no protótipo do mapa, e
+    // o `<Text>` receberia uma função, quebrando a tela por causa de uma string que veio de fora.
+    for (const motivo of ['constructor', '__proto__', 'toString', 'motivoNovoDaPonte']) {
+      const lidoAgora = compilacaoDoModelo(compilacaoLida({ estado: 'nao-sabido', motivo }));
+      expect(lidoAgora).toEqual({ tipo: 'nao-sabido', motivo: MOTIVO_COREAI_DESCONHECIDO });
+    }
   });
 });

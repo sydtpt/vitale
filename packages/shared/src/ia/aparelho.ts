@@ -296,6 +296,124 @@ export function lerDiagnosticoDoAparelho(linha: unknown): DiagnosticoDoAparelho 
   };
 }
 
+/* ── a compilação de uma pasta de pesos ────────────────────────────────────── */
+
+/**
+ * As chaves que {@link lerCompilacaoNoAparelho} lê — a guarda do contrato as compara com
+ * os campos da `CompilacaoDoFio` do `MotorCoreAI.swift`.
+ */
+export const CHAVES_DA_COMPILACAO = [
+  'compilado',
+  'motivo',
+  'detalhe',
+  'componentes',
+  'compilados',
+  'plataforma',
+  'buildDoSistema',
+] as const;
+type ChaveDaCompilacao = (typeof CHAVES_DA_COMPILACAO)[number];
+
+/**
+ * O que a ponte diz sobre uma pasta de pesos **antes** de carregá-la: ela já está
+ * especializada para o chip, ou a primeira chamada vai pagar minutos por isso?
+ *
+ * **Quatro formas, e a terceira é o ponto deste tipo:**
+ *
+ *   compilado      todo componente já tem especialização no cache deste build do sistema
+ *   nao-compilado  falta ao menos um — a próxima chamada compila
+ *   nao-sabido     a ponte não teve como perguntar; `motivo` é como ela o disse
+ *   ilegivel       a linha fugiu do contrato
+ *
+ * Um booleano de dois valores empurraria `nao-sabido` para o lado do "não", e a tela
+ * ofereceria **Compilar** para um modelo que este build nem traz, ou num simulador que
+ * nunca vai ter Core AI. "Não" e "não sei" são respostas diferentes e levam a telas
+ * diferentes.
+ *
+ * O motivo fica cru, como no diagnóstico: quem sabe falar dele ao dono é o app, que é
+ * quem conhece o vocabulário do Core AI.
+ */
+export type CompilacaoNoAparelho =
+  | {
+      readonly estado: 'compilado' | 'nao-compilado';
+      /** Quantos `.aimodel`/`.aimodelc` a pasta traz. */
+      readonly componentes?: number;
+      /** Quantos deles já estão compilados. */
+      readonly compilados?: number;
+      readonly plataforma?: string;
+      readonly buildDoSistema?: string;
+    }
+  | {
+      readonly estado: 'nao-sabido';
+      readonly motivo: string;
+      /** Prosa de diagnóstico. Nenhuma decisão a lê. */
+      readonly detalhe?: string;
+      readonly plataforma?: string;
+      readonly buildDoSistema?: string;
+    }
+  | {
+      readonly estado: 'ilegivel';
+      /** O que a linha trazia, cortado. */
+      readonly detalhe: string;
+    };
+
+function compilacaoIlegivel(motivo: string): CompilacaoNoAparelho {
+  return { estado: 'ilegivel', detalhe: `a compilação da ponte ${motivo}` };
+}
+
+/**
+ * A linha da compilação → {@link CompilacaoNoAparelho}. Pura, nunca lança.
+ *
+ *   não é string, não é JSON, não é objeto      → ilegivel
+ *   `compilado` booleano                        → compilado / nao-compilado
+ *   sem `compilado`, com `motivo` em texto      → nao-sabido, com o motivo como veio
+ *   sem os dois                                 → ilegivel
+ *
+ * A contagem (`componentes`/`compilados`) é detalhe: malformada, fica de fora em vez de
+ * reprovar a linha — a resposta que a tela usa é o estado, e ele já veio.
+ */
+export function lerCompilacaoNoAparelho(linha: unknown): CompilacaoNoAparelho {
+  if (typeof linha !== 'string') return compilacaoIlegivel('não é texto');
+  let lido: unknown;
+  try {
+    lido = JSON.parse(linha);
+  } catch {
+    return compilacaoIlegivel(`não é JSON: ${linha.slice(0, 200)}`);
+  }
+  const o = objeto(lido);
+  if (!o) return compilacaoIlegivel('não é um objeto');
+  const ler = leitor<ChaveDaCompilacao>(o);
+
+  const plataforma = ler('plataforma');
+  const buildDoSistema = ler('buildDoSistema');
+  const assinatura = {
+    ...(textoCheio(plataforma) ? { plataforma } : {}),
+    ...(textoCheio(buildDoSistema) ? { buildDoSistema } : {}),
+  };
+
+  const compilado = ler('compilado');
+  if (typeof compilado !== 'boolean') {
+    const motivo = ler('motivo');
+    if (!textoCheio(motivo)) return compilacaoIlegivel(`não diz se está compilado nem por que não sabe: ${linha.slice(0, 200)}`);
+    const detalhe = ler('detalhe');
+    return {
+      estado: 'nao-sabido',
+      motivo,
+      ...(textoCheio(detalhe) ? { detalhe } : {}),
+      ...assinatura,
+    };
+  }
+
+  const conta = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0;
+  const componentes = ler('componentes');
+  const compilados = ler('compilados');
+  return {
+    estado: compilado ? 'compilado' : 'nao-compilado',
+    ...(conta(componentes) ? { componentes } : {}),
+    ...(conta(compilados) ? { compilados } : {}),
+    ...assinatura,
+  };
+}
+
 /* ── o motor ───────────────────────────────────────────────────────────────── */
 
 /**

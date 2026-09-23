@@ -37,12 +37,13 @@ import {
 import {
   APARELHO_COREAI_SMOLLM2,
   MOTIVO_DO_COREAI_EM_PALAVRAS,
-  PESOS_DO_COREAI,
+  PESOS_ABERTOS,
   motorConhecido,
   motoresDoRecurso,
 } from '../motores/catalogo';
 import {
   PRAZO_MS,
+  criarLeitorDaCompilacao,
   criarLeitorDaPonte,
   criarMotorPara,
   criarTransporte,
@@ -148,6 +149,10 @@ function ponteFalsa(
     diagnosticoDosPesos: (pesos) => {
       comPesos.push(pesos);
       return diagnostico();
+    },
+    compilacaoDosPesos: async (pesos) => {
+      comPesos.push(pesos);
+      return '{"compilado":true,"componentes":1,"compilados":1}';
     },
   };
 }
@@ -336,7 +341,7 @@ describe('o motorPara do app', () => {
   });
 
   it('o peso aberto tem motor, e os pesos vão por argumento — nunca dentro do pedido (5.8)', async () => {
-    const ponte = ponteFalsa(async () => JSON.stringify({ ...LINHA_BOA, provedor: 'coreai', modelo: PESOS_DO_COREAI }));
+    const ponte = ponteFalsa(async () => JSON.stringify({ ...LINHA_BOA, provedor: 'coreai', modelo: PESOS_ABERTOS[0]!.pesos }));
     const motorPara = criarMotorPara(chamada({ ok: CORPO_BOM }).chamar, PRAZO_MS, ponte);
     const coreai = motorPara(APARELHO_COREAI_SMOLLM2);
     expect(coreai).toBeDefined();
@@ -345,10 +350,10 @@ describe('o motorPara do app', () => {
     expect(coreai).not.toBe(motorPara(APARELHO_SISTEMA));
 
     const r = (await coreai!(PEDIDO)) as Resposta;
-    expect(r.assinatura).toMatchObject({ tipo: 'aparelho', provedor: 'coreai', modelo: PESOS_DO_COREAI });
+    expect(r.assinatura).toMatchObject({ tipo: 'aparelho', provedor: 'coreai', modelo: PESOS_ABERTOS[0]!.pesos });
     // O nome dos pesos foi por fora, e **o pedido não o carrega**: `CHAVES_DO_PEDIDO` é
     // exaustiva sobre `keyof Pedido`, e um campo a mais ali mudaria o hash do pedido (AD-11).
-    expect(ponte.comPesos).toEqual([PESOS_DO_COREAI]);
+    expect(ponte.comPesos).toEqual([PESOS_ABERTOS[0]!.pesos]);
     expect(Object.keys(JSON.parse(ponte.vistos[0]) as object).sort()).toEqual([
       'amostragem',
       'guardrails',
@@ -707,6 +712,10 @@ describe('os dois leitores de diagnóstico não se confundem (story 5.8)', () =>
         perguntas.push(`diagnosticoDosPesos:${pesos}`);
         return respostas.pesos;
       },
+      compilacaoDosPesos: async (pesos) => {
+        perguntas.push(`compilacaoDosPesos:${pesos}`);
+        return '{"compilado":false,"componentes":1,"compilados":0}';
+      },
     };
     return { ponte, perguntas };
   }
@@ -720,10 +729,10 @@ describe('os dois leitores de diagnóstico não se confundem (story 5.8)', () =>
     const { ponte, perguntas } = ponteQueAnotaAPorta({ sistema: SISTEMA_DE_PE, pesos: SEM_PESOS });
     const leitor = criarLeitorDaPonte(ponte, {
       plataforma: 'ios',
-      perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
+      perguntar: (p) => p.diagnosticoDosPesos(PESOS_ABERTOS[0]!.pesos),
     });
     await leitor.garantir();
-    expect(perguntas).toEqual([`diagnosticoDosPesos:${PESOS_DO_COREAI}`]);
+    expect(perguntas).toEqual([`diagnosticoDosPesos:${PESOS_ABERTOS[0]!.pesos}`]);
   });
 
   it('e o do modelo do sistema pergunta pela porta dele', async () => {
@@ -737,7 +746,7 @@ describe('os dois leitores de diagnóstico não se confundem (story 5.8)', () =>
     const doSistema = await criarLeitorDaPonte(ponte, { plataforma: 'ios' }).garantir();
     const doPesoAberto = await criarLeitorDaPonte(ponte, {
       plataforma: 'ios',
-      perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
+      perguntar: (p) => p.diagnosticoDosPesos(PESOS_ABERTOS[0]!.pesos),
     }).garantir();
 
     expect(doSistema.tipo === 'lido' && doSistema.diagnostico.estado).toBe('disponivel');
@@ -752,5 +761,109 @@ describe('os dois leitores de diagnóstico não se confundem (story 5.8)', () =>
     expect(coreai?.disponivel).toBe(false);
     expect(coreai?.detalhe).toBeUndefined();
     expect(coreai?.motivo).toBe(MOTIVO_DO_COREAI_EM_PALAVRAS.semPesos);
+  });
+});
+
+/**
+ * O leitor da compilação — a terceira porta do peso aberto.
+ *
+ * O que precisa de cobertura aqui é a **diferença** contra o leitor do diagnóstico: aquele
+ * para de perguntar assim que ouve "disponível", e este não pode parar nunca. `compilado`
+ * volta a ser falso sozinho — o iOS atualiza e recompila tudo, ou purga o cache sob pressão de
+ * espaço —, e um leitor que guardasse a resposta boa mostraria "compilado" depois de o sistema
+ * ter jogado o compilado fora.
+ */
+describe('a compilação de um peso aberto, relida sempre', () => {
+  /** Uma ponte que conta as idas a **cada** porta, e responde o que o teste mandar. */
+  function ponteQueConta(compilacao: () => string) {
+    const idas: string[] = [];
+    const ponte: PonteDoAparelho = {
+      responder: async () => '',
+      responderComPesos: async () => '',
+      diagnostico: async () => {
+        idas.push('diagnostico');
+        return '{"disponivel":true}';
+      },
+      diagnosticoDosPesos: async (pesos) => {
+        idas.push(`diagnosticoDosPesos:${pesos}`);
+        return '{"disponivel":true}';
+      },
+      compilacaoDosPesos: async (pesos) => {
+        idas.push(`compilacaoDosPesos:${pesos}`);
+        return compilacao();
+      },
+    };
+    return { ponte, idas };
+  }
+
+  const PESOS = PESOS_ABERTOS[0]!.pesos;
+
+  it('pergunta a porta da compilação, e só ela — não o diagnóstico', async () => {
+    const { ponte, idas } = ponteQueConta(() => '{"compilado":true,"componentes":1,"compilados":1}');
+    const leitor = criarLeitorDaCompilacao(ponte, PESOS, { plataforma: 'ios' });
+    const lido = await leitor.reler();
+    expect(idas).toEqual([`compilacaoDosPesos:${PESOS}`]);
+    expect(lido).toEqual({
+      tipo: 'lido',
+      compilacao: { estado: 'compilado', componentes: 1, compilados: 1 },
+      cru: '{"compilado":true,"componentes":1,"compilados":1}',
+    });
+  });
+
+  it('"compilado" NÃO vira cache: a releitura seguinte pergunta de novo e pode dizer o contrário', async () => {
+    const respostas = ['{"compilado":true,"componentes":1,"compilados":1}', '{"compilado":false,"componentes":1,"compilados":0}'];
+    let vez = 0;
+    const { ponte, idas } = ponteQueConta(() => respostas[Math.min(vez++, 1)]!);
+    const leitor = criarLeitorDaCompilacao(ponte, PESOS, { plataforma: 'ios' });
+    const primeiro = await leitor.reler();
+    expect(primeiro.tipo === 'lido' && primeiro.compilacao.estado).toBe('compilado');
+    // O iOS purgou o cache entre as duas leituras. É este caso que um leitor com memória perderia.
+    const segundo = await leitor.reler();
+    expect(idas.length).toBe(2);
+    expect(segundo.tipo === 'lido' && segundo.compilacao.estado).toBe('nao-compilado');
+    // `agora()` mostra o último lido, sem voltar a "consultando".
+    expect(leitor.agora()).toBe(segundo);
+  });
+
+  it('releituras simultâneas dividem uma leitura só', async () => {
+    const { ponte, idas } = ponteQueConta(() => '{"compilado":false,"componentes":1,"compilados":0}');
+    const leitor = criarLeitorDaCompilacao(ponte, PESOS, { plataforma: 'ios' });
+    await Promise.all([leitor.reler(), leitor.reler(), leitor.reler()]);
+    expect(idas.length).toBe(1);
+  });
+
+  it('antes da primeira resposta é "consultando" — que não é "não compilado"', () => {
+    const { ponte } = ponteQueConta(() => '{"compilado":true}');
+    expect(criarLeitorDaCompilacao(ponte, PESOS, { plataforma: 'ios' }).agora()).toEqual({ tipo: 'consultando' });
+  });
+
+  it('sem a ponte e fora do iOS nem pergunta — e nenhum dos dois é "não compilado"', async () => {
+    expect(await criarLeitorDaCompilacao(null, PESOS, { plataforma: 'ios' }).reler()).toEqual({ tipo: 'ausente' });
+    const { ponte, idas } = ponteQueConta(() => '{"compilado":true}');
+    expect(await criarLeitorDaCompilacao(ponte, PESOS, { plataforma: 'android' }).reler()).toEqual({ tipo: 'fora-do-ios' });
+    expect(idas).toEqual([]);
+  });
+
+  it('fora do contrato, rejeitado ou sem resposta no prazo: ilegível, nunca exceção', async () => {
+    const casos: readonly (readonly [() => Promise<string>, RegExp])[] = [
+      [async () => 'não é JSON', /não é JSON/],
+      [async () => '{"componentes":1}', /não diz se está compilado/],
+      [async () => { throw new Error('a cola sumiu'); }, /a ponte lançou/],
+      [() => new Promise<string>(() => undefined), /não voltou em/],
+    ];
+    for (const [compilacaoDosPesos, onde] of casos) {
+      const ponte: PonteDoAparelho = {
+        responder: async () => '',
+        responderComPesos: async () => '',
+        diagnostico: async () => '{"disponivel":true}',
+        diagnosticoDosPesos: async () => '{"disponivel":true}',
+        compilacaoDosPesos,
+      };
+      const e = await criarLeitorDaCompilacao(ponte, PESOS, { prazoMs: 10, plataforma: 'ios' }).reler();
+      expect(e.tipo).toBe('lido');
+      if (e.tipo !== 'lido') continue;
+      expect(e.compilacao.estado).toBe('ilegivel');
+      if (e.compilacao.estado === 'ilegivel') expect(e.compilacao.detalhe).toMatch(onde);
+    }
   });
 });

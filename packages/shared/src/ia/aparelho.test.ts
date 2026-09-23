@@ -2,10 +2,12 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { APARELHO_SISTEMA, CLASSES_DE_FALHA } from './fio';
 import {
+  CHAVES_DA_COMPILACAO,
   CHAVES_DO_DIAGNOSTICO,
   MOTIVOS_DO_APARELHO,
   criarMotorDoAparelho,
   ehMotivoDoAparelho,
+  lerCompilacaoNoAparelho,
   lerDiagnosticoDoAparelho,
   pedidoParaAPonte,
   traduzirDoAparelho,
@@ -244,6 +246,96 @@ describe('lerDiagnosticoDoAparelho (story 5.9)', () => {
 
   it('as chaves lidas são as do contrato — a guarda as compara com o Swift', () => {
     assert.deepEqual([...CHAVES_DO_DIAGNOSTICO].sort(), ['buildDoSistema', 'disponivel', 'janela', 'motivo', 'plataforma', 'variante']);
+  });
+});
+
+describe('lerCompilacaoNoAparelho', () => {
+  const ASSINATURA = { plataforma: 'iOS 27.0', buildDoSistema: '27A266a' };
+
+  it('compilado: o estado, a contagem e a assinatura do sistema', () => {
+    assert.deepEqual(lerCompilacaoNoAparelho(linha({ compilado: true, componentes: 1, compilados: 1, ...ASSINATURA })), {
+      estado: 'compilado',
+      componentes: 1,
+      compilados: 1,
+      ...ASSINATURA,
+    });
+  });
+
+  it('não compilado: falta ao menos um componente, e a contagem diz quantos', () => {
+    assert.deepEqual(lerCompilacaoNoAparelho(linha({ compilado: false, componentes: 3, compilados: 2, ...ASSINATURA })), {
+      estado: 'nao-compilado',
+      componentes: 3,
+      compilados: 2,
+      ...ASSINATURA,
+    });
+  });
+
+  it('zero compilado de zero não vem da ponte — mas se viesse, `compilado` é quem manda', () => {
+    // A ponte manda `pesosIlegiveis` quando não há componente (`compilacaoDaContagem`). A regra
+    // aqui é a mesma de sempre: o núcleo lê o que a linha diz, não recalcula a decisão dela.
+    const c = lerCompilacaoNoAparelho(linha({ compilado: true, componentes: 0, compilados: 0 }));
+    assert.equal(c.estado, 'compilado');
+  });
+
+  it('"não sei" é um estado próprio, e nunca cai no "não" — cada motivo chega como a ponte o disse', () => {
+    for (const motivo of ['semBiblioteca', 'simulador', 'semPesos', 'pesosIlegiveis', 'motivoQueEstaVersaoNaoConhece']) {
+      const c = lerCompilacaoNoAparelho(linha({ motivo, detalhe: 'o porquê em prosa', ...ASSINATURA }));
+      assert.deepEqual(c, { estado: 'nao-sabido', motivo, detalhe: 'o porquê em prosa', ...ASSINATURA }, motivo);
+    }
+  });
+
+  it('não sabido sem detalhe continua legível — o detalhe é diagnóstico, não contrato', () => {
+    const c = lerCompilacaoNoAparelho(linha({ motivo: 'semPesos' }));
+    assert.deepEqual(c, { estado: 'nao-sabido', motivo: 'semPesos' });
+  });
+
+  it('a contagem malformada fica de fora — o estado já veio, e é ele que a tela usa', () => {
+    for (const [campo, valor] of [
+      ['componentes', -1],
+      ['componentes', 1.5],
+      ['componentes', '2'],
+      ['compilados', -1],
+      ['compilados', null],
+    ] as const) {
+      const c = lerCompilacaoNoAparelho(linha({ compilado: true, componentes: 2, compilados: 2, [campo]: valor }));
+      assert.equal(c.estado, 'compilado', `${campo}=${String(valor)}`);
+      assert.equal(campo in c, false, `${campo}=${String(valor)} entrou`);
+    }
+  });
+
+  it('fora do contrato é ilegível, nunca exceção', () => {
+    const casos: readonly (readonly [unknown, RegExp])[] = [
+      [undefined, /não é texto/],
+      [{ compilado: true }, /não é texto/],
+      ['Illegal instruction: 4', /não é JSON/],
+      ['', /não é JSON/],
+      ['[true]', /não é um objeto/],
+      ['null', /não é um objeto/],
+      [linha({ componentes: 1 }), /não diz se está compilado/],
+      [linha({ compilado: 'true' }), /não diz se está compilado/],
+      [linha({ compilado: null, motivo: '' }), /não diz se está compilado/],
+      [linha({ motivo: 7 }), /não diz se está compilado/],
+    ];
+    for (const [entrada, onde] of casos) {
+      const c = lerCompilacaoNoAparelho(entrada);
+      assert.equal(c.estado, 'ilegivel', JSON.stringify(entrada));
+      if (c.estado === 'ilegivel') assert.match(c.detalhe, onde, JSON.stringify(entrada));
+    }
+  });
+
+  it('a linha de reserva do MotorCoreAI (o codificador falhou) é ilegível, não um motivo desconhecido', () => {
+    // O literal de `MotorCoreAI.compilacaoDeReserva`. Lida como "não sabido com motivo", ela
+    // apareceria na tela como um motivo do Core AI que ninguém escreveu.
+    const c = lerCompilacaoNoAparelho('{"erro":"a ponte não codificou a compilação"}');
+    assert.equal(c.estado, 'ilegivel');
+    if (c.estado === 'ilegivel') assert.match(c.detalhe, /não codificou/);
+  });
+
+  it('as chaves lidas são as do contrato — a guarda as compara com o Swift', () => {
+    assert.deepEqual(
+      [...CHAVES_DA_COMPILACAO].sort(),
+      ['buildDoSistema', 'compilado', 'compilados', 'componentes', 'detalhe', 'motivo', 'plataforma'],
+    );
   });
 });
 

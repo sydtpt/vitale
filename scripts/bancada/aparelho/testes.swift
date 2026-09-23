@@ -460,7 +460,7 @@ struct Testes {
       p.conferir("ficha sem janela: pronto mesmo assim", false)
     }
 
-    print("as duas portas devolvem uma linha do contrato, sem biblioteca")
+    print("as três portas devolvem uma linha do contrato, sem biblioteca")
     let diagnostico = MotorCoreAI.diagnostico(pesos: "smollm2-135m")
     let lido = objeto(diagnostico)
     p.conferir("o diagnóstico é uma linha JSON", lido != nil, diagnostico)
@@ -478,6 +478,17 @@ struct Testes {
     // O pedido ilegível é recusado **antes** dos pesos: a conversão é a mesma do Engine.
     let ilegivel = await MotorCoreAI.responder(pesos: "smollm2-135m", pedido: "{\"sistema\":1}")
     p.igual("pedido ilegível continua capacidade", objeto(ilegivel)?["classe"] as? String, ClasseDeFalha.capacidade.rawValue)
+
+    // Sem a biblioteca não há cache a olhar — e "não dá para saber" **não é** "não compilado".
+    // É esta distinção que impede a tela de oferecer Compilar num Mac, num simulador ou num
+    // build que nunca rodou o `montar.sh`.
+    let compilacao = MotorCoreAI.compilacao(pesos: "smollm2-135m")
+    let daCompilacao = objeto(compilacao)
+    p.conferir("a compilação é uma linha JSON", daCompilacao != nil, compilacao)
+    p.conferir("sem biblioteca, ela NÃO diz `compilado`", daCompilacao?["compilado"] == nil, compilacao)
+    let motivoDaCompilacao = daCompilacao?["motivo"] as? String ?? ""
+    p.conferir("e o motivo é um que o app conhece", MotorCoreAI.motivos().contains(motivoDaCompilacao), motivoDaCompilacao)
+    p.conferir("a compilação não atravessa duas linhas", !compilacao.contains("\n"))
 
     print("os quatro motivos são uma lista fechada e sem repetição")
     p.igual("são quatro", MotorCoreAI.motivos().count, 4)

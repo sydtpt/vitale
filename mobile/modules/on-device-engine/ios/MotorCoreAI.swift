@@ -8,8 +8,9 @@
 // **Nada é duplicado.** A conversão do pedido, o subconjunto de esquema, a tabela erro →
 // classe, o `enum ClasseDeFalha`, o corte do detalhe e a codificação da linha continuam sendo
 // do `Engine` — este arquivo os chama. O que é dele, e só dele: achar a pasta, dizer por que
-// ela não serve, e traduzir a falha de **carga** (que o `Engine` nunca vê, porque o modelo do
-// sistema não se carrega).
+// ela não serve, traduzir a falha de **carga** (que o `Engine` nunca vê, porque o modelo do
+// sistema não se carrega) e dizer se a pasta **já está compilada para o chip** — pergunta que o
+// modelo do sistema também não tem, porque a Apple já o especializou antes de nós.
 //
 // **A casca é vendorizada, e por isso ela não decide nada.** O `CoreAILanguageModel` vem do
 // pacote Swift `apple/coreai-models`, que o CocoaPods não sabe consumir; ele é compilado fora
@@ -241,7 +242,85 @@ enum MotorCoreAI {
     Engine.falhaDe(.pesosAusentes, detalhe: "\(motivo): \(detalhe)")
   }
 
-  // MARK: as duas portas
+  // MARK: a compilação — já especializado para o chip, ou não
+
+  /// O que a ponte responde sobre a **compilação** de uma pasta de pesos. Uma linha JSON, lida
+  /// por `lerCompilacaoNoAparelho` (`ia/aparelho.ts`); a guarda do contrato no
+  /// `architecture.test.ts` cobra que os campos daqui são as chaves que o núcleo lê.
+  ///
+  /// **`compilado` é `Bool?`, e a ausência é o terceiro estado.** Sem biblioteca, no simulador,
+  /// com a pasta fora do build ou ilegível, a resposta honesta não é "não compilado" — é *não dá
+  /// para saber*. Um booleano de dois valores empurraria os quatro casos para o lado do "não", e
+  /// a tela ofereceria **Compilar** para um modelo que este build nem traz.
+  ///
+  /// Os opcionais saem do JSON quando nulos (o `Encodable` sintetizado os pula).
+  struct CompilacaoDoFio: Encodable, Equatable, Sendable {
+    /// Todo componente do modelo já tem especialização no cache deste build do sistema.
+    /// Ausente quando não deu para perguntar — e aí `motivo` diz por quê.
+    let compilado: Bool?
+    /// Só quando `compilado` está ausente: um de {@link motivos}.
+    let motivo: String?
+    /// Prosa de diagnóstico. Nenhuma decisão a lê.
+    let detalhe: String?
+    /// Quantos `.aimodel`/`.aimodelc` a pasta traz, e quantos deles já estão compilados. Só
+    /// quando houve a contagem — são eles que sustentam a igualdade de onde `compilado` sai.
+    let componentes: Int?
+    let compilados: Int?
+    let plataforma: String
+    let buildDoSistema: String
+  }
+
+  /// A linha que a compilação devolve se o codificador falhar (inalcançável com `Bool`, `Int` e
+  /// `String`). **Fora do contrato de propósito** — sem `compilado` e sem `motivo` —, para o
+  /// núcleo a ler como ilegível em vez de a ler como um estado que ninguém escreveu.
+  static let compilacaoDeReserva = "{\"erro\":\"a ponte não codificou a compilação\"}"
+
+  /// A compilação numa linha, com o mesmo codificador do resto da ponte.
+  static func codificar(_ compilacao: CompilacaoDoFio) -> String {
+    let codificador = JSONEncoder()
+    codificador.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    if let dados = try? codificador.encode(compilacao), let texto = String(data: dados, encoding: .utf8) {
+      return texto
+    }
+    return compilacaoDeReserva
+  }
+
+  /// "Não deu para perguntar", com o motivo no vocabulário que o app já põe em palavras.
+  static func naoSabido(motivo: String, detalhe: String) -> CompilacaoDoFio {
+    CompilacaoDoFio(
+      compilado: nil, motivo: motivo, detalhe: Engine.cortado(detalhe), componentes: nil, compilados: nil,
+      plataforma: Engine.plataforma(), buildDoSistema: Engine.buildDoSistema()
+    )
+  }
+
+  /// A contagem virando resposta — **a única regra de decisão desta porta**, e ela mora aqui, e
+  /// não na casca vendorizada, porque é fonte que as barreiras leem e que a bancada percorre.
+  ///
+  /// Uma pasta sem componente nenhum não é "não compilada": não há o que compilar, e a pergunta
+  /// não tem resposta. Ela cai em `pesosIlegiveis`, que é o motivo que já diz "a pasta veio neste
+  /// build e não se lê" — aqui, não se lê como modelo.
+  static func compilacaoDaContagem(_ pasta: URL, componentes: Int, compilados: Int) -> CompilacaoDoFio {
+    if componentes == 0 {
+      return naoSabido(
+        motivo: motivoPesosIlegiveis,
+        detalhe: "a pasta \(pasta.path) não tem componente de modelo (.aimodel/.aimodelc) — não há o que compilar"
+      )
+    }
+    return CompilacaoDoFio(
+      compilado: compilados == componentes, motivo: nil, detalhe: nil,
+      componentes: componentes, compilados: compilados,
+      plataforma: Engine.plataforma(), buildDoSistema: Engine.buildDoSistema()
+    )
+  }
+
+  /// A falha da inspeção virando "não dá para saber". A pasta existe e tem ficha (o
+  /// {@link estado} já conferiu), então o que sobra é ela não se deixar listar.
+  static func compilacaoDaFalha(_ f: FalhaDaCarga) -> CompilacaoDoFio {
+    let par = f.dominio.isEmpty ? f.nomeDoTipo : "\(f.nomeDoTipo) · \(f.dominio) \(f.codigo)"
+    return naoSabido(motivo: motivoPesosIlegiveis, detalhe: "não deu para listar os componentes (\(par)): \(f.descricao)")
+  }
+
+  // MARK: as três portas
 
   /// A porta da geração: o nome dos pesos e o pedido canônico entram, uma linha JSON sai.
   /// Nunca lança — como a do `Engine`.
@@ -258,6 +337,25 @@ enum MotorCoreAI {
   /// com um leitor só. A `variante` é o nome dos pesos; a `janela`, a da ficha.
   static func diagnostico(pesos: String, raiz: URL? = Bundle.main.resourceURL) -> String {
     Engine.codificar(diagnosticar(pesos: pesos, raiz: raiz))
+  }
+
+  /// A porta da compilação: se estes pesos **já estão compilados para o chip**, sem disparar
+  /// compilação nenhuma. A pergunta que a tela faz ao montar, e que decide se há **Compilar**.
+  ///
+  /// Separada do diagnóstico de propósito, embora as duas leiam a mesma pasta: são perguntas de
+  /// prazo diferente. "Este build traz os pesos?" não muda enquanto o app vive; "já está
+  /// compilado?" muda sozinho — o iOS atualiza e recompila tudo, ou apaga o cache sob pressão de
+  /// espaço. Juntá-las faria a resposta cara carregar a barata para dentro do mesmo cache de
+  /// sessão, e a tela mostraria "compilado" depois de o sistema ter jogado o compilado fora.
+  static func compilacao(pesos: String, raiz: URL? = Bundle.main.resourceURL) -> String {
+    codificar(compilacaoDosPesos(pesos: pesos, raiz: raiz))
+  }
+
+  static func compilacaoDosPesos(pesos: String, raiz: URL? = Bundle.main.resourceURL) -> CompilacaoDoFio {
+    switch estado(pesos, raiz: raiz) {
+    case .falta(let motivo, let detalhe): return naoSabido(motivo: motivo, detalhe: detalhe)
+    case .pronto(let pasta, _): return inspecionar(pasta)
+    }
   }
 
   static func diagnosticar(pesos: String, raiz: URL? = Bundle.main.resourceURL) -> DiagnosticoDoFio {
@@ -290,6 +388,26 @@ enum MotorCoreAI {
   }
 
   #if ORBE_COREAI && !targetEnvironment(simulator)
+  /// A inspeção do cache, com a biblioteca presente — a casca conta, este arquivo decide.
+  ///
+  /// **Nada aqui compila.** `PreparedModel.isCached` só olha o cache (~0,5 ms medido em 22/09);
+  /// é justamente por ser barato que o estado é **relido** em vez de lembrado: o cache é
+  /// particionado por build do iOS, e o sistema pode purgá-lo sob pressão de espaço.
+  static func inspecionar(_ pasta: URL) -> CompilacaoDoFio {
+    do {
+      let contagem = try OrbeCoreAI.compilacao(dosPesosEm: pasta)
+      return compilacaoDaContagem(pasta, componentes: contagem.componentes, compilados: contagem.compilados)
+    } catch let e as OrbeCoreAIErro {
+      return compilacaoDaFalha(FalhaDaCarga(nomeDoTipo: e.nomeDoTipo, descricao: e.descricao, dominio: e.dominio, codigo: e.codigo))
+    } catch {
+      let ns = error as NSError
+      return compilacaoDaFalha(FalhaDaCarga(
+        nomeDoTipo: String(reflecting: type(of: error)), descricao: String(describing: error),
+        dominio: ns.domain, codigo: ns.code
+      ))
+    }
+  }
+
   /// A geração, com a biblioteca presente.
   ///
   /// **Uma sessão nova por pedido**, como no `Engine`: a casca abre uma por chamada e nada
@@ -333,6 +451,16 @@ enum MotorCoreAI {
     }
   }
   #else
+  /// Sem a biblioteca — ou no simulador — não há cache a olhar. Como em {@link gerar}, o
+  /// {@link estado} já devolveu a falta antes de chegar aqui; este corpo é a rede, e diz o mesmo.
+  static func inspecionar(_ pasta: URL) -> CompilacaoDoFio {
+    let bloqueio = motivoDaBiblioteca()
+    return naoSabido(
+      motivo: bloqueio?.motivo ?? motivoSemBiblioteca,
+      detalhe: bloqueio?.detalhe ?? "a biblioteca do Core AI não está neste build"
+    )
+  }
+
   /// Sem a biblioteca — ou no simulador — a geração não existe. `estado` já devolveu a falta
   /// antes de chegar aqui; este corpo é a rede, e diz o mesmo.
   static func gerar(_ p: PedidoPreparado, pesos: String, pasta: URL) async -> SaidaDaPonte {

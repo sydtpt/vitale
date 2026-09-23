@@ -231,6 +231,7 @@ function AppShell() {
         <Stack.Screen name="configuracoes/conexoes" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/motores/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/motores/bancada" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="configuracoes/motores/modelo/[id]" options={{ animation: 'slide_from_right' }} />
       </Stack>
       </NavThemeProvider>
     </View>

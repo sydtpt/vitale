@@ -42,6 +42,7 @@ import {
   criarMotorDeNuvem,
   criarMotorDoAparelho,
   formatarMotorId,
+  lerCompilacaoNoAparelho,
   lerDiagnosticoDoAparelho,
   lerMotorId,
   lerMotoresDeNuvemAprovados,
@@ -62,7 +63,10 @@ import { supabase } from '../supabase';
 import { anel } from './anel';
 import {
   APARELHO_COREAI_SMOLLM2,
-  PESOS_DO_COREAI,
+  COMPILACAO_AUSENTE,
+  COMPILACAO_CONSULTANDO,
+  COMPILACAO_FORA_DO_IOS,
+  PESOS_ABERTOS,
   PONTE_AUSENTE,
   PONTE_CONSULTANDO,
   PONTE_FORA_DO_IOS,
@@ -71,6 +75,7 @@ import {
   idsConhecidosDe,
   listaAprovada,
   listaVencida,
+  type EstadoDaCompilacao,
   type EstadoDaPonte,
   type ListaAprovada,
 } from './catalogo';
@@ -90,6 +95,14 @@ const FUNCTION = 'ia-narrar';
  * a uma promessa morta. Um minuto é folga larga sobre o pior caso medido.
  */
 export const PRAZO_MS = 60_000;
+
+/**
+ * Spike 22/09 (branch `spike/qwen3-4b-iphone`): o prazo **só do peso aberto**. A primeira
+ * carga do Qwen3-4B compila o modelo para o Neural Engine — no Mac M1 levou 2 h 48 min —, e
+ * com o prazo de 60 s a tela desistiria sem nunca mostrar quanto a carga custou no iPhone.
+ * Esperar é o que este build mede.
+ */
+export const PRAZO_DO_PESO_ABERTO_MS = 45 * 60_000;
 
 function mensagem(e: unknown): string {
   return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
@@ -258,6 +271,15 @@ export interface PonteDoAparelho {
   responderComPesos(pesos: string, pedido: string): Promise<string>;
   /** Se estes pesos estão neste build, e com que janela — ou por quê não. */
   diagnosticoDosPesos(pesos: string): Promise<string>;
+  /**
+   * Se estes pesos já estão **compilados para o chip** — sem disparar compilação nenhuma.
+   *
+   * Porta própria, e não um campo do diagnóstico, porque as duas perguntas têm prazos
+   * diferentes: "este build traz os pesos?" não muda enquanto o app vive, e "já está
+   * compilado?" muda sozinho (o iOS atualiza e recompila tudo, ou apaga o cache sob pressão
+   * de espaço). Juntá-las faria a resposta que muda herdar o cache da que não muda.
+   */
+  compilacaoDosPesos(pesos: string): Promise<string>;
 }
 
 /**
@@ -275,6 +297,7 @@ export const FUNCOES_DA_PONTE = [
   'diagnostico',
   'responderComPesos',
   'diagnosticoDosPesos',
+  'compilacaoDosPesos',
 ] as const satisfies readonly (keyof PonteDoAparelho)[];
 
 /**
@@ -295,6 +318,7 @@ export const PARAMETROS_DA_PONTE = {
   diagnostico: [],
   responderComPesos: ['pesos', 'pedido'],
   diagnosticoDosPesos: ['pesos'],
+  compilacaoDosPesos: ['pesos'],
 } as const satisfies Record<(typeof FUNCOES_DA_PONTE)[number], readonly string[]>;
 type SobraDaPonte = Exclude<keyof PonteDoAparelho, (typeof FUNCOES_DA_PONTE)[number]>;
 const _ponteInteira: [SobraDaPonte] extends [never] ? true : SobraDaPonte = true;
@@ -538,7 +562,7 @@ export const registroDoAparelho: RegistroDoAparelho = REGISTRO_DO_APARELHO;
  * O **peso aberto** (`aparelho:coreai/<pesos>`, a 5.8) tem motor pelo mesmo caminho, com
  * **a mesma vez**: os dois disputam a memória e o Neural Engine do mesmo aparelho, e duas
  * filas deixariam um subir 244 MiB de pesos enquanto o outro escreve. Só o peso que este
- * build embarca ({@link PESOS_DO_COREAI}) tem motor — um nome que o app não conhece não
+ * build embarca ({@link PESOS_ABERTOS}) tem motor — um nome que o app não conhece não
  * vira caminho de arquivo aqui, e a ponte o recusaria de novo do lado de lá.
  */
 export function criarMotorPara(
@@ -549,18 +573,29 @@ export function criarMotorPara(
 ): (id: MotorId) => Motor | undefined {
   const transporte = serializar(criarTransporte(chamar, prazoMs));
   const vez = novaFilaDoAparelho();
-  const noAparelho = (responder: (pedido: string) => Promise<string>): Motor =>
+  const noAparelho = (responder: (pedido: string) => Promise<string>, prazo: number = prazoMs): Motor =>
     criarMotorDoAparelho(
-      criarTransporteDoAparelho(responder, prazoMs, { anotar: anel.anotar, registro, fila: vez }),
+      criarTransporteDoAparelho(responder, prazo, { anotar: anel.anotar, registro, fila: vez }),
     );
   const doAparelho = ponte === null ? undefined : noAparelho((p) => ponte.responder(p));
-  const doCoreAI = ponte === null ? undefined : noAparelho((p) => ponte.responderComPesos(PESOS_DO_COREAI, p));
+  // Um motor por peso aberto (spike 22/09). O lado Swift sempre recebeu **quais** pesos;
+  // o que era único morava no catálogo. Cada um leva o prazo longo, porque a primeira
+  // chamada de cada modelo paga a compilação dele — e ela é por modelo, não por app.
+  const abertos = new Map<string, Motor>();
+  if (ponte !== null) {
+    for (const p of PESOS_ABERTOS) {
+      abertos.set(
+        p.id,
+        noAparelho((pedido) => ponte.responderComPesos(p.pesos, pedido), Math.max(prazoMs, PRAZO_DO_PESO_ABERTO_MS)),
+      );
+    }
+  }
   const porId = new Map<string, Motor>();
   return (id) => {
     const lido = lerMotorId(id);
     if (lido?.tipo === 'aparelho') {
       if (lido.variante === 'sistema') return doAparelho;
-      return formatarMotorId(lido) === APARELHO_COREAI_SMOLLM2 ? doCoreAI : undefined;
+      return abertos.get(formatarMotorId(lido));
     }
     if (lido?.tipo !== 'nuvem') return undefined;
     const chave = formatarMotorId(lido);
@@ -701,9 +736,119 @@ export const ponteDoAparelho: LeitorDaPonte = criarLeitorDaPonte(PONTE);
  * aqui a mudança possível não vem dos Ajustes, e sim de um build novo. Reler é barato e a
  * regra ser uma só vale mais que a economia.
  */
-export const coreaiDoAparelho: LeitorDaPonte = criarLeitorDaPonte(PONTE, {
-  perguntar: (p) => p.diagnosticoDosPesos(PESOS_DO_COREAI),
-});
+export const coreaiDosPesos: Readonly<Record<string, LeitorDaPonte>> = Object.freeze(
+  Object.fromEntries(
+    PESOS_ABERTOS.map((p) => [p.pesos, criarLeitorDaPonte(PONTE, { perguntar: (x) => x.diagnosticoDosPesos(p.pesos) })]),
+  ),
+);
+
+/** O primeiro peso aberto — o leitor que o código de uma era de um modelo só ainda pede. */
+export const coreaiDoAparelho: LeitorDaPonte = coreaiDosPesos[PESOS_ABERTOS[0]!.pesos]!;
+
+/** O que cada peso aberto diz **agora**, sem perguntar de novo — o estado inicial das telas. */
+export function estadoDosPesosAbertos(): Readonly<Record<string, EstadoDaPonte>> {
+  return Object.fromEntries(PESOS_ABERTOS.map((p) => [p.pesos, coreaiDosPesos[p.pesos]!.agora()]));
+}
+
+/** Relê o diagnóstico de **todos** os pesos abertos, em paralelo. Nunca rejeita. */
+export async function reconsultarPesosAbertos(): Promise<Readonly<Record<string, EstadoDaPonte>>> {
+  const lidos = await Promise.all(
+    PESOS_ABERTOS.map(async (p) => [p.pesos, await coreaiDosPesos[p.pesos]!.reconsultar()] as const),
+  );
+  return Object.fromEntries(lidos);
+}
+
+/* ── a compilação de cada peso aberto ─────────────────────────────────────── */
+
+/**
+ * O leitor da compilação — o irmão de {@link LeitorDaPonte}, com **uma diferença que é o
+ * ponto**: ele não guarda a resposta boa.
+ *
+ * O leitor do diagnóstico para de perguntar assim que ouve "disponível", porque o que muda
+ * é só o caminho do não. Aqui é o contrário: `compilado` volta a ser falso **sozinho** — o
+ * iOS atualiza e recompila tudo, ou purga o cache sob pressão de espaço —, e um cache de
+ * sessão faria a tela mostrar "compilado" depois de o sistema ter jogado o compilado fora.
+ * Reler é de graça (~0,5 ms, medido em 22/09); lembrar é que sai caro.
+ */
+export interface LeitorDaCompilacao {
+  /** O que já se sabe, sem esperar: ausente, fora do iOS, consultando ou o último lido. */
+  agora(): EstadoDaCompilacao;
+  /** Pergunta de novo. Leitura em voo é compartilhada; nunca rejeita. */
+  reler(): Promise<EstadoDaCompilacao>;
+}
+
+export interface OpcoesDoLeitorDaCompilacao {
+  readonly prazoMs?: number;
+  readonly plataforma?: string;
+}
+
+export function criarLeitorDaCompilacao(
+  ponte: PonteDoAparelho | null,
+  pesos: string,
+  opcoes: OpcoesDoLeitorDaCompilacao = {},
+): LeitorDaCompilacao {
+  const prazoMs = opcoes.prazoMs ?? PRAZO_DO_DIAGNOSTICO_MS;
+  const plataforma = opcoes.plataforma ?? Platform.OS;
+  const fixo = plataforma !== 'ios' ? COMPILACAO_FORA_DO_IOS : ponte === null ? COMPILACAO_AUSENTE : null;
+  if (fixo !== null || ponte === null) {
+    const estado = fixo ?? COMPILACAO_AUSENTE;
+    return { agora: () => estado, reler: () => Promise.resolve(estado) };
+  }
+  let lido: EstadoDaCompilacao | null = null;
+  let emVoo: Promise<EstadoDaCompilacao> | null = null;
+
+  const ler = async (): Promise<EstadoDaCompilacao> => {
+    let relogio: ReturnType<typeof setTimeout> | undefined;
+    const noPrazo = new Promise<null>((r) => {
+      relogio = setTimeout(() => r(null), prazoMs);
+    });
+    try {
+      const linha = await Promise.race([ponte.compilacaoDosPesos(pesos), noPrazo]);
+      if (linha === null) {
+        return {
+          tipo: 'lido',
+          compilacao: { estado: 'ilegivel', detalhe: `a compilação não voltou em ${Math.round(prazoMs / 1000)} s` },
+        };
+      }
+      return { tipo: 'lido', compilacao: lerCompilacaoNoAparelho(linha), cru: String(linha) };
+    } catch (e) {
+      return { tipo: 'lido', compilacao: { estado: 'ilegivel', detalhe: `a ponte lançou — ${mensagem(e)}` } };
+    } finally {
+      clearTimeout(relogio);
+    }
+  };
+
+  const reler = (): Promise<EstadoDaCompilacao> => {
+    if (emVoo) return emVoo;
+    const voo = ler().then((e) => {
+      lido = e;
+      if (emVoo === voo) emVoo = null;
+      return e;
+    });
+    emVoo = voo;
+    return voo;
+  };
+
+  return { agora: () => lido ?? COMPILACAO_CONSULTANDO, reler };
+}
+
+/** O leitor da compilação de cada peso aberto deste build — um por pasta de pesos. */
+export const compilacaoDosPesos: Readonly<Record<string, LeitorDaCompilacao>> = Object.freeze(
+  Object.fromEntries(PESOS_ABERTOS.map((p) => [p.pesos, criarLeitorDaCompilacao(PONTE, p.pesos)])),
+);
+
+/** O que cada peso aberto diz **agora**, sem perguntar de novo — o estado inicial das telas. */
+export function estadoDaCompilacaoDosPesos(): Readonly<Record<string, EstadoDaCompilacao>> {
+  return Object.fromEntries(PESOS_ABERTOS.map((p) => [p.pesos, compilacaoDosPesos[p.pesos]!.agora()]));
+}
+
+/** Relê a compilação de **todos** os pesos abertos, em paralelo. Nunca rejeita. */
+export async function relerCompilacaoDosPesos(): Promise<Readonly<Record<string, EstadoDaCompilacao>>> {
+  const lidos = await Promise.all(
+    PESOS_ABERTOS.map(async (p) => [p.pesos, await compilacaoDosPesos[p.pesos]!.reler()] as const),
+  );
+  return Object.fromEntries(lidos);
+}
 
 /* ── a lista de motores aprovados, do servidor (ADR 0048, story 5.6) ─────── */
 
