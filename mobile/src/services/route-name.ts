@@ -147,6 +147,28 @@ export function precisaDeNome(a: Activity, frente: FrenteDoNome): boolean {
   // Sem traçado não há forma a derivar, e é o único crivo de escopo que restou:
   // toda atividade com GPS entra, não só a pedalada (decisão 4 do plano).
   if (!a.hasRoute) return false;
+
+  /*
+   * **Sem cidade, não se tenta — e isto não é cautela, é dado.**
+   *
+   * A forma sai das cidades do percurso. Uma atividade cujo enriquecimento
+   * geográfico ainda não rodou tem `cities` vazio, cai em `forma: 'degenerada'`
+   * e a recusa é **permanente**: a meta fica gravada, `tentou` passa a valer, e a
+   * rota nunca mais é visitada. O enriquecimento roda depois, as cidades chegam,
+   * e o nome nunca vem.
+   *
+   * Já aconteceu. Em produção, 23/09: uma atividade com `recusa: 'degenerada'`
+   * gravada tem **16 cidades hoje**. Dezesseis cidades não são uma rota
+   * degenerada — ela foi julgada antes de o enriquecimento passar, e o veredito
+   * ficou. Sem esta linha, o mesmo acidente passa a valer para as 279 com GPS, e
+   * em dobro, porque agora são duas frentes por atividade.
+   *
+   * Esperar é de graça: quem não tem cidade hoje volta ao gatilho na próxima
+   * abertura, e a amostra da bancada já filtrava assim (`amostras.ts`) — a
+   * produção é que não filtrava.
+   */
+  if ((a.cities?.length ?? 0) === 0) return false;
+
   const f = FRENTE[frente];
   return !f.nome(a) && !f.tentou(a);
 }

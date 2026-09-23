@@ -255,6 +255,30 @@ describe('o gatilho', () => {
   });
 
   /**
+   * **Sem cidade, ninguém é julgado** — e isto é regressão de dado, não hipótese.
+   *
+   * A forma sai das cidades. Uma atividade cujo enriquecimento geográfico ainda não
+   * passou tem `cities` vazio, cai em `degenerada` e grava recusa **permanente**:
+   * o enriquecimento roda depois, as cidades chegam, e o nome nunca vem porque a
+   * marca já está lá.
+   *
+   * Em produção, 23/09, uma atividade com `recusa: 'degenerada'` gravada tem **16
+   * cidades hoje**. O acidente já cobrou uma vez, com o gatilho valendo só para
+   * bicicleta; agora ele valeria para 279 atividades e em duas frentes cada.
+   */
+  it('sem cidade gravada, nenhuma frente entra — esperar é de graça, recusar é para sempre', () => {
+    for (const cities of [undefined, []] as const) {
+      const cru = { ...PEDALADA, cities } as Activity;
+      expect(precisaDeNome(cru, 'nome-de-rota')).toBe(false);
+      expect(precisaDeNome(cru, 'nome-de-rota-pt')).toBe(false);
+      expect(frentesQueFaltam(cru)).toEqual([]);
+      expect(precisaDeAlgumNome(cru)).toBe(false);
+    }
+    // E a mesma atividade, depois de o enriquecimento passar, volta ao gatilho.
+    expect(precisaDeAlgumNome(PEDALADA)).toBe(true);
+  });
+
+  /**
    * **A marca é por língua**, e é a razão de haver duas colunas de meta.
    *
    * Com uma marca só, as 135 pedaladas que já têm nome francês ficariam fora do
