@@ -2,7 +2,7 @@
  * A amostra no iPhone (story 5.13) — o preparo, a medição de uma janela, a sequência e as
  * marcas do hospedeiro.
  *
- * **A função medida aqui é a que a tela chama**: `medirJanelaNoAparelho`, de
+ * **A função medida aqui é a que a tela chama**: `medirJanela`, de
  * `lib/motores/amostra.ts`. Ela morava na tela, que o jest não importa, e era "provada"
  * por uma cópia à mão — uma cópia prova a cópia. A régua (a amostra, a linha, as medidas)
  * é do núcleo e tem teste lá (`packages/shared/src/bancada/`).
@@ -34,13 +34,16 @@ import {
   registroDoAparelho,
   type PonteDoAparelho,
 } from '../motores';
+import { PESOS_ABERTOS } from '../motores/catalogo';
 import {
   ETAPAS_DO_PREPARO,
   MARCAS_INDEFINIDAS,
+  PARADO_ANTES_DA_VEZ,
   duracaoCurta,
   freioDoHospedeiro,
+  medirCorridas,
   medirEmSequencia,
-  medirJanelaNoAparelho,
+  medirJanela,
   prepararAmostra,
   previsaoDaAmostra,
   prontidaoDasNotas,
@@ -48,6 +51,7 @@ import {
   type AcervoDaStore,
   type DadosDaAmostra,
 } from '../motores/amostra';
+import type { ColunaDaCorrida } from '../motores/amostras-regras';
 
 /* ── o acervo sintético ── */
 
@@ -171,18 +175,22 @@ describe('as notas inteiras antes de enumerar', () => {
 
 /* ── o preparo ── */
 
+/** A fila que o preparo recebe: um motor apto, que é o caso de sempre. */
+const UM_MOTOR: readonly ColunaDaCorrida[] = [{ motor: APARELHO_SISTEMA }];
+
 describe('o preparo da amostra', () => {
   const base = {
     hoje: HOJE,
     limite: 1,
     carregarNotasDesde: async () => undefined,
-    motivoDoAparelho: async () => null,
+    motores: async () => UM_MOTOR,
   };
 
-  it('enumera, amostra e diz o que usou', async () => {
+  it('enumera, amostra e diz o que usou — e devolve a fila que vai correr', async () => {
     const r = await prepararAmostra({ ...base, estado: () => acervo() });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    expect(r.fila).toEqual(UM_MOTOR);
     expect(r.janelas.length).toBeGreaterThan(0);
     expect(r.contexto.janelas).toBe(r.janelas.length);
     expect(r.contexto.maisAntiga).toBe(PRIMEIRA);
@@ -191,9 +199,18 @@ describe('o preparo da amostra', () => {
     expect(r.contexto.passos.reduce((n, p) => n + p.passos, 0)).toBe(r.contexto.enumeradas);
   });
 
-  it('sem aparelho, sem sono e sem noite: recusa com o motivo, e nenhuma janela', async () => {
-    const semAparelho = await prepararAmostra({ ...base, estado: () => acervo(), motivoDoAparelho: async () => 'a Apple Intelligence está desligada' });
-    expect(semAparelho).toEqual({ ok: false, motivo: expect.stringContaining('desligada') as unknown as string });
+  it('sem motor, sem sono e sem noite: recusa com o motivo, e nenhuma janela', async () => {
+    // A fila só de recusas não chega a enumerar: 390 janelas para dizer o que já se sabia
+    // no primeiro passo seriam segundos de tela gastos à toa.
+    const perdeuOPe = await prepararAmostra({
+      ...base,
+      estado: () => acervo(),
+      motores: async () => [{ motor: APARELHO_SISTEMA, recusa: 'a Apple Intelligence está desligada' }],
+    });
+    expect(perdeuOPe).toEqual({ ok: false, motivo: expect.stringContaining('desligada') as unknown as string });
+
+    const semNinguem = await prepararAmostra({ ...base, estado: () => acervo(), motores: async () => [] });
+    expect(semNinguem.ok ? '' : semNinguem.motivo).toContain('nenhum motor do aparelho marcado');
 
     const carregando = await prepararAmostra({ ...base, estado: () => acervo({ loaded: false }) });
     expect(carregando.ok).toBe(false);
@@ -276,13 +293,13 @@ describe('o preparo da amostra', () => {
 
 /* ── uma janela, pela função que a tela chama ── */
 
-describe('medirJanelaNoAparelho — a composição que produz os números', () => {
+describe('medirJanela — a composição que produz os números', () => {
   it('a régua é o PISO: o template da linha é a frase sem modelo, e o aparelho é chamado uma vez só', async () => {
     const janela = JANELAS[0]!;
     const ponte = ponteQueCopiaOTemplate();
     const registro = novoRegistroDoAparelho();
     const motorPara = criarMotorPara(async () => ({ data: null, error: new Error('sem rede') }), 1_000, ponte, registro);
-    const l = await medirJanelaNoAparelho(janela, DADOS, HOJE, { motorPara, registro });
+    const l = await medirJanela(janela, DADOS, HOJE, APARELHO_SISTEMA, { motorPara, registro });
 
     // As duas asserções que mordem se alguém trocar o SEM_MODELO da régua pelo aparelho:
     // o template deixaria de ser o piso, e o modelo seria chamado duas vezes na janela.
@@ -302,7 +319,7 @@ describe('medirJanelaNoAparelho — a composição que produz os números', () =
     const registro = novoRegistroDoAparelho();
     const motorPara = criarMotorPara(async () => ({ data: null, error: new Error('sem rede') }), 1_000, ponte, registro);
     for (const j of JANELAS) {
-      const l = await medirJanelaNoAparelho(j, DADOS, HOJE, { motorPara, registro });
+      const l = await medirJanela(j, DADOS, HOJE, APARELHO_SISTEMA, { motorPara, registro });
       const pedido = descritorDaSaudeDoSono.montarPedido(entrada(j));
       if (pedido) expect(l.hashDoPedido).toMatch(/^[0-9a-f]{64}$/);
       expect(l.caso).toBe(j.caso);
@@ -312,7 +329,7 @@ describe('medirJanelaNoAparelho — a composição que produz os números', () =
 
   it('sem motor (a ponte fora do build) a linha é sintética, sem marca nenhuma', async () => {
     const registro = novoRegistroDoAparelho();
-    const l = await medirJanelaNoAparelho(JANELAS[0]!, DADOS, HOJE, { motorPara: () => undefined, registro });
+    const l = await medirJanela(JANELAS[0]!, DADOS, HOJE, APARELHO_SISTEMA, { motorPara: () => undefined, registro });
     expect(l.desfecho).toBe('indisponivel');
     expect(l.sintetica).toBe(true);
     expect(l.frio).toBeUndefined();
@@ -321,7 +338,7 @@ describe('medirJanelaNoAparelho — a composição que produz os números', () =
 
   it('a exceção de função pura vira linha de defeito — a amostra não para', async () => {
     const registro = novoRegistroDoAparelho();
-    const l = await medirJanelaNoAparelho(JANELAS[0]!, { noites: NOITES, notas: NOTAS }, 'dia-invalido', { registro });
+    const l = await medirJanela(JANELAS[0]!, { noites: NOITES, notas: NOTAS }, 'dia-invalido', APARELHO_SISTEMA, { registro });
     expect(l.desfecho).toBe('defeito');
     expect(l.detalhe).toContain('RangeError');
   });
@@ -336,13 +353,13 @@ describe('as marcas caem na janela certa (por chamada, não por contador)', () =
     const ponte = ponteQueCopiaOTemplate({ trava: () => travar, atrasoMs: 70 });
     const motorPara = criarMotorPara(async () => ({ data: null, error: new Error('sem rede') }), 50, ponte, registro);
 
-    const presa = await medirJanelaNoAparelho(JANELAS[0]!, DADOS, HOJE, { motorPara, registro });
+    const presa = await medirJanela(JANELAS[0]!, DADOS, HOJE, APARELHO_SISTEMA, { motorPara, registro });
     expect(presa.desfecho).toBe('transitoria');
     expect(presa.doHospedeiro).toBe(true);
     expect(presa.frio).toBe(true);
 
     travar = false;
-    const seguinte = await medirJanelaNoAparelho(JANELAS[1]!, DADOS, HOJE, { motorPara, registro });
+    const seguinte = await medirJanela(JANELAS[1]!, DADOS, HOJE, APARELHO_SISTEMA, { motorPara, registro });
     expect(seguinte.doHospedeiro).toBeUndefined();
     expect(seguinte.frio).toBeUndefined();
     expect(seguinte.desfecho).toBe('ok');
@@ -354,7 +371,7 @@ describe('as marcas caem na janela certa (por chamada, não por contador)', () =
     const motorPara = criarMotorPara(async () => ({ data: null, error: new Error('sem rede') }), 1_000, ponte, registro);
     // Outra tela pede ao aparelho no meio da janela: o transporte carimba duas.
     const intruso = criarTransporteDoAparelho(async () => '{"texto":"de outra tela","provedor":"p","modelo":"m"}', 1_000, { registro });
-    const medida = medirJanelaNoAparelho(JANELAS[0]!, DADOS, HOJE, { motorPara, registro });
+    const medida = medirJanela(JANELAS[0]!, DADOS, HOJE, APARELHO_SISTEMA, { motorPara, registro });
     await intruso('{"usuario":"outro"}');
     const l = await medida;
     expect(l.frio).toBeUndefined();
@@ -539,7 +556,7 @@ describe('a corrida inteira: o prazo fica fora da medida e a fria fora da median
       limite: 1,
       estado: () => acervo(),
       carregarNotasDesde: async () => undefined,
-      motivoDoAparelho: async () => null,
+      motores: async () => UM_MOTOR,
     });
     expect(preparo.ok).toBe(true);
     if (!preparo.ok) return;
@@ -549,7 +566,7 @@ describe('a corrida inteira: o prazo fica fora da medida e a fria fora da median
       janelas: preparo.janelas,
       medir: (j) => {
         travar = j === travada;
-        return medirJanelaNoAparelho(j, preparo.dados, HOJE, { motorPara, registro });
+        return medirJanela(j, preparo.dados, HOJE, APARELHO_SISTEMA, { motorPara, registro });
       },
       parar: () => false,
       abortarSe: freioDoHospedeiro(),
@@ -564,5 +581,170 @@ describe('a corrida inteira: o prazo fica fora da medida e a fria fora da median
     expect(m.naMediana).toBe(m.medidas - 1);
     expect(m.aprovadas).toBeGreaterThan(0);
     expect(m.identicasAoTemplate).toBe(m.aprovadas);
+  });
+
+  it('o motor pedido é o que corre — a amostra não tem mais um motor cravado', async () => {
+    // A asserção que morde se alguém puser um padrão de volta em `medirJanela`: o pedido
+    // vai ao peso aberto, e é `responderComPesos` (com a pasta certa) que recebe.
+    const registro = novoRegistroDoAparelho();
+    const ponte = ponteQueCopiaOTemplate();
+    const pesos: string[] = [];
+    const motorPara = criarMotorPara(
+      async () => ({ data: null, error: new Error('sem rede') }),
+      1_000,
+      {
+        ...ponte,
+        responderComPesos: (quais, pedido) => {
+          pesos.push(quais);
+          return ponte.responderComPesos(quais, pedido);
+        },
+      },
+      registro,
+    );
+    const l = await medirJanela(JANELAS[0]!, DADOS, HOJE, QWEN, { motorPara, registro });
+    expect(pesos).toEqual(['qwen3-1.7b']);
+    expect(l.desfecho).toBe('ok');
+  });
+});
+
+/* ── uma corrida por motor, em sequência (fatia 5) ── */
+
+const QWEN = PESOS_ABERTOS[0]!.id;
+const TUCANO = PESOS_ABERTOS[1]!.id;
+
+/** Uma linha qualquer da janela `j` — o conteúdo não importa, o motor e a ordem sim. */
+function linhaFalsa(j: JanelaClassificada, extra: Partial<LinhaDoRelatorio> = {}): LinhaDoRelatorio {
+  return {
+    range: j.range,
+    offset: j.offset,
+    alcance: j.alcance,
+    caso: j.caso,
+    hashDoPedido: 'a'.repeat(64),
+    desfecho: 'ok',
+    ms: 9_800,
+    template: 'o template',
+    frase: 'a frase do motor',
+    ...extra,
+  };
+}
+
+describe('uma corrida por motor', () => {
+  const tres = JANELAS.slice(0, 3);
+  const base = {
+    janelas: tres,
+    conferir: async () => null,
+    parar: () => false,
+  };
+
+  it('corre um motor de cada vez, e cada um mede a amostra inteira', async () => {
+    const ordem: string[] = [];
+    let dentro = 0;
+    let juntos = 0;
+    const corridas = await medirCorridas({
+      ...base,
+      fila: [{ motor: QWEN }, { motor: TUCANO }],
+      medir: async (j, motor) => {
+        dentro += 1;
+        juntos = Math.max(juntos, dentro);
+        ordem.push(`${motor}@${j.offset}`);
+        await new Promise((r) => setTimeout(r, 1));
+        dentro -= 1;
+        return linhaFalsa(j);
+      },
+    });
+    // Nunca dois motores ao mesmo tempo: eles disputam a memória e o Neural Engine.
+    expect(juntos).toBe(1);
+    expect(ordem.slice(0, 3).every((x) => x.startsWith(QWEN))).toBe(true);
+    expect(ordem.slice(3).every((x) => x.startsWith(TUCANO))).toBe(true);
+    expect(corridas.map((c) => [c.motor, c.linhas.length, c.parcial])).toEqual([
+      [QWEN, 3, false],
+      [TUCANO, 3, false],
+    ]);
+  });
+
+  it('relê antes de CADA corrida: quem perdeu o compilado no meio não chama o modelo', async () => {
+    // A guarda mais cara da tela: a primeira chamada de um peso aberto não compilado É a
+    // compilação dele, 11 a 15 min. A fila foi decidida minutos antes.
+    const consultados: string[] = [];
+    const chamados: string[] = [];
+    const corridas = await medirCorridas({
+      ...base,
+      fila: [{ motor: QWEN }, { motor: TUCANO }],
+      conferir: async (motor) => {
+        consultados.push(motor);
+        return motor === TUCANO ? 'o compilado deste modelo não está mais no aparelho' : null;
+      },
+      medir: async (j, motor) => {
+        chamados.push(motor);
+        return linhaFalsa(j);
+      },
+    });
+    expect(consultados).toEqual([QWEN, TUCANO]);
+    expect(chamados.every((m) => m === QWEN)).toBe(true);
+    expect(corridas[1]).toMatchObject({ motor: TUCANO, linhas: [], recusa: 'o compilado deste modelo não está mais no aparelho' });
+  });
+
+  it('a recusa que já veio do preparo não gasta releitura nem chamada', async () => {
+    let consultas = 0;
+    const corridas = await medirCorridas({
+      ...base,
+      fila: [{ motor: QWEN, recusa: 'não compilado' }],
+      conferir: async () => {
+        consultas += 1;
+        return null;
+      },
+      medir: async (j) => linhaFalsa(j),
+    });
+    expect(consultas).toBe(0);
+    expect(corridas).toEqual([expect.objectContaining({ motor: QWEN, recusa: 'não compilado', linhas: [] })]);
+  });
+
+  it('parar no meio: a corrida em voo fica parcial e a seguinte diz que nem chegou a começar', async () => {
+    let parar = false;
+    const corridas = await medirCorridas({
+      ...base,
+      fila: [{ motor: QWEN }, { motor: TUCANO }],
+      parar: () => parar,
+      medir: async (j) => {
+        parar = true;
+        return linhaFalsa(j);
+      },
+    });
+    expect(corridas[0]).toMatchObject({ motor: QWEN, parcial: true });
+    expect(corridas[0]!.linhas).toHaveLength(1);
+    // O motor que não correu **não some** do resultado: some seria o dono comparando dois
+    // números e achando que pediu três.
+    expect(corridas[1]).toMatchObject({ motor: TUCANO, linhas: [], recusa: PARADO_ANTES_DA_VEZ });
+  });
+
+  it('o freio é POR motor: a corrida travada para, e a seguinte ainda tenta', async () => {
+    const corridas = await medirCorridas({
+      ...base,
+      janelas: JANELAS.slice(0, 5),
+      fila: [{ motor: QWEN }, { motor: TUCANO }],
+      medir: async (j, motor) =>
+        motor === QWEN
+          ? linhaFalsa(j, { desfecho: 'transitoria', doHospedeiro: true, frase: undefined })
+          : linhaFalsa(j),
+    });
+    expect(corridas[0]).toMatchObject({ motor: QWEN, parcial: true });
+    expect(corridas[0]!.linhas).toHaveLength(3);
+    expect(corridas[0]!.motivo).toContain('3 janelas seguidas');
+    expect(corridas[1]).toMatchObject({ motor: TUCANO, parcial: false });
+    expect(corridas[1]!.linhas).toHaveLength(5);
+  });
+
+  it('publica corrida a corrida — a segunda leva minutos, e a primeira não espera por ela', async () => {
+    const publicadas: string[] = [];
+    const abertas: string[] = [];
+    await medirCorridas({
+      ...base,
+      fila: [{ motor: QWEN }, { motor: TUCANO }],
+      medir: async (j) => linhaFalsa(j),
+      aoAbrirCorrida: (motor) => abertas.push(motor),
+      aoFechar: (c) => publicadas.push(c.motor),
+    });
+    expect(abertas).toEqual([QWEN, TUCANO]);
+    expect(publicadas).toEqual([QWEN, TUCANO]);
   });
 });

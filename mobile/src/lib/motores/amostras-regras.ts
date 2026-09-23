@@ -14,6 +14,10 @@
  * **continua** valendo quando a corrida vai começar, e quanto ela espera por um
  * motor que não devolve nada. As três são decisões, não desenho, e estão aqui
  * pela mesma razão das outras.
+ *
+ * A fatia 5 acrescentou as da **amostra de N janelas**: quais motores ela mede
+ * (um por corrida, em sequência), se cada um ainda está de pé no instante em que
+ * a vez dele chega, e qual dos dois prazos vale para ele.
  */
 import {
   exposicao,
@@ -332,6 +336,115 @@ export function colunasPorVir(fila: readonly ColunaDaCorrida[], indice: number):
   return fila.slice(indice + 1).filter((c) => c.recusa === undefined).length;
 }
 
+/* ── a fila da amostra: uma corrida por motor (fatia 5) ──────────────────── */
+
+/**
+ * Por que a corrida de N janelas mede **só os motores do aparelho**.
+ *
+ * Não é preferência: é a régua da ADR 0050 não fechar sem as marcas do
+ * hospedeiro. A janela medida é a que chegou ao modelo, e quem separa "o modelo
+ * respondeu mal" de "o app estourou o próprio prazo" é a marca que o transporte
+ * carimba em cada chamada (`RegistroDoAparelho`) — e **só o transporte do
+ * aparelho carimba**. Medindo a nuvem por aqui, um prazo nosso de 60 s entraria
+ * como reprovação dela, e a taxa sairia menor que a verdade sem nada dizendo.
+ *
+ * A nuvem tem quem a meça com o registro gêmeo: a bancada do Mac
+ * (`scripts/bancada/`), que foi onde as 22 de 22 da ADR 0050 foram medidas. O
+ * chip dela continua valendo para a comparação de **uma** janela, logo acima.
+ */
+export const SO_O_APARELHO_MEDE_A_AMOSTRA =
+  'a amostra mede só os motores do aparelho: as marcas que a régua da ADR 0050 exige — a chamada fria e a ' +
+  'falha que o próprio app fabricou — só existem no transporte do aparelho, e sem elas um prazo nosso contaria ' +
+  'como reprovação do modelo. A nuvem se mede na bancada do Mac.';
+
+/** Quem a amostra vai medir, e quem ficou de fora dela. */
+export interface FilaDaAmostra {
+  /** Uma corrida por motor, na ordem dos chips — a recusada inclusive. */
+  readonly corridas: readonly ColunaDaCorrida[];
+  /** Marcados que esta corrida não mede — ver {@link SO_O_APARELHO_MEDE_A_AMOSTRA}. */
+  readonly foraDaAmostra: readonly MotorId[];
+}
+
+/**
+ * A fila de corridas da amostra: **um motor por corrida, na ordem dos chips**.
+ *
+ * Derivada de {@link filaDaCorrida}, e não escrita de novo: é a mesma pergunta
+ * ("quem entra, e quem perdeu o pé") que o chip e a comparação já fazem, e a
+ * segunda lista de filtros seria a maneira de os dois botões da mesma tela
+ * discordarem sobre a composição de uma corrida.
+ *
+ * Duas diferenças, e as duas são do que a amostra é:
+ *
+ *  - **a régua não é corrida.** `SEM_MODELO` mede o template de **cada janela**,
+ *    dentro dela, porque é contra ele que a frase do motor é julgada — uma
+ *    coluna de template ao lado não compararia nada;
+ *  - **só o aparelho**, pela razão escrita em {@link SO_O_APARELHO_MEDE_A_AMOSTRA}.
+ *
+ * Uma corrida por motor, **em sequência e nunca em paralelo**: os motores do
+ * aparelho dividem a mesma vez (`FilaDoAparelho`) porque disputam a memória e o
+ * Neural Engine do mesmo telefone. Duas corridas ao mesmo tempo só fariam uma
+ * esperar a outra dentro do transporte, com os tempos de ambas contando a espera.
+ */
+export function filaDaAmostra(motores: readonly MotorConhecido[], opcoes: OpcoesDosChips): FilaDaAmostra {
+  const corridas: ColunaDaCorrida[] = [];
+  const foraDaAmostra: MotorId[] = [];
+  for (const c of filaDaCorrida(motores, opcoes)) {
+    if (c.motor === SEM_MODELO) continue;
+    if (lerMotorId(c.motor)?.tipo === 'aparelho') corridas.push(c);
+    else foraDaAmostra.push(c.motor);
+  }
+  return { corridas, foraDaAmostra };
+}
+
+/**
+ * Este motor ainda pode correr **agora**? O motivo, ou `null`.
+ *
+ * A guarda da fatia 4 relida no pior lugar possível: entre uma corrida e a
+ * seguinte. Uma corrida de 22 janelas leva minutos, e a fila foi decidida antes
+ * da primeira — no intervalo o iOS pode purgar o cache do Core AI, e a primeira
+ * chamada do segundo modelo viraria **a compilação dele**, 11 a 15 min disparados
+ * pela porta que promete não compilar nada. Custa uma linha JSON por modelo.
+ *
+ * O motor que sumiu da lista entre o preparo e a corrida também para aqui: ele não
+ * está apto por ausência, e tratar ausência como aptidão é o mesmo furo pelo outro
+ * lado.
+ */
+export function recusaDoMotorAgora(
+  motores: readonly MotorConhecido[],
+  opcoes: OpcoesDosChips,
+  id: MotorId,
+): string | null {
+  const coluna = filaDaAmostra(motores, opcoes).corridas.find((c) => c.motor === id);
+  if (coluna === undefined) return 'este motor saiu da lista entre o preparo e a corrida';
+  return coluna.recusa ?? null;
+}
+
+/**
+ * O que "Medir a amostra" vai fazer, dito **antes** do toque.
+ *
+ * Com mais de um motor marcado a resposta é uma corrida por motor, em sequência —
+ * e não a exigência de marcar um só. A razão é a comparabilidade: a amostra é
+ * preparada **uma vez** e serve a todas as corridas, então as taxas saem sobre as
+ * mesmas janelas por construção. Obrigar um motor por toque empurraria o dono a
+ * medir o segundo minutos depois, quando um sync pode ter trazido a noite de hoje
+ * — outra enumeração, outra amostra, e duas taxas que parecem comparáveis e não
+ * são. O preço é o tempo, e ele está escrito aqui em vez de ser descoberto
+ * esperando.
+ *
+ * Recebe os nomes prontos (o catálogo é do app) para poder ser puro e testado.
+ */
+export function planoDaAmostra(nomes: readonly string[]): string {
+  // "Pronto", e não "marcado": o dono pode ter marcado um peso aberto que perdeu o
+  // compilado, e dizer que ele não marcou nada seria contradizer o chip logo acima, que
+  // está lá com o nome dele e o motivo dentro.
+  if (nomes.length === 0) return 'nenhum motor do aparelho pronto — os chips acima dizem quem está travado, e por quê';
+  if (nomes.length === 1) return `uma corrida da amostra inteira em ${nomes[0]!}`;
+  return (
+    `${nomes.length} corridas, uma por motor e em sequência — ${nomes.join(', depois ')}. ` +
+    'A amostra é preparada uma vez e vale para todas, então as taxas se comparam.'
+  );
+}
+
 /* ── o teto de espera de uma coluna ──────────────────────────────────────── */
 
 /** Os prazos que os transportes deste app já têm — injetados, para serem testáveis. */
@@ -340,6 +453,27 @@ export interface PrazosDaCorrida {
   readonly padrao: number;
   /** O prazo do peso aberto (`PRAZO_DO_PESO_ABERTO_MS`), que paga a compilação. */
   readonly pesoAberto: number;
+}
+
+/**
+ * O prazo que o transporte **daquele** motor promete a uma chamada.
+ *
+ * São dois, e misturá-los erra nos dois sentidos: o do peso aberto (45 min) posto
+ * na nuvem deixaria a tela refém por três quartos de hora; o padrão (60 s) posto
+ * no peso aberto mataria a primeira chamada, que é a que paga a compilação e a
+ * carga do modelo. Quem escolhe é a gramática do id, nunca o lugar da chamada.
+ */
+export function prazoDoMotorMs(id: MotorId, prazos: PrazosDaCorrida): number {
+  return pesoAbertoDe(id) !== undefined ? prazos.pesoAberto : prazos.padrao;
+}
+
+/**
+ * Um prazo como se lê: em segundos enquanto eles são legíveis, em minutos depois.
+ * "2700 s" é um número que ninguém converte de cabeça.
+ */
+export function prazoEmTexto(ms: number): string {
+  const s = Math.round(ms / 1000);
+  return s < 600 ? `${s} s` : `${Math.round(s / 60)} min`;
 }
 
 /**
@@ -361,18 +495,17 @@ export interface PrazosDaCorrida {
  * que a primeira carga do Qwen3-4B levou 2 h 48 min no Mac M1.
  */
 export function tetoDaCorridaMs(id: MotorId, prazos: PrazosDaCorrida): number {
-  return 2 * (pesoAbertoDe(id) !== undefined ? prazos.pesoAberto : prazos.padrao);
+  return 2 * prazoDoMotorMs(id, prazos);
 }
 
 /**
  * O que a coluna estourada diz.
  *
- * Em segundos enquanto eles são legíveis, em minutos depois: "não respondeu em
- * 5400 s" é um número que ninguém converte de cabeça. O teto **não** aparece em
- * lugar nenhum antes de estourar — um teto que o dono lesse viraria uma promessa
- * de tempo que esta família não faz.
+ * Pelo mesmo {@link prazoEmTexto} do prazo, porque os dois números são da mesma
+ * ordem e um "120 s" ao lado de um "2 min" faria parecerem grandezas diferentes.
+ * O teto **não** aparece em lugar nenhum antes de estourar — um teto que o dono
+ * lesse viraria uma promessa de tempo que esta família não faz.
  */
 export function motivoDoTeto(tetoMs: number): string {
-  const s = Math.round(tetoMs / 1000);
-  return s < 600 ? `não respondeu em ${s} s` : `não respondeu em ${Math.round(s / 60)} min`;
+  return `não respondeu em ${prazoEmTexto(tetoMs)}`;
 }

@@ -133,6 +133,13 @@ export {
   type NaAmostra,
   type VereditoDaLinha,
 } from './bancada/medidas';
+export {
+  amostrasDivergentes,
+  linhaDoResumo,
+  resumoDaCorrida,
+  type CorridaDaAmostra,
+  type ResumoDaCorrida,
+} from './bancada/corrida';
 export { decimal, foraEmTexto, hashCurto, porcento, segundos } from './bancada/texto';
 export * from './sleep/lua';
 export * from './week/recap';

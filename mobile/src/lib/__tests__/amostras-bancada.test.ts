@@ -27,13 +27,19 @@ import {
   MOTIVO_SEM_NOITE,
   OFFSET_DA_SEMANA_FECHADA,
   RECURSOS_COM_REGUA,
+  SO_O_APARELHO_MEDE_A_AMOSTRA,
   cabeNoRegime,
   chipsDaCorrida,
   colunasPorVir,
   estadoDoMotorNaCorrida,
+  filaDaAmostra,
   filaDaCorrida,
   janelaComNoite,
   motivoDoTeto,
+  planoDaAmostra,
+  prazoDoMotorMs,
+  prazoEmTexto,
+  recusaDoMotorAgora,
   rotaMedivel,
   tetoDaCorridaMs,
 } from '../motores/amostras-regras';
@@ -392,8 +398,72 @@ describe('a fila da corrida e o que "Parar" tem para impedir', () => {
   });
 });
 
+describe('a fila da amostra: uma corrida por motor (fatia 5)', () => {
+  const nuvem = motor(NUVEM_PADRAO, { rotulo: 'Nuvem' });
+  const aparelho = motor(APARELHO_SISTEMA, { rotulo: 'Modelo do aparelho' });
+  const peso = motor(PESO.id, { rotulo: PESO.rotulo });
+  const regua = motor(SEM_MODELO, { rotulo: 'Sem modelo' });
+  const catalogo = [regua, aparelho, peso, nuvem];
+  const opcoes = { regimeMaximo: 'nuvem' as const, fora: new Set<string>(), compilacao: COMPILADO };
+
+  it('a régua não é corrida: ela mede o template DENTRO de cada janela', () => {
+    // Uma coluna de template ao lado não compararia nada — é contra o template da própria
+    // janela que a frase do motor é julgada.
+    expect(filaDaAmostra(catalogo, opcoes).corridas.map((c) => c.motor)).toEqual([APARELHO_SISTEMA, PESO.id]);
+  });
+
+  it('a nuvem marcada fica de fora, e é DITA — nunca some calada', () => {
+    // Sem as marcas do hospedeiro (fria, prazo nosso), um prazo de 60 s entraria como
+    // reprovação do modelo e a taxa sairia menor que a verdade.
+    const { corridas, foraDaAmostra } = filaDaAmostra(catalogo, opcoes);
+    expect(corridas.some((c) => c.motor === NUVEM_PADRAO)).toBe(false);
+    expect(foraDaAmostra).toEqual([NUVEM_PADRAO]);
+    expect(SO_O_APARELHO_MEDE_A_AMOSTRA).toContain('ADR 0050');
+  });
+
+  it('as mesmas regras da comparação: quem o dono desligou não corre, quem perdeu o pé vira recusa', () => {
+    expect(filaDaAmostra(catalogo, { ...opcoes, fora: new Set([PESO.id]) }).corridas).toEqual([{ motor: APARELHO_SISTEMA }]);
+    expect(filaDaAmostra([peso], { ...opcoes, compilacao: NAO_COMPILADO }).corridas).toEqual([
+      { motor: PESO.id, recusa: 'o compilado deste modelo não está mais no aparelho' },
+    ]);
+  });
+
+  it('a releitura da vez de cada motor responde pelo mesmo caminho', () => {
+    expect(recusaDoMotorAgora(catalogo, opcoes, PESO.id)).toBeNull();
+    expect(recusaDoMotorAgora(catalogo, { ...opcoes, compilacao: NAO_COMPILADO }, PESO.id)).toContain('compilado');
+    // O motor que sumiu da lista entre o preparo e a corrida não está apto por ausência.
+    expect(recusaDoMotorAgora([aparelho], opcoes, PESO.id)).toContain('saiu da lista');
+    // E a nuvem, que a amostra não mede, nunca volta apta por este caminho.
+    expect(recusaDoMotorAgora(catalogo, opcoes, NUVEM_PADRAO)).toContain('saiu da lista');
+  });
+});
+
+describe('o que o toque em Medir vai fazer, dito antes', () => {
+  it('um motor é uma corrida; dois são duas, em sequência, e a amostra é a mesma', () => {
+    // "Pronto", e não "marcado": o chip travado logo acima tem o nome do motor dentro.
+    expect(planoDaAmostra([])).toContain('nenhum motor do aparelho pronto');
+    expect(planoDaAmostra(['Qwen3 1.7B'])).toBe('uma corrida da amostra inteira em Qwen3 1.7B');
+    const dois = planoDaAmostra(['Qwen3 1.7B', 'Tucano2 1.5B']);
+    expect(dois).toContain('2 corridas');
+    expect(dois).toContain('Qwen3 1.7B, depois Tucano2 1.5B');
+    // A razão de não exigir um motor por toque: medir o segundo minutos depois poderia
+    // enumerar outro acervo, e duas taxas que parecem comparáveis não seriam.
+    expect(dois).toContain('as taxas se comparam');
+  });
+});
+
 describe('o teto de espera de uma coluna', () => {
   const PRAZOS = { padrao: 60_000, pesoAberto: 45 * 60_000 };
+
+  it('cada motor tem o prazo do transporte dele, e os dois não se misturam', () => {
+    // O do peso aberto na nuvem deixaria a tela refém por 45 min; o padrão no peso aberto
+    // mataria a primeira chamada, que é a que paga a carga do modelo.
+    expect(prazoDoMotorMs(NUVEM_PADRAO, PRAZOS)).toBe(60_000);
+    expect(prazoDoMotorMs(APARELHO_SISTEMA, PRAZOS)).toBe(60_000);
+    expect(prazoDoMotorMs(PESO.id, PRAZOS)).toBe(45 * 60_000);
+    expect(prazoEmTexto(60_000)).toBe('60 s');
+    expect(prazoEmTexto(45 * 60_000)).toBe('45 min');
+  });
 
   it('é o dobro do prazo que o transporte daquele motor já tem — rede, não relógio', () => {
     // Chegar antes do prazo do transporte apagaria a falha bem escrita que ele sabe dar
