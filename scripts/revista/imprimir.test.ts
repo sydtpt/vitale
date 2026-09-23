@@ -10,14 +10,38 @@
  *
  * Depois, a matriz da spec: o período já impresso, o `--sem-gravar`, o período
  * inválido, a credencial que falta, o reprovado e a impressão concorrente.
+ *
+ * **E a matriz do modo em massa (Story 2.3)**, sobre o mesmo banco e a mesma
+ * nuvem falsos: o plano que não chama modelo nenhum, a ordem cronológica, o pulo
+ * do já impresso, a reimpressão só do que o dono nomeou, a falha que não derruba
+ * a corrida, a retomada e a recusa da semana. O plano é medido contra o
+ * **inventário de produção** de 23/09/2026 ({@link ARQUIVO_DE_PRODUCAO}), que é
+ * o número que a spec manda conferir à mão: cerca de 50 a imprimir, cinco a
+ * reimprimir, o restante a pular.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { EdicaoMudouNaImpressao, hashCurto, type CadernoId, type CorpoDoPedido } from '@vitale/shared';
+import {
+  EdicaoMudouNaImpressao,
+  NUVEM_PADRAO,
+  PACOTE_VERSAO,
+  SEM_MODELO,
+  hashCurto,
+  periodosFechadosDesde,
+  type CadernoId,
+  type Capa,
+  type CorpoDoPedido,
+  type EdicaoNoArquivo,
+  type EventoDoAnel,
+  type PeriodoFechado,
+  type Tentativa,
+  type TipoComEdicao,
+} from '@vitale/shared';
 import {
   AGORA,
+  FIM,
   GABARITO,
   INICIO,
   TEXTOS,
@@ -32,13 +56,26 @@ import {
 import { motoresDaBancada, type Buscar } from '../bancada/motores.ts';
 import type { Sessao } from '../bancada/supabase.ts';
 import {
+  A_REIMPRIMIR,
+  COMECO_DO_ARQUIVO,
   ajuda,
+  bandeirasIncompativeis,
+  chamadasPagas,
+  portasDaCapa,
+  contasDoPlano,
+  exportarEmTexto,
   gruposDaImpressao,
+  imprimirEmMassa,
   imprimirPeriodo,
   lerBandeiras,
+  montarPlano,
   principal,
   problemaDoFuso,
   validarPeriodo,
+  nomeadosForaDoPlano,
+  type ItemDoPlano,
+  type PeriodoNomeado,
+  type PortasDaCapa,
   type Processo,
 } from './imprimir.ts';
 
@@ -150,11 +187,73 @@ describe('o script imprime a fixture do contrato', () => {
     assert.equal(hashesDe(relatorio.cadernos)['movimento'], GABARITO.hashes.movimento);
   });
 
-  it('não toca na capa, nem em tabela nenhuma fora da edição, e lê o acervo uma vez', async () => {
+  it('sem as portas da capa, não toca nela — e lê o acervo uma vez', async () => {
     const { banco } = await imprimirPeloScript();
-    // O banco da fixture não tem `edicoes_capa`: uma leitura dela explodiria.
+    // A fixture TEM as duas tabelas da capa desde a 2.3; o que se mede aqui é
+    // que a impressão sem `deps.capa` não as procura.
+    assert.equal(banco.leituras['edicoes_capa'], undefined);
+    assert.equal(banco.leituras['activity_photos'], undefined);
+    assert.equal(banco.escritas.length, 0);
     assert.equal(banco.leituras['health_daily'], 1);
     assert.equal(banco.leituras['activities'], 1);
+  });
+
+  /**
+   * O caminho de um período só **passou a carimbar** na 2.3, e por tabela de
+   * verdade: `portasDaCapa` sobre o banco da fixture, `fetchPhotosForActivities`
+   * e `gravarCapa` como em produção. Sem isto, a fiação podia estar quebrada e o
+   * teste passaria — porque falha de capa é aviso, por contrato.
+   */
+  it('com as portas da capa, carimba de verdade: a linha entra em edicoes_capa, sem aviso', async () => {
+    const banco = bancoFalso();
+    const nuvem = nuvemFalsa();
+    const t = terminal();
+    const r = await imprimirPeriodo(
+      { periodo: PERIODO, semGravar: false, reimprimir: false },
+      {
+        db: banco.db,
+        userId: USUARIO,
+        motorPara: motoresDaBancada(SESSAO_DA_NUVEM, nuvem.buscar),
+        agora: AGORA,
+        relogio: () => AGORA,
+        escrever: t.escrever,
+        avisar: t.avisar,
+        capa: portasDaCapa(banco.db, USUARIO),
+      },
+    );
+    assert.equal(r.codigo, 0);
+    assert.equal(r.capa?.aviso, null, 'a capa avisou em vez de carimbar');
+    assert.equal(r.capa?.natureza, 'grade');
+    assert.equal(r.capa?.mantida, false);
+    // A linha existe no banco, com a chave da edição e a legenda por extenso.
+    assert.equal(banco.escritas.length, 1);
+    const linha = banco.escritas[0]!.linha;
+    assert.equal(banco.escritas[0]!.tabela, 'edicoes_capa');
+    assert.equal(linha['tipo_periodo'], TIPO);
+    assert.equal(linha['inicio'], INICIO);
+    assert.equal(linha['fim'], FIM);
+    assert.equal(linha['natureza'], 'grade');
+    assert.equal(linha['legenda'], 'Maio de 2026');
+    assert.equal(linha['motivo'], 'sem-foto');
+    assert.match(t.out.join('\n'), /capa: grade/);
+    assert.equal(t.err.length, 0, `avisos inesperados: ${t.err.join(' | ')}`);
+  });
+
+  it('o --sem-gravar não toca na capa: não há edição a carimbar', async () => {
+    const banco = bancoFalso();
+    const nuvem = nuvemFalsa();
+    const t = terminal();
+    const r = await imprimirPeriodo(
+      { periodo: PERIODO, semGravar: true, reimprimir: false },
+      {
+        db: banco.db, userId: USUARIO, motorPara: motoresDaBancada(SESSAO_DA_NUVEM, nuvem.buscar),
+        agora: AGORA, relogio: () => AGORA, escrever: t.escrever, avisar: t.avisar,
+        capa: portasDaCapa(banco.db, USUARIO),
+      },
+    );
+    assert.equal(r.capa, null);
+    assert.equal(banco.escritas.length, 0);
+    assert.equal(banco.leituras['edicoes_capa'], undefined);
   });
 });
 
@@ -325,16 +424,730 @@ describe('a matriz da impressão', () => {
   });
 });
 
+/* ── o modo em massa (Story 2.3) ─────────────────────────────────────────── */
+
+/** Uma linha de `edicoes_ia` de qualquer período — o inventário do arquivo. */
+function edicaoNoBanco(
+  tipo: string,
+  inicio: string,
+  fim: string,
+  cadernos: readonly CadernoId[],
+  pacoteVersao = 3,
+): Record<string, unknown>[] {
+  return cadernos.map((caderno, k) => ({
+    user_id: USUARIO, tipo_periodo: tipo, inicio, fim, caderno, posicao: k + 1,
+    texto: `texto antigo de ${caderno} em ${inicio}`, provedor: 'provedor-de-antes', modelo: 'modelo-de-antes',
+    prompt_versao: 4, pacote_versao: pacoteVersao, motivo_de_parada: 'STOP', tokens_entrada: 10, tokens_saida: 5,
+    agg_version_no_momento: 8, metrica_lider: null, gerado_em: '2026-06-02T08:00:00+00:00',
+  }));
+}
+
+/**
+ * As portas da capa, falsas: nada abre rede, e o que foi carimbado fica
+ * registrado. `existente` é a capa que já está no banco — é por ela que o caso
+ * da troca à mão (`motivo: 'trocada'`) tem prova.
+ */
+function capaFalsa(o: { falhar?: Error; falharLeitura?: Error; existente?: Partial<Capa> } = {}) {
+  const carimbadas: { inicio: string; natureza: string }[] = [];
+  let leituras = 0;
+  const portas: PortasDaCapa = {
+    lerCapa: async (p) => {
+      leituras += 1;
+      if (o.falharLeitura) throw o.falharLeitura;
+      if (!o.existente) return null;
+      return {
+        tipoPeriodo: p.tipoPeriodo, inicio: p.inicio, fim: p.fim,
+        natureza: 'foto', fotoId: 'p-1', fotoTakenAt: '2026-05-14T10:38:00.000Z',
+        rotaActivityId: null, legenda: 'Ittre · km 31,1 · 12:38',
+        carimbadaEm: '2026-06-01T08:00:00.000Z', motivo: 'trocada', fotoActivityId: 'a-1',
+        ...o.existente,
+      };
+    },
+    buscarFotos: async () => [],
+    carimbar: async (capa) => {
+      if (o.falhar) throw o.falhar;
+      carimbadas.push({ inicio: capa.inicio, natureza: capa.natureza });
+      return capa;
+    },
+  };
+  return { portas, carimbadas, leituras: () => leituras };
+}
+
+/** Maio de 2026 — o único período que a fixture tem acervo para narrar. */
+const MAIO = { ...PERIODO, tipo: 'month' as const };
+/** Janeiro de 2025 — fechado, dentro do arquivo, e **sem acervo**: ele falha. */
+const JANEIRO_2025 = { tipo: 'month' as const, inicio: '2025-01-01', fim: '2025-01-31', offset: -17, rotulo: 'Janeiro 2025' };
+
+async function massaPeloScript(
+  o: {
+    banco?: BancoFalso;
+    nuvem?: ReturnType<typeof nuvemFalsa>;
+    capa?: ReturnType<typeof capaFalsa>;
+    sim?: boolean;
+    tipo?: 'month' | 'season' | 'year' | null;
+    limite?: number | null;
+    exportar?: string | null;
+    semCapa?: boolean;
+    enumerar?: (agora: Date) => readonly PeriodoFechado[];
+    nomeados?: readonly PeriodoNomeado[];
+    arquivos?: Record<string, string>;
+  } = {},
+) {
+  const banco = o.banco ?? bancoFalso();
+  const nuvem = o.nuvem ?? nuvemFalsa();
+  const capa = o.capa ?? capaFalsa();
+  const arquivos = o.arquivos ?? {};
+  const t = terminal();
+  const relatorio = await imprimirEmMassa(
+    { sim: o.sim ?? false, tipo: o.tipo ?? null, limite: o.limite ?? null, exportar: o.exportar ?? null },
+    {
+      db: banco.db,
+      userId: USUARIO,
+      motorPara: motoresDaBancada(SESSAO_DA_NUVEM, nuvem.buscar),
+      agora: AGORA,
+      relogio: () => AGORA,
+      escrever: t.escrever,
+      avisar: t.avisar,
+      ...(o.semCapa ? {} : { capa: capa.portas }),
+      escreverArquivo: (caminho, conteudo) => {
+        arquivos[caminho] = conteudo;
+      },
+      arquivoExiste: (caminho) => caminho in arquivos,
+      ...(o.enumerar ? { enumerar: o.enumerar } : {}),
+      ...(o.nomeados ? { nomeados: o.nomeados } : {}),
+    },
+  );
+  return { relatorio, banco, nuvem, capa, arquivos, t };
+}
+
+/** Um nomeado do teste, no molde de {@link A_REIMPRIMIR} — a versão de antes é a 3. */
+const nomeado = (tipo: 'month' | 'season' | 'year', inicio: string, motivo = 'motivo do teste'): PeriodoNomeado =>
+  ({ tipo, inicio, pacoteImpresso: 3, motivo });
+
+/**
+ * O inventário de produção em 23/09/2026 — onze edições, todas no pacote 3.
+ *
+ * É contra ele que o plano da spec é medido: cerca de 50 a imprimir, **cinco** a
+ * reimprimir e o restante a pular. Cinco delas são semanas, que a massa nunca
+ * toca; o ano de 2023 não é enumerado (começa antes do arquivo) e só aparece
+ * porque o dono o nomeou.
+ */
+const ARQUIVO_DE_PRODUCAO: readonly { tipoPeriodo: TipoComEdicao; inicio: string; fim: string }[] = [
+  { tipoPeriodo: 'week', inicio: '2026-08-03', fim: '2026-08-09' },
+  { tipoPeriodo: 'week', inicio: '2026-08-10', fim: '2026-08-16' },
+  { tipoPeriodo: 'week', inicio: '2026-08-17', fim: '2026-08-23' },
+  { tipoPeriodo: 'week', inicio: '2026-08-24', fim: '2026-08-30' },
+  { tipoPeriodo: 'week', inicio: '2026-09-07', fim: '2026-09-13' },
+  { tipoPeriodo: 'month', inicio: '2026-06-01', fim: '2026-06-30' },
+  { tipoPeriodo: 'month', inicio: '2026-07-01', fim: '2026-07-31' },
+  { tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31' },
+  { tipoPeriodo: 'month', inicio: '2023-09-01', fim: '2023-09-30' },
+  { tipoPeriodo: 'month', inicio: '2023-10-01', fim: '2023-10-31' },
+  { tipoPeriodo: 'year', inicio: '2023-01-01', fim: '2023-12-31' },
+];
+
+const noArquivo = (
+  e: { tipoPeriodo: TipoComEdicao; inicio: string; fim: string },
+  ...pacotes: number[]
+): EdicaoNoArquivo => ({
+  ...e,
+  cadernos: (pacotes.length === 0 ? [3] : pacotes).map((pacoteVersao, k) => ({
+    caderno: (['sono', 'movimento', 'rotina', 'coracao'] as CadernoId[])[k]!,
+    posicao: k + 1,
+    pacoteVersao,
+  })),
+});
+
+describe('montarPlano — o inventário de hoje, contra a lista da spec', () => {
+  // O dia em que a story foi escrita: é dele que sai a conta de 53 períodos.
+  const HOJE = new Date(2026, 8, 23, 12);
+  const plano = montarPlano(
+    periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE),
+    ARQUIVO_DE_PRODUCAO.map((e) => noArquivo(e)),
+    HOJE,
+  );
+  const contas = contasDoPlano(plano);
+  const de = (tipo: string, inicio: string): ItemDoPlano | undefined =>
+    plano.find((i) => i.tipo === tipo && i.inicio === inicio);
+
+  it('cerca de 50 a imprimir, CINCO a reimprimir e o restante a pular', () => {
+    assert.equal(contas.imprimir, 48);
+    assert.equal(contas.reimprimir, 5);
+    assert.equal(contas.pular, 6);
+    // 53 enumerados + o ano de 2023 e as 5 semanas, que só o arquivo tem.
+    assert.equal(plano.length, 59);
+  });
+
+  it('as cinco reimpressões são exatamente as que o dono nomeou', () => {
+    const reimpressas = plano.filter((i) => i.acao === 'reimprimir').map((i) => `${i.tipo} ${i.inicio}`);
+    assert.deepEqual([...reimpressas].sort(), [...A_REIMPRIMIR].map((n) => `${n.tipo} ${n.inicio}`).sort());
+    assert.equal(A_REIMPRIMIR.length, 5);
+    // E cada uma carrega o motivo do dono, que vai para a tela.
+    for (const i of plano.filter((x) => x.acao === 'reimprimir')) assert.ok(i.motivo, `${i.rotulo} sem motivo`);
+  });
+
+  it('junho de 2026 é pulado: existe, e o dono decidiu que nada nela muda', () => {
+    const junho = de('month', '2026-06-01');
+    assert.equal(junho?.acao, 'pular');
+    assert.match(junho?.motivo ?? '', /já impresso/);
+  });
+
+  it('as cinco semanas do arquivo são puladas, e nenhuma é impressa nem reimpressa', () => {
+    const semanas = plano.filter((i) => i.tipo === 'week');
+    assert.equal(semanas.length, 5);
+    for (const s of semanas) {
+      assert.equal(s.acao, 'pular', s.inicio);
+      assert.match(s.motivo ?? '', /semana não grava edição/);
+    }
+  });
+
+  it('o ano de 2023 entra pelo arquivo, embora comece antes do começo do arquivo', () => {
+    assert.ok(!periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE).some((p) => p.inicio === '2023-01-01'));
+    assert.equal(de('year', '2023-01-01')?.acao, 'reimprimir');
+  });
+
+  it('a conta de chamadas e o tempo saem do que a corrida vai tocar', () => {
+    assert.equal(contas.chamadas, (48 + 5) * 4);
+    // 212 chamadas × 13,6 s ≈ 48 min — o tamanho que vai para a tela antes do "sim".
+    assert.equal(contas.minutos, 48);
+  });
+
+  it('a ordem é cronológica pelo fim do período, semanas incluídas', () => {
+    for (let k = 1; k < plano.length; k += 1) {
+      assert.ok(plano[k - 1]!.fim <= plano[k]!.fim, `${plano[k - 1]!.rotulo} veio depois de ${plano[k]!.rotulo}`);
+    }
+    assert.equal(plano[0]?.inicio, '2023-06-01');
+  });
+});
+
+describe('montarPlano — o recorte por tipo (--tipo)', () => {
+  const HOJE = new Date(2026, 8, 23, 12);
+  const planoDeAno = montarPlano(
+    periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE).filter((p) => p.tipo === 'year'),
+    ARQUIVO_DE_PRODUCAO.map((e) => noArquivo(e)),
+    HOJE,
+    A_REIMPRIMIR,
+    'year',
+  );
+
+  /**
+   * O furo que a revisão reproduziu: o recorte valia só para a enumeração, e o
+   * arquivo entrava inteiro — os quatro **meses** nomeados viravam `reimprimir`
+   * sob `--tipo year`, 16 chamadas pagas de um tipo excluído.
+   */
+  it('os meses nomeados NÃO viram reimpressão sob --tipo year', () => {
+    const contas = contasDoPlano(planoDeAno);
+    assert.equal(contas.reimprimir, 1, 'só o ano de 2023 pode ser reimpresso sob --tipo year');
+    for (const n of A_REIMPRIMIR.filter((x) => x.tipo === 'month')) {
+      const item = planoDeAno.find((i) => i.tipo === n.tipo && i.inicio === n.inicio);
+      assert.equal(item?.acao, 'pular', `${n.tipo} ${n.inicio}`);
+      assert.match(item?.motivo ?? '', /fora do --tipo ano/);
+    }
+  });
+
+  it('o que fica fora do recorte continua aparecendo no plano, como pulado', () => {
+    // O inventário não some: o dono vê as 11 edições do arquivo de qualquer jeito.
+    for (const e of ARQUIVO_DE_PRODUCAO) {
+      assert.ok(planoDeAno.some((i) => i.tipo === e.tipoPeriodo && i.inicio === e.inicio), `${e.tipoPeriodo} ${e.inicio}`);
+    }
+    assert.deepEqual(planoDeAno.filter((i) => i.acao === 'imprimir').map((i) => i.inicio), ['2024-01-01', '2025-01-01']);
+  });
+});
+
+describe('nomeadosForaDoPlano — o erro de digitação que somia calado', () => {
+  const HOJE = new Date(2026, 8, 23, 12);
+  const plano = montarPlano(
+    periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE),
+    ARQUIVO_DE_PRODUCAO.map((e) => noArquivo(e)),
+    HOJE,
+  );
+
+  it('a lista do dono está inteira no plano de hoje', () => {
+    assert.deepEqual(nomeadosForaDoPlano(plano), []);
+  });
+
+  it('um começo que não abre período nenhum é acusado', () => {
+    // `2023-09-02` não abre mês, não é enumerado e não está no arquivo.
+    const errado = [...A_REIMPRIMIR, nomeado('month', '2023-09-02')];
+    const semPlano = montarPlano(periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE), ARQUIVO_DE_PRODUCAO.map((e) => noArquivo(e)), HOJE, errado);
+    assert.deepEqual(nomeadosForaDoPlano(semPlano, errado).map((n) => n.inicio), ['2023-09-02']);
+  });
+
+  it('o que o --tipo excluiu não é acusado: ele não sumiu, foi recortado', () => {
+    const doAno = montarPlano(
+      periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE).filter((p) => p.tipo === 'year'),
+      ARQUIVO_DE_PRODUCAO.map((e) => noArquivo(e)), HOJE, A_REIMPRIMIR, 'year',
+    );
+    assert.deepEqual(nomeadosForaDoPlano(doAno, A_REIMPRIMIR, 'year'), []);
+  });
+});
+
+describe('montarPlano — a retomada é o banco', () => {
+  const HOJE = new Date(2026, 8, 23, 12);
+  const comPacote = (...pacotes: number[]) =>
+    montarPlano(
+      periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE),
+      ARQUIVO_DE_PRODUCAO.map((e) => (e.inicio === '2023-09-01' ? noArquivo(e, ...pacotes) : noArquivo(e))),
+      HOJE,
+    );
+
+  it('o limiar de cada nomeada é anterior ao pacote de hoje — senão a reimpressão nunca conta', () => {
+    // Derivado do núcleo, não fixado à mão: `PACOTE_VERSAO` é a versão que a
+    // reimpressão vai gravar, e ela tem de ficar ACIMA do que está no banco.
+    for (const n of A_REIMPRIMIR) {
+      assert.ok(
+        PACOTE_VERSAO > n.pacoteImpresso,
+        `${n.tipo} ${n.inicio}: pacoteImpresso ${n.pacoteImpresso} não é menor que o PACOTE_VERSAO ${PACOTE_VERSAO} de hoje`,
+      );
+    }
+  });
+
+  it('a nomeada que JÁ foi reimpressa vira "pular" — rodar de novo não a paga outra vez', () => {
+    const antes = comPacote(3).find((i) => i.inicio === '2023-09-01');
+    assert.equal(antes?.acao, 'reimprimir');
+    const depois = comPacote(PACOTE_VERSAO).find((i) => i.inicio === '2023-09-01');
+    assert.equal(depois?.acao, 'pular');
+    assert.match(depois?.motivo ?? '', /já reimpressa/);
+    assert.equal(contasDoPlano(comPacote(PACOTE_VERSAO)).reimprimir, 4);
+  });
+
+  /**
+   * O defeito que a revisão achou: com `some`, **um** caderno reescrito pelo
+   * telefone (a errata por caderno da 1.11) fazia a edição inteira passar por
+   * renovada, e os outros três ficavam com o zero falso para sempre.
+   */
+  it('um caderno na versão nova NÃO basta: a edição só conta como renovada por inteiro', () => {
+    const meiaReimpressa = comPacote(PACOTE_VERSAO, 3, 3, 3).find((i) => i.inicio === '2023-09-01');
+    assert.equal(meiaReimpressa?.acao, 'reimprimir', 'um caderno novo já valeu pela edição inteira');
+    const inteira = comPacote(PACOTE_VERSAO, PACOTE_VERSAO, PACOTE_VERSAO, PACOTE_VERSAO)
+      .find((i) => i.inicio === '2023-09-01');
+    assert.equal(inteira?.acao, 'pular');
+  });
+
+  it('o que já foi impresso nesta corrida some da lista na corrida seguinte', () => {
+    const arquivo = ARQUIVO_DE_PRODUCAO.map((e) => noArquivo(e));
+    const antes = montarPlano(periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE), arquivo, HOJE);
+    assert.equal(antes.find((i) => i.inicio === '2024-03-01' && i.tipo === 'month')?.acao, 'imprimir');
+    // A corrida gravou março de 2024; a enumeração seguinte o acha no arquivo.
+    const depois = montarPlano(
+      periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE),
+      [...arquivo, noArquivo({ tipoPeriodo: 'month', inicio: '2024-03-01', fim: '2024-03-31' }, PACOTE_VERSAO)],
+      HOJE,
+    );
+    assert.equal(depois.find((i) => i.inicio === '2024-03-01' && i.tipo === 'month')?.acao, 'pular');
+    assert.equal(contasDoPlano(depois).imprimir, 47);
+  });
+
+  it('um período nomeado que ainda não existe é impressão normal, não reimpressão', () => {
+    // Sem o ano de 2023 no arquivo, ele some do plano: não é enumerado.
+    const semAno = ARQUIVO_DE_PRODUCAO.filter((e) => e.inicio !== '2023-01-01').map((e) => noArquivo(e));
+    const plano = montarPlano(periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE), semAno, HOJE);
+    assert.equal(plano.find((i) => i.tipo === 'year' && i.inicio === '2023-01-01'), undefined);
+    // Mas um mês nomeado e ainda não impresso é "imprimir", com o motivo do dono à vista.
+    const semJulho = ARQUIVO_DE_PRODUCAO.filter((e) => e.inicio !== '2026-07-01').map((e) => noArquivo(e));
+    const outro = montarPlano(periodosFechadosDesde(COMECO_DO_ARQUIVO, HOJE), semJulho, HOJE);
+    const julho = outro.find((i) => i.tipo === 'month' && i.inicio === '2026-07-01');
+    assert.equal(julho?.acao, 'imprimir');
+    assert.match(julho?.motivo ?? '', /lápide/);
+  });
+});
+
+describe('a corrida em massa', () => {
+  it('o plano, sem o "sim": lista tudo, não chama modelo nenhum e não grava nada', async () => {
+    const banco = bancoFalso({
+      edicao: [
+        ...edicaoNoBanco('month', INICIO, FIM, ['sono']),
+        ...edicaoNoBanco('week', '2026-05-25', '2026-05-31', ['rotina']),
+        ...edicaoNoBanco('month', '2023-09-01', '2023-09-30', ['rotina']),
+        ...edicaoNoBanco('month', '2023-10-01', '2023-10-31', ['rotina']),
+        ...edicaoNoBanco('year', '2023-01-01', '2023-12-31', ['rotina']),
+      ],
+    });
+    const { relatorio, nuvem, capa, t } = await massaPeloScript({ banco });
+    assert.equal(relatorio.codigo, 0);
+    assert.equal(relatorio.corrida, null, 'a corrida rodou sem o "sim"');
+    assert.equal(nuvem.pedidos.length, 0, 'o modelo foi chamado no plano');
+    assert.equal(banco.rpcs.length, 0, 'algo foi gravado no plano');
+    assert.equal(capa.carimbadas.length, 0);
+    // 49 períodos fechados em 10/06/2026, mais o ano de 2023 e a semana, que só o arquivo tem.
+    assert.equal(relatorio.contas.imprimir, 46);
+    assert.equal(relatorio.contas.reimprimir, 3);
+    assert.equal(relatorio.contas.pular, 2);
+    const saida = t.out.join('\n');
+    assert.match(saida, /imprimir: 46 · reimprimir: 3 · pular: 2/);
+    assert.match(saida, /até 196 chamadas de nuvem/);
+    assert.match(saida, /--sim-gastar-chamadas/);
+    semTexto(t);
+  });
+
+  it('com o "sim": imprime pela mesma porta, grava o GABARITO e carimba a capa', async () => {
+    const { relatorio, banco, nuvem, capa } = await massaPeloScript({
+      sim: true,
+      enumerar: () => [MAIO],
+    });
+    assert.equal(relatorio.codigo, 0);
+    assert.equal(nuvem.pedidos.length, 4);
+    assert.equal(banco.rpcs.length, 1);
+    assert.deepStrictEqual(banco.rpcs[0]!.args, GABARITO.carga);
+    assert.deepEqual(relatorio.corrida?.map((c) => [c.acao, c.inicio, c.desfecho, c.chamadas]), [
+      ['imprimir', INICIO, 'gravada', 4],
+    ]);
+    // A capa é carimbada na impressão que gravou, e nunca depois. `grade` porque
+    // a fixture não tem foto nem rota — que é exatamente o caso dos períodos
+    // antigos do arquivo, e o que faz a fronteira de 2025 ser visível na parede.
+    assert.deepEqual(capa.carimbadas, [{ inicio: INICIO, natureza: 'grade' }]);
+  });
+
+  it('a reimpressão nomeada: sobre a edição que já existe, escreve os cadernos e recarimba a capa', async () => {
+    const banco = bancoFalso({ edicao: [cadernoImpressoDeMaio('coracao', 1), cadernoImpressoDeMaio('rotina', 2)] });
+    const { relatorio, nuvem, capa, t } = await massaPeloScript({
+      banco,
+      sim: true,
+      enumerar: () => [MAIO],
+      nomeados: [nomeado('month', INICIO, 'zero falso, para o teste')],
+    });
+    assert.equal(relatorio.codigo, 0);
+    assert.equal(relatorio.corrida?.[0]?.acao, 'reimprimir');
+    assert.equal(relatorio.corrida?.[0]?.desfecho, 'gravada');
+    // Os quatro cadernos foram pedidos — não é impressão parcial.
+    assert.equal(nuvem.pedidos.length, 4);
+    assert.equal(banco.rpcs.length, 1);
+    // E a capa é recarimbada pela reimpressão, como no telefone.
+    assert.deepEqual(capa.carimbadas.map((c) => c.inicio), [INICIO]);
+    assert.match(t.out.join('\n'), /zero falso, para o teste/);
+    semTexto(t);
+  });
+
+  it('nada é reimpresso sem ser nomeado: o já impresso fora da lista é pulado, sem chamada paga', async () => {
+    const banco = bancoFalso({ edicao: [cadernoImpressoDeMaio('rotina', 1)] });
+    const { relatorio, nuvem } = await massaPeloScript({
+      banco,
+      sim: true,
+      enumerar: () => [MAIO],
+      nomeados: [],
+    });
+    assert.equal(relatorio.codigo, 0);
+    assert.deepEqual(relatorio.corrida, []);
+    assert.equal(nuvem.pedidos.length, 0);
+    assert.equal(banco.rpcs.length, 0);
+    assert.equal(relatorio.plano[0]?.acao, 'pular');
+  });
+
+  it('a falha de um período não derruba a corrida: ela segue, e o relatório diz quais falharam', async () => {
+    const { relatorio, banco, capa, t } = await massaPeloScript({
+      sim: true,
+      // Ordem cronológica: janeiro de 2025 (sem acervo) vem antes de maio de 2026.
+      enumerar: () => [MAIO, JANEIRO_2025],
+    });
+    assert.equal(relatorio.codigo, 1, 'a corrida com falha tem de sair ≠ 0');
+    assert.deepEqual(relatorio.corrida?.map((c) => c.inicio), ['2025-01-01', INICIO]);
+    assert.equal(relatorio.corrida?.[0]?.desfecho, 'falhou');
+    assert.equal(relatorio.corrida?.[1]?.desfecho, 'gravada');
+    // O que falhou não gravou nada, e o que veio depois gravou.
+    assert.equal(banco.rpcs.length, 1);
+    assert.equal(banco.rpcs[0]!.args.p_inicio, INICIO);
+    assert.deepEqual(capa.carimbadas.map((c) => c.inicio), [INICIO]);
+    const saida = t.out.join('\n');
+    assert.match(saida, /gravadas: 1 · puladas: 0 · falhadas: 1/);
+    assert.match(saida, /as que falharam, e que rodar de novo tenta outra vez/);
+    assert.match(saida, /2025-01-01/);
+  });
+
+  it('a retomada: a segunda corrida pula o que a primeira gravou, sem chamada nova', async () => {
+    const banco = bancoFalso();
+    const primeira = await massaPeloScript({ banco, sim: true, enumerar: () => [MAIO] });
+    assert.equal(primeira.relatorio.codigo, 0);
+    assert.equal(banco.rpcs.length, 1);
+
+    const segunda = await massaPeloScript({ banco, sim: true, enumerar: () => [MAIO] });
+    assert.equal(segunda.relatorio.codigo, 0);
+    assert.equal(segunda.nuvem.pedidos.length, 0, 'a segunda corrida chamou o modelo de novo');
+    assert.equal(banco.rpcs.length, 1, 'a segunda corrida gravou de novo');
+    assert.equal(segunda.relatorio.contas.pular, 1);
+    assert.deepEqual(segunda.relatorio.corrida, []);
+    assert.equal(segunda.capa.carimbadas.length, 0);
+  });
+
+  it('a capa que falha vira aviso: a edição fica gravada, e a corrida sai 0', async () => {
+    const capa = capaFalsa({ falhar: new Error('o carimbo recusou') });
+    const { relatorio, banco, t } = await massaPeloScript({ sim: true, capa, enumerar: () => [MAIO] });
+    assert.equal(relatorio.codigo, 0, 'a falha da capa derrubou a corrida');
+    assert.equal(banco.rpcs.length, 1, 'a edição não foi gravada');
+    assert.equal(relatorio.corrida?.[0]?.desfecho, 'gravada');
+    assert.match(relatorio.corrida?.[0]?.avisoDaCapa ?? '', /o carimbo recusou/);
+    assert.match(t.err.join('\n'), /não foi carimbada/);
+    assert.match(t.out.join('\n'), /sem capa/);
+  });
+
+  it('--tipo recorta a enumeração, e o arquivo continua sendo lido inteiro', async () => {
+    const banco = bancoFalso({ edicao: edicaoNoBanco('week', '2026-05-25', '2026-05-31', ['rotina']) });
+    const { relatorio } = await massaPeloScript({ banco, tipo: 'year' });
+    // Só os dois anos fechados (2024 e 2025) — mais a semana do arquivo, pulada.
+    assert.equal(relatorio.contas.imprimir, 2);
+    assert.equal(relatorio.contas.pular, 1);
+    assert.deepEqual(
+      relatorio.plano.filter((i) => i.acao === 'imprimir').map((i) => i.inicio),
+      ['2024-01-01', '2025-01-01'],
+    );
+  });
+
+  it('--exportar grava o texto de agora das nomeadas, e não chama nem grava nada', async () => {
+    const banco = bancoFalso({
+      edicao: [
+        ...edicaoNoBanco('month', '2023-09-01', '2023-09-30', ['rotina', 'movimento']),
+        ...edicaoNoBanco('month', '2023-10-01', '2023-10-31', ['sono']),
+      ],
+    });
+    const { relatorio, nuvem, arquivos, capa } = await massaPeloScript({ banco, exportar: '/tmp/edicoes.md' });
+    assert.equal(relatorio.codigo, 0);
+    assert.equal(relatorio.exportado, '/tmp/edicoes.md');
+    assert.equal(relatorio.corrida, null);
+    assert.equal(nuvem.pedidos.length, 0);
+    assert.equal(banco.rpcs.length, 0);
+    assert.equal(capa.carimbadas.length, 0);
+    const md = arquivos['/tmp/edicoes.md'] ?? '';
+    // O texto aparece no arquivo — é o destino dele —, com a assinatura de cada caderno.
+    assert.match(md, /texto antigo de rotina em 2023-09-01/);
+    assert.match(md, /texto antigo de movimento em 2023-09-01/);
+    assert.match(md, /texto antigo de sono em 2023-10-01/);
+    assert.match(md, /pacote_versao 3/);
+    assert.match(md, /gramática da ausência/);
+  });
+
+  /* ── o que a revisão da 2.3 fechou ─────────────────────────────────────── */
+
+  it('a capa que o dono trocou à mão é MANTIDA — a reimpressão não a desfaz', async () => {
+    const banco = bancoFalso({ edicao: [cadernoImpressoDeMaio('rotina', 1)] });
+    const capa = capaFalsa({ existente: { motivo: 'trocada', natureza: 'foto' } });
+    const { relatorio, t } = await massaPeloScript({
+      banco, capa, sim: true, enumerar: () => [MAIO], nomeados: [nomeado('month', INICIO)],
+    });
+    assert.equal(relatorio.codigo, 0);
+    assert.equal(relatorio.corrida?.[0]?.desfecho, 'gravada', 'a edição não foi gravada');
+    assert.deepEqual(capa.carimbadas, [], 'a troca do dono foi sobrescrita');
+    assert.match(t.out.join('\n'), /capa: foto — mantida, porque você a trocou à mão/);
+  });
+
+  it('a capa escolhida pelo app é recarimbada: só `trocada` é mantida', async () => {
+    const banco = bancoFalso({ edicao: [cadernoImpressoDeMaio('rotina', 1)] });
+    const capa = capaFalsa({ existente: { motivo: 'rajada', natureza: 'foto' } });
+    await massaPeloScript({ banco, capa, sim: true, enumerar: () => [MAIO], nomeados: [nomeado('month', INICIO)] });
+    assert.deepEqual(capa.carimbadas.map((c) => c.inicio), [INICIO]);
+  });
+
+  it('a leitura da capa que falha não carimba nada — apagar a troca é pior que ficar sem capa', async () => {
+    const capa = capaFalsa({ falharLeitura: new Error('a leitura da capa caiu') });
+    const { relatorio, banco, t } = await massaPeloScript({ capa, sim: true, enumerar: () => [MAIO] });
+    assert.equal(relatorio.codigo, 0);
+    assert.equal(banco.rpcs.length, 1, 'a edição não foi gravada');
+    assert.deepEqual(capa.carimbadas, []);
+    assert.match(relatorio.corrida?.[0]?.avisoDaCapa ?? '', /para não apagar uma troca sua/);
+    assert.match(t.err.join('\n'), /não foi carimbada/);
+  });
+
+  it('a corrida recusa começar sem as portas da capa — nada é chamado nem gravado', async () => {
+    const { relatorio, banco, nuvem, t } = await massaPeloScript({
+      sim: true, semCapa: true, enumerar: () => [MAIO],
+    });
+    assert.equal(relatorio.codigo, 1);
+    assert.equal(relatorio.corrida, null);
+    assert.equal(nuvem.pedidos.length, 0);
+    assert.equal(banco.rpcs.length, 0);
+    assert.match(t.err.join('\n'), /faltam as portas da capa/);
+  });
+
+  it('o plano NÃO exige as portas da capa: ele não grava nada', async () => {
+    const { relatorio } = await massaPeloScript({ semCapa: true, enumerar: () => [MAIO] });
+    assert.equal(relatorio.codigo, 0);
+    assert.equal(relatorio.contas.imprimir, 1);
+  });
+
+  it('--limite recorta a corrida, e a conta de chamadas do plano acompanha', async () => {
+    const { relatorio, banco, nuvem, t } = await massaPeloScript({
+      sim: true, limite: 1, enumerar: () => [MAIO, JANEIRO_2025],
+    });
+    // Janeiro de 2025 vem primeiro na ordem cronológica, e é o único tentado.
+    assert.equal(relatorio.corrida?.length, 1);
+    assert.equal(relatorio.corrida?.[0]?.inicio, '2025-01-01');
+    assert.equal(relatorio.contas.imprimir, 2);
+    assert.equal(relatorio.contas.aFazer, 1);
+    assert.equal(relatorio.contas.chamadas, 4);
+    assert.equal(banco.rpcs.length, 0, 'maio foi impresso, e o limite era 1');
+    assert.equal(nuvem.pedidos.length, 0, 'janeiro de 2025 não tem o que narrar');
+    assert.match(t.out.join('\n'), /--limite 1: a corrida toca só 1 período/);
+  });
+
+  it('o período que outro hospedeiro imprimiu no meio é PULADO, não falha — e a corrida sai 0', async () => {
+    // A edição de maio aparece entre o plano e a corrida: o `buscar` da sequência a acha.
+    const banco = bancoFalso({
+      aoLer: (tabela, vez, tabelas) => {
+        if (tabela === 'health_daily' && vez === 1) tabelas.edicoes_ia.push(cadernoImpressoDeMaio('rotina', 1));
+      },
+    });
+    const { relatorio, t } = await massaPeloScript({ banco, sim: true, enumerar: () => [MAIO] });
+    assert.equal(relatorio.codigo, 0, 'o já impresso por outro hospedeiro contou como falha');
+    assert.equal(relatorio.corrida?.[0]?.desfecho, 'pulada');
+    assert.match(relatorio.corrida?.[0]?.erro ?? '', /outro hospedeiro/);
+    assert.match(t.out.join('\n'), /falhadas: 0/);
+  });
+
+  it('três falhas seguidas param a corrida: causa comum não custa os cinquenta', async () => {
+    // Cinco períodos sem acervo nenhum: todos falham, um atrás do outro.
+    const vazios = ['2024-01-01', '2024-02-01', '2024-03-01', '2024-04-01', '2024-05-01'].map((inicio, k) => ({
+      tipo: 'month' as const,
+      inicio,
+      fim: `2024-0${k + 1}-28`,
+      offset: -29 + k,
+      rotulo: `Mês ${k + 1} de 2024`,
+    }));
+    const { relatorio, t } = await massaPeloScript({ sim: true, enumerar: () => vazios });
+    assert.equal(relatorio.codigo, 1);
+    assert.equal(relatorio.freada, true);
+    assert.equal(relatorio.corrida?.length, 3, 'a corrida não parou na terceira falha seguida');
+    assert.match(t.err.join('\n'), /parou depois de 3 falhas seguidas/);
+    assert.match(t.out.join('\n'), /não tentadas: 2/);
+  });
+
+  it('falha isolada NÃO para a corrida: o contador zera a cada sucesso', async () => {
+    const { relatorio } = await massaPeloScript({
+      sim: true,
+      // falha, sucesso, falha — nunca três seguidas.
+      enumerar: () => [JANEIRO_2025, MAIO, { ...JANEIRO_2025, inicio: '2025-02-01', fim: '2025-02-28', offset: -16, rotulo: 'Fevereiro 2025' }],
+    });
+    assert.equal(relatorio.freada, false);
+    assert.equal(relatorio.corrida?.length, 3, 'a corrida parou antes do fim');
+    assert.equal(relatorio.codigo, 1);
+  });
+
+  it('--exportar recusa sobrescrever: o arquivo é a única cópia do texto', async () => {
+    const banco = bancoFalso({ edicao: edicaoNoBanco('month', '2023-09-01', '2023-09-30', ['rotina']) });
+    const arquivos = { '/tmp/ja-existe.md': 'o texto de antes' };
+    const { relatorio, t } = await massaPeloScript({ banco, exportar: '/tmp/ja-existe.md', arquivos });
+    assert.equal(relatorio.codigo, 1);
+    assert.equal(relatorio.exportado, null);
+    assert.equal(arquivos['/tmp/ja-existe.md'], 'o texto de antes', 'o arquivo foi sobrescrito');
+    assert.match(t.err.join('\n'), /já existe, e nada foi escrito/);
+  });
+
+  it('--exportar sem nada a exportar avisa e sai ≠0, em vez de escrever só o cabeçalho', async () => {
+    const { relatorio, arquivos, t } = await massaPeloScript({ exportar: '/tmp/vazio.md' });
+    assert.equal(relatorio.codigo, 1);
+    assert.equal(relatorio.exportado, null);
+    assert.deepEqual(Object.keys(arquivos), []);
+    assert.match(t.err.join('\n'), /não há nada a exportar/);
+  });
+
+  it('--exportar avisa quando uma edição da lista volta sem caderno — o texto dela não foi salvo', async () => {
+    // As duas existem no arquivo (o plano as nomeia), e o telefone apaga uma
+    // delas entre a leitura do arquivo e a do texto: `fetchEdicao` a acha vazia.
+    const banco = bancoFalso({
+      edicao: [
+        ...edicaoNoBanco('month', '2023-09-01', '2023-09-30', ['rotina']),
+        ...edicaoNoBanco('month', '2023-10-01', '2023-10-31', ['sono']),
+      ],
+      aoLer: (tabela, vez, tabelas) => {
+        // Vez 1 é a leitura do arquivo; da 2 em diante são as do texto.
+        if (tabela === 'edicoes_ia' && vez === 2) {
+          const k = tabelas.edicoes_ia.findIndex((l) => l['inicio'] === '2023-10-01');
+          if (k >= 0) tabelas.edicoes_ia.splice(k, 1);
+        }
+      },
+    });
+    const { relatorio, arquivos, t } = await massaPeloScript({
+      banco,
+      exportar: '/tmp/parcial.md',
+      nomeados: [nomeado('month', '2023-09-01'), nomeado('month', '2023-10-01')],
+    });
+    assert.equal(relatorio.codigo, 1, 'a exportação incompleta saiu 0');
+    assert.equal(relatorio.exportado, '/tmp/parcial.md');
+    // O arquivo SAI — o que foi salvo tem valor —, e o aviso diz o que falta.
+    assert.match(arquivos['/tmp/parcial.md'] ?? '', /texto antigo de rotina em 2023-09-01/);
+    assert.match(t.err.join('\n'), /voltou sem caderno nenhum/);
+    assert.match(t.err.join('\n'), /Outubro 2023/);
+  });
+
+  it('o plano avisa quando um período nomeado não aparece nele', async () => {
+    const { relatorio, t } = await massaPeloScript({
+      enumerar: () => [MAIO],
+      nomeados: [nomeado('month', '2023-09-02')],
+    });
+    assert.equal(relatorio.codigo, 0);
+    assert.match(t.err.join('\n'), /não está no plano/);
+    assert.match(t.err.join('\n'), /2023-09-02/);
+  });
+
+  it('exportarEmTexto: sem caderno gravado, o arquivo diz isso em vez de mentir por omissão', () => {
+    const item: ItemDoPlano = {
+      acao: 'reimprimir', tipo: 'month', inicio: '2023-09-01', fim: '2023-09-30',
+      offset: -36, rotulo: 'Setembro 2023', cadernos: [], motivo: 'zero falso',
+    };
+    const md = exportarEmTexto([{ item, cadernos: [] }], AGORA);
+    assert.match(md, /Setembro 2023 · 2023-09-01 → 2023-09-30/);
+    assert.match(md, /Sem cadernos gravados no momento da exportação/);
+  });
+});
+
 /* ── as bandeiras e as recusas antes da rede ─────────────────────────────── */
 
 describe('as bandeiras', () => {
   it('lê tipo pela tabela ou pela rota, início e os dois modos', () => {
     assert.deepEqual(lerBandeiras(['--tipo', 'mes', '--inicio', INICIO, '--sem-gravar']), {
-      tipo: 'month', inicio: INICIO, semGravar: true, reimprimir: false, ajuda: false,
+      tipo: 'month', inicio: INICIO, semGravar: true, reimprimir: false,
+      massa: false, sim: false, limite: null, exportar: null, ajuda: false,
     });
     assert.equal(lerBandeiras(['--tipo', 'season']).tipo, 'season');
     assert.equal(lerBandeiras(['--tipo', 'ano']).tipo, 'year');
     assert.equal(lerBandeiras(['--reimprimir']).reimprimir, true);
+  });
+
+  it('as do modo em massa: --massa, o "sim", --limite e --exportar', () => {
+    const b = lerBandeiras(['--massa', '--sim-gastar-chamadas', '--limite', '2']);
+    assert.equal(b.massa, true);
+    assert.equal(b.sim, true);
+    assert.equal(b.limite, 2);
+    assert.equal(lerBandeiras(['--exportar', '/tmp/x.md']).exportar, '/tmp/x.md');
+    assert.throws(() => lerBandeiras(['--exportar']), /precisa de um valor/);
+  });
+
+  it('--limite recusa o que não é um inteiro maior que zero', () => {
+    // Zero e negativo seriam uma corrida que não acontece, com cara de que rodou.
+    for (const ruim of ['0', '-1', '2.5', 'dois', 'NaN']) {
+      assert.throws(() => lerBandeiras(['--limite', ruim]), /não é um inteiro maior que zero/, ruim);
+    }
+    assert.equal(lerBandeiras(['--limite', '1']).limite, 1);
+  });
+
+  it('as incompatíveis são recusadas antes de tudo, dos dois lados', () => {
+    const massa = (extra: readonly string[]) => bandeirasIncompativeis(lerBandeiras(['--massa', ...extra]));
+    assert.match(massa(['--inicio', INICIO]) ?? '', /--inicio não vale com --massa/);
+    assert.match(massa(['--reimprimir']) ?? '', /--reimprimir não vale com --massa/);
+    assert.match(massa(['--sem-gravar']) ?? '', /--sem-gravar não vale com --massa/);
+    // A semana: recusada pelo tipo, com o motivo — ela não grava edição.
+    assert.match(massa(['--tipo', 'semana']) ?? '', /semana não grava edição/);
+    assert.equal(massa(['--tipo', 'mes']), null);
+    assert.equal(massa([]), null);
+    // E o contrário: o "sim", o --limite e o --exportar só valem na massa.
+    assert.match(bandeirasIncompativeis(lerBandeiras(['--sim-gastar-chamadas'])) ?? '', /só vale com --massa/);
+    assert.match(bandeirasIncompativeis(lerBandeiras(['--exportar', '/tmp/x.md'])) ?? '', /só vale com --massa/);
+    assert.match(bandeirasIncompativeis(lerBandeiras(['--limite', '2'])) ?? '', /só vale com --massa/);
+    assert.equal(bandeirasIncompativeis(lerBandeiras(['--tipo', 'mes', '--inicio', INICIO])), null);
+  });
+
+  /**
+   * O "sim" junto do `--exportar` era descartado **em silêncio**: a exportação
+   * sai antes de imprimir, e o dono ficaria conferindo uma corrida que nunca
+   * aconteceu.
+   */
+  it('--exportar não vale com o "sim" nem com --limite: a exportação não roda corrida', () => {
+    assert.match(
+      bandeirasIncompativeis(lerBandeiras(['--massa', '--exportar', '/tmp/x.md', '--sim-gastar-chamadas'])) ?? '',
+      /não valem juntos/,
+    );
+    assert.match(
+      bandeirasIncompativeis(lerBandeiras(['--massa', '--exportar', '/tmp/x.md', '--limite', '2'])) ?? '',
+      /não valem juntos/,
+    );
+    assert.equal(bandeirasIncompativeis(lerBandeiras(['--massa', '--limite', '2', '--sim-gastar-chamadas'])), null);
   });
 
   it('recusa o Total, o tipo desconhecido, a repetida, a sem valor — e as que a spec não quer', () => {
@@ -349,7 +1162,9 @@ describe('as bandeiras', () => {
 
   it('--ajuda sai da mesma lista que a leitura', () => {
     const texto = ajuda();
-    for (const b of ['--tipo', '--inicio', '--sem-gravar', '--reimprimir', '--ajuda']) assert.ok(texto.includes(b), b);
+    for (const b of ['--tipo', '--inicio', '--sem-gravar', '--reimprimir', '--massa', '--sim-gastar-chamadas', '--exportar', '--ajuda']) {
+      assert.ok(texto.includes(b), b);
+    }
   });
 });
 
@@ -391,6 +1206,55 @@ function sessaoDo(banco: BancoFalso): Sessao & { fechada: () => boolean } {
     fechada: () => fechada,
   };
 }
+
+/**
+ * A conta de chamadas **pagas** de um caderno, sobre a trilha do anel.
+ *
+ * Ela existe porque o relatório do fim promete "pagas, tenham gravado ou não", e
+ * a primeira versão contava "houve hash": um por caderno, sempre — o que perde a
+ * repetição com o pedido curto e dá 1 para o caderno que não chegou a pagar nada.
+ */
+describe('chamadasPagas — o que de fato custou', () => {
+  const evento = (trilha: readonly Partial<Tentativa>[], hash?: string): EventoDoAnel => ({
+    recurso: 'retrospectiva',
+    versaoDoDescritor: 5004,
+    modo: 'produto',
+    instante: '2026-06-10T10:00:00.000Z',
+    trilha: trilha.map((t) => ({ motor: NUVEM_PADRAO, desfecho: 'ok', ms: 1200, ...t }) as Tentativa),
+    ...(hash === undefined ? {} : { hash }),
+  });
+
+  it('a chamada que deu certo conta', () => {
+    assert.equal(chamadasPagas(evento([{ desfecho: 'ok' }], 'h')), 1);
+  });
+
+  it('a que estourou o prazo ou voltou com erro conta — ela foi paga do mesmo jeito', () => {
+    assert.equal(chamadasPagas(evento([{ desfecho: 'transitoria' }], 'h')), 1);
+    assert.equal(chamadasPagas(evento([{ desfecho: 'capacidade' }], 'h')), 1);
+    // E mesmo sem hash no evento: o pedido saiu, e o hash é outro assunto.
+    assert.equal(chamadasPagas(evento([{ desfecho: 'transitoria' }])), 1);
+  });
+
+  it('a repetição com o pedido curto conta duas vezes — são duas chamadas', () => {
+    assert.equal(chamadasPagas(evento([{ desfecho: 'janela' }, { desfecho: 'ok', curto: true }], 'h')), 2);
+  });
+
+  it('a tentativa sintética não conta: o hospedeiro não entregou o motor, e nada saiu', () => {
+    assert.equal(chamadasPagas(evento([{ desfecho: 'indisponivel', sintetica: true }])), 0);
+  });
+
+  it('o `sem-modelo` não conta: é o template, e ele não custa nada', () => {
+    assert.equal(
+      chamadasPagas(evento([{ motor: NUVEM_PADRAO, desfecho: 'transitoria' }, { motor: SEM_MODELO, desfecho: 'ok' }], 'h')),
+      1,
+    );
+    assert.equal(chamadasPagas(evento([{ motor: SEM_MODELO, desfecho: 'ok' }], 'h')), 0);
+  });
+
+  it('o caderno mudo, sem tentativa nenhuma, custa zero', () => {
+    assert.equal(chamadasPagas(evento([])), 0);
+  });
+});
 
 describe('gruposDaImpressao — escritos, mantidos e os que saem', () => {
   it('os três grupos, na ordem da edição', () => {
@@ -499,6 +1363,47 @@ describe('o executável — as recusas antes da rede, e o caminho inteiro', () =
     assert.ok(!err.includes('token-secreto'));
   });
 
+  it('--massa --tipo semana: recusado antes de qualquer leitura, com o motivo', async () => {
+    const { p, t, abriu } = processo({ ...PROJETO_NO_AMBIENTE, ORBE_ACCESS_TOKEN: 'token-secreto' });
+    assert.equal(await principal(['--massa', '--tipo', 'semana'], p), 1);
+    assert.equal(abriu(), 0);
+    assert.match(t.err.join('\n'), /semana não grava edição/);
+  });
+
+  it('--massa com --inicio, --reimprimir ou --sem-gravar: recusado antes da rede', async () => {
+    for (const extra of [['--inicio', INICIO], ['--reimprimir'], ['--sem-gravar']]) {
+      const { p, t, abriu } = processo({ ...PROJETO_NO_AMBIENTE, ORBE_ACCESS_TOKEN: 'token-secreto' });
+      assert.equal(await principal(['--massa', ...extra], p), 1, extra.join(' '));
+      assert.equal(abriu(), 0, extra.join(' '));
+      assert.match(t.err.join('\n'), /não vale com --massa/, extra.join(' '));
+    }
+  });
+
+  it('--massa sem refresh token: recusa antes da rede, e nomeia só a variável', async () => {
+    const { p, t, abriu } = processo({ ...PROJETO_NO_AMBIENTE, ORBE_ACCESS_TOKEN: 'token-secreto' });
+    assert.equal(await principal(['--massa'], p), 1);
+    assert.equal(abriu(), 0);
+    const err = t.err.join('\n');
+    assert.match(err, /ORBE_REFRESH_TOKEN/);
+    assert.match(err, /perto de uma hora/);
+    assert.ok(!err.includes('token-secreto'));
+  });
+
+  it('--massa com os dois tokens: mostra o plano, sai 0 e não chama modelo nenhum', async () => {
+    const banco = bancoFalso();
+    const sessao = sessaoDo(banco);
+    const nuvem = nuvemFalsa();
+    const { p, t } = processo(
+      { ...PROJETO_NO_AMBIENTE, ORBE_ACCESS_TOKEN: 'token-secreto', ORBE_REFRESH_TOKEN: 'refresh-secreto' },
+      { abrir: async () => sessao, buscar: nuvem.buscar },
+    );
+    assert.equal(await principal(['--massa'], p), 0);
+    assert.equal(nuvem.pedidos.length, 0, 'o plano chamou o modelo');
+    assert.equal(banco.rpcs.length, 0);
+    assert.ok(sessao.fechada(), 'a sessão não foi fechada');
+    assert.match(t.out.join('\n'), /massa — o arquivo desde 2023-05-22/);
+  });
+
   it('o token sozinho basta para o --sem-gravar, e o caminho inteiro não grava', async () => {
     const banco = bancoFalso();
     const sessao = sessaoDo(banco);
@@ -537,9 +1442,15 @@ describe('o executável — as recusas antes da rede, e o caminho inteiro', () =
 
 /**
  * O script só injeta: sessão, transporte e portas. Cliente da function, leitura de
- * corpo de erro, tradução de classe, a função do banco, a capa e o manifesto da
- * bancada são de outros donos (as barreiras do `architecture.test.ts` cobram parte
- * disto no repositório inteiro; esta é a lista da spec, para este arquivo).
+ * corpo de erro, tradução de classe, a função do banco e o manifesto da bancada são
+ * de outros donos (as barreiras do `architecture.test.ts` cobram parte disto no
+ * repositório inteiro; esta é a lista da spec, para este arquivo).
+ *
+ * **A capa saiu desta lista na Story 2.3**, e de propósito: a impressão que grava
+ * passou a carimbá-la. O que continua proibido é *escrever* em `edicoes_capa` por
+ * fora — e quem cobra isso é a barreira "só `gravarCapa` escreve `edicoes_capa`",
+ * no repositório inteiro. A régua aqui é a que sobrou: o nome da tabela não
+ * aparece neste arquivo.
  */
 describe('o que o script não faz', () => {
   const fonte = readFileSync(join(__dirname, 'imprimir.ts'), 'utf8')
@@ -552,7 +1463,8 @@ describe('o que o script não faz', () => {
     ['nomear a função do banco', /edicao_imprimir/],
     ['acessar tabela direto', /\.from\(/],
     ['ler a porta de gravação', /\.gravar\b/],
-    ['tocar na capa', /edicoes_capa|carimbar|gravarCapa/],
+    ['nomear a tabela da capa', /edicoes_capa/],
+    ['escolher a capa por conta própria', /coverOf|legendaDaFoto|legendaDaRota|'tracado'|'grade'/],
     ['mexer no manifesto da bancada', /manifesto/],
     ['aceitar motor ou cadernos', /'--motor'|'--cadernos'/],
   ];

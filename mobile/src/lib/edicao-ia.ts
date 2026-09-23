@@ -26,8 +26,10 @@ import {
   MESES_ABREV,
   MESES_COMPLETOS,
   NUVEM_PADRAO,
+  atividadesDoPeriodo,
   cadernosComDado,
   capaTrocada,
+  cidadesDoPeriodo,
   descritorDaRetrospectiva,
   escolherCapa,
   fetchCapa,
@@ -36,6 +38,7 @@ import {
   gravarCapa,
   imprimir,
   lapidesDosCadernos,
+  localDateAt,
   localDateStr,
   offsetDoInicio,
   periodBounds,
@@ -43,6 +46,7 @@ import {
   periodoFechado,
   portasDaEdicao,
   resolverCadeia,
+  rotuloDaEdicao,
   secoesDoSeletor,
   temEdicao,
   type Activity,
@@ -51,7 +55,6 @@ import {
   type Capa,
   type CapaACarimbar,
   type Causa,
-  type CityMark,
   type DesfechoDoCaderno,
   type Edicao,
   type EntradaPacote,
@@ -140,40 +143,17 @@ export async function buscarEdicao(
 /* ── o carimbo da capa (Story 1.13) ──────────────────────────────────────── */
 
 /**
- * As atividades que caem no período — a **mesma** seleção que a Retrospectiva faz
- * para carregar as fotos da tira (`retrospectiva/index.tsx`).
+ * As três peças da escolha da capa — **do núcleo desde a Story 2.3**
+ * (`packages/shared/src/revista/capa.ts`), reexportadas daqui porque é por este
+ * módulo que as telas da revista as alcançam.
  *
- * Tem de ser a mesma: a capa é escolhida entre as fotos do período, e duas
- * definições de "do período" dariam duas capas possíveis para a mesma edição.
+ * Elas subiram porque o script da impressão em massa carimba a mesma capa que o
+ * telefone carimbaria: a seleção das atividades do período, o acervo de cidades
+ * da legenda e o rótulo por extenso da natureza `grade` são a mesma regra nos
+ * dois hospedeiros, e uma segunda cópia aqui seria a capa do Mac divergindo da
+ * do iPhone no dia em que uma das duas mudasse. O comportamento não mudou.
  */
-export function atividadesDoPeriodo(
-  todas: readonly Activity[], entrada: EntradaPacote,
-): Activity[] {
-  const { kind, offset } = entrada.resumo;
-  const b = periodBounds(entrada.agora, kind, offset);
-  return todas.filter((a) => {
-    const t = Date.parse(a.startAt);
-    return Number.isFinite(t) && t >= b.start.getTime() && t <= b.end.getTime();
-  });
-}
-
-/**
- * As cidades que as rotas do período atravessaram, sem repetir — o acervo de onde
- * a legenda da foto tira a parada.
- *
- * Não é geocodificação nova: `activities.cities` já veio enriquecida do ingest. A
- * deduplicação é por nome porque é o nome que a legenda imprime; duas marcas do
- * mesmo lugar em pedaladas diferentes escreveriam a mesma palavra.
- */
-export function cidadesDoPeriodo(atividades: readonly Activity[]): CityMark[] {
-  const porNome = new Map<string, CityMark>();
-  for (const a of atividades) {
-    for (const c of a.cities ?? []) {
-      if (!porNome.has(c.name)) porNome.set(c.name, c);
-    }
-  }
-  return [...porNome.values()];
-}
+export { atividadesDoPeriodo, cidadesDoPeriodo, rotuloDaEdicao };
 
 /**
  * As portas do carimbo. Injetáveis, para a escolha ter teste sem rede.
@@ -370,7 +350,7 @@ export async function trocarCapa(
  * a dar.
  */
 export function tituloDaCapa(tipo: TipoComEdicao, inicio: string): string {
-  const d = diaLocal(inicio);
+  const d = localDateAt(inicio);
   if (tipo === 'month') return `A capa de ${MESES_COMPLETOS[d.getMonth()].toLowerCase()} de ${d.getFullYear()}`;
   return `A capa de ${rotuloDaEdicao(tipo, inicio)}`;
 }
@@ -623,11 +603,6 @@ export function hrefDaRevista(kind: PeriodKind, inicio: string): `/revista/${Slu
   return `/revista/${slugDoTipo(kind)}/${inicio}`;
 }
 
-/** `YYYY-MM-DD` → a meia-noite local daquele dia. */
-function diaLocal(inicio: string): Date {
-  return new Date(`${inicio}T00:00:00`);
-}
-
 /** O período que o endereço da rota nomeia. */
 export interface PeriodoDaRota {
   readonly tipo: TipoComEdicao;
@@ -662,25 +637,11 @@ export function periodoDaRota(
 }
 
 /**
- * O período como a revista o escreve — `"Agosto de 2026"` —, no cabeçalho da rota
- * e na capa em papel.
- *
- * O mês ganha o "de" da proposta aprovada; semana, estação e ano ficam com o
- * rótulo da Retrospectiva (`periodLabel`), para o leitor reconhecer o período que
- * acabou de deixar.
- */
-export function rotuloDaEdicao(tipo: TipoComEdicao, inicio: string): string {
-  const d = diaLocal(inicio);
-  if (tipo === 'month') return `${MESES_COMPLETOS[d.getMonth()]} de ${d.getFullYear()}`;
-  return periodLabel(tipo, d);
-}
-
-/**
  * O período curto, para a miniatura em papel da porta — `"ago 2026"`. Semana,
  * estação e ano já são curtos no rótulo da Retrospectiva.
  */
 export function rotuloCurtoDaEdicao(tipo: TipoComEdicao, inicio: string): string {
-  const d = diaLocal(inicio);
+  const d = localDateAt(inicio);
   if (tipo === 'month') return `${MESES_ABREV[d.getMonth()]} ${d.getFullYear()}`;
   return periodLabel(tipo, d);
 }

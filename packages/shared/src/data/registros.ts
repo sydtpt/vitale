@@ -62,17 +62,26 @@ export async function fetchRegistros(db: SupabaseClient, userId: string): Promis
   return ((data ?? []) as RegistroRow[]).map(toRegistro);
 }
 
-/** Registros em forma reduzida — usado pela retrospectiva, que só rotula. */
+/**
+ * Registros em forma reduzida — usado pela retrospectiva, que só rotula.
+ *
+ * **Paginado desde a Story 2.3**, pelo mesmo motivo escrito em
+ * `fetchHabitSummaries`: leitura sem janela, acervo que cresce, e o teto de 1000
+ * linhas do PostgREST cortando sem erro. Ordenado por `id`, a chave primária.
+ */
 export async function fetchRegistroSummaries(
   db: SupabaseClient,
   userId: string,
 ): Promise<Array<{ id: string; name: string; createdOn: string }>> {
-  const { data, error } = await db
-    .from('registros')
-    .select('id,name,created_at')
-    .eq('user_id', userId);
-  if (error) throw error;
-  return ((data ?? []) as Array<{ id: string; name: string; created_at: string }>).map((r) => ({
+  const data = await fetchAllPages<{ id: string; name: string; created_at: string }>((lo, hi) =>
+    db
+      .from('registros')
+      .select('id,name,created_at')
+      .eq('user_id', userId)
+      .order('id', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map((r) => ({
     id: r.id,
     name: r.name,
     // Dia de criação: piso da amostra em `triggerImpact` (ver `RetroRegistro.createdOn`).

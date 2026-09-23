@@ -270,7 +270,17 @@ development_status:
   # para docs/specs/revista-retrospectiva/, como se fez com as 7 edições antigas
   # na janela da 1.9 — reimprimir sem exportar perde o texto para sempre. Quem
   # exporta é o dono, com o JWT dele. A 2.6 não reimprime nem apaga nada.
-  2-3-a-impressão-em-massa-dos-períodos-fechados: backlog
+  # EM ANDAMENTO desde 23/09/2026, depois de 2.6 e 2.7 fecharem e a migração da
+  # 2.7 ser aplicada em produção. INVENTÁRIO medido no dia: existem 11 edições,
+  # TODAS em pacote_versao 3 (ano 2023; meses set/out 2023 e jun/jul/ago 2026;
+  # cinco semanas). Nenhum trimestre. O alvo são ~50 edições novas.
+  # DECISÕES DO DONO: reimprimir CINCO (set/2023, out/2023, ano 2023 pelo zero
+  # falso; jul e ago de 2026 pela lápide do período) — junho fica, porque nada
+  # nela muda; as cinco semanas FICAM como estão (semana não grava edição, e
+  # apagá-las é destrutivo sem ganho); e o script passa a CARIMBAR A CAPA.
+  # Antes de reimprimir, o dono exporta o texto atual das cinco para
+  # docs/specs/revista-retrospectiva/, como as 7 antigas na janela da 1.9.
+  2-3-a-impressão-em-massa-dos-períodos-fechados: review
   2-4-a-parede-de-capas: backlog
   2-5-silenciar-um-caderno: backlog
   epic-2-retrospective: optional

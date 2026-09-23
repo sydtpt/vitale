@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CounterHabit } from '../models';
+import { fetchAllPages } from './paginate';
 import { localDateStr } from '../date/local';
 
 const COLUMNS =
@@ -75,7 +76,16 @@ export async function countHabits(db: SupabaseClient, userId: string): Promise<n
   return count ?? 0;
 }
 
-/** Hábitos em forma reduzida — usado pela retrospectiva, que só rotula. */
+/**
+ * Hábitos em forma reduzida — usado pela retrospectiva, que só rotula.
+ *
+ * **Paginado desde a Story 2.3.** Ele não tem janela: traz o acervo inteiro, que
+ * cresce com o tempo, e acima de 1000 linhas o PostgREST devolve um subconjunto
+ * **sem erro e sem ordem definida** (`data/paginate.ts`). A consequência aqui não
+ * é uma tela com buraco: o telefone e o script leriam listas diferentes, e a
+ * edição do Mac deixaria de ser a do iPhone sem nenhum teste ficar vermelho. A
+ * ordenação é por `id`, que é a chave primária — total por construção.
+ */
 export async function fetchHabitSummaries(
   db: SupabaseClient,
   userId: string,
@@ -87,19 +97,22 @@ export async function fetchHabitSummaries(
   createdOn: string;
   unitPrice?: number;
 }>> {
-  const { data, error } = await db
-    .from('habits')
-    .select('id,name,bad,unit,created_at,unit_price')
-    .eq('user_id', userId);
-  if (error) throw error;
-  return ((data ?? []) as Array<{
+  const data = await fetchAllPages<{
     id: string;
     name: string;
     bad: boolean | null;
     unit: CounterHabit['unit'];
     created_at: string;
     unit_price: number | string | null;
-  }>).map((r) => ({
+  }>((lo, hi) =>
+    db
+      .from('habits')
+      .select('id,name,bad,unit,created_at,unit_price')
+      .eq('user_id', userId)
+      .order('id', { ascending: true })
+      .range(lo, hi),
+  );
+  return data.map((r) => ({
     id: r.id,
     name: r.name,
     bad: r.bad ?? false,

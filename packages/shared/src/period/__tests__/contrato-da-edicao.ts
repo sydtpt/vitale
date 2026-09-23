@@ -17,9 +17,10 @@
  *   para a janela larga ter o que mudar, e uma atividade **oculta** no mês, para o
  *   `hidden` ter o que tirar;
  * - **um banco falso** que responde as leituras de `data/` (as nove da
- *   Retrospectiva, as atividades, a edição), a sessão, e captura a carga do `rpc`
- *   — simulando a função `edicao_imprimir` para a releitura sair do que foi gravado,
- *   e a `metricas_silencio` da Story 2.7, que faz a lápide do VO₂max existir;
+ *   Retrospectiva, as atividades, a edição e — desde a Story 2.3 — as duas da
+ *   capa), a sessão, e captura a carga do `rpc` — simulando a função
+ *   `edicao_imprimir` para a releitura sair do que foi gravado, e a
+ *   `metricas_silencio` da Story 2.7, que faz a lápide do VO₂max existir;
  * - **um transporte falso** da nuvem, que responde por caderno: três textos que a
  *   conferência aprova e um que cita um número que não existe no pacote;
  * - **o gabarito**: o hash do pedido de cada caderno e a carga do `rpc`.
@@ -341,6 +342,12 @@ class Consulta implements PromiseLike<Resposta> {
     this.filtros.push((l) => l[col] === v);
     return this;
   }
+  /** `in('activity_id', ids)` — o que `fetchPhotosForActivities` usa. */
+  in(col: string, vs: readonly unknown[]): this {
+    const conjunto = new Set(vs);
+    this.filtros.push((l) => conjunto.has(l[col]));
+    return this;
+  }
   gte(col: string, v: unknown): this {
     this.filtros.push((l) => l[col] != null && comparar(l[col], v) >= 0);
     return this;
@@ -375,6 +382,25 @@ class Consulta implements PromiseLike<Resposta> {
     // O PostgREST devolve só o que foi pedido; coluna pedida e ausente na linha é nula.
     const data = cols === null ? out.map((l) => ({ ...l })) : out.map((l) => Object.fromEntries(cols.map((c) => [c, l[c] ?? null])));
     return { data, error: null };
+  }
+
+  /**
+   * Zero ou uma linha, como o PostgREST — o que `fetchCapa` usa, e o que
+   * `fetchEdicao` **não** pode usar desde a 1.9 (a chave dela tem o caderno).
+   */
+  async maybeSingle(): Promise<Resposta> {
+    const r = this.resolver();
+    if (r.error) return r;
+    const linhas = r.data as Linha[];
+    if (linhas.length > 1) return { data: null, error: new Error('maybeSingle sobre mais de uma linha (PGRST116)') };
+    return { data: linhas[0] ?? null, error: null };
+  }
+
+  /** Exatamente uma linha — o `select().single()` que segue um `upsert`. */
+  async single(): Promise<Resposta> {
+    const r = await this.maybeSingle();
+    if (r.error) return r;
+    return r.data === null ? { data: null, error: new Error('single sem linha (PGRST116)') } : r;
   }
 
   then<A = Resposta, B = never>(
@@ -433,13 +459,21 @@ export interface CargaDoRpc {
 }
 
 /**
- * As tabelas que a fixture tem — as nove leituras, as atividades e a edição.
- * `edicoes_capa` não: o script não a toca. A décima leitura (`metricas_silencio`)
- * não é tabela: ela é calculada sobre a `health_daily` daqui.
+ * As tabelas que a fixture tem — as nove leituras, as atividades, a edição e,
+ * desde a Story 2.3, as **duas da capa**. A décima leitura
+ * (`metricas_silencio`) não é tabela: ela é calculada sobre a `health_daily`
+ * daqui.
+ *
+ * `activity_photos` e `edicoes_capa` entraram porque a impressão que grava
+ * passou a carimbar a capa: sem elas, o caminho de ponta a ponta do script
+ * falhava **sempre** no carimbo (a fixture explodia em `from`), e o teste
+ * passava assim mesmo — porque falha de capa é aviso, por contrato. Um teste que
+ * não distingue "carimbou" de "avisou" não mede o carimbo.
  */
 export type TabelaDaFixture =
   | 'health_daily' | 'daily_ratings' | 'habits' | 'habit_logs' | 'registros' | 'registro_logs'
-  | 'todo_templates' | 'todo_occurrences' | 'sleep_periods' | 'activities' | 'edicoes_ia';
+  | 'todo_templates' | 'todo_occurrences' | 'sleep_periods' | 'activities' | 'edicoes_ia'
+  | 'activity_photos' | 'edicoes_capa';
 
 export interface BancoFalso {
   /** O client, para as leituras de `data/` e para `portasDaEdicao`. */
@@ -457,12 +491,23 @@ export interface BancoFalso {
   readonly rpcs: { readonly fn: string; readonly args: CargaDoRpc }[];
   /** Quantas vezes cada tabela — e a função do silêncio — foi lida. */
   readonly leituras: Record<string, number>;
+  /**
+   * Cada escrita direta que a fixture aceita, na ordem — hoje só o `upsert` de
+   * `edicoes_capa` (Story 2.3). É por aqui que um teste afirma **que a capa foi
+   * carimbada**, e com qual natureza; sem isso, "não houve aviso" é a única
+   * coisa que se pode medir, e ela passa verde numa fiação que nunca carimba.
+   */
+  readonly escritas: { readonly tabela: string; readonly linha: Linha }[];
 }
 
 /** As opções do banco falso. */
 export interface OpcoesDoBanco {
   /** A edição de maio que já está impressa. Ausente: nenhuma. */
   readonly edicao?: Linha[];
+  /** As fotos do acervo (`activity_photos`). Ausente: nenhuma. */
+  readonly fotos?: Linha[];
+  /** As capas já carimbadas (`edicoes_capa`). Ausente: nenhuma. */
+  readonly capas?: Linha[];
   /** De quem é a sessão do client. Ausente: {@link USUARIO}; `null`: ninguém. */
   readonly dono?: string | null;
   /** As tabelas cuja leitura falha — o `select` delas responde `{ data: null, error }`. */
@@ -500,9 +545,12 @@ export function bancoFalso(o: OpcoesDoBanco = {}): BancoFalso {
     sleep_periods: noites(),
     activities: atividades(),
     edicoes_ia: [...(o.edicao ?? [])],
+    activity_photos: [...(o.fotos ?? [])],
+    edicoes_capa: [...(o.capas ?? [])],
   };
   const rpcs: { fn: string; args: CargaDoRpc }[] = [];
   const leituras: Record<string, number> = {};
+  const escritas: { tabela: string; linha: Linha }[] = [];
   const dono = o.dono === undefined ? USUARIO : o.dono;
   const escritaDireta = (tabela: string) => () => {
     throw new Error(`o teste escreveu em ${tabela} direto — a edição se grava pela função, e o acervo não se grava daqui`);
@@ -522,7 +570,23 @@ export function bancoFalso(o: OpcoesDoBanco = {}): BancoFalso {
           o.aoLer?.(tabela as TabelaDaFixture, vez, tabelas);
           return new Consulta(linhas, o.falhar?.[tabela as TabelaDaFixture] ?? null).select(cols);
         },
-        upsert: escritaDireta(tabela),
+        // **Só `edicoes_capa` se grava direto** — é assim que `gravarCapa` a
+        // escreve, pela chave da edição (a barreira do `architecture.test.ts`
+        // cobra que só ela o faça). Toda outra tabela continua explodindo: o
+        // acervo não se grava daqui, e a edição passa pela função.
+        upsert: tabela === 'edicoes_capa'
+          ? (linha: Linha) => {
+            const chave = (l: Linha) =>
+              l['user_id'] === linha['user_id'] && l['tipo_periodo'] === linha['tipo_periodo']
+              && l['inicio'] === linha['inicio'] && l['fim'] === linha['fim'];
+            const k = linhas.findIndex(chave);
+            const nova = { ...linha };
+            if (k >= 0) linhas.splice(k, 1, nova);
+            else linhas.push(nova);
+            escritas.push({ tabela, linha: { ...nova } });
+            return new Consulta([nova], o.falhar?.['edicoes_capa'] ?? null);
+          }
+          : escritaDireta(tabela),
         insert: escritaDireta(tabela),
         update: escritaDireta(tabela),
         delete: escritaDireta(tabela),
@@ -560,7 +624,7 @@ export function bancoFalso(o: OpcoesDoBanco = {}): BancoFalso {
       return { data: depois.map((l) => ({ ...l })), error: null };
     },
   };
-  return { db: db as unknown as SupabaseClient, tabelas, rpcs, leituras };
+  return { db: db as unknown as SupabaseClient, tabelas, rpcs, leituras, escritas };
 }
 
 /** Uma linha de `edicoes_ia` de maio — para montar "o período já impresso". */

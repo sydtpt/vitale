@@ -15,15 +15,18 @@
  * recalculasse, ajustar um peso do ranqueamento em novembro reordenaria agosto
  * sozinho, que é reescrita silenciosa de período fechado.
  *
- * Sem paginação de propósito: são ~68 períodos por ano (52 semanas + 12 meses +
- * 4 estações) e até quatro cadernos em cada, muito abaixo do teto de 1000 do
- * PostgREST — e a leitura aqui é de UM período.
+ * A leitura de **um** período (`fetchEdicao`) não pagina de propósito: são até
+ * quatro linhas. A do **arquivo inteiro** ({@link fetchArquivoDeEdicoes}, Story
+ * 2.3) pagina, e tem de paginar: são ~68 períodos por ano (52 semanas + 12 meses
+ * + 4 estações) e até quatro cadernos em cada, então o teto de 1000 linhas do
+ * PostgREST é alcançado por volta do quarto ano — calado.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGG_VERSION } from '../constants/agg-version';
 import type { LinhaDaImpressao, PeriodoDaEdicao, PortasDaImpressao } from '../ia/imprimir';
 import { CADERNO_IDS, isCadernoId, type CadernoId } from '../period/cadernos';
 import type { PeriodKind } from '../period/bounds';
+import { fetchAllPages } from './paginate';
 
 /**
  * Os tipos de período que **podem** ter edição — a mesma lista do CHECK de
@@ -203,6 +206,117 @@ export async function fetchEdicao(
     .order('posicao', { ascending: true });
   if (error) throw error;
   return ((data ?? []) as unknown as EdicaoRow[]).map(toCadernoImpresso);
+}
+
+/* ── o arquivo inteiro (Story 2.3) ───────────────────────────────────────── */
+
+/**
+ * Uma linha do arquivo, como o PostgREST a devolve — o recorte de
+ * {@link EdicaoRow} que {@link ARQUIVO_COLUMNS} pede.
+ *
+ * Declarada como `Pick`, e não à mão: é o que faz o teste "pede exatamente as
+ * colunas que a linha tem" valer para o arquivo como já valia para a edição —
+ * uma coluna na string e fora do tipo (ou o contrário) para de compilar aqui.
+ */
+export type ArquivoRow = Pick<EdicaoRow, 'tipo_periodo' | 'inicio' | 'fim' | 'caderno' | 'posicao' | 'pacote_versao'>;
+
+/** Um caderno no arquivo, sem o texto — o que {@link fetchArquivoDeEdicoes} traz. */
+export interface CadernoNoArquivo {
+  readonly caderno: CadernoId;
+  readonly posicao: number;
+  /**
+   * A versão do pacote com que este caderno foi escrito.
+   *
+   * É o que separa uma edição **antiga** de uma já reimpressa: as onze edições
+   * do arquivo em 23/09/2026 estão todas no pacote 3, e a 2.6 levou o pacote a
+   * 4. Quem decide o que fazer com isso é o hospedeiro da impressão em massa.
+   */
+  readonly pacoteVersao: number;
+}
+
+/** Uma edição do arquivo, em forma reduzida: a chave e os cadernos que ela tem. */
+export interface EdicaoNoArquivo {
+  readonly tipoPeriodo: TipoComEdicao;
+  readonly inicio: string;
+  readonly fim: string;
+  /** Na ordem gravada (`posicao`). Nunca vazio: uma edição sem caderno não tem linha. */
+  readonly cadernos: readonly CadernoNoArquivo[];
+}
+
+/**
+ * As colunas do arquivo — **sem o `texto`**, que é o grosso da linha e não serve
+ * para decidir o que imprimir. Quem quer o texto de uma edição chama
+ * {@link fetchEdicao} para aquele período.
+ *
+ * Mesma guarda de {@link EDICAO_COLUMNS}: `edicoes-ia.test.ts` compara esta
+ * string com as chaves de {@link ArquivoRow} e projeta as linhas do fake por
+ * ela. Uma coluna esquecida aqui não é erro — é `undefined` chegando ao
+ * agrupamento, e um `pacote_versao` indefinido faria toda edição parecer não
+ * reimpressa.
+ */
+export const ARQUIVO_COLUMNS = 'tipo_periodo,inicio,fim,caderno,posicao,pacote_versao';
+
+/**
+ * **Todas** as edições do usuário, agrupadas por período e em ordem cronológica
+ * — o inventário que a impressão em massa cruza com os períodos fechados
+ * (Story 2.3).
+ *
+ * Ao contrário de {@link fetchEdicao}, que lê um período, esta leitura **cresce
+ * com o tempo**: são ~68 períodos por ano e até quatro cadernos em cada, e o
+ * teto de 1000 linhas do PostgREST é alcançado por volta do quarto ano — sem
+ * erro nenhum, com linhas faltando em ordem indefinida. Por isso passa por
+ * `fetchAllPages` com **ordenação total**: `(inicio, tipo_periodo, fim,
+ * caderno)` cobre a chave primária menos o `user_id`, que está fixo no filtro —
+ * são as mesmas quatro colunas da chave, noutra ordem de leitura, e é a
+ * unicidade delas que torna a ordem total.
+ *
+ * A ordem devolvida é a do arquivo — pelo `inicio`, e dentro dele pelo tipo —,
+ * não a da impressão: quem ordena a corrida é `periodosFechadosDesde`
+ * (`period/periodos.ts`), pelo fim do período.
+ */
+export async function fetchArquivoDeEdicoes(
+  db: SupabaseClient,
+  userId: string,
+): Promise<EdicaoNoArquivo[]> {
+  const linhas = await fetchAllPages<ArquivoRow>(
+    (lo, hi) =>
+      db
+        .from('edicoes_ia')
+        .select(ARQUIVO_COLUMNS)
+        .eq('user_id', userId)
+        .order('inicio', { ascending: true })
+        .order('tipo_periodo', { ascending: true })
+        .order('fim', { ascending: true })
+        .order('caderno', { ascending: true })
+        .range(lo, hi),
+  );
+  const porPeriodo = new Map<string, { chave: EdicaoNoArquivo; cadernos: CadernoNoArquivo[] }>();
+  const ordem: string[] = [];
+  for (const r of linhas) {
+    // Conferido, nunca convertido por `as` — o mesmo argumento de `toCadernoImpresso`.
+    if (!isCadernoId(r.caderno)) {
+      throw new Error(
+        `caderno desconhecido no arquivo: ${JSON.stringify(r.caderno)} — os quatro são ${CADERNO_IDS.join(', ')}.`,
+      );
+    }
+    if (!isTipoComEdicao(r.tipo_periodo)) {
+      throw new Error(
+        `tipo de período sem edição possível no arquivo: ${JSON.stringify(r.tipo_periodo)} — os quatro são `
+        + `${TIPOS_COM_EDICAO.join(', ')}.`,
+      );
+    }
+    const chave = `${r.tipo_periodo}\u0000${r.inicio}\u0000${r.fim}`;
+    let grupo = porPeriodo.get(chave);
+    if (!grupo) {
+      const cadernos: CadernoNoArquivo[] = [];
+      grupo = { chave: { tipoPeriodo: r.tipo_periodo, inicio: r.inicio, fim: r.fim, cadernos }, cadernos };
+      porPeriodo.set(chave, grupo);
+      ordem.push(chave);
+    }
+    grupo.cadernos.push({ caderno: r.caderno, posicao: r.posicao, pacoteVersao: r.pacote_versao });
+  }
+  for (const grupo of porPeriodo.values()) grupo.cadernos.sort((a, b) => a.posicao - b.posicao);
+  return ordem.map((c) => porPeriodo.get(c)!.chave);
 }
 
 /**
