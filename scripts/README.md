@@ -521,8 +521,11 @@ substitui na tabela. Antes de rodar a corrida, tire-o e commite, como se fez com
 primeiras edições na janela da 1.9:
 
 ```bash
+# O `--filter` do pnpm roda o script com o cwd em `scripts/`, não na raiz: um caminho
+# relativo aqui cairia em `scripts/docs/…` e o script sai com ENOENT antes de escrever.
+# Use caminho absoluto — ou `../docs/…`, se a árvore for esta.
 TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --massa \
-  --exportar docs/specs/revista-retrospectiva/edicoes-substituidas-pela-2-3.md
+  --exportar "$PWD/docs/specs/revista-retrospectiva/edicoes-substituidas-pela-2-3.md"
 git add docs/specs/revista-retrospectiva/ && git commit -m "docs(revista): o texto das cinco edições antes da reimpressão"
 ```
 
