@@ -46,9 +46,16 @@ import {
   type PacoteDeFatos,
   type ProblemaDaConferencia,
   type RecursoId,
+  type TipoDeMotor,
 } from '@vitale/shared';
 import { BIKE_ACTIVITY_ID, fatosDaPedalada, type PontaDaRota } from '../../services/route-name';
-import { OFFSET_DA_SEMANA_FECHADA, rotaMedivel } from './amostras-regras';
+import {
+  MOTIVO_SEM_NOITE,
+  OFFSET_DA_SEMANA_FECHADA,
+  RECURSOS_COM_REGUA,
+  janelaComNoite,
+  rotaMedivel,
+} from './amostras-regras';
 import { motivoDaFalha } from '../assinatura';
 import { chaveDaJanela } from '../leitura-da-saude';
 import { anel } from './anel';
@@ -119,6 +126,33 @@ export interface FonteDeAmostra {
   /** O rótulo do chip de leitura. */
   readonly rotulo: string;
   readonly seletor: SeletorDeCaso;
+  /**
+   * O teto de exposição do recurso, direto do descritor.
+   *
+   * A tela precisa dele para a fileira "quem entra": medir não grava, mas medir
+   * **manda o caso para fora do aparelho**, e o motor que passa do teto não ganha
+   * chip. Vem daqui, e não de um segundo catálogo na tela, porque quem sabe de que
+   * leitura se trata é a fonte — a tela nunca sabe.
+   */
+  readonly regimeMaximo: TipoDeMotor;
+  /**
+   * Esta leitura tem template, ou o `semModelo` dela devolve lápide.
+   *
+   * Onde não há régua, não há cartão-régua **e não há chip de régua**: a tela não
+   * pode explicar uma ausência num cartão e oferecê-la num chip trinta pixels
+   * acima. Ver {@link RECURSOS_COM_REGUA}, que é onde a tabela mora e é conferida.
+   */
+  readonly temRegua: boolean;
+  /**
+   * Esta leitura tem corrida de **N janelas**, além do caso único.
+   *
+   * Só o sono tem: a enumeração de janelas, a régua e as quatro medidas da ADR
+   * 0050 são daquela leitura (`./amostra.ts`). É esta declaração que decide se os
+   * chips de amostra — "22 janelas", "o ano" — existem, em vez de um
+   * `recurso === 'saude-do-sono'` escrito na tela: um chip de N janelas numa
+   * leitura sem série é um botão que não tem o que abrir.
+   */
+  readonly variasJanelas: boolean;
   /** Os casos de agora. **Nunca rejeita**: sem caso, devolve a lista vazia com o motivo. */
   casos(ctx: ContextoDasAmostras): Promise<CasosDaAmostra>;
   /** Mede um caso num motor. **Nunca rejeita**: falha vira linha (ver {@link medirUm}). */
@@ -138,11 +172,15 @@ export interface FonteDeAmostra {
 export interface Linha {
   readonly motor: MotorId;
   /**
-   * O `Desfecho` do núcleo, mais os dois que só a medição produz. Tipado, e não
+   * O `Desfecho` do núcleo, mais os três que só a medição produz. Tipado, e não
    * `string`: é exatamente aqui que um desfecho novo no orquestrador tem de quebrar
    * a compilação, em vez de aparecer como texto cru numa linha do relatório.
+   *
+   * `fora` é a coluna que **não aconteceu**: o motor estava marcado e perdeu o pé
+   * na releitura que a corrida faz antes do laço. Não é erro, e vale tanto quanto
+   * uma coluna que aconteceu — por isso ela é linha, e não um silêncio.
    */
-  readonly desfecho: Desfecho | 'template' | 'mudo';
+  readonly desfecho: Desfecho | 'template' | 'mudo' | 'fora';
   readonly ms: number;
   readonly hash?: string;
   /** A frase montada — do template, na régua; do motor, nas outras colunas. */
@@ -171,6 +209,11 @@ interface Fonte<E, S> {
   readonly rotulo: string;
   readonly seletor: SeletorDeCaso;
   readonly descritor: Descritor<E, S>;
+  /**
+   * Esta leitura tem corrida de N janelas (`./amostra.ts`). Ausente é "não" —
+   * hoje só o sono a tem, e a exceção é que se declara.
+   */
+  readonly variasJanelas?: true;
   /**
    * A saída do descritor em texto, para a tela.
    *
@@ -260,6 +303,11 @@ function fechar<E, S>(f: Fonte<E, S>): FonteDeAmostra {
     recurso: f.recurso,
     rotulo: f.rotulo,
     seletor: f.seletor,
+    // Do descritor, e não escrito de novo: o teto de exposição é propriedade do
+    // recurso, e uma segunda cópia dele na tela envelheceria sozinha.
+    regimeMaximo: f.descritor.regimeMaximo,
+    temRegua: RECURSOS_COM_REGUA[f.recurso],
+    variasJanelas: f.variasJanelas === true,
     casos: (ctx) => f.casos(ctx),
     medir: (caso, motor) => medirUm(f, caso.entrada as E, motor),
   };
@@ -274,17 +322,28 @@ function fechar<E, S>(f: Fonte<E, S>): FonteDeAmostra {
  * `chaveDaJanela` que a leitura de produção usa para descartar resposta de janela
  * vencida, então trocar o período troca o caso e apaga as linhas pelo mesmo
  * caminho de todas as outras leituras.
+ *
+ * **Mas um caso por vez não quer dizer sempre um caso.** Esta é a única das três
+ * fontes que montaria um caso para uma janela vazia — a entrada existe, com a
+ * lápide da contagem dentro dela —, e o dono veria a mesma frase de ausência em
+ * todas as colunas, como se os modelos tivessem falhado juntos. A pergunta é pura
+ * e de graça ({@link janelaComNoite}), então se faz antes de oferecer.
  */
 const saudeDoSono: Fonte<EntradaDaSaude, string> = {
   recurso: descritorDaSaudeDoSono.recurso,
   rotulo: 'Saúde do sono',
   seletor: 'janela-de-sono',
   descritor: descritorDaSaudeDoSono,
+  variasJanelas: true,
   emTexto: (texto) => texto,
   casos: (ctx) =>
-    Promise.resolve({
-      casos: [{ chave: chaveDaJanela(ctx.saude), rotulo: `${ctx.saude.range} · esta janela`, entrada: ctx.saude }],
-    }),
+    Promise.resolve(
+      janelaComNoite(ctx.saude)
+        ? {
+            casos: [{ chave: chaveDaJanela(ctx.saude), rotulo: `${ctx.saude.range} · esta janela`, entrada: ctx.saude }],
+          }
+        : { casos: [], motivo: MOTIVO_SEM_NOITE },
+    ),
 };
 
 /**

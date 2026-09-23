@@ -11,7 +11,6 @@ import {
   SEM_MODELO,
   agregar,
   chaveDoPasso,
-  descritorDaSaudeDoSono,
   entradaDaSaude,
   filterByRange,
   foraEmTexto,
@@ -40,17 +39,30 @@ import {
   motivoDoAparelho,
   motoresDoRecurso,
   nomeDoMotor,
+  type EstadoDaCompilacao,
   type EstadoDaPonte,
   type ListaAprovada,
 } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
 import {
+  PRAZO_DO_PESO_ABERTO_MS,
   PRAZO_MS,
+  estadoDaCompilacaoDosPesos,
   estadoDosPesosAbertos,
   garantirListaAprovada,
   ponteDoAparelho,
   reconsultarPesosAbertos,
+  relerCompilacaoDosPesos,
 } from '../../../lib/motores';
+import {
+  cabeNoRegime,
+  chipsDaCorrida,
+  estadoDoMotorNaCorrida,
+  motivoDoTeto,
+  tetoDaCorridaMs,
+  type ChipDaCorrida,
+  type PrazosDaCorrida,
+} from '../../../lib/motores/amostras-regras';
 import {
   ETAPA_EM_PALAVRAS,
   duracaoCurta,
@@ -111,7 +123,37 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../.
  * O laço fica aqui: uma janela por vez, pela fila da ponte, com as notas inteiras antes
  * de enumerar e a tela acesa enquanto mede. O resultado são os números da ADR 0050 **sem
  * limiar e sem veredito**, e o hash de cada pedido para comparar com o relatório do Mac.
+ *
+ * **As guardas de borda** (fatia 4 do redesenho). A corrida **relê** antes de correr —
+ * diagnóstico e compilação —, e quem perdeu o pé vira uma linha que diz o motivo em vez de
+ * uma chamada que compila por minutos; cada coluna tem teto de espera; Medir tem três
+ * formas e nunca larga duas corridas; sair da tela abandona a que estiver em voo. Todas as
+ * decisões que dão para tomar sem tela moram em `lib/motores/amostras-regras.ts`, com teste.
  */
+
+/**
+ * O que a corrida espera de cada coluna — os prazos que os transportes já têm.
+ *
+ * Ficam aqui porque é aqui que eles são conhecidos: `tetoDaCorridaMs` é pura e os recebe,
+ * para poder ser testada sem o cliente do supabase que `lib/motores/index.ts` carrega.
+ */
+const PRAZOS_DA_CORRIDA: PrazosDaCorrida = { padrao: PRAZO_MS, pesoAberto: PRAZO_DO_PESO_ABERTO_MS };
+
+/**
+ * Uma medição com teto de espera.
+ *
+ * A promessa perdida continua viva — uma chamada nativa não se cancela —, e é de propósito:
+ * o que este teto solta é **a tela**, não o aparelho. Quem terminar depois resolve para
+ * ninguém, e a fila do transporte continua respeitando o modelo.
+ */
+function comTeto(medir: () => Promise<Linha>, tetoMs: number, motor: MotorId): Promise<Linha> {
+  let relogio: ReturnType<typeof setTimeout> | undefined;
+  const estouro = new Promise<Linha>((resolver) => {
+    relogio = setTimeout(() => resolver({ motor, desfecho: 'defeito', ms: tetoMs, motivo: motivoDoTeto(tetoMs) }), tetoMs);
+  });
+  return Promise.race([medir(), estouro]).finally(() => clearTimeout(relogio));
+}
+
 export default function BancadaScreen() {
   const s = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
@@ -138,6 +180,14 @@ export default function BancadaScreen() {
   const [ponte, setPonte] = useState<EstadoDaPonte>(() => ponteDoAparelho.agora());
   // E o do peso aberto (5.8), que é outro fato.
   const [coreai, setCoreai] = useState<Readonly<Record<string, EstadoDaPonte>>>(() => estadoDosPesosAbertos());
+  // E a compilação de cada peso aberto, que é um terceiro (fatia 1 do redesenho). Ela é a
+  // única das três que volta a ser falsa **sozinha** — o iOS atualiza e recompila tudo, ou
+  // purga o cache sob pressão de espaço —, e é por isso que ela é relida a cada foco e mais
+  // uma vez antes do laço: um chip marcado cujo compilado sumiu no meio é o caminho pelo
+  // qual esta tela dispararia a compilação de minutos que ela promete nunca disparar.
+  const [compilacao, setCompilacao] = useState<Readonly<Record<string, EstadoDaCompilacao>>>(() =>
+    estadoDaCompilacaoDosPesos(),
+  );
   // **Quem entra na corrida** (22/09). Era uma caixinha só, tudo-ou-nada para os pesos
   // abertos; com N modelos isso deixou de servir — o dono quer escolher quais comparar.
   // O conjunto guarda quem está **de fora**, e não quem está dentro, porque um motor que
@@ -167,9 +217,6 @@ export default function BancadaScreen() {
     () => motoresDoRecurso(recurso, { sistema: ponte, coreai }, listaDeMotores),
     [recurso, ponte, coreai, listaDeMotores],
   );
-  const nenhumMotorNaCorrida = motoresDaCorrida.every(
-    (m) => m.id === SEM_MODELO || foraDaCorrida.has(m.id) || !m.disponivel,
-  );
   const alternarNaCorrida = useCallback((id: MotorId) => {
     setForaDaCorrida((atual) => {
       const proximo = new Set(atual);
@@ -178,18 +225,49 @@ export default function BancadaScreen() {
       return proximo;
     });
   }, []);
-  useEffect(() => {
-    let vivo = true;
-    void ponteDoAparelho.reconsultar().then((p) => {
-      if (vivo) setPonte(p);
-    });
-    void reconsultarPesosAbertos().then((p) => {
-      if (vivo) setCoreai(p);
-    });
-    return () => {
-      vivo = false;
-    };
-  }, []);
+
+  /**
+   * Os três diagnósticos, relidos **ao ganhar o foco** — e não uma vez na montagem.
+   *
+   * A tela fica montada quando o dono empurra outra rota; voltar dela sem reler deixaria a
+   * fileira de chips pintada com o que era verdade antes de ele ir aos Ajustes ligar a Apple
+   * Intelligence, ou antes de o iOS purgar o cache do Core AI. Custa uma linha JSON por
+   * modelo, ~0,5 ms cada.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      let vivo = true;
+      void ponteDoAparelho.reconsultar().then((p) => {
+        if (vivo) setPonte(p);
+      });
+      void reconsultarPesosAbertos().then((p) => {
+        if (vivo) setCoreai(p);
+      });
+      void relerCompilacaoDosPesos().then((c) => {
+        if (vivo) setCompilacao(c);
+      });
+      return () => {
+        vivo = false;
+      };
+    }, []),
+  );
+
+  /**
+   * A fileira "quem entra": um chip por motor conhecido da leitura, menos o template —
+   * que é régua, não motor — e menos quem passa do teto de exposição do recurso.
+   *
+   * A regra inteira é pura e mora no núcleo da bancada (`amostras-regras.ts`), com teste:
+   * ela é **a mesma** que o laço aplica antes de chamar cada motor. Duas perguntas
+   * diferentes para o mesmo fato é como um chip marcado sobrevive a um compilado que sumiu.
+   */
+  const chips = useMemo(
+    () => chipsDaCorrida(motoresDaCorrida, { regimeMaximo: fonte.regimeMaximo, fora: foraDaCorrida, compilacao }),
+    [motoresDaCorrida, fonte, foraDaCorrida, compilacao],
+  );
+  /** Um motor consultando **não** conta: ele ainda não disse se existe. */
+  const nenhumMotorNaCorrida = chips.every((c) => !c.marcado);
+  /** A régua, quando a leitura tem uma — o chip que não é controle. */
+  const regua = fonte.temRegua ? motoresDaCorrida.find((m) => m.id === SEM_MODELO) : undefined;
 
   const hoje = useMemo(() => localDateStr(), []);
   const today = useMemo(() => new Date(), []);
@@ -301,9 +379,26 @@ export default function BancadaScreen() {
   const identidadeRef = useRef(identidade);
   identidadeRef.current = identidade;
 
+  // As três chaves da corrida, todas em `ref` porque o laço roda por minutos e um
+  // estado capturado no início não as veria mudar: uma corrida em voo (para o segundo
+  // toque não largar a segunda), o "Parar" tocado e a tela fora de foco.
+  const corridaEmVooRef = useRef(false);
+  const pararCorridaRef = useRef(false);
+  const foraDeFocoRef = useRef(false);
+  /** Só para a tela dizer "parando…" — quem para o laço é o `ref`. */
+  const [parandoCorrida, setParandoCorrida] = useState(false);
+
   const medir = useCallback(async () => {
     const caso = casoAtual;
     if (caso === null) return;
+    // **Dois toques não largam duas corridas.** O `disabled` do `Pressable` só existe
+    // depois de um render, e dois toques no mesmo quadro passam os dois: seriam duas
+    // publicações incrementais pintando a mesma lista, e o dono lendo uma mistura de
+    // duas composições sem saber que são duas. O `ref` fecha a porta no mesmo instante.
+    if (corridaEmVooRef.current) return;
+    corridaEmVooRef.current = true;
+    pararCorridaRef.current = false;
+    setParandoCorrida(false);
     const doLaco = `${recurso}|${caso.chave}`;
     setRodando(SEM_MODELO);
     const feitas: Linha[] = [];
@@ -313,13 +408,23 @@ export default function BancadaScreen() {
       // existe para comparar motores esconde justamente o motor novo.
       // E a ponte do aparelho (5.9): com o módulo no build, o aparelho é medido aqui
       // ao lado da nuvem, com o texto cru dele — é a comparação que o dono pediu.
-      const [lista, estadoDaPonte, estadoDoCoreAI] = await Promise.all([
+      //
+      // **E a compilação de cada peso aberto** (fatia 4). Os chips foram pintados uma
+      // vez e a verdade não fica parada: entre marcar um peso aberto e tocar Medir
+      // podem passar minutos, e nesse intervalo o iOS pode ter purgado o cache do Core
+      // AI. Sem esta releitura, o toque em Medir manda compilar — quinze minutos
+      // disparados pela única porta desta família que diz, por escrito, que não compila
+      // nada. É a primeira instrução do botão de propósito.
+      const [lista, estadoDaPonte, estadoDoCoreAI, estadoDaCompilacao] = await Promise.all([
         garantirListaAprovada(),
         ponteDoAparelho.reconsultar(),
         reconsultarPesosAbertos(),
+        relerCompilacaoDosPesos(),
       ]);
+      if (foraDeFocoRef.current) return;
       setPonte(estadoDaPonte);
       setCoreai(estadoDoCoreAI);
+      setCompilacao(estadoDaCompilacao);
       setListaDeMotores(lista);
       const conhecidos = motoresDoRecurso(recurso, { sistema: estadoDaPonte, coreai: estadoDoCoreAI }, lista);
       if (identidadeRef.current !== doLaco) return;
@@ -328,13 +433,41 @@ export default function BancadaScreen() {
         // quando a leitura ou o caso mudam, mas o laço já capturou os dois e
         // continuaria pintando medições do caso velho sob o cabeçalho novo — que é
         // exatamente o erro que esta tela existe para não cometer.
-        if (identidadeRef.current !== doLaco) return;
-        // Quem o dono deixou de fora não corre. O template nunca é desligável: ele é a
-        // régua, e uma corrida sem régua não compara nada.
-        if (m.id !== SEM_MODELO && foraRef.current.has(m.id)) continue;
+        //
+        // **E abandona quem saiu da tela**: a mesma regra da compilação. A coluna em
+        // voo termina sozinha e não publica — repintar uma rota que o dono já trocou
+        // não é resultado, é ruído.
+        if (identidadeRef.current !== doLaco || foraDeFocoRef.current) return;
+        // "Parar" é o controle que existe para isto. A coluna em voo já publicou —
+        // descartar uma medição que aconteceu (e, na nuvem, que foi paga) seria jogar
+        // fora justamente o que a corrida veio buscar.
+        if (pararCorridaRef.current) break;
+        if (m.id !== SEM_MODELO) {
+          // O teto de exposição do recurso: quem passa dele não tem chip e não corre.
+          if (!cabeNoRegime(fonte.regimeMaximo, m.id)) continue;
+          // Quem o dono deixou de fora não corre. O template nunca é desligável: ele é a
+          // régua, e uma corrida sem régua não compara nada.
+          if (foraRef.current.has(m.id)) continue;
+          // A guarda da releitura, pela **mesma** regra que pintou o chip. Quem perdeu o
+          // pé vira uma linha com o motivo: não é um erro, é uma coluna que não
+          // aconteceu, e ela vale tanto quanto uma que aconteceu.
+          const noPe = estadoDoMotorNaCorrida(m, estadoDaCompilacao);
+          if (noPe.tipo !== 'apto') {
+            feitas.push({
+              motor: m.id,
+              desfecho: 'fora',
+              ms: 0,
+              motivo: noPe.tipo === 'fora' ? noPe.naCorrida : 'o diagnóstico deste motor ainda não voltou',
+            });
+            setLinhas([...feitas]);
+            continue;
+          }
+        }
         setRodando(m.id);
-        const linha = await fonte.medir(caso, m.id);
-        if (identidadeRef.current !== doLaco) return;
+        // O teto de espera: um motor que não devolve nem resposta nem erro deixaria o
+        // botão `busy` para sempre, e a tela inteira refém de uma coluna.
+        const linha = await comTeto(() => fonte.medir(caso, m.id), tetoDaCorridaMs(m.id, PRAZOS_DA_CORRIDA), m.id);
+        if (identidadeRef.current !== doLaco || foraDeFocoRef.current) return;
         feitas.push(linha);
         // Publica a cada motor: a nuvem leva ~14 s na mediana, e esperar todas as
         // colunas para mostrar a primeira deixaria a tela vazia por meio minuto.
@@ -342,8 +475,16 @@ export default function BancadaScreen() {
       }
     } finally {
       setRodando(null);
+      setParandoCorrida(false);
+      corridaEmVooRef.current = false;
     }
   }, [fonte, recurso, casoAtual]);
+
+  /** "Parar": a coluna em voo termina e publica; a próxima não abre. */
+  const pararCorrida = useCallback(() => {
+    pararCorridaRef.current = true;
+    setParandoCorrida(true);
+  }, []);
 
   const template = linhas.find((l) => l.motor === SEM_MODELO)?.frase;
 
@@ -355,16 +496,21 @@ export default function BancadaScreen() {
   const amostraEmCurso = amostra.fase === 'preparando' || amostra.fase === 'medindo';
 
   /**
-   * **Perder o foco para a medição**, e não só desmontar: empurrar outra rota deixa esta
-   * tela montada, e sem isto o laço seguiria medindo — com a tela acesa — atrás de uma
-   * tela que o dono já trocou. A janela em voo termina sozinha; a próxima não abre.
+   * **Perder o foco para as duas corridas**, e não só desmontar: empurrar outra rota deixa
+   * esta tela montada, e sem isto os laços seguiriam medindo — com a tela acesa — atrás de
+   * uma tela que o dono já trocou. O que está em voo termina sozinho; o próximo não abre.
+   *
+   * A da amostra guarda o que já mediu (ela publica por janela); a comparação **não
+   * publica** a coluna em voo, porque ela repintaria uma lista que ninguém está vendo.
    */
   const [focada, setFocada] = useState(true);
   useFocusEffect(
     useCallback(() => {
       setFocada(true);
+      foraDeFocoRef.current = false;
       return () => {
         setFocada(false);
+        foraDeFocoRef.current = true;
         pararRef.current = true;
       };
     }, []),
@@ -424,6 +570,25 @@ export default function BancadaScreen() {
     pararRef.current = true;
     setAmostra((a) => (a.fase === 'medindo' ? { ...a, parando: true } : a.fase === 'preparando' ? { ...a, cancelando: true } : a));
   }, []);
+
+  /**
+   * **Por que Medir está inerte** — ou `null`, quando ele não está.
+   *
+   * A causa é uma só, e ela é escrita ao lado do botão **e** dentro do rótulo acessível:
+   * um botão apagado sem motivo audível não diz nada a quem usa VoiceOver, e um botão
+   * apagado sem motivo visível não diz nada a quem enxerga. A ordem é a da pergunta que o
+   * dono faria primeiro: "tem caso?" antes de "tem motor?".
+   */
+  const causaDoMedirInerte: string | null = carregandoCasos
+    ? 'ainda procurando os casos desta leitura'
+    : casoAtual === null
+      ? (casos.motivo ?? 'nenhum caso a medir nesta leitura')
+      : amostraEmCurso
+        ? 'a amostra está medindo — uma corrida por vez'
+        : nenhumMotorNaCorrida
+          ? 'nenhum motor marcado'
+          : null;
+  const medirInerte = causaDoMedirInerte !== null || rodando !== null;
 
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
@@ -489,77 +654,87 @@ export default function BancadaScreen() {
               </View>
             </>
           )}
-          {carregandoCasos ? <Text style={s.meta}>procurando os casos desta leitura…</Text> : null}
-          {!carregandoCasos && casoAtual === null ? (
-            <Text style={s.motivo}>{casos.motivo ?? 'nenhum caso a medir nesta leitura'}</Text>
-          ) : null}
-
-          <Pressable
-            onPress={() => void medir()}
-            disabled={rodando !== null || amostraEmCurso || casoAtual === null}
-            accessibilityRole="button"
-            accessibilityLabel="Medir todos os motores neste caso"
-            accessibilityState={
-              rodando !== null || amostraEmCurso || casoAtual === null
-                ? { disabled: true, busy: rodando !== null }
-                : {}
-            }
-            style={({ pressed }) => [
-              s.botao,
-              (rodando !== null || amostraEmCurso || casoAtual === null) && s.botaoOff,
-              pressed && s.pressed,
-            ]}
-          >
-            {rodando !== null ? <ActivityIndicator size="small" color={colors.onPrimary} /> : null}
-            <Text style={s.botaoTexto}>
-              {rodando === null ? 'Medir os motores' : `medindo ${nomeDoMotor(rodando)}…`}
-            </Text>
-          </Pressable>
+          {/* O motivo de não haver caso não é escrito aqui: ele é **a causa do botão inerte**,
+              e é lá embaixo, ao lado do Medir, que ele responde à pergunta que o dono faz.
+              Escrevê-lo nos dois lugares diria a mesma frase duas vezes na mesma tela. */}
           {casoAtual !== null ? <Text style={s.meta}>caso: {casoAtual.rotulo}</Text> : null}
+
           <Text style={s.rotulo}>quem entra</Text>
           <View style={s.chips}>
-            {motoresDaCorrida.map((m) => {
-              if (m.id === SEM_MODELO) {
-                return (
-                  <View key={m.id} style={[s.chip, s.chipRegua]}>
-                    <Text style={s.chipTextoRegua}>{m.rotulo} · régua</Text>
-                  </View>
-                );
-              }
-              const dentro = !foraDaCorrida.has(m.id);
-              const travado = !m.disponivel;
-              return (
-                <Pressable
-                  key={m.id}
-                  onPress={() => alternarNaCorrida(m.id)}
-                  disabled={travado || rodando !== null || amostraEmCurso}
-                  accessibilityRole="switch"
-                  accessibilityLabel={`${m.rotulo} na corrida`}
-                  accessibilityState={{ checked: dentro && !travado, disabled: travado }}
-                  style={({ pressed }) => [
-                    s.chip,
-                    dentro && !travado ? s.chipDentro : s.chipFora,
-                    travado && s.chipTravado,
-                    pressed && s.pressed,
-                  ]}
-                >
-                  <Text style={dentro && !travado ? s.chipTextoDentro : s.chipTexto}>
-                    {m.rotulo}
-                    {travado ? ' · indisponível' : ''}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {/* A régua **só onde há régua**: nas outras duas leituras o `semModelo` devolve
+                uma lápide, e um chip escrito "· régua" ali prometeria uma coluna que o
+                cartão logo abaixo explica que não vai existir. Ela não é controle — o
+                tracejado diz isso sem gastar uma palavra —, então é `View`, não `Pressable`. */}
+            {regua !== undefined ? (
+              <View style={[s.chip, s.chipRegua]}>
+                <Text style={s.chipTextoRegua}>{regua.rotulo} · régua</Text>
+              </View>
+            ) : null}
+            {chips.map((c) => (
+              <ChipDoMotor
+                key={c.id}
+                chip={c}
+                travadoPelaCorrida={rodando !== null || amostraEmCurso}
+                aoAlternar={alternarNaCorrida}
+                s={s}
+              />
+            ))}
           </View>
           {nenhumMotorNaCorrida ? (
-            <Text style={s.aviso}>Só a régua está marcada — ligue ao menos um motor para a corrida medir algo.</Text>
-          ) : null}
-          {PESOS_ABERTOS.some((p) => !foraDaCorrida.has(p.id)) ? (
             <Text style={s.aviso}>
-              Peso aberto na corrida: a primeira chamada de cada modelo compila e leva minutos; o prazo
-              dele é de 45 min, não de 1.
+              {regua === undefined
+                ? 'Nenhum motor marcado — ligue ao menos um para a corrida medir algo.'
+                : 'Só a régua está marcada — ligue ao menos um motor para a corrida medir algo.'}
             </Text>
           ) : null}
+          <Text style={s.aviso}>
+            A corrida não compila nada: um peso aberto que não esteja compilado fica travado e não
+            entra. E ela relê o diagnóstico e o compilado antes de começar — quem perdeu o pé no
+            meio sai com o motivo, em vez de virar uma chamada de minutos.
+          </Text>
+
+          <View style={s.linhaDoBotao}>
+            <Pressable
+              onPress={() => void medir()}
+              disabled={medirInerte}
+              accessibilityRole="button"
+              accessibilityLabel={
+                rodando !== null
+                  ? `Medir — medindo ${nomeDoMotor(rodando)}`
+                  : causaDoMedirInerte !== null
+                    ? `Medir — ${causaDoMedirInerte}`
+                    : 'Medir todos os motores neste caso'
+              }
+              accessibilityState={medirInerte ? { disabled: true, busy: rodando !== null } : {}}
+              style={({ pressed }) => [s.botao, s.botaoLargo, medirInerte && s.botaoOff, pressed && s.pressed]}
+            >
+              {rodando !== null ? <ActivityIndicator size="small" color={colors.onPrimary} /> : null}
+              <Text style={s.botaoTexto}>
+                {rodando === null ? 'Medir os motores' : `medindo ${nomeDoMotor(rodando)}…`}
+              </Text>
+            </Pressable>
+            {/* Parar é o controle que existe para interromper: o próprio Medir fica inerte
+                enquanto corre, senão um segundo toque largaria uma segunda corrida sobre a
+                mesma lista. */}
+            {rodando !== null ? (
+              <Pressable
+                onPress={pararCorrida}
+                disabled={parandoCorrida}
+                accessibilityRole="button"
+                accessibilityLabel="Parar a corrida — a coluna em voo termina sozinha"
+                accessibilityState={parandoCorrida ? { disabled: true } : {}}
+                style={({ pressed }) => [s.botaoSuave, parandoCorrida && s.botaoOff, pressed && s.pressed]}
+              >
+                <Text style={s.botaoSuaveTexto}>{parandoCorrida ? 'parando…' : 'Parar'}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {/* A causa ao lado do botão, e não num alerta: ela é a resposta à única pergunta
+              que um botão apagado levanta. */}
+          {rodando === null && causaDoMedirInerte !== null ? (
+            <Text style={s.motivo}>Medir está inerte: {causaDoMedirInerte}.</Text>
+          ) : null}
+          {parandoCorrida ? <Text style={s.meta}>parando — a coluna em voo termina sozinha</Text> : null}
           <Text style={s.aviso}>
             Modo medição: um motor por vez, sem recuo e sem piso. A frase do template é a régua. O
             texto cru só aparece aqui, e nada disto sai do aparelho.
@@ -582,11 +757,14 @@ export default function BancadaScreen() {
           <BlocoDoMotor key={l.motor} linha={l} template={template} s={s} />
         ))}
 
-        {/* A amostra da 5.13 é **da Saúde do sono**: a enumeração de janelas, a régua e as
-            quatro medidas da ADR 0050 são daquela leitura. Escondida nas outras em vez de
-            deixada à vista medindo outra coisa — um cartão que mentisse aqui mentiria sobre
-            o único número que fixou um limiar. */}
-        {recurso === descritorDaSaudeDoSono.recurso ? (
+        {/* A corrida de N janelas da 5.13 é **da Saúde do sono**: a enumeração, a régua e as
+            quatro medidas da ADR 0050 são daquela leitura. Quem diz isso é a **fonte**, e não
+            um `recurso === 'saude-do-sono'` escrito aqui: os chips de amostra ("22 janelas",
+            "o ano") só existem onde há mais de uma janela, e numa leitura sem série anual eles
+            seriam botões que não têm o que abrir. Escondida nas outras em vez de deixada à
+            vista medindo outra coisa — um cartão que mentisse aqui mentiria sobre o único
+            número que fixou um limiar. */}
+        {fonte.variasJanelas ? (
           <>
             <CartaoDaAmostra
               estado={amostra}
@@ -610,8 +788,73 @@ export default function BancadaScreen() {
 
 type Styles = ReturnType<typeof createStyles>;
 
+/**
+ * Um chip de "quem entra", nas quatro formas.
+ *
+ * **Consultando não é indisponível**, e é a forma nova desta fatia: o diagnóstico ainda
+ * está a caminho, então o chip não responde ao toque, é anunciado **ocupado** (não como um
+ * motor que não existe) e não conta como marcado. Travado carrega o motivo dentro do
+ * próprio rótulo, porque um chip não tem linha de baixo onde pôr explicação — e por isso
+ * os 36 pt do alvo são **mínimo**: com Texto grande o chip cresce e quebra em duas linhas,
+ * e é justamente o motivo que uma altura fixa cortaria primeiro.
+ *
+ * As duas formas sem toque são `View`, e não `Pressable` desabilitado: um controle que não
+ * é controle não deve nem registrar o toque.
+ */
+function ChipDoMotor({
+  chip,
+  travadoPelaCorrida,
+  aoAlternar,
+  s,
+}: {
+  chip: ChipDaCorrida;
+  /** A corrida (ou a amostra) está medindo: trocar a composição no meio a tornaria incomparável consigo mesma. */
+  travadoPelaCorrida: boolean;
+  aoAlternar: (id: MotorId) => void;
+  s: Styles;
+}) {
+  if (chip.forma === 'consultando' || chip.forma === 'travado') {
+    const consultando = chip.forma === 'consultando';
+    return (
+      <View
+        accessible
+        accessibilityRole="switch"
+        accessibilityLabel={`${chip.rotulo} na corrida`}
+        accessibilityState={{ checked: false, disabled: true, busy: consultando }}
+        style={[s.chip, s.chipFora, consultando ? s.chipConsultando : s.chipTravado]}
+      >
+        <Text style={s.chipTexto}>{chip.rotulo}</Text>
+      </View>
+    );
+  }
+  const dentro = chip.forma === 'dentro';
+  return (
+    <Pressable
+      onPress={() => aoAlternar(chip.id)}
+      disabled={travadoPelaCorrida}
+      accessibilityRole="switch"
+      accessibilityLabel={`${chip.rotulo} na corrida`}
+      accessibilityState={{ checked: dentro, disabled: travadoPelaCorrida }}
+      style={({ pressed }) => [s.chip, dentro ? s.chipDentro : s.chipFora, pressed && s.pressed]}
+    >
+      <Text style={dentro ? s.chipTextoDentro : s.chipTexto}>{chip.rotulo}</Text>
+    </Pressable>
+  );
+}
+
 function BlocoDoMotor({ linha, template, s }: { linha: Linha; template?: string; s: Styles }) {
   const daRegua = linha.motor === SEM_MODELO;
+  // **A coluna que não aconteceu.** Um motor que perdeu o pé na releitura não tem tempo,
+  // não tem frase e não tem régua ao lado: mostrar o cabeçalho de uma medição para ele
+  // sugeriria que houve chamada. O cartão é apagado, e o que resta é o fato.
+  if (linha.desfecho === 'fora') {
+    return (
+      <View style={[s.card, s.cardFora]}>
+        <Text style={s.motor}>{linha.motor}</Text>
+        <Text style={s.motivo}>fora: {linha.motivo}</Text>
+      </View>
+    );
+  }
   return (
     <View style={s.card}>
       <View style={s.linhaTopo}>
@@ -1143,6 +1386,8 @@ const createStyles = () =>
       gap: 4,
       ...shadows.card,
     },
+    // O cartão de uma coluna que não aconteceu: apagado, para não competir com as medições.
+    cardFora: { backgroundColor: colors.surfaceMute },
     botao: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1155,14 +1400,39 @@ const createStyles = () =>
     },
     botaoOff: { opacity: 0.6 },
     botaoTexto: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.onPrimary },
+    // Medir e Parar lado a lado: o forte cresce, o suave fica do tamanho do dedo.
+    linhaDoBotao: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+    botaoLargo: { flexGrow: 1, flexShrink: 1 },
+    botaoSuave: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: spacing.md,
+      minWidth: 84,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    botaoSuaveTexto: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
     aviso: { marginTop: spacing.sm, fontSize: 11.5, lineHeight: 16, fontFamily: fonts.sans, color: colors.ink3 },
 
     // Os chips de "quem entra": ligado é preenchido, desligado é contorno, indisponível é
-    // apagado e não responde ao toque. O alvo tem 36 pt de altura por causa do dedo.
+    // apagado e não responde ao toque, e consultando é uma quarta forma — mais viva que o
+    // travado, porque ele ainda pode virar um motor de pé.
+    //
+    // **Os 36 pt são mínimo, nunca altura fixa.** O motivo mora dentro do rótulo do chip
+    // travado (ele não tem linha de baixo onde pô-lo), e uma caixa de altura travada corta
+    // primeiro exatamente ele, em Texto grande — deixando na tela um controle apagado sem
+    // explicação nenhuma. O `maxWidth` prende o chip à fileira para o texto quebrar em duas
+    // linhas em vez de transbordar, e a fileira quebra com ele.
     chips: { marginTop: spacing.xs, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     chip: {
       minHeight: 36,
+      maxWidth: '100%',
+      flexShrink: 1,
       paddingHorizontal: 12,
+      paddingVertical: 6,
       justifyContent: 'center',
       borderRadius: 999,
       borderWidth: 1,
@@ -1170,6 +1440,10 @@ const createStyles = () =>
     chipDentro: { backgroundColor: colors.ink, borderColor: colors.ink },
     chipFora: { backgroundColor: colors.surface, borderColor: colors.line },
     chipTravado: { opacity: 0.45 },
+    // Consultando fica **entre** o desligado e o travado, e não tracejado: o tracejado é o
+    // vocabulário da régua ("isto não é um controle"), e um motor que ainda vai responder é
+    // um controle. Quem carrega o sentido é a palavra no rótulo, não a opacidade.
+    chipConsultando: { opacity: 0.7 },
     chipRegua: { backgroundColor: colors.surfaceMute, borderColor: colors.line, borderStyle: 'dashed' },
     chipTexto: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
     // Sobre o preenchimento de tinta, o texto é o fundo do app — e não `onPrimary`, que é a
