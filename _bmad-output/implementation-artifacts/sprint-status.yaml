@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 21-09-2026 21:30
+last_updated: 23-09-2026 02:10
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -183,17 +183,60 @@ development_status:
   1-15-o-piloto-de-três-edições: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
+  epic-2: in-progress
   # Encolhe se a 5.4 chegar antes: quem chegar primeiro cria o workspace scripts/.
-  2-1-o-quarto-workspace-e-a-barreira-que-o-enxerga: backlog
+  # FECHADA em 21/09/2026 por conferência — a 5.4 chegou primeiro e cumpriu os
+  # quatro critérios: `scripts` está no pnpm-workspace.yaml com @supabase/supabase-js
+  # e tsx declarados; a barreira do `.from()` varre scripts/ ("desde a 5.4, critério
+  # 2 da 2.1", architecture.test.ts); o CI roda `pnpm --filter @vitale/scripts lint`
+  # e `test` (ci.yml:70-72); e o client é construído em scripts/bancada/supabase.ts,
+  # nunca no núcleo.
+  2-1-o-quarto-workspace-e-a-barreira-que-o-enxerga: done
   # Do lado do modelo, só injeta `invocar` (AD-14 dos motores).
-  2-2-o-script-imprime-uma-edição-e-ela-é-idêntica-à-do-telefone: backlog
+  # CRESCEU no planejamento (21/09, decisões do dono 1a/2a/3a): a entrada da edição
+  # sobe da retro.store para o núcleo, cortada na janela retroSince (o telefone
+  # deixa de depender do que foi aberto antes); portasDaEdicao ganha a guarda
+  # contra impressão concorrente; a capa fica para a 2.3.
+  # FECHADA em 22/09/2026 PELO DONO, com a credencial dele. As duas conferências:
+  #  · ENSAIO em agosto/2026, o mês que o telefone imprimiu no piloto: os quatro
+  #    cadernos batem o que está gravado em TODOS os campos comparados — posição,
+  #    provedor (google), modelo (gemini-3.6-flash), prompt_versao 5, pacote_versao
+  #    3, agg_version 9 e métrica líder, inclusive o NULO do Sono. A ordem do
+  #    ranqueamento saiu igual à congelada em 18/09. Zero `≠` na tabela.
+  #    O caderno movimento caiu em `transitoria` nesse ensaio e a linha antiga
+  #    ficou de pé, como a sequência promete; na impressão seguinte ele escreveu.
+  #  · IMPRESSÃO REAL da semana de 17/08 (period sem edição): os quatro escreveram,
+  #    ordem contígua 1–4, gravados numa chamada, e o dono abriu a edição no
+  #    iPhone — "funcionou". É a primeira edição gravada por um hospedeiro que
+  #    não é o telefone.
+  # A semana de 14/09 provou em produção a recusa do já impresso: parou depois da
+  # leitura e antes de qualquer chamada paga.
+  2-2-o-script-imprime-uma-edição-e-ela-é-idêntica-à-do-telefone: done
   # 2.6 e 2.7 entram ANTES da 2.3 — nasceram no piloto (1.15, 18/09/2026): a
   # impressão em massa espalharia o zero no lugar da ausência por 2023–2025, e
   # sairia sem lápide nenhuma. A 2.7 tem três decisões do dono antes do código
   # (limiar, latência e prazo da morte antiga — deferred-work).
-  2-6-o-que-ainda-não-era-registrado-não-vira-zero: backlog
+  # EM ANDAMENTO desde 23/09/2026. DECISÃO DO DONO na spec: setembro e outubro
+  # de 2023 serão REIMPRESSAS na 2.3 — e, antes, o texto atual das duas vai para
+  # docs/specs/revista-retrospectiva/, como as 7 antigas na janela da 1.9. Quem
+  # exporta é o dono, com o JWT dele; é pré-condição da 2.3, não da 2.6.
+  # Achado do planejamento: nenhuma consulta nova ao banco entra — o marco de cada
+  # contagem já chega carregado (createdOn de hábitos, registros e séries; a
+  # primeira atividade do acervo), e medição sem dia com valor já é nula.
+  # CONSTRUÍDA em 23/09/2026, em review. `RetroSummary.marcos` (opcional) leva ao
+  # pacote o que só ele lê; `deRecap` deixou de forçar `?? 0` e passou a receber o
+  # veredito "foi medido?" por fato e pela base anterior; `PACOTE_VERSAO` foi a 4 e
+  # o GABARITO do contrato foi refixado no mesmo passo (o TEXTO do prompt de maio
+  # não mudou — só a versão que entra no hash). Nenhuma consulta nova, nenhuma
+  # migração, prompt e conferência intactos. Os quatro workspaces verdes.
+  2-6-o-que-ainda-não-era-registrado-não-vira-zero: review
   2-7-o-detector-de-métrica-morta: backlog
+  # PRÉ-CONDIÇÃO, decidida pelo dono em 23/09/2026 (spec da 2.6): setembro e
+  # outubro de 2023 já estão impressas e carregam o zero no lugar da ausência, e
+  # serão REIMPRESSAS aqui. ANTES de reimprimir, o texto atual das duas tem de ir
+  # para docs/specs/revista-retrospectiva/, como se fez com as 7 edições antigas
+  # na janela da 1.9 — reimprimir sem exportar perde o texto para sempre. Quem
+  # exporta é o dono, com o JWT dele. A 2.6 não reimprime nem apaga nada.
   2-3-a-impressão-em-massa-dos-períodos-fechados: backlog
   2-4-a-parede-de-capas: backlog
   2-5-silenciar-um-caderno: backlog

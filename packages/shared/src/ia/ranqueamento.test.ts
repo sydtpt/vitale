@@ -568,22 +568,25 @@ describe('lápide no último dia do período — ainda é do período', () => {
 });
 
 /*
- * O CADERNO VAZIO COM A FORMA QUE O CELULAR MANDA.
+ * O CADERNO VAZIO COM A FORMA QUE OS HOSPEDEIROS MANDAM.
  *
- * As fixtures acima esvaziam Coração tirando a linha de FC do resumo. O celular
- * não faz isso: ele manda SEMPRE as três linhas de saúde da retro
- * (`mobile/src/store/retro.store.ts`, `HEALTH_SPECS`: sono, vfc, fcRepouso), e o
+ * As fixtures acima esvaziam Coração tirando a linha de FC do resumo. Os dois
+ * hospedeiros que imprimem — o celular e o script (`scripts/revista/`) — não fazem
+ * isso: desde a 2.2 os dois montam a entrada pela mesma conta do núcleo
+ * (`period/retro-dados.ts`), que manda SEMPRE as três linhas de saúde da
+ * `HEALTH_SPECS` (sono, vfc, fcRepouso), e o
  * mês sem medida chega com as linhas presentes e todo `atual` nulo. É essa a
  * forma que `semDado` tem que ler — um `semDado` que olhasse "não há linha" em
  * vez de "não há valor" passava em todas as outras fixtures.
  */
-describe('o caderno vazio com a forma que o celular manda — linhas presentes, sem valor', () => {
+describe('o caderno vazio com a forma que os hospedeiros mandam — linhas presentes, sem valor', () => {
   const HEALTH_SPECS_DO_CELULAR = [
     { metric: 'sono', label: 'Sono', higherIsWorse: false, icon: 'sleep' as never, decimals: 1, unit: 'h' },
     { metric: 'vfc', label: 'VFC', higherIsWorse: false, icon: 'hrv' as never, decimals: 0, unit: ' ms' },
     { metric: 'fcRepouso', label: 'FC repouso', higherIsWorse: true, icon: 'heart' as never, decimals: 0, unit: ' bpm' },
   ];
   const agostoInteiro = Array.from({ length: 31 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`);
+  const setembroInteiro = Array.from({ length: 30 }, (_, i) => `2026-09-${String(i + 1).padStart(2, '0')}`);
   // Setembro/2026 sem uma medida; agosto com todas — o relógio parou na virada.
   const resumo = buildRetrospective({
     now: new Date('2026-10-06T12:00:00'),
@@ -591,6 +594,13 @@ describe('o caderno vazio com a forma que o celular manda — linhas presentes, 
     offset: -1,
     activities: [],
     health: HEALTH_SPECS_DO_CELULAR.map((h) => ({ ...h, valuesByDay: new Map(agostoInteiro.map((d) => [d, 50])) })),
+    // Os outros dois cadernos têm de continuar existindo, senão `ordem` sai vazia
+    // e o `includes` de Coração e Sono passa por tabela rasa. Desde a Story 2.6 o
+    // que os mantém é MEDIDA, não zero: os passos são medição passiva (dia com
+    // valor), e a série de tarefa nasceu muito antes — "0 tarefas em setembro" é
+    // zero de verdade, e continua citável.
+    stepsByDay: new Map(setembroInteiro.map((d) => [d, 8000])),
+    taskSeries: [{ createdOn: '2025-01-10', module: 'casa' }],
     habits: [], registros: [], tasks: [], purchases: [],
   });
   const ps = montarPacotes({ resumo, agora: AGORA });

@@ -6,6 +6,7 @@ O quarto workspace (`@vitale/scripts`). Roda no **Node**, não tem bundler, e é
 | Pasta | O que é |
 |---|---|
 | `bancada/` | A bancada dos motores (story 5.4): mede a leitura da Saúde do sono, motor por motor, sobre o acervo real — e, desde a 5.10, o modelo do aparelho, por uma CLI Swift local (`bancada/aparelho/`) |
+| `revista/` | A impressão da edição da Retrospectiva fora do telefone (story 2.2) — a mesma que o iPhone imprimiria. Ver [Imprimir uma edição](#imprimir-uma-edição) |
 | `github/` | As ferramentas em **Python** do quadro e da sprint. Ficam como estão — fora do `tsc` e do `pnpm test` |
 
 ```bash
@@ -181,21 +182,45 @@ pegar o JWT que o navegador já tem depois do login.
 
    ```js
    // A chave do Supabase no armazenamento local termina em "-auth-token";
-   // o valor é JSON com access_token e refresh_token.
+   // o valor é JSON com access_token e refresh_token. O arquivo desce para
+   // ~/Downloads e é apagado na mesma linha que o lê, no passo 3.
    (() => {
      const k = Object.keys(localStorage).find((x) => x.endsWith('-auth-token'));
      if (!k) return 'não achei a sessão — entre primeiro';
      const s = JSON.parse(localStorage.getItem(k));
-     return [
-       `export ORBE_ACCESS_TOKEN='${s.access_token}'`,
-       `export ORBE_REFRESH_TOKEN='${s.refresh_token}'`,
-     ].join('\n');
+     const txt = `export ORBE_ACCESS_TOKEN='${s.access_token}'\nexport ORBE_REFRESH_TOKEN='${s.refresh_token}'\n`;
+     const a = document.createElement('a');
+     a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
+     a.download = 'orbe-sessao.txt';
+     a.click();
+     return 'baixado: orbe-sessao.txt (na pasta Downloads)';
    })()
    ```
 
-3. Copie as duas linhas e cole **no terminal** onde a bancada vai rodar. Em nenhum
-   outro lugar: não num arquivo, não numa anotação, não num chat. Os dois são a sua
-   sessão inteira.
+3. No terminal onde a bancada vai rodar, leia e apague o arquivo **na mesma linha**:
+
+   ```bash
+   source ~/Downloads/orbe-sessao.txt && rm ~/Downloads/orbe-sessao.txt
+   echo "partes: $(awk -F. '{print NF}' <<<"$ORBE_ACCESS_TOKEN") · tamanho: ${#ORBE_ACCESS_TOKEN}"
+   ```
+
+   A conferência tem de dizer `partes: 3` e um tamanho perto de 1000. Ela mostra a
+   **forma** do token, nunca o conteúdo — é assim que se diagnostica isto sem expor
+   segredo, aqui e em qualquer conversa.
+
+> **Por que um arquivo, e não a área de transferência.** Esta receita já devolveu as duas
+> linhas `export` para copiar, e ela falha na prática, de três jeitos medidos (22/09/2026):
+> o console mostra a resposta **entre aspas e com `\n` literal**, que colado não cria
+> variável nenhuma; `Ctrl+V` no terminal não cola (é *quoted insert*, e engole o Enter
+> seguinte, deixando um `read` preso para sempre); e quem copia o **comando** de um chat ou
+> de um documento para colar no terminal **sobrescreve o token** na área de transferência,
+> então `pbpaste` devolve o comando — o script morre com "Invalid JWT structure", que não
+> diz nada sobre a causa. O arquivo tem uma cópia só e nenhuma ordem a acertar. O preço
+> declarado: o segredo passa alguns segundos em disco, e o `rm` do passo 3 é parte da
+> receita, não um cuidado opcional.
+>
+> **Nunca misture "copie este comando" com "copie este segredo"** ao ensinar isto a alguém
+> — inclusive a um agente. É a armadilha acima, e ela sempre aparece longe da causa.
 
 O **token de acesso dura cerca de uma hora**. O `ORBE_REFRESH_TOKEN` é opcional, mas é
 ele que resolve corrida longa: com ele a bancada renova sozinha no meio da medição; sem
@@ -312,6 +337,103 @@ próprio arquivo diz isso na primeira chave.
 - **Não mede o alcance `ano`.** O acervo cobre dois anos parciais, ambos
   `sem-contagem`; as outras quatro janelas do seletor cobrem o que há para ler. O
   rodapé do relatório registra isso.
+
+---
+
+## Imprimir uma edição
+
+`revista/imprimir.ts` imprime a edição de **um** período fechado — mês, trimestre, ano
+ou semana — e grava pela mesma porta do iPhone (`portasDaEdicao` → `edicao_imprimir`).
+A edição que sai daqui é a que o telefone imprimiria: a entrada é montada pela mesma
+conta do núcleo (`entradaDaRetrospectiva`), a sequência é a mesma (`imprimir`), e a
+cadeia é a padrão da revista — a do iPhone **sem preferência**. Não há `--motor` nem
+`--cadernos`, de propósito: uma escolha aqui seria uma segunda edição possível para o
+mesmo período.
+
+**Rode antes com `--sem-gravar`**:
+
+```bash
+# o ensaio: chama o modelo, confere, não grava, e compara com o que está no banco
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --tipo month --inicio 2026-08-01 --sem-gravar
+# a impressão, num período que ainda NÃO tem edição (se já tiver, ele recusa e diz como seguir)
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --tipo week --inicio 2026-08-17
+```
+
+O ensaio é mais útil num período que o **telefone já imprimiu** — agosto/2026 é um deles —,
+porque aí a tabela do fim compara linha a linha o que sairia agora com o que está gravado.
+Foi assim que a story 2.2 foi aceita em 22/09/2026: zero diferenças nos quatro cadernos.
+
+A credencial é a da bancada ([o caminho do token](#o-caminho-do-token-preferido) ou o
+da senha), com uma diferença: **para gravar, o `ORBE_REFRESH_TOKEN` é obrigatório** junto
+com o `ORBE_ACCESS_TOKEN`. A porta de gravação confere a conta pela sessão do client, e o
+token de acesso sozinho não instala sessão nenhuma — sem o refresh, a gravação recusaria
+no fim, depois de pagar os cadernos. Com `--sem-gravar`, o token sozinho basta. Faltando
+algo, o script para **antes de abrir rede** e diz o nome da variável, nunca o valor.
+
+| Bandeira | O que faz |
+|---|---|
+| `--tipo <tipo>` | `month`, `season`, `year` ou `week` (ou `mes`, `estacao`, `ano`, `semana`, como na rota da revista). `all` é recusado: o Total nunca fecha |
+| `--inicio AAAA-MM-DD` | o primeiro dia do período, nessa grafia (`2026-5-1`, `2026-05` e `05/2026` são recusados). Um dia que não abre período — a semana começa na segunda, o trimestre em janeiro, abril, julho ou outubro, o ano em 1º de janeiro —, o período em curso e o futuro são recusados antes da rede |
+| `--sem-gravar` | chama o modelo e confere, e **nunca** chega à função do banco: compara o que gravaria com o que está gravado — posição, provedor, modelo, `prompt_versao`, `pacote_versao`, `agg_version` e métrica líder. O desfecho é `ensaio`, nunca `gravada` |
+| `--reimprimir` | imprime de novo um período que já tem edição. Sem ela (e sem `--sem-gravar`), o período já impresso é recusado antes de chamar o modelo — e a recusa é feita duas vezes: na leitura do começo, e de novo na leitura da sequência, que roda depois do acervo e antes do primeiro caderno. É a segunda que pega o telefone imprimindo o mesmo período enquanto o script lia o acervo |
+| `--ajuda` | a lista acima, gerada do código |
+
+**O que sai no terminal:** o período, **o fuso**, a janela lida e as contagens do acervo;
+por caderno, o desfecho, o hash curto do pedido e a métrica líder. **Nunca o texto** — ele
+é leitura de saúde, e mora no banco. O hash é o do pedido (AD-11): o mesmo pedido no
+iPhone tem o mesmo hash.
+
+A linha final separa **três grupos**, no `--sem-gravar` também:
+
+```
+  gravou: rotina, movimento, sono / manteve: coracao (…) / saíram: nenhum
+  gravaria: rotina, movimento, sono / manteria: coracao (…) / sairiam: nenhum — nada foi gravado
+```
+
+- **escritos agora** — o modelo escreveu, a conferência aprovou, e o texto novo vai à função;
+- **mantidos** — já estavam impressos e caíram no piso nesta impressão (reprovação, falha
+  de rede): ficam na edição com o texto e a assinatura **de antes**, e portanto com a
+  `agg_version` antiga, que a errata vai marcar;
+- **saíram** — estavam impressos e não estão na ordem nova: a função os apaga.
+
+Sai com status 0 quando a edição foi gravada — ou, no `--sem-gravar`, quando haveria o que
+gravar —, e 1 em toda recusa, quando nenhum caderno passou na conferência, ou quando uma
+porta falhou (uma leitura do acervo, a guarda da impressão concorrente).
+
+**O fuso tem de ser o do iPhone.** O período, o dia de cada tarefa concluída e o dia de
+cada atividade saem do relógio local de quem imprime — no telefone, do dele; aqui, desta
+máquina. Com outro fuso, a tarefa feita às 00:30 cai em outro dia, e a edição deixa de ser
+a do telefone. O cabeçalho diz o fuso usado, com o deslocamento **de agora**
+(`Europe/Brussels (UTC+02:00 agora)`) — que não é necessariamente o do período: um mês de
+inverno impresso no verão mostra o do verão. Um `TZ` com o nome errado
+(`TZ=Europe/Bruxelas`) **não dá erro no Node** — o processo cai para UTC calado —, então o
+script o recusa antes de abrir rede, nomeando a variável; um `TZ` válido cujo deslocamento
+não é o do processo também é recusado. Sem `TZ`, vale o fuso do sistema.
+
+**Até a 2.6 e a 2.7 fecharem, não imprima pelo script período anterior ao começo do
+registro** dos hábitos e da saúde. Ele sai com **zero** no lugar de "não medido", e **sem
+lápide** para a métrica que parou de chegar — foi o que o piloto (1.15) achou em 2023. A 2.6
+ensina a ausência a não virar zero, e a 2.7 põe o detector de métrica morta; até lá, o
+script serve para períodos em que o registro já existia.
+
+**Não imprima o mesmo período pelos dois ao mesmo tempo.** A função do banco apaga todo
+caderno fora da ordem da impressão, e a ordem nasce do que estava impresso quando a
+impressão começou. A porta relê a edição antes de gravar e recusa (`EdicaoMudouNaImpressao`)
+se o conjunto de cadernos mudou no meio — alguém imprimiu ou apagou —, se a gravação pede
+outro período que não o lido, ou se já houve uma gravação sobre essa leitura (uma gravação
+por leitura). Isso estreita a janela de minutos para uma ida e volta ao banco, e **não a
+fecha**: fechá-la é migração, e está no deferred-work.
+
+**A capa não é carimbada.** O script não toca em `edicoes_capa` — o carimbo da impressão
+em massa é da story 2.3. **A edição impressa por aqui fica sem capa até a 2.3.** A única
+exceção é o telefone: reescrever um caderno dela no iPhone carimba a capa, porque a
+impressão parcial carimba quando a edição ainda não tem nenhuma (`edicao.store.ts`).
+
+**O que prova que é a mesma edição:** a fixture do núcleo
+(`packages/shared/src/period/__tests__/contrato-da-edicao.ts`) é impressa pelo núcleo, pelo
+celular (`mobile/src/store/__tests__/contrato-da-edicao.test.ts`) e por este script
+(`revista/imprimir.test.ts`), e os três batem **o mesmo gabarito** — o hash de cada caderno e
+a carga inteira que chega à função, com a assinatura.
 
 ---
 

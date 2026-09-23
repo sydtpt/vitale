@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import type { RetroSummary, RetroHabitRow, RetroRegistroRow } from '../period/retro';
+import type { RetroInput, RetroSummary, RetroHabitRow, RetroRegistroRow } from '../period/retro';
 import { buildRetrospective } from '../period/retro';
 import type { Activity } from '../models/index';
 import type { RecapValue, MetricRecap } from '../week/recap';
@@ -30,7 +30,7 @@ import {
   valoresDoPacote,
 } from './pacote';
 import { montarPrompt, montarPromptDaEdicao } from './prompt';
-import { ordenarCadernos } from './ranqueamento';
+import { liderDoCaderno, ordenarCadernos } from './ranqueamento';
 import { estacaoDaLuz } from '../astro/casa';
 
 /* ── fábricas ── */
@@ -294,11 +294,12 @@ describe('montarPacotes — agosto de 2026', () => {
   });
   const c = porCaderno(pacotes);
 
-  it('devolve os quatro cadernos, na ordem do catálogo, na versão 3', () => {
-    // 3: `amostra` e `comparavel` no fato, e a lápide como fato próprio.
+  it('devolve os quatro cadernos, na ordem do catálogo, na versão 4', () => {
+    // 4: o veredito "foi medido?" por fato — ausência de registro deixou de virar
+    // zero. (3: `amostra` e `comparavel` no fato, e a lápide como fato próprio.)
     assert.deepEqual(pacotes.map((p) => p.caderno), [...CADERNO_IDS]);
-    for (const p of pacotes) assert.equal(p.versao, 3);
-    assert.equal(PACOTE_VERSAO, 3);
+    for (const p of pacotes) assert.equal(p.versao, 4);
+    assert.equal(PACOTE_VERSAO, 4);
   });
 
   it('todo pacote carrega o mesmo período, e ele está fechado', () => {
@@ -1609,6 +1610,341 @@ describe('do `buildRetrospective` ao fato — `createdOn`, `nAnterior` e as ativ
     assert.equal(gasto?.bases[0].deltaPct, 1780);
     assert.equal(gasto?.amostra, 1, '"gasto +1780%" apoiado numa compra com preço, não em oito');
     assert.equal(fato(c.rotina, 'compras')?.amostra, 8);
+  });
+});
+
+/*
+ * O QUE AINDA NÃO ERA REGISTRADO NÃO VIRA ZERO (Story 2.6).
+ *
+ * Os oito casos da matriz, sobre UM acervo só, lido de quatro períodos. Passa
+ * inteiro pelo `buildRetrospective` de propósito: os marcos nascem lá, e um
+ * `RetroSummary` montado à mão não provaria que eles saem do dado.
+ *
+ * O acervo: a primeira atividade em 05/01/2026, os passos só em janeiro, a série
+ * de tarefa em 01/02, a de compras em 01/03, o café em 20/05 e o corte em 24/05.
+ * Antes disso, nada — e é o "antes disso" que a revista chamava de zero.
+ */
+describe('o que ainda não era registrado não vira zero — a matriz da Story 2.6', () => {
+  const diasDe = (mes: string, de: number, ate: number) =>
+    Array.from({ length: ate - de + 1 }, (_, k) => `${mes}-${String(de + k).padStart(2, '0')}`);
+
+  const PRIMEIRA_ATIVIDADE = '2026-01-05';
+  const SERIE_DE_TAREFA = '2026-02-01';
+  const SERIE_DE_COMPRAS = '2026-03-01';
+  const CAFE_NASCEU = '2026-05-20';
+  const CORTE_NASCEU = '2026-05-24';
+  /** Os dias de maio em que o café foi marcado: 11 dias, do 20 ao 30. */
+  const CAFE_EM_MAIO = diasDe('2026-05', 20, 30);
+
+  let n = 0;
+  const ato = (dia: string, activityId: number, distanceM: number): Activity => ({
+    id: `m${n += 1}`, userId: 'u', activityId, calories: 0,
+    startAt: `${dia}T08:00:00`, endAt: `${dia}T09:00:00`, durationS: 3600, distanceM, hasRoute: true,
+  });
+
+  /** O relógio da montagem: depois de todos os períodos, para todos estarem fechados. */
+  const DEPOIS = new Date('2026-12-01T12:00:00');
+
+  /** O acervo inteiro, lido do mês anterior a `agora`. */
+  const mesAnteriorA = (agora: Date, ajuste: Partial<RetroInput> = {}): PacoteDeFatos[] => montarPacotes({
+    resumo: buildRetrospective({
+      now: agora,
+      kind: 'month',
+      offset: -1,
+      activities: [ato(PRIMEIRA_ATIVIDADE, 13, 30_000), ato('2026-01-12', 37, 8_000)],
+      health: [],
+      stepsByDay: new Map(diasDe('2026-01', 1, 31).map((d) => [d, 9_000])),
+      habits: [
+        { id: 'cafe', name: 'Café', bad: false, createdOn: CAFE_NASCEU, logsByDay: new Map(CAFE_EM_MAIO.map((d) => [d, 1])) },
+        // O mesmo hábito, com a data de criação em forma que não é dia de
+        // calendário: "não se sabe" não pode virar alegação de zero.
+        { id: 'ilegivel', name: 'Ioga', bad: false, createdOn: '20/05/2026', logsByDay: new Map(CAFE_EM_MAIO.map((d) => [d, 1])) },
+      ],
+      registros: [{ id: 'corte', name: 'Corte', createdOn: CORTE_NASCEU, days: ['2026-05-25'] }],
+      tasks: [],
+      purchases: [],
+      taskSeries: [{ createdOn: SERIE_DE_TAREFA, module: 'casa' }, { createdOn: SERIE_DE_COMPRAS, module: 'compras' }],
+      ...ajuste,
+    }),
+    agora: DEPOIS,
+  });
+
+  const setembroDe2023 = mesAnteriorA(new Date('2023-10-06T12:00:00'));
+  const janeiroDe2026 = mesAnteriorA(new Date('2026-02-06T12:00:00'));
+  const maioDe2026 = mesAnteriorA(new Date('2026-06-06T12:00:00'));
+  const junhoDe2026 = mesAnteriorA(new Date('2026-07-06T12:00:00'));
+  const setembroDe2026 = mesAnteriorA(new Date('2026-10-06T12:00:00'));
+
+  it('os cinco fixtures caíram nos cinco meses certos, do primeiro ao último dia', () => {
+    for (const [ps, inicio, fim] of [
+      [setembroDe2023, '2023-09-01', '2023-09-30'],
+      [janeiroDe2026, '2026-01-01', '2026-01-31'],
+      [maioDe2026, '2026-05-01', '2026-05-31'],
+      [junhoDe2026, '2026-06-01', '2026-06-30'],
+      [setembroDe2026, '2026-09-01', '2026-09-30'],
+    ] as const) {
+      assert.equal(ps[0].periodo.inicioISO, inicio);
+      assert.equal(ps[0].periodo.fimISO, fim, `${inicio}: a fronteira do fim mudou`);
+    }
+  });
+
+  /* 1 — ato não registrado: o hábito nasceu depois do FIM do período */
+  it('o hábito criado depois do fim do período não tem número, não vai ao prompt, não entra no alfabeto e não lidera', () => {
+    const c = porCaderno(setembroDe2023);
+    const cafe = fato(c.rotina, 'habito.cafe')!;
+    assert.equal(cafe.atual, null, 'o café não existia em setembro de 2023');
+    assert.equal(montarPrompt(c.rotina).usuario.includes('Café'), false, 'o café foi ao prompt');
+    assert.equal(valoresDoPacote(c.rotina).has(0), false, 'o zero entrou no alfabeto da conferência');
+    assert.equal(liderDoCaderno(c.rotina), null, 'um caderno de nulos elegeu líder');
+  });
+
+  /* 2 — zero de verdade: o hábito já existia, e o mês passou sem marca */
+  it('o mesmo hábito, num mês DEPOIS do marco e sem marca nenhuma, vale 0 — e é citável', () => {
+    const c = porCaderno(setembroDe2026);
+    const cafe = fato(c.rotina, 'habito.cafe')!;
+    assert.equal(cafe.atual, 0, 'o café existia em setembro de 2026, e o mês passou sem café');
+    assert.equal(valoresDoPacote(c.rotina).has(0), true, 'o zero medido tem de ser citável');
+    assert.ok(montarPrompt(c.rotina).usuario.includes('Café: 0 dias'));
+  });
+
+  /* 8 — marco ilegível: a mesma linha, com `createdOn` que não é dia de calendário */
+  it('marco ilegível não autoriza o zero — mesma linha, mesmo mês, e só a data muda a resposta', () => {
+    const c = porCaderno(setembroDe2026);
+    assert.equal(fato(c.rotina, 'habito.cafe')!.atual, 0);
+    assert.equal(fato(c.rotina, 'habito.ilegivel')!.atual, null, '"20/05/2026" não é dia de calendário');
+    assert.equal(montarPrompt(c.rotina).usuario.includes('Ioga'), false);
+  });
+
+  /*
+   * A VÁLVULA — a própria contagem prova a medida, e só para um lado.
+   *
+   * O mesmo hábito de marco ilegível, lido de dois meses em que ele TEM dias. Sem
+   * a válvula o ramo nem roda: o caso acima é lido num mês de contagem zero.
+   */
+  it('a válvula: ocorrência no período prova a medida, mesmo com o marco ilegível', () => {
+    // Maio tem os 11 dias de Ioga. O marco não vale nada, e ainda assim o número existe.
+    const ioga = fato(porCaderno(maioDe2026).rotina, 'habito.ilegivel')!;
+    assert.equal(ioga.atual, 11, 'a contagem do próprio período prova que o registro existia');
+  });
+
+  it('e ela é de mão única: ocorrência AGORA não prova existência antes', () => {
+    // Maio: 11 dias agora, zero em abril. O lado anterior continua sem número —
+    // é exatamente o caso que a story conserta, e a válvula não pode desfazê-lo.
+    const ioga = fato(porCaderno(maioDe2026).rotina, 'habito.ilegivel')!;
+    const b1 = ioga.bases.find((b) => b.id === 'B1')!;
+    assert.equal(b1.existe, true);
+    assert.equal(b1.valor, null, 'abril ganhou um zero que ninguém mediu');
+  });
+
+  it('mas o lado ATUAL cede ao anterior — nunca "não medido agora" ao lado de uma base numerada', () => {
+    // Junho: zero dias agora, 11 em maio. O que existia antes existe agora, então
+    // o zero de junho é medida. O estado torto seria `atual: null` com B1 = 11.
+    const ioga = fato(porCaderno(junhoDe2026).rotina, 'habito.ilegivel')!;
+    assert.equal(ioga.bases.find((b) => b.id === 'B1')!.valor, 11);
+    assert.equal(ioga.atual, 0, 'o fato ficou sem número ao lado de uma base que tem número');
+  });
+
+  /*
+   * AS FRONTEIRAS, nos dois lados — a igualdade é inclusiva.
+   *
+   * Setembro/2026 vai de 01 a 30; o anterior termina em 31/08. Trocar `<=` por
+   * `<` em qualquer um dos dois lados tem de ficar vermelho aqui. Os hábitos não
+   * têm marca nenhuma de propósito: com contagem zero, quem decide é só o marco.
+   */
+  it('o marco no ÚLTIMO dia do período ainda foi medido; no dia seguinte, não', () => {
+    const c = porCaderno(mesAnteriorA(new Date('2026-10-06T12:00:00'), {
+      habits: [
+        { id: 'noFim', name: 'No fim', bad: false, createdOn: '2026-09-30', logsByDay: new Map() },
+        { id: 'depois', name: 'Depois', bad: false, createdOn: '2026-10-01', logsByDay: new Map() },
+      ],
+    }));
+    assert.equal(fato(c.rotina, 'habito.noFim')!.atual, 0, 'criado no dia 30, setembro o mediu');
+    assert.equal(fato(c.rotina, 'habito.depois')!.atual, null, 'criado em 1º de outubro, setembro não o mediu');
+  });
+
+  it('o marco no ÚLTIMO dia do período ANTERIOR ainda dá base; no dia seguinte, não', () => {
+    const c = porCaderno(mesAnteriorA(new Date('2026-10-06T12:00:00'), {
+      habits: [
+        { id: 'fimAnterior', name: 'Fim de agosto', bad: false, createdOn: '2026-08-31', logsByDay: new Map() },
+        { id: 'inicioAtual', name: 'Início de setembro', bad: false, createdOn: '2026-09-01', logsByDay: new Map() },
+      ],
+    }));
+    const b1De = (chave: string) => fato(c.rotina, chave)!.bases.find((b) => b.id === 'B1')!;
+    assert.equal(b1De('habito.fimAnterior').valor, 0, 'criado em 31/08, agosto o mediu');
+    assert.equal(b1De('habito.inicioAtual').valor, null, 'criado em 1º/09, agosto não o mediu');
+    assert.equal(b1De('habito.inicioAtual').existe, true, 'agosto existe como período');
+  });
+
+  /*
+   * A FRONTEIRA DO ANTERIOR EM TODOS OS TIPOS DE PERÍODO.
+   *
+   * `fimAnterior` sai de uma derivação própria (a véspera do início), e não de
+   * `previousPeriodStartISO`. Duas derivações independentes da mesma fronteira
+   * divergem no dia em que uma mudar — e `month` sozinho não pega isso. Aqui o
+   * fim do anterior é lido do PRÓPRIO `buildRetrospective` (offset −2) e usado
+   * como data de criação: o pacote tem de concordar com ele em week, season, year
+   * e month.
+   */
+  for (const kind of ['week', 'season', 'year', 'month'] as const) {
+    it(`a véspera do início é o fim do anterior em '${kind}' — as duas derivações concordam`, () => {
+      const agora = new Date('2026-10-06T12:00:00');
+      const base = {
+        now: agora, kind, activities: [], health: [], registros: [], tasks: [], purchases: [],
+      };
+      const anterior = buildRetrospective({ ...base, offset: -2, habits: [] });
+      // Um nasce no último dia do anterior; o outro, no primeiro dia do atual.
+      const atual = buildRetrospective({ ...base, offset: -1, habits: [] });
+      const c = porCaderno(montarPacotes({
+        resumo: buildRetrospective({
+          ...base,
+          offset: -1,
+          habits: [
+            { id: 'fim', name: 'Fim', bad: false, createdOn: anterior.endISO, logsByDay: new Map() },
+            { id: 'inicio', name: 'Início', bad: false, createdOn: atual.startISO, logsByDay: new Map() },
+          ],
+        }),
+        agora: DEPOIS,
+      }));
+      const b1De = (chave: string) => fato(c.rotina, chave)!.bases.find((b) => b.id === 'B1')!;
+      assert.equal(b1De('habito.fim').valor, 0, `${kind}: ${anterior.endISO} é o fim do anterior e não deu base`);
+      assert.equal(b1De('habito.inicio').valor, null, `${kind}: ${atual.startISO} já é o período atual`);
+    });
+  }
+
+  /*
+   * `endISO` QUE NÃO É DIA DE CALENDÁRIO — entrada malformada.
+   *
+   * Comportamento preso de propósito, e não exceção: ver o docblock de
+   * `desdeOMarco`. A direção é a segura (silêncio, nunca um número), a válvula
+   * segura o que tem dado, e é a mesma postura que o resto de `montarPacotes` já
+   * tem para esse `endISO` — `diasNoPeriodo` sai 0 e a luz sai nula, sem explodir.
+   */
+  it('`endISO` que não é dia de calendário cala o que tem contagem zero, e preserva o que tem dado', () => {
+    const resumo = buildRetrospective({
+      now: new Date('2026-06-06T12:00:00'),
+      kind: 'month',
+      offset: -1,
+      activities: [],
+      health: [],
+      habits: [
+        { id: 'cafe', name: 'Café', bad: false, createdOn: CAFE_NASCEU, logsByDay: new Map(CAFE_EM_MAIO.map((d) => [d, 1])) },
+        { id: 'vazio', name: 'Vazio', bad: false, createdOn: '2020-01-01', logsByDay: new Map() },
+      ],
+      registros: [],
+      tasks: [],
+      purchases: [],
+      taskSeries: [],
+    });
+    const c = porCaderno(montarPacotes({ resumo: { ...resumo, endISO: 'nao-e-dia' }, agora: DEPOIS }));
+    assert.equal(fato(c.rotina, 'habito.cafe')!.atual, 11, 'a válvula segura quem tem ocorrência no período');
+    assert.equal(fato(c.rotina, 'habito.vazio')!.atual, null, 'sem fim legível, o zero não se afirma');
+    // E o resto do arquivo degrada do mesmo jeito, sem explodir — é o precedente.
+    assert.equal(c.rotina.periodo.diasNoPeriodo, 0);
+  });
+
+  /* 3 e 4 — medição: os dias com valor, a régua que a saúde já usa */
+  it('passos sem nenhum dia com valor não são zero passos; com um dia, são a soma', () => {
+    const semRelogio = porCaderno(setembroDe2026);
+    assert.equal(fato(semRelogio.movimento, 'passos_dia')!.atual, null);
+
+    const comRelogio = porCaderno(mesAnteriorA(new Date('2026-10-06T12:00:00'), {
+      stepsByDay: new Map(diasDe('2026-09', 1, 30).map((d) => [d, 9_000])),
+    }));
+    assert.equal(fato(comRelogio.movimento, 'passos_dia')!.atual, 9_000);
+  });
+
+  /* 5 — antes do acervo: atividade, distância, tempo e esporte */
+  it('antes da primeira atividade do acervo, atividades, distância e tempo não são medidos', () => {
+    const c = porCaderno(setembroDe2023);
+    for (const chave of ['atividades', 'distancia', 'tempo']) {
+      assert.equal(fato(c.movimento, chave)!.atual, null, chave);
+    }
+  });
+
+  it('e o esporte do primeiro mês compara contra um anterior que não media nada', () => {
+    // Janeiro/2026 tem a primeira pedalada do acervo; dezembro/2025 é anterior ao
+    // marco. "1 sessão contra 0" seria uma queda inventada pelo calendário.
+    const c = porCaderno(janeiroDe2026);
+    const sessoes = fato(c.movimento, 'ciclismo.sessoes')!;
+    assert.equal(sessoes.atual, 1);
+    const b1 = sessoes.bases.find((b) => b.id === 'B1')!;
+    assert.equal(b1.existe, true, 'dezembro de 2025 existe como período');
+    assert.equal(b1.valor, null, 'mas não media pedalada nenhuma');
+    assert.equal(fato(c.movimento, 'ciclismo.distancia')!.bases.find((b) => b.id === 'B1')!.valor, null);
+  });
+
+  /* 7 — a base anterior sem registro: existe, e não foi medida */
+  it('a base anterior ao marco é `existe: true` com `valor: null` — e o prompt escreve a ausência', () => {
+    const c = porCaderno(maioDe2026);
+    const cafe = fato(c.rotina, 'habito.cafe')!;
+    assert.equal(cafe.atual, 11, 'maio tem 11 dias de café');
+    const b1 = cafe.bases.find((b) => b.id === 'B1')!;
+    assert.equal(b1.existe, true);
+    assert.equal(b1.valor, null, 'abril não é 0 dias de café: abril não tinha café');
+    assert.equal(b1.delta, null);
+    assert.equal(b1.deltaPct, null);
+    const usuario = montarPrompt(c.rotina).usuario;
+    assert.ok(
+      usuario.includes('o período anterior existe, mas não foi medida'),
+      'a frase de ausência que o prompt já escreve não saiu',
+    );
+  });
+
+  it('a base que existia PELA METADE não é apagada — quem marca o lado amputado é `comparavel`', () => {
+    // A fronteira do veredito é o FIM de cada lado, e não o início. Maio mediu 11
+    // dias de café de verdade, ainda que o hábito só exista desde o dia 20: apagar
+    // esse 11 seria perder medida, não ganhar honestidade. Quem diz que o lado
+    // está amputado por nascimento é `comparavel`, que só o ranqueamento lê — e
+    // que a Story 2.6 não mexe.
+    const cafe = fato(porCaderno(junhoDe2026).rotina, 'habito.cafe')!;
+    assert.equal(cafe.atual, 0, 'junho passou sem café, e o hábito já existia');
+    assert.equal(cafe.bases.find((b) => b.id === 'B1')!.valor, 11);
+    assert.equal(cafe.comparavel, false);
+  });
+
+  /* 6 — o caderno inteiro, e a edição de 2023 que o critério de acceptance pede */
+  it('setembro de 2023: nenhum fato com número, nenhum caderno na edição, nenhum zero citado', () => {
+    for (const p of setembroDe2023) {
+      for (const f of p.metricas) assert.equal(f.atual, null, `${p.caderno}/${f.chave}`);
+      assert.equal(cadernoVazio(p), true, `${p.caderno} sobreviveu ao vazio`);
+      assert.equal(valoresDoPacote(p).has(0), false, `${p.caderno}: o zero entrou no alfabeto`);
+      assert.equal(montarPrompt(p).usuario, '', `${p.caderno}: o caderno vazio falou — o prompt tinha de sair mudo`);
+    }
+    assert.deepEqual(ordenarCadernos(setembroDe2023), []);
+    assert.equal(montarPromptDaEdicao(setembroDe2023).usuario, '');
+  });
+
+  it('e o mesmo mês de 2026 tem os quatro zeros de verdade, e cadernos com o que dizer', () => {
+    const c = porCaderno(setembroDe2026);
+    for (const chave of ['atividades', 'distancia', 'tempo']) {
+      assert.equal(fato(c.movimento, chave)!.atual, 0, chave);
+    }
+    for (const chave of ['tarefas', 'compras', 'gasto']) {
+      assert.equal(fato(c.rotina, chave)!.atual, 0, chave);
+    }
+    assert.deepEqual(ordenarCadernos(setembroDe2026), ['movimento', 'rotina']);
+  });
+
+  it('tarefas e compras têm marco porque a série tem — sem série, não há contagem a zerar', () => {
+    // Setembro/2023 é anterior às duas séries; a diferença entre elas e o hábito é
+    // só onde o marco mora (a série, e não a linha da contagem).
+    const c2023 = porCaderno(setembroDe2023);
+    for (const chave of ['tarefas', 'compras', 'gasto']) {
+      assert.equal(fato(c2023.rotina, chave)!.atual, null, chave);
+    }
+    // E sem nenhuma série no acervo, o marco é nulo e o efeito é o mesmo em 2026.
+    const semSerie = porCaderno(mesAnteriorA(new Date('2026-10-06T12:00:00'), { taskSeries: [] }));
+    assert.equal(fato(semSerie.rotina, 'tarefas')!.atual, null);
+    assert.equal(fato(semSerie.rotina, 'compras')!.atual, null);
+  });
+
+  it('resumo montado à mão, sem marcos, continua se comportando como na versão 3', () => {
+    // A escotilha: `marcos` é opcional, e quem não o informa não alega ausência
+    // nenhuma. É o que preserva o golden de agosto e as fixtures deste arquivo.
+    const c = porCaderno(montarPacotes(ENTRADA_AGOSTO));
+    assert.equal(agosto().marcos, undefined, 'a fixture de agosto ganhou marcos sem querer');
+    assert.equal(fato(c.rotina, 'tarefas')!.atual, 0);
+    assert.equal(fato(c.movimento, 'passos_dia')!.atual, 17_350);
   });
 });
 

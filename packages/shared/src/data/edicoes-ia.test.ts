@@ -6,7 +6,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGG_VERSION } from '../constants/agg-version';
 import type { Impressao, LinhaDaImpressao } from '../ia/imprimir';
 import {
-  ContaTrocadaNaImpressao, EDICAO_COLUMNS, fetchEdicao, portasDaEdicao, precisaErrata, toCadernoImpresso,
+  ContaTrocadaNaImpressao, EDICAO_COLUMNS, EdicaoMudouNaImpressao, fetchEdicao, portasDaEdicao, precisaErrata,
+  toCadernoImpresso,
   type CadernoImpresso, type EdicaoRow,
 } from './edicoes-ia';
 
@@ -30,16 +31,36 @@ function projetar(linha: EdicaoRow, cols: string): Record<string, unknown> {
 }
 
 /**
- * Banco de mentira da GRAVAÇÃO: só `rpc`. Tocar a tabela direto explode — a
- * gravação passa pela função `edicao_imprimir`, e mais nada.
+ * Banco de mentira da GRAVAÇÃO: `rpc`, e a LEITURA da tabela — que a guarda da
+ * concorrência (Story 2.2) faz duas vezes, no `buscar` e de novo antes de gravar.
+ * Escrever na tabela direto explode: a gravação passa pela função
+ * `edicao_imprimir`, e mais nada.
  *
  * **Devolve linhas diferentes das enviadas**, de propósito. Se o fake ecoasse a
  * carga, o teste do mapeamento seria uma tautologia: passaria igual com a porta
  * devolvendo o próprio payload. Devolvendo outras linhas, a asserção mede o que
  * interessa — que a edição sai do que o banco respondeu.
+ *
+ * `tabela` é o que a leitura devolve, e é mutável: é por ela que um teste faz
+ * "outro hospedeiro" imprimir entre o `buscar` e o `gravar`. **A leitura responde
+ * por período** — os `.eq()` filtram de verdade, como no PostgREST —, e cada
+ * leitura guarda os filtros que pediu: é o que deixa o teste do período trocado
+ * morder, em vez de passar porque o fake devolve a tabela inteira a qualquer um.
  */
-function fakeRpc(devolve: EdicaoRow[] | null, erro: Error | null = null, dono: string | null = 'u-1') {
-  const capturado: { chamadas: { fn: string; args: Record<string, unknown> }[] } = { chamadas: [] };
+function fakeRpc(
+  devolve: EdicaoRow[] | null,
+  erro: Error | null = null,
+  dono: string | null = 'u-1',
+  tabela: EdicaoRow[] = [],
+) {
+  const capturado: {
+    chamadas: { fn: string; args: Record<string, unknown> }[];
+    leituras: number;
+    filtrosDasLeituras: Record<string, unknown>[];
+  } = { chamadas: [], leituras: 0, filtrosDasLeituras: [] };
+  const escritaDireta = () => {
+    throw new Error('a gravação tocou a tabela direto — ela passa por edicao_imprimir');
+  };
   const db = {
     // A sessão do cliente — de quem a função gravaria, via `auth.uid()`.
     auth: {
@@ -49,11 +70,45 @@ function fakeRpc(devolve: EdicaoRow[] | null, erro: Error | null = null, dono: s
       capturado.chamadas.push({ fn, args });
       return { data: devolve, error: erro };
     },
-    from: () => {
-      throw new Error('a gravação tocou a tabela direto — ela passa por edicao_imprimir');
-    },
+    from: () => ({
+      select: () => {
+        const filtros: Record<string, unknown> = {};
+        const alvo = {
+          eq: (coluna: string, valor: unknown) => {
+            filtros[coluna] = valor;
+            return alvo;
+          },
+          order: async () => {
+            capturado.leituras += 1;
+            capturado.filtrosDasLeituras.push(filtros);
+            const casa = (l: EdicaoRow) =>
+              Object.entries(filtros).every(([c, v]) => (l as unknown as Record<string, unknown>)[c] === v);
+            return { data: tabela.filter(casa).sort((a, b) => a.posicao - b.posicao), error: null };
+          },
+        };
+        return alvo;
+      },
+      upsert: escritaDireta,
+      insert: escritaDireta,
+      update: escritaDireta,
+      delete: escritaDireta,
+    }),
   };
-  return { db: db as unknown as SupabaseClient, capturado };
+  return { db: db as unknown as SupabaseClient, capturado, tabela };
+}
+
+/** O período de {@link IMPRESSAO}, como a sequência o passa a `buscar`. */
+const PERIODO = { tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31' } as const;
+
+/**
+ * Grava pela porta **como a sequência grava**: `buscar` primeiro, depois `gravar`,
+ * nas mesmas portas. Desde a 2.2 `gravar` sem `buscar` antes é recusado — a porta
+ * não saberia que conjunto a impressão viu.
+ */
+async function gravarComoASequencia(db: SupabaseClient, impressao: Impressao): Promise<CadernoImpresso[]> {
+  const portas = portasDaEdicao(db, 'u-1');
+  await portas.buscar(PERIODO);
+  return portas.gravar(impressao);
 }
 
 /**
@@ -401,7 +456,7 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
    */
   it('as chaves da carga são exatamente as colunas do recordset da migração', async () => {
     const { db, capturado } = fakeRpc([]);
-    await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    await gravarComoASequencia(db, IMPRESSAO);
     const { arquivo, parametros, colunas } = funcaoDaMigracao();
 
     assert.equal(capturado.chamadas.length, 1);
@@ -415,7 +470,7 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
 
   it('manda o período, a ordem e as linhas — a ordem inteira, não só a dos regenerados', async () => {
     const { db, capturado } = fakeRpc([]);
-    await portasDaEdicao(db, 'u-1').gravar({ ...IMPRESSAO, ordem: ['coracao', 'movimento', 'sono'] });
+    await gravarComoASequencia(db, { ...IMPRESSAO, ordem: ['coracao', 'movimento', 'sono'] });
     const { args } = capturado.chamadas[0];
     assert.equal(args.p_tipo_periodo, 'month');
     assert.equal(args.p_inicio, '2026-08-01');
@@ -440,7 +495,7 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
 
   it('carimba a versão vigente da agregação sem que ninguém a informe', async () => {
     const { db, capturado } = fakeRpc([]);
-    await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    await gravarComoASequencia(db, IMPRESSAO);
     for (const l of capturado.chamadas[0].args.p_linhas as Record<string, unknown>[]) {
       assert.equal(l.agg_version_no_momento, AGG_VERSION);
     }
@@ -452,7 +507,7 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
     // que a garantia é dada. O cast força o caso mesmo assim, para provar que a
     // porta não tem uma segunda entrada por onde o valor errado passe em JS.
     const empurrada = { ...LINHA, aggVersionNoMomento: 1, agg_version_no_momento: 1 } as LinhaDaImpressao;
-    await portasDaEdicao(db, 'u-1').gravar({ ...IMPRESSAO, ordem: ['movimento'], linhas: [empurrada] });
+    await gravarComoASequencia(db, { ...IMPRESSAO, ordem: ['movimento'], linhas: [empurrada] });
     const [l] = capturado.chamadas[0].args.p_linhas as Record<string, unknown>[];
     assert.equal(l.agg_version_no_momento, AGG_VERSION);
     assert.ok(!('aggVersionNoMomento' in l));
@@ -460,7 +515,7 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
 
   it('nulo da métrica líder é escrito como nulo, não omitido — a função recusa a chave ausente', async () => {
     const { db, capturado } = fakeRpc([]);
-    await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    await gravarComoASequencia(db, IMPRESSAO);
     const [, sono] = capturado.chamadas[0].args.p_linhas as Record<string, unknown>[];
     assert.ok('metrica_lider' in sono);
     assert.equal(sono.metrica_lider, null);
@@ -471,7 +526,7 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
       linhaDoBanco({ caderno: 'coracao', posicao: 1 }),
       linhaDoBanco({ caderno: 'rotina', posicao: 2, metrica_lider: null }),
     ]);
-    const e = await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    const e = await gravarComoASequencia(db, IMPRESSAO);
     assert.deepEqual(e.map((c) => [c.caderno, c.posicao, c.metricaLider]), [
       ['coracao', 1, 'fc_repouso'],
       ['rotina', 2, null],
@@ -481,17 +536,17 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
 
   it('a linha devolvida passa pela conferência de toCadernoImpresso', async () => {
     const { db } = fakeRpc([linhaDoBanco({ caderno: 'lua' })]);
-    await assert.rejects(() => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO), /caderno desconhecido/);
+    await assert.rejects(() => gravarComoASequencia(db, IMPRESSAO), /caderno desconhecido/);
   });
 
   it('propaga o erro do banco em vez de devolver edição vazia', async () => {
     const { db } = fakeRpc(null, new Error('linha recusada'));
-    await assert.rejects(() => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO), /linha recusada/);
+    await assert.rejects(() => gravarComoASequencia(db, IMPRESSAO), /linha recusada/);
   });
 
   it('a sessão é do dono: grava', async () => {
     const { db, capturado } = fakeRpc([], null, 'u-1');
-    await portasDaEdicao(db, 'u-1').gravar(IMPRESSAO);
+    await gravarComoASequencia(db, IMPRESSAO);
     assert.equal(capturado.chamadas.length, 1);
   });
 
@@ -504,7 +559,7 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
     for (const dono of ['u-2', null]) {
       const { db, capturado } = fakeRpc([], null, dono);
       await assert.rejects(
-        () => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO),
+        () => gravarComoASequencia(db, IMPRESSAO),
         (e: unknown) => e instanceof ContaTrocadaNaImpressao && e.name === 'ContaTrocadaNaImpressao',
       );
       assert.equal(capturado.chamadas.length, 0, `dono ${String(dono)}: o rpc foi chamado`);
@@ -516,7 +571,7 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
     (db as unknown as { auth: { getSession: () => Promise<unknown> } }).auth.getSession = async () => ({
       data: { session: null }, error: new Error('sessão ilegível'),
     });
-    await assert.rejects(() => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO), /sessão ilegível/);
+    await assert.rejects(() => gravarComoASequencia(db, IMPRESSAO), /sessão ilegível/);
     assert.equal(capturado.chamadas.length, 0);
   });
 
@@ -528,6 +583,182 @@ describe('portasDaEdicao — a gravação é a função do banco, numa chamada',
     const e = await portasDaEdicao(db, 'u-1').buscar({ tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31' });
     assert.deepEqual(e.map((c) => c.caderno), ['movimento', 'sono']);
     assert.deepEqual(capturado.filtros, { user_id: 'u-1', tipo_periodo: 'month', inicio: '2026-08-01', fim: '2026-08-31' });
+  });
+});
+
+/**
+ * A guarda da impressão concorrente (Story 2.2).
+ *
+ * Entre o `buscar` e o `gravar` há uma chamada paga por caderno. Se outro
+ * hospedeiro grava o mesmo período nesse intervalo, o caderno dele não está na
+ * `ordem` desta impressão — e a função apaga todo caderno fora da ordem. A porta
+ * relê antes de chamar a função, e recusa se o conjunto mudou.
+ */
+describe('portasDaEdicao — a guarda contra impressão concorrente', () => {
+  const impresso = (caderno: string, posicao: number, periodo: { inicio: string; fim: string } = PERIODO) =>
+    linhaDoBanco({ user_id: 'u-1', tipo_periodo: 'month', inicio: periodo.inicio, fim: periodo.fim, caderno, posicao });
+  const JULHO = { tipoPeriodo: 'month', inicio: '2026-07-01', fim: '2026-07-31' } as const;
+
+  it('o conjunto igual ao que o buscar viu grava — relendo uma vez antes do rpc, o período do gravar', async () => {
+    const { db, capturado } = fakeRpc([], null, 'u-1', [impresso('sono', 1), impresso('movimento', 2)]);
+    const portas = portasDaEdicao(db, 'u-1');
+    await portas.buscar(PERIODO);
+    assert.equal(capturado.leituras, 1);
+    await portas.gravar(IMPRESSAO);
+    assert.equal(capturado.leituras, 2, 'gravar não releu a edição antes da função');
+    assert.deepEqual(capturado.filtrosDasLeituras[1], {
+      user_id: 'u-1', tipo_periodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+    });
+    assert.equal(capturado.chamadas.length, 1);
+  });
+
+  /**
+   * O período trocado. Julho tem **o mesmo conjunto** que agosto, e o fake responde
+   * por período: sem a conferência do período, a releitura de julho acharia sono e
+   * movimento, igual ao que o `buscar` de agosto viu, e a função gravaria julho com
+   * uma ordem montada sobre agosto.
+   */
+  it('o gravar pede outro período que não o lido: lança, sem reler e sem chamar a função', async () => {
+    const tabela = [
+      impresso('sono', 1), impresso('movimento', 2),
+      impresso('sono', 1, JULHO), impresso('movimento', 2, JULHO),
+    ];
+    const { db, capturado } = fakeRpc([], null, 'u-1', tabela);
+    const portas = portasDaEdicao(db, 'u-1');
+    await portas.buscar(PERIODO);
+    await assert.rejects(
+      () => portas.gravar({ ...IMPRESSAO, ...JULHO }),
+      (e: unknown) => {
+        assert.ok(e instanceof EdicaoMudouNaImpressao, String(e));
+        assert.deepEqual(e.periodoLido, PERIODO);
+        assert.equal(e.agora, null);
+        assert.match(e.message, /month 2026-07-01 a 2026-07-31/);
+        assert.match(e.message, /nada foi gravado/);
+        return true;
+      },
+    );
+    assert.equal(capturado.leituras, 1, 'releu julho — a conferência do período não veio antes');
+    assert.equal(capturado.chamadas.length, 0);
+    // O mesmo gravar, sobre o período lido, grava: é o período que recusou, não o conjunto.
+    await portas.gravar(IMPRESSAO);
+    assert.equal(capturado.chamadas.length, 1);
+  });
+
+  it('um gravar por buscar: depois de um rpc que deu certo, o segundo gravar sem novo buscar lança', async () => {
+    const { db, capturado } = fakeRpc([], null, 'u-1', [impresso('sono', 1)]);
+    const portas = portasDaEdicao(db, 'u-1');
+    await portas.buscar(PERIODO);
+    await portas.gravar(IMPRESSAO);
+    assert.equal(capturado.chamadas.length, 1);
+    await assert.rejects(
+      () => portas.gravar(IMPRESSAO),
+      (e: unknown) => e instanceof EdicaoMudouNaImpressao && e.vistos === null && /sem buscar/.test(e.message),
+    );
+    assert.equal(capturado.chamadas.length, 1, 'o segundo gravar chegou à função');
+    // Um buscar novo devolve a porta ao estado de gravar.
+    await portas.buscar(PERIODO);
+    await portas.gravar(IMPRESSAO);
+    assert.equal(capturado.chamadas.length, 2);
+  });
+
+  it('o rpc que falha não consome o buscar: a mesma porta grava depois', async () => {
+    const { db, capturado } = fakeRpc([], new Error('linha recusada'), 'u-1', [impresso('sono', 1)]);
+    const portas = portasDaEdicao(db, 'u-1');
+    await portas.buscar(PERIODO);
+    await assert.rejects(() => portas.gravar(IMPRESSAO), /linha recusada/);
+    await assert.rejects(() => portas.gravar(IMPRESSAO), /linha recusada/);
+    assert.equal(capturado.chamadas.length, 2);
+  });
+
+  it('a mensagem não afirma a causa: diz que os cadernos mudaram e que nada foi gravado', async () => {
+    const tabela = [impresso('sono', 1)];
+    const { db } = fakeRpc([], null, 'u-1', tabela);
+    const portas = portasDaEdicao(db, 'u-1');
+    await portas.buscar(PERIODO);
+    tabela.splice(0, 1);
+    await assert.rejects(
+      () => portas.gravar(IMPRESSAO),
+      (e: unknown) => {
+        assert.ok(e instanceof Error);
+        assert.match(e.message, /mudaram entre a leitura e a gravação/);
+        assert.match(e.message, /outro hospedeiro imprimiu ou apagou/);
+        assert.match(e.message, /nada foi gravado/);
+        return true;
+      },
+    );
+  });
+
+  it('a mesma edição em outra ordem é o mesmo conjunto — a posição não é o que a guarda compara', async () => {
+    const tabela = [impresso('sono', 1), impresso('movimento', 2)];
+    const { db, capturado } = fakeRpc([], null, 'u-1', tabela);
+    const portas = portasDaEdicao(db, 'u-1');
+    await portas.buscar(PERIODO);
+    tabela.splice(0, tabela.length, impresso('movimento', 1), impresso('sono', 2));
+    await portas.gravar(IMPRESSAO);
+    assert.equal(capturado.chamadas.length, 1);
+  });
+
+  const mudancas: readonly (readonly [string, (t: EdicaoRow[]) => void, string[]])[] = [
+    ['outro hospedeiro gravou um caderno novo', (t) => { t.push(impresso('coracao', 3)); }, ['sono', 'movimento', 'coracao']],
+    ['outro hospedeiro tirou um caderno', (t) => { t.splice(1, 1); }, ['sono']],
+    ['a edição foi apagada', (t) => { t.splice(0, t.length); }, []],
+  ];
+  for (const [nome, mudar, agora] of mudancas) {
+    it(`${nome}: lança EdicaoMudouNaImpressao, e a função não é chamada`, async () => {
+      const tabela = [impresso('sono', 1), impresso('movimento', 2)];
+      const { db, capturado } = fakeRpc([], null, 'u-1', tabela);
+      const portas = portasDaEdicao(db, 'u-1');
+      await portas.buscar(PERIODO);
+      mudar(tabela);
+      await assert.rejects(
+        () => portas.gravar(IMPRESSAO),
+        (e: unknown) => {
+          assert.ok(e instanceof EdicaoMudouNaImpressao, String(e));
+          assert.equal(e.name, 'EdicaoMudouNaImpressao');
+          assert.deepEqual([...(e.vistos ?? [])].sort(), ['movimento', 'sono']);
+          assert.deepEqual([...(e.agora ?? [])].sort(), [...agora].sort());
+          return true;
+        },
+      );
+      assert.equal(capturado.chamadas.length, 0, 'o rpc foi chamado sobre uma edição que mudou');
+    });
+  }
+
+  it('a primeira impressão de um período vazio grava, e a que chega depois de outra lança', async () => {
+    const tabela: EdicaoRow[] = [];
+    const { db, capturado } = fakeRpc([], null, 'u-1', tabela);
+    const portas = portasDaEdicao(db, 'u-1');
+    await portas.buscar(PERIODO);
+    // O outro hospedeiro imprimiu o mesmo período enquanto esta impressão chamava o modelo.
+    tabela.push(impresso('rotina', 1));
+    await assert.rejects(() => portas.gravar(IMPRESSAO), EdicaoMudouNaImpressao);
+    assert.equal(capturado.chamadas.length, 0);
+  });
+
+  it('gravar sem buscar antes lança sem reler e sem chamar a função', async () => {
+    const { db, capturado } = fakeRpc([]);
+    await assert.rejects(
+      () => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO),
+      (e: unknown) => e instanceof EdicaoMudouNaImpressao && e.vistos === null && /sem buscar/.test(e.message),
+    );
+    assert.equal(capturado.leituras, 0);
+    assert.equal(capturado.chamadas.length, 0);
+  });
+
+  it('a conta é conferida antes do conjunto: sessão de outro dono lança ContaTrocadaNaImpressao, sem reler', async () => {
+    const { db, capturado } = fakeRpc([], null, 'u-2');
+    const portas = portasDaEdicao(db, 'u-1');
+    await portas.buscar(PERIODO);
+    await assert.rejects(() => portas.gravar(IMPRESSAO), ContaTrocadaNaImpressao);
+    assert.equal(capturado.leituras, 1, 'releu a edição antes de conferir a conta');
+    assert.equal(capturado.chamadas.length, 0);
+  });
+
+  it('o buscar de uma porta não vale para outra — uma porta por impressão', async () => {
+    const { db, capturado } = fakeRpc([]);
+    await portasDaEdicao(db, 'u-1').buscar(PERIODO);
+    await assert.rejects(() => portasDaEdicao(db, 'u-1').gravar(IMPRESSAO), EdicaoMudouNaImpressao);
+    assert.equal(capturado.chamadas.length, 0);
   });
 });
 
