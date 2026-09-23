@@ -6,9 +6,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGG_VERSION } from '../constants/agg-version';
 import type { Impressao, LinhaDaImpressao } from '../ia/imprimir';
 import {
-  ContaTrocadaNaImpressao, EDICAO_COLUMNS, EdicaoMudouNaImpressao, fetchEdicao, portasDaEdicao, precisaErrata,
+  ARQUIVO_COLUMNS,
+  ContaTrocadaNaImpressao, EDICAO_COLUMNS, EdicaoMudouNaImpressao, fetchArquivoDeEdicoes, fetchEdicao,
+  portasDaEdicao, precisaErrata,
   toCadernoImpresso,
-  type CadernoImpresso, type EdicaoRow,
+  type ArquivoRow, type CadernoImpresso, type EdicaoRow,
 } from './edicoes-ia';
 
 /**
@@ -812,5 +814,117 @@ describe('precisaErrata — o que conta como desatualizado', () => {
     // Se alguém trocar `!==` por um `&&` de verdade, este par deixa de casar.
     assert.equal(precisaErrata(caderno({ aggVersionNoMomento: 0 }), 0), false);
     assert.equal(precisaErrata(caderno({ aggVersionNoMomento: 0 }), 1), true);
+  });
+});
+
+/* ── o arquivo inteiro (Story 2.3) ───────────────────────────────────────── */
+
+/**
+ * O fake do ARQUIVO. A cadeia termina em `.range()`, e não em `.order()`: a
+ * leitura do arquivo cresce com o tempo e **tem** de paginar (ver
+ * `paginacao-das-leituras.test.ts`, que mede o corte de mil linhas). Uma versão
+ * sem `range` estoura aqui com `not a function`, em vez de passar verde.
+ *
+ * Projeta pelas colunas pedidas, como o PostgREST — é o que faz a asserção de
+ * `ARQUIVO_COLUMNS` morder — e devolve as linhas **fora de ordem**, para o
+ * agrupamento ter de ordenar por `posicao` em vez de herdar a ordem da escrita.
+ */
+function fakeArquivo(linhas: ArquivoRow[]) {
+  const capturado: { colunas?: string; ordens: string[] } = { ordens: [] };
+  const alvo = {
+    eq: () => alvo,
+    order(coluna: string) {
+      capturado.ordens.push(coluna);
+      return alvo;
+    },
+    range(lo: number, hi: number) {
+      return Promise.resolve({
+        data: linhas.slice(lo, hi + 1).map((l) => projetar(l as unknown as EdicaoRow, capturado.colunas!)),
+        error: null,
+      });
+    },
+  };
+  const db = {
+    from: () => ({
+      select: (cols: string) => {
+        capturado.colunas = cols;
+        return alvo;
+      },
+    }),
+  };
+  return { db: db as unknown as SupabaseClient, capturado };
+}
+
+const noArquivo = (over: Partial<ArquivoRow> = {}): ArquivoRow => ({
+  tipo_periodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+  caderno: 'sono', posicao: 1, pacote_versao: 3, ...over,
+});
+
+describe('ARQUIVO_COLUMNS — a mesma guarda de EDICAO_COLUMNS', () => {
+  it('pede exatamente as colunas que a linha do arquivo tem', () => {
+    const pedidas = ARQUIVO_COLUMNS.split(',').map((c) => c.trim()).sort();
+    assert.deepEqual(pedidas, Object.keys(noArquivo()).sort());
+  });
+
+  it('não pede o texto — é o grosso da linha, e não decide o que imprimir', () => {
+    assert.ok(!ARQUIVO_COLUMNS.split(',').includes('texto'));
+  });
+
+  it('a leitura pede exatamente ARQUIVO_COLUMNS', async () => {
+    const f = fakeArquivo([noArquivo()]);
+    await fetchArquivoDeEdicoes(f.db, 'u-1');
+    assert.equal(f.capturado.colunas, ARQUIVO_COLUMNS);
+  });
+});
+
+describe('fetchArquivoDeEdicoes — o inventário agrupado por período', () => {
+  it('agrupa por (tipo, início, fim) e ordena os cadernos por posição', async () => {
+    const f = fakeArquivo([
+      noArquivo({ caderno: 'rotina', posicao: 3 }),
+      noArquivo({ caderno: 'sono', posicao: 1, pacote_versao: 4 }),
+      noArquivo({ caderno: 'movimento', posicao: 2 }),
+      noArquivo({ tipo_periodo: 'year', inicio: '2025-01-01', fim: '2025-12-31', caderno: 'coracao', posicao: 1 }),
+    ]);
+    const arquivo = await fetchArquivoDeEdicoes(f.db, 'u-1');
+    assert.equal(arquivo.length, 2);
+    assert.deepEqual(arquivo[0], {
+      tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+      cadernos: [
+        { caderno: 'sono', posicao: 1, pacoteVersao: 4 },
+        { caderno: 'movimento', posicao: 2, pacoteVersao: 3 },
+        { caderno: 'rotina', posicao: 3, pacoteVersao: 3 },
+      ],
+    });
+    assert.equal(arquivo[1]?.tipoPeriodo, 'year');
+  });
+
+  it('dois períodos com o mesmo início e tipos diferentes não se misturam', async () => {
+    const f = fakeArquivo([
+      noArquivo({ tipo_periodo: 'month', inicio: '2026-07-01', fim: '2026-07-31' }),
+      noArquivo({ tipo_periodo: 'season', inicio: '2026-07-01', fim: '2026-09-30' }),
+    ]);
+    const arquivo = await fetchArquivoDeEdicoes(f.db, 'u-1');
+    assert.deepEqual(arquivo.map((e) => e.tipoPeriodo), ['month', 'season']);
+  });
+
+  it('a ordem total é (inicio, tipo_periodo, fim, caderno) — a chave menos o dono', async () => {
+    const f = fakeArquivo([noArquivo()]);
+    await fetchArquivoDeEdicoes(f.db, 'u-1');
+    assert.deepEqual(f.capturado.ordens, ['inicio', 'tipo_periodo', 'fim', 'caderno']);
+  });
+
+  it('arquivo vazio é lista vazia, não erro', async () => {
+    const f = fakeArquivo([]);
+    assert.deepEqual(await fetchArquivoDeEdicoes(f.db, 'u-1'), []);
+  });
+
+  it('caderno desconhecido explode alto — o CHECK deveria tê-lo recusado', async () => {
+    const f = fakeArquivo([noArquivo({ caderno: 'financas' })]);
+    await assert.rejects(() => fetchArquivoDeEdicoes(f.db, 'u-1'), /caderno desconhecido no arquivo/);
+  });
+
+  it('tipo de período sem edição possível explode alto', async () => {
+    const f = fakeArquivo([noArquivo({ tipo_periodo: 'all' })]);
+    await assert.rejects(() => fetchArquivoDeEdicoes(f.db, 'u-1'), /tipo de período sem edição possível/);
   });
 });

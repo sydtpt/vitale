@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 23-09-2026 02:10
+last_updated: 23-09-2026 03:05
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -229,7 +229,18 @@ development_status:
   # o GABARITO do contrato foi refixado no mesmo passo (o TEXTO do prompt de maio
   # não mudou — só a versão que entra no hash). Nenhuma consulta nova, nenhuma
   # migração, prompt e conferência intactos. Os quatro workspaces verdes.
-  2-6-o-que-ainda-não-era-registrado-não-vira-zero: review
+  # FECHADA em 23/09/2026 PELO DONO, no ensaio de setembro/2023 com a credencial
+  # dele: a única diferença contra o que o piloto gravou é `pacote_versao` 4 × 3
+  # — posição, provedor, modelo, prompt_versao, agg_version e métrica líder batem,
+  # inclusive o NULO da Rotina. Nenhum hábito e nenhum "passos: 0" no texto: eles
+  # entram como não medidos e nem chegam ao prompt.
+  # A Rotina NÃO sumiu, e está certo: há três marcas retroativas de registro em
+  # setembro de 2023 (Kebab em 11 e 18, Fast food em 23), gravadas por registros
+  # criados em 21/05/2026. A válvula (ocorrência prova a medida) as preservou; a
+  # regra "nasceu depois, logo não mediu" teria apagado dado real. O caderno não
+  # lidera com elas — três marcas não passam no portão de amostra.
+  # A regra virou ADR 0054, na main pelo PR #544.
+  2-6-o-que-ainda-não-era-registrado-não-vira-zero: done
   # EM ANDAMENTO desde 23/09/2026, com AS QUATRO DECISÕES DO DONO tomadas sobre
   # medição do acervo dele: (1) morre quando o silêncio passa do maior silêncio
   # próprio de que ela voltou (PISO 30 DIAS) E outra métrica chegou no intervalo;
@@ -259,7 +270,17 @@ development_status:
   # para docs/specs/revista-retrospectiva/, como se fez com as 7 edições antigas
   # na janela da 1.9 — reimprimir sem exportar perde o texto para sempre. Quem
   # exporta é o dono, com o JWT dele. A 2.6 não reimprime nem apaga nada.
-  2-3-a-impressão-em-massa-dos-períodos-fechados: backlog
+  # EM ANDAMENTO desde 23/09/2026, depois de 2.6 e 2.7 fecharem e a migração da
+  # 2.7 ser aplicada em produção. INVENTÁRIO medido no dia: existem 11 edições,
+  # TODAS em pacote_versao 3 (ano 2023; meses set/out 2023 e jun/jul/ago 2026;
+  # cinco semanas). Nenhum trimestre. O alvo são ~50 edições novas.
+  # DECISÕES DO DONO: reimprimir CINCO (set/2023, out/2023, ano 2023 pelo zero
+  # falso; jul e ago de 2026 pela lápide do período) — junho fica, porque nada
+  # nela muda; as cinco semanas FICAM como estão (semana não grava edição, e
+  # apagá-las é destrutivo sem ganho); e o script passa a CARIMBAR A CAPA.
+  # Antes de reimprimir, o dono exporta o texto atual das cinco para
+  # docs/specs/revista-retrospectiva/, como as 7 antigas na janela da 1.9.
+  2-3-a-impressão-em-massa-dos-períodos-fechados: review
   2-4-a-parede-de-capas: backlog
   2-5-silenciar-um-caderno: backlog
   epic-2-retrospective: optional

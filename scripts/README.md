@@ -6,7 +6,7 @@ O quarto workspace (`@vitale/scripts`). Roda no **Node**, não tem bundler, e é
 | Pasta | O que é |
 |---|---|
 | `bancada/` | A bancada dos motores (story 5.4): mede a leitura da Saúde do sono, motor por motor, sobre o acervo real — e, desde a 5.10, o modelo do aparelho, por uma CLI Swift local (`bancada/aparelho/`) |
-| `revista/` | A impressão da edição da Retrospectiva fora do telefone (story 2.2) — a mesma que o iPhone imprimiria. Ver [Imprimir uma edição](#imprimir-uma-edição) |
+| `revista/` | A impressão da edição da Retrospectiva fora do telefone (story 2.2) — a mesma que o iPhone imprimiria —, e o arquivo inteiro em massa (story 2.3). Ver [Imprimir uma edição](#imprimir-uma-edição) e [A impressão em massa](#a-impressão-em-massa-o-arquivo-inteiro) |
 | `github/` | As ferramentas em **Python** do quadro e da sprint. Ficam como estão — fora do `tsc` e do `pnpm test` |
 
 ```bash
@@ -376,6 +376,9 @@ algo, o script para **antes de abrir rede** e diz o nome da variável, nunca o v
 | `--inicio AAAA-MM-DD` | o primeiro dia do período, nessa grafia (`2026-5-1`, `2026-05` e `05/2026` são recusados). Um dia que não abre período — a semana começa na segunda, o trimestre em janeiro, abril, julho ou outubro, o ano em 1º de janeiro —, o período em curso e o futuro são recusados antes da rede |
 | `--sem-gravar` | chama o modelo e confere, e **nunca** chega à função do banco: compara o que gravaria com o que está gravado — posição, provedor, modelo, `prompt_versao`, `pacote_versao`, `agg_version` e métrica líder. O desfecho é `ensaio`, nunca `gravada` |
 | `--reimprimir` | imprime de novo um período que já tem edição. Sem ela (e sem `--sem-gravar`), o período já impresso é recusado antes de chamar o modelo — e a recusa é feita duas vezes: na leitura do começo, e de novo na leitura da sequência, que roda depois do acervo e antes do primeiro caderno. É a segunda que pega o telefone imprimindo o mesmo período enquanto o script lia o acervo |
+| `--massa` | o arquivo inteiro — ver [A impressão em massa](#a-impressão-em-massa-o-arquivo-inteiro). Não combina com `--inicio`, `--reimprimir` nem `--sem-gravar` |
+| `--sim-gastar-chamadas` | no `--massa`, confirma o gasto e roda a corrida |
+| `--exportar <arquivo>` | no `--massa`, grava o texto atual das edições que serão substituídas, e sai |
 | `--ajuda` | a lista acima, gerada do código |
 
 **O que sai no terminal:** o período, **o fuso**, a janela lida e as contagens do acervo;
@@ -410,11 +413,11 @@ inverno impresso no verão mostra o do verão. Um `TZ` com o nome errado
 script o recusa antes de abrir rede, nomeando a variável; um `TZ` válido cujo deslocamento
 não é o do processo também é recusado. Sem `TZ`, vale o fuso do sistema.
 
-**Até a 2.6 e a 2.7 fecharem, não imprima pelo script período anterior ao começo do
-registro** dos hábitos e da saúde. Ele sai com **zero** no lugar de "não medido", e **sem
-lápide** para a métrica que parou de chegar — foi o que o piloto (1.15) achou em 2023. A 2.6
-ensina a ausência a não virar zero, e a 2.7 põe o detector de métrica morta; até lá, o
-script serve para períodos em que o registro já existia.
+**Período anterior ao começo do registro já pode ser impresso.** Até 23/09/2026 ele saía
+com **zero** no lugar de "não medido" e **sem lápide** para a métrica que parou de chegar —
+foi o que o piloto (1.15) achou em 2023. A 2.6 ensinou a ausência a não virar zero, e a 2.7
+pôs o detector de métrica morta. O que sobrou é a fronteira do arquivo: **22/05/2023**, o
+primeiro dia com registro. Antes dela não há matéria, e a impressão em massa não a cruza.
 
 **Não imprima o mesmo período pelos dois ao mesmo tempo.** A função do banco apaga todo
 caderno fora da ordem da impressão, e a ordem nasce do que estava impresso quando a
@@ -424,16 +427,162 @@ outro período que não o lido, ou se já houve uma gravação sobre essa leitur
 por leitura). Isso estreita a janela de minutos para uma ida e volta ao banco, e **não a
 fecha**: fechá-la é migração, e está no deferred-work.
 
-**A capa não é carimbada.** O script não toca em `edicoes_capa` — o carimbo da impressão
-em massa é da story 2.3. **A edição impressa por aqui fica sem capa até a 2.3.** A única
-exceção é o telefone: reescrever um caderno dela no iPhone carimba a capa, porque a
-impressão parcial carimba quando a edição ainda não tem nenhuma (`edicao.store.ts`).
+**A capa é carimbada pela impressão que grava** (story 2.3), e nunca depois: as três peças
+da escolha — as atividades do período, o acervo de cidades da legenda e o rótulo por
+extenso — subiram para o núcleo (`packages/shared/src/revista/capa.ts`), e por isso a capa
+que sai daqui é a que o telefone carimbaria. O `--sem-gravar` não a toca, porque não há
+edição a carimbar. **Falha de capa nunca derruba a edição**: ela vira aviso no `stderr`, o
+texto fica gravado, e a próxima impressão inteira recarimba.
+
+**A capa que você trocou à mão é mantida.** A troca da story 1.16 grava `motivo: 'trocada'`,
+e a impressão a lê antes de carimbar: a escolha automática não desfaz um ato seu sobre um
+período fechado. O relatório diz *"capa: foto — mantida, porque você a trocou à mão"*. Se a
+**leitura** da capa falhar, nada é carimbado — ficar sem capa se conserta na impressão
+seguinte; apagar a sua escolha, não.
+
+Nos períodos antigos, sem foto no acervo, a capa nasce `tracado` (a rota mais longa do
+período) ou `grade`. Isso é o desenho, não uma sobra: é a textura das capas que registra
+quando o dono passou a fotografar, e é ela que faz a fronteira de 2025 ser visível na
+parede (story 2.4) sem legenda nenhuma.
 
 **O que prova que é a mesma edição:** a fixture do núcleo
 (`packages/shared/src/period/__tests__/contrato-da-edicao.ts`) é impressa pelo núcleo, pelo
 celular (`mobile/src/store/__tests__/contrato-da-edicao.test.ts`) e por este script
 (`revista/imprimir.test.ts`), e os três batem **o mesmo gabarito** — o hash de cada caderno e
 a carga inteira que chega à função, com a assinatura.
+
+---
+
+## A impressão em massa: o arquivo inteiro
+
+`--massa` é o mesmo script imprimindo **todos** os períodos fechados desde **22/05/2023** —
+mês, trimestre e ano, **nunca semana** (semana não grava edição: o postal da Retrospectiva a
+calcula na hora). São 53 períodos e até quatro cadernos cada.
+
+**Nada acontece sem o plano na tela e sem um "sim" explícito.** Sem `--sim-gastar-chamadas`
+ele enumera, cruza com o arquivo, mostra o que faria e **para** — sem chamar modelo nenhum:
+
+```bash
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --massa
+```
+
+```
+massa — o arquivo desde 2023-05-22, visto de 2026-09-23
+  fuso: Europe/Brussels (UTC+02:00 agora)
+  53 períodos fechados enumerados (mês, trimestre e ano; semana nunca) · 11 edições no arquivo
+  imprimir: 48 · reimprimir: 5 · pular: 6
+  até 212 chamadas de nuvem, uma por caderno — com a mediana medida de 13,6 s (a da Saúde do
+  sono, ADR 0050: a revista ainda não tem a sua), cerca de 48 minutos de relógio
+    o quê        período        de          a           cadernos  por quê
+    imprimir     Junho 2023     2023-06-01  2023-06-30  —
+    …
+    reimprimir   Setembro 2023  2023-09-01  2023-09-30  rotina    zero falso: impressa antes da gramática da ausência (2.6)
+    pular        Junho 2026     2026-06-01  2026-06-30  sono      já impresso, e não está na lista de reimpressão
+  nada foi chamado e nada foi gravado. Para gastar, rode de novo com --sim-gastar-chamadas.
+```
+
+**As contas não somam 53 de propósito.** 48 + 5 + 6 são **59 linhas**: os 53 períodos
+enumerados mais as 6 edições que só o arquivo tem — as cinco semanas do piloto (semana nunca
+entra na massa) e o ano de 2023, que começa antes de 22/05/2023 e por isso não é enumerado.
+O plano mostra as duas listas juntas porque é o inventário do arquivo que o dono confere.
+
+**O tempo estimado é ordem de grandeza, não promessa.** A mediana de 13,6 s foi medida na
+Saúde do sono, cujo pedido é menor que o da revista, então 48 min é o lado otimista; o pior
+caso é o prazo do transporte (60 s) vezes as chamadas. É por isso que a corrida é tratada
+como "perto de uma hora, e mais no pior caso".
+
+A credencial é a de sempre ([o caminho do token](#o-caminho-do-token-preferido)), com uma
+diferença: **no modo em massa o `ORBE_REFRESH_TOKEN` é obrigatório sempre**, inclusive para
+ver o plano. A corrida chega perto de uma hora e o token de acesso vale uma — descobrir a
+falta no meio custaria as chamadas já pagas.
+
+**Recortes.** `--tipo month|season|year` limita a enumeração **e** o arquivo (o que fica de
+fora aparece como `pular`, com o motivo), e `--tipo semana` é recusado antes de qualquer
+leitura. `--limite N` corta a corrida nos N primeiros períodos do plano — é o ensaio:
+
+```bash
+# um período de verdade, para conferir a edição e a capa no iPhone antes de soltar tudo
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --massa --limite 1 --sim-gastar-chamadas
+```
+
+### A lista de reimpressão é nomeada em código
+
+**Nada é reimpresso sem ser nomeado.** As cinco que o dono nomeou em 23/09/2026 estão em
+`A_REIMPRIMIR` (`revista/imprimir.ts`), com o motivo de cada uma: setembro/2023,
+outubro/2023 e o ano de 2023 pelo **zero falso** (impressas antes da 2.6), e julho/2026 e
+agosto/2026 pela **lápide do período** (as mortes de julho e a dos anéis em 17/08 mudam a
+ordem gravada). Junho de 2026 fica como está, por decisão dele. Não há bandeira que amplie
+essa lista: acrescentar um período é editar o arquivo e commitar.
+
+### Exporte antes de reimprimir
+
+O texto de uma edição reimpressa **não tem outro lugar onde morar** — a reimpressão o
+substitui na tabela. Antes de rodar a corrida, tire-o e commite, como se fez com as sete
+primeiras edições na janela da 1.9:
+
+```bash
+# O `--filter` do pnpm roda o script com o cwd em `scripts/`, não na raiz: um caminho
+# relativo aqui cairia em `scripts/docs/…` e o script sai com ENOENT antes de escrever.
+# Use caminho absoluto — ou `../docs/…`, se a árvore for esta.
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --massa \
+  --exportar "$PWD/docs/specs/revista-retrospectiva/edicoes-substituidas-pela-2-3.md"
+git add docs/specs/revista-retrospectiva/ && git commit -m "docs(revista): o texto das cinco edições antes da reimpressão"
+```
+
+`--exportar` só lê: não chama modelo, não grava edição e não toca na capa. É a única saída
+deste script que **contém o texto** das edições — o terminal continua sem mostrar nenhum. Ele
+não combina com o `--sim-gastar-chamadas` nem com o `--limite`, e a recusa é antes da rede: a
+exportação sai antes de imprimir, e o "sim" seria descartado em silêncio.
+
+Três guardas, porque o arquivo é a **única cópia** do texto que vai ser substituído:
+
+| O que houve | O que ele faz |
+|---|---|
+| o arquivo de destino já existe | recusa e não escreve nada (sai ≠0) — escolha outro nome |
+| nenhum período da lista está como `reimprimir` | avisa e não escreve (sai ≠0): um arquivo só com cabeçalho pareceria uma exportação que deu certo |
+| uma edição da lista volta **sem caderno nenhum** | escreve o resto, avisa qual ficou de fora e sai ≠0 — o texto dela não foi salvo |
+
+### Se a corrida morrer no meio
+
+**Não há o que consertar: rode de novo.** A retomada é o próprio banco — cada período é uma
+transação pela função `edicao_imprimir`, e o que gravou está gravado. A corrida nova
+reenumera, encontra no arquivo o que já existe e o marca como `pular`. Uma reimpressão
+nomeada que já aconteceu também é pulada: ela passa a ter `pacote_versao` acima do 3 das
+edições antigas, e é por esse carimbo que a corrida a reconhece. Não existe arquivo de
+progresso, de propósito — seria um segundo lugar para a verdade morar, e ficaria podre na
+primeira mudança da lista.
+
+**Falha de um período não derruba a corrida.** Rede, prazo, conferência reprovada: o período
+entra no relatório do fim, a corrida segue para o próximo, e rodar de novo o tenta outra vez
+(ele continua sem edição no banco). O processo sai com **1** quando algum falhou:
+
+```
+a corrida terminou:
+  gravadas: 47 · puladas: 6 · falhadas: 1 · 192 chamadas de nuvem
+  as que falharam, e que rodar de novo tenta outra vez:
+    Março 2024  2024-03-01  nada-gravado
+```
+
+**Mas três falhas SEGUIDAS param a corrida.** Falha seguida não é período ruim: é causa
+comum — o refresh revogado, um 429, a cota do provedor —, e sem freio ela percorreria os ~50
+períodos um a um, pagando o que a nuvem cobrar por cada tentativa. O que faltava não é
+tentado, e a mensagem diz isso; conserte a causa e rode de novo, que a corrida retoma de
+onde o banco parou.
+
+**Não rode a massa com o iPhone imprimindo.** Vale a mesma regra de um período só, e a
+mesma guarda: a porta relê a edição antes de gravar e recusa (`EdicaoMudouNaImpressao`) se o
+conjunto de cadernos mudou no meio. Numa corrida de uma hora a janela é maior — o telefone
+tem 53 oportunidades de esbarrar, em vez de uma. Se o telefone imprimir um período **antes**
+de a corrida chegar nele, ele sai como **pulado**, não como falha: o trabalho está feito, e
+insistir sobrescreveria a edição dele.
+
+### O que estas edições carregam, e que ninguém vai avisar depois
+
+As ~48 edições nascem com os defeitos de leitura que continuam abertos no `deferred-work` —
+a borda de fuso do `done_at` (tarefa concluída entre 00:00 e 02:00 do primeiro dia da janela
+fica de fora) e as bases externas B2/B3 sem o veredito de "medido" —, e a errata compara
+`agg_version_no_momento`, não `pacote_versao`: **elas não se anunciam velhas depois**, então
+consertar esses defeitos exige nomear os períodos numa reimpressão nova.
 
 ---
 

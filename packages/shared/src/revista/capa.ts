@@ -37,9 +37,13 @@
  * ({@link secoesDoSeletor}) e a capa que o dono escolheu ({@link capaTrocada}),
  * que recarimba a capa e só.
  */
+import { localDateAt } from '../date/local';
+import { MESES_COMPLETOS } from '../date/ptbr';
 import type { Capa, CapaACarimbar, MotivoDaCapa, NaturezaDaCapa } from '../data/edicoes-capa';
+import type { TipoComEdicao } from '../data/edicoes-ia';
 import { formatarNumero } from '../format/numero';
 import type { Activity, ActivityPhoto, CityMark } from '../models';
+import { periodBounds, periodLabel, type PeriodKind } from '../period/bounds';
 import { coverOf } from '../photos/retro';
 import { nomeDaAtividade } from '../routes/molde';
 
@@ -142,6 +146,93 @@ export function legendaDaRota(atividade: Activity): string | null {
   const km = quilometro(atividade.distanceM);
   if (km) partes.push(km);
   return partes.length > 0 ? partes.join(SEPARADOR) : null;
+}
+
+/* ── o que entra na escolha (Story 2.3) ─────────────────────────────────── */
+
+/**
+ * O que a seleção do período precisa da entrada da edição: o período e o
+ * relógio.
+ *
+ * É a forma estrutural de `EntradaPacote` (`ia/pacote.ts`) reduzida ao que estas
+ * funções leem, e não o tipo dele — a capa não é peça de IA, e importar de `ia/`
+ * aqui amarraria o módulo da capa ao núcleo do pacote por um campo só.
+ */
+export interface PeriodoDaEntrada {
+  readonly resumo: { readonly kind: PeriodKind; readonly offset: number };
+  readonly agora: Date;
+}
+
+/**
+ * As atividades que caem no período — a **mesma** seleção que a tira da
+ * Retrospectiva faz para carregar as fotos.
+ *
+ * Tem de ser a mesma: a capa é escolhida entre as fotos do período, e duas
+ * definições de "do período" dariam duas capas possíveis para a mesma edição.
+ *
+ * **Mora no núcleo desde a Story 2.3.** Ela nasceu no celular
+ * (`mobile/src/lib/edicao-ia.ts`), e o script da impressão em massa carimba a
+ * mesma capa que o telefone carimbaria: uma segunda cópia desta regra num
+ * hospedeiro é a capa do Mac divergindo da do iPhone no dia em que uma das duas
+ * mudasse.
+ *
+ * As **ocultas** não são tiradas aqui: quem chama passa as visíveis (o dono
+ * escondeu a pedalada, e o que ele escondeu não escolhe a capa nem vira o
+ * traçado do período).
+ *
+ * **O fim é exclusivo**, como em `periodBounds` e em `periodosFechadosDesde`
+ * (Story 2.3). Até 23/09/2026 a comparação era `<= end`, e `end` é a meia-noite
+ * do dia **seguinte** ao último: uma atividade que começa exatamente às 00:00 de
+ * 1º de setembro entrava no período de agosto — e podia virar a capa dele, que é
+ * carimbada e congela. Duas réguas para a mesma fronteira davam duas respostas
+ * para a mesma atividade conforme quem perguntasse.
+ */
+export function atividadesDoPeriodo(
+  todas: readonly Activity[],
+  entrada: PeriodoDaEntrada,
+): Activity[] {
+  const { kind, offset } = entrada.resumo;
+  const b = periodBounds(entrada.agora, kind, offset);
+  return todas.filter((a) => {
+    const t = Date.parse(a.startAt);
+    return Number.isFinite(t) && t >= b.start.getTime() && t < b.end.getTime();
+  });
+}
+
+/**
+ * As cidades que as rotas do período atravessaram, sem repetir — o acervo de
+ * onde {@link legendaDaFoto} tira a parada.
+ *
+ * Não é geocodificação nova: `activities.cities` já veio enriquecida no ingest.
+ * A deduplicação é por nome porque é o nome que a legenda imprime; duas marcas
+ * do mesmo lugar em pedaladas diferentes escreveriam a mesma palavra.
+ */
+export function cidadesDoPeriodo(atividades: readonly Activity[]): CityMark[] {
+  const porNome = new Map<string, CityMark>();
+  for (const a of atividades) {
+    for (const c of a.cities ?? []) {
+      if (!porNome.has(c.name)) porNome.set(c.name, c);
+    }
+  }
+  return [...porNome.values()];
+}
+
+/**
+ * O período como a revista o escreve — `"Agosto de 2026"` —, no cabeçalho da
+ * rota, na capa em papel e na **legenda da natureza `grade`**.
+ *
+ * O mês ganha o "de" da proposta aprovada; semana, estação e ano ficam com o
+ * rótulo da Retrospectiva (`periodLabel`), para o leitor reconhecer o período
+ * que acabou de deixar.
+ *
+ * **Mora no núcleo desde a Story 2.3**, pelo mesmo motivo das duas acima: é a
+ * legenda que a capa carimba quando não há foto nem rota, e ela ficaria
+ * congelada com uma grafia no telefone e outra no script.
+ */
+export function rotuloDaEdicao(tipo: TipoComEdicao, inicio: string): string {
+  const d = localDateAt(inicio);
+  if (tipo === 'month') return `${MESES_COMPLETOS[d.getMonth()]} de ${d.getFullYear()}`;
+  return periodLabel(tipo, d);
 }
 
 /** O período de que a capa é capa — a chave da linha, e o rótulo que a `grade` imprime. */
