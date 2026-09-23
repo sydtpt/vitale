@@ -20,6 +20,7 @@ import {
   gearForActivity,
   hrZoneRange,
   movingTimeFromRoutePoints,
+  nomeEmPortugues,
   nomeProprio,
   paintRoute,
   routeCursorAt,
@@ -34,7 +35,7 @@ import {
 import { useActivitiesStore } from '../../../store/activities.store';
 import { useAuthStore } from '../../../store/auth.store';
 import { supabase } from '../../../lib/supabase';
-import { nomearPedaladaSePreciso, precisaDeNome } from '../../../services/route-name';
+import { nomearRotaSePreciso, precisaDeAlgumNome } from '../../../services/route-name';
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
@@ -130,6 +131,7 @@ export default function AtividadeDetalheScreen() {
   // A bike desta pedalada: override explícito ou herança pela data (ADR 0034).
   const gear = useMemo(() => (activity ? gearForActivity(gears, activity) : undefined), [gears, activity]);
   const nomeDaRota = activity ? nomeProprio(activity) : undefined;
+  const legenda = activity ? nomeEmPortugues(activity) : undefined;
 
   useEffect(() => {
     load();
@@ -139,28 +141,41 @@ export default function AtividadeDetalheScreen() {
   const hasGps = !!activity && (activity.hasRoute || (activity.distanceM ?? 0) > 0);
 
   /**
-   * O nome da rota, uma vez por pedalada (ADR 0042).
+   * O nome da rota, uma vez por atividade **e por frente** (ADR 0042; as duas
+   * línguas desde 23/09).
    *
    * Mesmo gatilho e mesmo contrato da varredura de fotos: espera o traçado
-   * chegar, roda uma vez, e falha em silêncio. A pedalada que não ganhou nome
-   * fica sem `route_name_meta` e volta a tentar na próxima abertura — não há
+   * chegar, roda uma vez, e falha em silêncio. A atividade que não ganhou nome
+   * fica sem a meta daquela língua e volta a tentar na próxima abertura — não há
    * nada que o dono possa fazer com um aviso de cota do provedor.
+   *
+   * As quatro marcas nas dependências são as que o gatilho lê: com uma só, a
+   * atividade que acabou de ganhar o nome local não reavaliaria a frente do
+   * português no mesmo `load()`.
    */
   useEffect(() => {
     if (!activity || !userId) return;
-    if (!precisaDeNome(activity)) return;
+    if (!precisaDeAlgumNome(activity)) return;
     if (!routePoints || routePoints.length < 2) return;
     let alive = true;
     void (async () => {
-      const nome = await nomearPedaladaSePreciso(activity, routePoints, userId);
-      if (alive && nome) await load();
+      const nomes = await nomearRotaSePreciso(activity, routePoints, userId);
+      if (alive && Object.keys(nomes).length > 0) await load();
     })();
     return () => {
       alive = false;
     };
-    // Governam esta passagem a pedalada, o dono e **se a rota já chegou**.
+    // Governam esta passagem a atividade, o dono e **se a rota já chegou**.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activity?.id, activity?.routeName, activity?.routeNameChecked, userId, routePoints]);
+  }, [
+    activity?.id,
+    activity?.routeName,
+    activity?.routeNameChecked,
+    activity?.routeNamePt,
+    activity?.routeNamePtChecked,
+    userId,
+    routePoints,
+  ]);
 
   useEffect(() => {
     if (activity?.hasRoute) loadRoute(activity.id);
@@ -498,6 +513,20 @@ export default function AtividadeDetalheScreen() {
           <Text style={styles.heroTime}>
             {formatTime(activity.startAt)} – {formatTime(activity.endAt)}
           </Text>
+          {/*
+            A legenda em português vem PARA CÁ, e não para debaixo do nome no
+            cabeçalho — escolha do dono entre os dois desenhos de 23/09.
+
+            O cabeçalho já empilha o tipo e o nome em 20 e 12,5px num espaço de
+            duas linhas; uma terceira ali seria a mais apertada das três. Aqui há
+            espaço, e ela cabe no corpo em vez de no cromo da navegação.
+
+            O preço, aceito: o par fica separado — o nome local no cabeçalho, o
+            português no hero. `nomeEmPortugues` é quem garante que isso nunca vire
+            uma tradução órfã: ela cala quando o cabeçalho não está mostrando o
+            nome local.
+          */}
+          {legenda && <Text style={styles.heroLegenda}>{legenda}</Text>}
 
           <View style={styles.heroStats}>
             {hasGps ? (
@@ -853,6 +882,17 @@ const styles = themed(() => StyleSheet.create({
     textAlign: 'center',
   },
   heroTime: { fontSize: 13, color: colors.ink3, fontFamily: fonts.mono },
+  // `ink2`, e não `ink3`: a legenda é conteúdo, e o `ink3` mede 3,05 contra a
+  // superfície — abaixo do piso de 4,5 para texto deste tamanho. O que a separa
+  // do nome no cabeçalho é a posição, não um cinza mais fraco.
+  heroLegenda: {
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontFamily: fonts.sans,
+    color: colors.ink2,
+    textAlign: 'center',
+    marginTop: 6,
+  },
   heroStats: {
     flexDirection: 'row',
     justifyContent: 'center',

@@ -15,6 +15,7 @@ import {
   descritorDaRetrospectiva,
   descritorDaSaudeDoSono,
   descritorDoNomeDeRota,
+  descritorDoNomeDeRotaPt,
   entradaDaSaude,
   periodBounds,
   periodoFechado,
@@ -172,15 +173,21 @@ describe('a janela de sono que a bancada oferece', () => {
  * perdesse continuaria prometendo uma coluna que nunca vem.
  */
 describe('onde há régua', () => {
-  it('a tabela da fileira de chips bate com o `semModelo` dos três descritores', () => {
+  it('a tabela da fileira de chips bate com o `semModelo` dos quatro descritores', () => {
     const fatos = {
       'saude-do-sono': entradaDaSaude([noite('2026-09-22')], {}, { range: '7d', offset: 0, hoje: '2026-09-22' }),
-      // Os dois devolvem lápide sem olhar para os fatos (`semModelo: () => …`): o
+      // Os três devolvem lápide sem olhar para os fatos (`semModelo: () => …`): o
       // objeto vazio nunca é lido, e montar um pacote real aqui mediria outra coisa.
       retrospectiva: {},
       'nome-de-rota': {},
+      'nome-de-rota-pt': {},
     } as const;
-    for (const d of [descritorDaSaudeDoSono, descritorDaRetrospectiva, descritorDoNomeDeRota]) {
+    for (const d of [
+      descritorDaSaudeDoSono,
+      descritorDaRetrospectiva,
+      descritorDoNomeDeRota,
+      descritorDoNomeDeRotaPt,
+    ]) {
       const piso = (d as Descritor<unknown, unknown>).semModelo(fatos[d.recurso]);
       expect([d.recurso, 'frase' in piso]).toEqual([d.recurso, RECURSOS_COM_REGUA[d.recurso]]);
     }

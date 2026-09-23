@@ -29,7 +29,9 @@ import {
   descritorDaRetrospectiva,
   descritorDaSaudeDoSono,
   descritorDoNomeDeRota,
+  descritorDoNomeDeRotaPt,
   leituraDoNome,
+  leituraDoNomeEmPt,
   ler,
   montarNome,
   pacotesComDado,
@@ -46,9 +48,10 @@ import {
   type PacoteDeFatos,
   type ProblemaDaConferencia,
   type RecursoId,
+  type RouteReading,
   type TipoDeMotor,
 } from '@vitale/shared';
-import { BIKE_ACTIVITY_ID, fatosDaPedalada, type PontaDaRota } from '../../services/route-name';
+import { fatosDaRota, type PontaDaRota } from '../../services/route-name';
 import {
   MOTIVO_SEM_NOITE,
   OFFSET_DA_SEMANA_FECHADA,
@@ -80,12 +83,18 @@ export interface ContextoDasAmostras {
    * não chegaram. `null` não é erro: é a resposta honesta de "ainda não dá".
    */
   readonly edicao: EntradaPacote | null;
-  /** O que o nome de rota precisa do mundo. */
-  readonly pedaladas: {
+  /**
+   * O que as duas frentes do nome de rota precisam do mundo.
+   *
+   * Chamava-se `pedaladas` até 23/09, e o crivo de bicicleta caindo tirou a palavra:
+   * o campo carrega caminhada e corrida agora, e um nome que diz o contrário é o
+   * tipo de rótulo que sobrevive a três refatorações mentindo.
+   */
+  readonly rotas: {
     /** Sem sessão não há âncoras de casa, e sem âncoras não há fatos. */
     readonly userId: string | null;
     readonly atividades: readonly Activity[];
-    /** O traçado de uma pedalada, carregando-o se preciso. */
+    /** O traçado de uma atividade, carregando-o se preciso. */
     readonly pontosDe: (id: string) => Promise<readonly PontaDaRota[] | undefined>;
   };
 }
@@ -94,7 +103,7 @@ export interface ContextoDasAmostras {
 export interface CasoDeAmostra<E> {
   /** Identidade dentro da fonte. Trocar de caso apaga as linhas medidas. */
   readonly chave: string;
-  /** Como a tela o chama: "7d · esta janela", "caderno Sono", "pedalada de 14/09 · Ittre". */
+  /** Como a tela o chama: "7d · esta janela", "caderno Sono", "14/09 · Ittre". */
   readonly rotulo: string;
   readonly entrada: E;
 }
@@ -313,7 +322,7 @@ function fechar<E, S>(f: Fonte<E, S>): FonteDeAmostra {
   };
 }
 
-/* ── as três leituras ────────────────────────────────────────────────────── */
+/* ── as quatro leituras ──────────────────────────────────────────────────── */
 
 /**
  * A Saúde do sono: a janela que o `PeriodNav` escolheu, e só ela.
@@ -385,11 +394,11 @@ const retrospectiva: Fonte<PacoteDeFatos, string> = {
   },
 };
 
-/** Quantas pedaladas entram na amostra do nome de rota. */
-export const PEDALADAS_NA_AMOSTRA = 5;
+/** Quantas atividades entram na amostra do nome de rota. */
+export const ATIVIDADES_NA_AMOSTRA = 5;
 
 /**
- * Quantas pedaladas se tenta abrir para achar as cinco.
+ * Quantas atividades se tenta abrir para achar as cinco.
  *
  * Existe porque cada tentativa custa uma consulta do traçado: sem teto, um acervo
  * em que ninguém tem ponta gravada varreria o histórico inteiro antes de dizer
@@ -398,75 +407,103 @@ export const PEDALADAS_NA_AMOSTRA = 5;
 const TETO_DE_TENTATIVAS = 15;
 
 /**
- * O nome de rota: as últimas pedaladas **que já têm cidades e traçado**.
+ * As últimas atividades **que já têm cidades e traçado** — a amostra que as duas
+ * frentes do nome dividem.
  *
- * O crivo é o da produção (`BIKE_ACTIVITY_ID`, `hasRoute`, cidades gravadas), menos
- * a marca de já visitada: aqui não se nomeia nada, e a pedalada mais interessante
- * de medir costuma ser justamente uma que já foi nomeada — o dono compara o que o
- * motor novo escreveria com o nome que está lá.
+ * O crivo é o da produção (`hasRoute`, cidades gravadas), menos a marca de já
+ * visitada: aqui não se nomeia nada, e a atividade mais interessante de medir
+ * costuma ser justamente uma que já foi nomeada — o dono compara o que o motor novo
+ * escreveria com o nome que está lá.
  *
- * Pedalada sem ponta no traçado é **pulada**, não listada vazia: sem as duas pontas
- * não há forma, sem forma não há molde, e o caso não teria o que medir.
+ * **O crivo de bicicleta caiu aqui junto com o da produção** (23/09): a bancada
+ * escolhe a amostra pelo mesmo critério que o gatilho, senão ela mediria um
+ * conjunto que a produção não nomeia — e agora a produção nomeia caminhada e
+ * corrida também.
+ *
+ * Atividade sem ponta no traçado é **pulada**, não listada vazia: sem as duas
+ * pontas não há forma, sem forma não há molde, e o caso não teria o que medir.
  */
-const nomeDeRota: Fonte<FatosDoNome, NomePreenchido> = {
-  recurso: descritorDoNomeDeRota.recurso,
-  rotulo: 'Nome de rota',
-  seletor: 'chips',
-  descritor: descritorDoNomeDeRota,
-  // O molde é o que transforma as peças em nome (ADR 0041) — contração é gramática,
-  // e gramática mora em código. Quando ele não monta, a conferência já reprovou: a
-  // linha diz isso em palavras em vez de mostrar um objeto.
-  emTexto: (pecas, f) => montarNome(leituraDoNome(f), pecas, f.rota.distanceM) ?? SEM_MOLDE,
-  casos: async (ctx) => {
-    const { userId, atividades, pontosDe } = ctx.pedaladas;
-    if (userId === null) return { casos: [], motivo: 'sem sessão: as âncoras de casa não se leem' };
+async function casosDoNome(ctx: ContextoDasAmostras): Promise<CasosDeAmostra<FatosDoNome>> {
+  const { userId, atividades, pontosDe } = ctx.rotas;
+  if (userId === null) return { casos: [], motivo: 'sem sessão: as âncoras de casa não se leem' };
 
-    const candidatas = atividades
-      .filter((a) => a.activityId === BIKE_ACTIVITY_ID && a.hasRoute && !a.hidden && cidadesDe(a).length > 0)
-      .sort((a, b) => b.startAt.localeCompare(a.startAt));
+  const candidatas = atividades
+    .filter((a) => a.hasRoute && !a.hidden && cidadesDe(a).length > 0)
+    .sort((a, b) => b.startAt.localeCompare(a.startAt));
 
-    const casos: CasoDeAmostra<FatosDoNome>[] = [];
-    let tentadas = 0;
-    let degeneradas = 0;
-    let ultimaFalha: string | null = null;
-    for (const a of candidatas) {
-      if (casos.length >= PEDALADAS_NA_AMOSTRA || tentadas >= TETO_DE_TENTATIVAS) break;
-      tentadas += 1;
-      try {
-        const fatos = await fatosDaPedalada(a, await pontosDe(a.id), userId);
-        if (fatos === null) continue;
-        // **A rota degenerada não entra na amostra** (22/09). O descritor recusa montar
-        // pedido para ela — uma rota de 0 km não custa um token —, e o orquestrador
-        // devolve `mudo` para TODOS os motores. Na bancada isso aparecia como cinco
-        // linhas mudas sem explicação, e foi o que o dono viu: a pedalada mais recente
-        // do acervo tem 4,3 km e uma cidade só, que é exatamente o caso recusado.
-        // A pergunta é pura e de graça, então é aqui que ela se faz — oferecer um caso
-        // que não se pode medir é a tela prometendo o que o núcleo já negou.
-        if (!rotaMedivel(fatos)) {
-          degeneradas += 1;
-          continue;
-        }
-        casos.push({ chave: a.id, rotulo: rotuloDaPedalada(a), entrada: fatos });
-      } catch (e) {
-        // O traçado ou as âncoras não vieram. Uma pedalada a menos na amostra não é
-        // motivo para a leitura inteira ficar sem caso.
-        ultimaFalha = mensagem(e);
+  const casos: CasoDeAmostra<FatosDoNome>[] = [];
+  let tentadas = 0;
+  let degeneradas = 0;
+  let ultimaFalha: string | null = null;
+  for (const a of candidatas) {
+    if (casos.length >= ATIVIDADES_NA_AMOSTRA || tentadas >= TETO_DE_TENTATIVAS) break;
+    tentadas += 1;
+    try {
+      const fatos = await fatosDaRota(a, await pontosDe(a.id), userId);
+      if (fatos === null) continue;
+      // **A rota degenerada não entra na amostra** (22/09). O descritor recusa montar
+      // pedido para ela — uma rota de 0 km não custa um token —, e o orquestrador
+      // devolve `mudo` para TODOS os motores. Na bancada isso aparecia como cinco
+      // linhas mudas sem explicação, e foi o que o dono viu: a pedalada mais recente
+      // do acervo tem 4,3 km e uma cidade só, que é exatamente o caso recusado.
+      // A pergunta é pura e de graça, então é aqui que ela se faz — oferecer um caso
+      // que não se pode medir é a tela prometendo o que o núcleo já negou.
+      if (!rotaMedivel(fatos)) {
+        degeneradas += 1;
+        continue;
       }
+      casos.push({ chave: a.id, rotulo: rotuloDaAtividade(a), entrada: fatos });
+    } catch (e) {
+      // O traçado ou as âncoras não vieram. Uma atividade a menos na amostra não é
+      // motivo para a leitura inteira ficar sem caso.
+      ultimaFalha = mensagem(e);
     }
-    if (casos.length > 0) return { casos };
-    return {
-      casos,
-      motivo:
-        candidatas.length === 0
-          ? 'nenhuma pedalada com cidades e traçado no acervo carregado'
-          : degeneradas === tentadas
-            ? `as ${tentadas} pedaladas mais recentes são curtas demais para ganhar nome (o descritor recusa rota de uma cidade com menos de 8 km)`
-            : `nenhuma das ${tentadas} pedaladas mais recentes tem as duas pontas do traçado${
-                ultimaFalha === null ? '' : ` (última falha: ${ultimaFalha})`
-              }`,
-    };
-  },
-};
+  }
+  if (casos.length > 0) return { casos };
+  return {
+    casos,
+    motivo:
+      candidatas.length === 0
+        ? 'nenhuma atividade com cidades e traçado no acervo carregado'
+        : degeneradas === tentadas
+          ? `as ${tentadas} atividades mais recentes são curtas demais para ganhar nome (o descritor recusa rota de uma cidade com menos de 8 km)`
+          : `nenhuma das ${tentadas} atividades mais recentes tem as duas pontas do traçado${
+              ultimaFalha === null ? '' : ` (última falha: ${ultimaFalha})`
+            }`,
+  };
+}
+
+/**
+ * Uma frente do nome como fonte de amostra.
+ *
+ * As duas medem **as mesmas atividades** — é o que permite o dono ler as duas
+ * colunas lado a lado e decidir se quer motores diferentes. O que difere é o
+ * descritor e, no `emTexto`, qual leitura derivada o molde recebe: com a leitura
+ * errada a linha mostraria a frase francesa embaixo da medição portuguesa, e a
+ * comparação diria o contrário do que aconteceu.
+ */
+function fonteDoNome(
+  descritor: Descritor<FatosDoNome, NomePreenchido>,
+  rotulo: string,
+  derivar: (f: FatosDoNome) => RouteReading,
+): Fonte<FatosDoNome, NomePreenchido> {
+  return {
+    recurso: descritor.recurso,
+    rotulo,
+    seletor: 'chips',
+    descritor,
+    // O molde é o que transforma as peças em nome (ADR 0041) — contração é gramática,
+    // e gramática mora em código. Quando ele não monta, a conferência já reprovou: a
+    // linha diz isso em palavras em vez de mostrar um objeto.
+    emTexto: (pecas, f) => montarNome(derivar(f), pecas, f.rota.distanceM) ?? SEM_MOLDE,
+    casos: casosDoNome,
+  };
+}
+
+const nomeDeRota = fonteDoNome(descritorDoNomeDeRota, 'Nome de rota', leituraDoNome);
+
+/** A legenda em português: mesma amostra, outro recurso, outra preferência de motor. */
+const nomeDeRotaPt = fonteDoNome(descritorDoNomeDeRotaPt, 'Nome de rota (pt)', leituraDoNomeEmPt);
 
 /** O que a linha mostra quando as peças não montam nome. */
 const SEM_MOLDE = '(as peças são válidas e o molde não monta nome com elas)';
@@ -475,19 +512,27 @@ function mensagem(e: unknown): string {
   return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }
 
-/** As cidades da pedalada, como o ingest as gravou. */
+/** As cidades da atividade, como o ingest as gravou. */
 function cidadesDe(a: Activity): readonly CityMark[] {
   return a.cities ?? [];
 }
 
-/** `pedalada de 14/09 · Ittre` — a data local e a primeira cidade do percurso. */
-function rotuloDaPedalada(a: Activity): string {
+/**
+ * `14/09 · Ittre` — a data local e a primeira cidade do percurso.
+ *
+ * Dizia "pedalada de 14/09" até 23/09, e o crivo de bicicleta caindo tirou a
+ * palavra: o chip passaria a chamar de pedalada uma caminhada de 3 km, que é
+ * exatamente o tipo de rótulo errado que o dono não tem como conferir na tela.
+ * Nomear o tipo de volta pediria a tabela de rótulos, e a data com a cidade já
+ * identifica o caso sem ambiguidade no acervo carregado.
+ */
+function rotuloDaAtividade(a: Activity): string {
   const d = new Date(a.startAt);
   const dia = Number.isNaN(d.getTime())
     ? a.startAt.slice(0, 10)
     : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
   const cidade = cidadesDe(a)[0]?.name;
-  return cidade === undefined ? `pedalada de ${dia}` : `pedalada de ${dia} · ${cidade}`;
+  return cidade === undefined ? dia : `${dia} · ${cidade}`;
 }
 
 /* ── o registro ──────────────────────────────────────────────────────────── */
@@ -501,14 +546,21 @@ const POR_RECURSO: Readonly<Record<RecursoId, FonteDeAmostra>> = {
   'saude-do-sono': fechar(saudeDoSono),
   retrospectiva: fechar(retrospectiva),
   'nome-de-rota': fechar(nomeDeRota),
+  'nome-de-rota-pt': fechar(nomeDeRotaPt),
 };
 
 /**
  * A ordem dos chips de leitura: a Saúde primeiro, porque é a única que a bancada
  * mediu até hoje e é a leitura cujo pedido o dono conhece de cor — a régua de
- * comparação dele começa ali.
+ * comparação dele começa ali. As duas frentes do nome ficam **vizinhas**, na ordem
+ * em que a produção as roda: o local manda, o português é legenda.
  */
-const ORDEM = ['saude-do-sono', 'retrospectiva', 'nome-de-rota'] as const satisfies readonly RecursoId[];
+const ORDEM = [
+  'saude-do-sono',
+  'retrospectiva',
+  'nome-de-rota',
+  'nome-de-rota-pt',
+] as const satisfies readonly RecursoId[];
 
 /**
  * A ordem é escrita à mão, e o tipo não a obriga a ser completa: um recurso novo

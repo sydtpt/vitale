@@ -385,7 +385,7 @@ export default function BancadaScreen() {
     () => ({
       saude: entrada,
       edicao: dadosProntos ? entradaDaEdicao : null,
-      pedaladas: { userId, atividades, pontosDe },
+      rotas: { userId, atividades, pontosDe },
     }),
     [entrada, dadosProntos, entradaDaEdicao, userId, atividades, pontosDe],
   );

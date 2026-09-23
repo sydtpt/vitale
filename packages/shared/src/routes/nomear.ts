@@ -99,16 +99,29 @@ function daPecas(pecas: NomePreenchido): Pick<RouteNameMeta, 'regiao' | 'artigo'
  * | `saida-invalida` **sem** ela | nada — ninguém escreveu (ver o ramo) |
  * | `reprovada` | `reprovado`, ou `sem-molde` quando foi essa a regra |
  * | qualquer outra | nada |
+ *
+ * **Serve as duas frentes do nome** (23/09): a forma é a mesma nos dois recursos
+ * (ela é geometria), e a única coisa que muda é a língua — ver o parâmetro.
  */
 export function metaDaLeitura(
   leitura: Leitura<NomePreenchido>,
   fatos: FatosDoNome,
   agora: Date,
+  /**
+   * A língua em que **esta frente** pediu o nome, quando ela não é a do país.
+   *
+   * O recurso `nome-de-rota-pt` força `pt` na leitura derivada, e a meta tem de
+   * dizer a mesma língua que o pedido disse: sem isto, `route_name_pt_meta`
+   * registraria `fr` embaixo de um nome escrito em português, e quem auditasse o
+   * acervo acreditaria na coluna. `undefined` é a frente do nome local, onde a
+   * língua continua saindo do país dominante.
+   */
+  lingua?: Lingua,
 ): ResultadoDoNome | null {
   const derivada = leituraDoNome(fatos);
   const base: RouteNameMeta = {
     forma: derivada.forma,
-    lingua: derivada.lingua,
+    lingua: lingua ?? derivada.lingua,
     regiao: null,
     artigo: null,
     via: null,

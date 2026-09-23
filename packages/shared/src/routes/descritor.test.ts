@@ -13,6 +13,10 @@
  *     existe para que a troca por `interpretarPorEsquema` quebre aqui, e não em
  *     produção.
  *  4. A conferência reprova o que já reprovava, mais o molde que não monta.
+ *  5. **O recurso em português é a mesma sequência com outra língua** (23/09): o
+ *     pedido difere numa linha, a conferência cobra artigo português e a frase sai
+ *     em português sobre os mesmos fatos. Se um dia a variante parar de forçar a
+ *     língua, os dois pedidos ficam idênticos e o bloco do fim cai.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,7 +26,15 @@ import { NUVEM_PADRAO, SEM_MODELO, conformeAoEsquema } from '../ia/fio';
 import { corpoDoPedido } from '../ia/nuvem';
 import { validarDescritor } from '../ia/recursos';
 import { derivarAncoras } from './anchor';
-import { ESQUEMA_DO_NOME, REGRA_SEM_MOLDE, descritorDoNomeDeRota, leituraDoNome, type FatosDoNome } from './descritor';
+import {
+  ESQUEMA_DO_NOME,
+  REGRA_SEM_MOLDE,
+  descritorDoNomeDeRota,
+  descritorDoNomeDeRotaPt,
+  leituraDoNome,
+  leituraDoNomeEmPt,
+  type FatosDoNome,
+} from './descritor';
 import { PROMPT_NOME_VERSAO, lerRespostaDoModelo, montarPromptDeNome } from './prompt';
 import type { NomePreenchido, RouteFacts } from './types';
 
@@ -202,5 +214,82 @@ describe('o piso', () => {
   it('sem modelo é ausência com motivo — a região não se deriva das cidades', () => {
     const piso = descritorDoNomeDeRota.semModelo(PAJOTTENLAND);
     assert.ok('ausencia' in piso && piso.ausencia.length > 0);
+  });
+});
+
+/* ── o recurso em português (23/09) ──────────────────────────────────────── */
+
+/**
+ * O que estes testes prendem é a **tese** da variante: um recurso próprio, um
+ * corpo só, e a língua como única diferença.
+ *
+ * O caso que mais importa é o do artigo. A conferência cobra o artigo na língua do
+ * nome, e é ela que prova que forçar `pt` na leitura derivada atravessa a sequência
+ * inteira — não só o prompt. Se a variante um dia deixar de forçar, `artigo: 'o'`
+ * volta a ser reprovado aqui e `artigo: 'le'` volta a passar, nos dois sentidos.
+ */
+describe('o nome em português', () => {
+  /** As peças que o modelo devolveria com a língua portuguesa pedida. */
+  const EM_PT: NomePreenchido = { ...BOAS, artigo: 'o' };
+
+  it('é válido para o catálogo, e declara o recurso próprio com o mesmo contrato', () => {
+    assert.deepEqual(validarDescritor(descritorDoNomeDeRotaPt), []);
+    assert.equal(descritorDoNomeDeRotaPt.recurso, 'nome-de-rota-pt');
+    // O contrato não muda: mesma versão de prompt, mesmo molde, mesmo teto e a
+    // mesma gravação — inclusive o `aparelho`, que a ADR 0056 liberou.
+    assert.equal(descritorDoNomeDeRotaPt.versao, descritorDoNomeDeRota.versao);
+    assert.equal(descritorDoNomeDeRotaPt.regimeDeNumeros, descritorDoNomeDeRota.regimeDeNumeros);
+    assert.equal(descritorDoNomeDeRotaPt.regimeMaximo, descritorDoNomeDeRota.regimeMaximo);
+    assert.deepEqual([...descritorDoNomeDeRotaPt.cadeiaPadrao], [...descritorDoNomeDeRota.cadeiaPadrao]);
+    assert.deepEqual(descritorDoNomeDeRotaPt.grava, { admite: ['nuvem', 'aparelho'], recusaEResultado: true });
+  });
+
+  it('a leitura derivada muda a língua, e SÓ a língua', () => {
+    assert.equal(leituraDoNome(PAJOTTENLAND).lingua, 'fr');
+    assert.equal(leituraDoNomeEmPt(PAJOTTENLAND).lingua, 'pt');
+    assert.deepEqual(
+      { ...leituraDoNomeEmPt(PAJOTTENLAND), lingua: 'fr' },
+      leituraDoNome(PAJOTTENLAND),
+      'forma, pontas, cidade distante e distâncias de casa são geometria — não mudam com a língua',
+    );
+  });
+
+  it('o pedido difere do local em UMA linha: a língua', () => {
+    const local = descritorDoNomeDeRota.montarPedido(PAJOTTENLAND)!;
+    const pt = descritorDoNomeDeRotaPt.montarPedido(PAJOTTENLAND)!;
+    assert.equal(pt.sistema, local.sistema, 'o sistema é o mesmo prompt — a língua vem no usuário');
+    assert.match(pt.usuario, /^Língua do nome: português\./);
+    assert.match(local.usuario, /^Língua do nome: francês\./);
+    assert.equal(
+      pt.usuario.split('\n').slice(1).join('\n'),
+      local.usuario.split('\n').slice(1).join('\n'),
+      'a rota, os países e as cidades são os mesmos — se isto divergir, a variante deixou de ser fina',
+    );
+    // O par de hashes desses dois pedidos é o que o golden de `ia/recursos.test.ts`
+    // registra; aqui basta que eles não sejam o mesmo pedido.
+    assert.notEqual(pt.usuario, local.usuario);
+  });
+
+  it('a mesma rota rende a frase em português', () => {
+    assert.deepEqual(descritorDoNomeDeRotaPt.conferir(EM_PT, PAJOTTENLAND), { ok: true });
+    assert.equal(descritorDoNomeDeRotaPt.montarFrase(EM_PT, PAJOTTENLAND), 'Tour do Pajottenland');
+    // A frente local, sobre os MESMOS fatos, continua escrevendo o francês.
+    assert.equal(descritorDoNomeDeRota.montarFrase(BOAS, PAJOTTENLAND), 'Tour du Pajottenland');
+  });
+
+  it('a conferência cobra o artigo na língua DELE — nos dois sentidos', () => {
+    const noPt = descritorDoNomeDeRotaPt.conferir(BOAS, PAJOTTENLAND);
+    assert.ok(noPt.ok === false && noPt.problemas.some((p) => p.regra === 'artigo'), '"le" não é artigo em português');
+    const noLocal = descritorDoNomeDeRota.conferir(EM_PT, PAJOTTENLAND);
+    assert.ok(noLocal.ok === false && noLocal.problemas.some((p) => p.regra === 'artigo'), '"o" não é artigo em francês');
+  });
+
+  it('o portão da degenerada e a lápide são os mesmos — o corpo é um só', () => {
+    assert.equal(descritorDoNomeDeRotaPt.montarPedido(DEGENERADA), null);
+    assert.deepEqual(descritorDoNomeDeRotaPt.semModelo(PAJOTTENLAND), descritorDoNomeDeRota.semModelo(PAJOTTENLAND));
+    assert.deepEqual(
+      descritorDoNomeDeRotaPt.interpretar({ texto: JSON.stringify(EM_PT), assinatura: { tipo: 'nuvem', provedor: 'p', modelo: 'm' } }),
+      descritorDoNomeDeRota.interpretar({ texto: JSON.stringify(EM_PT), assinatura: { tipo: 'nuvem', provedor: 'p', modelo: 'm' } }),
+    );
   });
 });

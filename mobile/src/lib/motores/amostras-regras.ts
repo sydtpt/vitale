@@ -110,6 +110,10 @@ export const RECURSOS_COM_REGUA: Readonly<Record<RecursoId, boolean>> = {
   'saude-do-sono': true,
   retrospectiva: false,
   'nome-de-rota': false,
+  // Não há template de nome em português por exatamente o mesmo motivo que não há
+  // no nome local: a região histórica não se deriva das cidades. A bancada mede e
+  // mostra; quem aprova cada frase é o dono.
+  'nome-de-rota-pt': false,
 };
 
 /* ── quem entra na fileira, e quem continua valendo na hora de correr ────── */
