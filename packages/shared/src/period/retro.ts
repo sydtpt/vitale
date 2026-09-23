@@ -50,6 +50,12 @@ import {
 } from '../sleep/triggers';
 import { periodBounds, retroSince, type PeriodKind } from './bounds';
 import { fmtMoney } from '../format/money';
+// O dono de "isto é um dia de calendário" é o das datas locais — o mesmo que o
+// pacote consulta. Uma segunda regex aqui aceitaria o que aquele recusa. E, pelo
+// mesmo motivo, `localDay` deixou de ser cópia local: `localDateStr` se declara
+// "a única forma de derivar 'YYYY-MM-DD' no projeto", e duas cópias da mesma
+// conta divergem no dia em que uma mudar.
+import { isValidDate, localDateStr as localDay } from '../date/local';
 
 /**
  * Piso de relevância do insight cruzado (%). Abaixo disso a diferença entre os
@@ -64,6 +70,25 @@ export const MIN_CROSS_DELTA_PCT = 5;
 export interface RetroTask {
   doneDay: string;   // 'YYYY-MM-DD' local de done_at
   module: string;    // geral | casa | saude | compras | financas
+}
+
+/**
+ * Uma série de tarefas, reduzida ao que o **marco** precisa: quando ela nasceu e
+ * de que módulo é.
+ *
+ * A contagem de tarefas e a de compras não têm data de nascimento própria — o que
+ * as data é a série que as gerou. Sem isto, `tasks.total` e `purchases.count`
+ * chegam a 2023 valendo `0` e a revista diz "0 tarefas" de um app que ainda não
+ * tinha to-do. Ver {@link RetroMarcos}.
+ *
+ * Só a data e o módulo: a lista inteira de séries já viaja em `dailyTasks`, mas
+ * **só as diárias** — e o marco é de todas.
+ */
+export interface RetroTaskSeries {
+  /** Dia de criação ('YYYY-MM-DD' local, como `fetchTodoTemplateSummaries` o devolve). */
+  createdOn: string;
+  /** geral | casa | saude | compras | financas — o mesmo de {@link RetroTask}. */
+  module: string;
 }
 
 /** Compra concluída (occurrence done do módulo `compras`, com meta). */
@@ -155,6 +180,17 @@ export interface RetroInput {
   tasks: RetroTask[];
   /** Séries diárias + os dias em que foram concluídas — gatilhos do cruzamento. */
   dailyTasks?: RetroDailyTask[];
+  /**
+   * **Todas** as séries de tarefa, só com a data de nascimento e o módulo — a
+   * origem dos marcos de tarefas e de compras ({@link RetroMarcos}).
+   *
+   * Opcional: a web monta o `RetroInput` dela à mão (`retro.store.ts`) e não
+   * imprime edição. **Ausente ⇒ os dois marcos não nascem**, e o pacote se
+   * comporta como antes da 2.6; lista vazia ⇒ os dois marcos são `null`, que é o
+   * dado dizendo que nunca houve série. A diferença é deliberada: ausente é
+   * "ninguém informou", e "ninguém informou" não pode apagar um zero legítimo.
+   */
+  taskSeries?: readonly RetroTaskSeries[];
   purchases: RetroPurchase[];
   /** Aderência ao plano de treino no período (opcional). */
   plannedDone?: number;
@@ -327,6 +363,67 @@ export interface RetroHealthRow {
   trend: 'up' | 'down' | 'flat';
 }
 
+/**
+ * Quantos dias de cada lado **carregaram valor** numa medição passiva.
+ *
+ * Passos e andares são somas diárias do relógio: dia sem linha é dia sem relógio,
+ * e não dia parado. A soma sozinha não distingue os dois — 0 é o que ela devolve
+ * nos dois casos —, então quem distingue é a contagem de dias.
+ */
+export interface DiasMedidos {
+  /** Dias com valor dentro do período. */
+  atual: number;
+  /** Dias com valor dentro do período anterior. Sempre 0 em `all`. */
+  anterior: number;
+}
+
+/**
+ * O que separa "zero" de "não medido" (Story 2.6), para o que a retro não tem
+ * como dizer sozinha.
+ *
+ * Tudo aqui nasce do dado, nunca de data escrita no código. A retro em si não lê
+ * nada disto — quem lê é o pacote da revista (`ia/pacote.ts`), e é por isso que
+ * mora num campo só, e não espalhado pelas seções.
+ *
+ * **São duas famílias, e elas não se leem igual:**
+ *
+ * 1. **Datas de nascimento** — {@link atividades}, {@link tarefas} e
+ *    {@link compras}. Respondem "desde quando isto era registrado", e o pacote as
+ *    compara com o fim de cada lado do período. Nelas, e **só** nelas, valem os
+ *    três estados:
+ *    - **ausente** (`undefined`): ninguém informou a origem — o chamador não
+ *      passou o campo do `RetroInput` de onde ela sai. Nada se alega.
+ *    - **`null`**: a origem foi consultada e não tem marco legível — acervo sem
+ *      atividade, nenhuma série de compras, `createdOn` que não é dia de
+ *      calendário. Quer dizer "nunca foi registrado".
+ *    - **um dia**: o marco.
+ * 2. **Dias medidos** — {@link passos} e {@link andares}. **Não são marco**: são
+ *    contagem de dias com valor de cada lado, a régua da medição passiva. Estão
+ *    sempre presentes, e o zero delas é o que diz "nenhum dia com relógio".
+ *
+ * Quem monta o `RetroSummary` à mão deixa {@link RetroSummary.marcos} fora
+ * inteiro, e aí nenhum dos dois critérios se aplica.
+ */
+export interface RetroMarcos {
+  /**
+   * Dia da primeira atividade do acervo, sobre **o mesmo conjunto** que
+   * `fitness.count` conta.
+   *
+   * O invariante é esse, e não "com as ocultas" ou "sem as ocultas": o marco e a
+   * contagem olham a mesma lista (`input.activities`), qualquer que seja o filtro
+   * que o hospedeiro aplicou antes — em produção `retroInputDe` tira as ocultas
+   * antes de o resumo ver, e `buildRetrospective` não as tira de novo. Um marco
+   * tirado de outro conjunto poria a contagem e a data dela em desacordo.
+   */
+  atividades: string | null;
+  /** Menor dia de criação entre **todas** as séries de tarefa. Ausente sem `taskSeries`. */
+  tarefas?: string | null;
+  /** Menor dia de criação entre as séries do módulo `compras`. Ausente sem `taskSeries`. */
+  compras?: string | null;
+  passos: DiasMedidos;
+  andares: DiasMedidos;
+}
+
 export interface RetroSummary {
   kind: PeriodKind;
   offset: number;
@@ -362,16 +459,18 @@ export interface RetroSummary {
    * passaria. `null` sem `sleepPeriods`.
    */
   sleepTriggers: SleepTriggerBoard | null;
+  /**
+   * Os marcos de registro — ver {@link RetroMarcos}. `buildRetrospective` sempre
+   * os preenche; **opcional** porque há quem monte o `RetroSummary` à mão (as
+   * fixtures do golden set, e quem só quer um recorte), e um resumo sem marcos
+   * não autoriza nenhuma alegação de ausência: o pacote se comporta como antes.
+   */
+  marcos?: RetroMarcos;
 }
 
 const MODULE_LABELS: Record<string, string> = {
   geral: 'Geral', casa: 'Casa', saude: 'Saúde', compras: 'Compras', financas: 'Finanças',
 };
-
-function localDay(d: Date): string {
-  const p = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
 
 function hardMinInRange(activities: Activity[], start: Date, end: Date): number {
   const byDay = dailyHardLoad(activities);
@@ -391,6 +490,45 @@ function sumInRange(valuesByDay: ReadonlyMap<string, number>, start: Date, end: 
     if (ts >= start.getTime() && ts < end.getTime()) total += v;
   }
   return total;
+}
+
+/**
+ * Quantos dias de [start, end) **têm valor** — a mesma varredura de
+ * {@link sumInRange}, contando em vez de somar.
+ *
+ * Um dia gravado com 0 conta: ele foi medido, e a medida deu zero. O que não
+ * conta é o dia que não está no mapa (ou que está com lixo): esse é dia sem
+ * relógio. Ver {@link DiasMedidos}.
+ */
+function countDaysInRange(
+  valuesByDay: ReadonlyMap<string, number> | undefined, start: Date, end: Date,
+): number {
+  if (!valuesByDay) return 0;
+  let n = 0;
+  for (const [day, v] of valuesByDay) {
+    if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+    const ts = new Date(`${day}T00:00:00`).getTime();
+    if (ts >= start.getTime() && ts < end.getTime()) n += 1;
+  }
+  return n;
+}
+
+/**
+ * O menor dia de calendário da lista — o marco. `null` quando não há nenhum
+ * legível, e isso **é** a resposta: nada foi registrado.
+ *
+ * Um `createdOn` que não é `YYYY-MM-DD` de calendário é descartado, e não
+ * comparado como texto: `"20/05/2026"` contra `"2026-05-01"` sai sempre maior ou
+ * sempre menor, nunca certo. Descartar é o lado conservador — sobra um marco mais
+ * tarde, e marco mais tarde nunca autoriza um zero que não existiu.
+ */
+function menorDia(dias: Iterable<string | undefined>): string | null {
+  let menor: string | null = null;
+  for (const d of dias) {
+    if (d == null || !isValidDate(d)) continue;
+    if (menor == null || d < menor) menor = d;
+  }
+  return menor;
 }
 
 const DAY_MS = 86_400_000;
@@ -777,6 +915,36 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
       )
     : null;
 
+  // ── Os marcos ──
+  // Derivados do que já chegou — nenhuma leitura nova. Quem os lê é o pacote da
+  // revista, para não chamar de zero o que ainda não era registrado (Story 2.6).
+  // As atividades saem da MESMA lista que `totalsInRange` conta em
+  // `fitness.count`: um marco de outro conjunto poria a contagem e a data dela em
+  // desacordo.
+  //
+  // `taskSeries` ausente NÃO é "não há série": é "ninguém informou". Os dois
+  // marcos então não nascem, e o pacote não alega ausência nenhuma — é o que
+  // protege quem monta o `RetroInput` à mão sem o campo novo (a store da web).
+  // Lista vazia, essa sim, é o dado dizendo que nunca houve série.
+  const series = input.taskSeries;
+  const marcos: RetroMarcos = {
+    atividades: menorDia(input.activities.map((a) => localDay(new Date(a.startAt)))),
+    ...(series
+      ? {
+          tarefas: menorDia(series.map((s) => s.createdOn)),
+          compras: menorDia(series.filter((s) => s.module === 'compras').map((s) => s.createdOn)),
+        }
+      : {}),
+    passos: {
+      atual: countDaysInRange(input.stepsByDay, cur.start, cur.end),
+      anterior: countDaysInRange(input.stepsByDay, prev.start, prev.end),
+    },
+    andares: {
+      atual: countDaysInRange(input.floorsByDay, cur.start, cur.end),
+      anterior: countDaysInRange(input.floorsByDay, prev.start, prev.end),
+    },
+  };
+
   return {
     kind: input.kind,
     offset: input.offset,
@@ -794,6 +962,7 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     adherence,
     sleep,
     sleepTriggers,
+    marcos,
   };
 }
 

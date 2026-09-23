@@ -326,6 +326,10 @@ export function retroInputDe(
     })),
     tasks,
     dailyTasks,
+    // O marco das contagens de tarefa e de compra (Story 2.6). `dailyTasks` já
+    // carrega `createdOn`, mas só das séries **diárias** — e o marco é de todas.
+    // Sem janela no banco, `templates` chega inteira: é o nascimento do módulo.
+    taskSeries: d.templates.map((t) => ({ createdOn: t.createdOn, module: t.module })),
     purchases,
     sleepPeriods: d.sleepPeriods,
   };

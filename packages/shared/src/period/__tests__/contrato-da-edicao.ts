@@ -131,9 +131,18 @@ function notas(): Linha[] {
   }));
 }
 
+/** O dia em que o hábito de alongar nasceu — **depois** do fim da edição de maio. */
+export const NASCEU_DEPOIS_DE_MAIO = '2026-06-01';
+
 const HABITOS: Linha[] = [
   { id: 'h-cerveja', user_id: USUARIO, name: 'Cerveja', bad: true, unit: 'L', created_at: as('2025-11-15'), unit_price: '11' },
   { id: 'h-leitura', user_id: USUARIO, name: 'Leitura', bad: false, unit: 'min', created_at: as('2025-12-01'), unit_price: null },
+  // Nasceu depois do fim de maio, e é marcado desde então: em maio não houve "0
+  // dias de alongamento" — não havia hábito. É o fato de contagem ANTERIOR AO
+  // MARCO (Story 2.6), e o contrato prova o não medido de ponta a ponta com ele:
+  // a linha do hábito chega ao resumo, vira fato sem número, some do prompt e não
+  // entra no alfabeto da conferência.
+  { id: 'h-alongar', user_id: USUARIO, name: 'Alongar', bad: false, unit: 'min', created_at: as(NASCEU_DEPOIS_DE_MAIO), unit_price: null },
 ];
 
 function logsDeHabito(): Linha[] {
@@ -142,6 +151,7 @@ function logsDeHabito(): Linha[] {
     const k = i(d);
     if (k % 4 === 0) out.push({ id: `hl-cerveja-${d}`, user_id: USUARIO, habit_id: 'h-cerveja', log_date: d, value: k % 8 === 0 ? '1' : '0.5' });
     if (k % 2 === 0) out.push({ id: `hl-leitura-${d}`, user_id: USUARIO, habit_id: 'h-leitura', log_date: d, value: String(20 + (k % 3) * 10) });
+    if (d >= NASCEU_DEPOIS_DE_MAIO) out.push({ id: `hl-alongar-${d}`, user_id: USUARIO, habit_id: 'h-alongar', log_date: d, value: '10' });
   }
   return out;
 }
@@ -574,7 +584,7 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
     provedor: PROVEDOR,
     modelo: MODELO,
     prompt_versao: 5,
-    pacote_versao: 3,
+    pacote_versao: 4,
     motivo_de_parada: 'STOP',
     tokens_entrada: TOKENS[caderno].entrada,
     tokens_saida: TOKENS[caderno].saida,
@@ -585,15 +595,31 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
 
 /**
  * O que a impressão de maio tem de dar, em qualquer hospedeiro. Fixado da primeira
- * execução do núcleo (22/09/2026, `period/retro-dados.test.ts`); ver o cabeçalho
- * antes de mudar.
+ * execução do núcleo (22/09/2026, `period/retro-dados.test.ts`) e **refixado em
+ * 23/09/2026** pela Story 2.6; ver o cabeçalho antes de mudar.
  *
  * - **Os hashes** são do pedido pleno de cada caderno (AD-11), os quatro — o
  *   Coração também, porque o pedido dele saiu e foi pago; só o texto reprovou.
  * - **A carga** é o que chega à função `edicao_imprimir`: a ordem do ranqueamento
  *   sem o Coração (reprovado não tem linha nem posição), e as três linhas com a
- *   assinatura inteira — provedor, modelo, `prompt_versao` 5, `pacote_versao` 3 e
+ *   assinatura inteira — provedor, modelo, `prompt_versao` 5, `pacote_versao` 4 e
  *   a `agg_version_no_momento` 9, carimbada pela porta.
+ *
+ * - **Os textos** são o sha256 do `usuario` de cada caderno — o **texto** do
+ *   pedido, sozinho. Ele existe porque `hashes` mistura duas coisas: o texto e a
+ *   versão do descritor. Quem subir a versão e mudar o texto no mesmo commit
+ *   acerta o `hashes` novo e não é acusado de nada; com `textos` ao lado, a
+ *   mudança de texto aparece sozinha. Um caderno mudo (nenhum aqui) não teria
+ *   texto — por isso o campo cobre os quatro e a asserção cobra os quatro.
+ *
+ * **Por que mudou em 23/09** (Story 2.6): `PACOTE_VERSAO` foi de 3 para 4, e a
+ * versão do descritor (`PROMPT_VERSAO × 1000 + PACOTE_VERSAO`) entra no hash do
+ * pedido. O **texto** do prompt de maio não mudou um byte: todo marco da fixture
+ * é anterior a maio, e o hábito que nasceu depois dele (`h-alongar`) entra no
+ * pacote sem número e por isso não aparece no prompt. Isso deixou de ser prosa
+ * medida à mão — é o que `textos` prende: os quatro sha256 abaixo foram
+ * **medidos no commit base** (`448c642`, com a fixture e o `pacote.ts` de antes
+ * da 2.6) e são os mesmos de hoje, byte a byte.
  *
  * Os números são **consequência**: mudam quando o prompt (`PROMPT_VERSAO`), o
  * pacote (`PACOTE_VERSAO`), a agregação (`AGG_VERSION`) ou o ranqueamento mudam, e
@@ -602,14 +628,21 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
 export const GABARITO: {
   readonly estado: 'gravada';
   readonly hashes: Readonly<Record<CadernoId, string>>;
+  readonly textos: Readonly<Record<CadernoId, string>>;
   readonly carga: CargaDoRpc;
 } = {
   estado: 'gravada',
   hashes: {
-    rotina: '1f141358b9987f2d1e5e36cfda9832af8825d46c939580e580654c3d7751a1d0',
-    movimento: 'b84d6f109ba995e044b541b4de550177cee2a6d86fb306bd7c822e4600634ab4',
-    sono: '705f363f1da212a6993160a830c961091d5a8a6c6efbe49cd54e6bba883285df',
-    coracao: '634c834226861f83210031221d575b472b26649e85dd11d1ecf5a1a5f1bcef1b',
+    rotina: '2f534e41d1043aa468c66a5dcb7d0a12e8b80ee7fd472dca95b67eac30e8334c',
+    movimento: 'eaae79309aae17fc51c2aa965df82480287ecd0d04ed05d08ca86b637e74b862',
+    sono: '13682b176790ef5c2924dfd443522fc5dda3bb76d50f46d96c5eb41d63393ed1',
+    coracao: '8b020f6f7218c3adcf9f39b96c3eb5b983e9d892a1b707f59d67d8314830023b',
+  },
+  textos: {
+    rotina: '4955d2b8836ce40c014a8f8473fd0ec46e0a4f504805da4a25eb4590d9963e79',
+    movimento: 'cc47adbe687611fb8d8f53e4f34a22a6d795c01f3ed92e05e5c6052baf7b0354',
+    sono: '78596e9ea3900f38401a9467455961b3e435cde6ff3268e8d3fc5ea7d651614c',
+    coracao: 'a00f5f9d3663f97c8a6202649f016785ce1532d094ed174d919908d574893e13',
   },
   carga: {
     p_tipo_periodo: TIPO,

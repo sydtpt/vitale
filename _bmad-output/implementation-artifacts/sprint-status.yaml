@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 22-09-2026 23:55
+last_updated: 23-09-2026 02:10
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -216,8 +216,27 @@ development_status:
   # impressão em massa espalharia o zero no lugar da ausência por 2023–2025, e
   # sairia sem lápide nenhuma. A 2.7 tem três decisões do dono antes do código
   # (limiar, latência e prazo da morte antiga — deferred-work).
-  2-6-o-que-ainda-não-era-registrado-não-vira-zero: backlog
+  # EM ANDAMENTO desde 23/09/2026. DECISÃO DO DONO na spec: setembro e outubro
+  # de 2023 serão REIMPRESSAS na 2.3 — e, antes, o texto atual das duas vai para
+  # docs/specs/revista-retrospectiva/, como as 7 antigas na janela da 1.9. Quem
+  # exporta é o dono, com o JWT dele; é pré-condição da 2.3, não da 2.6.
+  # Achado do planejamento: nenhuma consulta nova ao banco entra — o marco de cada
+  # contagem já chega carregado (createdOn de hábitos, registros e séries; a
+  # primeira atividade do acervo), e medição sem dia com valor já é nula.
+  # CONSTRUÍDA em 23/09/2026, em review. `RetroSummary.marcos` (opcional) leva ao
+  # pacote o que só ele lê; `deRecap` deixou de forçar `?? 0` e passou a receber o
+  # veredito "foi medido?" por fato e pela base anterior; `PACOTE_VERSAO` foi a 4 e
+  # o GABARITO do contrato foi refixado no mesmo passo (o TEXTO do prompt de maio
+  # não mudou — só a versão que entra no hash). Nenhuma consulta nova, nenhuma
+  # migração, prompt e conferência intactos. Os quatro workspaces verdes.
+  2-6-o-que-ainda-não-era-registrado-não-vira-zero: review
   2-7-o-detector-de-métrica-morta: backlog
+  # PRÉ-CONDIÇÃO, decidida pelo dono em 23/09/2026 (spec da 2.6): setembro e
+  # outubro de 2023 já estão impressas e carregam o zero no lugar da ausência, e
+  # serão REIMPRESSAS aqui. ANTES de reimprimir, o texto atual das duas tem de ir
+  # para docs/specs/revista-retrospectiva/, como se fez com as 7 edições antigas
+  # na janela da 1.9 — reimprimir sem exportar perde o texto para sempre. Quem
+  # exporta é o dono, com o JWT dele. A 2.6 não reimprime nem apaga nada.
   2-3-a-impressão-em-massa-dos-períodos-fechados: backlog
   2-4-a-parede-de-capas: backlog
   2-5-silenciar-um-caderno: backlog
