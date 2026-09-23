@@ -670,7 +670,7 @@ export default function BancadaScreen() {
     const feitas = await medirCorridas({
       fila,
       janelas,
-      conferir: async (motor) => {
+      aindaDePe: async (motor) => {
         const { conhecidos, opcoes } = await relerOsMotores();
         return recusaDoMotorAgora(conhecidos, opcoes, motor);
       },

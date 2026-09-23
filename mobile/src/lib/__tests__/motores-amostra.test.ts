@@ -632,7 +632,7 @@ describe('uma corrida por motor', () => {
   const tres = JANELAS.slice(0, 3);
   const base = {
     janelas: tres,
-    conferir: async () => null,
+    aindaDePe: async () => null,
     parar: () => false,
   };
 
@@ -670,7 +670,7 @@ describe('uma corrida por motor', () => {
     const corridas = await medirCorridas({
       ...base,
       fila: [{ motor: QWEN }, { motor: TUCANO }],
-      conferir: async (motor) => {
+      aindaDePe: async (motor) => {
         consultados.push(motor);
         return motor === TUCANO ? 'o compilado deste modelo não está mais no aparelho' : null;
       },
@@ -689,7 +689,7 @@ describe('uma corrida por motor', () => {
     const corridas = await medirCorridas({
       ...base,
       fila: [{ motor: QWEN, recusa: 'não compilado' }],
-      conferir: async () => {
+      aindaDePe: async () => {
         consultas += 1;
         return null;
       },

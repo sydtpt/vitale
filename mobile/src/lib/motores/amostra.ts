@@ -457,7 +457,7 @@ export const PARADO_ANTES_DA_VEZ = 'a corrida foi parada antes da vez deste moto
  * fariam uma esperar dentro do transporte, e a espera entraria no `ms` das duas, estragando
  * a mediana de ambas. Sequencial é o que o aparelho já impõe; aqui isso fica dito.
  *
- * **Cada corrida relê antes de abrir a primeira janela** (`conferir`). É a guarda da fatia
+ * **Cada corrida relê antes de abrir a primeira janela** (`aindaDePe`). É a guarda da fatia
  * 4 no lugar onde ela mais vale: a fila foi decidida antes da primeira janela, e a vez do
  * segundo motor chega minutos depois — tempo de sobra para o iOS purgar o cache do Core AI.
  * Sem esta releitura, a primeira chamada do segundo modelo **seria a compilação dele**, 11 a
@@ -476,8 +476,15 @@ export const PARADO_ANTES_DA_VEZ = 'a corrida foi parada antes da vez deste moto
 export async function medirCorridas(o: {
   readonly fila: readonly ColunaDaCorrida[];
   readonly janelas: readonly JanelaClassificada[];
-  /** O motor ainda está de pé? O motivo, ou `null` — relido na vez dele. */
-  readonly conferir: (motor: MotorId) => Promise<string | null>;
+  /**
+   * O motor ainda está de pé? O motivo, ou `null` — relido na vez dele.
+   *
+   * **Não se chama `conferir`**, por mais que fosse o nome natural: `conferir` é uma das
+   * cinco funções do descritor, e a barreira do `architecture.test.ts` procura por
+   * `.conferir(` no texto de todo arquivo fora do orquestrador. Um parâmetro homônimo
+   * derruba o portão sem nenhum descritor ter sido tocado — foi o que aconteceu aqui.
+   */
+  readonly aindaDePe: (motor: MotorId) => Promise<string | null>;
   readonly medir: (janela: JanelaClassificada, motor: MotorId) => Promise<LinhaDoRelatorio>;
   readonly parar: () => boolean;
   readonly agora?: () => number;
@@ -509,7 +516,7 @@ export async function medirCorridas(o: {
       continue;
     }
     // A releitura da vez dele — ver o cabeçalho.
-    const perdeuOPe = await o.conferir(motor);
+    const perdeuOPe = await o.aindaDePe(motor);
     if (perdeuOPe !== null) {
       semMedir(motor, perdeuOPe, agora());
       continue;
