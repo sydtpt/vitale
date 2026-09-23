@@ -195,6 +195,42 @@ export function nomeProprio(a: {
   return a.routeName?.trim() || undefined;
 }
 
+/**
+ * A **legenda** em português, ou `undefined` — a linha que vai no hero do detalhe.
+ *
+ * Não se chama `legendaDaRota`, que seria o nome óbvio: esse já é da capa da
+ * revista (`revista/capa.ts`), onde monta `"Ittre · km 31,1"`. Os dois saem pelo
+ * mesmo barril do `index.ts`, e um homônimo ali não dá conflito de escopo — dá
+ * `TS2308` no arquivo inteiro, longe das duas funções.
+ *
+ * O dono decidiu que o nome local manda e o português é legenda, e esta função é
+ * onde essa decisão vira regra. Ela cala em três casos, e cada um tem motivo:
+ *
+ *  1. **Não há português.** A coluna enche preguiçosamente, atividade por
+ *     atividade, então a maioria do acervo passa um tempo sem ela. Ausência não
+ *     vira espaço em branco.
+ *  2. **O título não é o nome local.** Quando o dono renomeou a atividade à mão,
+ *     `nomeProprio` devolve o nome dele e o nome derivado não aparece em lugar
+ *     nenhum. Pendurar só a tradução embaixo mostraria a legenda de um texto que
+ *     não está na tela.
+ *  3. **As duas frases são iguais.** Uma rota no Brasil ou em Portugal sai em
+ *     português nas duas leituras, e repetir a mesma frase em cinza é ruído com
+ *     cara de bug. A comparação ignora espaço nas pontas, e só isso: "Aller à
+ *     Tournai" e "Ida a Tournai" são diferentes de verdade, e as duas aparecem.
+ */
+export function nomeEmPortugues(a: {
+  activityName?: string;
+  routeName?: string;
+  routeNamePt?: string;
+  nameEdited?: boolean;
+}): string | undefined {
+  const pt = a.routeNamePt?.trim();
+  if (!pt) return undefined;
+  const local = a.routeName?.trim();
+  if (!local || nomeProprio(a) !== local) return undefined;
+  return pt === local ? undefined : pt;
+}
+
 function sufixoVia(lingua: Lingua, via: string, artigo: Artigo): string {
   if (lingua === 'fr') return ` ${frPar(via, artigo)}`;
   if (lingua === 'nl') return ` ${nlDoor(via, artigo)}`;

@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { derivarAncoras } from './anchor';
-import { montarNome } from './molde';
+import { montarNome, nomeEmPortugues } from './molde';
 import { lerRota } from './shape';
 import type { NomePreenchido, RouteFacts, RouteReading } from './types';
 
@@ -154,6 +154,37 @@ check('neerlandês e português têm molde próprio', () => {
   );
   const pt: RouteReading = { ...leituraFr('a-loop-a'), lingua: 'pt', cidadeDistante: 'São Paulo' };
   assert.equal(montarNome(pt, so({}), 24_000), 'Volta por São Paulo');
+});
+
+check('a legenda em pt só aparece quando é legenda de alguma coisa', () => {
+  const pedalada = {
+    activityName: 'Schaarbeek Cycling',
+    routeName: 'Tour du Pajottenland',
+    routeNamePt: 'Tour do Pajottenland',
+  };
+  // O caso normal: o título é o nome local, e a legenda é a outra frase.
+  assert.equal(nomeEmPortugues(pedalada), 'Tour do Pajottenland');
+
+  // Sem português ainda — a coluna enche preguiçosamente, e ausência não vira
+  // linha em branco.
+  assert.equal(nomeEmPortugues({ ...pedalada, routeNamePt: undefined }), undefined);
+  assert.equal(nomeEmPortugues({ ...pedalada, routeNamePt: '   ' }), undefined);
+
+  // O dono renomeou à mão: o título passa a ser o nome dele, o nome local some
+  // da tela, e pendurar só a tradução mostraria a legenda de um texto ausente.
+  assert.equal(nomeEmPortugues({ ...pedalada, nameEdited: true }), undefined);
+
+  // Rota em português nas duas leituras: repetir a frase em cinza é ruído.
+  assert.equal(
+    nomeEmPortugues({ routeName: 'Volta por São Paulo', routeNamePt: 'Volta por São Paulo' }),
+    undefined,
+  );
+
+  // Mas quase-igual não é igual: o acento e a preposição bastam.
+  assert.equal(
+    nomeEmPortugues({ routeName: 'De Liège à Maastricht', routeNamePt: 'De Liège a Maastricht' }),
+    'De Liège a Maastricht',
+  );
 });
 
 console.log(`\n${passed} checagens de molde ok`);

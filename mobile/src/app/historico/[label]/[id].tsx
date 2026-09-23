@@ -20,6 +20,7 @@ import {
   gearForActivity,
   hrZoneRange,
   movingTimeFromRoutePoints,
+  nomeEmPortugues,
   nomeProprio,
   paintRoute,
   routeCursorAt,
@@ -130,6 +131,7 @@ export default function AtividadeDetalheScreen() {
   // A bike desta pedalada: override explícito ou herança pela data (ADR 0034).
   const gear = useMemo(() => (activity ? gearForActivity(gears, activity) : undefined), [gears, activity]);
   const nomeDaRota = activity ? nomeProprio(activity) : undefined;
+  const legenda = activity ? nomeEmPortugues(activity) : undefined;
 
   useEffect(() => {
     load();
@@ -511,6 +513,20 @@ export default function AtividadeDetalheScreen() {
           <Text style={styles.heroTime}>
             {formatTime(activity.startAt)} – {formatTime(activity.endAt)}
           </Text>
+          {/*
+            A legenda em português vem PARA CÁ, e não para debaixo do nome no
+            cabeçalho — escolha do dono entre os dois desenhos de 23/09.
+
+            O cabeçalho já empilha o tipo e o nome em 20 e 12,5px num espaço de
+            duas linhas; uma terceira ali seria a mais apertada das três. Aqui há
+            espaço, e ela cabe no corpo em vez de no cromo da navegação.
+
+            O preço, aceito: o par fica separado — o nome local no cabeçalho, o
+            português no hero. `nomeEmPortugues` é quem garante que isso nunca vire
+            uma tradução órfã: ela cala quando o cabeçalho não está mostrando o
+            nome local.
+          */}
+          {legenda && <Text style={styles.heroLegenda}>{legenda}</Text>}
 
           <View style={styles.heroStats}>
             {hasGps ? (
@@ -866,6 +882,17 @@ const styles = themed(() => StyleSheet.create({
     textAlign: 'center',
   },
   heroTime: { fontSize: 13, color: colors.ink3, fontFamily: fonts.mono },
+  // `ink2`, e não `ink3`: a legenda é conteúdo, e o `ink3` mede 3,05 contra a
+  // superfície — abaixo do piso de 4,5 para texto deste tamanho. O que a separa
+  // do nome no cabeçalho é a posição, não um cinza mais fraco.
+  heroLegenda: {
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontFamily: fonts.sans,
+    color: colors.ink2,
+    textAlign: 'center',
+    marginTop: 6,
+  },
   heroStats: {
     flexDirection: 'row',
     justifyContent: 'center',
