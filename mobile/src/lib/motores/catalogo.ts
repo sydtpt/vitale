@@ -196,6 +196,32 @@ export const PESOS_ABERTOS: readonly PesoAberto[] = Object.freeze([
     descricao: 'O maior modelo aberto do build, em 4 bits, com janela de 4.096. Nada sai do aparelho.',
     tamanho: { instaladoGB: 2.1, compiladoGB: 2.06 },
   }),
+  /*
+   * **O mesmo 4B, na receita da Apple** — o experimento de qualidade que o dono pediu em 24/09.
+   *
+   * O de cima é `4bit_weight_palettized_group32`: 4 bits em tudo, escolha minha. Este é
+   * `qwen3_4b_mixed_4bit_8bit.yaml`, a receita que a Apple publica: 4 bits no geral e **8 bits
+   * nas camadas 6, 8, 11, 33 e 34**, que alguém mediu como sensíveis. A diferença é de
+   * 4,50 para 5,71 bits por peso, e 240 MB.
+   *
+   * A tabela de perplexidade do `models/qwen3/README.md` diz que isso importa (o 4B vai de
+   * 16,41 em fp16 para 18,33 em 4 bits), mas ela mede **inglês genérico**. Se importa nas
+   * NOSSAS frases, em português, sobre sono, é o que a amostra das 22 janelas responde.
+   *
+   * **A janela é 2.048 de propósito, e este modelo não é candidato a produção.** Ele existe
+   * para medir: a Saúde do sono usa 617 tokens, então a janela não muda o texto que sai. Em
+   * 4.096 ele custaria 2,30 + 0,60 = 2,90 GB — exatamente a configuração que o iOS matou em
+   * 22/09. Se ele ganhar a comparação, o resultado não é "troque a receita": é "a receita
+   * mista é melhor, e usá-la exige ganhar 240 MB em outro lugar" — o que aponta para o AOT.
+   */
+  Object.freeze({
+    id: 'aparelho:coreai/qwen3-4b-misto' satisfies MotorId,
+    pesos: 'qwen3-4b-misto',
+    nome: 'o Qwen3 4B misto no aparelho',
+    rotulo: 'Qwen3 4B misto',
+    descricao: 'O mesmo 4B na receita da Apple — 4 bits, com cinco camadas em 8. Só para medir.',
+    tamanho: { instaladoGB: 2.3 },
+  }),
 ]);
 
 /** O peso aberto com este id, ou `undefined` — a pergunta que o catálogo faz o tempo todo. */
