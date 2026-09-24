@@ -33,6 +33,7 @@ public struct OrbeCoreAICompilacao : Swift::Sendable, Swift::Equatable {
 }
 public enum OrbeCoreAI {
   public static func compilacao(dosPesosEm url: Foundation::URL) throws -> OrbeCoreAI::OrbeCoreAICompilacao
+  public static func compilar(pesosEm url: Foundation::URL) async throws
   public static func sessao(pesosEm url: Foundation::URL, instrucoes: Swift::String?) async throws -> FoundationModels::LanguageModelSession
 }
 extension OrbeCoreAI::OrbeCoreAIFase : Swift::Equatable {}

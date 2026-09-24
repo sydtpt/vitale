@@ -23,6 +23,10 @@
       "//": "Fatia 2 do redesenho de Motores — a tela que compila: a funcao compilar(pesosEm:) na casca, a quarta porta do MotorCoreAI.swift (compilar + a medida depois, com o motivo naoCompilou) e o AsyncFunction compilarPesos na cola. ATENCAO: este hash pareia os fontes NOVOS com o .a vendorizado ANTIGO, que ainda nao tem o simbolo OrbeCoreAI.compilar — o pod nao compila ate scripts/coreai/montar.sh rodar, e quando ele rodar o .a muda e esta barreira vai pedir o 1.0.11. A entrada fica aqui porque o JS novo chama compilarPesos, e um eas update dele no 1.0.9 acharia uma cola sem essa funcao.",
       "runtimeVersion": "1.0.10",
       "fontes": "e042493e25f4adb3305b55d259c041b8ab75972e384fedfd9ee51adcbfdfb34b"
+    },
+    {
+      "runtimeVersion": "1.0.11",
+      "fontes": "91fe7066664260086ec742c578fb2894e1c54b115845fff8f84c3e25c6613825"
     }
   ]
 }
