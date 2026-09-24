@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { HEALTH_METRICS } from '../health/metric-catalog';
+import { HEALTH_SPECS } from '../period/retro-dados';
 import { APARELHO_SISTEMA, NUVEM_PADRAO, SEM_MODELO, type MotorId } from './fio';
 import {
   resolverCadeia, type Cadeia, type Falha, type Motor, type Pedido, type Resposta,
@@ -8,7 +11,7 @@ import {
   ler, type EventoDoAnel, type Leitura, type LeituraDoMotor, type LeituraDoPiso, type OpcoesDeMedicao,
   type OpcoesDeProduto,
 } from './orquestrar';
-import { BASE_ROTULO, PACOTE_VERSAO, type FatoNumero, type PacoteDeFatos } from './pacote';
+import { BASE_ROTULO, PACOTE_VERSAO, UNIDADE_NO_SINGULAR, type FatoNumero, type PacoteDeFatos } from './pacote';
 import { montarPrompt, PROMPT_VERSAO } from './prompt';
 import { CATALOGO_DE_RECURSOS, validarDescritor } from './recursos';
 import { descritorDaRetrospectiva as revista, versoesDaRetrospectiva } from './retrospectiva';
@@ -173,6 +176,186 @@ describe('montarPedido', () => {
   it('período em curso: nulo, mesmo com fato — recurso que grava não narra período aberto', () => {
     assert.notEqual(montarPrompt(EM_CURSO).usuario, '');
     assert.equal(revista.montarPedido(EM_CURSO), null);
+  });
+});
+
+/* ── a concordância do número com a unidade (Story 2.8) ──────────────────── */
+
+/**
+ * A matriz de I/O da Story 2.8, sobre o prompt montado de verdade.
+ *
+ * O defeito que ela fecha esteve em produção: *"A refeição foi realizada em 1
+ * dias ao longo do mês"* — 68 ocorrências em 37 linhas de 35 períodos, sempre no
+ * caderno `rotina`. Pela [ADR 0049] o número e a unidade são do **código**; o
+ * modelo copiava a palavra errada porque era a palavra errada que ele recebia.
+ *
+ * Mede-se aqui, e não no gabarito da fixture, porque a fixture de maio não tem
+ * hábito nem registro de **um dia só** — e por isso o texto dela não mudou um
+ * byte com esta story (ver o docblock de `GABARITO`). O caso precisa ser montado.
+ */
+describe('a concordância do número com a unidade', () => {
+  /** A linha de um fato, isolada do resto do prompt. */
+  const linhaDe = (f: FatoNumero): string => {
+    const linha = montarPrompt(caderno({ metricas: [f] })).usuario
+      .split('\n')
+      .find((l) => l.startsWith(`- ${f.rotulo}: `));
+    assert.ok(linha, `a linha de ${f.rotulo} não saiu no prompt`);
+    return linha;
+  };
+
+  it('o defeito: valor 1 em unidade de palavra sai no SINGULAR', () => {
+    assert.equal(linhaDe(fato('cerveja', 'Cerveja', 1, 4, 'dias')), '- Cerveja: 1 dia (contra julho: 4 dias, −75,0%)');
+  });
+
+  /**
+   * O critério de aceitação da story, escrito como ele está lá: *"nenhuma linha
+   * contém `1 dias`, e a de valor 1 contém `1 dia`"* — sobre um caderno com a
+   * vizinhança inteira do caso, e não sobre a linha isolada.
+   */
+  it('num caderno com 0, 1, 2 e 31 dias, `1 dias` não aparece em lugar nenhum do prompt', () => {
+    const pacote = caderno({
+      metricas: [
+        fato('agua', 'Água', 0, 1, 'dias'),
+        fato('cerveja', 'Cerveja', 1, 1, 'dias'),
+        fato('cafe', 'Café', 2, 1, 'dias'),
+        fato('leitura', 'Leitura', 31, 1, 'dias'),
+      ],
+      // **A varredura só vale se as seções que colam "dias" estiverem no prompt.**
+      // Com `lacunas: []` — como este teste nascia — a linha das Lacunas nem era
+      // montada, e o `doesNotMatch` dava verde sobre um prompt em que ela não
+      // existia. É a segunda (e última) linha do arquivo que cola número em
+      // palavra, e era a que ainda escrevia "1 dias sem dado".
+      lacunas: [
+        { caderno: 'movimento', diasSemDado: 1, motivo: 'relógio sem carga' },
+        { caderno: 'sono', diasSemDado: 12 },
+      ],
+    });
+    const usuario = montarPrompt(pacote).usuario;
+    assert.doesNotMatch(usuario, /\b1 dias\b/, `"1 dias" saiu no prompt:\n${usuario}`);
+    assert.match(usuario, /- Cerveja: 1 dia \(/);
+    assert.match(usuario, /- Movimento: 1 dia sem dado \(relógio sem carga\)/);
+    // E o plural continua inteiro onde ele é o certo — a régua não virou "sempre singular".
+    for (const esperado of ['0 dias', '2 dias', '31 dias', '12 dias sem dado']) {
+      assert.ok(usuario.includes(esperado), esperado);
+    }
+  });
+
+  it('a unidade concorda com o número DE CADA BASE, e não com o do fato', () => {
+    // O espelho do caso de cima: aqui é a base que vale um. Um `u` calculado uma
+    // vez por linha — como era até esta story — colaria a mesma palavra nos dois.
+    assert.equal(linhaDe(fato('cerveja', 'Cerveja', 4, 1, 'dias')), '- Cerveja: 4 dias (contra julho: 1 dia, 300,0%)');
+  });
+
+  it('plural normal: 0, 2 e 31 ficam no plural — o singular é só o 1', () => {
+    for (const [v, esperado] of [[0, '0 dias'], [2, '2 dias'], [31, '31 dias']] as const) {
+      assert.ok(linhaDe(fato('registro', 'Registro', v, 9, 'dias')).startsWith(`- Registro: ${esperado} `), esperado);
+    }
+  });
+
+  /**
+   * **As unidades são as que a produção emite, e não as que se esperaria.**
+   * `pacote.ts` escreve `'km'`, `'h'` e `'m'` à mão; as de saúde vêm de
+   * `HEALTH_SPECS`, que declara `' ms'` e `' bpm'` **com espaço à esquerda** (lá
+   * elas são sufixo de tela). Um teste escrito com `'bpm'` limpo afirmaria cobrir
+   * a saúde e não cobriria nenhuma das três que chegam ao pacote.
+   *
+   * O espaço duplo que daí resulta (`48  bpm`) está medido e **diferido**: ver o
+   * `deferred-work` da 2.8. Aqui ele é registrado como o comportamento de hoje,
+   * para que consertá-lo quebre este teste em vez de passar despercebido.
+   */
+  it('unidade invariável: `1 km`, nunca `1 k` — símbolo não tem plural', () => {
+    const daMao = ['km', 'h', 'm'];
+    const daSaude = HEALTH_SPECS.map((s) => s.unit ?? '');
+    assert.deepEqual(daSaude, ['h', ' ms', ' bpm'], 'HEALTH_SPECS mudou — confira o espaço à esquerda');
+    for (const u of [...daMao, ...daSaude]) {
+      assert.equal(linhaDe(fato('d', 'Distância', 1, 2, u)), `- Distância: 1 ${u} (contra julho: 2 ${u}, −50,0%)`);
+    }
+    // O que a linha de fato REALMENTE produz para a VFC de valor 1, espaço duplo e tudo.
+    assert.equal(linhaDe(fato('vfc', 'VFC', 1, 2, ' ms')), '- VFC: 1  ms (contra julho: 2  ms, −50,0%)');
+  });
+
+  it('sem unidade: o número sai sozinho, com 1 como com 2', () => {
+    assert.equal(linhaDe(fato('atividades', 'Atividades', 1, 2)), '- Atividades: 1 (contra julho: 2, −50,0%)');
+  });
+
+  it('o delta é porcentagem, e porcentagem não é contagem: `1,0%` fica como está', () => {
+    // 101 contra 100 dá +1,0%: o delta escreve `1,0`, que não é o `1` da régua,
+    // e `%` não está na tabela do singular de todo jeito.
+    assert.equal(
+      linhaDe(fato('passos', 'Passos', 101, 100, 'dias')),
+      '- Passos: 101 dias (contra julho: 100 dias, 1,0%)',
+    );
+  });
+
+  it('a régua é o número COMO SAI ESCRITO: 1,0 é plural, porque é assim que se lê', () => {
+    // Nenhuma unidade de palavra tem casa decimal hoje; a régua existe para o dia
+    // em que uma tiver, e para não precisar de uma segunda regra sobre `casas`.
+    assert.equal(linhaDe(fato('x', 'Litros', 1, 2, 'dias', 1)), '- Litros: 1,0 dias (contra julho: 2,0 dias, −50,0%)');
+  });
+
+  /**
+   * A guarda que amarra a tabela do singular às fontes do plural — **as duas**.
+   *
+   * `UNIDADE_NO_SINGULAR` só pode estar certa em relação ao que chega ao campo
+   * `unidade` de um `FatoNumero`, e nada obriga os dois a andarem juntos. Há dois
+   * fornecedores, e eles são de naturezas diferentes:
+   *
+   * 1. os literais escritos à mão em `pacote.ts` (`unidade: 'dias'`, `'km'`…);
+   * 2. **`HEALTH_SPECS`** (`period/retro-dados.ts`), que `pacote.ts` repassa cru
+   *    em `unidade: l.unit`.
+   *
+   * O segundo é o que a primeira versão desta guarda não via, e ele é o mais
+   * perigoso: o catálogo de onde as `HEALTH_SPECS` saem **tem unidades em
+   * palavra** — `unit: 'passos'` e `unit: 'andares'` em `health/metric-catalog.ts`.
+   * Hoje as três especificadas são `h`, ` ms` e ` bpm`, todas símbolos, então é
+   * latente; no dia em que `passos` entrar, sairia *"1 passos"* com a suíte verde.
+   *
+   * A régua é uma só, e vale para os dois: **toda** unidade que alcança o prompt
+   * é palavra (e então tem singular na tabela) ou é símbolo conhecido. Nada de
+   * heurística de comprimento — ` bpm` tem quatro caracteres e é símbolo, e
+   * `'dia'` tem três e é palavra.
+   */
+  it('a tabela do singular cobre as duas fontes de unidade, e o resto são símbolos conhecidos', () => {
+    assert.deepEqual(UNIDADE_NO_SINGULAR, { dias: 'dia' });
+
+    /** Os símbolos que o prompt pode colar sem variar. Lista, nunca heurística. */
+    const SIMBOLOS = new Set(['km', 'h', 'm', ' ms', ' bpm', '%']);
+
+    // Comentário fora antes de varrer: o docblock de `UNIDADE_NO_SINGULAR` e o
+    // cabeçalho do arquivo citam `unidade: 'dias'` em prosa, e sem isto a
+    // varredura casava com a explicação em vez de com o código. Mesma forma do
+    // `semComentario` de `architecture.test.ts`.
+    const semComentario = (src: string): string =>
+      src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
+    const naFonte = semComentario(readFileSync(new URL('./pacote.ts', import.meta.url), 'utf8'));
+    const aMao = [...new Set([...naFonte.matchAll(/\bunidade: '([^']*)'/g)].map((m) => m[1]!))].sort();
+    assert.deepEqual(
+      aMao, ['dias', 'h', 'km', 'm'],
+      'as unidades escritas à mão em pacote.ts mudaram. Se a nova é uma PALAVRA (tem plural), '
+      + 'ponha o singular em UNIDADE_NO_SINGULAR e suba PROMPT_VERSAO; se é símbolo, acrescente-a a SIMBOLOS.',
+    );
+    // Não-vácua: sem tirar comentário, a varredura pegava a prosa também.
+    assert.ok(/unidade: 'dias'/.test(naFonte), 'a varredura deixou de ver o código de pacote.ts');
+
+    // `?? ''` é o que `deMetrica` faz com a unidade ausente, e `''` sai sem
+    // unidade nenhuma: a régua não se aplica a ela.
+    const daSaude = HEALTH_SPECS.map((s) => s.unit ?? '').filter((u) => u !== '');
+    for (const u of [...aMao, ...daSaude]) {
+      assert.ok(
+        u in UNIDADE_NO_SINGULAR || SIMBOLOS.has(u),
+        `a unidade ${JSON.stringify(u)} chega ao prompt e não é palavra com singular nem símbolo conhecido. `
+        + 'Se tem plural, ponha o singular em UNIDADE_NO_SINGULAR e suba PROMPT_VERSAO; se é símbolo, acrescente-a a SIMBOLOS.',
+      );
+    }
+
+    // E a prova de que a regra morde a fonte 2: o catálogo de onde as
+    // `HEALTH_SPECS` saem tem unidade em PALAVRA, e ela reprovaria aqui.
+    const emPalavraNoCatalogo = HEALTH_METRICS.filter((m) => m.unit === 'passos' || m.unit === 'andares');
+    assert.equal(emPalavraNoCatalogo.length, 2, 'passos/andares saíram do catálogo — a não-vácua ficou sem alvo');
+    for (const m of emPalavraNoCatalogo) {
+      assert.ok(!(m.unit in UNIDADE_NO_SINGULAR) && !SIMBOLOS.has(m.unit), m.unit);
+      assert.ok(!daSaude.includes(m.unit), `${m.unit} entrou em HEALTH_SPECS — ponha o singular na tabela`);
+    }
   });
 });
 

@@ -177,6 +177,31 @@ export interface FatoNumero {
 }
 
 /**
+ * O **singular** das unidades que o pacote escreve por extenso — a tabela que a
+ * concordância do prompt consulta (Story 2.8).
+ *
+ * Mora aqui, e não no prompt, porque é aqui que o plural é **declarado**:
+ * `unidade: 'dias'` em {@link habitos} e em {@link registros}, as duas únicas
+ * unidades de contagem do pacote. Quem acrescentar uma terceira unidade em
+ * palavra a vê nesta mesma tela.
+ *
+ * **Só palavra entra.** `km`, `h`, `m`, `bpm` e `%` são **símbolos**, e símbolo
+ * não tem plural: derivar o singular por regra de sufixo escreveria *"1 k"* —
+ * trocaria um erro de concordância por um erro de unidade. A saúde traz a
+ * unidade do catálogo (`health/metric-catalog.ts`), e as três que chegam ao
+ * pacote hoje (`HEALTH_SPECS`) são símbolos também.
+ *
+ * **É tabela, e não campo de {@link FatoNumero}** — e essa é a diferença que
+ * mantém `PACOTE_VERSAO` onde está. Um campo novo no fato muda a **forma** do
+ * pacote (foi o que `amostra` e `comparavel` fizeram na versão 3), e a forma que
+ * muda invalida edição gravada. Aqui não muda número nenhum: muda só como o
+ * texto escreve o número que já estava lá, que é matéria de `PROMPT_VERSAO`.
+ */
+export const UNIDADE_NO_SINGULAR: Readonly<Record<string, string>> = Object.freeze({
+  dias: 'dia',
+});
+
+/**
  * A direção ao longo de vários períodos — **sem valor bruto**.
  *
  * Não é uma quarta base, e a razão é o custo: uma base nova põe N números no
@@ -816,6 +841,10 @@ function habitos(
 ): FatoNumero[] {
   // O marco do hábito é o dele: cada linha tem a própria data de criação. Um
   // período inteiro antes dela não teve "0 dias de cerveja" — não tinha cerveja.
+  //
+  // `'dias'` é uma das duas unidades em PALAVRA do pacote, e o singular delas
+  // está em UNIDADE_NO_SINGULAR: é o prompt que faz a concordância, na hora de
+  // colar o número na unidade (Story 2.8).
   return linhas.map((h) => deRecap(`habito.${h.id}`, h.name, h.recap, ctx, {
     unidade: 'dias', grupo, amostra: menorLado(h.recap), comparavel: nascidoAntes(h.createdOn, ctx),
     medido: desdeOMarco(h.createdOn, h.recap, ctx),
@@ -823,6 +852,7 @@ function habitos(
 }
 
 function registros(linhas: readonly RetroRegistroRow[], ctx: Ctx): FatoNumero[] {
+  // A segunda (e última) unidade em palavra — ver o comentário de `habitos`.
   return linhas.map((r) => deRecap(`registro.${r.id}`, r.name, r.recap, ctx, {
     unidade: 'dias', grupo: 'Registros', amostra: menorLado(r.recap), comparavel: nascidoAntes(r.createdOn, ctx),
     medido: desdeOMarco(r.createdOn, r.recap, ctx),

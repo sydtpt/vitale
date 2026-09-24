@@ -36,7 +36,8 @@ import type {
   BaseId, PacoteDeFatos, FatoLapide, FatoNumero, FatoTendencia, FatoTexto,
 } from './pacote';
 import {
-  BASE_ROTULO, cadernoVazio, lapideDoPeriodo, ressalvasObrigatorias, validarLapides,
+  BASE_ROTULO, UNIDADE_NO_SINGULAR, cadernoVazio, lapideDoPeriodo, ressalvasObrigatorias,
+  validarLapides,
 } from './pacote';
 
 /**
@@ -123,17 +124,48 @@ function frasesDasBases(p: Periodo): Readonly<Record<BaseId, string>> {
  */
 function linhaDeFato(f: FatoNumero, frases: Readonly<Record<BaseId, string>>): string | null {
   if (f.atual == null) return null;
-  const u = f.unidade ? ` ${f.unidade}` : '';
+  const escrito = (v: number): string => numeroComUnidade(v, f.casas, f.unidade);
   const comparacoes: string[] = [];
   for (const id of ORDEM_BASES) {
     const b = f.bases.find((x) => x.id === id);
     if (!b || !b.existe || b.valor == null) continue;
-    let s = `${frases[id]}: ${formatarNumero(b.valor, f.casas)}${u}`;
+    // A base tem o número dela, e por isso a unidade concorda com o número DELA:
+    // *"1 dia (contra julho: 4 dias)"* e *"4 dias (contra julho: 1 dia)"* saem
+    // da mesma linha. Um `u` calculado uma vez, como era até a Story 2.8, colava
+    // a mesma palavra nos quatro números da linha.
+    let s = `${frases[id]}: ${escrito(b.valor)}`;
+    // O delta é porcentagem, e porcentagem não é contagem: `1,0%` não vira nada.
     if (b.deltaPct != null) s += `, ${formatarNumero(b.deltaPct, 1)}%`;
     comparacoes.push(s);
   }
   const comp = comparacoes.length > 0 ? ` (${comparacoes.join('; ')})` : '';
-  return `- ${f.rotulo}: ${formatarNumero(f.atual, f.casas)}${u}${comp}`;
+  return `- ${f.rotulo}: ${escrito(f.atual)}${comp}`;
+}
+
+/**
+ * O número e a unidade, colados **concordando** — a única costura entre os dois
+ * no prompt inteiro (Story 2.8).
+ *
+ * O defeito que ela fecha estava em produção: *"A refeição foi realizada em 1
+ * dias ao longo do mês"*, 68 vezes em 37 linhas de 35 períodos. Pela
+ * [ADR 0049](../../../../docs/decisions/0049-o-motor-escreve-palavras-e-o-codigo-escreve-numeros.md)
+ * o número e a unidade são do **código**: o modelo copia o que recebe, e o que
+ * ele recebia era a palavra errada.
+ *
+ * **A concordância é com o número COMO ELE SAI ESCRITO**, e não com o valor. O
+ * singular vale quando o texto diz exatamente `1`; `1,0` — se um dia uma unidade
+ * de contagem ganhar casa decimal — continua no plural, que é como se lê, e o
+ * mesmo vale para `−1`. É a régua que não precisa de segunda regra para as
+ * casas decimais.
+ *
+ * **Só unidade em palavra concorda** ({@link UNIDADE_NO_SINGULAR}, declarada
+ * onde o plural nasce). `km`, `h`, `m`, `bpm` e `%` são símbolos, e uma regra de
+ * sufixo sobre eles escreveria *"1 k"*.
+ */
+function numeroComUnidade(valor: number, casas: number, unidade: string): string {
+  const n = formatarNumero(valor, casas);
+  if (unidade === '') return n;
+  return `${n} ${n === '1' ? UNIDADE_NO_SINGULAR[unidade] ?? unidade : unidade}`;
 }
 
 /**
@@ -504,8 +536,13 @@ FORMA:
  *     o nome, a data por extenso e a marca de quando parou, e a linha da FORMA
  *     que a põe em parágrafo próprio. O caderno vazio sai dos dois grãos pela
  *     mesma função (`cadernoVazio`) que o tira da ordem da edição.
+ * 6 — a unidade concorda com o número: `1 dia`, `0 dias`, `2 dias` — na linha do
+ *     fato, em cada base comparada e na linha das **Lacunas** (`1 dia sem dado`),
+ *     que é o outro lugar do arquivo que cola número em palavra. Só unidade em
+ *     palavra concorda; `km`, `h`, `m` e `bpm` são símbolos e não variam, e o
+ *     delta segue em `%`.
  */
-export const PROMPT_VERSAO = 5;
+export const PROMPT_VERSAO = 6;
 
 /**
  * A linha da luz no cabeçalho — ou nada, quando o período não tem estação.
@@ -567,8 +604,14 @@ function montar(cabecalho: readonly string[], todos: readonly PacoteDeFatos[]): 
 
   const lacunas = pacotes.flatMap((x) => x.lacunas.map((l) => ({ l, rotulo: x.rotulo })));
   if (lacunas.length > 0) {
+    // Pela MESMA costura de `linhaDeFato` (Story 2.8): esta linha também cola
+    // número em unidade de palavra, e colava `'dias'` cru — "1 dias sem dado".
+    // Hoje nenhum hospedeiro preenche `lacunas` (`montarEntradaDaEdicao` não a
+    // monta), então o defeito era inalcançável em produção; a promessa da story
+    // é sobre o PROMPT, e o prompt o produzia.
     const linhas = lacunas.map(
-      ({ l, rotulo }) => `- ${rotulo}: ${l.diasSemDado} dias sem dado${l.motivo ? ` (${l.motivo})` : ''}`,
+      ({ l, rotulo }) =>
+        `- ${rotulo}: ${numeroComUnidade(l.diasSemDado, 0, 'dias')} sem dado${l.motivo ? ` (${l.motivo})` : ''}`,
     );
     partes.push(`\n### Lacunas\n${linhas.join('\n')}`);
   }

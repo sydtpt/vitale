@@ -17,9 +17,28 @@
  * neste arquivo — é o núcleo quem faz isso.
  *
  * **A cadeia é a padrão do descritor** — a do telefone sem preferência. Não há
- * `--motor` nem `--cadernos`: a edição que este script grava tem de ser a que o
- * iPhone gravaria, e uma escolha de motor ou de caderno aqui seria uma segunda
- * edição possível para o mesmo período.
+ * `--motor`: a edição que este script grava tem de ser a que o iPhone gravaria, e
+ * uma escolha de motor aqui seria uma segunda edição possível para o mesmo período.
+ *
+ * ## Um caderno só (`--caderno`, story 2.8)
+ *
+ * `--caderno <id>` reescreve **um** caderno e deixa os outros como estão — texto,
+ * assinatura e posição de antes. Não é uma segunda edição possível: é o que o
+ * telefone já faz desde a 1.11 (`imprimirCaderno` → `cadernos: [alvo]`), pela mesma
+ * sequência do núcleo, que recalcula a ordem do conjunto na função do banco. O
+ * texto de cada caderno continua sendo o que sairia numa impressão inteira.
+ *
+ * Ele existe porque a correção de uma palavra não pode custar a edição toda. A
+ * conta da story 2.8, medida em produção em 24/09/2026: o defeito "1 dias"
+ * aparece 68 vezes, em 37 linhas, de **35** períodos — e **sempre** no caderno
+ * `rotina`. O que a corrida paga é uma chamada por caderno e por período, então
+ * são **35** chamadas por `--caderno rotina` contra **140** (35 × 4) pelos quatro
+ * cadernos. (68 e 37 contam ocorrências e linhas de texto, e não entram na conta
+ * de chamadas: um período com três linhas erradas continua custando uma chamada.)
+ *
+ * **Com `--caderno` a impressão é parcial, e parcial nunca troca capa existente** —
+ * a regra do telefone (`mobile/src/lib/edicao-ia.ts`): a foto e a legenda são do
+ * período, não do caderno. Ela só carimba quando não há capa nenhuma.
  *
  * **A capa é carimbada pela impressão que grava** (story 2.3), e só por ela: as
  * três peças da escolha (`atividadesDoPeriodo`, `cidadesDoPeriodo` e o rótulo por
@@ -73,6 +92,7 @@ import {
   gravarCapa,
   hashCurto,
   imprimir,
+  isCadernoId,
   isTipoEmMassa,
   localDateStr,
   offsetDoInicio,
@@ -83,6 +103,7 @@ import {
   resolverCadeia,
   retroSince,
   rotuloDaEdicao,
+  versoesDaRetrospectiva,
   type Activity,
   type ActivityPhoto,
   type CadernoId,
@@ -142,12 +163,28 @@ const UM_PERIODO: Readonly<Record<TipoComEdicao, string>> = {
 /** O "sim" do portão de gasto — o molde é o da bancada (`--sim-gastar-chamadas`). */
 const SIM = '--sim-gastar-chamadas';
 
+/**
+ * A versão do prompt que uma impressão de hoje vai carimbar — o critério do
+ * `--massa --caderno` (Story 2.8).
+ *
+ * **Sai do descritor, e não de `PROMPT_VERSAO`.** São o mesmo número, e a
+ * diferença é de onde ele vem: `descritorDaRetrospectiva.versao` é o que este
+ * script já entrega à sequência, e `versoesDaRetrospectiva` é a **mesma** decodificação
+ * que a sequência usa para escrever a coluna `prompt_versao` de cada linha
+ * (`ia/imprimir-sequencia.ts`). Comparar o arquivo com isto é comparar com o
+ * número que a próxima gravação vai pôr lá; ler `PROMPT_VERSAO` direto seria um
+ * segundo caminho até o mesmo fato — e a guarda (7) do `architecture.test.ts`
+ * reprova a bancada que alcança peça de `ia/` por fora da porta (AD-2).
+ */
+const PROMPT_DE_HOJE = versoesDaRetrospectiva(descritorDaRetrospectiva.versao).prompt;
+
 /** A fonte única das bandeiras: a leitura e o `--ajuda` saem desta lista. */
 const BANDEIRAS = [
   { nome: '--tipo', arg: '<tipo>', ajuda: 'month, season, year ou week — ou mes, estacao, ano, semana, como na rota da revista' },
   { nome: '--inicio', arg: 'AAAA-MM-DD', ajuda: 'o primeiro dia do período (2026-05-01 é maio; 2026-04-01, o 2º trimestre)' },
+  { nome: '--caderno', arg: '<id>', ajuda: `um caderno só (${CADERNO_IDS.join(', ')}); os outros ficam como estão, e a capa não é trocada` },
   { nome: '--sem-gravar', arg: null, ajuda: 'chama o modelo e confere, mas não grava nada: compara o que gravaria com o banco' },
-  { nome: '--reimprimir', arg: null, ajuda: 'imprime de novo um período que já tem edição (os quatro cadernos)' },
+  { nome: '--reimprimir', arg: null, ajuda: 'imprime de novo um período que já tem edição (os quatro cadernos; não vale com --caderno)' },
   { nome: '--massa', arg: null, ajuda: 'o arquivo inteiro: mostra o plano e para. Sem o "sim", nenhum modelo é chamado' },
   { nome: SIM, arg: null, ajuda: 'no --massa, confirma o gasto e roda a corrida, um período por vez' },
   { nome: '--limite', arg: '<n>', ajuda: 'no --massa, a corrida toca no máximo n períodos — o ensaio antes de soltar tudo' },
@@ -165,10 +202,13 @@ export function ajuda(): string {
     '',
     'Um período: --tipo e --inicio, e rode antes com --sem-gravar. O arquivo inteiro: --massa,',
     'que mostra o plano e só gasta com ' + SIM + '.',
+    '--caderno reescreve um caderno só, e vale nos dois modos: no --massa ele corrige as edições',
+    'que já existem, só as que têm esse caderno abaixo do prompt de hoje.',
     'Cada caderno é uma chamada paga à nuvem, pela cadeia padrão da revista (a do iPhone sem',
     'preferência). O terminal mostra contagens e hashes, nunca o texto.',
     'O fuso é o desta máquina: use o do iPhone (TZ=Europe/Brussels).',
-    'A impressão que grava carimba a capa — e mantém a que você trocou à mão.',
+    'A impressão inteira que grava carimba a capa — e mantém a que você trocou à mão.',
+    'A de um caderno não troca capa nenhuma: ela só carimba se ainda não houver uma.',
     'Não imprima o mesmo período pelo iPhone ao mesmo tempo.',
   ].join('\n');
 }
@@ -176,6 +216,8 @@ export function ajuda(): string {
 export interface Bandeiras {
   readonly tipo: TipoComEdicao | null;
   readonly inicio: string | null;
+  /** O `--caderno <id>`, já conferido por `isCadernoId`. `null`: os quatro. */
+  readonly caderno: CadernoId | null;
   readonly semGravar: boolean;
   readonly reimprimir: boolean;
   readonly massa: boolean;
@@ -196,6 +238,7 @@ function valorDe(argv: readonly string[], i: number, bandeira: string): string {
 export function lerBandeiras(argv: readonly string[]): Bandeiras {
   let tipo: TipoComEdicao | null = null;
   let inicio: string | null = null;
+  let caderno: CadernoId | null = null;
   let semGravar = false;
   let reimprimir = false;
   let massa = false;
@@ -233,6 +276,20 @@ export function lerBandeiras(argv: readonly string[]): Bandeiras {
         inicio = valorDe(argv, i, a);
         i += 1;
         break;
+      case '--caderno': {
+        umaVez(a);
+        const cru = valorDe(argv, i, a);
+        // Conferido aqui, **antes de qualquer rede**: `--caderno rotinas` que
+        // atravessasse viraria uma lista de candidatos que a sequência do núcleo
+        // esvazia, e o desfecho seria "nenhum caderno tem o que dizer" — a
+        // mensagem errada para um erro de digitação.
+        if (!isCadernoId(cru)) {
+          throw new Error(`--caderno ${cru} não é caderno — os quatro são ${CADERNO_IDS.join(', ')}`);
+        }
+        caderno = cru;
+        i += 1;
+        break;
+      }
       case '--sem-gravar':
         umaVez(a);
         semGravar = true;
@@ -273,7 +330,7 @@ export function lerBandeiras(argv: readonly string[]): Bandeiras {
         throw new Error(`bandeira desconhecida: ${a}`);
     }
   }
-  return { tipo, inicio, semGravar, reimprimir, massa, sim, limite, exportar, ajuda: pedeAjuda };
+  return { tipo, inicio, caderno, semGravar, reimprimir, massa, sim, limite, exportar, ajuda: pedeAjuda };
 }
 
 /**
@@ -287,9 +344,19 @@ export function lerBandeiras(argv: readonly string[]): Bandeiras {
  * ensaio da massa é o plano, que não chama ninguém). O modo de um período só não
  * aceita `--exportar` nem o "sim", que são do portão de gasto da corrida.
  *
+ * **`--caderno` e `--reimprimir` não valem juntos** (Story 2.8), e a recusa vale
+ * nos dois modos. As duas mandam imprimir por cima do que já está gravado, e
+ * mandam coisas diferentes: `--reimprimir` são os quatro cadernos, `--caderno` é
+ * um. Aceitar as duas faria uma delas ser descartada em silêncio — o mesmo
+ * defeito que a regra de `--exportar` com o "sim" fecha.
+ *
  * Devolve o motivo, ou `null`.
  */
 export function bandeirasIncompativeis(b: Bandeiras): string | null {
+  if (b.reimprimir && b.caderno !== null) {
+    return `--reimprimir e --caderno não valem juntos: --reimprimir são os quatro cadernos, e --caderno ${b.caderno} `
+      + 'é um só. Escolha qual das duas impressões você quer';
+  }
   if (b.massa) {
     const proibidas = [
       b.inicio !== null ? '--inicio' : null,
@@ -373,6 +440,19 @@ export interface PedidoDeImpressao {
   readonly periodo: PeriodoPedido;
   readonly semGravar: boolean;
   readonly reimprimir: boolean;
+  /**
+   * O `--caderno <id>`: reescreve **um** caderno e deixa os outros como estão
+   * (Story 2.8). `null`, ou ausente, são os quatro.
+   *
+   * Um caderno pedido é uma **impressão parcial**, e ela muda três coisas:
+   *
+   * 1. a sequência do núcleo recebe `cadernos: [alvo]`, e é ela quem mantém os
+   *    outros com o texto, a assinatura e a `agg_version` de antes;
+   * 2. a recusa do já impresso não vale — pedir um caderno de um período que já
+   *    tem edição é exatamente o caso de uso, e não um descuido;
+   * 3. a capa existente **nunca** é trocada (ver {@link carimbarACapa}).
+   */
+  readonly caderno?: CadernoId | null;
 }
 
 /** O que a impressão precisa do mundo — injetável, para o teste rodar sem rede. */
@@ -464,10 +544,17 @@ export interface CapaNoRelatorio {
   /** A natureza carimbada (ou a mantida), ou `null` quando o carimbo falhou. */
   readonly natureza: NaturezaDaCapa | null;
   /**
-   * A capa de antes foi **mantida** por ser uma troca do dono (`motivo:
-   * 'trocada'`, Story 1.16) — nada foi recarimbado.
+   * Por que a capa de antes foi **mantida** — `null` quando ela foi carimbada
+   * agora. São duas razões, e o relatório diz qual foi:
+   *
+   * - `trocada`: é uma escolha do dono (`motivo: 'trocada'`, Story 1.16), e a
+   *   escolha automática por cima a desfaria em silêncio;
+   * - `parcial`: a impressão foi de **um caderno** (`--caderno`, Story 2.8), e
+   *   parcial não troca capa existente — a foto e a legenda são do período, não
+   *   do caderno. Aqui nem o `motivo` da capa importa: a de `rajada` que o app
+   *   escolheu também fica.
    */
-  readonly mantida: boolean;
+  readonly mantida: 'trocada' | 'parcial' | null;
   /** O motivo da falha, quando houve. */
   readonly aviso: string | null;
 }
@@ -720,6 +807,20 @@ export function portasDaCapa(db: ClientDoNucleo, userId: string): PortasDaCapa {
  * julho/2026 (uma das cinco nomeadas) faria exatamente isso. A leitura vem
  * antes do carimbo, e o relatório diz que a capa foi mantida.
  *
+ * **A impressão PARCIAL não troca capa nenhuma** (`parcial`, Story 2.8). A regra
+ * é a do telefone (`carimbarCapa`, em `mobile/src/lib/edicao-ia.ts`, renegociada
+ * com o dono em 17/09): a inteira sempre recarimba, e a parcial só carimba
+ * **quando não há capa** — a foto e a legenda são do período, não do caderno. Ela
+ * carimba nesse caso porque uma edição que nunca teve capa ficaria em papel para
+ * sempre, e não porque a parcial tenha voz sobre a capa.
+ *
+ * Aqui isso não é zelo: das quatro capas escolhidas à mão em produção em
+ * 24/09/2026, três são `trocada` (Q1/2026, Q2/2026, julho) e **uma é `estrela`**
+ * (agosto) — e `estrela` não passa pela guarda da troca, porque ela é a escolha
+ * automática respondendo a uma estrela que o dono pôs na foto. Corrigir uma
+ * palavra no caderno `rotina` e levar junto a capa de agosto seria trocar um
+ * defeito por um dano.
+ *
  * **Nunca rejeita** (a regra do telefone): a falha vira aviso, e a edição fica
  * sem capa até a próxima impressão inteira. A falha da **leitura** da capa
  * existente também é aviso — e, por não saber se havia uma troca, ela não
@@ -731,6 +832,7 @@ async function carimbarACapa(
   periodo: PeriodoPedido,
   entrada: PeriodoDaEntrada,
   acervo: readonly Activity[],
+  parcial: boolean,
 ): Promise<CapaNoRelatorio> {
   const chave: PeriodoDaEdicao = { tipoPeriodo: periodo.tipo, inicio: periodo.inicio, fim: periodo.fim };
   let existente: Capa | null;
@@ -739,13 +841,16 @@ async function carimbarACapa(
   } catch (e) {
     return {
       natureza: null,
-      mantida: false,
+      mantida: null,
       aviso: `a capa de antes não foi lida, e nada foi carimbado para não apagar uma troca sua: ${
         e instanceof Error ? e.message : String(e)}`,
     };
   }
+  if (existente !== null && parcial) {
+    return { natureza: existente.natureza, mantida: 'parcial', aviso: null };
+  }
   if (existente !== null && existente.motivo === 'trocada') {
-    return { natureza: existente.natureza, mantida: true, aviso: null };
+    return { natureza: existente.natureza, mantida: 'trocada', aviso: null };
   }
   try {
     const atividades = atividadesDoPeriodo(acervo.filter((a) => !a.hidden), entrada);
@@ -757,9 +862,9 @@ async function carimbarACapa(
       periodo: { ...chave, rotulo: rotuloDaEdicao(periodo.tipo, periodo.inicio) },
     });
     await portas.carimbar(capa);
-    return { natureza: capa.natureza, mantida: false, aviso: null };
+    return { natureza: capa.natureza, mantida: null, aviso: null };
   } catch (e) {
-    return { natureza: null, mantida: false, aviso: e instanceof Error ? e.message : String(e) };
+    return { natureza: null, mantida: null, aviso: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -778,20 +883,53 @@ async function carimbarACapa(
  * período nesse intervalo: por isso o `buscar` também recusa uma edição que não está
  * vazia — e ele roda antes do primeiro `ler`, então nada foi chamado. O mesmo `buscar`
  * é o que a comparação do `--sem-gravar` usa, e não a leitura do começo.
+ *
+ * **Com `pedido.caderno`, a impressão é parcial** (Story 2.8): a sequência recebe
+ * a lista de um, a recusa do já impresso não se aplica, e a capa existente fica.
+ * Nada disto é reimplementado aqui — `cadernos` é opção da sequência do núcleo, e
+ * é ela quem mantém o texto e a assinatura dos outros três e recalcula a ordem do
+ * conjunto na função do banco.
  */
 export async function imprimirPeriodo(pedido: PedidoDeImpressao, deps: DepsDaImpressao): Promise<RelatorioDaImpressao> {
   const { periodo, semGravar, reimprimir } = pedido;
+  const alvo = pedido.caderno ?? null;
   const { db, userId, agora, escrever, avisar } = deps;
   const since = localDateStr(retroSince(agora, periodo.tipo, periodo.offset));
-  const recusaOJaImpresso = !reimprimir && !semGravar;
+  // Parcial imprime por cima do que está gravado por definição: recusar o já
+  // impresso aqui seria recusar o único caso de uso da bandeira.
+  const recusaOJaImpresso = !reimprimir && !semGravar && alvo === null;
 
   escrever(`imprimir — ${NOME_DO_TIPO[periodo.tipo]} ${periodo.inicio} a ${periodo.fim} (${periodo.rotulo})`);
   escrever(`  fuso: ${fusoDe(agora)} · agora: ${localDateStr(agora)} · janela: desde ${since}`);
-  const daCapa = semGravar || deps.capa === undefined ? 'não é carimbada por aqui' : 'carimbada na impressão que gravar';
-  escrever(`  modo: ${semGravar ? 'sem gravar — nada vai ao banco' : 'grava a edição'} · capa: ${daCapa}`);
+  const daCapa = semGravar || deps.capa === undefined
+    ? 'não é carimbada por aqui'
+    : alvo === null
+      ? 'carimbada na impressão que gravar'
+      : 'a de antes fica — parcial não troca capa';
+  escrever(
+    `  modo: ${semGravar ? 'sem gravar — nada vai ao banco' : 'grava a edição'}`
+      + ` · cadernos: ${alvo === null ? 'os quatro' : `só ${alvo}`} · capa: ${daCapa}`,
+  );
 
   const noBanco = await fetchEdicao(db, userId, periodo.tipo, periodo.inicio, periodo.fim);
   escrever(`  no banco: ${noBanco.length} ${noBanco.length === 1 ? 'caderno impresso' : 'cadernos impressos'}${noBanco.length > 0 ? ` (${lista(noBanco.map((c) => c.caderno))})` : ''}`);
+  // Um caderno só sobre um período SEM edição nasce uma edição de um caderno — e
+  // ela passa a contar como "já impressa" no plano da massa, que nunca mais
+  // oferece os outros três. Não é recusa, mas não pode acontecer calado.
+  //
+  // **E o aviso sai no `--sem-gravar` também**, no condicional: o README manda
+  // ensaiar antes justamente para ver o que a impressão faria, e calar ali o
+  // único efeito IRREVERSÍVEL da bandeira seria calar o que o ensaio existe para
+  // mostrar. O dono descobriria depois de gravar.
+  if (alvo !== null && noBanco.length === 0) {
+    avisar(
+      `${periodo.rotulo} não tem edição, e --caderno ${alvo} ${semGravar ? 'criaria' : 'vai criar'} `
+        + 'uma com um caderno só.\n'
+        + `  O arquivo ${semGravar ? 'passaria' : 'passa'} a contar esse período como impresso, e a corrida `
+        + 'em massa não o oferece mais.\n'
+        + '  Para a edição inteira, rode sem --caderno.',
+    );
+  }
   if (noBanco.length > 0 && recusaOJaImpresso) {
     const cadernos = noBanco.map((c) => c.caderno);
     avisar(recusaDoJaImpresso(periodo.rotulo, cadernos));
@@ -858,6 +996,10 @@ export async function imprimirPeriodo(pedido: PedidoDeImpressao, deps: DepsDaImp
   let resultado: ResultadoDaImpressao<CadernoImpresso[]>;
   try {
     resultado = await imprimir(entrada, portas, {
+      // A lista de um, quando há alvo — a mesma opção que o telefone passa em
+      // `imprimirAlvo` (`mobile/src/store/edicao.store.ts`). Ausente são os
+      // quatro; **vazia a sequência recusa**, e por isso nunca se passa `[]`.
+      ...(alvo === null ? {} : { cadernos: [alvo] }),
       cadeia: resolverCadeia(descritorDaRetrospectiva, null, []),
       motorPara: deps.motorPara,
       registrar,
@@ -929,12 +1071,16 @@ export async function imprimirPeriodo(pedido: PedidoDeImpressao, deps: DepsDaImp
     // A capa é carimbada **na impressão que grava**, nunca depois: as fotos, a
     // estrela e o vínculo mudam, e uma capa escolhida em outubro não é a do
     // período que fechou em agosto. A falha vira aviso e não derruba a edição.
-    const capa = deps.capa === undefined ? null : await carimbarACapa(deps.capa, periodo, entrada, atividades);
+    const capa = deps.capa === undefined
+      ? null
+      : await carimbarACapa(deps.capa, periodo, entrada, atividades, alvo !== null);
     if (capa !== null) {
       if (capa.aviso !== null) {
         avisar(`a capa de ${periodo.rotulo} não foi carimbada, e a edição fica sem capa: ${capa.aviso}`);
-      } else if (capa.mantida) {
+      } else if (capa.mantida === 'trocada') {
         escrever(`  capa: ${capa.natureza} — mantida, porque você a trocou à mão`);
+      } else if (capa.mantida === 'parcial') {
+        escrever(`  capa: ${capa.natureza} — mantida, porque esta impressão foi de um caderno só`);
       } else {
         escrever(`  capa: ${capa.natureza}`);
       }
@@ -1003,9 +1149,15 @@ const MEDIANA_POR_CHAMADA_S = 13.6;
  * ela percorre os ~50 períodos um a um, pagando o que a nuvem cobrar por cada
  * tentativa antes de o dono ver o terminal.
  *
- * Três, e não dois: duas seguidas acontecem por acaso numa corrida longa (duas
- * reprovações da conferência em meses vizinhos e magros), e parar ali custaria
- * uma corrida inteira por um susto.
+ * Três, e não dois: duas seguidas acontecem por acaso numa corrida longa, e
+ * parar ali custaria uma corrida inteira por um susto.
+ *
+ * **O que NÃO entra na conta** (Story 2.8): período mudo e período em que nenhum
+ * caderno passou. Os dois eram contados como falha, e os dois são corriqueiros —
+ * o primeiro no começo do arquivo, onde não havia matéria, e ambos na campanha de
+ * **um caderno**, em que basta aquele caderno estar calado. O mudo é o pior dos
+ * dois: custa zero e nunca se resolve, então três deles em sequência parariam a
+ * corrida **para sempre**, anunciando um token vencido que está perfeito.
  */
 const FALHAS_SEGUIDAS_QUE_PARAM = 3;
 
@@ -1094,6 +1246,15 @@ const DURACAO_DO_TIPO: Readonly<Record<TipoComEdicao, number>> = { week: 0, mont
 const chaveDoPeriodo = (tipo: string, inicio: string): string => `${tipo}\u0000${inicio}`;
 
 /**
+ * Por que a semana nunca entra na corrida — a frase, uma vez só.
+ *
+ * Os dois critérios do plano (o nomeado da 2.3 e o de um caderno da 2.8) a
+ * repetiam em literal, e uma delas ia ficar para trás na primeira vez que a
+ * redação mudasse.
+ */
+const SEMANA_FORA = 'semana não grava edição em massa — o postal da Retrospectiva a calcula na hora';
+
+/**
  * Esta edição já foi reimpressa? — **todo** caderno dela está acima da versão
  * com que ela foi gravada ({@link PeriodoNomeado.pacoteImpresso}).
  *
@@ -1116,6 +1277,42 @@ function jaReimpressa(edicao: EdicaoNoArquivo, nomeado: PeriodoNomeado): boolean
 }
 
 /**
+ * A classificação de **um caderno só** (`--massa --caderno`, Story 2.8): esta
+ * edição tem o caderno pedido escrito com um prompt anterior ao de hoje?
+ *
+ * É outro critério, e não uma variação do de cima, porque a pergunta é outra. A
+ * campanha da 2.3 é de **números** — `pacote_versao` mudou porque o pacote passou
+ * a carregar outra coisa —, e ela vale para a edição inteira, por períodos que o
+ * dono nomeou em código. A campanha de um caderno é de **palavras**: o prompt
+ * mudou, o pacote não, e quem precisa ser reescrito é quem tem *aquele* caderno
+ * abaixo do prompt de hoje — não há lista nomeada, porque a lista é derivável do
+ * arquivo com exatidão.
+ *
+ * Devolve o motivo do `pular`, ou `null` quando é caso de reimprimir.
+ *
+ * **É a retomada, e ela mora no banco**: a segunda corrida encontra o caderno já
+ * no prompt corrente e não gasta nada. O preço declarado é o mesmo do `every` de
+ * {@link jaReimpressa} — um caderno que caiu no piso mantém a linha antiga, e a
+ * corrida seguinte o tenta de novo, que é o certo: ele não foi renovado.
+ */
+function poupaOCaderno(edicao: EdicaoNoArquivo, caderno: CadernoId): string | null {
+  const linha = edicao.cadernos.find((c) => c.caderno === caderno);
+  if (linha === undefined) {
+    return `a edição não tem o caderno ${caderno} (${lista(edicao.cadernos.map((c) => c.caderno))})`;
+  }
+  // **O número da mensagem é o DA LINHA**, e não o limiar. Com `>` — a linha
+  // adiante do prompt de hoje, que é o que se vê ao rodar um binário antigo
+  // depois de um mais novo ter gravado — dizer "já está no prompt 6" sobre uma
+  // linha no 7 esconde a única coisa que importa ali: alguém mais novo passou por
+  // aqui. Os dois casos são `pular`; só a frase muda.
+  if (linha.promptVersao > PROMPT_DE_HOJE) {
+    return `${caderno} está no prompt ${linha.promptVersao}, à frente do de hoje (${PROMPT_DE_HOJE})`;
+  }
+  if (linha.promptVersao === PROMPT_DE_HOJE) return `${caderno} já está no prompt ${PROMPT_DE_HOJE}`;
+  return null;
+}
+
+/**
  * O plano: cada período do arquivo, classificado em imprimir, reimprimir ou
  * pular. Puro — recebe a enumeração e o inventário, e não abre rede.
  *
@@ -1132,6 +1329,13 @@ function jaReimpressa(edicao: EdicaoNoArquivo, nomeado: PeriodoNomeado): boolean
  * dezesseis chamadas pagas de um tipo que a bandeira tinha excluído, com o
  * cabeçalho dizendo "do tipo ano". O que fica fora do recorte aparece no plano
  * como `pular`, e não some: o inventário continua sendo o do arquivo.
+ *
+ * **`soOCaderno` troca o critério inteiro** (`--caderno`, Story 2.8), e não é um
+ * filtro sobre o de cima. Com ele a corrida corrige **palavras** no caderno
+ * pedido: `reimprimir` é a edição que já existe e tem esse caderno abaixo do
+ * prompt de hoje ({@link poupaOCaderno}), e todo o resto é `pular` — inclusive os
+ * cinco períodos nomeados em {@link A_REIMPRIMIR}, que são de outra campanha, e
+ * os períodos **sem edição**, porque um caderno só não é uma edição para nascer.
  */
 export function montarPlano(
   fechados: readonly PeriodoFechado[],
@@ -1139,6 +1343,7 @@ export function montarPlano(
   agora: Date,
   nomeados: readonly PeriodoNomeado[] = A_REIMPRIMIR,
   soODoTipo: TipoEmMassa | null = null,
+  soOCaderno: CadernoId | null = null,
 ): ItemDoPlano[] {
   const noArquivo = new Map(arquivo.map((e) => [chaveDoPeriodo(e.tipoPeriodo, e.inicio), e]));
   const nomeado = new Map(nomeados.map((n) => [chaveDoPeriodo(n.tipo, n.inicio), n]));
@@ -1162,13 +1367,37 @@ export function montarPlano(
         motivo: `fora do --tipo ${NOME_DO_TIPO[soODoTipo]}`,
       };
     }
+    if (soOCaderno !== null) {
+      // O critério de um caderno só. Semana continua fora: ela não grava edição,
+      // e as cinco do arquivo são do piloto.
+      if (tipo === 'week') {
+        return {
+          acao: 'pular', tipo, inicio, fim, offset, rotulo, cadernos,
+          motivo: SEMANA_FORA,
+        };
+      }
+      if (existe === undefined) {
+        return {
+          acao: 'pular', tipo, inicio, fim, offset, rotulo, cadernos,
+          motivo: `sem edição — --caderno ${soOCaderno} só corrige o que já está impresso`,
+        };
+      }
+      const poupa = poupaOCaderno(existe, soOCaderno);
+      return poupa === null
+        ? {
+            acao: 'reimprimir', tipo, inicio, fim, offset, rotulo, cadernos,
+            motivo: `${soOCaderno} no prompt ${existe.cadernos.find((c) => c.caderno === soOCaderno)!.promptVersao}`
+              + ` (hoje ${PROMPT_DE_HOJE})`,
+          }
+        : { acao: 'pular', tipo, inicio, fim, offset, rotulo, cadernos, motivo: poupa };
+    }
     if (existe === undefined) {
       // Nomeado e sem edição é impressão normal: não há o que reimprimir.
       return { acao: 'imprimir', tipo, inicio, fim, offset, rotulo, cadernos, motivo: pedido?.motivo ?? null };
     }
     if (pedido === undefined) {
       const motivo = tipo === 'week'
-        ? 'semana não grava edição em massa — o postal da Retrospectiva a calcula na hora'
+        ? SEMANA_FORA
         : 'já impresso, e não está na lista de reimpressão';
       return { acao: 'pular', tipo, inicio, fim, offset, rotulo, cadernos, motivo };
     }
@@ -1231,13 +1460,22 @@ export function nomeadosForaDoPlano(
  * períodos a corrida vai tocar. O plano continua dizendo a verdade inteira sobre
  * o arquivo, e a conta de chamadas passa a ser a do recorte — que é o número que
  * o dono está prestes a autorizar.
+ *
+ * `porPeriodo` é quantos cadernos cada período custa: os quatro, ou **um** com
+ * `--caderno` (Story 2.8). É o número inteiro da bandeira — a correção de `1
+ * dias` nos 35 períodos medidos passa de 140 chamadas para 35 —, e ele tem de chegar à
+ * tela antes do "sim", porque é isso que o dono autoriza.
  */
-export function contasDoPlano(itens: readonly ItemDoPlano[], limite: number | null = null): ContasDoPlano {
+export function contasDoPlano(
+  itens: readonly ItemDoPlano[],
+  limite: number | null = null,
+  porPeriodo: number = CADERNO_IDS.length,
+): ContasDoPlano {
   const conta = (c: AcaoNoPlano) => itens.filter((i) => i.acao === c).length;
   const imprimir = conta('imprimir');
   const reimprimir = conta('reimprimir');
   const aFazer = limite === null ? imprimir + reimprimir : Math.min(imprimir + reimprimir, limite);
-  const chamadas = aFazer * CADERNO_IDS.length;
+  const chamadas = aFazer * porPeriodo;
   return {
     imprimir,
     reimprimir,
@@ -1273,10 +1511,17 @@ export interface PeriodoNaCorrida {
   readonly inicio: string;
   readonly rotulo: string;
   /**
-   * `pulada` é o período que **outro hospedeiro imprimiu** entre o plano e a
-   * corrida (`ja-impresso`): não é falha — o trabalho está feito, e insistir
-   * sobrescreveria a edição do telefone sem ninguém ter pedido. Só `falhou`
-   * conta para o status de saída e para o freio das falhas seguidas.
+   * `pulada` é o período que a corrida **não tinha por que gravar**, e são três
+   * casos — nenhum deles é defeito:
+   *
+   * - **outro hospedeiro imprimiu** entre o plano e a corrida (`ja-impresso`): o
+   *   trabalho está feito, e insistir sobrescreveria a edição do telefone;
+   * - **não havia o que dizer** (`sem-caderno`, Story 2.8): zero chamadas, e o
+   *   período é o mesmo amanhã;
+   * - **nenhum caderno passou** na conferência (`nada-gravado`): custou as
+   *   chamadas, a edição ficou como estava, e a corrida seguinte tenta de novo.
+   *
+   * Só `falhou` conta para o status de saída e para o freio das falhas seguidas.
    */
   readonly desfecho: 'gravada' | 'pulada' | 'falhou';
   /** Quantas chamadas **pagas** o período custou — tenham gravado ou não. */
@@ -1340,6 +1585,12 @@ export interface PedidoEmMassa {
   readonly limite: number | null;
   /** O caminho do `--exportar`. Com ele, exporta e sai — não imprime nada. */
   readonly exportar: string | null;
+  /**
+   * O `--caderno <id>` (Story 2.8): a corrida corrige **um** caderno nas edições
+   * que já existem, e o critério do plano passa a ser o `prompt_versao` dele.
+   * `null`: a campanha da 2.3, pelos períodos nomeados em {@link A_REIMPRIMIR}.
+   */
+  readonly caderno: CadernoId | null;
 }
 
 /**
@@ -1358,13 +1609,21 @@ export interface PedidoEmMassa {
 export function exportarEmTexto(
   edicoes: readonly { readonly item: ItemDoPlano; readonly cadernos: readonly CadernoImpresso[] }[],
   agora: Date,
+  caderno: CadernoId | null = null,
 ): string {
   const linhas: string[] = [
     '# As edições que a impressão em massa vai substituir',
     '',
     `> Exportadas em ${localDateStr(agora)} por \`revista:imprimir --massa --exportar\` (Story 2.3),`,
-    '> **antes** de a reimpressão sobrescrevê-las. Elas foram impressas sob o pacote 3 —',
-    '> anterior à gramática da ausência (2.6) e à lápide (2.7) —, e é por isso que saem do ar.',
+    '> **antes** de a reimpressão sobrescrevê-las.',
+    // A prosa segue a corrida que vai rodar: a da 2.3 troca a edição inteira; a
+    // de um caderno (2.8) troca uma linha e deixa as outras. Dizer "sob o pacote
+    // 3" sobre uma correção de prompt seria escrever no git um motivo falso.
+    ...(caderno === null
+      ? ['> Elas foram impressas sob o pacote 3 — anterior à gramática da ausência (2.6) e à lápide',
+         '> (2.7) —, e é por isso que saem do ar.']
+      : [`> A corrida que vem reescreve **só o caderno \`${caderno}\`** delas (prompt abaixo de ${PROMPT_DE_HOJE});`,
+         '> os outros cadernos ficam com o texto e a assinatura que estão aqui.']),
     '>',
     '> Guardadas em git em vez de na tabela, como as sete primeiras edições: o git dá **diff**,',
     '> e a tabela fica sem linhas que nenhum caminho de leitura toca.',
@@ -1411,13 +1670,20 @@ export async function imprimirEmMassa(pedido: PedidoEmMassa, deps: DepsDaMassa):
   const fechados = (deps.enumerar ?? ((d: Date) => periodosFechadosDesde(COMECO_DO_ARQUIVO, d)))(agora)
     .filter((p) => pedido.tipo === null || p.tipo === pedido.tipo);
   const arquivo = await fetchArquivoDeEdicoes(deps.db, deps.userId);
-  const plano = montarPlano(fechados, arquivo, agora, nomeados, pedido.tipo);
-  const contas = contasDoPlano(plano, pedido.limite);
+  const alvo = pedido.caderno;
+  const plano = montarPlano(fechados, arquivo, agora, nomeados, pedido.tipo, alvo);
+  const contas = contasDoPlano(plano, pedido.limite, alvo === null ? CADERNO_IDS.length : 1);
   const soPlano = (codigo: 0 | 1, exportado: string | null): RelatorioDaMassa =>
     ({ codigo, plano, contas, corrida: null, freada: false, exportado });
 
   escrever(`massa — o arquivo desde ${COMECO_DO_ARQUIVO}, visto de ${localDateStr(agora)}`);
   escrever(`  fuso: ${fusoDe(agora)}`);
+  if (alvo !== null) {
+    escrever(
+      `  --caderno ${alvo}: a corrida reescreve só esse caderno, nas edições que já existem e o têm`
+        + ` abaixo do prompt ${PROMPT_DE_HOJE}. Os outros cadernos ficam, e a capa não é trocada.`,
+    );
+  }
   escrever(
     `  ${contar(fechados.length, 'período fechado enumerado', 'períodos fechados enumerados')}`
       + `${pedido.tipo === null ? ' (mês, trimestre e ano; semana nunca)' : ` do tipo ${NOME_DO_TIPO[pedido.tipo]}`}`
@@ -1428,14 +1694,22 @@ export async function imprimirEmMassa(pedido: PedidoEmMassa, deps: DepsDaMassa):
     escrever(`  --limite ${pedido.limite}: a corrida toca só ${contar(contas.aFazer, 'período', 'períodos')}, na ordem do plano`);
   }
   escrever(
-    `  até ${contar(contas.chamadas, 'chamada de nuvem', 'chamadas de nuvem')}, uma por caderno — `
+    // O "por quê" do número acompanha a campanha: os quatro cadernos custam uma
+    // chamada cada; o `--caderno` custa uma por PERÍODO, e é esse o número que o
+    // "sim" autoriza.
+    `  até ${contar(contas.chamadas, 'chamada de nuvem', 'chamadas de nuvem')}, `
+      + `${alvo === null ? 'uma por caderno' : `uma por período (só o caderno ${alvo})`} — `
       + `com a mediana medida de ${MEDIANA_POR_CHAMADA_S} s (a da Saúde do sono, ADR 0050: a revista `
       + `ainda não tem a sua), cerca de ${contar(contas.minutos, 'minuto', 'minutos')} de relógio`,
   );
   for (const l of planoEmTexto(plano)) escrever(l);
 
-  /* Um nomeado que não apareceu no plano é erro de digitação, e ele some calado. */
-  const perdidos = nomeadosForaDoPlano(plano, nomeados, pedido.tipo);
+  /*
+   * Um nomeado que não apareceu no plano é erro de digitação, e ele some calado.
+   * Com `--caderno` a lista nomeada não é o critério de nada (ver `montarPlano`),
+   * e o aviso diria que cinco períodos de outra campanha "não estão no plano".
+   */
+  const perdidos = alvo === null ? nomeadosForaDoPlano(plano, nomeados, pedido.tipo) : [];
   if (perdidos.length > 0) {
     avisar(
       `atenção: ${contar(perdidos.length, 'período nomeado para reimpressão não está no plano', 'períodos nomeados para reimpressão não estão no plano')} `
@@ -1457,8 +1731,14 @@ export async function imprimirEmMassa(pedido: PedidoEmMassa, deps: DepsDaMassa):
     }
     const aExportar = plano.filter((i) => i.acao === 'reimprimir');
     if (aExportar.length === 0) {
+      // O motivo segue o critério que montou o plano. Com `--caderno` não há
+      // lista nomeada, e mandar o operador conferir `A_REIMPRIMIR` o poria a
+      // procurar numa lista que ali não decide nada.
       avisar(
-        'não há nada a exportar: nenhum período da lista de reimpressão está no plano como `reimprimir`.\n'
+        `não há nada a exportar: nenhum período do plano ficou como \`reimprimir\`${alvo === null
+          ? ' — confira a lista de reimpressão (A_REIMPRIMIR).'
+          : `. Com --caderno ${alvo}, só entram as edições que já existem e têm esse caderno abaixo do `
+            + `prompt ${PROMPT_DE_HOJE}; pelo visto todas já estão nele.`}\n`
           + '  Nada foi escrito — um arquivo só com cabeçalho pareceria uma exportação que deu certo.',
       );
       return soPlano(1, null);
@@ -1472,7 +1752,7 @@ export async function imprimirEmMassa(pedido: PedidoEmMassa, deps: DepsDaMassa):
     // status diz que a exportação não está completa.
     const vazias = edicoes.filter((e) => e.cadernos.length === 0);
     const escreverArquivo = deps.escreverArquivo ?? ((caminho, conteudo) => writeFileSync(caminho, conteudo, 'utf8'));
-    escreverArquivo(pedido.exportar, exportarEmTexto(edicoes, agora));
+    escreverArquivo(pedido.exportar, exportarEmTexto(edicoes, agora, alvo));
     escrever(
       `  exportadas ${contar(edicoes.length, 'edição', 'edições')} para ${pedido.exportar} — `
         + 'commite o arquivo antes de reimprimir. Nada foi chamado nem gravado.',
@@ -1532,7 +1812,16 @@ export async function imprimirEmMassa(pedido: PedidoEmMassa, deps: DepsDaMassa):
     } else {
       try {
         const r = await imprimirPeriodo(
-          { periodo: v.periodo, semGravar: false, reimprimir: item.acao === 'reimprimir' },
+          {
+            periodo: v.periodo,
+            semGravar: false,
+            // `reimprimir` e `caderno` não andam juntos — é o que
+            // `bandeirasIncompativeis` recusa na linha de comando, e o mesmo
+            // invariante vale aqui: quem tira a recusa do já impresso na corrida
+            // parcial é o próprio alvo.
+            reimprimir: alvo === null && item.acao === 'reimprimir',
+            caderno: alvo,
+          },
           { ...deps, aoTentar: (_c, n) => { chamadas += n; } },
         );
         if (r.codigo === 0) {
@@ -1541,6 +1830,36 @@ export async function imprimirEmMassa(pedido: PedidoEmMassa, deps: DepsDaMassa):
           // Outro hospedeiro imprimiu entre o plano e agora. O trabalho está
           // feito: insistir sobrescreveria a edição do telefone.
           registrar({ ...base, desfecho: 'pulada', chamadas, erro: 'já impresso por outro hospedeiro', avisoDaCapa: null });
+        } else if (r.estado === 'sem-caderno' || r.estado === 'nada-gravado') {
+          /**
+           * **Mudez não é falha, e com `--caderno` ela é corriqueira** (Story 2.8).
+           *
+           * Com os quatro cadernos, chegar aqui exigia o período inteiro calado — raro
+           * o bastante para contar como sinal. Com **um** caderno pedido, basta que
+           * aquele caderno não tenha o que dizer, e aí:
+           *
+           * - `sem-caderno` custa **zero** chamadas e **nunca** se resolve sozinho: o
+           *   período é o mesmo na corrida seguinte. Contado como falha, três deles em
+           *   sequência parariam a corrida **para sempre**, anunciando "o token que
+           *   venceu, cota, ou a nuvem recusando" — que é falso, e manda o dono
+           *   procurar um defeito que não existe;
+           * - `nada-gravado` é o caderno que foi lido e caiu no piso. Custou chamada, e
+           *   a linha antiga dele fica — a corrida seguinte o tenta de novo, que é o
+           *   certo.
+           *
+           * Nenhum dos dois é causa comum, então nenhum alimenta o freio. O freio
+           * continua inteiro para o que ele existe: exceção (rede, prazo, porta que
+           * rejeitou) e período que nem se valida.
+           */
+          registrar({
+            ...base,
+            desfecho: 'pulada',
+            chamadas,
+            erro: r.estado === 'sem-caderno'
+              ? `nada a dizer${alvo === null ? '' : ` no caderno ${alvo}`} — nada foi chamado nem gravado`
+              : 'nenhum caderno passou na conferência — a edição ficou como estava',
+            avisoDaCapa: null,
+          });
         } else {
           registrar({ ...base, desfecho: 'falhou', chamadas, erro: r.estado, avisoDaCapa: null });
         }
@@ -1581,6 +1900,15 @@ export async function imprimirEmMassa(pedido: PedidoEmMassa, deps: DepsDaMassa):
   );
   if (semCapa.length > 0) {
     escrever(`  sem capa (a edição existe; a próxima impressão inteira recarimba): ${lista(semCapa.map((c) => c.rotulo))}`);
+  }
+  // As puladas **na corrida** (não as do plano) saem nomeadas, com o motivo. Sem
+  // isto, reclassificar mudez como `pulada` (Story 2.8) a teria escondido: o
+  // período não gravou nada, a corrida sai 0, e a tabela das falhas não o mostra.
+  // O que muda é o status de saída, não a visibilidade.
+  const puladas = conta('pulada');
+  if (puladas.length > 0) {
+    escrever('  as que a corrida pulou, e por quê (nenhuma é falha):');
+    for (const l of tabela(puladas.map((c) => [`    ${c.rotulo}`, c.inicio, c.erro ?? '—']))) escrever(l);
   }
   if (falhadas.length > 0) {
     escrever('  as que falharam, e que rodar de novo tenta outra vez:');
@@ -1686,7 +2014,9 @@ export async function principal(argv: readonly string[], p: Processo): Promise<n
     const validade = avisoDeValidade({
       expiraEm: sessao.expiraEm,
       podeRenovar: sessao.podeRenovar,
-      chamadas: CADERNO_IDS.length,
+      // Quantas chamadas a impressão de UM período faz: os quatro cadernos, ou
+      // um com `--caderno` (Story 2.8).
+      chamadas: b.caderno === null ? CADERNO_IDS.length : 1,
       prazoMs: PRAZO_MS,
       agora: p.agora,
     });
@@ -1709,13 +2039,14 @@ export async function principal(argv: readonly string[], p: Processo): Promise<n
           tipo: b.tipo === null ? null : (b.tipo as TipoEmMassa),
           limite: b.limite,
           exportar: b.exportar,
+          caderno: b.caderno,
         },
         deps,
       );
       return r.codigo;
     }
     const r = await imprimirPeriodo(
-      { periodo: periodo!, semGravar: b.semGravar, reimprimir: b.reimprimir },
+      { periodo: periodo!, semGravar: b.semGravar, reimprimir: b.reimprimir, caderno: b.caderno },
       deps,
     );
     return r.codigo;
