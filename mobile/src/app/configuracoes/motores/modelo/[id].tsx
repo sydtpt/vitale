@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, AppState } from 'react-n
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CATALOGO_DE_RECURSOS, resolverCadeia, type RecursoId } from '@vitale/shared';
+import { CATALOGO_DE_RECURSOS } from '@vitale/shared';
 import {
   estadoDaCompilacaoDosPesos,
   estadoDosPesosAbertos,
@@ -18,14 +18,13 @@ import {
   compilacaoDoModelo,
   estadoDoPesoAberto,
   listaAprovada,
-  motoresDoRecurso,
   pesoAbertoDaPasta,
   type EstadoDaCompilacao,
   type EstadoDaPonte,
   type ListaAprovada,
 } from '../../../../lib/motores/catalogo';
+import { leiturasDoModelo } from '../../../../lib/motores/compilacao-regras';
 import {
-  PRECO_DE_COMPILAR,
   componentesEmTexto,
   escreveHojeEmTexto,
   estadoDaCompilacaoEmPalavras,
@@ -33,6 +32,7 @@ import {
   linhaDoCarimbo,
   notaDeApagarOCompilado,
   ocupacaoDoModelo,
+  quantoLevaCompilar,
 } from '../../../../lib/motores/folha-regras';
 import { lerCarimbos, SEM_CARIMBOS, type CarimbosDaCompilacao } from '../../../../lib/motores/carimbo';
 import { lerPreferencias, type PreferenciaDeMotores } from '../../../../lib/motores/preferencia';
@@ -68,16 +68,6 @@ import { colors, fonts, radii, roleColors, spacing, useThemedStyles } from '../.
  * aperta quando o telefone já reclamou de espaço. A nota diz o que ele devolveria, o que
  * custaria refazer, qual leitura escreve com o modelo, e por que ele não está lá.
  */
-
-/** O nome de cada recurso na tela. Fechado: recurso novo sem nome não compila. */
-const NOME_DO_RECURSO: Readonly<Record<RecursoId, string>> = {
-  retrospectiva: 'Retrospectiva',
-  'saude-do-sono': 'Saúde do sono',
-  'nome-de-rota': 'Nome de rota',
-  // O mesmo nome da tela raiz. Duas grafias fariam a ficha dizer que o modelo
-  // escreve uma leitura que o seletor chama de outro jeito.
-  'nome-de-rota-pt': 'Nome de rota em português',
-};
 
 export default function ModeloScreen() {
   const s = useThemedStyles(createStyles);
@@ -154,14 +144,20 @@ export default function ModeloScreen() {
     };
   }, []);
 
-  /** As leituras que este modelo escreve **agora** — resolvidas, não lidas da preferência. */
-  const leituras = useMemo(() => {
-    if (peso === undefined) return [];
-    return CATALOGO_DE_RECURSOS.filter((d) => {
-      const conhecidos = motoresDoRecurso(d.recurso, { sistema: ponte, coreai }, lista);
-      return resolverCadeia(d, preferencias[d.recurso] ?? null, conhecidos.map((m) => m.id))[0] === peso.id;
-    }).map((d) => NOME_DO_RECURSO[d.recurso]);
-  }, [peso, ponte, coreai, lista, preferencias]);
+  /**
+   * As leituras que este modelo escreve **agora** — resolvidas, não lidas da preferência.
+   *
+   * A regra mora em `compilacao-regras.ts` desde a fatia 2, porque a tela de compilação precisa
+   * exatamente dela para dizer o que continua escrevendo durante a espera. Duas cópias
+   * divergiriam, e o dono leria uma lista na ficha e outra ao compilar.
+   */
+  const leituras = useMemo(
+    () =>
+      peso === undefined
+        ? []
+        : leiturasDoModelo({ peso, pontes: { sistema: ponte, coreai }, lista, preferencias }),
+    [peso, ponte, coreai, lista, preferencias],
+  );
 
   if (peso === undefined) {
     return (
@@ -295,7 +291,7 @@ export default function ModeloScreen() {
               <View style={s.regua} />
               <Text style={s.nota}>
                 Este iPhone não registrou quando este modelo compilou: o carimbo nasce na tela de
-                compilação, que ainda não existe.
+                compilação, e ele já estava compilado antes dela existir.
               </Text>
             </>
           ) : null}
@@ -356,12 +352,24 @@ export default function ModeloScreen() {
               </Text>
             </View>
           ) : estado.tipo === 'nao-compilado' ? (
-            // Tracejada e abafada: o tracejado diz "isto não é um controle" sem gastar uma
-            // palavra, e ela não é mesmo — a tela de compilar é a fatia 2.
-            <View style={s.pilula}>
-              <Text style={s.pilulaTexto}>Compilar</Text>
-              <Text style={s.nota}>{PRECO_DE_COMPILAR}</Text>
-            </View>
+            // **Um controle de verdade desde a fatia 2.** Ele era tracejado e inerte porque a
+            // tela que compila não existia, e um botão com cara de botão que não faz nada mente
+            // tanto quanto uma omissão. Agora ele abre a tela — que é onde o preço volta a ser
+            // dito, com relógio, e onde dá para parar.
+            <>
+              <Pressable
+                onPress={() => router.push(`/configuracoes/motores/modelo/${peso.pesos}/compilar`)}
+                accessibilityRole="button"
+                accessibilityLabel={`Compilar o ${peso.rotulo}. ${quantoLevaCompilar(carimbo)}`}
+                style={({ pressed }) => [s.botaoCheio, pressed && s.pressed]}
+              >
+                <Text style={s.botaoCheioTexto}>Compilar</Text>
+              </Pressable>
+              <Text style={s.nota}>
+                {`Compilar para o chip ${quantoLevaCompilar(carimbo)}, e a tela fica acesa esperando. ` +
+                  'Depois disso ele abre em segundos.'}
+              </Text>
+            </>
           ) : (
             // Nem compilar nem apagar: "não sei" não é "não", e oferecer qualquer dos dois
             // aqui seria agir sobre um modelo que este build talvez nem traga.
@@ -502,20 +510,15 @@ const createStyles = () =>
       gap: spacing.xs,
     },
     avisoTitulo: { fontSize: 11.5, fontFamily: fonts.sansBold, color: colors.ink },
-    pilula: {
-      alignItems: 'center',
-      gap: spacing.xs,
+    botaoCheio: {
       minHeight: 46,
+      alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 10,
       borderRadius: radii.lg,
-      backgroundColor: colors.surfaceMute,
-      borderWidth: 1,
-      borderStyle: 'dashed',
-      borderColor: colors.line,
+      backgroundColor: colors.ink,
+      paddingHorizontal: 14,
     },
-    pilulaTexto: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+    botaoCheioTexto: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.bg },
 
     vazio: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, gap: spacing.md },
     botaoSuave: {
