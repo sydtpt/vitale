@@ -170,18 +170,16 @@ export const PESOS_ABERTOS: readonly PesoAberto[] = Object.freeze([
    * Este export muda duas coisas, e só elas, para que a causa fique legível:
    *  - **int4 puro** no lugar do misto 4/8 — 2,1 GB contra 2,3. A economia é pequena porque
    *    a receita mista já era quase toda 4 bits (ela subia cinco camadas para 8);
-   *  - **janela 2.048** no lugar de 4.096. A primeira tentativa desta segunda rodada usou
-   *    1.024 e falhou por motivo novo: o pedido da Retrospectiva tem **1.628 tokens** e o do
-   *    nome de rota **1.128**, então os dois eram cortados e o modelo devolvia
-   *    `saida-invalida`. Eu tinha dimensionado a janela olhando só para a Saúde do sono, que
-   *    usa 617. A segunda tentativa usou 3.072 e falhou de novo, por um motivo que só o
-   *    aparelho contou: `InferenceRuntimeError.invalidState("Failed to find an extend
-   *    function with the max context length of 3072")`. O exportador gera uma **escada de
-   *    potências de dois** — 256, 512, 1.024, 2.048, 4.096 — e 3.072 não está nela, então
-   *    o `.aimodel` parou em `extend_2048` e o runtime procurou uma função que não existe.
-   *    Daí **2.048**, conferido na escada antes de gastar a compilação: cabe a maior leitura
-   *    (1.628 + 187 = 1.815) e o cache KV (144 KB/token) custa 0,29 GB — menos que os 0,44
-   *    de 3.072 e que os 0,60 da configuração que morreu.
+   *  - **janela 4.096**, e o caminho até ela foi por eliminação:
+   *    **1.024** cortava o pedido de duas das três leituras. **3.072** não existe — o
+   *    exportador gera uma escada de potências de dois (256, 512, 1.024, 2.048, 4.096) e o
+   *    runtime pede a função com o valor exato. **2.048** parecia servir pela conta
+   *    (Retrospectiva 1.628 + 187 = 1.815), mas o número era do Tucano2: o Qwen3 gasta 13% mais
+   *    tokens no MESMO pedido, porque o tokenizador dele viu menos português. Medido no
+   *    aparelho: o caderno Movimento consome **2.039 dos 2.048**, e o modelo escreveu os nove
+   *    tokens que sobraram — aprovados pelo portão, que não tem piso de tamanho.
+   *    O cache KV custa 0,60 GB a 4.096, e o total (2,06 compilado + 0,60) dá 2,66 GB, contra
+   *    os 2,90 da configuração que morreu em 22/09: a folga veio do int4.
    *
    * A terceira alavanca — compilar AOT no Mac com `--architecture h18p`, que tiraria a
    * especialização do aparelho — **não entra neste build**: ela exige o Metal Toolchain do
@@ -195,7 +193,7 @@ export const PESOS_ABERTOS: readonly PesoAberto[] = Object.freeze([
     pesos: 'qwen3-4b',
     nome: 'o Qwen3 4B no aparelho',
     rotulo: 'Qwen3 4B',
-    descricao: 'O maior modelo aberto do build, em 4 bits, com janela para as três leituras. Nada sai do aparelho.',
+    descricao: 'O maior modelo aberto do build, em 4 bits, com janela de 4.096. Nada sai do aparelho.',
     tamanho: { instaladoGB: 2.1, compiladoGB: 2.06 },
   }),
 ]);
