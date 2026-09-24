@@ -83,6 +83,13 @@ public struct OrbeCoreAICompilacao: Sendable, Equatable {
 }
 
 public enum OrbeCoreAI {
+  /**
+   * O limiar a partir do qual o Core AI divide o prompt em pedaços, posto no teto para que
+   * ele nunca divida. Constante nomeada, e não um número solto na chamada, porque ela é um
+   * **experimento com data** — ver o comentário em {@link sessao}.
+   */
+  private static let SEM_PEDACOS_NO_PREFILL = 1_000_000
+
   /// Se os pesos da pasta já estão compilados para o chip, **sem disparar compilação**.
   ///
   /// **Por que ela existe.** A primeira chamada de um peso aberto especializa o modelo para o
@@ -190,7 +197,31 @@ public enum OrbeCoreAI {
   /// `.aimodel` de dentro.
   public static func sessao(pesosEm url: URL, instrucoes: String?) async throws -> LanguageModelSession {
     do {
-      let modelo = try await CoreAILanguageModel(resourcesAt: url)
+      /*
+       * **Experimento de 24/09 — o prefill em pedaços.** Três medidas no iPhone 17 Pro com o
+       * Qwen3-4B (int4, janela 2.048) desenham uma fronteira que não é o formato da saída:
+       *
+       *   Saúde do sono    617 tokens · texto    → funciona
+       *   Nome de rota   1.114 tokens · esquema  → `No logits returned from engine`
+       *   Retrospectiva  1.628 tokens · texto    → `Failed to parse generated content`
+       *
+       * Duas leituras de texto livre, uma passa e a outra não; duas que falham, só uma com
+       * esquema. O que separa é o **tamanho do pedido**, e o corte está entre 617 e 1.114.
+       *
+       * O Core AI divide o prompt em pedaços acima de um limiar, e nós nunca dissemos nada
+       * sobre isso — os dois parâmetros iam `nil` e o padrão decidia. A issue #201 da Apple
+       * descreve, para o Gemma 4, exatamente o formato desta falha: *any prefill with S>1
+       * aborts*. Com o limiar no teto, o pedido inteiro vira um pedaço só.
+       *
+       * **Isto é hipótese, não causa provada.** Se o 4B passar a responder as três leituras,
+       * achamos; se não mudar nada, descartamos e a suspeita vai para a quantização em 4 bits
+       * puros. O 1.7B e o Tucano2, que hoje funcionam, são o controle: se eles quebrarem com
+       * esta linha, o pedaço era necessário.
+       */
+      let modelo = try await CoreAILanguageModel(
+        resourcesAt: url,
+        prefillChunkThreshold: SEM_PEDACOS_NO_PREFILL
+      )
       return LanguageModelSession(model: modelo, instructions: instrucoes.map { Instructions($0) })
     } catch {
       let ns = error as NSError
