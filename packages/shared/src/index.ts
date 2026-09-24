@@ -181,6 +181,9 @@ export * from './format/money';
 export { chamadaDoTexto } from './revista/chamada';
 // A escolha da capa (story 1.13) — natureza, identidade e as duas legendas.
 export * from './revista/capa';
+// Os dois desenhistas da capa (story 2.4a) — a projeção do traçado e a contagem
+// da grade, puras: quem desenha só recebe o já calculado.
+export * from './revista/desenho';
 export * from './data/paginate';
 export * from './data/profiles';
 export * from './data/todo-templates';

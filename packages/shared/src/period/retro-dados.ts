@@ -48,8 +48,10 @@
  *
  * Puro: não conhece banco, rede nem relógio — o `agora` chega de quem chama.
  */
+import type { TipoComEdicao } from '../data/edicoes-ia';
 import { localDateStr } from '../date/local';
 import type { EntradaPacote, FatoLapide } from '../ia/pacote';
+import type { EntradaDaGrade } from '../revista/desenho';
 import type {
   Activity,
   HabitLog,
@@ -266,6 +268,51 @@ function tarefasDe(dados: DadosDaRetro): {
   return { tasks, purchases, dailyTasks };
 }
 
+/** Registro → os dias em que ele foi marcado, já cortados na janela. */
+function diasPorRegistroDe(d: DadosDaRetro): Map<string, string[]> {
+  const porRegistro = new Map<string, string[]>();
+  for (const l of d.registroLogs) {
+    const dias = porRegistro.get(l.registroId) ?? [];
+    dias.push(l.logDate);
+    porRegistro.set(l.registroId, dias);
+  }
+  return porRegistro;
+}
+
+/**
+ * A entrada da **grade da capa** (Story 2.4a) — o mesmo corte de janela do
+ * {@link retroInputDe}, com só os dois campos que a grade lê.
+ *
+ * Existe separada, e não como "chame o `retroInputDe` e ignore o resto", porque a
+ * parede da 2.4b desenha ~40 capas: montar quarenta pacotes inteiros da
+ * Retrospectiva — saúde, notas, hábitos, tarefas, compras, séries diárias, noites —
+ * para ler `activities` e `registros[].days` é trabalho que ninguém olha. Nenhuma
+ * leitura nova do banco em nenhum dos dois caminhos: os dois partem da memória que
+ * a retro já carregou.
+ *
+ * O `tipo` é {@link TipoComEdicao} e não `PeriodKind`: o Total não tem capa, e uma
+ * grade dele teria ~9.760 células.
+ */
+export function entradaDaGradeDe(
+  dados: DadosDaRetro,
+  atividades: readonly Activity[],
+  agora: Date,
+  tipo: TipoComEdicao,
+  offset: number,
+): EntradaDaGrade {
+  const d = recortarNaJanela(dados, localDateStr(retroSince(agora, tipo, offset)));
+  const diasPorRegistro = diasPorRegistroDe(d);
+  return {
+    now: agora,
+    kind: tipo,
+    offset,
+    // As ocultas saem aqui, como em `retroInputDe`: o que o dono escondeu não
+    // marca dia na capa.
+    activities: atividades.filter((a) => !a.hidden),
+    registros: d.registros.map((r) => ({ days: diasPorRegistro.get(r.id) ?? [] })),
+  };
+}
+
 /**
  * A entrada da Retrospectiva de um período — o `RetroInput` que o celular montava
  * na store, agora cortado na janela do período.
@@ -310,12 +357,7 @@ export function retroInputDe(
     }
     m.set(l.logDate, l.value);
   }
-  const diasPorRegistro = new Map<string, string[]>();
-  for (const l of d.registroLogs) {
-    const dias = diasPorRegistro.get(l.registroId) ?? [];
-    dias.push(l.logDate);
-    diasPorRegistro.set(l.registroId, dias);
-  }
+  const diasPorRegistro = diasPorRegistroDe(d);
 
   const { tasks, purchases, dailyTasks } = tarefasDe(d);
 

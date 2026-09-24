@@ -324,9 +324,18 @@ export async function fetchRoutePoints(
  * consultas separadas também abririam a chance de pegar um overview recalculado
  * com segmentos velhos, e a cor sairia deslocada sem nada reclamar.
  *
- * Devolve `null` quando não há rota; `segments` vazio quando o passe de piso
- * ainda não rodou — que é o caso de toda pedalada nova até o primeiro sync com
- * rede (ADR 0035). Quem desenha trata os dois como "linha lisa de sempre".
+ * Devolve `null` quando **não há linha** em `activity_routes`; `segments` vazio
+ * quando o passe de piso ainda não rodou — que é o caso de toda pedalada nova até
+ * o primeiro sync com rede (ADR 0035). Quem desenha trata os dois como "linha
+ * lisa de sempre".
+ *
+ * **`overview` vazio não é `null`** (Story 2.4a). Até 24/09/2026 a guarda era
+ * `if (!row?.route_overview?.length) return null`, e com ela "a linha sumiu" e "a
+ * linha existe com o traçado vazio" davam a mesma resposta. A capa da revista faz
+ * coisas **opostas** com as duas — some para o papel na primeira, cai para a grade
+ * na segunda —, e uma rota de zero pontos acabava tratada com mais deferência do
+ * que uma de um ponto. Para quem pinta o mapa nada muda: `paintRoute` já devolve
+ * lista vazia com menos de dois pontos.
  */
 export async function fetchRouteSurface(
   db: SupabaseClient,
@@ -344,8 +353,8 @@ export async function fetchRouteSurface(
     route_overview?: [number, number][] | null;
     surface_segments?: SurfaceSegment[] | null;
   } | null;
-  if (!row?.route_overview?.length) return null;
-  return { overview: row.route_overview, segments: row.surface_segments ?? [] };
+  if (!row) return null;
+  return { overview: row.route_overview ?? [], segments: row.surface_segments ?? [] };
 }
 
 /**

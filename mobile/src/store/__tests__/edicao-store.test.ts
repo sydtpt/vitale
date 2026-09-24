@@ -894,7 +894,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
       tipo: 'edicao',
       capa: {
         periodo: 'Agosto de 2026', impressa: false, manchete: null,
-        carimbada: null, comFoto: false, legenda: null,
+        carimbada: null, comFoto: false, natureza: null, legenda: null,
         escrevendo: false, escrever: true, semCaderno: false,
       },
       cadernos: [],
@@ -921,7 +921,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
     if (v.tipo !== 'edicao') throw new Error(v.tipo);
     expect(v.capa).toEqual({
       periodo: 'Agosto de 2026', impressa: true,
-      carimbada: null, comFoto: false, legenda: null,
+      carimbada: null, comFoto: false, natureza: null, legenda: null,
       escrevendo: false, escrever: false, semCaderno: false,
       manchete: 'O tempo de sono subiu para 7,1 h e a variabilidade da frequência cardíaca alcançou 71 ms, '
         + 'enquanto a frequência cardíaca em repouso chegou a 52 bpm.',
@@ -1009,7 +1009,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
       tipo: 'edicao',
       capa: {
         periodo: 'Agosto de 2026', impressa: false, manchete: null,
-        carimbada: null, comFoto: false, legenda: null,
+        carimbada: null, comFoto: false, natureza: null, legenda: null,
         escrevendo: true, escrever: false, semCaderno: false,
       },
       cadernos: [
@@ -1042,7 +1042,7 @@ describe('vistaDaEdicao — a matriz da rota', () => {
       tipo: 'edicao',
       capa: {
         periodo: 'Agosto de 2026', impressa: false, manchete: null,
-        carimbada: null, comFoto: false, legenda: null,
+        carimbada: null, comFoto: false, natureza: null, legenda: null,
         escrevendo: false, escrever: true, semCaderno: false,
       },
       cadernos: [
@@ -1822,14 +1822,21 @@ describe('vistaDaEdicao — foto ou papel, e a legenda', () => {
   const comCapa = (capa: unknown, edicao = [impresso('movimento', 1)]) =>
     vistaDaEdicao(estadoLido({ edicao, capa: capa as never }), TODOS, AGG_VERSION);
 
+  /** Uma capa carimbada sem foto: a `tracado` (com ponteiro) ou a `grade`. */
+  const semFoto = (natureza: 'tracado' | 'grade', legenda: string) => ({
+    ...CAPA_DE_AGOSTO, natureza, fotoId: null, fotoTakenAt: null, motivo: 'sem-foto', fotoActivityId: null,
+    rotaActivityId: natureza === 'tracado' ? 'a-1' : null,
+    legenda,
+  });
+
   const daCapa = (v: ReturnType<typeof vistaDaEdicao>) => {
     if (v.tipo !== 'edicao') throw new Error(v.tipo);
-    return { comFoto: v.capa.comFoto, legenda: v.capa.legenda };
+    return { comFoto: v.capa.comFoto, natureza: v.capa.natureza, legenda: v.capa.legenda };
   };
 
   it('capa de foto sobre edição impressa: desenha foto, com a legenda carimbada', () => {
     expect(daCapa(comCapa(CAPA_DE_AGOSTO))).toEqual({
-      comFoto: true, legenda: CAPA_DE_AGOSTO.legenda,
+      comFoto: true, natureza: 'foto', legenda: CAPA_DE_AGOSTO.legenda,
     });
   });
 
@@ -1842,27 +1849,56 @@ describe('vistaDaEdicao — foto ou papel, e a legenda', () => {
    */
   it('capa carimbada sobre edição SEM caderno impresso: papel, e o botão continua lá', () => {
     const v = comCapa(CAPA_DE_AGOSTO, []);
-    expect(daCapa(v)).toEqual({ comFoto: false, legenda: null });
+    expect(daCapa(v)).toEqual({ comFoto: false, natureza: null, legenda: null });
     expect(v.tipo === 'edicao' && v.capa.escrever).toBe(true);
   });
 
   /**
-   * Carimbadas, não desenhadas (recorte do dono, 17/09). E a legenda delas não vai
-   * ao papel: na `grade` ela É o período, que a capa já imprime logo acima; na
-   * `tracado`, o desenho que ela legenda ainda não existe.
+   * **Desenhadas desde a 2.4a**, e não mais só carimbadas: a vista entrega a
+   * natureza, e é ela que faz a rota escolher o desenhista. A legenda também passa
+   * a chegar — na `tracado` ela legenda o desenho que agora existe; na `grade` ela
+   * é o rótulo do período, repetido no pé como carimbo de medida.
+   *
+   * `comFoto` continua falso nas duas: a capa de foto tem outro caminho, com véu
+   * medido e imagem da biblioteca.
    */
-  it('capa de traçado e de grade: papel, sem legenda e sem espaço reservado', () => {
-    for (const natureza of ['tracado', 'grade'] as const) {
-      expect(daCapa(comCapa({
-        ...CAPA_DE_AGOSTO, natureza, fotoId: null, fotoTakenAt: null, motivo: 'sem-foto', fotoActivityId: null,
-        rotaActivityId: natureza === 'tracado' ? 'a-1' : null,
-        legenda: natureza === 'tracado' ? 'Ittre \u00b7 km 62,4' : 'Agosto de 2026',
-      }))).toEqual({ comFoto: false, legenda: null });
-    }
+  it('capa de traçado e de grade: natureza e legenda chegam à vista, sem virar foto', () => {
+    expect(daCapa(comCapa(semFoto('tracado', 'Ittre \u00b7 km 62,4')))).toEqual({
+      comFoto: false, natureza: 'tracado', legenda: 'Ittre \u00b7 km 62,4',
+    });
+    // A `grade` é a exceção: `escolherCapa` carimba o rótulo do período como
+    // legenda dela (o CHECK do banco recusa vazio), e a capa já o imprime em
+    // serifada logo acima. Repetir escreveria "Agosto de 2026" duas vezes na
+    // mesma tela, e o VoiceOver leria duas. O carimbo fica intacto em
+    // `carimbada`; o que some é a repetição.
+    expect(daCapa(comCapa(semFoto('grade', 'Agosto de 2026')))).toEqual({
+      comFoto: false, natureza: 'grade', legenda: null,
+    });
+  });
+
+  it('a supressão é por TEXTO, não por natureza: legenda diferente do período fica', () => {
+    // A rede `comRede` de `escolherCapa` põe o rótulo do período em QUALQUER
+    // natureza cuja legenda saia vazia — inclusive na `tracado`. Comparar por
+    // natureza deixaria o mesmo defeito voltar pela porta de trás.
+    expect(daCapa(comCapa(semFoto('tracado', 'Agosto de 2026'))).legenda).toBeNull();
+    expect(daCapa(comCapa(semFoto('grade', 'Ittre \u00b7 km 62,4'))).legenda)
+      .toBe('Ittre \u00b7 km 62,4');
+  });
+
+  /**
+   * A guarda de `comFoto` vale também para a natureza: sem caderno impresso não há
+   * desenho, senão a rota pintaria uma capa bonita por cima do convite e do botão.
+   */
+  it('capa de traçado sobre edição SEM caderno impresso: nem desenho, nem legenda', () => {
+    expect(daCapa(comCapa({
+      ...CAPA_DE_AGOSTO, natureza: 'tracado', fotoId: null, fotoTakenAt: null,
+      motivo: 'sem-foto', fotoActivityId: null, rotaActivityId: 'a-1',
+      legenda: 'Ittre \u00b7 km 62,4',
+    }, []))).toEqual({ comFoto: false, natureza: null, legenda: null });
   });
 
   it('edição impressa antes da 1.13, sem capa nenhuma: papel', () => {
-    expect(daCapa(comCapa(null))).toEqual({ comFoto: false, legenda: null });
+    expect(daCapa(comCapa(null))).toEqual({ comFoto: false, natureza: null, legenda: null });
   });
 });
 
