@@ -179,7 +179,34 @@ são a nossa, e a correção é a mesma para as três.
 **Como falhou para nós (22/09):** `TRIM_MEMORY_RUNNING_CRITICAL` → `signal 9`, jetsam, **com** o
 entitlement e com o cache já compilado. Morreu na carga, não na compilação.
 
-**Três alavancas que ninguém puxou**, em ordem de força:
+### A aritmética, feita em 24/09 — e o que ela corrige
+
+Antes de rodar qualquer coisa, li as duas receitas de quantização e fiz a conta que faltava:
+
+| | conta | bate com o medido |
+|---|---|---|
+| Qwen3-1.7B a 6 bits | 1,7B × 6/8 = **1,28 GB** | 1,3 GB ✓ |
+| Qwen3-4B a **4 bits puros** | 4,0B × 4/8 = **2,0 GB** | — |
+| 4B misto 4/8 (o que morreu) | 2,0 + cinco camadas a 8 bits ≈ **2,3 GB** | 2,5 GB ✓ |
+
+A receita `qwen3_4b_mixed_4bit_8bit.yaml` **já é quase toda 4 bits**: ela sobe para 8 bits apenas
+as camadas 6, 8, 11, 33 e 34. Então **int4 puro economiza ~0,3 GB, não 1,2** — a estimativa de
+"~1,3–1,5 GB" que este documento trazia veio de analogia com o 1.7B, sem divisão, e estava errada.
+
+O cache KV também é menor do que eu sugeri. Com os números reais do `config.json`:
+
+| | KV/token | janela 4.096 | janela 1.024 |
+|---|---|---|---|
+| Qwen3-4B (36 camadas, 8 cabeças KV, head_dim 128) | 144 KB | **0,60 GB** | 0,15 GB |
+| Qwen3-1.7B (28 camadas) — **roda hoje** | 112 KB | 0,47 GB | — |
+
+O 1.7B já carrega 469 MB de KV a 4.096 e vive bem. Encolher a janela no 4B poupa **~450 MB**.
+
+**E é aqui que a conta fica interessante:** 2,3 GB de pesos + 0,6 GB de KV ≈ **2,9 GB**, contra um
+teto com entitlement de ~6,44 GB. **Deveria ter cabido.** Não coube — logo o custo está em outro
+lugar, e o candidato é a **especialização no aparelho**, que é exatamente o que o AOT elimina.
+
+**Três alavancas, reordenadas pela evidência:**
 
 1. **Compilar AOT no Mac, e distribuir `.aimodelc`.**
    ```
@@ -203,12 +230,13 @@ hoje tem 2,5 GB com os dois modelos (1,3 + 1,1). Somando o terceiro:
 
 | export do 4B | `.app` resultante |
 |---|---|
-| int4 puro (~1,3–1,5 GB, a hipótese) | **~3,8–4,0 GB** |
+| int4 puro (~2,0–2,1 GB, pela conta acima) | **~4,5 GB** |
 | o misto 4/8 de 22/09 (2,3 GB) | ~4,8 GB |
 
-Ou seja: **a configuração A do plano não é só a mais provável de caber na memória — é a única que
-mantém o app numa faixa já demonstrada.** Se o 4B voltar a sair com 2,3 GB, o `.app` entra em
-território que ninguém instalou ainda.
+Ou seja: **as duas configurações levam o `.app` para território não testado** (o maior que já
+instalamos tem 2,5 GB). A diferença entre elas é de ~0,3 GB, não decisiva — o que decide é se
+instala, e isso se mede instalando. O limite de 4 GB é de submissão à App Store, e o Orbe não é
+publicado lá.
 
 A Bancada já é multi-modelo (`PESOS_ABERTOS` é lista desde 22/09), então acrescentar o terceiro é
 uma entrada no catálogo e os pesos — nenhuma tela muda.
