@@ -143,7 +143,9 @@ const casos: readonly {
     // Uma edição por linha: o agrupamento devolve 1001 edições de um caderno.
     linha: (k) => ({
       tipo_periodo: 'week', inicio: `2020-01-${String((k % 28) + 1).padStart(2, '0')}`,
-      fim: '2020-01-31', caderno: 'sono', posicao: 1, pacote_versao: 4,
+      // As duas versões: a leitura confere que são inteiras, porque é por elas
+      // que a impressão em massa decide o gasto.
+      fim: '2020-01-31', caderno: 'sono', posicao: 1, prompt_versao: 6, pacote_versao: 4,
       // Distingue as linhas sem mudar a chave que o agrupamento usa.
       user_id: 'u-1', texto: `t${k}`,
     }),

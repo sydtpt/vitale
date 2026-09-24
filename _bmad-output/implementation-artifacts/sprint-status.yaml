@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: '2026-09-23'
+last_updated: '2026-09-24'
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -283,6 +283,20 @@ development_status:
   2-3-a-impressão-em-massa-dos-períodos-fechados: review
   2-4-a-parede-de-capas: backlog
   2-5-silenciar-um-caderno: review
+  # NASCEU EM 24/09/2026, de um defeito MEDIDO no arquivo que a corrida da 2.3
+  # acabou de imprimir: 68 ocorrências de "1 dias" em 37 linhas, 35 dos 45
+  # períodos, SEMPRE no caderno rotina. Não é o modelo: pelo ADR 0049 o número e
+  # a unidade são do código, e `pacote.ts` declara `unidade: 'dias'` como string
+  # fixa que `prompt.ts:126` cola em qualquer valor. Uma varredura por regex sobre
+  # o acervo inteiro devolve SÓ este caso — km, h, m e bpm são símbolos.
+  # O script ganha `--caderno <id>`, que o NÚCLEO JÁ SABE FAZER
+  # (`OpcoesDaImpressao.cadernos`) e que o script não usava: com ele a correção
+  # custa ~37 chamadas em vez de ~105, e os outros cadernos não são tocados.
+  # DUAS REGRAS QUE ELA NÃO PODE QUEBRAR: a reimpressão parcial nunca troca capa
+  # existente (há 4 escolhidas à mão em produção — 3 `trocada`, 1 `estrela`), e
+  # `PACOTE_VERSAO` não sobe, porque é por ele que a 2.3 julga o que já foi
+  # renovado. Quem reimprime é o dono.
+  2-8-o-número-e-a-unidade-concordam: review
   epic-2-retrospective: optional
 
   epic-3: backlog

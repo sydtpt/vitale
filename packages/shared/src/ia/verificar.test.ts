@@ -2002,8 +2002,8 @@ describe('SISTEMA — as leis do jornal', () => {
     assert.ok(sistema.includes('COBERTURA DESIGUAL'));
   });
 
-  it('a versão do prompt é 5 — a lápide entrou, e o vazio é decidido nos dois grãos', () => {
-    assert.equal(PROMPT_VERSAO, 5);
+  it('a versão do prompt é 6 — a unidade passou a concordar com o número', () => {
+    assert.equal(PROMPT_VERSAO, 6);
   });
 
   /*

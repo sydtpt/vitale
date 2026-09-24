@@ -3767,8 +3767,19 @@ const LIVRES_DE_SONO = new Set(['entradaDaSaude']);
  * copiado — a condição 3 da ADR 0050 só compara com o template, e um motor que
  * devolve o exemplo marcaria zero idênticas. Ela não o monta nem confere nada com
  * ele: é a mesma função que o pedido usa, e a conta é só leitura. Nas telas, barrado.
+ *
+ * `versoesDaRetrospectiva` (story 2.8) é a decodificação do par que `edicoes_ia`
+ * grava. O `--massa --caderno` do script classifica o arquivo pelo `prompt_versao`
+ * de cada caderno, e para isso precisa saber qual prompt uma impressão de **hoje**
+ * carimbaria: ele o tira do descritor que já entrega à sequência
+ * (`versoesDaRetrospectiva(descritorDaRetrospectiva.versao).prompt`), que é a mesma
+ * função e a mesma conta que a sequência faz ao escrever a coluna. A alternativa
+ * era importar `PROMPT_VERSAO` de `ia/prompt` — um segundo caminho até o mesmo
+ * fato, que é exatamente o que esta catraca existe para impedir. Ela **lê uma
+ * versão para decidir o que reimprimir**; não monta pedido, não interpreta e não
+ * confere. Nas telas, barrado: a versão que um app mostra é a da linha gravada.
  */
-const LIVRES_NA_BANCADA = new Set(['casoDaSaude', 'exemploDaSaude']);
+const LIVRES_NA_BANCADA = new Set(['casoDaSaude', 'exemploDaSaude', 'versoesDaRetrospectiva']);
 /**
  * O que `sleep/` empresta às telas desde antes da leitura, e por isso não é peça
  * dela: a contagem e os períodos do seletor. Cada um é conferido contra os apps —

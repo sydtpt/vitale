@@ -266,8 +266,14 @@ const GOLDENS: Readonly<Partial<Record<RecursoId, Golden>>> = {
     // virar zero). O **texto** do pedido não mudou — o caderno fixo é montado à
     // mão, sem marcos, e um pacote sem marcos se comporta como na versão 3. O que
     // mudou foi a versão que entra no hash, e é isso que este golden registra.
-    versao: 5004,
-    hash: 'eab8d2c6c8038d248bbbd28c783a660fbbb3ac9f8471b65c407c97a6d552d8c2',
+    //
+    // 6004: `PROMPT_VERSAO` foi a 6 na Story 2.8 (a unidade concorda com o
+    // número). Aqui o texto também ficou igual, e pela mesma régua da anterior: a
+    // concordância só aparece num número escrito exatamente `1`, e as duas
+    // métricas do caderno fixo são 21 (sem unidade) e 333 km — nenhuma em
+    // unidade de palavra, nenhuma valendo um.
+    versao: 6004,
+    hash: 'b6178e44d8fe383e27e0f416f24439aa324789169a4812b66e7b0a8674adc043',
   },
   'saude-do-sono': {
     variantes: VARIANTES_DA_SAUDE,

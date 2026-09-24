@@ -346,9 +346,11 @@ próprio arquivo diz isso na primeira chave.
 ou semana — e grava pela mesma porta do iPhone (`portasDaEdicao` → `edicao_imprimir`).
 A edição que sai daqui é a que o telefone imprimiria: a entrada é montada pela mesma
 conta do núcleo (`entradaDaRetrospectiva`), a sequência é a mesma (`imprimir`), e a
-cadeia é a padrão da revista — a do iPhone **sem preferência**. Não há `--motor` nem
-`--cadernos`, de propósito: uma escolha aqui seria uma segunda edição possível para o
-mesmo período.
+cadeia é a padrão da revista — a do iPhone **sem preferência**. Não há `--motor`, de
+propósito: uma escolha de motor aqui seria uma segunda edição possível para o mesmo
+período. `--caderno` existe (ver [Corrigir um caderno só](#corrigir-um-caderno-só)) e
+**não** é uma segunda edição: é a impressão parcial que o telefone já faz desde a 1.11,
+pela mesma sequência do núcleo. Uma **lista** de cadernos continua não existindo.
 
 **Rode antes com `--sem-gravar`**:
 
@@ -375,7 +377,8 @@ algo, o script para **antes de abrir rede** e diz o nome da variável, nunca o v
 | `--tipo <tipo>` | `month`, `season`, `year` ou `week` (ou `mes`, `estacao`, `ano`, `semana`, como na rota da revista). `all` é recusado: o Total nunca fecha |
 | `--inicio AAAA-MM-DD` | o primeiro dia do período, nessa grafia (`2026-5-1`, `2026-05` e `05/2026` são recusados). Um dia que não abre período — a semana começa na segunda, o trimestre em janeiro, abril, julho ou outubro, o ano em 1º de janeiro —, o período em curso e o futuro são recusados antes da rede |
 | `--sem-gravar` | chama o modelo e confere, e **nunca** chega à função do banco: compara o que gravaria com o que está gravado — posição, provedor, modelo, `prompt_versao`, `pacote_versao`, `agg_version` e métrica líder. O desfecho é `ensaio`, nunca `gravada` |
-| `--reimprimir` | imprime de novo um período que já tem edição. Sem ela (e sem `--sem-gravar`), o período já impresso é recusado antes de chamar o modelo — e a recusa é feita duas vezes: na leitura do começo, e de novo na leitura da sequência, que roda depois do acervo e antes do primeiro caderno. É a segunda que pega o telefone imprimindo o mesmo período enquanto o script lia o acervo |
+| `--reimprimir` | imprime de novo um período que já tem edição, **os quatro cadernos**. Sem ela (e sem `--sem-gravar` ou `--caderno`), o período já impresso é recusado antes de chamar o modelo — e a recusa é feita duas vezes: na leitura do começo, e de novo na leitura da sequência, que roda depois do acervo e antes do primeiro caderno. É a segunda que pega o telefone imprimindo o mesmo período enquanto o script lia o acervo. Não combina com `--caderno` |
+| `--caderno <id>` | reescreve **um** caderno (`sono`, `movimento`, `rotina`, `coracao`) e deixa os outros como estão — ver [Corrigir um caderno só](#corrigir-um-caderno-só). Vale nos dois modos. Um id que não existe é recusado **antes da rede** |
 | `--massa` | o arquivo inteiro — ver [A impressão em massa](#a-impressão-em-massa-o-arquivo-inteiro). Não combina com `--inicio`, `--reimprimir` nem `--sem-gravar` |
 | `--sim-gastar-chamadas` | no `--massa`, confirma o gasto e roda a corrida |
 | `--exportar <arquivo>` | no `--massa`, grava o texto atual das edições que serão substituídas, e sai |
@@ -450,6 +453,93 @@ parede (story 2.4) sem legenda nenhuma.
 celular (`mobile/src/store/__tests__/contrato-da-edicao.test.ts`) e por este script
 (`revista/imprimir.test.ts`), e os três batem **o mesmo gabarito** — o hash de cada caderno e
 a carga inteira que chega à função, com a assinatura.
+
+---
+
+## Corrigir um caderno só
+
+`--caderno <id>` reescreve **um** caderno e deixa os outros exatamente como estão: texto,
+assinatura, `agg_version` e posição de antes. Não é uma segunda edição possível — é a
+impressão parcial que o telefone já faz desde a 1.11 (a errata por caderno), pela mesma
+sequência do núcleo (`cadernos: [alvo]`), que recalcula a ordem do conjunto dentro da
+função do banco.
+
+Ele existe porque **a correção de uma palavra não pode custar a edição toda**. O caso que
+o criou é a story 2.8: o prompt colava `'dias'` em qualquer valor, e o defeito foi medido
+em produção em 24/09/2026 — **68 ocorrências, em 37 linhas, de 35 períodos**, sempre no
+caderno `rotina`.
+
+A conta de chamadas sai dos **períodos**, e não das linhas: a corrida paga uma chamada por
+caderno e por período, e um período com três linhas erradas custa uma chamada do mesmo
+jeito. São **35** chamadas por `--caderno rotina`, contra **140** (35 × 4) pelos quatro
+cadernos.
+
+```bash
+# o ensaio, num período que já tem edição: um caderno na tabela, os outros intocados
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir \
+  --tipo month --inicio 2024-01-01 --caderno rotina --sem-gravar
+
+# um período só, de verdade
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir \
+  --tipo month --inicio 2024-01-01 --caderno rotina
+
+# o arquivo inteiro: o plano, e só ele
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --massa --caderno rotina
+# a corrida
+TZ=Europe/Brussels pnpm --filter @vitale/scripts revista:imprimir --massa --caderno rotina \
+  --sim-gastar-chamadas
+```
+
+**No `--massa`, o critério é outro, e é derivado — não nomeado.** A campanha da 2.3 é de
+**números** (`pacote_versao` mudou porque o pacote passou a carregar outra coisa), e ela
+roda sobre os cinco períodos que o dono [nomeou em código](#a-lista-de-reimpressão-é-nomeada-em-código).
+A de um caderno é de **palavras**: `reimprimir` é toda edição que já existe e tem *aquele*
+caderno com `prompt_versao` **abaixo** do de hoje. Tudo o mais é `pular`, e a lista nomeada
+não entra na conta. A conta de chamadas do plano passa a ser **uma por período**, que é o
+número que o "sim" autoriza.
+
+**A retomada é o banco, como sempre.** Rodar de novo encontra o caderno já no prompt
+corrente e não gasta nada. Um caderno que caiu no piso mantém a linha antiga e é tentado na
+corrida seguinte — que é o certo: ele não foi renovado.
+
+### O que a parcial NÃO faz
+
+- **Não troca a capa.** Se a edição já tem capa, ela fica — qualquer que seja o `motivo`,
+  e não só `trocada`. É a regra do telefone (`carimbarCapa`, renegociada em 17/09): a foto e
+  a legenda são do **período**, não do caderno. Em produção há quatro capas escolhidas à mão
+  (três `trocada` e a `estrela` de agosto/2026), e `estrela` não passa pela guarda da troca —
+  sem esta regra, corrigir uma palavra levaria a capa de agosto junto. O relatório diz *"capa:
+  foto — mantida, porque esta impressão foi de um caderno só"*. Uma edição **sem** capa
+  nenhuma é carimbada, e só essa: senão ela ficaria em papel para sempre.
+- **Não toca nos outros cadernos.** Eles não são chamados, não são pagos e não são
+  regravados. Só a `posicao` pode mudar, porque a ordem é do conjunto.
+- **Não cria edição em massa.** No `--massa`, um período sem edição é `pular`: um caderno
+  só não é uma edição para nascer.
+- **Não combina com `--reimprimir`**, que são os quatro. As duas juntas são recusadas antes
+  da rede, para nenhuma ser descartada em silêncio.
+- **Não respeita caderno silenciado no iPhone** (Story 2.5), como a massa também não. A
+  diferença é que aqui você **nomeia** o caderno: `--caderno sono` reescreve exatamente o
+  caderno que você mandou o telefone parar de pedir, e ele volta a existir na edição sem
+  aparecer na tela. É a mesma decisão declarada da massa, e vale nos **dois** modos — ver
+  [a nota da massa](#a-impressão-em-massa-o-arquivo-inteiro).
+
+**Se o caderno pedido ficou sem dado, nada acontece.** A sequência não tem o que pôr na
+fila, sai em `sem-caderno`, e **nem chega ao banco**: a linha antiga dele continua gravada,
+e o terminal diz *"nenhum caderno de … tem o que dizer — nada foi lido nem gravado"*, com
+status 1. Para tirar da edição um caderno que não tem mais o que dizer, a impressão é a
+**inteira** — é ela que recalcula a ordem sobre os quatro e apaga quem ficou de fora. Numa
+corrida em massa esse período conta como **pulado**, não como falha: ele custa zero chamadas
+e é o mesmo amanhã, então não alimenta o freio das falhas seguidas.
+
+**O caminho inverso também vale: `--caderno` acrescenta um caderno que a edição não tem.**
+É como religar um caderno que reprovou numa impressão anterior — a ordem do conjunto é
+recalculada pela função, e ele entra na posição que o ranqueamento lhe der, não no fim. No
+`--massa` esse caso é pulado de propósito: a campanha corrige o que está escrito, e ali não
+há nada escrito para corrigir.
+
+> **Num período só, `--caderno` sobre um período SEM edição cria uma edição de um caderno**,
+> e avisa. Depois disso o arquivo conta esse período como impresso, e a corrida em massa não
+> oferece mais os outros três. Para a edição inteira, rode sem `--caderno`.
 
 ---
 

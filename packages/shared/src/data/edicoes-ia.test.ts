@@ -857,7 +857,7 @@ function fakeArquivo(linhas: ArquivoRow[]) {
 
 const noArquivo = (over: Partial<ArquivoRow> = {}): ArquivoRow => ({
   tipo_periodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
-  caderno: 'sono', posicao: 1, pacote_versao: 3, ...over,
+  caderno: 'sono', posicao: 1, prompt_versao: 5, pacote_versao: 3, ...over,
 });
 
 describe('ARQUIVO_COLUMNS — a mesma guarda de EDICAO_COLUMNS', () => {
@@ -881,18 +881,21 @@ describe('fetchArquivoDeEdicoes — o inventário agrupado por período', () => 
   it('agrupa por (tipo, início, fim) e ordena os cadernos por posição', async () => {
     const f = fakeArquivo([
       noArquivo({ caderno: 'rotina', posicao: 3 }),
-      noArquivo({ caderno: 'sono', posicao: 1, pacote_versao: 4 }),
+      noArquivo({ caderno: 'sono', posicao: 1, prompt_versao: 6, pacote_versao: 4 }),
       noArquivo({ caderno: 'movimento', posicao: 2 }),
       noArquivo({ tipo_periodo: 'year', inicio: '2025-01-01', fim: '2025-12-31', caderno: 'coracao', posicao: 1 }),
     ]);
     const arquivo = await fetchArquivoDeEdicoes(f.db, 'u-1');
     assert.equal(arquivo.length, 2);
+    // As duas versões chegam separadas: é por `promptVersao` que o `--caderno`
+    // da massa (Story 2.8) decide, e por `pacoteVersao` que a campanha da 2.3
+    // decide. Uma linha com uma nova e a outra velha prova que não se confundem.
     assert.deepEqual(arquivo[0], {
       tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
       cadernos: [
-        { caderno: 'sono', posicao: 1, pacoteVersao: 4 },
-        { caderno: 'movimento', posicao: 2, pacoteVersao: 3 },
-        { caderno: 'rotina', posicao: 3, pacoteVersao: 3 },
+        { caderno: 'sono', posicao: 1, promptVersao: 6, pacoteVersao: 4 },
+        { caderno: 'movimento', posicao: 2, promptVersao: 5, pacoteVersao: 3 },
+        { caderno: 'rotina', posicao: 3, promptVersao: 5, pacoteVersao: 3 },
       ],
     });
     assert.equal(arquivo[1]?.tipoPeriodo, 'year');
@@ -926,5 +929,25 @@ describe('fetchArquivoDeEdicoes — o inventário agrupado por período', () => 
   it('tipo de período sem edição possível explode alto', async () => {
     const f = fakeArquivo([noArquivo({ tipo_periodo: 'all' })]);
     await assert.rejects(() => fetchArquivoDeEdicoes(f.db, 'u-1'), /tipo de período sem edição possível/);
+  });
+
+  /**
+   * As duas versões decidem **gasto**, e uma coluna ausente chegaria como
+   * `undefined`: toda comparação de versão sairia falsa, e a corrida em massa
+   * pagaria o arquivo inteiro achando que nada foi renovado. O `prompt_versao` é
+   * o pior dos dois, porque a campanha de um caderno (2.8) percorre **todas** as
+   * edições, e não os cinco períodos nomeados.
+   */
+  it('versão que não é inteiro explode alto — é por elas que a massa decide o gasto', async () => {
+    for (const coluna of ['prompt_versao', 'pacote_versao'] as const) {
+      for (const ruim of [undefined, null, 'seis', Number.NaN, 6.5]) {
+        const f = fakeArquivo([noArquivo({ [coluna]: ruim } as unknown as Partial<ArquivoRow>)]);
+        await assert.rejects(
+          () => fetchArquivoDeEdicoes(f.db, 'u-1'),
+          new RegExp(`${coluna} não é inteiro no arquivo`),
+          `${coluna} = ${JSON.stringify(ruim)}`,
+        );
+      }
+    }
   });
 });

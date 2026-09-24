@@ -728,7 +728,7 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
     texto: TEXTOS[caderno],
     provedor: PROVEDOR,
     modelo: MODELO,
-    prompt_versao: 5,
+    prompt_versao: 6,
     pacote_versao: 4,
     motivo_de_parada: 'STOP',
     tokens_entrada: TOKENS[caderno].entrada,
@@ -747,7 +747,7 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
  *   Coração também, porque o pedido dele saiu e foi pago; só o texto reprovou.
  * - **A carga** é o que chega à função `edicao_imprimir`: a ordem do ranqueamento
  *   sem o Coração (reprovado não tem linha nem posição), e as três linhas com a
- *   assinatura inteira — provedor, modelo, `prompt_versao` 5, `pacote_versao` 4 e
+ *   assinatura inteira — provedor, modelo, `prompt_versao` 6, `pacote_versao` 4 e
  *   a `agg_version_no_momento` 9, carimbada pela porta.
  *
  * - **Os textos** são o sha256 do `usuario` de cada caderno — o **texto** do
@@ -786,6 +786,19 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
  *   inclusive `metrica_lider`, ficou igual: a lápide não é fato numérico e não
  *   disputa a liderança do caderno.
  *
+ * **Por que mudou em 24/09** (Story 2.8, a concordância de `1 dias`):
+ * `PROMPT_VERSAO` foi de 5 para 6, e os **quatro** hashes mudaram junto — a
+ * versão do descritor entra em todos eles. O `prompt_versao` das três linhas da
+ * carga acompanhou.
+ *
+ * **E `textos` NÃO mudou, nos quatro cadernos.** Isso não é sorte: a
+ * concordância só se vê num número que sai escrito exatamente `1`, e a fixture
+ * de maio não tem nenhum hábito nem registro com um dia só. É a prova mais
+ * limpa de que a mudança é cirúrgica — o prompt de um período sem o caso não
+ * muda um byte —, e é por isso que quem exercita o caso é
+ * `ia/retrospectiva.test.ts` ("a concordância do número com a unidade"), com o
+ * pacote montado à mão.
+ *
  * Os números são **consequência**: mudam quando o prompt (`PROMPT_VERSAO`), o
  * pacote (`PACOTE_VERSAO`), a agregação (`AGG_VERSION`) ou o ranqueamento mudam, e
  * então este gabarito muda junto, no mesmo commit, com o motivo escrito nele.
@@ -813,10 +826,10 @@ export const GABARITO: {
 } = {
   estado: 'gravada',
   hashes: {
-    rotina: '2f534e41d1043aa468c66a5dcb7d0a12e8b80ee7fd472dca95b67eac30e8334c',
-    movimento: '80c16d18c0770bd4fd953b2919445dc0aafb82c50f71eaa361e3482887b028e1',
-    sono: '13682b176790ef5c2924dfd443522fc5dda3bb76d50f46d96c5eb41d63393ed1',
-    coracao: '8b020f6f7218c3adcf9f39b96c3eb5b983e9d892a1b707f59d67d8314830023b',
+    rotina: '25adb7fa4ca64448cc5f816fcc47124054c4b0d2d0b53eb9924300bc93897672',
+    movimento: '0d10680c6503f1505f1d4514f8ed734a781fb5274cdb693d87a9472c2d7984cd',
+    sono: '1bb91ae00ac18fd2e991e93731bf7ea8d7488142f6810dbb052ea2ace54d2ef9',
+    coracao: 'e604705ef9644c8736471011cb788c3c982543645c4b386016fc4a262f516b6d',
   },
   textos: {
     rotina: '4955d2b8836ce40c014a8f8473fd0ec46e0a4f504805da4a25eb4590d9963e79',
