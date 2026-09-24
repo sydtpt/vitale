@@ -13,6 +13,7 @@ import {
   type DesfechoDoCaderno,
   type Edicao,
   type EntradaPacote,
+  type NaturezaDaCapa,
   type TipoComEdicao,
 } from '@vitale/shared';
 import { useAuthStore } from './auth.store';
@@ -430,12 +431,36 @@ export interface CapaNaVista {
    */
   comFoto: boolean;
   /**
-   * A legenda carimbada, quando ela tem o que dizer na tela — ou `null`.
+   * A natureza carimbada, **quando ela tem desenho a pedir** — ou `null` (Story
+   * 2.4a).
    *
-   * Só na natureza `foto`: é ali que ela é a **descrição da imagem** (EXPERIENCE
-   * §Accessibility Floor), e é ali que continua servindo quando a imagem não
-   * resolve mais. Na `grade` ela É o período, que a capa já imprime logo acima; na
-   * `tracado`, o desenho que ela legenda ainda não existe.
+   * Mesma guarda de {@link CapaNaVista.comFoto}, e pelo mesmo motivo: `edicoes_capa`
+   * não tem chave estrangeira para `edicoes_ia`, então uma capa sobrevive aos
+   * cadernos que cobria. Desenhar o traçado de um período que perdeu o texto
+   * esconderia o convite e o botão atrás de uma capa bonita.
+   *
+   * É daqui que a rota escolhe o desenhista (`desenhoDaCapa`, no núcleo): `foto`
+   * tem caminho próprio, `tracado` e `grade` entram em `CapaEmPapel` no lugar do
+   * fundo liso, e `null` é o papel de sempre.
+   */
+  natureza: NaturezaDaCapa | null;
+  /**
+   * A legenda carimbada — a frase já formatada, **passada como veio** — ou `null`
+   * quando não há capa na tela, ou quando ela não teria o que acrescentar.
+   *
+   * Vale para as **três** naturezas desde a 2.4a. Na `foto` ela é a descrição da
+   * imagem (EXPERIENCE §Accessibility Floor) e o que resta quando o arquivo não
+   * resolve; na `tracado` ela é a cidade e o quilômetro do desenho que a story
+   * acabou de criar.
+   *
+   * **A exceção é a `grade`**, e é por isso que esta regra não é "a legenda
+   * carimbada, sempre": `escolherCapa` carimba ali o **rótulo do período**
+   * (`comRede(null, …)`), porque o `CHECK` do banco recusa legenda vazia. A capa
+   * já imprime esse rótulo em serifada, grande, duas linhas acima — repeti-lo em
+   * mono no pé escreveria "Agosto de 2026" duas vezes na mesma tela, e o VoiceOver
+   * o leria duas vezes. **Suprimir é da tela, e o carimbo fica intacto**: mexer em
+   * `escolherCapa` é *Ask First*, e a ficha da capa continua lendo a linha crua em
+   * {@link CapaNaVista.carimbada}.
    */
   legenda: string | null;
   /**
@@ -489,6 +514,24 @@ export type VistaDaEdicao =
  */
 function chamadaDaCapa(edicao: Edicao, visiveis: readonly CadernoId[]): string | null {
   return chamadaDoTexto(edicao.find((c) => visiveis.includes(c.caderno))?.texto);
+}
+
+/**
+ * A legenda que **acrescenta** — ou `null` (Story 2.4a).
+ *
+ * A capa `grade` é carimbada com o rótulo do período como legenda, porque o
+ * `CHECK` de `edicoes_capa.legenda` recusa vazio. Na tela isso vira o período
+ * escrito duas vezes — grande em serifada e pequeno em mono, um debaixo do outro —
+ * e lido duas vezes pelo VoiceOver. O carimbo fica; o que some é a repetição.
+ *
+ * Comparação por texto normalizado, e não por natureza: a rede `comRede` de
+ * `escolherCapa` põe o rótulo do período em qualquer natureza cuja legenda saia
+ * vazia, e o mesmo defeito voltaria pela porta de trás.
+ */
+function legendaQueAcrescenta(legenda: string | null, periodo: string): string | null {
+  const frase = legenda?.trim();
+  if (!frase) return null;
+  return frase === periodo.trim() ? null : legenda;
 }
 
 /**
@@ -569,14 +612,25 @@ export function vistaDaEdicao(
     (podeImprimir(estado, comDadoVisivel, caderno) ? { acao } : {});
 
   const carimbada = estado.capa;
-  const deFoto = !nadaImpresso && carimbada?.natureza === 'foto';
+  /**
+   * A capa **na tela** — a carimbada, quando há edição impressa sob ela. O campo
+   * `carimbada` abaixo continua passando a linha crua, sem esta guarda: é ela que
+   * a ficha da capa aberta (1.16) lê, e a ficha fala da escolha, não do desenho.
+   */
+  const naTela = nadaImpresso ? null : carimbada;
+  const natureza = naTela?.natureza ?? null;
+  const periodo = rotuloDaEdicao(estado.tipo, estado.inicio);
   const capa: CapaNaVista = {
-    periodo: rotuloDaEdicao(estado.tipo, estado.inicio),
+    periodo,
     impressa: !nadaImpresso,
     manchete: chamadaDaCapa(edicao, visiveis),
     carimbada,
-    comFoto: deFoto,
-    legenda: deFoto ? carimbada.legenda : null,
+    comFoto: natureza === 'foto',
+    natureza,
+    // Igual ao período é a legenda da `grade`, que a capa já imprime em cima.
+    // Comparada pelo texto, e não pela natureza: se um dia a legenda de outra
+    // natureza cair no rótulo (a rede `comRede` faz isso), a repetição some junto.
+    legenda: legendaQueAcrescenta(naTela?.legenda ?? null, periodo),
     escrevendo: nadaImpresso && correndo,
     escrever: podeImprimir(estado, comDadoVisivel, 'edicao'),
     // `comDado` cru, e não o filtrado: o aviso fala do PERÍODO ("nenhum caderno

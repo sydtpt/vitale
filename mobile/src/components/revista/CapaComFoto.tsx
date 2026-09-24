@@ -14,6 +14,7 @@ import { captureRef } from 'react-native-view-shot';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { corComAlfa, degrauDoVeu, htmlDaMedicao, lerMedicao, type PixelMedido } from '../../lib/veu';
 import { fonts, mediaVeil, onMedia, spacing, useThemedStyles } from '../../theme';
+import { FRACAO_DA_ALTURA_DA_CAPA } from './constantes-da-capa';
 import { MarcaDoToque } from './MarcaDoToque';
 
 /**
@@ -53,16 +54,6 @@ import { MarcaDoToque } from './MarcaDoToque';
  * período, a manchete e a legenda continuam sendo lidos como texto.
  */
 
-/**
- * A fração da altura da tela que a capa ocupa — `{spacing.capa-altura}: 45vh`.
- *
- * É **mínimo, nunca altura fixa**. A manchete é a chamada inteira e não tem teto
- * de tamanho (`deferred-work.md`, entrada da 1.8), e o tipo dinâmico pode crescer
- * muito: numa caixa fixa, a combinação das duas cortaria o começo da manchete
- * justamente para quem tem baixa visão. Com mínimo, a capa cresce e a imagem
- * cresce com ela.
- */
-const FRACAO_DA_ALTURA = 0.45;
 /** Onde o véu deixa de ser chapado e começa a sumir, acima do bloco de texto. */
 const RAMPA = 96;
 /** O bloco de texto antes de ele se medir: o suficiente para não saltar. */
@@ -155,7 +146,7 @@ export interface CapaComFotoProps {
 export function CapaComFoto({ periodo, manchete, legenda, uri, onAbrir }: CapaComFotoProps) {
   const styles = useThemedStyles(createStyles);
   const { width, height } = useWindowDimensions();
-  const minima = Math.round(height * FRACAO_DA_ALTURA);
+  const minima = Math.round(height * FRACAO_DA_ALTURA_DA_CAPA);
 
   const [alturaDoTexto, setAlturaDoTexto] = useState(TEXTO_PRESUMIDO);
   const [alturaDaCapa, setAlturaDaCapa] = useState(minima);
