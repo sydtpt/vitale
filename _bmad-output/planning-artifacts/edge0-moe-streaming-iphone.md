@@ -108,8 +108,17 @@ O bloqueio real é **o tamanho do app**:
 | Gemma 4 E4B (decoder 3,99 + tabelas 3,60) | **7,6 GB** |
 | O que já embarcamos (Qwen3-1.7B + Tucano2) | 2,4 GB |
 
-**Embarcar Gemma no binário é impossível, com qualquer licença.** A licença, aliás, está limpa:
-Apache 2.0 confirmada no model card e na API do HF, e **sem gate** (o Gemma 3 tinha).
+**Correção de 24/09, depois de o dono dizer que quer três modelos embarcados:** os 4 GB são o
+limite de **submissão à App Store**, e o Orbe não é publicado lá — ele é instalado direto por
+`devicectl`. Para esse caminho a Apple não documenta teto, e temos evidência em contrário: o `.app`
+de hoje tem **2,5 GB** e instala. Então o correto é: *embarcar Gemma seria impossível **se o app
+fosse para a App Store***; no build pessoal, o teto é desconhecido e mediria-se instalando.
+
+Isso **não muda o veredito** do Gemma 4 — o que o reprova é a velocidade da seção 3, não o disco. Mas
+muda a conta dos três modelos do dono, que está na seção 7.
+
+A licença está limpa: Apache 2.0 confirmada no model card e na API do HF, e **sem gate** (o Gemma 3
+tinha).
 
 ---
 
@@ -186,6 +195,23 @@ entitlement e com o cache já compilado. Morreu na carga, não na compilação.
    maior que funciona (1,3 GB). Os que rodam são 6 bits.
 3. **Encolher a janela de 4.096 para 1.024.** O cache KV cresce com tamanho × janela; num 4B, 4.096
    custa quatro vezes o que custa no 1.7B, por uma folga que a nossa leitura de 617 tokens nunca usa.
+
+### A conta dos três modelos (decisão do dono, 24/09)
+
+Ele quer o 4B **ao lado** do Qwen3-1.7B e do Tucano2, para comparar os três na Bancada. O `.app` de
+hoje tem 2,5 GB com os dois modelos (1,3 + 1,1). Somando o terceiro:
+
+| export do 4B | `.app` resultante |
+|---|---|
+| int4 puro (~1,3–1,5 GB, a hipótese) | **~3,8–4,0 GB** |
+| o misto 4/8 de 22/09 (2,3 GB) | ~4,8 GB |
+
+Ou seja: **a configuração A do plano não é só a mais provável de caber na memória — é a única que
+mantém o app numa faixa já demonstrada.** Se o 4B voltar a sair com 2,3 GB, o `.app` entra em
+território que ninguém instalou ainda.
+
+A Bancada já é multi-modelo (`PESOS_ABERTOS` é lista desde 22/09), então acrescentar o terceiro é
+uma entrada no catálogo e os pesos — nenhuma tela muda.
 
 **Antes de tentar:** apagar `Library/Caches/coreai-cache` do app. Especialização que falha deixa
 cache parcial, e toda tentativa posterior falha como `NSPOSIXErrorDomain code=2` — cadeia de disco
