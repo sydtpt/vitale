@@ -144,7 +144,30 @@ public enum OrbeCoreAI {
   /// > `OrbeCoreAI.swiftinterface` versionada ainda não o declara. Ver o cabeçalho do script.
   public static func compilar(pesosEm url: URL) async throws {
     do {
-      _ = try await CoreAILanguageModel(resourcesAt: url)
+      /*
+       * **Abrir o modelo não compila nada** — medido no iPhone 17 Pro em 24/09.
+       *
+       * A primeira versão desta função era só `_ = try await CoreAILanguageModel(resourcesAt:)`,
+       * porque parecia que era ali que os ~10 min passavam. Não são: ela devolveu em menos de
+       * um minuto, sem erro, e **nenhum cache foi escrito** — a ficha seguiu em `0 de 1
+       * componentes compilados`. A mesma pasta de pesos, chamada pela leitura de verdade da
+       * Saúde do sono minutos depois, criou a árvore de cache na hora.
+       *
+       * O benchmark do próprio `coreai-models` mostra por quê: o que ele cronometra como
+       * *prepare*, com direito a marcar `(cache hit)`, é o `EngineFactory.createEngine(...)`.
+       * O `CoreAILanguageModel` é a fachada do Foundation Models e cria o motor **preguiçosamente**,
+       * no primeiro uso.
+       *
+       * Então compilar é **gerar**. Um token basta, e a resposta é descartada: o que interessa
+       * é o efeito colateral no cache. `greedy` para não gastar amostragem, e o prompt é uma
+       * palavra nossa — nenhum dado do dono entra aqui, que é a diferença entre esta porta e
+       * pedir uma leitura.
+       */
+      let sessao = try await Self.sessao(pesosEm: url, instrucoes: nil)
+      _ = try await sessao.respond(
+        to: "oi",
+        options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 1)
+      )
     } catch {
       let ns = error as NSError
       throw OrbeCoreAIErro(

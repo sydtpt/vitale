@@ -27,6 +27,10 @@
     {
       "runtimeVersion": "1.0.11",
       "fontes": "91fe7066664260086ec742c578fb2894e1c54b115845fff8f84c3e25c6613825"
+    },
+    {
+      "runtimeVersion": "1.0.12",
+      "fontes": "629c2e56aa3d7382c8c7d7573a1940a7b4b3c2e194a2819623a9ccc15b9b6cfe"
     }
   ]
 }

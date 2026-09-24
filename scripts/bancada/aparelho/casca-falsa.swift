@@ -114,6 +114,10 @@ public enum OrbeCoreAI {
   /// fase `.carga`. Um segundo botão aqui deixaria os dois caminhos divergirem no teste sem
   /// divergirem no aparelho.
   public static func compilar(pesosEm url: URL) async throws {
+    // A de verdade **gera um token** para forçar a especialização (abrir o modelo não
+    // compila nada — medido em 24/09). O que a falsa precisa espelhar é a fase da falha,
+    // e ela continua sendo `.carga`: a geração de um token dentro do `compilar` sai pelo
+    // mesmo caminho que a carga, porque é o motor que não subiu.
     if let erro = falhaNaCarga { throw erro }
   }
 

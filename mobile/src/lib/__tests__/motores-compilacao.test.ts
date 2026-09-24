@@ -53,8 +53,19 @@ import {
 } from '../motores/catalogo';
 
 const PESO = PESOS_ABERTOS[0]!;
-/** O Qwen3 4B — o modelo **sem** medida de compilado, que é o caso do "não medido". */
-const SEM_COMPILADO_MEDIDO = PESOS_ABERTOS.find((p) => p.tamanho?.compiladoGB === undefined);
+/**
+ * Um peso **sem** medida de compilado — o caso do "não medido".
+ *
+ * Construído aqui, e não procurado em `PESOS_ABERTOS`: a versão anterior fazia
+ * `.find(p => p.tamanho?.compiladoGB === undefined)` e passava só enquanto existisse um
+ * modelo por medir no catálogo. Em 24/09 o Qwen3 4B foi medido (2,06 GB), o `find` devolveu
+ * `undefined` e o teste caiu — sem que a regra sob teste tivesse mudado. Um caso que só
+ * existe por acidente do catálogo não é caso de teste.
+ */
+const SEM_COMPILADO_MEDIDO: PesoAberto = {
+  ...PESOS_ABERTOS[0]!,
+  tamanho: { instaladoGB: 1.3 },
+};
 
 /** A linha da ponte já lida — o que a tela recebe do compilador. */
 function lido(compilacao: CompilacaoNoAparelho): EstadoDaCompilacao {
@@ -131,8 +142,8 @@ describe('a etapa é uma só, e o tamanho só aparece onde houve medida', () => 
   });
 
   it('sem medida do compilado, não há soma — e nunca um "+0 GB"', () => {
-    expect(SEM_COMPILADO_MEDIDO).toBeDefined();
-    expect(somaDaEtapa(SEM_COMPILADO_MEDIDO!)).toBeUndefined();
+    expect(SEM_COMPILADO_MEDIDO.tamanho?.compiladoGB).toBeUndefined();
+    expect(somaDaEtapa(SEM_COMPILADO_MEDIDO)).toBeUndefined();
   });
 
   it('a nota diz por que ela não avança, e traz o instalado quando há medida', () => {
