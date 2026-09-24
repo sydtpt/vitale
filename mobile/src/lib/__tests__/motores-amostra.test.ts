@@ -133,6 +133,8 @@ function ponteQueCopiaOTemplate(o: { readonly trava?: () => boolean; readonly at
     diagnostico: async () => '{"disponivel":true}',
     diagnosticoDosPesos: async () => '{"disponivel":true}',
     compilacaoDosPesos: async () => '{"compilado":true,"componentes":1,"compilados":1}',
+    // A amostra nunca compila — ela mede. A porta existe porque a ponte a declara.
+    compilarPesos: async () => '{"compilado":true,"componentes":1,"compilados":1}',
     responderComPesos: (_pesos, pedido) => responder(pedido),
     responder,
   };

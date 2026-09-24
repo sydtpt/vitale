@@ -43,6 +43,7 @@ import {
 } from '../motores/catalogo';
 import {
   PRAZO_MS,
+  criarCompiladorDaCompilacao,
   criarLeitorDaCompilacao,
   criarLeitorDaPonte,
   criarMotorPara,
@@ -151,6 +152,10 @@ function ponteFalsa(
       return diagnostico();
     },
     compilacaoDosPesos: async (pesos) => {
+      comPesos.push(pesos);
+      return '{"compilado":true,"componentes":1,"compilados":1}';
+    },
+    compilarPesos: async (pesos) => {
       comPesos.push(pesos);
       return '{"compilado":true,"componentes":1,"compilados":1}';
     },
@@ -716,6 +721,10 @@ describe('os dois leitores de diagnóstico não se confundem (story 5.8)', () =>
         perguntas.push(`compilacaoDosPesos:${pesos}`);
         return '{"compilado":false,"componentes":1,"compilados":0}';
       },
+      compilarPesos: async (pesos) => {
+        perguntas.push(`compilarPesos:${pesos}`);
+        return '{"compilado":true,"componentes":1,"compilados":1}';
+      },
     };
     return { ponte, perguntas };
   }
@@ -792,6 +801,10 @@ describe('a compilação de um peso aberto, relida sempre', () => {
         idas.push(`compilacaoDosPesos:${pesos}`);
         return compilacao();
       },
+      compilarPesos: async (pesos) => {
+        idas.push(`compilarPesos:${pesos}`);
+        return compilacao();
+      },
     };
     return { ponte, idas };
   }
@@ -858,6 +871,9 @@ describe('a compilação de um peso aberto, relida sempre', () => {
         diagnostico: async () => '{"disponivel":true}',
         diagnosticoDosPesos: async () => '{"disponivel":true}',
         compilacaoDosPesos,
+        // A mesma linha torta na porta que compila: as duas passam pelo mesmo leitor do
+        // núcleo, e é isso que o laço abaixo exercita.
+        compilarPesos: compilacaoDosPesos,
       };
       const e = await criarLeitorDaCompilacao(ponte, PESOS, { prazoMs: 10, plataforma: 'ios' }).reler();
       expect(e.tipo).toBe('lido');
@@ -865,5 +881,125 @@ describe('a compilação de um peso aberto, relida sempre', () => {
       expect(e.compilacao.estado).toBe('ilegivel');
       if (e.compilacao.estado === 'ilegivel') expect(e.compilacao.detalhe).toMatch(onde);
     }
+  });
+});
+
+/**
+ * O **compilador** de um peso aberto (fatia 2) — a quarta porta.
+ *
+ * Ele é o gêmeo do leitor de compilação, com duas diferenças que custam caro se caírem:
+ *
+ *  1. **Ele pergunta pela porta que compila**, e não pela que só olha o cache. Trocar as duas
+ *     faria a tela mostrar um relógio correndo por meio segundo e anunciar "não compilado" —
+ *     com o dono achando que a compilação falhou instantaneamente.
+ *  2. **Uma compilação por pasta.** Dois toques não podem subir os mesmos pesos duas vezes:
+ *     eles disputariam memória um com o outro, e é a forma mais barata de transformar uma
+ *     espera de onze minutos numa falha de `capacidade`.
+ */
+describe('o compilador de um peso aberto (fatia 2)', () => {
+  /** Uma ponte que conta as idas a cada porta e responde o que o teste mandar na que compila. */
+  function ponteQueCompila(compilar: () => Promise<string>) {
+    const idas: string[] = [];
+    const ponte: PonteDoAparelho = {
+      responder: async () => '',
+      responderComPesos: async () => '',
+      diagnostico: async () => '{"disponivel":true}',
+      diagnosticoDosPesos: async () => '{"disponivel":true}',
+      compilacaoDosPesos: async (pesos) => {
+        idas.push(`compilacaoDosPesos:${pesos}`);
+        return '{"compilado":false,"componentes":3,"compilados":0}';
+      },
+      compilarPesos: async (pesos) => {
+        idas.push(`compilarPesos:${pesos}`);
+        return compilar();
+      },
+    };
+    return { ponte, idas };
+  }
+
+  const PASTA = PESOS_ABERTOS[0]!.pesos;
+
+  it('chama a porta que COMPILA, e nunca a que só olha o cache', async () => {
+    const { ponte, idas } = ponteQueCompila(async () => '{"compilado":true,"componentes":3,"compilados":3}');
+    const lido = await criarCompiladorDaCompilacao(ponte, PASTA, { plataforma: 'ios' }).compilar();
+    expect(idas).toEqual([`compilarPesos:${PASTA}`]);
+    expect(lido).toEqual({
+      tipo: 'lido',
+      compilacao: { estado: 'compilado', componentes: 3, compilados: 3 },
+      cru: '{"compilado":true,"componentes":3,"compilados":3}',
+    });
+  });
+
+  it('dois toques dividem UMA compilação — subir os mesmos pesos duas vezes é falta de memória', async () => {
+    let soltar: ((v: string) => void) | null = null;
+    const { ponte, idas } = ponteQueCompila(
+      () =>
+        new Promise<string>((r) => {
+          soltar = r;
+        }),
+    );
+    const compilador = criarCompiladorDaCompilacao(ponte, PASTA, { plataforma: 'ios' });
+    const a = compilador.compilar();
+    const b = compilador.compilar();
+    expect(compilador.emCurso()).toBe(true);
+    expect(idas.length).toBe(1);
+    soltar!('{"compilado":true,"componentes":1,"compilados":1}');
+    expect(await a).toEqual(await b);
+    // Depois de encerrar, a próxima é uma compilação nova: "Tentar de novo" precisa disso.
+    expect(compilador.emCurso()).toBe(false);
+  });
+
+  /**
+   * O prazo, com relógio de mentira — o único teste do arquivo que usa um.
+   *
+   * O prazo desta porta é de **45 min**, e a frase dele fala em minutos porque a espera é de
+   * minutos. Um prazo pequeno o bastante para um teste de relógio real (dezenas de ms) diria
+   * "0 min" e provaria a formatação errada; um prazo de verdade faria o teste esperar dois
+   * minutos. O relógio de mentira é o que deixa afirmar a frase que o dono vai ler.
+   */
+  it('o prazo estourado é ilegível — e diz em MINUTOS, porque a espera é de minutos', async () => {
+    jest.useFakeTimers();
+    try {
+      const { ponte } = ponteQueCompila(() => new Promise<string>(() => undefined));
+      const voo = criarCompiladorDaCompilacao(ponte, PASTA, { prazoMs: 120_000, plataforma: 'ios' }).compilar();
+      await jest.advanceTimersByTimeAsync(120_000);
+      const lido = await voo;
+      expect(lido.tipo).toBe('lido');
+      if (lido.tipo !== 'lido') return;
+      expect(lido.compilacao.estado).toBe('ilegivel');
+      if (lido.compilacao.estado === 'ilegivel') expect(lido.compilacao.detalhe).toBe('a compilação não voltou em 2 min');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('a ponte que lança volta como ilegível, nunca como exceção — a tela não pode acabar num crash', async () => {
+    const { ponte } = ponteQueCompila(async () => {
+      throw new Error('a cola sumiu');
+    });
+    const lido = await criarCompiladorDaCompilacao(ponte, PASTA, { plataforma: 'ios' }).compilar();
+    if (lido.tipo !== 'lido') throw new Error('estado errado');
+    expect(lido.compilacao.estado).toBe('ilegivel');
+  });
+
+  it('a falha do sistema atravessa com motivo e prosa — é o "o que o sistema disse" da tela', async () => {
+    const { ponte } = ponteQueCompila(
+      async () => '{"motivo":"naoCompilou","detalhe":"os pesos não compilaram: não coube na memória"}',
+    );
+    const lido = await criarCompiladorDaCompilacao(ponte, PASTA, { plataforma: 'ios' }).compilar();
+    if (lido.tipo !== 'lido') throw new Error('estado errado');
+    expect(lido.compilacao.estado).toBe('nao-sabido');
+    if (lido.compilacao.estado !== 'nao-sabido') return;
+    expect(MOTIVO_DO_COREAI_EM_PALAVRAS[lido.compilacao.motivo]).toBeDefined();
+    expect(lido.compilacao.detalhe).toContain('não coube na memória');
+  });
+
+  it('sem a ponte e fora do iOS nem chama — e nenhum dos dois é "compilou"', async () => {
+    expect(await criarCompiladorDaCompilacao(null, PASTA, { plataforma: 'ios' }).compilar()).toEqual({ tipo: 'ausente' });
+    const { ponte, idas } = ponteQueCompila(async () => '{"compilado":true}');
+    expect(await criarCompiladorDaCompilacao(ponte, PASTA, { plataforma: 'android' }).compilar()).toEqual({
+      tipo: 'fora-do-ios',
+    });
+    expect(idas).toEqual([]);
   });
 });

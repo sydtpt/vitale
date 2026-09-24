@@ -117,6 +117,46 @@ public enum OrbeCoreAI {
     }
   }
 
+  /// **Compila** os pesos da pasta para o chip — e só isso.
+  ///
+  /// **Por que ela existe, se {@link sessao} já compila.** A especialização para o Neural
+  /// Engine acontece dentro de `CoreAILanguageModel(resourcesAt:)`, então até aqui a única
+  /// forma de compilar era *pedir uma leitura de verdade*: o dono escolhia o modelo no seletor
+  /// e tocava "Ler", e a frase só voltava dez ou quinze minutos depois, sem aviso e sem
+  /// relógio. Esta porta separa o ato do pedido — a tela de compilação (fatia 2) a chama, mostra
+  /// o tempo correndo e carimba quanto levou. Nada de sessão, nada de instruções: o que sai é
+  /// o efeito colateral que interessa, que é o cache do Core AI preenchido.
+  ///
+  /// **A sessão é descartada de propósito.** Quem escreve a especialização em disco é o
+  /// carregador (`PreparedModel.prepare(at:)`, por baixo do inicializador); o objeto que volta é
+  /// só a alça. Descartá-lo não desfaz o que ele gravou — é a mesma suposição que sustenta
+  /// {@link compilacao}, que pergunta ao cache sem abrir modelo nenhum.
+  ///
+  /// **Não há progresso a emitir.** O iOS 27 não expõe fração, etapa nem evento durante a
+  /// carga (medido em 22/09), e é por isso que esta função não recebe callback: ela volta
+  /// quando termina, e a tela conta o tempo do lado de fora.
+  ///
+  /// O erro sai na fase `.carga`, como o de {@link sessao} — é o mesmo passo, e a tabela que o
+  /// classifica (`MotorCoreAI.identificar`) é uma só.
+  ///
+  /// > **Este símbolo é novo no `.a` vendorizado.** Ele só existe no binário depois de
+  /// > `scripts/coreai/montar.sh` rodar; até lá o pod não compila, porque a
+  /// > `OrbeCoreAI.swiftinterface` versionada ainda não o declara. Ver o cabeçalho do script.
+  public static func compilar(pesosEm url: URL) async throws {
+    do {
+      _ = try await CoreAILanguageModel(resourcesAt: url)
+    } catch {
+      let ns = error as NSError
+      throw OrbeCoreAIErro(
+        fase: .carga,
+        nomeDoTipo: String(reflecting: type(of: error)),
+        descricao: String(describing: error),
+        dominio: ns.domain,
+        codigo: ns.code
+      )
+    }
+  }
+
   /// Abre os pesos da pasta e devolve uma sessão do Foundation Models, pronta para o
   /// `respond(to:)` que o `MotorCoreAI` chama.
   ///

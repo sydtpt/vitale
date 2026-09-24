@@ -109,6 +109,14 @@ public enum OrbeCoreAI {
     return LanguageModelSession(model: ModeloDeMentira(texto: textoDeMentira), instructions: instrucoes.map { Instructions($0) })
   }
 
+  /// Espelha `compilar(pesosEm:)` da casca de verdade. Usa o **mesmo** `falhaNaCarga` que a
+  /// sessão, porque é o mesmo passo — a de verdade também carrega os pesos e também sai na
+  /// fase `.carga`. Um segundo botão aqui deixaria os dois caminhos divergirem no teste sem
+  /// divergirem no aparelho.
+  public static func compilar(pesosEm url: URL) async throws {
+    if let erro = falhaNaCarga { throw erro }
+  }
+
   /// Espelha `compilacao(dosPesosEm:)` da casca de verdade. Não olha o disco: a de verdade
   /// pergunta ao cache do Core AI, e o que o Orbe decide é sobre os **números** que voltam.
   public static func compilacao(dosPesosEm url: URL) throws -> OrbeCoreAICompilacao {

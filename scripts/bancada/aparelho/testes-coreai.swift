@@ -126,6 +126,49 @@ struct TestesDoCoreAI {
     p.conferir("pesos ausentes: sem `compilado`", semPesosCompilacao?["compilado"] == nil, String(describing: semPesosCompilacao))
     p.igual("com o motivo dos pesos ausentes", semPesosCompilacao?["motivo"] as? String, MotorCoreAI.motivoSemPesos)
 
+    // A quarta porta (fatia 2): compilar **e medir**. A regra que ela carrega, e que nenhuma
+    // outra tem, é a de não afirmar o sucesso — o que volta é o que o cache disser depois.
+    print("compilar: o sucesso não é afirmado, é medido")
+    OrbeCoreAI.falhaNaCarga = nil
+    OrbeCoreAI.contagemDeMentira = OrbeCoreAICompilacao(componentes: 3, compilados: 3)
+    let compilou = objeto(await MotorCoreAI.compilar(pesos: pesos, raiz: raiz))
+    p.igual("carregou e o cache confirma: compilado", compilou?["compilado"] as? Bool, true)
+    p.igual("com a contagem medida depois", compilou?["compilados"] as? Int, 3)
+    p.conferir("e sem motivo", compilou?["motivo"] == nil, String(describing: compilou))
+
+    // O caso que o "afirmar sucesso" esconderia: a carga voltou e o cache não ficou completo.
+    OrbeCoreAI.contagemDeMentira = OrbeCoreAICompilacao(componentes: 3, compilados: 1)
+    let semCache = objeto(await MotorCoreAI.compilar(pesos: pesos, raiz: raiz))
+    p.igual("carregou e o cache NÃO confirma: não compilado", semCache?["compilado"] as? Bool, false)
+    p.igual("e a contagem diz quanto ficou", semCache?["compilados"] as? Int, 1)
+    OrbeCoreAI.contagemDeMentira = OrbeCoreAICompilacao(componentes: 1, compilados: 1)
+
+    print("compilar: a falha sai com motivo próprio e as palavras do sistema no detalhe")
+    OrbeCoreAI.falhaNaCarga = OrbeCoreAIErro(
+      fase: .carga, nomeDoTipo: "CoreAI.Erro", descricao: "não coube na memória", dominio: "CoreAI", codigo: 9
+    )
+    let naoCompilou = objeto(await MotorCoreAI.compilar(pesos: pesos, raiz: raiz))
+    p.conferir("a carga que falhou: sem `compilado`", naoCompilou?["compilado"] == nil, String(describing: naoCompilou))
+    p.igual("com o motivo da compilação que não terminou", naoCompilou?["motivo"] as? String, MotorCoreAI.motivoNaoCompilou)
+    // A distinção que este motivo existe para preservar: "a pasta não se lê" seria falso aqui.
+    p.conferir(
+      "e NÃO o da pasta ilegível",
+      (naoCompilou?["motivo"] as? String) != MotorCoreAI.motivoPesosIlegiveis,
+      String(describing: naoCompilou)
+    )
+    p.conferir(
+      "e as palavras do sistema estão no detalhe",
+      (naoCompilou?["detalhe"] as? String)?.contains("não coube na memória") == true,
+      String(describing: naoCompilou)
+    )
+    OrbeCoreAI.falhaNaCarga = nil
+
+    // Os pesos que não existem continuam sendo recusados antes de tocar a biblioteca — compilar
+    // não é uma porta mais permissiva que as outras.
+    let compilarSemPesos = objeto(await MotorCoreAI.compilar(pesos: "nao-existe", raiz: raiz))
+    p.conferir("compilar pesos ausentes: sem `compilado`", compilarSemPesos?["compilado"] == nil, String(describing: compilarSemPesos))
+    p.igual("com o motivo dos pesos ausentes", compilarSemPesos?["motivo"] as? String, MotorCoreAI.motivoSemPesos)
+
     print(p.falharam.isEmpty
       ? "\n\(p.passaram) conferências passaram (com ORBE_COREAI)."
       : "\n\(p.falharam.count) de \(p.passaram + p.falharam.count) falharam:\n  - " + p.falharam.joined(separator: "\n  - "))

@@ -270,6 +270,10 @@ export const MOTIVO_DO_COREAI_EM_PALAVRAS: Readonly<Record<string, string>> = {
   simulador: 'o modelo de peso aberto só roda no iPhone — o simulador não tem o Core AI',
   semPesos: 'este build não traz os pesos deste modelo',
   pesosIlegiveis: 'a pasta dos pesos veio neste build e não se lê',
+  // O único motivo que nasce de um ato do dono (a tela de compilação, fatia 2), e o único que
+  // nenhum diagnóstico devolve. A frase não nomeia causa porque a causa vem do sistema, em
+  // prosa, no `detalhe` — e a tela a mostra inteira, sob "o que o sistema disse".
+  naoCompilou: 'a compilação não terminou: o sistema recusou os pesos ao carregá-los',
 };
 
 /**
