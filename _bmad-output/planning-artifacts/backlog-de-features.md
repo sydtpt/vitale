@@ -194,3 +194,52 @@ dia — "cômodos fica para depois".
   medida — mais barata e talvez suficiente.
 - **Gatilho para reabrir:** a Fase 0 confirmar que o motor barato funciona. Comprar hardware
   para o caro antes disso é a ordem errada.
+
+## A esteira de motores: cada modelo faz uma parte, e a tradução é o último passo
+
+**Ideia do dono, 24/09/2026**, depois de uma noite medindo o Qwen3-4B no iPhone. Para
+**depois** de fechar o que já está em curso: se o 4B (ou maior) presta, o passo seguinte não é
+"escolher o melhor modelo", é **montar uma esteira** — cada modelo executa uma parte, tudo corre
+em inglês, e o texto final passa por um único estágio de tradução.
+
+**A mesma forma da esteira da edição de imagem** (`briefs/brief-Orbe-2026-09-23`): o produto é o
+encadeamento, não a peça.
+
+### Por que a ideia tem pé — três medições desta noite
+
+- **Inglês custa 16,7% menos tokens.** Medido com o tokenizador embarcado sobre um trecho real
+  do caderno Movimento: 329 tokens em português, 274 em inglês. Num caderno que hoje gasta 2.039
+  tokens, a versão inglesa cairia para ~1.700.
+- **O tokenizador é parte do modelo, e varia.** No mesmo caderno, o Tucano2 gastou **1.775**
+  tokens e o Qwen3-4B **2.039** — 13% de diferença, porque o Tucano foi treinado com mais
+  português. "Qual modelo é mais inteligente" e "qual modelo fala a língua" são perguntas
+  diferentes, e hoje a gente tenta responder as duas com um modelo só.
+- **A janela é o recurso escasso.** O 4B com janela 2.048 consumiu 2.039 no pedido e escreveu
+  **nove** tokens — e o portão aprovou, porque nove tokens sem número inventado passam em todas
+  as regras que existem.
+
+### O que precisa ser decidido, e não é código
+
+- **Encadeamento não é cadeia.** O orquestrador de hoje tem `resolverCadeia`: motores em
+  sequência como **recuo**, um escrevendo quando o outro falha. Uma esteira é outra coisa —
+  estágios que **sempre** rodam, em ordem. O núcleo não tem esse conceito. É ADR.
+- **O teto de latência.** A ADR 0050 fixa mediana ≤ 20 s. Hoje o 1.7B faz a leitura inteira em
+  5,9 s. Dois estágios podem estourar, e aí a esteira morre por um motivo bobo.
+- **Dois modelos residentes, ou troca no meio.** Cada troca custa memória e tempo, e o teto por
+  processo é o que já matou o 4B duas vezes.
+
+### O que a torna barata de avaliar
+
+**O portão já mede o que importa.** Se o tradutor virar `12.338` em `12,338`, ou arredondar
+`2,8 h` para "quase 3 horas", a regra de número inventado reprova. As mesmas 22 janelas, a mesma
+régua — a esteira é testável com o instrumento que já existe.
+
+### A pergunta que pode tornar o tradutor desnecessário
+
+O pacote de fatos é **gerado por código** (ADR 0049: *o motor escreve palavras, o código escreve
+números*), então num app multilíngue ele já pode sair na língua alvo de graça. O que sobra para o
+modelo é a **prosa**. O tradutor só se paga nas línguas em que os modelos pequenos escrevem mal —
+e essa lista se descobre medindo, língua por língua, na bancada.
+
+**Gatilho para abrir:** o veredito do dono sobre o 4B. Antes disso, é desenhar esteira sem saber
+se há peça boa para pôr nela.
