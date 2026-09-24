@@ -162,6 +162,33 @@ export const PESOS_ABERTOS: readonly PesoAberto[] = Object.freeze([
     descricao: 'Modelo aberto treinado a mais em português, dentro do app. Nada sai do aparelho.',
     tamanho: { instaladoGB: 1.1, compiladoGB: 1.14 },
   }),
+  /*
+   * **A segunda tentativa do 4B** (24/09). A primeira, em 22/09, compilou por ~29 min no
+   * aparelho e morreu na carga — `TRIM_MEMORY_RUNNING_CRITICAL` e `signal 9`, três vezes
+   * seguidas, com o entitlement e com o cache pronto. Jetsam, não o assert do ANE do Mac.
+   *
+   * Este export muda duas coisas, e só elas, para que a causa fique legível:
+   *  - **int4 puro** no lugar do misto 4/8 — 2,1 GB contra 2,3. A economia é pequena porque
+   *    a receita mista já era quase toda 4 bits (ela subia cinco camadas para 8);
+   *  - **janela 1.024** no lugar de 4.096 — e aqui está o ganho real: o cache KV do 4B é de
+   *    144 KB/token, então a janela antiga custava **0,60 GB** e esta custa 0,15. Nossa
+   *    leitura manda 617 tokens; os outros 3.479 nunca foram usados.
+   *
+   * A terceira alavanca — compilar AOT no Mac com `--architecture h18p`, que tiraria a
+   * especialização do aparelho — **não entra neste build**: ela exige o Metal Toolchain do
+   * Xcode, que não está instalado. Se este build carregar, ela nem é necessária; se morrer,
+   * ela passa a ser o próximo passo, e o dono instala sabendo por quê.
+   *
+   * `tamanho` traz só o instalado: o compilado deste ninguém mediu ainda.
+   */
+  Object.freeze({
+    id: 'aparelho:coreai/qwen3-4b' satisfies MotorId,
+    pesos: 'qwen3-4b',
+    nome: 'o Qwen3 4B no aparelho',
+    rotulo: 'Qwen3 4B',
+    descricao: 'O maior modelo aberto do build, em 4 bits e janela curta. Nada sai do aparelho.',
+    tamanho: { instaladoGB: 2.1 },
+  }),
 ]);
 
 /** O peso aberto com este id, ou `undefined` — a pergunta que o catálogo faz o tempo todo. */
