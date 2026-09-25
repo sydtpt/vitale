@@ -93,6 +93,8 @@ import {
   type Linha,
 } from '../../../lib/motores/amostras';
 import { foraPorPadrao } from '../../../lib/motores/folha-regras';
+import { CAMINHO_NO_CONTAINER, retratoDaAmostra, retratoDeUmaJanela } from '../../../lib/motores/arquivo-regras';
+import { guardarUltimaCorrida } from '../../../lib/motores/arquivo';
 import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../../theme';
 
 /**
@@ -572,6 +574,20 @@ export default function BancadaScreen() {
         // colunas para mostrar a primeira deixaria a tela vazia por meio minuto.
         setLinhas([...feitas]);
       }
+      // **O retrato em disco, no fim da corrida.** Aqui e não a cada coluna: o arquivo é
+      // "a última corrida", e reescrevê-lo por coluna deixaria um retrato pela metade se o
+      // iOS despejasse o app no meio — que é exatamente o acidente que ele existe para
+      // contornar. Fora dos `return` de abandono de propósito: uma corrida cujo caso mudou
+      // não é a última corrida, é uma corrida descartada, e gravá-la apagaria a boa.
+      guardarUltimaCorrida(
+        retratoDeUmaJanela({
+          em: new Date(),
+          leitura: recurso,
+          caso: { chave: caso.chave, rotulo: caso.rotulo },
+          linhas: feitas,
+          nomeDe: nomeDoMotor,
+        }),
+      );
     } finally {
       setRodando(null);
       setParandoCorrida(false);
@@ -689,8 +705,23 @@ export default function BancadaScreen() {
     });
     // **O que já foi medido nunca vira recusa**: mesmo com defeito ou freio, cada corrida
     // termina com as linhas e o motivo à vista.
-    setAmostra({ fase: 'pronta', contexto, corridas: feitas, inicio, fim: Date.now() });
-  }, [limite, relerOsMotores]);
+    const fim = Date.now();
+    setAmostra({ fase: 'pronta', contexto, corridas: feitas, inicio, fim });
+    // O retrato em disco, depois da última corrida — é aqui que meia hora de tela acesa
+    // deixa de caber só na memória do app. O resumo de cada motor sai das contas do núcleo,
+    // e não de uma segunda soma escrita para o arquivo.
+    guardarUltimaCorrida(
+      retratoDaAmostra({
+        em: new Date(fim),
+        leitura: recurso,
+        contexto,
+        corridas: feitas,
+        inicio,
+        fim,
+        nomeDe: nomeDoMotor,
+      }),
+    );
+  }, [limite, recurso, relerOsMotores]);
 
   const pedirParada = useCallback(() => {
     pararRef.current = true;
@@ -900,6 +931,23 @@ export default function BancadaScreen() {
           <Text style={s.aviso}>
             Medir não grava — por isso o peso aberto corre em qualquer leitura aqui, inclusive nas
             que o seletor lhe fecha. Lá o bloqueio diz quem pode escrever; escrever é outra coisa.
+          </Text>
+          {/* **Depois** do "medir não grava", e não antes: aquela frase é sobre a leitura não
+              escrever no banco, esta é sobre o resultado caber num arquivo. Lado a lado na
+              ordem inversa, as duas pareceriam discordar.
+
+              A linha é **estática**: ela diz onde o arquivo mora, não se a última escrita deu
+              certo. O estado da tela não depende do disco — falhar em escrever não pode mudar
+              nada aqui —, e quem conta a falha é a nota do anel, lá embaixo.
+
+              E ela não contradiz o "nada sai do aparelho": o arquivo fica no container do app,
+              nenhuma rede é aberta, e quem o tira de lá é o dono, com um cabo. É o print de
+              antes sem o despejo do app no meio do caminho. */}
+          <Text style={s.aviso} selectable>
+            O resultado de cada corrida — desta e da amostra — fica em {CAMINHO_NO_CONTAINER}, no
+            container do app, substituindo o da corrida anterior. Isso não é a escrita de uma
+            leitura: é o cartão desta tela em JSON, para não depender de print. Continua sem sair do
+            aparelho — quem o copia é o dono, por cabo (devicectl, appDataContainer).
           </Text>
           <Text style={s.rotulo}>diagnóstico da ponte</Text>
           <Text style={s.meta}>{diagnosticoCru(ponte)}</Text>
