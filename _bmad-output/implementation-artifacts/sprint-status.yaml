@@ -320,8 +320,8 @@ development_status:
   2-8-o-número-e-a-unidade-concordam: review
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-o-postal-da-semana: backlog
+  epic-3: in-progress
+  3-1-o-postal-da-semana: review
   3-2-o-anuário-do-ano: backlog
   # ⚠ NÃO PRONTA PARA DESENVOLVIMENTO — a única das 27, e de propósito.
   # Metade dos critérios de aceite não existe: forma, posição e tratamento visual

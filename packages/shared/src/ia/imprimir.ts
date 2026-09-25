@@ -3,7 +3,8 @@
  * motores).
  *
  * ```
- * imprimir(entrada, { buscar, gravar }, opcoes) → aberto | sem-caderno | nada-gravado | gravada
+ * imprimir(entrada, { buscar, gravar }, opcoes)
+ *   → semana | aberto | sem-caderno | nada-gravado | gravada
  * ```
  *
  * Este arquivo é **a porta**: os tipos que o hospedeiro precisa para ligar as
@@ -116,6 +117,22 @@ export interface DesfechoNaImpressao {
 }
 
 export type ResultadoDaImpressao<E> =
+  /**
+   * **A semana não grava edição** (contrato do Épico 2, Story 3.1): ela é o
+   * postal da Retrospectiva, calculado na hora a cada abertura.
+   *
+   * Estado próprio, e não `aberto`: uma semana fechada *fechou*, e dizer que ela
+   * está em curso mentiria para quem lê o desfecho — o script anunciaria "não
+   * fechou para o núcleo" sobre a semana de agosto, e quem depurasse procuraria
+   * um erro de relógio que não existe. São duas recusas diferentes, e cada uma
+   * diz o que é.
+   *
+   * **A recusa é do núcleo, e não da tela.** Cinco semanas foram gravadas por
+   * `/revista/semana/…` antes de alguém fechar esta porta: nada na rota conferia
+   * o tipo. Fechá-la aqui é o que garante que a próxima tela a chamar a
+   * impressão não a reabra. Nada é buscado, nada é chamado e nada é gravado.
+   */
+  | { readonly estado: 'semana' }
   /** Período em curso, ou o Total: nada foi buscado nem chamado. */
   | { readonly estado: 'aberto' }
   /** Nenhum caderno pedido tem o que dizer: nada foi buscado nem chamado. */

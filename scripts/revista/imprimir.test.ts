@@ -124,6 +124,13 @@ const PERIODO = (() => {
   return v.periodo;
 })();
 
+/** A semana de 01 a 07/06/2026, fechada em `AGORA` — o período do postal (Story 3.1). */
+const SEMANA_FECHADA = (() => {
+  const v = validarPeriodo('week', '2026-06-01', AGORA);
+  assert.ok(v.ok, 'a semana de 01/06 não fechou em AGORA — a fixture mudou?');
+  return v.periodo;
+})();
+
 async function imprimirPeloScript(
   o: {
     banco?: BancoFalso;
@@ -132,6 +139,8 @@ async function imprimirPeloScript(
     caderno?: CadernoId | null;
     capa?: PortasDaCapa;
     nuvem?: ReturnType<typeof nuvemFalsa>;
+    /** Outro período que não o mês da fixture — a semana, na Story 3.1. */
+    periodo?: typeof PERIODO;
   } = {},
 ) {
   const banco = o.banco ?? bancoFalso();
@@ -139,7 +148,7 @@ async function imprimirPeloScript(
   const t = terminal();
   const relatorio = await imprimirPeriodo(
     {
-      periodo: PERIODO,
+      periodo: o.periodo ?? PERIODO,
       semGravar: o.semGravar ?? false,
       reimprimir: o.reimprimir ?? false,
       caderno: o.caderno ?? null,
@@ -504,6 +513,26 @@ describe('a matriz da impressão', () => {
     // A linha antiga do rotina continua lá — a parcial não a apagou.
     assert.deepEqual(banco.tabelas.edicoes_ia.map((l) => l['caderno']), ['movimento', 'rotina']);
     assert.match(t.err.join('\n'), /nenhum caderno de .* tem o que dizer/);
+  });
+
+  /**
+   * A semana não grava edição (Story 3.1) — **o desfecho do núcleo, no script**.
+   *
+   * A recusa da linha de comando sai antes da rede e tem teste próprio, abaixo
+   * (`o executável`). Aqui se mede o outro ponto de saída: `imprimirPeriodo`
+   * chamado com uma semana, que é como a função é alcançável fora da CLI.
+   */
+  it('a semana fechada: o núcleo recusa, nada é chamado, nada é gravado e a frase não fala em relógio', async () => {
+    const { relatorio, nuvem, banco, t } = await imprimirPeloScript({ periodo: SEMANA_FECHADA });
+    assert.equal(relatorio.estado, 'semana');
+    assert.equal(relatorio.codigo, 1);
+    assert.deepEqual(nuvem.pedidos, [], 'uma semana foi paga');
+    assert.equal(banco.rpcs.length, 0, 'uma semana virou gravação');
+    const err = t.err.join('\n');
+    assert.match(err, /é uma semana, e semana não grava edição/);
+    // O contrário do `aberto`: "não fechou" sobre uma semana que fechou mandaria
+    // o operador procurar um erro de relógio que não existe.
+    assert.doesNotMatch(err, /não fechou/);
   });
 
   it('--caderno num período SEM edição avisa: a edição nasce com um caderno só', async () => {
@@ -1858,6 +1887,39 @@ describe('o executável — as recusas antes da rede, e o caminho inteiro', () =
       assert.doesNotMatch(err, /falta/);
     });
   }
+
+  /**
+   * A semana **fechada** (Story 3.1). Fora da tabela acima de propósito: os
+   * inválidos de lá são endereços que não abrem período; esta é um período
+   * perfeitamente válido que simplesmente não grava edição.
+   */
+  it('a semana fechada: recusa antes da rede e antes da credencial, sem falar em relógio', async () => {
+    const { p, t, abriu } = processo({});
+    assert.equal(await principal(['--tipo', 'semana', '--inicio', '2026-06-01'], p), 1);
+    assert.equal(abriu(), 0, 'abriu rede para uma semana');
+    const err = t.err.join('\n');
+    assert.match(err, /é uma semana, e semana não grava edição/);
+    assert.match(err, /Nada foi aberto/);
+    assert.doesNotMatch(err, /falta/, 'passou da semana para a credencial');
+    assert.doesNotMatch(err, /não fechou|ainda não fechou/, 'a semana de 01/06 fechou — a recusa é do tipo');
+  });
+
+  /**
+   * **A ordem das duas mensagens é a correção** (P20 da revisão da 3.1).
+   *
+   * `imprimirPeriodo` avisa "--caderno X vai criar uma edição com um caderno só"
+   * logo depois de ler o banco, e a recusa da semana vinha depois: o operador
+   * lia a promessa e, três linhas adiante, o desmentido. Com a recusa antes da
+   * rede, a promessa nunca chega a ser escrita.
+   */
+  it('--tipo semana --caderno: a recusa vem antes, e a promessa da edição de um caderno só nunca é escrita', async () => {
+    const { p, t, abriu } = processo({});
+    assert.equal(await principal(['--tipo', 'semana', '--inicio', '2026-06-01', '--caderno', 'rotina'], p), 1);
+    assert.equal(abriu(), 0);
+    const err = t.err.join('\n');
+    assert.match(err, /é uma semana, e semana não grava edição/);
+    assert.doesNotMatch(err, /vai criar uma com um caderno só|criaria/);
+  });
 
   it('--caderno inválido: recusa antes da rede e antes da credencial, nomeando os quatro', async () => {
     const { p, t, abriu } = processo({});

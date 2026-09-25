@@ -187,6 +187,12 @@ export * from './revista/desenho';
 // A parede de capas (story 2.4b) — a montagem do arquivo: junta o inventário, as
 // capas e os textos dos meses, e devolve as fileiras já fatiadas.
 export * from './revista/parede';
+// O postal da semana (story 3.1) — a escolha pura dos três fatos. A semana não
+// grava edição: quem recusa a impressão dela é o núcleo, no estado `semana` de
+// `ResultadoDaImpressao`, antes de buscar, chamar ou gravar qualquer coisa.
+// (O nome do arquivo da sequência não se escreve aqui: o barril não o menciona,
+// e há teste cobrando isso — ver `ia/imprimir.test.ts`.)
+export * from './revista/postal';
 export * from './data/paginate';
 export * from './data/profiles';
 export * from './data/todo-templates';

@@ -4782,6 +4782,119 @@ check('BARREIRA — a luz da revista não lê aparelho, fuso nem ambiente', () =
 });
 
 /**
+ * BARREIRA — o postal da semana é **acromático** (story 3.1).
+ *
+ * A edição pinta a faixa de cada caderno no `accent` do módulo dele (story
+ * 1.12), e a rota `/revista/[tipo]/[inicio]` faz isso no mesmo arquivo em que a
+ * semana agora desenha o postal. O caminho natural de quem mexer nele é
+ * aproveitar o `moduleColors` que já está importado ali — e o postal **não tem
+ * cadernos**: pintar os três fatos de treino-laranja e sono-vermelho inventaria
+ * uma seção que não existe, e daria cor a um cartão cuja tese é justamente não
+ * ter nenhuma.
+ *
+ * O precedente escrito é o `SleepRatingCard`: *"nenhuma cor de sono, porque o
+ * bloco é legenda, não gráfico"*. O postal é legenda de uma semana inteira.
+ *
+ * **Duas asserções, e as duas importam.** A primeira varre o componente — é onde
+ * a cor entraria. A segunda prende a rota ao componente: sem ela, alguém
+ * desenharia o postal inline no arquivo da rota, onde a varredura não alcança
+ * (ali `moduleColors` é legítimo, para as faixas dos cadernos), e a barreira
+ * continuaria verde apontando para um arquivo que ninguém usa.
+ *
+ * Só papéis de tinta passam: `surface`, `ink`, `ink2`, `ink3`, `line` e vizinhos
+ * de `ThemeNeutrals`. A marca (`primary`) também fica fora — ela é o cromo do
+ * ato pago, e o postal não tem ato nenhum: ele não grava.
+ */
+check('BARREIRA — o postal da semana é acromático: nenhuma cor de módulo, de papel nem de marca', () => {
+  const componente = join(ROOT, 'mobile', 'src', 'components', 'revista', 'Postal.tsx');
+  assert.ok(existsSync(componente), 'mobile/src/components/revista/Postal.tsx sumiu — a guarda ficou sem alvo.');
+  const src = semComentario(readFileSync(componente, 'utf8'));
+  /**
+   * Os caminhos **alcançáveis** até cor, e só eles.
+   *
+   * A primeira versão desta lista gastava duas entradas com `colors.orange` e
+   * `colors.brown`, que **não são chaves** de `ResolvedTokens` (os papéis
+   * `orange` e `brown` chegam por `roles`, nunca planos) — e deixava passar
+   * `colors.roles.orange.accent`, que é o idioma de todo dia neste repositório.
+   * Proibir o impossível e liberar o corriqueiro é o pior dos dois mundos.
+   */
+  const PROIBIDO = [
+    { re: /\bmoduleColors\s*\(/, o: 'moduleColors()' },
+    { re: /\bmoduleOf\s*\(/, o: 'moduleOf()' },
+    { re: /\broleColors\s*\(/, o: 'roleColors()' },
+    { re: /\bsleepColors\s*\(/, o: 'sleepColors()' },
+    { re: /\bMODULO_DO_CADERNO\b/, o: 'MODULO_DO_CADERNO' },
+    // `MOD[...]` e `MOD.treino` — o recorte histórico, pelos dois acessos.
+    { re: /\bMOD\s*[[.]/, o: 'o recorte MOD' },
+    // O quarteto de um papel pela via plana: `colors.roles.orange.accent`.
+    { re: /\.\s*roles\s*[[.]/, o: 'o mapa de papéis (roles)' },
+    {
+      re: /\bcolors\.(primary|primaryDeep|primarySoft|primaryOutline|primaryGraphic|onPrimary|primaryOn|primaryText)\b/,
+      o: 'a cor da marca',
+    },
+    // As oito chaves planas que existem de verdade, com os sufixos `Soft`/`On`/`Text`.
+    { re: /\bcolors\.(yellow|green|rose|blue|casa|teal|red|purple)(Soft|On|Text)?\b/, o: 'um acento de paleta' },
+    { re: /\bcolors\.inkOn\b/, o: 'a tinta do papel ink (que é acento, não papel de tinta)' },
+    { re: /#[0-9a-fA-F]{3,8}\b/, o: 'um hex escrito à mão' },
+  ];
+  const achados = PROIBIDO.filter(({ re }) => re.test(src)).map(({ o }) => o);
+  assert.deepEqual(
+    achados,
+    [],
+    `Postal.tsx usa ${achados.join(', ')}. O postal é acromático em papéis de tinta: `
+      + 'ele não tem cadernos, e cor de módulo ali inventaria uma seção que não existe.',
+  );
+
+  /**
+   * E a **forma do ramo**, não a presença dos nomes.
+   *
+   * A primeira versão só conferia que `TIPO_DO_POSTAL` e `<Postal` apareciam no
+   * arquivo: trocar os dois braços do ternário deixava tudo verde, com a semana
+   * voltando a desenhar a edição e o mês virando postal. Por isso aqui se lê a
+   * **árvore**: o ternário cuja condição é `<algo>.tipo === TIPO_DO_POSTAL` tem
+   * de ter o postal no braço verdadeiro e a revista no falso.
+   *
+   * O tipo de `Revista` (`TipoComRevista`, sem a semana) é a outra metade, e
+   * essa é do compilador: invertidos os braços, ele reprova antes desta guarda.
+   */
+  const rota = join(ROOT, 'mobile', 'src', 'app', 'revista', '[tipo]', '[inicio].tsx');
+  assert.ok(existsSync(rota), 'a rota da revista sumiu — a guarda ficou sem alvo.');
+  const bruto = readFileSync(rota, 'utf8');
+  assert.ok(
+    /from\s*['"][^'"]*components\/revista\/Postal['"]/.test(semComentario(bruto)),
+    'a rota não importa o componente Postal — desenhado inline, o postal sai de baixo da varredura acima.',
+  );
+  const arvore = ts.createSourceFile(rota, bruto, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  /** O nome da tag de um braço do ternário — `null` se ele não é um elemento JSX. */
+  const tagDe = (no: ts.Node): string | null => {
+    const jsx = ts.isParenthesizedExpression(no) ? no.expression : no;
+    if (ts.isJsxSelfClosingElement(jsx)) return jsx.tagName.getText();
+    if (ts.isJsxElement(jsx)) return jsx.openingElement.tagName.getText();
+    return null;
+  };
+  const ramos: { verdadeiro: string | null; falso: string | null }[] = [];
+  const varrer = (no: ts.Node): void => {
+    if (
+      ts.isConditionalExpression(no)
+      && ts.isBinaryExpression(no.condition)
+      && no.condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
+      && /\.tipo$/.test(no.condition.left.getText())
+      && no.condition.right.getText() === 'TIPO_DO_POSTAL'
+    ) {
+      ramos.push({ verdadeiro: tagDe(no.whenTrue), falso: tagDe(no.whenFalse) });
+    }
+    ts.forEachChild(no, varrer);
+  };
+  varrer(arvore);
+  assert.deepEqual(
+    ramos,
+    [{ verdadeiro: 'TelaDoPostal', falso: 'Revista' }],
+    'a rota não ramifica `<algo>.tipo === TIPO_DO_POSTAL ? <TelaDoPostal> : <Revista>` exatamente uma vez. '
+      + 'Trocar os braços faz a semana abrir a edição e o mês virar postal.',
+  );
+});
+
+/**
  * BARREIRA — nenhum arquivo, fora de teste, corta frase à mão (story 1.8).
  *
  * A capa, o sumário e a parede da revista mostram a **chamada** de cada caderno,
