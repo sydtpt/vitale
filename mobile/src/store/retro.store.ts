@@ -9,17 +9,21 @@ import {
   buildHeatmap,
   buildTaskGrid,
   buildYearByMonth,
+  entradaDaGradeDe,
+  gradeDoPeriodo,
   lapidesDaRetrospectiva,
   retroInputDe,
   retroSince as retroSinceDate,
   type DadosDaRetro,
   type FatoLapide,
+  type GradeDaCapa,
   type PeriodKind,
   type RetroLede,
   type Heatmap,
   type TaskGrid,
   type RetroInput,
   type RetroSummary,
+  type TipoComEdicao,
   type WeekHighlight,
   type MonthBucket,
 } from '@vitale/shared';
@@ -69,6 +73,15 @@ interface RetroState {
   lede: (now: Date, kind: PeriodKind, offset: number) => RetroLede;
   /** Uma célula por dia do período exibido — genérico em N (spec v2 §4). */
   heatmap: (now: Date, kind: PeriodKind, offset: number, metric: string) => Heatmap | null;
+  /**
+   * A grade da capa `grade` (Story 2.4a) — um quadradinho por dia do período,
+   * marcado quando houve atividade **ou** registro.
+   *
+   * Sai da **mesma** entrada que o resumo: nenhuma leitura nova, e o que o dono
+   * escondeu (`hidden`) já saiu em `retroInputDe`. Não é `buildHeatmap`: aquele
+   * exige métrica de saúde com meta, e a capa de 2023 não tem nem uma nem outra.
+   */
+  grade: (now: Date, kind: TipoComEdicao, offset: number) => GradeDaCapa;
   /** Faixa de adesão das séries diárias — uma linha por tarefa. */
   taskGrid: (now: Date, kind: PeriodKind, offset: number) => TaskGrid | null;
   yearByMonth: (now: Date, offset: number) => MonthBucket[];
@@ -125,6 +138,12 @@ export const useRetroStore = create<RetroState>((set, get) => {
       return buildRetroLede(buildRetroHighlights(buildRetrospective(input), input));
     },
     heatmap: (now, kind, offset, metric) => buildHeatmap(buildInput(now, kind, offset), metric),
+    // Pela entrada ESTREITA, e não pelo `buildInput`: a grade lê dois campos, e a
+    // parede da 2.4b monta ~40 destes. `entradaDaGradeDe` faz o mesmo corte de
+    // janela sem montar saúde, notas, hábitos, tarefas, compras e noites junto.
+    grade: (now, kind, offset) => gradeDoPeriodo(
+      entradaDaGradeDe(get().dados, useActivitiesStore.getState()._all, now, kind, offset),
+    ),
     taskGrid: (now, kind, offset) =>
       buildTaskGrid({ now, kind, offset, dailyTasks: buildInput(now, kind, offset).dailyTasks }),
     yearByMonth: (now, offset) => buildYearByMonth(buildInput(now, 'year', offset)),

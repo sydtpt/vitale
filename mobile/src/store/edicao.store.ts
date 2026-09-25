@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import {
   CADERNO_IDS,
   FotoRecusadaNaTroca,
+  cadernosVisiveis,
   chamadaDoTexto,
   precisaErrata,
+  resolveRetroPrefs,
   temEdicao,
   type ActivityPhoto,
   type CadernoId,
@@ -11,9 +13,11 @@ import {
   type DesfechoDoCaderno,
   type Edicao,
   type EntradaPacote,
+  type NaturezaDaCapa,
   type TipoComEdicao,
 } from '@vitale/shared';
 import { useAuthStore } from './auth.store';
+import { useSettingsStore } from './settings.store';
 import {
   TrocaRecusada,
   assinaturaDoCaderno,
@@ -54,6 +58,18 @@ import {
  *   store não ordena os impressos; os sem linha vão na ordem do catálogo.
  * - **Uma impressão por período de cada vez.** Enquanto uma corre, nenhuma outra
  *   começa nesse período, e nenhum botão de escrever aparece.
+ *
+ * ## O caderno silenciado (Story 2.5)
+ *
+ * A revista pode ser contrariada: o dono silencia um caderno no painel Diagramação
+ * e ele **some da leitura e deixa de ser pedido à nuvem**. Quem filtra é este
+ * hospedeiro, não o núcleo — as derivações puras recebem a lista de visíveis
+ * (ausente ⇒ os quatro, o mesmo idioma de `OpcoesDaImpressao.cadernos`), e as
+ * ações a leem da `settings.store`, porque ação que depende de quem a chama passar
+ * a lista é ação que um dia alguém chama sem ela.
+ *
+ * **Silenciar nunca escreve no banco.** O texto impresso continua lá, e a
+ * sequência não apaga caderno que não foi pedido — dessilenciar devolve tudo.
  */
 
 /* ── a sessão ────────────────────────────────────────────────────────────── */
@@ -83,6 +99,22 @@ export type ImpressaoEmCurso = 'edicao' | CadernoId;
 
 /** O aviso do período fechado em que nenhum caderno tem o que dizer. Sem botão: tocar não mudaria nada. */
 export const AVISO_SEM_CADERNO = 'Nenhum caderno deste período tem o que dizer.';
+
+/**
+ * O aviso da edição que ficou **muda por escolha do dono** (Story 2.5).
+ *
+ * Sem ele a rota é um beco: capa com o período, nada abaixo, nenhum botão e
+ * nenhuma explicação — e o silêncio foi decidido noutra tela, talvez semanas
+ * antes. O aviso diz de quem é a decisão e **onde se desfaz**; ele não é botão
+ * porque a Diagramação não mora aqui, e uma rota que abrisse o painel da outra
+ * tela seria um segundo caminho até a mesma preferência.
+ */
+export const AVISO_TUDO_SILENCIADO =
+  'Os quatro cadernos estão silenciados. Abra a Diagramação na Retrospectiva para voltar a escrevê-los.';
+
+/** O mesmo beco com só parte dos cadernos calados — os que sobraram não têm o que dizer. */
+export const AVISO_SILENCIO_PARCIAL =
+  'Os cadernos que falariam deste período estão silenciados. Abra a Diagramação na Retrospectiva para voltar a escrevê-los.';
 
 /* ── o estado ────────────────────────────────────────────────────────────── */
 
@@ -289,7 +321,10 @@ export type PortaDaEdicao =
   | { tipo: 'escrevendo' }
   /** Fechado e não escrito: a frase e a seta, **sem botão**. */
   | { tipo: 'nao-escrita' }
-  /** A miniatura em papel com o período curto, e a chamada inteira do caderno em `posicao` 1. */
+  /**
+   * A miniatura em papel com o período curto, e a chamada inteira do **primeiro
+   * caderno visível** — a mesma manchete da capa da rota (ver `chamadaDaCapa`).
+   */
   | { tipo: 'impressa'; periodo: string; chamada: string | null };
 
 /**
@@ -297,8 +332,16 @@ export type PortaDaEdicao =
  *
  * Com qualquer caderno impresso ela é `impressa`, mesmo com a reimpressão de outro
  * correndo: o texto no banco continua valendo, e é dele que a chamada sai.
+ *
+ * `visiveis` é a lista do dono (Story 2.5): a chamada do cartão é a **mesma**
+ * manchete da capa da rota, então ela obedece ao silêncio pela mesma regra. Sem
+ * isso, o caderno que ele calou continuaria falando na Retrospectiva — que é
+ * exatamente onde ele o calou.
  */
-export function portaDe(estado: EstadoEdicao): PortaDaEdicao {
+export function portaDe(
+  estado: EstadoEdicao,
+  visiveis: readonly CadernoId[] = CADERNO_IDS,
+): PortaDaEdicao {
   switch (estado.fase) {
     case 'carregando':
     case 'relendo':
@@ -313,7 +356,7 @@ export function portaDe(estado: EstadoEdicao): PortaDaEdicao {
         return {
           tipo: 'impressa',
           periodo: rotuloCurtoDaEdicao(estado.tipo, estado.inicio),
-          chamada: chamadaDaCapa(estado.edicao),
+          chamada: chamadaDaCapa(estado.edicao, visiveis),
         };
       }
       return estado.imprimindo !== null ? { tipo: 'escrevendo' } : { tipo: 'nao-escrita' };
@@ -357,16 +400,19 @@ export interface CapaNaVista {
   periodo: string;
   /** Algum caderno está impresso. */
   impressa: boolean;
-  /** A chamada do caderno em `posicao` 1, **inteira** e sem corte — ou `null`. */
+  /**
+   * A chamada do **primeiro caderno visível**, **inteira** e sem corte — ou
+   * `null`. Desde a 2.5 não é o caderno em `posicao` 1: ver `chamadaDaCapa`.
+   */
   manchete: string | null;
   /**
    * O que a impressão carimbou — natureza, identidade da foto e a legenda já
    * formatada —, ou `null`, e aí a capa é a em papel da 1.11.
    *
    * **Passa inteira, sem ser reinterpretada.** A manchete acima continua derivada
-   * do caderno em `posicao` 1 e não congela junto: uma reimpressão parcial que
-   * troque o líder troca a manchete sob a mesma imagem, e isso é desenho, não
-   * descuido.
+   * do miolo — o primeiro caderno visível — e não congela junto: uma reimpressão
+   * parcial que troque o líder, ou um silêncio que o remova, troca a manchete sob
+   * a mesma imagem, e isso é desenho, não descuido.
    */
   carimbada: Capa | null;
   /**
@@ -385,12 +431,36 @@ export interface CapaNaVista {
    */
   comFoto: boolean;
   /**
-   * A legenda carimbada, quando ela tem o que dizer na tela — ou `null`.
+   * A natureza carimbada, **quando ela tem desenho a pedir** — ou `null` (Story
+   * 2.4a).
    *
-   * Só na natureza `foto`: é ali que ela é a **descrição da imagem** (EXPERIENCE
-   * §Accessibility Floor), e é ali que continua servindo quando a imagem não
-   * resolve mais. Na `grade` ela É o período, que a capa já imprime logo acima; na
-   * `tracado`, o desenho que ela legenda ainda não existe.
+   * Mesma guarda de {@link CapaNaVista.comFoto}, e pelo mesmo motivo: `edicoes_capa`
+   * não tem chave estrangeira para `edicoes_ia`, então uma capa sobrevive aos
+   * cadernos que cobria. Desenhar o traçado de um período que perdeu o texto
+   * esconderia o convite e o botão atrás de uma capa bonita.
+   *
+   * É daqui que a rota escolhe o desenhista (`desenhoDaCapa`, no núcleo): `foto`
+   * tem caminho próprio, `tracado` e `grade` entram em `CapaEmPapel` no lugar do
+   * fundo liso, e `null` é o papel de sempre.
+   */
+  natureza: NaturezaDaCapa | null;
+  /**
+   * A legenda carimbada — a frase já formatada, **passada como veio** — ou `null`
+   * quando não há capa na tela, ou quando ela não teria o que acrescentar.
+   *
+   * Vale para as **três** naturezas desde a 2.4a. Na `foto` ela é a descrição da
+   * imagem (EXPERIENCE §Accessibility Floor) e o que resta quando o arquivo não
+   * resolve; na `tracado` ela é a cidade e o quilômetro do desenho que a story
+   * acabou de criar.
+   *
+   * **A exceção é a `grade`**, e é por isso que esta regra não é "a legenda
+   * carimbada, sempre": `escolherCapa` carimba ali o **rótulo do período**
+   * (`comRede(null, …)`), porque o `CHECK` do banco recusa legenda vazia. A capa
+   * já imprime esse rótulo em serifada, grande, duas linhas acima — repeti-lo em
+   * mono no pé escreveria "Agosto de 2026" duas vezes na mesma tela, e o VoiceOver
+   * o leria duas vezes. **Suprimir é da tela, e o carimbo fica intacto**: mexer em
+   * `escolherCapa` é *Ask First*, e a ficha da capa continua lendo a linha crua em
+   * {@link CapaNaVista.carimbada}.
    */
   legenda: string | null;
   /**
@@ -411,11 +481,57 @@ export type VistaDaEdicao =
   | { tipo: 'lendo' }
   | { tipo: 'sem-sessao' }
   | { tipo: 'erro'; mensagem: string; aposImpressao: boolean }
-  | { tipo: 'edicao'; capa: CapaNaVista; cadernos: readonly CadernoNaVista[] };
+  | {
+      tipo: 'edicao';
+      capa: CapaNaVista;
+      cadernos: readonly CadernoNaVista[];
+      /**
+       * A frase para o miolo que ficou vazio **por silêncio** — ou `null` (Story
+       * 2.5). É o beco: nada a ler, nada a tocar, e a causa está noutra tela.
+       *
+       * Só aparece quando não há nada a mostrar **nem** nada a fazer: com o convite
+       * e o botão na capa, ou com uma impressão correndo, ela seria ruído sobre uma
+       * tela que já responde.
+       */
+      avisoDoSilencio: string | null;
+    };
 
-/** A chamada do caderno em `posicao` 1 — que é a manchete. Posição lida, nunca recalculada. */
-function chamadaDaCapa(edicao: Edicao): string | null {
-  return chamadaDoTexto(edicao.find((c) => c.posicao === 1)?.texto);
+/**
+ * A chamada do **primeiro caderno visível** — que é a manchete.
+ *
+ * `edicao` chega ordenada por `posicao` (`fetchEdicao` pede `order('posicao')`), e
+ * a manchete é a chamada da primeira linha que o dono não silenciou. Posição lida,
+ * nunca recalculada.
+ *
+ * **Não é `find(c => c.posicao === 1)`, e a diferença é a story inteira** (2.5):
+ * procurar pelo VALOR 1 devolve `undefined` quando o líder está silenciado, e a
+ * capa ficaria sem manchete enquanto três cadernos visíveis falam logo abaixo. O
+ * buraco na numeração é esperado: silenciar nunca escreve, então a `posicao`
+ * gravada não muda — quem pula o buraco é a leitura.
+ *
+ * `null` quando nenhum caderno visível está impresso — ou quando o texto do
+ * primeiro não fecha frase nenhuma.
+ */
+function chamadaDaCapa(edicao: Edicao, visiveis: readonly CadernoId[]): string | null {
+  return chamadaDoTexto(edicao.find((c) => visiveis.includes(c.caderno))?.texto);
+}
+
+/**
+ * A legenda que **acrescenta** — ou `null` (Story 2.4a).
+ *
+ * A capa `grade` é carimbada com o rótulo do período como legenda, porque o
+ * `CHECK` de `edicoes_capa.legenda` recusa vazio. Na tela isso vira o período
+ * escrito duas vezes — grande em serifada e pequeno em mono, um debaixo do outro —
+ * e lido duas vezes pelo VoiceOver. O carimbo fica; o que some é a repetição.
+ *
+ * Comparação por texto normalizado, e não por natureza: a rede `comRede` de
+ * `escolherCapa` põe o rótulo do período em qualquer natureza cuja legenda saia
+ * vazia, e o mesmo defeito voltaria pela porta de trás.
+ */
+function legendaQueAcrescenta(legenda: string | null, periodo: string): string | null {
+  const frase = legenda?.trim();
+  if (!frase) return null;
+  return frase === periodo.trim() ? null : legenda;
 }
 
 /**
@@ -447,11 +563,19 @@ function chamadaDaCapa(edicao: Edicao): string | null {
  * `chamadaDoTexto` que dá a manchete da capa duas linhas acima. O sumário da rota
  * é uma linha por caderno **do miolo** — na ordem que este vetor já tem —, então
  * o caderno que não está pronto entra na lista do mesmo jeito, só sem chamada.
+ *
+ * **O silêncio** (Story 2.5) é `visiveis`: ausente ⇒ os quatro, o mesmo idioma de
+ * `OpcoesDaImpressao.cadernos`. O caderno silenciado não entra no miolo (nem
+ * impresso, nem com dado, nem com o que a sessão diga dele), não dá manchete e não
+ * oferece botão. Ele continua gravado, e o `semCaderno` da capa **não** o conta:
+ * "nenhum caderno tem o que dizer" é resposta do núcleo sobre o período, e
+ * silenciar não muda o que aconteceu em agosto.
  */
 export function vistaDaEdicao(
   estado: EstadoEdicao,
   comDado: readonly CadernoId[] | null,
   aggVersion: number,
+  visiveis: readonly CadernoId[] = CADERNO_IDS,
 ): VistaDaEdicao {
   switch (estado.fase) {
     case 'carregando':
@@ -471,27 +595,54 @@ export function vistaDaEdicao(
 
   const { edicao, sessao, imprimindo } = estado;
   const correndo = imprimindo !== null;
+  /**
+   * **Sobre a edição inteira, não sobre a parte visível.** É resposta do banco:
+   * "este período já foi escrito". Silenciar o único caderno impresso não devolve
+   * o período ao convite — ele foi escrito, e o texto continua gravado.
+   */
   const nadaImpresso = edicao.length === 0;
+  const visivel = (caderno: CadernoId): boolean => visiveis.includes(caderno);
+  /**
+   * Quem tem o que dizer **e** não foi silenciado — a lista que decide os botões.
+   * `null` continua sendo "ainda não há resposta", e não "ninguém".
+   */
+  const comDadoVisivel = comDado === null ? null : comDado.filter(visivel);
   /** A ação de um caderno, pela mesma regra que a ação confere. */
   const acaoPara = <A extends AcaoDoCaderno>(caderno: CadernoId, acao: A): { acao?: A } =>
-    (podeImprimir(estado, comDado, caderno) ? { acao } : {});
+    (podeImprimir(estado, comDadoVisivel, caderno) ? { acao } : {});
 
   const carimbada = estado.capa;
-  const deFoto = !nadaImpresso && carimbada?.natureza === 'foto';
+  /**
+   * A capa **na tela** — a carimbada, quando há edição impressa sob ela. O campo
+   * `carimbada` abaixo continua passando a linha crua, sem esta guarda: é ela que
+   * a ficha da capa aberta (1.16) lê, e a ficha fala da escolha, não do desenho.
+   */
+  const naTela = nadaImpresso ? null : carimbada;
+  const natureza = naTela?.natureza ?? null;
+  const periodo = rotuloDaEdicao(estado.tipo, estado.inicio);
   const capa: CapaNaVista = {
-    periodo: rotuloDaEdicao(estado.tipo, estado.inicio),
+    periodo,
     impressa: !nadaImpresso,
-    manchete: chamadaDaCapa(edicao),
+    manchete: chamadaDaCapa(edicao, visiveis),
     carimbada,
-    comFoto: deFoto,
-    legenda: deFoto ? carimbada.legenda : null,
+    comFoto: natureza === 'foto',
+    natureza,
+    // Igual ao período é a legenda da `grade`, que a capa já imprime em cima.
+    // Comparada pelo texto, e não pela natureza: se um dia a legenda de outra
+    // natureza cair no rótulo (a rede `comRede` faz isso), a repetição some junto.
+    legenda: legendaQueAcrescenta(naTela?.legenda ?? null, periodo),
     escrevendo: nadaImpresso && correndo,
-    escrever: podeImprimir(estado, comDado, 'edicao'),
+    escrever: podeImprimir(estado, comDadoVisivel, 'edicao'),
+    // `comDado` cru, e não o filtrado: o aviso fala do PERÍODO ("nenhum caderno
+    // deste período tem o que dizer"), e com os quatro silenciados isso seria
+    // mentira — eles têm, e o dono é que não quer ouvir. Ali a capa fica só com o
+    // "fechou e ainda não foi escrito", sem botão e sem aviso falso.
     semCaderno: nadaImpresso && !correndo && comDado !== null && comDado.length === 0,
   };
 
   const cadernos: CadernoNaVista[] = [];
   for (const c of edicao) {
+    if (!visivel(c.caderno)) continue;
     const s = sessao[c.caderno];
     if (s?.fase === 'na-fila' || s?.fase === 'escrevendo') {
       cadernos.push({ caderno: c.caderno, estado: s.fase });
@@ -511,7 +662,7 @@ export function vistaDaEdicao(
   if (!nadaImpresso || aconteceu) {
     const impresso = new Set(edicao.map((c) => c.caderno));
     for (const caderno of CADERNO_IDS) {
-      if (impresso.has(caderno)) continue;
+      if (impresso.has(caderno) || !visivel(caderno)) continue;
       const temDado = comDado === null || comDado.includes(caderno);
       const s = sessao[caderno];
       if (s === undefined) {
@@ -553,7 +704,18 @@ export function vistaDaEdicao(
     }
   }
 
-  return { tipo: 'edicao', capa, cadernos };
+  /**
+   * O beco do silêncio: miolo vazio, capa sem convite e sem impressão correndo, e
+   * pelo menos um caderno calado. Sem silêncio nenhum, o miolo vazio é a edição
+   * nunca escrita — e ali o convite está na capa, que é onde ele deve estar.
+   */
+  const silenciados = CADERNO_IDS.filter((c) => !visivel(c)).length;
+  const mudoPorSilencio = silenciados > 0 && cadernos.length === 0 && !capa.escrever && !capa.escrevendo;
+  const avisoDoSilencio = !mudoPorSilencio
+    ? null
+    : silenciados === CADERNO_IDS.length ? AVISO_TUDO_SILENCIADO : AVISO_SILENCIO_PARCIAL;
+
+  return { tipo: 'edicao', capa, cadernos, avisoDoSilencio };
 }
 
 function faseSemVista(nunca: never): VistaDaEdicao {
@@ -580,6 +742,29 @@ function userId(): string | undefined {
 /** A sessão ainda está sendo lida do disco (`initialize()` não voltou). */
 function sessaoHidratando(): boolean {
   return useAuthStore.getState().isLoading;
+}
+
+/**
+ * Os cadernos que o dono não silenciou, **agora** (Story 2.5).
+ *
+ * A ação lê a preferência ela mesma, como já lê o `userId`: quem imprime não pode
+ * depender de quem a chamou ter passado a lista, senão a primeira tela nova paga
+ * pelo caderno que ele calou. As derivações puras acima continuam recebendo a
+ * lista por parâmetro — elas são puras, e é a tela que já tem a preferência à mão.
+ *
+ * **`resolveRetroPrefs` aqui não é zelo, é a mesma porta das telas.** O que a
+ * `settings.store` guarda em `preferences` nem sempre passou pelo resolvedor: o
+ * boot hidrata do cache local (`getJSON`, `settings.store.ts:52-56`) sem resolver
+ * nada, e esse cache pode ter sido gravado por uma versão anterior do app. Um
+ * `cadernosOcultos: { sono: 42 }` vindo dali lê como silêncio para um `!ocultos[id]`
+ * cru e como ruído para as telas, que resolvem — e aí o botão "Escrever" aparece
+ * para um caderno que a ação recusa calada. **O caminho que gasta dinheiro é
+ * justamente o que não pode dispensar a resolução.**
+ *
+ * Sem preferência carregada, os quatro: a ausência de escolha não é silêncio.
+ */
+function visiveisAgora(): readonly CadernoId[] {
+  return cadernosVisiveis(resolveRetroPrefs(useSettingsStore.getState().preferences?.retroPrefs ?? null));
 }
 
 /**
@@ -766,7 +951,34 @@ async function imprimirAlvo(
   const chave = chaveDe(uid, entrada);
   const atual = get().porPeriodo[chave];
   if (atual?.fase !== 'lida') return;
-  if (!podeImprimir(atual, comDadoDaEntrada(entrada, dadosProntos), alvo)) return;
+
+  /**
+   * **O silêncio entra ANTES da primeira chamada paga** (Story 2.5), nos dois
+   * pontos em que ele importa:
+   *
+   * 1. aqui, na regra que decide se há o que imprimir — com os quatro
+   *    silenciados, `comDado` filtrado fica vazio, `podeImprimir` recusa, e a
+   *    sequência nunca é chamada com a lista vazia (que ela recusa com
+   *    `TypeError`);
+   * 2. logo abaixo, em `cadernos`, que é a lista de candidatos da sequência.
+   *
+   * **É um retrato, tirado uma vez, e isso é declarado.** Silenciar um caderno
+   * DEPOIS deste ponto — enquanto a releitura ou a sequência correm — não cancela
+   * a impressão dele: ele continua sendo pago e gravado, e some da tela no mesmo
+   * quadro, porque a tela lê a preferência viva. O painel **não trava** durante uma
+   * impressão.
+   *
+   * A escolha é essa, e não o travamento, por três razões: o custo é **uma**
+   * chamada, não a edição; nada se perde (silenciar nunca apaga — dessilenciar
+   * devolve o texto que ficou gravado); e a alternativa seria travar um painel
+   * global — a diagramação é do usuário — por causa de uma impressão que corre num
+   * período só. Reler a preferência aqui embaixo seria pior ainda: `podeImprimir`
+   * e `candidatos` passariam a responder a leituras diferentes, e o retrato único é
+   * exatamente o que garante que os dois concordem.
+   */
+  const visiveis = visiveisAgora();
+  const comDado = comDadoDaEntrada(entrada, dadosProntos);
+  if (!podeImprimir(atual, comDado === null ? null : comDado.filter((c) => visiveis.includes(c)), alvo)) return;
 
   const por = (estado: EstadoEdicao): void => set((s) => ({ porPeriodo: { ...s.porPeriodo, [chave]: estado } }));
   /** A impressão desta chamada, se ela ainda é a que corre nesta chave. */
@@ -847,9 +1059,26 @@ async function imprimirAlvo(
       }
     };
 
+    /**
+     * Os candidatos que vão à sequência.
+     *
+     * Um caderno só: ele mesmo — o botão dele só existe se ele é visível. A
+     * edição inteira: **ausente enquanto nada está silenciado**, porque ausente é
+     * "os quatro" e é o que a 1.10 sempre mandou; a lista só aparece quando há
+     * silêncio, e aí ela é exatamente a dos visíveis. Vazia é impossível aqui —
+     * `podeImprimir` já recusou lá em cima.
+     *
+     * A condição é **igualdade de conjuntos**, escrita como tal. `visiveis` sai de
+     * `cadernosVisiveis`, que filtra `CADERNO_IDS`, então hoje comparar tamanhos
+     * daria o mesmo — mas é invariante de outro arquivo, e este declara as suas.
+     */
+    const candidatos: readonly CadernoId[] | undefined = alvo !== 'edicao'
+      ? [alvo]
+      : CADERNO_IDS.every((c) => visiveis.includes(c)) ? undefined : visiveis;
+
     try {
       const r = await imprimirEdicao(uid, entrada, {
-        ...(alvo === 'edicao' ? {} : { cadernos: [alvo] }),
+        ...(candidatos ? { cadernos: candidatos } : {}),
         aoComecar: (caderno, fila) => naSessao((s) => {
           const proxima: Partial<Record<CadernoId, SessaoDoCaderno>> = { ...s };
           for (const c of fila) if (c !== caderno && proxima[c] === undefined) proxima[c] = { fase: 'na-fila' };

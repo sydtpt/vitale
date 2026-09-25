@@ -218,12 +218,27 @@ export async function fetchEdicao(
  * colunas que a linha tem" valer para o arquivo como já valia para a edição —
  * uma coluna na string e fora do tipo (ou o contrário) para de compilar aqui.
  */
-export type ArquivoRow = Pick<EdicaoRow, 'tipo_periodo' | 'inicio' | 'fim' | 'caderno' | 'posicao' | 'pacote_versao'>;
+export type ArquivoRow = Pick<
+  EdicaoRow,
+  'tipo_periodo' | 'inicio' | 'fim' | 'caderno' | 'posicao' | 'prompt_versao' | 'pacote_versao'
+>;
 
 /** Um caderno no arquivo, sem o texto — o que {@link fetchArquivoDeEdicoes} traz. */
 export interface CadernoNoArquivo {
   readonly caderno: CadernoId;
   readonly posicao: number;
+  /**
+   * A versão do **prompt** com que este caderno foi escrito.
+   *
+   * As duas versões estão aqui porque elas respondem a perguntas diferentes, e a
+   * impressão em massa faz as duas (Story 2.8): `pacoteVersao` separa a edição
+   * antiga da já reimpressa numa campanha de **números** (a 2.6 mudou o que o
+   * pacote carrega); `promptVersao` separa o caderno escrito com o texto de
+   * antes do escrito com o de hoje, que é o critério de uma campanha de
+   * **palavras** — a concordância de `1 dias` mudou o prompt e não tocou num
+   * número sequer.
+   */
+  readonly promptVersao: number;
   /**
    * A versão do pacote com que este caderno foi escrito.
    *
@@ -251,10 +266,20 @@ export interface EdicaoNoArquivo {
  * Mesma guarda de {@link EDICAO_COLUMNS}: `edicoes-ia.test.ts` compara esta
  * string com as chaves de {@link ArquivoRow} e projeta as linhas do fake por
  * ela. Uma coluna esquecida aqui não é erro — é `undefined` chegando ao
- * agrupamento, e um `pacote_versao` indefinido faria toda edição parecer não
- * reimpressa.
+ * agrupamento, e os dois casos custam dinheiro em direções opostas:
+ *
+ * - `pacote_versao` indefinido faz toda edição parecer **não reimpressa**
+ *   (`undefined > 3` é falso), e a campanha da 2.3 pagaria quatro chamadas por
+ *   período já renovado;
+ * - `prompt_versao` indefinido é **pior**: `undefined >= 6` também é falso, e aí
+ *   toda edição do arquivo parece atrasada — a campanha de um caderno (2.8)
+ *   pagaria uma chamada por período, em todos eles, sem nada ter mudado.
+ *
+ * Por isso {@link fetchArquivoDeEdicoes} não confia na coluna: as duas versões
+ * passam por `Number.isInteger` na mesma varredura que confere `caderno` e
+ * `tipo_periodo`, e uma linha estragada explode alto em vez de virar uma corrida.
  */
-export const ARQUIVO_COLUMNS = 'tipo_periodo,inicio,fim,caderno,posicao,pacote_versao';
+export const ARQUIVO_COLUMNS = 'tipo_periodo,inicio,fim,caderno,posicao,prompt_versao,pacote_versao';
 
 /**
  * **Todas** as edições do usuário, agrupadas por período e em ordem cronológica
@@ -305,6 +330,19 @@ export async function fetchArquivoDeEdicoes(
         + `${TIPOS_COM_EDICAO.join(', ')}.`,
       );
     }
+    // As duas versões são **números que decidem gasto**, e uma coluna ausente
+    // (ou um `null` da tabela) chegaria aqui como `undefined` e faria toda
+    // comparação de versão ser falsa — a corrida pagaria o arquivo inteiro
+    // achando que nada foi renovado. Conferido, nunca convertido: mesmo
+    // argumento de `caderno` e `tipo_periodo`, logo acima.
+    for (const [coluna, valor] of [['prompt_versao', r.prompt_versao], ['pacote_versao', r.pacote_versao]] as const) {
+      if (!Number.isInteger(valor)) {
+        throw new Error(
+          `${coluna} não é inteiro no arquivo (${r.tipo_periodo} ${r.inicio}, caderno ${r.caderno}): `
+          + `${JSON.stringify(valor)}. É por estes números que a impressão em massa decide o que reimprimir.`,
+        );
+      }
+    }
     const chave = `${r.tipo_periodo}\u0000${r.inicio}\u0000${r.fim}`;
     let grupo = porPeriodo.get(chave);
     if (!grupo) {
@@ -313,7 +351,12 @@ export async function fetchArquivoDeEdicoes(
       porPeriodo.set(chave, grupo);
       ordem.push(chave);
     }
-    grupo.cadernos.push({ caderno: r.caderno, posicao: r.posicao, pacoteVersao: r.pacote_versao });
+    grupo.cadernos.push({
+      caderno: r.caderno,
+      posicao: r.posicao,
+      promptVersao: r.prompt_versao,
+      pacoteVersao: r.pacote_versao,
+    });
   }
   for (const grupo of porPeriodo.values()) grupo.cadernos.sort((a, b) => a.posicao - b.posicao);
   return ordem.map((c) => porPeriodo.get(c)!.chave);

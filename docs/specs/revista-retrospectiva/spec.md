@@ -154,6 +154,15 @@ que torna a disciplina de pré-registro parte do desenho e não um refinamento.
     migration**, e um caderno silenciado não aparece nem quando o ranqueamento o
     colocaria em primeiro. Silenciar caderno e esconder bloco da Retrospectiva são
     dois atos independentes: um não arrasta o outro.
+  - **success (o efeito econômico):** o caderno silenciado **deixa de ser pedido à
+    nuvem** — o filtro entra em `OpcoesDaImpressao.cadernos`, a lista de candidatos,
+    **antes da primeira chamada paga**. Silenciar não é só esconder: três cadernos
+    silenciados são três chamadas que não acontecem, por edição, para sempre. Isso vale
+    para o telefone; a impressão em massa do `scripts/` **não** respeita o silêncio
+    (decisão declarada — ver `scripts/README.md`).
+  - **success (nada é apagado):** silenciar nunca escreve em `edicoes_ia`, e caderno
+    fora de `pedidos` sobrevive à sequência. Dessilenciar traz de volta, intacto, tudo
+    o que já tinha sido impresso.
 
 ## Constraints
 
@@ -233,7 +242,14 @@ que torna a disciplina de pré-registro parte do desenho e não um refinamento.
   métricas de saúde, hábitos e registros** — o caminho direto para as 30 comparações que
   o pré-registro existe para evitar.
 - **Reordenação manual do miolo pelo leitor.** Aposentada por decisão do dono em
-  07/09/2026, com `RetroPrefs.order` e a prova de gráfica por usuário saindo junto.
+  07/09/2026, com a prova de gráfica por usuário saindo junto.
+  **Refinado em 23/09/2026, na Story 2.5:** saem as *setas* e saem `moveBlock`,
+  `layoutEditable`, `proofStartedOn`, `PROOF_DAYS`, `DEATH_DAYS` e `deadBlocks` — mas
+  **`RetroPrefs.order` FICA, congelada e valendo**. Ela não é a ordem do miolo da
+  revista (essa vem da coluna `posicao`); é a diagramação da **Retrospectiva**, e o
+  dono tem um arranjo próprio em produção — `sleep` em 3º, `habits` em 5º. Apagar a
+  chave, ou "ignorá-la na resolução", devolveria a tela dele ao catálogo sem que
+  ninguém pedisse. Quem for terminar o serviço um dia: o serviço já está terminado.
 - **A investigação das quatro métricas mortas** (respiração 10/07, VO₂max 14/07, SpO₂
   16/07, anéis 17/08). A lápide narra o fato; diagnosticar a causa é trabalho
   independente.

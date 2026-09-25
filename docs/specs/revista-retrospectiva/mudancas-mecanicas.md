@@ -110,17 +110,28 @@ teste mudou depois de ver o resultado.
 
 | Sai | O que era |
 |---|---|
-| `RetroPrefs.order` · `moveBlock` | a ordem escolhida pelo leitor |
+| `moveBlock` | as setas que reordenavam os blocos |
 | `layoutEditable` · `proofStartedOn` · `PROOF_DAYS` | a prova de gráfica por usuário |
 | `DEATH_DAYS` · `deadBlocks` | blocos escondidos há 60 dias virando candidatos a remoção |
 
+> **Correção de 23/09/2026 (Story 2.5), sobre a linha que esta tabela dizia antes.**
+> Ela listava `RetroPrefs.order` como saindo junto com `moveBlock`, e a prosa abaixo
+> mandava a chave ser "ignorada na resolução". **Não é isso.** O que sai é o *editor*
+> — as setas —, não o *dado*: `order` continua sendo resolvida, respeitada e gravada.
+> Ela nunca foi a ordem do miolo da revista (essa vem da coluna `posicao`, congelada
+> na impressão); é a diagramação da **Retrospectiva**, e o dono arrumou a dele em
+> produção — `sleep` em 3º, `habits` em 5º. Ignorá-la na resolução devolveria a tela
+> dele ao catálogo, em silêncio, na primeira abertura.
+
 **Fica `hidden`.** Esconder é outro poder — *"Rotina nunca"* — e é a única forma de o
-leitor discordar da revista; o ranqueamento não substitui, porque um caderno
-indesejado lidera justamente no mês em que varia mais.
+leitor discordar da **Retrospectiva**. Para discordar da **revista**, a 2.5 deu o par
+dele: `cadernosOcultos`, o silêncio por caderno, que também tira o caderno da lista de
+candidatos da impressão. O ranqueamento não substitui nenhum dos dois, porque um
+caderno indesejado lidera justamente no mês em que varia mais.
 
 **Sem migration.** `resolveRetroPrefs` é defensivo por desenho (chave ausente herda o
-default), então a chave `order` passa a ser **ignorada na resolução** e o jsonb em
-produção fica como está.
+default), então a chave nova entra e as que saíram (`proofStartedOn`) caem em silêncio,
+com o jsonb em produção ficando como está.
 
 O painel **"Diagramação"** em [`mobile/src/app/retrospectiva/index.tsx:735`](../../../mobile/src/app/retrospectiva/index.tsx)
 não some — emagrece: perde as duas setas de cada linha e fica só o olho. A legenda

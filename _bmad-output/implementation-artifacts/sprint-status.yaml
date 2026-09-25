@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: 23-09-2026 03:05
+last_updated: '2026-09-24'
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -281,8 +281,43 @@ development_status:
   # Antes de reimprimir, o dono exporta o texto atual das cinco para
   # docs/specs/revista-retrospectiva/, como as 7 antigas na janela da 1.9.
   2-3-a-impressão-em-massa-dos-períodos-fechados: review
-  2-4-a-parede-de-capas: backlog
-  2-5-silenciar-um-caderno: backlog
+  # DIVIDIDA EM 24/09/2026, por decisão do dono sobre uma proposta visual montada
+  # com o arquivo real (4 pranchas). Duas entregas que embarcam sozinhas:
+  #   2-4a os dois desenhistas — `tracado` em SVG e `grade` —, ligados já na rota
+  #        da edição que EXISTE e que hoje desenha papel liso para as duas (17 dos
+  #        39 meses do arquivo). Sem leitura nova: a rota sai de `fetchRouteSurface`
+  #        e os dias da grade já vêm no RetroInput da tela.
+  #   2-4b a parede em si — tela de 2 colunas, leitura EM LOTE de `edicoes_capa`
+  #        (hoje `fetchCapa` lê uma edição por chamada) e de rotas, e as tiras do
+  #        ano lendo `metrica_lider`, que nem está em ARQUIVO_COLUMNS.
+  # AS TRÊS DECISÕES DO DONO, sobre medição do acervo (24/09):
+  #  1. A parede mostra MESES + o ano como 4 tiras. TRIMESTRE NÃO ENTRA — ele herda
+  #     a foto de UMA pedalada e borra a textura (4 de 6 trimestres com foto antes
+  #     de 2025, contra 6 de 19 meses). Só com meses o critério do épico vira
+  #     verdade: 13 de 21 meses sem foto até mar/2025, 19 de 20 com foto depois.
+  #     `escolherCapa` NÃO muda — re-carimbar custaria ~190 chamadas pagas.
+  #  2. A grade conta atividade E registro. Só com atividade, 8 das 9 grades
+  #     virariam blocos vazios idênticos; com as duas, jun/2023 tem 21 de 30 dias
+  #     e os de 2024 têm de 1 a 8 — e a diferença é a informação.
+  #  3. A legibilidade do traçado a 173 px fica para o veredito no iPhone; o
+  #     limiar nasce declarado e ajustável (as 6 rotas têm 10 a 135 pontos).
+  2-4a-os-dois-desenhistas-da-capa: review
+  2-4b-a-parede-de-capas: backlog
+  2-5-silenciar-um-caderno: review
+  # NASCEU EM 24/09/2026, de um defeito MEDIDO no arquivo que a corrida da 2.3
+  # acabou de imprimir: 68 ocorrências de "1 dias" em 37 linhas, 35 dos 45
+  # períodos, SEMPRE no caderno rotina. Não é o modelo: pelo ADR 0049 o número e
+  # a unidade são do código, e `pacote.ts` declara `unidade: 'dias'` como string
+  # fixa que `prompt.ts:126` cola em qualquer valor. Uma varredura por regex sobre
+  # o acervo inteiro devolve SÓ este caso — km, h, m e bpm são símbolos.
+  # O script ganha `--caderno <id>`, que o NÚCLEO JÁ SABE FAZER
+  # (`OpcoesDaImpressao.cadernos`) e que o script não usava: com ele a correção
+  # custa ~37 chamadas em vez de ~105, e os outros cadernos não são tocados.
+  # DUAS REGRAS QUE ELA NÃO PODE QUEBRAR: a reimpressão parcial nunca troca capa
+  # existente (há 4 escolhidas à mão em produção — 3 `trocada`, 1 `estrela`), e
+  # `PACOTE_VERSAO` não sobe, porque é por ele que a 2.3 julga o que já foi
+  # renovado. Quem reimprime é o dono.
+  2-8-o-número-e-a-unidade-concordam: review
   epic-2-retrospective: optional
 
   epic-3: backlog

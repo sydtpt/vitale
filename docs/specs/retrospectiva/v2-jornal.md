@@ -14,7 +14,7 @@ antever:
 |---|---|
 | Manchete — uma por edição | O parágrafo (§3), no topo da tela |
 | Editor que escolhe a manchete | A ordenação por classe (§2.2) |
-| Diagramação estável — mesmas seções, mesma ordem | Sistema de blocos (§6) |
+| Diagramação estável — mesmas seções, mesma ordem | Sistema de blocos (§6) — congelada desde a Story 2.5 |
 | Gráfico como apoio, nunca como a matéria | Heatmap (§4) e séries (§5), dentro de seções |
 | Caixa de correções | Exibição do `n` (§2.3) e do "não medido" |
 | Página de opinião, separada | **Fora deste escopo** → F3 no `backlog-de-features.md` |
@@ -62,7 +62,8 @@ fonte bonita.
 - **Forma 05 — o parágrafo** (§3). A manchete.
 - **Forma 02 — heatmap genérico em N** (§4).
 - **Forma 03 — seletor das séries do `MonthBucket`** (§5).
-- **Sistema de blocos** com prova de gráfica e congelamento (§6).
+- **Sistema de blocos** (§6). *A prova de gráfica e o congelamento que estavam aqui foram
+  revogados na Story 2.5 — ver §6.1.*
 
 **Fora:**
 - Seção de dicas/conselho → **F3** no `backlog-de-features.md`.
@@ -239,7 +240,7 @@ O divergente exige saber a meta. **No dia 1 a meta é uma constante no shared** 
 
 ---
 
-## 6. Sistema de blocos — e o critério de morte
+## 6. Sistema de blocos
 
 O usuário pediu explicitamente: *"incluir ideias, ver quais uso mais, e depois refinar ou
 remover."* Isso só funciona se remover for barato.
@@ -248,23 +249,63 @@ remover."* Isso só funciona se remover for barato.
   `user_preferences` (a mesma jsonb do `notification_prefs`).
 - Adicionar bloco = uma entrada. Matar bloco = deletar uma entrada. Sem cirurgia no
   template.
-- **Reordenar é o sensor.** O que ele mais usa sobe. Sem telemetria — o app tem um
-  usuário; a decisão explícita vale mais que o evento.
+- **Reordenar era o sensor.** O que ele mais usava subia. Sem telemetria — o app tem um
+  usuário; a decisão explícita vale mais que o evento. *(As setas saíram na Story 2.5 — ver
+  §6.1.)*
 
-### 6.1 Prova de gráfica → congelamento
+### 6.1 Prova de gráfica → congelamento — **revogada na Story 2.5**
 
-Aqui existe uma tensão real e ela tem resolução:
+Aqui existia uma tensão real:
 
 > Um jornal é **igual toda edição** — é a definição. Isso briga com blocos que o leitor
 > rediagrama toda semana. Um jornal reordenável não é jornal, é feed.
 
-**Resolução:** os primeiros **60 dias** são a *prova de gráfica*. Ele testa, esconde,
-mata. Depois disso:
+**A resolução original** foram os primeiros **60 dias** como *prova de gráfica*: ele testa,
+esconde, mata; depois disso, bloco escondido por 60 dias sem reativação sairia do código, e a
+diagramação **congelaria** — o controle de ordem deixando de ser exposto.
 
-- **bloco escondido por 60 dias sem reativação → sai do código;**
-- a diagramação **congela** e o controle de ordem deixa de ser exposto.
+**As duas regras saíram em 23/09/2026** (Story 2.5), e o motivo de cada uma:
 
-Portfólio primeiro, publicação depois. A regra é a mesma; ganhou linha de chegada.
+- **o congelamento**, porque o que ele protegia já é verdade sem ele: a ordem do miolo da
+  revista vem da coluna `posicao`, gravada na impressão, e não da `order` desta tela. O que
+  restava era um botão que sumiria em 24/10/2026 e levaria junto o único caminho até o painel;
+- **os 60 dias**, porque `deadBlocks` nunca teve um chamador de produção. Regra que ninguém
+  executa não é regra, é prosa — e o campo que ela lia (`hidden[id]`, a data) ficou na forma
+  sem ninguém para lê-lo. Isso está declarado no TSDoc de `RetroPrefs`, para não ser
+  redescoberto como defeito.
+
+**A `order` já gravada fica e continua valendo** — ela só deixou de ser editável na tela.
+`proofStartedOn` sai de `RetroPrefs`; um jsonb antigo que ainda o tenha perde a chave em
+silêncio na primeira gravação, porque `resolveRetroPrefs` monta o objeto do zero.
+
+**O custo novo, declarado:** um bloco criado **depois** da 2.5 entra no fim da `order` já
+salva — é o que `resolveRetroPrefs` sempre fez, para que uma seção nova nunca suma — e
+**fica lá para sempre**, porque não há mais UI para movê-lo. Hoje a `order` do dono tem 13
+entradas e as cinco primeiras são as que ele lê; o 14º bloco nasceria abaixo delas, sem
+recurso. As saídas, quando isso incomodar, são três e nenhuma é gratuita: devolver as setas,
+dar ao bloco novo uma posição autoral no catálogo com um passe de resolução que a respeite,
+ou zerar a `order` dele de propósito. É o mesmo tipo de custo que a data não lida em
+`hidden` e a perda silenciosa por app antigo — declarado aqui para não ser redescoberto
+como defeito.
+
+### 6.2 Silenciar um caderno da revista (Story 2.5)
+
+O painel ganhou uma **segunda lista**, e ela é de outro vocabulário: os quatro **cadernos da
+revista** (`CadernoId`, dono único em `period/cadernos.ts`), com um olho cada, em
+`RetroPrefs.cadernosOcultos`.
+
+Silenciar é a única forma de **contrariar a revista**. O caderno silenciado:
+
+- some do miolo, do sumário e da manchete — que passa para o **primeiro caderno visível**,
+  nunca nula por causa do buraco na `posicao`;
+- **deixa de ser pedido à nuvem** quando o telefone imprime: o filtro entra em
+  `OpcoesDaImpressao.cadernos`, a lista de candidatos, **antes da primeira chamada paga**;
+- **continua gravado**. Silenciar nunca escreve em `edicoes_ia`, e caderno fora de `pedidos`
+  sobrevive à sequência — dessilenciar traz de volta tudo o que já foi impresso.
+
+O núcleo não conhece preferência: quem filtra é o hospedeiro. O telefone lê
+`cadernosVisiveis(prefs)` e passa; `scripts/revista/imprimir.ts` segue sem passar, e imprime
+os quatro.
 
 ---
 
@@ -286,6 +327,23 @@ sem I/O:
 | T8 | Dia sem dado ≠ dia neutro | §4 |
 | T9 | Lede em `all` sai sem delta | §3 |
 
+**Story 2.5 — o silêncio (§6.2).** As suítes vivem em três arquivos, e a divisão é o
+critério: o núcleo com o núcleo, a tela com as fixtures da tela, e a fiação numa barreira
+de código-fonte.
+
+| # | Teste | Onde | Prova |
+|---|---|---|---|
+| T10 | `cadernosVisiveis` sobre jsonb bom, podre (`7`, `'x'`, `[]`, id inventado, valor não-string) e **ausente** | `retro.test.ts` | §6.2 — o guarda é `isCadernoId`, e chave ausente ⇒ os quatro |
+| T11 | Carimbo `''` não atravessa a resolução, nos **dois** mapas | `retro.test.ts` | §6.2 — `resolveRetroPrefs` e o `if (ocultos[id])` dos leitores têm que concordar |
+| T12 | `toggleCaderno` sobre `RetroPrefs` **legado**, sem a chave | `retro.test.ts` | o caminho real de todo aparelho vindo do build anterior |
+| T13 | A `order` salva sobrevive; `proofStartedOn` cai em silêncio | `retro.test.ts` | §6.1 — o editor saiu, o dado ficou |
+| T14 | Manchete passa ao **primeiro caderno visível**; miolo e sumário sem o silenciado | `edicao-store.test.ts` | §6.2 — `find(posicao === 1)` devolveria `undefined` |
+| T15 | Os candidatos que chegam à sequência: 3 em vez de 4; ausente sem silêncio; **nenhuma chamada** com os quatro calados | `edicao-store.test.ts` | §6.2 — o efeito econômico, antes da primeira chamada paga |
+| T16 | jsonb **cru** do cache: a ação vê a mesma lista que as telas | `edicao-store.test.ts` | a hidratação do boot não resolve; o caminho que paga não pode dispensar a resolução |
+| T17 | Silenciar **no meio** de uma impressão não tira o caderno da corrida já paga | `edicao-store.test.ts` | comportamento declarado (o retrato único), não acidente |
+| T18 | O beco: miolo vazio por silêncio ganha aviso; com convite ou impressão correndo, cala | `edicao-store.test.ts` | §6.2 — rota sem saída é defeito |
+| T19 | As duas telas passam a lista, e a derivam de `resolveRetroPrefs` | `silencio-fiacao.test.ts` | o 4º argumento tem padrão: apagá-lo desliga a feature com a suíte verde |
+
 ---
 
 ## 8. Ordem de implementação
@@ -294,7 +352,9 @@ sem I/O:
 2. **Forma 05** (§3) — a manchete. Só faz sentido depois de 1.
 3. **Forma 03** (§5) — a mais barata: um seletor sobre agregação existente.
 4. **Forma 02** (§4) — o componente novo, genérico em `N`.
-5. **Sistema de blocos** (§6) — quando houver mais de um bloco para ordenar.
+5. **Sistema de blocos** (§6) — ~~quando houver mais de um bloco para ordenar~~. *Feito, e a
+   ordenação foi revogada na Story 2.5 (§6.1): os blocos se escondem, não se movem. O que
+   nasceu no lugar foi o silêncio por caderno da revista (§6.2).*
 6. *(Depois, quase de graça)* Aposta 01: o heatmap da §4 com `N = 7` no modo semanal.
 
 > **Não comece pela forma.** As três formas em cima da v1 decoram números que o usuário

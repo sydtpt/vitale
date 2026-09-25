@@ -203,7 +203,9 @@ function depsDoCarimbo(userId: string): DepsDoCarimbo {
  * oferece com zero cadernos impressos —, e sem essa regra ela ficaria em papel
  * para sempre, sem conserto. Uma parcial **nunca troca capa existente**: a foto e
  * a legenda são do período, não do caderno, e o que uma parcial pode mover na capa
- * é só a manchete, que continua derivada do caderno em `posicao` 1.
+ * é só a manchete, que continua derivada do miolo — desde a 2.5, o **primeiro
+ * caderno visível** (`chamadaDaCapa`, em `store/edicao.store.ts`), e não mais o
+ * caderno em `posicao` 1.
  *
  * **Nunca rejeita.** Carimbar não é atômico com a impressão (decisão do dono,
  * 17/09: ensinar `edicao_imprimir` a receber capa seria migração em produção), e

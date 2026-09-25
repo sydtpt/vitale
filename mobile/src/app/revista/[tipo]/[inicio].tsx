@@ -1,23 +1,35 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import {
+  View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet,
+  useWindowDimensions, type LayoutChangeEvent,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AGG_VERSION,
   MODULO_DO_CADERNO,
+  cadernosVisiveis,
+  desenhoDaCapa,
+  resolveRetroPrefs,
   rotuloDoCaderno,
   type CadernoId,
   type ActivityPhoto,
+  type DesenhoDaCapa,
   type LapideNaEdicao,
   type TipoComEdicao,
 } from '@vitale/shared';
 import { CapaAberta } from '../../../components/revista/CapaAberta';
 import { CapaComFoto } from '../../../components/revista/CapaComFoto';
+import { CapaGrade } from '../../../components/revista/CapaGrade';
+import { CapaTracado } from '../../../components/revista/CapaTracado';
+import { FRACAO_DA_ALTURA_DA_CAPA, MUDO } from '../../../components/revista/constantes-da-capa';
 import { MarcaDoToque } from '../../../components/revista/MarcaDoToque';
 import { useEntradaDaEdicao } from '../../../hooks/useEntradaDaEdicao';
 import { useFotoDaCapa } from '../../../hooks/useFotoDaCapa';
+import { useGradeDaCapa } from '../../../hooks/useGradeDaCapa';
 import { useRolagemAncorada, type Ancora } from '../../../hooks/useRolagemAncorada';
+import { useRotaDaCapa } from '../../../hooks/useRotaDaCapa';
 import {
   ICONE_DO_CADERNO,
   TrocaRecusada,
@@ -29,6 +41,7 @@ import {
   tituloDaCapa,
 } from '../../../lib/edicao-ia';
 import { useAuthStore } from '../../../store/auth.store';
+import { useSettingsStore } from '../../../store/settings.store';
 import {
   AVISO_SEM_CADERNO,
   chaveDe,
@@ -78,6 +91,14 @@ import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '..
  * ficha embaixo (por que esta foto, quando, em que atividade, por onde), e a
  * ficha oferece a troca. O `Modal` da capa aberta mora **fora** do `ScrollView`,
  * que continua montado por baixo — fechar devolve a edição na mesma posição.
+ *
+ * A **2.4a** acabou com o "que ninguém desenha ainda": as capas `tracado` e
+ * `grade` deixaram de cair no papel liso e ganharam desenhista — a rota do
+ * período em SVG, e a grade dos dias que tiveram atividade ou registro. Os dois
+ * nascem dentro de `CapaEmPapel`, no lugar do fundo, e os dois são componentes
+ * burros sobre funções puras do núcleo, para a parede (2.4b) os reusar a 173 px.
+ * **Nenhum WebView** entra por este caminho: um processo de conteúdo por capa é o
+ * que a 1.13 tirou da árvore.
  */
 export default function RevistaScreen() {
   const styles = useThemedStyles(createStyles);
@@ -168,7 +189,20 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
    */
   const lapides = useMemo(() => lapidesDaEntrada(entrada), [entrada]);
 
-  const vista = useMemo(() => vistaDaEdicao(estado, comDado, AGG_VERSION), [estado, comDado]);
+  /**
+   * Os cadernos que o dono não silenciou no painel Diagramação (Story 2.5).
+   *
+   * A preferência é resolvida de novo aqui — e não lida crua — porque o cache
+   * local pode ter sido gravado por uma versão anterior do app: `resolveRetroPrefs`
+   * monta o objeto do zero, com as chaves que esta versão conhece.
+   */
+  const retroPrefs = useSettingsStore((s) => s.preferences?.retroPrefs);
+  const visiveis = useMemo(() => cadernosVisiveis(resolveRetroPrefs(retroPrefs ?? null)), [retroPrefs]);
+
+  const vista = useMemo(
+    () => vistaDaEdicao(estado, comDado, AGG_VERSION, visiveis),
+    [estado, comDado, visiveis],
+  );
 
   /**
    * A imagem da capa carimbada (Story 1.13), resolvida **fora** do `switch`:
@@ -178,6 +212,21 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
    */
   const carimbada = vista.tipo === 'edicao' ? vista.capa.carimbada : null;
   const foto = useFotoDaCapa(carimbada);
+
+  /**
+   * Os dois desenhistas da capa (Story 2.4a) — **fora** do `switch` pela mesma
+   * razão da foto.
+   *
+   * `natureza` já vem da vista com a guarda de edição impressa, e é ela que decide
+   * o que buscar: a rota só para a capa `tracado`, a grade para ela e para a
+   * `grade` (a rota curta cai ali). A decisão final é do núcleo — `desenhoDaCapa`,
+   * onde ela tem teste —, e o que sobra aqui é só juntar o que cada porta trouxe.
+   */
+  const natureza = vista.tipo === 'edicao' ? vista.capa.natureza : null;
+  const rota = useRotaDaCapa(natureza === 'tracado' ? carimbada : null);
+  const grade = useGradeDaCapa(tipo, offset, now, natureza === 'tracado' || natureza === 'grade');
+  // A decisão E o dado vêm juntos do núcleo — não sobra guarda nenhuma aqui.
+  const desenho = useMemo(() => desenhoDaCapa(natureza, rota, grade), [natureza, rota, grade]);
 
   /**
    * O sumário e as faixas, ligados pela âncora (Story 1.14) — **fora** do
@@ -265,7 +314,7 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
       );
 
     case 'edicao': {
-      const { capa, cadernos } = vista;
+      const { capa, cadernos, avisoDoSilencio } = vista;
       /**
        * **Quem decide "foto ou papel" é a vista** (`capa.comFoto`), que é onde a
        * matriz a testa. A tela só acrescenta o que a vista não pode saber: se o
@@ -296,8 +345,23 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
                 {...(onAbrir ? { onAbrir } : {})}
               />
             ) : (
-              <CapaEmPapel capa={capa} onEscrever={escreverEdicao} {...(onAbrir ? { onAbrir } : {})} />
+              <CapaEmPapel
+                capa={capa}
+                desenho={desenho}
+                onEscrever={escreverEdicao}
+                {...(onAbrir ? { onAbrir } : {})}
+              />
             )}
+
+            {/* O beco do silêncio (Story 2.5): miolo vazio porque o dono calou os
+                cadernos, e a Diagramação mora na outra tela. Sem esta linha a rota
+                é capa e nada — sem botão, sem aviso, sem caminho de volta. Quem
+                decide se ela aparece é a vista, que tem teste. */}
+            {avisoDoSilencio ? (
+              <View style={styles.aviso}>
+                <Text style={styles.lab}>{avisoDoSilencio}</Text>
+              </View>
+            ) : null}
 
             {/* Capa → sumário → cadernos, nesta ordem: é a forma da revista.
                 Miolo vazio não tem sumário — ali o convite está na capa. */}
@@ -350,15 +414,33 @@ function vistaNaoTratada(nunca: never): null {
 }
 
 /**
- * A capa **em papel** — a da 1.11, agora também o caminho de queda da 1.13.
+ * A capa **em papel** — a da 1.11, o caminho de queda da 1.13, e desde a 2.4a a
+ * casa dos dois desenhistas.
  *
- * Ela desenha em quatro situações, e as quatro são a mesma coisa para o leitor:
- * o período não foi escrito, a edição é anterior ao carimbo, a capa carimbada é
- * `tracado` ou `grade` (que ninguém desenha ainda), ou a foto não resolve mais.
- * **Nenhum espaço fica reservado** para a imagem que não veio.
+ * Ela desenha em quatro situações: o período não foi escrito, a edição é anterior
+ * ao carimbo, a foto não resolve mais, ou a capa carimbada é `tracado`/`grade`.
+ * **Só a quarta tem desenho** — e nela o papel deixa de ser liso: a rota do
+ * período, ou a grade dos dias que tiveram alguma coisa.
+ *
+ * Três decisões de composição:
+ *
+ * - **o desenho ocupa o que sobra por cima do texto**, e não a capa inteira. Uma
+ *   polilinha em `graphic` atrás da manchete cumpriria o piso de 3,0 de objeto
+ *   gráfico e estragaria o de 4,5 da letra, que é medido contra a superfície. Com
+ *   o texto embaixo e o desenho acima, nenhum pixel de letra senta sobre traço;
+ * - **a altura mínima só existe quando há desenho** — ou quando ele está a
+ *   caminho (`reservando`). Sem nenhum dos dois vale a regra da 1.13: nenhum
+ *   espaço fica reservado para a imagem que não veio. E é a reserva durante a
+ *   busca que impede a capa de nascer baixa e pular quando a rota chega, com a
+ *   edição já na tela;
+ * - **a caixa é medida, e a medida não depende do desenho**: as duas alturas saem
+ *   do mesmo `onLayout` que roda com ou sem ele, senão a reserva só seria medida
+ *   depois de já ter mudado a altura que ela deveria evitar mudar.
  */
-function CapaEmPapel({ capa, onEscrever, onAbrir }: {
+function CapaEmPapel({ capa, desenho, onEscrever, onAbrir }: {
   capa: CapaNaVista;
+  /** O que entra no lugar do fundo liso — `papel` quando nada entra. */
+  desenho: DesenhoDaCapa;
   onEscrever: () => void;
   /**
    * A capa de foto cuja imagem não resolveu continua abrindo (1.16): a ficha sabe
@@ -367,15 +449,51 @@ function CapaEmPapel({ capa, onEscrever, onAbrir }: {
   onAbrir?: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
+  const { height } = useWindowDimensions();
+  /** Há desenho, ou ele está a caminho: nos dois casos a capa reserva a altura. */
+  const reservando = desenho.tipo !== 'papel';
+
+  // A caixa da capa e a altura do bloco de texto, medidas — é a diferença entre
+  // as duas que sobra para o desenho. Ambas em estado porque o desenho depende
+  // delas, e ambas arredondadas: fração de pixel a cada passo de layout faria o
+  // `useMemo` da projeção recalcular sem nada mudar na tela.
+  const [caixa, setCaixa] = useState({ largura: 0, altura: 0 });
+  const [alturaDoTexto, setAlturaDoTexto] = useState(0);
+  const medirCapa = useCallback((e: LayoutChangeEvent) => {
+    const largura = Math.round(e.nativeEvent.layout.width);
+    const altura = Math.round(e.nativeEvent.layout.height);
+    setCaixa((antes) => (antes.largura === largura && antes.altura === altura ? antes : { largura, altura }));
+  }, []);
+  const medirTexto = useCallback((e: LayoutChangeEvent) => {
+    const h = Math.round(e.nativeEvent.layout.height);
+    setAlturaDoTexto((antes) => (antes === h ? antes : h));
+  }, []);
+
+  const alturaDoDesenho = Math.max(0, caixa.altura - alturaDoTexto);
+  const cabe = caixa.largura > 0 && alturaDoDesenho > 0;
+  const fundo = cabe ? (
+    // Absoluto e sem toque: é fundo. A descrição em palavras é a legenda
+    // carimbada, logo abaixo, em texto de verdade. Em `reservando` a caixa existe
+    // e fica vazia — é o que segura a altura enquanto a rota não chega.
+    <View style={[styles.capaFundo, { height: alturaDoDesenho }]} pointerEvents="none" {...MUDO}>
+      {desenho.tipo === 'tracado' ? (
+        <CapaTracado overview={desenho.overview} largura={caixa.largura} altura={alturaDoDesenho} />
+      ) : desenho.tipo === 'grade' ? (
+        <CapaGrade grade={desenho.grade} largura={caixa.largura} altura={alturaDoDesenho} />
+      ) : null}
+    </View>
+  ) : null;
+
   const conteudo = (
-    <>
+    <View style={styles.capaConteudo} onLayout={medirTexto}>
       <Text style={styles.eyebrow}>A edição</Text>
       <Text style={styles.periodo} accessibilityRole="header">{capa.periodo}</Text>
       {capa.impressa ? (
         <>
           {capa.manchete ? <Text style={styles.manchete}>{capa.manchete}</Text> : null}
-          {/* A legenda da capa de foto cuja imagem faltou — a descrição no lugar
-              dela —, e a marca do toque no canto, na mesma linha. */}
+          {/* A legenda carimbada — a das três naturezas desde a 2.4a: a descrição
+              da foto que faltou, a cidade e o quilômetro do traçado, o período da
+              grade. E a marca do toque no canto, na mesma linha. */}
           {capa.legenda || onAbrir ? (
             <View style={styles.capaPe}>
               {capa.legenda ? <Text style={styles.legenda}>{capa.legenda}</Text> : <View style={styles.legendaVazia} />}
@@ -398,16 +516,30 @@ function CapaEmPapel({ capa, onEscrever, onAbrir }: {
           ) : null}
         </>
       )}
-    </>
+    </View>
   );
+
+  // `minHeight` e `justifyContent: 'flex-end'` só com desenho — ou com ele a
+  // caminho —, como na capa de foto: o texto encosta embaixo e o que sobra em cima
+  // é a caixa do desenhista. Com texto longo a capa cresce, em vez de cortar.
+  const forma = reservando
+    ? [styles.capa, styles.capaComDesenho, { minHeight: Math.round(height * FRACAO_DA_ALTURA_DA_CAPA) }]
+    : [styles.capa];
+
   // Tocável só quando abre — nas outras três situações a capa em papel continua
   // sendo a `View` de sempre. E `accessible={false}` pelo mesmo motivo da capa com
   // foto: o botão do leitor de tela é o disco, e o período e a manchete seguem
   // sendo lidos como texto.
   return onAbrir ? (
-    <Pressable style={styles.capa} onPress={onAbrir} accessible={false}>{conteudo}</Pressable>
+    <Pressable style={forma} onPress={onAbrir} onLayout={medirCapa} accessible={false}>
+      {fundo}
+      {conteudo}
+    </Pressable>
   ) : (
-    <View style={styles.capa}>{conteudo}</View>
+    <View style={forma} onLayout={medirCapa}>
+      {fundo}
+      {conteudo}
+    </View>
   );
 }
 
@@ -703,12 +835,23 @@ const createStyles = () =>
     aviso: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, gap: spacing.sm },
     linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 
-    // A capa em papel: a superfície, e o filete que a separa do miolo.
+    /**
+     * A capa em papel: a superfície, e o filete que a separa do miolo.
+     *
+     * **O recuo mora no conteúdo, e não aqui** (2.4a): o desenho de fundo é
+     * absoluto, e com o `padding` nesta folha ele nasceria empurrado para dentro
+     * pelos 20 dp do texto — a rota sairia com duas margens somadas, uma delas
+     * invisível no código que a calcula.
+     */
     capa: {
       backgroundColor: colors.surface,
-      paddingHorizontal: spacing.xl, paddingTop: 34, paddingBottom: 26,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
     },
+    // Com desenho, o texto encosta embaixo e o que sobra em cima é do desenhista.
+    capaComDesenho: { position: 'relative', overflow: 'hidden', justifyContent: 'flex-end' },
+    // O desenho ocupa do topo até onde o texto começa — nunca por baixo dele.
+    capaFundo: { position: 'absolute', left: 0, right: 0, top: 0 },
+    capaConteudo: { paddingHorizontal: spacing.xl, paddingTop: 34, paddingBottom: 26 },
     eyebrow: {
       fontSize: 11, fontFamily: fonts.sansBold, textTransform: 'uppercase',
       letterSpacing: 1.1, color: colors.ink3, marginBottom: 6,
