@@ -184,8 +184,8 @@ O que se testa **não** é a redação — é o pacote. Entrada fixa (período f
 saída esperada (conjunto de fatos, com os deltas certos e as lacunas declaradas). Isso é
 teste normal, determinístico, no `packages/shared`, ao lado dos 621 que já existem.
 
-Sobre a saída do modelo, **oito** verificações mecânicas e baratas — as três primeiras estão
-aqui desde o começo, e as cinco seguintes entraram porque a medição as cobrou, cada uma com a
+Sobre a saída do modelo, **nove** verificações mecânicas e baratas — as três primeiras estão
+aqui desde o começo, e as seis seguintes entraram porque a medição as cobrou, cada uma com a
 data e o caso que a impôs (`packages/shared/src/ia/verificar.ts`):
 
 1. **Todo número citado existe no pacote.** Regex + comparação. Falhou, rejeita.
@@ -203,12 +203,20 @@ data e o caso que a impôs (`packages/shared/src/ia/verificar.ts`):
    ("66,7% do total do anterior", quando 66,7 é o `deltaPct`). Exige **unanimidade** entre as
    métricas nomeadas na janela: uma concordando já absolve.
 8. **O período se chama pelo que é** (25/09). Caderno de semana que diz "mês anterior".
+9. **O numeral por extenso passa pelo mesmo teste da primeira** (25/09, medido no iPhone). O
+   `citacoes()` só vê dígito, e o modelo da Apple escreveu um caderno inteiro por extenso: das
+   cinco corridas de dígito que sobraram, **todas eram data**, a regra 1 não teve o que conferir
+   e aprovou um texto que dizia *"doze mil, três trêscentos e oitenta"* para **12.338**. Só
+   numeral **composto** ou solteiro de `onze` para cima, para o artigo `um`/`uma` não virar
+   quantidade.
 
 O que resta — se a manchete escolhida é *a boa*, se a prosa é boa, se o que foi contado era o
 que valia contar — não é testável e não se finge que é. É julgamento do leitor, que é uma
 pessoa só e está disponível. **O limite é medido, não suposto:** em 25/09 a nuvem passou nas
-oito escrevendo o pacote em voz alta, com sete `(contra o período anterior: 0)` — forma
-sofrível que nenhuma regra pega, porque nenhum fato dela está errado.
+nove escrevendo o pacote em voz alta, com sete `(contra o período anterior: 0)` — forma
+sofrível que nenhuma regra pega, porque nenhum fato dela está errado. E o mesmo texto que a
+regra 9 pegou pelos números também dizia *"algo inédito para este calendário"* sobre um recorde
+que não existe no pacote: **afirmação qualitativa inventada continua fora do alcance.**
 
 ## 6. Caso de trabalho: agosto de 2026
 

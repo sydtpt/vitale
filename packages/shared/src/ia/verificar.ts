@@ -15,6 +15,7 @@
  *   6. o texto não é o pedido de volta
  *   7. a relação afirmada sobre o número concorda com o delta
  *   8. o período se chama pelo que é
+ *   9. o numeral por extenso passa pelo mesmo teste da 1
  *
  * A quinta muda a pergunta que a conferência faz. As quatro primeiras perguntam
  * *"esse número existe?"*; a quinta pergunta *"esse número existe **como B2**, e
@@ -70,6 +71,15 @@
  * positivos** em prosa boa. A forma que entrou exige **unanimidade** na janela de
  * decisão e dá **zero**, sem perder nenhuma das reprovações verdadeiras. A
  * medição está em `verificar-corrida.test.ts` e em `verificar-relacao.test.ts`.
+ *
+ * ## A nona: a régua só via dígito (25/09, a corrida no iPhone)
+ *
+ * Com as oito instaladas no aparelho, a corrida seguinte trouxe o mesmo motor da
+ * Apple escrevendo o caderno **todo por extenso** — cinco corridas de dígito no
+ * texto, todas data. A regra 1 não teve o que conferir e aprovou por vacuidade, sobre
+ * um texto que dizia *"doze mil, três trêscentos e oitenta"* para **12.338**. A nona
+ * lê o numeral por extenso e o submete ao mesmo teste da primeira. Ver
+ * `PALAVRAS_DE_NUMERO` e `verificar-extenso.test.ts`.
  *
  * Puro, sem rede, sem provedor — roda igual sobre a saída de qualquer modelo, o
  * que é justamente o que faz trocar de fornecedor custar uma tarde (ADR 0040).
@@ -1292,6 +1302,12 @@ const PALAVRAS_DE_RELACAO: readonly PalavraDeRelacao[] = Object.freeze([
   { termo: 'dobrou', afirma: 'sobe', razao: 2 },
   { termo: 'triplicou', afirma: 'sobe', razao: 3 },
   { termo: 'quadruplicou', afirma: 'sobe', razao: 4 },
+  // O múltiplo como SUBSTANTIVO. Entrou em 25/09 com *"quase o dobro do valor
+  // anterior"* sobre um anterior que era **zero** — nada é quase o dobro de zero, e
+  // o vocabulário só conhecia a forma verbal.
+  { termo: 'o dobro', afirma: 'sobe', razao: 2 },
+  { termo: 'o triplo', afirma: 'sobe', razao: 3 },
+  { termo: 'o quadruplo', afirma: 'sobe', razao: 4 },
   // ── desceu ──
   { termo: 'caiu', afirma: 'desce' },
   { termo: 'cairam', afirma: 'desce' },
@@ -1378,9 +1394,19 @@ interface RelacaoDoPacote {
 function relacoesJuntoDe(
   norm: string, ini: number, fim: number, pacotes: readonly PacoteDeFatos[],
 ): readonly RelacaoDoPacote[] {
+  // A janela mede a distância **de borda a borda**, e a fatia leva margem para o
+  // rótulo que a encosta. Sem a margem, `Tempo` acabando 62 caracteres antes de
+  // *"o dobro"* ficava três caracteres fora de uma fatia de 64 e a regra calava —
+  // medido em 25/09, no texto do modelo do aparelho.
   const [fIni, fFim] = limitesDaFrase(norm, ini);
-  const jIni = Math.max(fIni, ini - JANELA_DECISAO);
-  const janela = norm.slice(jIni, Math.min(fFim, fim + JANELA_DECISAO));
+  const margem = JANELA_DECISAO + MAIOR_ROTULO;
+  const jIni = Math.max(fIni, ini - margem);
+  const janela = norm.slice(jIni, Math.min(fFim, fim + margem));
+  const perto = (pos: number, tam: number): boolean => {
+    const a = jIni + pos;
+    const d = a + tam <= ini ? ini - (a + tam) : Math.max(0, a - fim);
+    return d <= JANELA_DECISAO;
+  };
 
   const out: RelacaoDoPacote[] = [];
   const vistos = new Set<string>();
@@ -1388,7 +1414,9 @@ function relacoesJuntoDe(
     for (const f of p.metricas) {
       const rot = normalizar(f.rotulo);
       if (rot.length < ROTULO_MINIMO) continue;
-      if (!ocorrencias(janela, rot).some((pos) => !dentroDeIdioma(janela, pos, rot))) continue;
+      const achou = ocorrencias(janela, rot)
+        .some((pos) => perto(pos, rot.length) && !dentroDeIdioma(janela, pos, rot));
+      if (!achou) continue;
       const b1 = f.bases.find((b) => b.id === 'B1');
       // Métrica sem base comparável não vota — mas o rótulo dela conta como
       // nomeado, e é o que impede a unanimidade de se apoiar num voto só.
@@ -1439,6 +1467,14 @@ function dentroDeIdioma(janela: string, pos: number, rotulo: string): boolean {
  * inequívoco numa frase — `Sono`, `Peso`. Abaixo disso o casamento é ruído.
  */
 const ROTULO_MINIMO = 4;
+
+/**
+ * A margem que a fatia da janela leva além dos 64 caracteres, para o rótulo que
+ * encosta na borda entrar inteiro. O maior rótulo real é `Tempo em movimento`, com
+ * 18; 32 cobre ele e o dobro da folga, e quem decide continua sendo a distância de
+ * borda a borda, não o tamanho da fatia.
+ */
+const MAIOR_ROTULO = 32;
 
 /**
  * O que dizer quando o texto e o pacote discordam — ou `null` quando a regra não
@@ -1589,6 +1625,173 @@ const SEMANA_QUE_SE_DIZ_MES: readonly RegExp[] = Object.freeze([
   /\b(este|deste|neste) mes\b/g,
   /\bdo mes (corrente|atual)\b/g,
 ]);
+
+// ─────────────────────────────────────────────────────────────
+// 9 — o numeral por extenso
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * O léxico do numeral em português, sem acento — a varredura roda sobre
+ * `normalizar()`.
+ *
+ * ## Por que esta regra existe (25/09/2026, corrida das 08:40 no iPhone)
+ *
+ * `citacoes()` extrai **corridas de dígito**. Contado no mesmo motor, nas duas
+ * corridas do mesmo dia sobre o mesmo caderno:
+ *
+ * | corrida | corridas de dígito no texto do modelo do aparelho |
+ * |---|---|
+ * | 07:10 | **21** — 16 delas número de dado (`56`, `2,8`, `12.338`, `66,7`…) |
+ * | 08:40 | **5** — e todas as cinco são data, que a máscara remove |
+ *
+ * Na de 08:40 **a regra 1 não teve nada para conferir e aprovou por vacuidade**.
+ * E o texto errava o número, escrito por extenso: *"os passos diários somaram doze
+ * mil, três trêscentos e oitenta"* — o pacote diz **12.338**.
+ *
+ * A forma é **sorte, não configuração**: o mesmo motor usou dígito de manhã e
+ * extenso de tarde, com o mesmo pedido. É a terceira vez que o padrão aparece — a
+ * régua confere a forma que conhece e o modelo sai dela: foi cópia (regra 6), foi
+ * relação (regra 7), agora é a grafia.
+ */
+const PALAVRAS_DE_NUMERO: ReadonlyMap<string, number> = new Map([
+  ['zero', 0], ['um', 1], ['uma', 1], ['dois', 2], ['duas', 2], ['tres', 3],
+  ['quatro', 4], ['cinco', 5], ['seis', 6], ['sete', 7], ['oito', 8], ['nove', 9],
+  ['dez', 10], ['onze', 11], ['doze', 12], ['treze', 13], ['quatorze', 14],
+  ['catorze', 14], ['quinze', 15], ['dezesseis', 16], ['dezessete', 17],
+  ['dezoito', 18], ['dezenove', 19],
+  ['vinte', 20], ['trinta', 30], ['quarenta', 40], ['cinquenta', 50],
+  ['sessenta', 60], ['setenta', 70], ['oitenta', 80], ['noventa', 90],
+  ['cem', 100], ['cento', 100],
+  ['duzentos', 200], ['duzentas', 200], ['trezentos', 300], ['trezentas', 300],
+  ['quatrocentos', 400], ['quatrocentas', 400], ['quinhentos', 500], ['quinhentas', 500],
+  ['seiscentos', 600], ['seiscentas', 600], ['setecentos', 700], ['setecentas', 700],
+  ['oitocentos', 800], ['oitocentas', 800], ['novecentos', 900], ['novecentas', 900],
+]);
+
+/** Os multiplicadores, que fecham um grupo e o somam ao total. */
+const MULTIPLICADORES: ReadonlyMap<string, number> = new Map([
+  ['mil', 1_000],
+  ['milhao', 1_000_000], ['milhoes', 1_000_000],
+  ['bilhao', 1_000_000_000], ['bilhoes', 1_000_000_000],
+]);
+
+/**
+ * O piso do numeral solteiro: **onze**.
+ *
+ * `um` e `uma` são artigo antes de serem número — *"um contraste"*, *"uma
+ * transição sutil"* —, e `dois`/`três` sozinhos aparecem em prosa como quantidade
+ * miúda que o pacote muitas vezes nem carrega. De `onze` para cima a palavra é
+ * quantidade, não gramática. Numeral **composto** entra em qualquer valor: *"cinquenta
+ * e seis"* é inequívoco.
+ */
+const PISO_DO_NUMERAL_SOLTEIRO = 11;
+
+/**
+ * As locuções em que o numeral **não é** quantidade, e o bare `mil`/`milhão`.
+ *
+ * *"cem por cento"* é ênfase, não 100; *"vinte e quatro horas"* é "um dia". E `mil`
+ * sozinho vale 1.000 pelo léxico, mas em *"mil vezes melhor"* não vale nada — um
+ * multiplicador sem multiplicando fica fora, e o preço está dito: *"mil passos"*
+ * escapa.
+ */
+const IDIOMAS_NUMERICOS: readonly string[] = Object.freeze([
+  'cem por cento', 'vinte e quatro horas', 'de dois em dois', 'de tres em tres',
+  'um ou outro', 'uma ou outra',
+]);
+
+/** Um numeral por extenso que o texto escreveu. */
+interface NumeralPorExtenso {
+  /** Como o texto o escreveu, já normalizado — `"doze mil trezentos e trinta e oito"`. */
+  readonly bruto: string;
+  readonly valor: number;
+  readonly pos: number;
+  /** Quantas palavras de numeral entraram — o que separa o composto do solteiro. */
+  readonly palavras: number;
+}
+
+/**
+ * Avalia uma sequência de palavras de numeral pela gramática do português: soma de
+ * grupos, cada grupo multiplicado pelo multiplicador que o fecha.
+ *
+ * *"doze mil trezentos e trinta e oito"* → `12×1000` + `300+30+8` = **12.338**.
+ *
+ * O `e` e a vírgula são ligação e não valem nada. Palavra desconhecida **encerra** a
+ * corrida — é o que faz *"três trêscentos"* (a grafia errada que o modelo escreveu)
+ * parar em `três` em vez de adivinhar o que ele quis dizer.
+ */
+function valorDoNumeral(palavras: readonly string[]): number {
+  let total = 0;
+  let grupo = 0;
+  for (const p of palavras) {
+    const mult = MULTIPLICADORES.get(p);
+    if (mult != null) {
+      total += (grupo === 0 ? 1 : grupo) * mult;
+      grupo = 0;
+      continue;
+    }
+    grupo += PALAVRAS_DE_NUMERO.get(p) ?? 0;
+  }
+  return total + grupo;
+}
+
+/** As palavras que ligam numeral a numeral sem valer nada. */
+const LIGACOES_DO_NUMERAL: ReadonlySet<string> = new Set(['e']);
+
+/**
+ * Os numerais por extenso de um texto, cada um com o valor que afirma.
+ *
+ * Fica de fora, e cada exclusão tem motivo escrito: a **data por extenso**
+ * (*"quatorze de julho de 2026"* é a lápide que o pedido manda copiar, e reprová-la
+ * seria repetir a reprovação que a máscara das datas acabou de tirar do caminho), o
+ * **solteiro abaixo de onze**, o **multiplicador sozinho** e as **locuções**.
+ */
+function numeraisPorExtenso(norm: string): readonly NumeralPorExtenso[] {
+  const out: NumeralPorExtenso[] = [];
+  const ehNumeral = (p: string) => PALAVRAS_DE_NUMERO.has(p) || MULTIPLICADORES.has(p);
+  // Uma corrida de palavras, vírgulas e espaços — nada de cortar frase aqui.
+  for (const m of norm.matchAll(/[a-z]+(?:[ ,]+[a-z]+)*/g)) {
+    const bloco = m[0];
+    const base = m.index ?? 0;
+    let corrida: { palavra: string; em: number }[] = [];
+    const fechar = (): void => {
+      // O `e` final não pertence ao numeral: "trinta e poucos" fecha em "trinta".
+      while (corrida.length > 0 && LIGACOES_DO_NUMERAL.has(corrida[corrida.length - 1].palavra)) {
+        corrida.pop();
+      }
+      const soNumerais = corrida.filter((c) => !LIGACOES_DO_NUMERAL.has(c.palavra));
+      if (soNumerais.length > 0) {
+        const ini = corrida[0].em;
+        const ultimo = corrida[corrida.length - 1];
+        const bruto = bloco.slice(ini, ultimo.em + ultimo.palavra.length);
+        const valor = valorDoNumeral(soNumerais.map((c) => c.palavra));
+        const soMultiplicador = soNumerais.every((c) => MULTIPLICADORES.has(c.palavra));
+        const pos = base + ini;
+        const depois = norm.slice(pos + bruto.length, pos + bruto.length + 24);
+        const ehData = MONTHS_PT.some((mes) => depois.startsWith(` de ${normalizar(mes)}`));
+        const emIdioma = IDIOMAS_NUMERICOS.some((frase) => {
+          const dentro = frase.indexOf(bruto);
+          return dentro >= 0 && pos - dentro >= 0 && norm.startsWith(frase, pos - dentro);
+        });
+        const grande = soNumerais.length > 1 || valor >= PISO_DO_NUMERAL_SOLTEIRO;
+        if (grande && !soMultiplicador && !ehData && !emIdioma) {
+          out.push({ bruto, valor, pos, palavras: soNumerais.length });
+        }
+      }
+      corrida = [];
+    };
+    for (const t of bloco.matchAll(/[a-z]+/g)) {
+      const palavra = t[0];
+      const em = t.index ?? 0;
+      if (ehNumeral(palavra) || (LIGACOES_DO_NUMERAL.has(palavra) && corrida.length > 0)) {
+        corrida.push({ palavra, em });
+      } else {
+        fechar();
+      }
+    }
+    fechar();
+  }
+  return out;
+}
 
 /**
  * Confere um texto contra o pacote que o gerou.
@@ -1812,6 +2015,28 @@ export function verificarTexto(texto: string, pacote: UmOuMaisPacotes, pedido?: 
     problemas.push({
       regra: 'relacao',
       detalhe: `"${bruto}" é o crescimento, não uma fração — a frase o cita como "${marca.trim()}"`,
+    });
+  }
+
+  // 9 — o numeral por extenso, pelo mesmo teste da regra 1
+  //
+  // `citacoes()` só vê dígito. Em 25/09 o modelo do aparelho escreveu o caderno
+  // todo por extenso, sobrou ZERO número a conferir, e ele errou 12.338 dentro do
+  // texto que a regra 1 aprovou. Ver `PALAVRAS_DE_NUMERO`.
+  //
+  // A aproximação marcada vale aqui igual: *"quase cinquenta e seis"* é a mesma
+  // concessão que *"mais de 12 mil"*, e negá-la por a grafia ser outra seria
+  // reprovar pela forma.
+  for (const { bruto, valor, pos } of numeraisPorExtenso(norm)) {
+    if ([...autorizados].some((a) => Math.abs(a - valor) < 1e-9)) continue;
+    const marca = marcaAntesDe(norm, pos);
+    const aceita = marca == null
+      ? null
+      : aproximacaoDe(bruto, valor, marca[0], marca[1], autorizados);
+    if (aceita != null) { aproximacoes.push(aceita); continue; }
+    problemas.push({
+      regra: 'numero',
+      detalhe: `"${bruto}" (${valor}) não está no pacote — numeral por extenso`,
     });
   }
 
