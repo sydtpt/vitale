@@ -480,6 +480,35 @@ const VOCABULARIO = (Object.keys(COMPOE) as SubconjuntoProibido[]).filter((s) =>
  *   `VOCABULARIO_PROIBIDO`, já pegos no texto do motor — e repeti-los aqui é
  *   justamente a segunda lista que a barreira do vocabulário proíbe (AD-6).
  */
+/**
+ * O que não pode vir logo **antes** de `{medidas}` — o restritor.
+ *
+ * `{medidas}` é *quantas dimensões foram medidas*, e a regra de lugar só cobrava a
+ * palavra **depois** dele (`antesDe: ['dimensões']`). Em 25/09/2026 a nuvem escreveu,
+ * e a régua aprovou:
+ *
+ * > `{quando}, as outras {medidas} dimensões empatam no ponto mais baixo, e só a
+ * > duração e a percepção ficam acima delas.`
+ *
+ * Interpolado: *"as outras **cinco** dimensões empatam no ponto mais baixo, e só a
+ * duração e a percepção ficam acima delas"* — no caso `fora-do-empate` de 7d, cinco
+ * foram medidas, **três** estão no chão e duas acima. A frase se contradiz sozinha:
+ * cinco outras mais duas acima daria sete, e só cinco existem.
+ *
+ * O modelo não inventou número — usou um marcador legítimo numa vaga onde o valor
+ * dele está errado. É o mesmo defeito que as regras 7 e 8 de `ia/verificar.ts` acharam
+ * no regime conferido: **o número é real, a afirmação sobre ele é falsa.**
+ *
+ * A lista é de **restritor**, não de artigo: *"das {medidas} dimensões medidas"* e
+ * *"As {medidas} dimensões"* continuam valendo, porque preposição e artigo não
+ * recortam subconjunto. E ela vale em **todo** caso, não só nos que têm dimensão
+ * acima: onde todas empatam, "as outras" também é falso — não há outras.
+ */
+const NAO_ANTES_DA_CONTAGEM: readonly string[] = [
+  'outras', 'outra', 'demais', 'restantes', 'remanescentes',
+  'últimas', 'primeiras', 'seguintes', 'anteriores',
+];
+
 const NAO_DEPOIS_DA_JANELA: readonly string[] = [
   'em', 'de', 'a', 'à', 'por',
   'o', 'os', 'as', 'um', 'uns', 'uma', 'umas',
@@ -544,7 +573,11 @@ function regraDe(e: EntradaDaSaude, caso: CasoDaSaude): RegraInterpolada {
     valores,
     // `{medidas}` é a contagem por extenso: "uma" antes de "dimensão", o resto antes de "dimensões".
     antesDe: { medidas: [caso.medidas === 1 ? 'dimensão' : 'dimensões'] },
-    naoDepoisDe: { janela: NAO_DEPOIS_DA_JANELA, quando: NAO_DEPOIS_DA_JANELA },
+    naoDepoisDe: {
+      janela: NAO_DEPOIS_DA_JANELA,
+      quando: NAO_DEPOIS_DA_JANELA,
+      medidas: NAO_ANTES_DA_CONTAGEM,
+    },
     soPeloMarcador: { janela: A_JANELA_DE_OUTRO_JEITO },
     itens: ITENS,
     citaveis: citaveisDaSaude(caso),
