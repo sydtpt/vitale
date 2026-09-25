@@ -205,6 +205,7 @@ import {
   chaveDe,
   dadosProntosParaImprimir,
   estadoDe,
+  guardadosDoPostal,
   podeImprimir,
   podeTrocarCapa,
   precisaGarantirJanela,
@@ -1209,6 +1210,34 @@ describe('portaDe — o cartão da Retrospectiva', () => {
     expect(portaDe({ fase: 'erro', mensagem: 'Não foi possível ler a edição agora.' }))
       .toEqual({ tipo: 'erro', mensagem: 'Não foi possível ler a edição agora.' });
   });
+
+  /**
+   * A semana é **postal** (Story 3.1), e o cartão obedece à regra que o Total já
+   * seguia: tipo que nunca terá edição é **ausência, não pendência**.
+   *
+   * Isto não é detalhe de copy. A Retrospectiva abre em semana por padrão, então
+   * *"Este período fechou e ainda não foi escrito"* seria a primeira frase da
+   * primeira tela — prometendo, para sempre, uma edição que o núcleo recusa.
+   */
+  const semana = (o: Partial<Lida> = {}): Lida => estadoLido({ tipo: 'week', inicio: '2026-08-24', ...o });
+
+  it('semana sem texto: nada — a frase da pendência prometeria uma edição que nunca vem', () => {
+    expect(portaDe(semana())).toEqual({ tipo: 'nada' });
+    // Nem com falhas nesta sessão, nem com uma impressão marcada: o botão não
+    // existe na semana, e `escrevendo` também não a alcança.
+    expect(portaDe(semana({ sessao: { sono: { fase: 'erro', motivo: TRANSITORIA } } }))).toEqual({ tipo: 'nada' });
+    expect(portaDe(semana({ imprimindo: 'edicao' }))).toEqual({ tipo: 'nada' });
+  });
+
+  it('semana JÁ escrita: a porta fica — é o caminho até as cinco que existem', () => {
+    expect(portaDe(semana({ edicao: [impresso('movimento', 1)] }))).toEqual({
+      tipo: 'impressa', periodo: '24/08 – 30/08', chamada: 'A chamada de movimento, inteira.',
+    });
+  });
+
+  it('o mês continua prometendo — a mudança é da semana, e só dela', () => {
+    expect(portaDe(estadoLido())).toEqual({ tipo: 'nao-escrita' });
+  });
 });
 
 /**
@@ -1461,6 +1490,79 @@ describe('o caderno silenciado (Story 2.5)', () => {
   });
 });
 
+/**
+ * A linha do postal (Story 3.1): o texto guardado das cinco semanas que foram
+ * escritas antes de a porta fechar.
+ *
+ * A regra é curta e a matriz é a razão dela: *"texto ilegível ⇒ a linha some, o
+ * postal fica"*. O que se mede aqui é que **toda** ausência colapsa na mesma
+ * resposta — o postal não explica a edição que ele não tem.
+ */
+describe('guardadosDoPostal — a linha que abre o texto já gravado', () => {
+  it('com cadernos impressos, devolve o texto de cada um, na ordem gravada', () => {
+    const estado = estadoLido({
+      tipo: 'week',
+      inicio: '2026-08-24',
+      edicao: [impresso('movimento', 1), impresso('sono', 2)],
+    });
+    expect(guardadosDoPostal(estado).map((c) => c.caderno)).toEqual(['movimento', 'sono']);
+    expect(guardadosDoPostal(estado).every((c) => c.texto.length > 0)).toBe(true);
+  });
+
+  it('semana nunca escrita: vazio — e aí não há linha nenhuma', () => {
+    expect(guardadosDoPostal(estadoLido({ tipo: 'week', inicio: '2026-08-24' }))).toEqual([]);
+  });
+
+  it('erro de leitura, carregando, sem sessão e ausente colapsam no mesmo vazio', () => {
+    const fases: EstadoEdicao[] = [
+      { fase: 'erro', mensagem: 'x' },
+      { fase: 'carregando' },
+      { fase: 'relendo' },
+      { fase: 'sem-sessao' },
+      { fase: 'ausente' },
+    ];
+    for (const e of fases) expect({ e, guardados: guardadosDoPostal(e) }).toEqual({ e, guardados: [] });
+  });
+
+  /**
+   * Texto em branco é ilegível, e a matriz manda a linha sumir. O `CHECK` de
+   * `edicoes_ia` recusa texto vazio — **e aceita um espaço**: sem este filtro, a
+   * linha "já foi escrita" abriria uma folha sem nada dentro.
+   */
+  it('caderno com texto só de espaço em branco não conta — a linha prometeria texto', () => {
+    const branco = { ...impresso('sono', 2), texto: '   \n\t ' };
+    const estado = estadoLido({ tipo: 'week', inicio: '2026-08-24', edicao: [impresso('movimento', 1), branco] });
+    expect(guardadosDoPostal(estado).map((c) => c.caderno)).toEqual(['movimento']);
+    // E com só o branco, não sobra linha nenhuma.
+    expect(guardadosDoPostal(estadoLido({ tipo: 'week', inicio: '2026-08-24', edicao: [branco] }))).toEqual([]);
+  });
+
+  /**
+   * **O silêncio da 2.5 não entra aqui, e a ausência é a decisão** — por isso ela
+   * tem teste, e não só um comentário.
+   *
+   * `cadernosVisiveis` cala cadernos de uma **edição**, que é o que o dono
+   * diagrama. Estas linhas são arquivo: texto já publicado numa semana que não
+   * pode mais ser reescrita. Filtrá-las pela preferência de leitura de hoje
+   * esconderia, sem aviso, o único caminho que sobrou até elas.
+   *
+   * A função nem aceita a lista — este teste prende a assinatura junto da regra.
+   */
+  it('não aceita lista de visíveis, e devolve o arquivo inteiro mesmo com cadernos silenciados', () => {
+    const estado = estadoLido({
+      tipo: 'week', inicio: '2026-08-24',
+      edicao: [impresso('sono', 1), impresso('movimento', 2)],
+    });
+    expect(guardadosDoPostal.length).toBe(1);
+    expect(guardadosDoPostal(estado).map((c) => c.caderno)).toEqual(['sono', 'movimento']);
+    // A mesma edição, lida pela vista com o sono calado, perde o sono: é a prova
+    // de que a preferência **existe** e de que o arquivo a ignora de propósito.
+    const v = vistaDaEdicao(estado, TODOS, AGG_VERSION, ['movimento', 'coracao', 'rotina']);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos.some((c) => c.caderno === 'sono')).toBe(false);
+  });
+});
+
 describe('podeImprimir — a regra que as ações conferem e que decide os botões', () => {
   it('a edição inteira', () => {
     expect(podeImprimir(estadoLido(), TODOS, 'edicao')).toBe(true);
@@ -1485,6 +1587,55 @@ describe('podeImprimir — a regra que as ações conferem e que decide os botõ
     // Sem dado, não.
     expect(podeImprimir(e, ['sono', 'movimento'], 'coracao')).toBe(false);
     expect(podeImprimir({ ...e, imprimindo: 'sono' }, TODOS, 'coracao')).toBe(false);
+  });
+
+  /**
+   * A semana é **postal**, e postal não grava (Story 3.1).
+   *
+   * A mesma matéria que autoriza agosto recusa a semana de 24 a 30 de agosto: o
+   * que muda é só o `tipo`. Antes desta story nada aqui olhava para ele — a rota
+   * `/revista/semana/…` desenhava o botão "Escrever a edição" e cinco semanas
+   * foram gravadas por esse caminho.
+   *
+   * A porta de verdade é do núcleo (`ia/imprimir-sequencia.ts` devolve `semana`
+   * sem buscar nem chamar nada); esta regra é o que faz o botão não existir.
+   */
+  it('a semana não imprime — nem a edição inteira, nem um caderno', () => {
+    const semana = estadoLido({ tipo: 'week', inicio: '2026-08-24' });
+    expect(podeImprimir(semana, TODOS, 'edicao')).toBe(false);
+    for (const caderno of TODOS) expect({ caderno, pode: podeImprimir(semana, TODOS, caderno) }).toEqual({ caderno, pode: false });
+    // O mesmo estado com o tipo do mês autoriza: a recusa é do tipo, e de mais nada.
+    expect(podeImprimir({ ...semana, tipo: 'month' }, TODOS, 'edicao')).toBe(true);
+    // E os outros dois tipos com edição continuam imprimindo.
+    for (const tipo of ['season', 'year'] as const) {
+      expect({ tipo, pode: podeImprimir({ ...semana, tipo }, TODOS, 'edicao') }).toEqual({ tipo, pode: true });
+    }
+  });
+
+  /**
+   * A tela não tem regra própria — e é por isso que o botão some da semana sem
+   * ninguém mexer em `vistaDaEdicao`: ela lê `podeImprimir`.
+   */
+  it('na semana, a vista não oferece botão nenhum: nem na capa, nem em caderno', () => {
+    // **Um caderno impresso e outro com falha na sessão**, de propósito: com a
+    // edição vazia e a sessão vazia o miolo sai `[]`, e o `every` de uma lista
+    // vazia passa com ou sem a guarda. Assim há cadernos de verdade a conferir —
+    // e no mês esta mesma matéria dá botão em `coracao` e em `rotina`.
+    const matéria: Partial<Lida> = {
+      edicao: [impresso('movimento', 1)],
+      sessao: { coracao: { fase: 'reprovada', motivo: REPROVADA, problemas: [] } },
+    };
+    const v = vistaDaEdicao(estadoLido({ tipo: 'week', inicio: '2026-08-24', ...matéria }), TODOS, AGG_VERSION);
+    if (v.tipo !== 'edicao') throw new Error(v.tipo);
+    expect(v.cadernos.length).toBeGreaterThan(0);
+    expect(v.capa.escrever).toBe(false);
+    expect(v.cadernos.filter((c) => 'acao' in c && c.acao !== undefined)).toEqual([]);
+
+    // A prova de que a lista não está vazia por acaso: no mês, a mesma matéria
+    // dá botões. Sem esta linha, a asserção acima passaria por miolo vazio.
+    const noMes = vistaDaEdicao(estadoLido(matéria), TODOS, AGG_VERSION);
+    if (noMes.tipo !== 'edicao') throw new Error(noMes.tipo);
+    expect(noMes.cadernos.filter((c) => 'acao' in c && c.acao !== undefined).length).toBeGreaterThan(0);
   });
 
   /** A vista não tem regra própria: todo botão que ela desenha, a ação aceita. */

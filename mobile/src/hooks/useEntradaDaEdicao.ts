@@ -18,6 +18,18 @@ export interface EntradaDaEdicao {
    * nada que escreve aparece, nem desabilitado.
    */
   readonly dadosProntos: boolean;
+  /**
+   * O **selo da memória** (`useMemoriaDaRetro`): a lista de invalidação inteira
+   * num número, que sobe quando a memória da Retrospectiva muda.
+   *
+   * Sai daqui porque quem deriva **mais coisa** da mesma memória precisa dele — o
+   * postal da semana (Story 3.1) memoiza os destaques, e sem o selo eles ficariam
+   * congelados na primeira janela carregada, exatamente como o resumo ficava
+   * antes da 2.4a. A alternativa era chamar `useMemoriaDaRetro` uma segunda vez
+   * na mesma tela: dois `useFocusEffect` pedindo a mesma janela, e dois selos
+   * contando em separado o mesmo evento.
+   */
+  readonly selo: number;
 }
 
 /**
@@ -88,5 +100,5 @@ export function useEntradaDaEdicao(kind: PeriodKind, offset: number, now: Date):
     [loaded, loading, loadedSince, atividadesLoaded, atividadesLoading, since],
   );
 
-  return { resumo, entrada, dadosProntos };
+  return { resumo, entrada, dadosProntos, selo };
 }

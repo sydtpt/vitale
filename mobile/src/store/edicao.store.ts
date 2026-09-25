@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   CADERNO_IDS,
   FotoRecusadaNaTroca,
+  TIPO_DO_POSTAL,
   cadernosVisiveis,
   chamadaDoTexto,
   legendaQueAcrescenta,
@@ -277,10 +278,24 @@ export function precisaGarantirJanela(
  * resposta — os dados da Retrospectiva ainda não chegaram, ou a entrada foi
  * recusada. Sem resposta, nada imprime.
  *
- * O período foi lido e fechou, **nenhuma impressão corre nele**, e:
+ * O período foi lido e fechou, **não é semana**, **nenhuma impressão corre
+ * nele**, e:
  *
  * - **a edição inteira**: nada impresso, e algum caderno com o que dizer;
  * - **um caderno**: ele tem o que dizer, não tem linha e não calou nesta sessão.
+ *
+ * ## A semana nunca imprime (Story 3.1)
+ *
+ * A semana é **postal**: calculada na hora, nunca gravada (contrato do Épico 2).
+ * Até esta story nada aqui olhava o tipo — a rota `/revista/semana/…` desenhava a
+ * mesma edição do mês, com o botão de escrever, e cinco semanas foram gravadas
+ * por esse caminho.
+ *
+ * **Esta linha não é a porta; é a cara dela.** A porta é do núcleo
+ * (`ia/imprimir-sequencia.ts`, que devolve `semana` sem buscar, chamar nem
+ * gravar): se esta guarda sumisse, a impressão continuaria recusada. Ela existe
+ * para nenhum botão de escrever aparecer numa semana — o que é decidido por
+ * `vistaDaEdicao`, que lê exatamente esta função —, e não para ser a defesa.
  */
 export function podeImprimir(
   estado: EstadoEdicao | undefined,
@@ -288,6 +303,7 @@ export function podeImprimir(
   alvo: ImpressaoEmCurso,
 ): boolean {
   if (comDado === null || estado?.fase !== 'lida' || estado.imprimindo !== null) return false;
+  if (estado.tipo === TIPO_DO_POSTAL) return false;
   if (alvo === 'edicao') return estado.edicao.length === 0 && comDado.length > 0;
   return comDado.includes(alvo)
     && !estado.edicao.some((c) => c.caderno === alvo)
@@ -338,6 +354,24 @@ export type PortaDaEdicao =
  * manchete da capa da rota, então ela obedece ao silêncio pela mesma regra. Sem
  * isso, o caderno que ele calou continuaria falando na Retrospectiva — que é
  * exatamente onde ele o calou.
+ *
+ * ## A semana: ausência, nunca pendência (Story 3.1)
+ *
+ * Uma semana **sem texto** dá `nada`, e não `nao-escrita`. A frase daquele
+ * estado — *"Este período fechou e ainda não foi escrito"* — promete uma edição
+ * que **nunca vai existir** desde que o núcleo passou a recusar a impressão de
+ * semana; e a Retrospectiva abre justamente em semana, então seria a primeira
+ * frase da primeira tela.
+ *
+ * A regra não é nova: `LeituraDaEdicao.ausente` (`lib/edicao-ia.ts`) já a declara
+ * para o Total — *"dizer 'fechou e não foi escrito' nele seria prometer uma
+ * edição que o banco não aceita"*. A semana entra na mesma porta, com uma
+ * diferença que a story existe para preservar: **`impressa` continua valendo**.
+ * As cinco semanas escritas antes de a porta fechar têm texto gravado, e o
+ * cartão continua sendo o caminho até ele.
+ *
+ * `escrevendo` também não alcança a semana — `podeImprimir` recusa antes de
+ * qualquer impressão começar —, e por isso não há um terceiro ramo aqui.
  */
 export function portaDe(
   estado: EstadoEdicao,
@@ -360,6 +394,10 @@ export function portaDe(
           chamada: chamadaDaCapa(estado.edicao, visiveis),
         };
       }
+      // Ver "A semana: ausência, nunca pendência", acima. Fica **depois** do
+      // ramo `impressa`, e a ordem é a regra: invertida, as cinco semanas já
+      // escritas perderiam o caminho até o texto delas.
+      if (estado.tipo === TIPO_DO_POSTAL) return { tipo: 'nada' };
       return estado.imprimindo !== null ? { tipo: 'escrevendo' } : { tipo: 'nao-escrita' };
     default:
       return faseSemPorta(estado);
@@ -369,6 +407,51 @@ export function portaDe(
 function faseSemPorta(nunca: never): PortaDaEdicao {
   console.warn('[edicao] fase sem porta:', nunca);
   return { tipo: 'nada' };
+}
+
+/* ── o postal da semana (Story 3.1) ──────────────────────────────────────── */
+
+/** Um caderno que esta semana chegou a ter escrito, antes de a porta fechar. */
+export interface CadernoGuardado {
+  readonly caderno: CadernoId;
+  readonly texto: string;
+}
+
+/**
+ * O texto guardado de uma semana — a **linha** do postal, e nada mais.
+ *
+ * Cinco semanas foram impressas por `/revista/semana/…` antes de a Story 3.1
+ * fechar a porta no núcleo. Esse texto **não se apaga**: o postal leva até ele
+ * por uma linha discreta. Esta função é quem decide se a linha existe.
+ *
+ * **Só a fase `lida` responde, e só com o que está gravado.** Carregando, sem
+ * sessão e erro de leitura dão lista vazia — a linha some, e o postal fica igual
+ * ao das outras semanas. É decisão, e não descuido: o postal não é sobre a
+ * edição, e desenhar "não foi possível ler a edição" num cartão que não tem
+ * edição nenhuma explicaria um problema que o leitor não tem.
+ *
+ * **Texto em branco não conta.** O `CHECK` de `edicoes_ia` recusa texto vazio,
+ * mas não recusa um espaço: uma linha assim abriria a folha num caderno sem nada
+ * dentro, e a linha teria prometido texto. A régua é a mesma frase da matriz —
+ * *"texto ilegível ⇒ a linha some"* —, e um caderno em branco é ilegível.
+ *
+ * A ordem é a gravada (`posicao`, que `fetchEdicao` já pede) — nunca
+ * recalculada, como em todo o resto da revista.
+ *
+ * **O silêncio da 2.5 não entra aqui, e a ausência é a decisão.** `visiveis`
+ * cala cadernos de uma **edição**, que é o que o dono diagrama; a semana não tem
+ * edição, e estas linhas são arquivo — texto que já foi publicado e que a story
+ * existe para preservar. Filtrá-las pela preferência de leitura de hoje
+ * esconderia, sem aviso, o único caminho que sobrou até elas.
+ *
+ * Mora aqui, e não no render, pelo motivo de sempre: **regra tem teste enquanto
+ * render não tem.**
+ */
+export function guardadosDoPostal(estado: EstadoEdicao): readonly CadernoGuardado[] {
+  if (estado.fase !== 'lida') return [];
+  return estado.edicao
+    .filter((c) => c.texto.trim() !== '')
+    .map((c) => ({ caderno: c.caderno, texto: c.texto }));
 }
 
 /** A ação de um caderno. Ausente quando não pode agir — nunca um botão desabilitado. */
@@ -1071,6 +1154,17 @@ async function imprimirAlvo(
         aoLer: (caderno, desfecho) => naSessao((s) => ({ ...s, [caderno]: sessaoDoDesfecho(desfecho) })),
       });
       switch (r.estado) {
+        /**
+         * A semana não grava (Story 3.1). **Inalcançável por esta ação** —
+         * `podeImprimir` já a recusou lá em cima —, e escrito assim de propósito:
+         * é o núcleo que fecha a porta, e o ramo existe para o compilador cobrar
+         * um tratamento em vez de deixar a chave presa em `imprimindo` se algum
+         * caminho novo chegar aqui com uma semana.
+         *
+         * `ausente` é o desfecho certo: a rota da semana não desenha edição
+         * nenhuma — ela desenha o postal, que se calcula sozinho.
+         */
+        case 'semana':
         case 'aberto':
           por({ fase: 'ausente' });
           return;

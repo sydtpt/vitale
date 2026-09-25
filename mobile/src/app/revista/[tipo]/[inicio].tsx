@@ -9,15 +9,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AGG_VERSION,
   MODULO_DO_CADERNO,
+  TIPO_DO_POSTAL,
   cadernosVisiveis,
   desenhoDaCapa,
+  montarPostal,
   resolveRetroPrefs,
   rotuloDoCaderno,
   type CadernoId,
   type ActivityPhoto,
   type DesenhoDaCapa,
   type LapideNaEdicao,
-  type TipoComEdicao,
+  type TipoComRevista,
 } from '@vitale/shared';
 import { CapaAberta } from '../../../components/revista/CapaAberta';
 import { CapaComFoto } from '../../../components/revista/CapaComFoto';
@@ -25,7 +27,9 @@ import { CapaGrade } from '../../../components/revista/CapaGrade';
 import { CapaTracado } from '../../../components/revista/CapaTracado';
 import { FRACAO_DA_ALTURA_DA_CAPA, MUDO } from '../../../components/revista/constantes-da-capa';
 import { MarcaDoToque } from '../../../components/revista/MarcaDoToque';
+import { Postal } from '../../../components/revista/Postal';
 import { useEntradaDaEdicao } from '../../../hooks/useEntradaDaEdicao';
+import { useEstadoDaEdicao } from '../../../hooks/useEstadoDaEdicao';
 import { useFotoDaCapa } from '../../../hooks/useFotoDaCapa';
 import { useGradeDaCapa } from '../../../hooks/useGradeDaCapa';
 import { useRolagemAncorada, type Ancora } from '../../../hooks/useRolagemAncorada';
@@ -41,11 +45,13 @@ import {
   tituloDaCapa,
 } from '../../../lib/edicao-ia';
 import { useAuthStore } from '../../../store/auth.store';
+import { useRetroStore } from '../../../store/retro.store';
 import { useSettingsStore } from '../../../store/settings.store';
 import {
   AVISO_SEM_CADERNO,
   chaveDe,
   estadoDe,
+  guardadosDoPostal,
   useEdicaoStore,
   vistaDaEdicao,
   type AcaoDoCaderno,
@@ -99,6 +105,15 @@ import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '..
  * burros sobre funções puras do núcleo, para a parede (2.4b) os reusar a 173 px.
  * **Nenhum WebView** entra por este caminho: um processo de conteúdo por capa é o
  * que a 1.13 tirou da árvore.
+ *
+ * A **3.1** partiu a rota em duas, e é a primeira vez que o tipo do período muda
+ * o que se desenha. Até ela, `/revista/semana/…` abria a **mesma** edição do mês
+ * — sumário, quatro cadernos, faixa colorida, botão de escrever — e gravava em
+ * `edicoes_ia`, contra um contrato que diz desde o Épico 2 que *"a semana não
+ * grava edição; o postal calcula na hora"*. Cinco semanas já tinham sido
+ * impressas por aqui quando a porta foi fechada. Agora a semana desenha
+ * {@link Postal}: uma tela, capa pequena, três fatos apurados na hora,
+ * acromáticos, sem sumário e sem cadernos. Os outros três tipos seguem iguais.
  */
 export default function RevistaScreen() {
   const styles = useThemedStyles(createStyles);
@@ -136,39 +151,134 @@ export default function RevistaScreen() {
         <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{periodo?.rotulo ?? ''}</Text>
       </View>
 
+      {/* **Aqui a rota se parte em duas** (Story 3.1). A semana é postal e nunca
+          edição; os outros três tipos continuam sendo a revista de sempre. A
+          ramificação é pelo tipo do período **já validado** — `periodoDaRota` é
+          quem recusa o que não é tipo da revista e o início que não abre
+          período —, então nenhum dos dois ramos adivinha nada. */}
       {periodo && periodo.fechado ? (
-        <Revista tipo={periodo.tipo} offset={periodo.offset} now={now} bottom={insets.bottom} />
+        periodo.tipo === TIPO_DO_POSTAL
+          ? <TelaDoPostal rotulo={periodo.rotulo} offset={periodo.offset} now={now} bottom={insets.bottom} />
+          : <Revista tipo={periodo.tipo} offset={periodo.offset} now={now} bottom={insets.bottom} />
       ) : null}
     </View>
   );
 }
 
-/** A edição de um período fechado e bem endereçado. */
-function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: number; now: Date; bottom: number }) {
+/**
+ * A tela do **postal** de uma semana fechada (Story 3.1) — o outro ramo da rota.
+ *
+ * (O nome é `TelaDoPostal` e não `PostalDaSemana` porque este último já é o tipo
+ * que o núcleo devolve: dois nomes iguais na mesma feature fariam um import
+ * errado compilar.)
+ *
+ * Ela é curta de propósito, e cada linha responde a uma regra da story:
+ *
+ * 1. **calcula na hora e nunca grava.** Os três fatos saem de `montarPostal`, no
+ *    núcleo, sobre os destaques que a Retrospectiva já monta. Nada é persistido,
+ *    nada é reimpresso, e abrir a mesma semana duas vezes dá o mesmo postal;
+ * 2. **nenhum botão de escrever.** Não há `podeImprimir` aqui, não há
+ *    `vistaDaEdicao`, não há ação nenhuma — e, se houvesse, o núcleo recusaria
+ *    (`ia/imprimir-sequencia.ts`, estado `semana`) e a store também (`podeImprimir` olha o
+ *    tipo desde esta story). São três fechaduras na mesma porta, e a que vale é a
+ *    do núcleo;
+ * 3. **o texto antigo continua alcançável.** A leitura da edição é a mesma da
+ *    revista (`useEstadoDaEdicao`, que só lê), e serve a **uma** coisa: saber se
+ *    esta semana é uma das cinco que chegaram a ser escritas. Com texto, o postal
+ *    ganha uma linha; sem texto — ou com a leitura falhando — ele fica igual ao
+ *    das outras semanas, que é o que a matriz manda;
+ * 4. **a prosa não sobrevive.** Não há terceiro estado: o que se desenha vem dos
+ *    fatos apurados e do que está gravado. A sessão da store é memória e nunca é
+ *    persistida (molde declarado da 1.11) — sair e voltar devolve os três fatos;
+ * 5. **nada é afirmado antes de os dados chegarem.** `dadosProntos` é a mesma
+ *    régua que a revista usa para não desenhar botão sobre uma memória pela
+ *    metade. Aqui ela impede a afirmação simétrica: sem ela, a janela em voo dá
+ *    zero fatos e o postal anuncia *"não deixou nenhum fato apurado"* um instante
+ *    antes de mostrar três.
+ *
+ * O **silêncio da 2.5 não alcança o postal**, e isso é dito aqui porque a ausência
+ * é que é a decisão: `retroPrefs` cala **cadernos**, e o postal não tem cadernos.
+ * Nenhum filtro de visibilidade entra nesta função.
+ */
+function TelaDoPostal({ rotulo, offset, now, bottom }: {
+  /**
+   * O período por extenso — **o mesmo do cabeçalho**, vindo de cima e não
+   * recalculado aqui: duas contas para a mesma semana divergiriam no dia em que
+   * uma delas mudasse de grafia, e o leitor veria dois nomes para o mesmo
+   * período na mesma tela.
+   */
+  rotulo: string;
+  offset: number;
+  now: Date;
+  bottom: number;
+}) {
+  // A mesma entrada da revista: é ela que garante a janela da Retrospectiva
+  // carregada e dá a chave sob a qual a edição guardada é lida.
+  const { entrada, dadosProntos, selo } = useEntradaDaEdicao(TIPO_DO_POSTAL, offset, now);
+
+  /**
+   * O postal inteiro, **numa passada só** — o molde do `lede` da store.
+   *
+   * O resumo e os destaques saem da mesma `buildRetrospective`; pedir os dois
+   * separadamente a construiria duas vezes por render, numa tela cuja tese é
+   * calcular na hora.
+   *
+   * Memoizado pelo **selo da memória**, e não por `loaded`: ele vira `true` uma
+   * vez só, e uma janela mais larga que chegasse depois deixaria os fatos
+   * congelados na anterior.
+   */
+  const postalFn = useRetroStore((s) => s.postal);
+  const postal = useMemo(() => postalFn(now, TIPO_DO_POSTAL, offset), [postalFn, now, offset, selo]);
+
+  // Só lê, nunca escreve — e responde a uma pergunta só: esta semana chegou a
+  // ter texto? A regra do que conta como texto é da store, e tem teste.
+  const estado = useEstadoDaEdicao(entrada);
+  const guardados = useMemo(() => guardadosDoPostal(estado), [estado]);
+
+  /**
+   * **"Uma tela" é a forma, e o rolável é a rede.**
+   *
+   * O mockup descreve o postal como *"uma tela de 844 px sem rolagem"*, e é isso
+   * que ele é: fechado, com três fatos, o cartão cabe numa tela e o `ScrollView`
+   * não rola. Ele existe para os dois casos em que um `View` cortaria conteúdo em
+   * silêncio — o tipo dinâmico grande, e a linha do texto guardado aberta, que é
+   * justamente a única coisa que pode passar da dobra.
+   */
+  return (
+    <ScrollView
+      contentContainerStyle={{ paddingBottom: bottom + spacing['3xl'] }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* `null` enquanto a memória não fechou: o postal desenha o mastro e cala
+          sobre os fatos, em vez de afirmar que não houve nenhum. */}
+      <Postal periodo={rotulo} fatos={dadosProntos ? postal.fatos : null} guardados={guardados} />
+    </ScrollView>
+  );
+}
+
+/**
+ * A edição de um período fechado e bem endereçado.
+ *
+ * **`TipoComRevista`, e não `TipoComEdicao`**: a semana tem edição na tabela (as
+ * cinco antigas), mas não tem edição a **desenhar**. Com o tipo largo, trocar os
+ * dois braços do ternário lá em cima compilaria — a semana voltaria a abrir
+ * sumário, cadernos e botão de escrever, e nada reprovaria. Excluída aqui, a
+ * troca deixa de compilar.
+ */
+function Revista({ tipo, offset, now, bottom }: { tipo: TipoComRevista; offset: number; now: Date; bottom: number }) {
   const styles = useThemedStyles(createStyles);
   const { entrada, dadosProntos } = useEntradaDaEdicao(tipo, offset, now);
 
-  const carregar = useEdicaoStore((s) => s.carregar);
   const recarregar = useEdicaoStore((s) => s.recarregar);
   const imprimir = useEdicaoStore((s) => s.imprimir);
   const imprimirCaderno = useEdicaoStore((s) => s.imprimirCaderno);
   const trocarCapa = useEdicaoStore((s) => s.trocarCapa);
-  const porPeriodo = useEdicaoStore((s) => s.porPeriodo);
   const uid = useAuthStore((s) => s.user?.id);
-  const sessaoHidratando = useAuthStore((s) => s.isLoading);
 
-  // A chave é string e só muda com o dono e o período; a entrada muda a cada ciclo
-  // da busca da retro. O efeito de leitura depende da chave, e lê com a entrada mais
-  // recente — senão cada ciclo de `ensure` relia o banco.
-  const chave = useMemo(() => (uid ? chaveDe(uid, entrada) : null), [uid, entrada]);
-  const estado = useMemo(() => estadoDe(porPeriodo, chave, sessaoHidratando), [porPeriodo, chave, sessaoHidratando]);
-  const entradaRef = useRef(entrada);
-  entradaRef.current = entrada;
-
-  // Abrir só lê. A chave nula (sessão ainda no disco) vira chave quando ela chega.
-  useEffect(() => {
-    void carregar(entradaRef.current);
-  }, [carregar, chave]);
+  // A chave, o estado e a leitura que só lê — o mesmo bloco que o postal usa.
+  // Ele saiu daqui na 3.1: escrito duas vezes no mesmo arquivo, eram cinco
+  // decisões finas duplicadas (ver `useEstadoDaEdicao`).
+  const estado = useEstadoDaEdicao(entrada);
 
   /**
    * Quem tem o que dizer — a resposta do núcleo, pela régua da impressão. `null`
@@ -264,6 +374,12 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComEdicao; offset: n
   const abrirCapa = useCallback(() => setCapaAberta(true), []);
   const fecharCapa = useCallback(() => setCapaAberta(false), []);
   const tituloDaCapaAberta = useMemo(() => tituloDaCapa(tipo, entrada.resumo.startISO), [tipo, entrada.resumo.startISO]);
+  // A entrada mais recente, para as duas funções abaixo: elas têm de ser estáveis
+  // por dono (o seletor de fotos recarrega quando mudam) e a entrada muda a cada
+  // ciclo da busca da retro. É a mesma ref que `useEstadoDaEdicao` mantém por
+  // dentro, pela mesma razão — mas esta é da troca da capa, não da leitura.
+  const entradaRef = useRef(entrada);
+  entradaRef.current = entrada;
   // Estável por dono: o seletor recarrega quando esta função muda, e a entrada muda
   // a cada ciclo da busca da retro. Lê a entrada mais recente pela ref.
   const carregarFotos = useCallback(async () => {

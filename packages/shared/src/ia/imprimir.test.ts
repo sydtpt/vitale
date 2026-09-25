@@ -398,6 +398,70 @@ describe('período aberto ou Total — aberto, sem buscar e sem motor', () => {
   });
 });
 
+/* ── a semana não grava (Story 3.1) ──────────────────────────────────────── */
+
+/**
+ * A mesma matéria de agosto, chaveada como **semana** — 24 a 30 de agosto de
+ * 2026, fechada para o `AGORA` de 06/09.
+ *
+ * Fechada de propósito: a recusa que interessa é a do **tipo**, e uma semana em
+ * curso já cairia em `aberto` pela guarda de sempre. É exatamente esta semana —
+ * fechada, com os quatro cadernos cheios de dado — que passava e gravava antes
+ * desta story.
+ */
+function semanaFechada(): RetroSummary {
+  return { ...agosto(), kind: 'week', label: 'Sem 24–30 ago', startISO: '2026-08-24', endISO: '2026-08-30' };
+}
+
+describe('a semana não grava edição — a recusa é do núcleo (Story 3.1)', () => {
+  it('semana fechada e cheia de dado: estado semana, sem buscar, sem motor e sem gravar', async () => {
+    const h = hospedeiro();
+    const r = await imprimir(entrada(semanaFechada()), h.portas, h.opcoes());
+    assert.deepEqual(r, { estado: 'semana' });
+    // O diário é a prova de que nada foi pago: nenhuma busca, nenhum motor,
+    // nenhuma gravação. `sem-caderno` também não gasta — a diferença é que este
+    // período TEM o que dizer, e mesmo assim não escreve.
+    assert.deepEqual(h.diario, []);
+    assert.deepEqual(h.gravacoes, []);
+    assert.deepEqual(h.buscas, []);
+  });
+
+  it('a recusa é do tipo e não do relógio: a semana em curso também dá semana, e nunca aberto', async () => {
+    const h = hospedeiro();
+    const emCurso = entrada(semanaFechada(), { agora: new Date(2026, 7, 26, 12, 0, 0) });
+    assert.deepEqual(await imprimir(emCurso, h.portas, h.opcoes()), { estado: 'semana' });
+    assert.deepEqual(h.diario, []);
+  });
+
+  it('pedir um caderno só de uma semana também é recusado', async () => {
+    const h = hospedeiro();
+    const r = await imprimir(entrada(semanaFechada()), h.portas, h.opcoes(cadeiaDaRevista(), { cadernos: ['sono'] }));
+    assert.deepEqual(r, { estado: 'semana' });
+    assert.deepEqual(h.diario, []);
+  });
+
+  it('a recusa não é da tela: `imprimirCom`, com qualquer descritor, recusa igual', async () => {
+    const h = hospedeiro();
+    const r = await imprimirCom(descritorDaRetrospectiva, entrada(semanaFechada()), h.portas, h.opcoes());
+    assert.deepEqual(r, { estado: 'semana' });
+    assert.deepEqual(h.diario, []);
+  });
+
+  it('a lista de cadernos vazia continua sendo chamada errada, e lança antes de olhar o tipo', async () => {
+    const h = hospedeiro();
+    await assert.rejects(
+      () => imprimir(entrada(semanaFechada()), h.portas, h.opcoes(cadeiaDaRevista(), { cadernos: [] })),
+      TypeError,
+    );
+    assert.deepEqual(h.diario, []);
+  });
+
+  it('o mês continua gravando — a guarda nova não pegou os outros tipos junto', async () => {
+    const h = hospedeiro();
+    assert.equal(gravada(await imprimir(entrada(), h.portas, h.opcoes())).estado, 'gravada');
+  });
+});
+
 describe('ninguém escreve — nada-gravado, e gravar não é chamada', () => {
   it('todos no piso', async () => {
     const falha: Falha = { classe: 'indisponivel', detalhe: 'sem rede' };

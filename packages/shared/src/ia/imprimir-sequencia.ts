@@ -144,6 +144,26 @@ export async function imprimirCom<E>(
   versoesDaRetrospectiva(descritor.versao);
 
   const { resumo } = entrada;
+
+  /**
+   * **A semana não grava** (Story 3.1) — a guarda de tipo que faltava.
+   *
+   * O contrato do Épico 2 diz "a semana não grava edição; o postal calcula na
+   * hora", e até esta story nenhuma linha o cobrava: a rota `/revista/semana/…`
+   * abria a mesma edição do mês, `podeImprimir` não olhava `kind`, e a guarda
+   * abaixo só recusava o Total e o período em curso. Semana fechada passava e
+   * gravava — as cinco semanas em `pacote_versao` 3 são a prova.
+   *
+   * **Antes de `montarPacotes`, e não ao lado da recusa do `all`.** As duas
+   * respondem a mesma pergunta — "este período pode virar linha na tabela?" —,
+   * mas a do `all` precisa dos pacotes (é deles que sai `periodo.fechado`) e
+   * esta não precisa de nada. A montagem **lança** com lápide inválida ou
+   * caderno repetido (casos (3) da lista acima), e uma semana com lápide torta
+   * rejeitaria em vez de ser recusada: a resposta sobre o tipo mudaria conforme
+   * a matéria, que é exatamente o que uma guarda de tipo não pode fazer.
+   */
+  if (resumo.kind === 'week') return { estado: 'semana' };
+
   const pacotes = montarPacotes(comCoberturaDoSono(entrada));
 
   // `fechado` é o `periodoFechado` do resumo, carimbado nos quatro pacotes; `all`

@@ -12,12 +12,14 @@ import {
   entradaDaGradeDe,
   gradeDoPeriodo,
   lapidesDaRetrospectiva,
+  montarPostal,
   retroInputDe,
   retroSince as retroSinceDate,
   type DadosDaRetro,
   type FatoLapide,
   type GradeDaCapa,
   type PeriodKind,
+  type PostalDaSemana,
   type RetroLede,
   type Heatmap,
   type TaskGrid,
@@ -71,6 +73,18 @@ interface RetroState {
   highlights: (now: Date, kind: PeriodKind, offset: number) => WeekHighlight[];
   /** A manchete do período — o parágrafo de abertura (spec v2 §3). */
   lede: (now: Date, kind: PeriodKind, offset: number) => RetroLede;
+  /**
+   * O **postal** — os três fatos que a semana mostra (Story 3.1).
+   *
+   * Mora aqui, e não na tela, pelo mesmo motivo do `lede`: o resumo e os
+   * destaques saem da **mesma** `buildRetrospective`, e pedir os dois
+   * separadamente a construiria duas vezes por render — numa tela cuja tese é
+   * calcular na hora, a cada abertura.
+   *
+   * Genérica em `kind` como as irmãs: quem decide que só a semana é postal é a
+   * rota (`TIPO_DO_POSTAL`), não esta função.
+   */
+  postal: (now: Date, kind: PeriodKind, offset: number) => PostalDaSemana;
   /** Uma célula por dia do período exibido — genérico em N (spec v2 §4). */
   heatmap: (now: Date, kind: PeriodKind, offset: number, metric: string) => Heatmap | null;
   /**
@@ -136,6 +150,12 @@ export const useRetroStore = create<RetroState>((set, get) => {
     lede: (now, kind, offset) => {
       const input = buildInput(now, kind, offset);
       return buildRetroLede(buildRetroHighlights(buildRetrospective(input), input));
+    },
+    postal: (now, kind, offset) => {
+      const input = buildInput(now, kind, offset);
+      // Uma passada: o resumo vira os destaques, e os dois vão juntos ao núcleo.
+      const resumo = buildRetrospective(input);
+      return montarPostal(resumo, buildRetroHighlights(resumo, input));
     },
     heatmap: (now, kind, offset, metric) => buildHeatmap(buildInput(now, kind, offset), metric),
     // Pela entrada ESTREITA, e não pelo `buildInput`: a grade lê dois campos, e a

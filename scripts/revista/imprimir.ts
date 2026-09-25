@@ -78,6 +78,7 @@ import {
   CADERNO_IDS,
   SEM_MODELO,
   TIPOS_EM_MASSA,
+  TIPO_DO_POSTAL,
   atividadesDoPeriodo,
   cidadesDoPeriodo,
   descritorDaRetrospectiva,
@@ -153,6 +154,21 @@ const TIPOS: Readonly<Record<string, TipoComEdicao>> = Object.freeze({
 });
 
 const NOME_DO_TIPO: Readonly<Record<TipoComEdicao, string>> = { week: 'semana', month: 'mês', season: 'estação', year: 'ano' };
+
+/**
+ * A recusa da semana (Story 3.1) — **uma frase, dois pontos de saída**.
+ *
+ * O núcleo devolve o estado `semana` sem buscar, chamar nem gravar nada; o
+ * script o traduz aqui. A frase é única porque ela sai em dois lugares — na
+ * linha de comando, antes de abrir rede, e no desfecho de `imprimirPeriodo` —, e
+ * duas grafias da mesma recusa divergiriam no dia em que uma mudasse.
+ *
+ * Ela **não** é "não fechou": uma semana fechada fechou, e dizer o contrário
+ * manda o operador procurar um erro de relógio que não existe.
+ */
+function recusaDaSemana(rotulo: string): string {
+  return `${rotulo} é uma semana, e semana não grava edição — o postal da Retrospectiva a calcula na hora.`;
+}
 const UM_PERIODO: Readonly<Record<TipoComEdicao, string>> = {
   week: 'uma semana (ela começa na segunda-feira)',
   month: 'um mês',
@@ -1016,11 +1032,19 @@ export async function imprimirPeriodo(pedido: PedidoDeImpressao, deps: DepsDaImp
     return { codigo: 1, estado: 'ja-impresso', cadernos: [], ordem: e.cadernos, grupos: null, comparacao: null, capa: null };
   }
 
-  if (resultado.estado === 'aberto' || resultado.estado === 'sem-caderno') {
+  /**
+   * As três recusas que o núcleo dá sem ler nem gravar nada. `semana` entrou na
+   * Story 3.1: a bancada nunca enumera semana (`TIPOS_EM_MASSA` não a nomeia),
+   * mas `--tipo semana` na linha de comando chega aqui, e o desfecho tem de
+   * dizer o que é — "não fechou" seria falso sobre uma semana que fechou.
+   */
+  if (resultado.estado === 'semana' || resultado.estado === 'aberto' || resultado.estado === 'sem-caderno') {
     avisar(
-      resultado.estado === 'aberto'
-        ? `${periodo.rotulo} não fechou para o núcleo — nada foi lido nem gravado.`
-        : `nenhum caderno de ${periodo.rotulo} tem o que dizer — nada foi lido nem gravado.`,
+      resultado.estado === 'semana'
+        ? recusaDaSemana(periodo.rotulo)
+        : resultado.estado === 'aberto'
+          ? `${periodo.rotulo} não fechou para o núcleo — nada foi lido nem gravado.`
+          : `nenhum caderno de ${periodo.rotulo} tem o que dizer — nada foi lido nem gravado.`,
     );
     return { codigo: 1, estado: resultado.estado, cadernos: [], ordem: [], grupos: null, comparacao: null, capa: null };
   }
@@ -1975,6 +1999,23 @@ export async function principal(argv: readonly string[], p: Processo): Promise<n
       return 1;
     }
     periodo = v.periodo;
+    /**
+     * **A semana sai aqui** (Story 3.1), e não lá embaixo no desfecho do núcleo.
+     *
+     * `validarPeriodo` continua aceitando semana — ela **é** um período válido,
+     * e a barreira dos válidos de cada tipo cobra isso. O que a semana não é
+     * mais é um período que grava edição.
+     *
+     * A recusa vem antes da rede pelo motivo de sempre, e antes de
+     * `imprimirPeriodo` por um motivo desta story: com `--caderno`, aquela
+     * função avisa *"não tem edição, e --caderno X vai criar uma com um caderno
+     * só"* **antes** de o núcleo responder. O operador lia uma promessa e, três
+     * linhas depois, a recusa que a desmentia.
+     */
+    if (periodo.tipo === TIPO_DO_POSTAL) {
+      p.avisar(`${recusaDaSemana(periodo.rotulo)}\n  Nada foi aberto.`);
+      return 1;
+    }
   }
 
   /* A credencial, antes de qualquer rede — e só o NOME da variável, nunca o valor. */
