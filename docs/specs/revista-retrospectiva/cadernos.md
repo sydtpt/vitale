@@ -199,6 +199,37 @@ E marca **onde o líder trocou**, de um mês para o seguinte. É isso que preser
 de "quatro batimentos paralelos": sem a troca, doze meses liderados pelo mesmo fato e doze
 meses trocando de fato a cada mês desenhariam a mesma barra.
 
+##### O estreitamento virou a regra (2026-09-25, decisão do dono)
+
+A 2.4b deixou a promessa de magnitude **em aberto**, com o preço escrito: uma coluna nova em
+`edicoes_ia` e uma migração. O dono a fechou no mesmo dia, lendo a medição do acervo — e a
+medição é o argumento, não a conveniência.
+
+**Em 61% dos casos não há líder nenhum.** De 106 pares caderno-mês impressos, só 41 têm
+`metrica_lider`. **2024 inteiro tem zero** — 23 pares, nenhum líder. O anuário de 2024 são
+quatro tiras em branco, com magnitude ou sem.
+
+**Quando há líder, ele troca.** Movimento em 2025 foi
+`distância · atividades · atividades · atividades · distância · ciclismo.tempo · distância ·
+distância · tempo · tempo` — quatro métricas, seis trocas em dez meses. Desenhar a altura
+disso empilharia quilômetros, contagem de atividades e horas na mesma régua.
+
+**E o caso extremo é literal, não hipotético.** Rotina em 2026 teve como líder um
+`registro.<uuid>` num mês e um `habito.<uuid>` no seguinte — *registros e hábitos específicos
+do dono*. A magnitude ali seria "dias de cerveja" ao lado de "dias da tarefa X", no mesmo eixo.
+
+A única série do acervo onde a magnitude teria sentido é **coração em 2026**: `vfc` oito meses
+seguidos, uma métrica só. Uma em todo o arquivo.
+
+**Preço temporal, que fecha a conta:** mesmo pagando a coluna hoje, as 54 edições já impressas
+nunca teriam grandeza — o valor de então não existe em lugar nenhum. O primeiro anuário medido
+seria o de 2027.
+
+Logo: **a tira diz identidade, e isso não é um compromisso — é a leitura mais informativa que o
+dado permite.** "A VFC liderou todos os meses de 2026" é uma frase verdadeira; uma barra que
+mistura milissegundos com dias de cerveja não é. A promessa de magnitude sai de "aberta" para
+**recusada**, e reabri-la exige medição nova, não preferência.
+
 A promessa de magnitude fica **em aberto**, e o que a reabriria é carimbar o valor ao lado
 da chave — coluna nova em `edicoes_ia`, migração, e a pergunta de que unidade guardar
 quando a métrica líder muda. Ver

@@ -183,7 +183,18 @@ development_status:
   1-15-o-piloto-de-três-edições: done
   epic-1-retrospective: optional
 
-  epic-2: in-progress
+  # VEREDITO DO DONO em 25/09/2026, num build único no iPhone (Xcode 27, Release
+  # autocontido) que cobriu SETE stories de uma vez: as seis do Épico 2 em review
+  # mais a 3.1. Ele aprovou todas — "estão ótimos".
+  # O que esse build destravou, além das sete:
+  #  - A LÁPIDE, parada desde a 1.12 (17/09): só agora existia o que mostrar, e os
+  #    dois estados (topo no mês da morte, pé nos demais) foram vistos em tela.
+  #  - OS TRÊS NÚMEROS que nenhum teste alcança, aprovados como estão: o limiar de
+  #    20 pontos do traçado, a espessura que cresce com a raiz da caixa, e o vão de
+  #    22% da grade. A parede a 173 px era a única prova possível deles.
+  #  - A grade densa × esparsa (jun/2023, 21 de 30 dias × jan/2024, 1 dia): a
+  #    diferença lê, que era a dúvida que sustentava contar registro junto.
+  epic-2: done
   # Encolhe se a 5.4 chegar antes: quem chegar primeiro cria o workspace scripts/.
   # FECHADA em 21/09/2026 por conferência — a 5.4 chegou primeiro e cumpriu os
   # quatro critérios: `scripts` está no pnpm-workspace.yaml com @supabase/supabase-js
@@ -263,7 +274,7 @@ development_status:
   #    mais tarde, que a regra 2 acomoda (a lápide é do período da última medida).
   # CARREGA MIGRAÇÃO: função aditiva `stable` que devolve fatos por métrica. Sem
   # mudança de schema, sem janela acoplada a build; o dono aplica.
-  2-7-o-detector-de-métrica-morta: review
+  2-7-o-detector-de-métrica-morta: done
   # PRÉ-CONDIÇÃO, decidida pelo dono em 23/09/2026 (spec da 2.6): setembro e
   # outubro de 2023 já estão impressas e carregam o zero no lugar da ausência, e
   # serão REIMPRESSAS aqui. ANTES de reimprimir, o texto atual das duas tem de ir
@@ -280,7 +291,7 @@ development_status:
   # apagá-las é destrutivo sem ganho); e o script passa a CARIMBAR A CAPA.
   # Antes de reimprimir, o dono exporta o texto atual das cinco para
   # docs/specs/revista-retrospectiva/, como as 7 antigas na janela da 1.9.
-  2-3-a-impressão-em-massa-dos-períodos-fechados: review
+  2-3-a-impressão-em-massa-dos-períodos-fechados: done
   # DIVIDIDA EM 24/09/2026, por decisão do dono sobre uma proposta visual montada
   # com o arquivo real (4 pranchas). Duas entregas que embarcam sozinhas:
   #   2-4a os dois desenhistas — `tracado` em SVG e `grade` —, ligados já na rota
@@ -301,9 +312,9 @@ development_status:
   #     e os de 2024 têm de 1 a 8 — e a diferença é a informação.
   #  3. A legibilidade do traçado a 173 px fica para o veredito no iPhone; o
   #     limiar nasce declarado e ajustável (as 6 rotas têm 10 a 135 pontos).
-  2-4a-os-dois-desenhistas-da-capa: review
-  2-4b-a-parede-de-capas: review
-  2-5-silenciar-um-caderno: review
+  2-4a-os-dois-desenhistas-da-capa: done
+  2-4b-a-parede-de-capas: done
+  2-5-silenciar-um-caderno: done
   # NASCEU EM 24/09/2026, de um defeito MEDIDO no arquivo que a corrida da 2.3
   # acabou de imprimir: 68 ocorrências de "1 dias" em 37 linhas, 35 dos 45
   # períodos, SEMPRE no caderno rotina. Não é o modelo: pelo ADR 0049 o número e
@@ -317,11 +328,11 @@ development_status:
   # existente (há 4 escolhidas à mão em produção — 3 `trocada`, 1 `estrela`), e
   # `PACOTE_VERSAO` não sobe, porque é por ele que a 2.3 julga o que já foi
   # renovado. Quem reimprime é o dono.
-  2-8-o-número-e-a-unidade-concordam: review
+  2-8-o-número-e-a-unidade-concordam: done
   epic-2-retrospective: optional
 
   epic-3: in-progress
-  3-1-o-postal-da-semana: review
+  3-1-o-postal-da-semana: done
   3-2-o-anuário-do-ano: backlog
   # ⚠ NÃO PRONTA PARA DESENVOLVIMENTO — a única das 27, e de propósito.
   # Metade dos critérios de aceite não existe: forma, posição e tratamento visual
