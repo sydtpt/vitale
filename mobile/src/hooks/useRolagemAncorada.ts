@@ -56,6 +56,15 @@ export interface Ancora {
    * ou descer o `onLayout` para dentro do card, faz **todo** destino virar a mesma
    * posição — e o sintoma é mudo: nada lança, nada avisa, a suíte fica verde e
    * cada linha do sumário passa a rolar para o mesmo lugar.
+   *
+   * **A segunda invariante é a remedida: a última medida manda** (Story 3.2). Um
+   * irmão que entra **acima** dos destinos depois do primeiro quadro — o anuário
+   * do ano, a capa que cresce quando o traçado chega, a errata que aparece —
+   * muda a *origem* de cada âncora já medida, e quem conserta isso é o
+   * `onLayout` reemitido. Guardar a primeira medida (um `if (!topos.has(id))`,
+   * que é a "otimização" mais natural do mundo aqui) faria toda linha do sumário
+   * cair curta pela altura do que entrou, sem nada lançar.
+   * `useRolagemAncorada.test.ts` prende as duas pontas disso.
    */
   readonly onLayout: (e: LayoutChangeEvent) => void;
 }

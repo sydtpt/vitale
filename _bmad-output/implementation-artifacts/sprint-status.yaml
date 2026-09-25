@@ -322,7 +322,23 @@ development_status:
 
   epic-3: in-progress
   3-1-o-postal-da-semana: review
-  3-2-o-anuário-do-ano: backlog
+  # DUAS DECISÕES DO DONO em 25/09/2026, sobre medição do acervo:
+  #  1. A TIRA DIZ IDENTIDADE, e a magnitude está RECUSADA (não mais "aberta").
+  #     De 106 pares caderno-mês impressos só 41 têm `metrica_lider`; 2024 tem
+  #     ZERO; movimento em 2025 trocou de métrica 4 vezes em 10 meses; e Rotina
+  #     em 2026 foi liderada por um registro.<uuid> num mês e um habito.<uuid>
+  #     no seguinte — a altura seria "dias de cerveja" ao lado de "dias da
+  #     tarefa X" no mesmo eixo. Escrito em cadernos.md.
+  #  2. QUANDO NENHUM MÊS DO ANO LIDEROU, uma linha em palavras ocupa o lugar
+  #     das faixas. Não é borda: vale para 2024 inteiro e quase todo 2023. O
+  #     anuário de 2024 tem 1.393 caracteres de texto real e doze meses sem
+  #     líder, porque o portão de amostra mínima funcionou.
+  # FORA DA STORY, por decisão do dono: os EXTREMOS DATADOS que o critério pede.
+  # Só o Sono os tem (SleepExtremes); `EventoFato` e a seção `### Eventos` do
+  # prompt já existem e ninguém as preenche (dívida em period/cadernos.ts:83).
+  # Viram story própria — um produtor serviria as 4 tiras E o texto, em todos os
+  # períodos, e vale mais assim que como apêndice da 3.2.
+  3-2-o-anuário-do-ano: in-progress
   # ⚠ NÃO PRONTA PARA DESENVOLVIMENTO — a única das 27, e de propósito.
   # Metade dos critérios de aceite não existe: forma, posição e tratamento visual
   # dependem de uma passagem de bmad-ux ADIADA deliberadamente para depois das

@@ -1,54 +1,34 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
-  MODULO_DO_CADERNO,
   rotuloDoCaderno,
+  tirasEmPalavras,
   type CadernoId,
   type CelulaDaTira,
   type TiraDoAno,
 } from '@vitale/shared';
-import { colors, fonts, moduleColors, radii, shadows, spacing, useTheme, useThemedStyles } from '../../theme';
+import { colors, fonts, radii, shadows, spacing, useTheme, useThemedStyles } from '../../theme';
+import { CelulasDaTira, MarcaDaTira } from './CelulasDaTira';
 import { MUDO } from './constantes-da-capa';
 
 /**
  * **O anuário na parede: quatro tiras, e nenhuma capa** (Story 2.4b).
  *
  * O contrato é literal em `docs/specs/revista-retrospectiva/cadernos.md`: *"São
- * quatro tiras de doze meses, uma por caderno, na cor do caderno. (…) O anuário
- * não tem capa: as quatro tiras são a capa do ano."* Por isso o ano ocupa a
- * largura inteira da parede, no lugar onde os meses têm duas colunas — ele não é
- * um mês grande, é outra forma.
+ * quatro tiras de doze meses, uma por caderno, na cor do caderno. (…) Na parede,
+ * o anuário não tem capa: as quatro tiras são a capa do ano."* Por isso o ano
+ * ocupa a largura inteira da parede, no lugar onde os meses têm duas colunas —
+ * ele não é um mês grande, é outra forma.
  *
- * ## O que cada célula diz, e o que ela não diz
+ * ## O desenho e a fala moram fora desde a 3.2
  *
- * Ela lê `metrica_lider`, **a chave carimbada**, e nunca um número. São três
- * estados por mês:
- *
- * - **o caderno liderou com uma métrica** — bloco cheio, no `accent` do módulo;
- * - **o caderno saiu e nenhuma métrica liderou** (`metrica_lider` nulo) — bloco
- *   cheio, no `tint`. É o estado que a coluna nulável existe para registrar;
- * - **o caderno não saiu** — um **filete**, e não um bloco.
- *
- * E, entre duas células, um vão maior marca **onde o líder trocou**. Sem ele,
- * doze meses liderados pelo mesmo fato e doze meses trocando de fato a cada mês
- * desenhariam a mesma barra, e *"quatro batimentos paralelos"* seria só uma frase.
- *
- * ## Por que a ausência é forma, e não uma terceira cor
- *
- * Porque a medição recusou a terceira cor. `tint` contra a `line` do tema fica
- * **abaixo de ΔE 10 nas 144 combinações** de tema × esquema × paleta × caderno, e
- * abaixo de 3 em 49 delas — o pior par mede 1,2. Um tri-estado por cor seria um
- * bi-estado com uma promessa a mais: "não saiu" leria igual a "saiu calado". A
- * forma separa presença de ausência sem depender de cor nenhuma, e à cor sobra só
- * o par que a medição sustenta (`accent` × `tint`, pior caso ΔE 21,8). O teste
- * `theme.test.ts` trava os dois lados disso.
- *
- * ## Cor
- *
- * `moduleColors(MODULO_DO_CADERNO[caderno])`, a mesma ponte da faixa de caderno
- * da 1.12: nenhuma tela escolhe cor, e a ponte caderno → módulo → papel é uma só.
- * Lida **no render**, nunca na folha de estilo — no escopo do módulo ela
- * congelaria na paleta do import.
+ * A tira virou também a abertura da edição do ano, a 34 px — e o que as duas
+ * compartilham saiu daqui: a geometria e os dois vãos para `geometria-da-tira.ts`,
+ * a célula e a cor para `CelulasDaTira.tsx`, a fala para o **núcleo**
+ * (`tirasEmPalavras`), porque é veredito sobre o dado e as duas telas falam com a
+ * mesma voz. O que ficou é o que é **da miniatura**: a altura de 16, a grade
+ * `divididas` (aprovada em tela na 2.4b), o `Pressable` que abre a edição, o
+ * versalete e a legenda das três amostras.
  */
 export interface TirasDoAnuarioProps {
   ano: number;
@@ -59,51 +39,11 @@ export interface TirasDoAnuarioProps {
   onAbrir: (inicio: string) => void;
 }
 
-/**
- * O vão entre dois meses, e o vão que marca a **troca de líder**.
- *
- * Dois números, e a razão entre eles é o que se lê: 2 px separa meses vizinhos
- * sem os desgrudar, 7 px abre uma pausa que o olho reconhece como "aqui mudou".
- * Um só valor não conseguiria dizer as duas coisas, e um traço no meio da tira
- * competiria com a própria barra a 20 px de célula.
- */
-const VAO_DO_MES = 2;
-const VAO_DA_TROCA = 7;
-
 /** A altura de uma tira — alta o bastante para a cor se ler, baixa para caber quatro. */
 const ALTURA_DA_TIRA = 16;
 
-/**
- * A altura do filete da **ausência** — um quarto do bloco.
- *
- * Um quarto, e não metade: a metade ainda lê como bloco baixo, e o que se quer é
- * que "não saiu" não seja confundido com "saiu". Centrado na faixa, ele desenha
- * uma pausa na linha, que é exatamente o que aquele mês foi.
- */
-const ALTURA_DO_FILETE = Math.round(ALTURA_DA_TIRA / 4);
-
-/** Quantos meses o caderno saiu, em palavras — o que o leitor de tela ouve. */
-const meses = (n: number): string => (n === 1 ? '1 mês' : `${n} meses`);
-
-/**
- * A tira, em palavras — os **três** estados e as trocas, e não só a contagem.
- *
- * "Sono em 9 meses" não decodifica nada: não separa o mês calado do mês ausente,
- * e não diz nada das trocas, que são a razão declarada de a tira existir. Quem
- * ouve tem de conseguir reconstruir o desenho.
- */
-export function tiraEmPalavras(t: TiraDoAno): string {
-  const comMetrica = t.celulas.filter((c) => c.estado === 'metrica').length;
-  const calados = t.celulas.filter((c) => c.estado === 'sem-metrica').length;
-  const trocas = t.celulas.filter((c) => c.estado === 'metrica' && c.mudou).length;
-  const nome = rotuloDoCaderno(t.caderno);
-  if (t.meses === 0) return `${nome}: não saiu no ano`;
-  const partes = [`liderou em ${meses(comMetrica)}`];
-  if (calados > 0) partes.push(`saiu sem líder em ${meses(calados)}`);
-  partes.push(`não saiu em ${meses(t.celulas.length - t.meses)}`);
-  if (trocas > 0) partes.push(trocas === 1 ? 'o líder mudou uma vez' : `o líder mudou ${trocas} vezes`);
-  return `${nome}: ${partes.join(', ')}`;
-}
+/** A coluna dos nomes: os quatro alinham, e as quatro tiras começam na mesma coluna. */
+const LARGURA_DO_NOME = 74;
 
 export const TirasDoAnuario = React.memo(function TirasDoAnuario(
   { ano, inicio, tiras, onAbrir }: TirasDoAnuarioProps,
@@ -115,11 +55,14 @@ export const TirasDoAnuario = React.memo(function TirasDoAnuario(
   useTheme();
 
   /**
-   * Um alvo de toque só, e um rótulo só. Tiras aninhadas como elementos separados
-   * fariam o VoiceOver parar quatro vezes dentro de um botão — e a 1.16 já
-   * estabeleceu que a capa é um alvo, com o texto lido como texto.
+   * Um alvo de toque só, e um rótulo só. Tiras aninhadas como elementos
+   * separados fariam o VoiceOver parar quatro vezes dentro de um botão — e a
+   * 1.16 já estabeleceu que a capa é um alvo, com o texto lido como texto.
+   *
+   * A frase é a do núcleo, a mesma do anuário da edição: duas aberturas para o
+   * mesmo desenho eram duas vozes para a mesma coisa.
    */
-  const falado = `O anuário de ${ano}. ${tiras.map(tiraEmPalavras).join('. ')}.`;
+  const falado = tirasEmPalavras(ano, tiras);
 
   return (
     <Pressable
@@ -133,12 +76,13 @@ export const TirasDoAnuario = React.memo(function TirasDoAnuario(
       <View {...MUDO}>
         {tiras.map((t) => (
           <View key={t.caderno} style={styles.linha}>
-            <Text style={styles.caderno} numberOfLines={1}>{rotuloDoCaderno(t.caderno)}</Text>
-            <View style={styles.tira}>
-              {t.celulas.map((c, mes) => (
-                <Celula key={mes} celula={c} caderno={t.caderno} primeiro={mes === 0} styles={styles} />
-              ))}
-            </View>
+            {/* Encolhe em vez de truncar: o nome é o portador da identidade —
+                Movimento e Coração medem ΔE 4,1 a 9,9 em cinco das seis paletas,
+                e a cor não os separa sozinha. Ver `AnuarioDaEdicao`. */}
+            <Text style={styles.caderno} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+              {rotuloDoCaderno(t.caderno)}
+            </Text>
+            <CelulasDaTira celulas={t.celulas} caderno={t.caderno} altura={ALTURA_DA_TIRA} colunas="divididas" />
           </View>
         ))}
       </View>
@@ -154,35 +98,6 @@ export const TirasDoAnuario = React.memo(function TirasDoAnuario(
   );
 });
 
-/** A cor de um estado, nos eixos ativos. Lida no render, nunca na folha. */
-function corDaCelula(estado: CelulaDaTira['estado'], caderno: CadernoId): string {
-  const cor = moduleColors(MODULO_DO_CADERNO[caderno]);
-  return estado === 'metrica' ? cor.accent : estado === 'sem-metrica' ? cor.tint : colors.line;
-}
-
-function Celula({ celula, caderno, primeiro, styles }: {
-  celula: CelulaDaTira;
-  caderno: CadernoId;
-  primeiro: boolean;
-  styles: ReturnType<typeof createStyles>;
-}) {
-  const ausente = celula.estado === 'ausente';
-  const mudou = celula.estado === 'metrica' && celula.mudou;
-  return (
-    // A caixa externa tem sempre a altura da faixa — é ela que mantém as quatro
-    // tiras alinhadas —, e o que muda de forma é a marca dentro dela.
-    <View style={[styles.celula, primeiro ? null : { marginLeft: mudou ? VAO_DA_TROCA : VAO_DO_MES }]}>
-      <View
-        style={[
-          styles.marca,
-          ausente ? styles.marcaAusente : null,
-          { backgroundColor: corDaCelula(celula.estado, caderno) },
-        ]}
-      />
-    </View>
-  );
-}
-
 /** Uma amostra da legenda: a marca do estado, no tamanho em que ela aparece. */
 function Amostra({ estado, texto, styles }: {
   estado: CelulaDaTira['estado'];
@@ -192,16 +107,11 @@ function Amostra({ estado, texto, styles }: {
   return (
     <View style={styles.amostra}>
       <View style={styles.amostraCaixa}>
-        <View
-          style={[
-            styles.marca,
-            estado === 'ausente' ? styles.marcaAusente : null,
-            // A amostra usa o **primeiro** caderno como cor: ela explica a forma e
-            // a intensidade, não qual caderno é qual — isso o nome ao lado da tira
-            // já diz.
-            { backgroundColor: corDaCelula(estado, 'sono') },
-          ]}
-        />
+        {/* A amostra usa o **primeiro** caderno como cor: ela explica a forma e a
+            intensidade, não qual caderno é qual — isso o nome ao lado da tira já
+            diz. E usa a MESMA marca da célula, para não haver uma segunda cópia
+            da regra forma-vs-cor numa legenda. */}
+        <MarcaDaTira estado={estado} caderno={'sono' satisfies CadernoId} altura={ALTURA_DA_TIRA} />
       </View>
       <Text style={styles.legendaTxt}>{texto}</Text>
     </View>
@@ -221,22 +131,17 @@ const createStyles = () =>
       fontSize: 11, fontFamily: fonts.sansBold, textTransform: 'uppercase',
       letterSpacing: 1.1, color: colors.ink3, marginBottom: 2,
     },
-    linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: ALTURA_DA_TIRA + 6 },
+    linha: {
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+      minHeight: ALTURA_DA_TIRA + 6,
+    },
     // Largura fixa: os quatro nomes alinham, e as quatro tiras começam na mesma
     // coluna — é o alinhamento que faz os "batimentos" serem comparáveis.
-    caderno: { width: 74, fontSize: 11, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
-    tira: { flex: 1, flexDirection: 'row', alignItems: 'center', height: ALTURA_DA_TIRA },
-    // `flex: 1` e não largura medida: os doze dividem o que sobra depois dos vãos,
-    // então a troca de líder abre a pausa sem a tira estourar a caixa.
-    celula: { flex: 1, height: ALTURA_DA_TIRA, justifyContent: 'center' },
-    // Um quinto do lado, como na célula da `CapaGrade`, e pelo mesmo motivo: o
-    // quadrado puro lê como pixel de tabela, e o raio grande, como bolinha.
-    marca: { width: '100%', height: ALTURA_DA_TIRA, borderRadius: ALTURA_DA_TIRA / 5 },
-    marcaAusente: { height: ALTURA_DO_FILETE, borderRadius: ALTURA_DO_FILETE / 2 },
+    caderno: { width: LARGURA_DO_NOME, fontSize: 11, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
 
     legenda: {
       flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
-      gap: spacing.md, marginTop: spacing.xs, paddingLeft: 74 + spacing.sm,
+      gap: spacing.md, marginTop: spacing.xs, paddingLeft: LARGURA_DO_NOME + spacing.sm,
     },
     amostra: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     amostraCaixa: { width: 14, height: ALTURA_DA_TIRA, justifyContent: 'center' },
