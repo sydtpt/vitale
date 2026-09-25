@@ -20,7 +20,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Activity, ActivityRoutePoint } from '../models';
 import type { SurfaceMix, SurfaceSegment } from '../surface/classify';
-import { fetchAllPages } from './paginate';
+import { fetchAllPages, fetchEmLotesDeIds } from './paginate';
 
 const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
@@ -358,31 +358,79 @@ export async function fetchRouteSurface(
 }
 
 /**
- * Traçados reduzidos de várias atividades. Usa `route_overview` (1 ponto a cada
- * 40), não `points` — é a diferença entre um mapa que carrega e um timeout.
+ * Traçados reduzidos de várias atividades, **como a coluna os guarda** — pares
+ * `[lat, lon]`, sem conversão nenhuma (Story 2.4b).
  *
- * A coluna guarda pares `[lat, lng]`, não objetos: metade dos bytes, e a
- * conversão para `{lat,lng}` acontece aqui, uma vez, em vez de em cada tela.
+ * Usa `route_overview` (1 ponto a cada 40), nunca `points` — é a diferença entre
+ * um mapa que carrega e um timeout.
+ *
+ * ## Por que a forma crua tem porta própria
+ *
+ * {@link fetchRouteOverviews} converte para `{lat,lng}` porque é o que o mapa e
+ * o detector de rota repetida consomem. A parede do arquivo consome o contrário:
+ * `projetarTracado` (`revista/desenho.ts`) recebe `ParDaRota`, que **é** o par —
+ * metade dos bytes, e a forma em que a coluna já está. Converter para objeto e
+ * de volta para par seria duas varreduras de até 135 pontos por capa, em quarenta
+ * capas, para chegar ao que veio do banco.
+ *
+ * Uma consulta só, então: esta. A de objetos passou a ser uma projeção dela —
+ * nenhuma tabela é lida por dois caminhos.
+ *
+ * ## O teto que morde é a URL, e não o de mil linhas
+ *
+ * `activity_id` é único em `activity_routes`: **N ids devolvem no máximo N
+ * linhas**, então paginar aqui é uma guarda que nunca dispara — para cruzar as
+ * mil linhas seria preciso pedir mais de mil ids, e aí o que estoura primeiro é a
+ * query string, que volta 414 em vez de cortar calado.
+ *
+ * A guarda certa é fatiar a lista, e ela **é** necessária: a web e o celular
+ * pedem todas as rotas que ainda não têm traçado em memória, e o acervo tem 274
+ * atividades com geografia — o mesmo caminho que levou a contagem de mídia a
+ * virar RPC. Ver {@link fetchEmLotesDeIds}.
+ *
+ * A ordem por `activity_id` fica: ela não é exigência de paginação nenhuma, mas
+ * torna a resposta estável entre chamadas, e é de graça sobre a chave.
+ */
+export async function fetchRouteOverviewPairs(
+  db: SupabaseClient,
+  userId: string,
+  activityIds: readonly string[],
+): Promise<Array<{ activityId: string; overview: [number, number][] }>> {
+  const rows = await fetchEmLotesDeIds<{ activity_id: string; route_overview: [number, number][] | null }>(
+    activityIds,
+    (fatia) =>
+      db
+        .from('activity_routes')
+        .select('activity_id,route_overview')
+        .eq('user_id', userId)
+        .in('activity_id', [...fatia])
+        .order('activity_id', { ascending: true }),
+  );
+  return rows.map((r) => ({
+    activityId: r.activity_id,
+    // O `jsonb` não é conferido por tipo nenhum no caminho do PostgREST: um par
+    // que não seja par viraria `NaN` na projeção, e daí um traçado sem desenho,
+    // sem erro e sem pista. Quem confere ponto a ponto é `pontosDaRota`; aqui só
+    // se garante que é uma lista de pares.
+    overview: (r.route_overview ?? []).filter((par) => Array.isArray(par) && par.length >= 2),
+  }));
+}
+
+/**
+ * Traçados reduzidos de várias atividades, já em `{lat,lng}` — o que o mapa e o
+ * detector de rota repetida consomem.
+ *
+ * É a projeção de {@link fetchRouteOverviewPairs}: a consulta é uma só, e a
+ * conversão acontece aqui, uma vez, em vez de em cada tela.
  */
 export async function fetchRouteOverviews(
   db: SupabaseClient,
   userId: string,
   activityIds: string[],
 ): Promise<Array<{ activityId: string; overview: ActivityRoutePoint[] }>> {
-  const { data, error } = await db
-    .from('activity_routes')
-    .select('activity_id, route_overview')
-    .eq('user_id', userId)
-    .in('activity_id', activityIds);
-  if (error) throw error;
-  return ((data ?? []) as Array<{
-    activity_id: string;
-    route_overview: [number, number][] | null;
-  }>).map((r) => ({
-    activityId: r.activity_id,
-    overview: (r.route_overview ?? [])
-      .filter((pair) => Array.isArray(pair) && pair.length >= 2)
-      .map(([lat, lng]) => ({ lat, lng })),
+  return (await fetchRouteOverviewPairs(db, userId, activityIds)).map((r) => ({
+    activityId: r.activityId,
+    overview: r.overview.map(([lat, lng]) => ({ lat, lng })),
   }));
 }
 

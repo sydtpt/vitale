@@ -177,6 +177,33 @@ declarado: quando a métrica líder muda de mês para mês, a tira mistura unida
 
 **O anuário não tem capa.** As quatro tiras são a capa do ano.
 
+#### Estreitamento (2026-09-25, Story 2.4b): a tira diz identidade, não grandeza
+
+O parágrafo acima promete **magnitude** — "mede o fato", "a tira e a ordem falam do mesmo
+número" —, e o custo que ele declara ("a tira mistura unidades") só existe se houver
+número desenhado. Na implementação da parede de capas isso não se sustenta, e a razão é
+do modelo de dados, não da tela: **o que a impressão carimba é `metrica_lider`, a chave
+da métrica que liderou — nunca o valor dela**. Desenhar a magnitude exigiria recalcular o
+ranqueamento a cada abertura, e recalcular é proibido desde a Story 1.9: a ordem congelou
+em `posicao` na impressão, e uma tira que recalculasse deixaria de concordar com a edição
+que ela anuncia.
+
+Então a tira **lê a chave** e diz três coisas por mês, sem nenhum número:
+
+1. o caderno **liderou** com uma métrica;
+2. o caderno **saiu e nenhuma métrica liderou** (`metrica_lider` nulo — ele entrou pela
+   lápide, ou nada dele passou no portão de amostra);
+3. o caderno **não saiu** naquele mês.
+
+E marca **onde o líder trocou**, de um mês para o seguinte. É isso que preserva a leitura
+de "quatro batimentos paralelos": sem a troca, doze meses liderados pelo mesmo fato e doze
+meses trocando de fato a cada mês desenhariam a mesma barra.
+
+A promessa de magnitude fica **em aberto**, e o que a reabriria é carimbar o valor ao lado
+da chave — coluna nova em `edicoes_ia`, migração, e a pergunta de que unidade guardar
+quando a métrica líder muda. Ver
+[ADR 0057](../../decisions/0057-a-parede-mostra-meses-e-o-ano-e-quatro-tiras.md).
+
 ## Apresentação
 
 - **Cabeçalho de caderno forte** — cor de módulo por `moduleOf()`, nome grande. Em

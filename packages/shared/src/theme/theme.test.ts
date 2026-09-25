@@ -20,6 +20,7 @@ import { BRANDS } from './brands';
 import { moduleOf, resolveTokens, wallpapersFor, MODULE_KEYS, type RoleKey } from './derive';
 import { ACTIVITY_ROLE, ACTIVITY_TYPE_LABELS } from '../fitness/activity-types';
 import { HR_ZONES } from '../health/hr-zones';
+import { CADERNO_IDS, MODULO_DO_CADERNO } from '../period/cadernos';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -757,6 +758,56 @@ check('resolver é determinístico e memoizado', () => {
 check('entrada desconhecida cai no padrão sem lançar', () => {
   const t = resolveTokens('nao-existe', 'light', 'nao-existe');
   assert.equal(t.bg, ORBE_LIGHT.bg, 'deveria cair no tema Orbe claro');
+});
+
+/**
+ * A **tira do anuário** (Story 2.4b) e o que a cor consegue carregar nela.
+ *
+ * A tira tem três estados por mês — o caderno liderou com uma métrica, saiu sem
+ * nenhuma (`metrica_lider` nulo), ou não saiu. A tentação era pintar os três: o
+ * `accent` do módulo, o `tint` dele, e a `line` do tema.
+ *
+ * **A medição recusou o terceiro.** `tint` (o `soft` do papel) contra `line` fica
+ * abaixo de ΔE 10 nas **144** combinações de tema × esquema × paleta × caderno, e
+ * abaixo de 3 em 49 delas — o pior par mede 1,2 (clean/dark/terra, Sono). Um
+ * tri-estado por cor seria um bi-estado com uma promessa a mais, e o mês em que o
+ * caderno **não saiu** leria igual ao mês em que ele saiu calado.
+ *
+ * Por isso a tira separa **presença por forma** (bloco cheio contra um filete) e
+ * deixa à cor só o par que a medição sustenta: `accent` × `tint`, cujo pior caso
+ * é ΔE 21,8. É este par que a catraca abaixo trava.
+ *
+ * A segunda asserção é o sinal de volta: enquanto **alguma** combinação tiver
+ * `tint` × `line` abaixo de 10, a decisão de usar forma continua válida. No dia
+ * em que todas passarem, ela reprova — e aí a decisão se reabre, em vez de
+ * continuar por inércia.
+ */
+check('a tira do anuário: accent × tint se distinguem, e tint × line não', () => {
+  const ruins: string[] = [];
+  const fracos: string[] = [];
+  let pior = Infinity;
+  for (const c of COMBOS) {
+    for (const caderno of CADERNO_IDS) {
+      const role = MODULE_ROLE[MODULO_DO_CADERNO[caderno]];
+      const r = c.tokens.roles[role];
+      const dAccent = deltaE(r.accent, r.soft);
+      if (dAccent < 10) ruins.push(`${label(c)} ${caderno} accent×tint ΔE ${dAccent.toFixed(1)}`);
+      const dLinha = deltaE(r.soft, c.tokens.line);
+      pior = Math.min(pior, dLinha);
+      if (dLinha < 10) fracos.push(`${label(c)} ${caderno}`);
+    }
+  }
+  assert.deepEqual(
+    ruins,
+    [],
+    `a tira perde o par que a cor carrega — "liderou" e "saiu calado" ficariam iguais:\n    ${ruins.join('\n    ')}`,
+  );
+  assert.ok(
+    fracos.length > 0,
+    'tint × line passou de ΔE 10 em TODAS as combinações — a tira do anuário pode voltar a '
+      + 'separar presença por cor, e a decisão de separá-la por forma deve ser reaberta.',
+  );
+  console.log(`     · tint×line: ${fracos.length}/${COMBOS.length * CADERNO_IDS.length} abaixo de ΔE 10, pior ${pior.toFixed(1)}`);
 });
 
 console.log(

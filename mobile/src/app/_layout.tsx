@@ -219,6 +219,10 @@ function AppShell() {
         <Stack.Screen name="retrospectiva/index" options={{ animation: 'slide_from_right' }} />
         {/* A edição de um período, aberta pela porta da Retrospectiva (Story 1.11). */}
         <Stack.Screen name="revista/[tipo]/[inicio]" options={{ animation: 'slide_from_right' }} />
+        {/* A parede de capas — o arquivo das edições impressas (Story 2.4b). Rota
+            irmã da de cima: um ladrilho dela empilha a edição por cima, e o voltar
+            do sistema devolve a parede na mesma posição. */}
+        <Stack.Screen name="revista/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="historico/[label]/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="compras/editor" options={{ animation: 'slide_from_right' }} />

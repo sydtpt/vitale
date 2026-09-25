@@ -164,6 +164,30 @@ que torna a disciplina de pré-registro parte do desenho e não um refinamento.
     fora de `pedidos` sobrevive à sequência. Dessilenciar traz de volta, intacto, tudo
     o que já tinha sido impresso.
 
+- **CAP-15 — o arquivo é uma parede de capas** (Story 2.4b ·
+  [ADR 0057](../../decisions/0057-a-parede-mostra-meses-e-o-ano-e-quatro-tiras.md) ·
+  mockup `key-arquivo.html`)
+  - **intent:** o leitor **folheia** as edições já impressas e reconhece cada período
+    pela capa, em vez de saber a data e navegar até ela. A rota `/revista` mostra duas
+    colunas de 173 px, da mais recente para trás, com o ano como régua fina entre as
+    fileiras — **nenhum calendário, nenhuma roda de mês, nenhum campo de intervalo**.
+  - **success (o assunto da tela é a textura):** descendo de agosto de 2026 até junho de
+    2023, a parede muda de cara sozinha — capa de foto vira traçado e grade. Medido no
+    acervo: 6 meses com foto contra 13 sem antes de 2025, e 19 de 20 depois. *2023 tem
+    que parecer 2023.*
+  - **success (o grão):** o ladrilho é o **mês**; o **ano** entra como as quatro tiras do
+    anuário, no lugar da capa que ele não tem (ver [cadernos.md](cadernos.md)); **semana
+    e trimestre não têm ladrilho** — continuam impressos e continuam abrindo pela rota.
+  - **success (abrir só lê):** período fechado que ninguém imprimiu **não aparece** — nem
+    como convite, nem como lacuna. Nada nesta tela gasta chamada.
+  - **success (o custo não cresce com o arquivo):** o número de leituras ao banco **não
+    depende do número de capas**. São cinco, em duas ondas: o inventário, as capas e os
+    textos dos meses; depois as fotos (por `foto_id`) e as rotas. Uma barreira de
+    código-fonte cobra que nenhuma célula chame `fetchCapa` ou `fetchPhotoById`.
+  - **success (a manchete obedece ao silêncio):** o rótulo de um ladrilho é a chamada do
+    primeiro caderno **visível** — a mesma regra da capa da rota (CAP-14), pela mesma
+    `chamadaDoTexto`.
+
 ## Constraints
 
 - **É um jornal: informa, não aconselha.** Não recomenda, não motiva, não parabeniza.

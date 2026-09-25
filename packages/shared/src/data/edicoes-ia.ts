@@ -221,6 +221,7 @@ export async function fetchEdicao(
 export type ArquivoRow = Pick<
   EdicaoRow,
   'tipo_periodo' | 'inicio' | 'fim' | 'caderno' | 'posicao' | 'prompt_versao' | 'pacote_versao'
+  | 'metrica_lider'
 >;
 
 /** Um caderno no arquivo, sem o texto — o que {@link fetchArquivoDeEdicoes} traz. */
@@ -247,6 +248,21 @@ export interface CadernoNoArquivo {
    * 4. Quem decide o que fazer com isso é o hospedeiro da impressão em massa.
    */
   readonly pacoteVersao: number;
+  /**
+   * A chave da métrica que liderou o ranqueamento deste caderno, ou `null`
+   * (Story 2.4b).
+   *
+   * Entrou no arquivo porque **é a capa do ano**: o anuário não tem capa, e as
+   * quatro tiras de doze meses da parede medem exatamente isto — o fato que
+   * liderou cada caderno em cada mês (`docs/specs/revista-retrospectiva/cadernos.md`).
+   * Lida, nunca recalculada: recalcular seria inventar um ranqueamento novo a
+   * cada abertura, e a edição impressa deixaria de concordar com a parede.
+   *
+   * **Nulo é declaração, não omissão** — o mesmo de {@link CadernoImpresso.metricaLider}:
+   * "nenhuma métrica liderou". A tira desenha esse mês como presente e calado,
+   * distinto do mês em que o caderno não saiu.
+   */
+  readonly metricaLider: string | null;
 }
 
 /** Uma edição do arquivo, em forma reduzida: a chave e os cadernos que ela tem. */
@@ -278,8 +294,15 @@ export interface EdicaoNoArquivo {
  * Por isso {@link fetchArquivoDeEdicoes} não confia na coluna: as duas versões
  * passam por `Number.isInteger` na mesma varredura que confere `caderno` e
  * `tipo_periodo`, e uma linha estragada explode alto em vez de virar uma corrida.
+ *
+ * **`metrica_lider` entrou na Story 2.4b**, e `texto` continua fora. A diferença
+ * é tamanho: a chave da métrica é uma palavra curta e nulável, e é o que as
+ * quatro tiras do anuário leem na parede; o texto é o grosso da linha, e o
+ * arquivo é a leitura do acervo **inteiro** (168 linhas hoje). Quem quer texto na
+ * parede tem leitura própria e limitada aos meses — {@link fetchManchetesDosMeses}.
  */
-export const ARQUIVO_COLUMNS = 'tipo_periodo,inicio,fim,caderno,posicao,prompt_versao,pacote_versao';
+export const ARQUIVO_COLUMNS =
+  'tipo_periodo,inicio,fim,caderno,posicao,prompt_versao,pacote_versao,metrica_lider';
 
 /**
  * **Todas** as edições do usuário, agrupadas por período e em ordem cronológica
@@ -343,6 +366,19 @@ export async function fetchArquivoDeEdicoes(
         );
       }
     }
+    // `metrica_lider` passa pela MESMA régua das outras quatro colunas, e não por
+    // uma atribuição crua. Ela é nulável — nulo é "nenhuma métrica liderou" —, e é
+    // justamente isso que faz o cast tentador: `string | null` cobre o que a
+    // coluna promete, e um `undefined` de coluna esquecida atravessaria como se
+    // fosse resposta. Na tira do anuário isso vira um mês desenhado como "saiu
+    // calado" quando na verdade ninguém leu a coluna: uma lacuna afirmada sobre
+    // um dado que existe.
+    if (r.metrica_lider !== null && typeof r.metrica_lider !== 'string') {
+      throw new Error(
+        `metrica_lider não é texto nem nulo no arquivo (${r.tipo_periodo} ${r.inicio}, caderno ${r.caderno}): `
+        + `${JSON.stringify(r.metrica_lider)}. Nulo é "nenhuma métrica liderou"; ausente não é estado nenhum.`,
+      );
+    }
     const chave = `${r.tipo_periodo}\u0000${r.inicio}\u0000${r.fim}`;
     let grupo = porPeriodo.get(chave);
     if (!grupo) {
@@ -356,7 +392,161 @@ export async function fetchArquivoDeEdicoes(
       posicao: r.posicao,
       promptVersao: r.prompt_versao,
       pacoteVersao: r.pacote_versao,
+      metricaLider: r.metrica_lider,
     });
+  }
+  for (const grupo of porPeriodo.values()) grupo.cadernos.sort((a, b) => a.posicao - b.posicao);
+  return ordem.map((c) => porPeriodo.get(c)!.chave);
+}
+
+/* ── as manchetes da parede (Story 2.4b) ─────────────────────────────────── */
+
+/** Um caderno com o texto, no recorte que a manchete precisa. */
+export interface TextoNoArquivo {
+  readonly caderno: CadernoId;
+  readonly posicao: number;
+  readonly texto: string;
+}
+
+/** Os textos de uma edição — a chave e os cadernos, **na ordem gravada**. */
+export interface TextosDaEdicao {
+  readonly tipoPeriodo: TipoComEdicao;
+  readonly inicio: string;
+  readonly fim: string;
+  /** Na ordem de `posicao`. Nunca vazio: uma edição sem caderno não tem linha. */
+  readonly cadernos: readonly TextoNoArquivo[];
+}
+
+/**
+ * As colunas da manchete — **a chave do período, o caderno, a posição e o
+ * texto**, e nada mais.
+ *
+ * Ela não é "{@link ARQUIVO_COLUMNS} mais o `texto`", e essa redação seria falsa
+ * desde a Story 2.4b: o arquivo passou a pedir `metrica_lider` (para as tiras do
+ * anuário) e as duas versões (para a impressão em massa), e a manchete não quer
+ * nenhuma das três — ela responde a uma pergunta só, *qual é a primeira frase
+ * desta edição*. As duas listas se cruzam nos cinco campos de identidade e
+ * divergem no resto, e é assim que elas devem divergir.
+ *
+ * Mesma guarda das outras duas listas: `edicoes-ia.test.ts` compara esta string
+ * com as chaves da linha e projeta o fake por ela.
+ */
+export const MANCHETE_COLUMNS = 'tipo_periodo,inicio,fim,caderno,posicao,texto';
+
+/** Linha como o PostgREST a devolve para {@link fetchManchetesDosMeses}. */
+export type MancheteRow = Pick<
+  EdicaoRow,
+  'tipo_periodo' | 'inicio' | 'fim' | 'caderno' | 'posicao' | 'texto'
+>;
+
+/**
+ * O tipo de período que a parede desenha como capa. **Uma constante, e não um
+ * literal solto**: é a mesma palavra no filtro da consulta e na montagem da
+ * parede, e separá-las seria a leitura trazer semanas que a parede descarta.
+ */
+const TIPO_DA_PAREDE: TipoComEdicao = 'month';
+
+/**
+ * Os textos das edições de **mês** — o que vira a manchete de cada ladrilho da
+ * parede (Story 2.4b).
+ *
+ * ## Por que não é uma coluna a mais em `ARQUIVO_COLUMNS`
+ *
+ * Porque não é a mesma pergunta. O arquivo é o inventário do acervo **inteiro**
+ * — todos os tipos de período, todos os cadernos — e serve para decidir o que
+ * reimprimir; pôr `texto` ali faria a impressão em massa baixar o jornal inteiro
+ * para comparar dois números de versão. O teste que proíbe `texto` no arquivo
+ * fica intocado, e de propósito.
+ *
+ * A parede pergunta outra coisa: *qual é a primeira frase da edição deste mês*.
+ * São 39 períodos, e não 168, e só os meses. **Tamanho medido no acervo em
+ * 24/09/2026**: os textos impressos têm 294 a 519 caracteres, e os 39 meses somam
+ * 66 linhas de caderno — entre 20 e 35 KB, a casa de dezenas de KB. É o preço de
+ * uma foto pequena, pago uma vez por abertura da parede.
+ *
+ * ## Por que todos os cadernos do mês, e não só o de `posicao` 1
+ *
+ * Por causa do silêncio (Story 2.5): a manchete é a chamada do primeiro caderno
+ * **visível**, e o que está silenciado é preferência do dono, que muda sem tocar
+ * no banco. Filtrar `posicao = 1` na consulta devolveria uma manchete vazia
+ * justamente no mês cujo líder foi calado — o caso que o critério de aceitação
+ * da story nomeia. Quem escolhe entre os cadernos é `revista/parede.ts`, com a
+ * lista de visíveis em mãos.
+ *
+ * ## Por que o recorte por tipo está no SQL aqui, e não em {@link fetchCapasDoArquivo}
+ *
+ * As duas leituras são irmãs e tomam posições opostas de propósito. O que decide
+ * é **o que a linha carrega**: aqui o `texto` é o payload, e é o filtro que faz a
+ * leitura custar dezenas de KB em vez de centenas — não filtrar seria baixar as
+ * 52 semanas de cada ano, com o texto delas, para descartá-las na montagem. A
+ * capa não tem coluna grande nenhuma, então nada há a economizar ali, e a leitura
+ * fica genérica para quem vier depois. A regra, em uma frase: **filtra-se no SQL
+ * o que é caro de trazer; recorta-se na montagem o que é barato.**
+ *
+ * Pagina, pela mesma régua das outras leituras sem janela: 12 meses por ano e
+ * até quatro cadernos em cada dão 48 linhas por ano, e o teto de 1000 do
+ * PostgREST chega — calado — por volta do vigésimo ano. A ordenação é **total**:
+ * `(inicio, fim, caderno)` — com `tipo_periodo` fixo no filtro e o `user_id`
+ * também, são as quatro colunas da chave primária.
+ */
+export async function fetchManchetesDosMeses(
+  db: SupabaseClient,
+  userId: string,
+): Promise<TextosDaEdicao[]> {
+  const linhas = await fetchAllPages<MancheteRow>(
+    (lo, hi) =>
+      db
+        .from('edicoes_ia')
+        .select(MANCHETE_COLUMNS)
+        .eq('user_id', userId)
+        .eq('tipo_periodo', TIPO_DA_PAREDE)
+        .order('inicio', { ascending: true })
+        .order('fim', { ascending: true })
+        .order('caderno', { ascending: true })
+        .range(lo, hi),
+  );
+  const porPeriodo = new Map<string, { chave: TextosDaEdicao; cadernos: TextoNoArquivo[] }>();
+  const ordem: string[] = [];
+  for (const r of linhas) {
+    // Conferido, nunca convertido por `as` — o mesmo argumento de `toCadernoImpresso`.
+    if (!isCadernoId(r.caderno)) {
+      throw new Error(
+        `caderno desconhecido na leitura das manchetes: ${JSON.stringify(r.caderno)} — os quatro são `
+        + `${CADERNO_IDS.join(', ')}.`,
+      );
+    }
+    if (!isTipoComEdicao(r.tipo_periodo)) {
+      throw new Error(
+        `tipo de período sem edição possível na leitura das manchetes: ${JSON.stringify(r.tipo_periodo)} — `
+        + `os quatro são ${TIPOS_COM_EDICAO.join(', ')}.`,
+      );
+    }
+    const chave = `${r.tipo_periodo}\u0000${r.inicio}\u0000${r.fim}`;
+    let grupo = porPeriodo.get(chave);
+    if (!grupo) {
+      const cadernos: TextoNoArquivo[] = [];
+      grupo = { chave: { tipoPeriodo: r.tipo_periodo, inicio: r.inicio, fim: r.fim, cadernos }, cadernos };
+      porPeriodo.set(chave, grupo);
+      ordem.push(chave);
+    }
+    // `posicao` é o número por que esta leitura **ordena**, e `texto` é o payload
+    // inteiro dela: uma coluna esquecida na string chegaria como `undefined`, o
+    // `sort` viraria `NaN - NaN` (ordem indefinida, silenciosa) e a manchete seria
+    // a chamada de `undefined` — que é `null`, o mesmo valor de "não há caderno".
+    // Conferido, nunca convertido: a mesma régua de `caderno` e `tipo_periodo`.
+    if (!Number.isInteger(r.posicao)) {
+      throw new Error(
+        `posicao não é inteiro na leitura das manchetes (${r.tipo_periodo} ${r.inicio}, caderno ${r.caderno}): `
+        + `${JSON.stringify(r.posicao)}. É por ela que a ordem do miolo — e a manchete — se decidem.`,
+      );
+    }
+    if (typeof r.texto !== 'string') {
+      throw new Error(
+        `texto não é string na leitura das manchetes (${r.tipo_periodo} ${r.inicio}, caderno ${r.caderno}): `
+        + `${JSON.stringify(r.texto)}. O CHECK da coluna proíbe vazio, e ausente não é estado nenhum.`,
+      );
+    }
+    grupo.cadernos.push({ caderno: r.caderno, posicao: r.posicao, texto: r.texto });
   }
   for (const grupo of porPeriodo.values()) grupo.cadernos.sort((a, b) => a.posicao - b.posicao);
   return ordem.map((c) => porPeriodo.get(c)!.chave);

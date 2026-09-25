@@ -27,7 +27,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { PAGE_SIZE } from './paginate';
-import { fetchArquivoDeEdicoes } from './edicoes-ia';
+import { fetchPhotosForActivities } from './activity-photos';
+import { fetchCapasDoArquivo } from './edicoes-capa';
+import { fetchArquivoDeEdicoes, fetchManchetesDosMeses } from './edicoes-ia';
 import { fetchHabitSummaries } from './habits';
 import { fetchRegistroSummaries } from './registros';
 import { fetchTodoTemplates, fetchTodoTemplateSummaries } from './todo-templates';
@@ -151,6 +153,60 @@ const casos: readonly {
     }),
     ler: (db) => fetchArquivoDeEdicoes(db, 'u-1').then((e) => ({ length: e.reduce((s, x) => s + x.cadernos.length, 0) })),
     desempate: 'caderno',
+  },
+  /*
+   * As três da parede de capas (Story 2.4b). Nenhuma tem janela: a parede é o
+   * arquivo **inteiro**, do mês mais recente até 2023, e a regra da story é que
+   * cada coisa entre por UMA leitura em lote. Cortadas no teto, o sintoma seria
+   * a parede perdendo justamente as capas antigas — que é o que ela existe para
+   * mostrar.
+   */
+  {
+    nome: 'fetchCapasDoArquivo',
+    tabela: 'edicoes_capa',
+    linha: (k) => ({
+      user_id: 'u-1', tipo_periodo: 'month',
+      inicio: `2020-01-${String((k % 28) + 1).padStart(2, '0')}`, fim: '2020-01-31',
+      natureza: 'grade', foto_id: null, foto_taken_at: null, rota_activity_id: null,
+      legenda: `Janeiro de 2020 (${k})`, carimbada_em: '2026-09-01T00:00:00.000Z',
+      motivo: 'sem-foto', foto_activity_id: null,
+    }),
+    ler: (db) => fetchCapasDoArquivo(db, 'u-1'),
+    desempate: 'fim',
+  },
+  {
+    nome: 'fetchManchetesDosMeses',
+    tabela: 'edicoes_ia',
+    // Uma edição por linha, como no arquivo: o agrupamento devolve 1001 períodos
+    // de um caderno, e a contagem soma os cadernos.
+    linha: (k) => ({
+      tipo_periodo: 'month', inicio: `2020-01-${String((k % 28) + 1).padStart(2, '0')}`,
+      fim: '2020-01-31', caderno: 'sono', posicao: 1,
+      texto: `O sono de janeiro (${k}).`, user_id: 'u-1',
+    }),
+    ler: (db) => fetchManchetesDosMeses(db, 'u-1').then((e) => ({ length: e.reduce((s, x) => s + x.cadernos.length, 0) })),
+    desempate: 'caderno',
+  },
+  /*
+   * `fetchPhotosForActivities` tem `.in()`, e ainda assim pertence a este arquivo:
+   * um id casa **muitas** linhas (julho de 2026 tem 372 fotos em doze
+   * atividades), então o teto de mil é alcançável de verdade. `taken_at` empata
+   * às dezenas numa rajada — daí o desempate por `id`.
+   *
+   * Já `fetchRouteOverviewPairs` e `fetchPhotosByIds` **não** entram aqui: os
+   * dois filtram por chave, N ids devolvem no máximo N linhas, e o teto que morde
+   * lá é o da URL. Ver `leituras-por-lote-de-ids.test.ts`.
+   */
+  {
+    nome: 'fetchPhotosForActivities',
+    tabela: 'activity_photos',
+    linha: (k) => ({
+      id: id(k), activity_id: 'a-1', asset_id: `ph-${k}`, taken_at: '2026-08-14T12:38:00.000Z',
+      lat: null, lng: null, media_type: 'photo', duration_s: null, route_index: null,
+      route_distance_m: null, offset_m: null, on_route: true, state: 'linked', is_cover: false,
+    }),
+    ler: (db) => fetchPhotosForActivities(db, 'u-1', ['a-1']),
+    desempate: 'id',
   },
 ];
 
