@@ -1738,6 +1738,16 @@ function valorDoNumeral(palavras: readonly string[]): number {
 const LIGACOES_DO_NUMERAL: ReadonlySet<string> = new Set(['e']);
 
 /**
+ * As duas palavras que são **artigo antes de serem número**.
+ *
+ * Elas podem abrir uma corrida (*"um milhão"* é quantidade) e podem continuar uma
+ * depois do `e` (*"vinte e um"* é 21), mas **não atravessam vírgula**: em *"cento e
+ * quinze, um crescimento significativo"* o `um` é artigo, e juntá-lo dava 116 sobre
+ * um 115 que estava certo.
+ */
+const ARTIGOS_DO_NUMERAL: ReadonlySet<string> = new Set(['um', 'uma']);
+
+/**
  * Os numerais por extenso de um texto, cada um com o valor que afirma.
  *
  * Fica de fora, e cada exclusão tem motivo escrito: a **data por extenso**
@@ -1782,6 +1792,19 @@ function numeraisPorExtenso(norm: string): readonly NumeralPorExtenso[] {
     for (const t of bloco.matchAll(/[a-z]+/g)) {
       const palavra = t[0];
       const em = t.index ?? 0;
+      // `um`/`uma` só ESTENDEM uma corrida depois do `e` — "vinte e um" é 21, mas
+      // *"cento e quinze, um crescimento significativo"* é 115 e um artigo, e juntar
+      // os dois dava 116 sobre um número que estava certo (falso positivo medido em
+      // 25/09, no texto do modelo do aparelho). Começar uma corrida eles podem: "um
+      // milhão" é quantidade.
+      const soDepoisDoE = ARTIGOS_DO_NUMERAL.has(palavra)
+        && corrida.length > 0
+        && !LIGACOES_DO_NUMERAL.has(corrida[corrida.length - 1].palavra);
+      if (soDepoisDoE) {
+        fechar();
+        corrida.push({ palavra, em });
+        continue;
+      }
       if (ehNumeral(palavra) || (LIGACOES_DO_NUMERAL.has(palavra) && corrida.length > 0)) {
         corrida.push({ palavra, em });
       } else {

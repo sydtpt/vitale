@@ -127,6 +127,21 @@ describe('regra 9 — o parser do numeral', () => {
   it('não junta através de "ou": "um ou dois" não é 3', () => {
     assert.deepEqual(extenso('Houve um ou dois momentos.', pacote(fato('Andares', 115))), []);
   });
+
+  it('"um" não atravessa vírgula — o caso que ela reprovou errado', () => {
+    // Medido em 25/09, na corrida do Movimento: *"Os andares percorridos totalizaram
+    // cento e quinze, um crescimento significativo"*. O 115 está CERTO; o `um` é
+    // artigo. Juntar os dois dava 116 e reprovava prosa boa.
+    const p = pacote(fato('Andares', 115));
+    assert.deepEqual(extenso('Os andares totalizaram cento e quinze, um crescimento significativo.', p), []);
+  });
+
+  it('mas depois do "e" ele conta: "vinte e um" é 21', () => {
+    // As duas metades da regra, nos dois sentidos: `um` continua a corrida depois do
+    // `e`, e abre a dela ("um milhão", logo abaixo nas exclusões) — só não atravessa
+    // vírgula.
+    assert.match(extenso('Foram vinte e um andares.', pacote(fato('Andares', 115)))[0], /\(21\)/);
+  });
 });
 
 /* ──────────────────── as quatro exclusões ──────────────────── */
@@ -266,6 +281,73 @@ describe('a corrida no iPhone — o texto por extenso que as oito aprovaram', ()
     // 12.003 e 80 são as duas metades de "doze mil, três trêscentos e oitenta"
     // (o pacote diz 12.338); 30 é o "trinta minutos" de um tempo que é 2,6 h.
     assert.deepEqual(valores.sort(), ['12003', '30', '80']);
+  });
+
+  /**
+   * A corrida das **09:21**, já com as nove no aparelho. O modelo da Apple escreveu
+   * por extenso **de novo** — segunda vez em três corridas —, e agora a régua o pegou
+   * ali mesmo, no aparelho.
+   *
+   * Ela também é a prova do falso positivo que o `um` causava: o texto tem *"cento e
+   * quinze, um crescimento significativo"*, com o 115 **certo**, e a versão que rodou
+   * no aparelho reprovou isso como 116. É o que `ARTIGOS_DO_NUMERAL` conserta.
+   */
+  describe('a corrida das 09:21 — o extenso pego no aparelho, e o falso positivo do "um"', () => {
+    const NOVE = JSON.parse(readFileSync(
+      join(import.meta.dirname, '__fixtures__', 'corrida-movimento-2026-09-25-nove-regras.json'),
+      'utf8',
+    )) as {
+      readonly colunas: ReadonlyArray<{
+        readonly motor: string;
+        readonly cru?: string;
+        readonly problemas?: ReadonlyArray<{ readonly detalhe: string }>;
+      }>;
+    };
+    const apple = () => {
+      const c = NOVE.colunas.find((x) => x.motor === APPLE);
+      assert.ok(c?.cru, 'o modelo do aparelho não deixou texto');
+      return c;
+    };
+
+    const DO_TEXTO = pacote(
+      fato('Atividades', 3),
+      fato('Sessões', 3),
+      fato('Distância', 56),
+      fato('Tempo', 2.8, 1),
+      fato('Passos por dia', 12338),
+      fato('Andares', 115),
+      fato('Elevação', 218),
+      fato('Andares anteriores', 69),
+    );
+
+    it('o aparelho pegou o extenso — três achados, e um deles era nosso erro', () => {
+      // Lido do JSON: é o veredito que rodou no iPhone, com a versão que juntava o `um`.
+      const doAparelho = (apple().problemas ?? [])
+        .filter((p) => p.detalhe.includes('extenso')).map((p) => p.detalhe);
+      assert.equal(doAparelho.length, 3);
+      assert.ok(
+        doAparelho.some((x) => x.includes('"cento e quinze, um" (116)')),
+        'o falso positivo do `um` tem de estar no relatório — é a evidência dele',
+      );
+    });
+
+    it('e hoje sobram os DOIS erros de verdade, sem o falso positivo', () => {
+      const d = extenso(apple().cru ?? '', DO_TEXTO);
+      const valores = d.map((x) => x.match(/\((\d+)\)/)?.[1]).sort();
+      // 18 é o "dois horas e dezoito minutos" de um tempo que é 2,8 h (2h48);
+      // 15.000 é o "mais de doze mil e três mil" de um valor que é 12.338 — e a marca
+      // "mais de" não o salva, porque ela exige que o valor do pacote seja MAIOR.
+      assert.deepEqual(valores, ['15000', '18']);
+    });
+
+    it('e os numerais CERTOS deste texto passam, o 115 inclusive', () => {
+      const t = apple().cru ?? '';
+      const d = extenso(t, DO_TEXTO);
+      for (const certo of ['cinquenta e seis', 'cento e quinze', 'sessenta e nove', 'duzentos e dezoito']) {
+        assert.ok(t.includes(certo), `o texto precisa conter "${certo}"`);
+        assert.deepEqual(d.filter((x) => x.includes(certo)), [], `"${certo}" está certo`);
+      }
+    });
   });
 
   it('e os numerais CERTOS do mesmo texto passam', () => {
