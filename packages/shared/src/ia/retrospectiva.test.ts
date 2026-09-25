@@ -374,7 +374,9 @@ describe('a matriz, pelo orquestrador', () => {
   });
 
   it('texto reprovado: os problemas são os de verificarTexto; piso ausência, causa reprovada', async () => {
-    const esperados = verificarTexto(INVENTADO, COM_FATO).problemas;
+    // Com o pedido, que é o que a conferência do descritor passa desde 25/09 —
+    // a sexta regra (o eco) só existe contra ele.
+    const esperados = verificarTexto(INVENTADO, COM_FATO, montarPrompt(COM_FATO).usuario).problemas;
     assert.ok(esperados.some((p) => p.regra === 'numero') && esperados.some((p) => p.regra === 'causa'));
     const h = hospedeiro({ [NUVEM_PADRAO]: motorFalso(resposta(INVENTADO)).motor });
     const l = doPiso(await ler(revista, COM_FATO, h.produto(cadeiaDaRevista())));
@@ -386,10 +388,10 @@ describe('a matriz, pelo orquestrador', () => {
     });
   });
 
-  it('a conferência é a de hoje, contra o pacote do caderno, e não marca recusa', () => {
+  it('a conferência é a de hoje, contra o pacote do caderno e o pedido dele, e não marca recusa', () => {
     assert.deepEqual(revista.conferir(BOM, COM_FATO), { ok: true });
     assert.deepEqual(revista.conferir(INVENTADO, COM_FATO), {
-      ok: false, problemas: verificarTexto(INVENTADO, COM_FATO).problemas,
+      ok: false, problemas: verificarTexto(INVENTADO, COM_FATO, montarPrompt(COM_FATO).usuario).problemas,
     });
   });
 

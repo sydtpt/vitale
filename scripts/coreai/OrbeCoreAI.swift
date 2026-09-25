@@ -83,6 +83,13 @@ public struct OrbeCoreAICompilacao: Sendable, Equatable {
 }
 
 public enum OrbeCoreAI {
+  /**
+   * O limiar a partir do qual o Core AI divide o prompt em pedaços, posto no teto para que
+   * ele nunca divida. Constante nomeada, e não um número solto na chamada, porque ela é um
+   * **experimento com data** — ver o comentário em {@link sessao}.
+   */
+  private static let SEM_PEDACOS_NO_PREFILL = 1_000_000
+
   /// Se os pesos da pasta já estão compilados para o chip, **sem disparar compilação**.
   ///
   /// **Por que ela existe.** A primeira chamada de um peso aberto especializa o modelo para o
@@ -117,6 +124,69 @@ public enum OrbeCoreAI {
     }
   }
 
+  /// **Compila** os pesos da pasta para o chip — e só isso.
+  ///
+  /// **Por que ela existe, se {@link sessao} já compila.** A especialização para o Neural
+  /// Engine acontece dentro de `CoreAILanguageModel(resourcesAt:)`, então até aqui a única
+  /// forma de compilar era *pedir uma leitura de verdade*: o dono escolhia o modelo no seletor
+  /// e tocava "Ler", e a frase só voltava dez ou quinze minutos depois, sem aviso e sem
+  /// relógio. Esta porta separa o ato do pedido — a tela de compilação (fatia 2) a chama, mostra
+  /// o tempo correndo e carimba quanto levou. Nada de sessão, nada de instruções: o que sai é
+  /// o efeito colateral que interessa, que é o cache do Core AI preenchido.
+  ///
+  /// **A sessão é descartada de propósito.** Quem escreve a especialização em disco é o
+  /// carregador (`PreparedModel.prepare(at:)`, por baixo do inicializador); o objeto que volta é
+  /// só a alça. Descartá-lo não desfaz o que ele gravou — é a mesma suposição que sustenta
+  /// {@link compilacao}, que pergunta ao cache sem abrir modelo nenhum.
+  ///
+  /// **Não há progresso a emitir.** O iOS 27 não expõe fração, etapa nem evento durante a
+  /// carga (medido em 22/09), e é por isso que esta função não recebe callback: ela volta
+  /// quando termina, e a tela conta o tempo do lado de fora.
+  ///
+  /// O erro sai na fase `.carga`, como o de {@link sessao} — é o mesmo passo, e a tabela que o
+  /// classifica (`MotorCoreAI.identificar`) é uma só.
+  ///
+  /// > **Este símbolo é novo no `.a` vendorizado.** Ele só existe no binário depois de
+  /// > `scripts/coreai/montar.sh` rodar; até lá o pod não compila, porque a
+  /// > `OrbeCoreAI.swiftinterface` versionada ainda não o declara. Ver o cabeçalho do script.
+  public static func compilar(pesosEm url: URL) async throws {
+    do {
+      /*
+       * **Abrir o modelo não compila nada** — medido no iPhone 17 Pro em 24/09.
+       *
+       * A primeira versão desta função era só `_ = try await CoreAILanguageModel(resourcesAt:)`,
+       * porque parecia que era ali que os ~10 min passavam. Não são: ela devolveu em menos de
+       * um minuto, sem erro, e **nenhum cache foi escrito** — a ficha seguiu em `0 de 1
+       * componentes compilados`. A mesma pasta de pesos, chamada pela leitura de verdade da
+       * Saúde do sono minutos depois, criou a árvore de cache na hora.
+       *
+       * O benchmark do próprio `coreai-models` mostra por quê: o que ele cronometra como
+       * *prepare*, com direito a marcar `(cache hit)`, é o `EngineFactory.createEngine(...)`.
+       * O `CoreAILanguageModel` é a fachada do Foundation Models e cria o motor **preguiçosamente**,
+       * no primeiro uso.
+       *
+       * Então compilar é **gerar**. Um token basta, e a resposta é descartada: o que interessa
+       * é o efeito colateral no cache. `greedy` para não gastar amostragem, e o prompt é uma
+       * palavra nossa — nenhum dado do dono entra aqui, que é a diferença entre esta porta e
+       * pedir uma leitura.
+       */
+      let sessao = try await Self.sessao(pesosEm: url, instrucoes: nil)
+      _ = try await sessao.respond(
+        to: "oi",
+        options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 1)
+      )
+    } catch {
+      let ns = error as NSError
+      throw OrbeCoreAIErro(
+        fase: .carga,
+        nomeDoTipo: String(reflecting: type(of: error)),
+        descricao: String(describing: error),
+        dominio: ns.domain,
+        codigo: ns.code
+      )
+    }
+  }
+
   /// Abre os pesos da pasta e devolve uma sessão do Foundation Models, pronta para o
   /// `respond(to:)` que o `MotorCoreAI` chama.
   ///
@@ -127,7 +197,31 @@ public enum OrbeCoreAI {
   /// `.aimodel` de dentro.
   public static func sessao(pesosEm url: URL, instrucoes: String?) async throws -> LanguageModelSession {
     do {
-      let modelo = try await CoreAILanguageModel(resourcesAt: url)
+      /*
+       * **Experimento de 24/09 — o prefill em pedaços.** Três medidas no iPhone 17 Pro com o
+       * Qwen3-4B (int4, janela 2.048) desenham uma fronteira que não é o formato da saída:
+       *
+       *   Saúde do sono    617 tokens · texto    → funciona
+       *   Nome de rota   1.114 tokens · esquema  → `No logits returned from engine`
+       *   Retrospectiva  1.628 tokens · texto    → `Failed to parse generated content`
+       *
+       * Duas leituras de texto livre, uma passa e a outra não; duas que falham, só uma com
+       * esquema. O que separa é o **tamanho do pedido**, e o corte está entre 617 e 1.114.
+       *
+       * O Core AI divide o prompt em pedaços acima de um limiar, e nós nunca dissemos nada
+       * sobre isso — os dois parâmetros iam `nil` e o padrão decidia. A issue #201 da Apple
+       * descreve, para o Gemma 4, exatamente o formato desta falha: *any prefill with S>1
+       * aborts*. Com o limiar no teto, o pedido inteiro vira um pedaço só.
+       *
+       * **Isto é hipótese, não causa provada.** Se o 4B passar a responder as três leituras,
+       * achamos; se não mudar nada, descartamos e a suspeita vai para a quantização em 4 bits
+       * puros. O 1.7B e o Tucano2, que hoje funcionam, são o controle: se eles quebrarem com
+       * esta linha, o pedaço era necessário.
+       */
+      let modelo = try await CoreAILanguageModel(
+        resourcesAt: url,
+        prefillChunkThreshold: SEM_PEDACOS_NO_PREFILL
+      )
       return LanguageModelSession(model: modelo, instructions: instrucoes.map { Instructions($0) })
     } catch {
       let ns = error as NSError

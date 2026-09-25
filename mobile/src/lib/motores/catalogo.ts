@@ -162,6 +162,66 @@ export const PESOS_ABERTOS: readonly PesoAberto[] = Object.freeze([
     descricao: 'Modelo aberto treinado a mais em português, dentro do app. Nada sai do aparelho.',
     tamanho: { instaladoGB: 1.1, compiladoGB: 1.14 },
   }),
+  /*
+   * **A segunda tentativa do 4B** (24/09). A primeira, em 22/09, compilou por ~29 min no
+   * aparelho e morreu na carga — `TRIM_MEMORY_RUNNING_CRITICAL` e `signal 9`, três vezes
+   * seguidas, com o entitlement e com o cache pronto. Jetsam, não o assert do ANE do Mac.
+   *
+   * Este export muda duas coisas, e só elas, para que a causa fique legível:
+   *  - **int4 puro** no lugar do misto 4/8 — 2,1 GB contra 2,3. A economia é pequena porque
+   *    a receita mista já era quase toda 4 bits (ela subia cinco camadas para 8);
+   *  - **janela 4.096**, e o caminho até ela foi por eliminação:
+   *    **1.024** cortava o pedido de duas das três leituras. **3.072** não existe — o
+   *    exportador gera uma escada de potências de dois (256, 512, 1.024, 2.048, 4.096) e o
+   *    runtime pede a função com o valor exato. **2.048** parecia servir pela conta
+   *    (Retrospectiva 1.628 + 187 = 1.815), mas o número era do Tucano2: o Qwen3 gasta 13% mais
+   *    tokens no MESMO pedido, porque o tokenizador dele viu menos português. Medido no
+   *    aparelho: o caderno Movimento consome **2.039 dos 2.048**, e o modelo escreveu os nove
+   *    tokens que sobraram — aprovados pelo portão, que não tem piso de tamanho.
+   *    O cache KV custa 0,60 GB a 4.096, e o total (2,06 compilado + 0,60) dá 2,66 GB, contra
+   *    os 2,90 da configuração que morreu em 22/09: a folga veio do int4.
+   *
+   * A terceira alavanca — compilar AOT no Mac com `--architecture h18p`, que tiraria a
+   * especialização do aparelho — **não entra neste build**: ela exige o Metal Toolchain do
+   * Xcode, que não está instalado. Se este build carregar, ela nem é necessária; se morrer,
+   * ela passa a ser o próximo passo, e o dono instala sabendo por quê.
+   *
+   * `tamanho` traz só o instalado: o compilado deste ninguém mediu ainda.
+   */
+  Object.freeze({
+    id: 'aparelho:coreai/qwen3-4b' satisfies MotorId,
+    pesos: 'qwen3-4b',
+    nome: 'o Qwen3 4B no aparelho',
+    rotulo: 'Qwen3 4B',
+    descricao: 'O maior modelo aberto do build, em 4 bits, com janela de 4.096. Nada sai do aparelho.',
+    tamanho: { instaladoGB: 2.1, compiladoGB: 2.06 },
+  }),
+  /*
+   * **O mesmo 4B, na receita da Apple** — o experimento de qualidade que o dono pediu em 24/09.
+   *
+   * O de cima é `4bit_weight_palettized_group32`: 4 bits em tudo, escolha minha. Este é
+   * `qwen3_4b_mixed_4bit_8bit.yaml`, a receita que a Apple publica: 4 bits no geral e **8 bits
+   * nas camadas 6, 8, 11, 33 e 34**, que alguém mediu como sensíveis. A diferença é de
+   * 4,50 para 5,71 bits por peso, e 240 MB.
+   *
+   * A tabela de perplexidade do `models/qwen3/README.md` diz que isso importa (o 4B vai de
+   * 16,41 em fp16 para 18,33 em 4 bits), mas ela mede **inglês genérico**. Se importa nas
+   * NOSSAS frases, em português, sobre sono, é o que a amostra das 22 janelas responde.
+   *
+   * **A janela é 2.048 de propósito, e este modelo não é candidato a produção.** Ele existe
+   * para medir: a Saúde do sono usa 617 tokens, então a janela não muda o texto que sai. Em
+   * 4.096 ele custaria 2,30 + 0,60 = 2,90 GB — exatamente a configuração que o iOS matou em
+   * 22/09. Se ele ganhar a comparação, o resultado não é "troque a receita": é "a receita
+   * mista é melhor, e usá-la exige ganhar 240 MB em outro lugar" — o que aponta para o AOT.
+   */
+  Object.freeze({
+    id: 'aparelho:coreai/qwen3-4b-misto' satisfies MotorId,
+    pesos: 'qwen3-4b-misto',
+    nome: 'o Qwen3 4B misto no aparelho',
+    rotulo: 'Qwen3 4B misto',
+    descricao: 'O mesmo 4B na receita da Apple — 4 bits, com cinco camadas em 8. Só para medir.',
+    tamanho: { instaladoGB: 2.3 },
+  }),
 ]);
 
 /** O peso aberto com este id, ou `undefined` — a pergunta que o catálogo faz o tempo todo. */
@@ -243,6 +303,10 @@ export const MOTIVO_DO_COREAI_EM_PALAVRAS: Readonly<Record<string, string>> = {
   simulador: 'o modelo de peso aberto só roda no iPhone — o simulador não tem o Core AI',
   semPesos: 'este build não traz os pesos deste modelo',
   pesosIlegiveis: 'a pasta dos pesos veio neste build e não se lê',
+  // O único motivo que nasce de um ato do dono (a tela de compilação, fatia 2), e o único que
+  // nenhum diagnóstico devolve. A frase não nomeia causa porque a causa vem do sistema, em
+  // prosa, no `detalhe` — e a tela a mostra inteira, sob "o que o sistema disse".
+  naoCompilou: 'a compilação não terminou: o sistema recusou os pesos ao carregá-los',
 };
 
 /**

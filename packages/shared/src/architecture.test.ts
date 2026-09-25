@@ -3011,10 +3011,20 @@ check('BARREIRA — a sonda de fidelidade só em scripts/, nunca nos apps (AD-7)
  */
 const DIR_DA_REGUA = join(SHARED_SRC, 'bancada');
 const TELA_DA_BANCADA = 'mobile/src/app/configuracoes/motores/bancada.tsx';
-/** Quem, no app, pode medir: a tela, a lib do laço dela e o teste dessa lib. */
+/**
+ * Quem, no app, pode medir: a tela, a lib do laço dela, o teste dessa lib e o retrato que a
+ * corrida deixa em disco.
+ *
+ * O retrato (`arquivo-regras.ts`) entrou porque ele **chama as contas do núcleo em vez de
+ * reescrevê-las**: o resumo de cada corrida, a linha de comparação e o aviso de amostras
+ * divergentes saem de `bancada/corrida.ts`, para o arquivo e a tela dizerem o mesmo número
+ * com a mesma grafia. Ele não lê caso — carrega a linha inteira, que já o tem, para dentro
+ * de um JSON que fica no container do aparelho.
+ */
 const QUEM_MEDE_NO_APP: readonly string[] = [
   TELA_DA_BANCADA,
   'mobile/src/lib/motores/amostra.ts',
+  'mobile/src/lib/motores/arquivo-regras.ts',
   'mobile/src/lib/__tests__/motores-amostra.test.ts',
 ];
 const CAMINHO_DA_REGUA = /(?:^|\/)(?:@vitale\/shared|packages\/shared)(?:\/src)?\/bancada(?:\/|$)/;

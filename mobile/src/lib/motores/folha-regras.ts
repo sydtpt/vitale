@@ -266,13 +266,15 @@ export function ofereceCompilar(
 }
 
 /**
- * O preço do ato, dito antes dele — e a única coisa honesta a dizer enquanto a tela de
- * compilação (a fatia 2) não existe. A pílula fica **inerte**, com esta frase ao lado e
- * dentro do rótulo acessível: um botão com cara de botão que não faz nada mente tanto
- * quanto uma omissão.
+ * O preço do ato, dito antes dele.
+ *
+ * Ele era a frase de uma pílula **inerte**, porque a tela que compila não existia. Desde a
+ * fatia 2 ela existe, e a frase muda de sentido: nas duas telas que não compilam — a raiz de
+ * Motores e a folha de escolha — ela continua sendo **descrição**, e agora diz para onde ir. É
+ * a ficha do modelo que tem o botão, porque é lá que estão o tamanho, o carimbo e a decisão.
  */
 export const PRECO_DE_COMPILAR =
-  'A primeira leitura deste modelo compila para o chip, e leva minutos. A tela que faz isso ainda não existe.';
+  'A primeira leitura deste modelo compila para o chip, e leva minutos — a ficha dele compila antes, com relógio.';
 
 /** O que a linha da leitura diz quando a gravação da escolha falhou depois de a folha fechar. */
 export const AVISO_DE_GRAVACAO_FALHA = 'não deu para guardar esta escolha';

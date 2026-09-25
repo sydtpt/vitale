@@ -56,12 +56,11 @@ enum MotorCoreAI {
 
   // MARK: os motivos, como a ponte os escreve
 
-  /// Os quatro motivos do Core AI, espelhados em `MOTIVOS_DO_COREAI` (`ia/aparelho.ts`) e
-  /// postos em palavras por `mobile/src/lib/motores/catalogo.ts`. A guarda do vocabulário no
-  /// `architecture.test.ts` exige a igualdade: um motivo novo de um lado só viraria "motivo
-  /// desconhecido" na tela do dono, calado.
+  /// Os motivos do Core AI, postos em palavras por `mobile/src/lib/motores/catalogo.ts`. A
+  /// guarda do vocabulário no `architecture.test.ts` exige a igualdade: um motivo novo de um
+  /// lado só viraria "motivo desconhecido" na tela do dono, calado.
   static func motivos() -> [String] {
-    [motivoSemBiblioteca, motivoSimulador, motivoSemPesos, motivoPesosIlegiveis]
+    [motivoSemBiblioteca, motivoSimulador, motivoSemPesos, motivoPesosIlegiveis, motivoNaoCompilou]
   }
 
   /// A biblioteca vendorizada não está neste build (`montar.sh` nunca rodou, ou o `.a` saiu).
@@ -73,6 +72,15 @@ enum MotorCoreAI {
   static let motivoSemPesos = "semPesos"
   /// A pasta existe e não é um bundle de Core AI — sem ficha, ou com ficha que não se lê.
   static let motivoPesosIlegiveis = "pesosIlegiveis"
+  /// A compilação foi **tentada** e não terminou: o sistema recusou os pesos ao carregá-los.
+  ///
+  /// Motivo próprio, e não `pesosIlegiveis`, porque é o único que nasce de um ato do dono — e
+  /// porque a causa mais provável dele (memória, espaço) não tem nada a ver com "a pasta veio
+  /// neste build e não se lê", que é o que aquele diz em palavras na tela. As palavras do
+  /// sistema viajam no `detalhe`; este motivo só diz de que passo elas vieram.
+  ///
+  /// Ele nunca sai de {@link diagnostico} nem de {@link compilacao} — só da quarta porta.
+  static let motivoNaoCompilou = "naoCompilou"
 
   // MARK: o nome dos pesos
 
@@ -320,7 +328,18 @@ enum MotorCoreAI {
     return naoSabido(motivo: motivoPesosIlegiveis, detalhe: "não deu para listar os componentes (\(par)): \(f.descricao)")
   }
 
-  // MARK: as três portas
+  /// A falha da **compilação** virando "não dá para saber", com as palavras do sistema inteiras
+  /// no detalhe — é esse texto que a tela de compilação mostra sob *o que o sistema disse*.
+  ///
+  /// Separada de {@link compilacaoDaFalha} porque o passo é outro: aquela é a pasta que não se
+  /// deixou listar (inspeção), esta é a carga que não completou. Misturá-las diria ao dono que
+  /// a pasta não se lê quando o que faltou foi memória.
+  static func compilacaoQueNaoTerminou(_ f: FalhaDaCarga) -> CompilacaoDoFio {
+    let par = f.dominio.isEmpty ? f.nomeDoTipo : "\(f.nomeDoTipo) · \(f.dominio) \(f.codigo)"
+    return naoSabido(motivo: motivoNaoCompilou, detalhe: "os pesos não compilaram (\(par)): \(f.descricao)")
+  }
+
+  // MARK: as quatro portas
 
   /// A porta da geração: o nome dos pesos e o pedido canônico entram, uma linha JSON sai.
   /// Nunca lança — como a do `Engine`.
@@ -355,6 +374,32 @@ enum MotorCoreAI {
     switch estado(pesos, raiz: raiz) {
     case .falta(let motivo, let detalhe): return naoSabido(motivo: motivo, detalhe: detalhe)
     case .pronto(let pasta, _): return inspecionar(pasta)
+    }
+  }
+
+  /// A quarta porta: **compila** estes pesos para o chip, e devolve o estado **medido depois**.
+  ///
+  /// Até a fatia 2 do redesenho, compilar só acontecia como efeito colateral de pedir uma
+  /// leitura de verdade — o dono escolhia o modelo e tocava "Ler", e a frase voltava dez ou
+  /// quinze minutos depois. Esta porta separa o ato do pedido: ela não gera nada, não monta
+  /// pedido nenhum, e o que interessa dela é o cache do Core AI preenchido.
+  ///
+  /// **A linha de volta é a mesma da terceira porta** (`CompilacaoDoFio`), e é de propósito: o
+  /// que a tela precisa saber no fim é *em que estado o modelo ficou*, e a resposta honesta a
+  /// isso é a medida, não a suposição. Então o sucesso não afirma `compilado: true` — ele
+  /// **pergunta ao cache** pelo mesmo `isCached` de sempre. Se o carregador voltar sem ter
+  /// especializado tudo, a tela diz isso em vez de comemorar.
+  ///
+  /// A falha sai como `nao-sabido` com {@link motivoNaoCompilou} e as palavras do sistema no
+  /// detalhe — o "o que o sistema disse" do desenho.
+  static func compilar(pesos: String, raiz: URL? = Bundle.main.resourceURL) async -> String {
+    codificar(await compilarOsPesos(pesos: pesos, raiz: raiz))
+  }
+
+  static func compilarOsPesos(pesos: String, raiz: URL? = Bundle.main.resourceURL) async -> CompilacaoDoFio {
+    switch estado(pesos, raiz: raiz) {
+    case .falta(let motivo, let detalhe): return naoSabido(motivo: motivo, detalhe: detalhe)
+    case .pronto(let pasta, _): return await compilarEInspecionar(pasta)
     }
   }
 
@@ -408,6 +453,32 @@ enum MotorCoreAI {
     }
   }
 
+  /// A compilação de verdade, com a biblioteca presente — e a medida logo em seguida.
+  ///
+  /// **Ela não se cancela.** `OrbeCoreAI.compilar` é um `await` sobre o carregador do Core AI,
+  /// e nem ele nem o pacote da Apple expõem cancelamento; o `Task.isCancelled` do Swift não
+  /// alcança o que roda dentro dele. O "Parar" da tela para de **esperar**, e é isso que o
+  /// comentário da tela (`compilar.tsx`) declara como hipótese não medida.
+  ///
+  /// > **Este ramo chama um símbolo novo da casca vendorizada.** `OrbeCoreAI.compilar` só
+  /// > existe no `.a`/`.swiftinterface` depois de `scripts/coreai/montar.sh` rodar — antes
+  /// > disso o pod não compila, e o erro é "cannot find 'compilar' in scope", longe daqui.
+  static func compilarEInspecionar(_ pasta: URL) async -> CompilacaoDoFio {
+    do {
+      try await OrbeCoreAI.compilar(pesosEm: pasta)
+    } catch let e as OrbeCoreAIErro {
+      return compilacaoQueNaoTerminou(FalhaDaCarga(nomeDoTipo: e.nomeDoTipo, descricao: e.descricao, dominio: e.dominio, codigo: e.codigo))
+    } catch {
+      let ns = error as NSError
+      return compilacaoQueNaoTerminou(FalhaDaCarga(
+        nomeDoTipo: String(reflecting: type(of: error)), descricao: String(describing: error),
+        dominio: ns.domain, codigo: ns.code
+      ))
+    }
+    // A medida, e não a suposição: quem diz que ficou compilado é o cache.
+    return inspecionar(pasta)
+  }
+
   /// A geração, com a biblioteca presente.
   ///
   /// **Uma sessão nova por pedido**, como no `Engine`: a casca abre uma por chamada e nada
@@ -451,6 +522,14 @@ enum MotorCoreAI {
     }
   }
   #else
+  /// Sem a biblioteca — ou no simulador — não há o que compilar. A resposta é a mesma da
+  /// inspeção, porque a razão é a mesma: a falta da biblioteca, não uma compilação que falhou.
+  /// Dizer {@link motivoNaoCompilou} aqui acusaria o sistema de recusar pesos que ninguém
+  /// chegou a carregar.
+  static func compilarEInspecionar(_ pasta: URL) async -> CompilacaoDoFio {
+    inspecionar(pasta)
+  }
+
   /// Sem a biblioteca — ou no simulador — não há cache a olhar. Como em {@link gerar}, o
   /// {@link estado} já devolveu a falta antes de chegar aqui; este corpo é a rede, e diz o mesmo.
   static func inspecionar(_ pasta: URL) -> CompilacaoDoFio {

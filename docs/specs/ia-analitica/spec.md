@@ -184,14 +184,31 @@ O que se testa **não** é a redação — é o pacote. Entrada fixa (período f
 saída esperada (conjunto de fatos, com os deltas certos e as lacunas declaradas). Isso é
 teste normal, determinístico, no `packages/shared`, ao lado dos 621 que já existem.
 
-Sobre a saída do modelo, três verificações mecânicas e baratas:
+Sobre a saída do modelo, **oito** verificações mecânicas e baratas — as três primeiras estão
+aqui desde o começo, e as cinco seguintes entraram porque a medição as cobrou, cada uma com a
+data e o caso que a impôs (`packages/shared/src/ia/verificar.ts`):
 
 1. **Todo número citado existe no pacote.** Regex + comparação. Falhou, rejeita.
 2. **Nenhuma palavra de causa** ("porque", "devido a", "causou") ligando duas métricas.
 3. **Nenhuma correlação fora do portão** promovida a manchete.
+4. **Ressalva obrigatória declarada**, quando a cobertura é desigual.
+5. **A base citada é nomeada, e nomeada certo** — o perigo não é a ausência do nome, é a
+   inversão ("435 km, contra 380 no ano passado" com 380 sendo o período anterior).
+6. **O texto não é o pedido de volta** (25/09). Cópia passava nas cinco primeiras por
+   construção: todo número de uma cópia vem do pacote. A régua é a fração das janelas de
+   quatro palavras que já estavam no pedido.
+7. **A relação afirmada concorda com o delta** (25/09). As seis acima conferem o *número*;
+   esta confere o que se **afirma** dele — estase sobre métrica que se moveu, direção
+   invertida, múltiplo errado ("dobrou" sobre +200%) e crescimento vestido de fração
+   ("66,7% do total do anterior", quando 66,7 é o `deltaPct`). Exige **unanimidade** entre as
+   métricas nomeadas na janela: uma concordando já absolve.
+8. **O período se chama pelo que é** (25/09). Caderno de semana que diz "mês anterior".
 
-O que resta — se a manchete escolhida é *a boa* — não é testável e não se finge que é. É
-julgamento do leitor, que é uma pessoa só e está disponível.
+O que resta — se a manchete escolhida é *a boa*, se a prosa é boa, se o que foi contado era o
+que valia contar — não é testável e não se finge que é. É julgamento do leitor, que é uma
+pessoa só e está disponível. **O limite é medido, não suposto:** em 25/09 a nuvem passou nas
+oito escrevendo o pacote em voz alta, com sete `(contra o período anterior: 0)` — forma
+sofrível que nenhuma regra pega, porque nenhum fato dela está errado.
 
 ## 6. Caso de trabalho: agosto de 2026
 

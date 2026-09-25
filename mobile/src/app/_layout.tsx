@@ -236,6 +236,9 @@ function AppShell() {
         <Stack.Screen name="configuracoes/motores/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/motores/bancada" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="configuracoes/motores/modelo/[id]" options={{ animation: 'slide_from_right' }} />
+        {/* A tela que compila (fatia 2). O `gestureEnabled` dela é decidido lá dentro, pela
+            fase: enquanto a compilação corre, a borda não dispensa a tela. */}
+        <Stack.Screen name="configuracoes/motores/modelo/[id]/compilar" options={{ animation: 'slide_from_right' }} />
       </Stack>
       </NavThemeProvider>
     </View>

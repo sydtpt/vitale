@@ -109,6 +109,18 @@ public enum OrbeCoreAI {
     return LanguageModelSession(model: ModeloDeMentira(texto: textoDeMentira), instructions: instrucoes.map { Instructions($0) })
   }
 
+  /// Espelha `compilar(pesosEm:)` da casca de verdade. Usa o **mesmo** `falhaNaCarga` que a
+  /// sessão, porque é o mesmo passo — a de verdade também carrega os pesos e também sai na
+  /// fase `.carga`. Um segundo botão aqui deixaria os dois caminhos divergirem no teste sem
+  /// divergirem no aparelho.
+  public static func compilar(pesosEm url: URL) async throws {
+    // A de verdade **gera um token** para forçar a especialização (abrir o modelo não
+    // compila nada — medido em 24/09). O que a falsa precisa espelhar é a fase da falha,
+    // e ela continua sendo `.carga`: a geração de um token dentro do `compilar` sai pelo
+    // mesmo caminho que a carga, porque é o motor que não subiu.
+    if let erro = falhaNaCarga { throw erro }
+  }
+
   /// Espelha `compilacao(dosPesosEm:)` da casca de verdade. Não olha o disco: a de verdade
   /// pergunta ao cache do Core AI, e o que o Orbe decide é sobre os **números** que voltam.
   public static func compilacao(dosPesosEm url: URL) throws -> OrbeCoreAICompilacao {

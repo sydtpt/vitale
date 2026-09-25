@@ -127,7 +127,22 @@ fi
 
 # ── 2. build Release ─────────────────────────────────────────────────────────
 mkdir -p "$DERIVED"
+
+# **A pasta de pesos é apagada antes do build.** O `[CP] Copy Pods Resources` do
+# CocoaPods copia por rsync **sem `--delete`**: ele acrescenta e sobrescreve, nunca
+# remove. Trocar um modelo por outro deixava o anterior dentro do `.app` — em 24/09
+# isso levou o app de 4,6 para 6,7 GB com dois `.aimodel` na mesma pasta, e a ficha
+# do modelo passou a contar "0 de 2 componentes", com a compilação podendo pegar o
+# arquivo errado. Aconteceu duas vezes no mesmo dia.
+#
+# Apagar só `pesos/` (e não o `.app` inteiro) mantém o build incremental: o que sai
+# são gigabytes que o rsync repõe em segundos.
+if [[ -d "$APP_PATH/pesos" ]]; then
+  rm -rf "$APP_PATH/pesos"
+fi
+
 say "compilando Release (log: ${LOG/#$MOBILE_DIR\//mobile/})"
+
 # `set -o pipefail` está ligado no topo: se o xcodebuild falhar, o status
 # sobrevive ao `tee` e o script morre aqui, como tem que ser.
 if ! (cd "$IOS_DIR" && xcodebuild \

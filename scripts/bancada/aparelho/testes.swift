@@ -490,8 +490,23 @@ struct Testes {
     p.conferir("e o motivo é um que o app conhece", MotorCoreAI.motivos().contains(motivoDaCompilacao), motivoDaCompilacao)
     p.conferir("a compilação não atravessa duas linhas", !compilacao.contains("\n"))
 
-    print("os quatro motivos são uma lista fechada e sem repetição")
-    p.igual("são quatro", MotorCoreAI.motivos().count, 4)
-    p.igual("sem repetição", Set(MotorCoreAI.motivos()).count, 4)
+    // Sem a biblioteca, compilar também não inventa: a quarta porta devolve a mesma falta que a
+    // terceira, e **não** diz que a compilação falhou — ninguém chegou a carregar peso nenhum.
+    let compilar = await MotorCoreAI.compilar(pesos: "smollm2-135m")
+    let daCompilacaoForcada = objeto(compilar)
+    p.conferir("compilar devolve uma linha JSON", daCompilacaoForcada != nil, compilar)
+    p.conferir("sem biblioteca, compilar NÃO diz `compilado`", daCompilacaoForcada?["compilado"] == nil, compilar)
+    let motivoDeCompilar = daCompilacaoForcada?["motivo"] as? String ?? ""
+    p.conferir("e o motivo é um que o app conhece", MotorCoreAI.motivos().contains(motivoDeCompilar), motivoDeCompilar)
+    p.conferir(
+      "e NÃO é o de compilação que falhou — nada foi carregado",
+      motivoDeCompilar != MotorCoreAI.motivoNaoCompilou,
+      motivoDeCompilar
+    )
+    p.conferir("compilar não atravessa duas linhas", !compilar.contains("\n"))
+
+    print("os cinco motivos são uma lista fechada e sem repetição")
+    p.igual("são cinco", MotorCoreAI.motivos().count, 5)
+    p.igual("sem repetição", Set(MotorCoreAI.motivos()).count, 5)
   }
 }

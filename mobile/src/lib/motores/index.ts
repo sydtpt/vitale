@@ -280,6 +280,18 @@ export interface PonteDoAparelho {
    * de espaço). Juntá-las faria a resposta que muda herdar o cache da que não muda.
    */
   compilacaoDosPesos(pesos: string): Promise<string>;
+  /**
+   * **Compila** estes pesos para o chip, e devolve o estado medido depois (fatia 2).
+   *
+   * A gêmea da porta acima, e o oposto dela: aquela pergunta sem compilar, esta compila. Leva
+   * de 11 a 15 min nos modelos medidos em 22/09 — e **não volta antes de terminar**, porque o
+   * iOS não emite fração nenhuma durante a carga. Quem conta o tempo é a tela.
+   *
+   * A linha de volta é a mesma de `compilacaoDosPesos`, lida pelo mesmo
+   * `lerCompilacaoNoAparelho`: o sucesso não é afirmado, é relido do cache. Um `motivo` de
+   * volta é a falha, com as palavras do sistema no detalhe.
+   */
+  compilarPesos(pesos: string): Promise<string>;
 }
 
 /**
@@ -298,6 +310,7 @@ export const FUNCOES_DA_PONTE = [
   'responderComPesos',
   'diagnosticoDosPesos',
   'compilacaoDosPesos',
+  'compilarPesos',
 ] as const satisfies readonly (keyof PonteDoAparelho)[];
 
 /**
@@ -319,6 +332,7 @@ export const PARAMETROS_DA_PONTE = {
   responderComPesos: ['pesos', 'pedido'],
   diagnosticoDosPesos: ['pesos'],
   compilacaoDosPesos: ['pesos'],
+  compilarPesos: ['pesos'],
 } as const satisfies Record<(typeof FUNCOES_DA_PONTE)[number], readonly string[]>;
 type SobraDaPonte = Exclude<keyof PonteDoAparelho, (typeof FUNCOES_DA_PONTE)[number]>;
 const _ponteInteira: [SobraDaPonte] extends [never] ? true : SobraDaPonte = true;
@@ -849,6 +863,108 @@ export async function relerCompilacaoDosPesos(): Promise<Readonly<Record<string,
   );
   return Object.fromEntries(lidos);
 }
+
+/* ── compilar um peso aberto (fatia 2 do redesenho) ───────────────────────── */
+
+/**
+ * O prazo da compilação — **45 min**, o mesmo teto do peso aberto na geração.
+ *
+ * Ele não existe para apressar nada: o que ele compra é o fim da espera. Os dois modelos
+ * medidos em 22/09 levaram 11 e 15 min, e o Qwen3 4B levou ~29 min; sem teto, uma chamada
+ * nativa que nunca volte deixaria o relógio da tela correndo para sempre, sem desfecho e sem
+ * nada a dizer. Estourado, a linha volta **ilegível** — o mesmo vocabulário dos outros
+ * leitores —, e a tela a lê como "não terminou", nunca como "compilou".
+ *
+ * Estourar o prazo **não interrompe a compilação**: a chamada nativa segue debaixo, e o cache
+ * pode ficar pronto depois. É a mesma hipótese não medida que o "Parar" da tela carrega (ver
+ * `compilar.tsx`).
+ */
+export const PRAZO_DA_COMPILACAO_MS = PRAZO_DO_PESO_ABERTO_MS;
+
+/** Quem compila um peso aberto, visto pela tela. */
+export interface CompiladorDaCompilacao {
+  /**
+   * Compila e devolve o estado **medido** depois. Nunca rejeita — a exceção da ponte volta
+   * como `ilegivel`, com o nome cru, porque uma tela de dez minutos não pode acabar num
+   * `unhandled rejection`.
+   *
+   * **Uma compilação por peso.** Dois toques na mesma pasta compartilham a promessa em voo:
+   * disparar a segunda faria dois carregadores subirem os mesmos pesos, disputando a memória
+   * um com o outro — a forma mais barata de transformar uma espera em `capacidade`.
+   */
+  compilar(): Promise<EstadoDaCompilacao>;
+  /** Há uma compilação desta pasta em voo neste processo? */
+  emCurso(): boolean;
+}
+
+/**
+ * O compilador de uma pasta de pesos.
+ *
+ * **Fora da fila dos motores, de propósito** — e esta é a decisão discutível desta fatia, então
+ * ela fica escrita. Os dois motores do aparelho dividem uma vez (`novaFilaDoAparelho`) porque
+ * disputam memória e Neural Engine; pela mesma lógica, a compilação deveria entrar nela. Só
+ * que entrar significa que uma leitura pedida durante a compilação **espera onze minutos**, e o
+ * desenho aprovado promete o contrário na tela do dono: *nada no app fica parado por causa
+ * disto*. O preço de ficar fora é conhecido e recuperável: uma geração que dispute memória com
+ * a compilação recebe `capacidade` ou `indisponivel` da ponte, e a cadeia recua — um pedido que
+ * falha por agora, contra uma tela travada por onze minutos.
+ */
+export function criarCompiladorDaCompilacao(
+  ponte: PonteDoAparelho | null,
+  pesos: string,
+  opcoes: OpcoesDoLeitorDaCompilacao = {},
+): CompiladorDaCompilacao {
+  const prazoMs = opcoes.prazoMs ?? PRAZO_DA_COMPILACAO_MS;
+  const plataforma = opcoes.plataforma ?? Platform.OS;
+  const fixo = plataforma !== 'ios' ? COMPILACAO_FORA_DO_IOS : ponte === null ? COMPILACAO_AUSENTE : null;
+  if (fixo !== null || ponte === null) {
+    const estado = fixo ?? COMPILACAO_AUSENTE;
+    return { compilar: () => Promise.resolve(estado), emCurso: () => false };
+  }
+  let voo: Promise<EstadoDaCompilacao> | null = null;
+
+  const uma = async (): Promise<EstadoDaCompilacao> => {
+    let relogio: ReturnType<typeof setTimeout> | undefined;
+    const noPrazo = new Promise<null>((r) => {
+      relogio = setTimeout(() => r(null), prazoMs);
+    });
+    try {
+      const linha = await Promise.race([ponte.compilarPesos(pesos), noPrazo]);
+      if (linha === null) {
+        return {
+          tipo: 'lido',
+          compilacao: {
+            estado: 'ilegivel',
+            detalhe: `a compilação não voltou em ${Math.round(prazoMs / 60_000)} min`,
+          },
+        };
+      }
+      return { tipo: 'lido', compilacao: lerCompilacaoNoAparelho(linha), cru: String(linha) };
+    } catch (e) {
+      return { tipo: 'lido', compilacao: { estado: 'ilegivel', detalhe: `a ponte lançou — ${mensagem(e)}` } };
+    } finally {
+      clearTimeout(relogio);
+    }
+  };
+
+  return {
+    compilar: () => {
+      if (voo) return voo;
+      const atual = uma().then((e) => {
+        if (voo === atual) voo = null;
+        return e;
+      });
+      voo = atual;
+      return atual;
+    },
+    emCurso: () => voo !== null,
+  };
+}
+
+/** O compilador de cada peso aberto deste build — um por pasta de pesos. */
+export const compiladorDosPesos: Readonly<Record<string, CompiladorDaCompilacao>> = Object.freeze(
+  Object.fromEntries(PESOS_ABERTOS.map((p) => [p.pesos, criarCompiladorDaCompilacao(PONTE, p.pesos)])),
+);
 
 /* ── a lista de motores aprovados, do servidor (ADR 0048, story 5.6) ─────── */
 

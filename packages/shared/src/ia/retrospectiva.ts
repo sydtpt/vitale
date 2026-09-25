@@ -96,9 +96,20 @@ export const descritorDaRetrospectiva: Descritor<PacoteDeFatos, string> = {
    * A conferência de hoje, contra o pacote **deste caderno**. Ela não detecta
    * recusa: um texto que recusa e passa nas regras é texto, e um que reprova é
    * `reprovada`.
+   *
+   * **O pedido vai junto** (25/09): a sexta regra pergunta se o texto é o pedido
+   * de volta, e para isso precisa do pedido. Ele é remontado aqui pela mesma
+   * função pura que `montarPedido` chama — não há estado a guardar entre os dois
+   * passos, e duas montagens do mesmo pacote dão a mesma string. A sequência é do
+   * orquestrador (AD-2); o que este descritor faz é declarar do que a conferência
+   * dele é feita.
+   *
+   * `usuario` vazio — caderno mudo — nunca chega aqui, porque `montarPedido`
+   * devolve `null` nesse caso e o orquestrador não chama motor nenhum; se
+   * chegasse, um pedido sem janela nenhuma dá eco zero e a sexta regra cala.
    */
   conferir(texto, p) {
-    const v = verificarTexto(texto, p);
+    const v = verificarTexto(texto, p, montarPrompt(p).usuario);
     return v.ok ? { ok: true } : { ok: false, problemas: v.problemas };
   },
 
