@@ -52,3 +52,53 @@ export async function fetchAllPages<T>(
     if (page.length < PAGE_SIZE) return out;
   }
 }
+
+/* ── o outro teto: o tamanho da URL ──────────────────────────────────────── */
+
+/**
+ * Quantos ids cabem num `.in(...)`.
+ *
+ * **Este teto não é o de cima, e confundir os dois produz a guarda errada.** Numa
+ * consulta `.in('id', ids)` sobre a chave primária, o número de linhas **nunca
+ * passa o número de ids** — paginar não protege de nada, porque o corte de mil
+ * linhas exigiria mais de mil ids, e aí o que estoura primeiro é a **URL**: o
+ * PostgREST recebe a lista como query string, e um GET longo demais volta 414 ou
+ * é cortado pelo proxy.
+ *
+ * A diferença que importa: o teto de linhas corta **calado**, e por isso a
+ * resposta é paginar; o teto da URL falha **alto**, e por isso a resposta é
+ * fatiar a lista antes de perguntar. Foi o que tirou a contagem de mídia do
+ * `.in()` e a levou para uma RPC ({@link fetchMediaCounts}) — o Histórico de
+ * Ciclismo tem 338 atividades de id textual.
+ *
+ * 200 é o mesmo número conservador que `fetchExistingRouteIds` já usava: com
+ * UUIDs de 36 caracteres mais o separador, uma fatia cheia dá ~7,4 KB de query
+ * string, bem abaixo dos 8 KB que servidores costumam aceitar.
+ */
+export const IDS_POR_LOTE = 200;
+
+/**
+ * Lê por uma lista de ids, em fatias de {@link IDS_POR_LOTE}.
+ *
+ * `run` recebe a fatia e deve aplicar `.in(<coluna>, fatia)`. **Não pagina de
+ * propósito**: quem chama isto filtra por chave (ou por uma coluna única), e aí
+ * cada fatia devolve no máximo `IDS_POR_LOTE` linhas — bem longe do teto do
+ * PostgREST. Uma leitura em que um id casa **várias** linhas (as fotos de uma
+ * atividade, por exemplo) precisa das duas coisas, e aí `run` pagina por dentro.
+ *
+ * Lista vazia não vai ao banco: um `.in([])` é uma ida de rede para receber zero
+ * linhas.
+ */
+export async function fetchEmLotesDeIds<T>(
+  ids: readonly string[],
+  run: (fatia: readonly string[]) => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<T[]> {
+  if (ids.length === 0) return [];
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += IDS_POR_LOTE) {
+    const { data, error } = await run(ids.slice(i, i + IDS_POR_LOTE));
+    if (error) throw error;
+    out.push(...((data ?? []) as T[]));
+  }
+  return out;
+}

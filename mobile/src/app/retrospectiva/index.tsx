@@ -364,6 +364,19 @@ export default function RetrospectivaScreen() {
     ultimoToqueNaPorta.current = agora;
     router.push(href);
   }, [router, kind, summary.startISO]);
+  /**
+   * A parede de capas (Story 2.4b) — o arquivo inteiro, sem depender do período
+   * que o seletor mostra. Abrir só lê, como a rota da edição.
+   *
+   * **A guarda de tempo é a mesma da porta acima, de propósito**: dois toques no
+   * mesmo segundo empilham duas rotas, e tanto faz se são a mesma ou uma de cada.
+   */
+  const abrirArquivo = useCallback(() => {
+    const agora = Date.now();
+    if (agora - ultimoToqueNaPorta.current < 1000) return;
+    ultimoToqueNaPorta.current = agora;
+    router.push('/revista');
+  }, [router]);
   const buckets = useMemo(() => kind === 'year' ? yearFn(now, offset) : [], [yearFn, now, kind, offset, loaded, loading, loadedSince, allActs]);
 
   // Forma 02 — o heatmap. Só nos períodos em que uma célula por dia ainda é legível;
@@ -439,6 +452,24 @@ export default function RetrospectivaScreen() {
                 apurada. Leva à rota da revista; some sozinha em período em curso
                 e no Total (ADRs 0038/0040 · Story 1.11). */}
             <EdicaoCard porta={portaEdicao} onAbrir={abrirRevista} />
+            {/* A porta do ARQUIVO (Story 2.4b). Ela é uma linha, e não um segundo
+                cartão, de propósito: o cartão acima é a edição **deste** período —
+                o que o leitor veio ver —, e a parede é para folhear o resto. Um
+                cartão do mesmo peso faria as duas disputarem a mesma atenção.
+                Fica **sempre**, inclusive no Total e no período em curso, onde o
+                cartão de cima é ausência: o arquivo não depende do período
+                selecionado. */}
+            <Pressable
+              onPress={abrirArquivo}
+              accessibilityRole="button"
+              accessibilityLabel="Arquivo: as edições já impressas"
+              accessibilityHint="Abre a parede de capas"
+              style={({ pressed }) => [styles.arquivoLink, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="albums-outline" size={17} color={colors.ink3} />
+              <Text style={styles.arquivoTxt}>Arquivo</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.ink3} />
+            </Pressable>
       </>
     ),
     kpis: (
@@ -1039,6 +1070,13 @@ const createStyles = () => StyleSheet.create({
   kpiDelta: { fontSize: 12, fontFamily: fonts.sansSemiBold },
 
   card: { backgroundColor: colors.surface, borderRadius: radii['2xl'], padding: spacing.lg, gap: spacing.sm, ...shadows.card },
+  // A porta do arquivo: uma linha, sem casca de cartão — ela leva para fora do
+  // período, e não é mais uma leitura dele. Alvo de 44 px mesmo sendo discreta.
+  arquivoLink: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    minHeight: 44, paddingHorizontal: spacing.sm,
+  },
+  arquivoTxt: { flex: 1, fontSize: 13.5, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
   eyebrow: { fontSize: 11, fontFamily: fonts.sansBold, textTransform: 'uppercase', letterSpacing: 1.1, color: colors.ink3, marginBottom: 4 },
   big: { fontSize: 28, fontFamily: fonts.sansBold, color: colors.ink },
   bigDelta: { fontSize: 13, fontFamily: fonts.sansSemiBold },

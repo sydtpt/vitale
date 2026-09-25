@@ -235,6 +235,28 @@ export function rotuloDaEdicao(tipo: TipoComEdicao, inicio: string): string {
   return periodLabel(tipo, d);
 }
 
+/**
+ * A legenda que **acrescenta** — ou `null` (Story 2.4a, movida para o núcleo na 2.4b).
+ *
+ * A capa `grade` é carimbada com o rótulo do período como legenda, porque o
+ * `CHECK` de `edicoes_capa.legenda` recusa vazio. Na tela isso vira o período
+ * escrito duas vezes — grande em serifada e pequeno em mono, um debaixo do outro —
+ * e lido duas vezes pelo VoiceOver. **O carimbo fica**; o que some é a repetição.
+ *
+ * Comparação por texto normalizado, e não por natureza: a rede `comRede` de
+ * {@link escolherCapa} põe o rótulo do período em qualquer natureza cuja legenda
+ * saia vazia, e o mesmo defeito voltaria pela porta de trás.
+ *
+ * **Mora aqui porque são duas telas**: a capa da rota da edição e o ladrilho da
+ * parede. Escrita duas vezes, a repetição voltaria numa delas no dia em que a
+ * regra mudasse na outra.
+ */
+export function legendaQueAcrescenta(legenda: string | null, periodo: string): string | null {
+  const frase = legenda?.trim();
+  if (!frase) return null;
+  return frase === periodo.trim() ? null : legenda;
+}
+
 /** O período de que a capa é capa — a chave da linha, e o rótulo que a `grade` imprime. */
 export interface PeriodoDaCapa {
   readonly tipoPeriodo: CapaACarimbar['tipoPeriodo'];

@@ -184,6 +184,9 @@ export * from './revista/capa';
 // Os dois desenhistas da capa (story 2.4a) — a projeção do traçado e a contagem
 // da grade, puras: quem desenha só recebe o já calculado.
 export * from './revista/desenho';
+// A parede de capas (story 2.4b) — a montagem do arquivo: junta o inventário, as
+// capas e os textos dos meses, e devolve as fileiras já fatiadas.
+export * from './revista/parede';
 export * from './data/paginate';
 export * from './data/profiles';
 export * from './data/todo-templates';

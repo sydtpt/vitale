@@ -782,6 +782,10 @@ const comPrompt = (
     posicao: k + 1,
     promptVersao: prompts[k] ?? 5,
     pacoteVersao,
+    // A coluna da Story 2.4b: ela entrou no arquivo para as quatro tiras do
+    // anuário e **não decide reimpressão nenhuma** — nula aqui, que é o valor
+    // que a massa ignora do mesmo jeito que ignoraria uma chave.
+    metricaLider: null,
   })),
 });
 

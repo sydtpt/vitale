@@ -4,6 +4,7 @@ import {
   FotoRecusadaNaTroca,
   cadernosVisiveis,
   chamadaDoTexto,
+  legendaQueAcrescenta,
   precisaErrata,
   resolveRetroPrefs,
   temEdicao,
@@ -514,24 +515,6 @@ export type VistaDaEdicao =
  */
 function chamadaDaCapa(edicao: Edicao, visiveis: readonly CadernoId[]): string | null {
   return chamadaDoTexto(edicao.find((c) => visiveis.includes(c.caderno))?.texto);
-}
-
-/**
- * A legenda que **acrescenta** — ou `null` (Story 2.4a).
- *
- * A capa `grade` é carimbada com o rótulo do período como legenda, porque o
- * `CHECK` de `edicoes_capa.legenda` recusa vazio. Na tela isso vira o período
- * escrito duas vezes — grande em serifada e pequeno em mono, um debaixo do outro —
- * e lido duas vezes pelo VoiceOver. O carimbo fica; o que some é a repetição.
- *
- * Comparação por texto normalizado, e não por natureza: a rede `comRede` de
- * `escolherCapa` põe o rótulo do período em qualquer natureza cuja legenda saia
- * vazia, e o mesmo defeito voltaria pela porta de trás.
- */
-function legendaQueAcrescenta(legenda: string | null, periodo: string): string | null {
-  const frase = legenda?.trim();
-  if (!frase) return null;
-  return frase === periodo.trim() ? null : legenda;
 }
 
 /**

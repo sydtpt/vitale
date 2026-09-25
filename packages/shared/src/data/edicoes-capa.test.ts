@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  CAPA_COLUMNS, fetchCapa, gravarCapa, isMotivoDaCapa, isNaturezaDaCapa, toCapa,
+  CAPA_COLUMNS, fetchCapa, fetchCapasDoArquivo, gravarCapa, isMotivoDaCapa, isNaturezaDaCapa, toCapa,
   MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA,
   type CapaACarimbar, type CapaRow,
 } from './edicoes-capa';
@@ -361,5 +361,97 @@ describe('gravarCapa — a única escrita em edicoes_capa', () => {
   it('propaga o erro do banco', async () => {
     const { db } = fakeGravacao({ erro: new Error('capa_identidade_bate_com_natureza') });
     await assert.rejects(() => gravarCapa(db, 'u-1', A_CARIMBAR), /capa_identidade/);
+  });
+});
+
+/* ── a leitura em lote da parede (Story 2.4b) ────────────────────────────── */
+
+/**
+ * O fake do LOTE. A cadeia termina em `.range()`, e não em `.maybeSingle()`: a
+ * leitura cresce com o tempo — uma capa por edição, 69 períodos possíveis por
+ * ano — e **tem** de paginar. Uma versão sem `range` estoura aqui com `not a
+ * function`, em vez de passar verde e cortar em produção.
+ */
+function fakeLote(linhas: CapaRow[]) {
+  const capturado: { colunas?: string; ordens: string[]; filtros: Record<string, unknown> } = {
+    ordens: [], filtros: {},
+  };
+  const alvo = {
+    eq(coluna: string, valor: unknown) {
+      capturado.filtros[coluna] = valor;
+      return alvo;
+    },
+    order(coluna: string) {
+      capturado.ordens.push(coluna);
+      return alvo;
+    },
+    range(lo: number, hi: number) {
+      return Promise.resolve({
+        data: linhas.slice(lo, hi + 1).map((l) => projetar(l, capturado.colunas!)),
+        error: null,
+      });
+    },
+  };
+  const db = {
+    from: () => ({
+      select: (cols: string) => {
+        capturado.colunas = cols;
+        return alvo;
+      },
+    }),
+  };
+  return { db: db as unknown as SupabaseClient, capturado };
+}
+
+describe('fetchCapasDoArquivo — uma leitura para a parede inteira', () => {
+  it('pede exatamente CAPA_COLUMNS, e filtra pelo dono', async () => {
+    const f = fakeLote([linhaDoBanco()]);
+    await fetchCapasDoArquivo(f.db, 'u-1');
+    assert.equal(f.capturado.colunas, CAPA_COLUMNS);
+    assert.deepEqual(f.capturado.filtros, { user_id: 'u-1' });
+  });
+
+  it('a ordem total é (inicio, tipo_periodo, fim) — a chave menos o dono', async () => {
+    const f = fakeLote([linhaDoBanco()]);
+    await fetchCapasDoArquivo(f.db, 'u-1');
+    assert.deepEqual(f.capturado.ordens, ['inicio', 'tipo_periodo', 'fim']);
+  });
+
+  it('traduz cada linha pela MESMA régua de fetchCapa — nada de `as`', async () => {
+    const f = fakeLote([
+      linhaDoBanco(),
+      linhaDoBanco({ tipo_periodo: 'year', inicio: '2025-01-01', fim: '2025-12-31', natureza: 'grade', foto_id: null, motivo: 'sem-foto' }),
+    ]);
+    const capas = await fetchCapasDoArquivo(f.db, 'u-1');
+    assert.deepEqual(capas.map((c) => [c.tipoPeriodo, c.natureza, c.motivo]), [
+      ['month', 'foto', 'rajada'],
+      ['year', 'grade', 'sem-foto'],
+    ]);
+  });
+
+  /**
+   * A parede não filtra por tipo aqui: quem decide o que vira ladrilho é
+   * `revista/parede.ts`, que já sabe que trimestre e semana ficam de fora. Um
+   * filtro nesta leitura seria a mesma regra escrita em dois lugares.
+   */
+  it('traz as capas de todos os tipos — o recorte é de quem monta a parede', async () => {
+    const f = fakeLote([
+      linhaDoBanco({ tipo_periodo: 'week', inicio: '2026-08-03', fim: '2026-08-09' }),
+      linhaDoBanco(),
+    ]);
+    assert.deepEqual(
+      (await fetchCapasDoArquivo(f.db, 'u-1')).map((c) => c.tipoPeriodo),
+      ['week', 'month'],
+    );
+  });
+
+  it('acervo sem capa nenhuma é lista vazia, não erro', async () => {
+    const f = fakeLote([]);
+    assert.deepEqual(await fetchCapasDoArquivo(f.db, 'u-1'), []);
+  });
+
+  it('natureza desconhecida explode alto, como na leitura de uma', async () => {
+    const f = fakeLote([linhaDoBanco({ natureza: 'colagem' })]);
+    await assert.rejects(() => fetchCapasDoArquivo(f.db, 'u-1'), /natureza de capa desconhecida/);
   });
 });

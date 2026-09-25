@@ -13,7 +13,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ActivityPhoto } from '../models';
-import { fetchAllPages } from './paginate';
+import { fetchAllPages, fetchEmLotesDeIds } from './paginate';
 
 /** Linha como o PostgREST a devolve. */
 export interface ActivityPhotoRecord {
@@ -91,6 +91,16 @@ export async function fetchActivityPhotos(
 /**
  * As fotos ligadas de várias atividades — o que a Retrospectiva e o mapa de
  * período consomem. Só `linked`: o jornal não conta o que foi desligado.
+ *
+ * Um id casa **muitas** linhas aqui (uma pedalada tem dezenas de fotos; julho de
+ * 2026 tem 372 em doze atividades), então esta é uma leitura que precisa de
+ * paginação de verdade — e de ordem **total**: `taken_at` empata às dezenas numa
+ * rajada, e dentro de um bloco empatado a ordem é livre, o que faz uma linha
+ * sumir ou vir duas vezes na costura de duas páginas. O desempate é o `id`.
+ *
+ * O tamanho da lista de ids é de quem chama: aqui ela é a das atividades de um
+ * período, limitada pela janela. Quem precisa de uma foto **por id** usa
+ * {@link fetchPhotosByIds}, que fatia a lista.
  */
 export async function fetchPhotosForActivities(
   db: SupabaseClient,
@@ -106,7 +116,51 @@ export async function fetchPhotosForActivities(
       .eq('state', 'linked')
       .in('activity_id', [...activityIds])
       .order('taken_at', { ascending: true })
+      .order('id', { ascending: true })
       .range(lo, hi),
+  );
+  return rows.map(toActivityPhoto);
+}
+
+/**
+ * As fotos de uma **lista de ids** — o que a parede de capas lê (Story 2.4b).
+ *
+ * ## Por que não é `fetchPhotosForActivities`
+ *
+ * A parede tem 39 capas de foto e sabe exatamente **quais** fotos quer: o
+ * `foto_id` está carimbado em `edicoes_capa`. Perguntar pelas atividades traria
+ * todas as fotos das 39 pedaladas — centenas de linhas — para escolher 39 por id,
+ * e ainda assim devolveria a resposta errada em dois casos:
+ *
+ * - **a foto que o dono desligou depois do carimbo** não volta de lá (o filtro é
+ *   `state = 'linked'`), e a capa carimbada não deixa de ser capa porque a foto
+ *   saiu da galeria da pedalada. Aqui **não há filtro de estado**, e o buraco
+ *   fecha;
+ * - a capa anterior à Story 1.16, sem `foto_activity_id`, não tinha por onde ser
+ *   procurada por atividade. Por id, tem.
+ *
+ * ## O teto que morde é a URL, não o de linhas
+ *
+ * `id` é a chave primária: N ids devolvem no máximo N linhas, então paginar não
+ * protegeria de nada. O que cresce é a **query string**, e por isso a lista é
+ * fatiada por {@link fetchEmLotesDeIds}. Hoje são 39 ids, e 12 novos por ano.
+ *
+ * A spec da story proíbe `fetchPhotoById` **por célula** — uma leitura por
+ * ladrilho. Uma leitura em lote por id é o contrário disso: uma chamada, 39
+ * linhas.
+ */
+export async function fetchPhotosByIds(
+  db: SupabaseClient,
+  userId: string,
+  ids: readonly string[],
+): Promise<ActivityPhoto[]> {
+  const rows = await fetchEmLotesDeIds<ActivityPhotoRecord>(ids, (fatia) =>
+    db
+      .from('activity_photos')
+      .select(COLUMNS)
+      .eq('user_id', userId)
+      .in('id', [...fatia])
+      .order('id', { ascending: true }),
   );
   return rows.map(toActivityPhoto);
 }

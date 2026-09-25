@@ -29,6 +29,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ContaTrocadaNaImpressao, type TipoComEdicao } from './edicoes-ia';
+import { fetchAllPages } from './paginate';
 
 /**
  * As três naturezas de capa, e a terceira não é sobra.
@@ -205,6 +206,58 @@ export async function fetchCapa(
     .maybeSingle();
   if (error) throw error;
   return data ? toCapa(data as unknown as CapaRow) : null;
+}
+
+/**
+ * **Todas** as capas carimbadas do usuário, numa leitura — o que a parede do
+ * arquivo desenha (Story 2.4b).
+ *
+ * ## Por que existe, sendo que `fetchCapa` já lê uma
+ *
+ * Porque a parede tem 39 células hoje, e uma leitura por célula é 39 idas ao
+ * banco para desenhar uma tela — com a agravante de que elas chegam fora de
+ * ordem e a parede ficaria preenchendo buracos enquanto o dedo rola. A regra da
+ * story é literal: *uma leitura em lote por coisa, nunca uma por célula*, e uma
+ * barreira de código-fonte no celular cobra que a parede não chame
+ * {@link fetchCapa} nem `fetchPhotoById` de dentro de um ladrilho.
+ *
+ * ## Por que pagina
+ *
+ * Uma capa por **edição**, e são **69** períodos por ano com edição possível —
+ * 52 semanas + 12 meses + 4 estações + 1 ano (70 nos anos ISO de 53 semanas). O
+ * teto de 1000 linhas do PostgREST corta **sem erro e em ordem indefinida** — e o
+ * sintoma seria a parede perdendo capas antigas em silêncio, que é exatamente o
+ * que ela existe para mostrar. Por isso passa por `fetchAllPages` com ordenação
+ * **total**: `(inicio, tipo_periodo, fim)` é a chave primária menos o `user_id`,
+ * que está fixo no filtro.
+ *
+ * ## Por que NÃO filtra por tipo, sendo que a leitura irmã filtra
+ *
+ * `fetchManchetesDosMeses` (`edicoes-ia.ts`) recorta `tipo_periodo = 'month'` no
+ * SQL, e esta não recorta nada. A diferença não é descuido: **filtra-se no SQL o
+ * que é caro de trazer; recorta-se na montagem o que é barato.** Lá o `texto` é o
+ * payload, e o filtro é o que separa dezenas de KB de centenas. Aqui a linha é
+ * curta — nenhuma coluna de texto grande —, o acervo inteiro cabe numa página
+ * por muitos anos, e não há nada a economizar; em troca, a leitura serve a quem
+ * vier depois sem ter de crescer um parâmetro. Quem decide o que vira ladrilho é
+ * `revista/parede.ts`, que já tem a regra.
+ */
+export async function fetchCapasDoArquivo(
+  db: SupabaseClient,
+  userId: string,
+): Promise<Capa[]> {
+  const linhas = await fetchAllPages<CapaRow>(
+    (lo, hi) =>
+      db
+        .from('edicoes_capa')
+        .select(COLUMNS)
+        .eq('user_id', userId)
+        .order('inicio', { ascending: true })
+        .order('tipo_periodo', { ascending: true })
+        .order('fim', { ascending: true })
+        .range(lo, hi),
+  );
+  return linhas.map(toCapa);
 }
 
 /**

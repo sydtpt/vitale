@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: '2026-09-24'
+last_updated: '2026-09-25'
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -302,7 +302,7 @@ development_status:
   #  3. A legibilidade do traçado a 173 px fica para o veredito no iPhone; o
   #     limiar nasce declarado e ajustável (as 6 rotas têm 10 a 135 pontos).
   2-4a-os-dois-desenhistas-da-capa: review
-  2-4b-a-parede-de-capas: backlog
+  2-4b-a-parede-de-capas: review
   2-5-silenciar-um-caderno: review
   # NASCEU EM 24/09/2026, de um defeito MEDIDO no arquivo que a corrida da 2.3
   # acabou de imprimir: 68 ocorrências de "1 dias" em 37 linhas, 35 dos 45

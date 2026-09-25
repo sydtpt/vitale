@@ -6,11 +6,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGG_VERSION } from '../constants/agg-version';
 import type { Impressao, LinhaDaImpressao } from '../ia/imprimir';
 import {
-  ARQUIVO_COLUMNS,
+  ARQUIVO_COLUMNS, MANCHETE_COLUMNS,
   ContaTrocadaNaImpressao, EDICAO_COLUMNS, EdicaoMudouNaImpressao, fetchArquivoDeEdicoes, fetchEdicao,
+  fetchManchetesDosMeses,
   portasDaEdicao, precisaErrata,
   toCadernoImpresso,
-  type ArquivoRow, type CadernoImpresso, type EdicaoRow,
+  type ArquivoRow, type CadernoImpresso, type EdicaoRow, type MancheteRow,
 } from './edicoes-ia';
 
 /**
@@ -857,7 +858,11 @@ function fakeArquivo(linhas: ArquivoRow[]) {
 
 const noArquivo = (over: Partial<ArquivoRow> = {}): ArquivoRow => ({
   tipo_periodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
-  caderno: 'sono', posicao: 1, prompt_versao: 5, pacote_versao: 3, ...over,
+  caderno: 'sono', posicao: 1, prompt_versao: 5, pacote_versao: 3,
+  // A coluna da Story 2.4b: é ela que as quatro tiras do anuário leem, e ela é
+  // **nulável** — nulo é "nenhuma métrica liderou", não "esqueci de ler".
+  metrica_lider: 'sono.duracao',
+  ...over,
 });
 
 describe('ARQUIVO_COLUMNS — a mesma guarda de EDICAO_COLUMNS', () => {
@@ -880,9 +885,9 @@ describe('ARQUIVO_COLUMNS — a mesma guarda de EDICAO_COLUMNS', () => {
 describe('fetchArquivoDeEdicoes — o inventário agrupado por período', () => {
   it('agrupa por (tipo, início, fim) e ordena os cadernos por posição', async () => {
     const f = fakeArquivo([
-      noArquivo({ caderno: 'rotina', posicao: 3 }),
+      noArquivo({ caderno: 'rotina', posicao: 3, metrica_lider: null }),
       noArquivo({ caderno: 'sono', posicao: 1, prompt_versao: 6, pacote_versao: 4 }),
-      noArquivo({ caderno: 'movimento', posicao: 2 }),
+      noArquivo({ caderno: 'movimento', posicao: 2, metrica_lider: 'movimento.km' }),
       noArquivo({ tipo_periodo: 'year', inicio: '2025-01-01', fim: '2025-12-31', caderno: 'coracao', posicao: 1 }),
     ]);
     const arquivo = await fetchArquivoDeEdicoes(f.db, 'u-1');
@@ -890,12 +895,16 @@ describe('fetchArquivoDeEdicoes — o inventário agrupado por período', () => 
     // As duas versões chegam separadas: é por `promptVersao` que o `--caderno`
     // da massa (Story 2.8) decide, e por `pacoteVersao` que a campanha da 2.3
     // decide. Uma linha com uma nova e a outra velha prova que não se confundem.
+    //
+    // E a `metricaLider` chega **por linha**, com o nulo preservado (Story
+    // 2.4b): as quatro tiras do anuário distinguem "o caderno não saiu" de "saiu
+    // e nenhuma métrica liderou", e um nulo virando sentinela apagaria a segunda.
     assert.deepEqual(arquivo[0], {
       tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
       cadernos: [
-        { caderno: 'sono', posicao: 1, promptVersao: 6, pacoteVersao: 4 },
-        { caderno: 'movimento', posicao: 2, promptVersao: 5, pacoteVersao: 3 },
-        { caderno: 'rotina', posicao: 3, promptVersao: 5, pacoteVersao: 3 },
+        { caderno: 'sono', posicao: 1, promptVersao: 6, pacoteVersao: 4, metricaLider: 'sono.duracao' },
+        { caderno: 'movimento', posicao: 2, promptVersao: 5, pacoteVersao: 3, metricaLider: 'movimento.km' },
+        { caderno: 'rotina', posicao: 3, promptVersao: 5, pacoteVersao: 3, metricaLider: null },
       ],
     });
     assert.equal(arquivo[1]?.tipoPeriodo, 'year');
@@ -948,6 +957,189 @@ describe('fetchArquivoDeEdicoes — o inventário agrupado por período', () => 
           `${coluna} = ${JSON.stringify(ruim)}`,
         );
       }
+    }
+  });
+
+  /**
+   * A quinta coluna do arquivo passa pela MESMA régua das outras quatro. Ela é
+   * nulável, e é isso que torna o cast tentador: `string | null` cobre o que a
+   * coluna promete, e um `undefined` de coluna esquecida atravessaria como se
+   * fosse resposta — virando, na tira do anuário, um mês desenhado como "saiu
+   * calado" sobre um dado que ninguém leu.
+   */
+  it('metrica_lider que não é texto nem nulo explode alto', async () => {
+    for (const ruim of [undefined, 42, {}]) {
+      const f = fakeArquivo([noArquivo({ metrica_lider: ruim } as unknown as Partial<ArquivoRow>)]);
+      await assert.rejects(
+        () => fetchArquivoDeEdicoes(f.db, 'u-1'),
+        /metrica_lider não é texto nem nulo no arquivo/,
+        `metrica_lider = ${JSON.stringify(ruim)}`,
+      );
+    }
+  });
+
+  it('metrica_lider nula passa — nulo é "nenhuma métrica liderou"', async () => {
+    const f = fakeArquivo([noArquivo({ metrica_lider: null })]);
+    const arquivo = await fetchArquivoDeEdicoes(f.db, 'u-1');
+    assert.equal(arquivo[0]?.cadernos[0]?.metricaLider, null);
+  });
+});
+
+/* ── as manchetes da parede (Story 2.4b) ─────────────────────────────────── */
+
+/**
+ * O fake das MANCHETES. Como o do arquivo, termina em `.range()` — a leitura
+ * cresce com o tempo e tem de paginar — e projeta pelas colunas pedidas, para a
+ * asserção de `MANCHETE_COLUMNS` morder. Guarda também os filtros, porque o
+ * recorte a meses é metade do argumento desta leitura existir.
+ */
+function fakeManchetes(linhas: MancheteRow[]) {
+  const capturado: { colunas?: string; ordens: string[]; filtros: Record<string, unknown> } = {
+    ordens: [], filtros: {},
+  };
+  const alvo = {
+    eq(coluna: string, valor: unknown) {
+      capturado.filtros[coluna] = valor;
+      return alvo;
+    },
+    order(coluna: string) {
+      capturado.ordens.push(coluna);
+      return alvo;
+    },
+    range(lo: number, hi: number) {
+      return Promise.resolve({
+        data: linhas.slice(lo, hi + 1).map((l) => projetar(l as unknown as EdicaoRow, capturado.colunas!)),
+        error: null,
+      });
+    },
+  };
+  const db = {
+    from: () => ({
+      select: (cols: string) => {
+        capturado.colunas = cols;
+        return alvo;
+      },
+    }),
+  };
+  return { db: db as unknown as SupabaseClient, capturado };
+}
+
+const naManchete = (over: Partial<MancheteRow> = {}): MancheteRow => ({
+  tipo_periodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+  caderno: 'sono', posicao: 1, texto: 'O sono caiu 40 min. E a cerveja explica.', ...over,
+});
+
+describe('MANCHETE_COLUMNS — a leitura própria da parede', () => {
+  it('pede exatamente as colunas que a linha tem', () => {
+    assert.deepEqual(
+      MANCHETE_COLUMNS.split(',').map((c) => c.trim()).sort(),
+      Object.keys(naManchete()).sort(),
+    );
+  });
+
+  /**
+   * É o ponto inteiro da leitura separada: o arquivo recusa `texto` porque lê o
+   * acervo todo, e a parede precisa dele em 39 meses. Se um dia as duas listas
+   * convergirem, é aqui e no teste irmão do arquivo que se descobre.
+   */
+  it('pede o texto — e o arquivo continua não pedindo', () => {
+    assert.ok(MANCHETE_COLUMNS.split(',').includes('texto'));
+    assert.ok(!ARQUIVO_COLUMNS.split(',').includes('texto'));
+  });
+
+  it('não pede as duas versões — quem decide gasto é a impressão em massa, não a parede', () => {
+    for (const coluna of ['prompt_versao', 'pacote_versao']) {
+      assert.ok(!MANCHETE_COLUMNS.split(',').includes(coluna), coluna);
+    }
+  });
+
+  it('a leitura pede exatamente MANCHETE_COLUMNS', async () => {
+    const f = fakeManchetes([naManchete()]);
+    await fetchManchetesDosMeses(f.db, 'u-1');
+    assert.equal(f.capturado.colunas, MANCHETE_COLUMNS);
+  });
+});
+
+describe('fetchManchetesDosMeses — os textos dos meses, agrupados', () => {
+  it('filtra pelo dono E pelo tipo de período — a parede é de meses', async () => {
+    const f = fakeManchetes([naManchete()]);
+    await fetchManchetesDosMeses(f.db, 'u-1');
+    assert.deepEqual(f.capturado.filtros, { user_id: 'u-1', tipo_periodo: 'month' });
+  });
+
+  it('agrupa por período e ordena os cadernos por posição', async () => {
+    const f = fakeManchetes([
+      naManchete({ caderno: 'rotina', posicao: 3, texto: 'Rotina.' }),
+      naManchete({ caderno: 'sono', posicao: 1, texto: 'Sono.' }),
+      naManchete({ caderno: 'movimento', posicao: 2, texto: 'Movimento.' }),
+      naManchete({ inicio: '2026-07-01', fim: '2026-07-31', caderno: 'coracao', posicao: 1, texto: 'Coração.' }),
+    ]);
+    const textos = await fetchManchetesDosMeses(f.db, 'u-1');
+    assert.equal(textos.length, 2);
+    assert.deepEqual(textos[0], {
+      tipoPeriodo: 'month', inicio: '2026-08-01', fim: '2026-08-31',
+      cadernos: [
+        { caderno: 'sono', posicao: 1, texto: 'Sono.' },
+        { caderno: 'movimento', posicao: 2, texto: 'Movimento.' },
+        { caderno: 'rotina', posicao: 3, texto: 'Rotina.' },
+      ],
+    });
+    assert.deepEqual(textos[1]?.inicio, '2026-07-01');
+  });
+
+  it('a ordem total é (inicio, fim, caderno) — a chave menos o dono e o tipo, que estão no filtro', async () => {
+    const f = fakeManchetes([naManchete()]);
+    await fetchManchetesDosMeses(f.db, 'u-1');
+    assert.deepEqual(f.capturado.ordens, ['inicio', 'fim', 'caderno']);
+  });
+
+  it('acervo sem edição de mês é lista vazia, não erro', async () => {
+    const f = fakeManchetes([]);
+    assert.deepEqual(await fetchManchetesDosMeses(f.db, 'u-1'), []);
+  });
+
+  it('caderno desconhecido explode alto — o CHECK deveria tê-lo recusado', async () => {
+    const f = fakeManchetes([naManchete({ caderno: 'financas' })]);
+    await assert.rejects(
+      () => fetchManchetesDosMeses(f.db, 'u-1'),
+      /caderno desconhecido na leitura das manchetes/,
+    );
+  });
+
+  it('tipo de período sem edição possível explode alto', async () => {
+    const f = fakeManchetes([naManchete({ tipo_periodo: 'all' })]);
+    await assert.rejects(
+      () => fetchManchetesDosMeses(f.db, 'u-1'),
+      /tipo de período sem edição possível na leitura das manchetes/,
+    );
+  });
+
+  /**
+   * `posicao` é o número por que esta leitura ordena, e `texto` é o payload
+   * inteiro dela. Uma coluna esquecida na string chega como `undefined`: o `sort`
+   * vira `NaN - NaN` (ordem indefinida, silenciosa) e a manchete vira a chamada de
+   * `undefined`, que é `null` — o mesmo valor de "não há caderno". Os dois
+   * passariam verdes sem esta conferência.
+   */
+  it('posicao que não é inteiro explode alto — é por ela que a manchete se decide', async () => {
+    for (const ruim of [undefined, null, '1', Number.NaN, 1.5]) {
+      const f = fakeManchetes([naManchete({ posicao: ruim } as unknown as Partial<MancheteRow>)]);
+      await assert.rejects(
+        () => fetchManchetesDosMeses(f.db, 'u-1'),
+        /posicao não é inteiro na leitura das manchetes/,
+        `posicao = ${JSON.stringify(ruim)}`,
+      );
+    }
+  });
+
+  it('texto que não é string explode alto', async () => {
+    for (const ruim of [undefined, null, 42]) {
+      const f = fakeManchetes([naManchete({ texto: ruim } as unknown as Partial<MancheteRow>)]);
+      await assert.rejects(
+        () => fetchManchetesDosMeses(f.db, 'u-1'),
+        /texto não é string na leitura das manchetes/,
+        `texto = ${JSON.stringify(ruim)}`,
+      );
     }
   });
 });

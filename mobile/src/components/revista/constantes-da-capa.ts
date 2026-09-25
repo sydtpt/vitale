@@ -24,6 +24,27 @@ import type { RoleKey } from '@vitale/shared';
 export const FRACAO_DA_ALTURA_DA_CAPA = 0.45;
 
 /**
+ * A altura do ladrilho da parede, como **fração da largura dele** (Story 2.4b).
+ *
+ * `168 / 173` = 0,971 — os dois números escritos no mockup aprovado, e é deles
+ * que a constante sai. 173 px é a coluna de uma grade de duas num iPhone de 390
+ * (16 de margem de cada lado, 12 de vão).
+ *
+ * **O 168 é uma escolha do desenho, não uma derivação.** O mockup o anota como
+ * "a mesma proporção da capa real", e a capa real, num aparelho de 390 × 844,
+ * mede 390 por {@link FRACAO_DA_ALTURA_DA_CAPA} × 844 = 380 px — proporção
+ * 0,974. O ladrilho usa 0,971. A diferença é de um pixel em 173, invisível, mas
+ * ela existe: chamar 168 de derivação seria apresentar um arredondamento como
+ * conta. E a proporção da capa inteira **não é fixa** — ela muda com a razão de
+ * tela do aparelho, enquanto esta é a mesma em todos.
+ *
+ * Fração, e não altura fixa: num aparelho mais largo a coluna cresce, e o
+ * ladrilho tem de crescer junto — senão a capa de traçado desenhada por
+ * `projetarTracado` (que preserva proporção) sairia com tarja em cima e embaixo.
+ */
+export const PROPORCAO_DO_LADRILHO = 168 / 173;
+
+/**
  * O papel cromático da capa desenhada — o traçado e a grade (Story 2.4a).
  *
  * **`orange`, e não `--primary`.** O mockup aprovado pinta o traçado com o laranja
