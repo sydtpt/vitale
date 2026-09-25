@@ -217,8 +217,10 @@ describe('o portão estava ao contrário, e deixou de estar', () => {
    */
   it('a tabela dos cinco, depois da mudança', () => {
     const regras = (motor: string) => verificarTexto(texto(motor), PACOTE, PEDIDO).problemas.map((p) => p.regra);
-    // A prosa de revista do aparelho chama uma SEMANA de "mês" — a regra 8.
-    assert.deepEqual(regras(APPLE), ['periodo'], 'o caderno é de semana e o texto diz "deste mês"');
+    // A prosa de revista do aparelho erra o múltiplo — *"2,8 horas, quase o dobro do
+    // período anterior"*, sobre 1,0 → 2,8, que é quase o TRIPLO — e chama uma SEMANA
+    // de "mês". Regras 7 e 8.
+    assert.deepEqual(regras(APPLE), ['relacao', 'periodo']);
     // Sete desacordos distintos, todos de estase ou de queda sobre métrica que subiu.
     assert.deepEqual(
       new Set(regras(QWEN17)), new Set(['relacao']),

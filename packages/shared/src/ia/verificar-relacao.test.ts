@@ -175,6 +175,31 @@ describe('regra 7 — o múltiplo', () => {
     const p = pacote([['Elevação', 218, 0]]);
     assert.match(relacao('A elevação dobrou.', p)[0], /o anterior é zero, e zero não se multiplica/);
   });
+
+  it('o múltiplo como SUBSTANTIVO — "quase o dobro" sobre 1,0 → 2,8', () => {
+    // O caso medido em 25/09: o vocabulário só tinha a forma verbal, e o modelo
+    // escreveu *"quase o dobro do valor anterior"*.
+    const p = pacote([['Tempo', 2.8, 1]], 'week', 1);
+    assert.match(relacao('O tempo foi quase o dobro do valor anterior.', p)[0], /"o dobro" promete 2×/);
+  });
+
+  it('e o dobro de verdade passa', () => {
+    assert.deepEqual(relacao('O tempo foi o dobro do anterior.', pacote([['Tempo', 2, 1]], 'week', 1)), []);
+  });
+
+  it('a JANELA alcança o rótulo que encosta na borda', () => {
+    // A frase real do modelo do aparelho. `Tempo` acaba 62 caracteres antes de "o
+    // dobro" — dentro dos 64 —, mas a fatia de 64 medida do início da palavra
+    // cortava o rótulo em três caracteres e a regra calava. A distância é de borda a
+    // borda; a fatia leva `MAIOR_ROTULO` de margem.
+    const p = pacote([['Tempo', 2.8, 1]], 'week', 1);
+    const d = relacao(
+      'O tempo gasto em movimento foi de dois horas e trinta minutos, quase o dobro do valor anterior.',
+      p,
+    );
+    assert.equal(d.length, 1, 'o rótulo na borda tem de ser visto');
+    assert.match(d[0], /em Tempo, mas a razão real é 2\.8×/);
+  });
 });
 
 describe('regra 7 — o crescimento vestido de fração', () => {
