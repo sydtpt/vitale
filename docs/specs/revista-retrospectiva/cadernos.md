@@ -103,7 +103,7 @@ registra quando o dono passou a fotografar.
 
 Quatro linhas, uma por caderno, cada uma com **a chamada daquele caderno** — não o
 nome. A chamada é a manchete que o próprio caderno já escreveu, mostrada uma segunda
-vez: custo de superfície zero, e ela já passou pelas cinco regras de verificação.
+vez: custo de superfície zero, e ela já passou pelas oito regras de verificação.
 
 ```
 SONO          você dormiu 12 minutos a mais que
@@ -118,7 +118,7 @@ cada linha é **tocável** e o sumário é também a navegação.
 
 **A chamada é a primeira frase do texto do caderno**, cortada no primeiro ponto final.
 Extração mecânica, decidida em 08/09/2026 porque sem ela nem a capa nem o sumário eram
-construíveis: não há campo novo, não há valor novo a verificar pelas cinco regras, e a
+construíveis: não há campo novo, não há valor novo a verificar pelas oito regras, e a
 manchete é literalmente o que o caderno diz primeiro. A contrapartida é uma regra a mais
 no prompt — o modelo escreve a primeira frase sabendo que ela vira capa e sumário.
 

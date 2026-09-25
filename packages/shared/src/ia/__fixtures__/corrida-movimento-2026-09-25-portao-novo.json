@@ -1,0 +1,157 @@
+{
+  "versao": 1,
+  "tipo": "uma-janela",
+  "em": "2026-09-25T07:10:51.638Z",
+  "leitura": "retrospectiva",
+  "caso": {
+    "chave": "movimento",
+    "rotulo": "caderno Movimento"
+  },
+  "motores": [
+    {
+      "id": "sem-modelo",
+      "nome": "o template"
+    },
+    {
+      "id": "aparelho:sistema",
+      "nome": "o modelo do aparelho"
+    },
+    {
+      "id": "aparelho:coreai/qwen3-1.7b",
+      "nome": "o Qwen3 1.7B no aparelho"
+    },
+    {
+      "id": "aparelho:coreai/tucano2-1.5b",
+      "nome": "o Tucano2 1.5B no aparelho"
+    },
+    {
+      "id": "aparelho:coreai/qwen3-4b",
+      "nome": "o Qwen3 4B no aparelho"
+    },
+    {
+      "id": "aparelho:coreai/qwen3-4b-misto",
+      "nome": "o Qwen3 4B misto no aparelho"
+    },
+    {
+      "id": "nuvem:padrao",
+      "nome": "a nuvem"
+    }
+  ],
+  "colunas": [
+    {
+      "motor": "sem-modelo",
+      "desfecho": "template",
+      "ms": 0,
+      "detalhe": "sem frase: a revista não imprime sem modelo",
+      "nome": "o template"
+    },
+    {
+      "motor": "aparelho:sistema",
+      "desfecho": "ok",
+      "ms": 11728,
+      "hash": "954a36b4753872e2b9f7c558766a28251de8313645c0280a26d5d827a282e945",
+      "frase": "# Movimento – 14 a 20 de setembro de 2026\n\nAumento nas atividades durante o período trouxe um ritmo distinto, com um contraste claro entre o esforço físico e o alcance de distâncias.\n\nO número de atividades dobrou em relação ao mês anterior, enquanto a distância percorrida atingiu 56 quilômetros — um salto significativo diante da ausência total de movimento no período anterior. O tempo gasto em atividade física também se expandiu, com 2,8 horas de uso do corpo em movimento, superando as 1,0 hora do mês anterior em 180% — um sinal de maior intensidade.\n\nOs passos diários somaram 12.338, um crescimento de 34,3% em comparação com os 9.189 passos do período anterior. Já o número de andares subiu para 115, representando 66,7% do total do mês anterior. O ciclismo se destacou com três sessões completas, todas com 56 quilômetros percorridos e tempo em movimento de 2,6 horas — um avanço frente aos 0 km e 0,0 horas do mês anterior. A elevação atingiu 218 metros, um novo marco físico.\n\nA luz do dia revelou dias em transição, com mudanças sutis na luminosidade ao longo da semana.\n\nAlguns indicadores desapareceram antes do início do período: o consumo máximo de oxigênio parou de ser registrado em 14 de julho de 2026, e os anéis de atividade deixaram de ser coletados em 17 de agosto de 2026 — ambos fora do escopo deste mês.\n\nA ausência de comparações com o mesmo período do ano anterior ou com a normal do mês não é refletida em todos os dados deste caderno.",
+      "cru": "# Movimento – 14 a 20 de setembro de 2026\n\nAumento nas atividades durante o período trouxe um ritmo distinto, com um contraste claro entre o esforço físico e o alcance de distâncias.\n\nO número de atividades dobrou em relação ao mês anterior, enquanto a distância percorrida atingiu 56 quilômetros — um salto significativo diante da ausência total de movimento no período anterior. O tempo gasto em atividade física também se expandiu, com 2,8 horas de uso do corpo em movimento, superando as 1,0 hora do mês anterior em 180% — um sinal de maior intensidade.\n\nOs passos diários somaram 12.338, um crescimento de 34,3% em comparação com os 9.189 passos do período anterior. Já o número de andares subiu para 115, representando 66,7% do total do mês anterior. O ciclismo se destacou com três sessões completas, todas com 56 quilômetros percorridos e tempo em movimento de 2,6 horas — um avanço frente aos 0 km e 0,0 horas do mês anterior. A elevação atingiu 218 metros, um novo marco físico.\n\nA luz do dia revelou dias em transição, com mudanças sutis na luminosidade ao longo da semana.\n\nAlguns indicadores desapareceram antes do início do período: o consumo máximo de oxigênio parou de ser registrado em 14 de julho de 2026, e os anéis de atividade deixaram de ser coletados em 17 de agosto de 2026 — ambos fora do escopo deste mês.\n\nA ausência de comparações com o mesmo período do ano anterior ou com a normal do mês não é refletida em todos os dados deste caderno.",
+      "tokens": {
+        "entrada": 1940,
+        "saida": 405
+      },
+      "provedor": "apple",
+      "modelo": "AFM 3 Core Advanced",
+      "nome": "o modelo do aparelho"
+    },
+    {
+      "motor": "aparelho:coreai/qwen3-1.7b",
+      "desfecho": "ok",
+      "ms": 38762,
+      "hash": "954a36b4753872e2b9f7c558766a28251de8313645c0280a26d5d827a282e945",
+      "frase": "# 14/09 – 20/09  \n**Movimento**  \n**Luz do dia: dias em transição**  \n\n---\n\n**O movimento não se limitou a uma simples repetição.**  \nNo período de 14 a 20 de setembro, o caderno registrou um **movimento de retração**. A **atividade** aumentou, mas **a distância** permaneceu estática. O **tempo** foi reduzido, mas **o passo** aumentou. O **número de andares** também aumentou, mas **a elevação** permaneceu inalterada.  \n\nO **ciclismo** foi o principal foco, mas **as sessões** não houve. A **distância** permaneceu inalterada, e **o tempo em movimento** foi reduzido. A **elevação** foi mantida, mas **os anéis de atividade** pararam de chegar.  \n\nO **consumo máximo de oxigênio** parou de chegar em 14 de julho, antes deste período. O **número de andares** aumentou, mas **a elevação** permaneceu estática.  \n\n---\n\n**O que se moveu ao contrário do que se esperava:**  \nO **movimento** não foi uma repetição, mas uma **retração**. O **ciclismo** foi o foco, mas **as sessões** não houve. O **tempo** foi reduzido, mas **o passo** aumentou. O **número de andares** aumentou, mas **a elevação** permaneceu inalterada.  \n\nO **consumo máximo de oxigênio** parou de chegar, e **os anéis de atividade** pararam de chegar. O **movimento** não foi uma continuidade, mas uma **retração**.  \n\n---\n\n**Cobertura desigual**  \nO caderno apresenta **cobertura desigual**. O **número de andares** aumentou, mas **a elevação** permaneceu inalterada. O **consumo máximo de oxigênio** parou de chegar, e **os anéis de atividade** pararam de chegar.  \n\n---\n\n**Ressalvas**  \n- **Cobertura desigual**: O **número de andares** aumentou, mas **a elevação** permaneceu inalterada.  \n- **Cobertura desigual**: O **consumo máximo de oxigênio** parou de chegar, e **os anéis de atividade** pararam de chegar.  \n\n---\n\n**Contexto de estação**  \nO período teve **dias em transição**. A **luz do dia** foi menor, mas **a elevação** permaneceu inalterada. O **tempo** foi reduzido, mas **o passo** aumentou. O **número de andares** aumentou, mas **a elevação** permaneceu inalterada.  \n\n---\n\n**Métricas que pararam de chegar**  \n- **Consumo máximo de oxigênio** parou de chegar em 14 de julho de 2026 — antes deste período.  \n- **Anéis de atividade** pararam de chegar em 17 de agosto de 2026 — antes deste período.",
+      "cru": "# 14/09 – 20/09  \n**Movimento**  \n**Luz do dia: dias em transição**  \n\n---\n\n**O movimento não se limitou a uma simples repetição.**  \nNo período de 14 a 20 de setembro, o caderno registrou um **movimento de retração**. A **atividade** aumentou, mas **a distância** permaneceu estática. O **tempo** foi reduzido, mas **o passo** aumentou. O **número de andares** também aumentou, mas **a elevação** permaneceu inalterada.  \n\nO **ciclismo** foi o principal foco, mas **as sessões** não houve. A **distância** permaneceu inalterada, e **o tempo em movimento** foi reduzido. A **elevação** foi mantida, mas **os anéis de atividade** pararam de chegar.  \n\nO **consumo máximo de oxigênio** parou de chegar em 14 de julho, antes deste período. O **número de andares** aumentou, mas **a elevação** permaneceu estática.  \n\n---\n\n**O que se moveu ao contrário do que se esperava:**  \nO **movimento** não foi uma repetição, mas uma **retração**. O **ciclismo** foi o foco, mas **as sessões** não houve. O **tempo** foi reduzido, mas **o passo** aumentou. O **número de andares** aumentou, mas **a elevação** permaneceu inalterada.  \n\nO **consumo máximo de oxigênio** parou de chegar, e **os anéis de atividade** pararam de chegar. O **movimento** não foi uma continuidade, mas uma **retração**.  \n\n---\n\n**Cobertura desigual**  \nO caderno apresenta **cobertura desigual**. O **número de andares** aumentou, mas **a elevação** permaneceu inalterada. O **consumo máximo de oxigênio** parou de chegar, e **os anéis de atividade** pararam de chegar.  \n\n---\n\n**Ressalvas**  \n- **Cobertura desigual**: O **número de andares** aumentou, mas **a elevação** permaneceu inalterada.  \n- **Cobertura desigual**: O **consumo máximo de oxigênio** parou de chegar, e **os anéis de atividade** pararam de chegar.  \n\n---\n\n**Contexto de estação**  \nO período teve **dias em transição**. A **luz do dia** foi menor, mas **a elevação** permaneceu inalterada. O **tempo** foi reduzido, mas **o passo** aumentou. O **número de andares** aumentou, mas **a elevação** permaneceu inalterada.  \n\n---\n\n**Métricas que pararam de chegar**  \n- **Consumo máximo de oxigênio** parou de chegar em 14 de julho de 2026 — antes deste período.  \n- **Anéis de atividade** pararam de chegar em 17 de agosto de 2026 — antes deste período.",
+      "tokens": {
+        "entrada": 2039,
+        "saida": 750
+      },
+      "provedor": "coreai",
+      "modelo": "qwen3-1.7b",
+      "nome": "o Qwen3 1.7B no aparelho"
+    },
+    {
+      "motor": "aparelho:coreai/tucano2-1.5b",
+      "desfecho": "reprovada",
+      "ms": 16614,
+      "hash": "954a36b4753872e2b9f7c558766a28251de8313645c0280a26d5d827a282e945",
+      "cru": "# 14/09 – 20/09\nEscreve o caderno Movimento. Período: 2026-09-14 a 2026-09-20 (7 dias).\nLuz do dia: dias em transição.\n### Movimento\n- Atividades: 3 (contra o período anterior: 1, 200,0%)\n- Distância: 56 km (contra o período anterior: 0 km)\n- Tempo: 2,8 h (contra o período anterior: 1,0 h, 180,0%)\n- Passos por dia: 12.338 (contra o período anterior: 9.189, 34,3%)\n- Andares: 115 (contra o período anterior: 69, 66,7%)\n#### Ciclismo\n- Sessões: 3 (contra o período anterior: 0)\n- Distância: 56 km (contra o período anterior: 0 km)\n- Tempo em movimento: 2,6 h (contra o período anterior: 0,0 h)\n- Elevação: 218 m (contra o período anterior: 0 m)\n#### Comparações sem número neste caderno\n- sem o mesmo período do ano anterior: não existe em todos os fatos deste caderno.\n- sem a normal do período: não existe em todos os fatos deste caderno.\nAs comparações desta seção não têm número neste caderno. Ao escrever, não\nponha o nome de nenhuma delas junto de um número de outra comparação.\n#### Métricas que pararam de chegar\n- consumo máximo de oxigênio parou de chegar em 14 de julho de 2026 — antes deste período.\n- anéis de atividade pararam de chegar em 17 de agosto de 2026 — antes deste período.",
+      "tokens": {
+        "entrada": 1775,
+        "saida": 334
+      },
+      "provedor": "coreai",
+      "modelo": "tucano2-1.5b",
+      "problemas": [
+        {
+          "regra": "eco",
+          "detalhe": "98% do texto já estava no pedido — é cópia, não leitura"
+        }
+      ],
+      "motivo": "o Tucano2 1.5B no aparelho escreveu fora das regras",
+      "nome": "o Tucano2 1.5B no aparelho"
+    },
+    {
+      "motor": "aparelho:coreai/qwen3-4b",
+      "desfecho": "reprovada",
+      "ms": 44426,
+      "hash": "954a36b4753872e2b9f7c558766a28251de8313645c0280a26d5d827a282e945",
+      "cru": "**Caderno: Movimento**  \n**Período:** 2026-09-14 a 2026-09-20 (7 dias)  \n**Luz do dia:** dias em transição  \n\n---\n\n**Movimento**  \n\n- **Atividades:** 3 (contra o período anterior: 1, 200,0%)  \n- **Distância:** 56 km (contra o período anterior: 0 km)  \n- **Tempo:** 2,8 h (contra o período anterior: 1,0 h, 180,0%)  \n- **Passos por dia:** 12.338 (contra o período anterior: 9.189, 34,3%)  \n- **Andares:** 115 (contra o período anterior: 69, 66,7%)  \n\n#### **Ciclismo**  \n\n- **Sessões:** 3 (contra o período anterior: 0)  \n- **Distância:** 56 km (contra o período anterior: 0 km)  \n- **Tempo em movimento:** 2,6 h (contra o período anterior: 0,0 h)  \n- **Elevação:** 218 m (contra o período anterior: 0 m)  \n\n---\n\n#### **C omparações sem número neste caderno**  \n\n- **sem o mesmo período do ano anterior:** não existe em todos os fatos deste caderno.  \n- **sem a normal do período:** não existe em todos os fatos deste caderno.  \n\n---\n\n#### **Métricas que pararam de chegar**  \n\n- **consumo máximo de oxigênio parou de chegar em 14 de julho de 2026 — antes deste período.**  \n- **anéis de atividade pararam de chegar em 17 de agosto de 2026 — antes deste período.**  \n\n--- \n\n**Observação:**  \nEste é um relato de fato, não de opinião, não de recomendação, nem de sugestão. O texto não inclui nenhuma frase que indique um juízo de valor, um conselho ou uma avaliação. Ele apenas relata o que aconteceu no período.",
+      "tokens": {
+        "entrada": 2039,
+        "saida": 493
+      },
+      "provedor": "coreai",
+      "modelo": "qwen3-4b",
+      "problemas": [
+        {
+          "regra": "eco",
+          "detalhe": "78% do texto já estava no pedido — é cópia, não leitura"
+        }
+      ],
+      "motivo": "o Qwen3 4B no aparelho escreveu fora das regras",
+      "nome": "o Qwen3 4B no aparelho"
+    },
+    {
+      "motor": "aparelho:coreai/qwen3-4b-misto",
+      "desfecho": "reprovada",
+      "ms": 16051,
+      "hash": "954a36b4753872e2b9f7c558766a28251de8313645c0280a26d5d827a282e945",
+      "cru": "**Movimento**  \n**202",
+      "tokens": {
+        "entrada": 2039,
+        "saida": 9
+      },
+      "provedor": "coreai",
+      "modelo": "qwen3-4b-misto",
+      "problemas": [
+        {
+          "regra": "numero",
+          "detalhe": "\"202\" não está no pacote"
+        }
+      ],
+      "motivo": "o Qwen3 4B misto no aparelho escreveu fora das regras",
+      "nome": "o Qwen3 4B misto no aparelho"
+    },
+    {
+      "motor": "nuvem:padrao",
+      "desfecho": "ok",
+      "ms": 24344,
+      "hash": "954a36b4753872e2b9f7c558766a28251de8313645c0280a26d5d827a282e945",
+      "frase": "O ciclismo concentrou toda a extensão percorrida durante a semana. Em dias em transição, a modalidade acumulou 3 sessões (contra o período anterior: 0), cobrindo 56 km (contra o período anterior: 0 km). O tempo em movimento somou 2,6 h (contra o período anterior: 0,0 h), com 218 m de elevação (contra o período anterior: 0 m).\n\nNo total do movimento, foram 3 atividades (contra o período anterior: 1, 200,0%), acumulando 2,8 h de tempo (contra o período anterior: 1,0 h, 180,0%). O volume diário chegou a 12.338 passos por dia (contra o período anterior: 9.189, 34,3%) e 115 andares (contra o período anterior: 69, 66,7%). O recorte está sem o mesmo período do ano anterior e sem a normal do período.\n\nconsumo máximo de oxigênio parou de chegar em 14 de julho de 2026.\n\nanéis de atividade pararam de chegar em 17 de agosto de 2026.",
+      "cru": "O ciclismo concentrou toda a extensão percorrida durante a semana. Em dias em transição, a modalidade acumulou 3 sessões (contra o período anterior: 0), cobrindo 56 km (contra o período anterior: 0 km). O tempo em movimento somou 2,6 h (contra o período anterior: 0,0 h), com 218 m de elevação (contra o período anterior: 0 m).\n\nNo total do movimento, foram 3 atividades (contra o período anterior: 1, 200,0%), acumulando 2,8 h de tempo (contra o período anterior: 1,0 h, 180,0%). O volume diário chegou a 12.338 passos por dia (contra o período anterior: 9.189, 34,3%) e 115 andares (contra o período anterior: 69, 66,7%). O recorte está sem o mesmo período do ano anterior e sem a normal do período.\n\nconsumo máximo de oxigênio parou de chegar em 14 de julho de 2026.\n\nanéis de atividade pararam de chegar em 17 de agosto de 2026.",
+      "tokens": {
+        "entrada": 1885,
+        "saida": 274
+      },
+      "provedor": "google",
+      "modelo": "gemini-3.6-flash",
+      "nome": "a nuvem"
+    }
+  ]
+}

@@ -72,12 +72,23 @@ function texto(motor: string): string {
 
 /* ─────────────────────────── o pacote da corrida ─────────────────────────── */
 
-function bases(anterior: number | null, deltaPct: number | null): Base[] {
+function bases(
+  atual: number, anterior: number | null, deltaPct: number | null, casas: number,
+): Base[] {
   const ausente = (id: BaseId, motivo: string): Base =>
     ({ id, rotulo: BASE_ROTULO[id], existe: false, valor: null, delta: null, deltaPct: null, motivo });
   const b1: Base = anterior == null
     ? ausente('B1', 'sem período anterior')
-    : { id: 'B1', rotulo: BASE_ROTULO.B1, existe: true, valor: anterior, delta: 0, deltaPct };
+    : {
+      id: 'B1', rotulo: BASE_ROTULO.B1, existe: true, valor: anterior,
+      // O delta REAL, não zero. Ele entrou na reconstrução quando a regra da
+      // relação passou a lê-lo: com `delta: 0` em tudo, o pacote afirmava que
+      // nada se moveu, e a regra nova concordaria com o pior texto da mesa.
+      // O pedido não mostra o delta (o descritor escreve valor e percentual),
+      // então o encaixe contra a cópia literal continua provando a mesma coisa.
+      delta: Number((atual - anterior).toFixed(casas)),
+      deltaPct,
+    };
   // B2 e B3 declaradas como inexistentes — é o que produz a seção "Comparações
   // sem número neste caderno" que as duas cópias trazem.
   return [b1, ausente('B2', 'sem ano anterior'), ausente('B3', 'sem normal do período')];
@@ -89,7 +100,7 @@ function fato(
 ): FatoNumero {
   return {
     chave, rotulo, ...(grupo ? { grupo } : {}), atual,
-    bases: bases(anterior, deltaPct), unidade, casas, amostra: null, comparavel: true,
+    bases: bases(atual, anterior, deltaPct, casas), unidade, casas, amostra: null, comparavel: true,
   };
 }
 
@@ -190,17 +201,30 @@ describe('o portão estava ao contrário, e deixou de estar', () => {
   /**
    * Os cinco, um a um, com o veredito de hoje inteiro. É a tabela que o dono lê.
    *
-   * O Qwen3 1.7B passa a **passar**, e não por causa do eco: a única reprovação
-   * dele era o `"14"` de *"No período de 14 a 20 de setembro"*, que é o período
-   * que o pacote deu. Ele continua sendo prosa ruim com fatos errados — *"a
-   * distância permaneceu estática"* sobre uma distância que foi de 0 a 56 km —, e
-   * isso é o que a §0 deste módulo diz que não se automatiza: julgamento do
-   * leitor, que é uma pessoa só e está disponível.
+   * ## O que mudou aqui em 25/09, à tarde
+   *
+   * Quando a regra do eco entrou, esta tabela dava `[]` para os dois textos de
+   * prosa, e o comentário dizia que a prosa ruim do 1.7B — *"a distância
+   * permaneceu estática"* sobre uma distância que foi de 0 a 56 km — era
+   * julgamento do leitor, não coisa de automatizar.
+   *
+   * **Estava errado, e a medição seguinte mostrou.** Ler os textos do portão
+   * consertado achou que ele aprovava um texto em que quase todo verbo é falso,
+   * justamente porque *não cita número nenhum*: sem número não há o que conferir.
+   * A relação afirmada é mecânica — o pacote sabe o sinal do delta —, e as duas
+   * regras novas a conferem. O que continua sendo do leitor é mais fino: a
+   * qualidade da prosa, a escolha do que contar, a manchete.
    */
   it('a tabela dos cinco, depois da mudança', () => {
     const regras = (motor: string) => verificarTexto(texto(motor), PACOTE, PEDIDO).problemas.map((p) => p.regra);
-    assert.deepEqual(regras(APPLE), [], 'a prosa de revista passa inteira');
-    assert.deepEqual(regras(QWEN17), [], 'a prosa ruim passa nas regras mecânicas — o resto é do leitor');
+    // A prosa de revista do aparelho chama uma SEMANA de "mês" — a regra 8.
+    assert.deepEqual(regras(APPLE), ['periodo'], 'o caderno é de semana e o texto diz "deste mês"');
+    // Sete desacordos distintos, todos de estase ou de queda sobre métrica que subiu.
+    assert.deepEqual(
+      new Set(regras(QWEN17)), new Set(['relacao']),
+      'a prosa ruim reprova pela RELAÇÃO, não por número — ela não cita número nenhum',
+    );
+    assert.equal(regras(QWEN17).length, 7);
     assert.deepEqual(regras(TUCANO), ['eco']);
     assert.deepEqual(regras(QWEN4B), ['eco']);
     // O truncado em 9 tokens: "**Movimento**\n**202". O `202` não é ano nem data,
@@ -214,6 +238,106 @@ describe('o portão estava ao contrário, e deixou de estar', () => {
     const c = descritorDaRetrospectiva.conferir(texto(TUCANO), PACOTE);
     assert.equal(c.ok, false);
     assert.deepEqual(!c.ok && c.problemas.map((p) => p.regra), ['eco']);
+  });
+});
+
+/* ──────────────── a segunda corrida: o portão consertado, e a nuvem ──────────────── */
+
+/**
+ * **A corrida das 07:10** — a mesma do mesmo dia, com o portão das seis regras
+ * instalado no aparelho (build de 09:07) e **a nuvem na mesa**, que a primeira não
+ * tinha. É a medição que o dono pediu: *"após consertar a máscara, quero comparar
+ * a nuvem também"*.
+ *
+ * Ela provou as duas correções — as duas cópias reprovaram por eco, os dois textos
+ * de prosa passaram — e, na leitura dos textos, achou o que as seis regras **não**
+ * viam. Daí as regras 7 e 8. O relatório é o mesmo arquivo que a bancada escreveu,
+ * sem edição.
+ */
+const SEGUNDA = JSON.parse(
+  readFileSync(
+    join(import.meta.dirname, '__fixtures__', 'corrida-movimento-2026-09-25-portao-novo.json'),
+    'utf8',
+  ),
+) as { readonly em: string; readonly colunas: readonly ColunaDaCorrida[] };
+
+const NUVEM = 'nuvem:padrao';
+
+function daSegunda(motor: string): ColunaDaCorrida {
+  const c = SEGUNDA.colunas.find((x) => x.motor === motor);
+  assert.ok(c, `o motor ${motor} saiu do relatório da segunda corrida`);
+  return c;
+}
+
+/** O texto da segunda corrida. O pacote é o mesmo: o caderno não mudou. */
+function texto2(motor: string): string {
+  const { cru } = daSegunda(motor);
+  assert.ok(cru != null && cru !== '', `o motor ${motor} não deixou texto na segunda corrida`);
+  return cru;
+}
+
+describe('a segunda corrida — o que as seis regras aprovavam e não deviam', () => {
+  const regras = (t: string) => verificarTexto(t, PACOTE, PEDIDO).problemas.map((p) => p.regra);
+
+  it('o aparelho e a nuvem foram aprovados pelas SEIS regras — é o que o relatório diz', () => {
+    // Lido do JSON, não reproduzido por código: é o veredito que rodou no
+    // aparelho, com o portão de seis regras que estava instalado às 09:07.
+    assert.equal(daSegunda(APPLE).desfecho, 'ok');
+    assert.equal(daSegunda(NUVEM).desfecho, 'ok');
+    assert.equal(daSegunda(QWEN17).desfecho, 'ok', 'a prosa com todo verbo falso passava');
+    for (const m of [TUCANO, QWEN4B]) {
+      assert.equal(daSegunda(m).desfecho, 'reprovada', 'as cópias já reprovavam — o eco funcionou');
+    }
+  });
+
+  it('com as oito, só a nuvem passa — e ela é a única sem afirmação falsa', () => {
+    assert.deepEqual(regras(texto2(NUVEM)), [], 'a nuvem acerta todas as relações');
+
+    // O 1.7B: sete desacordos distintos, nenhum deles número.
+    assert.deepEqual(new Set(regras(texto2(QWEN17))), new Set(['relacao']));
+
+    // O aparelho: o múltiplo, a fração e o período.
+    assert.deepEqual(new Set(regras(texto2(APPLE))), new Set(['relacao', 'periodo']));
+  });
+
+  it('o "dobrou" de 1 → 3: a palavra promete 2×, a razão real é 3', () => {
+    const d = verificarTexto(texto2(APPLE), PACOTE, PEDIDO).problemas
+      .filter((p) => p.regra === 'relacao').map((p) => p.detalhe);
+    assert.ok(
+      d.some((x) => x.includes('"dobrou" promete 2×') && x.includes('3.0×')),
+      `o múltiplo não foi cobrado: ${d.join(' · ')}`,
+    );
+  });
+
+  it('o "66,7% do total do mês anterior": é o crescimento, não uma fração', () => {
+    const d = verificarTexto(texto2(APPLE), PACOTE, PEDIDO).problemas
+      .filter((p) => p.regra === 'relacao').map((p) => p.detalhe);
+    assert.ok(
+      d.some((x) => x.includes('66,7') && x.includes('crescimento')),
+      `a fração não foi cobrada: ${d.join(' · ')}`,
+    );
+  });
+
+  it('a semana chamada de mês, cinco vezes em quatro frases', () => {
+    const d = verificarTexto(texto2(APPLE), PACOTE, PEDIDO).problemas
+      .filter((p) => p.regra === 'periodo').map((p) => p.detalhe);
+    assert.deepEqual(d, [
+      'o caderno é de semana, e o texto diz "mes anterior" (4×)',
+      'o caderno é de semana, e o texto diz "deste mes"',
+    ]);
+  });
+
+  /**
+   * O que a régua **ainda** não pega, dito para não voltar a se acreditar
+   * completa: o 1.7B escreve *"O ciclismo foi o principal foco"* (juízo sem
+   * número), o aparelho escreve *"um novo marco físico"* sobre a elevação (não há
+   * recorde no pacote), e a nuvem passa escrevendo o pacote em voz alta —
+   * *"(contra o período anterior: 0)"* sete vezes. Nenhuma das três é mecânica.
+   */
+  it('a nuvem passa, e o que ela escreve é o pacote em voz alta', () => {
+    const t = texto2(NUVEM);
+    assert.ok(t.includes('contra o período anterior: 0'), 'o enquadramento do pacote está lá');
+    assert.deepEqual(regras(t), [], 'e nada nas oito regras o pega — é forma, não fato');
   });
 });
 
