@@ -32,6 +32,12 @@ Escrito para a sessão seguinte. Se você está lendo isto, a 3.2 ficou no meio.
 - **P6** — nasceu `mobile/src/components/revista/__tests__/`, o teste que faltava ao desenho.
 - **P9** — `parede-sem-leitura-por-celula.test.ts` foi atualizado.
 
+**A última coisa que ele disse antes de parar**, palavra por palavra:
+*"Now the architecture AST barrier (P2 second half + P8 caller check via AST)."* Ou seja, ele
+estava entrando na **segunda metade do P2** (a asserção, na AST do `architecture.test.ts`, de
+que o primeiro filho do `ScrollView` de `Edicao` é `antesDaCapa`) e no **P8 pelo lado do
+chamador** (proibir que a rota embrulhe `<AnuarioDaEdicao>` num `Pressable`). Comece por aí.
+
 **O que NÃO dá para afirmar:** que os 21 estão todos aplicados, nem que os sete portões
 passam. Os dois que rodei na hora da parada passaram; os outros cinco não foram rodados.
 
