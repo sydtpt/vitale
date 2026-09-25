@@ -112,6 +112,11 @@ que torna a disciplina de pré-registro parte do desenho e não um refinamento.
     antes de qualquer texto e traz extremos datados. Cada série mensal mede **o fato
     que liderou o ranqueamento daquele caderno**, mês a mês — a tira e a ordem falam
     do mesmo número.
+  - **estreitado por CAP-16 (Story 3.2):** a série do ano existe e abre a rota, mas diz
+    **identidade, nunca grandeza** — a impressão carimba a *chave* da métrica líder, não o
+    valor dela, então "falam do mesmo número" vale para a escolha do fato e não para uma
+    magnitude desenhada. Os **extremos datados** seguem devendo um produtor; hoje só o Sono
+    os tem.
 
 - **CAP-10 — a capa, com foto ou com traçado**
   - **intent:** cada edição tem uma imagem que diz onde o período aconteceu, inclusive
@@ -176,7 +181,8 @@ que torna a disciplina de pré-registro parte do desenho e não um refinamento.
     acervo: 6 meses com foto contra 13 sem antes de 2025, e 19 de 20 depois. *2023 tem
     que parecer 2023.*
   - **success (o grão):** o ladrilho é o **mês**; o **ano** entra como as quatro tiras do
-    anuário, no lugar da capa que ele não tem (ver [cadernos.md](cadernos.md)); **semana
+    anuário em miniatura, no lugar da capa que ele não tem **aqui** — na rota da edição ele
+    tem capa, e as tiras vêm antes dela (CAP-16; ver [cadernos.md](cadernos.md)); **semana
     e trimestre não têm ladrilho** — continuam impressos e continuam abrindo pela rota.
   - **success (abrir só lê):** período fechado que ninguém imprimiu **não aparece** — nem
     como convite, nem como lacuna. Nada nesta tela gasta chamada.
@@ -187,6 +193,43 @@ que torna a disciplina de pré-registro parte do desenho e não um refinamento.
   - **success (a manchete obedece ao silêncio):** o rótulo de um ladrilho é a chamada do
     primeiro caderno **visível** — a mesma regra da capa da rota (CAP-14), pela mesma
     `chamadaDoTexto`.
+
+- **CAP-16 — o ano abre serial, e não por manchete** (Story 3.2 · CAP-9 ·
+  [ADR 0057](../../decisions/0057-a-parede-mostra-meses-e-o-ano-e-quatro-tiras.md) ·
+  [cadernos.md](cadernos.md) §Anuário)
+  - **intent:** o ano deixa de abrir como um mês grande procurando uma manchete que ele não
+    tem. *Um ano não tem um fato: tem doze formas* — e até esta story a única peça do app
+    que sabia ler o ano como série era a **parede**, não a rota onde ele se lê.
+  - **success (a forma):** a rota `/revista/ano/…` desenha **quatro tiras de doze meses**, a
+    34 px, uma por caderno, como **primeiro** conteúdo do rolável — antes da capa, do
+    sumário e de qualquer texto —, com os meses rotulados **uma vez só**, sob a última tira.
+    É a **mesma rota e a mesma edição**: as tiras acrescentam, não substituem. O ano
+    continua tendo capa, ao contrário do que acontece na parede (CAP-15).
+  - **success (lê o carimbo, nunca recalcula):** cada célula é a `metrica_lider` gravada na
+    edição **daquele mês** — a mesma montagem da parede (`tirasDoAno`), sem segunda
+    implementação. Recalcular seria reescrita silenciosa de período fechado, proibida desde
+    a Story 1.9. Mês sem carimbo é **lacuna declarada**, distinta por **forma** do mês em
+    que o caderno não saiu; e as quatro tiras aparecem sempre, inclusive as de zero meses.
+  - **success (identidade, nunca grandeza):** a tira diz **qual** fato liderou e **quando
+    ele trocou**; nunca quanto. A cor carrega só `accent` × `tint`, porque `tint` × `line`
+    fica abaixo de ΔE 10 nas 144 combinações de tema — presença × ausência é **forma**. A
+    promessa de magnitude está **recusada** (decisão do dono, 25/09/2026), não em aberto.
+  - **success (o silêncio em palavras):** quando **nenhum** mês do ano liderou, uma linha em
+    palavras ocupa o lugar das faixas — quatro faixas de filetes leriam como tela quebrada.
+    A frase sai do **núcleo**, porque é veredito sobre o dado, e tem três formas: nenhum mês
+    impresso, parte do ano impressa, ano inteiro impresso. Dizer a última sobre as outras
+    afirmaria medida que não houve.
+  - **success (formato, não visualização):** a tira **não** é tocável — sem toque, sem
+    tooltip, sem scrub, sem navegação. A da parede é um botão porque *leva* à edição; esta
+    **é** a edição. Barreiras de código-fonte cobram isso, inclusive no chamador.
+  - **success (nada se afirma antes de saber):** os doze meses têm leitura própria
+    (`fetchArquivoDeEdicoes`, o arquivo inteiro — custo declarado). Com ela em voo, a rota
+    não desenha tira nem frase; com ela falhando, **o texto do ano abre sem as tiras**. As
+    duas leituras são independentes nos dois sentidos: a edição que não vem não apaga as
+    doze formas, e o arquivo que não vem não apaga o texto.
+  - **fora de escopo, declarado:** os **extremos datados** que CAP-9 pede em cada caderno do
+    ano. Só o Sono os tem, e o produtor que falta serviria as tiras **e** o texto, em todos
+    os períodos — story própria. E a **web**, que não tem a rota da revista.
 
 ## Constraints
 

@@ -175,7 +175,18 @@ São **quatro tiras de doze meses**, uma por caderno, na cor do caderno. Cada ti
 falam do mesmo número, e o ano se lê como quatro batimentos paralelos. O custo é
 declarado: quando a métrica líder muda de mês para mês, a tira mistura unidades.
 
-**O anuário não tem capa.** As quatro tiras são a capa do ano.
+**A frase "o anuário não tem capa" vale para UMA superfície, e não para as duas.**
+
+Ela foi escrita antes de qualquer das duas existir, e por isso lia como regra geral. São
+duas telas, nascidas em stories diferentes:
+
+- **na parede de capas** (`/revista`, Story 2.4b · CAP-15) o anuário **não tem capa**: as
+  quatro tiras em miniatura, a 16 px, são o que representa o ano ali. É o sentido original
+  da frase — o ano é o único período da parede que não é um ladrilho com imagem;
+- **na rota da edição** (`/revista/ano/…`, Story 3.2 · CAP-16) o ano **tem capa**, a mesma
+  das outras edições. As quatro tiras entram a 34 px **antes** dela, e não no lugar dela: o
+  ano é a mesma rota e a mesma edição, com uma abertura a mais. *Elas acrescentam; não
+  substituem.*
 
 #### Estreitamento (2026-09-25, Story 2.4b): a tira diz identidade, não grandeza
 
@@ -199,10 +210,25 @@ E marca **onde o líder trocou**, de um mês para o seguinte. É isso que preser
 de "quatro batimentos paralelos": sem a troca, doze meses liderados pelo mesmo fato e doze
 meses trocando de fato a cada mês desenhariam a mesma barra.
 
-A promessa de magnitude fica **em aberto**, e o que a reabriria é carimbar o valor ao lado
-da chave — coluna nova em `edicoes_ia`, migração, e a pergunta de que unidade guardar
-quando a métrica líder muda. Ver
+A promessa de magnitude ficou **em aberto** na 2.4b e foi **recusada** na 3.2 — decisão do
+dono de 25/09/2026, quando a tira passou a 34 px e a pergunta "e agora dá para desenhar o
+valor?" voltou a ser possível. *Identidade, nunca grandeza.* Reabri-la exige **medição
+nova**, não um `flex`: carimbar o valor ao lado da chave é coluna nova em `edicoes_ia`,
+migração, e a pergunta de que unidade guardar quando a métrica líder muda. Ver
 [ADR 0057](../../decisions/0057-a-parede-mostra-meses-e-o-ano-e-quatro-tiras.md).
+
+#### Ampliação (2026-09-25, Story 3.2): a tira abre a edição do ano
+
+O "abre serial" do começo desta seção era, até a 3.2, uma promessa sem tela: a parede sabia
+ler o ano como série, e a rota — que é onde ele se lê — não. A 3.2 fechou isso, e o contrato
+dela está em **CAP-16** do [spec](spec.md). O que ela **não** entrega, e por quê:
+
+- **os extremos datados** que o parágrafo do "abre serial" pede em cada caderno. Só o Sono
+  os tem hoje (`SleepExtremes`); a forma (`EventoFato`) e a seção `### Eventos` do prompt já
+  existem, e falta o **produtor**. Ele serviria as quatro tiras **e** o texto, em todos os
+  períodos, e por isso vale como story própria — não como apêndice desta. A dívida está
+  nomeada em `period/cadernos.ts`;
+- **a web**. O anuário é do iPhone; a rota da revista não existe no navegador.
 
 ## Apresentação
 

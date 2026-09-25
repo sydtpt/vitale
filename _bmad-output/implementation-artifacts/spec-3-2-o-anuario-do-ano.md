@@ -2,7 +2,7 @@
 title: 'Story 3.2 — O anuário do ano'
 type: 'feature'
 created: '2026-09-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: '1b3e112ad1f1b04a2306b888666d1e107deb050c'
 review_loop_iteration: 0
 context: []
@@ -77,6 +77,25 @@ context: []
 
 ## Spec Change Log
 
+**2026-09-26 — o contrato saiu do artifact e entrou no spec (P15 da revisão).**
+Três divergências entre o que a tela faz e o que o contrato escrito dizia, reconciliadas
+onde elas moravam — sem mudar comportamento nenhum:
+
+1. `cadernos.md` §Anuário afirmava, **como regra geral**, *"O anuário não tem capa. As
+   quatro tiras são a capa do ano."* Lendo o épico, a frase é sobre a **parede** (onde o
+   ano é representado pelas quatro tiras em miniatura), não sobre a rota — e na rota o ano
+   agora mostra as tiras **e** a capa. A frase passou a nomear as duas superfícies e a
+   dizer qual governa cada uma;
+2. o mesmo arquivo dizia que a promessa de **magnitude** ficava *"em aberto"*. Ela foi
+   **recusada** pelo dono em 25/09, quando a tira subiu para 34 px — a decisão que esta
+   story cita como frozen. O parágrafo passou a registrar a recusa e o que a reabriria
+   (medição nova, coluna nova, migração);
+3. **CAP-16** nasceu no [spec da revista](../../docs/specs/revista-retrospectiva/spec.md),
+   no molde da CAP-15 da 2.4b: a forma, o carimbo que nunca se recalcula, identidade em vez
+   de grandeza, o silêncio em palavras, "formato e não visualização", "nada se afirma antes
+   de saber" — e o que fica **fora**, declarado (os extremos datados e a web). A CAP-9, que
+   prometia magnitude na série do ano, ganhou o estreitamento por CAP-16.
+
 ## Design Notes
 
 **Por que ler o arquivo inteiro para um ano.** `tirasDoAno` pede as edições de **mês** daquele ano, e a rota só tem a edição do ano. Não existe leitura por intervalo, e escrever uma agora seria otimizar antes de medir: o arquivo tem ~170 linhas sem `texto`, e a leitura já é paginada e provada pela parede. O custo fica declarado; se um dia doer, o recorte é uma linha de `.gte`/`.lte`.
@@ -97,3 +116,37 @@ Os **quatro**, por **exit code**. E o barril do shared **não pode mencionar** `
 
 **Manual checks:**
 - Abrir 2025 (tem série) e **2024** (não tem): é o par que mostra se o silêncio em palavras funciona.
+
+## Suggested Review Order
+
+**O veredito do ano — puro, e com três silêncios**
+
+- O corte: o ano tem série a mostrar, ou tem uma frase a dizer.
+  [`anuario.ts:155`](../../packages/shared/src/revista/anuario.ts#L155)
+
+- A frase do silêncio em quatro formas — nenhum mês impresso, um, N, os doze.
+  [`anuario.ts:128`](../../packages/shared/src/revista/anuario.ts#L128)
+
+- A voz única do leitor de tela, que a parede e o anuário compartilham.
+  [`anuario.ts:234`](../../packages/shared/src/revista/anuario.ts#L234)
+
+**O estado, fora do React**
+
+- O redutor: carregando ≠ vazio, e a carga superada não sobrescreve.
+  [`anuario.ts:99`](../../mobile/src/lib/anuario.ts#L99)
+
+**O desenho**
+
+- 34 px contra os 16 da parede, com o porquê e o filete de 9.
+  [`AnuarioDaEdicao.tsx:69`](../../mobile/src/components/revista/AnuarioDaEdicao.tsx#L69)
+
+- O terceiro ramo, estreitado pelo compilador — trocar os braços não compila.
+  [`[inicio].tsx:181`](../../mobile/src/app/revista/[tipo]/[inicio].tsx#L181)
+
+**O contrato, reconciliado**
+
+- "O anuário não tem capa" passa a dizer de qual das duas telas fala.
+  [`cadernos.md:178`](../../docs/specs/revista-retrospectiva/cadernos.md#L178)
+
+- CAP-16, e o estreitamento anotado na CAP-9 que prometia o mesmo número.
+  [`spec.md:115`](../../docs/specs/revista-retrospectiva/spec.md#L115)

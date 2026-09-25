@@ -72,7 +72,7 @@ const ALTURA_DA_TIRA = 34;
  * A coluna dos nomes dos cadernos.
  *
  * **Não são os 74 da parede.** Lá o nome sai em 11 px dentro de um ladrilho de
- * largura de tela; aqui ele sobe para 12,5 porque a tira dobrou de altura e um
+ * largura de tela; aqui ele sobe para 12,5 porque a tira mais que dobrou e um
  * versalete de 11 ao lado de uma barra de 34 lê como legenda de rodapé.
  * "Movimento" é o mais longo dos quatro — nove caracteres —, e 84 o acomoda com
  * folga no tipo padrão.
