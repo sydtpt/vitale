@@ -1456,7 +1456,27 @@ caderno, **antes de qualquer texto**
 **When** os cadernos vêm depois da série
 **Then** cada um traz os **extremos datados**
 
-### Story 3.3: O destaque de luz no trimestre
+### Story 3.3: O destaque de luz no trimestre — **RECUSADA (26/09/2026)**
+
+> **Esta story não vai acontecer, e a saída estava prevista aqui.** O pré-requisito abaixo
+> dizia que a passagem de UX foi adiada de propósito para depois das edições-piloto, e que a
+> story *"pode acabar não sendo necessária — se a luz na prosa já bastar"*. Com doze
+> trimestres impressos, a medição respondeu:
+>
+> - **a luz já está na prosa de 35 de 35 linhas**, e integrada ao fato: 21 a ligam a um
+>   número (*"o sono encolheu para 5,9 h em um trimestre de dias longos"*), 9 sem número, e
+>   só 5 a deixam solta. O `So that` — não confundir o que mudou em mim com o que mudou na
+>   estação — já está cumprido dentro da frase;
+> - **e um dos critérios abaixo é impossível.** Ele exige *"o mesmo número que a prosa cita,
+>   com a mesma casa decimal"*, mas a luz entra no pacote como **texto sem número**, de
+>   propósito: `PacoteDeFatos.periodo.luz` registra que **duas** tentativas de pôr as horas
+>   como número foram **revertidas**, porque horas de luz são redondas por natureza (julho dá
+>   16, dezembro dá 8, todo ano) e a casa decimal não compensava o custo no alfabeto da
+>   verificação. Um destaque com número reabriria uma decisão tomada duas vezes.
+>
+> O `FR6` fica coberto pelo Épico 1. O **defeito real** que a medição achou não é de tela —
+> em 5 das 35 linhas a luz sai solta, pendurada no vazio — e virou a **Story 3.4**.
+
 
 As a leitor da revista,
 I want que o trimestre dê peso à luz do dia,

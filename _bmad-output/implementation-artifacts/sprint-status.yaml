@@ -11,6 +11,9 @@
 #   - in-progress: Developer actively working on implementation
 #   - review: Implementation complete, ready for review
 #   - done: Story completed
+#   - cancelled: Story RECUSADA — o trabalho não vai acontecer, e o motivo está no
+#     comentário acima dela. Fecha a issue como `done` (não deve mais trabalho), com
+#     rótulo próprio (`status:recusada`) para o quadro não a confundir com uma feita.
 
 # Retrospective Status:
 #   - optional: Can be completed but not required
@@ -63,7 +66,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: '2026-09-25'
+last_updated: '2026-09-26'
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -347,7 +350,26 @@ development_status:
   # A story PODE MORRER: se a luz na prosa já bastar, ela some e o FR6 fica
   # coberto só pelo Épico 1. A evidência que ela exige antes de fechar não é um
   # teste — é a decisão entre rodar a UX ou matá-la.
-  3-3-o-destaque-de-luz-no-trimestre: backlog
+  # RECUSADA em 26/09/2026, POR MEDIÇÃO — e a saída estava prevista no próprio épico
+  # ("pode acabar não sendo necessária; se a luz na prosa já bastar, esta story morre
+  # e o FR6 fica coberto só pelo Épico 1"). O que a medição disse, sobre os doze
+  # trimestres impressos:
+  #  - A LUZ JÁ ESTÁ NA PROSA de 35 de 35 linhas. E integrada ao fato, não como
+  #    enfeite: 21 linhas a ligam a um número ("o sono encolheu para 5,9 h em um
+  #    trimestre de dias longos"), 9 a ligam sem número, e só 5 a deixam solta.
+  #    O `So that` da story — não confundir o que mudou em mim com o que mudou na
+  #    estação — já está cumprido dentro da frase.
+  #  - E UM CRITÉRIO DELA É IMPOSSÍVEL: ele exige que o destaque mostre "o mesmo
+  #    número que a prosa cita, com a mesma casa decimal", mas a luz entra no pacote
+  #    como TEXTO SEM NÚMERO, de propósito. `PacoteDeFatos.periodo.luz` registra que
+  #    DUAS tentativas de pôr as horas como número foram revertidas: horas de luz são
+  #    redondas por natureza (julho dá 16, dezembro dá 8, todo ano), então a casa
+  #    decimal não compensava o custo no alfabeto da verificação. Um destaque com
+  #    número reabriria uma decisão já tomada duas vezes.
+  # O DEFEITO REAL que a medição achou não é de tela: em 5 das 35 linhas a luz sai
+  # solta ("O período teve dias curtos."), pendurada no vazio. O conserto é no
+  # PROMPT, e virou a story 3.4.
+  3-3-o-destaque-de-luz-no-trimestre: cancelled
   epic-3-retrospective: optional
 
   epic-4: in-progress
