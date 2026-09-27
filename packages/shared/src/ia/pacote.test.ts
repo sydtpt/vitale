@@ -297,6 +297,12 @@ describe('montarPacotes — agosto de 2026', () => {
   it('devolve os quatro cadernos, na ordem do catálogo, na versão 4', () => {
     // 4: o veredito "foi medido?" por fato — ausência de registro deixou de virar
     // zero. (3: `amostra` e `comparavel` no fato, e a lápide como fato próprio.)
+    //
+    // **`PROMPT_VERSAO` sobe sem trazer este número junto**, e esta é a asserção
+    // que o prova: a Story 2.8 e a 3.4 mudaram o texto que o modelo lê e não
+    // mudaram nada do que o pacote produz. Os dois têm leitores diferentes na
+    // impressão em massa — `pacote_versao` é por onde a Story 2.3 julga o que já
+    // foi renovado, e `prompt_versao` é o critério do `--caderno` (Story 2.8).
     assert.deepEqual(pacotes.map((p) => p.caderno), [...CADERNO_IDS]);
     for (const p of pacotes) assert.equal(p.versao, 4);
     assert.equal(PACOTE_VERSAO, 4);

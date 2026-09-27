@@ -1274,6 +1274,72 @@ describe('os defeitos, que lançam em vez de escrever errado', () => {
   });
 });
 
+/**
+ * O restritor antes de `{medidas}` — a frase que a régua aprovava e não devia.
+ *
+ * Medido em 25/09/2026, na corrida da Saúde do sono no iPhone: a nuvem escreveu
+ * `"as outras {medidas} dimensões empatam no ponto mais baixo"` e **passou**, porque
+ * a regra de lugar só cobrava a palavra depois do marcador. `{medidas}` é *quantas
+ * foram medidas*; o que torna a frase falsa é o "as outras" **antes** dele.
+ *
+ * É o mesmo defeito que as regras 7 e 8 de `ia/verificar.ts` acharam no regime
+ * conferido — o número é real, a afirmação sobre ele é falsa.
+ */
+describe('a contagem não se deixa restringir', () => {
+  /** O caso do dia: cinco medidas, três no chão, duas acima. */
+  const CASO = VARIANTES['fora-do-empate, acima'];
+
+  // Este caso é `fora-do-empate` com cinco medidas: o horário e a percepção acima, e
+  // três no chão. Os dois nomes vêm do próprio caso — nomear outro reprova por
+  // `a-mais`, e o teste mediria isso em vez do restritor.
+  const ACIMA = 'só o horário e a percepção ficam acima';
+
+  it('a frase de verdade da nuvem reprova', () => {
+    const c = saude.conferir(
+      `{quando}, as outras {medidas} dimensões empatam no ponto mais baixo, e ${ACIMA} delas.`,
+      CASO,
+    );
+    assert.equal(c.ok, false, 'a frase afirma cinco no chão quando são três');
+    assert.ok(
+      !c.ok && c.problemas.some((p) => p.detalhe.includes('{medidas} não vale logo depois de "outras"')),
+      `o motivo tem de ser o restritor: ${!c.ok ? c.problemas.map((p) => p.detalhe).join(' · ') : ''}`,
+    );
+  });
+
+  it('e cada restritor da lista reprova igual', () => {
+    for (const restritor of ['outras', 'demais', 'restantes', 'remanescentes', 'últimas', 'primeiras']) {
+      const c = saude.conferir(
+        `{quando}, as ${restritor} {medidas} dimensões empatam no ponto mais baixo, e ${ACIMA}.`,
+        CASO,
+      );
+      assert.equal(c.ok, false, `"as ${restritor} {medidas}" tinha de reprovar`);
+      assert.ok(
+        !c.ok && c.problemas.some((p) => p.detalhe.includes(`{medidas} não vale logo depois de "${restritor}"`)),
+        `"${restritor}": o motivo tem de ser o restritor, não outra regra`,
+      );
+    }
+  });
+
+  it('mas artigo e preposição continuam valendo — a regra é de restritor, não de vizinho', () => {
+    // A prosa legítima que usa a contagem pelo que ela é: todas as medidas.
+    for (const forma of [
+      `Das {medidas} dimensões medidas, ${ACIMA}.`,
+      `Entre as {medidas} dimensões medidas, ${ACIMA}.`,
+      `São {medidas} dimensões medidas, e ${ACIMA}.`,
+      `{quando}, das {medidas} dimensões medidas, ${ACIMA}.`,
+    ]) {
+      assert.deepEqual(saude.conferir(forma, CASO), { ok: true }, forma);
+    }
+  });
+
+  it('e o template de cada caso continua passando — a lista não pegou nenhum deles', () => {
+    // A garantia que importa: o restritor novo não pode reprovar o piso.
+    for (const [nome, e] of Object.entries(VARIANTES)) {
+      assert.deepEqual(saude.conferir(templateDaSaude(e), e), { ok: true }, `${nome}: "${templateDaSaude(e)}"`);
+    }
+  });
+});
+
 describe('o template', () => {
   const TODOS = Object.keys(VOCABULARIO_PROIBIDO) as SubconjuntoProibido[];
 

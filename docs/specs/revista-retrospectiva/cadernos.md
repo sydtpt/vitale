@@ -159,8 +159,15 @@ pagas para textos de sete dias.
 Capa · sumário · os quatro cadernos na ordem ranqueada. Três bases quando existem,
 trajetória sempre. É a forma central: é onde a v1 vive ou morre.
 
-No trimestre, a **camada de luz em destaque** — é o recorte em que a estação muda de
-significado.
+> **A "camada de luz em destaque" do trimestre não existe, e não vai existir.** Era a
+> Story 3.3, **recusada em 26/09/2026** por medição: com doze trimestres impressos, a
+> luz já estava na prosa de **35 de 35** linhas e integrada ao fato em 30 delas — o
+> `So that` estava cumprido dentro da frase, sem tela nenhuma. E um critério dela era
+> impossível: pedia *"o mesmo número que a prosa cita"*, e a luz entra no pacote como
+> **texto sem número**, de propósito (ver CAP-6 do [spec](spec.md), "revertido duas
+> vezes"). O defeito que a medição achou era de **prompt**, não de tela — em 9 das 160
+> linhas do acervo a luz saía num parágrafo só dela —, e virou a **Story 3.4**: a
+> quinta proibição na instrução da luz, `PROMPT_VERSAO` 7.
 
 ### Anuário — ano
 
@@ -209,6 +216,37 @@ Então a tira **lê a chave** e diz três coisas por mês, sem nenhum número:
 E marca **onde o líder trocou**, de um mês para o seguinte. É isso que preserva a leitura
 de "quatro batimentos paralelos": sem a troca, doze meses liderados pelo mesmo fato e doze
 meses trocando de fato a cada mês desenhariam a mesma barra.
+
+##### O estreitamento virou a regra (2026-09-25, decisão do dono)
+
+A 2.4b deixou a promessa de magnitude **em aberto**, com o preço escrito: uma coluna nova em
+`edicoes_ia` e uma migração. O dono a fechou no mesmo dia, lendo a medição do acervo — e a
+medição é o argumento, não a conveniência.
+
+**Em 61% dos casos não há líder nenhum.** De 106 pares caderno-mês impressos, só 41 têm
+`metrica_lider`. **2024 inteiro tem zero** — 23 pares, nenhum líder. O anuário de 2024 são
+quatro tiras em branco, com magnitude ou sem.
+
+**Quando há líder, ele troca.** Movimento em 2025 foi
+`distância · atividades · atividades · atividades · distância · ciclismo.tempo · distância ·
+distância · tempo · tempo` — quatro métricas, seis trocas em dez meses. Desenhar a altura
+disso empilharia quilômetros, contagem de atividades e horas na mesma régua.
+
+**E o caso extremo é literal, não hipotético.** Rotina em 2026 teve como líder um
+`registro.<uuid>` num mês e um `habito.<uuid>` no seguinte — *registros e hábitos específicos
+do dono*. A magnitude ali seria "dias de cerveja" ao lado de "dias da tarefa X", no mesmo eixo.
+
+A única série do acervo onde a magnitude teria sentido é **coração em 2026**: `vfc` oito meses
+seguidos, uma métrica só. Uma em todo o arquivo.
+
+**Preço temporal, que fecha a conta:** mesmo pagando a coluna hoje, as 54 edições já impressas
+nunca teriam grandeza — o valor de então não existe em lugar nenhum. O primeiro anuário medido
+seria o de 2027.
+
+Logo: **a tira diz identidade, e isso não é um compromisso — é a leitura mais informativa que o
+dado permite.** "A VFC liderou todos os meses de 2026" é uma frase verdadeira; uma barra que
+mistura milissegundos com dias de cerveja não é. A promessa de magnitude sai de "aberta" para
+**recusada**, e reabri-la exige medição nova, não preferência.
 
 A promessa de magnitude ficou **em aberto** na 2.4b e foi **recusada** na 3.2 — decisão do
 dono de 25/09/2026, quando a tira passou a 34 px e a pergunta "e agora dá para desenhar o
