@@ -7,13 +7,14 @@ import {
 import { LAPIDES, rotuloDoCaderno } from '../period/cadernos';
 import type { Base, BaseId, FatoLapide, FatoNumero, PacoteDeFatos } from './pacote';
 import {
-  BASE_ROTULO, PACOTE_VERSAO, TEXTO_DA_ESTACAO, montarPacotes, valoresDoPacote,
+  BASE_ROTULO, PACOTE_VERSAO, TEXTO_DA_ESTACAO, montarPacotes, textoDaLuz, valoresDoPacote,
 } from './pacote';
 import type { RetroSummary } from '../period/retro';
 import {
   formatarNumero, montarPrompt, montarPromptDaEdicao, PROMPT_VERSAO,
 } from './prompt';
 import { ordenarCadernos } from './ranqueamento';
+import { sha256Hex } from './sha256';
 import { verificarTexto } from './verificar';
 
 /**
@@ -1275,6 +1276,14 @@ const B3_VALORADA: Base = {
  * Em `all` a B1 **não existe**, por definição: o histórico completo não tem
  * período anterior. É o único tipo assim, e o único que emite a redação de B3
  * *"contra o que você costuma fazer neste período"* — daí ele estar aqui.
+ *
+ * **A luz é DERIVADA, não fixada** (Story 3.4, revisão). Ela era `luz: null` para
+ * todo tipo, e isso esvaziava o teste que dizia cobrar `year`/`all`: com a
+ * constante ali, ele provava que `linhaDaLuz` respeita `null` — não que um ano não
+ * tem estação. Saindo de `textoDaLuz`, o ajudante passa a carregar a luz de
+ * verdade em `month`, `week` e `season`, e a ausência em `year`/`all` passa a ser
+ * a resposta da função; a regressão inversa (um ano que voltasse a ter estação)
+ * fica pega.
  */
 function pacoteTresBases(tipo: PeriodKind): PacoteDeFatos {
   const { inicio, fim, dias } = LIMITES[tipo];
@@ -1292,7 +1301,7 @@ function pacoteTresBases(tipo: PeriodKind): PacoteDeFatos {
       rotulo: periodLabel(tipo, new Date(`${inicio}T00:00:00`)),
       rotuloAnterior: previousPeriodLabel(tipo, inicio),
       inicioISO: inicio, fimISO: fim, fechado: true, diasNoPeriodo: dias,
-      luz: null,
+      luz: textoDaLuz(tipo, inicio, fim),
     },
     metricas: [{ ...f, bases: [b1, B2_VALORADA, B3_VALORADA] }],
     tendencias: [], textos: [], lapides: [], cobertura: null,
@@ -1832,6 +1841,17 @@ describe('montarPrompt — um caderno, e a união é outra função', () => {
 
 describe('SISTEMA — as leis do jornal', () => {
   const { sistema } = montarPrompt(pacoteTresBases('month'));
+  /**
+   * O SISTEMA com o entrelinhamento normalizado — uma quebra de linha e a
+   * indentação do item viram um espaço, como a varredura de vocabulário de base já
+   * fazia.
+   *
+   * Existe para as asserções casarem **frases inteiras** em vez de fragmentos
+   * cortados na quebra. Uma lei presa ao `\s+` de hoje quebra no próximo reflow do
+   * prompt sem que nada de verdade tenha mudado; e uma presa ao pedaço truncado
+   * ("nunca diga que os") passa a casar qualquer coisa depois dele.
+   */
+  const liso = sistema.replace(/\s+/g, ' ');
 
   it('a lei serve aos DOIS grãos — não descreve só o caderno nem só a edição', () => {
     // O celular manda os quatro cadernos num texto só até a Story 1.10. Um
@@ -2002,8 +2022,26 @@ describe('SISTEMA — as leis do jornal', () => {
     assert.ok(sistema.includes('COBERTURA DESIGUAL'));
   });
 
-  it('a versão do prompt é 6 — a unidade passou a concordar com o número', () => {
-    assert.equal(PROMPT_VERSAO, 6);
+  /*
+   * A VERSÃO, E O QUE O BUMP ARMA.
+   *
+   * `PACOTE_VERSAO` **não** é conferido aqui: quem o prende é `pacote.test.ts`
+   * ("devolve os quatro cadernos … na versão 4"), e uma asserção sobre o pacote
+   * dentro de um teste que se chama pelo prompt reprovaria um bump legítimo do
+   * pacote no arquivo errado. O que fica aqui é o raciocínio:
+   *
+   * - o **pacote** ficou onde estava porque a 3.4 não mexeu em nada que ele
+   *   produz — e é por `pacote_versao` que a Story 2.3 julga o que já foi renovado;
+   * - o **prompt** subiu, e isso **arma a impressão em massa**: o critério do
+   *   `--massa --caderno` é `prompt_versao < PROMPT_DE_HOJE`
+   *   (`scripts/revista/imprimir.ts`, `poupaOCaderno`), não `pacote_versao`.
+   *   Medido em produção em 26/09/2026: **149 linhas** abaixo de 7 (`movimento` 50,
+   *   `rotina` 50, `coracao` 25, `sono` 24). O defeito são **nove** parágrafos, e o
+   *   conserto dirigido custa nove chamadas; `--massa --caderno rotina` planejaria
+   *   **50 períodos**. Está escrito no changelog de `prompt.ts` e no `deferred-work`.
+   */
+  it('a versão do prompt é 7 — a luz deixou de poder aparecer sozinha', () => {
+    assert.equal(PROMPT_VERSAO, 7);
   });
 
   /*
@@ -2048,6 +2086,108 @@ describe('SISTEMA — as leis do jornal', () => {
     assert.doesNotMatch(sistema, /qualquer número delas invalida/);
   });
 
+  /*
+   * A QUINTA PROIBIÇÃO: A LUZ NUNCA APARECE SOZINHA (Story 3.4).
+   *
+   * Medido no acervo em 26/09/2026, ao recusar a Story 3.3: a luz está em 160 de
+   * 160 linhas — o destaque de tela não era necessário —, mas em **nove** delas
+   * ela ocupa um parágrafo inteiro só para si ("O mês teve dias longos.",
+   * "O período teve dias curtos."), pendurada no vazio. A lei proibia quatro
+   * coisas e não proibia a única que aconteceu.
+   *
+   * É INSTRUÇÃO, e de propósito **não** é regra nova de `verificarTexto`:
+   * reprovar texto custa uma chamada nova, e uma frase a mais não é um número
+   * falso. O precedente está no docblock de `SISTEMA` — as leis 3, 4 e 8 valem
+   * por prescrição na parte que a conferência não cobra, "porque o leitor é uma
+   * pessoa só, e ela está disponível". O teste "a conferência NÃO reprova o
+   * parágrafo solto", adiante, é quem prende essa decisão.
+   *
+   * **As asserções casam frases inteiras sobre o texto NORMALIZADO** (`liso`), e
+   * não fragmentos cortados na quebra de linha. A tentativa anterior misturava as
+   * duas coisas — um teste atravessava a quebra com `\s+`, o vizinho usava pedaços
+   * truncados nela ("nunca diga que os") —, e o próximo reflow do prompt quebraria
+   * os primeiros e faria os segundos casarem qualquer coisa. Normalizar é o que a
+   * varredura de vocabulário de base já fazia, acima.
+   */
+  it('a luz nunca aparece sozinha: parágrafo próprio e frase solta, no idioma da lápide', () => {
+    assert.ok(liso.includes('E ela NUNCA APARECE SOZINHA: contexto de um fato não é um fato'));
+    // O idioma é o da lápide, ao contrário: lá cada linha VIRA um parágrafo
+    // próprio; aqui, a luz nunca vira. As duas frases ficam no mesmo vocabulário
+    // de propósito — é o que o prompt já sabia dizer.
+    assert.ok(liso.includes('a luz nunca vira um PARÁGRAFO PRÓPRIO e nunca é uma frase inteira só para si'));
+    assert.ok(liso.includes('Cada linha vira um PARÁGRAFO PRÓPRIO'), 'a lápide continua pedindo o inverso');
+    assert.ok(liso.includes('Ela entra dentro da frase que conta o que aconteceu, colada ao fato'));
+    assert.ok(
+      liso.includes('um parágrafo que só dissesse que o período teve dias curtos, ou que teve dias longos, não se escreve'),
+    );
+  });
+
+  it('a cláusula ACRESCENTA: as cinco proibições vivem na MESMA instrução da luz', () => {
+    // O defeito não era falta de uma lei nova em outro lugar — era esta lei estar
+    // incompleta. Se a cláusula migrar para um item próprio da FORMA, ou se uma
+    // das quatro antigas cair no caminho, é este teste que acusa. O recorte é
+    // sobre `liso`: no texto cru, o item da luz atravessa cinco quebras.
+    const i = liso.indexOf('- A linha "Luz do dia"');
+    assert.ok(i >= 0, 'a instrução da luz mudou de forma e a varredura ficou sem alvo');
+    const j = liso.indexOf(' - ', i + 1);
+    assert.ok(j > i, 'a instrução da luz virou o último item da FORMA');
+    const daLuz = liso.slice(i, j);
+    for (const proibicao of [
+      'Nunca a use como explicação',
+      'nunca a compare com outro período ou outro ano',
+      'nunca diga que os dias estão crescendo ou encurtando',
+      'nunca a escreva em horas',
+      'E ela NUNCA APARECE SOZINHA',
+    ]) {
+      assert.ok(daLuz.includes(proibicao), `"${proibicao}" saiu da instrução da luz`);
+    }
+  });
+
+  /*
+   * E A CLÁUSULA NÃO MEXEU NA CONTAGEM DAS REGRAS.
+   *
+   * O cabeçalho diz "As oito regras abaixo", e a Code Map da story manda conferir
+   * isso: a cláusula é FORMA, não regra absoluta, então oito continua sendo oito.
+   * Uma cláusula posta por engano na lista numerada deixaria o cabeçalho mentindo.
+   */
+  it('a cláusula é FORMA, não regra absoluta — o cabeçalho continua dizendo oito', () => {
+    assert.ok(sistema.includes('As oito regras abaixo falam do TEXTO QUE VOCÊ ESCREVE.'));
+    const numeradas = [...sistema.matchAll(/^(\d+)\. [A-ZÁÂÃÉÊÍÓÔÕÚÜÇ]/gm)].map((m) => Number(m[1]));
+    assert.deepEqual(numeradas, [1, 2, 3, 4, 5, 6, 7, 8]);
+    // A cláusula mora depois de "FORMA:", e não entre as regras absolutas. As duas
+    // âncoras são conferidas antes de comparadas: com `\nFORMA:` ausente, o
+    // `indexOf` devolve −1 e qualquer posição "passaria" a desigualdade.
+    const daForma = sistema.indexOf('\nFORMA:');
+    const daClausula = sistema.indexOf('NUNCA APARECE SOZINHA');
+    assert.ok(daForma >= 0, 'a seção FORMA mudou de nome e a âncora ficou sem alvo');
+    assert.ok(daClausula >= 0, 'a cláusula da luz saiu do SISTEMA');
+    assert.ok(daClausula > daForma);
+  });
+
+  /*
+   * O SISTEMA TEM GOLDEN — e ele é o par do `GABARITO.textos`.
+   *
+   * O golden de `ia/recursos.test.ts` prende o hash do `Pedido` **inteiro**, então
+   * ele não separa as duas metades: um commit que mudasse o `usuario` e o
+   * `sistema` juntos acertaria aquele hash sem que nada apontasse qual mudou. Com
+   * este aqui, as duas afirmações que a Story 3.4 faz passam a ser falsificáveis
+   * uma a uma: o `usuario` **não** mudou (`GABARITO.textos`, em
+   * `period/retro-dados.test.ts`) e o `sistema` **mudou** (este hash).
+   *
+   * Ele sobe junto com `PROMPT_VERSAO` e só com ele. Mudança de texto sem bump cai
+   * aqui, que é o ponto: a versão existe para comparar duas edições sabendo o que
+   * mudou entre elas.
+   */
+  it('o SISTEMA é o do golden — texto novo sem bump de versão reprova aqui', () => {
+    assert.equal(
+      sha256Hex(sistema),
+      // Fixado em 26/09/2026, com `PROMPT_VERSAO` 7 (Story 3.4).
+      '15e86f9aa5f1c8655d8aa57161c0bc7dc5109d79585728d943e29bd122ca0772',
+      `o texto do SISTEMA mudou (sha256 ${sha256Hex(sistema)}) — confira que é o pretendido, `
+        + `suba PROMPT_VERSAO e atualize este golden no mesmo commit.`,
+    );
+  });
+
   it('e é por isso que a luz não pode ser explicação: a regra de causa a recusa', () => {
     const p = pacoteTresBases('month');
     const obediente = 'Agosto foi de dias longos. Foram 435 km, contra julho: 862 km.';
@@ -2055,6 +2195,30 @@ describe('SISTEMA — as leis do jornal', () => {
     const explicando = 'Foram 435 km graças aos dias longos, contra julho: 862 km.';
     const regras = verificarTexto(explicando, p).problemas.map((x) => x.regra);
     assert.ok(regras.includes('causa'), 'usar a luz como explicação é causa, e a edição cai');
+  });
+
+  /*
+   * A DECISÃO DE **NÃO** REPROVAR, PRESA POR TESTE (Story 3.4).
+   *
+   * A escolha entre instrução e conferência é *Ask First* respondida na spec:
+   * instrução. O argumento é de custo — reprovar texto obriga a uma chamada nova, e
+   * o defeito é cosmético: uma frase a mais não é um número falso. Enquanto isso
+   * vivia só em comentário, um aperto acidental de `verificar.ts` (uma regra nova
+   * que passasse a olhar o parágrafo) mudaria a política sem nada acusar.
+   *
+   * O alvo é o parágrafo ofensor **isolado**, na forma exata em que ele apareceu
+   * nas nove linhas do acervo. Se um dia o dono decidir reprovar, é este teste que
+   * cai — e cair aqui é a conversa acontecendo, em vez de a severidade mudar
+   * calada.
+   */
+  it('a conferência NÃO reprova o parágrafo solto — a cláusula é instrução, não regra', () => {
+    const p = pacoteTresBases('month');
+    for (const solto of ['O mês teve dias longos.', 'O período teve dias curtos.', 'Dias longos marcaram o mês.']) {
+      assert.deepEqual(
+        verificarTexto(solto, p).problemas, [],
+        `"${solto}" passou a reprovar: a política mudou de instrução para conferência, e isso é decisão do dono`,
+      );
+    }
   });
 });
 
@@ -2222,10 +2386,18 @@ describe('a luz do período — invisível para a quinta regra', () => {
     assert.ok(cabecalho.includes(`Luz do dia: ${TEXTO_DA_ESTACAO.longos}.`), 'mora no cabeçalho, não num caderno');
   });
 
-  it('sem estação, o prompt não escreve linha de luz nenhuma', () => {
-    const p = pacoteTresBases('year');
-    assert.equal(p.periodo.luz, null);
-    assert.equal(montarPrompt(p).usuario.includes('Luz do dia'), false);
+  it('sem estação, o prompt não escreve linha de luz nenhuma — nem `year` nem `all`', () => {
+    // A cláusula da Story 3.4 fala do que a luz **não** pode ser no texto, e não
+    // faz a luz existir: um período que cobre todas as estações continua sem
+    // linha nenhuma, nos dois grãos. Quem decide isso é `textoDaLuz`, e é ele que
+    // se cobra aqui — o `luz: null` do ajudante seria uma constante do teste.
+    for (const tipo of ['year', 'all'] as const) {
+      const p = pacoteTresBases(tipo);
+      assert.equal(textoDaLuz(tipo, p.periodo.inicioISO, p.periodo.fimISO), null, tipo);
+      assert.equal(p.periodo.luz, null, tipo);
+      assert.equal(montarPrompt(p).usuario.includes('Luz do dia'), false, tipo);
+      assert.equal(montarPromptDaEdicao([p]).usuario.includes('Luz do dia'), false, tipo);
+    }
   });
 });
 

@@ -81,11 +81,25 @@ que torna a disciplina de pré-registro parte do desenho e não um refinamento.
     texto que inverte B1 e B2 reprova, e um teste prova que a regra morde.
 
 - **CAP-6 — a luz do dia é camada em todos os cadernos**
-  - **intent:** todo pacote carrega as horas de luz do período e o delta contra o
-    mesmo período do ano anterior, para que a narrativa não confunda estação com
-    comportamento.
-  - **success:** o fato de luz aparece nos quatro pacotes, é derivado na leitura sem
-    gravar coluna, e existe para qualquer data desde 22/05/2023.
+  - **intent:** todo pacote carrega a estação de luz do período **em palavras** —
+    `"dias curtos"`, `"dias longos"`, `"dias em transição"` —, para que a narrativa
+    não confunda estação com comportamento.
+  - **success:** a luz está nos quatro pacotes (é o mesmo objeto de `periodo`), é
+    derivada na leitura sem gravar coluna, existe para qualquer data desde
+    22/05/2023, e o prompt a escreve **uma vez**, no cabeçalho. Ela é `null` em
+    `year` e `all` — um período que cobre todas as estações não tem estação a
+    relatar. No texto, a luz é **contexto de um fato, nunca um fato**: não vira
+    parágrafo próprio e não é frase inteira só para si (Story 3.4, `PROMPT_VERSAO`
+    7), além de não ser explicação, comparação, nem "os dias estão crescendo".
+  - **revertido duas vezes, não reabrir:** a redação anterior deste CAP pedia *"as
+    horas de luz do período e o delta contra o mesmo período do ano anterior"*.
+    Esse desenho foi tentado **duas** vezes e revertido nas duas — horas de luz são
+    redondas por natureza (julho dá 16, dezembro dá 8, todo ano), então a casa
+    decimal que devia compensar o custo no alfabeto da verificação não compensava, e
+    o número acrescentava inteiros pequenos a cadernos que não os tinham. O registro
+    está em `PacoteDeFatos.periodo.luz` (`packages/shared/src/ia/pacote.ts`). A
+    Story 3.3, que queria **destacar** a luz no trimestre com número, foi
+    **recusada em 26/09/2026** por medição, em parte por isso.
 
 - **CAP-7 — a ordem do miolo é ranqueada e congela na impressão**
   - **intent:** o caderno com a história do período lidera a edição, e a edição

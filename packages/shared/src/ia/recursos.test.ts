@@ -272,8 +272,20 @@ const GOLDENS: Readonly<Partial<Record<RecursoId, Golden>>> = {
     // concordância só aparece num número escrito exatamente `1`, e as duas
     // métricas do caderno fixo são 21 (sem unidade) e 333 km — nenhuma em
     // unidade de palavra, nenhuma valendo um.
-    versao: 6004,
-    hash: 'b6178e44d8fe383e27e0f416f24439aa324789169a4812b66e7b0a8674adc043',
+    //
+    // 7004: `PROMPT_VERSAO` foi a 7 na Story 3.4 (a luz nunca aparece sozinha).
+    // A cláusula nova mora no `sistema`, e este golden a alcança porque o hash é do
+    // pedido INTEIRO — `Pedido.sistema` entra na serialização canônica. Duas coisas
+    // mudaram junto, então, e as duas de propósito: a versão do descritor e o texto
+    // do sistema.
+    //
+    // **Este hash não distingue as duas metades**, e por isso ele não é onde se
+    // afirma qual delas mudou. Quem separa são dois goldens, um por metade:
+    // `GABARITO.textos` (`period/retro-dados.test.ts`) prende o `usuario`, e o
+    // sha256 do `SISTEMA` (`ia/verificar.test.ts`) prende o `sistema`. Com os três,
+    // um commit que mudasse as duas ao mesmo tempo não passa acertando só este.
+    versao: 7004,
+    hash: 'cbaa61d9283eec09cd2dcff85dc83f1ea87e4ffe0976c9fcb3315cfccdcf768a',
   },
   'saude-do-sono': {
     variantes: VARIANTES_DA_SAUDE,

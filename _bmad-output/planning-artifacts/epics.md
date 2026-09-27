@@ -63,9 +63,14 @@ CAP-13 daqui.
   longo de vários períodos é um fato à parte.
 - **FR5** *(CAP-5)*: Um número citado sem dizer contra o quê não pode virar edição — a
   quinta regra da verificação reprova base citada sem nome.
-- **FR6** *(CAP-6)*: Todo pacote carrega as horas de luz do período e o delta contra o
-  mesmo período do ano anterior, derivadas na leitura, para qualquer data desde
-  22/05/2023.
+- **FR6** *(CAP-6)*: Todo pacote carrega a estação de luz do período **em palavras**
+  (`"dias curtos"`, `"dias longos"`, `"dias em transição"`), derivada na leitura, para
+  qualquer data desde 22/05/2023 — e `null` em `year`/`all`. A redação anterior pedia
+  *"as horas de luz e o delta contra o mesmo período do ano anterior"*: esse desenho
+  foi **revertido duas vezes** (ver CAP-6 do spec e `PacoteDeFatos.periodo.luz`), e a
+  Story 3.3, que o reabriria, foi **recusada em 26/09/2026**. No texto, a luz é
+  contexto de um fato e nunca um fato — nem parágrafo próprio, nem frase solta (Story
+  3.4).
 - **FR7** *(CAP-7)*: O caderno com a história do período lidera a edição; a ordem é
   determinística, congela na impressão, e só um ato explícito de reimprimir a reordena.
 - **FR8** *(CAP-8)*: O sumário mostra a chamada de cada caderno — não o nome —, cada linha
