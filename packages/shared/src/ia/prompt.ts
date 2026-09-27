@@ -502,7 +502,11 @@ FORMA:
   curtos ou longos, e serve só para situar o que aconteceu. Nunca a use como
   explicação, nunca a compare com outro período ou outro ano, nunca diga que os
   dias estão crescendo ou encurtando, e nunca a escreva em horas — as horas de
-  luz não estão nos FATOS.
+  luz não estão nos FATOS. E ela NUNCA APARECE SOZINHA: contexto de um fato não
+  é um fato, então a luz nunca vira um PARÁGRAFO PRÓPRIO e nunca é uma frase
+  inteira só para si. Ela entra dentro da frase que conta o que aconteceu,
+  colada ao fato; um parágrafo que só dissesse que o período teve dias curtos,
+  ou que teve dias longos, não se escreve.
 - "Métricas que pararam de chegar" são medidas que deixaram de vir. Cada linha
   vira um PARÁGRAFO PRÓPRIO, com o nome da métrica exatamente como está na
   linha — por extenso, nunca por sigla —, o verbo como está na linha
@@ -541,8 +545,34 @@ FORMA:
  *     que é o outro lugar do arquivo que cola número em palavra. Só unidade em
  *     palavra concorda; `km`, `h`, `m` e `bpm` são símbolos e não variam, e o
  *     delta segue em `%`.
+ * 7 — a luz nunca aparece sozinha: a quinta proibição na instrução da luz, dita
+ *     no idioma da lápide — ela **nunca vira um PARÁGRAFO PRÓPRIO** e nunca é
+ *     frase inteira só para si. Medido no acervo em 26/09/2026, ao recusar a
+ *     Story 3.3: das 160 linhas com luz, 9 a deixam pendurada num parágrafo só
+ *     dela (*"O mês teve dias longos."*). As quatro proibições de antes seguem
+ *     palavra por palavra — a cláusula acrescenta, não substitui —, e a contagem
+ *     das **oito** regras não muda: isto é FORMA, não regra absoluta.
+ *
+ * ## Subir esta versão ARMA a impressão em massa. Leia antes de rodar o script.
+ *
+ * O critério do `--massa --caderno` é `prompt_versao < PROMPT_DE_HOJE`
+ * (`scripts/revista/imprimir.ts`, `poupaOCaderno`) — e `PROMPT_DE_HOJE` é este
+ * número, decodificado do descritor. Então **todo** bump aqui classifica como
+ * `reimprimir` cada linha do arquivo abaixo dele, não só as que têm o defeito que
+ * motivou o bump.
+ *
+ * Medido em produção em 26/09/2026, com a versão em 7: **149 linhas** abaixo de 7
+ * — `movimento` 50, `rotina` 50, `coracao` 25, `sono` 24. O defeito da 3.4 são
+ * **nove** parágrafos, e o conserto dirigido (`--tipo … --inicio … --caderno …`)
+ * custa nove chamadas; `--massa --caderno rotina` planejaria **50 períodos**.
+ *
+ * Não é defeito do script: o critério dele está certo para o que ele faz — uma
+ * campanha de palavras não tem lista nomeada, porque a lista é derivável do
+ * arquivo. O que ele não sabe é que **desta vez** o defeito é raro. Quem rodar a
+ * massa depois de um bump cirúrgico paga a diferença; a consulta que separa as
+ * nove das 149 está no `deferred-work`, na entrada da 3.4.
  */
-export const PROMPT_VERSAO = 6;
+export const PROMPT_VERSAO = 7;
 
 /**
  * A linha da luz no cabeçalho — ou nada, quando o período não tem estação.

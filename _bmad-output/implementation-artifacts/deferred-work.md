@@ -654,3 +654,86 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-1-o-postal-da-semana.md`
   summary: **As capas carimbadas das semanas ficaram sem leitor.** O postal não desenha capa, e `edicoes_capa` pode ter até cinco linhas de `tipo_periodo = 'week'` que nenhuma tela alcança mais. Nada foi apagado, e nada deve ser.
   evidence: A parede de capas (2.4b) já exclui a semana por decisão do dono — *"52 semanas por ano afogariam os doze meses"* (`packages/shared/src/revista/parede.ts:33-35`) —, então a rota era o único desenhista delas; desde a 3.1 ela desenha o postal, que é acromático e sem capa (o mockup `key-formas.html` tem um bloco de foto de 146 px, deixado de fora porque a capa é carimbada **na impressão** e a semana não imprime mais). **O número exato não está no repositório**: `edicoes_capa` não tem chave estrangeira para `edicoes_ia`, e o inventário versionado é o das edições, não o das capas — o teto de cinco vem das cinco edições de semana. Ler o número é uma linha, com o token do dono: `select count(*) from edicoes_capa where tipo_periodo = 'week'`. A decisão de 25/09 é **deixar como está**: apagar é irreversível, o carimbo guarda valor e não ponteiro (a foto, a legenda e o motivo da escolha), e o dia em que a semana voltar a ter capa — ou em que alguém quiser auditar o que o app escolheu em agosto — essas linhas são a única prova.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-4-a-luz-nunca-aparece-sozinha.md`
+  summary: **O bump de `PROMPT_VERSAO` arma a impressão em massa contra o acervo inteiro, e o defeito são nove parágrafos.** O critério do `--massa --caderno` é `prompt_versao < PROMPT_DE_HOJE` (`scripts/revista/imprimir.ts`, `poupaOCaderno`), e `PROMPT_DE_HOJE` passou a ser 7. **Medido em produção em 26/09/2026: 149 linhas estão abaixo de 7** — `movimento` 50, `rotina` 50, `coracao` 25, `sono` 24. Ou seja: `--massa --caderno rotina` planeja **50 períodos**, não os nove do defeito. Nove é o custo do conserto dirigido (`--tipo <t> --inicio <d> --caderno <c>`, da 2.8); a massa custa 50 por caderno.
+  evidence: Não é defeito do script — o critério dele está certo para o que ele faz: uma campanha de palavras não tem lista nomeada, porque *"a lista é derivável do arquivo com exatidão"* (docblock de `planoDaCampanha`). O que ele não pode saber é que **desta vez** o defeito é raro: a lei mudou para todos, e só nove linhas a violavam. O aviso está escrito onde quem sobe a versão o lê — no changelog de `PROMPT_VERSAO` (`packages/shared/src/ia/prompt.ts`, entrada 7, seção *"Subir esta versão ARMA a impressão em massa"*) e no raciocínio do teste da versão (`ia/verificar.test.ts`). **`pacote_versao` ficou em 4 e isso não protege nada aqui**: são dois leitores diferentes — a 2.3 julga o renovado pelo pacote, o `--caderno` da 2.8 julga pelo prompt —, e foi o segundo que ficou armado. A saída, se um dia incomodar, é o script aceitar uma lista nomeada também na campanha de palavras (hoje `--reimprimir` é recusado no modo em massa), o que é decisão do dono sobre o contrato das bandeiras.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-4-a-luz-nunca-aparece-sozinha.md`
+  summary: **As nove chamadas da remediação podem reordenar a edição — não são troca de uma frase.** Com `--caderno`, a sequência manda a lista de um e a função do banco **recalcula a ordem do conjunto**: `posicao` pode mudar, e com ela qual caderno fica em **1º** — que é a **manchete e o sumário** da edição (CAP-7 e CAP-8). Nove chamadas dirigidas a nove períodos podem, portanto, mudar a primeira coisa que o leitor vê em até nove edições, sem que nada no texto reprovado tenha a ver com isso.
+  evidence: `scripts/revista/imprimir.ts`, docblock de `imprimirPeriodo`: *"`cadernos` é opção da sequência do núcleo, e é ela quem mantém o texto e a assinatura dos outros três e **recalcula a ordem do conjunto na função do banco**"*. O spec confirma em CAP-7: *"Reimprimir **um** caderno recalcula e regrava a ordem do conjunto inteiro, em transação"*. O que **não** muda é a capa: reimpressão parcial nunca troca capa existente (2.8). Isto é consequência conhecida e aceita — a alternativa seria congelar `posicao` numa reimpressão parcial, que é mudança na porta única da impressão (AD-4) e decisão do dono. Fica registrado porque a entrada anterior desta story apresentava as nove chamadas como custo puro, e elas não são: a classe de consequência é a mesma que as entradas da 2.4a e da 3.1 documentam.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-4-a-luz-nunca-aparece-sozinha.md`
+  summary: **A consulta que mede a luz solta, para a remedição custar um comando e não uma investigação.** A 3.4 mudou a instrução e **não reimprimiu nada**: o acervo medido em 26/09/2026 continua lá — das **160** linhas com luz, **9** a deixam pendurada. O número só cai quando essas nove forem reimpressas sob `prompt_versao` 7, e a pergunta "caiu?" tem de ser uma consulta, não uma leitura de 160 linhas à mão. **Sucesso é: nenhuma linha com `prompt_versao = 7` na consulta 3.**
+  evidence: O SQL abaixo, com os cinco limites dele declarados nos comentários. Três valem antes de rodar. (a) O grão é a **frase**, e não o parágrafo: a cláusula proíbe **duas** coisas — parágrafo próprio e frase inteira só para si — e as duas são a mesma frase; uma consulta por parágrafo mediria metade da lei e leria zero por engano. (b) O critério de "não diz nada além da luz" é **contagem de palavras**, e não "não tem dígito": a FORMA exige data por extenso, não **ano** por extenso, então *"O mês teve dias longos, em 2026."* é exatamente o parágrafo pendurado e um filtro por dígito o descartaria. (c) `~*`, nunca `~`: a luz pode **abrir** a frase, em maiúscula. Os dois que ficam abertos: o vocabulário da luz está **copiado** do dono único (`TEXTO_DA_ESTACAO`, `packages/shared/src/ia/pacote.ts:443`) e o SQL não tem barreira contra deriva — no TypeScript um quarto valor é erro de compilação porque `TextoDaLuz` é tipo, aqui ele subcontaria em silêncio; e o limiar de palavras é **escolha**, com erro nos dois sentidos, então a consulta é a **rede** e o veredito é de quem lê. **Os nove de 26/09 foram confirmados por leitura humana**, não pela consulta.
+
+  ```sql
+  -- O vocabulário da luz, COPIADO de TEXTO_DA_ESTACAO (packages/shared/src/ia/pacote.ts:443):
+  --   'dias curtos' · 'dias longos' · 'dias em transição'
+  -- Sempre `~*`, nunca `~`: a luz pode ABRIR a frase, em maiúscula ("Dias longos
+  -- marcaram o mês."), que é a forma mais provável do parágrafo pendurado.
+  -- O acervo tem um dono só, por isso não há filtro de `user_id`; acrescente
+  -- `where user_id = '…'` no dia em que isso mudar.
+
+  -- 1. o denominador, POR TIPO DE PERÍODO
+  select tipo_periodo, count(*) as linhas_com_luz
+    from edicoes_ia
+   where texto ~* 'dias (curtos|longos|em transição)'
+   group by tipo_periodo
+   order by tipo_periodo;
+  -- O "160 de 160" do Intent é a soma de month + season + week. `year` TEM DE VIR
+  -- ZERO: `textoDaLuz` devolve null em year/all, então nenhum prompt de ano recebeu
+  -- linha de luz — luz num texto de ano é contexto INVENTADO pelo modelo, defeito
+  -- diferente e mais grave que o parágrafo solto. Sem o `group by`, os dois caem no
+  -- mesmo total e o segundo fica invisível.
+
+  -- 2. o numerador: as frases em que a luz aparece SOZINHA
+  with paragrafos as (
+    select e.tipo_periodo, e.inicio, e.caderno, e.prompt_versao,
+           btrim(p.par) as par
+      from edicoes_ia e
+      -- o parágrafo é o de `limitesDoParagrafo` (ia/verificar.ts): separador `\n[ \t]*\n`
+      cross join lateral regexp_split_to_table(e.texto, '\n[ \t]*\n') as p(par)
+  ),
+  frases as (
+    -- sentinela depois de cada terminador, e corta nela — sem lookbehind, que a
+    -- versão do Postgres pode não ter
+    select g.*, btrim(f.frase) as frase
+      from paragrafos g
+      cross join lateral regexp_split_to_table(
+                   regexp_replace(g.par, '([.!?…])\s+', '\1§', 'g'), '§') as f(frase)
+  ),
+  soltas as (
+    select *,
+           -- a frase TIRADA A LUZ: é ela que diz se sobrou mais alguma coisa
+           btrim(regexp_replace(frase, 'dias (curtos|longos|em transição)', '', 'gi')) as resto
+      from frases
+     where frase ~* 'dias (curtos|longos|em transição)'
+  )
+  select tipo_periodo, inicio, caderno, prompt_versao,
+         -- a 1ª proibição (parágrafo próprio) vs. a 2ª (frase solta em parágrafo com mais frases)
+         par = frase as e_o_paragrafo_inteiro,
+         frase
+    from soltas
+   -- O limiar de 5 palavras é ESCOLHA, e a rede erra nos dois sentidos:
+   --  · sobra — a regra 5 obriga fato SEM número, e "Dias curtos, e o percurso era
+   --    pavimentado." é acusada sem ser o defeito; essa coorte é LEGÍTIMA pela story;
+   --  · falta — um parágrafo pendurado verboso passa do limiar e escapa.
+   -- Por isso a consulta 2 LISTA, para alguém ler: os nove foram confirmados assim.
+   where coalesce(array_length(regexp_split_to_array(nullif(resto, ''), '\s+'), 1), 0) <= 5
+   order by prompt_versao, tipo_periodo, inicio, caderno;
+
+  -- 3. o veredito: a MESMA CTE acima, com este select final no lugar do de cima
+  select prompt_versao,
+         count(*)                                        as frases_soltas,
+         count(distinct (tipo_periodo, inicio, caderno)) as linhas
+    from soltas
+   where coalesce(array_length(regexp_split_to_array(nullif(resto, ''), '\s+'), 1), 0) <= 5
+   group by prompt_versao
+   order by prompt_versao;
+  -- SUCESSO é: NENHUMA linha com `prompt_versao = 7`. As de 6 e abaixo seguem lá até
+  -- serem reimpressas — "caiu?" só se responde contra a lei que escreveu cada linha.
+  -- As duas contagens são diferentes de propósito: o numerador conta FRASES, e o
+  -- resumo da story fala em LINHAS. Coincidem só enquanto nenhuma linha tiver duas
+  -- frases soltas.
+  ```

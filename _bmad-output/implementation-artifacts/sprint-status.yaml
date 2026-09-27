@@ -63,7 +63,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: '2026-09-25'
+last_updated: '2026-09-26'
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -343,6 +343,22 @@ development_status:
   # coberto só pelo Épico 1. A evidência que ela exige antes de fechar não é um
   # teste — é a decisão entre rodar a UX ou matá-la.
   3-3-o-destaque-de-luz-no-trimestre: backlog
+  # NASCEU EM 26/09/2026, da medição que RECUSOU a 3.3. O destaque visual de luz
+  # não era necessário — a luz já está em 160 de 160 linhas do acervo, e integrada
+  # ao fato em 30 delas —, mas a mesma medição achou um defeito real: em NOVE
+  # linhas ela ocupa um parágrafo inteiro só para si ("O mês teve dias longos."),
+  # pendurada no vazio. A instrução da luz no prompt já proíbe quatro coisas
+  # (explicação, comparação, dizer que os dias crescem, escrevê-la em horas) e não
+  # proíbe a única que aconteceu: aparecer sozinha. Três linhas abaixo dela, a
+  # lápide pede "cada linha vira um PARÁGRAFO PRÓPRIO" — o prompt sabe falar de
+  # parágrafo; à luz falta o inverso.
+  # DECISÕES da spec: instrução, NÃO conferência (reprovar texto custa chamada
+  # nova, e uma frase a mais não é um número falso — o precedente são as leis 3, 4
+  # e 8, que valem por prescrição); e só o parágrafo solto, porque das outras 40
+  # linhas sem número a maioria liga a luz a um sujeito, que é o que a instrução
+  # pede. `PROMPT_VERSAO` 6 → 7; `PACOTE_VERSAO` fica em 4.
+  # O acervo é do dono e custa NOVE chamadas (`--caderno`, da 2.8).
+  3-4-a-luz-nunca-aparece-sozinha: review
   epic-3-retrospective: optional
 
   epic-4: in-progress

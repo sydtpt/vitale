@@ -159,8 +159,15 @@ pagas para textos de sete dias.
 Capa · sumário · os quatro cadernos na ordem ranqueada. Três bases quando existem,
 trajetória sempre. É a forma central: é onde a v1 vive ou morre.
 
-No trimestre, a **camada de luz em destaque** — é o recorte em que a estação muda de
-significado.
+> **A "camada de luz em destaque" do trimestre não existe, e não vai existir.** Era a
+> Story 3.3, **recusada em 26/09/2026** por medição: com doze trimestres impressos, a
+> luz já estava na prosa de **35 de 35** linhas e integrada ao fato em 30 delas — o
+> `So that` estava cumprido dentro da frase, sem tela nenhuma. E um critério dela era
+> impossível: pedia *"o mesmo número que a prosa cita"*, e a luz entra no pacote como
+> **texto sem número**, de propósito (ver CAP-6 do [spec](spec.md), "revertido duas
+> vezes"). O defeito que a medição achou era de **prompt**, não de tela — em 9 das 160
+> linhas do acervo a luz saía num parágrafo só dela —, e virou a **Story 3.4**: a
+> quinta proibição na instrução da luz, `PROMPT_VERSAO` 7.
 
 ### Anuário — ano
 

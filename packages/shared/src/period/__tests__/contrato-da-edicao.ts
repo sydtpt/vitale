@@ -728,7 +728,7 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
     texto: TEXTOS[caderno],
     provedor: PROVEDOR,
     modelo: MODELO,
-    prompt_versao: 6,
+    prompt_versao: 7,
     pacote_versao: 4,
     motivo_de_parada: 'STOP',
     tokens_entrada: TOKENS[caderno].entrada,
@@ -747,7 +747,7 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
  *   Coração também, porque o pedido dele saiu e foi pago; só o texto reprovou.
  * - **A carga** é o que chega à função `edicao_imprimir`: a ordem do ranqueamento
  *   sem o Coração (reprovado não tem linha nem posição), e as três linhas com a
- *   assinatura inteira — provedor, modelo, `prompt_versao` 6, `pacote_versao` 4 e
+ *   assinatura inteira — provedor, modelo, `prompt_versao` 7, `pacote_versao` 4 e
  *   a `agg_version_no_momento` 9, carimbada pela porta.
  *
  * - **Os textos** são o sha256 do `usuario` de cada caderno — o **texto** do
@@ -799,6 +799,32 @@ function linhaDaCarga(caderno: CadernoId, metricaLider: string | null): Record<s
  * `ia/retrospectiva.test.ts` ("a concordância do número com a unidade"), com o
  * pacote montado à mão.
  *
+ * **Por que mudou em 26/09** (Story 3.4, a luz que nunca aparece sozinha):
+ * `PROMPT_VERSAO` foi de 6 para 7, e os **quatro** hashes mudaram junto. Aqui há
+ * duas causas somadas, e as duas de propósito: a versão do descritor (que entra
+ * em todo hash) **e** o texto do `sistema`, que ganhou a quinta proibição na
+ * instrução da luz. `Pedido.sistema` entra na serialização canônica do pedido,
+ * então mudar a lei muda o hash de todo caderno, inclusive de um período sem
+ * luz. O `prompt_versao` das três linhas da carga acompanhou.
+ *
+ * **E `textos` e `textosSemLapide` NÃO mudaram, nos quatro cadernos** — a
+ * cláusula mora no `sistema`, e estes dois goldens são do `usuario`. É o que eles
+ * provam, e **só** isso: a linha `Luz do dia:` de maio continua byte a byte a
+ * mesma. As outras duas metades da afirmação da story não se provam daqui, e
+ * dizer que sim seria a asserção falsa que o docblock de `SISTEMA` chama de pior
+ * que ausência (`ia/prompt.ts`) — esta fixture é **um mês**, com luz, e um mês
+ * não tem como mostrar ausência de luz nem repetição dela:
+ *
+ * - *"entra uma vez por prompt"*: `ia/pacote.test.ts` ("a luz não saiu exatamente
+ *   uma vez", nos 60 meses) e `ia/verificar.test.ts` ("o prompt escreve a luz UMA
+ *   vez, no cabeçalho — nos dois grãos");
+ * - *"ausente em `year`/`all`"*: `ia/pacote.test.ts` ("ano e histórico completo
+ *   não têm estação") e `ia/verificar.test.ts` ("sem estação, o prompt não escreve
+ *   linha de luz nenhuma — nem `year` nem `all`").
+ *
+ * E o **`sistema`**, que este gabarito nunca guardou em texto, tem golden próprio
+ * desde a 3.4: o sha256 dele em `ia/verificar.test.ts`.
+ *
  * Os números são **consequência**: mudam quando o prompt (`PROMPT_VERSAO`), o
  * pacote (`PACOTE_VERSAO`), a agregação (`AGG_VERSION`) ou o ranqueamento mudam, e
  * então este gabarito muda junto, no mesmo commit, com o motivo escrito nele.
@@ -826,10 +852,10 @@ export const GABARITO: {
 } = {
   estado: 'gravada',
   hashes: {
-    rotina: '25adb7fa4ca64448cc5f816fcc47124054c4b0d2d0b53eb9924300bc93897672',
-    movimento: '0d10680c6503f1505f1d4514f8ed734a781fb5274cdb693d87a9472c2d7984cd',
-    sono: '1bb91ae00ac18fd2e991e93731bf7ea8d7488142f6810dbb052ea2ace54d2ef9',
-    coracao: 'e604705ef9644c8736471011cb788c3c982543645c4b386016fc4a262f516b6d',
+    rotina: 'af89980fd45ddc82968e5f565eb04d5eccf31a6268db8f1ebded311eb22b4ba4',
+    movimento: 'ee426c5acb82516e3ad58df660a0ebf4fc785ffed5221fada93d99f437c37cdd',
+    sono: 'e91dbcda2d6e66a1586ce44a1e970f58da802a5424f4b8af49ca9964733b6533',
+    coracao: 'b1d6e2c97c9666662c4cb3214258e2b793f43d3d89ca66b54dbac7ddff488155',
   },
   textos: {
     rotina: '4955d2b8836ce40c014a8f8473fd0ec46e0a4f504805da4a25eb4590d9963e79',
