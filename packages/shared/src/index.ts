@@ -187,6 +187,10 @@ export * from './revista/desenho';
 // A parede de capas (story 2.4b) — a montagem do arquivo: junta o inventário, as
 // capas e os textos dos meses, e devolve as fileiras já fatiadas.
 export * from './revista/parede';
+// O anuário do ano (story 3.2) — a montagem das quatro tiras que abrem a edição
+// do ano, e o veredito de quando nenhum mês liderou. Reusa `tirasDoAno` inteiro:
+// a tira lê o carimbo e nunca recalcula.
+export * from './revista/anuario';
 // O postal da semana (story 3.1) — a escolha pura dos três fatos. A semana não
 // grava edição: quem recusa a impressão dela é o núcleo, no estado `semana` de
 // `ResultadoDaImpressao`, antes de buscar, chamar ou gravar qualquer coisa.

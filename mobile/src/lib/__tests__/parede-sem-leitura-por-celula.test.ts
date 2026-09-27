@@ -40,6 +40,15 @@ const SRC = join(__dirname, '..', '..');
 const CELULAS = [
   join(SRC, 'components', 'revista', 'LadrilhoDoArquivo.tsx'),
   join(SRC, 'components', 'revista', 'TirasDoAnuario.tsx'),
+  // O desenho da célula saiu da tira na Story 3.2, para o anuário da edição o
+  // reusar a 34 px. Os três entram na lista pelo mesmo motivo que a tira estava
+  // nela: quem mapeia 4 × 12 células é o lugar onde a leitura por célula nasce,
+  // e a tentação é a mesma nos dois tamanhos. O `AnuarioDaEdicao` não é da
+  // parede, mas desenha a mesma grade — e uma leitura por célula ali custaria as
+  // mesmas 48 idas ao banco.
+  join(SRC, 'components', 'revista', 'CelulasDaTira.tsx'),
+  join(SRC, 'components', 'revista', 'geometria-da-tira.ts'),
+  join(SRC, 'components', 'revista', 'AnuarioDaEdicao.tsx'),
   join(SRC, 'app', 'revista', 'index.tsx'),
   join(SRC, 'lib', 'parede.ts'),
 ];
@@ -137,7 +146,7 @@ describe('BARREIRA — a parede lê em lote, nunca por célula', () => {
   });
 
   /** A barreira precisa continuar tendo alvo: arquivo renomeado a deixa vazia. */
-  it('os cinco arquivos existem — a barreira não ficou sem alvo', () => {
+  it('os arquivos da lista existem — a barreira não ficou sem alvo', () => {
     for (const arquivo of [...CELULAS, HOSPEDEIRO]) {
       expect(readFileSync(arquivo, 'utf8').length).toBeGreaterThan(0);
     }

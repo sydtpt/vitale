@@ -10,6 +10,7 @@ import {
   AGG_VERSION,
   MODULO_DO_CADERNO,
   TIPO_DO_POSTAL,
+  anoDoAnuario,
   cadernosVisiveis,
   desenhoDaCapa,
   montarPostal,
@@ -21,6 +22,7 @@ import {
   type LapideNaEdicao,
   type TipoComRevista,
 } from '@vitale/shared';
+import { AnuarioDaEdicao } from '../../../components/revista/AnuarioDaEdicao';
 import { CapaAberta } from '../../../components/revista/CapaAberta';
 import { CapaComFoto } from '../../../components/revista/CapaComFoto';
 import { CapaGrade } from '../../../components/revista/CapaGrade';
@@ -28,6 +30,7 @@ import { CapaTracado } from '../../../components/revista/CapaTracado';
 import { FRACAO_DA_ALTURA_DA_CAPA, MUDO } from '../../../components/revista/constantes-da-capa';
 import { MarcaDoToque } from '../../../components/revista/MarcaDoToque';
 import { Postal } from '../../../components/revista/Postal';
+import { useAnuarioDoAno } from '../../../hooks/useAnuarioDoAno';
 import { useEntradaDaEdicao } from '../../../hooks/useEntradaDaEdicao';
 import { useEstadoDaEdicao } from '../../../hooks/useEstadoDaEdicao';
 import { useFotoDaCapa } from '../../../hooks/useFotoDaCapa';
@@ -57,6 +60,7 @@ import {
   type AcaoDoCaderno,
   type CadernoNaVista,
   type CapaNaVista,
+  type VistaDaEdicao,
 } from '../../../store/edicao.store';
 import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '../../../theme';
 
@@ -114,6 +118,15 @@ import { colors, fonts, moduleColors, radii, spacing, useThemedStyles } from '..
  * impressas por aqui quando a porta foi fechada. Agora a semana desenha
  * {@link Postal}: uma tela, capa pequena, três fatos apurados na hora,
  * acromáticos, sem sumário e sem cadernos. Os outros três tipos seguem iguais.
+ *
+ * A **3.2** abriu o terceiro ramo. O ano abria como um mês grande, procurando
+ * uma manchete que ele não tem — *um ano não tem um fato: tem doze formas*.
+ * Agora ele abre **serial**: quatro tiras de doze meses a 34 px, uma por
+ * caderno, antes de qualquer texto, lendo a `metrica_lider` carimbada e nunca
+ * recalculando. Quando nenhum mês do ano liderou, uma linha em palavras ocupa o
+ * lugar das faixas — quatro faixas de filetes leriam como tela quebrada. É a
+ * **mesma rota e a mesma edição**: as tiras entram antes do texto, não no lugar
+ * dele.
  */
 export default function RevistaScreen() {
   const styles = useThemedStyles(createStyles);
@@ -151,15 +164,31 @@ export default function RevistaScreen() {
         <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{periodo?.rotulo ?? ''}</Text>
       </View>
 
-      {/* **Aqui a rota se parte em duas** (Story 3.1). A semana é postal e nunca
-          edição; os outros três tipos continuam sendo a revista de sempre. A
+      {/* **Aqui a rota se parte em três** (Stories 3.1 e 3.2). A semana é postal
+          e nunca edição; o ano é a mesma edição **com as quatro tiras antes do
+          texto**; o mês e a estação continuam sendo a revista de sempre. A
           ramificação é pelo tipo do período **já validado** — `periodoDaRota` é
           quem recusa o que não é tipo da revista e o início que não abre
-          período —, então nenhum dos dois ramos adivinha nada. */}
+          período —, então nenhum dos três ramos adivinha nada.
+
+          **Os três tipos são exclusivos no compilador**, e isso é a rede: cada
+          componente recebe só o tipo que ele desenha, então trocar dois braços
+          deixa de compilar. Com o tipo largo, a troca passaria calada — e o ano
+          voltaria a abrir como um mês grande. */}
       {periodo && periodo.fechado ? (
         periodo.tipo === TIPO_DO_POSTAL
           ? <TelaDoPostal rotulo={periodo.rotulo} offset={periodo.offset} now={now} bottom={insets.bottom} />
-          : <Revista tipo={periodo.tipo} offset={periodo.offset} now={now} bottom={insets.bottom} />
+          : periodo.tipo === TIPO_DO_ANUARIO
+            ? (
+              <RevistaDoAno
+                tipo={periodo.tipo}
+                inicio={periodo.inicio}
+                offset={periodo.offset}
+                now={now}
+                bottom={insets.bottom}
+              />
+            )
+            : <Revista tipo={periodo.tipo} offset={periodo.offset} now={now} bottom={insets.bottom} />
       ) : null}
     </View>
   );
@@ -257,15 +286,114 @@ function TelaDoPostal({ rotulo, offset, now, bottom }: {
 }
 
 /**
- * A edição de um período fechado e bem endereçado.
+ * O tipo que abre como **anuário** — o ano, e só ele (Story 3.2).
  *
- * **`TipoComRevista`, e não `TipoComEdicao`**: a semana tem edição na tabela (as
- * cinco antigas), mas não tem edição a **desenhar**. Com o tipo largo, trocar os
- * dois braços do ternário lá em cima compilaria — a semana voltaria a abrir
- * sumário, cadernos e botão de escrever, e nada reprovaria. Excluída aqui, a
- * troca deixa de compilar.
+ * `as const satisfies`, e não uma anotação larga, pela mesma razão do
+ * `TIPO_DO_POSTAL`: anotado como `TipoComRevista` ele seria a união inteira para
+ * o compilador, e `periodo.tipo === TIPO_DO_ANUARIO` não estreitaria nada — o
+ * ramo do mês continuaria aceitando o ano, calado.
  */
-function Revista({ tipo, offset, now, bottom }: { tipo: TipoComRevista; offset: number; now: Date; bottom: number }) {
+const TIPO_DO_ANUARIO = 'year' as const satisfies TipoComRevista;
+
+/** Os tipos cuja edição abre **direto na capa**: o mês e a estação. */
+type TipoSemAnuario = Exclude<TipoComRevista, typeof TIPO_DO_ANUARIO>;
+
+/**
+ * O ramo do **mês e da estação** — a edição que abre direto na capa.
+ *
+ * **`TipoSemAnuario`, e não `TipoComRevista`**: o ano tem edição a desenhar, mas
+ * não abre por ela. Com o tipo largo, trocar os braços do ternário lá em cima
+ * compilaria — o ano voltaria a abrir como um mês grande, sem as doze formas, e
+ * nada reprovaria. Excluído aqui, a troca deixa de compilar. É a mesma guarda
+ * que a 3.1 pôs entre a semana e a revista.
+ */
+function Revista({ tipo, offset, now, bottom }: {
+  tipo: TipoSemAnuario;
+  offset: number;
+  now: Date;
+  bottom: number;
+}) {
+  return <Edicao tipo={tipo} offset={offset} now={now} bottom={bottom} antesDaCapa={null} />;
+}
+
+/**
+ * O ramo do **ano** — a mesma edição, com as quatro tiras antes do texto (Story 3.2).
+ *
+ * *Um ano não tem um fato: tem doze formas.* A rota abria o ano como um mês
+ * grande — capa, sumário, quatro cadernos — procurando uma manchete que ele não
+ * tem. As tiras entram **antes de tudo**, e nada do que vinha depois muda: a
+ * mesma rota, a mesma edição, o mesmo texto.
+ *
+ * **O tipo é o literal do ano** (ver {@link TIPO_DO_ANUARIO}): passar um mês aqui
+ * não compila.
+ *
+ * O `ano` sai do início do endereço pela função do núcleo, e nunca de um
+ * `slice`: uma segunda régua de "que ano é este endereço" é uma segunda resposta
+ * possível.
+ *
+ * ## O bloco entra tarde, e as âncoras remedem
+ *
+ * Os doze meses têm leitura própria, então o anuário **não está na tela no
+ * primeiro quadro**: os cadernos medem a posição deles sem ele e, quando ele
+ * entra, todos descem. A decisão é **remedir**, não reservar — é o que esta
+ * página já faz em todo o resto (a capa cresce quando o traçado chega, a errata
+ * aparece, as lápides pousam), e reservar exigiria saber antes da leitura se o
+ * bloco terá quatro tiras ou uma linha, além de deixar uma caixa vazia
+ * permanente quando a leitura falha (contra a regra da 1.13). O contrato de que
+ * isso depende — *a última medida manda* — está preso em
+ * `useRolagemAncorada.test.ts`. O preço declarado é um salto visível na abertura
+ * do ano, e ele é preferível a uma caixa em branco que pode nunca se preencher.
+ */
+function RevistaDoAno({ tipo, inicio, offset, now, bottom }: {
+  tipo: typeof TIPO_DO_ANUARIO;
+  inicio: string;
+  offset: number;
+  now: Date;
+  bottom: number;
+}) {
+  // Sem `useMemo`: o ano é um número, e o hook o compara por valor na lista de
+  // dependências. Memoizar um primitivo só esconderia a leitura atrás de uma
+  // indireção.
+  const ano = anoDoAnuario(inicio);
+  const anuario = useAnuarioDoAno(ano);
+  return (
+    <Edicao
+      tipo={tipo}
+      offset={offset}
+      now={now}
+      bottom={bottom}
+      /* **Carregando e sem tiras desenham a mesma coisa: nada** — e são estados
+         diferentes de propósito. O ano não afirma silêncio antes de saber: com
+         os meses em voo, a frase "nenhum mês liderou" apareceria por um instante
+         em todo ano, inclusive nos de doze líderes. Ver `useAnuarioDoAno`. */
+      antesDaCapa={anuario.estado === 'pronto' ? <AnuarioDaEdicao anuario={anuario.anuario} /> : null}
+    />
+  );
+}
+
+/**
+ * A edição de um período fechado e bem endereçado — **o corpo que os dois ramos
+ * compartilham**.
+ *
+ * Ela recebe `TipoComRevista` (os três que têm edição a desenhar) porque é o
+ * corpo, e não o ramo: quem estreita são as duas funções acima, que é onde a
+ * troca de braços tem de deixar de compilar.
+ */
+function Edicao({ tipo, offset, now, bottom, antesDaCapa }: {
+  tipo: TipoComRevista;
+  offset: number;
+  now: Date;
+  bottom: number;
+  /**
+   * O que entra **antes da capa**, dentro do rolável — hoje só as tiras do
+   * anuário. `null` nos outros tipos.
+   *
+   * Nó, e não flag: a edição não precisa saber o que vem antes dela, e o dia em
+   * que outro período ganhar uma abertura própria ela não muda. Ver a nota do
+   * `ScrollView` sobre **não embrulhar** o que vem depois.
+   */
+  antesDaCapa: React.ReactNode;
+}) {
   const styles = useThemedStyles(createStyles);
   const { entrada, dadosProntos } = useEntradaDaEdicao(tipo, offset, now);
 
@@ -388,70 +516,59 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComRevista; offset: 
   }, [uid]);
   const trocar = useCallback((f: ActivityPhoto) => trocarCapa(entradaRef.current, f), [trocarCapa]);
 
-  switch (vista.tipo) {
-    case 'nada':
-      return null;
+  /**
+   * **O que vem antes da capa não depende de a edição existir** (Story 3.2).
+   *
+   * As duas leituras são independentes: os doze meses do anuário vêm de
+   * `fetchArquivoDeEdicoes`, e o texto do ano vem de `fetchEdicao`. Uma pode
+   * chegar com a outra falhando — e, com `antesDaCapa` desenhado só dentro do
+   * ramo da edição, o ano perderia **as doze formas justamente quando o texto
+   * não veio**, que é quando elas são a única coisa que ele tem a mostrar.
+   *
+   * O simétrico já estava certo desde o começo (a falha do anuário não derruba o
+   * texto); este é o outro lado dele.
+   */
+  if (vista.tipo !== 'edicao') {
+    return (
+      <>
+        {antesDaCapa}
+        <AvisoDaVista vista={vista} onReler={reler} />
+      </>
+    );
+  }
 
-    case 'lendo':
-      return (
-        <View style={styles.aviso}>
-          <View style={styles.linha}>
-            <ActivityIndicator size="small" color={colors.ink3} />
-            <Text style={styles.lab}>Procurando a edição…</Text>
-          </View>
-        </View>
-      );
-
-    case 'sem-sessao':
-      return (
-        <View style={styles.aviso}>
-          <Text style={styles.lab}>Entre na sua conta para ler a edição.</Text>
-        </View>
-      );
-
-    // Uma porta falhou. O botão relê — nunca escreve. Depois de uma impressão que
-    // não terminou, o rótulo diz o que a releitura faz: o `gravar` pode ter feito
-    // commit, e só o banco sabe.
-    case 'erro':
-      return (
-        <View style={styles.aviso}>
-          <Text style={styles.lab}>{vista.mensagem}</Text>
-          <Pressable
-            onPress={reler}
-            accessibilityRole="button"
-            accessibilityLabel={vista.aposImpressao ? 'Ver o que ficou gravado' : 'Tentar de novo'}
-            style={({ pressed }) => [styles.botao, styles.botaoContorno, pressed && styles.pressed]}
-          >
-            <Text style={styles.botaoContornoTxt}>
-              {vista.aposImpressao ? 'Ver o que ficou gravado' : 'Tentar de novo'}
-            </Text>
-          </Pressable>
-        </View>
-      );
-
-    case 'edicao': {
-      const { capa, cadernos, avisoDoSilencio } = vista;
-      /**
-       * **Quem decide "foto ou papel" é a vista** (`capa.comFoto`), que é onde a
-       * matriz a testa. A tela só acrescenta o que a vista não pode saber: se o
-       * arquivo da biblioteca resolveu.
-       *
-       * `procurando` já desenha a capa com foto, sem a imagem — o quadro já tem a
-       * altura mínima da capa, e piscar papel antes da foto seria um salto na
-       * abertura. `sem-imagem` cai no papel **com a legenda carimbada**, que é o
-       * que continua dizendo onde o período aconteceu.
-       */
-      const desenhaFoto = capa.comFoto
-        && (foto.estado === 'pronta' || foto.estado === 'procurando');
-      /** A capa abre só quando é de foto — na foto e no papel em que ela caiu. */
-      const onAbrir = capa.comFoto ? abrirCapa : undefined;
-      return (
+  const { capa, cadernos, avisoDoSilencio } = vista;
+  /**
+   * **Quem decide "foto ou papel" é a vista** (`capa.comFoto`), que é onde a
+   * matriz a testa. A tela só acrescenta o que a vista não pode saber: se o
+   * arquivo da biblioteca resolveu.
+   *
+   * `procurando` já desenha a capa com foto, sem a imagem — o quadro já tem a
+   * altura mínima da capa, e piscar papel antes da foto seria um salto na
+   * abertura. `sem-imagem` cai no papel **com a legenda carimbada**, que é o
+   * que continua dizendo onde o período aconteceu.
+   */
+  const desenhaFoto = capa.comFoto
+    && (foto.estado === 'pronta' || foto.estado === 'procurando');
+  /** A capa abre só quando é de foto — na foto e no papel em que ela caiu. */
+  const onAbrir = capa.comFoto ? abrirCapa : undefined;
+  return (
         <>
           <ScrollView
             ref={rolagem.scrollRef}
             contentContainerStyle={{ paddingBottom: bottom + spacing['3xl'] }}
             showsVerticalScrollIndicator={false}
           >
+            {/* **As tiras do anuário entram aqui, como PRIMEIRO FILHO do
+                rolável** (Story 3.2) — e como irmão, nunca como embrulho. Um
+                irmão acima é seguro para as âncoras do sumário; uma `View` em
+                volta deste bloco e do resto quebraria todas elas em silêncio
+                (ver a nota do `map` dos cadernos, logo abaixo).
+
+                `null` nos outros tipos: o ano é o único período que abre por
+                uma forma em vez de por uma manchete. */}
+            {antesDaCapa}
+
             {desenhaFoto ? (
               <CapaComFoto
                 periodo={capa.periodo}
@@ -514,10 +631,69 @@ function Revista({ tipo, offset, now, bottom }: { tipo: TipoComRevista; offset: 
               carregarFotos={carregarFotos}
               trocar={trocar}
             />
-          ) : null}
-        </>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * O que a rota mostra quando **não há edição a desenhar** — carregando, sem
+ * sessão, erro, ou o "nada" do período que não tem edição possível.
+ *
+ * Ela saiu de dentro do `switch` da {@link Edicao} na Story 3.2, e o motivo é o
+ * anuário: com os quatro estados como `case`s que **retornam**, o que vem antes
+ * da capa só existia no ramo da edição, e o ano perdia as doze formas justamente
+ * quando o texto falhava. Extraída, ela é o segundo filho de um fragmento cujo
+ * primeiro é sempre o `antesDaCapa`.
+ *
+ * O tipo exclui `edicao`: pôr a edição aqui não compila, e a exaustividade do
+ * `switch` continua sendo cobrada por {@link vistaNaoTratada}.
+ */
+function AvisoDaVista({ vista, onReler }: {
+  vista: Exclude<VistaDaEdicao, { tipo: 'edicao' }>;
+  onReler: () => void;
+}) {
+  const styles = useThemedStyles(createStyles);
+  switch (vista.tipo) {
+    case 'nada':
+      return null;
+
+    case 'lendo':
+      return (
+        <View style={styles.aviso}>
+          <View style={styles.linha}>
+            <ActivityIndicator size="small" color={colors.ink3} />
+            <Text style={styles.lab}>Procurando a edição…</Text>
+          </View>
+        </View>
       );
-    }
+
+    case 'sem-sessao':
+      return (
+        <View style={styles.aviso}>
+          <Text style={styles.lab}>Entre na sua conta para ler a edição.</Text>
+        </View>
+      );
+
+    // Uma porta falhou. O botão relê — nunca escreve. Depois de uma impressão que
+    // não terminou, o rótulo diz o que a releitura faz: o `gravar` pode ter feito
+    // commit, e só o banco sabe.
+    case 'erro':
+      return (
+        <View style={styles.aviso}>
+          <Text style={styles.lab}>{vista.mensagem}</Text>
+          <Pressable
+            onPress={onReler}
+            accessibilityRole="button"
+            accessibilityLabel={vista.aposImpressao ? 'Ver o que ficou gravado' : 'Tentar de novo'}
+            style={({ pressed }) => [styles.botao, styles.botaoContorno, pressed && styles.pressed]}
+          >
+            <Text style={styles.botaoContornoTxt}>
+              {vista.aposImpressao ? 'Ver o que ficou gravado' : 'Tentar de novo'}
+            </Text>
+          </Pressable>
+        </View>
+      );
 
     default:
       return vistaNaoTratada(vista);

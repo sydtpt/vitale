@@ -105,6 +105,79 @@ describe('o registro de âncoras', () => {
 });
 
 /**
+ * **A inserção tardia acima das âncoras — a decisão da Story 3.2.**
+ *
+ * O anuário do ano entra como primeiro filho do rolável, e ele **não está lá no
+ * primeiro quadro**: os doze meses vêm de uma leitura própria, então os
+ * `Caderno` medem `layout.y` sem o bloco e só depois ele entra e empurra tudo
+ * para baixo. Inserir um irmão acima é seguro no caso **estático** (é o que a
+ * spec da story diz); este é o caso dinâmico, e ele muda a **origem** de cada
+ * âncora depois de ela já ter sido medida.
+ *
+ * Havia dois desenhos possíveis, e a escolha está aqui:
+ *
+ * - **reservar a altura desde o primeiro quadro** — recusado. A altura do bloco
+ *   não é conhecível antes da leitura (quatro tiras e uma linha de texto medem
+ *   coisas muito diferentes), e o estado em que ele **não** aparece — leitura
+ *   falha, sem sessão — deixaria uma caixa vazia permanente, contra a regra da
+ *   1.13 de não reservar espaço para o que não veio;
+ * - **remedir** — escolhido. É o que o app já faz em todo o resto desta mesma
+ *   página: a capa cresce quando o traçado chega, a errata aparece, as lápides
+ *   pousam — e as âncoras dos cadernos já dependem da reemissão de `onLayout`
+ *   para continuarem certas. O anuário não é uma classe nova de problema.
+ *
+ * O que se prende abaixo é o contrato do qual essa escolha depende: **a última
+ * medida manda**, em todas as âncoras, e o ato é construído sobre ela. Se o
+ * registro passasse a guardar a primeira medida (um `if (!topos.has(id))`, que é
+ * a "otimização" mais natural do mundo aqui), toda linha do sumário do ano
+ * cairia curta pela altura do bloco — e o sintoma é mudo.
+ */
+describe('a inserção tardia acima das âncoras (Story 3.2)', () => {
+  /** A altura do bloco do anuário, arbitrária aqui: o que importa é que desloca. */
+  const BLOCO = 212;
+  const CADERNOS: Caderno[] = ['sono', 'movimento', 'coracao', 'rotina'];
+  const SEM_BLOCO = [380, 900, 1480, 2010];
+
+  it('as quatro âncoras remedidas passam a apontar para a posição nova', () => {
+    const r = criarAncoras<Caderno>();
+    CADERNOS.forEach((c, i) => r.para(c).onLayout(layout(SEM_BLOCO[i]!)));
+    expect(CADERNOS.map((c) => r.destinoDe(c))).toEqual(SEM_BLOCO);
+
+    // O anuário entra acima: todo mundo desce, e o RN reemite o `onLayout` de
+    // cada filho cuja origem mudou.
+    CADERNOS.forEach((c, i) => r.para(c).onLayout(layout(SEM_BLOCO[i]! + BLOCO)));
+    expect(CADERNOS.map((c) => r.destinoDe(c))).toEqual(SEM_BLOCO.map((y) => y + BLOCO));
+  });
+
+  it('o ato sai da medida mais nova, e não da primeira', () => {
+    const r = criarAncoras<Caderno>();
+    const a = r.para('coracao');
+    a.ref(no('faixa-coracao'));
+    a.onLayout(layout(1480));
+    a.onLayout(layout(1480 + BLOCO));
+    const ato = atoDaRolagem(r.destinoDe('coracao'), PARADO, r.noDe('coracao'));
+    expect(ato?.y).toBe(1692);
+  });
+
+  /**
+   * O contrapositivo, escrito para o modo de falha ficar legível: **é exatamente
+   * a altura do bloco** que o leitor perderia se a medida congelasse na
+   * primeira. Não é um erro de alguns pixels — é o sumário do ano inteiro
+   * parando antes de cada caderno, sem nada lançar e com a suíte verde.
+   */
+  it('a medida congelada erraria por exatamente a altura do bloco', () => {
+    const r = criarAncoras<Caderno>();
+    r.para('rotina').onLayout(layout(2010));
+    const congelado = r.destinoDe('rotina')!;
+    r.para('rotina').onLayout(layout(2010 + BLOCO));
+    expect(r.destinoDe('rotina')! - congelado).toBe(BLOCO);
+  });
+});
+
+/** Nenhum ajuste ligado — o caso base dos atos acima. */
+const PARADO: AjustesDoSistema = { reduzirMovimento: false, leitorDeTela: false };
+
+/**
  * O **ato inteiro** — as duas linhas da matriz que vivem na composição, e não em
  * nenhuma das partes: "toque na linha" e "Reduzir Movimento ligado".
  *

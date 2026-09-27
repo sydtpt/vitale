@@ -43,13 +43,23 @@ CHAVE_RETRO = re.compile(r"^epic-(\d+)-retrospective$")
 CHAVE_STORY = re.compile(r"^(\d+)-(\d+)-(.+)$")
 
 # Sem o campo Status do Projects, o estado vive em rótulo. Um rótulo por vez.
+#
+# `cancelled` entrou em 26/09/2026, com a morte da 3.3: uma story pode ser
+# **recusada por medição** em vez de feita, e até aqui não havia como dizer isso.
+# Sem ele o estado desconhecido caía no `get(..., "status:backlog")` abaixo, e o
+# quadro passava a afirmar que a story esperava começar — o oposto do que houve.
+# Ele fecha a issue como `done`, porque a pergunta "isto ainda me deve trabalho?"
+# tem a mesma resposta nos dois casos; o rótulo é que guarda a diferença.
 ROTULO_ESTADO = {
     "backlog": "status:backlog",
     "ready-for-dev": "status:pronta-p-dev",
     "in-progress": "status:em-andamento",
     "review": "status:aguardando-veredito",
     "done": "status:feita",
+    "cancelled": "status:recusada",
 }
+# Os dois estados que não devem mais trabalho — e por isso fecham a issue.
+ESTADOS_FECHADOS = frozenset({"done", "cancelled"})
 TODOS_ESTADOS = set(ROTULO_ESTADO.values())
 
 
@@ -120,7 +130,7 @@ class Sprint(GitHub):
     def ajustar(self, numero: int, estado_yaml: str) -> str:
         """Reconcilia rótulo de estado e aberto/fechado com o que a yaml diz."""
         alvo = ROTULO_ESTADO.get(estado_yaml, "status:backlog")
-        fechada_alvo = estado_yaml == "done"
+        fechada_alvo = estado_yaml in ESTADOS_FECHADOS
         if not self.aplicar:
             return f"→ {alvo}{' + fechar' if fechada_alvo else ''} (ensaio)"
 

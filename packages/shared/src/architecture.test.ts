@@ -4846,16 +4846,30 @@ check('BARREIRA — o postal da semana é acromático: nenhuma cor de módulo, d
   );
 
   /**
-   * E a **forma do ramo**, não a presença dos nomes.
+   * E a **forma dos ramos**, não a presença dos nomes.
    *
    * A primeira versão só conferia que `TIPO_DO_POSTAL` e `<Postal` apareciam no
    * arquivo: trocar os dois braços do ternário deixava tudo verde, com a semana
    * voltando a desenhar a edição e o mês virando postal. Por isso aqui se lê a
-   * **árvore**: o ternário cuja condição é `<algo>.tipo === TIPO_DO_POSTAL` tem
-   * de ter o postal no braço verdadeiro e a revista no falso.
+   * **árvore**.
    *
-   * O tipo de `Revista` (`TipoComRevista`, sem a semana) é a outra metade, e
-   * essa é do compilador: invertidos os braços, ele reprova antes desta guarda.
+   * Desde a Story 3.2 a rota se parte em **três**, e o encadeamento é um ternário
+   * dentro do braço falso do outro:
+   *
+   * ```
+   * periodo.tipo === TIPO_DO_POSTAL   ? <TelaDoPostal>
+   *   : periodo.tipo === TIPO_DO_ANUARIO ? <RevistaDoAno>
+   *   : <Revista>
+   * ```
+   *
+   * Os dois ternários são cobrados juntos, na ordem em que a varredura os
+   * encontra (o de fora primeiro), e o braço falso do primeiro tem de ser
+   * **exatamente** o segundo ternário — `'?:'`. Sem isso, pôr o ano de volta no
+   * braço do mês deixaria o ano abrindo como um mês grande, calado.
+   *
+   * O tipo de cada componente é a outra metade, e essa é do compilador:
+   * `Revista` recebe `TipoSemAnuario` e `RevistaDoAno` recebe o literal do ano —
+   * invertidos os braços, ele reprova antes desta guarda.
    */
   const rota = join(ROOT, 'mobile', 'src', 'app', 'revista', '[tipo]', '[inicio].tsx');
   assert.ok(existsSync(rota), 'a rota da revista sumiu — a guarda ficou sem alvo.');
@@ -4865,32 +4879,91 @@ check('BARREIRA — o postal da semana é acromático: nenhuma cor de módulo, d
     'a rota não importa o componente Postal — desenhado inline, o postal sai de baixo da varredura acima.',
   );
   const arvore = ts.createSourceFile(rota, bruto, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  /** O nome da tag de um braço do ternário — `null` se ele não é um elemento JSX. */
+  /**
+   * O nome da tag de um braço do ternário — `'?:'` quando o braço é **outro**
+   * ternário (o encadeamento dos três tipos), e `null` quando não é nem um nem
+   * outro.
+   */
   const tagDe = (no: ts.Node): string | null => {
     const jsx = ts.isParenthesizedExpression(no) ? no.expression : no;
+    if (ts.isConditionalExpression(jsx)) return '?:';
     if (ts.isJsxSelfClosingElement(jsx)) return jsx.tagName.getText();
     if (ts.isJsxElement(jsx)) return jsx.openingElement.tagName.getText();
     return null;
   };
-  const ramos: { verdadeiro: string | null; falso: string | null }[] = [];
+  const ramos: { tipo: string; verdadeiro: string | null; falso: string | null }[] = [];
   const varrer = (no: ts.Node): void => {
     if (
       ts.isConditionalExpression(no)
       && ts.isBinaryExpression(no.condition)
       && no.condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
       && /\.tipo$/.test(no.condition.left.getText())
-      && no.condition.right.getText() === 'TIPO_DO_POSTAL'
+      && ['TIPO_DO_POSTAL', 'TIPO_DO_ANUARIO'].includes(no.condition.right.getText())
     ) {
-      ramos.push({ verdadeiro: tagDe(no.whenTrue), falso: tagDe(no.whenFalse) });
+      ramos.push({
+        tipo: no.condition.right.getText(),
+        verdadeiro: tagDe(no.whenTrue),
+        falso: tagDe(no.whenFalse),
+      });
     }
     ts.forEachChild(no, varrer);
   };
   varrer(arvore);
   assert.deepEqual(
     ramos,
-    [{ verdadeiro: 'TelaDoPostal', falso: 'Revista' }],
-    'a rota não ramifica `<algo>.tipo === TIPO_DO_POSTAL ? <TelaDoPostal> : <Revista>` exatamente uma vez. '
-      + 'Trocar os braços faz a semana abrir a edição e o mês virar postal.',
+    [
+      { tipo: 'TIPO_DO_POSTAL', verdadeiro: 'TelaDoPostal', falso: '?:' },
+      { tipo: 'TIPO_DO_ANUARIO', verdadeiro: 'RevistaDoAno', falso: 'Revista' },
+    ],
+    'a rota não ramifica `TIPO_DO_POSTAL ? <TelaDoPostal> : TIPO_DO_ANUARIO ? <RevistaDoAno> : <Revista>`. '
+      + 'Trocar os braços faz a semana abrir a edição, o mês virar postal ou o ano voltar a abrir como um mês grande.',
+  );
+
+  /**
+   * **E as tiras do ano entram como PRIMEIRO filho do rolável** (Story 3.2).
+   *
+   * O ternário acima prova que o ano tem ramo próprio; ele não prova que o ramo
+   * desenha alguma coisa, nem **onde**. As duas guardas se completam, e esta
+   * cobre o que a outra não vê:
+   *
+   * - *primeiro filho*, porque a story diz "antes de qualquer texto": posto
+   *   depois da capa, o ano volta a abrir por uma manchete que ele não tem;
+   * - *filho direto*, e não embrulhado, porque o `onLayout` dos `Caderno` entrega
+   *   `layout.y` relativo ao pai imediato — uma `View` em volta do bloco e do
+   *   resto faria todas as linhas do sumário rolarem para o mesmo lugar, calada
+   *   (ver `useRolagemAncorada.ts`).
+   *
+   * O que a prop **contém** é a outra metade, e ela mora no celular
+   * (`anuario-fiacao.test.ts`, `anuario-nao-e-tocavel.test.ts`): aqui se prende o
+   * lugar; lá, o conteúdo e a ausência de toque.
+   */
+  /**
+   * Os filhos que **desenham**: fora o espaço em branco e os comentários de JSX
+   * (`{/* … *\/}`), que a árvore entrega como `JsxExpression` sem expressão — é
+   * por eles que o primeiro filho de verdade costuma estar em segundo lugar.
+   */
+  const jsxFilhos = (no: ts.JsxElement): ts.JsxChild[] => no.children.filter(
+    (c) => !(ts.isJsxText(c) && c.containsOnlyTriviaWhiteSpaces)
+      && !(ts.isJsxExpression(c) && c.expression === undefined),
+  );
+  const roláveis: string[] = [];
+  const varrerRolavel = (no: ts.Node): void => {
+    if (ts.isJsxElement(no) && no.openingElement.tagName.getText() === 'ScrollView') {
+      const primeiro = jsxFilhos(no)[0];
+      roláveis.push(
+        primeiro && ts.isJsxExpression(primeiro) ? (primeiro.expression?.getText() ?? '') : (primeiro?.getText() ?? ''),
+      );
+    }
+    ts.forEachChild(no, varrerRolavel);
+  };
+  varrerRolavel(arvore);
+  assert.deepEqual(
+    roláveis,
+    // O primeiro `ScrollView` da rota é o do postal (Story 3.1), cujo único filho
+    // é o próprio postal; o segundo é o da edição, e é nele que as tiras entram.
+    ['<Postal periodo={rotulo} fatos={dadosProntos ? postal.fatos : null} guardados={guardados} />', 'antesDaCapa'],
+    'o primeiro filho do ScrollView da edição deixou de ser `{antesDaCapa}`. As tiras do ano entram ANTES de '
+      + 'qualquer texto, e como irmão direto — embrulhá-las quebra as âncoras do sumário em silêncio.',
   );
 });
 
