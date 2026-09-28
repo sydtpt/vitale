@@ -71,6 +71,21 @@
  * de achar. Está aqui porque foi decidida, não porque passou despercebida, e
  * `lua-protocolo.test.ts` tem uma asserção que a observa — removê-la reprova a suíte.
  *
+ * ### A residualização ATENUA o efeito, e isso também é conservador
+ *
+ * O MQO da luz é ajustado **no conjunto inteiro**, sem indicador de exposição: a
+ * inclinação é estimada sobre as noites de dentro e as de fora juntas. Se fase e luz
+ * se correlacionarem no acervo — e elas se correlacionam sempre que as janelas de uma
+ * fase caírem desequilibradas entre as estações —, parte do efeito lunar é absorvida
+ * pela inclinação da luz, e o efeito medido **encolhe para o nulo**.
+ *
+ * A alternativa seria ajustar a luz só nas noites de fora, ou pôr o indicador de
+ * exposição no MQO. Nenhuma das duas está nos documentos, as duas mudam o estimador
+ * que a §3 nomeia, e ambas empurram na direção **oposta** à conservadora. Então fica
+ * como está — mas fica **dito**, como a correção de continuidade: é viés para o nulo,
+ * é o mesmo sentido do viés já declarado na §7 de 28/09 (comparar contra todas as
+ * outras noites), e some ao custo de não achar, nunca ao de achar demais.
+ *
  * ## O poder usa o SD marginal BRUTO
  *
  * A §5 indexa a tabela por *"SD da hora de apagar"* e diz que **esse** é o único
@@ -90,14 +105,18 @@
  * | **inconclusivo** | `poder < 80%` **ou** qualquer portão reprovado |
  *
  * O poder é **portão, não desempate**. Um resultado significante que não passa por
- * ele não vira `achado` nem `nenhum_padrao`: vira `inconclusivo`. Com as 290 noites
- * de hoje o poder para 15 minutos fica entre 39% e 69% nas três fases novas — o ramo
- * "significante sem poder" é o **provável**, não o exótico, e imprimir `achado` ali
- * seria exatamente a manchete que o par de pré-registros existe para impedir.
+ * ele não vira `achado` nem `nenhum_padrao`: vira `inconclusivo`. Na geometria das
+ * duas tabelas (49 × 241) o poder para 15 minutos é de **39%** nas três fases novas a
+ * SD 45, e vai de 79% a 9% nas cinco linhas de SD que o §6 tabela; a **cheia**, que é
+ * a que chega a 69%, está na outra tabela e na outra família — os dois números não se
+ * somam numa faixa só. O ramo "significante sem poder" é, nessa aritmética, o
+ * **provável**, não o exótico, e imprimir `achado` ali seria exatamente a manchete
+ * que o par de pré-registros existe para impedir.
  *
- * E todo `inconclusivo` diz **quantas noites faltam** — os dois documentos o pedem
- * sem conjunção, para os portões e para o poder. Ver {@link ResultadoDaFase.noitesFaltantes},
- * que muda de unidade conforme o motivo e diz qual ela é.
+ * E todo `inconclusivo` diz **quanto falta** — os dois documentos o pedem sem
+ * conjunção, para os portões e para o poder. O número sozinho mentiria, porque ele
+ * troca de unidade com o motivo: ver {@link ResultadoDaFase.falta}, que carrega a
+ * unidade ao lado do número, e {@link UNIDADE_DO_MOTIVO}, que as congela.
  *
  * ## Puro, e cobrado como tal
  *
@@ -254,6 +273,48 @@ export type PortaoLunar = 'luz' | 'amostra' | 'ciclos';
 /** Por que um `inconclusivo` é inconclusivo. `'poder'` é com os três portões abertos. */
 export type MotivoDoInconclusivo = PortaoLunar | 'poder';
 
+/**
+ * A unidade do que falta. **Quatro motivos, quatro unidades diferentes.**
+ *
+ * - `'noites-sem-luz'` — noites que **já estão no acervo** e vieram sem a covariável.
+ *   Não se coletam: conserta-se o dado de quem as produziu.
+ * - `'noites-de-coluna'` — vagas para as cinco de cada coluna, as duas somadas.
+ * - `'ciclos'` — ciclos sinódicos distintos, cada um exigindo ao menos uma noite nova
+ *   **nele**; colher cem noites do mesmo ciclo não move este número.
+ * - `'noites-coletaveis'` — noites novas no acervo, na razão de colunas observada.
+ *   É a única das quatro em que "faltam N noites" é frase verdadeira.
+ *
+ * O campo existe porque o número sozinho mente, e o precedente é a story 2.8 — o
+ * "1 dias": lá o defeito era a unidade não concordar com o número, aqui seria a
+ * unidade não existir. Quem imprimir "faltam N noites" para os outros três motivos
+ * está imprimindo outra coisa com o nome de noite.
+ */
+export type UnidadeDoQueFalta =
+  | 'noites-sem-luz'
+  | 'noites-de-coluna'
+  | 'ciclos'
+  | 'noites-coletaveis';
+
+/** Quanto falta para o `inconclusivo` deixar de ser inconclusivo — e **em quê**. */
+export interface OQueFalta {
+  quanto: number;
+  unidade: UnidadeDoQueFalta;
+}
+
+/**
+ * A unidade de cada motivo, congelada aqui e em lugar nenhum mais.
+ *
+ * Quem imprime o `inconclusivo` lê daqui em vez de decidir por conta; o teste cobra
+ * que as quatro entradas existam e que cada resultado saia com a unidade do motivo
+ * que ele declarou.
+ */
+export const UNIDADE_DO_MOTIVO: Readonly<Record<MotivoDoInconclusivo, UnidadeDoQueFalta>> = {
+  luz: 'noites-sem-luz',
+  amostra: 'noites-de-coluna',
+  ciclos: 'ciclos',
+  poder: 'noites-coletaveis',
+};
+
 /** O resultado de uma fase. Nulo é "não foi medido" — nunca zero. */
 export interface ResultadoDaFase {
   fase: LunarPhaseKind;
@@ -273,6 +334,20 @@ export interface ResultadoDaFase {
   efeitoMin: number | null;
   /** p de Mann–Whitney, na lateralidade da linha. `null` quando não foi medido. */
   p: number | null;
+  /**
+   * O `z` que produziu o {@link ResultadoDaFase.p} — U padronizado, já com a correção
+   * de continuidade e a de empates.
+   *
+   * Publicado para que o p seja **auditável contra a tabela normal** sem refazer o
+   * teste: `p = 1 − Φ(z)` na cheia e `p = 2·(1 − Φ(z))` nas três. Sem ele, um p
+   * impresso na página só pode ser conferido rodando o motor de novo — que é a mesma
+   * autoridade dizendo a mesma coisa.
+   *
+   * `null` quando não foi medido (portão fechado) **e também** quando não houve teste
+   * com que medir: coluna vazia ou tudo empatado, em que o p é 1 por decisão declarada
+   * e não por conta. Ver {@link ProvaDeMannWhitney.z}.
+   */
+  zDeMannWhitney: number | null;
   /** Poder para detectar {@link LIMIAR_PRATICO_MIN}, no SD marginal bruto. */
   poder: number | null;
   /** Efeito mínimo detectável a 80%, em minutos — o que a tabela dos documentos imprime. */
@@ -282,18 +357,17 @@ export interface ResultadoDaFase {
   /** Ciclos sinódicos distintos que contribuíram com ao menos uma noite nesta janela. */
   ciclos: number;
   /**
-   * Quanto falta, **na unidade do {@link ResultadoDaFase.motivo}**:
+   * Quanto falta, **com a unidade junto** — ver {@link UnidadeDoQueFalta}.
    *
-   * - `'luz'` — noites do acervo sem horas de luz medidas;
-   * - `'amostra'` — noites que faltam para cinco em cada coluna, somadas;
-   * - `'ciclos'` — ciclos que faltam (cada um exige ao menos uma noite nova nele);
-   * - `'poder'` — noites **a mais no acervo**, na razão de colunas observada, para
-   *   80% de poder em 15 minutos.
+   * A unidade sai de {@link UNIDADE_DO_MOTIVO}, indexada pelo
+   * {@link ResultadoDaFase.motivo}, e nunca de quem lê. No motivo `'poder'` o número
+   * é no mínimo **1**: zero ali seria "já temos o bastante", e o bastante é
+   * exatamente o que o portão acabou de negar.
    *
    * `null` quando o veredito não é `inconclusivo`, ou quando a dispersão é
    * degenerada e a conta não existe.
    */
-  noitesFaltantes: number | null;
+  falta: OQueFalta | null;
   /** Noites totais para 80% de poder em 15 min — o número que os documentos tabelam. */
   noitesPara80: number | null;
 }
@@ -308,11 +382,21 @@ export type QuatroResultados = readonly [
 
 /** Proveniência e diagnóstico do acervo — para que o portão da luz não pareça um bug. */
 export interface AcervoLunar {
-  /** Noites recebidas, inclusive repetidas. */
+  /** Noites recebidas. */
   noites: number;
-  /** `wakeDay` distintos. Diferente de {@link AcervoLunar.noites} é dado duplicado. */
+  /**
+   * `wakeDay` distintos — **sempre igual a {@link AcervoLunar.noites}**.
+   *
+   * Não é redundância: é a contagem que a guarda de duplicata usa, publicada para
+   * quem auditar. Ver {@link vereditoLunar}, que **recusa** o acervo em que as duas
+   * diferem. Se este campo um dia sair diferente de `noites`, a guarda caiu.
+   */
   noitesDistintas: number;
-  /** O primeiro e o último `wakeDay`, em ordem. `null` no acervo vazio. */
+  /**
+   * O primeiro e o último `wakeDay` do acervo, em ordem **cronológica** — e não o
+   * primeiro e o último da lista recebida, que não é ordenada por contrato.
+   * `null` no acervo vazio.
+   */
   de: string | null;
   ate: string | null;
   /**
@@ -472,7 +556,15 @@ function hodgesLehmann(dentro: readonly number[], fora: readonly number[]): numb
 
 interface ProvaDeMannWhitney {
   p: number;
-  z: number;
+  /**
+   * `null` quando **não houve teste**: coluna vazia ou tudo empatado.
+   *
+   * Zero seria pior que nulo aqui, porque zero é um `z` legítimo — o do empate
+   * perfeito entre duas colunas com dispersão —, e quem auditasse o p pela tabela
+   * normal leria `1 − Φ(0) = 0,5` e acharia o motor errado. O p desses dois casos é 1
+   * por decisão declarada (nenhuma informação), não por conta.
+   */
+  z: number | null;
 }
 
 /**
@@ -489,7 +581,7 @@ function mannWhitney(
   const n1 = dentro.length;
   const n2 = fora.length;
   const n = n1 + n2;
-  if (n1 < 1 || n2 < 1 || n < 2) return { p: 1, z: 0 };
+  if (n1 < 1 || n2 < 1 || n < 2) return { p: 1, z: null };
 
   const todos = [
     ...dentro.map((v) => ({ v, testada: true })),
@@ -513,8 +605,9 @@ function mannWhitney(
   const mu = (n1 * n2) / 2;
   const variancia = ((n1 * n2) / 12) * (n + 1 - empates / (n * (n - 1)));
   const sigma = Math.sqrt(Math.max(0, variancia));
-  // Tudo empatado: não há informação nenhuma, e o p é 1 — não 0.
-  if (!(sigma > 0)) return { p: 1, z: 0 };
+  // Tudo empatado: não há informação nenhuma, e o p é 1 — não 0. E o `z` é nulo, não
+  // zero: zero é um z de verdade, e publicá-lo aqui faria o p parecer contraditório.
+  if (!(sigma > 0)) return { p: 1, z: null };
 
   const dif = u - mu;
   if (lateralidade === 'bilateral') {
@@ -562,8 +655,23 @@ interface EixoDesdobrado {
  * estão dos dois lados da origem, e o eixo gira para o fim do maior vão: aí as duas
  * noites a vinte minutos uma da outra voltam a distar vinte minutos.
  *
- * O empate resolve a favor de não girar. A escolha é função das posições **reunidas**,
- * nunca das colunas, e o efeito é uma diferença — então girar não pode mudar veredito.
+ * O empate resolve a favor de não girar.
+ *
+ * ## O que a rotação move, e o que ela não move
+ *
+ * Girar **não move** o efeito nem o p: o efeito é uma diferença par a par, e o p é de
+ * posto — as duas são invariantes a somar a mesma constante a todo mundo, e o giro é
+ * isso enquanto ninguém dá a volta.
+ *
+ * Girar **move o SD marginal**, porque `acervo.sdMin` é calculado sobre
+ * {@link EixoDesdobrado.valores}: uma nuvem que atravessa a origem tem, sem o giro,
+ * observações em 1.430 e em 10, e o SD explode. E o SD move o poder, que é portão —
+ * então a rotação **pode**, sim, mover o veredito entre `inconclusivo` e
+ * `nenhum_padrao`. É por isso que o corte tem de ser **canônico**: ele é função só
+ * das posições reunidas, nunca das colunas nem de qual fase está rodando, e cai
+ * sempre no **maior vão**. Assim duas execuções sobre o mesmo acervo cortam no mesmo
+ * lugar, e deslocar o acervo inteiro no relógio não muda número nenhum — o que o
+ * teste cobra, sobre um acervo que atravessa a origem.
  */
 function desdobrarEixo(posicoes: readonly number[]): EixoDesdobrado {
   if (posicoes.length < 2) {
@@ -611,6 +719,24 @@ function zDoAlfa(alfa: number, lateralidade: Lateralidade): number {
   return normalQuantile(1 - (lateralidade === 'bilateral' ? alfa / 2 : alfa));
 }
 
+/**
+ * Os parâmetros que não são dispersão nem tamanho de coluna, conferidos antes da conta.
+ *
+ * `alfa` fora de `(0, 1)` faz `normalQuantile` devolver `±Infinity`, e daí sai um
+ * poder de 0 ou de 1 **sem que nada avise** — um α de 0 daria "poder zero, faltam
+ * infinitas noites" e um α de 1, "poder total". `efeitoMin` zero daria MDE infinito e
+ * poder igual a α; `NaN` atravessaria tudo e sairia como `NaN`, que não é `null` e
+ * passaria pelo `poder < PODER_MINIMO` como `false`. Nos dois casos a resposta certa é
+ * `null` — "não foi medido" —, que é o que o portão de poder trata como reprovado.
+ */
+function parametrosUtilizaveis(par: ParametrosDePoder): boolean {
+  if (!(par.alfa > 0 && par.alfa < 1)) return false;
+  if (par.efeitoMin !== undefined && !(Number.isFinite(par.efeitoMin) && par.efeitoMin !== 0)) {
+    return false;
+  }
+  return true;
+}
+
 function erroPadrao(sdMin: number, n1: number, n2: number): number | null {
   if (!(sdMin > 0) || !Number.isFinite(sdMin)) return null;
   if (!(n1 >= 1) || !(n2 >= 1)) return null;
@@ -624,6 +750,7 @@ function erroPadrao(sdMin: number, n1: number, n2: number): number | null {
  * um zero aqui viraria "detecta qualquer coisa", que é o oposto da verdade.
  */
 export function efeitoMinimoDetectavel(par: ParametrosDePoder): number | null {
+  if (!parametrosUtilizaveis(par)) return null;
   const se = erroPadrao(par.sdMin, par.noitesDentro, par.noitesFora);
   if (se === null) return null;
   return (zDoAlfa(par.alfa, par.lateralidade) + normalQuantile(PODER_MINIMO)) * se;
@@ -638,6 +765,7 @@ export function efeitoMinimoDetectavel(par: ParametrosDePoder): number | null {
  * porque poder não medido não é poder suficiente.
  */
 export function poderLunar(par: ParametrosDePoder): number | null {
+  if (!parametrosUtilizaveis(par)) return null;
   const se = erroPadrao(par.sdMin, par.noitesDentro, par.noitesFora);
   if (se === null) return null;
   const efeito = Math.abs(par.efeitoMin ?? LIMIAR_PRATICO_MIN);
@@ -659,6 +787,7 @@ export function poderLunar(par: ParametrosDePoder): number | null {
  * `lua-protocolo.test.ts` imprime as seis linhas lado a lado.
  */
 export function noitesParaPoder(par: ParametrosDePoder): number | null {
+  if (!parametrosUtilizaveis(par)) return null;
   const total = par.noitesDentro + par.noitesFora;
   const r = par.noitesDentro / total;
   if (!(r > 0 && r < 1)) return null;
@@ -710,7 +839,28 @@ function resolverFase(t: Date): JanelaLunar | null {
   return achada;
 }
 
-function posicaoNoEixo(n: NoiteLunarMedida): number {
+/**
+ * O maior fuso que existe: UTC+14 (Kiritimati), em minutos. UTC−12 é o outro extremo.
+ *
+ * Fora daqui não é fuso, é unidade trocada — segundos no lugar de minutos, ou o sinal
+ * invertido duas vezes. Um `tzOffset` de 3.600 desloca a hora local em 60 horas e
+ * manda a noite para o outro lado do eixo em silêncio.
+ */
+const TZ_OFFSET_MAX_MIN = 840;
+
+/**
+ * Quanto o `onsetAt` pode distar do fim da noite que ele diz ser, antes de virar erro.
+ *
+ * O `apagou` de uma noite que termina às 08:00 UTC de `wakeDay` cai, no pior caso
+ * plausível, entre ~34 h antes dele (meio-dia local da véspera em UTC+14) e ~18 h
+ * depois (meio-dia local do próprio dia em UTC−12). **Dois dias** cobre essa faixa
+ * inteira com folga e ainda pega o defeito que importa: um `wakeDay` de março com um
+ * `onsetAt` de julho, que hoje entrava calado — a noite ia para a coluna de uma fase
+ * e a hora de apagar para o eixo de outra estação, e nada no resultado dizia isso.
+ */
+const DESVIO_MAXIMO_DO_ONSET_MS = 2 * 86_400_000;
+
+function posicaoNoEixo(n: NoiteLunarMedida, fimDaNoite: Date): number {
   const ms = new Date(n.onsetAt).getTime();
   if (!Number.isFinite(ms)) {
     throw new RangeError(`onsetAt não é um instante: '${String(n.onsetAt)}' (noite de ${String(n.wakeDay)})`);
@@ -718,14 +868,30 @@ function posicaoNoEixo(n: NoiteLunarMedida): number {
   if (typeof n.tzOffset !== 'number' || !Number.isFinite(n.tzOffset)) {
     throw new RangeError(`tzOffset não é um número: '${String(n.tzOffset)}' (noite de ${String(n.wakeDay)})`);
   }
+  if (Math.abs(n.tzOffset) > TZ_OFFSET_MAX_MIN) {
+    throw new RangeError(
+      `tzOffset fora de ±${TZ_OFFSET_MAX_MIN} min: '${String(n.tzOffset)}' (noite de ${String(n.wakeDay)})`,
+    );
+  }
+  if (Math.abs(ms - fimDaNoite.getTime()) > DESVIO_MAXIMO_DO_ONSET_MS) {
+    throw new RangeError(
+      `onsetAt '${String(n.onsetAt)}' não é da noite de '${String(n.wakeDay)}': ` +
+        `${Math.round(Math.abs(ms - fimDaNoite.getTime()) / 86_400_000)} dias de distância`,
+    );
+  }
   return axisPosition(n.onsetAt, n.tzOffset, SLEEP_AXIS_ORIGIN_H) * 60;
+}
+
+/** O número com a unidade do motivo colada nele — nunca um sem o outro. */
+function oQueFalta(motivo: MotivoDoInconclusivo, quanto: number | null): OQueFalta | null {
+  return quanto === null ? null : { quanto, unidade: UNIDADE_DO_MOTIVO[motivo] };
 }
 
 function inconclusivo(
   linha: LinhaDoProtocolo,
   motivo: MotivoDoInconclusivo,
   contagem: { noitesDentro: number; noitesFora: number; ciclos: number },
-  noitesFaltantes: number | null,
+  quantoFalta: number | null,
 ): ResultadoDaFase {
   return {
     fase: linha.fase,
@@ -738,12 +904,28 @@ function inconclusivo(
     portaoReprovado: motivo === 'poder' ? null : motivo,
     efeitoMin: null,
     p: null,
+    zDeMannWhitney: null,
     poder: null,
     efeitoMinimoDetectavelMin: null,
     ...contagem,
-    noitesFaltantes,
+    falta: oQueFalta(motivo, quantoFalta),
     noitesPara80: null,
   };
+}
+
+/**
+ * O efeito está na direção que a linha pré-registrou?
+ *
+ * `direcao: null` é "as duas contam" — o bilateral das três. `'atraso'` é a cheia, e
+ * lá só o **positivo** conta: a §3 de 07/09 pré-registrou o atraso, com mecanismo e
+ * direção tirados da literatura, e um adiantamento de quarenta minutos não é o achado
+ * dela. O Mann–Whitney unilateral já empurra o p para perto de 1 no sentido oposto,
+ * mas isso é **consequência da lateralidade** — ler a direção é o que impede que uma
+ * linha unilateral com a direção errada passasse despercebida, e é o que faz o campo
+ * ser invariante cobrada em vez de comentário.
+ */
+function naDirecaoDeclarada(direcao: LinhaDoProtocolo['direcao'], efeitoMin: number): boolean {
+  return direcao === null || efeitoMin > 0;
 }
 
 function rodarLinha(
@@ -801,7 +983,7 @@ function rodarLinha(
   };
   const poder = poderLunar(par);
   const efeitoMin = hodgesLehmann(dentro, fora);
-  const { p } = mannWhitney(dentro, fora, linha.lateralidade);
+  const { p, z } = mannWhitney(dentro, fora, linha.lateralidade);
   const comum = {
     fase: linha.fase,
     familia: linha.familia,
@@ -811,6 +993,7 @@ function rodarLinha(
     portaoReprovado: null,
     efeitoMin,
     p,
+    zDeMannWhitney: z,
     poder,
     efeitoMinimoDetectavelMin: efeitoMinimoDetectavel(par),
     ...contagem,
@@ -827,46 +1010,76 @@ function rodarLinha(
   if (poder === null || poder < PODER_MINIMO) {
     const total = contagem.noitesDentro + contagem.noitesFora;
     const alvo = noitesParaPoder(par);
+    // Nunca zero: o portão acabou de dizer que o acervo não basta, e "faltam 0
+    // noites" contradiria a frase seguinte da mesma página. Com a conta contínua
+    // isto só empataria por arredondamento, e é aí que o piso de 1 vale.
     return {
       ...comum,
       veredito: 'inconclusivo',
       motivo: 'poder',
-      noitesFaltantes: alvo === null ? null : Math.max(0, alvo - total),
+      falta: oQueFalta('poder', alvo === null ? null : Math.max(1, alvo - total)),
     };
   }
 
   const significante = p < linha.alfa;
   const passaLimiar = Math.abs(efeitoMin) >= LIMIAR_PRATICO_MIN;
+  const naDirecao = naDirecaoDeclarada(linha.direcao, efeitoMin);
   return {
     ...comum,
-    veredito: significante && passaLimiar ? 'achado' : 'nenhum_padrao',
+    veredito: significante && passaLimiar && naDirecao ? 'achado' : 'nenhum_padrao',
     motivo: null,
-    noitesFaltantes: null,
+    falta: null,
   };
 }
 
 /**
  * O veredito das quatro fases, numa chamada — a **porta única** da §9.
  *
- * Lança `RangeError` em `wakeDay` torto (via `instanteDaNoite`), em `onsetAt` que não
- * é instante e em `tzOffset` que não é número. Não lança em acervo vazio, em luz
- * ausente nem em coluna curta: essas são respostas, e a resposta é `inconclusivo` com
- * o motivo dito.
+ * Lança `RangeError` no que **não é dado**, e só nisso: `wakeDay` torto (via
+ * `instanteDaNoite`), `wakeDay` repetido no acervo, `onsetAt` que não é instante,
+ * `onsetAt` a mais de dois dias da noite que ele diz ser, `tzOffset` que não é número
+ * e `tzOffset` fora de ±840 min. Não lança em acervo vazio, em luz ausente nem em
+ * coluna curta: essas são respostas, e a resposta é `inconclusivo` com o motivo dito.
+ *
+ * A divisa entre as duas listas é o que a §4 chama de portão. Um portão é uma
+ * condição do **acervo**, que mais noites resolvem; um `RangeError` é entrada que não
+ * descreve noite nenhuma, e que nenhuma coleta conserta.
  *
  * O que o resultado **não** traz, de propósito: nada por noite, nenhuma mediana por
  * coluna e nenhum secundário. Duração, latência e despertares são exploratórios para
  * a cheia (§6 de 07/09) e não existem para as três (§8 de 28/09).
  */
 export function vereditoLunar(noites: readonly NoiteLunarMedida[]): VereditoLunarCompleto {
-  const resolvidas: NoiteResolvida[] = noites.map((n) => ({
-    wakeDay: n.wakeDay,
-    janela: resolverFase(instanteDaNoite(n.wakeDay)),
-    posicao: posicaoNoEixo(n),
-    luzH: luzUtilizavel(n.luzH),
-  }));
+  const resolvidas: NoiteResolvida[] = noites.map((n) => {
+    const fimDaNoite = instanteDaNoite(n.wakeDay);
+    return {
+      wakeDay: n.wakeDay,
+      janela: resolverFase(fimDaNoite),
+      posicao: posicaoNoEixo(n, fimDaNoite),
+      luzH: luzUtilizavel(n.luzH),
+    };
+  });
 
   const semLuz = resolvidas.filter((r) => r.luzH === null);
+  // Ordenado: `de`/`ate` são o intervalo do acervo, não as pontas da lista recebida —
+  // ninguém prometeu que ela chega em ordem, e uma lista embaralhada daria um
+  // "intervalo" que não contém metade das noites.
   const dias = resolvidas.map((r) => r.wakeDay).sort();
+  const noitesDistintas = new Set(dias).size;
+  if (noitesDistintas !== resolvidas.length) {
+    // **Recusar, e não deduplicar.** Duas linhas com o mesmo `wakeDay` são duas
+    // medições da mesma noite: escolher uma em silêncio é escolher um desfecho, e a
+    // duplicata que passasse entraria nas duas colunas contando como informação nova
+    // — ela **infla o poder**, que é o erro que os dois pré-registros tratam como o
+    // grave (a §5 de 07/09 chama transformar silêncio em informação de "mentir com o
+    // mesmo tom de voz"). Quem chama sabe qual das duas medições vale; aqui não dá
+    // para saber, e não dá para adivinhar sem mexer no resultado do teste.
+    const repetido = dias.find((d, i) => i > 0 && d === dias[i - 1]) ?? '';
+    throw new RangeError(
+      `o acervo tem o wakeDay '${repetido}' mais de uma vez: ${resolvidas.length} noites, ` +
+        `${noitesDistintas} distintas — duplicata infla poder e não se deduplica aqui`,
+    );
+  }
   const eixo = desdobrarEixo(resolvidas.map((r) => r.posicao));
   const sdMarginal = resolvidas.length >= 2 ? stdDev(eixo.valores) : null;
   const residuos =
@@ -876,7 +1089,7 @@ export function vereditoLunar(noites: readonly NoiteLunarMedida[]): VereditoLuna
 
   const acervo: AcervoLunar = {
     noites: resolvidas.length,
-    noitesDistintas: new Set(dias).size,
+    noitesDistintas,
     de: dias[0] ?? null,
     ate: dias[dias.length - 1] ?? null,
     sdMin: sdMarginal,

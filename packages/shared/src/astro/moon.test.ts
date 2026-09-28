@@ -25,6 +25,7 @@ import assert from 'node:assert/strict';
 import * as moon from './moon';
 import {
   MOON_SHADE_ALPHA,
+  PHASE_ORDER,
   lunarPhaseInstant,
   lunarPhasesBetween,
   moonPhase,
@@ -160,7 +161,6 @@ const TOLERANCIA_FASE_MS = 2 * MIN_MS;
  */
 const TOLERANCIA_VIES_S = 30;
 const TOLERANCIA_RMS_S = 30;
-const ORDEM: readonly LunarPhaseKind[] = ['new', 'firstQuarter', 'full', 'lastQuarter'];
 
 let piorFaseMs = 0;
 let piorFase = '';
@@ -212,7 +212,9 @@ check('fases — nova → crescente → cheia → minguante, sem buraco nem repe
   const fases = lunarPhasesBetween(new Date('2023-01-01T00:00:00Z'), new Date('2028-01-01T00:00:00Z'));
   for (let i = 1; i < fases.length; i += 1) {
     const [a, b] = [fases[i - 1], fases[i]];
-    const esperada = ORDEM[(ORDEM.indexOf(a.kind) + 1) % 4];
+    // A ordem vem de `PHASE_ORDER`, e não de uma cópia local: renomear uma fase tem
+    // de quebrar num lugar só, e este teste era uma das cópias.
+    const esperada = PHASE_ORDER[(PHASE_ORDER.indexOf(a.kind) + 1) % PHASE_ORDER.length];
     assert.equal(b.kind, esperada, `${b.instant.toISOString()}: depois de ${a.kind} veio ${b.kind}`);
     // A lunação só vira na nova, e vira de um em um.
     assert.equal(b.lunacao, b.kind === 'new' ? a.lunacao + 1 : a.lunacao, b.instant.toISOString());
@@ -265,7 +267,7 @@ check('fases — nextLunarPhase e lunarPhasesBetween concordam, a cada 6 h de 20
   let instantes = 0;
   for (let t = Date.UTC(2023, 0, 1); t < Date.UTC(2028, 0, 1); t += 6 * 3_600_000) {
     const depois = lunarPhasesBetween(new Date(t + 1), new Date(t + 40 * DAY_MS));
-    for (const kind of ORDEM) {
+    for (const kind of PHASE_ORDER) {
       const primeira = depois.find((f) => f.kind === kind);
       assert.ok(primeira, `${new Date(t).toISOString()}: nenhuma ${kind} em 40 dias`);
       const prox = nextLunarPhase(kind, new Date(t));
