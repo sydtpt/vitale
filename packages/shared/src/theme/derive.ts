@@ -409,7 +409,10 @@ export function resolveTokens(
 
   const roles = {} as Record<RoleKey, RoleTokens>;
   for (const role of ROLE_KEYS) {
-    const declared = palette.roles[role];
+    // A paleta pode declarar o papel **por esquema**. Vem antes do piso de
+    // contraste de propósito: o `ensureContrast` move luminosidade, e há paleta
+    // cuja separação É a luminosidade — ver a nota na `acessivel` e a ADR 0058.
+    const declared = palette.schemeRoles?.[scheme]?.[role] ?? palette.roles[role];
     const accent = historical
       ? (PINNED_ACCENT[scheme][role] ?? declared)
       : ensureContrast(declared, neutrals.surface, GRAPHIC_FLOOR);

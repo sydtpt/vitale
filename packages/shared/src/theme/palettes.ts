@@ -36,6 +36,8 @@
  * matiz continua separável — o que um matiz novo não garantiria.
  */
 
+import type { ColorScheme } from './themes';
+
 /**
  * Os oito papéis das séries de gráfico. Mantido como tipo próprio porque
  * `chart/palettes.ts` o expõe há tempo e a web o importa direto.
@@ -67,6 +69,13 @@ export interface AppPalette {
   name: string;
   hint: string;
   roles: AppPaletteRoles;
+  /**
+   * Papéis que esta paleta declara **por esquema**, sobrepondo `roles` antes de
+   * o piso de contraste entrar. Existe porque `ensureContrast` move
+   * luminosidade, e há paleta cuja promessa É a luminosidade — ver a nota na
+   * `acessivel` e a ADR 0058.
+   */
+  schemeRoles?: Partial<Record<ColorScheme, Partial<AppPaletteRoles>>>;
   /**
    * `true` quando a paleta foi construída para separação sob daltonismo e é
    * testada contra esse piso. As estéticas não prometem isso.
@@ -163,6 +172,47 @@ export const PALETTES: readonly AppPalette[] = [
       orange: '#D55E00', red: '#863800', rose: '#CC79A7', purple: '#8B3E6B',
       blue: '#0072B2', teal: '#56B4E9', green: '#009E73', yellow: '#F0E442',
       brown: '#E69F00', deep: '#AD4B00', ink: '#2B2B2B',
+    },
+    /**
+     * A escada amputada, e o conserto — ver a ADR 0058.
+     *
+     * Esta paleta separa por **luminância**: sob deuteranopia os onze papéis
+     * colapsam em três famílias de matiz (amarelo-verde ~108°, azul-violeta
+     * ~284° e o acromático), e dentro de uma família só a luminosidade separa.
+     * A maior delas carrega **cinco** módulos.
+     *
+     * Cada esquema tem uma janela de luminância: no claro nada acima de L 0,67
+     * alcança 3:1 sobre branco; no escuro nada abaixo de L 0,47 alcança 3:1
+     * sobre preto. O `ensureContrast` empurra cada papel **que falha** até
+     * exatamente o piso, um por um, sem olhar para os vizinhos — então tudo o
+     * que estava fora da janela se empilha na borda dela. No claro `yellow`
+     * (L 0,90), `brown` (0,75) e `teal` (0,73) desciam para ~0,66 enquanto o
+     * `orange` ficava em 0,62: três degraus que valiam 0,15 viravam uma faixa
+     * de 0,05. Medido em 28/09/2026, Alimentação × Casa dava **1,0** sob
+     * deuteranopia, onde os hex declarados dão 14,6.
+     *
+     * Declarar por esquema devolve a escada. Os três valores abaixo foram
+     * escolhidos por busca com teto de ΔE 10 de mudança visível por módulo, e
+     * com eles **nenhum par de módulo fica abaixo de 5,0** em nenhuma das seis
+     * combinações de tema e esquema. `yellow` e `teal` continuam passando pelo
+     * `ensureContrast` de propósito: o que os salva é os vizinhos saírem de
+     * cima deles, não um valor próprio.
+     *
+     * O preço está no `orange`: o vermelhão canônico da Okabe–Ito vira um
+     * laranja queimado no claro, e o Treino é o módulo mais visível do app.
+     * Aprovado pelo dono em 28/09/2026, sobre a medição. A paleta já não era
+     * Okabe–Ito pura — `purple` e `red` são variações de luminosidade
+     * inventadas, pelo mesmo motivo: oito categorias sobre fundo neutro não
+     * cobrem dez módulos sob um piso de contraste de interface.
+     */
+    schemeRoles: {
+      light: {
+        orange: '#AB4A00', // 5,66:1 no branco; o #D55E00 colava no yellow rebaixado
+        brown: '#A87300', //  4,10:1 no branco; era #C68900 depois do piso
+      },
+      dark: {
+        purple: '#A85886', // 4,41:1 no preto; o #8B3E6B subia para junto do ink
+      },
     },
   },
 ];
