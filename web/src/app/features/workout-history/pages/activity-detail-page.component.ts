@@ -3,7 +3,9 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { ActivityRoutePoint, MetricKey } from '@vitale/shared';
 import {
+  KNOWN_ACTIVITY_IDS,
   METRIC_ROLE,
+  activityTypeLabel,
   elevationProfile,
   fillsCards,
   gearForActivity,
@@ -206,6 +208,26 @@ export class ActivityDetailPageComponent {
   });
   protected readonly durationMin = linkedSignal(() => Math.round((this.activity()?.durationS ?? 0) / 60));
 
+  /**
+   * O tipo escolhido, ainda não gravado. Salvar acende `type_edited`, e é isso
+   * que impede o `sync_upsert_activities` de devolver o tipo da fonte no
+   * próximo `syncType` — o Apple Watch grava trilha como "Caminhada ao ar
+   * livre", e sem a marca a correção duraria até o botão de sincronizar.
+   */
+  protected readonly tipoId = linkedSignal(() => this.activity()?.activityId ?? 0);
+
+  /**
+   * As opções do campo. O tipo gravado entra mesmo sem label (o código 3000 do
+   * HealthKit é real e aparece em três atividades do acervo): sem isso o
+   * `<select>` abriria em branco e o primeiro toque trocaria o tipo sem querer.
+   */
+  protected readonly tipoOpcoes = computed(() => {
+    const atual = this.activity()?.activityId;
+    const ids = [...KNOWN_ACTIVITY_IDS];
+    if (atual !== undefined && !ids.includes(atual)) ids.push(atual);
+    return ids.map((id) => ({ id, label: activityTypeLabel(id) }));
+  });
+
   protected readonly routePoints = signal<ActivityRoutePoint[]>([]);
   protected readonly routeLoading = signal(false);
   private routeFor = '';
@@ -306,6 +328,7 @@ export class ActivityDetailPageComponent {
   }
 
   protected onName(e: Event): void { this.name.set((e.target as HTMLInputElement).value); }
+  protected onTipo(e: Event): void { this.tipoId.set(Number((e.target as HTMLSelectElement).value)); }
   protected onDuration(e: Event): void {
     const n = (e.target as HTMLInputElement).valueAsNumber;
     this.durationMin.set(Number.isNaN(n) ? 0 : n);
@@ -317,10 +340,13 @@ export class ActivityDetailPageComponent {
     this.saving.set(true);
     this.saveError.set(null);
     try {
-      const patch: { activityName?: string | null; durationS?: number } = {
+      const patch: { activityName?: string | null; durationS?: number; activityId?: number } = {
         activityName: this.name().trim() || null,
       };
       if (!this.hasGps()) patch.durationS = Math.max(0, Math.round(this.durationMin()) * 60);
+      // Só quando mudou: mandar sempre acenderia `type_edited` em toda linha que
+      // passou por aqui, e passaria a bloquear o tipo da fonte sem ninguém pedir.
+      if (this.tipoId() !== a.activityId) patch.activityId = this.tipoId();
       await this.store.updateActivity(a.id, patch);
       await this.router.navigate(['/workout-history', this.slug()], { queryParams: this.listQueryParams() });
     } catch (e) {

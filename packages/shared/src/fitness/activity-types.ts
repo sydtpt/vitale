@@ -110,3 +110,53 @@ export const ACTIVITY_ROLE: Record<number, ChartRole> = {
 export function activityRole(activityId: number): ChartRole | undefined {
   return ACTIVITY_ROLE[activityId];
 }
+
+/* ─────────────────── Os irmãos de um tipo (correção à mão) ─────────────────── */
+
+/**
+ * Os tipos que o seletor do detalhe oferece sem abrir folha — os **irmãos de
+ * família** do tipo atual, na ordem fixa em que aparecem na tela.
+ *
+ * A família é a de `activityFamily` (fitness/dedupe), e não uma lista nova: é a
+ * mesma vizinhança que o dedupe já usa para casar "o mesmo treino rotulado
+ * diferente entre ecossistemas", que é exatamente o erro que o dono corrige aqui
+ * — o Apple Watch grava trilha como "Caminhada ao ar livre".
+ *
+ * `generic` devolve só o próprio tipo, e essa é a decisão: a família genérica
+ * tem onze membros (HIIT, Cardio, Yoga, Pilates, Musculação…) e enfileirá-los
+ * daria uma tela de chips em vez de um atalho. Para esses, o caminho é a folha
+ * com a lista inteira — `KNOWN_ACTIVITY_IDS`.
+ *
+ * A ordem é fixa de propósito: o chip não pode pular de lugar quando a escolha
+ * muda, senão o segundo toque cai no tipo errado.
+ */
+const FAMILY_SIBLINGS: Record<string, readonly number[]> = {
+  foot: [37, 24, 52], // Corrida · Trilha · Caminhada
+  cycle: [13],
+  swim: [46],
+  row: [35],
+};
+
+/** Códigos HK das famílias nomeadas — o mesmo recorte de `activityFamily`. */
+const FAMILY_OF: Record<number, string> = {
+  37: 'foot', 24: 'foot', 52: 'foot',
+  13: 'cycle',
+  46: 'swim',
+  35: 'row',
+};
+
+/**
+ * Irmãos de família de um tipo, em ordem fixa. Sempre inclui o próprio tipo —
+ * inclusive um código desconhecido, que precisa de um chip para o dono ver de
+ * onde está saindo.
+ */
+export function activitySiblings(activityId: number): number[] {
+  const irmaos = FAMILY_SIBLINGS[FAMILY_OF[activityId] ?? ''];
+  if (irmaos) return [...irmaos];
+  return [activityId];
+}
+
+/** Todos os tipos com label, em ordem alfabética — a lista da folha "Outro…". */
+export const KNOWN_ACTIVITY_IDS: readonly number[] = Object.keys(ACTIVITY_TYPE_LABELS)
+  .map(Number)
+  .sort((a, b) => ACTIVITY_TYPE_LABELS[a].localeCompare(ACTIVITY_TYPE_LABELS[b], 'pt-BR'));

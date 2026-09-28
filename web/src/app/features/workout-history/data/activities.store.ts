@@ -114,7 +114,7 @@ export class ActivitiesStore {
    */
   async updateActivity(
     id: string,
-    patch: { activityName?: string | null; durationS?: number },
+    patch: { activityName?: string | null; durationS?: number; activityId?: number },
   ): Promise<void> {
     const userId = this.auth.user()?.id;
     if (!userId) throw new Error('Sessão não encontrada.');
@@ -122,6 +122,7 @@ export class ActivitiesStore {
     await updateActivityFields(supabase, userId, id, {
       activityName: patch.activityName ?? undefined,
       durationS: patch.durationS,
+      activityId: patch.activityId,
     });
 
     this._all.update((list) =>
@@ -131,6 +132,9 @@ export class ActivitiesStore {
               ...a,
               ...(patch.activityName !== undefined ? { activityName: patch.activityName ?? undefined } : {}),
               ...(patch.durationS !== undefined ? { durationS: patch.durationS } : {}),
+              ...(patch.activityId !== undefined
+                ? { activityId: patch.activityId, typeEdited: true }
+                : {}),
               locallyEdited: true,
               editedAt,
             }

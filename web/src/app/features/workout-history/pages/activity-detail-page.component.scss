@@ -241,7 +241,8 @@
   letter-spacing: 0.4px;
   color: var(--ink-3);
 }
-.field input {
+.field input,
+.field select {
   /* Um campo de uma linha com 1160 px de pista é difícil de mirar e de ler de
      volta; o card acompanha a página, o campo não precisa. */
   max-width: 420px;
@@ -254,7 +255,12 @@
   padding: 10px 12px;
   outline: none;
 }
-.field input:focus { border-color: var(--primary); }
+/* `color-scheme` é o que faz o menu nativo abrir escuro no esquema escuro; sem
+   ele o Safari desenha a lista branca sobre a página escura. */
+.field select { appearance: auto; color-scheme: light dark; cursor: pointer; }
+.field input:focus,
+.field select:focus { border-color: var(--primary); }
+.field .note { margin-bottom: 0; }
 .note { font-size: 12.5px; color: var(--ink-3); margin-bottom: 16px; }
 .err { font-size: 12.5px; color: var(--primary-deep); margin-bottom: 12px; }
 
