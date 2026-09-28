@@ -142,6 +142,7 @@ export {
 } from './bancada/corrida';
 export { decimal, foraEmTexto, hashCurto, porcento, segundos } from './bancada/texto';
 export * from './sleep/lua';
+export * from './sleep/lua-protocolo';
 export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bucket-plan';

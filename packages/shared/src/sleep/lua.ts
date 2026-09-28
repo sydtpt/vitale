@@ -1,18 +1,21 @@
 /**
  * A janela lunar do teste pré-registrado — que noite cai nas cinco que
- * **antecedem** a lua cheia, e qual cheia é essa.
+ * **antecedem** uma fase principal, e qual ocorrência da fase é essa.
  *
  * O protocolo é `docs/specs/revista-retrospectiva/pre-registro-lua.md` (§3): a
  * exposição são as noites −5 a −1 do sinódico, contra todas as outras. Este
- * arquivo entrega só a classificação. O desfecho, os portões e os vereditos são
- * da story 4.2, e moram aqui também quando chegarem, porque são vocabulário de
- * sono; a efeméride fica em `astro/moon.ts`, que não sabe o que é uma noite.
+ * arquivo entrega só a classificação. O desfecho, os portões e os vereditos moram
+ * em `sleep/lua-protocolo.ts` — vizinho, porque também são vocabulário de sono; a
+ * efeméride fica em `astro/moon.ts`, que não sabe o que é uma noite.
  *
- * **As funções daqui classificam só a cheia.** Desde 28/09/2026 há um segundo
- * pré-registro — `pre-registro-lua-outras-fases.md` — que cobre a nova e os dois
- * quartos, com a mesma janela e outro α (1,67%, bilateral). Generalizar a
- * classificação para as quatro fases é da 4.2, e as duas famílias **rodam na
- * mesma execução ou não rodam** (§9 de lá). Quem mexer aqui lê os dois documentos.
+ * **As quatro fases, com a cheia por padrão.** O documento de 07/09 pré-registrou
+ * uma exposição só — a cheia —, e desde 28/09/2026 há um segundo pré-registro
+ * (`pre-registro-lua-outras-fases.md`) que cobre a nova e os dois quartos com a
+ * **mesma janela** e outro α (5%/3, bilateral). Por isso o parâmetro `fase` tem
+ * `'full'` como padrão: quem foi escrito contra o documento de 07/09 não muda de
+ * resposta. As duas famílias **rodam na mesma execução ou não rodam** (§9 de lá),
+ * e a porta que faz isso é `vereditoLunar()`, não estas funções. Quem mexer aqui
+ * lê os dois documentos.
  *
  * ## A noite é o instante do seu fim, 08:00 UTC do `wakeDay`
  *
@@ -62,19 +65,23 @@
  * até 08:00 UTC, e não para o despertar real. A frequência dos dois casos depende
  * da hora em que ele acorda, que é dado de sono — e este arquivo não o lê.
  *
- * ## A janela é `[cheia − 5 d, cheia)`
+ * ## A janela é `[fase − 5 d, fase)`
  *
  * Fechada à esquerda, aberta à direita. Fechar à direita incluiria a noite de
  * maior valor esperado sob a hipótese e excluiria a −5: a coluna testada andaria
  * uma noite, e isso **não quebra teste nenhum de formato** — mede ruído com cara
  * de protocolo (R-18).
  *
+ * Quatro janelas de cinco noites ocupam 20 dos 29,5 dias do sinódico, e as fases
+ * distam 7,4 dias entre si: as janelas **não se encostam**, e nenhuma noite cai em
+ * duas. Isso é invariante, não coincidência, e `lua.test.ts` o varre em cinco anos.
+ *
  * Puro de propósito: sem fuso do hospedeiro, sem ambiente, sem coordenada. O
  * iPhone e um script de backfill têm de classificar a mesma noite do mesmo jeito.
  */
-import { nextLunarPhase } from '../astro/moon';
+import { nextLunarPhase, type LunarPhaseKind } from '../astro/moon';
 
-/** Quantas noites antes da cheia formam a exposição (§3 do pré-registro). */
+/** Quantas noites antes da fase formam a exposição (§3 do pré-registro). */
 export const JANELA_LUNAR_NOITES = 5;
 
 /** A hora UTC, no próprio `wakeDay`, que representa a noite: o fim dela. 9h/10h em Bruxelas. */
@@ -82,19 +89,21 @@ export const HORA_UTC_DO_FIM_DA_NOITE = 8;
 
 const DAY_MS = 86_400_000;
 
-/** A posição da noite antes da cheia: −5 é a mais distante, −1 a última antes dela. */
+/** A posição da noite antes da fase: −5 é a mais distante, −1 a última antes dela. */
 export type NoiteLunar = -5 | -4 | -3 | -2 | -1;
 
-/** Uma noite dentro da janela: a cheia que ela antecede, e a quantas noites dela. */
+/** Uma noite dentro da janela: a fase que ela antecede, quando, e a quantas noites dela. */
 export interface JanelaLunar {
+  /** Qual das quatro fases principais a noite antecede. */
+  fase: LunarPhaseKind;
   /**
-   * O instante da cheia, em UT. Identifica o ciclo sinódico da noite.
+   * O instante da fase, em UT. Identifica o ciclo sinódico da noite.
    *
-   * Para contar ciclos distintos (o portão de ciclos da 4.2), use
-   * `cheia.getTime()`: cada chamada devolve um `Date` novo, e um `Set<Date>` ou uma
-   * comparação por `===` contaria cada noite como um ciclo.
+   * Para contar ciclos distintos (o portão de ciclos), use `instante.getTime()`:
+   * cada chamada devolve um `Date` novo, e um `Set<Date>` ou uma comparação por
+   * `===` contaria cada noite como um ciclo.
    */
-  cheia: Date;
+  instante: Date;
   noite: NoiteLunar;
 }
 
@@ -122,27 +131,33 @@ export function instanteDaNoite(wakeDay: string): Date {
 }
 
 /**
- * Em que noite da janela lunar cai o instante `t`, ou `null` se fora dela.
+ * Em que noite da janela de `fase` cai o instante `t`, ou `null` se fora dela.
  *
- * Só a **próxima** cheia estritamente depois de `t` pode conter `t` na janela: a
- * anterior já passou, e a de depois dela está a mais de 29 dias. Por isso
+ * Só a **próxima** ocorrência da fase estritamente depois de `t` pode conter `t` na
+ * janela: a anterior já passou, e a de depois dela está a mais de 29 dias. Por isso
  * `nextLunarPhase` basta, e o "estritamente" é a borda aberta à direita — com `t`
- * igual à cheia, a próxima é a do mês que vem, e a noite fica fora.
+ * igual à fase, a próxima é a do mês que vem, e a noite fica fora.
  *
- * `noite = −⌈(cheia − t) / 1 d⌉`, com a borda esquerda `t = cheia − 5 d` dando −5.
+ * `noite = −⌈(fase − t) / 1 d⌉`, com a borda esquerda `t = fase − 5 d` dando −5.
+ *
+ * `fase` tem `'full'` como padrão: é a única exposição do documento de 07/09, e o
+ * padrão é o que garante que nada escrito contra ele mude de resposta.
  *
  * **Nunca** chame com o `apagou` medido nem com outro instante do desfecho: isso é
  * a classificação endógena que o docblock do arquivo proíbe. A porta para uma
  * noite é `janelaLunar(wakeDay)`; este instante existe para as bordas e os testes.
  */
-export function janelaLunarDoInstante(t: Date): JanelaLunar | null {
-  const { instant: cheia } = nextLunarPhase('full', t);
-  const falta = cheia.getTime() - t.getTime();
+export function janelaLunarDoInstante(
+  t: Date,
+  fase: LunarPhaseKind = 'full',
+): JanelaLunar | null {
+  const { instant } = nextLunarPhase(fase, t);
+  const falta = instant.getTime() - t.getTime();
   if (falta > JANELA_LUNAR_NOITES * DAY_MS) return null;
-  return { cheia, noite: -Math.ceil(falta / DAY_MS) as NoiteLunar };
+  return { fase, instante: instant, noite: -Math.ceil(falta / DAY_MS) as NoiteLunar };
 }
 
-/** A janela lunar da noite de `wakeDay`. Lança `RangeError` se a data for torta. */
-export function janelaLunar(wakeDay: string): JanelaLunar | null {
-  return janelaLunarDoInstante(instanteDaNoite(wakeDay));
+/** A janela de `fase` da noite de `wakeDay`. Lança `RangeError` se a data for torta. */
+export function janelaLunar(wakeDay: string, fase: LunarPhaseKind = 'full'): JanelaLunar | null {
+  return janelaLunarDoInstante(instanteDaNoite(wakeDay), fase);
 }

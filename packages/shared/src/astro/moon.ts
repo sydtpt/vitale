@@ -253,7 +253,21 @@ const PHASE_FRACTION: Readonly<Record<LunarPhaseKind, number>> = {
   lastQuarter: 0.75,
 };
 
-const PHASE_ORDER: readonly LunarPhaseKind[] = ['new', 'firstQuarter', 'full', 'lastQuarter'];
+/**
+ * As quatro fases principais na ordem da lunação — **a única lista de nomes delas**.
+ *
+ * Exportada para que o protocolo lunar (`sleep/lua-protocolo.ts`) e os testes iterem
+ * daqui em vez de recopiar as quatro strings: renomear uma fase quebra num lugar só.
+ *
+ * **O que esta lista NÃO é:** o único lugar que fixa o *quatro*. `QuatroLinhas`,
+ * `QuatroResultados` e as quatro chamadas escritas à mão em `vereditoLunar` também
+ * fixam, e fixam de propósito — a §9 do pré-registro de 28/09 manda que as quatro
+ * fases rodem juntas ou nenhuma rode, e uma tupla de quatro é o que faz uma quinta
+ * linha **não compilar**. Acrescentar uma fase principal aqui é, por desenho, uma
+ * mudança que reprova o `tsc` em três lugares nomeados, e não uma que se propaga
+ * sozinha. Quem fizer isso lê os dois pré-registros antes.
+ */
+export const PHASE_ORDER = ['new', 'firstQuarter', 'full', 'lastQuarter'] as const satisfies readonly LunarPhaseKind[];
 
 /** Mês sinódico médio, em dias (Meeus 49.1). */
 const SYNODIC_DAYS = 29.530588861;
