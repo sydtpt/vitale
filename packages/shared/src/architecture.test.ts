@@ -46,6 +46,7 @@ import { VOCABULARIO_PROIBIDO } from './ia/verificar';
 import { CADERNO_IDS } from './period/cadernos';
 import { CAPA_COLUMNS, MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
 import { EDICAO_COLUMNS, TIPOS_COM_EDICAO } from './data/edicoes-ia';
+import { ACTIVITY_COLUMNS } from './data/activities';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -759,6 +760,7 @@ function fechaChaves(src: string, de: number): number {
 
 const CHAVES_DE_EDICAO_ROW = chavesDaInterface('packages/shared/src/data/edicoes-ia.ts', 'EdicaoRow');
 const CHAVES_DE_CAPA_ROW = chavesDaInterface('packages/shared/src/data/edicoes-capa.ts', 'CapaRow');
+const CHAVES_DE_ACTIVITY_ROW = chavesDaInterface('packages/shared/src/data/activities.ts', 'ActivityRow');
 
 const COLUNAS_PEDIDAS: {
   tabela: string; colunas: string; daInterface: readonly string[]; dono: string;
@@ -774,6 +776,15 @@ const COLUNAS_PEDIDAS: {
     colunas: CAPA_COLUMNS,
     daInterface: CHAVES_DE_CAPA_ROW,
     dono: 'data/edicoes-capa.ts (CAPA_COLUMNS)',
+  },
+  // `activities` entrou em 28/09/2026, com a coluna `type_edited`. É a maior
+  // lista das três e a que mais cresce — 33 colunas em 16 migrations —, e a
+  // única cujo 400 apaga o Histórico inteiro em vez de um cartão.
+  {
+    tabela: 'activities',
+    colunas: ACTIVITY_COLUMNS,
+    daInterface: CHAVES_DE_ACTIVITY_ROW,
+    dono: 'data/activities.ts (ACTIVITY_COLUMNS)',
   },
 ];
 

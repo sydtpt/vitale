@@ -22,11 +22,17 @@ import type { Activity, ActivityRoutePoint } from '../models';
 import type { SurfaceMix, SurfaceSegment } from '../surface/classify';
 import { fetchAllPages, fetchEmLotesDeIds } from './paginate';
 
-const ACTIVITY_COLUMNS =
+/**
+ * Exportada para a barreira de `architecture.test.ts`, que a confere contra as
+ * colunas que as migrations criam e contra as chaves de `ActivityRow`. Pedir ao
+ * PostgREST uma coluna que o banco não tem é 400 na lista inteira do Histórico;
+ * deixar de pedir uma que a interface lê é `undefined` calado na tela.
+ */
+export const ACTIVITY_COLUMNS =
   'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,' +
   'distance_m,elevation_m,source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,' +
   'calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden,gear_id,surface_mix,photos_checked_at,' +
-  'route_name,route_name_meta,route_name_pt,route_name_pt_meta,name_edited';
+  'route_name,route_name_meta,route_name_pt,route_name_pt_meta,name_edited,type_edited';
 
 export interface ActivityRow {
   id: string;
@@ -38,6 +44,7 @@ export interface ActivityRow {
   route_name_pt?: string | null;
   route_name_pt_meta?: unknown;
   name_edited?: boolean | null;
+  type_edited?: boolean | null;
   calories: number | string | null;
   start_at: string;
   end_at: string | null;
@@ -81,6 +88,7 @@ export function toActivity(r: ActivityRow): Activity {
     // nomeadas em francês fora do gatilho do português para sempre.
     routeNamePtChecked: r.route_name_pt_meta != null,
     nameEdited: r.name_edited ?? undefined,
+    typeEdited: r.type_edited ?? undefined,
     calories: num(r.calories) ?? 0,
     startAt: r.start_at,
     endAt: r.end_at ?? '',
@@ -141,12 +149,19 @@ export async function fetchActivities(
 /**
  * Edição do usuário. Cada campo editado marca a sua flag `*_edited`, que é o
  * que impede o sync de sobrescrever a correção no próximo tick.
+ *
+ * `activityId` é o tipo do treino. Ele entrou aqui em 28/09/2026, e o motivo
+ * é o mesmo dos outros dois: é coisa que a fonte erra e o dono acerta. O Apple
+ * Watch grava trilha como "Caminhada ao ar livre" (52), e até a migration
+ * 20260928120000 o `sync_upsert_activities` devolvia o tipo da fonte a cada
+ * `syncType` — sem erro e sem marca. Corrigir o tipo sem acender a flag seria
+ * escrever uma correção com prazo de validade.
  */
 export async function updateActivityFields(
   db: SupabaseClient,
   userId: string,
   id: string,
-  patch: { activityName?: string; durationS?: number },
+  patch: { activityName?: string; durationS?: number; activityId?: number },
 ): Promise<void> {
   const row: Record<string, unknown> = { locally_edited: true, edited_at: new Date().toISOString() };
   if (patch.activityName !== undefined) {
@@ -156,6 +171,10 @@ export async function updateActivityFields(
   if (patch.durationS !== undefined) {
     row['duration_s'] = patch.durationS;
     row['duration_edited'] = true;
+  }
+  if (patch.activityId !== undefined) {
+    row['activity_id'] = patch.activityId;
+    row['type_edited'] = true;
   }
   const { error } = await db.from('activities').update(row).eq('id', id).eq('user_id', userId);
   if (error) throw error;
