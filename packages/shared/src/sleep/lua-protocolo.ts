@@ -923,6 +923,16 @@ function inconclusivo(
  * mas isso é **consequência da lateralidade** — ler a direção é o que impede que uma
  * linha unilateral com a direção errada passasse despercebida, e é o que faz o campo
  * ser invariante cobrada em vez de comentário.
+ *
+ * **Esta guarda não dispara com o estimador de hoje, e está aqui declarada como tal.**
+ * O sinal do Hodges–Lehmann e o de `U − μ` são o mesmo sinal — HL > 0 quer dizer que
+ * mais da metade dos pares é positiva, que é literalmente `U > n₁n₂/2` —, então um p
+ * unilateral pequeno já implica efeito positivo, e tirar o `naDirecao` do veredito não
+ * reprova a suíte. Ela existe porque `direcao` é invariante pré-registrada, e uma
+ * invariante que ninguém lê é comentário: trocar o HL pela diferença de duas medianas
+ * desfaz o laço, e aí o motor voltaria a poder "achar" do lado errado. O teste assere a
+ * redundância (`p < α ⇒ efeito > 0` em toda linha unilateral) — é essa asserção que
+ * vira alarme no dia em que o laço se desfizer.
  */
 function naDirecaoDeclarada(direcao: LinhaDoProtocolo['direcao'], efeitoMin: number): boolean {
   return direcao === null || efeitoMin > 0;
@@ -1011,8 +1021,14 @@ function rodarLinha(
     const total = contagem.noitesDentro + contagem.noitesFora;
     const alvo = noitesParaPoder(par);
     // Nunca zero: o portão acabou de dizer que o acervo não basta, e "faltam 0
-    // noites" contradiria a frase seguinte da mesma página. Com a conta contínua
-    // isto só empataria por arredondamento, e é aí que o piso de 1 vale.
+    // noites" contradiria a frase seguinte da mesma página.
+    //
+    // **Este piso não é alcançável hoje, e está aqui declarado como tal.** Poder < 80%
+    // implica, na razão de colunas observada, `N > total` no contínuo, e `ceil` de um
+    // número maior que um inteiro já é ao menos `total + 1`. Trocar o `1` por `0` não
+    // reprova a suíte, e não reprova porque o ramo não existe — não porque o teste
+    // esteja cego: `rodarEConferir` cobra `falta.quanto >= 1` em **toda** fase de todo
+    // caso, então um zero que aparecesse por outro caminho reprovaria ali.
     return {
       ...comum,
       veredito: 'inconclusivo',

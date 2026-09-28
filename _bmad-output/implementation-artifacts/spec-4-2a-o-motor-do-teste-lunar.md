@@ -3,7 +3,7 @@ title: 'Story 4.2a — O motor do teste lunar: as quatro fases, os portões e o 
 type: 'feature'
 created: '2026-09-28'
 status: 'in-review'
-review_loop_iteration: 1
+review_loop_iteration: 3
 baseline_commit: '7e5f26db5b3cd02d23de117821b4f932b3d9c94d'
 context:
   - '{project-root}/docs/specs/revista-retrospectiva/pre-registro-lua.md'
@@ -143,6 +143,18 @@ no corpo do teste.
   `rodarEConferir`, uma porta única no teste que cobra as invariantes de saída em **todo**
   veredito do arquivo, em vez de num caso só.
 
+  **A varredura de mutação, rodada depois dos consertos.** Doze mutações nos campos e nas
+  contas que a revisão apontou — `familia: 'cheia'`, `alfa: 0.05`, `lateralidade` no
+  `inconclusivo`, `noitesPara80: null`, `efeitoMinimoDetectavelMin: 1`, a contagem da luz
+  virando a constante 1, `primeiraNoiteSemLuz` virando a última, `new Set(dias).size` →
+  `dias.length`, o `.sort()` dos dias, a unidade do `poder`, o `z` publicado virando
+  `null`, o `.sort()` de `desdobrarEixo`, o desdobramento desligado, o teto do `tzOffset` e
+  a janela do `onsetAt` — **todas reprovam** agora. **Duas sobrevivem, e sobrevivem porque o
+  ramo não existe:** o piso `Math.max(1, …)` do que falta no poder (poder < 80% já implica
+  diferença ≥ 1) e o `&& naDirecao` do veredito (o sinal do HL e o de `U − μ` são o mesmo).
+  As duas estão declaradas como inalcançáveis no docblock do próprio código, com a prova, e
+  a invariante que as cobriria por fora está em `rodarEConferir`.
+
   **Duas divergências que ficam declaradas, e não corrigidas:**
 
   1. **A matriz congelada ainda diz *"Efeito significante abaixo de 15 min → `nenhum_padrao`"*
@@ -196,19 +208,24 @@ A ordem de avaliação que isso implica: portões → **poder** → significânc
 - `shasum -a 256 docs/specs/revista-retrospectiva/correcao-pre-registro-lua.md` -- expected: `aad967aae5f9fddd563dfd5f97fd274d236f511fb20f5cdad2dfd45a7e46c308`
 - `shasum -a 256 docs/specs/revista-retrospectiva/pre-registro-lua-outras-fases.md` -- expected: `1227264d01b5f0f35bf7bfcf90fb4241ac89fefef4b28dadfe399918a51251bc`
 
-**Provas negativas — RODADAS E REVERTIDAS em 28/09/2026, iteração 2.** Cada uma foi
+**Provas negativas — SEIS, rodadas e revertidas em 28/09/2026, iteração 3.** Cada uma foi
 aplicada ao código, o portão rodado, o resultado anotado e o arquivo restaurado por
-`git checkout --`, com `git status` limpo depois:
+`git checkout --`, com `git status` limpo depois de cada uma:
 
-| Mutação | Portão | Resultado |
-|---|---|---|
-| poder passa a usar o SD **residual** | `shared test` | **exit 1** — reprova ✓ |
-| residualização da luz apagada (`residuo` = apagou cru) | `shared test` | **exit 1** — reprova ✓ |
-| portão da luz movido para **depois** de amostra e ciclos | `shared test` | **exit 1** — reprova ✓ |
-| quinta linha em `PROTOCOLO_LUNAR` | `shared lint` | **exit 2, TS2322** — não compila ✓ |
+| # | Mutação | Portão | Resultado |
+|---|---|---|---|
+| 1 | poder passa a usar o SD **residual** | `shared test` | **exit 1** — `new (posição 0): MDE` ✓ |
+| 2 | residualização da luz apagada (`residuo` = apagou cru) | `shared test` | **exit 1** — `p 0.153…` ✓ |
+| 3 | portão da luz movido para **depois** de amostra e ciclos | `shared test` | **exit 1** — `new não reportou a luz` ✓ |
+| 4 | quinta linha em `PROTOCOLO_LUNAR` | `shared lint` | **exit 2, TS2322** — não compila ✓ |
+| 5 | **portão de poder removido** (`poder < PODER_MINIMO` fora da condição) | `shared test` | **exit 1** — `new (posição 0): nenhum_padrao sem poder` ✓ |
+| 6 | **correção de continuidade apagada** (`0.5` → `0`) | `shared test` | **exit 1** — `firstQuarter: motor 0,85728 vs com correção 0,85773` ✓ |
 
-As duas do meio são as que a revisão da iteração 1 provou **abertas** — naquela versão
-as duas mutações deixavam a suíte inteira verde.
+A 2 e a 3 são as que a revisão da iteração 1 provou **abertas** — naquela versão as duas
+deixavam a suíte inteira verde. A **5 é o defeito exato da iteração 1**, e é o que a
+re-derivação existe para impedir: sem ela o motor volta a imprimir `achado` e
+`nenhum_padrao` sobre um teste sem poder. A **6** é a que o docblock afirmava reprovar sem
+que ninguém tivesse rodado; agora rodou.
 
 **Os seis portões — oito comandos, porque `web`, `scripts` e `mobile` têm dois cada.**
 Conferidos por **exit code**, nunca por grep na saída (é a lição da story 2.8):
@@ -223,3 +240,7 @@ Conferidos por **exit code**, nunca por grep na saída (é a lição da story 2.
 | 6 | `pnpm --filter @vitale/scripts test` | scripts |
 | 7 | `cd mobile && pnpm exec tsc --noEmit` | mobile |
 | 8 | `cd mobile && pnpm exec jest` | mobile |
+
+**Em 28/09, iteração 3 — os oito saíram 0.** `shared test`: 38 casos em
+`lua-protocolo.test.ts` (eram 29), com as duas tabelas de poder impressas. `mobile jest`:
+83 suítes, 1.516 testes.
