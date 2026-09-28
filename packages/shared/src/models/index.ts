@@ -376,6 +376,12 @@ export interface Activity {
   routeNamePtChecked?: boolean;
   /** O dono renomeou esta atividade à mão. É o que faz o nome dele vencer o derivado. */
   nameEdited?: boolean;
+  /**
+   * O dono corrigiu o TIPO desta atividade à mão — é o que faz a correção dele
+   * vencer a fonte. O Apple Watch grava a trilha como "Caminhada ao ar livre",
+   * e sem esta marca o próximo `syncType` devolveria o tipo da fonte.
+   */
+  typeEdited?: boolean;
   calories: number;
   startAt: string;
   endAt: string;

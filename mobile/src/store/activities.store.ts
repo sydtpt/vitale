@@ -18,11 +18,9 @@ function currentUserId(): string | undefined {
 export interface ActivityPatch {
   activityName?: string | null;
   durationS?: number;
+  /** Tipo do treino (código HealthKit). Acende `type_edited` no banco. */
+  activityId?: number;
 }
-
-const SELECT =
-  'id,user_id,activity_id,activity_name,calories,start_at,end_at,duration_s,moving_time_s,distance_m,elevation_m,' +
-  'source_name,source_id,device,tracked,has_route,best_efforts,hr_zones,calories_estimated,hr_zones_estimated,cities,locally_edited,edited_at,hidden';
 
 interface DbActivityRow {
   id: string;
@@ -180,6 +178,7 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
     await updateActivityFields(supabase, uid, id, {
       activityName: patch.activityName ?? undefined,
       durationS: patch.durationS,
+      activityId: patch.activityId,
     });
 
     set((state) => ({
@@ -191,6 +190,9 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
                 ? { activityName: patch.activityName ?? undefined }
                 : {}),
               ...(patch.durationS !== undefined ? { durationS: patch.durationS } : {}),
+              ...(patch.activityId !== undefined
+                ? { activityId: patch.activityId, typeEdited: true }
+                : {}),
               locallyEdited: true,
               editedAt,
             }

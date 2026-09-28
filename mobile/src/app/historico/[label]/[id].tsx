@@ -15,6 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   HR_ZONES,
   METRIC_ROLE,
+  activityRole,
+  activitySiblings,
+  activityTypeLabel,
   elevationProfile,
   fetchRouteSurface,
   gearForActivity,
@@ -39,6 +42,7 @@ import { nomearRotaSePreciso, precisaDeAlgumNome } from '../../../services/route
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
+import { TypePicker } from '../../../components/cards/TypePicker';
 
 /** Código de ciclismo do HealthKit — só pedalada tem bicicleta. */
 const BIKE_ACTIVITY_ID = 13;
@@ -217,6 +221,13 @@ export default function AtividadeDetalheScreen() {
   // ── estado de edição ──────────────────────────────────────────
   const [name, setName] = useState('');
   const [durationMin, setDurationMin] = useState('');
+  /**
+   * O tipo escolhido, ainda não gravado. Fica no estado local pela mesma razão
+   * que o nome: quem salva é o botão do cabeçalho, e um chip que gravasse ao
+   * toque se comportaria diferente dos outros dois campos do mesmo cartão.
+   */
+  const [tipo, setTipo] = useState(0);
+  const [tipoSheet, setTipoSheet] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingHidden, setTogglingHidden] = useState(false);
 
@@ -249,9 +260,10 @@ export default function AtividadeDetalheScreen() {
     if (activity) {
       setName(nomeExibido);
       setDurationMin(String(Math.round(activity.durationS / 60)));
+      setTipo(activity.activityId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activity?.id, nomeExibido]);
+  }, [activity?.id, activity?.activityId, nomeExibido]);
 
   // ── a rota pintada por piso (T3.2) ────────────────────────────────
   // Só busca quando há piso: sem `surfaceMix` não há trecho gravado, e a
@@ -386,17 +398,32 @@ export default function AtividadeDetalheScreen() {
   const nameDirty = name.trim() !== nomeExibido;
   const durDirty =
     !hasGps && durationMin.trim() !== String(Math.round(activity.durationS / 60));
-  const dirty = nameDirty || durDirty;
+  /**
+   * Os chips: sempre a família do tipo GRAVADO, mais o escolhido quando ele
+   * veio de fora dela. Se os chips seguissem só a escolha, trocar para Natação
+   * pela folha apagaria Trilha e Caminhada da tela — e o caminho de volta
+   * passaria a exigir a folha de novo.
+   */
+  const tipoChips = useMemo(() => {
+    const familia = activitySiblings(activity.activityId);
+    return tipo === 0 || familia.includes(tipo) ? familia : [...familia, tipo];
+  }, [activity.activityId, tipo]);
+
+  // `tipo` começa em 0 e o efeito o semeia no primeiro render; sem a guarda, a
+  // tela abriria já "suja" e com o botão Salvar aceso sobre um tipo inexistente.
+  const tipoDirty = tipo !== 0 && tipo !== activity.activityId;
+  const dirty = nameDirty || durDirty || tipoDirty;
 
   const onSave = async () => {
     setSaving(true);
     try {
-      const patch: { activityName?: string | null; durationS?: number } = {};
+      const patch: { activityName?: string | null; durationS?: number; activityId?: number } = {};
       if (nameDirty) patch.activityName = name.trim() || null;
       if (durDirty) {
         const mins = parseInt(durationMin, 10);
         if (Number.isFinite(mins) && mins >= 0) patch.durationS = mins * 60;
       }
+      if (tipoDirty) patch.activityId = tipo;
       await updateActivity(activity.id, patch);
     } finally {
       setSaving(false);
@@ -697,6 +724,18 @@ export default function AtividadeDetalheScreen() {
           onClose={() => setPickingGear(false)}
         />
 
+        {/* A folha só ESCOLHE; quem grava é o Salvar do cabeçalho, como nos
+            chips. Fechá-la sem salvar deixa a escolha visível e desfazível. */}
+        <TypePicker
+          visible={tipoSheet}
+          current={tipo || activity.activityId}
+          onPick={(id) => {
+            setTipo(id);
+            setTipoSheet(false);
+          }}
+          onClose={() => setTipoSheet(false)}
+        />
+
         {hrZones && (
           <>
             <Text style={styles.sectionTitle}>Zonas de frequência cardíaca</Text>
@@ -730,7 +769,59 @@ export default function AtividadeDetalheScreen() {
 
         <Text style={styles.sectionTitle}>Editar</Text>
         <View style={styles.editCard}>
-          <Text style={styles.fieldLabel}>Nome</Text>
+          {/*
+            O tipo vem primeiro porque é o que manda em tudo que está acima
+            dele nesta tela: o ícone do herói, a cor, o balde do Histórico e o
+            MET que entra no esforço. Corrigir o nome de uma trilha rotulada
+            "Caminhada" não conserta nenhuma dessas.
+          */}
+          <Text style={styles.fieldLabel}>Tipo</Text>
+          <View style={styles.tipoChips}>
+            {tipoChips.map((id) => {
+              const papel = activityRole(id);
+              const cor = papel ? roleColors(papel) : undefined;
+              const ativo = id === tipo;
+              return (
+                <Pressable
+                  key={id}
+                  onPress={() => setTipo(id)}
+                  style={({ pressed }) => [
+                    styles.tipoChip,
+                    ativo && cor
+                      ? { backgroundColor: cor.soft, borderColor: cor.accent }
+                      : styles.tipoChipMudo,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={getActivityMeta(id).icon}
+                    size={15}
+                    color={ativo && cor ? cor.on : colors.ink3}
+                  />
+                  <Text
+                    style={[styles.tipoChipText, ativo && cor ? { color: cor.on } : undefined]}
+                  >
+                    {activityTypeLabel(id)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+            <Pressable
+              onPress={() => setTipoSheet(true)}
+              style={({ pressed }) => [
+                styles.tipoChip,
+                styles.tipoChipMudo,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.tipoChipText, styles.tipoChipOutro]}>Outro…</Text>
+            </Pressable>
+          </View>
+          {activity.typeEdited && (
+            <Text style={styles.note}>Tipo corrigido por você — o sync não sobrescreve.</Text>
+          )}
+
+          <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Nome</Text>
           <TextInput
             style={styles.input}
             value={name}
@@ -995,6 +1086,23 @@ const styles = themed(() => StyleSheet.create({
     fontSize: 15, fontFamily: fonts.sans,
     color: colors.ink,
   },
+
+  // Chips do tipo. A borda só existe no aceso — é ela que marca a escolha sem
+  // gastar preenchimento forte, e o `soft`/`on` do papel fazem o resto.
+  tipoChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  tipoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tipoChipMudo: { backgroundColor: colors.surfaceMute },
+  tipoChipText: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.ink2 },
+  tipoChipOutro: { color: colors.ink3 },
   inputDisabled: { color: colors.ink3, opacity: 0.7 },
   note: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink3, marginTop: spacing.xs, fontStyle: 'italic' },
 

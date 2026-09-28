@@ -9,9 +9,12 @@ import {
   EASY_IDS,
   ENDURANCE_IDS,
   GPS_ACTIVITY_IDS,
+  KNOWN_ACTIVITY_IDS,
   STRENGTH_IDS,
+  activitySiblings,
   kindForActivity,
 } from './activity-types';
+import { activityFamily } from './dedupe';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -75,6 +78,59 @@ check('força e baixa intensidade classificam', () => {
 
 check('tipo desconhecido devolve none', () => {
   assert.equal(kindForActivity(9999), 'none');
+});
+
+/* ─────────────────── irmãos de família (seletor de tipo) ─────────────────── */
+
+check('os irmãos de um tipo são a MESMA família do dedupe', () => {
+  // Sem isto, a vizinhança do seletor e a do match podem divergir em silêncio e
+  // o dono passa a ver chips de uma família que o dedupe não reconhece.
+  for (const id of KNOWN_ACTIVITY_IDS) {
+    const meu = activityFamily(id);
+    for (const irmao of activitySiblings(id)) {
+      assert.equal(
+        activityFamily(irmao),
+        meu,
+        `${ACTIVITY_TYPE_LABELS[id]} (${id}) oferece ${ACTIVITY_TYPE_LABELS[irmao]} (${irmao}), de outra família`,
+      );
+    }
+  }
+});
+
+check('o tipo atual está sempre entre os seus irmãos', () => {
+  // O chip do tipo vigente é o que mostra de onde a correção parte. Faltando
+  // ele, a tela abriria com nenhum chip aceso e a escolha viraria adivinhação.
+  for (const id of [...KNOWN_ACTIVITY_IDS, 3000, 9999]) {
+    assert.ok(activitySiblings(id).includes(id), `${id} não se oferece`);
+  }
+});
+
+check('a família de pé é corrida, trilha e caminhada — nessa ordem', () => {
+  // A ordem é contrato: o chip não pode trocar de lugar quando a escolha muda.
+  for (const id of [37, 24, 52]) {
+    assert.deepEqual(activitySiblings(id), [37, 24, 52], `a partir de ${id}`);
+  }
+});
+
+check('a família genérica oferece só o próprio tipo', () => {
+  // Onze chips não são um atalho. Para esses, o caminho é a folha.
+  for (const id of [11, 16, 20, 44, 50, 57, 59, 63, 66, 73, 82]) {
+    assert.equal(activityFamily(id), 'generic', `${id} deixou de ser genérico`);
+    assert.deepEqual(activitySiblings(id), [id]);
+  }
+});
+
+check('tipo sem label devolve a si mesmo, e não lista vazia', () => {
+  assert.deepEqual(activitySiblings(3000), [3000]);
+  assert.deepEqual(activitySiblings(9999), [9999]);
+});
+
+check('a lista da folha tem todos os tipos com label, em ordem alfabética', () => {
+  assert.equal(KNOWN_ACTIVITY_IDS.length, Object.keys(ACTIVITY_TYPE_LABELS).length);
+  const labels = KNOWN_ACTIVITY_IDS.map((id) => ACTIVITY_TYPE_LABELS[id]);
+  assert.deepEqual(labels, [...labels].sort((a, b) => a.localeCompare(b, 'pt-BR')));
+  // Cobre o caso que motivou tudo: os dois tipos a pé estão na lista.
+  assert.ok(KNOWN_ACTIVITY_IDS.includes(24) && KNOWN_ACTIVITY_IDS.includes(52));
 });
 
 console.log(`\n${passed} testes passaram.`);

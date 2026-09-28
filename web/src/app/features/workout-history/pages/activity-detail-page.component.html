@@ -177,6 +177,21 @@
     <div class="form">
       <h3 class="form-title">Editar</h3>
 
+      <!-- O tipo vem primeiro: é ele que manda no ícone, na cor, no balde do
+           Histórico e no MET que entra no esforço. Corrigir o nome de uma
+           trilha rotulada "Caminhada" não conserta nenhuma dessas. -->
+      <div class="field">
+        <label for="tipo">Tipo</label>
+        <select id="tipo" [value]="tipoId()" (change)="onTipo($event)">
+          @for (o of tipoOpcoes(); track o.id) {
+            <option [value]="o.id" [selected]="o.id === tipoId()">{{ o.label }}</option>
+          }
+        </select>
+        @if (a.typeEdited) {
+          <p class="note">Tipo corrigido por você — o sync não sobrescreve.</p>
+        }
+      </div>
+
       <div class="field">
         <label for="name">Nome</label>
         <input id="name" type="text" [value]="name()" (input)="onName($event)"
