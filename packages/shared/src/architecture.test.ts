@@ -1187,7 +1187,11 @@ const HEX_CEILING: {
     // Os dois viraram papel — `treino`/`orange` e `green` — então a rota deixou
     // de ficar preta quando a marca é `tinta`, e o mapa passou a acompanhar a
     // paleta como o resto do app.
-    max: 61,
+    //
+    // 61 → 60 quando o `country-map` recebeu o mesmo conserto: o laranja cravado
+    // era o *fallback* de uma leitura de `--primary` que nunca falhava — cor de
+    // marca com rede de segurança em hex. Virou papel, e a rede sumiu junto.
+    max: 60,
   },
 ];
 
@@ -1288,6 +1292,44 @@ check('CATRACA — acento como cor de texto não cresce', () => {
     `acento novo como cor de texto: ${over.join(', ')}.\n` +
       `  \`accent\` garante 3,0 — o piso do traço, não o da letra. Para texto use ` +
       `\`roles[x].text\` / \`colors.<papel>Text\` / \`var(--role-x-text)\`, que garante 4,5.`,
+  );
+});
+
+/**
+ * BARREIRA — cor de dado não sai de `getComputedStyle` de variável de **marca**.
+ *
+ * É a terceira aparição do mesmo erro de categoria. `--primary` vem do eixo
+ * marca, que governa só o cromo — FAB, CTA, toggle, estado ativo. Rota no mapa,
+ * série de gráfico e acento de módulo são **dado**, e dado sai da paleta, via
+ * `moduleOf()` / `resolveTokens().roles[x].accent`.
+ *
+ * O `activity-map` foi consertado em 27/08 e o `country-map` ficou para trás,
+ * porque a busca de então olhou `color: var(--primary)` em folha de estilo e
+ * este lia a variável por JavaScript. O sintoma só aparece fora da marca padrão:
+ * com a marca `tinta` no escuro as 137 rotas do mapa por país saíam **brancas**.
+ *
+ * Ler por `getComputedStyle` tem ainda um segundo defeito, independente do
+ * primeiro: congela. O valor é lido uma vez, no desenho, e trocar de paleta ou
+ * de esquema depois disso não recolore nada.
+ *
+ * Teto **zero**, e barreira e não catraca porque o passivo já é zero — não há
+ * uso legítimo: quem precisa de cor em TypeScript tem o `ThemeService`, que é
+ * signal e reage.
+ */
+check('BARREIRA — cor de dado não lê variável de marca por getComputedStyle', () => {
+  const re =
+    /getComputedStyle\([^)]*\)[\s\S]{0,120}?getPropertyValue\(\s*['"]--(primary|primary-deep)\b/g;
+  const hits: string[] = [];
+  for (const f of webFiles) {
+    const n = (readFileSync(f, 'utf8').match(re) ?? []).length;
+    if (n > 0) hits.push(`${relative(ROOT, f)} (${n})`);
+  }
+  assert.deepEqual(
+    hits,
+    [],
+    `cor lida do eixo marca por getComputedStyle: ${hits.join(', ')}.\n` +
+      `  \`--primary\` é cromo. Cor de dado vem da paleta — \`moduleOf(<modulo>, …).accent\` ` +
+      `ou \`theme.tokens().roles[x].accent\`, que ainda por cima recolorem sozinhos.`,
   );
 });
 
