@@ -11,8 +11,9 @@ import {
   viewChild,
 } from '@angular/core';
 import type { ActivityRoutePoint, MapStyle, ViewportBounds } from '@vitale/shared';
-import { MAP_STYLES } from '@vitale/shared';
+import { MAP_STYLES, moduleOf } from '@vitale/shared';
 import { PreferencesService } from '@core/services/preferences.service';
+import { ThemeService } from '@core/theme/theme.service';
 import * as L from 'leaflet';
 import maplibregl from 'maplibre-gl';
 
@@ -74,6 +75,7 @@ export class CountryMapComponent {
   private readonly mapEl = viewChild.required<ElementRef<HTMLElement>>('map');
   private readonly destroyRef = inject(DestroyRef);
   private readonly prefs = inject(PreferencesService);
+  private readonly theme = inject(ThemeService);
 
   private map?: L.Map;
   private baseLayer?: L.Layer;
@@ -94,6 +96,13 @@ export class CountryMapComponent {
     effect(() => {
       const style = this.prefs.mapStyle();
       if (this.map) this.applyStyle(style);
+    });
+    // Trocar de paleta ou de esquema recolore as rotas na hora — a mesma razão
+    // do `ActivityMapComponent`. Sem isto elas ficariam na cor de quando a tela
+    // abriu, que é o que o `getComputedStyle` fazia: lia uma vez e congelava.
+    effect(() => {
+      const color = this.routeColor();
+      this.lines.forEach((l) => l.setStyle({ color }));
     });
     this.destroyRef.onDestroy(() => {
       this.ro?.disconnect();
@@ -191,8 +200,17 @@ export class CountryMapComponent {
     if (size.x > 0 && size.y > 0) this.fitted = true;
   }
 
+  /**
+   * Cor das rotas: o papel do módulo **treino**, que é o `orange` — a mesma do
+   * `ActivityMapComponent`, porque é o mesmo percurso visto de longe.
+   *
+   * Lia `--primary` por `getComputedStyle`, e isso era erro de categoria duas
+   * vezes. `--primary` vem do eixo **marca**, que governa o cromo — com a marca
+   * `tinta` no escuro as rotas saíam **brancas**, e com `azul` sairiam azuis.
+   * E ler do DOM congela: o valor entrava uma vez, no desenho.
+   */
   private routeColor(): string {
-    const v = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
-    return v || '#F25C2B';
+    return moduleOf('treino', this.theme.themeId(), this.theme.scheme(), this.theme.paletteId())
+      .accent;
   }
 }
