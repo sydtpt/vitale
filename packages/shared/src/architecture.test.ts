@@ -47,6 +47,7 @@ import { CADERNO_IDS } from './period/cadernos';
 import { CAPA_COLUMNS, MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
 import { EDICAO_COLUMNS, TIPOS_COM_EDICAO } from './data/edicoes-ia';
 import { ACTIVITY_COLUMNS } from './data/activities';
+import { LUA_EXECUCAO_COLUMNS } from './data/lua-execucoes';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -761,6 +762,7 @@ function fechaChaves(src: string, de: number): number {
 const CHAVES_DE_EDICAO_ROW = chavesDaInterface('packages/shared/src/data/edicoes-ia.ts', 'EdicaoRow');
 const CHAVES_DE_CAPA_ROW = chavesDaInterface('packages/shared/src/data/edicoes-capa.ts', 'CapaRow');
 const CHAVES_DE_ACTIVITY_ROW = chavesDaInterface('packages/shared/src/data/activities.ts', 'ActivityRow');
+const CHAVES_DE_LUA_EXECUCAO_ROW = chavesDaInterface('packages/shared/src/data/lua-execucoes.ts', 'LuaExecucaoRow');
 
 const COLUNAS_PEDIDAS: {
   tabela: string; colunas: string; daInterface: readonly string[]; dono: string;
@@ -785,6 +787,18 @@ const COLUNAS_PEDIDAS: {
     colunas: ACTIVITY_COLUMNS,
     daInterface: CHAVES_DE_ACTIVITY_ROW,
     dono: 'data/activities.ts (ACTIVITY_COLUMNS)',
+  },
+  // `lua_execucoes` entrou em 28/09/2026 (story 4.2b). É a tabela mais larga das
+  // quatro — 35 colunas, porque a linha é a serialização inteira de um
+  // `ResultadoDaFase` mais o acervo e o carimbo da execução —, e a que mais depende
+  // desta barreira: ela é escrita uma vez a cada cem noites, então um 400 do
+  // PostgREST por coluna errada só apareceria na hora da execução autorizada, que é
+  // a hora em que menos se quer descobrir isso.
+  {
+    tabela: 'lua_execucoes',
+    colunas: LUA_EXECUCAO_COLUMNS,
+    daInterface: CHAVES_DE_LUA_EXECUCAO_ROW,
+    dono: 'data/lua-execucoes.ts (LUA_EXECUCAO_COLUMNS)',
   },
 ];
 
