@@ -18,7 +18,7 @@ import { THEMES, type ColorScheme, type ThemeId } from './themes';
 import { shadowVars } from './css-vars';
 import { BRANDS } from './brands';
 import { moduleOf, resolveTokens, wallpapersFor, MODULE_KEYS, type RoleKey } from './derive';
-import { ACTIVITY_ROLE, ACTIVITY_TYPE_LABELS } from '../fitness/activity-types';
+import { ACTIVITY_ROLE, ACTIVITY_TYPE_LABELS, SHARED_ROLE } from '../fitness/activity-types';
 import { HR_ZONES } from '../health/hr-zones';
 import { CADERNO_IDS, MODULO_DO_CADERNO } from '../period/cadernos';
 
@@ -615,6 +615,54 @@ check('todo tipo de treino conhecido tem papel cromático', () => {
     .filter(([, role]) => !roles.has(role))
     .map(([id, role]) => `${id}→${role}`);
   assert.deepEqual(invalido, [], `papel inexistente: ${invalido.join(', ')}`);
+});
+
+/**
+ * A catraca que faltava em 28/09/2026, quando a Trilha passou a ter atividades
+ * próprias e apareceu na legenda do Histórico **no mesmo verde do Yoga**.
+ *
+ * Dividir papel continua legítimo: são 17 tipos para 11 papéis, e ciclismo, remo
+ * e natação serem todos `blue` é escolha, não aperto. O que não pode é dividir
+ * por acidente. Aqui cada papel com mais de um dono é confrontado com a lista
+ * declarada em `SHARED_ROLE`, onde a família está escrita ao lado — e "trilha,
+ * elíptico e yoga são a mesma família" é uma frase que ninguém teria escrito.
+ *
+ * O teste não mede cor: dois tipos no mesmo papel são o **mesmo hex**, e nenhum
+ * ΔE separa isso. O que ele cobra é a frase.
+ */
+check('papel dividido por dois tipos de treino está declarado, com a família junto', () => {
+  const nomes = (ids: readonly number[]): string =>
+    [...ids].sort((a, b) => a - b).map((i) => `${ACTIVITY_TYPE_LABELS[i] ?? '?'} (${i})`).join(', ');
+  const chave = (ids: readonly number[]): string => [...ids].sort((a, b) => a - b).join(',');
+
+  const porPapel = new Map<string, number[]>();
+  for (const [id, papel] of Object.entries(ACTIVITY_ROLE)) {
+    const lista = porPapel.get(papel) ?? [];
+    lista.push(Number(id));
+    porPapel.set(papel, lista);
+  }
+
+  const bad: string[] = [];
+  for (const [papel, ids] of porPapel) {
+    const declarado = SHARED_ROLE[papel];
+    if (ids.length === 1) {
+      if (declarado) bad.push(`${papel}: declarado como dividido, mas só ${nomes(ids)} o usa`);
+      continue;
+    }
+    if (!declarado) {
+      bad.push(`${papel}: dividido por ${nomes(ids)} — declare a família em SHARED_ROLE`);
+      continue;
+    }
+    if (chave(ids) !== chave(declarado)) {
+      bad.push(`${papel}: SHARED_ROLE diz ${nomes(declarado)}, mas ACTIVITY_ROLE diz ${nomes(ids)}`);
+    }
+  }
+  // Papel declarado que nenhum tipo usa mais — lista que ficou para trás.
+  for (const papel of Object.keys(SHARED_ROLE)) {
+    if (!porPapel.has(papel)) bad.push(`${papel}: declarado em SHARED_ROLE e sem nenhum tipo`);
+  }
+
+  assert.deepEqual(bad, [], `divisão de papel sem decisão registrada:\n    ${bad.join('\n    ')}`);
 });
 
 /**

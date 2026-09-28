@@ -6,10 +6,17 @@
  * Adicione/edite labels somente aqui.
  */
 import type { WorkoutKind } from '../health/readiness-advice';
-import type { PaletteRoles } from '../theme/palettes';
+import type { RoleKey } from '../theme/derive';
 
-/** Papel cromático de série de gráfico. */
-type ChartRole = keyof PaletteRoles;
+/**
+ * Papel cromático do tipo de atividade.
+ *
+ * São os onze papéis da paleta, não os oito das séries de gráfico. A cor de um
+ * tipo é a cor de uma **entidade**, e dezessete entidades em oito papéis é o que
+ * pôs Trilha e Yoga no mesmo verde. `remapChartColor` conhece os onze desde
+ * 28/09/2026.
+ */
+type ChartRole = RoleKey;
 
 export const ACTIVITY_TYPE_LABELS: Record<number, string> = {
   11: 'Cross Training',
@@ -83,15 +90,23 @@ export function hasGpsRoute(activityId: number): boolean {
  * sai de `resolveTokens(...).roles[papel]` no tema e paleta ativos.
  *
  * Atividades da mesma família compartilham papel de propósito — ciclismo, remo
- * e natação são todas `blue`. São 17 tipos para 8 papéis; agrupar por família é
+ * e natação são todas `blue`. São 17 tipos para 11 papéis; agrupar por família é
  * o que mantém o gráfico legível.
+ *
+ * **Dividir papel é decisão, não sobra.** Cada grupo com mais de um tipo está
+ * declarado em `SHARED_ROLE` abaixo, e o teste de tema cobra a lista. Foi o que
+ * faltava em 28/09/2026: a Trilha nasceu `green` ao lado do Yoga porque o
+ * Elíptico já estava lá, e ninguém precisou escrever a frase "trilha, elíptico e
+ * yoga são a mesma família" — que não se sustenta. A Trilha é `purple`: a única
+ * família de matiz que sobrava ao lado de verde, azul, amarelo e laranja, os
+ * quatro tipos que dividem com ela a legenda do Histórico.
  */
 export const ACTIVITY_ROLE: Record<number, ChartRole> = {
   11: 'deep',    // Cross Training
   13: 'blue',    // Ciclismo
   16: 'green',   // Elíptico
   20: 'brown',   // Funcional
-  24: 'green',   // Trilha
+  24: 'purple',  // Trilha
   35: 'blue',    // Remo
   37: 'orange',  // Corrida
   44: 'brown',   // Escadas
@@ -104,6 +119,29 @@ export const ACTIVITY_ROLE: Record<number, ChartRole> = {
   66: 'rose',    // Pilates
   73: 'rose',    // Cardio
   82: 'yellow',  // Pickleball
+};
+
+/**
+ * Os papéis que mais de um tipo divide, e **quais** tipos. Catraca, não barreira:
+ * dividir continua permitido — 17 tipos não cabem em 11 papéis de outro jeito —
+ * mas cada divisão passa a ser uma linha que alguém escreveu, com a família ao
+ * lado. Quem puser um tipo novo num papel ocupado reprova até declarar aqui.
+ *
+ * A regra só vale para quem divide: papel de um tipo só não aparece na lista.
+ */
+export const SHARED_ROLE: Record<string, readonly number[]> = {
+  // Aeróbico cíclico de baixo impacto.
+  blue: [13, 35, 46], // Ciclismo, Remo, Natação
+  // Intervalado de intensidade alta.
+  deep: [11, 63], // Cross Training, HIIT
+  // Força com peso do corpo ou implemento, em escada ou no chão.
+  brown: [20, 44], // Funcional, Escadas
+  // Controle e core, sem carga externa.
+  rose: [59, 66, 73], // Core, Pilates, Cardio
+  // Cadência baixa, em pé, sem impacto — a esteira sem sair do lugar.
+  green: [16, 57], // Elíptico, Yoga
+  // Caminhar em piso plano, por esporte ou por deslocamento.
+  yellow: [52, 82], // Caminhada, Pickleball
 };
 
 /** Papel de um tipo de atividade; `undefined` quando o tipo é desconhecido. */
