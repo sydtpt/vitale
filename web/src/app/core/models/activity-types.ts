@@ -35,7 +35,7 @@ const BASE: Record<number, BaseMeta> = {
   13: { icon: 'bike', color: T.blue },
   16: { icon: 'trend', color: T.green },
   20: { icon: 'dumbbell', color: T.casa },
-  24: { icon: 'hiking', color: T.green },
+  24: { icon: 'hiking', color: T.purple },
   35: { icon: 'dumbbell', color: T.blue },
   37: { icon: 'run', color: T.primary },
   44: { icon: 'arrow-u', color: T.casa },

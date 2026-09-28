@@ -15,14 +15,22 @@
  * atividade tem a mesma cor em qualquer período. Isso não mudou.
  */
 
-import { resolvePalette, type PaletteRoles } from '../theme/palettes';
-import { resolveTokens } from '../theme/derive';
+import { resolvePalette } from '../theme/palettes';
+import { resolveTokens, type RoleKey } from '../theme/derive';
 import type { ColorScheme } from '../theme/themes';
 
 /**
  * Cores-base do tema Orbe, que são as chaves do remap. Cor fora deste mapa — a
  * linha de referência, o cinza do "sem dado" — passa intacta, e é assim que
  * `reference-lines.ts` mantém as suas fora da paleta de propósito.
+ *
+ * São os **onze** papéis, não os oito das séries. O vocabulário nasceu com oito
+ * porque um gráfico empilhado não desenha mais que isso de uma vez, mas a cor de
+ * uma ENTIDADE não é uma série: dezessete tipos de treino se acotovelam nos
+ * mesmos oito, e o aperto cobrou — Trilha e Yoga saíram do mesmo `green` e
+ * pintavam o mesmo hex na legenda do Histórico (28/09/2026). `teal`, `purple` e
+ * `red` já existiam em toda paleta para os módulos; o que faltava era a chave
+ * aqui, sem a qual o hex passava intacto e congelava na cor do Orbe.
  */
 const BASE = {
   orange: '#F25C2B',
@@ -33,12 +41,16 @@ const BASE = {
   brown: '#B4825B',
   deep: '#D9491B',
   ink: '#1F1B16',
+  teal: '#4F9D90',
+  purple: '#8B6BB1',
+  red: '#E05C5C',
 } as const;
 
 // Índice cor-base → papel, para lookup O(1) no remap.
-const ROLE_OF_BASE: Record<string, keyof PaletteRoles> = {
+const ROLE_OF_BASE: Record<string, RoleKey> = {
   [BASE.orange]: 'orange', [BASE.blue]: 'blue', [BASE.green]: 'green', [BASE.yellow]: 'yellow',
   [BASE.rose]: 'rose', [BASE.brown]: 'brown', [BASE.deep]: 'deep', [BASE.ink]: 'ink',
+  [BASE.teal]: 'teal', [BASE.purple]: 'purple', [BASE.red]: 'red',
 };
 
 /**

@@ -292,7 +292,7 @@ const ACTIVITY_COLORS: Record<number, string> = {
   13: '#6E8CC9', // Ciclismo
   16: '#6FA86A', // Elíptico
   20: '#B4825B', // Funcional
-  24: '#6FA86A', // Trilha
+  24: '#8B6BB1', // Trilha — `purple`; dividia o verde com o Yoga até 28/09/2026
   35: '#6E8CC9', // Remo
   37: '#F25C2B', // Corrida
   44: '#B4825B', // Escadas
