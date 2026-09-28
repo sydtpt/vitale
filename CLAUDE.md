@@ -391,3 +391,4 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [FC ao longo do dia (série intradiária em `health_series`)](docs/specs/fc-serie/spec.md) · [data-model](docs/specs/fc-serie/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fc-serie/tasks.md)
 - [Fotos na pedalada (a foto ligada à atividade, agrupada por parada)](docs/specs/fotos-na-pedalada/spec.md) · [data-model](docs/specs/fotos-na-pedalada/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md)
 - [Busca textual nas atividades (cidade, nome da rota, nome, fonte, aparelho)](docs/specs/busca-textual/spec.md) · [data-model](docs/specs/busca-textual/data-model.md) · [stories](docs/specs/busca-textual/stories.yaml)
+- [Quem fez a comida (origem de cada almoço e jantar, e quanto custa não cozinhar)](docs/specs/quem-fez-a-comida/spec.md) · [data-model](docs/specs/quem-fez-a-comida/data-model.md) · [stories](docs/specs/quem-fez-a-comida/stories.yaml)

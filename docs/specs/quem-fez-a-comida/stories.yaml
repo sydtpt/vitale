@@ -1,0 +1,147 @@
+- id: "1"
+  title: A tabela, a porta e a ponte
+  description: >-
+    A migration com `meal_origins`, o ponteiro `meal_origin_id` em
+    `transactions`, as funções `refeicao_registrar` e `refeicao_esquecer`, e o
+    gatilho de volta que limpa o valor quando a linha é apagada em Finanças
+    (CAP-5, CAP-7, CAP-12).
+  done_checkpoint: true
+  invoke_dev_with: >-
+    A regra do CAP-5 é do BANCO, não da tela: o `CHECK`
+    `meal_origins_amount_so_onde_paga` recusa valor em `cozinhei` e `pulei`, e é
+    isso que faz a troca de chip apagar a transação sem código de tela. O índice
+    `transactions_meal_origin_uidx` **não** é parcial de propósito — em Postgres
+    NULLs são distintos, então um unique comum já permite milhares de transações
+    sem refeição E serve de conflict target inferível; um índice parcial exigiria
+    repetir o `where` no `ON CONFLICT` e é armadilha silenciosa. `tx_date` sai de
+    `v_row.meal_date`, NUNCA de `current_date`: preencher a quinta num domingo
+    tem de lançar na quinta. A `category` é `'Alimentação'`, que já existe em
+    `FINANCA_CATS` (`packages/shared/src/models/index.ts:183`) — não criar
+    categoria nova. O par função↔gatilho parece laço e não é: escrever o teste
+    que prova os dois caminhos de terminação do data-model §5, em especial
+    **apagar a origem com valor lançado** (cascade → gatilho → update em linha
+    que já foi), que não pode levantar erro nem deixar transação viva. Corrigir
+    no mesmo passo o `comment` de `transactions.amount`, que diz "em reais" desde
+    antes de `format/money.ts` virar a fonte do símbolo em 07/09 — só o
+    comentário, nunca o tipo. As duas listas fechadas (`MEAL_SLOTS` com 2,
+    `MEAL_ORIGINS` com 6) nascem no shared nesta story e precisam casar letra por
+    letra com os `CHECK`, senão a barreira do `architecture.test.ts` reprova.
+    A migration é aplicada pelo DONO, numa janela: ler a seção 6 de
+    `_bmad-output/implementation-artifacts/revista-1-9/janela-da-migracao.md`
+    antes, e nunca compartilhar build de entrega com migração.
+
+- id: "2"
+  title: As leituras no shared
+  description: >-
+    As sete funções puras de `packages/shared/src/refeicoes/` — contagem,
+    mediana por origem, gasto em três números, dia da semana, sequência e
+    heatmap anual — mais o acesso a dado em `data/meal-origins.ts`. Nenhuma
+    tela nesta story (CAP-6, CAP-10, CAP-12).
+  invoke_dev_with: >-
+    Duas regras que são fáceis de violar e que estragam a feature em silêncio.
+    (1) **O denominador é `respondidas`**, nunca o número de vãos do período:
+    um dia sem resposta não pode empurrar o percentual de cozinhadas para
+    baixo. (2) **`nivel: 0` e `nivel: null` são coisas diferentes** no heatmap —
+    zero é "não cozinhou nenhuma das duas", null é "não respondeu" — e as duas
+    cores diferem por CLARIDADE, não por matiz, pela barreira de contraste
+    medido do sistema de temas. A mediana sai SÓ de linhas com `amount`: origem
+    sem nenhum lançamento **não aparece no mapa** e portanto não gera
+    estimativa; o `gasto` devolve o que não alcançou como contagem em
+    `semValor`, e o total para no que foi lançado. Nunca inventar preço, nunca
+    cair em zero — é o CAP-6 e foi decisão explícita do dono contra seis preços
+    configuráveis. Sem rede em nenhum arquivo daqui; testar contra dados
+    sintéticos que incluam: origem sem lançamento nenhum, dia sem resposta no
+    meio da janela, e um período em que todas as respostas são `pulei`.
+    Em `data/meal-origins.ts`, lembrar que são 2 linhas por dia: um ano (730)
+    cabe no teto de 1000 do PostgREST e dois anos não, e o corte vem SEM erro —
+    faixa maior que um ano usa `range` + `order` explícitos.
+
+- id: "3"
+  title: O cartão na Hoje e o cabeçalho novo
+  description: >-
+    Os dois cartões de vão na Hoje com os seis chips, o colapso ao responder, e
+    a substituição da linha de cobrança do cabeçalho pelos três números
+    (CAP-1, CAP-2, CAP-3, CAP-9).
+  invoke_dev_with: >-
+    O desenho está aprovado no canvas
+    https://claude.ai/artifact/Y5EpxQTPMkYtKxtFqEJK95 — quadro **B**, que é o
+    escolhido; o quadro A é a opção RECUSADA e não deve ser construído. Seis
+    chips em duas fileiras de três, alvos de 48 px ou mais, ícones em SVG de
+    traço (nunca emoji), medidas iguais às dos botões `+`/`−` do `HabitStepper`,
+    que é o vocabulário que a mão dele já acerta. `MEAL_TARGET` e a linha
+    "N refeições a registrar" **saem no mesmo commit** — não pode haver duas
+    coisas no cabeçalho falando de comida. A frase nova é
+    `cozinhou 9 · comprou 4 · pulou 1`, escolhida pelo dono entre quatro; a
+    expressão "o fogão acendeu" foi VETADA por ele e não entra em nenhuma
+    superfície diária (na Revista, depois, pode). O relógio ORDENA e não tranca:
+    `defaultMealType()` pode destacar o vão da hora, mas os dois ficam
+    disponíveis o dia inteiro — às 11h ele responde o jantar, às 23h responde o
+    almoço. Cor por `moduleOf()` no módulo `food`; nunca hex, nunca `--primary`,
+    que é cromo de marca e não cor de dado (ADR 0018). Calibrar o tamanho NO
+    APARELHO: o que fecha no monitor sai grande no telefone.
+
+- id: "4"
+  title: A folha do valor, e a ponte conferida em Finanças
+  description: >-
+    A folha que sobe depois de um chip pago, o lançamento do valor pela função
+    do banco, e a conferência de que a linha aparece no extrato de Finanças sem
+    poder divergir (CAP-4, CAP-5, CAP-7).
+  invoke_dev_with: >-
+    A propriedade mais importante do desenho todo: **o chip já gravou antes da
+    folha subir.** Fechar a folha por arraste, por scrim ou pelo botão
+    "sem valor" deixa a origem gravada e o valor em branco — não pode existir
+    caminho em que fechar a folha desfaça a resposta. Testar isso no aparelho
+    fechando por ARRASTE, que é o caminho que costuma escapar. `cozinhei` e
+    `pulei` não abrem folha nenhuma. A folha segue o vocabulário do
+    `QuickAddSheet` (folha de baixo, não diálogo centrado) e tem um campo só
+    mais duas saídas — resistir a acrescentar nota, lugar ou descrição. Teclado
+    numérico (`inputmode`/`keyboardType` decimal). Em Finanças, a linha com
+    `meal_origin_id is not null` tem valor NÃO editável e um caminho de volta
+    para a refeição: editar ali é o único jeito de as duas tabelas discordarem,
+    então é ali que se fecha a porta. Nenhuma tela escreve em `transactions` por
+    causa de refeição — a única linha de código que cria essa transação está na
+    função do banco. Conferir no aparelho os três casos do Murat de ponta a
+    ponta: trocar o chip apaga a despesa · apagar em Finanças limpa o valor ·
+    preencher dia passado lança na data daquele dia.
+
+- id: "5"
+  title: A tela de responder depois — semana, períodos e o ano
+  description: >-
+    Rota nova no celular com chips de período (semana · mês · estação · ano), a
+    grade de dias × vãos toda tocável, o heatmap anual clicável e as métricas do
+    CAP-10 (CAP-8, CAP-10, CAP-12).
+  invoke_dev_with: >-
+    Quadros **D** e **E** do canvas. É UMA tela com chips de período, não duas —
+    decisão do dono. O molde é `/habitos/detalhe`, que já tem períodos, barras
+    por valor, dia da semana e heatmap anual com intensidade; e o heatmap
+    clicável tem precedente em `/registros/:id`. Rota nova **exige regenerar
+    `.expo/types/router.d.ts`**, senão o `tsc` reprova o `router.push`: subir
+    `expo start` por ~10 s gera e pode matar. A célula sem resposta é tracejada
+    e NÃO entra em nenhum denominador (CAP-12); ela aparece como número próprio
+    ("1 dia sem resposta"), nunca somada aos `pulei`. Tocar uma célula de dia
+    passado abre a mesma folha de valor da story 4 e grava com a data daquele
+    dia. Números em Geist Mono; € por `format/money.ts`. `Animated` do React
+    Native se houver transição — nunca Reanimated (ADR 0010).
+
+- id: "6"
+  title: A web — /alimentacao deixa de ser placeholder
+  description: >-
+    A página vazia passa a mostrar as leituras do CAP-10 e a permitir responder
+    dias, escrevendo pela MESMA função do banco que o celular chama
+    (CAP-10, CAP-11).
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Hoje `web/src/app/features/alimentacao/` é um `rt-page-header` mais um
+    `rt-panel` com a frase "Donut de kcal, barras de macros e lista de
+    refeições." e uma classe sem nada injetado — é placeholder inteiro.
+    A web **responde também** (decisão do dono), e a escrita vai pela mesma
+    `refeicao_registrar`: nunca uma segunda implementação da regra, pelo
+    precedente do `edicao_imprimir` (AD-4 da Revista). O cartão de seis chips
+    **não se repete na web**: seis alvos de 54 px numa tela de 1400 px são
+    enfeite — a forma é uma linha por dia numa grade, a semana visível de uma
+    vez. Esse desenho AINDA NÃO EXISTE: pela regra da casa, mockup com dado real
+    antes do código, e o canvas do celular não serve de referência de layout
+    aqui. Standalone, OnPush, `signal()`/`computed()`, `inject()`; SCSS com
+    tokens do shared, nenhuma variável CSS fora do sistema (a barreira do
+    `architecture.test.ts` cobra). As leituras são as mesmas funções puras da
+    story 2 — não reimplementar contagem nem mediana no Angular.
