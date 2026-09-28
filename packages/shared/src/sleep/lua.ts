@@ -8,6 +8,12 @@
  * da story 4.2, e moram aqui também quando chegarem, porque são vocabulário de
  * sono; a efeméride fica em `astro/moon.ts`, que não sabe o que é uma noite.
  *
+ * **As funções daqui classificam só a cheia.** Desde 28/09/2026 há um segundo
+ * pré-registro — `pre-registro-lua-outras-fases.md` — que cobre a nova e os dois
+ * quartos, com a mesma janela e outro α (1,67%, bilateral). Generalizar a
+ * classificação para as quatro fases é da 4.2, e as duas famílias **rodam na
+ * mesma execução ou não rodam** (§9 de lá). Quem mexer aqui lê os dois documentos.
+ *
  * ## A noite é o instante do seu fim, 08:00 UTC do `wakeDay`
  *
  * Nunca o `apagou` medido: classificar a exposição pelo desfecho seria endógeno —
