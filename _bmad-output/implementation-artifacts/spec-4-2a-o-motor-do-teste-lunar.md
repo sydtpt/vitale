@@ -2,7 +2,7 @@
 title: 'Story 4.2a — O motor do teste lunar: as quatro fases, os portões e o veredito'
 type: 'feature'
 created: '2026-09-28'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 3
 baseline_commit: '7e5f26db5b3cd02d23de117821b4f932b3d9c94d'
 context:
@@ -244,3 +244,71 @@ Conferidos por **exit code**, nunca por grep na saída (é a lição da story 2.
 **Em 28/09, iteração 3 — os oito saíram 0.** `shared test`: 38 casos em
 `lua-protocolo.test.ts` (eram 29), com as duas tabelas de poder impressas. `mobile jest`:
 83 suítes, 1.516 testes.
+
+## Suggested Review Order
+
+**O veredito — onde o protocolo vira decisão**
+
+- Comece aqui: o portão de poder **antes** de significância e limiar. É o defeito que derrubou a iteração 1.
+  [`lua-protocolo.ts:1020`](../../packages/shared/src/sleep/lua-protocolo.ts#L1020)
+
+- A tabela das quatro fases: α e lateralidade como dado, tipada no literal — a quinta linha não compila.
+  [`lua-protocolo.ts:213`](../../packages/shared/src/sleep/lua-protocolo.ts#L213)
+
+- `0.05 / 3`, a divisão escrita, mais estrita que o `1,67%` arredondado do documento.
+  [`lua-protocolo.ts:144`](../../packages/shared/src/sleep/lua-protocolo.ts#L144)
+
+- A direção declarada é lida: na cheia, adiantamento não vira achado por mais que meça.
+  [`lua-protocolo.ts:937`](../../packages/shared/src/sleep/lua-protocolo.ts#L937)
+
+**A unidade do que falta — a lição do "1 dias"**
+
+- Quatro unidades congeladas por motivo: ciclo nunca sai impresso como noite.
+  [`lua-protocolo.ts:311`](../../packages/shared/src/sleep/lua-protocolo.ts#L311)
+
+- O número e a unidade viajam juntos, e o piso de 1 está declarado como inalcançável, com a prova.
+  [`lua-protocolo.ts:886`](../../packages/shared/src/sleep/lua-protocolo.ts#L886)
+
+**A estatística — três peças puras, nenhuma existia no repositório**
+
+- A luz sai por resíduo de MQO, não por estrato: 49 noites não sobrevivem a faixas de luz.
+  [`lua-protocolo.ts:629`](../../packages/shared/src/sleep/lua-protocolo.ts#L629)
+
+- Hodges–Lehmann: a mediana das diferenças par a par, que é literalmente "comparação das medianas".
+  [`lua-protocolo.ts:551`](../../packages/shared/src/sleep/lua-protocolo.ts#L551)
+
+- Mann–Whitney com correção de empate e de continuidade — a segunda não está nos documentos e está declarada.
+  [`lua-protocolo.ts:576`](../../packages/shared/src/sleep/lua-protocolo.ts#L576)
+
+- O eixo de origem 18h resolve a meia-noite; o corte é canônico porque a rotação move o SD, e o SD move o poder.
+  [`lua-protocolo.ts:676`](../../packages/shared/src/sleep/lua-protocolo.ts#L676)
+
+- O poder e as noites que faltam, pela normal do §5 — com o SD **marginal bruto**, nunca o residual.
+  [`lua-protocolo.ts:789`](../../packages/shared/src/sleep/lua-protocolo.ts#L789)
+
+**A porta única, e as guardas de entrada**
+
+- `vereditoLunar` devolve as quatro numa chamada: a §9 como forma da API, não como disciplina.
+  [`lua-protocolo.ts:1068`](../../packages/shared/src/sleep/lua-protocolo.ts#L1068)
+
+- `wakeDay` repetido é **recusado**, não deduplicado: escolher entre duas medições é escolher desfecho.
+  [`lua-protocolo.ts:1085`](../../packages/shared/src/sleep/lua-protocolo.ts#L1085)
+
+**A janela, generalizada para as quatro fases**
+
+- A cheia continua o padrão sem argumento: quem foi escrito contra o documento de 07/09 não muda de resposta.
+  [`lua.ts:161`](../../packages/shared/src/sleep/lua.ts#L161)
+
+- `PHASE_ORDER` exportada: a ordem das quatro deixa de ser recopiada em três arquivos.
+  [`moon.ts:270`](../../packages/shared/src/astro/moon.ts#L270)
+
+**Os testes e as barreiras**
+
+- A porta por onde todo caso passa: cobra os invariantes da saída em **toda** fase de **todo** veredito.
+  [`lua-protocolo.test.ts:223`](../../packages/shared/src/sleep/lua-protocolo.test.ts#L223)
+
+- A barreira da §9: nenhuma porta pública calcula uma fase sozinha, e nada reexporta.
+  [`lua-protocolo.test.ts:503`](../../packages/shared/src/sleep/lua-protocolo.test.ts#L503)
+
+- A guarda de pureza, agora cobrindo os dois arquivos: sem fuso, ambiente, relógio nem coordenada.
+  [`lua.test.ts:337`](../../packages/shared/src/sleep/lua.test.ts#L337)
