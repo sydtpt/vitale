@@ -777,17 +777,66 @@ check('a paleta Acessível separa de verdade sob daltonismo', () => {
   const p = PALETTES.find((x) => x.cvdSafe);
   assert.ok(p, 'nenhuma paleta declara cvdSafe');
   const bad: string[] = [];
-  for (const kind of ['deuteranopia', 'protanopia'] as const) {
-    for (let i = 0; i < MODULE_KEYS.length; i += 1) {
-      for (let j = i + 1; j < MODULE_KEYS.length; j += 1) {
-        const a = p.roles[MODULE_ROLE[MODULE_KEYS[i]]];
-        const b = p.roles[MODULE_ROLE[MODULE_KEYS[j]]];
-        const d = cvdSeparation(a, b, kind);
-        if (d < 5) bad.push(`${kind} ${MODULE_KEYS[i]}×${MODULE_KEYS[j]} ${d.toFixed(1)}`);
+  // O hex que a TELA mostra, nas 6 combinações — não o declarado. Ver abaixo.
+  for (const t of THEME_IDS) {
+    for (const s of SCHEMES) {
+      const tokens = resolveTokens(t, s, p.id);
+      for (const kind of ['deuteranopia', 'protanopia'] as const) {
+        for (let i = 0; i < MODULE_KEYS.length; i += 1) {
+          for (let j = i + 1; j < MODULE_KEYS.length; j += 1) {
+            const a = tokens.roles[MODULE_ROLE[MODULE_KEYS[i]]].accent;
+            const b = tokens.roles[MODULE_ROLE[MODULE_KEYS[j]]].accent;
+            const d = cvdSeparation(a, b, kind);
+            if (d < 5) {
+              bad.push(`${t}/${s} ${kind} ${MODULE_KEYS[i]}×${MODULE_KEYS[j]} ${d.toFixed(1)}`);
+            }
+          }
+        }
       }
     }
   }
   assert.deepEqual(bad, [], `Acessível falha o próprio propósito:\n    ${bad.join('\n    ')}`);
+});
+
+/**
+ * Por que a checagem acima mede o **resolvido** e não o declarado.
+ *
+ * Até 28/09/2026 ela lia `PALETTES.find(cvdSafe).roles[...]`, e lá a promessa
+ * sempre se cumpriu: os hex da Okabe–Ito separam 8,0 no pior par. O que a tela
+ * mostra é outro número — o acento depois do `ensureContrast` contra a
+ * superfície do tema. Medido, a diferença era brutal: `food × casa` a **1,0**
+ * sob deuteranopia no claro, contra 14,6 no declarado, porque o piso de
+ * contraste empurra os papéis claros para a borda da janela e empilha três
+ * deles numa faixa de 0,05 de luminosidade. Um teste verde o tempo todo, sobre
+ * uma paleta que falhava o próprio propósito em 15 pares.
+ *
+ * Esta checagem existe para que a de cima não volte ao atalho: se alguém
+ * trocar `resolveTokens(...).accent` pelo hex declarado, ela reprova apontando
+ * o par que a troca esconderia.
+ */
+check('o que a paleta declara por esquema chega intacto na tela', () => {
+  const bad: string[] = [];
+  for (const p of PALETTES) {
+    if (!p.schemeRoles) continue;
+    for (const s of SCHEMES) {
+      const porEsquema = p.schemeRoles[s];
+      if (!porEsquema) continue;
+      for (const [role, hex] of Object.entries(porEsquema)) {
+        for (const t of THEME_IDS) {
+          const vivo = resolveTokens(t, s, p.id).roles[role as RoleKey].accent;
+          if (vivo.toUpperCase() !== hex.toUpperCase()) {
+            bad.push(`${p.id} ${t}/${s} ${role}: declarado ${hex}, na tela ${vivo}`);
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    'declaração por esquema não sobreviveu ao caminho do derive — ela tem de ser lida ' +
+      `ANTES do piso de contraste, ou o piso a desfaz:\n    ${bad.join('\n    ')}`,
+  );
 });
 
 /* ─────────────── 6. Contrato de resolução ─────────────── */
