@@ -66,7 +66,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: '2026-09-26'
+last_updated: '2026-09-28'
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -401,7 +401,30 @@ development_status:
 
   epic-4: in-progress
   4-1-o-instante-da-lua-cheia-entra-na-efeméride: review
-  4-2-o-teste-lunar-sob-protocolo-e-lua_execucoes: backlog
+  # DIVIDIDA EM 28/09/2026, por decisão do dono. Duas entregas que embarcam sozinhas:
+  #   4-2a o MOTOR — generalizar a classificação para as quatro fases, o protocolo
+  #        como dado (α e lateralidade por família), os três portões, a estatística
+  #        e o poder. Puro, sem banco. É a parte de risco: NÃO EXISTE teste de
+  #        hipótese, p-valor, poder nem intervalo de confiança em lugar nenhum de
+  #        `packages/shared` — tudo nasce do zero, e decide um veredito científico.
+  #   4-2b o REGISTRO — `lua_execucoes` (a única migração do épico), o
+  #        `data/lua-execucoes.ts`, a entrada em COLUNAS_PEDIDAS, as constantes que
+  #        pinam a cadeia, e a TERCEIRA CORREÇÃO ao pré-registro.
+  # O MOTIVO DA DIVISÃO: juntar estatística nova com SQL faz o revisor dividir a
+  # atenção entre as duas naturezas, e um viés sutil na estatística é exatamente o
+  # defeito que passa quando metade do pacote é migração.
+  # O ESCOPO MUDOU em 28/09: o PR #566 pré-registrou as outras três fases
+  # (`pre-registro-lua-outras-fases.md`) — cheia 5% unilateral em família própria,
+  # nova/crescente/minguante 1,67% BILATERAL. São quatro fases em duas famílias,
+  # e elas rodam na MESMA execução ou nenhuma roda (§9 de lá). O epic-4-context
+  # descreve a story de quando havia uma fase só.
+  # A TERCEIRA CORREÇÃO É OBRIGATÓRIA (4.2b): o §10 do documento de 28/09 cita a §7
+  # do de 07/09 no estado ANTERIOR ao `correcao-pre-registro-lua.md` (08/09) —
+  # repete `edicoes_ia`/`caderno='lua'` (revogado) e "quebra o build com execução já
+  # gravada" (revogado, virou incondicional). Os dois são imutáveis; a saída é o
+  # terceiro documento, e a cadeia passa a ter QUATRO elos.
+  4-2a-o-motor-do-teste-lunar: in-progress
+  4-2b-lua_execucoes-e-a-cadeia-do-pre-registro: backlog
   4-3-a-barreira-do-hash-incondicional-e-offline: backlog
   4-4-a-página-da-lua: backlog
   epic-4-retrospective: optional

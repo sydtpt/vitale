@@ -253,7 +253,14 @@ const PHASE_FRACTION: Readonly<Record<LunarPhaseKind, number>> = {
   lastQuarter: 0.75,
 };
 
-const PHASE_ORDER: readonly LunarPhaseKind[] = ['new', 'firstQuarter', 'full', 'lastQuarter'];
+/**
+ * As quatro fases principais na ordem da lunação — **a única lista delas**.
+ *
+ * Exportada para que o protocolo lunar (`sleep/lua-protocolo.ts`) e os testes
+ * iterem daqui em vez de recopiar as quatro strings: uma quinta fase, ou uma
+ * renomeada, tem de aparecer num lugar só.
+ */
+export const PHASE_ORDER = ['new', 'firstQuarter', 'full', 'lastQuarter'] as const satisfies readonly LunarPhaseKind[];
 
 /** Mês sinódico médio, em dias (Meeus 49.1). */
 const SYNODIC_DAYS = 29.530588861;

@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { lunarPhasesBetween, nextLunarPhase } from '../astro/moon';
+import { PHASE_ORDER, lunarPhasesBetween, nextLunarPhase } from '../astro/moon';
 import { USNO_FASES_2023_2027 } from '../astro/moon-usno.data';
 import {
   HORA_UTC_DO_FIM_DA_NOITE,
@@ -56,7 +56,7 @@ const CHEIA = cheiaDepois('2026-09-17T00:00:00Z');
 const C = CHEIA.getTime();
 
 check('borda esquerda — t = cheia − 5 d exato é a noite −5', () => {
-  assert.deepEqual(janelaLunarDoInstante(new Date(C - 5 * DAY_MS)), { cheia: CHEIA, noite: -5 });
+  assert.deepEqual(janelaLunarDoInstante(new Date(C - 5 * DAY_MS)), { fase: 'full', instante: CHEIA, noite: -5 });
 });
 
 check('borda direita — t = cheia exato fica FORA (a janela fechada à direita erraria aqui)', () => {
@@ -64,7 +64,7 @@ check('borda direita — t = cheia exato fica FORA (a janela fechada à direita 
 });
 
 check('um ms antes da cheia é a noite −1', () => {
-  assert.deepEqual(janelaLunarDoInstante(new Date(C - 1)), { cheia: CHEIA, noite: -1 });
+  assert.deepEqual(janelaLunarDoInstante(new Date(C - 1)), { fase: 'full', instante: CHEIA, noite: -1 });
 });
 
 check('fora — um ms antes da borda esquerda', () => {
@@ -90,8 +90,8 @@ check('noite que contém a cheia — cheia de madrugada, 07/10/2025 03:47 UTC', 
   // A noite que termina em W contém a cheia: fica de fora.
   assert.equal(janelaLunar(W), null);
   // A noite anterior terminou antes dela: é a −1.
-  assert.deepEqual(janelaLunar('2025-10-06'), { cheia, noite: -1 });
-  assert.deepEqual(janelaLunar('2025-10-02'), { cheia, noite: -5 });
+  assert.deepEqual(janelaLunar('2025-10-06'), { fase: 'full', instante: cheia, noite: -1 });
+  assert.deepEqual(janelaLunar('2025-10-02'), { fase: 'full', instante: cheia, noite: -5 });
   assert.equal(janelaLunar('2025-10-01'), null);
 });
 
@@ -100,9 +100,9 @@ check('cheia à tarde — 18/07/2027 15:45 UTC: W é −1, W+1 fica de fora', ()
   const hora = cheia.getUTCHours();
   assert.ok(hora >= HORA_UTC_DO_FIM_DA_NOITE, `a cheia não caiu à tarde: ${cheia.toISOString()}`);
   assert.equal(diaUTC(cheia.getTime()), '2027-07-18');
-  assert.deepEqual(janelaLunar('2027-07-18'), { cheia, noite: -1 });
+  assert.deepEqual(janelaLunar('2027-07-18'), { fase: 'full', instante: cheia, noite: -1 });
   assert.equal(janelaLunar('2027-07-19'), null);
-  assert.deepEqual(janelaLunar('2027-07-14'), { cheia, noite: -5 });
+  assert.deepEqual(janelaLunar('2027-07-14'), { fase: 'full', instante: cheia, noite: -5 });
   assert.equal(janelaLunar('2027-07-13'), null);
 });
 
@@ -139,7 +139,7 @@ check('cheia entre 08:00 e 11:00 UTC — 20/05/2027, 10:59 UTC pelo USNO: W é �
   assert.ok(t < usno - USNO_ANTES_MS, 'a noite de 20/05 termina antes da cheia');
   // `<=` basta: o instante verdadeiro é estritamente menor que `usno + 60 s`.
   assert.ok(usno + USNO_DEPOIS_MS <= t + 3 * 3_600_000, 'e a cheia cai antes das 11:00 UTC');
-  assert.deepEqual(janelaLunar(W), { cheia, noite: -1 });
+  assert.deepEqual(janelaLunar(W), { fase: 'full', instante: cheia, noite: -1 });
   assert.equal(janelaLunar('2027-05-21'), null);
 });
 
@@ -164,8 +164,8 @@ check('a cheia do USNO mais perto de 08:00 UTC — 09/08/2025, 07:55: W fica de 
   assert.ok(usno + USNO_DEPOIS_MS <= t, 'a cheia cai antes das 08:00 UTC de 09/08');
   assert.ok(cheia.getTime() < t, `a efeméride pôs a cheia em ${cheia.toISOString()}, depois das 08:00`);
   assert.equal(janelaLunar(W), null);
-  assert.deepEqual(janelaLunar('2025-08-08'), { cheia, noite: -1 });
-  assert.deepEqual(janelaLunar('2025-08-04'), { cheia, noite: -5 });
+  assert.deepEqual(janelaLunar('2025-08-08'), { fase: 'full', instante: cheia, noite: -1 });
+  assert.deepEqual(janelaLunar('2025-08-04'), { fase: 'full', instante: cheia, noite: -5 });
 });
 
 check('wakeDay malformado lança RangeError com o valor', () => {
@@ -199,9 +199,9 @@ check('toda cheia de 22/05/2023 a 2027 tem exatamente 5 noites, −5 a −1, e a
     const wakeDay = diaUTC(d);
     const j = janelaLunar(wakeDay);
     if (!j) continue;
-    const lista = porCheia.get(j.cheia.getTime()) ?? [];
+    const lista = porCheia.get(j.instante.getTime()) ?? [];
     lista.push({ wakeDay, noite: j.noite });
-    porCheia.set(j.cheia.getTime(), lista);
+    porCheia.set(j.instante.getTime(), lista);
   }
   // Nenhuma cheia a mais nem a menos: a janela só aponta para cheias da efeméride.
   assert.deepEqual([...porCheia.keys()], cheias, 'a varredura achou cheias que a efeméride não tem');
@@ -229,9 +229,89 @@ check('toda cheia de 22/05/2023 a 2027 tem exatamente 5 noites, −5 a −1, e a
   console.log(`     · ${cheias.length} cheias, ${cheias.length * JANELA_LUNAR_NOITES} noites na janela`);
 });
 
+/* ─────────────────────── As quatro fases ─────────────────────── */
+
+check("a cheia é o padrão — quem foi escrito contra o documento de 07/09 não muda de resposta", () => {
+  // O segundo pré-registro (28/09) acrescentou três fases e não mexeu na cheia. Se o
+  // padrão do parâmetro escorregasse, toda chamada antiga trocaria de exposição em
+  // silêncio — e nenhum teste de formato pegaria isso.
+  assert.equal(PHASE_ORDER.length, 4);
+  for (let d = Date.UTC(2025, 0, 1); d < Date.UTC(2026, 0, 1); d += DAY_MS) {
+    const w = diaUTC(d);
+    assert.deepEqual(janelaLunar(w), janelaLunar(w, 'full'), `a noite de ${w}`);
+    assert.deepEqual(
+      janelaLunarDoInstante(new Date(d)),
+      janelaLunarDoInstante(new Date(d), 'full'),
+      `o instante de ${w}`,
+    );
+  }
+});
+
+check('cada fase tem exatamente 5 noites por ciclo, nas quatro, de 22/05/2023 a 2027', () => {
+  const primeiroDia = Date.UTC(2023, 4, 12);
+  const ultimoDia = Date.UTC(2028, 0, 3);
+  // Os instantes das pontas do varrido — é contra eles que se decide qual evento
+  // tem a janela inteira dentro do que foi varrido. Um evento com a janela só
+  // metade dentro apareceria com três noites, e isso é o varrido, não a janela.
+  const deInstante = instanteDaNoite(diaUTC(primeiroDia)).getTime();
+  const ateInstante = instanteDaNoite(diaUTC(ultimoDia)).getTime();
+  const eventos = lunarPhasesBetween(
+    new Date(primeiroDia - 40 * DAY_MS),
+    new Date(ultimoDia + 40 * DAY_MS),
+  );
+  for (const fase of PHASE_ORDER) {
+    const inteiros = eventos
+      .filter((e) => e.kind === fase)
+      .map((e) => e.instant.getTime())
+      .filter((t) => t - JANELA_LUNAR_NOITES * DAY_MS >= deInstante && t <= ateInstante + 1);
+    const porEvento = new Map<number, number[]>();
+    for (let d = primeiroDia; d <= ultimoDia; d += DAY_MS) {
+      const j = janelaLunar(diaUTC(d), fase);
+      if (!j) continue;
+      assert.equal(j.fase, fase, `a janela de ${fase} devolveu ${j.fase}`);
+      const lista = porEvento.get(j.instante.getTime()) ?? [];
+      lista.push(j.noite);
+      porEvento.set(j.instante.getTime(), lista);
+    }
+    // Nenhum evento a mais nem a menos: a janela só aponta para fases da efeméride.
+    const achadosInteiros = [...porEvento.keys()].filter(
+      (t) => t - JANELA_LUNAR_NOITES * DAY_MS >= deInstante && t <= ateInstante + 1,
+    );
+    assert.deepEqual(achadosInteiros, inteiros, `a varredura de ${fase} discorda da efeméride`);
+    assert.ok(inteiros.length >= 55, `${fase}: só ${inteiros.length} ocorrências inteiras no varrido`);
+    for (const inst of inteiros) {
+      assert.deepEqual(
+        porEvento.get(inst),
+        [-5, -4, -3, -2, -1],
+        `${fase} de ${new Date(inst).toISOString()}`,
+      );
+    }
+    console.log(`     · ${fase}: ${inteiros.length} ocorrências, ${inteiros.length * 5} noites`);
+  }
+});
+
+check('NENHUMA NOITE EM DUAS JANELAS — cinco anos varridos, as quatro fases juntas', () => {
+  // Vinte das 29,5 noites do sinódico estão em alguma janela (68% dele), e é a
+  // distância de 7,4 dias entre fases que impede duas janelas de 5 dias de se
+  // encostarem. O motor conta com isso: `resolverFase` lança se duas casarem.
+  let emAlguma = 0;
+  let total = 0;
+  for (let d = Date.UTC(2023, 4, 22); d < Date.UTC(2028, 0, 1); d += DAY_MS) {
+    const w = diaUTC(d);
+    total += 1;
+    const casadas = PHASE_ORDER.map((f) => janelaLunar(w, f)).filter((j) => j !== null);
+    assert.ok(casadas.length <= 1, `a noite de ${w} caiu em ${casadas.length} janelas`);
+    if (casadas.length === 1) emAlguma += 1;
+  }
+  const fracao = emAlguma / total;
+  // 20/29,53 = 0,677. A folga cobre o arredondamento das noites a dias inteiros.
+  assert.ok(fracao > 0.66 && fracao < 0.69, `${(fracao * 100).toFixed(1)}% das noites em alguma janela`);
+  console.log(`     · ${emAlguma} de ${total} noites em alguma janela (${(fracao * 100).toFixed(1)}%)`);
+});
+
 /* ─────────────────────── Pureza ─────────────────────── */
 
-check('INVARIÂNCIA DE FUSO — o hospedeiro não muda nenhuma noite de coluna', () => {
+check('INVARIÂNCIA DE FUSO — o hospedeiro não muda nenhuma noite de coluna, em nenhuma fase', () => {
   const tzOriginal = process.env.TZ;
   const leituras: string[] = [];
   try {
@@ -240,8 +320,10 @@ check('INVARIÂNCIA DE FUSO — o hospedeiro não muda nenhuma noite de coluna',
       const linha: string[] = [];
       // 2025 inteiro: as duas trocas de horário de Bruxelas estão dentro.
       for (let d = Date.UTC(2025, 0, 1); d < Date.UTC(2026, 0, 1); d += DAY_MS) {
-        const j = janelaLunar(diaUTC(d));
-        linha.push(j ? `${j.cheia.getTime()}:${j.noite}` : '-');
+        for (const fase of PHASE_ORDER) {
+          const j = janelaLunar(diaUTC(d), fase);
+          linha.push(j ? `${j.fase}:${j.instante.getTime()}:${j.noite}` : '-');
+        }
       }
       leituras.push(linha.join(','));
     }
@@ -252,14 +334,19 @@ check('INVARIÂNCIA DE FUSO — o hospedeiro não muda nenhuma noite de coluna',
   assert.equal(new Set(leituras).size, 1, 'o fuso do processo mudou a classificação de alguma noite');
 });
 
-check('sleep/lua.ts não lê fuso, ambiente, relógio nem coordenada', () => {
-  const fonte = readFileSync(join(import.meta.dirname, 'lua.ts'), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/.*$/gm, '');
+check('lua.ts e lua-protocolo.ts não leem fuso, ambiente, relógio nem coordenada', () => {
+  // A mesma guarda cobre os dois arquivos: o motor do teste é tão puro quanto a
+  // janela, e por um motivo mais forte — ele roda no iPhone e num script de
+  // backfill, e um veredito pré-registrado não pode depender de onde rodou.
   const PROIBIDO =
     /process\.|Intl\.|Date\.now|new Date\(\s*\)|toLocale|getTimezoneOffset|\.(?:get|set)(?:Hours|Minutes|Date|Day|Month|FullYear)\(|Coords|COORDENADA|deviceCoords|\/astro\/(?:sun|casa)/;
-  const achado = fonte.match(PROIBIDO);
-  assert.equal(achado, null, `sleep/lua.ts deixou de ser puro: ${achado?.[0]}`);
+  for (const arquivo of ['lua.ts', 'lua-protocolo.ts']) {
+    const fonte = readFileSync(join(import.meta.dirname, arquivo), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    const achado = fonte.match(PROIBIDO);
+    assert.equal(achado, null, `sleep/${arquivo} deixou de ser puro: ${achado?.[0]}`);
+  }
 });
 
 console.log(`\n${passed} testes de sleep/lua.ts passaram.`);
