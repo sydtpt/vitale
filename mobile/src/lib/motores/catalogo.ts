@@ -197,31 +197,40 @@ export const PESOS_ABERTOS: readonly PesoAberto[] = Object.freeze([
     tamanho: { instaladoGB: 2.1, compiladoGB: 2.06 },
   }),
   /*
-   * **O mesmo 4B, na receita da Apple** — o experimento de qualidade que o dono pediu em 24/09.
+   * ## O `qwen3-4b-misto` esteve aqui, e a medição dele está fechada (25/09/2026)
    *
-   * O de cima é `4bit_weight_palettized_group32`: 4 bits em tudo, escolha minha. Este é
-   * `qwen3_4b_mixed_4bit_8bit.yaml`, a receita que a Apple publica: 4 bits no geral e **8 bits
-   * nas camadas 6, 8, 11, 33 e 34**, que alguém mediu como sensíveis. A diferença é de
-   * 4,50 para 5,71 bits por peso, e 240 MB.
+   * Ele era o mesmo 4B na receita que a Apple publica (`qwen3_4b_mixed_4bit_8bit.yaml`: 4 bits
+   * no geral e 8 bits nas camadas 6, 8, 11, 33 e 34), contra o `4bit_weight_palettized_group32`
+   * do de cima. Existia para responder **uma** pergunta: a precisão extra melhora a prosa nas
+   * nossas frases, em português? A tabela de perplexidade do `models/qwen3/README.md` dizia que
+   * importa, mas ela mede inglês genérico.
    *
-   * A tabela de perplexidade do `models/qwen3/README.md` diz que isso importa (o 4B vai de
-   * 16,41 em fp16 para 18,33 em 4 bits), mas ela mede **inglês genérico**. Se importa nas
-   * NOSSAS frases, em português, sobre sono, é o que a amostra das 22 janelas responde.
+   * **A resposta, medida duas vezes no iPhone, no mesmo caso da Saúde do sono:** o texto saiu
+   * **byte a byte idêntico** ao do int4, com o mesmo consumo (657 → 36 tokens). A receita mista
+   * não mudou **um único token**.
    *
-   * **A janela é 2.048 de propósito, e este modelo não é candidato a produção.** Ele existe
-   * para medir: a Saúde do sono usa 617 tokens, então a janela não muda o texto que sai. Em
-   * 4.096 ele custaria 2,30 + 0,60 = 2,90 GB — exatamente a configuração que o iOS matou em
-   * 22/09. Se ele ganhar a comparação, o resultado não é "troque a receita": é "a receita
-   * mista é melhor, e usá-la exige ganhar 240 MB em outro lugar" — o que aponta para o AOT.
+   * E o preço, na segunda medição (17:10), com o mesmo pedido e a mesma saída:
+   *
+   * | | int4 | misto 4/8 |
+   * |---|---|---|
+   * | tempo | **14,4 s** | **539,1 s** |
+   * | pesos | 2,1 GB | 2,3 GB |
+   * | janela | 4.096 | 2.048 (truncava o caderno Movimento) |
+   *
+   * **37× mais lento pelo mesmo trabalho**, e não era compilação de primeira vez: os 9 hashes do
+   * `coreai-cache` não mudaram, então ele refazia ~9 min e descartava, a cada chamada. Na mesma
+   * manhã ele havia custado 18,0 s; só ele regrediu, enquanto os outros quatro motores ficaram
+   * dentro do ruído. O abort do Metal daquele dia (`MTLReportFailure` dentro de
+   * `specializedModuleWithDevice:`) veio depois de **8m20s**, a mesma ordem de grandeza — o que
+   * faz dele o autor provável também do crash.
+   *
+   * Então o veredito não é "a mista é melhor e falta ganhar 240 MB": é que **ela não paga**, e o
+   * caminho do AOT (`--architecture h18p`, que exige o Metal Toolchain) não precisa ser aberto
+   * por causa dela.
+   *
+   * A pasta `ios/pesos/qwen3-4b-misto/` é ignorada pelo git, então ela sobrevive no disco de quem
+   * a exportou; o `ios-device.sh` **poda do app** todo conjunto que este catálogo não declara.
    */
-  Object.freeze({
-    id: 'aparelho:coreai/qwen3-4b-misto' satisfies MotorId,
-    pesos: 'qwen3-4b-misto',
-    nome: 'o Qwen3 4B misto no aparelho',
-    rotulo: 'Qwen3 4B misto',
-    descricao: 'O mesmo 4B na receita da Apple — 4 bits, com cinco camadas em 8. Só para medir.',
-    tamanho: { instaladoGB: 2.3 },
-  }),
 ]);
 
 /** O peso aberto com este id, ou `undefined` — a pergunta que o catálogo faz o tempo todo. */
