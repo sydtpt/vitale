@@ -143,6 +143,47 @@ fi
 
 say "compilando Release (log: ${LOG/#$MOBILE_DIR\//mobile/})"
 
+# **Quem declara o que embarca é o catálogo, não o disco.**
+#
+# O podspec copia `ios/pesos/` inteira (`s.resources` põe cada caminho na raiz do bundle, então
+# listar subpastas mudaria o layout de `pesos/<nome>/` para `<nome>/` e quebraria a busca do
+# app). E `ios/pesos/` é ignorada pelo git: um export deixado ali entra no binário sem que
+# nenhum arquivo versionado diga.
+#
+# Em 25/09/2026 isso embarcou 2,3 GB do `qwen3-4b-misto` **depois** de a medição dele ter sido
+# encerrada — e ele ficou 37× mais lento que o int4 pelo mesmo texto (539,1 s contra 14,4 s),
+# desestabilizando três corridas seguidas e provavelmente abortando uma.
+#
+# A poda é DEPOIS do build, porque é o `[CP] Copy Pods Resources` que copia. Ela é silenciosa
+# quando não há nada a podar, e diz o nome quando há — um conjunto no disco que ninguém declara
+# é quase sempre um export esquecido, e o dono quer saber.
+declarados_no_catalogo() {
+  local catalogo="$MOBILE_DIR/src/lib/motores/catalogo.ts"
+  [[ -f "$catalogo" ]] || return 0
+  # O campo `pesos:` de cada `PesoAberto` é o nome da pasta. Casamento ancorado na linha, para
+  # não pegar a palavra em comentário.
+  sed -nE "s/^[[:space:]]*pesos: '([a-z0-9.-]+)',[[:space:]]*$/\1/p" "$catalogo"
+}
+
+podar_pesos_nao_declarados() {
+  [[ -d "$APP_PATH/pesos" ]] || return 0
+  local declarados
+  declarados="$(declarados_no_catalogo)"
+  if [[ -z "$declarados" ]]; then
+    say "AVISO: não achei nenhum \`pesos:\` no catálogo — a poda não roda, e o app leva o disco inteiro"
+    return 0
+  fi
+  local dir nome
+  for dir in "$APP_PATH/pesos"/*; do
+    [[ -d "$dir" ]] || continue
+    nome="$(basename "$dir")"
+    if ! grep -qxF "$nome" <<<"$declarados"; then
+      say "podando \`$nome\` do app: está no disco e o catálogo não o declara"
+      rm -rf "$dir"
+    fi
+  done
+}
+
 # `set -o pipefail` está ligado no topo: se o xcodebuild falhar, o status
 # sobrevive ao `tee` e o script morre aqui, como tem que ser.
 if ! (cd "$IOS_DIR" && xcodebuild \
@@ -159,6 +200,10 @@ if ! (cd "$IOS_DIR" && xcodebuild \
 fi
 
 [[ -d "$APP_PATH" ]] || die "build terminou sem erro mas não achei $APP_PATH"
+
+# Antes de medir o tamanho, para o número que sai ser o do app que se instala.
+podar_pesos_nao_declarados
+
 say "app pronto: $(du -sh "$APP_PATH" | cut -f1) — bundle embutido, não depende do Metro"
 
 [[ $BUILD_ONLY -eq 1 ]] && exit 0
