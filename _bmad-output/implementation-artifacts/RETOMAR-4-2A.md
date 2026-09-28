@@ -19,10 +19,17 @@ subagente ainda escrevendo. Se você está lendo isto, **confira o disco, não e
    dono. A 4.2b está inteira na `deferred-work.md`, com o escopo e a **terceira
    correção** descritos por extenso.
 2. **Iteração 1 foi implementada, revisada e REVERTIDA** por `bad_spec`.
-3. **Iteração 2 estava rodando quando a sessão pausou.** Os arquivos existem no disco
-   (`lua-protocolo.ts` 36 KB às 12:57, `lua-protocolo.test.ts` 40 KB às 13:10, mais
-   `astro/moon.ts`, `sleep/lua.ts`, `lua.test.ts` e `index.ts` modificados), mas
-   **eu não rodei portão nenhum contra eles**. Não afirme que passam.
+3. **Iteração 2 foi interrompida durante a verificação final**, de propósito, para a
+   pausa. O código inteiro está no disco e commitado: `lua-protocolo.ts`,
+   `lua-protocolo.test.ts`, mais `astro/moon.ts`, `sleep/lua.ts`, `lua.test.ts` e
+   `index.ts` modificados.
+   **Dois portões eu rodei e passaram, por exit code:** `shared lint` (0) e
+   `shared test` (0, 921 checks). **Os outros quatro workspaces NÃO foram rodados**, e
+   as **quatro provas negativas** da seção Verification também não. Não conte nenhum
+   deles como feito.
+   A última coisa que o agente disse antes de parar: os diagnósticos do editor vinham de
+   um tsconfig da IDE sem `@types/node` — ruído, não defeito; o `tsc` do workspace é a
+   autoridade, e ele sai em 0.
 
 ## O defeito que derrubou a iteração 1
 

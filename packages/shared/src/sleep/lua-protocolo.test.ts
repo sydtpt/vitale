@@ -427,6 +427,12 @@ check('SUPERFÍCIE PÚBLICA — nenhuma porta calcula uma fase sozinha, e nada r
     assert.ok(new RegExp(`function ${privado}\\b`).test(fonte), `${privado} sumiu do arquivo`);
     assert.ok(!new RegExp(`export\\s+function ${privado}\\b`).test(fonte), `${privado} virou público`);
   }
+  // O 5 por coluna é constante própria: importar o `TRIGGER_MIN_PER_CELL` do gatilho
+  // faria uma calibração legítima daquela feature mover um portão pré-registrado
+  // daqui. E `buckets` fica de fora porque `weekKey` lê o fuso do hospedeiro — a
+  // guarda de pureza só olha um nível de import, então ele passaria calado.
+  assert.ok(!/from '\.\/triggers'/.test(fonte), 'o motor passou a importar de ./triggers');
+  assert.ok(!/from '\.\/buckets'/.test(fonte), 'o motor passou a importar de ./buckets');
 });
 
 /* ─────────────────────── A matriz da spec ─────────────────────── */
