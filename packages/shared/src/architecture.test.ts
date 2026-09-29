@@ -47,6 +47,8 @@ import { CADERNO_IDS } from './period/cadernos';
 import { CAPA_COLUMNS, MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
 import { EDICAO_COLUMNS, TIPOS_COM_EDICAO } from './data/edicoes-ia';
 import { ACTIVITY_COLUMNS } from './data/activities';
+import { LUA_EXECUCAO_COLUMNS, VOCABULARIO_DE_LUA_EXECUCOES } from './data/lua-execucoes';
+import { CADEIA_MINIMA } from './sleep/lua-carimbo';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -673,6 +675,367 @@ check('BARREIRA — caderno, natureza, motivo da capa e tipo de período são a 
   );
 });
 
+/* ─────────── `lua_execucoes`: o SQL que nenhum teste lia (Story 4.2b) ─────────── */
+
+/**
+ * A migração de `lua_execucoes`, **achada pelo sufixo do nome, não pelo nome**.
+ *
+ * Pinar `20260928130000_lua_execucoes.sql` numa asserção quebra no dia em que alguém
+ * renumerar a migração num merge — o que este repositório já fez com ADR, e o que a
+ * barreira irmã evita por ler *todas* as migrations. O que se exige é que exista
+ * **uma**: zero é a barreira sem alvo, duas é ambiguidade que ninguém quer descobrir
+ * na janela do dono.
+ */
+function migracaoLunar(): { f: string; sql: string } | null {
+  const achadas = migrations().filter((m) => /_lua_execucoes\.sql$/.test(m.f));
+  return achadas.length === 1 ? achadas[0] : null;
+}
+
+/** As policies de uma tabela, com o verbo de cada uma (`for all` é o default do Postgres). */
+function policiesDaTabela(sql: string, tabela: string): { nome: string; verbo: string }[] {
+  const out: { nome: string; verbo: string }[] = [];
+  const re = new RegExp(
+    `create\\s+policy\\s+(?:"([^"]+)"|([a-z_][a-z0-9_]*))\\s+on\\s+(?:public\\.)?${tabela}\\b([^;]*);`,
+    'gi');
+  for (const m of sql.matchAll(re)) {
+    const verbo = /\bfor\s+(all|select|insert|update|delete)\b/i.exec(m[3])?.[1]?.toLowerCase() ?? 'all';
+    out.push({ nome: m[1] ?? m[2], verbo });
+  }
+  return out;
+}
+
+/** Os nomes das `constraint <nome> check (…)` declaradas no corpo da tabela. */
+function constraintsNomeadas(sql: string, tabela: string): string[] {
+  const nomes = new Set<string>();
+  for (const trecho of trechosDaTabela(sql, tabela)) {
+    for (const m of trecho.matchAll(/constraint\s+([a-z_][a-z0-9_]*)\s+check/gi)) {
+      nomes.add(m[1].toLowerCase());
+    }
+  }
+  return [...nomes].sort();
+}
+
+/**
+ * As declarações de coluna do `create table`, cada uma com o texto inteiro dela.
+ *
+ * Mesmo particionamento de {@link colunasDaTabela} — vírgula de primeiro nível,
+ * pulando literais —, mas guardando o corpo, porque o que se quer aqui é o `not null`
+ * e não só o nome.
+ */
+function declaracoesDeColuna(sql: string, tabela: string): { nome: string; corpo: string }[] {
+  for (const trecho of trechosDaTabela(sql, tabela)) {
+    if (!/^\s*create\s+table/i.test(trecho)) continue;
+    const corpo = trecho.slice(trecho.indexOf('(') + 1, trecho.lastIndexOf(')'));
+    const partes: string[] = [];
+    let nivel = 0;
+    let atual = '';
+    let emLiteral = false;
+    for (let i = 0; i < corpo.length; i += 1) {
+      const ch = corpo[i];
+      if (emLiteral) {
+        if (ch === "'") emLiteral = false;
+        atual += ch;
+        continue;
+      }
+      if (ch === "'") { emLiteral = true; atual += ch; continue; }
+      if (ch === '(') nivel += 1;
+      else if (ch === ')') nivel -= 1;
+      if (ch === ',' && nivel === 0) { partes.push(atual); atual = ''; continue; }
+      atual += ch;
+    }
+    partes.push(atual);
+    return partes
+      .map((p) => p.trim())
+      .filter((p) => /^[a-z_][a-z0-9_]*\s/i.test(p))
+      .filter((p) => !CLAUSULA_DE_TABELA.has(p.split(/\s+/)[0].toLowerCase()))
+      .map((p) => ({ nome: p.split(/\s+/)[0].toLowerCase(), corpo: p }));
+  }
+  return [];
+}
+
+/** `comment on column <tabela>.<coluna> is '…'` → coluna ⇒ texto. */
+function comentariosDeColuna(sql: string, tabela: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const re = new RegExp(
+    `comment\\s+on\\s+column\\s+(?:public\\.)?${tabela}\\.([a-z_][a-z0-9_]*)\\s+is\\s+'((?:[^']|'')*)'`,
+    'gi');
+  for (const m of sql.matchAll(re)) out.set(m[1].toLowerCase(), m[2]);
+  return out;
+}
+
+/** As colunas cujo CHECK é uma lista fechada de literais — as duas formas. */
+function colunasComVocabulario(sql: string, tabela: string): Set<string> {
+  const achadas = new Set<string>();
+  for (const trecho of trechosDaTabela(sql, tabela)) {
+    if (/^\s*drop\s+table/i.test(trecho)) { achadas.clear(); continue; }
+    for (const m of trecho.matchAll(/check\s*\(\s*([a-z_][a-z0-9_]*)\s+in\s*\(\s*'/gi)) {
+      achadas.add(m[1].toLowerCase());
+    }
+    for (const m of trecho.matchAll(
+      /check\s*\(\s*([a-z_][a-z0-9_]*)\s*=\s*any\s*\(\s*array\s*\[\s*'/gi)) {
+      achadas.add(m[1].toLowerCase());
+    }
+  }
+  return achadas;
+}
+
+/**
+ * Tudo o que a migração de `lua_execucoes` **tem de dizer**, como lista fechada.
+ *
+ * Estas são as peças que nenhum teste lia: apagar o bloco inteiro do `create
+ * constraint trigger`, ou o `enable row level security`, ou um `constraint … check`
+ * nomeado deixava as duas suítes verdes. O SQL era um arquivo de texto que ninguém
+ * abria, numa tabela cuja migração ainda **não foi aplicada** — quer dizer, com a
+ * janela do dono inteira pela frente para descobrir o buraco.
+ */
+const EXIGIDO_NA_MIGRACAO_LUNAR: readonly (readonly [string, string])[] = [
+  [
+    'create constraint trigger lua_execucoes_quatro_ou_nenhuma',
+    'sem o gatilho, "as quatro fases ou nenhuma" (§9 de 28/09) volta a depender de o único '
+    + 'chamador estar certo — e este par de documentos existe para não depender de disciplina',
+  ],
+  [
+    'after insert or update or delete on public.lua_execucoes',
+    'o gatilho cobre os três verbos: sem o DELETE, apagar três de quatro linhas deixa uma '
+    + 'execução que publica três fases, que é exatamente o que a §9 proíbe',
+  ],
+  [
+    'deferrable initially deferred',
+    'sem isto a PRIMEIRA das quatro linhas já viola a contagem e a escrita inteira fica '
+    + 'impossível — a invariante vale no fim da transação, não no meio dela',
+  ],
+  [
+    'alter table public.lua_execucoes enable row level security',
+    'sem RLS a tabela fica legível e gravável por qualquer sessão autenticada, e as policies '
+    + 'abaixo viram decoração',
+  ],
+  [
+    'for select using (auth.uid() = user_id)',
+    'a policy de leitura é o que sustenta o gatilho: ele é `security invoker` e CONTA as linhas '
+    + 'pelos olhos de quem escreveu — sem `select`, a contagem enxerga zero e o "quatro ou '
+    + 'nenhuma" para de ser cobrado em silêncio',
+  ],
+  [
+    'for insert with check (auth.uid() = user_id)',
+    'é a única escrita que a tabela aceita pela API',
+  ],
+  [
+    `jsonb_array_length(cadeia) >= ${CADEIA_MINIMA}`,
+    `o piso da cadeia é CADEIA_MINIMA (sleep/lua-carimbo.ts), e o tradutor de leitura usa o `
+    + 'mesmo número: um dos dois lados sozinho aceita uma linha que o outro afirma não existir',
+  ],
+];
+
+/** Os nomes das `constraint … check` que a tabela declara. Lista **fechada**. */
+const CONSTRAINTS_DE_LUA_EXECUCOES: readonly string[] = [
+  'acervo_colapsado_cabe_no_acervo',
+  'acervo_comeca_depois_do_pedido',
+  'acervo_intervalo_valido',
+  'acervo_nao_tem_noite_repetida',
+  'acervo_vazio_nao_tem_intervalo',
+  'as_medidas_sao_numeros_finitos',
+  'ciclos_cabem_nas_noites_dentro',
+  'colunas_cabem_no_acervo',
+  'falta_tem_numero_e_unidade',
+  'medida_existe_quando_ha_veredito',
+  'motivo_existe_quando_inconclusivo',
+  'poder_fraco_e_o_motivo_poder',
+  'portao_e_o_proprio_motivo',
+  'portao_reprovado_nao_mede',
+  'primeira_sem_luz_bate_com_a_contagem',
+  'unidade_bate_com_o_motivo',
+  'veredito_decidido_passou_no_poder',
+];
+
+/** As queixas que o SQL de `lua_execucoes` merece — vazio é "está tudo lá". */
+function queixasDoSqlLunar(sql: string): string[] {
+  const problemas: string[] = [];
+  for (const [fragmento, porque] of EXIGIDO_NA_MIGRACAO_LUNAR) {
+    if (!sql.includes(fragmento)) problemas.push(`sumiu \`${fragmento}\` — ${porque}`);
+  }
+  const verbos = policiesDaTabela(sql, 'lua_execucoes').map((p) => p.verbo).sort();
+  if (verbos.join(',') !== 'insert,select') {
+    problemas.push(
+      `as policies de lua_execucoes cobrem [${verbos.join(', ')}] e têm de cobrir exatamente `
+      + '[insert, select]: `for all` concede UPDATE, e um veredito reescrito no lugar é o oposto '
+      + 'do "acumula, nunca substitui" da §7.2; `for delete` faria a execução sumir pela API sem '
+      + 'deixar rastro de ter sumido',
+    );
+  }
+  const nomeadas = constraintsNomeadas(sql, 'lua_execucoes');
+  if (nomeadas.join(',') !== [...CONSTRAINTS_DE_LUA_EXECUCOES].sort().join(',')) {
+    problemas.push(
+      `as constraints nomeadas são [${nomeadas.join(', ')}] e a lista fechada diz `
+      + `[${[...CONSTRAINTS_DE_LUA_EXECUCOES].sort().join(', ')}] — uma que suma leva a invariante `
+      + 'dela junto, e uma nova que não entre na lista nasce sem ninguém sabendo que existe',
+    );
+  }
+  return problemas;
+}
+
+/**
+ * **A prova de não-vacuidade**, e ela é o ponto desta barreira.
+ *
+ * Cada peça exigida é apagada (ou renomeada) numa CÓPIA em memória do SQL, e a
+ * barreira tem de acusar. Sem isto, a lista acima seria um conjunto de `includes`
+ * que passam porque o arquivo é grande — que é exatamente o estado anterior, em que
+ * apagar o gatilho inteiro deixava 114 testes verdes.
+ */
+function provarALeituraDoSqlLunar(sql: string): void {
+  const mutacoes: { nome: string; sql: string }[] = [
+    ...EXIGIDO_NA_MIGRACAO_LUNAR.map(([fragmento]) => ({
+      nome: `sem \`${fragmento}\``,
+      sql: sql.replace(fragmento, ' '),
+    })),
+    {
+      nome: 'a policy volta a ser `for all`',
+      sql: sql
+        .replace('for select using (auth.uid() = user_id)', 'for all using (auth.uid() = user_id)')
+        .replace(/create\s+policy[^;]*for\s+insert[^;]*;/i, ' '),
+    },
+    { nome: 'sem policy nenhuma', sql: sql.replace(/create\s+policy[^;]*;/gi, ' ') },
+    ...CONSTRAINTS_DE_LUA_EXECUCOES.map((nome) => ({
+      nome: `\`${nome}\` renomeada`,
+      sql: sql.replace(`constraint ${nome} check`, 'constraint renomeada_sem_avisar check'),
+    })),
+    {
+      nome: 'uma constraint nova que ninguém listou',
+      sql: sql.replace(
+        'constraint falta_tem_numero_e_unidade check (',
+        'constraint inventada_agora check (true),\n  constraint falta_tem_numero_e_unidade check (',
+      ),
+    },
+  ];
+  for (const m of mutacoes) {
+    assert.ok(
+      m.sql !== sql,
+      `a mutação "${m.nome}" não mudou o SQL — a barreira está medindo um texto que não existe`,
+    );
+    assert.ok(
+      queixasDoSqlLunar(m.sql).length > 0,
+      `a barreira do SQL de lua_execucoes NÃO acusou a mutação "${m.nome}" — ela passa vácua.`,
+    );
+  }
+}
+
+check('BARREIRA — a migração de lua_execucoes declara o gatilho, a RLS, as policies por verbo e os CHECKs nomeados', () => {
+  const m = migracaoLunar();
+  assert.ok(m, 'nenhuma migration `*_lua_execucoes.sql`, ou mais de uma — a barreira ficou sem alvo.');
+  provarALeituraDoSqlLunar(m!.sql);
+  assert.deepEqual(
+    queixasDoSqlLunar(m!.sql),
+    [],
+    `o SQL de lua_execucoes (${m!.f}) perdeu peça que nenhum outro teste lê. Nada em TypeScript `
+    + 'cobre isto: a migração é texto que só o Postgres executa, e ela ainda NÃO foi aplicada.',
+  );
+});
+
+/**
+ * BARREIRA — o vocabulário de `lua_execucoes` é a mesma lista dos dois lados, **e nos
+ * dois sentidos** (Story 4.2b).
+ *
+ * A irmã de `ID_COLUMNS_DA_EDICAO`, com uma diferença que custou o achado: além de
+ * iterar o mapa do TypeScript e cobrar o CHECK de cada coluna dele, esta varre os
+ * `check (x in (…))` do **corpo da tabela** e exige dono no mapa. Sem a segunda
+ * direção, a décima coluna de vocabulário nasce sem barreira nenhuma — ninguém
+ * percebe que ela existe, porque o teste só pergunta pelas nove que já conhece.
+ *
+ * E a leitura do SQL é a de `idsAceitosPeloCheck`, que entende as duas formas que o
+ * Postgres aceita, segue `drop constraint` e `drop table`, e varre **todas** as
+ * migrations — em vez da regex reinventada que lia um arquivo só.
+ */
+check('BARREIRA — as nove colunas de vocabulário de lua_execucoes batem com os CHECKs, e não há uma décima sem dono', () => {
+  const problemas: string[] = [];
+  const noMapa = Object.keys(VOCABULARIO_DE_LUA_EXECUCOES).sort();
+  assert.ok(noMapa.length > 0, 'VOCABULARIO_DE_LUA_EXECUCOES ficou vazio — a barreira perdeu o alvo no TS.');
+
+  for (const coluna of noMapa) {
+    const noTs = [...VOCABULARIO_DE_LUA_EXECUCOES[coluna]].sort();
+    assert.ok(noTs.length > 0, `VOCABULARIO_DE_LUA_EXECUCOES.${coluna} está vazio`);
+    const check = idsAceitosPeloCheck('lua_execucoes', coluna);
+    if (!check) {
+      problemas.push(`lua_execucoes.${coluna}: nenhuma migration define o CHECK`);
+      continue;
+    }
+    const noBanco = [...check.ids].sort();
+    if (noTs.join(',') !== noBanco.join(',')) {
+      problemas.push(
+        `lua_execucoes.${coluna} (${check.f}): o banco aceita [${noBanco.join(', ')}] e o TS declara `
+        + `[${noTs.join(', ')}]`,
+      );
+    }
+  }
+
+  // O outro sentido: coluna com lista fechada no SQL e sem dono no mapa.
+  const m = migracaoLunar();
+  assert.ok(m, 'nenhuma migration `*_lua_execucoes.sql`, ou mais de uma.');
+  const noSql = [...colunasComVocabulario(m!.sql, 'lua_execucoes')].sort();
+  assert.ok(noSql.length > 0, 'nenhum `check (x in (…))` achado na tabela — a varredura ficou cega.');
+  const orfas = noSql.filter((c) => !noMapa.includes(c));
+  if (orfas.length > 0) {
+    problemas.push(
+      `coluna com vocabulário fechado no SQL e sem dono no TS: ${orfas.join(', ')} — acrescente-a a `
+      + 'VOCABULARIO_DE_LUA_EXECUCOES (data/lua-execucoes.ts), derivada do protocolo, e o tradutor '
+      + 'passa a conferir o valor em vez de convertê-lo por `as`',
+    );
+  }
+
+  assert.deepEqual(
+    problemas,
+    [],
+    `o vocabulário de lua_execucoes divergiu:\n    ${problemas.join('\n    ')}\n`
+    + '  Os dois lados mudam na mesma entrega, e a lista do TS sai de PROTOCOLO_LUNAR e de '
+    + 'UNIDADE_DO_MOTIVO — mover uma fase, um α ou uma lateralidade lá move o que o banco aceita.',
+  );
+});
+
+/**
+ * BARREIRA — toda coluna nullable de `lua_execucoes` diz o que o nulo significa
+ * (Story 4.2b, AD-16).
+ *
+ * "Nulo é 'não foi medido', nunca zero" é a terceira propriedade que a tabela existe
+ * para ter, e ela mora inteira num texto: o `comment on column`. Um nulo sem a
+ * cláusula `NULO = …` é uma coluna que o próximo leitor vai preencher com zero por
+ * não saber a diferença — é a lição da story 2.6, do outro lado.
+ *
+ * **A cláusula é exigida CONTIDA, não no começo.** A regra estava escrita como
+ * "começando por", e nenhuma das quinze colunas nullable começa assim — nem o
+ * precedente que a inspirou (`edicoes_ia.metrica_lider`, de 12/09). A frase útil vem
+ * antes, e exigir a posição seria exigir a pior das duas redações.
+ */
+check('BARREIRA — toda coluna nullable de lua_execucoes tem comentário e diz o que o NULO é', () => {
+  const m = migracaoLunar();
+  assert.ok(m, 'nenhuma migration `*_lua_execucoes.sql`, ou mais de uma.');
+  const colunas = declaracoesDeColuna(m!.sql, 'lua_execucoes');
+  assert.ok(colunas.length >= 30, `só ${colunas.length} colunas lidas — o particionador ficou cego.`);
+  const comentarios = comentariosDeColuna(m!.sql, 'lua_execucoes');
+
+  const nullable = colunas.filter((c) => !/\bnot\s+null\b/i.test(c.corpo)).map((c) => c.nome);
+  // Não-vacuidade: se o leitor achasse zero colunas nullable, a barreira passaria
+  // sem cobrar nada — que é a única forma de ela mentir.
+  assert.ok(
+    nullable.length >= 10,
+    `só ${nullable.length} colunas nullable lidas (${nullable.join(', ')}) — o \`not null\` está `
+    + 'sendo lido errado, e a barreira ia passar vácua.',
+  );
+
+  const semComentario = colunas.map((c) => c.nome).filter((n) => !comentarios.has(n));
+  const semNulo = nullable.filter((n) => !(comentarios.get(n) ?? '').includes('NULO = '));
+  assert.deepEqual(
+    semComentario,
+    [],
+    `coluna de lua_execucoes sem \`comment on column\`: ${semComentario.join(', ')}.`,
+  );
+  assert.deepEqual(
+    semNulo,
+    [],
+    `coluna nullable de lua_execucoes cujo comentário não contém a cláusula \`NULO = …\`: `
+    + `${semNulo.join(', ')}. O que o nulo significa naquela coluna não se adivinha, e quem `
+    + 'adivinhar vai escrever zero.',
+  );
+  console.log(`     · ${colunas.length} colunas, ${nullable.length} nullable, todas dizendo o que o nulo é`);
+});
+
 /**
  * BARREIRA — `TIPOS_COM_EDICAO` é `PeriodKind` menos `'all'` (Story 1.9).
  *
@@ -761,6 +1124,7 @@ function fechaChaves(src: string, de: number): number {
 const CHAVES_DE_EDICAO_ROW = chavesDaInterface('packages/shared/src/data/edicoes-ia.ts', 'EdicaoRow');
 const CHAVES_DE_CAPA_ROW = chavesDaInterface('packages/shared/src/data/edicoes-capa.ts', 'CapaRow');
 const CHAVES_DE_ACTIVITY_ROW = chavesDaInterface('packages/shared/src/data/activities.ts', 'ActivityRow');
+const CHAVES_DE_LUA_EXECUCAO_ROW = chavesDaInterface('packages/shared/src/data/lua-execucoes.ts', 'LuaExecucaoRow');
 
 const COLUNAS_PEDIDAS: {
   tabela: string; colunas: string; daInterface: readonly string[]; dono: string;
@@ -785,6 +1149,18 @@ const COLUNAS_PEDIDAS: {
     colunas: ACTIVITY_COLUMNS,
     daInterface: CHAVES_DE_ACTIVITY_ROW,
     dono: 'data/activities.ts (ACTIVITY_COLUMNS)',
+  },
+  // `lua_execucoes` entrou em 28/09/2026 (story 4.2b). É a tabela mais larga das
+  // quatro — 35 colunas, porque a linha é a serialização inteira de um
+  // `ResultadoDaFase` mais o acervo e o carimbo da execução —, e a que mais depende
+  // desta barreira: ela é escrita uma vez a cada cem noites, então um 400 do
+  // PostgREST por coluna errada só apareceria na hora da execução autorizada, que é
+  // a hora em que menos se quer descobrir isso.
+  {
+    tabela: 'lua_execucoes',
+    colunas: LUA_EXECUCAO_COLUMNS,
+    daInterface: CHAVES_DE_LUA_EXECUCAO_ROW,
+    dono: 'data/lua-execucoes.ts (LUA_EXECUCAO_COLUMNS)',
   },
 ];
 
@@ -4580,6 +4956,52 @@ check('BARREIRA — só gravarCapa escreve edicoes_capa', () => {
     `escrita em edicoes_capa fora do carimbo: ${fora.join(', ')}. A capa se grava por gravarCapa (data/`
       + 'edicoes-capa.ts), que confere a sessão antes e carimba a hora à mão — um upsert escrito noutro lugar '
       + 'perde os dois e congela a capa errada no período fechado.',
+  );
+});
+
+/**
+ * BARREIRA — só `gravarExecucaoLunar` escreve `lua_execucoes`, e só por `insert`
+ * (Story 4.2b, AD-4).
+ *
+ * A terceira irmã, e a que mais precisa dela. As duas de cima protegem *como* a
+ * edição é escrita; esta protege a propriedade que o protocolo inteiro tem por
+ * objetivo: **acumula, nunca substitui** (§7.2 de 07/09). Um `upsert` escrito em
+ * `data/sleep.ts` — ou num script, ou num hospedeiro — apaga a primeira execução na
+ * segunda e tira o sentido do contador da §7.4, que é a mecânica anti-gaveta inteira.
+ * E ele passava pelas 53 barreiras sem tocar em nenhuma.
+ *
+ * **O verbo também é cobrado, e não só o arquivo.** A lista de métodos que
+ * `escrevemNaTabela` devolve entra na comparação: se o dono passar a fazer `upsert`,
+ * a string vira `… (upsert)` e não bate mais com `… (insert)`. É o `delete` e o
+ * `update` que a policy da migração recusa, dito do lado de cá — os dois lados da
+ * mesma regra, porque um deles sozinho é uma regra que se contorna trocando de
+ * caminho.
+ *
+ * Mesma leitura por AST das irmãs (colchete, `as`, `!` e cadeia partida por
+ * parênteses não escapam; comentário não conta), e a autoprova é a mesma, em
+ * `provarAGravacaoUnica`.
+ */
+const DONO_DA_EXECUCAO_LUNAR = 'packages/shared/src/data/lua-execucoes.ts';
+
+check('BARREIRA — só gravarExecucaoLunar escreve lua_execucoes, e por insert', () => {
+  const escrevem = escrevemNaTabela('lua_execucoes', nucleoEHospedeiros());
+  const doDono = `${DONO_DA_EXECUCAO_LUNAR} (insert)`;
+  // Não-vácua: o dono é achado escrevendo, com o verbo certo. Sem isto, apagar
+  // `gravarExecucaoLunar` deixaria a barreira verde por não haver ninguém a acusar.
+  assert.ok(
+    escrevem.includes(doDono),
+    `${DONO_DA_EXECUCAO_LUNAR} não escreve mais em lua_execucoes por \`insert\` — achei `
+      + `[${escrevem.join(', ')}]. Se a porta mudou de arquivo, aponte DONO_DA_EXECUCAO_LUNAR para `
+      + 'ele; se ela mudou de verbo, leia a §7.2 antes.',
+  );
+  const fora = escrevem.filter((x) => x !== doDono);
+  assert.deepEqual(
+    fora,
+    [],
+    `escrita em lua_execucoes fora da porta: ${fora.join(', ')}. A execução se grava por `
+      + 'gravarExecucaoLunar (data/lua-execucoes.ts), que confere as quatro fases contra '
+      + 'PROTOCOLO_LUNAR antes de tocar no banco e é `insert`, jamais `upsert` — a tabela ACUMULA, '
+      + 'e é o acumular que dá sentido ao contador de execuções da §7.4.',
   );
 });
 

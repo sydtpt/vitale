@@ -143,6 +143,7 @@ export {
 export { decimal, foraEmTexto, hashCurto, porcento, segundos } from './bancada/texto';
 export * from './sleep/lua';
 export * from './sleep/lua-protocolo';
+export * from './sleep/lua-carimbo';
 export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bucket-plan';
@@ -225,6 +226,7 @@ export * from './data/gear';
 export * from './data/places';
 export * from './data/edicoes-ia';
 export * from './data/edicoes-capa';
+export * from './data/lua-execucoes';
 export * from './data/retro-dados';
 export * from './data/synced-activity-types';
 export * from './todo/logic';
