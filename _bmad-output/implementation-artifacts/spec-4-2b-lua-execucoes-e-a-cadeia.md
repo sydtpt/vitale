@@ -2,13 +2,14 @@
 title: 'Story 4.2b — `lua_execucoes` e a cadeia do pré-registro'
 type: 'feature'
 created: '2026-09-28'
-status: 'in-progress'
-review_loop_iteration: 0
+status: 'done'
+review_loop_iteration: 1
 baseline_commit: 'fb9b71c0db20d30d0a141a059680fb61f0d419fb'
 context:
   - '{project-root}/docs/specs/revista-retrospectiva/pre-registro-lua.md'
   - '{project-root}/docs/specs/revista-retrospectiva/correcao-pre-registro-lua.md'
   - '{project-root}/docs/specs/revista-retrospectiva/pre-registro-lua-outras-fases.md'
+  - '{project-root}/docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md'
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
@@ -77,8 +78,11 @@ pinam os **quatro** documentos; e a **terceira correção**, que fecha a cadeia.
 - `supabase/migrations/20260928120000_activities_type_edited.sql` -- a última migration. A
   nova tem de ser **depois** dela: `20260928130000_lua_execucoes.sql`.
 - `supabase/migrations/20260912120000_edicao_por_caderno.sql:61-67,79-80,99-106` --
-  `metrica_lider`: o precedente de coluna nullable com `comment on column` começando com
-  `NULO = …`, e a doutrina "`null` é 'não foi medido' em toda a base".
+  `metrica_lider`: o precedente de coluna nullable cujo `comment on column` **contém** a
+  cláusula `NULO = …`, e a doutrina "`null` é 'não foi medido' em toda a base". **Contém, e
+  não "começa por"** — nem o precedente começa (a frase útil vem antes, e exigir a posição
+  seria exigir a pior das duas redações). A barreira nova cobra a forma que existe; o Intent
+  acima, congelado, diz "começando com", e é essa palavra que está errada, não o código.
 - `packages/shared/src/architecture.test.ts:761-763` -- `chavesDaInterface(arquivo, 'XRow')`
   lê a interface do fonte; `:765-790` a lista `COLUNAS_PEDIDAS` e a barreira. A entrada nova
   são três linhas, e a barreira lê as **migrations em disco** — pura e offline.
@@ -120,12 +124,31 @@ pinam os **quatro** documentos; e a **terceira correção**, que fecha a cadeia.
   resolvidas (o motor não importa `astro/sun`).
 - [x] `packages/shared/src/architecture.test.ts` -- `CHAVES_DE_LUA_EXECUCAO_ROW` e a entrada
   de `lua_execucoes` em `COLUNAS_PEDIDAS`.
-- [x] `packages/shared/src/sleep/lua-protocolo.ts` (ou vizinho) -- `CADEIA_DO_PRE_REGISTRO`:
-  os **quatro** documentos e suas sha256, em ordem append-only, mais o digest da cadeia. O
-  guarda é da 4.3; aqui nasce a constante.
+- [x] `packages/shared/src/sleep/lua-carimbo.ts` -- **vizinho** de `lua-protocolo.ts`, e não
+  dentro dele: `lua-protocolo.test.ts` pina a superfície pública daquele arquivo nome por nome,
+  e alargá-la para caber proveniência a enfraquece. Aqui moram `CADEIA_DO_PRE_REGISTRO` (os
+  **quatro** documentos e suas sha256, append-only), `CADEIA_MINIMA`, `DIGEST_DA_CADEIA`
+  (literal, pinado pelo teste), `MOTOR_LUNAR_VERSAO`, `INICIO_DO_ACERVO_LUNAR` e
+  `operacionalizacaoLunar()`, cuja sonda **mede** a borda em vez de declará-la.
+- [x] `packages/shared/src/sleep/lua-carimbo.test.ts` -- as quatro sha recalculadas do disco,
+  o digest, o piso da cadeia, a sonda da borda e o **golden do motor**.
+- [x] `packages/shared/src/sleep/lua.test.ts` -- `lua-carimbo.ts` entra na guarda de pureza,
+  que era uma lista literal de dois arquivos: a sonda da borda decide o valor carimbado, e um
+  `new Date()` nela passava em tudo.
 - [x] `packages/shared/src/data/lua-execucoes.test.ts` -- a matriz inteira, com `SupabaseClient`
-  falso no molde da casa.
-- [x] `packages/shared/src/index.ts` -- exportar `./data/lua-execucoes`.
+  falso no molde da casa, os **quatro** motivos do inconclusivo e o `delete` do gatilho.
+- [x] `packages/shared/src/index.ts` -- exportar `./data/lua-execucoes` (o barril; `./sleep/
+  lua-carimbo` já saía por ele).
+- [x] `supabase/ensaio/cenarios/lua-execucoes.sql` -- o cenário do `ensaiar.sh`, no molde de
+  `cenarios/edicao-imprimir.sql`: a deferral, três fases recusadas, o acúmulo, as policies por
+  verbo, dezenove CHECKs **pelo nome da constraint**, o delete parcial recusado e o inteiro
+  permitido. **Não rodado aqui** (não há Postgres nesta máquina); ele acompanha o dono na janela.
+- [x] `_bmad-output/implementation-artifacts/revista-4-2b/aplicar.sh` -- o roteiro da janela,
+  no molde do da 1.9: três atos, sha do `.sql` pinada, o arquivo numa chamada só, o registro em
+  `schema_migrations` e o rollback escrito. A seção 6 de `revista-1-9/janela-da-migracao.md` é
+  leitura obrigatória antes.
+- [x] `docs/decisions/0058-a-execucao-lunar-e-uma-linha-por-fase-e-o-banco-cobra-as-quatro.md`
+  -- a ADR do grão e do "quatro ou nenhuma é do banco", no molde das 0055/0057.
 
 **Acceptance Criteria:**
 - Given uma tentativa de gravar três fases, when a escrita roda, then **nenhuma linha** entra.
@@ -174,6 +197,29 @@ escrita.
 pergunta que um leitor futuro faz é *quais documentos autorizaram isto*, não *qual era o
 digest*.
 
+**Quem quebra o build HOJE, e o que é mesmo da 4.3.** A linha da matriz acima diz "o guarda é da
+4.3", e isso subestima o que existe: `sleep/lua-carimbo.test.ts` recalcula as quatro sha256 do
+conteúdo em disco e roda em `pnpm --filter @vitale/shared test` como qualquer `*.test.ts` do
+núcleo. Então **um byte a mais em qualquer um dos quatro documentos já reprova a suíte**,
+incondicionalmente. O que a 4.3 decide são outras duas coisas, e nenhuma delas é "se o build
+quebra": (a) se a cobrança migra para `architecture.test.ts`, onde as barreiras valem sobre o
+repositório inteiro e não só sobre este workspace; e (b) se ela passa a cobrir também
+`JANELA_LUNAR_NOITES`, `HORA_UTC_DO_FIM_DA_NOITE` e a borda — hoje **carimbadas** em cada
+execução e nunca impedidas. Os três lugares que falam disso (a segunda correção de 28/09, o
+docblock de `lua-carimbo.test.ts` e esta nota) dizem a mesma coisa de propósito.
+
+**Seis carimbos, e não três.** O §10 de 28/09 nomeia três — janela, hora, borda. A story
+acrescentou outros três pelo mesmo raciocínio, porque decidem o resultado tanto quanto: a
+**versão do motor** (`MOTOR_LUNAR_VERSAO`, presa por golden do sha256 de `lua-protocolo.ts` —
+trocar o Hodges–Lehmann, o Mann–Whitney ou a conta de poder *depois de ver o resultado* não
+deixava rastro nenhum), o **alcance pedido** (`pedido_desde`: sem ele, "o acervo começa em
+2026" é ambíguo entre *pedi assim* e *não há dado antes*) e as **noites colapsadas**
+(`acervo_noites_colapsadas`: a regra do `onset_at` mais cedo é a única operacionalização da
+cadeia que não virava número nenhum). O colapso é, além disso, a única correção da cadeia que
+mexe no **desfecho** — e ela foi decidida **às cegas**, porque contar as noites afetadas
+exigiria olhar o dado que o protocolo proíbe olhar antes. Isso está dito em voz alta na
+segunda correção de 28/09.
+
 ## Verification
 
 **Commands:**
@@ -188,10 +234,118 @@ digest*.
   `aad967aae5f9fddd563dfd5f97fd274d236f511fb20f5cdad2dfd45a7e46c308`
 - `shasum -a 256 docs/specs/revista-retrospectiva/pre-registro-lua-outras-fases.md` --
   expected: `1227264d01b5f0f35bf7bfcf90fb4241ac89fefef4b28dadfe399918a51251bc`
+- `shasum -a 256 docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md`
+  -- expected: `95cf3e729e9c832a4865ffa10c8e526fd494a1cba67bc61d9d83b4d7524c5b52` (o **quarto**
+  elo; o documento mudou na revisão de 29/09 — as duas contagens explícitas, e o colapso dito
+  às cegas — e as três sha anteriores seguem idênticas)
+- **O golden do digest da cadeia:** `DIGEST_DA_CADEIA` =
+  `644afc095eea98608d93287682ac5e6735e2a608edb2dd48a7de97533fe347e5`, que é o sha256 das quatro
+  sha acima unidas por `\n`. É literal no fonte e recalculado pelo teste — elo novo muda o
+  valor, e é esse o ponto dele.
+- **O golden do motor:** `sleep/lua-protocolo.ts` =
+  `9c53db13a275096fb0b3cd6080f1f97e431d0ffba8574565ac0786973d5179bb`, com
+  `MOTOR_LUNAR_VERSAO` 1.
+
+**O ensaio (precisa de Postgres — NÃO roda nesta máquina, é do dono):**
+```
+supabase/ensaio/subir.sh && supabase/ensaio/preparar.sh
+cat supabase/migrations/20260928130000_lua_execucoes.sql \
+    supabase/ensaio/cenarios/lua-execucoes.sql > /tmp/candidata-com-cenario.sql
+supabase/ensaio/ensaiar.sh /tmp/candidata-com-cenario.sql   # expected: verde, A–H
+supabase/ensaio/descer.sh
+```
+
+**A janela da migração:** `bash _bmad-output/implementation-artifacts/revista-4-2b/aplicar.sh
+--ensaio` primeiro (nada é escrito), depois sem a flag. **A seção 6 de
+`revista-1-9/janela-da-migracao.md` é leitura obrigatória antes.** O `SHA_ENSAIADO` do script
+tem de ser o da migração no momento do ensaio.
 
 **Provas negativas — rodar, anotar o resultado e reverter, conferindo `git status` limpo.**
 Prove **isolado** (`cd packages/shared && pnpm exec tsx <arquivo>`): na suíte cheia um
 `exit 1` pode vir de qualquer arquivo, e a saída traz texto de erro que é fixture de mock.
+`git checkout --` restaura arquivo **rastreado**; para arquivo novo, confira lendo.
 - Uma coluna a mais em `LUA_EXECUCAO_COLUMNS`, sem a migração, **reprova** a barreira.
 - Gravar três fases em vez de quatro **falha**.
 - Um byte a mais em qualquer um dos quatro documentos faz a constante da cadeia **divergir**.
+- Apagar o bloco do `create constraint trigger` na migração **reprova** `architecture.test.ts`.
+- Apagar o `enable row level security` **reprova**.
+- Trocar as duas policies por uma `for all` **reprova**.
+- Um `upsert` em `lua_execucoes` fora de `data/lua-execucoes.ts` **reprova**.
+- `new Date()` dentro de `medirBordaDireita()` **reprova** `sleep/lua.test.ts`.
+- Trocar `MOTIVOS_DO_INCONCLUSIVO` por `PORTOES_LUNARES` em `toResultadoDaFase` **reprova**
+  `data/lua-execucoes.test.ts` (antes da revisão, ficava verde — e quebraria a página da 4.4
+  no desfecho mais provável).
+
+## Suggested Review Order
+
+**A cadeia — o que autoriza uma execução**
+
+- Comece aqui: a segunda correção, quarto elo. Ela conserta o §10 e não toca o desenho do teste.
+  [`correcao-2…md`](../../docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md)
+
+- Os quatro elos em ordem append-only, e o digest como literal — nada de sha256 no import.
+  [`lua-carimbo.ts:82`](../../packages/shared/src/sleep/lua-carimbo.ts#L82)
+
+- A versão do motor: mexer nas contas sem subir isto reprova, e a linha gravada carimba qual era.
+  [`lua-carimbo.ts:165`](../../packages/shared/src/sleep/lua-carimbo.ts#L165)
+
+- A borda direita é **medida**, não declarada — um literal seguiria dizendo `aberta` depois da mudança.
+  [`lua-carimbo.ts:230`](../../packages/shared/src/sleep/lua-carimbo.ts#L230)
+
+**A tabela — a única migração do épico, e ela nunca rodou**
+
+- O grão: `(user_id, execucao_id, fase)`. Quatro linhas por execução, e a tabela acumula.
+  [`…lua_execucoes.sql:263`](../../supabase/migrations/20260928130000_lua_execucoes.sql#L263)
+
+- Só `select` e `insert`. Sem `update` um veredito não se reescreve; sem `delete` a gaveta fecha.
+  [`…lua_execucoes.sql:540`](../../supabase/migrations/20260928130000_lua_execucoes.sql#L540)
+
+- "Quatro ou nenhuma" cobrado no commit: a §9 deixa de ser disciplina e vira atomicidade.
+  [`…lua_execucoes.sql:578`](../../supabase/migrations/20260928130000_lua_execucoes.sql#L578)
+
+- O `execucao_id` que as quatro linhas compartilham sem o cliente combinar nada.
+  [`…lua_execucoes.sql:96`](../../supabase/migrations/20260928130000_lua_execucoes.sql#L96)
+
+- As três colunas de auditoria que entraram enquanto a migração ainda era de graça.
+  [`…lua_execucoes.sql:174`](../../supabase/migrations/20260928130000_lua_execucoes.sql#L174)
+
+**A porta — a escrita**
+
+- Recusa antes de tocar no banco o que divergir de `PROTOCOLO_LUNAR`: nem script grava α não autorizado.
+  [`lua-execucoes.ts:744`](../../packages/shared/src/data/lua-execucoes.ts#L744)
+
+- Gravou e a leitura de volta falhou é **outro** erro: a mensagem manda não regravar.
+  [`lua-execucoes.ts:714`](../../packages/shared/src/data/lua-execucoes.ts#L714)
+
+- A porta única, `insert` e jamais `upsert` — é o acumular que dá sentido ao contador da §7.4.
+  [`lua-execucoes.ts:811`](../../packages/shared/src/data/lua-execucoes.ts#L811)
+
+**A leitura**
+
+- A noite de dois períodos colapsa pelo `onset_at` mais cedo, e o número vai para o carimbo.
+  [`lua-execucoes.ts:610`](../../packages/shared/src/data/lua-execucoes.ts#L610)
+
+- Contagem nula explode em vez de virar zero: "não sei" não é "nunca rodou".
+  [`lua-execucoes.ts:517`](../../packages/shared/src/data/lua-execucoes.ts#L517)
+
+**As barreiras — o que a revisão provou que faltava**
+
+- O texto da migração passa a ser cobrado: gatilho, RLS, policies por verbo e os CHECKs nomeados.
+  [`architecture.test.ts:921`](../../packages/shared/src/architecture.test.ts#L921)
+
+- O vocabulário nos dois sentidos: a décima coluna de CHECK não nasce sem dono.
+  [`architecture.test.ts:947`](../../packages/shared/src/architecture.test.ts#L947)
+
+- Toda coluna nullable diz o que o nulo significa.
+  [`architecture.test.ts:1006`](../../packages/shared/src/architecture.test.ts#L1006)
+
+**A janela do dono**
+
+- O cenário de ensaio: as quatro juntas, as três recusadas, o delete parcial, os 19 CHECKs.
+  [`cenarios/lua-execucoes.sql`](../../supabase/ensaio/cenarios/lua-execucoes.sql)
+
+- O roteiro: três atos, sha do `.sql` pinada, rollback escrito, e o registro em `schema_migrations`.
+  [`aplicar.sh`](revista-4-2b/aplicar.sh)
+
+- A decisão do grão e do "quatro ou nenhuma", como ADR.
+  [`ADR 0058`](../../docs/decisions/0058-a-execucao-lunar-e-uma-linha-por-fase-e-o-banco-cobra-as-quatro.md)

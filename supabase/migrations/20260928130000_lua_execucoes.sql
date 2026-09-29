@@ -18,8 +18,11 @@
 --   2. **As quatro fases juntas, ou nenhuma** (§9 de 28/09). Não por disciplina do
 --      chamador: pelo `constraint trigger` do fim deste arquivo.
 --   3. **Nulo é "não foi medido", nunca zero.** Efeito, p, poder e z saem nulos
---      quando um portão reprovou antes de medir, e cada coluna nullable tem
---      `comment on column` começando por `NULO = …`.
+--      quando um portão reprovou antes de medir, e o `comment on column` de **toda**
+--      coluna nullable **contém** a cláusula `NULO = …`, dizendo o que o nulo
+--      significa naquela coluna. Contém, e não "começa por": a frase útil costuma vir
+--      antes da cláusula, e exigir a posição seria exigir a pior redação das duas.
+--      `architecture.test.ts` cobra a cláusula, coluna por coluna, contra este arquivo.
 --
 -- **Por que não `edicoes_ia`** (correção de 08/09, três impedimentos independentes):
 -- o CHECK de `caderno` recusa `'lua'`; a chave primária transforma o *acumula* em
@@ -76,8 +79,23 @@ create table public.lua_execucoes (
   -- `extract(epoch from now())`, e não `now()::text`: a segunda depende do
   -- `TimeZone` da sessão, e o id de uma execução não deve mudar de forma com a
   -- configuração de quem a gravou.
+  --
+  -- **`txid_current()` entra no md5 porque os outros dois ingredientes empatam.**
+  -- `auth.uid()` é **nulo** em toda sessão sem JWT — `postgres`, `service_role`, o
+  -- ensaio, um backfill por script —, e lá o `coalesce` devolve a mesma palavra
+  -- para todo mundo. Sobra o relógio, e duas execuções em transações diferentes no
+  -- mesmo microssegundo colidiriam na chave primária **sem nome**: "duplicate key
+  -- value violates lua_execucoes_pkey", que não diz que duas execuções tentaram ser
+  -- a mesma. O id da transação é único no cluster e resolve isso.
+  --
+  -- **Dentro de UMA transação o id continua constante, e isso é o desenho.** É
+  -- exatamente o que faz as quatro linhas de um `insert` compartilharem o valor sem
+  -- ninguém combinar nada. A consequência é que duas execuções *distintas* na mesma
+  -- transação colidem na chave — e é o desfecho certo: a §9 fala de uma execução por
+  -- escrita, e duas numa transação só não é uma coisa que este desenho permita.
   execucao_id uuid not null
     default md5(coalesce(auth.uid()::text, 'sem-sessao') || '|'
+                || txid_current()::text || '|'
                 || extract(epoch from now())::text)::uuid,
 
   -- A hora da execução. `default now()` — o mesmo `transaction_timestamp()` do id,
@@ -95,9 +113,22 @@ create table public.lua_execucoes (
   -- documentos autorizaram isto* — não *qual era o digest*.
   --
   -- A cadeia é **append-only** nos três documentos que a declaram, então quatro é
-  -- o piso: um documento novo acrescenta um par, nenhum some.
+  -- o piso: um documento novo acrescenta um par, nenhum some. O piso **não sobe**
+  -- quando a cadeia crescer — execuções antigas têm quatro elos e continuam
+  -- legíveis. É `CADEIA_MINIMA` (`sleep/lua-carimbo.ts`), e um teste confere que
+  -- o número aqui é o de lá.
+  --
+  -- **`case`, e não `and`.** O `and` do Postgres não garante curto-circuito: o
+  -- planejador pode avaliar `jsonb_array_length(cadeia)` antes do `jsonb_typeof`,
+  -- e sobre um objeto jsonb essa função **levanta `22023`** ("cannot get array
+  -- length of a non-array") em vez de violar um CHECK nomeado. A diferença aparece
+  -- na mensagem que chega ao app: um erro de tipo cru, sem o nome da constraint,
+  -- em vez de "viola lua_execucoes_cadeia_check". O `case` é a única forma de
+  -- pedir a ordem de avaliação em SQL.
   cadeia jsonb not null
-    check (jsonb_typeof(cadeia) = 'array' and jsonb_array_length(cadeia) >= 4),
+    check (case when jsonb_typeof(cadeia) = 'array'
+                then jsonb_array_length(cadeia) >= 4
+                else false end),
 
   -- O digest da cadeia: sha256 das sha256, na ordem, unidas por `\n`. É a forma
   -- curta de comparar duas execuções; a forma longa é a coluna acima.
@@ -113,7 +144,13 @@ create table public.lua_execucoes (
   -- Carimbá-los aqui não impede a mudança — torna-a **visível depois do fato**,
   -- que é o propósito declarado da §7.3: não impedir, obrigar a dizer em voz alta.
   -- Duas execuções com janelas diferentes ficam lado a lado na mesma tabela.
-  janela_noites smallint not null check (janela_noites >= 1),
+  --
+  -- O teto de 30 não é folga arbitrária: **uma lunação inteira tem 29,53 dias**, e
+  -- uma janela de 30 noites classifica *toda* noite como exposta, esvaziando a
+  -- coluna de controle. Acima disso o número não é uma janela mais larga, é um
+  -- teste que deixou de existir — e o CHECK é o que impede que ele seja gravado
+  -- com cara de execução válida.
+  janela_noites smallint not null check (janela_noites >= 1 and janela_noites <= 30),
   hora_utc_do_fim_da_noite smallint not null
     check (hora_utc_do_fim_da_noite >= 0 and hora_utc_do_fim_da_noite <= 23),
   -- `aberta` é a borda `[fase − 5 d, fase)` do §3. O valor não é copiado de um
@@ -121,10 +158,42 @@ create table public.lua_execucoes (
   -- que faz dele um carimbo e não um comentário.
   borda_direita text not null check (borda_direita in ('aberta', 'fechada')),
 
+  -- **A versão do motor — o carimbo que falta quando a conta muda de forma.**
+  --
+  -- A janela, a hora e a borda dizem **qual noite entrou em qual coluna**. Nada
+  -- dizia **com que aritmética o veredito saiu**: trocar o Hodges–Lehmann pela
+  -- diferença de medianas, o Mann–Whitney por outro teste, ou a aproximação normal
+  -- do poder por uma exata muda efeito, p e poder sobre o **mesmo** acervo, e
+  -- mudá-los *depois de ver o resultado* é a gaveta pela porta dos fundos. Como os
+  -- três valores acima, este carimbo não impede: ele põe duas execuções com
+  -- motores diferentes lado a lado na mesma tabela.
+  --
+  -- É `MOTOR_LUNAR_VERSAO` (`sleep/lua-carimbo.ts`), e ela é presa por um golden do
+  -- sha256 de `sleep/lua-protocolo.ts`: mexer no motor sem subir a versão reprova a
+  -- suíte. O molde é `PROMPT_VERSAO` com o golden de `ia/verificar.test.ts`.
+  motor_versao smallint not null check (motor_versao >= 1),
+
+  -- ── O que foi PEDIDO, que não é o mesmo que o que foi achado ─────────────
+  --
+  -- O `desde` da leitura decide quais noites entram tanto quanto `janela_noites`, e
+  -- ele mora no **chamador** — `fetchNoitesLunares` não tem padrão, de propósito.
+  -- Sem esta coluna, "o acervo começa em 2026-01-01" é ambíguo entre *pedi assim* e
+  -- *não há dado antes*, e as duas levam a leituras opostas da mesma execução.
+  -- `INICIO_DO_ACERVO_LUNAR` (23/04/2025, §3) é o valor do protocolo; a coluna
+  -- guarda o que de fato foi pedido, que pode ser outro numa execução exploratória.
+  pedido_desde date not null,
+
   -- ── O acervo sobre o qual a execução rodou ───────────────────────────────
 
   acervo_noites integer not null check (acervo_noites >= 0),
   acervo_noites_distintas integer not null check (acervo_noites_distintas >= 0),
+  -- **Quantas noites chegaram com mais de um período de sono e foram colapsadas.**
+  --
+  -- O colapso pelo `onset_at` mais cedo é a escolha operacional mais nova da cadeia
+  -- (a segunda correção de 28/09) e a única que não vira nenhum outro número aqui:
+  -- janela, hora, borda e motor têm coluna; o colapso não tinha. Zero é resposta —
+  -- "nenhuma noite precisou" —, e não ausência de medida: a leitura conta sempre.
+  acervo_noites_colapsadas integer not null check (acervo_noites_colapsadas >= 0),
   acervo_de date,
   acervo_ate date,
   acervo_sd_min double precision,
@@ -250,9 +319,90 @@ create table public.lua_execucoes (
     or (efeito_min is not null and p is not null and poder is not null)
   ),
 
+  -- **O poder é portão, e o portão tem um número.** Os dois lados dele:
+  --
+  -- Um veredito decidido passou pelo portão, então o poder dele é **ao menos 0,8**
+  -- (§4). Sem este CHECK, uma linha com `achado` e poder 0,3 é gravável — e ela
+  -- seria a forma exata da gaveta que o protocolo inteiro existe para fechar: um p
+  -- pequeno num acervo que não sustenta a conclusão.
+  constraint veredito_decidido_passou_no_poder check (
+    veredito = 'inconclusivo' or poder >= 0.8::double precision
+  ),
+
+  -- E o outro lado: `motivo = 'poder'` é o inconclusivo que **chegou a medir** e
+  -- achou pouco, então o poder dele é menor que 0,8.
+  --
+  -- **`poder is null` é aceito aqui, e isso não é frouxidão.** O motor devolve
+  -- `motivo = 'poder'` com poder nulo quando a dispersão é degenerada — SD zero ou
+  -- não finito —, porque poder não medido não é poder suficiente. É o mesmo caso em
+  -- que `falta` sai nula, e o CHECK que o recusasse tornaria esse acervo
+  -- **impossível de gravar**: a execução rodaria, produziria um veredito legítimo e
+  -- morreria na escrita, que é o desfecho mais caro de todos (a tabela só recebe
+  -- uma execução a cada cem noites).
+  constraint poder_fraco_e_o_motivo_poder check (
+    motivo is distinct from 'poder'
+    or poder is null
+    or poder < 0.8::double precision
+  ),
+
+  -- Um ciclo sinódico só conta quando contribui com ao menos uma noite DENTRO da
+  -- janela desta fase, então ciclos nunca passa de noites_dentro. É a mesma
+  -- afirmação de `colunas_cabem_no_acervo`, um nível abaixo: sem ela, "10 ciclos
+  -- com 6 noites dentro" é gravável e a página imprime um portão que passou por
+  -- aritmética impossível.
+  constraint ciclos_cabem_nas_noites_dentro check (ciclos <= noites_dentro),
+
+  -- **`double precision` aceita `'NaN'` calado, e `>= 0` não o pega.**
+  --
+  -- No Postgres o NaN é ordenado **acima** de qualquer número: `'NaN' >= 0` é
+  -- verdadeiro, e um CHECK de piso deixa passar o NaN inteiro. `alfa`, `p`, `poder`
+  -- e `acervo_origem_do_eixo_h` escapam por acidente — os quatro têm **teto**, e
+  -- `NaN < 24` é falso. As quatro colunas abaixo não tinham nenhum, e um NaN nelas
+  -- chegaria à página como um efeito que não desenha e um eixo que não ordena.
+  --
+  -- `x < 'Infinity'` é o teste de finitude que também recusa NaN, e por isso ele
+  -- basta sozinho de um lado. Os pisos ficam explícitos porque dizem outra coisa:
+  -- SD é distância (nunca negativa) e MDE é um deslocamento a detectar (zero seria
+  -- "detecta qualquer coisa", que é o oposto da verdade).
+  constraint as_medidas_sao_numeros_finitos check (
+    (acervo_sd_min is null
+       or (acervo_sd_min >= 0 and acervo_sd_min < 'Infinity'::double precision))
+    and (efeito_min is null
+       or (efeito_min > '-Infinity'::double precision
+           and efeito_min < 'Infinity'::double precision))
+    and (z_de_mann_whitney is null
+       or (z_de_mann_whitney > '-Infinity'::double precision
+           and z_de_mann_whitney < 'Infinity'::double precision))
+    and (efeito_minimo_detectavel_min is null
+       or (efeito_minimo_detectavel_min > 0
+           and efeito_minimo_detectavel_min < 'Infinity'::double precision))
+  ),
+
   constraint acervo_intervalo_valido check (
     (acervo_de is null) = (acervo_ate is null)
     and (acervo_ate is null or acervo_ate >= acervo_de)
+  ),
+
+  -- **Acervo vazio e intervalo são a mesma afirmação, e têm de concordar.**
+  -- `acervo_intervalo_valido` prende `de` a `ate` e não olha a contagem: zero noites
+  -- com intervalo, ou 300 noites sem intervalo, passam por ele. A segunda metade é a
+  -- dispersão: o SD marginal só existe com **duas** noites ou mais, e um número ali
+  -- sobre uma noite só seria zero com cara de medida.
+  constraint acervo_vazio_nao_tem_intervalo check (
+    (acervo_noites = 0) = (acervo_de is null)
+    and (acervo_sd_min is null or acervo_noites >= 2)
+  ),
+
+  -- Colapsar é tirar período, nunca acrescentar noite.
+  constraint acervo_colapsado_cabe_no_acervo check (
+    acervo_noites_colapsadas <= acervo_noites
+  ),
+
+  -- O `desde` recorta por `wake_day >= desde`, então a primeira noite do acervo
+  -- nunca é anterior ao que foi pedido. Um acervo que começasse antes do pedido
+  -- seria leitura por outro caminho que não a porta.
+  constraint acervo_comeca_depois_do_pedido check (
+    acervo_de is null or acervo_de >= pedido_desde
   ),
 
   -- As duas contagens do acervo **são iguais**, sempre: o motor recusa `wakeDay`
@@ -293,11 +443,17 @@ comment on column public.lua_execucoes.hora_utc_do_fim_da_noite is
   'HORA_UTC_DO_FIM_DA_NOITE no momento da execução (8 no protocolo): a hora UTC que representa a noite. Carimbado pelo mesmo motivo.';
 comment on column public.lua_execucoes.borda_direita is
   'A borda direita da janela [fase - 5 d, fase) no momento da execução: aberta no protocolo. Medida contra a classificação, não copiada de um literal.';
+comment on column public.lua_execucoes.motor_versao is
+  'MOTOR_LUNAR_VERSAO no momento da execução: a aritmética que produziu efeito, p e poder (Hodges-Lehmann, Mann-Whitney, aproximação normal do poder). Presa por golden do sha256 de sleep/lua-protocolo.ts — mexer no motor sem subir a versão reprova a suíte.';
+comment on column public.lua_execucoes.pedido_desde is
+  'O desde que o chamador pediu à leitura. Sem ele, um acervo que começa tarde é ambíguo entre pedi assim e não há dado antes. O valor do protocolo é 23/04/2025 (§3), em INICIO_DO_ACERVO_LUNAR.';
 
 comment on column public.lua_execucoes.acervo_noites is
   'Noites que entraram na execução.';
 comment on column public.lua_execucoes.acervo_noites_distintas is
   'wakeDay distintos — sempre igual a acervo_noites, porque o motor recusa noite repetida em vez de deduplicar (duplicata infla poder). Publicada para quem auditar.';
+comment on column public.lua_execucoes.acervo_noites_colapsadas is
+  'Quantas noites chegaram com mais de um período de sono e foram colapsadas pelo onset_at mais cedo (segunda correção de 28/09). Zero é resposta — nenhuma precisou —, não ausência de medida.';
 comment on column public.lua_execucoes.acervo_de is
   'O primeiro wakeDay do acervo, em ordem cronológica. NULO = acervo vazio, e então acervo_ate também é nulo.';
 comment on column public.lua_execucoes.acervo_ate is
@@ -312,7 +468,7 @@ comment on column public.lua_execucoes.acervo_primeira_noite_sem_luz is
   'O wakeDay da primeira noite sem luz, por onde começar a olhar. NULO = nenhuma noite sem luz.';
 
 comment on column public.lua_execucoes.fase is
-  'Qual das quatro fases principais esta linha mede. Os ids sao os de LunarPhaseKind (astro/moon.ts), letra por letra.';
+  'Qual das quatro fases principais esta linha mede. Os ids são os de LunarPhaseKind (astro/moon.ts), letra por letra.';
 comment on column public.lua_execucoes.familia is
   'A família do teste: cheia (confirmatória, 5%, pré-registrada sozinha em 07/09) ou as-tres (nascidas em trio em 28/09). As duas NUNCA se somam num resultado só (§2 de 28/09).';
 comment on column public.lua_execucoes.alfa is
@@ -356,8 +512,36 @@ comment on column public.lua_execucoes.noites_para_80 is
 
 alter table public.lua_execucoes enable row level security;
 
-create policy "own lua_execucoes" on public.lua_execucoes
-  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- ── POLICIES POR VERBO, e a ausência de duas delas é o desenho ──────────────
+--
+-- As irmãs desta tabela usam `for all`, e aqui isso estaria errado. `for all`
+-- concede `update` — e um veredito gravado poderia ser **reescrito no lugar**,
+-- que é exatamente o contrário das três propriedades do topo deste arquivo. O
+-- `acumula, nunca substitui` da §7.2 deixaria de ser propriedade do banco e
+-- voltaria a ser disciplina do chamador, que é a coisa que este par de documentos
+-- existe para não depender.
+--
+-- **Não há `for update`.** Uma execução é uma tentativa que aconteceu; corrigir
+-- uma é reescrever a história do teste. O que se faz é gravar outra — e o contador
+-- da §7.4 conta as duas, que é o ponto.
+--
+-- **Não há `for delete`, e isto é a gaveta fechando de verdade.** Apagar uma
+-- execução inteira continua sendo o único desfazer que existe (ver o gatilho
+-- abaixo), mas ele deixa de ser alcançável pela API: tirar uma execução passa a
+-- exigir o dono agindo como superusuário, de propósito e em voz alta. É o
+-- "não impedir, obrigar a dizer em voz alta" da §7.3 — com a diferença de que um
+-- `delete` pelo app não deixaria rastro nenhum de ter acontecido.
+--
+-- **A policy de `select` é o que sustenta a invariante, e não é só leitura.** O
+-- `constraint trigger` abaixo é `security invoker`: ele conta as linhas da execução
+-- **pelos olhos de quem escreveu**. Sem `select`, a contagem enxerga zero, o ramo
+-- `v_linhas = 0` retorna calado e o "quatro ou nenhuma" para de ser cobrado sem
+-- que nada acuse. Quem mexer nesta policy está mexendo no gatilho.
+create policy "lua_execucoes: o dono lê as suas" on public.lua_execucoes
+  for select using (auth.uid() = user_id);
+
+create policy "lua_execucoes: o dono grava as suas" on public.lua_execucoes
+  for insert with check (auth.uid() = user_id);
 
 -- ── "Quatro ou nenhuma" é do BANCO, não da porta (§9 de 28/09) ──────────────
 --
@@ -383,6 +567,13 @@ create policy "own lua_execucoes" on public.lua_execucoes
 -- INTEIRA é um ato com cara de ato; apagar três de quatro não é desfazer, é
 -- mutilar — e deixaria uma execução que publica três fases, que é exatamente o que
 -- a §9 proíbe.
+--
+-- **O ramo DELETE continua aqui mesmo sem policy de `delete`.** Não é código
+-- morto: a RLS não vale para superusuário, e o `delete` de uma execução inteira é
+-- precisamente o caminho que sobra depois que a policy fechou a porta da API. O
+-- gatilho é o que garante que esse caminho também obedeça à §9 — `on delete
+-- cascade` de `auth.users` passa por aqui, e um `delete` à mão no psql também.
+-- Tirar o ramo deixaria o único desfazer que existe sem cobrança nenhuma.
 
 create or replace function public.lua_execucao_conferir(p_user uuid, p_execucao uuid)
 returns void

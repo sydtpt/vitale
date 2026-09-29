@@ -16,15 +16,33 @@
  * próxima pessoa tem de julgar. A cadeia e a operacionalização não calculam nada do
  * teste — elas dizem **sob que autoridade** ele rodou —, então moram ao lado.
  *
- * ## O que este arquivo NÃO é
+ * ## Quem quebra o build **hoje**, e o que sobra para a 4.3
  *
- * Não é a barreira do build. A story 4.3 decide se e como `architecture.test.ts`
- * passa a cobrar a cadeia contra os arquivos em disco; aqui só nasce a constante
- * que ela vai comparar. E não é o executor: quem compara antes de rodar é quem
- * grava (`data/lua-execucoes.ts`).
+ * **Hoje já quebra.** `lua-carimbo.test.ts` recalcula as quatro sha256 do conteúdo
+ * em disco, e ele roda em `pnpm --filter @vitale/shared test` como qualquer outro
+ * `*.test.ts` — um byte a mais em qualquer um dos quatro documentos reprova a
+ * suíte, incondicionalmente, tenha havido execução ou não. É o que a segunda
+ * correção de 28/09 chama de "o build quebra sempre", e é o preço declarado lá.
+ *
+ * **O que a 4.3 decide** é outra coisa, e são duas: se a cobrança migra para
+ * `architecture.test.ts` (onde as barreiras valem sobre o repositório inteiro, e
+ * não só sobre o workspace do núcleo), e se ela passa a cobrir também a
+ * **operacionalização** — `JANELA_LUNAR_NOITES`, `HORA_UTC_DO_FIM_DA_NOITE` e a
+ * borda —, que é a dívida que o §10 de 28/09 nomeia e que hoje só é *carimbada*,
+ * nunca impedida. Ver {@link OperacionalizacaoLunar}.
+ *
+ * E este arquivo não é o executor: quem compara antes de rodar é quem grava
+ * (`data/lua-execucoes.ts`).
+ *
+ * ## Puro, e cobrado como tal
+ *
+ * Sem relógio do hospedeiro, sem fuso, sem ambiente e sem coordenada — a mesma
+ * guarda de `lua.ts` e `lua-protocolo.ts` cobre este arquivo (`lua.test.ts`). A
+ * razão é a sonda de {@link operacionalizacaoLunar}: ela **mede** a borda contra o
+ * classificador, e uma sonda que lesse `new Date()` ou a hora local do aparelho
+ * carimbaria em `borda_direita` um valor que depende de onde a execução rodou.
  */
 import { PHASE_ORDER, nextLunarPhase } from '../astro/moon';
-import { sha256Hex } from '../ia/sha256';
 import {
   HORA_UTC_DO_FIM_DA_NOITE,
   JANELA_LUNAR_NOITES,
@@ -76,9 +94,25 @@ export const CADEIA_DO_PRE_REGISTRO: readonly EloDaCadeia[] = Object.freeze([
   }),
   Object.freeze({
     arquivo: 'docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md',
-    sha256: 'c5a9901c35d93041360e2bed922e34870db2233659075c87405ef1879b5ebe44',
+    sha256: '95cf3e729e9c832a4865ffa10c8e526fd494a1cba67bc61d9d83b4d7524c5b52',
   }),
 ]);
+
+/**
+ * O **piso** da cadeia: quantos elos uma execução gravada tem de carregar.
+ *
+ * É o número que o CHECK de `lua_execucoes.cadeia` repete, e `architecture.test.ts`
+ * confere que os dois são o mesmo. O tradutor de leitura usa este piso, e não a
+ * lista vazia: o CHECK exige quatro, e uma leitura que aceitasse uma lista de um
+ * elo aceitaria uma linha que o banco afirma não existir.
+ *
+ * **Ele não acompanha o crescimento da cadeia, de propósito.** Um quinto documento
+ * faz `CADEIA_DO_PRE_REGISTRO` ter cinco elos, e as execuções já gravadas continuam
+ * com quatro — usar `CADEIA_DO_PRE_REGISTRO.length` como piso as tornaria ilegíveis
+ * no dia em que a regra mudasse, que é o dia em que mais se quer lê-las. O piso é a
+ * forma mínima de uma cadeia válida; o comprimento de hoje é outra coisa.
+ */
+export const CADEIA_MINIMA = 4;
 
 /**
  * O digest da cadeia: **sha256 das sha256**, na ordem, unidas por `\n`.
@@ -89,13 +123,60 @@ export const CADEIA_DO_PRE_REGISTRO: readonly EloDaCadeia[] = Object.freeze([
  * documentos de lugar dá outro digest, porque a ordem da cadeia é a cronologia da
  * regra.
  *
- * Derivado, e não literal: dois números para manter em sincronia é um número a mais
- * do que existe. Quem prende o valor é `lua-carimbo.test.ts`, com a sha pinada e a
- * data ao lado — o molde de `ia/verificar.test.ts`.
+ * **Literal, e não derivado no import.** A versão derivada rodava um SHA-256 em
+ * JavaScript puro na **abertura de todo hospedeiro** que toca o barril — iPhone
+ * incluído — para produzir um valor lido uma vez a cada cem noites, e arrastava
+ * `ia/sha256.ts`, que se declara interno ao núcleo de IA, para o grafo de execução
+ * de todo consumidor. O literal não é um segundo número a manter: `lua-carimbo.test.ts`
+ * recalcula a conta a partir da cadeia e reprova se divergir, que é exatamente o
+ * papel que o golden de `ia/verificar.test.ts` faz para o texto do SISTEMA.
+ *
+ * Fixado em 29/09/2026, com a cadeia em quatro elos (story 4.2b). Elo novo muda
+ * este valor: é o ponto dele.
  */
-export const DIGEST_DA_CADEIA: string = sha256Hex(
-  CADEIA_DO_PRE_REGISTRO.map((e) => e.sha256).join('\n'),
-);
+export const DIGEST_DA_CADEIA = '644afc095eea98608d93287682ac5e6735e2a608edb2dd48a7de97533fe347e5';
+
+/* ─────────────────── O motor, e o alcance que se pede a ele ─────────────────── */
+
+/**
+ * A versão da **aritmética** que produz o veredito.
+ *
+ * A operacionalização abaixo carimba *qual noite entra em qual coluna*. Nada
+ * carimbava *com que conta o veredito saiu* — e trocar o Hodges–Lehmann pela
+ * diferença de duas medianas, o Mann–Whitney por outro teste, ou a aproximação
+ * normal do poder por uma exata muda efeito, p e poder sobre o **mesmo** acervo.
+ * Fazer isso *depois de ver o resultado* é a gaveta pela porta dos fundos, e até
+ * aqui não deixava rastro nenhum.
+ *
+ * **Como ela é presa.** `lua-carimbo.test.ts` guarda o sha256 do fonte de
+ * `sleep/lua-protocolo.ts` — o motor inteiro: Hodges–Lehmann, Mann–Whitney, a
+ * conta de poder e os portões — com esta versão ao lado. Mexer no arquivo sem subir
+ * o número reprova a suíte. É o molde de `PROMPT_VERSAO` com o golden de
+ * `ia/verificar.test.ts`, e vale a mesma regra: os dois sobem no mesmo commit.
+ *
+ * **`sleep/lua.ts` fica de fora do golden, de propósito.** O que vive lá é a
+ * operacionalização — janela, hora do fim da noite, borda —, e ela já tem três
+ * colunas próprias em cada execução. Metê-la aqui faria uma mudança de janela subir
+ * a versão do motor, que diria a coisa errada: o motor não mudou, a régua mudou. Se
+ * a 4.3 decidir cobrar aquelas constantes, é lá que a barreira nasce.
+ *
+ * 1 — 29/09/2026, story 4.2b: o motor como a 4.2a o entregou.
+ */
+export const MOTOR_LUNAR_VERSAO = 1;
+
+/**
+ * O primeiro `wakeDay` que o §3 admite no acervo: **23/04/2025**.
+ *
+ * Constante porque três testes já a redigitavam e porque ela é uma **decisão de
+ * protocolo**, não um padrão de conveniência: `fetchNoitesLunares` continua exigindo
+ * o `desde` explícito, e quem autoriza uma execução é quem escolhe o alcance dela.
+ * O que a constante dá é um nome para o alcance do protocolo, e um lugar único para
+ * ele — um literal redigitado em quatro arquivos é quatro chances de digitar 2026.
+ *
+ * Cada execução grava o `desde` que de fato foi pedido, em `pedido_desde`: sem ele,
+ * um acervo que começa tarde é ambíguo entre *pedi assim* e *não há dado antes*.
+ */
+export const INICIO_DO_ACERVO_LUNAR = '2025-04-23';
 
 /* ─────────────────────── A operacionalização ─────────────────────── */
 

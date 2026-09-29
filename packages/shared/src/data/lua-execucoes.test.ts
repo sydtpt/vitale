@@ -8,29 +8,42 @@
  * **forma** — quantas linhas, com que identificador, com que nulos, com que unidade.
  *
  * O falso do banco guarda uma tabela em memória e **espelha o `constraint trigger`**
- * da migração: quatro linhas por `execucao_id`, uma por fase, ou nenhuma. Ele não é
- * o Postgres, e o que os casos daqui provam é que a porta não depende do banco para
- * a forma certa; a prova do gatilho é a migração, e ela só roda na janela do dono.
+ * da migração: quatro linhas por `(user_id, execucao_id)`, uma por fase, ou nenhuma,
+ * cobradas no `insert` **e** no `delete`, que são os dois verbos que a tabela
+ * conhece. Ele não é o Postgres, e o que os casos daqui provam é que a porta não
+ * depende do banco para a forma certa; a prova do gatilho é o cenário
+ * `supabase/ensaio/cenarios/lua-execucoes.sql`, que roda na janela do dono.
+ *
+ * A comparação das listas com os CHECKs da migração **não mora aqui**: é barreira, e
+ * vive em `architecture.test.ts` junto com `idsAceitosPeloCheck`, que lê todas as
+ * migrations e as duas formas de CHECK.
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COORDENADA_DA_LUZ } from '../astro/casa';
 import { PHASE_ORDER } from '../astro/moon';
 import { daylightHours } from '../astro/sun';
-import { CADEIA_DO_PRE_REGISTRO, DIGEST_DA_CADEIA, operacionalizacaoLunar } from '../sleep/lua-carimbo';
+import {
+  CADEIA_DO_PRE_REGISTRO,
+  CADEIA_MINIMA,
+  DIGEST_DA_CADEIA,
+  INICIO_DO_ACERVO_LUNAR,
+  MOTOR_LUNAR_VERSAO,
+  operacionalizacaoLunar,
+} from '../sleep/lua-carimbo';
 import {
   PROTOCOLO_LUNAR,
   UNIDADE_DO_MOTIVO,
   vereditoLunar,
+  type MotivoDoInconclusivo,
   type NoiteLunarMedida,
   type QuatroResultados,
   type VereditoLunarCompleto,
 } from '../sleep/lua-protocolo';
 import type { SleepPeriod } from '../models';
 import {
+  ExecucaoLunarGravadaSemLeitura,
   ExecucaoLunarRecusada,
   FASES_POR_EXECUCAO,
   LUA_EXECUCAO_COLUMNS,
@@ -40,13 +53,27 @@ import {
   fetchNoitesLunares,
   fetchUltimaExecucaoLunar,
   gravarExecucaoLunar,
+  noitesColapsadasEm,
   noitesLunaresDe,
   toLuaExecucao,
   type LuaExecucaoRow,
+  type PedidoDaExecucao,
 } from './lua-execucoes';
 
-const ROOT = join(import.meta.dirname, '..', '..', '..', '..');
 const DIA_MS = 86_400_000;
+
+/**
+ * O pedido que acompanha toda escrita destes casos.
+ *
+ * `desde` é o do protocolo, e os acervos sintéticos começam **no mesmo dia** de
+ * propósito: o CHECK `acervo_comeca_depois_do_pedido` exige que a primeira noite não
+ * seja anterior ao que foi pedido, e uma fixture que o violasse passaria aqui (o
+ * falso não tem CHECK) para morrer na janela do dono.
+ */
+const PEDIDO: Readonly<PedidoDaExecucao> = Object.freeze({
+  desde: INICIO_DO_ACERVO_LUNAR,
+  noitesColapsadas: 0,
+});
 
 /* ─────────────────────────── Os acervos sintéticos ─────────────────────────── */
 
@@ -54,19 +81,26 @@ const DIA_MS = 86_400_000;
  * `quantas` noites a partir de `de`, com o `apagou` num padrão determinístico e a
  * luz do dia de verdade.
  *
- * A dispersão é de propósito **baixa** (passos de 5 min em 11 posições, ~15 min de
- * SD): com 400 noites isso passa os três portões e o de poder, e é o único jeito de
- * um caso deste arquivo exercitar a linha com efeito, p e poder **não nulos**. Um
- * acervo disperso cairia em `inconclusivo` por poder, que é outro caso.
+ * A dispersão é regulável porque **ela é o que decide o motivo**: passos de 5 min em
+ * 11 posições (~16 min de SD) passam o portão do poder com 400 noites; passos de 30
+ * em 21 posições (~182 min de SD) o reprovam com as mesmas 400. Os dois lados
+ * precisam existir — só o `luz` era exercitado ponta a ponta, e o `poder` é o
+ * veredito que a própria aritmética do motor chama de provável.
  */
-function acervo(de: string, quantas: number, opts: { semLuzNa?: number } = {}): NoiteLunarMedida[] {
+function acervo(
+  de: string,
+  quantas: number,
+  opts: { semLuzNa?: number; passoMin?: number; posicoes?: number } = {},
+): NoiteLunarMedida[] {
+  const passo = opts.passoMin ?? 5;
+  const posicoes = opts.posicoes ?? 11;
   const out: NoiteLunarMedida[] = [];
   let t = Date.parse(`${de}T00:00:00Z`);
   for (let i = 0; i < quantas; i += 1) {
     const wakeDay = new Date(t).toISOString().slice(0, 10);
-    // Apagou entre 22:20 e 23:10 UTC da véspera — longe da origem do eixo (18h) e
-    // sem ninguém dar a volta no círculo.
-    const onsetAt = new Date(t - 50 * 60_000 - (i % 11) * 5 * 60_000).toISOString();
+    // Apagou na véspera, antes da meia-noite — longe da origem do eixo (18h) e sem
+    // ninguém dar a volta no círculo.
+    const onsetAt = new Date(t - 50 * 60_000 - (i % posicoes) * passo * 60_000).toISOString();
     out.push({
       wakeDay,
       onsetAt,
@@ -78,10 +112,35 @@ function acervo(de: string, quantas: number, opts: { semLuzNa?: number } = {}): 
   return out;
 }
 
+/* ── Os cinco acervos, um por desfecho que a tabela precisa saber gravar ────── */
+
 /** Portões abertos, poder de sobra: o caso em que a medida existe. */
-const COM_PODER: VereditoLunarCompleto = vereditoLunar(acervo('2025-01-01', 400));
+const COM_PODER: VereditoLunarCompleto = vereditoLunar(acervo(INICIO_DO_ACERVO_LUNAR, 400));
 /** Uma noite sem a covariável: o portão da luz fecha para as **quatro**. */
-const SEM_LUZ: VereditoLunarCompleto = vereditoLunar(acervo('2025-01-01', 400, { semLuzNa: 7 }));
+const SEM_LUZ: VereditoLunarCompleto =
+  vereditoLunar(acervo(INICIO_DO_ACERVO_LUNAR, 400, { semLuzNa: 7 }));
+/**
+ * **Os três portões abertos e o poder reprovando** — `motivo = 'poder'`.
+ *
+ * É o único motivo em que efeito, p, z e poder **existem** num inconclusivo: o
+ * portão do poder vem *depois* de medir, e por isso a linha dele não é nula como as
+ * dos três portões. Sem este caso, `motivo` nunca via o valor `'poder'` em nenhuma
+ * ponta — e trocar `MOTIVOS_DO_INCONCLUSIVO` por `PORTOES_LUNARES` no tradutor ficava
+ * verde, para quebrar a página no desfecho que o motor chama de provável.
+ */
+const SEM_PODER: VereditoLunarCompleto =
+  vereditoLunar(acervo(INICIO_DO_ACERVO_LUNAR, 400, { passoMin: 30, posicoes: 21 }));
+/**
+ * Doze noites: **dois motivos na mesma execução**, `ciclos` e `amostra`.
+ *
+ * As quatro fases não caem pelo mesmo motivo, e é exatamente isso que se quer: as
+ * colunas `motivo`, `portao_reprovado` e `falta_unidade` variam **dentro** de uma
+ * execução, e um caso em que as quatro concordam não prova que a linha carrega o
+ * motivo dela em vez do motivo da execução.
+ */
+const CURTO: VereditoLunarCompleto = vereditoLunar(acervo(INICIO_DO_ACERVO_LUNAR, 12));
+/** Acervo vazio: `de`, `ate` e `sdMin` nulos, e as contagens em zero. */
+const VAZIO: VereditoLunarCompleto = vereditoLunar([]);
 
 /* ─────────────────────────── O falso do banco ─────────────────────────── */
 
@@ -109,23 +168,47 @@ interface Consulta {
   head: boolean;
 }
 
-function fakeBanco(opts: { erroNaLeitura?: Error; erroNaEscrita?: Error } = {}) {
+function fakeBanco(opts: {
+  erroNaLeitura?: Error; erroNaEscrita?: Error; escritaCega?: boolean;
+} = {}) {
   const tabela: LuaExecucaoRow[] = [];
-  const capturado = { consultas: [] as Consulta[], escritas: 0, cargas: [] as Record<string, unknown>[][] };
+  const capturado = {
+    consultas: [] as Consulta[], escritas: 0, cargas: [] as Record<string, unknown>[][],
+    apagados: 0,
+  };
   // O relógio da transação: um instante novo por `insert`, como `now()` faz.
   let transacao = 0;
 
-  /** O `constraint trigger`, espelhado: quatro por `execucao_id`, uma por fase, ou nenhuma. */
-  function conferirNoCommit(ids: readonly string[]): string | null {
-    for (const id of ids) {
-      const daExecucao = tabela.filter((r) => r.execucao_id === id);
+  /**
+   * O `constraint trigger`, espelhado: quatro por execução, uma por fase, ou nenhuma.
+   *
+   * **A chave é `(user_id, execucao_id)`, como no gatilho** — `lua_execucao_conferir`
+   * recebe os dois e filtra pelos dois. Contar só pelo `execucao_id` é uma cobrança
+   * mais frouxa que a do banco em teoria (dois donos com o mesmo id somariam oito) e
+   * mais **apertada** em produção, onde o id sai de um `md5` que já tem o dono
+   * dentro: o falso acusaria uma execução que o Postgres aceita. Um espelho que
+   * diverge do original não é espelho.
+   */
+  function conferirNoCommit(chaves: readonly { user_id: string; execucao_id: string }[]): string | null {
+    for (const k of chaves) {
+      const daExecucao = tabela.filter(
+        (r) => r.execucao_id === k.execucao_id && r.user_id === k.user_id,
+      );
       if (daExecucao.length === 0) continue;
       const fases = new Set(daExecucao.map((r) => r.fase));
       if (daExecucao.length !== 4 || fases.size !== 4) {
-        return `a execução ${id} ficou com ${daExecucao.length} linha(s) e ${fases.size} fase(s) distintas`;
+        return `a execução ${k.execucao_id} ficou com ${daExecucao.length} linha(s) e `
+          + `${fases.size} fase(s) distintas`;
       }
     }
     return null;
+  }
+
+  /** As chaves tocadas por um conjunto de linhas, sem repetição. */
+  function chavesDe(linhas: readonly LuaExecucaoRow[]): { user_id: string; execucao_id: string }[] {
+    const vistas = new Map<string, { user_id: string; execucao_id: string }>();
+    for (const r of linhas) vistas.set(`${r.user_id}|${r.execucao_id}`, { user_id: r.user_id, execucao_id: r.execucao_id });
+    return [...vistas.values()];
   }
 
   function construir(consulta: Consulta) {
@@ -194,7 +277,7 @@ function fakeBanco(opts: { erroNaLeitura?: Error; erroNaEscrita?: Error } = {}) 
             ...n,
           }) as unknown as LuaExecucaoRow);
           tabela.push(...inseridas);
-          const queixa = conferirNoCommit([...new Set(inseridas.map((r) => r.execucao_id))]);
+          const queixa = conferirNoCommit(chavesDe(inseridas));
           if (queixa !== null || opts.erroNaEscrita) {
             tabela.length = 0;
             tabela.push(...antes);
@@ -207,10 +290,46 @@ function fakeBanco(opts: { erroNaLeitura?: Error; erroNaEscrita?: Error } = {}) 
           }
           return {
             select: async (cols: string) => ({
-              data: inseridas.map((r) => projetar(r, cols)),
+              // `escritaCega`: o `insert` comita e a projeção de volta não traz
+              // linha nenhuma. É o caso que separa "nada foi gravado" de "foi
+              // gravada, não regrave" — ver o PostgREST devolvendo `[]` quando a
+              // RLS de leitura não bate com a de escrita.
+              data: opts.escritaCega ? [] : inseridas.map((r) => projetar(r, cols)),
               error: null,
             }),
           };
+        },
+        /**
+         * O `delete`, que o gatilho também cobre e o falso não tinha.
+         *
+         * `after insert or update or delete` está escrito na migração: apagar uma
+         * execução INTEIRA é permitido, apagar três de quatro não. Sem este caminho,
+         * a metade da regra que mais importa — a que diz o que é desfazer e o que é
+         * mutilar — não era exercitada em lugar nenhum.
+         */
+        delete() {
+          const filtros: Record<string, unknown> = {};
+          const alvo = {
+            eq(coluna: string, valor: unknown) { filtros[coluna] = valor; return alvo; },
+            then(resolve: (r: { data: unknown; error: unknown }) => unknown) {
+              const casam = tabela.filter((r) => Object.entries(filtros).every(
+                ([c, v]) => (r as unknown as Record<string, unknown>)[c] === v,
+              ));
+              const antes = [...tabela];
+              const chaves = chavesDe(casam);
+              tabela.length = 0;
+              tabela.push(...antes.filter((r) => !casam.includes(r)));
+              const queixa = conferirNoCommit(chaves);
+              if (queixa !== null) {
+                tabela.length = 0;
+                tabela.push(...antes);
+                return resolve({ data: null, error: new Error(queixa) });
+              }
+              capturado.apagados += casam.length;
+              return resolve({ data: null, error: null });
+            },
+          };
+          return alvo;
         },
       };
     },
@@ -287,8 +406,11 @@ function projetarModelo(): LuaExecucaoRow {
     janela_noites: op.janelaNoites,
     hora_utc_do_fim_da_noite: op.horaUtcDoFimDaNoite,
     borda_direita: op.bordaDireita,
+    motor_versao: MOTOR_LUNAR_VERSAO,
+    pedido_desde: PEDIDO.desde,
     acervo_noites: a.noites,
     acervo_noites_distintas: a.noitesDistintas,
+    acervo_noites_colapsadas: PEDIDO.noitesColapsadas,
     acervo_de: a.de,
     acervo_ate: a.ate,
     acervo_sd_min: a.sdMin,
@@ -318,30 +440,30 @@ function projetarModelo(): LuaExecucaoRow {
 }
 
 /**
- * **"A mesma lista, letra por letra" deixa de ser comentário de SQL.**
+ * O vocabulário fechado, **do lado do TypeScript**.
  *
- * Sete das oito listas são derivadas de `PROTOCOLO_LUNAR` e de `UNIDADE_DO_MOTIVO`,
- * que são a autoridade — mover uma fase, um α ou uma lateralidade lá move o que o
- * banco tem de aceitar, e este teste é quem descobre que a migração ficou atrás.
+ * A comparação com os CHECKs da migração **não mora aqui**: ela é uma barreira, e as
+ * barreiras vivem em `architecture.test.ts`, onde `idsAceitosPeloCheck` já lê as duas
+ * formas que o Postgres aceita (`in (…)` e `= any (array[…])`), segue `drop
+ * constraint` e `drop table`, e varre **todas** as migrations em vez de uma só. A
+ * versão que morava aqui reinventava a regex, lia um arquivo e pinava o nome da
+ * migração numa asserção — o que reprova no dia em que alguém renumerar num merge,
+ * ou usar o `alter table … drop constraint / add constraint` que a própria barreira
+ * existente prescreve.
+ *
+ * O que fica: que as listas do TS são o que o protocolo diz, e que sete das nove
+ * saem de `PROTOCOLO_LUNAR` e de `UNIDADE_DO_MOTIVO` em vez de reescritas.
  */
-describe('o vocabulário fechado bate com os CHECKs da migração', () => {
-  const arquivo = readdirSync(join(ROOT, 'supabase', 'migrations'))
-    .filter((f) => f.endsWith('_lua_execucoes.sql'));
-  const sql = () => readFileSync(join(ROOT, 'supabase', 'migrations', arquivo[0]), 'utf8')
-    .replace(/--.*$/gm, ' ');
-
-  it('a migração existe, e é uma só', () => {
-    assert.deepEqual(arquivo, ['20260928130000_lua_execucoes.sql']);
+describe('o vocabulário fechado sai do protocolo, e não de uma lista à mão', () => {
+  it('as nove colunas de vocabulário estão no mapa, e nenhuma lista é vazia', () => {
+    assert.deepEqual(Object.keys(VOCABULARIO_DE_LUA_EXECUCOES).sort(), [
+      'borda_direita', 'direcao', 'falta_unidade', 'familia', 'fase', 'lateralidade',
+      'motivo', 'portao_reprovado', 'veredito',
+    ]);
+    for (const [coluna, lista] of Object.entries(VOCABULARIO_DE_LUA_EXECUCOES)) {
+      assert.ok(lista.length > 0, `${coluna}: lista vazia — a barreira do banco ficaria sem alvo`);
+    }
   });
-
-  for (const [coluna, lista] of Object.entries(VOCABULARIO_DE_LUA_EXECUCOES)) {
-    it(`${coluna}: o CHECK aceita exatamente ${[...lista].sort().join(', ')}`, () => {
-      const m = new RegExp(`check\\s*\\(\\s*${coluna}\\s+in\\s*\\(([^)]*)\\)`, 'i').exec(sql());
-      assert.ok(m, `a migração não define CHECK de ${coluna} — a barreira ficou sem alvo`);
-      const noBanco = [...m![1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
-      assert.deepEqual(noBanco, [...lista].sort());
-    });
-  }
 
   it('os três vereditos são os do §5, e a lista é congelada', () => {
     assert.deepEqual([...VEREDITOS_LUNARES], ['achado', 'nenhum_padrao', 'inconclusivo']);
@@ -363,7 +485,7 @@ describe('o vocabulário fechado bate com os CHECKs da migração', () => {
 describe('gravarExecucaoLunar — a porta única, e um insert', () => {
   it('grava QUATRO linhas, uma por fase, com o mesmo execucao_id, numa chamada só', async () => {
     const f = fakeBanco();
-    const e = await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    const e = await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     assert.equal(f.capturado.escritas, 1, 'as quatro fases vão numa escrita só (§9)');
     assert.equal(f.tabela.length, FASES_POR_EXECUCAO);
     assert.deepEqual(f.tabela.map((r) => r.fase).sort(), [...PHASE_ORDER].sort());
@@ -381,7 +503,7 @@ describe('gravarExecucaoLunar — a porta única, e um insert', () => {
    */
   it('não manda execucao_id nem rodada_em: os dois são default do banco', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     for (const linha of f.capturado.cargas[0]) {
       assert.ok(!('execucao_id' in linha), 'a carga mandou execucao_id');
       assert.ok(!('rodada_em' in linha), 'a carga mandou rodada_em');
@@ -392,7 +514,7 @@ describe('gravarExecucaoLunar — a porta única, e um insert', () => {
   it('carimba a cadeia INTEIRA, o digest e a operacionalização em cada linha', async () => {
     const f = fakeBanco();
     const op = operacionalizacaoLunar();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     for (const r of f.tabela) {
       assert.deepEqual(r.cadeia, CADEIA_DO_PRE_REGISTRO.map((x) => ({ arquivo: x.arquivo, sha256: x.sha256 })));
       assert.equal(r.cadeia_digest, DIGEST_DA_CADEIA);
@@ -405,7 +527,7 @@ describe('gravarExecucaoLunar — a porta única, e um insert', () => {
   /** Valor, não ponteiro: o que está gravado não pode mudar porque a memória mudou. */
   it('a cadeia gravada são objetos novos, não os congelados da constante', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     const gravado = (f.capturado.cargas[0][0].cadeia as unknown[])[0];
     assert.notEqual(gravado, CADEIA_DO_PRE_REGISTRO[0]);
     assert.deepEqual(gravado, { ...CADEIA_DO_PRE_REGISTRO[0] });
@@ -414,8 +536,8 @@ describe('gravarExecucaoLunar — a porta única, e um insert', () => {
   /** Segunda execução: **acumula**, jamais substitui (§7.2). É o contador que depende disso. */
   it('a segunda execução acumula — 8 linhas, 2 execucao_id distintos', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
-    await gravarExecucaoLunar(f.db, 'u-1', SEM_LUZ);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
+    await gravarExecucaoLunar(f.db, 'u-1', SEM_LUZ, PEDIDO);
     assert.equal(f.tabela.length, 8);
     assert.equal(new Set(f.tabela.map((r) => r.execucao_id)).size, 2);
     assert.equal(await contarExecucoesLunares(f.db, 'u-1'), 2);
@@ -423,7 +545,7 @@ describe('gravarExecucaoLunar — a porta única, e um insert', () => {
 
   it('propaga o erro do banco', async () => {
     const f = fakeBanco({ erroNaEscrita: new Error('lua_execucoes_pkey') });
-    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', COM_PODER), /lua_execucoes_pkey/);
+    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO), /lua_execucoes_pkey/);
   });
 });
 
@@ -435,8 +557,8 @@ describe('gravarExecucaoLunar — o que a porta recusa antes de tocar no banco',
       ...COM_PODER,
       fases: COM_PODER.fases.slice(0, 3) as unknown as QuatroResultados,
     };
-    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', tres), ExecucaoLunarRecusada);
-    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', tres), /chegaram 3 fase\(s\)/);
+    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', tres, PEDIDO), ExecucaoLunarRecusada);
+    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', tres, PEDIDO), /chegaram 3 fase\(s\)/);
     assert.equal(f.capturado.escritas, 0, 'chamou o banco com três fases');
     assert.equal(f.tabela.length, 0);
   });
@@ -445,7 +567,7 @@ describe('gravarExecucaoLunar — o que a porta recusa antes de tocar no banco',
     const f = fakeBanco();
     const [a, b, c] = COM_PODER.fases;
     const repetida = { ...COM_PODER, fases: [a, b, c, c] as unknown as QuatroResultados };
-    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', repetida), /a fase full chegou duas vezes/);
+    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', repetida, PEDIDO), /a fase full chegou duas vezes/);
     assert.equal(f.capturado.escritas, 0);
   });
 
@@ -465,9 +587,9 @@ describe('gravarExecucaoLunar — o que a porta recusa antes de tocar no banco',
       ...COM_PODER,
       fases: [{ ...nova, alfa: 0.0167 }, ...resto] as unknown as QuatroResultados,
     };
-    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', frouxo), ExecucaoLunarRecusada);
+    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', frouxo, PEDIDO), ExecucaoLunarRecusada);
     await assert.rejects(
-      () => gravarExecucaoLunar(f.db, 'u-1', frouxo),
+      () => gravarExecucaoLunar(f.db, 'u-1', frouxo, PEDIDO),
       /α 0\.0167.*α 0\.016666.*pre-registro-lua-outras-fases\.md/s,
     );
     assert.equal(f.capturado.escritas, 0);
@@ -478,7 +600,7 @@ describe('gravarExecucaoLunar — o que a porta recusa antes de tocar no banco',
     const fases = COM_PODER.fases.map((x) =>
       x.fase === 'full' ? { ...x, lateralidade: 'bilateral' as const } : x);
     await assert.rejects(
-      () => gravarExecucaoLunar(f.db, 'u-1', { ...COM_PODER, fases: fases as unknown as QuatroResultados }),
+      () => gravarExecucaoLunar(f.db, 'u-1', { ...COM_PODER, fases: fases as unknown as QuatroResultados }, PEDIDO),
       /a fase full chegou com/,
     );
   });
@@ -488,7 +610,7 @@ describe('gravarExecucaoLunar — o que a porta recusa antes de tocar no banco',
     const fases = COM_PODER.fases.map((x) =>
       x.fase === 'new' ? { ...x, direcao: 'atraso' as const } : x);
     await assert.rejects(
-      () => gravarExecucaoLunar(f.db, 'u-1', { ...COM_PODER, fases: fases as unknown as QuatroResultados }),
+      () => gravarExecucaoLunar(f.db, 'u-1', { ...COM_PODER, fases: fases as unknown as QuatroResultados }, PEDIDO),
       /a fase new chegou com/,
     );
   });
@@ -509,12 +631,97 @@ describe('gravarExecucaoLunar — o que a porta recusa antes de tocar no banco',
   });
 });
 
+/* ──────────── O gatilho do outro lado: apagar inteira, ou não apagar ──────────── */
+
+/**
+ * **`after insert or update or delete`, e o `delete` é metade da regra.**
+ *
+ * A migração diz, com todas as letras, que apagar uma execução INTEIRA é permitido e
+ * que deixá-la com três não é. O falso do banco só cobrava no `insert`, então a
+ * metade que define *o que é desfazer e o que é mutilar* não era exercitada em lugar
+ * nenhum — e é justamente a metade que sobra depois que a policy fechou o `delete` da
+ * API: o caminho do superusuário.
+ *
+ * A porta em TS não tem `delete`, e não vai ter: estes casos falam com o falso
+ * diretamente, como o da escrita parcial.
+ */
+type ApagadorFalso = {
+  from: (t: string) => { delete: () => { eq: (c: string, v: unknown) => unknown } };
+};
+
+function apagar(db: SupabaseClient, filtros: Record<string, unknown>): Promise<{ error: unknown }> {
+  let alvo = (db as unknown as ApagadorFalso).from('lua_execucoes').delete() as {
+    eq: (c: string, v: unknown) => typeof alvo;
+  };
+  for (const [c, v] of Object.entries(filtros)) alvo = alvo.eq(c, v);
+  return alvo as unknown as Promise<{ error: unknown }>;
+}
+
+describe('apagar: a execução inteira sai, três de quatro não', () => {
+  it('o delete da execução INTEIRA passa, e o contador volta a zero', async () => {
+    const f = fakeBanco();
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
+    const id = f.tabela[0].execucao_id;
+    const { error } = await apagar(f.db, { user_id: 'u-1', execucao_id: id });
+    assert.equal(error, null, 'apagar uma execução inteira é o único desfazer que existe');
+    assert.equal(f.tabela.length, 0);
+    assert.equal(await contarExecucoesLunares(f.db, 'u-1'), 0);
+  });
+
+  it('o delete PARCIAL é recusado no commit, e as quatro linhas ficam', async () => {
+    const f = fakeBanco();
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
+    const id = f.tabela[0].execucao_id;
+    const { error } = await apagar(f.db, { user_id: 'u-1', execucao_id: id, fase: PHASE_ORDER[0] });
+    assert.match(String((error as Error).message), /3 linha\(s\) e 3 fase\(s\)/);
+    assert.equal(f.tabela.length, 4, 'a execução ficou mutilada');
+    assert.equal(await contarExecucoesLunares(f.db, 'u-1'), 1);
+  });
+
+  /**
+   * **O gatilho filtra por `(user_id, execucao_id)`, e o falso tem de filtrar igual.**
+   *
+   * `lua_execucao_conferir(p_user, p_execucao)` recebe os dois e usa os dois. Contar só
+   * pelo `execucao_id` faria duas execuções de **donos diferentes** com o mesmo id
+   * somarem oito linhas, e o falso **acusaria uma escrita que o Postgres aceita** — um
+   * espelho que diverge do original não é espelho.
+   *
+   * O caso monta exatamente o estado que separa as duas leituras: o dono 1 já tem
+   * quatro linhas com o id que a próxima escrita vai gerar, e o dono 2 grava as dele.
+   * Com a chave certa a escrita passa; com a chave errada ela é recusada por "ficou com
+   * 8 linhas". Um caso que só apagasse uma das duas execuções **não** distingue as duas
+   * implementações, porque as duas recusam — foi assim que esta linha do falso ficou
+   * sem barreira até 29/09.
+   */
+  it('dois donos com o mesmo execucao_id não somam — o gatilho conta pelos dois campos', async () => {
+    const f = fakeBanco();
+    // O id que o primeiro `insert` deste falso vai gerar (o `default` do banco,
+    // espelhado). O dono 1 já está lá com ele — é o que um `md5` sem `auth.uid()`
+    // produziria para duas sessões sem JWT no mesmo instante.
+    const id = '00000000-0000-4000-8000-000000000001';
+    for (const fase of PHASE_ORDER) {
+      f.tabela.push({ ...projetarModelo(), user_id: 'u-1', execucao_id: id, fase });
+    }
+    await gravarExecucaoLunar(f.db, 'u-2', COM_PODER, PEDIDO);
+    assert.equal(f.tabela.length, 8, 'a escrita do dono 2 foi recusada por linhas que não são dela');
+    assert.equal(new Set(f.tabela.map((r) => r.execucao_id)).size, 1, 'o caso só vale com o id repetido');
+    assert.equal(await contarExecucoesLunares(f.db, 'u-1'), 1);
+    assert.equal(await contarExecucoesLunares(f.db, 'u-2'), 1);
+
+    // E o delete continua por dono: apagar a do 2 não toca na do 1.
+    const { error } = await apagar(f.db, { user_id: 'u-2', execucao_id: id });
+    assert.equal(error, null);
+    assert.equal(f.tabela.length, 4);
+    assert.equal(await contarExecucoesLunares(f.db, 'u-1'), 1);
+  });
+});
+
 /* ─────────────────────── Os nulos, e a unidade do que falta ─────────────────────── */
 
 describe('portão reprovado — nulo é "não foi medido", nunca zero', () => {
   it('o portão da luz fecha para as quatro, e efeito, p, poder e z saem nulos', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', SEM_LUZ);
+    await gravarExecucaoLunar(f.db, 'u-1', SEM_LUZ, PEDIDO);
     assert.equal(f.tabela.length, 4);
     for (const r of f.tabela) {
       assert.equal(r.veredito, 'inconclusivo', r.fase);
@@ -533,12 +740,12 @@ describe('portão reprovado — nulo é "não foi medido", nunca zero', () => {
       assert.equal(r.noites_dentro + r.noites_fora, 400, `${r.fase}: contagens`);
     }
     assert.equal(f.tabela[0].acervo_noites_sem_luz, 1);
-    assert.equal(f.tabela[0].acervo_primeira_noite_sem_luz, '2025-01-08');
+    assert.equal(f.tabela[0].acervo_primeira_noite_sem_luz, '2025-04-30');
   });
 
   it('com poder, a medida existe e o que falta é nulo', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     for (const r of f.tabela) {
       assert.notEqual(r.veredito, 'inconclusivo', `${r.fase}: ${r.veredito}`);
       assert.ok(typeof r.efeito_min === 'number', `${r.fase}: efeito`);
@@ -549,6 +756,176 @@ describe('portão reprovado — nulo é "não foi medido", nunca zero', () => {
       assert.equal(r.falta_quanto, null, `${r.fase}: quanto`);
       assert.equal(r.falta_unidade, null, `${r.fase}: unidade`);
     }
+  });
+
+  /**
+   * **O motivo que faltava, e que é o desfecho mais provável.**
+   *
+   * A aritmética do próprio motor põe o poder em 39% nas três fases novas a SD 45, e
+   * até aqui `motivo = 'poder'` não era gravado nem lido por caso nenhum. A prova de
+   * que o buraco era real: trocar `MOTIVOS_DO_INCONCLUSIVO` por `PORTOES_LUNARES` na
+   * linha do `motivo` em `toResultadoDaFase` deixava a suíte verde — e em produção
+   * faria a página explodir ao abrir, exatamente no caso mais esperado.
+   *
+   * É também o único inconclusivo em que a **medida existe**: o portão do poder vem
+   * depois de medir, então efeito, p, z, poder e MDE não são nulos. Isso é o inverso
+   * exato de `portao_reprovado_nao_mede`, e por isso `portao_reprovado` é nulo aqui.
+   */
+  it('inconclusivo por PODER: portão nulo, medida presente, unidade de noite coletável', async () => {
+    const f = fakeBanco();
+    await gravarExecucaoLunar(f.db, 'u-1', SEM_PODER, PEDIDO);
+    assert.equal(f.tabela.length, 4);
+    for (const r of f.tabela) {
+      assert.equal(r.veredito, 'inconclusivo', r.fase);
+      assert.equal(r.motivo, 'poder', r.fase);
+      assert.equal(r.portao_reprovado, null, `${r.fase}: o poder não é portão da §4, é o que vem depois`);
+      assert.ok(typeof r.efeito_min === 'number', `${r.fase}: efeito foi medido`);
+      assert.ok(typeof r.p === 'number', `${r.fase}: p foi medido`);
+      assert.ok(typeof r.poder === 'number' && r.poder < 0.8, `${r.fase}: poder ${String(r.poder)}`);
+      assert.ok(typeof r.efeito_minimo_detectavel_min === 'number', `${r.fase}: MDE`);
+      assert.equal(r.falta_unidade, 'noites-coletaveis', `${r.fase}: unidade`);
+      assert.ok((r.falta_quanto ?? 0) >= 1, `${r.fase}: quanto`);
+      assert.ok(typeof r.noites_para_80 === 'number', `${r.fase}: noites para 80`);
+    }
+  });
+
+  /**
+   * **Dois motivos na mesma execução.** Doze noites bastam para duas fases caírem no
+   * portão dos ciclos e duas no da amostra — com unidades diferentes na mesma
+   * execução. Um caso em que as quatro fases concordam não prova que a linha carrega
+   * o motivo *dela*.
+   */
+  it('inconclusivo por CICLOS e por AMOSTRA, lado a lado, com as unidades certas', async () => {
+    const f = fakeBanco();
+    await gravarExecucaoLunar(f.db, 'u-1', CURTO, PEDIDO);
+    const porMotivo = new Map<string, number>();
+    for (const r of f.tabela) {
+      assert.equal(r.veredito, 'inconclusivo', r.fase);
+      assert.ok(r.motivo === 'ciclos' || r.motivo === 'amostra', `${r.fase}: motivo ${String(r.motivo)}`);
+      // Portão fechado ⇒ nada foi medido. É o CHECK `portao_reprovado_nao_mede`.
+      assert.equal(r.portao_reprovado, r.motivo, `${r.fase}: o portão É o motivo`);
+      assert.equal(r.efeito_min, null, `${r.fase}: efeito`);
+      assert.equal(r.poder, null, `${r.fase}: poder`);
+      assert.equal(
+        r.falta_unidade,
+        UNIDADE_DO_MOTIVO[r.motivo as MotivoDoInconclusivo],
+        `${r.fase}: a unidade sai do motivo, e de lugar nenhum mais`,
+      );
+      // `ciclos <= noites_dentro` — o CHECK novo, exercitado com número de verdade.
+      assert.ok(r.ciclos <= r.noites_dentro, `${r.fase}: ${r.ciclos} ciclos em ${r.noites_dentro} noites`);
+      porMotivo.set(String(r.motivo), (porMotivo.get(String(r.motivo)) ?? 0) + 1);
+    }
+    assert.deepEqual([...porMotivo.keys()].sort(), ['amostra', 'ciclos'], 'os dois motivos na mesma execução');
+  });
+
+  /**
+   * **O acervo vazio grava**, e grava com os nulos que o dizem.
+   *
+   * `acervo_de`, `acervo_ate` e `acervo_sd_min` nulos, contagens em zero — é o que os
+   * CHECKs `acervo_vazio_nao_tem_intervalo` e `colunas_cabem_no_acervo` cobram, e é
+   * o estado em que o teste roda antes de existir noite nenhuma coletada no alcance
+   * pedido. Uma execução que não conseguisse gravá-lo empurraria o dono a rodar de
+   * novo para descobrir o mesmo nada.
+   */
+  it('acervo vazio: de, ate e sd nulos, contagens em zero, e a execução grava', async () => {
+    const f = fakeBanco();
+    await gravarExecucaoLunar(f.db, 'u-1', VAZIO, PEDIDO);
+    assert.equal(f.tabela.length, 4);
+    for (const r of f.tabela) {
+      assert.equal(r.acervo_noites, 0, r.fase);
+      assert.equal(r.acervo_de, null, r.fase);
+      assert.equal(r.acervo_ate, null, r.fase);
+      assert.equal(r.acervo_sd_min, null, r.fase);
+      assert.equal(r.noites_dentro, 0, r.fase);
+      assert.equal(r.noites_fora, 0, r.fase);
+      assert.equal(r.ciclos, 0, r.fase);
+      assert.equal(r.motivo, 'amostra', r.fase);
+      assert.equal(r.falta_unidade, 'noites-de-coluna', r.fase);
+    }
+  });
+
+  /**
+   * **As quatro unidades, e as quatro numa execução de verdade.**
+   *
+   * `UNIDADE_DO_MOTIVO` tem quatro entradas, e até aqui uma só delas chegava a virar
+   * linha. Este caso soma os quatro acervos e cobra que o conjunto das unidades
+   * gravadas seja **o conjunto inteiro** — o que faz o CHECK
+   * `unidade_bate_com_o_motivo` ter os quatro ramos exercitados.
+   */
+  it('os quatro motivos e as quatro unidades chegam a virar linha', async () => {
+    const f = fakeBanco();
+    for (const v of [SEM_LUZ, SEM_PODER, CURTO, VAZIO]) {
+      await gravarExecucaoLunar(f.db, 'u-1', v, PEDIDO);
+    }
+    const motivos = new Set(f.tabela.map((r) => String(r.motivo)));
+    const unidades = new Set(f.tabela.map((r) => String(r.falta_unidade)));
+    assert.deepEqual([...motivos].sort(), ['amostra', 'ciclos', 'luz', 'poder']);
+    assert.deepEqual([...unidades].sort(), [...new Set(Object.values(UNIDADE_DO_MOTIVO))].sort());
+  });
+});
+
+/* ───────────────── O carimbo do pedido e o do motor ───────────────── */
+
+describe('o pedido e o motor ficam gravados, porque nada mais os registra', () => {
+  it('cada linha carimba pedido_desde, as noites colapsadas e a versão do motor', async () => {
+    const f = fakeBanco();
+    const pedido = { desde: '2025-06-01', noitesColapsadas: 7 };
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, pedido);
+    for (const r of f.tabela) {
+      assert.equal(r.pedido_desde, '2025-06-01', r.fase);
+      assert.equal(r.acervo_noites_colapsadas, 7, r.fase);
+      assert.equal(r.motor_versao, MOTOR_LUNAR_VERSAO, r.fase);
+    }
+    const lida = await fetchUltimaExecucaoLunar(f.db, 'u-1');
+    assert.deepEqual(lida!.pedido, pedido);
+    assert.equal(lida!.motorVersao, MOTOR_LUNAR_VERSAO);
+  });
+
+  /**
+   * As colunas de execução repetem nas quatro linhas, e a leitura cobra que
+   * concordem. As três novas entram nessa assinatura — senão uma execução podia
+   * dizer que pediu desde abril em três linhas e desde junho na quarta.
+   */
+  it('pedido, colapso e motor entram na assinatura da execução', () => {
+    for (const campo of ['pedido_desde', 'acervo_noites_colapsadas', 'motor_versao'] as const) {
+      const rs = COM_PODER.fases.map((fase) => ({
+        ...projetarModelo(),
+        fase: fase.fase,
+        veredito: fase.veredito,
+        motivo: fase.motivo,
+        portao_reprovado: fase.portaoReprovado,
+        falta_quanto: fase.falta?.quanto ?? null,
+        falta_unidade: fase.falta?.unidade ?? null,
+      }));
+      rs[2] = { ...rs[2], [campo]: campo === 'pedido_desde' ? '2030-01-01' : 99 };
+      assert.throws(
+        () => toLuaExecucao(rs),
+        /discordam sobre a própria execução/,
+        `${campo} fora da assinatura: quatro linhas podem discordar sobre ele sem que nada acuse`,
+      );
+    }
+  });
+
+  it('noitesColapsadasEm conta as noites com mais de um período, e só elas', () => {
+    assert.equal(noitesColapsadasEm([]), 0);
+    assert.equal(
+      noitesColapsadasEm([
+        periodo('2026-03-10', '2026-03-09T23:40:00.000Z'),
+        periodo('2026-03-11', '2026-03-10T23:10:00.000Z'),
+      ]),
+      0,
+      'uma noite por período: nada a colapsar, e zero é resposta',
+    );
+    assert.equal(
+      noitesColapsadasEm([
+        periodo('2026-03-10', '2026-03-09T23:40:00.000Z'),
+        periodo('2026-03-10', '2026-03-10T03:15:00.000Z'),
+        periodo('2026-03-10', '2026-03-10T05:00:00.000Z'),
+        periodo('2026-03-11', '2026-03-10T23:10:00.000Z'),
+      ]),
+      1,
+      'três períodos numa noite são UMA noite colapsada, não duas',
+    );
   });
 });
 
@@ -563,9 +940,9 @@ describe('fetchUltimaExecucaoLunar e o contador', () => {
 
   it('três execuções: devolve as quatro linhas da mais recente, e o contador diz 3', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
-    await gravarExecucaoLunar(f.db, 'u-1', SEM_LUZ);
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
+    await gravarExecucaoLunar(f.db, 'u-1', SEM_LUZ, PEDIDO);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     assert.equal(f.tabela.length, 12);
     assert.equal(await contarExecucoesLunares(f.db, 'u-1'), 3);
     const ultima = await fetchUltimaExecucaoLunar(f.db, 'u-1');
@@ -576,7 +953,7 @@ describe('fetchUltimaExecucaoLunar e o contador', () => {
 
   it('pede exatamente LUA_EXECUCAO_COLUMNS, filtra pelo dono e limita a quatro', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     await fetchUltimaExecucaoLunar(f.db, 'u-1');
     const q = f.capturado.consultas.at(-1)!;
     assert.equal(q.tabela, 'lua_execucoes');
@@ -593,7 +970,7 @@ describe('fetchUltimaExecucaoLunar e o contador', () => {
    */
   it('a ordenação é (rodada_em desc, execucao_id desc, fase asc) — total', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     await fetchUltimaExecucaoLunar(f.db, 'u-1');
     assert.deepEqual(f.capturado.consultas.at(-1)!.ordens, [
       { coluna: 'rodada_em', asc: false },
@@ -604,8 +981,8 @@ describe('fetchUltimaExecucaoLunar e o contador', () => {
 
   it('empate no rodada_em: o execucao_id desempata e as duas execuções não se misturam', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
-    await gravarExecucaoLunar(f.db, 'u-1', SEM_LUZ);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
+    await gravarExecucaoLunar(f.db, 'u-1', SEM_LUZ, PEDIDO);
     // O empate que o banco pode produzir: duas transações no mesmo instante.
     for (const r of f.tabela) r.rodada_em = '2026-09-28T12:00:00.000Z';
     const ultima = await fetchUltimaExecucaoLunar(f.db, 'u-1');
@@ -617,7 +994,7 @@ describe('fetchUltimaExecucaoLunar e o contador', () => {
   /** O contador conta as linhas de UMA fase, porque a chave dá exatamente uma por execução. */
   it('o contador filtra por uma fase só, e pede a contagem sem trazer linha', async () => {
     const f = fakeBanco();
-    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER);
+    await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO);
     await contarExecucoesLunares(f.db, 'u-1');
     const q = f.capturado.consultas.at(-1)!;
     assert.equal(q.head, true);
@@ -637,17 +1014,82 @@ describe('fetchUltimaExecucaoLunar e o contador', () => {
  * a página não precisa de dois caminhos de renderização para a mesma coisa.
  */
 describe('a ida e volta pelo banco', () => {
-  for (const [nome, v] of [['com poder', COM_PODER], ['sem luz', SEM_LUZ]] as const) {
+  const casos = [
+    ['com poder', COM_PODER], ['sem luz', SEM_LUZ], ['sem poder', SEM_PODER],
+    ['curto (ciclos e amostra)', CURTO], ['acervo vazio', VAZIO],
+  ] as const;
+  for (const [nome, v] of casos) {
     it(`o veredito ${nome} volta idêntico ao que o motor produziu`, async () => {
       const f = fakeBanco();
-      await gravarExecucaoLunar(f.db, 'u-1', v);
+      await gravarExecucaoLunar(f.db, 'u-1', v, PEDIDO);
       const lida = await fetchUltimaExecucaoLunar(f.db, 'u-1');
       assert.ok(lida);
       assert.deepEqual(lida!.veredito, v);
       assert.deepEqual([...lida!.cadeia], CADEIA_DO_PRE_REGISTRO.map((e) => ({ ...e })));
       assert.deepEqual(lida!.operacionalizacao, { ...operacionalizacaoLunar() });
+      assert.deepEqual(lida!.pedido, { ...PEDIDO });
     });
   }
+});
+
+/* ──────── A escrita que aconteceu e a leitura que não veio (D1/D2/D3) ──────── */
+
+describe('o erro da escrita e o erro da leitura de volta não são o mesmo erro', () => {
+  /**
+   * **A distinção que decide se o contador infla.**
+   *
+   * O `insert(...).select(...)` é uma chamada do PostgREST e dois atos. Se o `select`
+   * volta vazio depois de a escrita comitar, a mensagem antiga era a de
+   * `toLuaExecucao` — "uma execução tem 4 linhas e chegaram 0" —, e o módulo reserva
+   * a frase "nada foi gravado" para a recusa. Quem lesse isso rodaria de novo, e a
+   * segunda execução é real: ela entra na pilha e move o contador da §7.4, que é a
+   * peça anti-gaveta inteira.
+   */
+  it('escrita comitada com projeção vazia: diz FOI GRAVADA, não regrave', async () => {
+    const f = fakeBanco({ escritaCega: true });
+    await assert.rejects(
+      () => gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO),
+      ExecucaoLunarGravadaSemLeitura,
+    );
+    await assert.rejects(
+      () => gravarExecucaoLunar(f.db, 'u-1', COM_PODER, PEDIDO),
+      /FOI GRAVADA — NÃO a regrave/,
+    );
+    // E a escrita aconteceu mesmo: as linhas estão lá, nas duas tentativas.
+    assert.equal(f.tabela.length, 8);
+  });
+
+  it('e a recusa continua dizendo que NADA foi gravado', async () => {
+    const f = fakeBanco();
+    const tres = { ...COM_PODER, fases: COM_PODER.fases.slice(0, 3) as unknown as QuatroResultados };
+    await assert.rejects(() => gravarExecucaoLunar(f.db, 'u-1', tres, PEDIDO), /nada foi gravado/);
+    assert.equal(f.tabela.length, 0);
+  });
+
+  /**
+   * **`count ?? 0` transformava "não sei" em "nunca rodou"** — no arquivo cujo lema é
+   * o contrário (a lição da story 2.6). O PostgREST devolve `count: null` quando a
+   * contagem não veio no cabeçalho, e um zero ali imprime "ainda não rodou" sobre uma
+   * pilha de tentativas.
+   */
+  it('contagem nula do banco: explode, em vez de dizer zero', async () => {
+    const semContagem = {
+      from: () => ({
+        select: () => {
+          const alvo = {
+            eq: () => alvo,
+            then: (resolve: (r: { data: unknown; error: unknown; count: number | null }) => unknown) =>
+              resolve({ data: null, error: null, count: null }),
+          };
+          return alvo;
+        },
+      }),
+    } as unknown as SupabaseClient;
+    await assert.rejects(
+      () => contarExecucoesLunares(semContagem, 'u-1'),
+      /não devolveu a contagem/,
+    );
+  });
 });
 
 /* ─────────────────────────── toLuaExecucao ─────────────────────────── */
@@ -681,13 +1123,25 @@ describe('toLuaExecucao — a linha é conferida, nunca convertida por `as`', ()
     assert.deepEqual(e.veredito.fases.map((f) => f.fase), [...PHASE_ORDER]);
   });
 
-  it('três linhas: explode nomeando a §9', () => {
+  /**
+   * **A mensagem diz o que fazer, não em que parágrafo a regra mora.**
+   *
+   * Quem a lê está diante de uma tela que não abriu. Citar a §9 não adianta o
+   * primeiro passo — e o primeiro passo existe e é concreto: como a escrita parcial é
+   * impossível (porta e gatilho), 1 a 3 linhas só podem ser **leitura truncada**, e o
+   * lugar de olhar é a ordenação e o `limit` da consulta.
+   */
+  it('três linhas: explode dizendo COMO consertar, e não citando a §9', () => {
     assert.throws(() => toLuaExecucao(quatro().slice(0, 3)), /uma execução tem 4 linhas.*chegaram 3/s);
+    assert.throws(() => toLuaExecucao(quatro().slice(0, 3)), /leitura truncada/);
+    assert.throws(() => toLuaExecucao(quatro().slice(0, 3)), /limit\(4\)/);
+    assert.throws(() => toLuaExecucao(quatro().slice(0, 3)), /rodada_em desc, execucao_id desc, fase asc/);
   });
 
-  it('cinco linhas também explodem — o excesso é tão errado quanto a falta', () => {
+  it('cinco linhas também explodem — e o conselho é o outro', () => {
     const cinco = quatro();
     assert.throws(() => toLuaExecucao([...cinco, cinco[0]]), /chegaram 5/);
+    assert.throws(() => toLuaExecucao([...cinco, cinco[0]]), /duas execuções juntas/);
   });
 
   it('fase repetida: explode pelo nome da fase', () => {
@@ -732,31 +1186,76 @@ describe('toLuaExecucao — a linha é conferida, nunca convertida por `as`', ()
   });
 
   /**
-   * O CHECK da coluna só cobra "array de quatro ou mais": a **forma** de cada elo é
-   * conferida aqui. Um elo sem arquivo chegaria à página como um item de lista vazio,
-   * e a página existe justamente para dizer quais documentos autorizaram a execução.
+   * O CHECK da coluna só cobra "array com ao menos `CADEIA_MINIMA` elos": a **forma**
+   * de cada elo é conferida aqui. Um elo sem arquivo chegaria à página como um item
+   * de lista vazio, e a página existe justamente para dizer quais documentos
+   * autorizaram a execução.
+   *
+   * As listas têm quatro elos porque o piso é quatro: com uma lista de um, o erro que
+   * dispara é o do piso, e este caso deixaria de medir a forma do elo.
    */
   it('elo torto na cadeia: explode nomeando a posição', () => {
-    for (const cadeia of [
-      [{ arquivo: '', sha256: 'a'.repeat(64) }],
-      [{ arquivo: 'x.md', sha256: 'curto' }],
-      [{ arquivo: 'x.md', sha256: 'A'.repeat(64) }],
-      [{ arquivo: 'x.md' }],
-      ['x.md'],
-      [null],
+    const bons = CADEIA_DO_PRE_REGISTRO.map((e) => ({ ...e }));
+    for (const torto of [
+      { arquivo: '', sha256: 'a'.repeat(64) },
+      { arquivo: 'x.md', sha256: 'curto' },
+      { arquivo: 'x.md', sha256: 'A'.repeat(64) },
+      { arquivo: 'x.md' },
+      'x.md',
+      null,
     ]) {
+      const cadeia = [torto, ...bons.slice(1)];
       const rs = quatro().map((r) => ({ ...r, cadeia: cadeia as never }));
       assert.throws(
         () => toLuaExecucao(rs),
         /cadeia tem elo torto na posição 0/,
-        `passou com ${JSON.stringify(cadeia)}`,
+        `passou com ${JSON.stringify(torto)}`,
+      );
+    }
+  });
+
+  /**
+   * **O piso é o do CHECK, e não "lista não vazia".**
+   *
+   * `lua_execucoes.cadeia` exige `CADEIA_MINIMA` elos. Um tradutor que aceitasse uma
+   * lista de um estaria aceitando uma linha que o banco afirma não existir — e ela só
+   * pode ter vindo de um caminho que não é esta porta, que é exatamente quando a
+   * conferência serve para alguma coisa.
+   */
+  it(`cadeia com menos de ${CADEIA_MINIMA} elos: explode, porque o CHECK exige ${CADEIA_MINIMA}`, () => {
+    for (let n = 0; n < CADEIA_MINIMA; n += 1) {
+      const curta = CADEIA_DO_PRE_REGISTRO.slice(0, n).map((e) => ({ ...e }));
+      const rs = quatro().map((r) => ({ ...r, cadeia: curta as never }));
+      assert.throws(
+        () => toLuaExecucao(rs),
+        new RegExp(`cadeia não é uma lista de ao menos ${CADEIA_MINIMA} documentos`),
+        `passou com ${n} elo(s)`,
       );
     }
   });
 
   it('cadeia que não é lista: explode', () => {
     const rs = quatro().map((r) => ({ ...r, cadeia: {} as never }));
-    assert.throws(() => toLuaExecucao(rs), /cadeia não é uma lista de documentos/);
+    assert.throws(() => toLuaExecucao(rs), /cadeia não é uma lista de ao menos/);
+  });
+
+  /**
+   * **`cadeia` e `cadeia_digest` são a mesma afirmação em duas formas, e ninguém as
+   * confrontava.**
+   *
+   * A lista é a resposta longa — *quais documentos autorizaram isto* — e o digest é a
+   * curta, a que se compara entre duas execuções. Uma cadeia alterada depois do fato
+   * ficava ao lado do digest da cadeia original, e o digest dizia que estava tudo
+   * igual: a forma curta afirmando o contrário da longa, sem que nada acusasse.
+   */
+  it('digest que não é o da cadeia gravada ao lado: explode', () => {
+    const outra = CADEIA_DO_PRE_REGISTRO.map((e) => ({ ...e }));
+    outra[2] = { ...outra[2], sha256: 'b'.repeat(64) };
+    const rs = quatro().map((r) => ({ ...r, cadeia: outra as never }));
+    assert.throws(() => toLuaExecucao(rs), /não é o da cadeia gravada ao lado/);
+
+    // E o caminho feliz: a cadeia de verdade bate com o digest de verdade.
+    assert.equal(toLuaExecucao(quatro()).cadeiaDigest, DIGEST_DA_CADEIA);
   });
 
   it('coluna nullable que chegou undefined (ninguém a pediu): explode em vez de virar nulo', () => {

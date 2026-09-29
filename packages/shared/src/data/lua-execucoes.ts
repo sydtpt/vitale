@@ -39,10 +39,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { COORDENADA_DA_LUZ } from '../astro/casa';
 import { PHASE_ORDER, type LunarPhaseKind } from '../astro/moon';
 import { daylightHours, type Coords } from '../astro/sun';
+import { sha256Hex } from '../ia/sha256';
 import {
   BORDAS_DA_JANELA,
   CADEIA_DO_PRE_REGISTRO,
+  CADEIA_MINIMA,
   DIGEST_DA_CADEIA,
+  MOTOR_LUNAR_VERSAO,
   operacionalizacaoLunar,
   type BordaDaJanela,
   type EloDaCadeia,
@@ -156,8 +159,11 @@ export interface LuaExecucaoRow {
   janela_noites: number;
   hora_utc_do_fim_da_noite: number;
   borda_direita: string;
+  motor_versao: number;
+  pedido_desde: string;
   acervo_noites: number;
   acervo_noites_distintas: number;
+  acervo_noites_colapsadas: number;
   acervo_de: string | null;
   acervo_ate: string | null;
   acervo_sd_min: number | null;
@@ -193,7 +199,8 @@ export interface LuaExecucaoRow {
  */
 export const LUA_EXECUCAO_COLUMNS =
   'user_id,execucao_id,rodada_em,cadeia,cadeia_digest,janela_noites,'
-  + 'hora_utc_do_fim_da_noite,borda_direita,acervo_noites,acervo_noites_distintas,'
+  + 'hora_utc_do_fim_da_noite,borda_direita,motor_versao,pedido_desde,acervo_noites,'
+  + 'acervo_noites_distintas,acervo_noites_colapsadas,'
   + 'acervo_de,acervo_ate,acervo_sd_min,acervo_origem_do_eixo_h,acervo_noites_sem_luz,'
   + 'acervo_primeira_noite_sem_luz,fase,familia,alfa,lateralidade,direcao,veredito,'
   + 'motivo,portao_reprovado,efeito_min,p,z_de_mann_whitney,poder,'
@@ -220,7 +227,27 @@ export interface ExecucaoLunar {
   cadeiaDigest: string;
   /** Com que janela, que hora da noite e que borda ela rodou. */
   operacionalizacao: OperacionalizacaoLunar;
+  /** Com que aritmética o veredito saiu — {@link MOTOR_LUNAR_VERSAO} no momento. */
+  motorVersao: number;
+  /** O alcance pedido e o que o colapso de noites fez, no momento da execução. */
+  pedido: PedidoDaExecucao;
   veredito: VereditoLunarCompleto;
+}
+
+/**
+ * O que o **chamador** decidiu, e que nenhum outro carimbo registra.
+ *
+ * `desde` recorta o acervo tanto quanto a janela recorta a coluna, e mora fora do
+ * motor: `fetchNoitesLunares` o exige explícito, sem padrão. `noitesColapsadas` é
+ * quantas noites chegaram com mais de um período de sono e foram reduzidas a uma
+ * pelo `onset_at` mais cedo — a escolha operacional mais nova da cadeia, e a única
+ * que não vira nenhum outro número na linha.
+ */
+export interface PedidoDaExecucao {
+  /** O `wakeDay` a partir do qual as noites foram lidas — ver `INICIO_DO_ACERVO_LUNAR`. */
+  desde: string;
+  /** Quantas noites tinham dois períodos ou mais. Zero é resposta, não ausência. */
+  noitesColapsadas: number;
 }
 
 /**
@@ -289,20 +316,30 @@ function toResultadoDaFase(r: LuaExecucaoRow): ResultadoDaFase {
 }
 
 /**
- * A cadeia gravada, **conferida na forma** — é `jsonb`, e o CHECK só cobra que seja
- * um array de quatro ou mais.
+ * A cadeia gravada, **conferida na forma e contra o próprio digest**.
  *
  * O que a coluna guarda é a resposta à pergunta *quais documentos autorizaram isto*.
  * Uma entrada sem `arquivo`, ou com um `sha256` que não é um sha256, é uma resposta
  * que não responde nada — e ela chegaria até a página como um item de lista vazio, em
  * vez de explodir aqui.
+ *
+ * **O piso é {@link CADEIA_MINIMA}, e não "lista não vazia".** O CHECK da coluna
+ * exige quatro elos; aceitar um aqui seria aceitar uma linha que o banco afirma não
+ * existir, e ela viria de um caminho que não é esta porta — que é precisamente
+ * quando a conferência importa.
+ *
+ * **E o digest é recalculado** (ver {@link digestDe}, chamado por `toLuaExecucao`).
+ * `cadeia` e `cadeia_digest` são a mesma afirmação em duas formas, gravadas na mesma
+ * linha e nunca comparadas uma com a outra: uma cadeia adulterada depois do fato
+ * ficaria ao lado do digest da cadeia original, e o digest — que é a forma curta que
+ * um leitor compara entre duas execuções — diria que está tudo igual.
  */
 function cadeiaDaLinha(r: LuaExecucaoRow): readonly EloDaCadeia[] {
   const crua: unknown = r.cadeia;
-  if (!Array.isArray(crua) || crua.length === 0) {
+  if (!Array.isArray(crua) || crua.length < CADEIA_MINIMA) {
     throw new Error(
-      `lua_execucoes.cadeia não é uma lista de documentos: ${JSON.stringify(crua)} — o CHECK da coluna `
-      + 'deveria ter recusado esta.',
+      `lua_execucoes.cadeia não é uma lista de ao menos ${CADEIA_MINIMA} documentos: `
+      + `${JSON.stringify(crua)} — o CHECK da coluna deveria ter recusado esta.`,
     );
   }
   return crua.map((e, i) => {
@@ -347,10 +384,23 @@ function acervoDaLinha(r: LuaExecucaoRow): AcervoLunar {
 function assinaturaDaExecucao(r: LuaExecucaoRow): string {
   return JSON.stringify([
     r.execucao_id, r.rodada_em, r.cadeia, r.cadeia_digest, r.janela_noites,
-    r.hora_utc_do_fim_da_noite, r.borda_direita, r.acervo_noites,
-    r.acervo_noites_distintas, r.acervo_de, r.acervo_ate, r.acervo_sd_min,
+    r.hora_utc_do_fim_da_noite, r.borda_direita, r.motor_versao, r.pedido_desde,
+    r.acervo_noites, r.acervo_noites_distintas, r.acervo_noites_colapsadas,
+    r.acervo_de, r.acervo_ate, r.acervo_sd_min,
     r.acervo_origem_do_eixo_h, r.acervo_noites_sem_luz, r.acervo_primeira_noite_sem_luz,
   ]);
+}
+
+/**
+ * O digest que esta cadeia produz — a mesma conta de {@link DIGEST_DA_CADEIA}.
+ *
+ * Chamada na **leitura**, para comparar com o `cadeia_digest` gravado ao lado. As
+ * duas colunas são a mesma afirmação em duas formas, e nada as confrontava. A conta
+ * é sobre quatro strings de 64 caracteres, uma vez por leitura de execução — que
+ * acontece uma vez a cada cem noites.
+ */
+function digestDe(cadeia: readonly EloDaCadeia[]): string {
+  return sha256Hex(cadeia.map((e) => e.sha256).join('\n'));
 }
 
 /**
@@ -366,9 +416,21 @@ function assinaturaDaExecucao(r: LuaExecucaoRow): string {
  */
 export function toLuaExecucao(linhas: readonly LuaExecucaoRow[]): ExecucaoLunar {
   if (linhas.length !== FASES_POR_EXECUCAO) {
+    // A mensagem diz **o que fazer**, e não em que parágrafo a regra está escrita:
+    // quem a lê está diante de uma tela que não abriu, e o número de seção não
+    // adianta o primeiro passo. O caso truncado (1 a 3) e o excedente (5 ou mais)
+    // têm causas diferentes e conselhos diferentes.
+    const conselho = linhas.length < FASES_POR_EXECUCAO
+      ? 'Uma execução com menos de quatro linhas não é gravável pela porta nem pelo banco (o '
+        + '`constraint trigger` a recusa no commit), então isto é leitura truncada, não dado torto: '
+        + 'confira que a consulta pediu `limit(4)` e ordenou por (rodada_em desc, execucao_id desc, '
+        + 'fase asc) — sem o segundo critério, duas execuções empatadas no instante se intercalam. '
+        + 'Se a ordem está certa, o que chegou é um recorte: leia a execução inteira antes de traduzir.'
+      : 'Mais de quatro linhas é a consulta trazendo duas execuções juntas: filtre por um '
+        + '`execucao_id` só, ou limite a quatro sobre a ordenação total.';
     throw new Error(
       `lua_execucoes: uma execução tem ${FASES_POR_EXECUCAO} linhas, uma por fase, e chegaram `
-      + `${linhas.length} — as quatro fases rodam juntas ou nenhuma roda (§9 do pré-registro de 28/09/2026).`,
+      + `${linhas.length}. ${conselho}`,
     );
   }
   const assinaturas = new Set(linhas.map(assinaturaDaExecucao));
@@ -402,15 +464,30 @@ export function toLuaExecucao(linhas: readonly LuaExecucaoRow[]): ExecucaoLunar 
     toResultadoDaFase(naOrdem[2]),
     toResultadoDaFase(naOrdem[3]),
   ] as const satisfies QuatroResultados;
+  const cadeia = cadeiaDaLinha(primeira);
+  const recalculado = digestDe(cadeia);
+  if (recalculado !== primeira.cadeia_digest) {
+    throw new Error(
+      `lua_execucoes: o cadeia_digest gravado (${primeira.cadeia_digest}) não é o da cadeia gravada ao `
+      + `lado (${recalculado}) — as duas colunas são a mesma afirmação em duas formas, e uma delas foi `
+      + 'alterada depois do fato. A lista é a resposta longa e o digest é a curta; enquanto discordarem, '
+      + 'nenhuma das duas responde quais documentos autorizaram esta execução.',
+    );
+  }
   return {
     execucaoId: primeira.execucao_id,
     rodadaEm: primeira.rodada_em,
-    cadeia: cadeiaDaLinha(primeira),
+    cadeia,
     cadeiaDigest: primeira.cadeia_digest,
     operacionalizacao: {
       janelaNoites: primeira.janela_noites,
       horaUtcDoFimDaNoite: primeira.hora_utc_do_fim_da_noite,
       bordaDireita: um(BORDAS_DA_JANELA, primeira.borda_direita, 'borda_direita'),
+    },
+    motorVersao: primeira.motor_versao,
+    pedido: {
+      desde: primeira.pedido_desde,
+      noitesColapsadas: primeira.acervo_noites_colapsadas,
     },
     veredito: { fases, acervo: acervoDaLinha(primeira) },
   };
@@ -444,7 +521,20 @@ export async function contarExecucoesLunares(db: SupabaseClient, userId: string)
     .eq('user_id', userId)
     .eq('fase', FASE_DO_CONTADOR);
   if (error) throw error;
-  return count ?? 0;
+  // **`count ?? 0` seria "não sei" virando "nunca rodou"**, no arquivo cujo lema é
+  // o contrário — é a lição da story 2.6. O PostgREST devolve `count: null` quando a
+  // contagem não foi pedida ou não veio no cabeçalho `Content-Range`, e nesse caso o
+  // que se sabe sobre o número de execuções é **nada**. Um zero ali faz a página
+  // imprimir "ainda não rodou" sobre uma pilha de tentativas, que é a gaveta aberta
+  // por um operador de coalescência.
+  if (count === null || count === undefined) {
+    throw new Error(
+      'lua_execucoes: o banco não devolveu a contagem de execuções (count nulo). Zero aqui seria "ainda '
+      + 'não rodou", e o que se sabe é nada — a §7.4 conta tentativas, e um contador que inventa zero '
+      + 'esconde exatamente o que ele existe para mostrar.',
+    );
+  }
+  return count;
 }
 
 /**
@@ -549,11 +639,34 @@ export function noitesLunaresDe(
 }
 
 /**
+ * Quantas noites chegaram com **mais de um** período de sono — as que
+ * {@link noitesLunaresDe} colapsou pelo `onset_at` mais cedo.
+ *
+ * É o número que `acervo_noites_colapsadas` carimba, e ele existe porque o colapso é
+ * a escolha operacional mais nova da cadeia e a **única que não vira nenhum outro
+ * número na linha**: janela, hora, borda e motor têm coluna própria. Sem esta
+ * contagem, "o colapso não mudou nada" e "o colapso mexeu em 40 das 502 noites" são
+ * indistinguíveis depois do fato — e essa é a diferença entre uma operacionalização
+ * inócua e uma que merece ser discutida.
+ *
+ * Função separada, e não um segundo valor de retorno: `noitesLunaresDe` entrega o que
+ * o motor come, e o motor não sabe nem deve saber quantas noites foram colapsadas.
+ */
+export function noitesColapsadasEm(periodos: readonly SleepPeriod[]): number {
+  const porNoite = new Map<string, number>();
+  for (const p of periodos) porNoite.set(p.wakeDay, (porNoite.get(p.wakeDay) ?? 0) + 1);
+  let colapsadas = 0;
+  for (const n of porNoite.values()) if (n > 1) colapsadas += 1;
+  return colapsadas;
+}
+
+/**
  * As noites do acervo a partir de `desde`, prontas para `vereditoLunar()`.
  *
- * `desde` é explícito e não tem padrão: o intervalo do §3 começa em 23/04/2025, e
- * quem decide o alcance de uma execução é quem a autoriza — um padrão escondido aqui
- * seria uma decisão de protocolo tomada por um valor omitido.
+ * `desde` é explícito e não tem padrão: o intervalo do §3 começa em
+ * `INICIO_DO_ACERVO_LUNAR` (23/04/2025), e quem decide o alcance de uma execução é
+ * quem a autoriza — um padrão escondido aqui seria uma decisão de protocolo tomada
+ * por um valor omitido. O valor de fato pedido vai gravado em `pedido_desde`.
  *
  * A tabela é lida pelo módulo dono dela (`data/sleep.ts`, que pagina), e não por um
  * `.from('sleep_periods')` novo: é a AD-4, e uma segunda consulta à mesma tabela é
@@ -582,6 +695,31 @@ export class ExecucaoLunarRecusada extends Error {
   constructor(motivo: string) {
     super(`a execução lunar foi recusada e nada foi gravado — ${motivo}`);
     this.name = 'ExecucaoLunarRecusada';
+  }
+}
+
+/**
+ * A execução **foi gravada**, e a leitura de volta é que não veio inteira.
+ *
+ * **É o oposto de {@link ExecucaoLunarRecusada}, e confundir os dois infla o
+ * contador.** O `insert` e o `select` que o segue são uma chamada só do PostgREST,
+ * mas são dois atos: a escrita pode ter comitado e a projeção voltar vazia ou
+ * recortada (RLS de leitura desalinhada da de escrita, coluna que o `select` pede e o
+ * banco não tem, resposta truncada). Quem vir a mensagem de "nada foi gravado" nesse
+ * caso conclui que precisa rodar de novo — e a segunda execução é **real**, entra na
+ * pilha e desloca o contador da §7.4, que é a peça anti-gaveta inteira.
+ *
+ * A mensagem diz, em letras grandes, para **não regravar**.
+ */
+export class ExecucaoLunarGravadaSemLeitura extends Error {
+  constructor(causa: string) {
+    super(
+      'a execução lunar FOI GRAVADA — NÃO a regrave. O que falhou foi a leitura de volta, depois da '
+      + `escrita: ${causa}. Rodar de novo cria uma SEGUNDA execução de verdade e move o contador da §7.4. `
+      + 'Leia a última execução com fetchUltimaExecucaoLunar antes de qualquer outra coisa; se ela vier, '
+      + 'a escrita está inteira e só a projeção estava errada.',
+    );
+    this.name = 'ExecucaoLunarGravadaSemLeitura';
   }
 }
 
@@ -674,6 +812,7 @@ export async function gravarExecucaoLunar(
   db: SupabaseClient,
   userId: string,
   veredito: VereditoLunarCompleto,
+  pedido: Readonly<PedidoDaExecucao>,
 ): Promise<ExecucaoLunar> {
   conferirContraOProtocolo(veredito.fases);
   const op = operacionalizacaoLunar();
@@ -688,8 +827,11 @@ export async function gravarExecucaoLunar(
     janela_noites: op.janelaNoites,
     hora_utc_do_fim_da_noite: op.horaUtcDoFimDaNoite,
     borda_direita: op.bordaDireita,
+    motor_versao: MOTOR_LUNAR_VERSAO,
+    pedido_desde: pedido.desde,
     acervo_noites: a.noites,
     acervo_noites_distintas: a.noitesDistintas,
+    acervo_noites_colapsadas: pedido.noitesColapsadas,
     acervo_de: a.de,
     acervo_ate: a.ate,
     acervo_sd_min: a.sdMin,
@@ -721,6 +863,25 @@ export async function gravarExecucaoLunar(
     .from('lua_execucoes')
     .insert(linhas)
     .select(COLUMNS);
+  // O erro do banco é do **ato de escrever**: a transação não comitou, e nada entrou.
+  // Daqui para baixo, a escrita aconteceu.
   if (error) throw error;
-  return toLuaExecucao((data ?? []) as unknown as LuaExecucaoRow[]);
+
+  const lidas = (data ?? []) as unknown as LuaExecucaoRow[];
+  if (lidas.length !== FASES_POR_EXECUCAO) {
+    throw new ExecucaoLunarGravadaSemLeitura(
+      `o insert de ${FASES_POR_EXECUCAO} linhas não deu erro, e a projeção de volta trouxe `
+      + `${lidas.length}`,
+    );
+  }
+  try {
+    return toLuaExecucao(lidas);
+  } catch (causa) {
+    // `toLuaExecucao` explode com a linguagem da LEITURA ("chegaram 3 linhas"), e
+    // aqui ela chegaria a um chamador que acabou de escrever — que é onde a frase
+    // errada custa uma segunda execução. A causa vai dentro, com o aviso por fora.
+    throw new ExecucaoLunarGravadaSemLeitura(
+      causa instanceof Error ? causa.message : String(causa),
+    );
+  }
 }
