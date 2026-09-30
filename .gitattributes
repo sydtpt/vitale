@@ -1,0 +1,16 @@
+# Arquivos cujo **sha256 é cobrado por barreira** — eles não podem passar por conversão de
+# fim de linha em nenhum checkout.
+#
+# `architecture.test.ts` (story 4.3) pina a sha256 de quatro documentos imutáveis e de seis
+# fontes da lua, e compara com os **bytes** em disco. Um clone com `core.autocrlf=true` —
+# Windows, ou um CI configurado por alguém que nunca viu esta barreira — converteria cada
+# `\n` em `\r\n` no working tree e quebraria os dez goldens **de uma vez**, sem ninguém tocar
+# em nada. O sintoma seria "os quatro documentos imutáveis mudaram", que é a pior mentira que
+# esta barreira pode contar.
+#
+# `-text` é mais forte que `text=lf`: ele manda o git não tratar o arquivo como texto, então
+# não há normalização na entrada nem conversão na saída. Byte que entra é byte que sai.
+docs/specs/revista-retrospectiva/*.md -text
+packages/shared/src/sleep/*.ts        -text
+packages/shared/src/astro/moon.ts     -text
+packages/shared/src/health/trends.ts  -text

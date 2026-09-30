@@ -69,6 +69,15 @@ check('a cadeia é congelada — ninguém a alarga em runtime', () => {
   for (const e of CADEIA_DO_PRE_REGISTRO) assert.ok(Object.isFrozen(e), e.arquivo);
 });
 
+/**
+ * **Só a FORMA, e nada de disco.** Este `for` é o que sobrou da cobrança que migrou, e ele
+ * não abre arquivo nenhum: quem compara cada elo com os bytes em disco é
+ * `architecture.test.ts`, com as sha256 escritas como literais **dele**. O leitor que vê um
+ * laço sobre `CADEIA_DO_PRE_REGISTRO` aqui supõe cobrança que não existe mais — daí esta
+ * nota. O que se cobra abaixo é que um literal truncado ou em caixa alta caia como "o
+ * literal está quebrado", e não como "o arquivo mudou", que mandaria o leitor procurar no
+ * lugar errado.
+ */
 check('cada sha256 tem a forma de um sha256 — 64 hexadecimais minúsculos', () => {
   for (const { arquivo, sha256 } of CADEIA_DO_PRE_REGISTRO) {
     assert.match(sha256, /^[0-9a-f]{64}$/, arquivo);

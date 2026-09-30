@@ -425,7 +425,7 @@ development_status:
   # terceiro documento, e a cadeia passa a ter QUATRO elos.
   4-2a-o-motor-do-teste-lunar: review
   4-2b-lua_execucoes-e-a-cadeia-do-pre-registro: review
-  4-3-a-barreira-do-hash-incondicional-e-offline: in-progress
+  4-3-a-barreira-do-hash-incondicional-e-offline: review
   4-4-a-página-da-lua: backlog
   epic-4-retrospective: optional
 

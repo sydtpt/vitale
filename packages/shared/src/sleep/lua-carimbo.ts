@@ -29,11 +29,20 @@
  * quatro documentos reprova a suíte, tenha havido execução ou não. O que mudou é
  * **onde** a asserção vive e **de onde** sai o valor esperado.
  *
- * A barreira de lá pina também os três fontes deste canto — `lua.ts`,
- * `lua-protocolo.ts` e **este arquivo**, porque ele contém a lista que ela guarda —
- * com {@link JANELA_LUNAR_VERSAO} e {@link MOTOR_LUNAR_VERSAO} ao lado. Com isso a
+ * A barreira de lá pina também os **seis** fontes deste canto — `lua.ts`,
+ * `astro/moon.ts`, `lua-protocolo.ts`, `sleep/timing.ts`, `health/trends.ts` e
+ * **este arquivo**, porque ele contém a lista que ela guarda — com
+ * {@link JANELA_LUNAR_VERSAO} e {@link MOTOR_LUNAR_VERSAO} ao lado. Com isso a
  * dívida que o §10 de 28/09 nomeia deixa de ser só *carimbada*: a régua passa a ser
  * impedida também. Ver {@link OperacionalizacaoLunar}.
+ *
+ * **Os três importados entraram depois, e a falta deles não era teórica.** Até 30/09
+ * a lista tinha só os três arquivos daqui: mutar `axisPosition` (`sleep/timing.ts`)
+ * em meia hora — o que muda o desfecho de toda noite — deixava a suíte em exit 0
+ * imprimindo *"régua v1 · motor v1"*. Duas execuções carimbadas `v1` podiam ter saído
+ * de réguas diferentes, que é o oposto do que estas duas constantes existem para
+ * garantir. A barreira passou a exigir que o **fecho transitivo de imports** destes
+ * três arquivos seja exatamente o conjunto pinado: import novo reprova até ter golden.
  *
  * E este arquivo não é o executor: quem compara antes de rodar é quem grava
  * (`data/lua-execucoes.ts`).
@@ -160,6 +169,11 @@ export const DIGEST_DA_CADEIA = '644afc095eea98608d93287682ac5e6735e2a608edb2dd4
  * o número reprova a suíte. É o molde de `PROMPT_VERSAO` com o golden de
  * `ia/verificar.test.ts`, e vale a mesma regra: os dois sobem no mesmo commit.
  *
+ * **E a aritmética não está toda naquele arquivo.** O desfecho medido sai de
+ * `axisPosition` (`sleep/timing.ts`) e o `sd` de `stdDev` (`health/trends.ts`): os
+ * dois têm golden próprio sob **esta** versão desde a story 4.3, porque mexer neles
+ * move efeito e p sem tocar numa linha de `lua-protocolo.ts`.
+ *
  * **`sleep/lua.ts` fica de fora deste golden, de propósito** — ele tem o seu, ao
  * lado de {@link JANELA_LUNAR_VERSAO}. Ver o docblock de lá: são duas versões, e não
  * uma, porque o motor e a régua não mudam pelo mesmo motivo.
@@ -189,8 +203,12 @@ export const MOTOR_LUNAR_VERSAO = 1;
  *
  * ## Como ela é presa, e o limite honesto disso
  *
- * `architecture.test.ts` guarda o sha256 do fonte de `sleep/lua.ts` com este número
- * ao lado: mexer no arquivo sem subir a versão reprova a suíte. **Um hash não
+ * `architecture.test.ts` guarda o sha256 do fonte de `sleep/lua.ts` **e de
+ * `astro/moon.ts`** com este número ao lado: mexer em qualquer um dos dois sem subir
+ * a versão reprova a suíte. A efeméride entra aqui, e não no motor, porque o que ela
+ * decide é *qual noite é qual* — `nextLunarPhase` dá o instante da fase, e é o
+ * instante que põe a noite dentro ou fora da janela. O que o motor lhe pede é só
+ * `PHASE_ORDER`, que é ordem de nomes e não aritmética. **Um hash não
  * distingue comentário de fórmula** — então quem mexeu só num comentário sobe o
  * golden e deixa a versão onde está, e **diz isso na mensagem do commit**, porque
  * ninguém consegue distinguir as duas coisas por um hash. É a mesma regra do golden
