@@ -59,7 +59,10 @@ SQL="$REPO/supabase/migrations/20260928130000_lua_execucoes.sql"
 VERSAO=20260928130000
 NOME=lua_execucoes
 # O arquivo que foi ensaiado — se o sha não bater, alguém mexeu depois do ensaio.
-SHA_ENSAIADO=41fb1ce1ba076cbc75b6505b6cbd9192642182175b4f1db2cf2bb5d3f8731174
+# Atualizada em 30/09/2026 (story 4.3): a coluna `janela_versao` entrou na migração ANTES de
+# ela ser aplicada — depois custaria uma segunda janela. Reensaie: o `.sql` mudou desde o
+# ensaio de 29/09.
+SHA_ENSAIADO=05c46bc9a04449365d9f1173a88577182fdf7f6e35c54d1ed3708a56fa7c713b
 REF=svyyuhxkblufhfvfvqte
 URL="https://api.supabase.com/v1/projects/$REF/database/query"
 SO_ENSAIO=0
@@ -143,10 +146,11 @@ depois=$(consultar "select
   || falha "a migração aplicou, mas a conferência não respondeu. Rode as consultas do ato 3 à mão."
 
 jq -r '.[0] | to_entries[] | "  \(.key): \(.value)"' <<< "$depois"
-# `colunas` 38 e `checks` >= 19: os 17 nomeados mais os de coluna. A conferência exata dos
+# `colunas` 39 (38 da 4.2b + `janela_versao`, que a story 4.3 acrescentou antes de a migração
+# ser aplicada) e `checks` >= 19: os 17 nomeados mais os de coluna. A conferência exata dos
 # nomes é do `architecture.test.ts`, que roda offline; aqui o que se quer é que nada tenha
 # sumido no caminho até o Postgres.
-esperado='{"linhas":0,"colunas":38,"com_rls":1,"policies":2,"policy_select":1,"policy_insert":1,"policy_proibida":0,"gatilho_deferido":1,"funcoes":2}'
+esperado='{"linhas":0,"colunas":39,"com_rls":1,"policies":2,"policy_select":1,"policy_insert":1,"policy_proibida":0,"gatilho_deferido":1,"funcoes":2}'
 for k in linhas colunas com_rls policies policy_select policy_insert policy_proibida gatilho_deferido funcoes; do
   v=$(jq -r ".[0].$k" <<< "$depois"); e=$(jq -r ".$k" <<< "$esperado")
   [ "$v" = "$e" ] || falha "conferência falhou em $k: esperado $e, veio $v"

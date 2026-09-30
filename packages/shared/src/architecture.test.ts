@@ -48,7 +48,13 @@ import { CAPA_COLUMNS, MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA } from './data/edicoes
 import { EDICAO_COLUMNS, TIPOS_COM_EDICAO } from './data/edicoes-ia';
 import { ACTIVITY_COLUMNS } from './data/activities';
 import { LUA_EXECUCAO_COLUMNS, VOCABULARIO_DE_LUA_EXECUCOES } from './data/lua-execucoes';
-import { CADEIA_MINIMA } from './sleep/lua-carimbo';
+import {
+  CADEIA_DO_PRE_REGISTRO,
+  CADEIA_MINIMA,
+  DIGEST_DA_CADEIA,
+  JANELA_LUNAR_VERSAO,
+  MOTOR_LUNAR_VERSAO,
+} from './sleep/lua-carimbo';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -1034,6 +1040,441 @@ check('BARREIRA — toda coluna nullable de lua_execucoes tem comentário e diz 
     + 'adivinhar vai escrever zero.',
   );
   console.log(`     · ${colunas.length} colunas, ${nullable.length} nullable, todas dizendo o que o nulo é`);
+});
+
+/* ───── A cadeia do pré-registro lunar: a barreira canônica (Story 4.3) ───── */
+
+/**
+ * BARREIRA — os quatro documentos imutáveis e os três fontes da lua, com as sha256
+ * **como literais daqui** (Story 4.3; §7.3 de 07/09; Correção 2 de 08/09; Correção 4 de 28/09).
+ *
+ * ## O furo que esta barreira fecha, e por que ele não era teórico
+ *
+ * A cobrança nasceu em `sleep/lua-carimbo.test.ts`, e ela fazia
+ * `for (const { arquivo, sha256 } of CADEIA_DO_PRE_REGISTRO)`: comparava o disco com **a
+ * constante que ela existia para guardar**. Quem quisesse mudar a regra depois de ver o
+ * resultado editava o documento e a constante no mesmo commit, e a suíte ficava verde.
+ * Uma barreira que confere a constante contra si mesma não guarda nada.
+ *
+ * Aqui as sha256 esperadas são **literais desta barreira**, nunca lidas daquela lista. A
+ * edição continua possível — o dono tem o repositório —, mas passa a exigir **três**
+ * edições em lugares diferentes, e a deste arquivo é a que aparece no diff de quem revisa.
+ * É o que a §7.3 pede, e ela é explícita sobre o que quer: *"não para impedir — para
+ * obrigar a dizer em voz alta"*.
+ *
+ * ## Incondicional, e é o ponto
+ *
+ * Quebra tenha havido execução ou não. *"Execução já gravada"* mora no Postgres, e esta
+ * suíte é pura e offline: um teste que precisasse do banco ficaria verde por não ter
+ * executado, que é o modo de falha que a casa proíbe. E um arquivo declarado imutável não
+ * deveria poder ser editado nem **antes** da primeira execução — é na janela antes dela que
+ * mudar a regra é mais tentador e menos visível.
+ *
+ * ## Os três fontes, e as duas versões
+ *
+ * `lua-protocolo.ts` é o **motor** (efeito, p, poder) e sobe `MOTOR_LUNAR_VERSAO`. `lua.ts`
+ * é a **régua** (qual noite entra em qual coluna) e sobe `JANELA_LUNAR_VERSAO`: duas
+ * versões, e não uma, porque uma mudança de janela não muda o motor — juntá-las diria a
+ * coisa errada. E `lua-carimbo.ts` entra porque **contém a lista que esta barreira guarda**
+ * e as duas versões: sem ele pinado, mexer na cadeia lá seria mexer no alvo sem tocar no
+ * guarda.
+ *
+ * **O limite honesto disso, que tem de continuar escrito:** um hash não distingue
+ * comentário de fórmula. Quem mexeu só num comentário sobe o golden e deixa a versão onde
+ * está — e **diz isso na mensagem do commit**, porque ninguém consegue distinguir as duas
+ * coisas por um hash. É o que torna o mecanismo honesto em vez de mágico.
+ *
+ * ## Nenhum dado lunar é consultado
+ *
+ * Proveniência não precisa de noite medida. O protocolo proíbe olhar antes da execução
+ * autorizada, e esta barreira não olha nem depois.
+ */
+interface AlvoPinadoDaLua {
+  /** O caminho relativo à raiz do repositório — o mesmo que `shasum -a 256` recebe. */
+  readonly caminho: string;
+  /** A sha256 que **esta barreira** exige. Literal daqui, nunca lida de outra constante. */
+  readonly sha256: string;
+  /** O que fazer quando ela divergir — e o que **não** fazer. */
+  readonly seMudou: string;
+  /** A constante que sobe quando a mudança foi de propósito, e o valor pinado dela. */
+  readonly versao?: { readonly nome: string; readonly valor: number };
+}
+
+/** O que o `NÃO se faz` dos documentos diz, palavra por palavra, nos quatro. */
+const NAO_COLE_O_SHA =
+  'O que NÃO se faz: colar o sha de hoje aqui para o build passar. Isso é editar em '
+  + 'silêncio um texto que se declara imutável, que é exatamente o que esta barreira existe '
+  + 'para tornar impossível de fazer calado.';
+
+/**
+ * Os **quatro** documentos que autorizam o teste lunar, na ordem append-only da cadeia,
+ * com a sha256 de cada um **escrita aqui**.
+ *
+ * Fixadas em 30/09/2026 (story 4.3), conferidas com `shasum -a 256` da raiz. A ordem é
+ * cronológica e é parte do conteúdo: é dela que sai o digest, e trocar dois documentos de
+ * lugar dá outro digest porque a ordem da cadeia é a cronologia da regra.
+ */
+const CADEIA_PINADA_DA_LUA: readonly AlvoPinadoDaLua[] = [
+  {
+    caminho: 'docs/specs/revista-retrospectiva/pre-registro-lua.md',
+    sha256: 'd09365de54bb6bbd6fa8d99af9d1f26cddaebc3492029a63d6b1b6e4f6759664',
+    seMudou:
+      'O pré-registro de 07/09 é IMUTÁVEL — nem para corrigir uma vírgula. A saída é um '
+      + 'documento NOVO de correção, que cite os anteriores e diga o que mudou e por quê, '
+      + `mais um elo no FIM de CADEIA_DO_PRE_REGISTRO e um alvo no fim desta lista. ${NAO_COLE_O_SHA}`,
+  },
+  {
+    caminho: 'docs/specs/revista-retrospectiva/correcao-pre-registro-lua.md',
+    sha256: 'aad967aae5f9fddd563dfd5f97fd274d236f511fb20f5cdad2dfd45a7e46c308',
+    seMudou:
+      'A correção de 08/09 se declara imutável pelo mesmo motivo que o texto que ela corrige: '
+      + '"a correção de um texto imutável não pode ser um texto mutável". A saída é um '
+      + `documento novo, e um elo no fim da cadeia. ${NAO_COLE_O_SHA}`,
+  },
+  {
+    caminho: 'docs/specs/revista-retrospectiva/pre-registro-lua-outras-fases.md',
+    sha256: '1227264d01b5f0f35bf7bfcf90fb4241ac89fefef4b28dadfe399918a51251bc',
+    seMudou:
+      'O pré-registro das outras três fases (28/09) é IMUTÁVEL. Ele fixa α, lateralidade, '
+      + 'janela e vereditos das três, e mudá-lo depois de ver o resultado é a gaveta. A saída é '
+      + `um documento novo de correção, e um elo no fim da cadeia. ${NAO_COLE_O_SHA}`,
+  },
+  {
+    caminho: 'docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md',
+    sha256: '95cf3e729e9c832a4865ffa10c8e526fd494a1cba67bc61d9d83b4d7524c5b52',
+    seMudou:
+      'A segunda correção (28/09) é o quarto elo, e é imutável. Ela própria diz qual é a saída: '
+      + 'uma terceira correção é OUTRO documento, o quinto elo, que cita os quatro. '
+      + `${NAO_COLE_O_SHA}`,
+  },
+];
+
+/**
+ * Os três fontes que decidem o resultado e que **não moram em documento hasheado**.
+ *
+ * O §10 de 28/09 nomeou a dívida: `JANELA_LUNAR_NOITES`, `HORA_UTC_DO_FIM_DA_NOITE` e a
+ * borda vivem em código, e mudar uma delas depois de ver o resultado deslocava a coluna
+ * testada **sem quebrar o build**. Estas três linhas são o que fecha isso.
+ */
+const FONTES_PINADOS_DA_LUA: readonly AlvoPinadoDaLua[] = [
+  {
+    caminho: 'packages/shared/src/sleep/lua.ts',
+    sha256: '3bfd41e5c6d49e1308691f64832c25903b1eb560a6c6f5d539f8dc9a461d0b8c',
+    versao: { nome: 'JANELA_LUNAR_VERSAO', valor: 1 },
+    seMudou:
+      'É a RÉGUA: qual noite entra em qual coluna. Se a mudança move a janela, a hora do fim '
+      + 'da noite, a borda ou a lógica que as usa, suba JANELA_LUNAR_VERSAO e atualize este '
+      + 'golden no mesmo commit — execuções já gravadas ficam com a versão anterior carimbada, '
+      + 'e é esse o ponto. Se foi só comentário, suba o golden e deixe a versão onde está, e '
+      + 'DIGA ISSO na mensagem do commit, porque ninguém consegue distinguir as duas coisas por '
+      + 'um hash. O que NÃO se faz: mexer na régua depois de ver o resultado de uma execução — '
+      + 'a coluna testada anda e nenhum número da tabela muda.',
+  },
+  {
+    caminho: 'packages/shared/src/sleep/lua-protocolo.ts',
+    sha256: '9c53db13a275096fb0b3cd6080f1f97e431d0ffba8574565ac0786973d5179bb',
+    versao: { nome: 'MOTOR_LUNAR_VERSAO', valor: 1 },
+    seMudou:
+      'É o MOTOR: Hodges–Lehmann, Mann–Whitney, a conta de poder e os portões — o que produz '
+      + 'efeito, p e poder. Se a mudança pretendia alterar a conta, suba MOTOR_LUNAR_VERSAO e '
+      + 'atualize este golden no mesmo commit. Se foi só comentário, suba o golden e deixe a '
+      + 'versão onde está, e DIGA ISSO na mensagem do commit. O que NÃO se faz: trocar o teste '
+      + 'estatístico depois de ver o p — é a gaveta pela porta dos fundos.',
+  },
+  {
+    caminho: 'packages/shared/src/sleep/lua-carimbo.ts',
+    sha256: 'be66fea6a149cec9b6091e779a4c5987e73678b0b915607e4146601e62167016',
+    seMudou:
+      'Ele CONTÉM a cadeia que esta barreira guarda, o digest dela e as duas versões — por isso '
+      + 'é pinado: sem isto, mexer na lista lá seria mexer no alvo sem tocar no guarda. '
+      + 'Atualize este golden no mesmo commit da mudança. O que NÃO se faz: atualizar só aqui '
+      + 'quando o que mudou foi a cadeia — o documento novo de correção e o elo no fim de '
+      + 'CADEIA_DO_PRE_REGISTRO vêm junto, e os literais desta barreira também.',
+  },
+];
+
+/** O sha256 de um texto, como `shasum -a 256` o calcula para o arquivo em disco. */
+function sha256DoTexto(texto: string): string {
+  return createHash('sha256').update(texto, 'utf8').digest('hex');
+}
+
+/**
+ * O estado que a barreira julga, inteiro em parâmetro — é o que a torna falsificável.
+ *
+ * Nada aqui é lido de dentro do detector: a prova de não-vacuidade monta estados errados
+ * em memória e exige que ele acuse cada um.
+ */
+interface EstadoDaProvenienciaLunar {
+  /** Os documentos pinados, na ordem da cadeia. */
+  readonly cadeiaPinada: readonly AlvoPinadoDaLua[];
+  /** Os fontes pinados. */
+  readonly fontesPinados: readonly AlvoPinadoDaLua[];
+  /** Conteúdo lido do disco. `null` é **arquivo ausente**, e não string vazia. */
+  readonly lidos: ReadonlyMap<string, string | null>;
+  /** `CADEIA_DO_PRE_REGISTRO` como o módulo a declara — o guardado, não o esperado. */
+  readonly cadeiaDoModulo: readonly { readonly arquivo: string; readonly sha256: string }[];
+  /** `DIGEST_DA_CADEIA` como o módulo o declara. */
+  readonly digestDoModulo: string;
+  /** As versões como o módulo as declara: nome ⇒ valor. */
+  readonly versoesDoModulo: ReadonlyMap<string, number>;
+}
+
+/** As queixas que a proveniência lunar merece — vazio é "está tudo no lugar". */
+function queixasDaProvenienciaLunar(e: EstadoDaProvenienciaLunar): string[] {
+  const problemas: string[] = [];
+
+  // (1) Alvo existe, e a sha256 dele é a literal desta barreira. Ausente reprova por
+  //     ALVO AUSENTE — nunca por vacuidade, que é o único jeito de uma barreira mentir.
+  for (const alvo of [...e.cadeiaPinada, ...e.fontesPinados]) {
+    const conteudo = e.lidos.get(alvo.caminho);
+    if (conteudo === undefined || conteudo === null) {
+      problemas.push(
+        `ALVO AUSENTE: ${alvo.caminho} não está no disco, e a barreira ficaria sem o que `
+        + `conferir. Restaure-o (git show <commit>:${alvo.caminho}) — apagar um elo da cadeia não `
+        + 'é uma forma de corrigi-la.',
+      );
+      continue;
+    }
+    const hoje = sha256DoTexto(conteudo);
+    if (hoje !== alvo.sha256) {
+      problemas.push(
+        `${alvo.caminho} mudou.\n      sha256 de hoje: ${hoje}\n      pinado aqui:    ${alvo.sha256}\n`
+        + `      ${alvo.seMudou}`,
+      );
+    }
+    if (alvo.versao) {
+      const valor = e.versoesDoModulo.get(alvo.versao.nome);
+      if (valor !== alvo.versao.valor) {
+        problemas.push(
+          `${alvo.versao.nome} é ${String(valor)} e esta barreira pina ${alvo.versao.valor} — `
+          + `a versão e o golden de ${alvo.caminho} sobem no MESMO commit, senão uma execução `
+          + 'carimba uma versão que não corresponde ao fonte que rodou.',
+        );
+      }
+    }
+  }
+
+  // (2) A constante guardada é a mesma lista, na mesma ordem. Os literais de cima mandam:
+  //     é aqui que "editei o documento E a constante" continua reprovando.
+  if (e.cadeiaDoModulo.length !== e.cadeiaPinada.length) {
+    problemas.push(
+      `CADEIA_DO_PRE_REGISTRO tem ${e.cadeiaDoModulo.length} elos e esta barreira pina `
+      + `${e.cadeiaPinada.length}. A cadeia é APPEND-ONLY: elo novo entra no fim dos dois lados, `
+      + 'no mesmo commit, e nenhum sai. Elo a menos é documento de correção sendo apagado; elo a '
+      + 'mais sem o alvo aqui é cadeia crescendo sem o guarda saber.',
+    );
+  }
+  for (let i = 0; i < Math.max(e.cadeiaDoModulo.length, e.cadeiaPinada.length); i += 1) {
+    const doModulo: { readonly arquivo: string; readonly sha256: string } | undefined =
+      e.cadeiaDoModulo[i];
+    const daqui: AlvoPinadoDaLua | undefined = e.cadeiaPinada[i];
+    if (!daqui) {
+      problemas.push(
+        `o elo ${i + 1} (${doModulo.arquivo}) está em CADEIA_DO_PRE_REGISTRO e não nesta `
+        + 'barreira — acrescente o alvo aqui, com a sha256 literal, no mesmo commit.',
+      );
+      continue;
+    }
+    if (!doModulo) {
+      problemas.push(
+        `o elo ${i + 1} desta barreira (${daqui.caminho}) não está em CADEIA_DO_PRE_REGISTRO — `
+        + 'a cadeia encolheu, e ela é append-only.',
+      );
+      continue;
+    }
+    if (doModulo.arquivo !== daqui.caminho) {
+      problemas.push(
+        `o elo ${i + 1} é ${daqui.caminho} nesta barreira e ${doModulo.arquivo} em `
+        + 'CADEIA_DO_PRE_REGISTRO — a ORDEM é conteúdo: ela é a cronologia da regra, e é dela '
+        + 'que sai o digest.',
+      );
+    } else if (doModulo.sha256 !== daqui.sha256) {
+      problemas.push(
+        `o elo ${i + 1} (${daqui.caminho}): CADEIA_DO_PRE_REGISTRO diz ${doModulo.sha256} e esta `
+        + `barreira pina ${daqui.sha256}. Se o documento mudou junto com a constante, é este par `
+        + `de linhas que impede o commit de passar calado — e era ele que faltava. ${NAO_COLE_O_SHA}`,
+      );
+    }
+  }
+
+  // (3) O digest é o sha256 das sha256 **desta barreira**, na ordem, unidas por `\n`.
+  //     Recalculá-lo a partir de CADEIA_DO_PRE_REGISTRO seria o mesmo furo de novo.
+  const digestDaqui = sha256DoTexto(e.cadeiaPinada.map((a) => a.sha256).join('\n'));
+  if (e.digestDoModulo !== digestDaqui) {
+    problemas.push(
+      `DIGEST_DA_CADEIA é ${e.digestDoModulo} e o digest dos elos pinados aqui é ${digestDaqui} `
+      + '— ele é o sha256 das sha256, na ordem, unidas por quebra de linha. Elo novo muda este '
+      + 'valor: é o ponto dele. Atualize a constante no mesmo commit do elo.',
+    );
+  }
+
+  return problemas;
+}
+
+/**
+ * **A prova de não-vacuidade**, e ela é o ponto desta barreira.
+ *
+ * Cada forma de burlar a cadeia é montada em memória e o detector tem de acusar. A
+ * primeira delas é o furo que a 4.3 fechou — documento **e** constante editados juntos —,
+ * e ela é a razão de as sha256 serem literais daqui: no estado antigo, aquela mutação
+ * passava verde.
+ *
+ * A fronteira é provada dos **dois** lados: o estado certo passa (senão o detector reprova
+ * tudo e não afirma nada), e cada estado errado reprova com a queixa que o nomeia.
+ */
+function provarADeteccaoDaProvenienciaLunar(): void {
+  const conteudos = new Map<string, string>([
+    ['docs/um.md', 'documento um\n'],
+    ['docs/dois.md', 'documento dois\n'],
+    ['src/regua.ts', 'export const X = 1;\n'],
+  ]);
+  const pinarDoc = (caminho: string): AlvoPinadoDaLua => ({
+    caminho,
+    sha256: sha256DoTexto(conteudos.get(caminho)!),
+    seMudou: 'imutável',
+  });
+  const cadeiaPinada = [pinarDoc('docs/um.md'), pinarDoc('docs/dois.md')];
+  const fontesPinados = [{ ...pinarDoc('src/regua.ts'), versao: { nome: 'V', valor: 1 } }];
+  const bom: EstadoDaProvenienciaLunar = {
+    cadeiaPinada,
+    fontesPinados,
+    lidos: new Map<string, string | null>(conteudos),
+    cadeiaDoModulo: cadeiaPinada.map((a) => ({ arquivo: a.caminho, sha256: a.sha256 })),
+    digestDoModulo: sha256DoTexto(cadeiaPinada.map((a) => a.sha256).join('\n')),
+    versoesDoModulo: new Map([['V', 1]]),
+  };
+  assert.deepEqual(
+    queixasDaProvenienciaLunar(bom),
+    [],
+    'o detector da proveniência reprovou o estado CERTO — sem este lado, ele reprovaria tudo e '
+    + 'não afirmaria nada.',
+  );
+
+  const comConteudo = (caminho: string, texto: string | null) =>
+    new Map<string, string | null>([...bom.lidos, [caminho, texto] as const]);
+  const outro = 'documento um, com um byte a mais\n';
+  const mutacoes: readonly (readonly [string, EstadoDaProvenienciaLunar, RegExp])[] = [
+    [
+      'um byte num documento',
+      { ...bom, lidos: comConteudo('docs/um.md', outro) },
+      /docs\/um\.md mudou/,
+    ],
+    // **O furo de auto-referência**: o documento muda e a constante "concorda" com o
+    // disco. No mecanismo antigo isto passava; aqui os literais divergem duas vezes.
+    [
+      'o documento E a constante editados juntos',
+      {
+        ...bom,
+        lidos: comConteudo('docs/um.md', outro),
+        cadeiaDoModulo: [
+          { arquivo: 'docs/um.md', sha256: sha256DoTexto(outro) },
+          bom.cadeiaDoModulo[1],
+        ],
+      },
+      /docs\/um\.md mudou/,
+    ],
+    [
+      'um elo removido da cadeia',
+      { ...bom, cadeiaDoModulo: [bom.cadeiaDoModulo[0]] },
+      /APPEND-ONLY/,
+    ],
+    [
+      'um quinto elo acrescentado',
+      {
+        ...bom,
+        cadeiaDoModulo: [...bom.cadeiaDoModulo, { arquivo: 'docs/tres.md', sha256: 'f'.repeat(64) }],
+      },
+      /não nesta barreira/,
+    ],
+    [
+      'dois elos trocados de ordem na constante',
+      { ...bom, cadeiaDoModulo: [bom.cadeiaDoModulo[1], bom.cadeiaDoModulo[0]] },
+      /a ORDEM é conteúdo/,
+    ],
+    [
+      'a sha da constante trocada, com o documento intacto',
+      {
+        ...bom,
+        cadeiaDoModulo: [{ arquivo: 'docs/um.md', sha256: 'a'.repeat(64) }, bom.cadeiaDoModulo[1]],
+      },
+      /CADEIA_DO_PRE_REGISTRO diz a{64}/,
+    ],
+    [
+      'um documento apagado',
+      { ...bom, lidos: comConteudo('docs/um.md', null) },
+      /ALVO AUSENTE: docs\/um\.md/,
+    ],
+    [
+      'um fonte apagado',
+      { ...bom, lidos: comConteudo('src/regua.ts', null) },
+      /ALVO AUSENTE: src\/regua\.ts/,
+    ],
+    [
+      'a régua mudou sem subir a versão',
+      { ...bom, lidos: comConteudo('src/regua.ts', 'export const X = 2;\n') },
+      /src\/regua\.ts mudou/,
+    ],
+    [
+      'a versão subiu sem o golden',
+      { ...bom, versoesDoModulo: new Map([['V', 2]]) },
+      /V é 2 e esta barreira pina 1/,
+    ],
+    [
+      'o digest não é o dos elos pinados',
+      { ...bom, digestDoModulo: 'b'.repeat(64) },
+      /DIGEST_DA_CADEIA é b{64}/,
+    ],
+  ];
+  for (const [nome, estado, esperado] of mutacoes) {
+    const achado = queixasDaProvenienciaLunar(estado);
+    assert.ok(
+      achado.some((p) => esperado.test(p)),
+      `o detector da proveniência lunar NÃO viu "${nome}": ${JSON.stringify(achado)}`,
+    );
+  }
+}
+
+check('BARREIRA — a cadeia do pré-registro lunar e os fontes da lua, com as sha256 como literais daqui (story 4.3)', () => {
+  provarADeteccaoDaProvenienciaLunar();
+
+  // Não-vacuidade das listas: uma barreira com zero alvos passa sempre.
+  assert.equal(
+    CADEIA_PINADA_DA_LUA.length,
+    4,
+    'a cadeia pinada aqui não tem quatro elos — se um documento novo chegou, ele entra no FIM, '
+    + 'e este número sobe junto com CADEIA_MINIMA só quando o piso mudar de propósito.',
+  );
+  assert.equal(FONTES_PINADOS_DA_LUA.length, 3, 'os fontes pinados são lua.ts, lua-protocolo.ts e lua-carimbo.ts');
+
+  const lidos = new Map<string, string | null>();
+  for (const { caminho } of [...CADEIA_PINADA_DA_LUA, ...FONTES_PINADOS_DA_LUA]) {
+    const p = join(ROOT, ...caminho.split('/'));
+    lidos.set(caminho, existsSync(p) ? readFileSync(p, 'utf8') : null);
+  }
+
+  const problemas = queixasDaProvenienciaLunar({
+    cadeiaPinada: CADEIA_PINADA_DA_LUA,
+    fontesPinados: FONTES_PINADOS_DA_LUA,
+    lidos,
+    cadeiaDoModulo: CADEIA_DO_PRE_REGISTRO,
+    digestDoModulo: DIGEST_DA_CADEIA,
+    versoesDoModulo: new Map([
+      ['JANELA_LUNAR_VERSAO', JANELA_LUNAR_VERSAO],
+      ['MOTOR_LUNAR_VERSAO', MOTOR_LUNAR_VERSAO],
+    ]),
+  });
+  assert.deepEqual(
+    problemas,
+    [],
+    `a proveniência do teste lunar divergiu:\n    ${problemas.join('\n    ')}\n`
+    + '  Esta é a barreira que a §7.3 de 07/09 pede e que a Correção 2 de 08/09 tornou '
+    + 'incondicional. Ela não impede o dono de mudar a regra — impede que ele a mude em '
+    + 'silêncio.',
+  );
+  console.log(
+    `     · ${CADEIA_PINADA_DA_LUA.length} documentos imutáveis e ${FONTES_PINADOS_DA_LUA.length} fontes `
+    + `pinados · régua v${JANELA_LUNAR_VERSAO} · motor v${MOTOR_LUNAR_VERSAO}`,
+  );
 });
 
 /**

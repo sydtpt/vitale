@@ -173,6 +173,22 @@ create table public.lua_execucoes (
   -- suíte. O molde é `PROMPT_VERSAO` com o golden de `ia/verificar.test.ts`.
   motor_versao smallint not null check (motor_versao >= 1),
 
+  -- **A versão da RÉGUA, que não é a do motor — e são duas de propósito.**
+  --
+  -- As três colunas acima carimbam os *valores* da janela. A **lógica** que os usa
+  -- pode mudar sem que nenhum deles mude, e mudou duas vezes em setembro de 2026: o
+  -- instante da noite foi do entardecer para o fim dela, e a hora foi de 11:00 para
+  -- 08:00 UTC. Sem esta coluna, duas execuções com a mesma janela, a mesma hora e a
+  -- mesma borda seriam **indistinguíveis** mesmo com a régua reescrita no meio.
+  --
+  -- Juntá-la a `motor_versao` faria uma mudança de janela subir a versão do motor,
+  -- dizendo a coisa errada: o motor não mudou, a régua mudou. É `JANELA_LUNAR_VERSAO`
+  -- (`sleep/lua-carimbo.ts`), presa por um golden do sha256 de `sleep/lua.ts` em
+  -- `architecture.test.ts` — a mesma barreira que pina os quatro documentos da
+  -- cadeia, e que desde a story 4.3 **impede** a mudança silenciosa da régua em vez
+  -- de só carimbá-la.
+  janela_versao smallint not null check (janela_versao >= 1),
+
   -- ── O que foi PEDIDO, que não é o mesmo que o que foi achado ─────────────
   --
   -- O `desde` da leitura decide quais noites entram tanto quanto `janela_noites`, e
@@ -445,6 +461,8 @@ comment on column public.lua_execucoes.borda_direita is
   'A borda direita da janela [fase - 5 d, fase) no momento da execução: aberta no protocolo. Medida contra a classificação, não copiada de um literal.';
 comment on column public.lua_execucoes.motor_versao is
   'MOTOR_LUNAR_VERSAO no momento da execução: a aritmética que produziu efeito, p e poder (Hodges-Lehmann, Mann-Whitney, aproximação normal do poder). Presa por golden do sha256 de sleep/lua-protocolo.ts — mexer no motor sem subir a versão reprova a suíte.';
+comment on column public.lua_execucoes.janela_versao is
+  'JANELA_LUNAR_VERSAO no momento da execução: a régua que decidiu qual noite entrou em qual coluna. Separada de motor_versao porque uma mudança de janela não muda o motor — e as três colunas de valor acima não mudam quando só a lógica de sleep/lua.ts muda, o que aconteceu duas vezes em setembro de 2026. Presa por golden do sha256 de sleep/lua.ts.';
 comment on column public.lua_execucoes.pedido_desde is
   'O desde que o chamador pediu à leitura. Sem ele, um acervo que começa tarde é ambíguo entre pedi assim e não há dado antes. O valor do protocolo é 23/04/2025 (§3), em INICIO_DO_ACERVO_LUNAR.';
 

@@ -29,6 +29,7 @@ import {
   CADEIA_MINIMA,
   DIGEST_DA_CADEIA,
   INICIO_DO_ACERVO_LUNAR,
+  JANELA_LUNAR_VERSAO,
   MOTOR_LUNAR_VERSAO,
   operacionalizacaoLunar,
 } from '../sleep/lua-carimbo';
@@ -407,6 +408,7 @@ function projetarModelo(): LuaExecucaoRow {
     hora_utc_do_fim_da_noite: op.horaUtcDoFimDaNoite,
     borda_direita: op.bordaDireita,
     motor_versao: MOTOR_LUNAR_VERSAO,
+    janela_versao: JANELA_LUNAR_VERSAO,
     pedido_desde: PEDIDO.desde,
     acervo_noites: a.noites,
     acervo_noites_distintas: a.noitesDistintas,
@@ -864,10 +866,10 @@ describe('portão reprovado — nulo é "não foi medido", nunca zero', () => {
   });
 });
 
-/* ───────────────── O carimbo do pedido e o do motor ───────────────── */
+/* ──────────── O carimbo do pedido, o do motor e o da régua ──────────── */
 
-describe('o pedido e o motor ficam gravados, porque nada mais os registra', () => {
-  it('cada linha carimba pedido_desde, as noites colapsadas e a versão do motor', async () => {
+describe('o pedido, o motor e a régua ficam gravados, porque nada mais os registram', () => {
+  it('cada linha carimba pedido_desde, as noites colapsadas e as duas versões', async () => {
     const f = fakeBanco();
     const pedido = { desde: '2025-06-01', noitesColapsadas: 7 };
     await gravarExecucaoLunar(f.db, 'u-1', COM_PODER, pedido);
@@ -875,19 +877,23 @@ describe('o pedido e o motor ficam gravados, porque nada mais os registra', () =
       assert.equal(r.pedido_desde, '2025-06-01', r.fase);
       assert.equal(r.acervo_noites_colapsadas, 7, r.fase);
       assert.equal(r.motor_versao, MOTOR_LUNAR_VERSAO, r.fase);
+      assert.equal(r.janela_versao, JANELA_LUNAR_VERSAO, r.fase);
     }
     const lida = await fetchUltimaExecucaoLunar(f.db, 'u-1');
     assert.deepEqual(lida!.pedido, pedido);
     assert.equal(lida!.motorVersao, MOTOR_LUNAR_VERSAO);
+    assert.equal(lida!.janelaVersao, JANELA_LUNAR_VERSAO);
   });
 
   /**
    * As colunas de execução repetem nas quatro linhas, e a leitura cobra que
-   * concordem. As três novas entram nessa assinatura — senão uma execução podia
+   * concordem. As quatro entram nessa assinatura — senão uma execução podia
    * dizer que pediu desde abril em três linhas e desde junho na quarta.
    */
-  it('pedido, colapso e motor entram na assinatura da execução', () => {
-    for (const campo of ['pedido_desde', 'acervo_noites_colapsadas', 'motor_versao'] as const) {
+  it('pedido, colapso, motor e régua entram na assinatura da execução', () => {
+    for (const campo of [
+      'pedido_desde', 'acervo_noites_colapsadas', 'motor_versao', 'janela_versao',
+    ] as const) {
       const rs = COM_PODER.fases.map((fase) => ({
         ...projetarModelo(),
         fase: fase.fase,

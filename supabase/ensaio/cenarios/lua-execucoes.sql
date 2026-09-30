@@ -101,6 +101,7 @@ begin
     'hora_utc_do_fim_da_noite', 8,
     'borda_direita', 'aberta',
     'motor_versao', 1,
+    'janela_versao', 1,
     'pedido_desde', v_marca,
     'acervo_noites', 400,
     'acervo_noites_distintas', 400,
