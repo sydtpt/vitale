@@ -16,20 +16,33 @@
  * próxima pessoa tem de julgar. A cadeia e a operacionalização não calculam nada do
  * teste — elas dizem **sob que autoridade** ele rodou —, então moram ao lado.
  *
- * ## Quem quebra o build **hoje**, e o que sobra para a 4.3
+ * ## Quem quebra o build, e por que não é este arquivo nem o teste dele
  *
- * **Hoje já quebra.** `lua-carimbo.test.ts` recalcula as quatro sha256 do conteúdo
- * em disco, e ele roda em `pnpm --filter @vitale/shared test` como qualquer outro
- * `*.test.ts` — um byte a mais em qualquer um dos quatro documentos reprova a
- * suíte, incondicionalmente, tenha havido execução ou não. É o que a segunda
- * correção de 28/09 chama de "o build quebra sempre", e é o preço declarado lá.
+ * A barreira canônica mora em `architecture.test.ts` (story 4.3), e as sha256
+ * esperadas são **literais dela** — nunca lidas de {@link CADEIA_DO_PRE_REGISTRO}.
+ * A razão é o furo que a 4.3 fechou: enquanto a cobrança vivia em
+ * `lua-carimbo.test.ts`, ela iterava esta constante e comparava com o disco, então
+ * **editar o documento e a constante no mesmo commit passava** — uma barreira que
+ * confere a constante que guarda contra si mesma não guarda nada.
  *
- * **O que a 4.3 decide** é outra coisa, e são duas: se a cobrança migra para
- * `architecture.test.ts` (onde as barreiras valem sobre o repositório inteiro, e
- * não só sobre o workspace do núcleo), e se ela passa a cobrir também a
- * **operacionalização** — `JANELA_LUNAR_NOITES`, `HORA_UTC_DO_FIM_DA_NOITE` e a
- * borda —, que é a dívida que o §10 de 28/09 nomeia e que hoje só é *carimbada*,
- * nunca impedida. Ver {@link OperacionalizacaoLunar}.
+ * Continua incondicional (Correção 2 de 08/09): um byte a mais em qualquer um dos
+ * quatro documentos reprova a suíte, tenha havido execução ou não. O que mudou é
+ * **onde** a asserção vive e **de onde** sai o valor esperado.
+ *
+ * A barreira de lá pina também os **seis** fontes deste canto — `lua.ts`,
+ * `astro/moon.ts`, `lua-protocolo.ts`, `sleep/timing.ts`, `health/trends.ts` e
+ * **este arquivo**, porque ele contém a lista que ela guarda — com
+ * {@link JANELA_LUNAR_VERSAO} e {@link MOTOR_LUNAR_VERSAO} ao lado. Com isso a
+ * dívida que o §10 de 28/09 nomeia deixa de ser só *carimbada*: a régua passa a ser
+ * impedida também. Ver {@link OperacionalizacaoLunar}.
+ *
+ * **Os três importados entraram depois, e a falta deles não era teórica.** Até 30/09
+ * a lista tinha só os três arquivos daqui: mutar `axisPosition` (`sleep/timing.ts`)
+ * em meia hora — o que muda o desfecho de toda noite — deixava a suíte em exit 0
+ * imprimindo *"régua v1 · motor v1"*. Duas execuções carimbadas `v1` podiam ter saído
+ * de réguas diferentes, que é o oposto do que estas duas constantes existem para
+ * garantir. A barreira passou a exigir que o **fecho transitivo de imports** destes
+ * três arquivos seja exatamente o conjunto pinado: import novo reprova até ter golden.
  *
  * E este arquivo não é o executor: quem compara antes de rodar é quem grava
  * (`data/lua-execucoes.ts`).
@@ -127,9 +140,11 @@ export const CADEIA_MINIMA = 4;
  * JavaScript puro na **abertura de todo hospedeiro** que toca o barril — iPhone
  * incluído — para produzir um valor lido uma vez a cada cem noites, e arrastava
  * `ia/sha256.ts`, que se declara interno ao núcleo de IA, para o grafo de execução
- * de todo consumidor. O literal não é um segundo número a manter: `lua-carimbo.test.ts`
- * recalcula a conta a partir da cadeia e reprova se divergir, que é exatamente o
- * papel que o golden de `ia/verificar.test.ts` faz para o texto do SISTEMA.
+ * de todo consumidor. O literal não é um segundo número a manter: a barreira de
+ * `architecture.test.ts` refaz a conta **a partir das sha256 literais dela**, não
+ * desta lista, e reprova se divergir — é o papel que o golden de
+ * `ia/verificar.test.ts` faz para o texto do SISTEMA, com a diferença que a 4.3
+ * pagou: um recálculo a partir da própria cadeia passaria com a cadeia editada.
  *
  * Fixado em 29/09/2026, com a cadeia em quatro elos (story 4.2b). Elo novo muda
  * este valor: é o ponto dele.
@@ -148,21 +163,60 @@ export const DIGEST_DA_CADEIA = '644afc095eea98608d93287682ac5e6735e2a608edb2dd4
  * Fazer isso *depois de ver o resultado* é a gaveta pela porta dos fundos, e até
  * aqui não deixava rastro nenhum.
  *
- * **Como ela é presa.** `lua-carimbo.test.ts` guarda o sha256 do fonte de
+ * **Como ela é presa.** `architecture.test.ts` guarda o sha256 do fonte de
  * `sleep/lua-protocolo.ts` — o motor inteiro: Hodges–Lehmann, Mann–Whitney, a
  * conta de poder e os portões — com esta versão ao lado. Mexer no arquivo sem subir
  * o número reprova a suíte. É o molde de `PROMPT_VERSAO` com o golden de
  * `ia/verificar.test.ts`, e vale a mesma regra: os dois sobem no mesmo commit.
  *
- * **`sleep/lua.ts` fica de fora do golden, de propósito.** O que vive lá é a
- * operacionalização — janela, hora do fim da noite, borda —, e ela já tem três
- * colunas próprias em cada execução. Metê-la aqui faria uma mudança de janela subir
- * a versão do motor, que diria a coisa errada: o motor não mudou, a régua mudou. Se
- * a 4.3 decidir cobrar aquelas constantes, é lá que a barreira nasce.
+ * **E a aritmética não está toda naquele arquivo.** O desfecho medido sai de
+ * `axisPosition` (`sleep/timing.ts`) e o `sd` de `stdDev` (`health/trends.ts`): os
+ * dois têm golden próprio sob **esta** versão desde a story 4.3, porque mexer neles
+ * move efeito e p sem tocar numa linha de `lua-protocolo.ts`.
+ *
+ * **`sleep/lua.ts` fica de fora deste golden, de propósito** — ele tem o seu, ao
+ * lado de {@link JANELA_LUNAR_VERSAO}. Ver o docblock de lá: são duas versões, e não
+ * uma, porque o motor e a régua não mudam pelo mesmo motivo.
  *
  * 1 — 29/09/2026, story 4.2b: o motor como a 4.2a o entregou.
  */
 export const MOTOR_LUNAR_VERSAO = 1;
+
+/**
+ * A versão da **régua** — qual noite entra em qual coluna.
+ *
+ * Ela cobre `sleep/lua.ts`: `JANELA_LUNAR_NOITES`, `HORA_UTC_DO_FIM_DA_NOITE`, a
+ * borda aberta à direita e a **lógica** que os usa. Os três valores já tinham coluna
+ * própria em cada execução, mas a lógica podia mudar sem que nenhum deles mudasse —
+ * e mudou duas vezes em setembro de 2026: o instante da noite foi do entardecer para
+ * o fim dela, e a hora foi de 11:00 para 08:00 UTC. Sem esta versão, duas execuções
+ * com a mesma janela, a mesma hora e a mesma borda seriam **indistinguíveis** mesmo
+ * com a régua reescrita no meio.
+ *
+ * ## Por que duas versões, e não uma
+ *
+ * {@link MOTOR_LUNAR_VERSAO} cobre `lua-protocolo.ts` — a aritmética que produz
+ * efeito, p e poder. Esta cobre `lua.ts` — a classificação. Juntá-las faria uma
+ * mudança de janela subir a versão do motor, **dizendo a coisa errada**: o motor não
+ * mudou, a régua mudou. É o que o golden da 4.2b já declarava quando deixou `lua.ts`
+ * de fora; esta constante é o outro lado que faltava.
+ *
+ * ## Como ela é presa, e o limite honesto disso
+ *
+ * `architecture.test.ts` guarda o sha256 do fonte de `sleep/lua.ts` **e de
+ * `astro/moon.ts`** com este número ao lado: mexer em qualquer um dos dois sem subir
+ * a versão reprova a suíte. A efeméride entra aqui, e não no motor, porque o que ela
+ * decide é *qual noite é qual* — `nextLunarPhase` dá o instante da fase, e é o
+ * instante que põe a noite dentro ou fora da janela. O que o motor lhe pede é só
+ * `PHASE_ORDER`, que é ordem de nomes e não aritmética. **Um hash não
+ * distingue comentário de fórmula** — então quem mexeu só num comentário sobe o
+ * golden e deixa a versão onde está, e **diz isso na mensagem do commit**, porque
+ * ninguém consegue distinguir as duas coisas por um hash. É a mesma regra do golden
+ * do motor, e é ela que torna o mecanismo honesto em vez de mágico.
+ *
+ * 1 — 30/09/2026, story 4.3: a régua como o 08:00 UTC do fim da noite a deixou.
+ */
+export const JANELA_LUNAR_VERSAO = 1;
 
 /**
  * O primeiro `wakeDay` que o §3 admite no acervo: **23/04/2025**.
@@ -199,10 +253,13 @@ export const BORDAS_DA_JANELA: readonly BordaDaJanela[] =
  * código, fora de qualquer documento hasheado.
  *
  * O §10 de 28/09 nomeia a dívida: mudar um deles depois de ver o resultado desloca
- * a coluna testada **sem quebrar o build**. A barreira que os cobraria é decisão da
- * story 4.3; até ela existir, o que há é este carimbo — e ele não impede nada, só
- * torna a mudança visível depois do fato, porque duas execuções com janelas
- * diferentes ficam lado a lado na mesma tabela.
+ * a coluna testada **sem quebrar o build**. Desde a story 4.3 a metade que se podia
+ * fechar está fechada: o golden de `lua.ts` em `architecture.test.ts`, com
+ * {@link JANELA_LUNAR_VERSAO} ao lado, **impede** a mudança silenciosa.
+ *
+ * O carimbo continua, e continua sendo outra coisa — ele não impede, torna a mudança
+ * visível depois do fato, porque duas execuções com janelas diferentes ficam lado a
+ * lado na mesma tabela, e a versão da régua vai gravada ao lado delas.
  */
 export interface OperacionalizacaoLunar {
   /** `JANELA_LUNAR_NOITES`: quantas noites antes da fase formam a exposição. */

@@ -45,6 +45,7 @@ import {
   CADEIA_DO_PRE_REGISTRO,
   CADEIA_MINIMA,
   DIGEST_DA_CADEIA,
+  JANELA_LUNAR_VERSAO,
   MOTOR_LUNAR_VERSAO,
   operacionalizacaoLunar,
   type BordaDaJanela,
@@ -160,6 +161,7 @@ export interface LuaExecucaoRow {
   hora_utc_do_fim_da_noite: number;
   borda_direita: string;
   motor_versao: number;
+  janela_versao: number;
   pedido_desde: string;
   acervo_noites: number;
   acervo_noites_distintas: number;
@@ -199,7 +201,7 @@ export interface LuaExecucaoRow {
  */
 export const LUA_EXECUCAO_COLUMNS =
   'user_id,execucao_id,rodada_em,cadeia,cadeia_digest,janela_noites,'
-  + 'hora_utc_do_fim_da_noite,borda_direita,motor_versao,pedido_desde,acervo_noites,'
+  + 'hora_utc_do_fim_da_noite,borda_direita,motor_versao,janela_versao,pedido_desde,acervo_noites,'
   + 'acervo_noites_distintas,acervo_noites_colapsadas,'
   + 'acervo_de,acervo_ate,acervo_sd_min,acervo_origem_do_eixo_h,acervo_noites_sem_luz,'
   + 'acervo_primeira_noite_sem_luz,fase,familia,alfa,lateralidade,direcao,veredito,'
@@ -229,6 +231,12 @@ export interface ExecucaoLunar {
   operacionalizacao: OperacionalizacaoLunar;
   /** Com que aritmética o veredito saiu — {@link MOTOR_LUNAR_VERSAO} no momento. */
   motorVersao: number;
+  /**
+   * Com que **régua** as colunas foram formadas — {@link JANELA_LUNAR_VERSAO} no
+   * momento. Separada de {@link motorVersao} porque a lógica de `sleep/lua.ts` muda
+   * sem que janela, hora e borda mudem: aconteceu duas vezes em setembro de 2026.
+   */
+  janelaVersao: number;
   /** O alcance pedido e o que o colapso de noites fez, no momento da execução. */
   pedido: PedidoDaExecucao;
   veredito: VereditoLunarCompleto;
@@ -384,7 +392,7 @@ function acervoDaLinha(r: LuaExecucaoRow): AcervoLunar {
 function assinaturaDaExecucao(r: LuaExecucaoRow): string {
   return JSON.stringify([
     r.execucao_id, r.rodada_em, r.cadeia, r.cadeia_digest, r.janela_noites,
-    r.hora_utc_do_fim_da_noite, r.borda_direita, r.motor_versao, r.pedido_desde,
+    r.hora_utc_do_fim_da_noite, r.borda_direita, r.motor_versao, r.janela_versao, r.pedido_desde,
     r.acervo_noites, r.acervo_noites_distintas, r.acervo_noites_colapsadas,
     r.acervo_de, r.acervo_ate, r.acervo_sd_min,
     r.acervo_origem_do_eixo_h, r.acervo_noites_sem_luz, r.acervo_primeira_noite_sem_luz,
@@ -485,6 +493,7 @@ export function toLuaExecucao(linhas: readonly LuaExecucaoRow[]): ExecucaoLunar 
       bordaDireita: um(BORDAS_DA_JANELA, primeira.borda_direita, 'borda_direita'),
     },
     motorVersao: primeira.motor_versao,
+    janelaVersao: primeira.janela_versao,
     pedido: {
       desde: primeira.pedido_desde,
       noitesColapsadas: primeira.acervo_noites_colapsadas,
@@ -828,6 +837,7 @@ export async function gravarExecucaoLunar(
     hora_utc_do_fim_da_noite: op.horaUtcDoFimDaNoite,
     borda_direita: op.bordaDireita,
     motor_versao: MOTOR_LUNAR_VERSAO,
+    janela_versao: JANELA_LUNAR_VERSAO,
     pedido_desde: pedido.desde,
     acervo_noites: a.noites,
     acervo_noites_distintas: a.noitesDistintas,

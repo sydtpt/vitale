@@ -30,8 +30,9 @@
 #
 # ## Antes de rodar isto
 #
-# O ensaio. Ele não é opcional: o `constraint trigger`, as policies por verbo e os dezenove
-# CHECKs deste arquivo só são exercidos por um Postgres de verdade, e o cenário existe.
+# O ensaio. Ele não é opcional: o `constraint trigger`, as policies por verbo e os 45
+# CHECKs deste arquivo (17 nomeados + 28 de coluna) só são exercidos por um Postgres de
+# verdade, e o cenário existe. **E ele não foi rodado**: `ENSAIADO_EM` abaixo está vazio.
 #
 #   supabase/ensaio/subir.sh
 #   supabase/ensaio/preparar.sh
@@ -58,8 +59,22 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 SQL="$REPO/supabase/migrations/20260928130000_lua_execucoes.sql"
 VERSAO=20260928130000
 NOME=lua_execucoes
-# O arquivo que foi ensaiado — se o sha não bater, alguém mexeu depois do ensaio.
-SHA_ENSAIADO=41fb1ce1ba076cbc75b6505b6cbd9192642182175b4f1db2cf2bb5d3f8731174
+# ## Duas perguntas, dois campos — e elas não são a mesma pergunta
+#
+# `SHA_ESPERADO` responde *"é o arquivo que este roteiro espera?"*. `ENSAIADO_EM` responde
+# *"isto passou por um Postgres de verdade?"*. Até 30/09/2026 havia **um** campo chamado
+# `SHA_ENSAIADO`, e o roteiro imprimia `✓ o arquivo é o que foi ensaiado` — uma afirmação
+# **falsa**, porque nada foi ensaiado: o campo era só o sha de hoje, atualizado no mesmo
+# commit que editava o `.sql`. Um guarda que falharia alto tinha virado um carimbo que mente.
+#
+# `SHA_ESPERADO` é cobrado por barreira: `architecture.test.ts` calcula o sha256 do `.sql`
+# que a linha `SQL=` abaixo aponta e compara com este valor. Editar a migração sem atualizar
+# aqui reprova a suíte do núcleo, e não mais só na janela com o token já no keychain.
+#
+# `ENSAIADO_EM` fica **vazio enquanto ninguém ensaiar** — e é assim que ele está hoje. O ato
+# 1 diz isso em letras grandes e não deixa passar em silêncio.
+SHA_ESPERADO=cf6dd5fb2960c79eccd81b9b13884da05532ef7310f0d552961c3686410ff6e9
+ENSAIADO_EM=
 REF=svyyuhxkblufhfvfvqte
 URL="https://api.supabase.com/v1/projects/$REF/database/query"
 SO_ENSAIO=0
@@ -82,22 +97,69 @@ ok "token no keychain"
 
 [ -f "$SQL" ] || falha "não achei a migração em $SQL"
 sha=$(shasum -a 256 "$SQL" | cut -d' ' -f1)
-[ "$sha" = "$SHA_ENSAIADO" ] \
-  || falha "o arquivo mudou depois do ensaio (sha $sha, esperado $SHA_ENSAIADO). Reensaie antes de aplicar."
-ok "o arquivo é o que foi ensaiado (sha bate)"
+[ "$sha" = "$SHA_ESPERADO" ] \
+  || falha "o .sql não é o que este roteiro espera (sha $sha, esperado $SHA_ESPERADO).
+       Se a migração mudou de propósito, atualize SHA_ESPERADO — e ENSAIADO_EM volta a vazio,
+       porque o arquivo ensaiado deixou de existir."
+ok "o .sql é o que este roteiro espera (sha bate)"
+
+# A prova de ensaio, que é OUTRA pergunta. Vazio não é um detalhe: é o estado de hoje.
+if [ -z "$ENSAIADO_EM" ]; then
+  printf '\n  ⚠ este .sql NÃO foi ensaiado — ENSAIADO_EM está vazio.\n'
+  printf '    O `constraint trigger`, as policies por verbo e os 45 CHECKs não foram exercidos\n'
+  printf '    por Postgres nenhum. Rode o ensaio (as cinco linhas acima), preencha ENSAIADO_EM\n'
+  printf '    com a data e só então aplique. Seguir sem isso é aplicar em produção um SQL que\n'
+  printf '    ninguém executou.\n'
+else
+  ok "ensaiado em $ENSAIADO_EM"
+fi
 
 antes=$(consultar "select
   (select count(*) from information_schema.tables
      where table_schema = 'public' and table_name = 'lua_execucoes') as tabela,
+  (select count(*) from information_schema.columns
+     where table_schema = 'public' and table_name = 'lua_execucoes'
+       and column_name = 'janela_versao') as tem_janela_versao,
   (select count(*) from supabase_migrations.schema_migrations) as migrations,
   (select count(*) from supabase_migrations.schema_migrations where version = '$VERSAO') as ja_registrada") \
   || falha "produção não respondeu à leitura"
 tabela=$(jq -r '.[0].tabela' <<< "$antes")
+tem_jv=$(jq -r '.[0].tem_janela_versao' <<< "$antes")
 migrations=$(jq -r '.[0].migrations' <<< "$antes")
 ja=$(jq -r '.[0].ja_registrada' <<< "$antes")
 
+# ## O estado PARCIALMENTE aplicado, e quando usar o `alter table`
+#
+# A coluna `janela_versao` entrou na migração em 30/09 (story 4.3), depois de ela ser
+# mergeada e antes de ser aplicada. Se por qualquer motivo a tabela já estiver de pé **sem**
+# a coluna — alguém aplicou de um checkout anterior, ou aplicou à mão —, o roteiro não tem
+# como seguir: a coluna é `not null` e a story proíbe segunda migração. Sem este ramo o
+# script abortava sem saída nenhuma.
+#
+# Isto **não é uma migração**, é um resgate: é por isso que ele é impresso e não executado, e
+# por isso ele não vale como caminho normal (o normal é `drop constraint` + `add constraint`
+# em migration, como a barreira do vocabulário lembra). Depois dele o arquivo `.sql` continua
+# dizendo a verdade sobre o schema, que é o que um `db diff` futuro compara.
+#
+# `default 1` é o valor certo por dois motivos: se a tabela está vazia ele é indiferente, e se
+# tem linha, essa linha rodou com a régua da v1 — que é justamente o que a coluna afirma. O
+# default sai logo depois, senão um insert que esqueça a coluna carimba 1 em silêncio.
+if [ "$tabela" != "0" ] && [ "$tem_jv" = "0" ]; then
+  falha "a tabela lua_execucoes existe SEM a coluna janela_versao — estado parcialmente aplicado.
+       Rode isto UMA vez, e depois volte ao ato 3 deste roteiro:
+
+         alter table public.lua_execucoes
+           add column if not exists janela_versao smallint not null default 1
+           check (janela_versao >= 1 and janela_versao <= 1000);
+         alter table public.lua_execucoes alter column janela_versao drop default;
+       — e o \`comment on column\` da coluna, copiado do .sql, palavra por palavra.
+
+       Confira depois que \`colunas\` deu 39, que \`checks\` deu 45 e que o CHECK apareceu
+       com o nome lua_execucoes_janela_versao_check."
+fi
+
 [ "$tabela" = "0" ] \
-  || falha "a tabela lua_execucoes JÁ existe — a migração já foi aplicada. Pule para o ato 3."
+  || falha "a tabela lua_execucoes JÁ existe, com a coluna janela_versao — a migração já foi aplicada. Pule para o ato 3."
 [ "$ja" = "0" ] \
   || falha "a versão $VERSAO já está em schema_migrations sem a tabela existir. Alguém registrou à mão; resolva isso antes."
 ok "lua_execucoes ainda não existe, e $migrations migrations estão registradas"
@@ -110,6 +172,8 @@ fi
 printf '\n── 2. Aplicar ──────────────────────────────────────────\n'
 printf 'Isto CRIA a tabela lua_execucoes, duas funções e um constraint trigger em PRODUÇÃO.\n'
 printf 'Nada existente é alterado, e o app instalado continua funcionando.\n'
+# O aviso do ato 1 rolou para cima trinta linhas atrás. Ele volta aqui, onde a decisão é.
+[ -z "$ENSAIADO_EM" ] && printf '\n⚠ ESTE .sql NÃO FOI ENSAIADO (ENSAIADO_EM está vazio).\n\n'
 printf 'Digite "aplicar" para seguir: '
 read -r resposta
 [ "$resposta" = "aplicar" ] || falha "cancelado — nada foi escrito"
@@ -143,16 +207,22 @@ depois=$(consultar "select
   || falha "a migração aplicou, mas a conferência não respondeu. Rode as consultas do ato 3 à mão."
 
 jq -r '.[0] | to_entries[] | "  \(.key): \(.value)"' <<< "$depois"
-# `colunas` 38 e `checks` >= 19: os 17 nomeados mais os de coluna. A conferência exata dos
-# nomes é do `architecture.test.ts`, que roda offline; aqui o que se quer é que nada tenha
-# sumido no caminho até o Postgres.
-esperado='{"linhas":0,"colunas":38,"com_rls":1,"policies":2,"policy_select":1,"policy_insert":1,"policy_proibida":0,"gatilho_deferido":1,"funcoes":2}'
-for k in linhas colunas com_rls policies policy_select policy_insert policy_proibida gatilho_deferido funcoes; do
+# `colunas` 39 (38 da 4.2b + `janela_versao`, que a story 4.3 acrescentou antes de a migração
+# ser aplicada) e `checks` 45: **17 nomeados + 28 de coluna**, contados do próprio `.sql`.
+#
+# O piso antigo era `-ge 19`, e ele era folgado de um jeito que escondia o próprio propósito:
+# numa tabela com 45 constraints `contype='c'`, aceitar 19 é passar com **26 ausentes**. Agora
+# é igualdade, e os dois números são cobrados contra o `.sql` por barreira offline
+# (`architecture.test.ts`) — se um deles estiver errado, a suíte do núcleo reprova ANTES da
+# janela, em vez de o ato 3 descobrir a divergência depois de escrever em produção.
+#
+# A conferência exata dos NOMES é do `architecture.test.ts`; aqui o que se quer é que nada
+# tenha sumido no caminho até o Postgres.
+esperado='{"linhas":0,"colunas":39,"com_rls":1,"policies":2,"policy_select":1,"policy_insert":1,"policy_proibida":0,"gatilho_deferido":1,"funcoes":2,"checks":45}'
+for k in linhas colunas com_rls policies policy_select policy_insert policy_proibida gatilho_deferido funcoes checks; do
   v=$(jq -r ".[0].$k" <<< "$depois"); e=$(jq -r ".$k" <<< "$esperado")
   [ "$v" = "$e" ] || falha "conferência falhou em $k: esperado $e, veio $v"
 done
-checks=$(jq -r '.[0].checks' <<< "$depois")
-[ "$checks" -ge 19 ] || falha "a tabela tem $checks CHECKs e eram ao menos 19 — algum sumiu no caminho"
 m=$(jq -r '.[0].migrations' <<< "$depois")
 [ "$m" = "$((migrations + 1))" ] || falha "migrations registradas: esperado $((migrations + 1)), veio $m"
 

@@ -101,6 +101,7 @@ begin
     'hora_utc_do_fim_da_noite', 8,
     'borda_direita', 'aberta',
     'motor_versao', 1,
+    'janela_versao', 1,
     'pedido_desde', v_marca,
     'acervo_noites', 400,
     'acervo_noites_distintas', 400,
@@ -242,12 +243,21 @@ begin
     raise exception 'D: sobraram % linhas depois do update e do delete recusados', v_n;
   end if;
 
-  -- ── E. Os CHECKs, um por um, pelo NOME: 17 nomeados + 2 de coluna ──────────
+  -- ── E. Os CHECKs, um por um, pelo NOME: 17 nomeados + 4 de coluna ──────────
   --
   -- Cada caso muda UM campo da primeira das quatro linhas e espera a constraint
   -- nomeada que corresponde. Conferir o nome, e não a mensagem, é o que impede que
   -- um caso passe por violar outra coisa: `constraint_name` sai do diagnóstico do
   -- Postgres, não da nossa leitura.
+  --
+  -- **O recorte, dito em voz alta.** A tabela tem 45 constraints `contype='c'`: as 17
+  -- nomeadas e 28 de coluna. Estão aqui as 17 — cada uma é uma invariante que só
+  -- existe em texto SQL — e **quatro** de coluna: as que não são piso ou lista óbvios
+  -- e onde o modo de falha já custou algo. `janela_noites` (teto), `cadeia` (o `case`
+  -- que preserva o nome da constraint) e as duas **versões**, que o piso `>= 1`
+  -- sozinho deixava chegar a 32767 e estourar o `smallint` no insert. As outras 24 são
+  -- `>= 0` e `in (…)` conferidos offline, coluna por coluna, pelas barreiras do
+  -- vocabulário e do `NULO =` em `architecture.test.ts`.
   v_casos := jsonb_build_array(
     jsonb_build_object('nome', 'falta_tem_numero_e_unidade',
       'patch', jsonb_build_object('falta_unidade', null)),
@@ -297,9 +307,17 @@ begin
       'patch', jsonb_build_object('acervo_primeira_noite_sem_luz', null)),
     jsonb_build_object('nome', 'colunas_cabem_no_acervo',
       'patch', jsonb_build_object('noites_fora', 331)),
-    -- Os dois CHECKs de coluna que a revisão apontou, com o nome que o Postgres dá.
+    -- Os CHECKs de coluna do recorte, com o nome que o Postgres dá.
     jsonb_build_object('nome', 'lua_execucoes_janela_noites_check',
       'patch', jsonb_build_object('janela_noites', 31)),
+    -- **As duas versões, e o teto que faltava.** O piso `>= 1` sozinho aceitava
+    -- qualquer número até 32767, e acima dele o `smallint` estoura no insert da
+    -- execução autorizada — erro de tipo cru, sem nome de constraint, no único
+    -- caminho que escreve. Estes dois casos são o teto de 1000 sendo cobrado.
+    jsonb_build_object('nome', 'lua_execucoes_janela_versao_check',
+      'patch', jsonb_build_object('janela_versao', 1001)),
+    jsonb_build_object('nome', 'lua_execucoes_motor_versao_check',
+      'patch', jsonb_build_object('motor_versao', 1001)),
     -- **A cadeia que não é lista.** Com `and`, o planejador pode avaliar
     -- `jsonb_array_length` antes do `jsonb_typeof` e levantar 22023 CRU, sem nome de
     -- constraint. O `case` é o que garante a ordem — e é isso que este caso mede.
