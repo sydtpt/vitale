@@ -125,11 +125,23 @@ let lastReconcileAt = 0;
  * push (mesmo treino gravado no HealthKit por mais de um app). Sem await — o
  * resultado aparece na próxima leitura; falha (offline) é silenciosa, o cron
  * do connections-ingest cobre.
+ *
+ * A varredura também é o **único gancho que enriquece as cidades** de quem não
+ * tem provider vinculado (o `enrichCities` mora dentro dela), e é por isso que
+ * `motivo` existe:
+ *
+ * - `'push'` — atividade nova. Estrangulado, porque syncs em rajada não têm o
+ *   que mesclar de novo a cada minuto.
+ * - `'rotas'` — rota que chegou atrasada pelo `retryMissingRoutes`. **Ignora o
+ *   estrangulamento de propósito.** O `enrichCities` exige `has_route = true`,
+ *   que só acabou de ser gravado: se esta chamada não sair, a atividade fica
+ *   sem cidades para sempre, porque nada mais volta nela. Era o que acontecia —
+ *   a chamada saía antes do retry e com `pushed = 0`.
  */
-function requestServerReconcile(pushed: number): void {
-  if (pushed <= 0) return;
+function requestServerReconcile(trabalho: number, motivo: 'push' | 'rotas'): void {
+  if (trabalho <= 0) return;
   const now = Date.now();
-  if (now - lastReconcileAt < RECONCILE_THROTTLE_MS) return;
+  if (motivo === 'push' && now - lastReconcileAt < RECONCILE_THROTTLE_MS) return;
   lastReconcileAt = now;
   void supabase.functions
     .invoke('connections-ingest', { body: { mode: 'reconcile' } })
@@ -156,7 +168,10 @@ async function collectRoutes(
   let done = 0;
   for (const w of workouts) {
     if (hasGpsRoute(w.activityId)) {
-      const points = await fetchWorkoutRoute(w.id);
+      // `answered` não muda nada aqui: a atividade é nova e `has_route` tem de
+      // ser gravado de um jeito ou de outro. O `false` é recuperável — o
+      // `retryMissingRoutes` volta nela enquanto estiver na janela.
+      const { points } = await fetchWorkoutRoute(w.id);
       if (points.length > 0) map.set(w.id, points);
     }
     onStep?.(++done, total);
@@ -315,10 +330,17 @@ async function retryMissingRoutes(userId: string): Promise<number> {
 
   let count = 0;
   for (const activity of missing) {
-    const points = await fetchWorkoutRoute(activity.id);
+    const { points, answered } = await fetchWorkoutRoute(activity.id);
     if (points.length === 0) {
-      // HealthKit não tem a rota: torna has_route honesto p/ não re-tentar à toa.
-      if (activity.hasRoute) {
+      /**
+       * Vazio só é veredito quando o HealthKit **respondeu**. Com o aparelho
+       * trancado ele recusa dado protegido (`Code=6`), e gravar `false` aí
+       * apagava a rota de um treino que tem rota: sem linha em
+       * `activity_routes` não há piso, e com `has_route = false` o
+       * `enrichCities` nunca enriquece as cidades. Passada a janela de
+       * `ROUTE_RETRY_DAYS`, era permanente.
+       */
+      if (answered && activity.hasRoute) {
         await setActivityHasRoute(supabase, userId, activity.id, false);
       }
       continue;
@@ -438,7 +460,7 @@ export async function syncType(
     const a = await pushActivities(rows);
     const r = await pushRoutes(routes, userId);
     onProgress?.(1);
-    requestServerReconcile(a.pushed);
+    requestServerReconcile(a.pushed, 'push');
 
     const failed = [...a.failed, ...r.failed];
     if (failed.length) await enqueue(failed);
@@ -526,7 +548,7 @@ export async function syncDelta(opcoes: OpcoesDoDelta = {}): Promise<SyncResult>
       }
     }
     const r = await pushRoutes(routes, userId);
-    requestServerReconcile(a.pushed + drained);
+    requestServerReconcile(a.pushed + drained, 'push');
 
     // Liga os treinos NOVOS às tarefas (conclui/gera a ocorrência do dia). Só no
     // delta — nunca no backfill por tipo (syncType), p/ não gerar tarefas de 3 anos.
@@ -582,6 +604,12 @@ export async function syncDelta(opcoes: OpcoesDoDelta = {}): Promise<SyncResult>
     } catch (e) {
       console.warn('[sync] retry de rotas falhou:', e instanceof Error ? e.message : e);
     }
+
+    // 4b. A rota que chegou agora ainda não passou pelo enriquecimento: a
+    //     varredura do push saiu ANTES deste passo, e num sync que só recupera
+    //     rota ela nem sai (`pushed = 0`). Sem esta chamada a atividade fica
+    //     com rota e sem cidades, para sempre.
+    requestServerReconcile(retriedRoutes, 'rotas');
 
     // 5. Piso das pedaladas novas (ADR 0035). Depois das rotas de propósito: o
     //    passe lê `route_overview`, que só existe depois que a rota subiu.

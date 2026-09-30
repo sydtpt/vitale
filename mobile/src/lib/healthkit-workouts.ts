@@ -31,19 +31,50 @@ export const WORKOUT_PERMISSIONS: readonly HealthTypeId[] = [
   HK.dateOfBirth,
 ];
 
-/** Busca os pontos GPS de um treino. Retorna [] se não houver rota (ex.: indoor). */
-export function fetchWorkoutRoute(id: string): Promise<RoutePoint[]> {
-  const inner = healthSource.queryWorkoutRoute(id).then((locations) =>
-    locations
-      .filter((l) => typeof l.latitude === 'number' && typeof l.longitude === 'number')
-      .map((l) => ({
-        latitude: l.latitude,
-        longitude: l.longitude,
-        altitude: typeof l.altitude === 'number' ? l.altitude : undefined,
-        timestamp: typeof l.timestamp === 'string' ? l.timestamp : undefined,
-      })),
-  );
-  return withTimeout(inner, []);
+/**
+ * O resultado de ler a rota de um treino.
+ *
+ * `points` vazio só quer dizer "este treino não tem rota" quando `answered` é
+ * `true`. Com o aparelho trancado o HealthKit recusa dado protegido
+ * (`Code=6`), e o app é acordado exatamente assim pelo observer; a consulta
+ * também pode estourar o tempo. Nesses casos o vazio não é resposta, e quem
+ * grava veredito a partir dele apaga a rota — e com ela as cidades e o piso.
+ */
+export interface RouteRead {
+  readonly points: RoutePoint[];
+  /** `false` = o HealthKit não respondeu (recusa ou tempo esgotado). */
+  readonly answered: boolean;
+}
+
+/** O HealthKit não respondeu: vazio que **não** é veredito. */
+const ROTA_SEM_RESPOSTA: RouteRead = { points: [], answered: false };
+
+/**
+ * Busca os pontos GPS de um treino.
+ *
+ * `{ points: [], answered: true }` quando o treino realmente não tem rota
+ * (indoor, por exemplo); `{ points: [], answered: false }` quando o HealthKit
+ * recusou ou não respondeu a tempo. Ver `RouteRead`.
+ */
+export function fetchWorkoutRoute(id: string): Promise<RouteRead> {
+  const inner = healthSource
+    .queryWorkoutRoute(id)
+    .then((locations) => ({
+      points: locations
+        .filter((l) => typeof l.latitude === 'number' && typeof l.longitude === 'number')
+        .map((l) => ({
+          latitude: l.latitude,
+          longitude: l.longitude,
+          altitude: typeof l.altitude === 'number' ? l.altitude : undefined,
+          timestamp: typeof l.timestamp === 'string' ? l.timestamp : undefined,
+        })),
+      answered: true,
+    }))
+    // A recusa vira "não respondeu" — a migalha já foi registrada no provider.
+    // Sem este `catch` a rejeição ficaria pendurada até o timeout do
+    // `withTimeout`, que não tem tratamento de erro.
+    .catch(() => ROTA_SEM_RESPOSTA);
+  return withTimeout(inner, ROTA_SEM_RESPOSTA);
 }
 
 /**

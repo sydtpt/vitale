@@ -134,16 +134,28 @@ const metersToMiles = (m: number) => m / METERS_PER_MILE;
  * do contrato tipar `RawSample.value` como `number`.
  */
 /**
+ * A falha de uma consulta ao HealthKit vira migalha, visível em
+ * Configurações › Dados. Único lugar que formata `hk-query-fail`.
+ */
+function registrarFalha(tipo: string, e: unknown): void {
+  void recordBreadcrumb('hk-query-fail', `${tipo}: ${e instanceof Error ? e.message : String(e)}`);
+}
+
+/**
  * Degrada uma consulta que falhou para o valor vazio, **registrando antes**.
  *
  * Devolver `[]` no erro é deliberado: uma métrica indisponível não pode derrubar
  * o sync das outras. O problema era fazer isso em silêncio — o resultado ficava
  * indistinguível de "não há dado", e o sintoma só aparecia semanas depois como
  * buraco no histórico. Agora a falha vira migalha, visível em Configurações › Dados.
+ *
+ * **Não serve para a rota.** Lá o vazio não é só ruído de uma métrica: ele vira
+ * `has_route = false`, e daí a atividade perde cidades e piso — ver
+ * `queryWorkoutRoute`.
  */
 function degradar<T>(tipo: string, vazio: T): (e: unknown) => T {
   return (e) => {
-    void recordBreadcrumb('hk-query-fail', `${tipo}: ${e instanceof Error ? e.message : String(e)}`);
+    registrarFalha(tipo, e);
     return vazio;
   };
 }
@@ -463,8 +475,23 @@ export const kingstinctHealthSource: HealthSource = {
           timestamp: l.date.toISOString(),
         })),
       );
-    } catch {
-      return [];
+    } catch (e) {
+      /**
+       * **Relança em vez de devolver `[]`.** Com o iPhone trancado o HealthKit
+       * recusa todo dado protegido (`Code=6 HKErrorDatabaseInaccessible`,
+       * "Protected health data is inaccessible"), e o app é acordado assim toda
+       * vez que o observer dispara com a tela bloqueada. Devolver vazio aqui
+       * fazia a recusa virar o mesmo valor de "este treino não tem rota" —
+       * indistinguíveis. O chamador então gravava `has_route = false`, a rota
+       * não subia, e a atividade perdia **cidades e piso** de uma vez, sem
+       * migalha nenhuma (esta era a única consulta que não passava por
+       * `degradar`). Diagnosticado em 29/09/2026 numa pedalada nova.
+       *
+       * Quem chama decide o que fazer com a recusa; o que não pode é confundi-la
+       * com ausência. Ver `fetchWorkoutRoute` (`healthkit-workouts.ts`).
+       */
+      registrarFalha('workoutRoute', e);
+      throw e;
     }
   },
 
