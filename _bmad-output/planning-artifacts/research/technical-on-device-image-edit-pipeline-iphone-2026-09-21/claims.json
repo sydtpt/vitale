@@ -1,0 +1,12 @@
+[
+ {"claim":"Foundation Models aceita imagem (iOS 27)","class":"version","pub_date":"2026-06"},
+ {"claim":"coreai-models piso iOS 27 / issues abertas","class":"version","pub_date":"2026-09"},
+ {"claim":"klein 4B MLX no iPhone 17 Pro 9,9-12,2 s","class":"perf","pub_date":"2026-08"},
+ {"claim":"Bonsai 9,4-12 s","class":"perf","pub_date":"2026-05"},
+ {"claim":"throttling GPU vs ANE","class":"perf","pub_date":"2026-06"},
+ {"claim":"Gemma 4 E2B pico de memória","class":"memory","pub_date":"2026-07"},
+ {"claim":"Flux2Pipeline no iPhone 17 Pro (PR 252)","class":"capability","pub_date":"2026-09"},
+ {"claim":"GPU em segundo plano no iPhone","class":"capability","pub_date":"2026-02"},
+ {"claim":"licenças dos pesos","class":"licence","pub_date":"2026-01"},
+ {"claim":"Vision ClassifyImageRequest: 1.303 rótulos, sem landscape/selfie (dump)","class":"capability","pub_date":"2022-01"}
+]
