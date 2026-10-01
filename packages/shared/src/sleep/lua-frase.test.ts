@@ -44,19 +44,28 @@ import {
 } from './lua-protocolo';
 import {
   ALFA_DO_GRUPO,
+  ANTES_DA_FASE,
   APOIO_SEM_LEITURA,
+  APOIO_SEM_NUMERO,
+  DATA_DO_PRE_REGISTRO,
   FASES_DA_FAMILIA,
   FRASE_SEM_LEITURA,
+  LIMIAR_EM_PALAVRAS,
   NOME_DA_FASE,
   PALAVRA_DO_VEREDITO,
+  RAZAO_DO_GRUPO,
+  ROTULO_CURTO_DA_FASE,
+  ROTULO_DA_FAMILIA,
   SEM_LEITURA,
   apoioDoBloco,
   comporFraseColetiva,
   fraseColetivaDe,
+  fraseDaFalha,
   numeroDoBloco,
   numeroDoEfeito,
   numeroDoQueFalta,
   ordinalDaExecucao,
+  type CausaDaFalhaLunar,
   type FraseColetiva,
   type LinhaDaFamilia,
 } from './lua-frase';
@@ -73,10 +82,14 @@ import {
 const FALTA_POR_FASE: Readonly<Record<LunarPhaseKind, number>> = {
   new: 101,
   firstQuarter: 202,
-  full: 303,
+  // **O sentinela do limiar.** Ele é o próprio 15, e está aqui porque a guarda
+  // `digitosForaDoLimiar` já tirava **toda** ocorrência de "15" do texto antes de
+  // procurar dígito: um `falta.quanto` igual ao limiar vazava para a frase sem
+  // ninguém ver. Com esta fase pedindo 15, um vazamento daqui tem de reprovar.
+  full: LIMIAR_PRATICO_MIN,
   lastQuarter: 404,
 };
-const SOMA_PROIBIDA = 101 + 202 + 303 + 404;
+const SOMA_PROIBIDA = 101 + 202 + LIMIAR_PRATICO_MIN + 404;
 
 interface Pedido {
   veredito: VereditoLunar;
@@ -145,9 +158,18 @@ function asOitentaEUma(): Readonly<Record<LunarPhaseKind, Pedido>>[] {
 const tuplas = asOitentaEUma();
 assert.equal(tuplas.length, 81, 'o espaço pós-execução é 3⁴ — se não são 81, a varredura mudou');
 
-/** Os dígitos que sobram num texto depois de tirar o limiar — tem de ser nenhum. */
+/**
+ * Os dígitos que sobram num texto depois de tirar o limiar — tem de ser nenhum.
+ *
+ * **Tira a frase do limiar, e não o número dele.** `split('15')` removia qualquer
+ * ocorrência de `15` em qualquer posição, então um `falta.quanto` de 15 passava pela
+ * guarda inteiro: a única varredura que prova que nenhum número sobe tinha um buraco
+ * do tamanho exato do valor mais provável de aparecer nela. Tirando só
+ * `LIMIAR_EM_PALAVRAS` — *"15 minutos"*, a forma em que o limiar legitimamente
+ * aparece —, um 15 solto volta a ser dígito que sobra.
+ */
 function digitosForaDoLimiar(texto: string): string {
-  return texto.split(String(LIMIAR_PRATICO_MIN)).join('').replace(/\D/g, '');
+  return texto.split(LIMIAR_EM_PALAVRAS).join(' ').replace(/\D/g, '');
 }
 
 function conferirLinha(l: LinhaDaFamilia, onde: string): void {
@@ -176,6 +198,15 @@ function conferirLinha(l: LinhaDaFamilia, onde: string): void {
   assert.ok(!texto(l).includes(String(SOMA_PROIBIDA)), `${onde}: a soma das unidades subiu`);
   assert.ok(!texto(l).includes('quatro fases'), `${onde}: "quatro fases" é o denominador proibido`);
   assert.ok(!texto(l).includes('das quatro'), `${onde}: "das quatro" é o denominador proibido`);
+  // A leitura do leitor de tela existe em toda tupla, carrega os dois
+  // compartimentos, e **não gagueja**: o rótulo entra uma vez só.
+  assert.ok(l.leitura.includes(l.placar), `${onde}: a leitura perdeu o placar`);
+  assert.ok(l.leitura.includes(l.porque), `${onde}: a leitura perdeu o porquê`);
+  assert.ok(l.leitura.startsWith(l.rotulo), `${onde}: a leitura não começa pelo rótulo da família`);
+  assert.ok(
+    !l.leitura.startsWith(`${l.rotulo}. ${l.rotulo}`),
+    `${onde}: a leitura repete o rótulo — "${l.leitura}"`,
+  );
 }
 
 function texto(l: LinhaDaFamilia): string {
@@ -434,6 +465,108 @@ for (const m of TODOS_OS_MOTIVOS) {
 }
 console.log('ok — o motivo real quando é um, a partição quando são mistos');
 
+/* ──── Motivo NÃO gravado não vira "sem poder" — é a gaveta da story 2.6 ──── */
+
+/**
+ * `f.motivo ?? 'poder'` transformava um `inconclusivo` com motivo nulo na afirmação
+ * *"rodou sem poder"*. `numeroDoBloco` devolve `null` para a **mesma** linha: o bloco
+ * não imprimia nada e a frase afirmava um motivo — a tela inteira dizendo as duas
+ * coisas. Ausência não vira poder; ela vira a terceira fatia da partição.
+ */
+{
+  /** A mesma fase, com o motivo apagado — o que o banco pode devolver. */
+  const apagarMotivo = (f: ResultadoDaFase): ResultadoDaFase => ({
+    ...f, motivo: null, portaoReprovado: null, falta: null,
+  });
+
+  const todasSemMotivo = comporFraseColetiva(
+    quatro({
+      new: { veredito: 'inconclusivo' },
+      firstQuarter: { veredito: 'inconclusivo' },
+      full: { veredito: 'inconclusivo' },
+      lastQuarter: { veredito: 'inconclusivo' },
+    }).map(apagarMotivo),
+    0,
+  );
+  for (const l of todasSemMotivo.linhas) {
+    conferirLinha(l, `sem motivo · ${l.familia}`);
+    assert.ok(
+      !l.porque.includes('sem poder'),
+      `motivo nulo não pode sair como "sem poder" — "${l.porque}"`,
+    );
+    assert.match(l.porque, /não diz por quê/);
+    assert.match(l.porque, /cada bloco diz qual/);
+  }
+  // E o bloco concorda com a frase: sem motivo não há número.
+  const nua = apagarMotivo(fase('new', { veredito: 'inconclusivo' }));
+  assert.equal(numeroDoBloco(nua), null, 'sem motivo não há unidade, então não há número');
+
+  // Misto: duas com motivo e uma sem. A frase diz as três fatias e não elege nenhuma.
+  const misto = comporFraseColetiva(
+    [
+      apagarMotivo(fase('new', { veredito: 'inconclusivo' })),
+      fase('firstQuarter', { veredito: 'inconclusivo', motivo: 'amostra' }),
+      fase('full', { veredito: 'inconclusivo', motivo: 'poder' }),
+      fase('lastQuarter', { veredito: 'inconclusivo', motivo: 'poder' }),
+    ],
+    0,
+  );
+  assert.match(misto.asTres.porque, /uma parou num portão/i);
+  assert.match(misto.asTres.porque, /uma rodou sem poder/);
+  assert.match(misto.asTres.porque, /uma veio sem motivo gravado/);
+  assert.match(misto.asTres.porque, /cada bloco diz qual, e em que unidade\./);
+  assert.equal(digitosForaDoLimiar(misto.asTres.porque), '', 'nem aqui sobe número');
+}
+console.log('ok — motivo nulo entra na partição em vez de virar "sem poder"');
+
+/* ──── O sentido do deslocamento não se inventa a partir de nada ──── */
+
+/**
+ * `(efeitoMin ?? 0) < 0` fazia um efeito **não medido** e um efeito **exatamente
+ * zero** saírem os dois como *"ficou mais tarde"* — direção afirmada sem medição
+ * atrás. `apoioDoBloco` é cuidadoso nisso por escrito (*"zero seria mentira"*); a
+ * frase não era.
+ */
+{
+  const comEfeito = (f: LunarPhaseKind, efeitoMin: number | null): ResultadoDaFase => ({
+    ...fase(f, { veredito: 'achado' }), efeitoMin,
+  });
+  const naoMedido = comporFraseColetiva(
+    [
+      comEfeito('new', null),
+      fase('firstQuarter', { veredito: 'inconclusivo' }),
+      comEfeito('full', 0),
+      fase('lastQuarter', { veredito: 'inconclusivo' }),
+    ],
+    0,
+  );
+  for (const l of naoMedido.linhas) conferirLinha(l, `sentido sem medida · ${l.familia}`);
+  assert.match(naoMedido.asTres.porque, /mudou numa direção que não foi medida/);
+  assert.ok(
+    !naoMedido.asTres.porque.includes('ficou mais tarde'),
+    'sem efeito medido não se afirma a direção do atraso',
+  );
+  assert.match(naoMedido.cheia.porque, /não se deslocou em direção nenhuma/);
+  assert.ok(
+    !naoMedido.cheia.porque.includes('ficou mais tarde'),
+    'zero não é uma direção: era exatamente o que o operador de coalescência afirmava',
+  );
+
+  // E a elipse da segunda oração coordenada obedece à mesma régua.
+  const duasSemMedida = comporFraseColetiva(
+    [
+      comEfeito('new', 21),
+      comEfeito('firstQuarter', null),
+      fase('full', { veredito: 'inconclusivo' }),
+      comEfeito('lastQuarter', 0),
+    ],
+    0,
+  );
+  assert.match(duasSemMedida.asTres.porque, /em direção não medida/);
+  assert.match(duasSemMedida.asTres.porque, /sem deslocamento/);
+}
+console.log('ok — direção não medida e zero não viram "ficou mais tarde"');
+
 /* ─────────── A luz é global, e ganha de qualquer outro motivo ─────────── */
 
 {
@@ -460,21 +593,59 @@ console.log('ok — o motivo real quando é um, a partição quando são mistos'
     assert.equal(digitosForaDoLimiar(l.porque), '', 'nem o número das noites sem luz sobe');
   }
 
-  // E a luz ganha mesmo quando os motivos por fase dizem outra coisa: o portão é
-  // propriedade do acervo, e ele é cobrado primeiro.
-  const contraOsOutros = comporFraseColetiva(
-    quatro({
-      new: { veredito: 'inconclusivo', motivo: 'poder' },
-      firstQuarter: { veredito: 'inconclusivo', motivo: 'amostra' },
-      full: { veredito: 'inconclusivo', motivo: 'ciclos' },
-      lastQuarter: { veredito: 'inconclusivo', motivo: 'poder' },
-    }),
-    1,
+  // **E a incoerência é recusada, nas duas direções.** O portão é global às quatro,
+  // então `acervo.noitesSemLuz` e os quatro `portaoReprovado` são a MESMA afirmação
+  // em duas colunas. Antes, um acervo com noite sem luz e fases paradas em outros
+  // portões fazia a frase dizer "global às quatro" enquanto cada bloco nomeava outro
+  // motivo — as duas na mesma tela, e a frase escolhendo em silêncio por qual metade
+  // falar.
+  assert.throws(
+    () => comporFraseColetiva(
+      quatro({
+        new: { veredito: 'inconclusivo', motivo: 'poder' },
+        firstQuarter: { veredito: 'inconclusivo', motivo: 'amostra' },
+        full: { veredito: 'inconclusivo', motivo: 'ciclos' },
+        lastQuarter: { veredito: 'inconclusivo', motivo: 'poder' },
+      }),
+      1,
+    ),
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.match(e.message, /noitesSemLuz = 1 com 0 de 4/);
+      assert.match(e.message, /fetchUltimaExecucaoLunar/, 'a mensagem diz o primeiro passo');
+      return true;
+    },
+    'acervo sem luz com as fases paradas em outro portão é incoerência, não caso',
   );
-  assert.match(contraOsOutros.cheia.porque, /O portão da luz reprovou/);
-  assert.match(contraOsOutros.asTres.porque, /global às quatro/);
+  // O inverso: as quatro no portão da luz com o acervo dizendo zero noites sem luz.
+  assert.throws(
+    () => comporFraseColetiva(
+      quatro({
+        new: { veredito: 'inconclusivo', motivo: 'luz' },
+        firstQuarter: { veredito: 'inconclusivo', motivo: 'luz' },
+        full: { veredito: 'inconclusivo', motivo: 'luz' },
+        lastQuarter: { veredito: 'inconclusivo', motivo: 'luz' },
+      }),
+      0,
+    ),
+    /noitesSemLuz = 0 com 4 de 4/,
+    'as quatro na luz com o acervo em zero também é incoerência',
+  );
+  // E uma só na luz, que é o que o motor nunca produz: o portão não é por fase.
+  assert.throws(
+    () => comporFraseColetiva(
+      quatro({
+        new: { veredito: 'inconclusivo', motivo: 'luz' },
+        firstQuarter: { veredito: 'inconclusivo', motivo: 'amostra' },
+        full: { veredito: 'inconclusivo', motivo: 'poder' },
+        lastQuarter: { veredito: 'inconclusivo', motivo: 'poder' },
+      }),
+      1,
+    ),
+    /1 de 4/,
+  );
 }
-console.log('ok — a luz vem primeiro e ganha de qualquer outro motivo');
+console.log('ok — a luz vem primeiro, e discordar do acervo é recusado nas duas direções');
 
 /* ─────────────────────── O estado pré-execução ─────────────────────── */
 
@@ -489,8 +660,62 @@ console.log('ok — a luz vem primeiro e ganha de qualquer outro motivo');
     assert.ok(!l.placar.includes('decidiu'), 'antes da primeira execução ninguém decidiu nada');
   }
   assert.match(FRASE_SEM_LEITURA.asTres.porque, /as quatro rodam juntas, ou nenhuma roda/);
+
+  // **Congelada até o fundo.** Ela é um singleton de módulo que `fraseColetivaDe(null)`
+  // entrega a todo chamador: um `frase.cheia.placar = …` em qualquer tela mudaria o
+  // quarto estado do app inteiro, para sempre. `Object.freeze` na superfície deixava
+  // `linhas` e cada linha mutáveis.
+  assert.ok(Object.isFrozen(FRASE_SEM_LEITURA), 'a frase');
+  assert.ok(Object.isFrozen(FRASE_SEM_LEITURA.linhas), 'a tupla das duas linhas');
+  for (const l of FRASE_SEM_LEITURA.linhas) assert.ok(Object.isFrozen(l), `a linha ${l.familia}`);
+  assert.throws(
+    () => {
+      (FRASE_SEM_LEITURA.cheia as { placar: string }).placar = 'A cheia decidiu.';
+    },
+    TypeError,
+    'o quarto estado não se reescreve por atribuição',
+  );
+  assert.equal(FRASE_SEM_LEITURA.cheia.placar, 'A cheia não foi lida.');
 }
-console.log('ok — o quarto estado tem a mesma forma, com o verbo da ausência de leitura');
+console.log('ok — o quarto estado tem a mesma forma, congelado até o fundo');
+
+/* ───────── A falha de leitura NÃO é o quarto estado, e desenha ───────── */
+
+/**
+ * *Não deu para ler* e *nunca rodou* são afirmações diferentes sobre a pilha de
+ * tentativas, e a falha tem **frase própria** por uma razão medida: hoje
+ * `lua_execucoes` não existe, as duas leituras lançam, e com a linha de entrada
+ * desenhando só no estado `pronto` o pé do caderno Sono ficava vazio e `/sono/lua`
+ * ficava **inalcançável** — a única porta da página mora nessa linha.
+ *
+ * E *falha de rede* não é *falha de integridade*: a primeira pede tentar de novo, a
+ * segunda pede consertar dado e nunca melhora tentando.
+ */
+{
+  const CAUSAS: readonly CausaDaFalhaLunar[] = ['rede', 'integridade'];
+  for (const causa of CAUSAS) {
+    const f = fraseDaFalha(causa);
+    for (const l of f.linhas) conferirLinha(l, `falha ${causa} · ${l.familia}`);
+    assert.ok(Object.isFrozen(f.linhas), `a falha ${causa} também é congelada até o fundo`);
+    // Nenhuma falha afirma que a primeira execução não rodou: isso é o quarto estado.
+    for (const l of f.linhas) {
+      assert.ok(
+        !l.porque.includes('ainda não rodou'),
+        `a falha ${causa} não pode afirmar que nenhuma execução rodou`,
+      );
+      assert.ok(!l.placar.includes('decidiu'), 'quem não foi lido não decidiu nada');
+    }
+    assert.notDeepEqual(f, FRASE_SEM_LEITURA, `a falha ${causa} não é o quarto estado`);
+  }
+  assert.notDeepEqual(
+    fraseDaFalha('rede'),
+    fraseDaFalha('integridade'),
+    'rede manda tentar de novo; integridade manda consertar — a frase não pode ser a mesma',
+  );
+  assert.match(fraseDaFalha('rede').cheia.porque, /Isto não diz que nenhuma rodou/);
+  assert.match(fraseDaFalha('integridade').cheia.porque, /tentar de novo devolve o mesmo/);
+}
+console.log('ok — a falha de leitura tem frase própria, e a de integridade tem a dela');
 
 /* ────────────── A execução truncada diz o que fazer ────────────── */
 
@@ -595,8 +820,35 @@ console.log('ok — o número de cada bloco sai com a unidade dele');
   const semPoder = apoioDoBloco(fase('full', { veredito: 'inconclusivo', motivo: 'poder' }));
   assert.ok(semPoder.some((l) => l.includes('poder')), 'o poder medido é a razão, e aparece');
   assert.ok(!semPoder.some((l) => l.includes('unilateral')), 'a lateralidade não decidiu aqui');
+
+  /**
+   * **O piso: nunca lista vazia.** `inconclusivo` por poder com dispersão
+   * degenerada sai sem `falta`, sem `p`, sem `poder` e sem efeito — então
+   * `numeroDoBloco` devolve `null`, nenhuma medida entra, e o bloco imprimia **só o
+   * nome da fase e a palavra "inconclusivo"**: a variante curta que a ADR 0045 §3
+   * proíbe, na fase em que menos se pode encurtar.
+   */
+  const degenerada: ResultadoDaFase = {
+    ...fase('new', { veredito: 'inconclusivo', motivo: 'poder' }),
+    efeitoMin: null, p: null, zDeMannWhitney: null, poder: null,
+    efeitoMinimoDetectavelMin: null, falta: null, noitesPara80: null,
+  };
+  assert.equal(numeroDoBloco(degenerada), null, 'sem a conta, não há número no bloco');
+  const apoioDaDegenerada = apoioDoBloco(degenerada);
+  assert.ok(apoioDaDegenerada.length > 0, 'o bloco sem número não encolhe — ele diz que não há');
+  assert.equal(apoioDaDegenerada[0], APOIO_SEM_NUMERO);
+  // E toda fase de todo veredito tem ao menos uma linha de apoio: é a invariante,
+  // não o caso.
+  for (const f of PHASE_ORDER) {
+    for (const v of TODOS) {
+      assert.ok(
+        apoioDoBloco(fase(f, { veredito: v })).length > 0,
+        `a fase ${f} em ${v} ficou sem linha de apoio`,
+      );
+    }
+  }
 }
-console.log('ok — as linhas de apoio dizem o que foi medido e o que não foi');
+console.log('ok — as linhas de apoio dizem o que foi medido, o que não foi, e nunca somem');
 
 /* ────────────────── A moldura e os cabeçalhos de família ────────────────── */
 
@@ -605,13 +857,32 @@ console.log('ok — as linhas de apoio dizem o que foi medido e o que não foi')
   assert.equal(ordinalDaExecucao(1), '1ª execução');
   assert.equal(ordinalDaExecucao(6), '6ª execução');
   assert.throws(() => ordinalDaExecucao(-1), RangeError);
+  // **Fração não é contagem.** `Number.isFinite` aceitava `2.5`, e
+  // `formatarNumero(2.5, 0)` arredondava: a página imprimia "3ª execução" debaixo de
+  // uma mensagem que diz "não é uma contagem". `Number.isInteger` é o que a mensagem
+  // descreve.
+  for (const n of [2.5, 0.5, -0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => ordinalDaExecucao(n), RangeError, `${String(n)} não é uma contagem`);
+  }
 
   // O α impresso é o do protocolo, e o arredondado dos documentos vem com a
   // divisão ao lado: 1,67% é MAIS FROUXO que 5/3 %.
+  //
+  // **Os dois saem das constantes, e o teste não pina literal nenhum.** Pinar
+  // `'α 1,67% (0,05 / 3)'` provava que alguém digitou o mesmo texto duas vezes; o que
+  // tem de ser verdade é que o texto é o α do protocolo, e isso só se prova
+  // derivando o esperado do mesmo lugar de onde o código deriva.
   assert.equal(ALFA_DA_CHEIA, 0.05);
-  assert.match(ALFA_DO_GRUPO.cheia, new RegExp(`α ${String(ALFA_DA_CHEIA * 100)}%`));
-  assert.match(ALFA_DO_GRUPO.cheia, /unilateral/);
-  assert.match(ALFA_DO_GRUPO['as-tres'], /α 1,67% \(0,05 \/ 3\)/);
+  assert.equal(
+    ALFA_DO_GRUPO.cheia,
+    `α ${(ALFA_DA_CHEIA * 100).toFixed(0)}% · unilateral · direção do atraso`,
+  );
+  assert.equal(
+    ALFA_DO_GRUPO['as-tres'],
+    `α ${(ALFA_DAS_TRES * 100).toFixed(2).replace('.', ',')}% `
+    + `(${ALFA_DA_CHEIA.toFixed(2).replace('.', ',')} / ${String(FASES_DA_FAMILIA['as-tres'].length)}) `
+    + '· bilateral',
+  );
   assert.match(ALFA_DO_GRUPO['as-tres'], /bilateral/);
   assert.ok(
     Math.abs(ALFA_DAS_TRES - 0.05 / 3) < 1e-12,
@@ -638,5 +909,40 @@ console.log('ok — as linhas de apoio dizem o que foi medido e o que não foi')
   }
   assert.equal(NOME_DA_FASE.full, 'Lua cheia');
   assert.equal(NOME_DA_FASE.lastQuarter, 'Quarto minguante');
+
+  // **O vocabulário de fase mora num lugar só.** São três formas do mesmo nome — o
+  // do bloco, o da oração e o curto da figura —, e a tela que declarava o curto por
+  // conta podia rebatizar uma fase sem nada reclamar.
+  for (const f of PHASE_ORDER) {
+    for (const [onde, mapa] of [
+      ['NOME_DA_FASE', NOME_DA_FASE],
+      ['ANTES_DA_FASE', ANTES_DA_FASE],
+      ['ROTULO_CURTO_DA_FASE', ROTULO_CURTO_DA_FASE],
+    ] as const) {
+      assert.ok(mapa[f].length > 0, `${onde} não nomeia ${f}`);
+    }
+    assert.ok(Object.isFrozen(ROTULO_CURTO_DA_FASE), 'o rótulo curto é congelado');
+  }
+  assert.equal(ROTULO_CURTO_DA_FASE.firstQuarter, 'crescente');
+  assert.equal(new Set(Object.values(ROTULO_CURTO_DA_FASE)).size, PHASE_ORDER.length);
+
+  // **O limiar com a unidade concordando com ele** — a lição do "1 dias".
+  assert.equal(LIMIAR_EM_PALAVRAS, `${String(LIMIAR_PRATICO_MIN)} minutos`);
+  assert.ok(LIMIAR_EM_PALAVRAS.includes(String(LIMIAR_PRATICO_MIN)), 'o número é o da constante');
+
+  // **A data do pré-registro sai de uma fonte, e a razão do grupo deriva dela.**
+  // As três prosas que a citam — a razão, o versalete da página e o rodapé do método
+  // — eram texto digitado três vezes, e corrigir uma deixava as outras duas mentindo.
+  for (const familia of ['cheia', 'as-tres'] as const) {
+    assert.ok(
+      RAZAO_DO_GRUPO[familia].includes(DATA_DO_PRE_REGISTRO[familia]),
+      `a razão do grupo ${familia} não cita a data declarada`,
+    );
+  }
+  assert.notEqual(DATA_DO_PRE_REGISTRO.cheia, DATA_DO_PRE_REGISTRO['as-tres']);
+  assert.ok(Object.isFrozen(DATA_DO_PRE_REGISTRO));
+
+  // O rótulo de família é o mesmo que a leitura usa — uma fonte, não duas.
+  assert.deepEqual(Object.keys(ROTULO_DA_FAMILIA).sort(), ['as-tres', 'cheia']);
 }
-console.log('ok — a moldura, os α por família e o vocabulário dos quatro blocos');
+console.log('ok — a moldura, os α derivados, as datas e o vocabulário dos quatro blocos');

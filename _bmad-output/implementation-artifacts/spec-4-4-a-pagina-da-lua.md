@@ -1,9 +1,9 @@
 ---
 title: 'Story 4.4 — A página da lua'
 type: 'feature'
-created: '2026-10-02'
-status: 'in-progress'
-review_loop_iteration: 0
+created: '2026-10-01'
+status: 'done'
+review_loop_iteration: 1
 baseline_commit: '67ab2a91732ec31a111f9d8e6b2363eb7079b8ad'
 context:
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-revista-retrospectiva-2026-09-07/EXPERIENCE.md'
@@ -114,31 +114,63 @@ declara a garantia anti-atenuação.
   tema** — devolve a folha velha, sem erro.
 - `docs/decisions/0045-*.md` § *Emenda de 2026-10-01* -- o que a linha de entrada tem de
   cumprir, e por que a garantia é sobre ela e não sobre a página.
+- `mobile/src/lib/anuario.ts` + `__tests__/anuario.test.ts` -- **o molde do hospedeiro puro**,
+  e o cabeçalho de lá diz por quê: enquanto as transições viviam dentro do hook, nada as
+  executava. É o padrão que `mobile/src/lib/lua.ts` segue desde a revisão de 01/10.
+- `packages/shared/src/sleep/lua-carimbo.ts:95` -- `CADEIA_DO_PRE_REGISTRO` carrega **arquivo e
+  sha256**, e nenhuma data. É por isso que as duas datas do pré-registro são declaradas uma vez
+  em `DATA_DO_PRE_REGISTRO` (`lua-frase.ts`) e derivadas dali nas três prosas que as citam, em
+  vez de saírem da cadeia.
+- `packages/shared/src/astro/casa.ts:45` -- `COORDENADA_DA_LUZ`, a latitude que a covariável
+  realmente usa. O rodapé do método a deriva de lá em vez de redigitar `~50,8° N`.
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `packages/shared/src/sleep/lua-frase.ts` -- **novo**: a regra de composição dos quatro
+- [x] `packages/shared/src/sleep/lua-frase.ts` -- **novo**: a regra de composição dos quatro
   passos como função pura, recebendo as quatro `ResultadoDaFase` + `acervo.noitesSemLuz` e
   devolvendo as duas linhas com os dois compartimentos. Inclui o estado pré-execução.
-- [ ] `packages/shared/src/sleep/lua-frase.test.ts` -- a regra varrida por **tupla**, não por
+- [x] `packages/shared/src/sleep/lua-frase.test.ts` -- a regra varrida por **tupla**, não por
   caso escolhido: as 81 combinações geram texto, nenhuma lança, nenhuma devolve compartimento
   vazio, o placar concorda com o numeral nos dois denominadores, e a luz global ganha de
   qualquer outro motivo.
-- [ ] `mobile/src/hooks/useVereditoLunar.ts` -- **novo**: união discriminada no molde de
+- [x] `mobile/src/hooks/useVereditoLunar.ts` -- **novo**: união discriminada no molde de
   `useAnuarioDoAno`, lendo `fetchUltimaExecucaoLunar` e `contarExecucoesLunares`. **Não** chama
   `vereditoLunar`.
-- [ ] `mobile/src/app/sono/lua.tsx` -- **novo**: a sub-página. A figura das quatro janelas, a
+- [x] `mobile/src/app/sono/lua.tsx` -- **novo**: a sub-página. A figura das quatro janelas, a
   frase coletiva, a moldura em campos, os quatro blocos agrupados por família com o α e a razão
   no cabeçalho de cada grupo, e o rodapé do método com a cadeia, o contador e `aritmética v1`.
-- [ ] `mobile/src/app/_layout.tsx` -- registrar a rota, com `slide_from_right`.
-- [ ] `mobile/src/app/revista/[tipo]/[inicio].tsx` -- a **linha de entrada** no pé do caderno
+- [x] `mobile/src/app/_layout.tsx` -- registrar a rota, com `slide_from_right`.
+- [x] `mobile/src/app/revista/[tipo]/[inicio].tsx` -- a **linha de entrada** no pé do caderno
   Sono, carregando o mesmo texto da frase coletiva e abrindo a sub-página. Ver Design Notes
   para a fiação.
-- [ ] `mobile/src/lib/__tests__/lua-fiacao.test.ts` -- **novo**, no molde de
+- [x] `mobile/src/lib/__tests__/lua-fiacao.test.ts` -- **novo**, no molde de
   `anuario-fiacao.test.ts`: a linha de entrada **carrega o veredito**, não um rótulo autorado.
   Sem esta barreira, apagar a leitura deixa a emenda da ADR 0045 **falsa com tudo verde**.
-- [ ] `packages/shared/src/index.ts` -- exportar `./sleep/lua-frase`.
+- [x] `packages/shared/src/index.ts` -- exportar `./sleep/lua-frase`.
+
+**Rodada de revisão 1 (01/10) — o que ela acrescentou:**
+- [x] `mobile/src/lib/lua.ts` + `__tests__/lua.test.ts` -- **novos**, no molde de
+  `lib/anuario.ts`: o estado e as transições da leitura, a composição da entrada
+  (`veredito → EntradaDaLua`), os cinco campos da moldura, `dataCurta`, `ciclosPorFase` e a
+  geometria da figura. **Tudo o que a barreira de texto não conseguia cobrar** — ela prova que
+  a chamada existe, nunca que o valor está certo.
+- [x] `useVereditoLunar` passa a ter **cinco** estados: `carregando`, `pronto`, `sem-sessao` e
+  `falhou` por `rede` ou por `integridade`. E recebe `ativo`: a leitura disparava em toda
+  edição, inclusive no postal e no anuário, onde nenhum `Caderno` renderiza.
+- [x] A **falha de leitura desenha a linha e abre a rota**. Sem isso a feature era invisível em
+  produção até a janela da migração — ver Design Notes.
+- [x] A moldura, os grupos e o rodapé desenham **nos cinco estados**, e não só no `pronto`.
+- [x] A barreira da linha passa a cobrar o **verbo** (`push`, nunca `replace`), os `params`, e a
+  **tipografia da linha** (corpo, tinta `ink`, ausência de itálico nos dois compartimentos).
+- [x] A barreira da rolagem passa a cobrar as **três** formas: o embrulho acima do `map`, o
+  embrulho **dentro** do callback, e o `onLayout` descido para dentro do card. O `it` da linha
+  da lua foi **apagado** — ele não discriminava nada.
+- [x] No núcleo: `particaoDosMotivos` sem `?? 'poder'`, `sentidoDe` honesto sobre nulo e zero,
+  coerência do portão global da luz, `apoioDoBloco` sem variante curta, `ordinalDaExecucao` por
+  `Number.isInteger`, `FRASE_SEM_LEITURA` congelada até o fundo, `ALFA_DO_GRUPO` e as datas
+  derivados das constantes, `LIMIAR_EM_PALAVRAS` com concordância, `ROTULO_CURTO_DA_FASE` e
+  `LinhaDaFamilia.leitura`.
 
 **Acceptance Criteria:**
 - Given as 81 tuplas, when a regra roda em cada uma, then nenhuma lança e nenhuma devolve
@@ -153,7 +185,7 @@ declara a garantia anti-atenuação.
 
 ## Design Notes
 
-**A fiação da linha de entrada — a decisão que vai ao CHECKPOINT.** O `Caderno` é genérico
+**A fiação da linha de entrada — o CHECKPOINT, e a resposta dele.** O `Caderno` é genérico
 sobre `CadernoId` e já recebe `lapides={lapides[c.caderno]}`; `CadernoNaVista` não tem campo
 por caderno. Duas formas:
 
@@ -164,6 +196,26 @@ por caderno. Duas formas:
 2. **Nó injetado, como `antesDaCapa`.** Funciona, mas põe o `Caderno` recebendo JSX de uma
    feature específica — e a `anuario-fiacao` existe justamente porque um nó injetado pode virar
    `null` sem nada reclamar.
+
+> **A resposta do CHECKPOINT: opção 1, aprovada pelo dono.** A prop carrega a frase já
+> composta, e desde a revisão de 01/10 quem compõe é `entradaDaLua`, em `mobile/src/lib/lua.ts`
+> — função pura, fora do React, pelo motivo medido: dentro da rota a composição só podia ser
+> coberta por barreira de texto, e trocar a execução lida por `null` passava em 85 suítes.
+
+**A moldura desenha nos cinco estados, e a falha desenha a linha.** A matriz de I/O congelada
+tem uma linha que **confunde tabela vazia com tabela ausente**, e elas são ramos diferentes: a
+migração não foi aplicada, então as duas leituras lançam e o estado real hoje é a **falha**, não
+o quarto estado. Enquanto a linha só desenhava no `pronto`, o pé do caderno Sono ficava vazio e
+`/sono/lua` ficava **inalcançável** em produção — a única porta da página mora nessa linha.
+A implementação separa os cinco estados e desenha a linha nos dois que têm resposta (quarto
+estado e falha); **a linha da matriz continua como o dono a escreveu**, porque ela é dele, e a
+correção dela é renegociação que só ele faz.
+
+**Silenciar o caderno Sono esconde a lua — decidido, e escrito.** A linha mora no **pé do
+caderno**; sem o caderno não há pé, e não há outro lugar na edição que lhe pertença. Quando o
+dono cala o Sono na Diagramação (Story 2.5), a edição não tem entrada para a lua, e por `ativo`
+ela nem lê a tabela. As alternativas — pôr a linha num caderno que não é o dela, ou solta na
+edição — desfazem a decisão de UX de que a lua é página *dentro* do Sono.
 
 **A âncora que esta story pode quebrar em silêncio.** A linha entra **dentro** do caderno Sono,
 então não muda a origem das âncoras acima dele — mas muda a posição dos cadernos **depois**. A
@@ -187,23 +239,66 @@ aparecer `exit 1` sem `not ok`, a causa é outra e pede `/orbe-depurar` em vez d
 
 ## Verification
 
-**Commands:**
-- `pnpm --filter @vitale/shared lint` -- expected: exit 0
-- `pnpm --filter @vitale/shared test` -- expected: **exit 0**
-- `pnpm --filter @vitale/web build` -- expected: exit 0
-- `pnpm --filter @vitale/web test` -- expected: exit 0
-- `pnpm --filter @vitale/scripts lint` -- expected: exit 0
-- `pnpm --filter @vitale/scripts test` -- expected: exit 0
-- `cd mobile && pnpm exec tsc --noEmit` -- expected: exit 0
-- `cd mobile && pnpm exec jest` -- expected: exit 0
-- `shasum -a 256` dos **quatro** documentos da cadeia -- expected: idênticos aos de antes da
-  story. A barreira do hash já os cobra; isto é a conferência de que a story não os tocou.
+**Os oito portões, um comando por linha.** Nunca com `&&`: uma corrente esconde o segundo
+comando quando o primeiro cai, e o que se quer saber é o exit code de **cada um**. Conferir por
+**exit code**, nunca por `grep` na saída.
 
-**Provas negativas — rodar, anotar e reverter. `cp` de backup, NUNCA `git checkout --`.**
-Confira a restauração por **sha256** e confirme que a mutação **entrou** antes de acreditar no
-resultado — uma prova que não muta nada é indistinguível de uma barreira que não guarda nada.
-- Apagar a leitura do veredito na linha de entrada **reprova** a barreira nova.
-- Trocar a frase composta por um rótulo autorado **reprova**.
-- Embrulhar o `map` dos cadernos numa `View` **reprova** o teste da rolagem ancorada.
-- `decidir` voltando a significar só `achado` **reprova** o teste da regra.
-- Somar as unidades de motivos diferentes **reprova**.
+1. `pnpm --filter @vitale/shared lint` -- expected: exit 0
+2. `pnpm --filter @vitale/shared test` -- expected: **exit 0**
+3. `pnpm --filter @vitale/web build` -- expected: exit 0 (e apagar `web/dist` depois)
+4. `pnpm --filter @vitale/web test` -- expected: exit 0
+5. `pnpm --filter @vitale/scripts lint` -- expected: exit 0
+6. `pnpm --filter @vitale/scripts test` -- expected: exit 0
+7. `cd mobile && pnpm exec tsc --noEmit` -- expected: exit 0
+8. `cd mobile && pnpm exec jest` -- expected: exit 0
+
+> **O `test` do shared sai 123, não 1.** O script é
+> `find src -name '*.test.ts' -print0 | xargs -0 -n1 tsx`: o `xargs` continua depois de um
+> arquivo vermelho e sai **123** quando qualquer invocação falhou. A saída pode ter dezenas de
+> `ok` **depois** da falha, então ler a saída engana — vale o exit code.
+
+**O nono portão, que o CLAUDE.md lista e esta Verification omitia:**
+
+9. `cd mobile && pnpm dlx expo-doctor` -- expected: **20/21, exit 1** — e isto **não** é desta
+   story. A verificação que falha é *"Check that packages match versions required by installed
+   Expo SDK"*, por deriva de patch do Expo (12 pacotes atrás), que é o mesmo motivo pelo qual o
+   CI da `main` está vermelho. Esta story não acrescenta nem muda dependência nenhuma, então o
+   número tem de continuar 20/21: **21/21 ou 19/21 é sinal**, 20/21 é o estado herdado.
+
+**As sha256 dos quatro documentos da cadeia** -- expected: idênticos aos de antes da story. A
+barreira do hash já os cobra; isto é a conferência de que a story não os tocou.
+
+**Provas negativas — rodar isoladas, anotar e reverter. `cp` de backup, NUNCA `git checkout --`.**
+Confira a restauração por **sha256** e confirme que a mutação **entrou** (por `grep`) antes de
+acreditar no resultado — uma prova que não muta nada é indistinguível de uma barreira que não
+guarda nada. Rodadas em 01/10, todas reprovando e todas revertidas:
+
+*A fiação e a linha (as três que mataram a feature com a suíte verde):*
+- `frase: fraseColetivaDe(null)` no lugar da execução lida **reprova** (`lua.test.ts`).
+- Apertar o portão para `pronto && execucao !== null` **reprova**.
+- `router.push` → `router.replace` **reprova** (`lua-fiacao.test.ts`).
+- Rebaixar `luaPlacar` para 11 px em `ink3` e `luaPorque` para 9 px em itálico **reprova**.
+- O rótulo acessível voltando a concatenar `${l.rotulo}. ${l.placar}` **reprova**.
+- A moldura voltando para trás de um `pronto ?` **reprova**.
+
+*A rolagem ancorada (as duas formas novas):*
+- Embrulhar cada `<Caderno>` **dentro** do callback do `map` **reprova**.
+- Descer o `onLayout` para o `View style={styles.corpo}` **reprova**.
+
+*O redutor:*
+- Apagar a guarda de carga **reprova**.
+- `vereditoValePara` → `return true` **reprova**.
+
+*O núcleo e o hospedeiro:*
+- `particaoDosMotivos` voltando a `f.motivo ?? 'poder'` **reprova**.
+- `sentidoDe` voltando a `(efeitoMin ?? 0) < 0` **reprova**.
+- Remover a coerência do portão global da luz **reprova**.
+- `ordinalDaExecucao` voltando a `Number.isFinite` **reprova**.
+- `FRASE_SEM_LEITURA` congelada só na superfície **reprova**.
+- Remover o piso de `apoioDoBloco` **reprova**.
+- Um `falta.quanto` igual a **15** vazando para a frase **reprova** — e com a guarda antiga
+  (`split(String(LIMIAR_PRATICO_MIN))`) ele **passava** as duas varreduras de 81, medido.
+- `dataCurta` perdendo o `- 1` do índice do mês **reprova**.
+- `janelaNoites: 5` digitado no lugar de `JANELA_LUNAR_NOITES` **reprova**.
+- O limiar voltando a ser prosa fixa na página **reprova**.
+- A medida do ciclo sem a oração que reconcilia 30, 20 e 68% **reprova**.

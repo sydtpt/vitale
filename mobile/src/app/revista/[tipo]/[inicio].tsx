@@ -13,14 +13,12 @@ import {
   anoDoAnuario,
   cadernosVisiveis,
   desenhoDaCapa,
-  fraseColetivaDe,
   montarPostal,
   resolveRetroPrefs,
   rotuloDoCaderno,
   type CadernoId,
   type ActivityPhoto,
   type DesenhoDaCapa,
-  type FraseColetiva,
   type LapideNaEdicao,
   type LinhaDaFamilia,
   type TipoComRevista,
@@ -41,6 +39,7 @@ import { useGradeDaCapa } from '../../../hooks/useGradeDaCapa';
 import { useRolagemAncorada, type Ancora } from '../../../hooks/useRolagemAncorada';
 import { useRotaDaCapa } from '../../../hooks/useRotaDaCapa';
 import { useVereditoLunar } from '../../../hooks/useVereditoLunar';
+import { entradaDaLua, type EntradaDaLua } from '../../../lib/lua';
 import {
   ICONE_DO_CADERNO,
   TrocaRecusada,
@@ -455,30 +454,33 @@ function Edicao({ tipo, offset, now, bottom, antesDaCapa }: {
    * `Caderno` continua sem saber o que é a lua — ele recebe duas linhas de
    * família e as imprime.
    *
-   * A frase sai da **regra do núcleo** (`fraseColetivaDe`), que é a mesma que a
-   * sub-página usa: as duas dizem a mesma coisa, palavra por palavra, e é isso
-   * que prova que a linha não é resumo da página. `vereditoLunar()` **não** é
-   * chamado — a página e a linha leem a última execução gravada.
+   * **Quem compõe é `entradaDaLua`, em `lib/lua.ts`, e não esta linha.** A barreira
+   * de texto cobra a *presença* da chamada e nunca o *valor*: trocar a execução lida
+   * por `null` aqui passava em 85 suítes e fazia a linha imprimir *"não foi lida"*
+   * para sempre. Fora do React, a composição é comparada palavra por palavra com a
+   * regra do núcleo, que é a mesma que a sub-página usa — e é isso que prova que a
+   * linha não é resumo da página. `vereditoLunar()` **não** é chamado.
    *
-   * **Só no estado `pronto`.** Carregando desenha nada, e `sem-leitura` também:
-   * desenhar a linha ali faria o pé do caderno afirmar *"A cheia não foi lida"*
-   * — o quarto estado — antes de saber, em toda abertura da edição. É o mesmo
-   * molde do `antesDaCapa` do anuário, e pela mesma razão.
+   * **Carregando não desenha; a falha de leitura desenha.** O quarto estado (tabela
+   * vazia) e a falha (tabela ausente, que é o caso de hoje) são ramos diferentes, e
+   * esconder a linha na falha deixava `/sono/lua` **inalcançável** em produção até a
+   * migração — a única porta da página é esta linha. Ver `lib/lua.ts`.
+   *
+   * **Silenciar o caderno Sono esconde a lua, e isso está decidido.** A linha mora no
+   * **pé do caderno**; sem o caderno não há pé, e não há outro lugar na edição que lhe
+   * pertença. Então quando o dono cala o Sono na Diagramação (Story 2.5), a edição não
+   * tem entrada para a lua — e, por `ativo`, nem lê a tabela. A alternativa seria pôr
+   * a linha num caderno que não é o dela, ou solta na edição, e as duas desfazem a
+   * decisão de UX de que a lua é página *dentro* do Sono.
    */
-  const veredito = useVereditoLunar();
+  const temOCaderno = vista.tipo === 'edicao'
+    && vista.cadernos.some((c) => c.caderno === CADERNO_DA_LUA);
+  const veredito = useVereditoLunar(temOCaderno);
   const periodoDaLua = vista.tipo === 'edicao' ? vista.capa.periodo : '';
-  const lua = useMemo<Partial<Record<CadernoId, EntradaDaLua>>>(
-    () =>
-      veredito.estado === 'pronto'
-        ? {
-          [CADERNO_DA_LUA]: {
-            frase: fraseColetivaDe(veredito.execucao === null ? null : veredito.execucao.veredito),
-            periodo: periodoDaLua,
-          },
-        }
-        : {},
-    [veredito, periodoDaLua],
-  );
+  const lua = useMemo<Partial<Record<CadernoId, EntradaDaLua>>>(() => {
+    const entrada = entradaDaLua(veredito, periodoDaLua);
+    return entrada === undefined ? {} : { [CADERNO_DA_LUA]: entrada };
+  }, [veredito, periodoDaLua]);
 
   /**
    * A imagem da capa carimbada (Story 1.13), resolvida **fora** do `switch`:
@@ -1154,17 +1156,6 @@ const ROTA_DA_LUA = '/sono/lua' as const;
 const CADERNO_DA_LUA: CadernoId = 'sono';
 
 /**
- * A linha de entrada da lua, **já composta pela rota**.
- *
- * `frase` é o que a regra do núcleo produziu, e `periodo` é o que o cabeçalho da
- * sub-página imprime à direita — o período de onde o leitor saiu.
- */
-export interface EntradaDaLua {
-  readonly frase: FraseColetiva;
-  readonly periodo: string;
-}
-
-/**
  * A entrada da lua: **duas linhas, uma por família, dois compartimentos cada**, e
  * nenhum deles some em tupla nenhuma.
  *
@@ -1186,12 +1177,22 @@ export interface EntradaDaLua {
 function EntradaDaLuaNoPe({ entrada }: { entrada: EntradaDaLua }) {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
+  // **`push`, nunca `replace`.** O voltar da sub-página é `router.back()` puro, e a
+  // rolagem do chamador se preserva porque o `Stack` mantém a tela montada: com
+  // `replace`, a edição é desmontada, o voltar não tem para onde voltar e o caderno
+  // não é devolvido na posição. O Code Map da spec diz isso por escrito.
   const abrir = useCallback(() => {
     router.push({ pathname: ROTA_DA_LUA, params: { periodo: entrada.periodo } });
   }, [router, entrada.periodo]);
-  const lido = entrada.frase.linhas
-    .map((l) => `${l.rotulo}. ${l.placar} ${l.porque}`)
-    .join(' ');
+  // `l.leitura` sai da regra do núcleo, e é ela que impede a gagueira: o rótulo da
+  // família e o começo do placar são o mesmo texto, então concatenar os três
+  // compartimentos aqui dava *"A cheia. A cheia decidiu."* — legível na tela, onde os
+  // dois estão em degraus diferentes, e dito duas vezes por quem ouve.
+  //
+  // **O rótulo nomeia o destino**, e não só a dica: o `accessibilityHint` pode estar
+  // desligado nos Ajustes, e aí o alvo anunciava "botão" e o veredito, sem dizer que
+  // o toque abre uma página.
+  const lido = `${NOME_DO_DESTINO}. ${entrada.frase.linhas.map((l) => l.leitura).join(' ')}`;
   return (
     <Pressable
       onPress={abrir}
@@ -1202,7 +1203,7 @@ function EntradaDaLuaNoPe({ entrada }: { entrada: EntradaDaLua }) {
       style={({ pressed }) => [styles.lua, pressed && styles.pressed]}
     >
       <View style={styles.luaCorpo}>
-        <Text style={styles.eyebrowInterno}>A página da lua</Text>
+        <Text style={styles.eyebrowInterno}>{NOME_DO_DESTINO}</Text>
         {entrada.frase.linhas.map((l, i) => (
           <LinhaDaLua key={l.familia} l={l} primeira={i === 0} />
         ))}
@@ -1213,6 +1214,9 @@ function EntradaDaLuaNoPe({ entrada }: { entrada: EntradaDaLua }) {
     </Pressable>
   );
 }
+
+/** O nome do destino — o versalete da linha **e** a abertura do rótulo acessível. */
+const NOME_DO_DESTINO = 'A página da lua';
 
 const DICA_DA_LUA = 'Abre a página da lua, com a moldura do teste e um bloco por fase.';
 

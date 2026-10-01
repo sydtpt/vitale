@@ -68,7 +68,10 @@
 import { PHASE_ORDER, type LunarPhaseKind } from '../astro/moon';
 import { formatarNumero, porExtenso } from '../format/numero';
 import {
+  ALFA_DAS_TRES,
+  ALFA_DA_CHEIA,
   LIMIAR_PRATICO_MIN,
+  PODER_MINIMO,
   PROTOCOLO_LUNAR,
   type FamiliaLunar,
   type MotivoDoInconclusivo,
@@ -110,6 +113,37 @@ export const ANTES_DA_FASE: Readonly<Record<LunarPhaseKind, string>> = Object.fr
   firstQuarter: 'o quarto crescente',
   full: 'a cheia',
   lastQuarter: 'o quarto minguante',
+});
+
+/**
+ * O rótulo **curto** de cada fase — o que cabe sob uma janela de cinco células na
+ * figura do ciclo sinódico.
+ *
+ * Mora aqui, com os outros dois, porque vocabulário de fase em três arquivos é
+ * vocabulário que divergem: a tela que o declarava por conta própria podia
+ * rebatizar o quarto crescente sem nada reclamar, e o nome da fase é a única coisa
+ * que liga o disco destacado ao bloco que o explica.
+ */
+export const ROTULO_CURTO_DA_FASE: Readonly<Record<LunarPhaseKind, string>> = Object.freeze({
+  new: 'nova',
+  firstQuarter: 'crescente',
+  full: 'cheia',
+  lastQuarter: 'minguante',
+});
+
+/**
+ * A data em que **cada família** foi pré-registrada — a fonte única das três
+ * prosas que a citam.
+ *
+ * Ela não sai de {@link CADEIA_DO_PRE_REGISTRO} porque os elos da cadeia carregam
+ * arquivo e sha256, e nenhuma data: o que a cadeia afirma é *quais documentos
+ * autorizaram*, não *quando*. Então a data é declarada **uma** vez, aqui, e a razão
+ * do grupo, o versalete da página e o rodapé do método derivam dela — antes, as três
+ * eram prosa digitada três vezes, e corrigir uma deixava as outras duas mentindo.
+ */
+export const DATA_DO_PRE_REGISTRO: Readonly<Record<FamiliaLunar, string>> = Object.freeze({
+  cheia: '07 set 2026',
+  'as-tres': '28 set 2026',
 });
 
 /** A palavra de veredito, como o bloco a imprime. Três, nunca duas. */
@@ -154,11 +188,11 @@ export const TITULO_DO_GRUPO: Readonly<Record<FamiliaLunar, string>> = Object.fr
  */
 export const RAZAO_DO_GRUPO: Readonly<Record<FamiliaLunar, string>> = Object.freeze({
   cheia:
-    'Pré-registrada em 07 set 2026, com a direção tirada da literatura. A posição aqui é de '
-    + 'procedência, não de importância.',
+    `Pré-registrada em ${DATA_DO_PRE_REGISTRO.cheia}, com a direção tirada da literatura. A posição `
+    + 'aqui é de procedência, não de importância.',
   'as-tres':
-    'Nascidas juntas em 28 set 2026, sem direção na literatura — e é por isso que são bilaterais. '
-    + 'Entre as três a correção por multiplicidade se aplica inteira.',
+    `Nascidas juntas em ${DATA_DO_PRE_REGISTRO['as-tres']}, sem direção na literatura — e é por isso `
+    + 'que são bilaterais. Entre as três a correção por multiplicidade se aplica inteira.',
 });
 
 /**
@@ -170,9 +204,27 @@ export const RAZAO_DO_GRUPO: Readonly<Record<FamiliaLunar, string>> = Object.fre
  * intercalado, apagaria a fronteira que o agrupamento existe para desenhar (§11
  * de 28/09).
  */
+/**
+ * O α em porcento, como o cabeçalho o imprime — **derivado da constante**.
+ *
+ * Nenhum dos dois α é digitado: `1,67%` à mão é um número que concorda com o
+ * protocolo por acaso, e um teste que pine o literal passa a provar que alguém
+ * digitou o mesmo texto duas vezes. Ele é o arredondado, e é **mais frouxo** que
+ * 5/3 % — é por isso que a divisão vai escrita ao lado dele, e é por isso que ela
+ * também sai das constantes.
+ */
+function emPorcento(alfa: number, casas: number): string {
+  return formatarNumero(alfa * 100, casas);
+}
+
+/** Quantas fases a família das três tem — o divisor da correção por multiplicidade. */
+const FASES_POR_FAMILIA_DAS_TRES = PROTOCOLO_LUNAR.filter((l) => l.familia === 'as-tres').length;
+
 export const ALFA_DO_GRUPO: Readonly<Record<FamiliaLunar, string>> = Object.freeze({
-  cheia: 'α 5% · unilateral · direção do atraso',
-  'as-tres': 'α 1,67% (0,05 / 3) · bilateral',
+  cheia: `α ${emPorcento(ALFA_DA_CHEIA, 0)}% · unilateral · direção do atraso`,
+  'as-tres':
+    `α ${emPorcento(ALFA_DAS_TRES, 2)}% (${formatarNumero(ALFA_DA_CHEIA, 2)} / `
+    + `${String(FASES_POR_FAMILIA_DAS_TRES)}) · bilateral`,
 });
 
 /** As fases de cada família, **na ordem do protocolo** — a lunação, não a importância. */
@@ -219,6 +271,16 @@ export interface LinhaDaFamilia {
   readonly placar: string;
   /** Compartimento 2 — o quê, ou por quê. Nunca quanto. */
   readonly porque: string;
+  /**
+   * A linha como o **leitor de tela** a ouve, numa frase.
+   *
+   * Ela existe porque o rótulo e o começo do placar são o mesmo texto: *"A cheia"*
+   * acima de *"A cheia decidiu."* é legível na tela, onde os dois estão em degraus
+   * diferentes, e vira *"A cheia. A cheia decidiu."* quando alguém concatena os
+   * três compartimentos — a gagueira que ninguém vê e todo mundo que usa VoiceOver
+   * ouve. Quem monta o rótulo acessível lê **daqui**, e não concatena por conta.
+   */
+  readonly leitura: string;
 }
 
 /**
@@ -234,6 +296,17 @@ export interface FraseColetiva {
   readonly linhas: readonly [LinhaDaFamilia, LinhaDaFamilia];
 }
 
+/**
+ * A frase que o leitor de tela ouve, **sem repetir o rótulo** que o placar já diz.
+ *
+ * O placar da cheia começa com o rótulo dela em toda tupla, e o das três começa com
+ * ele quando as três decidem. Nos dois casos o rótulo entra uma vez só.
+ */
+function leituraDe(familia: FamiliaLunar, placar: string, porque: string): string {
+  const rot = ROTULO_DA_FAMILIA[familia];
+  return placar.startsWith(rot) ? `${placar} ${porque}` : `${rot}. ${placar} ${porque}`;
+}
+
 function linha(
   familia: FamiliaLunar,
   decidiram: number,
@@ -247,6 +320,7 @@ function linha(
     tamanho: FASES_DA_FAMILIA[familia].length,
     placar,
     porque,
+    leitura: leituraDe(familia, placar, porque),
   };
 }
 
@@ -255,12 +329,29 @@ function duasLinhas(cheia: LinhaDaFamilia, asTres: LinhaDaFamilia): FraseColetiv
 }
 
 /**
+ * Congela uma frase **até o fundo** — as duas linhas, a tupla e cada linha.
+ *
+ * `Object.freeze` sobre a frase prende só a superfície: `linhas` continua um array
+ * mutável e cada `LinhaDaFamilia` continua um objeto mutável. Como as frases
+ * constantes deste arquivo são **singletons de módulo** que a mesma referência
+ * entrega a todo chamador, um `frase.cheia.placar = …` em qualquer tela mudaria o
+ * quarto estado do app inteiro, para sempre, sem erro e sem rastro. `readonly` é
+ * do `tsc`; isto é do tempo de execução.
+ */
+function congelarFrase(f: FraseColetiva): FraseColetiva {
+  Object.freeze(f.cheia);
+  Object.freeze(f.asTres);
+  Object.freeze(f.linhas);
+  return Object.freeze(f);
+}
+
+/**
  * O estado **pré-execução** — o quarto, e o único em que a página vive hoje.
  *
  * A forma é a mesma das outras: duas linhas, dois compartimentos. O que muda é o
  * verbo, e ele muda porque **não houve leitura**, não porque não houve resultado.
  */
-export const FRASE_SEM_LEITURA: FraseColetiva = Object.freeze(
+export const FRASE_SEM_LEITURA: FraseColetiva = congelarFrase(
   duasLinhas(
     linha('cheia', 0, 'A cheia não foi lida.', 'A primeira execução autorizada ainda não rodou.'),
     linha(
@@ -271,6 +362,69 @@ export const FRASE_SEM_LEITURA: FraseColetiva = Object.freeze(
     ),
   ),
 );
+
+/**
+ * Por que a leitura não respondeu — **e são duas coisas diferentes**.
+ *
+ * `rede` é a consulta que não voltou: a tabela não existe ainda (é o caso de hoje —
+ * a migração não foi aplicada), a sessão caiu, o aparelho está sem rede. `integridade`
+ * é a consulta que **voltou** e foi recusada na tradução: execução truncada, assinatura
+ * discordante entre as quatro linhas, digest de cadeia que não bate. A primeira pede
+ * tentar de novo; a segunda pede consertar dado, e não tentar de novo nunca.
+ *
+ * Misturá-las foi o defeito: as duas saíam como *"não conseguiu ler"* e a mensagem
+ * acionável — que diz exatamente o que consertar — morria num `console.warn`.
+ */
+export type CausaDaFalhaLunar = 'rede' | 'integridade';
+
+const FRASE_POR_CAUSA: Readonly<Record<CausaDaFalhaLunar, FraseColetiva>> = Object.freeze({
+  rede: congelarFrase(
+    duasLinhas(
+      linha(
+        'cheia',
+        0,
+        'A cheia não foi lida.',
+        'Não foi possível ler as execuções agora. Isto não diz que nenhuma rodou.',
+      ),
+      linha(
+        'as-tres',
+        0,
+        'As três não foram lidas.',
+        'A mesma leitura serve as quatro, então as quatro ficam sem resposta juntas.',
+      ),
+    ),
+  ),
+  integridade: congelarFrase(
+    duasLinhas(
+      linha(
+        'cheia',
+        0,
+        'A cheia não foi lida.',
+        'A execução gravada foi recusada na leitura, e tentar de novo devolve o mesmo.',
+      ),
+      linha(
+        'as-tres',
+        0,
+        'As três não foram lidas.',
+        'A página diz o que há para consertar — uma execução recusada é dado a arrumar, não rede a esperar.',
+      ),
+    ),
+  ),
+});
+
+/**
+ * A frase de uma **falha de leitura** — e ela existe para que a linha de entrada
+ * **continue aparecendo**.
+ *
+ * Sem ela a feature era invisível em produção: `lua_execucoes` não existe ainda, as
+ * duas leituras lançam, o hook cai na falha, e com a linha desenhando só no estado
+ * `pronto` o pé do caderno Sono ficava vazio e `/sono/lua` ficava **inalcançável** —
+ * a única porta da página mora nessa linha. A matriz da story confundiu *tabela
+ * vazia* com *tabela ausente*: são ramos diferentes, e o quarto estado é o primeiro.
+ */
+export function fraseDaFalha(causa: CausaDaFalhaLunar): FraseColetiva {
+  return FRASE_POR_CAUSA[causa];
+}
 
 /* ───────────────────────── Passo 2 — o placar ───────────────────────── */
 
@@ -292,17 +446,49 @@ function placarDa(familia: FamiliaLunar, d: number): string {
 
 /* ──────────────────── Passo 3 — o compartimento 2 ──────────────────── */
 
-/** O limiar prático, escrito como a frase o diz. */
-const LIMIAR_EM_PALAVRAS = `${String(LIMIAR_PRATICO_MIN)} minutos`;
+/**
+ * O limiar prático, escrito como a frase o diz — **com a unidade concordando**.
+ *
+ * `${LIMIAR_PRATICO_MIN} minutos` é o template escrito para um valor só, e é
+ * exatamente o defeito do *"1 dias"* da story 2.8: o dia em que o limiar baixar
+ * para um minuto, a constante muda e a frase passa a dizer *"1 minutos"*. A
+ * concordância sai do número, não da memória de quem digitou.
+ */
+export const LIMIAR_EM_PALAVRAS = comUnidade(LIMIAR_PRATICO_MIN, 'minuto', 'minutos');
 
-/** O sentido do deslocamento medido. A hora de apagar foi para onde? */
+/**
+ * O número com a unidade **concordando com ele** — a função que apaga o *"1 dias"*.
+ *
+ * O parâmetro é `number` de propósito: com o tipo literal da constante entrando
+ * direto, o `tsc` resolve a comparação em tempo de compilação e **apaga o ramo do
+ * singular** (`TS2367`), o que faz o defeito voltar a ser invisível no dia em que a
+ * constante mudar.
+ */
+function comUnidade(quanto: number, um: string, muitas: string): string {
+  return `${formatarNumero(quanto, 0)} ${quanto === 1 ? um : muitas}`;
+}
+
+/**
+ * O sentido do deslocamento medido. A hora de apagar foi para onde?
+ *
+ * **Nulo não é zero, e zero não é uma direção.** `(efeitoMin ?? 0) < 0` fazia um
+ * efeito **não medido** e um efeito **exatamente zero** saírem os dois como *"ficou
+ * mais tarde"* — uma afirmação de direção sem medição atrás dela, que é o que
+ * `apoioDoBloco` já evita por escrito (*"zero seria mentira"*). Um `achado` com
+ * efeito nulo ou zero é dado contraditório; a frase **mostra** a contradição em vez
+ * de escolher um lado para ela.
+ */
 function sentidoDe(efeitoMin: number | null): string {
-  return (efeitoMin ?? 0) < 0 ? 'ficou mais cedo' : 'ficou mais tarde';
+  if (efeitoMin === null) return 'mudou numa direção que não foi medida';
+  if (efeitoMin === 0) return 'não se deslocou em direção nenhuma';
+  return efeitoMin < 0 ? 'ficou mais cedo' : 'ficou mais tarde';
 }
 
 /** O mesmo sentido, em elipse — a segunda oração coordenada, sem repetir o verbo. */
 function sentidoEmElipse(efeitoMin: number | null): string {
-  return (efeitoMin ?? 0) < 0 ? 'mais cedo' : 'mais tarde';
+  if (efeitoMin === null) return 'em direção não medida';
+  if (efeitoMin === 0) return 'sem deslocamento';
+  return efeitoMin < 0 ? 'mais cedo' : 'mais tarde';
 }
 
 /**
@@ -378,25 +564,43 @@ function motivoNaoTratado(nunca: never): never {
   );
 }
 
-/** Quem parou num **portão** e quem rodou e **faltou poder** — a partição que a frase diz. */
+/**
+ * Quem parou num **portão**, quem rodou e **faltou poder**, e quem veio **sem motivo
+ * gravado** — a partição que a frase diz.
+ *
+ * **`f.motivo ?? 'poder'` era a gaveta da story 2.6 nesta função.** Um
+ * `inconclusivo` com motivo nulo virava a afirmação *"rodou sem poder"*, que é um
+ * motivo inventado: `numeroDoBloco`, onze linhas adiante, devolve `null` para a
+ * **mesma** linha e o bloco não imprime nada — então a tela ficava com a frase
+ * afirmando um motivo e o bloco sem o número que o sustentaria. Ausência não vira
+ * poder: ela vira a terceira fatia desta partição, e a frase manda ao bloco.
+ */
 function particaoDosMotivos(indecisas: readonly ResultadoDaFase[]): {
   nosPortoes: number;
   semPoder: number;
+  semMotivo: number;
   motivoUnico: MotivoDoInconclusivo | null;
 } {
   const motivos = new Set<MotivoDoInconclusivo>();
   let nosPortoes = 0;
   let semPoder = 0;
+  let semMotivo = 0;
   for (const f of indecisas) {
-    const m = f.motivo ?? 'poder';
-    motivos.add(m);
-    if (m === 'poder') semPoder += 1;
+    if (f.motivo === null) {
+      semMotivo += 1;
+      continue;
+    }
+    motivos.add(f.motivo);
+    if (f.motivo === 'poder') semPoder += 1;
     else nosPortoes += 1;
   }
   return {
     nosPortoes,
     semPoder,
-    motivoUnico: motivos.size === 1 ? [...motivos][0] : null,
+    semMotivo,
+    // Um motivo só **e** nenhuma fase sem motivo: com uma sem, o que há são duas
+    // situações, e nomear a da maioria é afirmar pela outra.
+    motivoUnico: motivos.size === 1 && semMotivo === 0 ? [...motivos][0] : null,
   };
 }
 
@@ -415,7 +619,7 @@ function oracaoDasIndecisas(
   sozinha: boolean,
 ): string {
   const n = indecisas.length;
-  const { nosPortoes, semPoder, motivoUnico } = particaoDosMotivos(indecisas);
+  const { nosPortoes, semPoder, semMotivo, motivoUnico } = particaoDosMotivos(indecisas);
 
   if (motivoUnico !== null) {
     if (sozinha) {
@@ -426,19 +630,45 @@ function oracaoDasIndecisas(
     return `${porExtenso(n, 'feminino')} ${verbo}: ${oracaoDoMotivo(motivoUnico, n)}.`;
   }
 
+  // **Todas sem motivo gravado.** Nenhuma partição a declarar, e nada a nomear: a
+  // frase diz que não decidiram e que o motivo não está na linha. Afirmar poder
+  // aqui era o defeito.
+  if (semMotivo === n) {
+    const sujeito = familia === 'cheia' ? 'O teste não decidiu' : 'Os três testes não decidiram';
+    return `${sujeito}, e a linha gravada não diz por quê; ${AO_BLOCO}`;
+  }
+
   // Mistos. A partição, e o bloco como destino — nunca um motivo falando pelas
-  // outras.
-  const aoBloco = 'cada bloco diz qual, e em que unidade.';
-  if (nosPortoes > 0 && semPoder > 0) {
-    return (
-      `${porExtenso(nosPortoes, 'feminino')} ${nosPortoes === 1 ? 'parou' : 'pararam'} num portão `
-      + `e ${porExtenso(semPoder, 'feminino')} ${semPoder === 1 ? 'rodou' : 'rodaram'} sem poder; `
-      + aoBloco
+  // outras. As três fatias entram com o número delas, e a que é zero não entra.
+  const fatias: string[] = [];
+  if (nosPortoes > 0) {
+    fatias.push(
+      `${porExtenso(nosPortoes, 'feminino')} ${nosPortoes === 1 ? 'parou' : 'pararam'} num portão`,
     );
   }
-  // Só portões, e portões diferentes: a frase diz que são diferentes, e qual é de
-  // cada uma fica no bloco.
-  return `${porExtenso(nosPortoes, 'feminino')} pararam em portões diferentes; ${aoBloco}`;
+  if (semPoder > 0) {
+    fatias.push(
+      `${porExtenso(semPoder, 'feminino')} ${semPoder === 1 ? 'rodou' : 'rodaram'} sem poder`,
+    );
+  }
+  if (semMotivo > 0) {
+    fatias.push(
+      `${porExtenso(semMotivo, 'feminino')} ${semMotivo === 1 ? 'veio' : 'vieram'} sem motivo gravado`,
+    );
+  }
+  if (fatias.length > 1) return `${juntarFatias(fatias)}; ${AO_BLOCO}`;
+  // Uma fatia só com mais de um motivo dentro dela: são portões diferentes. A frase
+  // diz que são diferentes, e qual é de cada uma fica no bloco.
+  return `${porExtenso(nosPortoes, 'feminino')} pararam em portões diferentes; ${AO_BLOCO}`;
+}
+
+/** O destino da frase quando ela não pode nomear um motivo por todas. */
+const AO_BLOCO = 'cada bloco diz qual, e em que unidade.';
+
+/** `a`, `a e b`, `a, b e c` — a coordenação que o número de fatias pede. */
+function juntarFatias(fatias: readonly string[]): string {
+  if (fatias.length <= 1) return fatias[0] ?? '';
+  return `${fatias.slice(0, -1).join(', ')} e ${fatias[fatias.length - 1]}`;
 }
 
 /**
@@ -510,6 +740,7 @@ export function comporFraseColetiva(
   noitesSemLuz: number,
 ): FraseColetiva {
   conferirAsQuatro(fases);
+  conferirAPortaDaLuz(fases, noitesSemLuz);
   const porFamilia = (familia: FamiliaLunar): LinhaDaFamilia => {
     const daFamilia = FASES_DA_FAMILIA[familia].map((fase) => acharFase(fases, fase));
     const d = daFamilia.filter((f) => f.veredito !== 'inconclusivo').length;
@@ -543,6 +774,35 @@ function acharFase(fases: readonly ResultadoDaFase[], fase: LunarPhaseKind): Res
     );
   }
   return achada;
+}
+
+/**
+ * **O portão da luz é global às quatro, e a frase e o bloco têm de concordar.**
+ *
+ * `noitesSemLuz` governa as duas linhas da frase coletiva; `portaoReprovado` governa
+ * o bloco de cada fase. Com os dois discordando, a mesma tela afirmava as duas
+ * coisas: a frase dizia *"o portão da luz reprovou, global às quatro"* e os blocos
+ * imprimiam efeito medido — ou o contrário, quatro blocos dizendo *"efeito não
+ * medido: o portão reprovou antes"* sob uma frase que nomeava poder.
+ *
+ * As duas direções são recusadas, porque as duas são a mesma incoerência vista de
+ * lados opostos, e nenhuma delas é produzível por `vereditoLunar`: acima de zero o
+ * motor para as quatro no portão da luz, e em zero nenhuma para nele. Uma dessas
+ * linhas no banco é dado a consertar, e a frase não tem como escolher qual metade
+ * está certa.
+ */
+function conferirAPortaDaLuz(fases: readonly ResultadoDaFase[], noitesSemLuz: number): void {
+  const naLuz = fases.filter((f) => f.portaoReprovado === 'luz').length;
+  if (noitesSemLuz > 0 && naLuz === fases.length) return;
+  if (noitesSemLuz === 0 && naLuz === 0) return;
+  throw new Error(
+    `a frase coletiva recebeu noitesSemLuz = ${String(noitesSemLuz)} com ${String(naLuz)} de `
+    + `${String(fases.length)} fases paradas no portão da luz — o portão é global às quatro, então `
+    + 'as duas contagens são a mesma afirmação: acima de zero as quatro param nele, e em zero '
+    + 'nenhuma para. Confira que `acervo.noitesSemLuz` e as quatro linhas vieram da MESMA '
+    + 'execução: `fetchUltimaExecucaoLunar` traz as quatro numa consulta e `toLuaExecucao` recusa '
+    + 'um recorte, e misturar o acervo de uma execução com as fases de outra produz exatamente isto.',
+  );
 }
 
 function conferirAsQuatro(fases: readonly ResultadoDaFase[]): void {
@@ -596,7 +856,7 @@ const LEGENDA_DO_MOTIVO: Readonly<Record<MotivoDoInconclusivo, string>> = Object
   luz: 'noites-sem-luz · o portão da luz reprovou',
   amostra: 'noites-de-coluna · o portão da amostra reprovou',
   ciclos: 'ciclos · o portão dos ciclos reprovou',
-  poder: `faltam para 80% de poder em ${String(LIMIAR_PRATICO_MIN)} min`,
+  poder: `faltam para ${emPorcento(PODER_MINIMO, 0)}% de poder em ${formatarNumero(LIMIAR_PRATICO_MIN, 0)} min`,
 });
 
 /** O que falta, escrito com a unidade do motivo e a concordância certa. */
@@ -645,6 +905,13 @@ export function numeroDoBloco(f: ResultadoDaFase): NumeroDoBloco | null {
  *
  * Quando um portão reprovou, o bloco diz **efeito não medido** e não zero: o
  * portão reprovou antes, e zero seria mentira.
+ *
+ * **Ela nunca devolve lista vazia**, e isso é a regra "não há variante curta"
+ * aplicada ao bloco. O caso que a quebrava é real: `inconclusivo` por poder com
+ * dispersão degenerada sai sem `falta`, sem `p`, sem `poder` e sem `efeitoMin` —
+ * então `numeroDoBloco` devolve `null`, nenhuma medida entra, e o bloco imprimia
+ * **só o nome da fase e a palavra "inconclusivo"**, que é exatamente a variante
+ * curta que a ADR 0045 §3 proíbe, na fase em que menos se pode encurtar.
  */
 export function apoioDoBloco(f: ResultadoDaFase): readonly string[] {
   const linhas: string[] = [];
@@ -686,8 +953,26 @@ export function apoioDoBloco(f: ResultadoDaFase): readonly string[] {
       + 'este teste pode achar — um adiantamento aqui não é achado por este protocolo.',
     );
   }
+  // **O piso.** Nada a dizer sobre o que foi medido não é licença para o bloco
+  // encolher: ele diz que não há número, e por quê. `inconclusivo` por poder com
+  // dispersão degenerada é o caminho que chega aqui; qualquer outro que chegue um dia
+  // recebe a mesma linha em vez de uma vaga vazia.
+  if (linhas.length === 0) linhas.push(APOIO_SEM_NUMERO);
   return linhas;
 }
+
+/**
+ * A linha de apoio quando **não há número nenhum para o bloco** — o piso de
+ * {@link apoioDoBloco}.
+ *
+ * Ela nomeia a causa conhecida (`inconclusivo` sem medida nenhuma) sem afirmar
+ * quanto falta, porque a conta de quantas noites faltam **não existe** quando a
+ * dispersão é degenerada: é o mesmo cuidado de *"zero seria mentira"*, um degrau
+ * acima.
+ */
+export const APOIO_SEM_NUMERO =
+  'Nada foi medido nesta fase, e a conta de quanto falta não existe com esta dispersão — '
+  + 'nem o efeito, nem o p, nem o poder saíram.';
 
 /**
  * A linha de apoio do bloco no estado **pré-execução**.
@@ -708,10 +993,14 @@ export const APOIO_SEM_LEITURA =
  * ordinal é feminino porque o substantivo é — *"1ª execução"*, nunca *"1º"*.
  */
 export function ordinalDaExecucao(execucoes: number): string {
-  if (!Number.isFinite(execucoes) || execucoes < 0) {
+  // `Number.isInteger` é a checagem que a mensagem descreve, e `isFinite` não era:
+  // `2.5` passava e saía como "3ª execução" — `formatarNumero(2.5, 0)` arredonda —
+  // debaixo de uma mensagem que diz "não é uma contagem". Meia execução não existe.
+  if (!Number.isInteger(execucoes) || execucoes < 0) {
     throw new RangeError(
       `o contador de execuções não é uma contagem: ${String(execucoes)} — zero é "nenhuma `
-      + 'execução", e um número negativo não descreve pilha nenhuma.',
+      + 'execução", uma fração não conta tentativa nenhuma, e um número negativo não descreve '
+      + 'pilha nenhuma.',
     );
   }
   if (execucoes === 0) return 'nenhuma execução';

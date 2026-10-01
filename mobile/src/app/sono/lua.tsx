@@ -8,30 +8,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import {
   ALFA_DO_GRUPO,
-  APOIO_SEM_LEITURA,
-  CADENCIA_DE_REEXECUCAO_NOITES,
   CADEIA_DO_PRE_REGISTRO,
-  CICLOS_MINIMOS,
+  COORDENADA_DA_LUZ,
+  DATA_DO_PRE_REGISTRO,
   FAMILIAS_EM_ORDEM,
   FASES_DA_FAMILIA,
-  INICIO_DO_ACERVO_LUNAR,
   JANELA_LUNAR_VERSAO,
-  MESES_ABREV,
+  LIMIAR_EM_PALAVRAS,
   MODULO_DO_CADERNO,
   MOON_SHADE_ALPHA,
   MOTOR_LUNAR_VERSAO,
-  NOITES_MINIMAS_POR_COLUNA,
   NOME_DA_FASE,
   PALAVRA_DO_VEREDITO,
   RAZAO_DO_GRUPO,
   SEM_LEITURA,
   TITULO_DO_GRUPO,
   apoioDoBloco,
-  fraseColetivaDe,
   moonShadowPath,
   numeroDoBloco,
-  operacionalizacaoLunar,
-  ordinalDaExecucao,
   type ExecucaoLunar,
   type FamiliaLunar,
   type FraseColetiva,
@@ -40,6 +34,15 @@ import {
   type ResultadoDaFase,
 } from '@vitale/shared';
 import { useVereditoLunar } from '../../hooks/useVereditoLunar';
+import {
+  FIGURA_DA_LUA,
+  MEDIDA_DO_CICLO,
+  apoioSemResultado,
+  camposDaMoldura,
+  entradaDaLua,
+  type CampoDaMoldura,
+  type VereditoLunarNaTela,
+} from '../../lib/lua';
 import { colors, fonts, moduleColors, radii, spacing, useTheme, useThemedStyles } from '../../theme';
 
 /**
@@ -94,13 +97,28 @@ import { colors, fonts, moduleColors, radii, spacing, useTheme, useThemedStyles 
  * é a palavra de veredito. E a coluna de rótulos da moldura dimensiona por
  * conteúdo, com teto, e **empilha** acima do valor a partir de AX1.
  *
- * ## Carregando não é "ainda não rodou"
+ * ## Carregando não é "ainda não rodou", e tabela ausente não é tabela vazia
  *
- * Os dois desenhariam quase a mesma coisa e são afirmações diferentes. O quarto
- * estado — *"A cheia não foi lida"* — é onde a página vive hoje; desenhá-lo
- * enquanto a leitura está em voo faria a página afirmar silêncio antes de saber,
- * em toda abertura. `useVereditoLunar` separa os dois, e `sem-leitura` é um
- * terceiro: *não deu para ler* não é *nunca rodou*.
+ * São **cinco** estados, e nenhum deles se confunde com outro. O quarto estado —
+ * *"A cheia não foi lida"*, com a tabela **vazia** — desenhado enquanto a leitura
+ * está em voo faria a página afirmar silêncio antes de saber, em toda abertura. E a
+ * tabela **ausente** (o caso de hoje: a migração não foi aplicada, as duas leituras
+ * lançam) é a **falha**, não o quarto estado — a matriz da story confundiu os dois, e
+ * são ramos diferentes. *Sem sessão* é outro ainda: dizer a um visitante deslogado
+ * que *"não conseguiu ler a tabela"* é afirmação falsa sobre a tabela. E *integridade*
+ * não é *rede*: a segunda melhora tentando de novo, a primeira não — ela pede
+ * consertar dado, e a mensagem que diz o quê sobe para a tela.
+ *
+ * ## A moldura, os grupos e o rodapé desenham nos CINCO estados
+ *
+ * O docblock da {@link MolduraDaLua} diz *"cinco campos, sempre na mesma ordem, nos
+ * quatro estados"*, e enquanto tudo isso ficou atrás de um `pronto ?` a página não
+ * cumpria a própria regra: no estado em que ela vive hoje, a prosa do método, as
+ * datas, o α de cada família e os quatro blocos eram **invisíveis**. Era a variante
+ * curta que a página declara não ter.
+ *
+ * O que **não** desenha fora do `pronto` é a frase coletiva no estado `carregando`:
+ * ela é a manchete, e é o único compartimento que afirma resultado.
  */
 export default function SonoLuaScreen() {
   const styles = useThemedStyles(createStyles);
@@ -115,11 +133,17 @@ export default function SonoLuaScreen() {
   const sono = moduleColors(MODULO_DO_CADERNO.sono);
 
   const veredito = useVereditoLunar();
-  const pronto = veredito.estado === 'pronto';
-  const execucao = pronto ? veredito.execucao : null;
-  const frase = useMemo<FraseColetiva | null>(
-    () => (pronto ? fraseColetivaDe(execucao?.veredito ?? null) : null),
-    [pronto, execucao],
+  const execucao = veredito.estado === 'pronto' ? veredito.execucao : null;
+  const execucoes = veredito.estado === 'pronto' ? veredito.execucoes : 0;
+  /**
+   * A frase sai da **mesma função** que compõe a linha de entrada no pé do caderno
+   * Sono (`entradaDaLua`), e é por isso que as duas dizem a mesma coisa palavra por
+   * palavra: duas composições independentes é o caminho mais curto para a linha virar
+   * resumo da página. `undefined` só em `carregando` e sem sessão.
+   */
+  const frase = useMemo<FraseColetiva | undefined>(
+    () => entradaDaLua(veredito, '')?.frase,
+    [veredito],
   );
 
   return (
@@ -158,30 +182,19 @@ export default function SonoLuaScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.titulo}>
-          <Text style={styles.eyebrow}>Pré-registro · 07 set · 28 set 2026</Text>
+          {/* As duas datas saem de `DATA_DO_PRE_REGISTRO`, a fonte única — antes elas
+              eram prosa digitada aqui, na razão do grupo e no rodapé do método, e
+              corrigir uma deixava as outras duas mentindo. */}
+          <Text style={styles.eyebrow}>
+            Pré-registro · {DATA_DO_PRE_REGISTRO.cheia} · {DATA_DO_PRE_REGISTRO['as-tres']}
+          </Text>
           <Text style={styles.tituloTxt} accessibilityRole="header">A página da lua</Text>
         </View>
 
         <CicloSinodico accent={sono.accent} tint={sono.tint} />
 
         {frase ? <FraseColetivaNaPagina frase={frase} styles={styles} /> : null}
-        {veredito.estado === 'carregando' ? (
-          <View style={styles.aviso}>
-            <ActivityIndicator size="small" color={colors.ink3} />
-            <Text style={styles.avisoTxt}>Lendo as execuções gravadas…</Text>
-          </View>
-        ) : null}
-        {veredito.estado === 'sem-leitura' ? (
-          <View style={styles.aviso}>
-            {/* **Não é o quarto estado.** "Não deu para ler" e "nunca rodou" são
-                afirmações diferentes sobre a pilha de tentativas, e trocar uma
-                pela outra é a gaveta aberta por um operador de coalescência. */}
-            <Text style={styles.avisoTxt}>
-              Não foi possível ler as execuções agora. Isto não diz que nenhuma rodou — diz que esta
-              tela não conseguiu ler a tabela.
-            </Text>
-          </View>
-        ) : null}
+        <AvisoDaLeitura veredito={veredito} styles={styles} />
 
         {/* A legenda da figura e a medida, **depois** da frase coletiva. Os 68%
             viajam em prosa, aqui e de novo no rodapé do método: quem usa leitor de
@@ -192,21 +205,27 @@ export default function SonoLuaScreen() {
             antecedem cada fase — vêm destacadas, e a régua abaixo marca a extensão de cada uma. O
             traço marca o instante da fase, que fica fora da janela.
           </Text>
-          <Text style={styles.medida}>
-            Trinta noites desenhadas para um ciclo de 29,5: vinte delas caem dentro de uma janela —
-            68% do ciclo.
-          </Text>
+          {/* A medida **com a oração que reconcilia os três números**: 30, 20 e 68% só
+              fecham com a conta do ciclo real ao lado deles. Ela vem do núcleo, não de
+              uma frase digitada aqui. */}
+          <Text style={styles.medida}>{MEDIDA_DO_CICLO}</Text>
         </View>
 
-        {pronto ? (
-          <>
-            <MolduraDaLua execucao={execucao} execucoes={veredito.execucoes} styles={styles} />
-            {FAMILIAS_EM_ORDEM.map((familia) => (
-              <GrupoDaFamilia key={familia} familia={familia} execucao={execucao} styles={styles} />
-            ))}
-            <RodapeDoMetodo execucao={execucao} styles={styles} />
-          </>
-        ) : null}
+        {/* **Nos cinco estados**, e não só no `pronto`: a moldura é invariável em
+            campos, o α é propriedade de família e o método é o mesmo com ou sem
+            leitura. Esconder tudo isso era a variante curta que a página declara não
+            ter — e ela aparecia justamente no estado em que a página vive hoje. */}
+        <MolduraDaLua execucao={execucao} execucoes={execucoes} styles={styles} />
+        {FAMILIAS_EM_ORDEM.map((familia) => (
+          <GrupoDaFamilia
+            key={familia}
+            familia={familia}
+            execucao={execucao}
+            semResultado={apoioSemResultado(veredito)}
+            styles={styles}
+          />
+        ))}
+        <RodapeDoMetodo execucao={execucao} styles={styles} />
       </ScrollView>
     </View>
   );
@@ -214,93 +233,84 @@ export default function SonoLuaScreen() {
 
 type Styles = ReturnType<typeof createStyles>;
 
+/* ───────────────── O aviso da leitura: quatro estados, quatro vozes ───────────────── */
+
+/**
+ * O que a página diz **sobre a própria leitura** — e cada estado tem a voz dele.
+ *
+ * - `carregando`: o indicador, e nada afirmado.
+ * - `sem-sessao`: não há a quem perguntar. **Não** se diz que a tabela não foi lida:
+ *   para um visitante deslogado isso é afirmação falsa sobre a tabela, no arquivo
+ *   cuja tese é que *não deu para ler* e *nunca rodou* são coisas diferentes.
+ * - `falhou` por **rede**: não deu para ler, e isto não diz que nenhuma rodou.
+ * - `falhou` por **integridade**: a execução gravada foi recusada, tentar de novo
+ *   devolve o mesmo, e o `recado` — a mensagem do núcleo, que diz **o que consertar**
+ *   — aparece aqui em vez de morrer num `console.warn`.
+ * - `pronto`: nada. A frase coletiva já falou.
+ */
+function AvisoDaLeitura({ veredito, styles }: { veredito: VereditoLunarNaTela; styles: Styles }) {
+  if (veredito.estado === 'carregando') {
+    return (
+      <View style={styles.aviso}>
+        <ActivityIndicator size="small" color={colors.ink3} />
+        <Text style={styles.avisoTxt}>Lendo as execuções gravadas…</Text>
+      </View>
+    );
+  }
+  if (veredito.estado === 'sem-sessao') {
+    return (
+      <View style={styles.aviso}>
+        <Text style={styles.avisoTxt}>
+          A pilha de execuções é de uma conta. Sem sessão não há o que ler — e isto não diz nada sobre
+          a tabela.
+        </Text>
+      </View>
+    );
+  }
+  if (veredito.estado === 'falhou') {
+    return (
+      <View style={styles.aviso}>
+        <View style={styles.avisoCorpo}>
+          <Text style={styles.avisoTxt}>
+            {veredito.causa === 'integridade'
+              ? 'A execução gravada foi recusada na leitura. Isto não é falha de rede: tentar de novo '
+                + 'devolve o mesmo, e o que há é dado a consertar.'
+              : 'Não foi possível ler as execuções agora. Isto não diz que nenhuma rodou — diz que esta '
+                + 'tela não conseguiu ler a tabela.'}
+          </Text>
+          {/* A mensagem acionável do núcleo. Ela diz o primeiro passo, e é por isso que
+              vai para a tela: quem lê uma execução recusada quer saber o que arrumar. */}
+          {veredito.recado === null ? null : (
+            <Text style={styles.recado}>{veredito.recado}</Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+  return null;
+}
+
 /* ─────────────────────── A figura das quatro janelas ─────────────────────── */
 
 /**
- * Trinta células desenhadas para um ciclo de 29,53 dias.
+ * A geometria da figura mora em `lib/lua.ts`, **como dado puro** — aqui só se
+ * desenha.
  *
- * O desenho arredonda para noites inteiras: quem contar discos obtém 20/30 = 67%,
- * e a medida em prosa diz 68% (20 / 29,53 = 67,7%). A legenda reconcilia as duas
- * em uma oração — sem ela o leitor não pode derivar 29,5 do que vê.
+ * Ela estava inteira neste arquivo, inalcançável por qualquer teste: dava para perder
+ * o `− JANELA_LUNAR_NOITES` da banda, ou trocar o `<` por `<=` no corte, e nenhuma
+ * asserção reparava — havia `toContain` sobre texto-fonte, que prova que o código
+ * existe. Com ela no hospedeiro, o teste cobra o **valor**: cada janela marca cinco
+ * discos, vinte dos trinta caem dentro, e as cinco noites saem de
+ * `JANELA_LUNAR_NOITES` em vez de um cinco digitado ao lado dele.
  *
  * O valor do ciclo é do **desenho**, e a autoridade sobre a lunação continua sendo
- * `astro/moon.ts`: a figura não classifica noite nenhuma, e nenhuma decisão do
- * teste passa por aqui.
+ * `astro/moon.ts`: a figura não classifica noite nenhuma, e nenhuma decisão do teste
+ * passa por aqui.
  */
-const CELULAS = 30;
-const CICLO_DESENHADO_DIAS = 29.53;
-/** A lua nova no índice 5,5 — é a âncora em que as quatro janelas caem inteiras no quadro. */
-const NOVA_EM = 5.5;
-/** A geometria do quadro, em unidades do `viewBox`. */
-const FIG_LARGURA = 342;
-const FIG_ALTURA = 86;
-const PASSO = FIG_LARGURA / CELULAS;
-const RAIO = 4.6;
-const Y_DISCO = 30;
-/** As quatro janelas têm cinco noites, como o protocolo as define. */
-const NOITES_DA_JANELA = 5;
-
-/** O centro, em `x`, da posição `p` medida em células. */
-function xDe(p: number): number {
-  return PASSO * (p + 0.5);
-}
-
-/** A posição, em células, do instante de cada fase — a lunação, não a importância. */
-const POSICAO_DA_FASE: Readonly<Record<LunarPhaseKind, number>> = {
-  new: NOVA_EM,
-  firstQuarter: NOVA_EM + CICLO_DESENHADO_DIAS / 4,
-  full: NOVA_EM + CICLO_DESENHADO_DIAS / 2,
-  lastQuarter: NOVA_EM + (3 * CICLO_DESENHADO_DIAS) / 4,
-};
-
-/** O rótulo curto de cada janela, sob a grade. */
-const ROTULO_CURTO: Readonly<Record<LunarPhaseKind, string>> = {
-  new: 'nova',
-  firstQuarter: 'crescente',
-  full: 'cheia',
-  lastQuarter: 'minguante',
-};
-
-const JANELAS = (Object.keys(POSICAO_DA_FASE) as LunarPhaseKind[]).map((fase) => {
-  const p = POSICAO_DA_FASE[fase];
-  return {
-    fase,
-    /** O instante da fase, que cai **fora** da janela: a exposição é *antes* dela. */
-    x: xDe(p),
-    de: xDe(p - NOITES_DA_JANELA),
-    largura: NOITES_DA_JANELA * PASSO,
-    rotulo: ROTULO_CURTO[fase],
-  };
-});
-
-/**
- * Uma célula está dentro de alguma janela? **Dez das trinta não estão**, o que bate
- * com as ~9,5 noites por ciclo que ficam fora de todas (§7 de 28/09).
- *
- * A janela é `[fase − 5 d, fase)`, e a conta é sobre o **centro** da célula: a
- * banda vai de `xDe(p − 5)` a `xDe(p)`, e o centro de `i` cai dentro dela quando
- * `p − 5 ≤ i ≤ p`. Nenhuma posição de fase é inteira, então os extremos não
- * empatam — e cada janela marca exatamente cinco discos, que é a propriedade que o
- * desenho tem de preservar: *os discos marcados **são** as noites testadas*.
- */
-function dentroDeJanela(i: number): boolean {
-  return JANELAS.some((j) => {
-    const p = POSICAO_DA_FASE[j.fase];
-    return i > p - NOITES_DA_JANELA && i < p;
-  });
-}
-
-/** As trinta noites, cada uma com a iluminação e o lado em que o terminador cai. */
-const DISCOS = Array.from({ length: CELULAS }, (_, i) => {
-  const d = i - NOVA_EM;
-  const ciclo = ((d % CICLO_DESENHADO_DIAS) + CICLO_DESENHADO_DIAS) % CICLO_DESENHADO_DIAS;
-  return {
-    x: xDe(i),
-    illuminated: (1 - Math.cos((2 * Math.PI * d) / CICLO_DESENHADO_DIAS)) / 2,
-    waxing: ciclo < CICLO_DESENHADO_DIAS / 2,
-    naJanela: dentroDeJanela(i),
-  };
-});
+const {
+  janelas: JANELAS, discos: DISCOS, largura: FIG_LARGURA, altura: FIG_ALTURA,
+  raio: RAIO, yDisco: Y_DISCO,
+} = FIGURA_DA_LUA;
 
 /**
  * O ciclo sinódico noite a noite, com as quatro janelas **destacadas igualmente**.
@@ -420,28 +430,17 @@ function LinhaColetiva({ l, primeira, styles }: { l: LinhaDaFamilia; primeira: b
 
 /* ─────────────────────────── A moldura ─────────────────────────── */
 
-/** Um campo da moldura: rótulo, valor e o sub-valor que o explica. */
-interface CampoDaMoldura {
-  rotulo: string;
-  valor: string;
-  sub?: string;
-}
-
 /**
  * A moldura é **invariável em campos, não em pixels**: cinco campos, sempre na
- * mesma ordem, nos quatro estados. Não existe variante curta da página para
+ * mesma ordem, **nos cinco estados** — e desde a revisão de 01/10 ela é desenhada nos
+ * cinco de verdade, e não só no `pronto`. Não existe variante curta da página para
  * quando não deu nada.
  *
- * Os cinco valem para as quatro fases — nenhum deles muda de fase para fase —, e é
- * por isso que ela é uma só, acima dos blocos, em vez de se repetir quatro vezes.
- *
- * **No quarto estado nenhum número é fabricado.** *Noites e ciclos* não pode
- * imprimir uma contagem que ninguém mediu, então ele imprime o que o protocolo
- * fixa: o começo do acervo e os dois portões que contam. E *Próxima leitura* vira
- * *Primeira leitura* e imprime a **condição**, não uma data: a cadência de +100
- * noites governa a **re**execução, documento nenhum fixa a primeira, e número de
- * story num campo de leitor faria o estado ler como *esperando o build* em vez de
- * *esperando dado*.
+ * Os cinco campos saem de `camposDaMoldura`, em `lib/lua.ts`, porque a regra deles é
+ * pura e aqui era inalcançável: *Noites e ciclos* sem execução, *Primeira leitura* no
+ * lugar de *Próxima*, e a data curta — com o `- 1` do índice do mês perdido, a moldura
+ * imprime *"23 mai 2025"* para abril e nada muda de cor. Testar por `toContain` prova
+ * que o código existe; lá o teste cobra o **valor**.
  */
 function MolduraDaLua({ execucao, execucoes, styles }: {
   execucao: ExecucaoLunar | null;
@@ -456,78 +455,6 @@ function MolduraDaLua({ execucao, execucoes, styles }: {
       ))}
     </View>
   );
-}
-
-function camposDaMoldura(execucao: ExecucaoLunar | null, execucoes: number): CampoDaMoldura[] {
-  // A operacionalização da execução quando há uma; a vigente quando não há. Nos
-  // dois casos ela é **medida**, nunca declarada — a borda sai da sonda.
-  const op = execucao?.operacionalizacao ?? operacionalizacaoLunar();
-  const fecha = op.bordaDireita === 'aberta' ? ')' : ']';
-  const lido = execucao === null ? null : execucao.veredito;
-  const acervo = lido === null ? null : lido.acervo;
-  return [
-    {
-      rotulo: 'Janela testada',
-      valor: `${String(op.janelaNoites)} noites antes de cada fase`,
-      sub: `[fase − ${String(op.janelaNoites)} d, fase${fecha} · contra as demais noites`,
-    },
-    {
-      rotulo: 'Desfecho',
-      valor: 'hora de apagar',
-      sub: 'minutos desde a meia-noite',
-    },
-    lido === null || acervo === null
-      ? {
-        // **Nenhum número fabricado aqui.** Sem execução não há contagem de
-        // noites nem de ciclos, e imprimir uma seria inventar medida; o campo diz
-        // o que o protocolo fixa — o começo do acervo e os dois portões que
-        // contam —, que é conhecível sem consultar dado nenhum.
-        rotulo: 'Noites e ciclos',
-        valor: `o acervo desde ${dataCurta(INICIO_DO_ACERVO_LUNAR)}`,
-        sub:
-            `a execução conta as noites e os ciclos · os portões pedem ${String(NOITES_MINIMAS_POR_COLUNA)} `
-            + `noites em cada coluna e ${String(CICLOS_MINIMOS)} ciclos sinódicos`,
-      }
-      : {
-        rotulo: 'Noites e ciclos',
-        valor: `${String(acervo.noites)} noites no acervo`,
-        sub: `${ciclosPorFase(lido.fases)} · ${dataCurta(acervo.de)} → ${dataCurta(acervo.ate)}`,
-      },
-    execucao === null
-      ? {
-        rotulo: 'Primeira leitura',
-        valor: 'quando a primeira execução autorizada rodar',
-        sub: 'as quatro rodam juntas, ou nenhuma roda',
-      }
-      : {
-        rotulo: 'Próxima leitura',
-        valor: `a cada +${String(CADENCIA_DE_REEXECUCAO_NOITES)} noites`,
-        sub: 'por cadência pré-fixada, não por vontade',
-      },
-    { rotulo: 'Execuções', valor: ordinalDaExecucao(execucoes) },
-  ];
-}
-
-/** `'2025-04-23'` → `23 abr 2025`. Sem `Date`: o fuso do aparelho não entra num rótulo. */
-function dataCurta(iso: string | null): string {
-  if (iso === null) return '—';
-  const [a, m, d] = iso.split('-');
-  const mes = MESES_ABREV[Number(m) - 1];
-  return mes === undefined ? iso : `${d} ${mes} ${a}`;
-}
-
-/**
- * Os ciclos que contribuíram, **por fase** — e o intervalo quando elas discordam.
- *
- * As quatro janelas não pegam o mesmo número de ciclos, então um número só seria
- * uma média disfarçada de contagem. Quando as quatro concordam, o número é um.
- */
-function ciclosPorFase(fases: readonly ResultadoDaFase[]): string {
-  const todos = fases.map((f) => f.ciclos);
-  const min = Math.min(...todos);
-  const max = Math.max(...todos);
-  const n = min === max ? String(min) : `${String(min)} a ${String(max)}`;
-  return `${n} ciclos sinódicos por fase`;
 }
 
 function CampoNaMoldura({ campo, primeiro, styles }: {
@@ -572,9 +499,11 @@ const EMPILHA_A_PARTIR_DE = 1.5;
  * rotulada para o leitor de tela — quem entra num bloco chega nele pelo cabeçalho
  * que diz o α.
  */
-function GrupoDaFamilia({ familia, execucao, styles }: {
+function GrupoDaFamilia({ familia, execucao, semResultado, styles }: {
   familia: FamiliaLunar;
   execucao: ExecucaoLunar | null;
+  /** A linha de apoio do bloco quando não há resultado — ela muda com o estado. */
+  semResultado: string;
   styles: Styles;
 }) {
   return (
@@ -587,7 +516,10 @@ function GrupoDaFamilia({ familia, execucao, styles }: {
         <BlocoDaFase
           key={fase}
           fase={fase}
-          resultado={execucao?.veredito.fases.find((f) => f.fase === fase) ?? null}
+          resultado={execucao === null
+            ? null
+            : execucao.veredito.fases.find((f) => f.fase === fase) ?? null}
+          semResultado={semResultado}
           styles={styles}
         />
       ))}
@@ -609,13 +541,20 @@ function GrupoDaFamilia({ familia, execucao, styles }: {
  * Sem caixa: filete acima, e nada mais. Quatro blocos encaixotados na mesma tela
  * leriam como quatro cartões concorrentes, e a página é uma ficha contínua.
  */
-function BlocoDaFase({ fase, resultado, styles }: {
+function BlocoDaFase({ fase, resultado, semResultado, styles }: {
   fase: LunarPhaseKind;
   resultado: ResultadoDaFase | null;
+  /**
+   * A linha de apoio sem resultado, **por estado**. Ela não é uma só: *"a primeira
+   * execução autorizada ainda não rodou"* é verdade no quarto estado e **falsa**
+   * enquanto a leitura está em voo ou depois de ela falhar — e a moldura desenha nos
+   * cinco estados, então o bloco também.
+   */
+  semResultado: string;
   styles: Styles;
 }) {
   const numero = resultado === null ? null : numeroDoBloco(resultado);
-  const apoio = resultado === null ? [APOIO_SEM_LEITURA] : apoioDoBloco(resultado);
+  const apoio = resultado === null ? [semResultado] : apoioDoBloco(resultado);
   return (
     <View style={styles.bloco}>
       <Text style={styles.faseNome}>{NOME_DA_FASE[fase]}</Text>
@@ -657,18 +596,24 @@ function RodapeDoMetodo({ execucao, styles }: { execucao: ExecucaoLunar | null; 
   return (
     <View style={styles.metodo}>
       <Text style={styles.eyebrow}>Método</Text>
+      {/* **O limiar, as datas e a latitude saem das constantes.** Eram prosa fixa em
+          três lugares — este rodapé, o versalete do título e a razão de cada grupo —, e
+          nenhum derivava de `LIMIAR_PRATICO_MIN`, `DATA_DO_PRE_REGISTRO` ou
+          `COORDENADA_DA_LUZ`, todos importados nos mesmos arquivos. O limiar era o mais
+          agudo: o núcleo o constrói da constante, e a página o redigitava. */}
       <Text style={styles.metodoTxt}>
-        Desfecho, janela, direção e o limiar de 15 minutos foram fixados antes de qualquer consulta
-        ao dado: a cheia em 07 set 2026, as outras três em 28 set. Esta página não afirma causa.
+        Desfecho, janela, direção e o limiar de {LIMIAR_EM_PALAVRAS} foram fixados antes de qualquer
+        consulta ao dado: a cheia em {DATA_DO_PRE_REGISTRO.cheia}, as outras três em{' '}
+        {DATA_DO_PRE_REGISTRO['as-tres']}. Esta página não afirma causa.
       </Text>
       <Text style={styles.metodoTxt}>
-        Horas de luz do dia na latitude do sujeito (~50,8° N) são pré-requisito do teste, não
-        ressalva: a janela lunar anda pelo calendário, e sem a luz nenhuma fase roda.
+        Horas de luz do dia na latitude do sujeito ({LATITUDE_EM_PALAVRAS}) são pré-requisito do
+        teste, não ressalva: a janela lunar anda pelo calendário, e sem a luz nenhuma fase roda.
       </Text>
       <Text style={styles.metodoTxt}>
-        Quatro janelas de cinco noites ocupam 68% do ciclo, e sobram ~9,5 noites fora de todas. Cada
-        fase é comparada contra todas as outras noites, então a coluna de controle contém as janelas
-        das outras três: o viés é para o nulo.
+        {MEDIDA_DO_CICLO} Sobram ~9,5 noites fora de todas. Cada fase é comparada contra todas as
+        outras noites, então a coluna de controle contém as janelas das outras três: o viés é para o
+        nulo.
       </Text>
       <Text style={styles.metodoTxt}>
         As quatro rodam juntas, ou nenhuma roda. Não existe “eu testei as quatro fases”: são dois
@@ -691,6 +636,18 @@ function RodapeDoMetodo({ execucao, styles }: { execucao: ExecucaoLunar | null; 
 
 /** Quantos hexadecimais do sha256 o rodapé imprime — o bastante para comparar duas execuções. */
 const DIGITOS_DO_SHA = 8;
+
+/**
+ * A latitude do sujeito, **da constante que a covariável usa** (`COORDENADA_DA_LUZ`).
+ *
+ * Ela era `~50,8° N` digitado no rodapé, a um `grep` de distância do número que o
+ * `daylightHours` realmente recebe — e os dois podiam divergir sem nada reclamar. O
+ * hemisfério sai do sinal, porque uma latitude negativa com um `N` colado seria a
+ * mesma classe de defeito num grau maior.
+ */
+const LATITUDE_EM_PALAVRAS =
+  `~${Math.abs(COORDENADA_DA_LUZ.lat).toFixed(1).replace('.', ',')}° `
+  + `${COORDENADA_DA_LUZ.lat >= 0 ? 'N' : 'S'}`;
 
 /** Só o nome do arquivo: o caminho inteiro não cabe, e o nome é o que identifica o elo. */
 function nomeDoArquivo(caminho: string): string {
@@ -743,6 +700,10 @@ const createStyles = () =>
       flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
       paddingHorizontal: spacing.xl, paddingTop: spacing.lg,
     },
+    avisoCorpo: { flex: 1, gap: 6 },
+    // O recado do núcleo é mono porque é mensagem de máquina, e `ink2` porque é
+    // informação obrigatória: ele diz o primeiro passo de quem vai consertar o dado.
+    recado: { fontSize: 11, fontFamily: fonts.mono, color: colors.ink2 },
 
     /**
      * A frase coletiva: filete de 2 px em `ink` abre o conjunto, 1 px em `line`

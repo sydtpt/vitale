@@ -175,39 +175,19 @@ describe('a inserção tardia acima das âncoras (Story 3.2)', () => {
     expect(r.destinoDe('rotina')! - congelado).toBe(BLOCO);
   });
 
-  /**
-   * **A inserção que a Story 4.4 acrescenta é DENTRO de um caderno**, e por isso
-   * ela é a mais fácil de não testar.
+  /*
+   * **Aqui havia um `it` da Story 4.4 que não discriminava nada, e ele foi apagado.**
    *
-   * A linha de entrada da lua entra no pé do caderno Sono, então ela **não muda** a
-   * origem das âncoras acima dele — e muda a dos cadernos **depois**. Um teste que
-   * olhasse só a âncora do próprio Sono passaria com o conserto errado: a posição
-   * do Sono é a mesma com ou sem a linha, e é justamente por isso que ela não prova
-   * nada. Quem testa a invariante são Movimento, Coração e Rotina.
+   * Ele media a inserção da linha da lua no pé do caderno Sono empurrando as âncoras
+   * seguintes — mas isso é a MESMA propriedade que os três `it` acima já prendem (a
+   * última medida manda), com outra altura. Medido: ele reprovava junto com quatro
+   * testes pré-existentes deste arquivo, nunca sozinho, e a altura declarada
+   * (`LINHA_DA_LUA = 141`) era decorativa — qualquer inteiro positivo passava.
    *
-   * E a linha entra tarde: ela depende da leitura de `lua_execucoes`, que chega
-   * depois do primeiro quadro, como o anuário.
+   * Um teste que só reprova quando outros quatro já reprovaram não é uma barreira: é
+   * ruído com aparência de cobertura. O que a Story 4.4 realmente pode quebrar em
+   * silêncio é a **árvore de JSX**, e isso é a barreira de código-fonte abaixo.
    */
-  it('a linha da lua no pé do Sono move as âncoras DEPOIS dele, e elas remedem', () => {
-    /** A altura da linha de entrada: 141 px no corpo padrão, medidos na prancha. */
-    const LINHA_DA_LUA = 141;
-    const r = criarAncoras<Caderno>();
-    CADERNOS.forEach((c, i) => r.para(c).onLayout(layout(SEM_BLOCO[i]!)));
-
-    // A linha entra no pé do Sono (o primeiro da ordem aqui): o Sono fica onde
-    // estava e os três seguintes descem.
-    const comLinha = [SEM_BLOCO[0]!, ...SEM_BLOCO.slice(1).map((y) => y + LINHA_DA_LUA)];
-    CADERNOS.forEach((c, i) => r.para(c).onLayout(layout(comLinha[i]!)));
-
-    expect(CADERNOS.map((c) => r.destinoDe(c))).toEqual(comLinha);
-    // O próprio Sono não se move — a prova de que ele não é o teste.
-    expect(r.destinoDe('sono')).toBe(SEM_BLOCO[0]);
-    // E cada um dos posteriores erra por exatamente a altura da linha se a medida
-    // congelar: o sumário pararia antes da faixa, calado.
-    for (const [i, c] of CADERNOS.slice(1).entries()) {
-      expect(r.destinoDe(c)! - SEM_BLOCO[i + 1]!).toBe(LINHA_DA_LUA);
-    }
-  });
 });
 
 /**
@@ -229,6 +209,24 @@ describe('a inserção tardia acima das âncoras (Story 3.2)', () => {
  * parser**: se a contagem de `<` não casar com a de tags reconhecidas — uma seta
  * `=>` dentro de atributo, um fragmento, uma tag minúscula —, ela reprova dizendo
  * isso, em vez de concluir coisa errada em silêncio.
+ *
+ * ## As duas formas que ela NÃO guardava — e o docblock do hook as nomeia
+ *
+ * A região lida é `fonte.slice(scroll, map)`: ela **termina** no `{cadernos.map(`,
+ * então nada dentro do callback nem dentro de `Caderno` era visto. Ficaram verdes,
+ * medidas:
+ *
+ * - **embrulhar cada `<Caderno>` dentro do callback** — o embrulho passa a ser o filho
+ *   direto do rolável, o `Caderno` mede contra ele, e todo destino vira a mesma
+ *   posição;
+ * - **descer o `onLayout` do `View` externo para o `View style={styles.corpo}`** — aí
+ *   `layout.y` é a posição do corpo dentro do caderno (uns 60 px, a altura da faixa),
+ *   e **todas** as linhas do sumário rolam para quase o topo.
+ *
+ * As duas são exatamente os modos de falha que o docblock de `Ancora.onLayout` nomeia:
+ * *"embrulhar os destinos numa `View` intermediária, ou descer o `onLayout` para dentro
+ * do card"*. O remédio é ler os dois lugares que o `slice` não alcançava: o **primeiro
+ * elemento depois do `map`**, e a **primeira tag depois do `return` do `Caderno`**.
  */
 describe('BARREIRA — o map dos cadernos é filho direto do rolável', () => {
   const ROTA = join(__dirname, '..', '..', 'app', 'revista', '[tipo]', '[inicio].tsx');
@@ -269,6 +267,50 @@ describe('BARREIRA — o map dos cadernos é filho direto do rolável', () => {
     // uma tag que ela não reconhece tem de reprovar alto em vez de desaparecer.
     expect({ tags, angulos }).toEqual({ tags: angulos, angulos });
     expect(pilha).toEqual(['ScrollView']);
+  });
+
+  /**
+   * **A segunda forma: o embrulho DENTRO do callback.**
+   *
+   * `{cadernos.map((c) => (<View style={styles.gap}><Caderno … /></View>))}` compila,
+   * passa no `tsc` e passava na asserção acima — a região lida termina no `map`. O
+   * primeiro elemento que o callback devolve **é** o filho direto do rolável, então
+   * ele tem de ser o `Caderno`.
+   */
+  it('o primeiro elemento que o map devolve é o Caderno, sem embrulho', () => {
+    const map = fonte.indexOf('{cadernos.map(', fonte.indexOf('function Edicao('));
+    expect(map).toBeGreaterThan(-1);
+    const depois = fonte.slice(map, map + 400);
+    const primeira = /<([A-Z][\w.]*)/.exec(depois);
+    expect({ achou: primeira !== null, tag: primeira?.[1] })
+      .toEqual({ achou: true, tag: 'Caderno' });
+    // E o `key` e a âncora vão nele, que é quem o `ScrollView` posiciona.
+    expect(depois).toMatch(/<Caderno[\s\S]{0,400}ancora=\{rolagem\.ancora\(c\.caderno\)\}/);
+  });
+
+  /**
+   * **A terceira forma: descer o `onLayout` para dentro do card.**
+   *
+   * `layout.y` é a posição dentro do **pai imediato**, então o `onLayout` tem de estar
+   * no nó que o `ScrollView` posiciona — a `View` mais externa do `Caderno`, a primeira
+   * tag depois do `return`. Movê-lo para o `View style={styles.corpo}` faz toda linha
+   * do sumário rolar para a altura da faixa, e nada reclama.
+   */
+  it('o onLayout da âncora está na tag mais externa do Caderno', () => {
+    const corpo = fonte.indexOf('function Caderno(');
+    expect(corpo).toBeGreaterThan(-1);
+    const ret = fonte.indexOf('return (', corpo);
+    expect(ret).toBeGreaterThan(-1);
+    const depois = fonte.slice(ret, ret + 400);
+    // A primeira tag depois do `return` — e é ela que carrega o `onLayout`.
+    const primeira = /<([A-Z][\w.]*)([^<>]*?)>/.exec(depois);
+    expect({ achou: primeira !== null, tag: primeira?.[1] }).toEqual({ achou: true, tag: 'View' });
+    expect({ tag: primeira?.[1], comOnLayout: (primeira?.[2] ?? '').includes('onLayout={ancora.onLayout}') })
+      .toEqual({ tag: 'View', comOnLayout: true });
+    // E ele aparece **uma** vez no corpo todo: duas seria uma medida sobrescrevendo a
+    // outra, e qual delas ganha depende da ordem de layout.
+    const corpoDoCaderno = fonte.slice(corpo, fonte.indexOf('\nfunction ', corpo + 10));
+    expect((corpoDoCaderno.match(/onLayout=\{ancora\.onLayout\}/g) ?? [])).toHaveLength(1);
   });
 });
 
