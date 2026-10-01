@@ -54,6 +54,11 @@ export const accents = {
   blue: '#6E8CC9',
   blueSoft: '#DDE4F2',
   casa: '#B4825B',
+  // O papel `purple` já existia em toda paleta e já era `--purple` na web; o
+  // que faltava era o alias plano, porque nada fora dos módulos o pedia. A
+  // Trilha pediu (28/09/2026).
+  purple: '#8B6BB1',
+  purpleSoft: '#EBE3F3',
 } as const;
 
 // ─── Flat export (backwards compatible) ───────────────

@@ -334,13 +334,20 @@ check('INVARIÂNCIA DE FUSO — o hospedeiro não muda nenhuma noite de coluna, 
   assert.equal(new Set(leituras).size, 1, 'o fuso do processo mudou a classificação de alguma noite');
 });
 
-check('lua.ts e lua-protocolo.ts não leem fuso, ambiente, relógio nem coordenada', () => {
-  // A mesma guarda cobre os dois arquivos: o motor do teste é tão puro quanto a
+check('lua.ts, lua-protocolo.ts e lua-carimbo.ts não leem fuso, ambiente, relógio nem coordenada', () => {
+  // A mesma guarda cobre os três arquivos: o motor do teste é tão puro quanto a
   // janela, e por um motivo mais forte — ele roda no iPhone e num script de
   // backfill, e um veredito pré-registrado não pode depender de onde rodou.
+  //
+  // **`lua-carimbo.ts` entrou aqui na 4.2b, e a lista literal era o buraco.** O laço
+  // nomeava dois arquivos, então a sonda de `medirBordaDireita()` ficava de fora da
+  // guarda — e ela é quem decide o valor que vai gravado em `borda_direita`. Medido:
+  // um `new Date()` com `.getHours()` dentro da sonda passava em tudo, e o carimbo
+  // da execução passaria a depender de que horas eram no aparelho que a rodou. O
+  // arquivo já obedecia à regex; só ninguém a aplicava sobre ele.
   const PROIBIDO =
     /process\.|Intl\.|Date\.now|new Date\(\s*\)|toLocale|getTimezoneOffset|\.(?:get|set)(?:Hours|Minutes|Date|Day|Month|FullYear)\(|Coords|COORDENADA|deviceCoords|\/astro\/(?:sun|casa)/;
-  for (const arquivo of ['lua.ts', 'lua-protocolo.ts']) {
+  for (const arquivo of ['lua.ts', 'lua-protocolo.ts', 'lua-carimbo.ts']) {
     const fonte = readFileSync(join(import.meta.dirname, arquivo), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/.*$/gm, '');

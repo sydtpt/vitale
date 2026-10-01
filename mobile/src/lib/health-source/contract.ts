@@ -217,7 +217,12 @@ export interface HealthSource {
     anchor?: string;
   }): Promise<RawWorkoutDelta>;
 
-  /** Pontos GPS de um treino. `[]` quando não há rota (indoor, por exemplo). */
+  /**
+   * Pontos GPS de um treino. `[]` quando não há rota (indoor, por exemplo), e
+   * **lança** quando o HealthKit recusa a consulta — com o aparelho trancado ele
+   * devolve `Code=6` para todo dado protegido. O vazio é veredito; a recusa não,
+   * e confundir os dois apaga cidades e piso da atividade. Ver `fetchWorkoutRoute`.
+   */
   queryWorkoutRoute(workoutId: string): Promise<RawRouteLocation[]>;
 
   /** Características do perfil (nascimento, sexo, tipo sanguíneo). */

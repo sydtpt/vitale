@@ -476,12 +476,34 @@ export async function fetchExistingRouteIds(
 /* ─────────────────────────── piso das rotas (ADR 0034/0035) ─────────────────────────── */
 
 /**
+ * Quantas atividades do tipo certo a fila olha por passe. Folgado de propósito:
+ * o custo é uma coluna de ids, e a janela precisa alcançar a pedalada antiga que
+ * ainda não tem piso sem depender de quantas já têm.
+ */
+const SURFACE_WINDOW = 400;
+
+/**
  * Pedaladas com rota e ainda sem piso — a fila do passe.
  *
- * Duas leituras em vez de um join embutido: o dono da fila é
- * `activity_routes` (é lá que a ausência mora), mas o filtro por tipo e a ordem
- * "mais recente primeiro" moram em `activities`. Cruzar em memória custa nada
- * neste volume e evita depender da forma do relacionamento no PostgREST.
+ * Duas leituras em vez de um join embutido, para não depender da forma do
+ * relacionamento no PostgREST. **A ordem das duas importa, e já esteve errada.**
+ *
+ * Até 29/09/2026 a primeira leitura era `activity_routes` com
+ * `surface_segments IS NULL` e `limit(40)` **sem `order`**, e o cruzamento por
+ * tipo vinha depois, em memória. Só que piso existe para bicicleta e mais nada:
+ * toda rota de caminhada e de corrida fica `NULL` para sempre — eram 137 delas
+ * (80 caminhadas, 57 corridas). Enquanto o backfill ainda tinha pedaladas na
+ * cabeça da tabela o passe andava; drenadas as pedaladas, a janela de 40 passou
+ * a ser só rota que nunca terá piso, e **pedalada nova nunca mais virou
+ * candidata**. Sem erro, sem fila vazia: o passe rodava e não achava nada.
+ *
+ * Por isso a fila é das **atividades** — filtradas por tipo e ordenadas da mais
+ * recente para a mais antiga, no banco —, e as rotas entram depois, só as
+ * dessas. Assim a janela nunca se enche do que não pertence a ela.
+ *
+ * `has_route` de propósito **não** entra no filtro: ele é escrito pelo sync e
+ * pode mentir (rota recusada pelo HealthKit com o aparelho trancado grava
+ * `false`). Quem decide é a existência da linha em `activity_routes`.
  *
  * `retryBefore` (ISO) exclui as que falharam recentemente: falha grava
  * `surface_meta.failedAt` e a rota só volta à fila depois dessa marca.
@@ -493,42 +515,57 @@ export async function fetchSurfaceCandidates(
   limit: number,
   retryBefore: string,
 ): Promise<Array<{ activityId: string; overview: ActivityRoutePoint[] }>> {
-  const { data: routes, error } = await db
-    .from('activity_routes')
-    .select('activity_id, route_overview, surface_meta')
+  const { data: acts, error } = await db
+    .from('activities')
+    .select('id')
     .eq('user_id', userId)
-    .is('surface_segments', null)
-    .limit(40);
+    .in('activity_id', [...activityIds])
+    .order('start_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(SURFACE_WINDOW);
   if (error) throw error;
+  const ordenadas = ((acts ?? []) as Array<{ id: string }>).map((a) => a.id);
+  if (ordenadas.length === 0) return [];
+
   type Row = {
     activity_id: string;
     route_overview: [number, number][] | null;
     surface_meta: { status?: string; failedAt?: string } | null;
   };
-  const pending = ((routes ?? []) as Row[]).filter(
-    (r) => !r.surface_meta || r.surface_meta.status !== 'failed' || (r.surface_meta.failedAt ?? '') < retryBefore,
+  const routes = await fetchEmLotesDeIds<Row>(ordenadas, (fatia) =>
+    db
+      .from('activity_routes')
+      .select('activity_id, route_overview, surface_meta')
+      .eq('user_id', userId)
+      .is('surface_segments', null)
+      .in('activity_id', [...fatia]),
   );
-  if (pending.length === 0) return [];
 
-  const { data: acts, error: e2 } = await db
-    .from('activities')
-    .select('id')
-    .eq('user_id', userId)
-    .in('activity_id', [...activityIds])
-    .in('id', pending.map((r) => r.activity_id))
-    .order('start_at', { ascending: false })
-    .limit(limit);
-  if (e2) throw e2;
+  const byId = new Map(
+    routes
+      .filter(
+        (r) =>
+          !r.surface_meta ||
+          r.surface_meta.status !== 'failed' ||
+          (r.surface_meta.failedAt ?? '') < retryBefore,
+      )
+      .map((r) => [r.activity_id, r]),
+  );
+  if (byId.size === 0) return [];
 
-  const byId = new Map(pending.map((r) => [r.activity_id, r]));
-  return ((acts ?? []) as Array<{ id: string }>).flatMap((a) => {
-    const row = byId.get(a.id);
-    if (!row) return [];
+  // A ordem é a das atividades (mais recente primeiro); o `limit` é aplicado
+  // aqui, depois de saber quais realmente estão sem piso.
+  const out: Array<{ activityId: string; overview: ActivityRoutePoint[] }> = [];
+  for (const id of ordenadas) {
+    if (out.length >= limit) break;
+    const row = byId.get(id);
+    if (!row) continue;
     const overview = (row.route_overview ?? [])
       .filter((p) => Array.isArray(p) && p.length >= 2)
       .map(([lat, lng]) => ({ lat, lng }));
-    return [{ activityId: a.id, overview }];
-  });
+    out.push({ activityId: id, overview });
+  }
+  return out;
 }
 
 /**

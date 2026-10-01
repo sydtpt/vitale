@@ -42,11 +42,23 @@ import {
   lerDiagnosticoDoAparelho,
 } from './ia/aparelho';
 import { CONCLUSAO } from './ia/motor';
+// `sha256Hex` entra só para **cruzar** as duas implementações uma vez: `DIGEST_DA_CADEIA`
+// nasceu dela e passou a ser conferido pelo `node:crypto`, e duas contas que ninguém cruza
+// são duas chances de a mesma resposta estar errada nos dois lugares.
+import { sha256Hex } from './ia/sha256';
 import { VOCABULARIO_PROIBIDO } from './ia/verificar';
 import { CADERNO_IDS } from './period/cadernos';
 import { CAPA_COLUMNS, MOTIVOS_DA_CAPA, NATUREZAS_DA_CAPA } from './data/edicoes-capa';
 import { EDICAO_COLUMNS, TIPOS_COM_EDICAO } from './data/edicoes-ia';
 import { ACTIVITY_COLUMNS } from './data/activities';
+import { LUA_EXECUCAO_COLUMNS, VOCABULARIO_DE_LUA_EXECUCOES } from './data/lua-execucoes';
+import {
+  CADEIA_DO_PRE_REGISTRO,
+  CADEIA_MINIMA,
+  DIGEST_DA_CADEIA,
+  JANELA_LUNAR_VERSAO,
+  MOTOR_LUNAR_VERSAO,
+} from './sleep/lua-carimbo';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -673,6 +685,1570 @@ check('BARREIRA — caderno, natureza, motivo da capa e tipo de período são a 
   );
 });
 
+/* ─────────── `lua_execucoes`: o SQL que nenhum teste lia (Story 4.2b) ─────────── */
+
+/**
+ * A migração de `lua_execucoes`, **achada pelo sufixo do nome, não pelo nome**.
+ *
+ * Pinar `20260928130000_lua_execucoes.sql` numa asserção quebra no dia em que alguém
+ * renumerar a migração num merge — o que este repositório já fez com ADR, e o que a
+ * barreira irmã evita por ler *todas* as migrations. O que se exige é que exista
+ * **uma**: zero é a barreira sem alvo, duas é ambiguidade que ninguém quer descobrir
+ * na janela do dono.
+ */
+function migracaoLunar(): { f: string; sql: string } | null {
+  const achadas = migrations().filter((m) => /_lua_execucoes\.sql$/.test(m.f));
+  return achadas.length === 1 ? achadas[0] : null;
+}
+
+/** As policies de uma tabela, com o verbo de cada uma (`for all` é o default do Postgres). */
+function policiesDaTabela(sql: string, tabela: string): { nome: string; verbo: string }[] {
+  const out: { nome: string; verbo: string }[] = [];
+  const re = new RegExp(
+    `create\\s+policy\\s+(?:"([^"]+)"|([a-z_][a-z0-9_]*))\\s+on\\s+(?:public\\.)?${tabela}\\b([^;]*);`,
+    'gi');
+  for (const m of sql.matchAll(re)) {
+    const verbo = /\bfor\s+(all|select|insert|update|delete)\b/i.exec(m[3])?.[1]?.toLowerCase() ?? 'all';
+    out.push({ nome: m[1] ?? m[2], verbo });
+  }
+  return out;
+}
+
+/** Os nomes das `constraint <nome> check (…)` declaradas no corpo da tabela. */
+function constraintsNomeadas(sql: string, tabela: string): string[] {
+  const nomes = new Set<string>();
+  for (const trecho of trechosDaTabela(sql, tabela)) {
+    for (const m of trecho.matchAll(/constraint\s+([a-z_][a-z0-9_]*)\s+check/gi)) {
+      nomes.add(m[1].toLowerCase());
+    }
+  }
+  return [...nomes].sort();
+}
+
+/**
+ * As declarações de coluna do `create table`, cada uma com o texto inteiro dela.
+ *
+ * Mesmo particionamento de {@link colunasDaTabela} — vírgula de primeiro nível,
+ * pulando literais —, mas guardando o corpo, porque o que se quer aqui é o `not null`
+ * e não só o nome.
+ */
+function declaracoesDeColuna(sql: string, tabela: string): { nome: string; corpo: string }[] {
+  for (const trecho of trechosDaTabela(sql, tabela)) {
+    if (!/^\s*create\s+table/i.test(trecho)) continue;
+    const corpo = trecho.slice(trecho.indexOf('(') + 1, trecho.lastIndexOf(')'));
+    const partes: string[] = [];
+    let nivel = 0;
+    let atual = '';
+    let emLiteral = false;
+    for (let i = 0; i < corpo.length; i += 1) {
+      const ch = corpo[i];
+      if (emLiteral) {
+        if (ch === "'") emLiteral = false;
+        atual += ch;
+        continue;
+      }
+      if (ch === "'") { emLiteral = true; atual += ch; continue; }
+      if (ch === '(') nivel += 1;
+      else if (ch === ')') nivel -= 1;
+      if (ch === ',' && nivel === 0) { partes.push(atual); atual = ''; continue; }
+      atual += ch;
+    }
+    partes.push(atual);
+    return partes
+      .map((p) => p.trim())
+      .filter((p) => /^[a-z_][a-z0-9_]*\s/i.test(p))
+      .filter((p) => !CLAUSULA_DE_TABELA.has(p.split(/\s+/)[0].toLowerCase()))
+      .map((p) => ({ nome: p.split(/\s+/)[0].toLowerCase(), corpo: p }));
+  }
+  return [];
+}
+
+/** `comment on column <tabela>.<coluna> is '…'` → coluna ⇒ texto. */
+function comentariosDeColuna(sql: string, tabela: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const re = new RegExp(
+    `comment\\s+on\\s+column\\s+(?:public\\.)?${tabela}\\.([a-z_][a-z0-9_]*)\\s+is\\s+'((?:[^']|'')*)'`,
+    'gi');
+  for (const m of sql.matchAll(re)) out.set(m[1].toLowerCase(), m[2]);
+  return out;
+}
+
+/** As colunas cujo CHECK é uma lista fechada de literais — as duas formas. */
+function colunasComVocabulario(sql: string, tabela: string): Set<string> {
+  const achadas = new Set<string>();
+  for (const trecho of trechosDaTabela(sql, tabela)) {
+    if (/^\s*drop\s+table/i.test(trecho)) { achadas.clear(); continue; }
+    for (const m of trecho.matchAll(/check\s*\(\s*([a-z_][a-z0-9_]*)\s+in\s*\(\s*'/gi)) {
+      achadas.add(m[1].toLowerCase());
+    }
+    for (const m of trecho.matchAll(
+      /check\s*\(\s*([a-z_][a-z0-9_]*)\s*=\s*any\s*\(\s*array\s*\[\s*'/gi)) {
+      achadas.add(m[1].toLowerCase());
+    }
+  }
+  return achadas;
+}
+
+/**
+ * Tudo o que a migração de `lua_execucoes` **tem de dizer**, como lista fechada.
+ *
+ * Estas são as peças que nenhum teste lia: apagar o bloco inteiro do `create
+ * constraint trigger`, ou o `enable row level security`, ou um `constraint … check`
+ * nomeado deixava as duas suítes verdes. O SQL era um arquivo de texto que ninguém
+ * abria, numa tabela cuja migração ainda **não foi aplicada** — quer dizer, com a
+ * janela do dono inteira pela frente para descobrir o buraco.
+ */
+const EXIGIDO_NA_MIGRACAO_LUNAR: readonly (readonly [string, string])[] = [
+  [
+    'create constraint trigger lua_execucoes_quatro_ou_nenhuma',
+    'sem o gatilho, "as quatro fases ou nenhuma" (§9 de 28/09) volta a depender de o único '
+    + 'chamador estar certo — e este par de documentos existe para não depender de disciplina',
+  ],
+  [
+    'after insert or update or delete on public.lua_execucoes',
+    'o gatilho cobre os três verbos: sem o DELETE, apagar três de quatro linhas deixa uma '
+    + 'execução que publica três fases, que é exatamente o que a §9 proíbe',
+  ],
+  [
+    'deferrable initially deferred',
+    'sem isto a PRIMEIRA das quatro linhas já viola a contagem e a escrita inteira fica '
+    + 'impossível — a invariante vale no fim da transação, não no meio dela',
+  ],
+  [
+    'alter table public.lua_execucoes enable row level security',
+    'sem RLS a tabela fica legível e gravável por qualquer sessão autenticada, e as policies '
+    + 'abaixo viram decoração',
+  ],
+  [
+    'for select using (auth.uid() = user_id)',
+    'a policy de leitura é o que sustenta o gatilho: ele é `security invoker` e CONTA as linhas '
+    + 'pelos olhos de quem escreveu — sem `select`, a contagem enxerga zero e o "quatro ou '
+    + 'nenhuma" para de ser cobrado em silêncio',
+  ],
+  [
+    'for insert with check (auth.uid() = user_id)',
+    'é a única escrita que a tabela aceita pela API',
+  ],
+  [
+    `jsonb_array_length(cadeia) >= ${CADEIA_MINIMA}`,
+    `o piso da cadeia é CADEIA_MINIMA (sleep/lua-carimbo.ts), e o tradutor de leitura usa o `
+    + 'mesmo número: um dos dois lados sozinho aceita uma linha que o outro afirma não existir',
+  ],
+];
+
+/** Os nomes das `constraint … check` que a tabela declara. Lista **fechada**. */
+const CONSTRAINTS_DE_LUA_EXECUCOES: readonly string[] = [
+  'acervo_colapsado_cabe_no_acervo',
+  'acervo_comeca_depois_do_pedido',
+  'acervo_intervalo_valido',
+  'acervo_nao_tem_noite_repetida',
+  'acervo_vazio_nao_tem_intervalo',
+  'as_medidas_sao_numeros_finitos',
+  'ciclos_cabem_nas_noites_dentro',
+  'colunas_cabem_no_acervo',
+  'falta_tem_numero_e_unidade',
+  'medida_existe_quando_ha_veredito',
+  'motivo_existe_quando_inconclusivo',
+  'poder_fraco_e_o_motivo_poder',
+  'portao_e_o_proprio_motivo',
+  'portao_reprovado_nao_mede',
+  'primeira_sem_luz_bate_com_a_contagem',
+  'unidade_bate_com_o_motivo',
+  'veredito_decidido_passou_no_poder',
+];
+
+/** As queixas que o SQL de `lua_execucoes` merece — vazio é "está tudo lá". */
+function queixasDoSqlLunar(sql: string): string[] {
+  const problemas: string[] = [];
+  for (const [fragmento, porque] of EXIGIDO_NA_MIGRACAO_LUNAR) {
+    if (!sql.includes(fragmento)) problemas.push(`sumiu \`${fragmento}\` — ${porque}`);
+  }
+  const verbos = policiesDaTabela(sql, 'lua_execucoes').map((p) => p.verbo).sort();
+  if (verbos.join(',') !== 'insert,select') {
+    problemas.push(
+      `as policies de lua_execucoes cobrem [${verbos.join(', ')}] e têm de cobrir exatamente `
+      + '[insert, select]: `for all` concede UPDATE, e um veredito reescrito no lugar é o oposto '
+      + 'do "acumula, nunca substitui" da §7.2; `for delete` faria a execução sumir pela API sem '
+      + 'deixar rastro de ter sumido',
+    );
+  }
+  const nomeadas = constraintsNomeadas(sql, 'lua_execucoes');
+  if (nomeadas.join(',') !== [...CONSTRAINTS_DE_LUA_EXECUCOES].sort().join(',')) {
+    problemas.push(
+      `as constraints nomeadas são [${nomeadas.join(', ')}] e a lista fechada diz `
+      + `[${[...CONSTRAINTS_DE_LUA_EXECUCOES].sort().join(', ')}] — uma que suma leva a invariante `
+      + 'dela junto, e uma nova que não entre na lista nasce sem ninguém sabendo que existe',
+    );
+  }
+  return problemas;
+}
+
+/**
+ * **A prova de não-vacuidade**, e ela é o ponto desta barreira.
+ *
+ * Cada peça exigida é apagada (ou renomeada) numa CÓPIA em memória do SQL, e a
+ * barreira tem de acusar. Sem isto, a lista acima seria um conjunto de `includes`
+ * que passam porque o arquivo é grande — que é exatamente o estado anterior, em que
+ * apagar o gatilho inteiro deixava 114 testes verdes.
+ */
+function provarALeituraDoSqlLunar(sql: string): void {
+  const mutacoes: { nome: string; sql: string }[] = [
+    ...EXIGIDO_NA_MIGRACAO_LUNAR.map(([fragmento]) => ({
+      nome: `sem \`${fragmento}\``,
+      sql: sql.replace(fragmento, ' '),
+    })),
+    {
+      nome: 'a policy volta a ser `for all`',
+      sql: sql
+        .replace('for select using (auth.uid() = user_id)', 'for all using (auth.uid() = user_id)')
+        .replace(/create\s+policy[^;]*for\s+insert[^;]*;/i, ' '),
+    },
+    { nome: 'sem policy nenhuma', sql: sql.replace(/create\s+policy[^;]*;/gi, ' ') },
+    ...CONSTRAINTS_DE_LUA_EXECUCOES.map((nome) => ({
+      nome: `\`${nome}\` renomeada`,
+      sql: sql.replace(`constraint ${nome} check`, 'constraint renomeada_sem_avisar check'),
+    })),
+    {
+      nome: 'uma constraint nova que ninguém listou',
+      sql: sql.replace(
+        'constraint falta_tem_numero_e_unidade check (',
+        'constraint inventada_agora check (true),\n  constraint falta_tem_numero_e_unidade check (',
+      ),
+    },
+  ];
+  for (const m of mutacoes) {
+    assert.ok(
+      m.sql !== sql,
+      `a mutação "${m.nome}" não mudou o SQL — a barreira está medindo um texto que não existe`,
+    );
+    assert.ok(
+      queixasDoSqlLunar(m.sql).length > 0,
+      `a barreira do SQL de lua_execucoes NÃO acusou a mutação "${m.nome}" — ela passa vácua.`,
+    );
+  }
+}
+
+check('BARREIRA — a migração de lua_execucoes declara o gatilho, a RLS, as policies por verbo e os CHECKs nomeados', () => {
+  const m = migracaoLunar();
+  assert.ok(m, 'nenhuma migration `*_lua_execucoes.sql`, ou mais de uma — a barreira ficou sem alvo.');
+  provarALeituraDoSqlLunar(m!.sql);
+  assert.deepEqual(
+    queixasDoSqlLunar(m!.sql),
+    [],
+    `o SQL de lua_execucoes (${m!.f}) perdeu peça que nenhum outro teste lê. Nada em TypeScript `
+    + 'cobre isto: a migração é texto que só o Postgres executa, e ela ainda NÃO foi aplicada.',
+  );
+});
+
+/**
+ * BARREIRA — o vocabulário de `lua_execucoes` é a mesma lista dos dois lados, **e nos
+ * dois sentidos** (Story 4.2b).
+ *
+ * A irmã de `ID_COLUMNS_DA_EDICAO`, com uma diferença que custou o achado: além de
+ * iterar o mapa do TypeScript e cobrar o CHECK de cada coluna dele, esta varre os
+ * `check (x in (…))` do **corpo da tabela** e exige dono no mapa. Sem a segunda
+ * direção, a décima coluna de vocabulário nasce sem barreira nenhuma — ninguém
+ * percebe que ela existe, porque o teste só pergunta pelas nove que já conhece.
+ *
+ * E a leitura do SQL é a de `idsAceitosPeloCheck`, que entende as duas formas que o
+ * Postgres aceita, segue `drop constraint` e `drop table`, e varre **todas** as
+ * migrations — em vez da regex reinventada que lia um arquivo só.
+ */
+check('BARREIRA — as nove colunas de vocabulário de lua_execucoes batem com os CHECKs, e não há uma décima sem dono', () => {
+  const problemas: string[] = [];
+  const noMapa = Object.keys(VOCABULARIO_DE_LUA_EXECUCOES).sort();
+  assert.ok(noMapa.length > 0, 'VOCABULARIO_DE_LUA_EXECUCOES ficou vazio — a barreira perdeu o alvo no TS.');
+
+  for (const coluna of noMapa) {
+    const noTs = [...VOCABULARIO_DE_LUA_EXECUCOES[coluna]].sort();
+    assert.ok(noTs.length > 0, `VOCABULARIO_DE_LUA_EXECUCOES.${coluna} está vazio`);
+    const check = idsAceitosPeloCheck('lua_execucoes', coluna);
+    if (!check) {
+      problemas.push(`lua_execucoes.${coluna}: nenhuma migration define o CHECK`);
+      continue;
+    }
+    const noBanco = [...check.ids].sort();
+    if (noTs.join(',') !== noBanco.join(',')) {
+      problemas.push(
+        `lua_execucoes.${coluna} (${check.f}): o banco aceita [${noBanco.join(', ')}] e o TS declara `
+        + `[${noTs.join(', ')}]`,
+      );
+    }
+  }
+
+  // O outro sentido: coluna com lista fechada no SQL e sem dono no mapa.
+  const m = migracaoLunar();
+  assert.ok(m, 'nenhuma migration `*_lua_execucoes.sql`, ou mais de uma.');
+  const noSql = [...colunasComVocabulario(m!.sql, 'lua_execucoes')].sort();
+  assert.ok(noSql.length > 0, 'nenhum `check (x in (…))` achado na tabela — a varredura ficou cega.');
+  const orfas = noSql.filter((c) => !noMapa.includes(c));
+  if (orfas.length > 0) {
+    problemas.push(
+      `coluna com vocabulário fechado no SQL e sem dono no TS: ${orfas.join(', ')} — acrescente-a a `
+      + 'VOCABULARIO_DE_LUA_EXECUCOES (data/lua-execucoes.ts), derivada do protocolo, e o tradutor '
+      + 'passa a conferir o valor em vez de convertê-lo por `as`',
+    );
+  }
+
+  assert.deepEqual(
+    problemas,
+    [],
+    `o vocabulário de lua_execucoes divergiu:\n    ${problemas.join('\n    ')}\n`
+    + '  Os dois lados mudam na mesma entrega, e a lista do TS sai de PROTOCOLO_LUNAR e de '
+    + 'UNIDADE_DO_MOTIVO — mover uma fase, um α ou uma lateralidade lá move o que o banco aceita.',
+  );
+});
+
+/**
+ * BARREIRA — toda coluna nullable de `lua_execucoes` diz o que o nulo significa
+ * (Story 4.2b, AD-16).
+ *
+ * "Nulo é 'não foi medido', nunca zero" é a terceira propriedade que a tabela existe
+ * para ter, e ela mora inteira num texto: o `comment on column`. Um nulo sem a
+ * cláusula `NULO = …` é uma coluna que o próximo leitor vai preencher com zero por
+ * não saber a diferença — é a lição da story 2.6, do outro lado.
+ *
+ * **A cláusula é exigida CONTIDA, não no começo.** A regra estava escrita como
+ * "começando por", e nenhuma das quinze colunas nullable começa assim — nem o
+ * precedente que a inspirou (`edicoes_ia.metrica_lider`, de 12/09). A frase útil vem
+ * antes, e exigir a posição seria exigir a pior das duas redações.
+ */
+check('BARREIRA — toda coluna nullable de lua_execucoes tem comentário e diz o que o NULO é', () => {
+  const m = migracaoLunar();
+  assert.ok(m, 'nenhuma migration `*_lua_execucoes.sql`, ou mais de uma.');
+  const colunas = declaracoesDeColuna(m!.sql, 'lua_execucoes');
+  assert.ok(colunas.length >= 30, `só ${colunas.length} colunas lidas — o particionador ficou cego.`);
+  const comentarios = comentariosDeColuna(m!.sql, 'lua_execucoes');
+
+  const nullable = colunas.filter((c) => !/\bnot\s+null\b/i.test(c.corpo)).map((c) => c.nome);
+  // Não-vacuidade: se o leitor achasse zero colunas nullable, a barreira passaria
+  // sem cobrar nada — que é a única forma de ela mentir.
+  assert.ok(
+    nullable.length >= 10,
+    `só ${nullable.length} colunas nullable lidas (${nullable.join(', ')}) — o \`not null\` está `
+    + 'sendo lido errado, e a barreira ia passar vácua.',
+  );
+
+  const semComentario = colunas.map((c) => c.nome).filter((n) => !comentarios.has(n));
+  const semNulo = nullable.filter((n) => !(comentarios.get(n) ?? '').includes('NULO = '));
+  assert.deepEqual(
+    semComentario,
+    [],
+    `coluna de lua_execucoes sem \`comment on column\`: ${semComentario.join(', ')}.`,
+  );
+  assert.deepEqual(
+    semNulo,
+    [],
+    `coluna nullable de lua_execucoes cujo comentário não contém a cláusula \`NULO = …\`: `
+    + `${semNulo.join(', ')}. O que o nulo significa naquela coluna não se adivinha, e quem `
+    + 'adivinhar vai escrever zero.',
+  );
+  console.log(`     · ${colunas.length} colunas, ${nullable.length} nullable, todas dizendo o que o nulo é`);
+});
+
+/* ───── A cadeia do pré-registro lunar: a barreira canônica (Story 4.3) ───── */
+
+/**
+ * BARREIRA — os quatro documentos imutáveis e os **seis** fontes da lua, com as sha256
+ * **como literais daqui** (Story 4.3; §7.3 de 07/09; Correção 2 de 08/09; Correção 4 de 28/09).
+ *
+ * ## O furo que esta barreira fecha, e por que ele não era teórico
+ *
+ * A cobrança nasceu em `sleep/lua-carimbo.test.ts`, e ela fazia
+ * `for (const { arquivo, sha256 } of CADEIA_DO_PRE_REGISTRO)`: comparava o disco com **a
+ * constante que ela existia para guardar**. Quem quisesse mudar a regra depois de ver o
+ * resultado editava o documento e a constante no mesmo commit, e a suíte ficava verde.
+ * Uma barreira que confere a constante contra si mesma não guarda nada.
+ *
+ * Aqui as sha256 esperadas são **literais desta barreira**, nunca lidas daquela lista. A
+ * edição continua possível — o dono tem o repositório —, mas passa a exigir **cinco**
+ * edições em lugares diferentes, e a deste arquivo é a que aparece no diff de quem revisa.
+ * É o que a §7.3 pede, e ela é explícita sobre o que quer: *"não para impedir — para
+ * obrigar a dizer em voz alta"*.
+ *
+ * ## Incondicional, e é o ponto
+ *
+ * Quebra tenha havido execução ou não. *"Execução já gravada"* mora no Postgres, e esta
+ * suíte é pura e offline: um teste que precisasse do banco ficaria verde por não ter
+ * executado, que é o modo de falha que a casa proíbe. E um arquivo declarado imutável não
+ * deveria poder ser editado nem **antes** da primeira execução — é na janela antes dela que
+ * mudar a regra é mais tentador e menos visível.
+ *
+ * ## Os seis fontes, e as duas versões
+ *
+ * `lua-protocolo.ts` é o **motor** (efeito, p, poder) e sobe `MOTOR_LUNAR_VERSAO`. `lua.ts`
+ * é a **régua** (qual noite entra em qual coluna) e sobe `JANELA_LUNAR_VERSAO`: duas
+ * versões, e não uma, porque uma mudança de janela não muda o motor — juntá-las diria a
+ * coisa errada. E `lua-carimbo.ts` entra porque **contém a lista que esta barreira guarda**
+ * e as duas versões: sem ele pinado, mexer na cadeia lá seria mexer no alvo sem tocar no
+ * guarda.
+ *
+ * **E os três que esses arquivos importam, que a primeira versão desta barreira deixou de
+ * fora.** Medido em 30/09: mutar `axisPosition` em meia hora — o que muda o desfecho de
+ * **toda** noite — deixava esta suíte em exit 0, imprimindo *"régua v1 · motor v1"*. Mutar
+ * `astro/moon.ts` idem. Quer dizer: duas execuções carimbadas `v1` podiam ter saído de
+ * réguas diferentes, que é o **oposto** do que a coluna da versão existe para garantir. O
+ * papel de cada fonte decide qual versão o cobre:
+ *
+ * | Fonte | Versão | Por quê |
+ * |---|---|---|
+ * | `sleep/lua.ts` | régua | `JANELA_LUNAR_NOITES`, a hora do fim da noite, a borda |
+ * | `astro/moon.ts` | régua | o **instante** da fase é o que põe a noite dentro ou fora da janela. Ele serve ao motor também, mas o que o motor lhe pede é só `PHASE_ORDER` — ordem de nomes, não aritmética: nenhuma mudança nele altera Hodges–Lehmann ou Mann–Whitney, e todas alteram qual noite é qual. Régua |
+ * | `sleep/lua-protocolo.ts` | motor | Hodges–Lehmann, Mann–Whitney, a conta de poder, os portões |
+ * | `sleep/timing.ts` | motor | `axisPosition` é o **desfecho medido** que o motor compara |
+ * | `health/trends.ts` | motor | `stdDev` é o `sd` do portão da luz e de `acervo_sd_min` |
+ * | `sleep/lua-carimbo.ts` | — | contém a cadeia, o digest e as duas versões |
+ *
+ * ## A porta de escape que pinar por nome não fecha
+ *
+ * Uma lista de arquivos nomeados não impede um import **novo** de entrar sem golden. Por
+ * isso a barreira não se contenta com nomes: ela calcula o **fecho transitivo** dos imports
+ * de valor a partir dos três arquivos da lua e exige que ele seja **exatamente** o conjunto
+ * pinado — nos dois sentidos. Import novo reprova até o arquivo importado entrar aqui com a
+ * sha dele; e um golden para arquivo que a lua não alcança mais reprova também, porque é
+ * ruído com cara de guarda.
+ *
+ * `import type` fica de fora, e é nomeado: tipo não chega a runtime e não muda desfecho
+ * nenhum. No dia em que uma dessas linhas virar import de valor, o fecho cresce e a
+ * barreira acusa — é essa a porta que pinar por nome deixava aberta.
+ *
+ * **O limite honesto disso, que tem de continuar escrito:** um hash não distingue
+ * comentário de fórmula. Quem mexeu só num comentário sobe o golden e deixa a versão onde
+ * está — e **diz isso na mensagem do commit**, porque ninguém consegue distinguir as duas
+ * coisas por um hash. É o que torna o mecanismo honesto em vez de mágico.
+ *
+ * ## Nenhum dado lunar é consultado
+ *
+ * Proveniência não precisa de noite medida. O protocolo proíbe olhar antes da execução
+ * autorizada, e esta barreira não olha nem depois.
+ */
+interface AlvoPinadoDaLua {
+  /** O caminho relativo à raiz do repositório — o mesmo que `shasum -a 256` recebe. */
+  readonly caminho: string;
+  /** A sha256 que **esta barreira** exige. Literal daqui, nunca lida de outra constante. */
+  readonly sha256: string;
+  /** O que fazer quando ela divergir — e o que **não** fazer. */
+  readonly seMudou: string;
+  /** A constante que sobe quando a mudança foi de propósito, e o valor pinado dela. */
+  readonly versao?: { readonly nome: string; readonly valor: number };
+  /**
+   * A proveniência **append-only** da versão: uma entrada por versão, com a sha256 do fonte
+   * que rodou sob ela. Ver {@link comHistorico}.
+   */
+  readonly historico?: readonly { readonly versao: number; readonly sha256: string }[];
+}
+
+/**
+ * Um alvo com versão, montado **a partir do histórico** — e é ele que dá à versão a
+ * história que ela não tinha.
+ *
+ * O CHECK do banco é só `>= 1` e a barreira pinava `valor: 1`: nada impedia voltar de 2 para
+ * 1, e **nada guardava qual sha correspondia à versão 1** quando o golden subisse. No
+ * primeiro bump, uma linha carimbada `janela_versao = 1` deixaria de ser rastreável ao fonte
+ * que rodou — a cadeia dos documentos é append-only com digest, e a proveniência da régua era
+ * sobrescrita no lugar.
+ *
+ * A lista é **append-only, simétrica à cadeia**: subir a versão *acrescenta* uma entrada. E a
+ * sha esperada e o valor da versão saem da **última**, escritos uma vez só, porque duas
+ * asserções sobre a mesma sha é o defeito que esta casa persegue. Voltar de 2 para 1 no
+ * módulo passa a reprovar por (1): a última entrada diz 2.
+ *
+ * **O que ela não pode fazer**, e vale dizer, porque é o mesmo tipo de limite honesto do
+ * hash de fonte:
+ *
+ * 1. Um histórico que vive só neste arquivo **não detecta a própria poda**. Quem apagar a
+ *    entrada de ontem consegue — como consegue apagar um elo da cadeia. O que ela garante é
+ *    que isso **apareça no diff**, que é tudo o que a §7.3 pede.
+ * 2. Um golden que sobe **sem** subir a versão (o caso "era só comentário") **reescreve** a
+ *    entrada da versão vigente, porque a entrada É o golden. O histórico responde *"qual
+ *    fonte está sob a versão n hoje"*, e não *"qual fonte estava sob a versão n na primeira
+ *    execução"*. Para a segunda pergunta não há resposta possível sem gravar o sha na própria
+ *    linha da execução — e é por isso que quem sobe só o golden **diz isso na mensagem do
+ *    commit**, que é o único registro que sobra.
+ */
+function comHistorico(
+  caminho: string,
+  nome: string,
+  historico: readonly (readonly [number, string])[],
+  seMudou: string,
+): AlvoPinadoDaLua {
+  const h = historico.map(([versao, sha256]) => ({ versao, sha256 }));
+  if (h.length === 0) throw new Error(`${caminho}: histórico de versão vazio — a última entrada É o golden.`);
+  const ultima = h[h.length - 1];
+  return { caminho, sha256: ultima.sha256, versao: { nome, valor: ultima.versao }, seMudou, historico: h };
+}
+
+/**
+ * A regra que os quatro documentos declaram, dita **nas palavras desta barreira**.
+ *
+ * Não é citação: nenhum dos quatro escreve esta frase. O que eles escrevem é que são
+ * imutáveis e que a saída é documento novo — e isso a barreira **mede**, em vez de afirmar
+ * (ver a varredura de `imut` no corpo do `check`).
+ */
+const NAO_COLE_O_SHA =
+  'O que NÃO se faz: colar o sha de hoje aqui para o build passar. Isso é editar em '
+  + 'silêncio um texto que se declara imutável, que é exatamente o que esta barreira existe '
+  + 'para tornar impossível de fazer calado.';
+
+/**
+ * Os **quatro** documentos que autorizam o teste lunar, na ordem append-only da cadeia,
+ * com a sha256 de cada um **escrita aqui**.
+ *
+ * Fixadas em 30/09/2026 (story 4.3), conferidas com `shasum -a 256` da raiz. A ordem é
+ * cronológica e é parte do conteúdo: é dela que sai o digest, e trocar dois documentos de
+ * lugar dá outro digest porque a ordem da cadeia é a cronologia da regra.
+ */
+const CADEIA_PINADA_DA_LUA: readonly AlvoPinadoDaLua[] = [
+  {
+    caminho: 'docs/specs/revista-retrospectiva/pre-registro-lua.md',
+    sha256: 'd09365de54bb6bbd6fa8d99af9d1f26cddaebc3492029a63d6b1b6e4f6759664',
+    seMudou:
+      'O pré-registro de 07/09 é IMUTÁVEL — nem para corrigir uma vírgula. A saída é um '
+      + 'documento NOVO de correção, que cite os anteriores e diga o que mudou e por quê, '
+      + `mais um elo no FIM de CADEIA_DO_PRE_REGISTRO e um alvo no fim desta lista. ${NAO_COLE_O_SHA}`,
+  },
+  {
+    caminho: 'docs/specs/revista-retrospectiva/correcao-pre-registro-lua.md',
+    sha256: 'aad967aae5f9fddd563dfd5f97fd274d236f511fb20f5cdad2dfd45a7e46c308',
+    seMudou:
+      'A correção de 08/09 se declara imutável pelo mesmo motivo que o texto que ela corrige: '
+      + '"a correção de um texto imutável não pode ser um texto mutável". A saída é um '
+      + `documento novo, e um elo no fim da cadeia. ${NAO_COLE_O_SHA}`,
+  },
+  {
+    caminho: 'docs/specs/revista-retrospectiva/pre-registro-lua-outras-fases.md',
+    sha256: '1227264d01b5f0f35bf7bfcf90fb4241ac89fefef4b28dadfe399918a51251bc',
+    seMudou:
+      'O pré-registro das outras três fases (28/09) é IMUTÁVEL. Ele fixa α, lateralidade, '
+      + 'janela e vereditos das três, e mudá-lo depois de ver o resultado é a gaveta. A saída é '
+      + `um documento novo de correção, e um elo no fim da cadeia. ${NAO_COLE_O_SHA}`,
+  },
+  {
+    caminho: 'docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md',
+    sha256: '95cf3e729e9c832a4865ffa10c8e526fd494a1cba67bc61d9d83b4d7524c5b52',
+    seMudou:
+      'A segunda correção (28/09) é o quarto elo, e é imutável. Ela própria diz qual é a saída: '
+      + 'uma terceira correção é OUTRO documento, o quinto elo, que cita os quatro. '
+      + `${NAO_COLE_O_SHA}`,
+  },
+];
+
+/** O limite honesto do golden de fonte, repetido nas seis mensagens porque é ele que as torna honestas. */
+const SO_COMENTARIO =
+  'Se foi só comentário, suba o golden e deixe a versão onde está, e DIGA ISSO na mensagem do '
+  + 'commit, porque ninguém consegue distinguir as duas coisas por um hash.';
+
+/**
+ * Os **seis** fontes que decidem o resultado e que **não moram em documento hasheado**.
+ *
+ * O §10 de 28/09 nomeou a dívida: `JANELA_LUNAR_NOITES`, `HORA_UTC_DO_FIM_DA_NOITE` e a
+ * borda vivem em código, e mudar uma delas depois de ver o resultado deslocava a coluna
+ * testada **sem quebrar o build**. Estas linhas são o que fecha isso — e são seis, e não
+ * três, porque a régua e o motor *importam* três módulos que decidem tanto quanto eles.
+ *
+ * A lista é conferida contra o **fecho transitivo de imports** dos três arquivos da lua, nos
+ * dois sentidos: pinar por nome não impede import novo de entrar sem golden.
+ */
+const FONTES_PINADOS_DA_LUA: readonly AlvoPinadoDaLua[] = [
+  comHistorico(
+    'packages/shared/src/sleep/lua.ts',
+    'JANELA_LUNAR_VERSAO',
+    [[1, '3bfd41e5c6d49e1308691f64832c25903b1eb560a6c6f5d539f8dc9a461d0b8c']],
+    'É a RÉGUA: qual noite entra em qual coluna. Se a mudança move a janela, a hora do fim '
+    + 'da noite, a borda ou a lógica que as usa, acrescente uma entrada ao histórico com a '
+    + `versão nova e a sha nova, no mesmo commit — execuções já gravadas ficam com a versão `
+    + `anterior carimbada, e é esse o ponto. ${SO_COMENTARIO} O que NÃO se faz: mexer na régua `
+    + 'depois de ver o resultado de uma execução — a coluna testada anda e nenhum número da '
+    + 'tabela muda.',
+  ),
+  comHistorico(
+    'packages/shared/src/astro/moon.ts',
+    'JANELA_LUNAR_VERSAO',
+    [[1, 'c64fa84ba9132a466dd12ee2061a9d9c2bf25fd618f27e4393c0c9cc910ab52f']],
+    'É a EFEMÉRIDE, e ela é RÉGUA: `nextLunarPhase` dá o instante da fase, e é o instante que '
+    + 'põe cada noite dentro ou fora da janela — mexer nele move a coluna testada sem que '
+    + '`JANELA_LUNAR_NOITES`, a hora do fim da noite ou a borda mudem. `lua-protocolo.ts` '
+    + 'também a importa, mas só por `PHASE_ORDER`, que é ordem de nomes e não aritmética: '
+    + 'nenhuma mudança aqui altera Hodges–Lehmann ou Mann–Whitney. Por isso ela sobe '
+    + `JANELA_LUNAR_VERSAO e não MOTOR_LUNAR_VERSAO. ${SO_COMENTARIO}`,
+  ),
+  comHistorico(
+    'packages/shared/src/sleep/lua-protocolo.ts',
+    'MOTOR_LUNAR_VERSAO',
+    [[1, '9c53db13a275096fb0b3cd6080f1f97e431d0ffba8574565ac0786973d5179bb']],
+    'É o MOTOR: Hodges–Lehmann, Mann–Whitney, a conta de poder e os portões — o que produz '
+    + 'efeito, p e poder. **E a aritmética não está toda aqui:** o desfecho vem de '
+    + '`axisPosition` (`sleep/timing.ts`) e o `sd` de `stdDev` (`health/trends.ts`), que têm '
+    + 'golden próprio nesta lista, sob esta mesma versão. Se a mudança pretendia alterar a '
+    + `conta, acrescente entrada ao histórico. ${SO_COMENTARIO} O que NÃO se faz: trocar o `
+    + 'teste estatístico depois de ver o p — é a gaveta pela porta dos fundos.',
+  ),
+  comHistorico(
+    'packages/shared/src/sleep/timing.ts',
+    'MOTOR_LUNAR_VERSAO',
+    [[1, '6ec21cc977989428c14b8337eac79c36ce9ea855c7bf90509427206401cc468a']],
+    'É o DESFECHO: `axisPosition` e `SLEEP_AXIS_ORIGIN_H` convertem o horário da noite na '
+    + 'posição que o motor compara. Mutar `axisPosition` em meia hora muda o desfecho de TODA '
+    + 'noite, e até a story 4.3 essa mutação deixava a suíte verde imprimindo "motor v1". '
+    + `Mudança na conta acrescenta entrada ao histórico. ${SO_COMENTARIO} O que NÃO se faz: `
+    + 'mexer na origem do eixo depois de ver o efeito — ele anda inteiro e nenhuma versão muda.',
+  ),
+  comHistorico(
+    'packages/shared/src/health/trends.ts',
+    'MOTOR_LUNAR_VERSAO',
+    [[1, 'd8ffa51b5791c613765b7c0b7fce62c986f2df36f7009605dd0c50c8f5edafe1']],
+    'É o `sd`: `stdDev` produz o desvio que o portão da luz compara e que vai gravado em '
+    + '`acervo_sd_min`. Trocar a normalização (n vs n−1) move o portão sem mover número '
+    + 'nenhum da tabela. O arquivo serve a mais coisas que a lua — então uma mudança aqui '
+    + `pode ser alheia a ela: ${SO_COMENTARIO} O que NÃO se faz: subir só o golden quando o que `
+    + 'mudou foi `stdDev`.',
+  ),
+  {
+    caminho: 'packages/shared/src/sleep/lua-carimbo.ts',
+    sha256: '4a8fbe0788647f95867544d307ee32d0011b7d0304c8d9235a1bfa45827485f6',
+    seMudou:
+      'Ele CONTÉM a cadeia que esta barreira guarda, o digest dela e as duas versões — por isso '
+      + 'é pinado: sem isto, mexer na lista lá seria mexer no alvo sem tocar no guarda. '
+      + 'Atualize este golden no mesmo commit da mudança. Ele não tem versão própria de '
+      + 'propósito: não decide desfecho nenhum, e uma terceira versão só para ele seria número '
+      + 'sem leitor. O que NÃO se faz: atualizar só aqui quando o que mudou foi a cadeia — o '
+      + 'documento novo de correção e o elo no fim de CADEIA_DO_PRE_REGISTRO vêm junto, e os '
+      + 'literais desta barreira também.',
+  },
+];
+
+/** Os três arquivos da lua, de onde o fecho de imports parte. */
+const RAIZES_DA_LUA: readonly string[] = [
+  'packages/shared/src/sleep/lua.ts',
+  'packages/shared/src/sleep/lua-protocolo.ts',
+  'packages/shared/src/sleep/lua-carimbo.ts',
+];
+
+/** O diretório varrido em busca de documento de correção largado fora da cadeia. */
+const DIR_DOS_DOCUMENTOS_DA_LUA = 'docs/specs/revista-retrospectiva';
+
+/** O que, naquele diretório, **tem de** estar na cadeia pinada. */
+const NOME_DE_DOCUMENTO_DA_CADEIA = /^(pre-registro|correcao)/;
+
+/**
+ * Quantas sha256 os quatro documentos citam **no texto deles**, ao menos.
+ *
+ * Medido em 30/09/2026: cinco — uma na correção de 08/09 e quatro na segunda correção. É a
+ * evidência mais forte que existe de que nada foi editado, porque é um hash escrito **dentro
+ * de um arquivo congelado**, e ela ficou fora da barreira até agora.
+ */
+const CITACOES_DE_SHA_NOS_DOCUMENTOS = 5;
+
+/** O sha256 de bytes — `shasum -a 256 <arquivo>`, e não o de um texto já decodificado. */
+function sha256DeBytes(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+/**
+ * O sha256 de um texto ASCII — só para o digest da cadeia, que é hash de hashes.
+ *
+ * **Arquivo nenhum passa por aqui.** `readFileSync(p, 'utf8')` + `update(texto, 'utf8')`
+ * colapsa toda sequência UTF-8 inválida em U+FFFD: trocar um byte inválido por outro **não
+ * muda o hash**, e o valor impresso pode não bater com `shasum`. Alvo em disco é lido como
+ * `Buffer` e hasheado por {@link sha256DeBytes}.
+ */
+function sha256DoTextoAscii(texto: string): string {
+  return sha256DeBytes(Buffer.from(texto, 'utf8'));
+}
+
+/** O que a leitura de um alvo devolve: os bytes, ou o motivo de não haver bytes. */
+type AlvoLido = { readonly bytes: Buffer } | { readonly ausente: string };
+
+/**
+ * Lê um alvo pinado **pelos bytes**, e nunca lança.
+ *
+ * Três armadilhas, e as três já custaram alguma coisa em algum lugar deste repositório:
+ *
+ * 1. **A caixa do nome.** O APFS do Mac não distingue `Lua.ts` de `lua.ts`; o ext4 do CI
+ *    distingue. Renomear só a caixa passava verde aqui e virava `ALVO AUSENTE` lá. Por isso
+ *    o basename é conferido contra `readdirSync(dirname)`, e não contra `existsSync`.
+ * 2. **`existsSync` verdadeiro e `readFileSync` lançando** (EISDIR, EACCES, ELOOP) dava
+ *    exceção crua no lugar da queixa `ALVO AUSENTE` que o contrato promete.
+ * 3. **Bytes, não texto** — ver {@link sha256DoTextoAscii}.
+ */
+function lerAlvoPinado(caminho: string): AlvoLido {
+  const p = join(ROOT, ...caminho.split('/'));
+  const nome = basename(p);
+  let irmaos: string[];
+  try {
+    irmaos = readdirSync(dirname(p));
+  } catch {
+    return { ausente: `o diretório \`${dirname(caminho)}\` não existe ou não se lê` };
+  }
+  if (!irmaos.includes(nome)) {
+    const soACaixa = irmaos.find((x) => x.toLowerCase() === nome.toLowerCase());
+    return {
+      ausente: soACaixa
+        ? `o disco tem \`${soACaixa}\` e a barreira pede \`${nome}\` — só a CAIXA difere, e o `
+          + 'APFS do Mac não distingue as duas enquanto o ext4 do CI distingue'
+        : 'o arquivo não está no diretório',
+    };
+  }
+  try {
+    return { bytes: readFileSync(p) };
+  } catch (erro) {
+    return { ausente: `o nome está no diretório e a leitura falhou: ${String(erro)}` };
+  }
+}
+
+/**
+ * O fecho transitivo dos imports **de valor** a partir de um conjunto de raízes.
+ *
+ * Lido pela AST do TypeScript, e não por regex: `import`, `export … from`, `import(…)`
+ * dinâmico e `import x = require(…)` são quatro formas de a mesma aresta existir, e uma
+ * regex que pegasse três de quatro seria a porta de escape de novo.
+ *
+ * `import type { … } from '…'` fica de fora, e é nomeado: tipo não chega a runtime e não
+ * muda desfecho nenhum. No dia em que uma dessas linhas virar import de valor, o fecho
+ * cresce e a barreira acusa.
+ *
+ * Só arestas **relativas** entram: `node:crypto` e `@supabase/…` não são fonte deste
+ * repositório e não têm golden para pinar.
+ */
+function fechoDeImportsDeValor(raizes: readonly string[]): {
+  fecho: Set<string>;
+  problemas: string[];
+} {
+  const fecho = new Set<string>();
+  const problemas: string[] = [];
+  const fila = [...raizes];
+  while (fila.length > 0) {
+    const rel = fila.pop()!;
+    if (fecho.has(rel)) continue;
+    fecho.add(rel);
+    let src: string;
+    try {
+      src = readFileSync(join(ROOT, ...rel.split('/')), 'utf8');
+    } catch {
+      problemas.push(`o fecho de imports não conseguiu ler \`${rel}\` — a varredura ficaria vácua.`);
+      continue;
+    }
+    const sf = ts.createSourceFile(rel, src, ts.ScriptTarget.Latest, false);
+    const especificadores: string[] = [];
+    const visitar = (no: ts.Node): void => {
+      if (ts.isImportDeclaration(no) && ts.isStringLiteral(no.moduleSpecifier)) {
+        const c = no.importClause;
+        // `import './x'` (efeito colateral) e `import x from` são de valor; `import type` não.
+        const soTipo = c?.isTypeOnly === true;
+        const nomeadas = c?.namedBindings && ts.isNamedImports(c.namedBindings) ? c.namedBindings.elements : [];
+        const deValor = !soTipo
+          && (!c || c.name !== undefined || nomeadas.length === 0 || nomeadas.some((el) => !el.isTypeOnly));
+        if (deValor) especificadores.push(no.moduleSpecifier.text);
+      }
+      if (ts.isExportDeclaration(no) && no.moduleSpecifier && ts.isStringLiteral(no.moduleSpecifier)) {
+        const elementos = no.exportClause && ts.isNamedExports(no.exportClause) ? no.exportClause.elements : [];
+        const deValor = !no.isTypeOnly && (elementos.length === 0 || elementos.some((el) => !el.isTypeOnly));
+        if (deValor) especificadores.push(no.moduleSpecifier.text);
+      }
+      if (ts.isCallExpression(no) && no.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        const arg = no.arguments[0];
+        if (arg && ts.isStringLiteralLike(arg)) especificadores.push(arg.text);
+      }
+      if (ts.isImportEqualsDeclaration(no) && ts.isExternalModuleReference(no.moduleReference)) {
+        const alvo = no.moduleReference.expression;
+        if (ts.isStringLiteralLike(alvo)) especificadores.push(alvo.text);
+      }
+      ts.forEachChild(no, visitar);
+    };
+    visitar(sf);
+
+    for (const spec of especificadores) {
+      if (!spec.startsWith('.')) continue;
+      const base = resolve(dirname(join(ROOT, ...rel.split('/'))), spec);
+      const candidatos = [`${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx')];
+      const achado = candidatos.find((c) => existsSync(c));
+      if (!achado) {
+        problemas.push(
+          `\`${rel}\` importa \`${spec}\` e o fecho não conseguiu resolver o arquivo — uma aresta `
+          + 'que a barreira não segue é um fonte sem golden.',
+        );
+        continue;
+      }
+      fila.push(relative(ROOT, achado).split(sep).join('/'));
+    }
+  }
+  return { fecho, problemas };
+}
+
+/**
+ * O estado que a barreira julga, inteiro em parâmetro — é o que a torna falsificável.
+ *
+ * Nada aqui é lido de dentro do detector: a prova de não-vacuidade monta estados errados
+ * em memória e exige que ele acuse cada um.
+ */
+interface EstadoDaProvenienciaLunar {
+  /** Os documentos pinados, na ordem da cadeia. */
+  readonly cadeiaPinada: readonly AlvoPinadoDaLua[];
+  /** Os fontes pinados. */
+  readonly fontesPinados: readonly AlvoPinadoDaLua[];
+  /** Os bytes lidos do disco, ou o motivo de não haver bytes. */
+  readonly lidos: ReadonlyMap<string, AlvoLido>;
+  /** `CADEIA_DO_PRE_REGISTRO` como o módulo a declara — o guardado, não o esperado. */
+  readonly cadeiaDoModulo: readonly { readonly arquivo: string; readonly sha256: string }[];
+  /** `DIGEST_DA_CADEIA` como o módulo o declara. */
+  readonly digestDoModulo: string;
+  /** As versões como o módulo as declara: nome ⇒ valor. */
+  readonly versoesDoModulo: ReadonlyMap<string, number>;
+  /** O fecho transitivo de imports de valor a partir das raízes da lua. */
+  readonly fechoDeImports: ReadonlySet<string>;
+  /** Os nomes de arquivo do diretório dos documentos — a varredura real. */
+  readonly documentosNoDiretorio: readonly string[];
+  /** Quantas sha256 os documentos da cadeia têm de citar no texto, ao menos. */
+  readonly citacoesMinimas: number;
+}
+
+/** As queixas que a proveniência lunar merece — vazio é "está tudo no lugar". */
+function queixasDaProvenienciaLunar(e: EstadoDaProvenienciaLunar): string[] {
+  const problemas: string[] = [];
+
+  // (1) Alvo existe, e a sha256 dele é a literal desta barreira. Ausente reprova por
+  //     ALVO AUSENTE — nunca por vacuidade, que é o único jeito de uma barreira mentir.
+  for (const alvo of [...e.cadeiaPinada, ...e.fontesPinados]) {
+    const lido = e.lidos.get(alvo.caminho);
+    if (lido === undefined || 'ausente' in lido) {
+      problemas.push(
+        `ALVO AUSENTE: ${alvo.caminho} — ${lido?.ausente ?? 'a barreira não tentou ler'}. A `
+        + `barreira ficaria sem o que conferir. Restaure-o (git show <commit>:${alvo.caminho}) — `
+        + 'apagar um elo da cadeia não é uma forma de corrigi-la.',
+      );
+      continue;
+    }
+    const hoje = sha256DeBytes(lido.bytes);
+    if (hoje !== alvo.sha256) {
+      problemas.push(
+        `${alvo.caminho} mudou.\n      sha256 de hoje: ${hoje}\n      pinado aqui:    ${alvo.sha256}\n`
+        + `      ${alvo.seMudou}`,
+      );
+    }
+    if (alvo.versao) {
+      const valor = e.versoesDoModulo.get(alvo.versao.nome);
+      if (valor !== alvo.versao.valor) {
+        problemas.push(
+          `${alvo.versao.nome} é ${String(valor)} e esta barreira pina ${alvo.versao.valor} — `
+          + `a versão e o golden de ${alvo.caminho} sobem no MESMO commit, senão uma execução `
+          + 'carimba uma versão que não corresponde ao fonte que rodou. Descer a versão reprova '
+          + 'aqui: o histórico é append-only e a última entrada dele é quem manda.',
+        );
+      }
+    }
+  }
+
+  // (2) A constante guardada é a mesma lista, na mesma ordem. Os literais de cima mandam:
+  //     é aqui que "editei o documento E a constante" continua reprovando.
+  if (e.cadeiaDoModulo.length !== e.cadeiaPinada.length) {
+    problemas.push(
+      `CADEIA_DO_PRE_REGISTRO tem ${e.cadeiaDoModulo.length} elos e esta barreira pina `
+      + `${e.cadeiaPinada.length}. A cadeia é APPEND-ONLY: elo novo entra no fim dos dois lados, `
+      + 'no mesmo commit, e nenhum sai. Elo a menos é documento de correção sendo apagado; elo a '
+      + 'mais sem o alvo aqui é cadeia crescendo sem o guarda saber.',
+    );
+  }
+  for (let i = 0; i < Math.max(e.cadeiaDoModulo.length, e.cadeiaPinada.length); i += 1) {
+    const doModulo: { readonly arquivo: string; readonly sha256: string } | undefined =
+      e.cadeiaDoModulo[i];
+    const daqui: AlvoPinadoDaLua | undefined = e.cadeiaPinada[i];
+    // `!doModulo` primeiro: o TS estreita `daqui` no inicializador, e testar `!daqui`
+    // antes deixava este ramo inalcançável para o compilador — invariante por acidente.
+    if (!doModulo) {
+      problemas.push(
+        `o elo ${i + 1} desta barreira (${daqui!.caminho}) não está em CADEIA_DO_PRE_REGISTRO — `
+        + 'a cadeia encolheu, e ela é append-only.',
+      );
+      continue;
+    }
+    if (!daqui) {
+      problemas.push(
+        `o elo ${i + 1} (${doModulo.arquivo}) está em CADEIA_DO_PRE_REGISTRO e não nesta `
+        + 'barreira — acrescente o alvo aqui, com a sha256 literal, no mesmo commit.',
+      );
+      continue;
+    }
+    if (doModulo.arquivo !== daqui.caminho) {
+      problemas.push(
+        `o elo ${i + 1} é ${daqui.caminho} nesta barreira e ${doModulo.arquivo} em `
+        + 'CADEIA_DO_PRE_REGISTRO — a ORDEM é conteúdo: ela é a cronologia da regra, e é dela '
+        + 'que sai o digest.',
+      );
+    } else if (doModulo.sha256 !== daqui.sha256) {
+      problemas.push(
+        `o elo ${i + 1} (${daqui.caminho}): CADEIA_DO_PRE_REGISTRO diz ${doModulo.sha256} e esta `
+        + `barreira pina ${daqui.sha256}. Se o documento mudou junto com a constante, é este par `
+        + `de linhas que impede o commit de passar calado — e era ele que faltava. ${NAO_COLE_O_SHA}`,
+      );
+    }
+  }
+
+  // (3) O digest é o sha256 das sha256 **desta barreira**, na ordem, unidas por `\n`.
+  //     Recalculá-lo a partir de CADEIA_DO_PRE_REGISTRO seria o mesmo furo de novo.
+  const digestDaqui = sha256DoTextoAscii(e.cadeiaPinada.map((a) => a.sha256).join('\n'));
+  if (e.digestDoModulo !== digestDaqui) {
+    problemas.push(
+      `DIGEST_DA_CADEIA é ${e.digestDoModulo} e o digest dos elos pinados aqui é ${digestDaqui} `
+      + '— ele é o sha256 das sha256, na ordem, unidas por quebra de linha. Elo novo muda este '
+      + 'valor: é o ponto dele. Atualize a constante no mesmo commit do elo.',
+    );
+  }
+
+  // (4) Nenhum caminho pinado duas vezes. Sem isto, um elo DUPLICADO satisfaz "quatro" e
+  //     "append-only" ao mesmo tempo, e o documento largado fica sem guarda nenhum.
+  const todos = [...e.cadeiaPinada, ...e.fontesPinados].map((a) => a.caminho);
+  const repetidos = [...new Set(todos.filter((c, i) => todos.indexOf(c) !== i))];
+  if (repetidos.length > 0) {
+    problemas.push(
+      `caminho pinado DUAS vezes: ${repetidos.join(', ')}. Um elo duplicado satisfaz o "quatro" e `
+      + 'o "append-only" sem guardar o documento que ele substituiu — cada alvo é um arquivo, e '
+      + 'cada arquivo é um alvo.',
+    );
+  }
+
+  // (5) As versões declaradas pelo módulo são CONSUMIDAS por algum alvo. `versao` é
+  //     opcional no tipo — é o que deixa `lua-carimbo.ts` entrar sem uma —, e sem esta
+  //     conta apagar uma linha `versao:` removia a cobrança sem queixa nenhuma.
+  const cobradas = new Set(e.fontesPinados.flatMap((a) => (a.versao ? [a.versao.nome] : [])));
+  const orfas = [...e.versoesDoModulo.keys()].filter((n) => !cobradas.has(n));
+  if (orfas.length > 0) {
+    problemas.push(
+      `a versão ${orfas.join(', ')} é declarada pelo módulo e NENHUM alvo pinado a cobra — `
+      + 'apagar uma linha `versao:` desta lista tira a cobrança sem queixa nenhuma, e a versão '
+      + 'volta a ser carimbada sem nunca ser impedida. Toda versão que uma execução grava tem '
+      + 'de ter um fonte pinado ao lado.',
+    );
+  }
+
+  // (6) O histórico da versão é append-only, e a última entrada É o golden de hoje.
+  for (const alvo of e.fontesPinados) {
+    if (!alvo.versao) {
+      if (alvo.historico) {
+        problemas.push(`${alvo.caminho} tem histórico de versão e nenhuma versão — o histórico é de quê?`);
+      }
+      continue;
+    }
+    const h = alvo.historico;
+    if (!h || h.length === 0) {
+      problemas.push(
+        `${alvo.caminho} tem versão (${alvo.versao.nome}) e nenhum histórico — sem ele, no `
+        + 'primeiro bump ninguém sabe qual sha correspondia à versão que as linhas já gravadas '
+        + 'carimbaram.',
+      );
+      continue;
+    }
+    for (let i = 0; i < h.length; i += 1) {
+      if (h[i].versao !== i + 1) {
+        problemas.push(
+          `o histórico de ${alvo.caminho} tem v${h[i].versao} na posição ${i + 1} — ele é `
+          + 'append-only e sem furo: a versão n mora na entrada n, começando em 1. Pular, repetir '
+          + 'ou voltar apaga a rastreabilidade de uma versão que alguma linha já carimbou.',
+        );
+      }
+      if (!/^[0-9a-f]{64}$/.test(h[i].sha256)) {
+        problemas.push(`o histórico de ${alvo.caminho} tem \`${h[i].sha256}\` na v${h[i].versao}, que não é um sha256.`);
+      }
+    }
+    const ultima = h[h.length - 1];
+    if (ultima.versao !== alvo.versao.valor || ultima.sha256 !== alvo.sha256) {
+      problemas.push(
+        `o histórico de ${alvo.caminho} termina em v${ultima.versao}/${ultima.sha256} e o alvo `
+        + `pina v${alvo.versao.valor}/${alvo.sha256} — a última entrada É o golden de hoje, e é `
+        + 'de onde os dois saem.',
+      );
+    }
+  }
+
+  // (7) O fecho de imports é conjunto FECHADO, nos dois sentidos. Pinar por nome não
+  //     impede import NOVO de entrar sem golden — foi assim que `astro/moon.ts`,
+  //     `sleep/timing.ts` e `health/trends.ts` decidiram o desfecho sem nenhum guarda.
+  const pinados = new Set(e.fontesPinados.map((a) => a.caminho));
+  for (const f of [...e.fechoDeImports].sort()) {
+    if (!pinados.has(f)) {
+      problemas.push(
+        `IMPORT SEM GOLDEN: \`${f}\` é alcançado em runtime pelo código da lua e não está pinado. `
+        + 'Acrescente-o a FONTES_PINADOS_DA_LUA, com a sha dele e a versão que o cobre PELO PAPEL '
+        + '(régua = qual noite entra em qual coluna; motor = o que produz efeito, p e poder).',
+      );
+    }
+  }
+  for (const f of [...pinados].sort()) {
+    if (!e.fechoDeImports.has(f)) {
+      problemas.push(
+        `\`${f}\` está pinado e o fecho de imports da lua não o alcança mais. Golden de arquivo `
+        + 'que não decide nada é ruído com cara de guarda: tire-o daqui, ou devolva a aresta.',
+      );
+    }
+  }
+
+  // (8) A varredura real do diretório: documento de correção largado fora da cadeia.
+  //     É a quarta parte do molde, e era a que faltava — um documento novo podia ser
+  //     escrito e usado sem entrar na cadeia, com a barreira verde.
+  const naCadeia = new Set(e.cadeiaPinada.map((a) => a.caminho));
+  for (const nome of [...e.documentosNoDiretorio].sort()) {
+    if (!nome.endsWith('.md') || !NOME_DE_DOCUMENTO_DA_CADEIA.test(nome)) continue;
+    const caminho = `${DIR_DOS_DOCUMENTOS_DA_LUA}/${nome}`;
+    if (!naCadeia.has(caminho)) {
+      problemas.push(
+        `DOCUMENTO FORA DA CADEIA: \`${caminho}\` existe e não é elo. Um pré-registro ou uma `
+        + 'correção que vive no disco sem entrar em CADEIA_DO_PRE_REGISTRO e nesta lista pode ser '
+        + 'escrita, citada e usada com a barreira verde — que é o furo inteiro, com outro nome. '
+        + 'Se o documento NÃO é do teste lunar, ele não se chama `pre-registro…` nem `correcao…` '
+        + 'neste diretório.',
+      );
+    }
+  }
+
+  // (9) As sha256 que os PRÓPRIOS documentos citam no texto. É a evidência mais forte que
+  //     existe: um hash escrito dentro de um arquivo congelado.
+  const literais = new Set([...e.cadeiaPinada, ...e.fontesPinados].map((a) => a.sha256));
+  let citadas = 0;
+  for (const alvo of e.cadeiaPinada) {
+    const lido = e.lidos.get(alvo.caminho);
+    if (!lido || 'ausente' in lido) continue;
+    for (const m of lido.bytes.toString('utf8').matchAll(/\b[0-9a-f]{64}\b/g)) {
+      citadas += 1;
+      if (!literais.has(m[0])) {
+        problemas.push(
+          `${alvo.caminho} cita a sha256 \`${m[0]}\` no texto dele, e ela não é nenhum literal `
+          + 'desta barreira. Um dos dois está errado, e o documento é o imutável.',
+        );
+      }
+    }
+  }
+  if (citadas < e.citacoesMinimas) {
+    problemas.push(
+      `os documentos da cadeia citam ${citadas} sha256 no texto e a barreira espera ao menos `
+      + `${e.citacoesMinimas}. Menos citação é cruzamento perdido: o hash escrito dentro do `
+      + 'arquivo congelado é a prova que não depende de nenhuma constante nossa.',
+    );
+  }
+
+  return problemas;
+}
+
+/**
+ * **A prova de não-vacuidade**, e ela é o ponto desta barreira.
+ *
+ * Cada forma de burlar a cadeia é montada em memória e o detector tem de acusar. A
+ * primeira delas é o furo que a 4.3 fechou — documento **e** constante editados juntos —,
+ * e ela é a razão de as sha256 serem literais daqui: no estado antigo, aquela mutação
+ * passava verde.
+ *
+ * A fronteira é provada dos **dois** lados: o estado certo passa (senão o detector reprova
+ * tudo e não afirma nada), e cada estado errado reprova com a queixa que o nomeia. E dos
+ * dois lados **da lista**: mutação no disco e mutação no que está pinado aqui — inclusive a
+ * troca de um alvo por outro, que mantém o comprimento e passaria por qualquer contagem.
+ */
+function provarADeteccaoDaProvenienciaLunar(): void {
+  const conteudos = new Map<string, Buffer>([
+    ['docs/um.md', Buffer.from('documento um\n')],
+    ['docs/dois.md', Buffer.from('documento dois\n')],
+    ['src/regua.ts', Buffer.from('export const X = 1;\n')],
+  ]);
+  const pinarDoc = (caminho: string): AlvoPinadoDaLua => ({
+    caminho,
+    sha256: sha256DeBytes(conteudos.get(caminho)!),
+    seMudou: 'imutável',
+  });
+  const cadeiaPinada = [pinarDoc('docs/um.md'), pinarDoc('docs/dois.md')];
+  const fontesPinados = [
+    {
+      ...pinarDoc('src/regua.ts'),
+      versao: { nome: 'V', valor: 1 },
+      historico: [{ versao: 1, sha256: sha256DeBytes(conteudos.get('src/regua.ts')!) }],
+    },
+  ];
+  const lidos = new Map<string, AlvoLido>(
+    [...conteudos].map(([c, bytes]) => [c, { bytes }] as const),
+  );
+  const bom: EstadoDaProvenienciaLunar = {
+    cadeiaPinada,
+    fontesPinados,
+    lidos,
+    cadeiaDoModulo: cadeiaPinada.map((a) => ({ arquivo: a.caminho, sha256: a.sha256 })),
+    digestDoModulo: sha256DoTextoAscii(cadeiaPinada.map((a) => a.sha256).join('\n')),
+    versoesDoModulo: new Map([['V', 1]]),
+    fechoDeImports: new Set(['src/regua.ts']),
+    documentosNoDiretorio: [],
+    citacoesMinimas: 0,
+  };
+  assert.deepEqual(
+    queixasDaProvenienciaLunar(bom),
+    [],
+    'o detector da proveniência reprovou o estado CERTO — sem este lado, ele reprovaria tudo e '
+    + 'não afirmaria nada.',
+  );
+
+  // **O digest depende da ORDEM dos elos**, e não só do conjunto. A prova saiu de
+  // `lua-carimbo.test.ts` junto com o resto e não tinha chegado aqui.
+  assert.notEqual(
+    sha256DoTextoAscii(cadeiaPinada.map((a) => a.sha256).join('\n')),
+    sha256DoTextoAscii([...cadeiaPinada].reverse().map((a) => a.sha256).join('\n')),
+    'o digest é o MESMO com os elos em ordem invertida — então ele não afirma a cronologia da '
+    + 'regra, e trocar dois documentos de lugar passaria calado.',
+  );
+
+  const comBytes = (caminho: string, bytes: Buffer | null) =>
+    new Map<string, AlvoLido>([
+      ...bom.lidos,
+      [caminho, bytes ? { bytes } : { ausente: 'apagado' }] as const,
+    ]);
+  const outro = Buffer.from('documento um, com um byte a mais\n');
+  const mutacoes: readonly (readonly [string, EstadoDaProvenienciaLunar, RegExp])[] = [
+    [
+      'um byte num documento',
+      { ...bom, lidos: comBytes('docs/um.md', outro) },
+      /docs\/um\.md mudou/,
+    ],
+    // **O furo de auto-referência**: o documento muda e a constante "concorda" com o
+    // disco. No mecanismo antigo isto passava; aqui os literais divergem duas vezes.
+    [
+      'o documento E a constante editados juntos',
+      {
+        ...bom,
+        lidos: comBytes('docs/um.md', outro),
+        cadeiaDoModulo: [
+          { arquivo: 'docs/um.md', sha256: sha256DeBytes(outro) },
+          bom.cadeiaDoModulo[1],
+        ],
+      },
+      /docs\/um\.md mudou/,
+    ],
+    // **Bytes, e não texto decodificado.** As duas sequências são UTF-8 inválido e
+    // colapsam no MESMO U+FFFD: com `readFileSync(p,'utf8')` esta mutação passava verde.
+    [
+      'um byte inválido trocado por outro byte inválido',
+      { ...bom, lidos: comBytes('docs/um.md', Buffer.from([0xfe])) },
+      /docs\/um\.md mudou/,
+    ],
+    [
+      'um elo removido da cadeia',
+      { ...bom, cadeiaDoModulo: [bom.cadeiaDoModulo[0]] },
+      /APPEND-ONLY/,
+    ],
+    [
+      'um quinto elo acrescentado',
+      {
+        ...bom,
+        cadeiaDoModulo: [...bom.cadeiaDoModulo, { arquivo: 'docs/tres.md', sha256: 'f'.repeat(64) }],
+      },
+      /não nesta barreira/,
+    ],
+    [
+      'dois elos trocados de ordem na constante',
+      { ...bom, cadeiaDoModulo: [bom.cadeiaDoModulo[1], bom.cadeiaDoModulo[0]] },
+      /a ORDEM é conteúdo/,
+    ],
+    [
+      'a sha da constante trocada, com o documento intacto',
+      {
+        ...bom,
+        cadeiaDoModulo: [{ arquivo: 'docs/um.md', sha256: 'a'.repeat(64) }, bom.cadeiaDoModulo[1]],
+      },
+      /CADEIA_DO_PRE_REGISTRO diz a{64}/,
+    ],
+    [
+      'um documento apagado',
+      { ...bom, lidos: comBytes('docs/um.md', null) },
+      /ALVO AUSENTE: docs\/um\.md/,
+    ],
+    [
+      'um fonte apagado',
+      { ...bom, lidos: comBytes('src/regua.ts', null) },
+      /ALVO AUSENTE: src\/regua\.ts/,
+    ],
+    [
+      'a régua mudou sem subir a versão',
+      { ...bom, lidos: comBytes('src/regua.ts', Buffer.from('export const X = 2;\n')) },
+      /src\/regua\.ts mudou/,
+    ],
+    [
+      'a versão subiu sem o golden',
+      { ...bom, versoesDoModulo: new Map([['V', 2]]) },
+      /V é 2 e esta barreira pina 1/,
+    ],
+    // **A volta de 2 para 1**, que o CHECK `>= 1` do banco não impede: o histórico é
+    // append-only e a última entrada dele é quem manda.
+    [
+      'a versão voltou de 2 para 1',
+      {
+        ...bom,
+        versoesDoModulo: new Map([['V', 1]]),
+        fontesPinados: [
+          {
+            ...fontesPinados[0],
+            versao: { nome: 'V', valor: 2 },
+            historico: [...fontesPinados[0].historico!, { versao: 2, sha256: 'c'.repeat(64) }],
+          },
+        ],
+      },
+      /V é 1 e esta barreira pina 2/,
+    ],
+    [
+      'o histórico pula uma versão',
+      {
+        ...bom,
+        versoesDoModulo: new Map([['V', 3]]),
+        fontesPinados: [
+          { ...fontesPinados[0], versao: { nome: 'V', valor: 3 }, historico: [{ versao: 3, sha256: 'c'.repeat(64) }] },
+        ],
+      },
+      /append-only e sem furo/,
+    ],
+    [
+      'o alvo com versão perdeu o histórico',
+      { ...bom, fontesPinados: [{ ...fontesPinados[0], historico: undefined }] },
+      /nenhum histórico/,
+    ],
+    [
+      'o histórico não termina no golden de hoje',
+      {
+        ...bom,
+        fontesPinados: [{ ...fontesPinados[0], historico: [{ versao: 1, sha256: 'd'.repeat(64) }] }],
+      },
+      /A última entrada É o golden de hoje|última entrada É o golden/,
+    ],
+    [
+      'o digest não é o dos elos pinados',
+      { ...bom, digestDoModulo: 'b'.repeat(64) },
+      /DIGEST_DA_CADEIA é b{64}/,
+    ],
+    // ── Mutações do lado PINADO: a lista daqui, e não o disco ─────────────────────
+    [
+      'a lista pinada encurtada',
+      { ...bom, cadeiaPinada: [cadeiaPinada[0]] },
+      /APPEND-ONLY|não está em CADEIA_DO_PRE_REGISTRO/,
+    ],
+    // **A troca mantém o comprimento**, e é ela que uma contagem nunca pega.
+    [
+      'um alvo pinado SUBSTITUÍDO por outro',
+      { ...bom, cadeiaPinada: [pinarDoc('docs/dois.md'), cadeiaPinada[1]] },
+      /a ORDEM é conteúdo/,
+    ],
+    [
+      'um elo pinado DUPLICADO',
+      {
+        ...bom,
+        cadeiaPinada: [cadeiaPinada[0], cadeiaPinada[0]],
+        cadeiaDoModulo: [bom.cadeiaDoModulo[0], bom.cadeiaDoModulo[0]],
+      },
+      /pinado DUAS vezes/,
+    ],
+    [
+      'a linha `versao:` apagada do alvo',
+      { ...bom, fontesPinados: [pinarDoc('src/regua.ts')] },
+      /NENHUM alvo pinado a cobra/,
+    ],
+    // ── O fecho de imports: a porta que pinar por nome não fecha ──────────────────
+    [
+      'um import novo, sem golden',
+      { ...bom, fechoDeImports: new Set(['src/regua.ts', 'src/novo.ts']) },
+      /IMPORT SEM GOLDEN: `src\/novo\.ts`/,
+    ],
+    [
+      'um golden que a lua não alcança mais',
+      { ...bom, fechoDeImports: new Set<string>() },
+      /o fecho de imports da lua não o alcança mais/,
+    ],
+    // ── A varredura real e as citações dentro dos documentos ──────────────────────
+    [
+      'um documento de correção largado fora da cadeia',
+      { ...bom, documentosNoDiretorio: ['correcao-3-alguma-coisa.md'] },
+      /DOCUMENTO FORA DA CADEIA/,
+    ],
+    [
+      'um documento cita uma sha que não é literal daqui',
+      {
+        ...bom,
+        lidos: comBytes('docs/um.md', Buffer.from(`documento um\n${'9'.repeat(64)}\n`)),
+      },
+      /cita a sha256 `9{64}`/,
+    ],
+    [
+      'os documentos deixaram de citar as sha que citavam',
+      { ...bom, citacoesMinimas: 1 },
+      /citam 0 sha256 no texto/,
+    ],
+  ];
+  for (const [nome, estado, esperado] of mutacoes) {
+    const achado = queixasDaProvenienciaLunar(estado);
+    assert.ok(
+      achado.some((p) => esperado.test(p)),
+      `o detector da proveniência lunar NÃO viu "${nome}": ${JSON.stringify(achado)}`,
+    );
+  }
+}
+
+check('BARREIRA — a cadeia do pré-registro lunar e os seis fontes da lua, com as sha256 como literais daqui (story 4.3)', () => {
+  provarADeteccaoDaProvenienciaLunar();
+
+  // Não-vacuidade das listas: uma barreira com zero alvos passa sempre.
+  //
+  // **Este `4` sobe SEMPRE que um elo entra** — é ele que impede a cadeia de crescer sem o
+  // guarda saber. `CADEIA_MINIMA` é o contrário, e de propósito: ele NÃO acompanha o
+  // crescimento, porque é o piso da forma de uma cadeia válida, e subi-lo tornaria ilegíveis
+  // as execuções já gravadas com quatro elos.
+  assert.equal(
+    CADEIA_PINADA_DA_LUA.length,
+    4,
+    'a cadeia pinada aqui não tem quatro elos. Documento novo entra no FIM, e este número sobe '
+    + 'junto — no mesmo commit do elo, do documento, do DIGEST_DA_CADEIA e do literal em '
+    + 'CADEIA_DO_PRE_REGISTRO. São cinco edições, e é o ponto.',
+  );
+  assert.equal(
+    FONTES_PINADOS_DA_LUA.length,
+    6,
+    'os fontes pinados são seis: lua.ts, astro/moon.ts, lua-protocolo.ts, sleep/timing.ts, '
+    + 'health/trends.ts e lua-carimbo.ts. O número sobe quando o fecho de imports crescer.',
+  );
+
+  // A forma de cada literal. Um sha truncado cai como "o arquivo mudou" e manda o leitor
+  // procurar no lugar errado — a queixa tem de ser "o literal está quebrado".
+  for (const alvo of [...CADEIA_PINADA_DA_LUA, ...FONTES_PINADOS_DA_LUA]) {
+    assert.match(alvo.sha256, /^[0-9a-f]{64}$/, `o literal de ${alvo.caminho} não é um sha256`);
+  }
+  assert.match(DIGEST_DA_CADEIA, /^[0-9a-f]{64}$/);
+
+  // **As duas implementações de sha256 batem.** `DIGEST_DA_CADEIA` nasceu do `sha256Hex` em
+  // JS puro de `ia/sha256.ts` e passou a ser conferido só pelo `node:crypto` — duas contas
+  // que ninguém cruzava. Uma vez, aqui, é o bastante.
+  const juntas = CADEIA_PINADA_DA_LUA.map((a) => a.sha256).join('\n');
+  assert.equal(
+    sha256Hex(juntas),
+    sha256DoTextoAscii(juntas),
+    'o sha256Hex de ia/sha256.ts e o node:crypto discordam — DIGEST_DA_CADEIA saiu do primeiro '
+    + 'e é conferido pelo segundo, e sem este cruzamento uma das duas contas podia estar errada.',
+  );
+
+  const lidos = new Map<string, AlvoLido>();
+  for (const { caminho } of [...CADEIA_PINADA_DA_LUA, ...FONTES_PINADOS_DA_LUA]) {
+    lidos.set(caminho, lerAlvoPinado(caminho));
+  }
+
+  const { fecho, problemas: doFecho } = fechoDeImportsDeValor(RAIZES_DA_LUA);
+  assert.deepEqual(doFecho, [], `o fecho de imports da lua não se resolveu:\n    ${doFecho.join('\n    ')}`);
+  assert.ok(fecho.size >= RAIZES_DA_LUA.length, 'o fecho de imports veio menor que as raízes — varredura vácua.');
+
+  let documentosNoDiretorio: string[] = [];
+  try {
+    documentosNoDiretorio = readdirSync(join(ROOT, ...DIR_DOS_DOCUMENTOS_DA_LUA.split('/')));
+  } catch {
+    assert.fail(`o diretório ${DIR_DOS_DOCUMENTOS_DA_LUA} não se lê — a varredura ficaria vácua.`);
+  }
+  assert.ok(
+    documentosNoDiretorio.some((f) => NOME_DE_DOCUMENTO_DA_CADEIA.test(f)),
+    `nenhum arquivo de ${DIR_DOS_DOCUMENTOS_DA_LUA} casa com o padrão de documento da cadeia — a `
+    + 'varredura passaria vácua.',
+  );
+
+  // Os quatro se declaram imutáveis, e a barreira MEDE isso em vez de afirmar: é a premissa
+  // de que tudo o resto depende.
+  for (const alvo of CADEIA_PINADA_DA_LUA) {
+    const lido = lidos.get(alvo.caminho)!;
+    if ('ausente' in lido) continue; // a queixa de ALVO AUSENTE é do detector
+    assert.match(
+      lido.bytes.toString('utf8').toLowerCase(),
+      /imut/,
+      `${alvo.caminho} não diz em lugar nenhum que é imutável — ou o documento errado entrou na `
+      + 'cadeia, ou o texto foi reescrito.',
+    );
+  }
+
+  const problemas = queixasDaProvenienciaLunar({
+    cadeiaPinada: CADEIA_PINADA_DA_LUA,
+    fontesPinados: FONTES_PINADOS_DA_LUA,
+    lidos,
+    cadeiaDoModulo: CADEIA_DO_PRE_REGISTRO,
+    digestDoModulo: DIGEST_DA_CADEIA,
+    versoesDoModulo: new Map([
+      ['JANELA_LUNAR_VERSAO', JANELA_LUNAR_VERSAO],
+      ['MOTOR_LUNAR_VERSAO', MOTOR_LUNAR_VERSAO],
+    ]),
+    fechoDeImports: fecho,
+    documentosNoDiretorio,
+    citacoesMinimas: CITACOES_DE_SHA_NOS_DOCUMENTOS,
+  });
+  assert.deepEqual(
+    problemas,
+    [],
+    `a proveniência do teste lunar divergiu:\n    ${problemas.join('\n    ')}\n`
+    + '  Esta é a barreira que a §7.3 de 07/09 pede e que a Correção 2 de 08/09 tornou '
+    + 'incondicional. Ela não impede o dono de mudar a regra — impede que ele a mude em '
+    + 'silêncio.',
+  );
+  console.log(
+    `     · ${CADEIA_PINADA_DA_LUA.length} documentos imutáveis e ${FONTES_PINADOS_DA_LUA.length} fontes `
+    + `pinados (fecho de imports: ${fecho.size}) · régua v${JANELA_LUNAR_VERSAO} · motor v${MOTOR_LUNAR_VERSAO}`,
+  );
+});
+
+/**
+ * BARREIRA — o roteiro da janela confere o **arquivo que ele aponta** (Story 4.3, rodada 2).
+ *
+ * `aplicar.sh` pina a sha256 do `.sql` e as contagens do ato 3, e **nenhum portão lia nada
+ * disso**. Se `"colunas":39` estivesse errado, os oito portões seguiriam verdes e a
+ * divergência apareceria no ato 3 — **depois** de escrever em produção. A sha tinha o mesmo
+ * defeito: quem editasse a migração sem atualizar o roteiro só descobriria na janela, com o
+ * `falha` na cara e o token já no keychain.
+ *
+ * O roteiro é achado **pelo `.sql` que ele aponta**, e não pelo nome do diretório: há três
+ * `aplicar.sh` no repositório, e o dia em que a story mudar de pasta a barreira não deve
+ * ficar sem alvo em silêncio. Exige-se **um**.
+ *
+ * `ENSAIADO_EM` é conferido como campo presente, e não como data válida: **hoje ele está
+ * vazio de propósito**, porque nada foi ensaiado. O que esta barreira impede é que o campo
+ * desapareça — com ele fora, o roteiro volta a dizer "o arquivo é o que foi ensaiado" sobre
+ * um arquivo que ninguém ensaiou.
+ */
+function roteiroDaJanelaLunar(): { f: string; texto: string; sql: string } | null {
+  const dir = join(ROOT, '_bmad-output', 'implementation-artifacts');
+  const achados: { f: string; texto: string; sql: string }[] = [];
+  const andar = (d: string): void => {
+    for (const e of readdirSync(d)) {
+      const p = join(d, e);
+      if (statSync(p).isDirectory()) { andar(p); continue; }
+      if (e !== 'aplicar.sh') continue;
+      const texto = readFileSync(p, 'utf8');
+      const m = /^SQL="\$REPO\/(.+)"$/m.exec(texto);
+      if (m && /_lua_execucoes\.sql$/.test(m[1])) {
+        achados.push({ f: relative(ROOT, p).split(sep).join('/'), texto, sql: m[1] });
+      }
+    }
+  };
+  andar(dir);
+  return achados.length === 1 ? achados[0] : null;
+}
+
+check('BARREIRA — o roteiro da janela de lua_execucoes pina a sha e as contagens do .sql que ele aponta', () => {
+  const r = roteiroDaJanelaLunar();
+  assert.ok(
+    r,
+    'nenhum `aplicar.sh` aponta para uma migração `*_lua_execucoes.sql`, ou mais de um — a '
+    + 'barreira do roteiro ficou sem alvo, e ela existe porque o roteiro escreve em PRODUÇÃO.',
+  );
+
+  // (1) A sha esperada é a do arquivo que o próprio roteiro aponta.
+  const esperada = /^SHA_ESPERADO=([0-9a-f]{64})$/m.exec(r!.texto);
+  assert.ok(esperada, `${r!.f} não declara \`SHA_ESPERADO=<64 hex>\` — o campo mudou de nome ou de forma.`);
+  const alvo = join(ROOT, ...r!.sql.split('/'));
+  assert.ok(existsSync(alvo), `${r!.f} aponta para ${r!.sql}, que não existe.`);
+  assert.equal(
+    sha256DeBytes(readFileSync(alvo)),
+    esperada![1],
+    `a sha pinada em ${r!.f} não é a de ${r!.sql}. Quem edita a migração atualiza o roteiro no `
+    + 'MESMO commit: sem isto, o dono descobre a divergência na janela, com o token já no '
+    + 'keychain — e o roteiro é o único lugar que confere o arquivo antes de escrever em produção.',
+  );
+
+  // (2) `ENSAIADO_EM` existe. Vazio é o estado honesto de hoje; ausente é o carimbo que mente.
+  assert.match(
+    r!.texto,
+    /^ENSAIADO_EM=/m,
+    `${r!.f} perdeu o campo \`ENSAIADO_EM\`. Ele é a prova de ensaio, e é outra pergunta que a `
+    + 'sha: "é o arquivo que eu espero?" e "isto passou por um Postgres de verdade?" não são a '
+    + 'mesma coisa, e enquanto ele estiver vazio o roteiro tem de dizer em voz alta que NÃO foi '
+    + 'ensaiado.',
+  );
+
+  // (3) As contagens do ato 3, contra o próprio SQL. Sem isto, `"colunas":39` errado só
+  //     aparece DEPOIS de a migração ter sido aplicada.
+  const m = migracaoLunar();
+  assert.ok(m, 'nenhuma migration `*_lua_execucoes.sql`, ou mais de uma.');
+  const colunas = declaracoesDeColuna(m!.sql, 'lua_execucoes');
+  const nomeadas = constraintsNomeadas(m!.sql, 'lua_execucoes').length;
+  const deColuna = colunas.reduce((n, c) => n + (c.corpo.match(/\bcheck\s*\(/gi)?.length ?? 0), 0);
+
+  const noRoteiro = (chave: string): number => {
+    const achado = new RegExp(`"${chave}":(\\d+)`).exec(r!.texto);
+    assert.ok(achado, `${r!.f} não declara \`"${chave}":N\` no JSON esperado do ato 3.`);
+    return Number(achado![1]);
+  };
+  assert.equal(
+    noRoteiro('colunas'),
+    colunas.length,
+    `${r!.f} espera "colunas":${noRoteiro('colunas')} e o \`create table\` declara ${colunas.length}.`,
+  );
+  assert.equal(
+    noRoteiro('checks'),
+    nomeadas + deColuna,
+    `${r!.f} espera "checks":${noRoteiro('checks')} e o SQL declara ${nomeadas + deColuna} `
+    + `(${nomeadas} nomeadas + ${deColuna} de coluna). O piso antigo era \`-ge 19\` numa tabela `
+    + `com ${nomeadas + deColuna}: passaria com ${nomeadas + deColuna - 19} constraints ausentes.`,
+  );
+  console.log(`     · ${r!.f} · ${colunas.length} colunas · ${nomeadas + deColuna} CHECKs (${nomeadas} nomeadas + ${deColuna} de coluna)`);
+});
+
+/**
+ * BARREIRA — o cenário de ensaio carimba as **versões que o núcleo declara** (Story 4.3, rodada 2).
+ *
+ * O cenário grava `'janela_versao', 1` e `'motor_versao', 1` como **literais**, desligados das
+ * constantes. No primeiro bump o ensaio provaria um payload que o app não grava mais — e o
+ * ensaio é a única prova que o `constraint trigger` e os CHECKs de coluna podem ter.
+ *
+ * É o mesmo cruzamento que a barreira das colunas já faz, aplicado aos dois números que
+ * nasceram acoplados a uma constante do TypeScript.
+ */
+/**
+ * O `v_base := jsonb_build_object(…)` do cenário — a linha do **caminho feliz**.
+ *
+ * Só ele, e não o arquivo inteiro: os casos do bloco E carregam de propósito valores que
+ * violam CHECK (`'janela_versao', 1001`), e uma varredura do arquivo todo confundiria a
+ * linha que o app grava com a linha que o ensaio espera que o banco recuse.
+ */
+function baseDoCenarioLunar(sql: string): string | null {
+  const i = sql.indexOf('v_base := jsonb_build_object(');
+  if (i < 0) return null;
+  let nivel = 0;
+  for (let j = sql.indexOf('(', i); j < sql.length; j += 1) {
+    if (sql[j] === '(') nivel += 1;
+    else if (sql[j] === ')') {
+      nivel -= 1;
+      if (nivel === 0) return sql.slice(i, j + 1);
+    }
+  }
+  return null;
+}
+
+check('BARREIRA — o cenário de ensaio de lua_execucoes grava as versões que o núcleo declara', () => {
+  const p = join(ROOT, 'supabase', 'ensaio', 'cenarios', 'lua-execucoes.sql');
+  assert.ok(existsSync(p), 'o cenário de ensaio de lua_execucoes não está no disco — a barreira ficou sem alvo.');
+  const sql = readFileSync(p, 'utf8');
+  const base = baseDoCenarioLunar(sql);
+  assert.ok(base, 'não achei o `v_base := jsonb_build_object(…)` do cenário — a barreira perdeu o alvo.');
+
+  for (const [coluna, valor] of [
+    ['janela_versao', JANELA_LUNAR_VERSAO],
+    ['motor_versao', MOTOR_LUNAR_VERSAO],
+  ] as const) {
+    const achados: number[] = [...base!.matchAll(new RegExp(`'${coluna}',\\s*(\\d+)`, 'g'))]
+      .map((x) => Number(x[1]));
+    assert.equal(
+      achados.length,
+      1,
+      `o cenário grava \`'${coluna}', N\` ${achados.length} vezes na linha base, e tem de ser uma `
+      + '— ou a coluna saiu do payload, ou a barreira perdeu o alvo.',
+    );
+    assert.equal(
+      achados[0],
+      valor,
+      `o cenário grava ${coluna} = ${achados[0]} e o núcleo declara ${valor}. O literal do cenário `
+      + 'é desligado da constante: no primeiro bump o ensaio prova um payload que o app não grava '
+      + 'mais, e o ensaio é a única prova que o gatilho pode ter.',
+    );
+    // E o CHECK de coluna da versão tem caso próprio no bloco E: ele fica FORA de
+    // CONSTRAINTS_DE_LUA_EXECUCOES (que só lê `constraint <nome> check`), então sem esta
+    // linha ninguém repara que o teto novo nunca foi exercido.
+    assert.match(
+      sql,
+      new RegExp(`'nome',\\s*'lua_execucoes_${coluna}_check'`),
+      `o bloco E do cenário não tem caso para \`lua_execucoes_${coluna}_check\`. É CHECK de `
+      + 'coluna, logo fora da lista fechada das nomeadas — se ele não for exercido aqui, não é '
+      + 'exercido em lugar nenhum.',
+    );
+  }
+});
+
 /**
  * BARREIRA — `TIPOS_COM_EDICAO` é `PeriodKind` menos `'all'` (Story 1.9).
  *
@@ -761,6 +2337,7 @@ function fechaChaves(src: string, de: number): number {
 const CHAVES_DE_EDICAO_ROW = chavesDaInterface('packages/shared/src/data/edicoes-ia.ts', 'EdicaoRow');
 const CHAVES_DE_CAPA_ROW = chavesDaInterface('packages/shared/src/data/edicoes-capa.ts', 'CapaRow');
 const CHAVES_DE_ACTIVITY_ROW = chavesDaInterface('packages/shared/src/data/activities.ts', 'ActivityRow');
+const CHAVES_DE_LUA_EXECUCAO_ROW = chavesDaInterface('packages/shared/src/data/lua-execucoes.ts', 'LuaExecucaoRow');
 
 const COLUNAS_PEDIDAS: {
   tabela: string; colunas: string; daInterface: readonly string[]; dono: string;
@@ -785,6 +2362,18 @@ const COLUNAS_PEDIDAS: {
     colunas: ACTIVITY_COLUMNS,
     daInterface: CHAVES_DE_ACTIVITY_ROW,
     dono: 'data/activities.ts (ACTIVITY_COLUMNS)',
+  },
+  // `lua_execucoes` entrou em 28/09/2026 (story 4.2b). É a tabela mais larga das
+  // quatro — 35 colunas, porque a linha é a serialização inteira de um
+  // `ResultadoDaFase` mais o acervo e o carimbo da execução —, e a que mais depende
+  // desta barreira: ela é escrita uma vez a cada cem noites, então um 400 do
+  // PostgREST por coluna errada só apareceria na hora da execução autorizada, que é
+  // a hora em que menos se quer descobrir isso.
+  {
+    tabela: 'lua_execucoes',
+    colunas: LUA_EXECUCAO_COLUMNS,
+    daInterface: CHAVES_DE_LUA_EXECUCAO_ROW,
+    dono: 'data/lua-execucoes.ts (LUA_EXECUCAO_COLUMNS)',
   },
 ];
 
@@ -4580,6 +6169,52 @@ check('BARREIRA — só gravarCapa escreve edicoes_capa', () => {
     `escrita em edicoes_capa fora do carimbo: ${fora.join(', ')}. A capa se grava por gravarCapa (data/`
       + 'edicoes-capa.ts), que confere a sessão antes e carimba a hora à mão — um upsert escrito noutro lugar '
       + 'perde os dois e congela a capa errada no período fechado.',
+  );
+});
+
+/**
+ * BARREIRA — só `gravarExecucaoLunar` escreve `lua_execucoes`, e só por `insert`
+ * (Story 4.2b, AD-4).
+ *
+ * A terceira irmã, e a que mais precisa dela. As duas de cima protegem *como* a
+ * edição é escrita; esta protege a propriedade que o protocolo inteiro tem por
+ * objetivo: **acumula, nunca substitui** (§7.2 de 07/09). Um `upsert` escrito em
+ * `data/sleep.ts` — ou num script, ou num hospedeiro — apaga a primeira execução na
+ * segunda e tira o sentido do contador da §7.4, que é a mecânica anti-gaveta inteira.
+ * E ele passava pelas 53 barreiras sem tocar em nenhuma.
+ *
+ * **O verbo também é cobrado, e não só o arquivo.** A lista de métodos que
+ * `escrevemNaTabela` devolve entra na comparação: se o dono passar a fazer `upsert`,
+ * a string vira `… (upsert)` e não bate mais com `… (insert)`. É o `delete` e o
+ * `update` que a policy da migração recusa, dito do lado de cá — os dois lados da
+ * mesma regra, porque um deles sozinho é uma regra que se contorna trocando de
+ * caminho.
+ *
+ * Mesma leitura por AST das irmãs (colchete, `as`, `!` e cadeia partida por
+ * parênteses não escapam; comentário não conta), e a autoprova é a mesma, em
+ * `provarAGravacaoUnica`.
+ */
+const DONO_DA_EXECUCAO_LUNAR = 'packages/shared/src/data/lua-execucoes.ts';
+
+check('BARREIRA — só gravarExecucaoLunar escreve lua_execucoes, e por insert', () => {
+  const escrevem = escrevemNaTabela('lua_execucoes', nucleoEHospedeiros());
+  const doDono = `${DONO_DA_EXECUCAO_LUNAR} (insert)`;
+  // Não-vácua: o dono é achado escrevendo, com o verbo certo. Sem isto, apagar
+  // `gravarExecucaoLunar` deixaria a barreira verde por não haver ninguém a acusar.
+  assert.ok(
+    escrevem.includes(doDono),
+    `${DONO_DA_EXECUCAO_LUNAR} não escreve mais em lua_execucoes por \`insert\` — achei `
+      + `[${escrevem.join(', ')}]. Se a porta mudou de arquivo, aponte DONO_DA_EXECUCAO_LUNAR para `
+      + 'ele; se ela mudou de verbo, leia a §7.2 antes.',
+  );
+  const fora = escrevem.filter((x) => x !== doDono);
+  assert.deepEqual(
+    fora,
+    [],
+    `escrita em lua_execucoes fora da porta: ${fora.join(', ')}. A execução se grava por `
+      + 'gravarExecucaoLunar (data/lua-execucoes.ts), que confere as quatro fases contra '
+      + 'PROTOCOLO_LUNAR antes de tocar no banco e é `insert`, jamais `upsert` — a tabela ACUMULA, '
+      + 'e é o acumular que dá sentido ao contador de execuções da §7.4.',
   );
 });
 

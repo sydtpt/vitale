@@ -28,7 +28,7 @@ jest.mock('../../lib/healthkit-workouts', () => ({
   elevationGain: () => 0,
   resolveElevationM: () => null,
   getActivityMeta: () => ({ icon: 'dumbbell', label: 'Yoga' }),
-  fetchWorkoutRoute: async () => [],
+  fetchWorkoutRoute: async () => ({ points: [], answered: true }),
 }));
 
 jest.mock('../../services/activity-sync', () => ({

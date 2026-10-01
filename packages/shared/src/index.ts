@@ -143,6 +143,11 @@ export {
 export { decimal, foraEmTexto, hashCurto, porcento, segundos } from './bancada/texto';
 export * from './sleep/lua';
 export * from './sleep/lua-protocolo';
+export * from './sleep/lua-carimbo';
+// A regra de composição da frase coletiva (story 4.4) e o vocabulário dos blocos
+// de fase. Mora ao lado do motor e não dentro dele: o motor é pinado por golden
+// sob `MOTOR_LUNAR_VERSAO`, e palavra não é aritmética.
+export * from './sleep/lua-frase';
 export * from './week/recap';
 export * from './week/highlights';
 export * from './period/bucket-plan';
@@ -225,6 +230,7 @@ export * from './data/gear';
 export * from './data/places';
 export * from './data/edicoes-ia';
 export * from './data/edicoes-capa';
+export * from './data/lua-execucoes';
 export * from './data/retro-dados';
 export * from './data/synced-activity-types';
 export * from './todo/logic';

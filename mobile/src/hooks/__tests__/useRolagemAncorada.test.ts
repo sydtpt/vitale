@@ -12,6 +12,8 @@
  * foi extraída em vez de o hook ser montado.
  */
 import { describe, it, expect } from '@jest/globals';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import type { LayoutChangeEvent } from 'react-native';
 import {
   atoDaRolagem,
@@ -171,6 +173,144 @@ describe('a inserção tardia acima das âncoras (Story 3.2)', () => {
     const congelado = r.destinoDe('rotina')!;
     r.para('rotina').onLayout(layout(2010 + BLOCO));
     expect(r.destinoDe('rotina')! - congelado).toBe(BLOCO);
+  });
+
+  /*
+   * **Aqui havia um `it` da Story 4.4 que não discriminava nada, e ele foi apagado.**
+   *
+   * Ele media a inserção da linha da lua no pé do caderno Sono empurrando as âncoras
+   * seguintes — mas isso é a MESMA propriedade que os três `it` acima já prendem (a
+   * última medida manda), com outra altura. Medido: ele reprovava junto com quatro
+   * testes pré-existentes deste arquivo, nunca sozinho, e a altura declarada
+   * (`LINHA_DA_LUA = 141`) era decorativa — qualquer inteiro positivo passava.
+   *
+   * Um teste que só reprova quando outros quatro já reprovaram não é uma barreira: é
+   * ruído com aparência de cobertura. O que a Story 4.4 realmente pode quebrar em
+   * silêncio é a **árvore de JSX**, e isso é a barreira de código-fonte abaixo.
+   */
+});
+
+/**
+ * BARREIRA — **cada `Caderno` é filho DIRETO do `ScrollView`** (Stories 1.14, 4.4).
+ *
+ * `onLayout` entrega `layout.y`, que é a posição dentro do **pai imediato**, e
+ * `scrollTo` quer o deslocamento dentro do conteúdo: os dois só coincidem enquanto
+ * quem recebe o `onLayout` for filho direto do `contentContainer`. Embrulhar o
+ * `map` dos cadernos numa `View` — para dar um `gap`, um fundo, o que for — faz
+ * **todas** as linhas do sumário rolarem para o mesmo lugar.
+ *
+ * **E o sintoma é mudo:** nada lança, nada avisa, e até esta barreira a suíte
+ * inteira ficava verde. As partes puras acima não alcançam a árvore de JSX, e este
+ * workspace não tem renderizador de teste — então a guarda é de **código-fonte**,
+ * no molde do `anuario-fiacao.test.ts`.
+ *
+ * Ela lê a região entre a abertura do `ScrollView` e o `map`, empilha as tags que
+ * encontra e cobra que a pilha tenha **só** o `ScrollView`. **Ela não é um
+ * parser**: se a contagem de `<` não casar com a de tags reconhecidas — uma seta
+ * `=>` dentro de atributo, um fragmento, uma tag minúscula —, ela reprova dizendo
+ * isso, em vez de concluir coisa errada em silêncio.
+ *
+ * ## As duas formas que ela NÃO guardava — e o docblock do hook as nomeia
+ *
+ * A região lida é `fonte.slice(scroll, map)`: ela **termina** no `{cadernos.map(`,
+ * então nada dentro do callback nem dentro de `Caderno` era visto. Ficaram verdes,
+ * medidas:
+ *
+ * - **embrulhar cada `<Caderno>` dentro do callback** — o embrulho passa a ser o filho
+ *   direto do rolável, o `Caderno` mede contra ele, e todo destino vira a mesma
+ *   posição;
+ * - **descer o `onLayout` do `View` externo para o `View style={styles.corpo}`** — aí
+ *   `layout.y` é a posição do corpo dentro do caderno (uns 60 px, a altura da faixa),
+ *   e **todas** as linhas do sumário rolam para quase o topo.
+ *
+ * As duas são exatamente os modos de falha que o docblock de `Ancora.onLayout` nomeia:
+ * *"embrulhar os destinos numa `View` intermediária, ou descer o `onLayout` para dentro
+ * do card"*. O remédio é ler os dois lugares que o `slice` não alcançava: o **primeiro
+ * elemento depois do `map`**, e a **primeira tag depois do `return` do `Caderno`**.
+ */
+describe('BARREIRA — o map dos cadernos é filho direto do rolável', () => {
+  const ROTA = join(__dirname, '..', '..', 'app', 'revista', '[tipo]', '[inicio].tsx');
+  const fonte = readFileSync(ROTA, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+  /** Abertura, fechamento e auto-fechamento de componente — PascalCase, como o JSX daqui. */
+  const TAG = /<(\/?)([A-Z][\w.]*)([^<>]*?)(\/?)>/g;
+
+  function pilhaDe(regiao: string): { pilha: string[]; tags: number; angulos: number } {
+    const pilha: string[] = [];
+    let tags = 0;
+    for (const m of regiao.matchAll(TAG)) {
+      tags += 1;
+      if (m[1] === '/') pilha.pop();
+      else if (m[4] !== '/') pilha.push(m[2]);
+    }
+    return { pilha, tags, angulos: (regiao.match(/</g) ?? []).length };
+  }
+
+  it('a região entre o ScrollView e o map existe, e nessa ordem', () => {
+    const edicao = fonte.indexOf('function Edicao(');
+    expect(edicao).toBeGreaterThan(-1);
+    const scroll = fonte.indexOf('<ScrollView', edicao);
+    const map = fonte.indexOf('{cadernos.map(', edicao);
+    expect(scroll).toBeGreaterThan(-1);
+    expect(map).toBeGreaterThan(scroll);
+  });
+
+  it('nada envolve o map: a pilha de tags até ele é só o ScrollView', () => {
+    const edicao = fonte.indexOf('function Edicao(');
+    const scroll = fonte.indexOf('<ScrollView', edicao);
+    const map = fonte.indexOf('{cadernos.map(', edicao);
+    const regiao = fonte.slice(scroll, map);
+    const { pilha, tags, angulos } = pilhaDe(regiao);
+    // A conferência de que a leitura foi inteira: a barreira não é um parser, e
+    // uma tag que ela não reconhece tem de reprovar alto em vez de desaparecer.
+    expect({ tags, angulos }).toEqual({ tags: angulos, angulos });
+    expect(pilha).toEqual(['ScrollView']);
+  });
+
+  /**
+   * **A segunda forma: o embrulho DENTRO do callback.**
+   *
+   * `{cadernos.map((c) => (<View style={styles.gap}><Caderno … /></View>))}` compila,
+   * passa no `tsc` e passava na asserção acima — a região lida termina no `map`. O
+   * primeiro elemento que o callback devolve **é** o filho direto do rolável, então
+   * ele tem de ser o `Caderno`.
+   */
+  it('o primeiro elemento que o map devolve é o Caderno, sem embrulho', () => {
+    const map = fonte.indexOf('{cadernos.map(', fonte.indexOf('function Edicao('));
+    expect(map).toBeGreaterThan(-1);
+    const depois = fonte.slice(map, map + 400);
+    const primeira = /<([A-Z][\w.]*)/.exec(depois);
+    expect({ achou: primeira !== null, tag: primeira?.[1] })
+      .toEqual({ achou: true, tag: 'Caderno' });
+    // E o `key` e a âncora vão nele, que é quem o `ScrollView` posiciona.
+    expect(depois).toMatch(/<Caderno[\s\S]{0,400}ancora=\{rolagem\.ancora\(c\.caderno\)\}/);
+  });
+
+  /**
+   * **A terceira forma: descer o `onLayout` para dentro do card.**
+   *
+   * `layout.y` é a posição dentro do **pai imediato**, então o `onLayout` tem de estar
+   * no nó que o `ScrollView` posiciona — a `View` mais externa do `Caderno`, a primeira
+   * tag depois do `return`. Movê-lo para o `View style={styles.corpo}` faz toda linha
+   * do sumário rolar para a altura da faixa, e nada reclama.
+   */
+  it('o onLayout da âncora está na tag mais externa do Caderno', () => {
+    const corpo = fonte.indexOf('function Caderno(');
+    expect(corpo).toBeGreaterThan(-1);
+    const ret = fonte.indexOf('return (', corpo);
+    expect(ret).toBeGreaterThan(-1);
+    const depois = fonte.slice(ret, ret + 400);
+    // A primeira tag depois do `return` — e é ela que carrega o `onLayout`.
+    const primeira = /<([A-Z][\w.]*)([^<>]*?)>/.exec(depois);
+    expect({ achou: primeira !== null, tag: primeira?.[1] }).toEqual({ achou: true, tag: 'View' });
+    expect({ tag: primeira?.[1], comOnLayout: (primeira?.[2] ?? '').includes('onLayout={ancora.onLayout}') })
+      .toEqual({ tag: 'View', comOnLayout: true });
+    // E ele aparece **uma** vez no corpo todo: duas seria uma medida sobrescrevendo a
+    // outra, e qual delas ganha depende da ordem de layout.
+    const corpoDoCaderno = fonte.slice(corpo, fonte.indexOf('\nfunction ', corpo + 10));
+    expect((corpoDoCaderno.match(/onLayout=\{ancora\.onLayout\}/g) ?? [])).toHaveLength(1);
   });
 });
 

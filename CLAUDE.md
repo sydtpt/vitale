@@ -262,23 +262,27 @@ São **10** módulos, não 7:
   do detalhe de Registros (períodos, barras por valor, dia da semana, heatmap anual com
   intensidade). No mesmo passo, `R$` virou `€` onde há dado real (retro, Semana, Compras) — o
   símbolo agora sai de `format/money.ts`. **Falta a conferência dele** no iPhone e no navegador.
-- Presença — **Fase 0 medindo no iPhone desde 07/09; NÃO escrever a Fase 1 antes do veredito.**
-  Captura automática de onde o usuário está e por quanto tempo, para responder "quanto tempo
-  fiquei em casa" sem digitar. Dois motores na **mesma tabela** `visits`, separados por `source`:
+- Presença — **o portão da Fase 0 PASSOU em 30/09; a Fase 1 está liberada e não tem uma linha
+  escrita.** Captura automática de onde o usuário está e por quanto tempo, para responder "quanto
+  tempo fiquei em casa" sem digitar. Dois motores na **mesma tabela** `visits`, separados por
+  `source` ([ADR 0059](docs/decisions/0059-os-dois-motores-de-presenca-escrevem-na-mesma-tabela.md)):
   geofence do iOS (bordas nítidas, só lugares cadastrados) agora, `CLVisit` (descobre a cauda
   longa, mas atrasa a saída) na fase 3. Lugar **não é módulo**, é dimensão — carimba os outros,
   sem cor própria (ADR 0031 como precedente).
-  **A fase 0 não escreve nada no banco**: ela existe para responder uma pergunta só — o iOS
-  relança o app fechado para entregar um evento de região? A prova é um evento com
-  `appState=background` na tela `/configuracoes/presenca`. Sem ele, a fase 1 não se escreve e as
-  fases 2–4 caem junto. Ele não tinha saído de casa até 07/09, então **a pergunta segue sem dado**.
+  **A fase 0 não escreveu nada no banco** — ela existiu para responder uma pergunta só, e a
+  respondeu: `chegou · Casa · background · ±40 m · fix de 0s`, em 30/09 às 18:36:04. Os 23 dias
+  (07→30/09) mediram **73 travessias em 23 dias distintos**, pior dia **5** (o alarme de flapping
+  era 60), **1** passagem, **4** colagens, **1** borda sem saída e mediana de **±19,8 m** —
+  *nenhum limiar da proposta precisou mudar*. O log dos 23 dias vive **só no aparelho** (teto de
+  500, poda relatório antes de travessia) e a Fase 1 o importa como ~36 visitas; ele não é
+  recuperável por nenhum outro caminho.
   Três armadilhas já pagas, que a fase 1 herda: o iOS entrega **reavaliação de estado como
   entrada** (cada lançamento do app virava uma "chegada" — daí `redundant` e o estado por região
-  persistido); a precisão real medida é **±6 a 15 m**, não os ~100 m de folclore; e o teto do log
-  sacrifica relatório antes de travessia, senão o volume de relatórios come o dado real.
-  **Ainda sem `docs/specs/presenca/`, sem ADR e sem `tasks.md`** — o raciocínio (veredito dos dois
-  motores, esquecer = lápide, alerta como propriedade do lugar, as 5 fases) vive só em dois
-  artifacts e na memória da sessão. Escrever isso é o próximo passo enquanto a medição roda.
+  persistido, e **só travessia vira visita**); a precisão real medida é **±6 a 20 m**, não os
+  ~100 m de folclore; e o teto do log sacrifica relatório antes de travessia, senão o volume de
+  relatórios come o dado real.
+  Spec, data-model e tasks escritos em 30/09 — o raciocínio saiu dos dois artifacts e virou
+  [docs/specs/presenca/](docs/specs/presenca/spec.md).
 - **Motores de IA** — modelo no aparelho (Foundation Models, depois Core AI), nuvem (`ia-narrar`)
   e sem modelo, escolhidos **por recurso e por aparelho**. **F0, o marco A da bancada e o marco A
   da 5.5 estão na `main`**: a porta, o fio e o orquestrador (5.1), o descritor da retrospectiva e as
@@ -391,4 +395,5 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [FC ao longo do dia (série intradiária em `health_series`)](docs/specs/fc-serie/spec.md) · [data-model](docs/specs/fc-serie/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fc-serie/tasks.md)
 - [Fotos na pedalada (a foto ligada à atividade, agrupada por parada)](docs/specs/fotos-na-pedalada/spec.md) · [data-model](docs/specs/fotos-na-pedalada/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md)
 - [Busca textual nas atividades (cidade, nome da rota, nome, fonte, aparelho)](docs/specs/busca-textual/spec.md) · [data-model](docs/specs/busca-textual/data-model.md) · [stories](docs/specs/busca-textual/stories.yaml)
+- [Presença (onde o dia foi: geofence agora, `CLVisit` na fase 3, na mesma tabela)](docs/specs/presenca/spec.md) · [data-model](docs/specs/presenca/data-model.md) · [tasks](_bmad-output/implementation-artifacts/presenca/tasks.md)
 - [Quem fez a comida (origem de cada almoço e jantar, e quanto custa não cozinhar)](docs/specs/quem-fez-a-comida/spec.md) · [data-model](docs/specs/quem-fez-a-comida/data-model.md) · [stories](docs/specs/quem-fez-a-comida/stories.yaml)

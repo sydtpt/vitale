@@ -18,7 +18,7 @@ import { THEMES, type ColorScheme, type ThemeId } from './themes';
 import { shadowVars } from './css-vars';
 import { BRANDS } from './brands';
 import { moduleOf, resolveTokens, wallpapersFor, MODULE_KEYS, type RoleKey } from './derive';
-import { ACTIVITY_ROLE, ACTIVITY_TYPE_LABELS } from '../fitness/activity-types';
+import { ACTIVITY_ROLE, ACTIVITY_TYPE_LABELS, SHARED_ROLE } from '../fitness/activity-types';
 import { HR_ZONES } from '../health/hr-zones';
 import { CADERNO_IDS, MODULO_DO_CADERNO } from '../period/cadernos';
 
@@ -618,6 +618,54 @@ check('todo tipo de treino conhecido tem papel cromático', () => {
 });
 
 /**
+ * A catraca que faltava em 28/09/2026, quando a Trilha passou a ter atividades
+ * próprias e apareceu na legenda do Histórico **no mesmo verde do Yoga**.
+ *
+ * Dividir papel continua legítimo: são 17 tipos para 11 papéis, e ciclismo, remo
+ * e natação serem todos `blue` é escolha, não aperto. O que não pode é dividir
+ * por acidente. Aqui cada papel com mais de um dono é confrontado com a lista
+ * declarada em `SHARED_ROLE`, onde a família está escrita ao lado — e "trilha,
+ * elíptico e yoga são a mesma família" é uma frase que ninguém teria escrito.
+ *
+ * O teste não mede cor: dois tipos no mesmo papel são o **mesmo hex**, e nenhum
+ * ΔE separa isso. O que ele cobra é a frase.
+ */
+check('papel dividido por dois tipos de treino está declarado, com a família junto', () => {
+  const nomes = (ids: readonly number[]): string =>
+    [...ids].sort((a, b) => a - b).map((i) => `${ACTIVITY_TYPE_LABELS[i] ?? '?'} (${i})`).join(', ');
+  const chave = (ids: readonly number[]): string => [...ids].sort((a, b) => a - b).join(',');
+
+  const porPapel = new Map<string, number[]>();
+  for (const [id, papel] of Object.entries(ACTIVITY_ROLE)) {
+    const lista = porPapel.get(papel) ?? [];
+    lista.push(Number(id));
+    porPapel.set(papel, lista);
+  }
+
+  const bad: string[] = [];
+  for (const [papel, ids] of porPapel) {
+    const declarado = SHARED_ROLE[papel];
+    if (ids.length === 1) {
+      if (declarado) bad.push(`${papel}: declarado como dividido, mas só ${nomes(ids)} o usa`);
+      continue;
+    }
+    if (!declarado) {
+      bad.push(`${papel}: dividido por ${nomes(ids)} — declare a família em SHARED_ROLE`);
+      continue;
+    }
+    if (chave(ids) !== chave(declarado)) {
+      bad.push(`${papel}: SHARED_ROLE diz ${nomes(declarado)}, mas ACTIVITY_ROLE diz ${nomes(ids)}`);
+    }
+  }
+  // Papel declarado que nenhum tipo usa mais — lista que ficou para trás.
+  for (const papel of Object.keys(SHARED_ROLE)) {
+    if (!porPapel.has(papel)) bad.push(`${papel}: declarado em SHARED_ROLE e sem nenhum tipo`);
+  }
+
+  assert.deepEqual(bad, [], `divisão de papel sem decisão registrada:\n    ${bad.join('\n    ')}`);
+});
+
+/**
  * Um seletor que oferece duas opções indistinguíveis lê como defeito, não como
  * escolha. Foi o que aconteceu com `flat` e `pure` no tema Clean: lá `bg` e
  * `bgPure` são o mesmo hex, e as duas pintavam a mesma tela — o usuário trocava
@@ -729,17 +777,66 @@ check('a paleta Acessível separa de verdade sob daltonismo', () => {
   const p = PALETTES.find((x) => x.cvdSafe);
   assert.ok(p, 'nenhuma paleta declara cvdSafe');
   const bad: string[] = [];
-  for (const kind of ['deuteranopia', 'protanopia'] as const) {
-    for (let i = 0; i < MODULE_KEYS.length; i += 1) {
-      for (let j = i + 1; j < MODULE_KEYS.length; j += 1) {
-        const a = p.roles[MODULE_ROLE[MODULE_KEYS[i]]];
-        const b = p.roles[MODULE_ROLE[MODULE_KEYS[j]]];
-        const d = cvdSeparation(a, b, kind);
-        if (d < 5) bad.push(`${kind} ${MODULE_KEYS[i]}×${MODULE_KEYS[j]} ${d.toFixed(1)}`);
+  // O hex que a TELA mostra, nas 6 combinações — não o declarado. Ver abaixo.
+  for (const t of THEME_IDS) {
+    for (const s of SCHEMES) {
+      const tokens = resolveTokens(t, s, p.id);
+      for (const kind of ['deuteranopia', 'protanopia'] as const) {
+        for (let i = 0; i < MODULE_KEYS.length; i += 1) {
+          for (let j = i + 1; j < MODULE_KEYS.length; j += 1) {
+            const a = tokens.roles[MODULE_ROLE[MODULE_KEYS[i]]].accent;
+            const b = tokens.roles[MODULE_ROLE[MODULE_KEYS[j]]].accent;
+            const d = cvdSeparation(a, b, kind);
+            if (d < 5) {
+              bad.push(`${t}/${s} ${kind} ${MODULE_KEYS[i]}×${MODULE_KEYS[j]} ${d.toFixed(1)}`);
+            }
+          }
+        }
       }
     }
   }
   assert.deepEqual(bad, [], `Acessível falha o próprio propósito:\n    ${bad.join('\n    ')}`);
+});
+
+/**
+ * Por que a checagem acima mede o **resolvido** e não o declarado.
+ *
+ * Até 28/09/2026 ela lia `PALETTES.find(cvdSafe).roles[...]`, e lá a promessa
+ * sempre se cumpriu: os hex da Okabe–Ito separam 8,0 no pior par. O que a tela
+ * mostra é outro número — o acento depois do `ensureContrast` contra a
+ * superfície do tema. Medido, a diferença era brutal: `food × casa` a **1,0**
+ * sob deuteranopia no claro, contra 14,6 no declarado, porque o piso de
+ * contraste empurra os papéis claros para a borda da janela e empilha três
+ * deles numa faixa de 0,05 de luminosidade. Um teste verde o tempo todo, sobre
+ * uma paleta que falhava o próprio propósito em 15 pares.
+ *
+ * Esta checagem existe para que a de cima não volte ao atalho: se alguém
+ * trocar `resolveTokens(...).accent` pelo hex declarado, ela reprova apontando
+ * o par que a troca esconderia.
+ */
+check('o que a paleta declara por esquema chega intacto na tela', () => {
+  const bad: string[] = [];
+  for (const p of PALETTES) {
+    if (!p.schemeRoles) continue;
+    for (const s of SCHEMES) {
+      const porEsquema = p.schemeRoles[s];
+      if (!porEsquema) continue;
+      for (const [role, hex] of Object.entries(porEsquema)) {
+        for (const t of THEME_IDS) {
+          const vivo = resolveTokens(t, s, p.id).roles[role as RoleKey].accent;
+          if (vivo.toUpperCase() !== hex.toUpperCase()) {
+            bad.push(`${p.id} ${t}/${s} ${role}: declarado ${hex}, na tela ${vivo}`);
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    'declaração por esquema não sobreviveu ao caminho do derive — ela tem de ser lida ' +
+      `ANTES do piso de contraste, ou o piso a desfaz:\n    ${bad.join('\n    ')}`,
+  );
 });
 
 /* ─────────────── 6. Contrato de resolução ─────────────── */

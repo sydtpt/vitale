@@ -1,0 +1,1090 @@
+<meta charset="utf-8">
+<title>A página da lua — quatro fases, duas famílias · CAP-12</title>
+<style>
+/* ===========================================================================
+   KEY SCREEN — CAP-12 · A PÁGINA DA LUA COM QUATRO FASES
+   Revista da Retrospectiva · ux-revista-retrospectiva-2026-09-07
+   Atualização de 30/09/2026 (story 4.4). Sucede mockups/key-lua.html.
+
+   Quais seções da espinha governam esta tela
+   ------------------------------------------
+   EXPERIENCE.md · "Disciplina de pré-registro na tela — CAP-12"
+       — o que a moldura imprime sempre; os três vereditos mais o quarto estado
+         ("o teste ainda não rodou"); o inconclusivo com quantas noites faltam;
+         o contador de execuções; a covariável no rodapé, que sobe para o bloco
+         quando o portão da luz é o que reprovou; o que a página nunca faz.
+   EXPERIENCE.md · "Accessibility Floor"
+       — informação obrigatória em `ink2`, nunca `ink3` (2,87 sobre `bg`);
+         nada de altura fixa onde há texto — o bloco do veredito cresce.
+   EXPERIENCE.md · "Interaction Primitives" (Voltar, Toque, sem compartilhar)
+   EXPERIENCE.md · "Voice and Tone" — informa, não aconselha; nunca afirma causa.
+   DESIGN.md · "Moldura da lua" — cinco campos, contorno e não sombra, a fase
+         sinódica desenhada, sem faixa, sem ícone, sem assinatura de modelo.
+   DESIGN.md · "Entrada da lua" — a linha no pé do caderno Sono que carrega o
+         veredito por extenso; aqui ela carrega a FRASE COLETIVA.
+   DESIGN.md · "Typography · A rampa" e "Colors · Onde a informação é
+         obrigatória, a tinta é ink2".
+   Contrato: ADR 0045 (§3), pre-registro-lua.md §4–§5 e §8,
+         pre-registro-lua-outras-fases.md §3, §5, §6, §7, §9 e §11,
+         correcao-pre-registro-lua.md, correcao-2-...-outras-fases.md.
+
+   O que mudou em relação a mockups/key-lua.html
+   ---------------------------------------------
+   1. QUATRO fases em duas famílias, agrupadas por família (memlog 30/09).
+   2. A página abre pelo desenho e o PRIMEIRO TEXTO é a frase coletiva, em dois
+      compartimentos que nunca desaparecem.
+   3. ALTURA FIXA SAIU. A legenda de 07/09 dizia que o bloco do veredito "mede
+      200 px nos três"; a passagem de bmad-review corrigiu isso e DESIGN.md
+      proíbe congelar altura aqui (corta em AX3). A régua de 200 px não é
+      reproduzida, e não há grade de alturas.
+   4. QUATRO estados, não três: os três vereditos mais "ainda não rodou".
+   5. `ink3` saiu dos rótulos obrigatórios; tudo que era rótulo virou `ink2`.
+   6. A procedência é a cadeia de quatro documentos mais as duas versões
+      carimbadas (régua e motor) e o contador de execuções.
+
+   A matemática do desenho, herdada e não reinventada
+   --------------------------------------------------
+   Cada disco é uma noite, com o TERMINADOR REAL: rx = r·|1 − 2·iluminação|,
+   iluminação = (1 − cos(2πd/29,53))/2, espelhado na fase minguante, arco de
+   varredura 1 acima de meia-lua. A regra foi conferida contra os valores do
+   arquivo de 07/09 disco a disco.
+   A grade está ancorada em lua nova = índice 5,5 de 30 células, para que as
+   QUATRO janelas `[fase − 5 d, fase)` caibam inteiras: os discos marcados são
+   exatamente as cinco noites testadas de cada fase (1–5, 8–12, 16–20, 23–27),
+   e o traço de cada janela cai no INSTANTE da fase, que fica FORA dela.
+
+   Cor e tipografia
+   ----------------
+   Recorte Orbe · paleta orbe · claro. Os hexes existem aqui só porque HTML não
+   roda `resolveTokens()`/`moduleOf()`; no código real nenhuma tela escreve hex.
+   A sub-página herda a cor do caderno Sono (papel blue, accent #6E8CC9,
+   onAccent #1F1B16, soft #DDE4F2).
+
+   Sem JS, sem rede, sem imagem externa. Abre offline.
+   =========================================================================== */
+
+:root{
+  --bg:#FFF7EE; --surface:#FFFFFF;
+  --ink:#1F1B16; --ink2:#5C534A; --ink3:#9C928A; --line:#EFE6D8;
+  --accent:#6E8CC9; --on-accent:#1F1B16; --soft:#DDE4F2;
+
+  --sans:'Manrope',-apple-system,'Segoe UI',system-ui,sans-serif;
+  --mono:'Geist Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --serif:'Instrument Serif','Iowan Old Style',Georgia,serif;
+
+  /* cromo da folha de revisão — NÃO é interface do app */
+  --canvas:#E9E6E1; --canvas-ink:#55504A; --canvas-ink2:#8A837A; --edge:#C9C2B8;
+  --flag:#8A3E1B;
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--canvas-ink);
+     font-family:var(--sans);padding:32px 40px 72px;min-width:1920px}
+
+.sheet-title{font-family:var(--serif);font-size:31px;line-height:1.14;
+             color:#2B2620;margin:0 0 6px}
+.sheet-sub{font-family:var(--mono);font-size:11.5px;line-height:1.6;
+           color:var(--canvas-ink2);margin:0 0 4px;max-width:980px}
+.sheet-claim{font-size:13px;line-height:1.58;max-width:980px;margin:14px 0 0;
+             padding-left:12px;border-left:3px solid var(--accent)}
+.fab{margin:18px 0 0;max-width:980px;border:1.5px solid var(--flag);
+     padding:12px 14px;font-size:12.5px;line-height:1.6;color:#3C2A20;
+     background:#F2E7DF}
+.fab-lab{font-family:var(--mono);font-size:11px;letter-spacing:1.2px;
+         text-transform:uppercase;color:var(--flag);display:block;margin-bottom:5px;
+         font-weight:600}
+.fab b{color:#2B2620}
+
+h2.sec{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;
+       text-transform:uppercase;color:var(--canvas-ink2);
+       margin:52px 0 4px;font-weight:400}
+.sec-note{font-size:12.5px;line-height:1.56;max-width:980px;margin:0 0 20px;
+          color:var(--canvas-ink)}
+
+/* ---- fileira de colunas de 390 ----------------------------------------- */
+.row{display:flex;gap:48px;align-items:flex-start;position:relative;
+     padding-left:120px}
+.col{width:390px;flex:none}
+
+/* ---- a linha de entrada, fragmento do pé do caderno Sono --------------- */
+.entry-slice{width:390px;background:var(--surface);
+             border-top:1px solid var(--line);outline:1px solid var(--edge);
+             padding:16px 24px 18px;display:flex;gap:14px;align-items:flex-start}
+.entry-body{flex:1}
+.entry-1{font-family:var(--serif);font-size:19px;line-height:25px;color:var(--ink);
+         margin-top:6px}
+.entry-2{font-family:var(--serif);font-size:15px;line-height:22px;color:var(--ink);
+         margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.entry-chev{font-family:var(--sans);font-size:20px;color:var(--ink2);
+            line-height:1;align-self:center}
+
+/* ---- o aparelho: 390 de largura, ALTURA LIVRE -------------------------- */
+.device{position:relative;width:390px;background:var(--bg);color:var(--ink);
+        outline:1px solid var(--edge);overflow:hidden}
+/* a dobra dos 844 px — onde termina a primeira tela. Duas tracejadas
+   sobrepostas para a marca sobreviver ao papel creme e à faixa saturada. */
+.dobra{position:absolute;left:0;right:0;top:844px;z-index:60;
+       border-top:1px dashed rgba(31,27,22,.55);pointer-events:none}
+.dobra::after{content:'';position:absolute;left:0;right:0;top:0;
+              border-top:1px dashed rgba(255,255,255,.78)}
+.dobra-tag{position:absolute;left:0;top:844px;transform:translateY(-50%);
+           width:104px;text-align:right;font-family:var(--mono);font-size:10px;
+           line-height:14px;color:var(--canvas-ink2)}
+.dobra-tag::after{content:'';position:absolute;left:calc(100% + 6px);top:50%;
+                  width:14px;border-top:1px dashed rgba(31,27,22,.45)}
+
+/* linha 1 — barra de status (cromo do aparelho) */
+.statusbar{height:40px;display:flex;align-items:center;
+           justify-content:space-between;padding:0 24px}
+.statusbar .t{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.sig{display:flex;gap:4px;align-items:center}
+.sig i{display:block;width:3px;background:var(--ink2);border-radius:1px}
+.sig i:nth-child(1){height:4px}.sig i:nth-child(2){height:6px}
+.sig i:nth-child(3){height:8px}.sig i:nth-child(4){height:10px}
+.batt{width:22px;height:11px;border:1px solid var(--ink2);border-radius:3px;
+      margin-left:6px;position:relative}
+.batt::after{content:"";position:absolute;inset:2px;right:7px;
+             background:var(--ink2);border-radius:1px}
+
+/* linha 2 — cabeçalho de SUB-PÁGINA, no accent do Sono.
+   Não é faixa de caderno: a faixa é regra de CAP-7 e a lua é sub-página.
+   Ver a anotação aberta nº 1 no pé desta folha. */
+.subhead{height:52px;background:var(--accent);color:var(--on-accent);
+         display:flex;align-items:center;gap:10px;padding:0 20px}
+.subhead .back{font-size:24px;line-height:1;margin-top:-3px}
+.subhead .nm{font-size:17px;font-weight:700;letter-spacing:.2px}
+.subhead .sub{margin-left:auto;font-family:var(--mono);font-size:11px;
+              opacity:.78}
+
+.eyebrow{font-family:var(--sans);font-size:11px;line-height:14px;font-weight:600;
+         letter-spacing:1.1px;text-transform:uppercase;color:var(--ink2)}
+
+/* linha 3 — título da sub-página */
+.titlerow{padding:18px 24px 0}
+.pagetitle{font-family:var(--serif);font-size:26px;line-height:30px;
+           color:var(--ink);margin-top:5px}
+
+/* linha 4 — O DESENHO: as quatro janelas destacadas igualmente.
+   Sem estado: não muda com a rolagem e não destaca uma por vez. */
+.phase{padding:16px 24px 0}
+.strip{display:block;margin-top:9px}
+.strip text{font-family:var(--mono)}
+.strip text.lab{fill:var(--ink2)}
+.phase-legend{font-size:12px;line-height:16.5px;color:var(--ink2);margin:9px 0 0}
+.phase-measure{font-family:var(--mono);font-size:11px;line-height:15px;
+               color:var(--ink);margin:7px 0 0}
+
+/* linha 5 — A FRASE COLETIVA: placar + a fase nomeada, dois compartimentos
+   que nunca desaparecem. É o primeiro texto da página, e é ela que a linha de
+   entrada no pé do caderno Sono carrega. */
+.coletiva{margin:20px 24px 0;border-top:2px solid var(--ink);padding:12px 0 16px;
+          border-bottom:1px solid var(--line)}
+.c-1{font-family:var(--serif);font-size:24px;line-height:29px;color:var(--ink);
+     margin-top:7px}
+.c-2{font-family:var(--serif);font-size:17px;line-height:24px;color:var(--ink);
+     margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+
+/* linha 6 — A MOLDURA: cinco campos, sempre, na mesma ordem. Contorno, não
+   sombra. Os cinco valem para as quatro fases: a janela, o desfecho, a
+   contagem, a cadência e o contador não mudam de fase para fase. */
+.ficha{margin:20px 24px 0;border:1px solid var(--line);background:var(--surface)}
+.f-row{display:flex;align-items:flex-start;gap:12px;padding:11px 14px}
+.f-row + .f-row{border-top:1px solid var(--line)}
+.f-lab{width:104px;flex:none;font-size:10.5px;line-height:14px;font-weight:600;
+       letter-spacing:1.1px;text-transform:uppercase;color:var(--ink2)}
+.f-val{flex:1;font-family:var(--mono);font-size:12.5px;line-height:17px;
+       color:var(--ink)}
+.f-sub{font-family:var(--mono);font-size:10.5px;line-height:14px;
+       color:var(--ink2);margin-top:2px}
+
+/* linha 7 — OS GRUPOS E OS BLOCOS. O cabeçalho do grupo carrega o α E a razão
+   da separação, para que a posição da cheia não seja lida como hierarquia. */
+.grupo{margin:24px 24px 0;border-top:2px solid var(--ink);padding-top:12px}
+.g-name{font-size:14px;line-height:19px;font-weight:700;color:var(--ink)}
+.g-alfa{font-family:var(--mono);font-size:12px;line-height:17px;color:var(--ink);
+        margin-top:4px}
+.g-why{font-size:12px;line-height:17px;color:var(--ink2);margin-top:6px}
+
+/* O BLOCO DE CADA FASE — cresce com o texto. ALTURA FIXA É PROIBIDA aqui:
+   caixa congelada corta o veredito em AX3, e aí a garantia da ADR 0045 morre
+   calada. Sem cinza, sem itálico, sem corpo menor, sem ícone de aviso. */
+.bloco{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.b-name{font-size:15px;line-height:20px;font-weight:600;color:var(--ink)}
+.b-word{font-family:var(--serif);font-size:21px;line-height:26px;color:var(--ink);
+        margin-top:7px}
+.b-num{font-family:var(--mono);font-size:21px;line-height:26px;
+       letter-spacing:-.3px;color:var(--ink);margin-top:6px}
+.b-cap{font-family:var(--mono);font-size:10.5px;line-height:14px;
+       color:var(--ink2);margin-top:3px}
+.b-line{font-size:12.5px;line-height:18px;color:var(--ink2);margin-top:7px}
+
+/* linha 8 — rodapé do método, onde a covariável mora */
+.method{margin:26px 24px 0;padding:14px 0 26px;border-top:1px solid var(--line)}
+.method p{font-family:var(--serif);font-size:13px;line-height:19px;
+          color:var(--ink2);margin:7px 0 0}
+.proc{margin-top:16px}
+.proc-l{font-family:var(--mono);font-size:10.5px;line-height:15px;
+        color:var(--ink2);margin-top:3px}
+
+/* ---- rótulos da folha, SEMPRE fora dos quadros -------------------------- */
+.cap{margin-top:12px;width:390px}
+.cap .k{font-family:var(--mono);font-size:12px;letter-spacing:.4px;
+        color:var(--canvas-ink);font-weight:600}
+.cap .d{font-family:var(--mono);font-size:10.5px;line-height:15px;
+        color:var(--canvas-ink2);margin-top:3px}
+.cap .fabtag{font-family:var(--mono);font-size:10px;line-height:14px;
+             color:var(--flag);margin-top:4px}
+.cap.first .k{color:var(--flag)}
+
+.foot{margin-top:56px;border-top:1px solid var(--edge);padding-top:18px;
+      max-width:1180px;font-size:12.5px;line-height:1.62}
+.foot h3{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;
+         text-transform:uppercase;font-weight:400;color:var(--canvas-ink2);
+         margin:26px 0 8px}
+.foot h3:first-child{margin-top:0}
+.foot ul{margin:0;padding-left:18px}
+.foot li{margin-bottom:6px}
+.foot .open{border-left:3px solid var(--flag);padding-left:12px}
+</style>
+
+<h1 class="sheet-title">A página da lua — quatro fases, duas famílias</h1>
+<p class="sheet-sub">key screen &middot; CAP-12 &middot; atualização de 30 set 2026 (story 4.4) &middot; iPhone 390 &times; 844, quadro esticado &middot; Orbe &middot; paleta orbe &middot; claro &middot; sub-página do caderno Sono (papel blue)</p>
+<p class="sheet-claim">
+  A moldura é invariável em <b>campos</b>, não em pixels — e o bloco de cada fase
+  <b>cresce com o texto</b>. A página abre pelo desenho das quatro janelas, e o primeiro
+  texto é a <b>frase coletiva</b>: placar mais a fase nomeada, em dois compartimentos que
+  nunca desaparecem. Os quatro blocos vêm <b>agrupados por família</b>, e o cabeçalho de
+  cada grupo carrega o &alpha; e a razão da separação.
+</p>
+<div class="fab">
+  <span class="fab-lab">Números fabricados, e o que não é</span>
+  Todo <b>veredito, efeito, p e poder</b> desta prancha é <b>fabricado</b>: nenhum dado lunar
+  foi consultado, porque o protocolo proíbe olhar antes da execução autorizada. Também são
+  fabricadas as contagens dos portões da seção 3 e a data de 08 mai 2026.
+  <br><br>
+  <b>Real, dos documentos imutáveis:</b> 290 noites &middot; 23 abr 2025 &rarr; 07 set 2026
+  &middot; 17 ciclos sinódicos &middot; ~49 dentro e ~241 fora por fase &middot; &alpha; 5%
+  unilateral na cheia e 1,67% bilateral nas três &middot; limiar de 15 min &middot; 68% do
+  ciclo dentro de uma janela e ~93 das 290 noites fora de todas &middot; as tabelas de poder
+  (cheia: 17,5 min e 69% a SD 45, 396 noites para 80%; as três: 22,8 min e 39%, 672 noites).
+  <b>Derivado delas:</b> 106 = 396 &minus; 290 e 382 = 672 &minus; 290.
+</div>
+
+<h2 class="sec">1 &middot; A linha de entrada, no pé do caderno Sono</h2>
+<p class="sec-note">
+  A sub-página fica atrás de um toque, então é esta linha que carrega o resultado por
+  extenso — e desde 30/09 o que ela carrega é <b>a mesma frase coletiva</b> da página, com os
+  dois compartimentos. Quem nunca tocar lê o placar e a fase nomeada assim mesmo. É esta
+  decisão que solta a emenda pendente à ADR 0045 da exigência de ser "idêntica nos três
+  casos".
+</p>
+<div class="row">
+  <div class="col">
+    <div class="entry-slice">
+      <div class="entry-body">
+        <div class="eyebrow">A página da lua</div>
+        <div class="entry-1">Das quatro fases, nenhuma decidiu.</div>
+        <div class="entry-2">Nenhuma das quatro teve poder para decidir entre as duas colunas.</div>
+      </div>
+      <div class="entry-chev">&#8250;</div>
+    </div>
+    <div class="cap"><div class="k">ESTADO 1 &middot; inconclusivo nas quatro</div><div class="d">mesma tipografia e mesma extensão de campos nos quatro; o segundo compartimento nunca some</div></div>
+  </div>
+  <div class="col">
+    <div class="entry-slice">
+      <div class="entry-body">
+        <div class="eyebrow">A página da lua</div>
+        <div class="entry-1">Das quatro fases, uma decidiu.</div>
+        <div class="entry-2">Nas noites que antecedem a cheia, a hora de apagar ficou mais tarde.</div>
+      </div>
+      <div class="entry-chev">&#8250;</div>
+    </div>
+    <div class="cap"><div class="k">ESTADO 2 &middot; achado na cheia</div><div class="d">mesma tipografia e mesma extensão de campos nos quatro; o segundo compartimento nunca some</div></div>
+  </div>
+  <div class="col">
+    <div class="entry-slice">
+      <div class="entry-body">
+        <div class="eyebrow">A página da lua</div>
+        <div class="entry-1">Das quatro fases, nenhuma decidiu.</div>
+        <div class="entry-2">Com poder para decidir, nenhuma das quatro mostrou deslocamento de 15 minutos ou mais na direção que o protocolo testa.</div>
+      </div>
+      <div class="entry-chev">&#8250;</div>
+    </div>
+    <div class="cap"><div class="k">ESTADO 3 &middot; nenhum padrão nas quatro</div><div class="d">mesma tipografia e mesma extensão de campos nos quatro; o segundo compartimento nunca some</div></div>
+  </div>
+  <div class="col">
+    <div class="entry-slice">
+      <div class="entry-body">
+        <div class="eyebrow">A página da lua</div>
+        <div class="entry-1">Das quatro fases, nenhuma foi lida.</div>
+        <div class="entry-2">A primeira leitura ainda não rodou. As quatro rodam juntas, ou nenhuma roda.</div>
+      </div>
+      <div class="entry-chev">&#8250;</div>
+    </div>
+    <div class="cap"><div class="k">ESTADO 4 &middot; ainda não rodou</div><div class="d">mesma tipografia e mesma extensão de campos nos quatro; o segundo compartimento nunca some</div></div>
+  </div>
+</div>
+
+<h2 class="sec">2 &middot; A página — quatro estados, uma só moldura</h2>
+<p class="sec-note">
+  Os quatro quadros são estados alternativos da mesma página: uma execução imprime um
+  conjunto só. Fora dos blocos de fase e da frase coletiva, os quatro são idênticos
+  <b>em campos e em tipografia</b> — e não em posição: o texto tem comprimentos diferentes,
+  então a moldura começa em <span style="font-family:var(--mono)">y</span> diferente em cada
+  um. É isso que "invariável em campos, não em pixels" quer dizer, e é por isso que a régua
+  de 200&nbsp;px do mockup de 07/09 não é reproduzida aqui. O quadro está esticado para
+  caber a página inteira — a tracejada marca onde termina a primeira tela de 844&nbsp;px. <b>A ordem das colunas é de probabilidade, não de
+  hierarquia:</b> o estado 1 vem primeiro porque é onde a página vai viver depois da
+  primeira execução, e o estado 4 é onde ela vive antes dela.
+</p>
+<div class="row">
+  <div class="dobra-tag">dobra &middot; 844 px</div>
+  <div class="col">
+    <div class="device">
+      <div class="dobra"></div>
+      <div class="statusbar"><span class="t">9:41</span><span class="sig"><i></i><i></i><i></i><i></i><span class="batt"></span></span></div>
+      <div class="subhead"><span class="back">&#8249;</span><span class="nm">Sono</span><span class="sub">agosto 2026</span></div>
+      <div class="titlerow">
+        <div class="eyebrow">Pré-registro &middot; 07 set &middot; 28 set 2026</div>
+        <div class="pagetitle">A página da lua</div>
+      </div>
+      <div class="phase">
+        <div class="eyebrow">O ciclo sinódico, noite a noite</div>
+        <svg class="strip" width="342" height="86" viewBox="0 0 342 86" aria-label="um ciclo sinódico noite a noite, com as quatro janelas de cinco noites destacadas igualmente e o instante de cada fase marcado fora da janela">
+          <rect x="11.4" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="95.56" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="179.72" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="263.88" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <g transform="translate(5.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.79 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(17.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.65 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(28.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.38 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(39.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.96 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(51.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.37 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(62.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.57 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(74.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.57 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(85.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.37 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(96.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.96 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(108.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.38 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(119.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.65 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(131.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.79 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(142.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.86 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(153.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.11 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(165.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.08 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(176.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.0 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(188.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.83 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(199.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.53 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(210.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.08 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(222.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.43 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(233.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.59 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(245.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.54 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(256.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.29 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(267.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.84 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(279.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.22 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(290.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.46 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(302.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.58 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(313.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.63 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(324.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.34 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(336.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.31 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <rect x="66.65" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="68.4" y1="9" x2="68.4" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="150.81" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="152.56" y1="9" x2="152.56" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="234.97" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="236.72" y1="9" x2="236.72" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="319.13" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="320.88" y1="9" x2="320.88" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <text class="lab" x="39.9" y="60" text-anchor="middle" font-size="9">nova</text>
+          <text class="lab" x="124.06" y="60" text-anchor="middle" font-size="9">crescente</text>
+          <text class="lab" x="208.22" y="60" text-anchor="middle" font-size="9">cheia</text>
+          <text class="lab" x="292.38" y="60" text-anchor="middle" font-size="9">minguante</text>
+          <rect x="0" y="72" width="342" height="3.5" rx="1.75" fill="var(--line)"/>
+          <rect x="11.4" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="95.56" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="179.72" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="263.88" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+        </svg>
+        <p class="phase-legend">Cada disco é uma noite, com o terminador real. Em azul, as quatro janelas de cinco noites — as que antecedem cada fase. O traço marca o instante da fase, que fica fora da janela.</p>
+        <p class="phase-measure">Vinte das 29,5 noites do ciclo caem dentro de uma janela — 68% dele.</p>
+      </div>
+      <div class="coletiva">
+        <div class="eyebrow">As quatro fases</div>
+        <div class="c-1">Das quatro fases, nenhuma decidiu.</div>
+        <div class="c-2">Nenhuma das quatro teve poder para decidir entre as duas colunas.</div>
+      </div>
+      <div class="ficha">
+        <div class="f-row">
+          <div class="f-lab">Janela testada</div>
+          <div class="f-val">5 noites antes de cada fase
+            <div class="f-sub">[fase &minus; 5 d, fase) &middot; contra as demais noites</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Desfecho</div>
+          <div class="f-val">hora de apagar
+            <div class="f-sub">minutos desde a meia-noite</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Noites e ciclos</div>
+          <div class="f-val">~49 dentro &middot; ~241 fora, por fase
+            <div class="f-sub">17 ciclos sinódicos &middot; 290 noites &middot; 23 abr 2025 &rarr; 07 set 2026</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Próxima leitura</div>
+          <div class="f-val">a cada +100 noites
+            <div class="f-sub">por cadência pré-fixada, não por vontade</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Execuções</div>
+          <div class="f-val">1ª execução</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="eyebrow">Família</div>
+        <div class="g-name">A cheia, sozinha</div>
+        <div class="g-alfa">&alpha; 5% &middot; unilateral &middot; direção do atraso</div>
+        <div class="g-why">Pré-registrada sozinha em 07 set 2026, antes das outras três, com a direção tirada da literatura. A posição aqui é de procedência, não de importância.</div>
+        <div class="bloco">
+          <div class="b-name">Lua cheia</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">106 noites coletáveis</div>
+          <div class="b-cap">faltam para 80% de poder em 15 min</div>
+          <div class="b-line">efeito +9 min &middot; p 0,21 &middot; poder 64%</div>
+          <div class="b-line">Os três portões passaram: 49 noites dentro, 241 fora, 17 ciclos e luz em todas.</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="eyebrow">Família</div>
+        <div class="g-name">Nova, crescente e minguante</div>
+        <div class="g-alfa">&alpha; 1,67% (0,05 / 3) &middot; bilateral</div>
+        <div class="g-why">Nasceram juntas em 28 set 2026, nenhuma com precedência sobre as outras e nenhuma com direção na literatura. Entre as três a correção por multiplicidade se aplica inteira.</div>
+        <div class="bloco">
+          <div class="b-name">Lua nova</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">382 noites coletáveis</div>
+          <div class="b-cap">faltam para 80% de poder em 15 min</div>
+          <div class="b-line">efeito &minus;4 min &middot; p 0,58 &middot; poder 36%</div>
+        </div>
+        <div class="bloco">
+          <div class="b-name">Quarto crescente</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">382 noites coletáveis</div>
+          <div class="b-cap">faltam para 80% de poder em 15 min</div>
+          <div class="b-line">efeito +6 min &middot; p 0,33 &middot; poder 36%</div>
+        </div>
+        <div class="bloco">
+          <div class="b-name">Quarto minguante</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">382 noites coletáveis</div>
+          <div class="b-cap">faltam para 80% de poder em 15 min</div>
+          <div class="b-line">efeito &minus;11 min &middot; p 0,09 &middot; poder 37%</div>
+        </div>
+      </div>
+      <div class="method">
+        <div class="eyebrow">Método</div>
+        <p>Desfecho, janela, direção e o limiar de 15 minutos foram fixados antes de qualquer consulta ao dado: a cheia em 07 set 2026, as outras três em 28 set. Esta página não afirma causa.</p>
+        <p>Horas de luz do dia na latitude do sujeito (~50,8&deg; N) são pré-requisito do teste, não ressalva: a janela lunar anda pelo calendário e sem a luz nenhuma fase roda.</p>
+        <p>Quatro janelas de cinco noites ocupam 68% do ciclo, e sobram ~9,5 noites fora de todas — cerca de 93 das 290. Cada fase é comparada contra todas as outras noites, então a coluna de controle contém as janelas das outras três: o viés é para o nulo.</p>
+        <p>As quatro rodam juntas, ou nenhuma roda. Não existe "eu testei as quatro fases": são dois testes de proveniência diferente.</p>
+        <div class="proc">
+          <div class="eyebrow">Procedência</div>
+          <div class="proc-l">pre-registro-lua.md &middot; 07 set 2026 &middot; d09365de</div>
+          <div class="proc-l">correcao-pre-registro-lua.md &middot; 08 set 2026 &middot; aad967aa</div>
+          <div class="proc-l">pre-registro-lua-outras-fases.md &middot; 28 set 2026 &middot; 1227264d</div>
+          <div class="proc-l">correcao-2-pre-registro-lua-outras-fases.md &middot; 28 set 2026 &middot; sha no carimbo</div>
+          <div class="proc-l">régua v1 &middot; motor v1</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap first"><div class="k">ESTADO 1 &middot; inconclusivo por poder nas quatro</div><div class="d">poder &lt; 80% com os três portões abertos<br>é aqui que a página vai viver: a 290 noites, 396 são o alvo da cheia e 672 o das três</div><div class="fabtag">vereditos, efeitos, p e poder FABRICADOS</div></div>
+  </div>
+  <div class="col">
+    <div class="device">
+      <div class="dobra"></div>
+      <div class="statusbar"><span class="t">9:41</span><span class="sig"><i></i><i></i><i></i><i></i><span class="batt"></span></span></div>
+      <div class="subhead"><span class="back">&#8249;</span><span class="nm">Sono</span><span class="sub">agosto 2026</span></div>
+      <div class="titlerow">
+        <div class="eyebrow">Pré-registro &middot; 07 set &middot; 28 set 2026</div>
+        <div class="pagetitle">A página da lua</div>
+      </div>
+      <div class="phase">
+        <div class="eyebrow">O ciclo sinódico, noite a noite</div>
+        <svg class="strip" width="342" height="86" viewBox="0 0 342 86" aria-label="um ciclo sinódico noite a noite, com as quatro janelas de cinco noites destacadas igualmente e o instante de cada fase marcado fora da janela">
+          <rect x="11.4" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="95.56" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="179.72" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="263.88" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <g transform="translate(5.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.79 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(17.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.65 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(28.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.38 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(39.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.96 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(51.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.37 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(62.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.57 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(74.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.57 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(85.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.37 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(96.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.96 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(108.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.38 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(119.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.65 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(131.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.79 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(142.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.86 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(153.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.11 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(165.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.08 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(176.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.0 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(188.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.83 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(199.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.53 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(210.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.08 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(222.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.43 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(233.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.59 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(245.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.54 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(256.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.29 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(267.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.84 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(279.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.22 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(290.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.46 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(302.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.58 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(313.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.63 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(324.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.34 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(336.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.31 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <rect x="66.65" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="68.4" y1="9" x2="68.4" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="150.81" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="152.56" y1="9" x2="152.56" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="234.97" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="236.72" y1="9" x2="236.72" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="319.13" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="320.88" y1="9" x2="320.88" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <text class="lab" x="39.9" y="60" text-anchor="middle" font-size="9">nova</text>
+          <text class="lab" x="124.06" y="60" text-anchor="middle" font-size="9">crescente</text>
+          <text class="lab" x="208.22" y="60" text-anchor="middle" font-size="9">cheia</text>
+          <text class="lab" x="292.38" y="60" text-anchor="middle" font-size="9">minguante</text>
+          <rect x="0" y="72" width="342" height="3.5" rx="1.75" fill="var(--line)"/>
+          <rect x="11.4" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="95.56" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="179.72" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="263.88" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+        </svg>
+        <p class="phase-legend">Cada disco é uma noite, com o terminador real. Em azul, as quatro janelas de cinco noites — as que antecedem cada fase. O traço marca o instante da fase, que fica fora da janela.</p>
+        <p class="phase-measure">Vinte das 29,5 noites do ciclo caem dentro de uma janela — 68% dele.</p>
+      </div>
+      <div class="coletiva">
+        <div class="eyebrow">As quatro fases</div>
+        <div class="c-1">Das quatro fases, uma decidiu.</div>
+        <div class="c-2">Nas noites que antecedem a cheia, a hora de apagar ficou mais tarde.</div>
+      </div>
+      <div class="ficha">
+        <div class="f-row">
+          <div class="f-lab">Janela testada</div>
+          <div class="f-val">5 noites antes de cada fase
+            <div class="f-sub">[fase &minus; 5 d, fase) &middot; contra as demais noites</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Desfecho</div>
+          <div class="f-val">hora de apagar
+            <div class="f-sub">minutos desde a meia-noite</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Noites e ciclos</div>
+          <div class="f-val">~49 dentro &middot; ~241 fora, por fase
+            <div class="f-sub">17 ciclos sinódicos &middot; 290 noites &middot; 23 abr 2025 &rarr; 07 set 2026</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Próxima leitura</div>
+          <div class="f-val">a cada +100 noites
+            <div class="f-sub">por cadência pré-fixada, não por vontade</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Execuções</div>
+          <div class="f-val">1ª execução</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="eyebrow">Família</div>
+        <div class="g-name">A cheia, sozinha</div>
+        <div class="g-alfa">&alpha; 5% &middot; unilateral &middot; direção do atraso</div>
+        <div class="g-why">Pré-registrada sozinha em 07 set 2026, antes das outras três, com a direção tirada da literatura. A posição aqui é de procedência, não de importância.</div>
+        <div class="bloco">
+          <div class="b-name">Lua cheia</div>
+          <div class="b-word">achado</div>
+          <div class="b-num">+19 min</div>
+          <div class="b-cap">atraso mediano &middot; hora de apagar</div>
+          <div class="b-line">p 0,014 &middot; unilateral no atraso &middot; poder 82%</div>
+          <div class="b-line">Contra todas as outras noites do acervo. Associação medida, sem mecanismo.</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="eyebrow">Família</div>
+        <div class="g-name">Nova, crescente e minguante</div>
+        <div class="g-alfa">&alpha; 1,67% (0,05 / 3) &middot; bilateral</div>
+        <div class="g-why">Nasceram juntas em 28 set 2026, nenhuma com precedência sobre as outras e nenhuma com direção na literatura. Entre as três a correção por multiplicidade se aplica inteira.</div>
+        <div class="bloco">
+          <div class="b-name">Lua nova</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">382 noites coletáveis</div>
+          <div class="b-cap">faltam para 80% de poder em 15 min</div>
+          <div class="b-line">efeito &minus;4 min &middot; p 0,58 &middot; poder 36%</div>
+        </div>
+        <div class="bloco">
+          <div class="b-name">Quarto crescente</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">382 noites coletáveis</div>
+          <div class="b-cap">faltam para 80% de poder em 15 min</div>
+          <div class="b-line">efeito +6 min &middot; p 0,33 &middot; poder 36%</div>
+        </div>
+        <div class="bloco">
+          <div class="b-name">Quarto minguante</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">382 noites coletáveis</div>
+          <div class="b-cap">faltam para 80% de poder em 15 min</div>
+          <div class="b-line">efeito &minus;11 min &middot; p 0,09 &middot; poder 37%</div>
+        </div>
+      </div>
+      <div class="method">
+        <div class="eyebrow">Método</div>
+        <p>Desfecho, janela, direção e o limiar de 15 minutos foram fixados antes de qualquer consulta ao dado: a cheia em 07 set 2026, as outras três em 28 set. Esta página não afirma causa.</p>
+        <p>Horas de luz do dia na latitude do sujeito (~50,8&deg; N) são pré-requisito do teste, não ressalva: a janela lunar anda pelo calendário e sem a luz nenhuma fase roda.</p>
+        <p>Quatro janelas de cinco noites ocupam 68% do ciclo, e sobram ~9,5 noites fora de todas — cerca de 93 das 290. Cada fase é comparada contra todas as outras noites, então a coluna de controle contém as janelas das outras três: o viés é para o nulo.</p>
+        <p>As quatro rodam juntas, ou nenhuma roda. Não existe "eu testei as quatro fases": são dois testes de proveniência diferente.</p>
+        <div class="proc">
+          <div class="eyebrow">Procedência</div>
+          <div class="proc-l">pre-registro-lua.md &middot; 07 set 2026 &middot; d09365de</div>
+          <div class="proc-l">correcao-pre-registro-lua.md &middot; 08 set 2026 &middot; aad967aa</div>
+          <div class="proc-l">pre-registro-lua-outras-fases.md &middot; 28 set 2026 &middot; 1227264d</div>
+          <div class="proc-l">correcao-2-pre-registro-lua-outras-fases.md &middot; 28 set 2026 &middot; sha no carimbo</div>
+          <div class="proc-l">régua v1 &middot; motor v1</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap "><div class="k">ESTADO 2 &middot; achado na cheia</div><div class="d">|&Delta;| &ge; 15 min &middot; p &lt; 0,05 unilateral &middot; poder &ge; 80%<br>o placar imprime o denominador e o segundo compartimento nomeia a fase</div><div class="fabtag">vereditos, efeitos, p e poder FABRICADOS</div></div>
+  </div>
+  <div class="col">
+    <div class="device">
+      <div class="dobra"></div>
+      <div class="statusbar"><span class="t">9:41</span><span class="sig"><i></i><i></i><i></i><i></i><span class="batt"></span></span></div>
+      <div class="subhead"><span class="back">&#8249;</span><span class="nm">Sono</span><span class="sub">agosto 2026</span></div>
+      <div class="titlerow">
+        <div class="eyebrow">Pré-registro &middot; 07 set &middot; 28 set 2026</div>
+        <div class="pagetitle">A página da lua</div>
+      </div>
+      <div class="phase">
+        <div class="eyebrow">O ciclo sinódico, noite a noite</div>
+        <svg class="strip" width="342" height="86" viewBox="0 0 342 86" aria-label="um ciclo sinódico noite a noite, com as quatro janelas de cinco noites destacadas igualmente e o instante de cada fase marcado fora da janela">
+          <rect x="11.4" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="95.56" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="179.72" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="263.88" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <g transform="translate(5.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.79 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(17.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.65 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(28.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.38 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(39.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.96 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(51.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.37 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(62.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.57 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(74.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.57 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(85.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.37 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(96.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.96 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(108.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.38 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(119.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.65 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(131.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.79 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(142.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.86 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(153.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.11 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(165.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.08 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(176.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.0 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(188.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.83 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(199.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.53 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(210.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.08 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(222.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.43 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(233.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.59 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(245.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.54 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(256.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.29 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(267.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.84 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(279.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.22 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(290.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.46 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(302.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.58 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(313.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.63 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(324.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.34 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(336.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.31 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <rect x="66.65" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="68.4" y1="9" x2="68.4" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="150.81" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="152.56" y1="9" x2="152.56" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="234.97" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="236.72" y1="9" x2="236.72" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="319.13" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="320.88" y1="9" x2="320.88" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <text class="lab" x="39.9" y="60" text-anchor="middle" font-size="9">nova</text>
+          <text class="lab" x="124.06" y="60" text-anchor="middle" font-size="9">crescente</text>
+          <text class="lab" x="208.22" y="60" text-anchor="middle" font-size="9">cheia</text>
+          <text class="lab" x="292.38" y="60" text-anchor="middle" font-size="9">minguante</text>
+          <rect x="0" y="72" width="342" height="3.5" rx="1.75" fill="var(--line)"/>
+          <rect x="11.4" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="95.56" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="179.72" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="263.88" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+        </svg>
+        <p class="phase-legend">Cada disco é uma noite, com o terminador real. Em azul, as quatro janelas de cinco noites — as que antecedem cada fase. O traço marca o instante da fase, que fica fora da janela.</p>
+        <p class="phase-measure">Vinte das 29,5 noites do ciclo caem dentro de uma janela — 68% dele.</p>
+      </div>
+      <div class="coletiva">
+        <div class="eyebrow">As quatro fases</div>
+        <div class="c-1">Das quatro fases, nenhuma decidiu.</div>
+        <div class="c-2">Com poder para decidir, nenhuma das quatro mostrou deslocamento de 15 minutos ou mais na direção que o protocolo testa.</div>
+      </div>
+      <div class="ficha">
+        <div class="f-row">
+          <div class="f-lab">Janela testada</div>
+          <div class="f-val">5 noites antes de cada fase
+            <div class="f-sub">[fase &minus; 5 d, fase) &middot; contra as demais noites</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Desfecho</div>
+          <div class="f-val">hora de apagar
+            <div class="f-sub">minutos desde a meia-noite</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Noites e ciclos</div>
+          <div class="f-val">~49 dentro &middot; ~241 fora, por fase
+            <div class="f-sub">17 ciclos sinódicos &middot; 290 noites &middot; 23 abr 2025 &rarr; 07 set 2026</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Próxima leitura</div>
+          <div class="f-val">a cada +100 noites
+            <div class="f-sub">por cadência pré-fixada, não por vontade</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Execuções</div>
+          <div class="f-val">1ª execução</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="eyebrow">Família</div>
+        <div class="g-name">A cheia, sozinha</div>
+        <div class="g-alfa">&alpha; 5% &middot; unilateral &middot; direção do atraso</div>
+        <div class="g-why">Pré-registrada sozinha em 07 set 2026, antes das outras três, com a direção tirada da literatura. A posição aqui é de procedência, não de importância.</div>
+        <div class="bloco">
+          <div class="b-name">Lua cheia</div>
+          <div class="b-word">nenhum padrão</div>
+          <div class="b-num">&minus;40 min</div>
+          <div class="b-cap">adiantamento mediano &middot; hora de apagar</div>
+          <div class="b-line">p 0,99 &middot; unilateral no atraso &middot; poder 86%</div>
+          <div class="b-line">O deslocamento é para mais cedo. O pré-registro de 07 set fixou a direção do atraso, e é só ela que este teste a 5% pode achar — um adiantamento aqui não é achado por este protocolo.</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="eyebrow">Família</div>
+        <div class="g-name">Nova, crescente e minguante</div>
+        <div class="g-alfa">&alpha; 1,67% (0,05 / 3) &middot; bilateral</div>
+        <div class="g-why">Nasceram juntas em 28 set 2026, nenhuma com precedência sobre as outras e nenhuma com direção na literatura. Entre as três a correção por multiplicidade se aplica inteira.</div>
+        <div class="bloco">
+          <div class="b-name">Lua nova</div>
+          <div class="b-word">nenhum padrão</div>
+          <div class="b-num">+3 min</div>
+          <div class="b-cap">deslocamento mediano &middot; hora de apagar</div>
+          <div class="b-line">p 0,71 &middot; bilateral &middot; poder 84%</div>
+        </div>
+        <div class="bloco">
+          <div class="b-name">Quarto crescente</div>
+          <div class="b-word">nenhum padrão</div>
+          <div class="b-num">&minus;5 min</div>
+          <div class="b-cap">deslocamento mediano &middot; hora de apagar</div>
+          <div class="b-line">p 0,44 &middot; bilateral &middot; poder 83%</div>
+        </div>
+        <div class="bloco">
+          <div class="b-name">Quarto minguante</div>
+          <div class="b-word">nenhum padrão</div>
+          <div class="b-num">+2 min</div>
+          <div class="b-cap">deslocamento mediano &middot; hora de apagar</div>
+          <div class="b-line">p 0,88 &middot; bilateral &middot; poder 85%</div>
+        </div>
+      </div>
+      <div class="method">
+        <div class="eyebrow">Método</div>
+        <p>Desfecho, janela, direção e o limiar de 15 minutos foram fixados antes de qualquer consulta ao dado: a cheia em 07 set 2026, as outras três em 28 set. Esta página não afirma causa.</p>
+        <p>Horas de luz do dia na latitude do sujeito (~50,8&deg; N) são pré-requisito do teste, não ressalva: a janela lunar anda pelo calendário e sem a luz nenhuma fase roda.</p>
+        <p>Quatro janelas de cinco noites ocupam 68% do ciclo, e sobram ~9,5 noites fora de todas — cerca de 93 das 290. Cada fase é comparada contra todas as outras noites, então a coluna de controle contém as janelas das outras três: o viés é para o nulo.</p>
+        <p>As quatro rodam juntas, ou nenhuma roda. Não existe "eu testei as quatro fases": são dois testes de proveniência diferente.</p>
+        <div class="proc">
+          <div class="eyebrow">Procedência</div>
+          <div class="proc-l">pre-registro-lua.md &middot; 07 set 2026 &middot; d09365de</div>
+          <div class="proc-l">correcao-pre-registro-lua.md &middot; 08 set 2026 &middot; aad967aa</div>
+          <div class="proc-l">pre-registro-lua-outras-fases.md &middot; 28 set 2026 &middot; 1227264d</div>
+          <div class="proc-l">correcao-2-pre-registro-lua-outras-fases.md &middot; 28 set 2026 &middot; sha no carimbo</div>
+          <div class="proc-l">régua v1 &middot; motor v1</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap "><div class="k">ESTADO 3 &middot; nenhum padrão nas quatro</div><div class="d">não significante COM poder &ge; 80%<br>um teste com poder que não acha nada é informação — e aqui a cheia mede &minus;40 min na direção não coberta</div><div class="fabtag">vereditos, efeitos, p e poder FABRICADOS</div></div>
+  </div>
+  <div class="col">
+    <div class="device">
+      <div class="dobra"></div>
+      <div class="statusbar"><span class="t">9:41</span><span class="sig"><i></i><i></i><i></i><i></i><span class="batt"></span></span></div>
+      <div class="subhead"><span class="back">&#8249;</span><span class="nm">Sono</span><span class="sub">agosto 2026</span></div>
+      <div class="titlerow">
+        <div class="eyebrow">Pré-registro &middot; 07 set &middot; 28 set 2026</div>
+        <div class="pagetitle">A página da lua</div>
+      </div>
+      <div class="phase">
+        <div class="eyebrow">O ciclo sinódico, noite a noite</div>
+        <svg class="strip" width="342" height="86" viewBox="0 0 342 86" aria-label="um ciclo sinódico noite a noite, com as quatro janelas de cinco noites destacadas igualmente e o instante de cada fase marcado fora da janela">
+          <rect x="11.4" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="95.56" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="179.72" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <rect x="263.88" y="16" width="57.0" height="28" rx="3" fill="var(--soft)"/>
+          <g transform="translate(5.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.79 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(17.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.65 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(28.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.38 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(39.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.96 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(51.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.37 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(62.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.57 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(74.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.57 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(85.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.37 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(96.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.96 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(108.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.38 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(119.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.65 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(131.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.79 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(142.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.86 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(153.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.11 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(165.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.08 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(176.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.0 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(188.1 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.83 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(199.5 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.53 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(210.9 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.08 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(222.3 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.43 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(233.7 30.0)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.59 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(245.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.54 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(256.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 4.29 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(267.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.84 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(279.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 3.22 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(290.7 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 2.46 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(302.1 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.58 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(313.5 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.63 4.6 0 0 1 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink)" stroke-width="1"/></g>
+          <g transform="translate(324.9 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 0.34 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <g transform="translate(336.3 30.0) scale(-1 1)"><circle r="4.6" fill="var(--ink)"/><path d="M 0 -4.6 A 4.6 4.6 0 0 1 0 4.6 A 1.31 4.6 0 0 0 0 -4.6 Z" fill="var(--bg)"/><circle r="4.6" fill="none" stroke="var(--ink2)" stroke-width="0.7"/></g>
+          <rect x="66.65" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="68.4" y1="9" x2="68.4" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="150.81" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="152.56" y1="9" x2="152.56" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="234.97" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="236.72" y1="9" x2="236.72" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <rect x="319.13" y="6" width="3.5" height="3.5" fill="var(--ink)"/><line x1="320.88" y1="9" x2="320.88" y2="50" stroke="var(--ink)" stroke-width="1"/>
+          <text class="lab" x="39.9" y="60" text-anchor="middle" font-size="9">nova</text>
+          <text class="lab" x="124.06" y="60" text-anchor="middle" font-size="9">crescente</text>
+          <text class="lab" x="208.22" y="60" text-anchor="middle" font-size="9">cheia</text>
+          <text class="lab" x="292.38" y="60" text-anchor="middle" font-size="9">minguante</text>
+          <rect x="0" y="72" width="342" height="3.5" rx="1.75" fill="var(--line)"/>
+          <rect x="11.4" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="95.56" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="179.72" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+          <rect x="263.88" y="72" width="57.0" height="3.5" rx="1.75" fill="var(--accent)"/>
+        </svg>
+        <p class="phase-legend">Cada disco é uma noite, com o terminador real. Em azul, as quatro janelas de cinco noites — as que antecedem cada fase. O traço marca o instante da fase, que fica fora da janela.</p>
+        <p class="phase-measure">Vinte das 29,5 noites do ciclo caem dentro de uma janela — 68% dele.</p>
+      </div>
+      <div class="coletiva">
+        <div class="eyebrow">As quatro fases</div>
+        <div class="c-1">Das quatro fases, nenhuma foi lida.</div>
+        <div class="c-2">A primeira leitura ainda não rodou. As quatro rodam juntas, ou nenhuma roda.</div>
+      </div>
+      <div class="ficha">
+        <div class="f-row">
+          <div class="f-lab">Janela testada</div>
+          <div class="f-val">5 noites antes de cada fase
+            <div class="f-sub">[fase &minus; 5 d, fase) &middot; contra as demais noites</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Desfecho</div>
+          <div class="f-val">hora de apagar
+            <div class="f-sub">minutos desde a meia-noite</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Noites e ciclos</div>
+          <div class="f-val">~49 dentro &middot; ~241 fora, por fase
+            <div class="f-sub">17 ciclos sinódicos &middot; 290 noites &middot; 23 abr 2025 &rarr; 07 set 2026</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Primeira leitura</div>
+          <div class="f-val">a primeira execução da 4.2
+            <div class="f-sub">as quatro rodam juntas, ou nenhuma roda</div>
+          </div>
+        </div>
+        <div class="f-row">
+          <div class="f-lab">Execuções</div>
+          <div class="f-val">nenhuma execução</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="eyebrow">Família</div>
+        <div class="g-name">A cheia, sozinha</div>
+        <div class="g-alfa">&alpha; 5% &middot; unilateral &middot; direção do atraso</div>
+        <div class="g-why">Pré-registrada sozinha em 07 set 2026, antes das outras três, com a direção tirada da literatura. A posição aqui é de procedência, não de importância.</div>
+        <div class="bloco">
+          <div class="b-name">Lua cheia</div>
+          <div class="b-line">Sem leitura: a fase foi pré-registrada e ainda não rodou.</div>
+        </div>
+      </div>
+      <div class="grupo">
+        <div class="eyebrow">Família</div>
+        <div class="g-name">Nova, crescente e minguante</div>
+        <div class="g-alfa">&alpha; 1,67% (0,05 / 3) &middot; bilateral</div>
+        <div class="g-why">Nasceram juntas em 28 set 2026, nenhuma com precedência sobre as outras e nenhuma com direção na literatura. Entre as três a correção por multiplicidade se aplica inteira.</div>
+        <div class="bloco">
+          <div class="b-name">Lua nova</div>
+          <div class="b-line">Sem leitura: a fase foi pré-registrada e ainda não rodou.</div>
+        </div>
+        <div class="bloco">
+          <div class="b-name">Quarto crescente</div>
+          <div class="b-line">Sem leitura: a fase foi pré-registrada e ainda não rodou.</div>
+        </div>
+        <div class="bloco">
+          <div class="b-name">Quarto minguante</div>
+          <div class="b-line">Sem leitura: a fase foi pré-registrada e ainda não rodou.</div>
+        </div>
+      </div>
+      <div class="method">
+        <div class="eyebrow">Método</div>
+        <p>Desfecho, janela, direção e o limiar de 15 minutos foram fixados antes de qualquer consulta ao dado: a cheia em 07 set 2026, as outras três em 28 set. Esta página não afirma causa.</p>
+        <p>Horas de luz do dia na latitude do sujeito (~50,8&deg; N) são pré-requisito do teste, não ressalva: a janela lunar anda pelo calendário e sem a luz nenhuma fase roda.</p>
+        <p>Quatro janelas de cinco noites ocupam 68% do ciclo, e sobram ~9,5 noites fora de todas — cerca de 93 das 290. Cada fase é comparada contra todas as outras noites, então a coluna de controle contém as janelas das outras três: o viés é para o nulo.</p>
+        <p>As quatro rodam juntas, ou nenhuma roda. Não existe "eu testei as quatro fases": são dois testes de proveniência diferente.</p>
+        <div class="proc">
+          <div class="eyebrow">Procedência</div>
+          <div class="proc-l">pre-registro-lua.md &middot; 07 set 2026 &middot; d09365de</div>
+          <div class="proc-l">correcao-pre-registro-lua.md &middot; 08 set 2026 &middot; aad967aa</div>
+          <div class="proc-l">pre-registro-lua-outras-fases.md &middot; 28 set 2026 &middot; 1227264d</div>
+          <div class="proc-l">correcao-2-pre-registro-lua-outras-fases.md &middot; 28 set 2026 &middot; sha no carimbo</div>
+          <div class="proc-l">régua v1 &middot; motor v1</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap "><div class="k">ESTADO 4 &middot; o teste ainda não rodou</div><div class="d">a moldura aparece igual, com os campos que já existem e a primeira leitura no lugar da próxima<br>EXPERIENCE.md: é o estado em que a página passa a maior parte do tempo antes da primeira execução</div><div class="fabtag">a data/rótulo da primeira leitura é QUESTÃO ABERTA — ver nº 3</div></div>
+  </div>
+</div>
+
+<h2 class="sec">3 &middot; Quantas noites faltam tem unidade, e ela varia por motivo</h2>
+<p class="sec-note">
+  Quatro fatias do bloco de uma fase, uma por motivo de inconclusivo. O número fica
+  <b>no bloco de cada fase, com a unidade dela</b>, e <b>nunca é somado na frase
+  coletiva</b> — a frase pode dizer que faltou poder, não quanto. O vocabulário é fechado no
+  banco (<span style="font-family:var(--mono)">noites-sem-luz &middot; noites-de-coluna
+  &middot; ciclos &middot; noites-coletáveis</span>) e só a última é noite coletável. Na
+  primeira fatia a covariável da luz <b>sobe do rodapé do método para o bloco</b>, porque
+  ali ela é a razão do inconclusivo.
+</p>
+<div class="row">
+  <div class="col">
+    <div class="device">
+      <div style="padding:16px 24px 20px">
+        <div class="eyebrow">Família</div>
+        <div class="g-alfa">&alpha; 5% &middot; unilateral &middot; direção do atraso</div>
+        <div class="bloco">
+          <div class="b-name">Lua cheia</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">3 noites sem horas de luz</div>
+          <div class="b-cap">noites-sem-luz &middot; o portão da luz reprovou</div>
+          <div class="b-line">Horas de luz do dia na latitude do sujeito (~50,8&deg; N) são pré-requisito do teste. Três noites do acervo vieram sem ela, a primeira em 08 mai 2026 — e estas não se coletam: conserta-se o dado.</div>
+          <div class="b-line">Efeito não medido: o portão reprovou antes, e zero seria mentira.</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><div class="k">MOTIVO luz &middot; unidade noites-sem-luz</div><div class="d">é o único caso em que a covariável SOBE do rodapé do método para o bloco do veredito — porque aí ela é a razão do inconclusivo</div></div>
+  </div>
+  <div class="col">
+    <div class="device">
+      <div style="padding:16px 24px 20px">
+        <div class="eyebrow">Família</div>
+        <div class="g-alfa">&alpha; 1,67% (0,05 / 3) &middot; bilateral</div>
+        <div class="bloco">
+          <div class="b-name">Quarto crescente</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">2 noites de coluna</div>
+          <div class="b-cap">noites-de-coluna &middot; o portão da amostra reprovou</div>
+          <div class="b-line">A coluna dentro tem 3 noites e o portão pede 5 de cada lado. As duas vagas que faltam são vagas de coluna, não noites do acervo.</div>
+          <div class="b-line">Efeito não medido: o portão reprovou antes, e zero seria mentira.</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><div class="k">MOTIVO amostra &middot; unidade noites-de-coluna</div><div class="d">as duas colunas somadas; nem toda noite nova preenche uma vaga</div></div>
+  </div>
+  <div class="col">
+    <div class="device">
+      <div style="padding:16px 24px 20px">
+        <div class="eyebrow">Família</div>
+        <div class="g-alfa">&alpha; 1,67% (0,05 / 3) &middot; bilateral</div>
+        <div class="bloco">
+          <div class="b-name">Quarto minguante</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">4 ciclos</div>
+          <div class="b-cap">ciclos &middot; o portão dos ciclos reprovou</div>
+          <div class="b-line">São 6 ciclos sinódicos contribuindo com ao menos uma noite nesta janela, e o portão pede 10. Colher cem noites do mesmo ciclo não move este número.</div>
+          <div class="b-line">Efeito não medido: o portão reprovou antes, e zero seria mentira.</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><div class="k">MOTIVO ciclos &middot; unidade ciclos</div><div class="d">imprimir "faltam 4 noites" aqui erraria por ~118 dias — quatro ciclos são 118,1</div></div>
+  </div>
+  <div class="col">
+    <div class="device">
+      <div style="padding:16px 24px 20px">
+        <div class="eyebrow">Família</div>
+        <div class="g-alfa">&alpha; 1,67% (0,05 / 3) &middot; bilateral</div>
+        <div class="bloco">
+          <div class="b-name">Lua nova</div>
+          <div class="b-word">inconclusivo</div>
+          <div class="b-num">382 noites coletáveis</div>
+          <div class="b-cap">noites-coletáveis &middot; faltam para 80% de poder em 15 min</div>
+          <div class="b-line">Os três portões passaram e o teste rodou sem poder para decidir. 672 noites são o alvo das três a 45 min de dispersão; o acervo tem 290.</div>
+          <div class="b-line">efeito &minus;4 min &middot; p 0,58 &middot; poder 36%</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><div class="k">MOTIVO poder &middot; unidade noites-coletáveis</div><div class="d">a única das quatro unidades em que "faltam N noites" é frase verdadeira</div></div>
+  </div>
+</div>
+
+<div class="foot">
+  <h3>Decisões que esta folha ilustra</h3>
+  <ul>
+    <li><b>memlog 30/09 &middot; a frase coletiva</b> — placar mais a fase nomeada, em dois compartimentos que nunca desaparecem. O denominador ("quatro") é impresso na primeira linha porque é o número que calibra a multiplicidade, que é a razão de os &alpha; serem diferentes. Quando nenhuma decide, o segundo compartimento diz a razão e não some.</li>
+    <li><b>memlog 30/09 &middot; a ordem dos blocos</b> — agrupado por família, as três ordenadas pelo ciclo. Cada &alpha; aparece <b>uma</b> vez e a fronteira é a própria disposição. O cabeçalho de cada grupo carrega a razão da separação para que a posição da cheia não seja lida como hierarquia.</li>
+    <li><b>memlog 30/09 &middot; o desenho</b> — as quatro janelas destacadas <b>igualmente</b>, sem estado e sem seguir a rolagem. Vinte das 29,5 noites do ciclo dentro de uma janela, 68% dele: o fato que explica os &alpha; menores, a contaminação das colunas e o poder baixo, entregue antes de qualquer texto. O complemento (~9,5 noites fora de todas) fica no rodapé do método, não na abertura.</li>
+    <li><b>memlog 30/09 &middot; a direção não coberta</b> — o bloco explica em uma linha, no mesmo corpo dos outros rótulos, sem ícone, sem cinza e sem itálico apologético (ADR 0045 §3 proíbe os três). Ver o estado 3: a cheia imprime &minus;40 min ao lado de "nenhum padrão", e a explicação não tem caminho até a manchete — por construção.</li>
+    <li><b>memlog 30/09 &middot; a unidade do que falta</b> — quatro motivos, quatro unidades. "Faltam N noites" só é verdade em <span style="font-family:var(--mono)">noites-coletáveis</span>; imprimi-lo sobre <span style="font-family:var(--mono)">ciclos</span> erraria por ~118 dias. É a lição do "1 dias" da story 2.8 chegando na tela.</li>
+    <li><b>ADR 0045 &middot; consequência 1</b> — a moldura é invariável em campos: os cinco (janela testada, desfecho, noites e ciclos, leitura, contador de execuções) aparecem sempre, na mesma ordem. Não há variante curta da página. Os cinco valem para as quatro fases, porque nenhum deles muda de fase para fase.</li>
+    <li><b>ADR 0045 &middot; consequência 2, corrigida</b> — são <b>quatro</b> estados, não três: os três vereditos mais "o teste ainda não rodou".</li>
+    <li><b>ADR 0045 &middot; consequência 3</b> — sem atenuação visual: o negativo não vai em cinza, em itálico, em corpo menor nem com ícone de aviso.</li>
+    <li><b>ADR 0045 &middot; consequência 4</b> — o contador de execuções é campo da moldura, não nota de rodapé.</li>
+    <li><b>DESIGN.md &middot; Moldura da lua</b> — altura fixa está <b>proibida</b> aqui: caixa congelada corta o veredito em AX3, e aí a garantia da ADR 0045 morre calada. A régua de 200&nbsp;px do mockup de 07/09 não é reproduzida, e a legenda que a afirmava está velha.</li>
+    <li><b>memlog 40 e 42 &middot; a tinta</b> — informação obrigatória em <span style="font-family:var(--mono)">ink2</span> (7,52 / 7,09), no mesmo corpo, e nunca em <span style="font-family:var(--mono)">ink3</span> (3,05 / <b>2,87</b> sobre <span style="font-family:var(--mono)">bg</span>, abaixo até do piso de objeto gráfico). Os rótulos de 07/09 estavam em <span style="font-family:var(--mono)">ink3</span> e foram subidos aqui.</li>
+    <li><b>memlog 35 e 36 &middot; a sub-página</b> — sem faixa de caderno, sem ícone e sem assinatura de modelo. A procedência é a cadeia de quatro documentos (dois pré-registros e duas correções) mais as duas versões carimbadas por execução, régua e motor, e o contador.</li>
+    <li><b>Pré-registro &sect;2 de 07/09 e &sect;4 de 28/09</b> — a exposição é "antes da fase", não "na fase": o traço do instante cai fora da janela nas quatro.</li>
+    <li><b>Pré-registro &sect;2 de 28/09</b> — não existe "eu testei as quatro fases". A página nomeia as duas famílias separadamente e mostra os dois &alpha; (&sect;11).</li>
+    <li><b>Voz</b> — informa, não aconselha: nenhum conselho, nenhuma exclamação, nenhum emoji, nenhuma causa afirmada, e toda base comparada é nomeada ("contra todas as outras noites").</li>
+  </ul>
+
+  <h3>A matemática do desenho, herdada de 07/09 e conferida</h3>
+  <ul>
+    <li>Iluminação de cada noite = <span style="font-family:var(--mono)">(1 &minus; cos(2&pi;d/29,53)) / 2</span>; terminador real com <span style="font-family:var(--mono)">rx = r &middot; |1 &minus; 2&middot;iluminação|</span>; espelhamento na minguante; arco de varredura 1 acima de meia-lua. A regra foi conferida disco a disco contra os valores literais de <span style="font-family:var(--mono)">mockups/key-lua.html</span>.</li>
+    <li>A grade foi <b>reancorada</b> (lua nova no índice 5,5 de 30 células) por uma razão só: com a âncora de 07/09 a janela da lua nova saía pela borda esquerda do quadro. Na âncora nova as quatro janelas <span style="font-family:var(--mono)">[fase &minus; 5 d, fase)</span> caem inteiras, com <b>exatamente cinco</b> discos marcados cada — 1–5, 8–12, 16–20 e 23–27 —, e as bandas terminam no instante da fase. A propriedade que 07/09 fixou (os discos marcados <b>são</b> as noites testadas) está preservada; só a âncora mudou.</li>
+    <li>Dez dos trinta discos ficam fora de todas as janelas, o que bate com as ~9,5 noites por ciclo do &sect;7 de 28/09.</li>
+  </ul>
+
+  <h3>Questões abertas — não resolvidas aqui</h3>
+  <ul class="open">
+    <li><b>1. O cabeçalho de sub-página contradiz o memlog.</b> <span style="font-family:var(--mono)">mockups/key-lua.html</span> desenha o topo como faixa saturada sangrando de borda a borda e o próprio pé dela chama isso de "a faixa &hellip; (CAP-7)". Mas o memlog 35 e o DESIGN.md dizem que a página da lua <b>não tem faixa</b> — "ela herda a cor do Sono no cabeçalho". Mantive o desenho de 07/09 para não inventar layout, mas as duas coisas não podem ser verdade: ou o cabeçalho de sub-página é uma faixa e o memlog 35 fala só de ícone, ou ele é outra coisa (régua no accent? nome em accent sobre <span style="font-family:var(--mono)">bg</span>?) e nunca foi desenhado. <b>Precisa do veredito dele.</b></li>
+    <li><b>2. O que a frase coletiva diz no estado 4.</b> O memlog fixa os dois compartimentos e a variante "nenhuma decidiu" com a razão, mas não a redação de antes da primeira execução. Escrevi "Das quatro fases, nenhuma foi lida." + "A primeira leitura ainda não rodou. As quatro rodam juntas, ou nenhuma roda." — é candidata, não decisão.</li>
+    <li><b>3. O campo "Primeira leitura" espera uma data que nenhum documento fixa.</b> O EXPERIENCE.md manda pôr "a data da primeira leitura no lugar da próxima", mas a cadência de +100 noites governa a <b>re</b>execução; a primeira é "a primeira execução da 4.2", que não tem data. Imprimi a frase em vez de fabricar uma data. <b>Ou o campo aceita uma frase, ou alguém fixa a data.</b></li>
+    <li><b>4. Os blocos de fase no estado 4.</b> Renderizei os quatro presentes, cada um com o nome e uma linha "Sem leitura: a fase foi pré-registrada e ainda não rodou" — sem palavra de veredito e sem número, porque um travessão onde vai o veredito leria como nulo medido. O contrato fala da <b>moldura</b> nesse estado e não dos blocos, então isto é leitura minha.</li>
+    <li><b>5. A ordem desenho &times; frase coletiva.</b> Duas entradas do memlog e o mockup de 07/09 dizem que a página <b>abre com a fase sinódica desenhada</b> e que a figura entrega o 68% "antes de qualquer texto"; uma terceira diz que a página "abre com uma frase coletiva". Resolvi pela precedência — figura primeiro, frase coletiva como o primeiro <b>texto</b>. Se a intenção era a frase acima da figura, é uma linha de CSS, mas é decisão dele.</li>
+    <li><b>6. A redação da razão no cabeçalho de cada grupo.</b> Autorada aqui a partir do &sect;3 e do &sect;5 de 28/09 e do memlog 54. O conteúdo está decidido (procedência, não importância); as palavras não.</li>
+    <li><b>7. ACHADO só visível depois de renderizar: nenhum bloco de fase cabe na primeira
+      tela.</b> Medido nos quatro quadros, a dobra dos 844&nbsp;px cai <b>dentro da moldura</b>,
+      na linha "Noites e ciclos". A primeira tela entrega o desenho, a frase coletiva inteira e
+      metade da moldura — e os quatro vereditos ficam todos abaixo dela. Pela ordem herdada de
+      07/09 a moldura vem antes do veredito, e com quatro blocos isso custa a dobra. Três saídas
+      existem e nenhuma é minha: deixar assim (a frase coletiva já carrega o resultado, que é
+      exatamente a mitigação da ADR 0045), mover a moldura para depois dos quatro blocos, ou
+      encolher o desenho. <b>Decisão dele.</b></li>
+  </ul>
+
+  <h3>O que esta folha não decide</h3>
+  <ul>
+    <li>A <b>emenda à ADR 0045</b> segue não escrita e é pré-requisito de construção da 4.4. O que a decisão de 30/09 mudou é que a redação dela deixou de depender de "idêntica nos três casos": o que a linha de entrada carrega é a frase coletiva.</li>
+    <li>O <b>histórico de execuções</b> (o contador diz "sexta" porque houve cinco antes, e o EXPERIENCE.md pede a lista de veredito + data abaixo do corpo cheio) não está desenhado aqui: os quatro estados são todos de primeira execução ou de nenhuma. Com quatro fases por execução, o grão dessa lista é uma pergunta nova.</li>
+  </ul>
+</div>

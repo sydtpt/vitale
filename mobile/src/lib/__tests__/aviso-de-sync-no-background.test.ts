@@ -57,7 +57,7 @@ jest.mock('../healthkit-workouts', () => {
         },
       ],
     }),
-    fetchWorkoutRoute: async () => [],
+    fetchWorkoutRoute: async () => ({ points: [], answered: true }),
     fetchWorkoutHeartRate: async () => [],
     fetchHrZoneParams: async () => ({ maxHr: 0, restingHr: 0 }),
   };
