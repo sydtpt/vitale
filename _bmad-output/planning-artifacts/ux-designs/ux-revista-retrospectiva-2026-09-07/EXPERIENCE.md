@@ -9,6 +9,9 @@ sources:
   - ../../../../docs/specs/revista-retrospectiva/bases-e-ranqueamento.md
   - ../../../../docs/specs/revista-retrospectiva/mudancas-mecanicas.md
   - ../../../../docs/specs/revista-retrospectiva/pre-registro-lua.md
+  - ../../../../docs/specs/revista-retrospectiva/correcao-pre-registro-lua.md
+  - ../../../../docs/specs/revista-retrospectiva/pre-registro-lua-outras-fases.md
+  - ../../../../docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md
   - ../../../../docs/decisions/0045-o-resultado-negativo-publica-com-o-mesmo-destaque.md
 design: DESIGN.md
 ---
@@ -155,7 +158,12 @@ Aparência em [`DESIGN.md`](DESIGN.md); aqui, só o que eles fazem.
 | **Texto do caderno** | Estático. Não expande, não corta com "ler mais". Uma edição é curta por desenho; truncá-la seria esconder o produto. |
 | **Assinatura** | Sempre visível, nunca atrás de toque. |
 | **Lápide** | Não é tocável e não leva a lugar nenhum — em particular, **não leva a Conexões**. O alerta operacional vive fora da revista. |
-| **Entrada da lua** | Tocável, alvo de linha inteira. Carrega o veredito por extenso: quem não tocar já leu o resultado. |
+| **Entrada da lua** | Tocável, alvo de bloco inteiro. Carrega **a frase coletiva** — **duas linhas, uma por família**, com placar e fase nomeada em cada: quem não tocar já leu o resultado. |
+| **Cabeçalho de sub-página da lua** | Não é tocável fora do botão de voltar, que volta ao caderno Sono na posição em que estava. Não colapsa e não vira barra fixa. É cabeçalho de seção para o leitor de tela. |
+| **A frase coletiva** | Estática, não tocável. **Duas linhas de família, dois compartimentos cada, e nenhum deles some** em tupla nenhuma — e as duas linhas nunca se somam num número. É o primeiro texto da página, e é o texto que a entrada da lua carrega. |
+| **A figura das quatro janelas** | Não é tocável e **não tem estado**: não destaca uma fase por vez e não reage à rolagem. É dado desenhado, não gráfico interativo. |
+| **Bloco de fase** | Estático. Sempre os quatro, um por fase, mesmos campos nas quatro. Não colapsa, não expande, e **não tem dimensão fixa**. |
+| **Cabeçalho de família** | Não é tocável e não colapsa. Imprime o α **uma vez por família** e a razão da separação. Grupo e bloco vivem na mesma sub-seção de [`DESIGN.md`](DESIGN.md) — *Os grupos e os blocos de fase*. |
 | **Tira do anuário** | Não é gráfico interativo. Sem toque, sem tooltip, sem scrub — é **formato**, não visualização. |
 | **Capa da parede** | Toca → abre aquela edição. A capa inteira é o alvo, com o rótulo. |
 | **Botão de imprimir** | Só aparece em período **fechado e ainda não escrito**. Nunca em período em curso, nunca em edição já impressa. |
@@ -241,53 +249,436 @@ a ser **por edição, na impressão**.
 
 ## Disciplina de pré-registro na tela — CAP-12
 
-> Referência visual: [`mockups/key-lua.html`](mockups/key-lua.html) — os três vereditos e as três linhas de entrada.
+> Referência visual: [`mockups/key-lua-quatro-fases.html`](mockups/key-lua-quatro-fases.html)
+> — quatro **quadros** (três tuplas mais o pré-execução) com os blocos agrupados por família, e as
+> quatro unidades do que falta.
+> O [`mockups/key-lua.html`](mockups/key-lua.html) de 07/09 continua valendo para o que não
+> mudou: a moldura de cinco campos, o rodapé do método e a linha de entrada no pé do caderno
+> Sono.
 
 O que o protocolo obriga a interface a fazer, e que nenhuma outra tela do app faz.
+
+### São quatro fases em duas famílias
+
+O segundo pré-registro (28/09/2026) acrescentou lua nova, quarto crescente e quarto minguante
+à cheia, e **as quatro não são iguais perante o teste**:
+
+| Família | Fases | α | Direção |
+|---|---|---|---|
+| **A cheia, sozinha** | lua cheia | **5%** | unilateral, no atraso |
+| **Nova, crescente e minguante** | as outras três | **1,67%** (0,05 / 3) | bilateral |
+
+A separação é de **procedência**: em 07/09 a cheia era a única exposição que existia, com
+direção tirada da literatura; as três nascem juntas em 28/09, nenhuma com precedência sobre as
+outras. O **§11** do documento de 28/09 obriga a página a **nomear as duas famílias
+separadamente e mostrar os dois α** — uma página que imprima os quatro resultados com a mesma
+tipografia, sem dizer que um vale a 5% e três a 1,67%, *"desfaz no leitor a distinção que a §3
+pagou para manter"*.
+
+**As quatro rodam juntas, ou nenhuma roda** (§9). Uma execução calcula, grava e publica as
+quatro — então a página nunca mostra três fases lidas e uma pendente, e o contador de execuções
+continua sendo um só. *Não existe "eu testei as quatro fases": são dois testes de proveniência
+diferente.*
+
+### A frase coletiva — o primeiro texto da página
+
+A página **abre pelo desenho**; o **primeiro texto** é a frase coletiva. Ela é **uma linha por
+família**, as duas sempre presentes, e cada linha tem **dois compartimentos que nunca
+desaparecem**:
+
+```
+A CHEIA
+  A cheia decidiu.                                       ← compartimento 1 · o placar da família
+  Nas noites que antecedem a cheia, a hora de apagar     ← compartimento 2 · o quê, ou por quê
+  ficou mais tarde.
+
+AS TRÊS
+  Nenhuma das três decidiu.
+  Os três testes rodaram sem poder para decidir entre as duas colunas.
+```
+
+**Nunca há um número sobre quatro**, e as duas linhas **nunca se somam**. O §2 do documento de
+28/09 escreveu a proibição para ser citada aqui: *"a partir daqui não existe 'eu testei as quatro
+fases'. (…) Qualquer página, qualquer frase da revista e qualquer relato posterior que junte os
+quatro num só resultado está errado, e este parágrafo é o que autoriza chamá-lo de errado."* Os
+denominadores são **um** e **três** — e três é o divisor que o α das três usa (0,05 / 3).
+
+> **Correção de 30/09/2026, sobre a mesma data.** A redação escolhida mais cedo em 30/09 abria
+> com *"Das quatro fases, …"*: um denominador único sobre quatro, exatamente o que o §2 proíbe.
+> A **forma** que o dono decidiu sobrevive inteira e é o que se preserva — compartimentos que
+> nunca desaparecem, sem variante curta, e a linha de entrada carregando o mesmo texto. O que
+> cai é o **denominador**, e cai com ele a terceira razão que sustentava o placar: *"quatro é o
+> número que calibra a multiplicidade"* é **falsa**, porque o §3 de 28/09 tira a cheia da
+> correção e divide por **três** — multiplicidade sobre quatro é o *Bonferroni nas quatro* que
+> aquele documento recusou.
+
+Duas razões seguem de pé, e são as que decidiram:
+
+- **A forma nunca muda.** Não há variante curta para quando não deu nada, que é o modo de falha
+  que a ADR 0045 existe para impedir.
+- **Quem nunca tocar lê o resultado, não o placar.** É o segundo compartimento de cada linha
+  que sustenta a mitigação da cláusula §3 — ver o fim desta seção.
+
+**São estas duas linhas que a linha de entrada no pé do caderno Sono carrega**, com os quatro
+compartimentos. A linha e a abertura da página dizem a mesma coisa, palavra por palavra.
+
+> **A emenda pendente à ADR 0045 muda de objeto.** A decisão de 08/09 dizia que a linha de
+> entrada era *"idêntica nos três casos"* — redação que quebrou quando as fases viraram quatro.
+> O que a substitui **não é uma frase**, é a regra da seção seguinte: a emenda declara que a
+> linha de entrada carrega o veredito por extenso **para toda tupla que o protocolo possa
+> produzir**, e cita a regra de composição. Uma emenda escrita contra *"a frase coletiva"* como
+> objeto declararia satisfeita uma garantia demonstrada em três casos de 81.
+
+### A regra de composição — não há 81 redações, há uma regra
+
+O veredito é **por fase** e tem três valores, então uma execução tem **81 tuplas** possíveis
+(3⁴), mais o estado pré-execução. Redação autorada existe para três delas. Não existe redação
+para 81 casos e não deve existir: o que a construção recebe é a **regra** abaixo, que gera as
+duas linhas a partir da tupla — e é a regra que se cobre com teste, não as 81 saídas.
+
+A entrada é o que o motor devolve: as quatro `ResultadoDaFase` (`veredito`, `motivo`, `familia`)
+mais `acervo.noitesSemLuz`, em `packages/shared/src/sleep/lua-protocolo.ts`. **A UX obedece ao
+código**: os nomes de família (`cheia`, `as-tres`), de veredito e de motivo são os dele.
+
+> **Toda a redação desta seção é autorada aqui, não decidida pelo dono.** O que ele decidiu em
+> 30/09 é a **forma** — dois compartimentos, nada desaparece, sem variante curta — e, na
+> correção do mesmo dia, o **placar por família**. As palavras, e a definição de *decidir* do
+> passo 2, são minhas.
+
+**Passo 1 — o portão da luz vem antes de tudo, porque é global às quatro.** Se o acervo tem
+noite sem horas de luz do dia, as quatro param no **mesmo** portão, **nenhum poder foi
+calculado**, e as duas linhas trazem **o mesmo motivo**. É o único motivo que sobe para as duas
+linhas, porque é o único que é propriedade do **acervo** e não da fase. Nesse caso é **proibido**
+escrever *"não houve poder"*: seria falso, e mandaria esperar cem noites quando o que falta é
+consertar dado que já está no acervo.
+
+**Passo 2 — o compartimento 1 conta quantas decidiram, dentro da família.** *Decidir* aqui é
+sair `achado`; `d` é quantas fases da família saíram `achado`, e o denominador é o tamanho da
+família, **1** ou **3**.
+
+| família | `d` | compartimento 1 |
+|---|---|---|
+| a cheia | 0 | *A cheia não decidiu.* |
+| a cheia | 1 | *A cheia decidiu.* |
+| as três | 0 | *Nenhuma das três decidiu.* |
+| as três | 1 | *Uma das três decidiu.* |
+| as três | 2 | *Duas das três decidiram.* |
+| as três | 3 | *As três decidiram.* |
+| as duas | pré-execução | *A cheia não foi lida.* · *As três não foram lidas.* |
+
+**O verbo concorda com o numeral**, e o numeral tem quatro valores na família das três (0 a 3) e
+dois na da cheia. É a lição do *"1 dias"* da story 2.8: o defeito nasce no template escrito para
+um valor só. **Na família da cheia a concordância é sempre singular** — ela tem uma fase, e
+*"nenhuma das uma"* não é frase; por isso o texto dela nomeia a fase em vez de contar.
+
+**Passo 3 — o compartimento 2 diz o quê, ou por quê, e nunca quanto.**
+
+| dentro da família | compartimento 2 |
+|---|---|
+| `d = 1` | nomeia a fase e o **sentido** do deslocamento. A cheia só pode decidir no atraso; as três decidem nos dois sentidos |
+| `d ≥ 2` | nomeia **cada** fase que decidiu, na ordem do protocolo, com o sentido de cada uma — orações coordenadas, a segunda em elipse quando o verbo repete: *"…ficou mais tarde; nas que antecedem o minguante, mais cedo."* O compartimento tem de **caber mais de um nome** |
+| `d ≥ 1` e sobra fase que não decidiu **na mesma família** | a oração final diz **quantas** e **por quê**, no mesmo compartimento. Nunca omitida, nunca em variante curta |
+| `d = 0`, todas `nenhum_padrao` | *"Com poder para decidir, nenhuma mostrou deslocamento de 15 minutos ou mais"* — e é **"com poder"** que a separa do inconclusivo. Na família da cheia, que tem uma fase e é unilateral: *"…não houve deslocamento de 15 minutos ou mais **na direção que este teste pode achar**"* |
+| `d = 0`, todas `inconclusivo` com o **mesmo** motivo | o motivo real, nomeado: `luz` (o portão global — ver passo 1) · `amostra` (vagas de coluna) · `ciclos` (ciclos sinódicos) · `poder` (*"rodaram sem poder para decidir entre as duas colunas"*) |
+| `d = 0`, **motivos mistos**, ou mistura de `nenhum_padrao` com `inconclusivo` | a frase **não escolhe um motivo**: diz a partição e manda ao bloco — *"Duas pararam num portão e uma rodou sem poder; cada bloco diz qual, e em que unidade."* **Proibido** afirmar o motivo majoritário como se fosse de todas |
+
+**Nenhum número sobe.** O quanto falta fica no bloco, com a unidade daquele motivo — ver
+§Quantas noites faltam tem unidade. A frase pode dizer que faltou poder; nunca quanto.
+
+**Passo 4 — a invariância, e o que ela é.** As **duas** linhas existem sempre, com os **dois**
+compartimentos cada, na página e na linha de entrada, em qualquer tupla que o protocolo produza
+e no estado pré-execução. Nenhuma linha some, nenhum compartimento some, não há variante curta,
+e as duas nunca viram um número só.
+
+> **O que fica aberto, e não é decisão minha.** Com `d = 0` e todas `nenhum_padrao`, o
+> compartimento 1 diz *"nenhuma decidiu"* — a mesma palavra que ele diz quando todas saíram
+> `inconclusivo`. A distinção que o §5 de 07/09 chama de *o erro mais fácil deste documento*
+> passa a viver só no compartimento 2. Separá-las no compartimento 1 exige trocar o verbo que o
+> dono aprovou em tela, e isso é decisão dele.
 
 ### O que a moldura imprime, sempre
 
 - **A moldura é invariável em campos, não em pixels.** Não existe variante curta da
   página para quando não deu nada.
+- **Os cinco campos valem para as quatro fases.** Janela testada, desfecho, noites e ciclos,
+  leitura e contador **não mudam de fase para fase** — por isso a moldura é uma só, acima dos
+  blocos, e não se repete quatro vezes.
 - **São três vereditos, não dois.** *"Nenhum padrão"* e *"inconclusivo"* não são a mesma
   coisa: um teste com poder que não acha nada é informação; um teste sem poder que não
   acha nada é silêncio, e imprimi-lo como "nenhum padrão" seria mentir com o mesmo tom de
-  voz.
-- **O inconclusivo imprime quantas noites faltam**, no mesmo corpo de letra de um achado.
+  voz. Os três valem **por fase**: uma execução pode terminar com vereditos diferentes nas
+  quatro — são **81 tuplas** possíveis, e é por isso que o texto da abertura sai de uma
+  **regra**, não de uma lista de casos. Ver §A regra de composição.
+- **O inconclusivo imprime o quanto falta no bloco da sua fase**, no mesmo corpo de letra de
+  um achado — e **com a unidade daquele motivo**. **O número** nunca sobe para a frase
+  coletiva; o **motivo** sobe quando é o da luz, que é global — ver §Quantas noites faltam tem
+  unidade.
 - **O contador de execuções é visível.** Se foram seis, a página diz *sexta execução*.
   Cada tentativa é permanente e contável — nunca substitui, **acumula**.
 - **A próxima leitura é impressa na página.** Reexecuta a cada +100 noites, por cadência
-  pré-fixada, não por vontade.
-- **A covariável aparece no rodapé do método**, e **sobe para o veredito** quando o portão
-  da luz do dia é o que reprovou. Sem horas de luz o teste não roda: a janela lunar anda
-  pelo calendário, a luz na Bélgica vai de ~8 h a ~16 h 30, e um achado lunar seria um
-  achado sazonal com outro nome. Quando é isso que barra o teste, o leitor tem que saber
-  que foi isso.
+  pré-fixada, não por vontade. **No quarto estado o campo imprime uma frase, não uma data**, e a
+  frase é a **condição**: *quando a primeira execução autorizada rodar — as quatro juntas*. A
+  cadência de +100 noites governa a **re**execução e documento nenhum fixa a data da primeira;
+  fabricar uma data ali seria inventar compromisso. E **nome de story não entra no campo**: *"a
+  primeira execução da 4.2"* era vocabulário de desenvolvimento num campo de leitor, e fazia o
+  quarto estado parecer *esperando o build* em vez de *esperando dado* — que é a diferença exata
+  que o campo existe para dizer.
+- **A covariável aparece no rodapé do método**, e **sobe quando o portão da luz é o que
+  reprovou** — para o bloco de cada fase **e para as duas linhas da frase coletiva**. Sem horas
+  de luz o teste não roda: a janela lunar anda pelo calendário, a luz na Bélgica vai de ~8 h a
+  ~16 h 30, e um achado lunar seria um achado sazonal com outro nome. Quando é isso que barra o
+  teste, o leitor tem que saber que foi isso.
+
+  > **Corrigido em 30/09/2026 contra o código.** As duas espinhas diziam que *"o portão é por
+  > fase, então a subida é por bloco — não para a frase coletiva"*. **O portão da luz é global às
+  > quatro**, e está escrito no motor já mergeado: *"Portão 1 — a luz. Global às quatro: é
+  > pré-requisito do §3, não ressalva"* (`sleep/lua-protocolo.ts`), com a mesma contagem passada
+  > às quatro linhas e o campo do acervo declarando *"acima de zero, as quatro fases param"*. É
+  > estrutural e não implementação: cada fase é comparada contra **todas as outras noites**, então
+  > uma noite sem luz está em alguma coluna das quatro. A proibição de a luz subir para a frase
+  > foi **derivada dessa premissa falsa** e cai com ela: como o motivo é global, o lugar certo
+  > dele é justamente o segundo compartimento das duas linhas. E aí a razão *"não houve poder"*
+  > seria **falsa** — nenhum poder foi calculado, o portão retorna antes —, além de apontar para o
+  > conserto errado: mandaria esperar cem noites quando faltam três dias de covariável.
 - **Há um quarto estado, antes dos três vereditos: o teste ainda não rodou.** A moldura
-  aparece igual, com os campos que já existem (janela, desfecho, noites e ciclos) e a data
-  da primeira leitura no lugar da próxima. É o estado em que a página passa a maior parte
-  do tempo, e omiti-lo seria justamente o modo de falha que a ADR existe para impedir.
+  aparece igual, com os campos que já existem (janela, desfecho, noites e ciclos), *Primeira
+  leitura* no lugar de *Próxima leitura* e o contador em **nenhuma execução**. Os quatro blocos
+  aparecem igual, cada um com o nome da fase e **"sem leitura"** — e *"sem leitura"* ocupa o
+  lugar da **palavra de veredito**, na mesma tipografia e na mesma tinta dos outros três estados
+  (`lua-veredito`, 21 / 26, serifada, `ink`). **Nunca em corpo menor e nunca em `ink2`:** são
+  duas das três atenuações que a ADR 0045 §3 proíbe por nome, e este é o estado em que a página
+  passa a maior parte do tempo. A frase que explica desce para a linha de apoio, que é onde
+  `lua-apoio` pertence.
 - **As execuções acumulam, então a página tem histórico.** O contador diz *sexta execução*
   porque houve cinco antes, e as cinco continuam gravadas. A página imprime a mais recente
   em corpo cheio e as anteriores como lista de veredito + data abaixo dela — sem isso, o
   contador anuncia um histórico que a tela esconde — e isso é gaveta com selo de honestidade.
+  **Com quatro fases por execução, o grão dessa lista é pergunta nova** e está em §Open
+  Questions: uma linha por execução com quatro vereditos dentro, ou quatro linhas por execução?
+
+### Quantas noites faltam tem unidade, e ela varia por motivo
+
+Os quatro motivos de inconclusivo **não se contam na mesma moeda**, e o vocabulário é fechado
+no banco — o grão de `lua_execucoes` é uma linha por fase por execução justamente para que
+`veredito`, `motivo` e a unidade do que falta sejam vocabulário fechado:
+
+| Motivo | Unidade | O que o número conta |
+|---|---|---|
+| o portão da luz reprovou | `noites-sem-luz` | noites do acervo sem horas de luz. **Não se coletam: conserta-se o dado.** É o único dos quatro que é **global às quatro fases** |
+| o portão da amostra reprovou | `noites-de-coluna` | vagas que faltam nas duas colunas somadas — nem toda noite nova preenche uma |
+| o portão dos ciclos reprovou | `ciclos` | ciclos sinódicos que faltam. Colher cem noites do mesmo ciclo não move este número |
+| os três portões passaram e faltou poder | `noites-coletaveis` | a **única** unidade em que *"faltam N noites"* é frase verdadeira |
+
+> **Os quatro identificadores são do código, não desta espinha.** Eles nascem em
+> `sleep/lua-protocolo.ts` (`UNIDADE_DO_MOTIVO`, story 4.2a) e desde a 4.2b são o **CHECK de
+> `falta_unidade`** na migração `20260928130000_lua_execucoes.sql`, já mergeada. Estão grafados
+> aqui **exatamente** como o banco os aceita — `noites-coletaveis` **sem acento**. A palavra
+> acentuada é a exibida ao leitor; o identificador, não. Quem mexer aqui obedece ao código.
+
+**A soma delas não é um número.** Então o quanto falta vive **no bloco de cada fase, com a
+unidade dela**, e **nunca é somado na frase coletiva** — a frase pode dizer que faltou poder,
+não quanto. Imprimir *"faltam 4 noites"* sobre `ciclos` erraria por ~118 dias. É a lição do
+*"1 dias"* da story 2.8 chegando na tela.
+
+**Três dos quatro motivos são por fase; o da luz é global.** `amostra`, `ciclos` e `poder` são
+cobrados linha por linha, e podem reprovar fases diferentes na mesma execução — daí a regra do
+passo 3 para motivos mistos, que proíbe afirmar o motivo majoritário como se fosse de todas.
+`luz` não: acima de zero, as quatro param juntas, e é por isso que ele é o único motivo que sobe
+para as duas linhas da frase coletiva. Uma execução **nunca** tem uma fase parada na luz ao lado
+de outra parada em outro motivo — quem desenhar esse estado desenhou algo que o motor não produz.
+
+Quando um portão reprovou, o bloco diz **efeito não medido** e não zero: *o portão reprovou
+antes, e zero seria mentira*.
+
+### Os quatro blocos, agrupados por família
+
+A ordem é **por família**, e as três ordenadas pelo ciclo:
+
+```
+figura das quatro janelas          (sem legenda: ela desceu — ver §A dobra)
+frase coletiva                     linha da cheia    (placar + o quê/por quê)
+                                   linha das três    (placar + o quê/por quê)
+legenda da figura + a medida dos 68%
+moldura                            (cinco campos)
+grupo — A cheia, sozinha                 α 5% · unilateral · direção do atraso
+    bloco  lua cheia
+grupo — Nova, crescente e minguante      α 1,67% (0,05 / 3) · bilateral
+    bloco  lua nova
+    bloco  quarto crescente
+    bloco  quarto minguante
+rodapé do método · procedência
+```
+
+**O cabeçalho de cada grupo carrega o α e a razão da separação.** O α é propriedade de
+**família**, não de fase: agrupando, cada α aparece **uma** vez e a fronteira é a própria
+disposição. Na ordem sinódica a cheia cairia no meio das outras três, cada bloco carregaria o
+seu α, e a página imprimiria 1,67% três vezes e 5% uma, intercalados — o leitor teria de
+reagrupar de cabeça para ver que existem duas famílias, que é exatamente o efeito que o §11
+proíbe.
+
+**A razão existe para que a posição da cheia não seja lida como hierarquia.** A precedência dela
+é de **procedência** — foi pré-registrada em 07/09, com a direção tirada da literatura —, não de
+importância. Sem a frase, quem abrir a página em 2027 lê *"a cheia primeiro"* como *"a cheia
+importa mais"*.
+
+**A razão de cada grupo diz o fato datado e não compara.** *"Antes das outras três"* é
+comparativo e o fato não precisa ser: o comparativo instala, no menor corpo da página, a
+hierarquia que a frase existe para negar — e a negação, feita no menor corpo contra cinco sinais
+que todos favorecem a cheia (α mais folgado, poder maior, lateralidade que gasta menos, primeira
+posição, respaldo de literatura), não impede a leitura: ela a pede de desconto. No grupo vizinho,
+a ausência de literatura é **razão de desenho**, não carência das três: o §5 de 28/09 diz que
+*"não existe literatura que dê direção a essas três"* e que a ausência dela *"é justamente o
+argumento"* — então o cabeçalho a imprime como o que ela é, a razão de serem bilaterais.
+
+> Redação autorada, não decidida (o memlog 60(e) já declarava as palavras como autoradas):
+> *"Pré-registrada em 07 set 2026, com a direção tirada da literatura. A posição aqui é de
+> procedência, não de importância."* / *"Nascidas juntas em 28 set 2026, sem direção na
+> literatura — e é por isso que são bilaterais. Entre as três a correção por multiplicidade se
+> aplica inteira."*
+
+Custo aceito: a ordem dos blocos deixa de acompanhar o ciclo que a figura desenha. Aceito porque
+a figura já dá a posição relativa melhor do que a ordem daria.
+
+Cada bloco imprime, nas quatro fases, os mesmos campos: **nome da fase · palavra de veredito ·
+o número com a unidade dele · a legenda do número · as linhas de apoio**. No quarto estado o
+bloco existe igual e diz **"sem leitura"** — **não travessão**: travessão leria como nulo
+**medido**, e a gramática de ausência da casa proíbe confundir ausência de medida com medida
+nula. E *"sem leitura"* ocupa a **vaga da palavra de veredito**, no degrau dela: 21 / 26,
+serifada, `ink`. Imprimi-lo em 12,5 / 18 em `ink2` é **corpo menor mais tinta de apoio**, duas
+das três atenuações que a ADR 0045 §3 proíbe por nome, no estado que o leitor vai encontrar por
+meses.
+
+### O efeito na direção que o pré-registro não cobre
+
+A cheia é unilateral no atraso. Um **adiantamento** medido ali não é achado por este protocolo —
+e a moldura é invariável em campos, então o bloco imprime o efeito de qualquer jeito: *−40 min*
+ao lado de *"nenhum padrão"*.
+
+**O bloco explica isso em uma linha, no mesmo corpo dos outros rótulos** — sem ícone, sem cinza
+e sem itálico apologético, porque a ADR 0045 §3 proíbe os três. Não imprimir o efeito nesse caso
+quebraria a moldura invariável; e uma página que imprime os dois sem explicar não é discreta, é
+incoerente — parece defeito, e o leitor conclui que a tela quebrou em vez de que o protocolo
+recusou a direção.
+
+O risco de a explicação virar manchete está fechado **por construção**, não por disciplina: um
+adiantamento na cheia produz *"A cheia não decidiu"* na linha da família, e a explicação não tem
+caminho até a frase coletiva.
+
+### A figura que abre a página não tem estado
+
+**As quatro janelas são destacadas igualmente.** A figura entrega, antes de qualquer texto, a
+**geometria** do protocolo: quatro janelas de cinco noites, vinte noites dentro de uma janela —
+**68% do ciclo** — e o que sobra fora de todas elas. São **trinta noites desenhadas para um ciclo
+de 29,5**: o desenho arredonda, e a legenda diz o número exato para que ninguém derive 20/30 da
+contagem de discos. Ela abre a página porque **é dado, não símbolo**.
+
+> **Corrigido em 30/09/2026.** Este parágrafo afirmava que a figura *"explica os α menores, a
+> contaminação das colunas e o poder baixo"*. Nenhuma das três é derivável de um desenho: os α
+> vêm do argumento de procedência do §3, a contaminação vem de saber que cada fase é comparada
+> contra todas as outras noites (§7, e na página isso está no rodapé do método), e o poder vem das
+> tabelas do §6 e da geometria 49 × 241. A figura entrega **a geometria**; os elos que a
+> transformam em explicação são texto. A figura segue abrindo a página — ela é dado, e isso basta
+> —, mas era o argumento inflacionado que pagava a dobra, e ele cai.
+
+**Não tem estado:** não destaca uma fase por vez, não acompanha a rolagem, não é tocável. Uma
+figura com estado vira a coisa que o leitor olha em vez de ler. O complemento — as ~9,5 noites
+por ciclo fora de todas as janelas, cerca de 93 das 290 — é boa nota **dentro do rodapé do
+método**, não a primeira coisa que a página diz.
+
+### A dobra, e por que ela é aceitável
+
+**Nenhum bloco de fase cabe na primeira tela.** Medido nos quatro quadros da prancha **com as
+fontes reais do app**, a dobra dos 844 px cai **dentro da moldura, 28 px depois do começo da
+linha *Próxima leitura***: a primeira tela entrega o desenho, a frase coletiva inteira e a maior
+parte da moldura — *Noites e ciclos* fica **inteira acima** —, e os quatro vereditos ficam abaixo.
+
+> **Número corrigido em 30/09/2026.** Estas espinhas diziam *"na linha Noites e ciclos"*. A
+> prancha **não embarca `@font-face`**, então medida sozinha num Mac ela cai no fallback do
+> sistema e a página inteira fica ~45 px mais baixa — e nesse fallback a dobra cai, sim, em
+> *Noites e ciclos*. Com Manrope, Geist Mono e Instrument Serif, que é o que o aparelho usa, cabe
+> mais coisa acima. O erro estava na direção segura e não muda nenhuma conclusão; quem remedir,
+> **diga com que fontes**, senão aparece um terceiro número e ninguém sabe qual vale.
+
+Aceito como está, e o que paga a conta é a **frase coletiva estar acima da dobra**: ela já diz,
+por família, quantas decidiram e qual, então o veredito não está fora da primeira tela — só o
+detalhe dele está. Recusadas as duas alternativas: mover a moldura para depois dos blocos, e
+encolher o desenho.
+
+**Mas a aceitação vale para corpo normal, e não para corpo de acessibilidade.** Medido: a frase
+coletiva cabe inteira até **XXXL (1,353)**, o maior corpo não-acessibilidade, com folga; quebra
+em **1,6** e **1,7**; no **AX1 (1,786)** sobram **11 px** do compartimento que carrega o
+resultado; de **1,9** para cima nem o placar cabe; e no **AX3** a primeira tela não tem nenhuma
+palavra do veredito. Isso é a ADR 0045 §3 sendo violada **por corpo de letra**, exatamente para
+quem o `DESIGN.md` nomeia ao proibir altura fixa: *quem lê em AX3 é quem tem baixa visão*. Não é
+o defeito de altura congelada — nada aqui é congelado, e os blocos crescem; o texto é empurrado
+para **fora da primeira tela**, que é o que a aceitação da dobra comprou.
+
+**O conserto não redecide nada, e é de ordem:** a **legenda da figura e a medida dos 68% descem
+para depois da frase coletiva**. Elas são o texto que engorda com o corpo (somam 80 px no padrão,
+**257 px no AX1** e **551 px no AX3**), e a figura não engorda — ela é SVG. A figura continua
+abrindo a página e a frase coletiva continua sendo o **primeiro texto**; o que desce é a
+**explicação** da figura, não a figura. Isso devolve ~257 px no AX1 e ~551 px no AX3, e é a única
+das três saídas que não mexe em nada que o dono escolheu — as duas que ele recusou em 30/09 foram
+recusadas contra a medida do **corpo padrão**, e esta não estava na mesa.
+
+> **A medir de novo, e está declarado:** as medidas acima foram feitas sobre uma frase coletiva
+> de **uma** linha. Com **duas** linhas de família a abertura cresce, e a conta da dobra —
+> inclusive em corpo padrão — tem de ser refeita na prancha antes de a emenda à ADR 0045 ser
+> assinada. O conserto de ordem compra espaço; quanto ele compra nesta geometria ainda não foi
+> medido.
+
+### O cabeçalho de sub-página, e o que ele não tem
+
+A página da lua **tem cabeçalho de sub-página sangrando na cor do Sono** — é assim que ela diz
+de qual caderno saiu, e é o que a prancha aprovada desenha. O que ela **não tem é o ícone**: o
+ícone é o portador de identidade de **caderno** (CAP-7), e esta é sub-página.
+
+> **Emendado em 30/09/2026.** O texto anterior das duas espinhas dizia que a página *"não tem
+> faixa"*. A aprovação do dono foi sobre o **renderizado**, então o desenho vence e o texto se
+> corrige: há cabeçalho sangrado, não há ícone. Registrado para ninguém "corrigir" a prancha de
+> volta lendo a espinha velha.
+
+Para o leitor de tela o cabeçalho é o título da sub-página, com o nome do caderno de origem; o
+botão de voltar dentro dele volta ao caderno Sono na posição em que estava.
 
 ### O que a página nunca faz
 
-- **Nenhum secundário vira manchete.** Duração, latência e despertares são exploratórios e
-  **não entram na capa da edição sob nenhuma condição**.
+- **Nenhum secundário vira manchete.** Duração, latência e despertares são exploratórios
+  **só na cheia** — para as três novas não são relatados por fase (§8 de 28/09) — e **não
+  entram na capa da edição sob nenhuma condição**.
 - **Nenhuma causa é afirmada.** O teste mede associação; a hipótese de mecanismo não é
   dele.
 - **A página não assina modelo.** Ela não é narrada, é calculada — e a procedência que ela
-  imprime é o **hash do pré-registro** que autorizou a execução.
+  imprime é a **cadeia de pré-registros** que autorizou a execução: os dois documentos e as duas
+  correções, com o hash de cada um, mais as versões carimbadas por execução (**régua** e
+  **aritmética**) e o contador.
+
+  > **Rótulo renomeado em 30/09/2026.** A versão carimbada da conta se chamava `motor v1`. Neste
+  > app *motor* é a palavra de **motor de IA**, visível ao usuário em `/configuracoes/motores` e
+  > nas ADRs 0047, 0048 e 0049 — então `motor v1` num rodapé de procedência lê como **assinatura
+  > de modelo**, que é justamente o que esta página declara não fazer três parágrafos acima. O
+  > que o rótulo carimba é a **aritmética**: Hodges–Lehmann, Mann–Whitney e a conta de poder,
+  > versionadas porque trocá-las depois de ver o resultado não deixaria rastro. O rótulo passa a
+  > ser `aritmética v1`.
 
 **A página fica atrás de um toque, e isso exige emendar a ADR 0045.** A cláusula §3 diz,
 literalmente: *"O negativo não vai em cinza, em itálico apologético, em corpo menor, **atrás
 de um toque**, nem acompanhado de ícone de aviso."* A sub-página foi mantida por decisão do
 dono em 08/09/2026, com a cláusula na mão.
 
-A mitigação é a linha de entrada: ela carrega **o veredito por extenso**, com tipografia e
-extensão idênticas nos três casos, de modo que quem nunca tocar lê o resultado assim mesmo.
+A mitigação é a linha de entrada, e **desde 30/09/2026 o que ela carrega é a frase coletiva** —
+duas linhas, uma por família, com os dois compartimentos cada —, de modo que quem nunca tocar lê
+o resultado assim mesmo. O que é invariável nela é a **forma**: as duas linhas, os dois
+compartimentos, a mesma tipografia e a mesma extensão de campos, **em qualquer tupla que o
+protocolo produza**. A redação de *"idêntica nos três casos"* morreu quando as fases viraram
+quatro.
+
+**E o objeto da emenda não é uma frase, é a regra.** A mitigação é uma afirmação universal —
+*"quem nunca tocar lê o resultado"* —, e uma emenda escrita contra *"a frase coletiva"* declararia
+satisfeita uma garantia que só existe autorada em três das 81 tuplas. A emenda declara que **a
+linha de entrada carrega o veredito por extenso para toda tupla que o protocolo possa produzir** e
+cita §A regra de composição, que é o que produz o texto de cada uma.
+
 Mas mitigação não revoga cláusula. **A emenda à ADR 0045 é pré-requisito de construção** —
 regra da casa: quem derruba uma lei, derruba declarando. Ela é trabalho fora desta sessão de
 UX, e não está feita.
@@ -320,9 +711,31 @@ UX, e não está feita.
   acontece — a única navegação da revista seria inerte. Hoje nem
   `setAccessibilityFocus` nem `announceForAccessibility` aparecem em `mobile/src/`, então
   isto é código novo, não ajuste.
-- **Tipo dinâmico honrado, e nada de altura fixa onde há texto.** A faixa cresce com o
-  nome — altura mínima, nunca fixa. O caso mais grave é a moldura da lua: cortar o veredito
-  em AX3 anula a garantia da ADR 0045 exatamente para quem tem baixa visão.
+- **Tipo dinâmico honrado, e nada de dimensão fixa onde há texto.** A faixa cresce com o
+  nome — altura mínima, nunca fixa. Os casos mais graves são a moldura da lua **e os quatro
+  blocos de fase**: cortar o veredito em AX3 anula a garantia da ADR 0045 exatamente para quem
+  tem baixa visão, e agora há quatro lugares onde isso pode acontecer.
+- **A regra é de dimensão, não de altura — e o eixo esquecido era a largura.** A regra dizia
+  *"nada de altura fixa"*, e por isso não pegava a **coluna de rótulos da moldura da lua**,
+  congelada em 104 px. Medido com as fontes reais: *"Próxima leitura"* já quebra em **duas
+  linhas** no corpo padrão; no **AX1** *"Desfecho"* pede 105 px e *"Execuções"* 121 px, palavras
+  únicas, sem oportunidade de quebra — corte ou transbordo; no **AX3** os cinco transbordam e
+  *"Execuções"* pede **174 px numa coluna de 104**. São exatamente os cinco rótulos que esta
+  espinha promoveu de `ink3` para `ink2` **porque são informação obrigatória**: subir a tinta e
+  congelar a caixa cancela metade do trabalho. **A coluna dimensiona por conteúdo** — largura da
+  maior etiqueta, ou o rótulo empilha acima do valor a partir de AX1 — e nenhuma caixa com texto
+  tem largura, altura ou proporção congelada.
+- **Na página da lua o α tem que viajar com o bloco.** Ele é impresso **uma vez por família**,
+  no cabeçalho do grupo — então cada grupo é uma região rotulada, e o leitor de tela que entra
+  num bloco de fase chega nele pelo cabeçalho que diz o α e a razão. Sem isso, a economia de
+  imprimir o α uma vez vira perda de informação para quem não vê a disposição.
+- **O cabeçalho de sub-página é o cabeçalho da página** para o leitor de tela, com o nome do
+  caderno de origem. Não tem ícone, então não há nada decorativo a suprimir ali.
+- **A figura das quatro janelas tem descrição textual obrigatória** — as quatro janelas, as
+  cinco noites de cada uma e o instante da fase caindo fora delas. A figura é dado, e é por isso
+  que a descrição é obrigatória. **Os 68% viajam em prosa**, não no `alt`: na medida logo depois
+  da frase coletiva e de novo no rodapé do método. Escrito assim para ninguém "consertar" enfiando
+  o número no `alt` e apagando o parágrafo — o portador é o parágrafo.
 - **Informação obrigatória não usa `ink3`.** Medido no claro: `ink3` dá 3,05 sobre
   `surface` e **2,87 sobre `bg`** — abaixo até do piso de objeto gráfico. Assinatura,
   rótulos da ficha da lua e período das capas usam `ink2` (7,52 / 7,09), no mesmo corpo.
@@ -373,18 +786,29 @@ UX, e não está feita.
 
 Esta jornada existe para um resultado **negativo**. É o teste da ADR 0045.
 
-1. Dentro do caderno Sono, no pé, uma linha: o teste lunar rodou, e **faltam cerca de 106
-   noites** para ele ter poder.
-2. Ele já leu o resultado — **a linha o carrega por extenso**. Tocar é opcional.
-3. Ele toca. A página abre com **a fase sinódica desenhada**: o disco, e a fatia das cinco
-   noites que antecedem a cheia.
-4. A moldura: janela testada · hora de apagar · ~49 noites dentro × ~241 fora, 17 ciclos ·
-   próxima leitura a cada +100 noites · **primeira execução**.
-5. **Clímax:** o veredito ocupa **a mesma altura e o mesmo corpo de letra** que ocuparia um
-   achado. Ele tinha um prior declarado sobre a lua — *"estou me observando nisso já faz um
-   tempo"* — e o que a página lhe entrega é que **o teste ainda não tem poder para
-   responder**, escrito com a mesma seriedade com que teria escrito um sim. Nada some, nada
-   encolhe, e a próxima leitura tem data.
+> Referência visual: [`mockups/key-lua-quatro-fases.html`](mockups/key-lua-quatro-fases.html) — o estado 1 é exatamente esta jornada, e é onde a página vai viver depois da primeira execução.
+
+1. Dentro do caderno Sono, no pé, **duas linhas, uma por família**, cada uma em dois
+   compartimentos: *"A cheia não decidiu."* / *"O teste rodou sem poder para decidir entre as
+   duas colunas."* e *"Nenhuma das três decidiu."* / *"Os três testes rodaram sem poder para
+   decidir entre as duas colunas."*
+2. Ele já leu o resultado — **a linha carrega a frase coletiva inteira**, e ela não junta as duas
+   famílias num número. Tocar é opcional.
+3. Ele toca. A página abre com **o ciclo sinódico desenhado** e as **quatro janelas de cinco
+   noites destacadas igualmente**. Antes de qualquer texto.
+4. O primeiro texto são **as mesmas duas linhas** que estavam na entrada — nada de novo, e é isso
+   que prova que a linha não era resumo.
+5. Abaixo delas, a legenda da figura e a medida: vinte das 29,5 noites do ciclo, **68% dele**.
+6. A moldura: janela testada · hora de apagar · ~49 noites dentro × ~241 fora, 17 ciclos ·
+   próxima leitura a cada +100 noites · **primeira execução**. A dobra cai aqui, dentro dela.
+7. Ele rola e encontra **dois grupos**: a cheia sozinha a 5% unilateral, e as outras três a
+   1,67% bilateral, cada cabeçalho dizendo por que estão separadas. Quatro blocos, quatro
+   *inconclusivo* — **106 noites coletáveis** na cheia, **382** em cada uma das três.
+8. **Clímax:** cada veredito ocupa **o mesmo corpo de letra** que ocuparia um achado, e o número
+   do que falta vem **na unidade dele**. Ele tinha um prior declarado sobre a lua — *"estou me
+   observando nisso já faz um tempo"* — e o que a página lhe entrega é que **o teste ainda não
+   tem poder para responder**, escrito com a mesma seriedade com que teria escrito um sim. Nada
+   some, nada encolhe, e a próxima leitura tem cadência.
 
 ### 4. Sydnei folheia até 2023
 
@@ -406,9 +830,9 @@ contrato, verificadas no código e nos documentos.
 
 | # | O quê | Prova |
 |---|---|---|
-| 1 | **A lua não tem chave legal no banco.** O pré-registro §7.2 manda gravar `caderno='lua'`; o CHECK recusa. E a chave primária inclui `caderno`, o que torna o *"nunca substitui — acumula"* impossível de qualquer forma | [`mudancas-mecanicas.md:12`](../../../../docs/specs/revista-retrospectiva/mudancas-mecanicas.md) × [`pre-registro-lua.md:159`](../../../../docs/specs/revista-retrospectiva/pre-registro-lua.md) |
+| 1 | ~~**A lua não tem chave legal no banco.** O pré-registro §7.2 manda gravar `caderno='lua'`; o CHECK recusa. E a chave primária inclui `caderno`, o que torna o *"nunca substitui — acumula"* impossível de qualquer forma~~ · **Resolvido pelo contrato, não por esta espinha:** o quarto elo da cadeia (30/09) move a execução para `lua_execucoes` e declara o grão — **uma linha por fase por execução**, quatro por identificador, cobradas no commit | [`correcao-2-pre-registro-lua-outras-fases.md`](../../../../docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md) §Correção 3 e §O grão da tabela |
 | 2 | **`hidden` não fala a língua dos cadernos.** CAP-14 diz que `hidden` continua funcionando sobre cadernos, e `mudancas-mecanicas.md` diz "sem migration" — mas `hidden` é `Partial<Record<RetroBlockId, string>>`, e `RetroBlockId` é `lede`/`kpis`/`highlights`/…, nenhum caderno | [`retro-blocks.ts:87`](../../../../packages/shared/src/period/retro-blocks.ts) |
-| 3 | **A ADR 0045 §3 proíbe o negativo "atrás de um toque"**, e a lua ficou atrás de um toque por decisão do dono. A emenda é pré-requisito de construção e não está escrita | [`0045`](../../../../docs/decisions/0045-o-resultado-negativo-publica-com-o-mesmo-destaque.md) §3 |
+| 3 | **A ADR 0045 §3 proíbe o negativo "atrás de um toque"**, e a lua ficou atrás de um toque por decisão do dono. A emenda é pré-requisito de construção e **não está escrita**. O que 30/09 mudou é o **objeto** dela: não *"idêntica nos três casos"*, nem *"a frase coletiva"* como frase, mas **§A regra de composição** — a emenda declara que a linha de entrada carrega o veredito por extenso para toda tupla que o protocolo produza, e cita a regra. Antes de assiná-la, refazer a medida da dobra com a frase coletiva de **duas** linhas | [`0045`](../../../../docs/decisions/0045-o-resultado-negativo-publica-com-o-mesmo-destaque.md) §3 |
 | 4 | **A capa não congela.** `coverOf` lê `isCover` e `state==='linked'`, os dois mutáveis depois da impressão — a estrela, o vínculo automático de 40 m, o `ph://` que some da biblioteca. A foto de agosto pode ser outra seis semanas depois, contra *"período fechado congela"* | `photos/retro.ts` |
 | 5 | **Lápide × caderno vazio se contradizem.** O passo 5 força posição 1; o passo 6 tira o caderno vazio da lista. O mês em que o relógio para é justamente o mês sem dado, e `ordenarCadernos` é declarada determinística | [`bases-e-ranqueamento.md`](../../../../docs/specs/revista-retrospectiva/bases-e-ranqueamento.md) §ranqueamento |
 | 6 | **`posicao` congelada × reimpressão por caderno.** Reimprimir um caderno só pode bater no `unique (…, posicao)` | ver a ressalva na jornada 2 |
@@ -426,6 +850,7 @@ contrato, verificadas no código e nos documentos.
 | 13 | **A ressalva de cobertura desigual não tem forma.** É restrição do contrato e nenhuma das duas espinhas diz como ela aparece na tela | restrição |
 | 14 | **O Arquivo não tem estados.** 436 capas, muitas apontando para a biblioteca de fotos do iPhone: carregando, foto sumida, rolagem longa | CAP-10 |
 | 15 | **Onde vai o seletor de período**, e o que acontece com os doze blocos da Retrospectiva de hoje | ver §Onde a revista mora |
+| 16 | **O grão do histórico de execuções, agora que cada execução tem quatro fases.** A regra de imprimir a mais recente em corpo cheio e as anteriores como lista de veredito + data foi escrita quando havia um veredito por execução. Com quatro, a lista é uma linha por execução com os quatro vereditos dentro, quatro linhas por execução, ou só os **dois placares de família** por execução? Aberto em 30/09/2026, e não aparece em nenhum dos quatro estados da prancha — todos são de primeira execução ou de nenhuma | CAP-12 · ADR 0045 |
 
 ### Fechado, mas com custo declarado
 
