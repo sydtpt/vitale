@@ -426,7 +426,7 @@ development_status:
   4-2a-o-motor-do-teste-lunar: review
   4-2b-lua_execucoes-e-a-cadeia-do-pre-registro: review
   4-3-a-barreira-do-hash-incondicional-e-offline: review
-  4-4-a-página-da-lua: backlog
+  4-4-a-página-da-lua: review
   epic-4-retrospective: optional
 
   # ── Épico 5: os motores — entrou em 10/09 por correct-course ──────────────

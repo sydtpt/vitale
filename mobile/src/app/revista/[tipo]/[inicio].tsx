@@ -20,6 +20,7 @@ import {
   type ActivityPhoto,
   type DesenhoDaCapa,
   type LapideNaEdicao,
+  type LinhaDaFamilia,
   type TipoComRevista,
 } from '@vitale/shared';
 import { AnuarioDaEdicao } from '../../../components/revista/AnuarioDaEdicao';
@@ -37,6 +38,8 @@ import { useFotoDaCapa } from '../../../hooks/useFotoDaCapa';
 import { useGradeDaCapa } from '../../../hooks/useGradeDaCapa';
 import { useRolagemAncorada, type Ancora } from '../../../hooks/useRolagemAncorada';
 import { useRotaDaCapa } from '../../../hooks/useRotaDaCapa';
+import { useVereditoLunar } from '../../../hooks/useVereditoLunar';
+import { entradaDaLua, type EntradaDaLua } from '../../../lib/lua';
 import {
   ICONE_DO_CADERNO,
   TrocaRecusada,
@@ -443,6 +446,43 @@ function Edicao({ tipo, offset, now, bottom, antesDaCapa }: {
   );
 
   /**
+   * A linha de entrada da lua, **por caderno** — e só o Sono tem uma (CAP-12).
+   *
+   * É o molde do `lapides={lapides[c.caderno]}`, e é prop e não nó injetado de
+   * propósito: **a rota lê o veredito e entrega o texto já composto**, e é
+   * exatamente isso que a emenda de 01/10 da ADR 0045 declara satisfeito. O
+   * `Caderno` continua sem saber o que é a lua — ele recebe duas linhas de
+   * família e as imprime.
+   *
+   * **Quem compõe é `entradaDaLua`, em `lib/lua.ts`, e não esta linha.** A barreira
+   * de texto cobra a *presença* da chamada e nunca o *valor*: trocar a execução lida
+   * por `null` aqui passava em 85 suítes e fazia a linha imprimir *"não foi lida"*
+   * para sempre. Fora do React, a composição é comparada palavra por palavra com a
+   * regra do núcleo, que é a mesma que a sub-página usa — e é isso que prova que a
+   * linha não é resumo da página. `vereditoLunar()` **não** é chamado.
+   *
+   * **Carregando não desenha; a falha de leitura desenha.** O quarto estado (tabela
+   * vazia) e a falha (tabela ausente, que é o caso de hoje) são ramos diferentes, e
+   * esconder a linha na falha deixava `/sono/lua` **inalcançável** em produção até a
+   * migração — a única porta da página é esta linha. Ver `lib/lua.ts`.
+   *
+   * **Silenciar o caderno Sono esconde a lua, e isso está decidido.** A linha mora no
+   * **pé do caderno**; sem o caderno não há pé, e não há outro lugar na edição que lhe
+   * pertença. Então quando o dono cala o Sono na Diagramação (Story 2.5), a edição não
+   * tem entrada para a lua — e, por `ativo`, nem lê a tabela. A alternativa seria pôr
+   * a linha num caderno que não é o dela, ou solta na edição, e as duas desfazem a
+   * decisão de UX de que a lua é página *dentro* do Sono.
+   */
+  const temOCaderno = vista.tipo === 'edicao'
+    && vista.cadernos.some((c) => c.caderno === CADERNO_DA_LUA);
+  const veredito = useVereditoLunar(temOCaderno);
+  const periodoDaLua = vista.tipo === 'edicao' ? vista.capa.periodo : '';
+  const lua = useMemo<Partial<Record<CadernoId, EntradaDaLua>>>(() => {
+    const entrada = entradaDaLua(veredito, periodoDaLua);
+    return entrada === undefined ? {} : { [CADERNO_DA_LUA]: entrada };
+  }, [veredito, periodoDaLua]);
+
+  /**
    * A imagem da capa carimbada (Story 1.13), resolvida **fora** do `switch`:
    * hooks não moram em ramos. `null` enquanto não há vista de edição, e o hook
    * responde `sem-foto` — que é o mesmo que a capa `tracado`, a `grade` e a edição
@@ -613,6 +653,7 @@ function Edicao({ tipo, offset, now, bottom, antesDaCapa }: {
                 key={c.caderno}
                 c={c}
                 lapides={lapides[c.caderno]}
+                lua={lua[c.caderno]}
                 onAcao={escreverCaderno}
                 ancora={rolagem.ancora(c.caderno)}
               />
@@ -978,9 +1019,15 @@ function Lapide({ l, accent }: { l: LapideNaEdicao; accent: string }) {
  * o `ref` na **faixa**, porque é ela que o leitor de tela deve passar a ler — ela
  * já é o cabeçalho da seção, com o nome do caderno como rótulo.
  */
-function Caderno({ c, lapides, onAcao, ancora }: {
+function Caderno({ c, lapides, lua, onAcao, ancora }: {
   c: CadernoNaVista;
   lapides: readonly LapideNaEdicao[];
+  /**
+   * A linha de entrada da lua, **já composta** — presente só no caderno Sono, e só
+   * quando o veredito foi lido. Ver a nota do `lua` na {@link Edicao}: é texto, não
+   * nó, e por isso o `Caderno` continua genérico sobre `CadernoId`.
+   */
+  lua?: EntradaDaLua;
   onAcao: (caderno: CadernoId) => void;
   ancora: Ancora;
 }) {
@@ -1090,7 +1137,99 @@ function Caderno({ c, lapides, onAcao, ancora }: {
             onPress={() => onAcao(c.caderno)}
           />
         ) : null}
+
+        {/* **A linha de entrada da lua, no pé** (CAP-12, Story 4.4) — a última
+            coisa do caderno Sono, depois da assinatura e da ação. O que ela carrega
+            é a frase coletiva inteira, composta pela rota: quem nunca tocar lê o
+            resultado assim mesmo, e é essa garantia que a emenda de 01/10 da ADR
+            0045 declara — sobre a linha, não sobre a página. */}
+        {lua ? <EntradaDaLuaNoPe entrada={lua} /> : null}
       </View>
+    </View>
+  );
+}
+
+/** Onde a linha de entrada leva — a única tela filha da revista. */
+const ROTA_DA_LUA = '/sono/lua' as const;
+
+/** O caderno em cujo pé a linha da lua mora. A lua é página **dentro** do Sono. */
+const CADERNO_DA_LUA: CadernoId = 'sono';
+
+/**
+ * A entrada da lua: **duas linhas, uma por família, dois compartimentos cada**, e
+ * nenhum deles some em tupla nenhuma.
+ *
+ * Ela é **menor que a abertura da página** — 19/15 contra 24/17 — e isso é
+ * deliberado: ela vive dentro do texto de um caderno e não pode competir com ele. O
+ * que a ADR 0045 §3 cobra é paridade entre o **negativo e o positivo** no mesmo
+ * lugar, não paridade entre superfícies; o que tem de ser idêntico é a linha de
+ * agosto contra a linha de setembro, e isso a regra garante por construção.
+ *
+ * **As duas linhas nunca se somam num número.** Os denominadores são 1 e 3, e um
+ * placar sobre quatro é a forma-sentença de *"eu testei as quatro fases"*, que o §2
+ * do pré-registro de 28/09 proíbe por escrito.
+ *
+ * O alvo de toque é o **bloco inteiro**, e para o leitor de tela é **um** nó: o
+ * texto todo numa frase, a seta decorativa por dentro, e a dica dizendo que o
+ * toque abre uma página — porque `button` anuncia que o alvo ativa, não para onde
+ * ele vai.
+ */
+function EntradaDaLuaNoPe({ entrada }: { entrada: EntradaDaLua }) {
+  const styles = useThemedStyles(createStyles);
+  const router = useRouter();
+  // **`push`, nunca `replace`.** O voltar da sub-página é `router.back()` puro, e a
+  // rolagem do chamador se preserva porque o `Stack` mantém a tela montada: com
+  // `replace`, a edição é desmontada, o voltar não tem para onde voltar e o caderno
+  // não é devolvido na posição. O Code Map da spec diz isso por escrito.
+  const abrir = useCallback(() => {
+    router.push({ pathname: ROTA_DA_LUA, params: { periodo: entrada.periodo } });
+  }, [router, entrada.periodo]);
+  // `l.leitura` sai da regra do núcleo, e é ela que impede a gagueira: o rótulo da
+  // família e o começo do placar são o mesmo texto, então concatenar os três
+  // compartimentos aqui dava *"A cheia. A cheia decidiu."* — legível na tela, onde os
+  // dois estão em degraus diferentes, e dito duas vezes por quem ouve.
+  //
+  // **O rótulo nomeia o destino**, e não só a dica: o `accessibilityHint` pode estar
+  // desligado nos Ajustes, e aí o alvo anunciava "botão" e o veredito, sem dizer que
+  // o toque abre uma página.
+  const lido = `${NOME_DO_DESTINO}. ${entrada.frase.linhas.map((l) => l.leitura).join(' ')}`;
+  return (
+    <Pressable
+      onPress={abrir}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={lido}
+      accessibilityHint={DICA_DA_LUA}
+      style={({ pressed }) => [styles.lua, pressed && styles.pressed]}
+    >
+      <View style={styles.luaCorpo}>
+        <Text style={styles.eyebrowInterno}>{NOME_DO_DESTINO}</Text>
+        {entrada.frase.linhas.map((l, i) => (
+          <LinhaDaLua key={l.familia} l={l} primeira={i === 0} />
+        ))}
+      </View>
+      {/* Decorativa: mora dentro do nó acessível, então o leitor de tela não a lê,
+          e o rótulo não depende dela para dizer o destino. */}
+      <Ionicons name="chevron-forward" size={18} color={colors.ink2} />
+    </Pressable>
+  );
+}
+
+/** O nome do destino — o versalete da linha **e** a abertura do rótulo acessível. */
+const NOME_DO_DESTINO = 'A página da lua';
+
+const DICA_DA_LUA = 'Abre a página da lua, com a moldura do teste e um bloco por fase.';
+
+/** Uma linha de família: o rótulo, o placar e o que-ou-por-quê. Três nós, uma voz. */
+function LinhaDaLua({ l, primeira }: { l: LinhaDaFamilia; primeira: boolean }) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={[styles.luaFam, !primeira && styles.luaFamSeguinte]}>
+      <Text style={styles.luaFamRotulo}>{l.rotulo}</Text>
+      <Text style={styles.luaPlacar}>{l.placar}</Text>
+      {/* O compartimento que carrega o resultado. Ele **nunca** desaparece: é ele
+          que desfaz, na mesma linha, a leitura de *decidiu* como *achou algo*. */}
+      <Text style={styles.luaPorque}>{l.porque}</Text>
     </View>
   );
 }
@@ -1295,6 +1434,43 @@ const createStyles = () =>
       paddingHorizontal: spacing.sm, paddingVertical: 6,
     },
     errataTxt: { flex: 1, fontSize: 11.5, lineHeight: 16, fontFamily: fonts.sans, color: colors.ink2 },
+
+    /* ── a entrada da lua, no pé do caderno Sono (CAP-12) ─────────────────────
+     *
+     * Os números soltos — 14, 7, 12, 11, 4, 8 — são a geometria da prancha
+     * aprovada (`mockups/key-lua-quatro-fases.html`, `.entry-*`), medida em tela.
+     * Eles não viram `spacing.*` porque a escala não tem esses degraus, e
+     * arredondá-los seria redesenhar o bloco por conveniência de token.
+     *
+     * **Nenhum destes estilos tem `lineHeight`**, pelo mesmo motivo da página da
+     * lua: ele é dp fixo e não acompanha o tipo dinâmico, e o que seria cortado
+     * aqui é o compartimento que carrega o resultado — a linha é a mitigação da
+     * ADR 0045, e ela tem de ser íntegra em **todas** as escalas.
+     */
+    lua: {
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      marginTop: spacing.md, paddingTop: spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
+    },
+    luaCorpo: { flex: 1 },
+    // O versalete da entrada: `ink2` e não `ink3`, porque é o nome do destino de um
+    // alvo de toque — informação obrigatória.
+    eyebrowInterno: {
+      fontSize: 11, fontFamily: fonts.sansBold, textTransform: 'uppercase',
+      letterSpacing: 1.1, color: colors.ink2,
+    },
+    luaFam: { marginTop: 7 },
+    luaFamSeguinte: {
+      marginTop: 12, paddingTop: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
+    },
+    luaFamRotulo: { fontSize: 14, fontFamily: fonts.sansBold, color: colors.ink },
+    // 19 e 15 — o par da linha de entrada, contra o 24/17 da abertura da página.
+    luaPlacar: { fontSize: 19, fontFamily: fonts.serif, color: colors.ink, marginTop: 4 },
+    luaPorque: {
+      fontSize: 15, fontFamily: fonts.serif, color: colors.ink,
+      marginTop: 8, paddingTop: 8,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
+    },
 
     botao: {
       height: 40, borderRadius: radii.lg, marginTop: spacing.md,
