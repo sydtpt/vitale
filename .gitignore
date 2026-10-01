@@ -78,3 +78,8 @@ __pycache__/
 # `packages/shared/src/architecture.test.ts`): peso é dado, não interface nativa.
 # A story seguinte tira o peso do binário e o baixa sob demanda — e então isto sai.
 mobile/modules/on-device-engine/ios/pesos/
+
+# Saída do /brag (o skill que monta um vídeo de lançamento a partir do código).
+# `brag-output/` tem o MP4 renderizado, o pôster, as fontes e a trilha copiadas —
+# dezenas de MB de artefato de build. O plano e o briefing se refazem rodando de novo.
+brag-output/
