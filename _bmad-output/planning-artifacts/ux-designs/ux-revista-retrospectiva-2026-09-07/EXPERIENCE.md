@@ -322,7 +322,7 @@ Duas razões seguem de pé, e são as que decidiram:
 **São estas duas linhas que a linha de entrada no pé do caderno Sono carrega**, com os quatro
 compartimentos. A linha e a abertura da página dizem a mesma coisa, palavra por palavra.
 
-> **A emenda pendente à ADR 0045 muda de objeto.** A decisão de 08/09 dizia que a linha de
+> **A emenda à ADR 0045 — escrita em 01/10/2026 — mudou de objeto.** A decisão de 08/09 dizia que a linha de
 > entrada era *"idêntica nos três casos"* — redação que quebrou quando as fases viraram quatro.
 > O que a substitui **não é uma frase**, é a regra da seção seguinte: a emenda declara que a
 > linha de entrada carrega o veredito por extenso **para toda tupla que o protocolo possa
@@ -714,7 +714,12 @@ satisfeita uma garantia que só existe autorada em três das 81 tuplas. A emenda
 linha de entrada carrega o veredito por extenso para toda tupla que o protocolo possa produzir** e
 cita §A regra de composição, que é o que produz o texto de cada uma.
 
-Mas mitigação não revoga cláusula. **A emenda à ADR 0045 é pré-requisito de construção** —
+Mas mitigação não revoga cláusula. **A emenda à ADR 0045 era pré-requisito de construção, e foi
+escrita em 01/10/2026** — está na própria ADR, como `## Emenda de 2026-10-01`, no precedente da
+emenda da ADR 0050. Ela declara a garantia sobre a **linha de entrada**, enfrenta o *"corpo
+menor"* do §3 em vez de contorná-lo (a paridade que a cláusula cobra é entre negativo e positivo,
+não entre superfícies), e **não** afirma que a página entrega o veredito na primeira tela. O
+parágrafo abaixo descreve o raciocínio de 08/09 que levou a ela —
 regra da casa: quem derruba uma lei, derruba declarando. Ela é trabalho fora desta sessão de
 UX, e não está feita.
 
@@ -875,7 +880,7 @@ contrato, verificadas no código e nos documentos.
 |---|---|---|
 | 1 | ~~**A lua não tem chave legal no banco.** O pré-registro §7.2 manda gravar `caderno='lua'`; o CHECK recusa. E a chave primária inclui `caderno`, o que torna o *"nunca substitui — acumula"* impossível de qualquer forma~~ · **Resolvido pelo contrato, não por esta espinha:** o quarto elo da cadeia (30/09) move a execução para `lua_execucoes` e declara o grão — **uma linha por fase por execução**, quatro por identificador, cobradas no commit | [`correcao-2-pre-registro-lua-outras-fases.md`](../../../../docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md) §Correção 3 e §O grão da tabela |
 | 2 | **`hidden` não fala a língua dos cadernos.** CAP-14 diz que `hidden` continua funcionando sobre cadernos, e `mudancas-mecanicas.md` diz "sem migration" — mas `hidden` é `Partial<Record<RetroBlockId, string>>`, e `RetroBlockId` é `lede`/`kpis`/`highlights`/…, nenhum caderno | [`retro-blocks.ts:87`](../../../../packages/shared/src/period/retro-blocks.ts) |
-| 3 | **A ADR 0045 §3 proíbe o negativo "atrás de um toque"**, e a lua ficou atrás de um toque por decisão do dono. A emenda é pré-requisito de construção e **não está escrita**. O que 30/09 mudou é o **objeto** dela: não *"idêntica nos três casos"*, nem *"a frase coletiva"* como frase, mas **§A regra de composição** — a emenda declara que a linha de entrada carrega o veredito por extenso para toda tupla que o protocolo produza, e cita a regra. **A medida que faltava foi feita em 01/10 e a emenda é assinável:** ela declara a garantia sobre a **linha de entrada**, que não tem dobra própria e é íntegra em todas as escalas — e **não** pode afirmar que a *página* entrega o veredito na primeira tela, porque de 1,5 para cima não entrega. Ver §A dobra | [`0045`](../../../../docs/decisions/0045-o-resultado-negativo-publica-com-o-mesmo-destaque.md) §3 |
+| 3 | ~~**A ADR 0045 §3 proíbe o negativo "atrás de um toque"**~~ — **RESOLVIDA em 01/10/2026: a emenda está escrita**, na própria ADR, como `## Emenda de 2026-10-01`. A lua ficou atrás de um toque por decisão do dono. O que 30/09 mudou é o **objeto** dela: não *"idêntica nos três casos"*, nem *"a frase coletiva"* como frase, mas **§A regra de composição** — a emenda declara que a linha de entrada carrega o veredito por extenso para toda tupla que o protocolo produza, e cita a regra. **A medida que faltava foi feita em 01/10 e a emenda é assinável:** ela declara a garantia sobre a **linha de entrada**, que não tem dobra própria e é íntegra em todas as escalas — e **não** pode afirmar que a *página* entrega o veredito na primeira tela, porque de 1,5 para cima não entrega. Ver §A dobra | [`0045`](../../../../docs/decisions/0045-o-resultado-negativo-publica-com-o-mesmo-destaque.md) §3 |
 | 4 | **A capa não congela.** `coverOf` lê `isCover` e `state==='linked'`, os dois mutáveis depois da impressão — a estrela, o vínculo automático de 40 m, o `ph://` que some da biblioteca. A foto de agosto pode ser outra seis semanas depois, contra *"período fechado congela"* | `photos/retro.ts` |
 | 5 | **Lápide × caderno vazio se contradizem.** O passo 5 força posição 1; o passo 6 tira o caderno vazio da lista. O mês em que o relógio para é justamente o mês sem dado, e `ordenarCadernos` é declarada determinística | [`bases-e-ranqueamento.md`](../../../../docs/specs/revista-retrospectiva/bases-e-ranqueamento.md) §ranqueamento |
 | 6 | **`posicao` congelada × reimpressão por caderno.** Reimprimir um caderno só pode bater no `unique (…, posicao)` | ver a ressalva na jornada 2 |
