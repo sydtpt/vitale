@@ -102,3 +102,56 @@ informar.** Uma revista que só menciona a lua quando ela correlaciona não est�
   que aparece uma vez por ano e repete a mesma frase cria **pressão para ter o que dizer**
   — que é exatamente o mecanismo que produz o problema da gaveta. A lua é uma **página
   dentro do caderno Sono**.
+
+---
+
+## Emenda de 2026-10-01 — a página fica atrás de um toque, e o que satisfaz o §3 é a linha de entrada
+
+**O §3 proíbe o negativo "atrás de um toque", e a página da lua está atrás de um toque.** A
+decisão é do dono, tomada em 08/09/2026 com a cláusula na mão e mantida em 01/10. Regra da casa:
+quem derruba uma lei, derruba declarando — e esta emenda é a declaração.
+
+**O que satisfaz a regra anti-atenuação.** A **linha de entrada**, no pé do caderno Sono, carrega
+o veredito **por extenso**. Quem nunca tocar lê o resultado assim mesmo. A emenda declara essa
+garantia sobre a linha, e não sobre a página.
+
+**A garantia vale para toda tupla que o protocolo possa produzir.** Desde 28/09 são quatro fases
+em duas famílias, e o espaço pós-execução é de **81 combinações**, não três. A linha não carrega
+três frases autoradas: ela carrega o texto que a **regra de composição** produz — quatro passos,
+definidos em `EXPERIENCE.md` § *A regra de composição*, em
+`_bmad-output/planning-artifacts/ux-designs/ux-revista-retrospectiva-2026-09-07/`. Dois
+compartimentos por família, as duas famílias sempre presentes, nenhum compartimento desaparece,
+e não há variante curta para quando não deu nada.
+
+**O "corpo menor" do §3 é enfrentado, não contornado.** A linha de entrada é menor que a abertura
+da página — 19/25 e 15/22 contra 24/29 e 17/24. Isso **não** é a atenuação que o §3 proíbe: a
+paridade que ele cobra é entre o **negativo e o positivo**, e a linha é idêntica em tipografia e
+extensão nos quatro estados. O que a cláusula impede é o negativo ser menor que o positivo no
+mesmo lugar; ela não exige que uma superfície de entrada tenha o corpo da superfície que ela abre.
+As outras três atenuações nomeadas no §3 não são invocadas: os rótulos obrigatórios são `ink2`
+(contraste medido 7,52 sobre `surface` e 7,09 sobre `bg`), nunca `ink3` (2,87, abaixo até do piso
+de objeto gráfico); não há itálico apologético; e a página **não tem ícone** nenhum.
+
+**O que esta emenda NÃO afirma, e é a parte medida.** Ela não diz que a *página* entrega o
+veredito na primeira tela. Medido em 01/10 a 390 × 844, com as fontes reais do app e no pior dos
+quatro estados: a frase coletiva cabe inteira até a escala **1,45**, com **71 px de folga no
+XXXL** — o maior corpo não-acessibilidade — e **quebra a partir de 1,5**, faltando 252 px no AX1
+e 1.019 px no AX3. Nenhum arranjo de ordem fecha o AX3: dos 400 px acima da frase, 86 são SVG de
+dimensão fixa.
+
+A linha de entrada, por outro lado, **não tem dobra própria** — ela vive no pé do caderno Sono e
+ninguém a lê sem rolar, em corpo nenhum — e é **íntegra em todas as escalas**: 141 px no padrão,
+290 px no AX1, os dois compartimentos das duas famílias nos quatro estados. É por isso que a
+garantia é declarada sobre ela. A tentativa de 08/09 declarava a mitigação sobre a página, e a
+medição de 01/10 mostrou que ali ela seria falsa.
+
+**Uma limitação fica declarada, com a mitigação ao lado.** No **AX3** a segunda linha de família
+começa 216 px abaixo da dobra: a página não mostra, sem rolar, que existem **duas** famílias — o
+efeito que o §11 do `pre-registro-lua-outras-fases.md` proíbe. É consequência do placar por
+família, que entrou para obedecer ao §2 do mesmo documento, e não tem conserto de ordem. A
+mitigação é a mesma desta emenda: a linha de entrada carrega as duas famílias em toda escala,
+então o que o AX3 esconde na página, a linha mostra.
+
+**O que não muda.** Os quatro parágrafos da Decisão seguem valendo palavra por palavra, inclusive
+o §3 — esta emenda não o revoga, declara o que o satisfaz. A numeração, o status e as
+alternativas rejeitadas ficam como estão.
