@@ -12,6 +12,8 @@
  * foi extraída em vez de o hook ser montado.
  */
 import { describe, it, expect } from '@jest/globals';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import type { LayoutChangeEvent } from 'react-native';
 import {
   atoDaRolagem,
@@ -171,6 +173,102 @@ describe('a inserção tardia acima das âncoras (Story 3.2)', () => {
     const congelado = r.destinoDe('rotina')!;
     r.para('rotina').onLayout(layout(2010 + BLOCO));
     expect(r.destinoDe('rotina')! - congelado).toBe(BLOCO);
+  });
+
+  /**
+   * **A inserção que a Story 4.4 acrescenta é DENTRO de um caderno**, e por isso
+   * ela é a mais fácil de não testar.
+   *
+   * A linha de entrada da lua entra no pé do caderno Sono, então ela **não muda** a
+   * origem das âncoras acima dele — e muda a dos cadernos **depois**. Um teste que
+   * olhasse só a âncora do próprio Sono passaria com o conserto errado: a posição
+   * do Sono é a mesma com ou sem a linha, e é justamente por isso que ela não prova
+   * nada. Quem testa a invariante são Movimento, Coração e Rotina.
+   *
+   * E a linha entra tarde: ela depende da leitura de `lua_execucoes`, que chega
+   * depois do primeiro quadro, como o anuário.
+   */
+  it('a linha da lua no pé do Sono move as âncoras DEPOIS dele, e elas remedem', () => {
+    /** A altura da linha de entrada: 141 px no corpo padrão, medidos na prancha. */
+    const LINHA_DA_LUA = 141;
+    const r = criarAncoras<Caderno>();
+    CADERNOS.forEach((c, i) => r.para(c).onLayout(layout(SEM_BLOCO[i]!)));
+
+    // A linha entra no pé do Sono (o primeiro da ordem aqui): o Sono fica onde
+    // estava e os três seguintes descem.
+    const comLinha = [SEM_BLOCO[0]!, ...SEM_BLOCO.slice(1).map((y) => y + LINHA_DA_LUA)];
+    CADERNOS.forEach((c, i) => r.para(c).onLayout(layout(comLinha[i]!)));
+
+    expect(CADERNOS.map((c) => r.destinoDe(c))).toEqual(comLinha);
+    // O próprio Sono não se move — a prova de que ele não é o teste.
+    expect(r.destinoDe('sono')).toBe(SEM_BLOCO[0]);
+    // E cada um dos posteriores erra por exatamente a altura da linha se a medida
+    // congelar: o sumário pararia antes da faixa, calado.
+    for (const [i, c] of CADERNOS.slice(1).entries()) {
+      expect(r.destinoDe(c)! - SEM_BLOCO[i + 1]!).toBe(LINHA_DA_LUA);
+    }
+  });
+});
+
+/**
+ * BARREIRA — **cada `Caderno` é filho DIRETO do `ScrollView`** (Stories 1.14, 4.4).
+ *
+ * `onLayout` entrega `layout.y`, que é a posição dentro do **pai imediato**, e
+ * `scrollTo` quer o deslocamento dentro do conteúdo: os dois só coincidem enquanto
+ * quem recebe o `onLayout` for filho direto do `contentContainer`. Embrulhar o
+ * `map` dos cadernos numa `View` — para dar um `gap`, um fundo, o que for — faz
+ * **todas** as linhas do sumário rolarem para o mesmo lugar.
+ *
+ * **E o sintoma é mudo:** nada lança, nada avisa, e até esta barreira a suíte
+ * inteira ficava verde. As partes puras acima não alcançam a árvore de JSX, e este
+ * workspace não tem renderizador de teste — então a guarda é de **código-fonte**,
+ * no molde do `anuario-fiacao.test.ts`.
+ *
+ * Ela lê a região entre a abertura do `ScrollView` e o `map`, empilha as tags que
+ * encontra e cobra que a pilha tenha **só** o `ScrollView`. **Ela não é um
+ * parser**: se a contagem de `<` não casar com a de tags reconhecidas — uma seta
+ * `=>` dentro de atributo, um fragmento, uma tag minúscula —, ela reprova dizendo
+ * isso, em vez de concluir coisa errada em silêncio.
+ */
+describe('BARREIRA — o map dos cadernos é filho direto do rolável', () => {
+  const ROTA = join(__dirname, '..', '..', 'app', 'revista', '[tipo]', '[inicio].tsx');
+  const fonte = readFileSync(ROTA, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+  /** Abertura, fechamento e auto-fechamento de componente — PascalCase, como o JSX daqui. */
+  const TAG = /<(\/?)([A-Z][\w.]*)([^<>]*?)(\/?)>/g;
+
+  function pilhaDe(regiao: string): { pilha: string[]; tags: number; angulos: number } {
+    const pilha: string[] = [];
+    let tags = 0;
+    for (const m of regiao.matchAll(TAG)) {
+      tags += 1;
+      if (m[1] === '/') pilha.pop();
+      else if (m[4] !== '/') pilha.push(m[2]);
+    }
+    return { pilha, tags, angulos: (regiao.match(/</g) ?? []).length };
+  }
+
+  it('a região entre o ScrollView e o map existe, e nessa ordem', () => {
+    const edicao = fonte.indexOf('function Edicao(');
+    expect(edicao).toBeGreaterThan(-1);
+    const scroll = fonte.indexOf('<ScrollView', edicao);
+    const map = fonte.indexOf('{cadernos.map(', edicao);
+    expect(scroll).toBeGreaterThan(-1);
+    expect(map).toBeGreaterThan(scroll);
+  });
+
+  it('nada envolve o map: a pilha de tags até ele é só o ScrollView', () => {
+    const edicao = fonte.indexOf('function Edicao(');
+    const scroll = fonte.indexOf('<ScrollView', edicao);
+    const map = fonte.indexOf('{cadernos.map(', edicao);
+    const regiao = fonte.slice(scroll, map);
+    const { pilha, tags, angulos } = pilhaDe(regiao);
+    // A conferência de que a leitura foi inteira: a barreira não é um parser, e
+    // uma tag que ela não reconhece tem de reprovar alto em vez de desaparecer.
+    expect({ tags, angulos }).toEqual({ tags: angulos, angulos });
+    expect(pilha).toEqual(['ScrollView']);
   });
 });
 

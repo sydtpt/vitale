@@ -196,6 +196,12 @@ function AppShell() {
         <Stack.Screen name="saude/[metric]" options={{ animation: 'slide_from_right' }} />
         {/* `/sono` é aba (`(tabs)/sono`); só as subviews vivem nesta pilha. */}
         <Stack.Screen name="sono/saude" options={{ animation: 'slide_from_right' }} />
+        {/* A página da lua (Story 4.4) — a **única** tela filha da revista, aberta
+            pela linha no pé do caderno Sono. Ela mora em `sono/` e não em
+            `revista/` porque é uma página dentro do caderno Sono, não uma edição; e
+            o voltar devolve o caderno na posição em que estava porque o `Stack`
+            mantém a tela do chamador montada. */}
+        <Stack.Screen name="sono/lua" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="sono/tempos" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="sono/despertares" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="sono/[day]" options={{ animation: 'slide_from_right' }} />
