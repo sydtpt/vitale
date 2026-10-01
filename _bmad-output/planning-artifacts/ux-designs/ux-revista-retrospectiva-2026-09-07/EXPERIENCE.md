@@ -2,7 +2,7 @@
 name: A revista da Retrospectiva
 description: Arquitetura de informação, comportamento, estados e jornadas da Retrospectiva como revista. Par do DESIGN.md, que é dono da aparência.
 status: final
-updated: 2026-09-08
+updated: '2026-10-01'
 sources:
   - ../../../../docs/specs/revista-retrospectiva/spec.md
   - ../../../../docs/specs/revista-retrospectiva/cadernos.md
@@ -353,8 +353,21 @@ escrever *"não houve poder"*: seria falso, e mandaria esperar cem noites quando
 consertar dado que já está no acervo.
 
 **Passo 2 — o compartimento 1 conta quantas decidiram, dentro da família.** *Decidir* aqui é
-sair `achado`; `d` é quantas fases da família saíram `achado`, e o denominador é o tamanho da
-família, **1** ou **3**.
+**chegar a um veredito com poder**: sair `achado` **ou** `nenhum_padrao`. Só `inconclusivo` é
+não decidir. `d` é quantas fases da família decidiram, e o denominador é o tamanho da família,
+**1** ou **3**.
+
+> **Por que o verbo é este, e não "achou algo"** — decisão do dono em 01/10/2026. A §5 de 07/09
+> diz que *"um teste com poder que não acha nada é **informação**; um teste sem poder que não
+> acha nada é **silêncio**"*, e chama confundir os dois de *o erro mais fácil deste documento*.
+> Com `decidir = achado`, as duas execuções escreviam **a mesma primeira linha** e a distinção
+> ficava só no compartimento 2, que é o menor. Com esta definição o compartimento **grande** já
+> as separa: quatro `nenhum_padrao` dizem *"A cheia decidiu. As três decidiram."*, e quatro
+> `inconclusivo` dizem *"A cheia não decidiu. Nenhuma das três decidiu."*
+>
+> **O custo, declarado:** *decidiu* deixa de significar *achou algo*. Quem ler rápido pode
+> entender *"a cheia decidiu"* como *"deu resultado"* — e é o compartimento 2 que desfaz isso,
+> na mesma frase. **É por isso que ele nunca desaparece.**
 
 | família | `d` | compartimento 1 |
 |---|---|---|
@@ -378,7 +391,8 @@ um valor só. **Na família da cheia a concordância é sempre singular** — el
 | `d = 1` | nomeia a fase e o **sentido** do deslocamento. A cheia só pode decidir no atraso; as três decidem nos dois sentidos |
 | `d ≥ 2` | nomeia **cada** fase que decidiu, na ordem do protocolo, com o sentido de cada uma — orações coordenadas, a segunda em elipse quando o verbo repete: *"…ficou mais tarde; nas que antecedem o minguante, mais cedo."* O compartimento tem de **caber mais de um nome** |
 | `d ≥ 1` e sobra fase que não decidiu **na mesma família** | a oração final diz **quantas** e **por quê**, no mesmo compartimento. Nunca omitida, nunca em variante curta |
-| `d = 0`, todas `nenhum_padrao` | *"Com poder para decidir, nenhuma mostrou deslocamento de 15 minutos ou mais"* — e é **"com poder"** que a separa do inconclusivo. Na família da cheia, que tem uma fase e é unilateral: *"…não houve deslocamento de 15 minutos ou mais **na direção que este teste pode achar**"* |
+| `d` máximo e **todas** `nenhum_padrao` | *"Nenhuma mostrou deslocamento de 15 minutos ou mais"* — e aqui o *"com poder"* **não precisa** ser dito: o compartimento 1 já disse *decidiu*, e é essa palavra que separa do inconclusivo. Na família da cheia, que tem uma fase e é unilateral: *"…não houve deslocamento de 15 minutos ou mais **na direção que este teste pode achar**"* |
+| `d` entre 1 e o máximo, com `achado` **e** `nenhum_padrao` na mesma família | nomeia o que achou (acima) e a oração final diz quantas decidiram **sem** achar — as duas decidiram, e o compartimento não pode sugerir que uma delas ficou sem resposta |
 | `d = 0`, todas `inconclusivo` com o **mesmo** motivo | o motivo real, nomeado: `luz` (o portão global — ver passo 1) · `amostra` (vagas de coluna) · `ciclos` (ciclos sinódicos) · `poder` (*"rodaram sem poder para decidir entre as duas colunas"*) |
 | `d = 0`, **motivos mistos**, ou mistura de `nenhum_padrao` com `inconclusivo` | a frase **não escolhe um motivo**: diz a partição e manda ao bloco — *"Duas pararam num portão e uma rodou sem poder; cada bloco diz qual, e em que unidade."* **Proibido** afirmar o motivo majoritário como se fosse de todas |
 
@@ -390,11 +404,11 @@ compartimentos cada, na página e na linha de entrada, em qualquer tupla que o p
 e no estado pré-execução. Nenhuma linha some, nenhum compartimento some, não há variante curta,
 e as duas nunca viram um número só.
 
-> **O que fica aberto, e não é decisão minha.** Com `d = 0` e todas `nenhum_padrao`, o
-> compartimento 1 diz *"nenhuma decidiu"* — a mesma palavra que ele diz quando todas saíram
-> `inconclusivo`. A distinção que o §5 de 07/09 chama de *o erro mais fácil deste documento*
-> passa a viver só no compartimento 2. Separá-las no compartimento 1 exige trocar o verbo que o
-> dono aprovou em tela, e isso é decisão dele.
+> **Fechado em 01/10/2026.** Este parágrafo registrava que, com todas `nenhum_padrao`, o
+> compartimento 1 dizia *"nenhuma decidiu"* — a mesma palavra de todas `inconclusivo` —, e que
+> separá-las exigia trocar o verbo que o dono aprovou em tela. **Ele trocou.** A definição de
+> *decidir* no passo 2 é a do veredito com poder, e o compartimento 1 passou a carregar a
+> distinção do §5 sozinho.
 
 ### O que a moldura imprime, sempre
 
@@ -588,9 +602,13 @@ método**, não a primeira coisa que a página diz.
 ### A dobra, e por que ela é aceitável
 
 **Nenhum bloco de fase cabe na primeira tela.** Medido nos quatro quadros da prancha **com as
-fontes reais do app**, a dobra dos 844 px cai **dentro da moldura, 28 px depois do começo da
-linha *Próxima leitura***: a primeira tela entrega o desenho, a frase coletiva inteira e a maior
-parte da moldura — *Noites e ciclos* fica **inteira acima** —, e os quatro vereditos ficam abaixo.
+fontes reais do app**, a dobra dos 844 px cai **dentro da moldura**: a primeira tela entrega o
+desenho, a frase coletiva inteira e a maior parte da moldura, e os quatro vereditos ficam abaixo.
+
+> **Esta espinha não nomeia a linha em que a dobra cai, de propósito.** Três medições deram três
+> linhas diferentes — *Noites e ciclos*, *Próxima leitura* e *Desfecho* — porque a posição
+> depende da fonte, do corpo e do estado. **O que é estável é a folga**, e é ela que está escrita
+> abaixo. Quem nomear a linha de novo cria um quarto número que ninguém sabe confrontar.
 
 > **Número corrigido em 30/09/2026.** Estas espinhas diziam *"na linha Noites e ciclos"*. A
 > prancha **não embarca `@font-face`**, então medida sozinha num Mac ela cai no fallback do
@@ -604,28 +622,45 @@ por família, quantas decidiram e qual, então o veredito não está fora da pri
 detalhe dele está. Recusadas as duas alternativas: mover a moldura para depois dos blocos, e
 encolher o desenho.
 
-**Mas a aceitação vale para corpo normal, e não para corpo de acessibilidade.** Medido: a frase
-coletiva cabe inteira até **XXXL (1,353)**, o maior corpo não-acessibilidade, com folga; quebra
-em **1,6** e **1,7**; no **AX1 (1,786)** sobram **11 px** do compartimento que carrega o
-resultado; de **1,9** para cima nem o placar cabe; e no **AX3** a primeira tela não tem nenhuma
-palavra do veredito. Isso é a ADR 0045 §3 sendo violada **por corpo de letra**, exatamente para
+**Mas a aceitação vale para corpo normal, e não para corpo de acessibilidade.** Remedido em
+01/10/2026 com as **duas** linhas de família e com o conserto de ordem abaixo já aplicado, nas
+fontes reais, no pior dos quatro estados: a frase coletiva cabe inteira até a escala **1,45**,
+com **71 px de folga no XXXL (1,353)**, que é o maior corpo não-acessibilidade; **quebra a partir
+de 1,5**, onde faltam 11 px; e faltam **252 px no AX1 (1,786)** e **1.019 px no AX3**. Acima da
+frase, no AX1, restam 400 px, dos quais **86 são SVG congelado** — **nenhum arranjo de ordem
+fecha o AX3**, e isto está escrito para ninguém tentar. Isso é a ADR 0045 §3 sendo violada **por corpo de letra**, exatamente para
 quem o `DESIGN.md` nomeia ao proibir altura fixa: *quem lê em AX3 é quem tem baixa visão*. Não é
 o defeito de altura congelada — nada aqui é congelado, e os blocos crescem; o texto é empurrado
 para **fora da primeira tela**, que é o que a aceitação da dobra comprou.
 
 **O conserto não redecide nada, e é de ordem:** a **legenda da figura e a medida dos 68% descem
 para depois da frase coletiva**. Elas são o texto que engorda com o corpo (somam 80 px no padrão,
-**257 px no AX1** e **551 px no AX3**), e a figura não engorda — ela é SVG. A figura continua
-abrindo a página e a frase coletiva continua sendo o **primeiro texto**; o que desce é a
-**explicação** da figura, não a figura. Isso devolve ~257 px no AX1 e ~551 px no AX3, e é a única
+**307 px no AX1** e **693 px no AX3** — medidos em 01/10, contra os 257 e 551 **estimados**, que
+eram baixos), e a figura não engorda — ela é SVG. A figura continua abrindo a página e a frase
+coletiva continua sendo o **primeiro texto**; o que desce é a **explicação** da figura, não a
+figura. É esse conserto que faz o XXXL caber com folga em vez de raspar, e é a única
 das três saídas que não mexe em nada que o dono escolheu — as duas que ele recusou em 30/09 foram
 recusadas contra a medida do **corpo padrão**, e esta não estava na mesa.
 
-> **A medir de novo, e está declarado:** as medidas acima foram feitas sobre uma frase coletiva
-> de **uma** linha. Com **duas** linhas de família a abertura cresce, e a conta da dobra —
-> inclusive em corpo padrão — tem de ser refeita na prancha antes de a emenda à ADR 0045 ser
-> assinada. O conserto de ordem compra espaço; quanto ele compra nesta geometria ainda não foi
-> medido.
+> **Remedido em 01/10/2026, e é por isso que a emenda pode ser assinada.** Os números acima já
+> são os da frase de **duas** linhas, nas fontes reais, com o conserto de ordem aplicado. A frase
+> perdeu **um degrau** por causa da segunda linha (o último corpo seguro foi de 1,5 para 1,45) e o
+> conserto de ordem pagou quase a diferença.
+>
+> **E a emenda à ADR 0045 muda de objeto por causa desta medida.** Ela declara a garantia sobre a
+> **linha de entrada**, não sobre a página: a linha vive no pé do caderno Sono, **não tem dobra
+> própria** — ninguém a lê sem rolar, em corpo nenhum — e é **íntegra em todas as escalas**
+> (141 px no padrão, 290 px no AX1, os dois compartimentos das duas famílias nos quatro estados).
+> O que a emenda **não pode** afirmar é que a *página* entrega o veredito na primeira tela: de
+> **1,5** para cima ela não entrega. A mitigação sempre foi a linha de entrada; o erro de 08/09
+> foi declará-la sobre a página.
+
+> **Limitação declarada, com a mitigação ao lado.** No **AX3** a segunda linha de família começa
+> **216 px abaixo da dobra**: a página não mostra, sem rolar, que existem **duas** famílias — o
+> efeito que o §11 de 28/09 proíbe. Isso é consequência do placar por família, que entrou para
+> obedecer ao §2, e não tem conserto de ordem (ver acima: nem 86 px de SVG saem do caminho). **A
+> mitigação é a mesma da emenda:** a linha de entrada carrega as duas famílias e é íntegra em
+> todas as escalas, então o que o AX3 esconde na página, a linha mostra.
 
 ### O cabeçalho de sub-página, e o que ele não tem
 
@@ -711,6 +746,14 @@ UX, e não está feita.
   acontece — a única navegação da revista seria inerte. Hoje nem
   `setAccessibilityFocus` nem `announceForAccessibility` aparecem em `mobile/src/`, então
   isto é código novo, não ajuste.
+- **A coluna de rótulos da moldura é dimensionada por conteúdo, COM TETO.** Largura fixa é
+  proibida — medido, 104 px fazia *"Próxima leitura"* quebrar em duas linhas já no corpo padrão, e
+  no AX3 *"Execuções"* pedia 174 px. Mas `max-content` **sem teto** troca um defeito por outro:
+  medido em 01/10, a coluna vai a 281 px no AX3, come a do valor e depois transborda os 340 px
+  (+15 px no AX1, +158 no AX3) — e antes de transbordar **estrangula o valor** a 137 px no AX1,
+  onde `~49 dentro · 241 fora, por fase` vira cinco linhas. No iOS o que é recortado é o **valor**,
+  não o rótulo. O teto é **40% da moldura**, e acima dele o rótulo empilha sobre o valor em vez de
+  disputar a linha com ele.
 - **Tipo dinâmico honrado, e nada de dimensão fixa onde há texto.** A faixa cresce com o
   nome — altura mínima, nunca fixa. Os casos mais graves são a moldura da lua **e os quatro
   blocos de fase**: cortar o veredito em AX3 anula a garantia da ADR 0045 exatamente para quem
@@ -832,7 +875,7 @@ contrato, verificadas no código e nos documentos.
 |---|---|---|
 | 1 | ~~**A lua não tem chave legal no banco.** O pré-registro §7.2 manda gravar `caderno='lua'`; o CHECK recusa. E a chave primária inclui `caderno`, o que torna o *"nunca substitui — acumula"* impossível de qualquer forma~~ · **Resolvido pelo contrato, não por esta espinha:** o quarto elo da cadeia (30/09) move a execução para `lua_execucoes` e declara o grão — **uma linha por fase por execução**, quatro por identificador, cobradas no commit | [`correcao-2-pre-registro-lua-outras-fases.md`](../../../../docs/specs/revista-retrospectiva/correcao-2-pre-registro-lua-outras-fases.md) §Correção 3 e §O grão da tabela |
 | 2 | **`hidden` não fala a língua dos cadernos.** CAP-14 diz que `hidden` continua funcionando sobre cadernos, e `mudancas-mecanicas.md` diz "sem migration" — mas `hidden` é `Partial<Record<RetroBlockId, string>>`, e `RetroBlockId` é `lede`/`kpis`/`highlights`/…, nenhum caderno | [`retro-blocks.ts:87`](../../../../packages/shared/src/period/retro-blocks.ts) |
-| 3 | **A ADR 0045 §3 proíbe o negativo "atrás de um toque"**, e a lua ficou atrás de um toque por decisão do dono. A emenda é pré-requisito de construção e **não está escrita**. O que 30/09 mudou é o **objeto** dela: não *"idêntica nos três casos"*, nem *"a frase coletiva"* como frase, mas **§A regra de composição** — a emenda declara que a linha de entrada carrega o veredito por extenso para toda tupla que o protocolo produza, e cita a regra. Antes de assiná-la, refazer a medida da dobra com a frase coletiva de **duas** linhas | [`0045`](../../../../docs/decisions/0045-o-resultado-negativo-publica-com-o-mesmo-destaque.md) §3 |
+| 3 | **A ADR 0045 §3 proíbe o negativo "atrás de um toque"**, e a lua ficou atrás de um toque por decisão do dono. A emenda é pré-requisito de construção e **não está escrita**. O que 30/09 mudou é o **objeto** dela: não *"idêntica nos três casos"*, nem *"a frase coletiva"* como frase, mas **§A regra de composição** — a emenda declara que a linha de entrada carrega o veredito por extenso para toda tupla que o protocolo produza, e cita a regra. **A medida que faltava foi feita em 01/10 e a emenda é assinável:** ela declara a garantia sobre a **linha de entrada**, que não tem dobra própria e é íntegra em todas as escalas — e **não** pode afirmar que a *página* entrega o veredito na primeira tela, porque de 1,5 para cima não entrega. Ver §A dobra | [`0045`](../../../../docs/decisions/0045-o-resultado-negativo-publica-com-o-mesmo-destaque.md) §3 |
 | 4 | **A capa não congela.** `coverOf` lê `isCover` e `state==='linked'`, os dois mutáveis depois da impressão — a estrela, o vínculo automático de 40 m, o `ph://` que some da biblioteca. A foto de agosto pode ser outra seis semanas depois, contra *"período fechado congela"* | `photos/retro.ts` |
 | 5 | **Lápide × caderno vazio se contradizem.** O passo 5 força posição 1; o passo 6 tira o caderno vazio da lista. O mês em que o relógio para é justamente o mês sem dado, e `ordenarCadernos` é declarada determinística | [`bases-e-ranqueamento.md`](../../../../docs/specs/revista-retrospectiva/bases-e-ranqueamento.md) §ranqueamento |
 | 6 | **`posicao` congelada × reimpressão por caderno.** Reimprimir um caderno só pode bater no `unique (…, posicao)` | ver a ressalva na jornada 2 |

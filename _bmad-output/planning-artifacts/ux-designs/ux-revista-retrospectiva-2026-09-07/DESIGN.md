@@ -2,7 +2,7 @@
 name: A revista da Retrospectiva
 description: A identidade visual da Retrospectiva como revista — capa, sumário de chamadas, quatro cadernos com faixa saturada, lápide e a página da lua. Herda o sistema de quatro eixos do Orbe; nenhuma cor é autorada aqui.
 status: final
-updated: 2026-09-08
+updated: '2026-10-01'
 sources:
   - ../../../../docs/specs/revista-retrospectiva/spec.md
   - ../../../../docs/specs/revista-retrospectiva/cadernos.md
@@ -214,7 +214,7 @@ components:
   lua-moldura:
     rotulo: '{typography.eyebrow}'
     rotulo-color: '{colors.ink2}'
-    rotulo-coluna: 'dimensionada por conteúdo — largura fixa é PROIBIDA'
+    rotulo-coluna: 'dimensionada por conteúdo, com TETO de 40% da moldura — largura fixa é PROIBIDA e `max-content` sem teto também'
     valor: '{typography.numero}'
     valor-apoio: '{typography.lua-legenda}'
     invariante: 'cinco campos e a mesma rampa tipográfica em todos os estados; a altura cresce com o texto e cresce igual em todos'
