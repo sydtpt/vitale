@@ -29,6 +29,9 @@ import {
   stopPresence,
   type PresencePermission,
 } from '../../services/presence';
+import { mensagemDeErro } from '../../lib/erro';
+import { useAuthStore } from '../../store/auth.store';
+import { sincronizarPresenca } from '../../services/presence-sync';
 
 /**
  * /configuracoes/presenca — a Fase 0 da Presença, e nada além dela.
@@ -94,6 +97,8 @@ export default function PresencaScreen() {
 
   const [perm, setPerm] = useState<PresencePermission | null>(null);
   const [rodando, setRodando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [ultimoEnvio, setUltimoEnvio] = useState<string | null>(null);
   const [lugares, setLugares] = useState<PresencePlace[]>([]);
   const [eventos, setEventos] = useState<PresenceEvent[]>([]);
   const [ocupado, setOcupado] = useState(false);
@@ -153,8 +158,35 @@ export default function PresencaScreen() {
     const acao = rodando ? stopPresence().then(() => false) : startPresence(lugares).then(() => true);
     acao
       .then(setRodando)
-      .catch((e: unknown) => Alert.alert('Não deu', e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => Alert.alert('Não deu', mensagemDeErro(e)))
       .finally(() => setOcupado(false));
+  };
+
+  /**
+   * Sobe o que foi medido.
+   *
+   * É botão, e não automático, **nesta fase**: a primeira execução sobe os 24 dias
+   * inteiros, e uma coisa dessas acontecendo sozinha em segundo plano é exatamente o
+   * tipo de ato que ninguém vê dar errado. Quando a Fase 1 tiver tela, o gatilho vira a
+   * volta ao primeiro plano.
+   */
+  const enviar = () => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) {
+      Alert.alert('Sem sessão', 'Entre na sua conta antes de enviar.');
+      return;
+    }
+    setEnviando(true);
+    sincronizarPresenca(userId)
+      .then((r) => {
+        setUltimoEnvio(
+          `${r.visitas} visita${r.visitas === 1 ? '' : 's'} · ${r.dias} dia${r.dias === 1 ? '' : 's'}` +
+            (r.lugaresCriados > 0 ? ` · ${r.lugaresCriados} lugar criado` : '') +
+            (r.incompletos > 0 ? ' · marcados INCOMPLETOS (sem permissão)' : ''),
+        );
+      })
+      .catch((e: unknown) => Alert.alert('Não subiu', mensagemDeErro(e)))
+      .finally(() => setEnviando(false));
   };
 
   const limpar = () => {
@@ -253,6 +285,30 @@ export default function PresencaScreen() {
               </Text>
             )}
           </Pressable>
+        </View>
+
+        {/* ---------- enviar ---------- */}
+        <View style={styles.card}>
+          <Pressable
+            onPress={enviar}
+            disabled={enviando || eventos.length === 0}
+            style={({ pressed }) => [
+              styles.botao,
+              pressed && styles.pressed,
+              (enviando || eventos.length === 0) && styles.desabilitado,
+            ]}
+          >
+            {enviando ? (
+              <ActivityIndicator size="small" color={colors.onPrimary} />
+            ) : (
+              <Text style={styles.botaoTexto}>Enviar para o banco</Text>
+            )}
+          </Pressable>
+          <Text style={styles.nota}>
+            {ultimoEnvio
+              ? `Último envio: ${ultimoEnvio}.`
+              : 'Reenviar é seguro: cada travessia tem id próprio e o banco deduplica por ele.'}
+          </Text>
         </View>
 
         {/* ---------- lugares ---------- */}

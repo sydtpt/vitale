@@ -66,7 +66,7 @@
 #     notas das entradas). A 5.8 (Core AI) segue em `backlog`, com 4 riscos
 #     abertos. O plano original desta linha não vale mais — vale o status abaixo.
 generated: 09-08-2026 23:20
-last_updated: '2026-09-28'
+last_updated: '2026-10-01'
 project: Orbe
 project_key: NOKEY
 tracking_system: file-system
@@ -334,7 +334,7 @@ development_status:
   2-8-o-número-e-a-unidade-concordam: done
   epic-2-retrospective: optional
 
-  epic-3: in-progress
+  epic-3: done
   3-1-o-postal-da-semana: done
   # DUAS DECISÕES DO DONO em 25/09/2026, sobre medição do acervo:
   #  1. A TIRA DIZ IDENTIDADE, e a magnitude está RECUSADA (não mais "aberta").
@@ -352,7 +352,7 @@ development_status:
   # prompt já existem e ninguém as preenche (dívida em period/cadernos.ts:83).
   # Viram story própria — um produtor serviria as 4 tiras E o texto, em todos os
   # períodos, e vale mais assim que como apêndice da 3.2.
-  3-2-o-anuário-do-ano: review
+  3-2-o-anuário-do-ano: done
   # ⚠ NÃO PRONTA PARA DESENVOLVIMENTO — a única das 27, e de propósito.
   # Metade dos critérios de aceite não existe: forma, posição e tratamento visual
   # dependem de uma passagem de bmad-ux ADIADA deliberadamente para depois das
@@ -396,11 +396,11 @@ development_status:
   # linhas sem número a maioria liga a luz a um sujeito, que é o que a instrução
   # pede. `PROMPT_VERSAO` 6 → 7; `PACOTE_VERSAO` fica em 4.
   # O acervo é do dono e custa NOVE chamadas (`--caderno`, da 2.8).
-  3-4-a-luz-nunca-aparece-sozinha: review
+  3-4-a-luz-nunca-aparece-sozinha: done
   epic-3-retrospective: optional
 
-  epic-4: in-progress
-  4-1-o-instante-da-lua-cheia-entra-na-efeméride: review
+  epic-4: done
+  4-1-o-instante-da-lua-cheia-entra-na-efeméride: done
   # DIVIDIDA EM 28/09/2026, por decisão do dono. Duas entregas que embarcam sozinhas:
   #   4-2a o MOTOR — generalizar a classificação para as quatro fases, o protocolo
   #        como dado (α e lateralidade por família), os três portões, a estatística
@@ -423,10 +423,10 @@ development_status:
   # repete `edicoes_ia`/`caderno='lua'` (revogado) e "quebra o build com execução já
   # gravada" (revogado, virou incondicional). Os dois são imutáveis; a saída é o
   # terceiro documento, e a cadeia passa a ter QUATRO elos.
-  4-2a-o-motor-do-teste-lunar: review
-  4-2b-lua_execucoes-e-a-cadeia-do-pre-registro: review
-  4-3-a-barreira-do-hash-incondicional-e-offline: review
-  4-4-a-página-da-lua: review
+  4-2a-o-motor-do-teste-lunar: done
+  4-2b-lua_execucoes-e-a-cadeia-do-pre-registro: done
+  4-3-a-barreira-do-hash-incondicional-e-offline: done
+  4-4-a-página-da-lua: done
   epic-4-retrospective: optional
 
   # ── Épico 5: os motores — entrou em 10/09 por correct-course ──────────────

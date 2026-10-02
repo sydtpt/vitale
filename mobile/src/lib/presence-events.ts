@@ -71,6 +71,39 @@ const KEY = 'vitale:presence-log';
 const STATE_KEY = 'vitale:presence-state';
 
 /**
+ * Trava única para **log e estado**, e é de dentro dela que sai a honestidade do dado.
+ *
+ * ## O defeito que ela conserta (02/10/2026)
+ *
+ * `applyRegionState` é leitura-modificação-escrita numa chave só — e o iOS **entrega
+ * todas as regiões no mesmo instante** ao reavaliar. Duas entregas a 1 ms de distância
+ * liam a mesma fotografia e a última escrita apagava a primeira:
+ *
+ * ```
+ * 01/10 18:55:23.4  exit Casa      lê {casa:'in'}  → grava {casa:'out'}
+ * 01/10 18:55:23.4  exit Trabalho  lê {casa:'in'}  → grava {casa:'in'}   ← desfez
+ * 01/10 20:20:54    enter Casa     lê {casa:'in'}  → "não mudou" → DESCARTADA
+ * ```
+ *
+ * A terceira linha é uma chegada em casa de verdade, entregue em `background` pelo iOS
+ * no minuto certo, e classificada como relatório de estado porque o estado mentia. O
+ * dono percebeu pela ausência dela na lista — o dado existia e o app o jogava fora.
+ *
+ * Uma trava só para as duas chaves, e não uma por chave: elas são lidas e escritas pelo
+ * mesmo evento, e travas separadas deixariam a janela aberta entre as duas.
+ */
+let presenceLock: Promise<unknown> = Promise.resolve();
+
+function withPresenceLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = presenceLock.then(fn, fn);
+  presenceLock = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
+
+/**
  * Último estado conhecido de cada região — `'in'` ou `'out'`.
  *
  * Persistido porque o caso que ele resolve é justamente o relançamento: o iOS
@@ -96,12 +129,14 @@ export async function applyRegionState(
   kind: PresenceEventKind,
   store: KVStore = asyncStore,
 ): Promise<boolean> {
-  const estados = await readRegionStates(store);
-  const novo: RegionState = kind === 'enter' ? 'in' : 'out';
-  const anterior = estados[placeId];
-  estados[placeId] = novo;
-  await setJSON(STATE_KEY, estados, store);
-  return anterior !== novo;
+  return withPresenceLock(async () => {
+    const estados = await readRegionStates(store);
+    const novo: RegionState = kind === 'enter' ? 'in' : 'out';
+    const anterior = estados[placeId];
+    estados[placeId] = novo;
+    await setJSON(STATE_KEY, estados, store);
+    return anterior !== novo;
+  });
 }
 
 export async function clearRegionStates(store: KVStore = asyncStore): Promise<void> {
@@ -115,18 +150,6 @@ export async function clearRegionStates(store: KVStore = asyncStore): Promise<vo
  * estourar, o próprio estouro é resultado: significa que passou de ~35/dia.
  */
 export const PRESENCE_LOG_CAP = 500;
-
-/** Trava de leitura-modificação-escrita, pelo mesmo motivo da fila de hábitos. */
-let logLock: Promise<unknown> = Promise.resolve();
-
-function withLogLock<T>(fn: () => Promise<T>): Promise<T> {
-  const next = logLock.then(fn, fn);
-  logLock = next.then(
-    () => undefined,
-    () => undefined,
-  );
-  return next;
-}
 
 export function presenceEventId(placeId: string, kind: PresenceEventKind, at: string): string {
   return `${placeId}:${kind}:${at}`;
@@ -146,7 +169,7 @@ export async function appendPresenceEvent(
   event: PresenceEvent,
   store: KVStore = asyncStore,
 ): Promise<void> {
-  return withLogLock(async () => {
+  return withPresenceLock(async () => {
     const current = await readPresenceLog(store);
     if (current.some((e) => e.id === event.id)) return;
     await setJSON(KEY, aparar([...current, event]), store);
@@ -333,11 +356,19 @@ export function summarizePresence(events: PresenceEvent[]): PresenceSummary {
   };
 }
 
+/**
+ * Mediana em metros inteiros.
+ *
+ * O arredondamento valia só no caso par, e com contagem ímpar a tela imprimia
+ * `±19.83774537753359 m` — duas vezes, porque a nota embaixo repete o número. Precisão
+ * de sensor em picômetros é ruído tipográfico: o que decide o raio é a ordem de
+ * grandeza, e ela cabe num inteiro.
+ */
 function mediana(xs: number[]): number | null {
   if (xs.length === 0) return null;
   const ord = [...xs].sort((a, b) => a - b);
   const meio = Math.floor(ord.length / 2);
-  return ord.length % 2 === 1 ? ord[meio] : Math.round((ord[meio - 1] + ord[meio]) / 2);
+  return Math.round(ord.length % 2 === 1 ? ord[meio]! : (ord[meio - 1]! + ord[meio]!) / 2);
 }
 
 /** Os sinais vitais de um lugar: ele está vivo, e com que intensidade. */
@@ -373,4 +404,54 @@ export function vitalsByPlace(events: readonly PresenceEvent[]): Map<string, Pla
 
 function minutesBetween(a: string, b: string): number {
   return Math.abs(new Date(b).getTime() - new Date(a).getTime()) / 60000;
+}
+
+/**
+ * Chegadas que o app descartou e que provavelmente aconteceram.
+ *
+ * ## Por que existe
+ *
+ * Até 02/10/2026 `applyRegionState` tinha uma corrida (ver o cabeçalho da trava) e
+ * classificava chegadas reais como relatório de estado. O dono achou pela **ausência**:
+ * *"não tem o evento de que cheguei em casa ontem"*. A corrida foi consertada; os eventos
+ * já gravados continuam com o rótulo errado.
+ *
+ * Nada se perdeu: o evento está no log, com instante e precisão. Só a classificação
+ * mentiu — e classificação é recalculável.
+ *
+ * ## A assinatura
+ *
+ * Um `enter` marcado como relatório, **em `background` e sozinho no seu instante**:
+ *
+ *   - `background` é a prova de que o iOS **acordou o app para entregar**. A reavaliação
+ *     de estado acontece ao lançar, e aí o `appState` é `active` ou `inactive`.
+ *   - **sozinho** porque a reavaliação reporta todas as regiões de uma vez: com dois
+ *     lugares ela chega em par, no mesmo milissegundo. Uma entrega solitária é travessia.
+ *
+ * Nenhuma das duas é prova, e juntas também não: um relançamento em segundo plano por
+ * outro motivo (o observador do HealthKit, o fetch) reavalia as regiões e cai aqui. Por
+ * isso isto **não corrige nada sozinho** — devolve candidatos para a caixa de correções,
+ * onde a resposta *"está certo"* vale tanto quanto *"cheguei"*.
+ */
+export interface ChegadaEngolida {
+  placeId: string;
+  at: string;
+}
+
+export function chegadasEngolidas(eventos: readonly PresenceEvent[]): ChegadaEngolida[] {
+  const quantosNoInstante = new Map<string, number>();
+  for (const e of eventos) {
+    const k = e.at.slice(0, 19);
+    quantosNoInstante.set(k, (quantosNoInstante.get(k) ?? 0) + 1);
+  }
+  return eventos
+    .filter(
+      (e) =>
+        e.redundant === true &&
+        e.kind === 'enter' &&
+        e.appState === 'background' &&
+        quantosNoInstante.get(e.at.slice(0, 19)) === 1,
+    )
+    .map((e) => ({ placeId: e.placeId, at: e.at }))
+    .sort((a, b) => b.at.localeCompare(a.at));
 }

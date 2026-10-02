@@ -1,10 +1,16 @@
 # Presença — onde o dia foi
 
-> **Status:** **Fase 0 medida e aprovada.** O portão foi respondido em 30/09/2026, com 23
-> dias de observação no iPhone do dono. A **Fase 1 está liberada** e ainda não tem uma linha
-> escrita.
+> **Status:** **Fase 0 medida, aprovada e com o log fora do aparelho.** O portão foi
+> respondido em 30/09/2026; em 02/10 o log dos **24 dias** foi extraído do iPhone e virou
+> medição (ver [retrospectiva.md §8](retrospectiva.md)). O desenho do produto foi fechado em
+> 02/10 numa mesa de seis rodadas. **O núcleo puro e a migração estão prontos**: as quatro
+> tabelas entraram em produção em 02/10 e `packages/shared/src/presence/` tem 54 checagens.
+> Falta o aparelho — a fila, a semeadura e a guarda da permissão.
+> Backup do log: `~/Documents/Orbe/presenca-backup-2026-10-02/`.
 > Decisão: [ADR 0059](../../decisions/0059-os-dois-motores-de-presenca-escrevem-na-mesma-tabela.md).
 > Data-model: [data-model.md](data-model.md).
+> Métricas do jornal: [retrospectiva.md](retrospectiva.md) — o bloco "Onde você esteve",
+> as fórmulas e as cinco recorrências.
 > Tarefas: [tasks](../../../_bmad-output/implementation-artifacts/presenca/tasks.md).
 > Proposta original (06/09/2026, fechada): artifact `claude.ai/artifact/3afe66ba-f459-4570-8c5f-fca0f140d42d`.
 > UX do editor de local (07/09/2026, aprovada e construída): artifact `claude.ai/artifact/00920792`.
@@ -138,6 +144,7 @@ guardar tudo e limpar depois.
 | **Passagem** | duração < **8 min** | passou em frente | 1 |
 | **Órfã** | teto de **16 h** | a saída se perdeu | 1 |
 | **Sobreposição** | — | dois motores na mesma janela | fase 3 |
+| **Saída** | ausência > **45 min**, configurável | ir ao mercado × jogar o lixo | 23 sobreviveram à colagem; ver [§7](retrospectiva.md) |
 
 - **Colagem** funde via `merged_into`: a filha é absorvida, não destruída, e o vão continua
   consultável.
@@ -298,16 +305,54 @@ Cômodos (quarto, cozinha, escritório de casa) ficam **fora de todas elas**: di
 uma ordem de grandeza abaixo do ruído do sensor, e só sairiam com `CLBeaconRegion` — que
 custa hardware, módulo Swift e vagas do **mesmo teto de 20**. Adiado em 07/09/2026.
 
-## 12. O que a Fase 1 faz com os 23 dias já medidos
+## 12. O que a Fase 1 faz com os 24 dias já medidos
 
-O log da Fase 0 tem **73 travessias reais** e vive só no aparelho. A Fase 1 o importa: cada
+O log da Fase 0 tem **74 travessias reais** entre 07/09 e 01/10/2026. A Fase 1 o importa: cada
 par `enter`/`exit` do mesmo `placeId` vira uma visita `source='geofence'`, com
 `client_event_id` herdado do id do evento — que já é único e já deduplica no aparelho.
 
-Isso não é urgente pelo teto: o corte sacrifica relatório antes de travessia, e as 73
-travessias só encostariam nos 500 por volta de **fevereiro de 2027**. É urgente por outro
-motivo — **o log morre com o app**. Uma reinstalação que apague o container leva os 23 dias
-junto, e eles não são recuperáveis por nenhum caminho (§1).
+**O log já não vive só no aparelho.** Em 02/10 ele foi copiado por cabo
+(`xcrun devicectl device copy from --domain-type appDataContainer`, só a pasta
+`RCTAsyncLocalStorage_V1`, 124 KB) para `~/Documents/Orbe/presenca-backup-2026-10-02/`, com
+`LEIA-ME.md` e conferência por `sha256`. A semeadura pode ler **desse arquivo** em vez de ler
+do iPhone.
+
+Isso nunca foi urgente pelo teto — o corte sacrifica relatório antes de travessia, e as 74
+travessias só encostariam nos 500 por volta de **fevereiro de 2027**. Era urgente porque **o
+log morre com o app**: uma reinstalação que apague o container levaria tudo junto, e nada
+disso é recuperável por outro caminho (§1). O backup fecha esse risco até 01/10; **o que for
+medido depois só existe no aparelho**.
+
+## 12.1 A regra que o primeiro dia de produção escreveu
+
+Em 02/10/2026 a Fase 1 foi do desenho ao aparelho num dia. Sete defeitos apareceram, e
+**nenhum era do iOS**. Cinco deles eram a mesma coisa: **um valor que o código escolheu
+sozinho e não contou a ninguém.**
+
+| O default | O sintoma | Onde apareceu |
+|---|---|---|
+| `active_from = hoje` ao criar lugar | 6 visitas fora da vigência do próprio lugar | no conferidor |
+| `kind = 'other'` para tudo que não é casa | os dois números do escritório **mudos** | na tela |
+| `identidade = 'escritorio'` chutada no script | "0 dias de escritório" com 6 no banco | no conferidor |
+| índice parcial em `client_event_id` | `42P10` no primeiro toque do botão | no aparelho |
+| `String(e)` num erro que não é `Error` | `[object Object]` no lugar do diagnóstico | no aparelho |
+
+Todos passaram por `tsc`, por teste e pelo ensaio contra o schema real. **Todos só
+apareceram com dado real na tela** — e dois deles foram achados pelo dono, pela ausência:
+*"não tem o evento de que cheguei em casa ontem"* e *"os dias do escritório ainda não
+estão implementados?"*. Nos dois casos a suspeita natural era o sensor, e a causa era o
+código.
+
+> **A regra: todo default que o código escolhe sozinho precisa de uma linha na tela
+> dizendo o que ele escolheu.**
+
+Não é zelo de log. Um default silencioso não produz erro — produz um número plausível, e
+um número plausível manda a investigação para o lugar errado. O custo não é o defeito: é o
+tempo gasto procurando no sensor o que estava no `??`.
+
+Daí a forma que o resto desta feature já segue: a cobertura vem **escrita** na tela, a
+borda estimada é **contada à parte**, a mediana sem amostra é **um traço** e não um zero,
+e a caixa de correções tem **"está certo"** com o mesmo peso de "cheguei".
 
 ## 13. Depois desta rodada
 

@@ -71,7 +71,8 @@ export type RetroBlockId =
   | 'health'
   | 'sleep'
   | 'habits'
-  | 'yearSeries';
+  | 'yearSeries'
+  | 'presence';
 
 export interface RetroBlockDef {
   id: RetroBlockId;
@@ -103,6 +104,10 @@ export const RETRO_BLOCKS: readonly RetroBlockDef[] = [
   { id: 'sleep', label: 'Sono' },
   { id: 'habits', label: 'Hábitos & registros' },
   { id: 'yearSeries', label: 'Por mês', kinds: ['year'] },
+  // 02/10/2026: onde o dia foi (presence/retro.ts). Entra no fim do catálogo e, para
+  // quem já tem ordem salva, no fim dela — e é por isso que as setas voltaram na mesma
+  // entrega: sem elas este bloco nasceria em 14º, abaixo das cinco que ele lê.
+  { id: 'presence', label: 'Onde você esteve' },
 ];
 
 const BY_ID = new Map(RETRO_BLOCKS.map((b) => [b.id, b]));
@@ -225,6 +230,39 @@ export function visibleBlocks(prefs: RetroPrefs, kind: PeriodKind): RetroBlockDe
     out.push(def);
   }
   return out;
+}
+
+/**
+ * Move um bloco uma posição para cima ou para baixo.
+ *
+ * ## Por que ela voltou (02/10/2026)
+ *
+ * A Story 2.5 removeu as setas da tela — não por decisão sobre ordenar, mas de carona
+ * com o fim da "prova de gráfica". O custo ficou **declarado no cabeçalho deste
+ * arquivo**: *"um bloco criado depois da 2.5 entra no fim da `order` já salva e fica lá
+ * para sempre, porque não existe mais UI para movê-lo"*. A `order` do dono tem 13
+ * entradas e ele lê as cinco primeiras.
+ *
+ * O bloco da Presença seria o 14º. Devolver a seta não contraria a 2.5: **paga o custo
+ * que ela declarou e nunca cobriu.**
+ *
+ * A manchete (`fixed`) não se move, e nada se move para fora da lista — mover o primeiro
+ * para cima devolve as prefs intactas, em vez de embaralhar as pontas.
+ */
+export function moveBlock(prefs: RetroPrefs, id: RetroBlockId, delta: -1 | 1): RetroPrefs {
+  const def = BY_ID.get(id);
+  if (!def || def.fixed) return prefs;
+  const i = prefs.order.indexOf(id);
+  if (i < 0) return prefs;
+  const j = i + delta;
+  if (j < 0 || j >= prefs.order.length) return prefs;
+  // A manchete fica em primeiro: trocar com ela a tiraria do topo do jornal.
+  const vizinho = BY_ID.get(prefs.order[j]!);
+  if (vizinho?.fixed) return prefs;
+  const order = [...prefs.order];
+  order[i] = order[j]!;
+  order[j] = id;
+  return { ...prefs, order };
 }
 
 /** Alterna a visibilidade de um bloco, carimbando o dia em que foi escondido. */

@@ -187,7 +187,7 @@ São **10** módulos, não 7:
   retrospectiva…)
 - Mobile: componentes UI (`DayRingCard`, `CheckButton`, `QuickAddSheet`) e fontes
   embarcadas via plugin `expo-font`
-- Backend: Supabase — Postgres com RLS, **68 migrations** (todas registradas em
+- Backend: Supabase — Postgres com RLS, **74 migrations** (todas registradas em
   `supabase_migrations.schema_migrations`, conferido em 13/09), 4 edge functions Deno
   (`connections-ingest`, `ia-narrar`, `intervals-link`, `cultura-search`)
 - Autenticação: `/login`, `/register`, `/setup`, com `profileGuard` em toda rota
@@ -283,6 +283,30 @@ São **10** módulos, não 7:
   relatórios come o dado real.
   Spec, data-model e tasks escritos em 30/09 — o raciocínio saiu dos dois artifacts e virou
   [docs/specs/presenca/](docs/specs/presenca/spec.md).
+  **Desenho do produto fechado em 02/10** (party mode, seis rodadas) e o **log saiu do iPhone**
+  no mesmo dia: `devicectl ... --domain-type appDataContainer`, copiando **só** a pasta
+  `RCTAsyncLocalStorage_V1` (124 KB) — o container inteiro são **16 GB**, quase tudo
+  `Library/Caches/VideoThumbnails`, e ele enche o disco do Mac. Backup conferido em
+  `~/Documents/Orbe/presenca-backup-2026-10-02/`. Com o dado em mãos: **372 eventos, 74
+  travessias, 24 dias**; a manchete é **"dias sem sair de casa"** (**3 em 23 cobertos** — as
+  bordas da janela não contam) e não "horas fora", que vira secundária; o limiar de saída é **45 min configurável e
+  derivado na leitura** — e caiu num **buraco da distribuição** (nada entre 26 e 64 min, então
+  20/30/45/60 dão resultado idêntico). O sensor erra **1 vez a cada 4 dias**, e **5 de 6
+  anomalias são chegadas perdidas** (uma delas falso positivo, por `exit` duplicado a 4 ms) — as
+  três de 17/09 fabricam juntas uma ausência de 30 h que parece noite fora e não foi; daí a **correção manual como visita `source='manual'`** pré-preenchida pela
+  testemunha, com precedência `manual > geofence > clvisit`. Métricas e fórmulas em
+  [retrospectiva.md](docs/specs/presenca/retrospectiva.md). **O núcleo puro da Fase 1 está escrito**
+  (`packages/shared/src/presence/`: `eventos.ts` pareamento + anomalias, `regras.ts` colagem/passagem/
+  limiares, `dias.ts` a manchete), com **21 checagens contra o log real** — o fixture
+  `fixture-24-dias.ts` é o log de verdade com a coordenada removida, e pegou dois defeitos na
+  primeira execução.
+  **As quatro tabelas estão em produção desde 02/10** (`20261002120000` + `20261002130000`) —
+  e a migração achou que **`places` já existia**, da feature de nome das rotas, com as **duas
+  casas** dele e vigência por data (uma fechou em 20/06/2026). A Presença a **adota** em vez de
+  criar outra: a AD-4 pede um módulo dono do acesso, não uma tabela por feature. Nasceu daí a
+  coluna **`identidade`**, por exigência do dono — *"se eu mudar de casa, mudarei o local mas
+  não quero perder as métricas"*: **a visita aponta para a linha, a métrica agrega pela
+  identidade**, e agregar por `place_id` parte a série da mudança em duas, em silêncio.
 - **Motores de IA** — modelo no aparelho (Foundation Models, depois Core AI), nuvem (`ia-narrar`)
   e sem modelo, escolhidos **por recurso e por aparelho**. **F0, o marco A da bancada e o marco A
   da 5.5 estão na `main`**: a porta, o fio e o orquestrador (5.1), o descritor da retrospectiva e as
@@ -395,5 +419,5 @@ Cada módulo tem seu spec em `docs/specs/`:
 - [FC ao longo do dia (série intradiária em `health_series`)](docs/specs/fc-serie/spec.md) · [data-model](docs/specs/fc-serie/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fc-serie/tasks.md)
 - [Fotos na pedalada (a foto ligada à atividade, agrupada por parada)](docs/specs/fotos-na-pedalada/spec.md) · [data-model](docs/specs/fotos-na-pedalada/data-model.md) · [tasks](_bmad-output/implementation-artifacts/fotos-na-pedalada/tasks.md)
 - [Busca textual nas atividades (cidade, nome da rota, nome, fonte, aparelho)](docs/specs/busca-textual/spec.md) · [data-model](docs/specs/busca-textual/data-model.md) · [stories](docs/specs/busca-textual/stories.yaml)
-- [Presença (onde o dia foi: geofence agora, `CLVisit` na fase 3, na mesma tabela)](docs/specs/presenca/spec.md) · [data-model](docs/specs/presenca/data-model.md) · [tasks](_bmad-output/implementation-artifacts/presenca/tasks.md)
+- [Presença (onde o dia foi: geofence agora, `CLVisit` na fase 3, na mesma tabela)](docs/specs/presenca/spec.md) · [data-model](docs/specs/presenca/data-model.md) · [retrospectiva](docs/specs/presenca/retrospectiva.md) · [tasks](_bmad-output/implementation-artifacts/presenca/tasks.md)
 - [Quem fez a comida (origem de cada almoço e jantar, e quanto custa não cozinhar)](docs/specs/quem-fez-a-comida/spec.md) · [data-model](docs/specs/quem-fez-a-comida/data-model.md) · [stories](docs/specs/quem-fez-a-comida/stories.yaml)

@@ -10,6 +10,7 @@ import {
   readRegionStates,
   presenceDay,
   presenceEventId,
+  chegadasEngolidas,
   readPresenceLog,
   summarizePresence,
   vitalsByPlace,
@@ -17,6 +18,30 @@ import {
   type PresenceEventKind,
 } from '../presence-events';
 import type { KVStore } from '../local-store';
+
+/**
+ * Store de memória que **cede o controle** entre o `get` e o `set`.
+ *
+ * Sem esse `await` no meio, duas chamadas concorrentes nunca se cruzam no teste e a
+ * corrida que derrubou uma chegada em casa de verdade (01/10/2026) fica invisível: o
+ * teste passaria com o código quebrado. O AsyncStorage real é assíncrono nos dois lados.
+ */
+function memStoreLento(): KVStore {
+  const map = new Map<string, string>();
+  const ceder = () => new Promise<void>((r) => setTimeout(r, 0));
+  return {
+    getItem: async (k) => {
+      const v = map.get(k) ?? null;
+      await ceder();
+      return v;
+    },
+    setItem: async (k, v) => {
+      await ceder();
+      map.set(k, v);
+    },
+    removeItem: async (k) => void map.delete(k),
+  };
+}
 
 function memStore(): KVStore {
   const map = new Map<string, string>();
@@ -316,5 +341,97 @@ describe('presence-events · resumo', () => {
     // Se a fase 0 os desmentir, este teste muda junto com a proposta.
     expect(SHORT_STAY_MIN).toBe(8);
     expect(SHORT_GAP_MIN).toBe(20);
+  });
+});
+
+/**
+ * O caso real de 01/10/2026, que o dono achou pela ausência: ele chegou em casa às
+ * 20:20 e a chegada não estava na lista.
+ *
+ * A causa não era o iOS — era este arquivo. O iOS entrega **todas as regiões no mesmo
+ * instante** ao reavaliar, e `applyRegionState` escrevia as duas na mesma chave sem
+ * trava: a segunda entrega lia a fotografia anterior e desfazia a primeira. Duas horas
+ * depois, uma chegada de verdade parecia redundante e era descartada.
+ */
+describe('a corrida entre duas regiões no mesmo instante', () => {
+  it('duas saídas simultâneas não desfazem uma à outra', async () => {
+    const s = memStoreLento();
+    await applyRegionState('casa', 'enter', s);
+    await applyRegionState('trabalho', 'enter', s);
+
+    // 18:55:23 — o iOS entregou as duas saídas com 1 ms de diferença.
+    await Promise.all([
+      applyRegionState('casa', 'exit', s),
+      applyRegionState('trabalho', 'exit', s),
+    ]);
+
+    expect(await readRegionStates(s)).toEqual({ casa: 'out', trabalho: 'out' });
+  });
+
+  it('e por isso a chegada de duas horas depois CONTA como travessia', async () => {
+    const s = memStoreLento();
+    await applyRegionState('casa', 'enter', s);
+    await applyRegionState('trabalho', 'enter', s);
+    await Promise.all([
+      applyRegionState('casa', 'exit', s),
+      applyRegionState('trabalho', 'exit', s),
+    ]);
+
+    // 20:20:54 — "chegou · Casa", em background. Tem de ser travessia.
+    expect(await applyRegionState('casa', 'enter', s)).toBe(true);
+  });
+
+  it('o lote de reavaliação do iOS continua sendo relatório', async () => {
+    const s = memStoreLento();
+    await applyRegionState('casa', 'enter', s);
+    await applyRegionState('trabalho', 'exit', s);
+
+    // Lançar o app reavalia as duas regiões: nada mudou, nada é travessia.
+    const [casa, trabalho] = await Promise.all([
+      applyRegionState('casa', 'enter', s),
+      applyRegionState('trabalho', 'exit', s),
+    ]);
+    expect(casa).toBe(false);
+    expect(trabalho).toBe(false);
+  });
+});
+
+describe('chegadasEngolidas', () => {
+  const ev = (at: string, kind: PresenceEventKind, appState: string, redundant: boolean, placeId = 'casa'): PresenceEvent => ({
+    id: presenceEventId(placeId, kind, at), placeId, kind, at, tz: 'Europe/Brussels', appState, redundant,
+  });
+
+  it('acha o `enter` em background que foi descartado sozinho', () => {
+    const achadas = chegadasEngolidas([
+      ev('2026-10-01T18:20:54.000Z', 'enter', 'background', true),
+    ]);
+    expect(achadas).toEqual([{ placeId: 'casa', at: '2026-10-01T18:20:54.000Z' }]);
+  });
+
+  it('ignora o lote de reavaliação — ele chega em par, no mesmo instante', () => {
+    expect(chegadasEngolidas([
+      ev('2026-10-01T18:33:52.739Z', 'enter', 'inactive', true, 'casa'),
+      ev('2026-10-01T18:33:52.740Z', 'exit', 'inactive', true, 'trabalho'),
+    ])).toEqual([]);
+  });
+
+  it('ignora o que foi entregue com o app na tela: aí é reavaliação de lançamento', () => {
+    expect(chegadasEngolidas([ev('2026-09-07T08:08:00.000Z', 'enter', 'active', true)])).toEqual([]);
+  });
+
+  it('ignora travessia já contada — ela não precisa de correção', () => {
+    expect(chegadasEngolidas([ev('2026-10-01T18:20:54.000Z', 'enter', 'background', false)])).toEqual([]);
+  });
+
+  it('ignora saída: o que a corrida engolia era chegada', () => {
+    expect(chegadasEngolidas([ev('2026-10-01T18:20:54.000Z', 'exit', 'background', true)])).toEqual([]);
+  });
+
+  it('devolve da mais recente para a mais antiga', () => {
+    const r = chegadasEngolidas([
+      ev('2026-09-17T16:29:00.000Z', 'enter', 'background', true),
+      ev('2026-10-01T18:20:54.000Z', 'enter', 'background', true),
+    ]);
+    expect(r.map((x) => x.at.slice(0, 10))).toEqual(['2026-10-01', '2026-09-17']);
   });
 });

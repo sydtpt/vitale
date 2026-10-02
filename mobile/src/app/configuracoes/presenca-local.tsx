@@ -18,6 +18,7 @@ import {
   upsertPresencePlace,
   type PresencePlace,
 } from '../../lib/presence-places';
+import { mensagemDeErro } from '../../lib/erro';
 import { currentFix, isPresenceRunning, startPresence } from '../../services/presence';
 
 /**
@@ -39,6 +40,22 @@ import { currentFix, isPresenceRunning, startPresence } from '../../services/pre
  */
 
 export const MAX_RADIUS_M = 500;
+
+/**
+ * Os papéis, no vocabulário fechado que o banco cobra (`places_kind`).
+ *
+ * Lista fechada e não texto livre pelo motivo de sempre nesta casa: `kind` resolve leitura
+ * agregada, e "gim" em vez de "gym" criaria um lugar que nenhuma tela encontra, calado.
+ */
+const PAPEIS: { key: string; label: string }[] = [
+  { key: 'home', label: 'Casa' },
+  { key: 'work', label: 'Trabalho' },
+  { key: 'gym', label: 'Academia' },
+  { key: 'grocery', label: 'Mercado' },
+  { key: 'food', label: 'Comida' },
+  { key: 'culture', label: 'Cultura' },
+  { key: 'other', label: 'Outro' },
+];
 
 export default function PresencaLocalScreen() {
   const styles = useThemedStyles(createStyles);
@@ -63,6 +80,7 @@ export default function PresencaLocalScreen() {
 
   const [original, setOriginal] = useState<PresencePlace | null>(null);
   const [nome, setNome] = useState('');
+  const [papel, setPapel] = useState<string>('other');
   const [raio, setRaio] = useState(DEFAULT_RADIUS_M);
   const [inicial, setInicial] = useState<{ lat: number; lon: number; raio: number } | null>(null);
   const [centro, setCentro] = useState<{ lat: number; lon: number } | null>(null);
@@ -79,6 +97,7 @@ export default function PresencaLocalScreen() {
         if (lugar && vivo) {
           setOriginal(lugar);
           setNome(lugar.name);
+          setPapel(lugar.kind ?? 'other');
           setRaio(lugar.radiusM);
           centroRef.current = { lat: lugar.lat, lon: lugar.lon };
           setCentro({ lat: lugar.lat, lon: lugar.lon });
@@ -94,7 +113,7 @@ export default function PresencaLocalScreen() {
         setCentro(at);
         setInicial({ ...at, raio: DEFAULT_RADIUS_M });
       } catch (e) {
-        if (vivo) setErro(e instanceof Error ? e.message : String(e));
+        if (vivo) setErro(mensagemDeErro(e));
       }
     })();
     return () => {
@@ -172,6 +191,7 @@ export default function PresencaLocalScreen() {
     const proximo: PresencePlace = {
       id: original?.id ?? `p${Date.now().toString(36)}`,
       name: limpo,
+      kind: papel,
       lat: at.lat,
       lon: at.lon,
       radiusM: raio,
@@ -186,7 +206,7 @@ export default function PresencaLocalScreen() {
           if (await isPresenceRunning()) await startPresence(lista);
           router.back();
         })
-        .catch((e: unknown) => Alert.alert('Não deu', e instanceof Error ? e.message : String(e)))
+        .catch((e: unknown) => Alert.alert('Não deu', mensagemDeErro(e)))
         .finally(() => setSalvando(false));
     };
 
@@ -283,6 +303,33 @@ export default function PresencaLocalScreen() {
           maxLength={40}
           returnKeyType="done"
         />
+
+        {/* O papel é escolhido, não adivinhado — ver o cabeçalho de `kind` em
+            `presence-places.ts`. Ele decide qual leitura o lugar alimenta: só um lugar
+            `work` vira "dias de escritório". */}
+        <Text style={styles.papelLabel}>O que é este lugar</Text>
+        <View style={styles.papeis}>
+          {PAPEIS.map((p) => {
+            const ativo = p.key === papel;
+            return (
+              <Pressable
+                key={p.key}
+                onPress={() => setPapel(p.key)}
+                style={({ pressed }) => [
+                  styles.papel,
+                  ativo && { backgroundColor: casa.accent, borderColor: casa.accent },
+                  pressed && { opacity: 0.7 },
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: ativo }}
+              >
+                <Text style={[styles.papelTexto, ativo && { color: casa.onAccent }]}>
+                  {p.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <View style={styles.raioLinha}>
           <Text style={styles.raioLabel}>Raio</Text>
@@ -423,6 +470,16 @@ function createStyles() {
       minHeight: 44,
       marginBottom: spacing.xs,
     },
+    papelLabel: { fontSize: 13, color: colors.ink2, marginTop: spacing.md, marginBottom: spacing.sm },
+    papeis: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+    papel: {
+      paddingVertical: 7,
+      paddingHorizontal: 13,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    papelTexto: { fontSize: 13, color: colors.ink2 },
     raioLinha: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
     raioLabel: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink },
     raioValor: { fontFamily: fonts.monoSemiBold, fontSize: 14, color: colors.ink },

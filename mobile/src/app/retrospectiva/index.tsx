@@ -8,6 +8,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   type ActivityPhoto,
   fetchPhotosForActivities,
+  buildPresenceDetail,
+  diasDePresenca,
+  fetchLugares,
+  fetchPlaceDays,
+  fetchVisitas,
+  rollupDoBanco,
+  visitasDoBanco,
   periodBounds,
   photoRetro,
   photoRetroLabel,
@@ -18,10 +25,12 @@ import {
   fmtMoneyAuto,
   buildRetroLede,
   visibleBlocks,
+  type DetalheDaPresenca,
   resolveRetroPrefs,
   type RetroBlockId,
   type RetroPrefs,
   type CadernoId,
+  moveBlock,
   toggleBlock,
   toggleCaderno,
   cadernosVisiveis,
@@ -161,6 +170,11 @@ function shortDate(iso: string): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
 }
 
+/** Horas com uma casa e vírgula; traço quando não há amostra para dizer. */
+function h(n: number | null): string {
+  return n === null ? '—' : `${n.toFixed(1).replace('.', ',')} h`;
+}
+
 export default function RetrospectivaScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
@@ -195,6 +209,59 @@ export default function RetrospectivaScreen() {
    * tabela é indexada por `activity_id`; o período vira uma lista de ids.
    */
   const [periodPhotos, setPeriodPhotos] = useState<ActivityPhoto[]>([]);
+
+  /**
+   * Onde o dia foi, no período — o bloco da Presença.
+   *
+   * Carrega por si, e não pelo mesmo caminho dos outros blocos, porque `place_days` é
+   * uma tabela nova e a janela dela é a do período, não a do acervo. `null` enquanto
+   * carrega **e** quando não há nada medido: o bloco só aparece quando tem o que dizer.
+   */
+  const [presenca, setPresenca] = useState<DetalheDaPresenca | null>(null);
+  useEffect(() => {
+    const uid = useAuthStore.getState().user?.id;
+    if (!uid) return;
+    let vivo = true;
+    const b = periodBounds(now, kind, offset);
+    const ymd = (d: Date) => d.toISOString().slice(0, 10);
+    // Um dia a mais de cada lado: o pareamento precisa da travessia anterior, e a regra
+    // da noite virada precisa do dia seguinte para saber onde ele passou a madrugada.
+    const antes = new Date(b.start);
+    antes.setDate(antes.getDate() - 1);
+    void (async () => {
+      try {
+        const ls = await fetchLugares(supabase, uid);
+        const [vs, ds] = await Promise.all([
+          fetchVisitas(supabase, uid, ymd(antes), ymd(b.end)),
+          fetchPlaceDays(supabase, uid, ymd(b.start), ymd(b.end)),
+        ]);
+        if (!vivo) return;
+        const rollup = rollupDoBanco(ds);
+        if (rollup.length === 0) {
+          setPresenca(null);
+          return;
+        }
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+        const dias = diasDePresenca(
+          visitasDoBanco(vs, new Map(ls.map((l) => [l.id, l.identidade]))),
+          { casa: 'casa', tz, rollup, de: ymd(b.start), ate: ymd(b.end) },
+        );
+        setPresenca(
+          buildPresenceDetail(dias, rollup, {
+            casa: 'casa',
+            trabalho: ls.find((l) => l.kind === 'work')?.identidade,
+          }),
+        );
+      } catch {
+        // O bloco some quando o banco não responde. A Retrospectiva é um jornal: ela
+        // deixa de publicar a seção, não publica uma seção com erro dentro.
+        if (vivo) setPresenca(null);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [now, kind, offset]);
   const periodActIds = useMemo(() => {
     const b = periodBounds(now, kind, offset);
     return allActs
@@ -723,6 +790,42 @@ export default function RetrospectivaScreen() {
             )}
       </>
     ),
+    /* Onde você esteve — o bloco da Presença (02/10/2026).
+       Um jornal informa e não aconselha: aqui só há grandeza que existe, e o que não
+       foi medido aparece como cobertura escrita, nunca como número menor. Sem dado,
+       o bloco não é publicado. */
+    presence: presenca ? (
+      <View style={styles.card}>
+        <Text style={styles.eyebrow}>Onde você esteve — {summary.label}</Text>
+        <Text style={styles.lede}>
+          {presenca.contagem.semSair === 0
+            ? 'Você saiu de casa todos os dias.'
+            : presenca.contagem.semSair === 1
+              ? 'Um dia sem sair de casa.'
+              : `${presenca.contagem.semSair} dias sem sair de casa.`}
+        </Text>
+        <Text style={[styles.lede, { marginTop: 6 }]}>
+          {h(presenca.foraDeCasa.medianaH)} fora por dia, no típico
+          {presenca.escritorio && presenca.escritorio.dias > 0
+            ? `, e ${presenca.escritorio.dias} ${presenca.escritorio.dias === 1 ? 'dia' : 'dias'} de escritório`
+            : ''}
+          .
+        </Text>
+        {presenca.contagem.maiorSequencia > 1 ? (
+          <Text style={[styles.lede, { marginTop: 6 }]}>
+            A maior sequência em casa foi de {presenca.contagem.maiorSequencia} dias seguidos.
+          </Text>
+        ) : null}
+        <Text style={styles.note}>
+          Sobre {presenca.cobertura.medidos} dos {presenca.cobertura.dias} dias
+          {presenca.bordasEstimadas > 0
+            ? ` · ${presenca.bordasEstimadas} borda${presenca.bordasEstimadas > 1 ? 's' : ''} estimada${presenca.bordasEstimadas > 1 ? 's' : ''}`
+            : ''}
+          .
+        </Text>
+      </View>
+    ) : null,
+
     yearSeries: (
       <>
     {/* Ano: barras por mês. As seis séries do MonthBucket já eram calculadas;
@@ -842,7 +945,8 @@ export default function RetrospectivaScreen() {
                 "silenciar" e "voltar a escrever". */}
             <Text style={styles.editGrupo}>Seções desta tela</Text>
             <Text style={styles.editNota}>
-              Esconda o que não usa. Nada é apagado: mostrar de novo traz tudo de volta.
+              Esconda o que não usa e arraste a ordem com as setas. Nada é apagado:
+              mostrar de novo traz tudo de volta.
             </Text>
             {prefs.order.map((id) => {
               const def = RETRO_BLOCKS.find((b) => b.id === id)!;
@@ -862,6 +966,31 @@ export default function RetrospectivaScreen() {
                       size={18} color={def.fixed ? colors.ink4 : oculto ? colors.ink3 : colors.primary} />
                   </Pressable>
                   <Text style={[styles.editLbl, oculto && styles.editLblOff]}>{def.label}</Text>
+                  {/* As setas voltaram em 02/10/2026. A 2.5 não as tirou por decisão
+                      sobre ordenar: elas caíram de carona com o fim da prova de gráfica,
+                      e o custo ficou escrito em `retro-blocks.ts` — bloco novo nasce no
+                      fim da ordem salva e fica lá, sem UI para movê-lo. O bloco da
+                      Presença seria o 14º numa lista que ele lê até a quinta. */}
+                  {def.fixed ? null : (
+                    <View style={styles.editSetas}>
+                      <Pressable
+                        onPress={() => salvarPrefs(moveBlock(prefs, id, -1))}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Subir ${def.label}`}
+                      >
+                        <Ionicons name="chevron-up" size={18} color={colors.ink3} />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => salvarPrefs(moveBlock(prefs, id, 1))}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Descer ${def.label}`}
+                      >
+                        <Ionicons name="chevron-down" size={18} color={colors.ink3} />
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
               );
             })}
@@ -1096,6 +1225,7 @@ const createStyles = () => StyleSheet.create({
     letterSpacing: 0.6, textTransform: 'uppercase', marginTop: spacing.md, marginBottom: 2,
   },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 7 },
+    editSetas: { flexDirection: 'row', gap: 10, marginLeft: 'auto' },
   editLbl: { flex: 1, fontSize: 14, fontFamily: fonts.sans, color: colors.ink },
   editLblOff: { color: colors.ink3, textDecorationLine: 'line-through' },
   lede: { fontSize: 15, fontFamily: fonts.sans, lineHeight: 22, color: colors.ink },
