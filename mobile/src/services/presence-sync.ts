@@ -56,6 +56,27 @@ export interface ResumoDaPresenca {
   incompletos: number;
 }
 
+/**
+ * Palpite do papel do lugar a partir da identidade.
+ *
+ * Existe porque a primeira versão chutava `home` para a casa e **`other` para todo o
+ * resto** — e o Trabalho nasceu `other`. A tela procura o escritório por `kind = 'work'`,
+ * então os dois números dele apareciam vazios: implementados e mudos, que é pior do que
+ * ausentes, porque parecem um defeito de dado.
+ *
+ * O mapa é pequeno e deliberadamente burro: ele acerta o caso comum e erra para `other`,
+ * que é o valor honesto para "não sei". **A resposta de verdade é o dono escolher o papel
+ * ao cadastrar o lugar** — enquanto essa tela não existe, isto evita o silêncio.
+ */
+function kindDaIdentidade(identidade: string): string {
+  const i = identidade.toLowerCase();
+  if (i.startsWith('casa')) return 'home';
+  if (i.startsWith('trabalho') || i.startsWith('escritorio') || i.startsWith('office')) return 'work';
+  if (i.startsWith('academia') || i.startsWith('ginasio') || i.startsWith('gym')) return 'gym';
+  if (i.startsWith('mercado') || i.startsWith('supermercado')) return 'grocery';
+  return 'other';
+}
+
 /** Fuso do aparelho agora. O evento carrega o seu; isto é só para o que não tem. */
 function fusoAtual(): string {
   try {
@@ -121,7 +142,7 @@ async function casarLugares(
           ...p,
           remoteId: await criarLugar(supabase, userId, {
             identidade: p.identidade!,
-            kind: p.identidade === 'casa' ? 'home' : 'other',
+            kind: kindDaIdentidade(p.identidade!),
             label: p.name,
             lat: p.lat,
             lng: p.lon,

@@ -120,6 +120,28 @@ describe('sincronizarPresenca', () => {
     expect(aparelho.lugares[0]).toMatchObject({ id: 'local-casa', remoteId: 'remoto-1', identidade: 'casa' });
   });
 
+  it('o papel do lugar sai da identidade — "Trabalho" é work, não "other"', async () => {
+    // Nascer `other` deixava a tela procurando `kind = 'work'` e mostrando dois traços:
+    // implementado e mudo, que parece defeito de dado.
+    aparelho.lugares = [{ id: 'local-trab', name: 'Trabalho', lat: 50.8, lon: 4.4, radiusM: 220 }];
+    aparelho.log = [
+      evento('2026-09-10T08:00:00.000Z', 'local-trab', 'enter'),
+      evento('2026-09-10T17:00:00.000Z', 'local-trab', 'exit'),
+    ];
+    await sincronizarPresenca(U);
+    expect(banco.criados[0]).toMatchObject({ identidade: 'trabalho', kind: 'work' });
+  });
+
+  it('identidade que o mapa não conhece vira "other", que é o honesto para "não sei"', async () => {
+    aparelho.lugares = [{ id: 'local-x', name: 'Padaria do Zé', lat: 50.8, lon: 4.4, radiusM: 150 }];
+    aparelho.log = [
+      evento('2026-09-10T08:00:00.000Z', 'local-x', 'enter'),
+      evento('2026-09-10T09:00:00.000Z', 'local-x', 'exit'),
+    ];
+    await sincronizarPresenca(U);
+    expect(banco.criados[0]!['kind']).toBe('other');
+  });
+
   it('o lugar criado vale desde o PRIMEIRO EVENTO dele, não desde hoje', async () => {
     // O defeito de 02/10: o Trabalho nasceu valendo a partir de hoje e as seis visitas
     // dele, de 08/09 em diante, ficaram fora da vigência do próprio lugar.
