@@ -24,6 +24,7 @@
  * período — dividir 18 h por 30 dias daria "0,6 h/dia", que não é nada.
  */
 
+import type { Noite } from './eventos';
 import type { DiaDePresenca } from './dias';
 import type { DiaDeLugar } from './rollup';
 
@@ -44,12 +45,6 @@ export const MIN_DIAS_PARA_MEDIANA = 5;
 
 /** Uma taxa semanal precisa de mais de uma semana para não ser a própria semana. */
 export const MIN_DIAS_PARA_TAXA = 10;
-
-export interface Noite {
-  /** Instantes ISO de dormir e acordar — `sleep_periods`. */
-  inicio: string;
-  fim: string;
-}
 
 export interface OpcoesDoBloco {
   casa: string;

@@ -14,11 +14,12 @@
  */
 import assert from 'node:assert/strict';
 import { LOG_24_DIAS, FIXTURE_TZ, type EventoBruto } from './fixture-24-dias';
-import { parear, duracaoMin, TETO_ORFA_H, type PresenceEvent } from './eventos';
+import { parear, duracaoMin, TETO_ORFA_H, type PresenceEvent, type Visita } from './eventos';
 import { colar, ausencias, ehPassagem, descartarPassagens, contaComoSaida, COLAGEM_MIN, SAIDA_MIN_PADRAO } from './regras';
-import { diasDePresenca, contagemDosDias, diaLocal } from './dias';
+import { diasDePresenca, contagemDosDias, diaLocal, type DiaDePresenca } from './dias';
 import { rollup, segundosDoDiaLocal, segundosNaoCobertos } from './rollup';
 import { blocoDePresenca, MIN_DIAS_PARA_MEDIANA, MIN_DIAS_PARA_TAXA } from './retro';
+import { aplicarCorrecoes, contradicoes } from './correcao';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -373,6 +374,125 @@ check('com sono, a noite sem presença em casa conta como noite fora', () => {
 check('os pisos vêm da escada do Sono, não de invenção local', () => {
   assert.equal(MIN_DIAS_PARA_MEDIANA, 5, 'mesmo espírito de REGULARITY_MIN_NIGHTS');
   assert.equal(MIN_DIAS_PARA_TAXA, 10, 'mesmo espírito de BASELINE_MIN_NIGHTS');
+});
+
+// ------------------------------------------------------------- correção
+
+const DIA_TODO: Visita[] = [
+  { placeId: 'casa', arrivedAt: '2026-06-01T00:00:00.000Z', departedAt: '2026-06-02T00:00:00.000Z', departedSource: 'geofence' },
+];
+
+check('a correção corta a visita medida em duas — e o vão vira "fora"', () => {
+  const r = aplicarCorrecoes(DIA_TODO, [
+    { placeId: null, arrivedAt: '2026-06-01T12:00:00.000Z', departedAt: '2026-06-01T14:48:00.000Z' },
+  ]);
+  assert.equal(r.length, 2);
+  assert.equal(r[0]!.departedAt, '2026-06-01T12:00:00.000Z');
+  assert.equal(r[0]!.departedSource, 'manual', 'a borda passou a ser dele');
+  assert.equal(r[1]!.arrivedAt, '2026-06-01T14:48:00.000Z');
+  const l = rollup(r, { tz: 'UTC', janela: { inicio: '2026-06-01T00:00:00.000Z', fim: '2026-06-02T00:00:00.000Z' } });
+  const fora = l.find((x) => x.placeId === null)!;
+  assert.equal(fora.seconds, 2.8 * 3600, 'as 2h48 que ele disse que esteve fora');
+});
+
+check('a invariante continua fechando depois da correção', () => {
+  const r = aplicarCorrecoes(DIA_TODO, [
+    { placeId: null, arrivedAt: '2026-06-01T12:00:00.000Z', departedAt: '2026-06-01T14:48:00.000Z' },
+  ]);
+  const janela = { inicio: '2026-06-01T00:00:00.000Z', fim: '2026-06-02T00:00:00.000Z' };
+  const l = rollup(r, { tz: 'UTC', janela });
+  assert.equal(l.reduce((s, x) => s + x.seconds, 0), 24 * 3600, 'o dia não soma 26 horas');
+});
+
+check('correção que engole a visita inteira a remove', () => {
+  const r = aplicarCorrecoes(DIA_TODO, [
+    { placeId: null, arrivedAt: '2026-05-31T00:00:00.000Z', departedAt: '2026-06-03T00:00:00.000Z' },
+  ]);
+  assert.deepEqual(r, []);
+});
+
+check('visita em curso é cortada e continua em curso', () => {
+  const emCurso: Visita[] = [
+    { placeId: 'casa', arrivedAt: '2026-06-01T06:00:00.000Z', departedAt: null, departedSource: null },
+  ];
+  const r = aplicarCorrecoes(emCurso, [
+    { placeId: null, arrivedAt: '2026-06-01T10:00:00.000Z', departedAt: '2026-06-01T12:00:00.000Z' },
+  ]);
+  assert.equal(r.length, 2);
+  assert.equal(r[0]!.departedAt, '2026-06-01T10:00:00.000Z');
+  assert.equal(r[1]!.departedAt, null, 'o pedaço de depois ainda está acontecendo');
+});
+
+check('correção COM lugar insere a visita manual, e ela não é recortada depois', () => {
+  const r = aplicarCorrecoes(DIA_TODO, [
+    { placeId: 'academia', arrivedAt: '2026-06-01T12:00:00.000Z', departedAt: '2026-06-01T13:00:00.000Z' },
+    { placeId: null, arrivedAt: '2026-06-01T12:30:00.000Z', departedAt: '2026-06-01T12:40:00.000Z' },
+  ]);
+  const manual = r.filter((v) => v.source === 'manual');
+  assert.equal(manual.length, 1);
+  assert.equal(manual[0]!.placeId, 'academia');
+  assert.equal(manual[0]!.departedAt, '2026-06-01T13:00:00.000Z', 'manual não corta manual');
+});
+
+// ---------------------------------------------------------- as testemunhas
+
+check('as 6 anomalias do log viram dúvidas de sequência', () => {
+  const p = parear(EVENTOS);
+  const c = contradicoes({ dias: DIAS, anomalias: p.anomalias, tz: FIXTURE_TZ, casa: 'casa' });
+  assert.equal(c.length, 6);
+  assert.ok(c.every((x) => x.motivo === 'sequencia'));
+  assert.ok(c.every((x) => !x.sugestao), 'a sequência levanta a dúvida e não sabe a resposta');
+});
+
+check('o sono audita a CHEGADA: noite dormida sem presença em casa', () => {
+  const c = contradicoes({
+    dias: [],
+    anomalias: [],
+    tz: 'Europe/Brussels',
+    casa: 'casa',
+    diasComCasa: new Set(['2026-06-01']),
+    noites: [
+      { inicio: '2026-06-01T22:00:00.000Z', fim: '2026-06-02T05:00:00.000Z' },
+      { inicio: '2026-06-03T22:00:00.000Z', fim: '2026-06-04T05:00:00.000Z' },
+    ],
+  });
+  // A primeira noite cai em 02/06 local (22h UTC = 00h local) e não tem casa; a
+  // segunda idem. A de 01/06 estaria coberta.
+  assert.ok(c.every((x) => x.motivo === 'sono'));
+  assert.equal(c.length, 2);
+});
+
+check('a atividade audita a SAÍDA — e já traz o preenchimento', () => {
+  const dias: DiaDePresenca[] = [
+    { dia: '2026-06-01', estado: 'nao-saiu', saidas: 0, curtas: 0, maiorMin: null },
+    { dia: '2026-06-02', estado: 'saiu', saidas: 1, curtas: 0, maiorMin: 300 },
+  ];
+  const c = contradicoes({
+    dias,
+    anomalias: [],
+    tz: 'Europe/Brussels',
+    casa: 'casa',
+    atividades: [
+      { inicio: '2026-06-01T12:02:00.000Z', fim: '2026-06-01T14:48:00.000Z', temRota: true },
+      { inicio: '2026-06-02T12:00:00.000Z', fim: '2026-06-02T13:00:00.000Z', temRota: true },
+      { inicio: '2026-06-01T18:00:00.000Z', temRota: false },
+    ],
+  });
+  assert.equal(c.length, 1, 'só o dia que afirma reclusão, e só atividade com rota');
+  assert.equal(c[0]!.motivo, 'atividade');
+  assert.deepEqual(c[0]!.sugestao, {
+    placeId: null,
+    arrivedAt: '2026-06-01T12:02:00.000Z',
+    departedAt: '2026-06-01T14:48:00.000Z',
+  });
+});
+
+check('a chave da dúvida é estável — é ela que faz "está certo" durar', () => {
+  const p = parear(EVENTOS);
+  const a = contradicoes({ dias: DIAS, anomalias: p.anomalias, tz: FIXTURE_TZ, casa: 'casa' });
+  const b = contradicoes({ dias: DIAS, anomalias: parear(EVENTOS).anomalias, tz: FIXTURE_TZ, casa: 'casa' });
+  assert.deepEqual(a.map((x) => x.chave), b.map((x) => x.chave));
+  assert.equal(new Set(a.map((x) => x.chave)).size, a.length, 'sem chave repetida');
 });
 
 console.log(`\n${passed} checagens de presença ok`);

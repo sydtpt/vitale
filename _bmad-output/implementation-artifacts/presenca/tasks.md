@@ -146,17 +146,19 @@
   perdida · `enter`→`enter` = saída perdida. Nos 24 dias reais acha **6** (10/09, 17/09 ×3,
   24/09, 26/09) — e **uma é falso positivo**: dois `exit` separados por 4 ms, estado de região
   velho. É a prova de que a caixa precisa da resposta "está certo" tanto quanto da "saí".
-- [ ] T8.2 — **Testemunha do sono**: noite em `sleep_periods` sem visita em Casa cobrindo =
-  dormiu fora **ou** a chegada se perdeu. Audita a **chegada**.
-- [ ] T8.3 — **Testemunha da atividade**: dia "não saiu" com atividade de rota naquele dia.
-  Audita a **saída**. 555 atividades com `points` no banco.
-- [ ] T8.4 — Correção = **visita manual com horário** (`source='manual'`, `place_id` nulo),
-  **pré-preenchida** pela testemunha que acusou. Precedência `manual > geofence > clvisit`
-  **com teste** — sem ela o dia soma 26 h.
+- [x] T8.2 — **Testemunha do sono** (`correcao.ts`, 02/10): noite sem presença em casa no dia
+  = dormiu fora **ou** a chegada se perdeu. A testemunha não decide qual — ela levanta.
+- [x] T8.3 — **Testemunha da atividade** (02/10): dia "não saiu" com atividade **de rota**
+  naquele dia. E ela traz a `sugestao` pronta (`start_at`/`end_at`) — é o que derruba a
+  objeção de que ninguém reconstitui horário três semanas depois.
+- [x] T8.4 — `aplicarCorrecoes()` (02/10): a correção é **subtração de intervalo**. Visita
+  medida cruzada pelo corte é fatiada, aparada ou removida; a em curso continua em curso. A
+  invariante das 24 h é cobrada por teste — sem a precedência o dia somava 26 h.
 - [ ] T8.5 — O rollup **lê a correção**. É o reescritor aqui, como o sync era no `type_edited`
   — que nasceu porque a correção não durava, desfeita "sem erro, sem aviso, sem marca".
-- [ ] T8.6 — As contradições vivem na **caixa de correções** da Retrospectiva, que já existe
-  (`sleep/retro.ts`). Duas respostas, **as duas gravam**: "saí" e "está certo".
+- [~] T8.6 — `contradicoes()` devolve a lista com **chave estável** por dúvida — é ela que faz
+  "está certo" durar, senão a mesma pergunta volta toda semana. Falta a tela: elas vivem na
+  caixa de correções da Retrospectiva, que já existe (`sleep/retro.ts`).
 - [ ] T8.7 — **Limiar de saída: 45 min, configurável, derivado na leitura** — nunca gravado
   (precedente `unit_price`: retroativo sem backfill). Medido: qualquer valor entre 26 e 64 min
   dá resultado idêntico; o botão só muda algo acima de ~90 min.

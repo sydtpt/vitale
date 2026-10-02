@@ -83,9 +83,32 @@ export interface Anomalia {
  */
 export type FonteDaBorda = 'geofence' | 'inferred' | 'manual' | 'clvisit';
 
+/**
+ * Quem produziu a visita.
+ *
+ * Mora aqui, e não no módulo de correção, porque o tipo da visita não pode depender
+ * de quem a corrige — seria o ciclo de importação ao contrário do sentido do dado.
+ */
+export type FonteDaVisita = 'geofence' | 'clvisit' | 'manual';
+
+/**
+ * Uma noite medida (`sleep_periods`), como a Presença a consome.
+ *
+ * Mora no módulo base da pasta por uma razão prática: **dois consumidores precisam
+ * dela** — o bloco do período e as testemunhas da correção —, e defini-la nos dois
+ * derruba o barril do shared com `TS2308: already exported a member named 'Noite'`.
+ * O build da web pega isso; o `tsc` do shared também. Dono único resolve.
+ */
+export interface Noite {
+  inicio: string;
+  fim: string;
+}
+
 /** Uma estadia num lugar. O núcleo não conhece `user_id` nem `id` — isso é do banco. */
 export interface Visita {
   placeId: string;
+  /** Ausente = `geofence`, o único produtor da Fase 1. */
+  source?: FonteDaVisita;
   arrivedAt: string;
   /** `null` = visita em curso. Não é erro: é agora. */
   departedAt: string | null;

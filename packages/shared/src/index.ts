@@ -307,3 +307,4 @@ export * from './presence/regras';
 export * from './presence/dias';
 export * from './presence/rollup';
 export * from './presence/retro';
+export * from './presence/correcao';
