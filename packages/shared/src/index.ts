@@ -311,3 +311,4 @@ export * from './presence/correcao';
 export * from './presence/esquecer';
 export * from './presence/lugar';
 export * from './data/presence';
+export * from './presence/detalhe';

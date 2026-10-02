@@ -20,6 +20,7 @@ import { diasDePresenca, contagemDosDias, diaLocal, type DiaDePresenca } from '.
 import { rollup, segundosDoDiaLocal, segundosNaoCobertos } from './rollup';
 import { blocoDePresenca, MIN_DIAS_PARA_MEDIANA, MIN_DIAS_PARA_TAXA } from './retro';
 import { aplicarCorrecoes, contradicoes } from './correcao';
+import { buildPresenceDetail } from './detalhe';
 import { esquecer, fechamentoDoDia, foraDescontado, lugaresOrfaos } from './esquecer';
 import { cabeNoLugar, lugarDoPonto, centroPorMediana, chaveDoHabito } from './lugar';
 
@@ -662,6 +663,58 @@ check('o centro é mediana ponderada: a passagem na borda não arrasta', () => {
     { lat: 50.8800, lng: 4.3800, pesoS: 120 }, // dois minutos, lá na borda
   ]);
   assert.ok(centro !== null && centro.lat < 50.873, 'o outlier de 2 min não move o centro');
+});
+
+// ---------------------------------------------------------- a tela
+
+const DETALHE = buildPresenceDetail(
+  diasDePresenca(COLADO, { casa: 'casa', tz: FIXTURE_TZ, janela: JANELA, rollup: LINHAS }),
+  LINHAS,
+  { casa: 'casa', trabalho: 'trabalho' },
+);
+
+check('o detalhe bate com o acervo real, número a número', () => {
+  assert.deepEqual(DETALHE.contagem, { semSair: 2, saiu: 21, semCobertura: 2, maiorSequencia: 1 });
+  assert.deepEqual(DETALHE.cobertura, { dias: 25, medidos: 23 });
+  assert.equal(DETALHE.bordasEstimadas, 1);
+  assert.equal(DETALHE.escritorio!.dias, 6);
+  assert.equal(DETALHE.foraDeCasa.barras.length, 25);
+});
+
+check('a barra existe para TODO dia, inclusive o sem cobertura', () => {
+  // Pular o dia sem cobertura encolheria o eixo e faria o mês parecer mais curto.
+  const semCobertura = DETALHE.foraDeCasa.barras.filter((b) => b.estado === 'sem-cobertura');
+  assert.equal(semCobertura.length, 2);
+  assert.equal(DETALHE.foraDeCasa.barras[0]!.dia, '2026-09-07');
+});
+
+check('o dia sem cobertura não entra em média nenhuma', () => {
+  // 07/09 tem 1,6 h fora medidas, mas a janela só abriu às 13h: ele fica fora da conta.
+  const soma = DETALHE.foraDeCasa.barras
+    .filter((b) => b.estado !== 'sem-cobertura')
+    .reduce((s, b) => s + b.horas, 0);
+  assert.ok(Math.abs(soma - DETALHE.foraDeCasa.totalH) < 0.2, 'o total ignora as bordas');
+});
+
+check('o perfil por dia da semana só fala com amostra', () => {
+  const comMediana = DETALHE.porDiaDaSemana.filter((d) => d.medianaH !== null);
+  assert.equal(comMediana.length, 7, 'em 23 dias todo dia da semana tem ao menos 2');
+  assert.equal(DETALHE.porDiaDaSemana.reduce((s, d) => s + d.dias, 0), 23);
+});
+
+check('sem lugar de trabalho, o escritório é null — não é zero', () => {
+  const d = buildPresenceDetail(
+    diasDePresenca(COLADO, { casa: 'casa', tz: FIXTURE_TZ, janela: JANELA, rollup: LINHAS }),
+    LINHAS,
+    { casa: 'casa' },
+  );
+  assert.equal(d.escritorio, null);
+});
+
+check('o ano tem três estados e nunca um quarto', () => {
+  const estados = new Set(DETALHE.ano.map((c) => c.estado));
+  for (const e of estados) assert.ok(['saiu', 'nao-saiu', 'sem-cobertura'].includes(e), e);
+  assert.equal(DETALHE.ano.length, 25);
 });
 
 console.log(`\n${passed} checagens de presença ok`);
