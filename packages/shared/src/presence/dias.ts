@@ -25,6 +25,7 @@
 
 import { ausencias, contaComoSaida, SAIDA_MIN_PADRAO, type Ausencia } from './regras';
 import type { Visita } from './eventos';
+import type { DiaDeLugar } from './rollup';
 
 export type EstadoDoDia = 'saiu' | 'nao-saiu' | 'sem-cobertura';
 
@@ -63,6 +64,21 @@ export interface OpcoesDosDias {
   /** Limites do calendário a percorrer. Padrão: do primeiro ao último dia com visita. */
   de?: string;
   ate?: string;
+  /**
+   * O rollup do período, quando houver — e com ele a regra fica honesta na noite virada.
+   *
+   * **O caso que obrigou isto**, achado no mockup com dado real em 02/10/2026: o domingo
+   * 20/09 aparecia como "não saiu" com **15,1 h fora de casa**. A ausência tinha começado
+   * no sábado às 19:33 e terminado no domingo às 15:08 — e, como ela pertence ao dia em
+   * que *começou*, o domingo inteiro fora não contava como ter saído. Um leitor chamaria
+   * isso de bug, com razão.
+   *
+   * A correção não precisa de limiar novo: **se ele passou mais tempo fora do que em
+   * casa naquele dia, ele não ficou em casa.** São duas grandezas medidas comparadas
+   * entre si, e isso basta — no acervo real ela vira exatamente um dia (o 20/09) e deixa
+   * o 13/09 em paz, que é o caso oposto: voltou 01:36 e não saiu mais.
+   */
+  rollup?: readonly DiaDeLugar[];
 }
 
 /**
@@ -118,13 +134,24 @@ export function diasDePresenca(
       ? true
       : dia > primeiroCoberto && dia < ultimoCoberto;
 
+  // Horas em casa e fora, por dia, para a regra da noite virada.
+  const emCasa = new Map<string, number>();
+  const foraDeCasa = new Map<string, number>();
+  for (const l of opts.rollup ?? []) {
+    const alvo = l.placeId === opts.casa ? emCasa : l.placeId === null ? foraDeCasa : null;
+    if (alvo) alvo.set(l.day, (alvo.get(l.day) ?? 0) + l.seconds);
+  }
+  const passouODiaFora = (dia: string): boolean =>
+    (foraDeCasa.get(dia) ?? 0) > (emCasa.get(dia) ?? 0);
+
   const out: DiaDePresenca[] = [];
   for (const dia of intervaloDeDias(inicio, fim)) {
     const doDia = porDia.get(dia) ?? [];
     const saidas = doDia.filter((a) => contaComoSaida(a, limiar));
+    const saiu = saidas.length > 0 || passouODiaFora(dia);
     out.push({
       dia,
-      estado: !coberto(dia) ? 'sem-cobertura' : saidas.length > 0 ? 'saiu' : 'nao-saiu',
+      estado: !coberto(dia) ? 'sem-cobertura' : saiu ? 'saiu' : 'nao-saiu',
       saidas: saidas.length,
       curtas: doDia.length - saidas.length,
       maiorMin: doDia.length ? Math.max(...doDia.map((a) => a.minutos)) : null,

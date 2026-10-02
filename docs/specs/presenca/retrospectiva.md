@@ -113,7 +113,7 @@ implementação.
 
 | # | Nome no jornal | Definição operacional |
 |---|---|---|
-| 1 | **Dias sem sair de casa** — **A MANCHETE** | dias cobertos sem nenhuma ausência acima do limiar de saída (§7) |
+| 1 | **Dias sem sair de casa** — **A MANCHETE** | dias cobertos em que **nenhuma ausência começou** acima do limiar (§7) **e** em que ele esteve em casa mais do que fora (§2.1) |
 | 2a | **Dias em que saí** | dias cobertos com ≥ 1 saída — o complemento de (1) |
 | 2b | **Noites fora de casa** | dias em que \|Casa ∩ sono\| = 0: ele dormiu em outro lugar |
 | 3 | **Horas fora de casa** | mediana por dia — número **secundário** desde 02/10 (§1.3), com "em casa acordado" ao lado |
@@ -124,6 +124,19 @@ implementação.
 casa" pode ser *saí de casa naquele dia* (2a) ou *não dormi em casa* (2b). As duas são úteis
 e nenhuma substitui a outra — 2b é a métrica de viagem e de noite fora, e tende a zero na
 rotina normal, o que a torna uma boa manchete quando acontece.
+
+#### 2.1 A noite virada, e por que a regra tem duas partes
+
+A ausência pertence ao dia em que **começou** — senão sair às 23h40 viraria uma saída da
+madrugada seguinte. Mas isso sozinho deixa um dia inteiro fora de casa contando como
+reclusão, quando a saída foi na véspera.
+
+A segunda parte conserta sem inventar limiar: **se ele passou mais tempo fora do que em
+casa naquele dia, ele não ficou em casa.** Duas grandezas já medidas, comparadas entre si.
+
+No acervo real ela vira **exatamente um dia** — o domingo 20/09, 15,1 h fora contra 8,9 h
+em casa — e deixa em paz o caso oposto, 13/09, em que ele voltou às 01:36 e não saiu mais
+(1,6 h fora contra 22,4 h em casa).
 
 **Por que a mediana e não a média** (itens 3 e 4): é a decisão já tomada no Sono — um dia
 anômalo não pode mover o número do período. Para o item 4 a divisão é por **dia de
@@ -325,8 +338,14 @@ Dos quatro períodos fora que atravessam a noite (11/09, 17/09, 19/09, 26/09), s
 
 ### 8.3 A manchete, medida pela primeira vez
 
-**3 dias sem sair de casa, em 23 cobertos** — 13/09, 20/09 e 21/09, com a maior sequência
-sendo **2** (o fim de semana de 20–21).
+**2 dias sem sair de casa, em 23 cobertos** — 13/09 e 21/09.
+
+> **Eram 3 até o mockup.** Com dado real na tela, 20/09 aparecia como "não saiu" **com
+> 15,1 h fora de casa**: a ausência começou no sábado às 19:33 e terminou no domingo às
+> 15:08, e como ela pertence ao dia em que *começou*, o domingo inteiro fora não contava.
+> Um leitor chamaria isso de bug, com razão — e nenhum teste pegaria, porque o teste
+> concorda com a regra que o escreveu. **A regra de propor com mockup antes do código
+> pagou aqui.** Ver §2.1.
 
 Os outros dois dias da janela, 07/09 e 01/10, são **`sem-cobertura`** e não entram na conta.
 E a razão é exatamente o tipo de erro que esta métrica convida: o log abre com um `exit` às

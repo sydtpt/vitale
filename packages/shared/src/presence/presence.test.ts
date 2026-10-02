@@ -171,10 +171,12 @@ check('contaComoSaida usa o limiar, não a opinião', () => {
 
 // ---------------------------------------------------------------------- dias
 
-check('a contagemDosDias real: 3 dias sem sair em 23 cobertos', () => {
+check('sem o rollup, a contagem não enxerga a noite virada — 3, e um deles é falso', () => {
   const colado = colar(parear(EVENTOS).visitas);
   const dias = diasDePresenca(colado, { casa: 'casa', tz: FIXTURE_TZ, janela: JANELA });
   const m = contagemDosDias(dias);
+  // 3, e o 20/09 está entre eles por engano: ele passou 15,1 h fora. Com o rollup
+  // na mão a contagem cai para 2 — ver o check do domingo, mais abaixo.
   assert.deepEqual(m, { semSair: 3, saiu: 20, semCobertura: 2, maiorSequencia: 2 });
   assert.equal(m.semSair + m.saiu + m.semCobertura, dias.length);
 });
@@ -234,6 +236,53 @@ check('diaLocal usa o fuso do dado, não o de quem lê', () => {
 // A ordem do pipeline: parear → colar → descartar passagens → rollup.
 const COLADO = descartarPassagens(colar(parear(EVENTOS).visitas));
 const LINHAS = rollup(COLADO, { tz: FIXTURE_TZ, janela: JANELA });
+
+check('o domingo passado inteiro FORA não conta como "não saiu"', () => {
+  // 19/09 19:33 → 20/09 15:08. A ausência pertence ao dia em que começou, então o
+  // domingo inteiro fora aparecia como reclusão. Achado no mockup com dado real.
+  const base = { casa: 'casa', tz: FIXTURE_TZ, janela: JANELA };
+  const semRollup = diasDePresenca(COLADO, base);
+  const comRollup = diasDePresenca(COLADO, { ...base, rollup: LINHAS });
+
+  assert.equal(semRollup.find((d) => d.dia === '2026-09-20')!.estado, 'nao-saiu');
+  assert.equal(comRollup.find((d) => d.dia === '2026-09-20')!.estado, 'saiu');
+
+  // E o caso oposto fica em paz: 13/09 ele voltou 01:36 e não saiu mais.
+  assert.equal(comRollup.find((d) => d.dia === '2026-09-13')!.estado, 'nao-saiu');
+  assert.equal(comRollup.find((d) => d.dia === '2026-09-21')!.estado, 'nao-saiu');
+
+  assert.deepEqual(contagemDosDias(comRollup), {
+    semSair: 2,
+    saiu: 21,
+    semCobertura: 2,
+    maiorSequencia: 1,
+  });
+});
+
+check('a regra da noite virada não inventa limiar: compara duas medidas', () => {
+  const visitas: Visita[] = [
+    { placeId: 'casa', arrivedAt: '2026-06-01T00:00:00.000Z', departedAt: '2026-06-01T20:00:00.000Z', departedSource: 'geofence' },
+  ];
+  const base = { casa: 'casa', tz: 'UTC', de: '2026-06-01', ate: '2026-06-01' };
+  // 20 h em casa contra 4 h fora: ficou em casa, mesmo sem ausência começando no dia.
+  const maisEmCasa = diasDePresenca(visitas, {
+    ...base,
+    rollup: [
+      { day: '2026-06-01', placeId: 'casa', seconds: 20 * 3600, arrivals: 0, inferredEdges: 0 },
+      { day: '2026-06-01', placeId: null, seconds: 4 * 3600, arrivals: 0, inferredEdges: 0 },
+    ],
+  });
+  assert.equal(maisEmCasa[0]!.estado, 'nao-saiu');
+
+  const maisFora = diasDePresenca(visitas, {
+    ...base,
+    rollup: [
+      { day: '2026-06-01', placeId: 'casa', seconds: 4 * 3600, arrivals: 0, inferredEdges: 0 },
+      { day: '2026-06-01', placeId: null, seconds: 20 * 3600, arrivals: 0, inferredEdges: 0 },
+    ],
+  });
+  assert.equal(maisFora[0]!.estado, 'saiu');
+});
 
 check('a invariante fecha nos 25 dias do log real', () => {
   const dias = [...new Set(LINHAS.map((l) => l.day))];
