@@ -405,3 +405,53 @@ export function vitalsByPlace(events: readonly PresenceEvent[]): Map<string, Pla
 function minutesBetween(a: string, b: string): number {
   return Math.abs(new Date(b).getTime() - new Date(a).getTime()) / 60000;
 }
+
+/**
+ * Chegadas que o app descartou e que provavelmente aconteceram.
+ *
+ * ## Por que existe
+ *
+ * Até 02/10/2026 `applyRegionState` tinha uma corrida (ver o cabeçalho da trava) e
+ * classificava chegadas reais como relatório de estado. O dono achou pela **ausência**:
+ * *"não tem o evento de que cheguei em casa ontem"*. A corrida foi consertada; os eventos
+ * já gravados continuam com o rótulo errado.
+ *
+ * Nada se perdeu: o evento está no log, com instante e precisão. Só a classificação
+ * mentiu — e classificação é recalculável.
+ *
+ * ## A assinatura
+ *
+ * Um `enter` marcado como relatório, **em `background` e sozinho no seu instante**:
+ *
+ *   - `background` é a prova de que o iOS **acordou o app para entregar**. A reavaliação
+ *     de estado acontece ao lançar, e aí o `appState` é `active` ou `inactive`.
+ *   - **sozinho** porque a reavaliação reporta todas as regiões de uma vez: com dois
+ *     lugares ela chega em par, no mesmo milissegundo. Uma entrega solitária é travessia.
+ *
+ * Nenhuma das duas é prova, e juntas também não: um relançamento em segundo plano por
+ * outro motivo (o observador do HealthKit, o fetch) reavalia as regiões e cai aqui. Por
+ * isso isto **não corrige nada sozinho** — devolve candidatos para a caixa de correções,
+ * onde a resposta *"está certo"* vale tanto quanto *"cheguei"*.
+ */
+export interface ChegadaEngolida {
+  placeId: string;
+  at: string;
+}
+
+export function chegadasEngolidas(eventos: readonly PresenceEvent[]): ChegadaEngolida[] {
+  const quantosNoInstante = new Map<string, number>();
+  for (const e of eventos) {
+    const k = e.at.slice(0, 19);
+    quantosNoInstante.set(k, (quantosNoInstante.get(k) ?? 0) + 1);
+  }
+  return eventos
+    .filter(
+      (e) =>
+        e.redundant === true &&
+        e.kind === 'enter' &&
+        e.appState === 'background' &&
+        quantosNoInstante.get(e.at.slice(0, 19)) === 1,
+    )
+    .map((e) => ({ placeId: e.placeId, at: e.at }))
+    .sort((a, b) => b.at.localeCompare(a.at));
+}

@@ -10,6 +10,7 @@ import {
   readRegionStates,
   presenceDay,
   presenceEventId,
+  chegadasEngolidas,
   readPresenceLog,
   summarizePresence,
   vitalsByPlace,
@@ -392,5 +393,45 @@ describe('a corrida entre duas regiões no mesmo instante', () => {
     ]);
     expect(casa).toBe(false);
     expect(trabalho).toBe(false);
+  });
+});
+
+describe('chegadasEngolidas', () => {
+  const ev = (at: string, kind: PresenceEventKind, appState: string, redundant: boolean, placeId = 'casa'): PresenceEvent => ({
+    id: presenceEventId(placeId, kind, at), placeId, kind, at, tz: 'Europe/Brussels', appState, redundant,
+  });
+
+  it('acha o `enter` em background que foi descartado sozinho', () => {
+    const achadas = chegadasEngolidas([
+      ev('2026-10-01T18:20:54.000Z', 'enter', 'background', true),
+    ]);
+    expect(achadas).toEqual([{ placeId: 'casa', at: '2026-10-01T18:20:54.000Z' }]);
+  });
+
+  it('ignora o lote de reavaliação — ele chega em par, no mesmo instante', () => {
+    expect(chegadasEngolidas([
+      ev('2026-10-01T18:33:52.739Z', 'enter', 'inactive', true, 'casa'),
+      ev('2026-10-01T18:33:52.740Z', 'exit', 'inactive', true, 'trabalho'),
+    ])).toEqual([]);
+  });
+
+  it('ignora o que foi entregue com o app na tela: aí é reavaliação de lançamento', () => {
+    expect(chegadasEngolidas([ev('2026-09-07T08:08:00.000Z', 'enter', 'active', true)])).toEqual([]);
+  });
+
+  it('ignora travessia já contada — ela não precisa de correção', () => {
+    expect(chegadasEngolidas([ev('2026-10-01T18:20:54.000Z', 'enter', 'background', false)])).toEqual([]);
+  });
+
+  it('ignora saída: o que a corrida engolia era chegada', () => {
+    expect(chegadasEngolidas([ev('2026-10-01T18:20:54.000Z', 'exit', 'background', true)])).toEqual([]);
+  });
+
+  it('devolve da mais recente para a mais antiga', () => {
+    const r = chegadasEngolidas([
+      ev('2026-09-17T16:29:00.000Z', 'enter', 'background', true),
+      ev('2026-10-01T18:20:54.000Z', 'enter', 'background', true),
+    ]);
+    expect(r.map((x) => x.at.slice(0, 10))).toEqual(['2026-10-01', '2026-09-17']);
   });
 });

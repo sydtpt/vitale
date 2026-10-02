@@ -49,6 +49,12 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth.store';
 import { mensagemDeErro } from '../lib/erro';
+import {
+  confirmarQueEstaCerto,
+  duvidasDaPresenca,
+  registrarChegada,
+  type Duvida,
+} from '../services/presence-correcoes';
 import { Segmented } from '../components/ui/Segmented';
 import { colors, fonts, moduleColors, radii, spacing, themed, useTheme } from '../theme';
 
@@ -60,6 +66,15 @@ const JANELAS: { key: Janela; label: string; dias: number | null }[] = [
   { key: '90d', label: '90d', dias: 90 },
   { key: 'tudo', label: 'Tudo', dias: null },
 ];
+
+/** Hora local do instante, como a lista de eventos a escreve. */
+function hhmm(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function dataCurta(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
 
 /** Horas com uma casa, e vírgula — nunca "4.2". */
 function h(n: number | null): string {
@@ -93,6 +108,8 @@ export default function PresencaScreen() {
   const [lugares, setLugares] = useState<Lugar[] | null>(null);
   const [detalhe, setDetalhe] = useState<DetalheDaPresenca | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [duvidas, setDuvidas] = useState<Duvida[]>([]);
+  const [respondendo, setRespondendo] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     const userId = useAuthStore.getState().user?.id;
@@ -126,6 +143,7 @@ export default function PresencaScreen() {
       const trabalho = ls.find((l) => l.kind === 'work')?.identidade;
       const dias = diasDePresenca(visitas, { casa: 'casa', tz, rollup });
       setDetalhe(buildPresenceDetail(dias, rollup, { casa: 'casa', trabalho }));
+      setDuvidas(await duvidasDaPresenca());
     } catch (e) {
       setErro(mensagemDeErro(e));
     }
@@ -158,6 +176,20 @@ export default function PresencaScreen() {
       ano,
     };
   }, [detalhe, janela]);
+
+  const responder = useCallback(
+    (d: Duvida, cheguei: boolean) => {
+      const userId = useAuthStore.getState().user?.id;
+      if (!userId) return;
+      setRespondendo(d.chave);
+      const acao = cheguei ? registrarChegada(userId, d) : confirmarQueEstaCerto(d.chave);
+      acao
+        .then(() => carregar())
+        .catch((e: unknown) => setErro(mensagemDeErro(e)))
+        .finally(() => setRespondendo(null));
+    },
+    [carregar],
+  );
 
   const casa = moduleColors('casa');
   const corCasa = casa.accent;
@@ -365,6 +397,65 @@ export default function PresencaScreen() {
               </View>
             </View>
 
+            {/* a caixa de correções */}
+            {duvidas.length > 0 ? (
+              <View style={[styles.card, { borderColor: casa.tint }]}>
+                <View style={styles.cardHead}>
+                  <Text style={styles.cardTitle}>
+                    {duvidas.length === 1 ? 'Uma coisa para conferir' : `${duvidas.length} coisas para conferir`}
+                  </Text>
+                </View>
+                <Text style={styles.cardNota}>
+                  o app levanta a dúvida; quem responde é você
+                </Text>
+                {duvidas.slice(0, 6).map((d) => (
+                  <View key={d.chave} style={styles.duvida}>
+                    <Text style={styles.duvidaTitulo}>
+                      {d.motivo === 'descartada'
+                        ? `A chegada de ${dataCurta(d.ate)} não foi contada.`
+                        : `Falta uma borda em ${dataCurta(d.ate)} · ${d.lugar}.`}
+                    </Text>
+                    <Text style={styles.duvidaSub}>
+                      {d.chegadaProposta && d.saidaProposta
+                        ? `Há um registro às ${hhmm(d.chegadaProposta)} que o app descartou. Você teria saído às ${hhmm(d.saidaProposta)}.`
+                        : `Entre ${hhmm(d.de)} e ${hhmm(d.ate)} o aparelho perdeu uma travessia.`}
+                    </Text>
+                    <View style={styles.duvidaBotoes}>
+                      {d.chegadaProposta && d.saidaProposta ? (
+                        <Pressable
+                          onPress={() => responder(d, true)}
+                          disabled={respondendo !== null}
+                          style={({ pressed }) => [
+                            styles.botaoPrimario,
+                            { backgroundColor: corCasa },
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          {respondendo === d.chave ? (
+                            <ActivityIndicator size="small" color={casa.onAccent} />
+                          ) : (
+                            <Text style={[styles.botaoPrimarioTexto, { color: casa.onAccent }]}>
+                              Cheguei {hhmm(d.chegadaProposta)}
+                            </Text>
+                          )}
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        onPress={() => responder(d, false)}
+                        disabled={respondendo !== null}
+                        style={({ pressed }) => [styles.botaoSecundario, pressed && { opacity: 0.7 }]}
+                      >
+                        <Text style={styles.botaoSecundarioTexto}>Está certo</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+                {duvidas.length > 6 ? (
+                  <Text style={styles.cardNota}>e mais {duvidas.length - 6}.</Text>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* rodapé honesto */}
             <Text style={styles.rodape}>
               {h(visao.emCasaH)} em casa
@@ -473,5 +564,20 @@ const styles = themed(() =>
       lineHeight: 17,
     },
     vazio: { fontSize: 13, color: colors.ink3, lineHeight: 19 },
+    duvida: { paddingTop: spacing.md, marginTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
+    duvidaTitulo: { fontSize: 13, color: colors.ink, lineHeight: 19 },
+    duvidaSub: { fontSize: 12, color: colors.ink2, lineHeight: 18, marginTop: 3 },
+    duvidaBotoes: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+    botaoPrimario: { flex: 1, paddingVertical: 10, borderRadius: radii.md, alignItems: 'center' },
+    botaoPrimarioTexto: { fontSize: 13, fontWeight: '600' },
+    botaoSecundario: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: radii.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    botaoSecundarioTexto: { fontSize: 13, color: colors.ink2 },
   }),
 );
