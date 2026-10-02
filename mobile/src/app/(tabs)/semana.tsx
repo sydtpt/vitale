@@ -1,15 +1,19 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { activityDays, activityRecap, buildPeriodRecap, buildWeek, buildWeekHighlights, countRecap, DIAS_ABREV_SEG, localDateStr, metricRecap, readinessInputsByDay, readinessSeries, type HealthHighlightInput, type HighlightIcon, weekDatesOf, wellnessSummary } from '@vitale/shared';
-import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../theme';
+import { activityDays, activityRecap, buildPeriodRecap, buildWeek, buildWeekHighlights, countRecap, DIAS_ABREV_SEG, localDateStr, metricRecap, readinessInputsByDay, readinessSeries, type HealthHighlightInput, type HighlightIcon, weekDatesOf, wellnessSummary,
+  buildPresenceDetail, diasDePresenca, fetchLugares, fetchPlaceDays, fetchVisitas,
+  rollupDoBanco, visitasDoBanco, type BarraDoDia } from '@vitale/shared';
+import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
 import { useTabBarScroll } from '../../lib/tab-bar-scroll';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { useActivitiesStore } from '../../store/activities.store';
 import { useHabitsStore } from '../../store/habits.store';
+import { useAuthStore } from '../../store/auth.store';
+import { supabase } from '../../lib/supabase';
 import { useHealthDailyStore } from '../../store/health-daily.store';
 import { usePlannedWorkoutsStore } from '../../store/planned-workouts.store';
 import { useRegistrosStore } from '../../store/registros.store';
@@ -83,6 +87,58 @@ export default function SemanaScreen() {
   const weekDates = useMemo(() => weekDatesOf(), []);
   const todayStr = localDateStr();
   const todayIdx = weekDates.indexOf(todayStr);
+
+  /**
+   * A semana em presença — só o que a faixa precisa.
+   *
+   * Carrega por si porque `place_days` é tabela nova e a janela é a da semana corrente.
+   * Lista vazia enquanto carrega **e** quando não há nada medido: o cartão só aparece
+   * quando tem o que dizer, como o bloco da Retrospectiva.
+   */
+  const [presenca, setPresenca] = useState<BarraDoDia[]>([]);
+  const [semSairNaSemana, setSemSairNaSemana] = useState(0);
+  useEffect(() => {
+    const uid = useAuthStore.getState().user?.id;
+    if (!uid || weekDates.length === 0) return;
+    let vivo = true;
+    const de = weekDates[0]!;
+    const ate = weekDates[weekDates.length - 1]!;
+    // Um dia antes: o pareamento precisa da travessia que abriu a semana.
+    const antes = new Date(`${de}T12:00:00Z`);
+    antes.setUTCDate(antes.getUTCDate() - 1);
+    void (async () => {
+      try {
+        const ls = await fetchLugares(supabase, uid);
+        const [vs, ds] = await Promise.all([
+          fetchVisitas(supabase, uid, antes.toISOString().slice(0, 10), ate),
+          fetchPlaceDays(supabase, uid, de, ate),
+        ]);
+        if (!vivo) return;
+        const rollup = rollupDoBanco(ds);
+        if (rollup.length === 0) return;
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+        const dias = diasDePresenca(
+          visitasDoBanco(vs, new Map(ls.map((l) => [l.id, l.identidade]))),
+          { casa: 'casa', tz, rollup, de, ate },
+        );
+        const d = buildPresenceDetail(dias, rollup, { casa: 'casa' });
+        setPresenca(d.foraDeCasa.barras);
+        setSemSairNaSemana(d.contagem.semSair);
+      } catch {
+        // Sem rede, a faixa some. A Semana não publica cartão com erro dentro.
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [weekDates]);
+
+  const casa = moduleColors('casa');
+
+  const maiorForaNaSemana = useMemo(
+    () => Math.max(1, ...presenca.map((b) => b.horas)),
+    [presenca],
+  );
 
   const visible = useMemo(() => allActs.filter((a) => !a.hidden), [allActs]);
 
@@ -211,6 +267,49 @@ export default function SemanaScreen() {
                 </View>
               ))}
             </View>
+          </>
+        )}
+
+        {/* Onde você esteve — a faixa de 7 dias (02/10/2026).
+            Leitura de um segundo: a altura é a hora fora de casa, e o dia que ninguém
+            mediu fica VAZADO. Célula vazia não é dia em casa — é a mesma recusa da tela
+            de Presença e do bloco da Retrospectiva. */}
+        {presenca.length > 0 && (
+          <>
+            <SectionLabel>Onde você esteve</SectionLabel>
+            <Pressable onPress={() => router.push('/presenca')} style={[styles.card, styles.pad]}>
+              <View style={styles.presRow}>
+                {weekDates.map((d, i) => {
+                  const c = presenca.find((x) => x.dia === d);
+                  const alt = c && c.horas > 0 ? 6 + (c.horas / maiorForaNaSemana) * 34 : 3;
+                  return (
+                    <View key={d} style={styles.presCol}>
+                      <View style={styles.presTrilho}>
+                        <View
+                          style={[
+                            styles.presBarra,
+                            { height: alt },
+                            !c || c.estado === 'sem-cobertura'
+                              ? styles.presVazado
+                              : { backgroundColor: c.horas > 0 ? casa.accent : casa.tint },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.presDia, i === todayIdx && styles.presDiaHoje]}>
+                        {DIAS_ABREV_SEG[i]}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <Text style={styles.presNota}>
+                {semSairNaSemana === 0
+                  ? 'Você saiu de casa todos os dias medidos.'
+                  : semSairNaSemana === 1
+                    ? 'Um dia sem sair de casa.'
+                    : `${semSairNaSemana} dias sem sair de casa.`}
+              </Text>
+            </Pressable>
           </>
         )}
 
@@ -377,6 +476,14 @@ const createStyles = () => StyleSheet.create({
 
   heatRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   heatLabel: { width: 90, fontSize: 11, color: colors.ink2, fontFamily: fonts.sansMedium },
+  presRow: { flexDirection: 'row', gap: 6, alignItems: 'flex-end' },
+  presCol: { flex: 1, alignItems: 'center', gap: 6 },
+  presTrilho: { height: 40, justifyContent: 'flex-end' },
+  presBarra: { width: '100%', borderRadius: 4, minWidth: 10 },
+  presVazado: { borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed' },
+  presDia: { fontSize: 10, fontFamily: fonts.mono, color: colors.ink3 },
+  presDiaHoje: { color: colors.ink, fontFamily: fonts.monoBold },
+  presNota: { fontSize: 12, fontFamily: fonts.sans, color: colors.ink2, marginTop: 10 },
   heatCells: { flex: 1, flexDirection: 'row', gap: 4 },
   heatCell: { flex: 1, height: 22, borderRadius: 6 },
   heatToday: { borderWidth: 1.5, borderColor: colors.ink },
