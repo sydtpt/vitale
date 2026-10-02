@@ -28,6 +28,18 @@ export interface PresencePlace {
    */
   remoteId?: string;
   /**
+   * O papel do lugar: `home`, `work`, `gym`, `grocery`, `food`, `culture`, `other`.
+   *
+   * Ele **não** é adivinhado desde 02/10/2026. A primeira versão chutava pelo nome e o
+   * Trabalho nasceu `other` — a tela procura o escritório por `work`, e os dois números
+   * dele ficaram mudos. Mudo é pior que ausente: parece defeito de dado, e manda a
+   * investigação para o lugar errado.
+   *
+   * Ausente nos lugares criados antes desta coluna existir; aí o mapa de nomes ainda
+   * serve de palpite, e a tela mostra qual papel foi escolhido.
+   */
+  kind?: string;
+  /**
    * Identidade do lugar no banco — o que **atravessa mudança de endereço**.
    *
    * `casa`, `escritorio`, `academia`. É por ela que a métrica agrega: trocar de casa

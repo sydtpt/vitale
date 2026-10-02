@@ -153,9 +153,11 @@
   uma das seis anomalias é falso positivo. Conferida no iPhone.
 - [ ] T4.1 — Cartão na Semana: faixa de 7 dias com as horas fora de casa. Leitura de um
   segundo.
-- [ ] T4.1b — **O papel do lugar no editor.** Hoje `kind` é adivinhado por um mapa de
-  nomes, e vai calar de novo num lugar que o mapa não conhece. É a dívida mais próxima de
-  virar sintoma.
+- [x] T4.1b — **O papel do lugar é escolhido, não adivinhado** (02/10): sete chips no
+  editor de local, no vocabulário fechado que o banco cobra. A escolha do dono ganha do
+  mapa de nomes, que fica só para os lugares cadastrados antes do campo existir. Fecha a
+  dívida que tinha acabado de virar sintoma — o Trabalho nascendo `other` e a tela
+  mostrando dois traços.
 - [ ] T4.1c — As **testemunhas do banco** (sono e atividade com rota) na caixa: já existem
   em `contradicoes()`, falta a tela lê-las.
 - [ ] T4.2 — Tela de Presença pelo Mais (não na barra — lugar é dimensão, não módulo).

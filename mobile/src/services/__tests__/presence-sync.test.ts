@@ -132,6 +132,18 @@ describe('sincronizarPresenca', () => {
     expect(banco.criados[0]).toMatchObject({ identidade: 'trabalho', kind: 'work' });
   });
 
+  it('o papel ESCOLHIDO pelo dono ganha do palpite do mapa', async () => {
+    aparelho.lugares = [
+      { id: 'local-x', name: 'Padaria do Zé', lat: 50.8, lon: 4.4, radiusM: 150, kind: 'food' },
+    ];
+    aparelho.log = [
+      evento('2026-09-10T08:00:00.000Z', 'local-x', 'enter'),
+      evento('2026-09-10T09:00:00.000Z', 'local-x', 'exit'),
+    ];
+    await sincronizarPresenca(U);
+    expect(banco.criados[0]!['kind']).toBe('food');
+  });
+
   it('identidade que o mapa não conhece vira "other", que é o honesto para "não sei"', async () => {
     aparelho.lugares = [{ id: 'local-x', name: 'Padaria do Zé', lat: 50.8, lon: 4.4, radiusM: 150 }];
     aparelho.log = [

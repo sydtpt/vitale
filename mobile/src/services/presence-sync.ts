@@ -57,16 +57,15 @@ export interface ResumoDaPresenca {
 }
 
 /**
- * Palpite do papel do lugar a partir da identidade.
+ * Palpite do papel, **só para quem foi cadastrado antes de o campo existir**.
  *
- * Existe porque a primeira versão chutava `home` para a casa e **`other` para todo o
- * resto** — e o Trabalho nasceu `other`. A tela procura o escritório por `kind = 'work'`,
- * então os dois números dele apareciam vazios: implementados e mudos, que é pior do que
- * ausentes, porque parecem um defeito de dado.
+ * Desde 02/10/2026 o editor de local pergunta o papel, e a escolha do dono ganha deste
+ * mapa. Ele fica para os lugares antigos, que não têm `kind` gravado.
  *
- * O mapa é pequeno e deliberadamente burro: ele acerta o caso comum e erra para `other`,
- * que é o valor honesto para "não sei". **A resposta de verdade é o dono escolher o papel
- * ao cadastrar o lugar** — enquanto essa tela não existe, isto evita o silêncio.
+ * Nasceu de um defeito: a primeira versão chutava `home` para a casa e `other` para todo
+ * o resto, o Trabalho nasceu `other`, e a tela — que procura o escritório por `work` —
+ * mostrou dois traços. **Mudo é pior que ausente**: parece defeito de dado e manda a
+ * investigação para o lugar errado.
  */
 function kindDaIdentidade(identidade: string): string {
   const i = identidade.toLowerCase();
@@ -142,7 +141,9 @@ async function casarLugares(
           ...p,
           remoteId: await criarLugar(supabase, userId, {
             identidade: p.identidade!,
-            kind: kindDaIdentidade(p.identidade!),
+            // O papel escolhido pelo dono ganha do palpite. O mapa só atende os lugares
+            // cadastrados antes de a coluna existir — e `other` é o honesto para "não sei".
+            kind: p.kind ?? kindDaIdentidade(p.identidade!),
             label: p.name,
             lat: p.lat,
             lng: p.lon,
