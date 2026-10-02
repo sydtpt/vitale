@@ -43,7 +43,10 @@ import {
   dismissPhoto,
   dismissPhotos,
   autoLinkCorridor,
+  deletePhotosFromLibrary,
   healPointers,
+  listHiddenPhotos,
+  restorePhotos,
   saveDecisions,
   scanActivity,
   setCover,
@@ -145,6 +148,23 @@ export function ActivityPhotosCard({ activity, points: rawPoints, view, onShareP
   const [access, setAccess] = useState<PhotoAccess>('full');
   const [scanning, setScanning] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  /** As escondidas que ainda existem no iPhone — a linha "Mostrar" da galeria. */
+  const [hidden, setHidden] = useState<ActivityPhoto[]>([]);
+  /** Com acesso limitado o iOS não deixa apagar; a galeria explica em vez de falhar. */
+  const [deleteAccess, setDeleteAccess] = useState<PhotoAccess>('full');
+  const loadHidden = useCallback(async () => {
+    if (!userId) return;
+    try {
+      setDeleteAccess(await currentPhotoAccess());
+      setHidden(await listHiddenPhotos(userId, activity.id));
+    } catch {
+      // A linha das escondidas é um caminho de volta, não um dado da tela:
+      // sem ela a galeria abre igual.
+    }
+  }, [userId, activity.id]);
+  useEffect(() => {
+    if (galleryOpen) void loadHidden();
+  }, [galleryOpen, loadHidden]);
   /** O que a varredura automática deixou para ele olhar — ver `autoLinkCorridor`. */
   const [rest, setRest] = useState<ScanResult | null>(null);
   const pendingCount = rest?.candidates.length ?? 0;
@@ -308,9 +328,10 @@ export function ActivityPhotosCard({ activity, points: rawPoints, view, onShareP
   /**
    * Toque longo numa miniatura.
    *
-   * "Desligar da pedalada" é a palavra certa, e não "excluir": o app não é dono
-   * do arquivo. Oferecer "Ver no app Fotos" logo acima torna isso explícito —
-   * a foto continua lá, inteira, depois de desligada.
+   * "Esconder da pedalada" é a palavra certa, e não "excluir": aqui o arquivo
+   * fica. Oferecer "Ver no app Fotos" logo acima torna isso explícito — a foto
+   * continua lá, inteira, depois de escondida. (Era "Desligar" até 03/10/2026;
+   * apagar do iPhone é outra ação, e mora na galeria.)
    */
   const onLongPress = useCallback(
     (photoId: string, assetId: string | null) => {
@@ -336,7 +357,7 @@ export function ActivityPhotosCard({ activity, points: rawPoints, view, onShareP
           },
         },
         {
-          text: 'Desligar da pedalada',
+          text: 'Esconder da pedalada',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -590,11 +611,44 @@ export function ActivityPhotosCard({ activity, points: rawPoints, view, onShareP
           try {
             await dismissPhotos(userId, ids);
             await reload();
+            await loadHidden();
           } catch (e) {
             Alert.alert(
-              'Não consegui desligar',
+              'Não consegui esconder',
               e instanceof Error ? e.message : String(e),
             );
+          }
+        }}
+        hidden={hidden}
+        onRestore={async (ids) => {
+          if (!userId) return;
+          try {
+            await restorePhotos(userId, ids);
+            await reload();
+            await loadHidden();
+          } catch (e) {
+            Alert.alert(
+              'Não consegui devolver a foto',
+              e instanceof Error ? e.message : String(e),
+            );
+          }
+        }}
+        deleteAccess={deleteAccess}
+        onOpenSettings={() => void Linking.openSettings()}
+        onDelete={async (ids) => {
+          if (!userId) return 0;
+          try {
+            const r = await deletePhotosFromLibrary(
+              userId,
+              photos.filter((p) => ids.includes(p.id)),
+            );
+            if (r.deleted > 0) await reload();
+            return r.deleted;
+          } catch (e) {
+            // Nunca engolir: o iOS trata o pedido como um bloco, e um erro aqui
+            // significa que NADA foi apagado — a tela tem de dizer.
+            Alert.alert('Não consegui apagar', e instanceof Error ? e.message : String(e));
+            return 0;
           }
         }}
       />

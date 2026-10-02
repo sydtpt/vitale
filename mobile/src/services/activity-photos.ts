@@ -41,6 +41,7 @@ import {
   type ActivityPhoto,
   type ActivityPhotoWrite,
   type ActivityRoutePoint,
+  fetchActivityPhotos,
   fetchDecidedInstants,
   fetchRoutePoints,
   markPhotosChecked,
@@ -49,6 +50,7 @@ import {
   setPhotoCover as setPhotoCoverRow,
   setPhotoDismissed,
   setPhotosDismissed,
+  setPhotosLinked,
   upsertActivityPhotos,
 } from '@vitale/shared';
 import {
@@ -418,14 +420,93 @@ export async function saveDecisions(
   return { linked: accepted.length, dismissed: rejected.length };
 }
 
-/** Desliga várias fotos de uma vez — a limpeza depois da ligação em massa. */
+/** Esconde várias fotos de uma vez — a limpeza depois da ligação em massa. */
 export async function dismissPhotos(userId: string, photoIds: readonly string[]): Promise<void> {
   await setPhotosDismissed(supabase, userId, photoIds);
 }
 
-/** Desliga uma foto já ligada. Nunca apaga o arquivo — o app não é dono dele. */
+/** Esconde uma foto já ligada. O arquivo fica no iPhone — apagar é `deletePhotosFromLibrary`. */
 export async function dismissPhoto(userId: string, photoId: string): Promise<void> {
   await setPhotoDismissed(supabase, userId, photoId);
+}
+
+/** Devolve fotos escondidas à pedalada — o "Mostrar" do fim da galeria. */
+export async function restorePhotos(userId: string, photoIds: readonly string[]): Promise<void> {
+  await setPhotosLinked(supabase, userId, photoIds);
+}
+
+/** A mídia ainda está na biblioteca? Quem foi para "Apagados" não resolve mais. */
+async function existsInLibrary(assetId: string | null): Promise<boolean> {
+  if (!assetId) return false;
+  try {
+    await new Asset(assetId).getCreationTime();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * As fotos escondidas de uma pedalada que **ainda existem** no iPhone.
+ *
+ * `dismissed` guarda duas histórias com o mesmo estado: a foto que o dono
+ * escondeu e a que ele apagou. Só a primeira tem volta, e o que as separa é a
+ * biblioteca, não o banco — a apagada não resolve mais. Recuperada dos
+ * "Apagados" do app Fotos, ela volta a resolver e reaparece aqui sozinha.
+ *
+ * Sem acesso total não dá para separar: o acesso limitado faz toda foto não
+ * escolhida *parecer* apagada (a mesma razão do `healPointers`). Aí vêm todas,
+ * e a que não existe mais mostra a lacuna.
+ */
+export async function listHiddenPhotos(userId: string, activityId: string): Promise<ActivityPhoto[]> {
+  const all = await fetchActivityPhotos(supabase, userId, activityId);
+  const hidden = all.filter((p) => p.state === 'dismissed');
+  if (hidden.length === 0 || (await currentPhotoAccess()) !== 'full') return hidden;
+  const out: ActivityPhoto[] = [];
+  for (const p of hidden) {
+    if (await existsInLibrary(p.assetId)) out.push(p);
+  }
+  return out;
+}
+
+/** O dono tocou "Não Permitir" no alerta do sistema (`PHPhotosError.userCancelled`). */
+function isUserCancel(e: unknown): boolean {
+  return /3072|cancel/i.test(e instanceof Error ? e.message : String(e));
+}
+
+/**
+ * Apaga as mídias **da biblioteca do iPhone**, e as tira da pedalada.
+ *
+ * É a exceção consciente à ADR 0037 ("o app não é dono do arquivo"): o app
+ * continua sem apagar nada sozinho, e apaga quando o dono pede — com o alerta do
+ * iOS no meio, que é obrigatório e não dá para suprimir. Por isso é **uma
+ * chamada para o lote inteiro**: uma por foto seriam N alertas.
+ *
+ * O pedido é atômico no PhotoKit (ou vão todas, ou nenhuma), então a ordem
+ * importa: primeiro a biblioteca, depois o banco. Recusado ou falho, nada é
+ * escondido e a seleção continua de pé na tela.
+ *
+ * O arquivo vai para "Apagados" e fica 30 dias lá — o espaço só libera quando
+ * a pasta for esvaziada, e isso nenhum app faz pelo dono.
+ */
+export async function deletePhotosFromLibrary(
+  userId: string,
+  photos: readonly Pick<ActivityPhoto, 'id' | 'assetId'>[],
+): Promise<{ deleted: number; cancelled: boolean }> {
+  const withFile = photos.filter((p) => !!p.assetId);
+  if (withFile.length === 0) return { deleted: 0, cancelled: false };
+  try {
+    await Asset.delete(withFile.map((p) => new Asset(p.assetId as string)));
+  } catch (e) {
+    if (isUserCancel(e)) return { deleted: 0, cancelled: true };
+    throw e;
+  }
+  await setPhotosDismissed(
+    supabase,
+    userId,
+    withFile.map((p) => p.id),
+  );
+  return { deleted: withFile.length, cancelled: false };
 }
 
 /** Define a capa da atividade — a foto que o cartão de compartilhar abre. */

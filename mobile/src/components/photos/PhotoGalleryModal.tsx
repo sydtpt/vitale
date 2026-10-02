@@ -24,6 +24,8 @@ import {
   Image,
   Animated,
   ActivityIndicator,
+  Alert,
+  Linking,
   useWindowDimensions,
 } from 'react-native';
 import {
@@ -36,12 +38,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ActivityPhoto } from '@vitale/shared';
-import { colors, fonts, onMedia, radii, spacing, useThemedStyles } from '../../theme';
+import { colors, fonts, mediaVeil, onMedia, radii, roleColors, spacing, useThemedStyles } from '../../theme';
 import { useAssetUri } from '../../hooks/useAssetUri';
 import { formatClip } from '../../lib/workout-format';
+import { selectionSummary } from '../../lib/activity-photos';
 
 /** Colunas da grade. Três dá miniatura legível sem virar contato-prova. */
 const COLS = 3;
+
+/**
+ * O coral de "apagar" sobre o visor. O visor é escuro nos dois esquemas, então
+ * a cor não responde ao tema — mesma isenção de `onMedia`.
+ */
+const ON_MEDIA_DANGER = 'rgb(255,154,138)';
 
 function hhmm(ms: number): string {
   return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -60,6 +69,7 @@ function GridTile({
   onLongPress,
   selecting,
   selected,
+  dimmed = false,
 }: {
   photo: ActivityPhoto;
   size: number;
@@ -67,6 +77,8 @@ function GridTile({
   onLongPress?: () => void;
   selecting: boolean;
   selected: boolean;
+  /** Escondida: fora da pedalada, ainda no iPhone. */
+  dimmed?: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
   const isVideo = photo.mediaType === 'video';
@@ -74,7 +86,12 @@ function GridTile({
   const box = { width: size, height: size };
 
   return (
-    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={280} style={[box, styles.tile]}>
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={280}
+      style={[box, styles.tile, dimmed && styles.tileDim]}
+    >
       {typeof uri === 'string' ? (
         <Image source={{ uri }} style={styles.tileImg} />
       ) : uri === null ? (
@@ -126,6 +143,9 @@ function Viewer({
   onCover,
   onDismiss,
   onOpenActivity,
+  marked,
+  onToggleMark,
+  onDeleteMarked,
   sharing = false,
 }: {
   photos: ActivityPhoto[];
@@ -135,11 +155,22 @@ function Viewer({
   onCover?: (photo: ActivityPhoto) => void;
   onDismiss?: (photo: ActivityPhoto) => void;
   /**
+   * Marcar para apagar do iPhone — **marca agora, apaga no fim**.
+   *
+   * Cada pedido de apagar dispara um alerta do iOS, e é no visor que se escolhe
+   * a melhor de uma rajada (39% das fotos dele foram tiradas até 10 s depois da
+   * anterior). Apagar na hora daria um alerta por foto; aqui a lixeira só
+   * marca, e a pílula do alto faz o pedido único.
+   */
+  marked?: ReadonlySet<string>;
+  onToggleMark?: (photo: ActivityPhoto) => void;
+  onDeleteMarked?: () => void;
+  /**
    * Ir para a pedalada da foto.
    *
    * É a ação da galeria **de período** (a Retrospectiva), onde as outras três
    * não cabem: compartilhar dali abriria o compositor com o contexto de uma
-   * pedalada que não se está vendo, e capa/desligar são decisões que se toma
+   * pedalada que não se está vendo, e capa/esconder são decisões que se toma
    * dentro do dia, não folheando o mês.
    */
   onOpenActivity?: (photo: ActivityPhoto) => void;
@@ -150,6 +181,26 @@ function Viewer({
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [current, setCurrent] = useState(index);
+  const isMarked = !!marked?.has(photos[current]?.id ?? '');
+  /**
+   * A altura do rodapé, medida — o vídeo termina **acima** dele.
+   *
+   * Os controles nativos do clipe desenham a linha do tempo na base do quadro,
+   * e o rodapé (hora, km e as ações) é uma camada por cima da página inteira:
+   * os ícones cobriam a linha e roubavam o toque, então não dava para avançar
+   * no tempo (conferido por ele no iPhone em 03/10/2026). A foto continua de
+   * tela cheia — nela não há nada para tocar embaixo.
+   */
+  const [footH, setFootH] = useState(0);
+  /**
+   * O clipe que foi **aberto pelo toque** toca sozinho (pedido dele, 03/10/2026).
+   *
+   * Só esse: quem tocou na miniatura de um vídeo quer ver o vídeo. O que se
+   * alcança deslizando continua parado — varrer uma rajada de nove clipes com
+   * cada um começando a falar é o que a regra antiga evitava, e segue valendo.
+   * A marca é gasta ao sair da página, para voltar a ela não tocar de novo.
+   */
+  const autoPlayId = useRef<string | null>(photos[index]?.id ?? null);
 
   /**
    * Arrastar para baixo fecha.
@@ -222,9 +273,11 @@ function Viewer({
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           contentOffset={{ x: index * width, y: 0 }}
-          onMomentumScrollEnd={(e) =>
-            setCurrent(Math.round(e.nativeEvent.contentOffset.x / width))
-          }
+          onMomentumScrollEnd={(e) => {
+            const next = Math.round(e.nativeEvent.contentOffset.x / width);
+            if (photos[next]?.id !== autoPlayId.current) autoPlayId.current = null;
+            setCurrent(next);
+          }}
         >
           {/**
            * **Só as páginas por perto são montadas.**
@@ -243,7 +296,14 @@ function Viewer({
            */}
           {photos.map((p, i) =>
             Math.abs(i - current) <= 2 ? (
-              <ViewerPage key={p.id} photo={p} width={width} active={i === current} />
+              <ViewerPage
+                key={p.id}
+                photo={p}
+                width={width}
+                active={i === current}
+                bottomInset={footH}
+                autoPlay={p.id === autoPlayId.current}
+              />
             ) : (
               <View key={p.id} style={{ width }} />
             ),
@@ -258,7 +318,27 @@ function Viewer({
           <Ionicons name="close" size={22} color={onMedia} />
         </Pressable>
 
-        <View style={[styles.viewerFoot, { paddingBottom: insets.bottom + spacing.lg }]}>
+        {marked && marked.size > 0 && onDeleteMarked && (
+          <Pressable
+            onPress={onDeleteMarked}
+            hitSlop={8}
+            style={[styles.viewerPill, { top: insets.top + spacing.sm }]}
+          >
+            <Ionicons name="trash-outline" size={15} color={mediaVeil} />
+            <Text style={styles.viewerPillText}>Apagar {marked.size}</Text>
+          </Pressable>
+        )}
+        {isMarked && (
+          <View style={[styles.viewerFlag, { top: insets.top + spacing.sm + 34 + spacing.md }]}>
+            <Ionicons name="trash-outline" size={13} color={ON_MEDIA_DANGER} />
+            <Text style={styles.viewerFlagText}>Marcada para apagar</Text>
+          </View>
+        )}
+
+        <View
+          style={[styles.viewerFoot, { paddingBottom: insets.bottom + spacing.lg }]}
+          onLayout={(e) => setFootH(e.nativeEvent.layout.height)}
+        >
           <View style={styles.viewerCtx}>
             <Text style={styles.viewerTime}>{hhmm(photos[current]?.takenAt ?? 0)}</Text>
             {km(photos[current]?.routeDistanceM ?? null) && (
@@ -273,15 +353,15 @@ function Viewer({
            * As ações da foto que se está olhando.
            *
            * As duas últimas já existiam — num toque longo nas miniaturas do
-           * cartão, que o visor não alcançava. Para desligar uma foto que se
+           * cartão, que o visor não alcançava. Para esconder uma foto que se
            * está OLHANDO era preciso fechar o visor, achar a miniatura certa e
            * segurar o dedo nela. É olhando que se decide se a foto fica.
            *
-           * A ordem é deliberada: compartilhar primeiro, desligar por último e
-           * em vermelho, por ser a única com consequência — e mesmo assim
-           * reversível, porque a imagem nunca sai do iPhone.
+           * A ordem é deliberada: compartilhar primeiro, apagar por último e em
+           * coral, por ser a única que tira a imagem do iPhone. "Esconder" era
+           * a vermelha até a lixeira existir; agora é neutra, porque tem volta.
            */}
-          {(onShare || onCover || onDismiss || onOpenActivity) && (
+          {(onShare || onCover || onDismiss || onOpenActivity || onToggleMark) && (
             <View style={styles.viewerActs}>
               {onShare && (
                 <Pressable
@@ -348,8 +428,20 @@ function Viewer({
                     onDismiss(p);
                   }}
                 >
-                  <Ionicons name="remove-circle-outline" size={21} color={styles.actOff.color} />
-                  <Text style={[styles.actText, styles.actOff]}>Desligar</Text>
+                  <Ionicons name="eye-off-outline" size={21} color={onMedia} />
+                  <Text style={styles.actText}>Esconder</Text>
+                </Pressable>
+              )}
+              {onToggleMark && (
+                <Pressable style={styles.act} onPress={() => onToggleMark(photos[current]!)}>
+                  <Ionicons
+                    name={isMarked ? 'trash' : 'trash-outline'}
+                    size={21}
+                    color={ON_MEDIA_DANGER}
+                  />
+                  <Text style={[styles.actText, styles.actOff]}>
+                    {isMarked ? 'Desmarcar' : 'Apagar'}
+                  </Text>
                 </Pressable>
               )}
             </View>
@@ -370,13 +462,25 @@ function ViewerPage({
   photo,
   width,
   active,
+  bottomInset,
+  autoPlay,
 }: {
   photo: ActivityPhoto;
   width: number;
   active: boolean;
+  /** Quanto o rodapé do visor ocupa — só o vídeo precisa desviar dele. */
+  bottomInset: number;
+  /** Este foi o item aberto pelo toque na grade. */
+  autoPlay: boolean;
 }) {
   return photo.mediaType === 'video' ? (
-    <VideoPage photo={photo} width={width} active={active} />
+    <VideoPage
+      photo={photo}
+      width={width}
+      active={active}
+      bottomInset={bottomInset}
+      autoPlay={autoPlay}
+    />
   ) : (
     <PhotoPage photo={photo} width={width} />
   );
@@ -407,8 +511,9 @@ function PhotoPage({ photo, width }: { photo: ActivityPhoto; width: number }) {
  * Picarde, 21/07/2026): 14 `AVPlayer` simultâneos passam do que o iOS
  * decodifica, e garantiriam dois clipes falando ao mesmo tempo.
  *
- * Não toca sozinho, de propósito: chega-se a esta tela varrendo a grade, e um
- * vídeo que começa a falar no meio da curadoria é pior do que um toque a mais.
+ * Só toca sozinho o clipe **aberto pelo toque** (`autoPlay`); o que se alcança
+ * deslizando fica parado, porque um vídeo que começa a falar no meio da
+ * curadoria é pior do que um toque a mais.
  *
  * ## Por que a fonte é `ph://` e entra por `replaceAsync`
  *
@@ -428,10 +533,14 @@ function VideoPage({
   photo,
   width,
   active,
+  bottomInset,
+  autoPlay,
 }: {
   photo: ActivityPhoto;
   width: number;
   active: boolean;
+  bottomInset: number;
+  autoPlay: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
   const player = useVideoPlayer(null);
@@ -445,17 +554,24 @@ function VideoPage({
     if (!photo.assetId) return;
     let alive = true;
     setFailed(false);
-    player.replaceAsync(photo.assetId).catch((err) => {
-      console.warn('[fotos] o clipe não carregou:', String(err));
-      if (alive) setFailed(true);
-    });
+    player
+      .replaceAsync(photo.assetId)
+      .then(() => {
+        if (alive && autoPlay) player.play();
+      })
+      .catch((err) => {
+        console.warn('[fotos] o clipe não carregou:', String(err));
+        if (alive) setFailed(true);
+      });
     return () => {
       alive = false;
     };
+    // `autoPlay` é lido no instante da carga; ele mudar depois não recarrega o clipe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, photo.assetId, player]);
 
   return (
-    <View style={[styles.viewerPage, { width }]}>
+    <View style={[styles.viewerPage, { width, paddingBottom: bottomInset }]}>
       {active && !failed ? (
         <VideoView
           player={player}
@@ -482,6 +598,9 @@ export interface GallerySection {
   photos: ActivityPhoto[];
 }
 
+/** Uma seção da grade — as da pedalada, ou a das escondidas no fim. */
+type GridSection = GallerySection & { data: ActivityPhoto[][]; hidden?: boolean };
+
 interface Props {
   visible: boolean;
   sections: GallerySection[];
@@ -494,8 +613,27 @@ interface Props {
    * tirado as fotos dela.
    */
   onRescan?: () => void;
-  /** Desliga as fotos escolhidas. Nunca apaga arquivo — só a ligação. */
+  /** Esconde as fotos escolhidas. Nunca apaga arquivo — só a ligação. */
   onDismiss?: (photoIds: string[]) => Promise<void> | void;
+  /**
+   * Apaga do iPhone as mídias escolhidas — o alerta do iOS é a única pergunta.
+   * Devolve quantas foram: zero quando o dono recusou, e aí a seleção fica.
+   */
+  onDelete?: (photoIds: string[]) => Promise<number>;
+  /**
+   * Com "Selecionar fotos…" o iOS só deixa apagar o que foi escolhido à mão. O
+   * botão aparece apagado, com a razão escrita, em vez de falhar depois do toque.
+   */
+  deleteAccess?: 'full' | 'limited' | 'denied';
+  onOpenSettings?: () => void;
+  /**
+   * As escondidas que ainda existem no iPhone.
+   *
+   * "Esconder" promete uma volta, e `dismissed` não tinha nenhuma: nem a
+   * varredura traz a foto de novo. A linha quieta no fim da grade é essa volta.
+   */
+  hidden?: ActivityPhoto[];
+  onRestore?: (photoIds: string[]) => Promise<void> | void;
   /**
    * Compartilhar a foto que está no visor.
    *
@@ -531,6 +669,11 @@ export function PhotoGalleryModal({
   onClose,
   onRescan,
   onDismiss,
+  onDelete,
+  deleteAccess = 'full',
+  onOpenSettings,
+  hidden,
+  onRestore,
   onSharePhoto,
   onCover,
   onOpenActivity,
@@ -609,19 +752,98 @@ export function PhotoGalleryModal({
     setPicked(new Set());
   };
 
+  /** Marcadas no visor para apagar — vivem aqui para sobreviver ao fechar dele. */
+  const [marked, setMarked] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
+  /** Quantas acabaram de ser apagadas — o aviso dos 30 dias. */
+  const [deleted, setDeleted] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // A galeria fechada esquece a sessão: marca, seleção e aviso são do momento.
+  useEffect(() => {
+    if (visible) return;
+    setSelecting(false);
+    setPicked(new Set());
+    setMarked(new Set());
+    setShowHidden(false);
+    setDeleted(null);
+  }, [visible]);
+
   /** A ordem plana da grade — é o que o visor percorre ao deslizar. */
   const flat = useMemo(() => sections.flatMap((s) => s.photos), [sections]);
 
+  /**
+   * As escolhidas **que ainda estão na grade**. O conjunto guarda ids, e um id
+   * pode sair da pedalada por outro caminho (o "Esconder" do visor) — contar
+   * pelo conjunto anunciaria uma foto que a tela não mostra mais.
+   */
+  const pickedPhotos = useMemo(() => flat.filter((p) => picked.has(p.id)), [flat, picked]);
+
+  /**
+   * Fechar o visor com fotos marcadas leva as marcas para a seleção da grade,
+   * já escolhidas: decidir e executar ficam separados, e o que foi decidido
+   * olhando não se perde no caminho.
+   */
+  const closeViewer = () => {
+    setViewing(null);
+    if (marked.size === 0) return;
+    setSelecting(true);
+    setPicked(new Set(marked));
+    setMarked(new Set());
+  };
+
+  /**
+   * O pedido único de apagar. Recusado no alerta do iOS (zero de volta), nada
+   * muda e a seleção continua de pé — para tentar de novo, ou só esconder.
+   */
+  const runDelete = async (ids: string[]) => {
+    if (!onDelete || ids.length === 0 || deleting) return;
+    setDeleting(true);
+    try {
+      const n = await onDelete(ids);
+      if (n > 0) {
+        leaveSelection();
+        setDeleted(n);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const askRestore = (p: ActivityPhoto) => {
+    if (!onRestore) return;
+    Alert.alert('Foto escondida', undefined, [
+      { text: 'Voltar para a pedalada', onPress: () => void onRestore([p.id]) },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  };
+
+  const hiddenCount = hidden?.length ?? 0;
+
   /** Cada seção vira linhas de três — a unidade que a `SectionList` virtualiza. */
-  const rows = useMemo(
-    () =>
-      sections.map((s) => {
-        const data: ActivityPhoto[][] = [];
-        for (let i = 0; i < s.photos.length; i += COLS) data.push(s.photos.slice(i, i + COLS));
-        return { ...s, data };
-      }),
-    [sections],
-  );
+  const rows = useMemo(() => {
+    const chunk = (ps: ActivityPhoto[]) => {
+      const data: ActivityPhoto[][] = [];
+      for (let i = 0; i < ps.length; i += COLS) data.push(ps.slice(i, i + COLS));
+      return data;
+    };
+    const out: GridSection[] = sections.map((s) => ({ ...s, data: chunk(s.photos) }));
+    // As escondidas entram como a última seção: o cabeçalho dela é a linha
+    // quieta, e as fotos só aparecem depois do "Mostrar".
+    if (hidden && hidden.length > 0) {
+      out.push({
+        key: 'hidden',
+        title: '',
+        subtitle: '',
+        photos: hidden,
+        data: showHidden ? chunk(hidden) : [],
+        hidden: true,
+      });
+    }
+    return out;
+  }, [sections, hidden, showHidden]);
+
+  const barUp = (selecting && pickedPhotos.length > 0) || (!selecting && deleted !== null);
 
   const gap = 3;
   const size = Math.floor((width - spacing.lg * 2 - gap * (COLS - 1)) / COLS);
@@ -648,9 +870,9 @@ export function PhotoGalleryModal({
                 <Text style={styles.headAction}>Cancelar</Text>
               </Pressable>
               <Text style={styles.galleryTitle}>
-                {picked.size === 0
+                {pickedPhotos.length === 0
                   ? 'Escolha as fotos'
-                  : `${picked.size} ${picked.size === 1 ? 'escolhida' : 'escolhidas'}`}
+                  : `${pickedPhotos.length} ${pickedPhotos.length === 1 ? 'escolhida' : 'escolhidas'}`}
               </Text>
               <Pressable onPress={() => setPicked(new Set(flat.map((p) => p.id)))} hitSlop={12}>
                 <Text style={[styles.headAction, styles.headActionRight]}>Tudo</Text>
@@ -690,31 +912,66 @@ export function PhotoGalleryModal({
         <SectionList
           sections={rows}
           keyExtractor={(row) => row[0]?.id ?? String(Math.random())}
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              <Text style={styles.sectionSub}>{section.subtitle}</Text>
-            </View>
-          )}
+          renderSectionHeader={({ section }) =>
+            section.hidden ? (
+              /**
+               * Uma linha, sem seção, contador no cabeçalho nem cor: escondida
+               * não é pendência. Some durante a seleção, que é sobre as ligadas.
+               */
+              selecting ? null : (
+                <Pressable style={styles.hiddenRow} onPress={() => setShowHidden((v) => !v)}>
+                  <Ionicons name="eye-off-outline" size={15} color={colors.ink3} />
+                  <Text style={styles.hiddenText}>
+                    {hiddenCount === 1
+                      ? '1 escondida nesta pedalada'
+                      : `${hiddenCount} escondidas nesta pedalada`}
+                  </Text>
+                  <Text style={styles.hiddenAction}>{showHidden ? 'Ocultar' : 'Mostrar'}</Text>
+                </Pressable>
+              )
+            ) : (
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <Text style={styles.sectionSub}>{section.subtitle}</Text>
+              </View>
+            )
+          }
           renderItem={({ item, section }) => (
             <View style={[styles.grid, { gap }]}>
-              {item.map((p) => (
-                <GridTile
-                  key={p.id}
-                  photo={p}
-                  size={size}
-                  selecting={selecting}
-                  selected={picked.has(p.id)}
-                  onPress={() =>
-                    selecting ? toggle(p.id) : setViewing(flat.findIndex((f) => f.id === p.id))
-                  }
-                  onLongPress={() => {
-                    if (!onDismiss) return;
-                    setSelecting(true);
-                    setPicked(new Set([p.id]));
-                  }}
-                />
-              ))}
+              {item.map((p) =>
+                section.hidden ? (
+                  // Toque e toque longo fazem o mesmo: aqui não há visor para
+                  // abrir, e um toque que não faz nada parece defeito.
+                  selecting ? null : (
+                    <GridTile
+                      key={p.id}
+                      photo={p}
+                      size={size}
+                      selecting={false}
+                      selected={false}
+                      dimmed
+                      onPress={() => askRestore(p)}
+                      onLongPress={() => askRestore(p)}
+                    />
+                  )
+                ) : (
+                  <GridTile
+                    key={p.id}
+                    photo={p}
+                    size={size}
+                    selecting={selecting}
+                    selected={picked.has(p.id)}
+                    onPress={() =>
+                      selecting ? toggle(p.id) : setViewing(flat.findIndex((f) => f.id === p.id))
+                    }
+                    onLongPress={() => {
+                      if (!onDismiss) return;
+                      setSelecting(true);
+                      setPicked(new Set([p.id]));
+                    }}
+                  />
+                ),
+              )}
               {/* Preenche a última linha para os quadros não esticarem. */}
               {item.length < COLS &&
                 Array.from({ length: COLS - item.length }, (_, k) => (
@@ -722,7 +979,12 @@ export function PhotoGalleryModal({
                 ))}
             </View>
           )}
-          contentContainerStyle={[styles.galleryBody, { paddingBottom: insets.bottom + spacing.xl }]}
+          contentContainerStyle={[
+            styles.galleryBody,
+            // Com a barra de baixo de pé, a última linha — onde moram as
+            // escondidas — precisa de chão para rolar até acima dela.
+            { paddingBottom: insets.bottom + spacing.xl + (barUp ? 170 : 0) },
+          ]}
           showsVerticalScrollIndicator={false}
           initialNumToRender={6}
           windowSize={5}
@@ -730,22 +992,76 @@ export function PhotoGalleryModal({
           stickySectionHeadersEnabled={false}
         />
 
-        {selecting && picked.size > 0 && (
+        {/**
+         * Dois destinos, e a barra diz o que cada um faz.
+         *
+         * "Esconder" segue sendo o botão cheio: é a ação que tem volta e a mais
+         * usada. "Apagar" entra em contorno, no vermelho da paleta — visível,
+         * mas não é para onde o dedo cai. O Orbe não pergunta "tem certeza?":
+         * o alerta do iOS é obrigatório e já mostra as miniaturas.
+         */}
+        {selecting && pickedPhotos.length > 0 && (
           <View style={[styles.actionBar, { paddingBottom: insets.bottom + spacing.md }]}>
+            {onDelete && <Text style={styles.barSummary}>{selectionSummary(pickedPhotos)}</Text>}
             <Pressable
               style={styles.dismissBtn}
               onPress={async () => {
-                const ids = [...picked];
+                const ids = pickedPhotos.map((p) => p.id);
                 leaveSelection();
                 await onDismiss?.(ids);
               }}
             >
-              <Ionicons name="remove-circle-outline" size={17} color={onMedia} />
-              <Text style={styles.dismissText}>
-                Desligar {picked.size} {picked.size === 1 ? 'foto' : 'fotos'}
-              </Text>
+              <Ionicons name="eye-off-outline" size={17} color={onMedia} />
+              <Text style={styles.dismissText}>Esconder da pedalada</Text>
             </Pressable>
-            <Text style={styles.dismissHint}>As imagens continuam no seu iPhone.</Text>
+            {onDelete &&
+              (deleteAccess === 'full' ? (
+                <Pressable
+                  style={styles.deleteBtn}
+                  disabled={deleting}
+                  onPress={() => void runDelete(pickedPhotos.map((p) => p.id))}
+                >
+                  {deleting ? (
+                    <ActivityIndicator size="small" color={styles.deleteText.color} />
+                  ) : (
+                    <Ionicons name="trash-outline" size={17} color={styles.deleteText.color} />
+                  )}
+                  <Text style={styles.deleteText}>Apagar {pickedPhotos.length} do iPhone</Text>
+                </Pressable>
+              ) : (
+                <Pressable style={[styles.deleteBtn, styles.deleteBtnOff]} onPress={onOpenSettings}>
+                  <Ionicons name="trash-outline" size={17} color={colors.ink4} />
+                  <Text style={[styles.deleteText, styles.deleteTextOff]}>Apagar do iPhone</Text>
+                </Pressable>
+              ))}
+            <Text style={styles.dismissHint}>
+              {!onDelete
+                ? 'As imagens continuam no seu iPhone.'
+                : deleteAccess === 'full'
+                  ? 'Esconder mantém as imagens no iPhone. Apagar manda para Apagados do app Fotos, onde ficam 30 dias.'
+                  : 'Para apagar, o Orbe precisa de acesso a todas as fotos. Toque no botão para abrir os Ajustes.'}
+            </Text>
+          </View>
+        )}
+
+        {/**
+         * O passo que falta para o espaço liberar de fato — e que nenhum app dá
+         * pelo dono. Fica na tela até a galeria fechar ou outra seleção começar.
+         */}
+        {!selecting && deleted !== null && (
+          <View style={[styles.actionBar, { paddingBottom: insets.bottom + spacing.md }]}>
+            <Text style={styles.notice}>
+              <Text style={styles.noticeStrong}>
+                {deleted === 1 ? '1 apagada.' : `${deleted} apagadas.`}
+              </Text>{' '}
+              Ficam 30 dias em Apagados; o espaço só libera quando você esvaziar a pasta.{' '}
+              <Text
+                style={styles.noticeLink}
+                onPress={() => void Linking.openURL('photos-redirect://').catch(() => undefined)}
+              >
+                Abrir o Fotos
+              </Text>
+            </Text>
           </View>
         )}
 
@@ -753,7 +1069,7 @@ export function PhotoGalleryModal({
               <Viewer
                 photos={flat}
                 index={viewing}
-                onClose={() => setViewing(null)}
+                onClose={closeViewer}
                 onShare={
                   onSharePhoto
                     ? (p) => {
@@ -766,7 +1082,38 @@ export function PhotoGalleryModal({
                 sharing={sharing}
                 onCover={onCover}
                 onOpenActivity={onOpenActivity}
-                onDismiss={onDismiss ? (p) => void onDismiss([p.id]) : undefined}
+                onDismiss={
+                  onDismiss
+                    ? (p) => {
+                        // Escondida pelo visor, ela sai também do que estava marcado.
+                        setPicked((prev) => {
+                          const next = new Set(prev);
+                          next.delete(p.id);
+                          return next;
+                        });
+                        void onDismiss([p.id]);
+                      }
+                    : undefined
+                }
+                marked={marked}
+                onToggleMark={
+                  onDelete && deleteAccess === 'full'
+                    ? (p) =>
+                        setMarked((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(p.id)) next.delete(p.id);
+                          else next.add(p.id);
+                          return next;
+                        })
+                    : undefined
+                }
+                onDeleteMarked={() => {
+                  // O visor fecha antes: as marcas viram seleção, e recusar no
+                  // alerta do iOS deixa o dono na grade com elas escolhidas.
+                  const ids = [...marked];
+                  closeViewer();
+                  void runDelete(ids);
+                }}
               />
             )}
           </Animated.View>
@@ -861,6 +1208,51 @@ const createStyles = () =>
       color: colors.ink3,
       textAlign: 'center',
     },
+    barSummary: { fontSize: 11, fontFamily: fonts.mono, color: colors.ink3, textAlign: 'center' },
+    /**
+     * Contorno, nunca bloco cheio: o tema não tem cor de perigo, então apagar
+     * usa o papel `red` da paleta — no `text`, que garante o piso da letra.
+     */
+    deleteBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      paddingVertical: 11.5,
+      borderRadius: radii.lg,
+      borderWidth: 1.5,
+      borderColor: roleColors('red').text,
+    },
+    deleteText: { fontSize: 15, fontFamily: fonts.sansBold, color: roleColors('red').text },
+    deleteBtnOff: { borderColor: colors.lineDeep },
+    deleteTextOff: { color: colors.ink4 },
+    notice: {
+      fontSize: 12.5,
+      lineHeight: 18,
+      fontFamily: fonts.sansMedium,
+      color: colors.ink2,
+      textAlign: 'center',
+    },
+    noticeStrong: { fontFamily: fonts.sansBold, color: colors.ink },
+    noticeLink: { fontFamily: fonts.sansBold, color: colors.ink, textDecorationLine: 'underline' },
+
+    hiddenRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      marginTop: spacing.xl,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.line,
+    },
+    hiddenText: { fontSize: 12.5, fontFamily: fonts.sansSemiBold, color: colors.ink3 },
+    hiddenAction: {
+      marginLeft: 'auto',
+      fontSize: 12.5,
+      fontFamily: fonts.sansBold,
+      color: colors.ink,
+    },
 
     section: { marginBottom: spacing.xl },
     /** Cabeçalho de seção da lista virtualizada — o respiro que o `section` dava. */
@@ -876,6 +1268,8 @@ const createStyles = () =>
     grid: { flexDirection: 'row', flexWrap: 'wrap' },
 
     tile: { borderRadius: radii.sm, overflow: 'hidden' },
+    /** Escondida: fora da pedalada, ainda no iPhone. */
+    tileDim: { opacity: 0.45 },
     tileImg: { width: '100%', height: '100%', backgroundColor: colors.surfaceMute },
     tileGap: {
       alignItems: 'center',
@@ -964,8 +1358,32 @@ const createStyles = () =>
     },
     act: { flex: 1, alignItems: 'center', gap: 6 },
     actText: { fontSize: 11, fontFamily: fonts.sansMedium, color: onMedia },
-    /** A única com consequência. Sobre o visor escuro, um coral que se lê. */
-    actOff: { color: 'rgb(255,154,138)' },
+    /** A única que tira a imagem do iPhone. Sobre o visor escuro, um coral que se lê. */
+    actOff: { color: ON_MEDIA_DANGER },
+    viewerPill: {
+      position: 'absolute',
+      right: spacing.lg,
+      height: 34,
+      paddingHorizontal: 13,
+      borderRadius: 17,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: ON_MEDIA_DANGER,
+    },
+    viewerPillText: { fontSize: 13, fontFamily: fonts.sansBold, color: mediaVeil },
+    viewerFlag: {
+      position: 'absolute',
+      left: spacing.lg,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      borderRadius: radii.sm,
+      backgroundColor: 'rgba(10,9,8,0.72)',
+    },
+    viewerFlagText: { fontSize: 11.5, fontFamily: fonts.sansBold, color: ON_MEDIA_DANGER },
     viewerTime: { fontSize: 17, fontFamily: fonts.mono, color: onMedia },
     viewerMeta: { fontSize: 12, fontFamily: fonts.mono, color: 'rgba(255,255,255,0.7)' },
   });

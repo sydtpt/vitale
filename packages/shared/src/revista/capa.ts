@@ -471,7 +471,7 @@ export class FotoRecusadaNaTroca extends Error {
 const FRASE_DA_RECUSA: Readonly<Record<RecusaDaTroca, string>> = Object.freeze({
   video: 'Vídeo não pode ser capa. Escolha uma foto.',
   instante: 'Esta foto não tem a hora em que foi tirada, e não pode ser capa.',
-  desligada: 'Esta foto foi desligada da atividade, e não pode ser capa.',
+  desligada: 'Esta foto foi escondida da atividade, e não pode ser capa.',
   'sem-arquivo': 'Esta foto não foi encontrada na biblioteca do iPhone, e não pode ser capa.',
 });
 

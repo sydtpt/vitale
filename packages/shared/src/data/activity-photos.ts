@@ -321,6 +321,28 @@ export async function setPhotoDismissed(
 }
 
 /**
+ * Devolve fotos escondidas à pedalada.
+ *
+ * É o que sustenta a palavra "esconder": `dismissed` nasceu definitivo — nem a
+ * varredura traz a foto de volta, porque o instante já foi decidido —, e quem
+ * esconde precisa de um caminho para mostrar de novo. A capa não volta junto:
+ * ela foi limpa ao esconder, e a regra de escolha cuida do resto.
+ */
+export async function setPhotosLinked(
+  db: SupabaseClient,
+  userId: string,
+  photoIds: readonly string[],
+): Promise<void> {
+  if (photoIds.length === 0) return;
+  const { error } = await db
+    .from('activity_photos')
+    .update({ state: 'linked' })
+    .in('id', [...photoIds])
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+/**
  * Define a capa da atividade.
  *
  * Limpa a anterior antes: o índice parcial `activity_photos_cover_uq` garante
