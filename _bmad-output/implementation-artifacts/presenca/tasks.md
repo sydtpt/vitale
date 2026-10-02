@@ -134,6 +134,12 @@
 - [ ] T3.6 — Modo viagem: liga sozinho a > 100 km de `home` por > 24 h, desliga sozinho.
   "Tempo em casa" fica **em branco, nunca zero**, e os dias de viagem saem das médias.
 
+- [x] T3.7 — **O fio ligado**: botão "Enviar para o banco" na tela da Fase 0. É botão e não
+  automático **nesta fase** — a primeira execução sobe 24 dias inteiros, e isso acontecendo
+  sozinho em segundo plano é o tipo de ato que ninguém vê dar errado. Quando a Fase 1 tiver
+  tela, o gatilho vira a volta ao primeiro plano. *(Sem isto, a sync seria mais um mecanismo
+  sem quem o dispare — a família que a Mary conta desde o AGG_VERSION.)*
+
 ### F1.4 Telas
 
 - [ ] T4.1 — Cartão na Semana: faixa de 7 dias com as horas fora de casa. Leitura de um
