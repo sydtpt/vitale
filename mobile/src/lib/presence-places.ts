@@ -17,6 +17,24 @@ export interface PresencePlace {
   /** ISO da criação. Ausente nos lugares gravados antes deste campo existir. */
   createdAt?: string;
   /**
+   * `places.id` da linha no Supabase, quando ela já existe.
+   *
+   * O id local (`pmtqdr6uv`) é o `identifier` da região no iOS e **não pode mudar** —
+   * trocá-lo rearma o monitoramento. O id remoto é um uuid de outra tabela, que nasceu
+   * antes desta feature. São dois identificadores do mesmo lugar, e guardar os dois é
+   * mais barato do que fazer um virar o outro.
+   *
+   * Ausente = o lugar ainda não subiu. A primeira sincronização o cria e grava aqui.
+   */
+  remoteId?: string;
+  /**
+   * Identidade do lugar no banco — o que **atravessa mudança de endereço**.
+   *
+   * `casa`, `escritorio`, `academia`. É por ela que a métrica agrega: trocar de casa
+   * fecha a linha remota e abre outra com a mesma identidade, e a série não se parte.
+   */
+  identidade?: string;
+  /**
    * ISO da última mudança de **geometria** — centro ou raio.
    *
    * Existe porque mexer no raio no meio da observação troca o instrumento: as

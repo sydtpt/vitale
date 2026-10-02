@@ -206,3 +206,56 @@ export async function mudarDeEndereco(
   });
   if (error) throw error;
 }
+
+export interface LugarNovo {
+  identidade: string;
+  kind: string;
+  label: string;
+  lat: number;
+  lng: number;
+  geofenceRadiusM: number;
+  geofenceSlot?: number | null;
+  module?: string | null;
+  isPrivate?: boolean;
+  /** Primeiro dia em que este endereço vale. Padrão: hoje. */
+  activeFrom?: string;
+}
+
+/**
+ * Cadastra um lugar.
+ *
+ * `radius_m` recebe o padrão da âncora de rota (400 m) porque a coluna é `not null` e
+ * pertence à outra feature — a Presença não tem opinião sobre ela. O raio que a
+ * Presença usa é o `geofence_radius_m`, e os dois existem porque respondem a perguntas
+ * diferentes (ver a migração `20261002120000`).
+ *
+ * `derived = false` marca que foi o dono quem cadastrou. É o contrato que já existia
+ * nesta tabela, e é o que diz ao passe de rotas para não tocar nesta linha.
+ */
+export async function criarLugar(
+  db: SupabaseClient,
+  userId: string,
+  novo: LugarNovo,
+): Promise<string> {
+  const { data, error } = await db
+    .from('places')
+    .insert({
+      user_id: userId,
+      identidade: novo.identidade,
+      kind: novo.kind,
+      label: novo.label,
+      lat: novo.lat,
+      lng: novo.lng,
+      radius_m: 400,
+      geofence_radius_m: novo.geofenceRadiusM,
+      geofence_slot: novo.geofenceSlot ?? null,
+      module: novo.module ?? null,
+      is_private: novo.isPrivate ?? false,
+      active_from: novo.activeFrom ?? new Date().toISOString().slice(0, 10),
+      derived: false,
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}

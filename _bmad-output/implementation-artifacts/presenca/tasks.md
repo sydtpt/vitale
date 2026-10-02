@@ -113,16 +113,18 @@
 
 ### F1.3 Aparelho
 
-- [ ] T3.1 — Fila local de eventos → `visits`, em lote. **Nunca abrir conexão dentro do
-  callback do geofence**: o motor é barato, o callback é que custa bateria. Idempotência por
-  `client_event_id` (o mesmo id que o log já deduplica).
-- [ ] T3.2 — **Semeadura dos 24 dias** (data-model §4): os dois lugares locais viram `places`
-  preservando o `id` (senão o `identifier` da região muda e o monitoramento precisa ser
-  rearmado), e as **74 travessias viram ~37 visitas**. Roda uma vez, guardada por carimbo.
-  **Pode ler do backup** em `~/Documents/Orbe/presenca-backup-2026-10-02/` — mesmo JSON.
-- [ ] T3.3 — **Guarda da permissão**: checar o status a cada foreground; se caiu, marcar os
-  dias afetados como `incomplete` e mostrar buraco, nunca número menor. É o risco nº 1 e o
-  modo de falha dos buracos de sono até 18/07.
+- [x] T3.1 — `services/presence-sync.ts` (02/10). **Sem marca d'água, e não por preguiça:**
+  o pareamento precisa do histórico — uma chegada de hoje fecha uma visita de ontem, e uma
+  saída perdida só se descobre olhando o que veio antes. Enviar "só o novo" obrigaria a
+  reconstruir o estado anterior a cada vez: mais código para fazer pior. A idempotência é o
+  `client_event_id`. Nunca roda dentro do callback do geofence.
+- [x] T3.2 — **A semeadura não é caminho separado: é a PRIMEIRA execução da sync.** O log já
+  tem os 74 eventos; a primeira chamada os pareia e sobe as 30 visitas. Um código de semeadura
+  à parte seria um segundo caminho para o mesmo resultado — e o segundo caminho é o que não é
+  testado. O id local do lugar **não vira** o id remoto (seria outro `identifier` de região, e
+  o monitoramento se rearmaria): são dois ids do mesmo lugar, e `remoteId` guarda a ponte.
+- [x] T3.3 — **Guarda da permissão** dentro da sync: sem "Sempre", os dias da janela sobem
+  com `incomplete = true`. Falta a tela mostrar o buraco — a coluna já chega lá.
 - [ ] T3.4 — Caixa de entrada: candidato (2+ visitas em ~150 m, ou uma sozinha > 90 min),
   mini-mapa, nome sugerido pelo `reverseGeocodeAsync` — **`CLGeocoder` no aparelho, nenhuma
   coordenada sai**. Nomear vincula o cluster retroativamente.

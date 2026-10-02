@@ -1,0 +1,203 @@
+/**
+ * A ponte da Presença — o que **só o hospedeiro** pode errar.
+ *
+ * O juízo tem teste no núcleo, contra o log real de 24 dias (`presence.test.ts`, 54
+ * checagens). Repetir aqui mediria duas vezes a mesma coisa e nenhuma vez a ponte.
+ *
+ * O que é só daqui, e o que custa errar:
+ *
+ *  - **o lugar de uma visita é a linha VIGENTE no dia da chegada**, não a de hoje. Errar
+ *    isso aponta uma visita de antes da mudança de casa para o endereço novo — e a
+ *    feature de nome das rotas passa a responder errado sobre pedaladas antigas;
+ *  - **o `client_event_id`**, que é o que faz reenviar ser barato em vez de duplicar;
+ *  - **a permissão caída marca os dias como incompletos**, porque o modo de falha nº 1
+ *    da feature não é errar, é emudecer;
+ *  - **criar o lugar remoto uma vez só**, e gravar o mapa local → remoto de volta no
+ *    aparelho.
+ */
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+
+const banco: {
+  lugares: Record<string, unknown>[];
+  visitasEnviadas: Record<string, unknown>[];
+  diasGravados: Record<string, unknown>[];
+  criados: Record<string, unknown>[];
+} = { lugares: [], visitasEnviadas: [], diasGravados: [], criados: [] };
+
+const aparelho: {
+  lugares: Record<string, unknown>[];
+  log: Record<string, unknown>[];
+  gravados: Record<string, unknown>[][];
+  permissaoBackground: boolean;
+} = { lugares: [], log: [], gravados: [], permissaoBackground: true };
+
+jest.mock('../../lib/supabase', () => ({ supabase: { __fake: true } }));
+jest.mock('../../lib/sync-breadcrumbs', () => ({ recordBreadcrumb: () => Promise.resolve() }));
+
+jest.mock('../presence', () => ({
+  getPresencePermission: () =>
+    Promise.resolve({ foreground: true, background: aparelho.permissaoBackground, blocked: false }),
+}));
+
+jest.mock('../../lib/presence-events', () => ({
+  readPresenceLog: () => Promise.resolve(aparelho.log),
+}));
+
+jest.mock('../../lib/presence-places', () => ({
+  readPresencePlaces: () => Promise.resolve(aparelho.lugares),
+  writePresencePlaces: (ls: Record<string, unknown>[]) => {
+    aparelho.gravados.push(ls);
+    aparelho.lugares = ls;
+    return Promise.resolve();
+  },
+}));
+
+jest.mock('@vitale/shared', () => {
+  const real = jest.requireActual<Record<string, unknown>>('@vitale/shared');
+  return {
+    ...real,
+    fetchLugares: () => Promise.resolve(banco.lugares),
+    criarLugar: (_db: unknown, _u: string, novo: Record<string, unknown>) => {
+      const id = `remoto-${banco.criados.length + 1}`;
+      banco.criados.push({ ...novo, id });
+      banco.lugares.push({
+        id,
+        identidade: novo['identidade'],
+        activeFrom: '2025-01-01',
+        activeTo: null,
+      });
+      return Promise.resolve(id);
+    },
+    enviarVisitas: (_db: unknown, _u: string, vs: Record<string, unknown>[]) => {
+      banco.visitasEnviadas.push(...vs);
+      return Promise.resolve(vs.length);
+    },
+    gravarPlaceDays: (_db: unknown, _u: string, ds: Record<string, unknown>[]) => {
+      banco.diasGravados.push(...ds);
+      return Promise.resolve();
+    },
+  };
+});
+
+import { sincronizarPresenca } from '../presence-sync';
+
+const U = 'u-1';
+const TZ = 'Europe/Brussels';
+
+function evento(at: string, placeId: string, kind: 'enter' | 'exit', redundant = false) {
+  return { id: `${placeId}:${kind}:${at}`, placeId, kind, at, tz: TZ, appState: 'background', redundant };
+}
+
+beforeEach(() => {
+  banco.lugares = [];
+  banco.visitasEnviadas = [];
+  banco.diasGravados = [];
+  banco.criados = [];
+  aparelho.gravados = [];
+  aparelho.permissaoBackground = true;
+  aparelho.lugares = [{ id: 'local-casa', name: 'Casa', lat: 50.87, lon: 4.37, radiusM: 150 }];
+  aparelho.log = [
+    evento('2026-09-10T06:00:00.000Z', 'local-casa', 'exit'),
+    evento('2026-09-10T16:00:00.000Z', 'local-casa', 'enter'),
+    evento('2026-09-11T06:00:00.000Z', 'local-casa', 'exit'),
+  ];
+});
+
+describe('sincronizarPresenca', () => {
+  it('cria o lugar remoto uma vez e grava o mapa de volta no aparelho', async () => {
+    const r = await sincronizarPresenca(U);
+    expect(r.lugaresCriados).toBe(1);
+    expect(banco.criados[0]).toMatchObject({ identidade: 'casa', kind: 'home', label: 'Casa' });
+    // O raio que sobe é o do geofence, não o da âncora de rota.
+    expect(banco.criados[0]!['geofenceRadiusM']).toBe(150);
+    // E o mapa local → remoto fica persistido, senão a próxima sync cria de novo.
+    expect(aparelho.lugares[0]).toMatchObject({ id: 'local-casa', remoteId: 'remoto-1', identidade: 'casa' });
+  });
+
+  it('não recria o lugar quando ele já existe no banco', async () => {
+    banco.lugares = [{ id: 'remoto-ja', identidade: 'casa', activeFrom: '2025-01-01', activeTo: null }];
+    aparelho.lugares = [{ ...aparelho.lugares[0]!, identidade: 'casa' }];
+    const r = await sincronizarPresenca(U);
+    expect(r.lugaresCriados).toBe(0);
+    expect(banco.visitasEnviadas[0]!['placeId']).toBe('remoto-ja');
+  });
+
+  it('o client_event_id é o id do evento de chegada — é o que faz reenviar não duplicar', async () => {
+    await sincronizarPresenca(U);
+    expect(banco.visitasEnviadas).toHaveLength(1);
+    expect(banco.visitasEnviadas[0]).toMatchObject({
+      clientEventId: 'local-casa:enter:2026-09-10T16:00:00.000Z',
+      arrivedAt: '2026-09-10T16:00:00.000Z',
+      source: 'geofence',
+    });
+  });
+
+  it('reenviar é idempotente: a segunda chamada manda o MESMO client_event_id', async () => {
+    await sincronizarPresenca(U);
+    const primeira = banco.visitasEnviadas.map((v) => v['clientEventId']);
+    banco.visitasEnviadas = [];
+    await sincronizarPresenca(U);
+    expect(banco.visitasEnviadas.map((v) => v['clientEventId'])).toEqual(primeira);
+  });
+
+  it('a visita vai para a linha VIGENTE no dia da chegada, não para a de hoje', async () => {
+    banco.lugares = [
+      { id: 'casa-antiga', identidade: 'casa', activeFrom: '2025-01-24', activeTo: '2026-09-10' },
+      { id: 'casa-nova', identidade: 'casa', activeFrom: '2026-09-11', activeTo: null },
+    ];
+    aparelho.lugares = [{ ...aparelho.lugares[0]!, identidade: 'casa', remoteId: 'casa-nova' }];
+    aparelho.log = [
+      evento('2026-09-09T06:00:00.000Z', 'local-casa', 'exit'),
+      evento('2026-09-09T16:00:00.000Z', 'local-casa', 'enter'),
+      evento('2026-09-09T20:00:00.000Z', 'local-casa', 'exit'),
+      evento('2026-09-12T06:00:00.000Z', 'local-casa', 'enter'),
+      evento('2026-09-12T20:00:00.000Z', 'local-casa', 'exit'),
+    ];
+    await sincronizarPresenca(U);
+    const por = Object.fromEntries(
+      banco.visitasEnviadas.map((v) => [String(v['arrivedAt']).slice(0, 10), v['placeId']]),
+    );
+    expect(por['2026-09-09']).toBe('casa-antiga');
+    expect(por['2026-09-12']).toBe('casa-nova');
+  });
+
+  it('sem permissão de fundo, os dias sobem INCOMPLETOS — buraco, não número menor', async () => {
+    aparelho.permissaoBackground = false;
+    const r = await sincronizarPresenca(U);
+    expect(r.incompletos).toBeGreaterThan(0);
+    expect(banco.diasGravados.every((d) => d['incomplete'] === true)).toBe(true);
+  });
+
+  it('com permissão em pé, nenhum dia é marcado incompleto', async () => {
+    const r = await sincronizarPresenca(U);
+    expect(r.incompletos).toBe(0);
+    expect(banco.diasGravados.some((d) => d['incomplete'] === true)).toBe(false);
+  });
+
+  it('o rollup carrega a identidade, que é por onde a métrica agrega', async () => {
+    await sincronizarPresenca(U);
+    const comLugar = banco.diasGravados.filter((d) => d['placeId'] !== null);
+    expect(comLugar.length).toBeGreaterThan(0);
+    expect(comLugar.every((d) => d['identidade'] === 'casa')).toBe(true);
+    // E o "fora" sobe com os dois nulos — é um lugar, não ausência de dado.
+    const fora = banco.diasGravados.filter((d) => d['placeId'] === null);
+    expect(fora.every((d) => d['identidade'] === null)).toBe(true);
+  });
+
+  it('relatório de estado não vira visita', async () => {
+    aparelho.log = [
+      ...aparelho.log,
+      evento('2026-09-10T17:00:00.000Z', 'local-casa', 'enter', true),
+      evento('2026-09-10T18:00:00.000Z', 'local-casa', 'enter', true),
+    ];
+    await sincronizarPresenca(U);
+    expect(banco.visitasEnviadas).toHaveLength(1);
+  });
+
+  it('log vazio não fala com o banco', async () => {
+    aparelho.log = [];
+    const r = await sincronizarPresenca(U);
+    expect(r).toEqual({ visitas: 0, dias: 0, lugaresCriados: 0, incompletos: 0 });
+    expect(banco.visitasEnviadas).toHaveLength(0);
+  });
+});
