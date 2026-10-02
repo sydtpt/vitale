@@ -300,6 +300,13 @@ São **10** módulos, não 7:
   limiares, `dias.ts` a manchete), com **21 checagens contra o log real** — o fixture
   `fixture-24-dias.ts` é o log de verdade com a coordenada removida, e pegou dois defeitos na
   primeira execução.
+  **As quatro tabelas estão em produção desde 02/10** (`20261002120000` + `20261002130000`) —
+  e a migração achou que **`places` já existia**, da feature de nome das rotas, com as **duas
+  casas** dele e vigência por data (uma fechou em 20/06/2026). A Presença a **adota** em vez de
+  criar outra: a AD-4 pede um módulo dono do acesso, não uma tabela por feature. Nasceu daí a
+  coluna **`identidade`**, por exigência do dono — *"se eu mudar de casa, mudarei o local mas
+  não quero perder as métricas"*: **a visita aponta para a linha, a métrica agrega pela
+  identidade**, e agregar por `place_id` parte a série da mudança em duas, em silêncio.
 - **Motores de IA** — modelo no aparelho (Foundation Models, depois Core AI), nuvem (`ia-narrar`)
   e sem modelo, escolhidos **por recurso e por aparelho**. **F0, o marco A da bancada e o marco A
   da 5.5 estão na `main`**: a porta, o fio e o orquestrador (5.1), o descritor da retrospectiva e as
