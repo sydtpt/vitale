@@ -18,6 +18,30 @@ import {
 } from '../presence-events';
 import type { KVStore } from '../local-store';
 
+/**
+ * Store de memória que **cede o controle** entre o `get` e o `set`.
+ *
+ * Sem esse `await` no meio, duas chamadas concorrentes nunca se cruzam no teste e a
+ * corrida que derrubou uma chegada em casa de verdade (01/10/2026) fica invisível: o
+ * teste passaria com o código quebrado. O AsyncStorage real é assíncrono nos dois lados.
+ */
+function memStoreLento(): KVStore {
+  const map = new Map<string, string>();
+  const ceder = () => new Promise<void>((r) => setTimeout(r, 0));
+  return {
+    getItem: async (k) => {
+      const v = map.get(k) ?? null;
+      await ceder();
+      return v;
+    },
+    setItem: async (k, v) => {
+      await ceder();
+      map.set(k, v);
+    },
+    removeItem: async (k) => void map.delete(k),
+  };
+}
+
 function memStore(): KVStore {
   const map = new Map<string, string>();
   return {
@@ -316,5 +340,57 @@ describe('presence-events · resumo', () => {
     // Se a fase 0 os desmentir, este teste muda junto com a proposta.
     expect(SHORT_STAY_MIN).toBe(8);
     expect(SHORT_GAP_MIN).toBe(20);
+  });
+});
+
+/**
+ * O caso real de 01/10/2026, que o dono achou pela ausência: ele chegou em casa às
+ * 20:20 e a chegada não estava na lista.
+ *
+ * A causa não era o iOS — era este arquivo. O iOS entrega **todas as regiões no mesmo
+ * instante** ao reavaliar, e `applyRegionState` escrevia as duas na mesma chave sem
+ * trava: a segunda entrega lia a fotografia anterior e desfazia a primeira. Duas horas
+ * depois, uma chegada de verdade parecia redundante e era descartada.
+ */
+describe('a corrida entre duas regiões no mesmo instante', () => {
+  it('duas saídas simultâneas não desfazem uma à outra', async () => {
+    const s = memStoreLento();
+    await applyRegionState('casa', 'enter', s);
+    await applyRegionState('trabalho', 'enter', s);
+
+    // 18:55:23 — o iOS entregou as duas saídas com 1 ms de diferença.
+    await Promise.all([
+      applyRegionState('casa', 'exit', s),
+      applyRegionState('trabalho', 'exit', s),
+    ]);
+
+    expect(await readRegionStates(s)).toEqual({ casa: 'out', trabalho: 'out' });
+  });
+
+  it('e por isso a chegada de duas horas depois CONTA como travessia', async () => {
+    const s = memStoreLento();
+    await applyRegionState('casa', 'enter', s);
+    await applyRegionState('trabalho', 'enter', s);
+    await Promise.all([
+      applyRegionState('casa', 'exit', s),
+      applyRegionState('trabalho', 'exit', s),
+    ]);
+
+    // 20:20:54 — "chegou · Casa", em background. Tem de ser travessia.
+    expect(await applyRegionState('casa', 'enter', s)).toBe(true);
+  });
+
+  it('o lote de reavaliação do iOS continua sendo relatório', async () => {
+    const s = memStoreLento();
+    await applyRegionState('casa', 'enter', s);
+    await applyRegionState('trabalho', 'exit', s);
+
+    // Lançar o app reavalia as duas regiões: nada mudou, nada é travessia.
+    const [casa, trabalho] = await Promise.all([
+      applyRegionState('casa', 'enter', s),
+      applyRegionState('trabalho', 'exit', s),
+    ]);
+    expect(casa).toBe(false);
+    expect(trabalho).toBe(false);
   });
 });

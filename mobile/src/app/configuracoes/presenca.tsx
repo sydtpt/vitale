@@ -29,6 +29,7 @@ import {
   stopPresence,
   type PresencePermission,
 } from '../../services/presence';
+import { mensagemDeErro } from '../../lib/erro';
 import { useAuthStore } from '../../store/auth.store';
 import { sincronizarPresenca } from '../../services/presence-sync';
 
@@ -157,7 +158,7 @@ export default function PresencaScreen() {
     const acao = rodando ? stopPresence().then(() => false) : startPresence(lugares).then(() => true);
     acao
       .then(setRodando)
-      .catch((e: unknown) => Alert.alert('Não deu', e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => Alert.alert('Não deu', mensagemDeErro(e)))
       .finally(() => setOcupado(false));
   };
 
@@ -184,7 +185,7 @@ export default function PresencaScreen() {
             (r.incompletos > 0 ? ' · marcados INCOMPLETOS (sem permissão)' : ''),
         );
       })
-      .catch((e: unknown) => Alert.alert('Não subiu', e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => Alert.alert('Não subiu', mensagemDeErro(e)))
       .finally(() => setEnviando(false));
   };
 

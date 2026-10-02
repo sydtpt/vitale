@@ -18,6 +18,7 @@ import {
   upsertPresencePlace,
   type PresencePlace,
 } from '../../lib/presence-places';
+import { mensagemDeErro } from '../../lib/erro';
 import { currentFix, isPresenceRunning, startPresence } from '../../services/presence';
 
 /**
@@ -94,7 +95,7 @@ export default function PresencaLocalScreen() {
         setCentro(at);
         setInicial({ ...at, raio: DEFAULT_RADIUS_M });
       } catch (e) {
-        if (vivo) setErro(e instanceof Error ? e.message : String(e));
+        if (vivo) setErro(mensagemDeErro(e));
       }
     })();
     return () => {
@@ -186,7 +187,7 @@ export default function PresencaLocalScreen() {
           if (await isPresenceRunning()) await startPresence(lista);
           router.back();
         })
-        .catch((e: unknown) => Alert.alert('Não deu', e instanceof Error ? e.message : String(e)))
+        .catch((e: unknown) => Alert.alert('Não deu', mensagemDeErro(e)))
         .finally(() => setSalvando(false));
     };
 

@@ -71,6 +71,39 @@ const KEY = 'vitale:presence-log';
 const STATE_KEY = 'vitale:presence-state';
 
 /**
+ * Trava única para **log e estado**, e é de dentro dela que sai a honestidade do dado.
+ *
+ * ## O defeito que ela conserta (02/10/2026)
+ *
+ * `applyRegionState` é leitura-modificação-escrita numa chave só — e o iOS **entrega
+ * todas as regiões no mesmo instante** ao reavaliar. Duas entregas a 1 ms de distância
+ * liam a mesma fotografia e a última escrita apagava a primeira:
+ *
+ * ```
+ * 01/10 18:55:23.4  exit Casa      lê {casa:'in'}  → grava {casa:'out'}
+ * 01/10 18:55:23.4  exit Trabalho  lê {casa:'in'}  → grava {casa:'in'}   ← desfez
+ * 01/10 20:20:54    enter Casa     lê {casa:'in'}  → "não mudou" → DESCARTADA
+ * ```
+ *
+ * A terceira linha é uma chegada em casa de verdade, entregue em `background` pelo iOS
+ * no minuto certo, e classificada como relatório de estado porque o estado mentia. O
+ * dono percebeu pela ausência dela na lista — o dado existia e o app o jogava fora.
+ *
+ * Uma trava só para as duas chaves, e não uma por chave: elas são lidas e escritas pelo
+ * mesmo evento, e travas separadas deixariam a janela aberta entre as duas.
+ */
+let presenceLock: Promise<unknown> = Promise.resolve();
+
+function withPresenceLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = presenceLock.then(fn, fn);
+  presenceLock = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
+
+/**
  * Último estado conhecido de cada região — `'in'` ou `'out'`.
  *
  * Persistido porque o caso que ele resolve é justamente o relançamento: o iOS
@@ -96,12 +129,14 @@ export async function applyRegionState(
   kind: PresenceEventKind,
   store: KVStore = asyncStore,
 ): Promise<boolean> {
-  const estados = await readRegionStates(store);
-  const novo: RegionState = kind === 'enter' ? 'in' : 'out';
-  const anterior = estados[placeId];
-  estados[placeId] = novo;
-  await setJSON(STATE_KEY, estados, store);
-  return anterior !== novo;
+  return withPresenceLock(async () => {
+    const estados = await readRegionStates(store);
+    const novo: RegionState = kind === 'enter' ? 'in' : 'out';
+    const anterior = estados[placeId];
+    estados[placeId] = novo;
+    await setJSON(STATE_KEY, estados, store);
+    return anterior !== novo;
+  });
 }
 
 export async function clearRegionStates(store: KVStore = asyncStore): Promise<void> {
@@ -115,18 +150,6 @@ export async function clearRegionStates(store: KVStore = asyncStore): Promise<vo
  * estourar, o próprio estouro é resultado: significa que passou de ~35/dia.
  */
 export const PRESENCE_LOG_CAP = 500;
-
-/** Trava de leitura-modificação-escrita, pelo mesmo motivo da fila de hábitos. */
-let logLock: Promise<unknown> = Promise.resolve();
-
-function withLogLock<T>(fn: () => Promise<T>): Promise<T> {
-  const next = logLock.then(fn, fn);
-  logLock = next.then(
-    () => undefined,
-    () => undefined,
-  );
-  return next;
-}
 
 export function presenceEventId(placeId: string, kind: PresenceEventKind, at: string): string {
   return `${placeId}:${kind}:${at}`;
@@ -146,7 +169,7 @@ export async function appendPresenceEvent(
   event: PresenceEvent,
   store: KVStore = asyncStore,
 ): Promise<void> {
-  return withLogLock(async () => {
+  return withPresenceLock(async () => {
     const current = await readPresenceLog(store);
     if (current.some((e) => e.id === event.id)) return;
     await setJSON(KEY, aparar([...current, event]), store);
