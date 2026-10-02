@@ -258,3 +258,62 @@ export async function fetchLapides(
   if (error) throw error;
   return (data ?? []) as ForgottenDayRow[];
 }
+
+/* ── do banco para o núcleo ──────────────────────────────────────────────── */
+
+/**
+ * Linha do banco → visita do núcleo, **chaveada pela identidade**.
+ *
+ * É aqui que a regra da ADR vira código: a visita aponta para a LINHA do lugar (o
+ * endereço), e quem lê para medir agrega pela IDENTIDADE. Traduzir no limiar do núcleo
+ * é o que faz a mudança de casa não partir a série — se o `placeId` do núcleo fosse o
+ * uuid, as duas casas virariam dois lugares e "tempo em casa" começaria do zero no dia
+ * da mudança.
+ *
+ * `identidadePorLugar` vem de `fetchLugares`. Linha cujo lugar sumiu (ou correção manual
+ * com `place_id` nulo) fica de fora: ela não pertence a lugar nenhum, e o tempo dela já
+ * é contado como "fora" pelo complemento do rollup.
+ */
+export function visitasDoBanco(
+  linhas: readonly VisitRow[],
+  identidadePorLugar: ReadonlyMap<string, string>,
+): Array<{
+  placeId: string;
+  source: 'geofence' | 'clvisit' | 'manual';
+  arrivedAt: string;
+  departedAt: string | null;
+  departedSource: 'geofence' | 'clvisit' | 'inferred' | 'manual' | null;
+}> {
+  const out = [];
+  for (const r of linhas) {
+    const identidade = r.place_id ? identidadePorLugar.get(r.place_id) : undefined;
+    if (!identidade) continue;
+    out.push({
+      placeId: identidade,
+      source: r.source,
+      arrivedAt: r.arrived_at,
+      departedAt: r.departed_at,
+      departedSource: r.departed_source,
+    });
+  }
+  return out.sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt));
+}
+
+/** Linha do rollup → linha do núcleo, também pela identidade. `null` segue sendo "fora". */
+export function rollupDoBanco(
+  linhas: readonly PlaceDayRow[],
+): Array<{
+  day: string;
+  placeId: string | null;
+  seconds: number;
+  arrivals: number;
+  inferredEdges: number;
+}> {
+  return linhas.map((r) => ({
+    day: r.day,
+    placeId: r.place_id === null ? null : (r.identidade ?? r.place_id),
+    seconds: r.seconds,
+    arrivals: r.arrivals,
+    inferredEdges: r.inferred_edges,
+  }));
+}
