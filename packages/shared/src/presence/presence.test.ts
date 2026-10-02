@@ -18,6 +18,7 @@ import { parear, duracaoMin, TETO_ORFA_H, type PresenceEvent } from './eventos';
 import { colar, ausencias, ehPassagem, contaComoSaida, COLAGEM_MIN, SAIDA_MIN_PADRAO } from './regras';
 import { diasDePresenca, contagemDosDias, diaLocal } from './dias';
 import { rollup, segundosDoDiaLocal, segundosNaoCobertos } from './rollup';
+import { blocoDePresenca, MIN_DIAS_PARA_MEDIANA, MIN_DIAS_PARA_TAXA } from './retro';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -303,6 +304,65 @@ check('visita em curso é cortada no fim da janela — não se inventa futuro', 
 check('não coberto é grande num dia parcialmente observado, e isso é o ponto', () => {
   const naoCob = segundosNaoCobertos(LINHAS, '2026-09-07', FIXTURE_TZ);
   assert.ok(naoCob > 10 * 3600, `07/09 só foi observado a partir das 13h — ${Math.round(naoCob / 3600)} h fora da observação`);
+});
+
+// --------------------------------------------------------------- o bloco
+
+const DIAS = diasDePresenca(COLADO, { casa: 'casa', tz: FIXTURE_TZ, janela: JANELA });
+const BASE = { casa: 'casa', trabalho: 'trabalho', tz: FIXTURE_TZ } as const;
+
+check('o período inteiro, como ele sairia no jornal', () => {
+  const b = blocoDePresenca(DIAS, LINHAS, { ...BASE, de: '2026-09-07', ate: '2026-10-01' });
+  assert.deepEqual(b.cobertura, { dias: 25, medidos: 23 });
+  assert.equal(b.semSair, 3);
+  assert.equal(b.saiu, 20);
+  assert.equal(b.maiorSequenciaSemSair, 2);
+  assert.equal(b.escritorio.dias, 7);
+  assert.equal(b.escritorio.porSemana, 2.1, 'híbrido de 2 a 3 dias, medido');
+});
+
+check('contar não estima: a semana mantém a manchete, e perde só o que é distribuição', () => {
+  const b = blocoDePresenca(DIAS, LINHAS, { ...BASE, de: '2026-09-14', ate: '2026-09-20' });
+  assert.equal(b.cobertura.medidos, 7);
+  assert.equal(b.semSair, 1, 'a contagem vale numa semana — é a recorrência que ele mais lê');
+  assert.equal(b.saiu, 6);
+  assert.equal(b.escritorio.dias, 2);
+  assert.equal(b.escritorio.medianaH, null, 'duas idas não descrevem uma jornada típica');
+  assert.equal(b.escritorio.porSemana, null, 'uma semana não dá taxa semanal');
+  assert.ok(b.escritorio.totalH > 0, 'o total continua: somar não estima');
+});
+
+check('sem `trabalho` declarado, o escritório é null — nunca zero', () => {
+  const b = blocoDePresenca(DIAS, LINHAS, { casa: 'casa', tz: FIXTURE_TZ, de: '2026-09-07', ate: '2026-10-01' });
+  assert.equal(b.escritorio.dias, null);
+  assert.equal(b.escritorio.medianaH, null);
+  assert.deepEqual(b.escritorio.diasDaSemana, []);
+});
+
+check('sem sono, as leituras que dependem dele são null — ADR 0054', () => {
+  const b = blocoDePresenca(DIAS, LINHAS, { ...BASE, de: '2026-09-07', ate: '2026-10-01' });
+  assert.equal(b.noitesFora, null, 'ausência não vira zero');
+  assert.equal(b.emCasaAcordadoH, null);
+});
+
+check('com sono, a noite sem presença em casa conta como noite fora', () => {
+  const b = blocoDePresenca(DIAS, LINHAS, {
+    ...BASE,
+    de: '2026-09-07',
+    ate: '2026-10-01',
+    noites: [
+      // 19/09: ele saiu às 19h33 e voltou no dia 20 — a única noite fora de verdade.
+      { inicio: '2026-09-19T22:00:00.000Z', fim: '2026-09-20T05:00:00.000Z' },
+      { inicio: '2026-09-15T22:00:00.000Z', fim: '2026-09-16T05:00:00.000Z' },
+    ],
+  });
+  assert.equal(b.noitesFora, 0, 'as duas noites têm presença em casa no dia — nenhuma é fora');
+  assert.ok(b.emCasaAcordadoH !== null && b.emCasaAcordadoH > 0);
+});
+
+check('os pisos vêm da escada do Sono, não de invenção local', () => {
+  assert.equal(MIN_DIAS_PARA_MEDIANA, 5, 'mesmo espírito de REGULARITY_MIN_NIGHTS');
+  assert.equal(MIN_DIAS_PARA_TAXA, 10, 'mesmo espírito de BASELINE_MIN_NIGHTS');
 });
 
 console.log(`\n${passed} checagens de presença ok`);

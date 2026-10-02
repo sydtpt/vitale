@@ -108,10 +108,12 @@
 - [ ] T4.4b — Reimplementar as setas de reordenar no painel Diagramação (`retrospectiva/index.tsx`),
   respeitando `fixed` (a manchete não move). O comentário da 2.5 que diz "não existe mais UI
   para movê-lo" deixa de valer e precisa ser atualizado junto.
-- [~] T4.5 — `presence/dias.ts` entrega a **manchete** (dias sem sair, três estados, maior
-  sequência, cobertura pela janela). Faltam as outras quatro métricas e os cinco `PeriodKind`.
-  Original: `presence/retro.ts` no shared, as cinco métricas pedidas, para os cinco
-  `PeriodKind`. Mediana e não média; dia de escritório como denominador do item 4; visita
+- [x] T4.5 — `presence/dias.ts` (manchete, três estados) + `presence/retro.ts` (02/10): as
+  cinco métricas de um período, com o recorte entrando pronto de `period/bounds.ts` — duplicar
+  a régua do que é "o mês" criaria uma segunda verdade. **Correção de desenho no caminho:**
+  o piso de 10 dias gateava tudo e esvaziava a semana — que é a recorrência que ele mais lê.
+  Contagem não estima e não tem piso; o piso vale para mediana (5) e taxa (10), na escada que
+  o Sono já fixou (`REGULARITY_MIN_NIGHTS` / `BASELINE_MIN_NIGHTS`). Mediana e não média; dia de escritório como denominador do item 4; visita
   confirmada (não `provisional`) como critério do item 5.
 - [ ] T4.6 — **Teste da invariante** `fora + em casa acordado + dormindo + não coberto = 24 h`.
   É o que trava a implementação inteira.
