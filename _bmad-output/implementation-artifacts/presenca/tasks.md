@@ -151,15 +151,20 @@
   hora exata para a folha; a correção grava visita `manual` com as **duas pontas** (a
   saída sai do log, não da tela); e **"está certo" grava tanto quanto "cheguei"**, porque
   uma das seis anomalias é falso positivo. Conferida no iPhone.
-- [ ] T4.1 — Cartão na Semana: faixa de 7 dias com as horas fora de casa. Leitura de um
-  segundo.
+- [x] T4.1 — **Faixa de 7 dias na Semana** (02/10): a altura é a hora fora, o dia sem
+  medição fica vazado, e a frase embaixo é a mesma manchete do bloco. Toca e abre
+  `/presenca`. *(Armadilha paga: rota nova exige regenerar `.expo/types/router.d.ts`, e a
+  conferência tem de ser pela rota EXATA — procurar "presenca" casa com
+  `/configuracoes/presenca`.)*
 - [x] T4.1b — **O papel do lugar é escolhido, não adivinhado** (02/10): sete chips no
   editor de local, no vocabulário fechado que o banco cobra. A escolha do dono ganha do
   mapa de nomes, que fica só para os lugares cadastrados antes do campo existir. Fecha a
   dívida que tinha acabado de virar sintoma — o Trabalho nascendo `other` e a tela
   mostrando dois traços.
-- [ ] T4.1c — As **testemunhas do banco** (sono e atividade com rota) na caixa: já existem
-  em `contradicoes()`, falta a tela lê-las.
+- [x] T4.1c — **As testemunhas do banco na caixa** (02/10): `sleep_periods` audita a
+  chegada e atividade com rota audita a saída, numa janela de 45 dias — dúvida velha não é
+  acionável. **Falhar nelas não derruba a caixa**: as duas do log local valem sozinhas, e
+  uma caixa vazia por falta de rede some com perguntas que o aparelho já sabia fazer.
 - [ ] T4.2 — Tela de Presença pelo Mais (não na barra — lugar é dimensão, não módulo).
   Tempo por lugar, chegada e saída do dia, e a linha da lápide quando houver.
 - [ ] T4.3 — A borda estimada aparece: "3 h 40 em casa *(1 borda estimada)*".

@@ -143,7 +143,7 @@ export default function PresencaScreen() {
       const trabalho = ls.find((l) => l.kind === 'work')?.identidade;
       const dias = diasDePresenca(visitas, { casa: 'casa', tz, rollup });
       setDetalhe(buildPresenceDetail(dias, rollup, { casa: 'casa', trabalho }));
-      setDuvidas(await duvidasDaPresenca());
+      setDuvidas(await duvidasDaPresenca(userId));
     } catch (e) {
       setErro(mensagemDeErro(e));
     }
@@ -413,12 +413,20 @@ export default function PresencaScreen() {
                     <Text style={styles.duvidaTitulo}>
                       {d.motivo === 'descartada'
                         ? `A chegada de ${dataCurta(d.ate)} não foi contada.`
-                        : `Falta uma borda em ${dataCurta(d.ate)} · ${d.lugar}.`}
+                        : d.motivo === 'sono'
+                          ? `Você dormiu em ${dataCurta(d.de)} e não há presença em casa nesse dia.`
+                          : d.motivo === 'atividade'
+                            ? `${dataCurta(d.de)} diz que você não saiu, e tem uma atividade com rota.`
+                            : `Falta uma borda em ${dataCurta(d.ate)} · ${d.lugar}.`}
                     </Text>
                     <Text style={styles.duvidaSub}>
                       {d.chegadaProposta && d.saidaProposta
                         ? `Há um registro às ${hhmm(d.chegadaProposta)} que o app descartou. Você teria saído às ${hhmm(d.saidaProposta)}.`
-                        : `Entre ${hhmm(d.de)} e ${hhmm(d.ate)} o aparelho perdeu uma travessia.`}
+                        : d.motivo === 'sono'
+                          ? 'Ou você dormiu fora, ou a chegada se perdeu — só você sabe qual.'
+                          : d.motivo === 'atividade'
+                            ? `A atividade começou às ${hhmm(d.de)}.`
+                            : `Entre ${hhmm(d.de)} e ${hhmm(d.ate)} o aparelho perdeu uma travessia.`}
                     </Text>
                     <View style={styles.duvidaBotoes}>
                       {d.chegadaProposta && d.saidaProposta ? (

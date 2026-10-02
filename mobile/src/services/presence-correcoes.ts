@@ -25,13 +25,22 @@
  * (`contradicoes`) e entram quando a tela souber ler as duas.
  */
 
-import { enviarVisitas, parear } from '@vitale/shared';
+import {
+  contradicoes,
+  enviarVisitas,
+  fetchActivities,
+  fetchLugares,
+  fetchPlaceDays,
+  fetchSleepPeriodsSince,
+  parear,
+  rollupDoBanco,
+} from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { chegadasEngolidas, readPresenceLog } from '../lib/presence-events';
 import { readPresencePlaces } from '../lib/presence-places';
 import { dispensar, lerDispensadas } from '../lib/presence-dispensadas';
 
-export type MotivoDaDuvida = 'sequencia' | 'descartada';
+export type MotivoDaDuvida = 'sequencia' | 'descartada' | 'sono' | 'atividade';
 
 export interface Duvida {
   /** Chave estável: é por ela que "está certo" dura. */
@@ -62,7 +71,7 @@ export interface Duvida {
  * A dúvida com hora exata vem primeiro: ela é a única que o dono consegue responder sem
  * esforço, e deixar as vagas na frente faria a caixa parecer trabalho.
  */
-export async function duvidasDaPresenca(): Promise<Duvida[]> {
+export async function duvidasDaPresenca(userId?: string): Promise<Duvida[]> {
   const [log, lugares, dispensadas] = await Promise.all([
     readPresenceLog(),
     readPresencePlaces(),
@@ -111,12 +120,90 @@ export async function duvidasDaPresenca(): Promise<Duvida[]> {
     });
   }
 
+  // As testemunhas do banco. Elas só entram com sessão, e **falhar nelas não derruba a
+  // caixa**: as duas de cima vêm do log local e valem sozinhas. Uma caixa que fica vazia
+  // porque a rede caiu some com perguntas que o aparelho já sabia fazer.
+  if (userId) {
+    try {
+      out.push(...(await duvidasDoBanco(userId, log, lugares)));
+    } catch {
+      // sem rede, só as do log
+    }
+  }
+
   return out
     .filter((d) => !ja.has(d.chave))
     .sort((a, b) => {
       if (a.motivo !== b.motivo) return a.motivo === 'descartada' ? -1 : 1;
       return b.ate.localeCompare(a.ate);
     });
+}
+
+/**
+ * As duas testemunhas que moram no banco (já prontas em `contradicoes`).
+ *
+ * | Testemunha | Audita | O que ela sabe |
+ * |---|---|---|
+ * | `sleep_periods` | a **chegada** | dormiu, e não há presença em casa naquele dia |
+ * | atividade **com rota** | a **saída** | o dia diz "não saiu" e há uma pedalada nele |
+ *
+ * Nenhuma decide: a do sono não distingue "dormiu fora" de "a chegada se perdeu", e as
+ * duas coisas são legítimas. Quem separa é ele, na caixa.
+ *
+ * A janela é curta de propósito — 45 dias. Dúvida velha não é acionável: ele não lembra,
+ * e a caixa vira um arquivo de culpa em vez de uma lista de uma pergunta.
+ */
+const JANELA_DAS_TESTEMUNHAS_DIAS = 45;
+
+async function duvidasDoBanco(
+  userId: string,
+  log: Awaited<ReturnType<typeof readPresenceLog>>,
+  lugares: Awaited<ReturnType<typeof readPresencePlaces>>,
+): Promise<Duvida[]> {
+  const hoje = new Date();
+  const de = new Date(hoje);
+  de.setDate(de.getDate() - JANELA_DAS_TESTEMUNHAS_DIAS);
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const tz = log.find((e) => e.tz)?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+
+  const [ls, dias, noites, atividades] = await Promise.all([
+    fetchLugares(supabase, userId),
+    fetchPlaceDays(supabase, userId, ymd(de), ymd(hoje)),
+    fetchSleepPeriodsSince(supabase, userId, ymd(de)),
+    fetchActivities(supabase, userId),
+  ]);
+
+  const rollup = rollupDoBanco(dias);
+  const comCasa = new Set(
+    rollup.filter((l) => l.placeId === 'casa' && l.seconds > 0).map((l) => l.day),
+  );
+  const identidadeCasa = ls.find((l) => l.kind === 'home')?.identidade ?? 'casa';
+
+  const achadas = contradicoes({
+    // Os dias classificados não são recalculados aqui: a caixa pergunta sobre o que o
+    // banco já afirma, e recalcular abriria a porta para ela discordar da tela.
+    dias: [],
+    anomalias: [],
+    tz,
+    casa: identidadeCasa,
+    diasComCasa: comCasa,
+    noites: noites.map((n) => ({ inicio: n.onsetAt, fim: n.wakeAt })),
+    atividades: atividades
+      .filter((a) => a.hasRoute)
+      .map((a) => ({ inicio: a.startAt, fim: a.endAt ?? undefined, temRota: true })),
+  });
+
+  const nomeCasa = lugares.find((l) => (l.identidade ?? '') === identidadeCasa)?.name ?? 'Casa';
+  return achadas.map((c) => ({
+    chave: c.chave,
+    motivo: c.motivo === 'sono' ? 'sono' : 'atividade',
+    lugar: nomeCasa,
+    placeIdLocal: '',
+    chegadaProposta: null,
+    saidaProposta: null,
+    de: c.de,
+    ate: c.ate,
+  }));
 }
 
 /** "Está certo": a dúvida para de perguntar e nada é gravado no banco. */
