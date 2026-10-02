@@ -70,6 +70,31 @@ export function ehPassagem(v: Visita, limiarMin = PASSAGEM_MIN): boolean {
   return d !== null && d < limiarMin;
 }
 
+/**
+ * Tira as passagens da lista, que é o que "não entra em agregado nenhum" quer dizer
+ * na prática.
+ *
+ * **Isto não é higiene opcional.** No log real, o escritório aparecia com **7 dias** —
+ * e o sétimo era um domingo com **1 min 48 s**: ele passou a menos de 220 m da porta.
+ * Sem este filtro, "dias de escritório" conta quem passa de carro, a taxa semanal sai
+ * inflada, e a frase "seu escritório é terça e quinta" nasce falsa.
+ *
+ * A visita descartada não some do mundo: no aparelho ela nasce `provisional` e vai
+ * para a caixa de entrada. Aqui ela só deixa de pesar no agregado — e o tempo dela
+ * volta a contar como **fora de qualquer lugar conhecido**, que é onde ele estava:
+ * passando.
+ *
+ * A ordem do pipeline importa e é esta: `parear` → `colar` → `descartarPassagens` →
+ * `rollup`. Colar antes é obrigatório — duas passagens coladas podem formar uma
+ * estadia de verdade, e descartá-las antes apagaria uma visita que existe.
+ */
+export function descartarPassagens(
+  visitas: readonly Visita[],
+  limiarMin = PASSAGEM_MIN,
+): Visita[] {
+  return visitas.filter((v) => !ehPassagem(v, limiarMin));
+}
+
 /** Uma ausência: o intervalo entre sair de um lugar e voltar a ele. */
 export interface Ausencia {
   placeId: string;

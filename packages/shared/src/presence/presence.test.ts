@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict';
 import { LOG_24_DIAS, FIXTURE_TZ, type EventoBruto } from './fixture-24-dias';
 import { parear, duracaoMin, TETO_ORFA_H, type PresenceEvent } from './eventos';
-import { colar, ausencias, ehPassagem, contaComoSaida, COLAGEM_MIN, SAIDA_MIN_PADRAO } from './regras';
+import { colar, ausencias, ehPassagem, descartarPassagens, contaComoSaida, COLAGEM_MIN, SAIDA_MIN_PADRAO } from './regras';
 import { diasDePresenca, contagemDosDias, diaLocal } from './dias';
 import { rollup, segundosDoDiaLocal, segundosNaoCobertos } from './rollup';
 import { blocoDePresenca, MIN_DIAS_PARA_MEDIANA, MIN_DIAS_PARA_TAXA } from './retro';
@@ -228,7 +228,8 @@ check('diaLocal usa o fuso do dado, não o de quem lê', () => {
 
 // -------------------------------------------------------------------- rollup
 
-const COLADO = colar(parear(EVENTOS).visitas);
+// A ordem do pipeline: parear → colar → descartar passagens → rollup.
+const COLADO = descartarPassagens(colar(parear(EVENTOS).visitas));
 const LINHAS = rollup(COLADO, { tz: FIXTURE_TZ, janela: JANELA });
 
 check('a invariante fecha nos 25 dias do log real', () => {
@@ -311,14 +312,23 @@ check('não coberto é grande num dia parcialmente observado, e isso é o ponto'
 const DIAS = diasDePresenca(COLADO, { casa: 'casa', tz: FIXTURE_TZ, janela: JANELA });
 const BASE = { casa: 'casa', trabalho: 'trabalho', tz: FIXTURE_TZ } as const;
 
+check('a passagem de domingo não vira dia de escritório', () => {
+  const comPassagem = colar(parear(EVENTOS).visitas);
+  const sem = descartarPassagens(comPassagem);
+  assert.equal(comPassagem.length - sem.length, 1, 'uma única passagem em 24 dias');
+  const b = blocoDePresenca(DIAS, LINHAS, { ...BASE, de: '2026-09-07', ate: '2026-10-01' });
+  assert.equal(b.escritorio.dias, 6, 'o domingo de 1 min 48 s sai da conta');
+  assert.deepEqual(b.escritorio.diasDaSemana, [2, 4], 'terça e quinta — a frase fica verdadeira');
+});
+
 check('o período inteiro, como ele sairia no jornal', () => {
   const b = blocoDePresenca(DIAS, LINHAS, { ...BASE, de: '2026-09-07', ate: '2026-10-01' });
   assert.deepEqual(b.cobertura, { dias: 25, medidos: 23 });
   assert.equal(b.semSair, 3);
   assert.equal(b.saiu, 20);
   assert.equal(b.maiorSequenciaSemSair, 2);
-  assert.equal(b.escritorio.dias, 7);
-  assert.equal(b.escritorio.porSemana, 2.1, 'híbrido de 2 a 3 dias, medido');
+  assert.equal(b.escritorio.dias, 6);
+  assert.equal(b.escritorio.porSemana, 1.8, 'híbrido, medido — e sem a passagem inflando');
 });
 
 check('contar não estima: a semana mantém a manchete, e perde só o que é distribuição', () => {
