@@ -333,11 +333,19 @@ export function summarizePresence(events: PresenceEvent[]): PresenceSummary {
   };
 }
 
+/**
+ * Mediana em metros inteiros.
+ *
+ * O arredondamento valia só no caso par, e com contagem ímpar a tela imprimia
+ * `±19.83774537753359 m` — duas vezes, porque a nota embaixo repete o número. Precisão
+ * de sensor em picômetros é ruído tipográfico: o que decide o raio é a ordem de
+ * grandeza, e ela cabe num inteiro.
+ */
 function mediana(xs: number[]): number | null {
   if (xs.length === 0) return null;
   const ord = [...xs].sort((a, b) => a - b);
   const meio = Math.floor(ord.length / 2);
-  return ord.length % 2 === 1 ? ord[meio] : Math.round((ord[meio - 1] + ord[meio]) / 2);
+  return Math.round(ord.length % 2 === 1 ? ord[meio]! : (ord[meio - 1]! + ord[meio]!) / 2);
 }
 
 /** Os sinais vitais de um lugar: ele está vivo, e com que intensidade. */
