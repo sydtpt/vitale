@@ -54,11 +54,18 @@
   23 h e 25/10/2026 tem 25 h. Um rollup que suponha 86 400 erra o dia inteiro nessas datas e
   erra calado, porque 23 h num dia de 23 h parece cobertura parcial. `segundosDoDiaLocal()`
   mede. Falta `incomplete` (vem da guarda de permissão, T3.3).
-- [ ] T1.5 — `presence/match.ts`: `dist(ponto, centro) < radius_m + accuracy_m`, nunca
-  distância pura; empate desempata por frequência histórica naquele horário; centro é a
-  **mediana ponderada por duração** das visitas confirmadas.
-- [ ] T1.6 — `presence/forget.ts`: a lápide. Apaga a visita inteira e credita `seconds` e
-  `visits` no dia. Teste da invariante **`medido + esquecido + não coberto` = o dia**.
+- [x] T1.5 — `presence/lugar.ts` (02/10): `dist < radius_m + accuracy_m` (com o outlier real
+  de ±176 m como caso de teste), empate por frequência histórica **naquela hora**, e centro
+  por mediana ponderada por duração. Usa o `haversineM` de `geo/distance` — duplicar criaria
+  uma segunda verdade sobre distância.
+- [x] T1.6 — `presence/esquecer.ts` (02/10). **A invariante do papel estava errada e o teste
+  achou:** apagar uma visita não deixa buraco, deixa vão — e o rollup **recoloca aquele tempo
+  como "fora"**, porque é o complemento. Somar a lápide por cima contava duas vezes e o dia de
+  24 h fechava em 25 h 10. A lápide **não se soma ao dia: ela se desconta** do que o rollup
+  recolocou (`medido = rollup − esquecido`, `naoCoberto = total − rollup`) — e isso fecha sem
+  precisar saber onde nem quando, que é tudo o que a lápide tem direito de guardar.
+  `foraDescontado()` existe pelo mesmo motivo: sem ele, esquecer **aumenta** as horas fora de
+  casa, e o esquecimento vira visível justamente na métrica que ele mais olha.
 
 ### F1.2 Banco
 

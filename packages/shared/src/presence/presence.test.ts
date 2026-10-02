@@ -20,6 +20,8 @@ import { diasDePresenca, contagemDosDias, diaLocal, type DiaDePresenca } from '.
 import { rollup, segundosDoDiaLocal, segundosNaoCobertos } from './rollup';
 import { blocoDePresenca, MIN_DIAS_PARA_MEDIANA, MIN_DIAS_PARA_TAXA } from './retro';
 import { aplicarCorrecoes, contradicoes } from './correcao';
+import { esquecer, fechamentoDoDia, foraDescontado, lugaresOrfaos } from './esquecer';
+import { cabeNoLugar, lugarDoPonto, centroPorMediana, chaveDoHabito } from './lugar';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -493,6 +495,124 @@ check('a chave da dúvida é estável — é ela que faz "está certo" durar', (
   const b = contradicoes({ dias: DIAS, anomalias: parear(EVENTOS).anomalias, tz: FIXTURE_TZ, casa: 'casa' });
   assert.deepEqual(a.map((x) => x.chave), b.map((x) => x.chave));
   assert.equal(new Set(a.map((x) => x.chave)).size, a.length, 'sem chave repetida');
+});
+
+// --------------------------------------------------------------- a lápide
+
+check('a invariante com lápide: medido + esquecido + não coberto = o dia', () => {
+  const janela = { inicio: '2026-06-01T00:00:00.000Z', fim: '2026-06-02T00:00:00.000Z' };
+  const visitas: Visita[] = [
+    { placeId: 'casa', arrivedAt: '2026-06-01T00:00:00.000Z', departedAt: '2026-06-01T10:00:00.000Z', departedSource: 'geofence' },
+    { placeId: 'x', arrivedAt: '2026-06-01T12:00:00.000Z', departedAt: '2026-06-01T13:10:00.000Z', departedSource: 'geofence' },
+  ];
+  const e = esquecer(visitas, (v) => v.placeId === 'x', { tz: 'UTC' });
+  assert.equal(e.visitas.length, 1);
+  assert.deepEqual(e.lapides, [{ day: '2026-06-01', seconds: 70 * 60, visits: 1 }]);
+
+  const l = rollup(e.visitas, { tz: 'UTC', janela });
+  const f = fechamentoDoDia(l, e.lapides, '2026-06-01', 'UTC');
+  assert.equal(f.esquecido, 70 * 60);
+  assert.equal(f.medido + f.esquecido + f.naoCoberto, f.total, 'o dia tem de fechar');
+});
+
+check('esquecer NÃO pode aumentar as horas fora de casa', () => {
+  const janela = { inicio: '2026-06-01T00:00:00.000Z', fim: '2026-06-02T00:00:00.000Z' };
+  const visitas: Visita[] = [
+    { placeId: 'casa', arrivedAt: '2026-06-01T00:00:00.000Z', departedAt: '2026-06-01T12:00:00.000Z', departedSource: 'geofence' },
+    { placeId: 'x', arrivedAt: '2026-06-01T12:00:00.000Z', departedAt: '2026-06-01T13:00:00.000Z', departedSource: 'geofence' },
+  ];
+  const antes = rollup(visitas, { tz: 'UTC', janela });
+  const foraAntes = antes.filter((l) => l.placeId === null).reduce((s, l) => s + l.seconds, 0);
+
+  const e = esquecer(visitas, (v) => v.placeId === 'x', { tz: 'UTC' });
+  const depois = rollup(e.visitas, { tz: 'UTC', janela });
+  const foraCru = depois.filter((l) => l.placeId === null).reduce((s, l) => s + l.seconds, 0);
+
+  assert.ok(foraCru > foraAntes, 'o rollup sozinho recoloca o apagado como "fora"');
+  assert.equal(
+    foraDescontado(depois, e.lapides, '2026-06-01'),
+    foraAntes,
+    'com a lápide descontada, esquecer fica invisível na métrica que ele mais olha',
+  );
+});
+
+check('a lápide nunca diz o quê nem onde', () => {
+  const e = esquecer(
+    [{ placeId: 'casa-de-alguem', arrivedAt: '2026-06-01T12:00:00.000Z', departedAt: '2026-06-01T13:00:00.000Z', departedSource: 'geofence' }],
+    () => true,
+    { tz: 'UTC' },
+  );
+  assert.deepEqual(Object.keys(e.lapides[0]!).sort(), ['day', 'seconds', 'visits']);
+});
+
+check('visita noturna esquecida credita os DOIS dias', () => {
+  const e = esquecer(
+    [{ placeId: 'x', arrivedAt: '2026-06-01T22:00:00.000Z', departedAt: '2026-06-02T02:00:00.000Z', departedSource: 'geofence' }],
+    () => true,
+    { tz: 'UTC' },
+  );
+  assert.equal(e.lapides.length, 2);
+  assert.equal(e.lapides[0]!.seconds, 2 * 3600);
+  assert.equal(e.lapides[1]!.seconds, 2 * 3600);
+  assert.equal(e.lapides[0]!.visits + e.lapides[1]!.visits, 1, 'uma visita, não duas');
+});
+
+check('esquecer duas vezes soma, não substitui', () => {
+  const v1: Visita[] = [{ placeId: 'a', arrivedAt: '2026-06-01T10:00:00.000Z', departedAt: '2026-06-01T11:00:00.000Z', departedSource: 'geofence' }];
+  const v2: Visita[] = [{ placeId: 'b', arrivedAt: '2026-06-01T14:00:00.000Z', departedAt: '2026-06-01T15:00:00.000Z', departedSource: 'geofence' }];
+  const e1 = esquecer(v1, () => true, { tz: 'UTC' });
+  const e2 = esquecer(v2, () => true, { tz: 'UTC', jaEsquecido: e1.lapides });
+  assert.equal(e2.lapides[0]!.seconds, 2 * 3600);
+  assert.equal(e2.lapides[0]!.visits, 2);
+});
+
+check('lugar que ficou sem visita é APONTADO, não apagado', () => {
+  const e = esquecer(
+    [{ placeId: 'academia', arrivedAt: '2026-06-01T10:00:00.000Z', departedAt: '2026-06-01T11:00:00.000Z', departedSource: 'geofence' }],
+    () => true,
+    { tz: 'UTC' },
+  );
+  assert.deepEqual(lugaresOrfaos(e.visitas, ['casa', 'academia']), ['academia', 'casa']);
+});
+
+// ------------------------------------------------------- ponto ↔ lugar
+
+const CASA_ANCORA = { id: 'casa', lat: 50.8721, lon: 4.3730, radiusM: 150 };
+
+check('nunca por distância pura: a precisão entra na conta', () => {
+  // ~200 m ao norte do centro: fora do raio de 150 m.
+  const longe = { lat: 50.8739, lon: 4.3730 };
+  assert.equal(cabeNoLugar(longe, CASA_ANCORA), false);
+  assert.equal(
+    cabeNoLugar({ ...longe, accuracyM: 176 }, CASA_ANCORA),
+    true,
+    'com o outlier de ±176 m medido no aparelho dele, o ponto volta a caber',
+  );
+});
+
+check('empate desempata por hábito naquela hora, não pelo mais perto', () => {
+  const perto = { id: 'vizinho', lat: 50.8722, lon: 4.3731, radiusM: 150 };
+  const ponto = { lat: 50.8721, lon: 4.3730 };
+  assert.equal(lugarDoPonto(ponto, [CASA_ANCORA, perto]), 'casa', 'sem história, o mais perto');
+  const habito = new Map([[chaveDoHabito('vizinho', 19), 12]]);
+  assert.equal(
+    lugarDoPonto(ponto, [CASA_ANCORA, perto], { hora: 19, habito }),
+    'vizinho',
+    'às 19h ele está sempre no vizinho — a história ganha da régua',
+  );
+});
+
+check('ponto fora de tudo devolve null, que é um valor e não um erro', () => {
+  assert.equal(lugarDoPonto({ lat: 48.85, lon: 2.35 }, [CASA_ANCORA]), null);
+});
+
+check('o centro é mediana ponderada: a passagem na borda não arrasta', () => {
+  const centro = centroPorMediana([
+    { lat: 50.8721, lon: 4.373, pesoS: 8 * 3600 },
+    { lat: 50.8722, lon: 4.3731, pesoS: 9 * 3600 },
+    { lat: 50.8800, lon: 4.3800, pesoS: 120 }, // dois minutos, lá na borda
+  ]);
+  assert.ok(centro !== null && centro.lat < 50.873, 'o outlier de 2 min não move o centro');
 });
 
 console.log(`\n${passed} checagens de presença ok`);

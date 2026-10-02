@@ -169,8 +169,14 @@ export function rollup(visitas: readonly Visita[], opts: OpcoesDoRollup): DiaDeL
   );
 }
 
-/** Segundos por dia local de um intervalo, cortando em cada meia-noite. */
-function fatiarPorDia(de: number, ate: number, tz: string): Array<[string, number]> {
+/**
+ * Segundos por dia local de um intervalo, cortando em cada meia-noite.
+ *
+ * Exportada porque a lápide precisa **da mesma máquina**: uma visita noturna esquecida
+ * tem de creditar os dois dias, e uma segunda implementação de "cortar na meia-noite"
+ * quebraria a invariante exatamente nos dias em que ela mais importa.
+ */
+export function fatiarPorDia(de: number, ate: number, tz: string): Array<[string, number]> {
   const out: Array<[string, number]> = [];
   let cursor = de;
   while (cursor < ate) {
