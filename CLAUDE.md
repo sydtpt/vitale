@@ -288,14 +288,18 @@ São **10** módulos, não 7:
   `RCTAsyncLocalStorage_V1` (124 KB) — o container inteiro são **16 GB**, quase tudo
   `Library/Caches/VideoThumbnails`, e ele enche o disco do Mac. Backup conferido em
   `~/Documents/Orbe/presenca-backup-2026-10-02/`. Com o dado em mãos: **372 eventos, 74
-  travessias, 24 dias**; a manchete é **"dias sem sair de casa"** (4 em 25, a primeira medição
-  dela) e não "horas fora", que vira secundária; o limiar de saída é **45 min configurável e
+  travessias, 24 dias**; a manchete é **"dias sem sair de casa"** (**3 em 23 cobertos** — as
+  bordas da janela não contam) e não "horas fora", que vira secundária; o limiar de saída é **45 min configurável e
   derivado na leitura** — e caiu num **buraco da distribuição** (nada entre 26 e 64 min, então
-  20/30/45/60 dão resultado idêntico). O sensor erra **1 vez a cada 6 dias**, e **3 de 4
-  anomalias são chegadas perdidas** — a de 17/09 fabrica uma ausência de 30 h que parece noite
-  fora e não foi; daí a **correção manual como visita `source='manual'`** pré-preenchida pela
+  20/30/45/60 dão resultado idêntico). O sensor erra **1 vez a cada 4 dias**, e **5 de 6
+  anomalias são chegadas perdidas** (uma delas falso positivo, por `exit` duplicado a 4 ms) — as
+  três de 17/09 fabricam juntas uma ausência de 30 h que parece noite fora e não foi; daí a **correção manual como visita `source='manual'`** pré-preenchida pela
   testemunha, com precedência `manual > geofence > clvisit`. Métricas e fórmulas em
-  [retrospectiva.md](docs/specs/presenca/retrospectiva.md).
+  [retrospectiva.md](docs/specs/presenca/retrospectiva.md). **O núcleo puro da Fase 1 está escrito**
+  (`packages/shared/src/presence/`: `eventos.ts` pareamento + anomalias, `regras.ts` colagem/passagem/
+  limiares, `dias.ts` a manchete), com **21 checagens contra o log real** — o fixture
+  `fixture-24-dias.ts` é o log de verdade com a coordenada removida, e pegou dois defeitos na
+  primeira execução.
 - **Motores de IA** — modelo no aparelho (Foundation Models, depois Core AI), nuvem (`ia-narrar`)
   e sem modelo, escolhidos **por recurso e por aparelho**. **F0, o marco A da bancada e o marco A
   da 5.5 estão na `main`**: a porta, o fio e o orquestrador (5.1), o descritor da retrospectiva e as

@@ -275,41 +275,64 @@ Casa (raio 150 m): 59 travessias · Trabalho (220 m): 15.
 
 ### 8.1 O limiar de saída caiu num buraco da distribuição
 
-As quatro menores ausências de casa: **5 · 5 · 10 · 25 min**. A seguinte: **65 min**.
-Não existe **nenhuma** ausência entre 26 e 64 minutos em 24 dias.
+> Os números desta seção foram **refeitos em 02/10 pelo núcleo** (`presence/*.ts`), e eles
+> corrigem a primeira leitura, feita por script solto. O script percorria **só os eventos de
+> casa** e não aplicava a colagem; o núcleo percorre o log inteiro — chegar num lugar fecha a
+> visita no anterior — e cola antes de medir. Onde os dois discordam, **vale o núcleo**: ele é
+> o que roda em produção, e está travado por teste.
+
+A colagem come tudo abaixo de 20 min (3 ausências: 5, 5 e 10). Das **23** que sobrevivem, a
+menor é de **25 min** e a seguinte é de **65**. Não existe **nenhuma** ausência entre 26 e 64
+minutos em 24 dias.
 
 | Limiar | Dias que saiu | Dias sem sair |
 |---|---|---|
-| 20 min | 21 | **4** |
-| 30 min | 21 | **4** |
-| **45 min** | 21 | **4** |
-| 60 min | 21 | **4** |
-| 90 min | 19 | 6 |
+| 20 min | 20 | **3** |
+| 30 min | 20 | **3** |
+| **45 min** | 20 | **3** |
+| 60 min | 20 | **3** |
+| 90 min | 18 | 5 |
 
-**Consequências.** O 45 está seguro: qualquer valor entre 26 e 64 produz resultado idêntico.
-O botão de configuração só começa a mudar alguma coisa por volta de **90 min** — abaixo disso
-ele é um controle sobre uma faixa vazia. E a objeção de que 45 apagaria a ida ao mercado
-**não se sustenta no dado dele**: ele sai por 25 minutos ou por mais de uma hora, e nada no
-meio. *(Isso pode mudar quando houver mais lugares cadastrados — o botão existe para isso.)*
+*(Sobre 23 dias cobertos — ver §8.3.)*
+
+**Consequências.** O 45 está seguro: qualquer valor entre 26 e 64 produz resultado idêntico, e
+isso está cobrado por teste. O botão de configuração só começa a mudar alguma coisa por volta
+de **90 min** — abaixo disso ele é um controle sobre uma faixa vazia. E a objeção de que 45
+apagaria a ida ao mercado **não se sustenta no dado dele**: ele sai por 25 minutos ou por mais
+de uma hora, e nada no meio. *(Isso pode mudar quando houver mais lugares cadastrados — o
+botão existe para isso.)*
 
 ### 8.2 O sensor erra uma vez a cada seis dias
 
 | Quando | Assinatura | O que foi |
 |---|---|---|
-| 17/09 (duas vezes) | `exit` → `exit` | **chegada perdida** |
-| 24/09 | `exit` → `exit` | **chegada perdida** |
-| 26/09 | `enter` → `enter` | **saída perdida** |
+| 10/09 | `exit` → `exit` no trabalho | chegada perdida |
+| 17/09 (**três vezes**) | `exit` → `exit`, casa e trabalho | chegada perdida |
+| 24/09 | `exit` → `exit` | chegada perdida — **falso positivo**, ver abaixo |
+| 26/09 | `enter` → `enter` | saída perdida |
 
-**3 chegadas perdidas contra 1 saída perdida** — o inverso do que a proposta assumia como
-falha dominante. E o dano é concreto: a chegada perdida de 17/09 fabrica uma ausência de
-**30 h 48 min**, das 09:11 de quinta às 15:56 de sexta, que **parece noite fora e não foi**.
+**5 chegadas perdidas contra 1 saída perdida** — o inverso do que a proposta assumia como
+falha dominante. E o dano é concreto: as três de 17/09 fabricam juntas uma ausência de **mais
+de 30 h**, de quinta de manhã a sexta à tarde, que **parece noite fora e não foi**.
+
+**Uma das seis é falso positivo, e isso é informação.** Em 24/09 chegam um `exit` do trabalho
+e um `exit` da casa separados por **4 milissegundos** — ele não voltou para casa, o estado da
+região de casa é que estava velho. O detector não tem como saber disso sozinho, e é por isso
+que a caixa de correções precisa da resposta **"está certo"** tanto quanto da resposta "saí".
 
 Dos quatro períodos fora que atravessam a noite (11/09, 17/09, 19/09, 26/09), só o de **19/09**
 (19 h 34, sábado→domingo) é noite fora de verdade.
 
 ### 8.3 A manchete, medida pela primeira vez
 
-**4 dias sem sair de casa, em 25.**
+**3 dias sem sair de casa, em 23 cobertos** — 13/09, 20/09 e 21/09, com a maior sequência
+sendo **2** (o fim de semana de 20–21).
+
+Os outros dois dias da janela, 07/09 e 01/10, são **`sem-cobertura`** e não entram na conta.
+E a razão é exatamente o tipo de erro que esta métrica convida: o log abre com um `exit` às
+13h00 de 07/09. **Ele saiu de casa naquele dia** — a observação é que começou depois. Sem a
+regra de cobertura, a métrica afirmaria reclusão justamente no dia em que o aparelho o viu
+sair. É a mesma disciplina de "célula vazia não é dia em casa", aplicada às bordas da janela.
 
 ## 9. A correção manual
 

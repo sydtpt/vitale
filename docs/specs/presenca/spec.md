@@ -142,7 +142,7 @@ guardar tudo e limpar depois.
 | **Passagem** | duração < **8 min** | passou em frente | 1 |
 | **Órfã** | teto de **16 h** | a saída se perdeu | 1 |
 | **Sobreposição** | — | dois motores na mesma janela | fase 3 |
-| **Saída** | ausência > **45 min**, configurável | ir ao mercado × jogar o lixo | ver [retrospectiva.md §7](retrospectiva.md) |
+| **Saída** | ausência > **45 min**, configurável | ir ao mercado × jogar o lixo | 23 sobreviveram à colagem; ver [§7](retrospectiva.md) |
 
 - **Colagem** funde via `merged_into`: a filha é absorvida, não destruída, e o vão continua
   consultável.

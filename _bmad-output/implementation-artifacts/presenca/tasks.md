@@ -34,14 +34,19 @@
 
 ### F1.1 Núcleo puro (sem banco, sem aparelho)
 
-- [ ] T1.1 — `packages/shared/src/presence/models.ts`: `Place`, `Visit`, `PlaceDay`,
-  `ForgottenDay`. Somente leitura, sem lógica (convenção do shared).
-- [ ] T1.2 — `presence/pair.ts`: travessias → visitas. Descarta `redundant`, pareia por lugar
-  em ordem cronológica, fecha órfã por teto de 16 h com `departed_source='inferred'`, deixa a
-  última em aberto. **Teste com os 73 eventos reais exportados do aparelho.**
-- [ ] T1.3 — `presence/rules.ts`: colagem (< 20 min, via `merged_into`), passagem (< 8 min →
-  `provisional`), e o candidato por três passagens no mesmo ponto. Cada limiar é uma
-  constante exportada com o número medido no comentário.
+- [x] T1.1 — Tipos do núcleo escritos **dentro das peças que os usam** (`eventos.ts`), não num
+  `models.ts` próprio: `Visita`, `PresenceEvent`, `Anomalia`, `FonteDaBorda`. As linhas de banco
+  (`Place`, `PlaceDay`, `ForgottenDay`) entram em `models/index.ts` junto da migration — é lá
+  que moram as linhas persistidas, como `SleepPeriod`.
+- [x] T1.2 — `presence/eventos.ts` (02/10): `parear()` descarta `redundant`, caminha o log
+  **inteiro** (chegar num lugar fecha a visita no anterior — percorrer por lugar perderia essa
+  prova), fecha órfã com `inferred` e teto de 16 h, deixa a última aberta. **Dois defeitos que
+  só o log real pegou:** o teto aparava borda **medida** (as 34 visitas saíam com a saída
+  errada), e o primeiro evento do log — um `exit` — era acusado como anomalia em vez de borda
+  da janela.
+- [x] T1.3 — `presence/regras.ts` (02/10): colagem (20 min, funde 3 no log real), passagem
+  (8 min), `ausencias()` e `contaComoSaida()` com o limiar de saída. Falta o **candidato por
+  três passagens** no mesmo ponto e o `merged_into` (precisa do banco).
 - [ ] T1.4 — `presence/rollup.ts`: visitas → `place_days`, **dividindo na meia-noite local**
   pelo `tz` da chegada. Teste dedicado para a visita que cruza o dia — é sempre o que se
   esquece. Propaga `inferred_edges` e `incomplete`.
@@ -99,7 +104,9 @@
 - [ ] T4.4b — Reimplementar as setas de reordenar no painel Diagramação (`retrospectiva/index.tsx`),
   respeitando `fixed` (a manchete não move). O comentário da 2.5 que diz "não existe mais UI
   para movê-lo" deixa de valer e precisa ser atualizado junto.
-- [ ] T4.5 — `presence/retro.ts` no shared: as cinco métricas pedidas, para os cinco
+- [~] T4.5 — `presence/dias.ts` entrega a **manchete** (dias sem sair, três estados, maior
+  sequência, cobertura pela janela). Faltam as outras quatro métricas e os cinco `PeriodKind`.
+  Original: `presence/retro.ts` no shared, as cinco métricas pedidas, para os cinco
   `PeriodKind`. Mediana e não média; dia de escritório como denominador do item 4; visita
   confirmada (não `provisional`) como critério do item 5.
 - [ ] T4.6 — **Teste da invariante** `fora + em casa acordado + dormindo + não coberto = 24 h`.
@@ -129,9 +136,10 @@
 
 > Quatro casos reais já esperam, com data — ver [retrospectiva.md §8.2](../../../docs/specs/presenca/retrospectiva.md).
 
-- [ ] T8.1 — **Detector de sequência**: `exit`→`exit` = chegada perdida · `enter`→`enter` =
-  saída perdida. Não precisa de testemunha nenhuma, lê o próprio log. Nos 24 dias reais acha
-  **4** (17/09 ×2, 24/09, 26/09) — usar esses como fixture.
+- [x] T8.1 — **Detector de sequência** dentro do `parear()` (02/10): `exit`→`exit` = chegada
+  perdida · `enter`→`enter` = saída perdida. Nos 24 dias reais acha **6** (10/09, 17/09 ×3,
+  24/09, 26/09) — e **uma é falso positivo**: dois `exit` separados por 4 ms, estado de região
+  velho. É a prova de que a caixa precisa da resposta "está certo" tanto quanto da "saí".
 - [ ] T8.2 — **Testemunha do sono**: noite em `sleep_periods` sem visita em Casa cobrindo =
   dormiu fora **ou** a chegada se perdeu. Audita a **chegada**.
 - [ ] T8.3 — **Testemunha da atividade**: dia "não saiu" com atividade de rota naquele dia.

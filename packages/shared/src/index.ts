@@ -298,3 +298,10 @@ export * from './geo/country-explorer';
 // Puxa ~1 MB de contornos: só importe onde o corte na fronteira importa
 // (a tela de país passa o `countryAt` como resolvedor).
 export * from './geo/country-borders';
+
+// Presença — o núcleo puro da Fase 1. O `fixture-24-dias` NÃO entra aqui de
+// propósito: são 372 eventos reais, material de teste, e exportá-lo os embarcaria
+// no bundle dos dois apps.
+export * from './presence/eventos';
+export * from './presence/regras';
+export * from './presence/dias';
