@@ -69,11 +69,17 @@
 
 ### F1.2 Banco
 
-- [ ] T2.1 — Migration `presenca_fase1`: as quatro tabelas do data-model, RLS por `user_id`,
-  os três índices únicos de `visits`, o `check (radius_m between 100 and 500)`. Aplicada à
-  mão, com confirmação, e registrada em `supabase_migrations.schema_migrations`.
-- [ ] T2.2 — Ensaio antes da janela (`supabase/ensaio/`): a migration declara privilégios que
-  o `create table` sozinho não dá. Ver a seção 6 do roteiro da janela da revista-1.9.
+- [x] T2.1 — **Aplicada em produção em 02/10** (`20261002120000_presenca_fase1` +
+  `20261002130000_visits_lng`, migrations 73 → 74). RLS nas quatro, 3 policies, 5 índices.
+  **A tabela `places` já existia** (nome das rotas, 2 linhas) — a migração a ESTENDE em vez
+  de criar, e a coluna `identidade` nasceu da exigência do dono de não perder métrica ao
+  mudar de casa. Ensaiada antes contra o schema real numa transação desfeita.
+- [x] T2.2 — Ensaio feito **sem colima**: a migração inteira rodou contra o schema REAL de
+  produção dentro de `begin … rollback`, e o rollback foi conferido (0 tabelas, 0 coluna).
+  Vale mais que o ensaio local para migração aditiva, e custa um comando. Privilégios: não
+  foram declarados, por desenho — produção concede ALL por `alter default privileges` e quem
+  protege é a RLS (`supabase/ensaio/privilegios.sql`); conferido depois com
+  `has_table_privilege`.
 
 ### F1.3 Aparelho
 

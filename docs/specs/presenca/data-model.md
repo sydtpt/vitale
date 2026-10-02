@@ -3,8 +3,11 @@
 > Spec: [spec.md](spec.md) ·
 > Decisão: [ADR 0059](../../decisions/0059-os-dois-motores-de-presenca-escrevem-na-mesma-tabela.md)
 >
-> **Estado em 30/09/2026:** a Fase 0 está em produção no iPhone e **não toca no Postgres** —
-> §1. Nenhuma das tabelas da §2 existe ainda; nenhuma migration foi escrita.
+> **Estado em 02/10/2026: as quatro tabelas estão EM PRODUÇÃO.**
+> `20261002120000_presenca_fase1` (estende `places`, cria `visits`, `place_days` e
+> `forgotten_days`) e `20261002130000_visits_lng`, aplicadas e registradas —
+> **74 migrations**. Ensaiadas antes contra o schema real, dentro de uma transação
+> desfeita. A Fase 0 segue gravando só no aparelho (§1) até a fila existir.
 
 ## 1. Fase 0 — o que existe hoje, só no aparelho
 
@@ -59,29 +62,72 @@ inteiro puxa **16 GB** — quase tudo `Library/Caches/VideoThumbnails` — e enc
 > (política do AGENTS.md). RLS por `user_id` em todas as quatro tabelas, no molde das
 > existentes.
 
-### 2.1 `places` — o lugar nomeado
+### 2.1 `places` — **já existia**, e a Presença a adota
+
+> **Conferido contra produção em 02/10/2026, antes de escrever uma linha de SQL.** A
+> tabela existe desde `20260907170000_nome_das_rotas.sql`, com **2 linhas** — as duas
+> casas dele, `kind='home'`, `derived=true` — e com uma coisa que este documento não
+> tinha: **vigência**. Uma das duas tem `active_to` (20/06/2026): ele mudou de casa, e o
+> banco já sabia enquanto o spec tratava Casa como ponto fixo.
+>
+> Criar uma segunda tabela de lugar daria **duas respostas** para "onde é a casa dele",
+> que é o oposto da ADR 0059 ("lugar é dimensão"). A AD-4 é cumprida e não contrariada:
+> ela exige **um módulo dono do acesso**, e esse módulo segue sendo `data/places.ts`.
+
+#### `identidade` — a coluna que a exigência do dono criou
+
+Pedida em 02/10: *"se eu mudar de casa, mudarei o local mas não quero perder as
+métricas"* — e o mesmo para o escritório. A vigência sozinha **não** atende isso:
+com uma linha por endereço, somar por `place_id` parte a série em duas no dia da mudança.
+
+| | É | Serve a |
+|---|---|---|
+| **a linha** (`id`) | um endereço, com raio e janela de vigência | "onde era a casa naquela pedalada" (nome das rotas) |
+| **a identidade** (`identidade`) | atravessa mudanças de endereço | "quanto tempo em casa" (Presença) |
+
+> **A visita aponta para a linha. A métrica agrega pela identidade.**
+
+Mudar de casa são duas linhas de SQL: fecha a atual (`active_to`) e abre outra com a
+**mesma identidade**. E resolve o que `kind` não resolvia: três mercados são três
+identidades, enquanto `kind='grocery'` os fundiria.
+
+⚠ **O modo de falha:** qualquer leitura que agregue por `place_id` parte a série da
+mudança em duas, **em silêncio**. Daí `place_days` carregar as duas colunas.
+
+#### Dois raios, porque são duas perguntas
+
+`radius_m` em produção é **400 m** — a folga com que a feature de rotas decide "esta
+pedalada começou em casa". O geofence precisa do contrário: o menor raio que ainda mede
+movimento (150 m no aparelho dele, piso de 100). Grandezas diferentes, nomes diferentes:
+**`geofence_radius_m`**.
+
+#### O que a migração de fato fez
 
 ```sql
-create table places (
-  id            uuid primary key default gen_random_uuid(),
-  user_id       uuid not null references auth.users on delete cascade,
-  name          text not null,          -- "Casa", "Delhaize Flagey"
-  kind          text not null,          -- home|work|gym|grocery|food|culture|other
-  module        text,                   -- casa|treino|compras|cultura… → moduleOf()
-  lat           double precision not null,
-  lon           double precision not null,
-  radius_m      int  not null default 150 check (radius_m between 100 and 500),
-  geofence_slot smallint check (geofence_slot between 0 and 19),
-  alert_arrive  text,                   -- texto do alerta na chegada; null = sem alerta
-  alert_depart  text,                   -- idem na saída
-  alert_route   text,                   -- rota do app que o alerta abre; a ponte pra fase 4
-  alert_cooldown_min smallint not null default 60,
-  is_private    boolean not null default false,
-  created_at    timestamptz not null default now(),
-  archived_at   timestamptz,
-  unique (user_id, geofence_slot)
-);
+-- o que JÁ HAVIA: id, user_id, kind, label, lat, lng, radius_m,
+--                 active_from, active_to, derived, created_at, updated_at
+alter table public.places
+  add column identidade         text,       -- estável através da mudança de endereço
+  add column module             text,       -- casa|treino|compras… → moduleOf()
+  add column geofence_slot      smallint,   -- 0..19: uma das 20 vagas do iOS
+  add column geofence_radius_m  int,        -- 100..500; NULO = não monitorado
+  add column alert_arrive       text,
+  add column alert_depart       text,
+  add column alert_route        text,       -- a ponte para a fase 4
+  add column alert_cooldown_min smallint not null default 60,
+  add column is_private         boolean  not null default false,
+  add column archived_at        timestamptz;
+
+update public.places set identidade = 'casa' where kind = 'home';
+alter table public.places alter column identidade set not null;
+
+create unique index places_geofence_slot on public.places (user_id, geofence_slot)
+  where geofence_slot is not null;
+create index places_identidade on public.places (user_id, identidade, active_from);
 ```
+
+**O nome do lugar é `label`**, que já existia — não `name`. As duas linhas atuais já se
+chamam "Casa".
 
 - **`radius_m`: piso de 100 m, teto de 500 m, padrão 150.** O piso não é gosto: é o erro de
   posição medido (mediana ±19,8 m, com outliers) mais folga. O teto não é do iOS, que
@@ -109,7 +155,7 @@ create table visits (
   departed_source text,                 -- geofence|clvisit|inferred|manual
   tz              text not null,        -- fuso local NA CHEGADA. viagem depende disto.
   lat             double precision,
-  lon             double precision,
+  lng             double precision,       -- `lng`, como places e activities.points
   accuracy_m      real,
   status          text not null default 'provisional',  -- provisional|confirmed|merged
   merged_into     uuid references visits on delete set null,
@@ -172,12 +218,19 @@ create table place_days (
   user_id        uuid not null,
   day            date not null,   -- dia LOCAL; visita que cruza a meia-noite é dividida
   place_id       uuid,            -- null = fora de qualquer lugar conhecido
+  identidade     text,            -- cópia no momento do rollup; é por AQUI que a métrica agrega
   seconds        int not null,
-  arrivals       smallint not null,
-  inferred_edges smallint not null default 0,  -- quantas bordas foram estimadas
-  incomplete     boolean not null default false, -- permissão caiu neste dia
-  primary key (user_id, day, place_id)
+  arrivals       smallint not null default 0,
+  inferred_edges smallint not null default 0,
+  incomplete     boolean not null default false
 );
+
+-- `place_id` é NULO no lugar "fora", e coluna de PRIMARY KEY é implicitamente NOT NULL
+-- — a chave composta deste documento não existiria. `nulls not distinct` (PG 15+;
+-- produção está no 17.6) dá a mesma unicidade sem proibir o nulo.
+create unique index place_days_chave
+  on public.place_days (user_id, day, place_id) nulls not distinct;
+create index place_days_identidade on public.place_days (user_id, identidade, day);
 ```
 
 Existe por uma razão medida: **o PostgREST corta em 1000 linhas sem erro**. Uma

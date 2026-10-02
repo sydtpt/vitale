@@ -187,7 +187,7 @@ São **10** módulos, não 7:
   retrospectiva…)
 - Mobile: componentes UI (`DayRingCard`, `CheckButton`, `QuickAddSheet`) e fontes
   embarcadas via plugin `expo-font`
-- Backend: Supabase — Postgres com RLS, **68 migrations** (todas registradas em
+- Backend: Supabase — Postgres com RLS, **74 migrations** (todas registradas em
   `supabase_migrations.schema_migrations`, conferido em 13/09), 4 edge functions Deno
   (`connections-ingest`, `ia-narrar`, `intervals-link`, `cultura-search`)
 - Autenticação: `/login`, `/register`, `/setup`, com `profileGuard` em toda rota

@@ -3,7 +3,9 @@
 > **Status:** **Fase 0 medida, aprovada e com o log fora do aparelho.** O portão foi
 > respondido em 30/09/2026; em 02/10 o log dos **24 dias** foi extraído do iPhone e virou
 > medição (ver [retrospectiva.md §8](retrospectiva.md)). O desenho do produto foi fechado em
-> 02/10 numa mesa de seis rodadas. A **Fase 1 está liberada** e ainda não tem uma linha escrita.
+> 02/10 numa mesa de seis rodadas. **O núcleo puro e a migração estão prontos**: as quatro
+> tabelas entraram em produção em 02/10 e `packages/shared/src/presence/` tem 54 checagens.
+> Falta o aparelho — a fila, a semeadura e a guarda da permissão.
 > Backup do log: `~/Documents/Orbe/presenca-backup-2026-10-02/`.
 > Decisão: [ADR 0059](../../decisions/0059-os-dois-motores-de-presenca-escrevem-na-mesma-tabela.md).
 > Data-model: [data-model.md](data-model.md).

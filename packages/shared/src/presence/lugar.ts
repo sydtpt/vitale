@@ -32,7 +32,8 @@ import { haversineM } from '../geo/distance';
 
 export interface Ponto {
   lat: number;
-  lon: number;
+  /** Grafia `lng` como no resto da casa: `places.lng`, `activities.points`, `haversineM`. */
+  lng: number;
   /** Erro relatado pelo iOS, em metros. Ausente = trata-se como 0 e confia-se no raio. */
   accuracyM?: number;
 }
@@ -40,13 +41,13 @@ export interface Ponto {
 export interface LugarAncora {
   id: string;
   lat: number;
-  lon: number;
+  lng: number;
   radiusM: number;
 }
 
 /** Distância entre um ponto e o centro de um lugar, em metros. */
 export function distanciaAoLugar(p: Ponto, l: LugarAncora): number {
-  return haversineM(p.lat, p.lon, l.lat, l.lon);
+  return haversineM(p.lat, p.lng, l.lat, l.lng);
 }
 
 /** O ponto cabe no lugar, **com a folga da própria imprecisão**? */
@@ -124,7 +125,7 @@ export function centroPorMediana(pontos: readonly PontoPesado[]): Ponto | null {
   if (pontos.length === 0) return null;
   return {
     lat: medianaPonderada(pontos.map((p) => [p.lat, p.pesoS])),
-    lon: medianaPonderada(pontos.map((p) => [p.lon, p.pesoS])),
+    lng: medianaPonderada(pontos.map((p) => [p.lng, p.pesoS])),
   };
 }
 

@@ -577,11 +577,11 @@ check('lugar que ficou sem visita é APONTADO, não apagado', () => {
 
 // ------------------------------------------------------- ponto ↔ lugar
 
-const CASA_ANCORA = { id: 'casa', lat: 50.8721, lon: 4.3730, radiusM: 150 };
+const CASA_ANCORA = { id: 'casa', lat: 50.8721, lng: 4.3730, radiusM: 150 };
 
 check('nunca por distância pura: a precisão entra na conta', () => {
   // ~200 m ao norte do centro: fora do raio de 150 m.
-  const longe = { lat: 50.8739, lon: 4.3730 };
+  const longe = { lat: 50.8739, lng: 4.3730 };
   assert.equal(cabeNoLugar(longe, CASA_ANCORA), false);
   assert.equal(
     cabeNoLugar({ ...longe, accuracyM: 176 }, CASA_ANCORA),
@@ -591,8 +591,8 @@ check('nunca por distância pura: a precisão entra na conta', () => {
 });
 
 check('empate desempata por hábito naquela hora, não pelo mais perto', () => {
-  const perto = { id: 'vizinho', lat: 50.8722, lon: 4.3731, radiusM: 150 };
-  const ponto = { lat: 50.8721, lon: 4.3730 };
+  const perto = { id: 'vizinho', lat: 50.8722, lng: 4.3731, radiusM: 150 };
+  const ponto = { lat: 50.8721, lng: 4.3730 };
   assert.equal(lugarDoPonto(ponto, [CASA_ANCORA, perto]), 'casa', 'sem história, o mais perto');
   const habito = new Map([[chaveDoHabito('vizinho', 19), 12]]);
   assert.equal(
@@ -603,14 +603,14 @@ check('empate desempata por hábito naquela hora, não pelo mais perto', () => {
 });
 
 check('ponto fora de tudo devolve null, que é um valor e não um erro', () => {
-  assert.equal(lugarDoPonto({ lat: 48.85, lon: 2.35 }, [CASA_ANCORA]), null);
+  assert.equal(lugarDoPonto({ lat: 48.85, lng: 2.35 }, [CASA_ANCORA]), null);
 });
 
 check('o centro é mediana ponderada: a passagem na borda não arrasta', () => {
   const centro = centroPorMediana([
-    { lat: 50.8721, lon: 4.373, pesoS: 8 * 3600 },
-    { lat: 50.8722, lon: 4.3731, pesoS: 9 * 3600 },
-    { lat: 50.8800, lon: 4.3800, pesoS: 120 }, // dois minutos, lá na borda
+    { lat: 50.8721, lng: 4.373, pesoS: 8 * 3600 },
+    { lat: 50.8722, lng: 4.3731, pesoS: 9 * 3600 },
+    { lat: 50.8800, lng: 4.3800, pesoS: 120 }, // dois minutos, lá na borda
   ]);
   assert.ok(centro !== null && centro.lat < 50.873, 'o outlier de 2 min não move o centro');
 });
