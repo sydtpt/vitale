@@ -81,6 +81,18 @@
   protege é a RLS (`supabase/ensaio/privilegios.sql`); conferido depois com
   `has_table_privilege`.
 
+### F1.2b Portas do banco (shared/data — AD-4)
+
+- [x] T2.3 — `data/presence.ts` (02/10): `enviarVisitas` (upsert por `client_event_id`, em
+  lotes), `gravarPlaceDays` (conflito na chave `nulls not distinct`, senão o lugar "fora"
+  duplica a cada recálculo), `gravarLapides`, e as leituras. **`fetchPlaceDays` pagina**: um
+  ano com três lugares são ~1095 linhas e passa do teto de 1000 — o rollup não escapa dele
+  só por existir.
+- [x] T2.4 — `data/places.ts` ganhou `fetchLugares`, `vigenteEm` e **`mudarDeEndereco`** —
+  a operação que a exigência do dono criou. Ela existe como função nomeada para ninguém
+  reinventá-la do jeito tentador (editar `lat`/`lng` da linha), que preserva a métrica e
+  **apaga a história** de onde era a casa. 12 checagens.
+
 ### F1.3 Aparelho
 
 - [ ] T3.1 — Fila local de eventos → `visits`, em lote. **Nunca abrir conexão dentro do

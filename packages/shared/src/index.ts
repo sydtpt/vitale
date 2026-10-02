@@ -310,3 +310,4 @@ export * from './presence/retro';
 export * from './presence/correcao';
 export * from './presence/esquecer';
 export * from './presence/lugar';
+export * from './data/presence';
