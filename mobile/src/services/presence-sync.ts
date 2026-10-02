@@ -37,6 +37,7 @@ import {
   gravarPlaceDays,
   fetchLugares,
   criarLugar,
+  definirRaioDoGeofence,
   vigenteEm,
   type Lugar,
   type VisitaParaEnviar,
@@ -83,6 +84,15 @@ async function casarLugares(
   userId: string,
   locais: PresencePlace[],
   remotos: Lugar[],
+  /**
+   * Primeiro dia com evento de cada lugar.
+   *
+   * O lugar criado agora recebe vigência a partir **do primeiro evento dele**, não de
+   * hoje. Carimbar hoje foi o defeito de 02/10: o Trabalho nasceu valendo a partir de
+   * 02/10 e as seis visitas dele, de 08/09 em diante, ficaram **fora da vigência do
+   * próprio lugar** — um lugar que não existia quando foi visitado.
+   */
+  primeiroDia: Map<string, string>,
 ): Promise<{ mapa: Map<string, PresencePlace>; criados: number }> {
   const mapa = new Map<string, PresencePlace>();
   let criados = 0;
@@ -99,20 +109,28 @@ async function casarLugares(
     }
     if (!p.remoteId) {
       const jaExiste = remotos.find((r) => r.identidade === p.identidade && r.activeTo === null);
-      p = {
-        ...p,
-        remoteId:
-          jaExiste?.id ??
-          (await criarLugar(supabase, userId, {
+      if (jaExiste) {
+        // Adotar um lugar que já existia (a Casa veio do nome das rotas) sem carimbar o
+        // raio deixaria o banco sem saber com que raio o iOS vigia aquele lugar.
+        if (jaExiste.geofenceRadiusM === null) {
+          await definirRaioDoGeofence(supabase, userId, jaExiste.id, p.radiusM);
+        }
+        p = { ...p, remoteId: jaExiste.id };
+      } else {
+        p = {
+          ...p,
+          remoteId: await criarLugar(supabase, userId, {
             identidade: p.identidade!,
             kind: p.identidade === 'casa' ? 'home' : 'other',
             label: p.name,
             lat: p.lat,
             lng: p.lon,
             geofenceRadiusM: p.radiusM,
-          })),
-      };
-      if (!jaExiste) criados += 1;
+            activeFrom: primeiroDia.get(local.id),
+          }),
+        };
+        criados += 1;
+      }
       mudou = true;
     }
     mapa.set(local.id, p);
@@ -141,7 +159,18 @@ export async function sincronizarPresenca(userId: string): Promise<ResumoDaPrese
     return { visitas: 0, dias: 0, lugaresCriados: 0, incompletos: 0 };
   }
 
-  const { mapa, criados } = await casarLugares(userId, locais, remotos);
+  // O primeiro dia de cada lugar sai do próprio log — é ele que diz desde quando o
+  // aparelho tem o que afirmar sobre aquele lugar.
+  const tzDoLog = log.find((e) => e.tz)?.tz ?? fusoAtual();
+  const primeiroDia = new Map<string, string>();
+  for (const e of log) {
+    if (e.redundant) continue;
+    const d = diaDe(e.at, tzDoLog);
+    const atual = primeiroDia.get(e.placeId);
+    if (!atual || d < atual) primeiroDia.set(e.placeId, d);
+  }
+
+  const { mapa, criados } = await casarLugares(userId, locais, remotos, primeiroDia);
   const lugares = criados > 0 ? await fetchLugares(supabase, userId) : remotos;
 
   const tz = log.find((e) => e.tz)?.tz ?? fusoAtual();

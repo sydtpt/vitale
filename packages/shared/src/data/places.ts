@@ -259,3 +259,25 @@ export async function criarLugar(
   if (error) throw error;
   return (data as { id: string }).id;
 }
+
+/**
+ * Carimba o raio do geofence num lugar que já existia.
+ *
+ * Existe para o caso que a Presença encontrou em 02/10: a Casa já estava no banco, posta
+ * lá pela feature de nome das rotas, e foi **adotada** em vez de duplicada. Adotar sem
+ * isto deixa o banco sem saber com que raio o iOS está vigiando aquele lugar — não
+ * quebra nada hoje, e é exatamente o tipo de meia-verdade que ninguém descobre depois.
+ */
+export async function definirRaioDoGeofence(
+  db: SupabaseClient,
+  userId: string,
+  id: string,
+  raioM: number,
+): Promise<void> {
+  const { error } = await db
+    .from('places')
+    .update({ geofence_radius_m: raioM })
+    .eq('user_id', userId)
+    .eq('id', id);
+  if (error) throw error;
+}

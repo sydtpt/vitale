@@ -22,7 +22,8 @@ const banco: {
   visitasEnviadas: Record<string, unknown>[];
   diasGravados: Record<string, unknown>[];
   criados: Record<string, unknown>[];
-} = { lugares: [], visitasEnviadas: [], diasGravados: [], criados: [] };
+  raiosCarimbados: { id: string; raio: number }[];
+} = { lugares: [], visitasEnviadas: [], diasGravados: [], criados: [], raiosCarimbados: [] };
 
 const aparelho: {
   lugares: Record<string, unknown>[];
@@ -57,6 +58,10 @@ jest.mock('@vitale/shared', () => {
   return {
     ...real,
     fetchLugares: () => Promise.resolve(banco.lugares),
+    definirRaioDoGeofence: (_db: unknown, _u: string, id: string, raio: number) => {
+      banco.raiosCarimbados.push({ id, raio });
+      return Promise.resolve();
+    },
     criarLugar: (_db: unknown, _u: string, novo: Record<string, unknown>) => {
       const id = `remoto-${banco.criados.length + 1}`;
       banco.criados.push({ ...novo, id });
@@ -93,6 +98,7 @@ beforeEach(() => {
   banco.visitasEnviadas = [];
   banco.diasGravados = [];
   banco.criados = [];
+  banco.raiosCarimbados = [];
   aparelho.gravados = [];
   aparelho.permissaoBackground = true;
   aparelho.lugares = [{ id: 'local-casa', name: 'Casa', lat: 50.87, lon: 4.37, radiusM: 150 }];
@@ -114,8 +120,33 @@ describe('sincronizarPresenca', () => {
     expect(aparelho.lugares[0]).toMatchObject({ id: 'local-casa', remoteId: 'remoto-1', identidade: 'casa' });
   });
 
+  it('o lugar criado vale desde o PRIMEIRO EVENTO dele, não desde hoje', async () => {
+    // O defeito de 02/10: o Trabalho nasceu valendo a partir de hoje e as seis visitas
+    // dele, de 08/09 em diante, ficaram fora da vigência do próprio lugar.
+    await sincronizarPresenca(U);
+    expect(banco.criados[0]!['activeFrom']).toBe('2026-09-10');
+  });
+
+  it('adotar um lugar que já existia carimba o raio do geofence que faltava', async () => {
+    banco.lugares = [
+      { id: 'remoto-ja', identidade: 'casa', activeFrom: '2025-01-01', activeTo: null, geofenceRadiusM: null },
+    ];
+    aparelho.lugares = [{ ...aparelho.lugares[0]!, identidade: 'casa' }];
+    await sincronizarPresenca(U);
+    expect(banco.raiosCarimbados).toEqual([{ id: 'remoto-ja', raio: 150 }]);
+  });
+
+  it('não recarimba o raio quando ele já está lá', async () => {
+    banco.lugares = [
+      { id: 'remoto-ja', identidade: 'casa', activeFrom: '2025-01-01', activeTo: null, geofenceRadiusM: 150 },
+    ];
+    aparelho.lugares = [{ ...aparelho.lugares[0]!, identidade: 'casa' }];
+    await sincronizarPresenca(U);
+    expect(banco.raiosCarimbados).toEqual([]);
+  });
+
   it('não recria o lugar quando ele já existe no banco', async () => {
-    banco.lugares = [{ id: 'remoto-ja', identidade: 'casa', activeFrom: '2025-01-01', activeTo: null }];
+    banco.lugares = [{ id: 'remoto-ja', identidade: 'casa', activeFrom: '2025-01-01', activeTo: null, geofenceRadiusM: 150 }];
     aparelho.lugares = [{ ...aparelho.lugares[0]!, identidade: 'casa' }];
     const r = await sincronizarPresenca(U);
     expect(r.lugaresCriados).toBe(0);

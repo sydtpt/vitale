@@ -63,10 +63,12 @@ select
 
 echo
 echo "── a manchete, do banco ───────────────────────────────"
+# Por identidade, e NÃO por nome fixo: a identidade sai do nome que o dono deu ao lugar
+# ("Trabalho" → `trabalho`), e chutá-la aqui já fez este script relatar
+# `dias_de_escritorio: 0` com seis dias de escritório no banco (02/10/2026).
 consultar "
-select
-  round(sum(seconds) filter (where identidade = 'casa')  / 3600.0, 1) as horas_em_casa,
-  round(sum(seconds) filter (where place_id is null)     / 3600.0, 1) as horas_fora,
-  count(distinct day) filter (where identidade = 'escritorio')        as dias_de_escritorio
-from public.place_days;
-" | jq -r '.[0] | to_entries | map("  \(.key): \(.value)") | .[]'
+select coalesce(identidade, '(fora de qualquer lugar)') as onde,
+       round(sum(seconds)/3600.0, 1) as horas,
+       count(distinct day)           as dias
+from public.place_days group by 1 order by 2 desc;
+" | jq -r '.[] | "  \(.onde): \(.horas) h em \(.dias) dias"'
