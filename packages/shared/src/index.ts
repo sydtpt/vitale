@@ -305,3 +305,4 @@ export * from './geo/country-borders';
 export * from './presence/eventos';
 export * from './presence/regras';
 export * from './presence/dias';
+export * from './presence/rollup';

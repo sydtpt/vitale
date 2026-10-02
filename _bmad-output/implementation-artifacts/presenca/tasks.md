@@ -47,9 +47,13 @@
 - [x] T1.3 — `presence/regras.ts` (02/10): colagem (20 min, funde 3 no log real), passagem
   (8 min), `ausencias()` e `contaComoSaida()` com o limiar de saída. Falta o **candidato por
   três passagens** no mesmo ponto e o `merged_into` (precisa do banco).
-- [ ] T1.4 — `presence/rollup.ts`: visitas → `place_days`, **dividindo na meia-noite local**
-  pelo `tz` da chegada. Teste dedicado para a visita que cruza o dia — é sempre o que se
-  esquece. Propaga `inferred_edges` e `incomplete`.
+- [x] T1.4 — `presence/rollup.ts` (02/10): visitas → `place_days`, dividindo na meia-noite
+  local, com o **lugar nulo** preenchendo os vãos e `inferredEdges` por dia. A invariante
+  `presença + fora + não coberto = o dia` fecha nos 25 dias reais, por teste.
+  **Armadilha paga: o dia local não tem 24 h duas vezes por ano** — em Bruxelas 29/03/2026 tem
+  23 h e 25/10/2026 tem 25 h. Um rollup que suponha 86 400 erra o dia inteiro nessas datas e
+  erra calado, porque 23 h num dia de 23 h parece cobertura parcial. `segundosDoDiaLocal()`
+  mede. Falta `incomplete` (vem da guarda de permissão, T3.3).
 - [ ] T1.5 — `presence/match.ts`: `dist(ponto, centro) < radius_m + accuracy_m`, nunca
   distância pura; empate desempata por frequência histórica naquele horário; centro é a
   **mediana ponderada por duração** das visitas confirmadas.

@@ -17,6 +17,7 @@ import { LOG_24_DIAS, FIXTURE_TZ, type EventoBruto } from './fixture-24-dias';
 import { parear, duracaoMin, TETO_ORFA_H, type PresenceEvent } from './eventos';
 import { colar, ausencias, ehPassagem, contaComoSaida, COLAGEM_MIN, SAIDA_MIN_PADRAO } from './regras';
 import { diasDePresenca, contagemDosDias, diaLocal } from './dias';
+import { rollup, segundosDoDiaLocal, segundosNaoCobertos } from './rollup';
 
 let passed = 0;
 function check(name: string, fn: () => void): void {
@@ -222,6 +223,86 @@ check('o dia da ausência é o dia em que ela COMEÇOU', () => {
 check('diaLocal usa o fuso do dado, não o de quem lê', () => {
   assert.equal(diaLocal('2026-09-07T22:30:00.000Z', 'Europe/Brussels'), '2026-09-08');
   assert.equal(diaLocal('2026-09-07T22:30:00.000Z', 'UTC'), '2026-09-07');
+});
+
+// -------------------------------------------------------------------- rollup
+
+const COLADO = colar(parear(EVENTOS).visitas);
+const LINHAS = rollup(COLADO, { tz: FIXTURE_TZ, janela: JANELA });
+
+check('a invariante fecha nos 25 dias do log real', () => {
+  const dias = [...new Set(LINHAS.map((l) => l.day))];
+  assert.equal(dias.length, 25);
+  for (const d of dias) {
+    const presenca = LINHAS.filter((l) => l.day === d).reduce((s, l) => s + l.seconds, 0);
+    const naoCoberto = segundosNaoCobertos(LINHAS, d, FIXTURE_TZ);
+    assert.equal(
+      Math.round(presenca + naoCoberto),
+      Math.round(segundosDoDiaLocal(d, FIXTURE_TZ)),
+      `${d}: presença + fora + não coberto tem de dar o dia`,
+    );
+  }
+});
+
+check('o dia não tem 24 h duas vezes por ano — e o rollup mede em vez de supor', () => {
+  assert.equal(segundosDoDiaLocal('2026-03-29', FIXTURE_TZ), 23 * 3600, 'primavera: 23 h');
+  assert.equal(segundosDoDiaLocal('2026-10-25', FIXTURE_TZ), 25 * 3600, 'outono: 25 h');
+  assert.equal(segundosDoDiaLocal('2026-09-15', FIXTURE_TZ), 24 * 3600);
+});
+
+check('visita que atravessa a meia-noite é dividida, e a chegada conta UMA vez', () => {
+  const visitas = [
+    {
+      placeId: 'casa',
+      arrivedAt: '2026-06-01T20:00:00.000Z', // 22h local
+      departedAt: '2026-06-02T06:00:00.000Z', // 08h local
+      departedSource: 'geofence' as const,
+    },
+  ];
+  const l = rollup(visitas, { tz: 'Europe/Brussels' });
+  const d1 = l.find((x) => x.day === '2026-06-01' && x.placeId === 'casa')!;
+  const d2 = l.find((x) => x.day === '2026-06-02' && x.placeId === 'casa')!;
+  assert.equal(d1.seconds, 2 * 3600, '22h → meia-noite');
+  assert.equal(d2.seconds, 8 * 3600, 'meia-noite → 08h');
+  assert.equal(d1.arrivals, 1);
+  assert.equal(d2.arrivals, 0, 'atravessar a noite não é chegar de novo');
+});
+
+check('o lugar nulo é o vão entre visitas, não ausência de dado', () => {
+  const visitas = [
+    { placeId: 'casa', arrivedAt: '2026-06-01T06:00:00.000Z', departedAt: '2026-06-01T08:00:00.000Z', departedSource: 'geofence' as const },
+    { placeId: 'casa', arrivedAt: '2026-06-01T17:00:00.000Z', departedAt: '2026-06-01T20:00:00.000Z', departedSource: 'geofence' as const },
+  ];
+  const l = rollup(visitas, { tz: 'Europe/Brussels', janela: { inicio: '2026-06-01T06:00:00.000Z', fim: '2026-06-01T20:00:00.000Z' } });
+  const fora = l.find((x) => x.placeId === null)!;
+  assert.equal(fora.seconds, 9 * 3600, 'as nove horas entre as duas estadias');
+  assert.equal(l.reduce((s, x) => s + x.seconds, 0), 14 * 3600, 'a janela inteira');
+});
+
+check('a borda estimada aparece no dia em que fechou', () => {
+  const p = parear([
+    { at: '2026-06-01T06:00:00.000Z', placeId: 'casa', kind: 'enter' },
+    { at: '2026-06-01T09:00:00.000Z', placeId: 'trabalho', kind: 'enter' },
+  ]);
+  const l = rollup(p.visitas, { tz: 'Europe/Brussels' });
+  const casa = l.find((x) => x.placeId === 'casa')!;
+  assert.equal(casa.inferredEdges, 1, 'a saída de casa foi deduzida da chegada no trabalho');
+  assert.equal(l.find((x) => x.placeId === 'trabalho')!.inferredEdges, 0);
+});
+
+check('visita em curso é cortada no fim da janela — não se inventa futuro', () => {
+  const visitas = [
+    { placeId: 'casa', arrivedAt: '2026-06-01T06:00:00.000Z', departedAt: null, departedSource: null },
+  ];
+  const fim = '2026-06-01T10:00:00.000Z';
+  const l = rollup(visitas, { tz: 'Europe/Brussels', janela: { inicio: '2026-06-01T06:00:00.000Z', fim } });
+  assert.equal(l.length, 1);
+  assert.equal(l[0]!.seconds, 4 * 3600);
+});
+
+check('não coberto é grande num dia parcialmente observado, e isso é o ponto', () => {
+  const naoCob = segundosNaoCobertos(LINHAS, '2026-09-07', FIXTURE_TZ);
+  assert.ok(naoCob > 10 * 3600, `07/09 só foi observado a partir das 13h — ${Math.round(naoCob / 3600)} h fora da observação`);
 });
 
 console.log(`\n${passed} checagens de presença ok`);
