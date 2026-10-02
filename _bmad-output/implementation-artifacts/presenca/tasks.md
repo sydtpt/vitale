@@ -93,6 +93,24 @@
   reinventá-la do jeito tentador (editar `lat`/`lng` da linha), que preserva a métrica e
   **apaga a história** de onde era a casa. 12 checagens.
 
+### F1.2c O que o banco já provou (02/10, sem tocar no aparelho)
+
+> Tudo contra **produção**, dentro de `begin … rollback`. Nada ficou.
+
+- [x] T2.5 — **O pipeline inteiro, com o log real.** Núcleo → SQL → banco: 30 visitas e 54
+  linhas de rollup, os mesmos números que o TypeScript diz. E a invariante conferida **em
+  SQL, independente do núcleo**: 23 dias fechando em 86 400 s exatos e 2 parciais (as
+  bordas). Zero visita fora da vigência do endereço — `vigenteEm` está certo.
+- [x] T2.6 — **As 8 travas mordem**: raio abaixo do piso, vaga ≥ 20, `kind` inventado, saída
+  antes da chegada, `source` fora do vocabulário, `client_event_id` repetido, dois "fora" no
+  mesmo dia (o `nulls not distinct`) e lápide negativa.
+- [x] T2.7 — **A RLS fecha dos dois lados**: outro usuário vê 0 visitas dele; o dono vê a
+  sua; o dono **não** grava no nome de outro; um estranho **não** grava no nome dele.
+- [x] T2.8 — **Defeito achado pelo ensaio e consertado** (`20261002140000_places_kind_amplia`):
+  a tabela vinha com `check (kind = 'home')` da feature de rotas, e a migração da Presença não
+  tocou nele. Cadastrar o escritório devolvia `23514`. **Sem o ensaio, isso apareceria no
+  iPhone**, no momento em que ele cadastrasse o segundo lugar, com cara de bug do app.
+
 ### F1.3 Aparelho
 
 - [ ] T3.1 — Fila local de eventos → `visits`, em lote. **Nunca abrir conexão dentro do
