@@ -323,6 +323,37 @@ log morre com o app**: uma reinstalação que apague o container levaria tudo ju
 disso é recuperável por outro caminho (§1). O backup fecha esse risco até 01/10; **o que for
 medido depois só existe no aparelho**.
 
+## 12.1 A regra que o primeiro dia de produção escreveu
+
+Em 02/10/2026 a Fase 1 foi do desenho ao aparelho num dia. Sete defeitos apareceram, e
+**nenhum era do iOS**. Cinco deles eram a mesma coisa: **um valor que o código escolheu
+sozinho e não contou a ninguém.**
+
+| O default | O sintoma | Onde apareceu |
+|---|---|---|
+| `active_from = hoje` ao criar lugar | 6 visitas fora da vigência do próprio lugar | no conferidor |
+| `kind = 'other'` para tudo que não é casa | os dois números do escritório **mudos** | na tela |
+| `identidade = 'escritorio'` chutada no script | "0 dias de escritório" com 6 no banco | no conferidor |
+| índice parcial em `client_event_id` | `42P10` no primeiro toque do botão | no aparelho |
+| `String(e)` num erro que não é `Error` | `[object Object]` no lugar do diagnóstico | no aparelho |
+
+Todos passaram por `tsc`, por teste e pelo ensaio contra o schema real. **Todos só
+apareceram com dado real na tela** — e dois deles foram achados pelo dono, pela ausência:
+*"não tem o evento de que cheguei em casa ontem"* e *"os dias do escritório ainda não
+estão implementados?"*. Nos dois casos a suspeita natural era o sensor, e a causa era o
+código.
+
+> **A regra: todo default que o código escolhe sozinho precisa de uma linha na tela
+> dizendo o que ele escolheu.**
+
+Não é zelo de log. Um default silencioso não produz erro — produz um número plausível, e
+um número plausível manda a investigação para o lugar errado. O custo não é o defeito: é o
+tempo gasto procurando no sensor o que estava no `??`.
+
+Daí a forma que o resto desta feature já segue: a cobertura vem **escrita** na tela, a
+borda estimada é **contada à parte**, a mediana sem amostra é **um traço** e não um zero,
+e a caixa de correções tem **"está certo"** com o mesmo peso de "cheguei".
+
 ## 13. Depois desta rodada
 
 1. Construir na ordem das fases do tasks — o núcleo puro primeiro, testável sem aparelho.

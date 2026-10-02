@@ -140,10 +140,24 @@
   tela, o gatilho vira a volta ao primeiro plano. *(Sem isto, a sync seria mais um mecanismo
   sem quem o dispare — a família que a Mary conta desde o AGG_VERSION.)*
 
-### F1.4 Telas
+### F1.4 Telas — **a tela está no aparelho desde 02/10**
 
+- [x] T7.1b — `/presenca`, pelo **Mais** e não pela barra (lugar é dimensão). Manchete,
+  três números, barras de horas fora, perfil por dia da semana, o período em três estados
+  — **três degraus da mesma cor**, não três cores — e o rodapé honesto. Derivação toda em
+  `presence/detalhe.ts`; a tela só renderiza. Conferida no iPhone pelo dono.
+- [x] T8.6b — **A caixa de correções**, dentro da tela. `chegadasEngolidas()` recupera o
+  que a corrida de 02/10 classificou errado (`background` + sozinho no instante), com a
+  hora exata para a folha; a correção grava visita `manual` com as **duas pontas** (a
+  saída sai do log, não da tela); e **"está certo" grava tanto quanto "cheguei"**, porque
+  uma das seis anomalias é falso positivo. Conferida no iPhone.
 - [ ] T4.1 — Cartão na Semana: faixa de 7 dias com as horas fora de casa. Leitura de um
   segundo.
+- [ ] T4.1b — **O papel do lugar no editor.** Hoje `kind` é adivinhado por um mapa de
+  nomes, e vai calar de novo num lugar que o mapa não conhece. É a dívida mais próxima de
+  virar sintoma.
+- [ ] T4.1c — As **testemunhas do banco** (sono e atividade com rota) na caixa: já existem
+  em `contradicoes()`, falta a tela lê-las.
 - [ ] T4.2 — Tela de Presença pelo Mais (não na barra — lugar é dimensão, não módulo).
   Tempo por lugar, chegada e saída do dia, e a linha da lápide quando houver.
 - [ ] T4.3 — A borda estimada aparece: "3 h 40 em casa *(1 borda estimada)*".
