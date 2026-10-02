@@ -172,9 +172,13 @@
   teto de blocos (conferido no catálogo, no `resolveRetroPrefs`, na migration, no celular e na
   web); o único "12" do sistema são os blocos manipuláveis = 13 menos a manchete, que é
   `fixed`. Devolver a seta ataca o **custo declarado** pela própria 2.5, não a decisão dela.
-- [ ] T4.4b — Reimplementar as setas de reordenar no painel Diagramação (`retrospectiva/index.tsx`),
-  respeitando `fixed` (a manchete não move). O comentário da 2.5 que diz "não existe mais UI
-  para movê-lo" deixa de valer e precisa ser atualizado junto.
+- [x] T4.4b — **As setas voltaram** (02/10) e o bloco `presence` entrou no catálogo, sem
+  `kinds` — vale nas cinco recorrências. `moveBlock` respeita `fixed` (a manchete não sai do
+  topo, nem por troca), não embaralha nas bordas e preserva o conjunto. 12 checagens.
+- [x] T4.10b — **O bloco na Retrospectiva**: manchete em frase, horas fora no típico, dias
+  de escritório, a maior sequência quando houver, e a cobertura escrita. Sem dado o bloco
+  **não é publicado** — um jornal deixa de publicar a seção, não publica a seção com erro
+  dentro.
 - [x] T4.5 — `presence/dias.ts` (manchete, três estados) + `presence/retro.ts` (02/10): as
   cinco métricas de um período, com o recorte entrando pronto de `period/bounds.ts` — duplicar
   a régua do que é "o mês" criaria uma segunda verdade. **Correção de desenho no caminho:**
