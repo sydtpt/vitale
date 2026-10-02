@@ -64,9 +64,10 @@
 - [ ] T3.1 — Fila local de eventos → `visits`, em lote. **Nunca abrir conexão dentro do
   callback do geofence**: o motor é barato, o callback é que custa bateria. Idempotência por
   `client_event_id` (o mesmo id que o log já deduplica).
-- [ ] T3.2 — **Semeadura dos 23 dias** (data-model §4): os dois lugares locais viram `places`
+- [ ] T3.2 — **Semeadura dos 24 dias** (data-model §4): os dois lugares locais viram `places`
   preservando o `id` (senão o `identifier` da região muda e o monitoramento precisa ser
-  rearmado), e as 73 travessias viram ~36 visitas. Roda uma vez, guardada por carimbo.
+  rearmado), e as **74 travessias viram ~37 visitas**. Roda uma vez, guardada por carimbo.
+  **Pode ler do backup** em `~/Documents/Orbe/presenca-backup-2026-10-02/` — mesmo JSON.
 - [ ] T3.3 — **Guarda da permissão**: checar o status a cada foreground; se caiu, marcar os
   dias afetados como `incomplete` e mostrar buraco, nunca número menor. É o risco nº 1 e o
   modo de falha dos buracos de sono até 18/07.
@@ -86,6 +87,65 @@
 - [ ] T4.2 — Tela de Presença pelo Mais (não na barra — lugar é dimensão, não módulo).
   Tempo por lugar, chegada e saída do dia, e a linha da lápide quando houver.
 - [ ] T4.3 — A borda estimada aparece: "3 h 40 em casa *(1 borda estimada)*".
+
+### F1.6 O bloco da Retrospectiva
+
+> Desenho completo em [docs/specs/presenca/retrospectiva.md](../../../docs/specs/presenca/retrospectiva.md).
+
+- [x] T4.4 — **DECIDIDO em 02/10: bloco próprio + as setas de reordenar VOLTAM.** Não existe
+  teto de blocos (conferido no catálogo, no `resolveRetroPrefs`, na migration, no celular e na
+  web); o único "12" do sistema são os blocos manipuláveis = 13 menos a manchete, que é
+  `fixed`. Devolver a seta ataca o **custo declarado** pela própria 2.5, não a decisão dela.
+- [ ] T4.4b — Reimplementar as setas de reordenar no painel Diagramação (`retrospectiva/index.tsx`),
+  respeitando `fixed` (a manchete não move). O comentário da 2.5 que diz "não existe mais UI
+  para movê-lo" deixa de valer e precisa ser atualizado junto.
+- [ ] T4.5 — `presence/retro.ts` no shared: as cinco métricas pedidas, para os cinco
+  `PeriodKind`. Mediana e não média; dia de escritório como denominador do item 4; visita
+  confirmada (não `provisional`) como critério do item 5.
+- [ ] T4.6 — **Teste da invariante** `fora + em casa acordado + dormindo + não coberto = 24 h`.
+  É o que trava a implementação inteira.
+- [ ] T4.7 — Interseção Casa ∩ `sleep_periods`, **no eixo do tempo** e recortada depois por dia
+  local — a noite cruza a meia-noite, igual à visita. Noite sem medição derruba só o
+  "acordado", nunca o "fora".
+- [ ] T4.8 — Guardas de honestidade: `incomplete` e viagem fora das médias, piso de **10 dias
+  cobertos** para o bloco existir, e a cobertura escrita ("sobre 23 dos 30 dias").
+- [ ] T4.9 — Série "horas fora de casa" por dia no `yearSeries`, ao lado de Sono e Acordado.
+  Entra no bloco que já existe, sem desenho novo.
+- [ ] T4.10 — **A manchete é "dias sem sair de casa"** (02/10), não "horas fora" — essa fica
+  secundária. Heatmap com **três** estados: saiu · não saiu · sem cobertura. Saída curta
+  aparece no detalhe do dia, **nunca** como quarto estado na grade do ano.
+
+### F1.7 A tela própria (decidida em 02/10 — entra NA Fase 1, não depois)
+
+> *"A ideia é a coleta de dados agora, e uma forma de já visualizar."* A Fase 1 entrega banco
+> **e** tela **e** bloco **e** cartão — a coleta nunca fica sozinha.
+
+- [ ] T7.1 — Tela de Presença no **molde do detalhe de Hábitos/Registros**: períodos, barras,
+  dia da semana, heatmap anual com intensidade. Molde já aprovado duas vezes; troca a fonte,
+  não redesenha.
+- [ ] T7.2 — Cartão na Semana (ver T4.1) e bloco da Retro (F1.6) saem no mesmo passo.
+
+### F1.8 As duas testemunhas e a correção manual
+
+> Quatro casos reais já esperam, com data — ver [retrospectiva.md §8.2](../../../docs/specs/presenca/retrospectiva.md).
+
+- [ ] T8.1 — **Detector de sequência**: `exit`→`exit` = chegada perdida · `enter`→`enter` =
+  saída perdida. Não precisa de testemunha nenhuma, lê o próprio log. Nos 24 dias reais acha
+  **4** (17/09 ×2, 24/09, 26/09) — usar esses como fixture.
+- [ ] T8.2 — **Testemunha do sono**: noite em `sleep_periods` sem visita em Casa cobrindo =
+  dormiu fora **ou** a chegada se perdeu. Audita a **chegada**.
+- [ ] T8.3 — **Testemunha da atividade**: dia "não saiu" com atividade de rota naquele dia.
+  Audita a **saída**. 555 atividades com `points` no banco.
+- [ ] T8.4 — Correção = **visita manual com horário** (`source='manual'`, `place_id` nulo),
+  **pré-preenchida** pela testemunha que acusou. Precedência `manual > geofence > clvisit`
+  **com teste** — sem ela o dia soma 26 h.
+- [ ] T8.5 — O rollup **lê a correção**. É o reescritor aqui, como o sync era no `type_edited`
+  — que nasceu porque a correção não durava, desfeita "sem erro, sem aviso, sem marca".
+- [ ] T8.6 — As contradições vivem na **caixa de correções** da Retrospectiva, que já existe
+  (`sleep/retro.ts`). Duas respostas, **as duas gravam**: "saí" e "está certo".
+- [ ] T8.7 — **Limiar de saída: 45 min, configurável, derivado na leitura** — nunca gravado
+  (precedente `unit_price`: retroativo sem backfill). Medido: qualquer valor entre 26 e 64 min
+  dá resultado idêntico; o botão só muda algo acima de ~90 min.
 
 ### F1.5 Portão de entrega
 

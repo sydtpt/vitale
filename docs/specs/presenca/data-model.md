@@ -43,8 +43,15 @@ interface PresenceEvent {
 3. `accuracyM` é gravado sempre, porque o casamento ponto↔lugar é
    `dist < radius_m + accuracy_m` e nunca distância pura.
 
-O teto de **500 eventos** poda **relatório antes de travessia** (`aparar()`). Em 30/09 o log
-tinha 363 eventos (73 travessias + 290 relatórios) e nada havia sido descartado.
+O teto de **500 eventos** poda **relatório antes de travessia** (`aparar()`). Em 02/10 o log
+tinha **372 eventos (74 travessias + 298 relatórios)** e nada havia sido descartado.
+
+**O log já foi extraído** (02/10): `xcrun devicectl device copy from --domain-type
+appDataContainer --domain-identifier com.sydtpt.vitale --source "Library/Application
+Support/com.sydtpt.vitale/RCTAsyncLocalStorage_V1"`. São 124 KB; o nome de cada arquivo é o
+**MD5 da chave** (`vitale:presence-log` → `aa6df81fe6c3fae8bff3028d5a36993c`), e
+`presence-places`/`presence-state` ficam **inline** no `manifest.json`. Copiar o container
+inteiro puxa **16 GB** — quase tudo `Library/Caches/VideoThumbnails` — e enche o disco.
 
 ## 2. Fase 1 — o esqueleto
 
@@ -127,6 +134,32 @@ create unique index visits_client_event on visits (user_id, client_event_id)
 create index visits_user_arrived on visits (user_id, arrived_at desc);
 ```
 
+### 2.2.1 A correção manual é uma visita, não um remendo
+
+Decidido em 02/10. Quando o sensor erra — e ele erra **uma vez a cada seis dias**, medido —, a
+correção do dono entra como `source='manual'` com `place_id` **nulo**, que neste modelo já
+significa *"fora de qualquer lugar conhecido"*. Ela tem `arrived_at` e `departed_at` de
+verdade, porque a folha nasce **pré-preenchida pela testemunha** que acusou a contradição (a
+atividade com rota traz `start_at`/`end_at`).
+
+Três regras que vêm com ela:
+
+1. **Precedência `manual > geofence > clvisit`**, no rollup, com teste. Sem isso o dia soma 26
+   horas: o geofence continua afirmando presença em Casa no mesmo intervalo.
+2. **A medição nunca é sobrescrita.** A linha do geofence fica; a manual vence na leitura.
+3. **O rollup tem de ler a correção.** É o reescritor aqui — como o sync era lá no
+   `type_edited`, que nasceu porque a correção *não durava*: a regravação sem guarda desfazia
+   tudo "sem erro, sem aviso, sem marca". O mesmo defeito, com outro reescritor.
+
+### 2.2.2 O limiar de saída não mora no banco
+
+`45 min` é **preferência do usuário** (`user_preferences`), não coluna de `visits` nem de
+`place_days`, e o binário "saiu / não saiu" é **derivado na leitura** — nunca gravado. É o
+precedente do `habits.unit_price`: mudar o número vale retroativo, sem backfill. Gravar o
+binário congelaria a resposta e obrigaria um backfill a cada ajuste.
+
+---
+
 `client_event_id` não estava na proposta de 06/09 e entra agora porque a Fase 0 já provou
 que **o iOS reentrega evento**: o log local deduplica por
 `${placeId}:${kind}:${at}` desde o primeiro dia. Levar essa chave até o banco faz a fila e a
@@ -198,7 +231,12 @@ O log local vira `visits` numa passada, sem migration especial:
    como `places.id` — assim o `identifier` da região no iOS não muda e o monitoramento não
    precisa ser rearmado.
 
-Rendimento esperado: **~36 visitas** a partir de 73 travessias, cobrindo 07→30/09/2026.
+Rendimento esperado: **~37 visitas** a partir de 74 travessias, cobrindo 07/09→01/10/2026.
+
+**A semeadura pode ler do backup** em `~/Documents/Orbe/presenca-backup-2026-10-02/` em vez de
+ler do aparelho — o arquivo é o mesmo JSON. E ela encontra **4 anomalias de sequência** (3
+chegadas perdidas, 1 saída perdida): nesses pontos **nenhum pareamento está certo**, e a visita
+resultante nasce para a caixa de correções, não para o agregado.
 
 **Por que vale a pena:** esse histórico não é recuperável por nenhum outro caminho (spec §1),
 e o log morre junto com o container do app numa reinstalação que apague dados.

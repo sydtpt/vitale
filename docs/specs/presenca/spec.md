@@ -1,10 +1,14 @@
 # Presença — onde o dia foi
 
-> **Status:** **Fase 0 medida e aprovada.** O portão foi respondido em 30/09/2026, com 23
-> dias de observação no iPhone do dono. A **Fase 1 está liberada** e ainda não tem uma linha
-> escrita.
+> **Status:** **Fase 0 medida, aprovada e com o log fora do aparelho.** O portão foi
+> respondido em 30/09/2026; em 02/10 o log dos **24 dias** foi extraído do iPhone e virou
+> medição (ver [retrospectiva.md §8](retrospectiva.md)). O desenho do produto foi fechado em
+> 02/10 numa mesa de seis rodadas. A **Fase 1 está liberada** e ainda não tem uma linha escrita.
+> Backup do log: `~/Documents/Orbe/presenca-backup-2026-10-02/`.
 > Decisão: [ADR 0059](../../decisions/0059-os-dois-motores-de-presenca-escrevem-na-mesma-tabela.md).
 > Data-model: [data-model.md](data-model.md).
+> Métricas do jornal: [retrospectiva.md](retrospectiva.md) — o bloco "Onde você esteve",
+> as fórmulas e as cinco recorrências.
 > Tarefas: [tasks](../../../_bmad-output/implementation-artifacts/presenca/tasks.md).
 > Proposta original (06/09/2026, fechada): artifact `claude.ai/artifact/3afe66ba-f459-4570-8c5f-fca0f140d42d`.
 > UX do editor de local (07/09/2026, aprovada e construída): artifact `claude.ai/artifact/00920792`.
@@ -138,6 +142,7 @@ guardar tudo e limpar depois.
 | **Passagem** | duração < **8 min** | passou em frente | 1 |
 | **Órfã** | teto de **16 h** | a saída se perdeu | 1 |
 | **Sobreposição** | — | dois motores na mesma janela | fase 3 |
+| **Saída** | ausência > **45 min**, configurável | ir ao mercado × jogar o lixo | ver [retrospectiva.md §7](retrospectiva.md) |
 
 - **Colagem** funde via `merged_into`: a filha é absorvida, não destruída, e o vão continua
   consultável.
@@ -298,16 +303,23 @@ Cômodos (quarto, cozinha, escritório de casa) ficam **fora de todas elas**: di
 uma ordem de grandeza abaixo do ruído do sensor, e só sairiam com `CLBeaconRegion` — que
 custa hardware, módulo Swift e vagas do **mesmo teto de 20**. Adiado em 07/09/2026.
 
-## 12. O que a Fase 1 faz com os 23 dias já medidos
+## 12. O que a Fase 1 faz com os 24 dias já medidos
 
-O log da Fase 0 tem **73 travessias reais** e vive só no aparelho. A Fase 1 o importa: cada
+O log da Fase 0 tem **74 travessias reais** entre 07/09 e 01/10/2026. A Fase 1 o importa: cada
 par `enter`/`exit` do mesmo `placeId` vira uma visita `source='geofence'`, com
 `client_event_id` herdado do id do evento — que já é único e já deduplica no aparelho.
 
-Isso não é urgente pelo teto: o corte sacrifica relatório antes de travessia, e as 73
-travessias só encostariam nos 500 por volta de **fevereiro de 2027**. É urgente por outro
-motivo — **o log morre com o app**. Uma reinstalação que apague o container leva os 23 dias
-junto, e eles não são recuperáveis por nenhum caminho (§1).
+**O log já não vive só no aparelho.** Em 02/10 ele foi copiado por cabo
+(`xcrun devicectl device copy from --domain-type appDataContainer`, só a pasta
+`RCTAsyncLocalStorage_V1`, 124 KB) para `~/Documents/Orbe/presenca-backup-2026-10-02/`, com
+`LEIA-ME.md` e conferência por `sha256`. A semeadura pode ler **desse arquivo** em vez de ler
+do iPhone.
+
+Isso nunca foi urgente pelo teto — o corte sacrifica relatório antes de travessia, e as 74
+travessias só encostariam nos 500 por volta de **fevereiro de 2027**. Era urgente porque **o
+log morre com o app**: uma reinstalação que apague o container levaria tudo junto, e nada
+disso é recuperável por outro caminho (§1). O backup fecha esse risco até 01/10; **o que for
+medido depois só existe no aparelho**.
 
 ## 13. Depois desta rodada
 
