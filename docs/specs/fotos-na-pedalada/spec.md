@@ -131,6 +131,39 @@ pedalada"**. A palavra é deliberada: o app não é dono do arquivo, e o menu di
 oferecer o app Fotos logo acima. Desligar grava `state='dismissed'`, que sobrevive a novas
 varreduras.
 
+### 5.6 Esconder e apagar (emenda de 03/10/2026)
+
+Duas mudanças, pedidas pelo dono para manter menos fotos no telefone. Mockups:
+`claude.ai/artifact/6WzkjFsNtQwq4z6HviiFqk`.
+
+**"Desligar" passou a se chamar "Esconder"** em toda a interface (cartão, visor, barra da
+seleção e a frase de recusa da capa na Revista). No banco nada muda: o estado continua
+`dismissed`. A palavra nova promete uma volta que o estado não tinha — nem a varredura
+traz a foto de novo —, então a galeria ganhou uma linha quieta no fim da grade,
+"N escondidas nesta pedalada · Mostrar", que abre as escondidas esmaecidas e oferece
+"Voltar para a pedalada".
+
+**"Apagar do iPhone" é uma segunda ação**, e a 5.5 continua valendo no que importa: o app
+não apaga nada sozinho; apaga quando o dono pede.
+
+- **Na seleção da galeria**: "Esconder da pedalada" segue como botão cheio; "Apagar N do
+  iPhone" entra em contorno, no papel `red` da paleta. Uma linha de resumo diz o que está
+  indo (`1 foto · 4 vídeos · 1 min 06 s de vídeo`) — sem megabytes, que o app não conhece.
+- **No visor, marca agora e apaga no fim**: a lixeira só marca; a pílula "Apagar N" faz o
+  pedido único. Cada pedido dispara um alerta do iOS, e apagar na hora daria um por foto.
+  Fechar o visor com marcas leva-as para a seleção da galeria.
+- **O Orbe não confirma por conta própria.** O alerta do iOS é obrigatório e é a única
+  pergunta. Recusado, nada muda e a seleção continua.
+- **Depois**: o aviso de que as mídias ficam 30 dias em "Apagados" e o espaço só libera
+  quando a pasta for esvaziada, com atalho para o app Fotos.
+- **Acesso limitado**: o botão aparece apagado, com a razão e o atalho para os Ajustes.
+- **A apagada grava `dismissed`**, como a escondida. O que as separa é a biblioteca: a
+  apagada não resolve mais, e por isso não aparece entre as escondidas. Recuperada dos
+  "Apagados", ela volta a resolver e reaparece ali.
+
+Fora desta emenda: a galeria de período (Retrospectiva), que não tem seleção, e sugerir
+sozinho quais repetidas apagar.
+
 ## 6. As decisões do dono (06/09/2026)
 
 | Pergunta | Resposta |

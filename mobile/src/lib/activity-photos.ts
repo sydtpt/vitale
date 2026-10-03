@@ -134,3 +134,31 @@ export function planHealing(
   }
   return { heal, orphans };
 }
+
+/**
+ * O que está indo embora, em uma linha: `1 foto · 4 vídeos · 1 min 06 s de vídeo`.
+ *
+ * Fala em fotos, vídeos e **tempo de vídeo** — nunca em megabytes. O banco
+ * guarda o instante e a duração de cada mídia, não o tamanho do arquivo, e
+ * perguntar o tamanho à biblioteca obrigaria a baixar do iCloud o que mora só
+ * lá. Prometer espaço liberado seria inventar número.
+ */
+export function selectionSummary(
+  media: readonly Pick<ActivityPhoto, 'mediaType' | 'durationS'>[],
+): string {
+  const videos = media.filter((m) => m.mediaType === 'video');
+  const photos = media.length - videos.length;
+  const parts: string[] = [];
+  if (photos > 0) parts.push(`${photos} ${photos === 1 ? 'foto' : 'fotos'}`);
+  if (videos.length > 0) parts.push(`${videos.length} ${videos.length === 1 ? 'vídeo' : 'vídeos'}`);
+  // Duração desconhecida conta zero: a soma vira piso, e some quando não há nada a dizer.
+  const total = Math.round(videos.reduce((acc, v) => acc + (v.durationS ?? 0), 0));
+  if (total > 0) {
+    const min = Math.floor(total / 60);
+    const s = total % 60;
+    parts.push(
+      min > 0 ? `${min} min ${String(s).padStart(2, '0')} s de vídeo` : `${s} s de vídeo`,
+    );
+  }
+  return parts.join(' · ');
+}

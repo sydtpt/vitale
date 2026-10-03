@@ -18,7 +18,13 @@
 import { describe, it, expect } from '@jest/globals';
 import type { ActivityPhoto, ActivityRoutePoint } from '@vitale/shared';
 
-import { classifyMedia, planHealing, splitAutoLink, type RawMedia } from '../activity-photos';
+import {
+  classifyMedia,
+  planHealing,
+  selectionSummary,
+  splitAutoLink,
+  type RawMedia,
+} from '../activity-photos';
 
 const T0 = Date.UTC(2026, 7, 29, 9, 8, 3);
 const M = 1 / 111_320;
@@ -257,5 +263,29 @@ describe('splitAutoLink', () => {
 
   it('pedalada sem candidato não quebra a partilha', () => {
     expect(splitAutoLink([])).toEqual({ auto: [], pending: [] });
+  });
+});
+
+describe('selectionSummary', () => {
+  const foto = { mediaType: 'photo' as const, durationS: null };
+  const clipe = (durationS: number | null) => ({ mediaType: 'video' as const, durationS });
+
+  it('conta fotos, vídeos e o tempo de vídeo — a seleção da parada de Lanklaar', () => {
+    // 19/07/2026, km 19,7: uma foto repetida e os clipes de 15, 18, 29 e 4 s.
+    expect(selectionSummary([foto, clipe(15), clipe(18), clipe(29), clipe(4)])).toBe(
+      '1 foto · 4 vídeos · 1 min 06 s de vídeo',
+    );
+  });
+
+  it('só fotos não fala de vídeo', () => {
+    expect(selectionSummary([foto, foto])).toBe('2 fotos');
+  });
+
+  it('abaixo de um minuto fala em segundos', () => {
+    expect(selectionSummary([clipe(13)])).toBe('1 vídeo · 13 s de vídeo');
+  });
+
+  it('duração desconhecida não inventa tempo', () => {
+    expect(selectionSummary([clipe(null)])).toBe('1 vídeo');
   });
 });
