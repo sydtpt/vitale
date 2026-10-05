@@ -139,6 +139,11 @@
   sozinho em segundo plano é o tipo de ato que ninguém vê dar errado. Quando a Fase 1 tiver
   tela, o gatilho vira a volta ao primeiro plano. *(Sem isto, a sync seria mais um mecanismo
   sem quem o dispare — a família que a Mary conta desde o AGG_VERSION.)*
+- [x] T3.7b — **O gatilho automático** (05/10). A tela ficou pronta em 02/10 e o gatilho não
+  foi ligado: o banco parou em 01/10 com o aparelho medindo — exatamente o mecanismo sem quem
+  o dispare que a T3.7 temia. Agora: ao abrir o app, a cada volta ao primeiro plano e ao abrir
+  `/presenca`; um envio por vez, no máximo a cada 30 min (o botão fura o intervalo); falha vira
+  breadcrumb. `sincronizarPresencaSemRepetir` / `…EmSilencio` em `presence-sync.ts`.
 
 ### F1.4 Telas — **a tela está no aparelho desde 02/10**
 
