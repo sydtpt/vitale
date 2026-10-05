@@ -121,8 +121,8 @@ function de(nome: string): string {
  *
  * Sem `formatarNumero`: ele mora em `ia/prompt`, que é **peça** do núcleo de IA —
  * importá-lo aqui subiria a catraca da guarda (7) por um separador de milhar que
- * nenhum tempo de chamada alcança. O teto é o `PRAZO_MS` de `motores/index.ts`, de
- * 60 s — um prazo que existe em código, não uma suposição sobre a rede.
+ * nenhum tempo de chamada alcança. O teto é o `PRAZO_DA_NUVEM_MS` de `motores/index.ts`,
+ * de 150 s — um prazo que existe em código, não uma suposição sobre a rede.
  */
 export function tempoDaLeitura(ms: number): string {
   if (!Number.isFinite(ms) || ms < 1000) return 'instantâneo';

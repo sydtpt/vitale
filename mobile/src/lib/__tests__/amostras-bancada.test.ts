@@ -460,12 +460,12 @@ describe('o que o toque em Medir vai fazer, dito antes', () => {
 });
 
 describe('o teto de espera de uma coluna', () => {
-  const PRAZOS = { padrao: 60_000, pesoAberto: 45 * 60_000 };
+  const PRAZOS = { padrao: 60_000, nuvem: 150_000, pesoAberto: 45 * 60_000 };
 
   it('cada motor tem o prazo do transporte dele, e os dois não se misturam', () => {
     // O do peso aberto na nuvem deixaria a tela refém por 45 min; o padrão no peso aberto
     // mataria a primeira chamada, que é a que paga a carga do modelo.
-    expect(prazoDoMotorMs(NUVEM_PADRAO, PRAZOS)).toBe(60_000);
+    expect(prazoDoMotorMs(NUVEM_PADRAO, PRAZOS)).toBe(150_000);
     expect(prazoDoMotorMs(APARELHO_SISTEMA, PRAZOS)).toBe(60_000);
     expect(prazoDoMotorMs(PESO.id, PRAZOS)).toBe(45 * 60_000);
     expect(prazoEmTexto(60_000)).toBe('60 s');
@@ -476,7 +476,7 @@ describe('o teto de espera de uma coluna', () => {
     // Chegar antes do prazo do transporte apagaria a falha bem escrita que ele sabe dar
     // ("o prazo de 60 s estourou", com a classe certa) para pôr no lugar um "não
     // respondeu" genérico. O mesmo prazo de novo é a folga mais curta que garante isso.
-    expect(tetoDaCorridaMs(NUVEM_PADRAO, PRAZOS)).toBe(120_000);
+    expect(tetoDaCorridaMs(NUVEM_PADRAO, PRAZOS)).toBe(300_000);
     expect(tetoDaCorridaMs(APARELHO_SISTEMA, PRAZOS)).toBe(120_000);
     expect(tetoDaCorridaMs(SEM_MODELO, PRAZOS)).toBe(120_000);
     expect(tetoDaCorridaMs(PESO.id, PRAZOS)).toBe(2 * 45 * 60_000);

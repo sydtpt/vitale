@@ -84,9 +84,7 @@ import {
 const FUNCTION = 'ia-narrar';
 
 /**
- * O prazo de uma chamada de nuvem. O mesmo valor da bancada
- * (`scripts/bancada/motores.ts`), de propósito: o que a bancada mediu é o que a
- * tela vai esperar.
+ * O prazo de uma chamada ao modelo do sistema — e era, até 05/10, também o da nuvem.
  *
  * **O que este teto compra não é velocidade — é o fim da espera.** A leitura leva
  * 13,6 s na mediana e 25,8 s no pior caso (12/09), e sem prazo uma chamada
@@ -95,6 +93,20 @@ const FUNCTION = 'ia-narrar';
  * a uma promessa morta. Um minuto é folga larga sobre o pior caso medido.
  */
 export const PRAZO_MS = 60_000;
+
+/**
+ * O prazo de uma chamada de nuvem: **o maior que a plataforma deixa**. O mesmo valor
+ * da bancada (`scripts/bancada/motores.ts`), de propósito: o que a bancada mediu é o
+ * que a tela vai esperar.
+ *
+ * Saiu do `PRAZO_MS` em 05/10/2026: o caderno `movimento` do 3º trimestre passou de
+ * 30 s em toda tentativa — o pacote de três meses é maior que o de uma noite, e o do
+ * ano será maior ainda. A function corta o provedor em 145 s e o gateway da Supabase
+ * corta a function em 150 s, então esperar mais que 150 s aqui é esperar resposta
+ * que não vem. O modelo do sistema fica no minuto: um aparelho que parou de
+ * responder custaria 150 s por janela na amostra.
+ */
+export const PRAZO_DA_NUVEM_MS = 150_000;
 
 /**
  * Spike 22/09 (branch `spike/qwen3-4b-iphone`): o prazo **só do peso aberto**. A primeira
@@ -174,7 +186,7 @@ function prazoEstourado(prazoMs: number): RespostaDoTransporte {
  */
 export function criarTransporte(
   chamar: Chamar = chamarAFunction,
-  prazoMs: number = PRAZO_MS,
+  prazoMs: number = PRAZO_DA_NUVEM_MS,
 ): Transporte {
   return async (corpo): Promise<RespostaDoTransporte> => {
     const controle = new AbortController();
@@ -585,7 +597,8 @@ export function criarMotorPara(
   ponte: PonteDoAparelho | null = PONTE,
   registro: RegistroDoAparelho = REGISTRO_DO_APARELHO,
 ): (id: MotorId) => Motor | undefined {
-  const transporte = serializar(criarTransporte(chamar, prazoMs));
+  // A nuvem nunca espera menos que o dela (05/10): o mesmo molde do peso aberto, abaixo.
+  const transporte = serializar(criarTransporte(chamar, Math.max(prazoMs, PRAZO_DA_NUVEM_MS)));
   const vez = novaFilaDoAparelho();
   const noAparelho = (responder: (pedido: string) => Promise<string>, prazo: number = prazoMs): Motor =>
     criarMotorDoAparelho(

@@ -42,6 +42,7 @@ import {
   motoresDoRecurso,
 } from '../motores/catalogo';
 import {
+  PRAZO_DA_NUVEM_MS,
   PRAZO_MS,
   criarCompiladorDaCompilacao,
   criarLeitorDaCompilacao,
@@ -275,7 +276,12 @@ describe('o prazo', () => {
   });
 
   it('o prazo do app é o mesmo da bancada: o que ela mediu é o que a tela espera', () => {
-    expect(PRAZO_MS).toBe(60_000);
+    expect(PRAZO_DA_NUVEM_MS).toBe(150_000);
+  });
+
+  it('a nuvem espera o teto do gateway, não o minuto do aparelho (05/10)', () => {
+    // O movimento do 3º trimestre passava de 30 s em toda tentativa; o ano é maior.
+    expect(PRAZO_DA_NUVEM_MS).toBeGreaterThan(PRAZO_MS);
   });
 
   it('resposta dentro do prazo não é abortada', async () => {

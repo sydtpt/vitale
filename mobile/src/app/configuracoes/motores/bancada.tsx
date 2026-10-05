@@ -47,6 +47,7 @@ import {
 } from '../../../lib/motores/catalogo';
 import { TETO_DO_ANEL, anel } from '../../../lib/motores/anel';
 import {
+  PRAZO_DA_NUVEM_MS,
   PRAZO_DO_PESO_ABERTO_MS,
   PRAZO_MS,
   estadoDaCompilacaoDosPesos,
@@ -173,7 +174,11 @@ import { colors, fonts, radii, shadows, spacing, useThemedStyles } from '../../.
  * Ficam aqui porque é aqui que eles são conhecidos: `tetoDaCorridaMs` é pura e os recebe,
  * para poder ser testada sem o cliente do supabase que `lib/motores/index.ts` carrega.
  */
-const PRAZOS_DA_CORRIDA: PrazosDaCorrida = { padrao: PRAZO_MS, pesoAberto: PRAZO_DO_PESO_ABERTO_MS };
+const PRAZOS_DA_CORRIDA: PrazosDaCorrida = {
+  padrao: PRAZO_MS,
+  nuvem: PRAZO_DA_NUVEM_MS,
+  pesoAberto: PRAZO_DO_PESO_ABERTO_MS,
+};
 
 /**
  * Uma medição com teto de espera.

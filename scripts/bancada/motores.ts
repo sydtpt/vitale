@@ -63,17 +63,28 @@ interface ChamadaHttp {
 }
 
 /**
- * O prazo de uma chamada de nuvem.
+ * O prazo de uma chamada à CLI do aparelho — e era, até 05/10, também o da nuvem.
+ * O mesmo valor do app (`PRAZO_MS` em `mobile/src/lib/motores/index.ts`).
+ */
+export const PRAZO_MS = 60_000;
+
+/**
+ * O prazo de uma chamada de nuvem: **o maior que a plataforma deixa**.
  *
- * Uma narração de uma frase leva segundos; um minuto é folga larga. O que este teto
- * compra não é velocidade — é **relatório**: sem ele, uma function pendurada para a
+ * Era um minuto até 05/10/2026, quando o caderno `movimento` do 3º trimestre passou
+ * de 30 s em toda tentativa — e o ano é maior. A function corta o provedor em 145 s
+ * e o gateway da Supabase corta a function em 150 s: esperar mais que isso aqui é
+ * esperar resposta que não vem. É também o transporte do `revista:imprimir`.
+ *
+ * O que este teto compra não é velocidade — é **relatório**: sem ele, uma function pendurada para a
  * corrida de 28 chamadas para sempre e nada é escrito no disco. A janela aparece no
  * relatório com a causa, e as outras seguem sendo medidas.
  *
- * O mesmo valor do app (`mobile/src/lib/motores/index.ts`), de propósito: as duas
- * colunas da bancada só comparam motor se o prazo for o mesmo dos dois lados.
+ * O mesmo valor do app (`PRAZO_DA_NUVEM_MS` em `mobile/src/lib/motores/index.ts`), de
+ * propósito: as duas colunas da bancada só comparam motor se o prazo for o mesmo dos
+ * dois lados.
  */
-export const PRAZO_MS = 60_000;
+export const PRAZO_DA_NUVEM_MS = 150_000;
 
 /** O pedaço de `Response` que o transporte lê. O `fetch` global cabe aqui. */
 export interface RespostaHttp {
@@ -175,7 +186,7 @@ export function transporteDaNuvem(
   tokenAtual: () => Promise<string>,
   chaveAnonima: string,
   buscar: Buscar = fetch,
-  prazoMs: number = PRAZO_MS,
+  prazoMs: number = PRAZO_DA_NUVEM_MS,
   /** Os outros segredos a redigir — o refresh token, sobretudo, que não expira em uma hora. */
   segredosExtra: readonly string[] = [],
 ): Transporte {
@@ -655,7 +666,7 @@ function linhaDeFalha(f: Falha): string {
  *   a resposta não traz o id do pedido             → transitoria não mapeada; o processo é encerrado
  *
  * Toda linha dessas foi gerada **aqui**, e o `registro` fica sabendo — a medição a tira
- * da conta do motor. O prazo é o mesmo da nuvem ({@link PRAZO_MS}).
+ * da conta do motor. O prazo é o do aparelho no app ({@link PRAZO_MS}), não o da nuvem.
  */
 export function cliDoAparelho(o: {
   readonly preparar: () => Preparo;

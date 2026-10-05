@@ -51,7 +51,7 @@ import {
 } from './janelas.ts';
 import { RECURSO, VERSAO_DA_SONDA, VERSAO_DO_DESCRITOR, medir, type ColunaPedida, type Dados, type Medido } from './medir.ts';
 import {
-  PRAZO_MS,
+  PRAZO_DA_NUVEM_MS,
   cliDaBancada,
   motoresDaBancada,
   novoRegistro,
@@ -645,7 +645,8 @@ async function medirEEscrever(b: Bandeiras, sessao: Sessao | null): Promise<numb
       podeRenovar: sessao.podeRenovar,
       // O tempo, não o gasto: a chamada local também passa no relógio do token.
       chamadas: pagas + locais,
-      prazoMs: PRAZO_MS,
+      // O pior caso: o prazo da nuvem, que é o maior dos dois.
+      prazoMs: PRAZO_DA_NUVEM_MS,
       agora: new Date(),
     });
     if (aviso !== null) process.stderr.write(`aviso: ${aviso}\n`);

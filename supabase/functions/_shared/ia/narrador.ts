@@ -79,7 +79,20 @@ const MAX_TOKENS_SAIDA = 8_000;
  */
 const TEMPERATURA = 0.4;
 
-const TIMEOUT_MS = 30_000;
+/**
+ * Prazo do provedor — **o maior que a plataforma deixa**. Era 30 s, e o caderno
+ * `movimento` do 3º trimestre de 2026 nunca saiu: o pacote de três meses fez o
+ * modelo passar de 30 s em toda tentativa (`AbortError` no log, 502 no aparelho,
+ * 05/10/2026), e os outros cadernos do mesmo período saíam em 28 s — no fio. O
+ * ano é maior que o trimestre.
+ *
+ * O teto é da Supabase: a function que não responde em **150 s** leva um 504 do
+ * gateway, em qualquer plano (o "request idle timeout"; a function só responde no
+ * fim, então ocioso é o tempo inteiro). 145 s deixa 5 s para o resto do pedido e
+ * faz a falha sair daqui, com classe, e não do gateway sem motivo. Os clientes
+ * esperam 150 s (`PRAZO_DA_NUVEM_MS` no app, `PRAZO_MS` na bancada).
+ */
+const TIMEOUT_MS = 145_000;
 
 /**
  * Adaptador do provedor cujo endpoint é `generativelanguage.googleapis.com`.

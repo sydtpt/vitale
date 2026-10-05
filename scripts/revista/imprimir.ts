@@ -126,7 +126,7 @@ import {
   type TipoComEdicao,
   type TipoEmMassa,
 } from '@vitale/shared';
-import { PRAZO_MS, motoresDaBancada, type Buscar } from '../bancada/motores.ts';
+import { PRAZO_DA_NUVEM_MS, motoresDaBancada, type Buscar } from '../bancada/motores.ts';
 import {
   abrirSessao,
   avisoDeValidade,
@@ -2058,7 +2058,7 @@ export async function principal(argv: readonly string[], p: Processo): Promise<n
       // Quantas chamadas a impressão de UM período faz: os quatro cadernos, ou
       // um com `--caderno` (Story 2.8).
       chamadas: b.caderno === null ? CADERNO_IDS.length : 1,
-      prazoMs: PRAZO_MS,
+      prazoMs: PRAZO_DA_NUVEM_MS,
       agora: p.agora,
     });
     if (validade !== null) p.avisar(`aviso: ${validade}`);
