@@ -188,6 +188,29 @@ describe('buildRetrospective', () => {
     expect(s.fitness.steps.prior).toBe(5000);
   });
 
+  it('passos por dia divide só pelos dias com valor — dia sem linha é dia sem relógio', () => {
+    const s = buildRetrospective(baseInput({
+      stepsByDay: new Map([
+        ['2026-06-15', 8000],
+        ['2026-06-16', 12000],
+        ['2026-06-08', 4000], // semana anterior: três dias medidos
+        ['2026-06-09', 5000],
+        ['2026-06-10', 6000],
+      ]),
+    }));
+    expect(s.fitness.stepsPerDay.current).toBe(10000);
+    expect(s.fitness.stepsPerDay.prior).toBe(5000);
+    expect(s.fitness.stepsPerDay.deltaPct).toBe(100);
+    // O total diz +33% (20.000 contra 15.000); a média diz que cada dia medido rendeu o dobro.
+    expect(s.fitness.steps.deltaPct).toBeCloseTo(33.33, 1);
+  });
+
+  it('passos por dia é zero, não NaN, quando nenhum dia foi medido', () => {
+    const s = buildRetrospective(baseInput({ stepsByDay: new Map() }));
+    expect(s.fitness.stepsPerDay.current).toBe(0);
+    expect(s.fitness.stepsPerDay.prior).toBe(0);
+  });
+
   it('agrupa byType por tipo de atividade, ignorando o nome livre do treino', () => {
     const s = buildRetrospective(baseInput({
       activities: [

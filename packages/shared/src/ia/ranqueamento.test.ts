@@ -78,6 +78,7 @@ function mesNeutro(label: string, startISO: string, endISO: string): RetroSummar
       calories: VAZIO, hardMin: VAZIO,
       floors: recap(500, 490),
       steps: recap(310_000, 300_000),
+      stepsPerDay: recap(10_000, 10_000),
       byType: [],
     },
     sports: {
@@ -208,7 +209,7 @@ function agostoReal(): RetroSummary {
     registros: [],
     fitness: {
       count: recap(21, 17), distanceM: recap(435_000, 862_000), durationS: recap(144_360, 245_520),
-      calories: VAZIO, hardMin: VAZIO, floors: recap(539, 500), steps: recap(537_847, 500_000), byType: [],
+      calories: VAZIO, hardMin: VAZIO, floors: recap(539, 500), steps: recap(537_847, 500_000), stepsPerDay: recap(17_350, 16_129), byType: [],
     },
     // As sessões com distância, dos dois lados, conferidas em produção em 11/09;
     // o total de atividades com distância não foi consultado e fica de fora. A

@@ -116,13 +116,27 @@
     <!-- Treinos -->
     <div class="card">
       <div class="eyebrow">Treinos &amp; atividade</div>
+      @let f = summary().fitness;
       <div class="mini-stats">
-        <div><b>{{ summary().fitness.count.current }}</b><span>sessões</span></div>
-        <div><b>{{ km(summary().fitness.distanceM.current) }}</b><span>distância</span></div>
-        <div><b>{{ dur(summary().fitness.durationS.current) }}</b><span>tempo</span></div>
-        <div><b>{{ num(summary().fitness.hardMin.current) }}min</b><span>carga dura</span></div>
-        <div><b>{{ num(summary().fitness.floors.current) }}</b><span>andares</span></div>
-        <div><b>{{ num(summary().fitness.calories.current) }}</b><span>kcal gastas</span></div>
+        <div><b>{{ f.count.current }}</b><span>sessões
+          <small class="badge" [attr.data-tone]="delta(f.count, false).tone">{{ delta(f.count, false).text }}</small></span></div>
+        <div><b>{{ km(f.distanceM.current) }}</b><span>distância
+          <small class="badge" [attr.data-tone]="delta(f.distanceM, false).tone">{{ delta(f.distanceM, false).text }}</small></span></div>
+        <!-- Passos ao lado da distância: a distância só conta o que virou treino, os
+             passos medem o dia inteiro. A média por dia compara meses de tamanhos
+             diferentes e o período em curso. -->
+        <div><b>{{ num(f.steps.current) }}</b><span>passos
+          <small class="badge" [attr.data-tone]="delta(f.steps, false).tone">{{ delta(f.steps, false).text }}</small></span></div>
+        <div><b>{{ num(f.stepsPerDay.current) }}</b><span>passos/dia
+          <small class="badge" [attr.data-tone]="delta(f.stepsPerDay, false).tone">{{ delta(f.stepsPerDay, false).text }}</small></span></div>
+        <div><b>{{ dur(f.durationS.current) }}</b><span>tempo
+          <small class="badge" [attr.data-tone]="delta(f.durationS, false).tone">{{ delta(f.durationS, false).text }}</small></span></div>
+        <div><b>{{ num(f.hardMin.current) }}min</b><span>carga dura
+          <small class="badge" [attr.data-tone]="delta(f.hardMin, false).tone">{{ delta(f.hardMin, false).text }}</small></span></div>
+        <div><b>{{ num(f.floors.current) }}</b><span>andares
+          <small class="badge" [attr.data-tone]="delta(f.floors, false).tone">{{ delta(f.floors, false).text }}</small></span></div>
+        <div><b>{{ num(f.calories.current) }}</b><span>kcal gastas
+          <small class="badge" [attr.data-tone]="delta(f.calories, false).tone">{{ delta(f.calories, false).text }}</small></span></div>
       </div>
       @for (t of summary().fitness.byType; track t.key) {
         <div class="row"><span>{{ t.label }}</span><span class="row-v">{{ t.count }}× · {{ km(t.sum || 0) }}</span></div>

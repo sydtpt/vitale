@@ -64,7 +64,7 @@ function agosto(o: { fc?: boolean; sono?: { cur: number; prev: number | null } |
     fitness: {
       count: recap(21, 17), countWithDistance: recap(18, 15),
       distanceM: recap(400_000, 300_000), durationS: recap(144_000, 108_000),
-      calories: VAZIO, hardMin: VAZIO, floors: VAZIO, steps: VAZIO, byType: [],
+      calories: VAZIO, hardMin: VAZIO, floors: VAZIO, steps: VAZIO, stepsPerDay: VAZIO, byType: [],
     },
     sports: { cycling: null, running: null },
     health: [

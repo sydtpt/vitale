@@ -612,12 +612,17 @@ export default function RetrospectivaScreen() {
             <View style={styles.card}>
               <Text style={styles.eyebrow}>Treinos & atividade</Text>
               <View style={styles.miniGrid}>
-                <Mini value={`${summary.fitness.count.current}`} label="sessões" />
-                <Mini value={km(summary.fitness.distanceM.current)} label="distância" />
-                <Mini value={dur(summary.fitness.durationS.current)} label="tempo" />
-                <Mini value={`${num(summary.fitness.hardMin.current)}min`} label="carga dura" />
-                <Mini value={`${num(summary.fitness.floors.current)}`} label="andares" />
-                <Mini value={`${num(summary.fitness.calories.current)}`} label="kcal gastas" />
+                <Mini value={`${summary.fitness.count.current}`} label="sessões" delta={deltaVM(summary.fitness.count, false, noPrior)} />
+                <Mini value={km(summary.fitness.distanceM.current)} label="distância" delta={deltaVM(summary.fitness.distanceM, false, noPrior)} />
+                {/* Passos ao lado da distância: a distância só conta o que virou treino,
+                    os passos medem o dia inteiro. A média por dia é a que compara meses
+                    de tamanhos diferentes e o período em curso. */}
+                <Mini value={num(summary.fitness.steps.current)} label="passos" delta={deltaVM(summary.fitness.steps, false, noPrior)} />
+                <Mini value={num(summary.fitness.stepsPerDay.current)} label="passos/dia" delta={deltaVM(summary.fitness.stepsPerDay, false, noPrior)} />
+                <Mini value={dur(summary.fitness.durationS.current)} label="tempo" delta={deltaVM(summary.fitness.durationS, false, noPrior)} />
+                <Mini value={`${num(summary.fitness.hardMin.current)}min`} label="carga dura" delta={deltaVM(summary.fitness.hardMin, false, noPrior)} />
+                <Mini value={`${num(summary.fitness.floors.current)}`} label="andares" delta={deltaVM(summary.fitness.floors, false, noPrior)} />
+                <Mini value={`${num(summary.fitness.calories.current)}`} label="kcal gastas" delta={deltaVM(summary.fitness.calories, false, noPrior)} />
               </View>
               {summary.fitness.byType.map((t) => (
                 <Row key={t.key} l={t.label} r={`${t.count}× · ${km(t.sum || 0)}`} />
