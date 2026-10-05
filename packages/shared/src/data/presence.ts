@@ -112,6 +112,48 @@ export async function enviarVisitas(
   return enviadas;
 }
 
+/**
+ * A janela observada do acervo inteiro: da primeira chegada ao último instante conhecido.
+ *
+ * É a versão do banco de `janelaDasVisitas`, para quem lê **um período** — a Semana e a
+ * Retrospectiva. Derivar a janela das visitas do período erraria as duas pontas: a
+ * primeira visita do recorte não é o começo da observação, e o período pode ir além de
+ * hoje. Sem janela nenhuma era pior: em 05/10/2026 a Semana contava **6 dias sem sair**
+ * numa segunda-feira (os seis dias que ainda não tinham acontecido) e o ano de 2026, na
+ * Retrospectiva, **339** — todo dia antes de 07/09 virava dia em casa.
+ *
+ * Três leituras de uma linha, não uma paginação: só as pontas interessam.
+ */
+export async function fetchJanelaObservada(
+  db: SupabaseClient,
+  userId: string,
+): Promise<{ inicio: string; fim: string } | null> {
+  const ponta = (coluna: 'arrived_at' | 'departed_at', ascending: boolean) =>
+    db
+      .from('visits')
+      .select(coluna)
+      .eq('user_id', userId)
+      .not(coluna, 'is', null)
+      .order(coluna, { ascending })
+      .limit(1);
+  const [primeira, ultimaChegada, ultimaSaida] = await Promise.all([
+    ponta('arrived_at', true),
+    ponta('arrived_at', false),
+    ponta('departed_at', false),
+  ]);
+  for (const r of [primeira, ultimaChegada, ultimaSaida]) if (r.error) throw r.error;
+
+  const valor = (r: { data: unknown }, coluna: string): string | null =>
+    ((r.data as Record<string, string | null>[] | null)?.[0]?.[coluna] as string | null) ?? null;
+  const inicio = valor(primeira, 'arrived_at');
+  if (!inicio) return null;
+  const candidatos = [valor(ultimaChegada, 'arrived_at'), valor(ultimaSaida, 'departed_at')]
+    .filter((x): x is string => x !== null)
+    .map((x) => new Date(x).toISOString());
+  const fim = candidatos.sort().at(-1) ?? inicio;
+  return { inicio: new Date(inicio).toISOString(), fim };
+}
+
 /** Visitas de uma janela de dias, pela chegada. Pagina: um ano pode passar de 1000. */
 export async function fetchVisitas(
   db: SupabaseClient,

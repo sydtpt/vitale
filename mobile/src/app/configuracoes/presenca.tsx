@@ -31,7 +31,7 @@ import {
 } from '../../services/presence';
 import { mensagemDeErro } from '../../lib/erro';
 import { useAuthStore } from '../../store/auth.store';
-import { sincronizarPresenca } from '../../services/presence-sync';
+import { sincronizarPresencaSemRepetir } from '../../services/presence-sync';
 
 /**
  * /configuracoes/presenca — a Fase 0 da Presença, e nada além dela.
@@ -163,12 +163,11 @@ export default function PresencaScreen() {
   };
 
   /**
-   * Sobe o que foi medido.
+   * Sobe o que foi medido, agora.
    *
-   * É botão, e não automático, **nesta fase**: a primeira execução sobe os 24 dias
-   * inteiros, e uma coisa dessas acontecendo sozinha em segundo plano é exatamente o
-   * tipo de ato que ninguém vê dar errado. Quando a Fase 1 tiver tela, o gatilho vira a
-   * volta ao primeiro plano.
+   * Desde 05/10/2026 o envio também é automático — ao abrir o app e a cada volta ao
+   * primeiro plano, no máximo a cada 30 min (`_layout.tsx`). O botão fica para quem não
+   * quer esperar o intervalo.
    */
   const enviar = () => {
     const userId = useAuthStore.getState().user?.id;
@@ -177,8 +176,11 @@ export default function PresencaScreen() {
       return;
     }
     setEnviando(true);
-    sincronizarPresenca(userId)
+    // `forcar`: o botão ignora o intervalo do automático, mas não abre um segundo envio
+    // em paralelo a um que já esteja correndo.
+    sincronizarPresencaSemRepetir(userId, { forcar: true })
       .then((r) => {
+        if (!r) return;
         setUltimoEnvio(
           `${r.visitas} visita${r.visitas === 1 ? '' : 's'} · ${r.dias} dia${r.dias === 1 ? '' : 's'}` +
             (r.lugaresCriados > 0 ? ` · ${r.lugaresCriados} lugar criado` : '') +
@@ -307,7 +309,7 @@ export default function PresencaScreen() {
           <Text style={styles.nota}>
             {ultimoEnvio
               ? `Último envio: ${ultimoEnvio}.`
-              : 'Reenviar é seguro: cada travessia tem id próprio e o banco deduplica por ele.'}
+              : 'O app envia sozinho ao abrir, no máximo a cada 30 min. Reenviar é seguro: cada travessia tem id próprio e o banco deduplica por ele.'}
           </Text>
         </View>
 

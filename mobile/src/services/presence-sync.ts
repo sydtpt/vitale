@@ -47,6 +47,7 @@ import { readPresenceLog } from '../lib/presence-events';
 import { readPresencePlaces, writePresencePlaces, type PresencePlace } from '../lib/presence-places';
 import { getPresencePermission } from './presence';
 import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
+import { mensagemDeErro } from '../lib/erro';
 
 export interface ResumoDaPresenca {
   visitas: number;
@@ -260,4 +261,66 @@ export async function sincronizarPresenca(userId: string): Promise<ResumoDaPrese
     lugaresCriados: criados,
     incompletos: incompleto ? dias : 0,
   };
+}
+
+/* ── o gatilho automático ────────────────────────────────────────────────── */
+
+/**
+ * Intervalo mínimo entre dois envios automáticos.
+ *
+ * Voltar ao app dez vezes por hora não pede dez envios: o log muda numa travessia, e
+ * travessia é coisa de algumas por dia. O botão ignora o intervalo.
+ */
+export const INTERVALO_DO_ENVIO_MS = 30 * 60 * 1000;
+
+let ultimoEnvio = 0;
+let emCurso: Promise<ResumoDaPresenca> | null = null;
+
+/**
+ * O envio com as duas travas que o automático exige.
+ *
+ * - **um de cada vez**: quem chama durante um envio recebe o mesmo envio, em vez de abrir
+ *   outro. Dois envios juntos regravariam o rollup inteiro em paralelo;
+ * - **no máximo um a cada {@link INTERVALO_DO_ENVIO_MS}**, salvo com `forcar` (o botão).
+ *   Dentro do intervalo devolve `null` — não houve envio, e não é erro.
+ *
+ * Nasceu em 05/10/2026: o envio era só o botão de Configurações, a tela da Fase 1 ficou
+ * pronta em 02/10 sem que o gatilho automático fosse ligado, e o banco parou em 01/10
+ * com o aparelho medindo normalmente. Mecanismo sem quem o dispare.
+ */
+export function sincronizarPresencaSemRepetir(
+  userId: string,
+  opts: { forcar?: boolean; agora?: number } = {},
+): Promise<ResumoDaPresenca | null> {
+  if (emCurso) return emCurso;
+  const agora = opts.agora ?? Date.now();
+  if (!opts.forcar && agora - ultimoEnvio < INTERVALO_DO_ENVIO_MS) return Promise.resolve(null);
+  ultimoEnvio = agora;
+  emCurso = sincronizarPresenca(userId).finally(() => {
+    emCurso = null;
+  });
+  return emCurso;
+}
+
+/**
+ * O envio automático: o app voltou ao primeiro plano, ou a tela de Presença abriu.
+ *
+ * **Nunca lança.** A falha vira breadcrumb (Configurações → Dados), porque o modo de
+ * falha desta feature é emudecer — e um envio automático que falha calado é exatamente
+ * isso. O próximo envio reenvia tudo; nada se perde por falhar uma vez.
+ */
+export function sincronizarPresencaEmSilencio(
+  userId: string,
+  opts: { agora?: number } = {},
+): Promise<ResumoDaPresenca | null> {
+  return sincronizarPresencaSemRepetir(userId, opts).catch((e: unknown) => {
+    void recordBreadcrumb('geofence', `envio automático falhou: ${mensagemDeErro(e)}`);
+    return null;
+  });
+}
+
+/** Só para teste: zera as travas entre um caso e outro. */
+export function __zerarTravasDoEnvio(): void {
+  ultimoEnvio = 0;
+  emCurso = null;
 }
