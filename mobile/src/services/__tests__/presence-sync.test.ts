@@ -17,6 +17,9 @@
  */
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
+/** Quantos envios chegaram ao banco, e a falha que a leitura dos lugares deve devolver. */
+const mockEnvio: { chamadas: number; falha: unknown } = { chamadas: 0, falha: null };
+
 const banco: {
   lugares: Record<string, unknown>[];
   visitasEnviadas: Record<string, unknown>[];
@@ -33,7 +36,13 @@ const aparelho: {
 } = { lugares: [], log: [], gravados: [], permissaoBackground: true };
 
 jest.mock('../../lib/supabase', () => ({ supabase: { __fake: true } }));
-jest.mock('../../lib/sync-breadcrumbs', () => ({ recordBreadcrumb: () => Promise.resolve() }));
+const breadcrumbs: string[] = [];
+jest.mock('../../lib/sync-breadcrumbs', () => ({
+  recordBreadcrumb: (_e: string, d?: string) => {
+    breadcrumbs.push(d ?? '');
+    return Promise.resolve();
+  },
+}));
 
 jest.mock('../presence', () => ({
   getPresencePermission: () =>
@@ -57,7 +66,9 @@ jest.mock('@vitale/shared', () => {
   const real = jest.requireActual<Record<string, unknown>>('@vitale/shared');
   return {
     ...real,
-    fetchLugares: () => Promise.resolve(banco.lugares),
+    fetchLugares: () => {
+      return mockEnvio.falha ? Promise.reject(mockEnvio.falha) : Promise.resolve(banco.lugares);
+    },
     definirRaioDoGeofence: (_db: unknown, _u: string, id: string, raio: number) => {
       banco.raiosCarimbados.push({ id, raio });
       return Promise.resolve();
@@ -74,6 +85,7 @@ jest.mock('@vitale/shared', () => {
       return Promise.resolve(id);
     },
     enviarVisitas: (_db: unknown, _u: string, vs: Record<string, unknown>[]) => {
+      mockEnvio.chamadas += 1;
       banco.visitasEnviadas.push(...vs);
       return Promise.resolve(vs.length);
     },
@@ -84,7 +96,13 @@ jest.mock('@vitale/shared', () => {
   };
 });
 
-import { sincronizarPresenca } from '../presence-sync';
+import {
+  sincronizarPresenca,
+  sincronizarPresencaSemRepetir,
+  sincronizarPresencaEmSilencio,
+  __zerarTravasDoEnvio,
+  INTERVALO_DO_ENVIO_MS,
+} from '../presence-sync';
 
 const U = 'u-1';
 const TZ = 'Europe/Brussels';
@@ -94,6 +112,10 @@ function evento(at: string, placeId: string, kind: 'enter' | 'exit', redundant =
 }
 
 beforeEach(() => {
+  __zerarTravasDoEnvio();
+  mockEnvio.chamadas = 0;
+  mockEnvio.falha = null;
+  breadcrumbs.length = 0;
   banco.lugares = [];
   banco.visitasEnviadas = [];
   banco.diasGravados = [];
@@ -264,5 +286,34 @@ describe('sincronizarPresenca', () => {
     const r = await sincronizarPresenca(U);
     expect(r).toEqual({ visitas: 0, dias: 0, lugaresCriados: 0, incompletos: 0 });
     expect(banco.visitasEnviadas).toHaveLength(0);
+  });
+});
+
+describe('o envio automático', () => {
+  const T0 = 1_000_000_000_000;
+
+  it('dentro do intervalo não envia de novo — e o botão (forcar) envia', async () => {
+    expect(await sincronizarPresencaSemRepetir(U, { agora: T0 })).not.toBeNull();
+    expect(await sincronizarPresencaSemRepetir(U, { agora: T0 + 60_000 })).toBeNull();
+    expect(mockEnvio.chamadas).toBe(1);
+
+    expect(await sincronizarPresencaSemRepetir(U, { agora: T0 + 60_000, forcar: true })).not.toBeNull();
+    expect(await sincronizarPresencaSemRepetir(U, { agora: T0 + 60_000 + INTERVALO_DO_ENVIO_MS })).not.toBeNull();
+    expect(mockEnvio.chamadas).toBe(3);
+  });
+
+  it('quem chama durante um envio recebe o MESMO envio, não um segundo', async () => {
+    const a = sincronizarPresencaSemRepetir(U, { agora: T0 });
+    const b = sincronizarPresencaSemRepetir(U, { agora: T0, forcar: true });
+    expect(b).toBe(a);
+    await a;
+    expect(mockEnvio.chamadas).toBe(1);
+  });
+
+  it('falha no automático vira breadcrumb, nunca exceção', async () => {
+    // O PostgrestError não é um Error — e é ele que tem de chegar legível.
+    mockEnvio.falha = { message: 'sem rede', code: 'PGRST000' };
+    await expect(sincronizarPresencaEmSilencio(U, { agora: T0 })).resolves.toBeNull();
+    expect(breadcrumbs.some((b) => b.startsWith('envio automático falhou') && b.includes('sem rede'))).toBe(true);
   });
 });

@@ -58,6 +58,7 @@ import {
   registrarChegada,
   type Duvida,
 } from '../services/presence-correcoes';
+import { sincronizarPresencaEmSilencio } from '../services/presence-sync';
 import { Segmented } from '../components/ui/Segmented';
 import { colors, fonts, moduleColors, radii, spacing, themed, useTheme } from '../theme';
 
@@ -161,6 +162,13 @@ export default function PresencaScreen() {
   useFocusEffect(
     useCallback(() => {
       void carregar();
+      // Lê o que já está no banco e, se um envio acontecer agora, lê de novo.
+      const userId = useAuthStore.getState().user?.id;
+      if (userId) {
+        void sincronizarPresencaEmSilencio(userId).then((r) => {
+          if (r && r.visitas > 0) void carregar();
+        });
+      }
     }, [carregar]),
   );
 

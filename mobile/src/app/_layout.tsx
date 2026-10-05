@@ -16,6 +16,7 @@ import { ThemeProvider, colors, useTheme, wallpaperBg } from '../theme';
 import { RotinaBackground } from '../components/ui/RotinaBackground';
 import { SplashOverlay } from '../components/ui/SplashOverlay';
 import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
+import { sincronizarPresencaEmSilencio } from '../services/presence-sync';
 
 // Import por efeito colateral, e é deliberado: o módulo chama
 // `TaskManager.defineTask` no escopo dele. Quando o iOS relança o app só para
@@ -108,6 +109,17 @@ export default function RootLayout() {
     if (!userId) return;
     startNotifications();
     return () => stopNotifications();
+  }, [userId]);
+
+  // Presença: o log do aparelho sobe ao abrir e a cada volta ao primeiro plano — nunca
+  // dentro do callback do geofence (bateria). Com intervalo mínimo e um envio por vez.
+  useEffect(() => {
+    if (!userId) return;
+    void sincronizarPresencaEmSilencio(userId);
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void sincronizarPresencaEmSilencio(userId);
+    });
+    return () => sub.remove();
   }, [userId]);
 
   // Volta para home se o app ficou em background por mais de 5 minutos.
