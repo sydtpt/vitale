@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activityDays, activityRecap, buildPeriodRecap, buildWeek, buildWeekHighlights, countRecap, DIAS_ABREV_SEG, localDateStr, metricRecap, readinessInputsByDay, readinessSeries, type HealthHighlightInput, type HighlightIcon, weekDatesOf, wellnessSummary,
-  buildPresenceDetail, diasDePresenca, fetchLugares, fetchPlaceDays, fetchVisitas,
+  buildPresenceDetail, diasDePresenca, fetchJanelaObservada, fetchLugares, fetchPlaceDays, fetchVisitas,
   rollupDoBanco, visitasDoBanco, type BarraDoDia } from '@vitale/shared';
 import { colors, fonts, moduleColors, radii, shadows, spacing, useThemedStyles } from '../../theme';
 import { useTabBarHeight } from '../../hooks/useTabBarHeight';
@@ -97,6 +97,7 @@ export default function SemanaScreen() {
    */
   const [presenca, setPresenca] = useState<BarraDoDia[]>([]);
   const [semSairNaSemana, setSemSairNaSemana] = useState(0);
+  const [saiuNaSemana, setSaiuNaSemana] = useState(0);
   useEffect(() => {
     const uid = useAuthStore.getState().user?.id;
     if (!uid || weekDates.length === 0) return;
@@ -109,9 +110,10 @@ export default function SemanaScreen() {
     void (async () => {
       try {
         const ls = await fetchLugares(supabase, uid);
-        const [vs, ds] = await Promise.all([
+        const [vs, ds, janela] = await Promise.all([
           fetchVisitas(supabase, uid, antes.toISOString().slice(0, 10), ate),
           fetchPlaceDays(supabase, uid, de, ate),
+          fetchJanelaObservada(supabase, uid),
         ]);
         if (!vivo) return;
         const rollup = rollupDoBanco(ds);
@@ -119,11 +121,14 @@ export default function SemanaScreen() {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
         const dias = diasDePresenca(
           visitasDoBanco(vs, new Map(ls.map((l) => [l.id, l.identidade]))),
-          { casa: 'casa', tz, rollup, de, ate },
+          // Com a janela, os dias da semana que ainda não aconteceram (e hoje, que não
+          // acabou) ficam sem cobertura em vez de contar como dias em casa.
+          { casa: 'casa', tz, rollup, de, ate, janela: janela ?? undefined },
         );
         const d = buildPresenceDetail(dias, rollup, { casa: 'casa' });
         setPresenca(d.foraDeCasa.barras);
         setSemSairNaSemana(d.contagem.semSair);
+        setSaiuNaSemana(d.contagem.saiu);
       } catch {
         // Sem rede, a faixa some. A Semana não publica cartão com erro dentro.
       }
@@ -303,7 +308,10 @@ export default function SemanaScreen() {
                 })}
               </View>
               <Text style={styles.presNota}>
-                {semSairNaSemana === 0
+                {semSairNaSemana === 0 && saiuNaSemana === 0
+                  ? // Segunda-feira: hoje ainda não acabou e nenhum dia da semana fechou.
+                    'Nenhum dia da semana terminou ainda.'
+                  : semSairNaSemana === 0
                   ? 'Você saiu de casa todos os dias medidos.'
                   : semSairNaSemana === 1
                     ? 'Um dia sem sair de casa.'

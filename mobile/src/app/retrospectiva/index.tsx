@@ -12,6 +12,7 @@ import {
   diasDePresenca,
   fetchLugares,
   fetchPlaceDays,
+  fetchJanelaObservada,
   fetchVisitas,
   rollupDoBanco,
   visitasDoBanco,
@@ -231,9 +232,10 @@ export default function RetrospectivaScreen() {
     void (async () => {
       try {
         const ls = await fetchLugares(supabase, uid);
-        const [vs, ds] = await Promise.all([
+        const [vs, ds, janela] = await Promise.all([
           fetchVisitas(supabase, uid, ymd(antes), ymd(b.end)),
           fetchPlaceDays(supabase, uid, ymd(b.start), ymd(b.end)),
+          fetchJanelaObservada(supabase, uid),
         ]);
         if (!vivo) return;
         const rollup = rollupDoBanco(ds);
@@ -244,7 +246,8 @@ export default function RetrospectivaScreen() {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
         const dias = diasDePresenca(
           visitasDoBanco(vs, new Map(ls.map((l) => [l.id, l.identidade]))),
-          { casa: 'casa', tz, rollup, de: ymd(b.start), ate: ymd(b.end) },
+          // Sem a janela, todo dia antes da observação começar contava como dia em casa.
+          { casa: 'casa', tz, rollup, de: ymd(b.start), ate: ymd(b.end), janela: janela ?? undefined },
         );
         setPresenca(
           buildPresenceDetail(dias, rollup, {

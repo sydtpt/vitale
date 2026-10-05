@@ -37,11 +37,11 @@ import {
   buildPresenceDetail,
   diasDePresenca,
   emCasaPorDiaDaSemana,
+  fetchJanelaObservada,
   fetchLugares,
   fetchPlaceDays,
   fetchVisitas,
   fraseDoDiaEmCasa,
-  janelaDasVisitas,
   rollupDoBanco,
   visitasDoBanco,
   DIAS_ABREV_SEG,
@@ -134,9 +134,10 @@ export default function PresencaScreen() {
       de.setDate(de.getDate() - 400);
       const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
-      const [vs, ds] = await Promise.all([
+      const [vs, ds, janelaObservada] = await Promise.all([
         fetchVisitas(supabase, userId, ymd(de), ymd(hoje)),
         fetchPlaceDays(supabase, userId, ymd(de), ymd(hoje)),
+        fetchJanelaObservada(supabase, userId),
       ]);
 
       const identidadePorLugar = new Map(ls.map((l) => [l.id, l.identidade]));
@@ -150,8 +151,12 @@ export default function PresencaScreen() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
       const trabalho = ls.find((l) => l.kind === 'work')?.identidade;
       // Sem a janela, o primeiro e o último dia com dado contavam como dias em casa.
-      const janelaObservada = janelaDasVisitas(visitas) ?? undefined;
-      const dias = diasDePresenca(visitas, { casa: 'casa', tz, rollup, janela: janelaObservada });
+      const dias = diasDePresenca(visitas, {
+        casa: 'casa',
+        tz,
+        rollup,
+        janela: janelaObservada ?? undefined,
+      });
       setDetalhe(buildPresenceDetail(dias, rollup, { casa: 'casa', trabalho }));
       setDuvidas(await duvidasDaPresenca(userId));
     } catch (e) {
