@@ -46,6 +46,25 @@ export interface CelulaDoAno {
   estado: EstadoDoDia;
 }
 
+/**
+ * Um dia em que ele não saiu de casa — a linha da lista que a manchete abre.
+ *
+ * Só dias `nao-saiu`. O dono pediu em 05/10/2026 para ver **apenas** estes: os dias em
+ * que saiu não entram na lista nem ganham denominador ("1 de 3 domingos") — foco no que
+ * foi perguntado.
+ */
+export interface DiaEmCasa {
+  dia: string;
+  /** 0 = domingo. */
+  indice: number;
+  /** Horas fora no dia — vindas de uma noite anterior ou de saídas curtas. */
+  horasFora: number;
+  /** Saídas abaixo do limiar, que não contaram. */
+  curtas: number;
+  /** Minutos da maior delas; `null` sem nenhuma. */
+  maiorCurtaMin: number | null;
+}
+
 export interface DetalheDaPresenca {
   contagem: ContagemDosDias;
   cobertura: { dias: number; medidos: number };
@@ -56,6 +75,8 @@ export interface DetalheDaPresenca {
   /** `null` quando não há lugar de trabalho declarado. Nunca zero. */
   escritorio: { identidade: string; dias: number; totalH: number; medianaH: number | null } | null;
   ano: CelulaDoAno[];
+  /** Os dias em casa, do mais recente ao mais antigo. */
+  emCasa: DiaEmCasa[];
 }
 
 export interface OpcoesDoDetalhe {
@@ -148,7 +169,49 @@ export function buildPresenceDetail(
         }
       : null,
     ano: dias.map((d) => ({ dia: d.dia, estado: d.estado })),
+    emCasa: dias
+      .filter((d) => d.estado === 'nao-saiu')
+      .map((d) => ({
+        dia: d.dia,
+        indice: diaDaSemana(d.dia),
+        horasFora: arredondar(fora.get(d.dia) ?? 0),
+        curtas: d.curtas,
+        maiorCurtaMin: d.curtas > 0 && d.maiorMin !== null ? Math.round(d.maiorMin) : null,
+      }))
+      .reverse(),
   };
+}
+
+/**
+ * Quantos dias em casa caíram em cada dia da semana — sete números, 0 = domingo.
+ *
+ * Tamanho fixo de propósito: a contagem cabe na mesma linha em 7 dias ou num ano.
+ */
+export function emCasaPorDiaDaSemana(dias: readonly DiaEmCasa[]): number[] {
+  const out = [0, 0, 0, 0, 0, 0, 0];
+  for (const d of dias) out[d.indice]! += 1;
+  return out;
+}
+
+const DIA_DA_NOITE = ['sábado', 'domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta'];
+
+/**
+ * A frase que explica um dia em casa, em uma linha.
+ *
+ * O caso que a obriga: 13/09 é "não saiu" com 1,6 h fora — ele voltou à 01:36 da noite
+ * de sábado. Sem a frase, a lista parece contradizer o gráfico de horas fora.
+ */
+export function fraseDoDiaEmCasa(d: DiaEmCasa): string {
+  if (d.curtas > 0 && d.maiorCurtaMin !== null) {
+    return d.curtas === 1
+      ? `uma saída curta, ${d.maiorCurtaMin} min`
+      : `${d.curtas} saídas curtas, a maior de ${d.maiorCurtaMin} min`;
+  }
+  // Fora sem nenhuma ausência começando no dia: ela começou na véspera.
+  if (d.horasFora >= 0.1) {
+    return `${d.horasFora.toFixed(1).replace('.', ',')} h fora, da noite de ${DIA_DA_NOITE[d.indice]}`;
+  }
+  return 'nenhuma saída';
 }
 
 function somar(m: Map<string, number>, k: string, v: number): void {

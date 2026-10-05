@@ -160,6 +160,35 @@ export function diasDePresenca(
   return out;
 }
 
+/**
+ * A janela observada, reconstruída das visitas do banco.
+ *
+ * O sync calcula o rollup com a janela do **log** (primeiro e último evento), mas o log
+ * fica no aparelho — o banco só guarda as visitas. Daqui sai a melhor aproximação dela:
+ * da primeira chegada ao último instante conhecido.
+ *
+ * **Por que a tela precisa disto**, achado em 05/10/2026 com dado real: sem janela,
+ * `diasDePresenca` trata o primeiro e o último dia como cobertos, e a manchete contava
+ * **4** dias sem sair onde havia **2** — o 07/09 (a observação começou depois de ele
+ * sair) e o 01/10 (o último dia com dado) entravam como dias em casa.
+ *
+ * Visita em curso **não** estica a janela até agora: se o sensor parou com ele em casa,
+ * esticar fabricaria dias em casa que ninguém mediu. O dia entra quando a saída chegar.
+ */
+export function janelaDasVisitas(
+  visitas: readonly Visita[],
+): { inicio: string; fim: string } | null {
+  if (visitas.length === 0) return null;
+  let inicio = visitas[0]!.arrivedAt;
+  let fim = inicio;
+  for (const v of visitas) {
+    if (v.arrivedAt < inicio) inicio = v.arrivedAt;
+    const ultimo = v.departedAt ?? v.arrivedAt;
+    if (ultimo > fim) fim = ultimo;
+  }
+  return { inicio, fim };
+}
+
 /** A contagem que a manchete usa, em dois números. `semCobertura` nunca é somado aos outros dois. */
 export interface ContagemDosDias {
   semSair: number;

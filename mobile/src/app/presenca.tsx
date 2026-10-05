@@ -36,9 +36,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   buildPresenceDetail,
   diasDePresenca,
+  emCasaPorDiaDaSemana,
   fetchLugares,
   fetchPlaceDays,
   fetchVisitas,
+  fraseDoDiaEmCasa,
+  janelaDasVisitas,
   rollupDoBanco,
   visitasDoBanco,
   DIAS_ABREV_SEG,
@@ -59,6 +62,9 @@ import { Segmented } from '../components/ui/Segmented';
 import { colors, fonts, moduleColors, radii, spacing, themed, useTheme } from '../theme';
 
 type Janela = '7d' | '30d' | '90d' | 'tudo';
+
+/** A lista dos dias em casa para aqui; o resto vira "e mais N dias". */
+const MAX_DIAS_NA_LISTA = 15;
 
 const JANELAS: { key: Janela; label: string; dias: number | null }[] = [
   { key: '7d', label: '7d', dias: 7 },
@@ -110,6 +116,7 @@ export default function PresencaScreen() {
   const [erro, setErro] = useState<string | null>(null);
   const [duvidas, setDuvidas] = useState<Duvida[]>([]);
   const [respondendo, setRespondendo] = useState<string | null>(null);
+  const [diasAbertos, setDiasAbertos] = useState(false);
 
   const carregar = useCallback(async () => {
     const userId = useAuthStore.getState().user?.id;
@@ -141,7 +148,9 @@ export default function PresencaScreen() {
 
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
       const trabalho = ls.find((l) => l.kind === 'work')?.identidade;
-      const dias = diasDePresenca(visitas, { casa: 'casa', tz, rollup });
+      // Sem a janela, o primeiro e o último dia com dado contavam como dias em casa.
+      const janelaObservada = janelaDasVisitas(visitas) ?? undefined;
+      const dias = diasDePresenca(visitas, { casa: 'casa', tz, rollup, janela: janelaObservada });
       setDetalhe(buildPresenceDetail(dias, rollup, { casa: 'casa', trabalho }));
       setDuvidas(await duvidasDaPresenca(userId));
     } catch (e) {
@@ -162,6 +171,7 @@ export default function PresencaScreen() {
     if (n === null || n === undefined) return detalhe;
     const barras = detalhe.foraDeCasa.barras.slice(-n);
     const ano = detalhe.ano.slice(-n);
+    const desde = ano[0]?.dia ?? '';
     const medidos = ano.filter((c) => c.estado !== 'sem-cobertura');
     return {
       ...detalhe,
@@ -174,6 +184,7 @@ export default function PresencaScreen() {
       },
       foraDeCasa: { ...detalhe.foraDeCasa, barras },
       ano,
+      emCasa: detalhe.emCasa.filter((d) => d.dia >= desde),
     };
   }, [detalhe, janela]);
 
@@ -254,8 +265,15 @@ export default function PresencaScreen() {
           </View>
         ) : (
           <>
-            {/* a manchete */}
-            <View style={styles.card}>
+            {/* a manchete — tocar abre os dias em casa */}
+            <Pressable
+              onPress={() => setDiasAbertos((v) => !v)}
+              disabled={visao.emCasa.length === 0}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: diasAbertos }}
+              accessibilityLabel={`${visao.contagem.semSair} dias sem sair de casa. ${diasAbertos ? 'Fechar' : 'Ver'} os dias`}
+              style={styles.card}
+            >
               <View style={styles.mancheteRow}>
                 <Text style={[styles.mancheteNum, { color: corCasa }]}>
                   {visao.contagem.semSair}
@@ -264,16 +282,48 @@ export default function PresencaScreen() {
                   {visao.contagem.semSair === 1 ? 'dia sem sair' : 'dias sem sair'}
                   {'\n'}de casa
                 </Text>
+                {visao.emCasa.length > 0 ? (
+                  <Ionicons
+                    name={diasAbertos ? 'chevron-down' : 'chevron-forward'}
+                    size={18}
+                    color={colors.ink3}
+                    style={styles.mancheteChevron}
+                  />
+                ) : null}
               </View>
-              <View style={styles.mancheteSub}>
-                <Text style={styles.sub}>
-                  <Text style={styles.subForte}>{visao.contagem.saiu}</Text> dias em que saiu
-                </Text>
-                <Text style={styles.sub}>
-                  maior sequência:{' '}
-                  <Text style={styles.subForte}>{visao.contagem.maiorSequencia}</Text>
-                </Text>
+
+              {/* em que dia da semana caíram — sete números, mesmo tamanho em qualquer período */}
+              <View style={styles.faixa}>
+                {emCasaPorDiaDaSemana(visao.emCasa).map((n, i) => (
+                  <View key={i} style={styles.faixaDia}>
+                    <Text style={[styles.faixaNome, n > 0 && { color: colors.ink2 }]}>
+                      {DIAS_ABREV_SEG[(i + 6) % 7]}
+                    </Text>
+                    <Text style={[styles.faixaNum, n > 0 && { color: corCasa }]}>{n}</Text>
+                  </View>
+                ))}
               </View>
+
+              {diasAbertos && visao.emCasa.length > 0 ? (
+                <View style={styles.lista}>
+                  {visao.emCasa.slice(0, MAX_DIAS_NA_LISTA).map((d) => (
+                    <View key={d.dia} style={styles.listaLinha}>
+                      <Text style={styles.listaData}>
+                        {DIAS_ABREV_SEG[(d.indice + 6) % 7]}{' '}
+                        <Text style={styles.listaDataDia}>{dma(d.dia)}</Text>
+                      </Text>
+                      <Text style={styles.listaFrase}>{fraseDoDiaEmCasa(d)}</Text>
+                    </View>
+                  ))}
+                  {visao.emCasa.length > MAX_DIAS_NA_LISTA ? (
+                    <Text style={styles.listaMais}>
+                      e mais {visao.emCasa.length - MAX_DIAS_NA_LISTA}{' '}
+                      {visao.emCasa.length - MAX_DIAS_NA_LISTA === 1 ? 'dia' : 'dias'}.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
               <Text style={styles.cobertura}>
                 Sobre {visao.cobertura.medidos} dos {visao.cobertura.dias} dias
                 {visao.bordasEstimadas > 0
@@ -281,7 +331,7 @@ export default function PresencaScreen() {
                   : ''}
                 .
               </Text>
-            </View>
+            </Pressable>
 
             {/* três números */}
             <View style={styles.tilesRow}>
@@ -505,9 +555,30 @@ const styles = themed(() =>
     mancheteRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
     mancheteNum: { fontFamily: fonts.monoBold, fontSize: 52, lineHeight: 54 },
     mancheteLabel: { fontSize: 16, fontWeight: '600', color: colors.ink, lineHeight: 21 },
-    mancheteSub: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.md },
-    sub: { fontSize: 13, color: colors.ink2 },
-    subForte: { fontFamily: fonts.mono, color: colors.ink },
+    mancheteChevron: { marginLeft: 'auto', alignSelf: 'center' },
+    faixa: { flexDirection: 'row', marginTop: spacing.md },
+    faixaDia: { flex: 1, alignItems: 'center', gap: 2 },
+    faixaNome: { fontFamily: fonts.mono, fontSize: 10, color: colors.ink3 },
+    faixaNum: { fontFamily: fonts.monoBold, fontSize: 20, lineHeight: 24, color: colors.ink3 },
+    lista: { marginTop: spacing.sm },
+    listaLinha: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: spacing.md,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+    },
+    listaData: { fontFamily: fonts.mono, fontSize: 13, color: colors.ink, width: 84 },
+    listaDataDia: { color: colors.ink3 },
+    listaFrase: { flex: 1, fontSize: 12.5, color: colors.ink2 },
+    listaMais: {
+      fontSize: 12,
+      color: colors.ink3,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+    },
     cobertura: {
       marginTop: spacing.md,
       paddingTop: spacing.md,

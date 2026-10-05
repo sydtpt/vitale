@@ -16,11 +16,11 @@ import assert from 'node:assert/strict';
 import { LOG_24_DIAS, FIXTURE_TZ, type EventoBruto } from './fixture-24-dias';
 import { parear, duracaoMin, TETO_ORFA_H, type PresenceEvent, type Visita } from './eventos';
 import { colar, ausencias, ehPassagem, descartarPassagens, contaComoSaida, COLAGEM_MIN, SAIDA_MIN_PADRAO } from './regras';
-import { diasDePresenca, contagemDosDias, diaLocal, type DiaDePresenca } from './dias';
+import { diasDePresenca, contagemDosDias, diaLocal, janelaDasVisitas, type DiaDePresenca } from './dias';
 import { rollup, segundosDoDiaLocal, segundosNaoCobertos } from './rollup';
 import { blocoDePresenca, MIN_DIAS_PARA_MEDIANA, MIN_DIAS_PARA_TAXA } from './retro';
 import { aplicarCorrecoes, contradicoes } from './correcao';
-import { buildPresenceDetail } from './detalhe';
+import { buildPresenceDetail, emCasaPorDiaDaSemana, fraseDoDiaEmCasa } from './detalhe';
 import { esquecer, fechamentoDoDia, foraDescontado, lugaresOrfaos } from './esquecer';
 import { cabeNoLugar, lugarDoPonto, centroPorMediana, chaveDoHabito } from './lugar';
 
@@ -715,6 +715,49 @@ check('o ano tem três estados e nunca um quarto', () => {
   const estados = new Set(DETALHE.ano.map((c) => c.estado));
   for (const e of estados) assert.ok(['saiu', 'nao-saiu', 'sem-cobertura'].includes(e), e);
   assert.equal(DETALHE.ano.length, 25);
+});
+
+check('a lista dos dias em casa: só os dois, do mais recente ao mais antigo', () => {
+  assert.deepEqual(DETALHE.emCasa.map((d) => d.dia), ['2026-09-21', '2026-09-13']);
+  assert.deepEqual(DETALHE.emCasa.map(fraseDoDiaEmCasa), [
+    'nenhuma saída',
+    // voltou 01:36 da noite de sábado: horas fora sem ausência começando no dia
+    `${DETALHE.emCasa[1]!.horasFora.toFixed(1).replace('.', ',')} h fora, da noite de sábado`,
+  ]);
+  // dom 1, seg 1 — e nenhum denominador: os dias em que saiu não entram.
+  assert.deepEqual(emCasaPorDiaDaSemana(DETALHE.emCasa), [1, 1, 0, 0, 0, 0, 0]);
+});
+
+check('saída curta vira a frase do dia, no singular e no plural', () => {
+  const base = { dia: '2026-06-01', indice: 1, horasFora: 0.5 };
+  assert.equal(fraseDoDiaEmCasa({ ...base, curtas: 1, maiorCurtaMin: 25 }), 'uma saída curta, 25 min');
+  assert.equal(
+    fraseDoDiaEmCasa({ ...base, curtas: 2, maiorCurtaMin: 18 }),
+    '2 saídas curtas, a maior de 18 min',
+  );
+  assert.equal(fraseDoDiaEmCasa({ ...base, horasFora: 0, curtas: 0, maiorCurtaMin: null }), 'nenhuma saída');
+});
+
+check('a janela reconstruída das visitas do banco marca as duas bordas', () => {
+  // O banco não guarda o log, só as visitas. Sem esta janela a tela contava 4 dias
+  // sem sair onde havia 2 — achado em produção em 05/10/2026.
+  const janela = janelaDasVisitas(COLADO)!;
+  const dias = diasDePresenca(COLADO, { casa: 'casa', tz: FIXTURE_TZ, janela, rollup: LINHAS });
+  assert.equal(dias[0]!.estado, 'sem-cobertura');
+  assert.equal(dias[dias.length - 1]!.estado, 'sem-cobertura');
+  assert.equal(contagemDosDias(dias).semSair, 2);
+});
+
+check('visita em curso não estica a janela até hoje', () => {
+  const visitas: Visita[] = [
+    { placeId: 'casa', arrivedAt: '2026-06-01T08:00:00.000Z', departedAt: '2026-06-01T10:00:00.000Z', departedSource: 'geofence' },
+    { placeId: 'casa', arrivedAt: '2026-06-01T12:00:00.000Z', departedAt: null, departedSource: null },
+  ];
+  assert.deepEqual(janelaDasVisitas(visitas), {
+    inicio: '2026-06-01T08:00:00.000Z',
+    fim: '2026-06-01T12:00:00.000Z',
+  });
+  assert.equal(janelaDasVisitas([]), null);
 });
 
 console.log(`\n${passed} checagens de presença ok`);
