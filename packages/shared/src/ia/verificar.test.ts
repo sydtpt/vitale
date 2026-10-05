@@ -2450,7 +2450,7 @@ function edicaoComLapides([tipo, inicio, fim]: Periodo, lapides: readonly FatoLa
       tasks: { total: nada, byModule: [] }, habits: { good: [], bad: [] }, registros: [],
       fitness: {
         count: r(21, 17), distanceM: r(435_000, 862_000), durationS: r(144_360, 245_520),
-        calories: nada, hardMin: nada, floors: nada, steps: nada, byType: [],
+        calories: nada, hardMin: nada, floors: nada, steps: nada, stepsPerDay: nada, byType: [],
       },
       sports: { cycling: null, running: null },
       health: [{

@@ -335,7 +335,7 @@ function agostoSintetico(): EntradaPacote {
     fitness: {
       count: recap(21, 17), countWithDistance: recap(18, 15),
       distanceM: recap(400_000, 300_000), durationS: recap(144_000, 108_000),
-      calories: vazio, hardMin: vazio, floors: vazio, steps: vazio, byType: [],
+      calories: vazio, hardMin: vazio, floors: vazio, steps: vazio, stepsPerDay: vazio, byType: [],
     },
     sports: { cycling: null, running: null },
     health: [],

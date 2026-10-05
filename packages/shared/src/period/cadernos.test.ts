@@ -91,6 +91,7 @@ function periodoCheio(): RetroSummary {
       hardMin: recap(310, 480),
       floors: recap(539, 500),
       steps: recap(537_847, 500_000),
+      stepsPerDay: recap(17_350, 16_129),
       byType: [],
     },
     sports: { cycling: esporte(13), running: esporte(37) },

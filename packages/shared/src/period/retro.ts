@@ -226,6 +226,13 @@ export interface RetroFitness {
    * mede o movimento do dia inteiro, não só o que foi registrado como treino.
    */
   steps: RecapValue;
+  /**
+   * Média de passos por **dia com valor**, de cada lado. Dia sem linha é dia sem
+   * relógio (ver {@link DiasMedidos}), então ele não entra no divisor. É o número
+   * que compara períodos de tamanhos diferentes — setembro (30 dias) contra
+   * agosto (31), ou o mês em curso contra o mês inteiro anterior.
+   */
+  stepsPerDay: RecapValue;
   byType: CountByKey[];
   /**
    * Quantas das atividades de `count` **têm distância** (`distanceM > 0`), dos
@@ -671,6 +678,10 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
     return !a.hidden && ts >= cur.start.getTime() && ts < cur.end.getTime();
   });
   const comDistancia = input.activities.filter(temDistancia);
+  const passosAtual = input.stepsByDay ? sumInRange(input.stepsByDay, cur.start, cur.end) : 0;
+  const passosAnterior = input.stepsByDay ? sumInRange(input.stepsByDay, prev.start, prev.end) : 0;
+  const diasComPassosAtual = countDaysInRange(input.stepsByDay, cur.start, cur.end);
+  const diasComPassosAnterior = countDaysInRange(input.stepsByDay, prev.start, prev.end);
   const fitness: RetroFitness = {
     count: recapValue(tCur.count, tPrev.count),
     distanceM: recapValue(tCur.distanceM, tPrev.distanceM),
@@ -684,9 +695,10 @@ export function buildRetrospective(input: RetroInput): RetroSummary {
       input.floorsByDay ? sumInRange(input.floorsByDay, cur.start, cur.end) : 0,
       input.floorsByDay ? sumInRange(input.floorsByDay, prev.start, prev.end) : 0,
     ),
-    steps: recapValue(
-      input.stepsByDay ? sumInRange(input.stepsByDay, cur.start, cur.end) : 0,
-      input.stepsByDay ? sumInRange(input.stepsByDay, prev.start, prev.end) : 0,
+    steps: recapValue(passosAtual, passosAnterior),
+    stepsPerDay: recapValue(
+      diasComPassosAtual > 0 ? passosAtual / diasComPassosAtual : 0,
+      diasComPassosAnterior > 0 ? passosAnterior / diasComPassosAnterior : 0,
     ),
     // Agrupa por TIPO (activityId), não pelo nome livre da atividade — nomes
     // vindos do Strava/HealthKit ("Morning Ride", "Tour de la Meuse-Rhin") são

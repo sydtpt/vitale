@@ -80,6 +80,7 @@ function agosto(): RetroSummary {
       hardMin: VAZIO,
       floors: recap(539, 500),
       steps: recap(537_847, 500_000),              // 17.350/dia em 31 dias
+      stepsPerDay: recap(17_350, 16_129),
       byType: [],
     },
     sports: {
