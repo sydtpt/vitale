@@ -32,6 +32,7 @@ import {
   LINHA_DE_PRONTO,
   MAIN_DA_CLI,
   OMITIDO,
+  PRAZO_DA_NUVEM_MS,
   PRAZO_MS,
   SEM_NENHUM_MOTOR,
   TESTES_DA_CLI,
@@ -216,6 +217,7 @@ describe('status e corpo viram classe', () => {
 
   it('o prazo da bancada é o mesmo do app — colunas com prazos diferentes não comparam motor', () => {
     assert.equal(PRAZO_MS, 60_000);
+    assert.equal(PRAZO_DA_NUVEM_MS, 150_000);
   });
 
   it('o JWT e a chave anônima não aparecem em detalhe nenhum, nem quando o erro de rede os carrega', async () => {

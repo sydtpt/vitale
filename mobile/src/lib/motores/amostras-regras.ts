@@ -349,7 +349,7 @@ export function colunasPorVir(fila: readonly ColunaDaCorrida[], indice: number):
  * hospedeiro. A janela medida é a que chegou ao modelo, e quem separa "o modelo
  * respondeu mal" de "o app estourou o próprio prazo" é a marca que o transporte
  * carimba em cada chamada (`RegistroDoAparelho`) — e **só o transporte do
- * aparelho carimba**. Medindo a nuvem por aqui, um prazo nosso de 60 s entraria
+ * aparelho carimba**. Medindo a nuvem por aqui, um prazo nosso de 150 s entraria
  * como reprovação dela, e a taxa sairia menor que a verdade sem nada dizendo.
  *
  * A nuvem tem quem a meça com o registro gêmeo: a bancada do Mac
@@ -453,8 +453,10 @@ export function planoDaAmostra(nomes: readonly string[]): string {
 
 /** Os prazos que os transportes deste app já têm — injetados, para serem testáveis. */
 export interface PrazosDaCorrida {
-  /** O prazo da nuvem e do modelo do sistema (`PRAZO_MS`). */
+  /** O prazo do modelo do sistema (`PRAZO_MS`). */
   readonly padrao: number;
+  /** O prazo da nuvem (`PRAZO_DA_NUVEM_MS`), o teto do gateway da function. */
+  readonly nuvem: number;
   /** O prazo do peso aberto (`PRAZO_DO_PESO_ABERTO_MS`), que paga a compilação. */
   readonly pesoAberto: number;
 }
@@ -462,13 +464,16 @@ export interface PrazosDaCorrida {
 /**
  * O prazo que o transporte **daquele** motor promete a uma chamada.
  *
- * São dois, e misturá-los erra nos dois sentidos: o do peso aberto (45 min) posto
+ * São três, e misturá-los erra nos dois sentidos: o do peso aberto (45 min) posto
  * na nuvem deixaria a tela refém por três quartos de hora; o padrão (60 s) posto
  * no peso aberto mataria a primeira chamada, que é a que paga a compilação e a
- * carga do modelo. Quem escolhe é a gramática do id, nunca o lugar da chamada.
+ * carga do modelo — e posto na nuvem fecharia a coluna antes de a function, que
+ * espera o provedor até 145 s, ter respondido. Quem escolhe é a gramática do id,
+ * nunca o lugar da chamada.
  */
 export function prazoDoMotorMs(id: MotorId, prazos: PrazosDaCorrida): number {
-  return pesoAbertoDe(id) !== undefined ? prazos.pesoAberto : prazos.padrao;
+  if (pesoAbertoDe(id) !== undefined) return prazos.pesoAberto;
+  return lerMotorId(id)?.tipo === 'nuvem' ? prazos.nuvem : prazos.padrao;
 }
 
 /**
@@ -487,8 +492,8 @@ export function prazoEmTexto(ms: number): string {
  * sempre, e a tela inteira fica refém de uma coluna.
  *
  * **Não é um prazo novo: é o dobro do que o transporte daquele motor já tem.**
- * Cada transporte promete resolver dentro do prazo dele — `PRAZO_MS` na nuvem e
- * no modelo do sistema, `PRAZO_DO_PESO_ABERTO_MS` no peso aberto, que é o único
+ * Cada transporte promete resolver dentro do prazo dele — `PRAZO_DA_NUVEM_MS` na
+ * nuvem, `PRAZO_MS` no modelo do sistema, `PRAZO_DO_PESO_ABERTO_MS` no peso aberto, que é o único
  * que pode pagar uma carga de minutos. Este teto é **rede**, não relógio: ele só
  * existe para o caso em que a promessa não foi cumprida, e chegar antes dela
  * apagaria a falha bem escrita que o transporte sabe dar ("o prazo de 60 s
