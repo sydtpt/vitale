@@ -280,7 +280,7 @@ describe('o prazo', () => {
   });
 
   it('a nuvem espera o teto do gateway, não o minuto do aparelho (05/10)', () => {
-    // O movimento do 3º trimestre passava de 30 s em toda tentativa; o ano é maior.
+    // O movimento do 3º trimestre passava de 30 s em toda tentativa, e o tempo do modelo não se prevê.
     expect(PRAZO_DA_NUVEM_MS).toBeGreaterThan(PRAZO_MS);
   });
 

@@ -72,7 +72,8 @@ export const PRAZO_MS = 60_000;
  * O prazo de uma chamada de nuvem: **o maior que a plataforma deixa**.
  *
  * Era um minuto até 05/10/2026, quando o caderno `movimento` do 3º trimestre passou
- * de 30 s em toda tentativa — e o ano é maior. A function corta o provedor em 145 s
+ * de 30 s em toda tentativa, pelo raciocínio do modelo e não pelo tamanho da entrada.
+ * A function corta o provedor em 145 s
  * e o gateway da Supabase corta a function em 150 s: esperar mais que isso aqui é
  * esperar resposta que não vem. É também o transporte do `revista:imprimir`.
  *
