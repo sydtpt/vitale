@@ -81,10 +81,12 @@ const TEMPERATURA = 0.4;
 
 /**
  * Prazo do provedor — **o maior que a plataforma deixa**. Era 30 s, e o caderno
- * `movimento` do 3º trimestre de 2026 nunca saiu: o pacote de três meses fez o
- * modelo passar de 30 s em toda tentativa (`AbortError` no log, 502 no aparelho,
- * 05/10/2026), e os outros cadernos do mesmo período saíam em 28 s — no fio. O
- * ano é maior que o trimestre.
+ * `movimento` do 3º trimestre de 2026 nunca saiu: o modelo passou de 30 s em toda
+ * tentativa (`AbortError` no log, 502 no aparelho, 05/10/2026), e os outros
+ * cadernos do mesmo período saíam em 28 s — no fio. **Não é o tamanho do período:**
+ * a entrada mede ~1.700–2.100 tokens em semana, mês, trimestre e ano (`tokens_entrada`
+ * das 175 linhas de `edicoes_ia`, 06/10). O que varia é quanto o modelo raciocina antes de
+ * escrever, e isso não se prevê pela entrada.
  *
  * O teto é da Supabase: a function que não responde em **150 s** leva um 504 do
  * gateway, em qualquer plano (o "request idle timeout"; a function só responde no

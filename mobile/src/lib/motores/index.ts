@@ -100,8 +100,8 @@ export const PRAZO_MS = 60_000;
  * que a tela vai esperar.
  *
  * Saiu do `PRAZO_MS` em 05/10/2026: o caderno `movimento` do 3º trimestre passou de
- * 30 s em toda tentativa — o pacote de três meses é maior que o de uma noite, e o do
- * ano será maior ainda. A function corta o provedor em 145 s e o gateway da Supabase
+ * 30 s em toda tentativa — não por tamanho (a entrada mede o mesmo em todo período),
+ * mas pelo raciocínio do modelo, que não se prevê. A function corta o provedor em 145 s e o gateway da Supabase
  * corta a function em 150 s, então esperar mais que 150 s aqui é esperar resposta
  * que não vem. O modelo do sistema fica no minuto: um aparelho que parou de
  * responder custaria 150 s por janela na amostra.
