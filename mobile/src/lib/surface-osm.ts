@@ -13,6 +13,8 @@
  * próxima janela — nunca derruba o sync.
  */
 import {
+  SURFACE_MATCH_RADIUS_M,
+  SURFACE_SAMPLE_SPACING_M,
   parseOverpassWays,
   planSurface,
   surfaceFromWays,
@@ -33,8 +35,29 @@ const MIRRORS = [
   'https://overpass.private.coffee/api/interpreter',
 ];
 
-/** Curto: a consulta real custa segundos, o resto é fila. */
-const TIMEOUT_MS = 25_000;
+/**
+ * Orçamento que a consulta pede ao Overpass (`[timeout:N]`).
+ *
+ * Uma pedalada de 106 km vira 265 amostras num único `around` com `out geom` —
+ * e o servidor às vezes precisa de mais de 25 s para isso.
+ */
+export const OVERPASS_TIMEOUT_S = 50;
+
+/**
+ * **Tem de ser MAIOR que o orçamento do servidor, e esse era o defeito.**
+ *
+ * Até 10/10/2026 os dois eram 25 s: a consulta pedia `[timeout:25]` e o
+ * cliente abortava em 25 s. Uma consulta que usasse todo o orçamento do
+ * servidor **nunca** podia ser entregue — o `AbortController` disparava no
+ * mesmo instante em que a resposta começava a viajar, e ainda por 4G. As duas
+ * pedaladas pendentes morriam assim, nos dois espelhos:
+ *
+ *     overpass indisponível — overpass-api.de timeout 25s · overpass.kumi…
+ *
+ * Derivado do orçamento de propósito: assim os dois não voltam a ser iguais
+ * quando alguém mexer num deles.
+ */
+export const TIMEOUT_MS = (OVERPASS_TIMEOUT_S + 25) * 1000;
 const UA = 'Orbe/1.0 (life-organizer)';
 
 async function fetchWays(query: string): Promise<OsmWay[]> {
@@ -77,7 +100,12 @@ export interface SurfaceResult {
  */
 export async function surfaceOfOverview(overview: readonly LatLng[]): Promise<SurfaceResult> {
   const today = new Date().toISOString().slice(0, 10);
-  const plan = planSurface(overview);
+  const plan = planSurface(
+    overview,
+    SURFACE_SAMPLE_SPACING_M,
+    SURFACE_MATCH_RADIUS_M,
+    OVERPASS_TIMEOUT_S,
+  );
   // Rota degenerada (um ponto ou nenhum): não há o que perguntar ao OSM, e o
   // resultado honesto é uma rota sem piso — não um erro que volta toda hora.
   const ways = plan.query ? await fetchWays(plan.query) : [];
