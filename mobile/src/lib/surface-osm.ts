@@ -15,6 +15,7 @@
 import {
   SURFACE_MATCH_RADIUS_M,
   SURFACE_SAMPLE_SPACING_M,
+  overpassWaysQuery,
   parseOverpassWays,
   planSurface,
   surfaceFromWays,
@@ -58,6 +59,26 @@ export const OVERPASS_TIMEOUT_S = 50;
  * quando alguém mexer num deles.
  */
 export const TIMEOUT_MS = (OVERPASS_TIMEOUT_S + 25) * 1000;
+
+/**
+ * Amostras por consulta. **Medido contra o `overpass-api.de` em 10/10/2026**,
+ * com um laço de 106 km na Bélgica amostrado a 400 m — a pedalada de 29/09:
+ *
+ * | pontos | resultado                          |
+ * |--------|------------------------------------|
+ * | 265    | conexão **derrubada** aos 62 s     |
+ * | 90     | **HTTP 200 · 27,7 s · 329 KB**     |
+ *
+ * Esticar o tempo não resolvia: o pedido de 265 pontos num `around` só, com
+ * `out geom`, é grande demais e o servidor desiste. Oitenta dá margem sobre os
+ * 90 que passaram, e uma rota longa vira três ou quatro pedidos que respondem
+ * — em vez de um que nunca responde.
+ *
+ * Fatias não precisam de dedupe: `OsmWay` não tem id, a sobreposição é só nas
+ * bordas, e o `pickWay` escolhe a via mais próxima de cada amostra de todo
+ * jeito. Ver a via repetida duas vezes não muda o resultado.
+ */
+export const PONTOS_POR_CONSULTA = 80;
 const UA = 'Orbe/1.0 (life-organizer)';
 
 async function fetchWays(query: string): Promise<OsmWay[]> {
@@ -108,7 +129,16 @@ export async function surfaceOfOverview(overview: readonly LatLng[]): Promise<Su
   );
   // Rota degenerada (um ponto ou nenhum): não há o que perguntar ao OSM, e o
   // resultado honesto é uma rota sem piso — não um erro que volta toda hora.
-  const ways = plan.query ? await fetchWays(plan.query) : [];
+  const pontos = plan.samples.map((s) => s.point);
+  const ways: OsmWay[] = [];
+  for (let i = 0; i < pontos.length; i += PONTOS_POR_CONSULTA) {
+    const fatia = pontos.slice(i, i + PONTOS_POR_CONSULTA);
+    ways.push(
+      ...(await fetchWays(
+        overpassWaysQuery(fatia, SURFACE_MATCH_RADIUS_M, OVERPASS_TIMEOUT_S),
+      )),
+    );
+  }
   /**
    * **Zero vias para uma rota de verdade não é resposta, é resposta vazia.**
    *

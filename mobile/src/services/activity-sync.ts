@@ -373,12 +373,14 @@ async function retryMissingRoutes(userId: string): Promise<number> {
 /** Código de ciclismo do HealthKit — o único tipo com piso hoje (ADR 0034). */
 const BIKE_ACTIVITY_ID = 13;
 /**
- * Pedaladas com piso calculado por sync. Baixo de propósito: cada uma é uma
- * consulta ao Overpass de alguns segundos, e o sync não pode virar espera. Com
- * o histórico já preenchido pelo backfill, sobram 2–3 pedaladas novas por
- * semana — duas por sync drenam de sobra.
+ * Pedaladas com piso calculado por sync.
+ *
+ * Caiu de 2 para 1 em 10/10/2026, quando a consulta passou a ser fatiada: uma
+ * pedalada de 106 km vira quatro pedidos ao Overpass de ~28 s cada, e duas
+ * delas punham ~3 min na cauda de todo sync. Com 2–3 pedaladas novas por
+ * semana, uma por ciclo drena de sobra.
  */
-const SURFACE_PER_SYNC = 2;
+const SURFACE_PER_SYNC = 1;
 /** Falha volta à fila em 6 h: várias chances por dia sem custo quando não há o que fazer. */
 const SURFACE_RETRY_H = 6;
 
