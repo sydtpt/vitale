@@ -53,6 +53,7 @@ import {
   upsertActivityRoute,
 } from '@vitale/shared';
 import { surfaceFailureMeta, surfaceOfOverview } from '../lib/surface-osm';
+import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
 
 export interface SyncResult {
   pushed: number;
@@ -387,7 +388,19 @@ async function backfillSurface(userId: string): Promise<number> {
   let pending;
   try {
     pending = await fetchSurfaceCandidates(supabase, userId, [BIKE_ACTIVITY_ID], SURFACE_PER_SYNC, retryBefore);
-  } catch {
+  } catch (e) {
+    /**
+     * **A fila não pode falhar calada.** Este `catch` era mudo, e em 10/10/2026
+     * isso custou um diagnóstico inteiro: cinco pedaladas sem piso e com
+     * `surface_meta` NULO — nulo significa que nem a marca de falha foi
+     * gravada, ou seja, o passe não tentou. Sem migalha, "a consulta da fila
+     * erra" e "não há candidata" são a mesma tela vazia, e os consertos são
+     * opostos.
+     */
+    void recordBreadcrumb(
+      'enriquecimento-fail',
+      `fila do piso: ${e instanceof Error ? e.message : String(e)}`,
+    );
     return 0;
   }
 
@@ -400,8 +413,13 @@ async function backfillSurface(userId: string): Promise<number> {
     } catch (e) {
       try {
         await saveSurfaceFailure(supabase, userId, activityId, surfaceFailureMeta(e));
-      } catch {
-        // Nem a marca de falha subiu: a rota volta na próxima janela do mesmo jeito.
+      } catch (e2) {
+        // Nem a marca de falha subiu: a rota volta na próxima janela do mesmo
+        // jeito — mas sem migalha isso fica idêntico a "nunca foi candidata".
+        void recordBreadcrumb(
+          'enriquecimento-fail',
+          `piso ${activityId}: falha ao gravar a falha — ${e2 instanceof Error ? e2.message : String(e2)}`,
+        );
       }
     }
   }

@@ -263,6 +263,28 @@ export async function setActivityGear(
   if (error) throw error;
 }
 
+/**
+ * Grava as cidades que a rota atravessa.
+ *
+ * `[]` é resposta, não lacuna: significa "o geocoder resolveu e não achou
+ * cidade", e tira a atividade da fila para sempre. Por isso quem chama só
+ * escreve depois de a lista inteira ter sido resolvida — uma falha no meio
+ * deixa `NULL`, que é "ainda não se sabe".
+ */
+export async function saveActivityCities(
+  db: SupabaseClient,
+  userId: string,
+  id: string,
+  cities: readonly unknown[],
+): Promise<void> {
+  const { error } = await db
+    .from('activities')
+    .update({ cities })
+    .eq('id', id)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
 /** Ajusta `has_route` para refletir a existência real da rota. */
 export async function setActivityHasRoute(
   db: SupabaseClient,
@@ -476,11 +498,16 @@ export async function fetchExistingRouteIds(
 /* ─────────────────────────── piso das rotas (ADR 0034/0035) ─────────────────────────── */
 
 /**
- * Quantas atividades do tipo certo a fila olha por passe. Folgado de propósito:
- * o custo é uma coluna de ids, e a janela precisa alcançar a pedalada antiga que
- * ainda não tem piso sem depender de quantas já têm.
+ * Quantas atividades do tipo certo a fila olha por passe.
+ *
+ * Nasceu em 400 e caiu para 60 em 10/10/2026. 400 ids viram duas leituras com
+ * `.in()` de 200 uuids cada — uma query string de ~7,5 kB, perto do teto de
+ * cabeçalho dos proxies —, e o passe **não tem como contar isso**: o erro cai
+ * num `catch` do chamador. Sessenta cobre meses de pedalada, cabe numa leitura
+ * só e deixa a URL em ~2 kB. A fila existe para a pedalada nova; o acervo
+ * antigo é trabalho de backfill, não de passe por sync.
  */
-const SURFACE_WINDOW = 400;
+const SURFACE_WINDOW = 60;
 
 /**
  * Pedaladas com rota e ainda sem piso — a fila do passe.

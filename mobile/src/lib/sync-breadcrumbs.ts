@@ -71,7 +71,18 @@ export type BreadcrumbEvent =
    * premissa inteira da feature. Sem o carimbo, "o geofence não disparou" e "o
    * app nunca acordou" são a mesma tela vazia.
    */
-  | 'geofence';
+  | 'geofence'
+  /**
+   * Um passe de enriquecimento no aparelho falhou — cidades (Nominatim) ou piso
+   * (Overpass). O detalhe traz qual passe e o motivo.
+   *
+   * Existe porque o silêncio desses dois já custou caro: entre 17 e 25/09/2026
+   * as cidades pararam de ser gravadas e **nada** apareceu em lugar nenhum — o
+   * sintoma foi o dono notar, semanas depois, que quatro telas estavam paradas.
+   * Passe que falha calado é indistinguível de passe que nunca rodou, e as duas
+   * causas têm consertos opostos.
+   */
+  | 'enriquecimento-fail';
 
 export interface Breadcrumb {
   /** ISO 8601. */

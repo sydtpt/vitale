@@ -39,6 +39,7 @@ import { useActivitiesStore } from '../../../store/activities.store';
 import { useAuthStore } from '../../../store/auth.store';
 import { supabase } from '../../../lib/supabase';
 import { nomearRotaSePreciso, precisaDeAlgumNome } from '../../../services/route-name';
+import { enriquecerCidadesSePreciso, precisaDeCidades } from '../../../services/city-enrich';
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
@@ -157,6 +158,32 @@ export default function AtividadeDetalheScreen() {
    * atividade que acabou de ganhar o nome local não reavaliaria a frente do
    * português no mesmo `load()`.
    */
+  /**
+   * As cidades que a rota atravessa, resolvidas **aqui, no aparelho**.
+   *
+   * Vem ANTES do nome de propósito, e não é ordem de conveniência: o
+   * `precisaDeNome` recusa rodar sem cidade, porque julgar a forma de uma rota
+   * sem cidade grava `degenerada` como recusa permanente. Enriquecida a
+   * atividade, o `load()` reavalia e a passagem do nome entra no mesmo ciclo.
+   *
+   * Mesmo contrato do nome e do piso: espera o traçado, roda uma vez, falha em
+   * silêncio para o dono — e deixa migalha em Configurações › Dados.
+   */
+  useEffect(() => {
+    if (!activity || !userId) return;
+    if (!precisaDeCidades(activity)) return;
+    if (!routePoints || routePoints.length < 2) return;
+    let alive = true;
+    void (async () => {
+      const cidades = await enriquecerCidadesSePreciso(activity, routePoints, userId);
+      if (alive && cidades) await load();
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity?.id, activity?.cities, activity?.hasRoute, userId, routePoints]);
+
   useEffect(() => {
     if (!activity || !userId) return;
     if (!precisaDeAlgumNome(activity)) return;
