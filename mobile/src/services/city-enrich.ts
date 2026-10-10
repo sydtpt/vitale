@@ -21,6 +21,7 @@ import { saveActivityCities } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { cidadesDaRota, castigoAtivoAte, GeocoderDeCastigo } from '../lib/geocode-osm';
 import { descreverErro, recordBreadcrumb } from '../lib/sync-breadcrumbs';
+import { useTrabalhoStore } from '../store/trabalho.store';
 
 /** Espera depois de uma falha comum (rede, 5xx) na MESMA atividade. */
 const ESPERA_APOS_FALHA_MS = 2 * 60_000;
@@ -31,6 +32,18 @@ const proximaTentativa = new Map<string, number>();
 /** Só para teste. */
 export function limparEsperas(): void {
   proximaTentativa.clear();
+}
+
+/**
+ * Libera uma atividade da espera, para um pedido **explícito** do dono.
+ *
+ * A espera existe para o app não insistir sozinho; um toque em "tentar de
+ * novo" é o contrário disso — é alguém decidindo. O castigo global do
+ * geocoder continua valendo e não se fura por aqui: é por isso que o botão nem
+ * aparece enquanto ele durar.
+ */
+export function permitirAgora(id: string): void {
+  proximaTentativa.delete(id);
 }
 
 /**
@@ -72,19 +85,31 @@ export async function enriquecerCidadesSePreciso(
   if (pontos.length < 2) return null;
   if (!podeTentarAgora(a.id)) return null;
 
+  const trabalho = useTrabalhoStore.getState();
+  trabalho.comecar(a.id, 'cidades');
   try {
-    const cidades = await cidadesDaRota(pontos, signal);
+    const cidades = await cidadesDaRota(pontos, signal, (feito, total) =>
+      useTrabalhoStore.getState().avancar(a.id, 'cidades', feito, total),
+    );
     await saveActivityCities(supabase, userId, a.id, cidades);
     proximaTentativa.delete(a.id);
+    useTrabalhoStore.getState().terminar(a.id, 'cidades');
     return cidades;
   } catch (e) {
-    // Sair da tela não é falha: não vira migalha nem queima a vez.
-    if (signal?.aborted) return null;
+    // Sair da tela não é falha: não vira migalha, não queima a vez, e não
+    // deixa a faixa pendurada dizendo que algo ainda roda.
+    if (signal?.aborted) {
+      useTrabalhoStore.getState().terminar(a.id, 'cidades');
+      return null;
+    }
 
     if (e instanceof GeocoderDeCastigo) {
       // O castigo é global e já está guardado em `geocode-osm`; aqui só a
       // migalha, uma por atividade, para o log não virar um muro de 429.
       proximaTentativa.set(a.id, e.liberaEm);
+      useTrabalhoStore
+        .getState()
+        .falhar(a.id, 'cidades', 'o OpenStreetMap recusou', e.liberaEm);
       void recordBreadcrumb(
         'enriquecimento-fail',
         `cidades ${a.id}: 429 — geocoder de castigo até ${new Date(e.liberaEm).toLocaleTimeString()}`,
@@ -92,7 +117,11 @@ export async function enriquecerCidadesSePreciso(
       return null;
     }
 
-    proximaTentativa.set(a.id, Date.now() + ESPERA_APOS_FALHA_MS);
+    const repetirApos = Date.now() + ESPERA_APOS_FALHA_MS;
+    proximaTentativa.set(a.id, repetirApos);
+    useTrabalhoStore
+      .getState()
+      .falhar(a.id, 'cidades', 'não deu para buscar agora', repetirApos);
     void recordBreadcrumb(
       'enriquecimento-fail',
       `cidades ${a.id}: ${descreverErro(e)}`,

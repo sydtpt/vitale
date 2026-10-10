@@ -141,6 +141,12 @@ async function reverso(
 export async function cidadesDaRota(
   pontos: readonly PontoGeo[],
   signal?: AbortSignal,
+  /**
+   * Avisa a cada amostra resolvida. Existe para a faixa de progresso poder ser
+   * **determinada**: o passe sabe quantas amostras tem antes de começar, então
+   * fingir indeterminação num trabalho de 45 s seria esconder o que se sabe.
+   */
+  onProgresso?: (feito: number, total: number) => void,
 ): Promise<CityMark[]> {
   const limpos = pontos.filter(
     (p) => typeof p?.lat === 'number' && typeof p?.lng === 'number',
@@ -149,9 +155,11 @@ export async function cidadesDaRota(
 
   const amostras = amostrarPorDistancia(limpos);
   const marcas: (CityMark | null)[] = [];
+  onProgresso?.(0, amostras.length);
   for (const amostra of amostras) {
     if (signal?.aborted) throw new Error('cancelado');
     marcas.push(await reverso(amostra.lat, amostra.lng, signal));
+    onProgresso?.(marcas.length, amostras.length);
   }
   return colapsarConsecutivas(marcas);
 }

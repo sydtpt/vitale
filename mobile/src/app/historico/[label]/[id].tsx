@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,9 @@ import { useActivitiesStore } from '../../../store/activities.store';
 import { useAuthStore } from '../../../store/auth.store';
 import { supabase } from '../../../lib/supabase';
 import { nomearRotaSePreciso, precisaDeAlgumNome } from '../../../services/route-name';
-import { enriquecerCidadesSePreciso, precisaDeCidades } from '../../../services/city-enrich';
+import { enriquecerCidadesSePreciso, permitirAgora, precisaDeCidades } from '../../../services/city-enrich';
+import { FaixaDeTrabalho } from '../../../components/FaixaDeTrabalho';
+import { useTrabalhoStore } from '../../../store/trabalho.store';
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
 import { GearPicker } from '../../../components/cards/GearPicker';
@@ -159,6 +161,22 @@ export default function AtividadeDetalheScreen() {
    * português no mesmo `load()`.
    */
   /**
+   * Quantas vezes o dono pediu "tentar de novo". Entra nas dependências dos
+   * passes: é o único jeito de um toque reexecutar um efeito cujas outras
+   * chaves não mudaram (a atividade continua sem cidade, afinal).
+   */
+  const [tentativa, setTentativa] = useState(0);
+  const aoRepetir = useCallback(
+    (tipo: 'cidades' | 'nome' | 'piso') => {
+      // O piso não roda nesta tela: quem o refaz é o próximo ciclo de sync, e
+      // até lá o botão mostra a espera em vez de prometer o que não cumpre.
+      if (tipo === 'cidades' && activity) permitirAgora(activity.id);
+      setTentativa((n) => n + 1);
+    },
+    [activity?.id],
+  );
+
+  /**
    * As cidades que a rota atravessa, resolvidas **aqui, no aparelho**.
    *
    * Vem ANTES do nome de propósito, e não é ordem de conveniência: o
@@ -191,19 +209,25 @@ export default function AtividadeDetalheScreen() {
       ctrl.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activity?.id, activity?.cities, activity?.hasRoute, userId, routePoints]);
+  }, [activity?.id, activity?.cities, activity?.hasRoute, userId, routePoints, tentativa]);
 
   useEffect(() => {
     if (!activity || !userId) return;
     if (!precisaDeAlgumNome(activity)) return;
     if (!routePoints || routePoints.length < 2) return;
     let alive = true;
+    const trabalho = useTrabalhoStore.getState();
+    trabalho.comecar(activity.id, 'nome');
     void (async () => {
       const nomes = await nomearRotaSePreciso(activity, routePoints, userId);
+      // Indeterminado de propósito: é uma chamada de duração desconhecida, e
+      // uma barra que avança sozinha prometeria precisão que não existe.
+      useTrabalhoStore.getState().terminar(activity.id, 'nome');
       if (alive && Object.keys(nomes).length > 0) await load();
     })();
     return () => {
       alive = false;
+      useTrabalhoStore.getState().terminar(activity.id, 'nome');
     };
     // Governam esta passagem a atividade, o dono e **se a rota já chegou**.
     //
@@ -222,6 +246,7 @@ export default function AtividadeDetalheScreen() {
     activity?.routeNameChecked,
     activity?.routeNamePt,
     activity?.routeNamePtChecked,
+    tentativa,
     userId,
     routePoints,
   ]);
@@ -575,6 +600,10 @@ export default function AtividadeDetalheScreen() {
           <HeaderSpacer />
         )}
       </View>
+
+      {/* A faixa fica FORA da rolagem, colada no cabeçalho: a pergunta que ela
+          responde ("devo esperar?") não pode depender de onde o dedo parou. */}
+      <FaixaDeTrabalho atividadeId={activity.id} color={color} onRepetir={aoRepetir} />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>

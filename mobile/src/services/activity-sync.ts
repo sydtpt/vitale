@@ -54,6 +54,7 @@ import {
 } from '@vitale/shared';
 import { surfaceFailureMeta, surfaceOfOverview } from '../lib/surface-osm';
 import { descreverErro, recordBreadcrumb } from '../lib/sync-breadcrumbs';
+import { useTrabalhoStore } from '../store/trabalho.store';
 
 export interface SyncResult {
   pushed: number;
@@ -64,6 +65,15 @@ export interface SyncResult {
   error?: string;
   /** Labels efetivamente tocados (para a store refletir status). */
   labels?: string[];
+  /**
+   * Pedaladas que ganharam piso neste ciclo.
+   *
+   * Existe para a store saber que **há o que recarregar mesmo sem push**: até
+   * 10/10/2026 o refresh só acontecia com `pushed > 0`, então um sync que
+   * calculava o piso não chegava à tela aberta, e o jeito de ver o resultado
+   * era sair da atividade e entrar de novo.
+   */
+  surfaced?: number;
   /** Ocorrências de tarefa PENDENTES novas geradas pelo vínculo (para notificar). */
   tasksCreated?: number;
   /**
@@ -406,11 +416,18 @@ async function backfillSurface(userId: string): Promise<number> {
 
   let count = 0;
   for (const { activityId, overview } of pending) {
+    // O piso roda no ciclo de sync, não na tela — mas a tela pode estar aberta
+    // nesta pedalada, e é dela que o dono espera resposta.
+    useTrabalhoStore.getState().comecar(activityId, 'piso');
     try {
       const { segments, meta, mix } = await surfaceOfOverview(overview);
       await saveActivitySurface(supabase, userId, activityId, segments, meta, mix);
+      useTrabalhoStore.getState().terminar(activityId, 'piso');
       count++;
     } catch (e) {
+      useTrabalhoStore
+        .getState()
+        .falhar(activityId, 'piso', 'o OpenStreetMap não respondeu', Date.now() + SURFACE_RETRY_H * 3600_000);
       try {
         await saveSurfaceFailure(supabase, userId, activityId, surfaceFailureMeta(e));
       } catch (e2) {
@@ -631,8 +648,9 @@ export async function syncDelta(opcoes: OpcoesDoDelta = {}): Promise<SyncResult>
 
     // 5. Piso das pedaladas novas (ADR 0035). Depois das rotas de propósito: o
     //    passe lê `route_overview`, que só existe depois que a rota subiu.
+    let surfaced = 0;
     try {
-      await backfillSurface(userId);
+      surfaced = await backfillSurface(userId);
     } catch (e) {
       console.warn('[sync] piso falhou:', e instanceof Error ? e.message : e);
     }
@@ -647,6 +665,7 @@ export async function syncDelta(opcoes: OpcoesDoDelta = {}): Promise<SyncResult>
       error: a.error ?? r.error,
       labels,
       tasksCreated,
+      surfaced,
       syncedActivities: subidas,
     };
   } catch (e) {

@@ -609,12 +609,29 @@ export async function saveActivitySurface(
   meta: unknown,
   mix: unknown,
 ): Promise<void> {
-  const { error } = await db
+  /**
+   * **O `select()` aqui não é enfeite: é a prova de que a linha existiu.**
+   *
+   * Um `update` do PostgREST que não casa linha nenhuma devolve `error: null`.
+   * Sem este retorno, a escrita da rota podia não acontecer e a da atividade,
+   * logo abaixo, acontecer — e o resultado é `surface_mix` preenchido com
+   * `surface_segments` NULO, que é um estado que este código não deveria saber
+   * produzir. Foi exatamente o que a produção mostrou em 10/10/2026: a pedalada
+   * de 29/09 com mix de 106.635 m e nenhum segmento, de volta à fila a cada
+   * sync, recalculada para sempre, sem um único erro.
+   */
+  const { data, error } = await db
     .from('activity_routes')
     .update({ surface_segments: segments, surface_meta: meta })
     .eq('user_id', userId)
-    .eq('activity_id', activityId);
+    .eq('activity_id', activityId)
+    .select('activity_id');
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error(
+      `piso: nenhuma linha de activity_routes casou para ${activityId} — a rota sumiu ou o dono não bate`,
+    );
+  }
   const { error: e2 } = await db
     .from('activities')
     .update({ surface_mix: mix })
@@ -630,12 +647,18 @@ export async function saveSurfaceFailure(
   activityId: string,
   meta: unknown,
 ): Promise<void> {
-  const { error } = await db
+  const { data, error } = await db
     .from('activity_routes')
     .update({ surface_meta: meta })
     .eq('user_id', userId)
-    .eq('activity_id', activityId);
+    .eq('activity_id', activityId)
+    .select('activity_id');
   if (error) throw error;
+  // Mesma razão do `saveActivitySurface`: zero linhas não é sucesso, e uma
+  // marca de falha que não gruda faz a rota voltar à fila sem explicação.
+  if (!data || data.length === 0) {
+    throw new Error(`piso: a marca de falha não casou nenhuma linha para ${activityId}`);
+  }
 }
 
 /** Grava (ou substitui) a rota de uma atividade. */

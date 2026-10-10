@@ -43,8 +43,18 @@ export type TypeSyncStatus = 'unsubscribed' | 'syncing' | 'synced' | 'pending' |
  * aberto — que é justamente quando a notificação chega e o usuário vai olhar.
  * `force` é obrigatório: sem ele o load é no-op.
  */
+/**
+ * Recarrega o acervo quando o ciclo produziu algo que a tela precisa ver.
+ *
+ * **Não basta `pushed > 0`.** Até 10/10/2026 era só isso, e por isso um sync
+ * que calculava o piso ou recuperava uma rota não chegava à tela aberta: o
+ * dono tinha de sair da atividade e entrar de novo para o resultado aparecer.
+ * Rota recuperada muda `has_route`; piso muda `surface_mix`. As duas são
+ * escritas que a tela lê, e nenhuma delas empurra atividade.
+ */
 function refreshActivityList(result: SyncResult): void {
-  if (result.pushed > 0) void useActivitiesStore.getState().load(true);
+  const mudou = result.pushed > 0 || result.routes > 0 || (result.surfaced ?? 0) > 0;
+  if (mudou) void useActivitiesStore.getState().load(true);
 }
 
 function workoutDedupeKey(workout: Pick<WorkoutItem, 'activityId' | 'start' | 'end'>): string {
