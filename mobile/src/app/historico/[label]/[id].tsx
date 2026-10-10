@@ -41,7 +41,7 @@ import { supabase } from '../../../lib/supabase';
 import { nomearRotaSePreciso, precisaDeAlgumNome } from '../../../services/route-name';
 import { enriquecerCidadesSePreciso, permitirAgora, precisaDeCidades } from '../../../services/city-enrich';
 import { FaixaDeTrabalho } from '../../../components/FaixaDeTrabalho';
-import { clearSurfaceFailure } from '@vitale/shared';
+import { clearSurfaceFailure, fetchSurfaceState } from '@vitale/shared';
 import { useFitnessStore } from '../../../store/fitness.store';
 import { useTrabalhoStore } from '../../../store/trabalho.store';
 import { useGearStore } from '../../../store/gear.store';
@@ -189,6 +189,43 @@ export default function AtividadeDetalheScreen() {
     },
     [activity?.id, userId],
   );
+
+  /**
+   * O estado do piso vem do BANCO ao abrir, não da memória da sessão.
+   *
+   * A faixa guardava a falha só em memória, e instalar um build zerava tudo —
+   * sumia a linha e sumia o botão de "tentar de novo", enquanto a marca
+   * gravada continuava tirando a rota da fila por 6 h. O dono ficava sem
+   * saída, com o bloqueio intacto (10/10/2026).
+   *
+   * `naFila` é o mesmo critério do passe (`surface_segments is null`), e não o
+   * `surface_mix`: há pedalada com mix de 106.635 m e segmentos nulos, que a
+   * fila ainda persegue e o mix diria estar pronta.
+   */
+  useEffect(() => {
+    if (!activity || !userId) return;
+    if (activity.activityId !== BIKE_ACTIVITY_ID || !activity.hasRoute) return;
+    let vivo = true;
+    void fetchSurfaceState(supabase, userId, activity.id)
+      .then((estado) => {
+        if (!vivo || !estado?.naFila) return;
+        const { emCurso, falhas } = useTrabalhoStore.getState();
+        // Não atropela o que está acontecendo agora nem uma falha desta sessão.
+        if (emCurso[`${activity.id}:piso`] || falhas[`${activity.id}:piso`]) return;
+        useTrabalhoStore
+          .getState()
+          .falhar(
+            activity.id,
+            'piso',
+            estado.falhouEm ? 'o OpenStreetMap não respondeu' : 'sem piso ainda',
+          );
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity?.id, activity?.hasRoute, activity?.activityId, userId, tentativa]);
 
   /**
    * As cidades que a rota atravessa, resolvidas **aqui, no aparelho**.

@@ -662,6 +662,38 @@ export async function saveSurfaceFailure(
 }
 
 /**
+ * O estado do piso de UMA rota, como a fila o enxerga.
+ *
+ * Existe porque a faixa da tela vivia só na memória: reiniciar o app apagava a
+ * falha e, com ela, o botão de "tentar de novo" — enquanto a marca gravada no
+ * banco continuava tirando a rota da fila por 6 h. O impasse era instalar um
+ * build e perder a única saída (medido em 10/10/2026).
+ *
+ * `naFila` é o MESMO critério do passe (`surface_segments is null`), e não
+ * `surface_mix`: a pedalada de 29/09 tem mix de 106.635 m com segmentos nulos,
+ * então olhar o mix diria "tem piso" para quem a fila ainda persegue.
+ */
+export async function fetchSurfaceState(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+): Promise<{ naFila: boolean; falhouEm?: string } | null> {
+  const { data, error } = await db
+    .from('activity_routes')
+    .select('surface_segments, surface_meta')
+    .eq('user_id', userId)
+    .eq('activity_id', activityId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const meta = (data as { surface_meta: { failedAt?: string } | null }).surface_meta;
+  return {
+    naFila: (data as { surface_segments: unknown }).surface_segments == null,
+    falhouEm: meta?.failedAt,
+  };
+}
+
+/**
  * Apaga a marca de falha do piso, devolvendo a rota à fila **agora**.
  *
  * Existe para o "tentar de novo" do dono. A janela de 6 h protege o Overpass
