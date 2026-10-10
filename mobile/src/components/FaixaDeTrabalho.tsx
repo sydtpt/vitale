@@ -87,6 +87,22 @@ export function FaixaDeTrabalho({
 
   if (!mostrar) return null;
 
+  /**
+   * O botão fica mudo enquanto o serviço pediu espera — **menos no piso**.
+   *
+   * A espera do geocoder é castigo dele: insistir durante um 429 piora o
+   * bloqueio do IP, e oferecer o botão ali seria convidar o estrago. Já a
+   * espera do piso é recuo NOSSO (seis horas, para não martelar o Overpass), e
+   * um toque do dono é o contrário de insistência automática. Sem esta
+   * exceção ele ficava trancado fora por seis horas olhando um botão morto —
+   * medido em 10/10/2026, logo depois de a causa real já ter sido consertada.
+   */
+  const travado =
+    mostrar.estado === 'falha' &&
+    mostrar.falha.tipo !== 'piso' &&
+    !!mostrar.falha.repetirApos &&
+    mostrar.falha.repetirApos > agora;
+
   const corpo =
     mostrar.estado === 'curso' ? (
       <>
@@ -125,15 +141,13 @@ export function FaixaDeTrabalho({
       <View style={styles.falhaLinha}>
         <View style={styles.falhaTexto}>
           <Text style={styles.rotulo}>{mostrar.falha.motivo}</Text>
-          {mostrar.falha.repetirApos && mostrar.falha.repetirApos > agora ? (
+          {travado && mostrar.falha.repetirApos ? (
             <Text style={styles.sub}>
               dá para tentar em {esperaEmPalavras(mostrar.falha.repetirApos, agora)}
             </Text>
           ) : null}
         </View>
-        {mostrar.falha.repetirApos && mostrar.falha.repetirApos > agora ? (
-          // Botão desabilitado de propósito: oferecer repetir durante a espera
-          // do serviço é convidar a tomar outro 429 e piorar o bloqueio.
+        {travado ? (
           <View style={[styles.repetir, styles.repetirMudo]}>
             <Ionicons name="time-outline" size={14} color={colors.ink3} />
             <Text style={styles.repetirTextoMudo}>aguarde</Text>

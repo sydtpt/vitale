@@ -661,6 +661,27 @@ export async function saveSurfaceFailure(
   }
 }
 
+/**
+ * Apaga a marca de falha do piso, devolvendo a rota à fila **agora**.
+ *
+ * Existe para o "tentar de novo" do dono. A janela de 6 h protege o Overpass
+ * de insistência automática; um toque é o contrário disso — é alguém
+ * decidindo, e sem esta porta ele ficava trancado fora por seis horas olhando
+ * um botão desabilitado.
+ */
+export async function clearSurfaceFailure(
+  db: SupabaseClient,
+  userId: string,
+  activityId: string,
+): Promise<void> {
+  const { error } = await db
+    .from('activity_routes')
+    .update({ surface_meta: null })
+    .eq('user_id', userId)
+    .eq('activity_id', activityId);
+  if (error) throw error;
+}
+
 /** Grava (ou substitui) a rota de uma atividade. */
 export async function upsertActivityRoute(
   db: SupabaseClient,

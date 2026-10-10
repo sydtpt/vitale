@@ -41,6 +41,8 @@ import { supabase } from '../../../lib/supabase';
 import { nomearRotaSePreciso, precisaDeAlgumNome } from '../../../services/route-name';
 import { enriquecerCidadesSePreciso, permitirAgora, precisaDeCidades } from '../../../services/city-enrich';
 import { FaixaDeTrabalho } from '../../../components/FaixaDeTrabalho';
+import { clearSurfaceFailure } from '@vitale/shared';
+import { useFitnessStore } from '../../../store/fitness.store';
 import { useTrabalhoStore } from '../../../store/trabalho.store';
 import { useGearStore } from '../../../store/gear.store';
 import { useSettingsStore } from '../../../store/settings.store';
@@ -168,12 +170,24 @@ export default function AtividadeDetalheScreen() {
   const [tentativa, setTentativa] = useState(0);
   const aoRepetir = useCallback(
     (tipo: 'cidades' | 'nome' | 'piso') => {
-      // O piso não roda nesta tela: quem o refaz é o próximo ciclo de sync, e
-      // até lá o botão mostra a espera em vez de prometer o que não cumpre.
-      if (tipo === 'cidades' && activity) permitirAgora(activity.id);
+      if (!activity) return;
+      if (tipo === 'cidades') permitirAgora(activity.id);
+      if (tipo === 'piso' && userId) {
+        /**
+         * O piso não roda nesta tela — quem o refaz é o ciclo de sync. Então
+         * "tentar de novo" aqui faz as duas coisas que o dono não alcança:
+         * apaga a marca que tirou a rota da fila por 6 h, e pede um ciclo.
+         * Falha em silêncio de propósito: se a limpeza não for, o ciclo
+         * simplesmente não acha a rota, e a faixa continua dizendo o que já
+         * dizia.
+         */
+        void clearSurfaceFailure(supabase, userId, activity.id)
+          .then(() => useFitnessStore.getState().runDelta())
+          .catch(() => undefined);
+      }
       setTentativa((n) => n + 1);
     },
-    [activity?.id],
+    [activity?.id, userId],
   );
 
   /**
