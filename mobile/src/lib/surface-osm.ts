@@ -81,6 +81,22 @@ export async function surfaceOfOverview(overview: readonly LatLng[]): Promise<Su
   // Rota degenerada (um ponto ou nenhum): não há o que perguntar ao OSM, e o
   // resultado honesto é uma rota sem piso — não um erro que volta toda hora.
   const ways = plan.query ? await fetchWays(plan.query) : [];
+  /**
+   * **Zero vias para uma rota de verdade não é resposta, é resposta vazia.**
+   *
+   * Sem nenhuma via, o `surfaceFromWays` classifica *toda* amostra como
+   * `desconhecido` — e isso é gravado como piso válido, o que tira a rota da
+   * fila **para sempre** (`surface_segments` deixa de ser nulo). Medido em
+   * 10/10/2026: uma pedalada apareceu na tela com 0%, que é como 100%
+   * desconhecido se lê.
+   *
+   * O Overpass responder 200 com lista vazia para uma pedalada na Bélgica é
+   * falha dele, não ausência de estrada. Lançar põe a rota de volta na fila com
+   * o motivo gravado, que é o mesmo contrato do `cities` em NULL.
+   */
+  if (plan.query && ways.length === 0) {
+    throw new Error('overpass devolveu zero vias — resposta vazia, não rota sem piso');
+  }
   const { segments, meta } = surfaceFromWays(plan, ways, today);
   return { segments, meta, mix: surfaceMix(segments) };
 }

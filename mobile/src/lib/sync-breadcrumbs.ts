@@ -100,6 +100,36 @@ export interface Breadcrumb {
  */
 let fila: Promise<void> = Promise.resolve();
 
+/**
+ * Descreve um erro para a migalha — **sem perder o que o banco disse**.
+ *
+ * `String(e)` não serve: o erro do PostgREST é um objeto simples
+ * (`{ message, code, details, hint }`), não um `Error`, e vira `[object
+ * Object]`. Foi o que aconteceu em 10/10/2026 com a primeira migalha do piso:
+ * ela provou que `saveSurfaceFailure` falhava — era por isso que `surface_meta`
+ * estava nulo —, mas engoliu o motivo, e custou um build inteiro para descobrir
+ * só isso.
+ *
+ * A ordem importa: `Error` primeiro (tem `message` e `name`), depois a forma do
+ * PostgREST, e `JSON.stringify` como rede para o resto.
+ */
+export function descreverErro(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const o = e as Record<string, unknown>;
+    const partes = [o['message'], o['code'] && `code ${o['code']}`, o['details'], o['hint']]
+      .filter((p): p is string => typeof p === 'string' && p.length > 0);
+    if (partes.length > 0) return partes.join(' · ');
+    try {
+      return JSON.stringify(e);
+    } catch {
+      // Ciclo no objeto: sobra a forma, que ainda diz mais que [object Object].
+      return `objeto com as chaves ${Object.keys(o).join(',')}`;
+    }
+  }
+  return String(e);
+}
+
 export function recordBreadcrumb(
   event: BreadcrumbEvent,
   detail?: string,

@@ -20,7 +20,7 @@ import type { Activity, CityMark } from '@vitale/shared';
 import { saveActivityCities } from '@vitale/shared';
 import { supabase } from '../lib/supabase';
 import { cidadesDaRota, castigoAtivoAte, GeocoderDeCastigo } from '../lib/geocode-osm';
-import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
+import { descreverErro, recordBreadcrumb } from '../lib/sync-breadcrumbs';
 
 /** Espera depois de uma falha comum (rede, 5xx) na MESMA atividade. */
 const ESPERA_APOS_FALHA_MS = 2 * 60_000;
@@ -95,7 +95,7 @@ export async function enriquecerCidadesSePreciso(
     proximaTentativa.set(a.id, Date.now() + ESPERA_APOS_FALHA_MS);
     void recordBreadcrumb(
       'enriquecimento-fail',
-      `cidades ${a.id}: ${e instanceof Error ? e.message : String(e)}`,
+      `cidades ${a.id}: ${descreverErro(e)}`,
     );
     return null;
   }

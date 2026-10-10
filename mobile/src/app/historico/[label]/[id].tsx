@@ -206,9 +206,18 @@ export default function AtividadeDetalheScreen() {
       alive = false;
     };
     // Governam esta passagem a atividade, o dono e **se a rota já chegou**.
+    //
+    // `cities.length` está aqui porque o `precisaDeNome` recusa rodar sem
+    // cidade, e é o enriquecimento que as traz — a dependência real existe e
+    // não estava declarada. Medido em 10/10/2026 o nome saiu mesmo assim, mas
+    // por acidente: o `load()` faz o `routePoints` trocar de identidade e é
+    // isso que reavalia a passagem hoje. Depender de um efeito vizinho para o
+    // gatilho funcionar é o tipo de coisa que para de valer num refactor
+    // inocente, sem nada ficar vermelho.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activity?.id,
+    activity?.cities?.length,
     activity?.routeName,
     activity?.routeNameChecked,
     activity?.routeNamePt,

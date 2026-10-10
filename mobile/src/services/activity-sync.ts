@@ -53,7 +53,7 @@ import {
   upsertActivityRoute,
 } from '@vitale/shared';
 import { surfaceFailureMeta, surfaceOfOverview } from '../lib/surface-osm';
-import { recordBreadcrumb } from '../lib/sync-breadcrumbs';
+import { descreverErro, recordBreadcrumb } from '../lib/sync-breadcrumbs';
 
 export interface SyncResult {
   pushed: number;
@@ -399,7 +399,7 @@ async function backfillSurface(userId: string): Promise<number> {
      */
     void recordBreadcrumb(
       'enriquecimento-fail',
-      `fila do piso: ${e instanceof Error ? e.message : String(e)}`,
+      `fila do piso: ${descreverErro(e)}`,
     );
     return 0;
   }
@@ -418,7 +418,7 @@ async function backfillSurface(userId: string): Promise<number> {
         // jeito — mas sem migalha isso fica idêntico a "nunca foi candidata".
         void recordBreadcrumb(
           'enriquecimento-fail',
-          `piso ${activityId}: falha ao gravar a falha — ${e2 instanceof Error ? e2.message : String(e2)}`,
+          `piso ${activityId}: falha ao gravar a falha — ${descreverErro(e2)}`,
         );
       }
     }
