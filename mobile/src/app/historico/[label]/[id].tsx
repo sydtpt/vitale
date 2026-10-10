@@ -173,13 +173,22 @@ export default function AtividadeDetalheScreen() {
     if (!activity || !userId) return;
     if (!precisaDeCidades(activity)) return;
     if (!routePoints || routePoints.length < 2) return;
-    let alive = true;
+    // **O `abort` é o que importa aqui, não um sinalizador.** Um passe são até
+    // 40 chamadas a 1,1 s; sem cancelar, sair da tela deixava o laço rodando, e
+    // abrir três pedaladas em sequência punha três deles a pedir ao mesmo tempo
+    // — foi assim que o Nominatim devolveu 429 nas três, em 10/10/2026.
+    const ctrl = new AbortController();
     void (async () => {
-      const cidades = await enriquecerCidadesSePreciso(activity, routePoints, userId);
-      if (alive && cidades) await load();
+      const cidades = await enriquecerCidadesSePreciso(
+        activity,
+        routePoints,
+        userId,
+        ctrl.signal,
+      );
+      if (!ctrl.signal.aborted && cidades) await load();
     })();
     return () => {
-      alive = false;
+      ctrl.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activity?.id, activity?.cities, activity?.hasRoute, userId, routePoints]);
