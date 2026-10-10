@@ -425,11 +425,18 @@ async function backfillSurface(userId: string): Promise<number> {
       useTrabalhoStore.getState().terminar(activityId, 'piso');
       count++;
     } catch (e) {
-      useTrabalhoStore
-        .getState()
-        .falhar(activityId, 'piso', 'o OpenStreetMap não respondeu', Date.now() + SURFACE_RETRY_H * 3600_000);
+      /**
+       * A espera só é anunciada **depois** de a marca grudar.
+       *
+       * A janela de 6 h existe porque `surface_meta.failedAt` tira a rota da
+       * fila; se a marca não for gravada, a rota volta no PRÓXIMO ciclo e
+       * dizer "aguarde 6 horas" na tela seria mentira. Sem marca, a faixa diz
+       * só o que houve, e o botão fica disponível.
+       */
+      let repetirApos: number | undefined;
       try {
         await saveSurfaceFailure(supabase, userId, activityId, surfaceFailureMeta(e));
+        repetirApos = Date.now() + SURFACE_RETRY_H * 3600_000;
       } catch (e2) {
         // Nem a marca de falha subiu: a rota volta na próxima janela do mesmo
         // jeito — mas sem migalha isso fica idêntico a "nunca foi candidata".
@@ -438,6 +445,9 @@ async function backfillSurface(userId: string): Promise<number> {
           `piso ${activityId}: falha ao gravar a falha — ${descreverErro(e2)}`,
         );
       }
+      useTrabalhoStore
+        .getState()
+        .falhar(activityId, 'piso', 'o OpenStreetMap não respondeu', repetirApos);
     }
   }
   return count;

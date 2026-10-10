@@ -17,20 +17,13 @@ import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, radii, spacing, useThemedStyles } from '../theme';
 import { ROTULO, oQueMostrar, useTrabalhoStore } from '../store/trabalho.store';
+import { esperaEmPalavras } from '../lib/espera';
 
 /**
  * Abaixo disto o passe não aparece: carregar o traçado e varrer fotos levam
  * 1–2 s, e uma faixa que pisca é pior que nenhuma (CAP-3).
  */
 const LIMIAR_MS = 600;
-
-/** Quanto falta, em palavras curtas. */
-function esperaEmPalavras(ate: number, agora: number): string {
-  const faltam = Math.max(0, ate - agora);
-  const min = Math.ceil(faltam / 60_000);
-  if (min <= 1) return 'menos de 1 min';
-  return `${min} min`;
-}
 
 export function FaixaDeTrabalho({
   atividadeId,
