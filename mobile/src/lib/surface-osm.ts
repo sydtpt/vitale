@@ -98,7 +98,31 @@ async function fetchWays(query: string): Promise<OsmWay[]> {
         failures.push(`${host} HTTP ${res.status}`);
         continue;
       }
-      return parseOverpassWays(await res.json());
+      const body = await res.json();
+      /**
+       * **200 não quer dizer resposta.** Sobrecarregado, o Overpass devolve
+       * 200 com `remark` e `elements` vazio — e até 11/10/2026 nós
+       * aceitávamos isso como "não há estrada aqui", porque o primeiro espelho
+       * que respondesse 200 vencia. A pedalada ficava com
+       * `overpass devolveu zero vias` sem ninguém nunca tentar o segundo
+       * espelho.
+       *
+       * Zero vias para uma fatia de rota é falha do espelho, não geografia:
+       * toda amostra está em cima de uma via. Então as duas situações caem no
+       * mesmo lugar — próximo espelho —, e o motivo vai para a mensagem, que
+       * é o que faltou para diagnosticar isto.
+       */
+      const remark = (body as { remark?: unknown })?.remark;
+      if (typeof remark === 'string' && remark.length > 0) {
+        failures.push(`${host} remark: ${remark.slice(0, 80)}`);
+        continue;
+      }
+      const ways = parseOverpassWays(body);
+      if (ways.length === 0) {
+        failures.push(`${host} zero vias`);
+        continue;
+      }
+      return ways;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       failures.push(`${host} ${ctrl.signal.aborted ? `timeout ${TIMEOUT_MS / 1000}s` : msg}`);
