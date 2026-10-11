@@ -81,8 +81,44 @@ export const TIMEOUT_MS = (OVERPASS_TIMEOUT_S + 25) * 1000;
 export const PONTOS_POR_CONSULTA = 80;
 const UA = 'Orbe/1.0 (life-organizer)';
 
+/**
+ * Rodadas sobre a lista de espelhos.
+ *
+ * **Medido em 11/10/2026**, mesma consulta repetida no `overpass-api.de`:
+ *
+ * | fatia | 200 | 504 |
+ * |-------|-----|-----|
+ * | 80 pontos | 2/3 | 1 |
+ * | 40 pontos | **0/3** | 3 |
+ * | 20 pontos | 2/3 | 1 |
+ *
+ * Encolher a fatia **não ajuda** — 40 falhou três vezes enquanto 80 passou
+ * duas —, e o corpo do 504 diz `Dispatcher_Client::…timeout. The server is
+ * probably too busy`. É fila do servidor, não peso da consulta. O que ajuda é
+ * insistir: o 504 volta em 9–15 s e o sucesso leva 11–27 s, então uma segunda
+ * rodada custa pouco e cobre a oscilação.
+ */
+const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+const RODADAS = 2;
+/** Respiro entre rodadas: o espelho que acabou de dizer "ocupado" merece um. */
+const PAUSA_ENTRE_RODADAS_MS = 3000;
+
 async function fetchWays(query: string): Promise<OsmWay[]> {
   const failures: string[] = [];
+  for (let rodada = 0; rodada < RODADAS; rodada++) {
+    if (rodada > 0) await dormir(PAUSA_ENTRE_RODADAS_MS);
+    const ways = await tentarEspelhos(query, failures);
+    if (ways) return ways;
+  }
+  throw new Error(`overpass indisponível — ${failures.join(' · ')}`);
+}
+
+/** Uma passada pelos espelhos. `null` = nenhum respondeu com vias. */
+async function tentarEspelhos(
+  query: string,
+  failures: string[],
+): Promise<OsmWay[] | null> {
   for (const url of MIRRORS) {
     const host = url.replace(/^https?:\/\//, '').split('/')[0];
     const ctrl = new AbortController();
@@ -130,7 +166,7 @@ async function fetchWays(query: string): Promise<OsmWay[]> {
       clearTimeout(timer);
     }
   }
-  throw new Error(`overpass indisponível — ${failures.join(' · ')}`);
+  return null;
 }
 
 export interface SurfaceResult {
